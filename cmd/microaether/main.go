@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 
 	"github.com/yeastengine/micro-aether/internal/amf"
 )
@@ -17,9 +16,7 @@ func main() {
 	}
 
 	go func() {
-		fmt.Printf("Hello")
 		err := amf.Start(amfcfg)
-		fmt.Printf("bye")
 		if err != nil {
 			panic(err)
 		}
