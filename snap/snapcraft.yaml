@@ -1,0 +1,16 @@
+name: microaether
+base: core22
+version: '0.0.0'
+summary: The simplest way to operate a 5G core network
+description: |
+  The simplest way to operate a 5G core network
+
+grade: devel
+confinement: devmode
+
+parts:
+  microaether:
+    plugin: go
+    source: .
+    build-snaps:
+      - go/1.22/stable
