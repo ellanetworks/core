@@ -1,0 +1,69 @@
+configuration:
+  amfDBName: mongo
+  amfName: AMF
+  debugProfilePort: 5001
+  enableDBStore: false
+  enableSctpLb: false
+  mongodb:
+    url: mongodb+srv://myDatabaseUser:D1fficultP%40ssw0rd@server.example.com/
+  networkFeatureSupport5GS:
+    emc: 0
+    emcN3: 0
+    emf: 0
+    enable: true
+    imsVoPS: 0
+    iwkN26: 0
+    mcsi: 0
+    mpsi: 0
+  ngapIpList:
+    - 0.0.0.0
+  ngappPort: 38412
+  nrfUri: http://nrf:29510
+  sbi:
+    bindingIPv4: 0.0.0.0
+    port: 29518
+    registerIPv4: 1.2.3.4
+    scheme: https
+  sctpGrpcPort: 9000
+  serviceNameList:
+    - namf-comm
+    - namf-evts
+    - namf-mt
+    - namf-loc
+    - namf-oam
+  supportDnnList:
+    - internet
+  security:
+    integrityOrder:
+      - NIA1
+      - NIA2
+    cipheringOrder:
+      - NEA0
+  networkName:
+    full: SDCORE5G
+    short: SDCORE
+  t3502Value: 720
+  t3512Value: 3600
+  t3513:
+    enable: true
+    expireTime: 6s
+    maxRetryTimes: 4
+  t3522:
+    enable: true
+    expireTime: 6s
+    maxRetryTimes: 4
+  t3550:
+    enable: true
+    expireTime: 6s
+    maxRetryTimes: 4
+  t3560:
+    enable: true
+    expireTime: 6s
+    maxRetryTimes: 4
+  t3565:
+    enable: true
+    expireTime: 6s
+    maxRetryTimes: 4
+info:
+  description: AMF initial configuration
+  version: 1.0.0
