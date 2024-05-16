@@ -7,7 +7,6 @@ import (
 )
 
 func main() {
-
 	flag.String("amfcfg", "", "/path/to/amf.yaml")
 	flag.Parse()
 	amfcfg := flag.Lookup("amfcfg").Value.String()
