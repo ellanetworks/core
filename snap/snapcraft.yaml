@@ -28,4 +28,4 @@ parts:
     plugin: dump
     source: config
     organize:
-      snap/config: config
+      config: config
