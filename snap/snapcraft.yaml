@@ -8,9 +8,18 @@ description: |
 grade: devel
 confinement: devmode
 
+package-repositories:
+  - type: apt
+    components: [multiverse]
+    suites: [jammy/mongodb-org/7.0]
+    key-id: E58830201F7DD82CD808AA84160D26BB1785BA38
+    url: https://repo.mongodb.org/apt/ubuntu
+
 parts:
   microaether:
     plugin: go
     source: .
+    stage-packages:
+      - mongodb-org
     build-snaps:
       - go/1.22/stable
