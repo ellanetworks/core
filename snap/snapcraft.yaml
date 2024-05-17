@@ -1,5 +1,5 @@
 name: microaether
-base: core24
+base: core22
 version: '0.0.0'
 summary: The simplest way to operate a 5G core network
 description: |
@@ -9,31 +9,17 @@ grade: devel
 confinement: devmode
 
 package-repositories:
- - type: apt
-   ppa: deadsnakes/ppa
+  - type: apt
+    components: [multiverse]
+    suites: [jammy/mongodb-org/7.0]
+    key-id: E58830201F7DD82CD808AA84160D26BB1785BA38
+    url: https://repo.mongodb.org/apt/ubuntu
 
 parts:
   microaether:
     plugin: go
     source: .
+    stage-packages:
+      - mongodb-org
     build-snaps:
       - go/1.22/stable
-
-  mongo:
-    plugin: nil
-    source: https://github.com/mongodb/mongo.git
-    source-tag: r7.0.10
-    build-packages:
-      - liblzma-dev
-      - libssl-dev
-      - lld
-      - python3.10
-      - python3.10-venv
-      - python3.10-dev
-    override-build: |
-      mkdir -p $CRAFT_PART_INSTALL/bin
-      python3.10 -m venv venv
-      source venv/bin/activate
-      python3.10 -m pip install -r etc/pip/compile-requirements.txt
-      python3.10 buildscripts/scons.py install-mongod --disable-warnings-as-errors
-      mv build/install/bin $SNAPCRAFT_PART_INSTALL/bin
