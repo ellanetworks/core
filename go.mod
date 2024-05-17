@@ -4,6 +4,7 @@ go 1.22.2
 
 require (
 	github.com/omec-project/amf v1.4.1
+	github.com/omec-project/webconsole v1.4.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/urfave/cli v1.22.15
 )

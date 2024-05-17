@@ -1,0 +1,3 @@
+#!/bin/sh -e
+
+mkdir "$SNAP_COMMON/data"

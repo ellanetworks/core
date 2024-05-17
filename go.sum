@@ -200,6 +200,8 @@ github.com/omec-project/util v1.0.13 h1:50ghFbWo7aqhqIknC6KDPWmkht0tP1v2wjpIdcWV
 github.com/omec-project/util v1.0.13/go.mod h1:Cn9P57qYFiEu0ZXti8imODsJIXVGqnqhP40MwbVbo3g=
 github.com/omec-project/util_3gpp v1.2.1 h1:OE8dckynwEqCpqLkRdMVuKPTQ8Afdq/I3nlROa4fQVo=
 github.com/omec-project/util_3gpp v1.2.1/go.mod h1:q2fd2dniyDlCDO/2WwEnU9+fTAO7OYrzRnPqaBxZFyc=
+github.com/omec-project/webconsole v1.4.0 h1:E2sqEySqW5QE2JqVp6lScgth7fyQ0dhAgOqhqTXaZNU=
+github.com/omec-project/webconsole v1.4.0/go.mod h1:EtWOTcwY2or1jdeKLus/7dlQ7rTO+xkVNp1RxGgZVdo=
 github.com/onsi/ginkgo v1.16.5 h1:8xi0RTUf59SOSfEtZMvwTvXYMzG4gV23XVHOZiXNtnE=
 github.com/onsi/ginkgo v1.16.5/go.mod h1:+E8gABHa3K6zRBolWtd+ROzc/U5bkGt0FwiG042wbpU=
 github.com/onsi/gomega v1.18.1 h1:M1GfJqGRrBrrGGsbxzV5dqM2U2ApXefZCQpkukxYRLE=
