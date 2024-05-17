@@ -2,37 +2,48 @@ package main
 
 import (
 	"flag"
+	"fmt"
 
 	"github.com/yeastengine/micro-aether/internal/amf"
+	"github.com/yeastengine/micro-aether/internal/config"
 	"github.com/yeastengine/micro-aether/internal/webui"
 )
 
-func main() {
-	flag.String("amfcfg", "", "/path/to/amf.yaml")
-	flag.String("webuicfg", "", "/path/to/webui.yaml")
+func parseFlags() (config.Config, error) {
+	flag.String("config", "", "/path/to/config.yaml")
 	flag.Parse()
-	amfcfg := flag.Lookup("amfcfg").Value.String()
-	if amfcfg == "" {
-		panic("amfcfg is required")
+	configFile := flag.Lookup("config").Value.String()
+	if configFile == "" {
+		return config.Config{}, fmt.Errorf("config file not provided")
 	}
-	webuicfg := flag.Lookup("webuicfg").Value.String()
-	if webuicfg == "" {
-		panic("webuicfg is required")
+	cfg, err := config.Parse(configFile)
+	if err != nil {
+		return config.Config{}, fmt.Errorf("failed to parse config file: %w", err)
 	}
+	return cfg, nil
+}
 
+func startNetworkFunctionServices(cfg config.Config) {
 	go func() {
-		err := webui.Start(webuicfg)
+		err := webui.Start(cfg.Database.Name, cfg.Database.Url, cfg.Database.AuthKeysDbName, cfg.Database.AuthUrl)
 		if err != nil {
 			panic(err)
 		}
 	}()
 
 	go func() {
-		err := amf.Start(amfcfg)
+		err := amf.Start(cfg.Database.Url)
 		if err != nil {
 			panic(err)
 		}
 	}()
+}
 
+func main() {
+	cfg, err := parseFlags()
+	if err != nil {
+		panic(err)
+	}
+	startNetworkFunctionServices(cfg)
 	select {}
 }

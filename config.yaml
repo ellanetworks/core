@@ -1,0 +1,5 @@
+database:
+  name: free5gc
+  url: mongodb://username:banana@localhost:27017
+  authKeysDbName: authentication
+  authUrl: mongodb://username:pizza@localhost:27017
