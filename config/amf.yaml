@@ -5,7 +5,7 @@ configuration:
   enableDBStore: false
   enableSctpLb: false
   mongodb:
-    url: mongodb+srv://myDatabaseUser:D1fficultP%40ssw0rd@server.example.com/
+    url: mongodb://username:banana@localhost:27017
   networkFeatureSupport5GS:
     emc: 0
     emcN3: 0

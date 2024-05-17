@@ -23,3 +23,9 @@ parts:
       - mongodb-org
     build-snaps:
       - go/1.22/stable
+  
+  config:
+    plugin: dump
+    source: config
+    organize:
+      snap/config: config
