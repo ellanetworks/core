@@ -6,8 +6,11 @@ import (
 
 	"github.com/yeastengine/moose/internal/amf"
 	"github.com/yeastengine/moose/internal/config"
+	"github.com/yeastengine/moose/internal/db"
 	"github.com/yeastengine/moose/internal/webui"
 )
+
+const DBPath = "/var/snap/moose/common/data"
 
 func parseFlags() (config.Config, error) {
 	flag.String("config", "", "/path/to/config.yaml")
@@ -39,11 +42,19 @@ func startNetworkFunctionServices(cfg config.Config) {
 	}()
 }
 
+func startMongoDB() {
+	_, err := db.StartMongoDB(DBPath)
+	if err != nil {
+		panic(err)
+	}
+}
+
 func main() {
 	cfg, err := parseFlags()
 	if err != nil {
 		panic(err)
 	}
+	startMongoDB()
 	startNetworkFunctionServices(cfg)
 	select {}
 }
