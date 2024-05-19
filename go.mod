@@ -1,4 +1,4 @@
-module github.com/yeastengine/micro-aether
+module github.com/yeastengine/moose
 
 go 1.22.2
 
@@ -7,6 +7,7 @@ require (
 	github.com/omec-project/webconsole v1.4.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/urfave/cli v1.22.15
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -117,7 +118,6 @@ require (
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/h2non/gock.v1 v1.1.2 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	inet.af/netaddr v0.0.0-20220811202034-502d2d690317 // indirect
 )

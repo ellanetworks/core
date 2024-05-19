@@ -4,9 +4,9 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/yeastengine/micro-aether/internal/amf"
-	"github.com/yeastengine/micro-aether/internal/config"
-	"github.com/yeastengine/micro-aether/internal/webui"
+	"github.com/yeastengine/moose/internal/amf"
+	"github.com/yeastengine/moose/internal/config"
+	"github.com/yeastengine/moose/internal/webui"
 )
 
 func parseFlags() (config.Config, error) {
