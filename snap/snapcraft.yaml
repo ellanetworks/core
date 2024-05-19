@@ -1,9 +1,9 @@
 name: moose
 base: core22
 version: '0.0.0'
-summary: The simplest way to operate a 5G core network
+summary: Moose is a secure, reliable, and easy to operate mobile network.
 description: |
-  The simplest way to operate a 5G core network
+  Moose is a secure, reliable, and easy to operate mobile network.
 
 grade: devel
 confinement: devmode
@@ -14,6 +14,14 @@ package-repositories:
     suites: [jammy/mongodb-org/7.0]
     key-id: E58830201F7DD82CD808AA84160D26BB1785BA38
     url: https://repo.mongodb.org/apt/ubuntu
+
+apps:
+  moose:
+    daemon: simple
+    install-mode: disable
+    command: bin/moose --config /etc/moose.yaml
+    refresh-mode: endure
+    restart-condition: on-failure
 
 parts:
   moose:
@@ -34,6 +42,6 @@ parts:
     plugin: dump
     source: .
     organize:
-      config.yaml: etc/config.yaml
+      moose.yaml: etc/moose.yaml
     stage:
-      - etc/config.yaml
+      - etc/moose.yaml
