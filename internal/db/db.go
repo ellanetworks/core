@@ -38,7 +38,12 @@ func (m *MongoDB) isRunning() bool {
 	if err != nil {
 		return false
 	}
-	defer client.Disconnect(ctx)
+	defer func() {
+		err = client.Disconnect(ctx)
+		if err != nil {
+			log.Printf("failed to disconnect from mongo: %v", err)
+		}
+	}()
 	err = client.Ping(ctx, nil)
 	if err != nil {
 		return false
