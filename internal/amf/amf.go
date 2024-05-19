@@ -15,6 +15,8 @@ var AMF = &service.AMF{}
 
 var appLog *logrus.Entry
 
+const dBName = "sdcore_amf"
+
 func init() {
 	appLog = logger.AppLog
 }
@@ -27,7 +29,7 @@ func getContext(mongoDBURL string) (*cli.Context, error) {
 	c := cli.NewContext(app, flagSet, nil)
 	amfConfig := fmt.Sprintf(`
 configuration:
-  amfDBName: sdcore_amf
+  amfDBName: %s
   amfName: AMF
   debugProfilePort: 5001
   enableDBStore: false
@@ -95,7 +97,7 @@ configuration:
 info:
   description: AMF initial configuration
   version: 1.0.0
-`, mongoDBURL)
+`, dBName, mongoDBURL)
 	tmpFile, err := os.CreateTemp("", "amfcfg-*.yaml")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file: %w", err)

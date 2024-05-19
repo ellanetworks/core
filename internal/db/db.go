@@ -13,19 +13,24 @@ import (
 )
 
 type MongoDB struct {
-	cmd *exec.Cmd
+	Cmd *exec.Cmd
+	URL string
 }
 
-func isRunning() bool {
-	uri := "mongodb://localhost:27017"
-
-	clientOptions := options.Client().ApplyURI(uri)
-
+func (m *MongoDB) getClient() (*mongo.Client, error) {
+	clientOptions := options.Client().ApplyURI(m.URL)
 	client, err := mongo.NewClient(clientOptions)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		return nil, fmt.Errorf("failed to create mongo client: %w", err)
 	}
+	return client, nil
+}
 
+func (m *MongoDB) isRunning() bool {
+	client, err := m.getClient()
+	if err != nil {
+		return false
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -40,12 +45,11 @@ func isRunning() bool {
 	} else {
 		return true
 	}
-
 }
 
-func waitForMongoDB() error {
+func (m *MongoDB) waitForStartup() error {
 	for i := 0; i < 3; i++ {
-		if isRunning() {
+		if m.isRunning() {
 			return nil
 		}
 		log.Printf("waiting for mongod to start")
@@ -64,20 +68,21 @@ func StartMongoDB(dbPath string) (*MongoDB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to start mongod: %w", err)
 	}
-
-	err = waitForMongoDB()
+	mongo := &MongoDB{
+		Cmd: cmd,
+		URL: "mongodb://localhost:27017",
+	}
+	err = mongo.waitForStartup()
 	if err != nil {
 		return nil, fmt.Errorf("failed to wait for mongod: %w", err)
 	}
-
 	log.Printf("mongod started")
-
-	return &MongoDB{cmd: cmd}, nil
+	return mongo, nil
 }
 
 func (m *MongoDB) Stop() {
-	if m.cmd != nil && m.cmd.Process != nil {
-		err := m.cmd.Process.Kill()
+	if m.Cmd != nil && m.Cmd.Process != nil {
+		err := m.Cmd.Process.Kill()
 		if err != nil {
 			log.Printf("failed to kill mongod process: %v", err)
 		}
