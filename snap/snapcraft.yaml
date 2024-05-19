@@ -19,13 +19,21 @@ parts:
   microaether:
     plugin: go
     source: .
-    stage-packages:
-      - mongodb-org
     build-snaps:
       - go/1.22/stable
   
+  mongodb:
+    plugin: nil
+    stage-packages:
+      - mongodb-org
+    stage:
+      - usr/bin
+      - usr/lib
+
   config:
     plugin: dump
-    source: config
+    source: .
     organize:
-      config: config
+      config.yaml: etc/config.yaml
+    stage:
+      - etc/config.yaml
