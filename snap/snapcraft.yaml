@@ -1,4 +1,4 @@
-name: microaether
+name: moose
 base: core22
 version: '0.0.0'
 summary: The simplest way to operate a 5G core network
@@ -16,7 +16,7 @@ package-repositories:
     url: https://repo.mongodb.org/apt/ubuntu
 
 parts:
-  microaether:
+  moose:
     plugin: go
     source: .
     build-snaps:
