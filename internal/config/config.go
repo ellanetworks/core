@@ -7,15 +7,13 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type Database struct {
-	Name           string `yaml:"name"`
-	Url            string `yaml:"url"`
-	AuthKeysDbName string `yaml:"authKeysDbName"`
-	AuthUrl        string `yaml:"authUrl"`
+type TLS struct {
+	Cert string `yaml:"cert"`
+	Key  string `yaml:"key"`
 }
 
 type Config struct {
-	Database Database `yaml:"database"`
+	TLS TLS `yaml:"tls"`
 }
 
 func Parse(configPath string) (Config, error) {

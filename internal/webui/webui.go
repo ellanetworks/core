@@ -19,7 +19,10 @@ func init() {
 	appLog = logger.AppLog
 }
 
-func getContext(mongoDBName string, mongoDBUrl string, mongoDBKeysDBName string, mongoDBKeysUrl string) (*cli.Context, error) {
+const dBName = "free5gc"
+const authDbName = "authentication"
+
+func getContext(dbUrl string) (*cli.Context, error) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
 	flagSet.String("webuicfg", "", "Webui configuration")
 	app := cli.NewApp()
@@ -106,7 +109,7 @@ logger:
   WEBUI:
     ReportCaller: false
     debugLevel: info
-`, mongoDBName, mongoDBUrl, mongoDBKeysDBName, mongoDBKeysUrl)
+`, dBName, dbUrl, authDbName, dbUrl)
 	tmpFile, err := os.CreateTemp("", "webuicfg-*.yaml")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
@@ -133,8 +136,8 @@ logger:
 	return c, nil
 }
 
-func Start(dbName string, dbUrl string, dbAuthKeysName string, dbAuthUrl string) error {
-	c, err := getContext(dbName, dbUrl, dbAuthKeysName, dbAuthUrl)
+func Start(dbUrl string) error {
+	c, err := getContext(dbUrl)
 	if err != nil {
 		logger.ConfigLog.Errorf("%+v", err)
 		return fmt.Errorf("failed to get context")

@@ -1,5 +1,3 @@
-database:
-  name: free5gc
-  url: mongodb://username:banana@localhost:27017
-  authKeysDbName: authentication
-  authUrl: mongodb://username:pizza@localhost:27017
+tls:
+  cert: /etc/moose/tls/cert.pem
+  key: /etc/moose/tls/key.pem

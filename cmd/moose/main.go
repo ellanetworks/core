@@ -6,8 +6,11 @@ import (
 
 	"github.com/yeastengine/moose/internal/amf"
 	"github.com/yeastengine/moose/internal/config"
+	"github.com/yeastengine/moose/internal/db"
 	"github.com/yeastengine/moose/internal/webui"
 )
+
+const DBPath = "/var/snap/moose/common/data"
 
 func parseFlags() (config.Config, error) {
 	flag.String("config", "", "/path/to/config.yaml")
@@ -23,20 +26,28 @@ func parseFlags() (config.Config, error) {
 	return cfg, nil
 }
 
-func startNetworkFunctionServices(cfg config.Config) {
+func startNetworkFunctionServices(cfg config.Config, dbUrl string) {
 	go func() {
-		err := webui.Start(cfg.Database.Name, cfg.Database.Url, cfg.Database.AuthKeysDbName, cfg.Database.AuthUrl)
+		err := webui.Start(dbUrl)
 		if err != nil {
 			panic(err)
 		}
 	}()
 
 	go func() {
-		err := amf.Start(cfg.Database.Url)
+		err := amf.Start(dbUrl)
 		if err != nil {
 			panic(err)
 		}
 	}()
+}
+
+func startMongoDB() string {
+	db, err := db.StartMongoDB(DBPath)
+	if err != nil {
+		panic(err)
+	}
+	return db.URL
 }
 
 func main() {
@@ -44,6 +55,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	startNetworkFunctionServices(cfg)
+	dbUrl := startMongoDB()
+	startNetworkFunctionServices(cfg, dbUrl)
 	select {}
 }
