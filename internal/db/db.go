@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"time"
 
@@ -88,17 +87,10 @@ func (m *MongoDB) waitForStartup() error {
 }
 
 func StartMongoDB(dbPath string) (*MongoDB, error) {
-	nullFile, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0666)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open /dev/null: %w", err)
-	}
-	defer nullFile.Close()
-	cmd := exec.Command(MongoBinariesPath+"/mongod", "--dbpath", dbPath, "--replSet", "rs0", "--bind_ip", "127.0.0.1")
 
-	cmd.Stdout = nullFile
-	cmd.Stderr = nullFile
+	cmd := exec.Command(MongoBinariesPath+"/mongod", "--dbpath", dbPath, "--replSet", "rs0")
 
-	err = cmd.Start()
+	err := cmd.Start()
 	if err != nil {
 		return nil, fmt.Errorf("failed to start mongod: %w", err)
 	}
