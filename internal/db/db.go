@@ -13,10 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const (
-	MongoBinariesPath = "/snap/moose/current/usr/bin"
-	LogPrefix         = "mongodb: "
-)
+const MongoBinariesPath = "/snap/moose/current/usr/bin"
 
 type MongoDB struct {
 	Cmd *exec.Cmd
