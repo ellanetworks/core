@@ -7,6 +7,7 @@ import (
 	"github.com/yeastengine/moose/internal/amf"
 	"github.com/yeastengine/moose/internal/config"
 	"github.com/yeastengine/moose/internal/db"
+	"github.com/yeastengine/moose/internal/nrf"
 	"github.com/yeastengine/moose/internal/webui"
 )
 
@@ -29,6 +30,13 @@ func parseFlags() (config.Config, error) {
 func startNetworkFunctionServices(cfg config.Config, dbUrl string) {
 	go func() {
 		err := webui.Start(dbUrl)
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	go func() {
+		err := nrf.Start(dbUrl)
 		if err != nil {
 			panic(err)
 		}
