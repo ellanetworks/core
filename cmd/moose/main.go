@@ -3,11 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"time"
 
-	"github.com/yeastengine/moose/internal/amf"
 	"github.com/yeastengine/moose/internal/config"
 	"github.com/yeastengine/moose/internal/db"
-	"github.com/yeastengine/moose/internal/webui"
+	"github.com/yeastengine/moose/internal/nrf"
 )
 
 const DBPath = "/var/snap/moose/common/data"
@@ -27,19 +27,29 @@ func parseFlags() (config.Config, error) {
 }
 
 func startNetworkFunctionServices(cfg config.Config, dbUrl string) {
+	// go func() {
+	// 	err := webui.Start(dbUrl)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// }()
+
+	// sleep for 10 seconds to allow webui to start
+	time.Sleep(10 * time.Second)
+
 	go func() {
-		err := webui.Start(dbUrl)
+		err := nrf.Start(dbUrl)
 		if err != nil {
 			panic(err)
 		}
 	}()
 
-	go func() {
-		err := amf.Start(dbUrl)
-		if err != nil {
-			panic(err)
-		}
-	}()
+	// go func() {
+	// 	err := amf.Start(dbUrl)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// }()
 }
 
 func startMongoDB() string {
