@@ -41,7 +41,7 @@ configuration:
     bindingIPv4: 0.0.0.0
     port: 29510
     registerIPv4: 127.0.0.1
-    scheme: https
+    scheme: http
   serviceNameList:
   - nnrf-nfm
   - nnrf-disc

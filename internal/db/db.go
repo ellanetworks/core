@@ -84,9 +84,7 @@ func (m *MongoDB) waitForStartup() error {
 }
 
 func StartMongoDB(dbPath string) (*MongoDB, error) {
-
 	cmd := exec.Command(MongoBinariesPath+"/mongod", "--dbpath", dbPath, "--replSet", "rs0")
-
 	err := cmd.Start()
 	if err != nil {
 		return nil, fmt.Errorf("failed to start mongod: %w", err)
@@ -116,7 +114,7 @@ func initializeReplicaSetWithRetry() error {
 		if err == nil {
 			return nil
 		}
-		AppLog.Printf("failed to initialize replica set, retrying...")
+		AppLog.Printf("failed to initialize replica set: %v", err)
 		time.Sleep(2 * time.Second)
 	}
 	return fmt.Errorf("failed to initialize replica set after multiple attempts")

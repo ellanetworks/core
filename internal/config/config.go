@@ -7,13 +7,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type TLS struct {
-	Cert string `yaml:"cert"`
-	Key  string `yaml:"key"`
-}
-
 type Config struct {
-	TLS TLS `yaml:"tls"`
 }
 
 func Parse(configPath string) (Config, error) {
