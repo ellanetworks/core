@@ -13,7 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const MongoBinariesPath = "/snap/moose/current/usr/bin"
+const MongoBinariesPath = "/snap/canard/current/usr/bin"
 
 type MongoDB struct {
 	Cmd *exec.Cmd

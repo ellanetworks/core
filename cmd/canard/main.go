@@ -4,14 +4,14 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/yeastengine/moose/internal/amf"
-	"github.com/yeastengine/moose/internal/config"
-	"github.com/yeastengine/moose/internal/db"
-	"github.com/yeastengine/moose/internal/nrf"
-	"github.com/yeastengine/moose/internal/webui"
+	"github.com/yeastengine/canard/internal/amf"
+	"github.com/yeastengine/canard/internal/config"
+	"github.com/yeastengine/canard/internal/db"
+	"github.com/yeastengine/canard/internal/nrf"
+	"github.com/yeastengine/canard/internal/webui"
 )
 
-const DBPath = "/var/snap/moose/common/data"
+const DBPath = "/var/snap/canard/common/data"
 
 func parseFlags() (config.Config, error) {
 	flag.String("config", "", "/path/to/config.yaml")

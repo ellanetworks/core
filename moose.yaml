@@ -1,3 +1,0 @@
-tls:
-  cert: /etc/moose/tls/cert.pem
-  key: /etc/moose/tls/key.pem

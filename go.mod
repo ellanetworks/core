@@ -1,4 +1,4 @@
-module github.com/yeastengine/moose
+module github.com/yeastengine/canard
 
 go 1.22.2
 
