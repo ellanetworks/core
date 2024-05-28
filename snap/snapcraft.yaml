@@ -19,7 +19,7 @@ apps:
   canard:
     daemon: simple
     install-mode: disable
-    command: bin/canard --config /etc/canard.yaml
+    command: bin/canard-start
     refresh-mode: endure
     restart-condition: on-failure
 
@@ -38,10 +38,6 @@ parts:
       - usr/bin
       - usr/lib
 
-  config:
+  service-files:
     plugin: dump
-    source: .
-    organize:
-      canard.yaml: etc/canard.yaml
-    stage:
-      - etc/canard.yaml
+    source: service

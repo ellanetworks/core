@@ -1,3 +1,4 @@
 #!/bin/sh -e
 
+cp "$SNAP/canard.yaml" "$SNAP_COMMON/canard.yaml"
 mkdir "$SNAP_COMMON/data"

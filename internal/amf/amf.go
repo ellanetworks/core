@@ -53,7 +53,7 @@ configuration:
     bindingIPv4: 0.0.0.0
     port: 29518
     registerIPv4: 0.0.0.0
-    scheme: https
+    scheme: http
   sctpGrpcPort: 9000
   serviceNameList:
     - namf-comm
