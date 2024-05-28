@@ -37,6 +37,22 @@ parts:
     stage:
       - usr/bin
       - usr/lib
+  
+  frontend:
+    plugin: nil
+    source: ./ui
+    build-snaps:
+      - node/20/stable
+    stage-snaps:
+      - node/20/stable
+    override-build: |
+      mkdir -p ${CRAFT_PART_INSTALL}/ui
+      npm install
+      npm run build
+      cp -r .next ${CRAFT_PART_INSTALL}/ui/
+      cp -r node_modules ${CRAFT_PART_INSTALL}/ui/
+      cp package.json ${CRAFT_PART_INSTALL}/ui/
+      cp -r pages ${CRAFT_PART_INSTALL}/ui/
 
   service-files:
     plugin: dump

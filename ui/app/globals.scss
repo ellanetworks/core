@@ -1,0 +1,22 @@
+@tailwind base;
+
+body {
+  font-family: "Ubuntu variable", sans-serif !important;
+}
+
+@tailwind components;
+@tailwind utilities;
+
+@import "node_modules/vanilla-framework";
+@include vanilla;
+
+@include vf-p-icon-close;
+@include vf-p-icon-connected;
+@include vf-p-icon-profile;
+@include vf-p-icon-submit-bug;
+
+@import "pattern_navigation";
+
+.l-main .p-panel__header {
+  padding: 0;
+}
