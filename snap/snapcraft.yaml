@@ -1,9 +1,9 @@
-name: moose
+name: canard
 base: core22
 version: '0.0.0'
-summary: Moose is a secure, reliable, and easy to operate mobile network.
+summary: Canard is a secure, reliable, and easy to operate mobile network.
 description: |
-  Moose is a secure, reliable, and easy to operate mobile network.
+  Canard is a secure, reliable, and easy to operate mobile network.
 
 grade: devel
 confinement: devmode
@@ -16,15 +16,15 @@ package-repositories:
     url: https://repo.mongodb.org/apt/ubuntu
 
 apps:
-  moose:
+  canard:
     daemon: simple
     install-mode: disable
-    command: bin/moose --config /etc/moose.yaml
+    command: bin/canard --config /etc/canard.yaml
     refresh-mode: endure
     restart-condition: on-failure
 
 parts:
-  moose:
+  canard:
     plugin: go
     source: .
     build-snaps:
@@ -42,6 +42,6 @@ parts:
     plugin: dump
     source: .
     organize:
-      moose.yaml: etc/moose.yaml
+      canard.yaml: etc/canard.yaml
     stage:
-      - etc/moose.yaml
+      - etc/canard.yaml

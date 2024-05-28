@@ -1,0 +1,3 @@
+tls:
+  cert: /etc/canard/tls/cert.pem
+  key: /etc/canard/tls/key.pem
