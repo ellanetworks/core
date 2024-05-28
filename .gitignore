@@ -1,0 +1,14 @@
+# ui
+ui/node_modules/*
+ui/.next/*
+ui/out/*
+ui/build/*
+ui/npm-debug.log*
+ui/yarn-debug.log*
+ui/yarn-error.log*\
+ui/*.tsbuildinfo
+ui/next-env.d.ts
+ui/.vercel
+ui/.env*.local
+ui/gnb_config.json
+ui/upf_config.json

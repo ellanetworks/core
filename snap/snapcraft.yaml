@@ -23,6 +23,16 @@ apps:
     refresh-mode: endure
     restart-condition: on-failure
 
+  ui:
+    command: npm run start
+    daemon: simple
+    refresh-mode: endure
+    restart-condition: on-failure
+    environment:
+      UPF_CONFIG_PATH: /etc/upf/upf.json
+      GNB_CONFIG_PATH: /etc/gnb/gnb.json
+      WEBUI_ENDPOINT: http://127.0.0.1:5000
+
 parts:
   canard:
     plugin: go
@@ -37,6 +47,24 @@ parts:
     stage:
       - usr/bin
       - usr/lib
+  
+  frontend:
+    plugin: nil
+    source: ./ui
+    stage-snaps:
+      - node/20/stable
+    build-snaps:
+      - node/20/stable
+    override-build: |
+      mkdir -p ${CRAFT_PART_INSTALL}/ui
+      
+      npm ci
+      npm run build
+
+      cp -r .next ${CRAFT_PART_INSTALL}/ui/
+      cp -r node_modules ${CRAFT_PART_INSTALL}/ui/
+      cp package.json ${CRAFT_PART_INSTALL}/ui/
+      cp -r pages ${CRAFT_PART_INSTALL}/ui/
 
   service-files:
     plugin: dump

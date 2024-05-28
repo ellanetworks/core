@@ -1,0 +1,44 @@
+{
+  "name": "sdcore-nms",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3005",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@canonical/react-components": "^0.53.2",
+    "@emotion/react": "^11.11.4",
+    "@emotion/styled": "^11.11.5",
+    "@mui/icons-material": "^5.15.18",
+    "@mui/material": "^5.15.18",
+    "@tanstack/react-query": "^5.39.0",
+    "@types/node": "20.12.12",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "autoprefixer": "10.4.19",
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.2.3",
+    "formik": "2.4.6",
+    "lodash": "^4.17.21",
+    "next": "14.2.3",
+    "next-swagger-doc": "^0.4.0",
+    "postcss": "8.4.38",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-icons": "^5.2.1",
+    "sass": "^1.77.2",
+    "swagger-ui-react": "^5.17.12",
+    "tailwindcss": "3.4.3",
+    "typescript": "5.4.5",
+    "vanilla-framework": "^4.11.0",
+    "yup": "1.4.0"
+  },
+  "devDependencies": {
+    "@types/swagger-ui-react": "^4.18.2",
+    "prettier": "^3.0.2",
+    "prettier-plugin-tailwindcss": "^0.5.14"
+  }
+}
