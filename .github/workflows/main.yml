@@ -90,7 +90,8 @@ jobs:
   publish-snap:
     name: Snap publish
     runs-on: ubuntu-22.04
-    needs: build
+    needs: build-snap
+    if: ${{ github.ref_name == 'main' }}
     steps:
       - uses: actions/checkout@v4
 
