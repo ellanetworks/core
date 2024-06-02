@@ -21,6 +21,7 @@ func init() {
 
 const dBName = "free5gc"
 const authDbName = "authentication"
+const GRPC_PORT = "9876"
 
 func getContext(dbUrl string) (*cli.Context, error) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
@@ -69,17 +70,13 @@ info:
 	return c, nil
 }
 
-func Start(dbUrl string) error {
+func Start(dbUrl string) (string, error) {
 	c, err := getContext(dbUrl)
 	if err != nil {
 		logger.ConfigLog.Errorf("%+v", err)
-		return fmt.Errorf("failed to get context")
+		return "", fmt.Errorf("failed to get context")
 	}
 	WEBUI.Initialize(c)
-	if err != nil {
-		logger.ConfigLog.Errorf("%+v", err)
-		return fmt.Errorf("failed to initialize")
-	}
-	WEBUI.Start()
-	return nil
+	go WEBUI.Start()
+	return "localhost:" + GRPC_PORT, nil
 }

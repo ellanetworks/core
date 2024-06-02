@@ -23,7 +23,7 @@ func init() {
 	appLog.Infoln("NRF")
 }
 
-func getContext(mongoDBURL string) (*cli.Context, error) {
+func getContext(mongoDBURL string, webuiUrl string) (*cli.Context, error) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
 	flagSet.String("nrfcfg", "", "NRF configuration")
 	app := cli.NewApp()
@@ -36,6 +36,7 @@ configuration:
   mongodb:
     name: %s
     url: %s
+  webuiUri: %s
   nfKeepAliveTime: 60
   nfProfileExpiryEnable: true
   sbi:
@@ -49,7 +50,7 @@ configuration:
 info:
   description: NRF initial local configuration
   version: 1.0.0
-`, dBName, mongoDBURL, dBName, mongoDBURL, port)
+`, dBName, mongoDBURL, dBName, mongoDBURL, webuiUrl, port)
 	tmpFile, err := os.CreateTemp("", "nrfcfg-*.yaml")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
@@ -76,8 +77,8 @@ info:
 	return c, nil
 }
 
-func Start(mongoDBURL string) (string, error) {
-	c, err := getContext(mongoDBURL)
+func Start(mongoDBURL string, webuiUrl string) (string, error) {
+	c, err := getContext(mongoDBURL, webuiUrl)
 	if err != nil {
 		logger.CfgLog.Errorf("%+v", err)
 		return "", fmt.Errorf("failed to get context")
@@ -87,6 +88,6 @@ func Start(mongoDBURL string) (string, error) {
 		logger.CfgLog.Errorf("%+v", err)
 		return "", fmt.Errorf("failed to initialize")
 	}
-	NRF.Start()
+	go NRF.Start()
 	return "http://127.0.0.1:29510", nil
 }

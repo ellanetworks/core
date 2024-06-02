@@ -16,12 +16,14 @@ var AMF = &service.AMF{}
 var appLog *logrus.Entry
 
 const dBName = "sdcore_amf"
+const SBI_PORT = "29518"
+const NGAPP_PORT = "38412"
 
 func init() {
 	appLog = logger.AppLog
 }
 
-func getContext(mongoDBURL string, nrfURL string) (*cli.Context, error) {
+func getContext(mongoDBURL string, nrfURL string, webuiURL string) (*cli.Context, error) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
 	flagSet.String("amfcfg", "", "AMF configuration")
 	app := cli.NewApp()
@@ -47,11 +49,12 @@ configuration:
     mpsi: 0
   ngapIpList:
     - 0.0.0.0
-  ngappPort: 38412
+  ngappPort: %s
   nrfUri: %s
+  webuiUri: %s
   sbi:
     bindingIPv4: 0.0.0.0
-    port: 29518
+    port: %s
     registerIPv4: 0.0.0.0
     scheme: http
   sctpGrpcPort: 9000
@@ -97,7 +100,7 @@ configuration:
 info:
   description: AMF initial configuration
   version: 1.0.0
-`, dBName, mongoDBURL, nrfURL)
+`, dBName, mongoDBURL, NGAPP_PORT, nrfURL, webuiURL, SBI_PORT)
 	tmpFile, err := os.CreateTemp("", "amfcfg-*.yaml")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
@@ -124,8 +127,8 @@ info:
 	return c, nil
 }
 
-func Start(mongoDBURL string, nrfURL string) error {
-	c, err := getContext(mongoDBURL, nrfURL)
+func Start(mongoDBURL string, nrfURL string, webuiURL string) error {
+	c, err := getContext(mongoDBURL, nrfURL, webuiURL)
 	if err != nil {
 		logger.CfgLog.Errorf("%+v", err)
 		return fmt.Errorf("failed to get context")
@@ -135,6 +138,6 @@ func Start(mongoDBURL string, nrfURL string) error {
 		logger.CfgLog.Errorf("%+v", err)
 		return fmt.Errorf("failed to initialize")
 	}
-	AMF.Start()
+	go AMF.Start()
 	return nil
 }
