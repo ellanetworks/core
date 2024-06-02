@@ -13,14 +13,6 @@ import (
 
 const DBPath = "/var/snap/canard/common/data"
 
-type NRF struct {
-	URL string
-}
-
-type WEBUI struct {
-	URL string
-}
-
 func parseFlags() (config.Config, error) {
 	flag.String("config", "", "/path/to/config.yaml")
 	flag.Parse()
