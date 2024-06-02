@@ -21,7 +21,7 @@ func init() {
 	appLog = logger.AppLog
 }
 
-func getContext(mongoDBURL string) (*cli.Context, error) {
+func getContext(mongoDBURL string, nrfURL string) (*cli.Context, error) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
 	flagSet.String("amfcfg", "", "AMF configuration")
 	app := cli.NewApp()
@@ -48,7 +48,7 @@ configuration:
   ngapIpList:
     - 0.0.0.0
   ngappPort: 38412
-  nrfUri: https://127.0.0.1:29510
+  nrfUri: %s
   sbi:
     bindingIPv4: 0.0.0.0
     port: 29518
@@ -97,7 +97,7 @@ configuration:
 info:
   description: AMF initial configuration
   version: 1.0.0
-`, dBName, mongoDBURL)
+`, dBName, mongoDBURL, nrfURL)
 	tmpFile, err := os.CreateTemp("", "amfcfg-*.yaml")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
@@ -124,8 +124,8 @@ info:
 	return c, nil
 }
 
-func Start(mongoDBURL string) error {
-	c, err := getContext(mongoDBURL)
+func Start(mongoDBURL string, nrfURL string) error {
+	c, err := getContext(mongoDBURL, nrfURL)
 	if err != nil {
 		logger.CfgLog.Errorf("%+v", err)
 		return fmt.Errorf("failed to get context")

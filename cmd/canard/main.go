@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/yeastengine/canard/internal/amf"
 	"github.com/yeastengine/canard/internal/config"
@@ -12,6 +13,10 @@ import (
 )
 
 const DBPath = "/var/snap/canard/common/data"
+
+type NRF struct {
+	URL string
+}
 
 func parseFlags() (config.Config, error) {
 	flag.String("config", "", "/path/to/config.yaml")
@@ -27,7 +32,20 @@ func parseFlags() (config.Config, error) {
 	return cfg, nil
 }
 
-func startNetworkFunctionServices(cfg config.Config, dbUrl string) {
+func startNRF(dbUrl string) (string, error) {
+	nrfObj := NRF{}
+	go func() {
+		url, err := nrf.Start(dbUrl)
+		if err != nil {
+			panic(err)
+		}
+		nrfObj.URL = url
+	}()
+
+	return nrfObj.URL, nil
+}
+
+func startNetworkFunctionServices(cfg config.Config, dbUrl string, nrfUrl string) {
 	go func() {
 		err := webui.Start(dbUrl)
 		if err != nil {
@@ -36,14 +54,7 @@ func startNetworkFunctionServices(cfg config.Config, dbUrl string) {
 	}()
 
 	go func() {
-		err := nrf.Start(dbUrl)
-		if err != nil {
-			panic(err)
-		}
-	}()
-
-	go func() {
-		err := amf.Start(dbUrl)
+		err := amf.Start(dbUrl, nrfUrl)
 		if err != nil {
 			panic(err)
 		}
@@ -59,11 +70,16 @@ func startMongoDB() string {
 }
 
 func main() {
+	os.Setenv("MANAGED_BY_CONFIG_POD", "true")
 	cfg, err := parseFlags()
 	if err != nil {
 		panic(err)
 	}
 	dbUrl := startMongoDB()
-	startNetworkFunctionServices(cfg, dbUrl)
+	nrfUrl, err := startNRF(dbUrl)
+	if err != nil {
+		panic(err)
+	}
+	startNetworkFunctionServices(cfg, dbUrl, nrfUrl)
 	select {}
 }
