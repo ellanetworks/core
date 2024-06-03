@@ -190,8 +190,6 @@ github.com/omec-project/nas v1.3.0 h1:zNqEQSNTsupT3qP6keSuOusOHKrqEYoC5ghKR8TpKE
 github.com/omec-project/nas v1.3.0/go.mod h1:So4hpY95XZTpX0Joco/axIH4MlO0o13UT1rWQWZEuLQ=
 github.com/omec-project/ngap v1.2.2 h1:TAeF2IvBL5FIBqJ/8HTRe63q9cAxjPBRhj3jodbxBhg=
 github.com/omec-project/ngap v1.2.2/go.mod h1:sPvpU/ahwqoTvFi5IfnzHmJvIxQPnsVCmq7iU/L1lEo=
-github.com/omec-project/nrf v1.4.1 h1:/5JaICgZ2URtTe7Bz9/xzEFgHaiaAHTbWcVGr9zek1I=
-github.com/omec-project/nrf v1.4.1/go.mod h1:F4JBDAZ9uWUkSjk7fh1lvzuJs8Jxbn2CGIXK8SsiaDI=
 github.com/omec-project/openapi v1.2.0 h1:7Wvi0HLvhvxMyQtqGcqtMCPC/0QCGAFP5htrXCfWxRc=
 github.com/omec-project/openapi v1.2.0/go.mod h1:hjU13MB1m9MHTko87JfsUNCdeD6/m6VkNZDD8Vq5U9M=
 github.com/omec-project/util v1.1.0 h1:TUuLmzqTLChIEXQlK9g5Ihgmw4FUm/UJnjfu0wT8Gz0=

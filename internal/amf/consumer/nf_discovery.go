@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"net/http"
 
-	nrf_cache "github.com/omec-project/nrf/nrfcache"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
 	amf_context "github.com/yeastengine/canard/internal/amf/context"
 	"github.com/yeastengine/canard/internal/amf/logger"
 	"github.com/yeastengine/canard/internal/amf/util"
+	nrf_cache "github.com/yeastengine/canard/internal/nrf/nrfcache"
 )
 
 func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfType,

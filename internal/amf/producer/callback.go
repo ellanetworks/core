@@ -10,7 +10,6 @@ import (
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/ngap/ngapType"
-	nrf_cache "github.com/omec-project/nrf/nrfcache"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/canard/internal/amf/consumer"
@@ -21,6 +20,7 @@ import (
 	"github.com/yeastengine/canard/internal/amf/nas"
 	ngap_message "github.com/yeastengine/canard/internal/amf/ngap/message"
 	"github.com/yeastengine/canard/internal/amf/util"
+	nrf_cache "github.com/yeastengine/canard/internal/nrf/nrfcache"
 )
 
 func SmContextHandler(s1, s2 string, msg interface{}) (interface{}, string, interface{}, interface{}) {

@@ -20,7 +20,6 @@ import (
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	nasLogger "github.com/omec-project/nas/logger"
 	ngapLogger "github.com/omec-project/ngap/logger"
-	nrf_cache "github.com/omec-project/nrf/nrfcache"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/fsm"
 	fsmLogger "github.com/omec-project/util/fsm/logger"
@@ -47,6 +46,7 @@ import (
 	"github.com/yeastengine/canard/internal/amf/oam"
 	"github.com/yeastengine/canard/internal/amf/producer/callback"
 	"github.com/yeastengine/canard/internal/amf/util"
+	nrf_cache "github.com/yeastengine/canard/internal/nrf/nrfcache"
 )
 
 type AMF struct{}
