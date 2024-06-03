@@ -1,4 +1,3 @@
-// SPDX-FileCopyrightText: 2022 Infosys Limited
 //
 
 package nrf_cache

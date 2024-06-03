@@ -1,4 +1,3 @@
-// SPDX-FileCopyrightText: 2022 Open Networking Foundation <info@opennetworking.org>
 package nrf_cache
 
 import (

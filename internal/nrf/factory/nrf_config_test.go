@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 /*
  *  Tests for NRF Configuration Factory
  */
