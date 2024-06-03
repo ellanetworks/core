@@ -1,7 +1,5 @@
 // SPDX-FileCopyrightText: 2022 Infosys Limited
 //
-// SPDX-License-Identifier: Apache-2.0
-//
 
 // This file contains apis to match the nf profiles based on the parameters provided in the
 // Nnrf_NFDiscovery.SearchNFInstancesParamOpts. There is a match function provided for each NF type

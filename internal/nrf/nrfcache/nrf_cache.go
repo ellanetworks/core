@@ -1,7 +1,5 @@
 // SPDX-FileCopyrightText: 2022 Infosys Limited
 //
-// SPDX-License-Identifier: Apache-2.0
-//
 
 package nrf_cache
 
