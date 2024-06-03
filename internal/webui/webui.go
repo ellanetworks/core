@@ -21,6 +21,7 @@ func init() {
 
 const dBName = "free5gc"
 const authDbName = "authentication"
+const GRPC_PORT = "9876"
 
 func getContext(dbUrl string) (*cli.Context, error) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
@@ -42,73 +43,6 @@ configuration:
 info:
   description: WebUI initial local configuration
   version: 1.0.0
-logger:
-  AMF:
-    ReportCaller: false
-    debugLevel: info
-  AUSF:
-    ReportCaller: false
-    debugLevel: info
-  Aper:
-    ReportCaller: false
-    debugLevel: info
-  CommonConsumerTest:
-    ReportCaller: false
-    debugLevel: info
-  FSM:
-    ReportCaller: false
-    debugLevel: info
-  MongoDBLibrary:
-    ReportCaller: false
-    debugLevel: info
-  N3IWF:
-    ReportCaller: false
-    debugLevel: info
-  NAS:
-    ReportCaller: false
-    debugLevel: info
-  NGAP:
-    ReportCaller: false
-    debugLevel: info
-  NRF:
-    ReportCaller: false
-    debugLevel: info
-  NamfComm:
-    ReportCaller: false
-    debugLevel: info
-  NamfEventExposure:
-    ReportCaller: false
-    debugLevel: info
-  NsmfPDUSession:
-    ReportCaller: false
-    debugLevel: info
-  NudrDataRepository:
-    ReportCaller: false
-    debugLevel: info
-  OpenApi:
-    ReportCaller: false
-    debugLevel: info
-  PCF:
-    ReportCaller: false
-    debugLevel: info
-  PFCP:
-    ReportCaller: false
-    debugLevel: info
-  PathUtil:
-    ReportCaller: false
-    debugLevel: info
-  SMF:
-    ReportCaller: false
-    debugLevel: info
-  UDM:
-    ReportCaller: false
-    debugLevel: info
-  UDR:
-    ReportCaller: false
-    debugLevel: info
-  WEBUI:
-    ReportCaller: false
-    debugLevel: info
 `, dBName, dbUrl, authDbName, dbUrl)
 	tmpFile, err := os.CreateTemp("", "webuicfg-*.yaml")
 	if err != nil {
@@ -136,17 +70,13 @@ logger:
 	return c, nil
 }
 
-func Start(dbUrl string) error {
+func Start(dbUrl string) (string, error) {
 	c, err := getContext(dbUrl)
 	if err != nil {
 		logger.ConfigLog.Errorf("%+v", err)
-		return fmt.Errorf("failed to get context")
+		return "", fmt.Errorf("failed to get context")
 	}
 	WEBUI.Initialize(c)
-	if err != nil {
-		logger.ConfigLog.Errorf("%+v", err)
-		return fmt.Errorf("failed to initialize")
-	}
-	WEBUI.Start()
-	return nil
+	go WEBUI.Start()
+	return "localhost:" + GRPC_PORT, nil
 }

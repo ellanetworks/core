@@ -16,13 +16,14 @@ var NRF = &service.NRF{}
 var appLog *logrus.Entry
 
 const dBName = "free5gc"
+const port = "29510"
 
 func init() {
 	appLog = logger.AppLog
 	appLog.Infoln("NRF")
 }
 
-func getContext(mongoDBURL string) (*cli.Context, error) {
+func getContext(mongoDBURL string, webuiUrl string) (*cli.Context, error) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
 	flagSet.String("nrfcfg", "", "NRF configuration")
 	app := cli.NewApp()
@@ -35,11 +36,12 @@ configuration:
   mongodb:
     name: %s
     url: %s
+  webuiUri: %s
   nfKeepAliveTime: 60
   nfProfileExpiryEnable: true
   sbi:
     bindingIPv4: 0.0.0.0
-    port: 29510
+    port: %s
     registerIPv4: 127.0.0.1
     scheme: http
   serviceNameList:
@@ -48,74 +50,7 @@ configuration:
 info:
   description: NRF initial local configuration
   version: 1.0.0
-logger:
-  AMF:
-    ReportCaller: false
-    debugLevel: info
-  AUSF:
-    ReportCaller: false
-    debugLevel: info
-  Aper:
-    ReportCaller: false
-    debugLevel: info
-  CommonConsumerTest:
-    ReportCaller: false
-    debugLevel: info
-  FSM:
-    ReportCaller: false
-    debugLevel: info
-  MongoDBLibrary:
-    ReportCaller: false
-    debugLevel: info
-  N3IWF:
-    ReportCaller: false
-    debugLevel: info
-  NAS:
-    ReportCaller: false
-    debugLevel: info
-  NGAP:
-    ReportCaller: false
-    debugLevel: info
-  NRF:
-    ReportCaller: false
-    debugLevel: info
-  NamfComm:
-    ReportCaller: false
-    debugLevel: info
-  NamfEventExposure:
-    ReportCaller: false
-    debugLevel: info
-  NsmfPDUSession:
-    ReportCaller: false
-    debugLevel: info
-  NudrDataRepository:
-    ReportCaller: false
-    debugLevel: info
-  OpenApi:
-    ReportCaller: false
-    debugLevel: info
-  PCF:
-    ReportCaller: false
-    debugLevel: info
-  PFCP:
-    ReportCaller: false
-    debugLevel: info
-  PathUtil:
-    ReportCaller: false
-    debugLevel: info
-  SMF:
-    ReportCaller: false
-    debugLevel: info
-  UDM:
-    ReportCaller: false
-    debugLevel: info
-  UDR:
-    ReportCaller: false
-    debugLevel: info
-  WEBUI:
-    ReportCaller: false
-    debugLevel: info
-`, dBName, mongoDBURL, dBName, mongoDBURL)
+`, dBName, mongoDBURL, dBName, mongoDBURL, webuiUrl, port)
 	tmpFile, err := os.CreateTemp("", "nrfcfg-*.yaml")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
@@ -142,17 +77,17 @@ logger:
 	return c, nil
 }
 
-func Start(mongoDBURL string) error {
-	c, err := getContext(mongoDBURL)
+func Start(mongoDBURL string, webuiUrl string) (string, error) {
+	c, err := getContext(mongoDBURL, webuiUrl)
 	if err != nil {
 		logger.CfgLog.Errorf("%+v", err)
-		return fmt.Errorf("failed to get context")
+		return "", fmt.Errorf("failed to get context")
 	}
 	err = NRF.Initialize(c)
 	if err != nil {
 		logger.CfgLog.Errorf("%+v", err)
-		return fmt.Errorf("failed to initialize")
+		return "", fmt.Errorf("failed to initialize")
 	}
-	NRF.Start()
-	return nil
+	go NRF.Start()
+	return "http://127.0.0.1:29510", nil
 }

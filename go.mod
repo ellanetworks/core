@@ -5,6 +5,7 @@ go 1.22.2
 require (
 	github.com/antonfisher/nested-logrus-formatter v1.3.1
 	github.com/omec-project/amf v1.4.2
+	github.com/omec-project/ausf v1.4.1
 	github.com/omec-project/nrf v1.4.1
 	github.com/omec-project/webconsole v1.4.0
 	github.com/sirupsen/logrus v1.9.3
@@ -20,6 +21,7 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/avast/retry-go/v4 v4.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/bronze1man/radius v0.0.0-20190516032554-afd8baec892d // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
@@ -44,6 +46,7 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
+	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/h2non/parth v0.0.0-20190131123155-b4df798d6542 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
