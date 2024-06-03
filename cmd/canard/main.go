@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/yeastengine/canard/internal/amf"
 	"github.com/yeastengine/canard/internal/config"
 	"github.com/yeastengine/canard/internal/db"
 	"github.com/yeastengine/canard/internal/nrf"
@@ -43,13 +44,13 @@ func startWebui(dbUrl string) (string, error) {
 	return url, nil
 }
 
-// func startAMF(dbUrl string, nrfUrl string, webuiUrl string) error {
-// 	err := amf.Start(dbUrl, nrfUrl, webuiUrl)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to start AMF: %w", err)
-// 	}
-// 	return nil
-// }
+func startAMF(dbUrl string, nrfUrl string, webuiUrl string) error {
+	err := amf.Start(dbUrl, nrfUrl, webuiUrl)
+	if err != nil {
+		return fmt.Errorf("failed to start AMF: %w", err)
+	}
+	return nil
+}
 
 // func startAUSF(nrfUrl string) error {
 // 	err := ausf.Start(nrfUrl)
@@ -90,7 +91,7 @@ func main() {
 	}
 	fmt.Println("Nrf URL: ", nrfUrl)
 	fmt.Println("WebUI URL: ", webuiUrl)
-	// startAMF(dbUrl, nrfUrl, webuiUrl)
+	startAMF(dbUrl, nrfUrl, webuiUrl)
 	// startAUSF(nrfUrl)
 	select {}
 }
