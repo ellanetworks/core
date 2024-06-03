@@ -1,9 +1,3 @@
-// SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
-// Copyright 2019 free5GC.org
-//
-// SPDX-License-Identifier: Apache-2.0
-//
-
 package gmm
 
 import (
@@ -261,7 +255,6 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 						ue.StoreSmContext(pduSessionID, newSmContext)
 						ue.GmmLog.Infof("create smContext[pduSessionID: %d] Success", pduSessionID)
 						// TODO: handle response(response N2SmInfo to RAN if exists)
-						ue.PublishUeCtxtInfo()
 					}
 				}
 			case nasMessage.ULNASTransportRequestTypeModificationRequest:
@@ -375,7 +368,6 @@ func forward5GSMMessageToSMF(
 			ngap_message.SendDownlinkNasTransport(ue.RanUe[accessType], n1Msg, nil)
 		}
 	}
-	ue.PublishUeCtxtInfo()
 	return nil
 }
 

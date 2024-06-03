@@ -1,10 +1,3 @@
-// SPDX-FileCopyrightText: 2022-present Intel Corporation
-// SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
-// Copyright 2019 free5GC.org
-//
-// SPDX-License-Identifier: Apache-2.0
-//
-
 package gmm
 
 import (
@@ -79,7 +72,6 @@ func Registered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		amfUe.ClearRegistrationRequestData(accessType)
 		amfUe.GmmLog.Debugln("EntryEvent at GMM State[Registered]")
 		// store context in DB. Registration procedure is complete.
-		amfUe.PublishUeCtxtInfo()
 		context.StoreContextInDB(amfUe)
 	case GmmMessageEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
@@ -161,7 +153,6 @@ func Authentication(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		amfUe.GmmLog = amfUe.GmmLog.WithField(logger.FieldSuci, fmt.Sprintf("SUCI:%s", amfUe.Suci))
 		amfUe.TxLog = amfUe.TxLog.WithField(logger.FieldSuci, fmt.Sprintf("SUCI:%s", amfUe.Suci))
 		amfUe.GmmLog.Debugln("EntryEvent at GMM State[Authentication]")
-		amfUe.PublishUeCtxtInfo()
 		fallthrough
 	case AuthRestartEvent:
 		amfUe = args[ArgAmfUe].(*context.AmfUe)
@@ -204,7 +195,6 @@ func Authentication(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 			if err := HandleAuthenticationResponse(amfUe, accessType, gmmMessage.AuthenticationResponse); err != nil {
 				logger.GmmLog.Errorln(err)
 			}
-			amfUe.PublishUeCtxtInfo()
 		case nas.MsgTypeAuthenticationFailure:
 			if err := HandleAuthenticationFailure(amfUe, accessType, gmmMessage.AuthenticationFailure); err != nil {
 				logger.GmmLog.Errorln(err)
@@ -256,7 +246,6 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		amfUe.TxLog = amfUe.NASLog.WithField(logger.FieldSupi, fmt.Sprintf("SUPI:%s", amfUe.Supi))
 		amfUe.GmmLog = amfUe.GmmLog.WithField(logger.FieldSupi, fmt.Sprintf("SUPI:%s", amfUe.Supi))
 		amfUe.ProducerLog = logger.ProducerLog.WithField(logger.FieldSupi, fmt.Sprintf("SUPI:%s", amfUe.Supi))
-		amfUe.PublishUeCtxtInfo()
 		amfUe.GmmLog.Debugln("EntryEvent at GMM State[SecurityMode]")
 		if amfUe.SecurityContextIsValid() {
 			amfUe.GmmLog.Debugln("UE has a valid security context - skip security mode control procedure")
@@ -373,7 +362,6 @@ func ContextSetup(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		gmmMessage := args[ArgNASMessage]
 		accessType := args[ArgAccessType].(models.AccessType)
 		amfUe.GmmLog.Debugln("EntryEvent at GMM State[ContextSetup]")
-		amfUe.PublishUeCtxtInfo()
 		switch message := gmmMessage.(type) {
 		case *nasMessage.RegistrationRequest:
 			amfUe.RegistrationRequest = message
@@ -480,7 +468,6 @@ func DeregisteredInitiated(state *fsm.State, event fsm.EventType, args fsm.ArgsT
 				}
 			}
 		}
-		amfUe.PublishUeCtxtInfo()
 	case GmmMessageEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
 		gmmMessage := args[ArgNASMessage].(*nas.GmmMessage)

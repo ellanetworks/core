@@ -16,7 +16,6 @@ require (
 	github.com/omec-project/aper v1.1.2
 	github.com/omec-project/ausf v1.4.1
 	github.com/omec-project/config5g v1.4.0
-	github.com/omec-project/metricfunc v1.4.1
 	github.com/omec-project/nas v1.3.0
 	github.com/omec-project/ngap v1.2.2
 	github.com/omec-project/nrf v1.4.1
@@ -26,7 +25,6 @@ require (
 	github.com/prometheus/client_golang v1.19.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.18.2
-	github.com/stretchr/testify v1.9.0
 	github.com/urfave/cli v1.22.15
 	go.mongodb.org/mongo-driver v1.11.7
 	google.golang.org/grpc v1.64.0
@@ -48,7 +46,6 @@ require (
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/evanphx/json-patch v5.9.0+incompatible // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
@@ -80,7 +77,6 @@ require (
 	github.com/omec-project/logger_util v1.2.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.48.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect

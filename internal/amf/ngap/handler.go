@@ -1,10 +1,3 @@
-// SPDX-FileCopyrightText: 2022-present Intel Corporation
-// SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
-// Copyright 2019 free5GC.org
-//
-// SPDX-License-Identifier: Apache-2.0
-//
-
 package ngap
 
 import (
@@ -1068,7 +1061,6 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 		if err != nil {
 			ran.Log.Errorln(err.Error())
 		}
-		amfUe.PublishUeCtxtInfo()
 		context.StoreContextInDB(amfUe)
 	case context.UeContextReleaseUeContext:
 		ran.Log.Infof("Release UE[%s] Context : Release Ue Context", amfUe.Supi)
@@ -1080,11 +1072,9 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 		// Valid Security is not exist for this UE then only delete AMfUe Context
 		if !amfUe.SecurityContextAvailable {
 			ran.Log.Infof("Valid Security is not exist for the UE[%s], so deleting AmfUe Context", amfUe.Supi)
-			amfUe.PublishUeCtxtInfo()
 			amfUe.Remove()
 			context.DeleteContextFromDB(amfUe)
 		} else {
-			amfUe.PublishUeCtxtInfo()
 			context.StoreContextInDB(amfUe)
 		}
 	case context.UeContextReleaseDueToNwInitiatedDeregistraion:
@@ -1093,7 +1083,6 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 		if err != nil {
 			ran.Log.Errorln(err.Error())
 		}
-		amfUe.PublishUeCtxtInfo()
 		amfUe.Remove()
 		context.DeleteContextFromDB(amfUe)
 	case context.UeContextReleaseHandover:
@@ -1108,7 +1097,6 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 			ran.Log.Errorln(err.Error())
 		}
 		amfUe.AttachRanUe(targetRanUe)
-		amfUe.PublishUeCtxtInfo()
 		// Todo: remove indirect tunnel
 	default:
 		ran.Log.Errorf("Invalid Release Action[%d]", ranUe.ReleaseAction)
@@ -1720,7 +1708,6 @@ func HandlePDUSessionResourceSetupResponse(ran *context.AmfRan, message *ngapTyp
 		}
 
 		// store context in DB. PDU Establishment is complete.
-		amfUe.PublishUeCtxtInfo()
 		context.StoreContextInDB(amfUe)
 	}
 
@@ -2344,7 +2331,6 @@ func HandleInitialContextSetupResponse(ran *context.AmfRan, message *ngapType.NG
 		printCriticalityDiagnostics(ran, criticalityDiagnostics)
 	}
 	ranUe.RecvdInitialContextSetupResponse = true
-	amfUe.PublishUeCtxtInfo()
 	context.StoreContextInDB(amfUe)
 }
 

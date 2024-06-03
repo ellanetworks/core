@@ -186,8 +186,6 @@ github.com/omec-project/logger_conf v1.1.1 h1:qo0cF5gnPfth8wy+I/QjiOx+F5jB6h4GLS
 github.com/omec-project/logger_conf v1.1.1/go.mod h1:2EwoAXjOcRTweseN+ogWifJvjocEKjz3kxRaIC4I88g=
 github.com/omec-project/logger_util v1.2.0 h1:Wtx6skInAPqSic0b97QtJcs+xHDh5798MY2WRrnUz3s=
 github.com/omec-project/logger_util v1.2.0/go.mod h1:LRHlDJdCqVjOxYvYslRryj0DFUNtxQkgxEiQ7fSCoPk=
-github.com/omec-project/metricfunc v1.4.1 h1:n1EajFuGaHs9wouLL2GOBEt1oWj074dXei/NWLGNDaw=
-github.com/omec-project/metricfunc v1.4.1/go.mod h1:biEfEyPV0KdhwYMQEcDFwuju7vQfx7fAvgDdc8MvF84=
 github.com/omec-project/nas v1.3.0 h1:zNqEQSNTsupT3qP6keSuOusOHKrqEYoC5ghKR8TpKEQ=
 github.com/omec-project/nas v1.3.0/go.mod h1:So4hpY95XZTpX0Joco/axIH4MlO0o13UT1rWQWZEuLQ=
 github.com/omec-project/ngap v1.2.2 h1:TAeF2IvBL5FIBqJ/8HTRe63q9cAxjPBRhj3jodbxBhg=

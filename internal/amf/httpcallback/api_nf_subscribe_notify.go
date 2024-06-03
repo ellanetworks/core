@@ -1,9 +1,3 @@
-// SPDX-FileCopyrightText: 2022 Infosys Limited
-// Copyright 2019 free5GC.org
-//
-// SPDX-License-Identifier: Apache-2.0
-//
-
 package httpcallback
 
 import (
