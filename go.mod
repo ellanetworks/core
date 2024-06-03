@@ -10,7 +10,7 @@ require (
 	github.com/omec-project/webconsole v1.4.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/urfave/cli v1.22.15
-	go.mongodb.org/mongo-driver v1.11.7
+	go.mongodb.org/mongo-driver v1.15.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
