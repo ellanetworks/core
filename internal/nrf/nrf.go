@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/omec-project/nrf/logger"
-	"github.com/omec-project/nrf/service"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
+	"github.com/yeastengine/canard/internal/nrf/nrf/logger"
+	"github.com/yeastengine/canard/internal/nrf/nrf/service"
 )
 
 var NRF = &service.NRF{}
