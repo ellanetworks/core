@@ -237,17 +237,6 @@ func (c *NrfCache) cleanupExpiredItems() {
 	}
 }
 
-// purge - release the cache and its resources.
-func (c *NrfCache) purge() {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	close(c.done)
-	c.priorityQ = newNfProfilePriorityQ()
-	c.cache = make(map[string]*NfProfileItem)
-	c.evictionTicker.Stop()
-}
-
 func (c *NrfCache) startExpiryProcessing() {
 	for {
 		select {
@@ -304,16 +293,6 @@ func (c *NrfMasterCache) GetNrfCacheInstance(targetNfType models.NfType) *NrfCac
 	return cache
 }
 
-func (c *NrfMasterCache) clearNrfMasterCache() {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	for k, cache := range c.nfTypeToCacheMap {
-		cache.purge()
-		delete(c.nfTypeToCacheMap, k)
-	}
-}
-
 func (c *NrfMasterCache) removeNfProfile(nfInstanceId string) bool {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -338,11 +317,6 @@ func InitNrfCaching(interval time.Duration, cb NrfDiscoveryQueryCb) {
 		nrfDiscoveryQueryCb: cb,
 	}
 	masterCache = m
-}
-
-func disableNrfCaching() {
-	masterCache.clearNrfMasterCache()
-	masterCache = nil
 }
 
 func SearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (models.SearchResult, error) {
