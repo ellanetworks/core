@@ -25,7 +25,6 @@ import (
 	"github.com/yeastengine/canard/internal/nrf/factory"
 	"github.com/yeastengine/canard/internal/nrf/logger"
 	"github.com/yeastengine/canard/internal/nrf/management"
-	"github.com/yeastengine/canard/internal/nrf/metrics"
 	"github.com/yeastengine/canard/internal/nrf/util"
 )
 
@@ -178,8 +177,6 @@ func (nrf *NRF) Start() {
 	accesstoken.AddService(router)
 	discovery.AddService(router)
 	management.AddService(router)
-
-	go metrics.InitMetrics()
 
 	nrf_context.InitNrfContext()
 

@@ -1,0 +1,16 @@
+.openapi-generator-ignore
+Dockerfile
+api/openapi.yaml
+go/README.md
+go/api_default.go
+go/model_device_groups.go
+go/model_device_groups_ip_domain_expanded.go
+go/model_slice.go
+go/model_slice_applications_information.go
+go/model_slice_qos.go
+go/model_slice_site_info.go
+go/model_slice_site_info_g_node_bs.go
+go/model_slice_site_info_plmn.go
+go/model_slice_slice_id.go
+go/routers.go
+main.go

@@ -20,7 +20,6 @@ require (
 	github.com/omec-project/ngap v1.2.2
 	github.com/omec-project/openapi v1.2.0
 	github.com/omec-project/util v1.1.0
-	github.com/omec-project/webconsole v1.4.1
 	github.com/prometheus/client_golang v1.19.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.19.0
