@@ -180,12 +180,6 @@ github.com/omec-project/ausf v1.4.1 h1:/nO6g9acowa0RrVmZHGppHGVRCuvHrrh4YL9Fn96I
 github.com/omec-project/ausf v1.4.1/go.mod h1:pvSojbMCCIHddlc3d1Y3EQvvK7ItUiPlNXN5zFvIsRU=
 github.com/omec-project/config5g v1.4.0 h1:UxwF4bXqlXcAYx+euWJoVmuP+vsLXQr8Chq68QWYswM=
 github.com/omec-project/config5g v1.4.0/go.mod h1:/rF/hIDhZR+B2ytNe3bdLWASTI1wNMmC0QHdmaPVlNY=
-github.com/omec-project/http2_util v1.2.0 h1:ggQ1GjY2x6VRpKuRhZj0t9dh6eISY6LRBv4rlMD++8s=
-github.com/omec-project/http2_util v1.2.0/go.mod h1:KLgvU3o7qmG/i5XO/qITscFql2tWCAmjE6glX+dxe7M=
-github.com/omec-project/logger_conf v1.1.1 h1:qo0cF5gnPfth8wy+I/QjiOx+F5jB6h4GLSOdyS+ted8=
-github.com/omec-project/logger_conf v1.1.1/go.mod h1:2EwoAXjOcRTweseN+ogWifJvjocEKjz3kxRaIC4I88g=
-github.com/omec-project/logger_util v1.2.0 h1:Wtx6skInAPqSic0b97QtJcs+xHDh5798MY2WRrnUz3s=
-github.com/omec-project/logger_util v1.2.0/go.mod h1:LRHlDJdCqVjOxYvYslRryj0DFUNtxQkgxEiQ7fSCoPk=
 github.com/omec-project/nas v1.3.0 h1:zNqEQSNTsupT3qP6keSuOusOHKrqEYoC5ghKR8TpKEQ=
 github.com/omec-project/nas v1.3.0/go.mod h1:So4hpY95XZTpX0Joco/axIH4MlO0o13UT1rWQWZEuLQ=
 github.com/omec-project/ngap v1.2.2 h1:TAeF2IvBL5FIBqJ/8HTRe63q9cAxjPBRhj3jodbxBhg=
@@ -194,8 +188,8 @@ github.com/omec-project/openapi v1.2.0 h1:7Wvi0HLvhvxMyQtqGcqtMCPC/0QCGAFP5htrXC
 github.com/omec-project/openapi v1.2.0/go.mod h1:hjU13MB1m9MHTko87JfsUNCdeD6/m6VkNZDD8Vq5U9M=
 github.com/omec-project/util v1.1.0 h1:TUuLmzqTLChIEXQlK9g5Ihgmw4FUm/UJnjfu0wT8Gz0=
 github.com/omec-project/util v1.1.0/go.mod h1:BEv8nCokB4j0fgAQ6VVkKuQ2PSP3DJMEmz25pFMw5X8=
-github.com/omec-project/webconsole v1.4.0 h1:E2sqEySqW5QE2JqVp6lScgth7fyQ0dhAgOqhqTXaZNU=
-github.com/omec-project/webconsole v1.4.0/go.mod h1:EtWOTcwY2or1jdeKLus/7dlQ7rTO+xkVNp1RxGgZVdo=
+github.com/omec-project/webconsole v1.4.1 h1:8rRHP1CqIJ25MWP34/h+YFzFr5LtJpMdDhLWvFDc3qk=
+github.com/omec-project/webconsole v1.4.1/go.mod h1:IDp87n+IwUKBVr8l3J3Ep9NeDOuJCcFI9VcqHir0jC4=
 github.com/onsi/ginkgo v1.16.5 h1:8xi0RTUf59SOSfEtZMvwTvXYMzG4gV23XVHOZiXNtnE=
 github.com/onsi/ginkgo v1.16.5/go.mod h1:+E8gABHa3K6zRBolWtd+ROzc/U5bkGt0FwiG042wbpU=
 github.com/onsi/gomega v1.18.1 h1:M1GfJqGRrBrrGGsbxzV5dqM2U2ApXefZCQpkukxYRLE=
