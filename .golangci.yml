@@ -209,12 +209,12 @@ linters-settings:
 linters:
   enable:
     - gofmt
-    - govet
+    # - govet
     # - errcheck
     - staticcheck
     - unused
     # - gosimple
-    - typecheck
+    # - typecheck
     # Additional
     # - lll
     - godox

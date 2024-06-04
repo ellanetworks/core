@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/omec-project/amf/logger"
-	"github.com/omec-project/amf/service"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
+	"github.com/yeastengine/canard/internal/amf/logger"
+	"github.com/yeastengine/canard/internal/amf/service"
 )
 
 var AMF = &service.AMF{}
