@@ -22,20 +22,6 @@ jobs:
 
       - name: Build
         run: go build ./...
-
-  go-vet:
-    runs-on: ubuntu-22.04
-    needs:
-      - build
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-
-      - name: Go vet
-        run: go vet ./...
   
   lint:
     runs-on: ubuntu-22.04
