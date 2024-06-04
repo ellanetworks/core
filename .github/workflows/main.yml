@@ -57,7 +57,6 @@ jobs:
     runs-on: ubuntu-22.04
     needs:
       - build
-      - go-vet
       - lint
       - unit-tests
     steps:
