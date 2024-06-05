@@ -10,6 +10,7 @@ import (
 	"github.com/yeastengine/canard/internal/config"
 	"github.com/yeastengine/canard/internal/db"
 	"github.com/yeastengine/canard/internal/nrf"
+	"github.com/yeastengine/canard/internal/pcf"
 	"github.com/yeastengine/canard/internal/webui"
 )
 
@@ -61,6 +62,15 @@ func startAUSF(nrfUrl string, webuiUrl string) error {
 	return nil
 }
 
+func startPCF(nrfUrl string, webuiUrl string) error {
+	fmt.Printf("Starting PCF")
+	err := pcf.Start(nrfUrl, webuiUrl)
+	if err != nil {
+		return fmt.Errorf("failed to start PCF: %w", err)
+	}
+	return nil
+}
+
 func startMongoDB() string {
 	db, err := db.StartMongoDB(DBPath)
 	if err != nil {
@@ -102,15 +112,20 @@ func main() {
 	if err != nil {
 		panic("Failed to start NRF")
 	}
-	fmt.Println("Nrf URL: ", nrfUrl)
-	fmt.Println("WebUI URL: ", webuiUrl)
+	fmt.Println("Starting AMF")
 	err = startAMF(dbUrl, nrfUrl, webuiUrl)
 	if err != nil {
 		panic("Failed to start AMF")
 	}
+	fmt.Println("Starting AUSF")
 	err = startAUSF(nrfUrl, webuiUrl)
 	if err != nil {
 		panic("Failed to start AUSF")
+	}
+	fmt.Println("Starting PCF")
+	err = startPCF(nrfUrl, webuiUrl)
+	if err != nil {
+		panic("Failed to start PCF")
 	}
 	select {}
 }

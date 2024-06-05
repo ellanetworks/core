@@ -34,7 +34,6 @@ import (
 	"github.com/yeastengine/canard/internal/pcf/httpcallback"
 	"github.com/yeastengine/canard/internal/pcf/internal/notifyevent"
 	"github.com/yeastengine/canard/internal/pcf/logger"
-	"github.com/yeastengine/canard/internal/pcf/metrics"
 	"github.com/yeastengine/canard/internal/pcf/oam"
 	"github.com/yeastengine/canard/internal/pcf/policyauthorization"
 	"github.com/yeastengine/canard/internal/pcf/smpolicy"
@@ -200,8 +199,6 @@ func (pcf *PCF) Start() {
 	policyauthorization.AddService(router)
 	httpcallback.AddService(router)
 	oam.AddService(router)
-
-	go metrics.InitMetrics()
 
 	router.Use(cors.New(cors.Config{
 		AllowMethods: []string{"GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"},

@@ -15,17 +15,13 @@ var PCF = &service.PCF{}
 
 var appLog *logrus.Entry
 
-const (
-	dBName     = "sdcore_pcf"
-	SBI_PORT   = "29518"
-	NGAPP_PORT = "38412"
-)
+const SBI_PORT = "29507"
 
 func init() {
 	appLog = logger.AppLog
 }
 
-func getContext(mongoDBURL string, nrfURL string, webuiURL string) (*cli.Context, error) {
+func getContext(nrfURL string, webuiURL string) (*cli.Context, error) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
 	flagSet.String("pcfcfg", "", "PCF configuration")
 	app := cli.NewApp()
@@ -33,76 +29,28 @@ func getContext(mongoDBURL string, nrfURL string, webuiURL string) (*cli.Context
 	c := cli.NewContext(app, flagSet, nil)
 	pcfConfig := fmt.Sprintf(`
 configuration:
-  pcfDBName: %s
-  pcfName: PCF
-  debugProfilePort: 5001
-  enableDBStore: false
-  enableSctpLb: false
-  mongodb:
-    url: %s
-  networkFeatureSupport5GS:
-    emc: 0
-    emcN3: 0
-    emf: 0
-    enable: true
-    imsVoPS: 0
-    iwkN26: 0
-    mcsi: 0
-    mpsi: 0
-  ngapIpList:
-    - 0.0.0.0
-  ngappPort: %s
+  defaultBdtRefId: BdtPolicyId-
   nrfUri: %s
+  pcfName: PCF
   webuiUri: %s
   sbi:
     bindingIPv4: 0.0.0.0
     port: %s
     registerIPv4: 0.0.0.0
     scheme: http
-  sctpGrpcPort: 9000
-  serviceNameList:
-    - npcf-comm
-    - npcf-evts
-    - npcf-mt
-    - npcf-loc
-    - npcf-oam
-  supportDnnList:
-    - internet
-  security:
-    integrityOrder:
-      - NIA1
-      - NIA2
-    cipheringOrder:
-      - NEA0
-  networkName:
-    full: SDCORE5G
-    short: SDCORE
-  t3502Value: 720
-  t3512Value: 3600
-  t3513:
-    enable: true
-    expireTime: 6s
-    maxRetryTimes: 4
-  t3522:
-    enable: true
-    expireTime: 6s
-    maxRetryTimes: 4
-  t3550:
-    enable: true
-    expireTime: 6s
-    maxRetryTimes: 4
-  t3560:
-    enable: true
-    expireTime: 6s
-    maxRetryTimes: 4
-  t3565:
-    enable: true
-    expireTime: 6s
-    maxRetryTimes: 4
+  serviceList:
+  - serviceName: npcf-am-policy-control
+  - serviceName: npcf-smpolicycontrol
+    suppFeat: 3fff
+  - serviceName: npcf-bdtpolicycontrol
+  - serviceName: npcf-policyauthorization
+    suppFeat: 3
+  - serviceName: npcf-eventexposure
+  - serviceName: npcf-ue-policy-control
 info:
-  description: PCF initial configuration
+  description: PCF initial local configuration
   version: 1.0.0
-`, dBName, mongoDBURL, NGAPP_PORT, nrfURL, webuiURL, SBI_PORT)
+`, nrfURL, webuiURL, SBI_PORT)
 	tmpFile, err := os.CreateTemp("", "pcfcfg-*.yaml")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
@@ -129,8 +77,8 @@ info:
 	return c, nil
 }
 
-func Start(mongoDBURL string, nrfURL string, webuiURL string) error {
-	c, err := getContext(mongoDBURL, nrfURL, webuiURL)
+func Start(nrfURL string, webuiURL string) error {
+	c, err := getContext(nrfURL, webuiURL)
 	if err != nil {
 		logger.CfgLog.Errorf("%+v", err)
 		return fmt.Errorf("failed to get context")
