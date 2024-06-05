@@ -24,7 +24,7 @@ func init() {
 	appLog = logger.AppLog
 }
 
-func getContext(nrfUrl string) (*cli.Context, error) {
+func getContext(nrfUrl string, webuiUrl string) (*cli.Context, error) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
 	flagSet.String("ausfcfg", "", "AUSF configuration")
 	app := cli.NewApp()
@@ -34,6 +34,7 @@ func getContext(nrfUrl string) (*cli.Context, error) {
 configuration:
   groupId: %s
   nrfUri: %s
+  webuiUri: %s
   sbi:
     bindingIPv4: 0.0.0.0
     port: %s
@@ -44,11 +45,15 @@ configuration:
 info:
   description: AUSF initial local configuration
   version: 1.0.0
-`, AUSF_GROUP_ID, nrfUrl, SBI_PORT)
+`, AUSF_GROUP_ID, nrfUrl, webuiUrl, SBI_PORT)
 	tmpFile, err := os.CreateTemp("", "ausfcfg-*.yaml")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
+
+	// Print the AUSF configuration to the temp file
+	fmt.Println("AUSF Configuration:")
+	fmt.Println(ausfConfig)
 
 	_, err = tmpFile.Write([]byte(ausfConfig))
 	if err != nil {
@@ -71,8 +76,8 @@ info:
 	return c, nil
 }
 
-func Start(nrfUrl string) error {
-	c, err := getContext(nrfUrl)
+func Start(nrfUrl string, webuiUrl string) error {
+	c, err := getContext(nrfUrl, webuiUrl)
 	if err != nil {
 		logger.CfgLog.Errorf("%+v", err)
 		return fmt.Errorf("failed to get context")

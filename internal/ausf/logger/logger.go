@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
+
 package logger
 
 import (

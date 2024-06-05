@@ -53,8 +53,8 @@ func startAMF(dbUrl string, nrfUrl string, webuiUrl string) error {
 	return nil
 }
 
-func startAUSF(nrfUrl string) error {
-	err := ausf.Start(nrfUrl)
+func startAUSF(nrfUrl string, webuiUrl string) error {
+	err := ausf.Start(nrfUrl, webuiUrl)
 	if err != nil {
 		return fmt.Errorf("failed to start AUSF: %w", err)
 	}
@@ -108,6 +108,9 @@ func main() {
 	if err != nil {
 		panic("Failed to start AMF")
 	}
-	startAUSF(nrfUrl)
+	err = startAUSF(nrfUrl, webuiUrl)
+	if err != nil {
+		panic("Failed to start AUSF")
+	}
 	select {}
 }
