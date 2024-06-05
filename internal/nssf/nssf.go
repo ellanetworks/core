@@ -64,9 +64,6 @@ logger:
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
 
-	// Print nssf config file
-	fmt.Println(nssfConfig)
-
 	_, err = tmpFile.Write([]byte(nssfConfig))
 	if err != nil {
 		tmpFile.Close()
