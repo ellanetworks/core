@@ -20,8 +20,6 @@ require (
 	github.com/omec-project/ngap v1.2.2
 	github.com/omec-project/openapi v1.2.0
 	github.com/omec-project/util v1.1.0
-	github.com/omec-project/webconsole v1.4.1
-	github.com/prometheus/client_golang v1.19.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.19.0
 	github.com/urfave/cli v1.22.15
@@ -73,6 +71,7 @@ require (
 	github.com/montanaflynn/stats v0.6.6 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/prometheus/client_golang v1.19.1 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.48.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect

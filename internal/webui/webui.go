@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/omec-project/webconsole/backend/logger"
-	"github.com/omec-project/webconsole/backend/webui_service"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
+	"github.com/yeastengine/canard/internal/webui/backend/logger"
+	"github.com/yeastengine/canard/internal/webui/backend/webui_service"
 )
 
 var WEBUI = &webui_service.WEBUI{}
