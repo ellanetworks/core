@@ -48,7 +48,7 @@ info:
 logger:
   AUSF:
     ReportCaller: false
-    debugLevel: info
+    debugLevel: debug
 `, AUSF_GROUP_ID, nrfUrl, webuiUrl, SBI_PORT)
 	tmpFile, err := os.CreateTemp("", "ausfcfg-*.yaml")
 	if err != nil {

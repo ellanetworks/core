@@ -47,7 +47,7 @@ info:
   version: 1.0.0
 logger:
   WEBUI:
-    debugLevel: info
+    debugLevel: debug
     ReportCaller: false
 `, dBName, dbUrl, authDbName, dbUrl)
 	tmpFile, err := os.CreateTemp("", "webuicfg-*.yaml")

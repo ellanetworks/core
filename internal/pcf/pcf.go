@@ -36,7 +36,7 @@ configuration:
   sbi:
     bindingIPv4: 0.0.0.0
     port: %s
-    registerIPv4: 0.0.0.0
+    registerIPv4: 0.0.0.0:29507
     scheme: http
   serviceList:
   - serviceName: npcf-am-policy-control
@@ -53,7 +53,7 @@ info:
 logger:
   PCF:
     ReportCaller: false
-    debugLevel: info
+    debugLevel: debug
 `, nrfURL, webuiURL, SBI_PORT)
 	tmpFile, err := os.CreateTemp("", "pcfcfg-*.yaml")
 	if err != nil {

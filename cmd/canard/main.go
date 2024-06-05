@@ -66,7 +66,6 @@ func startAUSF(nrfUrl string, webuiUrl string) error {
 }
 
 func startPCF(nrfUrl string, webuiUrl string) error {
-	fmt.Printf("Starting PCF")
 	err := pcf.Start(nrfUrl, webuiUrl)
 	if err != nil {
 		return fmt.Errorf("failed to start PCF: %w", err)
@@ -139,26 +138,26 @@ func main() {
 	if err != nil {
 		panic("Failed to start NRF")
 	}
-	err = startAMF(dbUrl, nrfUrl, webuiUrl)
-	if err != nil {
-		panic("Failed to start AMF")
-	}
-	err = startAUSF(nrfUrl, webuiUrl)
-	if err != nil {
-		panic("Failed to start AUSF")
-	}
+	// err = startAMF(dbUrl, nrfUrl, webuiUrl)
+	// if err != nil {
+	// 	panic("Failed to start AMF")
+	// }
+	// err = startAUSF(nrfUrl, webuiUrl)
+	// if err != nil {
+	// 	panic("Failed to start AUSF")
+	// }
 	err = startPCF(nrfUrl, webuiUrl)
 	if err != nil {
 		panic("Failed to start PCF")
 	}
-	err = startUDR(dbUrl, nrfUrl, webuiUrl)
-	if err != nil {
-		panic("Failed to start UDR")
-	}
-	err = startUDM(nrfUrl, webuiUrl)
-	if err != nil {
-		panic("Failed to start UDM")
-	}
+	// err = startUDR(dbUrl, nrfUrl, webuiUrl)
+	// if err != nil {
+	// 	panic("Failed to start UDR")
+	// }
+	// err = startUDM(nrfUrl, webuiUrl)
+	// if err != nil {
+	// 	panic("Failed to start UDM")
+	// }
 	err = startNSSF(nrfUrl, webuiUrl)
 	if err != nil {
 		panic("Failed to start NSSF")

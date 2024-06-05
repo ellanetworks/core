@@ -46,7 +46,7 @@ configuration:
   sbi:
     bindingIPv4: 0.0.0.0
     port: %s
-    registerIPv4: 0.0.0.0
+    registerIPv4: 0.0.0.0:29531
     scheme: http
   serviceNameList:
   - nnssf-nsselection
@@ -57,7 +57,7 @@ info:
 logger:
   NSSF:
     ReportCaller: false
-    debugLevel: info
+    debugLevel: debug
 `, nrfURL, webuiURL, nrfURL, SD, SST, SBI_PORT)
 	tmpFile, err := os.CreateTemp("", "nssfcfg-*.yaml")
 	if err != nil {

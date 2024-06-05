@@ -57,7 +57,7 @@ configuration:
   sbi:
     bindingIPv4: 0.0.0.0
     port: %s
-    registerIPv4: 0.0.0.0
+    registerIPv4: 0.0.0.0:29518
     scheme: http
   sctpGrpcPort: 9000
   serviceNameList:
@@ -105,7 +105,7 @@ info:
 logger:
   AMF:
     ReportCaller: false
-    debugLevel: info
+    debugLevel: debug
 `, dBName, mongoDBURL, NGAPP_PORT, nrfURL, webuiURL, SBI_PORT)
 	tmpFile, err := os.CreateTemp("", "amfcfg-*.yaml")
 	if err != nil {

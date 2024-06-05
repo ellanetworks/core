@@ -51,7 +51,7 @@ configuration:
   webuiUri: %s
 logger:
   UDR:
-    debugLevel: info
+    debugLevel: debug
     ReportCaller: false
 `, SBI_PORT, COMMON_DB_NAME, mongoDBURL, AUTH_DB_NAME, mongoDBURL, nrfURL, webuiURL)
 	tmpFile, err := os.CreateTemp("", "udrcfg-*.yaml")
