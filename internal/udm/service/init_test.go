@@ -7,8 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yeastengine/canard/internal/udr/context"
-	"github.com/yeastengine/canard/internal/udr/factory"
+	"github.com/yeastengine/canard/internal/udm/context"
 )
 
 func Test_nrf_url_is_not_overwritten_when_registering(t *testing.T) {
@@ -21,15 +20,12 @@ func Test_nrf_url_is_not_overwritten_when_registering(t *testing.T) {
 	svr.EnableHTTP2 = true
 	svr.StartTLS()
 	defer svr.Close()
-	if err := factory.InitConfigFactory("../factory/config.example.yaml"); err != nil {
-		t.Fatalf("Could not read example configuration file")
-	}
-	self := context.UDR_Self()
+	self := context.UDM_Self()
 	self.NrfUri = svr.URL
 	self.RegisterIPv4 = "127.0.0.2"
-	var udr *UDR
-	go udr.registerNF()
-	factory.ConfigPodTrigger <- true
+	var udm *UDM
+	go udm.registerNF()
+	ConfigPodTrigger <- true
 
 	time.Sleep(1 * time.Second)
 	if self.NrfUri != svr.URL {

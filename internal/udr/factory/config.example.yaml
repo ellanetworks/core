@@ -1,7 +1,6 @@
 ## SPDX-FileCopyrightText: 2023 Open Networking Foundation <info@opennetworking.org>
 ##
-## SPDX-License-Identifier: Apache-2.0
-##
+###
 info:
   version: 1.0.0
   description: UDR initial local configuration
