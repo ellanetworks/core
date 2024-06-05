@@ -15,9 +15,11 @@ var AMF = &service.AMF{}
 
 var appLog *logrus.Entry
 
-const dBName = "sdcore_amf"
-const SBI_PORT = "29518"
-const NGAPP_PORT = "38412"
+const (
+	dBName     = "sdcore_amf"
+	SBI_PORT   = "29518"
+	NGAPP_PORT = "38412"
+)
 
 func init() {
 	appLog = logger.AppLog

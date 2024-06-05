@@ -49,7 +49,7 @@ func NnrfNFManagementDataModel(nf *models.NfProfile, nfprofile models.NfProfile)
 	}
 
 	if nfprofile.PlmnList == nil && factory.MinConfigAvailable == false && factory.ManagedByConfigPod == true {
-		//logically NF should send PLMN else we need to wait for min config
+		// logically NF should send PLMN else we need to wait for min config
 		return fmt.Errorf("PlmnList absent. Local default config not available. NFType - %v\n", nfprofile.NfType)
 	}
 	// TODO : add plmn validation ??
@@ -69,10 +69,9 @@ func SetsubscriptionId() string {
 }
 
 func nnrfNFManagementCondition(nf *models.NfProfile, nfprofile models.NfProfile) {
-
 	// HeartBeatTimer
 	if !factory.NrfConfig.Configuration.NfProfileExpiryEnable {
-		//setting 1day keepAliveTimer value
+		// setting 1day keepAliveTimer value
 		factory.NrfConfig.Configuration.NfKeepAliveTime = 24 * 60 * 60
 	} else if factory.NrfConfig.Configuration.NfKeepAliveTime == 0 {
 		logger.ManagementLog.Infoln("NfProfileExpiryEnable: true but keepAliveTime: 0, setting default keepAliveTimer: 60 sec")

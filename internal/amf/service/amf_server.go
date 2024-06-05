@@ -61,10 +61,8 @@ func (s *Server) HandleMessage(srv sdcoreAmfServer.NgapService_HandleMessageServ
 			} else if req.Msgtype == sdcoreAmfServer.MsgType_GNB_DISC {
 				log.Println("GNB disconnected")
 				ngap.HandleSCTPNotificationLb(req.GnbId)
-
 			} else if req.Msgtype == sdcoreAmfServer.MsgType_GNB_CONN {
 				log.Println("New GNB Connected ")
-
 			} else {
 				ngap.DispatchLb(req, Amf2RanMsgChan)
 			}

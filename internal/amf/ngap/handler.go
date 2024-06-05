@@ -625,7 +625,6 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 
 	if cause.Present == ngapType.CausePresentNothing {
 		ngap_message.SendNGSetupResponse(ran)
-
 	} else {
 		ngap_message.SendNGSetupFailure(ran, cause)
 	}

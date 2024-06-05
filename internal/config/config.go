@@ -7,11 +7,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type Config struct {
-}
+type Config struct{}
 
 func Parse(configPath string) (Config, error) {
-
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return Config{}, fmt.Errorf("failed to read config file: %w", err)

@@ -15,8 +15,10 @@ var NRF = &service.NRF{}
 
 var appLog *logrus.Entry
 
-const dBName = "free5gc"
-const port = "29510"
+const (
+	dBName = "free5gc"
+	port   = "29510"
+)
 
 func init() {
 	appLog = logger.AppLog

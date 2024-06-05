@@ -32,7 +32,8 @@ func HandleAccessTokenRequest(request *httpwrapper.Request) *httpwrapper.Respons
 }
 
 func AccessTokenProcedure(request models.AccessTokenReq) (response *models.AccessTokenRsp,
-	errResponse *models.AccessTokenErr) {
+	errResponse *models.AccessTokenErr,
+) {
 	logger.AccessTokenLog.Infoln("In AccessTokenProcedure")
 
 	var expiration int32 = 1000

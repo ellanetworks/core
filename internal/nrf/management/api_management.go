@@ -1,7 +1,6 @@
 package management
 
 import (
-	"net"
 	"reflect"
 	"strconv"
 	"time"
@@ -14,21 +13,6 @@ import (
 	"github.com/yeastengine/canard/internal/nrf/logger"
 	"github.com/yeastengine/canard/internal/nrf/util"
 )
-
-func getLocalIp() string {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		logger.ManagementLog.Error(err)
-	}
-	for _, address := range addrs {
-		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				return ipnet.IP.String()
-			}
-		}
-	}
-	return ""
-}
 
 func GetNrfInfo() *models.NrfInfo {
 	// init
@@ -273,7 +257,8 @@ func DecodeNfProfile(source interface{}, format string) (models.NfProfile, error
 	stringToDateTimeHook := func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{}) (interface{}, error) {
+		data interface{},
+	) (interface{}, error) {
 		if t == reflect.TypeOf(time.Time{}) && f == reflect.TypeOf("") {
 			return time.Parse(format, data.(string))
 		}

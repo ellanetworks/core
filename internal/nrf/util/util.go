@@ -53,7 +53,8 @@ func Decode(source interface{}, format string) ([]models.NfProfile, error) {
 	stringToDateTimeHook := func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{}) (interface{}, error) {
+		data interface{},
+	) (interface{}, error) {
 		if t == reflect.TypeOf(time.Time{}) && f == reflect.TypeOf("") {
 			return time.Parse(format, data.(string))
 		}

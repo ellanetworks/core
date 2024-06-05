@@ -19,9 +19,11 @@ func init() {
 	appLog = logger.AppLog
 }
 
-const dBName = "free5gc"
-const authDbName = "authentication"
-const GRPC_PORT = "9876"
+const (
+	dBName     = "free5gc"
+	authDbName = "authentication"
+	GRPC_PORT  = "9876"
+)
 
 func getContext(dbUrl string) (*cli.Context, error) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
