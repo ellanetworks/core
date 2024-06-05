@@ -44,7 +44,7 @@ func BuildNFInstance(context *pcf_context.PCFContext) (profile models.NfProfile,
 		// 	},
 		// },
 	}
-	return
+	return profile, err
 }
 
 var SendRegisterNFInstance = func(nrfUri, nfInstanceId string, profile models.NfProfile) (

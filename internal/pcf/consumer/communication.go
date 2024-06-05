@@ -39,7 +39,7 @@ func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (
 	} else if httpResp != nil {
 		if httpResp.Status != localErr.Error() {
 			err = localErr
-			return
+			return nil, err
 		}
 		problem := localErr.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
 		problemDetails = &problem
