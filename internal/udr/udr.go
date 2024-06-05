@@ -49,10 +49,6 @@ configuration:
     authUrl: %s
   nrfUri: %s
   webuiUri: %s
-
-# the kind of log output
-# debugLevel: how detailed to output, value: trace, debug, info, warn, error, fatal, panic
-# ReportCaller: enable the caller report or not, value: true or false
 logger:
   UDR:
     debugLevel: info

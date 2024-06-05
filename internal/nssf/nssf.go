@@ -54,11 +54,18 @@ configuration:
 info:
   description: NSSF initial local configuration
   version: 1.0.0
+logger:
+  NSSF:
+    ReportCaller: false
+    debugLevel: info
 `, nrfURL, webuiURL, nrfURL, SD, SST, SBI_PORT)
 	tmpFile, err := os.CreateTemp("", "nssfcfg-*.yaml")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
+
+	// Print nssf config file
+	fmt.Println(nssfConfig)
 
 	_, err = tmpFile.Write([]byte(nssfConfig))
 	if err != nil {

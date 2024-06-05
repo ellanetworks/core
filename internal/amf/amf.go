@@ -102,6 +102,10 @@ configuration:
 info:
   description: AMF initial configuration
   version: 1.0.0
+logger:
+  AMF:
+    ReportCaller: false
+    debugLevel: info
 `, dBName, mongoDBURL, NGAPP_PORT, nrfURL, webuiURL, SBI_PORT)
 	tmpFile, err := os.CreateTemp("", "amfcfg-*.yaml")
 	if err != nil {

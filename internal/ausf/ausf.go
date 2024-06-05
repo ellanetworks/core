@@ -45,6 +45,10 @@ configuration:
 info:
   description: AUSF initial local configuration
   version: 1.0.0
+logger:
+  AUSF:
+    ReportCaller: false
+    debugLevel: info
 `, AUSF_GROUP_ID, nrfUrl, webuiUrl, SBI_PORT)
 	tmpFile, err := os.CreateTemp("", "ausfcfg-*.yaml")
 	if err != nil {

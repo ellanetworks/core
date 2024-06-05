@@ -52,6 +52,10 @@ configuration:
 info:
   description: NRF initial local configuration
   version: 1.0.0
+logger:
+  NRF:
+    ReportCaller: false
+    debugLevel: info
 `, dBName, mongoDBURL, dBName, mongoDBURL, webuiUrl, port)
 	tmpFile, err := os.CreateTemp("", "nrfcfg-*.yaml")
 	if err != nil {

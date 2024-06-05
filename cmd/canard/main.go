@@ -159,7 +159,7 @@ func main() {
 	if err != nil {
 		panic("Failed to start UDM")
 	}
-	err = startNSSF(dbUrl, webuiUrl)
+	err = startNSSF(nrfUrl, webuiUrl)
 	if err != nil {
 		panic("Failed to start NSSF")
 	}
