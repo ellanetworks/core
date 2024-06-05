@@ -7,6 +7,7 @@ require (
 	github.com/antihax/optional v1.0.0
 	github.com/antonfisher/nested-logrus-formatter v1.3.1
 	github.com/bronze1man/radius v0.0.0-20190516032554-afd8baec892d
+	github.com/cydev/zero v0.0.0-20160322155811-4a4535dd56e7
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.10.0
@@ -25,6 +26,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.9.0
+	github.com/tim-ywliu/event v0.1.0
 	github.com/urfave/cli v1.22.15
 	go.mongodb.org/mongo-driver v1.11.7
 	google.golang.org/grpc v1.64.0

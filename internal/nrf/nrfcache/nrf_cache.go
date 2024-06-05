@@ -1,5 +1,3 @@
-//
-
 package nrf_cache
 
 import (

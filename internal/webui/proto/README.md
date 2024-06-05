@@ -1,8 +1,3 @@
-<!--
-SPDX-License-Identifier: Apache-2.0
-Copyright 2021-present Open Networking Foundation
--->
-
 # Protobuf for sd core config grpc server & client
 
 The config.proto file contains the messages and methods to be used by the

@@ -422,7 +422,6 @@ func nnrfNFManagementOption(nf *models.NfProfile, nfprofile models.NfProfile) {
 		}
 		nf.NfServices = &a
 	}
-	//
 }
 
 func GetNfInstanceURI(nfInstID string) string {

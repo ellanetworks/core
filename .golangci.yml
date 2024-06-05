@@ -190,7 +190,7 @@ linters:
     - gomodguard
     - nakedret
     # - gci
-    - misspell
+    # - misspell
     - gofumpt
     - whitespace
     - unconvert

@@ -83,6 +83,6 @@ func Start(nrfUrl string, webuiUrl string) error {
 		logger.CfgLog.Errorf("%+v", err)
 		return fmt.Errorf("failed to initialize")
 	}
-	AUSF.Start()
+	go AUSF.Start()
 	return nil
 }
