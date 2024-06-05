@@ -168,7 +168,6 @@ func CreateUEContextProcedure(ueContextID string, createUeContextRequest models.
 	//response.TargetToSourceData = ue.N1N2Message[amfSelf.Uri].Request.JsonData.N2InfoContainer.SmInfo.N2InfoContent
 	//response.PduSessionList = ueContextCreateData.PduSessionList
 	//response.PcfReselectedInd = false // TODO:When  Target AMF selects a nw PCF for AM policy, set the flag to true.
-	//
 
 	// return httpwrapper.NewResponse(http.StatusCreated, nil, createUeContextResponse)
 	return createUeContextResponse, nil

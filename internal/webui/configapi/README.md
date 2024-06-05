@@ -1,11 +1,3 @@
-<!--
-# SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
-# Copyright 2019 free5GC.org
-
-SPDX-License-Identifier: Apache-2.0
-
--->
-
 # Go API Server for configapi
 
 APIs to configure connectivity service in Aether Network
