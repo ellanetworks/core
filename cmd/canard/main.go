@@ -11,6 +11,7 @@ import (
 	"github.com/yeastengine/canard/internal/db"
 	"github.com/yeastengine/canard/internal/nrf"
 	"github.com/yeastengine/canard/internal/pcf"
+	"github.com/yeastengine/canard/internal/udm"
 	"github.com/yeastengine/canard/internal/udr"
 	"github.com/yeastengine/canard/internal/webui"
 )
@@ -80,6 +81,14 @@ func startUDR(dbUrl string, nrfUrl string, webuiUrl string) error {
 	return nil
 }
 
+func startUDM(nrfUrl string, webuiUrl string) error {
+	err := udm.Start(nrfUrl, webuiUrl)
+	if err != nil {
+		return fmt.Errorf("failed to start UDM: %w", err)
+	}
+	return nil
+}
+
 func startMongoDB() string {
 	db, err := db.StartMongoDB(DBPath)
 	if err != nil {
@@ -136,6 +145,10 @@ func main() {
 	err = startUDR(dbUrl, nrfUrl, webuiUrl)
 	if err != nil {
 		panic("Failed to start UDR")
+	}
+	err = startUDM(nrfUrl, webuiUrl)
+	if err != nil {
+		panic("Failed to start UDM")
 	}
 	select {}
 }
