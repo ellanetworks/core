@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2024 Canonical Ltd.
+
+configuration:
+  defaultBdtRefId: BdtPolicyId-
+  nrfUri: https://nrf:443
+  pcfName: PCF
+info:
+  description: PCF initial local configuration
+  version: 1.0.0
