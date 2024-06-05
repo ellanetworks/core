@@ -28,7 +28,6 @@ var matchFilters = MatchFilters{
 }
 
 func MatchSmfProfile(profile *models.NfProfile, opts *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (bool, error) {
-
 	if opts.ServiceNames.IsSet() {
 		reqServiceNames := opts.ServiceNames.Value().([]models.ServiceName)
 		matchCount := 0
@@ -72,14 +71,12 @@ func MatchSmfProfile(profile *models.NfProfile, opts *Nnrf_NFDiscovery.SearchNFI
 					}
 				}
 			}
-
 		}
 
 		// if at least one matching snssai has been found
 		if matchCount == 0 {
 			return false, nil
 		}
-
 	}
 
 	// validate dnn
@@ -119,7 +116,6 @@ func MatchSupiRange(supi string, supiRange []models.SupiRange) bool {
 				matchFound = true
 				break
 			}
-
 		} else if s.Start <= supi && supi <= s.End {
 			matchFound = true
 			break
@@ -146,7 +142,6 @@ func MatchNssfProfile(profile *models.NfProfile, opts *Nnrf_NFDiscovery.SearchNF
 }
 
 func MatchAmfProfile(profile *models.NfProfile, opts *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (bool, error) {
-
 	if opts.TargetPlmnList.IsSet() {
 		if profile.PlmnList != nil {
 			plmnMatchCount := 0
@@ -155,7 +150,6 @@ func MatchAmfProfile(profile *models.NfProfile, opts *Nnrf_NFDiscovery.SearchNFI
 			for _, targetPlmn := range targetPlmnList {
 				var plmn models.PlmnId
 				err := json.Unmarshal([]byte(targetPlmn), &plmn)
-
 				if err != nil {
 					logger.UtilLog.Errorf("Error Unmarshaling plmn : %+v", err)
 					return false, err
@@ -183,7 +177,6 @@ func MatchAmfProfile(profile *models.NfProfile, opts *Nnrf_NFDiscovery.SearchNFI
 				for _, guami := range guamiList {
 					var guamiOpt models.Guami
 					err := json.Unmarshal([]byte(guami), &guamiOpt)
-
 					if err != nil {
 						logger.UtilLog.Errorf("Error Unmarshaling guami : %+v", err)
 						return false, err

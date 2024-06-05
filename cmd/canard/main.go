@@ -69,11 +69,23 @@ func startMongoDB() string {
 }
 
 func main() {
-	os.Setenv("MANAGED_BY_CONFIG_POD", "true")
-	os.Setenv("CONFIGPOD_DEPLOYMENT", "true")
-	os.Setenv("GRPC_VERBOSITY", "debug")
-	os.Setenv("GRPC_GO_LOG_SEVERITY_LEVEL", "info")
-	_, err := parseFlags()
+	err := os.Setenv("MANAGED_BY_CONFIG_POD", "true")
+	if err != nil {
+		panic(err)
+	}
+	err = os.Setenv("CONFIGPOD_DEPLOYMENT", "true")
+	if err != nil {
+		panic(err)
+	}
+	err = os.Setenv("GRPC_VERBOSITY", "debug")
+	if err != nil {
+		panic(err)
+	}
+	err = os.Setenv("GRPC_GO_LOG_SEVERITY_LEVEL", "info")
+	if err != nil {
+		panic(err)
+	}
+	_, err = parseFlags()
 	if err != nil {
 		panic(err)
 	}
@@ -91,7 +103,10 @@ func main() {
 	}
 	fmt.Println("Nrf URL: ", nrfUrl)
 	fmt.Println("WebUI URL: ", webuiUrl)
-	startAMF(dbUrl, nrfUrl, webuiUrl)
+	err = startAMF(dbUrl, nrfUrl, webuiUrl)
+	if err != nil {
+		panic("Failed to start AMF")
+	}
 	// startAUSF(nrfUrl)
 	select {}
 }

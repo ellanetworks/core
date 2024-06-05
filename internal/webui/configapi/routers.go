@@ -44,7 +44,6 @@ func AddService(engine *gin.Engine) *gin.RouterGroup {
 			group.PUT(route.Pattern, route.HandlerFunc)
 		case "DELETE":
 			group.DELETE(route.Pattern, route.HandlerFunc)
-
 		}
 	}
 	return group

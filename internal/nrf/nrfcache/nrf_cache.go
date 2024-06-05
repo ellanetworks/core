@@ -12,8 +12,10 @@ import (
 	"github.com/yeastengine/canard/internal/nrf/logger"
 )
 
-const defaultCacheTTl = time.Hour
-const defaultNfProfileTTl = time.Minute
+const (
+	defaultCacheTTl     = time.Hour
+	defaultNfProfileTTl = time.Minute
+)
 
 type NfProfileItem struct {
 	nfProfile  *models.NfProfile
@@ -223,11 +225,8 @@ func (c *NrfCache) remove(item *NfProfileItem) {
 // cleanupExpiredItems - removes the profiles with expired TTLs
 func (c *NrfCache) cleanupExpiredItems() {
 	logger.UtilLog.Infoln("nrf cache: cleanup expired items")
-
 	for item := c.priorityQ.at(0); item.isExpired(); {
-
 		logger.UtilLog.Tracef("evicted nf instance %s", item.nfProfile.NfInstanceId)
-
 		c.remove(item)
 		if c.priorityQ.Len() == 0 {
 			break
@@ -320,7 +319,6 @@ func InitNrfCaching(interval time.Duration, cb NrfDiscoveryQueryCb) {
 }
 
 func SearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (models.SearchResult, error) {
-
 	logger.UtilLog.Traceln("SearchNFInstances nrf cache")
 
 	var searchResult models.SearchResult
@@ -332,13 +330,10 @@ func SearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfType,
 	} else {
 		logger.UtilLog.Infoln("Failed to find cache for nftype")
 	}
-
 	for _, np := range searchResult.NfInstances {
 		logger.UtilLog.Tracef("%v", np)
 	}
-
 	return searchResult, err
-
 }
 
 func RemoveNfProfileFromNrfCache(nfInstanceId string) bool {

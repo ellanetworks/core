@@ -45,19 +45,6 @@ func sliceToByte(data []map[string]interface{}) (ret []byte) {
 	return
 }
 
-// seems something which we should move to mongolib
-func toBsonM(data interface{}) (ret bson.M) {
-	tmp, _ := json.Marshal(data)
-	json.Unmarshal(tmp, &ret)
-	return
-}
-
-func toBsonA(data interface{}) (ret bson.A) {
-	tmp, _ := json.Marshal(data)
-	json.Unmarshal(tmp, &ret)
-	return
-}
-
 func setCorsHeader(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -274,7 +261,6 @@ func GetSubscribers(c *gin.Context) {
 		logger.DbLog.Warnln(errGetMany)
 	}
 	for _, amData := range amDataList {
-
 		tmp := configmodels.SubsListIE{
 			UeId: amData["ueId"].(string),
 		}

@@ -37,7 +37,21 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.54
+          version: v1.59
+
+  go-vet:
+    runs-on: ubuntu-22.04
+    needs:
+      - build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Go vet
+        run: go vet ./...
 
   unit-tests:
     runs-on: ubuntu-22.04
@@ -58,6 +72,7 @@ jobs:
     needs:
       - build
       - lint
+      - go-vet
       - unit-tests
     steps:
       - uses: actions/checkout@v4

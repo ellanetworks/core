@@ -11,8 +11,10 @@ import (
 	"github.com/urfave/cli"
 )
 
-const SBI_PORT = "29509"
-const AUSF_GROUP_ID = "ausfGroup001"
+const (
+	SBI_PORT      = "29509"
+	AUSF_GROUP_ID = "ausfGroup001"
+)
 
 var AUSF = &service.AUSF{}
 
