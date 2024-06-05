@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/yeastengine/canard/internal/amf"
+	"github.com/yeastengine/canard/internal/ausf"
 	"github.com/yeastengine/canard/internal/config"
 	"github.com/yeastengine/canard/internal/db"
 	"github.com/yeastengine/canard/internal/nrf"
@@ -52,13 +53,13 @@ func startAMF(dbUrl string, nrfUrl string, webuiUrl string) error {
 	return nil
 }
 
-// func startAUSF(nrfUrl string) error {
-// 	err := ausf.Start(nrfUrl)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to start AUSF: %w", err)
-// 	}
-// 	return nil
-// }
+func startAUSF(nrfUrl string) error {
+	err := ausf.Start(nrfUrl)
+	if err != nil {
+		return fmt.Errorf("failed to start AUSF: %w", err)
+	}
+	return nil
+}
 
 func startMongoDB() string {
 	db, err := db.StartMongoDB(DBPath)
@@ -107,6 +108,6 @@ func main() {
 	if err != nil {
 		panic("Failed to start AMF")
 	}
-	// startAUSF(nrfUrl)
+	startAUSF(nrfUrl)
 	select {}
 }

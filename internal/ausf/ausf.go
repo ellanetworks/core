@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/omec-project/ausf/logger"
-	"github.com/omec-project/ausf/service"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
+	"github.com/yeastengine/canard/internal/ausf/logger"
+	"github.com/yeastengine/canard/internal/ausf/service"
 )
 
 const (
