@@ -112,17 +112,14 @@ func main() {
 	if err != nil {
 		panic("Failed to start NRF")
 	}
-	fmt.Println("Starting AMF")
 	err = startAMF(dbUrl, nrfUrl, webuiUrl)
 	if err != nil {
 		panic("Failed to start AMF")
 	}
-	fmt.Println("Starting AUSF")
 	err = startAUSF(nrfUrl, webuiUrl)
 	if err != nil {
 		panic("Failed to start AUSF")
 	}
-	fmt.Println("Starting PCF")
 	err = startPCF(nrfUrl, webuiUrl)
 	if err != nil {
 		panic("Failed to start PCF")
