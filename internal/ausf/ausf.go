@@ -51,10 +51,6 @@ info:
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
 
-	// Print the AUSF configuration to the temp file
-	fmt.Println("AUSF Configuration:")
-	fmt.Println(ausfConfig)
-
 	_, err = tmpFile.Write([]byte(ausfConfig))
 	if err != nil {
 		tmpFile.Close()
