@@ -11,6 +11,7 @@ import (
 	"github.com/yeastengine/canard/internal/db"
 	"github.com/yeastengine/canard/internal/nrf"
 	"github.com/yeastengine/canard/internal/pcf"
+	"github.com/yeastengine/canard/internal/udr"
 	"github.com/yeastengine/canard/internal/webui"
 )
 
@@ -71,6 +72,14 @@ func startPCF(nrfUrl string, webuiUrl string) error {
 	return nil
 }
 
+func startUDR(dbUrl string, nrfUrl string, webuiUrl string) error {
+	err := udr.Start(dbUrl, nrfUrl, webuiUrl)
+	if err != nil {
+		return fmt.Errorf("failed to start UDR: %w", err)
+	}
+	return nil
+}
+
 func startMongoDB() string {
 	db, err := db.StartMongoDB(DBPath)
 	if err != nil {
@@ -123,6 +132,10 @@ func main() {
 	err = startPCF(nrfUrl, webuiUrl)
 	if err != nil {
 		panic("Failed to start PCF")
+	}
+	err = startUDR(dbUrl, nrfUrl, webuiUrl)
+	if err != nil {
+		panic("Failed to start UDR")
 	}
 	select {}
 }

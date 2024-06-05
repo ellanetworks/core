@@ -50,6 +50,10 @@ configuration:
 info:
   description: PCF initial local configuration
   version: 1.0.0
+logger:
+  PCF:
+    ReportCaller: false
+    debugLevel: info
 `, nrfURL, webuiURL, SBI_PORT)
 	tmpFile, err := os.CreateTemp("", "pcfcfg-*.yaml")
 	if err != nil {
