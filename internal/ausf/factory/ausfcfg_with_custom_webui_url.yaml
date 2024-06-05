@@ -1,0 +1,11 @@
+
+
+configuration:
+  groupId: ausfGroup001
+  nrfUri: http://nrf:8081
+  webuiUri: myspecialwebui:9872 # a valid URI of Webui
+info:
+  description: AUSF initial local configuration
+  version: 1.0.0
+
+

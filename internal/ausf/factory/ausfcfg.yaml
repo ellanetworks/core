@@ -1,0 +1,17 @@
+
+
+configuration:
+  groupId: ausfGroup001
+  nrfUri: http://nrf:8081
+  sbi:
+    bindingIPv4: 0.0.0.0
+    port: 29509
+    registerIPv4: 1.1.1.1
+    scheme: https
+  serviceNameList:
+    - nausf-auth
+info:
+  description: AUSF initial local configuration
+  version: 1.0.0
+
+
