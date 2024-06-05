@@ -9,6 +9,7 @@
 
 package configmodels
 
+// adawd
 type Slice struct {
 	SliceName string `json:"slice-name,omitempty"`
 
