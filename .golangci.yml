@@ -135,17 +135,6 @@ linters-settings:
         # - github.com/mitchellh/go-homedir:                          # Blocked module with version constraint
         #     version: "< 1.1.0"                                      # Version constraint, see https://github.com/Masterminds/semver#basic-comparisons
         #     reason: "testing if blocked version constraint works."  # Reason why the version constraint exists. (Optional)
-  govet:
-    # settings per analyzer
-    settings:
-      printf: # analyzer name, run `go tool vet help` to see all analyzers
-        funcs: # run `go tool vet help printf` to see available settings for `printf` analyzer
-          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Infof
-          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Warnf
-          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Errorf
-          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Fatalf
-    # enable all analyzers
-    enable-all: true
   depguard:
     list-type: blacklist
     include-go-root: false
@@ -187,7 +176,6 @@ linters-settings:
 linters:
   enable:
     - gofmt
-    # - govet
     # - errcheck
     - staticcheck
     - unused
