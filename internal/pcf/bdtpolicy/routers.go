@@ -15,7 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/yeastengine/canard/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/pcf/logger"
 )
 
 // Route is the information for every URI.

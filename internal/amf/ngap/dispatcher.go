@@ -9,9 +9,9 @@ import (
 	"git.cs.nctu.edu.tw/calee/sctp"
 	"github.com/omec-project/ngap"
 	"github.com/omec-project/ngap/ngapType"
-	"github.com/yeastengine/canard/internal/amf/context"
-	"github.com/yeastengine/canard/internal/amf/logger"
-	"github.com/yeastengine/canard/internal/amf/protos/sdcoreAmfServer"
+	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/protos/sdcoreAmfServer"
 )
 
 func DispatchLb(sctplbMsg *sdcoreAmfServer.SctplbMessage, Amf2RanMsgChan chan *sdcoreAmfServer.AmfMessage) {

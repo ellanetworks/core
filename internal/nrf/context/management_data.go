@@ -12,9 +12,9 @@ import (
 
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/nrf/dbadapter"
-	"github.com/yeastengine/canard/internal/nrf/factory"
-	"github.com/yeastengine/canard/internal/nrf/logger"
+	"github.com/yeastengine/ella/internal/nrf/dbadapter"
+	"github.com/yeastengine/ella/internal/nrf/factory"
+	"github.com/yeastengine/ella/internal/nrf/logger"
 )
 
 const NRF_NFINST_RES_URI_PREFIX = factory.NRF_NFM_RES_URI_PREFIX + "/nf-instances/"

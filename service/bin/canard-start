@@ -1,5 +1,0 @@
-#!/bin/bash
-
-set -ex
-
-"$SNAP"/bin/canard -config "$SNAP_COMMON"/canard.yaml

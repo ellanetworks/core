@@ -7,8 +7,8 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/udm/logger"
-	"github.com/yeastengine/canard/internal/udm/util"
+	"github.com/yeastengine/ella/internal/udm/logger"
+	"github.com/yeastengine/ella/internal/udm/util"
 )
 
 func HandleUpdateRequest(request *httpwrapper.Request) *httpwrapper.Response {

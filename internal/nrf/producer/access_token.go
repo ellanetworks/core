@@ -7,7 +7,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/nrf/logger"
+	"github.com/yeastengine/ella/internal/nrf/logger"
 )
 
 func HandleAccessTokenRequest(request *httpwrapper.Request) *httpwrapper.Response {

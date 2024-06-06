@@ -7,7 +7,7 @@ import (
 
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/udr/logger"
+	"github.com/yeastengine/ella/internal/udr/logger"
 )
 
 func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfType,

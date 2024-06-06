@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/omec-project/util/mongoapi"
-	"github.com/yeastengine/canard/internal/webui/backend/logger"
+	"github.com/yeastengine/ella/internal/webui/backend/logger"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )

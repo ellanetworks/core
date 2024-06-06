@@ -7,8 +7,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
-	"github.com/yeastengine/canard/internal/pcf/logger"
-	"github.com/yeastengine/canard/internal/pcf/service"
+	"github.com/yeastengine/ella/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/pcf/service"
 )
 
 var PCF = &service.PCF{}

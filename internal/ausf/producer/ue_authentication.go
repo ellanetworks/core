@@ -17,8 +17,8 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/omec-project/util/ueauth"
-	ausf_context "github.com/yeastengine/canard/internal/ausf/context"
-	"github.com/yeastengine/canard/internal/ausf/logger"
+	ausf_context "github.com/yeastengine/ella/internal/ausf/context"
+	"github.com/yeastengine/ella/internal/ausf/logger"
 )
 
 const (

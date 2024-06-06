@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/udm/producer"
+	"github.com/yeastengine/ella/internal/udm/producer"
 )
 
 // DeleteEeSubscription - Unsubscribe

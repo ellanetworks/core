@@ -6,9 +6,9 @@ import (
 	"net"
 	"os"
 
-	"github.com/yeastengine/canard/internal/amf/context"
-	"github.com/yeastengine/canard/internal/amf/ngap"
-	"github.com/yeastengine/canard/internal/amf/protos/sdcoreAmfServer"
+	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/ngap"
+	"github.com/yeastengine/ella/internal/amf/protos/sdcoreAmfServer"
 	"google.golang.org/grpc"
 )
 

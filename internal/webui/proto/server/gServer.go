@@ -8,9 +8,9 @@ import (
 
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/sirupsen/logrus"
-	"github.com/yeastengine/canard/internal/webui/backend/factory"
-	"github.com/yeastengine/canard/internal/webui/backend/logger"
-	"github.com/yeastengine/canard/internal/webui/configmodels"
+	"github.com/yeastengine/ella/internal/webui/backend/factory"
+	"github.com/yeastengine/ella/internal/webui/backend/logger"
+	"github.com/yeastengine/ella/internal/webui/configmodels"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 )

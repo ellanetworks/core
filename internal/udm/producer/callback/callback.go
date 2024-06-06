@@ -7,8 +7,8 @@ import (
 	"github.com/omec-project/openapi/Nudm_SubscriberDataManagement"
 	"github.com/omec-project/openapi/Nudm_UEContextManagement"
 	"github.com/omec-project/openapi/models"
-	udm_context "github.com/yeastengine/canard/internal/udm/context"
-	"github.com/yeastengine/canard/internal/udm/logger"
+	udm_context "github.com/yeastengine/ella/internal/udm/context"
+	"github.com/yeastengine/ella/internal/udm/logger"
 )
 
 func DataChangeNotificationProcedure(notifyItems []models.NotifyItem, supi string) *models.ProblemDetails {

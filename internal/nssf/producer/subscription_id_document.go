@@ -15,7 +15,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/nssf/logger"
+	"github.com/yeastengine/ella/internal/nssf/logger"
 )
 
 // HandleNSSAIAvailabilityUnsubscribe - Deletes an already existing NSSAI availability notification subscription

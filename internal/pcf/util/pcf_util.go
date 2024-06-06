@@ -15,8 +15,8 @@ import (
 	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/path_util"
-	"github.com/yeastengine/canard/internal/pcf/context"
-	"github.com/yeastengine/canard/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/pcf/context"
+	"github.com/yeastengine/ella/internal/pcf/logger"
 )
 
 const TimeFormat = time.RFC3339

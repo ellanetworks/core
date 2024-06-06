@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yeastengine/canard/internal/udr/context"
-	"github.com/yeastengine/canard/internal/udr/factory"
+	"github.com/yeastengine/ella/internal/udr/context"
+	"github.com/yeastengine/ella/internal/udr/factory"
 )
 
 func Test_nrf_url_is_not_overwritten_when_registering(t *testing.T) {

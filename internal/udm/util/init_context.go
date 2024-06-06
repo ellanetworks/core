@@ -6,9 +6,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/util_3gpp/suci"
-	"github.com/yeastengine/canard/internal/udm/context"
-	"github.com/yeastengine/canard/internal/udm/factory"
-	"github.com/yeastengine/canard/internal/udm/logger"
+	"github.com/yeastengine/ella/internal/udm/context"
+	"github.com/yeastengine/ella/internal/udm/factory"
+	"github.com/yeastengine/ella/internal/udm/logger"
 )
 
 func InitUDMContext(udmContext *context.UDMContext) {

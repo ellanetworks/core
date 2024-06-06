@@ -24,13 +24,13 @@ import (
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/fsm"
-	"github.com/yeastengine/canard/internal/amf/consumer"
-	"github.com/yeastengine/canard/internal/amf/context"
-	gmm_message "github.com/yeastengine/canard/internal/amf/gmm/message"
-	"github.com/yeastengine/canard/internal/amf/logger"
-	ngap_message "github.com/yeastengine/canard/internal/amf/ngap/message"
-	"github.com/yeastengine/canard/internal/amf/producer/callback"
-	"github.com/yeastengine/canard/internal/amf/util"
+	"github.com/yeastengine/ella/internal/amf/consumer"
+	"github.com/yeastengine/ella/internal/amf/context"
+	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
+	"github.com/yeastengine/ella/internal/amf/logger"
+	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
+	"github.com/yeastengine/ella/internal/amf/producer/callback"
+	"github.com/yeastengine/ella/internal/amf/util"
 )
 
 const (

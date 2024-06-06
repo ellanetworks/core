@@ -22,8 +22,8 @@ import (
 	"github.com/omec-project/util/idgenerator"
 	"github.com/omec-project/util/ueauth"
 	"github.com/sirupsen/logrus"
-	"github.com/yeastengine/canard/internal/amf/logger"
-	"github.com/yeastengine/canard/internal/amf/protos/sdcoreAmfServer"
+	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/protos/sdcoreAmfServer"
 )
 
 type OnGoingProcedure string

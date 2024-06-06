@@ -9,7 +9,7 @@ import (
 
 	"git.cs.nctu.edu.tw/calee/sctp"
 	"github.com/omec-project/ngap"
-	"github.com/yeastengine/canard/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
 type NGAPHandler struct {

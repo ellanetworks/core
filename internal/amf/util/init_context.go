@@ -8,9 +8,9 @@ import (
 	"github.com/omec-project/nas/security"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/drsm"
-	"github.com/yeastengine/canard/internal/amf/context"
-	"github.com/yeastengine/canard/internal/amf/factory"
-	"github.com/yeastengine/canard/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/factory"
+	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
 func InitDrsm() (drsm.DrsmInterface, error) {

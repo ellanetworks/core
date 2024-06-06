@@ -17,7 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/yeastengine/canard/internal/udm/logger"
+	"github.com/yeastengine/ella/internal/udm/logger"
 )
 
 var HttpLog *logrus.Entry

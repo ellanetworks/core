@@ -9,8 +9,8 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
 	"github.com/omec-project/util/mongoapi"
-	"github.com/yeastengine/canard/internal/amf/factory"
-	"github.com/yeastengine/canard/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/factory"
+	"github.com/yeastengine/ella/internal/amf/logger"
 	"go.mongodb.org/mongo-driver/bson"
 )
 

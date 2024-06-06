@@ -16,8 +16,8 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nnrf_NFManagement"
 	"github.com/omec-project/openapi/models"
-	nssf_context "github.com/yeastengine/canard/internal/nssf/context"
-	"github.com/yeastengine/canard/internal/nssf/logger"
+	nssf_context "github.com/yeastengine/ella/internal/nssf/context"
+	"github.com/yeastengine/ella/internal/nssf/logger"
 )
 
 func BuildNFProfile(context *nssf_context.NSSFContext) (profile models.NfProfile, err error) {

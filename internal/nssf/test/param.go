@@ -8,12 +8,12 @@ import (
 	"flag"
 
 	"github.com/omec-project/util/path_util"
-	. "github.com/yeastengine/canard/internal/nssf/plugin"
+	. "github.com/yeastengine/ella/internal/nssf/plugin"
 )
 
 var (
 	ConfigFileFromArgs string
-	DefaultConfigFile  string = path_util.Free5gcPath("github.com/yeastengine/canard/internal/nssf/test/conf/test_nssf_config.yaml")
+	DefaultConfigFile  string = path_util.Free5gcPath("github.com/yeastengine/ella/internal/nssf/test/conf/test_nssf_config.yaml")
 )
 
 type TestingUtil struct {

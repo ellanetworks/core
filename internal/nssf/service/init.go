@@ -21,13 +21,13 @@ import (
 	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
-	"github.com/yeastengine/canard/internal/nssf/consumer"
-	"github.com/yeastengine/canard/internal/nssf/context"
-	"github.com/yeastengine/canard/internal/nssf/factory"
-	"github.com/yeastengine/canard/internal/nssf/logger"
-	"github.com/yeastengine/canard/internal/nssf/nssaiavailability"
-	"github.com/yeastengine/canard/internal/nssf/nsselection"
-	"github.com/yeastengine/canard/internal/nssf/util"
+	"github.com/yeastengine/ella/internal/nssf/consumer"
+	"github.com/yeastengine/ella/internal/nssf/context"
+	"github.com/yeastengine/ella/internal/nssf/factory"
+	"github.com/yeastengine/ella/internal/nssf/logger"
+	"github.com/yeastengine/ella/internal/nssf/nssaiavailability"
+	"github.com/yeastengine/ella/internal/nssf/nsselection"
+	"github.com/yeastengine/ella/internal/nssf/util"
 )
 
 type NSSF struct{}

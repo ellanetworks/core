@@ -10,7 +10,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/yeastengine/canard/internal/ausf/logger"
+	"github.com/yeastengine/ella/internal/ausf/logger"
 )
 
 var AusfConfig Config

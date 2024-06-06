@@ -6,9 +6,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/pcf/context"
-	"github.com/yeastengine/canard/internal/pcf/factory"
-	"github.com/yeastengine/canard/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/pcf/context"
+	"github.com/yeastengine/ella/internal/pcf/factory"
+	"github.com/yeastengine/ella/internal/pcf/logger"
 )
 
 // InitpcfContext Init PCF Context from config file

@@ -15,10 +15,10 @@ import (
 
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/nssf/factory"
-	"github.com/yeastengine/canard/internal/nssf/logger"
-	"github.com/yeastengine/canard/internal/nssf/plugin"
-	"github.com/yeastengine/canard/internal/nssf/util"
+	"github.com/yeastengine/ella/internal/nssf/factory"
+	"github.com/yeastengine/ella/internal/nssf/logger"
+	"github.com/yeastengine/ella/internal/nssf/plugin"
+	"github.com/yeastengine/ella/internal/nssf/util"
 )
 
 // NSSAIAvailability DELETE method

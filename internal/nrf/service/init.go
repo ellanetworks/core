@@ -18,14 +18,14 @@ import (
 	mongoDBLibLogger "github.com/omec-project/util/logger"
 	"github.com/omec-project/util/path_util"
 	pathUtilLogger "github.com/omec-project/util/path_util/logger"
-	"github.com/yeastengine/canard/internal/nrf/accesstoken"
-	nrf_context "github.com/yeastengine/canard/internal/nrf/context"
-	"github.com/yeastengine/canard/internal/nrf/dbadapter"
-	"github.com/yeastengine/canard/internal/nrf/discovery"
-	"github.com/yeastengine/canard/internal/nrf/factory"
-	"github.com/yeastengine/canard/internal/nrf/logger"
-	"github.com/yeastengine/canard/internal/nrf/management"
-	"github.com/yeastengine/canard/internal/nrf/util"
+	"github.com/yeastengine/ella/internal/nrf/accesstoken"
+	nrf_context "github.com/yeastengine/ella/internal/nrf/context"
+	"github.com/yeastengine/ella/internal/nrf/dbadapter"
+	"github.com/yeastengine/ella/internal/nrf/discovery"
+	"github.com/yeastengine/ella/internal/nrf/factory"
+	"github.com/yeastengine/ella/internal/nrf/logger"
+	"github.com/yeastengine/ella/internal/nrf/management"
+	"github.com/yeastengine/ella/internal/nrf/util"
 )
 
 type NRF struct{}

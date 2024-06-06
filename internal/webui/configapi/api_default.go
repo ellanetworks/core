@@ -14,9 +14,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yeastengine/canard/internal/webui/backend/logger"
-	"github.com/yeastengine/canard/internal/webui/configmodels"
-	"github.com/yeastengine/canard/internal/webui/dbadapter"
+	"github.com/yeastengine/ella/internal/webui/backend/logger"
+	"github.com/yeastengine/ella/internal/webui/configmodels"
+	"github.com/yeastengine/ella/internal/webui/dbadapter"
 	"go.mongodb.org/mongo-driver/bson"
 )
 

@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/nssf/consumer"
-	"github.com/yeastengine/canard/internal/nssf/context"
+	"github.com/yeastengine/ella/internal/nssf/consumer"
+	"github.com/yeastengine/ella/internal/nssf/context"
 )
 
 func TestBuildNFProfile_EmptyContext(t *testing.T) {

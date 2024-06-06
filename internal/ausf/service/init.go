@@ -12,7 +12,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
-	"github.com/yeastengine/canard/internal/ausf/context"
+	"github.com/yeastengine/ella/internal/ausf/context"
 
 	"github.com/omec-project/config5g/proto/client"
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
@@ -21,12 +21,12 @@ import (
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/omec-project/util/path_util"
 	pathUtilLogger "github.com/omec-project/util/path_util/logger"
-	"github.com/yeastengine/canard/internal/ausf/consumer"
-	ausf_context "github.com/yeastengine/canard/internal/ausf/context"
-	"github.com/yeastengine/canard/internal/ausf/factory"
-	"github.com/yeastengine/canard/internal/ausf/logger"
-	"github.com/yeastengine/canard/internal/ausf/ueauthentication"
-	"github.com/yeastengine/canard/internal/ausf/util"
+	"github.com/yeastengine/ella/internal/ausf/consumer"
+	ausf_context "github.com/yeastengine/ella/internal/ausf/context"
+	"github.com/yeastengine/ella/internal/ausf/factory"
+	"github.com/yeastengine/ella/internal/ausf/logger"
+	"github.com/yeastengine/ella/internal/ausf/ueauthentication"
+	"github.com/yeastengine/ella/internal/ausf/util"
 )
 
 type AUSF struct{}

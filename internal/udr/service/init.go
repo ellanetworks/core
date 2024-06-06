@@ -19,14 +19,14 @@ import (
 	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
-	"github.com/yeastengine/canard/internal/udr/consumer"
-	"github.com/yeastengine/canard/internal/udr/context"
-	udr_context "github.com/yeastengine/canard/internal/udr/context"
-	"github.com/yeastengine/canard/internal/udr/datarepository"
-	"github.com/yeastengine/canard/internal/udr/factory"
-	"github.com/yeastengine/canard/internal/udr/logger"
-	"github.com/yeastengine/canard/internal/udr/producer"
-	"github.com/yeastengine/canard/internal/udr/util"
+	"github.com/yeastengine/ella/internal/udr/consumer"
+	"github.com/yeastengine/ella/internal/udr/context"
+	udr_context "github.com/yeastengine/ella/internal/udr/context"
+	"github.com/yeastengine/ella/internal/udr/datarepository"
+	"github.com/yeastengine/ella/internal/udr/factory"
+	"github.com/yeastengine/ella/internal/udr/logger"
+	"github.com/yeastengine/ella/internal/udr/producer"
+	"github.com/yeastengine/ella/internal/udr/util"
 )
 
 type UDR struct{}

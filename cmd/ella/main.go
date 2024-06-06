@@ -5,19 +5,19 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/yeastengine/canard/internal/amf"
-	"github.com/yeastengine/canard/internal/ausf"
-	"github.com/yeastengine/canard/internal/config"
-	"github.com/yeastengine/canard/internal/db"
-	"github.com/yeastengine/canard/internal/nrf"
-	"github.com/yeastengine/canard/internal/nssf"
-	"github.com/yeastengine/canard/internal/pcf"
-	"github.com/yeastengine/canard/internal/udm"
-	"github.com/yeastengine/canard/internal/udr"
-	"github.com/yeastengine/canard/internal/webui"
+	"github.com/yeastengine/ella/internal/amf"
+	"github.com/yeastengine/ella/internal/ausf"
+	"github.com/yeastengine/ella/internal/config"
+	"github.com/yeastengine/ella/internal/db"
+	"github.com/yeastengine/ella/internal/nrf"
+	"github.com/yeastengine/ella/internal/nssf"
+	"github.com/yeastengine/ella/internal/pcf"
+	"github.com/yeastengine/ella/internal/udm"
+	"github.com/yeastengine/ella/internal/udr"
+	"github.com/yeastengine/ella/internal/webui"
 )
 
-const DBPath = "/var/snap/canard/common/data"
+const DBPath = "/var/snap/ella/common/data"
 
 func parseFlags() (config.Config, error) {
 	flag.String("config", "", "/path/to/config.yaml")

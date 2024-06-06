@@ -11,14 +11,14 @@ import (
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/amf/consumer"
-	"github.com/yeastengine/canard/internal/amf/context"
-	gmm_message "github.com/yeastengine/canard/internal/amf/gmm/message"
-	"github.com/yeastengine/canard/internal/amf/logger"
-	"github.com/yeastengine/canard/internal/amf/nas"
-	ngap_message "github.com/yeastengine/canard/internal/amf/ngap/message"
-	"github.com/yeastengine/canard/internal/amf/protos/sdcoreAmfServer"
-	"github.com/yeastengine/canard/internal/amf/util"
+	"github.com/yeastengine/ella/internal/amf/consumer"
+	"github.com/yeastengine/ella/internal/amf/context"
+	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
+	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/nas"
+	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
+	"github.com/yeastengine/ella/internal/amf/protos/sdcoreAmfServer"
+	"github.com/yeastengine/ella/internal/amf/util"
 )
 
 func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context.RanUe, *ngapType.AMFUENGAPID) {

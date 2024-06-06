@@ -2,8 +2,8 @@ package gmm
 
 import (
 	"github.com/omec-project/util/fsm"
-	"github.com/yeastengine/canard/internal/amf/context"
-	"github.com/yeastengine/canard/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
 var (

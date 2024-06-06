@@ -11,8 +11,8 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
 	"github.com/sirupsen/logrus"
-	"github.com/yeastengine/canard/internal/pcf/factory"
-	"github.com/yeastengine/canard/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/pcf/factory"
+	"github.com/yeastengine/ella/internal/pcf/logger"
 )
 
 var pcfCtx *PCFContext

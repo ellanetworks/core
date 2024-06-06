@@ -14,11 +14,11 @@ import (
 	"github.com/omec-project/openapi/Nnrf_NFManagement"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	nrf_context "github.com/yeastengine/canard/internal/nrf/context"
-	"github.com/yeastengine/canard/internal/nrf/dbadapter"
-	"github.com/yeastengine/canard/internal/nrf/factory"
-	"github.com/yeastengine/canard/internal/nrf/logger"
-	"github.com/yeastengine/canard/internal/nrf/util"
+	nrf_context "github.com/yeastengine/ella/internal/nrf/context"
+	"github.com/yeastengine/ella/internal/nrf/dbadapter"
+	"github.com/yeastengine/ella/internal/nrf/factory"
+	"github.com/yeastengine/ella/internal/nrf/logger"
+	"github.com/yeastengine/ella/internal/nrf/util"
 )
 
 func HandleNFDeregisterRequest(request *httpwrapper.Request) *httpwrapper.Response {

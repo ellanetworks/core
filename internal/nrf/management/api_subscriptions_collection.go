@@ -17,8 +17,8 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/nrf/logger"
-	"github.com/yeastengine/canard/internal/nrf/producer"
+	"github.com/yeastengine/ella/internal/nrf/logger"
+	"github.com/yeastengine/ella/internal/nrf/producer"
 )
 
 // Provide SubsciptionId for each request (add by one each time)

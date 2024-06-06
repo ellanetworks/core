@@ -1,0 +1,5 @@
+#!/bin/bash
+
+set -ex
+
+"$SNAP"/bin/ella -config "$SNAP_COMMON"/ella.yaml

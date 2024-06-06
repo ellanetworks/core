@@ -9,7 +9,7 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/yeastengine/canard/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/logger"
 	"gopkg.in/yaml.v2"
 )
 

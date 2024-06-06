@@ -9,11 +9,11 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/amf/context"
-	gmm_message "github.com/yeastengine/canard/internal/amf/gmm/message"
-	"github.com/yeastengine/canard/internal/amf/logger"
-	ngap_message "github.com/yeastengine/canard/internal/amf/ngap/message"
-	"github.com/yeastengine/canard/internal/amf/producer/callback"
+	"github.com/yeastengine/ella/internal/amf/context"
+	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
+	"github.com/yeastengine/ella/internal/amf/logger"
+	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
+	"github.com/yeastengine/ella/internal/amf/producer/callback"
 )
 
 func ProducerHandler(s1, s2 string, msg interface{}) (interface{}, string, interface{}, interface{}) {

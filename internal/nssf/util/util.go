@@ -11,8 +11,8 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/path_util"
-	"github.com/yeastengine/canard/internal/nssf/factory"
-	"github.com/yeastengine/canard/internal/nssf/logger"
+	"github.com/yeastengine/ella/internal/nssf/factory"
+	"github.com/yeastengine/ella/internal/nssf/logger"
 )
 
 // Title in Problem Details for NSSF HTTP APIs

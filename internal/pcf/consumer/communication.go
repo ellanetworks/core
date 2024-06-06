@@ -7,9 +7,9 @@ import (
 
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
-	pcf_context "github.com/yeastengine/canard/internal/pcf/context"
-	"github.com/yeastengine/canard/internal/pcf/logger"
-	"github.com/yeastengine/canard/internal/pcf/util"
+	pcf_context "github.com/yeastengine/ella/internal/pcf/context"
+	"github.com/yeastengine/ella/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/pcf/util"
 )
 
 func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (

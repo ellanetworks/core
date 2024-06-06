@@ -10,9 +10,9 @@ import (
 	"net/http"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/nssf/logger"
-	"github.com/yeastengine/canard/internal/nssf/plugin"
-	"github.com/yeastengine/canard/internal/nssf/util"
+	"github.com/yeastengine/ella/internal/nssf/logger"
+	"github.com/yeastengine/ella/internal/nssf/plugin"
+	"github.com/yeastengine/ella/internal/nssf/util"
 )
 
 // Set Allowed NSSAI with Subscribed S-NSSAI(s) which are marked as default S-NSSAI(s)

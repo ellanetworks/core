@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/sirupsen/logrus"
-	"github.com/yeastengine/canard/internal/webui/backend/logger"
-	"github.com/yeastengine/canard/internal/webui/configmodels"
+	"github.com/yeastengine/ella/internal/webui/backend/logger"
+	"github.com/yeastengine/ella/internal/webui/configmodels"
 )
 
 const (

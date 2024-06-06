@@ -7,8 +7,8 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/webui/backend/logger"
-	"github.com/yeastengine/canard/internal/webui/dbadapter"
+	"github.com/yeastengine/ella/internal/webui/backend/logger"
+	"github.com/yeastengine/ella/internal/webui/dbadapter"
 )
 
 var webuiContext = WEBUIContext{}

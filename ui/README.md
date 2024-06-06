@@ -1,4 +1,4 @@
-# Canard Frontend
+# ella Frontend
 
 ## Build
 

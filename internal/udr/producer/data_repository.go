@@ -13,9 +13,9 @@ import (
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	udr_context "github.com/yeastengine/canard/internal/udr/context"
-	"github.com/yeastengine/canard/internal/udr/logger"
-	"github.com/yeastengine/canard/internal/udr/util"
+	udr_context "github.com/yeastengine/ella/internal/udr/context"
+	"github.com/yeastengine/ella/internal/udr/logger"
+	"github.com/yeastengine/ella/internal/udr/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )

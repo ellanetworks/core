@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/yeastengine/canard/internal/webui/backend/logger"
+	"github.com/yeastengine/ella/internal/webui/backend/logger"
 )
 
 // InitMetrics initializes Webconsole metrics

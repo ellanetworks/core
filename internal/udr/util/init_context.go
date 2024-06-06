@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/omec-project/openapi/models"
-	udr_context "github.com/yeastengine/canard/internal/udr/context"
-	"github.com/yeastengine/canard/internal/udr/factory"
-	"github.com/yeastengine/canard/internal/udr/logger"
+	udr_context "github.com/yeastengine/ella/internal/udr/context"
+	"github.com/yeastengine/ella/internal/udr/factory"
+	"github.com/yeastengine/ella/internal/udr/logger"
 )
 
 func InitUdrContext(context *udr_context.UDRContext) {

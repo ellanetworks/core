@@ -19,14 +19,14 @@ import (
 	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
-	"github.com/yeastengine/canard/internal/webui/backend/factory"
-	"github.com/yeastengine/canard/internal/webui/backend/logger"
-	"github.com/yeastengine/canard/internal/webui/backend/metrics"
-	"github.com/yeastengine/canard/internal/webui/backend/webui_context"
-	"github.com/yeastengine/canard/internal/webui/configapi"
-	"github.com/yeastengine/canard/internal/webui/configmodels"
-	"github.com/yeastengine/canard/internal/webui/dbadapter"
-	gServ "github.com/yeastengine/canard/internal/webui/proto/server"
+	"github.com/yeastengine/ella/internal/webui/backend/factory"
+	"github.com/yeastengine/ella/internal/webui/backend/logger"
+	"github.com/yeastengine/ella/internal/webui/backend/metrics"
+	"github.com/yeastengine/ella/internal/webui/backend/webui_context"
+	"github.com/yeastengine/ella/internal/webui/configapi"
+	"github.com/yeastengine/ella/internal/webui/configmodels"
+	"github.com/yeastengine/ella/internal/webui/dbadapter"
+	gServ "github.com/yeastengine/ella/internal/webui/proto/server"
 )
 
 type WEBUI struct{}

@@ -7,8 +7,8 @@ import (
 	"github.com/omec-project/nas"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/fsm"
-	"github.com/yeastengine/canard/internal/amf/context"
-	"github.com/yeastengine/canard/internal/amf/gmm"
+	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/gmm"
 )
 
 func Dispatch(ue *context.AmfUe, accessType models.AccessType, procedureCode int64, msg *nas.Message) error {

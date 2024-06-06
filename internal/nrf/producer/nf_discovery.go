@@ -15,10 +15,10 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/nrf/context"
-	"github.com/yeastengine/canard/internal/nrf/dbadapter"
-	"github.com/yeastengine/canard/internal/nrf/logger"
-	"github.com/yeastengine/canard/internal/nrf/util"
+	"github.com/yeastengine/ella/internal/nrf/context"
+	"github.com/yeastengine/ella/internal/nrf/dbadapter"
+	"github.com/yeastengine/ella/internal/nrf/logger"
+	"github.com/yeastengine/ella/internal/nrf/util"
 )
 
 func HandleNFDiscoveryRequest(request *httpwrapper.Request) *httpwrapper.Response {

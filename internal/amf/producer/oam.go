@@ -8,9 +8,9 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/fsm"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/amf/context"
-	"github.com/yeastengine/canard/internal/amf/gmm"
-	"github.com/yeastengine/canard/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/gmm"
+	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
 type PduSession struct {

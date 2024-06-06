@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/ausf/logger"
+	"github.com/yeastengine/ella/internal/ausf/logger"
 )
 
 type AUSFContext struct {

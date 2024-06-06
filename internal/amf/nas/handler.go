@@ -4,10 +4,10 @@ import (
 	"os"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/amf/context"
-	"github.com/yeastengine/canard/internal/amf/logger"
-	"github.com/yeastengine/canard/internal/amf/nas/nas_security"
-	"github.com/yeastengine/canard/internal/amf/protos/sdcoreAmfServer"
+	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/nas/nas_security"
+	"github.com/yeastengine/ella/internal/amf/protos/sdcoreAmfServer"
 )
 
 func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {

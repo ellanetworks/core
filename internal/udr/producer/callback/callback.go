@@ -5,8 +5,8 @@ import (
 
 	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
-	udr_context "github.com/yeastengine/canard/internal/udr/context"
-	"github.com/yeastengine/canard/internal/udr/logger"
+	udr_context "github.com/yeastengine/ella/internal/udr/context"
+	"github.com/yeastengine/ella/internal/udr/logger"
 )
 
 func SendOnDataChangeNotify(ueId string, notifyItems []models.NotifyItem) {
