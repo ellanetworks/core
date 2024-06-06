@@ -5,10 +5,10 @@ import (
 	"github.com/omec-project/nas/nasType"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/amf/context"
-	"github.com/yeastengine/canard/internal/amf/logger"
-	ngap_message "github.com/yeastengine/canard/internal/amf/ngap/message"
-	"github.com/yeastengine/canard/internal/amf/producer/callback"
+	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/logger"
+	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
+	"github.com/yeastengine/ella/internal/amf/producer/callback"
 )
 
 // backOffTimerUint = 7 means backoffTimer is null

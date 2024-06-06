@@ -1,4 +1,4 @@
-module github.com/yeastengine/canard
+module github.com/yeastengine/ella
 
 go 1.22.2
 

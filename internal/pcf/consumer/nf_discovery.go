@@ -8,8 +8,8 @@ import (
 	"github.com/antihax/optional"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/pcf/logger"
-	"github.com/yeastengine/canard/internal/pcf/util"
+	"github.com/yeastengine/ella/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/pcf/util"
 )
 
 var SendSearchNFInstances = func(

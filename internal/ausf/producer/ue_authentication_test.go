@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/yeastengine/canard/internal/ausf/producer"
+	"github.com/yeastengine/ella/internal/ausf/producer"
 )
 
 func TestGenerateRandomNumber(t *testing.T) {

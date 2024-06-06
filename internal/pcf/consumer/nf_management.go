@@ -9,8 +9,8 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nnrf_NFManagement"
 	"github.com/omec-project/openapi/models"
-	pcf_context "github.com/yeastengine/canard/internal/pcf/context"
-	"github.com/yeastengine/canard/internal/pcf/logger"
+	pcf_context "github.com/yeastengine/ella/internal/pcf/context"
+	"github.com/yeastengine/ella/internal/pcf/logger"
 )
 
 func BuildNFInstance(context *pcf_context.PCFContext) (profile models.NfProfile, err error) {

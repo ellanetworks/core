@@ -7,10 +7,10 @@ import (
 
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
-	amf_context "github.com/yeastengine/canard/internal/amf/context"
-	"github.com/yeastengine/canard/internal/amf/logger"
-	"github.com/yeastengine/canard/internal/amf/util"
-	nrf_cache "github.com/yeastengine/canard/internal/nrf/nrfcache"
+	amf_context "github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/util"
+	nrf_cache "github.com/yeastengine/ella/internal/nrf/nrfcache"
 )
 
 func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfType,

@@ -6,7 +6,7 @@ import (
 
 	"github.com/omec-project/openapi/Namf_Communication"
 	"github.com/omec-project/openapi/models"
-	amf_context "github.com/yeastengine/canard/internal/amf/context"
+	amf_context "github.com/yeastengine/ella/internal/amf/context"
 )
 
 func SendN2InfoNotifyN2Handover(ue *amf_context.AmfUe, releaseList []int32) error {

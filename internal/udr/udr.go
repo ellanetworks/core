@@ -7,8 +7,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
-	"github.com/yeastengine/canard/internal/udr/logger"
-	"github.com/yeastengine/canard/internal/udr/service"
+	"github.com/yeastengine/ella/internal/udr/logger"
+	"github.com/yeastengine/ella/internal/udr/service"
 )
 
 var UDR = &service.UDR{}

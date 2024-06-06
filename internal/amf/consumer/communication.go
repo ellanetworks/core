@@ -10,8 +10,8 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Namf_Communication"
 	"github.com/omec-project/openapi/models"
-	amf_context "github.com/yeastengine/canard/internal/amf/context"
-	"github.com/yeastengine/canard/internal/amf/logger"
+	amf_context "github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
 func BuildUeContextCreateData(ue *amf_context.AmfUe, targetRanId models.NgRanTargetId,

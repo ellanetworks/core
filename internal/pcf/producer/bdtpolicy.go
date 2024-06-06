@@ -12,10 +12,10 @@ import (
 	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/pcf/consumer"
-	pcf_context "github.com/yeastengine/canard/internal/pcf/context"
-	"github.com/yeastengine/canard/internal/pcf/logger"
-	"github.com/yeastengine/canard/internal/pcf/util"
+	"github.com/yeastengine/ella/internal/pcf/consumer"
+	pcf_context "github.com/yeastengine/ella/internal/pcf/context"
+	"github.com/yeastengine/ella/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/pcf/util"
 )
 
 func HandleGetBDTPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {

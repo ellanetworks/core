@@ -7,8 +7,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
-	"github.com/yeastengine/canard/internal/nrf/logger"
-	"github.com/yeastengine/canard/internal/nrf/service"
+	"github.com/yeastengine/ella/internal/nrf/logger"
+	"github.com/yeastengine/ella/internal/nrf/service"
 )
 
 var NRF = &service.NRF{}

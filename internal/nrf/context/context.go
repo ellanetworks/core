@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/nrf/factory"
-	"github.com/yeastengine/canard/internal/nrf/logger"
+	"github.com/yeastengine/ella/internal/nrf/factory"
+	"github.com/yeastengine/ella/internal/nrf/logger"
 )
 
 var (

@@ -12,7 +12,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
 	"github.com/omec-project/util/util_3gpp/suci"
-	"github.com/yeastengine/canard/internal/udm/factory"
+	"github.com/yeastengine/ella/internal/udm/factory"
 )
 
 var udmContext UDMContext

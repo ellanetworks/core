@@ -5,7 +5,7 @@ import (
 
 	"github.com/mohae/deepcopy"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
 func CompareUserLocation(loc1 models.UserLocation, loc2 models.UserLocation) bool {

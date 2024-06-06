@@ -16,8 +16,8 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/pcf/logger"
-	"github.com/yeastengine/canard/internal/pcf/producer"
+	"github.com/yeastengine/ella/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/pcf/producer"
 )
 
 // CreateBDTPolicy - Create a new Individual BDT policy

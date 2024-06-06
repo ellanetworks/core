@@ -14,8 +14,8 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/drsm"
 	"github.com/omec-project/util/idgenerator"
-	"github.com/yeastengine/canard/internal/amf/factory"
-	"github.com/yeastengine/canard/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/factory"
+	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
 var (

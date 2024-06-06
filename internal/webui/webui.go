@@ -7,8 +7,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
-	"github.com/yeastengine/canard/internal/webui/backend/logger"
-	"github.com/yeastengine/canard/internal/webui/backend/webui_service"
+	"github.com/yeastengine/ella/internal/webui/backend/logger"
+	"github.com/yeastengine/ella/internal/webui/backend/webui_service"
 )
 
 var WEBUI = &webui_service.WEBUI{}

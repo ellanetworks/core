@@ -7,9 +7,9 @@ import (
 
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
-	udm_context "github.com/yeastengine/canard/internal/udm/context"
-	"github.com/yeastengine/canard/internal/udm/logger"
-	"github.com/yeastengine/canard/internal/udm/util"
+	udm_context "github.com/yeastengine/ella/internal/udm/context"
+	"github.com/yeastengine/ella/internal/udm/logger"
+	"github.com/yeastengine/ella/internal/udm/util"
 )
 
 const (

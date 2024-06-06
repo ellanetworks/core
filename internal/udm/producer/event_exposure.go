@@ -7,8 +7,8 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	udm_context "github.com/yeastengine/canard/internal/udm/context"
-	"github.com/yeastengine/canard/internal/udm/logger"
+	udm_context "github.com/yeastengine/ella/internal/udm/context"
+	"github.com/yeastengine/ella/internal/udm/logger"
 )
 
 const anyUE = "anyUE"

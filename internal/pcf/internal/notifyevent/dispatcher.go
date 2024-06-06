@@ -3,7 +3,7 @@ package notifyevent
 import (
 	"github.com/omec-project/openapi/models"
 	"github.com/tim-ywliu/event"
-	"github.com/yeastengine/canard/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/pcf/logger"
 )
 
 var notifyDispatcher *event.Dispatcher

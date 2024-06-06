@@ -10,9 +10,9 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nnrf_NFManagement"
 	"github.com/omec-project/openapi/models"
-	udr_context "github.com/yeastengine/canard/internal/udr/context"
-	"github.com/yeastengine/canard/internal/udr/factory"
-	"github.com/yeastengine/canard/internal/udr/logger"
+	udr_context "github.com/yeastengine/ella/internal/udr/context"
+	"github.com/yeastengine/ella/internal/udr/factory"
+	"github.com/yeastengine/ella/internal/udr/logger"
 )
 
 func BuildNFInstance(context *udr_context.UDRContext) models.NfProfile {

@@ -7,8 +7,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
-	"github.com/yeastengine/canard/internal/amf/logger"
-	"github.com/yeastengine/canard/internal/amf/service"
+	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/service"
 )
 
 var AMF = &service.AMF{}

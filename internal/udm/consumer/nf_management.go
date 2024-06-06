@@ -10,8 +10,8 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nnrf_NFManagement"
 	"github.com/omec-project/openapi/models"
-	udm_context "github.com/yeastengine/canard/internal/udm/context"
-	"github.com/yeastengine/canard/internal/udm/logger"
+	udm_context "github.com/yeastengine/ella/internal/udm/context"
+	"github.com/yeastengine/ella/internal/udm/logger"
 )
 
 func BuildNFInstance(udmContext *udm_context.UDMContext) (profile models.NfProfile, err error) {

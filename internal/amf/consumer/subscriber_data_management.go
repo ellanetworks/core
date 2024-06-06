@@ -8,7 +8,7 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nudm_SubscriberDataManagement"
 	"github.com/omec-project/openapi/models"
-	amf_context "github.com/yeastengine/canard/internal/amf/context"
+	amf_context "github.com/yeastengine/ella/internal/amf/context"
 )
 
 func PutUpuAck(ue *amf_context.AmfUe, upuMacIue string) error {

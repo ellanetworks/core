@@ -1,9 +1,9 @@
-name: canard
+name: ella
 base: core22
 version: '0.0.0'
-summary: Canard is a secure, reliable, and easy to operate mobile network.
+summary: ella is a secure, reliable, and easy to operate mobile network.
 description: |
-  Canard is a secure, reliable, and easy to operate mobile network.
+  ella is a secure, reliable, and easy to operate mobile network.
 
 grade: devel
 confinement: devmode
@@ -16,15 +16,15 @@ package-repositories:
     url: https://repo.mongodb.org/apt/ubuntu
 
 apps:
-  canard:
+  ella:
     daemon: simple
     install-mode: disable
-    command: bin/canard-start
+    command: bin/ella-start
     refresh-mode: endure
     restart-condition: on-failure
 
 parts:
-  canard:
+  ella:
     plugin: go
     source: .
     build-snaps:

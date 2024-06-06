@@ -10,8 +10,8 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nnrf_NFManagement"
 	"github.com/omec-project/openapi/models"
-	ausf_context "github.com/yeastengine/canard/internal/ausf/context"
-	"github.com/yeastengine/canard/internal/ausf/logger"
+	ausf_context "github.com/yeastengine/ella/internal/ausf/context"
+	"github.com/yeastengine/ella/internal/ausf/logger"
 )
 
 func BuildNFInstance(ausfContext *ausf_context.AUSFContext) (profile models.NfProfile, err error) {

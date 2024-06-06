@@ -12,7 +12,7 @@ import (
 
 	"github.com/omec-project/config5g/proto/client"
 	"github.com/sirupsen/logrus"
-	"github.com/yeastengine/canard/internal/nrf/logger"
+	"github.com/yeastengine/ella/internal/nrf/logger"
 )
 
 var ManagedByConfigPod bool

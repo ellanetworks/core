@@ -6,9 +6,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/amf/context"
-	"github.com/yeastengine/canard/internal/amf/logger"
-	"github.com/yeastengine/canard/internal/amf/producer"
+	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/producer"
 
 	"github.com/omec-project/openapi/models"
 )

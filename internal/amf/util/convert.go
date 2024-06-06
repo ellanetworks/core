@@ -7,7 +7,7 @@ import (
 
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
 func SnssaiHexToModels(hexString string) (*models.Snssai, error) {

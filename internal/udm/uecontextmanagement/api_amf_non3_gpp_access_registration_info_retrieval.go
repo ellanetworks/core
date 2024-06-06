@@ -17,8 +17,8 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/udm/logger"
-	"github.com/yeastengine/canard/internal/udm/producer"
+	"github.com/yeastengine/ella/internal/udm/logger"
+	"github.com/yeastengine/ella/internal/udm/producer"
 )
 
 // GetAmfNon3gppAccess - retrieve the AMF registration for non-3GPP access information

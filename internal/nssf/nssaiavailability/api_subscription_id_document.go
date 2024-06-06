@@ -17,8 +17,8 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/nssf/logger"
-	"github.com/yeastengine/canard/internal/nssf/producer"
+	"github.com/yeastengine/ella/internal/nssf/logger"
+	"github.com/yeastengine/ella/internal/nssf/producer"
 )
 
 func HTTPNSSAIAvailabilityUnsubscribe(c *gin.Context) {

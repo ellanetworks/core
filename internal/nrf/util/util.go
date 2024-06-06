@@ -11,7 +11,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/path_util"
-	"github.com/yeastengine/canard/internal/nrf/logger"
+	"github.com/yeastengine/ella/internal/nrf/logger"
 )
 
 // Path of HTTP2 key and log file

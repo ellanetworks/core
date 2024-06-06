@@ -6,10 +6,10 @@ import (
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/amf/context"
-	"github.com/yeastengine/canard/internal/amf/logger"
-	"github.com/yeastengine/canard/internal/amf/producer/callback"
-	"github.com/yeastengine/canard/internal/amf/protos/sdcoreAmfServer"
+	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/producer/callback"
+	"github.com/yeastengine/ella/internal/amf/protos/sdcoreAmfServer"
 )
 
 func SendToRan(ran *context.AmfRan, packet []byte) {

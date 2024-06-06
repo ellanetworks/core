@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/yeastengine/canard/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/pcf/logger"
 	"gopkg.in/yaml.v2"
 )
 

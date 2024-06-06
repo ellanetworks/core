@@ -9,7 +9,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
-	"github.com/yeastengine/canard/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/pcf/logger"
 )
 
 // key is supi

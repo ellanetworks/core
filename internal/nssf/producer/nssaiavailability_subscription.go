@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/nssf/factory"
-	"github.com/yeastengine/canard/internal/nssf/logger"
-	"github.com/yeastengine/canard/internal/nssf/util"
+	"github.com/yeastengine/ella/internal/nssf/factory"
+	"github.com/yeastengine/ella/internal/nssf/logger"
+	"github.com/yeastengine/ella/internal/nssf/util"
 )
 
 // Get available subscription ID from configuration

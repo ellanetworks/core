@@ -2,7 +2,7 @@ package util
 
 import (
 	"github.com/omec-project/util/drsm"
-	"github.com/yeastengine/canard/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
 type MockDrsmInterface interface {

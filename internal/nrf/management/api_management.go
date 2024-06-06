@@ -9,9 +9,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/nrf/dbadapter"
-	"github.com/yeastengine/canard/internal/nrf/logger"
-	"github.com/yeastengine/canard/internal/nrf/util"
+	"github.com/yeastengine/ella/internal/nrf/dbadapter"
+	"github.com/yeastengine/ella/internal/nrf/logger"
+	"github.com/yeastengine/ella/internal/nrf/util"
 )
 
 func GetNrfInfo() *models.NrfInfo {

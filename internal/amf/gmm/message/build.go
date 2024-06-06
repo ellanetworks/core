@@ -10,10 +10,10 @@ import (
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/amf/context"
-	"github.com/yeastengine/canard/internal/amf/factory"
-	"github.com/yeastengine/canard/internal/amf/logger"
-	"github.com/yeastengine/canard/internal/amf/nas/nas_security"
+	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/factory"
+	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/nas/nas_security"
 )
 
 func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu []byte,

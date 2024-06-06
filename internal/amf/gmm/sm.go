@@ -8,10 +8,10 @@ import (
 	"github.com/omec-project/nas/security"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/fsm"
-	"github.com/yeastengine/canard/internal/amf/context"
-	gmm_message "github.com/yeastengine/canard/internal/amf/gmm/message"
-	"github.com/yeastengine/canard/internal/amf/logger"
-	"github.com/yeastengine/canard/internal/amf/util"
+	"github.com/yeastengine/ella/internal/amf/context"
+	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
+	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/util"
 )
 
 func DeRegistered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/yeastengine/canard/internal/udm/logger"
+	"github.com/yeastengine/ella/internal/udm/logger"
 	"gopkg.in/yaml.v2"
 )
 

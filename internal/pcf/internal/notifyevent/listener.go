@@ -1,7 +1,7 @@
 package notifyevent
 
 import (
-	"github.com/yeastengine/canard/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/pcf/logger"
 )
 
 type NotifyListener struct{}

@@ -7,8 +7,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
-	"github.com/yeastengine/canard/internal/ausf/logger"
-	"github.com/yeastengine/canard/internal/ausf/service"
+	"github.com/yeastengine/ella/internal/ausf/logger"
+	"github.com/yeastengine/ella/internal/ausf/service"
 )
 
 const (

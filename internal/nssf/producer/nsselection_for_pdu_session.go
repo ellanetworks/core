@@ -12,8 +12,8 @@ import (
 	"net/http"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/nssf/plugin"
-	"github.com/yeastengine/canard/internal/nssf/util"
+	"github.com/yeastengine/ella/internal/nssf/plugin"
+	"github.com/yeastengine/ella/internal/nssf/util"
 )
 
 func selectNsiInformation(nsiInformationList []models.NsiInformation) models.NsiInformation {

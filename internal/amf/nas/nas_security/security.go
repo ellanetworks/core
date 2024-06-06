@@ -11,8 +11,8 @@ import (
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/security"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/amf/context"
-	"github.com/yeastengine/canard/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
 var mutex sync.Mutex

@@ -12,9 +12,9 @@ import (
 	Nudr "github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	udm_context "github.com/yeastengine/canard/internal/udm/context"
-	"github.com/yeastengine/canard/internal/udm/logger"
-	"github.com/yeastengine/canard/internal/udm/util"
+	udm_context "github.com/yeastengine/ella/internal/udm/context"
+	"github.com/yeastengine/ella/internal/udm/logger"
+	"github.com/yeastengine/ella/internal/udm/util"
 )
 
 func HandleGetAmDataRequest(request *httpwrapper.Request) *httpwrapper.Response {

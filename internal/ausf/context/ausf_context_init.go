@@ -9,8 +9,8 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/path_util"
-	"github.com/yeastengine/canard/internal/ausf/factory"
-	"github.com/yeastengine/canard/internal/ausf/logger"
+	"github.com/yeastengine/ella/internal/ausf/factory"
+	"github.com/yeastengine/ella/internal/ausf/logger"
 )
 
 func TestInit() {

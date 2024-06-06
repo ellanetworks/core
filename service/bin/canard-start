@@ -2,4 +2,4 @@
 
 set -ex
 
-"$SNAP"/bin/canard -config "$SNAP_COMMON"/canard.yaml
+"$SNAP"/bin/ella -config "$SNAP_COMMON"/ella.yaml

@@ -19,9 +19,9 @@ import (
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	Nudm_UEAU "github.com/omec-project/openapi/Nudm_UEAuthentication"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/ausf/consumer"
-	ausf_context "github.com/yeastengine/canard/internal/ausf/context"
-	"github.com/yeastengine/canard/internal/ausf/logger"
+	"github.com/yeastengine/ella/internal/ausf/consumer"
+	ausf_context "github.com/yeastengine/ella/internal/ausf/context"
+	"github.com/yeastengine/ella/internal/ausf/logger"
 )
 
 func KDF5gAka(param ...string) hash.Hash {

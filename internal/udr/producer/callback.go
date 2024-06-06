@@ -2,7 +2,7 @@ package producer
 
 import (
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/canard/internal/udr/producer/callback"
+	"github.com/yeastengine/ella/internal/udr/producer/callback"
 )
 
 func PreHandleOnDataChangeNotify(ueId string, resourceId string, patchItems []models.PatchItem,

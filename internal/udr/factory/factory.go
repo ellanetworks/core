@@ -11,7 +11,7 @@ import (
 	"github.com/omec-project/config5g/proto/client"
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/sirupsen/logrus"
-	"github.com/yeastengine/canard/internal/udr/logger"
+	"github.com/yeastengine/ella/internal/udr/logger"
 	"gopkg.in/yaml.v2"
 )
 

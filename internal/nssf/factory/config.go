@@ -10,7 +10,7 @@ import (
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/omec-project/openapi/models"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/yeastengine/canard/internal/nssf/logger"
+	"github.com/yeastengine/ella/internal/nssf/logger"
 )
 
 const (

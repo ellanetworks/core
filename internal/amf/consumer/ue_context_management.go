@@ -7,7 +7,7 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nudm_UEContextManagement"
 	"github.com/omec-project/openapi/models"
-	amf_context "github.com/yeastengine/canard/internal/amf/context"
+	amf_context "github.com/yeastengine/ella/internal/amf/context"
 )
 
 func UeCmRegistration(ue *amf_context.AmfUe, accessType models.AccessType, initialRegistrationInd bool) (

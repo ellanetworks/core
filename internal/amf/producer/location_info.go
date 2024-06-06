@@ -5,8 +5,8 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/amf/context"
-	"github.com/yeastengine/canard/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
 func LocationInfoHandler(s1, s2 string, msg interface{}) (interface{}, string, interface{}, interface{}) {

@@ -16,8 +16,8 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/udr/logger"
-	"github.com/yeastengine/canard/internal/udr/producer"
+	"github.com/yeastengine/ella/internal/udr/logger"
+	"github.com/yeastengine/ella/internal/udr/producer"
 )
 
 // HTTPQuerySmfSelectData - Retrieves the SMF selection subscription data of a UE

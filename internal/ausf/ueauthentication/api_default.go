@@ -17,8 +17,8 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/canard/internal/ausf/logger"
-	"github.com/yeastengine/canard/internal/ausf/producer"
+	"github.com/yeastengine/ella/internal/ausf/logger"
+	"github.com/yeastengine/ella/internal/ausf/producer"
 )
 
 // HTTPEapAuthMethod -

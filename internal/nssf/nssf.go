@@ -7,8 +7,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
-	"github.com/yeastengine/canard/internal/nssf/logger"
-	"github.com/yeastengine/canard/internal/nssf/service"
+	"github.com/yeastengine/ella/internal/nssf/logger"
+	"github.com/yeastengine/ella/internal/nssf/service"
 )
 
 var NSSF = &service.NSSF{}
