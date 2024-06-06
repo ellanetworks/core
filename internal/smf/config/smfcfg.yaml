@@ -1,0 +1,122 @@
+
+
+
+info:
+  version: 1.0.0
+  description: SMF initial local configuration
+
+configuration:
+  enableDBStore: false
+  enableUPFAdapter: true
+  debugProfilePort: 5001
+  mongodb:
+    name: sdcore_smf
+    url: "mongodb://mongodb-arbiter-headless"
+  kafkaInfo:
+    brokerUri: "sd-core-kafka-headless"
+    brokerPort: 9092
+    topicName: "sdcore-data-source-smf"
+  staticIpInfo:
+    - dnn: internet_1
+      imsiIpInfo:
+        supi-123456789012341: "1.1.1.1"
+        supi-123456789012342: "2.2.2.2"
+        supi-123456789012343: "3.3.3.3"
+        supi-123456789012344: "4.4.4.4"
+    - dnn: internet_2
+      imsiIpInfo:
+        supi-123456789012345: "5.5.5.5"
+        supi-123456789012346: "6.6.6.6"
+        supi-123456789012347: "7.7.7.7"
+        supi-123456789012348: "8.8.8.8"
+  smfName: SMF # the name of this SMF
+  sbi: # Service-based interface information
+    scheme: http # the protocol for sbi (http or https)
+    registerIPv4: smf # IP used to register to NRF
+    bindingIPv4: smf  # IP used to bind the service
+    port: 29502 # Port used to bind the service
+    tls: # the local path of TLS key
+      key: free5gc/support/TLS/smf.key # SMF TLS Certificate
+      pem: free5gc/support/TLS/smf.pem # SMF TLS Private key
+  serviceNameList: # the SBI services provided by this SMF, refer to TS 29.502
+    - nsmf-pdusession # Nsmf_PDUSession service
+    - nsmf-event-exposure # Nsmf_EventExposure service
+    - nsmf-oam # OAM service
+  snssaiInfos: # the S-NSSAI (Single Network Slice Selection Assistance Information) list supported by this AMF
+    - sNssai: # S-NSSAI (Single Network Slice Selection Assistance Information)
+        sst: 1 # Slice/Service Type (uinteger, range: 0~255)
+        sd: "010203" # Slice Differentiator (3 bytes hex string, range: 000000~FFFFFF)
+      dnnInfos: # DNN information list
+        - dnn: internet # Data Network Name
+          dns: # the IP address of DNS
+            ipv4: 8.8.8.8
+            ipv6: 2001:4860:4860::8888
+          ueSubnet: 60.60.0.0/16 # should be CIDR type
+          mtu: 1400
+      plmnId:
+        mcc: "111"
+        mnc: "222"
+    - sNssai: # S-NSSAI (Single Network Slice Selection Assistance Information)
+        sst: 1 # Slice/Service Type (uinteger, range: 0~255)
+        sd: "112233" # Slice Differentiator (3 bytes hex string, range: 000000~FFFFFF)
+      dnnInfos: # DNN information list
+        - dnn: internet # Data Network Name
+          dns: # the IP address of DNS
+            ipv4: 8.8.8.8
+            ipv6: 2001:4860:4860::8888
+          ueSubnet: 60.61.0.0/16 # should be CIDR type
+          mtu: 1400
+      plmnId:
+        mcc: "333"
+        mnc: "444"
+  pfcp: # the IP address of N4 interface on this SMF (PFCP)
+    addr: smf
+  userplane_information: # list of userplane information
+    up_nodes: # information of userplane node (AN or UPF)
+      gNB: # the name of the node
+        type: AN # the type of the node (AN or UPF)
+      UPF1:  # the name of the node
+        type: UPF # the type of the node (AN or UPF)
+        node_id: upf # the IP/FQDN of N4 interface on this UPF (PFCP)
+        sNssaiUpfInfos: # S-NSSAI information list for this UPF
+          - sNssai: # S-NSSAI (Single Network Slice Selection Assistance Information)
+              sst: 1 # Slice/Service Type (uinteger, range: 0~255)
+              sd: "010203" # Slice Differentiator (3 bytes hex string, range: 000000~FFFFFF)
+            dnnUpfInfoList: # DNN information list for this S-NSSAI
+              - dnn: internet
+        interfaces: # Interface list for this UPF
+          - interfaceType: N3 # the type of the interface (N3 or N9)
+            endpoints: # the IP address of this N3/N9 interface on this UPF
+              - upf
+            networkInstance: internet # Data Network Name (DNN)
+
+    links: # the topology graph of userplane, A and B represent the two nodes of each link
+      - A: gNB
+        B: UPF1
+  nrfUri: http://nrf:29510 # a valid URI of NRF
+
+# the kind of log output
+  # debugLevel: how detailed to output, value: trace, debug, info, warn, error, fatal, panic
+  # ReportCaller: enable the caller report or not, value: true or false
+logger:
+  SMF:
+    debugLevel: debug
+    ReportCaller: false
+  NAS:
+    debugLevel: debug
+    ReportCaller: false
+  NGAP:
+    debugLevel: debug
+    ReportCaller: false
+  Aper:
+    debugLevel: info
+    ReportCaller: false
+  PathUtil:
+    debugLevel: debug
+    ReportCaller: false
+  OpenApi:
+    debugLevel: debug
+    ReportCaller: false
+  PFCP:
+    debugLevel: debug
+    ReportCaller: false

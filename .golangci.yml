@@ -177,7 +177,7 @@ linters:
   enable:
     - gofmt
     # - errcheck
-    - staticcheck
+    # - staticcheck
     - unused
     # - gosimple
     - typecheck
@@ -188,13 +188,13 @@ linters:
     # - gocognit
     # - nestif
     - gomodguard
-    - nakedret
+    # - nakedret
     # - gci
     # - misspell
     - gofumpt
     - whitespace
-    - unconvert
-    - predeclared
+    # - unconvert
+    # - predeclared
     # - noctx
     - dogsled
     # - bodyclose

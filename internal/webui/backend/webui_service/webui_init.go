@@ -21,7 +21,6 @@ import (
 	"github.com/urfave/cli"
 	"github.com/yeastengine/ella/internal/webui/backend/factory"
 	"github.com/yeastengine/ella/internal/webui/backend/logger"
-	"github.com/yeastengine/ella/internal/webui/backend/metrics"
 	"github.com/yeastengine/ella/internal/webui/backend/webui_context"
 	"github.com/yeastengine/ella/internal/webui/configapi"
 	"github.com/yeastengine/ella/internal/webui/configmodels"
@@ -164,8 +163,6 @@ func (webui *WEBUI) Start() {
 	subconfig_router := logger_util.NewGinWithLogrus(logger.GinLog)
 	configapi.AddServiceSub(subconfig_router)
 	configapi.AddService(subconfig_router)
-
-	go metrics.InitMetrics()
 
 	configMsgChan := make(chan *configmodels.ConfigMessage, 10)
 	configapi.SetChannel(configMsgChan)
