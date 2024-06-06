@@ -45,6 +45,10 @@ configuration:
 info:
   description: WebUI initial local configuration
   version: 1.0.0
+logger:
+  WEBUI:
+    debugLevel: debug
+    ReportCaller: false
 `, dBName, dbUrl, authDbName, dbUrl)
 	tmpFile, err := os.CreateTemp("", "webuicfg-*.yaml")
 	if err != nil {

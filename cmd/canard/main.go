@@ -10,6 +10,7 @@ import (
 	"github.com/yeastengine/canard/internal/config"
 	"github.com/yeastengine/canard/internal/db"
 	"github.com/yeastengine/canard/internal/nrf"
+	"github.com/yeastengine/canard/internal/nssf"
 	"github.com/yeastengine/canard/internal/pcf"
 	"github.com/yeastengine/canard/internal/udm"
 	"github.com/yeastengine/canard/internal/udr"
@@ -65,7 +66,6 @@ func startAUSF(nrfUrl string, webuiUrl string) error {
 }
 
 func startPCF(nrfUrl string, webuiUrl string) error {
-	fmt.Printf("Starting PCF")
 	err := pcf.Start(nrfUrl, webuiUrl)
 	if err != nil {
 		return fmt.Errorf("failed to start PCF: %w", err)
@@ -85,6 +85,14 @@ func startUDM(nrfUrl string, webuiUrl string) error {
 	err := udm.Start(nrfUrl, webuiUrl)
 	if err != nil {
 		return fmt.Errorf("failed to start UDM: %w", err)
+	}
+	return nil
+}
+
+func startNSSF(dbUrl string, webuiUrl string) error {
+	err := nssf.Start(dbUrl, webuiUrl)
+	if err != nil {
+		return fmt.Errorf("failed to start NSSF: %w", err)
 	}
 	return nil
 }
@@ -149,6 +157,10 @@ func main() {
 	err = startUDM(nrfUrl, webuiUrl)
 	if err != nil {
 		panic("Failed to start UDM")
+	}
+	err = startNSSF(nrfUrl, webuiUrl)
+	if err != nil {
+		panic("Failed to start NSSF")
 	}
 	select {}
 }

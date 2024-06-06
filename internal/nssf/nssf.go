@@ -1,4 +1,4 @@
-package pcf
+package nssf
 
 import (
 	"flag"
@@ -7,15 +7,19 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
-	"github.com/yeastengine/canard/internal/pcf/logger"
-	"github.com/yeastengine/canard/internal/pcf/service"
+	"github.com/yeastengine/canard/internal/nssf/logger"
+	"github.com/yeastengine/canard/internal/nssf/service"
 )
 
-var PCF = &service.PCF{}
+var NSSF = &service.NSSF{}
 
 var appLog *logrus.Entry
 
-const SBI_PORT = "29507"
+const (
+	SD       = "010203"
+	SST      = "1"
+	SBI_PORT = "29531"
+)
 
 func init() {
 	appLog = logger.AppLog
@@ -23,44 +27,44 @@ func init() {
 
 func getContext(nrfURL string, webuiURL string) (*cli.Context, error) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
-	flagSet.String("pcfcfg", "", "PCF configuration")
+	flagSet.String("nssfcfg", "", "NSSF configuration")
 	app := cli.NewApp()
 	appLog.Infoln(app.Name)
 	c := cli.NewContext(app, flagSet, nil)
-	pcfConfig := fmt.Sprintf(`
+	nssfConfig := fmt.Sprintf(`
 configuration:
-  defaultBdtRefId: BdtPolicyId-
   nrfUri: %s
-  pcfName: PCF
   webuiUri: %s
+  nsiList:
+  - nsiInformationList:
+    - nrfId: %s/nnrf-nfm/v1/nf-instances
+      nsiId: 22
+    snssai:
+      sd: "%s"
+      sst: %s
+  nssfName: NSSF
   sbi:
     bindingIPv4: 0.0.0.0
     port: %s
-    registerIPv4: 0.0.0.0:29507
+    registerIPv4: 0.0.0.0:29531
     scheme: http
-  serviceList:
-  - serviceName: npcf-am-policy-control
-  - serviceName: npcf-smpolicycontrol
-    suppFeat: 3fff
-  - serviceName: npcf-bdtpolicycontrol
-  - serviceName: npcf-policyauthorization
-    suppFeat: 3
-  - serviceName: npcf-eventexposure
-  - serviceName: npcf-ue-policy-control
+  serviceNameList:
+  - nnssf-nsselection
+  - nnssf-nssaiavailability
 info:
-  description: PCF initial local configuration
+  description: NSSF initial local configuration
   version: 1.0.0
 logger:
-  PCF:
+  NSSF:
     ReportCaller: false
     debugLevel: debug
-`, nrfURL, webuiURL, SBI_PORT)
-	tmpFile, err := os.CreateTemp("", "pcfcfg-*.yaml")
+`, nrfURL, webuiURL, nrfURL, SD, SST, SBI_PORT)
+	tmpFile, err := os.CreateTemp("", "nssfcfg-*.yaml")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
 
-	_, err = tmpFile.Write([]byte(pcfConfig))
+	_, err = tmpFile.Write([]byte(nssfConfig))
 	if err != nil {
 		tmpFile.Close()
 		os.Remove(tmpFile.Name())
@@ -72,7 +76,7 @@ logger:
 		return nil, fmt.Errorf("failed to close temp file: %w", err)
 	}
 
-	err = c.Set("pcfcfg", tmpFile.Name())
+	err = c.Set("nssfcfg", tmpFile.Name())
 	if err != nil {
 		os.Remove(tmpFile.Name())
 		return nil, err
@@ -87,11 +91,11 @@ func Start(nrfURL string, webuiURL string) error {
 		logger.CfgLog.Errorf("%+v", err)
 		return fmt.Errorf("failed to get context")
 	}
-	err = PCF.Initialize(c)
+	err = NSSF.Initialize(c)
 	if err != nil {
 		logger.CfgLog.Errorf("%+v", err)
 		return fmt.Errorf("failed to initialize")
 	}
-	go PCF.Start()
+	go NSSF.Start()
 	return nil
 }

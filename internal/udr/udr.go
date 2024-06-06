@@ -49,13 +49,9 @@ configuration:
     authUrl: %s
   nrfUri: %s
   webuiUri: %s
-
-# the kind of log output
-# debugLevel: how detailed to output, value: trace, debug, info, warn, error, fatal, panic
-# ReportCaller: enable the caller report or not, value: true or false
 logger:
   UDR:
-    debugLevel: info
+    debugLevel: debug
     ReportCaller: false
 `, SBI_PORT, COMMON_DB_NAME, mongoDBURL, AUTH_DB_NAME, mongoDBURL, nrfURL, webuiURL)
 	tmpFile, err := os.CreateTemp("", "udrcfg-*.yaml")
