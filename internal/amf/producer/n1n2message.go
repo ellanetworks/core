@@ -107,7 +107,7 @@ func HandleN1N2MessageTransferRequest(request *httpwrapper.Request) *httpwrapper
 //     response
 //   - problemDetails: if AMF reject the request due to application error, e.g. UE context not found.
 //   - TransferErr: if AMF reject the request due to procedure error, e.g. UE has an ongoing procedure.
-//
+
 // see TS 29.518 6.1.3.5.3.1 for more details.
 func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 	n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (

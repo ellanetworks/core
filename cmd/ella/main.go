@@ -12,6 +12,7 @@ import (
 	"github.com/yeastengine/ella/internal/nrf"
 	"github.com/yeastengine/ella/internal/nssf"
 	"github.com/yeastengine/ella/internal/pcf"
+	"github.com/yeastengine/ella/internal/smf"
 	"github.com/yeastengine/ella/internal/udm"
 	"github.com/yeastengine/ella/internal/udr"
 	"github.com/yeastengine/ella/internal/webui"
@@ -97,6 +98,14 @@ func startNSSF(dbUrl string, webuiUrl string) error {
 	return nil
 }
 
+func startSMF(dbUrl string, nrfUrl string, webuiUrl string) error {
+	err := smf.Start(dbUrl, nrfUrl, webuiUrl)
+	if err != nil {
+		return fmt.Errorf("failed to start SMF: %w", err)
+	}
+	return nil
+}
+
 func startMongoDB() string {
 	db, err := db.StartMongoDB(DBPath)
 	if err != nil {
@@ -105,20 +114,36 @@ func startMongoDB() string {
 	return db.URL
 }
 
-func main() {
+func setEnvironmentVariables() error {
 	err := os.Setenv("MANAGED_BY_CONFIG_POD", "true")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	err = os.Setenv("CONFIGPOD_DEPLOYMENT", "true")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	err = os.Setenv("GRPC_VERBOSITY", "debug")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	err = os.Setenv("GRPC_GO_LOG_SEVERITY_LEVEL", "info")
+	if err != nil {
+		return err
+	}
+	err = os.Setenv("POD_IP", "0.0.0.0")
+	if err != nil {
+		return err
+	}
+	err = os.Setenv("PFCP_PORT_UPF", "8805")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func main() {
+	err := setEnvironmentVariables()
 	if err != nil {
 		panic(err)
 	}
@@ -161,6 +186,10 @@ func main() {
 	err = startNSSF(nrfUrl, webuiUrl)
 	if err != nil {
 		panic("Failed to start NSSF")
+	}
+	err = startSMF(dbUrl, nrfUrl, webuiUrl)
+	if err != nil {
+		panic("Failed to start SMF")
 	}
 	select {}
 }

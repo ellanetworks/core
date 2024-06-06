@@ -97,8 +97,8 @@ func HandleUeAuthPostRequest(request *httpwrapper.Request) *httpwrapper.Response
 }
 
 // func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (
-//
-//	response *models.UeAuthenticationCtx, locationURI string, problemDetails *models.ProblemDetails) {
+
+// response *models.UeAuthenticationCtx, locationURI string, problemDetails *models.ProblemDetails) {
 func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (*models.UeAuthenticationCtx,
 	string, *models.ProblemDetails,
 ) {
