@@ -9,12 +9,12 @@ import (
 
 	"github.com/antihax/optional"
 	"github.com/mohae/deepcopy"
-	nrf_cache "github.com/omec-project/nrf/nrfcache"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/Nnrf_NFManagement"
 	"github.com/omec-project/openapi/Nudm_SubscriberDataManagement"
 	"github.com/omec-project/openapi/models"
+	nrf_cache "github.com/yeastengine/ella/internal/nrf/nrfcache"
 	smf_context "github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/logger"
 )

@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
-	nrf_cache "github.com/omec-project/nrf/nrfcache"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
+	nrf_cache "github.com/yeastengine/ella/internal/nrf/nrfcache"
 	smf_context "github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/qos"
