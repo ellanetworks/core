@@ -1,14 +1,11 @@
 package webui_service
 
 import (
-	"bufio"
 	"fmt"
 	"net/http"
 	_ "net/http"
 	_ "net/http/pprof"
-	"os/exec"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -149,14 +146,9 @@ func (webui *WEBUI) FilterCli(c *cli.Context) (args []string) {
 }
 
 func (webui *WEBUI) Start() {
-	if factory.WebUIConfig.Configuration.Mode5G {
-		// get config file info from WebUIConfig
-		mongodb := factory.WebUIConfig.Configuration.Mongodb
-
-		// Connect to MongoDB
-		dbadapter.ConnectMongo(mongodb.Url, mongodb.Name, mongodb.AuthUrl, mongodb.AuthKeysDbName)
-	}
-
+	mongodb := factory.WebUIConfig.Configuration.Mongodb
+	// Connect to MongoDB
+	dbadapter.ConnectMongo(mongodb.Url, mongodb.Name, mongodb.AuthUrl, mongodb.AuthKeysDbName)
 	initLog.Infoln("WebUI Server started")
 
 	/* First HTTP Server running at port to receive Config from ROC */
@@ -185,34 +177,26 @@ func (webui *WEBUI) Start() {
 		if factory.WebUIConfig.Info.HttpVersion == 2 {
 			server, err := http2_util.NewServer(httpAddr, "", subconfig_router)
 			if server == nil {
-				initLog.Error("Initialize HTTP-2 server failed:", err)
-				return
+				panic("Failed to create HTTP/2 server")
 			}
 
 			if err != nil {
-				initLog.Warnln("Initialize HTTP-2 server:", err)
-				return
+				panic(err)
 			}
 
 			err = server.ListenAndServe()
 			if err != nil {
-				initLog.Fatalln("HTTP server setup failed:", err)
-				return
+				panic(err)
 			}
 		} else {
 			initLog.Infoln(subconfig_router.Run(httpAddr))
 			initLog.Infoln("Webserver stopped/terminated/not-started ")
 		}
 	}()
-	/* First HTTP server end */
 
-	if factory.WebUIConfig.Configuration.Mode5G {
-		self := webui_context.WEBUI_Self()
-		self.UpdateNfProfiles()
-	}
+	self := webui_context.WEBUI_Self()
+	self.UpdateNfProfiles()
 
-	// Start grpc Server. This has embedded functionality of sending
-	// 4G config over REST Api as well.
 	var host string = "0.0.0.0:9876"
 	confServ := &gServ.ConfigServer{}
 	go gServ.StartServer(host, confServ, configMsgChan)
@@ -221,57 +205,7 @@ func (webui *WEBUI) Start() {
 	// this is to fetch existing config
 	go fetchConfigAdapater()
 
-	// http.ListenAndServe("0.0.0.0:5001", nil)
-
 	select {}
-}
-
-func (webui *WEBUI) Exec(c *cli.Context) error {
-	// WEBUI.Initialize(cfgPath, c)
-
-	initLog.Traceln("args:", c.String("webuicfg"))
-	args := webui.FilterCli(c)
-	initLog.Traceln("filter: ", args)
-	command := exec.Command("./webui", args...)
-
-	webui.Initialize(c)
-
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-	go func() {
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	go func() {
-		in := bufio.NewScanner(stderr)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		if errCmd := command.Start(); errCmd != nil {
-			fmt.Println("command.Start Fails!")
-		}
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	return err
 }
 
 func fetchConfigAdapater() {

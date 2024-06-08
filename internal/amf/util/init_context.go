@@ -2,7 +2,6 @@ package util
 
 import (
 	"os"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/omec-project/nas/security"
@@ -19,11 +18,7 @@ func InitDrsm() (drsm.DrsmInterface, error) {
 	logger.UtilLog.Infof("NfId Instance: %v", context.AMF_Self().NfId)
 	podId := drsm.PodId{PodName: podname, PodInstance: context.AMF_Self().NfId, PodIp: podip}
 	logger.UtilLog.Debugf("PodId: %v", podId)
-	dbUrl := "mongodb://mongodb-arbiter-headless"
-	if factory.AmfConfig.Configuration.Mongodb != nil &&
-		factory.AmfConfig.Configuration.Mongodb.Url != "" {
-		dbUrl = factory.AmfConfig.Configuration.Mongodb.Url
-	}
+	dbUrl := factory.AmfConfig.Configuration.Mongodb.Url
 	opt := &drsm.Options{ResIdSize: 24, Mode: drsm.ResourceClient}
 	db := drsm.DbInfo{Url: dbUrl, Name: factory.AmfConfig.Configuration.AmfDBName}
 
@@ -35,71 +30,26 @@ func InitAmfContext(context *context.AMFContext) {
 	config := factory.AmfConfig
 	logger.UtilLog.Infof("amfconfig Info: Version[%s] Description[%s]", config.Info.Version, config.Info.Description)
 	configuration := config.Configuration
-	if context.NfId == "" {
-		context.NfId = uuid.New().String()
-	}
-
-	if configuration.AmfName != "" {
-		context.Name = configuration.AmfName
-	}
-	if configuration.NgapIpList != nil {
-		context.NgapIpList = configuration.NgapIpList
-	} else {
-		context.NgapIpList = []string{"127.0.0.1"} // default localhost
-	}
+	context.NfId = uuid.New().String()
+	context.Name = configuration.AmfName
+	context.NgapIpList = configuration.NgapIpList
 	context.NgapPort = configuration.NgapPort
 	context.SctpGrpcPort = configuration.SctpGrpcPort
 	sbi := configuration.Sbi
-	if sbi.Scheme != "" {
-		context.UriScheme = models.UriScheme(sbi.Scheme)
-	} else {
-		logger.UtilLog.Warnln("SBI Scheme has not been set. Using http as default")
-		context.UriScheme = "http"
-	}
-	context.RegisterIPv4 = factory.AMF_DEFAULT_IPV4 // default localhost
-	context.SBIPort = factory.AMF_DEFAULT_PORT_INT  // default port
-	if sbi != nil {
-		if sbi.RegisterIPv4 != "" {
-			context.RegisterIPv4 = os.Getenv("POD_IP")
-		}
-		if sbi.Port != 0 {
-			context.SBIPort = sbi.Port
-		}
-		context.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
-		if context.BindingIPv4 != "" {
-			logger.UtilLog.Info("Parsing ServerIPv4 address from ENV Variable.")
-		} else {
-			context.BindingIPv4 = sbi.BindingIPv4
-			if context.BindingIPv4 == "" {
-				logger.UtilLog.Warn("Error parsing ServerIPv4 address from string. Using the 0.0.0.0 as default.")
-				context.BindingIPv4 = "0.0.0.0"
-			}
-		}
-	}
+	context.UriScheme = models.UriScheme(sbi.Scheme)
+	context.RegisterIPv4 = sbi.RegisterIPv4
+	context.SBIPort = sbi.Port
+	context.BindingIPv4 = sbi.BindingIPv4
 	serviceNameList := configuration.ServiceNameList
 	context.InitNFService(serviceNameList, config.Info.Version)
 	context.ServedGuamiList = configuration.ServedGumaiList
 	context.SupportTaiLists = configuration.SupportTAIList
-	// Tac value not converting into 3bytes hex string.
-	// keeping tac integer value in string format received from configuration
-	/*for i := range context.SupportTaiLists {
-		if str := TACConfigToModels(context.SupportTaiLists[i].Tac); str != "" {
-			context.SupportTaiLists[i].Tac = str
-		}
-	}*/
 	context.PlmnSupportList = configuration.PlmnSupportList
 	context.SupportDnnLists = configuration.SupportDnnList
-	if configuration.NrfUri != "" {
-		context.NrfUri = configuration.NrfUri
-	} else {
-		logger.UtilLog.Warn("NRF Uri is empty! Using localhost as NRF IPv4 address.")
-		context.NrfUri = factory.AMF_DEFAULT_NRFURI
-	}
+	context.NrfUri = configuration.NrfUri
 	security := configuration.Security
-	if security != nil {
-		context.SecurityAlgorithm.IntegrityOrder = getIntAlgOrder(security.IntegrityOrder)
-		context.SecurityAlgorithm.CipheringOrder = getEncAlgOrder(security.CipheringOrder)
-	}
+	context.SecurityAlgorithm.IntegrityOrder = getIntAlgOrder(security.IntegrityOrder)
+	context.SecurityAlgorithm.CipheringOrder = getEncAlgOrder(security.CipheringOrder)
 	context.NetworkName = configuration.NetworkName
 	context.T3502Value = configuration.T3502Value
 	context.T3512Value = configuration.T3512Value
@@ -112,13 +62,6 @@ func InitAmfContext(context *context.AMFContext) {
 	context.EnableSctpLb = configuration.EnableSctpLb
 	context.EnableDbStore = configuration.EnableDbStore
 	context.EnableNrfCaching = configuration.EnableNrfCaching
-	if configuration.EnableNrfCaching {
-		if configuration.NrfCacheEvictionInterval == 0 {
-			context.NrfCacheEvictionInterval = time.Duration(900) // 15 mins
-		} else {
-			context.NrfCacheEvictionInterval = time.Duration(configuration.NrfCacheEvictionInterval)
-		}
-	}
 }
 
 func getIntAlgOrder(integrityOrder []string) (intOrder []uint8) {

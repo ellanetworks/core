@@ -5,10 +5,8 @@
 package factory
 
 import (
-	"fmt"
 	"os"
 
-	"github.com/yeastengine/ella/internal/pcf/logger"
 	"gopkg.in/yaml.v2"
 )
 
@@ -28,19 +26,6 @@ func InitConfigFactory(f string) error {
 			PcfConfig.Configuration.WebuiUri = "webui:9876"
 		}
 	}
-
-	return nil
-}
-
-func CheckConfigVersion() error {
-	currentVersion := PcfConfig.GetVersion()
-
-	if currentVersion != PCF_EXPECTED_CONFIG_VERSION {
-		return fmt.Errorf("config version is [%s], but expected is [%s].",
-			currentVersion, PCF_EXPECTED_CONFIG_VERSION)
-	}
-
-	logger.CfgLog.Infof("config version [%s]", currentVersion)
 
 	return nil
 }

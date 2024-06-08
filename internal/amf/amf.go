@@ -57,7 +57,7 @@ configuration:
   sbi:
     bindingIPv4: 0.0.0.0
     port: %s
-    registerIPv4: 0.0.0.0:29518
+    registerIPv4: 0.0.0.0
     scheme: http
   sctpGrpcPort: 9000
   serviceNameList:

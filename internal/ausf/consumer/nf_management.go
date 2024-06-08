@@ -45,6 +45,7 @@ var SendRegisterNFInstance = func(nrfUri, nfInstanceId string, profile models.Nf
 	for {
 		if profile1, resTmp, err := client.NFInstanceIDDocumentApi.RegisterNFInstance(context.TODO(), nfInstanceId,
 			profile); err != nil || resTmp == nil {
+			panic("AUSF register to NRF Error")
 			logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
 			time.Sleep(2 * time.Second)
 			continue

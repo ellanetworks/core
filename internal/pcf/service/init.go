@@ -1,11 +1,9 @@
 package service
 
 import (
-	"bufio"
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strconv"
 	"strings"
@@ -22,7 +20,6 @@ import (
 	"github.com/omec-project/util/http2_util"
 	"github.com/omec-project/util/idgenerator"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/omec-project/util/path_util"
 	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
@@ -87,35 +84,17 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 	config = Config{
 		pcfcfg: c.String("pcfcfg"),
 	}
-	if config.pcfcfg != "" {
-		if err := factory.InitConfigFactory(config.pcfcfg); err != nil {
-			return err
-		}
-	} else {
-		DefaultPcfConfigPath := path_util.Free5gcPath("free5gc/config/pcfcfg.yaml")
-		if err := factory.InitConfigFactory(DefaultPcfConfigPath); err != nil {
-			return err
-		}
-	}
-
-	pcf.setLogLevel()
-
-	if err := factory.CheckConfigVersion(); err != nil {
+	if err := factory.InitConfigFactory(config.pcfcfg); err != nil {
 		return err
 	}
+	pcf.setLogLevel()
 
-	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
-	if roc == "true" {
-		initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-		gClient := client.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri)
-		commChannel := gClient.PublishOnConfigChange(true)
-		go pcf.updateConfig(commChannel)
-	} else {
-		go func() {
-			initLog.Infoln("Use helm chart config ")
-			ConfigPodTrigger <- true
-		}()
+	gClient := client.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri)
+	if gClient == nil {
+		panic("Failed to connect to Config Server")
 	}
+	commChannel := gClient.PublishOnConfigChange(true)
+	go pcf.updateConfig(commChannel)
 	return nil
 }
 
@@ -252,53 +231,6 @@ func (pcf *PCF) Start() {
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
-}
-
-func (pcf *PCF) Exec(c *cli.Context) error {
-	initLog.Traceln("args:", c.String("pcfcfg"))
-	args := pcf.FilterCli(c)
-	initLog.Traceln("filter: ", args)
-	command := exec.Command("./pcf", args...)
-
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	wg := sync.WaitGroup{}
-	wg.Add(4)
-	go func() {
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	go func() {
-		in := bufio.NewScanner(stderr)
-		fmt.Println("PCF log start")
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		fmt.Println("PCF start")
-		if err = command.Start(); err != nil {
-			fmt.Printf("command.Start() error: %v", err)
-		}
-		fmt.Println("PCF end")
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	return err
 }
 
 func (pcf *PCF) StartKeepAliveTimer(nfProfile models.NfProfile) {

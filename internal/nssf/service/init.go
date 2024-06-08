@@ -5,10 +5,8 @@
 package service
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -86,10 +84,6 @@ func (nssf *NSSF) Initialize(c *cli.Context) error {
 	context.InitNssfContext()
 
 	nssf.setLogLevel()
-
-	if err := factory.CheckConfigVersion(); err != nil {
-		return err
-	}
 
 	return nil
 }
@@ -189,51 +183,6 @@ func (nssf *NSSF) Start() {
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
-}
-
-func (nssf *NSSF) Exec(c *cli.Context) error {
-	initLog.Traceln("args:", c.String("nssfcfg"))
-	args := nssf.FilterCli(c)
-	initLog.Traceln("filter: ", args)
-	command := exec.Command("./nssf", args...)
-
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	wg := sync.WaitGroup{}
-	goRoutines := 3
-	wg.Add(goRoutines)
-	go func() {
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	go func() {
-		in := bufio.NewScanner(stderr)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		if err = command.Start(); err != nil {
-			fmt.Printf("NSSF Start error: %v", err)
-		}
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	return err
 }
 
 func (nssf *NSSF) Terminate() {

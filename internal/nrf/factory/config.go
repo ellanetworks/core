@@ -129,7 +129,6 @@ func (c *Config) GetSbiUri() string {
 }
 
 func (c *Config) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool {
-	logger.AppLog.Errorf("Received updateConfig in the nrf app")
 	for rsp := range commChannel {
 		logger.GrpcLog.Infoln("Received updateConfig in the nrf app : ", rsp)
 		for _, ns := range rsp.NetworkSlice {

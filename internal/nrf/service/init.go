@@ -1,12 +1,9 @@
 package service
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -77,10 +74,6 @@ func (nrf *NRF) Initialize(c *cli.Context) error {
 	}
 
 	nrf.setLogLevel()
-
-	if err := factory.CheckConfigVersion(); err != nil {
-		return err
-	}
 
 	return nil
 }
@@ -190,86 +183,21 @@ func (nrf *NRF) Start() {
 		os.Exit(0)
 	}()
 
-	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
-	if roc == "true" {
-		initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-	} else {
-		initLog.Infoln("Use helm chart config ")
-	}
 	bindAddr := factory.NrfConfig.GetSbiBindingAddr()
 	initLog.Infof("Binding addr: [%s]", bindAddr)
 	server, err := http2_util.NewServer(bindAddr, util.NrfLogPath, router)
 
 	if server == nil {
-		initLog.Errorf("Initialize HTTP server failed: %+v", err)
-		return
+		panic("HTTP server setup failed")
 	}
 
 	if err != nil {
 		initLog.Warnf("Initialize HTTP server: +%v", err)
 	}
-
-	serverScheme := factory.NrfConfig.GetSbiScheme()
-	if serverScheme == "http" {
-		err = server.ListenAndServe()
-	} else if serverScheme == "https" {
-		err = server.ListenAndServeTLS(util.NrfPemPath, util.NrfKeyPath)
-	}
-
+	err = server.ListenAndServe()
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
-}
-
-func (nrf *NRF) Exec(c *cli.Context) error {
-	initLog.Traceln("args:", c.String("nrfcfg"))
-	args := nrf.FilterCli(c)
-	initLog.Traceln("filter: ", args)
-	command := exec.Command("./nrf", args...)
-
-	if err := nrf.Initialize(c); err != nil {
-		return err
-	}
-
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-	go func() {
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	go func() {
-		in := bufio.NewScanner(stderr)
-		fmt.Println("NRF log start")
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		fmt.Println("NRF  start")
-		if err = command.Start(); err != nil {
-			fmt.Printf("NRF Start error: %v", err)
-		}
-		fmt.Println("NRF  end")
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	return err
 }
 
 func (nrf *NRF) Terminate() {

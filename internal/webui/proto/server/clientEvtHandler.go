@@ -188,14 +188,6 @@ func init() {
 	restartCounter = r1.Uint32()
 }
 
-func setClientConfigPushUrl(client *clientNF, url string) {
-	client.ConfigPushUrl = url
-}
-
-func setClientConfigCheckUrl(client *clientNF, url string) {
-	client.ConfigCheckUrl = url
-}
-
 func getClient(id string) (*clientNF, bool) {
 	client := clientNFPool[id]
 	if client != nil {

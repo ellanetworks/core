@@ -1,10 +1,8 @@
 package service
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -93,21 +91,8 @@ func (udm *UDM) Initialize(c *cli.Context) error {
 
 	udm.setLogLevel()
 
-	if err := factory.CheckConfigVersion(); err != nil {
-		return err
-	}
-
-	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
-	if roc == "true" {
-		initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-		commChannel := client.ConfigWatcher(factory.UdmConfig.Configuration.WebuiUri)
-		go udm.updateConfig(commChannel)
-	} else {
-		go func() {
-			initLog.Infoln("Use helm chart config ")
-			ConfigPodTrigger <- true
-		}()
-	}
+	commChannel := client.ConfigWatcher(factory.UdmConfig.Configuration.WebuiUri)
+	go udm.updateConfig(commChannel)
 
 	return nil
 }
@@ -229,52 +214,6 @@ func (udm *UDM) Start() {
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
-}
-
-func (udm *UDM) Exec(c *cli.Context) error {
-	// UDM.Initialize(cfgPath, c)
-
-	initLog.Traceln("args:", c.String("udmcfg"))
-	args := udm.FilterCli(c)
-	initLog.Traceln("filter: ", args)
-	command := exec.Command("./udm", args...)
-
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-	go func() {
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	go func() {
-		in := bufio.NewScanner(stderr)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		if err = command.Start(); err != nil {
-			fmt.Printf("UDM Start error: %v", err)
-		}
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	return err
 }
 
 func (udm *UDM) Terminate() {

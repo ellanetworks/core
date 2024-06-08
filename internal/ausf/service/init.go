@@ -1,10 +1,8 @@
 package service
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -90,21 +88,8 @@ func (ausf *AUSF) Initialize(c *cli.Context) error {
 
 	ausf.setLogLevel()
 
-	if err := factory.CheckConfigVersion(); err != nil {
-		return err
-	}
-
-	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
-	if roc == "true" {
-		initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-		commChannel := client.ConfigWatcher(factory.AusfConfig.Configuration.WebuiUri)
-		go ausf.updateConfig(commChannel)
-	} else {
-		go func() {
-			initLog.Infoln("Use helm chart config ")
-			ConfigPodTrigger <- true
-		}()
-	}
+	commChannel := client.ConfigWatcher(factory.AusfConfig.Configuration.WebuiUri)
+	go ausf.updateConfig(commChannel)
 	return nil
 }
 
@@ -260,51 +245,6 @@ func (ausf *AUSF) Start() {
 	}
 }
 
-func (ausf *AUSF) Exec(c *cli.Context) error {
-	initLog.Traceln("args:", c.String("ausfcfg"))
-	args := ausf.FilterCli(c)
-	initLog.Traceln("filter: ", args)
-	command := exec.Command("./ausf", args...)
-
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-	go func() {
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	go func() {
-		in := bufio.NewScanner(stderr)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		startErr := command.Start()
-		if startErr != nil {
-			initLog.Fatalln(startErr)
-		}
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	return err
-}
-
 func (ausf *AUSF) Terminate() {
 	logger.InitLog.Infof("Terminating AUSF...")
 	// deregister with NRF
@@ -405,12 +345,12 @@ func (ausf *AUSF) registerNF() {
 		self := ausf_context.GetSelf()
 		profile, err := consumer.BuildNFInstance(self)
 		if err != nil {
-			initLog.Error("Build AUSF Profile Error")
+			panic("handler returned wrong status code")
 		}
 		var prof models.NfProfile
 		prof, _, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
 		if err != nil {
-			initLog.Errorf("AUSF register to NRF Error[%s]", err.Error())
+			panic("handler returned wrong status code")
 		} else {
 			// stop keepAliveTimer if its running
 			ausf.StartKeepAliveTimer(prof)

@@ -82,12 +82,14 @@ var SendRegisterNFInstance = func(nrfUri, nfInstanceId string, profile models.Nf
 		prof, res, err = client.NFInstanceIDDocumentApi.RegisterNFInstance(context.TODO(), nfInstanceId, profile)
 		if err != nil || res == nil {
 			// TODO : add log
+			panic("AMF register to NRF Error")
 			fmt.Println(fmt.Errorf("AMF register to NRF Error[%s]", err.Error()))
 			time.Sleep(2 * time.Second)
 			continue
 		}
 		defer func() {
 			if bodyCloseErr := res.Body.Close(); bodyCloseErr != nil {
+				panic(fmt.Errorf("SearchNFInstances' response body cannot close: %+w", bodyCloseErr))
 				err = fmt.Errorf("SearchNFInstances' response body cannot close: %+w", bodyCloseErr)
 			}
 		}()
@@ -102,6 +104,7 @@ var SendRegisterNFInstance = func(nrfUri, nfInstanceId string, profile models.Nf
 			retrieveNfInstanceId = resourceUri[strings.LastIndex(resourceUri, "/")+1:]
 			break
 		} else {
+			panic("handler returned wrong status code")
 			fmt.Println(fmt.Errorf("handler returned wrong status code %d", status))
 			fmt.Println(fmt.Errorf("NRF return wrong status code %d", status))
 		}

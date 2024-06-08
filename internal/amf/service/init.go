@@ -1,19 +1,16 @@
 package service
 
 import (
-	"bufio"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" // Using package only for invoking initialization.
 	"os"
-	"os/exec"
 	"os/signal"
 	"strconv"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/gin-contrib/cors"
 	aperLogger "github.com/omec-project/aper/logger"
 	gClient "github.com/omec-project/config5g/proto/client"
@@ -25,10 +22,8 @@ import (
 	fsmLogger "github.com/omec-project/util/fsm/logger"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/omec-project/util/path_util"
 	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"github.com/urfave/cli"
 	"github.com/yeastengine/ella/internal/amf/communication"
 	"github.com/yeastengine/ella/internal/amf/consumer"
@@ -46,7 +41,6 @@ import (
 	"github.com/yeastengine/ella/internal/amf/oam"
 	"github.com/yeastengine/ella/internal/amf/producer/callback"
 	"github.com/yeastengine/ella/internal/amf/util"
-	nrf_cache "github.com/yeastengine/ella/internal/nrf/nrfcache"
 )
 
 type AMF struct{}
@@ -96,15 +90,8 @@ func (amf *AMF) Initialize(c *cli.Context) error {
 		amfcfg: c.String("amfcfg"),
 	}
 
-	if config.amfcfg != "" {
-		if err := factory.InitConfigFactory(config.amfcfg); err != nil {
-			return err
-		}
-	} else {
-		DefaultAmfConfigPath := path_util.Free5gcPath("free5gc/config/amfcfg.yaml")
-		if err := factory.InitConfigFactory(DefaultAmfConfigPath); err != nil {
-			return err
-		}
+	if err := factory.InitConfigFactory(config.amfcfg); err != nil {
+		panic(err)
 	}
 
 	amf.setLogLevel()
@@ -119,53 +106,16 @@ func (amf *AMF) Initialize(c *cli.Context) error {
 		}()
 	}
 
-	if err := factory.CheckConfigVersion(); err != nil {
-		return err
+	factory.AmfConfig.Configuration.ServedGumaiList = nil
+	factory.AmfConfig.Configuration.SupportTAIList = nil
+	factory.AmfConfig.Configuration.PlmnSupportList = nil
+	client := gClient.ConnectToConfigServer(factory.AmfConfig.Configuration.WebuiUri)
+	if client == nil {
+		panic("Failed to connect to Config Server")
 	}
-
-	if _, err := os.Stat("/free5gc/config/amfcfg.conf"); err == nil {
-		viper.SetConfigName("amfcfg.conf")
-		viper.SetConfigType("yaml")
-		viper.AddConfigPath("/free5gc/config")
-		err = viper.ReadInConfig() // Find and read the config file
-		if err != nil {            // Handle errors reading the config file
-			return err
-		}
-	} else if os.IsNotExist(err) {
-		fmt.Println("amfcfg does not exists in /free5gc/config")
-	}
-
-	if os.Getenv("MANAGED_BY_CONFIG_POD") == "true" {
-		factory.AmfConfig.Configuration.ServedGumaiList = nil
-		factory.AmfConfig.Configuration.SupportTAIList = nil
-		factory.AmfConfig.Configuration.PlmnSupportList = nil
-		initLog.Infoln("Reading Amf related configuration from ROC")
-		client := gClient.ConnectToConfigServer(factory.AmfConfig.Configuration.WebuiUri)
-		configChannel := client.PublishOnConfigChange(true)
-		go amf.UpdateConfig(configChannel)
-	} else {
-		go func() {
-			logger.GrpcLog.Infoln("Reading Amf Configuration from Helm")
-			// sending true to the channel for sending NFRegistration to NRF
-			RocUpdateConfigChannel <- true
-		}()
-	}
-
+	configChannel := client.PublishOnConfigChange(true)
+	go amf.UpdateConfig(configChannel)
 	return nil
-}
-
-func (amf *AMF) WatchConfig() {
-	viper.WatchConfig()
-	viper.OnConfigChange(func(e fsnotify.Event) {
-		fmt.Println("Config file changed:", e.Name)
-		if err := factory.UpdateAmfConfig("/free5gc/config/amfcfg.conf"); err != nil {
-			fmt.Println("error in loading updated configuration")
-		} else {
-			self := context.AMF_Self()
-			util.InitAmfContext(self)
-			fmt.Println("successfully updated configuration")
-		}
-	})
 }
 
 func (amf *AMF) setLogLevel() {
@@ -286,7 +236,6 @@ func (amf *AMF) FilterCli(c *cli.Context) (args []string) {
 }
 
 func (amf *AMF) Start() {
-	initLog.Infoln("Server started")
 	var err error
 
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
@@ -321,7 +270,7 @@ func (amf *AMF) Start() {
 	util.InitAmfContext(self)
 	self.Drsm, err = util.InitDrsm()
 	if err != nil {
-		initLog.Errorf("initialise DRSM failed, %v", err.Error())
+		panic("initialise DRSM failed")
 	}
 
 	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
@@ -333,19 +282,6 @@ func (amf *AMF) Start() {
 	ngap_service.Run(self.NgapIpList, self.NgapPort, ngapHandler)
 
 	go amf.SendNFProfileUpdateToNrf()
-
-	if self.EnableNrfCaching {
-		initLog.Infoln("Enable NRF caching feature")
-		nrf_cache.InitNrfCaching(self.NrfCacheEvictionInterval*time.Second, consumer.SendNfDiscoveryToNrf)
-	}
-
-	if self.EnableSctpLb {
-		go StartGrpcServer(self.SctpGrpcPort)
-	}
-
-	if self.EnableDbStore {
-		go context.SetupAmfCollection()
-	}
 
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
@@ -376,52 +312,6 @@ func (amf *AMF) Start() {
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
-}
-
-func (amf *AMF) Exec(c *cli.Context) error {
-	// AMF.Initialize(cfgPath, c)
-
-	initLog.Traceln("args:", c.String("amfcfg"))
-	args := amf.FilterCli(c)
-	initLog.Traceln("filter: ", args)
-	command := exec.Command("./amf", args...)
-
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-	go func() {
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	go func() {
-		in := bufio.NewScanner(stderr)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		if err = command.Start(); err != nil {
-			initLog.Errorf("AMF Start error: %+v", err)
-		}
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	return err
 }
 
 // Used in AMF planned removal procedure
@@ -694,19 +584,19 @@ func (amf *AMF) SendNFProfileUpdateToNrf() {
 			// Register to NRF with Updated Profile
 			var profile models.NfProfile
 			if profileTmp, err := consumer.BuildNFInstance(self); err != nil {
-				logger.CfgLog.Errorf("Build AMF Profile Error: %v", err)
-				continue
+				panic("Build AMF Profile failed")
 			} else {
 				profile = profileTmp
 			}
 
 			if prof, _, nfId, err := consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile); err != nil {
-				logger.CfgLog.Warnf("Send Register NF Instance with updated profile failed: %+v", err)
+				panic("Register AMF Instance failed")
 			} else {
 				// stop keepAliveTimer if its running and start the timer
 				amf.StartKeepAliveTimer(prof)
 				self.NfId = nfId
 				logger.CfgLog.Infof("Sent Register NF Instance with updated profile")
+				panic("Register AMF Instance failed")
 			}
 		}
 	}

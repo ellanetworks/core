@@ -4,16 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
-	"github.com/yeastengine/ella/internal/amf"
 	"github.com/yeastengine/ella/internal/ausf"
 	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/nrf"
-	"github.com/yeastengine/ella/internal/nssf"
 	"github.com/yeastengine/ella/internal/pcf"
-	"github.com/yeastengine/ella/internal/smf"
-	"github.com/yeastengine/ella/internal/udm"
 	"github.com/yeastengine/ella/internal/udr"
 	"github.com/yeastengine/ella/internal/webui"
 )
@@ -34,78 +31,6 @@ func parseFlags() (config.Config, error) {
 	return cfg, nil
 }
 
-func startNRF(dbUrl string, webuiUrl string) (string, error) {
-	url, err := nrf.Start(dbUrl, webuiUrl)
-	if err != nil {
-		return "", fmt.Errorf("failed to start NRF: %w", err)
-	}
-	return url, nil
-}
-
-func startWebui(dbUrl string) (string, error) {
-	url, err := webui.Start(dbUrl)
-	if err != nil {
-		return "", fmt.Errorf("failed to start WebUI: %w", err)
-	}
-	return url, nil
-}
-
-func startAMF(dbUrl string, nrfUrl string, webuiUrl string) error {
-	err := amf.Start(dbUrl, nrfUrl, webuiUrl)
-	if err != nil {
-		return fmt.Errorf("failed to start AMF: %w", err)
-	}
-	return nil
-}
-
-func startAUSF(nrfUrl string, webuiUrl string) error {
-	err := ausf.Start(nrfUrl, webuiUrl)
-	if err != nil {
-		return fmt.Errorf("failed to start AUSF: %w", err)
-	}
-	return nil
-}
-
-func startPCF(nrfUrl string, webuiUrl string) error {
-	err := pcf.Start(nrfUrl, webuiUrl)
-	if err != nil {
-		return fmt.Errorf("failed to start PCF: %w", err)
-	}
-	return nil
-}
-
-func startUDR(dbUrl string, nrfUrl string, webuiUrl string) error {
-	err := udr.Start(dbUrl, nrfUrl, webuiUrl)
-	if err != nil {
-		return fmt.Errorf("failed to start UDR: %w", err)
-	}
-	return nil
-}
-
-func startUDM(nrfUrl string, webuiUrl string) error {
-	err := udm.Start(nrfUrl, webuiUrl)
-	if err != nil {
-		return fmt.Errorf("failed to start UDM: %w", err)
-	}
-	return nil
-}
-
-func startNSSF(dbUrl string, webuiUrl string) error {
-	err := nssf.Start(dbUrl, webuiUrl)
-	if err != nil {
-		return fmt.Errorf("failed to start NSSF: %w", err)
-	}
-	return nil
-}
-
-func startSMF(dbUrl string, nrfUrl string, webuiUrl string) error {
-	err := smf.Start(dbUrl, nrfUrl, webuiUrl)
-	if err != nil {
-		return fmt.Errorf("failed to start SMF: %w", err)
-	}
-	return nil
-}
-
 func startMongoDB() string {
 	db, err := db.StartMongoDB(DBPath)
 	if err != nil {
@@ -115,11 +40,7 @@ func startMongoDB() string {
 }
 
 func setEnvironmentVariables() error {
-	err := os.Setenv("MANAGED_BY_CONFIG_POD", "true")
-	if err != nil {
-		return err
-	}
-	err = os.Setenv("CONFIGPOD_DEPLOYMENT", "true")
+	err := os.Setenv("CONFIGPOD_DEPLOYMENT", "true")
 	if err != nil {
 		return err
 	}
@@ -142,6 +63,48 @@ func setEnvironmentVariables() error {
 	return nil
 }
 
+func startNetwork() error {
+	dbUrl := startMongoDB()
+
+	webuiUrl, err := webui.Start(dbUrl)
+	if err != nil {
+		return err
+	}
+	time.Sleep(2 * time.Second)
+	// Replace the sleep with a check for the WebUI service
+	nrfUrl, err := nrf.Start(dbUrl, webuiUrl)
+	if err != nil {
+		return err
+	}
+	// Replace the sleep with a check for the NRF service
+	// err = amf.Start(dbUrl, nrfUrl, webuiUrl)
+	// if err != nil {
+	// 	return err
+	// }
+	err = ausf.Start(nrfUrl, webuiUrl)
+	if err != nil {
+		return err
+	}
+	err = pcf.Start(nrfUrl, webuiUrl)
+	if err != nil {
+		return err
+	}
+	err = udr.Start(dbUrl, nrfUrl, webuiUrl)
+	if err != nil {
+		return err
+	}
+	// err = udm.Start(nrfUrl, webuiUrl)
+	// if err != nil {
+	// 	return err
+	// }
+	// err = smf.Start(dbUrl, nrfUrl, webuiUrl)
+	// if err != nil {
+	// 	return err
+	// }
+
+	return nil
+}
+
 func main() {
 	err := setEnvironmentVariables()
 	if err != nil {
@@ -151,45 +114,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	dbUrl := startMongoDB()
-	webuiUrl, err := startWebui(dbUrl)
+	err = startNetwork()
 	if err != nil {
-		panic("Failed to start WebUI")
-	}
-	if webuiUrl == "" {
-		panic("Failed to get WebUI URL")
-	}
-	nrfUrl, err := startNRF(dbUrl, webuiUrl)
-	if err != nil {
-		panic("Failed to start NRF")
-	}
-	err = startAMF(dbUrl, nrfUrl, webuiUrl)
-	if err != nil {
-		panic("Failed to start AMF")
-	}
-	err = startAUSF(nrfUrl, webuiUrl)
-	if err != nil {
-		panic("Failed to start AUSF")
-	}
-	err = startPCF(nrfUrl, webuiUrl)
-	if err != nil {
-		panic("Failed to start PCF")
-	}
-	err = startUDR(dbUrl, nrfUrl, webuiUrl)
-	if err != nil {
-		panic("Failed to start UDR")
-	}
-	err = startUDM(nrfUrl, webuiUrl)
-	if err != nil {
-		panic("Failed to start UDM")
-	}
-	err = startNSSF(nrfUrl, webuiUrl)
-	if err != nil {
-		panic("Failed to start NSSF")
-	}
-	err = startSMF(dbUrl, nrfUrl, webuiUrl)
-	if err != nil {
-		panic("Failed to start SMF")
+		panic(err)
 	}
 	select {}
 }
