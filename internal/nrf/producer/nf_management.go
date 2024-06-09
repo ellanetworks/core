@@ -63,8 +63,6 @@ func HandleNFRegisterRequest(request *httpwrapper.Request) *httpwrapper.Response
 		return httpwrapper.NewResponse(http.StatusCreated, header, response)
 	} else if problemDetails != nil {
 		panic("REGISTRATION FAILED")
-		logger.ManagementLog.Traceln("register failed")
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,

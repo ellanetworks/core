@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nnrf_NFManagement"
@@ -46,9 +45,6 @@ var SendRegisterNFInstance = func(nrfUri, nfInstanceId string, profile models.Nf
 		if profile1, resTmp, err := client.NFInstanceIDDocumentApi.RegisterNFInstance(context.TODO(), nfInstanceId,
 			profile); err != nil || resTmp == nil {
 			panic("AUSF register to NRF Error")
-			logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
-			time.Sleep(2 * time.Second)
-			continue
 		} else {
 			res = resTmp
 			prof = profile1
