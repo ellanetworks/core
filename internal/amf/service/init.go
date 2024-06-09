@@ -302,13 +302,7 @@ func (amf *AMF) Start() {
 		initLog.Warnf("Initialize HTTP server: %+v", err)
 	}
 
-	serverScheme := factory.AmfConfig.Configuration.Sbi.Scheme
-	if serverScheme == "http" {
-		err = server.ListenAndServe()
-	} else if serverScheme == "https" {
-		err = server.ListenAndServeTLS(util.AmfPemPath, util.AmfKeyPath)
-	}
-
+	err = server.ListenAndServe()
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}

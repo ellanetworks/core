@@ -173,13 +173,7 @@ func (nssf *NSSF) Start() {
 		initLog.Warnf("Initialize HTTP server: +%v", err)
 	}
 
-	serverScheme := factory.NssfConfig.Configuration.Sbi.Scheme
-	if serverScheme == "http" {
-		err = server.ListenAndServe()
-	} else if serverScheme == "https" {
-		err = server.ListenAndServeTLS(util.NSSF_PEM_PATH, util.NSSF_KEY_PATH)
-	}
-
+	err = server.ListenAndServe()
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}

@@ -233,13 +233,7 @@ func (ausf *AUSF) Start() {
 		initLog.Warnf("Initialize HTTP server: +%v", err)
 	}
 
-	serverScheme := factory.AusfConfig.Configuration.Sbi.Scheme
-	if serverScheme == "http" {
-		err = server.ListenAndServe()
-	} else if serverScheme == "https" {
-		err = server.ListenAndServeTLS(util.AusfPemPath, util.AusfKeyPath)
-	}
-
+	err = server.ListenAndServe()
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}

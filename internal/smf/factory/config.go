@@ -71,7 +71,6 @@ type Configuration struct {
 	StaticIpInfo             []StaticIpInfo       `yaml:"staticIpInfo"`
 	ServiceNameList          []string             `yaml:"serviceNameList,omitempty"`
 	EnterpriseList           map[string]string    `yaml:"enterpriseList,omitempty"`
-	KafkaInfo                KafkaInfo            `yaml:"kafkaInfo,omitempty"`
 	UserPlaneInformation     UserPlaneInformation `yaml:"userplane_information"`
 	NrfCacheEvictionInterval int                  `yaml:"nrfCacheEvictionInterval"`
 	DebugProfilePort         int                  `yaml:"debugProfilePort,omitempty"`

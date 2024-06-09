@@ -12,10 +12,6 @@ configuration:
   mongodb:
     name: sdcore_smf
     url: "mongodb://mongodb-arbiter-headless"
-  kafkaInfo:
-    brokerUri: "sd-core-kafka-headless"
-    brokerPort: 9092
-    topicName: "sdcore-data-source-smf"
   staticIpInfo:
     - dnn: internet_1
       imsiIpInfo:

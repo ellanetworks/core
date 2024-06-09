@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 
 	"github.com/google/uuid"
-	mi "github.com/omec-project/metricfunc/pkg/metricinfo"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/Namf_Communication"
@@ -229,7 +226,7 @@ func (smContext *SMContext) ChangeState(nextState SMContextState) {
 			smContext.SubCtxLog.Debug("context state change, enterprise info not available")
 		}
 	}
-	smContext.PublishSmCtxtInfo()
+	// smContext.PublishSmCtxtInfo()
 
 	smContext.SubCtxLog.Infof("context state change, current state[%v] next state[%v]",
 		smContext.SMContextState.String(), nextState.String())
@@ -485,19 +482,19 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 	switch supportedPDUSessionType {
 	case "IPv4":
 		if !allowIPv4 {
-			return fmt.Errorf("No SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
+			return fmt.Errorf("no SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
 		}
 	case "IPv6":
 		if !allowIPv6 {
-			return fmt.Errorf("No SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
+			return fmt.Errorf("no SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
 		}
 	case "IPv4v6":
 		if !allowIPv4 && !allowIPv6 {
-			return fmt.Errorf("No SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
+			return fmt.Errorf("no SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
 		}
 	case "Ethernet":
 		if !allowEthernet {
-			return fmt.Errorf("No SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
+			return fmt.Errorf("no SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
 		}
 	}
 
@@ -534,7 +531,7 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 			return fmt.Errorf("PduSessionType_ETHERNET is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
 	default:
-		return fmt.Errorf("Requested PDU Sesstion type[%d] is not supported", requestedPDUSessionType)
+		return fmt.Errorf("requested PDU Sesstion type[%d] is not supported", requestedPDUSessionType)
 	}
 	return nil
 }
@@ -629,64 +626,64 @@ func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 	return nil
 }
 
-func (smContext *SMContext) getSmCtxtUpf() (name, ip string) {
-	var upfName, upfIP string
-	if smContext.SMContextState == SmStateActive {
-		if smContext.Tunnel != nil {
-			// Set UPF FQDN name if provided else IP-address
-			if smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.NodeID.NodeIdType == pfcpType.NodeIdTypeFqdn {
-				upfName = string(smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.NodeID.NodeIdValue)
-				upfName = strings.Split(upfName, ".")[0]
-				upfIP = smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.NodeID.ResolveNodeIdToIp().String()
-			} else {
-				upfName = smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.GetUPFIP()
-				upfIP = smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.GetUPFIP()
-			}
-		}
-	}
-	return upfName, upfIP
-}
+// func (smContext *SMContext) getSmCtxtUpf() (name, ip string) {
+// 	var upfName, upfIP string
+// 	if smContext.SMContextState == SmStateActive {
+// 		if smContext.Tunnel != nil {
+// 			// Set UPF FQDN name if provided else IP-address
+// 			if smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.NodeID.NodeIdType == pfcpType.NodeIdTypeFqdn {
+// 				upfName = string(smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.NodeID.NodeIdValue)
+// 				upfName = strings.Split(upfName, ".")[0]
+// 				upfIP = smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.NodeID.ResolveNodeIdToIp().String()
+// 			} else {
+// 				upfName = smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.GetUPFIP()
+// 				upfIP = smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.GetUPFIP()
+// 			}
+// 		}
+// 	}
+// 	return upfName, upfIP
+// }
 
-// Collect Ctxt info and publish on Kafka stream
-func (smContext *SMContext) PublishSmCtxtInfo() {
-	kafkaSmCtxt := mi.CoreSubscriber{}
+// // Collect Ctxt info and publish on Kafka stream
+// func (smContext *SMContext) PublishSmCtxtInfo() {
+// 	kafkaSmCtxt := mi.CoreSubscriber{}
 
-	// Populate kafka sm ctxt struct
-	kafkaSmCtxt.Imsi = smContext.Supi
-	if smContext.PDUAddress != nil && smContext.PDUAddress.Ip != nil {
-		kafkaSmCtxt.IPAddress = smContext.PDUAddress.Ip.String()
-	}
-	kafkaSmCtxt.SmfSubState, _ = mapPduSessStateToMetricStateAndOp(smContext.SMContextState)
-	kafkaSmCtxt.SmfId = smContext.Ref
-	kafkaSmCtxt.Slice = "sd:" + smContext.Snssai.Sd + " sst:" + strconv.Itoa(int(smContext.Snssai.Sst))
-	kafkaSmCtxt.Dnn = smContext.Dnn
-	kafkaSmCtxt.UpfName, kafkaSmCtxt.UpfAddr = smContext.getSmCtxtUpf()
-	kafkaSmCtxt.SmfIp = SMF_Self().PodIp
-}
+// 	// Populate kafka sm ctxt struct
+// 	kafkaSmCtxt.Imsi = smContext.Supi
+// 	if smContext.PDUAddress != nil && smContext.PDUAddress.Ip != nil {
+// 		kafkaSmCtxt.IPAddress = smContext.PDUAddress.Ip.String()
+// 	}
+// 	kafkaSmCtxt.SmfSubState, _ = mapPduSessStateToMetricStateAndOp(smContext.SMContextState)
+// 	kafkaSmCtxt.SmfId = smContext.Ref
+// 	kafkaSmCtxt.Slice = "sd:" + smContext.Snssai.Sd + " sst:" + strconv.Itoa(int(smContext.Snssai.Sst))
+// 	kafkaSmCtxt.Dnn = smContext.Dnn
+// 	kafkaSmCtxt.UpfName, kafkaSmCtxt.UpfAddr = smContext.getSmCtxtUpf()
+// 	kafkaSmCtxt.SmfIp = SMF_Self().PodIp
+// }
 
-func mapPduSessStateToMetricStateAndOp(state SMContextState) (string, mi.SubscriberOp) {
-	switch state {
-	case SmStateInit:
-		return IDLE, mi.SubsOpAdd
-	case SmStateActivePending:
-		return IDLE, mi.SubsOpMod
-	case SmStateActive:
-		return CONNECTED, mi.SubsOpMod
-	case SmStateInActivePending:
-		return IDLE, mi.SubsOpMod
-	case SmStateModify:
-		return CONNECTED, mi.SubsOpMod
-	case SmStatePfcpCreatePending:
-		return IDLE, mi.SubsOpMod
-	case SmStatePfcpModify:
-		return CONNECTED, mi.SubsOpMod
-	case SmStatePfcpRelease:
-		return DISCONNECTED, mi.SubsOpDel
-	case SmStateRelease:
-		return DISCONNECTED, mi.SubsOpDel
-	case SmStateN1N2TransferPending:
-		return IDLE, mi.SubsOpMod
-	default:
-		return "unknown", mi.SubsOpDel
-	}
-}
+// func mapPduSessStateToMetricStateAndOp(state SMContextState) (string, mi.SubscriberOp) {
+// 	switch state {
+// 	case SmStateInit:
+// 		return IDLE, mi.SubsOpAdd
+// 	case SmStateActivePending:
+// 		return IDLE, mi.SubsOpMod
+// 	case SmStateActive:
+// 		return CONNECTED, mi.SubsOpMod
+// 	case SmStateInActivePending:
+// 		return IDLE, mi.SubsOpMod
+// 	case SmStateModify:
+// 		return CONNECTED, mi.SubsOpMod
+// 	case SmStatePfcpCreatePending:
+// 		return IDLE, mi.SubsOpMod
+// 	case SmStatePfcpModify:
+// 		return CONNECTED, mi.SubsOpMod
+// 	case SmStatePfcpRelease:
+// 		return DISCONNECTED, mi.SubsOpDel
+// 	case SmStateRelease:
+// 		return DISCONNECTED, mi.SubsOpDel
+// 	case SmStateN1N2TransferPending:
+// 		return IDLE, mi.SubsOpMod
+// 	default:
+// 		return "unknown", mi.SubsOpDel
+// 	}
+// }
