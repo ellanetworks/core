@@ -77,7 +77,6 @@ type Configuration struct {
 	EnableDbStore            bool                    `yaml:"enableDBStore"`
 	EnableNrfCaching         bool                    `yaml:"enableNrfCaching"`
 	NrfCacheEvictionInterval int                     `yaml:"nrfCacheEvictionInterval,omitempty"`
-	KafkaInfo                KafkaInfo               `yaml:"kafkaInfo,omitempty"`
 	DebugProfilePort         int                     `yaml:"debugProfilePort,omitempty"`
 }
 
