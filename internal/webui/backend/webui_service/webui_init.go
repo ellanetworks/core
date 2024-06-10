@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gin-contrib/cors"
-	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
 	mongoDBLibLogger "github.com/omec-project/util/logger"
 	"github.com/omec-project/util/path_util"
@@ -36,25 +35,10 @@ type (
 
 var config Config
 
-var webuiCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "webuicfg",
-		Usage: "config file",
-	},
-}
-
 var initLog *logrus.Entry
 
 func init() {
 	initLog = logger.InitLog
-}
-
-func (*WEBUI) GetCliCmd() (flags []cli.Flag) {
-	return webuiCLi
 }
 
 func (webui *WEBUI) Initialize(c *cli.Context) {
@@ -132,19 +116,6 @@ func (webui *WEBUI) setLogLevel() {
 	}
 }
 
-func (webui *WEBUI) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range webui.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
-}
-
 func (webui *WEBUI) Start() {
 	mongodb := factory.WebUIConfig.Configuration.Mongodb
 	// Connect to MongoDB
@@ -174,24 +145,8 @@ func (webui *WEBUI) Start() {
 	go func() {
 		httpAddr := ":" + strconv.Itoa(factory.WebUIConfig.Configuration.CfgPort)
 		initLog.Infoln("Webui HTTP addr:", httpAddr, factory.WebUIConfig.Configuration.CfgPort)
-		if factory.WebUIConfig.Info.HttpVersion == 2 {
-			server, err := http2_util.NewServer(httpAddr, "", subconfig_router)
-			if server == nil {
-				panic("Failed to create HTTP/2 server")
-			}
-
-			if err != nil {
-				panic(err)
-			}
-
-			err = server.ListenAndServe()
-			if err != nil {
-				panic(err)
-			}
-		} else {
-			initLog.Infoln(subconfig_router.Run(httpAddr))
-			initLog.Infoln("Webserver stopped/terminated/not-started ")
-		}
+		initLog.Infoln(subconfig_router.Run(httpAddr))
+		initLog.Infoln("Webserver stopped/terminated/not-started ")
 	}()
 
 	self := webui_context.WEBUI_Self()

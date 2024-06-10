@@ -59,25 +59,10 @@ func init() {
 
 var config Config
 
-var pcfCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "pcfcfg",
-		Usage: "config file",
-	},
-}
-
 var initLog *logrus.Entry
 
 func init() {
 	initLog = logger.InitLog
-}
-
-func (*PCF) GetCliCmd() (flags []cli.Flag) {
-	return pcfCLi
 }
 
 func (pcf *PCF) Initialize(c *cli.Context) error {
@@ -152,19 +137,6 @@ func (pcf *PCF) setLogLevel() {
 		}
 		openApiLogger.SetReportCaller(factory.PcfConfig.Logger.OpenApi.ReportCaller)
 	}*/
-}
-
-func (pcf *PCF) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range pcf.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
 }
 
 func (pcf *PCF) Start() {

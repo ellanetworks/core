@@ -37,17 +37,6 @@ type (
 
 var config Config
 
-var udrCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "udrcfg",
-		Usage: "config file",
-	},
-}
-
 var initLog *logrus.Entry
 
 var (
@@ -57,10 +46,6 @@ var (
 
 func init() {
 	initLog = logger.InitLog
-}
-
-func (*UDR) GetCliCmd() (flags []cli.Flag) {
-	return udrCLi
 }
 
 func (udr *UDR) Initialize(c *cli.Context) error {
@@ -140,19 +125,6 @@ func (udr *UDR) setLogLevel() {
 	}
 }
 
-func (udr *UDR) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range udr.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
-}
-
 func (udr *UDR) Start() {
 	// get config file info
 	config := factory.UdrConfig
@@ -173,7 +145,7 @@ func (udr *UDR) Start() {
 	util.InitUdrContext(self)
 
 	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
-
+	logger.InitLog.Infof("HELLO: Starting UDR server on %s", addr)
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -187,17 +159,16 @@ func (udr *UDR) Start() {
 
 	server, err := http2_util.NewServer(addr, udrLogPath, router)
 	if server == nil {
-		initLog.Errorf("Initialize HTTP server failed: %+v", err)
-		return
+		panic("Initialize HTTP server failed")
 	}
 
 	if err != nil {
-		initLog.Warnf("Initialize HTTP server: %+v", err)
+		panic(err)
 	}
 
 	err = server.ListenAndServe()
 	if err != nil {
-		initLog.Fatalf("HTTP server setup failed: %+v", err)
+		panic(err)
 	}
 }
 

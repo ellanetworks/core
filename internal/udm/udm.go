@@ -39,7 +39,7 @@ configuration:
   sbi:
     bindingIPv4: 0.0.0.0
     port: %s
-    registerIPv4: 0.0.0.0:29503
+    registerIPv4: 1.2.3.6
     scheme: http
   serviceNameList:
   - nudm-sdm

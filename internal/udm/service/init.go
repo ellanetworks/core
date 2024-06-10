@@ -47,17 +47,6 @@ type (
 
 var config Config
 
-var udmCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "udmcfg",
-		Usage: "config file",
-	},
-}
-
 var (
 	KeepAliveTimer      *time.Timer
 	KeepAliveTimerMutex sync.Mutex
@@ -67,10 +56,6 @@ var initLog *logrus.Entry
 
 func init() {
 	initLog = logger.InitLog
-}
-
-func (*UDM) GetCliCmd() (flags []cli.Flag) {
-	return udmCLi
 }
 
 func (udm *UDM) Initialize(c *cli.Context) error {
@@ -135,19 +120,6 @@ func (udm *UDM) setLogLevel() {
 		}
 		pathUtilLogger.SetReportCaller(factory.UdmConfig.Logger.PathUtil.ReportCaller)
 	}
-}
-
-func (udm *UDM) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range udm.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
 }
 
 func (udm *UDM) Start() {

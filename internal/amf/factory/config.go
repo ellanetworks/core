@@ -38,12 +38,6 @@ type Mongodb struct {
 	Url  string `yaml:"url"`
 }
 
-type KafkaInfo struct {
-	BrokerUri  string `yaml:"brokerUri,omitempty"`
-	BrokerPort int    `yaml:"brokerPort,omitempty"`
-	Topic      string `yaml:"topicName,omitempty"`
-}
-
 type Configuration struct {
 	AmfName                         string                    `yaml:"amfName,omitempty"`
 	AmfDBName                       string                    `yaml:"amfDBName,omitempty"`
@@ -73,8 +67,6 @@ type Configuration struct {
 
 	// Maintain TaiList per slice
 	SliceTaiList             map[string][]models.Tai `yaml:"sliceTaiList,omitempty"`
-	EnableSctpLb             bool                    `yaml:"enableSctpLb"`
-	EnableDbStore            bool                    `yaml:"enableDBStore"`
 	EnableNrfCaching         bool                    `yaml:"enableNrfCaching"`
 	NrfCacheEvictionInterval int                     `yaml:"nrfCacheEvictionInterval,omitempty"`
 	DebugProfilePort         int                     `yaml:"debugProfilePort,omitempty"`

@@ -262,7 +262,6 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 				}
 				n1n2MessageTransferRspData = new(models.N1N2MessageTransferRspData)
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
-				// context.StoreContextInDB(ue)
 				return n1n2MessageTransferRspData, "", nil, nil
 			case models.NgapIeType_PDU_RES_MOD_REQ:
 				ue.ProducerLog.Debugln("AMF Transfer NGAP PDU Session Resource Modify Request from SMF")
@@ -271,7 +270,6 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 				ngap_message.SendPDUSessionResourceModifyRequest(ue.RanUe[anType], list)
 				n1n2MessageTransferRspData = new(models.N1N2MessageTransferRspData)
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
-				// context.StoreContextInDB(ue)
 				return n1n2MessageTransferRspData, "", nil, nil
 			case models.NgapIeType_PDU_RES_REL_CMD:
 				ue.ProducerLog.Debugln("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
@@ -280,7 +278,6 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 				ngap_message.SendPDUSessionResourceReleaseCommand(ue.RanUe[anType], nasPdu, list)
 				n1n2MessageTransferRspData = new(models.N1N2MessageTransferRspData)
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
-				// context.StoreContextInDB(ue)
 				return n1n2MessageTransferRspData, "", nil, nil
 			default:
 				ue.ProducerLog.Errorf("NGAP IE Type[%s] is not supported for SmInfo", smInfo.N2InfoContent.NgapIeType)

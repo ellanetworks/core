@@ -36,8 +36,6 @@ configuration:
   amfDBName: %s
   amfName: AMF
   debugProfilePort: 5001
-  enableDBStore: false
-  enableSctpLb: false
   mongodb:
     url: %s
   networkFeatureSupport5GS:

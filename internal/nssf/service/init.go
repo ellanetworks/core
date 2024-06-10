@@ -39,17 +39,6 @@ type (
 
 var config Config
 
-var nssfCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "nssfcfg",
-		Usage: "config file",
-	},
-}
-
 var initLog *logrus.Entry
 
 var (
@@ -59,10 +48,6 @@ var (
 
 func init() {
 	initLog = logger.InitLog
-}
-
-func (*NSSF) GetCliCmd() (flags []cli.Flag) {
-	return nssfCLi
 }
 
 func (nssf *NSSF) Initialize(c *cli.Context) error {
@@ -126,19 +111,6 @@ func (nssf *NSSF) setLogLevel() {
 		}
 		pathUtilLogger.SetReportCaller(factory.NssfConfig.Logger.PathUtil.ReportCaller)
 	}
-}
-
-func (nssf *NSSF) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range nssf.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
 }
 
 func (nssf *NSSF) Start() {

@@ -58,17 +58,6 @@ type (
 
 var config Config
 
-var amfCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "amfcfg",
-		Usage: "amf config file",
-	},
-}
-
 var initLog *logrus.Entry
 
 var (
@@ -79,10 +68,6 @@ var (
 func init() {
 	initLog = logger.InitLog
 	RocUpdateConfigChannel = make(chan bool)
-}
-
-func (*AMF) GetCliCmd() (flags []cli.Flag) {
-	return amfCLi
 }
 
 func (amf *AMF) Initialize(c *cli.Context) error {
@@ -220,19 +205,6 @@ func (amf *AMF) setLogLevel() {
 		}
 		pathUtilLogger.SetReportCaller(factory.AmfConfig.Logger.PathUtil.ReportCaller)
 	}
-}
-
-func (amf *AMF) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range amf.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
 }
 
 func (amf *AMF) Start() {
@@ -569,7 +541,6 @@ func (amf *AMF) UpdateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 }
 
 func (amf *AMF) SendNFProfileUpdateToNrf() {
-	// for rocUpdateConfig := range RocUpdateConfigChannel {
 	for rocUpdateConfig := range RocUpdateConfigChannel {
 		if rocUpdateConfig {
 			self := context.AMF_Self()
@@ -584,13 +555,13 @@ func (amf *AMF) SendNFProfileUpdateToNrf() {
 			}
 
 			if prof, _, nfId, err := consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile); err != nil {
+				logger.CfgLog.Errorf("Register NF Instance failed: %+v", err)
 				panic("Register AMF Instance failed")
 			} else {
 				// stop keepAliveTimer if its running and start the timer
 				amf.StartKeepAliveTimer(prof)
 				self.NfId = nfId
 				logger.CfgLog.Infof("Sent Register NF Instance with updated profile")
-				panic("Register AMF Instance failed")
 			}
 		}
 	}

@@ -19,7 +19,6 @@ import (
 	"github.com/omec-project/pfcp/pfcpType"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/omec-project/util/path_util"
 	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
@@ -53,21 +52,6 @@ var refreshNrfRegistration bool
 
 var config Config
 
-var smfCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "cfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "smfcfg",
-		Usage: "config file",
-	},
-	cli.StringFlag{
-		Name:  "uerouting",
-		Usage: "config file",
-	},
-}
-
 var (
 	KeepAliveTimer      *time.Timer
 	KeepAliveTimerMutex sync.Mutex
@@ -87,57 +71,31 @@ func init() {
 	nrfRegInProgress = OneInstance{}
 }
 
-func (*SMF) GetCliCmd() (flags []cli.Flag) {
-	return smfCLi
-}
-
 func (smf *SMF) Initialize(c *cli.Context) error {
 	config = Config{
 		smfcfg:    c.String("smfcfg"),
 		uerouting: c.String("uerouting"),
 	}
 
-	if config.smfcfg != "" {
-		if err := factory.InitConfigFactory(config.smfcfg); err != nil {
-			return err
-		}
-	} else {
-		DefaultSmfConfigPath := path_util.Free5gcPath("omec-project/smf/config/smfcfg.yaml")
-		if err := factory.InitConfigFactory(DefaultSmfConfigPath); err != nil {
-			return err
-		}
+	if err := factory.InitConfigFactory(config.smfcfg); err != nil {
+		return err
 	}
 
-	if config.uerouting != "" {
-		if err := factory.InitRoutingConfigFactory(config.uerouting); err != nil {
-			return err
-		}
-	} else {
-		DefaultUERoutingPath := path_util.Free5gcPath("omec-project/smf/config/uerouting.yaml")
-		if err := factory.InitRoutingConfigFactory(DefaultUERoutingPath); err != nil {
-			return err
-		}
+	if err := factory.InitRoutingConfigFactory(config.uerouting); err != nil {
+		return err
 	}
 
 	smf.setLogLevel()
 
-	// Initiating a server for profiling
-	if factory.SmfConfig.Configuration.DebugProfilePort != 0 {
-		addr := fmt.Sprintf(":%d", factory.SmfConfig.Configuration.DebugProfilePort)
-		go func() {
-			http.ListenAndServe(addr, nil)
-		}()
-	}
+	addr := fmt.Sprintf(":%d", factory.SmfConfig.Configuration.DebugProfilePort)
+	go func() {
+		http.ListenAndServe(addr, nil)
+	}()
 
 	return nil
 }
 
 func (smf *SMF) setLogLevel() {
-	if factory.SmfConfig.Logger == nil {
-		initLog.Warnln("SMF config without log level setting!!!")
-		return
-	}
-
 	if factory.SmfConfig.Logger.SMF != nil {
 		if factory.SmfConfig.Logger.SMF.DebugLevel != "" {
 			if level, err := logrus.ParseLevel(factory.SmfConfig.Logger.SMF.DebugLevel); err != nil {
@@ -236,19 +194,6 @@ func (smf *SMF) setLogLevel() {
 	}
 }
 
-func (smf *SMF) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range smf.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
-}
-
 func (smf *SMF) Start() {
 	initLog.Infoln("SMF app initialising...")
 
@@ -310,11 +255,6 @@ func (smf *SMF) Start() {
 		}
 	}
 
-	if factory.SmfConfig.Configuration.EnableDbStore {
-		initLog.Infof("SetupSmfCollection")
-		context.SetupSmfCollection()
-	}
-
 	// Init DRSM for unique FSEID/FTEID/IP-Addr
 	if err := smfCtxt.InitDrsm(); err != nil {
 		initLog.Errorf("initialse drsm failed, %v ", err.Error())
@@ -338,7 +278,7 @@ func (smf *SMF) Start() {
 	// Trigger PFCP association towards not associated UPFs
 	go upf.ProbeInactiveUpfs(context.SMF_Self().UserPlaneInformation)
 
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 
 	HTTPAddr := fmt.Sprintf("%s:%d", context.SMF_Self().BindingIPv4, context.SMF_Self().SBIPort)
 	server, err := http2_util.NewServer(HTTPAddr, util.SmfLogPath, router)
@@ -416,10 +356,16 @@ func UpdateNF() {
 			problemDetails.Status == 404 || problemDetails.Status == 400 {
 			// register with NRF full profile
 			nfProfile, err = consumer.SendNFRegistration()
+			if err != nil {
+				panic(err)
+			}
 		}
 	} else if err != nil {
 		initLog.Errorf("SMF update to NRF Error[%s]", err.Error())
 		nfProfile, err = consumer.SendNFRegistration()
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	if nfProfile.HeartBeatTimer != 0 {
@@ -445,7 +391,7 @@ func (smf *SMF) SendNrfRegistration() {
 	if refreshNrfRegistration {
 		refreshNrfRegistration = false
 		if prof, err := consumer.SendNFRegistration(); err != nil {
-			logger.InitLog.Infof("NRF Registration failure, %v", err.Error())
+			panic(err)
 		} else {
 			StartKeepAliveTimer(prof)
 			logger.CfgLog.Infof("Sent Register NF Instance with updated profile")

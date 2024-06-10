@@ -38,7 +38,7 @@ configuration:
   sbi:
     bindingIPv4: 0.0.0.0
     port: %s
-    registerIPv4: 0.0.0.0
+    registerIPv4: 1.2.3.4
     scheme: http
   serviceNameList:
     - nausf-auth

@@ -51,7 +51,6 @@ type RocEndpt struct {
 }
 
 type LteEndpt struct {
-	NodeType       string `yaml:"type,omitempty"`
-	ConfigPushUrl  string `yaml:"configPushUrl,omitempty"`
-	ConfigCheckUrl string `yaml:"configCheckUrl,omitempty"` // only for 4G components
+	NodeType      string `yaml:"type,omitempty"`
+	ConfigPushUrl string `yaml:"configPushUrl,omitempty"`
 }

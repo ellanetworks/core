@@ -36,7 +36,7 @@ configuration:
   sbi:
     bindingIPv4: 0.0.0.0
     port: %s
-    registerIPv4: 0.0.0.0:29507
+    registerIPv4: 1.2.3.5
     scheme: http
   serviceList:
   - serviceName: npcf-am-policy-control

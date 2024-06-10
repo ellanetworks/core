@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -36,25 +35,10 @@ type (
 
 var config Config
 
-var nrfCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "nrfcfg",
-		Usage: "config file",
-	},
-}
-
 var initLog *logrus.Entry
 
 func init() {
 	initLog = logger.InitLog
-}
-
-func (*NRF) GetCliCmd() (flags []cli.Flag) {
-	return nrfCLi
 }
 
 func (nrf *NRF) Initialize(c *cli.Context) error {
@@ -145,19 +129,6 @@ func (nrf *NRF) setLogLevel() {
 		}
 		mongoDBLibLogger.SetReportCaller(factory.NrfConfig.Logger.MongoDBLibrary.ReportCaller)
 	}
-}
-
-func (nrf *NRF) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range nrf.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
 }
 
 func (nrf *NRF) Start() {

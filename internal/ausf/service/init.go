@@ -38,17 +38,6 @@ type (
 
 var config Config
 
-var ausfCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "ausfcfg",
-		Usage: "config file",
-	},
-}
-
 var (
 	KeepAliveTimer      *time.Timer
 	KeepAliveTimerMutex sync.Mutex
@@ -64,10 +53,6 @@ var ConfigPodTrigger chan bool
 
 func init() {
 	ConfigPodTrigger = make(chan bool)
-}
-
-func (*AUSF) GetCliCmd() (flags []cli.Flag) {
-	return ausfCLi
 }
 
 func (ausf *AUSF) Initialize(c *cli.Context) error {
@@ -131,19 +116,6 @@ func (ausf *AUSF) setLogLevel() {
 		}
 		pathUtilLogger.SetReportCaller(factory.AusfConfig.Logger.PathUtil.ReportCaller)
 	}
-}
-
-func (ausf *AUSF) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range ausf.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
 }
 
 func (ausf *AUSF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool {

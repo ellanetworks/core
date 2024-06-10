@@ -33,26 +33,25 @@ func NnrfNFManagementDataModel(nf *models.NfProfile, nfprofile models.NfProfile)
 	if nfprofile.NfInstanceId != "" {
 		nf.NfInstanceId = nfprofile.NfInstanceId
 	} else {
-		return fmt.Errorf("NfInstanceId field is required\n")
+		return fmt.Errorf("NfInstanceId field is required")
 	}
 
 	if nfprofile.NfType != "" {
 		nf.NfType = nfprofile.NfType
 	} else {
-		return fmt.Errorf("NfType field is required\n")
+		return fmt.Errorf("NfType field is required")
 	}
 
 	if nfprofile.NfStatus != "" {
 		nf.NfStatus = nfprofile.NfStatus
 	} else {
-		return fmt.Errorf("NfStatus field is required\n")
+		return fmt.Errorf("NfStatus field is required")
 	}
 
-	if nfprofile.PlmnList == nil && factory.MinConfigAvailable == false && factory.ManagedByConfigPod == true {
+	if nfprofile.PlmnList == nil && !factory.MinConfigAvailable && factory.ManagedByConfigPod {
 		// logically NF should send PLMN else we need to wait for min config
-		return fmt.Errorf("PlmnList absent. Local default config not available. NFType - %v\n", nfprofile.NfType)
+		return fmt.Errorf("PlmnList absent. Local default config not available. NFType - %v", nfprofile.NfType)
 	}
-	// TODO : add plmn validation ??
 
 	nnrfNFManagementCondition(nf, nfprofile)
 	nnrfNFManagementOption(nf, nfprofile)

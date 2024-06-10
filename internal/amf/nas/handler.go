@@ -1,13 +1,9 @@
 package nas
 
 import (
-	"os"
-
-	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/amf/nas/nas_security"
-	"github.com/yeastengine/ella/internal/amf/protos/sdcoreAmfServer"
 )
 
 func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {
@@ -27,33 +23,6 @@ func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {
 		ue.AmfUe = nas_security.FetchUeContextWithMobileIdentity(nasPdu)
 		if ue.AmfUe == nil {
 			ue.AmfUe = amfSelf.NewAmfUe("")
-		} else {
-			if amfSelf.EnableSctpLb {
-				/* checking the guti-ue belongs to this amf instance */
-				id, err := amfSelf.Drsm.FindOwnerInt32ID(ue.AmfUe.Tmsi)
-				if err != nil {
-					logger.NasLog.Errorf("Error checking guti-ue: %v", err)
-				}
-				if id != nil && id.PodName != os.Getenv("HOSTNAME") {
-					rsp := &sdcoreAmfServer.AmfMessage{}
-					rsp.VerboseMsg = "Redirecting Msg From AMF Pod !"
-					rsp.Msgtype = sdcoreAmfServer.MsgType_REDIRECT_MSG
-					rsp.AmfId = os.Getenv("HOSTNAME")
-					/* TODO for this release setting pod ip to simplify logic in sctplb */
-					rsp.RedirectId = id.PodIp
-					rsp.GnbId = ue.Ran.GnbId
-					rsp.Msg = ue.SctplbMsg
-					if ue.AmfUe != nil {
-						ue.AmfUe.Remove()
-					} else {
-						if err := ue.Remove(); err != nil {
-							logger.NasLog.Errorf("Error removing ue: %v", err)
-						}
-					}
-					ue.Ran.Amf2RanMsgChan <- rsp
-					return
-				}
-			}
 		}
 
 		ue.AmfUe.Mutex.Lock()
@@ -64,9 +33,6 @@ func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {
 		// when we handle NGSetup. In case of sctplb enabled,
 		// we dont call this function when AMF restarts. So we
 		// need to set the AnType from stored Information.
-		if amfSelf.EnableSctpLb {
-			ue.Ran.AnType = models.AccessType__3_GPP_ACCESS
-		}
 		ue.AmfUe.AttachRanUe(ue)
 
 		if ue.AmfUe.EventChannel == nil {
@@ -84,9 +50,6 @@ func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {
 		ue.AmfUe.EventChannel.SubmitMessage(nasMsg)
 
 		return
-	}
-	if amfSelf.EnableSctpLb {
-		ue.Ran.AnType = models.AccessType__3_GPP_ACCESS
 	}
 
 	msg, err := nas_security.Decode(ue.AmfUe, ue.Ran.AnType, nasPdu)

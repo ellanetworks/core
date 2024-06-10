@@ -42,6 +42,7 @@ func (context *WEBUIContext) UpdateNfProfiles() {
 
 	for _, nfProfile := range context.NFProfiles {
 		if nfProfile.NfServices == nil || context.NfProfileAlreadyExists(nfProfile) {
+			logger.ContextLog.Warnf("NfProfile %s is not ready or already exists", nfProfile.NfInstanceId)
 			continue
 		}
 
@@ -65,6 +66,7 @@ func (context *WEBUIContext) UpdateNfProfiles() {
 func (context *WEBUIContext) NfProfileAlreadyExists(nfProfile models.NfProfile) bool {
 	for _, instance := range context.NFOamInstances {
 		if instance.NfId == nfProfile.NfInstanceId {
+			logger.ContextLog.Warnf("NfProfile %s already exists", nfProfile.NfInstanceId)
 			return true
 		}
 	}

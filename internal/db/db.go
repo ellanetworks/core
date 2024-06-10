@@ -125,7 +125,6 @@ func initializeReplicaSet() error {
 	cmd := exec.Command(MongoBinariesPath+"/mongosh", "--eval", "rs.initiate()")
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-
 	err := cmd.Run()
 	if err != nil {
 		if bytes.Contains(stderr.Bytes(), []byte("already initialized")) {
@@ -134,7 +133,6 @@ func initializeReplicaSet() error {
 		}
 		return fmt.Errorf("failed to run rs.initiate(): %w: %s", err, stderr.String())
 	}
-
 	AppLog.Printf("replica set initialized successfully: %s", stdout.String())
 	return nil
 }

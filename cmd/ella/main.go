@@ -6,11 +6,13 @@ import (
 	"os"
 	"time"
 
+	"github.com/yeastengine/ella/internal/amf"
 	"github.com/yeastengine/ella/internal/ausf"
 	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/nrf"
 	"github.com/yeastengine/ella/internal/pcf"
+	"github.com/yeastengine/ella/internal/udm"
 	"github.com/yeastengine/ella/internal/udr"
 	"github.com/yeastengine/ella/internal/webui"
 )
@@ -40,15 +42,7 @@ func startMongoDB() string {
 }
 
 func setEnvironmentVariables() error {
-	err := os.Setenv("CONFIGPOD_DEPLOYMENT", "true")
-	if err != nil {
-		return err
-	}
-	err = os.Setenv("GRPC_VERBOSITY", "debug")
-	if err != nil {
-		return err
-	}
-	err = os.Setenv("GRPC_GO_LOG_SEVERITY_LEVEL", "info")
+	err := os.Setenv("GRPC_VERBOSITY", "debug")
 	if err != nil {
 		return err
 	}
@@ -71,16 +65,14 @@ func startNetwork() error {
 		return err
 	}
 	time.Sleep(2 * time.Second)
-	// Replace the sleep with a check for the WebUI service
 	nrfUrl, err := nrf.Start(dbUrl, webuiUrl)
 	if err != nil {
 		return err
 	}
-	// Replace the sleep with a check for the NRF service
-	// err = amf.Start(dbUrl, nrfUrl, webuiUrl)
-	// if err != nil {
-	// 	return err
-	// }
+	err = amf.Start(dbUrl, nrfUrl, webuiUrl)
+	if err != nil {
+		return err
+	}
 	err = ausf.Start(nrfUrl, webuiUrl)
 	if err != nil {
 		return err
@@ -93,10 +85,10 @@ func startNetwork() error {
 	if err != nil {
 		return err
 	}
-	// err = udm.Start(nrfUrl, webuiUrl)
-	// if err != nil {
-	// 	return err
-	// }
+	err = udm.Start(nrfUrl, webuiUrl)
+	if err != nil {
+		return err
+	}
 	// err = smf.Start(dbUrl, nrfUrl, webuiUrl)
 	// if err != nil {
 	// 	return err

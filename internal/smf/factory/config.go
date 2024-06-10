@@ -19,11 +19,6 @@ import (
 	"github.com/yeastengine/ella/internal/smf/logger"
 )
 
-const (
-	SMF_EXPECTED_CONFIG_VERSION        = "1.0.0"
-	UE_ROUTING_EXPECTED_CONFIG_VERSION = "1.0.0"
-)
-
 type Config struct {
 	Info          *Info               `yaml:"info"`
 	Configuration *Configuration      `yaml:"configuration"`
@@ -52,13 +47,6 @@ type Mongodb struct {
 	Url  string `yaml:"url"`
 }
 
-type KafkaInfo struct {
-	EnableKafka *bool  `yaml:"enableKafka,omitempty"`
-	BrokerUri   string `yaml:"brokerUri,omitempty"`
-	Topic       string `yaml:"topicName,omitempty"`
-	BrokerPort  int    `yaml:"brokerPort,omitempty"`
-}
-
 type Configuration struct {
 	Mongodb                  *Mongodb             `yaml:"mongodb,omitempty"`
 	PFCP                     *PFCP                `yaml:"pfcp,omitempty"`
@@ -75,7 +63,6 @@ type Configuration struct {
 	NrfCacheEvictionInterval int                  `yaml:"nrfCacheEvictionInterval"`
 	DebugProfilePort         int                  `yaml:"debugProfilePort,omitempty"`
 	EnableNrfCaching         bool                 `yaml:"enableNrfCaching"`
-	EnableDbStore            bool                 `yaml:"enableDBStore,omitempty"`
 	EnableUpfAdapter         bool                 `yaml:"enableUPFAdapter,omitempty"`
 	ULCL                     bool                 `yaml:"ulcl,omitempty"`
 }

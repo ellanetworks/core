@@ -251,6 +251,7 @@ func NFDeregisterProcedure(nfInstanceID string) (problemDetails *models.ProblemD
 	filter := bson.M{"nfInstanceId": nfInstanceID}
 
 	nfProfilesRaw, _ := dbadapter.DBClient.RestfulAPIGetMany(collName, filter)
+	logger.ManagementLog.Infoln("NF Profiles: ", nfProfilesRaw)
 	time.Sleep(time.Duration(1) * time.Second)
 
 	dbadapter.DBClient.RestfulAPIDeleteMany(collName, filter)
@@ -335,7 +336,7 @@ func UpdateNFInstanceProcedure(nfInstanceID string, patchJSON []byte) (response 
 		if ok, _ := dbadapter.DBClient.RestfulAPIPutOne(collName, filter, nf); ok {
 			logger.ManagementLog.Infof("nf profile [%s] update success", nfProfiles[0].NfType)
 		} else {
-			logger.ManagementLog.Infof("nf profile [%s] update failed", nfProfiles[0].NfType)
+			panic("nf profile update failed")
 		}
 
 		// set info for NotificationData
@@ -400,20 +401,17 @@ func NFRegisterProcedure(nfProfile models.NfProfile) (header http.Header, respon
 	nfInstanceId := nf.NfInstanceId
 	filter := bson.M{"nfInstanceId": nfInstanceId}
 
-	// fallback to older approach
-	if factory.NrfConfig.Configuration.NfProfileExpiryEnable == false {
-		NFDeleteAll(string(nf.NfType))
-	} else {
-		timein := time.Now().Local().Add(time.Second * time.Duration(nf.HeartBeatTimer*3))
-		putData["expireAt"] = timein
-		nfs, _ := dbadapter.DBClient.RestfulAPIGetOne(collName, filter)
-		if len(nfs) == 0 {
-			putData["createdAt"] = time.Now()
-		}
+	timein := time.Now().Local().Add(time.Second * time.Duration(nf.HeartBeatTimer*3))
+	putData["expireAt"] = timein
+	nfs, _ := dbadapter.DBClient.RestfulAPIGetOne(collName, filter)
+	if len(nfs) == 0 {
+		logger.ManagementLog.Infoln("NF Profile does not exist")
+		putData["createdAt"] = time.Now()
 	}
+	logger.ManagementLog.Infoln("NFs: ", nfs)
 
 	// Update NF Profile case
-	if ok, _ := dbadapter.DBClient.RestfulAPIPutOne(collName, filter, putData); ok { // true insert
+	if ok, _ := dbadapter.DBClient.RestfulAPIPutOne(collName, filter, putData); ok {
 		logger.ManagementLog.Infoln("RestfulAPIPutOne True Insert")
 		uriList := nrf_context.GetNofificationUri(nf)
 

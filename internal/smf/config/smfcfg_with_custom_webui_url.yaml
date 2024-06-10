@@ -4,7 +4,6 @@ info:
   description: SMF initial local configuration
 
 configuration:
-  enableDBStore: false
   enableUPFAdapter: true
   debugProfilePort: 5001
   smfName: SMF # the name of this SMF
