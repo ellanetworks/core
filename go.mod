@@ -117,3 +117,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	inet.af/netaddr v0.0.0-20220811202034-502d2d690317 // indirect
 )
+
+replace github.com/omec-project/config5g v1.4.1 => github.com/yeastengine/config5g v0.0.0-20240613190115-a92ffd432f85
