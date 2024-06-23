@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/omec-project/openapi/models"
 	"github.com/stretchr/testify/assert"
+	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
 )
 
 const (

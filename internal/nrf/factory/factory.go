@@ -10,8 +10,8 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/omec-project/config5g/proto/client"
 	"github.com/sirupsen/logrus"
+	"github.com/yeastengine/config5g/proto/client"
 	"github.com/yeastengine/ella/internal/nrf/logger"
 )
 

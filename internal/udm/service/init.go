@@ -10,8 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/omec-project/config5g/proto/client"
-	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
@@ -19,6 +17,8 @@ import (
 	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
+	"github.com/yeastengine/config5g/proto/client"
+	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
 	"github.com/yeastengine/ella/internal/udm/consumer"
 	"github.com/yeastengine/ella/internal/udm/context"
 	"github.com/yeastengine/ella/internal/udm/eventexposure"

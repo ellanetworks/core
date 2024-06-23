@@ -10,9 +10,9 @@ import (
 
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/mitchellh/mapstructure"
-	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
+	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
 	udr_context "github.com/yeastengine/ella/internal/udr/context"
 	"github.com/yeastengine/ella/internal/udr/logger"
 	"github.com/yeastengine/ella/internal/udr/util"
