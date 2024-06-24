@@ -1,7 +1,6 @@
 package context
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"net"
@@ -419,14 +418,6 @@ func (context *AMFContext) InPlmnSupportList(snssai models.Snssai) bool {
 		}
 	}
 	return false
-}
-
-func mapToByte(data map[string]interface{}) (ret []byte) {
-	ret, err := json.Marshal(data)
-	if err != nil {
-		logger.ContextLog.Error(err)
-	}
-	return
 }
 
 func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (ue *AmfUe, ok bool) {

@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 
 	"github.com/google/uuid"
-	mi "github.com/omec-project/metricfunc/pkg/metricinfo"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/Namf_Communication"
@@ -262,7 +260,6 @@ func RemoveSMContext(ref string) {
 	smContextPool.Delete(ref)
 
 	canonicalRef.Delete(canonicalName(smContext.Supi, smContext.PDUSessionID))
-
 }
 
 // *** add unit test ***
@@ -386,7 +383,6 @@ func (smContext *SMContext) AllocateLocalSEIDForUPPath(path UPPath) {
 			}
 
 			seidSMContextMap.Store(allocatedSEID, smContext)
-
 		}
 	}
 }
@@ -405,7 +401,6 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) {
 			}
 
 			seidSMContextMap.Store(allocatedSEID, smContext)
-
 		}
 	}
 }
@@ -599,49 +594,4 @@ func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 	// Notify PCF of failure ?
 	// TODO
 	return nil
-}
-
-func (smContext *SMContext) getSmCtxtUpf() (name, ip string) {
-	var upfName, upfIP string
-	if smContext.SMContextState == SmStateActive {
-		if smContext.Tunnel != nil {
-			// Set UPF FQDN name if provided else IP-address
-			if smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.NodeID.NodeIdType == pfcpType.NodeIdTypeFqdn {
-				upfName = string(smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.NodeID.NodeIdValue)
-				upfName = strings.Split(upfName, ".")[0]
-				upfIP = smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.NodeID.ResolveNodeIdToIp().String()
-			} else {
-				upfName = smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.GetUPFIP()
-				upfIP = smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.GetUPFIP()
-			}
-		}
-	}
-	return upfName, upfIP
-}
-
-func mapPduSessStateToMetricStateAndOp(state SMContextState) (string, mi.SubscriberOp) {
-	switch state {
-	case SmStateInit:
-		return IDLE, mi.SubsOpAdd
-	case SmStateActivePending:
-		return IDLE, mi.SubsOpMod
-	case SmStateActive:
-		return CONNECTED, mi.SubsOpMod
-	case SmStateInActivePending:
-		return IDLE, mi.SubsOpMod
-	case SmStateModify:
-		return CONNECTED, mi.SubsOpMod
-	case SmStatePfcpCreatePending:
-		return IDLE, mi.SubsOpMod
-	case SmStatePfcpModify:
-		return CONNECTED, mi.SubsOpMod
-	case SmStatePfcpRelease:
-		return DISCONNECTED, mi.SubsOpDel
-	case SmStateRelease:
-		return DISCONNECTED, mi.SubsOpDel
-	case SmStateN1N2TransferPending:
-		return IDLE, mi.SubsOpMod
-	default:
-		return "unknown", mi.SubsOpDel
-	}
 }
