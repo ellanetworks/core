@@ -199,20 +199,6 @@ func init() {
 	ConfigPodTrigger = make(chan bool, 1)
 }
 
-func (c *Config) GetVersion() string {
-	if c.Info != nil && c.Info.Version != "" {
-		return c.Info.Version
-	}
-	return ""
-}
-
-func (r *RoutingConfig) GetVersion() string {
-	if r.Info != nil && r.Info.Version != "" {
-		return r.Info.Version
-	}
-	return ""
-}
-
 func (c *Config) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool {
 	for {
 		rsp := <-commChannel

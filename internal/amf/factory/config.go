@@ -11,10 +11,6 @@ import (
 	"github.com/omec-project/util/logger"
 )
 
-const (
-	AMF_EXPECTED_CONFIG_VERSION = "1.0.0"
-)
-
 type Config struct {
 	Info          *Info          `yaml:"info"`
 	Configuration *Configuration `yaml:"configuration"`
@@ -25,13 +21,6 @@ type Info struct {
 	Version     string `yaml:"version,omitempty"`
 	Description string `yaml:"description,omitempty"`
 }
-
-const (
-	AMF_DEFAULT_IPV4     = "127.0.0.18"
-	AMF_DEFAULT_PORT     = "8000"
-	AMF_DEFAULT_PORT_INT = 8000
-	AMF_DEFAULT_NRFURI   = "https://127.0.0.10:8000"
-)
 
 type Mongodb struct {
 	Name string `yaml:"name"`
@@ -164,11 +153,4 @@ type TimerValue struct {
 	Enable        bool          `yaml:"enable"`
 	ExpireTime    time.Duration `yaml:"expireTime"`
 	MaxRetryTimes int           `yaml:"maxRetryTimes,omitempty"`
-}
-
-func (c *Config) GetVersion() string {
-	if c.Info != nil && c.Info.Version != "" {
-		return c.Info.Version
-	}
-	return ""
 }

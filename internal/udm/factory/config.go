@@ -65,10 +65,3 @@ type Keys struct {
 type PlmnSupportItem struct {
 	PlmnId models.PlmnId `yaml:"plmnId"`
 }
-
-func (c *Config) GetVersion() string {
-	if c.Info != nil && c.Info.Version != "" {
-		return c.Info.Version
-	}
-	return ""
-}

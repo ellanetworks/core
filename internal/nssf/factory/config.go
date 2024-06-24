@@ -171,10 +171,3 @@ func (c *Config) updateConfig(commChannel chan *protos.NetworkSliceResponse) boo
 	}
 	return true
 }
-
-func (c *Config) GetVersion() string {
-	if c.Info != nil && c.Info.Version != "" {
-		return c.Info.Version
-	}
-	return ""
-}
