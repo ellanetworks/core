@@ -1,7 +1,3 @@
-/*
- * AUSF Configuration Factory
- */
-
 package factory
 
 import (

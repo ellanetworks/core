@@ -1,7 +1,3 @@
-/*
- * UDM Configuration Factory
- */
-
 package factory
 
 import (

@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/gin-contrib/cors"
-	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/webui/backend/factory"
@@ -75,29 +74,9 @@ func (webui *WEBUI) Start() {
 	go func() {
 		httpAddr := ":" + strconv.Itoa(factory.WebUIConfig.Configuration.CfgPort)
 		initLog.Infoln("Webui HTTP addr:", httpAddr, factory.WebUIConfig.Configuration.CfgPort)
-		if factory.WebUIConfig.Info.HttpVersion == 2 {
-			server, err := http2_util.NewServer(httpAddr, "", subconfig_router)
-			if server == nil {
-				initLog.Error("Initialize HTTP-2 server failed:", err)
-				return
-			}
-
-			if err != nil {
-				initLog.Warnln("Initialize HTTP-2 server:", err)
-				return
-			}
-
-			err = server.ListenAndServe()
-			if err != nil {
-				initLog.Fatalln("HTTP server setup failed:", err)
-				return
-			}
-		} else {
-			initLog.Infoln(subconfig_router.Run(httpAddr))
-			initLog.Infoln("Webserver stopped/terminated/not-started ")
-		}
+		initLog.Infoln(subconfig_router.Run(httpAddr))
+		initLog.Infoln("Webserver stopped/terminated/not-started ")
 	}()
-	/* First HTTP server end */
 
 	self := webui_context.WEBUI_Self()
 	self.UpdateNfProfiles()

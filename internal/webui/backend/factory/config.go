@@ -1,9 +1,3 @@
-/*
-
- * WebUi Configuration Factory
-
- */
-
 package factory
 
 import (
@@ -19,7 +13,6 @@ type Config struct {
 type Info struct {
 	Version     string `yaml:"version,omitempty"`
 	Description string `yaml:"description,omitempty"`
-	HttpVersion int    `yaml:"http-version,omitempty"`
 }
 
 type Configuration struct {
