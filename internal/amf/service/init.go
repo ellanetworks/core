@@ -16,7 +16,6 @@ import (
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
 	gClient "github.com/yeastengine/config5g/proto/client"
 	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
 	"github.com/yeastengine/ella/internal/amf/communication"
@@ -44,15 +43,6 @@ const IMSI_PREFIX = "imsi-"
 
 var RocUpdateConfigChannel chan bool
 
-type (
-	// Config information.
-	Config struct {
-		amfcfg string
-	}
-)
-
-var config Config
-
 var initLog *logrus.Entry
 
 var (
@@ -65,17 +55,9 @@ func init() {
 	RocUpdateConfigChannel = make(chan bool)
 }
 
-func (amf *AMF) Initialize(c *cli.Context) error {
-	config = Config{
-		amfcfg: c.String("amfcfg"),
-	}
-	if err := factory.InitConfigFactory(config.amfcfg); err != nil {
-		return err
-	}
+func (amf *AMF) Initialize(c factory.Config) error {
+	factory.InitConfigFactory(c)
 	amf.setLogLevel()
-	factory.AmfConfig.Configuration.ServedGumaiList = nil
-	factory.AmfConfig.Configuration.SupportTAIList = nil
-	factory.AmfConfig.Configuration.PlmnSupportList = nil
 	initLog.Infoln("Reading Amf related configuration from ROC")
 	client := gClient.ConnectToConfigServer(factory.AmfConfig.Configuration.WebuiUri, "amf")
 	configChannel := client.PublishOnConfigChange(true)

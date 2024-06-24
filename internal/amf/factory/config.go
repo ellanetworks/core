@@ -1,7 +1,3 @@
-/*
- * AMF Configuration Factory
- */
-
 package factory
 
 import (

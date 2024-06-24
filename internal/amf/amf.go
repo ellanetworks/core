@@ -1,144 +1,115 @@
 package amf
 
 import (
-	"flag"
 	"fmt"
-	"os"
+	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/omec-project/util/logger"
+	"github.com/yeastengine/ella/internal/amf/factory"
 	"github.com/yeastengine/ella/internal/amf/service"
 )
 
 var AMF = &service.AMF{}
 
-var appLog *logrus.Entry
+// var appLog *logrus.Entry
 
 const (
 	dBName     = "amf"
-	SBI_PORT   = "29518"
-	NGAPP_PORT = "38412"
+	SBI_PORT   = 29518
+	NGAPP_PORT = 38412
 )
 
-func init() {
-	appLog = logger.AppLog
-}
-
-func getContext(mongoDBURL string, nrfURL string, webuiURL string) (*cli.Context, error) {
-	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
-	flagSet.String("amfcfg", "", "AMF configuration")
-	app := cli.NewApp()
-	appLog.Infoln(app.Name)
-	c := cli.NewContext(app, flagSet, nil)
-	amfConfig := fmt.Sprintf(`
-configuration:
-  amfDBName: %s
-  amfName: AMF
-  mongodb:
-    url: %s
-  networkFeatureSupport5GS:
-    emc: 0
-    emcN3: 0
-    emf: 0
-    enable: true
-    imsVoPS: 0
-    iwkN26: 0
-    mcsi: 0
-    mpsi: 0
-  ngapIpList:
-    - 0.0.0.0
-  ngappPort: %s
-  nrfUri: %s
-  webuiUri: %s
-  sbi:
-    bindingIPv4: 0.0.0.0
-    port: %s
-    registerIPv4: 0.0.0.0:29518
-  sctpGrpcPort: 9000
-  serviceNameList:
-    - namf-comm
-    - namf-evts
-    - namf-mt
-    - namf-loc
-    - namf-oam
-  supportDnnList:
-    - internet
-  security:
-    integrityOrder:
-      - NIA1
-      - NIA2
-    cipheringOrder:
-      - NEA0
-  networkName:
-    full: SDCORE5G
-    short: SDCORE
-  t3502Value: 720
-  t3512Value: 3600
-  t3513:
-    enable: true
-    expireTime: 6s
-    maxRetryTimes: 4
-  t3522:
-    enable: true
-    expireTime: 6s
-    maxRetryTimes: 4
-  t3550:
-    enable: true
-    expireTime: 6s
-    maxRetryTimes: 4
-  t3560:
-    enable: true
-    expireTime: 6s
-    maxRetryTimes: 4
-  t3565:
-    enable: true
-    expireTime: 6s
-    maxRetryTimes: 4
-info:
-  description: AMF initial configuration
-  version: 1.0.0
-logger:
-  AMF:
-    ReportCaller: false
-    debugLevel: debug
-`, dBName, mongoDBURL, NGAPP_PORT, nrfURL, webuiURL, SBI_PORT)
-	tmpFile, err := os.CreateTemp("", "amfcfg-*.yaml")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file: %w", err)
-	}
-
-	_, err = tmpFile.Write([]byte(amfConfig))
-	if err != nil {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
-		return nil, fmt.Errorf("failed to write to temp file: %w", err)
-	}
-
-	if err = tmpFile.Close(); err != nil {
-		os.Remove(tmpFile.Name())
-		return nil, fmt.Errorf("failed to close temp file: %w", err)
-	}
-
-	err = c.Set("amfcfg", tmpFile.Name())
-	if err != nil {
-		os.Remove(tmpFile.Name())
-		return nil, err
-	}
-
-	return c, nil
-}
+// func init() {
+// 	appLog = logger.AppLog
+// }
 
 func Start(mongoDBURL string, nrfURL string, webuiURL string) error {
-	c, err := getContext(mongoDBURL, nrfURL, webuiURL)
-	if err != nil {
-		logger.CfgLog.Errorf("%+v", err)
-		return fmt.Errorf("failed to get context")
+	configuration := factory.Configuration{
+		AmfName:   "AMF",
+		AmfDBName: dBName,
+		Mongodb: &factory.Mongodb{
+			Name: dBName,
+			Url:  mongoDBURL,
+		},
+		NgapIpList:   []string{"0.0.0.0"},
+		NgapPort:     NGAPP_PORT,
+		SctpGrpcPort: 9000,
+		Sbi: &factory.Sbi{
+			BindingIPv4:  "0.0.0.0",
+			Port:         SBI_PORT,
+			RegisterIPv4: "0.0.0.0",
+		},
+		NetworkFeatureSupport5GS: &factory.NetworkFeatureSupport5GS{
+			Emc:     0,
+			EmcN3:   0,
+			Emf:     0,
+			Enable:  true,
+			ImsVoPS: 0,
+			IwkN26:  0,
+			Mcsi:    0,
+			Mpsi:    0,
+		},
+		ServiceNameList: []string{
+			"namf-comm",
+			"namf-evts",
+			"namf-mt",
+			"namf-loc",
+			"namf-oam",
+		},
+		SupportDnnList: []string{"internet"},
+		NrfUri:         nrfURL,
+		WebuiUri:       webuiURL,
+		Security: &factory.Security{
+			IntegrityOrder: []string{"NIA1", "NIA2"},
+			CipheringOrder: []string{"NEA0"},
+		},
+		NetworkName: factory.NetworkName{
+			Full:  "SDCORE5G",
+			Short: "SDCORE",
+		},
+		T3502Value: 720,
+		T3512Value: 3600,
+		T3513: factory.TimerValue{
+			Enable:        true,
+			ExpireTime:    time.Duration(6 * time.Second),
+			MaxRetryTimes: 4,
+		},
+		T3522: factory.TimerValue{
+			Enable:        true,
+			ExpireTime:    time.Duration(6 * time.Second),
+			MaxRetryTimes: 4,
+		},
+		T3550: factory.TimerValue{
+			Enable:        true,
+			ExpireTime:    time.Duration(6 * time.Second),
+			MaxRetryTimes: 4,
+		},
+		T3560: factory.TimerValue{
+			Enable:        true,
+			ExpireTime:    time.Duration(6 * time.Second),
+			MaxRetryTimes: 4,
+		},
+		T3565: factory.TimerValue{
+			Enable:        true,
+			ExpireTime:    time.Duration(6 * time.Second),
+			MaxRetryTimes: 4,
+		},
 	}
-	err = AMF.Initialize(c)
+	config := factory.Config{
+		Configuration: &configuration,
+		Logger: &logger.Logger{
+			AMF: &logger.LogSetting{
+				DebugLevel: "debug",
+			},
+		},
+		Info: &factory.Info{
+			Version: "v1.0.0",
+		},
+	}
+
+	err := AMF.Initialize(config)
 	if err != nil {
-		logger.CfgLog.Errorf("%+v", err)
-		return fmt.Errorf("failed to initialize")
+		return fmt.Errorf("failed to initialize AMF")
 	}
 	go AMF.Start()
 	return nil

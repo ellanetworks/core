@@ -60,9 +60,6 @@ logger:
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
 
-	// Print nrf config file
-	fmt.Println(nrfConfig)
-
 	_, err = tmpFile.Write([]byte(nrfConfig))
 	if err != nil {
 		tmpFile.Close()
