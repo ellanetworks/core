@@ -46,7 +46,7 @@ configuration:
   webuiUri: %s
 info:
   version: 1.0.0
-  description: UDR initial local configuration (https://github.com/free5gc/free5gc/blob/main/config/udrcfg.yaml)
+  description: UDR initial local configuration
 logger:
   UDR:
     debugLevel: debug

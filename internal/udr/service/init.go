@@ -1,11 +1,8 @@
 package service
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -14,9 +11,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
-	mongoDBLibLogger "github.com/omec-project/util/logger"
 	"github.com/omec-project/util/path_util"
-	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"github.com/yeastengine/ella/internal/udr/consumer"
@@ -31,25 +26,11 @@ import (
 
 type UDR struct{}
 
-type (
-	// Config information.
-	Config struct {
-		udrcfg string
-	}
-)
+type Config struct {
+	udrcfg string
+}
 
 var config Config
-
-var udrCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "udrcfg",
-		Usage: "config file",
-	},
-}
 
 var initLog *logrus.Entry
 
@@ -60,10 +41,6 @@ var (
 
 func init() {
 	initLog = logger.InitLog
-}
-
-func (*UDR) GetCliCmd() (flags []cli.Flag) {
-	return udrCLi
 }
 
 func (udr *UDR) Initialize(c *cli.Context) error {
@@ -88,72 +65,15 @@ func (udr *UDR) Initialize(c *cli.Context) error {
 }
 
 func (udr *UDR) setLogLevel() {
-	if factory.UdrConfig.Logger == nil {
-		initLog.Warnln("UDR config without log level setting!!!")
-		return
+	if level, err := logrus.ParseLevel(factory.UdrConfig.Logger.UDR.DebugLevel); err != nil {
+		initLog.Warnf("UDR Log level [%s] is invalid, set to [info] level",
+			factory.UdrConfig.Logger.UDR.DebugLevel)
+		logger.SetLogLevel(logrus.InfoLevel)
+	} else {
+		initLog.Infof("UDR Log level is set to [%s] level", level)
+		logger.SetLogLevel(level)
 	}
-
-	if factory.UdrConfig.Logger.UDR != nil {
-		if factory.UdrConfig.Logger.UDR.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.UdrConfig.Logger.UDR.DebugLevel); err != nil {
-				initLog.Warnf("UDR Log level [%s] is invalid, set to [info] level",
-					factory.UdrConfig.Logger.UDR.DebugLevel)
-				logger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				initLog.Infof("UDR Log level is set to [%s] level", level)
-				logger.SetLogLevel(level)
-			}
-		} else {
-			initLog.Infoln("UDR Log level not set. Default set to [info] level")
-			logger.SetLogLevel(logrus.InfoLevel)
-		}
-		logger.SetReportCaller(factory.UdrConfig.Logger.UDR.ReportCaller)
-	}
-
-	if factory.UdrConfig.Logger.PathUtil != nil {
-		if factory.UdrConfig.Logger.PathUtil.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.UdrConfig.Logger.PathUtil.DebugLevel); err != nil {
-				pathUtilLogger.PathLog.Warnf("PathUtil Log level [%s] is invalid, set to [info] level",
-					factory.UdrConfig.Logger.PathUtil.DebugLevel)
-				pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				pathUtilLogger.SetLogLevel(level)
-			}
-		} else {
-			pathUtilLogger.PathLog.Warnln("PathUtil Log level not set. Default set to [info] level")
-			pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		pathUtilLogger.SetReportCaller(factory.UdrConfig.Logger.PathUtil.ReportCaller)
-	}
-
-	if factory.UdrConfig.Logger.MongoDBLibrary != nil {
-		if factory.UdrConfig.Logger.MongoDBLibrary.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.UdrConfig.Logger.MongoDBLibrary.DebugLevel); err != nil {
-				mongoDBLibLogger.AppLog.Warnf("MongoDBLibrary Log level [%s] is invalid, set to [info] level",
-					factory.UdrConfig.Logger.MongoDBLibrary.DebugLevel)
-				mongoDBLibLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				mongoDBLibLogger.SetLogLevel(level)
-			}
-		} else {
-			mongoDBLibLogger.AppLog.Warnln("MongoDBLibrary Log level not set. Default set to [info] level")
-			mongoDBLibLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		mongoDBLibLogger.SetReportCaller(factory.UdrConfig.Logger.MongoDBLibrary.ReportCaller)
-	}
-}
-
-func (udr *UDR) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range udr.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
+	logger.SetReportCaller(factory.UdrConfig.Logger.UDR.ReportCaller)
 }
 
 func (udr *UDR) Start() {
@@ -202,61 +122,6 @@ func (udr *UDR) Start() {
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
-}
-
-func (udr *UDR) Exec(c *cli.Context) error {
-	// UDR.Initialize(cfgPath, c)
-
-	initLog.Traceln("args:", c.String("udrcfg"))
-	args := udr.FilterCli(c)
-	initLog.Traceln("filter: ", args)
-	command := exec.Command("./udr", args...)
-
-	if err := udr.Initialize(c); err != nil {
-		return err
-	}
-
-	var stdout io.ReadCloser
-	if readCloser, err := command.StdoutPipe(); err != nil {
-		initLog.Fatalln(err)
-	} else {
-		stdout = readCloser
-	}
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-	go func() {
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	var stderr io.ReadCloser
-	if readCloser, err := command.StderrPipe(); err != nil {
-		initLog.Fatalln(err)
-	} else {
-		stderr = readCloser
-	}
-	go func() {
-		in := bufio.NewScanner(stderr)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	var err error
-	go func() {
-		if errormessage := command.Start(); err != nil {
-			fmt.Println("command.Start Fails!")
-			err = errormessage
-		}
-		wg.Done()
-	}()
-
-	wg.Wait()
-	return err
 }
 
 func (udr *UDR) Terminate() {

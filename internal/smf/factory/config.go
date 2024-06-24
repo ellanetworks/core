@@ -61,7 +61,6 @@ type Configuration struct {
 	EnterpriseList           map[string]string    `yaml:"enterpriseList,omitempty"`
 	UserPlaneInformation     UserPlaneInformation `yaml:"userplane_information"`
 	NrfCacheEvictionInterval int                  `yaml:"nrfCacheEvictionInterval"`
-	DebugProfilePort         int                  `yaml:"debugProfilePort,omitempty"`
 	EnableNrfCaching         bool                 `yaml:"enableNrfCaching"`
 	ULCL                     bool                 `yaml:"ulcl,omitempty"`
 }

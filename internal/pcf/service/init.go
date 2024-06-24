@@ -1,11 +1,9 @@
 package service
 
 import (
-	"bufio"
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strconv"
 	"strings"
@@ -20,8 +18,6 @@ import (
 	"github.com/omec-project/util/http2_util"
 	"github.com/omec-project/util/idgenerator"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/omec-project/util/path_util"
-	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"github.com/yeastengine/config5g/proto/client"
@@ -43,12 +39,9 @@ import (
 
 type PCF struct{}
 
-type (
-	// Config information.
-	Config struct {
-		pcfcfg string
-	}
-)
+type Config struct {
+	pcfcfg string
+}
 
 var (
 	ConfigPodTrigger    chan bool
@@ -62,44 +55,20 @@ func init() {
 
 var config Config
 
-var pcfCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "pcfcfg",
-		Usage: "config file",
-	},
-}
-
 var initLog *logrus.Entry
 
 func init() {
 	initLog = logger.InitLog
 }
 
-func (*PCF) GetCliCmd() (flags []cli.Flag) {
-	return pcfCLi
-}
-
 func (pcf *PCF) Initialize(c *cli.Context) error {
 	config = Config{
 		pcfcfg: c.String("pcfcfg"),
 	}
-	if config.pcfcfg != "" {
-		if err := factory.InitConfigFactory(config.pcfcfg); err != nil {
-			return err
-		}
-	} else {
-		DefaultPcfConfigPath := path_util.Free5gcPath("free5gc/config/pcfcfg.yaml")
-		if err := factory.InitConfigFactory(DefaultPcfConfigPath); err != nil {
-			return err
-		}
+	if err := factory.InitConfigFactory(config.pcfcfg); err != nil {
+		return err
 	}
-
 	pcf.setLogLevel()
-
 	gClient := client.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri, "pcf")
 	commChannel := gClient.PublishOnConfigChange(true)
 	go pcf.updateConfig(commChannel)
@@ -107,72 +76,15 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 }
 
 func (pcf *PCF) setLogLevel() {
-	if factory.PcfConfig.Logger == nil {
-		initLog.Warnln("PCF config without log level setting!!!")
-		return
+	if level, err := logrus.ParseLevel(factory.PcfConfig.Logger.PCF.DebugLevel); err != nil {
+		initLog.Warnf("PCF Log level [%s] is invalid, set to [info] level",
+			factory.PcfConfig.Logger.PCF.DebugLevel)
+		logger.SetLogLevel(logrus.InfoLevel)
+	} else {
+		initLog.Infof("PCF Log level is set to [%s] level", level)
+		logger.SetLogLevel(level)
 	}
-
-	if factory.PcfConfig.Logger.PCF != nil {
-		if factory.PcfConfig.Logger.PCF.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.PcfConfig.Logger.PCF.DebugLevel); err != nil {
-				initLog.Warnf("PCF Log level [%s] is invalid, set to [info] level",
-					factory.PcfConfig.Logger.PCF.DebugLevel)
-				logger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				initLog.Infof("PCF Log level is set to [%s] level", level)
-				logger.SetLogLevel(level)
-			}
-		} else {
-			initLog.Infoln("PCF Log level is default set to [info] level")
-			logger.SetLogLevel(logrus.InfoLevel)
-		}
-		logger.SetReportCaller(factory.PcfConfig.Logger.PCF.ReportCaller)
-	}
-
-	if factory.PcfConfig.Logger.PathUtil != nil {
-		if factory.PcfConfig.Logger.PathUtil.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.PcfConfig.Logger.PathUtil.DebugLevel); err != nil {
-				pathUtilLogger.PathLog.Warnf("PathUtil Log level [%s] is invalid, set to [info] level",
-					factory.PcfConfig.Logger.PathUtil.DebugLevel)
-				pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				pathUtilLogger.SetLogLevel(level)
-			}
-		} else {
-			pathUtilLogger.PathLog.Warnln("PathUtil Log level not set. Default set to [info] level")
-			pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		pathUtilLogger.SetReportCaller(factory.PcfConfig.Logger.PathUtil.ReportCaller)
-	}
-
-	/*if factory.PcfConfig.Logger.OpenApi != nil {
-		if factory.PcfConfig.Logger.OpenApi.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.PcfConfig.Logger.OpenApi.DebugLevel); err != nil {
-				openApiLogger.OpenApiLog.Warnf("OpenAPI Log level [%s] is invalid, set to [info] level",
-					factory.PcfConfig.Logger.OpenApi.DebugLevel)
-				openApiLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				openApiLogger.SetLogLevel(level)
-			}
-		} else {
-			openApiLogger.OpenApiLog.Warnln("OpenAPI Log level not set. Default set to [info] level")
-			openApiLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		openApiLogger.SetReportCaller(factory.PcfConfig.Logger.OpenApi.ReportCaller)
-	}*/
-}
-
-func (pcf *PCF) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range pcf.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
+	logger.SetReportCaller(factory.PcfConfig.Logger.PCF.ReportCaller)
 }
 
 func (pcf *PCF) Start() {
@@ -233,53 +145,6 @@ func (pcf *PCF) Start() {
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
-}
-
-func (pcf *PCF) Exec(c *cli.Context) error {
-	initLog.Traceln("args:", c.String("pcfcfg"))
-	args := pcf.FilterCli(c)
-	initLog.Traceln("filter: ", args)
-	command := exec.Command("./pcf", args...)
-
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	wg := sync.WaitGroup{}
-	wg.Add(4)
-	go func() {
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	go func() {
-		in := bufio.NewScanner(stderr)
-		fmt.Println("PCF log start")
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		fmt.Println("PCF start")
-		if err = command.Start(); err != nil {
-			fmt.Printf("command.Start() error: %v", err)
-		}
-		fmt.Println("PCF end")
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	return err
 }
 
 func (pcf *PCF) StartKeepAliveTimer(nfProfile models.NfProfile) {

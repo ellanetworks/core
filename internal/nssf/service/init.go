@@ -1,14 +1,8 @@
-/*
- * NSSF Service
- */
-
 package service
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -17,8 +11,6 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/omec-project/util/path_util"
-	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"github.com/yeastengine/ella/internal/nssf/consumer"
@@ -32,25 +24,11 @@ import (
 
 type NSSF struct{}
 
-type (
-	// Config information.
-	Config struct {
-		nssfcfg string
-	}
-)
+type Config struct {
+	nssfcfg string
+}
 
 var config Config
-
-var nssfCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "nssfcfg",
-		Usage: "config file",
-	},
-}
 
 var initLog *logrus.Entry
 
@@ -63,84 +41,28 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (*NSSF) GetCliCmd() (flags []cli.Flag) {
-	return nssfCLi
-}
-
 func (nssf *NSSF) Initialize(c *cli.Context) error {
 	config = Config{
 		nssfcfg: c.String("nssfcfg"),
 	}
-
-	if config.nssfcfg != "" {
-		if err := factory.InitConfigFactory(config.nssfcfg); err != nil {
-			return err
-		}
-	} else {
-		DefaultNssfConfigPath := path_util.Free5gcPath("free5gc/config/nssfcfg.yaml")
-		if err := factory.InitConfigFactory(DefaultNssfConfigPath); err != nil {
-			return err
-		}
+	if err := factory.InitConfigFactory(config.nssfcfg); err != nil {
+		return err
 	}
-
 	context.InitNssfContext()
-
 	nssf.setLogLevel()
-
 	return nil
 }
 
 func (nssf *NSSF) setLogLevel() {
-	if factory.NssfConfig.Logger == nil {
-		initLog.Warnln("NSSF config without log level setting!!!")
-		return
+	if level, err := logrus.ParseLevel(factory.NssfConfig.Logger.NSSF.DebugLevel); err != nil {
+		initLog.Warnf("NSSF Log level [%s] is invalid, set to [info] level",
+			factory.NssfConfig.Logger.NSSF.DebugLevel)
+		logger.SetLogLevel(logrus.InfoLevel)
+	} else {
+		initLog.Infof("NSSF Log level is set to [%s] level", level)
+		logger.SetLogLevel(level)
 	}
-
-	if factory.NssfConfig.Logger.NSSF != nil {
-		if factory.NssfConfig.Logger.NSSF.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.NssfConfig.Logger.NSSF.DebugLevel); err != nil {
-				initLog.Warnf("NSSF Log level [%s] is invalid, set to [info] level",
-					factory.NssfConfig.Logger.NSSF.DebugLevel)
-				logger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				initLog.Infof("NSSF Log level is set to [%s] level", level)
-				logger.SetLogLevel(level)
-			}
-		} else {
-			initLog.Infoln("NSSF Log level not set. Default set to [info] level")
-			logger.SetLogLevel(logrus.InfoLevel)
-		}
-		logger.SetReportCaller(factory.NssfConfig.Logger.NSSF.ReportCaller)
-	}
-
-	if factory.NssfConfig.Logger.PathUtil != nil {
-		if factory.NssfConfig.Logger.PathUtil.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.NssfConfig.Logger.PathUtil.DebugLevel); err != nil {
-				pathUtilLogger.PathLog.Warnf("PathUtil Log level [%s] is invalid, set to [info] level",
-					factory.NssfConfig.Logger.PathUtil.DebugLevel)
-				pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				pathUtilLogger.SetLogLevel(level)
-			}
-		} else {
-			pathUtilLogger.PathLog.Warnln("PathUtil Log level not set. Default set to [info] level")
-			pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		pathUtilLogger.SetReportCaller(factory.NssfConfig.Logger.PathUtil.ReportCaller)
-	}
-}
-
-func (nssf *NSSF) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range nssf.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
+	logger.SetReportCaller(factory.NssfConfig.Logger.NSSF.ReportCaller)
 }
 
 func (nssf *NSSF) Start() {
@@ -179,51 +101,6 @@ func (nssf *NSSF) Start() {
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
-}
-
-func (nssf *NSSF) Exec(c *cli.Context) error {
-	initLog.Traceln("args:", c.String("nssfcfg"))
-	args := nssf.FilterCli(c)
-	initLog.Traceln("filter: ", args)
-	command := exec.Command("./nssf", args...)
-
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	wg := sync.WaitGroup{}
-	goRoutines := 3
-	wg.Add(goRoutines)
-	go func() {
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	go func() {
-		in := bufio.NewScanner(stderr)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		if err = command.Start(); err != nil {
-			fmt.Printf("NSSF Start error: %v", err)
-		}
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	return err
 }
 
 func (nssf *NSSF) Terminate() {

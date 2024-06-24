@@ -1,10 +1,8 @@
 package service
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -17,8 +15,6 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/omec-project/util/path_util"
-	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 	"github.com/yeastengine/config5g/proto/client"
 	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
 	"github.com/yeastengine/ella/internal/ausf/consumer"
@@ -40,17 +36,6 @@ type (
 
 var config Config
 
-var ausfCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "ausfcfg",
-		Usage: "config file",
-	},
-}
-
 var (
 	KeepAliveTimer      *time.Timer
 	KeepAliveTimerMutex sync.Mutex
@@ -68,84 +53,29 @@ func init() {
 	ConfigPodTrigger = make(chan bool)
 }
 
-func (*AUSF) GetCliCmd() (flags []cli.Flag) {
-	return ausfCLi
-}
-
 func (ausf *AUSF) Initialize(c *cli.Context) error {
 	config = Config{
 		ausfcfg: c.String("ausfcfg"),
 	}
-
-	if config.ausfcfg != "" {
-		if err := factory.InitConfigFactory(config.ausfcfg); err != nil {
-			return err
-		}
-	} else {
-		DefaultAusfConfigPath := path_util.Free5gcPath("free5gc/config/ausfcfg.yaml")
-		if err := factory.InitConfigFactory(DefaultAusfConfigPath); err != nil {
-			return err
-		}
+	if err := factory.InitConfigFactory(config.ausfcfg); err != nil {
+		return err
 	}
-
 	ausf.setLogLevel()
-
 	commChannel := client.ConfigWatcher(factory.AusfConfig.Configuration.WebuiUri, "ausf")
 	go ausf.updateConfig(commChannel)
 	return nil
 }
 
 func (ausf *AUSF) setLogLevel() {
-	if factory.AusfConfig.Logger == nil {
-		initLog.Warnln("AUSF config without log level setting!!!")
-		return
+	if level, err := logrus.ParseLevel(factory.AusfConfig.Logger.AUSF.DebugLevel); err != nil {
+		initLog.Warnf("AUSF Log level [%s] is invalid, set to [info] level",
+			factory.AusfConfig.Logger.AUSF.DebugLevel)
+		logger.SetLogLevel(logrus.InfoLevel)
+	} else {
+		initLog.Infof("AUSF Log level is set to [%s] level", level)
+		logger.SetLogLevel(level)
 	}
-
-	if factory.AusfConfig.Logger.AUSF != nil {
-		if factory.AusfConfig.Logger.AUSF.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.AusfConfig.Logger.AUSF.DebugLevel); err != nil {
-				initLog.Warnf("AUSF Log level [%s] is invalid, set to [info] level",
-					factory.AusfConfig.Logger.AUSF.DebugLevel)
-				logger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				initLog.Infof("AUSF Log level is set to [%s] level", level)
-				logger.SetLogLevel(level)
-			}
-		} else {
-			initLog.Warnln("AUSF Log level not set. Default set to [info] level")
-			logger.SetLogLevel(logrus.InfoLevel)
-		}
-		logger.SetReportCaller(factory.AusfConfig.Logger.AUSF.ReportCaller)
-	}
-
-	if factory.AusfConfig.Logger.PathUtil != nil {
-		if factory.AusfConfig.Logger.PathUtil.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.AusfConfig.Logger.PathUtil.DebugLevel); err != nil {
-				pathUtilLogger.PathLog.Warnf("PathUtil Log level [%s] is invalid, set to [info] level",
-					factory.AusfConfig.Logger.PathUtil.DebugLevel)
-				pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				pathUtilLogger.SetLogLevel(level)
-			}
-		} else {
-			pathUtilLogger.PathLog.Warnln("PathUtil Log level not set. Default set to [info] level")
-			pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		pathUtilLogger.SetReportCaller(factory.AusfConfig.Logger.PathUtil.ReportCaller)
-	}
-}
-
-func (ausf *AUSF) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range ausf.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
+	logger.SetReportCaller(factory.AusfConfig.Logger.AUSF.ReportCaller)
 }
 
 func (ausf *AUSF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool {
@@ -239,51 +169,6 @@ func (ausf *AUSF) Start() {
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
-}
-
-func (ausf *AUSF) Exec(c *cli.Context) error {
-	initLog.Traceln("args:", c.String("ausfcfg"))
-	args := ausf.FilterCli(c)
-	initLog.Traceln("filter: ", args)
-	command := exec.Command("./ausf", args...)
-
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-	go func() {
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	go func() {
-		in := bufio.NewScanner(stderr)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		startErr := command.Start()
-		if startErr != nil {
-			initLog.Fatalln(startErr)
-		}
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	return err
 }
 
 func (ausf *AUSF) Terminate() {

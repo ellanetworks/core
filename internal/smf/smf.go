@@ -30,14 +30,12 @@ func getContext(mongoDBURL string, nrfURL string, webuiURL string) (*cli.Context
 	flagSet.String("uerouting", "", "UE routing information")
 	app := cli.NewApp()
 	app.Name = "smf"
-	app.Flags = SMF.GetCliCmd()
 	appLog.Infoln(app.Name)
 	c := cli.NewContext(app, flagSet, nil)
 	smfConfig := fmt.Sprintf(`
 configuration:
   smfDBName: %s
   webuiUri: %s
-  debugProfilePort: 5001
   mongodb:
     url: %s
   smfName: SMF

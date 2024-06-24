@@ -58,7 +58,6 @@ type Configuration struct {
 	SliceTaiList             map[string][]models.Tai `yaml:"sliceTaiList,omitempty"`
 	EnableNrfCaching         bool                    `yaml:"enableNrfCaching"`
 	NrfCacheEvictionInterval int                     `yaml:"nrfCacheEvictionInterval,omitempty"`
-	DebugProfilePort         int                     `yaml:"debugProfilePort,omitempty"`
 }
 
 func (c *Configuration) Get5gsNwFeatSuppEnable() bool {

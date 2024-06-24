@@ -35,7 +35,6 @@ func getContext(mongoDBURL string, nrfURL string, webuiURL string) (*cli.Context
 configuration:
   amfDBName: %s
   amfName: AMF
-  debugProfilePort: 5001
   mongodb:
     url: %s
   networkFeatureSupport5GS:
