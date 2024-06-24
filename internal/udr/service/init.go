@@ -35,10 +35,9 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (udr *UDR) Initialize(c factory.Config) error {
+func (udr *UDR) Initialize(c factory.Config) {
 	factory.InitConfigFactory(c)
 	udr.setLogLevel()
-	return nil
 }
 
 func (udr *UDR) setLogLevel() {

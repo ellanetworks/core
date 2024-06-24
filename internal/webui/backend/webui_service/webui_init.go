@@ -8,9 +8,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/omec-project/util/path_util"
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
 	"github.com/yeastengine/ella/internal/webui/backend/factory"
 	"github.com/yeastengine/ella/internal/webui/backend/logger"
 	"github.com/yeastengine/ella/internal/webui/backend/webui_context"
@@ -22,34 +20,14 @@ import (
 
 type WEBUI struct{}
 
-type Config struct {
-	webuicfg string
-}
-
-var config Config
-
 var initLog *logrus.Entry
 
 func init() {
 	initLog = logger.InitLog
 }
 
-func (webui *WEBUI) Initialize(c *cli.Context) {
-	config = Config{
-		webuicfg: c.String("webuicfg"),
-	}
-
-	if config.webuicfg != "" {
-		if err := factory.InitConfigFactory(config.webuicfg); err != nil {
-			panic(err)
-		}
-	} else {
-		DefaultWebUIConfigPath := path_util.Free5gcPath("free5gc/config/webuicfg.yaml")
-		if err := factory.InitConfigFactory(DefaultWebUIConfigPath); err != nil {
-			panic(err)
-		}
-	}
-
+func (webui *WEBUI) Initialize(c factory.Config) {
+	factory.InitConfigFactory(c)
 	webui.setLogLevel()
 }
 

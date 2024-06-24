@@ -48,7 +48,7 @@ func NnrfNFManagementDataModel(nf *models.NfProfile, nfprofile models.NfProfile)
 		return fmt.Errorf("NfStatus field is required")
 	}
 
-	if nfprofile.PlmnList == nil && !factory.MinConfigAvailable && factory.ManagedByConfigPod {
+	if nfprofile.PlmnList == nil && !factory.MinConfigAvailable {
 		return fmt.Errorf("PlmnList absent. Local default config not available. NFType - %v", nfprofile.NfType)
 	}
 

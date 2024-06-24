@@ -6,8 +6,6 @@ import (
 	"github.com/yeastengine/ella/internal/nrf/logger"
 )
 
-var ManagedByConfigPod bool
-
 var NrfConfig Config
 
 var initLog *logrus.Entry
@@ -20,7 +18,6 @@ func InitConfigFactory(c Config) error {
 	NrfConfig = c
 	initLog.Infof("DefaultPlmnId Mnc %v , Mcc %v \n", NrfConfig.Configuration.DefaultPlmnId.Mnc, NrfConfig.Configuration.DefaultPlmnId.Mcc)
 	commChannel := client.ConfigWatcher(NrfConfig.Configuration.WebuiUri, "nrf")
-	ManagedByConfigPod = true
 	go NrfConfig.updateConfig(commChannel)
 	return nil
 }

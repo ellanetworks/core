@@ -15,7 +15,6 @@ import (
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
 	nrf_cache "github.com/yeastengine/ella/internal/nrf/nrfcache"
 	"github.com/yeastengine/ella/internal/smf/callback"
 	"github.com/yeastengine/ella/internal/smf/consumer"
@@ -193,10 +192,6 @@ func (smf *SMF) Terminate() {
 	} else {
 		logger.InitLog.Infof("Deregister from NRF successfully")
 	}
-}
-
-func (smf *SMF) Exec(c *cli.Context) error {
-	return nil
 }
 
 func StartKeepAliveTimer(nfProfile *models.NfProfile) {

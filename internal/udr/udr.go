@@ -1,8 +1,6 @@
 package udr
 
 import (
-	"fmt"
-
 	"github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/udr/factory"
 	"github.com/yeastengine/ella/internal/udr/service"
@@ -45,10 +43,7 @@ func Start(mongoDBURL string, nrfURL string, webuiURL string) error {
 		},
 		Configuration: &configuration,
 	}
-	err := UDR.Initialize(config)
-	if err != nil {
-		return fmt.Errorf("failed to initialize")
-	}
+	UDR.Initialize(config)
 	go UDR.Start()
 	return nil
 }
