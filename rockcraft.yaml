@@ -7,6 +7,13 @@ description: Ella is a secure, reliable, and easy to operate mobile network.
 platforms:
   amd64:
 
+package-repositories:
+  - type: apt
+    components: [multiverse]
+    suites: [jammy/mongodb-org/7.0]
+    key-id: E58830201F7DD82CD808AA84160D26BB1785BA38
+    url: https://repo.mongodb.org/apt/ubuntu
+
 parts:
   ella:
     plugin: go
@@ -14,7 +21,7 @@ parts:
     build-snaps:
       - go/1.22/stable
 
-    mongodb:
+  mongodb:
     plugin: nil
     stage-packages:
       - mongodb-org
