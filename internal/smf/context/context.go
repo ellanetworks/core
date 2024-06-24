@@ -143,11 +143,6 @@ func InitSmfContext(config *factory.Config) *SMFContext {
 			smfContext.SBIPort = sbi.Port
 		}
 
-		if tls := sbi.TLS; tls != nil {
-			smfContext.Key = tls.Key
-			smfContext.PEM = tls.PEM
-		}
-
 		smfContext.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
 		if smfContext.BindingIPv4 != "" {
 			logger.CtxLog.Info("Parsing ServerIPv4 address from ENV Variable.")

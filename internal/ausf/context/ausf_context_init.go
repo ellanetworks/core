@@ -8,19 +8,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/path_util"
 	"github.com/yeastengine/ella/internal/ausf/factory"
 	"github.com/yeastengine/ella/internal/ausf/logger"
 )
-
-func TestInit() {
-	// load config
-	DefaultAusfConfigPath := path_util.Free5gcPath("free5gc/config/ausfcfg.yaml")
-	if err := factory.InitConfigFactory(DefaultAusfConfigPath); err != nil {
-		panic(err)
-	}
-	Init()
-}
 
 func InitAusfContext(context *AUSFContext) {
 	config := factory.AusfConfig

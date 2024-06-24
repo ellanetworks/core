@@ -1,10 +1,3 @@
-/*
- * NF Context for NSSF
- *
- * Configuration of NSSF itself shall be accessed with NSSF context
- * Configuration of network slices shall be accessed with configuration factory
- */
-
 package context
 
 import (

@@ -13,7 +13,6 @@ import (
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/omec-project/util/path_util"
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
 	"github.com/yeastengine/config5g/proto/client"
 	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
 	"github.com/yeastengine/ella/internal/udm/consumer"
@@ -37,12 +36,6 @@ func init() {
 	ConfigPodTrigger = make(chan bool)
 }
 
-type Config struct {
-	udmcfg string
-}
-
-var config Config
-
 var (
 	KeepAliveTimer      *time.Timer
 	KeepAliveTimerMutex sync.Mutex
@@ -54,13 +47,8 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (udm *UDM) Initialize(c *cli.Context) error {
-	config = Config{
-		udmcfg: c.String("udmcfg"),
-	}
-	if err := factory.InitConfigFactory(config.udmcfg); err != nil {
-		return err
-	}
+func (udm *UDM) Initialize(c factory.Config) error {
+	factory.InitConfigFactory(c)
 	udm.setLogLevel()
 	commChannel := client.ConfigWatcher(factory.UdmConfig.Configuration.WebuiUri, "udm")
 	go udm.updateConfig(commChannel)

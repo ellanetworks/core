@@ -15,7 +15,6 @@ import (
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
 	nrf_cache "github.com/yeastengine/ella/internal/nrf/nrfcache"
 	"github.com/yeastengine/ella/internal/smf/callback"
 	"github.com/yeastengine/ella/internal/smf/consumer"
@@ -34,17 +33,7 @@ import (
 
 type SMF struct{}
 
-type (
-	// Config information.
-	Config struct {
-		smfcfg    string
-		uerouting string
-	}
-)
-
 var refreshNrfRegistration bool
-
-var config Config
 
 var (
 	KeepAliveTimer      *time.Timer
@@ -65,17 +54,9 @@ func init() {
 	nrfRegInProgress = OneInstance{}
 }
 
-func (smf *SMF) Initialize(c *cli.Context) error {
-	config = Config{
-		smfcfg:    c.String("smfcfg"),
-		uerouting: c.String("uerouting"),
-	}
-	if err := factory.InitConfigFactory(config.smfcfg); err != nil {
-		return err
-	}
-	if err := factory.InitRoutingConfigFactory(config.uerouting); err != nil {
-		return err
-	}
+func (smf *SMF) Initialize(smfConfig factory.Config, ueRoutingConfig factory.RoutingConfig) error {
+	factory.InitConfigFactory(smfConfig)
+	factory.InitRoutingConfigFactory(ueRoutingConfig)
 	smf.setLogLevel()
 	return nil
 }
@@ -211,10 +192,6 @@ func (smf *SMF) Terminate() {
 	} else {
 		logger.InitLog.Infof("Deregister from NRF successfully")
 	}
-}
-
-func (smf *SMF) Exec(c *cli.Context) error {
-	return nil
 }
 
 func StartKeepAliveTimer(nfProfile *models.NfProfile) {

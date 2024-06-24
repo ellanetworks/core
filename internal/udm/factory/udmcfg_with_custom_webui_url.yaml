@@ -1,7 +1,0 @@
-
-configuration:
-  nrfUri: https://nrf:443
-  webuiUri: myspecialwebui:9872 # a valid URI of Webui
-info:
-  description: UDM initial local configuration
-  version: 1.0.0

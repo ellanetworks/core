@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
 
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
@@ -23,27 +22,15 @@ import (
 
 type NRF struct{}
 
-type Config struct {
-	nrfcfg string
-}
-
-var config Config
-
 var initLog *logrus.Entry
 
 func init() {
 	initLog = logger.InitLog
 }
 
-func (nrf *NRF) Initialize(c *cli.Context) error {
-	config = Config{
-		nrfcfg: c.String("nrfcfg"),
-	}
-	if err := factory.InitConfigFactory(config.nrfcfg); err != nil {
-		return err
-	}
+func (nrf *NRF) Initialize(c factory.Config) {
+	factory.InitConfigFactory(c)
 	nrf.setLogLevel()
-	return nil
 }
 
 func (nrf *NRF) setLogLevel() {

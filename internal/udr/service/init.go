@@ -11,9 +11,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/omec-project/util/path_util"
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
 	"github.com/yeastengine/ella/internal/udr/consumer"
 	"github.com/yeastengine/ella/internal/udr/context"
 	udr_context "github.com/yeastengine/ella/internal/udr/context"
@@ -26,12 +24,6 @@ import (
 
 type UDR struct{}
 
-type Config struct {
-	udrcfg string
-}
-
-var config Config
-
 var initLog *logrus.Entry
 
 var (
@@ -43,25 +35,9 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (udr *UDR) Initialize(c *cli.Context) error {
-	config = Config{
-		udrcfg: c.String("udrcfg"),
-	}
-
-	if config.udrcfg != "" {
-		if err := factory.InitConfigFactory(config.udrcfg); err != nil {
-			return err
-		}
-	} else {
-		DefaultUdrConfigPath := path_util.Free5gcPath("free5gc/config/udrcfg.yaml")
-		if err := factory.InitConfigFactory(DefaultUdrConfigPath); err != nil {
-			return err
-		}
-	}
-
+func (udr *UDR) Initialize(c factory.Config) {
+	factory.InitConfigFactory(c)
 	udr.setLogLevel()
-
-	return nil
 }
 
 func (udr *UDR) setLogLevel() {

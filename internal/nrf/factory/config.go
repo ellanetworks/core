@@ -1,7 +1,3 @@
-/*
- * NRF Configuration Factory
- */
-
 package factory
 
 import (
