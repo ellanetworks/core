@@ -93,6 +93,7 @@ func startNetwork() error {
 
 	return nil
 }
+
 func main() {
 	err := setEnvironmentVariables()
 	if err != nil {
