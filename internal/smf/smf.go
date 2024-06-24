@@ -46,8 +46,6 @@ configuration:
   debugProfilePort: 5001
   mongodb:
     url: %s
-  kafkaInfo:
-    enableKafka: false
   smfName: SMF
   sbi:
     scheme: http

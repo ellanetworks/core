@@ -418,16 +418,6 @@ func TestCompareGenericSlicesIdentical(t *testing.T) {
 	}
 }
 
-func TestKafkaEnabledByDefault(t *testing.T) {
-	err := InitConfigFactory("../config/smfcfg.yaml")
-	if err != nil {
-		t.Errorf("Could not load default configuration file: %v", err)
-	}
-	if *SmfConfig.Configuration.KafkaInfo.EnableKafka != true {
-		t.Errorf("Expected Kafka to be enabled by default, was disabled")
-	}
-}
-
 // Webui URL is not set then default Webui URL value is returned
 func TestGetDefaultWebuiUrl(t *testing.T) {
 	if err := InitConfigFactory("../config/smfcfg.yaml"); err != nil {

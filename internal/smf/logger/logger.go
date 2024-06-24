@@ -24,7 +24,6 @@ var (
 	FsmLog      *logrus.Entry
 	TxnFsmLog   *logrus.Entry
 	QosLog      *logrus.Entry
-	KafkaLog    *logrus.Entry
 )
 
 func init() {
@@ -54,7 +53,6 @@ func init() {
 	FsmLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "Fsm"})
 	TxnFsmLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "TxnFsm"})
 	QosLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "QosFsm"})
-	KafkaLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "Kafka"})
 }
 
 func SetLogLevel(level logrus.Level) {

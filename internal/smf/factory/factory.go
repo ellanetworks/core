@@ -30,11 +30,6 @@ func InitConfigFactory(f string) error {
 			SmfConfig.Configuration.WebuiUri = "webui:9876"
 		}
 
-		if SmfConfig.Configuration.KafkaInfo.EnableKafka == nil {
-			enableKafka := true
-			SmfConfig.Configuration.KafkaInfo.EnableKafka = &enableKafka
-		}
-
 		gClient := client.ConnectToConfigServer(SmfConfig.Configuration.WebuiUri, "smf")
 		commChannel := gClient.PublishOnConfigChange(false)
 		go SmfConfig.updateConfig(commChannel)

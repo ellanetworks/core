@@ -38,12 +38,6 @@ type Mongodb struct {
 	Url  string `yaml:"url"`
 }
 
-type KafkaInfo struct {
-	BrokerUri  string `yaml:"brokerUri,omitempty"`
-	BrokerPort int    `yaml:"brokerPort,omitempty"`
-	Topic      string `yaml:"topicName,omitempty"`
-}
-
 type Configuration struct {
 	AmfName                         string                    `yaml:"amfName,omitempty"`
 	AmfDBName                       string                    `yaml:"amfDBName,omitempty"`
@@ -77,7 +71,6 @@ type Configuration struct {
 	EnableDbStore            bool                    `yaml:"enableDBStore"`
 	EnableNrfCaching         bool                    `yaml:"enableNrfCaching"`
 	NrfCacheEvictionInterval int                     `yaml:"nrfCacheEvictionInterval,omitempty"`
-	KafkaInfo                KafkaInfo               `yaml:"kafkaInfo,omitempty"`
 	DebugProfilePort         int                     `yaml:"debugProfilePort,omitempty"`
 }
 

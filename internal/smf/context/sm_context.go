@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -229,7 +228,6 @@ func (smContext *SMContext) ChangeState(nextState SMContextState) {
 			smContext.SubCtxLog.Debug("context state change, enterprise info not available")
 		}
 	}
-	smContext.PublishSmCtxtInfo()
 
 	smContext.SubCtxLog.Infof("context state change, current state[%v] next state[%v]",
 		smContext.SMContextState.String(), nextState.String())
@@ -645,23 +643,6 @@ func (smContext *SMContext) getSmCtxtUpf() (name, ip string) {
 		}
 	}
 	return upfName, upfIP
-}
-
-// Collect Ctxt info and publish on Kafka stream
-func (smContext *SMContext) PublishSmCtxtInfo() {
-	kafkaSmCtxt := mi.CoreSubscriber{}
-
-	// Populate kafka sm ctxt struct
-	kafkaSmCtxt.Imsi = smContext.Supi
-	if smContext.PDUAddress != nil && smContext.PDUAddress.Ip != nil {
-		kafkaSmCtxt.IPAddress = smContext.PDUAddress.Ip.String()
-	}
-	kafkaSmCtxt.SmfSubState, _ = mapPduSessStateToMetricStateAndOp(smContext.SMContextState)
-	kafkaSmCtxt.SmfId = smContext.Ref
-	kafkaSmCtxt.Slice = "sd:" + smContext.Snssai.Sd + " sst:" + strconv.Itoa(int(smContext.Snssai.Sst))
-	kafkaSmCtxt.Dnn = smContext.Dnn
-	kafkaSmCtxt.UpfName, kafkaSmCtxt.UpfAddr = smContext.getSmCtxtUpf()
-	kafkaSmCtxt.SmfIp = SMF_Self().PodIp
 }
 
 func mapPduSessStateToMetricStateAndOp(state SMContextState) (string, mi.SubscriberOp) {

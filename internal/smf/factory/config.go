@@ -52,13 +52,6 @@ type Mongodb struct {
 	Url  string `yaml:"url"`
 }
 
-type KafkaInfo struct {
-	EnableKafka *bool  `yaml:"enableKafka,omitempty"`
-	BrokerUri   string `yaml:"brokerUri,omitempty"`
-	Topic       string `yaml:"topicName,omitempty"`
-	BrokerPort  int    `yaml:"brokerPort,omitempty"`
-}
-
 type Configuration struct {
 	Mongodb                  *Mongodb             `yaml:"mongodb,omitempty"`
 	PFCP                     *PFCP                `yaml:"pfcp,omitempty"`
@@ -71,7 +64,6 @@ type Configuration struct {
 	StaticIpInfo             []StaticIpInfo       `yaml:"staticIpInfo"`
 	ServiceNameList          []string             `yaml:"serviceNameList,omitempty"`
 	EnterpriseList           map[string]string    `yaml:"enterpriseList,omitempty"`
-	KafkaInfo                KafkaInfo            `yaml:"kafkaInfo,omitempty"`
 	UserPlaneInformation     UserPlaneInformation `yaml:"userplane_information"`
 	NrfCacheEvictionInterval int                  `yaml:"nrfCacheEvictionInterval"`
 	DebugProfilePort         int                  `yaml:"debugProfilePort,omitempty"`
