@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/omec-project/config5g/proto/client"
-	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/sirupsen/logrus"
+	"github.com/yeastengine/config5g/proto/client"
+	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
 	"github.com/yeastengine/ella/internal/udr/logger"
 	"gopkg.in/yaml.v2"
 )

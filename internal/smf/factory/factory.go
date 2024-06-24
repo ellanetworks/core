@@ -10,7 +10,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/omec-project/config5g/proto/client"
+	"github.com/yeastengine/config5g/proto/client"
 	"github.com/yeastengine/ella/internal/smf/logger"
 	"gopkg.in/yaml.v2"
 )

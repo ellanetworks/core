@@ -176,8 +176,6 @@ github.com/nxadm/tail v1.4.8 h1:nPr65rt6Y5JFSKQO7qToXr7pePgD6Gwiw05lkbyAQTE=
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
 github.com/omec-project/aper v1.1.2 h1:oRtfloQJQV5HXhOkPpOXbRW9Ay8TAe5kTcbMMkInmOQ=
 github.com/omec-project/aper v1.1.2/go.mod h1:jDWasZ2XLFL2uSEWhgGlT/ELyrpwCJd/2kE/VEGG8Ew=
-github.com/omec-project/config5g v1.4.1 h1:6tRXVD+CXgiB65yb8vc5M2GWYz/T2gTh0afPz3Wt0f8=
-github.com/omec-project/config5g v1.4.1/go.mod h1:fz4bduEe99bSnTrxLwUuzHHQtJZ0Se7PtaL8pdG2pSc=
 github.com/omec-project/metricfunc v1.4.1 h1:n1EajFuGaHs9wouLL2GOBEt1oWj074dXei/NWLGNDaw=
 github.com/omec-project/metricfunc v1.4.1/go.mod h1:biEfEyPV0KdhwYMQEcDFwuju7vQfx7fAvgDdc8MvF84=
 github.com/omec-project/nas v1.3.0 h1:zNqEQSNTsupT3qP6keSuOusOHKrqEYoC5ghKR8TpKEQ=
@@ -272,6 +270,8 @@ github.com/xdg-go/scram v1.1.2/go.mod h1:RT/sEzTbU5y00aCK8UOx6R7YryM0iF1N2MOmC3k
 github.com/xdg-go/stringprep v1.0.3/go.mod h1:W3f5j4i+9rC0kuIEJL0ky1VpHXQU3ocBgklLGvcBnW8=
 github.com/xdg-go/stringprep v1.0.4 h1:XLI/Ng3O1Atzq0oBs3TWm+5ZVgkq2aqdlvP9JtoZ6c8=
 github.com/xdg-go/stringprep v1.0.4/go.mod h1:mPGuuIYwz7CmR2bT9j4GbQqutWS1zV24gijq1dTyGkM=
+github.com/yeastengine/config5g v0.0.0-20240623153504-fc7633181713 h1:qPLGRfWV89BoyuutCQoqkbK7ICmqRrSv5vBA4ir6i+4=
+github.com/yeastengine/config5g v0.0.0-20240623153504-fc7633181713/go.mod h1:gDqmRwmsY5npZ4dKLtuJIXn2NmiW4IFub4pH2vQzZqc=
 github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d/go.mod h1:rHwXgn7JulP+udvsHwJoVG1YGAP6VLg4y9I5dyZdqmA=
 github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a h1:fZHgsYlfvtyqToslyjUt3VOPF4J7aK/3MPcK7xp3PDk=
 github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a/go.mod h1:ul22v+Nro/R083muKhosV54bj5niojjWZvU8xrevuH4=

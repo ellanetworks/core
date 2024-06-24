@@ -8,9 +8,9 @@ import (
 	"os"
 	"strconv"
 
-	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/omec-project/openapi/models"
 	logger_util "github.com/omec-project/util/logger"
+	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
 	"github.com/yeastengine/ella/internal/nrf/logger"
 )
 

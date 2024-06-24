@@ -18,7 +18,6 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/omec-project/aper v1.1.2
-	github.com/omec-project/config5g v1.4.1
 	github.com/omec-project/metricfunc v1.4.1
 	github.com/omec-project/nas v1.3.0
 	github.com/omec-project/ngap v1.2.2
@@ -31,6 +30,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/tim-ywliu/event v0.1.0
 	github.com/urfave/cli v1.22.15
+	github.com/yeastengine/config5g v0.0.0-20240623153504-fc7633181713
 	go.mongodb.org/mongo-driver v1.11.7
 	google.golang.org/grpc v1.64.0
 	google.golang.org/protobuf v1.34.2
