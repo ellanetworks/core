@@ -2,6 +2,8 @@ package factory
 
 import (
 	"sync"
+
+	"github.com/yeastengine/config5g/proto/client"
 )
 
 var (
@@ -11,8 +13,13 @@ var (
 	SmfConfigSyncLock sync.Mutex
 )
 
-func InitConfigFactory(c Config) {
+func InitConfigFactory(c Config) error {
 	SmfConfig = c
+	gClient := client.ConnectToConfigServer(SmfConfig.Configuration.WebuiUri, "smf")
+	commChannel := gClient.PublishOnConfigChange(false)
+	go SmfConfig.updateConfig(commChannel)
+
+	return nil
 }
 
 func InitRoutingConfigFactory(c RoutingConfig) {
