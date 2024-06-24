@@ -10,7 +10,6 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/amf/logger"
-	"github.com/yeastengine/ella/internal/amf/protos/sdcoreAmfServer"
 )
 
 const (
@@ -36,7 +35,6 @@ type AmfRan struct {
 	/* RAN UE List */
 	RanUeList []*RanUe `json:"-"` // RanUeNgapId as key
 
-	Amf2RanMsgChan chan *sdcoreAmfServer.AmfMessage `json:"-"`
 	/* logger */
 	Log *logrus.Entry `json:"-"`
 }
