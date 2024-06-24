@@ -13,7 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/gin-contrib/cors"
 	aperLogger "github.com/omec-project/aper/logger"
 	nasLogger "github.com/omec-project/nas/logger"
@@ -140,20 +139,6 @@ func (amf *AMF) Initialize(c *cli.Context) error {
 	go amf.UpdateConfig(configChannel)
 
 	return nil
-}
-
-func (amf *AMF) WatchConfig() {
-	viper.WatchConfig()
-	viper.OnConfigChange(func(e fsnotify.Event) {
-		fmt.Println("Config file changed:", e.Name)
-		if err := factory.UpdateAmfConfig("/free5gc/config/amfcfg.conf"); err != nil {
-			fmt.Println("error in loading updated configuration")
-		} else {
-			self := context.AMF_Self()
-			util.InitAmfContext(self)
-			fmt.Println("successfully updated configuration")
-		}
-	})
 }
 
 func (amf *AMF) setLogLevel() {
