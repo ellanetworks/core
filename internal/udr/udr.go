@@ -34,7 +34,6 @@ func getContext(mongoDBURL string, nrfURL string, webuiURL string) (*cli.Context
 	udrConfig := fmt.Sprintf(`
 configuration:
   sbi:
-    scheme: http
     registerIPv4: 0.0.0.0
     bindingIPv4: 0.0.0.0
     port: %s

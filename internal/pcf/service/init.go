@@ -229,13 +229,7 @@ func (pcf *PCF) Start() {
 		initLog.Warnf("Initialize HTTP server: +%v", err)
 	}
 
-	serverScheme := factory.PcfConfig.Configuration.Sbi.Scheme
-	if serverScheme == "http" {
-		err = server.ListenAndServe()
-	} else if serverScheme == "https" {
-		err = server.ListenAndServeTLS(util.PCF_PEM_PATH, util.PCF_KEY_PATH)
-	}
-
+	err = server.ListenAndServe()
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}

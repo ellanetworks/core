@@ -53,7 +53,6 @@ type PlmnSupportItem struct {
 }
 
 type Sbi struct {
-	Scheme       string `yaml:"scheme"`
 	RegisterIPv4 string `yaml:"registerIPv4,omitempty"` // IP that is serviced or registered at another NRF.
 	// IPv6Addr  string `yaml:"ipv6Addr,omitempty"`
 	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
@@ -70,10 +69,7 @@ func (c *Config) GetVersion() string {
 }
 
 func (c *Config) GetSbiScheme() string {
-	if c.Configuration != nil && c.Configuration.Sbi != nil && c.Configuration.Sbi.Scheme != "" {
-		return c.Configuration.Sbi.Scheme
-	}
-	return NRF_DEFAULT_SCHEME
+	return string(models.UriScheme_HTTP)
 }
 
 func (c *Config) GetSbiPort() int {

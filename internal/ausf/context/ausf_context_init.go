@@ -32,21 +32,14 @@ func InitAusfContext(context *AUSFContext) {
 	context.NfId = uuid.New().String()
 	context.GroupID = configuration.GroupId
 	context.NrfUri = configuration.NrfUri
-	context.UriScheme = models.UriScheme(configuration.Sbi.Scheme) // default uri scheme
-	context.RegisterIPv4 = factory.AUSF_DEFAULT_IPV4               // default localhost
-	context.SBIPort = factory.AUSF_DEFAULT_PORT_INT                // default port
+	context.RegisterIPv4 = factory.AUSF_DEFAULT_IPV4 // default localhost
+	context.SBIPort = factory.AUSF_DEFAULT_PORT_INT  // default port
 	if sbi != nil {
 		if sbi.RegisterIPv4 != "" {
 			context.RegisterIPv4 = sbi.RegisterIPv4
 		}
 		if sbi.Port != 0 {
 			context.SBIPort = sbi.Port
-		}
-
-		if sbi.Scheme == "https" {
-			context.UriScheme = models.UriScheme_HTTPS
-		} else {
-			context.UriScheme = models.UriScheme_HTTP
 		}
 
 		context.BindingIPv4 = os.Getenv(sbi.BindingIPv4)

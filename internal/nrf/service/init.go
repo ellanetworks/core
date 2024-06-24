@@ -199,13 +199,7 @@ func (nrf *NRF) Start() {
 		initLog.Warnf("Initialize HTTP server: +%v", err)
 	}
 
-	serverScheme := factory.NrfConfig.GetSbiScheme()
-	if serverScheme == "http" {
-		err = server.ListenAndServe()
-	} else if serverScheme == "https" {
-		err = server.ListenAndServeTLS(util.NrfPemPath, util.NrfKeyPath)
-	}
-
+	err = server.ListenAndServe()
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}

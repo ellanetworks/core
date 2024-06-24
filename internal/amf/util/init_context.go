@@ -49,12 +49,7 @@ func InitAmfContext(context *context.AMFContext) {
 	context.NgapPort = configuration.NgapPort
 	context.SctpGrpcPort = configuration.SctpGrpcPort
 	sbi := configuration.Sbi
-	if sbi.Scheme != "" {
-		context.UriScheme = models.UriScheme(sbi.Scheme)
-	} else {
-		logger.UtilLog.Warnln("SBI Scheme has not been set. Using http as default")
-		context.UriScheme = "http"
-	}
+	context.UriScheme = models.UriScheme_HTTP
 	context.RegisterIPv4 = factory.AMF_DEFAULT_IPV4 // default localhost
 	context.SBIPort = factory.AMF_DEFAULT_PORT_INT  // default port
 	if sbi != nil {

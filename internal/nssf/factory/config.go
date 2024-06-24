@@ -51,7 +51,6 @@ type Configuration struct {
 }
 
 type Sbi struct {
-	Scheme models.UriScheme `yaml:"scheme"`
 	// Currently only support IPv4 and thus `Ipv4Addr` field shall not be empty
 	RegisterIPv4 string `yaml:"registerIPv4,omitempty"` // IP that is registered at NRF.
 	// IPv6Addr string `yaml:"ipv6Addr,omitempty"`

@@ -90,7 +90,6 @@ type SnssaiDnnInfoItem struct {
 }
 
 type Sbi struct {
-	Scheme       string `yaml:"scheme"`
 	TLS          *TLS   `yaml:"tls"`
 	RegisterIPv4 string `yaml:"registerIPv4,omitempty"` // IP that is registered at NRF.
 	// IPv6Addr string `yaml:"ipv6Addr,omitempty"`

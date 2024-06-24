@@ -24,9 +24,7 @@ func InitUDMContext(udmContext *context.UDMContext) {
 	udmContext.SBIPort = factory.UDM_DEFAULT_PORT_INT
 	udmContext.RegisterIPv4 = factory.UDM_DEFAULT_IPV4
 	if sbi != nil {
-		if sbi.Scheme != "" {
-			udmContext.UriScheme = models.UriScheme(sbi.Scheme)
-		}
+		udmContext.UriScheme = models.UriScheme_HTTP
 		if sbi.RegisterIPv4 != "" {
 			udmContext.RegisterIPv4 = sbi.RegisterIPv4
 		}

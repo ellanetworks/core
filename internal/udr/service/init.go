@@ -171,8 +171,6 @@ func (udr *UDR) Start() {
 	datarepository.AddService(router)
 
 	udrLogPath := util.UdrLogPath
-	udrPemPath := util.UdrPemPath
-	udrKeyPath := util.UdrKeyPath
 
 	self := udr_context.UDR_Self()
 	util.InitUdrContext(self)
@@ -200,13 +198,7 @@ func (udr *UDR) Start() {
 		initLog.Warnf("Initialize HTTP server: %+v", err)
 	}
 
-	serverScheme := factory.UdrConfig.Configuration.Sbi.Scheme
-	if serverScheme == "http" {
-		err = server.ListenAndServe()
-	} else if serverScheme == "https" {
-		err = server.ListenAndServeTLS(udrPemPath, udrKeyPath)
-	}
-
+	err = server.ListenAndServe()
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}

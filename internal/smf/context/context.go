@@ -136,7 +136,7 @@ func InitSmfContext(config *factory.Config) *SMFContext {
 		logger.CtxLog.Errorln("Configuration needs \"sbi\" value")
 		return nil
 	} else {
-		smfContext.URIScheme = models.UriScheme(sbi.Scheme)
+		smfContext.URIScheme = models.UriScheme_HTTP
 		smfContext.RegisterIPv4 = configuration.Sbi.RegisterIPv4
 		smfContext.SBIPort = configuration.Sbi.Port
 		if sbi.Port != 0 {

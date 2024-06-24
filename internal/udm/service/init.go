@@ -154,7 +154,6 @@ func (udm *UDM) FilterCli(c *cli.Context) (args []string) {
 func (udm *UDM) Start() {
 	config := factory.UdmConfig
 	configuration := config.Configuration
-	sbi := configuration.Sbi
 	serviceName := configuration.ServiceNameList
 
 	initLog.Infof("UDM Config Info: Version[%s] Description[%s]", config.Info.Version, config.Info.Description)
@@ -171,13 +170,6 @@ func (udm *UDM) Start() {
 	uecontextmanagement.AddService(router)
 
 	udmLogPath := path_util.Free5gcPath("omec-project/udmsslkey.log")
-	udmPemPath := path_util.Free5gcPath("free5gc/support/TLS/udm.pem")
-	udmKeyPath := path_util.Free5gcPath("free5gc/support/TLS/udm.key")
-	if sbi.Tls != nil {
-		udmLogPath = path_util.Free5gcPath(sbi.Tls.Log)
-		udmPemPath = path_util.Free5gcPath(sbi.Tls.Pem)
-		udmKeyPath = path_util.Free5gcPath(sbi.Tls.Key)
-	}
 
 	self := context.UDM_Self()
 	util.InitUDMContext(self)
@@ -205,13 +197,7 @@ func (udm *UDM) Start() {
 		initLog.Warnf("Initialize HTTP server: +%v", err)
 	}
 
-	serverScheme := factory.UdmConfig.Configuration.Sbi.Scheme
-	if serverScheme == "http" {
-		err = server.ListenAndServe()
-	} else if serverScheme == "https" {
-		err = server.ListenAndServeTLS(udmPemPath, udmKeyPath)
-	}
-
+	err = server.ListenAndServe()
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}

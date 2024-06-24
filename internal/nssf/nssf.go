@@ -47,7 +47,6 @@ configuration:
     bindingIPv4: 0.0.0.0
     port: %s
     registerIPv4: 0.0.0.0:29531
-    scheme: http
   serviceNameList:
   - nnssf-nsselection
   - nnssf-nssaiavailability

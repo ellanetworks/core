@@ -27,20 +27,13 @@ func InitpcfContext(context *context.PCFContext) {
 	context.RegisterIPv4 = factory.PCF_DEFAULT_IPV4 // default localhost
 	context.SBIPort = factory.PCF_DEFAULT_PORT_INT  // default port
 	if sbi != nil {
-		if sbi.Scheme != "" {
-			context.UriScheme = models.UriScheme(sbi.Scheme)
-		}
 		if sbi.RegisterIPv4 != "" {
 			context.RegisterIPv4 = sbi.RegisterIPv4
 		}
 		if sbi.Port != 0 {
 			context.SBIPort = sbi.Port
 		}
-		if sbi.Scheme == "https" {
-			context.UriScheme = models.UriScheme_HTTPS
-		} else {
-			context.UriScheme = models.UriScheme_HTTP
-		}
+		context.UriScheme = models.UriScheme_HTTP
 
 		context.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
 		if context.BindingIPv4 != "" {

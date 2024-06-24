@@ -351,13 +351,7 @@ func (smf *SMF) Start() {
 		initLog.Warnln("Initialize HTTP server:", err)
 	}
 
-	serverScheme := factory.SmfConfig.Configuration.Sbi.Scheme
-	if serverScheme == "http" {
-		err = server.ListenAndServe()
-	} else if serverScheme == "https" {
-		err = server.ListenAndServeTLS(util.SmfPemPath, util.SmfKeyPath)
-	}
-
+	err = server.ListenAndServe()
 	if err != nil {
 		initLog.Fatalln("HTTP server setup failed:", err)
 	}
