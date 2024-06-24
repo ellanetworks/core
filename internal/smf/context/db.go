@@ -26,7 +26,7 @@ const (
 )
 
 func SetupSmfCollection() {
-	dbName := "sdcore_smf"
+	dbName := "smf"
 	dbUrl := "mongodb://mongodb-arbiter-headless"
 
 	if factory.SmfConfig.Configuration.Mongodb.Url != "" {

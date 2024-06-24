@@ -353,7 +353,7 @@ func (smfCtxt *SMFContext) InitDrsm() error {
 	podname := os.Getenv("HOSTNAME")
 	podip := os.Getenv("POD_IP")
 	podId := drsm.PodId{PodName: podname, PodInstance: smfCtxt.NfInstanceID, PodIp: podip}
-	dbName := "sdcore_smf"
+	dbName := "smf"
 	dbUrl := "mongodb://mongodb-arbiter-headless"
 
 	if factory.SmfConfig.Configuration.Mongodb.Url != "" {

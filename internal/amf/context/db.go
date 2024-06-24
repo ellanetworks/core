@@ -62,7 +62,7 @@ func AllocateUniqueID(generator **idgenerator.IDGenerator, idName string) (int64
 func SetupAmfCollection() {
 	var mongoDbUrl string = "mongodb://mongodb:27017"
 	if factory.AmfConfig.Configuration.AmfDBName == "" {
-		factory.AmfConfig.Configuration.AmfDBName = "sdcore_amf"
+		factory.AmfConfig.Configuration.AmfDBName = "amf"
 	}
 
 	if (factory.AmfConfig.Configuration.Mongodb != nil) &&

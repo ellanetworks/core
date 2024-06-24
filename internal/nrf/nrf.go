@@ -16,7 +16,7 @@ var NRF = &service.NRF{}
 var appLog *logrus.Entry
 
 const (
-	dBName = "free5gc"
+	dBName = "nrf"
 	port   = "29510"
 )
 

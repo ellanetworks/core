@@ -16,7 +16,7 @@ var SMF = &service.SMF{}
 var appLog *logrus.Entry
 
 const (
-	dBName   = "sdcore_smf"
+	dBName   = "smf"
 	SBI_PORT = "29502"
 )
 
