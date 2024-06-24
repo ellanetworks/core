@@ -53,6 +53,9 @@ configuration:
   pfcp:
     addr: 0.0.0.0
   nrfUri: %s
+info:
+  version: 1.0.0
+  description: SMF initial local configuration
 logger:
   SMF:
     debugLevel: debug

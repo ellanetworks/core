@@ -45,6 +45,9 @@ configuration:
     authUrl: %s
   nrfUri: %s
   webuiUri: %s
+info:
+  version: 1.0.0
+  description: UDR initial local configuration (https://github.com/free5gc/free5gc/blob/main/config/udrcfg.yaml)
 logger:
   UDR:
     debugLevel: debug

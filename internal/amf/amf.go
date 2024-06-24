@@ -97,6 +97,9 @@ configuration:
     enable: true
     expireTime: 6s
     maxRetryTimes: 4
+info:
+  description: AMF initial configuration
+  version: 1.0.0
 logger:
   AMF:
     ReportCaller: false

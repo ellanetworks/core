@@ -47,6 +47,9 @@ configuration:
     suppFeat: 3
   - serviceName: npcf-eventexposure
   - serviceName: npcf-ue-policy-control
+info:
+  description: PCF initial local configuration
+  version: 1.0.0
 logger:
   PCF:
     ReportCaller: false

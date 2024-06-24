@@ -41,6 +41,9 @@ configuration:
     url: %s
     authKeysDbName: %s
     authUrl: %s
+info:
+  description: WebUI initial local configuration
+  version: 1.0.0
 logger:
   WEBUI:
     debugLevel: debug

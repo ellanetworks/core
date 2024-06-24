@@ -47,6 +47,9 @@ configuration:
   - nudm-ueau
   - nudm-ee
   - nudm-pp
+info:
+  description: UDM initial local configuration
+  version: 1.0.0
 logger:
   UDM:
     ReportCaller: false

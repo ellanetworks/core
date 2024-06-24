@@ -183,6 +183,7 @@ func (webui *WEBUI) Start() {
 		httpAddr := ":" + strconv.Itoa(factory.WebUIConfig.Configuration.CfgPort)
 		initLog.Infoln("Webui HTTP addr:", httpAddr, factory.WebUIConfig.Configuration.CfgPort)
 		if factory.WebUIConfig.Info.HttpVersion == 2 {
+			panic("BANANA")
 			server, err := http2_util.NewServer(httpAddr, "", subconfig_router)
 			if server == nil {
 				initLog.Error("Initialize HTTP-2 server failed:", err)

@@ -51,6 +51,9 @@ configuration:
   serviceNameList:
   - nnssf-nsselection
   - nnssf-nssaiavailability
+info:
+  description: NSSF initial local configuration
+  version: 1.0.0
 logger:
   NSSF:
     ReportCaller: false

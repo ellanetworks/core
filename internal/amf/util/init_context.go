@@ -33,7 +33,6 @@ func InitDrsm() (drsm.DrsmInterface, error) {
 
 func InitAmfContext(context *context.AMFContext) {
 	config := factory.AmfConfig
-	logger.UtilLog.Infof("amfconfig Info: Version[%s] Description[%s]", config.Info.Version, config.Info.Description)
 	configuration := config.Configuration
 	if context.NfId == "" {
 		context.NfId = uuid.New().String()

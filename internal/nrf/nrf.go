@@ -48,6 +48,9 @@ configuration:
   serviceNameList:
   - nnrf-nfm
   - nnrf-disc
+info:
+  description: NRF initial local configuration
+  version: 1.0.0
 logger:
   NRF:
     ReportCaller: false
