@@ -11,17 +11,11 @@ import (
 
 var AMF = &service.AMF{}
 
-// var appLog *logrus.Entry
-
 const (
 	dBName     = "amf"
 	SBI_PORT   = 29518
 	NGAPP_PORT = 38412
 )
-
-// func init() {
-// 	appLog = logger.AppLog
-// }
 
 func Start(mongoDBURL string, nrfURL string, webuiURL string) error {
 	configuration := factory.Configuration{

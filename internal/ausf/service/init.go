@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
 	"github.com/yeastengine/ella/internal/ausf/context"
 
 	"github.com/omec-project/openapi/models"
@@ -26,15 +25,6 @@ import (
 )
 
 type AUSF struct{}
-
-type (
-	// Config information.
-	Config struct {
-		ausfcfg string
-	}
-)
-
-var config Config
 
 var (
 	KeepAliveTimer      *time.Timer
@@ -53,11 +43,8 @@ func init() {
 	ConfigPodTrigger = make(chan bool)
 }
 
-func (ausf *AUSF) Initialize(c *cli.Context) error {
-	config = Config{
-		ausfcfg: c.String("ausfcfg"),
-	}
-	if err := factory.InitConfigFactory(config.ausfcfg); err != nil {
+func (ausf *AUSF) Initialize(c factory.Config) error {
+	if err := factory.InitConfigFactory(c); err != nil {
 		return err
 	}
 	ausf.setLogLevel()
