@@ -68,7 +68,6 @@ type Configuration struct {
 	NrfCacheEvictionInterval int                  `yaml:"nrfCacheEvictionInterval"`
 	DebugProfilePort         int                  `yaml:"debugProfilePort,omitempty"`
 	EnableNrfCaching         bool                 `yaml:"enableNrfCaching"`
-	EnableDbStore            bool                 `yaml:"enableDBStore,omitempty"`
 	EnableUpfAdapter         bool                 `yaml:"enableUPFAdapter,omitempty"`
 	ULCL                     bool                 `yaml:"ulcl,omitempty"`
 }

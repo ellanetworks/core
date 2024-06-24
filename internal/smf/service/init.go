@@ -314,11 +314,6 @@ func (smf *SMF) Start() {
 		}
 	}
 
-	if factory.SmfConfig.Configuration.EnableDbStore {
-		initLog.Infof("SetupSmfCollection")
-		context.SetupSmfCollection()
-	}
-
 	// Init DRSM for unique FSEID/FTEID/IP-Addr
 	if err := smfCtxt.InitDrsm(); err != nil {
 		initLog.Errorf("initialse drsm failed, %v ", err.Error())

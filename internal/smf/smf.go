@@ -41,7 +41,6 @@ info:
 configuration:
   smfDBName: %s
   webuiUri: %s
-  enableDBStore: false
   enableUPFAdapter: false
   debugProfilePort: 5001
   mongodb:

@@ -21,7 +21,6 @@ import (
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/sirupsen/logrus"
 	nrf_cache "github.com/yeastengine/ella/internal/nrf/nrfcache"
-	"github.com/yeastengine/ella/internal/smf/factory"
 	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/qos"
 	errors "github.com/yeastengine/ella/internal/smf/smferrors"
@@ -238,13 +237,6 @@ func (smContext *SMContext) ChangeState(nextState SMContextState) {
 func GetSMContext(ref string) (smContext *SMContext) {
 	if value, ok := smContextPool.Load(ref); ok {
 		smContext = value.(*SMContext)
-	} else {
-		if factory.SmfConfig.Configuration.EnableDbStore {
-			smContext := GetSMContextByRefInDB(ref)
-			if smContext != nil {
-				smContextPool.Store(ref, smContext)
-			}
-		}
 	}
 
 	return
@@ -262,9 +254,6 @@ func RemoveSMContext(ref string) {
 
 	for _, pfcpSessionContext := range smContext.PFCPContext {
 		seidSMContextMap.Delete(pfcpSessionContext.LocalSEID)
-		if factory.SmfConfig.Configuration.EnableDbStore {
-			DeleteSmContextInDBBySEID(pfcpSessionContext.LocalSEID)
-		}
 	}
 
 	// Release UE IP-Address
@@ -273,20 +262,13 @@ func RemoveSMContext(ref string) {
 	smContextPool.Delete(ref)
 
 	canonicalRef.Delete(canonicalName(smContext.Supi, smContext.PDUSessionID))
-	// Sess Stats
-	if factory.SmfConfig.Configuration.EnableDbStore {
-		DeleteSmContextInDBByRef(smContext.Ref)
-	}
+
 }
 
 // *** add unit test ***
 func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
 	if value, ok := seidSMContextMap.Load(SEID); ok {
 		smContext = value.(*SMContext)
-	} else {
-		if factory.SmfConfig.Configuration.EnableDbStore {
-			smContext = GetSMContextBySEIDInDB(SEID)
-		}
 	}
 	return
 }
@@ -405,10 +387,6 @@ func (smContext *SMContext) AllocateLocalSEIDForUPPath(path UPPath) {
 
 			seidSMContextMap.Store(allocatedSEID, smContext)
 
-			if factory.SmfConfig.Configuration.EnableDbStore {
-				StoreSeidContextInDB(allocatedSEID, smContext)
-				StoreRefToSeidInDB(allocatedSEID, smContext)
-			}
 		}
 	}
 }
@@ -428,10 +406,6 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) {
 
 			seidSMContextMap.Store(allocatedSEID, smContext)
 
-			if factory.SmfConfig.Configuration.EnableDbStore {
-				StoreSeidContextInDB(allocatedSEID, smContext)
-				StoreRefToSeidInDB(allocatedSEID, smContext)
-			}
 		}
 	}
 }

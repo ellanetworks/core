@@ -1374,10 +1374,6 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU, sctp
 		return
 	}
 
-	// When enableDBStore is enabled, if AMF restarts, the AmfRan
-	// will not have RANID information because NG setup is not
-	// done. It will be populated from the RAN structure stored in DB
-
 	// 38413 10.4, logical error case2, checking InitialUE is recevived before NgSetup Message
 	if !amfSelf.EnableSctpLb {
 		if ran.RanId == nil {

@@ -112,15 +112,6 @@ func (ran *AmfRan) RanUeFindByRanUeNgapID(ranUeNgapID int64) *RanUe {
 		return ranUe
 	}
 
-	if AMF_Self().EnableDbStore {
-		ranUe := DbFetchRanUeByRanUeNgapID(ranUeNgapID, ran)
-		if ranUe != nil {
-			ranUe.Ran = ran
-			ran.RanUeList = append(ran.RanUeList, ranUe)
-			return ranUe
-		}
-	}
-
 	return nil
 }
 

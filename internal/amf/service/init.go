@@ -331,10 +331,6 @@ func (amf *AMF) Start() {
 		go StartGrpcServer(self.SctpGrpcPort)
 	}
 
-	if self.EnableDbStore {
-		go context.SetupAmfCollection()
-	}
-
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
 	go func() {
