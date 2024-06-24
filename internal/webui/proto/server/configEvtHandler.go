@@ -9,7 +9,6 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/sirupsen/logrus"
-	"github.com/yeastengine/ella/internal/webui/backend/factory"
 	"github.com/yeastengine/ella/internal/webui/backend/logger"
 	"github.com/yeastengine/ella/internal/webui/configmodels"
 	"github.com/yeastengine/ella/internal/webui/dbadapter"
@@ -52,9 +51,7 @@ func configHandler(configMsgChan chan *configmodels.ConfigMessage, configReceive
 	// Start Goroutine which will listens for subscriber config updates
 	// and update the mongoDB. Only for 5G
 	subsUpdateChan := make(chan *Update5GSubscriberMsg, 10)
-	if factory.WebUIConfig.Configuration.Mode5G {
-		go Config5GUpdateHandle(subsUpdateChan)
-	}
+	go Config5GUpdateHandle(subsUpdateChan)
 	firstConfigRcvd := firstConfigReceived()
 	if firstConfigRcvd {
 		configReceived <- true
@@ -71,11 +68,9 @@ func configHandler(configMsgChan chan *configmodels.ConfigMessage, configReceive
 			rwLock.Unlock()
 			configLog.Infof("Received Imsi [%v] configuration from config channel", configMsg.Imsi)
 			handleSubscriberPost(configMsg)
-			if factory.WebUIConfig.Configuration.Mode5G {
-				var configUMsg Update5GSubscriberMsg
-				configUMsg.Msg = configMsg
-				subsUpdateChan <- &configUMsg
-			}
+			var configUMsg Update5GSubscriberMsg
+			configUMsg.Msg = configMsg
+			subsUpdateChan <- &configUMsg
 		}
 
 		if configMsg.MsgMethod == configmodels.Post_op || configMsg.MsgMethod == configmodels.Put_op {
@@ -133,10 +128,8 @@ func configHandler(configMsgChan chan *configmodels.ConfigMessage, configReceive
 			} else {
 				configLog.Infof("Received delete Subscriber [%v] from config channel", configMsg.Imsi)
 			}
-			if factory.WebUIConfig.Configuration.Mode5G {
-				config5gMsg.Msg = configMsg
-				subsUpdateChan <- &config5gMsg
-			}
+			config5gMsg.Msg = configMsg
+			subsUpdateChan <- &config5gMsg
 			// loop through all clients and send this message to all clients
 			if len(clientNFPool) == 0 {
 				configLog.Infoln("No client available. No need to send config")
@@ -165,12 +158,10 @@ func handleSubscriberPost(configMsg *configmodels.ConfigMessage) {
 
 func handleDeviceGroupPost(configMsg *configmodels.ConfigMessage, subsUpdateChan chan *Update5GSubscriberMsg) {
 	rwLock.Lock()
-	if factory.WebUIConfig.Configuration.Mode5G {
-		var config5gMsg Update5GSubscriberMsg
-		config5gMsg.Msg = configMsg
-		config5gMsg.PrevDevGroup = getDeviceGroupByName(configMsg.DevGroupName)
-		subsUpdateChan <- &config5gMsg
-	}
+	var config5gMsg Update5GSubscriberMsg
+	config5gMsg.Msg = configMsg
+	config5gMsg.PrevDevGroup = getDeviceGroupByName(configMsg.DevGroupName)
+	subsUpdateChan <- &config5gMsg
 	filter := bson.M{"group-name": configMsg.DevGroupName}
 	devGroupDataBsonA := toBsonM(configMsg.DevGroup)
 	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(devGroupDataColl, filter, devGroupDataBsonA)
@@ -182,12 +173,10 @@ func handleDeviceGroupPost(configMsg *configmodels.ConfigMessage, subsUpdateChan
 
 func handleNetworkSlicePost(configMsg *configmodels.ConfigMessage, subsUpdateChan chan *Update5GSubscriberMsg) {
 	rwLock.Lock()
-	if factory.WebUIConfig.Configuration.Mode5G {
-		var config5gMsg Update5GSubscriberMsg
-		config5gMsg.Msg = configMsg
-		config5gMsg.PrevSlice = getSliceByName(configMsg.SliceName)
-		subsUpdateChan <- &config5gMsg
-	}
+	var config5gMsg Update5GSubscriberMsg
+	config5gMsg.Msg = configMsg
+	config5gMsg.PrevSlice = getSliceByName(configMsg.SliceName)
+	subsUpdateChan <- &config5gMsg
 	filter := bson.M{"SliceName": configMsg.SliceName}
 	sliceDataBsonA := toBsonM(configMsg.Slice)
 	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(sliceDataColl, filter, sliceDataBsonA)

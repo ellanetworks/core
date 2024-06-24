@@ -7,7 +7,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
-	"github.com/yeastengine/ella/internal/webui/backend/factory"
 	"github.com/yeastengine/ella/internal/webui/backend/logger"
 	"github.com/yeastengine/ella/internal/webui/configmodels"
 	"google.golang.org/grpc"
@@ -38,17 +37,6 @@ var kasp = keepalive.ServerParameters{
 }
 
 func StartServer(host string, confServ *ConfigServer, configMsgChan chan *configmodels.ConfigMessage) {
-	// add 4G endpoints in the client list. 4G endpoints are configured in the
-	// yaml file
-	config := factory.GetConfig()
-	if config != nil && config.Configuration != nil && config.Configuration.LteEnd != nil {
-		for _, end := range config.Configuration.LteEnd {
-			grpcLog.Infoln("Adding Client endpoint ", end.NodeType, end.ConfigPushUrl)
-			c, _ := getClient(end.NodeType)
-			setClientConfigPushUrl(c, end.ConfigPushUrl)
-			setClientConfigCheckUrl(c, end.ConfigCheckUrl)
-		}
-	}
 	// we wish to start grpc server only if we received at least one config
 	// from the simapp/ROC
 	configReady := make(chan bool)

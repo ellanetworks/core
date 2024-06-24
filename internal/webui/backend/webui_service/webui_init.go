@@ -3,13 +3,11 @@ package webui_service
 import (
 	"bufio"
 	"fmt"
-	"net/http"
 	_ "net/http"
 	_ "net/http/pprof"
 	"os/exec"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/omec-project/util/http2_util"
@@ -149,13 +147,11 @@ func (webui *WEBUI) FilterCli(c *cli.Context) (args []string) {
 }
 
 func (webui *WEBUI) Start() {
-	if factory.WebUIConfig.Configuration.Mode5G {
-		// get config file info from WebUIConfig
-		mongodb := factory.WebUIConfig.Configuration.Mongodb
+	// get config file info from WebUIConfig
+	mongodb := factory.WebUIConfig.Configuration.Mongodb
 
-		// Connect to MongoDB
-		dbadapter.ConnectMongo(mongodb.Url, mongodb.Name, mongodb.AuthUrl, mongodb.AuthKeysDbName)
-	}
+	// Connect to MongoDB
+	dbadapter.ConnectMongo(mongodb.Url, mongodb.Name, mongodb.AuthUrl, mongodb.AuthKeysDbName)
 
 	initLog.Infoln("WebUI Server started")
 
@@ -183,7 +179,6 @@ func (webui *WEBUI) Start() {
 		httpAddr := ":" + strconv.Itoa(factory.WebUIConfig.Configuration.CfgPort)
 		initLog.Infoln("Webui HTTP addr:", httpAddr, factory.WebUIConfig.Configuration.CfgPort)
 		if factory.WebUIConfig.Info.HttpVersion == 2 {
-			panic("BANANA")
 			server, err := http2_util.NewServer(httpAddr, "", subconfig_router)
 			if server == nil {
 				initLog.Error("Initialize HTTP-2 server failed:", err)
@@ -207,22 +202,12 @@ func (webui *WEBUI) Start() {
 	}()
 	/* First HTTP server end */
 
-	if factory.WebUIConfig.Configuration.Mode5G {
-		self := webui_context.WEBUI_Self()
-		self.UpdateNfProfiles()
-	}
+	self := webui_context.WEBUI_Self()
+	self.UpdateNfProfiles()
 
-	// Start grpc Server. This has embedded functionality of sending
-	// 4G config over REST Api as well.
 	var host string = "0.0.0.0:9876"
 	confServ := &gServ.ConfigServer{}
 	go gServ.StartServer(host, confServ, configMsgChan)
-
-	// fetch one time configuration from the simapp/roc on startup
-	// this is to fetch existing config
-	go fetchConfigAdapater()
-
-	// http.ListenAndServe("0.0.0.0:5001", nil)
 
 	select {}
 }
@@ -273,41 +258,4 @@ func (webui *WEBUI) Exec(c *cli.Context) error {
 	wg.Wait()
 
 	return err
-}
-
-func fetchConfigAdapater() {
-	for {
-		if (factory.WebUIConfig.Configuration == nil) ||
-			(factory.WebUIConfig.Configuration.RocEnd == nil) ||
-			(!factory.WebUIConfig.Configuration.RocEnd.Enabled) ||
-			(factory.WebUIConfig.Configuration.RocEnd.SyncUrl == "") {
-			time.Sleep(1 * time.Second)
-			// fmt.Printf("Continue polling config change %v ", factory.WebUIConfig.Configuration)
-			continue
-		}
-
-		client := &http.Client{}
-		httpend := factory.WebUIConfig.Configuration.RocEnd.SyncUrl
-		req, err := http.NewRequest(http.MethodPost, httpend, nil)
-		// Handle Error
-		if err != nil {
-			fmt.Printf("An Error Occurred %v\n", err)
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		// set the request header Content-Type for json
-		req.Header.Set("Content-Type", "application/json; charset=utf-8")
-		resp, err := client.Do(req)
-		if err != nil {
-			fmt.Printf("An Error Occurred %v\n", err)
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		err = resp.Body.Close()
-		if err != nil {
-			fmt.Printf("An Error Occurred %v\n", err)
-		}
-		fmt.Printf("Fetching config from simapp/roc. Response code = %d \n", resp.StatusCode)
-		break
-	}
 }
