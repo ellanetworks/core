@@ -5,7 +5,6 @@
 package factory
 
 import (
-	"fmt"
 	"os"
 	"reflect"
 
@@ -61,16 +60,14 @@ func UpdateAmfConfig(f string) error {
 
 		/* we will not update below 3 configs if its controlled by ROC */
 		/* TODO: document this as dynamic configmap updates for below 3 configs we dont support if its controlled by ROC*/
-		if os.Getenv("MANAGED_BY_CONFIG_POD") == "true" {
-			if !reflect.DeepEqual(AmfConfig.Configuration.ServedGumaiList, amfConfig.Configuration.ServedGumaiList) {
-				logger.CfgLog.Infoln("updated ServedGumaiList ", amfConfig.Configuration.ServedGumaiList)
-			}
-			if !reflect.DeepEqual(AmfConfig.Configuration.SupportTAIList, amfConfig.Configuration.SupportTAIList) {
-				logger.CfgLog.Infoln("updated SupportTAIList ", amfConfig.Configuration.SupportTAIList)
-			}
-			if !reflect.DeepEqual(AmfConfig.Configuration.PlmnSupportList, amfConfig.Configuration.PlmnSupportList) {
-				logger.CfgLog.Infoln("updated PlmnSupportList ", amfConfig.Configuration.PlmnSupportList)
-			}
+		if !reflect.DeepEqual(AmfConfig.Configuration.ServedGumaiList, amfConfig.Configuration.ServedGumaiList) {
+			logger.CfgLog.Infoln("updated ServedGumaiList ", amfConfig.Configuration.ServedGumaiList)
+		}
+		if !reflect.DeepEqual(AmfConfig.Configuration.SupportTAIList, amfConfig.Configuration.SupportTAIList) {
+			logger.CfgLog.Infoln("updated SupportTAIList ", amfConfig.Configuration.SupportTAIList)
+		}
+		if !reflect.DeepEqual(AmfConfig.Configuration.PlmnSupportList, amfConfig.Configuration.PlmnSupportList) {
+			logger.CfgLog.Infoln("updated PlmnSupportList ", amfConfig.Configuration.PlmnSupportList)
 		}
 		if !reflect.DeepEqual(AmfConfig.Configuration.SupportDnnList, amfConfig.Configuration.SupportDnnList) {
 			logger.CfgLog.Infoln("updated SupportDnnList ", amfConfig.Configuration.SupportDnnList)
@@ -111,18 +108,5 @@ func UpdateAmfConfig(f string) error {
 
 		AmfConfig = amfConfig
 	}
-	return nil
-}
-
-func CheckConfigVersion() error {
-	currentVersion := AmfConfig.GetVersion()
-
-	if currentVersion != AMF_EXPECTED_CONFIG_VERSION {
-		return fmt.Errorf("config version is [%s], but expected is [%s].",
-			currentVersion, AMF_EXPECTED_CONFIG_VERSION)
-	}
-
-	logger.CfgLog.Infof("config version [%s]", currentVersion)
-
 	return nil
 }

@@ -41,5 +41,4 @@ func HTTPGetSmfSelectData(c *gin.Context) {
 	} else {
 		c.Data(rsp.Status, "application/json", responseBody)
 	}
-	return
 }

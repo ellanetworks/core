@@ -11,10 +11,6 @@ import (
 	"github.com/omec-project/util/logger"
 )
 
-const (
-	AMF_EXPECTED_CONFIG_VERSION = "1.0.0"
-)
-
 type Config struct {
 	Info          *Info          `yaml:"info"`
 	Configuration *Configuration `yaml:"configuration"`
@@ -26,22 +22,9 @@ type Info struct {
 	Description string `yaml:"description,omitempty"`
 }
 
-const (
-	AMF_DEFAULT_IPV4     = "127.0.0.18"
-	AMF_DEFAULT_PORT     = "8000"
-	AMF_DEFAULT_PORT_INT = 8000
-	AMF_DEFAULT_NRFURI   = "https://127.0.0.10:8000"
-)
-
 type Mongodb struct {
 	Name string `yaml:"name"`
 	Url  string `yaml:"url"`
-}
-
-type KafkaInfo struct {
-	BrokerUri  string `yaml:"brokerUri,omitempty"`
-	BrokerPort int    `yaml:"brokerPort,omitempty"`
-	Topic      string `yaml:"topicName,omitempty"`
 }
 
 type Configuration struct {
@@ -73,12 +56,8 @@ type Configuration struct {
 
 	// Maintain TaiList per slice
 	SliceTaiList             map[string][]models.Tai `yaml:"sliceTaiList,omitempty"`
-	EnableSctpLb             bool                    `yaml:"enableSctpLb"`
-	EnableDbStore            bool                    `yaml:"enableDBStore"`
 	EnableNrfCaching         bool                    `yaml:"enableNrfCaching"`
 	NrfCacheEvictionInterval int                     `yaml:"nrfCacheEvictionInterval,omitempty"`
-	KafkaInfo                KafkaInfo               `yaml:"kafkaInfo,omitempty"`
-	DebugProfilePort         int                     `yaml:"debugProfilePort,omitempty"`
 }
 
 func (c *Configuration) Get5gsNwFeatSuppEnable() bool {
@@ -149,7 +128,6 @@ type NetworkFeatureSupport5GS struct {
 }
 
 type Sbi struct {
-	Scheme       string `yaml:"scheme"`
 	RegisterIPv4 string `yaml:"registerIPv4,omitempty"` // IP that is registered at NRF.
 	BindingIPv4  string `yaml:"bindingIPv4,omitempty"`  // IP used to run the server in the node.
 	Port         int    `yaml:"port,omitempty"`
@@ -174,11 +152,4 @@ type TimerValue struct {
 	Enable        bool          `yaml:"enable"`
 	ExpireTime    time.Duration `yaml:"expireTime"`
 	MaxRetryTimes int           `yaml:"maxRetryTimes,omitempty"`
-}
-
-func (c *Config) GetVersion() string {
-	if c.Info != nil && c.Info.Version != "" {
-		return c.Info.Version
-	}
-	return ""
 }

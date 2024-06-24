@@ -281,7 +281,7 @@ func (c *NrfMasterCache) GetNrfCacheInstance(targetNfType models.NfType) *NrfCac
 	defer c.mutex.Unlock()
 
 	cache, exists := c.nfTypeToCacheMap[targetNfType]
-	if exists == false {
+	if !exists {
 		logger.UtilLog.Infof("Creating cache for nftype %v", targetNfType)
 
 		cache = NewNrfCache(c.evictionInterval, c.nrfDiscoveryQueryCb)

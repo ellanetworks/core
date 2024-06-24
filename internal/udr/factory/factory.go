@@ -5,13 +5,10 @@
 package factory
 
 import (
-	"fmt"
 	"os"
 
-	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/config5g/proto/client"
 	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
-	"github.com/yeastengine/ella/internal/udr/logger"
 	"gopkg.in/yaml.v2"
 )
 
@@ -25,12 +22,6 @@ type SmPolicyUpdateEntry struct {
 	Snssai *protos.NSSAI
 	Imsi   string
 	Dnn    string
-}
-
-var initLog *logrus.Entry
-
-func init() {
-	initLog = logger.InitLog
 }
 
 // TODO: Support configuration update from REST api
@@ -53,32 +44,10 @@ func InitConfigFactory(f string) error {
 		if UdrConfig.Configuration.WebuiUri == "" {
 			UdrConfig.Configuration.WebuiUri = "webui:9876"
 		}
-		roc := os.Getenv("MANAGED_BY_CONFIG_POD")
-		if roc == "true" {
-			initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-			commChannel := client.ConfigWatcher(UdrConfig.Configuration.WebuiUri, "udr")
-			ConfigUpdateDbTrigger = make(chan *UpdateDb, 10)
-			go UdrConfig.updateConfig(commChannel, ConfigUpdateDbTrigger)
-		} else {
-			go func() {
-				initLog.Infoln("Use helm chart config ")
-				ConfigPodTrigger <- true
-			}()
-		}
+		commChannel := client.ConfigWatcher(UdrConfig.Configuration.WebuiUri, "udr")
+		ConfigUpdateDbTrigger = make(chan *UpdateDb, 10)
+		go UdrConfig.updateConfig(commChannel, ConfigUpdateDbTrigger)
 	}
-
-	return nil
-}
-
-func CheckConfigVersion() error {
-	currentVersion := UdrConfig.GetVersion()
-
-	if currentVersion != UDR_EXPECTED_CONFIG_VERSION {
-		return fmt.Errorf("config version is [%s], but expected is [%s].",
-			currentVersion, UDR_EXPECTED_CONFIG_VERSION)
-	}
-
-	logger.CfgLog.Infof("config version [%s]", currentVersion)
 
 	return nil
 }

@@ -5,10 +5,8 @@
 package factory
 
 import (
-	"fmt"
 	"os"
 
-	"github.com/yeastengine/ella/internal/udm/logger"
 	"gopkg.in/yaml.v2"
 )
 
@@ -28,19 +26,6 @@ func InitConfigFactory(f string) error {
 			UdmConfig.Configuration.WebuiUri = "webui:9876"
 		}
 	}
-
-	return nil
-}
-
-func CheckConfigVersion() error {
-	currentVersion := UdmConfig.GetVersion()
-
-	if currentVersion != UDM_EXPECTED_CONFIG_VERSION {
-		return fmt.Errorf("config version is [%s], but expected is [%s].",
-			currentVersion, UDM_EXPECTED_CONFIG_VERSION)
-	}
-
-	logger.CfgLog.Infof("config version [%s]", currentVersion)
 
 	return nil
 }

@@ -1,7 +1,3 @@
-/*
- * UDR Configuration Factory
- */
-
 package factory
 
 import (
@@ -9,10 +5,6 @@ import (
 	logger_util "github.com/omec-project/util/logger"
 	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
 	"github.com/yeastengine/ella/internal/udr/logger"
-)
-
-const (
-	UDR_EXPECTED_CONFIG_VERSION = "1.0.0"
 )
 
 type Config struct {
@@ -25,12 +17,6 @@ type Info struct {
 	Version     string `yaml:"version,omitempty"`
 	Description string `yaml:"description,omitempty"`
 }
-
-const (
-	UDR_DEFAULT_IPV4     = "127.0.0.4"
-	UDR_DEFAULT_PORT     = "8000"
-	UDR_DEFAULT_PORT_INT = 8000
-)
 
 type Configuration struct {
 	Sbi             *Sbi              `yaml:"sbi"`
@@ -47,7 +33,6 @@ type PlmnSupportItem struct {
 
 type Sbi struct {
 	Tls          *Tls   `yaml:"tls,omitempty"`
-	Scheme       string `yaml:"scheme"`
 	RegisterIPv4 string `yaml:"registerIPv4,omitempty"` // IP that is registered at NRF.
 	BindingIPv4  string `yaml:"bindingIPv4,omitempty"`  // IP used to run the server in the node.
 	Port         int    `yaml:"port"`
@@ -75,14 +60,7 @@ func init() {
 	ConfigPodTrigger = make(chan bool)
 }
 
-func (c *Config) GetVersion() string {
-	if c.Info != nil && c.Info.Version != "" {
-		return c.Info.Version
-	}
-	return ""
-}
-
-func (c *Config) addSmPolicyInfo(nwSlice *protos.NetworkSlice, dbUpdateChannel chan *UpdateDb) error {
+func (c *Config) addSmPolicyInfo(nwSlice *protos.NetworkSlice, dbUpdateChannel chan *UpdateDb) {
 	for _, devGrp := range nwSlice.DeviceGroup {
 		for _, imsi := range devGrp.Imsi {
 			smPolicyEntry := &SmPolicyUpdateEntry{
@@ -96,7 +74,6 @@ func (c *Config) addSmPolicyInfo(nwSlice *protos.NetworkSlice, dbUpdateChannel c
 			dbUpdateChannel <- dbUpdate
 		}
 	}
-	return nil
 }
 
 func (c *Config) updateConfig(commChannel chan *protos.NetworkSliceResponse, dbUpdateChannel chan *UpdateDb) bool {
@@ -128,10 +105,7 @@ func (c *Config) updateConfig(commChannel chan *protos.NetworkSliceResponse, dbU
 					logger.GrpcLog.Infoln("Plmn not present in the message ")
 				}
 			}
-			err := c.addSmPolicyInfo(ns, dbUpdateChannel)
-			if err != nil {
-				logger.GrpcLog.Errorf("Error in adding sm policy info to db %v", err)
-			}
+			c.addSmPolicyInfo(ns, dbUpdateChannel)
 		}
 		if !minConfig {
 			// first slice Created

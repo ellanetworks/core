@@ -92,12 +92,6 @@ var routes = Routes{
 		HTTPPurgeUEContext,
 	},
 	{
-		"Active UE List",
-		strings.ToUpper("get"),
-		"/active-ues",
-		HTTPGetActiveUes,
-	},
-	{
 		"Amf Instance Down Notification",
 		strings.ToUpper("post"),
 		"/amfInstanceDown/:nfid",

@@ -9,10 +9,6 @@ import (
 	"github.com/omec-project/util/logger"
 )
 
-const (
-	PCF_EXPECTED_CONFIG_VERSION = "1.0.0"
-)
-
 type Config struct {
 	Info          *Info          `yaml:"info"`
 	Configuration *Configuration `yaml:"configuration"`
@@ -23,12 +19,6 @@ type Info struct {
 	Version     string `yaml:"version,omitempty"`
 	Description string `yaml:"description,omitempty"`
 }
-
-const (
-	PCF_DEFAULT_IPV4     = "127.0.0.7"
-	PCF_DEFAULT_PORT     = "8000"
-	PCF_DEFAULT_PORT_INT = 8000
-)
 
 type Configuration struct {
 	PcfName         string    `yaml:"pcfName,omitempty"`
@@ -52,7 +42,6 @@ type Service struct {
 }
 
 type Sbi struct {
-	Scheme       string `yaml:"scheme"`
 	RegisterIPv4 string `yaml:"registerIPv4,omitempty"` // IP that is registered at NRF.
 	// IPv6Addr  string `yaml:"ipv6Addr,omitempty"`
 	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
@@ -61,11 +50,4 @@ type Sbi struct {
 
 type PlmnSupportItem struct {
 	PlmnId models.PlmnId `yaml:"plmnId"`
-}
-
-func (c *Config) GetVersion() string {
-	if c.Info != nil && c.Info.Version != "" {
-		return c.Info.Version
-	}
-	return ""
 }

@@ -29,9 +29,7 @@ func init() {
 
 	nssfContext.Name = "NSSF"
 
-	nssfContext.UriScheme = models.UriScheme_HTTPS
-	nssfContext.RegisterIPv4 = factory.NSSF_DEFAULT_IPV4
-	nssfContext.SBIPort = factory.NSSF_DEFAULT_PORT_INT
+	nssfContext.UriScheme = models.UriScheme_HTTP
 
 	serviceName := []models.ServiceName{
 		models.ServiceName_NNSSF_NSSELECTION,
@@ -39,7 +37,7 @@ func init() {
 	}
 	nssfContext.NfService = initNfService(serviceName, "1.0.0")
 
-	nssfContext.NrfUri = fmt.Sprintf("%s://%s:%d", models.UriScheme_HTTPS, nssfContext.RegisterIPv4, port)
+	nssfContext.NrfUri = fmt.Sprintf("%s://%s:%d", models.UriScheme_HTTP, nssfContext.RegisterIPv4, port)
 }
 
 type NSSFContext struct {
@@ -66,7 +64,7 @@ func InitNssfContext() {
 		nssfContext.Name = nssfConfig.Configuration.NssfName
 	}
 
-	nssfContext.UriScheme = nssfConfig.Configuration.Sbi.Scheme
+	nssfContext.UriScheme = models.UriScheme_HTTP
 	nssfContext.RegisterIPv4 = nssfConfig.Configuration.Sbi.RegisterIPv4
 	nssfContext.SBIPort = nssfConfig.Configuration.Sbi.Port
 	nssfContext.BindingIPv4 = os.Getenv(nssfConfig.Configuration.Sbi.BindingIPv4)

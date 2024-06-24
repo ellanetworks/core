@@ -16,7 +16,7 @@ var AMF = &service.AMF{}
 var appLog *logrus.Entry
 
 const (
-	dBName     = "sdcore_amf"
+	dBName     = "amf"
 	SBI_PORT   = "29518"
 	NGAPP_PORT = "38412"
 )
@@ -35,9 +35,6 @@ func getContext(mongoDBURL string, nrfURL string, webuiURL string) (*cli.Context
 configuration:
   amfDBName: %s
   amfName: AMF
-  debugProfilePort: 5001
-  enableDBStore: false
-  enableSctpLb: false
   mongodb:
     url: %s
   networkFeatureSupport5GS:
@@ -58,7 +55,6 @@ configuration:
     bindingIPv4: 0.0.0.0
     port: %s
     registerIPv4: 0.0.0.0:29518
-    scheme: http
   sctpGrpcPort: 9000
   serviceNameList:
     - namf-comm

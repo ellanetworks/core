@@ -96,61 +96,6 @@ func HandleOAMRegisteredUEContext(request *httpwrapper.Request) *httpwrapper.Res
 	}
 }
 
-func HandleOAMActiveUEContextsFromDB(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.ProducerLog.Infof("[OAM] Handle Active UE Contexts Request")
-	var ueContexts []ActiveUeContext
-	ueList := context.DbFetchAllEntries()
-
-	for _, ue := range ueList {
-		ueContext := &ActiveUeContext{
-			AccessType: models.AccessType__3_GPP_ACCESS,
-			Supi:       ue.Supi,
-			Guti:       ue.Guti,
-			Mcc:        ue.Tai.PlmnId.Mcc,
-			Mnc:        ue.Tai.PlmnId.Mnc,
-			Tac:        ue.Tai.Tac,
-			Tmsi:       fmt.Sprintf("%08x", ue.Tmsi),
-		}
-		if ue.RanUe != nil && ue.RanUe[models.AccessType__3_GPP_ACCESS] != nil {
-			ueContext.RanUeNgapId = ue.RanUe[models.AccessType__3_GPP_ACCESS].RanUeNgapId
-			ueContext.AmfUeNgapId = ue.RanUe[models.AccessType__3_GPP_ACCESS].AmfUeNgapId
-
-			if ue.RanUe[models.AccessType__3_GPP_ACCESS].Ran != nil {
-				ueContext.GnbId = ue.RanUe[models.AccessType__3_GPP_ACCESS].Ran.GnbId
-			}
-		}
-		ueContext.AmfInstanceName = ue.AmfInstanceName
-		ueContext.AmfInstanceIp = ue.AmfInstanceIp
-
-		accessType := models.AccessType__3_GPP_ACCESS
-		ue.SmContextList.Range(func(key, value interface{}) bool {
-			smContext := value.(*context.SmContext)
-			if smContext.AccessType() == accessType {
-				pduSession := PduSession{
-					PduSessionId: strconv.Itoa(int(smContext.PduSessionID())),
-					SmContextRef: smContext.SmContextRef(),
-					Sst:          strconv.Itoa(int(smContext.Snssai().Sst)),
-					Sd:           smContext.Snssai().Sd,
-					Dnn:          smContext.Dnn(),
-				}
-				ueContext.PduSessions = append(ueContext.PduSessions, pduSession)
-			}
-			return true
-		})
-		ueContexts = append(ueContexts, *ueContext)
-	}
-
-	if len(ueList) == 0 {
-		problemDetails := &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "CONTEXT_NOT_FOUND",
-		}
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-
-	return httpwrapper.NewResponse(http.StatusOK, nil, ueContexts)
-}
-
 func OAMRegisteredUEContextProcedure(supi string) (UEContexts, *models.ProblemDetails) {
 	var ueContexts UEContexts
 	amfSelf := context.AMF_Self()

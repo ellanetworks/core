@@ -1,7 +1,6 @@
 package context
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"net"
@@ -80,8 +79,6 @@ type AMFContext struct {
 	T3550Cfg                 factory.TimerValue
 	T3560Cfg                 factory.TimerValue
 	T3565Cfg                 factory.TimerValue
-	EnableSctpLb             bool
-	EnableDbStore            bool
 	EnableNrfCaching         bool
 	NrfCacheEvictionInterval time.Duration
 }
@@ -275,14 +272,6 @@ func (context *AMFContext) AmfUeFindBySupi(supi string) (ue *AmfUe, ok bool) {
 	if value, loadOk := context.UePool.Load(supi); loadOk {
 		ue = value.(*AmfUe)
 		ok = loadOk
-	} else if context.EnableDbStore {
-		ue, ok = DbFetchUeBySupi(supi)
-		if ue != nil && ok {
-			logger.ContextLog.Infoln("Ue with supi found in DB : ", supi)
-			context.UePool.Store(ue.Supi, ue)
-		} else {
-			logger.ContextLog.Infoln("Ue with Supi not found locally and in DB: ", supi)
-		}
 	} else {
 		logger.ContextLog.Infoln("Ue with Supi not found : ", supi)
 	}
@@ -430,14 +419,6 @@ func (context *AMFContext) InPlmnSupportList(snssai models.Snssai) bool {
 	return false
 }
 
-func mapToByte(data map[string]interface{}) (ret []byte) {
-	ret, err := json.Marshal(data)
-	if err != nil {
-		logger.ContextLog.Error(err)
-	}
-	return
-}
-
 func (context *AMFContext) AmfUeFindByGutiLocal(guti string) (ue *AmfUe, ok bool) {
 	context.UePool.Range(func(key, value interface{}) bool {
 		candidate := value.(*AmfUe)
@@ -468,14 +449,6 @@ func (context *AMFContext) AmfUeFindByGuti(guti string) (ue *AmfUe, ok bool) {
 	ue, ok = context.AmfUeFindByGutiLocal(guti)
 	if ok {
 		logger.ContextLog.Infoln("Guti found locally : ", guti)
-	} else if context.EnableDbStore {
-		ue, ok = DbFetchUeByGuti(guti)
-		if ue != nil && ok {
-			logger.ContextLog.Infoln("Ue with Guti found in DB : ", guti)
-			context.UePool.Store(ue.Supi, ue)
-		} else {
-			logger.ContextLog.Infoln("Ue with Guti not found locally and in DB: ", guti)
-		}
 	} else {
 		logger.ContextLog.Infoln("Ue with Guti not found : ", guti)
 	}
@@ -506,14 +479,6 @@ func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 	ranUe := context.RanUeFindByAmfUeNgapIDLocal(amfUeNgapID)
 	if ranUe != nil {
 		return ranUe
-	} else {
-		if context.EnableDbStore {
-			ranUe = DbFetchRanUeByAmfUeNgapID(amfUeNgapID)
-			if ranUe != nil {
-				context.RanUePool.Store(ranUe.AmfUeNgapId, ranUe)
-				return ranUe
-			}
-		}
 	}
 
 	logger.ContextLog.Errorf("ranUe not found with AmfUeNgapID")

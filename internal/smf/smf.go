@@ -16,7 +16,7 @@ var SMF = &service.SMF{}
 var appLog *logrus.Entry
 
 const (
-	dBName   = "sdcore_smf"
+	dBName   = "smf"
 	SBI_PORT = "29502"
 )
 
@@ -30,27 +30,16 @@ func getContext(mongoDBURL string, nrfURL string, webuiURL string) (*cli.Context
 	flagSet.String("uerouting", "", "UE routing information")
 	app := cli.NewApp()
 	app.Name = "smf"
-	app.Flags = SMF.GetCliCmd()
 	appLog.Infoln(app.Name)
 	c := cli.NewContext(app, flagSet, nil)
 	smfConfig := fmt.Sprintf(`
-info:
-  version: 1.0.0
-  description: SMF initial local configuration
-
 configuration:
   smfDBName: %s
   webuiUri: %s
-  enableDBStore: false
-  enableUPFAdapter: false
-  debugProfilePort: 5001
   mongodb:
     url: %s
-  kafkaInfo:
-    enableKafka: false
   smfName: SMF
   sbi:
-    scheme: http
     registerIPv4: 0.0.0.0
     bindingIPv4: 0.0.0.0
     port: %s
@@ -61,6 +50,9 @@ configuration:
   pfcp:
     addr: 0.0.0.0
   nrfUri: %s
+info:
+  version: 1.0.0
+  description: SMF initial local configuration
 logger:
   SMF:
     debugLevel: debug

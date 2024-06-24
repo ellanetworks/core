@@ -286,7 +286,7 @@ func (ipf *IPFilterRule) IsMatchAllIPFilter() bool {
 	return false
 }
 
-func (ipfRule *IPFilterRule) decodeIpFilterPortInfo(source bool, tag string) error {
+func (ipfRule *IPFilterRule) decodeIpFilterPortInfo(source bool, tag string) {
 	// check if it is single port or range
 	ports := strings.Split(tag, "-")
 
@@ -305,10 +305,9 @@ func (ipfRule *IPFilterRule) decodeIpFilterPortInfo(source bool, tag string) err
 			ipfRule.dPort = ports[0]
 		}
 	}
-	return nil
 }
 
-func (ipfRule *IPFilterRule) decodeIpFilterAddrv4(source bool, tag string) error {
+func (ipfRule *IPFilterRule) decodeIpFilterAddrv4(source bool, tag string) {
 	ipAndMask := strings.Split(tag, "/")
 	if source {
 		ipfRule.sAddrv4.addr = ipAndMask[0] // can be x.x.x.x or "any"
@@ -324,7 +323,6 @@ func (ipfRule *IPFilterRule) decodeIpFilterAddrv4(source bool, tag string) error
 			ipfRule.dAddrv4.mask = ipAndMask[1]
 		}
 	}
-	return nil
 }
 
 func (pf *PacketFilter) GetPfContent(flowDesc string) {
@@ -347,45 +345,45 @@ func (pf *PacketFilter) GetPfContent(flowDesc string) {
 	}
 
 	// Protocol identifier/Next header type
-	if pfc, len := BuildPFCompProtocolId(ipf.protoId); pfc != nil {
+	if pfc, protocolIdLen := BuildPFCompProtocolId(ipf.protoId); pfc != nil {
 		pfcList = append(pfcList, *pfc)
-		pf.ContentLength += len
+		pf.ContentLength += protocolIdLen
 	}
 
 	// Remote Addr
-	if pfc, len := buildPFCompAddr(false, ipf.sAddrv4); pfc != nil {
+	if pfc, addrLen := buildPFCompAddr(false, ipf.sAddrv4); pfc != nil {
 		pfcList = append(pfcList, *pfc)
-		pf.ContentLength += len
+		pf.ContentLength += addrLen
 	}
 
 	// Remote Port
-	if pfc, len := buildPFCompPort(false, ipf.sPort); pfc != nil {
+	if pfc, portLen := buildPFCompPort(false, ipf.sPort); pfc != nil {
 		pfcList = append(pfcList, *pfc)
-		pf.ContentLength += len
+		pf.ContentLength += portLen
 	}
 
 	// Remote Port range
-	if pfc, len := buildPFCompPortRange(false, ipf.sPortRange); pfc != nil {
+	if pfc, portRangeLen := buildPFCompPortRange(false, ipf.sPortRange); pfc != nil {
 		pfcList = append(pfcList, *pfc)
-		pf.ContentLength += len
+		pf.ContentLength += portRangeLen
 	}
 
 	// Local Addr
-	if pfc, len := buildPFCompAddr(true, ipf.dAddrv4); pfc != nil {
+	if pfc, addrLen := buildPFCompAddr(true, ipf.dAddrv4); pfc != nil {
 		pfcList = append(pfcList, *pfc)
-		pf.ContentLength += len
+		pf.ContentLength += addrLen
 	}
 
 	// Local Port
-	if pfc, len := buildPFCompPort(true, ipf.dPort); pfc != nil {
+	if pfc, portLen := buildPFCompPort(true, ipf.dPort); pfc != nil {
 		pfcList = append(pfcList, *pfc)
-		pf.ContentLength += len
+		pf.ContentLength += portLen
 	}
 
 	// Local Port range
-	if pfc, len := buildPFCompPortRange(true, ipf.dPortRange); pfc != nil {
+	if pfc, portRangeLen := buildPFCompPortRange(true, ipf.dPortRange); pfc != nil {
 		pfcList = append(pfcList, *pfc)
-		pf.ContentLength += len
+		pf.ContentLength += portRangeLen
 	}
 
 	pf.Content = pfcList

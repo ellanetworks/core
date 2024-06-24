@@ -145,15 +145,5 @@ func decode(source interface{}, format string) ([]models.NfProfile, error) {
 }
 
 func getSbiUri(scheme models.UriScheme, ipv4Address string, port int32) (uri string) {
-	if port != 0 {
-		uri = fmt.Sprintf("%s://%s:%d", scheme, ipv4Address, port)
-	} else {
-		switch scheme {
-		case models.UriScheme_HTTP:
-			uri = fmt.Sprintf("%s://%s:80", scheme, ipv4Address)
-		case models.UriScheme_HTTPS:
-			uri = fmt.Sprintf("%s://%s:443", scheme, ipv4Address)
-		}
-	}
-	return
+	return fmt.Sprintf("%s://%s:%d", scheme, ipv4Address, port)
 }

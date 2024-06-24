@@ -2,7 +2,6 @@ package service
 
 import (
 	"fmt"
-	"net/http"
 	_ "net/http/pprof" // Using package only for invoking initialization.
 	"os"
 	"os/signal"
@@ -11,16 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	aperLogger "github.com/omec-project/aper/logger"
-	nasLogger "github.com/omec-project/nas/logger"
-	ngapLogger "github.com/omec-project/ngap/logger"
 	"github.com/omec-project/openapi/models"
-	pfcpLogger "github.com/omec-project/pfcp/logger"
 	"github.com/omec-project/pfcp/pfcpType"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/omec-project/util/path_util"
-	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	nrf_cache "github.com/yeastengine/ella/internal/nrf/nrfcache"
@@ -53,21 +46,6 @@ var refreshNrfRegistration bool
 
 var config Config
 
-var smfCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "cfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "smfcfg",
-		Usage: "config file",
-	},
-	cli.StringFlag{
-		Name:  "uerouting",
-		Usage: "config file",
-	},
-}
-
 var (
 	KeepAliveTimer      *time.Timer
 	KeepAliveTimerMutex sync.Mutex
@@ -87,170 +65,31 @@ func init() {
 	nrfRegInProgress = OneInstance{}
 }
 
-func (*SMF) GetCliCmd() (flags []cli.Flag) {
-	return smfCLi
-}
-
 func (smf *SMF) Initialize(c *cli.Context) error {
 	config = Config{
 		smfcfg:    c.String("smfcfg"),
 		uerouting: c.String("uerouting"),
 	}
-
-	if config.smfcfg != "" {
-		if err := factory.InitConfigFactory(config.smfcfg); err != nil {
-			return err
-		}
-	} else {
-		DefaultSmfConfigPath := path_util.Free5gcPath("omec-project/smf/config/smfcfg.yaml")
-		if err := factory.InitConfigFactory(DefaultSmfConfigPath); err != nil {
-			return err
-		}
-	}
-
-	if config.uerouting != "" {
-		if err := factory.InitRoutingConfigFactory(config.uerouting); err != nil {
-			return err
-		}
-	} else {
-		DefaultUERoutingPath := path_util.Free5gcPath("omec-project/smf/config/uerouting.yaml")
-		if err := factory.InitRoutingConfigFactory(DefaultUERoutingPath); err != nil {
-			return err
-		}
-	}
-
-	smf.setLogLevel()
-
-	if err := factory.CheckConfigVersion(); err != nil {
+	if err := factory.InitConfigFactory(config.smfcfg); err != nil {
 		return err
 	}
-
-	// Initiating a server for profiling
-	if factory.SmfConfig.Configuration.DebugProfilePort != 0 {
-		addr := fmt.Sprintf(":%d", factory.SmfConfig.Configuration.DebugProfilePort)
-		go func() {
-			http.ListenAndServe(addr, nil)
-		}()
+	if err := factory.InitRoutingConfigFactory(config.uerouting); err != nil {
+		return err
 	}
-
+	smf.setLogLevel()
 	return nil
 }
 
 func (smf *SMF) setLogLevel() {
-	if factory.SmfConfig.Logger == nil {
-		initLog.Warnln("SMF config without log level setting!!!")
-		return
+	if level, err := logrus.ParseLevel(factory.SmfConfig.Logger.SMF.DebugLevel); err != nil {
+		initLog.Warnf("SMF Log level [%s] is invalid, set to [info] level",
+			factory.SmfConfig.Logger.SMF.DebugLevel)
+		logger.SetLogLevel(logrus.InfoLevel)
+	} else {
+		initLog.Infof("SMF Log level is set to [%s] level", level)
+		logger.SetLogLevel(level)
 	}
-
-	if factory.SmfConfig.Logger.SMF != nil {
-		if factory.SmfConfig.Logger.SMF.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.SmfConfig.Logger.SMF.DebugLevel); err != nil {
-				initLog.Warnf("SMF Log level [%s] is invalid, set to [info] level",
-					factory.SmfConfig.Logger.SMF.DebugLevel)
-				logger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				initLog.Infof("SMF Log level is set to [%s] level", level)
-				logger.SetLogLevel(level)
-			}
-		} else {
-			initLog.Infoln("SMF Log level is default set to [info] level")
-			logger.SetLogLevel(logrus.InfoLevel)
-		}
-		logger.SetReportCaller(factory.SmfConfig.Logger.SMF.ReportCaller)
-	}
-
-	if factory.SmfConfig.Logger.NAS != nil {
-		if factory.SmfConfig.Logger.NAS.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.SmfConfig.Logger.NAS.DebugLevel); err != nil {
-				nasLogger.NasLog.Warnf("NAS Log level [%s] is invalid, set to [info] level",
-					factory.SmfConfig.Logger.NAS.DebugLevel)
-				logger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				nasLogger.SetLogLevel(level)
-			}
-		} else {
-			nasLogger.NasLog.Warnln("NAS Log level not set. Default set to [info] level")
-			nasLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		nasLogger.SetReportCaller(factory.SmfConfig.Logger.NAS.ReportCaller)
-	}
-
-	if factory.SmfConfig.Logger.NGAP != nil {
-		if factory.SmfConfig.Logger.NGAP.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.SmfConfig.Logger.NGAP.DebugLevel); err != nil {
-				ngapLogger.NgapLog.Warnf("NGAP Log level [%s] is invalid, set to [info] level",
-					factory.SmfConfig.Logger.NGAP.DebugLevel)
-				ngapLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				ngapLogger.SetLogLevel(level)
-			}
-		} else {
-			ngapLogger.NgapLog.Warnln("NGAP Log level not set. Default set to [info] level")
-			ngapLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		ngapLogger.SetReportCaller(factory.SmfConfig.Logger.NGAP.ReportCaller)
-	}
-
-	if factory.SmfConfig.Logger.Aper != nil {
-		if factory.SmfConfig.Logger.Aper.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.SmfConfig.Logger.Aper.DebugLevel); err != nil {
-				aperLogger.AperLog.Warnf("Aper Log level [%s] is invalid, set to [info] level",
-					factory.SmfConfig.Logger.Aper.DebugLevel)
-				aperLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				aperLogger.SetLogLevel(level)
-			}
-		} else {
-			aperLogger.AperLog.Warnln("Aper Log level not set. Default set to [info] level")
-			aperLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		aperLogger.SetReportCaller(factory.SmfConfig.Logger.Aper.ReportCaller)
-	}
-
-	if factory.SmfConfig.Logger.PathUtil != nil {
-		if factory.SmfConfig.Logger.PathUtil.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.SmfConfig.Logger.PathUtil.DebugLevel); err != nil {
-				pathUtilLogger.PathLog.Warnf("PathUtil Log level [%s] is invalid, set to [info] level",
-					factory.SmfConfig.Logger.PathUtil.DebugLevel)
-				pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				pathUtilLogger.SetLogLevel(level)
-			}
-		} else {
-			pathUtilLogger.PathLog.Warnln("PathUtil Log level not set. Default set to [info] level")
-			pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		pathUtilLogger.SetReportCaller(factory.SmfConfig.Logger.PathUtil.ReportCaller)
-	}
-
-	if factory.SmfConfig.Logger.PFCP != nil {
-		if factory.SmfConfig.Logger.PFCP.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.SmfConfig.Logger.PFCP.DebugLevel); err != nil {
-				pfcpLogger.PFCPLog.Warnf("PFCP Log level [%s] is invalid, set to [info] level",
-					factory.SmfConfig.Logger.PFCP.DebugLevel)
-				pfcpLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				pfcpLogger.SetLogLevel(level)
-			}
-		} else {
-			pfcpLogger.PFCPLog.Warnln("PFCP Log level not set. Default set to [info] level")
-			pfcpLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		pfcpLogger.SetReportCaller(factory.SmfConfig.Logger.PFCP.ReportCaller)
-	}
-}
-
-func (smf *SMF) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range smf.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
+	logger.SetReportCaller(factory.SmfConfig.Logger.SMF.ReportCaller)
 }
 
 func (smf *SMF) Start() {
@@ -275,33 +114,28 @@ func (smf *SMF) Start() {
 	context.InitSMFUERouting(&factory.UERoutingConfig)
 
 	// Wait for additional/updated config from config pod
-	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
-	if roc == "true" {
-		initLog.Infof("Configuration is managed by Config Pod")
-		initLog.Infof("waiting for initial configuration from config pod")
+	initLog.Infof("Configuration is managed by Config Pod")
+	initLog.Infof("waiting for initial configuration from config pod")
 
-		// Main thread should be blocked for config update from ROC
-		// Future config update from ROC can be handled via background go-routine.
-		if <-factory.ConfigPodTrigger {
-			initLog.Infof("minimum configuration from config pod available")
-			context.ProcessConfigUpdate()
-		}
+	// Main thread should be blocked for config update from ROC
+	// Future config update from ROC can be handled via background go-routine.
+	if <-factory.ConfigPodTrigger {
+		initLog.Infof("minimum configuration from config pod available")
+		context.ProcessConfigUpdate()
+	}
 
-		// Trigger background goroutine to handle further config updates
-		go func() {
-			initLog.Infof("Dynamic config update task initialised")
-			for {
-				if <-factory.ConfigPodTrigger {
-					if context.ProcessConfigUpdate() {
-						// Let NRF registration happen in background
-						go smf.SendNrfRegistration()
-					}
+	// Trigger background goroutine to handle further config updates
+	go func() {
+		initLog.Infof("Dynamic config update task initialised")
+		for {
+			if <-factory.ConfigPodTrigger {
+				if context.ProcessConfigUpdate() {
+					// Let NRF registration happen in background
+					go smf.SendNrfRegistration()
 				}
 			}
-		}()
-	} else {
-		initLog.Infof("Configuration is managed by Helm")
-	}
+		}
+	}()
 
 	// Send NRF Registration
 	smf.SendNrfRegistration()
@@ -321,11 +155,6 @@ func (smf *SMF) Start() {
 		case models.ServiceName_NSMF_EVENT_EXPOSURE:
 			eventexposure.AddService(router)
 		}
-	}
-
-	if factory.SmfConfig.Configuration.EnableDbStore {
-		initLog.Infof("SetupSmfCollection")
-		context.SetupSmfCollection()
 	}
 
 	// Init DRSM for unique FSEID/FTEID/IP-Addr
@@ -365,13 +194,7 @@ func (smf *SMF) Start() {
 		initLog.Warnln("Initialize HTTP server:", err)
 	}
 
-	serverScheme := factory.SmfConfig.Configuration.Sbi.Scheme
-	if serverScheme == "http" {
-		err = server.ListenAndServe()
-	} else if serverScheme == "https" {
-		err = server.ListenAndServeTLS(util.SmfPemPath, util.SmfKeyPath)
-	}
-
+	err = server.ListenAndServe()
 	if err != nil {
 		initLog.Fatalln("HTTP server setup failed:", err)
 	}
@@ -439,10 +262,16 @@ func UpdateNF() {
 			problemDetails.Status == 404 || problemDetails.Status == 400 {
 			// register with NRF full profile
 			nfProfile, err = consumer.SendNFRegistration()
+			if err != nil {
+				initLog.Errorf("SMF update to NRF Error[%s]", err.Error())
+			}
 		}
 	} else if err != nil {
 		initLog.Errorf("SMF update to NRF Error[%s]", err.Error())
 		nfProfile, err = consumer.SendNFRegistration()
+		if err != nil {
+			initLog.Errorf("SMF update to NRF Error[%s]", err.Error())
+		}
 	}
 
 	if nfProfile.HeartBeatTimer != 0 {

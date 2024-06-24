@@ -181,9 +181,6 @@ func SendNrfForNfInstance(nrfUri string, targetNfType, requestNfType models.NfTy
 		}()
 
 		logger.ConsumerLog.Warnln("handler returned wrong status code ", httpResp.Status)
-		if httpResp.Status != localErr.Error() {
-		} else {
-		}
 	} else {
 		localErr = openapi.ReportError("server no response")
 	}

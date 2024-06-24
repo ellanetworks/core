@@ -42,24 +42,3 @@ func HTTPRegisteredUEContext(c *gin.Context) {
 		c.Data(rsp.Status, "application/json", responseBody)
 	}
 }
-
-func HTTPGetActiveUes(c *gin.Context) {
-	setCorsHeader(c)
-
-	req := httpwrapper.NewRequest(c.Request, nil)
-
-	rsp := producer.HandleOAMActiveUEContextsFromDB(req)
-
-	responseBody, err := openapi.Serialize(rsp.Body, "application/json")
-	if err != nil {
-		logger.MtLog.Errorln(err)
-		problemDetails := models.ProblemDetails{
-			Status: http.StatusInternalServerError,
-			Cause:  "SYSTEM_FAILURE",
-			Detail: err.Error(),
-		}
-		c.JSON(http.StatusInternalServerError, problemDetails)
-	} else {
-		c.Data(rsp.Status, "application/json", responseBody)
-	}
-}

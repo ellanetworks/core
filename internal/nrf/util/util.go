@@ -1,6 +1,3 @@
-//go:build !debug
-// +build !debug
-
 package util
 
 import (
@@ -16,11 +13,7 @@ import (
 
 // Path of HTTP2 key and log file
 
-var (
-	NrfLogPath = path_util.Free5gcPath("free5gc/nrfsslkey.log")
-	NrfPemPath = path_util.Free5gcPath("free5gc/support/TLS/nrf.pem")
-	NrfKeyPath = path_util.Free5gcPath("free5gc/support/TLS/nrf.key")
-)
+var NrfLogPath = path_util.Free5gcPath("free5gc/nrfsslkey.log")
 
 func MarshToJsonString(v interface{}) (result []string) {
 	types := reflect.TypeOf(v)

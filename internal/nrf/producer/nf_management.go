@@ -402,7 +402,7 @@ func NFRegisterProcedure(nfProfile models.NfProfile) (header http.Header, respon
 	filter := bson.M{"nfInstanceId": nfInstanceId}
 
 	// fallback to older approach
-	if factory.NrfConfig.Configuration.NfProfileExpiryEnable == false {
+	if !factory.NrfConfig.Configuration.NfProfileExpiryEnable {
 		NFDeleteAll(string(nf.NfType))
 	} else {
 		timein := time.Now().Local().Add(time.Second * time.Duration(nf.HeartBeatTimer*3))

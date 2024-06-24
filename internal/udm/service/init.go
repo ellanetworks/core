@@ -1,10 +1,8 @@
 package service
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -14,7 +12,6 @@ import (
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/omec-project/util/path_util"
-	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"github.com/yeastengine/config5g/proto/client"
@@ -40,25 +37,11 @@ func init() {
 	ConfigPodTrigger = make(chan bool)
 }
 
-type (
-	// Config information.
-	Config struct {
-		udmcfg string
-	}
-)
+type Config struct {
+	udmcfg string
+}
 
 var config Config
-
-var udmCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "udmcfg",
-		Usage: "config file",
-	},
-}
 
 var (
 	KeepAliveTimer      *time.Timer
@@ -71,104 +54,34 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (*UDM) GetCliCmd() (flags []cli.Flag) {
-	return udmCLi
-}
-
 func (udm *UDM) Initialize(c *cli.Context) error {
 	config = Config{
 		udmcfg: c.String("udmcfg"),
 	}
-
-	if config.udmcfg != "" {
-		if err := factory.InitConfigFactory(config.udmcfg); err != nil {
-			return err
-		}
-	} else {
-		DefaultUdmConfigPath := path_util.Free5gcPath("free5gc/config/udmcfg.yaml")
-		if err := factory.InitConfigFactory(DefaultUdmConfigPath); err != nil {
-			return err
-		}
-	}
-
-	udm.setLogLevel()
-
-	if err := factory.CheckConfigVersion(); err != nil {
+	if err := factory.InitConfigFactory(config.udmcfg); err != nil {
 		return err
 	}
-
-	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
-	if roc == "true" {
-		initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-		commChannel := client.ConfigWatcher(factory.UdmConfig.Configuration.WebuiUri, "udm")
-		go udm.updateConfig(commChannel)
-	} else {
-		go func() {
-			initLog.Infoln("Use helm chart config ")
-			ConfigPodTrigger <- true
-		}()
-	}
-
+	udm.setLogLevel()
+	commChannel := client.ConfigWatcher(factory.UdmConfig.Configuration.WebuiUri, "udm")
+	go udm.updateConfig(commChannel)
 	return nil
 }
 
 func (udm *UDM) setLogLevel() {
-	if factory.UdmConfig.Logger == nil {
-		initLog.Warnln("UDM config without log level setting!!!")
-		return
+	if level, err := logrus.ParseLevel(factory.UdmConfig.Logger.UDM.DebugLevel); err != nil {
+		initLog.Warnf("UDM Log level [%s] is invalid, set to [info] level",
+			factory.UdmConfig.Logger.UDM.DebugLevel)
+		logger.SetLogLevel(logrus.InfoLevel)
+	} else {
+		initLog.Infof("UDM Log level is set to [%s] level", level)
+		logger.SetLogLevel(level)
 	}
-
-	if factory.UdmConfig.Logger.UDM != nil {
-		if factory.UdmConfig.Logger.UDM.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.UdmConfig.Logger.UDM.DebugLevel); err != nil {
-				initLog.Warnf("UDM Log level [%s] is invalid, set to [info] level",
-					factory.UdmConfig.Logger.UDM.DebugLevel)
-				logger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				initLog.Infof("UDM Log level is set to [%s] level", level)
-				logger.SetLogLevel(level)
-			}
-		} else {
-			initLog.Infoln("UDM Log level is default set to [info] level")
-			logger.SetLogLevel(logrus.InfoLevel)
-		}
-		logger.SetReportCaller(factory.UdmConfig.Logger.UDM.ReportCaller)
-	}
-
-	if factory.UdmConfig.Logger.PathUtil != nil {
-		if factory.UdmConfig.Logger.PathUtil.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.UdmConfig.Logger.PathUtil.DebugLevel); err != nil {
-				pathUtilLogger.PathLog.Warnf("PathUtil Log level [%s] is invalid, set to [info] level",
-					factory.UdmConfig.Logger.PathUtil.DebugLevel)
-				pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				pathUtilLogger.SetLogLevel(level)
-			}
-		} else {
-			pathUtilLogger.PathLog.Warnln("PathUtil Log level not set. Default set to [info] level")
-			pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		pathUtilLogger.SetReportCaller(factory.UdmConfig.Logger.PathUtil.ReportCaller)
-	}
-}
-
-func (udm *UDM) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range udm.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
+	logger.SetReportCaller(factory.UdmConfig.Logger.UDM.ReportCaller)
 }
 
 func (udm *UDM) Start() {
 	config := factory.UdmConfig
 	configuration := config.Configuration
-	sbi := configuration.Sbi
 	serviceName := configuration.ServiceNameList
 
 	initLog.Infof("UDM Config Info: Version[%s] Description[%s]", config.Info.Version, config.Info.Description)
@@ -185,13 +98,6 @@ func (udm *UDM) Start() {
 	uecontextmanagement.AddService(router)
 
 	udmLogPath := path_util.Free5gcPath("omec-project/udmsslkey.log")
-	udmPemPath := path_util.Free5gcPath("free5gc/support/TLS/udm.pem")
-	udmKeyPath := path_util.Free5gcPath("free5gc/support/TLS/udm.key")
-	if sbi.Tls != nil {
-		udmLogPath = path_util.Free5gcPath(sbi.Tls.Log)
-		udmPemPath = path_util.Free5gcPath(sbi.Tls.Pem)
-		udmKeyPath = path_util.Free5gcPath(sbi.Tls.Key)
-	}
 
 	self := context.UDM_Self()
 	util.InitUDMContext(self)
@@ -219,62 +125,10 @@ func (udm *UDM) Start() {
 		initLog.Warnf("Initialize HTTP server: +%v", err)
 	}
 
-	serverScheme := factory.UdmConfig.Configuration.Sbi.Scheme
-	if serverScheme == "http" {
-		err = server.ListenAndServe()
-	} else if serverScheme == "https" {
-		err = server.ListenAndServeTLS(udmPemPath, udmKeyPath)
-	}
-
+	err = server.ListenAndServe()
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
-}
-
-func (udm *UDM) Exec(c *cli.Context) error {
-	// UDM.Initialize(cfgPath, c)
-
-	initLog.Traceln("args:", c.String("udmcfg"))
-	args := udm.FilterCli(c)
-	initLog.Traceln("filter: ", args)
-	command := exec.Command("./udm", args...)
-
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-	go func() {
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	go func() {
-		in := bufio.NewScanner(stderr)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		if err = command.Start(); err != nil {
-			fmt.Printf("UDM Start error: %v", err)
-		}
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	return err
 }
 
 func (udm *UDM) Terminate() {

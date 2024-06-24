@@ -16,7 +16,7 @@ var NRF = &service.NRF{}
 var appLog *logrus.Entry
 
 const (
-	dBName = "free5gc"
+	dBName = "nrf"
 	port   = "29510"
 )
 
@@ -34,7 +34,6 @@ func getContext(mongoDBURL string, webuiUrl string) (*cli.Context, error) {
 configuration:
   MongoDBName: %s
   MongoDBUrl: %s
-  mongoDBStreamEnable: true
   mongodb:
     name: %s
     url: %s
@@ -45,7 +44,6 @@ configuration:
     bindingIPv4: 0.0.0.0
     port: %s
     registerIPv4: 127.0.0.1
-    scheme: http
   serviceNameList:
   - nnrf-nfm
   - nnrf-disc

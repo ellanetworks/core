@@ -33,7 +33,6 @@ func InitDrsm() (drsm.DrsmInterface, error) {
 
 func InitAmfContext(context *context.AMFContext) {
 	config := factory.AmfConfig
-	logger.UtilLog.Infof("amfconfig Info: Version[%s] Description[%s]", config.Info.Version, config.Info.Description)
 	configuration := config.Configuration
 	if context.NfId == "" {
 		context.NfId = uuid.New().String()
@@ -50,30 +49,18 @@ func InitAmfContext(context *context.AMFContext) {
 	context.NgapPort = configuration.NgapPort
 	context.SctpGrpcPort = configuration.SctpGrpcPort
 	sbi := configuration.Sbi
-	if sbi.Scheme != "" {
-		context.UriScheme = models.UriScheme(sbi.Scheme)
+	context.UriScheme = models.UriScheme_HTTP
+	context.RegisterIPv4 = configuration.Sbi.RegisterIPv4
+	context.SBIPort = sbi.Port
+
+	context.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
+	if context.BindingIPv4 != "" {
+		logger.UtilLog.Info("Parsing ServerIPv4 address from ENV Variable.")
 	} else {
-		logger.UtilLog.Warnln("SBI Scheme has not been set. Using http as default")
-		context.UriScheme = "http"
-	}
-	context.RegisterIPv4 = factory.AMF_DEFAULT_IPV4 // default localhost
-	context.SBIPort = factory.AMF_DEFAULT_PORT_INT  // default port
-	if sbi != nil {
-		if sbi.RegisterIPv4 != "" {
-			context.RegisterIPv4 = os.Getenv("POD_IP")
-		}
-		if sbi.Port != 0 {
-			context.SBIPort = sbi.Port
-		}
-		context.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
-		if context.BindingIPv4 != "" {
-			logger.UtilLog.Info("Parsing ServerIPv4 address from ENV Variable.")
-		} else {
-			context.BindingIPv4 = sbi.BindingIPv4
-			if context.BindingIPv4 == "" {
-				logger.UtilLog.Warn("Error parsing ServerIPv4 address from string. Using the 0.0.0.0 as default.")
-				context.BindingIPv4 = "0.0.0.0"
-			}
+		context.BindingIPv4 = sbi.BindingIPv4
+		if context.BindingIPv4 == "" {
+			logger.UtilLog.Warn("Error parsing ServerIPv4 address from string. Using the 0.0.0.0 as default.")
+			context.BindingIPv4 = "0.0.0.0"
 		}
 	}
 	serviceNameList := configuration.ServiceNameList
@@ -89,12 +76,7 @@ func InitAmfContext(context *context.AMFContext) {
 	}*/
 	context.PlmnSupportList = configuration.PlmnSupportList
 	context.SupportDnnLists = configuration.SupportDnnList
-	if configuration.NrfUri != "" {
-		context.NrfUri = configuration.NrfUri
-	} else {
-		logger.UtilLog.Warn("NRF Uri is empty! Using localhost as NRF IPv4 address.")
-		context.NrfUri = factory.AMF_DEFAULT_NRFURI
-	}
+	context.NrfUri = configuration.NrfUri
 	security := configuration.Security
 	if security != nil {
 		context.SecurityAlgorithm.IntegrityOrder = getIntAlgOrder(security.IntegrityOrder)
@@ -109,8 +91,6 @@ func InitAmfContext(context *context.AMFContext) {
 	context.T3550Cfg = configuration.T3550
 	context.T3560Cfg = configuration.T3560
 	context.T3565Cfg = configuration.T3565
-	context.EnableSctpLb = configuration.EnableSctpLb
-	context.EnableDbStore = configuration.EnableDbStore
 	context.EnableNrfCaching = configuration.EnableNrfCaching
 	if configuration.EnableNrfCaching {
 		if configuration.NrfCacheEvictionInterval == 0 {

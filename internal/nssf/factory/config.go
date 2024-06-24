@@ -13,10 +13,6 @@ import (
 	"github.com/yeastengine/ella/internal/nssf/logger"
 )
 
-const (
-	NSSF_EXPECTED_CONFIG_VERSION = "1.0.0"
-)
-
 type Config struct {
 	Info          *Info               `yaml:"info"`
 	Configuration *Configuration      `yaml:"configuration"`
@@ -28,12 +24,6 @@ type Info struct {
 	Version     string `yaml:"version"`
 	Description string `yaml:"description,omitempty"`
 }
-
-const (
-	NSSF_DEFAULT_IPV4     = "127.0.0.31"
-	NSSF_DEFAULT_PORT     = "8000"
-	NSSF_DEFAULT_PORT_INT = 8000
-)
 
 type Configuration struct {
 	NssfName                 string                  `yaml:"nssfName,omitempty"`
@@ -51,7 +41,6 @@ type Configuration struct {
 }
 
 type Sbi struct {
-	Scheme models.UriScheme `yaml:"scheme"`
 	// Currently only support IPv4 and thus `Ipv4Addr` field shall not be empty
 	RegisterIPv4 string `yaml:"registerIPv4,omitempty"` // IP that is registered at NRF.
 	// IPv6Addr string `yaml:"ipv6Addr,omitempty"`
@@ -171,11 +160,4 @@ func (c *Config) updateConfig(commChannel chan *protos.NetworkSliceResponse) boo
 		}
 	}
 	return true
-}
-
-func (c *Config) GetVersion() string {
-	if c.Info != nil && c.Info.Version != "" {
-		return c.Info.Version
-	}
-	return ""
 }

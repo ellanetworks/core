@@ -41,7 +41,6 @@ configuration:
     url: %s
     authKeysDbName: %s
     authUrl: %s
-  spec-compliant-sdf: false
 info:
   description: WebUI initial local configuration
   version: 1.0.0

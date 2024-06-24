@@ -21,9 +21,9 @@ func SearchNFServiceUri(nfProfile models.NfProfile, serviceName models.ServiceNa
 				} else if service.IpEndPoints != nil {
 					point := (*service.IpEndPoints)[0]
 					if point.Ipv4Address != "" {
-						nfUri = getSbiUri(service.Scheme, point.Ipv4Address, point.Port)
+						nfUri = getSbiUri(point.Ipv4Address, point.Port)
 					} else if len(nfProfile.Ipv4Addresses) != 0 {
-						nfUri = getSbiUri(service.Scheme, nfProfile.Ipv4Addresses[0], point.Port)
+						nfUri = getSbiUri(nfProfile.Ipv4Addresses[0], point.Port)
 					}
 				}
 			}
@@ -35,16 +35,6 @@ func SearchNFServiceUri(nfProfile models.NfProfile, serviceName models.ServiceNa
 	return
 }
 
-func getSbiUri(scheme models.UriScheme, ipv4Address string, port int32) (uri string) {
-	if port != 0 {
-		uri = fmt.Sprintf("%s://%s:%d", scheme, ipv4Address, port)
-	} else {
-		switch scheme {
-		case models.UriScheme_HTTP:
-			uri = fmt.Sprintf("%s://%s:80", scheme, ipv4Address)
-		case models.UriScheme_HTTPS:
-			uri = fmt.Sprintf("%s://%s:443", scheme, ipv4Address)
-		}
-	}
-	return
+func getSbiUri(ipv4Address string, port int32) (uri string) {
+	return fmt.Sprintf("%s://%s:%d", models.UriScheme_HTTP, ipv4Address, port)
 }

@@ -4,12 +4,10 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
 	"regexp"
-	"strconv"
 	"sync"
 	"time"
 
@@ -23,7 +21,6 @@ import (
 	"github.com/omec-project/util/ueauth"
 	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/amf/logger"
-	"github.com/yeastengine/ella/internal/amf/protos/sdcoreAmfServer"
 )
 
 type OnGoingProcedure string
@@ -207,129 +204,6 @@ type AmfUe struct {
 	ProducerLog *logrus.Entry `json:"-"`
 }
 
-func (ue *AmfUe) MarshalJSON() ([]byte, error) {
-	type Alias AmfUe
-	stateVal := make(map[models.AccessType]string)
-	smCtxListVal := make(map[string]SmContext)
-	var ranUeNgapIDVal, amfUeNgapIDVal int64
-	var gnbId string
-	if ue.RanUe != nil && ue.RanUe[models.AccessType__3_GPP_ACCESS] != nil {
-		gnbId = ue.RanUe[models.AccessType__3_GPP_ACCESS].Ran.GnbId
-		if ue.RanUe[models.AccessType__3_GPP_ACCESS] != nil {
-			ranUeNgapIDVal = ue.RanUe[models.AccessType__3_GPP_ACCESS].RanUeNgapId
-			amfUeNgapIDVal = ue.RanUe[models.AccessType__3_GPP_ACCESS].AmfUeNgapId
-		}
-	}
-
-	for access, state := range ue.State {
-		stateVal[access] = string(state.Current())
-	}
-	n1n2MsgVal := N1N2Message{}
-	if ue.N1N2Message != nil {
-		n1n2MsgVal = *ue.N1N2Message
-		n1n2MsgVal.Request = ue.N1N2Message.Request
-		n1n2MsgVal.Request.JsonData = &models.N1N2MessageTransferReqData{}
-		if ue.N1N2Message.Request.JsonData != nil {
-			n1n2MsgVal.Request.JsonData = ue.N1N2Message.Request.JsonData
-			n1n2MsgVal.Request.JsonData.N1MessageContainer = &models.N1MessageContainer{}
-			n1n2MsgVal.Request.JsonData.N2InfoContainer = &models.N2InfoContainer{}
-			if ue.N1N2Message.Request.JsonData.N1MessageContainer != nil {
-				*n1n2MsgVal.Request.JsonData.N1MessageContainer = *ue.N1N2Message.Request.JsonData.N1MessageContainer
-			}
-			if ue.N1N2Message.Request.JsonData.N2InfoContainer != nil {
-				*n1n2MsgVal.Request.JsonData.N2InfoContainer = *ue.N1N2Message.Request.JsonData.N2InfoContainer
-			}
-		}
-	}
-
-	ue.SmContextList.Range(func(key, val interface{}) bool {
-		smContext := val.(*SmContext)
-		pduSessId := smContext.PduSessionID()
-		newSmCtx := NewSmContext(pduSessId)
-		newSmCtx.SetPduSessionID(smContext.PduSessionID())
-		newSmCtx.SetSmContextRef(smContext.SmContextRef())
-		newSmCtx.SetSmfUri(smContext.SmfUri())
-		newSmCtx.SetSmfID(smContext.SmfID())
-		newSmCtx.SetSnssai(smContext.Snssai())
-		newSmCtx.SetDnn(smContext.Dnn())
-		newSmCtx.SetAccessType(smContext.AccessType())
-		newSmCtx.SetHSmfID(smContext.HSmfID())
-		newSmCtx.SetVSmfID(smContext.VSmfID())
-		newSmCtx.SetNsInstance(smContext.NsInstance())
-
-		pduSessIdStr := strconv.FormatInt(int64(pduSessId), 10)
-		smCtxListVal[pduSessIdStr] = *newSmCtx
-		return true
-	})
-
-	customAmfUe := CustomFieldsAmfUe{
-		State:       stateVal,
-		SmCtxList:   smCtxListVal,
-		ULCount:     ue.ULCount.Get(),
-		DLCount:     ue.DLCount.Get(),
-		RanUeNgapId: ranUeNgapIDVal,
-		AmfUeNgapId: amfUeNgapIDVal,
-		N1N2Message: n1n2MsgVal,
-		RanId:       gnbId,
-	}
-
-	return json.Marshal(&struct {
-		CustomAmfUe CustomFieldsAmfUe `json:"customFieldsAmfUe"`
-		*Alias
-	}{
-		CustomAmfUe: customAmfUe,
-		Alias:       (*Alias)(ue),
-	})
-}
-
-func (ue *AmfUe) UnmarshalJSON(data []byte) error {
-	type Alias AmfUe
-	auxCustom := &struct {
-		CustomAmfUe CustomFieldsAmfUe `json:"customFieldsAmfUe"`
-		*Alias
-	}{
-		Alias: (*Alias)(ue),
-	}
-	if err := json.Unmarshal(data, &auxCustom); err != nil {
-		logger.ContextLog.Errorln("AMFUe Unmarshal failed : ", err)
-		return err
-	}
-
-	aux := auxCustom.CustomAmfUe
-	ran, ok := AMF_Self().AmfRanFindByGnbId(aux.RanId)
-	if !ok {
-		logger.ContextLog.Warnln("Ran Connection is not Exist with GnbID: ", aux.RanId)
-	}
-	for index, states := range aux.State {
-		ue.State[index] = fsm.NewState(fsm.StateType(states))
-		if ue.RanUe[index] == nil {
-			ue.RanUe[index] = &RanUe{}
-		}
-		ue.RanUe[index].RanUeNgapId = aux.RanUeNgapId
-		ue.RanUe[index].AmfUeNgapId = aux.AmfUeNgapId
-		ue.RanUe[index].Log = logger.NgapLog.WithField(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ue.RanUe[index].AmfUeNgapId))
-		if ran != nil {
-			// ran.RanUeList = append(ran.RanUeList, ue.RanUe[index])
-			ue.RanUe[index].Ran = ran
-		}
-	}
-	for key, val := range aux.SmCtxList {
-		keyVal, err := strconv.ParseInt(key, 10, 32)
-		if err != nil {
-			logger.ContextLog.Errorf("Error parsing int from %s: %v", key, err)
-		}
-		ue.StoreSmContext(int32(keyVal), &val)
-	}
-	sqn := uint8(aux.ULCount & 0x000000ff)
-	overflow := uint16((aux.ULCount & 0x00ffff00) >> 8)
-	ue.ULCount.Set(overflow, sqn)
-	sqn = uint8(aux.DLCount & 0x000000ff)
-	overflow = uint16((aux.DLCount & 0x00ffff00) >> 8)
-	ue.DLCount.Set(overflow, sqn)
-	ue.N1N2Message = &aux.N1N2Message
-	return nil
-}
-
 type InterfaceType uint8
 
 const (
@@ -357,9 +231,8 @@ type NasMsg struct {
 }
 
 type NgapMsg struct {
-	SctplbMsg *sdcoreAmfServer.SctplbMessage
-	NgapMsg   *ngapType.NGAPPDU
-	Ran       *AmfRan
+	NgapMsg *ngapType.NGAPPDU
+	Ran     *AmfRan
 }
 
 type SbiResponseMsg struct {

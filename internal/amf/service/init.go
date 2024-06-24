@@ -1,32 +1,21 @@
 package service
 
 import (
-	"bufio"
 	"fmt"
-	"net/http"
 	_ "net/http/pprof" // Using package only for invoking initialization.
 	"os"
-	"os/exec"
 	"os/signal"
 	"strconv"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/gin-contrib/cors"
-	aperLogger "github.com/omec-project/aper/logger"
-	nasLogger "github.com/omec-project/nas/logger"
-	ngapLogger "github.com/omec-project/ngap/logger"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/fsm"
-	fsmLogger "github.com/omec-project/util/fsm/logger"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/omec-project/util/path_util"
-	pathUtilLogger "github.com/omec-project/util/path_util/logger"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"github.com/urfave/cli"
 	gClient "github.com/yeastengine/config5g/proto/client"
 	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
@@ -64,17 +53,6 @@ type (
 
 var config Config
 
-var amfCLi = []cli.Flag{
-	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
-	},
-	cli.StringFlag{
-		Name:  "amfcfg",
-		Usage: "amf config file",
-	},
-}
-
 var initLog *logrus.Entry
 
 var (
@@ -87,202 +65,35 @@ func init() {
 	RocUpdateConfigChannel = make(chan bool)
 }
 
-func (*AMF) GetCliCmd() (flags []cli.Flag) {
-	return amfCLi
-}
-
 func (amf *AMF) Initialize(c *cli.Context) error {
 	config = Config{
 		amfcfg: c.String("amfcfg"),
 	}
-
-	if config.amfcfg != "" {
-		if err := factory.InitConfigFactory(config.amfcfg); err != nil {
-			return err
-		}
-	} else {
-		DefaultAmfConfigPath := path_util.Free5gcPath("free5gc/config/amfcfg.yaml")
-		if err := factory.InitConfigFactory(DefaultAmfConfigPath); err != nil {
-			return err
-		}
-	}
-
-	amf.setLogLevel()
-
-	// Initiating a server for profiling
-	if factory.AmfConfig.Configuration.DebugProfilePort != 0 {
-		addr := fmt.Sprintf(":%d", factory.AmfConfig.Configuration.DebugProfilePort)
-		go func() {
-			if err := http.ListenAndServe(addr, nil); err != nil {
-				initLog.Errorln(err)
-			}
-		}()
-	}
-
-	if err := factory.CheckConfigVersion(); err != nil {
+	if err := factory.InitConfigFactory(config.amfcfg); err != nil {
 		return err
 	}
-
-	if _, err := os.Stat("/free5gc/config/amfcfg.conf"); err == nil {
-		viper.SetConfigName("amfcfg.conf")
-		viper.SetConfigType("yaml")
-		viper.AddConfigPath("/free5gc/config")
-		err = viper.ReadInConfig() // Find and read the config file
-		if err != nil {            // Handle errors reading the config file
-			return err
-		}
-	} else if os.IsNotExist(err) {
-		fmt.Println("amfcfg does not exists in /free5gc/config")
-	}
-
-	if os.Getenv("MANAGED_BY_CONFIG_POD") == "true" {
-		factory.AmfConfig.Configuration.ServedGumaiList = nil
-		factory.AmfConfig.Configuration.SupportTAIList = nil
-		factory.AmfConfig.Configuration.PlmnSupportList = nil
-		initLog.Infoln("Reading Amf related configuration from ROC")
-		client := gClient.ConnectToConfigServer(factory.AmfConfig.Configuration.WebuiUri, "amf")
-		configChannel := client.PublishOnConfigChange(true)
-		go amf.UpdateConfig(configChannel)
-	} else {
-		go func() {
-			logger.GrpcLog.Infoln("Reading Amf Configuration from Helm")
-			// sending true to the channel for sending NFRegistration to NRF
-			RocUpdateConfigChannel <- true
-		}()
-	}
+	amf.setLogLevel()
+	factory.AmfConfig.Configuration.ServedGumaiList = nil
+	factory.AmfConfig.Configuration.SupportTAIList = nil
+	factory.AmfConfig.Configuration.PlmnSupportList = nil
+	initLog.Infoln("Reading Amf related configuration from ROC")
+	client := gClient.ConnectToConfigServer(factory.AmfConfig.Configuration.WebuiUri, "amf")
+	configChannel := client.PublishOnConfigChange(true)
+	go amf.UpdateConfig(configChannel)
 
 	return nil
 }
 
-func (amf *AMF) WatchConfig() {
-	viper.WatchConfig()
-	viper.OnConfigChange(func(e fsnotify.Event) {
-		fmt.Println("Config file changed:", e.Name)
-		if err := factory.UpdateAmfConfig("/free5gc/config/amfcfg.conf"); err != nil {
-			fmt.Println("error in loading updated configuration")
-		} else {
-			self := context.AMF_Self()
-			util.InitAmfContext(self)
-			fmt.Println("successfully updated configuration")
-		}
-	})
-}
-
 func (amf *AMF) setLogLevel() {
-	if factory.AmfConfig.Logger == nil {
-		initLog.Warnln("AMF config without log level setting!!!")
-		return
+	if level, err := logrus.ParseLevel(factory.AmfConfig.Logger.AMF.DebugLevel); err != nil {
+		initLog.Warnf("AMF Log level [%s] is invalid, set to [info] level",
+			factory.AmfConfig.Logger.AMF.DebugLevel)
+		logger.SetLogLevel(logrus.InfoLevel)
+	} else {
+		initLog.Infof("AMF Log level is set to [%s] level", level)
+		logger.SetLogLevel(level)
 	}
-
-	if factory.AmfConfig.Logger.AMF != nil {
-		if factory.AmfConfig.Logger.AMF.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.AmfConfig.Logger.AMF.DebugLevel); err != nil {
-				initLog.Warnf("AMF Log level [%s] is invalid, set to [info] level",
-					factory.AmfConfig.Logger.AMF.DebugLevel)
-				logger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				initLog.Infof("AMF Log level is set to [%s] level", level)
-				logger.SetLogLevel(level)
-			}
-		} else {
-			initLog.Warnln("AMF Log level not set. Default set to [info] level")
-			logger.SetLogLevel(logrus.InfoLevel)
-		}
-		logger.SetReportCaller(factory.AmfConfig.Logger.AMF.ReportCaller)
-	}
-
-	if factory.AmfConfig.Logger.NAS != nil {
-		if factory.AmfConfig.Logger.NAS.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.AmfConfig.Logger.NAS.DebugLevel); err != nil {
-				nasLogger.NasLog.Warnf("NAS Log level [%s] is invalid, set to [info] level",
-					factory.AmfConfig.Logger.NAS.DebugLevel)
-				logger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				nasLogger.SetLogLevel(level)
-			}
-		} else {
-			nasLogger.NasLog.Warnln("NAS Log level not set. Default set to [info] level")
-			nasLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		nasLogger.SetReportCaller(factory.AmfConfig.Logger.NAS.ReportCaller)
-	}
-
-	if factory.AmfConfig.Logger.NGAP != nil {
-		if factory.AmfConfig.Logger.NGAP.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.AmfConfig.Logger.NGAP.DebugLevel); err != nil {
-				ngapLogger.NgapLog.Warnf("NGAP Log level [%s] is invalid, set to [info] level",
-					factory.AmfConfig.Logger.NGAP.DebugLevel)
-				ngapLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				ngapLogger.SetLogLevel(level)
-			}
-		} else {
-			ngapLogger.NgapLog.Warnln("NGAP Log level not set. Default set to [info] level")
-			ngapLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		ngapLogger.SetReportCaller(factory.AmfConfig.Logger.NGAP.ReportCaller)
-	}
-
-	if factory.AmfConfig.Logger.FSM != nil {
-		if factory.AmfConfig.Logger.FSM.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.AmfConfig.Logger.FSM.DebugLevel); err != nil {
-				fsmLogger.FsmLog.Warnf("FSM Log level [%s] is invalid, set to [info] level",
-					factory.AmfConfig.Logger.FSM.DebugLevel)
-				fsmLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				fsmLogger.SetLogLevel(level)
-			}
-		} else {
-			fsmLogger.FsmLog.Warnln("FSM Log level not set. Default set to [info] level")
-			fsmLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		fsmLogger.SetReportCaller(factory.AmfConfig.Logger.FSM.ReportCaller)
-	}
-
-	if factory.AmfConfig.Logger.Aper != nil {
-		if factory.AmfConfig.Logger.Aper.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.AmfConfig.Logger.Aper.DebugLevel); err != nil {
-				aperLogger.AperLog.Warnf("Aper Log level [%s] is invalid, set to [info] level",
-					factory.AmfConfig.Logger.Aper.DebugLevel)
-				aperLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				aperLogger.SetLogLevel(level)
-			}
-		} else {
-			aperLogger.AperLog.Warnln("Aper Log level not set. Default set to [info] level")
-			aperLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		aperLogger.SetReportCaller(factory.AmfConfig.Logger.Aper.ReportCaller)
-	}
-
-	if factory.AmfConfig.Logger.PathUtil != nil {
-		if factory.AmfConfig.Logger.PathUtil.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.AmfConfig.Logger.PathUtil.DebugLevel); err != nil {
-				pathUtilLogger.PathLog.Warnf("PathUtil Log level [%s] is invalid, set to [info] level",
-					factory.AmfConfig.Logger.PathUtil.DebugLevel)
-				pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				pathUtilLogger.SetLogLevel(level)
-			}
-		} else {
-			pathUtilLogger.PathLog.Warnln("PathUtil Log level not set. Default set to [info] level")
-			pathUtilLogger.SetLogLevel(logrus.InfoLevel)
-		}
-		pathUtilLogger.SetReportCaller(factory.AmfConfig.Logger.PathUtil.ReportCaller)
-	}
-}
-
-func (amf *AMF) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range amf.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
-	}
-	return args
+	logger.SetReportCaller(factory.AmfConfig.Logger.AMF.ReportCaller)
 }
 
 func (amf *AMF) Start() {
@@ -339,14 +150,6 @@ func (amf *AMF) Start() {
 		nrf_cache.InitNrfCaching(self.NrfCacheEvictionInterval*time.Second, consumer.SendNfDiscoveryToNrf)
 	}
 
-	if self.EnableSctpLb {
-		go StartGrpcServer(self.SctpGrpcPort)
-	}
-
-	if self.EnableDbStore {
-		go context.SetupAmfCollection()
-	}
-
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -366,62 +169,10 @@ func (amf *AMF) Start() {
 		initLog.Warnf("Initialize HTTP server: %+v", err)
 	}
 
-	serverScheme := factory.AmfConfig.Configuration.Sbi.Scheme
-	if serverScheme == "http" {
-		err = server.ListenAndServe()
-	} else if serverScheme == "https" {
-		err = server.ListenAndServeTLS(util.AmfPemPath, util.AmfKeyPath)
-	}
-
+	err = server.ListenAndServe()
 	if err != nil {
 		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
-}
-
-func (amf *AMF) Exec(c *cli.Context) error {
-	// AMF.Initialize(cfgPath, c)
-
-	initLog.Traceln("args:", c.String("amfcfg"))
-	args := amf.FilterCli(c)
-	initLog.Traceln("filter: ", args)
-	command := exec.Command("./amf", args...)
-
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-	go func() {
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		initLog.Fatalln(err)
-	}
-	go func() {
-		in := bufio.NewScanner(stderr)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		if err = command.Start(); err != nil {
-			initLog.Errorf("AMF Start error: %+v", err)
-		}
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	return err
 }
 
 // Used in AMF planned removal procedure

@@ -27,45 +27,25 @@ func InitAusfContext(context *AUSFContext) {
 	logger.InitLog.Infof("ausfconfig Info: Version[%s] Description[%s]\n", config.Info.Version, config.Info.Description)
 
 	configuration := config.Configuration
-	sbi := configuration.Sbi
 
 	context.NfId = uuid.New().String()
 	context.GroupID = configuration.GroupId
 	context.NrfUri = configuration.NrfUri
-	context.UriScheme = models.UriScheme(configuration.Sbi.Scheme) // default uri scheme
-	context.RegisterIPv4 = factory.AUSF_DEFAULT_IPV4               // default localhost
-	context.SBIPort = factory.AUSF_DEFAULT_PORT_INT                // default port
-	if sbi != nil {
-		if sbi.RegisterIPv4 != "" {
-			context.RegisterIPv4 = sbi.RegisterIPv4
-		}
-		if sbi.Port != 0 {
-			context.SBIPort = sbi.Port
-		}
+	context.RegisterIPv4 = configuration.Sbi.RegisterIPv4
+	context.SBIPort = configuration.Sbi.Port
 
-		if sbi.Scheme == "https" {
-			context.UriScheme = models.UriScheme_HTTPS
-		} else {
-			context.UriScheme = models.UriScheme_HTTP
-		}
-
-		context.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
-		if context.BindingIPv4 != "" {
-			logger.InitLog.Info("Parsing ServerIPv4 address from ENV Variable.")
-		} else {
-			context.BindingIPv4 = sbi.BindingIPv4
-			if context.BindingIPv4 == "" {
-				logger.InitLog.Warn("Error parsing ServerIPv4 address as string. Using the 0.0.0.0 address as default.")
-				context.BindingIPv4 = "0.0.0.0"
-			}
+	context.BindingIPv4 = os.Getenv(configuration.Sbi.BindingIPv4)
+	if context.BindingIPv4 != "" {
+		logger.InitLog.Info("Parsing ServerIPv4 address from ENV Variable.")
+	} else {
+		context.BindingIPv4 = configuration.Sbi.BindingIPv4
+		if context.BindingIPv4 == "" {
+			logger.InitLog.Warn("Error parsing ServerIPv4 address as string. Using the 0.0.0.0 address as default.")
+			context.BindingIPv4 = "0.0.0.0"
 		}
 	}
 
 	context.Url = string(context.UriScheme) + "://" + context.RegisterIPv4 + ":" + strconv.Itoa(context.SBIPort)
-	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
-	if roc != "true" {
-		context.PlmnList = append(context.PlmnList, configuration.PlmnSupportList...)
-	}
 
 	// context.NfService
 	context.NfService = make(map[models.ServiceName]models.NfService)

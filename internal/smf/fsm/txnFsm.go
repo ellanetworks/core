@@ -8,7 +8,6 @@ import (
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/smf/context"
 	smf_context "github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/factory"
 	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/msgtypes/svcmsgtypes"
 	"github.com/yeastengine/ella/internal/smf/producer"
@@ -112,16 +111,6 @@ func (SmfTxnFsm) TxnProcess(txn *transaction.Transaction) (transaction.TxnEvent,
 	}
 
 	var event SmEvent
-
-	if factory.SmfConfig.Configuration.EnableDbStore {
-		smContextPool := smf_context.GetSmContextPool()
-		val, ok := smContextPool.Load(smContext.Ref)
-		if ok {
-			fmt.Println("db - smContext in smContextPool ", val)
-		} else {
-			smf_context.StoreSmContextPool(smContext)
-		}
-	}
 
 	switch txn.MsgType {
 	case svcmsgtypes.CreateSmContext:
@@ -245,11 +234,6 @@ func (SmfTxnFsm) TxnAbort(txn *transaction.Transaction) (transaction.TxnEvent, e
 }
 
 func (SmfTxnFsm) TxnSave(txn *transaction.Transaction) (transaction.TxnEvent, error) {
-	if factory.SmfConfig.Configuration.EnableDbStore {
-		smf_context.StoreSmContextInDB(txn.Ctxt.(*smf_context.SMContext))
-		// clear sm context in memory for test
-		// smf_context.ClearSMContextInMem(txn.Ctxt.(*smf_context.SMContext).Ref)
-	}
 	return transaction.TxnEventEnd, nil
 }
 

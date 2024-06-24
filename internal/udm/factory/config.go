@@ -9,10 +9,6 @@ import (
 	"github.com/omec-project/util/logger"
 )
 
-const (
-	UDM_EXPECTED_CONFIG_VERSION = "1.0.0"
-)
-
 type Config struct {
 	Info          *Info          `yaml:"info"`
 	Configuration *Configuration `yaml:"configuration"`
@@ -23,12 +19,6 @@ type Info struct {
 	Version     string `yaml:"version,omitempty"`
 	Description string `yaml:"description,omitempty"`
 }
-
-const (
-	UDM_DEFAULT_IPV4     = "127.0.0.3"
-	UDM_DEFAULT_PORT     = "8000"
-	UDM_DEFAULT_PORT_INT = 8000
-)
 
 type Configuration struct {
 	UdmName         string            `yaml:"udmName,omitempty"`
@@ -43,7 +33,6 @@ type Configuration struct {
 
 type Sbi struct {
 	Tls          *Tls   `yaml:"tls,omitempty"`
-	Scheme       string `yaml:"scheme"`
 	RegisterIPv4 string `yaml:"registerIPv4,omitempty"` // IP that is registered at NRF.
 	// IPv6Addr string `yaml:"ipv6Addr,omitempty"`
 	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
@@ -65,11 +54,4 @@ type Keys struct {
 
 type PlmnSupportItem struct {
 	PlmnId models.PlmnId `yaml:"plmnId"`
-}
-
-func (c *Config) GetVersion() string {
-	if c.Info != nil && c.Info.Version != "" {
-		return c.Info.Version
-	}
-	return ""
 }

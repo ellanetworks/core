@@ -32,8 +32,7 @@ func GetNrfInfo() *models.NrfInfo {
 }
 
 func getUdrInfo() map[string]models.UdrInfo {
-	var servedUdrInfo map[string]models.UdrInfo
-	servedUdrInfo = make(map[string]models.UdrInfo)
+	servedUdrInfo := make(map[string]models.UdrInfo)
 	var UDRProfile models.NfProfile
 
 	collName := "NfProfile"
@@ -57,8 +56,7 @@ func getUdrInfo() map[string]models.UdrInfo {
 }
 
 func getUdmInfo() map[string]models.UdmInfo {
-	var servedUdmInfo map[string]models.UdmInfo
-	servedUdmInfo = make(map[string]models.UdmInfo)
+	servedUdmInfo := make(map[string]models.UdmInfo)
 	var UDMProfile models.NfProfile
 
 	collName := "NfProfile"
@@ -82,8 +80,7 @@ func getUdmInfo() map[string]models.UdmInfo {
 }
 
 func getAusfInfo() map[string]models.AusfInfo {
-	var servedAusfInfo map[string]models.AusfInfo
-	servedAusfInfo = make(map[string]models.AusfInfo)
+	servedAusfInfo := make(map[string]models.AusfInfo)
 	var AUSFProfile models.NfProfile
 
 	collName := "NfProfile"
@@ -106,8 +103,7 @@ func getAusfInfo() map[string]models.AusfInfo {
 }
 
 func getAmfInfo() map[string]models.AmfInfo {
-	var servedAmfinfo map[string]models.AmfInfo
-	servedAmfinfo = make(map[string]models.AmfInfo)
+	servedAmfinfo := make(map[string]models.AmfInfo)
 	var AMFProfile models.NfProfile
 
 	collName := "NfProfile"
@@ -130,8 +126,7 @@ func getAmfInfo() map[string]models.AmfInfo {
 }
 
 func getSmfInfo() map[string]models.SmfInfo {
-	var servedSmfInfo map[string]models.SmfInfo
-	servedSmfInfo = make(map[string]models.SmfInfo)
+	servedSmfInfo := make(map[string]models.SmfInfo)
 	var SMFProfile models.NfProfile
 
 	collName := "NfProfile"
@@ -154,8 +149,7 @@ func getSmfInfo() map[string]models.SmfInfo {
 }
 
 func getUpfInfo() map[string]models.UpfInfo {
-	var servedUpfInfo map[string]models.UpfInfo
-	servedUpfInfo = make(map[string]models.UpfInfo)
+	servedUpfInfo := make(map[string]models.UpfInfo)
 	var UPFProfile models.NfProfile
 
 	collName := "NfProfile"
@@ -178,8 +172,7 @@ func getUpfInfo() map[string]models.UpfInfo {
 }
 
 func getPcfInfo() map[string]models.PcfInfo {
-	var servedPcfInfo map[string]models.PcfInfo
-	servedPcfInfo = make(map[string]models.PcfInfo)
+	servedPcfInfo := make(map[string]models.PcfInfo)
 	var PCFProfile models.NfProfile
 
 	collName := "NfProfile"
@@ -202,8 +195,7 @@ func getPcfInfo() map[string]models.PcfInfo {
 }
 
 func getBsfInfo() map[string]models.BsfInfo {
-	var servedBsfInfo map[string]models.BsfInfo
-	servedBsfInfo = make(map[string]models.BsfInfo)
+	servedBsfInfo := make(map[string]models.BsfInfo)
 	var BSFProfile models.NfProfile
 
 	collName := "NfProfile"
@@ -226,8 +218,7 @@ func getBsfInfo() map[string]models.BsfInfo {
 }
 
 func getChfInfo() map[string]models.ChfInfo {
-	var servedChfInfo map[string]models.ChfInfo
-	servedChfInfo = make(map[string]models.ChfInfo)
+	servedChfInfo := make(map[string]models.ChfInfo)
 	var CHFProfile models.NfProfile
 
 	collName := "NfProfile"
