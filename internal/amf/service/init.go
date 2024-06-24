@@ -140,7 +140,7 @@ func (amf *AMF) Initialize(c *cli.Context) error {
 		factory.AmfConfig.Configuration.SupportTAIList = nil
 		factory.AmfConfig.Configuration.PlmnSupportList = nil
 		initLog.Infoln("Reading Amf related configuration from ROC")
-		client := gClient.ConnectToConfigServer(factory.AmfConfig.Configuration.WebuiUri)
+		client := gClient.ConnectToConfigServer(factory.AmfConfig.Configuration.WebuiUri, "amf")
 		configChannel := client.PublishOnConfigChange(true)
 		go amf.UpdateConfig(configChannel)
 	} else {

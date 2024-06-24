@@ -107,7 +107,7 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
 	if roc == "true" {
 		initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-		gClient := client.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri)
+		gClient := client.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri, "pcf")
 		commChannel := gClient.PublishOnConfigChange(true)
 		go pcf.updateConfig(commChannel)
 	} else {

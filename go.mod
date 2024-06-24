@@ -30,7 +30,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/tim-ywliu/event v0.1.0
 	github.com/urfave/cli v1.22.15
-	github.com/yeastengine/config5g v0.0.0-20240623153504-fc7633181713
+	github.com/yeastengine/config5g v0.0.0-20240624120332-b75c495fdf84
 	go.mongodb.org/mongo-driver v1.11.7
 	google.golang.org/grpc v1.64.0
 	google.golang.org/protobuf v1.34.2

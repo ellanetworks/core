@@ -56,7 +56,7 @@ func InitConfigFactory(f string) error {
 		roc := os.Getenv("MANAGED_BY_CONFIG_POD")
 		if roc == "true" {
 			initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-			commChannel := client.ConfigWatcher(UdrConfig.Configuration.WebuiUri)
+			commChannel := client.ConfigWatcher(UdrConfig.Configuration.WebuiUri, "udr")
 			ConfigUpdateDbTrigger = make(chan *UpdateDb, 10)
 			go UdrConfig.updateConfig(commChannel, ConfigUpdateDbTrigger)
 		} else {

@@ -42,7 +42,7 @@ func InitConfigFactory(f string) error {
 		roc := os.Getenv("MANAGED_BY_CONFIG_POD")
 		if roc == "true" {
 			initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-			commChannel := client.ConfigWatcher(NrfConfig.Configuration.WebuiUri)
+			commChannel := client.ConfigWatcher(NrfConfig.Configuration.WebuiUri, "nrf")
 			ManagedByConfigPod = true
 			go NrfConfig.updateConfig(commChannel)
 		}

@@ -40,7 +40,7 @@ func InitConfigFactory(f string) error {
 		roc := os.Getenv("MANAGED_BY_CONFIG_POD")
 		if roc == "true" {
 			logger.CfgLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-			commChannel := client.ConfigWatcher(NssfConfig.Configuration.WebuiUri)
+			commChannel := client.ConfigWatcher(NssfConfig.Configuration.WebuiUri, "nssf")
 			go NssfConfig.updateConfig(commChannel)
 		} else {
 			go func() {
