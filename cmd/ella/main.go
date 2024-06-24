@@ -115,16 +115,7 @@ func startMongoDB() string {
 }
 
 func setEnvironmentVariables() error {
-
-	err := os.Setenv("GRPC_VERBOSITY", "debug")
-	if err != nil {
-		return err
-	}
-	err = os.Setenv("GRPC_GO_LOG_SEVERITY_LEVEL", "info")
-	if err != nil {
-		return err
-	}
-	err = os.Setenv("POD_IP", "0.0.0.0")
+	err := os.Setenv("POD_IP", "0.0.0.0")
 	if err != nil {
 		return err
 	}
