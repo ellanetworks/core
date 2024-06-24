@@ -119,10 +119,6 @@ func (amf *AMF) Initialize(c *cli.Context) error {
 		}()
 	}
 
-	if err := factory.CheckConfigVersion(); err != nil {
-		return err
-	}
-
 	if _, err := os.Stat("/free5gc/config/amfcfg.conf"); err == nil {
 		viper.SetConfigName("amfcfg.conf")
 		viper.SetConfigType("yaml")
@@ -135,21 +131,13 @@ func (amf *AMF) Initialize(c *cli.Context) error {
 		fmt.Println("amfcfg does not exists in /free5gc/config")
 	}
 
-	if os.Getenv("MANAGED_BY_CONFIG_POD") == "true" {
-		factory.AmfConfig.Configuration.ServedGumaiList = nil
-		factory.AmfConfig.Configuration.SupportTAIList = nil
-		factory.AmfConfig.Configuration.PlmnSupportList = nil
-		initLog.Infoln("Reading Amf related configuration from ROC")
-		client := gClient.ConnectToConfigServer(factory.AmfConfig.Configuration.WebuiUri, "amf")
-		configChannel := client.PublishOnConfigChange(true)
-		go amf.UpdateConfig(configChannel)
-	} else {
-		go func() {
-			logger.GrpcLog.Infoln("Reading Amf Configuration from Helm")
-			// sending true to the channel for sending NFRegistration to NRF
-			RocUpdateConfigChannel <- true
-		}()
-	}
+	factory.AmfConfig.Configuration.ServedGumaiList = nil
+	factory.AmfConfig.Configuration.SupportTAIList = nil
+	factory.AmfConfig.Configuration.PlmnSupportList = nil
+	initLog.Infoln("Reading Amf related configuration from ROC")
+	client := gClient.ConnectToConfigServer(factory.AmfConfig.Configuration.WebuiUri, "amf")
+	configChannel := client.PublishOnConfigChange(true)
+	go amf.UpdateConfig(configChannel)
 
 	return nil
 }

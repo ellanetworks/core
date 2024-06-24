@@ -62,10 +62,6 @@ func InitAusfContext(context *AUSFContext) {
 	}
 
 	context.Url = string(context.UriScheme) + "://" + context.RegisterIPv4 + ":" + strconv.Itoa(context.SBIPort)
-	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
-	if roc != "true" {
-		context.PlmnList = append(context.PlmnList, configuration.PlmnSupportList...)
-	}
 
 	// context.NfService
 	context.NfService = make(map[models.ServiceName]models.NfService)

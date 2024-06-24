@@ -87,10 +87,6 @@ func (nssf *NSSF) Initialize(c *cli.Context) error {
 
 	nssf.setLogLevel()
 
-	if err := factory.CheckConfigVersion(); err != nil {
-		return err
-	}
-
 	return nil
 }
 

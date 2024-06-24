@@ -115,11 +115,7 @@ func startMongoDB() string {
 }
 
 func setEnvironmentVariables() error {
-	err := os.Setenv("MANAGED_BY_CONFIG_POD", "true")
-	if err != nil {
-		return err
-	}
-	err = os.Setenv("CONFIGPOD_DEPLOYMENT", "true")
+	err := os.Setenv("CONFIGPOD_DEPLOYMENT", "true")
 	if err != nil {
 		return err
 	}

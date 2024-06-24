@@ -93,22 +93,8 @@ func (udm *UDM) Initialize(c *cli.Context) error {
 
 	udm.setLogLevel()
 
-	if err := factory.CheckConfigVersion(); err != nil {
-		return err
-	}
-
-	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
-	if roc == "true" {
-		initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-		commChannel := client.ConfigWatcher(factory.UdmConfig.Configuration.WebuiUri, "udm")
-		go udm.updateConfig(commChannel)
-	} else {
-		go func() {
-			initLog.Infoln("Use helm chart config ")
-			ConfigPodTrigger <- true
-		}()
-	}
-
+	commChannel := client.ConfigWatcher(factory.UdmConfig.Configuration.WebuiUri, "udm")
+	go udm.updateConfig(commChannel)
 	return nil
 }
 

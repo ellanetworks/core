@@ -121,10 +121,6 @@ func (smf *SMF) Initialize(c *cli.Context) error {
 
 	smf.setLogLevel()
 
-	if err := factory.CheckConfigVersion(); err != nil {
-		return err
-	}
-
 	// Initiating a server for profiling
 	if factory.SmfConfig.Configuration.DebugProfilePort != 0 {
 		addr := fmt.Sprintf(":%d", factory.SmfConfig.Configuration.DebugProfilePort)
@@ -275,33 +271,28 @@ func (smf *SMF) Start() {
 	context.InitSMFUERouting(&factory.UERoutingConfig)
 
 	// Wait for additional/updated config from config pod
-	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
-	if roc == "true" {
-		initLog.Infof("Configuration is managed by Config Pod")
-		initLog.Infof("waiting for initial configuration from config pod")
+	initLog.Infof("Configuration is managed by Config Pod")
+	initLog.Infof("waiting for initial configuration from config pod")
 
-		// Main thread should be blocked for config update from ROC
-		// Future config update from ROC can be handled via background go-routine.
-		if <-factory.ConfigPodTrigger {
-			initLog.Infof("minimum configuration from config pod available")
-			context.ProcessConfigUpdate()
-		}
+	// Main thread should be blocked for config update from ROC
+	// Future config update from ROC can be handled via background go-routine.
+	if <-factory.ConfigPodTrigger {
+		initLog.Infof("minimum configuration from config pod available")
+		context.ProcessConfigUpdate()
+	}
 
-		// Trigger background goroutine to handle further config updates
-		go func() {
-			initLog.Infof("Dynamic config update task initialised")
-			for {
-				if <-factory.ConfigPodTrigger {
-					if context.ProcessConfigUpdate() {
-						// Let NRF registration happen in background
-						go smf.SendNrfRegistration()
-					}
+	// Trigger background goroutine to handle further config updates
+	go func() {
+		initLog.Infof("Dynamic config update task initialised")
+		for {
+			if <-factory.ConfigPodTrigger {
+				if context.ProcessConfigUpdate() {
+					// Let NRF registration happen in background
+					go smf.SendNrfRegistration()
 				}
 			}
-		}()
-	} else {
-		initLog.Infof("Configuration is managed by Helm")
-	}
+		}
+	}()
 
 	// Send NRF Registration
 	smf.SendNrfRegistration()

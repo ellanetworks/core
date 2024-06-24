@@ -84,10 +84,6 @@ func (udr *UDR) Initialize(c *cli.Context) error {
 
 	udr.setLogLevel()
 
-	if err := factory.CheckConfigVersion(); err != nil {
-		return err
-	}
-
 	return nil
 }
 

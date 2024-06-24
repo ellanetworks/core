@@ -3,7 +3,6 @@ package server
 import (
 	context "context"
 	"net"
-	"os"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -41,15 +40,13 @@ var kasp = keepalive.ServerParameters{
 func StartServer(host string, confServ *ConfigServer, configMsgChan chan *configmodels.ConfigMessage) {
 	// add 4G endpoints in the client list. 4G endpoints are configured in the
 	// yaml file
-	if os.Getenv("MANAGED_BY_CONFIG_POD") == "true" && !factory.WebUIConfig.Configuration.Mode5G {
-		config := factory.GetConfig()
-		if config != nil && config.Configuration != nil && config.Configuration.LteEnd != nil {
-			for _, end := range config.Configuration.LteEnd {
-				grpcLog.Infoln("Adding Client endpoint ", end.NodeType, end.ConfigPushUrl)
-				c, _ := getClient(end.NodeType)
-				setClientConfigPushUrl(c, end.ConfigPushUrl)
-				setClientConfigCheckUrl(c, end.ConfigCheckUrl)
-			}
+	config := factory.GetConfig()
+	if config != nil && config.Configuration != nil && config.Configuration.LteEnd != nil {
+		for _, end := range config.Configuration.LteEnd {
+			grpcLog.Infoln("Adding Client endpoint ", end.NodeType, end.ConfigPushUrl)
+			c, _ := getClient(end.NodeType)
+			setClientConfigPushUrl(c, end.ConfigPushUrl)
+			setClientConfigCheckUrl(c, end.ConfigCheckUrl)
 		}
 	}
 	// we wish to start grpc server only if we received at least one config

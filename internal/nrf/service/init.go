@@ -78,10 +78,6 @@ func (nrf *NRF) Initialize(c *cli.Context) error {
 
 	nrf.setLogLevel()
 
-	if err := factory.CheckConfigVersion(); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -190,12 +186,6 @@ func (nrf *NRF) Start() {
 		os.Exit(0)
 	}()
 
-	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
-	if roc == "true" {
-		initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-	} else {
-		initLog.Infoln("Use helm chart config ")
-	}
 	bindAddr := factory.NrfConfig.GetSbiBindingAddr()
 	initLog.Infof("Binding addr: [%s]", bindAddr)
 	server, err := http2_util.NewServer(bindAddr, util.NrfLogPath, router)
