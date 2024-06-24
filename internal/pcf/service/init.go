@@ -19,7 +19,6 @@ import (
 	"github.com/omec-project/util/idgenerator"
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
 	"github.com/yeastengine/config5g/proto/client"
 	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
 	"github.com/yeastengine/ella/internal/pcf/ampolicy"
@@ -39,10 +38,6 @@ import (
 
 type PCF struct{}
 
-type Config struct {
-	pcfcfg string
-}
-
 var (
 	ConfigPodTrigger    chan bool
 	KeepAliveTimer      *time.Timer
@@ -53,21 +48,14 @@ func init() {
 	ConfigPodTrigger = make(chan bool)
 }
 
-var config Config
-
 var initLog *logrus.Entry
 
 func init() {
 	initLog = logger.InitLog
 }
 
-func (pcf *PCF) Initialize(c *cli.Context) error {
-	config = Config{
-		pcfcfg: c.String("pcfcfg"),
-	}
-	if err := factory.InitConfigFactory(config.pcfcfg); err != nil {
-		return err
-	}
+func (pcf *PCF) Initialize(c factory.Config) error {
+	factory.InitConfigFactory(c)
 	pcf.setLogLevel()
 	gClient := client.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri, "pcf")
 	commChannel := gClient.PublishOnConfigChange(true)
