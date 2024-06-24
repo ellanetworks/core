@@ -1,0 +1,15 @@
+name: ella
+base: ubuntu@24.04
+build-base: ubuntu@24.04
+version: '0.0.1'
+summary: Ella is a secure, reliable, and easy to operate mobile network.
+description: Ella is a secure, reliable, and easy to operate mobile network.
+platforms:
+  amd64:
+
+parts:
+  ella:
+    plugin: go
+    source: .
+    build-snaps:
+      - go/1.22/stable

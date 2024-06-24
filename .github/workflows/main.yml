@@ -9,6 +9,7 @@ on:
       - main
   schedule:
     - cron: '0 8 * * 2'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -88,6 +89,23 @@ jobs:
           name: snap
           path: ${{ steps.build.outputs.snap }}
   
+  build-rock:
+    runs-on: ubuntu-22.04
+    needs:
+      - build
+      - lint
+      - go-vet
+      - unit-tests
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - uses: canonical/craft-actions/rockcraft-pack@main
+        id: rockcraft
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rock
+          path: ${{ steps.rockcraft.outputs.rock }}
+  
   publish-snap:
     name: Snap publish
     runs-on: ubuntu-22.04
@@ -117,3 +135,38 @@ jobs:
         with:
           snap: ${{ steps.find-snap.outputs.snap_file }}
           release: edge
+
+  publish-rock:
+    needs: build-rock
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Install rockcraft
+        run: |
+          sudo snap install rockcraft --classic --channel=edge
+      
+      - uses: actions/download-artifact@v4
+        with:
+          name: rock
+
+      - name: Import and push to github package
+        run: |
+          image_name="$(yq '.name' rockcraft.yaml)"
+          version="$(yq '.version' rockcraft.yaml)"
+          rock_file=$(ls *.rock | tail -n 1)
+          sudo rockcraft.skopeo \
+            --insecure-policy \
+            copy \
+            oci-archive:"${rock_file}" \
+            docker-daemon:"ghcr.io/gruyaume/${image_name}:${version}"
+          docker push ghcr.io/gruyaume/${image_name}:${version}
