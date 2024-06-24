@@ -11,6 +11,7 @@ import (
 	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/nrf"
+	"github.com/yeastengine/ella/internal/nssf"
 	"github.com/yeastengine/ella/internal/pcf"
 	"github.com/yeastengine/ella/internal/smf"
 	"github.com/yeastengine/ella/internal/udm"
@@ -83,6 +84,10 @@ func startNetwork() error {
 		return err
 	}
 	err = udm.Start(nrfUrl, webuiUrl)
+	if err != nil {
+		return err
+	}
+	err = nssf.Start(nrfUrl, webuiUrl)
 	if err != nil {
 		return err
 	}
