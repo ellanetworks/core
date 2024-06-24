@@ -18,7 +18,6 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/omec-project/aper v1.1.2
-	github.com/omec-project/metricfunc v1.4.1
 	github.com/omec-project/nas v1.3.0
 	github.com/omec-project/ngap v1.2.2
 	github.com/omec-project/openapi v1.2.0

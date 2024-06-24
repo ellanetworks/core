@@ -32,10 +32,6 @@ func getContext(mongoDBURL string, nrfURL string, webuiURL string) (*cli.Context
 	appLog.Infoln(app.Name)
 	c := cli.NewContext(app, flagSet, nil)
 	udrConfig := fmt.Sprintf(`
-info:
-  version: 1.0.0
-  description: UDR initial local configuration (https://github.com/free5gc/free5gc/blob/main/config/udrcfg.yaml)
-
 configuration:
   sbi:
     scheme: http

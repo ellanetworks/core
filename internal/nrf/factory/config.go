@@ -44,7 +44,6 @@ type Configuration struct {
 	ServiceNameList       []string          `yaml:"serviceNameList,omitempty"`
 	PlmnSupportList       []PlmnSupportItem `yaml:"plmnSupportList,omitempty"`
 	NfKeepAliveTime       int32             `yaml:"nfKeepAliveTime,omitempty"`
-	MongoDBStreamEnable   bool              `yaml:"mongoDBStreamEnable"`
 	NfProfileExpiryEnable bool              `yaml:"nfProfileExpiryEnable"`
 }
 

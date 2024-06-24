@@ -34,7 +34,6 @@ func getContext(mongoDBURL string, webuiUrl string) (*cli.Context, error) {
 configuration:
   MongoDBName: %s
   MongoDBUrl: %s
-  mongoDBStreamEnable: true
   mongodb:
     name: %s
     url: %s
@@ -49,9 +48,6 @@ configuration:
   serviceNameList:
   - nnrf-nfm
   - nnrf-disc
-info:
-  description: NRF initial local configuration
-  version: 1.0.0
 logger:
   NRF:
     ReportCaller: false

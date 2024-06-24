@@ -34,14 +34,9 @@ func getContext(mongoDBURL string, nrfURL string, webuiURL string) (*cli.Context
 	appLog.Infoln(app.Name)
 	c := cli.NewContext(app, flagSet, nil)
 	smfConfig := fmt.Sprintf(`
-info:
-  version: 1.0.0
-  description: SMF initial local configuration
-
 configuration:
   smfDBName: %s
   webuiUri: %s
-  enableUPFAdapter: false
   debugProfilePort: 5001
   mongodb:
     url: %s

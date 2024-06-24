@@ -166,7 +166,7 @@ func (nrf *NRF) FilterCli(c *cli.Context) (args []string) {
 func (nrf *NRF) Start() {
 	initLog.Infoln("Server started")
 	dbadapter.ConnectToDBClient(factory.NrfConfig.Configuration.MongoDBName, factory.NrfConfig.Configuration.MongoDBUrl,
-		factory.NrfConfig.Configuration.MongoDBStreamEnable, factory.NrfConfig.Configuration.NfProfileExpiryEnable)
+		false, factory.NrfConfig.Configuration.NfProfileExpiryEnable)
 
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 

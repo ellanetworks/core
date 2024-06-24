@@ -42,9 +42,6 @@ configuration:
     scheme: http
   serviceNameList:
     - nausf-auth
-info:
-  description: AUSF initial local configuration
-  version: 1.0.0
 logger:
   AUSF:
     ReportCaller: false
