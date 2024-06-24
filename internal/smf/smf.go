@@ -1,127 +1,69 @@
 package smf
 
 import (
-	"flag"
 	"fmt"
-	"os"
 
-	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
-	"github.com/yeastengine/ella/internal/smf/logger"
+	"github.com/omec-project/util/logger"
+	"github.com/yeastengine/ella/internal/smf/factory"
 	"github.com/yeastengine/ella/internal/smf/service"
 )
 
 var SMF = &service.SMF{}
 
-var appLog *logrus.Entry
-
 const (
 	dBName   = "smf"
-	SBI_PORT = "29502"
+	SBI_PORT = 29502
 )
 
-func init() {
-	appLog = logger.AppLog
-}
-
-func getContext(mongoDBURL string, nrfURL string, webuiURL string) (*cli.Context, error) {
-	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
-	flagSet.String("smfcfg", "", "SMF configuration")
-	flagSet.String("uerouting", "", "UE routing information")
-	app := cli.NewApp()
-	app.Name = "smf"
-	appLog.Infoln(app.Name)
-	c := cli.NewContext(app, flagSet, nil)
-	smfConfig := fmt.Sprintf(`
-configuration:
-  smfDBName: %s
-  webuiUri: %s
-  mongodb:
-    url: %s
-  smfName: SMF
-  sbi:
-    registerIPv4: 0.0.0.0
-    bindingIPv4: 0.0.0.0
-    port: %s
-  serviceNameList:
-    - nsmf-pdusession
-    - nsmf-event-exposure
-    - nsmf-oam
-  pfcp:
-    addr: 0.0.0.0
-  nrfUri: %s
-info:
-  version: 1.0.0
-  description: SMF initial local configuration
-logger:
-  SMF:
-    debugLevel: debug
-    ReportCaller: false
-`, dBName, webuiURL, mongoDBURL, SBI_PORT, nrfURL)
-	tmpFile, err := os.CreateTemp("", "smfcfg-*.yaml")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file: %w", err)
-	}
-
-	_, err = tmpFile.Write([]byte(smfConfig))
-	if err != nil {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
-		return nil, fmt.Errorf("failed to write to temp file: %w", err)
-	}
-
-	if err = tmpFile.Close(); err != nil {
-		os.Remove(tmpFile.Name())
-		return nil, fmt.Errorf("failed to close temp file: %w", err)
-	}
-
-	err = c.Set("smfcfg", tmpFile.Name())
-	if err != nil {
-		os.Remove(tmpFile.Name())
-		return nil, err
-	}
-
-	ueroutingcfg := fmt.Sprintf(`
-info:
-  description: Routing information for UE
-  version: 1.0.0
-`)
-	tmpFile, err = os.CreateTemp("", "uerouting-*.yaml")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file: %w", err)
-	}
-
-	_, err = tmpFile.Write([]byte(ueroutingcfg))
-	if err != nil {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
-		return nil, fmt.Errorf("failed to write to temp file: %w", err)
-	}
-
-	if err = tmpFile.Close(); err != nil {
-		os.Remove(tmpFile.Name())
-		return nil, fmt.Errorf("failed to close temp file: %w", err)
-	}
-
-	err = c.Set("uerouting", tmpFile.Name())
-	if err != nil {
-		os.Remove(tmpFile.Name())
-		return nil, err
-	}
-
-	return c, nil
-}
-
 func Start(mongoDBURL string, nrfURL string, webuiURL string) error {
-	c, err := getContext(mongoDBURL, nrfURL, webuiURL)
-	if err != nil {
-		logger.CfgLog.Errorf("%+v", err)
-		return fmt.Errorf("failed to get context")
+	configuration := factory.Configuration{
+		Mongodb: &factory.Mongodb{
+			Name: dBName,
+			Url:  mongoDBURL,
+		},
+		PFCP: &factory.PFCP{
+			Addr: "0.0.0.0",
+		},
+		Sbi: &factory.Sbi{
+			RegisterIPv4: "0.0.0.0",
+			BindingIPv4:  "0.0.0.0",
+			Port:         SBI_PORT,
+		},
+		NrfUri:    nrfURL,
+		WebuiUri:  webuiURL,
+		SmfName:   "SMF",
+		SmfDbName: dBName,
+		ServiceNameList: []string{
+			"nsmf-pdusession",
+			"nsmf-event-exposure",
+			"nsmf-oam",
+		},
 	}
-	err = SMF.Initialize(c)
+
+	config := factory.Config{
+		Configuration: &configuration,
+		Info: &factory.Info{
+			Description: "SMF initial local configuration",
+			Version:     "1.0.0",
+		},
+		Logger: &logger.Logger{
+			SMF: &logger.LogSetting{
+				DebugLevel:   "debug",
+				ReportCaller: false,
+			},
+		},
+	}
+
+	ueRoutingConfig := factory.RoutingConfig{
+		Info: &factory.Info{
+			Description: "Routing information for UE",
+			Version:     "1.0.0",
+		},
+	}
+
+	err := SMF.Initialize(config, ueRoutingConfig)
 	if err != nil {
-		logger.CfgLog.Errorf("%+v", err)
-		return fmt.Errorf("failed to initialize")
+		return fmt.Errorf("failed to initialize SMF")
 	}
 	go SMF.Start()
 	return nil

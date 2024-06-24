@@ -2,8 +2,6 @@ package factory
 
 var AusfConfig Config
 
-func InitConfigFactory(c Config) error {
+func InitConfigFactory(c Config) {
 	AusfConfig = c
-
-	return nil
 }

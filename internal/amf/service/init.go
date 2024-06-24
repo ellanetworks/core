@@ -58,11 +58,9 @@ func init() {
 func (amf *AMF) Initialize(c factory.Config) error {
 	factory.InitConfigFactory(c)
 	amf.setLogLevel()
-	initLog.Infoln("Reading Amf related configuration from ROC")
 	client := gClient.ConnectToConfigServer(factory.AmfConfig.Configuration.WebuiUri, "amf")
 	configChannel := client.PublishOnConfigChange(true)
 	go amf.UpdateConfig(configChannel)
-
 	return nil
 }
 

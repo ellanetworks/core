@@ -44,9 +44,7 @@ func init() {
 }
 
 func (ausf *AUSF) Initialize(c factory.Config) error {
-	if err := factory.InitConfigFactory(c); err != nil {
-		return err
-	}
+	factory.InitConfigFactory(c)
 	ausf.setLogLevel()
 	commChannel := client.ConfigWatcher(factory.AusfConfig.Configuration.WebuiUri, "ausf")
 	go ausf.updateConfig(commChannel)
