@@ -13,10 +13,6 @@ import (
 	"github.com/yeastengine/ella/internal/nssf/logger"
 )
 
-const (
-	NSSF_EXPECTED_CONFIG_VERSION = "1.0.0"
-)
-
 type Config struct {
 	Info          *Info               `yaml:"info"`
 	Configuration *Configuration      `yaml:"configuration"`
@@ -28,12 +24,6 @@ type Info struct {
 	Version     string `yaml:"version"`
 	Description string `yaml:"description,omitempty"`
 }
-
-const (
-	NSSF_DEFAULT_IPV4     = "127.0.0.31"
-	NSSF_DEFAULT_PORT     = "8000"
-	NSSF_DEFAULT_PORT_INT = 8000
-)
 
 type Configuration struct {
 	NssfName                 string                  `yaml:"nssfName,omitempty"`

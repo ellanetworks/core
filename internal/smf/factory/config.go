@@ -19,11 +19,6 @@ import (
 	"github.com/yeastengine/ella/internal/smf/logger"
 )
 
-const (
-	SMF_EXPECTED_CONFIG_VERSION        = "1.0.0"
-	UE_ROUTING_EXPECTED_CONFIG_VERSION = "1.0.0"
-)
-
 type Config struct {
 	Info          *Info               `yaml:"info"`
 	Configuration *Configuration      `yaml:"configuration"`

@@ -9,10 +9,6 @@ import (
 	"github.com/omec-project/util/logger"
 )
 
-const (
-	UDM_EXPECTED_CONFIG_VERSION = "1.0.0"
-)
-
 type Config struct {
 	Info          *Info          `yaml:"info"`
 	Configuration *Configuration `yaml:"configuration"`
@@ -23,12 +19,6 @@ type Info struct {
 	Version     string `yaml:"version,omitempty"`
 	Description string `yaml:"description,omitempty"`
 }
-
-const (
-	UDM_DEFAULT_IPV4     = "127.0.0.3"
-	UDM_DEFAULT_PORT     = "8000"
-	UDM_DEFAULT_PORT_INT = 8000
-)
 
 type Configuration struct {
 	UdmName         string            `yaml:"udmName,omitempty"`

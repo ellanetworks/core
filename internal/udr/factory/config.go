@@ -11,10 +11,6 @@ import (
 	"github.com/yeastengine/ella/internal/udr/logger"
 )
 
-const (
-	UDR_EXPECTED_CONFIG_VERSION = "1.0.0"
-)
-
 type Config struct {
 	Info          *Info               `yaml:"info"`
 	Configuration *Configuration      `yaml:"configuration"`
@@ -25,12 +21,6 @@ type Info struct {
 	Version     string `yaml:"version,omitempty"`
 	Description string `yaml:"description,omitempty"`
 }
-
-const (
-	UDR_DEFAULT_IPV4     = "127.0.0.4"
-	UDR_DEFAULT_PORT     = "8000"
-	UDR_DEFAULT_PORT_INT = 8000
-)
 
 type Configuration struct {
 	Sbi             *Sbi              `yaml:"sbi"`

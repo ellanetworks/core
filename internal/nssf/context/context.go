@@ -30,8 +30,6 @@ func init() {
 	nssfContext.Name = "NSSF"
 
 	nssfContext.UriScheme = models.UriScheme_HTTP
-	nssfContext.RegisterIPv4 = factory.NSSF_DEFAULT_IPV4
-	nssfContext.SBIPort = factory.NSSF_DEFAULT_PORT_INT
 
 	serviceName := []models.ServiceName{
 		models.ServiceName_NNSSF_NSSELECTION,

@@ -42,7 +42,6 @@ configuration:
     url: %s
   smfName: SMF
   sbi:
-    scheme: http
     registerIPv4: 0.0.0.0
     bindingIPv4: 0.0.0.0
     port: %s
