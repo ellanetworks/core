@@ -1,15 +1,12 @@
 package message
 
 import (
-	"os"
-
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/amf/producer/callback"
-	"github.com/yeastengine/ella/internal/amf/protos/sdcoreAmfServer"
 )
 
 func SendToRan(ran *context.AmfRan, packet []byte) {
@@ -29,34 +26,23 @@ func SendToRan(ran *context.AmfRan, packet []byte) {
 		ran.Log.Error("packet len is 0")
 		return
 	}
+	if ran.Conn == nil {
+		ran.Log.Error("Ran conn is nil")
+		return
+	}
 
-	if context.AMF_Self().EnableSctpLb {
-		msg := &sdcoreAmfServer.AmfMessage{VerboseMsg: "Message from AMF"}
-		msg.Msg = packet
-		msg.Msgtype = sdcoreAmfServer.MsgType_AMF_MSG
-		msg.AmfId = os.Getenv("HOSTNAME")
-		msg.GnbIpAddr = ran.GnbIp
-		msg.GnbId = ran.GnbId
-		ran.Amf2RanMsgChan <- msg
+	if ran.Conn.RemoteAddr() == nil {
+		ran.Log.Error("Ran addr is nil")
+		return
+	}
+
+	ran.Log.Debugf("Send NGAP message To Ran")
+
+	if n, err := ran.Conn.Write(packet); err != nil {
+		ran.Log.Errorf("Send error: %+v", err)
+		return
 	} else {
-		if ran.Conn == nil {
-			ran.Log.Error("Ran conn is nil")
-			return
-		}
-
-		if ran.Conn.RemoteAddr() == nil {
-			ran.Log.Error("Ran addr is nil")
-			return
-		}
-
-		ran.Log.Debugf("Send NGAP message To Ran")
-
-		if n, err := ran.Conn.Write(packet); err != nil {
-			ran.Log.Errorf("Send error: %+v", err)
-			return
-		} else {
-			ran.Log.Debugf("Write %d bytes", n)
-		}
+		ran.Log.Debugf("Write %d bytes", n)
 	}
 }
 

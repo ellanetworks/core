@@ -60,13 +60,7 @@ func (ran *AmfRan) Remove() {
 
 	ran.Log.Infof("Remove RAN Context[ID: %+v]", ran.RanID())
 	ran.RemoveAllUeInRan()
-	if AMF_Self().EnableSctpLb {
-		if ran.GnbId != "" {
-			AMF_Self().DeleteAmfRanId(ran.GnbId)
-		}
-	} else {
-		AMF_Self().DeleteAmfRan(ran.Conn)
-	}
+	AMF_Self().DeleteAmfRan(ran.Conn)
 }
 
 func (ran *AmfRan) NewRanUe(ranUeNgapID int64) (*RanUe, error) {

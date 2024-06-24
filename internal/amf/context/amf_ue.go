@@ -21,7 +21,6 @@ import (
 	"github.com/omec-project/util/ueauth"
 	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/amf/logger"
-	"github.com/yeastengine/ella/internal/amf/protos/sdcoreAmfServer"
 )
 
 type OnGoingProcedure string
@@ -232,9 +231,8 @@ type NasMsg struct {
 }
 
 type NgapMsg struct {
-	SctplbMsg *sdcoreAmfServer.SctplbMessage
-	NgapMsg   *ngapType.NGAPPDU
-	Ran       *AmfRan
+	NgapMsg *ngapType.NGAPPDU
+	Ran     *AmfRan
 }
 
 type SbiResponseMsg struct {

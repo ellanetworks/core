@@ -1,15 +1,12 @@
 package service
 
 import (
-	"fmt"
 	"log"
-	"net"
 	"os"
 
 	"github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/ngap"
 	"github.com/yeastengine/ella/internal/amf/protos/sdcoreAmfServer"
-	"google.golang.org/grpc"
 )
 
 type Server struct {
@@ -63,29 +60,8 @@ func (s *Server) HandleMessage(srv sdcoreAmfServer.NgapService_HandleMessageServ
 				ngap.HandleSCTPNotificationLb(req.GnbId)
 			} else if req.Msgtype == sdcoreAmfServer.MsgType_GNB_CONN {
 				log.Println("New GNB Connected ")
-			} else {
-				ngap.DispatchLb(req, Amf2RanMsgChan)
 			}
 		}
 	}
 	return nil
-}
-
-func StartGrpcServer(port int) {
-	endpt := fmt.Sprintf(":%d", port)
-	fmt.Println("Listen - ", endpt)
-	lis, err := net.Listen("tcp", endpt)
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
-
-	s := Server{}
-
-	grpcServer := grpc.NewServer()
-
-	sdcoreAmfServer.RegisterNgapServiceServer(grpcServer, &s)
-
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %s", err)
-	}
 }

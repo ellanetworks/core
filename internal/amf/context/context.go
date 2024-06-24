@@ -79,7 +79,6 @@ type AMFContext struct {
 	T3550Cfg                 factory.TimerValue
 	T3560Cfg                 factory.TimerValue
 	T3565Cfg                 factory.TimerValue
-	EnableSctpLb             bool
 	EnableNrfCaching         bool
 	NrfCacheEvictionInterval time.Duration
 }

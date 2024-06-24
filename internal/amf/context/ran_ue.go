@@ -71,9 +71,6 @@ type RanUe struct {
 
 	/* logger */
 	Log *logrus.Entry `json:"-"`
-
-	/* Sctplb Redirect Msg */
-	SctplbMsg []byte
 }
 
 func (ranUe *RanUe) Remove() error {

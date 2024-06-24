@@ -67,7 +67,6 @@ type Configuration struct {
 
 	// Maintain TaiList per slice
 	SliceTaiList             map[string][]models.Tai `yaml:"sliceTaiList,omitempty"`
-	EnableSctpLb             bool                    `yaml:"enableSctpLb"`
 	EnableNrfCaching         bool                    `yaml:"enableNrfCaching"`
 	NrfCacheEvictionInterval int                     `yaml:"nrfCacheEvictionInterval,omitempty"`
 	DebugProfilePort         int                     `yaml:"debugProfilePort,omitempty"`

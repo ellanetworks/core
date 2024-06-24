@@ -2,7 +2,6 @@ package ngap
 
 import (
 	"encoding/hex"
-	"os"
 	"strconv"
 
 	"github.com/omec-project/aper"
@@ -17,7 +16,6 @@ import (
 	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/amf/nas"
 	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
-	"github.com/yeastengine/ella/internal/amf/protos/sdcoreAmfServer"
 	"github.com/yeastengine/ella/internal/amf/util"
 )
 
@@ -1339,7 +1337,7 @@ func HandleLocationReportingFailureIndication(ran *context.AmfRan, message *ngap
 	}
 }
 
-func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU, sctplbMsg *sdcoreAmfServer.SctplbMessage) {
+func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	amfSelf := context.AMF_Self()
 
 	var rANUENGAPID *ngapType.RANUENGAPID
@@ -1370,22 +1368,20 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU, sctp
 	}
 
 	// 38413 10.4, logical error case2, checking InitialUE is recevived before NgSetup Message
-	if !amfSelf.EnableSctpLb {
-		if ran.RanId == nil {
-			procedureCode := ngapType.ProcedureCodeInitialUEMessage
-			triggeringMessage := ngapType.TriggeringMessagePresentInitiatingMessage
-			procedureCriticality := ngapType.CriticalityPresentIgnore
-			criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage, &procedureCriticality,
-				nil)
-			cause := ngapType.Cause{
-				Present: ngapType.CausePresentProtocol,
-				Protocol: &ngapType.CauseProtocol{
-					Value: ngapType.CauseProtocolPresentMessageNotCompatibleWithReceiverState,
-				},
-			}
-			ngap_message.SendErrorIndication(ran, nil, nil, &cause, &criticalityDiagnostics)
-			return
+	if ran.RanId == nil {
+		procedureCode := ngapType.ProcedureCodeInitialUEMessage
+		triggeringMessage := ngapType.TriggeringMessagePresentInitiatingMessage
+		procedureCriticality := ngapType.CriticalityPresentIgnore
+		criticalityDiagnostics := buildCriticalityDiagnostics(&procedureCode, &triggeringMessage, &procedureCriticality,
+			nil)
+		cause := ngapType.Cause{
+			Present: ngapType.CausePresentProtocol,
+			Protocol: &ngapType.CauseProtocol{
+				Value: ngapType.CauseProtocolPresentMessageNotCompatibleWithReceiverState,
+			},
 		}
+		ngap_message.SendErrorIndication(ran, nil, nil, &cause, &criticalityDiagnostics)
+		return
 	}
 
 	ran.Log.Info("Handle Initial UE Message")
@@ -1488,28 +1484,8 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU, sctp
 			} else {
 				ranUe.Log.Tracef("find AmfUe [GUTI: %s]", guti)
 				/* checking the guti-ue belongs to this amf instance */
-				id, err := amfSelf.Drsm.FindOwnerInt32ID(amfUe.Tmsi)
 				if err != nil {
 					ranUe.Log.Errorf("Error checking the guti-ue in this instance: %v", err)
-				}
-				if id != nil && id.PodName != os.Getenv("HOSTNAME") && amfSelf.EnableSctpLb {
-					rsp := &sdcoreAmfServer.AmfMessage{}
-					rsp.VerboseMsg = "Redirect Msg From AMF Pod !"
-					rsp.Msgtype = sdcoreAmfServer.MsgType_REDIRECT_MSG
-					rsp.AmfId = os.Getenv("HOSTNAME")
-					/* TODO for this release setting pod ip to simplify logic in sctplb */
-					rsp.RedirectId = id.PodIp
-					rsp.GnbId = ran.GnbId
-					rsp.Msg = sctplbMsg.Msg
-					if ranUe != nil && ranUe.AmfUe != nil {
-						ranUe.AmfUe.Remove()
-					} else if ranUe != nil {
-						if err := ranUe.Remove(); err != nil {
-							ranUe.Log.Errorf("Could not remove ranUe: %v", err)
-						}
-					}
-					ran.Amf2RanMsgChan <- rsp
-					return
 				}
 
 				if amfUe.CmConnect(ran.AnType) {
@@ -1561,9 +1537,6 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU, sctp
 		ran.Log.Errorf("libngap Encoder Error: %+v", err)
 	}
 	ranUe.InitialUEMessage = pdu
-	if amfSelf.EnableSctpLb {
-		ranUe.SctplbMsg = sctplbMsg.Msg
-	}
 	nas.HandleNAS(ranUe, ngapType.ProcedureCodeInitialUEMessage, nASPDU.Value)
 }
 

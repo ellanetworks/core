@@ -327,10 +327,6 @@ func (amf *AMF) Start() {
 		nrf_cache.InitNrfCaching(self.NrfCacheEvictionInterval*time.Second, consumer.SendNfDiscoveryToNrf)
 	}
 
-	if self.EnableSctpLb {
-		go StartGrpcServer(self.SctpGrpcPort)
-	}
-
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
 	go func() {
