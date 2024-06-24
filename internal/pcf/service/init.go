@@ -54,13 +54,12 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (pcf *PCF) Initialize(c factory.Config) error {
+func (pcf *PCF) Initialize(c factory.Config) {
 	factory.InitConfigFactory(c)
 	pcf.setLogLevel()
 	gClient := client.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri, "pcf")
 	commChannel := gClient.PublishOnConfigChange(true)
 	go pcf.updateConfig(commChannel)
-	return nil
 }
 
 func (pcf *PCF) setLogLevel() {

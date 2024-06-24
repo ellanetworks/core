@@ -1,8 +1,6 @@
 package nssf
 
 import (
-	"fmt"
-
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/nssf/factory"
@@ -59,10 +57,7 @@ func Start(nrfURL string, webuiURL string) error {
 		},
 		Configuration: &configuration,
 	}
-	err := NSSF.Initialize(config)
-	if err != nil {
-		return fmt.Errorf("failed to initialize")
-	}
+	NSSF.Initialize(config)
 	go NSSF.Start()
 	return nil
 }

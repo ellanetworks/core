@@ -1,7 +1,6 @@
 package amf
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/omec-project/util/logger"
@@ -100,11 +99,7 @@ func Start(mongoDBURL string, nrfURL string, webuiURL string) error {
 			Version: "v1.0.0",
 		},
 	}
-
-	err := AMF.Initialize(config)
-	if err != nil {
-		return fmt.Errorf("failed to initialize AMF")
-	}
+	AMF.Initialize(config)
 	go AMF.Start()
 	return nil
 }

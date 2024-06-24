@@ -1,8 +1,6 @@
 package pcf
 
 import (
-	"fmt"
-
 	"github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/pcf/factory"
 	"github.com/yeastengine/ella/internal/pcf/service"
@@ -59,11 +57,7 @@ func Start(nrfURL string, webuiURL string) error {
 		},
 		Configuration: &configuration,
 	}
-
-	err := PCF.Initialize(config)
-	if err != nil {
-		return fmt.Errorf("failed to initialize")
-	}
+	PCF.Initialize(config)
 	go PCF.Start()
 	return nil
 }

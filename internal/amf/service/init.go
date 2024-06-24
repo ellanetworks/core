@@ -55,13 +55,12 @@ func init() {
 	RocUpdateConfigChannel = make(chan bool)
 }
 
-func (amf *AMF) Initialize(c factory.Config) error {
+func (amf *AMF) Initialize(c factory.Config) {
 	factory.InitConfigFactory(c)
 	amf.setLogLevel()
 	client := gClient.ConnectToConfigServer(factory.AmfConfig.Configuration.WebuiUri, "amf")
 	configChannel := client.PublishOnConfigChange(true)
 	go amf.UpdateConfig(configChannel)
-	return nil
 }
 
 func (amf *AMF) setLogLevel() {

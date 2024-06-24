@@ -28,10 +28,9 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (nrf *NRF) Initialize(c factory.Config) error {
+func (nrf *NRF) Initialize(c factory.Config) {
 	factory.InitConfigFactory(c)
 	nrf.setLogLevel()
-	return nil
 }
 
 func (nrf *NRF) setLogLevel() {

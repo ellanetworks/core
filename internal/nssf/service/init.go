@@ -34,11 +34,10 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (nssf *NSSF) Initialize(c factory.Config) error {
+func (nssf *NSSF) Initialize(c factory.Config) {
 	factory.InitConfigFactory(c)
 	context.InitNssfContext()
 	nssf.setLogLevel()
-	return nil
 }
 
 func (nssf *NSSF) setLogLevel() {

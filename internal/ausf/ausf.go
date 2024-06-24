@@ -1,8 +1,6 @@
 package ausf
 
 import (
-	"fmt"
-
 	"github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/ausf/factory"
 	"github.com/yeastengine/ella/internal/ausf/service"
@@ -43,11 +41,7 @@ func Start(nrfUrl string, webuiUrl string) error {
 			},
 		},
 	}
-
-	err := AUSF.Initialize(config)
-	if err != nil {
-		return fmt.Errorf("failed to initialize")
-	}
+	AUSF.Initialize(config)
 	go AUSF.Start()
 	return nil
 }

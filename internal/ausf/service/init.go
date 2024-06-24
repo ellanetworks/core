@@ -43,12 +43,11 @@ func init() {
 	ConfigPodTrigger = make(chan bool)
 }
 
-func (ausf *AUSF) Initialize(c factory.Config) error {
+func (ausf *AUSF) Initialize(c factory.Config) {
 	factory.InitConfigFactory(c)
 	ausf.setLogLevel()
 	commChannel := client.ConfigWatcher(factory.AusfConfig.Configuration.WebuiUri, "ausf")
 	go ausf.updateConfig(commChannel)
-	return nil
 }
 
 func (ausf *AUSF) setLogLevel() {

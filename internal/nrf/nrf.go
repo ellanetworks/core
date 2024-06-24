@@ -1,8 +1,6 @@
 package nrf
 
 import (
-	"fmt"
-
 	"github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/nrf/factory"
 
@@ -46,10 +44,7 @@ func Start(mongoDBURL string, webuiUrl string) (string, error) {
 			},
 		},
 	}
-	err := NRF.Initialize(config)
-	if err != nil {
-		return "", fmt.Errorf("failed to initialize")
-	}
+	NRF.Initialize(config)
 	go NRF.Start()
 	return "http://127.0.0.1:29510", nil
 }
