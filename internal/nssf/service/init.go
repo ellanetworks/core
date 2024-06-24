@@ -12,7 +12,6 @@ import (
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
 	"github.com/yeastengine/ella/internal/nssf/consumer"
 	"github.com/yeastengine/ella/internal/nssf/context"
 	"github.com/yeastengine/ella/internal/nssf/factory"
@@ -23,12 +22,6 @@ import (
 )
 
 type NSSF struct{}
-
-type Config struct {
-	nssfcfg string
-}
-
-var config Config
 
 var initLog *logrus.Entry
 
@@ -41,13 +34,8 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (nssf *NSSF) Initialize(c *cli.Context) error {
-	config = Config{
-		nssfcfg: c.String("nssfcfg"),
-	}
-	if err := factory.InitConfigFactory(config.nssfcfg); err != nil {
-		return err
-	}
+func (nssf *NSSF) Initialize(c factory.Config) error {
+	factory.InitConfigFactory(c)
 	context.InitNssfContext()
 	nssf.setLogLevel()
 	return nil
