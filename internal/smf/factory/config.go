@@ -248,6 +248,7 @@ func (c *Configuration) parseRocConfig(rsp *protos.NetworkSliceResponse) error {
 	if pfcpPortStr != "" {
 		if val, err := strconv.ParseUint(pfcpPortStr, 10, 32); err != nil {
 			logger.CtxLog.Infoln("Parse pfcp port failed : ", pfcpPortStr)
+			return err
 		} else {
 			pfcpPortVal = int(val)
 		}
@@ -305,6 +306,7 @@ func (c *Configuration) parseRocConfig(rsp *protos.NetworkSliceResponse) error {
 		if portStr != "" {
 			if val, err := strconv.ParseUint(portStr, 10, 32); err != nil {
 				logger.CtxLog.Infoln("Parse Upf port failed : ", portStr)
+				return err
 			} else {
 				portVal = uint16(val)
 			}
@@ -541,7 +543,7 @@ func compareNetworkSlices(slice1, slice2 []SnssaiInfoItem) (match bool, add, mod
 			slice1, slice2 = slice2, slice1
 		}
 	}
-	return
+	return match, add, mod, del
 }
 
 func compareUPNetworkSlices(slice1, slice2 []models.SnssaiUpfInfoItem) (match bool, add, mod, del []models.SnssaiUpfInfoItem) {
@@ -579,7 +581,7 @@ func compareUPNetworkSlices(slice1, slice2 []models.SnssaiUpfInfoItem) (match bo
 			slice1, slice2 = slice2, slice1
 		}
 	}
-	return
+	return match, add, mod, del
 }
 
 func compareGenericSlices(t1, t2 interface{}, compare func(i, j interface{}) bool) (match bool, add, remove interface{}) {
@@ -590,7 +592,7 @@ func compareGenericSlices(t1, t2 interface{}, compare func(i, j interface{}) boo
 	slice2 := reflect.ValueOf(t2)
 
 	insert := reflect.MakeSlice(contentType, 0, 0)
-	delete := reflect.MakeSlice(contentType, 0, 0)
+	deleteSlice := reflect.MakeSlice(contentType, 0, 0)
 
 	match = true
 	// Loop two times, first to find slice1 strings not in slice2,
@@ -608,7 +610,7 @@ func compareGenericSlices(t1, t2 interface{}, compare func(i, j interface{}) boo
 			if !found {
 				match = false
 				if i == 0 {
-					delete = reflect.Append(delete, slice1.Index(s1))
+					deleteSlice = reflect.Append(deleteSlice, slice1.Index(s1))
 				} else {
 					insert = reflect.Append(insert, slice1.Index(s1))
 				}
@@ -620,7 +622,7 @@ func compareGenericSlices(t1, t2 interface{}, compare func(i, j interface{}) boo
 		}
 	}
 
-	return match, insert.Interface(), delete.Interface()
+	return match, insert.Interface(), deleteSlice.Interface()
 }
 
 func PrettyPrintUPNodes(u map[string]UPNode) (s string) {

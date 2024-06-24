@@ -114,7 +114,7 @@ func SendPFCPRules(smContext *smf_context.SMContext) {
 	}
 }
 
-func removeDataPath(smContext *smf_context.SMContext, datapath *smf_context.DataPath) {
+func removeDataPath(datapath *smf_context.DataPath) {
 	for curDPNode := datapath.FirstDPNode; curDPNode != nil; curDPNode = curDPNode.Next() {
 		if curDPNode.DownLinkTunnel != nil && curDPNode.DownLinkTunnel.PDR != nil {
 			for _, pdr := range curDPNode.DownLinkTunnel.PDR {
@@ -137,7 +137,7 @@ func UpdateDataPathToUPF(smContext *smf_context.SMContext, oldDataPath, updateDa
 		SendPFCPRule(smContext, updateDataPath)
 		return
 	} else {
-		removeDataPath(smContext, oldDataPath)
+		removeDataPath(oldDataPath)
 		SendPFCPRule(smContext, updateDataPath)
 	}
 }

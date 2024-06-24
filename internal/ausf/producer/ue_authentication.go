@@ -346,7 +346,7 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 	} else {
 		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		responseBody.AuthResult = models.AuthResult_FAILURE
-		logConfirmFailureAndInformUDM(ConfirmationDataResponseID, models.AuthType__5_G_AKA, servingNetworkName,
+		logConfirmFailureAndInformUDM(ConfirmationDataResponseID, models.AuthType__5_G_AKA,
 			"5G AKA confirmation failed", ausfCurrentContext.UdmUeauUrl)
 	}
 
@@ -399,7 +399,7 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 	eapContent, _ := eapLayer.(*layers.EAP)
 
 	if eapContent.Code != layers.EAPCodeResponse {
-		logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, servingNetworkName,
+		logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME,
 			"eap packet code error", ausfCurrentContext.UdmUeauUrl)
 		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		responseBody.AuthResult = models.AuthResult_ONGOING
@@ -417,7 +417,7 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 		if !decodeOK {
 			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 			responseBody.AuthResult = models.AuthResult_ONGOING
-			logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, servingNetworkName,
+			logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME,
 				"eap packet decode error", ausfCurrentContext.UdmUeauUrl)
 			failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 			responseBody.EapPayload = failEapAkaNoti
@@ -438,7 +438,7 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 		} else {
 			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 			responseBody.AuthResult = models.AuthResult_ONGOING
-			logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, servingNetworkName,
+			logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME,
 				"Wrong RES value, EAP-AKA' auth failed", ausfCurrentContext.UdmUeauUrl)
 			failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 			responseBody.EapPayload = failEapAkaNoti

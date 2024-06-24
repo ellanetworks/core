@@ -310,7 +310,7 @@ func sendAuthResultToUDM(id string, authType models.AuthType, success bool, serv
 	return confirmAuthErr
 }
 
-func logConfirmFailureAndInformUDM(id string, authType models.AuthType, servingNetworkName, errStr, udmUrl string) {
+func logConfirmFailureAndInformUDM(id string, authType models.AuthType, errStr, udmUrl string) {
 	if authType == models.AuthType__5_G_AKA {
 		logger.Auth5gAkaComfirmLog.Infoln(errStr)
 		if sendErr := sendAuthResultToUDM(id, authType, false, "", udmUrl); sendErr != nil {

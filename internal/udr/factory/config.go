@@ -1,7 +1,3 @@
-/*
- * UDR Configuration Factory
- */
-
 package factory
 
 import (
@@ -64,7 +60,7 @@ func init() {
 	ConfigPodTrigger = make(chan bool)
 }
 
-func (c *Config) addSmPolicyInfo(nwSlice *protos.NetworkSlice, dbUpdateChannel chan *UpdateDb) error {
+func (c *Config) addSmPolicyInfo(nwSlice *protos.NetworkSlice, dbUpdateChannel chan *UpdateDb) {
 	for _, devGrp := range nwSlice.DeviceGroup {
 		for _, imsi := range devGrp.Imsi {
 			smPolicyEntry := &SmPolicyUpdateEntry{
@@ -78,7 +74,6 @@ func (c *Config) addSmPolicyInfo(nwSlice *protos.NetworkSlice, dbUpdateChannel c
 			dbUpdateChannel <- dbUpdate
 		}
 	}
-	return nil
 }
 
 func (c *Config) updateConfig(commChannel chan *protos.NetworkSliceResponse, dbUpdateChannel chan *UpdateDb) bool {
@@ -110,10 +105,7 @@ func (c *Config) updateConfig(commChannel chan *protos.NetworkSliceResponse, dbU
 					logger.GrpcLog.Infoln("Plmn not present in the message ")
 				}
 			}
-			err := c.addSmPolicyInfo(ns, dbUpdateChannel)
-			if err != nil {
-				logger.GrpcLog.Errorf("Error in adding sm policy info to db %v", err)
-			}
+			c.addSmPolicyInfo(ns, dbUpdateChannel)
 		}
 		if !minConfig {
 			// first slice Created

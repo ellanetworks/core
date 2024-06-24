@@ -65,7 +65,7 @@ func GetDeviceGroupByName(c *gin.Context) {
 // DeviceGroupGroupNameDelete -
 func DeviceGroupGroupNameDelete(c *gin.Context) {
 	logger.ConfigLog.Debugf("DeviceGroupGroupNameDelete")
-	if ret := DeviceGroupDeleteHandler(c); ret == true {
+	if ret := DeviceGroupDeleteHandler(c); ret {
 		c.JSON(http.StatusOK, gin.H{})
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{})
@@ -75,7 +75,7 @@ func DeviceGroupGroupNameDelete(c *gin.Context) {
 // DeviceGroupGroupNamePut -
 func DeviceGroupGroupNamePut(c *gin.Context) {
 	logger.ConfigLog.Debugf("DeviceGroupGroupNamePut")
-	if ret := DeviceGroupPostHandler(c, configmodels.Put_op); ret == true {
+	if ret := DeviceGroupPostHandler(c, configmodels.Put_op); ret {
 		c.JSON(http.StatusOK, gin.H{})
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{})
@@ -91,7 +91,7 @@ func DeviceGroupGroupNamePatch(c *gin.Context) {
 // DeviceGroupGroupNamePost -
 func DeviceGroupGroupNamePost(c *gin.Context) {
 	logger.ConfigLog.Debugf("DeviceGroupGroupNamePost")
-	if ret := DeviceGroupPostHandler(c, configmodels.Post_op); ret == true {
+	if ret := DeviceGroupPostHandler(c, configmodels.Post_op); ret {
 		c.JSON(http.StatusOK, gin.H{})
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{})
@@ -138,7 +138,7 @@ func GetNetworkSliceByName(c *gin.Context) {
 // NetworkSliceSliceNameDelete -
 func NetworkSliceSliceNameDelete(c *gin.Context) {
 	logger.ConfigLog.Debugf("Received NetworkSliceSliceNameDelete ")
-	if ret := NetworkSliceDeleteHandler(c); ret == true {
+	if ret := NetworkSliceDeleteHandler(c); ret {
 		c.JSON(http.StatusOK, gin.H{})
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{})
@@ -148,7 +148,7 @@ func NetworkSliceSliceNameDelete(c *gin.Context) {
 // NetworkSliceSliceNamePost -
 func NetworkSliceSliceNamePost(c *gin.Context) {
 	logger.ConfigLog.Debugf("Received NetworkSliceSliceNamePost ")
-	if ret := NetworkSlicePostHandler(c, configmodels.Post_op); ret == true {
+	if ret := NetworkSlicePostHandler(c, configmodels.Post_op); ret {
 		c.JSON(http.StatusOK, gin.H{})
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{})
@@ -158,7 +158,7 @@ func NetworkSliceSliceNamePost(c *gin.Context) {
 // NetworkSliceSliceNamePut -
 func NetworkSliceSliceNamePut(c *gin.Context) {
 	logger.ConfigLog.Debugf("Received NetworkSliceSliceNamePut ")
-	if ret := NetworkSlicePostHandler(c, configmodels.Put_op); ret == true {
+	if ret := NetworkSlicePostHandler(c, configmodels.Put_op); ret {
 		c.JSON(http.StatusOK, gin.H{})
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{})

@@ -180,11 +180,10 @@ func HandleGetSupiRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	// step 2: retrieve request
 	supi := request.Params["supi"]
 	plmnID := request.Query.Get("plmn-id")
-	dataSetNames := request.Query["dataset-names"]
 	supportedFeatures := request.Query.Get("supported-features")
 
 	// step 3: handle the message
-	response, problemDetails := getSupiProcedure(supi, plmnID, dataSetNames, supportedFeatures)
+	response, problemDetails := getSupiProcedure(supi, plmnID, supportedFeatures)
 
 	// step 4: process the return value from step 3
 	if response != nil {
@@ -200,7 +199,7 @@ func HandleGetSupiRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
-func getSupiProcedure(supi string, plmnID string, dataSetNames []string, supportedFeatures string) (
+func getSupiProcedure(supi string, plmnID string, supportedFeatures string) (
 	response *models.SubscriptionDataSets, problemDetails *models.ProblemDetails,
 ) {
 	clientAPI, err := createUDMClientToUDR(supi)
@@ -520,10 +519,9 @@ func HandleGetSmDataRequest(request *httpwrapper.Request) *httpwrapper.Response 
 	plmnID := request.Query.Get("plmn-id")
 	Dnn := request.Query.Get("dnn")
 	Snssai := request.Query.Get("single-nssai")
-	supportedFeatures := request.Query.Get("supported-features")
 
 	// step 3: handle the message
-	response, problemDetails := getSmDataProcedure(supi, plmnID, Dnn, Snssai, supportedFeatures)
+	response, problemDetails := getSmDataProcedure(supi, plmnID, Dnn, Snssai)
 
 	// step 4: process the return value from step 3
 	if response != nil {
@@ -539,7 +537,7 @@ func HandleGetSmDataRequest(request *httpwrapper.Request) *httpwrapper.Response 
 	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
-func getSmDataProcedure(supi string, plmnID string, Dnn string, Snssai string, supportedFeatures string) (
+func getSmDataProcedure(supi string, plmnID string, Dnn string, Snssai string) (
 	response interface{}, problemDetails *models.ProblemDetails,
 ) {
 	logger.SdmLog.Infof("getSmDataProcedure: SUPI[%s] PLMNID[%s] DNN[%s] SNssai[%s]", supi, plmnID, Dnn, Snssai)
@@ -1034,12 +1032,11 @@ func HandleModifyRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SdmLog.Infof("Handle Modify")
 
 	// step 2: retrieve request
-	sdmSubsModification := request.Body.(models.SdmSubsModification)
 	supi := request.Params["supi"]
 	subscriptionID := request.Params["subscriptionId"]
 
 	// step 3: handle the message
-	response, problemDetails := modifyProcedure(&sdmSubsModification, supi, subscriptionID)
+	response, problemDetails := modifyProcedure(supi, subscriptionID)
 
 	// step 4: process the return value from step 3
 	if response != nil {
@@ -1055,7 +1052,7 @@ func HandleModifyRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
-func modifyProcedure(sdmSubsModification *models.SdmSubsModification, supi string, subscriptionID string) (
+func modifyProcedure(supi string, subscriptionID string) (
 	response *models.SdmSubscription, problemDetails *models.ProblemDetails,
 ) {
 	clientAPI, err := createUDMClientToUDR(supi)
@@ -1106,12 +1103,11 @@ func HandleModifyForSharedDataRequest(request *httpwrapper.Request) *httpwrapper
 	logger.SdmLog.Infof("Handle ModifyForSharedData")
 
 	// step 2: retrieve request
-	sdmSubsModification := request.Body.(models.SdmSubsModification)
 	supi := request.Params["supi"]
 	subscriptionID := request.Params["subscriptionId"]
 
 	// step 3: handle the message
-	response, problemDetails := modifyForSharedDataProcedure(&sdmSubsModification, supi, subscriptionID)
+	response, problemDetails := modifyForSharedDataProcedure(supi, subscriptionID)
 
 	// step 4: process the return value from step 3
 	if response != nil {
@@ -1127,9 +1123,7 @@ func HandleModifyForSharedDataRequest(request *httpwrapper.Request) *httpwrapper
 	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
-func modifyForSharedDataProcedure(sdmSubsModification *models.SdmSubsModification, supi string,
-	subscriptionID string,
-) (response *models.SdmSubscription, problemDetails *models.ProblemDetails) {
+func modifyForSharedDataProcedure(supi string, subscriptionID string) (response *models.SdmSubscription, problemDetails *models.ProblemDetails) {
 	clientAPI, err := createUDMClientToUDR(supi)
 	if err != nil {
 		return nil, util.ProblemDetailsSystemFailure(err.Error())

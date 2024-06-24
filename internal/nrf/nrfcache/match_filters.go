@@ -99,7 +99,7 @@ func MatchSmfProfile(profile *models.NfProfile, opts *Nnrf_NFDiscovery.SearchNFI
 			}
 		}
 
-		if dnnMatched == false {
+		if !dnnMatched {
 			return false, nil
 		}
 	}

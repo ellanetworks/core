@@ -188,19 +188,19 @@ linters:
     # - gocognit
     # - nestif
     - gomodguard
-    # - nakedret
+    - nakedret
     # - gci
     # - misspell
     - gofumpt
     - whitespace
     # - unconvert
-    # - predeclared
+    - predeclared
     # - noctx
     - dogsled
     # - bodyclose
     - asciicheck
     # - stylecheck
-    # - unparam
+    - unparam
     # - wsl
 
   #disable-all: false
