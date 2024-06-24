@@ -13,3 +13,11 @@ parts:
     source: .
     build-snaps:
       - go/1.22/stable
+
+    mongodb:
+    plugin: nil
+    stage-packages:
+      - mongodb-org
+    stage:
+      - usr/bin
+      - usr/lib
