@@ -2,9 +2,10 @@ package server
 
 import (
 	"context"
-	"github.com/rs/zerolog/log"
 	"net/http"
 	"time"
+
+	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
 type Server struct {
@@ -24,7 +25,7 @@ func New(addr string, handler http.Handler) *Server {
 }
 
 func (s *Server) Run() error {
-	log.Info().Msgf("running on %s", s.httpServer.Addr)
+	logger.AppLog.Infof("running on %s", s.httpServer.Addr)
 	return s.httpServer.ListenAndServe()
 }
 

@@ -6,7 +6,7 @@ import (
 	"unsafe"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
+	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/upf/ebpf"
 )
 
@@ -23,14 +23,14 @@ type FarMapElement struct {
 func (h *ApiHandler) getFarValue(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		log.Printf("Not an integer id: %s", err.Error())
+		logger.AppLog.Printf("Not an integer id: %s", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	var value ebpf.FarInfo
 	if err = h.BpfObjects.IpEntrypointObjects.FarMap.Lookup(uint32(id), unsafe.Pointer(&value)); err != nil {
-		log.Printf("Error reading map: %s", err.Error())
+		logger.AppLog.Printf("Error reading map: %s", err.Error())
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
@@ -49,11 +49,11 @@ func (h *ApiHandler) getFarValue(c *gin.Context) {
 func (h *ApiHandler) setFarValue(c *gin.Context) {
 	var farElement FarMapElement
 	if err := c.BindJSON(&farElement); err != nil {
-		log.Printf("Parsing request body error: %s", err.Error())
+		logger.AppLog.Printf("Parsing request body error: %s", err.Error())
 		return
 	}
 
-	var value = ebpf.FarInfo{
+	value := ebpf.FarInfo{
 		Action:                farElement.Action,
 		OuterHeaderCreation:   farElement.OuterHeaderCreation,
 		Teid:                  farElement.Teid,
@@ -63,7 +63,7 @@ func (h *ApiHandler) setFarValue(c *gin.Context) {
 	}
 
 	if err := h.BpfObjects.IpEntrypointObjects.FarMap.Put(uint32(farElement.Id), unsafe.Pointer(&value)); err != nil {
-		log.Printf("Error writting map: %s", err.Error())
+		logger.AppLog.Printf("Error writting map: %s", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

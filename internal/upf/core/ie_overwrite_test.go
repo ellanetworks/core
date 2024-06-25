@@ -9,57 +9,69 @@ import (
 	"github.com/yeastengine/ella/internal/upf/ebpf"
 )
 
-type MapOperationsMock struct {
-}
+type MapOperationsMock struct{}
 
 func (mapOps *MapOperationsMock) PutPdrUplink(teid uint32, pdrInfo ebpf.PdrInfo) error {
 	return nil
 }
+
 func (mapOps *MapOperationsMock) PutPdrDownlink(ipv4 net.IP, pdrInfo ebpf.PdrInfo) error {
 	return nil
 }
+
 func (mapOps *MapOperationsMock) UpdatePdrUplink(teid uint32, pdrInfo ebpf.PdrInfo) error {
 	return nil
 }
+
 func (mapOps *MapOperationsMock) UpdatePdrDownlink(ipv4 net.IP, pdrInfo ebpf.PdrInfo) error {
 	return nil
 }
+
 func (mapOps *MapOperationsMock) DeletePdrUplink(teid uint32) error {
 	return nil
 }
+
 func (mapOps *MapOperationsMock) DeletePdrDownlink(ipv4 net.IP) error {
 	return nil
 }
+
 func (mapOps *MapOperationsMock) PutDownlinkPdrIp6(ipv6 net.IP, pdrInfo ebpf.PdrInfo) error {
 	return nil
 }
+
 func (mapOps *MapOperationsMock) UpdateDownlinkPdrIp6(ipv6 net.IP, pdrInfo ebpf.PdrInfo) error {
 	return nil
 }
+
 func (mapOps *MapOperationsMock) DeleteDownlinkPdrIp6(ipv6 net.IP) error {
 	return nil
 }
+
 func (mapOps *MapOperationsMock) NewFar(farInfo ebpf.FarInfo) (uint32, error) {
 	return 0, nil
 }
+
 func (mapOps *MapOperationsMock) UpdateFar(internalId uint32, farInfo ebpf.FarInfo) error {
 	return nil
 }
+
 func (mapOps *MapOperationsMock) DeleteFar(internalId uint32) error {
 	return nil
 }
+
 func (mapOps *MapOperationsMock) NewQer(qerInfo ebpf.QerInfo) (uint32, error) {
 	return 0, nil
 }
+
 func (mapOps *MapOperationsMock) UpdateQer(internalId uint32, qerInfo ebpf.QerInfo) error {
 	return nil
 }
+
 func (mapOps *MapOperationsMock) DeleteQer(internalId uint32) error {
 	return nil
 }
 
 func TestSessionOverwrite(t *testing.T) {
-
 	mapOps := MapOperationsMock{}
 	// Create pfcp connection struct
 	pfcpConn := PfcpConnection{
@@ -105,7 +117,7 @@ func TestSessionOverwrite(t *testing.T) {
 			ie.NewPDRID(1),
 			ie.NewPDI(
 				ie.NewSourceInterface(ie.SrcInterfaceCore),
-				//ie.NewFTEID(0, 0, ip1.IP, nil, 0),
+				// ie.NewFTEID(0, 0, ip1.IP, nil, 0),
 				ie.NewUEIPAddress(2, "1.1.1.1", "", 0, 0),
 			),
 		),
@@ -119,7 +131,7 @@ func TestSessionOverwrite(t *testing.T) {
 			ie.NewPDRID(1),
 			ie.NewPDI(
 				ie.NewSourceInterface(ie.SrcInterfaceCore),
-				//ie.NewFTEID(0, 0, ip2.IP, nil, 0),
+				// ie.NewFTEID(0, 0, ip2.IP, nil, 0),
 				ie.NewUEIPAddress(2, "2.2.2.2", "", 0, 0),
 			),
 		),

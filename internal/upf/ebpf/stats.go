@@ -1,8 +1,6 @@
 package ebpf
 
-import (
-	"github.com/rs/zerolog/log"
-)
+import "github.com/yeastengine/ella/internal/amf/logger"
 
 type UpfXdpActionStatistic struct {
 	BpfObjects *BpfObjects
@@ -28,28 +26,27 @@ type UpfStatistic struct {
 	XdpStats [5]uint64
 }
 
-func (current *UpfCounters) Add(new UpfCounters) {
-	current.RxArp += new.RxArp
-	current.RxIcmp += new.RxIcmp
-	current.RxIcmp6 += new.RxIcmp6
-	current.RxIp4 += new.RxIp4
-	current.RxIp6 += new.RxIp6
-	current.RxTcp += new.RxTcp
-	current.RxUdp += new.RxUdp
-	current.RxOther += new.RxOther
-	current.RxGtpEcho += new.RxGtpEcho
-	current.RxGtpPdu += new.RxGtpPdu
-	current.RxGtpOther += new.RxGtpOther
+func (current *UpfCounters) Add(nnew UpfCounters) {
+	current.RxArp += nnew.RxArp
+	current.RxIcmp += nnew.RxIcmp
+	current.RxIcmp6 += nnew.RxIcmp6
+	current.RxIp4 += nnew.RxIp4
+	current.RxIp6 += nnew.RxIp6
+	current.RxTcp += nnew.RxTcp
+	current.RxUdp += nnew.RxUdp
+	current.RxOther += nnew.RxOther
+	current.RxGtpEcho += nnew.RxGtpEcho
+	current.RxGtpPdu += nnew.RxGtpPdu
+	current.RxGtpOther += nnew.RxGtpOther
 }
 
 // Getters for the upf_xdp_statistic (xdp_action)
 
 func (stat *UpfXdpActionStatistic) getUpfXdpStatisticField(field uint32) uint64 {
-
 	var statistics []IpEntrypointUpfStatistic
 	err := stat.BpfObjects.UpfExtStat.Lookup(uint32(0), &statistics)
 	if err != nil {
-		log.Info().Msg(err.Error())
+		logger.AppLog.Infof(err.Error())
 		return 0
 	}
 
@@ -84,12 +81,11 @@ func (stat *UpfXdpActionStatistic) GetRedirect() uint64 {
 // Getters for the upf_ext_stat (upf_counters)
 // #TODO: Do not retrieve the whole struct each time.
 func (stat *UpfXdpActionStatistic) GetUpfExtStatField() UpfCounters {
-
 	var statistics []IpEntrypointUpfStatistic
 	var counters UpfCounters
 	err := stat.BpfObjects.UpfExtStat.Lookup(uint32(0), &statistics)
 	if err != nil {
-		log.Info().Msg(err.Error())
+		logger.AppLog.Infof(err.Error())
 		return counters
 	}
 

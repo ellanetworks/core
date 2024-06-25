@@ -2,9 +2,10 @@ package ebpf
 
 import (
 	"fmt"
+	"unsafe"
+
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
-	"unsafe"
 )
 
 // IncreaseResourceLimits https://prototype-kernel.readthedocs.io/en/latest/bpf/troubleshooting.html#memory-ulimits

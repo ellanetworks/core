@@ -5,9 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog/log"
-
 	"github.com/yeastengine/ella/internal/upf/config"
+	"github.com/yeastengine/ella/internal/upf/logger"
 )
 
 type NodeAssociation struct {
@@ -56,7 +55,7 @@ func (association *NodeAssociation) ScheduleHeartbeat(conn *PfcpConnection) {
 		select {
 		case <-time.After(time.Duration(config.Conf.HeartbeatTimeout) * time.Second):
 			if !association.HandleHeartbeatTimeout() {
-				log.Warn().Msgf("the number of unanswered heartbeats has reached the limit, association deleted: %s", association.Addr)
+				logger.AppLog.Warnf("the number of unanswered heartbeats has reached the limit, association deleted: %s", association.Addr)
 				close(association.HeartbeatChannel)
 				conn.DeleteAssociation(association.Addr)
 				return
@@ -67,7 +66,7 @@ func (association *NodeAssociation) ScheduleHeartbeat(conn *PfcpConnection) {
 				<-time.After(time.Duration(config.Conf.HeartbeatInterval) * time.Second)
 			}
 		case <-ctx.Done():
-			log.Info().Msgf("HeartbeatScheduler context done | association address: %s", association.Addr)
+			logger.AppLog.Infof("HeartbeatScheduler context done | association address: %s", association.Addr)
 			return
 		}
 	}

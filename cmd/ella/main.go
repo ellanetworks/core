@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/yeastengine/ella/internal/amf"
 	"github.com/yeastengine/ella/internal/ausf"
@@ -63,7 +62,6 @@ func startNetwork() error {
 	if err != nil {
 		return err
 	}
-	time.Sleep(2 * time.Second)
 	nrfUrl, err := nrf.Start(dbUrl, webuiUrl)
 	if err != nil {
 		return err

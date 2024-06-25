@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/rs/zerolog/log"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/yeastengine/ella/internal/upf/config"
 	"github.com/yeastengine/ella/internal/upf/core/service"
 	"github.com/yeastengine/ella/internal/upf/ebpf"
+	"github.com/yeastengine/ella/internal/upf/logger"
 )
 
 type PDRCreationContext struct {
@@ -44,20 +44,20 @@ func (pdrContext *PDRCreationContext) extractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 
 	if sdfFilter, err := pdr.SDFFilter(); err == nil {
 		if sdfFilter.FlowDescription == "" {
-			log.Warn().Msgf("SDFFilter is empty")
+			logger.AppLog.Warnf("SDFFilter is empty")
 		} else if sdfFilterParsed, err := ParseSdfFilter(sdfFilter.FlowDescription); err == nil {
 			spdrInfo.PdrInfo.SdfFilter = &sdfFilterParsed
 		} else {
-			log.Error().Msgf("SDFFilter err: %v", err)
+			logger.AppLog.Errorf("SDFFilter err: %v", err)
 			return err
 		}
 	}
 
 	if teidPdiId := findIEindex(pdi, 21); teidPdiId != -1 { // IE Type F-TEID
 		if fteid, err := pdi[teidPdiId].FTEID(); err == nil {
-			var teid = fteid.TEID
+			teid := fteid.TEID
 			if fteid.HasCh() {
-				var allocate = true
+				allocate := true
 				if fteid.HasChID() {
 					if teidFromCache, ok := pdrContext.hasTEIDCache(fteid.ChooseID); ok {
 						allocate = false
@@ -68,7 +68,7 @@ func (pdrContext *PDRCreationContext) extractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 				if allocate {
 					allocatedTeid, err := pdrContext.getFTEID(pdrContext.Session.RemoteSEID, spdrInfo.PdrID)
 					if err != nil {
-						log.Error().Msgf("AllocateTEID err: %v", err)
+						logger.AppLog.Errorf("AllocateTEID err: %v", err)
 						return fmt.Errorf("can't allocate TEID: %s", causeToString(ie.CauseNoResourcesAvailable))
 					}
 					teid = allocatedTeid
@@ -88,7 +88,7 @@ func (pdrContext *PDRCreationContext) extractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 				ueIP.IPv4Address = cloneIP(ip)
 				spdrInfo.Allocated = true
 			} else {
-				log.Error().Msg(err.Error())
+				logger.AppLog.Errorf(err.Error())
 			}
 		}
 		if ueIP.IPv4Address != nil {
@@ -101,7 +101,7 @@ func (pdrContext *PDRCreationContext) extractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 
 		return nil
 	} else {
-		log.Info().Msg("Both F-TEID IE and UE IP Address IE are missing")
+		logger.AppLog.Infof("Both F-TEID IE and UE IP Address IE are missing")
 		return err
 	}
 }
@@ -144,7 +144,7 @@ func (pdrContext *PDRCreationContext) getFTEID(seID uint64, pdrID uint32) (uint3
 
 	allocatedTeid, err := pdrContext.ResourceManager.FTEIDM.AllocateTEID(seID, pdrID)
 	if err != nil {
-		log.Error().Msgf("AllocateTEID err: %v", err)
+		logger.AppLog.Errorf("AllocateTEID err: %v", err)
 		return 0, fmt.Errorf("Can't allocate TEID: %s", causeToString(ie.CauseNoResourcesAvailable))
 	}
 	return allocatedTeid, nil

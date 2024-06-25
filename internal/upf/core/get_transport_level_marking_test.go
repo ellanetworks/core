@@ -1,8 +1,9 @@
 package core
 
 import (
-	"github.com/wmnsk/go-pfcp/ie"
 	"testing"
+
+	"github.com/wmnsk/go-pfcp/ie"
 )
 
 func TestGetTransportLevelMarking(t *testing.T) {

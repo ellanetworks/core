@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/rs/zerolog/log"
+	"github.com/yeastengine/ella/internal/upf/logger"
 )
 
 type GtpPathManager struct {
@@ -40,16 +40,15 @@ func (gtpPathManager *GtpPathManager) Run() {
 				return
 			case <-ticker.C:
 				for peer, sequenceNumber := range gtpPathManager.peers {
-					log.Trace().Msgf("Send GTP Echo request to %s, seq %d", peer, sequenceNumber)
-					elapseTime, err := gtpPathManager.sendEcho(peer, sequenceNumber)
+					logger.AppLog.Tracef("Send GTP Echo request to %s, seq %d", peer, sequenceNumber)
+					elapseTime, err := gtpPathManager.sendEcho(peer)
 					if err != nil {
-						log.Warn().Msgf("%v", err)
+						logger.AppLog.Warnf("%v", err)
 						continue
 					}
 
-					log.Trace().Msgf("Received GTP Echo response from %s, seq %d in %d ms", peer, sequenceNumber, elapseTime.Milliseconds())
+					logger.AppLog.Tracef("Received GTP Echo response from %s, seq %d in %d ms", peer, sequenceNumber, elapseTime.Milliseconds())
 					gtpPathManager.peers[peer] = sequenceNumber + 1
-
 				}
 			}
 		}
@@ -60,15 +59,15 @@ func (gtpPathManager *GtpPathManager) Stop() {
 	gtpPathManager.cancelCtx()
 }
 
-func (gtpPathManager *GtpPathManager) sendEcho(gtpPeerAddress string, seq uint16) (time.Duration, error) {
+func (gtpPathManager *GtpPathManager) sendEcho(gtpPeerAddress string) (time.Duration, error) {
 	gtpEchoRequest := gopacket.NewSerializeBuffer()
 	if err := gopacket.SerializeLayers(gtpEchoRequest, gopacket.SerializeOptions{},
 		&layers.GTPv1U{
 			Version:     1,
 			MessageType: 1, // GTPU_ECHO_REQUEST
 			TEID:        0,
-			//SequenceNumberFlag: true,
-			//SequenceNumber:     seq,
+			// SequenceNumberFlag: true,
+			// SequenceNumber:     seq,
 		},
 	); err != nil {
 		return 0, fmt.Errorf("serializing input packet failed: %v", err)
@@ -106,7 +105,7 @@ func (gtpPathManager *GtpPathManager) sendEcho(gtpPeerAddress string, seq uint16
 	if gtpLayer := response.Layer(layers.LayerTypeGTPv1U); gtpLayer != nil {
 		gtp, _ := gtpLayer.(*layers.GTPv1U)
 
-		if gtp.MessageType != 2 { //GTPU_ECHO_RESPONSE
+		if gtp.MessageType != 2 { // GTPU_ECHO_RESPONSE
 			return 0, fmt.Errorf("unexpected gtp echo response: %d", gtp.MessageType)
 		}
 		//if gtp.SequenceNumberFlag && gtp.SequenceNumber != seq {

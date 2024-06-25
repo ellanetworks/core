@@ -4,16 +4,16 @@ import (
 	"net"
 	"testing"
 
-	"github.com/rs/zerolog/log"
+	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
 func TestAllocateIP(t *testing.T) {
 	resourceManager, err := NewResourceManager("10.61.0.0/16", 65536)
 	if err != nil {
-		log.Err(err)
+		logger.AppLog.Errorf("Error creating resource manager: %v", err)
 	}
 
-	//IP TESTS
+	// IP TESTS
 	result1, err := resourceManager.IPAM.AllocateIP(12)
 	if err != nil {
 		t.Errorf("result1 AllocateIP err: %v", err)
@@ -32,7 +32,7 @@ func TestAllocateIP(t *testing.T) {
 		t.Errorf("Expected: %v, but got: %v", expected2, result2)
 	}
 
-	//TEID TEST
+	// TEID TEST
 	resultTEID1, err := resourceManager.FTEIDM.AllocateTEID(12, 1)
 	if err != nil {
 		t.Errorf("resultTEID1 AllocateTEID err: %v", err)
@@ -59,5 +59,4 @@ func TestAllocateIP(t *testing.T) {
 	if resultTEID3 != expectedTEID3 {
 		t.Errorf("Expected: %v, but got: %v", expectedTEID3, resultTEID3)
 	}
-
 }

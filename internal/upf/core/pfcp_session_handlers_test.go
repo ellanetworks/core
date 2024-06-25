@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"github.com/yeastengine/ella/internal/upf/config"
 	"github.com/yeastengine/ella/internal/upf/core/service"
+	"github.com/yeastengine/ella/internal/upf/logger"
 
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
@@ -72,7 +72,7 @@ func TestAssociationSetup(t *testing.T) {
 func PreparePfcpConnection(t *testing.T) (PfcpConnection, string) {
 	mapOps := MapOperationsMock{}
 
-	var pfcpHandlers = PfcpHandlerMap{
+	pfcpHandlers := PfcpHandlerMap{
 		message.MsgTypeHeartbeatRequest:            HandlePfcpHeartbeatRequest,
 		message.MsgTypeAssociationSetupRequest:     HandlePfcpAssociationSetupRequest,
 		message.MsgTypeSessionEstablishmentRequest: HandlePfcpSessionEstablishmentRequest,
@@ -172,7 +172,6 @@ func SendDefaulMappingPdrs(t *testing.T, pfcpConn *PfcpConnection, smfIP string)
 }
 
 func TestSdfFilterStoreValid(t *testing.T) {
-
 	pfcpConn, smfIP := PreparePfcpConnection(t)
 	SendDefaulMappingPdrs(t, &pfcpConn, smfIP)
 
@@ -187,9 +186,11 @@ func TestSdfFilterStoreValid(t *testing.T) {
 	ip1, _ := net.ResolveIPAddr("ip", "1.1.1.1")
 	ip2, _ := net.ResolveIPAddr("ip", "2.2.2.2")
 
-	fd := SdfFilterTestStruct{FlowDescription: "permit out ip from 10.62.0.1 to 8.8.8.8/32", Protocol: 1,
+	fd := SdfFilterTestStruct{
+		FlowDescription: "permit out ip from 10.62.0.1 to 8.8.8.8/32", Protocol: 1,
 		SrcType: 1, SrcAddress: "10.62.0.1", SrcMask: "ffffffff", SrcPortLower: 0, SrcPortUpper: 65535,
-		DstType: 1, DstAddress: "8.8.8.8", DstMask: "ffffffff", DstPortLower: 0, DstPortUpper: 65535}
+		DstType: 1, DstAddress: "8.8.8.8", DstMask: "ffffffff", DstPortLower: 0, DstPortUpper: 65535,
+	}
 
 	// Requests for additional mapping (with SDF filter)
 
@@ -202,7 +203,7 @@ func TestSdfFilterStoreValid(t *testing.T) {
 			ie.NewPDRID(2),
 			ie.NewPDI(
 				ie.NewSourceInterface(ie.SrcInterfaceCore),
-				//ie.NewFTEID(0, 0, ip1.IP, nil, 0),
+				// ie.NewFTEID(0, 0, ip1.IP, nil, 0),
 				ie.NewUEIPAddress(2, ip1.IP.String(), "", 0, 0),
 				ie.NewSDFFilter(fd.FlowDescription, "", "", "", 0),
 			),
@@ -262,7 +263,6 @@ func TestSdfFilterStoreValid(t *testing.T) {
 }
 
 func TestSdfFilterStoreInvalid(t *testing.T) {
-
 	pfcpConn, smfIP := PreparePfcpConnection(t)
 	SendDefaulMappingPdrs(t, &pfcpConn, smfIP)
 
@@ -300,7 +300,6 @@ func TestSdfFilterStoreInvalid(t *testing.T) {
 }
 
 func TestFTUPInAssociationSetupResponse(t *testing.T) {
-
 	config.Conf = config.UpfConfig{
 		FTEIDPool:   65536,
 		FeatureFTUP: true,
@@ -319,7 +318,7 @@ func TestFTUPInAssociationSetupResponse(t *testing.T) {
 		t.Errorf("Error handling Association Setup Request: %s", err)
 	}
 
-	//Checking if FTUP is enabled in UP Function Features in response
+	// Checking if FTUP is enabled in UP Function Features in response
 	asRes, ok := response.(*message.AssociationSetupResponse)
 	if !ok {
 		t.Error("Unexpected response type")
@@ -336,7 +335,7 @@ func TestTEIDAllocationInSessionEstablishmentResponse(t *testing.T) {
 
 	resourceManager, err := service.NewResourceManager("10.61.0.0/16", 65536)
 	if err != nil {
-		log.Error().Msgf("failed to create ResourceManager. err: %v", err)
+		logger.AppLog.Errorf("failed to create ResourceManager. err: %v", err)
 	}
 	pfcpConn.ResourceManager = resourceManager
 
@@ -390,7 +389,7 @@ func TestTEIDAllocationInSessionEstablishmentResponse(t *testing.T) {
 	}
 
 	// Checking TEID for each PDR
-	log.Info().Msgf("seRes.CreatedPDR len: %d", len(seRes.CreatedPDR))
+	logger.AppLog.Infof("seRes.CreatedPDR len: %d", len(seRes.CreatedPDR))
 	if len(seRes.CreatedPDR) != 2 {
 		t.Errorf("Unexpected count TEIDs: got %d, expected %d", len(seRes.CreatedPDR), 2)
 	}
@@ -398,12 +397,12 @@ func TestTEIDAllocationInSessionEstablishmentResponse(t *testing.T) {
 	for _, pdr := range seRes.CreatedPDR {
 		fteid, err := pdr.FindByType(ie.FTEID)
 		if err != nil {
-			log.Fatal().Err(err)
+			logger.AppLog.Fatalf("FindByType err: %v", err)
 		}
 
 		teid, err := fteid.FTEID()
 		if err != nil {
-			log.Fatal().Err(err)
+			logger.AppLog.Fatalf("FTEID err: %v", err)
 		}
 
 		if teid.TEID != 1 && teid.TEID != 2 {
@@ -426,7 +425,7 @@ func TestIPAllocationInSessionEstablishmentResponse(t *testing.T) {
 
 		resourceManager, err := service.NewResourceManager("10.61.0.0/16", 65536)
 		if err != nil {
-			log.Error().Msgf("failed to create ResourceManager. err: %v", err)
+			logger.AppLog.Errorf("failed to create ResourceManager. err: %v", err)
 		}
 		pfcpConn.ResourceManager = resourceManager
 
@@ -460,13 +459,12 @@ func TestIPAllocationInSessionEstablishmentResponse(t *testing.T) {
 		}
 
 		// Checking UEIP for each PDR
-		log.Info().Msgf("seRes.CreatedPDR len: %d", len(seRes.CreatedPDR))
+		logger.AppLog.Infof("seRes.CreatedPDR len: %d", len(seRes.CreatedPDR))
 		if len(seRes.CreatedPDR) != 1 {
 			t.Errorf("Unexpected count PRD's: got %d, expected %d", len(seRes.CreatedPDR), 1)
 		}
 
 		for _, pdr := range seRes.CreatedPDR {
-
 			ueipType, err := pdr.FindByType(ie.UEIPAddress)
 			if err != nil {
 				t.Errorf("FindByType err: %v", err)
@@ -478,21 +476,19 @@ func TestIPAllocationInSessionEstablishmentResponse(t *testing.T) {
 			}
 
 			if ueip.IPv4Address == nil {
-				log.Info().Msg("IPv4Address is nil")
+				logger.AppLog.Infof("IPv4Address is nil")
 			} else {
 				if ueip.IPv4Address.String() == "10.61.0.0" {
-					log.Info().Msgf("PASSED. IPv4: %s", ueip.IPv4Address.String())
+					logger.AppLog.Infof("PASSED. IPv4: %s", ueip.IPv4Address.String())
 				} else {
 					t.Errorf("Unexpected IPv4, got %s, expected %s", ueip.IPv4Address.String(), "10.61.0.0")
 				}
 			}
-
 		}
 	}
 }
 
 func TestUEIPInAssociationSetupResponse(t *testing.T) {
-
 	config.Conf = config.UpfConfig{
 		UEIPPool:    "10.61.0.0/16",
 		FTEIDPool:   65536,

@@ -46,15 +46,8 @@ func (h *ApiHandler) InitRoutes() *gin.Engine {
 }
 
 func (h *ApiHandler) initDefaultRoutes(group *gin.RouterGroup) {
-
 	group.GET("xdp_stats", h.displayXdpStatistics)
 	group.GET("packet_stats", h.displayPacketStats)
-
-	config := group.Group("config")
-	{
-		config.GET("", h.displayConfig)
-		config.POST("", h.editConfig)
-	}
 
 	pdrMap := group.Group("uplink_pdr_map")
 	{
@@ -83,7 +76,7 @@ func (h *ApiHandler) initDefaultRoutes(group *gin.RouterGroup) {
 
 	sessions := group.Group("pfcp_sessions")
 	{
-		//sessions.GET("", ListPfcpSessions(pfcpSrv))
+		// sessions.GET("", ListPfcpSessions(pfcpSrv))
 		sessions.GET("", h.listPfcpSessionsFiltered)
 	}
 }

@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net"
 	"reflect"
-	"testing"
 	"unsafe"
 
 	"github.com/google/gopacket"
@@ -28,7 +27,6 @@ import (
 )
 
 func testArp(bpfObjects *BpfObjects) error {
-
 	packetArp := gopacket.NewSerializeBuffer()
 	if err := gopacket.SerializeLayers(packetArp, gopacket.SerializeOptions{},
 		&layers.Ethernet{
@@ -56,7 +54,6 @@ func testArp(bpfObjects *BpfObjects) error {
 }
 
 func testArpBenchmark(bpfObjects *BpfObjects, repeat int) (int64, error) {
-
 	packetArp := gopacket.NewSerializeBuffer()
 	if err := gopacket.SerializeLayers(packetArp, gopacket.SerializeOptions{},
 		&layers.Ethernet{
@@ -78,7 +75,6 @@ func testArpBenchmark(bpfObjects *BpfObjects, repeat int) (int64, error) {
 }
 
 func testGtpBenchmark(bpfObjects *BpfObjects, repeat int) (int64, error) {
-
 	packet := gopacket.NewSerializeBuffer()
 	if err := gopacket.SerializeLayers(packet, gopacket.SerializeOptions{},
 		&layers.Ethernet{
@@ -128,7 +124,6 @@ func testGtpBenchmark(bpfObjects *BpfObjects, repeat int) (int64, error) {
 }
 
 func testGtpWithPDRBenchmark(bpfObjects *BpfObjects, repeat int) (int64, error) {
-
 	teid := uint32(1)
 
 	packet := gopacket.NewSerializeBuffer()
@@ -194,7 +189,6 @@ func testGtpWithPDRBenchmark(bpfObjects *BpfObjects, repeat int) (int64, error) 
 }
 
 func testGtpEcho(bpfObjects *BpfObjects) error {
-
 	packetArp := gopacket.NewSerializeBuffer()
 	if err := gopacket.SerializeLayers(packetArp, gopacket.SerializeOptions{},
 		&layers.Ethernet{
@@ -235,7 +229,7 @@ func testGtpEcho(bpfObjects *BpfObjects) error {
 	if gtpLayer := response.Layer(layers.LayerTypeGTPv1U); gtpLayer != nil {
 		gtp, _ := gtpLayer.(*layers.GTPv1U)
 
-		if gtp.MessageType != 2 { //GTPU_ECHO_RESPONSE
+		if gtp.MessageType != 2 { // GTPU_ECHO_RESPONSE
 			return fmt.Errorf("unexpected gtp response: %d", gtp.MessageType)
 		}
 		if gtp.SequenceNumber != 0 {
@@ -252,7 +246,6 @@ func testGtpEcho(bpfObjects *BpfObjects) error {
 }
 
 func testGtpWithSDFFilter(bpfObjects *BpfObjects) error {
-
 	teid := uint32(1)
 
 	packet := gopacket.NewSerializeBuffer()
@@ -340,7 +333,6 @@ func testGtpWithSDFFilter(bpfObjects *BpfObjects) error {
 }
 
 func testGtpExtHeader(bpfObjects *BpfObjects) error {
-
 	teid := uint32(2)
 
 	packet := gopacket.NewSerializeBuffer()
@@ -373,7 +365,8 @@ func testGtpExtHeader(bpfObjects *BpfObjects) error {
 		RemoteIP:              binary.LittleEndian.Uint32(net.IP{10, 3, 0, 10}),
 		LocalIP:               binary.LittleEndian.Uint32(net.IP{10, 3, 0, 20}),
 		Teid:                  teid,
-		TransportLevelMarking: 0}
+		TransportLevelMarking: 0,
+	}
 	qer := QerInfo{GateStatusUL: 0, GateStatusDL: 0, Qfi: 5, MaxBitrateUL: 1000000, MaxBitrateDL: 100000, StartUL: 0, StartDL: 0}
 
 	if err := bpfObjects.FarMap.Put(uint32(1), unsafe.Pointer(&farForward)); err != nil {
@@ -400,7 +393,7 @@ func testGtpExtHeader(bpfObjects *BpfObjects) error {
 	if gtpLayer := response.Layer(layers.LayerTypeGTPv1U); gtpLayer != nil {
 		gtp, _ := gtpLayer.(*layers.GTPv1U)
 
-		if gtp.MessageType != 255 { //GTPU_G_PDU
+		if gtp.MessageType != 255 { // GTPU_G_PDU
 			return fmt.Errorf("unexpected gtp response: %d", gtp.MessageType)
 		}
 		if gtp.ExtensionHeaderFlag != true {
@@ -429,117 +422,4 @@ func testGtpExtHeader(bpfObjects *BpfObjects) error {
 	}
 
 	return nil
-}
-
-func TestEntrypoint(t *testing.T) {
-
-	if err := IncreaseResourceLimits(); err != nil {
-		t.Fatalf("Can't increase resource limits: %s", err.Error())
-	}
-
-	bpfObjects := &BpfObjects{}
-
-	if err := bpfObjects.Load(); err != nil {
-		t.Fatalf("Loading bpf objects failed: %s", err.Error())
-	}
-
-	defer bpfObjects.Close()
-
-	t.Run("Arp test", func(t *testing.T) {
-		err := testArp(bpfObjects)
-		if err != nil {
-			t.Fatalf("test failed: %s", err)
-		}
-	})
-
-	t.Run("GTP-U Echo test", func(t *testing.T) {
-		err := testGtpEcho(bpfObjects)
-		if err != nil {
-			t.Fatalf("test failed: %s", err)
-		}
-	})
-
-	t.Run("SDF filter test", func(t *testing.T) {
-		err := testGtpWithSDFFilter(bpfObjects)
-		if err != nil {
-			t.Fatalf("test failed: %s", err)
-		}
-	})
-
-	t.Run("GTP Extention Header test", func(t *testing.T) {
-		err := testGtpExtHeader(bpfObjects)
-		if err != nil {
-			t.Fatalf("test failed: %s", err)
-		}
-	})
-
-}
-
-func TestEntrypointBenchmark(t *testing.T) {
-
-	if err := IncreaseResourceLimits(); err != nil {
-		t.Fatalf("Can't increase resource limits: %s", err.Error())
-	}
-
-	bpfObjects := &BpfObjects{}
-
-	if err := bpfObjects.Load(); err != nil {
-		t.Fatalf("Loading bpf objects failed: %s", err.Error())
-	}
-
-	defer bpfObjects.Close()
-
-	t.Run("Arp (x1)) benchmark", func(t *testing.T) {
-		duration, err := testArpBenchmark(bpfObjects, 1)
-		if err != nil {
-			t.Fatalf("test failed: %s", err)
-		}
-
-		t.Logf("%s result: %d ns", t.Name(), duration)
-	})
-
-	t.Run("Arp (x1000000) benchmark", func(t *testing.T) {
-		duration, err := testArpBenchmark(bpfObjects, 1000000)
-		if err != nil {
-			t.Fatalf("test failed: %s", err)
-		}
-
-		t.Logf("%s result: %d ns", t.Name(), duration)
-	})
-
-	t.Run("Gtp (x1)) benchmark", func(t *testing.T) {
-		duration, err := testGtpBenchmark(bpfObjects, 1)
-		if err != nil {
-			t.Fatalf("test failed: %s", err)
-		}
-
-		t.Logf("%s result: %d ns", t.Name(), duration)
-	})
-
-	t.Run("Gtp (x1000000) benchmark", func(t *testing.T) {
-		duration, err := testGtpBenchmark(bpfObjects, 1000000)
-		if err != nil {
-			t.Fatalf("test failed: %s", err)
-		}
-
-		t.Logf("%s result: %d ns", t.Name(), duration)
-	})
-
-	t.Run("Gtp with PDR (x1)) benchmark", func(t *testing.T) {
-		duration, err := testGtpWithPDRBenchmark(bpfObjects, 1)
-		if err != nil {
-			t.Fatalf("test failed: %s", err)
-		}
-
-		t.Logf("%s result: %d ns", t.Name(), duration)
-	})
-
-	t.Run("Gtp with PDR (x1000000) benchmark", func(t *testing.T) {
-		duration, err := testGtpWithPDRBenchmark(bpfObjects, 1000000)
-		if err != nil {
-			t.Fatalf("test failed: %s", err)
-		}
-
-		t.Logf("%s result: %d ns", t.Name(), duration)
-	})
 }

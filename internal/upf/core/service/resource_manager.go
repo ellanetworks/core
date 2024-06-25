@@ -26,7 +26,6 @@ type IPAM struct {
 }
 
 func NewResourceManager(ipRange string, teidRange uint32) (*ResourceManager, error) {
-
 	var ipam IPAM
 	var fteidm FTEIDM
 
@@ -35,7 +34,7 @@ func NewResourceManager(ipRange string, teidRange uint32) (*ResourceManager, err
 		if err != nil {
 			return nil, err
 		}
-		ipGenerator.Next() //Skip first 0-IP
+		ipGenerator.Next() // Skip first 0-IP
 
 		freeIPs := make([]net.IP, 0, 1024)
 		for ip := ipGenerator.Next(); ip != nil; ip = ipGenerator.Next() {

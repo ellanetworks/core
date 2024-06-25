@@ -28,7 +28,7 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 			fields: fields{
 				Session:         nil,
 				ResourceManager: nil,
-				//TEEIDCache: nil,
+				// TEEIDCache: nil,
 			},
 			args: args{
 				pdr: ie.NewCreatePDR(
@@ -48,7 +48,7 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 			fields: fields{
 				Session:         nil,
 				ResourceManager: nil,
-				//TEEIDCache: nil,
+				// TEEIDCache: nil,
 			},
 			args: args{
 				pdr: ie.NewCreatePDR(
@@ -68,7 +68,7 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 			fields: fields{
 				Session:         nil,
 				ResourceManager: nil,
-				//TEEIDCache: nil,
+				// TEEIDCache: nil,
 			},
 			args: args{
 				pdr: ie.NewCreatePDR(
@@ -88,7 +88,7 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 			fields: fields{
 				Session:         nil,
 				ResourceManager: nil,
-				//TEEIDCache: nil,
+				// TEEIDCache: nil,
 			},
 			args: args{
 				pdr: ie.NewCreatePDR(
