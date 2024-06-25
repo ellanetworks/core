@@ -16,6 +16,7 @@ import (
 	"github.com/yeastengine/ella/internal/smf"
 	"github.com/yeastengine/ella/internal/udm"
 	"github.com/yeastengine/ella/internal/udr"
+	"github.com/yeastengine/ella/internal/upf"
 	"github.com/yeastengine/ella/internal/webui"
 )
 
@@ -92,6 +93,10 @@ func startNetwork() error {
 		return err
 	}
 	err = smf.Start(dbUrl, nrfUrl, webuiUrl)
+	if err != nil {
+		return err
+	}
+	err = upf.Start()
 	if err != nil {
 		return err
 	}
