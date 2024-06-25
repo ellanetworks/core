@@ -2,7 +2,6 @@ package core
 
 import (
 	"net"
-	"time"
 
 	"github.com/yeastengine/ella/internal/upf/config"
 
@@ -22,9 +21,7 @@ func (handlerMap PfcpHandlerMap) Handle(conn *PfcpConnection, buf []byte, addr *
 		log.Warn().Msgf("Ignored undecodable message: %x, error: %s", buf, err)
 		return err
 	}
-	PfcpMessageRx.WithLabelValues(incomingMsg.MessageTypeName()).Inc()
 	if handler, ok := handlerMap[incomingMsg.MessageType()]; ok {
-		startTime := time.Now()
 		// TODO: Trim port as a workaround for NAT changing the port. Explore proper solutions.
 		stringIpAddr := addr.IP.String()
 		outgoingMsg, err := handler(conn, incomingMsg, stringIpAddr)
@@ -32,11 +29,8 @@ func (handlerMap PfcpHandlerMap) Handle(conn *PfcpConnection, buf []byte, addr *
 			log.Warn().Msgf("Error handling PFCP message: %s", err.Error())
 			return err
 		}
-		duration := time.Since(startTime)
-		UpfMessageRxLatency.WithLabelValues(incomingMsg.MessageTypeName()).Observe(float64(duration.Microseconds()))
 		// Now assumption that all handlers will return a message to send is not true.
 		if outgoingMsg != nil {
-			PfcpMessageTx.WithLabelValues(outgoingMsg.MessageTypeName()).Inc()
 			return conn.SendMessage(outgoingMsg, addr)
 		}
 		return nil
@@ -59,7 +53,6 @@ func HandlePfcpAssociationSetupRequest(conn *PfcpConnection, msg message.Message
 		log.Warn().Msgf("Got Association Setup Request without NodeID from: %s", addr)
 		// Reject with cause
 
-		PfcpMessageRxErrors.WithLabelValues(msg.MessageTypeName(), causeToString(ie.CauseMandatoryIEMissing)).Inc()
 		asres := message.NewAssociationSetupResponse(asreq.SequenceNumber,
 			ie.NewCause(ie.CauseMandatoryIEMissing),
 		)
@@ -70,7 +63,6 @@ func HandlePfcpAssociationSetupRequest(conn *PfcpConnection, msg message.Message
 	remoteNodeID, err := asreq.NodeID.NodeID()
 	if err != nil {
 		log.Warn().Msgf("Got Association Setup Request with invalid NodeID from: %s", addr)
-		PfcpMessageRxErrors.WithLabelValues(msg.MessageTypeName(), causeToString(ie.CauseMandatoryIEMissing)).Inc()
 		asres := message.NewAssociationSetupResponse(asreq.SequenceNumber,
 			ie.NewCause(ie.CauseMandatoryIEMissing),
 		)
@@ -110,7 +102,6 @@ func HandlePfcpAssociationSetupRequest(conn *PfcpConnection, msg message.Message
 	)
 
 	// Send AssociationSetupResponse
-	PfcpMessageRxErrors.WithLabelValues(msg.MessageTypeName(), causeToString(ie.CauseRequestAccepted)).Inc()
 	return asres, nil
 }
 

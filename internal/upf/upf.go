@@ -107,22 +107,13 @@ func Start() error {
 	h := rest.NewApiHandler(bpfObjects, pfcpConn, &ForwardPlaneStats, &config.Conf)
 
 	engine := h.InitRoutes()
-	metricsEngine := h.InitMetricsRoute()
 
 	apiSrv := server.New(config.Conf.ApiAddress, engine)
-	metricsSrv := server.New(config.Conf.MetricsAddress, metricsEngine)
 
 	// Start api servers
 	go func() {
 		if err := apiSrv.Run(); err != nil {
 			log.Fatal().Msgf("Could not start api server: %s", err.Error())
-		}
-	}()
-
-	// Start metrics servers
-	go func() {
-		if err := metricsSrv.Run(); err != nil {
-			log.Fatal().Msgf("Could not start metrics server: %s", err.Error())
 		}
 	}()
 
