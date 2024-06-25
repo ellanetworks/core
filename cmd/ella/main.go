@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/yeastengine/ella/internal/amf"
 	"github.com/yeastengine/ella/internal/ausf"
@@ -16,6 +15,7 @@ import (
 	"github.com/yeastengine/ella/internal/smf"
 	"github.com/yeastengine/ella/internal/udm"
 	"github.com/yeastengine/ella/internal/udr"
+	"github.com/yeastengine/ella/internal/upf"
 	"github.com/yeastengine/ella/internal/webui"
 )
 
@@ -62,7 +62,6 @@ func startNetwork() error {
 	if err != nil {
 		return err
 	}
-	time.Sleep(2 * time.Second)
 	nrfUrl, err := nrf.Start(dbUrl, webuiUrl)
 	if err != nil {
 		return err
@@ -92,6 +91,10 @@ func startNetwork() error {
 		return err
 	}
 	err = smf.Start(dbUrl, nrfUrl, webuiUrl)
+	if err != nil {
+		return err
+	}
+	err = upf.Start()
 	if err != nil {
 		return err
 	}
