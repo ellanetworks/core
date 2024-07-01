@@ -1,17 +1,12 @@
 package message
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
@@ -556,46 +551,4 @@ func GetLocalIP() string {
 		}
 	}
 	return ""
-}
-
-// SendPfcpMsgToAdapter send pfcp msg to upf-adapter in http/json encoded format
-func SendPfcpMsgToAdapter(upNodeID pfcpType.NodeID, msg pfcp.Message, addr *net.UDPAddr, eventData interface{}) (*http.Response, error) {
-	// get IP
-	ip_str := GetLocalIP()
-	udpPodMsg := &UdpPodPfcpMsg{
-		UpNodeID: upNodeID,
-		SmfIp:    ip_str,
-		Msg:      msg,
-		Addr:     addr,
-	}
-	upfAdpPort := 8090
-
-	udpPodMsgJson, _ := json.Marshal(udpPodMsg)
-
-	logger.PfcpLog.Debugf("json encoded udpPodMsg [%s] ", udpPodMsgJson)
-
-	// change the IP here
-	logger.PfcpLog.Debugf("send to http://upf-adapter:%d\n", upfAdpPort)
-	requestURL := fmt.Sprintf("http://upf-adapter:%d", upfAdpPort)
-	jsonBody := udpPodMsgJson
-
-	bodyReader := bytes.NewReader(jsonBody)
-	req, err := http.NewRequest(http.MethodPost, requestURL, bodyReader)
-	if err != nil {
-		logger.PfcpLog.Errorf("client: could not create request: %s\n", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	client := http.Client{
-		Timeout: 30 * time.Second,
-	}
-	// waiting for http response
-	rsp, err := client.Do(req)
-	if err != nil {
-		logger.PfcpLog.Errorf("client: error making http request: %s\n", err)
-		return nil, err
-	}
-
-	return rsp, nil
 }

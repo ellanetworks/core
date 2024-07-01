@@ -12,15 +12,6 @@ import (
 	"github.com/yeastengine/ella/internal/smf/pfcp/udp"
 )
 
-func TestSendPfcpAssociationSetupRequest(t *testing.T) {
-}
-
-func TestSendPfcpSessionEstablishmentResponse(t *testing.T) {
-}
-
-func TestSendPfcpSessionEstablishmentRequest(t *testing.T) {
-}
-
 func TestSendHeartbeatResponse(t *testing.T) {
 	context.SMF_Self().CPNodeID = pfcpType.NodeID{
 		NodeIdType:  pfcpType.NodeIdTypeIpv4Address,
