@@ -34,7 +34,7 @@ require (
 	go.mongodb.org/mongo-driver v1.11.7
 	golang.org/x/exp v0.0.0-20240103183307-be819d1f06fc
 	golang.org/x/sys v0.20.0
-	google.golang.org/grpc v1.64.0
+	google.golang.org/grpc v1.65.0
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -46,7 +46,7 @@ require (
 	github.com/bits-and-blooms/bitset v1.13.0 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
-	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect
 	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
@@ -100,12 +100,11 @@ require (
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/crypto v0.23.0 // indirect
 	golang.org/x/net v0.25.0 // indirect
-	golang.org/x/oauth2 v0.18.0 // indirect
-	golang.org/x/sync v0.6.0 // indirect
+	golang.org/x/oauth2 v0.20.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/text v0.15.0 // indirect
-	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20240318140521-94a12d6c2237 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240318140521-94a12d6c2237 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240528184218-531527333157 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240528184218-531527333157 // indirect
 	gopkg.in/h2non/gock.v1 v1.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	inet.af/netaddr v0.0.0-20220811202034-502d2d690317 // indirect
