@@ -78,11 +78,18 @@ func HandlePfcpPfdManagementResponse(msg *pfcpUdp.Message) {
 func HandlePfcpAssociationSetupRequest(msg *pfcpUdp.Message) {
 	req := msg.PfcpMessage.Body.(pfcp.PFCPAssociationSetupRequest)
 
+	logger.PfcpLog.Infof("Handle PFCP Association Setup Request")
+
+	if msg.RemoteAddr.Port != 8806 {
+		logger.PfcpLog.Errorf("Received PFCP Association Setup Request from non-UPF, dropping")
+		return
+	}
 	nodeID := req.NodeID
 	if nodeID == nil {
 		logger.PfcpLog.Errorln("pfcp association needs NodeID")
 		return
 	}
+
 	logger.PfcpLog.Infof("Handle PFCP Association Setup Request with NodeID[%s]", nodeID.ResolveNodeIdToIp().String())
 
 	upf := smf_context.RetrieveUPFNodeByNodeID(*nodeID)

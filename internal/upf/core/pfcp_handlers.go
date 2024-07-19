@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/yeastengine/ella/internal/upf/config"
@@ -24,6 +25,10 @@ func (handlerMap PfcpHandlerMap) Handle(conn *PfcpConnection, buf []byte, addr *
 	if handler, ok := handlerMap[incomingMsg.MessageType()]; ok {
 		// TODO: Trim port as a workaround for NAT changing the port. Explore proper solutions.
 		stringIpAddr := addr.IP.String()
+		if stringIpAddr == "::1" {
+			logger.AppLog.Debugf("Got loopback address, setting to 0.0.0.0")
+			stringIpAddr = "0.0.0.0"
+		}
 		outgoingMsg, err := handler(conn, incomingMsg, stringIpAddr)
 		if err != nil {
 			logger.AppLog.Warnf("Error handling PFCP message: %s", err.Error())
@@ -80,7 +85,12 @@ func HandlePfcpAssociationSetupRequest(conn *PfcpConnection, msg message.Message
 	// if the request is accepted:
 	// shall store the Node ID of the CP function as the identifier of the PFCP association;
 	// Create RemoteNode from AssociationSetupRequest
+
+	// String to IP
+	remoteAddress := net.ParseIP(addr).To4().String()
+	fmt.Println("ok! Remote address: ", remoteAddress)
 	remoteNode := NewNodeAssociation(remoteNodeID, addr)
+	fmt.Println("New node association with address: ", addr)
 	// Add or replace RemoteNode to NodeAssociationMap
 	conn.NodeAssociations[addr] = remoteNode
 	logger.AppLog.Infof("Saving new association: %+v", remoteNode)
@@ -94,10 +104,14 @@ func HandlePfcpAssociationSetupRequest(conn *PfcpConnection, msg message.Message
 	upFunctionFeaturesIE := ie.NewUPFunctionFeatures(featuresOctets[:]...)
 
 	// shall send a PFCP Association Setup Response including:
+	dnn := "internet"
+	flags := uint8(0x61)
+	networkInstance := string(ie.NewNetworkInstanceFQDN(dnn).Payload)
 	asres := message.NewAssociationSetupResponse(asreq.SequenceNumber,
 		ie.NewCause(ie.CauseRequestAccepted), // a successful cause
 		newIeNodeID(conn.nodeId),             // its Node ID;
 		ie.NewRecoveryTimeStamp(conn.RecoveryTimestamp),
+		ie.NewUserPlaneIPResourceInformation(flags, 0, conn.n3Address.String(), "", networkInstance, ie.SrcInterfaceAccess),
 		upFunctionFeaturesIE,
 	)
 

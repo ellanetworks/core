@@ -2,8 +2,6 @@
 
 A Network Management System for managing the Aether SD-Core 5G core network.
 
-![Screenshot](images/nms_screenshot.png)
-
 ## Usage
 
 NMS needs to be configured with the following environment variables:

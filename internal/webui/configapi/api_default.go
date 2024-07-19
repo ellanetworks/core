@@ -109,6 +109,9 @@ func GetNetworkSlices(c *gin.Context) {
 		logger.DbLog.Warnln(errGetMany)
 	}
 	for _, rawNetworkSlice := range rawNetworkSlices {
+		if rawNetworkSlice["SliceName"] == nil {
+			continue
+		}
 		networkSlices = append(networkSlices, rawNetworkSlice["SliceName"].(string))
 	}
 

@@ -18,7 +18,7 @@ export const apiGetAllNetworkSlices = async () => {
 };
 
 export const apiGetNetworkSlice = async (name: string) => {
-  if (isValidNetworkSliceName(name)){
+  if (!isValidNetworkSliceName(name)){
     throw new Error(`Error getting network slice: Invalid name provided.`);
   }
   try {
@@ -36,7 +36,7 @@ export const apiGetNetworkSlice = async (name: string) => {
 };
 
 export const apiPostNetworkSlice = async (name: string, sliceData: any) => {
-  if (isValidNetworkSliceName(name)){
+  if (!isValidNetworkSliceName(name)){
     throw new Error(`Error updating network slice: Invalid name provided.`);
   }
   try {
@@ -55,7 +55,7 @@ export const apiPostNetworkSlice = async (name: string, sliceData: any) => {
 };
 
 export const apiDeleteNetworkSlice = async (name: string) => {
-  if (isValidNetworkSliceName(name)){
+  if (!isValidNetworkSliceName(name)){
     throw new Error(`Error deleting network slice: Invalid name provided.`);
   }
   try {

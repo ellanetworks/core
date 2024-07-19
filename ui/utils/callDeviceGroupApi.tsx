@@ -18,7 +18,7 @@ export const apiGetAllDeviceGroups = async () => {
 };
 
 export const apiGetDeviceGroup = async (name: string) => {
-  if (isValidDeviceGroupName(name)){
+  if (!isValidDeviceGroupName(name)){
     throw new Error(`Error getting device group: Invalid name provided.`);
   }
   try {
@@ -36,7 +36,7 @@ export const apiGetDeviceGroup = async (name: string) => {
 };
 
 export const apiPostDeviceGroup = async (name: string, deviceGroupData: any) => {
-  if (isValidDeviceGroupName(name)){
+  if (!isValidDeviceGroupName(name)){
     throw new Error(`Error updating device group: Invalid name provided.`);
   }
   try {
@@ -55,7 +55,7 @@ export const apiPostDeviceGroup = async (name: string, deviceGroupData: any) => 
 };
 
 export const apiDeleteDeviceGroup = async (name: string) => {
-  if (isValidDeviceGroupName(name)){
+  if (!isValidDeviceGroupName(name)){
     throw new Error(`Error deleting device group: Invalid name provided.`);
   }
   try {

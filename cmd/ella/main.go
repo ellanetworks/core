@@ -48,7 +48,7 @@ func setEnvironmentVariables() error {
 	if err != nil {
 		return err
 	}
-	err = os.Setenv("PFCP_PORT_UPF", "8805")
+	err = os.Setenv("PFCP_PORT_UPF", "8806")
 	if err != nil {
 		return err
 	}
