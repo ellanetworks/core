@@ -10,3 +10,14 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+
+  - package-ecosystem: "npm"
+    directory: "/ui/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore: "
+    groups:
+      npm_dependencies:
+        patterns:
+          - "*"
