@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/yeastengine/ella/internal/upf/config"
@@ -87,10 +86,7 @@ func HandlePfcpAssociationSetupRequest(conn *PfcpConnection, msg message.Message
 	// Create RemoteNode from AssociationSetupRequest
 
 	// String to IP
-	remoteAddress := net.ParseIP(addr).To4().String()
-	fmt.Println("ok! Remote address: ", remoteAddress)
 	remoteNode := NewNodeAssociation(remoteNodeID, addr)
-	fmt.Println("New node association with address: ", addr)
 	// Add or replace RemoteNode to NodeAssociationMap
 	conn.NodeAssociations[addr] = remoteNode
 	logger.AppLog.Infof("Saving new association: %+v", remoteNode)
