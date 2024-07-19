@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -51,7 +50,6 @@ func (association *NodeAssociation) ScheduleHeartbeat(conn *PfcpConnection) {
 
 	for {
 		sequence := association.NewSequenceID()
-		fmt.Println("sending heartbeat request to ", association.Addr)
 		SendHeartbeatRequest(conn, sequence, association.Addr)
 
 		select {

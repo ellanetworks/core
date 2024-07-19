@@ -84,8 +84,6 @@ func HandlePfcpAssociationSetupRequest(conn *PfcpConnection, msg message.Message
 	// if the request is accepted:
 	// shall store the Node ID of the CP function as the identifier of the PFCP association;
 	// Create RemoteNode from AssociationSetupRequest
-
-	// String to IP
 	remoteNode := NewNodeAssociation(remoteNodeID, addr)
 	// Add or replace RemoteNode to NodeAssociationMap
 	conn.NodeAssociations[addr] = remoteNode

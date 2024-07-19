@@ -110,6 +110,7 @@ func GetNetworkSlices(c *gin.Context) {
 	}
 	for _, rawNetworkSlice := range rawNetworkSlices {
 		if rawNetworkSlice["SliceName"] == nil {
+			logger.ConfigLog.Warnln("SliceName is nil")
 			continue
 		}
 		networkSlices = append(networkSlices, rawNetworkSlice["SliceName"].(string))
