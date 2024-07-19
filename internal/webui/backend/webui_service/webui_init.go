@@ -19,14 +19,27 @@ import (
 
 type WEBUI struct{}
 
-func (webui *WEBUI) Initialize(c factory.Config) {
-	factory.InitConfigFactory(c)
-}
-
 var initLog *logrus.Entry
 
 func init() {
 	initLog = logger.InitLog
+}
+
+func (webui *WEBUI) Initialize(c factory.Config) {
+	factory.InitConfigFactory(c)
+	webui.setLogLevel()
+}
+
+func (webui *WEBUI) setLogLevel() {
+	if level, err := logrus.ParseLevel(factory.WebUIConfig.Logger.WEBUI.DebugLevel); err != nil {
+		initLog.Warnf("WebUI Log level [%s] is invalid, set to [info] level",
+			factory.WebUIConfig.Logger.WEBUI.DebugLevel)
+		logger.SetLogLevel(logrus.InfoLevel)
+	} else {
+		initLog.Infof("WebUI Log level is set to [%s] level", level)
+		logger.SetLogLevel(level)
+	}
+	logger.SetReportCaller(factory.WebUIConfig.Logger.WEBUI.ReportCaller)
 }
 
 func (webui *WEBUI) Start() {
@@ -65,18 +78,13 @@ func (webui *WEBUI) Start() {
 		initLog.Infoln(subconfig_router.Run(httpAddr))
 		initLog.Infoln("Webserver stopped/terminated/not-started ")
 	}()
-	/* First HTTP server end */
 
 	self := webui_context.WEBUI_Self()
 	self.UpdateNfProfiles()
 
-	// Start grpc Server. This has embedded functionality of sending
-	// 4G config over REST Api as well.
 	var host string = "0.0.0.0:9876"
 	confServ := &gServ.ConfigServer{}
 	go gServ.StartServer(host, confServ, configMsgChan)
-
-	// http.ListenAndServe("0.0.0.0:5001", nil)
 
 	select {}
 }
