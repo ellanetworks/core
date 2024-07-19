@@ -5,8 +5,11 @@ export interface UpfItem {
 
 export const getUpfList = async (): Promise<UpfItem[]> => {
   try {
-    const response = await fetch("/api/upf", {
+    const response = await fetch("/config/parameter/upf", {
       method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
     });
     if (!response.ok) {
       throw new Error("Failed to fetch UPF list");

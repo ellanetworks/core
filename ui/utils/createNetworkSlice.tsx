@@ -1,3 +1,6 @@
+import { apiGetNetworkSlice, apiPostNetworkSlice } from "@/utils/callNetworkSliceApi";
+import { apiPostDeviceGroup } from "@/utils/callDeviceGroupApi";
+
 interface GnbItem {
   name: string;
   tac: number;
@@ -65,54 +68,31 @@ export const createNetworkSlice = async ({
   };
 
   try {
-    const checkResponse = await fetch(`/api/network-slice/${name}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (checkResponse.ok) {
+    const getNetworkSliceResponse = await apiGetNetworkSlice(name)
+    if (getNetworkSliceResponse.ok) {
       throw new Error("Network slice already exists");
     }
 
-    const networksliceResponse = await fetch(`/api/network-slice/${name}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(sliceData),
-    });
-
-    if (!networksliceResponse.ok) {
-      const result = await networksliceResponse.json();
-      if (result.error) {
-        throw new Error(result.error);
+    const updateNetworkSliceResponse = await apiPostNetworkSlice(name, sliceData);
+    if (!updateNetworkSliceResponse.ok) {
+      const networkSliceData = await updateNetworkSliceResponse.json();
+      if (networkSliceData.error) {
+        throw new Error(networkSliceData.error);
       }
       debugger;
       throw new Error(
-        `Error creating network. Error code: ${networksliceResponse.status}`,
+        `Error creating network slice. Error code: ${updateNetworkSliceResponse.status}`,
       );
     }
 
-    const devicegroupResponse = await fetch(
-      `/api/device-group/${deviceGroupName}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(deviceGroupData),
-      },
-    );
-
+    const devicegroupResponse = await apiPostDeviceGroup(deviceGroupName, deviceGroupData);
     if (!devicegroupResponse.ok) {
       throw new Error(
         `Error creating device group. Error code: ${devicegroupResponse.status}`,
       );
     }
 
-    return networksliceResponse.json();
+    return updateNetworkSliceResponse.json();
   } catch (error: unknown) {
     console.error(error);
     const details =

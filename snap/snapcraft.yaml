@@ -24,11 +24,34 @@ apps:
     restart-condition: on-failure
 
 parts:
+  frontend:
+    plugin: nil
+    source: ./ui
+    build-snaps:
+      - node/20/stable
+    stage-snaps:
+      - node/20/stable
+    override-build: |
+      craftctl default
+      npm ci
+      npm run build
+
+      mkdir -p ${CRAFT_PART_INSTALL}/app
+      cp -r out/* ${CRAFT_PART_INSTALL}/app/
+
   ella:
     plugin: go
+    after:
+      - frontend
+    go-buildtags:
+      - ui
     source: .
     build-snaps:
       - go/1.22/stable
+    override-build: |
+      rm -rf ${CRAFT_PART_BUILD}/ui/frontend_files/*
+      cp -r ${CRAFT_STAGE}/app/* ${CRAFT_PART_BUILD}/ui/frontend_files
+      craftctl default
   
   mongodb:
     plugin: nil
@@ -38,22 +61,6 @@ parts:
       - usr/bin
       - usr/lib
   
-  frontend:
-    plugin: nil
-    source: ./ui
-    build-snaps:
-      - node/20/stable
-    stage-snaps:
-      - node/20/stable
-    override-build: |
-      mkdir -p ${CRAFT_PART_INSTALL}/ui
-      npm install
-      npm run build
-      cp -r .next ${CRAFT_PART_INSTALL}/ui/
-      cp -r node_modules ${CRAFT_PART_INSTALL}/ui/
-      cp package.json ${CRAFT_PART_INSTALL}/ui/
-      cp -r pages ${CRAFT_PART_INSTALL}/ui/
-
   service-files:
     plugin: dump
     source: service

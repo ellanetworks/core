@@ -13,7 +13,7 @@ export default function IndexPage() {
 
   useEffect(() => {
     async function fetchSpecs() {
-      const response = await fetch("/api/getSwaggerDocs");
+      const response = await fetch("swagger/doc.json");
 
       if (response.ok) {
         const fetchedSpec = await response.json();

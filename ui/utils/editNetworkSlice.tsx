@@ -1,3 +1,5 @@
+import { apiGetNetworkSlice, apiPostNetworkSlice } from "@/utils/callNetworkSliceApi";
+
 interface GnbItem {
     name: string;
     tac: number;
@@ -22,48 +24,37 @@ interface GnbItem {
   }: EditNetworkSliceArgs) => {
   
     try {
-      const checkResponse = await fetch(`/api/network-slice/${name}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const getSliceResponse = await apiGetNetworkSlice(name);
   
-      if (!checkResponse.ok) {
-        const result = await checkResponse.json();
+      if (!getSliceResponse.ok) {
+        const result = await getSliceResponse.json();
         if (result.error) {
           throw new Error(result.error);
         }
         throw new Error("Error editing Network Slice " + name);
       }
 
-      var slice = await checkResponse.json();
-      slice["site-info"]["plmn"].mcc = mcc
-      slice["site-info"]["plmn"].mnc = mnc
-      slice["site-info"]["gNodeBs"] = gnbList
-      slice["site-info"]["upf"]["upf-name"] = upfName
-      slice["site-info"]["upf"]["upf-port"] = upfPort
+      var sliceData = await getSliceResponse.json();
+      sliceData["site-info"]["plmn"].mcc = mcc
+      sliceData["site-info"]["plmn"].mnc = mnc
+      sliceData["site-info"]["gNodeBs"] = gnbList
+      sliceData["site-info"]["upf"]["upf-name"] = upfName
+      sliceData["site-info"]["upf"]["upf-port"] = upfPort
   
-      const networksliceResponse = await fetch(`/api/network-slice/${name}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(slice),
-      });
+      const updateSliceResponse = await apiPostNetworkSlice(name, sliceData);
   
-      if (!networksliceResponse.ok) {
-        const result = await networksliceResponse.json();
+      if (!updateSliceResponse.ok) {
+        const result = await updateSliceResponse.json();
         if (result.error) {
           throw new Error(result.error);
         }
         debugger;
         throw new Error(
-          `Error editing network. Error code: ${networksliceResponse.status}`,
+          `Error editing network slice. Error code: ${updateSliceResponse.status}`,
         );
       }
   
-      return networksliceResponse.json();
+      return updateSliceResponse.json();
     } catch (error: unknown) {
       console.error(error);
       const details =

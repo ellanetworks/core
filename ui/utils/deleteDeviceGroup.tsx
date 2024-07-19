@@ -1,3 +1,6 @@
+import { apiGetNetworkSlice, apiPostNetworkSlice } from "@/utils/callNetworkSliceApi";
+import { apiDeleteDeviceGroup } from "@/utils/callDeviceGroupApi";
+
 interface DeleteDeviceGroupArgs {
   name: string;
   networkSliceName: string;
@@ -8,40 +11,21 @@ export const deleteDeviceGroup = async ({
   networkSliceName,
 }: DeleteDeviceGroupArgs) => {
   try {
-    const existingSliceResponse = await fetch(
-      `/api/network-slice/${networkSliceName}`,
-      {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
+    const existingSliceResponse = await apiGetNetworkSlice(networkSliceName);
     if (!existingSliceResponse.ok) {
       throw new Error(
         `Error fetching network slice. Error code: ${existingSliceResponse.status}`,
       );
     }
 
-    const existingSliceData = await existingSliceResponse.json();
+    var existingSliceData = await existingSliceResponse.json();
 
     if (existingSliceData["site-device-group"]) {
       const index = existingSliceData["site-device-group"].indexOf(name);
       if (index > -1) {
         existingSliceData["site-device-group"].splice(index, 1);
 
-        const updateSliceResponse = await fetch(
-          `/api/network-slice/${networkSliceName}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(existingSliceData),
-          },
-        );
-
+        const updateSliceResponse = await apiPostNetworkSlice(networkSliceName, existingSliceData);
         if (!updateSliceResponse.ok) {
           throw new Error(
             `Error updating network slice. Error code: ${updateSliceResponse.status}`,
@@ -50,13 +34,7 @@ export const deleteDeviceGroup = async ({
       }
     }
 
-    const deleteResponse = await fetch(`/api/device-group/${name}`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
+    const deleteResponse = await apiDeleteDeviceGroup(name);
     if (!deleteResponse.ok) {
       throw new Error(
         `Error deleting device group. Error code: ${deleteResponse.status}`,
