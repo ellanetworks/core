@@ -17,12 +17,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
 
       - name: Build
-        run: go build ./...
+        run: |
+          cd ui/
+          npm install
+          npm run build
+          cp -r out/* ../internal/webui/ui/frontend_files/
+          go build ./...
   
   lint:
     runs-on: ubuntu-22.04
@@ -105,7 +115,7 @@ jobs:
         with:
           name: rock
           path: ${{ steps.rockcraft.outputs.rock }}
-  
+
   publish-snap:
     name: Snap publish
     runs-on: ubuntu-22.04

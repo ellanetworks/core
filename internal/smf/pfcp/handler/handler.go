@@ -23,6 +23,8 @@ func HandlePfcpHeartbeatRequest(msg *pfcpUdp.Message) {
 func HandlePfcpHeartbeatResponse(msg *pfcpUdp.Message) {
 	rsp := msg.PfcpMessage.Body.(pfcp.HeartbeatResponse)
 
+	logger.PfcpLog.Infof("Handle pfcp heartbeat response")
+
 	// Get NodeId from Seq:NodeId Map
 	seq := msg.PfcpMessage.Header.SequenceNumber
 	nodeID := pfcp_message.FetchPfcpTxn(seq)
@@ -67,22 +69,21 @@ func SetUpfInactive(nodeID pfcpType.NodeID, msgType pfcp.MessageType) {
 	upf.NHeartBeat = 0 // reset Heartbeat attempt to 0
 }
 
-func HandlePfcpPfdManagementRequest(msg *pfcpUdp.Message) {
-	logger.PfcpLog.Warnf("PFCP PFD Management Request handling is not implemented")
-}
-
-func HandlePfcpPfdManagementResponse(msg *pfcpUdp.Message) {
-	logger.PfcpLog.Warnf("PFCP PFD Management Response handling is not implemented")
-}
-
 func HandlePfcpAssociationSetupRequest(msg *pfcpUdp.Message) {
 	req := msg.PfcpMessage.Body.(pfcp.PFCPAssociationSetupRequest)
 
+	logger.PfcpLog.Infof("Handle PFCP Association Setup Request")
+
+	if msg.RemoteAddr.Port != 8806 {
+		logger.PfcpLog.Errorf("Received PFCP Association Setup Request from non-UPF, dropping")
+		return
+	}
 	nodeID := req.NodeID
 	if nodeID == nil {
 		logger.PfcpLog.Errorln("pfcp association needs NodeID")
 		return
 	}
+
 	logger.PfcpLog.Infof("Handle PFCP Association Setup Request with NodeID[%s]", nodeID.ResolveNodeIdToIp().String())
 
 	upf := smf_context.RetrieveUPFNodeByNodeID(*nodeID)
@@ -178,14 +179,6 @@ func HandlePfcpAssociationSetupResponse(msg *pfcpUdp.Message) {
 	}
 }
 
-func HandlePfcpAssociationUpdateRequest(msg *pfcpUdp.Message) {
-	logger.PfcpLog.Warnf("PFCP Association Update Request handling is not implemented")
-}
-
-func HandlePfcpAssociationUpdateResponse(msg *pfcpUdp.Message) {
-	logger.PfcpLog.Warnf("PFCP Association Update Response handling is not implemented")
-}
-
 func HandlePfcpAssociationReleaseRequest(msg *pfcpUdp.Message) {
 	pfcpMsg := msg.PfcpMessage.Body.(pfcp.PFCPAssociationReleaseRequest)
 
@@ -208,26 +201,6 @@ func HandlePfcpAssociationReleaseResponse(msg *pfcpUdp.Message) {
 	if pfcpMsg.Cause.CauseValue == pfcpType.CauseRequestAccepted {
 		smf_context.RemoveUPFNodeByNodeID(*pfcpMsg.NodeID)
 	}
-}
-
-func HandlePfcpVersionNotSupportedResponse(msg *pfcpUdp.Message) {
-	logger.PfcpLog.Warnf("PFCP Version Not Support Response handling is not implemented")
-}
-
-func HandlePfcpNodeReportRequest(msg *pfcpUdp.Message) {
-	logger.PfcpLog.Warnf("PFCP Node Report Request handling is not implemented")
-}
-
-func HandlePfcpNodeReportResponse(msg *pfcpUdp.Message) {
-	logger.PfcpLog.Warnf("PFCP Node Report Response handling is not implemented")
-}
-
-func HandlePfcpSessionSetDeletionRequest(msg *pfcpUdp.Message) {
-	logger.PfcpLog.Warnf("PFCP Session Set Deletion Request handling is not implemented")
-}
-
-func HandlePfcpSessionSetDeletionResponse(msg *pfcpUdp.Message) {
-	logger.PfcpLog.Warnf("PFCP Session Set Deletion Response handling is not implemented")
 }
 
 func HandlePfcpSessionEstablishmentResponse(msg *pfcpUdp.Message) {
@@ -504,8 +477,4 @@ func HandlePfcpSessionReportRequest(msg *pfcpUdp.Message) {
 	//	cause.CauseValue = pfcpType.CauseRequestAccepted
 	// TODO fix: SEID should be the value sent by UPF but now the SEID value is from sm context
 	// pfcp_message.SendPfcpSessionReportResponse(msg.RemoteAddr, cause, seqFromUPF, SEID)
-}
-
-func HandlePfcpSessionReportResponse(msg *pfcpUdp.Message) {
-	logger.PfcpLog.Warnf("PFCP Session Report Response handling is not implemented")
 }

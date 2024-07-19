@@ -33,7 +33,7 @@ func Start() error {
 
 	c := config.UpfConfig{
 		InterfaceName: []string{
-			"enp3s0",
+			"wlp9s0",
 		},
 		XDPAttachMode:     "generic",
 		ApiAddress:        ":8080",

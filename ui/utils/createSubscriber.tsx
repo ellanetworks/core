@@ -1,3 +1,6 @@
+import { apiGetDeviceGroup, apiPostDeviceGroup } from "@/utils/callDeviceGroupApi";
+import { apiGetSubscriber, apiPostSubscriber } from "@/utils/callSubscriberApi";
+
 interface CreateSubscriberArgs {
   imsi: string;
   opc: string;
@@ -21,69 +24,37 @@ export const createSubscriber = async ({
   };
 
   try {
-    const checkResponse = await fetch(`/api/subscriber/imsi-${imsi}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    const getSubscriberResponse = await apiGetSubscriber(imsi);
 
     // Workaround for https://github.com/omec-project/webconsole/issues/109
-    const existingSubscriberData = await checkResponse.json();
-    if (checkResponse.ok && existingSubscriberData["AuthenticationSubscription"]["authenticationMethod"]) {
+    const existingSubscriberData = await getSubscriberResponse.json();
+    if (getSubscriberResponse.ok && existingSubscriberData["AuthenticationSubscription"]["authenticationMethod"]) {
       throw new Error("Subscriber already exists.");
     }
 
-    const response = await fetch(`/api/subscriber/imsi-${imsi}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(subscriberData),
-    });
-
-    if (!response.ok) {
+    const updateSubscriberResponse = await apiPostSubscriber(imsi, subscriberData);
+    if (!updateSubscriberResponse.ok) {
       throw new Error(
-        `Error creating subscriber. Error code: ${response.status}`,
+        `Error creating subscriber. Error code: ${updateSubscriberResponse.status}`,
       );
     }
 
-    const existingDeviceGroupResponse = await fetch(
-      `/api/device-group/${deviceGroupName}`,
-      {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    const existingDeviceGroupData = await existingDeviceGroupResponse.json();
+    const existingDeviceGroupResponse = await apiGetDeviceGroup(deviceGroupName);
+    var existingDeviceGroupData = await existingDeviceGroupResponse.json();
 
     if (!existingDeviceGroupData["imsis"]) {
       existingDeviceGroupData["imsis"] = [];
     }
-
     existingDeviceGroupData["imsis"].push(imsi);
 
-    const updateDeviceGroupResponse = await fetch(
-      `/api/device-group/${deviceGroupName}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(existingDeviceGroupData),
-      },
-    );
-
+    const updateDeviceGroupResponse = await apiPostDeviceGroup(deviceGroupName, existingDeviceGroupData);
     if (!updateDeviceGroupResponse.ok) {
       throw new Error(
         `Error updating device group. Error code: ${updateDeviceGroupResponse.status}`,
       );
     }
 
-    return response.json();
+    return updateSubscriberResponse.json();
   } catch (error) {
     console.error(error);
     const details =

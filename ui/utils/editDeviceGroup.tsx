@@ -1,3 +1,6 @@
+import { apiPostDeviceGroup } from "@/utils/callDeviceGroupApi";
+import { getDeviceGroup } from "@/utils/getDeviceGroup";
+
 interface DeviceGroupArgs {
   name: string;
   ueIpPool: string;
@@ -6,22 +9,6 @@ interface DeviceGroupArgs {
   MBRUpstreamBps: number;
   MBRDownstreamBps: number;
 }
-
-const getDeviceGroup = async (deviceGroupName: string) => {
-  try {
-    const response = await fetch(`/api/device-group/${deviceGroupName}`, {
-      method: "GET",
-    });
-    if (!response.ok)
-      throw new Error(
-        `Failed to fetch device group. Status: ${response.status}`,
-      );
-    const deviceGroup = await response.json();
-    return deviceGroup;
-  } catch (error) {
-    console.error(error);
-  }
-};
 
 export const editDeviceGroup = async ({
   name,
@@ -59,14 +46,7 @@ export const editDeviceGroup = async ({
       },
     };
 
-    const response = await fetch(`/api/device-group/${name}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(deviceGroupData),
-    });
-
+    const response = await apiPostDeviceGroup(name, deviceGroupData);
     if (!response.ok) {
       throw new Error(
         `Error updating device group. Error code: ${response.status}`,
@@ -78,7 +58,7 @@ export const editDeviceGroup = async ({
     const details =
       error instanceof Error
         ? error.message
-        : "Failed to configure the network.";
+        : "Failed edit device group.";
     throw new Error(details);
   }
 };

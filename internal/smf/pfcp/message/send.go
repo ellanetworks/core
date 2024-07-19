@@ -90,11 +90,6 @@ func SendHeartbeatRequest(upNodeID pfcpType.NodeID, upfPort uint16) error {
 }
 
 func SendPfcpAssociationSetupRequest(upNodeID pfcpType.NodeID, upfPort uint16) {
-	if net.IP.Equal(upNodeID.ResolveNodeIdToIp(), net.IPv4zero) {
-		logger.PfcpLog.Errorf("PFCP Association Setup Request failed, invalid NodeId: %v", string(upNodeID.NodeIdValue))
-		return
-	}
-
 	pfcpMsg, err := BuildPfcpAssociationSetupRequest()
 	if err != nil {
 		logger.PfcpLog.Errorf("Build PFCP Association Setup Request failed: %v", err)
@@ -148,33 +143,6 @@ func SendPfcpAssociationSetupResponse(upNodeID pfcpType.NodeID, cause pfcpType.C
 
 	udp.SendPfcp(message, addr, nil)
 	logger.PfcpLog.Infof("Sent PFCP Association Response to NodeID[%s]", upNodeID.ResolveNodeIdToIp().String())
-}
-
-func SendPfcpAssociationReleaseRequest(upNodeID pfcpType.NodeID, upfPort uint16) {
-	pfcpMsg, err := BuildPfcpAssociationReleaseRequest()
-	if err != nil {
-		logger.PfcpLog.Errorf("Build PFCP Association Release Request failed: %v", err)
-		return
-	}
-
-	message := pfcp.Message{
-		Header: pfcp.Header{
-			Version:        pfcp.PfcpVersion,
-			MP:             0,
-			S:              pfcp.SEID_NOT_PRESENT,
-			MessageType:    pfcp.PFCP_ASSOCIATION_RELEASE_REQUEST,
-			SequenceNumber: 1,
-		},
-		Body: pfcpMsg,
-	}
-
-	addr := &net.UDPAddr{
-		IP:   upNodeID.ResolveNodeIdToIp(),
-		Port: int(upfPort),
-	}
-
-	udp.SendPfcp(message, addr, nil)
-	logger.PfcpLog.Infof("Sent PFCP Association Release Request to NodeID[%s]", upNodeID.ResolveNodeIdToIp().String())
 }
 
 func SendPfcpAssociationReleaseResponse(upNodeID pfcpType.NodeID, cause pfcpType.Cause, upfPort uint16) {
@@ -244,30 +212,6 @@ func SendPfcpSessionEstablishmentRequest(
 	ctx.SubPfcpLog.Infof("Sent PFCP Session Establish Request to NodeID[%s]", ip.String())
 }
 
-// Deprecated: PFCP Session Establishment Procedure should be initiated by the CP function
-func SendPfcpSessionEstablishmentResponse(addr *net.UDPAddr) {
-	pfcpMsg, err := BuildPfcpSessionEstablishmentResponse()
-	if err != nil {
-		logger.PfcpLog.Errorf("Build PFCP Session Establishment Response failed: %v", err)
-		return
-	}
-
-	message := pfcp.Message{
-		Header: pfcp.Header{
-			Version:         pfcp.PfcpVersion,
-			MP:              1,
-			S:               pfcp.SEID_PRESENT,
-			MessageType:     pfcp.PFCP_SESSION_ESTABLISHMENT_RESPONSE,
-			SEID:            123456789123456789,
-			SequenceNumber:  1,
-			MessagePriority: 12,
-		},
-		Body: pfcpMsg,
-	}
-
-	udp.SendPfcp(message, addr, nil)
-}
-
 func SendPfcpSessionModificationRequest(upNodeID pfcpType.NodeID,
 	ctx *smf_context.SMContext,
 	pdrList []*smf_context.PDR, farList []*smf_context.FAR, barList []*smf_context.BAR, qerList []*smf_context.QER, upfPort uint16,
@@ -306,30 +250,6 @@ func SendPfcpSessionModificationRequest(upNodeID pfcpType.NodeID,
 	return seqNum
 }
 
-// Deprecated: PFCP Session Modification Procedure should be initiated by the CP function
-func SendPfcpSessionModificationResponse(addr *net.UDPAddr) {
-	pfcpMsg, err := BuildPfcpSessionModificationResponse()
-	if err != nil {
-		logger.PfcpLog.Errorf("Build PFCP Session Modification Response failed: %v", err)
-		return
-	}
-
-	message := pfcp.Message{
-		Header: pfcp.Header{
-			Version:         pfcp.PfcpVersion,
-			MP:              1,
-			S:               pfcp.SEID_PRESENT,
-			MessageType:     pfcp.PFCP_SESSION_MODIFICATION_RESPONSE,
-			SEID:            123456789123456789,
-			SequenceNumber:  1,
-			MessagePriority: 12,
-		},
-		Body: pfcpMsg,
-	}
-
-	udp.SendPfcp(message, addr, nil)
-}
-
 func SendPfcpSessionDeletionRequest(upNodeID pfcpType.NodeID, ctx *smf_context.SMContext, upfPort uint16) (seqNum uint32) {
 	pfcpMsg, err := BuildPfcpSessionDeletionRequest(upNodeID, ctx)
 	if err != nil {
@@ -363,30 +283,6 @@ func SendPfcpSessionDeletionRequest(upNodeID pfcpType.NodeID, ctx *smf_context.S
 
 	ctx.SubPfcpLog.Infof("Sent PFCP Session Delete Request to NodeID[%s]", upNodeID.ResolveNodeIdToIp().String())
 	return seqNum
-}
-
-// Deprecated: PFCP Session Deletion Procedure should be initiated by the CP function
-func SendPfcpSessionDeletionResponse(addr *net.UDPAddr) {
-	pfcpMsg, err := BuildPfcpSessionDeletionResponse()
-	if err != nil {
-		logger.PfcpLog.Errorf("Build PFCP Session Deletion Response failed: %v", err)
-		return
-	}
-
-	message := pfcp.Message{
-		Header: pfcp.Header{
-			Version:         pfcp.PfcpVersion,
-			MP:              1,
-			S:               pfcp.SEID_PRESENT,
-			MessageType:     pfcp.PFCP_SESSION_DELETION_RESPONSE,
-			SEID:            123456789123456789,
-			SequenceNumber:  1,
-			MessagePriority: 12,
-		},
-		Body: pfcpMsg,
-	}
-
-	udp.SendPfcp(message, addr, nil)
 }
 
 func SendPfcpSessionReportResponse(addr *net.UDPAddr, cause pfcpType.Cause, pfcpSRflag pfcpType.PFCPSRRspFlags, seqFromUPF uint32, SEID uint64) {
@@ -522,33 +418,4 @@ func handleSendPfcpSessModReqError(msg *pfcp.Message, pfcpErr error) {
 	smContext.SubPfcpLog.Errorf("PFCP Session Modification send failure, %v", pfcpErr.Error())
 
 	smContext.SBIPFCPCommunicationChan <- smf_context.SessionUpdateTimeout
-}
-
-type UdpPodPfcpMsg struct {
-	// message type contains in Msg.Header
-	Msg      pfcp.Message    `json:"pfcpMsg"`
-	Addr     *net.UDPAddr    `json:"addr"`
-	SmfIp    string          `json:"smfIp"`
-	UpNodeID pfcpType.NodeID `json:"upNodeID"`
-}
-
-type UdpPodPfcpRspMsg struct {
-	// message type contains in Msg.Header
-	Msg pfcp.Message `json:"msg"`
-}
-
-func GetLocalIP() string {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return ""
-	}
-	for _, address := range addrs {
-		// check the address type and if it is not a loopback the display it
-		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				return ipnet.IP.String()
-			}
-		}
-	}
-	return ""
 }

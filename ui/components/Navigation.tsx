@@ -1,4 +1,4 @@
-import React, { FC, MouseEvent, useEffect, useState } from "react";
+import React, { FC, MouseEvent, useState } from "react";
 import { Button, Icon } from "@canonical/react-components";
 import classnames from "classnames";
 import Logo from "./Logo";
