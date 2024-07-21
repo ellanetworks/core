@@ -33,7 +33,7 @@ require (
 	github.com/yeastengine/config5g v0.0.0-20240624120332-b75c495fdf84
 	go.mongodb.org/mongo-driver v1.11.7
 	golang.org/x/exp v0.0.0-20240103183307-be819d1f06fc
-	golang.org/x/sys v0.20.0
+	golang.org/x/sys v0.22.0
 	google.golang.org/grpc v1.65.0
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/yaml.v2 v2.4.0
