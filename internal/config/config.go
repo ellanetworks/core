@@ -7,7 +7,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type Config struct{}
+type Config struct {
+	MongoDBBinariesPath string `yaml:"mongoDBBinariesPath"`
+}
 
 func Parse(configPath string) (Config, error) {
 	data, err := os.ReadFile(configPath)
@@ -22,4 +24,14 @@ func Parse(configPath string) (Config, error) {
 	}
 
 	return config, nil
+}
+
+func (cfg *Config) Validate() error {
+	if cfg.MongoDBBinariesPath == "" {
+		return fmt.Errorf("mongoDBBinariesPath is required")
+	}
+	if _, err := os.Stat(cfg.MongoDBBinariesPath); os.IsNotExist(err) {
+		return fmt.Errorf("path does not exist: %s", cfg.MongoDBBinariesPath)
+	}
+	return nil
 }

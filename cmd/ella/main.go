@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/yeastengine/ella/internal/amf"
@@ -35,8 +36,8 @@ func parseFlags() (config.Config, error) {
 	return cfg, nil
 }
 
-func startMongoDB() string {
-	db, err := db.StartMongoDB(DBPath)
+func startMongoDB(mongoBinariesPath string) string {
+	db, err := db.StartMongoDB(mongoBinariesPath, DBPath)
 	if err != nil {
 		panic(err)
 	}
@@ -55,8 +56,8 @@ func setEnvironmentVariables() error {
 	return nil
 }
 
-func startNetwork() error {
-	dbUrl := startMongoDB()
+func startNetwork(cfg config.Config) error {
+	dbUrl := startMongoDB(cfg.MongoDBBinariesPath)
 
 	webuiUrl, err := webui.Start(dbUrl)
 	if err != nil {
@@ -105,13 +106,17 @@ func startNetwork() error {
 func main() {
 	err := setEnvironmentVariables()
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to set environment variables: %v", err)
 	}
-	_, err = parseFlags()
+	cfg, err := parseFlags()
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to parse flags: %v", err)
 	}
-	err = startNetwork()
+	err = cfg.Validate()
+	if err != nil {
+		log.Fatalf("invalid config: %v", err)
+	}
+	err = startNetwork(cfg)
 	if err != nil {
 		panic(err)
 	}

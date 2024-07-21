@@ -13,8 +13,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const MongoBinariesPath = "/snap/ella/current/usr/bin"
-
 type MongoDB struct {
 	Cmd *exec.Cmd
 	URL string
@@ -83,8 +81,8 @@ func (m *MongoDB) waitForStartup() error {
 	return fmt.Errorf("mongod did not start")
 }
 
-func StartMongoDB(dbPath string) (*MongoDB, error) {
-	cmd := exec.Command(MongoBinariesPath+"/mongod", "--dbpath", dbPath, "--replSet", "rs0")
+func StartMongoDB(mongoBinariesPath string, dbPath string) (*MongoDB, error) {
+	cmd := exec.Command(mongoBinariesPath+"/mongod", "--dbpath", dbPath, "--replSet", "rs0")
 	err := cmd.Start()
 	if err != nil {
 		return nil, fmt.Errorf("failed to start mongod: %w", err)
@@ -94,7 +92,7 @@ func StartMongoDB(dbPath string) (*MongoDB, error) {
 		URL: "mongodb://localhost:27017",
 	}
 
-	err = initializeReplicaSetWithRetry()
+	err = initializeReplicaSetWithRetry(mongoBinariesPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize replica set: %w", err)
 	}
@@ -108,9 +106,9 @@ func StartMongoDB(dbPath string) (*MongoDB, error) {
 	return mongo, nil
 }
 
-func initializeReplicaSetWithRetry() error {
+func initializeReplicaSetWithRetry(mongoBinariesPath string) error {
 	for i := 0; i < 10; i++ {
-		err := initializeReplicaSet()
+		err := initializeReplicaSet(mongoBinariesPath)
 		if err == nil {
 			return nil
 		}
@@ -120,9 +118,9 @@ func initializeReplicaSetWithRetry() error {
 	return fmt.Errorf("failed to initialize replica set after multiple attempts")
 }
 
-func initializeReplicaSet() error {
+func initializeReplicaSet(mongoBinariesPath string) error {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(MongoBinariesPath+"/mongosh", "--eval", "rs.initiate()")
+	cmd := exec.Command(mongoBinariesPath+"/mongosh", "--eval", "rs.initiate()")
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
