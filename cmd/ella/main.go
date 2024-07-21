@@ -35,8 +35,8 @@ func parseFlags() (config.Config, error) {
 	return cfg, nil
 }
 
-func startMongoDB() string {
-	db, err := db.StartMongoDB(DBPath)
+func startMongoDB(mongoBinariesPath string) string {
+	db, err := db.StartMongoDB(mongoBinariesPath, DBPath)
 	if err != nil {
 		panic(err)
 	}
@@ -55,8 +55,8 @@ func setEnvironmentVariables() error {
 	return nil
 }
 
-func startNetwork() error {
-	dbUrl := startMongoDB()
+func startNetwork(cfg config.Config) error {
+	dbUrl := startMongoDB(cfg.MongoDBBinariesPath)
 
 	webuiUrl, err := webui.Start(dbUrl)
 	if err != nil {
@@ -107,11 +107,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	_, err = parseFlags()
+	cfg, err := parseFlags()
 	if err != nil {
 		panic(err)
 	}
-	err = startNetwork()
+	err = startNetwork(cfg)
 	if err != nil {
 		panic(err)
 	}

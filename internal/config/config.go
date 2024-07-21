@@ -7,7 +7,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type Config struct{}
+type Config struct {
+	MongoDBBinariesPath string `yaml:"mongoDBBinariesPath"`
+}
 
 func Parse(configPath string) (Config, error) {
 	data, err := os.ReadFile(configPath)

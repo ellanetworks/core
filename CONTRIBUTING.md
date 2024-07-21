@@ -18,4 +18,11 @@ npm run build
 cp -r out/* ../internal/webui/ui/frontend_files/
 ```
 
-Access Ella from your browser at `http://localhost:5000`
+### Container image
+
+```bash
+sudo snap install rockcraft --classic --edge
+rockcraft pack -v
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella_0.0.1_amd64.rock docker-daemon:ella:0.0.1
+docker run ella:0.0.1
+```
