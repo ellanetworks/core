@@ -12,7 +12,7 @@ require (
 	github.com/cydev/zero v0.0.0-20160322155811-4a4535dd56e7
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/gin-contrib/cors v1.7.2
-	github.com/gin-gonic/gin v1.9.1
+	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0
