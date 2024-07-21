@@ -118,7 +118,7 @@ func configHandler(configMsgChan chan *configmodels.ConfigMessage, configReceive
 				if configMsg.Slice == nil {
 					configLog.Infof("Received delete Slice [%v] from config channel", configMsg.SliceName)
 					config5gMsg.PrevSlice = getSliceByName(configMsg.SliceName)
-					filter := bson.M{"SliceName": configMsg.SliceName}
+					filter := bson.M{"slice-name": configMsg.SliceName}
 					errDelOne := dbadapter.CommonDBClient.RestfulAPIDeleteOne(sliceDataColl, filter)
 					if errDelOne != nil {
 						logger.DbLog.Warnln(errDelOne)
@@ -177,7 +177,7 @@ func handleNetworkSlicePost(configMsg *configmodels.ConfigMessage, subsUpdateCha
 	config5gMsg.Msg = configMsg
 	config5gMsg.PrevSlice = getSliceByName(configMsg.SliceName)
 	subsUpdateChan <- &config5gMsg
-	filter := bson.M{"SliceName": configMsg.SliceName}
+	filter := bson.M{"slice-name": configMsg.SliceName}
 	sliceDataBsonA := toBsonM(configMsg.Slice)
 	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(sliceDataColl, filter, sliceDataBsonA)
 	if errPost != nil {
@@ -239,7 +239,7 @@ func getSlices() []*configmodels.Slice {
 }
 
 func getSliceByName(name string) *configmodels.Slice {
-	filter := bson.M{"SliceName": name}
+	filter := bson.M{"slice-name": name}
 	sliceDataInterface, errGetOne := dbadapter.CommonDBClient.RestfulAPIGetOne(sliceDataColl, filter)
 	if errGetOne != nil {
 		logger.DbLog.Warnln(errGetOne)

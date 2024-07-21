@@ -1,6 +1,6 @@
 export type NetworkSlice = {
   name: string;
-  SliceName: string;
+  "slice-name": string;
   "slice-id": {
     sst: string;
     sd: string;

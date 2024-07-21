@@ -117,13 +117,13 @@ const NetworkConfiguration = () => {
         {networkSlices.length > 0 && (
           <>
               {networkSlices.map((slice) => (
-                <Card key={slice.SliceName}>
-                  <h2 className="p-heading--5">{slice.SliceName}</h2>
+                <Card key={slice["slice-name"]}>
+                  <h2 className="p-heading--5">{slice["slice-name"]}</h2>
                   <NetworkSliceTable slice={slice} />
                   <hr />
                   <div className="u-align--right">
                     {getEditButton(slice)}
-                    {getDeleteButton(slice.SliceName, slice["site-device-group"])}
+                    {getDeleteButton(slice["slice-name"], slice["site-device-group"])}
                   </div>
                 </Card>
               ))}

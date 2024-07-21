@@ -38,7 +38,7 @@ export const NetworkSliceGroups: React.FC<NetworkSliceTableProps> = ({
     }));
   };
   const { data: deviceGroupContent = [], isLoading } = useQuery({
-    queryKey: [queryKeys.deviceGroups, slice.SliceName, slice["site-device-group"]?.join(",")],
+    queryKey: [queryKeys.deviceGroups, slice["slice-name"], slice["site-device-group"]?.join(",")],
     queryFn: () => getDeviceGroupsFromNetworkSlice(slice),
     enabled: isExpanded,
   });
@@ -163,7 +163,7 @@ export const NetworkSliceGroups: React.FC<NetworkSliceTableProps> = ({
                 content:
                   (<div className="u-align--right">
                     {getEditButton(deviceGroup_id)}
-                    {getDeleteButton(deviceGroup?.["group-name"], deviceGroup?.["imsis"] , slice.SliceName)}
+                    {getDeleteButton(deviceGroup?.["group-name"], deviceGroup?.["imsis"] , slice["slice-name"])}
                   </div>
                   ),
                 className: "u-align--right",

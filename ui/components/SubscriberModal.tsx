@@ -45,7 +45,7 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
   const oldNetworkSlice = slices.find(
     (slice) => slice["site-device-group"]?.includes(oldDeviceGroupName)
   );
-  const oldNetworkSliceName : string = oldNetworkSlice ? oldNetworkSlice["SliceName"] : "";
+  const oldNetworkSliceName : string = oldNetworkSlice ? oldNetworkSlice["slice-name"] : "";
 
   const SubscriberSchema = Yup.object().shape({
     imsi: Yup.string()
@@ -130,7 +130,7 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
   };
 
   const selectedSlice = slices.find(
-    (slice) => slice.SliceName === formik.values.selectedSlice,
+    (slice) => slice["slice-name"] === formik.values.selectedSlice,
   );
 
   const setDeviceGroup = useCallback(
@@ -148,7 +148,7 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
       : [];
 
   useEffect(() => {
-    if (subscriber && selectedSlice && oldNetworkSliceName == selectedSlice.SliceName) {
+    if (subscriber && selectedSlice && oldNetworkSliceName == selectedSlice["slice-name"]) {
       setDeviceGroup(oldDeviceGroupName);
     }
     else if (selectedSlice && selectedSlice["site-device-group"]?.length === 1){
@@ -245,8 +245,8 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
               value: "",
             },
             ...slices.map((slice) => ({
-              label: slice.SliceName,
-              value: slice.SliceName,
+              label: slice["slice-name"],
+              value: slice["slice-name"],
             })),
           ]}
         />
