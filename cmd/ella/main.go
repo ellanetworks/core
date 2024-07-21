@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/yeastengine/ella/internal/amf"
@@ -105,11 +106,15 @@ func startNetwork(cfg config.Config) error {
 func main() {
 	err := setEnvironmentVariables()
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to set environment variables: %v", err)
 	}
 	cfg, err := parseFlags()
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to parse flags: %v", err)
+	}
+	err = cfg.Validate()
+	if err != nil {
+		log.Fatalf("invalid config: %v", err)
 	}
 	err = startNetwork(cfg)
 	if err != nil {
