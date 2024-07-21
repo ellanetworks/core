@@ -109,11 +109,11 @@ func GetNetworkSlices(c *gin.Context) {
 		logger.DbLog.Warnln(errGetMany)
 	}
 	for _, rawNetworkSlice := range rawNetworkSlices {
-		if rawNetworkSlice["SliceName"] == nil {
-			logger.ConfigLog.Warnln("SliceName is nil")
+		if rawNetworkSlice["slice-name"] == nil {
+			logger.ConfigLog.Errorf("slice-name is nil")
 			continue
 		}
-		networkSlices = append(networkSlices, rawNetworkSlice["SliceName"].(string))
+		networkSlices = append(networkSlices, rawNetworkSlice["slice-name"].(string))
 	}
 
 	c.JSON(http.StatusOK, networkSlices)
@@ -125,13 +125,13 @@ func GetNetworkSliceByName(c *gin.Context) {
 	logger.WebUILog.Infoln("Get Network Slice by name")
 
 	var networkSlice configmodels.Slice
-	filter := bson.M{"SliceName": c.Param("slice-name")}
-	rawNetworkSlice, errGetOne := dbadapter.CommonDBClient.RestfulAPIGetOne(sliceDataColl, filter)
-	if errGetOne != nil {
-		logger.DbLog.Warnln(errGetOne)
+	filter := bson.M{"slice-name": c.Param("slice-name")}
+	rawNetworkSlice, err := dbadapter.CommonDBClient.RestfulAPIGetOne(sliceDataColl, filter)
+	if err != nil {
+		logger.DbLog.Warnln(err)
 	}
-	json.Unmarshal(mapToByte(rawNetworkSlice), &networkSlice)
 
+	json.Unmarshal(mapToByte(rawNetworkSlice), &networkSlice)
 	if networkSlice.SliceName == "" {
 		c.JSON(http.StatusNotFound, nil)
 	} else {

@@ -62,7 +62,7 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
   });
 
   const modalTitle = () => {
-      return networkSlice?.SliceName ? ("Edit Network Slice: " + networkSlice.SliceName) : "Create Network Slice"
+      return networkSlice?.["slice-name"] ? ("Edit Network Slice: " + networkSlice["slice-name"]) : "Create Network Slice"
   }
 
   const buttonText = () => {
@@ -81,7 +81,7 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
     initialValues: {
       mcc: networkSlice?.["site-info"]["plmn"].mcc || "",
       mnc: networkSlice?.["site-info"]["plmn"].mnc || "",
-      name: networkSlice?.SliceName || "",
+      name: networkSlice?.["slice-name"] || "",
       upf: getUpfFromNetworkSlice(),
       gnbList: networkSlice?.["site-info"].gNodeBs || [],
     },

@@ -27,17 +27,17 @@ export const NetworkSliceTable: React.FC<NetworkSliceTableProps> = ({
       queryKey: [queryKeys.networkSlices],
     });
     await queryClient.invalidateQueries({
-      queryKey: [queryKeys.deviceGroups, slice.SliceName],
+      queryKey: [queryKeys.deviceGroups, slice["slice-name"]],
     });
   };
 
   return (
     <>
-      {isModalVisible && slice?.SliceName && (
+      {isModalVisible && slice?.["slice-name"] && (
         <DeviceGroupModal
           toggleModal={toggleModal}
           onDeviceGroupAction={handleDeviceGroupCreated}
-          networkSliceName={slice.SliceName}
+          networkSliceName={slice["slice-name"]}
         />
       )}
       <MainTable
@@ -60,7 +60,7 @@ export const NetworkSliceTable: React.FC<NetworkSliceTableProps> = ({
                 className: "u-align--right",
               },
             ],
-            key: `mcc-${slice.SliceName}`,
+            key: `mcc-${slice["slice-name"]}`,
           },
           {
             columns: [
@@ -70,7 +70,7 @@ export const NetworkSliceTable: React.FC<NetworkSliceTableProps> = ({
                 className: "u-align--right",
               },
             ],
-            key: `mnc-${slice.SliceName}`,
+            key: `mnc-${slice["slice-name"]}`,
           },
           {
             columns: [
@@ -83,7 +83,7 @@ export const NetworkSliceTable: React.FC<NetworkSliceTableProps> = ({
                 className: "u-align--right",
               },
             ],
-            key: `upf-${slice.SliceName}`,
+            key: `upf-${slice["slice-name"]}`,
           },
           {
             columns: [
@@ -94,7 +94,7 @@ export const NetworkSliceTable: React.FC<NetworkSliceTableProps> = ({
                 className: "u-align--right",
               },
             ],
-            key: `gNodeBs-${slice.SliceName}`,
+            key: `gNodeBs-${slice["slice-name"]}`,
           },
           {
             columns: [
@@ -149,7 +149,7 @@ export const NetworkSliceTable: React.FC<NetworkSliceTableProps> = ({
               <NetworkSliceGroups slice={slice} isExpanded={isExpanded} />
             ),
             expanded: isExpanded,
-            key: `device-groups-${slice.SliceName}`,
+            key: `device-groups-${slice["slice-name"]}`,
           },
         ]}
       />
