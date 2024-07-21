@@ -4,7 +4,7 @@ go 1.22.2
 
 require (
 	git.cs.nctu.edu.tw/calee/sctp v1.1.0
-	github.com/RoaringBitmap/roaring v1.7.0
+	github.com/RoaringBitmap/roaring v1.9.4
 	github.com/antihax/optional v1.0.0
 	github.com/antonfisher/nested-logrus-formatter v1.3.1
 	github.com/bronze1man/radius v0.0.0-20190516032554-afd8baec892d
