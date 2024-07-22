@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	MongoDBBinariesPath string `yaml:"mongoDBBinariesPath"`
+	DbPath              string `yaml:"dbPath"`
 }
 
 func Parse(configPath string) (Config, error) {
@@ -32,6 +33,12 @@ func (cfg *Config) Validate() error {
 	}
 	if _, err := os.Stat(cfg.MongoDBBinariesPath); os.IsNotExist(err) {
 		return fmt.Errorf("path does not exist: %s", cfg.MongoDBBinariesPath)
+	}
+	if cfg.DbPath == "" {
+		return fmt.Errorf("dbPath is required")
+	}
+	if _, err := os.Stat(cfg.DbPath); os.IsNotExist(err) {
+		return fmt.Errorf("path does not exist: %s", cfg.DbPath)
 	}
 	return nil
 }

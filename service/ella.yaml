@@ -1,1 +1,2 @@
 mongoDBBinariesPath: "/snap/ella/current/usr/bin"
+dbPath: "/var/snap/ella/common/data"
