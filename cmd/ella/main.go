@@ -20,8 +20,6 @@ import (
 	"github.com/yeastengine/ella/internal/webui"
 )
 
-const DBPath = "/var/snap/ella/common/data"
-
 func parseFlags() (config.Config, error) {
 	flag.String("config", "", "/path/to/config.yaml")
 	flag.Parse()
@@ -36,8 +34,8 @@ func parseFlags() (config.Config, error) {
 	return cfg, nil
 }
 
-func startMongoDB(mongoBinariesPath string) string {
-	db, err := db.StartMongoDB(mongoBinariesPath, DBPath)
+func startMongoDB(mongoBinariesPath string, dbPath string) string {
+	db, err := db.StartMongoDB(mongoBinariesPath, dbPath)
 	if err != nil {
 		panic(err)
 	}
@@ -57,7 +55,7 @@ func setEnvironmentVariables() error {
 }
 
 func startNetwork(cfg config.Config) error {
-	dbUrl := startMongoDB(cfg.MongoDBBinariesPath)
+	dbUrl := startMongoDB(cfg.MongoDBBinariesPath, cfg.DbPath)
 
 	webuiUrl, err := webui.Start(dbUrl)
 	if err != nil {
