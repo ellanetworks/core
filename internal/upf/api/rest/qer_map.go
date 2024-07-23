@@ -62,8 +62,8 @@ func (h *ApiHandler) setQerValue(c *gin.Context) {
 		StartDL:      0,
 	}
 
-	if err := h.BpfObjects.IpEntrypointObjects.QerMap.Put(uint32(qerElement.Id), unsafe.Pointer(&value)); err != nil {
-		logger.AppLog.Printf("Error writting map: %s", err.Error())
+	if err := h.BpfObjects.IpEntrypointObjects.QerMap.Put(qerElement.Id, unsafe.Pointer(&value)); err != nil {
+		logger.AppLog.Printf("Error writing map: %s", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

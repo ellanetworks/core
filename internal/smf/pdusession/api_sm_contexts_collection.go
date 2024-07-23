@@ -53,7 +53,7 @@ func HTTPPostSmContexts(c *gin.Context) {
 	}
 
 	req := httpwrapper.NewRequest(c.Request, request)
-	txn := transaction.NewTransaction(req.Body.(models.PostSmContextsRequest), nil, svcmsgtypes.SmfMsgType(svcmsgtypes.CreateSmContext))
+	txn := transaction.NewTransaction(req.Body.(models.PostSmContextsRequest), nil, svcmsgtypes.CreateSmContext)
 
 	go txn.StartTxnLifeCycle(fsm.SmfTxnFsmHandle)
 	<-txn.Status // wait for txn to complete at SMF
@@ -81,7 +81,7 @@ func HTTPPostSmContexts(c *gin.Context) {
 	go func(smContext *smf_context.SMContext) {
 		var txn *transaction.Transaction
 		if HTTPResponse.Status == http.StatusCreated {
-			txn = transaction.NewTransaction(nil, nil, svcmsgtypes.SmfMsgType(svcmsgtypes.PfcpSessCreate))
+			txn = transaction.NewTransaction(nil, nil, svcmsgtypes.PfcpSessCreate)
 			txn.Ctxt = smContext
 			go txn.StartTxnLifeCycle(fsm.SmfTxnFsmHandle)
 			<-txn.Status

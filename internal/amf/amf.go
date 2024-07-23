@@ -64,27 +64,27 @@ func Start(mongoDBURL string, nrfURL string, webuiURL string) error {
 		T3512Value: 3600,
 		T3513: factory.TimerValue{
 			Enable:        true,
-			ExpireTime:    time.Duration(6 * time.Second),
+			ExpireTime:    6 * time.Second,
 			MaxRetryTimes: 4,
 		},
 		T3522: factory.TimerValue{
 			Enable:        true,
-			ExpireTime:    time.Duration(6 * time.Second),
+			ExpireTime:    6 * time.Second,
 			MaxRetryTimes: 4,
 		},
 		T3550: factory.TimerValue{
 			Enable:        true,
-			ExpireTime:    time.Duration(6 * time.Second),
+			ExpireTime:    6 * time.Second,
 			MaxRetryTimes: 4,
 		},
 		T3560: factory.TimerValue{
 			Enable:        true,
-			ExpireTime:    time.Duration(6 * time.Second),
+			ExpireTime:    6 * time.Second,
 			MaxRetryTimes: 4,
 		},
 		T3565: factory.TimerValue{
 			Enable:        true,
-			ExpireTime:    time.Duration(6 * time.Second),
+			ExpireTime:    6 * time.Second,
 			MaxRetryTimes: 4,
 		},
 	}

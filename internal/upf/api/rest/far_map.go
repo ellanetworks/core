@@ -62,8 +62,8 @@ func (h *ApiHandler) setFarValue(c *gin.Context) {
 		TransportLevelMarking: farElement.TransportLevelMarking,
 	}
 
-	if err := h.BpfObjects.IpEntrypointObjects.FarMap.Put(uint32(farElement.Id), unsafe.Pointer(&value)); err != nil {
-		logger.AppLog.Printf("Error writting map: %s", err.Error())
+	if err := h.BpfObjects.IpEntrypointObjects.FarMap.Put(farElement.Id, unsafe.Pointer(&value)); err != nil {
+		logger.AppLog.Printf("Error writing map: %s", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

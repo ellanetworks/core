@@ -56,7 +56,7 @@ func HTTPReleaseSmContext(c *gin.Context) {
 	req.Params["smContextRef"] = c.Params.ByName("smContextRef")
 
 	smContextRef := req.Params["smContextRef"]
-	txn := transaction.NewTransaction(req.Body.(models.ReleaseSmContextRequest), nil, svcmsgtypes.SmfMsgType(svcmsgtypes.ReleaseSmContext))
+	txn := transaction.NewTransaction(req.Body.(models.ReleaseSmContextRequest), nil, svcmsgtypes.ReleaseSmContext)
 	txn.CtxtKey = smContextRef
 	go txn.StartTxnLifeCycle(fsm.SmfTxnFsmHandle)
 	<-txn.Status
@@ -106,7 +106,7 @@ func HTTPUpdateSmContext(c *gin.Context) {
 
 	smContextRef := req.Params["smContextRef"]
 
-	txn := transaction.NewTransaction(req.Body.(models.UpdateSmContextRequest), nil, svcmsgtypes.SmfMsgType(svcmsgtypes.UpdateSmContext))
+	txn := transaction.NewTransaction(req.Body.(models.UpdateSmContextRequest), nil, svcmsgtypes.UpdateSmContext)
 	txn.CtxtKey = smContextRef
 	go txn.StartTxnLifeCycle(fsm.SmfTxnFsmHandle)
 	<-txn.Status

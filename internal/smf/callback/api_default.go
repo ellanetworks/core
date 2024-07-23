@@ -40,7 +40,7 @@ func HTTPSmPolicyUpdateNotification(c *gin.Context) {
 	smContextRef := reqWrapper.Params["smContextRef"]
 	log.Printf("HTTPSmPolicyUpdateNotification received for UUID = %v", smContextRef)
 
-	txn := transaction.NewTransaction(reqWrapper.Body.(models.SmPolicyNotification), nil, svcmsgtypes.SmfMsgType(svcmsgtypes.SmPolicyUpdateNotification))
+	txn := transaction.NewTransaction(reqWrapper.Body.(models.SmPolicyNotification), nil, svcmsgtypes.SmPolicyUpdateNotification)
 	txn.CtxtKey = smContextRef
 	go txn.StartTxnLifeCycle(fsm.SmfTxnFsmHandle)
 	<-txn.Status // wait for txn to complete at SMF
@@ -70,7 +70,7 @@ func N1N2FailureNotification(c *gin.Context) {
 	req.Params["smContextRef"] = c.Params.ByName("smContextRef")
 
 	smContextRef := req.Params["smContextRef"]
-	txn := transaction.NewTransaction(req.Body.(models.N1N2MsgTxfrFailureNotification), nil, svcmsgtypes.SmfMsgType(svcmsgtypes.N1N2MessageTransferFailureNotification))
+	txn := transaction.NewTransaction(req.Body.(models.N1N2MsgTxfrFailureNotification), nil, svcmsgtypes.N1N2MessageTransferFailureNotification)
 	txn.CtxtKey = smContextRef
 	go txn.StartTxnLifeCycle(fsm.SmfTxnFsmHandle)
 	<-txn.Status

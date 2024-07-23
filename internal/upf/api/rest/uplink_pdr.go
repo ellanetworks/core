@@ -53,8 +53,8 @@ func (h *ApiHandler) setUplinkPdrValue(c *gin.Context) {
 		QerId:              pdrElement.QerId,
 	}
 
-	if err := h.BpfObjects.IpEntrypointObjects.PdrMapUplinkIp4.Put(uint32(pdrElement.Id), unsafe.Pointer(&value)); err != nil {
-		logger.AppLog.Printf("Error writting map: %s", err.Error())
+	if err := h.BpfObjects.IpEntrypointObjects.PdrMapUplinkIp4.Put(pdrElement.Id, unsafe.Pointer(&value)); err != nil {
+		logger.AppLog.Printf("Error writing map: %s", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
