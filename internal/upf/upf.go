@@ -26,20 +26,18 @@ func init() {
 	initLog = logger.AppLog
 }
 
-func Start() error {
+func Start(interfaces []string, n3_address string) error {
 	initLog.Infof("UPF Log level is set to [%s] level", "info")
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 
 	c := config.UpfConfig{
-		InterfaceName: []string{
-			"wlp9s0",
-		},
+		InterfaceName:     interfaces,
 		XDPAttachMode:     "generic",
 		ApiAddress:        ":8080",
 		PfcpAddress:       "0.0.0.0:8806",
 		PfcpNodeId:        "0.0.0.0",
-		N3Address:         "192.168.252.3",
+		N3Address:         n3_address,
 		EchoInterval:      10,
 		QerMapSize:        1024,
 		FarMapSize:        1024,

@@ -55,7 +55,7 @@ func setEnvironmentVariables() error {
 }
 
 func startNetwork(cfg config.Config) error {
-	dbUrl := startMongoDB(cfg.MongoDBBinariesPath, cfg.DbPath)
+	dbUrl := startMongoDB(cfg.DB.BinariesPath, cfg.DB.Path)
 
 	webuiUrl, err := webui.Start(dbUrl)
 	if err != nil {
@@ -93,7 +93,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = upf.Start()
+	err = upf.Start(cfg.UPF.Interfaces, cfg.UPF.N3Address)
 	if err != nil {
 		return err
 	}

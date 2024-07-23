@@ -1,0 +1,3 @@
+ db:
+  pa th: "/var/snap/ella/common/data"
+  binaries-path: "/snap/ella/current/usr/bin"
