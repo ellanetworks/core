@@ -8,7 +8,6 @@ import (
 	"github.com/omec-project/pfcp"
 	"github.com/omec-project/pfcp/pfcpType"
 	"github.com/omec-project/pfcp/pfcpUdp"
-	"github.com/stretchr/testify/require"
 	"github.com/yeastengine/ella/internal/smf/context"
 	smf_pfcp "github.com/yeastengine/ella/internal/smf/pfcp"
 	"github.com/yeastengine/ella/internal/smf/pfcp/udp"
@@ -55,7 +54,9 @@ func TestRun(t *testing.T) {
 	}
 
 	err := pfcpUdp.SendPfcpMessage(testPfcpReq, srcAddr, dstAddr)
-	require.Nil(t, err)
+	if err != nil {
+		t.Errorf("Error sending PFCP message: %v", err)
+	}
 
 	time.Sleep(300 * time.Millisecond)
 }
