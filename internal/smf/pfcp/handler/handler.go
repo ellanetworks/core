@@ -191,8 +191,7 @@ func HandlePfcpAssociationReleaseRequest(msg *pfcpUdp.Message) {
 	} else {
 		cause.CauseValue = pfcpType.CauseNoEstablishedPfcpAssociation
 	}
-
-	pfcp_message.SendPfcpAssociationReleaseResponse(*pfcpMsg.NodeID, cause, upf.Port)
+	pfcp_message.SendPfcpAssociationReleaseResponse(*pfcpMsg.NodeID, cause, 8806)
 }
 
 func HandlePfcpAssociationReleaseResponse(msg *pfcpUdp.Message) {

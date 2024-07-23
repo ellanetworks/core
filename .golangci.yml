@@ -177,7 +177,7 @@ linters:
   enable:
     - gofmt
     # - errcheck
-    # - staticcheck
+    - staticcheck
     - unused
     # - gosimple
     - typecheck
