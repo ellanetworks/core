@@ -51,3 +51,8 @@ parts:
     stage:
       - usr/bin
       - usr/lib
+
+  ip:
+    plugin: nil
+    stage-packages:
+      - iproute2
