@@ -2,14 +2,25 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 
 	"gopkg.in/yaml.v2"
 )
 
+type DBConfig struct {
+	Path         string `yaml:"path"`
+	BinariesPath string `yaml:"binaries-path"`
+}
+
+type UPFConfig struct {
+	Interfaces []string `yaml:"interfaces"`
+	N3Address  string   `yaml:"n3-address"`
+}
+
 type Config struct {
-	MongoDBBinariesPath string `yaml:"mongoDBBinariesPath"`
-	DbPath              string `yaml:"dbPath"`
+	DB  *DBConfig  `yaml:"db"`
+	UPF *UPFConfig `yaml:"upf"`
 }
 
 func Parse(configPath string) (Config, error) {
@@ -27,18 +38,52 @@ func Parse(configPath string) (Config, error) {
 	return config, nil
 }
 
+func (dbConfig *DBConfig) Validate() error {
+	if dbConfig == nil {
+		return fmt.Errorf("db is required")
+	}
+	if dbConfig.Path == "" {
+		return fmt.Errorf("db.path is required")
+	}
+	if _, err := os.Stat(dbConfig.Path); os.IsNotExist(err) {
+		return fmt.Errorf("db path does not exist: %s", dbConfig.Path)
+	}
+	if dbConfig.BinariesPath == "" {
+		return fmt.Errorf("db.binaries-path is required")
+	}
+	if _, err := os.Stat(dbConfig.BinariesPath); os.IsNotExist(err) {
+		return fmt.Errorf("db binaries path does not exist: %s", dbConfig.BinariesPath)
+	}
+	return nil
+}
+
+func (upfConfig *UPFConfig) Validate() error {
+	if upfConfig == nil {
+		return fmt.Errorf("upf section is required")
+	}
+	if len(upfConfig.Interfaces) == 0 {
+		return fmt.Errorf("upf.interfaces is required")
+	}
+	for _, iface := range upfConfig.Interfaces {
+		if _, err := net.InterfaceByName(iface); err != nil {
+			return fmt.Errorf("upf interface %s does not exist", iface)
+		}
+	}
+	if upfConfig.N3Address == "" {
+		return fmt.Errorf("upf.n3-address is required")
+	}
+	if net.ParseIP(upfConfig.N3Address) == nil {
+		return fmt.Errorf("upf.n3-address is not a valid IP address: %s", upfConfig.N3Address)
+	}
+	return nil
+}
+
 func (cfg *Config) Validate() error {
-	if cfg.MongoDBBinariesPath == "" {
-		return fmt.Errorf("mongoDBBinariesPath is required")
+	if err := cfg.DB.Validate(); err != nil {
+		return err
 	}
-	if _, err := os.Stat(cfg.MongoDBBinariesPath); os.IsNotExist(err) {
-		return fmt.Errorf("path does not exist: %s", cfg.MongoDBBinariesPath)
-	}
-	if cfg.DbPath == "" {
-		return fmt.Errorf("dbPath is required")
-	}
-	if _, err := os.Stat(cfg.DbPath); os.IsNotExist(err) {
-		return fmt.Errorf("path does not exist: %s", cfg.DbPath)
+	if err := cfg.UPF.Validate(); err != nil {
+		return err
 	}
 	return nil
 }

@@ -1,2 +1,6 @@
-mongoDBBinariesPath: "/snap/ella/current/usr/bin"
-dbPath: "/var/snap/ella/common/data"
+db:
+  path: "/var/snap/ella/common/data"
+  binaries-path: "/snap/ella/current/usr/bin"
+upf:
+  interfaces: ["wlp9s0"]
+  n3-address: "192.168.252.3"
