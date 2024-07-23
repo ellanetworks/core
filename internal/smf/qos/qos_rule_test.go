@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/stretchr/testify/require"
 	"github.com/yeastengine/ella/internal/smf/qos"
 )
 
@@ -64,7 +63,9 @@ func TestBuildQosRules(t *testing.T) {
 			0xff, 0x50, 0xb, 0xb8, 0x11, 0x4, 0x4, 0x4, 0x4, 0xff, 0xff,
 			0xff, 0xff, 0x40, 0xf, 0xa0, 0xc8, 0x5,
 		}
-		require.Equal(t, expectedBytes, bytes)
+		if string(expectedBytes) != string(bytes) {
+			t.Errorf("Expected: %v, Got: %v", expectedBytes, bytes)
+		}
 	}
 }
 

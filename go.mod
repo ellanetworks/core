@@ -27,7 +27,6 @@ require (
 	github.com/omec-project/util v1.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.3
-	github.com/stretchr/testify v1.9.0
 	github.com/tim-ywliu/event v0.1.0
 	github.com/wmnsk/go-pfcp v0.0.24
 	github.com/yeastengine/config5g v0.0.0-20240624120332-b75c495fdf84
