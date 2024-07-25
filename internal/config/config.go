@@ -9,8 +9,7 @@ import (
 )
 
 type DBConfig struct {
-	Path         string `yaml:"path"`
-	BinariesPath string `yaml:"binaries-path"`
+	Url string `yaml:"url"`
 }
 
 type UPFConfig struct {
@@ -42,17 +41,8 @@ func (dbConfig *DBConfig) Validate() error {
 	if dbConfig == nil {
 		return fmt.Errorf("db is required")
 	}
-	if dbConfig.Path == "" {
-		return fmt.Errorf("db.path is required")
-	}
-	if _, err := os.Stat(dbConfig.Path); os.IsNotExist(err) {
-		return fmt.Errorf("db path does not exist: %s", dbConfig.Path)
-	}
-	if dbConfig.BinariesPath == "" {
-		return fmt.Errorf("db.binaries-path is required")
-	}
-	if _, err := os.Stat(dbConfig.BinariesPath); os.IsNotExist(err) {
-		return fmt.Errorf("db binaries path does not exist: %s", dbConfig.BinariesPath)
+	if dbConfig.Url == "" {
+		return fmt.Errorf("db.url is required")
 	}
 	return nil
 }
