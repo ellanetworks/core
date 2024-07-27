@@ -1,6 +1,5 @@
 db:
-  path: "/var/snap/ella/common/data"
-  binaries-path: "/snap/ella/current/usr/bin"
+  url: "mongodb://localhost:27017"
 upf:
   interfaces: ["wlp9s0"]
   n3-address: "192.168.252.3"

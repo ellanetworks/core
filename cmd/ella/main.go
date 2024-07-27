@@ -9,7 +9,6 @@ import (
 	"github.com/yeastengine/ella/internal/amf"
 	"github.com/yeastengine/ella/internal/ausf"
 	"github.com/yeastengine/ella/internal/config"
-	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/nrf"
 	"github.com/yeastengine/ella/internal/nssf"
 	"github.com/yeastengine/ella/internal/pcf"
@@ -34,14 +33,6 @@ func parseFlags() (config.Config, error) {
 	return cfg, nil
 }
 
-func startMongoDB(mongoBinariesPath string, dbPath string) string {
-	db, err := db.StartMongoDB(mongoBinariesPath, dbPath)
-	if err != nil {
-		panic(err)
-	}
-	return db.URL
-}
-
 func setEnvironmentVariables() error {
 	err := os.Setenv("POD_IP", "0.0.0.0")
 	if err != nil {
@@ -55,17 +46,15 @@ func setEnvironmentVariables() error {
 }
 
 func startNetwork(cfg config.Config) error {
-	dbUrl := startMongoDB(cfg.DB.BinariesPath, cfg.DB.Path)
-
-	webuiUrl, err := webui.Start(dbUrl)
+	webuiUrl, err := webui.Start(cfg.DB.Url)
 	if err != nil {
 		return err
 	}
-	nrfUrl, err := nrf.Start(dbUrl, webuiUrl)
+	nrfUrl, err := nrf.Start(cfg.DB.Url, webuiUrl)
 	if err != nil {
 		return err
 	}
-	err = amf.Start(dbUrl, nrfUrl, webuiUrl)
+	err = amf.Start(cfg.DB.Url, nrfUrl, webuiUrl)
 	if err != nil {
 		return err
 	}
@@ -77,7 +66,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = udr.Start(dbUrl, nrfUrl, webuiUrl)
+	err = udr.Start(cfg.DB.Url, nrfUrl, webuiUrl)
 	if err != nil {
 		return err
 	}
@@ -89,7 +78,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = smf.Start(dbUrl, nrfUrl, webuiUrl)
+	err = smf.Start(cfg.DB.Url, nrfUrl, webuiUrl)
 	if err != nil {
 		return err
 	}

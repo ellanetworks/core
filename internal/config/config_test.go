@@ -16,8 +16,7 @@ func TestGivenBadYamlFormattingWhenParseThenReturnError(t *testing.T) {
 func TestGivenBadConfigWhenValidateThenError(t *testing.T) {
 	config := config.Config{
 		DB: &config.DBConfig{
-			Path:         "/path/that/for/sure/does/not/exist",
-			BinariesPath: "/",
+			Url: "", // empty url
 		},
 		UPF: &config.UPFConfig{
 			Interfaces: []string{"lo"},
@@ -34,8 +33,7 @@ func TestGivenBadConfigWhenValidateThenError(t *testing.T) {
 func TestGivenCorrectConfigFileWhenValidateThenNoError(t *testing.T) {
 	config := config.Config{
 		DB: &config.DBConfig{
-			Path:         "/",
-			BinariesPath: "/",
+			Url: "mongodb://localhost:27017",
 		},
 		UPF: &config.UPFConfig{
 			Interfaces: []string{"lo"},
