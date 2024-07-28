@@ -9,18 +9,16 @@ import (
 var WEBUI = &webui_service.WEBUI{}
 
 const (
-	dBName     = "free5gc"
-	authDbName = "authentication"
 	GRPC_PORT  = "9876"
 	ConfigPort = 5000
 )
 
-func Start(dbUrl string) (string, error) {
+func Start(dbUrl string, dbName string) (string, error) {
 	configuration := factory.Configuration{
 		Mongodb: &factory.Mongodb{
-			Name:           dBName,
+			Name:           dbName,
 			Url:            dbUrl,
-			AuthKeysDbName: authDbName,
+			AuthKeysDbName: dbName,
 			AuthUrl:        dbUrl,
 		},
 		CfgPort: ConfigPort,

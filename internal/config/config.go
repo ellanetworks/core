@@ -9,7 +9,8 @@ import (
 )
 
 type DBConfig struct {
-	Url string `yaml:"url"`
+	Url  string `yaml:"url"`
+	Name string `yaml:"name"`
 }
 
 type UPFConfig struct {
@@ -43,6 +44,9 @@ func (dbConfig *DBConfig) Validate() error {
 	}
 	if dbConfig.Url == "" {
 		return fmt.Errorf("db.url is required")
+	}
+	if dbConfig.Name == "" {
+		return fmt.Errorf("db.name is required")
 	}
 	return nil
 }

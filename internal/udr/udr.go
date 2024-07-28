@@ -9,12 +9,10 @@ import (
 var UDR = &service.UDR{}
 
 const (
-	COMMON_DB_NAME = "free5gc"
-	AUTH_DB_NAME   = "authentication"
-	SBI_PORT       = 29504
+	SBI_PORT = 29504
 )
 
-func Start(mongoDBURL string, nrfURL string, webuiURL string) error {
+func Start(mongoDBURL string, mongoDBName, nrfURL string, webuiURL string) error {
 	configuration := factory.Configuration{
 		Sbi: &factory.Sbi{
 			RegisterIPv4: "0.0.0.0",
@@ -22,9 +20,9 @@ func Start(mongoDBURL string, nrfURL string, webuiURL string) error {
 			Port:         SBI_PORT,
 		},
 		Mongodb: &factory.Mongodb{
-			Name:           COMMON_DB_NAME,
+			Name:           mongoDBName,
 			Url:            mongoDBURL,
-			AuthKeysDbName: AUTH_DB_NAME,
+			AuthKeysDbName: mongoDBName,
 			AuthUrl:        mongoDBURL,
 		},
 		NrfUri:   nrfURL,
