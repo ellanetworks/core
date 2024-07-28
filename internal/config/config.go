@@ -1,14 +1,10 @@
 package config
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"os"
-	"time"
 
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"gopkg.in/yaml.v2"
 )
 
@@ -40,6 +36,7 @@ func Parse(configPath string) (Config, error) {
 
 	return config, nil
 }
+
 func (dbConfig *DBConfig) Validate() error {
 	if dbConfig == nil {
 		return fmt.Errorf("db is required")
@@ -47,28 +44,6 @@ func (dbConfig *DBConfig) Validate() error {
 	if dbConfig.Url == "" {
 		return fmt.Errorf("db.url is required")
 	}
-
-	clientOptions := options.Client().ApplyURI(dbConfig.Url)
-	client, err := mongo.NewClient(clientOptions)
-	if err != nil {
-		return fmt.Errorf("failed to create MongoDB client: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	err = client.Connect(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to connect to MongoDB: %w", err)
-	}
-	defer client.Disconnect(ctx)
-
-	// Ping the database to check connectivity
-	err = client.Ping(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to ping MongoDB: %w", err)
-	}
-
 	return nil
 }
 

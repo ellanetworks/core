@@ -9,6 +9,7 @@ import (
 	"github.com/yeastengine/ella/internal/amf"
 	"github.com/yeastengine/ella/internal/ausf"
 	"github.com/yeastengine/ella/internal/config"
+	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/nrf"
 	"github.com/yeastengine/ella/internal/nssf"
 	"github.com/yeastengine/ella/internal/pcf"
@@ -102,6 +103,10 @@ func main() {
 	err = cfg.Validate()
 	if err != nil {
 		log.Fatalf("invalid config: %v", err)
+	}
+	err = db.TestConnection(cfg.DB.Url)
+	if err != nil {
+		log.Fatalf("failed to connect to MongoDB: %v", err)
 	}
 	err = startNetwork(cfg)
 	if err != nil {
