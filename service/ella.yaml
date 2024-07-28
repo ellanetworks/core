@@ -1,5 +1,6 @@
 db:
   url: "mongodb://localhost:27017"
+  name: "ella"
 upf:
   interfaces: ["wlp9s0"]
   n3-address: "192.168.252.3"

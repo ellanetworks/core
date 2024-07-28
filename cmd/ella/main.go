@@ -47,7 +47,7 @@ func setEnvironmentVariables() error {
 }
 
 func startNetwork(cfg config.Config) error {
-	webuiUrl, err := webui.Start(cfg.DB.Url)
+	webuiUrl, err := webui.Start(cfg.DB.Url, cfg.DB.Name)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = amf.Start(cfg.DB.Url, nrfUrl, webuiUrl)
+	err = amf.Start(cfg.DB.Url, cfg.DB.Name, nrfUrl, webuiUrl)
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = udr.Start(cfg.DB.Url, nrfUrl, webuiUrl)
+	err = udr.Start(cfg.DB.Url, cfg.DB.Name, nrfUrl, webuiUrl)
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = smf.Start(cfg.DB.Url, nrfUrl, webuiUrl)
+	err = smf.Start(cfg.DB.Url, cfg.DB.Name, nrfUrl, webuiUrl)
 	if err != nil {
 		return err
 	}

@@ -11,14 +11,13 @@ import (
 var SMF = &service.SMF{}
 
 const (
-	dBName   = "smf"
 	SBI_PORT = 29502
 )
 
-func Start(mongoDBURL string, nrfURL string, webuiURL string) error {
+func Start(mongoDBURL string, mongoDBName string, nrfURL string, webuiURL string) error {
 	configuration := factory.Configuration{
 		Mongodb: &factory.Mongodb{
-			Name: dBName,
+			Name: mongoDBName,
 			Url:  mongoDBURL,
 		},
 		PFCP: &factory.PFCP{
@@ -32,7 +31,7 @@ func Start(mongoDBURL string, nrfURL string, webuiURL string) error {
 		NrfUri:    nrfURL,
 		WebuiUri:  webuiURL,
 		SmfName:   "SMF",
-		SmfDbName: dBName,
+		SmfDbName: mongoDBName,
 		ServiceNameList: []string{
 			"nsmf-pdusession",
 			"nsmf-event-exposure",

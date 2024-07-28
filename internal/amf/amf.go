@@ -11,17 +11,16 @@ import (
 var AMF = &service.AMF{}
 
 const (
-	dBName     = "amf"
 	SBI_PORT   = 29518
 	NGAPP_PORT = 38412
 )
 
-func Start(mongoDBURL string, nrfURL string, webuiURL string) error {
+func Start(mongoDBURL string, mongoDBName string, nrfURL string, webuiURL string) error {
 	configuration := factory.Configuration{
 		AmfName:   "AMF",
-		AmfDBName: dBName,
+		AmfDBName: mongoDBName,
 		Mongodb: &factory.Mongodb{
-			Name: dBName,
+			Name: mongoDBName,
 			Url:  mongoDBURL,
 		},
 		NgapIpList:   []string{"0.0.0.0"},

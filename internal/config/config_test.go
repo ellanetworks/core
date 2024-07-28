@@ -33,7 +33,8 @@ func TestGivenBadConfigWhenValidateThenError(t *testing.T) {
 func TestGivenCorrectConfigFileWhenValidateThenNoError(t *testing.T) {
 	config := config.Config{
 		DB: &config.DBConfig{
-			Url: "mongodb://localhost:27017",
+			Url:  "mongodb://localhost:27017",
+			Name: "ella",
 		},
 		UPF: &config.UPFConfig{
 			Interfaces: []string{"lo"},
