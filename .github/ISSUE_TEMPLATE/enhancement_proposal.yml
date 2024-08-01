@@ -1,0 +1,17 @@
+name: Enhancement Proposal
+description: File an enhancement proposal
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Thanks for taking the time to fill out this enhancement proposal! Before submitting your issue, please make
+        sure there isn't already a prior issue concerning this. If there is, please join that discussion instead.
+  - type: textarea
+    id: enhancement-proposal
+    attributes:
+      label: Enhancement Proposal
+      description: >
+        Describe the enhancement you would like to see in as much detail as needed.      
+    validations:
+      required: true
