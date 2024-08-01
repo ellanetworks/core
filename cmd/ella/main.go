@@ -51,7 +51,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	nrfUrl, err := nrf.Start(cfg.DB.Url, webuiUrl)
+	nrfUrl, err := nrf.Start(cfg.DB.Url, cfg.DB.Name, webuiUrl)
 	if err != nil {
 		return err
 	}

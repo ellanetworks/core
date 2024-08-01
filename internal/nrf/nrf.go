@@ -10,18 +10,17 @@ import (
 var NRF = &service.NRF{}
 
 const (
-	dBName = "nrf"
-	port   = 29510
+	port = 29510
 )
 
-func Start(mongoDBURL string, webuiUrl string) (string, error) {
+func Start(mongoDBURL string, mongoDBName string, webuiUrl string) (string, error) {
 	configuration := factory.Configuration{
 		Sbi: &factory.Sbi{
 			BindingIPv4:  "0.0.0.0",
 			Port:         port,
 			RegisterIPv4: "0.0.0.0",
 		},
-		MongoDBName: dBName,
+		MongoDBName: mongoDBName,
 		MongoDBUrl:  mongoDBURL,
 		WebuiUri:    webuiUrl,
 		ServiceNameList: []string{
