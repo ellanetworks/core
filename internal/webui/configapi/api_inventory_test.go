@@ -1,6 +1,3 @@
-// SPDX-License-Identifier: Apache-2.0
-// Copyright 2024 Canonical Ltd.
-
 package configapi
 
 import (
@@ -26,18 +23,6 @@ type MockMongoClientOneGnb struct {
 }
 
 type MockMongoClientManyGnbs struct {
-	dbadapter.DBInterface
-}
-
-type MockMongoClientNoUpfs struct {
-	dbadapter.DBInterface
-}
-
-type MockMongoClientOneUpf struct {
-	dbadapter.DBInterface
-}
-
-type MockMongoClientManyUpfs struct {
 	dbadapter.DBInterface
 }
 
@@ -76,43 +61,6 @@ func (m *MockMongoClientManyGnbs) RestfulAPIGetMany(coll string, filter bson.M) 
 		json.Unmarshal(tmp, &gnbBson)
 
 		results = append(results, gnbBson)
-	}
-	return results, nil
-}
-
-func (m *MockMongoClientNoUpfs) RestfulAPIGetMany(coll string, filter bson.M) ([]map[string]interface{}, error) {
-	var results []map[string]interface{}
-	return results, nil
-}
-
-func (m *MockMongoClientOneUpf) RestfulAPIGetMany(coll string, filter bson.M) ([]map[string]interface{}, error) {
-	var results []map[string]interface{}
-	upf := configmodels.Upf{
-		Hostname: "upf1",
-		Port:     "123",
-	}
-	var upfBson bson.M
-	tmp, _ := json.Marshal(upf)
-	json.Unmarshal(tmp, &upfBson)
-
-	results = append(results, upfBson)
-	return results, nil
-}
-
-func (m *MockMongoClientManyUpfs) RestfulAPIGetMany(coll string, filter bson.M) ([]map[string]interface{}, error) {
-	var results []map[string]interface{}
-	names := []string{"upf0", "upf1", "upf2"}
-	ports := []string{"12", "345", "678"}
-	for i, name := range names {
-		upf := configmodels.Upf{
-			Hostname: name,
-			Port:     ports[i],
-		}
-		var upfBson bson.M
-		tmp, _ := json.Marshal(upf)
-		json.Unmarshal(tmp, &upfBson)
-
-		results = append(results, upfBson)
 	}
 	return results, nil
 }
