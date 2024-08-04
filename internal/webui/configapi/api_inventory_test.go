@@ -45,8 +45,6 @@ func (m *MockMongoClientOneGnb) RestfulAPIGetMany(coll string, filter bson.M) ([
 	return results, nil
 }
 
-var mockConfigChannel chan *configmodels.ConfigMessage
-
 func (m *MockMongoClientManyGnbs) RestfulAPIGetMany(coll string, filter bson.M) ([]map[string]interface{}, error) {
 	var results []map[string]interface{}
 	names := []string{"gnb0", "gnb1", "gnb2"}
