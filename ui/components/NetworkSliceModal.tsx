@@ -12,7 +12,6 @@ import { createNetworkSlice } from "@/utils/createNetworkSlice";
 import { editNetworkSlice } from "@/utils/editNetworkSlice";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/utils/queryKeys";
-import { getUpfList, UpfItem } from "@/utils/getUpfList";
 import { getGnbList, GnbItem } from "@/utils/getGnbList";
 import { useFormik } from "formik";
 import * as Yup from "yup";
@@ -21,7 +20,6 @@ interface NetworkSliceValues {
   mcc: string;
   mnc: string;
   name: string;
-  upf: UpfItem;
   gnbList: GnbItem[];
 }
 
@@ -33,7 +31,6 @@ interface NetworkSliceModalProps {
 const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps) => {
   const queryClient = useQueryClient();
   const [apiError, setApiError] = useState<string | null>(null);
-  const [upfApiError, setUpfApiError] = useState<string | null>(null);
   const [gnbApiError, setGnbApiError] = useState<string | null>(null);
 
   const NetworkSliceSchema = Yup.object().shape({
@@ -53,9 +50,6 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
       .min(2)
       .max(3)
       .required("MNC is required."),
-    upf: Yup.object()
-      .shape({ hostname: Yup.string().required("Please select a UPF.") })
-      .required("Selecting a UPF is required."),
     gnbList: Yup.array()
       .min(1)
       .required("Selecting at least 1 gNodeB is required."),
@@ -69,20 +63,11 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
     return networkSlice ? "Save Changes" : "Create"
   }
 
-  const getUpfFromNetworkSlice = () => {
-    if (networkSlice) {
-      return {hostname: networkSlice["site-info"]["upf"]["upf-name"], port: networkSlice["site-info"]["upf"]["upf-port"]};
-    } else {
-      return {} as UpfItem;
-    }
-  }
-
   const formik = useFormik<NetworkSliceValues>({
     initialValues: {
       mcc: networkSlice?.["site-info"]["plmn"].mcc || "",
       mnc: networkSlice?.["site-info"]["plmn"].mnc || "",
       name: networkSlice?.["slice-name"] || "",
-      upf: getUpfFromNetworkSlice(),
       gnbList: networkSlice?.["site-info"].gNodeBs || [],
     },
     validationSchema: NetworkSliceSchema,
@@ -93,8 +78,8 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
             name: values.name,
             mcc: values.mcc.toString(),
             mnc: values.mnc.toString(),
-            upfName: values.upf.hostname,
-            upfPort: values.upf.port,
+            upfName: "0.0.0.0",
+            upfPort: "8806",
             gnbList: values.gnbList,
           });
         } else {
@@ -102,8 +87,8 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
             name: values.name,
             mcc: values.mcc.toString(),
             mnc: values.mnc.toString(),
-            upfName: values.upf.hostname,
-            upfPort: values.upf.port,
+            upfName: "0.0.0.0",
+            upfPort: "8806",
             gnbList: values.gnbList,
           });
         }
@@ -120,20 +105,6 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
     },
   });
 
-  const { data: upfList = [], isLoading: isUpfLoading } = useQuery({
-    queryKey: [queryKeys.upfList],
-    queryFn: getUpfList,
-  });
-
-  useEffect(() => {
-    const checkUpfList = async () => {
-      if (!isUpfLoading && upfList.length === 0) {
-        setUpfApiError("Failed to retrieve the list of UPFs from the server.");
-      }
-    };
-    checkUpfList();
-  }, [isUpfLoading, upfList]);
-
   const { data: gnbList = [], isLoading: isGnbLoading } = useQuery({
     queryKey: [queryKeys.gnbList],
     queryFn: getGnbList,
@@ -147,13 +118,6 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
     };
     checkGnbList();
   }, [isGnbLoading, gnbList]);
-
-  const handleUpfChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const upf = upfList.find(
-      (item) => e.target.value === `${item.hostname}:${item.port}`,
-    );
-    void formik.setFieldValue("upf", upf);
-  };
 
   const handleGnbChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedOptions = Array.from(e.target.selectedOptions);
@@ -169,10 +133,6 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
     return (formik.values.gnbList.map((item) =>{
       return `${item.name}:${item.tac}`
     }));
-  };
-
-  const getUpfValueAsString = () => {
-    return formik.values.upf.hostname ? `${formik.values.upf.hostname}:${formik.values.upf.port}` : "";
   };
 
   return (
@@ -194,11 +154,6 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
       {apiError && (
         <Notification severity="negative" title="Error">
           {apiError}
-        </Notification>
-      )}
-      {upfApiError && (
-        <Notification severity="negative" title="Error">
-          {upfApiError}
         </Notification>
       )}
       {gnbApiError && (
@@ -239,25 +194,6 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
           required
           {...formik.getFieldProps("mnc")}
           error={formik.touched.mnc ? formik.errors.mnc : null}
-        />
-        <Select
-          id="upf"
-          label="UPF"
-          stacked
-          required
-          value = {getUpfValueAsString()}
-          onChange={handleUpfChange}
-          options={[
-            {
-              disabled: true,
-              label: "Select an option",
-              value: "",
-            },
-            ...upfList.map((upf) => ({
-              label: `${upf.hostname}:${upf.port}`,
-              value: `${upf.hostname}:${upf.port}`,
-            })),
-          ]}
         />
         <Select
           id="gnb"
