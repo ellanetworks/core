@@ -156,22 +156,4 @@ var routes = Routes{
 		"/inventory/gnb/:gnb-name",
 		DeleteGnb,
 	},
-	{
-		"GetUpfs",
-		http.MethodGet,
-		"/inventory/upf",
-		GetUpfs,
-	},
-	{
-		"PostUpf",
-		http.MethodPost,
-		"/inventory/upf/:upf-hostname",
-		PostUpf,
-	},
-	{
-		"DeleteUpf",
-		http.MethodDelete,
-		"/inventory/upf/:upf-hostname",
-		DeleteUpf,
-	},
 }
