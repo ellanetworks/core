@@ -25,6 +25,8 @@ const (
 	flowRuleDataColl = "policyData.ues.flowRule"
 	devGroupDataColl = "webconsoleData.snapshots.devGroupData"
 	sliceDataColl    = "webconsoleData.snapshots.sliceData"
+	gnbDataColl      = "webconsoleData.snapshots.gnbData"
+	upfDataColl      = "webconsoleData.snapshots.upfData"
 )
 
 var configLog *logrus.Entry
@@ -92,6 +94,16 @@ func configHandler(configMsgChan chan *configmodels.ConfigMessage, configReceive
 				handleNetworkSlicePost(configMsg, subsUpdateChan)
 			}
 
+			if configMsg.Gnb != nil {
+				configLog.Infof("Received gNB [%v] configuration from config channel", configMsg.GnbName)
+				handleGnbPost(configMsg)
+			}
+
+			if configMsg.Upf != nil {
+				configLog.Infof("Received UPF [%v] configuration from config channel", configMsg.UpfHostname)
+				handleUpfPost(configMsg)
+			}
+
 			// loop through all clients and send this message to all clients
 			if len(clientNFPool) == 0 {
 				configLog.Infoln("No client available. No need to send config")
@@ -102,7 +114,16 @@ func configHandler(configMsgChan chan *configmodels.ConfigMessage, configReceive
 			}
 		} else {
 			var config5gMsg Update5GSubscriberMsg
-			if configMsg.MsgType != configmodels.Sub_data {
+			if configMsg.MsgType == configmodels.Inventory {
+				if configMsg.GnbName != "" {
+					configLog.Infof("Received delete gNB [%v] from config channel", configMsg.GnbName)
+					handleGnbDelete(configMsg)
+				}
+				if configMsg.UpfHostname != "" {
+					configLog.Infof("Received delete UPF [%v] from config channel", configMsg.UpfHostname)
+					handleUpfDelete(configMsg)
+				}
+			} else if configMsg.MsgType != configmodels.Sub_data {
 				rwLock.Lock()
 				// update config snapshot
 				if configMsg.DevGroup == nil {
@@ -182,6 +203,48 @@ func handleNetworkSlicePost(configMsg *configmodels.ConfigMessage, subsUpdateCha
 	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(sliceDataColl, filter, sliceDataBsonA)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
+	}
+	rwLock.Unlock()
+}
+
+func handleGnbPost(configMsg *configmodels.ConfigMessage) {
+	rwLock.Lock()
+	filter := bson.M{"name": configMsg.GnbName}
+	gnbDataBson := toBsonM(configMsg.Gnb)
+	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(gnbDataColl, filter, gnbDataBson)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
+	}
+	rwLock.Unlock()
+}
+
+func handleGnbDelete(configMsg *configmodels.ConfigMessage) {
+	rwLock.Lock()
+	filter := bson.M{"name": configMsg.GnbName}
+	errDelOne := dbadapter.CommonDBClient.RestfulAPIDeleteOne(gnbDataColl, filter)
+	if errDelOne != nil {
+		logger.DbLog.Warnln(errDelOne)
+	}
+	rwLock.Unlock()
+}
+
+func handleUpfPost(configMsg *configmodels.ConfigMessage) {
+	rwLock.Lock()
+	filter := bson.M{"hostname": configMsg.UpfHostname}
+	upfDataBson := toBsonM(configMsg.Upf)
+	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(upfDataColl, filter, upfDataBson)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
+	}
+	rwLock.Unlock()
+}
+
+func handleUpfDelete(configMsg *configmodels.ConfigMessage) {
+	rwLock.Lock()
+	filter := bson.M{"hostname": configMsg.UpfHostname}
+	errDelOne := dbadapter.CommonDBClient.RestfulAPIDeleteOne(upfDataColl, filter)
+	if errDelOne != nil {
+		logger.DbLog.Warnln(errDelOne)
 	}
 	rwLock.Unlock()
 }
