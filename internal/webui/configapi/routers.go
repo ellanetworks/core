@@ -138,4 +138,22 @@ var routes = Routes{
 		"/network-slice/:slice-name",
 		NetworkSliceSliceNamePut,
 	},
+	{
+		"GetGnbs",
+		http.MethodGet,
+		"/inventory/gnb",
+		GetGnbs,
+	},
+	{
+		"PostGnb",
+		http.MethodPost,
+		"/inventory/gnb/:gnb-name",
+		PostGnb,
+	},
+	{
+		"DeleteGnb",
+		http.MethodDelete,
+		"/inventory/gnb/:gnb-name",
+		DeleteGnb,
+	},
 }
