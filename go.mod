@@ -30,7 +30,7 @@ require (
 	github.com/tim-ywliu/event v0.1.0
 	github.com/wmnsk/go-pfcp v0.0.24
 	github.com/yeastengine/config5g v0.0.0-20240624120332-b75c495fdf84
-	go.mongodb.org/mongo-driver v1.11.7
+	go.mongodb.org/mongo-driver v1.16.0
 	golang.org/x/exp v0.0.0-20240103183307-be819d1f06fc
 	golang.org/x/sys v0.23.0
 	google.golang.org/grpc v1.65.0
@@ -75,7 +75,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/montanaflynn/stats v0.6.6 // indirect
+	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/omec-project/tlv v1.2.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
