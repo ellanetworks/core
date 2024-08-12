@@ -12,10 +12,10 @@
     "@canonical/react-components": "^0.59.1",
     "@emotion/react": "^11.13.0",
     "@emotion/styled": "^11.13.0",
-    "@mui/icons-material": "^5.16.6",
-    "@mui/material": "^5.16.6",
-    "@tanstack/react-query": "^5.51.21",
-    "@types/node": "22.1.0",
+    "@mui/icons-material": "^5.16.7",
+    "@mui/material": "^5.16.7",
+    "@tanstack/react-query": "^5.51.23",
+    "@types/node": "22.2.0",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
     "autoprefixer": "10.4.20",
@@ -25,20 +25,20 @@
     "lodash": "^4.17.21",
     "next": "14.2.5",
     "next-swagger-doc": "^0.4.0",
-    "postcss": "8.4.40",
+    "postcss": "8.4.41",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-icons": "^5.2.1",
     "sass": "^1.77.8",
     "swagger-ui-react": "^5.17.14",
-    "tailwindcss": "3.4.7",
+    "tailwindcss": "3.4.9",
     "typescript": "5.5.4",
-    "vanilla-framework": "^4.14.0",
+    "vanilla-framework": "^4.15.0",
     "yup": "1.4.0"
   },
   "devDependencies": {
     "@types/swagger-ui-react": "^4.18.2",
     "prettier": "^3.3.3",
-    "prettier-plugin-tailwindcss": "^0.6.5"
+    "prettier-plugin-tailwindcss": "^0.6.6"
   }
 }
