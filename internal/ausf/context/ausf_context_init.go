@@ -23,6 +23,7 @@ func InitAusfContext(context *AUSFContext) {
 	context.NrfUri = configuration.NrfUri
 	context.RegisterIPv4 = configuration.Sbi.RegisterIPv4
 	context.SBIPort = configuration.Sbi.Port
+	context.UriScheme = models.UriScheme_HTTP
 
 	context.BindingIPv4 = os.Getenv(configuration.Sbi.BindingIPv4)
 	if context.BindingIPv4 != "" {
