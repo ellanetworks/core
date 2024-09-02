@@ -1,7 +1,3 @@
-// Copyright 2024 Canonical Ltd.
-//
-// SPDX-License-Identifier: Apache-2.0
-//
 // The User Plane IP Resource Information has been deprecated in 3GPP Release 16.
 // This file should be removed from the project as we get rid of the User Plane IP Resource Information
 // IE in the PFCP Association Setup Response Message
