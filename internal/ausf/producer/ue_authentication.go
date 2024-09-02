@@ -30,8 +30,8 @@ const (
 
 // Generates a random int between 0 and 255
 func GenerateRandomNumber() (uint8, error) {
-	max := big.NewInt(256)
-	randomNumber, err := rand.Int(rand.Reader, max)
+	maxN := big.NewInt(256)
+	randomNumber, err := rand.Int(rand.Reader, maxN)
 	if err != nil {
 		return 0, err
 	}

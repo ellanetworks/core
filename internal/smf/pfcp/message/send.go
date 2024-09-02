@@ -1,9 +1,3 @@
-// SPDX-FileCopyrightText: 2022-present Intel Corporation
-// SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
-// Copyright 2019 free5GC.org
-//
-// SPDX-License-Identifier: Apache-2.0
-
 package message
 
 import (
@@ -87,7 +81,6 @@ func SendHeartbeatRequest(upNodeID smf_context.NodeID, upfPort uint16) error {
 }
 
 func SendPfcpAssociationSetupRequest(upNodeID smf_context.NodeID, upfPort uint16) error {
-
 	if net.IP.Equal(upNodeID.ResolveNodeIdToIp(), net.IPv4zero) {
 		return fmt.Errorf("PFCP Association Setup Request failed, invalid NodeId: %v", string(upNodeID.NodeIdValue))
 	}

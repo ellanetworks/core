@@ -1,9 +1,3 @@
-// SPDX-FileCopyrightText: 2022-present Intel Corporation
-// SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
-// Copyright 2019 free5GC.org
-//
-// SPDX-License-Identifier: Apache-2.0
-
 package context
 
 import (
@@ -11,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -44,10 +37,7 @@ var (
 	seidSMContextMap sync.Map
 )
 
-var (
-	smContextCount  uint64
-	smContextActive uint64
-)
+var smContextCount uint64
 
 type SMContextState uint
 
@@ -66,16 +56,6 @@ const (
 )
 
 func init() {
-}
-
-func incSMContextActive() uint64 {
-	atomic.AddUint64(&smContextActive, 1)
-	return smContextActive
-}
-
-func decSMContextActive() uint64 {
-	atomic.AddUint64(&smContextActive, ^uint64(0))
-	return smContextActive
 }
 
 func GetSMContextCount() uint64 {
@@ -236,17 +216,6 @@ func (smContext *SMContext) initLogTags() {
 func (smContext *SMContext) ChangeState(nextState SMContextState) {
 	// Update Subscriber profile Metrics
 	if nextState == SmStateActive || smContext.SMContextState == SmStateActive {
-		var upf string
-		if smContext.Tunnel != nil {
-			// Set UPF FQDN name if provided else IP-address
-			if smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.NodeID.NodeIdType == NodeIdTypeFqdn {
-				upf = string(smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.NodeID.NodeIdValue)
-				upf = strings.Split(upf, ".")[0]
-			} else {
-				upf = smContext.Tunnel.DataPathPool[1].FirstDPNode.UPF.GetUPFIP()
-			}
-		}
-
 		// enterprise name
 		if smfContext.EnterpriseList != nil {
 			entMap := *smfContext.EnterpriseList
@@ -255,7 +224,6 @@ func (smContext *SMContext) ChangeState(nextState SMContextState) {
 		} else {
 			smContext.SubCtxLog.Debug("context state change, enterprise info not available")
 		}
-
 	}
 
 	smContext.SubCtxLog.Infof("context state change, current state[%v] next state[%v]",
@@ -383,7 +351,6 @@ func (smContext *SMContext) PCFSelection() error {
 				logger.CtxLog.Warningf("NFDiscovery PCF return status: %d\n", status)
 			}
 		}
-
 	}
 
 	smContext.SelectedPCFProfile = rep.NfInstances[0]
@@ -427,7 +394,6 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) {
 			}
 
 			seidSMContextMap.Store(allocatedSEID, smContext)
-
 		}
 	}
 }

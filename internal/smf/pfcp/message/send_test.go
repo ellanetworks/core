@@ -25,10 +25,6 @@ import (
 	"github.com/yeastengine/ella/internal/smf/pfcp/udp"
 )
 
-func boolPointer(b bool) *bool {
-	return &b
-}
-
 func TestSendPfcpAssociationSetupRequest(t *testing.T) {
 	configuration := &factory.Configuration{}
 	factory.SmfConfig = factory.Config{

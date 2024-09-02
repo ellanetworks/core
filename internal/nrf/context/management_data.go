@@ -21,8 +21,8 @@ const NRF_NFINST_RES_URI_PREFIX = factory.NRF_NFM_RES_URI_PREFIX + "/nf-instance
 
 // Generates a random int between 0 and 99
 func GenerateRandomNumber() (int, error) {
-	max := big.NewInt(100)
-	randomNumber, err := rand.Int(rand.Reader, max)
+	maxN := big.NewInt(100)
+	randomNumber, err := rand.Int(rand.Reader, maxN)
 	if err != nil {
 		return 0, err
 	}

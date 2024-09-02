@@ -29,10 +29,6 @@ func (f *Flag) setBit(position uint8) {
 	*f |= 1 << (position - 1)
 }
 
-func boolPointer(b bool) *bool {
-	return &b
-}
-
 func TestFindUEIPAddressNoAddressInCreatedPDR(t *testing.T) {
 	sessionEstablishmentResponse := message.NewSessionEstablishmentResponse(
 		0,

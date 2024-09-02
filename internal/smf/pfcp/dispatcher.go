@@ -60,5 +60,4 @@ func Dispatch(msg *udp.Message) {
 		logger.PfcpLog.Errorf("Unknown PFCP message type: %d", msgType)
 		return
 	}
-
 }
