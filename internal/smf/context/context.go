@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2022-present Intel Corporation
+// SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
+// Copyright 2019 free5GC.org
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package context
 
 import (
@@ -12,8 +18,6 @@ import (
 	"github.com/omec-project/openapi/Nnrf_NFManagement"
 	"github.com/omec-project/openapi/Nudm_SubscriberDataManagement"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/pfcp/pfcpType"
-	"github.com/omec-project/pfcp/pfcpUdp"
 	"github.com/omec-project/util/drsm"
 	"github.com/yeastengine/ella/internal/smf/factory"
 	"github.com/yeastengine/ella/internal/smf/logger"
@@ -43,7 +47,7 @@ type SMFContext struct {
 	BindingIPv4  string
 	RegisterIPv4 string
 
-	UPNodeIDs []pfcpType.NodeID
+	UPNodeIDs []NodeID
 	Key       string
 	PEM       string
 	KeyLog    string
@@ -69,7 +73,8 @@ type SMFContext struct {
 	PodIp                 string
 
 	StaticIpInfo             *[]factory.StaticIpInfo
-	CPNodeID                 pfcpType.NodeID
+	CPNodeID                 NodeID
+	PFCPPort                 int
 	UDMProfile               models.NfProfile
 	NrfCacheEvictionInterval time.Duration
 	SBIPort                  int
@@ -91,6 +96,9 @@ func RetrieveDnnInformation(Snssai models.Snssai, dnn string) *SnssaiSmfDnnInfo 
 }
 
 func AllocateLocalSEID() (uint64, error) {
+	if smfContext.DrsmCtxts.SeidPool == nil {
+		return 0, fmt.Errorf("SEID pool is not initialized")
+	}
 	seid32, err := smfContext.DrsmCtxts.SeidPool.AllocateInt32ID()
 	if err != nil {
 		logger.CtxLog.Errorf("allocate SEID error: %+v", err)
@@ -164,7 +172,7 @@ func InitSmfContext(config *factory.Config) *SMFContext {
 
 	if pfcp := configuration.PFCP; pfcp != nil {
 		if pfcp.Port == 0 {
-			pfcp.Port = pfcpUdp.PFCP_PORT
+			pfcp.Port = factory.DEFAULT_PFCP_PORT
 		}
 		pfcpAddrEnv := os.Getenv(pfcp.Addr)
 		if pfcpAddrEnv != "" {
@@ -180,13 +188,18 @@ func InitSmfContext(config *factory.Config) *SMFContext {
 			logger.CtxLog.Warnf("PFCP Parse Addr Fail: %v", err)
 		}
 
+		smfContext.PFCPPort = int(pfcp.Port)
+
 		smfContext.CPNodeID.NodeIdType = 0
 		smfContext.CPNodeID.NodeIdValue = addr.IP.To4()
 	}
 
 	// Static config
 	for _, snssaiInfoConfig := range configuration.SNssaiInfo {
-		smfContext.insertSmfNssaiInfo(&snssaiInfoConfig)
+		err := smfContext.insertSmfNssaiInfo(&snssaiInfoConfig)
+		if err != nil {
+			logger.CtxLog.Warnln(err)
+		}
 	}
 
 	// Set client and set url
@@ -266,7 +279,10 @@ func ProcessConfigUpdate() bool {
 	// Lets parse through network slice configs first
 	if updatedCfg.DelSNssaiInfo != nil {
 		for _, slice := range *updatedCfg.DelSNssaiInfo {
-			SMF_Self().deleteSmfNssaiInfo(&slice)
+			err := SMF_Self().deleteSmfNssaiInfo(&slice)
+			if err != nil {
+				logger.CtxLog.Errorf("delete network slice [%v] failed: %v", slice, err)
+			}
 		}
 		factory.UpdatedSmfConfig.DelSNssaiInfo = nil
 		sendNrfRegistration = true
@@ -274,7 +290,10 @@ func ProcessConfigUpdate() bool {
 
 	if updatedCfg.AddSNssaiInfo != nil {
 		for _, slice := range *updatedCfg.AddSNssaiInfo {
-			SMF_Self().insertSmfNssaiInfo(&slice)
+			err := SMF_Self().insertSmfNssaiInfo(&slice)
+			if err != nil {
+				logger.CtxLog.Errorf("insert network slice [%v] failed: %v", slice, err)
+			}
 		}
 		factory.UpdatedSmfConfig.AddSNssaiInfo = nil
 		sendNrfRegistration = true
@@ -282,7 +301,10 @@ func ProcessConfigUpdate() bool {
 
 	if updatedCfg.ModSNssaiInfo != nil {
 		for _, slice := range *updatedCfg.ModSNssaiInfo {
-			SMF_Self().updateSmfNssaiInfo(&slice)
+			err := SMF_Self().updateSmfNssaiInfo(&slice)
+			if err != nil {
+				logger.CtxLog.Errorf("update network slice [%v] failed: %v", slice, err)
+			}
 		}
 		factory.UpdatedSmfConfig.ModSNssaiInfo = nil
 		sendNrfRegistration = true
@@ -291,7 +313,10 @@ func ProcessConfigUpdate() bool {
 	// UP Node Links should be deleted before underlying UPFs are deleted
 	if updatedCfg.DelLinks != nil {
 		for _, link := range *updatedCfg.DelLinks {
-			GetUserPlaneInformation().DeleteUPNodeLinks(&link)
+			err := GetUserPlaneInformation().DeleteUPNodeLinks(&link)
+			if err != nil {
+				logger.CtxLog.Errorf("delete UP Node Links failed: %v", err)
+			}
 		}
 		factory.UpdatedSmfConfig.DelLinks = nil
 	}
@@ -299,14 +324,20 @@ func ProcessConfigUpdate() bool {
 	// Iterate through UserPlane Info
 	if updatedCfg.DelUPNodes != nil {
 		for name, upf := range *updatedCfg.DelUPNodes {
-			GetUserPlaneInformation().DeleteSmfUserPlaneNode(name, &upf)
+			err := GetUserPlaneInformation().DeleteSmfUserPlaneNode(name, &upf)
+			if err != nil {
+				logger.CtxLog.Errorf("delete UP Node [%s] failed: %v", name, err)
+			}
 		}
 		factory.UpdatedSmfConfig.DelUPNodes = nil
 	}
 
 	if updatedCfg.AddUPNodes != nil {
 		for name, upf := range *updatedCfg.AddUPNodes {
-			GetUserPlaneInformation().InsertSmfUserPlaneNode(name, &upf)
+			err := GetUserPlaneInformation().InsertSmfUserPlaneNode(name, &upf)
+			if err != nil {
+				logger.CtxLog.Errorf("insert UP Node [%s] failed: %v", name, err)
+			}
 		}
 		factory.UpdatedSmfConfig.AddUPNodes = nil
 		AllocateUPFID()
@@ -315,7 +346,10 @@ func ProcessConfigUpdate() bool {
 
 	if updatedCfg.ModUPNodes != nil {
 		for name, upf := range *updatedCfg.ModUPNodes {
-			GetUserPlaneInformation().UpdateSmfUserPlaneNode(name, &upf)
+			err := GetUserPlaneInformation().UpdateSmfUserPlaneNode(name, &upf)
+			if err != nil {
+				logger.CtxLog.Errorf("update UP Node [%s] failed: %v", name, err)
+			}
 		}
 		factory.UpdatedSmfConfig.ModUPNodes = nil
 	}
@@ -324,7 +358,10 @@ func ProcessConfigUpdate() bool {
 	// UP Links should be added only after underlying UPFs have been added
 	if updatedCfg.AddLinks != nil {
 		for _, link := range *updatedCfg.AddLinks {
-			GetUserPlaneInformation().InsertUPNodeLinks(&link)
+			err := GetUserPlaneInformation().InsertUPNodeLinks(&link)
+			if err != nil {
+				logger.CtxLog.Errorf("insert UP Node Links failed: %v", err)
+			}
 		}
 		factory.UpdatedSmfConfig.AddLinks = nil
 	}
@@ -348,7 +385,7 @@ func (smfCtxt *SMFContext) InitDrsm() error {
 	podname := os.Getenv("HOSTNAME")
 	podip := os.Getenv("POD_IP")
 	podId := drsm.PodId{PodName: podname, PodInstance: smfCtxt.NfInstanceID, PodIp: podip}
-	dbName := "smf"
+	dbName := "sdcore_smf"
 	dbUrl := "mongodb://mongodb-arbiter-headless"
 
 	if factory.SmfConfig.Configuration.Mongodb.Url != "" {

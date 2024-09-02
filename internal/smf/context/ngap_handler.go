@@ -1,3 +1,7 @@
+// Copyright 2019 free5GC.org
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package context
 
 import (
@@ -9,7 +13,6 @@ import (
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/pfcp/pfcpType"
 	"github.com/yeastengine/ella/internal/smf/logger"
 )
 
@@ -39,9 +42,9 @@ func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) (er
 		if dataPath.Activated {
 			ANUPF := dataPath.FirstDPNode
 			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
-				DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = new(pfcpType.OuterHeaderCreation)
+				DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
 				dlOuterHeaderCreation := DLPDR.FAR.ForwardingParameters.OuterHeaderCreation
-				dlOuterHeaderCreation.OuterHeaderCreationDescription = pfcpType.OuterHeaderCreationGtpUUdpIpv4
+				dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
 				dlOuterHeaderCreation.Teid = teid
 				dlOuterHeaderCreation.Ipv4Address = ctx.Tunnel.ANInformation.IPAddress.To4()
 			}
@@ -108,13 +111,13 @@ func HandlePathSwitchRequestTransfer(b []byte, ctx *SMContext) error {
 		if dataPath.Activated {
 			ANUPF := dataPath.FirstDPNode
 			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
-				DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = new(pfcpType.OuterHeaderCreation)
+				DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
 				dlOuterHeaderCreation := DLPDR.FAR.ForwardingParameters.OuterHeaderCreation
-				dlOuterHeaderCreation.OuterHeaderCreationDescription = pfcpType.OuterHeaderCreationGtpUUdpIpv4
+				dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
 				dlOuterHeaderCreation.Teid = teid
 				dlOuterHeaderCreation.Ipv4Address = gtpTunnel.TransportLayerAddress.Value.Bytes
 				DLPDR.FAR.State = RULE_UPDATE
-				DLPDR.FAR.ForwardingParameters.PFCPSMReqFlags = new(pfcpType.PFCPSMReqFlags)
+				DLPDR.FAR.ForwardingParameters.PFCPSMReqFlags = new(PFCPSMReqFlags)
 				DLPDR.FAR.ForwardingParameters.PFCPSMReqFlags.Sndem = true
 			}
 		}
@@ -160,16 +163,16 @@ func HandleHandoverRequestAcknowledgeTransfer(b []byte, ctx *SMContext) (err err
 
 	teid, err := binary.ReadUvarint(TEIDReader)
 	if err != nil {
-		return fmt.Errorf("Parse TEID error %s", err.Error())
+		return fmt.Errorf("parse TEID error %s", err.Error())
 	}
 
 	for _, dataPath := range ctx.Tunnel.DataPathPool {
 		if dataPath.Activated {
 			ANUPF := dataPath.FirstDPNode
 			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
-				DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = new(pfcpType.OuterHeaderCreation)
+				DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
 				dlOuterHeaderCreation := DLPDR.FAR.ForwardingParameters.OuterHeaderCreation
-				dlOuterHeaderCreation.OuterHeaderCreationDescription = pfcpType.OuterHeaderCreationGtpUUdpIpv4
+				dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
 				dlOuterHeaderCreation.Teid = uint32(teid)
 				dlOuterHeaderCreation.Ipv4Address = GTPTunnel.TransportLayerAddress.Value.Bytes
 				DLPDR.FAR.State = RULE_UPDATE

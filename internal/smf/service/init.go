@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/pfcp/pfcpType"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/sirupsen/logrus"
@@ -146,7 +145,7 @@ func (smf *SMF) Start() {
 	udp.Run(pfcp.Dispatch)
 
 	for _, upf := range context.SMF_Self().UserPlaneInformation.UPFs {
-		if upf.NodeID.NodeIdType == pfcpType.NodeIdTypeFqdn {
+		if upf.NodeID.NodeIdType == context.NodeIdTypeFqdn {
 			logger.AppLog.Infof("Send PFCP Association Request to UPF[%s](%s)\n", upf.NodeID.NodeIdValue,
 				upf.NodeID.ResolveNodeIdToIp().String())
 		} else {

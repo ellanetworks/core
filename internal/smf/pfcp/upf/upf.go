@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2022-present Intel Corporation
+// SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
+// Copyright 2019 free5GC.org
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package upf
 
 import (
@@ -21,7 +27,7 @@ func InitPfcpHeartbeatRequest(userplane *context.UserPlaneInformation) {
 		for _, upf := range userplane.UPFs {
 			upf.UPF.UpfLock.Lock()
 			if (upf.UPF.UPFStatus == context.AssociatedSetUpSuccess) && upf.UPF.NHeartBeat < maxHeartbeatRetry {
-				err := message.SendHeartbeatRequest(upf.NodeID, upf.Port)
+				err := message.SendHeartbeatRequest(upf.NodeID, upf.Port) // needs lock in sync rsp(adapter mode)
 				if err != nil {
 					logger.PfcpLog.Errorf("send pfcp heartbeat request failed: %v for UPF[%v, %v]: ", err, upf.NodeID, upf.NodeID.ResolveNodeIdToIp())
 				} else {
@@ -44,7 +50,10 @@ func ProbeInactiveUpfs(upfs *context.UserPlaneInformation) {
 		for _, upf := range upfs.UPFs {
 			upf.UPF.UpfLock.Lock()
 			if upf.UPF.UPFStatus == context.NotAssociated {
-				message.SendPfcpAssociationSetupRequest(upf.NodeID, upf.Port)
+				err := message.SendPfcpAssociationSetupRequest(upf.NodeID, upf.Port)
+				if err != nil {
+					logger.PfcpLog.Errorf("send pfcp association setup request failed: %v ", err)
+				}
 			}
 			upf.UPF.UpfLock.Unlock()
 		}

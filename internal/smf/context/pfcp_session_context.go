@@ -1,9 +1,12 @@
+// SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
+// Copyright 2019 free5GC.org
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package context
 
 import (
 	"fmt"
-
-	"github.com/omec-project/pfcp/pfcpType"
 )
 
 type PFCPSessionResponseStatus int
@@ -22,7 +25,7 @@ const (
 
 type PFCPSessionContext struct {
 	PDRs       map[uint16]*PDR
-	NodeID     pfcpType.NodeID
+	NodeID     NodeID
 	LocalSEID  uint64
 	RemoteSEID uint64
 }

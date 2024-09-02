@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2022-present Intel Corporation
+// SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
+// Copyright 2019 free5GC.org
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package context
 
 import (
@@ -9,12 +15,13 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/pfcp/pfcpType"
 	"github.com/omec-project/util/idgenerator"
+	"github.com/omec-project/util/util_3gpp"
 	"github.com/yeastengine/ella/internal/smf/factory"
 	"github.com/yeastengine/ella/internal/smf/logger"
 )
@@ -51,11 +58,28 @@ func (s UPFStatus) String() string {
 	}
 }
 
+type RecoveryTimeStamp struct {
+	RecoveryTimeStamp time.Time
+}
+
+type UserPlaneIPResourceInformation struct {
+	Ipv4Address     net.IP
+	Ipv6Address     net.IP
+	NetworkInstance util_3gpp.Dnn
+	Assosi          bool
+	Assoni          bool
+	V6              bool
+	V4              bool
+	TeidRange       uint8
+	Teidri          uint8 // 0x00011100
+	SourceInterface uint8 // 0x00001111
+}
+
 type UPF struct {
 	SNssaiInfos        []SnssaiUPFInfo
 	N3Interfaces       []UPFInterfaceInfo
 	N9Interfaces       []UPFInterfaceInfo
-	UPFunctionFeatures *pfcpType.UPFunctionFeatures
+	UPFunctionFeatures *UPFunctionFeatures
 
 	pdrPool sync.Map
 	farPool sync.Map
@@ -69,9 +93,9 @@ type UPF struct {
 	qerIDGenerator *idgenerator.IDGenerator
 	teidGenerator  *idgenerator.IDGenerator
 
-	RecoveryTimeStamp pfcpType.RecoveryTimeStamp
-	NodeID            pfcpType.NodeID
-	UPIPInfo          pfcpType.UserPlaneIPResourceInformation
+	RecoveryTimeStamp RecoveryTimeStamp
+	NodeID            NodeID
+	UPIPInfo          UserPlaneIPResourceInformation
 	UPFStatus         UPFStatus
 	uuid              uuid.UUID
 	Port              uint16
@@ -121,7 +145,7 @@ func NewUPFInterfaceInfo(i *factory.InterfaceUpfInfoItem) *UPFInterfaceInfo {
 	return interfaceInfo
 }
 
-// *** add unit test ***
+// *** add unit test ***//
 // IP returns the IP of the user plane IP information of the pduSessType
 func (i *UPFInterfaceInfo) IP(pduSessType uint8) (net.IP, error) {
 	if (pduSessType == nasMessage.PDUSessionTypeIPv4 || pduSessType == nasMessage.PDUSessionTypeIPv4IPv6) && len(i.IPv4EndPointAddresses) != 0 {
@@ -190,7 +214,7 @@ func NewUPTunnel() (tunnel *UPTunnel) {
 	return
 }
 
-// *** add unit test ***
+// *** add unit test ***//
 func (upTunnel *UPTunnel) AddDataPath(dataPath *DataPath) {
 	pathID, err := upTunnel.PathIDGenerator.Allocate()
 	if err != nil {
@@ -201,9 +225,9 @@ func (upTunnel *UPTunnel) AddDataPath(dataPath *DataPath) {
 	upTunnel.DataPathPool[pathID] = dataPath
 }
 
-// *** add unit test ***
+// *** add unit test ***//
 // NewUPF returns a new UPF context in SMF
-func NewUPF(nodeID *pfcpType.NodeID, ifaces []factory.InterfaceUpfInfoItem) (upf *UPF) {
+func NewUPF(nodeID *NodeID, ifaces []factory.InterfaceUpfInfoItem) (upf *UPF) {
 	upf = new(UPF)
 	upf.uuid = uuid.New()
 
@@ -236,7 +260,7 @@ func NewUPF(nodeID *pfcpType.NodeID, ifaces []factory.InterfaceUpfInfoItem) (upf
 	return upf
 }
 
-// *** add unit test ***
+// *** add unit test ***//
 // GetInterface return the UPFInterfaceInfo that match input cond
 func (upf *UPF) GetInterface(interfaceType models.UpInterfaceType, dnn string) *UPFInterfaceInfo {
 	switch interfaceType {
@@ -272,7 +296,10 @@ func (upf *UPF) GenerateTEID() (uint32, error) {
 	// Assuming one SMF host 5000 UEs, this code gets offset = smfCount * 5000 and generate unique TEID
 
 	smfCountStr := os.Getenv("SMF_COUNT")
-	smfCount, _ := strconv.Atoi(smfCountStr)
+	smfCount, err := strconv.Atoi(smfCountStr)
+	if err != nil {
+		logger.CtxLog.Errorf("failed to convert SMF_COUNT to int: %v", err)
+	}
 
 	offset := (smfCount - 1) * 5000
 	uniqueId := id + uint32(offset)
@@ -283,17 +310,17 @@ func (upf *UPF) GenerateTEID() (uint32, error) {
 func (upf *UPF) PFCPAddr() *net.UDPAddr {
 	return &net.UDPAddr{
 		IP:   upf.NodeID.ResolveNodeIdToIp(),
-		Port: 8806,
+		Port: factory.DEFAULT_PFCP_PORT,
 	}
 }
 
-// *** add unit test ***
-func RetrieveUPFNodeByNodeID(nodeID pfcpType.NodeID) *UPF {
+// *** add unit test ***//
+func RetrieveUPFNodeByNodeID(nodeID NodeID) *UPF {
 	var targetUPF *UPF = nil
 	upfPool.Range(func(key, value interface{}) bool {
 		curUPF := value.(*UPF)
 		if curUPF.NodeID.NodeIdType != nodeID.NodeIdType &&
-			(curUPF.NodeID.NodeIdType == pfcpType.NodeIdTypeFqdn || nodeID.NodeIdType == pfcpType.NodeIdTypeFqdn) {
+			(curUPF.NodeID.NodeIdType == NodeIdTypeFqdn || nodeID.NodeIdType == NodeIdTypeFqdn) {
 			curUPFNodeIdIP := curUPF.NodeID.ResolveNodeIdToIp().To4()
 			nodeIdIP := nodeID.ResolveNodeIdToIp().To4()
 			logger.CtxLog.Tracef("RetrieveUPF - upfNodeIdIP:[%+v], nodeIdIP:[%+v]", curUPFNodeIdIP, nodeIdIP)
@@ -311,14 +338,14 @@ func RetrieveUPFNodeByNodeID(nodeID pfcpType.NodeID) *UPF {
 	return targetUPF
 }
 
-// *** add unit test ***
-func RemoveUPFNodeByNodeID(nodeID pfcpType.NodeID) bool {
+// *** add unit test ***//
+func RemoveUPFNodeByNodeID(nodeID NodeID) bool {
 	upfID := ""
 	upfPool.Range(func(key, value interface{}) bool {
 		upfID = key.(string)
 		upf := value.(*UPF)
 		if upf.NodeID.NodeIdType != nodeID.NodeIdType &&
-			(upf.NodeID.NodeIdType == pfcpType.NodeIdTypeFqdn || nodeID.NodeIdType == pfcpType.NodeIdTypeFqdn) {
+			(upf.NodeID.NodeIdType == NodeIdTypeFqdn || nodeID.NodeIdType == NodeIdTypeFqdn) {
 			upfNodeIdIP := upf.NodeID.ResolveNodeIdToIp().To4()
 			nodeIdIP := nodeID.ResolveNodeIdToIp().To4()
 			logger.CtxLog.Tracef("RemoveUPF - upfNodeIdIP:[%+v], nodeIdIP:[%+v]", upfNodeIdIP, nodeIdIP)
@@ -437,7 +464,7 @@ func (upf *UPF) BuildCreatePdrFromPccRule(rule *models.PccRule) (*PDR, error) {
 	}
 
 	// SDF Filter
-	sdfFilter := pfcpType.SDFFilter{}
+	sdfFilter := SDFFilter{}
 
 	// First Flow
 	flow := rule.FlowInfos[0]
@@ -556,7 +583,7 @@ func (upf *UPF) AddQER() (*QER, error) {
 	return qer, nil
 }
 
-// *** add unit test ***
+// *** add unit test ***//
 func (upf *UPF) RemovePDR(pdr *PDR) (err error) {
 	if upf.UPFStatus != AssociatedSetUpSuccess {
 		err = fmt.Errorf("this upf not associate with smf")
@@ -568,7 +595,7 @@ func (upf *UPF) RemovePDR(pdr *PDR) (err error) {
 	return nil
 }
 
-// *** add unit test ***
+// *** add unit test ***//
 func (upf *UPF) RemoveFAR(far *FAR) (err error) {
 	if upf.UPFStatus != AssociatedSetUpSuccess {
 		err = fmt.Errorf("this upf not associate with smf")
@@ -580,7 +607,7 @@ func (upf *UPF) RemoveFAR(far *FAR) (err error) {
 	return nil
 }
 
-// *** add unit test ***
+// *** add unit test ***//
 func (upf *UPF) RemoveBAR(bar *BAR) (err error) {
 	if upf.UPFStatus != AssociatedSetUpSuccess {
 		err = fmt.Errorf("this upf not associate with smf")
@@ -592,7 +619,7 @@ func (upf *UPF) RemoveBAR(bar *BAR) (err error) {
 	return nil
 }
 
-// *** add unit test ***
+// *** add unit test ***//
 func (upf *UPF) RemoveQER(qer *QER) (err error) {
 	if upf.UPFStatus != AssociatedSetUpSuccess {
 		err = fmt.Errorf("this upf not associate with smf")
@@ -629,7 +656,7 @@ func (upf *UPF) IsDnnConfigured(sDnn string) bool {
 // IsUpfSupportUeIpAddrAlloc UE IP addr alloc by UPF supported
 func (upf *UPF) IsUpfSupportUeIpAddrAlloc() bool {
 	if upf.UPFunctionFeatures != nil &&
-		(upf.UPFunctionFeatures.SupportedFeatures1&pfcpType.UpFunctionFeatures1Ueip) == pfcpType.UpFunctionFeatures1Ueip {
+		(upf.UPFunctionFeatures.SupportedFeatures1&UpFunctionFeatures1Ueip) == UpFunctionFeatures1Ueip {
 		return true
 	}
 
