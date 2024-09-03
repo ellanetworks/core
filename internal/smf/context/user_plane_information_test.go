@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/pfcp/pfcpType"
+	"github.com/stretchr/testify/require"
 	"github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/factory"
 )
@@ -109,38 +109,18 @@ var configuration = &factory.UserPlaneInformation{
 func TestNewUserPlaneInformation(t *testing.T) {
 	userplaneInformation := context.NewUserPlaneInformation(configuration)
 
-	if userplaneInformation == nil {
-		t.Fatalf("UserPlaneInformation is nil")
-	}
-	if userplaneInformation.AccessNetwork["GNodeB"] == nil {
-		t.Fatalf("AccessNetwork GNodeB is nil")
-	}
-	if userplaneInformation.UPFs["UPF1"] == nil {
-		t.Fatalf("UPF1 is nil")
-	}
-	if userplaneInformation.UPFs["UPF2"] == nil {
-		t.Fatalf("UPF2 is nil")
-	}
-	if userplaneInformation.UPFs["UPF3"] == nil {
-		t.Fatalf("UPF3 is nil")
-	}
-	if userplaneInformation.UPFs["UPF4"] == nil {
-		t.Fatalf("UPF4 is nil")
-	}
+	require.NotNil(t, userplaneInformation.AccessNetwork["GNodeB"])
+
+	require.NotNil(t, userplaneInformation.UPFs["UPF1"])
+	require.NotNil(t, userplaneInformation.UPFs["UPF2"])
+	require.NotNil(t, userplaneInformation.UPFs["UPF3"])
+	require.NotNil(t, userplaneInformation.UPFs["UPF4"])
 
 	// check links
-	if userplaneInformation.UPFs["UPF1"] != userplaneInformation.AccessNetwork["GNodeB"].Links[0] {
-		t.Fatalf("UPF1 is not linked to GNodeB")
-	}
-	if userplaneInformation.UPFs["UPF2"] != userplaneInformation.UPFs["UPF1"].Links[1] {
-		t.Fatalf("UPF2 is not linked to UPF1")
-	}
-	if userplaneInformation.UPFs["UPF3"] != userplaneInformation.UPFs["UPF2"].Links[1] {
-		t.Fatalf("UPF3 is not linked to UPF2")
-	}
-	if userplaneInformation.UPFs["UPF4"] != userplaneInformation.UPFs["UPF3"].Links[1] {
-		t.Fatalf("UPF4 is not linked to UPF3")
-	}
+	require.Contains(t, userplaneInformation.AccessNetwork["GNodeB"].Links, userplaneInformation.UPFs["UPF1"])
+	require.Contains(t, userplaneInformation.UPFs["UPF1"].Links, userplaneInformation.UPFs["UPF2"])
+	require.Contains(t, userplaneInformation.UPFs["UPF2"].Links, userplaneInformation.UPFs["UPF3"])
+	require.Contains(t, userplaneInformation.UPFs["UPF3"].Links, userplaneInformation.UPFs["UPF4"])
 }
 
 func TestGenerateDefaultPath(t *testing.T) {
@@ -229,9 +209,7 @@ func TestGenerateDefaultPath(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			pathExist := userplaneInformation.GenerateDefaultPath(tc.param)
-			if pathExist != tc.expected {
-				t.Fatalf("Expected %v, got %v", tc.expected, pathExist)
-			}
+			require.Equal(t, tc.expected, pathExist)
 		})
 	}
 }
@@ -247,8 +225,8 @@ func TestUpdateSmfUserPlaneNode_NodeIDChange(t *testing.T) {
 		DefaultUserPlanePath: make(map[string][]*context.UPNode),
 	}
 
-	nodeID := pfcpType.NodeID{
-		NodeIdType:  pfcpType.NodeIdTypeIpv4Address,
+	nodeID := context.NodeID{
+		NodeIdType:  context.NodeIdTypeIpv4Address,
 		NodeIdValue: []byte(net.ParseIP("1.2.3.4").To4()),
 	}
 
@@ -262,8 +240,8 @@ func TestUpdateSmfUserPlaneNode_NodeIDChange(t *testing.T) {
 		Links: []*context.UPNode{
 			{
 				Type: context.UPNODE_AN,
-				NodeID: pfcpType.NodeID{
-					NodeIdType:  pfcpType.NodeIdTypeIpv4Address,
+				NodeID: context.NodeID{
+					NodeIdType:  context.NodeIdTypeIpv4Address,
 					NodeIdValue: []byte(net.ParseIP("5.6.7.8").To4()),
 				},
 				Port: 0,
@@ -302,9 +280,7 @@ func TestUpdateSmfUserPlaneNode_NodeIDChange(t *testing.T) {
 	}
 
 	_, upfExists := upi.UPFs["testNode"]
-	if !upfExists {
-		t.Errorf("Expected UPF to exist")
-	}
+	require.True(t, upfExists)
 	if upi.UPFs["testNode"].UPF.SNssaiInfos[0].DnnList[0].Dnn != "internet2" {
 		t.Errorf("Expected UPF DNN to be updated")
 	}

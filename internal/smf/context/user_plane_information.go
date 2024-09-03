@@ -6,7 +6,6 @@ import (
 	"net"
 	"reflect"
 
-	"github.com/omec-project/pfcp/pfcpType"
 	"github.com/yeastengine/ella/internal/smf/factory"
 	"github.com/yeastengine/ella/internal/smf/logger"
 )
@@ -33,7 +32,7 @@ const (
 type UPNode struct {
 	UPF    *UPF
 	Type   UPNodeType
-	NodeID pfcpType.NodeID
+	NodeID NodeID
 	ANIP   net.IP
 	Dnn    string
 	Links  []*UPNode
@@ -70,12 +69,18 @@ func NewUserPlaneInformation(upTopology *factory.UserPlaneInformation) *UserPlan
 
 	// Load UP Nodes to SMF
 	for name, node := range upTopology.UPNodes {
-		userplaneInformation.InsertSmfUserPlaneNode(name, &node)
+		err := userplaneInformation.InsertSmfUserPlaneNode(name, &node)
+		if err != nil {
+			logger.UPNodeLog.Errorf("failed to insert UP Node[%v] ", node)
+		}
 	}
 
 	// Load UP Node Link config to SMF
 	for _, link := range upTopology.Links {
-		userplaneInformation.InsertUPNodeLinks(&link)
+		err := userplaneInformation.InsertUPNodeLinks(&link)
+		if err != nil {
+			logger.UPNodeLog.Errorf("failed to insert UP Node link[%v] ", link)
+		}
 	}
 	return userplaneInformation
 }
@@ -84,7 +89,7 @@ func (upi *UserPlaneInformation) GetUPFNameByIp(ip string) string {
 	return upi.UPFIPToName[ip]
 }
 
-func (upi *UserPlaneInformation) GetUPFNodeIDByName(name string) pfcpType.NodeID {
+func (upi *UserPlaneInformation) GetUPFNodeIDByName(name string) NodeID {
 	return upi.UPFs[name].NodeID
 }
 
@@ -296,19 +301,19 @@ func (upi *UserPlaneInformation) InsertSmfUserPlaneNode(name string, node *facto
 			if ip.To4() != nil {
 				// IPv4
 				ip = ip.To4()
-				nodeIdType = pfcpType.NodeIdTypeIpv4Address
+				nodeIdType = NodeIdTypeIpv4Address
 			} else {
 				// IPv6
 				ip = ip.To16()
-				nodeIdType = pfcpType.NodeIdTypeIpv6Address
+				nodeIdType = NodeIdTypeIpv6Address
 			}
 		} else {
 			// FQDN
-			nodeIdType = pfcpType.NodeIdTypeFqdn
+			nodeIdType = NodeIdTypeFqdn
 			ip = []byte(node.NodeID)
 		}
 		// Populate outcome
-		upNode.NodeID = pfcpType.NodeID{
+		upNode.NodeID = NodeID{
 			NodeIdType:  nodeIdType,
 			NodeIdValue: []byte(ip),
 		}
@@ -371,17 +376,17 @@ func (upi *UserPlaneInformation) UpdateSmfUserPlaneNode(name string, newNode *fa
 
 		ip := net.ParseIP(newNode.NodeID)
 		if ip == nil {
-			nodeIdType = pfcpType.NodeIdTypeFqdn
+			nodeIdType = NodeIdTypeFqdn
 			ip = []byte(newNode.NodeID)
 		} else if ip.To4() != nil {
-			nodeIdType = pfcpType.NodeIdTypeIpv4Address
+			nodeIdType = NodeIdTypeIpv4Address
 			ip = ip.To4()
 		} else {
-			nodeIdType = pfcpType.NodeIdTypeIpv6Address
+			nodeIdType = NodeIdTypeIpv6Address
 			ip = ip.To16()
 		}
 
-		newNodeID := pfcpType.NodeID{
+		newNodeID := NodeID{
 			NodeIdType:  nodeIdType,
 			NodeIdValue: []byte(ip),
 		}

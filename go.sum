@@ -213,12 +213,8 @@ github.com/omec-project/nas v1.3.0 h1:zNqEQSNTsupT3qP6keSuOusOHKrqEYoC5ghKR8TpKE
 github.com/omec-project/nas v1.3.0/go.mod h1:So4hpY95XZTpX0Joco/axIH4MlO0o13UT1rWQWZEuLQ=
 github.com/omec-project/ngap v1.2.2 h1:TAeF2IvBL5FIBqJ/8HTRe63q9cAxjPBRhj3jodbxBhg=
 github.com/omec-project/ngap v1.2.2/go.mod h1:sPvpU/ahwqoTvFi5IfnzHmJvIxQPnsVCmq7iU/L1lEo=
-github.com/omec-project/openapi v1.2.0 h1:7Wvi0HLvhvxMyQtqGcqtMCPC/0QCGAFP5htrXCfWxRc=
-github.com/omec-project/openapi v1.2.0/go.mod h1:hjU13MB1m9MHTko87JfsUNCdeD6/m6VkNZDD8Vq5U9M=
-github.com/omec-project/pfcp v1.2.2 h1:hzETDSmOdm5H+g/XBYWYbfIOixqj9C3yCntMNxSjEaw=
-github.com/omec-project/pfcp v1.2.2/go.mod h1:rfV+u9EKTvi1jQ1mTDK74Ra415onPiQf+YO8vk2z3eU=
-github.com/omec-project/tlv v1.2.0 h1:rHMVnMNP+aDQAffgmO0Tut1gxhfeZOpDpXLbhLU7364=
-github.com/omec-project/tlv v1.2.0/go.mod h1:gES/RcOSgXJp3/RaPL2dJiZ7aFfBQkueEmiJ40lbI00=
+github.com/omec-project/openapi v1.2.1 h1:7ccFadoGfoqZq4sw7twXatbRGmkg4pARe6sWmCVVmrs=
+github.com/omec-project/openapi v1.2.1/go.mod h1:hjU13MB1m9MHTko87JfsUNCdeD6/m6VkNZDD8Vq5U9M=
 github.com/omec-project/util v1.1.0 h1:TUuLmzqTLChIEXQlK9g5Ihgmw4FUm/UJnjfu0wT8Gz0=
 github.com/omec-project/util v1.1.0/go.mod h1:BEv8nCokB4j0fgAQ6VVkKuQ2PSP3DJMEmz25pFMw5X8=
 github.com/onsi/ginkgo v1.16.5 h1:8xi0RTUf59SOSfEtZMvwTvXYMzG4gV23XVHOZiXNtnE=

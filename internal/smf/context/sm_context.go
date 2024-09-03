@@ -15,10 +15,9 @@ import (
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/pfcp/pfcpType"
+	nrfCache "github.com/omec-project/openapi/nrfcache"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/sirupsen/logrus"
-	nrf_cache "github.com/yeastengine/ella/internal/nrf/nrfcache"
 	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/qos"
 	errors "github.com/yeastengine/ella/internal/smf/smferrors"
@@ -36,8 +35,9 @@ var (
 	smContextPool    sync.Map
 	canonicalRef     sync.Map
 	seidSMContextMap sync.Map
-	smContextCount   uint64
 )
+
+var smContextCount uint64
 
 type SMContextState uint
 
@@ -231,7 +231,7 @@ func (smContext *SMContext) ChangeState(nextState SMContextState) {
 	smContext.SMContextState = nextState
 }
 
-// *** add unit test ***
+// *** add unit test ***//
 func GetSMContext(ref string) (smContext *SMContext) {
 	if value, ok := smContextPool.Load(ref); ok {
 		smContext = value.(*SMContext)
@@ -240,7 +240,7 @@ func GetSMContext(ref string) (smContext *SMContext) {
 	return
 }
 
-// *** add unit test ***
+// *** add unit test ***//
 func RemoveSMContext(ref string) {
 	var smContext *SMContext
 	if value, ok := smContextPool.Load(ref); ok {
@@ -255,14 +255,17 @@ func RemoveSMContext(ref string) {
 	}
 
 	// Release UE IP-Address
-	smContext.ReleaseUeIpAddr()
+	err := smContext.ReleaseUeIpAddr()
+	if err != nil {
+		smContext.SubCtxLog.Errorf("release UE IP-Address failed, %v", err)
+	}
 
 	smContextPool.Delete(ref)
 
 	canonicalRef.Delete(canonicalName(smContext.Supi, smContext.PDUSessionID))
 }
 
-// *** add unit test ***
+// *** add unit test ***//
 func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
 	if value, ok := seidSMContextMap.Load(SEID); ok {
 		smContext = value.(*SMContext)
@@ -279,7 +282,7 @@ func (smContext *SMContext) ReleaseUeIpAddr() error {
 	return nil
 }
 
-// *** add unit test ***
+// *** add unit test ***//
 func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData) {
 	smContext.Gpsi = createData.Gpsi
 	smContext.Supi = createData.Supi
@@ -325,7 +328,10 @@ func (smContext *SMContext) PCFSelection() error {
 	var err error
 
 	if SMF_Self().EnableNrfCaching {
-		rep, _ = nrf_cache.SearchNFInstances(SMF_Self().NrfUri, models.NfType_PCF, models.NfType_SMF, &localVarOptionals)
+		rep, err = nrfCache.SearchNFInstances(SMF_Self().NrfUri, models.NfType_PCF, models.NfType_SMF, &localVarOptionals)
+		if err != nil {
+			return err
+		}
 	} else {
 		rep, res, err = SMF_Self().
 			NFDiscoveryClient.
@@ -346,6 +352,7 @@ func (smContext *SMContext) PCFSelection() error {
 			}
 		}
 	}
+
 	smContext.SelectedPCFProfile = rep.NfInstances[0]
 
 	// Create SMPolicyControl Client for this SM Context
@@ -360,7 +367,7 @@ func (smContext *SMContext) PCFSelection() error {
 	return nil
 }
 
-func (smContext *SMContext) GetNodeIDByLocalSEID(seid uint64) (nodeID pfcpType.NodeID) {
+func (smContext *SMContext) GetNodeIDByLocalSEID(seid uint64) (nodeID NodeID) {
 	for _, pfcpCtx := range smContext.PFCPContext {
 		if pfcpCtx.LocalSEID == seid {
 			nodeID = pfcpCtx.NodeID
@@ -370,30 +377,16 @@ func (smContext *SMContext) GetNodeIDByLocalSEID(seid uint64) (nodeID pfcpType.N
 	return
 }
 
-func (smContext *SMContext) AllocateLocalSEIDForUPPath(path UPPath) {
-	for _, upNode := range path {
-		NodeIDtoIP := upNode.NodeID.ResolveNodeIdToIp().String()
-		if _, exist := smContext.PFCPContext[NodeIDtoIP]; !exist {
-			allocatedSEID, _ := AllocateLocalSEID()
-
-			smContext.PFCPContext[NodeIDtoIP] = &PFCPSessionContext{
-				PDRs:      make(map[uint16]*PDR),
-				NodeID:    upNode.NodeID,
-				LocalSEID: allocatedSEID,
-			}
-
-			seidSMContextMap.Store(allocatedSEID, smContext)
-		}
-	}
-}
-
 func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) {
 	logger.PduSessLog.Traceln("In AllocateLocalSEIDForDataPath")
 	for curDataPathNode := dataPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
 		NodeIDtoIP := curDataPathNode.UPF.NodeID.ResolveNodeIdToIp().String()
 		logger.PduSessLog.Traceln("NodeIDtoIP: ", NodeIDtoIP)
 		if _, exist := smContext.PFCPContext[NodeIDtoIP]; !exist {
-			allocatedSEID, _ := AllocateLocalSEID()
+			allocatedSEID, err := AllocateLocalSEID()
+			if err != nil {
+				logger.PduSessLog.Errorf("allocateLocalSEID failed, %v", err)
+			}
 			smContext.PFCPContext[NodeIDtoIP] = &PFCPSessionContext{
 				PDRs:      make(map[uint16]*PDR),
 				NodeID:    curDataPathNode.UPF.NodeID,
@@ -405,7 +398,7 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) {
 	}
 }
 
-func (smContext *SMContext) PutPDRtoPFCPSession(nodeID pfcpType.NodeID, pdrList map[string]*PDR) error {
+func (smContext *SMContext) PutPDRtoPFCPSession(nodeID NodeID, pdrList map[string]*PDR) error {
 	// TODO: Iterate over PDRS
 	NodeIDtoIP := nodeID.ResolveNodeIdToIp().String()
 	if pfcpSessCtx, exist := smContext.PFCPContext[NodeIDtoIP]; exist {
@@ -418,7 +411,7 @@ func (smContext *SMContext) PutPDRtoPFCPSession(nodeID pfcpType.NodeID, pdrList 
 	return nil
 }
 
-func (smContext *SMContext) RemovePDRfromPFCPSession(nodeID pfcpType.NodeID, pdr *PDR) {
+func (smContext *SMContext) RemovePDRfromPFCPSession(nodeID NodeID, pdr *PDR) {
 	NodeIDtoIP := nodeID.ResolveNodeIdToIp().String()
 	pfcpSessCtx := smContext.PFCPContext[NodeIDtoIP]
 	delete(pfcpSessCtx.PDRs, pdr.PDRID)
@@ -452,19 +445,19 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 	switch supportedPDUSessionType {
 	case "IPv4":
 		if !allowIPv4 {
-			return fmt.Errorf("No SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
+			return fmt.Errorf("no SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
 		}
 	case "IPv6":
 		if !allowIPv6 {
-			return fmt.Errorf("No SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
+			return fmt.Errorf("no SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
 		}
 	case "IPv4v6":
 		if !allowIPv4 && !allowIPv6 {
-			return fmt.Errorf("No SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
+			return fmt.Errorf("no SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
 		}
 	case "Ethernet":
 		if !allowEthernet {
-			return fmt.Errorf("No SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
+			return fmt.Errorf("no SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
 		}
 	}
 
@@ -501,7 +494,7 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 			return fmt.Errorf("PduSessionType_ETHERNET is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
 	default:
-		return fmt.Errorf("Requested PDU Sesstion type[%d] is not supported", requestedPDUSessionType)
+		return fmt.Errorf("requested PDU Sesstion type[%d] is not supported", requestedPDUSessionType)
 	}
 	return nil
 }
@@ -583,7 +576,10 @@ func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 	defer smContext.SMLock.Unlock()
 
 	if status {
-		qos.CommitSmPolicyDecision(&smContext.SmPolicyData, smContext.SmPolicyUpdates[0])
+		err := qos.CommitSmPolicyDecision(&smContext.SmPolicyData, smContext.SmPolicyUpdates[0])
+		if err != nil {
+			logger.CtxLog.Errorf("failed to commit SM Policy Decision, %v", err)
+		}
 	}
 
 	// Release 0th index update
