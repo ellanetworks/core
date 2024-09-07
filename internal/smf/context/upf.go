@@ -304,7 +304,7 @@ func (upf *UPF) GenerateTEID() (uint32, error) {
 func (upf *UPF) PFCPAddr() *net.UDPAddr {
 	return &net.UDPAddr{
 		IP:   upf.NodeID.ResolveNodeIdToIp(),
-		Port: factory.DEFAULT_PFCP_PORT,
+		Port: factory.UPF_PFCP_PORT,
 	}
 }
 
@@ -313,16 +313,7 @@ func RetrieveUPFNodeByNodeID(nodeID NodeID) *UPF {
 	var targetUPF *UPF = nil
 	upfPool.Range(func(key, value interface{}) bool {
 		curUPF := value.(*UPF)
-		if curUPF.NodeID.NodeIdType != nodeID.NodeIdType &&
-			(curUPF.NodeID.NodeIdType == NodeIdTypeFqdn || nodeID.NodeIdType == NodeIdTypeFqdn) {
-			curUPFNodeIdIP := curUPF.NodeID.ResolveNodeIdToIp().To4()
-			nodeIdIP := nodeID.ResolveNodeIdToIp().To4()
-			logger.CtxLog.Tracef("RetrieveUPF - upfNodeIdIP:[%+v], nodeIdIP:[%+v]", curUPFNodeIdIP, nodeIdIP)
-			if reflect.DeepEqual(curUPFNodeIdIP, nodeIdIP) {
-				targetUPF = curUPF
-				return false
-			}
-		} else if reflect.DeepEqual(curUPF.NodeID, nodeID) {
+		if reflect.DeepEqual(curUPF.NodeID, nodeID) {
 			targetUPF = curUPF
 			return false
 		}
@@ -338,15 +329,7 @@ func RemoveUPFNodeByNodeID(nodeID NodeID) bool {
 	upfPool.Range(func(key, value interface{}) bool {
 		upfID = key.(string)
 		upf := value.(*UPF)
-		if upf.NodeID.NodeIdType != nodeID.NodeIdType &&
-			(upf.NodeID.NodeIdType == NodeIdTypeFqdn || nodeID.NodeIdType == NodeIdTypeFqdn) {
-			upfNodeIdIP := upf.NodeID.ResolveNodeIdToIp().To4()
-			nodeIdIP := nodeID.ResolveNodeIdToIp().To4()
-			logger.CtxLog.Tracef("RemoveUPF - upfNodeIdIP:[%+v], nodeIdIP:[%+v]", upfNodeIdIP, nodeIdIP)
-			if reflect.DeepEqual(upfNodeIdIP, nodeIdIP) {
-				return false
-			}
-		} else if reflect.DeepEqual(upf.NodeID, nodeID) {
+		if reflect.DeepEqual(upf.NodeID, nodeID) {
 			return false
 		}
 		upfID = ""

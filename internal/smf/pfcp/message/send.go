@@ -258,9 +258,6 @@ func HandlePfcpSendError(msg message.Message, pfcpErr error) {
 	logger.PfcpLog.Errorf("send of PFCP msg [%v] failed, %v",
 		msg.MessageTypeName(), pfcpErr.Error())
 
-	// Refresh SMF DNS Cache incase of any send failure(includes timeout)
-	smf_context.RefreshDnsHostIpCache()
-
 	switch msg.MessageType() {
 	case message.MsgTypeSessionEstablishmentRequest:
 		handleSendPfcpSessEstReqError(msg, pfcpErr)

@@ -119,7 +119,7 @@ func EstablishPSA2(smContext *context.SMContext) {
 		if nodeAfterULCL {
 			addr := net.UDPAddr{
 				IP:   curDataPathNode.UPF.NodeID.NodeIdValue,
-				Port: factory.DEFAULT_PFCP_PORT,
+				Port: factory.UPF_PFCP_PORT,
 			}
 
 			logger.PduSessLog.Traceln("Send to upf addr: ", addr.String())

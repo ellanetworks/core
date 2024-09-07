@@ -145,12 +145,7 @@ func (smf *SMF) Start() {
 	udp.Run(pfcp.Dispatch)
 
 	for _, upf := range context.SMF_Self().UserPlaneInformation.UPFs {
-		if upf.NodeID.NodeIdType == context.NodeIdTypeFqdn {
-			logger.AppLog.Infof("Send PFCP Association Request to UPF[%s](%s)\n", upf.NodeID.NodeIdValue,
-				upf.NodeID.ResolveNodeIdToIp().String())
-		} else {
-			logger.AppLog.Infof("Send PFCP Association Request to UPF[%s]\n", upf.NodeID.ResolveNodeIdToIp().String())
-		}
+		logger.AppLog.Infof("Send PFCP Association Request to UPF[%s]\n", upf.NodeID.ResolveNodeIdToIp().String())
 		message.SendPfcpAssociationSetupRequest(upf.NodeID, upf.Port)
 	}
 

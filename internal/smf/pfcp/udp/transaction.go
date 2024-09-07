@@ -7,6 +7,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/wmnsk/go-pfcp/message"
+	"github.com/yeastengine/ella/internal/smf/context"
+	"github.com/yeastengine/ella/internal/smf/factory"
 	"github.com/yeastengine/ella/internal/smf/logger"
 )
 
@@ -18,6 +20,7 @@ type TxTable struct {
 
 func (t *TxTable) Store(sequenceNumber uint32, tx *Transaction) {
 	t.m.Store(sequenceNumber, tx)
+	logger.PfcpLog.Warnf("TESTING: Stored TxTable for %d", sequenceNumber)
 }
 
 func (t *TxTable) Load(sequenceNumber uint32) (*Transaction, bool) {
@@ -74,7 +77,11 @@ func NewTransaction(pfcpMSG message.Message, binaryMSG []byte, Conn *net.UDPConn
 
 	if IsRequest(pfcpMSG) {
 		tx.TxType = SendingRequest
-		tx.ConsumerAddr = Conn.LocalAddr().String()
+		udpAddr := &net.UDPAddr{
+			IP:   net.ParseIP(context.SMF_Self().CPNodeID.ResolveNodeIdToIp().String()),
+			Port: factory.SMF_PFCP_PORT,
+		}
+		tx.ConsumerAddr = udpAddr.String()
 	} else if IsResponse(pfcpMSG) {
 		tx.TxType = SendingResponse
 		tx.ConsumerAddr = DestAddr.String()
