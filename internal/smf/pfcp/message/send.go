@@ -81,10 +81,6 @@ func SendHeartbeatRequest(upNodeID smf_context.NodeID, upfPort uint16) error {
 }
 
 func SendPfcpAssociationSetupRequest(upNodeID smf_context.NodeID, upfPort uint16) error {
-	if net.IP.Equal(upNodeID.ResolveNodeIdToIp(), net.IPv4zero) {
-		return fmt.Errorf("PFCP Association Setup Request failed, invalid NodeId: %v", string(upNodeID.NodeIdValue))
-	}
-
 	pfcpMsg := BuildPfcpAssociationSetupRequest(getSeqNumber(), udp.ServerStartTime, smf_context.SMF_Self().CPNodeID.ResolveNodeIdToIp().String())
 	addr := &net.UDPAddr{
 		IP:   upNodeID.ResolveNodeIdToIp(),
@@ -261,9 +257,6 @@ func SendHeartbeatResponse(addr *net.UDPAddr, sequenceNumber uint32) error {
 func HandlePfcpSendError(msg message.Message, pfcpErr error) {
 	logger.PfcpLog.Errorf("send of PFCP msg [%v] failed, %v",
 		msg.MessageTypeName(), pfcpErr.Error())
-
-	// Refresh SMF DNS Cache incase of any send failure(includes timeout)
-	smf_context.RefreshDnsHostIpCache()
 
 	switch msg.MessageType() {
 	case message.MsgTypeSessionEstablishmentRequest:

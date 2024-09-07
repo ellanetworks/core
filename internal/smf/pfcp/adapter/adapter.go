@@ -1,7 +1,6 @@
 package adapter
 
 import (
-	"net"
 	"sync"
 
 	"github.com/wmnsk/go-pfcp/ie"
@@ -143,7 +142,7 @@ func HandlePfcpAssociationSetupResponse(msg *udp.Message) {
 			upf.UPIPInfo = *userPlaneIPResourceInformation
 
 			if upf.UPIPInfo.Assosi && upf.UPIPInfo.Assoni && upf.UPIPInfo.SourceInterface == ie.SrcInterfaceAccess &&
-				upf.UPIPInfo.V4 && !upf.UPIPInfo.Ipv4Address.Equal(net.IPv4zero) {
+				upf.UPIPInfo.V4 {
 				logger.PfcpLog.Infof("UPF[%s] received N3 interface IP[%v], network instance[%v] and TEID[%v]",
 					upf.NodeID.ResolveNodeIdToIp().String(), upf.UPIPInfo.Ipv4Address,
 					string(upf.UPIPInfo.NetworkInstance), upf.UPIPInfo.TeidRange)

@@ -37,7 +37,10 @@ type Info struct {
 	Description string `yaml:"description,omitempty"`
 }
 
-const DEFAULT_PFCP_PORT = 8805
+const (
+	SMF_PFCP_PORT = 8805
+	UPF_PFCP_PORT = 8806
+)
 
 type Mongodb struct {
 	Name string `yaml:"name"`
@@ -235,7 +238,7 @@ func (c *Configuration) parseRocConfig(rsp *protos.NetworkSliceResponse) error {
 	// should be updated to be received from webui.
 	// currently adding port info in webui causes crash.
 	pfcpPortStr := os.Getenv("PFCP_PORT_UPF")
-	pfcpPortVal := DEFAULT_PFCP_PORT
+	pfcpPortVal := UPF_PFCP_PORT
 	if pfcpPortStr != "" {
 		if val, err := strconv.ParseUint(pfcpPortStr, 10, 32); err != nil {
 			logger.CtxLog.Infoln("Parse pfcp port failed : ", pfcpPortStr)

@@ -288,34 +288,9 @@ func (upi *UserPlaneInformation) InsertSmfUserPlaneNode(name string, node *facto
 		upNode.ANIP = net.ParseIP(node.ANIP)
 		upi.AccessNetwork[name] = upNode
 	case UPNODE_UPF:
-		// ParseIp() always return 16 bytes
-		// so we can't use the length of return ip to separate IPv4 and IPv6
-		var (
-			nodeIdType uint8
-			ip         net.IP
-		)
-
-		// Find IP
-		if ip = net.ParseIP(node.NodeID); ip != nil {
-			// v4 or v6
-			if ip.To4() != nil {
-				// IPv4
-				ip = ip.To4()
-				nodeIdType = NodeIdTypeIpv4Address
-			} else {
-				// IPv6
-				ip = ip.To16()
-				nodeIdType = NodeIdTypeIpv6Address
-			}
-		} else {
-			// FQDN
-			nodeIdType = NodeIdTypeFqdn
-			ip = []byte(node.NodeID)
-		}
-		// Populate outcome
 		upNode.NodeID = NodeID{
-			NodeIdType:  nodeIdType,
-			NodeIdValue: []byte(ip),
+			NodeIdType:  NodeIdTypeIpv4Address,
+			NodeIdValue: net.ParseIP(node.NodeID).To4(),
 		}
 
 		upNode.UPF = NewUPF(&upNode.NodeID, node.InterfaceUpfInfoList)
@@ -372,23 +347,9 @@ func (upi *UserPlaneInformation) UpdateSmfUserPlaneNode(name string, newNode *fa
 		existingNode.ANIP = net.ParseIP(newNode.ANIP)
 	case UPNODE_UPF:
 
-		var nodeIdType uint8
-
-		ip := net.ParseIP(newNode.NodeID)
-		if ip == nil {
-			nodeIdType = NodeIdTypeFqdn
-			ip = []byte(newNode.NodeID)
-		} else if ip.To4() != nil {
-			nodeIdType = NodeIdTypeIpv4Address
-			ip = ip.To4()
-		} else {
-			nodeIdType = NodeIdTypeIpv6Address
-			ip = ip.To16()
-		}
-
 		newNodeID := NodeID{
-			NodeIdType:  nodeIdType,
-			NodeIdValue: []byte(ip),
+			NodeIdType:  NodeIdTypeIpv4Address,
+			NodeIdValue: net.ParseIP(newNode.NodeID).To4(),
 		}
 
 		if !reflect.DeepEqual(existingNode.NodeID, newNodeID) {

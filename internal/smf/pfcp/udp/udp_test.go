@@ -121,11 +121,11 @@ func TestRun(t *testing.T) {
 func TestServerSendPfcp(t *testing.T) {
 	localAddress := &net.UDPAddr{
 		IP:   net.ParseIP("127.0.0.1"),
-		Port: factory.DEFAULT_PFCP_PORT,
+		Port: factory.SMF_PFCP_PORT,
 	}
 	remoteAddress := &net.UDPAddr{
 		IP:   net.ParseIP("127.0.0.1"),
-		Port: factory.DEFAULT_PFCP_PORT,
+		Port: factory.UPF_PFCP_PORT,
 	}
 
 	msg := message.NewAssociationSetupResponse(1)
@@ -155,7 +155,7 @@ func TestServerNotSetSendPfcp(t *testing.T) {
 	udp.Server = nil
 	remoteAddress := &net.UDPAddr{
 		IP:   net.ParseIP("127.0.0.1"),
-		Port: factory.DEFAULT_PFCP_PORT,
+		Port: factory.UPF_PFCP_PORT,
 	}
 
 	msg := message.NewAssociationSetupResponse(1)

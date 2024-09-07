@@ -166,7 +166,7 @@ func InitSmfContext(config *factory.Config) *SMFContext {
 
 	if pfcp := configuration.PFCP; pfcp != nil {
 		if pfcp.Port == 0 {
-			pfcp.Port = factory.DEFAULT_PFCP_PORT
+			pfcp.Port = factory.SMF_PFCP_PORT
 		}
 		pfcpAddrEnv := os.Getenv(pfcp.Addr)
 		if pfcpAddrEnv != "" {

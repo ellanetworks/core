@@ -177,7 +177,7 @@ func findTransaction(msg message.Message, addr *net.UDPAddr) (*Transaction, erro
 
 	if IsResponse(msg) {
 		if _, exist := Server.ConsumerTable.Load(consumerAddr); !exist {
-			return nil, fmt.Errorf("txTable not found")
+			return nil, fmt.Errorf("txTable not found for consumer %s", consumerAddr)
 		}
 
 		txTable, _ := Server.ConsumerTable.Load(consumerAddr)
