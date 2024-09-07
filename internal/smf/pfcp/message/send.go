@@ -81,10 +81,6 @@ func SendHeartbeatRequest(upNodeID smf_context.NodeID, upfPort uint16) error {
 }
 
 func SendPfcpAssociationSetupRequest(upNodeID smf_context.NodeID, upfPort uint16) error {
-	if net.IP.Equal(upNodeID.ResolveNodeIdToIp(), net.IPv4zero) {
-		return fmt.Errorf("PFCP Association Setup Request failed, invalid NodeId: %v", string(upNodeID.NodeIdValue))
-	}
-
 	pfcpMsg := BuildPfcpAssociationSetupRequest(getSeqNumber(), udp.ServerStartTime, smf_context.SMF_Self().CPNodeID.ResolveNodeIdToIp().String())
 	addr := &net.UDPAddr{
 		IP:   upNodeID.ResolveNodeIdToIp(),
