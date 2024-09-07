@@ -44,7 +44,6 @@ func (t *ConsumerTable) Load(consumerAddr string) (*TxTable, bool) {
 
 func (t *ConsumerTable) Store(consumerAddr string, txTable *TxTable) {
 	t.m.Store(consumerAddr, txTable)
-	logger.PfcpLog.Warnf("TESTING: Stored ConsumerTable for %s", consumerAddr)
 }
 
 func Run(Dispatch func(*Message)) {

@@ -20,7 +20,6 @@ type TxTable struct {
 
 func (t *TxTable) Store(sequenceNumber uint32, tx *Transaction) {
 	t.m.Store(sequenceNumber, tx)
-	logger.PfcpLog.Warnf("TESTING: Stored TxTable for %d", sequenceNumber)
 }
 
 func (t *TxTable) Load(sequenceNumber uint32) (*Transaction, bool) {

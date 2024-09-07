@@ -37,8 +37,10 @@ type Info struct {
 	Description string `yaml:"description,omitempty"`
 }
 
-const SMF_PFCP_PORT = 8805
-const UPF_PFCP_PORT = 8806
+const (
+	SMF_PFCP_PORT = 8805
+	UPF_PFCP_PORT = 8806
+)
 
 type Mongodb struct {
 	Name string `yaml:"name"`
