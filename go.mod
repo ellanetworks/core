@@ -19,9 +19,9 @@ require (
 	github.com/korylprince/ipnetgen v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
-	github.com/omec-project/aper v1.1.2
+	github.com/omec-project/aper v1.1.3
 	github.com/omec-project/nas v1.3.0
-	github.com/omec-project/ngap v1.2.2
+	github.com/omec-project/ngap v1.2.3
 	github.com/omec-project/openapi v1.2.1
 	github.com/omec-project/util v1.1.0
 	github.com/pkg/errors v0.9.1
@@ -33,7 +33,7 @@ require (
 	go.mongodb.org/mongo-driver v1.11.9
 	golang.org/x/exp v0.0.0-20240103183307-be819d1f06fc
 	golang.org/x/sys v0.25.0
-	google.golang.org/grpc v1.66.2
+	google.golang.org/grpc v1.67.0
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -95,13 +95,13 @@ require (
 	go4.org/intern v0.0.0-20220617035311-6925f38cc365 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230525183740-e7c30c78aeb2 // indirect
 	golang.org/x/arch v0.8.0 // indirect
-	golang.org/x/crypto v0.24.0 // indirect
-	golang.org/x/net v0.26.0 // indirect
-	golang.org/x/oauth2 v0.21.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20240604185151-ef581f913117 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240604185151-ef581f913117 // indirect
+	golang.org/x/crypto v0.26.0 // indirect
+	golang.org/x/net v0.28.0 // indirect
+	golang.org/x/oauth2 v0.22.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/text v0.17.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240814211410-ddb44dafa142 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240814211410-ddb44dafa142 // indirect
 	gopkg.in/h2non/gock.v1 v1.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	inet.af/netaddr v0.0.0-20220811202034-502d2d690317 // indirect
