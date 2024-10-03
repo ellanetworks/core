@@ -10,7 +10,7 @@ import (
 var NSSF = &service.NSSF{}
 
 const (
-	SD       = "010203"
+	SD       = "102030"
 	SST      = 1
 	SBI_PORT = 29531
 )

@@ -66,17 +66,17 @@ const (
 var ausfContext AUSFContext
 
 func Init() {
-	if snRegex, err := regexp.Compile("5G:mnc[0-9]{3}[.]mcc[0-9]{3}[.]3gppnetwork[.]org"); err != nil {
+	snRegex, err := regexp.Compile("5G:mnc[0-9]{3}[.]mcc[0-9]{3}[.]3gppnetwork[.]org")
+	if err != nil {
 		logger.ContextLog.Warnf("SN compile error: %+v", err)
-	} else {
-		ausfContext.snRegex = snRegex
 	}
+	ausfContext.snRegex = snRegex
 	InitAusfContext(&ausfContext)
 }
 
 func NewAusfUeContext(identifier string) (ausfUeContext *AusfUeContext) {
 	ausfUeContext = new(AusfUeContext)
-	ausfUeContext.Supi = identifier // supi
+	ausfUeContext.Supi = identifier
 	return ausfUeContext
 }
 

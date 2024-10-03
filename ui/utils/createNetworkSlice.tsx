@@ -27,7 +27,7 @@ export const createNetworkSlice = async ({
   const sliceData = {
     "slice-id": {
       sst: "1",
-      sd: "010203",
+      sd: "102030",
     },
     "site-device-group": [deviceGroupName],
     "site-info": {

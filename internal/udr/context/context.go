@@ -82,7 +82,7 @@ func (context *UDRContext) Reset() {
 	context.SdmSubscriptionIDGenerator = 1
 	context.SubscriptionDataSubscriptionIDGenerator = 1
 	context.PolicyDataSubscriptionIDGenerator = 1
-	context.UriScheme = models.UriScheme_HTTPS
+	context.UriScheme = models.UriScheme_HTTP
 	context.Name = "udr"
 }
 

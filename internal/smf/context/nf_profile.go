@@ -45,7 +45,7 @@ func SetupNFProfile(config *factory.Config) {
 			ServiceInstanceId: SMF_Self().NfInstanceID + serviceName,
 			ServiceName:       models.ServiceName(serviceName),
 			Versions:          NfServiceVersion,
-			Scheme:            models.UriScheme_HTTPS,
+			Scheme:            models.UriScheme_HTTP,
 			NfServiceStatus:   models.NfServiceStatus_REGISTERED,
 			ApiPrefix:         fmt.Sprintf("%s://%s:%d", SMF_Self().URIScheme, SMF_Self().RegisterIPv4, SMF_Self().SBIPort),
 			AllowedPlmns:      SmfPlmnConfig(),
