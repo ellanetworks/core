@@ -2,8 +2,6 @@ package context
 
 import (
 	"fmt"
-	"os"
-	"strconv"
 
 	"github.com/google/uuid"
 
@@ -24,24 +22,11 @@ func InitAusfContext(context *AUSFContext) {
 	context.RegisterIPv4 = configuration.Sbi.RegisterIPv4
 	context.SBIPort = configuration.Sbi.Port
 	context.UriScheme = models.UriScheme_HTTP
-
-	context.BindingIPv4 = os.Getenv(configuration.Sbi.BindingIPv4)
-	if context.BindingIPv4 != "" {
-		logger.InitLog.Info("Parsing ServerIPv4 address from ENV Variable.")
-	} else {
-		context.BindingIPv4 = configuration.Sbi.BindingIPv4
-		if context.BindingIPv4 == "" {
-			logger.InitLog.Warn("Error parsing ServerIPv4 address as string. Using the 0.0.0.0 address as default.")
-			context.BindingIPv4 = "0.0.0.0"
-		}
-	}
-
-	context.Url = string(context.UriScheme) + "://" + context.RegisterIPv4 + ":" + strconv.Itoa(context.SBIPort)
-
-	// context.NfService
+	context.BindingIPv4 = configuration.Sbi.BindingIPv4
+	context.Url = fmt.Sprintf("%s://%s:%d", context.UriScheme, context.RegisterIPv4, context.SBIPort)
 	context.NfService = make(map[models.ServiceName]models.NfService)
 	AddNfServices(&context.NfService, &config, context)
-	fmt.Println("ausf context = ", context)
+	logger.InitLog.Warnf("TO DELETE: AusfContext: %v", context)
 }
 
 func AddNfServices(serviceMap *map[models.ServiceName]models.NfService, config *factory.Config, context *AUSFContext) {

@@ -29,7 +29,7 @@ func init() {
 	AMF_Self().LadnPool = make(map[string]*LADN)
 	AMF_Self().EventSubscriptionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
 	AMF_Self().Name = "amf"
-	AMF_Self().UriScheme = models.UriScheme_HTTPS
+	AMF_Self().UriScheme = models.UriScheme_HTTP
 	AMF_Self().RelativeCapacity = 0xff
 	AMF_Self().ServedGuamiList = make([]models.Guami, 0, MaxNumOfServedGuamiList)
 	AMF_Self().PlmnSupportList = make([]factory.PlmnSupportItem, 0, MaxNumOfPLMNs)
@@ -546,7 +546,7 @@ func (context *AMFContext) Reset() {
 	context.ServedGuamiList = context.ServedGuamiList[:0]
 	context.RelativeCapacity = 0xff
 	context.NfId = ""
-	context.UriScheme = models.UriScheme_HTTPS
+	context.UriScheme = models.UriScheme_HTTP
 	context.SBIPort = 0
 	context.BindingIPv4 = ""
 	context.RegisterIPv4 = ""

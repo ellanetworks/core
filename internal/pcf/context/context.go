@@ -20,7 +20,7 @@ var pcfCtx *PCFContext
 func init() {
 	pcfCtx = new(PCFContext)
 	pcfCtx.Name = "pcf"
-	pcfCtx.UriScheme = models.UriScheme_HTTPS
+	pcfCtx.UriScheme = models.UriScheme_HTTP
 	pcfCtx.TimeFormat = "2006-01-02 15:04:05"
 	pcfCtx.DefaultBdtRefId = "BdtPolicyId-"
 	pcfCtx.NfService = make(map[models.ServiceName]models.NfService)

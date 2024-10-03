@@ -127,8 +127,7 @@ func SelectSmf(
 	}
 
 	if len(result.NfInstances) == 0 {
-		err = fmt.Errorf("DNN[%s] is not supported or not subscribed in the slice[Snssai: %+v]", dnn, snssai)
-		return nil, nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice, err
+		return nil, nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice, fmt.Errorf("DNN[%s] is not supported or not subscribed in the slice[Snssai: %+v]", dnn, snssai)
 	}
 
 	// select the first SMF, TODO: select base on other info
