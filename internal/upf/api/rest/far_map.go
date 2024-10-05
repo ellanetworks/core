@@ -6,8 +6,8 @@ import (
 	"unsafe"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/upf/ebpf"
+	"github.com/yeastengine/ella/internal/upf/logger"
 )
 
 type FarMapElement struct {
