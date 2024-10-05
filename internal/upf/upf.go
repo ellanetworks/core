@@ -27,7 +27,8 @@ func init() {
 }
 
 func Start(interfaces []string, n3_address string) error {
-	initLog.Infof("UPF Log level is set to [%s] level", "info")
+	logger.SetLogLevel(logrus.DebugLevel)
+	initLog.Infof("UPF Log level is set to [%s] level", "debug")
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 
@@ -50,6 +51,7 @@ func Start(interfaces []string, n3_address string) error {
 		LoggingLevel:      "debug",
 	}
 	config.Init(c)
+	initLog.Infof("UPF configuration: %+v", config.Conf)
 
 	if err := ebpf.IncreaseResourceLimits(); err != nil {
 		initLog.Fatalf("Can't increase resource limits: %s", err.Error())
