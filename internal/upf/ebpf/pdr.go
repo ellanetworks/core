@@ -8,7 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/upf/logger"
 )
 
 // The BPF_ARRAY map type has no delete operation. The only way to delete an element is to replace it with a new one.

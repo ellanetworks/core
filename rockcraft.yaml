@@ -41,3 +41,14 @@ parts:
     plugin: nil
     stage-packages:
       - iproute2
+
+  tcpdump:
+    plugin: nil
+    stage-packages:
+      - tcpdump
+    overlay-script: |
+      useradd -R $CRAFT_OVERLAY -M -r tcpdump
+  iptables:
+    plugin: nil
+    stage-packages:
+      - iptables

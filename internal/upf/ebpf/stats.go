@@ -1,6 +1,6 @@
 package ebpf
 
-import "github.com/yeastengine/ella/internal/amf/logger"
+import "github.com/yeastengine/ella/internal/upf/logger"
 
 type UpfXdpActionStatistic struct {
 	BpfObjects *BpfObjects

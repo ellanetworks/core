@@ -3,6 +3,7 @@ package rest
 import (
 	"net/http"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/yeastengine/ella/internal/upf/config"
 	"github.com/yeastengine/ella/internal/upf/core"
 
@@ -79,4 +80,21 @@ func (h *ApiHandler) initDefaultRoutes(group *gin.RouterGroup) {
 		// sessions.GET("", ListPfcpSessions(pfcpSrv))
 		sessions.GET("", h.listPfcpSessionsFiltered)
 	}
+}
+
+func (h *ApiHandler) InitMetricsRoute() *gin.Engine {
+	core.RegisterMetrics(*h.ForwardPlaneStats, h.PfcpSrv)
+
+	router := gin.Default()
+	config := cors.DefaultConfig()
+	config.AllowAllOrigins = true
+	router.Use(cors.New(config))
+
+	router.GET("/metrics", func() gin.HandlerFunc {
+		return func(c *gin.Context) {
+			promhttp.Handler().ServeHTTP(c.Writer, c.Request)
+		}
+	}())
+
+	return router
 }

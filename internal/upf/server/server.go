@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/upf/logger"
 )
 
 type Server struct {

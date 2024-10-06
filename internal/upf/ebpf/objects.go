@@ -6,8 +6,8 @@ import (
 	"os"
 
 	"github.com/RoaringBitmap/roaring"
-	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/upf/config"
+	"github.com/yeastengine/ella/internal/upf/logger"
 
 	"github.com/cilium/ebpf"
 )

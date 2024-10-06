@@ -27,7 +27,8 @@ func init() {
 }
 
 func Start(interfaces []string, n3_address string) error {
-	initLog.Infof("UPF Log level is set to [%s] level", "info")
+	logger.SetLogLevel(logrus.DebugLevel)
+	initLog.Infof("UPF Log level is set to [%s] level", "debug")
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 
@@ -37,6 +38,7 @@ func Start(interfaces []string, n3_address string) error {
 		ApiAddress:        ":8080",
 		PfcpAddress:       "0.0.0.0:8806",
 		PfcpNodeId:        "0.0.0.0",
+		MetricsAddress:    ":8081",
 		N3Address:         n3_address,
 		EchoInterval:      10,
 		QerMapSize:        1024,
@@ -49,6 +51,7 @@ func Start(interfaces []string, n3_address string) error {
 		LoggingLevel:      "debug",
 	}
 	config.Init(c)
+	initLog.Infof("UPF configuration: %+v", config.Conf)
 
 	if err := ebpf.IncreaseResourceLimits(); err != nil {
 		initLog.Fatalf("Can't increase resource limits: %s", err.Error())
@@ -121,13 +124,22 @@ func Start(interfaces []string, n3_address string) error {
 	h := rest.NewApiHandler(bpfObjects, pfcpConn, &ForwardPlaneStats, &config.Conf)
 
 	engine := h.InitRoutes()
+	metricsEngine := h.InitMetricsRoute()
 
 	apiSrv := server.New(config.Conf.ApiAddress, engine)
+	metricsSrv := server.New(config.Conf.MetricsAddress, metricsEngine)
 
 	// Start api servers
 	go func() {
 		if err := apiSrv.Run(); err != nil {
 			initLog.Fatalf("Could not start api server: %s", err.Error())
+		}
+	}()
+
+	// Start metrics servers
+	go func() {
+		if err := metricsSrv.Run(); err != nil {
+			initLog.Fatalf("Could not start metrics server: %s", err.Error())
 		}
 	}()
 
