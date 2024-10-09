@@ -1,6 +1,6 @@
 name: ella
 base: core22
-version: '0.0.0'
+adopt-info: ella-release-data
 summary: ella is a secure, reliable, and easy to operate mobile network.
 description: |
   ella is a secure, reliable, and easy to operate mobile network.
@@ -49,3 +49,10 @@ parts:
   service-files:
     plugin: dump
     source: service
+
+  ella-release-data:
+    plugin: nil
+    source: .
+    override-build: |
+      version="$(cat version/VERSION)"
+      craftctl set version="$version"

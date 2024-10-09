@@ -1,7 +1,7 @@
 name: ella
 base: ubuntu@24.04
 build-base: ubuntu@24.04
-version: '0.0.1'
+adopt-info: ella-release-data
 summary: Ella is a secure, reliable, and easy to operate mobile network.
 description: Ella is a secure, reliable, and easy to operate mobile network.
 platforms:
@@ -52,3 +52,10 @@ parts:
     plugin: nil
     stage-packages:
       - iptables
+
+  ella-release-data:
+    plugin: nil
+    source: .
+    override-build: |
+      version="$(cat version/VERSION)"
+      craftctl set version="$version"

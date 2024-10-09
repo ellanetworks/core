@@ -173,7 +173,7 @@ jobs:
       - name: Import and push to github package
         run: |
           image_name="$(yq '.name' rockcraft.yaml)"
-          version="$(yq '.version' rockcraft.yaml)"
+          version="$(cat version/VERSION)"
           rock_file=$(ls *.rock | tail -n 1)
           sudo rockcraft.skopeo \
             --insecure-policy \
