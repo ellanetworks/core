@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,7 +13,6 @@ import (
 	"github.com/omec-project/openapi/Nnrf_NFManagement"
 	"github.com/omec-project/openapi/Nudm_SubscriberDataManagement"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/drsm"
 	"github.com/yeastengine/ella/internal/smf/factory"
 	"github.com/yeastengine/ella/internal/smf/logger"
 )
@@ -26,12 +26,6 @@ const (
 )
 
 var smfContext SMFContext
-
-type DrsmCtxts struct {
-	TeidPool drsm.DrsmInterface
-	SeidPool drsm.DrsmInterface
-	UeIpPool drsm.DrsmInterface
-}
 
 type SMFContext struct {
 	Name         string
@@ -60,7 +54,6 @@ type SMFContext struct {
 	SupportedPDUSessionType string
 
 	UEPreConfigPathPool map[string]*UEPreConfigPaths
-	DrsmCtxts           DrsmCtxts
 	EnterpriseList      *map[string]string // map to contain slice-name:enterprise-name
 
 	NfStatusSubscriptions sync.Map // map[NfInstanceID]models.NrfSubscriptionData.SubscriptionId
@@ -90,25 +83,11 @@ func RetrieveDnnInformation(Snssai models.Snssai, dnn string) *SnssaiSmfDnnInfo 
 }
 
 func AllocateLocalSEID() (uint64, error) {
-	if smfContext.DrsmCtxts.SeidPool == nil {
-		return 0, fmt.Errorf("SEID pool is not initialized")
-	}
-	seid32, err := smfContext.DrsmCtxts.SeidPool.AllocateInt32ID()
-	if err != nil {
-		logger.CtxLog.Errorf("allocate SEID error: %+v", err)
-		return 0, err
-	}
-
-	return uint64(seid32), nil
+	atomic.AddUint64(&smfContext.LocalSEIDCount, 1)
+	return smfContext.LocalSEIDCount, nil
 }
 
 func ReleaseLocalSEID(seid uint64) error {
-	seid32 := (int32)(seid)
-	err := smfContext.DrsmCtxts.SeidPool.ReleaseInt32ID(seid32)
-	if err != nil {
-		logger.CtxLog.Errorf("allocate SEID error: %+v", err)
-		return err
-	}
 	return nil
 }
 
@@ -373,46 +352,6 @@ func ProcessConfigUpdate() bool {
 	}
 
 	return sendNrfRegistration
-}
-
-func (smfCtxt *SMFContext) InitDrsm() error {
-	podname := os.Getenv("HOSTNAME")
-	podip := os.Getenv("POD_IP")
-	podId := drsm.PodId{PodName: podname, PodInstance: smfCtxt.NfInstanceID, PodIp: podip}
-	dbName := "sdcore_smf"
-	dbUrl := "mongodb://mongodb-arbiter-headless"
-
-	if factory.SmfConfig.Configuration.Mongodb.Url != "" {
-		dbUrl = factory.SmfConfig.Configuration.Mongodb.Url
-	}
-
-	if factory.SmfConfig.Configuration.SmfDbName != "" {
-		dbName = factory.SmfConfig.Configuration.SmfDbName
-	}
-
-	logger.CfgLog.Infof("initialising drsm name [%v]", dbName)
-
-	opt := &drsm.Options{ResIdSize: 24, Mode: drsm.ResourceClient}
-	db := drsm.DbInfo{Url: dbUrl, Name: dbName}
-
-	// for local FSEID
-	if drsmCtxt, err := drsm.InitDRSM("fseid", podId, db, opt); err == nil {
-		smfCtxt.DrsmCtxts.SeidPool = drsmCtxt
-	} else {
-		return err
-	}
-
-	// for local FTEID
-	if drsmCtxt, err := drsm.InitDRSM("fteid", podId, db, opt); err == nil {
-		smfCtxt.DrsmCtxts.TeidPool = drsmCtxt
-	} else {
-		return err
-	}
-
-	// for IP-Addr
-	// TODO, use UPF based allocation for now
-
-	return nil
 }
 
 func (smfCtxt *SMFContext) GetDnnStaticIpInfo(dnn string) *factory.StaticIpInfo {

@@ -137,11 +137,6 @@ func (smf *SMF) Start() {
 		}
 	}
 
-	// Init DRSM for unique FSEID/FTEID/IP-Addr
-	if err := smfCtxt.InitDrsm(); err != nil {
-		initLog.Errorf("initialse drsm failed, %v ", err.Error())
-	}
-
 	udp.Run(pfcp.Dispatch)
 
 	for _, upf := range context.SMF_Self().UserPlaneInformation.UPFs {

@@ -42,19 +42,12 @@ const (
 	UPF_PFCP_PORT = 8806
 )
 
-type Mongodb struct {
-	Name string `yaml:"name"`
-	Url  string `yaml:"url"`
-}
-
 type Configuration struct {
-	Mongodb                  *Mongodb             `yaml:"mongodb,omitempty"`
 	PFCP                     *PFCP                `yaml:"pfcp,omitempty"`
 	Sbi                      *Sbi                 `yaml:"sbi,omitempty"`
 	NrfUri                   string               `yaml:"nrfUri,omitempty"`
 	WebuiUri                 string               `yaml:"webuiUri"`
 	SmfName                  string               `yaml:"smfName,omitempty"`
-	SmfDbName                string               `yaml:"smfDBName,omitempty"`
 	SNssaiInfo               []SnssaiInfoItem     `yaml:"snssaiInfos,omitempty"`
 	StaticIpInfo             []StaticIpInfo       `yaml:"staticIpInfo"`
 	ServiceNameList          []string             `yaml:"serviceNameList,omitempty"`
