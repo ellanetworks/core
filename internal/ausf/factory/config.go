@@ -20,6 +20,7 @@ type Configuration struct {
 	Sbi             *Sbi            `yaml:"sbi,omitempty"`
 	ServiceNameList []string        `yaml:"serviceNameList,omitempty"`
 	NrfUri          string          `yaml:"nrfUri,omitempty"`
+	UdmUri          string          `yaml:"udmUri,omitempty"`
 	WebuiUri        string          `yaml:"webuiUri"`
 	GroupId         string          `yaml:"groupId,omitempty"`
 	PlmnSupportList []models.PlmnId `yaml:"plmnSupportList,omitempty"`

@@ -134,8 +134,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
 	}
 
-	udmUrl := getUdmUrl(self.NrfUri)
-	client := createClientToUdmUeau(udmUrl)
+	client := createClientToUdmUeau(self.UdmUri)
 	authInfoResult, rsp, err := client.GenerateAuthDataApi.GenerateAuthData(context.Background(), supiOrSuci, authInfoReq)
 	if err != nil {
 		logger.UeAuthPostLog.Infoln(err.Error())
@@ -158,7 +157,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	ausfUeContext := ausf_context.NewAusfUeContext(ueid)
 	ausfUeContext.ServingNetworkName = snName
 	ausfUeContext.AuthStatus = models.AuthResult_ONGOING
-	ausfUeContext.UdmUeauUrl = udmUrl
+	ausfUeContext.UdmUeauUrl = self.UdmUri
 	ausf_context.AddAusfUeContextToPool(ausfUeContext)
 
 	logger.UeAuthPostLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)

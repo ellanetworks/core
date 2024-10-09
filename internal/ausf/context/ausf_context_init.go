@@ -19,6 +19,7 @@ func InitAusfContext(context *AUSFContext) {
 	context.NfId = uuid.New().String()
 	context.GroupID = configuration.GroupId
 	context.NrfUri = configuration.NrfUri
+	context.UdmUri = configuration.UdmUri
 	context.RegisterIPv4 = configuration.Sbi.RegisterIPv4
 	context.SBIPort = configuration.Sbi.Port
 	context.UriScheme = models.UriScheme_HTTP

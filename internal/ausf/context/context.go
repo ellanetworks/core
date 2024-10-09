@@ -18,6 +18,7 @@ type AUSFContext struct {
 	BindingIPv4  string
 	Url          string
 	NrfUri       string
+	UdmUri       string
 	UdmUeauUrl   string
 	UriScheme    models.UriScheme
 	NfService    map[models.ServiceName]models.NfService
