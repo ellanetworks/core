@@ -8,17 +8,14 @@ import (
 
 	"github.com/mohae/deepcopy"
 	"github.com/omec-project/nas/nasConvert"
-	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/amf/consumer"
 	"github.com/yeastengine/ella/internal/amf/context"
-	amf_context "github.com/yeastengine/ella/internal/amf/context"
-	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
 	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/amf/nas"
-	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
+	"github.com/yeastengine/ella/internal/amf/ngap/message"
 	"github.com/yeastengine/ella/internal/amf/util"
 	nrf_cache "github.com/yeastengine/ella/internal/nrf/nrfcache"
 )
@@ -151,13 +148,9 @@ func SmContextStatusNotifyProcedure(guti string, pduSessionID int32,
 						}
 					}
 				}
-
-				newSmContext, cause, err := consumer.SelectSmf(ue, smContext.AccessType(), pduSessionID, snssai, dnn)
+				newSmContext, _, err := consumer.GetSMContext(ue, smContext.AccessType(), pduSessionID, snssai, dnn, amfSelf.SMFUri)
 				if err != nil {
 					logger.CallbackLog.Error(err)
-					gmm_message.SendDLNASTransport(ue.RanUe[smContext.AccessType()],
-						nasMessage.PayloadContainerTypeN1SMInfo,
-						smContext.ULNASTransport().GetPayloadContainerContents(), pduSessionID, cause, nil, 0)
 					return
 				}
 
@@ -171,8 +164,6 @@ func SmContextStatusNotifyProcedure(guti string, pduSessionID int32,
 					// TODO: handle response(response N2SmInfo to RAN if exists)
 				} else if errResponse != nil {
 					ue.ProducerLog.Warnf("PDU Session Establishment Request is rejected by SMF[pduSessionId:%d]\n", pduSessionID)
-					gmm_message.SendDLNASTransport(ue.RanUe[smContext.AccessType()],
-						nasMessage.PayloadContainerTypeN1SMInfo, errResponse.BinaryDataN1SmMessage, pduSessionID, 0, nil, 0)
 				} else if err != nil {
 					ue.ProducerLog.Errorf("Failed to Create smContext[pduSessionID: %d], Error[%s]\n", pduSessionID, err.Error())
 				} else {
@@ -271,27 +262,17 @@ func AmPolicyControlUpdateNotifyUpdateProcedure(polAssoID string,
 		// use go routine to write response first to ensure the order of the procedure
 		go func() {
 			// UE is CM-Connected State
-			if ue.CmConnect(models.AccessType__3_GPP_ACCESS) {
-				gmm_message.SendConfigurationUpdateCommand(ue, models.AccessType__3_GPP_ACCESS, nil)
-				// UE is CM-IDLE => paging
-			} else {
-				message, err := gmm_message.BuildConfigurationUpdateCommand(ue, models.AccessType__3_GPP_ACCESS, nil)
-				if err != nil {
-					logger.GmmLog.Errorf("Build Configuration Update Command Failed : %s", err.Error())
-					return
-				}
-
-				ue.ConfigurationUpdateMessage = message
+			if !ue.CmConnect(models.AccessType__3_GPP_ACCESS) {
 				ue.SetOnGoing(models.AccessType__3_GPP_ACCESS, &context.OnGoingProcedureWithPrio{
 					Procedure: context.OnGoingProcedurePaging,
 				})
 
-				pkg, err := ngap_message.BuildPaging(ue, nil, false)
+				pkg, err := message.BuildPaging(ue, nil, false)
 				if err != nil {
 					logger.NgapLog.Errorf("Build Paging failed : %s", err.Error())
 					return
 				}
-				ngap_message.SendPaging(ue, pkg)
+				message.SendPaging(ue, pkg)
 			}
 		}()
 	}
@@ -465,11 +446,11 @@ func NfSubscriptionStatusNotifyProcedure(notificationData models.NotificationDat
 	// If nrf caching is enabled, go ahead and delete the entry from the cache.
 	// This will force the amf to do nf discovery and get the updated nf profile from the nrf.
 	if notificationData.Event == models.NotificationEventType_DEREGISTERED {
-		if amf_context.AMF_Self().EnableNrfCaching {
+		if context.AMF_Self().EnableNrfCaching {
 			ok := nrf_cache.RemoveNfProfileFromNrfCache(nfInstanceId)
 			logger.ProducerLog.Tracef("nfinstance %v deleted from cache: %v", nfInstanceId, ok)
 		}
-		if subscriptionId, ok := amf_context.AMF_Self().NfStatusSubscriptions.Load(nfInstanceId); ok {
+		if subscriptionId, ok := context.AMF_Self().NfStatusSubscriptions.Load(nfInstanceId); ok {
 			logger.ConsumerLog.Debugf("SubscriptionId of nfInstance %v is %v", nfInstanceId, subscriptionId.(string))
 			problemDetails, err := consumer.SendRemoveSubscription(subscriptionId.(string))
 			if problemDetails != nil {
@@ -478,7 +459,7 @@ func NfSubscriptionStatusNotifyProcedure(notificationData models.NotificationDat
 				logger.ConsumerLog.Errorf("Remove NF Subscription Error[%+v]", err)
 			} else {
 				logger.ConsumerLog.Infoln("[AMF] Remove NF Subscription successful")
-				amf_context.AMF_Self().NfStatusSubscriptions.Delete(nfInstanceId)
+				context.AMF_Self().NfStatusSubscriptions.Delete(nfInstanceId)
 			}
 		} else {
 			logger.ProducerLog.Infof("nfinstance %v not found in map", nfInstanceId)

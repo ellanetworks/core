@@ -9,24 +9,11 @@ import (
 	"github.com/omec-project/openapi/models"
 	amf_context "github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/logger"
-	"github.com/yeastengine/ella/internal/amf/util"
-	nrf_cache "github.com/yeastengine/ella/internal/nrf/nrfcache"
 )
-
-func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfType,
-	param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
-) (models.SearchResult, error) {
-	if amf_context.AMF_Self().EnableNrfCaching {
-		return nrf_cache.SearchNFInstances(nrfUri, targetNfType, requestNfType, param)
-	} else {
-		return SendNfDiscoveryToNrf(nrfUri, targetNfType, requestNfType, param)
-	}
-}
 
 func SendNfDiscoveryToNrf(nrfUri string, targetNfType, requestNfType models.NfType,
 	param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
 ) (models.SearchResult, error) {
-	// Set client and set url
 	configuration := Nnrf_NFDiscovery.NewConfiguration()
 	configuration.SetBasePath(nrfUri)
 	client := Nnrf_NFDiscovery.NewAPIClient(configuration)
@@ -64,79 +51,4 @@ func SendNfDiscoveryToNrf(nrfUri string, targetNfType, requestNfType models.NfTy
 	}
 
 	return result, err
-}
-
-func SearchUdmSdmInstance(ue *amf_context.AmfUe, nrfUri string, targetNfType, requestNfType models.NfType,
-	param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
-) error {
-	resp, localErr := SendSearchNFInstances(nrfUri, targetNfType, requestNfType, param)
-	if localErr != nil {
-		return localErr
-	}
-
-	// select the first UDM_SDM, TODO: select base on other info
-	var sdmUri string
-	for _, nfProfile := range resp.NfInstances {
-		ue.UdmId = nfProfile.NfInstanceId
-		sdmUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDM_SDM, models.NfServiceStatus_REGISTERED)
-		if sdmUri != "" {
-			break
-		}
-	}
-	ue.NudmSDMUri = sdmUri
-	if ue.NudmSDMUri == "" {
-		err := fmt.Errorf("AMF can not select an UDM by NRF")
-		logger.ConsumerLog.Errorf(err.Error())
-		return err
-	}
-	return nil
-}
-
-func SearchNssfNSSelectionInstance(ue *amf_context.AmfUe, nrfUri string, targetNfType, requestNfType models.NfType,
-	param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
-) error {
-	resp, localErr := SendSearchNFInstances(nrfUri, targetNfType, requestNfType, param)
-	if localErr != nil {
-		return localErr
-	}
-
-	// select the first NSSF, TODO: select base on other info
-	var nssfUri string
-	for _, nfProfile := range resp.NfInstances {
-		ue.NssfId = nfProfile.NfInstanceId
-		nssfUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NNSSF_NSSELECTION, models.NfServiceStatus_REGISTERED)
-		if nssfUri != "" {
-			break
-		}
-	}
-	ue.NssfUri = nssfUri
-	if ue.NssfUri == "" {
-		return fmt.Errorf("AMF can not select an NSSF by NRF")
-	}
-	return nil
-}
-
-func SearchAmfCommunicationInstance(ue *amf_context.AmfUe, nrfUri string, targetNfType,
-	requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
-) (err error) {
-	resp, localErr := SendSearchNFInstances(nrfUri, targetNfType, requestNfType, param)
-	if localErr != nil {
-		err = localErr
-		return
-	}
-
-	// select the first AMF, TODO: select base on other info
-	var amfUri string
-	for _, nfProfile := range resp.NfInstances {
-		ue.TargetAmfProfile = &nfProfile
-		amfUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NAMF_COMM, models.NfServiceStatus_REGISTERED)
-		if amfUri != "" {
-			break
-		}
-	}
-	ue.TargetAmfUri = amfUri
-	if ue.TargetAmfUri == "" {
-		err = fmt.Errorf("AMF can not select an target AMF by NRF")
-	}
-	return
 }

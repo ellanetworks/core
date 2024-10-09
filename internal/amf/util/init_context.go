@@ -47,6 +47,7 @@ func InitAmfContext(context *context.AMFContext) {
 	context.PlmnSupportList = configuration.PlmnSupportList
 	context.SupportDnnLists = configuration.SupportDnnList
 	context.NrfUri = configuration.NrfUri
+	context.NSSFUri = configuration.NssfUri
 	security := configuration.Security
 	if security != nil {
 		context.SecurityAlgorithm.IntegrityOrder = getIntAlgOrder(security.IntegrityOrder)

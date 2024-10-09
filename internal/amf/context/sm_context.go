@@ -33,7 +33,7 @@ type SmContext struct {
 	UlNASTransportVal *nasMessage.ULNASTransport
 	DuplicatedVal     bool
 
-	SmfProfiles []models.NfProfile
+	// SmfProfiles []models.NfProfile
 }
 
 func NewSmContext(pduSessionID int32) *SmContext {
@@ -146,18 +146,6 @@ func (c *SmContext) SetPlmnID(plmnID models.PlmnId) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.PlmnIDVal = plmnID
-}
-
-func (c *SmContext) SmfID() string {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
-	return c.SmfIDVal
-}
-
-func (c *SmContext) SetSmfID(smfID string) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-	c.SmfIDVal = smfID
 }
 
 func (c *SmContext) SmfUri() string {

@@ -47,6 +47,9 @@ func setEnvironmentVariables() error {
 }
 
 func startNetwork(cfg config.Config) error {
+	ausfUrl := "http://127.0.0.1:29509"
+	nssfUrl := "http://127.0.0.1:29531"
+	udmUrl := "http://127.0.0.1:29503"
 	webuiUrl, err := webui.Start(cfg.DB.Url, cfg.DB.Name)
 	if err != nil {
 		return err
@@ -55,7 +58,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = amf.Start(nrfUrl, webuiUrl)
+	err = amf.Start(ausfUrl, nrfUrl, nssfUrl, udmUrl, webuiUrl)
 	if err != nil {
 		return err
 	}

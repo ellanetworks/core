@@ -6,10 +6,8 @@ import (
 	"strconv"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/fsm"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/gmm"
 	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
@@ -71,13 +69,6 @@ func HandleOAMPurgeUEContextRequest(supi, reqUri string, msg interface{}) (inter
 			ue.Remove()
 		case context.Registered:
 			logger.ProducerLog.Info("Deregistration triggered for the UE : ", ue.Supi)
-			err := gmm.GmmFSM.SendEvent(ue.State[models.AccessType__3_GPP_ACCESS], gmm.NwInitiatedDeregistrationEvent, fsm.ArgsType{
-				gmm.ArgAmfUe:      ue,
-				gmm.ArgAccessType: models.AccessType__3_GPP_ACCESS,
-			})
-			if err != nil {
-				logger.ProducerLog.Errorf("Error sending deregistration event: %v", err)
-			}
 		}
 	}
 	return nil, "", nil, nil

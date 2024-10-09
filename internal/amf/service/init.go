@@ -12,7 +12,6 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/fsm"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/sirupsen/logrus"
@@ -23,7 +22,6 @@ import (
 	"github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/eventexposure"
 	"github.com/yeastengine/ella/internal/amf/factory"
-	"github.com/yeastengine/ella/internal/amf/gmm"
 	"github.com/yeastengine/ella/internal/amf/httpcallback"
 	"github.com/yeastengine/ella/internal/amf/location"
 	"github.com/yeastengine/ella/internal/amf/logger"
@@ -452,10 +450,6 @@ func UeConfigSliceDeleteHandler(supi, sst, sd string, msg interface{}) {
 		}
 		if ue.AllowedNssai[models.AccessType__3_GPP_ACCESS][0].AllowedSnssai.Sst == int32(st) &&
 			ue.AllowedNssai[models.AccessType__3_GPP_ACCESS][0].AllowedSnssai.Sd == ns.Nssai.Sd {
-			err := gmm.GmmFSM.SendEvent(ue.State[models.AccessType__3_GPP_ACCESS], gmm.NwInitiatedDeregistrationEvent, fsm.ArgsType{
-				gmm.ArgAmfUe:      ue,
-				gmm.ArgAccessType: models.AccessType__3_GPP_ACCESS,
-			})
 			if err != nil {
 				logger.CfgLog.Errorln(err)
 			}
@@ -470,11 +464,6 @@ func UeConfigSliceDeleteHandler(supi, sst, sd string, msg interface{}) {
 		}
 		Nssai.Sst = int32(st)
 		Nssai.Sd = ns.Nssai.Sd
-		err = gmm.GmmFSM.SendEvent(ue.State[models.AccessType__3_GPP_ACCESS], gmm.SliceInfoDeleteEvent, fsm.ArgsType{
-			gmm.ArgAmfUe:      ue,
-			gmm.ArgAccessType: models.AccessType__3_GPP_ACCESS,
-			gmm.ArgNssai:      Nssai,
-		})
 		if err != nil {
 			logger.CfgLog.Errorln(err)
 		}
@@ -482,9 +471,6 @@ func UeConfigSliceDeleteHandler(supi, sst, sd string, msg interface{}) {
 }
 
 func UeConfigSliceAddHandler(supi, sst, sd string, msg interface{}) {
-	amfSelf := context.AMF_Self()
-	ue, _ := amfSelf.AmfUeFindBySupi(IMSI_PREFIX + supi)
-
 	ns := msg.(*protos.NetworkSlice)
 	var Nssai models.Snssai
 	st, err := strconv.Atoi(ns.Nssai.Sst)
@@ -493,11 +479,6 @@ func UeConfigSliceAddHandler(supi, sst, sd string, msg interface{}) {
 	}
 	Nssai.Sst = int32(st)
 	Nssai.Sd = ns.Nssai.Sd
-	err = gmm.GmmFSM.SendEvent(ue.State[models.AccessType__3_GPP_ACCESS], gmm.SliceInfoAddEvent, fsm.ArgsType{
-		gmm.ArgAmfUe:      ue,
-		gmm.ArgAccessType: models.AccessType__3_GPP_ACCESS,
-		gmm.ArgNssai:      Nssai,
-	})
 	if err != nil {
 		logger.CfgLog.Errorln(err)
 	}

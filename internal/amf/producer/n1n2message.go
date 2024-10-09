@@ -5,12 +5,10 @@ import (
 	"strconv"
 
 	"github.com/omec-project/aper"
-	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/amf/context"
-	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
 	"github.com/yeastengine/ella/internal/amf/logger"
 	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
 	"github.com/yeastengine/ella/internal/amf/producer/callback"
@@ -123,7 +121,6 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 		ue        *context.AmfUe
 		ok        bool
 		smContext *context.SmContext
-		n1MsgType uint8
 		anType    models.AccessType = models.AccessType__3_GPP_ACCESS
 	)
 
@@ -141,7 +138,6 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 		switch requestData.N1MessageContainer.N1MessageClass {
 		case models.N1MessageClass_SM:
 			ue.ProducerLog.Debugf("Receive N1 SM Message (PDU Session ID: %d)", requestData.PduSessionId)
-			n1MsgType = nasMessage.PayloadContainerTypeN1SMInfo
 			if smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionId); !ok {
 				problemDetails = &models.ProblemDetails{
 					Status: http.StatusNotFound,
@@ -151,13 +147,6 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			} else {
 				anType = smContext.AccessType()
 			}
-		case models.N1MessageClass_SMS:
-			n1MsgType = nasMessage.PayloadContainerTypeSMS
-		case models.N1MessageClass_LPP:
-			n1MsgType = nasMessage.PayloadContainerTypeLPP
-		case models.N1MessageClass_UPDP:
-			n1MsgType = nasMessage.PayloadContainerTypeUEPolicy
-		default:
 		}
 	}
 
@@ -224,7 +213,6 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			err    error
 		)
 		if n1Msg != nil {
-			nasPdu, err = gmm_message.BuildDLNASTransport(ue, n1MsgType, n1Msg, uint8(requestData.PduSessionId), nil, nil, 0)
 			if err != nil {
 				ue.ProducerLog.Errorf("Build DL NAS Transport error: %+v", err)
 				problemDetails = &models.ProblemDetails{
@@ -369,8 +357,6 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 		if ue.CmConnect(models.AccessType__3_GPP_ACCESS) {
 			if n2Info == nil {
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
-				gmm_message.SendDLNASTransport(ue.RanUe[models.AccessType__3_GPP_ACCESS],
-					nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionId, 0, nil, 0)
 			} else {
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_ATTEMPTING_TO_REACH_UE
 				message := context.N1N2Message{
@@ -379,12 +365,6 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 					ResourceUri: locationHeader,
 				}
 				ue.N1N2Message = &message
-				nasMsg, err := gmm_message.BuildNotification(ue, models.AccessType_NON_3_GPP_ACCESS)
-				if err != nil {
-					logger.GmmLog.Errorf("Build Notification failed : %s", err.Error())
-					return n1n2MessageTransferRspData, locationHeader, problemDetails, transferErr
-				}
-				gmm_message.SendNotification(ue.RanUe[models.AccessType__3_GPP_ACCESS], nasMsg)
 			}
 			return n1n2MessageTransferRspData, locationHeader, nil, nil
 		} else {

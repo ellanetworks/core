@@ -30,7 +30,10 @@ type Configuration struct {
 	SupportTAIList                  []models.Tai              `yaml:"supportTaiList,omitempty"`
 	PlmnSupportList                 []PlmnSupportItem         `yaml:"plmnSupportList,omitempty"`
 	SupportDnnList                  []string                  `yaml:"supportDnnList,omitempty"`
+	AusfUri                         string                    `yaml:"ausfUri,omitempty"`
 	NrfUri                          string                    `yaml:"nrfUri,omitempty"`
+	NssfUri                         string                    `yaml:"nssfUri,omitempty"`
+	UdmUri                          string                    `yaml:"udmUri,omitempty"`
 	WebuiUri                        string                    `yaml:"webuiUri"`
 	Security                        *Security                 `yaml:"security,omitempty"`
 	NetworkName                     NetworkName               `yaml:"networkName,omitempty"`

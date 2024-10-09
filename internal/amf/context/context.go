@@ -64,7 +64,12 @@ type AMFContext struct {
 	SupportDnnLists                 []string
 	AMFStatusSubscriptions          sync.Map // map[subscriptionID]models.SubscriptionData
 	NfStatusSubscriptions           sync.Map // map[NfInstanceID]models.NrfSubscriptionData.SubscriptionId
+	AUSFUri                         string
 	NrfUri                          string
+	NSSFUri                         string
+	PCFUri                          string
+	SMFUri                          string
+	UDMUri                          string
 	SecurityAlgorithm               SecurityAlgorithm
 	NetworkName                     factory.NetworkName
 	NgapIpList                      []string // NGAP Server IP
@@ -501,44 +506,6 @@ func (context *AMFContext) InitNFService(serivceName []string, version string) {
 			},
 		}
 	}
-}
-
-// Reset AMF Context
-func (context *AMFContext) Reset() {
-	context.AmfRanPool.Range(func(key, value interface{}) bool {
-		context.UePool.Delete(key)
-		return true
-	})
-	for key := range context.LadnPool {
-		delete(context.LadnPool, key)
-	}
-	context.RanUePool.Range(func(key, value interface{}) bool {
-		context.RanUePool.Delete(key)
-		return true
-	})
-	context.UePool.Range(func(key, value interface{}) bool {
-		context.UePool.Delete(key)
-		return true
-	})
-	context.EventSubscriptions.Range(func(key, value interface{}) bool {
-		context.DeleteEventSubscription(key.(string))
-		return true
-	})
-	for key := range context.NfService {
-		delete(context.NfService, key)
-	}
-	context.SupportTaiLists = context.SupportTaiLists[:0]
-	context.PlmnSupportList = context.PlmnSupportList[:0]
-	context.ServedGuamiList = context.ServedGuamiList[:0]
-	context.RelativeCapacity = 0xff
-	context.NfId = ""
-	context.UriScheme = models.UriScheme_HTTP
-	context.SBIPort = 0
-	context.BindingIPv4 = ""
-	context.RegisterIPv4 = ""
-	context.HttpIPv6Address = ""
-	context.Name = "amf"
-	context.NrfUri = ""
 }
 
 // Create new AMF context
