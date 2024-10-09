@@ -93,12 +93,7 @@ func (ranUe *RanUe) Remove() error {
 			break
 		}
 	}
-	self := AMF_Self()
-	self.RanUePool.Delete(ranUe.AmfUeNgapId)
-	// amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapId)
-	if err := self.Drsm.ReleaseInt32ID(int32(ranUe.AmfUeNgapId)); err != nil {
-		logger.ContextLog.Errorf("Error releasing UE: %v", err)
-	}
+	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapId)
 	return nil
 }
 

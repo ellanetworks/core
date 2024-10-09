@@ -15,14 +15,9 @@ const (
 	NGAPP_PORT = 38412
 )
 
-func Start(mongoDBURL string, mongoDBName string, nrfURL string, webuiURL string) error {
+func Start(nrfURL string, webuiURL string) error {
 	configuration := factory.Configuration{
-		AmfName:   "AMF",
-		AmfDBName: mongoDBName,
-		Mongodb: &factory.Mongodb{
-			Name: mongoDBName,
-			Url:  mongoDBURL,
-		},
+		AmfName:      "AMF",
 		NgapIpList:   []string{"0.0.0.0"},
 		NgapPort:     NGAPP_PORT,
 		SctpGrpcPort: 9000,

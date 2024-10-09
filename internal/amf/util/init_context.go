@@ -1,35 +1,15 @@
 package util
 
 import (
-	"os"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/omec-project/nas/security"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/drsm"
 	"github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/factory"
 	"github.com/yeastengine/ella/internal/amf/logger"
 )
-
-func InitDrsm() (drsm.DrsmInterface, error) {
-	podname := os.Getenv("HOSTNAME")
-	podip := os.Getenv("POD_IP")
-	logger.UtilLog.Infof("NfId Instance: %v", context.AMF_Self().NfId)
-	podId := drsm.PodId{PodName: podname, PodInstance: context.AMF_Self().NfId, PodIp: podip}
-	logger.UtilLog.Debugf("PodId: %v", podId)
-	dbUrl := "mongodb://mongodb-arbiter-headless"
-	if factory.AmfConfig.Configuration.Mongodb != nil &&
-		factory.AmfConfig.Configuration.Mongodb.Url != "" {
-		dbUrl = factory.AmfConfig.Configuration.Mongodb.Url
-	}
-	opt := &drsm.Options{ResIdSize: 24, Mode: drsm.ResourceClient}
-	db := drsm.DbInfo{Url: dbUrl, Name: factory.AmfConfig.Configuration.AmfDBName}
-
-	// amfid is being used for amfngapid, subscriberid and tmsi for this release
-	return drsm.InitDRSM("amfid", podId, db, opt)
-}
 
 func InitAmfContext(context *context.AMFContext) {
 	config := factory.AmfConfig
@@ -52,17 +32,7 @@ func InitAmfContext(context *context.AMFContext) {
 	context.UriScheme = models.UriScheme_HTTP
 	context.RegisterIPv4 = configuration.Sbi.RegisterIPv4
 	context.SBIPort = sbi.Port
-
-	context.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
-	if context.BindingIPv4 != "" {
-		logger.UtilLog.Info("Parsing ServerIPv4 address from ENV Variable.")
-	} else {
-		context.BindingIPv4 = sbi.BindingIPv4
-		if context.BindingIPv4 == "" {
-			logger.UtilLog.Warn("Error parsing ServerIPv4 address from string. Using the 0.0.0.0 as default.")
-			context.BindingIPv4 = "0.0.0.0"
-		}
-	}
+	context.BindingIPv4 = sbi.BindingIPv4
 	serviceNameList := configuration.ServiceNameList
 	context.InitNFService(serviceNameList, config.Info.Version)
 	context.ServedGuamiList = configuration.ServedGumaiList

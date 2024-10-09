@@ -11,18 +11,17 @@ import (
 	"time"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/drsm"
 	"github.com/omec-project/util/idgenerator"
 	"github.com/yeastengine/ella/internal/amf/factory"
 	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
 var (
-	amfContext = AMFContext{}
-	// tmsiGenerator                    *idgenerator.IDGenerator = nil
-	// amfUeNGAPIDGenerator             *idgenerator.IDGenerator = nil
-	// amfStatusSubscriptionIDGenerator *idgenerator.IDGenerator = nil
-	mutex sync.Mutex
+	amfContext                                                = AMFContext{}
+	tmsiGenerator                    *idgenerator.IDGenerator = nil
+	amfUeNGAPIDGenerator             *idgenerator.IDGenerator = nil
+	amfStatusSubscriptionIDGenerator *idgenerator.IDGenerator = nil
+	mutex                            sync.Mutex
 )
 
 func init() {
@@ -35,13 +34,12 @@ func init() {
 	AMF_Self().PlmnSupportList = make([]factory.PlmnSupportItem, 0, MaxNumOfPLMNs)
 	AMF_Self().NfService = make(map[models.ServiceName]models.NfService)
 	AMF_Self().NetworkName.Full = "free5GC"
-	// tmsiGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
-	// amfStatusSubscriptionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
-	// amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapId)
+	tmsiGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
+	amfStatusSubscriptionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
+	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapId)
 }
 
 type AMFContext struct {
-	Drsm                            drsm.DrsmInterface
 	EventSubscriptionIDGenerator    *idgenerator.IDGenerator
 	EventSubscriptions              sync.Map
 	UePool                          sync.Map         // map[supi]*AmfUe
@@ -102,8 +100,8 @@ func NewPlmnSupportItem() (item factory.PlmnSupportItem) {
 }
 
 func (context *AMFContext) TmsiAllocate() int32 {
-	// val, err := AllocateUniqueID(&tmsiGenerator, "tmsi")
-	val, err := context.Drsm.AllocateInt32ID()
+	tmp, err := AllocateUniqueID(&tmsiGenerator, "tmsi")
+	val := int32(tmp)
 	if err != nil {
 		logger.ContextLog.Errorf("Allocate TMSI error: %+v", err)
 		return -1
@@ -113,21 +111,18 @@ func (context *AMFContext) TmsiAllocate() int32 {
 }
 
 func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
-	// val, err := AllocateUniqueID(&amfUeNGAPIDGenerator, "amfUeNgapID")
-	val, err := context.Drsm.AllocateInt32ID()
+	val, err := AllocateUniqueID(&amfUeNGAPIDGenerator, "amfUeNgapID")
 	if err != nil {
 		logger.ContextLog.Errorf("Allocate NgapID error: %+v", err)
 		return -1, err
 	}
-
 	logger.ContextLog.Infof("Allocate AmfUeNgapID : %v", val)
-	return int64(val), nil
+	return val, nil
 }
 
 func (context *AMFContext) AllocateGutiToUe(ue *AmfUe) {
 	servedGuami := context.ServedGuamiList[0]
 	ue.Tmsi = context.TmsiAllocate()
-
 	plmnID := servedGuami.PlmnId.Mcc + servedGuami.PlmnId.Mnc
 	tmsiStr := fmt.Sprintf("%08x", ue.Tmsi)
 	ue.Guti = plmnID + servedGuami.AmfId + tmsiStr
@@ -135,14 +130,8 @@ func (context *AMFContext) AllocateGutiToUe(ue *AmfUe) {
 
 func (context *AMFContext) ReAllocateGutiToUe(ue *AmfUe) {
 	servedGuami := context.ServedGuamiList[0]
-
-	if err := context.Drsm.ReleaseInt32ID(ue.Tmsi); err != nil {
-		logger.ContextLog.Errorf("Errro releasing tmsi: %v", err)
-	}
-	// tmsiGenerator.FreeID(int64(ue.Tmsi))
-
+	tmsiGenerator.FreeID(int64(ue.Tmsi))
 	ue.Tmsi = context.TmsiAllocate()
-
 	plmnID := servedGuami.PlmnId.Mcc + servedGuami.PlmnId.Mnc
 	tmsiStr := fmt.Sprintf("%08x", ue.Tmsi)
 	ue.Guti = plmnID + servedGuami.AmfId + tmsiStr
@@ -176,13 +165,12 @@ func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.Acc
 }
 
 func (context *AMFContext) NewAMFStatusSubscription(subscriptionData models.SubscriptionData) (subscriptionID string) {
-	// id, err := amfStatusSubscriptionIDGenerator.Allocate()
-	id, err := context.Drsm.AllocateInt32ID()
+	tmp, err := amfStatusSubscriptionIDGenerator.Allocate()
 	if err != nil {
 		logger.ContextLog.Errorf("Allocate subscriptionID error: %+v", err)
 		return ""
 	}
-
+	id := int32(tmp)
 	subscriptionID = strconv.Itoa(int(id))
 	context.AMFStatusSubscriptions.Store(subscriptionID, subscriptionData)
 	return
@@ -200,14 +188,12 @@ func (context *AMFContext) FindAMFStatusSubscription(subscriptionID string) (*mo
 
 func (context *AMFContext) DeleteAMFStatusSubscription(subscriptionID string) {
 	context.AMFStatusSubscriptions.Delete(subscriptionID)
-	if id, err := strconv.ParseInt(subscriptionID, 10, 64); err != nil {
+	id, err := strconv.ParseInt(subscriptionID, 10, 64)
+	if err != nil {
 		logger.ContextLog.Error(err)
-	} else {
-		// amfStatusSubscriptionIDGenerator.FreeID(id)
-		if err := context.Drsm.ReleaseInt32ID(int32(id)); err != nil {
-			logger.ContextLog.Error(err)
-		}
+		return
 	}
+	amfStatusSubscriptionIDGenerator.FreeID(id)
 }
 
 func (context *AMFContext) NewEventSubscription(subscriptionID string, subscription *AMFContextEventSubscription) {

@@ -18,15 +18,8 @@ type Info struct {
 	Description string `yaml:"description,omitempty"`
 }
 
-type Mongodb struct {
-	Name string `yaml:"name"`
-	Url  string `yaml:"url"`
-}
-
 type Configuration struct {
 	AmfName                         string                    `yaml:"amfName,omitempty"`
-	AmfDBName                       string                    `yaml:"amfDBName,omitempty"`
-	Mongodb                         *Mongodb                  `yaml:"mongodb,omitempty"`
 	NgapIpList                      []string                  `yaml:"ngapIpList,omitempty"`
 	NgapPort                        int                       `yaml:"ngappPort,omitempty"`
 	SctpGrpcPort                    int                       `yaml:"sctpGrpcPort,omitempty"`

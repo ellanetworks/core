@@ -109,10 +109,6 @@ func (amf *AMF) Start() {
 
 	self := context.AMF_Self()
 	util.InitAmfContext(self)
-	self.Drsm, err = util.InitDrsm()
-	if err != nil {
-		initLog.Errorf("initialise DRSM failed, %v", err.Error())
-	}
 
 	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
 
