@@ -1,0 +1,35 @@
+name: Snap Publish
+
+on:
+  workflow_call:
+    secrets:
+      SNAPCRAFT_STORE_CREDENTIALS:
+        required: true
+
+jobs:
+  publish-snap:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Downloads locally built snap artifact
+        uses: actions/download-artifact@v4
+        id: download
+        with:
+          name: snap
+
+      - name: Determine snap file name
+        id: find-snap
+        run: |
+          SNAP_FILE=$(ls *.snap)
+          echo "Found snap file: $SNAP_FILE"
+          echo "snap_file=${SNAP_FILE}" >>$GITHUB_OUTPUT
+
+      - name: Publish snap
+        uses: canonical/action-publish@v1.2.0
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        if: ${{ github.ref_name == 'main' }}
+        with:
+          snap: ${{ steps.find-snap.outputs.snap_file }}
+          release: edge
