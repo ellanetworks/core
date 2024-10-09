@@ -14,12 +14,8 @@ const (
 	SBI_PORT = 29502
 )
 
-func Start(mongoDBURL string, mongoDBName string, nrfURL string, webuiURL string) error {
+func Start(nrfURL string, webuiURL string) error {
 	configuration := factory.Configuration{
-		Mongodb: &factory.Mongodb{
-			Name: mongoDBName,
-			Url:  mongoDBURL,
-		},
 		PFCP: &factory.PFCP{
 			Addr: "0.0.0.0",
 		},
@@ -28,10 +24,9 @@ func Start(mongoDBURL string, mongoDBName string, nrfURL string, webuiURL string
 			BindingIPv4:  "0.0.0.0",
 			Port:         SBI_PORT,
 		},
-		NrfUri:    nrfURL,
-		WebuiUri:  webuiURL,
-		SmfName:   "SMF",
-		SmfDbName: mongoDBName,
+		NrfUri:   nrfURL,
+		WebuiUri: webuiURL,
+		SmfName:  "SMF",
 		ServiceNameList: []string{
 			"nsmf-pdusession",
 			"nsmf-event-exposure",
