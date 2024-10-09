@@ -27,10 +27,12 @@ jobs:
     if: github.ref_name != 'main'
     needs: [rock-build]
     uses: ./.github/workflows/rock-publish-dev.yaml
+    secrets: inherit
   rock-publish:
     if: github.ref_name == 'main'
     needs: [rock-build]
     uses: ./.github/workflows/rock-publish.yaml
+    secrets: inherit
   snap-build:
     needs: [go-build, go-unit-test, go-vet, go-lint]
     uses: ./.github/workflows/snap-build.yaml
