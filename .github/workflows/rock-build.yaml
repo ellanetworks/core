@@ -1,0 +1,20 @@
+name: Rock Build
+
+on:
+  workflow_call:
+
+jobs:
+  build-rock:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - uses: canonical/craft-actions/rockcraft-pack@main
+        id: rockcraft
+        with:
+          rockcraft-channel: edge
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rock
+          path: ${{ steps.rockcraft.outputs.rock }}

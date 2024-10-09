@@ -1,0 +1,40 @@
+name: Rock Publish for Development
+
+on:
+  workflow_call:
+
+jobs:
+  publish-rock-dev:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install rockcraft
+        run: |
+          sudo snap install rockcraft --classic --channel edge
+        
+      - uses: actions/download-artifact@v4
+        with:
+          name: rock
+
+      - name: Import and push to github package
+        run: |
+          git_commit = "$(git rev-parse --short HEAD)"
+          image_name="$(yq '.name' rockcraft.yaml)"
+          version="$(cat version/VERSION)-${git_commit}"
+          rock_file=$(ls *.rock | tail -n 1)
+          sudo rockcraft.skopeo \
+            --insecure-policy \
+            copy \
+            oci-archive:"${rock_file}" \
+            docker-daemon:"ghcr.io/yeastengine/${image_name}:${version}"
+          docker tag ghcr.io/yeastengine/${image_name}:${version}
+          docker push ghcr.io/yeastengine/${image_name}:${version}
