@@ -1,0 +1,16 @@
+name: Go Unit Tests
+
+on:
+  workflow_call:
+
+jobs:  
+  go-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Unit tests
+        run: go test -cover ./...

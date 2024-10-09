@@ -7,177 +7,35 @@ on:
   push:
     branches:
       - main
-  schedule:
-    - cron: '0 8 * * 2'
-  workflow_dispatch:
 
-jobs:
-  build:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-
-      - name: Build
-        run: |
-          cd ui/
-          npm install
-          npm run build
-          cp -r out/* ../internal/webui/ui/frontend_files/
-          go build ./...
-  
-  lint:
-    runs-on: ubuntu-22.04
-    needs:
-      - build
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          args: --timeout=5m 
-          version: v1.59
-
+jobs: 
+  frontend-build:
+    uses: ./.github/workflows/frontend-build.yaml
+  go-unit-test:
+    uses: ./.github/workflows/go-unittest.yaml
   go-vet:
-    runs-on: ubuntu-22.04
-    needs:
-      - build
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-
-      - name: Go vet
-        run: go vet ./...
-
-  unit-tests:
-    runs-on: ubuntu-22.04
-    needs:
-      - build
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-
-      - name: Unit tests
-        run: go test -cover ./...
-
-  build-snap:
-    runs-on: ubuntu-22.04
-    needs:
-      - build
-      - lint
-      - go-vet
-      - unit-tests
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build snap
-        uses: snapcore/action-build@v1
-        id: build
-      
-      - name: Upload locally built snap artifact
-        if: ${{ github.ref_name == 'main' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: snap
-          path: ${{ steps.build.outputs.snap }}
-  
-  build-rock:
-    runs-on: ubuntu-22.04
-    needs:
-      - build
-      - lint
-      - go-vet
-      - unit-tests
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - uses: canonical/craft-actions/rockcraft-pack@main
-        id: rockcraft
-      - uses: actions/upload-artifact@v4
-        with:
-          name: rock
-          path: ${{ steps.rockcraft.outputs.rock }}
-
-  publish-snap:
-    name: Snap publish
-    runs-on: ubuntu-22.04
-    needs: build-snap
-    if: ${{ github.ref_name == 'main' }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Downloads locally built snap artifact
-        uses: actions/download-artifact@v4
-        id: download
-        with:
-          name: snap
-
-      - name: Determine snap file name
-        id: find-snap
-        run: |
-          SNAP_FILE=$(ls *.snap)
-          echo "Found snap file: $SNAP_FILE"
-          echo "snap_file=${SNAP_FILE}" >>$GITHUB_OUTPUT
-
-      - name: Publish snap
-        uses: snapcore/action-publish@v1.2.0
-        env:
-          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
-        if: ${{ github.ref_name == 'main' }}
-        with:
-          snap: ${{ steps.find-snap.outputs.snap_file }}
-          release: edge
-
-  publish-rock:
-    needs: build-rock
+    uses: ./.github/workflows/go-vet.yaml
+  go-lint:
+    uses: ./.github/workflows/go-lint.yaml
+  go-build:
+    needs: [frontend-build]
+    uses: ./.github/workflows/go-build.yaml
+  rock-build:
+    needs: [go-build, go-unit-test, go-vet, go-lint]
+    uses: ./.github/workflows/rock-build.yaml
+  rock-publish-dev:
+    if: github.ref_name != 'main'
+    needs: [rock-build]
+    uses: ./.github/workflows/rock-publish-dev.yaml
+  rock-publish:
     if: github.ref_name == 'main'
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3.3.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Install rockcraft
-        run: |
-          sudo snap install rockcraft --classic --channel=edge
-      
-      - uses: actions/download-artifact@v4
-        with:
-          name: rock
-
-      - name: Import and push to github package
-        run: |
-          image_name="$(yq '.name' rockcraft.yaml)"
-          version="$(cat version/VERSION)"
-          rock_file=$(ls *.rock | tail -n 1)
-          sudo rockcraft.skopeo \
-            --insecure-policy \
-            copy \
-            oci-archive:"${rock_file}" \
-            docker-daemon:"ghcr.io/yeastengine/${image_name}:${version}"
-          docker push ghcr.io/yeastengine/${image_name}:${version}
+    needs: [rock-build]
+    uses: ./.github/workflows/rock-publish.yaml
+  snap-build:
+    needs: [go-build, go-unit-test, go-vet, go-lint]
+    uses: ./.github/workflows/snap-build.yaml
+  snap-publish:
+    if: github.ref_name == 'main'
+    needs: [snap-build]
+    uses: ./.github/workflows/snap-publish.yaml
+    secrets: inherit
