@@ -79,7 +79,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = smf.Start(cfg.DB.Url, cfg.DB.Name, nrfUrl, webuiUrl)
+	err = smf.Start(nrfUrl, webuiUrl)
 	if err != nil {
 		return err
 	}
