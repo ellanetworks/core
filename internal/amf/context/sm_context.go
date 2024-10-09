@@ -21,7 +21,6 @@ type SmContext struct {
 	PlmnIDVal       models.PlmnId
 
 	// SMF information
-	SmfIDVal  string
 	SmfUriVal string
 	HSmfIDVal string
 	VSmfIDVal string
