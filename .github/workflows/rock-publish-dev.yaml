@@ -27,7 +27,7 @@ jobs:
 
       - name: Import and push to github package
         run: |
-          git_commit = "$(git rev-parse --short HEAD)"
+          git_commit="$(git rev-parse --short HEAD)"
           image_name="$(yq '.name' rockcraft.yaml)"
           version="$(cat version/VERSION)-${git_commit}"
           rock_file=$(ls *.rock | tail -n 1)
