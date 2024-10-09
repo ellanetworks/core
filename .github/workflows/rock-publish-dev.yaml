@@ -36,5 +36,4 @@ jobs:
             copy \
             oci-archive:"${rock_file}" \
             docker-daemon:"ghcr.io/yeastengine/${image_name}:${version}"
-          docker tag ghcr.io/yeastengine/${image_name}:${version}
           docker push ghcr.io/yeastengine/${image_name}:${version}
