@@ -27,9 +27,9 @@ jobs:
 
       - name: Import and push to github package
         run: |
-          git_commit="$(git rev-parse --short HEAD)"
+          pr_number="${{ github.event.pull_request.number || github.event.issue.number }}"
           image_name="$(yq '.name' rockcraft.yaml)"
-          version="$(cat version/VERSION)-${git_commit}"
+          version="$(cat version/VERSION)-${pr_number}"
           rock_file=$(ls *.rock | tail -n 1)
           sudo rockcraft.skopeo \
             --insecure-policy \
