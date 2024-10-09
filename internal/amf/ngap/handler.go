@@ -1352,18 +1352,18 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
 
 	if message == nil {
-		ran.Log.Error("NGAP Message is nil")
+		ran.Log.Errorln("NGAP Message is nil")
 		return
 	}
 
 	initiatingMessage := message.InitiatingMessage
 	if initiatingMessage == nil {
-		ran.Log.Error("Initiating Message is nil")
+		ran.Log.Errorln("Initiating Message is nil")
 		return
 	}
 	initialUEMessage := initiatingMessage.Value.InitialUEMessage
 	if initialUEMessage == nil {
-		ran.Log.Error("InitialUEMessage is nil")
+		ran.Log.Errorln("InitialUEMessage is nil")
 		return
 	}
 
@@ -1384,54 +1384,57 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		return
 	}
 
-	ran.Log.Info("Handle Initial UE Message")
+	ran.Log.Infoln("handle Initial UE Message")
 
 	for _, ie := range initialUEMessage.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDRANUENGAPID: // reject
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Trace("Decode IE RanUeNgapID")
+			ran.Log.Debugln("decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
-				ran.Log.Error("RanUeNgapID is nil")
-				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDRANUENGAPID)
+				ran.Log.Errorln("RanUeNgapID is nil")
+				item := buildCriticalityDiagnosticsIEItem(ngapType.CriticalityPresentReject,
+					ngapType.ProtocolIEIDRANUENGAPID, ngapType.TypeOfErrorPresentMissing)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 			}
 		case ngapType.ProtocolIEIDNASPDU: // reject
 			nASPDU = ie.Value.NASPDU
-			ran.Log.Trace("Decode IE NasPdu")
+			ran.Log.Debugln("decode IE NasPdu")
 			if nASPDU == nil {
-				ran.Log.Error("NasPdu is nil")
-				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDNASPDU)
+				ran.Log.Errorln("NasPdu is nil")
+				item := buildCriticalityDiagnosticsIEItem(ngapType.CriticalityPresentReject, ngapType.ProtocolIEIDNASPDU,
+					ngapType.TypeOfErrorPresentMissing)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 			}
 		case ngapType.ProtocolIEIDUserLocationInformation: // reject
 			userLocationInformation = ie.Value.UserLocationInformation
-			ran.Log.Trace("Decode IE UserLocationInformation")
+			ran.Log.Debugln("decode IE UserLocationInformation")
 			if userLocationInformation == nil {
-				ran.Log.Error("UserLocationInformation is nil")
-				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDUserLocationInformation)
+				ran.Log.Errorln("UserLocationInformation is nil")
+				item := buildCriticalityDiagnosticsIEItem(ngapType.CriticalityPresentReject,
+					ngapType.ProtocolIEIDUserLocationInformation, ngapType.TypeOfErrorPresentMissing)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 			}
 		case ngapType.ProtocolIEIDRRCEstablishmentCause: // ignore
 			rRCEstablishmentCause = ie.Value.RRCEstablishmentCause
-			ran.Log.Trace("Decode IE RRCEstablishmentCause")
+			ran.Log.Debugln("decode IE RRCEstablishmentCause")
 		case ngapType.ProtocolIEIDFiveGSTMSI: // optional, reject
 			fiveGSTMSI = ie.Value.FiveGSTMSI
-			ran.Log.Trace("Decode IE 5G-S-TMSI")
+			ran.Log.Debugln("decode IE 5G-S-TMSI")
 		case ngapType.ProtocolIEIDAMFSetID: // optional, ignore
 			// aMFSetID = ie.Value.AMFSetID
-			ran.Log.Trace("Decode IE AmfSetID")
+			ran.Log.Debugln("decode IE AmfSetID")
 		case ngapType.ProtocolIEIDUEContextRequest: // optional, ignore
 			uEContextRequest = ie.Value.UEContextRequest
-			ran.Log.Trace("Decode IE UEContextRequest")
+			ran.Log.Debugln("decode IE UEContextRequest")
 		case ngapType.ProtocolIEIDAllowedNSSAI: // optional, reject
 			// allowedNSSAI = ie.Value.AllowedNSSAI
-			ran.Log.Trace("Decode IE Allowed NSSAI")
+			ran.Log.Debugln("decode IE Allowed NSSAI")
 		}
 	}
 
 	if len(iesCriticalityDiagnostics.List) > 0 {
-		ran.Log.Trace("Has missing reject IE(s)")
+		ran.Log.Debugln("has missing reject IE(s)")
 
 		procedureCode := ngapType.ProcedureCodeInitialUEMessage
 		triggeringMessage := ngapType.TriggeringMessagePresentInitiatingMessage
@@ -1479,15 +1482,12 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			if amfUe, ok := amfSelf.AmfUeFindByGuti(guti); !ok {
 				ranUe.Log.Warnf("Unknown UE [GUTI: %s]", guti)
 			} else {
-				ranUe.Log.Tracef("find AmfUe [GUTI: %s]", guti)
+				ranUe.Log.Debugf("find AmfUe [GUTI: %s]", guti)
 				/* checking the guti-ue belongs to this amf instance */
-				if err != nil {
-					ranUe.Log.Errorf("Error checking the guti-ue in this instance: %v", err)
-				}
 
 				if amfUe.CmConnect(ran.AnType) {
 					ranUe.Log.Debug("Implicit Deregistration")
-					ranUe.Log.Tracef("RanUeNgapID[%d]", amfUe.RanUe[ran.AnType].RanUeNgapId)
+					ranUe.Log.Debugf("RanUeNgapID[%d]", amfUe.RanUe[ran.AnType].RanUeNgapId)
 					amfUe.DetachRanUe(ran.AnType)
 				}
 				// TODO: stop Implicit Deregistration timer
@@ -1505,7 +1505,7 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	}
 
 	if rRCEstablishmentCause != nil {
-		ranUe.Log.Tracef("[Initial UE Message] RRC Establishment Cause[%d]", rRCEstablishmentCause.Value)
+		ranUe.Log.Debugf("[Initial UE Message] RRC Establishment Cause[%d]", rRCEstablishmentCause.Value)
 		ranUe.RRCEstablishmentCause = strconv.Itoa(int(rRCEstablishmentCause.Value))
 	}
 
@@ -2017,16 +2017,16 @@ func HandlePDUSessionResourceModifyIndication(ran *context.AmfRan, message *ngap
 	var ranUe *context.RanUe
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.NgapLog.Errorln("ran is nil")
 		return
 	}
 	if message == nil {
-		ran.Log.Error("NGAP Message is nil")
+		ran.Log.Errorln("NGAP Message is nil")
 		return
 	}
 	initiatingMessage := message.InitiatingMessage // reject
 	if initiatingMessage == nil {
-		ran.Log.Error("InitiatingMessage is nil")
+		ran.Log.Errorln("InitiatingMessage is nil")
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentProtocol,
 			Protocol: &ngapType.CauseProtocol{
@@ -2038,7 +2038,7 @@ func HandlePDUSessionResourceModifyIndication(ran *context.AmfRan, message *ngap
 	}
 	pDUSessionResourceModifyIndication := initiatingMessage.Value.PDUSessionResourceModifyIndication
 	if pDUSessionResourceModifyIndication == nil {
-		ran.Log.Error("PDUSessionResourceModifyIndication is nil")
+		ran.Log.Errorln("PDUSessionResourceModifyIndication is nil")
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentProtocol,
 			Protocol: &ngapType.CauseProtocol{
@@ -2049,39 +2049,42 @@ func HandlePDUSessionResourceModifyIndication(ran *context.AmfRan, message *ngap
 		return
 	}
 
-	ran.Log.Info("Handle PDU Session Resource Modify Indication")
+	ran.Log.Infoln("handle PDU Session Resource Modify Indication")
 
 	for _, ie := range pDUSessionResourceModifyIndication.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // reject
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Trace("Decode IE AmfUeNgapID")
+			ran.Log.Debugln("decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
-				ran.Log.Error("AmfUeNgapID is nil")
-				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDAMFUENGAPID)
+				ran.Log.Errorln("AmfUeNgapID is nil")
+				item := buildCriticalityDiagnosticsIEItem(ngapType.CriticalityPresentReject,
+					ngapType.ProtocolIEIDAMFUENGAPID, ngapType.TypeOfErrorPresentMissing)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 			}
 		case ngapType.ProtocolIEIDRANUENGAPID: // reject
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Trace("Decode IE RanUeNgapID")
+			ran.Log.Debugln("decode IE RanUeNgapID")
 			if rANUENGAPID == nil {
-				ran.Log.Error("RanUeNgapID is nil")
-				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDRANUENGAPID)
+				ran.Log.Errorln("RanUeNgapID is nil")
+				item := buildCriticalityDiagnosticsIEItem(ngapType.CriticalityPresentReject,
+					ngapType.ProtocolIEIDRANUENGAPID, ngapType.TypeOfErrorPresentMissing)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 			}
 		case ngapType.ProtocolIEIDPDUSessionResourceModifyListModInd: // reject
 			pduSessionResourceModifyIndicationList = ie.Value.PDUSessionResourceModifyListModInd
-			ran.Log.Trace("Decode IE PDUSessionResourceModifyListModInd")
+			ran.Log.Debugln("decode IE PDUSessionResourceModifyListModInd")
 			if pduSessionResourceModifyIndicationList == nil {
-				ran.Log.Error("PDUSessionResourceModifyListModInd is nil")
-				item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDPDUSessionResourceModifyListModInd)
+				ran.Log.Errorln("PDUSessionResourceModifyListModInd is nil")
+				item := buildCriticalityDiagnosticsIEItem(ngapType.CriticalityPresentReject,
+					ngapType.ProtocolIEIDPDUSessionResourceModifyListModInd, ngapType.TypeOfErrorPresentMissing)
 				iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 			}
 		}
 	}
 
 	if len(iesCriticalityDiagnostics.List) > 0 {
-		ran.Log.Error("Has missing reject IE(s)")
+		ran.Log.Errorln("Has missing reject IE(s)")
 
 		procedureCode := ngapType.ProcedureCodePDUSessionResourceModifyIndication
 		triggeringMessage := ngapType.TriggeringMessagePresentInitiatingMessage
@@ -2105,18 +2108,18 @@ func HandlePDUSessionResourceModifyIndication(ran *context.AmfRan, message *ngap
 		return
 	}
 
-	ran.Log.Tracef("UE Context AmfUeNgapID[%d] RanUeNgapID[%d]", ranUe.AmfUeNgapId, ranUe.RanUeNgapId)
+	ran.Log.Debugf("UE Context AmfUeNgapID[%d] RanUeNgapID[%d]", ranUe.AmfUeNgapId, ranUe.RanUeNgapId)
 
 	amfUe := ranUe.AmfUe
 	if amfUe == nil {
-		ran.Log.Error("AmfUe is nil")
+		ran.Log.Errorln("AmfUe is nil")
 		return
 	}
 
 	pduSessionResourceModifyListModCfm := ngapType.PDUSessionResourceModifyListModCfm{}
 	pduSessionResourceFailedToModifyListModCfm := ngapType.PDUSessionResourceFailedToModifyListModCfm{}
 
-	ran.Log.Trace("Send PDUSessionResourceModifyIndicationTransfer to SMF")
+	ran.Log.Debugln("send PDUSessionResourceModifyIndicationTransfer to SMF")
 	for _, item := range pduSessionResourceModifyIndicationList.List {
 		pduSessionID := int32(item.PDUSessionID.Value)
 		transfer := item.PDUSessionResourceModifyIndicationTransfer
@@ -2127,7 +2130,7 @@ func HandlePDUSessionResourceModifyIndication(ran *context.AmfRan, message *ngap
 		response, errResponse, _, err := consumer.SendUpdateSmContextN2Info(amfUe, smContext,
 			models.N2SmInfoType_PDU_RES_MOD_IND, transfer)
 		if err != nil {
-			ran.Log.Errorf("SendUpdateSmContextN2Info Error:\n%s", err.Error())
+			ran.Log.Errorf("SendUpdateSmContextN2Info Error: %s", err.Error())
 		}
 
 		if response != nil && response.BinaryDataN2SmInformation != nil {
@@ -3103,55 +3106,56 @@ func HandleHandoverRequestAcknowledge(ran *context.AmfRan, message *ngapType.NGA
 	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.NgapLog.Errorln("ran is nil")
 		return
 	}
 	if message == nil {
-		ran.Log.Error("NGAP Message is nil")
+		ran.Log.Errorln("NGAP Message is nil")
 		return
 	}
 	successfulOutcome := message.SuccessfulOutcome
 	if successfulOutcome == nil {
-		ran.Log.Error("SuccessfulOutcome is nil")
+		ran.Log.Errorln("SuccessfulOutcome is nil")
 		return
 	}
 	handoverRequestAcknowledge := successfulOutcome.Value.HandoverRequestAcknowledge // reject
 	if handoverRequestAcknowledge == nil {
-		ran.Log.Error("HandoverRequestAcknowledge is nil")
+		ran.Log.Errorln("HandoverRequestAcknowledge is nil")
 		return
 	}
 
-	ran.Log.Info("Handle Handover Request Acknowledge")
+	ran.Log.Infoln("handle Handover Request Acknowledge")
 
 	for _, ie := range handoverRequestAcknowledge.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Trace("Decode IE AmfUeNgapID")
+			ran.Log.Debugln("decode IE AmfUeNgapID")
 		case ngapType.ProtocolIEIDRANUENGAPID: // ignore
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Trace("Decode IE RanUeNgapID")
+			ran.Log.Debugln("decode IE RanUeNgapID")
 		case ngapType.ProtocolIEIDPDUSessionResourceAdmittedList: // ignore
 			pDUSessionResourceAdmittedList = ie.Value.PDUSessionResourceAdmittedList
-			ran.Log.Trace("Decode IE PduSessionResourceAdmittedList")
+			ran.Log.Debugln("decode IE PduSessionResourceAdmittedList")
 		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListHOAck: // ignore
 			pDUSessionResourceFailedToSetupListHOAck = ie.Value.PDUSessionResourceFailedToSetupListHOAck
-			ran.Log.Trace("Decode IE PduSessionResourceFailedToSetupListHOAck")
+			ran.Log.Debugln("decode IE PduSessionResourceFailedToSetupListHOAck")
 		case ngapType.ProtocolIEIDTargetToSourceTransparentContainer: // reject
 			targetToSourceTransparentContainer = ie.Value.TargetToSourceTransparentContainer
-			ran.Log.Trace("Decode IE TargetToSourceTransparentContainer")
+			ran.Log.Debugln("decode IE TargetToSourceTransparentContainer")
 		case ngapType.ProtocolIEIDCriticalityDiagnostics: // ignore
 			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			ran.Log.Trace("Decode IE CriticalityDiagnostics")
+			ran.Log.Debugln("decode IE CriticalityDiagnostics")
 		}
 	}
 	if targetToSourceTransparentContainer == nil {
-		ran.Log.Error("TargetToSourceTransparentContainer is nil")
-		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDTargetToSourceTransparentContainer)
+		ran.Log.Errorln("TargetToSourceTransparentContainer is nil")
+		item := buildCriticalityDiagnosticsIEItem(ngapType.CriticalityPresentReject,
+			ngapType.ProtocolIEIDTargetToSourceTransparentContainer, ngapType.TypeOfErrorPresentMissing)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 	if len(iesCriticalityDiagnostics.List) > 0 {
-		ran.Log.Error("Has missing reject IE(s)")
+		ran.Log.Errorln("Has missing reject IE(s)")
 
 		procedureCode := ngapType.ProcedureCodeHandoverResourceAllocation
 		triggeringMessage := ngapType.TriggeringMessagePresentSuccessfulOutcome
@@ -3180,7 +3184,7 @@ func HandleHandoverRequestAcknowledge(ran *context.AmfRan, message *ngapType.NGA
 
 	amfUe := targetUe.AmfUe
 	if amfUe == nil {
-		targetUe.Log.Error("amfUe is nil")
+		targetUe.Log.Errorln("amfUe is nil")
 		return
 	}
 
@@ -3240,12 +3244,12 @@ func HandleHandoverRequestAcknowledge(ran *context.AmfRan, message *ngapType.NGA
 	sourceUe := targetUe.SourceUe
 	if sourceUe == nil {
 		// TODO: Send Namf_Communication_CreateUEContext Response to S-AMF
-		ran.Log.Error("handover between different Ue has not been implement yet")
+		ran.Log.Errorln("handover between different Ue has not been implement yet")
 	} else {
-		ran.Log.Tracef("Source: RanUeNgapID[%d] AmfUeNgapID[%d]", sourceUe.RanUeNgapId, sourceUe.AmfUeNgapId)
-		ran.Log.Tracef("Target: RanUeNgapID[%d] AmfUeNgapID[%d]", targetUe.RanUeNgapId, targetUe.AmfUeNgapId)
+		ran.Log.Debugf("source: RanUeNgapID[%d] AmfUeNgapID[%d]", sourceUe.RanUeNgapId, sourceUe.AmfUeNgapId)
+		ran.Log.Debugf("target: RanUeNgapID[%d] AmfUeNgapID[%d]", targetUe.RanUeNgapId, targetUe.AmfUeNgapId)
 		if len(pduSessionResourceHandoverList.List) == 0 {
-			targetUe.Log.Info("Handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
+			targetUe.Log.Infoln("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
 			cause := &ngapType.Cause{
 				Present: ngapType.CausePresentRadioNetwork,
 				RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -3366,82 +3370,88 @@ func HandleHandoverRequired(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.NgapLog.Errorln("ran is nil")
 		return
 	}
 	if message == nil {
-		ran.Log.Error("NGAP Message is nil")
+		ran.Log.Errorln("NGAP Message is nil")
 		return
 	}
 
 	initiatingMessage := message.InitiatingMessage
 	if initiatingMessage == nil {
-		ran.Log.Error("Initiating Message is nil")
+		ran.Log.Errorln("Initiating Message is nil")
 		return
 	}
 	HandoverRequired := initiatingMessage.Value.HandoverRequired
 	if HandoverRequired == nil {
-		ran.Log.Error("HandoverRequired is nil")
+		ran.Log.Errorln("HandoverRequired is nil")
 		return
 	}
 
-	ran.Log.Info("Handle HandoverRequired\n")
+	ran.Log.Infoln("handle HandoverRequired")
 	for i := 0; i < len(HandoverRequired.ProtocolIEs.List); i++ {
 		ie := HandoverRequired.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID // reject
-			ran.Log.Trace("Decode IE AmfUeNgapID")
+			ran.Log.Debugln("decode IE AmfUeNgapID")
 		case ngapType.ProtocolIEIDRANUENGAPID: // reject
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Trace("Decode IE RanUeNgapID")
+			ran.Log.Debugln("decode IE RanUeNgapID")
 		case ngapType.ProtocolIEIDHandoverType: // reject
 			handoverType = ie.Value.HandoverType
-			ran.Log.Trace("Decode IE HandoverType")
+			ran.Log.Debugln("decode IE HandoverType")
 		case ngapType.ProtocolIEIDCause: // ignore
 			cause = ie.Value.Cause
-			ran.Log.Trace("Decode IE Cause")
+			ran.Log.Debugln("decode IE Cause")
 		case ngapType.ProtocolIEIDTargetID: // reject
 			targetID = ie.Value.TargetID
-			ran.Log.Trace("Decode IE TargetID")
+			ran.Log.Debugln("decode IE TargetID")
 		case ngapType.ProtocolIEIDPDUSessionResourceListHORqd: // reject
 			pDUSessionResourceListHORqd = ie.Value.PDUSessionResourceListHORqd
-			ran.Log.Trace("Decode IE PDUSessionResourceListHORqd")
+			ran.Log.Debugln("decode IE PDUSessionResourceListHORqd")
 		case ngapType.ProtocolIEIDSourceToTargetTransparentContainer: // reject
 			sourceToTargetTransparentContainer = ie.Value.SourceToTargetTransparentContainer
-			ran.Log.Trace("Decode IE SourceToTargetTransparentContainer")
+			ran.Log.Debugln("decode IE SourceToTargetTransparentContainer")
 		}
 	}
 
 	if aMFUENGAPID == nil {
-		ran.Log.Error("AmfUeNgapID is nil")
-		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDAMFUENGAPID)
+		ran.Log.Errorln("AmfUeNgapID is nil")
+		item := buildCriticalityDiagnosticsIEItem(ngapType.CriticalityPresentReject, ngapType.ProtocolIEIDAMFUENGAPID,
+			ngapType.TypeOfErrorPresentMissing)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 	if rANUENGAPID == nil {
-		ran.Log.Error("RanUeNgapID is nil")
-		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDRANUENGAPID)
+		ran.Log.Errorln("RanUeNgapID is nil")
+		item := buildCriticalityDiagnosticsIEItem(ngapType.CriticalityPresentReject, ngapType.ProtocolIEIDRANUENGAPID,
+			ngapType.TypeOfErrorPresentMissing)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 
 	if handoverType == nil {
-		ran.Log.Error("handoverType is nil")
-		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDHandoverType)
+		ran.Log.Errorln("handoverType is nil")
+		item := buildCriticalityDiagnosticsIEItem(ngapType.CriticalityPresentReject, ngapType.ProtocolIEIDHandoverType,
+			ngapType.TypeOfErrorPresentMissing)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 	if targetID == nil {
-		ran.Log.Error("targetID is nil")
-		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDTargetID)
+		ran.Log.Errorln("targetID is nil")
+		item := buildCriticalityDiagnosticsIEItem(ngapType.CriticalityPresentReject, ngapType.ProtocolIEIDTargetID,
+			ngapType.TypeOfErrorPresentMissing)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 	if pDUSessionResourceListHORqd == nil {
-		ran.Log.Error("pDUSessionResourceListHORqd is nil")
-		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDPDUSessionResourceListHORqd)
+		ran.Log.Errorln("pDUSessionResourceListHORqd is nil")
+		item := buildCriticalityDiagnosticsIEItem(ngapType.CriticalityPresentReject,
+			ngapType.ProtocolIEIDPDUSessionResourceListHORqd, ngapType.TypeOfErrorPresentMissing)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 	if sourceToTargetTransparentContainer == nil {
-		ran.Log.Error("sourceToTargetTransparentContainer is nil")
-		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDSourceToTargetTransparentContainer)
+		ran.Log.Errorln("sourceToTargetTransparentContainer is nil")
+		item := buildCriticalityDiagnosticsIEItem(ngapType.CriticalityPresentReject,
+			ngapType.ProtocolIEIDSourceToTargetTransparentContainer, ngapType.TypeOfErrorPresentMissing)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 
@@ -3469,7 +3479,7 @@ func HandleHandoverRequired(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	}
 	amfUe := sourceUe.AmfUe
 	if amfUe == nil {
-		ran.Log.Error("Cannot find amfUE from sourceUE")
+		ran.Log.Errorln("Cannot find amfUE from sourceUE")
 		return
 	}
 
@@ -3481,7 +3491,7 @@ func HandleHandoverRequired(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		Procedure: context.OnGoingProcedureN2Handover,
 	})
 	if !amfUe.SecurityContextIsValid() {
-		sourceUe.Log.Info("Handle Handover Preparation Failure [Authentication Failure]")
+		sourceUe.Log.Infoln("handle Handover Preparation Failure [Authentication Failure]")
 		cause = &ngapType.Cause{
 			Present: ngapType.CausePresentNas,
 			Nas: &ngapType.CauseNas{
@@ -3497,7 +3507,7 @@ func HandleHandoverRequired(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	if !ok {
 		// handover between different AMF
 		sourceUe.Log.Warnf("Handover required : cannot find target Ran Node Id[%+v] in this AMF", targetRanNodeId)
-		sourceUe.Log.Error("Handover between different AMF has not been implemented yet")
+		sourceUe.Log.Errorln("Handover between different AMF has not been implemented yet")
 		return
 		// TODO: Send to T-AMF
 		// Described in (23.502 4.9.1.3.2) step 3.Namf_Communication_CreateUEContext Request
@@ -3528,7 +3538,7 @@ func HandleHandoverRequired(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			}
 		}
 		if len(pduSessionReqList.List) == 0 {
-			sourceUe.Log.Info("Handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
+			sourceUe.Log.Infoln("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
 			cause = &ngapType.Cause{
 				Present: ngapType.CausePresentRadioNetwork,
 				RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -4463,54 +4473,56 @@ func HandleCellTrafficTrace(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.NgapLog.Errorln("ran is nil")
 		return
 	}
 	if message == nil {
-		ran.Log.Error("NGAP Message is nil")
+		ran.Log.Errorln("NGAP Message is nil")
 		return
 	}
 	initiatingMessage := message.InitiatingMessage // ignore
 	if initiatingMessage == nil {
-		ran.Log.Error("InitiatingMessage is nil")
+		ran.Log.Errorln("InitiatingMessage is nil")
 		return
 	}
 	cellTrafficTrace := initiatingMessage.Value.CellTrafficTrace
 	if cellTrafficTrace == nil {
-		ran.Log.Error("CellTrafficTrace is nil")
+		ran.Log.Errorln("CellTrafficTrace is nil")
 		return
 	}
 
-	ran.Log.Info("Handle Cell Traffic Trace")
+	ran.Log.Infoln("handle Cell Traffic Trace")
 
 	for _, ie := range cellTrafficTrace.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID: // reject
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Trace("Decode IE AmfUeNgapID")
+			ran.Log.Debugln("decode IE AmfUeNgapID")
 		case ngapType.ProtocolIEIDRANUENGAPID: // reject
 			rANUENGAPID = ie.Value.RANUENGAPID
-			ran.Log.Trace("Decode IE RanUeNgapID")
+			ran.Log.Debugln("decode IE RanUeNgapID")
 
 		case ngapType.ProtocolIEIDNGRANTraceID: // ignore
 			nGRANTraceID = ie.Value.NGRANTraceID
-			ran.Log.Trace("Decode IE NGRANTraceID")
+			ran.Log.Debugln("decode IE NGRANTraceID")
 		case ngapType.ProtocolIEIDNGRANCGI: // ignore
 			nGRANCGI = ie.Value.NGRANCGI
-			ran.Log.Trace("Decode IE NGRANCGI")
+			ran.Log.Debugln("decode IE NGRANCGI")
 		case ngapType.ProtocolIEIDTraceCollectionEntityIPAddress: // ignore
 			traceCollectionEntityIPAddress = ie.Value.TraceCollectionEntityIPAddress
-			ran.Log.Trace("Decode IE TraceCollectionEntityIPAddress")
+			ran.Log.Debugln("decode IE TraceCollectionEntityIPAddress")
 		}
 	}
 	if aMFUENGAPID == nil {
-		ran.Log.Error("AmfUeNgapID is nil")
-		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDAMFUENGAPID)
+		ran.Log.Errorln("AmfUeNgapID is nil")
+		item := buildCriticalityDiagnosticsIEItem(ngapType.CriticalityPresentReject, ngapType.ProtocolIEIDAMFUENGAPID,
+			ngapType.TypeOfErrorPresentMissing)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 	if rANUENGAPID == nil {
-		ran.Log.Error("RanUeNgapID is nil")
-		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDRANUENGAPID)
+		ran.Log.Errorln("RanUeNgapID is nil")
+		item := buildCriticalityDiagnosticsIEItem(ngapType.CriticalityPresentReject, ngapType.ProtocolIEIDRANUENGAPID,
+			ngapType.TypeOfErrorPresentMissing)
 		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
 	}
 
@@ -4544,7 +4556,7 @@ func HandleCellTrafficTrace(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 
 	ranUe.Trsr = hex.EncodeToString(nGRANTraceID.Value[6:])
 
-	ranUe.Log.Tracef("TRSR[%s]", ranUe.Trsr)
+	ranUe.Log.Debugf("TRSR[%s]", ranUe.Trsr)
 
 	switch nGRANCGI.Present {
 	case ngapType.NGRANCGIPresentNRCGI:
@@ -4660,17 +4672,20 @@ func buildCriticalityDiagnostics(
 	return criticalityDiagnostics
 }
 
-func buildCriticalityDiagnosticsIEItem(ieID int64) (item ngapType.CriticalityDiagnosticsIEItem) {
+func buildCriticalityDiagnosticsIEItem(ieCriticality aper.Enumerated, ieID int64, typeOfErr aper.Enumerated) (
+	item ngapType.CriticalityDiagnosticsIEItem,
+) {
 	item = ngapType.CriticalityDiagnosticsIEItem{
 		IECriticality: ngapType.Criticality{
-			Value: ngapType.CriticalityPresentReject,
+			Value: ieCriticality,
 		},
 		IEID: ngapType.ProtocolIEID{
 			Value: ieID,
 		},
 		TypeOfError: ngapType.TypeOfError{
-			Value: ngapType.TypeOfErrorPresentMissing,
+			Value: typeOfErr,
 		},
 	}
+
 	return item
 }

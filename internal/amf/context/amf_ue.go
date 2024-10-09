@@ -346,10 +346,7 @@ func (ue *AmfUe) Remove() {
 		}
 	}
 
-	// tmsiGenerator.FreeID(int64(ue.Tmsi))
-	if err := AMF_Self().Drsm.ReleaseInt32ID(ue.Tmsi); err != nil {
-		logger.ContextLog.Errorf("Error releasing RanUe: %v", err)
-	}
+	tmsiGenerator.FreeID(int64(ue.Tmsi))
 
 	if len(ue.Supi) > 0 {
 		AMF_Self().UePool.Delete(ue.Supi)
