@@ -21,9 +21,7 @@ func init() {
 	smfContext.NfInstanceID = uuid.New().String()
 }
 
-const (
-	IPV4 = "IPv4"
-)
+const IPV4 = "IPv4"
 
 var smfContext SMFContext
 
