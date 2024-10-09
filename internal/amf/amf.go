@@ -15,7 +15,7 @@ const (
 	NGAPP_PORT = 38412
 )
 
-func Start(mongoDBURL string, nrfURL string, webuiURL string) error {
+func Start(nrfURL string, webuiURL string) error {
 	configuration := factory.Configuration{
 		AmfName:      "AMF",
 		NgapIpList:   []string{"0.0.0.0"},

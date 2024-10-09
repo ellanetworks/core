@@ -55,7 +55,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = amf.Start(cfg.DB.Url, nrfUrl, webuiUrl)
+	err = amf.Start(nrfUrl, webuiUrl)
 	if err != nil {
 		return err
 	}
