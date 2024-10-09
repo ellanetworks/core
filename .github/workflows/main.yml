@@ -24,7 +24,7 @@ jobs:
     needs: [go-build, go-unit-test, go-vet, go-lint]
     uses: ./.github/workflows/rock-build.yaml
   rock-publish-dev:
-    if: github.ref_name == 'main'
+    if: github.ref_name != 'main'
     needs: [rock-build]
     uses: ./.github/workflows/rock-publish-dev.yaml
   rock-publish:
