@@ -3,7 +3,6 @@ package consumer
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"time"
 
@@ -12,24 +11,9 @@ import (
 	"github.com/omec-project/openapi/Nsmf_PDUSession"
 	"github.com/omec-project/openapi/models"
 	amf_context "github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
 const N2SMINFO_ID = "N2SmInfo"
-
-func getServingSmfIndex(smfNum int) (servingSmfIndex int) {
-	servingSmfIndexStr := os.Getenv("SERVING_SMF_INDEX")
-	i, err := strconv.Atoi(servingSmfIndexStr)
-	if err != nil {
-		logger.ConsumerLog.Errorf("Could not convert %s to int: %v", servingSmfIndexStr, err)
-	}
-	servingSmfIndexInt := i + 1
-	servingSmfIndex = servingSmfIndexInt % smfNum
-	if err := os.Setenv("SERVING_SMF_INDEX", strconv.Itoa(servingSmfIndex)); err != nil {
-		logger.ConsumerLog.Errorf("Could not set env SERVING_SMF_INDEX: %v", err)
-	}
-	return
-}
 
 func SelectSmf(
 	ue *amf_context.AmfUe,
