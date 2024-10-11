@@ -8,9 +8,7 @@ import (
 
 var UDR = &service.UDR{}
 
-const (
-	SBI_PORT = 29504
-)
+const SBI_PORT = 29504
 
 func Start(mongoDBURL string, mongoDBName, nrfURL string, webuiURL string) error {
 	configuration := factory.Configuration{
