@@ -41,6 +41,7 @@ type UDMContext struct {
 	NFDiscoveryClient              *Nnrf_NFDiscovery.APIClient
 	UdmUePool                      sync.Map // map[supi]*UdmUeContext
 	NrfUri                         string
+	UdrUri                         string
 	GpsiSupiList                   models.IdentityData
 	SharedSubsDataMap              map[string]models.SharedData // sharedDataIds as key
 	SubscriptionOfSharedDataChange sync.Map                     // subscriptionID as key

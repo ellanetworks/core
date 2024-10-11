@@ -48,6 +48,7 @@ func setEnvironmentVariables() error {
 
 func startNetwork(cfg config.Config) error {
 	udmUrl := "http://127.0.0.1:29503"
+	udrUrl := "http://127.0.0.1:29504"
 	webuiUrl, err := webui.Start(cfg.DB.Url, cfg.DB.Name)
 	if err != nil {
 		return err
@@ -72,7 +73,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = udm.Start(nrfUrl, webuiUrl)
+	err = udm.Start(nrfUrl, udrUrl, webuiUrl)
 	if err != nil {
 		return err
 	}

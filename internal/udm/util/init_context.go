@@ -36,6 +36,7 @@ func InitUDMContext(udmContext *context.UDMContext) {
 		}
 	}
 	udmContext.NrfUri = configuration.NrfUri
+	udmContext.UdrUri = configuration.UdrUri
 	servingNameList := configuration.ServiceNameList
 
 	udmContext.SuciProfiles = []suci.SuciProfile{

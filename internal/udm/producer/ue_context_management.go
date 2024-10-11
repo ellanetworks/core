@@ -2,17 +2,14 @@ package producer
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/antihax/optional"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/ella/internal/udm/consumer"
 	udm_context "github.com/yeastengine/ella/internal/udm/context"
 	"github.com/yeastengine/ella/internal/udm/logger"
 	"github.com/yeastengine/ella/internal/udm/producer/callback"
@@ -20,52 +17,11 @@ import (
 )
 
 func createUDMClientToUDR(id string) (*Nudr_DataRepository.APIClient, error) {
-	uri := getUdrURI(id)
-	if uri == "" {
-		logger.Handlelog.Errorf("ID[%s] does not match any UDR", id)
-		return nil, fmt.Errorf("No UDR URI found")
-	}
+	uri := udm_context.UDM_Self().UdrUri
 	cfg := Nudr_DataRepository.NewConfiguration()
 	cfg.SetBasePath(uri)
 	clientAPI := Nudr_DataRepository.NewAPIClient(cfg)
 	return clientAPI, nil
-}
-
-func getUdrURI(id string) string {
-	if strings.Contains(id, "imsi") || strings.Contains(id, "nai") { // supi
-		ue, ok := udm_context.UDM_Self().UdmUeFindBySupi(id)
-		if ok {
-			ue.UdrUri = consumer.SendNFIntancesUDR(id, consumer.NFDiscoveryToUDRParamSupi)
-			return ue.UdrUri
-		} else {
-			ue = udm_context.UDM_Self().NewUdmUe(id)
-			ue.UdrUri = consumer.SendNFIntancesUDR(id, consumer.NFDiscoveryToUDRParamSupi)
-			return ue.UdrUri
-		}
-	} else if strings.Contains(id, "pei") {
-		var udrURI string
-		udm_context.UDM_Self().UdmUePool.Range(func(key, value interface{}) bool {
-			ue := value.(*udm_context.UdmUeContext)
-			if ue.Amf3GppAccessRegistration != nil && ue.Amf3GppAccessRegistration.Pei == id {
-				ue.UdrUri = consumer.SendNFIntancesUDR(ue.Supi, consumer.NFDiscoveryToUDRParamSupi)
-				udrURI = ue.UdrUri
-				return false
-			} else if ue.AmfNon3GppAccessRegistration != nil && ue.AmfNon3GppAccessRegistration.Pei == id {
-				ue.UdrUri = consumer.SendNFIntancesUDR(ue.Supi, consumer.NFDiscoveryToUDRParamSupi)
-				udrURI = ue.UdrUri
-				return false
-			}
-			return true
-		})
-		return udrURI
-	} else if strings.Contains(id, "extgroupid") {
-		// extra group id
-		return consumer.SendNFIntancesUDR(id, consumer.NFDiscoveryToUDRParamExtGroupId)
-	} else if strings.Contains(id, "msisdn") || strings.Contains(id, "extid") {
-		// gpsi
-		return consumer.SendNFIntancesUDR(id, consumer.NFDiscoveryToUDRParamGpsi)
-	}
-	return consumer.SendNFIntancesUDR("", consumer.NFDiscoveryToUDRParamNone)
 }
 
 func HandleGetAmf3gppAccessRequest(request *httpwrapper.Request) *httpwrapper.Response {

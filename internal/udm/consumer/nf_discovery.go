@@ -7,9 +7,7 @@ import (
 
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
-	udm_context "github.com/yeastengine/ella/internal/udm/context"
 	"github.com/yeastengine/ella/internal/udm/logger"
-	"github.com/yeastengine/ella/internal/udm/util"
 )
 
 const (
@@ -44,29 +42,29 @@ func SendNFIntances(nrfUri string, targetNfType, requestNfType models.NfType,
 	return
 }
 
-func SendNFIntancesUDR(id string, types int) string {
-	self := udm_context.UDM_Self()
-	targetNfType := models.NfType_UDR
-	requestNfType := models.NfType_UDM
-	localVarOptionals := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		// 	DataSet: optional.NewInterface(models.DataSetId_SUBSCRIPTION),
-	}
-	// switch types {
-	// case NFDiscoveryToUDRParamSupi:
-	// 	localVarOptionals.Supi = optional.NewString(id)
-	// case NFDiscoveryToUDRParamExtGroupId:
-	// 	localVarOptionals.ExternalGroupIdentity = optional.NewString(id)
-	// case NFDiscoveryToUDRParamGpsi:
-	// 	localVarOptionals.Gpsi = optional.NewString(id)
-	// }
-	fmt.Println(self.NrfUri)
-	result, err := SendNFIntances(self.NrfUri, targetNfType, requestNfType, localVarOptionals)
-	if err != nil {
-		logger.Handlelog.Error(err.Error())
-		return ""
-	}
-	for _, profile := range result.NfInstances {
-		return util.SearchNFServiceUri(profile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
-	}
-	return ""
-}
+// func SendNFIntancesUDR(id string, types int) string {
+// 	self := udm_context.UDM_Self()
+// 	targetNfType := models.NfType_UDR
+// 	requestNfType := models.NfType_UDM
+// 	localVarOptionals := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
+// 		// 	DataSet: optional.NewInterface(models.DataSetId_SUBSCRIPTION),
+// 	}
+// 	// switch types {
+// 	// case NFDiscoveryToUDRParamSupi:
+// 	// 	localVarOptionals.Supi = optional.NewString(id)
+// 	// case NFDiscoveryToUDRParamExtGroupId:
+// 	// 	localVarOptionals.ExternalGroupIdentity = optional.NewString(id)
+// 	// case NFDiscoveryToUDRParamGpsi:
+// 	// 	localVarOptionals.Gpsi = optional.NewString(id)
+// 	// }
+// 	fmt.Println(self.NrfUri)
+// 	result, err := SendNFIntances(self.NrfUri, targetNfType, requestNfType, localVarOptionals)
+// 	if err != nil {
+// 		logger.Handlelog.Error(err.Error())
+// 		return ""
+// 	}
+// 	for _, profile := range result.NfInstances {
+// 		return util.SearchNFServiceUri(profile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
+// 	}
+// 	return ""
+// }
