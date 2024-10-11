@@ -41,8 +41,9 @@ type PCFContext struct {
 	NfService       map[models.ServiceName]models.NfService
 	PcfServiceUris  map[models.ServiceName]string
 	PcfSuppFeats    map[models.ServiceName]openapi.SupportedFeature
+	AmfUri          string
 	NrfUri          string
-	DefaultUdrURI   string
+	UdrUri          string
 	// UePool          map[string]*UeContext
 	UePool sync.Map
 	// Bdt Policy related
@@ -308,13 +309,6 @@ func (c *PCFContext) SessionBinding(req *models.AppSessionContextReqData) (*UeSm
 		err = fmt.Errorf("No SM policy found")
 	}
 	return policy, err
-}
-
-// SetDefaultUdrURI ... function to set DefaultUdrURI
-func (c *PCFContext) SetDefaultUdrURI(uri string) {
-	c.DefaultUdrURILock.Lock()
-	defer c.DefaultUdrURILock.Unlock()
-	c.DefaultUdrURI = uri
 }
 
 func Ipv4Pool(ipindex int32) string {

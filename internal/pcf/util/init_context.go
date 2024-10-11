@@ -22,7 +22,9 @@ func InitpcfContext(context *context.PCFContext) {
 	}
 
 	sbi := configuration.Sbi
+	context.AmfUri = configuration.AmfUri
 	context.NrfUri = configuration.NrfUri
+	context.UdrUri = configuration.UdrUri
 	context.UriScheme = ""
 	context.RegisterIPv4 = sbi.RegisterIPv4
 	context.SBIPort = sbi.Port

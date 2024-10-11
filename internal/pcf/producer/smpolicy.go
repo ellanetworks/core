@@ -62,17 +62,11 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		logger.SMpolicylog.Warnf("Supi[%s] is not supported in PCF", request.Supi)
 		return nil, nil, &problemDetail
 	}
-	udrUri := getUdrUri(ue)
-	if udrUri == "" {
-		problemDetail := util.GetProblemDetail("Can't find corresponding UDR with UE", util.USER_UNKNOWN)
-		logger.SMpolicylog.Warnf("Can't find corresponding UDR with UE[%s]", ue.Supi)
-		return nil, nil, &problemDetail
-	}
 	var smData models.SmPolicyData
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
-		client := util.GetNudrClient(udrUri)
+		client := util.GetNudrClient(pcfSelf.UdrUri)
 		param := Nudr_DataRepository.PolicyDataUesUeIdSmDataGetParamOpts{
 			Snssai: optional.NewInterface(util.MarshToJsonString(*request.SliceInfo)),
 			Dnn:    optional.NewString(request.Dnn),

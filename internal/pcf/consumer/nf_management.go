@@ -34,15 +34,6 @@ func BuildNFInstance(context *pcf_context.PCFContext) (profile models.NfProfile,
 
 	profile.PcfInfo = &models.PcfInfo{
 		DnnList: context.DnnList,
-		// SupiRanges: &[]models.SupiRange{
-		// 	{
-		// 		//from TS 29.510 6.1.6.2.9 example2
-		//		//no need to set supirange in this moment 2019/10/4
-		// 		Start:   "123456789040000",
-		// 		End:     "123456789059999",
-		// 		Pattern: "^imsi-12345678904[0-9]{4}$",
-		// 	},
-		// },
 	}
 	return profile, err
 }

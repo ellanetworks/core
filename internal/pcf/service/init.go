@@ -11,9 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/antihax/optional"
 	"github.com/gin-contrib/cors"
-	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/http2_util"
 	"github.com/omec-project/util/idgenerator"
@@ -193,8 +191,6 @@ func (pcf *PCF) RegisterNF() {
 				initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
 			} else {
 				pcf.StartKeepAliveTimer(profile)
-				// NRF Registration Successful, Trigger for UDR Discovery
-				pcf.DiscoverUdr()
 			}
 		} else {
 			// stopping keepAlive timer
@@ -261,23 +257,23 @@ func (pcf *PCF) UpdateNF() {
 	KeepAliveTimer = time.AfterFunc(time.Duration(heartBeatTimer)*time.Second, pcf.UpdateNF)
 }
 
-func (pcf *PCF) DiscoverUdr() {
-	self := context.PCF_Self()
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
-	}
-	if resp, err := consumer.SendSearchNFInstances(self.NrfUri, models.NfType_UDR, models.NfType_PCF, param); err != nil {
-		initLog.Errorln(err)
-	} else {
-		for _, nfProfile := range resp.NfInstances {
-			udruri := util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
-			if udruri != "" {
-				self.SetDefaultUdrURI(udruri)
-				break
-			}
-		}
-	}
-}
+// func (pcf *PCF) DiscoverUdr() {
+// 	self := context.PCF_Self()
+// 	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
+// 		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
+// 	}
+// 	if resp, err := consumer.SendSearchNFInstances(self.NrfUri, models.NfType_UDR, models.NfType_PCF, param); err != nil {
+// 		initLog.Errorln(err)
+// 	} else {
+// 		for _, nfProfile := range resp.NfInstances {
+// 			udruri := util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
+// 			if udruri != "" {
+// 				self.SetDefaultUdrURI(udruri)
+// 				break
+// 			}
+// 		}
+// 	}
+// }
 
 func ImsiExistInDeviceGroup(devGroup *protos.DeviceGroup, imsi string) bool {
 	for _, i := range devGroup.Imsi {

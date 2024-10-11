@@ -220,22 +220,13 @@ func PostPoliciesProcedure(polAssoId string,
 			ue = newUe
 		}
 	}
-	udrUri := getUdrUri(ue)
-	if udrUri == "" {
-		// Can't find any UDR support this Ue
-		pcfSelf.UePool.Delete(ue.Supi)
-		problemDetail := util.GetProblemDetail("Ue is not supported in PCF", util.USER_UNKNOWN)
-		logger.AMpolicylog.Errorf("Ue[%s] is not supported in PCF", ue.Supi)
-		return nil, "", &problemDetail
-	}
-	ue.UdrUri = udrUri
-
+	ue.UdrUri = pcfSelf.UdrUri
 	response.Request = deepcopy.Copy(&policyAssociationRequest).(*models.PolicyAssociationRequest)
 	assolId := fmt.Sprintf("%s-%d", ue.Supi, ue.PolAssociationIDGenerator)
 	amPolicy := ue.AMPolicyData[assolId]
 
 	if amPolicy == nil || amPolicy.AmPolicyData == nil {
-		client := util.GetNudrClient(udrUri)
+		client := util.GetNudrClient(pcfSelf.UdrUri)
 		var response *http.Response
 		amData, response, err := client.DefaultApi.PolicyDataUesUeIdAmDataGet(context.Background(), ue.Supi)
 		if err != nil || response == nil || response.StatusCode != http.StatusOK {
@@ -296,16 +287,13 @@ func PostPoliciesProcedure(polAssoId string,
 
 		if needSubscribe {
 			logger.AMpolicylog.Debugf("Subscribe AMF status change[GUAMI: %+v]", *policyAssociationRequest.Guami)
-			amfUri := consumer.SendNFIntancesAMF(pcfSelf.NrfUri, *policyAssociationRequest.Guami, models.ServiceName_NAMF_COMM)
-			if amfUri != "" {
-				problemDetails, err := consumer.AmfStatusChangeSubscribe(amfUri, []models.Guami{*policyAssociationRequest.Guami})
-				if err != nil {
-					logger.AMpolicylog.Errorf("Subscribe AMF status change error[%+v]", err)
-				} else if problemDetails != nil {
-					logger.AMpolicylog.Errorf("Subscribe AMF status change failed[%+v]", problemDetails)
-				} else {
-					amPolicy.Guami = policyAssociationRequest.Guami
-				}
+			problemDetails, err := consumer.AmfStatusChangeSubscribe(pcfSelf.AmfUri, []models.Guami{*policyAssociationRequest.Guami})
+			if err != nil {
+				logger.AMpolicylog.Errorf("Subscribe AMF status change error[%+v]", err)
+			} else if problemDetails != nil {
+				logger.AMpolicylog.Errorf("Subscribe AMF status change failed[%+v]", problemDetails)
+			} else {
+				amPolicy.Guami = policyAssociationRequest.Guami
 			}
 		} else {
 			logger.AMpolicylog.Debugf("AMF status[GUAMI: %+v] has been subscribed", *policyAssociationRequest.Guami)
@@ -410,9 +398,4 @@ func SendAMPolicyTerminationRequestNotification(ue *pcf_context.UeContext,
 		}
 		return
 	}
-}
-
-// returns UDR Uri of Ue, if ue.UdrUri dose not exist, query NRF to get supported Udr Uri
-func getUdrUri(ue *pcf_context.UeContext) string {
-	return consumer.SendNFIntancesUDR(pcf_context.PCF_Self().NrfUri, ue.Supi)
 }

@@ -8,11 +8,9 @@ import (
 	"github.com/antihax/optional"
 	"github.com/google/uuid"
 	"github.com/mohae/deepcopy"
-	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/ella/internal/pcf/consumer"
 	pcf_context "github.com/yeastengine/ella/internal/pcf/context"
 	"github.com/yeastengine/ella/internal/pcf/logger"
 	"github.com/yeastengine/ella/internal/pcf/util"
@@ -117,7 +115,7 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 			param := Nudr_DataRepository.PolicyDataBdtDataBdtReferenceIdPutParamOpts{
 				BdtData: optional.NewInterface(bdtData),
 			}
-			client := util.GetNudrClient(getDefaultUdrUri(pcfSelf))
+			client := util.GetNudrClient(pcfSelf.UdrUri)
 			rsp, err := client.DefaultApi.PolicyDataBdtDataBdtReferenceIdPut(context.Background(), bdtData.BdtRefId, &param)
 			if err != nil {
 				logger.Bdtpolicylog.Warnf("UDR Put BdtDate error[%s]", err.Error())
@@ -169,20 +167,9 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	logger.Bdtpolicylog.Traceln("Handle BDT Policy Create")
 
 	pcfSelf := pcf_context.PCF_Self()
-	udrUri := getDefaultUdrUri(pcfSelf)
-	if udrUri == "" {
-		// Can't find any UDR support this Ue
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusServiceUnavailable,
-			Detail: "Can't find any UDR which supported to this PCF",
-		}
-		logger.Bdtpolicylog.Warnf(problemDetails.Detail)
-		return nil, nil, problemDetails
-	}
-	pcfSelf.SetDefaultUdrURI(udrUri)
 
 	// Query BDT DATA array from UDR
-	client := util.GetNudrClient(udrUri)
+	client := util.GetNudrClient(pcfSelf.UdrUri)
 	bdtDatas, httpResponse, err := client.DefaultApi.PolicyDataBdtDataGet(context.Background())
 	if err != nil || httpResponse == nil || httpResponse.StatusCode != http.StatusOK {
 		problemDetails = &models.ProblemDetails{
@@ -265,25 +252,6 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	}
 	logger.Bdtpolicylog.Tracef("BDT Policy Id[%s] Create", bdtPolicyID)
 	return header, response, problemDetails
-}
-
-func getDefaultUdrUri(context *pcf_context.PCFContext) string {
-	context.DefaultUdrURILock.RLock()
-	defer context.DefaultUdrURILock.RUnlock()
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
-	}
-	resp, err := consumer.SendSearchNFInstances(context.NrfUri, models.NfType_UDR, models.NfType_PCF, param)
-	if err != nil {
-		return ""
-	}
-	for _, nfProfile := range resp.NfInstances {
-		udruri := util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
-		if udruri != "" {
-			return udruri
-		}
-	}
-	return ""
 }
 
 // get default background data transfer policy

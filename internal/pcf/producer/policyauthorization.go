@@ -1108,7 +1108,7 @@ func handleBDTPolicyInd(pcfSelf *pcf_context.PCFContext,
 		SuppFeat: pcfSelf.PcfSuppFeats[models.ServiceName_NPCF_POLICYAUTHORIZATION].NegotiateWith(
 			requestSuppFeat).String(),
 	}
-	client := util.GetNudrClient(getDefaultUdrUri(pcfSelf))
+	client := util.GetNudrClient(pcfSelf.UdrUri)
 	bdtData, resp, err1 := client.DefaultApi.PolicyDataBdtDataBdtReferenceIdGet(context.Background(), req.BdtRefId)
 	if err1 != nil {
 		return fmt.Errorf("UDR Get BdtData error[%s]", err1.Error())
