@@ -270,7 +270,6 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 						// TS 24.501 5.4.5.2.3 case a) 1) iv)
 						smContext = context.NewSmContext(pduSessionID)
 						smContext.SetAccessType(anType)
-						smContext.SetSmfID(ueContextInSmf.SmfInstanceId)
 						smContext.SetDnn(ueContextInSmf.Dnn)
 						smContext.SetPlmnID(*ueContextInSmf.PlmnId)
 						ue.StoreSmContext(pduSessionID, smContext)
@@ -1121,7 +1120,6 @@ func communicateWithUDM(ue *context.AmfUe, accessType models.AccessType) error {
 
 	var uecmUri, sdmUri string
 	for _, nfProfile := range resp.NfInstances {
-		ue.UdmId = nfProfile.NfInstanceId
 		uecmUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDM_UECM, models.NfServiceStatus_REGISTERED)
 		sdmUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDM_SDM, models.NfServiceStatus_REGISTERED)
 		if uecmUri != "" && sdmUri != "" {
@@ -1175,18 +1173,19 @@ func communicateWithUDM(ue *context.AmfUe, accessType models.AccessType) error {
 
 func getSubscribedNssai(ue *context.AmfUe) {
 	amfSelf := context.AMF_Self()
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		Supi: optional.NewString(ue.Supi),
-	}
-	for {
-		err := consumer.SearchUdmSdmInstance(ue, amfSelf.NrfUri, models.NfType_UDM, models.NfType_AMF, &param)
-		if err != nil {
-			ue.GmmLog.Errorf("AMF can not select an Nudm_SDM Instance by NRF[Error: %+v]", err)
-			time.Sleep(2 * time.Second)
-		} else {
-			break
-		}
-	}
+	// param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
+	// 	Supi: optional.NewString(ue.Supi),
+	// }
+	// for {
+	// 	err := consumer.SearchUdmSdmInstance(ue, amfSelf.NrfUri, models.NfType_UDM, models.NfType_AMF, &param)
+	// 	if err != nil {
+	// 		ue.GmmLog.Errorf("AMF can not select an Nudm_SDM Instance by NRF[Error: %+v]", err)
+	// 		time.Sleep(2 * time.Second)
+	// 	} else {
+	// 		break
+	// 	}
+	// }
+	ue.NudmSDMUri = amfSelf.UdmsdmUri
 	problemDetails, err := consumer.SDMGetSliceSelectionSubscriptionData(ue)
 	if problemDetails != nil {
 		ue.GmmLog.Errorf("SDM_Get Slice Selection Subscription Data Failed Problem[%+v]", problemDetails)
@@ -1225,18 +1224,7 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 		}
 
 		if needSliceSelection {
-			if ue.NssfUri == "" {
-				for {
-					err := consumer.SearchNssfNSSelectionInstance(ue, amfSelf.NrfUri, models.NfType_NSSF, models.NfType_AMF, nil)
-					if err != nil {
-						ue.GmmLog.Errorf("AMF can not select an NSSF Instance by NRF[Error: %+v]", err)
-						time.Sleep(2 * time.Second)
-					} else {
-						break
-					}
-				}
-			}
-
+			ue.NssfUri = amfSelf.NssfUri
 			// Step 4
 			problemDetails, err := consumer.NSSelectionGetForRegistration(ue, requestedNssai)
 			if problemDetails != nil {

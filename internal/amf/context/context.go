@@ -65,6 +65,9 @@ type AMFContext struct {
 	AMFStatusSubscriptions          sync.Map // map[subscriptionID]models.SubscriptionData
 	NfStatusSubscriptions           sync.Map // map[NfInstanceID]models.NrfSubscriptionData.SubscriptionId
 	NrfUri                          string
+	NssfUri                         string
+	SmfUri                          string
+	UdmsdmUri                       string
 	SecurityAlgorithm               SecurityAlgorithm
 	NetworkName                     factory.NetworkName
 	NgapIpList                      []string // NGAP Server IP

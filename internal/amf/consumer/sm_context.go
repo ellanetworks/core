@@ -3,20 +3,16 @@ package consumer
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"strconv"
 	"time"
 
-	"github.com/antihax/optional"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/Nsmf_PDUSession"
 	"github.com/omec-project/openapi/models"
 	amf_context "github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/logger"
-	"github.com/yeastengine/ella/internal/amf/util"
 )
 
 const N2SMINFO_ID = "N2SmInfo"
@@ -35,27 +31,6 @@ func getServingSmfIndex(smfNum int) (servingSmfIndex int) {
 	return
 }
 
-func setAltSmfProfile(smCtxt *amf_context.SmContext) error {
-	ignoreSmfId := smCtxt.SmfID()
-	var altSmfInst []models.NfProfile
-	// iterate over nf instances to ignore failed NF
-	for _, inst := range smCtxt.SmfProfiles {
-		if inst.NfInstanceId != ignoreSmfId {
-			altSmfInst = append(altSmfInst, inst)
-		}
-	}
-
-	if len(altSmfInst) > 0 {
-		smCtxt.SmfProfiles = altSmfInst
-		nfProfile := altSmfInst[0]
-		smfUri := util.SearchNFServiceUri(nfProfile, models.ServiceName_NSMF_PDUSESSION, models.NfServiceStatus_REGISTERED)
-		smCtxt.SetSmfID(nfProfile.NfInstanceId)
-		smCtxt.SetSmfUri(smfUri)
-		return nil
-	}
-	return fmt.Errorf("no alternate profiles available")
-}
-
 func SelectSmf(
 	ue *amf_context.AmfUe,
 	anType models.AccessType,
@@ -63,25 +38,11 @@ func SelectSmf(
 	snssai models.Snssai,
 	dnn string,
 ) (*amf_context.SmContext, uint8, error) {
-	var smfUri string
-
+	context := amf_context.AMF_Self()
 	ue.GmmLog.Infof("Select SMF [snssai: %+v, dnn: %+v]", snssai, dnn)
-
-	nrfUri := ue.ServingAMF.NrfUri // default NRF URI is pre-configured by AMF
-
 	nsiInformation := ue.GetNsiInformationFromSnssai(anType, snssai)
 	if nsiInformation == nil {
-		// TODO: Set a timeout of NSSF Selection or will starvation here
-		for {
-			if err := SearchNssfNSSelectionInstance(ue, nrfUri, models.NfType_NSSF,
-				models.NfType_AMF, nil); err != nil {
-				ue.GmmLog.Errorf("AMF can not select an NSSF Instance by NRF[Error: %+v]", err)
-				time.Sleep(2 * time.Second)
-			} else {
-				break
-			}
-		}
-
+		ue.NssfUri = context.NssfUri
 		response, problemDetails, err := NSSelectionGetForPduSession(ue, snssai)
 		if err != nil {
 			err = fmt.Errorf("NSSelection Get Error[%+v]", err)
@@ -98,46 +59,11 @@ func SelectSmf(
 	smContext.SetDnn(dnn)
 	smContext.SetAccessType(anType)
 
-	if nsiInformation == nil {
-		ue.GmmLog.Warnf("nsiInformation is still nil, use default NRF[%s]", nrfUri)
-	} else {
+	if nsiInformation != nil {
 		smContext.SetNsInstance(nsiInformation.NsiId)
-		nrfApiUri, err := url.Parse(nsiInformation.NrfId)
-		if err != nil {
-			ue.GmmLog.Errorf("Parse NRF URI error, use default NRF[%s]", nrfUri)
-		} else {
-			nrfUri = fmt.Sprintf("%s://%s", nrfApiUri.Scheme, nrfApiUri.Host)
-		}
 	}
 
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NSMF_PDUSESSION}),
-		Dnn:          optional.NewString(dnn),
-		Snssais:      optional.NewInterface(util.MarshToJsonString([]models.Snssai{snssai})),
-	}
-	if ue.PlmnId.Mcc != "" {
-		param.TargetPlmnList = optional.NewInterface(util.MarshToJsonString(ue.PlmnId))
-	}
-
-	ue.GmmLog.Debugf("Search SMF from NRF[%s]", nrfUri)
-
-	result, err := SendSearchNFInstances(nrfUri, models.NfType_SMF, models.NfType_AMF, &param)
-	if err != nil {
-		return nil, nasMessage.Cause5GMMPayloadWasNotForwarded, err
-	}
-
-	if len(result.NfInstances) == 0 {
-		return nil, nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice, fmt.Errorf("DNN[%s] is not supported or not subscribed in the slice[Snssai: %+v]", dnn, snssai)
-	}
-
-	// select the first SMF, TODO: select base on other info
-	smContext.SmfProfiles = result.NfInstances
-	smfNum := len(result.NfInstances)
-	servingSmfIndex := getServingSmfIndex(smfNum)
-	nfProfile := result.NfInstances[servingSmfIndex]
-	smfUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NSMF_PDUSESSION, models.NfServiceStatus_REGISTERED)
-	smContext.SetSmfID(nfProfile.NfInstanceId)
-	smContext.SetSmfUri(smfUri)
+	smContext.SetSmfUri(context.SmfUri)
 	return smContext, 0, nil
 }
 
@@ -467,20 +393,6 @@ func SendUpdateSmContextRequest(smContext *amf_context.SmContext,
 
 	updateSmContextReponse, httpResponse, err := client.IndividualSMContextApi.UpdateSmContext(ctx, smContext.SmContextRef(),
 		updateSmContextRequest)
-	// retry on alternate SMF
-	if err != nil {
-		if errProfile := setAltSmfProfile(smContext); errProfile == nil {
-			configuration := Nsmf_PDUSession.NewConfiguration()
-			configuration.SetBasePath(smContext.SmfUri())
-			client := Nsmf_PDUSession.NewAPIClient(configuration)
-
-			ctx, cancel := context.WithTimeout(context.TODO(), 30*time.Second)
-			defer cancel()
-
-			updateSmContextReponse, httpResponse, err = client.IndividualSMContextApi.UpdateSmContext(ctx, smContext.SmContextRef(),
-				updateSmContextRequest)
-		}
-	}
 
 	if err == nil {
 		response = &updateSmContextReponse

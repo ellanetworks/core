@@ -31,6 +31,9 @@ type Configuration struct {
 	PlmnSupportList                 []PlmnSupportItem         `yaml:"plmnSupportList,omitempty"`
 	SupportDnnList                  []string                  `yaml:"supportDnnList,omitempty"`
 	NrfUri                          string                    `yaml:"nrfUri,omitempty"`
+	NssfUri                         string                    `yaml:"nssfUri,omitempty"`
+	SmfUri                          string                    `yaml:"smfUri,omitempty"`
+	UdmsdmUri                       string                    `yaml:"udmsdmUri,omitempty"`
 	WebuiUri                        string                    `yaml:"webuiUri"`
 	Security                        *Security                 `yaml:"security,omitempty"`
 	NetworkName                     NetworkName               `yaml:"networkName,omitempty"`

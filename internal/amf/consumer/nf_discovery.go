@@ -66,56 +66,6 @@ func SendNfDiscoveryToNrf(nrfUri string, targetNfType, requestNfType models.NfTy
 	return result, err
 }
 
-func SearchUdmSdmInstance(ue *amf_context.AmfUe, nrfUri string, targetNfType, requestNfType models.NfType,
-	param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
-) error {
-	resp, localErr := SendSearchNFInstances(nrfUri, targetNfType, requestNfType, param)
-	if localErr != nil {
-		return localErr
-	}
-
-	// select the first UDM_SDM, TODO: select base on other info
-	var sdmUri string
-	for _, nfProfile := range resp.NfInstances {
-		ue.UdmId = nfProfile.NfInstanceId
-		sdmUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDM_SDM, models.NfServiceStatus_REGISTERED)
-		if sdmUri != "" {
-			break
-		}
-	}
-	ue.NudmSDMUri = sdmUri
-	if ue.NudmSDMUri == "" {
-		err := fmt.Errorf("AMF can not select an UDM by NRF")
-		logger.ConsumerLog.Errorf(err.Error())
-		return err
-	}
-	return nil
-}
-
-func SearchNssfNSSelectionInstance(ue *amf_context.AmfUe, nrfUri string, targetNfType, requestNfType models.NfType,
-	param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
-) error {
-	resp, localErr := SendSearchNFInstances(nrfUri, targetNfType, requestNfType, param)
-	if localErr != nil {
-		return localErr
-	}
-
-	// select the first NSSF, TODO: select base on other info
-	var nssfUri string
-	for _, nfProfile := range resp.NfInstances {
-		ue.NssfId = nfProfile.NfInstanceId
-		nssfUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NNSSF_NSSELECTION, models.NfServiceStatus_REGISTERED)
-		if nssfUri != "" {
-			break
-		}
-	}
-	ue.NssfUri = nssfUri
-	if ue.NssfUri == "" {
-		return fmt.Errorf("AMF can not select an NSSF by NRF")
-	}
-	return nil
-}
-
 func SearchAmfCommunicationInstance(ue *amf_context.AmfUe, nrfUri string, targetNfType,
 	requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
 ) (err error) {

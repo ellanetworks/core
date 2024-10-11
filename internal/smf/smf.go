@@ -10,9 +10,7 @@ import (
 
 var SMF = &service.SMF{}
 
-const (
-	SBI_PORT = 29502
-)
+const SBI_PORT = 29502
 
 func Start(nrfURL string, webuiURL string) error {
 	configuration := factory.Configuration{
