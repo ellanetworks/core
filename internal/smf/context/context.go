@@ -4,13 +4,9 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
-	"github.com/omec-project/openapi/Nnrf_NFManagement"
 	"github.com/omec-project/openapi/Nudm_SubscriberDataManagement"
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/smf/factory"
@@ -31,9 +27,8 @@ type SMFContext struct {
 	Name         string
 	NfInstanceID string
 
-	URIScheme    models.UriScheme
-	BindingIPv4  string
-	RegisterIPv4 string
+	URIScheme   models.UriScheme
+	BindingIPv4 string
 
 	UPNodeIDs []NodeID
 	Key       string
@@ -43,11 +38,9 @@ type SMFContext struct {
 	SnssaiInfos []SnssaiSmfInfo
 
 	AmfUri string
-	NrfUri string
+	PcfUri string
 	UdmUri string
 
-	NFManagementClient             *Nnrf_NFManagement.APIClient
-	NFDiscoveryClient              *Nnrf_NFDiscovery.APIClient
 	SubscriberDataManagementClient *Nudm_SubscriberDataManagement.APIClient
 
 	UserPlaneInformation *UserPlaneInformation
@@ -59,17 +52,14 @@ type SMFContext struct {
 	UEPreConfigPathPool map[string]*UEPreConfigPaths
 	EnterpriseList      *map[string]string // map to contain slice-name:enterprise-name
 
-	NfStatusSubscriptions sync.Map // map[NfInstanceID]models.NrfSubscriptionData.SubscriptionId
-	PodIp                 string
+	PodIp string
 
-	StaticIpInfo             *[]factory.StaticIpInfo
-	CPNodeID                 NodeID
-	PFCPPort                 int
-	UDMProfile               models.NfProfile
-	NrfCacheEvictionInterval time.Duration
-	SBIPort                  int
-	LocalSEIDCount           uint64
-	EnableNrfCaching         bool
+	StaticIpInfo   *[]factory.StaticIpInfo
+	CPNodeID       NodeID
+	PFCPPort       int
+	UDMProfile     models.NfProfile
+	SBIPort        int
+	LocalSEIDCount uint64
 
 	// For ULCL
 	ULCLSupport bool
@@ -121,7 +111,6 @@ func InitSmfContext(config *factory.Config) *SMFContext {
 		return nil
 	} else {
 		smfContext.URIScheme = models.UriScheme_HTTP
-		smfContext.RegisterIPv4 = configuration.Sbi.RegisterIPv4
 		smfContext.SBIPort = configuration.Sbi.Port
 		if sbi.Port != 0 {
 			smfContext.SBIPort = sbi.Port
@@ -140,7 +129,7 @@ func InitSmfContext(config *factory.Config) *SMFContext {
 	}
 
 	smfContext.AmfUri = configuration.AmfUri
-	smfContext.NrfUri = configuration.NrfUri
+	smfContext.PcfUri = configuration.PcfUri
 	smfContext.UdmUri = configuration.UdmUri
 
 	if pfcp := configuration.PFCP; pfcp != nil {
@@ -175,33 +164,13 @@ func InitSmfContext(config *factory.Config) *SMFContext {
 		}
 	}
 
-	// Set client and set url
-	ManagementConfig := Nnrf_NFManagement.NewConfiguration()
-	ManagementConfig.SetBasePath(SMF_Self().NrfUri)
-	smfContext.NFManagementClient = Nnrf_NFManagement.NewAPIClient(ManagementConfig)
-
-	NFDiscovryConfig := Nnrf_NFDiscovery.NewConfiguration()
-	NFDiscovryConfig.SetBasePath(SMF_Self().NrfUri)
-	smfContext.NFDiscoveryClient = Nnrf_NFDiscovery.NewAPIClient(NFDiscovryConfig)
-
 	smfContext.ULCLSupport = configuration.ULCL
 
 	smfContext.SupportedPDUSessionType = IPV4
 
 	smfContext.UserPlaneInformation = NewUserPlaneInformation(&configuration.UserPlaneInformation)
 
-	smfContext.EnableNrfCaching = configuration.EnableNrfCaching
-
-	if configuration.EnableNrfCaching {
-		if configuration.NrfCacheEvictionInterval == 0 {
-			smfContext.NrfCacheEvictionInterval = time.Duration(900) // 15 mins
-		} else {
-			smfContext.NrfCacheEvictionInterval = time.Duration(configuration.NrfCacheEvictionInterval)
-		}
-	}
-
 	smfContext.PodIp = os.Getenv("POD_IP")
-	SetupNFProfile(config)
 
 	return &smfContext
 }
@@ -245,7 +214,6 @@ func GetUserPlaneInformation() *UserPlaneInformation {
 func ProcessConfigUpdate() bool {
 	logger.CtxLog.Infof("Dynamic config update received [%+v]", factory.UpdatedSmfConfig)
 
-	sendNrfRegistration := false
 	// Lets check updated config
 	updatedCfg := factory.UpdatedSmfConfig
 
@@ -258,7 +226,6 @@ func ProcessConfigUpdate() bool {
 			}
 		}
 		factory.UpdatedSmfConfig.DelSNssaiInfo = nil
-		sendNrfRegistration = true
 	}
 
 	if updatedCfg.AddSNssaiInfo != nil {
@@ -269,7 +236,6 @@ func ProcessConfigUpdate() bool {
 			}
 		}
 		factory.UpdatedSmfConfig.AddSNssaiInfo = nil
-		sendNrfRegistration = true
 	}
 
 	if updatedCfg.ModSNssaiInfo != nil {
@@ -280,7 +246,6 @@ func ProcessConfigUpdate() bool {
 			}
 		}
 		factory.UpdatedSmfConfig.ModSNssaiInfo = nil
-		sendNrfRegistration = true
 	}
 
 	// UP Node Links should be deleted before underlying UPFs are deleted
@@ -346,12 +311,7 @@ func ProcessConfigUpdate() bool {
 	// Any time config changes(Slices/UPFs/Links) then reset Default path(Key= nssai+Dnn)
 	GetUserPlaneInformation().ResetDefaultUserPlanePath()
 
-	// Send NRF Re-register if Slice info got updated
-	if sendNrfRegistration {
-		SetupNFProfile(&factory.SmfConfig)
-	}
-
-	return sendNrfRegistration
+	return true
 }
 
 func (smfCtxt *SMFContext) GetDnnStaticIpInfo(dnn string) *factory.StaticIpInfo {

@@ -99,12 +99,6 @@ var routes = Routes{
 		HTTPN1MessageNotify,
 	},
 	{
-		"NfStatusNotify",
-		strings.ToUpper("Post"),
-		"/nf-status-notify",
-		HTTPNfSubscriptionStatusNotify,
-	},
-	{
 		"DeregistrationNotify",
 		strings.ToUpper("Post"),
 		":supi/deregistration-notify",

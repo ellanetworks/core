@@ -29,25 +29,15 @@ import (
 
 type SMF struct{}
 
-var refreshNrfRegistration bool
-
 var (
 	KeepAliveTimer      *time.Timer
 	KeepAliveTimerMutex sync.Mutex
 )
 
-type OneInstance struct {
-	m    sync.Mutex
-	done uint32
-}
-
-var nrfRegInProgress OneInstance
-
 var initLog *logrus.Entry
 
 func init() {
 	initLog = logger.InitLog
-	nrfRegInProgress = OneInstance{}
 }
 
 func (smf *SMF) Initialize(smfConfig factory.Config, ueRoutingConfig factory.RoutingConfig) error {

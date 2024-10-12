@@ -1,10 +1,8 @@
 package context
 
 import (
-	"context"
 	"fmt"
 	"net"
-	"net/http"
 	"sync"
 	"sync/atomic"
 
@@ -12,10 +10,8 @@ import (
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/Namf_Communication"
-	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
 	"github.com/omec-project/openapi/models"
-	nrfCache "github.com/omec-project/openapi/nrfcache"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/smf/logger"
@@ -81,13 +77,13 @@ type SMContext struct {
 	ServingNfId       string `json:"servingNfId,omitempty" yaml:"servingNfId" bson:"servingNfId,omitempty"`
 	SmStatusNotifyUri string `json:"smStatusNotifyUri,omitempty" yaml:"smStatusNotifyUri" bson:"smStatusNotifyUri,omitempty"`
 
-	UpCnxState         models.UpCnxState       `json:"upCnxState,omitempty" yaml:"upCnxState" bson:"upCnxState,omitempty"`
-	SelectedPCFProfile models.NfProfile        `json:"selectedPCFProfile,omitempty" yaml:"selectedPCFProfile" bson:"selectedPCFProfile,omitempty"`
-	AnType             models.AccessType       `json:"anType" yaml:"anType" bson:"anType"`
-	RatType            models.RatType          `json:"ratType,omitempty" yaml:"ratType" bson:"ratType,omitempty"`
-	PresenceInLadn     models.PresenceState    `json:"presenceInLadn,omitempty" yaml:"presenceInLadn" bson:"presenceInLadn,omitempty"` // ignore
-	HoState            models.HoState          `json:"hoState,omitempty" yaml:"hoState" bson:"hoState,omitempty"`
-	DnnConfiguration   models.DnnConfiguration `json:"dnnConfiguration,omitempty" yaml:"dnnConfiguration" bson:"dnnConfiguration,omitempty"` // ?
+	UpCnxState models.UpCnxState `json:"upCnxState,omitempty" yaml:"upCnxState" bson:"upCnxState,omitempty"`
+	// SelectedPCFProfile models.NfProfile        `json:"selectedPCFProfile,omitempty" yaml:"selectedPCFProfile" bson:"selectedPCFProfile,omitempty"`
+	AnType           models.AccessType       `json:"anType" yaml:"anType" bson:"anType"`
+	RatType          models.RatType          `json:"ratType,omitempty" yaml:"ratType" bson:"ratType,omitempty"`
+	PresenceInLadn   models.PresenceState    `json:"presenceInLadn,omitempty" yaml:"presenceInLadn" bson:"presenceInLadn,omitempty"` // ignore
+	HoState          models.HoState          `json:"hoState,omitempty" yaml:"hoState" bson:"hoState,omitempty"`
+	DnnConfiguration models.DnnConfiguration `json:"dnnConfiguration,omitempty" yaml:"dnnConfiguration" bson:"dnnConfiguration,omitempty"` // ?
 
 	Snssai         *models.Snssai       `json:"snssai" yaml:"snssai" bson:"snssai"`
 	HplmnSnssai    *models.Snssai       `json:"hplmnSnssai,omitempty" yaml:"hplmnSnssai" bson:"hplmnSnssai,omitempty"`
@@ -319,50 +315,9 @@ func (smContext *SMContext) PDUAddressToNAS() (addr [12]byte, addrLen uint8) {
 
 // PCFSelection will select PCF for this SM Context
 func (smContext *SMContext) PCFSelection() error {
-	// Send NFDiscovery for find PCF
-	localVarOptionals := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{}
-
-	var rep models.SearchResult
-	var res *http.Response
-	var err error
-
-	if SMF_Self().EnableNrfCaching {
-		rep, err = nrfCache.SearchNFInstances(SMF_Self().NrfUri, models.NfType_PCF, models.NfType_SMF, &localVarOptionals)
-		if err != nil {
-			return err
-		}
-	} else {
-		rep, res, err = SMF_Self().
-			NFDiscoveryClient.
-			NFInstancesStoreApi.
-			SearchNFInstances(context.TODO(), models.NfType_PCF, models.NfType_SMF, &localVarOptionals)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			if rspCloseErr := res.Body.Close(); rspCloseErr != nil {
-				logger.PduSessLog.Errorf("SmfEventExposureNotification response body cannot close: %+v", rspCloseErr)
-			}
-		}()
-
-		if res != nil {
-			if status := res.StatusCode; status != http.StatusOK {
-				logger.CtxLog.Warningf("NFDiscovery PCF return status: %d\n", status)
-			}
-		}
-	}
-
-	smContext.SelectedPCFProfile = rep.NfInstances[0]
-
-	// Create SMPolicyControl Client for this SM Context
-	for _, service := range *smContext.SelectedPCFProfile.NfServices {
-		if service.ServiceName == models.ServiceName_NPCF_SMPOLICYCONTROL {
-			SmPolicyControlConf := Npcf_SMPolicyControl.NewConfiguration()
-			SmPolicyControlConf.SetBasePath(service.ApiPrefix)
-			smContext.SMPolicyClient = Npcf_SMPolicyControl.NewAPIClient(SmPolicyControlConf)
-		}
-	}
-
+	SmPolicyControlConf := Npcf_SMPolicyControl.NewConfiguration()
+	SmPolicyControlConf.SetBasePath(SMF_Self().PcfUri)
+	smContext.SMPolicyClient = Npcf_SMPolicyControl.NewAPIClient(SmPolicyControlConf)
 	return nil
 }
 
