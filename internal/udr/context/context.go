@@ -31,10 +31,8 @@ type UDRContext struct {
 	Name                                    string
 	UriScheme                               models.UriScheme
 	BindingIPv4                             string
-	RegisterIPv4                            string // IP register to NRF
 	HttpIPv6Address                         string
 	NfId                                    string
-	NrfUri                                  string
 	SubscriptionDataSubscriptions           map[subsId]*models.SubscriptionDataSubscriptions
 	PolicyDataSubscriptions                 map[subsId]*models.PolicyDataSubscription
 	UESubsCollection                        sync.Map // map[ueId]*UESubsData
@@ -86,10 +84,6 @@ func (context *UDRContext) Reset() {
 	context.Name = "udr"
 }
 
-func (context *UDRContext) GetIPv4Uri() string {
-	return fmt.Sprintf("%s://%s:%d", context.UriScheme, context.RegisterIPv4, context.SBIPort)
-}
-
 func (context *UDRContext) GetIPv4GroupUri(udrServiceType UDRServiceType) string {
 	var serviceUri string
 
@@ -100,7 +94,7 @@ func (context *UDRContext) GetIPv4GroupUri(udrServiceType UDRServiceType) string
 		serviceUri = ""
 	}
 
-	return fmt.Sprintf("%s://%s:%d%s", context.UriScheme, context.RegisterIPv4, context.SBIPort, serviceUri)
+	return fmt.Sprintf("%s://%s:%d%s", context.UriScheme, context.BindingIPv4, context.SBIPort, serviceUri)
 }
 
 // Create new UDR context

@@ -74,11 +74,11 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = udr.Start(cfg.DB.Url, cfg.DB.Name, nrfUrl, webuiUrl)
+	err = udr.Start(cfg.DB.Url, cfg.DB.Name, webuiUrl)
 	if err != nil {
 		return err
 	}
-	err = udm.Start(nrfUrl, udrUrl, webuiUrl)
+	err = udm.Start(udrUrl, webuiUrl)
 	if err != nil {
 		return err
 	}

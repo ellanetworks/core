@@ -22,7 +22,6 @@ func InitUDMContext(udmContext *context.UDMContext) {
 	sbi := configuration.Sbi
 	udmContext.UriScheme = ""
 	udmContext.UriScheme = models.UriScheme_HTTP
-	udmContext.RegisterIPv4 = sbi.RegisterIPv4
 	udmContext.SBIPort = sbi.Port
 
 	udmContext.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
@@ -35,7 +34,6 @@ func InitUDMContext(udmContext *context.UDMContext) {
 			udmContext.BindingIPv4 = "0.0.0.0"
 		}
 	}
-	udmContext.NrfUri = configuration.NrfUri
 	udmContext.UdrUri = configuration.UdrUri
 	servingNameList := configuration.ServiceNameList
 

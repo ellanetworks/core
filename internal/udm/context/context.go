@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
 	"github.com/omec-project/util/util_3gpp/suci"
@@ -34,13 +33,10 @@ type UDMContext struct {
 	Name                           string
 	NfId                           string
 	GroupId                        string
-	RegisterIPv4                   string // IP register to NRF
 	BindingIPv4                    string
 	UriScheme                      models.UriScheme
 	NfService                      map[models.ServiceName]models.NfService
-	NFDiscoveryClient              *Nnrf_NFDiscovery.APIClient
 	UdmUePool                      sync.Map // map[supi]*UdmUeContext
-	NrfUri                         string
 	UdrUri                         string
 	GpsiSupiList                   models.IdentityData
 	SharedSubsDataMap              map[string]models.SharedData // sharedDataIds as key
@@ -400,7 +396,7 @@ func (ue *UdmUeContext) SameAsStoredGUAMINon3gpp(inGuami models.Guami) bool {
 }
 
 func (context *UDMContext) GetIPv4Uri() string {
-	return fmt.Sprintf("%s://%s:%d", context.UriScheme, context.RegisterIPv4, context.SBIPort)
+	return fmt.Sprintf("%s://%s:%d", context.UriScheme, context.BindingIPv4, context.SBIPort)
 }
 
 // GetSDMUri ... get subscriber data management service uri
@@ -427,7 +423,7 @@ func (context *UDMContext) InitNFService(serviceName []string, version string) {
 			ApiPrefix:       context.GetIPv4Uri(),
 			IpEndPoints: &[]models.IpEndPoint{
 				{
-					Ipv4Address: context.RegisterIPv4,
+					Ipv4Address: context.BindingIPv4,
 					Transport:   models.TransportProtocol_TCP,
 					Port:        int32(context.SBIPort),
 				},

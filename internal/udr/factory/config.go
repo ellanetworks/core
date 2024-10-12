@@ -21,7 +21,6 @@ type Info struct {
 type Configuration struct {
 	Sbi             *Sbi              `yaml:"sbi"`
 	Mongodb         *Mongodb          `yaml:"mongodb"`
-	NrfUri          string            `yaml:"nrfUri"`
 	WebuiUri        string            `yaml:"webuiUri"`
 	PlmnSupportList []PlmnSupportItem `yaml:"plmnSupportList,omitempty"`
 }
@@ -32,9 +31,8 @@ type PlmnSupportItem struct {
 }
 
 type Sbi struct {
-	RegisterIPv4 string `yaml:"registerIPv4,omitempty"` // IP that is registered at NRF.
-	BindingIPv4  string `yaml:"bindingIPv4,omitempty"`  // IP used to run the server in the node.
-	Port         int    `yaml:"port"`
+	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
+	Port        int    `yaml:"port"`
 }
 
 type Mongodb struct {
