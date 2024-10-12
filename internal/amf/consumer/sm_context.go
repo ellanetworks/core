@@ -48,6 +48,7 @@ func SelectSmf(
 	}
 
 	smContext.SetSmfUri(context.SmfUri)
+	ue.GmmLog.Infof("Selected SMF [smfUri: %s]", context.SmfUri)
 	return smContext, 0, nil
 }
 
@@ -65,6 +66,7 @@ func SendCreateSmContextRequest(ue *amf_context.AmfUe, smContext *amf_context.Sm
 
 	configuration := Nsmf_PDUSession.NewConfiguration()
 	configuration.SetBasePath(smContext.SmfUri())
+	ue.GmmLog.Warnf("TO DELETE: SMF URI: %s", smContext.SmfUri())
 	client := Nsmf_PDUSession.NewAPIClient(configuration)
 
 	ctx, cancel := context.WithTimeout(context.TODO(), 30*time.Second)
