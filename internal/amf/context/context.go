@@ -58,11 +58,14 @@ type AMFContext struct {
 	SBIPort                         int
 	NgapPort                        int
 	SctpGrpcPort                    int
+	RegisterIPv4                    string
 	HttpIPv6Address                 string
 	TNLWeightFactor                 int64
 	SupportDnnLists                 []string
 	AMFStatusSubscriptions          sync.Map // map[subscriptionID]models.SubscriptionData
+	NfStatusSubscriptions           sync.Map // map[NfInstanceID]models.NrfSubscriptionData.SubscriptionId
 	AusfUri                         string
+	NrfUri                          string
 	NssfUri                         string
 	PcfUri                          string
 	SmfUri                          string
@@ -75,11 +78,13 @@ type AMFContext struct {
 	T3512Value                      int      // unit is second
 	Non3gppDeregistrationTimerValue int      // unit is second
 	// read-only fields
-	T3513Cfg factory.TimerValue
-	T3522Cfg factory.TimerValue
-	T3550Cfg factory.TimerValue
-	T3560Cfg factory.TimerValue
-	T3565Cfg factory.TimerValue
+	T3513Cfg                 factory.TimerValue
+	T3522Cfg                 factory.TimerValue
+	T3550Cfg                 factory.TimerValue
+	T3560Cfg                 factory.TimerValue
+	T3565Cfg                 factory.TimerValue
+	EnableNrfCaching         bool
+	NrfCacheEvictionInterval time.Duration
 }
 
 type AMFContextEventSubscription struct {
@@ -473,7 +478,7 @@ func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 }
 
 func (context *AMFContext) GetIPv4Uri() string {
-	return fmt.Sprintf("%s://%s:%d", context.UriScheme, context.BindingIPv4, context.SBIPort)
+	return fmt.Sprintf("%s://%s:%d", context.UriScheme, context.RegisterIPv4, context.SBIPort)
 }
 
 func (context *AMFContext) InitNFService(serivceName []string, version string) {
@@ -495,7 +500,7 @@ func (context *AMFContext) InitNFService(serivceName []string, version string) {
 			ApiPrefix:       context.GetIPv4Uri(),
 			IpEndPoints: &[]models.IpEndPoint{
 				{
-					Ipv4Address: context.BindingIPv4,
+					Ipv4Address: context.RegisterIPv4,
 					Transport:   models.TransportProtocol_TCP,
 					Port:        int32(context.SBIPort),
 				},
@@ -536,8 +541,10 @@ func (context *AMFContext) Reset() {
 	context.UriScheme = models.UriScheme_HTTP
 	context.SBIPort = 0
 	context.BindingIPv4 = ""
+	context.RegisterIPv4 = ""
 	context.HttpIPv6Address = ""
 	context.Name = "amf"
+	context.NrfUri = ""
 }
 
 // Create new AMF context

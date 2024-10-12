@@ -31,6 +31,7 @@ type Configuration struct {
 	PlmnSupportList                 []PlmnSupportItem         `yaml:"plmnSupportList,omitempty"`
 	SupportDnnList                  []string                  `yaml:"supportDnnList,omitempty"`
 	AusfUri                         string                    `yaml:"ausfUri,omitempty"`
+	NrfUri                          string                    `yaml:"nrfUri,omitempty"`
 	NssfUri                         string                    `yaml:"nssfUri,omitempty"`
 	PcfUri                          string                    `yaml:"pcfUri,omitempty"`
 	SmfUri                          string                    `yaml:"smfUri,omitempty"`
@@ -49,7 +50,9 @@ type Configuration struct {
 	T3565                           TimerValue                `yaml:"t3565"`
 
 	// Maintain TaiList per slice
-	SliceTaiList map[string][]models.Tai `yaml:"sliceTaiList,omitempty"`
+	SliceTaiList             map[string][]models.Tai `yaml:"sliceTaiList,omitempty"`
+	EnableNrfCaching         bool                    `yaml:"enableNrfCaching"`
+	NrfCacheEvictionInterval int                     `yaml:"nrfCacheEvictionInterval,omitempty"`
 }
 
 func (c *Configuration) Get5gsNwFeatSuppEnable() bool {
@@ -120,8 +123,9 @@ type NetworkFeatureSupport5GS struct {
 }
 
 type Sbi struct {
-	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
-	Port        int    `yaml:"port,omitempty"`
+	RegisterIPv4 string `yaml:"registerIPv4,omitempty"` // IP that is registered at NRF.
+	BindingIPv4  string `yaml:"bindingIPv4,omitempty"`  // IP used to run the server in the node.
+	Port         int    `yaml:"port,omitempty"`
 }
 
 type Security struct {
