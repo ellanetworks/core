@@ -23,6 +23,6 @@ cp -r out/* ../internal/webui/ui/frontend_files/
 ```bash
 sudo snap install rockcraft --classic --edge
 rockcraft pack -v
-sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella_0.0.1_amd64.rock docker-daemon:ella:0.0.1
-docker run ella:0.0.1
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella_0.0.3_amd64.rock docker-daemon:ella:0.0.3
+docker run ella:0.0.3
 ```

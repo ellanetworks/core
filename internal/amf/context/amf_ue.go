@@ -116,7 +116,6 @@ type AmfUe struct {
 	Kseaf                             string                      `json:"kseaf,omitempty"`
 	Kamf                              string                      `json:"kamf,omitempty"`
 	/* context about PCF */
-	PcfId                        string                    `json:"pcfId,omitempty"`
 	PcfUri                       string                    `json:"pcfUri,omitempty"`
 	PolicyAssociationId          string                    `json:"policyAssociationId,omitempty"`
 	AmPolicyUri                  string                    `json:"amPolicyUri,omitempty"`
@@ -754,10 +753,6 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 			ue.NH = nh
 		}
 		ue.NCC = uint8(seafData.Ncc)
-	}
-
-	if ueContext.PcfId != "" {
-		ue.PcfId = ueContext.PcfId
 	}
 
 	if ueContext.PcfAmPolicyUri != "" {

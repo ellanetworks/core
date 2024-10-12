@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/antihax/optional"
 	"github.com/mitchellh/mapstructure"
@@ -652,32 +651,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 		}
 	}
 
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		Supi: optional.NewString(ue.Supi),
-	}
-	for {
-		resp, err := consumer.SendSearchNFInstances(amfSelf.NrfUri, models.NfType_PCF, models.NfType_AMF, &param)
-		if err != nil {
-			ue.GmmLog.Error("AMF can not select an PCF by NRF")
-		} else {
-			// select the first PCF, TODO: select base on other info
-			var pcfUri string
-			for _, nfProfile := range resp.NfInstances {
-				pcfUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NPCF_AM_POLICY_CONTROL,
-					models.NfServiceStatus_REGISTERED)
-				if pcfUri != "" {
-					ue.PcfId = nfProfile.NfInstanceId
-					break
-				}
-			}
-			if ue.PcfUri = pcfUri; ue.PcfUri == "" {
-				ue.GmmLog.Error("AMF can not select an PCF by NRF")
-			} else {
-				break
-			}
-		}
-		time.Sleep(500 * time.Millisecond) // sleep a while when search NF Instance fail
-	}
+	ue.PcfUri = amfSelf.PcfUri
 
 	problemDetails, err := consumer.AMPolicyControlCreate(ue, anType)
 	if problemDetails != nil {
@@ -1108,29 +1082,8 @@ func communicateWithUDM(ue *context.AmfUe, accessType models.AccessType) error {
 	ue.GmmLog.Debugln("communicateWithUDM")
 	amfSelf := context.AMF_Self()
 
-	// UDM selection described in TS 23.501 6.3.8
-	// TODO: consider udm group id, Routing ID part of SUCI, GPSI or External Group ID (e.g., by the NEF)
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		Supi: optional.NewString(ue.Supi),
-	}
-	resp, err := consumer.SendSearchNFInstances(amfSelf.NrfUri, models.NfType_UDM, models.NfType_AMF, &param)
-	if err != nil {
-		return fmt.Errorf("AMF can not select an UDM by NRF")
-	}
-
-	var uecmUri, sdmUri string
-	for _, nfProfile := range resp.NfInstances {
-		uecmUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDM_UECM, models.NfServiceStatus_REGISTERED)
-		sdmUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDM_SDM, models.NfServiceStatus_REGISTERED)
-		if uecmUri != "" && sdmUri != "" {
-			break
-		}
-	}
-	ue.NudmUECMUri = uecmUri
-	ue.NudmSDMUri = sdmUri
-	if ue.NudmUECMUri == "" || ue.NudmSDMUri == "" {
-		return fmt.Errorf("AMF can not select an UDM by NRF")
-	}
+	ue.NudmUECMUri = amfSelf.UdmUecmUri
+	ue.NudmSDMUri = amfSelf.UdmsdmUri
 
 	problemDetails, err := consumer.UeCmRegistration(ue, accessType, true)
 	if problemDetails != nil {
