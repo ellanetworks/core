@@ -117,6 +117,8 @@ func (amf *AMF) Start() {
 	}
 	ngap_service.Run(self.NgapIpList, self.NgapPort, ngapHandler)
 
+	go amf.SendNFProfileUpdateToNrf()
+
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -146,6 +148,18 @@ func (amf *AMF) Start() {
 func (amf *AMF) Terminate() {
 	logger.InitLog.Infof("Terminating AMF...")
 	amfSelf := context.AMF_Self()
+
+	// TODO: forward registered UE contexts to target AMF in the same AMF set if there is one
+
+	// deregister with NRF
+	problemDetails, err := consumer.SendDeregisterNFInstance()
+	if problemDetails != nil {
+		logger.InitLog.Errorf("Deregister NF instance Failed Problem[%+v]", problemDetails)
+	} else if err != nil {
+		logger.InitLog.Errorf("Deregister NF instance Error[%+v]", err)
+	} else {
+		logger.InitLog.Infof("[AMF] Deregister from NRF successfully")
+	}
 
 	// send AMF status indication to ran to notify ran that this AMF will be unavailable
 	logger.InitLog.Infof("Send AMF Status Indication to Notify RANs due to AMF terminating")
@@ -178,12 +192,83 @@ func (amf *AMF) Terminate() {
 	logger.InitLog.Infof("AMF terminated")
 }
 
+func (amf *AMF) StartKeepAliveTimer(nfProfile models.NfProfile) {
+	KeepAliveTimerMutex.Lock()
+	defer KeepAliveTimerMutex.Unlock()
+	amf.StopKeepAliveTimer()
+	if nfProfile.HeartBeatTimer == 0 {
+		nfProfile.HeartBeatTimer = 60
+	}
+	logger.InitLog.Infof("Started KeepAlive Timer: %v sec", nfProfile.HeartBeatTimer)
+	// AfterFunc starts timer and waits for KeepAliveTimer to elapse and then calls amf.UpdateNF function
+	KeepAliveTimer = time.AfterFunc(time.Duration(nfProfile.HeartBeatTimer)*time.Second, amf.UpdateNF)
+}
+
 func (amf *AMF) StopKeepAliveTimer() {
 	if KeepAliveTimer != nil {
 		logger.InitLog.Infof("Stopped KeepAlive Timer.")
 		KeepAliveTimer.Stop()
 		KeepAliveTimer = nil
 	}
+}
+
+func (amf *AMF) BuildAndSendRegisterNFInstance() (models.NfProfile, error) {
+	self := context.AMF_Self()
+	profile, err := consumer.BuildNFInstance(self)
+	if err != nil {
+		initLog.Errorf("Build AMF Profile Error: %v", err)
+		return profile, err
+	}
+	initLog.Infof("Pcf Profile Registering to NRF: %v", profile)
+	// Indefinite attempt to register until success
+	profile, _, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
+	return profile, err
+}
+
+// UpdateNF is the callback function, this is called when keepalivetimer elapsed
+func (amf *AMF) UpdateNF() {
+	KeepAliveTimerMutex.Lock()
+	defer KeepAliveTimerMutex.Unlock()
+	if KeepAliveTimer == nil {
+		initLog.Warnf("KeepAlive timer has been stopped.")
+		return
+	}
+	// setting default value 30 sec
+	var heartBeatTimer int32 = 60
+	pitem := models.PatchItem{
+		Op:    "replace",
+		Path:  "/nfStatus",
+		Value: "REGISTERED",
+	}
+	var patchItem []models.PatchItem
+	patchItem = append(patchItem, pitem)
+	nfProfile, problemDetails, err := consumer.SendUpdateNFInstance(patchItem)
+	if problemDetails != nil {
+		initLog.Errorf("AMF update to NRF ProblemDetails[%v]", problemDetails)
+		// 5xx response from NRF, 404 Not Found, 400 Bad Request
+		if (problemDetails.Status/100) == 5 ||
+			problemDetails.Status == 404 || problemDetails.Status == 400 {
+			// register with NRF full profile
+			nfProfile, err = amf.BuildAndSendRegisterNFInstance()
+			if err != nil {
+				initLog.Errorf("Could not register to NRF Error[%s]", err.Error())
+			}
+		}
+	} else if err != nil {
+		initLog.Errorf("AMF update to NRF Error[%s]", err.Error())
+		nfProfile, err = amf.BuildAndSendRegisterNFInstance()
+		if err != nil {
+			initLog.Errorf("Could not register to NRF Error[%s]", err.Error())
+		}
+	}
+
+	if nfProfile.HeartBeatTimer != 0 {
+		// use hearbeattimer value with received timer value from NRF
+		heartBeatTimer = nfProfile.HeartBeatTimer
+	}
+	logger.InitLog.Debugf("Restarted KeepAlive Timer: %v sec", heartBeatTimer)
+	// restart timer with received HeartBeatTimer value
+	KeepAliveTimer = time.AfterFunc(time.Duration(heartBeatTimer)*time.Second, amf.UpdateNF)
 }
 
 func (amf *AMF) UpdateAmfConfiguration(plmn factory.PlmnSupportItem, taiList []models.Tai, opType protos.OpType) {
@@ -317,6 +402,34 @@ func (amf *AMF) UpdateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 		}
 	}
 	return true
+}
+
+func (amf *AMF) SendNFProfileUpdateToNrf() {
+	// for rocUpdateConfig := range RocUpdateConfigChannel {
+	for rocUpdateConfig := range RocUpdateConfigChannel {
+		if rocUpdateConfig {
+			self := context.AMF_Self()
+			util.InitAmfContext(self)
+
+			// Register to NRF with Updated Profile
+			var profile models.NfProfile
+			if profileTmp, err := consumer.BuildNFInstance(self); err != nil {
+				logger.CfgLog.Errorf("Build AMF Profile Error: %v", err)
+				continue
+			} else {
+				profile = profileTmp
+			}
+
+			if prof, _, nfId, err := consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile); err != nil {
+				logger.CfgLog.Warnf("Send Register NF Instance with updated profile failed: %+v", err)
+			} else {
+				// stop keepAliveTimer if its running and start the timer
+				amf.StartKeepAliveTimer(prof)
+				self.NfId = nfId
+				logger.CfgLog.Infof("Sent Register NF Instance with updated profile")
+			}
+		}
+	}
 }
 
 func UeConfigSliceDeleteHandler(supi, sst, sd string, msg interface{}) {
