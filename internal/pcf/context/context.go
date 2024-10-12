@@ -35,12 +35,14 @@ type PCFContext struct {
 	Name            string
 	UriScheme       models.UriScheme
 	BindingIPv4     string
+	RegisterIPv4    string
 	TimeFormat      string
 	DefaultBdtRefId string
 	NfService       map[models.ServiceName]models.NfService
 	PcfServiceUris  map[models.ServiceName]string
 	PcfSuppFeats    map[models.ServiceName]openapi.SupportedFeature
 	AmfUri          string
+	NrfUri          string
 	UdrUri          string
 	// UePool          map[string]*UeContext
 	UePool sync.Map
@@ -125,7 +127,7 @@ var (
 const DefaultBdtRefId = "BdtPolicyId-"
 
 func (c *PCFContext) GetIPv4Uri() string {
-	return fmt.Sprintf("%s://%s:%d", c.UriScheme, c.BindingIPv4, c.SBIPort)
+	return fmt.Sprintf("%s://%s:%d", c.UriScheme, c.RegisterIPv4, c.SBIPort)
 }
 
 // Init NfService with supported service list ,and version of services
@@ -148,7 +150,7 @@ func (c *PCFContext) InitNFService(serviceList []factory.Service, version string
 			ApiPrefix:       c.GetIPv4Uri(),
 			IpEndPoints: &[]models.IpEndPoint{
 				{
-					Ipv4Address: c.BindingIPv4,
+					Ipv4Address: c.RegisterIPv4,
 					Transport:   models.TransportProtocol_TCP,
 					Port:        int32(c.SBIPort),
 				},

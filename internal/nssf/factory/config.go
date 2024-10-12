@@ -65,6 +65,7 @@ type NsiConfig struct {
 type AmfSetConfig struct {
 	AmfSetId                       string                                  `yaml:"amfSetId"`
 	AmfList                        []string                                `yaml:"amfList,omitempty"`
+	NrfAmfSet                      string                                  `yaml:"nrfAmfSet,omitempty"`
 	SupportedNssaiAvailabilityData []models.SupportedNssaiAvailabilityData `yaml:"supportedNssaiAvailabilityData"`
 }
 

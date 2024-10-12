@@ -22,6 +22,7 @@ type Configuration struct {
 	TimeFormat      string    `yaml:"timeFormat,omitempty"`
 	DefaultBdtRefId string    `yaml:"defaultBdtRefId,omitempty"`
 	AmfUri          string    `yaml:"amfUri,omitempty"`
+	NrfUri          string    `yaml:"nrfUri,omitempty"`
 	UdrUri          string    `yaml:"udrUri,omitempty"`
 	WebuiUri        string    `yaml:"webuiUri"`
 	ServiceList     []Service `yaml:"serviceList,omitempty"`
@@ -39,6 +40,8 @@ type Service struct {
 }
 
 type Sbi struct {
+	RegisterIPv4 string `yaml:"registerIPv4,omitempty"` // IP that is registered at NRF.
+	// IPv6Addr  string `yaml:"ipv6Addr,omitempty"`
 	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
 	Port        int    `yaml:"port,omitempty"`
 }

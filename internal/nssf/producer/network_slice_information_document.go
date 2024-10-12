@@ -79,6 +79,7 @@ func parseQueryParameter(query url.Values) (plugin.NsselectionQueryParameter, er
 }
 
 // Check if the NF service consumer is authorized
+// TODO: Check if the NF service consumer is legal with local configuration, or possibly after querying NRF through `nf-id` e.g. Whether the V-NSSF is authorized
 func checkNfServiceConsumer(nfType models.NfType) error {
 	if nfType != models.NfType_AMF && nfType != models.NfType_NSSF {
 		return fmt.Errorf("`nf-type`:'%s' is not authorized to retrieve the slice selection information", string(nfType))

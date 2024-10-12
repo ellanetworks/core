@@ -41,6 +41,11 @@ func HandleNSSAIAvailabilityPatch(request *httpwrapper.Request) *httpwrapper.Res
 	nssaiAvailabilityUpdateInfo := request.Body.(plugin.PatchDocument)
 	nfID := request.Params["nfId"]
 
+	// TODO: Request NfProfile of NfId from NRF
+	//       Check if NfId is valid AMF and obtain AMF Set ID
+	//       If NfId is invalid, return ProblemDetails with code 404 Not Found
+	//       If NF consumer is not authorized to update NSSAI availability, return ProblemDetails with code 403 Forbidden
+
 	response, problemDetails := NSSAIAvailabilityPatchProcedure(nssaiAvailabilityUpdateInfo, nfID)
 
 	if response != nil {
