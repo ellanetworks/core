@@ -91,10 +91,4 @@ var routes = Routes{
 		"/purge-ue-context/:supi",
 		HTTPPurgeUEContext,
 	},
-	{
-		"Amf Instance Down Notification",
-		strings.ToUpper("post"),
-		"/amfInstanceDown/:nfid",
-		HTTPAmfInstanceDown,
-	},
 }

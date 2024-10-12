@@ -1,8 +1,6 @@
 package util
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/omec-project/nas/security"
 	"github.com/omec-project/openapi/models"
@@ -30,7 +28,6 @@ func InitAmfContext(context *context.AMFContext) {
 	context.SctpGrpcPort = configuration.SctpGrpcPort
 	sbi := configuration.Sbi
 	context.UriScheme = models.UriScheme_HTTP
-	context.RegisterIPv4 = configuration.Sbi.RegisterIPv4
 	context.SBIPort = sbi.Port
 	context.BindingIPv4 = sbi.BindingIPv4
 	serviceNameList := configuration.ServiceNameList
@@ -47,7 +44,6 @@ func InitAmfContext(context *context.AMFContext) {
 	context.PlmnSupportList = configuration.PlmnSupportList
 	context.SupportDnnLists = configuration.SupportDnnList
 	context.AusfUri = configuration.AusfUri
-	context.NrfUri = configuration.NrfUri
 	context.NssfUri = configuration.NssfUri
 	context.PcfUri = configuration.PcfUri
 	context.SmfUri = configuration.SmfUri
@@ -67,14 +63,6 @@ func InitAmfContext(context *context.AMFContext) {
 	context.T3550Cfg = configuration.T3550
 	context.T3560Cfg = configuration.T3560
 	context.T3565Cfg = configuration.T3565
-	context.EnableNrfCaching = configuration.EnableNrfCaching
-	if configuration.EnableNrfCaching {
-		if configuration.NrfCacheEvictionInterval == 0 {
-			context.NrfCacheEvictionInterval = time.Duration(900) // 15 mins
-		} else {
-			context.NrfCacheEvictionInterval = time.Duration(configuration.NrfCacheEvictionInterval)
-		}
-	}
 }
 
 func getIntAlgOrder(integrityOrder []string) (intOrder []uint8) {

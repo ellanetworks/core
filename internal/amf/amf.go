@@ -15,16 +15,15 @@ const (
 	NGAPP_PORT = 38412
 )
 
-func Start(ausfURL string, nrfURL string, nssfURL string, pcfURL string, smfURL string, UdmsdmURL string, UdmUecmURL string, webuiURL string) error {
+func Start(ausfURL string, nssfURL string, pcfURL string, smfURL string, UdmsdmURL string, UdmUecmURL string, webuiURL string) error {
 	configuration := factory.Configuration{
 		AmfName:      "AMF",
 		NgapIpList:   []string{"0.0.0.0"},
 		NgapPort:     NGAPP_PORT,
 		SctpGrpcPort: 9000,
 		Sbi: &factory.Sbi{
-			BindingIPv4:  "0.0.0.0",
-			Port:         SBI_PORT,
-			RegisterIPv4: "0.0.0.0",
+			BindingIPv4: "0.0.0.0",
+			Port:        SBI_PORT,
 		},
 		NetworkFeatureSupport5GS: &factory.NetworkFeatureSupport5GS{
 			Emc:     0,
@@ -45,7 +44,6 @@ func Start(ausfURL string, nrfURL string, nssfURL string, pcfURL string, smfURL 
 		},
 		SupportDnnList: []string{"internet"},
 		AusfUri:        ausfURL,
-		NrfUri:         nrfURL,
 		NssfUri:        nssfURL,
 		PcfUri:         pcfURL,
 		SmfUri:         smfURL,

@@ -29,7 +29,7 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
 	sessRule := ctx.SelectedSessionRule()
 	if sessRule == nil || sessRule.AuthSessAmbr == nil {
-		return nil, fmt.Errorf("No PDU Session AMBR")
+		return nil, fmt.Errorf("no PDU Session AMBR")
 	}
 	ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
 		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentPDUSessionAggregateMaximumBitRate,
@@ -226,7 +226,7 @@ func BuildPDUSessionResourceModifyRequestTransfer(ctx *SMContext) ([]byte, error
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
 	sessRule := ctx.SelectedSessionRule()
 	if sessRule == nil || sessRule.AuthSessAmbr == nil {
-		return nil, fmt.Errorf("No PDU Session AMBR")
+		return nil, fmt.Errorf("no PDU Session AMBR")
 	}
 	ie.Value = ngapType.PDUSessionResourceModifyRequestTransferIEsValue{
 		Present: ngapType.PDUSessionResourceModifyRequestTransferIEsPresentPDUSessionAggregateMaximumBitRate,
