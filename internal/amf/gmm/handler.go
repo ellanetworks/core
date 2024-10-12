@@ -1457,28 +1457,28 @@ func AuthenticationProcedure(ue *context.AmfUe, accessType models.AccessType) (b
 	amfSelf := context.AMF_Self()
 
 	// TODO: consider ausf group id, Routing ID part of SUCI
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{}
-	resp, err := consumer.SendSearchNFInstances(amfSelf.NrfUri, models.NfType_AUSF, models.NfType_AMF, &param)
-	if err != nil {
-		ue.GmmLog.Error("AMF can not select an AUSF by NRF")
-		return false, err
-	}
+	// param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{}
+	// resp, err := consumer.SendSearchNFInstances(amfSelf.NrfUri, models.NfType_AUSF, models.NfType_AMF, &param)
+	// if err != nil {
+	// 	ue.GmmLog.Error("AMF can not select an AUSF by NRF")
+	// 	return false, err
+	// }
 
 	// select the first AUSF, TODO: select base on other info
-	var ausfUri string
-	for _, nfProfile := range resp.NfInstances {
-		ue.AusfId = nfProfile.NfInstanceId
-		ausfUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NAUSF_AUTH, models.NfServiceStatus_REGISTERED)
-		if ausfUri != "" {
-			break
-		}
-	}
-	if ausfUri == "" {
-		err = fmt.Errorf("AMF can not select an AUSF by NRF")
-		ue.GmmLog.Errorf(err.Error())
-		return false, err
-	}
-	ue.AusfUri = ausfUri
+	// var ausfUri string
+	// for _, nfProfile := range resp.NfInstances {
+	// 	ue.AusfId = nfProfile.NfInstanceId
+	// 	ausfUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NAUSF_AUTH, models.NfServiceStatus_REGISTERED)
+	// 	if ausfUri != "" {
+	// 		break
+	// 	}
+	// }
+	// if ausfUri == "" {
+	// 	err = fmt.Errorf("AMF can not select an AUSF by NRF")
+	// 	ue.GmmLog.Errorf(err.Error())
+	// 	return false, err
+	// }
+	ue.AusfUri = amfSelf.AusfUri
 
 	response, problemDetails, err := consumer.SendUEAuthenticationAuthenticateRequest(ue, nil)
 	if err != nil {

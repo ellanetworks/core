@@ -47,6 +47,7 @@ func setEnvironmentVariables() error {
 }
 
 func startNetwork(cfg config.Config) error {
+	ausfUrl := "http://127.0.0.1:29509"
 	amfUrl := "http://127.0.0.1:29518"
 	nssfUrl := "http://127.0.0.1:29531"
 	pcfUrl := "http://127.0.0.1:29507"
@@ -61,7 +62,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = amf.Start(nrfUrl, nssfUrl, pcfUrl, smfUrl, udmUrl, udmUrl, webuiUrl)
+	err = amf.Start(ausfUrl, nrfUrl, nssfUrl, pcfUrl, smfUrl, udmUrl, udmUrl, webuiUrl)
 	if err != nil {
 		return err
 	}

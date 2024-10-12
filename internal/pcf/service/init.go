@@ -257,24 +257,6 @@ func (pcf *PCF) UpdateNF() {
 	KeepAliveTimer = time.AfterFunc(time.Duration(heartBeatTimer)*time.Second, pcf.UpdateNF)
 }
 
-// func (pcf *PCF) DiscoverUdr() {
-// 	self := context.PCF_Self()
-// 	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-// 		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
-// 	}
-// 	if resp, err := consumer.SendSearchNFInstances(self.NrfUri, models.NfType_UDR, models.NfType_PCF, param); err != nil {
-// 		initLog.Errorln(err)
-// 	} else {
-// 		for _, nfProfile := range resp.NfInstances {
-// 			udruri := util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
-// 			if udruri != "" {
-// 				self.SetDefaultUdrURI(udruri)
-// 				break
-// 			}
-// 		}
-// 	}
-// }
-
 func ImsiExistInDeviceGroup(devGroup *protos.DeviceGroup, imsi string) bool {
 	for _, i := range devGroup.Imsi {
 		if i == imsi {

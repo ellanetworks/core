@@ -34,7 +34,6 @@ import (
 	"github.com/yeastengine/ella/internal/amf/oam"
 	"github.com/yeastengine/ella/internal/amf/producer/callback"
 	"github.com/yeastengine/ella/internal/amf/util"
-	nrf_cache "github.com/yeastengine/ella/internal/nrf/nrfcache"
 )
 
 type AMF struct{}
@@ -119,11 +118,6 @@ func (amf *AMF) Start() {
 	ngap_service.Run(self.NgapIpList, self.NgapPort, ngapHandler)
 
 	go amf.SendNFProfileUpdateToNrf()
-
-	if self.EnableNrfCaching {
-		initLog.Infoln("Enable NRF caching feature")
-		nrf_cache.InitNrfCaching(self.NrfCacheEvictionInterval*time.Second, consumer.SendNfDiscoveryToNrf)
-	}
 
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)

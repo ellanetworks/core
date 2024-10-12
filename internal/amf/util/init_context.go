@@ -46,6 +46,7 @@ func InitAmfContext(context *context.AMFContext) {
 	}*/
 	context.PlmnSupportList = configuration.PlmnSupportList
 	context.SupportDnnLists = configuration.SupportDnnList
+	context.AusfUri = configuration.AusfUri
 	context.NrfUri = configuration.NrfUri
 	context.NssfUri = configuration.NssfUri
 	context.PcfUri = configuration.PcfUri
