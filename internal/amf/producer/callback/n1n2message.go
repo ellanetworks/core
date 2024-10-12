@@ -2,6 +2,7 @@ package callback
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"github.com/omec-project/openapi/Namf_Communication"
@@ -88,6 +89,7 @@ func SendN1MessageNotify(ue *amf_context.AmfUe, n1class models.N1MessageClass, n
 func SendN1MessageNotifyAtAMFReAllocation(
 	ue *amf_context.AmfUe, n1Msg []byte, registerContext *models.RegistrationContextContainer,
 ) {
+	amfSelf := amf_context.AMF_Self()
 	configuration := Namf_Communication.NewConfiguration()
 	client := Namf_Communication.NewAPIClient(configuration)
 
@@ -103,16 +105,8 @@ func SendN1MessageNotifyAtAMFReAllocation(
 		},
 		BinaryDataN1Message: n1Msg,
 	}
-
-	var callbackUri string
-	for _, subscription := range ue.TargetAmfProfile.DefaultNotificationSubscriptions {
-		if subscription.NotificationType == models.NotificationType_N1_MESSAGES &&
-			subscription.N1MessageClass == models.N1MessageClass__5_GMM {
-			callbackUri = subscription.CallbackUri
-			break
-		}
-	}
-
+	// I don't really think this works, here the callbackUri is the AMF's own URI
+	callbackUri := fmt.Sprintf("%s/namf-callback/v1/n1-message-notify", amfSelf.GetIPv4Uri())
 	httpResp, err := client.N1MessageNotifyCallbackDocumentApiServiceCallbackDocumentApi.
 		N1MessageNotify(context.Background(), callbackUri, n1MessageNotify)
 	if err != nil {
