@@ -82,7 +82,6 @@ type SMContext struct {
 	SmStatusNotifyUri string `json:"smStatusNotifyUri,omitempty" yaml:"smStatusNotifyUri" bson:"smStatusNotifyUri,omitempty"`
 
 	UpCnxState         models.UpCnxState       `json:"upCnxState,omitempty" yaml:"upCnxState" bson:"upCnxState,omitempty"`
-	AMFProfile         models.NfProfile        `json:"amfProfile,omitempty" yaml:"amfProfile" bson:"amfProfile,omitempty"`
 	SelectedPCFProfile models.NfProfile        `json:"selectedPCFProfile,omitempty" yaml:"selectedPCFProfile" bson:"selectedPCFProfile,omitempty"`
 	AnType             models.AccessType       `json:"anType" yaml:"anType" bson:"anType"`
 	RatType            models.RatType          `json:"ratType,omitempty" yaml:"ratType" bson:"ratType,omitempty"`

@@ -3,7 +3,6 @@ package util
 import (
 	"os"
 
-	"github.com/google/uuid"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/util_3gpp/suci"
 	"github.com/yeastengine/ella/internal/udm/context"
@@ -15,7 +14,6 @@ func InitUDMContext(udmContext *context.UDMContext) {
 	config := factory.UdmConfig
 	logger.UtilLog.Info("udmconfig Info: Version[", config.Info.Version, "] Description[", config.Info.Description, "]")
 	configuration := config.Configuration
-	udmContext.NfId = uuid.New().String()
 	if configuration.UdmName != "" {
 		udmContext.Name = configuration.UdmName
 	}

@@ -45,7 +45,9 @@ const (
 type Configuration struct {
 	PFCP                     *PFCP                `yaml:"pfcp,omitempty"`
 	Sbi                      *Sbi                 `yaml:"sbi,omitempty"`
+	AmfUri                   string               `yaml:"amfUri,omitempty"`
 	NrfUri                   string               `yaml:"nrfUri,omitempty"`
+	UdmUri                   string               `yaml:"udmUri,omitempty"`
 	WebuiUri                 string               `yaml:"webuiUri"`
 	SmfName                  string               `yaml:"smfName,omitempty"`
 	SNssaiInfo               []SnssaiInfoItem     `yaml:"snssaiInfos,omitempty"`

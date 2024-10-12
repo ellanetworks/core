@@ -12,7 +12,7 @@ var SMF = &service.SMF{}
 
 const SBI_PORT = 29502
 
-func Start(nrfURL string, webuiURL string) error {
+func Start(amfURL string, nrfURL string, udmURL string, webuiURL string) error {
 	configuration := factory.Configuration{
 		PFCP: &factory.PFCP{
 			Addr: "0.0.0.0",
@@ -22,7 +22,9 @@ func Start(nrfURL string, webuiURL string) error {
 			BindingIPv4:  "0.0.0.0",
 			Port:         SBI_PORT,
 		},
+		AmfUri:   amfURL,
 		NrfUri:   nrfURL,
+		UdmUri:   udmURL,
 		WebuiUri: webuiURL,
 		SmfName:  "SMF",
 		ServiceNameList: []string{

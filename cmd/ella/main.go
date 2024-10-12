@@ -86,7 +86,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = smf.Start(nrfUrl, webuiUrl)
+	err = smf.Start(amfUrl, nrfUrl, udmUrl, webuiUrl)
 	if err != nil {
 		return err
 	}

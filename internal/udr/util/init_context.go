@@ -3,7 +3,6 @@ package util
 import (
 	"os"
 
-	"github.com/google/uuid"
 	"github.com/omec-project/openapi/models"
 	udr_context "github.com/yeastengine/ella/internal/udr/context"
 	"github.com/yeastengine/ella/internal/udr/factory"
@@ -14,7 +13,6 @@ func InitUdrContext(context *udr_context.UDRContext) {
 	config := factory.UdrConfig
 	logger.UtilLog.Infof("udrconfig Info: Version[%s] Description[%s]", config.Info.Version, config.Info.Description)
 	configuration := config.Configuration
-	context.NfId = uuid.New().String()
 	sbi := configuration.Sbi
 	context.UriScheme = models.UriScheme_HTTP
 	context.SBIPort = sbi.Port

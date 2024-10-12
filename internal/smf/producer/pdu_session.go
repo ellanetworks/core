@@ -104,17 +104,10 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 	}
 
 	// Query UDM
-	if problemDetails, err := consumer.SendNFDiscoveryUDM(); err != nil {
-		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, send NF Discovery Serving UDM Error[%v]", err)
-		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("UDMDiscoveryFailure")
-		return fmt.Errorf("UdmError")
-	} else if problemDetails != nil {
-		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, send NF Discovery Serving UDM Problem[%+v]", problemDetails)
-		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("UDMDiscoveryFailure")
-		return fmt.Errorf("UdmError")
-	} else {
-		smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, send NF Discovery Serving UDM Successful")
-	}
+	SDMConf := Nudm_SubscriberDataManagement.NewConfiguration()
+	SDMConf.SetBasePath(smf_context.SMF_Self().UdmUri)
+	smf_context.SMF_Self().SubscriberDataManagementClient = Nudm_SubscriberDataManagement.NewAPIClient(SDMConf)
+	smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, send NF Discovery Serving UDM Successful")
 
 	// IP Allocation
 	if ip, err := smContext.DNNInfo.UeIPAllocator.Allocate(smContext.Supi); err != nil {
@@ -248,26 +241,9 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		return fmt.Errorf("InsufficientResourceSliceDnn")
 	}
 
-	// AMF Selection for SMF -> AMF communication
-	if problemDetails, err := consumer.SendNFDiscoveryServingAMF(smContext); err != nil {
-		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, send NF Discovery Serving AMF Error[%v]", err)
-		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("AMFDiscoveryFailure")
-		return fmt.Errorf("AmfError")
-	} else if problemDetails != nil {
-		smContext.SubPduSessLog.Warnf("PDUSessionSMContextCreate, send NF Discovery Serving AMF Problem[%+v]", problemDetails)
-		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("AMFDiscoveryFailure")
-		return fmt.Errorf("AmfError")
-	} else {
-		smContext.SubPduSessLog.Traceln("PDUSessionSMContextCreate, Send NF Discovery Serving AMF success")
-	}
-
-	for _, service := range *smContext.AMFProfile.NfServices {
-		if service.ServiceName == models.ServiceName_NAMF_COMM {
-			communicationConf := Namf_Communication.NewConfiguration()
-			communicationConf.SetBasePath(service.ApiPrefix)
-			smContext.CommunicationClient = Namf_Communication.NewAPIClient(communicationConf)
-		}
-	}
+	communicationConf := Namf_Communication.NewConfiguration()
+	communicationConf.SetBasePath(smf_context.SMF_Self().AmfUri)
+	smContext.CommunicationClient = Namf_Communication.NewAPIClient(communicationConf)
 
 	response.JsonData = smContext.BuildCreatedData()
 	txn.Rsp = &httpwrapper.Response{

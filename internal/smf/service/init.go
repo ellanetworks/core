@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -14,9 +13,7 @@ import (
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/sirupsen/logrus"
-	nrf_cache "github.com/yeastengine/ella/internal/nrf/nrfcache"
 	"github.com/yeastengine/ella/internal/smf/callback"
-	"github.com/yeastengine/ella/internal/smf/consumer"
 	"github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/eventexposure"
 	"github.com/yeastengine/ella/internal/smf/factory"
@@ -85,7 +82,7 @@ func (smf *SMF) Start() {
 	}()
 
 	// Init SMF Service
-	smfCtxt := context.InitSmfContext(&factory.SmfConfig)
+	context.InitSmfContext(&factory.SmfConfig)
 
 	// allocate id for each upf
 	context.AllocateUPFID()
@@ -102,27 +99,6 @@ func (smf *SMF) Start() {
 	if <-factory.ConfigPodTrigger {
 		initLog.Infof("minimum configuration from config pod available")
 		context.ProcessConfigUpdate()
-	}
-
-	// Trigger background goroutine to handle further config updates
-	go func() {
-		initLog.Infof("Dynamic config update task initialised")
-		for {
-			if <-factory.ConfigPodTrigger {
-				if context.ProcessConfigUpdate() {
-					// Let NRF registration happen in background
-					go smf.SendNrfRegistration()
-				}
-			}
-		}
-	}()
-
-	// Send NRF Registration
-	smf.SendNrfRegistration()
-
-	if smfCtxt.EnableNrfCaching {
-		initLog.Infof("Enable NRF caching feature for %d seconds", smfCtxt.NrfCacheEvictionInterval)
-		nrf_cache.InitNrfCaching(smfCtxt.NrfCacheEvictionInterval*time.Second, consumer.SendNrfForNfInstance)
 	}
 
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
@@ -172,120 +148,4 @@ func (smf *SMF) Start() {
 
 func (smf *SMF) Terminate() {
 	logger.InitLog.Infof("Terminating SMF...")
-	// deregister with NRF
-	problemDetails, err := consumer.SendDeregisterNFInstance()
-	if problemDetails != nil {
-		logger.InitLog.Errorf("Deregister NF instance Failed Problem[%+v]", problemDetails)
-	} else if err != nil {
-		logger.InitLog.Errorf("Deregister NF instance Error[%+v]", err)
-	} else {
-		logger.InitLog.Infof("Deregister from NRF successfully")
-	}
-}
-
-func StartKeepAliveTimer(nfProfile *models.NfProfile) {
-	KeepAliveTimerMutex.Lock()
-	defer KeepAliveTimerMutex.Unlock()
-	StopKeepAliveTimer()
-	if nfProfile.HeartBeatTimer == 0 {
-		nfProfile.HeartBeatTimer = 30
-	}
-	logger.InitLog.Infof("Started KeepAlive Timer: %v sec", nfProfile.HeartBeatTimer)
-	// AfterFunc starts timer and waits for KeepAliveTimer to elapse and then calls smf.UpdateNF function
-	KeepAliveTimer = time.AfterFunc(time.Duration(nfProfile.HeartBeatTimer)*time.Second, UpdateNF)
-}
-
-func StopKeepAliveTimer() {
-	if KeepAliveTimer != nil {
-		logger.InitLog.Infof("Stopped KeepAlive Timer.")
-		KeepAliveTimer.Stop()
-		KeepAliveTimer = nil
-	}
-}
-
-// UpdateNF is the callback function, this is called when keepalivetimer elapsed
-func UpdateNF() {
-	KeepAliveTimerMutex.Lock()
-	defer KeepAliveTimerMutex.Unlock()
-	if KeepAliveTimer == nil {
-		initLog.Warnf("KeepAlive timer has been stopped.")
-		return
-	}
-	// setting default value 30 sec
-	var heartBeatTimer int32 = 30
-	pitem := models.PatchItem{
-		Op:    "replace",
-		Path:  "/nfStatus",
-		Value: "REGISTERED",
-	}
-	var patchItem []models.PatchItem
-	patchItem = append(patchItem, pitem)
-	nfProfile, problemDetails, err := consumer.SendUpdateNFInstance(patchItem)
-	if problemDetails != nil {
-		initLog.Errorf("SMF update to NRF ProblemDetails[%v]", problemDetails)
-		// 5xx response from NRF, 404 Not Found, 400 Bad Request
-		if (problemDetails.Status/100) == 5 ||
-			problemDetails.Status == 404 || problemDetails.Status == 400 {
-			// register with NRF full profile
-			nfProfile, err = consumer.SendNFRegistration()
-			if err != nil {
-				initLog.Errorf("SMF update to NRF Error[%s]", err.Error())
-			}
-		}
-	} else if err != nil {
-		initLog.Errorf("SMF update to NRF Error[%s]", err.Error())
-		nfProfile, err = consumer.SendNFRegistration()
-		if err != nil {
-			initLog.Errorf("SMF update to NRF Error[%s]", err.Error())
-		}
-	}
-
-	if nfProfile.HeartBeatTimer != 0 {
-		// use hearbeattimer value with received timer value from NRF
-		heartBeatTimer = nfProfile.HeartBeatTimer
-	}
-	logger.InitLog.Debugf("Restarted KeepAlive Timer: %v sec", heartBeatTimer)
-	// restart timer with received HeartBeatTimer value
-	KeepAliveTimer = time.AfterFunc(time.Duration(heartBeatTimer)*time.Second, UpdateNF)
-}
-
-func (smf *SMF) SendNrfRegistration() {
-	// If NRF registration is ongoing then don't start another in parallel
-	// Just mark it so that once ongoing finishes then resend another
-	if nrfRegInProgress.intanceRun(consumer.ReSendNFRegistration) {
-		logger.InitLog.Infof("NRF Registration already in progress...")
-		refreshNrfRegistration = true
-		return
-	}
-
-	// Once the first goroutine which was sending NRF registration returns,
-	// Check if another fresh NRF registration is required
-	if refreshNrfRegistration {
-		refreshNrfRegistration = false
-		if prof, err := consumer.SendNFRegistration(); err != nil {
-			logger.InitLog.Infof("NRF Registration failure, %v", err.Error())
-		} else {
-			StartKeepAliveTimer(prof)
-			logger.CfgLog.Infof("Sent Register NF Instance with updated profile")
-		}
-	}
-}
-
-// Run only single instance of func f at a time
-func (o *OneInstance) intanceRun(f func() *models.NfProfile) bool {
-	// Instance already running ?
-	if atomic.LoadUint32(&o.done) == 1 {
-		return true
-	}
-
-	// Slow-path.
-	o.m.Lock()
-	defer o.m.Unlock()
-	if o.done == 0 {
-		atomic.StoreUint32(&o.done, 1)
-		defer atomic.StoreUint32(&o.done, 0)
-		nfProfile := f()
-		StartKeepAliveTimer(nfProfile)
-	}
-	return false
 }
