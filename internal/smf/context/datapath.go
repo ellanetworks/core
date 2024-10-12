@@ -257,11 +257,7 @@ func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 	}
 
 	teid := node.DownLinkTunnel.TEID
-	var err error
 	node.UPF.teidGenerator.FreeID(int64(teid))
-	if err != nil {
-		logger.CtxLog.Errorln("deactivated UpLinkTunnel", err)
-	}
 	node.DownLinkTunnel = &GTPTunnel{}
 }
 
