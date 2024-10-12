@@ -117,7 +117,7 @@ func (amf *AMF) Start() {
 	}
 	ngap_service.Run(self.NgapIpList, self.NgapPort, ngapHandler)
 
-	// go amf.SendNFProfileUpdateToNrf()
+	go amf.SendNFProfileUpdateToNrf()
 
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
@@ -325,26 +325,14 @@ func (amf *AMF) UpdateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 	return true
 }
 
-// func (amf *AMF) SendNFProfileUpdateToNrf() {
-// 	// for rocUpdateConfig := range RocUpdateConfigChannel {
-// 	for rocUpdateConfig := range RocUpdateConfigChannel {
-// 		if rocUpdateConfig {
-// 			self := context.AMF_Self()
-// 			util.InitAmfContext(self)
-
-// 			var profile models.NfProfile
-// 			if profileTmp, err := consumer.BuildNFInstance(self); err != nil {
-// 				logger.CfgLog.Errorf("Build AMF Profile Error: %v", err)
-// 				continue
-// 			} else {
-// 				profile = profileTmp
-// 			}
-
-// 			amf.StartKeepAliveTimer(profile)
-// 			logger.CfgLog.Infof("Sent Register NF Instance with updated profile")
-// 		}
-// 	}
-// }
+func (amf *AMF) SendNFProfileUpdateToNrf() {
+	for rocUpdateConfig := range RocUpdateConfigChannel {
+		if rocUpdateConfig {
+			self := context.AMF_Self()
+			util.InitAmfContext(self)
+		}
+	}
+}
 
 func UeConfigSliceDeleteHandler(supi, sst, sd string, msg interface{}) {
 	amfSelf := context.AMF_Self()
