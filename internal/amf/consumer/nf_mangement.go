@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
-	"time"
 
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nnrf_NFManagement"
@@ -47,11 +45,7 @@ func BuildNFInstance(context *amf_context.AMFContext) (profile models.NfProfile,
 	}
 	amfInfo.TaiList = &context.SupportTaiLists
 	profile.AmfInfo = &amfInfo
-	if context.RegisterIPv4 == "" {
-		err = fmt.Errorf("AMF Address is empty")
-		return profile, err
-	}
-	profile.Ipv4Addresses = append(profile.Ipv4Addresses, context.RegisterIPv4)
+	profile.Ipv4Addresses = append(profile.Ipv4Addresses, context.BindingIPv4)
 	service := []models.NfService{}
 	for _, nfService := range context.NfService {
 		service = append(service, nfService)
@@ -67,46 +61,6 @@ func BuildNFInstance(context *amf_context.AMFContext) (profile models.NfProfile,
 	}
 	profile.DefaultNotificationSubscriptions = append(profile.DefaultNotificationSubscriptions, defaultNotificationSubscription)
 	return profile, err
-}
-
-var SendRegisterNFInstance = func(nrfUri, nfInstanceId string, profile models.NfProfile) (
-	prof models.NfProfile, resouceNrfUri string, retrieveNfInstanceId string, err error,
-) {
-	// Set client and set url
-	configuration := Nnrf_NFManagement.NewConfiguration()
-	configuration.SetBasePath(nrfUri)
-	client := Nnrf_NFManagement.NewAPIClient(configuration)
-
-	var res *http.Response
-	for {
-		prof, res, err = client.NFInstanceIDDocumentApi.RegisterNFInstance(context.TODO(), nfInstanceId, profile)
-		if err != nil || res == nil {
-			// TODO : add log
-			fmt.Println(fmt.Errorf("AMF register to NRF Error[%s]", err.Error()))
-			time.Sleep(2 * time.Second)
-			continue
-		}
-		defer func() {
-			if bodyCloseErr := res.Body.Close(); bodyCloseErr != nil {
-				err = fmt.Errorf("SearchNFInstances' response body cannot close: %+w", bodyCloseErr)
-			}
-		}()
-		status := res.StatusCode
-		if status == http.StatusOK {
-			// NFUpdate
-			break
-		} else if status == http.StatusCreated {
-			// NFRegister
-			resourceUri := res.Header.Get("Location")
-			resouceNrfUri = resourceUri[:strings.Index(resourceUri, "/nnrf-nfm/")]
-			retrieveNfInstanceId = resourceUri[strings.LastIndex(resourceUri, "/")+1:]
-			break
-		} else {
-			fmt.Println(fmt.Errorf("handler returned wrong status code %d", status))
-			fmt.Println(fmt.Errorf("NRF return wrong status code %d", status))
-		}
-	}
-	return prof, resouceNrfUri, retrieveNfInstanceId, err
 }
 
 func SendDeregisterNFInstance() (problemDetails *models.ProblemDetails, err error) {
@@ -140,35 +94,35 @@ func SendDeregisterNFInstance() (problemDetails *models.ProblemDetails, err erro
 	return
 }
 
-var SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile models.NfProfile, problemDetails *models.ProblemDetails, err error) {
-	logger.ConsumerLog.Debugf("Send Update NFInstance")
+// var SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile models.NfProfile, problemDetails *models.ProblemDetails, err error) {
+// 	logger.ConsumerLog.Debugf("Send Update NFInstance")
 
-	amfSelf := amf_context.AMF_Self()
-	configuration := Nnrf_NFManagement.NewConfiguration()
-	configuration.SetBasePath(amfSelf.NrfUri)
-	client := Nnrf_NFManagement.NewAPIClient(configuration)
+// 	amfSelf := amf_context.AMF_Self()
+// 	configuration := Nnrf_NFManagement.NewConfiguration()
+// 	configuration.SetBasePath(amfSelf.NrfUri)
+// 	client := Nnrf_NFManagement.NewAPIClient(configuration)
 
-	var res *http.Response
-	nfProfile, res, err = client.NFInstanceIDDocumentApi.UpdateNFInstance(context.Background(), amfSelf.NfId, patchItem)
-	if err == nil {
-		return
-	} else if res != nil {
-		defer func() {
-			if resCloseErr := res.Body.Close(); resCloseErr != nil {
-				logger.ConsumerLog.Errorf("UpdateNFInstance response cannot close: %+v", resCloseErr)
-			}
-		}()
-		if res.Status != err.Error() {
-			logger.ConsumerLog.Errorf("UpdateNFInstance received error response: %v", res.Status)
-			return
-		}
-		problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-		problemDetails = &problem
-	} else {
-		err = openapi.ReportError("server no response")
-	}
-	return
-}
+// 	var res *http.Response
+// 	nfProfile, res, err = client.NFInstanceIDDocumentApi.UpdateNFInstance(context.Background(), amfSelf.NfId, patchItem)
+// 	if err == nil {
+// 		return
+// 	} else if res != nil {
+// 		defer func() {
+// 			if resCloseErr := res.Body.Close(); resCloseErr != nil {
+// 				logger.ConsumerLog.Errorf("UpdateNFInstance response cannot close: %+v", resCloseErr)
+// 			}
+// 		}()
+// 		if res.Status != err.Error() {
+// 			logger.ConsumerLog.Errorf("UpdateNFInstance received error response: %v", res.Status)
+// 			return
+// 		}
+// 		problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
+// 		problemDetails = &problem
+// 	} else {
+// 		err = openapi.ReportError("server no response")
+// 	}
+// 	return
+// }
 
 func SendCreateSubscription(nrfUri string, nrfSubscriptionData models.NrfSubscriptionData) (nrfSubData models.NrfSubscriptionData, problemDetails *models.ProblemDetails, err error) {
 	logger.ConsumerLog.Debugf("Send Create Subscription")
