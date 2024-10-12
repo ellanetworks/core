@@ -82,7 +82,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = nssf.Start(nrfUrl, webuiUrl)
+	err = nssf.Start(webuiUrl)
 	if err != nil {
 		return err
 	}
