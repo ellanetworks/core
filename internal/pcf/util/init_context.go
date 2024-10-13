@@ -21,7 +21,6 @@ func InitpcfContext(context *context.PCFContext) {
 
 	sbi := configuration.Sbi
 	context.AmfUri = configuration.AmfUri
-	context.NrfUri = configuration.NrfUri
 	context.UdrUri = configuration.UdrUri
 	context.SBIPort = sbi.Port
 	context.UriScheme = models.UriScheme_HTTP

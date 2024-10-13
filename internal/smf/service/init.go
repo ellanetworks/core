@@ -5,7 +5,6 @@ import (
 	_ "net/http/pprof" // Using package only for invoking initialization.
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -28,11 +27,6 @@ import (
 )
 
 type SMF struct{}
-
-var (
-	KeepAliveTimer      *time.Timer
-	KeepAliveTimerMutex sync.Mutex
-)
 
 var initLog *logrus.Entry
 

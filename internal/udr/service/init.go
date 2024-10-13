@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
-	"time"
 
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
@@ -22,11 +20,6 @@ import (
 type UDR struct{}
 
 var initLog *logrus.Entry
-
-var (
-	KeepAliveTimer      *time.Timer
-	KeepAliveTimerMutex sync.Mutex
-)
 
 func init() {
 	initLog = logger.InitLog

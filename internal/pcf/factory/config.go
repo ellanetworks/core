@@ -22,7 +22,6 @@ type Configuration struct {
 	TimeFormat      string    `yaml:"timeFormat,omitempty"`
 	DefaultBdtRefId string    `yaml:"defaultBdtRefId,omitempty"`
 	AmfUri          string    `yaml:"amfUri,omitempty"`
-	NrfUri          string    `yaml:"nrfUri,omitempty"`
 	UdrUri          string    `yaml:"udrUri,omitempty"`
 	WebuiUri        string    `yaml:"webuiUri"`
 	ServiceList     []Service `yaml:"serviceList,omitempty"`

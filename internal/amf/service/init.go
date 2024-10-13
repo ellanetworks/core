@@ -6,9 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"sync"
 	"syscall"
-	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/omec-project/openapi/models"
@@ -42,11 +40,6 @@ const IMSI_PREFIX = "imsi-"
 var RocUpdateConfigChannel chan bool
 
 var initLog *logrus.Entry
-
-var (
-	KeepAliveTimer      *time.Timer
-	KeepAliveTimerMutex sync.Mutex
-)
 
 func init() {
 	initLog = logger.InitLog

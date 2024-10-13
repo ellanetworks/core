@@ -41,7 +41,6 @@ type PCFContext struct {
 	PcfServiceUris  map[models.ServiceName]string
 	PcfSuppFeats    map[models.ServiceName]openapi.SupportedFeature
 	AmfUri          string
-	NrfUri          string
 	UdrUri          string
 	// UePool          map[string]*UeContext
 	UePool sync.Map

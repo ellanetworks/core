@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
-	"time"
 
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
@@ -33,11 +31,6 @@ var ConfigPodTrigger chan bool
 func init() {
 	ConfigPodTrigger = make(chan bool)
 }
-
-var (
-	KeepAliveTimer      *time.Timer
-	KeepAliveTimerMutex sync.Mutex
-)
 
 var initLog *logrus.Entry
 

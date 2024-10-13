@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
-	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -23,11 +21,6 @@ import (
 )
 
 type AUSF struct{}
-
-var (
-	KeepAliveTimer      *time.Timer
-	KeepAliveTimerMutex sync.Mutex
-)
 
 var initLog *logrus.Entry
 
