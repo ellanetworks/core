@@ -34,6 +34,7 @@ jobs:
     uses: ./.github/workflows/rock-publish.yaml
     secrets: inherit
   snap-build:
+    if: github.ref_name == 'main'
     needs: [go-build, go-unit-test, go-vet, go-lint]
     uses: ./.github/workflows/snap-build.yaml
   snap-publish:
