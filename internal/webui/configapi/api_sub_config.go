@@ -22,7 +22,6 @@ const (
 	smfSelDataColl   = "subscriptionData.provisionedData.smfSelectionSubscriptionData"
 	amPolicyDataColl = "policyData.ues.amData"
 	smPolicyDataColl = "policyData.ues.smData"
-	flowRuleDataColl = "policyData.ues.flowRule"
 )
 
 var httpsClient *http.Client
