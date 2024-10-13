@@ -10,7 +10,6 @@ import (
 	"github.com/yeastengine/ella/internal/ausf"
 	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/db"
-	"github.com/yeastengine/ella/internal/nrf"
 	"github.com/yeastengine/ella/internal/nssf"
 	"github.com/yeastengine/ella/internal/pcf"
 	"github.com/yeastengine/ella/internal/smf"
@@ -55,10 +54,6 @@ func startNetwork(cfg config.Config) error {
 	udmUrl := "http://127.0.0.1:29503"
 	udrUrl := "http://127.0.0.1:29504"
 	webuiUrl, err := webui.Start(cfg.DB.Url, cfg.DB.Name)
-	if err != nil {
-		return err
-	}
-	_, err = nrf.Start(cfg.DB.Url, cfg.DB.Name, webuiUrl)
 	if err != nil {
 		return err
 	}
