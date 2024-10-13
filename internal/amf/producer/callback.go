@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/mohae/deepcopy"
 	"github.com/omec-project/nas/nasConvert"
@@ -14,13 +13,11 @@ import (
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/amf/consumer"
 	"github.com/yeastengine/ella/internal/amf/context"
-	amf_context "github.com/yeastengine/ella/internal/amf/context"
 	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
 	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/amf/nas"
 	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
 	"github.com/yeastengine/ella/internal/amf/util"
-	nrf_cache "github.com/yeastengine/ella/internal/nrf/nrfcache"
 )
 
 func SmContextHandler(s1, s2 string, msg interface{}) (interface{}, string, interface{}, interface{}) {
@@ -435,104 +432,79 @@ func N1MessageNotifyProcedure(n1MessageNotify models.N1MessageNotify) *models.Pr
 	return nil
 }
 
-func HandleNfSubscriptionStatusNotify(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.ProducerLog.Traceln("[AMF] Handle NF Status Notify")
+// func HandleNfSubscriptionStatusNotify(request *httpwrapper.Request) *httpwrapper.Response {
+// 	logger.ProducerLog.Traceln("[AMF] Handle NF Status Notify")
 
-	notificationData := request.Body.(models.NotificationData)
+// 	notificationData := request.Body.(models.NotificationData)
 
-	problemDetails := NfSubscriptionStatusNotifyProcedure(notificationData)
-	if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	} else {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
-	}
-}
+// 	problemDetails := NfSubscriptionStatusNotifyProcedure(notificationData)
+// 	if problemDetails != nil {
+// 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+// 	} else {
+// 		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
+// 	}
+// }
 
-func NfSubscriptionStatusNotifyProcedure(notificationData models.NotificationData) *models.ProblemDetails {
-	logger.ProducerLog.Debugf("NfSubscriptionStatusNotify: %+v", notificationData)
+// // To delete (?)
+// func NfSubscriptionStatusNotifyProcedure(notificationData models.NotificationData) *models.ProblemDetails {
+// 	logger.ProducerLog.Debugf("NfSubscriptionStatusNotify: %+v", notificationData)
 
-	if notificationData.Event == "" || notificationData.NfInstanceUri == "" {
-		problemDetails := &models.ProblemDetails{
-			Status: http.StatusBadRequest,
-			Cause:  "MANDATORY_IE_MISSING", // Defined in TS 29.510 6.1.6.2.17
-			Detail: "Missing IE [Event]/[NfInstanceUri] in NotificationData",
-		}
-		return problemDetails
-	}
-	nfInstanceId := notificationData.NfInstanceUri[strings.LastIndex(notificationData.NfInstanceUri, "/")+1:]
+// 	if notificationData.Event == "" || notificationData.NfInstanceUri == "" {
+// 		problemDetails := &models.ProblemDetails{
+// 			Status: http.StatusBadRequest,
+// 			Cause:  "MANDATORY_IE_MISSING", // Defined in TS 29.510 6.1.6.2.17
+// 			Detail: "Missing IE [Event]/[NfInstanceUri] in NotificationData",
+// 		}
+// 		return problemDetails
+// 	}
+// 	return nil
+// }
 
-	logger.ProducerLog.Infof("Received Subscription Status Notification from NRF: %v", notificationData.Event)
-	// If nrf caching is enabled, go ahead and delete the entry from the cache.
-	// This will force the amf to do nf discovery and get the updated nf profile from the nrf.
-	if notificationData.Event == models.NotificationEventType_DEREGISTERED {
-		if amf_context.AMF_Self().EnableNrfCaching {
-			ok := nrf_cache.RemoveNfProfileFromNrfCache(nfInstanceId)
-			logger.ProducerLog.Tracef("nfinstance %v deleted from cache: %v", nfInstanceId, ok)
-		}
-		if subscriptionId, ok := amf_context.AMF_Self().NfStatusSubscriptions.Load(nfInstanceId); ok {
-			logger.ConsumerLog.Debugf("SubscriptionId of nfInstance %v is %v", nfInstanceId, subscriptionId.(string))
-			problemDetails, err := consumer.SendRemoveSubscription(subscriptionId.(string))
-			if problemDetails != nil {
-				logger.ConsumerLog.Errorf("Remove NF Subscription Failed Problem[%+v]", problemDetails)
-			} else if err != nil {
-				logger.ConsumerLog.Errorf("Remove NF Subscription Error[%+v]", err)
-			} else {
-				logger.ConsumerLog.Infoln("[AMF] Remove NF Subscription successful")
-				amf_context.AMF_Self().NfStatusSubscriptions.Delete(nfInstanceId)
-			}
-		} else {
-			logger.ProducerLog.Infof("nfinstance %v not found in map", nfInstanceId)
-		}
-	}
+// func HandleDeregistrationNotification(request *httpwrapper.Request) *httpwrapper.Response {
+// 	logger.ProducerLog.Infoln("Handle Deregistration Notification")
+// 	deregistrationData := request.Body.(models.DeregistrationData)
 
-	return nil
-}
+// 	switch deregistrationData.DeregReason {
+// 	case "SUBSCRIPTION_WITHDRAWN":
+// 		amfSelf := context.AMF_Self()
+// 		if supi, exists := request.Params["supi"]; exists {
+// 			reqUri := request.URL.RequestURI()
+// 			if ue, ok := amfSelf.AmfUeFindBySupi(supi); ok {
+// 				logger.ProducerLog.Debugln("amf ue found: ", ue.Supi)
+// 				sbiMsg := context.SbiMsg{
+// 					UeContextId: ue.Supi,
+// 					ReqUri:      reqUri,
+// 					Msg:         nil,
+// 					Result:      make(chan context.SbiResponseMsg, 10),
+// 				}
+// 				ue.EventChannel.UpdateSbiHandler(HandleOAMPurgeUEContextRequest)
+// 				ue.EventChannel.SubmitMessage(sbiMsg)
+// 				msg := <-sbiMsg.Result
+// 				if msg.ProblemDetails != nil {
+// 					return httpwrapper.NewResponse(int(msg.ProblemDetails.(*models.ProblemDetails).Status), nil, msg.ProblemDetails.(*models.ProblemDetails))
+// 				} else {
+// 					return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
+// 				}
+// 			} else {
+// 				return httpwrapper.NewResponse(http.StatusNotFound, nil, nil)
+// 			}
+// 		}
 
-func HandleDeregistrationNotification(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.ProducerLog.Infoln("Handle Deregistration Notification")
-	deregistrationData := request.Body.(models.DeregistrationData)
+// 	case "":
+// 		problemDetails := &models.ProblemDetails{
+// 			Status: http.StatusBadRequest,
+// 			Cause:  "MANDATORY_IE_MISSING", // Defined in TS 29.503 6.2.5.2
+// 			Detail: "Missing IE [DeregReason] in DeregistrationData",
+// 		}
+// 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 
-	switch deregistrationData.DeregReason {
-	case "SUBSCRIPTION_WITHDRAWN":
-		amfSelf := context.AMF_Self()
-		if supi, exists := request.Params["supi"]; exists {
-			reqUri := request.URL.RequestURI()
-			if ue, ok := amfSelf.AmfUeFindBySupi(supi); ok {
-				logger.ProducerLog.Debugln("amf ue found: ", ue.Supi)
-				sbiMsg := context.SbiMsg{
-					UeContextId: ue.Supi,
-					ReqUri:      reqUri,
-					Msg:         nil,
-					Result:      make(chan context.SbiResponseMsg, 10),
-				}
-				ue.EventChannel.UpdateSbiHandler(HandleOAMPurgeUEContextRequest)
-				ue.EventChannel.SubmitMessage(sbiMsg)
-				msg := <-sbiMsg.Result
-				if msg.ProblemDetails != nil {
-					return httpwrapper.NewResponse(int(msg.ProblemDetails.(*models.ProblemDetails).Status), nil, msg.ProblemDetails.(*models.ProblemDetails))
-				} else {
-					return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
-				}
-			} else {
-				return httpwrapper.NewResponse(http.StatusNotFound, nil, nil)
-			}
-		}
-
-	case "":
-		problemDetails := &models.ProblemDetails{
-			Status: http.StatusBadRequest,
-			Cause:  "MANDATORY_IE_MISSING", // Defined in TS 29.503 6.2.5.2
-			Detail: "Missing IE [DeregReason] in DeregistrationData",
-		}
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-
-	default:
-		problemDetails := &models.ProblemDetails{
-			Status: http.StatusNotImplemented,
-			Cause:  "NOT_IMPLEMENTED", // Defined in TS 29.503
-			Detail: "Unsupported [DeregReason] in DeregistrationData",
-		}
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	return nil
-}
+// 	default:
+// 		problemDetails := &models.ProblemDetails{
+// 			Status: http.StatusNotImplemented,
+// 			Cause:  "NOT_IMPLEMENTED", // Defined in TS 29.503
+// 			Detail: "Unsupported [DeregReason] in DeregistrationData",
+// 		}
+// 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+// 	}
+// 	return nil
+// }

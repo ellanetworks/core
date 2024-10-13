@@ -1515,12 +1515,6 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		ranUe.UeContextRequest = false
 	}
 
-	// TS 23.502 4.2.2.2.3 step 6a Nnrf_NFDiscovery_Request (NF type, AMF Set)
-	// if aMFSetID != nil {
-	// TODO: This is a rerouted message
-	// TS 38.413: AMF shall, if supported, use the IE as described in TS 23.502
-	// }
-
 	// ng-ran propagate allowedNssai in the rerouted initial ue message (TS 38.413 8.6.5)
 	// TS 23.502 4.2.2.2.3 step 4a Nnssf_NSSelection_Get
 	// if allowedNSSAI != nil {

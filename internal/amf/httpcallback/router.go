@@ -98,10 +98,10 @@ var routes = Routes{
 		"/n1-message-notify",
 		HTTPN1MessageNotify,
 	},
-	{
-		"DeregistrationNotify",
-		strings.ToUpper("Post"),
-		":supi/deregistration-notify",
-		HTTPDeregistrationNotification,
-	},
+	// {
+	// 	"DeregistrationNotify",
+	// 	strings.ToUpper("Post"),
+	// 	":supi/deregistration-notify",
+	// 	HTTPDeregistrationNotification,
+	// },
 }

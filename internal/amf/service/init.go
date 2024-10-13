@@ -19,7 +19,6 @@ import (
 	gClient "github.com/yeastengine/config5g/proto/client"
 	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
 	"github.com/yeastengine/ella/internal/amf/communication"
-	"github.com/yeastengine/ella/internal/amf/consumer"
 	"github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/eventexposure"
 	"github.com/yeastengine/ella/internal/amf/factory"
@@ -149,18 +148,6 @@ func (amf *AMF) Terminate() {
 	logger.InitLog.Infof("Terminating AMF...")
 	amfSelf := context.AMF_Self()
 
-	// TODO: forward registered UE contexts to target AMF in the same AMF set if there is one
-
-	// deregister with NRF
-	problemDetails, err := consumer.SendDeregisterNFInstance()
-	if problemDetails != nil {
-		logger.InitLog.Errorf("Deregister NF instance Failed Problem[%+v]", problemDetails)
-	} else if err != nil {
-		logger.InitLog.Errorf("Deregister NF instance Error[%+v]", err)
-	} else {
-		logger.InitLog.Infof("[AMF] Deregister from NRF successfully")
-	}
-
 	// send AMF status indication to ran to notify ran that this AMF will be unavailable
 	logger.InitLog.Infof("Send AMF Status Indication to Notify RANs due to AMF terminating")
 	unavailableGuamiList := ngap_message.BuildUnavailableGUAMIList(amfSelf.ServedGuamiList)
@@ -173,21 +160,6 @@ func (amf *AMF) Terminate() {
 	ngap_service.Stop()
 
 	callback.SendAmfStatusChangeNotify((string)(models.StatusChange_UNAVAILABLE), amfSelf.ServedGuamiList)
-
-	amfSelf.NfStatusSubscriptions.Range(func(nfInstanceId, v interface{}) bool {
-		if subscriptionId, ok := amfSelf.NfStatusSubscriptions.Load(nfInstanceId); ok {
-			logger.InitLog.Debugf("SubscriptionId is %v", subscriptionId.(string))
-			problemDetails, err := consumer.SendRemoveSubscription(subscriptionId.(string))
-			if problemDetails != nil {
-				logger.InitLog.Errorf("Remove NF Subscription Failed Problem[%+v]", problemDetails)
-			} else if err != nil {
-				logger.InitLog.Errorf("Remove NF Subscription Error[%+v]", err)
-			} else {
-				logger.InitLog.Infoln("[AMF] Remove NF Subscription successful")
-			}
-		}
-		return true
-	})
 
 	logger.InitLog.Infof("AMF terminated")
 }

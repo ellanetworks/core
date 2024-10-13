@@ -15,7 +15,7 @@ const (
 	NGAPP_PORT = 38412
 )
 
-func Start(ausfURL string, nrfURL string, nssfURL string, pcfURL string, smfURL string, UdmsdmURL string, UdmUecmURL string, webuiURL string) error {
+func Start(ausfURL string, nssfURL string, pcfURL string, smfURL string, UdmsdmURL string, UdmUecmURL string, webuiURL string) error {
 	configuration := factory.Configuration{
 		AmfName:      "AMF",
 		NgapIpList:   []string{"0.0.0.0"},
@@ -45,7 +45,6 @@ func Start(ausfURL string, nrfURL string, nssfURL string, pcfURL string, smfURL 
 		},
 		SupportDnnList: []string{"internet"},
 		AusfUri:        ausfURL,
-		NrfUri:         nrfURL,
 		NssfUri:        nssfURL,
 		PcfUri:         pcfURL,
 		SmfUri:         smfURL,

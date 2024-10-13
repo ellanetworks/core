@@ -8,9 +8,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
-	"strings"
 
-	"github.com/antihax/optional"
 	"github.com/mitchellh/mapstructure"
 	"github.com/mohae/deepcopy"
 	"github.com/omec-project/nas"
@@ -19,7 +17,6 @@ import (
 	"github.com/omec-project/nas/nasType"
 	"github.com/omec-project/nas/security"
 	"github.com/omec-project/ngap/ngapType"
-	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/fsm"
 	"github.com/yeastengine/ella/internal/amf/consumer"
@@ -1181,33 +1178,6 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 				ue.GmmLog.Errorf("Registration Status Update Error[%+v]", err)
 			}
 
-			// Step 6
-			searchTargetAmfQueryParam := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{}
-			if ue.NetworkSliceInfo != nil {
-				netwotkSliceInfo := ue.NetworkSliceInfo
-				if netwotkSliceInfo.TargetAmfSet != "" {
-					// TS 29.531
-					// TargetAmfSet format: ^[0-9]{3}-[0-9]{2-3}-[A-Fa-f0-9]{2}-[0-3][A-Fa-f0-9]{2}$
-					// mcc-mnc-amfRegionId(8 bit)-AmfSetId(10 bit)
-					targetAmfSetToken := strings.Split(netwotkSliceInfo.TargetAmfSet, "-")
-					guami := amfSelf.ServedGuamiList[0]
-					targetAmfPlmnId := models.PlmnId{
-						Mcc: targetAmfSetToken[0],
-						Mnc: targetAmfSetToken[1],
-					}
-
-					if !reflect.DeepEqual(*guami.PlmnId, targetAmfPlmnId) {
-						searchTargetAmfQueryParam.TargetPlmnList = optional.NewInterface(util.MarshToJsonString([]models.PlmnId{targetAmfPlmnId}))
-						searchTargetAmfQueryParam.RequesterPlmnList = optional.NewInterface(util.MarshToJsonString([]models.PlmnId{*guami.PlmnId}))
-					}
-
-					searchTargetAmfQueryParam.AmfRegionId = optional.NewString(targetAmfSetToken[2])
-					searchTargetAmfQueryParam.AmfSetId = optional.NewString(targetAmfSetToken[3])
-				} else if len(netwotkSliceInfo.CandidateAmfList) > 0 {
-					// TODO: select candidate Amf based on local poilcy
-					searchTargetAmfQueryParam.TargetNfInstanceId = optional.NewInterface(netwotkSliceInfo.CandidateAmfList[0])
-				}
-			}
 			// Guillaume: I'm not sure if what we have here is the right thing to do
 			// As we remvoed the NRF, we don't search for other AMF's anymore and we hardcode the
 			// target AMF to the AMF's own address.
