@@ -14,9 +14,8 @@ func Start(amfURL string, nrfURL string, udrURL string, webuiURL string) error {
 	configuration := factory.Configuration{
 		PcfName: "PCF",
 		Sbi: &factory.Sbi{
-			RegisterIPv4: "0.0.0.0",
-			BindingIPv4:  "0.0.0.0",
-			Port:         SBI_PORT,
+			BindingIPv4: "0.0.0.0",
+			Port:        SBI_PORT,
 		},
 		DefaultBdtRefId: "BdtPolicyId-",
 		AmfUri:          amfURL,

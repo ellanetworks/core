@@ -154,16 +154,6 @@ func (pcf *PCF) StopKeepAliveTimer() {
 }
 
 func (pcf *PCF) Terminate() {
-	logger.InitLog.Infof("Terminating PCF...")
-	// deregister with NRF
-	problemDetails, err := consumer.SendDeregisterNFInstance()
-	if problemDetails != nil {
-		logger.InitLog.Errorf("Deregister NF instance Failed Problem[%+v]", problemDetails)
-	} else if err != nil {
-		logger.InitLog.Errorf("Deregister NF instance Error[%+v]", err)
-	} else {
-		logger.InitLog.Infof("Deregister from NRF successfully")
-	}
 	logger.InitLog.Infof("PCF terminated")
 }
 
@@ -197,16 +187,6 @@ func (pcf *PCF) RegisterNF() {
 			KeepAliveTimerMutex.Lock()
 			pcf.StopKeepAliveTimer()
 			KeepAliveTimerMutex.Unlock()
-			initLog.Infof("PCF is not having Minimum Config to Register/Update to NRF")
-			problemDetails, err := consumer.SendDeregisterNFInstance()
-			if problemDetails != nil {
-				initLog.Errorf("PCF Deregister Instance to NRF failed, Problem: [+%v]", problemDetails)
-			}
-			if err != nil {
-				initLog.Errorf("PCF Deregister Instance to NRF Error[%s]", err.Error())
-			} else {
-				logger.InitLog.Infof("Deregister from NRF successfully")
-			}
 		}
 	}
 }

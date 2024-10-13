@@ -17,7 +17,7 @@ func BuildNFInstance(context *pcf_context.PCFContext) (profile models.NfProfile,
 	profile.NfInstanceId = context.NfId
 	profile.NfType = models.NfType_PCF
 	profile.NfStatus = models.NfStatus_REGISTERED
-	profile.Ipv4Addresses = append(profile.Ipv4Addresses, context.RegisterIPv4)
+	profile.Ipv4Addresses = append(profile.Ipv4Addresses, context.BindingIPv4)
 	service := []models.NfService{}
 	for _, nfService := range context.NfService {
 		service = append(service, nfService)
@@ -77,37 +77,6 @@ var SendRegisterNFInstance = func(nrfUri, nfInstanceId string, profile models.Nf
 		}
 	}
 	return nfProfile, resouceNrfUri, retrieveNfInstanceID, err
-}
-
-func SendDeregisterNFInstance() (problemDetails *models.ProblemDetails, err error) {
-	logger.Consumerlog.Debugf("Send Deregister NFInstance")
-
-	pcfSelf := pcf_context.PCF_Self()
-	// Set client and set url
-	configuration := Nnrf_NFManagement.NewConfiguration()
-	configuration.SetBasePath(pcfSelf.NrfUri)
-	client := Nnrf_NFManagement.NewAPIClient(configuration)
-
-	var res *http.Response
-
-	res, err = client.NFInstanceIDDocumentApi.DeregisterNFInstance(context.Background(), pcfSelf.NfId)
-	if err == nil {
-		return
-	} else if res != nil {
-		defer func() {
-			if resCloseErr := res.Body.Close(); resCloseErr != nil {
-				logger.Consumerlog.Errorf("DeregisterNFInstance response cannot close: %+v", resCloseErr)
-			}
-		}()
-		if res.Status != err.Error() {
-			return
-		}
-		problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-		problemDetails = &problem
-	} else {
-		err = openapi.ReportError("server no response")
-	}
-	return
 }
 
 var SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile models.NfProfile, problemDetails *models.ProblemDetails, err error) {
