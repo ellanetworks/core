@@ -18,15 +18,6 @@ type MatchFilter func(profile *models.NfProfile, opts *Nnrf_NFDiscovery.SearchNF
 
 type MatchFilters map[models.NfType]MatchFilter
 
-var matchFilters = MatchFilters{
-	models.NfType_SMF:  MatchSmfProfile,
-	models.NfType_AUSF: MatchAusfProfile,
-	models.NfType_PCF:  MatchPcfProfile,
-	models.NfType_NSSF: MatchNssfProfile,
-	models.NfType_UDM:  MatchUdmProfile,
-	models.NfType_AMF:  MatchAmfProfile,
-}
-
 func MatchSmfProfile(profile *models.NfProfile, opts *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (bool, error) {
 	if opts.ServiceNames.IsSet() {
 		reqServiceNames := opts.ServiceNames.Value().([]models.ServiceName)
