@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	nrf_cache "github.com/yeastengine/ella/internal/nrf/nrfcache"
 	smf_context "github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/qos"
@@ -149,14 +147,5 @@ func NfSubscriptionStatusNotifyProcedure(notificationData models.NotificationDat
 		}
 		return problemDetails
 	}
-	nfInstanceId := notificationData.NfInstanceUri[strings.LastIndex(notificationData.NfInstanceUri, "/")+1:]
-
-	// If nrf caching is enabled, go ahead and delete the entry from the cache.
-	// This will force the smf to do nf discovery and get the updated nf profile from the nrf.
-	if smf_context.SMF_Self().EnableNrfCaching {
-		ok := nrf_cache.RemoveNfProfileFromNrfCache(nfInstanceId)
-		logger.PduSessLog.Tracef("nfinstance %v deleted from cache: %v", nfInstanceId, ok)
-	}
-
 	return nil
 }

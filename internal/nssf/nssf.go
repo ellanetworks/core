@@ -15,25 +15,22 @@ const (
 	SBI_PORT = 29531
 )
 
-func Start(nrfURL string, webuiURL string) error {
+func Start(webuiURL string) error {
 	configuration := factory.Configuration{
 		NssfName: "NSSF",
 		Sbi: &factory.Sbi{
-			BindingIPv4:  "0.0.0.0",
-			Port:         SBI_PORT,
-			RegisterIPv4: "0.0.0.0",
+			BindingIPv4: "0.0.0.0",
+			Port:        SBI_PORT,
 		},
 		ServiceNameList: []models.ServiceName{
 			"nnssf-nsselection",
 			"nnssf-nssaiavailability",
 		},
-		NrfUri:   nrfURL,
 		WebuiUri: webuiURL,
 		NsiList: []factory.NsiConfig{
 			{
 				NsiInformationList: []models.NsiInformation{
 					{
-						NrfId: nrfURL + "/nnrf-nfm/v1/nf-instances",
 						NsiId: "22",
 					},
 				},

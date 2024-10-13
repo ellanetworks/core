@@ -600,6 +600,7 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		var found bool
 		taiList := make([]models.Tai, len(context.AMF_Self().SupportTaiLists))
 		copy(taiList, context.AMF_Self().SupportTaiLists)
+		ran.Log.Warnf("TO DELETE: Supported Tai List in AMF: %v", taiList)
 		for i := range taiList {
 			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
 			ran.Log.Infof("Supported Tai List in AMF Plmn: %v, Tac: 0x%v Tac: %v", taiList[i].PlmnId, taiList[i].Tac, context.AMF_Self().SupportTaiLists[i].Tac)
@@ -1513,12 +1514,6 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	} else {
 		ranUe.UeContextRequest = false
 	}
-
-	// TS 23.502 4.2.2.2.3 step 6a Nnrf_NFDiscovery_Request (NF type, AMF Set)
-	// if aMFSetID != nil {
-	// TODO: This is a rerouted message
-	// TS 38.413: AMF shall, if supported, use the IE as described in TS 23.502
-	// }
 
 	// ng-ran propagate allowedNssai in the rerouted initial ue message (TS 38.413 8.6.5)
 	// TS 23.502 4.2.2.2.3 step 4a Nnssf_NSSelection_Get

@@ -20,7 +20,6 @@ import (
 	"github.com/omec-project/util/util_3gpp/suci"
 	udm_context "github.com/yeastengine/ella/internal/udm/context"
 	"github.com/yeastengine/ella/internal/udm/logger"
-	"github.com/yeastengine/ella/internal/udm/util"
 )
 
 const (
@@ -125,10 +124,7 @@ func ConfirmAuthDataProcedure(authEvent models.AuthEvent, supi string) (problemD
 	optInterface := optional.NewInterface(authEvent)
 	createAuthParam.AuthEvent = optInterface
 
-	client, err := createUDMClientToUDR(supi)
-	if err != nil {
-		return util.ProblemDetailsSystemFailure(err.Error())
-	}
+	client := createUDMClientToUDR()
 	resp, err := client.AuthenticationStatusDocumentApi.CreateAuthenticationStatus(
 		context.Background(), supi, &createAuthParam)
 	if err != nil {
@@ -170,10 +166,7 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 
 	logger.UeauLog.Tracef("supi conversion => %s\n", supi)
 
-	client, err := createUDMClientToUDR(supi)
-	if err != nil {
-		return nil, util.ProblemDetailsSystemFailure(err.Error())
-	}
+	client := createUDMClientToUDR()
 	authSubs, res, err := client.AuthenticationDataDocumentApi.QueryAuthSubsData(context.Background(), supi, nil)
 	if err != nil {
 		problemDetails = &models.ProblemDetails{

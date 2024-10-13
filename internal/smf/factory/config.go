@@ -43,19 +43,19 @@ const (
 )
 
 type Configuration struct {
-	PFCP                     *PFCP                `yaml:"pfcp,omitempty"`
-	Sbi                      *Sbi                 `yaml:"sbi,omitempty"`
-	NrfUri                   string               `yaml:"nrfUri,omitempty"`
-	WebuiUri                 string               `yaml:"webuiUri"`
-	SmfName                  string               `yaml:"smfName,omitempty"`
-	SNssaiInfo               []SnssaiInfoItem     `yaml:"snssaiInfos,omitempty"`
-	StaticIpInfo             []StaticIpInfo       `yaml:"staticIpInfo"`
-	ServiceNameList          []string             `yaml:"serviceNameList,omitempty"`
-	EnterpriseList           map[string]string    `yaml:"enterpriseList,omitempty"`
-	UserPlaneInformation     UserPlaneInformation `yaml:"userplane_information"`
-	NrfCacheEvictionInterval int                  `yaml:"nrfCacheEvictionInterval"`
-	EnableNrfCaching         bool                 `yaml:"enableNrfCaching"`
-	ULCL                     bool                 `yaml:"ulcl,omitempty"`
+	PFCP                 *PFCP                `yaml:"pfcp,omitempty"`
+	Sbi                  *Sbi                 `yaml:"sbi,omitempty"`
+	AmfUri               string               `yaml:"amfUri,omitempty"`
+	PcfUri               string               `yaml:"pcfUri,omitempty"`
+	UdmUri               string               `yaml:"udmUri,omitempty"`
+	WebuiUri             string               `yaml:"webuiUri"`
+	SmfName              string               `yaml:"smfName,omitempty"`
+	SNssaiInfo           []SnssaiInfoItem     `yaml:"snssaiInfos,omitempty"`
+	StaticIpInfo         []StaticIpInfo       `yaml:"staticIpInfo"`
+	ServiceNameList      []string             `yaml:"serviceNameList,omitempty"`
+	EnterpriseList       map[string]string    `yaml:"enterpriseList,omitempty"`
+	UserPlaneInformation UserPlaneInformation `yaml:"userplane_information"`
+	ULCL                 bool                 `yaml:"ulcl,omitempty"`
 }
 
 type StaticIpInfo struct {
@@ -77,8 +77,6 @@ type SnssaiDnnInfoItem struct {
 }
 
 type Sbi struct {
-	RegisterIPv4 string `yaml:"registerIPv4,omitempty"` // IP that is registered at NRF.
-	// IPv6Addr string `yaml:"ipv6Addr,omitempty"`
 	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
 	Port        int    `yaml:"port,omitempty"`
 }

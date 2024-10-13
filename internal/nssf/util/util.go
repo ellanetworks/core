@@ -460,8 +460,6 @@ func AddAmfInformation(tai models.Tai, authorizedNetworkSliceInfo *models.Author
 			} else {
 				// TODO: Possibly querying the NRF
 				authorizedNetworkSliceInfo.TargetAmfSet = amfSetConfig.AmfSetId
-				// The API URI of the NRF may be included if target AMF Set is included
-				authorizedNetworkSliceInfo.NrfAmfSet = amfSetConfig.NrfAmfSet
 			}
 			return
 		}

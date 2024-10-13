@@ -8,10 +8,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
-	"strings"
-	"time"
 
-	"github.com/antihax/optional"
 	"github.com/mitchellh/mapstructure"
 	"github.com/mohae/deepcopy"
 	"github.com/omec-project/nas"
@@ -19,9 +16,7 @@ import (
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
 	"github.com/omec-project/nas/security"
-	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
-	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/fsm"
 	"github.com/yeastengine/ella/internal/amf/consumer"
@@ -270,7 +265,6 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 						// TS 24.501 5.4.5.2.3 case a) 1) iv)
 						smContext = context.NewSmContext(pduSessionID)
 						smContext.SetAccessType(anType)
-						smContext.SetSmfID(ueContextInSmf.SmfInstanceId)
 						smContext.SetDnn(ueContextInSmf.Dnn)
 						smContext.SetPlmnID(*ueContextInSmf.PlmnId)
 						ue.StoreSmContext(pduSessionID, smContext)
@@ -541,14 +535,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 			transferReason = models.TransferReason_MOBI_REG
 		}
 
-		searchOpt := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-			Guami: optional.NewInterface(util.MarshToJsonString(guamiFromUeGuti)),
-		}
-		err := consumer.SearchAmfCommunicationInstance(ue, amfSelf.NrfUri, models.NfType_AMF, models.NfType_AMF, &searchOpt)
-		if err != nil {
-			ue.GmmLog.Errorf("[GMM] %+v", err)
-			return err
-		}
+		ue.TargetAmfUri = amfSelf.GetIPv4Uri()
 
 		ueContextTransferRspData, problemDetails, err := consumer.UEContextTransferRequest(ue, anType, transferReason)
 		if problemDetails != nil {
@@ -653,32 +640,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 		}
 	}
 
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		Supi: optional.NewString(ue.Supi),
-	}
-	for {
-		resp, err := consumer.SendSearchNFInstances(amfSelf.NrfUri, models.NfType_PCF, models.NfType_AMF, &param)
-		if err != nil {
-			ue.GmmLog.Error("AMF can not select an PCF by NRF")
-		} else {
-			// select the first PCF, TODO: select base on other info
-			var pcfUri string
-			for _, nfProfile := range resp.NfInstances {
-				pcfUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NPCF_AM_POLICY_CONTROL,
-					models.NfServiceStatus_REGISTERED)
-				if pcfUri != "" {
-					ue.PcfId = nfProfile.NfInstanceId
-					break
-				}
-			}
-			if ue.PcfUri = pcfUri; ue.PcfUri == "" {
-				ue.GmmLog.Error("AMF can not select an PCF by NRF")
-			} else {
-				break
-			}
-		}
-		time.Sleep(500 * time.Millisecond) // sleep a while when search NF Instance fail
-	}
+	ue.PcfUri = amfSelf.PcfUri
 
 	problemDetails, err := consumer.AMPolicyControlCreate(ue, anType)
 	if problemDetails != nil {
@@ -1109,30 +1071,8 @@ func communicateWithUDM(ue *context.AmfUe, accessType models.AccessType) error {
 	ue.GmmLog.Debugln("communicateWithUDM")
 	amfSelf := context.AMF_Self()
 
-	// UDM selection described in TS 23.501 6.3.8
-	// TODO: consider udm group id, Routing ID part of SUCI, GPSI or External Group ID (e.g., by the NEF)
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		Supi: optional.NewString(ue.Supi),
-	}
-	resp, err := consumer.SendSearchNFInstances(amfSelf.NrfUri, models.NfType_UDM, models.NfType_AMF, &param)
-	if err != nil {
-		return fmt.Errorf("AMF can not select an UDM by NRF")
-	}
-
-	var uecmUri, sdmUri string
-	for _, nfProfile := range resp.NfInstances {
-		ue.UdmId = nfProfile.NfInstanceId
-		uecmUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDM_UECM, models.NfServiceStatus_REGISTERED)
-		sdmUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDM_SDM, models.NfServiceStatus_REGISTERED)
-		if uecmUri != "" && sdmUri != "" {
-			break
-		}
-	}
-	ue.NudmUECMUri = uecmUri
-	ue.NudmSDMUri = sdmUri
-	if ue.NudmUECMUri == "" || ue.NudmSDMUri == "" {
-		return fmt.Errorf("AMF can not select an UDM by NRF")
-	}
+	ue.NudmUECMUri = amfSelf.UdmUecmUri
+	ue.NudmSDMUri = amfSelf.UdmsdmUri
 
 	problemDetails, err := consumer.UeCmRegistration(ue, accessType, true)
 	if problemDetails != nil {
@@ -1175,18 +1115,7 @@ func communicateWithUDM(ue *context.AmfUe, accessType models.AccessType) error {
 
 func getSubscribedNssai(ue *context.AmfUe) {
 	amfSelf := context.AMF_Self()
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		Supi: optional.NewString(ue.Supi),
-	}
-	for {
-		err := consumer.SearchUdmSdmInstance(ue, amfSelf.NrfUri, models.NfType_UDM, models.NfType_AMF, &param)
-		if err != nil {
-			ue.GmmLog.Errorf("AMF can not select an Nudm_SDM Instance by NRF[Error: %+v]", err)
-			time.Sleep(2 * time.Second)
-		} else {
-			break
-		}
-	}
+	ue.NudmSDMUri = amfSelf.UdmsdmUri
 	problemDetails, err := consumer.SDMGetSliceSelectionSubscriptionData(ue)
 	if problemDetails != nil {
 		ue.GmmLog.Errorf("SDM_Get Slice Selection Subscription Data Failed Problem[%+v]", problemDetails)
@@ -1225,18 +1154,7 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 		}
 
 		if needSliceSelection {
-			if ue.NssfUri == "" {
-				for {
-					err := consumer.SearchNssfNSSelectionInstance(ue, amfSelf.NrfUri, models.NfType_NSSF, models.NfType_AMF, nil)
-					if err != nil {
-						ue.GmmLog.Errorf("AMF can not select an NSSF Instance by NRF[Error: %+v]", err)
-						time.Sleep(2 * time.Second)
-					} else {
-						break
-					}
-				}
-			}
-
+			ue.NssfUri = amfSelf.NssfUri
 			// Step 4
 			problemDetails, err := consumer.NSSelectionGetForRegistration(ue, requestedNssai)
 			if problemDetails != nil {
@@ -1260,70 +1178,39 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 				ue.GmmLog.Errorf("Registration Status Update Error[%+v]", err)
 			}
 
-			// Step 6
-			searchTargetAmfQueryParam := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{}
-			if ue.NetworkSliceInfo != nil {
-				netwotkSliceInfo := ue.NetworkSliceInfo
-				if netwotkSliceInfo.TargetAmfSet != "" {
-					// TS 29.531
-					// TargetAmfSet format: ^[0-9]{3}-[0-9]{2-3}-[A-Fa-f0-9]{2}-[0-3][A-Fa-f0-9]{2}$
-					// mcc-mnc-amfRegionId(8 bit)-AmfSetId(10 bit)
-					targetAmfSetToken := strings.Split(netwotkSliceInfo.TargetAmfSet, "-")
-					guami := amfSelf.ServedGuamiList[0]
-					targetAmfPlmnId := models.PlmnId{
-						Mcc: targetAmfSetToken[0],
-						Mnc: targetAmfSetToken[1],
-					}
-
-					if !reflect.DeepEqual(*guami.PlmnId, targetAmfPlmnId) {
-						searchTargetAmfQueryParam.TargetPlmnList = optional.NewInterface(util.MarshToJsonString([]models.PlmnId{targetAmfPlmnId}))
-						searchTargetAmfQueryParam.RequesterPlmnList = optional.NewInterface(util.MarshToJsonString([]models.PlmnId{*guami.PlmnId}))
-					}
-
-					searchTargetAmfQueryParam.AmfRegionId = optional.NewString(targetAmfSetToken[2])
-					searchTargetAmfQueryParam.AmfSetId = optional.NewString(targetAmfSetToken[3])
-				} else if len(netwotkSliceInfo.CandidateAmfList) > 0 {
-					// TODO: select candidate Amf based on local poilcy
-					searchTargetAmfQueryParam.TargetNfInstanceId = optional.NewInterface(netwotkSliceInfo.CandidateAmfList[0])
-				}
+			// Guillaume: I'm not sure if what we have here is the right thing to do
+			// As we remvoed the NRF, we don't search for other AMF's anymore and we hardcode the
+			// target AMF to the AMF's own address.
+			// It's possible we need to change this whole block to the following:
+			//  allowedNssaiNgap := ngapConvert.AllowedNssaiToNgap(ue.AllowedNssai[anType])
+			//	ngap_message.SendRerouteNasRequest(ue, anType, nil, ue.RanUe[anType].InitialUEMessage, &allowedNssaiNgap)
+			ue.TargetAmfUri = amfSelf.GetIPv4Uri()
+			ueContext := consumer.BuildUeContextModel(ue)
+			registerContext := models.RegistrationContextContainer{
+				UeContext:        &ueContext,
+				AnType:           anType,
+				AnN2ApId:         int32(ue.RanUe[anType].RanUeNgapId),
+				RanNodeId:        ue.RanUe[anType].Ran.RanId,
+				InitialAmfName:   amfSelf.Name,
+				UserLocation:     &ue.Location,
+				RrcEstCause:      ue.RanUe[anType].RRCEstablishmentCause,
+				UeContextRequest: ue.RanUe[anType].UeContextRequest,
+				AnN2IPv4Addr:     ue.RanUe[anType].Ran.GnbIp,
+				AllowedNssai: &models.AllowedNssai{
+					AllowedSnssaiList: ue.AllowedNssai[anType],
+					AccessType:        anType,
+				},
+			}
+			if len(ue.NetworkSliceInfo.RejectedNssaiInPlmn) > 0 {
+				registerContext.RejectedNssaiInPlmn = ue.NetworkSliceInfo.RejectedNssaiInPlmn
+			}
+			if len(ue.NetworkSliceInfo.RejectedNssaiInTa) > 0 {
+				registerContext.RejectedNssaiInTa = ue.NetworkSliceInfo.RejectedNssaiInTa
 			}
 
-			err = consumer.SearchAmfCommunicationInstance(ue, amfSelf.NrfUri,
-				models.NfType_AMF, models.NfType_AMF, &searchTargetAmfQueryParam)
-			if err == nil {
-				// Condition (A) Step 7: initial AMF find Target AMF via NRF ->
-				// Send Namf_Communication_N1MessageNotify to Target AMF
-				ueContext := consumer.BuildUeContextModel(ue)
-				registerContext := models.RegistrationContextContainer{
-					UeContext:        &ueContext,
-					AnType:           anType,
-					AnN2ApId:         int32(ue.RanUe[anType].RanUeNgapId),
-					RanNodeId:        ue.RanUe[anType].Ran.RanId,
-					InitialAmfName:   amfSelf.Name,
-					UserLocation:     &ue.Location,
-					RrcEstCause:      ue.RanUe[anType].RRCEstablishmentCause,
-					UeContextRequest: ue.RanUe[anType].UeContextRequest,
-					AnN2IPv4Addr:     ue.RanUe[anType].Ran.GnbIp,
-					AllowedNssai: &models.AllowedNssai{
-						AllowedSnssaiList: ue.AllowedNssai[anType],
-						AccessType:        anType,
-					},
-				}
-				if len(ue.NetworkSliceInfo.RejectedNssaiInPlmn) > 0 {
-					registerContext.RejectedNssaiInPlmn = ue.NetworkSliceInfo.RejectedNssaiInPlmn
-				}
-				if len(ue.NetworkSliceInfo.RejectedNssaiInTa) > 0 {
-					registerContext.RejectedNssaiInTa = ue.NetworkSliceInfo.RejectedNssaiInTa
-				}
-
-				var n1Message bytes.Buffer
-				ue.RegistrationRequest.EncodeRegistrationRequest(&n1Message)
-				callback.SendN1MessageNotifyAtAMFReAllocation(ue, n1Message.Bytes(), &registerContext)
-			} else {
-				// Condition (B) Step 7: initial AMF can not find Target AMF via NRF -> Send Reroute NAS Request to RAN
-				allowedNssaiNgap := ngapConvert.AllowedNssaiToNgap(ue.AllowedNssai[anType])
-				ngap_message.SendRerouteNasRequest(ue, anType, nil, ue.RanUe[anType].InitialUEMessage, &allowedNssaiNgap)
-			}
+			var n1Message bytes.Buffer
+			ue.RegistrationRequest.EncodeRegistrationRequest(&n1Message)
+			callback.SendN1MessageNotifyAtAMFReAllocation(ue, n1Message.Bytes(), &registerContext)
 			return nil
 		}
 	}
@@ -1514,30 +1401,7 @@ func AuthenticationProcedure(ue *context.AmfUe, accessType models.AccessType) (b
 	}
 
 	amfSelf := context.AMF_Self()
-
-	// TODO: consider ausf group id, Routing ID part of SUCI
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{}
-	resp, err := consumer.SendSearchNFInstances(amfSelf.NrfUri, models.NfType_AUSF, models.NfType_AMF, &param)
-	if err != nil {
-		ue.GmmLog.Error("AMF can not select an AUSF by NRF")
-		return false, err
-	}
-
-	// select the first AUSF, TODO: select base on other info
-	var ausfUri string
-	for _, nfProfile := range resp.NfInstances {
-		ue.AusfId = nfProfile.NfInstanceId
-		ausfUri = util.SearchNFServiceUri(nfProfile, models.ServiceName_NAUSF_AUTH, models.NfServiceStatus_REGISTERED)
-		if ausfUri != "" {
-			break
-		}
-	}
-	if ausfUri == "" {
-		err = fmt.Errorf("AMF can not select an AUSF by NRF")
-		ue.GmmLog.Errorf(err.Error())
-		return false, err
-	}
-	ue.AusfUri = ausfUri
+	ue.AusfUri = amfSelf.AusfUri
 
 	response, problemDetails, err := consumer.SendUEAuthenticationAuthenticateRequest(ue, nil)
 	if err != nil {

@@ -10,7 +10,6 @@ import (
 	"github.com/yeastengine/ella/internal/ausf"
 	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/db"
-	"github.com/yeastengine/ella/internal/nrf"
 	"github.com/yeastengine/ella/internal/nssf"
 	"github.com/yeastengine/ella/internal/pcf"
 	"github.com/yeastengine/ella/internal/smf"
@@ -47,39 +46,42 @@ func setEnvironmentVariables() error {
 }
 
 func startNetwork(cfg config.Config) error {
+	ausfUrl := "http://127.0.0.1:29509"
+	amfUrl := "http://127.0.0.1:29518"
+	nssfUrl := "http://127.0.0.1:29531"
+	pcfUrl := "http://127.0.0.1:29507"
+	smfUrl := "http://127.0.0.1:29502"
+	udmUrl := "http://127.0.0.1:29503"
+	udrUrl := "http://127.0.0.1:29504"
 	webuiUrl, err := webui.Start(cfg.DB.Url, cfg.DB.Name)
 	if err != nil {
 		return err
 	}
-	nrfUrl, err := nrf.Start(cfg.DB.Url, cfg.DB.Name, webuiUrl)
+	err = amf.Start(ausfUrl, nssfUrl, pcfUrl, smfUrl, udmUrl, udmUrl, webuiUrl)
 	if err != nil {
 		return err
 	}
-	err = amf.Start(nrfUrl, webuiUrl)
+	err = ausf.Start(udmUrl, webuiUrl)
 	if err != nil {
 		return err
 	}
-	err = ausf.Start(nrfUrl, webuiUrl)
+	err = pcf.Start(amfUrl, udrUrl, webuiUrl)
 	if err != nil {
 		return err
 	}
-	err = pcf.Start(nrfUrl, webuiUrl)
+	err = udr.Start(cfg.DB.Url, cfg.DB.Name, webuiUrl)
 	if err != nil {
 		return err
 	}
-	err = udr.Start(cfg.DB.Url, cfg.DB.Name, nrfUrl, webuiUrl)
+	err = udm.Start(udrUrl, webuiUrl)
 	if err != nil {
 		return err
 	}
-	err = udm.Start(nrfUrl, webuiUrl)
+	err = nssf.Start(webuiUrl)
 	if err != nil {
 		return err
 	}
-	err = nssf.Start(nrfUrl, webuiUrl)
-	if err != nil {
-		return err
-	}
-	err = smf.Start(nrfUrl, webuiUrl)
+	err = smf.Start(amfUrl, pcfUrl, udmUrl, webuiUrl)
 	if err != nil {
 		return err
 	}

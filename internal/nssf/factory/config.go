@@ -25,7 +25,6 @@ type Configuration struct {
 	NssfName                 string                  `yaml:"nssfName,omitempty"`
 	Sbi                      *Sbi                    `yaml:"sbi"`
 	ServiceNameList          []models.ServiceName    `yaml:"serviceNameList"`
-	NrfUri                   string                  `yaml:"nrfUri"`
 	WebuiUri                 string                  `yaml:"webuiUri"`
 	SupportedPlmnList        []models.PlmnId         `yaml:"supportedPlmnList,omitempty"`
 	SupportedNssaiInPlmnList []SupportedNssaiInPlmn  `yaml:"supportedNssaiInPlmnList"`
@@ -37,9 +36,6 @@ type Configuration struct {
 }
 
 type Sbi struct {
-	// Currently only support IPv4 and thus `Ipv4Addr` field shall not be empty
-	RegisterIPv4 string `yaml:"registerIPv4,omitempty"` // IP that is registered at NRF.
-	// IPv6Addr string `yaml:"ipv6Addr,omitempty"`
 	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
 	Port        int    `yaml:"port"`
 }
@@ -69,7 +65,6 @@ type NsiConfig struct {
 type AmfSetConfig struct {
 	AmfSetId                       string                                  `yaml:"amfSetId"`
 	AmfList                        []string                                `yaml:"amfList,omitempty"`
-	NrfAmfSet                      string                                  `yaml:"nrfAmfSet,omitempty"`
 	SupportedNssaiAvailabilityData []models.SupportedNssaiAvailabilityData `yaml:"supportedNssaiAvailabilityData"`
 }
 

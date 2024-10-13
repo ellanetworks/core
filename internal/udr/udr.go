@@ -8,16 +8,13 @@ import (
 
 var UDR = &service.UDR{}
 
-const (
-	SBI_PORT = 29504
-)
+const SBI_PORT = 29504
 
-func Start(mongoDBURL string, mongoDBName, nrfURL string, webuiURL string) error {
+func Start(mongoDBURL string, mongoDBName, webuiURL string) error {
 	configuration := factory.Configuration{
 		Sbi: &factory.Sbi{
-			RegisterIPv4: "0.0.0.0",
-			BindingIPv4:  "0.0.0.0",
-			Port:         SBI_PORT,
+			BindingIPv4: "0.0.0.0",
+			Port:        SBI_PORT,
 		},
 		Mongodb: &factory.Mongodb{
 			Name:           mongoDBName,
@@ -25,7 +22,6 @@ func Start(mongoDBURL string, mongoDBName, nrfURL string, webuiURL string) error
 			AuthKeysDbName: mongoDBName,
 			AuthUrl:        mongoDBURL,
 		},
-		NrfUri:   nrfURL,
 		WebuiUri: webuiURL,
 	}
 	config := factory.Config{

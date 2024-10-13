@@ -70,8 +70,7 @@ type AmfUe struct {
 	RegistrationAcceptForNon3GPPAccess []byte                          `json:"registrationAcceptForNon3GPPAccess,omitempty"`
 	RetransmissionOfInitialNASMsg      bool                            `json:"retransmissionOfInitialNASMsg,omitempty"`
 	/* Used for AMF relocation */
-	TargetAmfProfile *models.NfProfile `json:"targetAmfProfile,omitempty"`
-	TargetAmfUri     string            `json:"targetAmfUri,omitempty"`
+	TargetAmfUri string `json:"targetAmfUri,omitempty"`
 	/* Ue Identity*/
 	PlmnId              models.PlmnId `json:"plmnId,omitempty"`
 	Suci                string        `json:"suci,omitempty"`
@@ -93,7 +92,7 @@ type AmfUe struct {
 	LastVisitedRegisteredTai models.Tai          `json:"lastVisitedRegisteredTai,omitempty"`
 	TimeZone                 string              `json:"timezone,omitempty"`
 	/* context about udm */
-	UdmId                             string                                    `json:"udmId,omitempty"`
+	// UdmId                             string                                    `json:"udmId,omitempty"`
 	NudmUECMUri                       string                                    `json:"nudmUECMUri,omitempty"`
 	NudmSDMUri                        string                                    `json:"nudmSDMUri,omitempty"`
 	SubscriptionDataValid             bool                                      `json:"subscriptionDataValid,omitempty"`
@@ -116,7 +115,6 @@ type AmfUe struct {
 	Kseaf                             string                      `json:"kseaf,omitempty"`
 	Kamf                              string                      `json:"kamf,omitempty"`
 	/* context about PCF */
-	PcfId                        string                    `json:"pcfId,omitempty"`
 	PcfUri                       string                    `json:"pcfUri,omitempty"`
 	PolicyAssociationId          string                    `json:"policyAssociationId,omitempty"`
 	AmPolicyUri                  string                    `json:"amPolicyUri,omitempty"`
@@ -166,7 +164,6 @@ type AmfUe struct {
 	RegistrationArea map[models.AccessType][]models.Tai `json:"registrationArea,omitempty"`
 	LadnInfo         []LADN                             `json:"ladnInfo,omitempty"`
 	/* Network Slicing related context and Nssf */
-	NssfId                            string                                       `json:"nssfId,omitempty"`
 	NssfUri                           string                                       `json:"nssfUri,omitempty"`
 	NetworkSliceInfo                  *models.AuthorizedNetworkSliceInfo           `json:"networkSliceInfo,omitempty"`
 	AllowedNssai                      map[models.AccessType][]models.AllowedSnssai `json:"allowedNssai,omitempty"`
@@ -755,10 +752,6 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 			ue.NH = nh
 		}
 		ue.NCC = uint8(seafData.Ncc)
-	}
-
-	if ueContext.PcfId != "" {
-		ue.PcfId = ueContext.PcfId
 	}
 
 	if ueContext.PcfAmPolicyUri != "" {

@@ -4,18 +4,14 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
-	"time"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/omec-project/util/path_util"
 	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/config5g/proto/client"
 	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
-	"github.com/yeastengine/ella/internal/udm/consumer"
 	"github.com/yeastengine/ella/internal/udm/context"
 	"github.com/yeastengine/ella/internal/udm/eventexposure"
 	"github.com/yeastengine/ella/internal/udm/factory"
@@ -35,11 +31,6 @@ var ConfigPodTrigger chan bool
 func init() {
 	ConfigPodTrigger = make(chan bool)
 }
-
-var (
-	KeepAliveTimer      *time.Timer
-	KeepAliveTimerMutex sync.Mutex
-)
 
 var initLog *logrus.Entry
 
@@ -93,8 +84,6 @@ func (udm *UDM) Start() {
 
 	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
 
-	go udm.registerNF()
-
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -120,16 +109,6 @@ func (udm *UDM) Start() {
 }
 
 func (udm *UDM) Terminate() {
-	logger.InitLog.Infof("Terminating UDM...")
-	// deregister with NRF
-	problemDetails, err := consumer.SendDeregisterNFInstance()
-	if problemDetails != nil {
-		logger.InitLog.Errorf("Deregister NF instance Failed Problem[%+v]", problemDetails)
-	} else if err != nil {
-		logger.InitLog.Errorf("Deregister NF instance Error[%+v]", err)
-	} else {
-		logger.InitLog.Infof("Deregister from NRF successfully")
-	}
 	logger.InitLog.Infof("UDM terminated")
 }
 
@@ -185,103 +164,4 @@ func (udm *UDM) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 		}
 	}
 	return true
-}
-
-func (udm *UDM) StartKeepAliveTimer(nfProfile models.NfProfile) {
-	KeepAliveTimerMutex.Lock()
-	defer KeepAliveTimerMutex.Unlock()
-	udm.StopKeepAliveTimer()
-	if nfProfile.HeartBeatTimer == 0 {
-		nfProfile.HeartBeatTimer = 60
-	}
-	logger.InitLog.Infof("Started KeepAlive Timer: %v sec", nfProfile.HeartBeatTimer)
-	// AfterFunc starts timer and waits for KeepAliveTimer to elapse and then calls udm.UpdateNF function
-	KeepAliveTimer = time.AfterFunc(time.Duration(nfProfile.HeartBeatTimer)*time.Second, udm.UpdateNF)
-}
-
-func (udm *UDM) StopKeepAliveTimer() {
-	if KeepAliveTimer != nil {
-		logger.InitLog.Infof("Stopped KeepAlive Timer.")
-		KeepAliveTimer.Stop()
-		KeepAliveTimer = nil
-	}
-}
-
-func (udm *UDM) BuildAndSendRegisterNFInstance() (models.NfProfile, error) {
-	self := context.UDM_Self()
-	profile, err := consumer.BuildNFInstance(self)
-	if err != nil {
-		initLog.Error("Build UDM Profile Error: ", err)
-		return profile, err
-	}
-	initLog.Infof("UDM Profile Registering to NRF: %v", profile)
-	// Indefinite attempt to register until success
-	profile, _, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
-	return profile, err
-}
-
-// UpdateNF is the callback function, this is called when keepalivetimer elapsed
-func (udm *UDM) UpdateNF() {
-	KeepAliveTimerMutex.Lock()
-	defer KeepAliveTimerMutex.Unlock()
-	if KeepAliveTimer == nil {
-		initLog.Warnf("KeepAlive timer has been stopped.")
-		return
-	}
-	// setting default value 30 sec
-	var heartBeatTimer int32 = 30
-	pitem := models.PatchItem{
-		Op:    "replace",
-		Path:  "/nfStatus",
-		Value: "REGISTERED",
-	}
-	var patchItem []models.PatchItem
-	patchItem = append(patchItem, pitem)
-	nfProfile, problemDetails, err := consumer.SendUpdateNFInstance(patchItem)
-	if problemDetails != nil {
-		initLog.Errorf("UDM update to NRF ProblemDetails[%v]", problemDetails)
-		// 5xx response from NRF, 404 Not Found, 400 Bad Request
-		if (problemDetails.Status/100) == 5 ||
-			problemDetails.Status == 404 || problemDetails.Status == 400 {
-			// register with NRF full profile
-			nfProfile, err = udm.BuildAndSendRegisterNFInstance()
-			if err != nil {
-				initLog.Errorf("UDM update to NRF Error[%s]", err.Error())
-			}
-		}
-	} else if err != nil {
-		initLog.Errorf("UDM update to NRF Error[%s]", err.Error())
-		nfProfile, err = udm.BuildAndSendRegisterNFInstance()
-		if err != nil {
-			initLog.Errorf("UDM update to NRF Error[%s]", err.Error())
-		}
-	}
-
-	if nfProfile.HeartBeatTimer != 0 {
-		// use hearbeattimer value with received timer value from NRF
-		heartBeatTimer = nfProfile.HeartBeatTimer
-	}
-	logger.InitLog.Debugf("Restarted KeepAlive Timer: %v sec", heartBeatTimer)
-	// restart timer with received HeartBeatTimer value
-	KeepAliveTimer = time.AfterFunc(time.Duration(heartBeatTimer)*time.Second, udm.UpdateNF)
-}
-
-func (udm *UDM) registerNF() {
-	self := context.UDM_Self()
-	for msg := range ConfigPodTrigger {
-		initLog.Infof("Minimum configuration from config pod available %v", msg)
-		profile, err := consumer.BuildNFInstance(self)
-		if err != nil {
-			logger.InitLog.Errorln(err.Error())
-		} else {
-			var prof models.NfProfile
-			prof, _, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
-			if err != nil {
-				logger.InitLog.Errorln(err.Error())
-			} else {
-				udm.StartKeepAliveTimer(prof)
-				logger.CfgLog.Infof("Sent Register NF Instance with updated profile")
-			}
-		}
-	}
 }

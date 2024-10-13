@@ -13,13 +13,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/antihax/optional"
 	"github.com/bronze1man/radius"
 
-	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	Nudm_UEAU "github.com/omec-project/openapi/Nudm_UEAuthentication"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/ausf/consumer"
 	ausf_context "github.com/yeastengine/ella/internal/ausf/context"
 	"github.com/yeastengine/ella/internal/ausf/logger"
 )
@@ -265,27 +262,6 @@ func ConstructEapNoTypePkt(code radius.EapCode, pktID uint8) string {
 	b[1] = pktID
 	binary.BigEndian.PutUint16(b[2:4], uint16(4))
 	return base64.StdEncoding.EncodeToString(b)
-}
-
-func getUdmUrl(nrfUri string) string {
-	udmUrl := "https://localhost:29503" // default
-	nfDiscoverParam := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDM_UEAU}),
-	}
-	res, err := consumer.SendSearchNFInstances(nrfUri, models.NfType_UDM, models.NfType_AUSF, nfDiscoverParam)
-	if err != nil {
-		logger.UeAuthPostLog.Errorln("[Search UDM UEAU] ", err.Error())
-	} else if len(res.NfInstances) > 0 {
-		udmInstance := res.NfInstances[0]
-		if len(udmInstance.Ipv4Addresses) > 0 && udmInstance.NfServices != nil {
-			ueauService := (*udmInstance.NfServices)[0]
-			ueauEndPoint := (*ueauService.IpEndPoints)[0]
-			udmUrl = string(ueauService.Scheme) + "://" + ueauEndPoint.Ipv4Address + ":" + strconv.Itoa(int(ueauEndPoint.Port))
-		}
-	} else {
-		logger.UeAuthPostLog.Errorln("[Search UDM UEAU] len(NfInstances) = 0")
-	}
-	return udmUrl
 }
 
 func createClientToUdmUeau(udmUrl string) *Nudm_UEAU.APIClient {

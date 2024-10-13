@@ -8,7 +8,6 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/udm/logger"
-	"github.com/yeastengine/ella/internal/udm/util"
 )
 
 func HandleUpdateRequest(request *httpwrapper.Request) *httpwrapper.Response {
@@ -31,10 +30,7 @@ func HandleUpdateRequest(request *httpwrapper.Request) *httpwrapper.Response {
 }
 
 func UpdateProcedure(updateRequest models.PpData, gpsi string) (problemDetails *models.ProblemDetails) {
-	clientAPI, err := createUDMClientToUDR(gpsi)
-	if err != nil {
-		return util.ProblemDetailsSystemFailure(err.Error())
-	}
+	clientAPI := createUDMClientToUDR()
 	res, err := clientAPI.ProvisionedParameterDataDocumentApi.ModifyPpData(context.Background(), gpsi, nil)
 	if err != nil {
 		problemDetails = &models.ProblemDetails{

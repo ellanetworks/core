@@ -10,21 +10,20 @@ import (
 
 var SMF = &service.SMF{}
 
-const (
-	SBI_PORT = 29502
-)
+const SBI_PORT = 29502
 
-func Start(nrfURL string, webuiURL string) error {
+func Start(amfURL string, pcfURL string, udmURL string, webuiURL string) error {
 	configuration := factory.Configuration{
 		PFCP: &factory.PFCP{
 			Addr: "0.0.0.0",
 		},
 		Sbi: &factory.Sbi{
-			RegisterIPv4: "0.0.0.0",
-			BindingIPv4:  "0.0.0.0",
-			Port:         SBI_PORT,
+			BindingIPv4: "0.0.0.0",
+			Port:        SBI_PORT,
 		},
-		NrfUri:   nrfURL,
+		AmfUri:   amfURL,
+		PcfUri:   pcfURL,
+		UdmUri:   udmURL,
 		WebuiUri: webuiURL,
 		SmfName:  "SMF",
 		ServiceNameList: []string{

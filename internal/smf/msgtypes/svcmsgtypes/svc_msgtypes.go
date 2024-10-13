@@ -16,14 +16,6 @@ const (
 	NsmfPDUSessionUpdate  SmfMsgType = "Update"  // Update a PDU session in the H-SMF or V- SMF
 	NsmfPDUSessionRelease SmfMsgType = "Release" // Release a PDU session in the H-SMF
 
-	// NNRF_NFManagement
-	NnrfNFRegister           SmfMsgType = "NfRegister"
-	NnrfNFDeRegister         SmfMsgType = "NfDeRegister"
-	NnrfNFInstanceDeRegister SmfMsgType = "NnrfNFInstanceDeRegister"
-	NnrfNFDiscoveryUdm       SmfMsgType = "NfDiscoveryUdm"
-	NnrfNFDiscoveryPcf       SmfMsgType = "NfDiscoveryPcf"
-	NnrfNFDiscoveryAmf       SmfMsgType = "NfDiscoveryAmf"
-
 	// NUDM_
 	SmSubscriptionDataRetrieval SmfMsgType = "SmSubscriptionDataRetrieval"
 

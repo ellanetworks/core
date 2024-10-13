@@ -11,9 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/antihax/optional"
 	"github.com/gin-contrib/cors"
-	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/http2_util"
 	"github.com/omec-project/util/idgenerator"
@@ -156,16 +154,6 @@ func (pcf *PCF) StopKeepAliveTimer() {
 }
 
 func (pcf *PCF) Terminate() {
-	logger.InitLog.Infof("Terminating PCF...")
-	// deregister with NRF
-	problemDetails, err := consumer.SendDeregisterNFInstance()
-	if problemDetails != nil {
-		logger.InitLog.Errorf("Deregister NF instance Failed Problem[%+v]", problemDetails)
-	} else if err != nil {
-		logger.InitLog.Errorf("Deregister NF instance Error[%+v]", err)
-	} else {
-		logger.InitLog.Infof("Deregister from NRF successfully")
-	}
 	logger.InitLog.Infof("PCF terminated")
 }
 
@@ -176,9 +164,6 @@ func (pcf *PCF) BuildAndSendRegisterNFInstance() (models.NfProfile, error) {
 		initLog.Errorf("Build PCF Profile Error: %v", err)
 		return profile, err
 	}
-	initLog.Infof("Pcf Profile Registering to NRF: %v", profile)
-	// Indefinite attempt to register until success
-	profile, _, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
 	return profile, err
 }
 
@@ -193,24 +178,12 @@ func (pcf *PCF) RegisterNF() {
 				initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
 			} else {
 				pcf.StartKeepAliveTimer(profile)
-				// NRF Registration Successful, Trigger for UDR Discovery
-				pcf.DiscoverUdr()
 			}
 		} else {
 			// stopping keepAlive timer
 			KeepAliveTimerMutex.Lock()
 			pcf.StopKeepAliveTimer()
 			KeepAliveTimerMutex.Unlock()
-			initLog.Infof("PCF is not having Minimum Config to Register/Update to NRF")
-			problemDetails, err := consumer.SendDeregisterNFInstance()
-			if problemDetails != nil {
-				initLog.Errorf("PCF Deregister Instance to NRF failed, Problem: [+%v]", problemDetails)
-			}
-			if err != nil {
-				initLog.Errorf("PCF Deregister Instance to NRF Error[%s]", err.Error())
-			} else {
-				logger.InitLog.Infof("Deregister from NRF successfully")
-			}
 		}
 	}
 }
@@ -225,31 +198,9 @@ func (pcf *PCF) UpdateNF() {
 	}
 	// setting default value 60 sec
 	var heartBeatTimer int32 = 60
-	pitem := models.PatchItem{
-		Op:    "replace",
-		Path:  "/nfStatus",
-		Value: "REGISTERED",
-	}
-	var patchItem []models.PatchItem
-	patchItem = append(patchItem, pitem)
-	nfProfile, problemDetails, err := consumer.SendUpdateNFInstance(patchItem)
-	if problemDetails != nil {
-		initLog.Errorf("PCF update to NRF ProblemDetails[%v]", problemDetails)
-		// 5xx response from NRF, 404 Not Found, 400 Bad Request
-		if (problemDetails.Status/100) == 5 ||
-			problemDetails.Status == 404 || problemDetails.Status == 400 {
-			// register with NRF full profile
-			nfProfile, err = pcf.BuildAndSendRegisterNFInstance()
-			if err != nil {
-				initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
-			}
-		}
-	} else if err != nil {
-		initLog.Errorf("PCF update to NRF Error[%s]", err.Error())
-		nfProfile, err = pcf.BuildAndSendRegisterNFInstance()
-		if err != nil {
-			initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
-		}
+	nfProfile, err := pcf.BuildAndSendRegisterNFInstance()
+	if err != nil {
+		initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
 	}
 
 	if nfProfile.HeartBeatTimer != 0 {
@@ -259,24 +210,6 @@ func (pcf *PCF) UpdateNF() {
 	logger.InitLog.Debugf("Restarted KeepAlive Timer: %v sec", heartBeatTimer)
 	// restart timer with received HeartBeatTimer value
 	KeepAliveTimer = time.AfterFunc(time.Duration(heartBeatTimer)*time.Second, pcf.UpdateNF)
-}
-
-func (pcf *PCF) DiscoverUdr() {
-	self := context.PCF_Self()
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
-	}
-	if resp, err := consumer.SendSearchNFInstances(self.NrfUri, models.NfType_UDR, models.NfType_PCF, param); err != nil {
-		initLog.Errorln(err)
-	} else {
-		for _, nfProfile := range resp.NfInstances {
-			udruri := util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
-			if udruri != "" {
-				self.SetDefaultUdrURI(udruri)
-				break
-			}
-		}
-	}
 }
 
 func ImsiExistInDeviceGroup(devGroup *protos.DeviceGroup, imsi string) bool {

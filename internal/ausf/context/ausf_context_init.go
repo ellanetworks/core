@@ -18,12 +18,11 @@ func InitAusfContext(context *AUSFContext) {
 
 	context.NfId = uuid.New().String()
 	context.GroupID = configuration.GroupId
-	context.NrfUri = configuration.NrfUri
-	context.RegisterIPv4 = configuration.Sbi.RegisterIPv4
+	context.UdmUri = configuration.UdmUri
 	context.SBIPort = configuration.Sbi.Port
 	context.UriScheme = models.UriScheme_HTTP
 	context.BindingIPv4 = configuration.Sbi.BindingIPv4
-	context.Url = fmt.Sprintf("%s://%s:%d", context.UriScheme, context.RegisterIPv4, context.SBIPort)
+	context.Url = fmt.Sprintf("%s://%s:%d", context.UriScheme, context.BindingIPv4, context.SBIPort)
 	context.NfService = make(map[models.ServiceName]models.NfService)
 	AddNfServices(&context.NfService, &config, context)
 	logger.InitLog.Warnf("TO DELETE: AusfContext: %v", context)
@@ -40,7 +39,7 @@ func AddNfServices(serviceMap *map[models.ServiceName]models.NfService, config *
 	nfService.ServiceName = models.ServiceName_NAUSF_AUTH
 
 	var ipEndPoint models.IpEndPoint
-	ipEndPoint.Ipv4Address = context.RegisterIPv4
+	ipEndPoint.Ipv4Address = context.BindingIPv4
 	ipEndPoint.Port = int32(context.SBIPort)
 	ipEndPoints = append(ipEndPoints, ipEndPoint)
 

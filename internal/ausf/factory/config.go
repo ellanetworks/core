@@ -19,16 +19,15 @@ type Info struct {
 type Configuration struct {
 	Sbi             *Sbi            `yaml:"sbi,omitempty"`
 	ServiceNameList []string        `yaml:"serviceNameList,omitempty"`
-	NrfUri          string          `yaml:"nrfUri,omitempty"`
+	UdmUri          string          `yaml:"udmUri,omitempty"`
 	WebuiUri        string          `yaml:"webuiUri"`
 	GroupId         string          `yaml:"groupId,omitempty"`
 	PlmnSupportList []models.PlmnId `yaml:"plmnSupportList,omitempty"`
 }
 
 type Sbi struct {
-	RegisterIPv4 string `yaml:"registerIPv4,omitempty"` // IP that is registered at NRF.
-	BindingIPv4  string `yaml:"bindingIPv4,omitempty"`  // IP used to run the server in the node.
-	Port         int    `yaml:"port,omitempty"`
+	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
+	Port        int    `yaml:"port,omitempty"`
 }
 
 type Security struct {

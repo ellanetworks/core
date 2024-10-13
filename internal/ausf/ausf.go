@@ -13,17 +13,16 @@ const (
 
 var AUSF = &service.AUSF{}
 
-func Start(nrfUrl string, webuiUrl string) error {
+func Start(udmUrl string, webuiUrl string) error {
 	configuration := factory.Configuration{
 		Sbi: &factory.Sbi{
-			RegisterIPv4: "0.0.0.0",
-			BindingIPv4:  "0.0.0.0",
-			Port:         SBI_PORT,
+			BindingIPv4: "0.0.0.0",
+			Port:        SBI_PORT,
 		},
 		ServiceNameList: []string{
 			"nausf-auth",
 		},
-		NrfUri:   nrfUrl,
+		UdmUri:   udmUrl,
 		WebuiUri: webuiUrl,
 		GroupId:  AUSF_GROUP_ID,
 	}
