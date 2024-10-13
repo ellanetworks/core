@@ -164,9 +164,6 @@ func (pcf *PCF) BuildAndSendRegisterNFInstance() (models.NfProfile, error) {
 		initLog.Errorf("Build PCF Profile Error: %v", err)
 		return profile, err
 	}
-	initLog.Infof("Pcf Profile Registering to NRF: %v", profile)
-	// Indefinite attempt to register until success
-	profile, _, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
 	return profile, err
 }
 
@@ -201,31 +198,9 @@ func (pcf *PCF) UpdateNF() {
 	}
 	// setting default value 60 sec
 	var heartBeatTimer int32 = 60
-	pitem := models.PatchItem{
-		Op:    "replace",
-		Path:  "/nfStatus",
-		Value: "REGISTERED",
-	}
-	var patchItem []models.PatchItem
-	patchItem = append(patchItem, pitem)
-	nfProfile, problemDetails, err := consumer.SendUpdateNFInstance(patchItem)
-	if problemDetails != nil {
-		initLog.Errorf("PCF update to NRF ProblemDetails[%v]", problemDetails)
-		// 5xx response from NRF, 404 Not Found, 400 Bad Request
-		if (problemDetails.Status/100) == 5 ||
-			problemDetails.Status == 404 || problemDetails.Status == 400 {
-			// register with NRF full profile
-			nfProfile, err = pcf.BuildAndSendRegisterNFInstance()
-			if err != nil {
-				initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
-			}
-		}
-	} else if err != nil {
-		initLog.Errorf("PCF update to NRF Error[%s]", err.Error())
-		nfProfile, err = pcf.BuildAndSendRegisterNFInstance()
-		if err != nil {
-			initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
-		}
+	nfProfile, err := pcf.BuildAndSendRegisterNFInstance()
+	if err != nil {
+		initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
 	}
 
 	if nfProfile.HeartBeatTimer != 0 {
