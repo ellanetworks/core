@@ -22,9 +22,8 @@ func Start(ausfURL string, nssfURL string, pcfURL string, smfURL string, UdmsdmU
 		NgapPort:     NGAPP_PORT,
 		SctpGrpcPort: 9000,
 		Sbi: &factory.Sbi{
-			BindingIPv4:  "0.0.0.0",
-			Port:         SBI_PORT,
-			RegisterIPv4: "0.0.0.0",
+			BindingIPv4: "0.0.0.0",
+			Port:        SBI_PORT,
 		},
 		NetworkFeatureSupport5GS: &factory.NetworkFeatureSupport5GS{
 			Emc:     0,

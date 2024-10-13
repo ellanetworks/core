@@ -49,8 +49,7 @@ type Configuration struct {
 	T3565                           TimerValue                `yaml:"t3565"`
 
 	// Maintain TaiList per slice
-	SliceTaiList     map[string][]models.Tai `yaml:"sliceTaiList,omitempty"`
-	EnableNrfCaching bool                    `yaml:"enableNrfCaching"`
+	SliceTaiList map[string][]models.Tai `yaml:"sliceTaiList,omitempty"`
 }
 
 func (c *Configuration) Get5gsNwFeatSuppEnable() bool {
@@ -121,9 +120,8 @@ type NetworkFeatureSupport5GS struct {
 }
 
 type Sbi struct {
-	RegisterIPv4 string `yaml:"registerIPv4,omitempty"` // IP that is registered at NRF.
-	BindingIPv4  string `yaml:"bindingIPv4,omitempty"`  // IP used to run the server in the node.
-	Port         int    `yaml:"port,omitempty"`
+	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
+	Port        int    `yaml:"port,omitempty"`
 }
 
 type Security struct {

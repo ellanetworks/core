@@ -28,7 +28,6 @@ func InitAmfContext(context *context.AMFContext) {
 	context.SctpGrpcPort = configuration.SctpGrpcPort
 	sbi := configuration.Sbi
 	context.UriScheme = models.UriScheme_HTTP
-	context.RegisterIPv4 = configuration.Sbi.RegisterIPv4
 	context.SBIPort = sbi.Port
 	context.BindingIPv4 = sbi.BindingIPv4
 	serviceNameList := configuration.ServiceNameList
@@ -57,7 +56,6 @@ func InitAmfContext(context *context.AMFContext) {
 	context.T3550Cfg = configuration.T3550
 	context.T3560Cfg = configuration.T3560
 	context.T3565Cfg = configuration.T3565
-	context.EnableNrfCaching = configuration.EnableNrfCaching
 }
 
 func getIntAlgOrder(integrityOrder []string) (intOrder []uint8) {
