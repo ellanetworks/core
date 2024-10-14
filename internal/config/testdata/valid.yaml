@@ -4,9 +4,9 @@ tls:
 db:
   mongo:
     url: "mongodb://localhost:27017"
-    name: "ella"
+    name: "test"
   sql:
     path: "testdata/sqlite.db"
 upf:
-  interfaces: ["wlp9s0"]
-  n3-address: "192.168.252.3"
+  interfaces: ["eth0", "eth1"]
+  n3-address: "127.0.0.1"
