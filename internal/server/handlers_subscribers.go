@@ -23,16 +23,6 @@ type CreateSubscriberResponse struct {
 	ID int64 `json:"id"`
 }
 
-type UpdateSubscriberParams struct {
-	Title   string `json:"title"`
-	Content string `json:"content"`
-	Status  string `json:"status"`
-}
-
-type UpdateSubscriberResponse struct {
-	ID int64 `json:"id"`
-}
-
 type GetSubscriberResponse struct {
 	ID             int64  `json:"id"`
 	IMSI           string `json:"imsi"`
@@ -75,23 +65,23 @@ func CreateSubscriber(env *HandlerConfig) http.HandlerFunc {
 			return
 		}
 		if subscriber.IMSI == "" {
-			writeError(w, http.StatusBadRequest, "IMSI is required")
+			writeError(w, http.StatusBadRequest, "`imsi` is required")
 			return
 		}
 		if subscriber.PLMNId == "" {
-			writeError(w, http.StatusBadRequest, "PLMNId is required")
+			writeError(w, http.StatusBadRequest, "`plmn_id` is required")
 			return
 		}
 		if subscriber.OPC == "" {
-			writeError(w, http.StatusBadRequest, "OPC is required")
+			writeError(w, http.StatusBadRequest, "`opc` is required")
 			return
 		}
 		if subscriber.Key == "" {
-			writeError(w, http.StatusBadRequest, "Key is required")
+			writeError(w, http.StatusBadRequest, "`key` is required")
 			return
 		}
 		if subscriber.SequenceNumber == "" {
-			writeError(w, http.StatusBadRequest, "SequenceNumber is required")
+			writeError(w, http.StatusBadRequest, "`sequence_number` is required")
 			return
 		}
 

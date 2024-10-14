@@ -8,14 +8,14 @@ import (
 	"github.com/yeastengine/ella/internal/server"
 )
 
-func setupServer() (*httptest.Server, *server.HandlerConfig, error) {
+func setupServer() (*httptest.Server, error) {
 	dbQueries, err := sql.Initialize(":memory:")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	config := &server.HandlerConfig{
 		DBQueries: dbQueries,
 	}
 	ts := httptest.NewTLSServer(server.NewEllaRouter(config))
-	return ts, config, nil
+	return ts, nil
 }

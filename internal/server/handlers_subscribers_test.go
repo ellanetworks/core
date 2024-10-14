@@ -127,7 +127,7 @@ func deleteSubscriber(url string, client *http.Client, id string) (int, *DeleteS
 }
 
 func TestSubscribersHandlers(t *testing.T) {
-	ts, _, err := setupServer()
+	ts, err := setupServer()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,6 +310,25 @@ func TestSubscribersHandlers(t *testing.T) {
 
 		if response.Result.ID != 1 {
 			t.Fatalf("expected id %d, got %d", 1, response.Result.ID)
+		}
+	})
+
+	t.Run("List subscribers - 1", func(t *testing.T) {
+		statusCode, response, err := listSubscribers(ts.URL, client)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("expected error %q, got %q", "", response.Error)
+		}
+
+		if len(response.Result) != 1 {
+			t.Fatalf("expected result %v, got %v", []int{2}, response.Result)
 		}
 	})
 }
