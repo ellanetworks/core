@@ -36,8 +36,8 @@ type DeleteDeviceGroupSubscriberResponse struct {
 	Result DeleteDeviceGroupSubscriberResponseResult `json:"result"`
 }
 
-func listDeviceGroupSubscribers(url string, client *http.Client, id string) (int, *ListDeviceGroupSubscribersResponse, error) {
-	req, err := http.NewRequest("GET", url+"/api/v1/device-groups/"+id+"/subscribers", nil)
+func listDeviceGroupSubscribers(url string, client *http.Client) (int, *ListDeviceGroupSubscribersResponse, error) {
+	req, err := http.NewRequest("GET", url+"/api/v1/device-groups/1/subscribers", nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -53,12 +53,12 @@ func listDeviceGroupSubscribers(url string, client *http.Client, id string) (int
 	return res.StatusCode, &listResponse, nil
 }
 
-func createDeviceGroupSubscriber(url string, client *http.Client, id string, data *CreateDeviceGroupSubscriberParams) (int, *CreateDeviceGroupSubscriberResponse, error) {
+func createDeviceGroupSubscriber(url string, client *http.Client, data *CreateDeviceGroupSubscriberParams) (int, *CreateDeviceGroupSubscriberResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequest("POST", url+"/api/v1/device-groups/"+id+"/subscribers", strings.NewReader(string(body)))
+	req, err := http.NewRequest("POST", url+"/api/v1/device-groups/1/subscribers", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -100,7 +100,7 @@ func TestDeviceGroupSubscribersHandlers(t *testing.T) {
 	client := ts.Client()
 
 	t.Run("List device group subscribers - not found", func(t *testing.T) {
-		statusCode, response, err := listDeviceGroupSubscribers(ts.URL, client, "1")
+		statusCode, response, err := listDeviceGroupSubscribers(ts.URL, client)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -150,7 +150,7 @@ func TestDeviceGroupSubscribersHandlers(t *testing.T) {
 	})
 
 	t.Run("List device group subscribers - 0", func(t *testing.T) {
-		statusCode, response, err := listDeviceGroupSubscribers(ts.URL, client, "1")
+		statusCode, response, err := listDeviceGroupSubscribers(ts.URL, client)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -172,7 +172,7 @@ func TestDeviceGroupSubscribersHandlers(t *testing.T) {
 		data := CreateDeviceGroupSubscriberParams{
 			SubscriberID: 1,
 		}
-		statusCode, response, err := createDeviceGroupSubscriber(ts.URL, client, "1", &data)
+		statusCode, response, err := createDeviceGroupSubscriber(ts.URL, client, &data)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -256,7 +256,7 @@ func TestDeviceGroupSubscribersHandlers(t *testing.T) {
 		data := CreateDeviceGroupSubscriberParams{
 			SubscriberID: 1,
 		}
-		statusCode, response, err := createDeviceGroupSubscriber(ts.URL, client, "1", &data)
+		statusCode, response, err := createDeviceGroupSubscriber(ts.URL, client, &data)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -274,7 +274,7 @@ func TestDeviceGroupSubscribersHandlers(t *testing.T) {
 		data := CreateDeviceGroupSubscriberParams{
 			SubscriberID: 2,
 		}
-		statusCode, response, err := createDeviceGroupSubscriber(ts.URL, client, "1", &data)
+		statusCode, response, err := createDeviceGroupSubscriber(ts.URL, client, &data)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -292,7 +292,7 @@ func TestDeviceGroupSubscribersHandlers(t *testing.T) {
 		data := CreateDeviceGroupSubscriberParams{
 			SubscriberID: 3,
 		}
-		statusCode, response, err := createDeviceGroupSubscriber(ts.URL, client, "1", &data)
+		statusCode, response, err := createDeviceGroupSubscriber(ts.URL, client, &data)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -310,7 +310,7 @@ func TestDeviceGroupSubscribersHandlers(t *testing.T) {
 		data := CreateDeviceGroupSubscriberParams{
 			SubscriberID: 1,
 		}
-		statusCode, response, err := createDeviceGroupSubscriber(ts.URL, client, "1", &data)
+		statusCode, response, err := createDeviceGroupSubscriber(ts.URL, client, &data)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -325,7 +325,7 @@ func TestDeviceGroupSubscribersHandlers(t *testing.T) {
 	})
 
 	t.Run("List device group subscribers - 3", func(t *testing.T) {
-		statusCode, response, err := listDeviceGroupSubscribers(ts.URL, client, "1")
+		statusCode, response, err := listDeviceGroupSubscribers(ts.URL, client)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -363,7 +363,7 @@ func TestDeviceGroupSubscribersHandlers(t *testing.T) {
 	})
 
 	t.Run("List device group subscribers - 1", func(t *testing.T) {
-		statusCode, response, err := listDeviceGroupSubscribers(ts.URL, client, "1")
+		statusCode, response, err := listDeviceGroupSubscribers(ts.URL, client)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -401,7 +401,7 @@ func TestDeviceGroupSubscribersHandlers(t *testing.T) {
 	})
 
 	t.Run("List device group subscribers - 1", func(t *testing.T) {
-		statusCode, response, err := listDeviceGroupSubscribers(ts.URL, client, "1")
+		statusCode, response, err := listDeviceGroupSubscribers(ts.URL, client)
 		if err != nil {
 			t.Fatal(err)
 		}

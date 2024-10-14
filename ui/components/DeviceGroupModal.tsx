@@ -6,10 +6,12 @@ import {
   Form,
   ActionButton,
 } from "@canonical/react-components";
-import { createDeviceGroup } from "@/utils/createDeviceGroup";
-import { editDeviceGroup } from "@/utils/editDeviceGroup";
+import { createDeviceGroup } from "@/queries/deviceGroups";
+import { editDeviceGroup } from "@/queries/deviceGroups";
 import * as Yup from "yup";
 import { useFormik } from "formik";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/utils/queryKeys";
 
 const regexIp =
   /^(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)$/;
@@ -24,24 +26,12 @@ interface DeviceGroupValues {
   mtu: number;
   MBRDownstreamMbps: number | null;
   MBRUpstreamMbps: number | null;
+
 }
 
 interface DeviceGroupModalProps {
   toggleModal: () => void;
-  onDeviceGroupAction: () => void;
-  networkSliceName?: string;
   deviceGroup?: any;
-}
-
-const ModalTitle = (networkSliceName: string | undefined, deviceGroupName: string | undefined) => {
-  if (networkSliceName && deviceGroupName == undefined) {
-    return "Create Device Group for slice: " + networkSliceName
-  } else if (networkSliceName == undefined && deviceGroupName) {
-    return "Edit Device Group: " + deviceGroupName
-  } else {
-    console.error("Either Network Slice name or Device Group must be specified.")
-    return null
-  }
 }
 
 const ModalButtonText = (deviceGroupName: string | undefined) => {
@@ -50,13 +40,15 @@ const ModalButtonText = (deviceGroupName: string | undefined) => {
 
 const DeviceGroupModal = ({
   toggleModal,
-  onDeviceGroupAction,
-  networkSliceName,
   deviceGroup,
 }: DeviceGroupModalProps) => {
+  const queryClient = useQueryClient();
   const [apiError, setApiError] = useState<string | null>(null);
-  const modalTitle = ModalTitle(networkSliceName, deviceGroup?.["group-name"])
   const modalButtonText = ModalButtonText(deviceGroup?.["group-name"])
+
+  const modalTitle = () => {
+    return deviceGroup && deviceGroup.name ? ("Edit Device Group: " + deviceGroup.name) : "Create Device Group"
+  }
 
   const DeviceGroupSchema = Yup.object().shape({
     name: Yup.string()
@@ -85,13 +77,14 @@ const DeviceGroupModal = ({
 
   const formik = useFormik<DeviceGroupValues>({
     initialValues: {
-      name: deviceGroup?.["group-name"] || "",
-      ueIpPool: deviceGroup?.["ip-domain-expanded"]?.["ue-ip-pool"] || "",
-      dns: deviceGroup?.["ip-domain-expanded"]?.["dns-primary"] || "8.8.8.8",
-      mtu: deviceGroup?.["ip-domain-expanded"]?.["mtu"] || 1460,
-      MBRDownstreamMbps: deviceGroup?.["ip-domain-expanded"]?.["ue-dnn-qos"]?.["dnn-mbr-downlink"] / 1_000_000 || null,
-      MBRUpstreamMbps: deviceGroup?.["ip-domain-expanded"]?.["ue-dnn-qos"]?.["dnn-mbr-uplink"] / 1_000_000 || null,
+      name: deviceGroup?.["name"] || "",
+      ueIpPool: deviceGroup?.["ue_ip_pool"] || "",
+      dns: deviceGroup?.["dns_primary"] || "8.8.8.8",
+      mtu: deviceGroup?.["mtu"] || 1460,
+      MBRDownstreamMbps: deviceGroup?.["DnnMbrDownlink"] / 1_000_000 || null,
+      MBRUpstreamMbps: deviceGroup?.["DnnMbrUplink"] / 1_000_000 || null,
     },
+
     validationSchema: DeviceGroupSchema,
     onSubmit: async (values) => {
       const MBRUpstreamBps = Number(values.MBRUpstreamMbps) * 1000000;
@@ -106,7 +99,7 @@ const DeviceGroupModal = ({
             MBRUpstreamBps: MBRUpstreamBps,
             MBRDownstreamBps: MBRDownstreamBps,
           });
-        } else if (networkSliceName) {
+        } else {
           await createDeviceGroup({
             name: values.name,
             ueIpPool: values.ueIpPool,
@@ -114,10 +107,9 @@ const DeviceGroupModal = ({
             mtu: values.mtu,
             MBRUpstreamBps: MBRUpstreamBps,
             MBRDownstreamBps: MBRDownstreamBps,
-            networkSliceName: networkSliceName,
           });
         }
-        onDeviceGroupAction();
+        await queryClient.invalidateQueries({ queryKey: [queryKeys.subscribers] });
         toggleModal();
       } catch (error) {
         console.error(error);
@@ -140,7 +132,7 @@ const DeviceGroupModal = ({
   }
   return (
     <Modal
-      title={modalTitle}
+      title={modalTitle()}
       close={toggleModal}
       buttonRow={
         <ActionButton

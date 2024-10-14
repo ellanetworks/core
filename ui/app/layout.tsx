@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Aether SD-Core",
-  description: "Aether SD-Core NMS",
+  title: "Ella",
+  description: "A 5G network",
 };
 
 export default function RootLayout({

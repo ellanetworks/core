@@ -6,10 +6,10 @@ import {
   MainTable,
   ConfirmationButton,
 } from "@canonical/react-components";
-import SubscriberModal from "@/components/SubscriberModal";
-import { listSubscribers } from "@/queries/subscribers";
+import DeviceGroupModal from "@/components/DeviceGroupModal";
+import { listDeviceGroups } from "@/queries/deviceGroups";
 import SyncOutlinedIcon from "@mui/icons-material/SyncOutlined";
-import { deleteSubscriber } from "@/queries/subscribers";
+import { deleteDeviceGroup } from "@/queries/deviceGroups";
 import Loader from "@/components/Loader";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/utils/queryKeys";
@@ -24,48 +24,48 @@ export type Subscriber = {
   sequence_number: string;
 };
 
-const Subscribers = () => {
+const DeviceGroups = () => {
   const queryClient = useQueryClient();
   const [isCreateModalVisible, setCreateModalVisible] = useState(false);
   const [isEditModalVisible, setEditModalVisible] = useState(false);
-  const [subscriber, setSubscriber] = useState<any | undefined>(undefined);
+  const [device_group, setDeviceGroup] = useState<any | undefined>(undefined);
 
-  const { data: subscribers = [], isLoading: isSubscribersLoading } = useQuery({
-    queryKey: [queryKeys.subscribers],
-    queryFn: listSubscribers,
+  const { data: device_groups = [], isLoading: isDeviceGroupsLoading } = useQuery({
+    queryKey: [queryKeys.deviceGroups],
+    queryFn: listDeviceGroups,
   });
 
 
   const handleRefresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: [queryKeys.subscribers] });
+    await queryClient.invalidateQueries({ queryKey: [queryKeys.deviceGroups] });
   };
 
-  const handleConfirmDelete = async (subscriber: string) => {
-    await deleteSubscriber(subscriber);
+  const handleConfirmDelete = async (id: string) => {
+    await deleteDeviceGroup(id);
     await handleRefresh();
   };
 
   const toggleCreateModal = () => setCreateModalVisible((prev) => !prev);
   const toggleEditModal = () => setEditModalVisible((prev) => !prev);
 
-  const handleEditButton = (subscriber: any) => {
-    setSubscriber(subscriber);
+  const handleEditButton = (device_group: any) => {
+    setDeviceGroup(device_group);
     toggleEditModal();
   }
 
-  const getEditButton = (subscriber: any) => {
+  const getEditButton = (device_group: any) => {
     return <Button
       appearance=""
       className="u-no-margin--bottom"
       shiftClickEnabled
       showShiftClickHint
-      onClick={() => { handleEditButton(subscriber) }}
+      onClick={() => { handleEditButton(device_group) }}
     >
       Edit
     </Button>
   }
 
-  const getDeleteButton = (imsi: string, subscriber_id: string) => {
+  const getDeleteButton = (name: string, device_group_id: string) => {
     return <ConfirmationButton
       appearance="negative"
       className="u-no-margin--bottom"
@@ -74,11 +74,11 @@ const Subscribers = () => {
       confirmationModalProps={{
         title: "Confirm Delete",
         confirmButtonLabel: "Delete",
-        onConfirm: () => handleConfirmDelete(subscriber_id),
+        onConfirm: () => handleConfirmDelete(device_group_id),
         children: (
           <p>
-            This will permanently delete the subscriber{" "}
-            <b>{imsi}</b>
+            This will permanently delete the device group{" "}
+            <b>{name}</b>
             <br />
             This action cannot be undone.
           </p>
@@ -88,17 +88,21 @@ const Subscribers = () => {
       Delete
     </ConfirmationButton>
   }
-
-  const tableContent = subscribers.map((subscriber) => {
+  const tableContent = device_groups.map((device_group) => {
     return {
-      key: subscriber.imsi,
+      key: device_group.name,
       columns: [
-        { content: subscriber.imsi },
+        { content: device_group?.["name"] },
+        { content: device_group?.["ue_ip_pool"] },
+        { content: device_group?.["dns_primary"] },
+        { content: device_group?.["mtu"] },
+        { content: device_group?.["dnn_mbr_downlink"] / 1000000 },
+        { content: device_group?.["dnn_mbr_uplink"] / 1000000 },
         {
           content: (
             <div className="u-align--right">
-              {getEditButton(subscriber)}
-              {getDeleteButton(subscriber.imsi, subscriber.id)}
+              {getEditButton(device_group)}
+              {getDeleteButton(device_group.name, device_group.id)}
             </div>
           ),
         },
@@ -106,18 +110,18 @@ const Subscribers = () => {
     };
   });
 
-  if (isSubscribersLoading) {
+  if (isDeviceGroupsLoading) {
     return <Loader text="Loading..." />;
   }
 
   return (
     <>
-      <PageHeader title={`Subscribers (${subscribers.length})`}>
+      <PageHeader title={`Device Groups (${device_groups.length})`}>
         <Button
           hasIcon
           appearance="base"
           onClick={handleRefresh}
-          title="refresh subscriber list"
+          title="refresh device groups"
         >
           <SyncOutlinedIcon style={{ color: "#666" }} />
         </Button>
@@ -130,16 +134,21 @@ const Subscribers = () => {
           defaultSort='"abcd"'
           defaultSortDirection="ascending"
           headers={[
-            { content: "IMSI" },
+            { content: "Name" },
+            { content: "IP Pool" },
+            { content: "DNS" },
+            { content: "MTU" },
+            { content: "Uplink (Mbps)" },
+            { content: "Downlink (Mbps)" },
             { content: "Actions", className: "u-align--right" },
           ]}
           rows={tableContent}
         />
       </PageContent>
-      {isCreateModalVisible && <SubscriberModal toggleModal={toggleCreateModal} />}
+      {isCreateModalVisible && <DeviceGroupModal toggleModal={toggleCreateModal} />}
       {isEditModalVisible &&
-        <SubscriberModal toggleModal={toggleEditModal} subscriber={subscriber} />}
+        <DeviceGroupModal toggleModal={toggleEditModal} deviceGroup={device_group} />}
     </>
   );
 };
-export default Subscribers;
+export default DeviceGroups;

@@ -67,19 +67,35 @@ const Navigation: FC = () => {
                   <li className="p-side-navigation__item">
                     <a
                       className="p-side-navigation__link"
-                      href="/network-configuration"
+                      href="/network-slices"
                       title="Network slices"
                       aria-current={
-                        pathname === "/network-configuration"
+                        pathname === "/network-slices"
                           ? "page"
                           : undefined
                       }
                     >
                       <Icon
                         className="is-light p-side-navigation__icon"
-                        name="connected"
+                        name="containers"
                       />{" "}
                       Network slices
+                    </a>
+                  </li>
+                  <li className="p-side-navigation__item">
+                    <a
+                      className="p-side-navigation__link"
+                      href={`/device-groups`}
+                      title={`Device Groups`}
+                      aria-current={
+                        pathname === "/device-groups" ? "page" : undefined
+                      }
+                    >
+                      <Icon
+                        className="is-light p-side-navigation__icon"
+                        name="units"
+                      />{" "}
+                      Device Groups
                     </a>
                   </li>
                   <li className="p-side-navigation__item">
@@ -103,22 +119,7 @@ const Navigation: FC = () => {
                   <li className="p-side-navigation__item">
                     <a
                       className="p-side-navigation__link"
-                      href="/api"
-                      target="_blank"
-                      rel="noreferrer"
-                      title="API"
-                    >
-                      <Icon
-                        className="is-light p-side-navigation__icon"
-                        name="code"
-                      />{" "}
-                      API
-                    </a>
-                  </li>
-                  <li className="p-side-navigation__item">
-                    <a
-                      className="p-side-navigation__link"
-                      href="https://canonical-charmed-aether-sd-core.readthedocs-hosted.com/en/latest/"
+                      href=""
                       target="_blank"
                       rel="noreferrer"
                       title="Documentation"
@@ -133,7 +134,7 @@ const Navigation: FC = () => {
                   <li className="p-side-navigation__item">
                     <a
                       className="p-side-navigation__link"
-                      href="https://github.com/canonical/charmed-aether-sd-core/issues/new/choose"
+                      href="https://github.com/yeastengine/ella/issues/new/choose"
                       target="_blank"
                       rel="noreferrer"
                       title="Report a bug"
@@ -151,9 +152,8 @@ const Navigation: FC = () => {
             <div className="sidenav-toggle-wrapper">
               <Button
                 appearance="base"
-                aria-label={`${
-                  isCollapsed ? "expand" : "collapse"
-                } main navigation`}
+                aria-label={`${isCollapsed ? "expand" : "collapse"
+                  } main navigation`}
                 hasIcon
                 dense
                 className="sidenav-toggle is-dark u-no-margin l-navigation-collapse-toggle u-hide--small"

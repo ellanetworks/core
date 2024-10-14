@@ -65,6 +65,6 @@ func Start(port int, cert []byte, key []byte, dbQueries *sql.Queries) error {
 			log.Fatalf("Server failed: %s", err)
 		}
 	}()
-	log.Println("Server started")
+	log.Printf("Server started at https://127.0.0.1:%d", port)
 	return nil
 }
