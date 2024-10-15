@@ -27,6 +27,22 @@ type DeviceGroupSubscriber struct {
 	SubscriberID  int64
 }
 
+type Gnb struct {
+	ID   int64
+	Name string
+	Tac  string
+}
+
+type NetworkSlice struct {
+	ID       int64
+	Name     string
+	Sst      string
+	Sd       string
+	SiteName string
+	Mcc      string
+	Mnc      string
+}
+
 type Subscriber struct {
 	ID             int64
 	Imsi           string

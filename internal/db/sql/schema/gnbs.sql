@@ -1,0 +1,6 @@
+-- gNodeB Inventory table
+CREATE TABLE IF NOT EXISTS gnbs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    tac TEXT NOT NULL
+);

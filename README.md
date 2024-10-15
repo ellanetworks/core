@@ -43,3 +43,32 @@ upf:
   interfaces: ["eth0", "eth1"]
   n3-address: "127.0.0.1"
 ```
+
+### API
+
+#### Inventory (gNBs)
+- GET `/inventory/gnbs`: List all gNBs
+- GET `/inventory/gnbs/{id}`: Get a gNB
+- DELETE `/inventory/gnbs/{id}`: Delete a gNB
+- POST `/inventory/gnbs`: Create a gNB
+
+#### Subscribers
+- GET `/subscribers`: List all subscribers
+- GET `/subscribers/{id}`: Get a subscriber
+- DELETE `/subscribers/{id}`: Delete a subscriber
+- POST `/subscribers`: Create a subscriber
+
+#### Device Groups
+- GET `/device-groups`: List all device groups
+- GET `/device-groups/{id}`: Get a device group
+- DELETE `/device-groups/{id}`: Delete a device group
+- POST `/device-groups`: Create a device group
+- GET `/device-groups/{device_group_id}/subscribers`: List all subscribers in a device group
+- POST `/device-groups/{device_group_id}/subscribers`: Add a subscriber to a device group
+- DELETE `/device-groups/{device_group_id}/subscribers/{subscriber_id}`: Remove a subscriber from a device group
+
+#### Network Slices
+- GET `/network-slices`: List all network slices
+- GET `/network-slices/{id}`: Get a network slice
+- DELETE `/network-slices/{id}`: Delete a network slice
+- POST `/network-slices`: Create a network slice
