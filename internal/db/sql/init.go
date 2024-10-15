@@ -24,6 +24,12 @@ var deviceGroupSubscribersTableDdl string
 //go:embed schema/network_slices.sql
 var networkSlicesTableDdl string
 
+//go:embed schema/network_slice_gnbs.sql
+var networkSliceGnbsTableDdl string
+
+//go:embed schema/network_slice_device_groups.sql
+var networkSliceDeviceGroupsTableDdl string
+
 func Initialize(dbPath string) (*Queries, error) {
 	database, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
@@ -46,6 +52,12 @@ func Initialize(dbPath string) (*Queries, error) {
 		return nil, err
 	}
 	if _, err := database.ExecContext(context.Background(), networkSlicesTableDdl); err != nil {
+		return nil, err
+	}
+	if _, err := database.ExecContext(context.Background(), networkSliceGnbsTableDdl); err != nil {
+		return nil, err
+	}
+	if _, err := database.ExecContext(context.Background(), networkSliceDeviceGroupsTableDdl); err != nil {
 		return nil, err
 	}
 	queries := New(database)

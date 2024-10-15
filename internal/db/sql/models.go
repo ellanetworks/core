@@ -43,6 +43,16 @@ type NetworkSlice struct {
 	Mnc      string
 }
 
+type NetworkSliceDeviceGroup struct {
+	NetworkSliceID int64
+	DeviceGroupID  int64
+}
+
+type NetworkSliceGnb struct {
+	NetworkSliceID int64
+	GnbID          int64
+}
+
 type Subscriber struct {
 	ID             int64
 	Imsi           string
