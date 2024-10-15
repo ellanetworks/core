@@ -1,5 +1,5 @@
--- gNodeB Inventory table
-CREATE TABLE IF NOT EXISTS gnbs (
+-- Radio Inventory table
+CREATE TABLE IF NOT EXISTS radios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     tac TEXT NOT NULL,

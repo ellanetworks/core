@@ -7,11 +7,11 @@ import (
 func NewEllaRouter(config *HandlerConfig) http.Handler {
 	apiV1Router := http.NewServeMux()
 
-	// Inventory (GNBs)
-	apiV1Router.HandleFunc("GET /inventory/gnbs", ListGnbs(config))
-	apiV1Router.HandleFunc("GET /inventory/gnbs/{id}", GetGnb(config))
-	apiV1Router.HandleFunc("DELETE /inventory/gnbs/{id}", DeleteGnb(config))
-	apiV1Router.HandleFunc("POST /inventory/gnbs", CreateGnb(config))
+	// Inventory (Radios)
+	apiV1Router.HandleFunc("GET /inventory/radios", ListRadios(config))
+	apiV1Router.HandleFunc("GET /inventory/radios/{id}", GetRadio(config))
+	apiV1Router.HandleFunc("DELETE /inventory/radios/{id}", DeleteRadio(config))
+	apiV1Router.HandleFunc("POST /inventory/radios", CreateRadio(config))
 
 	// Subscribers
 	apiV1Router.HandleFunc("GET /subscribers", ListSubscribers(config))

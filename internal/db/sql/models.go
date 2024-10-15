@@ -27,13 +27,6 @@ type DeviceGroup struct {
 	NetworkSliceID   sql.NullInt64
 }
 
-type Gnb struct {
-	ID             int64
-	Name           string
-	Tac            string
-	NetworkSliceID sql.NullInt64
-}
-
 type NetworkSlice struct {
 	ID       int64
 	Name     string
@@ -42,6 +35,13 @@ type NetworkSlice struct {
 	SiteName string
 	Mcc      string
 	Mnc      string
+}
+
+type Radio struct {
+	ID             int64
+	Name           string
+	Tac            string
+	NetworkSliceID sql.NullInt64
 }
 
 type Subscriber struct {

@@ -9,8 +9,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-//go:embed schema/gnbs.sql
-var gnbsTableDdl string
+//go:embed schema/radios.sql
+var radiosTableDdl string
 
 //go:embed schema/subscribers.sql
 var subscribersTableDdl string
@@ -30,7 +30,7 @@ func Initialize(dbPath string) (*Queries, error) {
 	if _, err := database.ExecContext(context.Background(), "PRAGMA foreign_keys = ON;"); err != nil {
 		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
 	}
-	if _, err := database.ExecContext(context.Background(), gnbsTableDdl); err != nil {
+	if _, err := database.ExecContext(context.Background(), radiosTableDdl); err != nil {
 		return nil, err
 	}
 	if _, err := database.ExecContext(context.Background(), subscribersTableDdl); err != nil {

@@ -68,7 +68,7 @@ const Navigation: FC = () => {
                     <a
                       className="p-side-navigation__link"
                       href="/network-slices"
-                      title="Network slices"
+                      title="Network Slices"
                       aria-current={
                         pathname === "/network-slices"
                           ? "page"
@@ -112,6 +112,22 @@ const Navigation: FC = () => {
                         name="profile"
                       />{" "}
                       Subscribers
+                    </a>
+                  </li>
+                  <li className="p-side-navigation__item">
+                    <a
+                      className="p-side-navigation__link"
+                      href={`/radios`}
+                      title={`Radios`}
+                      aria-current={
+                        pathname === "/radios" ? "page" : undefined
+                      }
+                    >
+                      <Icon
+                        className="is-light p-side-navigation__icon"
+                        name="connected"
+                      />{" "}
+                      Radios
                     </a>
                   </li>
                 </ul>

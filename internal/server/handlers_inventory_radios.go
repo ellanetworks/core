@@ -11,38 +11,38 @@ import (
 	db "github.com/yeastengine/ella/internal/db/sql"
 )
 
-type CreateGnbParams struct {
+type CreateRadioParams struct {
 	Name           string `json:"name"`
 	Tac            string `json:"tac"`
 	NetworkSliceId int64  `json:"network_slice_id"`
 }
 
-type CreateGnbResponse struct {
+type CreateRadioResponse struct {
 	ID int64 `json:"id"`
 }
 
-type GetGnbResponse struct {
+type GetRadioResponse struct {
 	ID             int64  `json:"id"`
 	Name           string `json:"name"`
 	Tac            string `json:"tac"`
 	NetworkSliceId int64  `json:"network_slice_id"`
 }
 
-type DeleteGnbResponse struct {
+type DeleteRadioResponse struct {
 	ID int64 `json:"id"`
 }
 
-func ListGnbs(env *HandlerConfig) http.HandlerFunc {
+func ListRadios(env *HandlerConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		gnbs, err := env.DBQueries.ListGnbs(context.Background())
+		radios, err := env.DBQueries.ListRadios(context.Background())
 		if err != nil {
 			log.Println(err)
 			writeError(w, http.StatusInternalServerError, "internal error")
 			return
 		}
-		ids := make([]int64, 0, len(gnbs))
-		for _, gnb := range gnbs {
-			ids = append(ids, gnb.ID)
+		ids := make([]int64, 0, len(radios))
+		for _, radio := range radios {
+			ids = append(ids, radio.ID)
 		}
 
 		err = writeJSON(w, ids)
@@ -53,25 +53,25 @@ func ListGnbs(env *HandlerConfig) http.HandlerFunc {
 	}
 }
 
-func CreateGnb(env *HandlerConfig) http.HandlerFunc {
+func CreateRadio(env *HandlerConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var gnb CreateGnbParams
-		if err := json.NewDecoder(r.Body).Decode(&gnb); err != nil {
+		var radio CreateRadioParams
+		if err := json.NewDecoder(r.Body).Decode(&radio); err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid JSON format")
 			return
 		}
-		if gnb.Name == "" {
+		if radio.Name == "" {
 			writeError(w, http.StatusBadRequest, "`name` is required")
 			return
 		}
-		if gnb.Tac == "" {
+		if radio.Tac == "" {
 			writeError(w, http.StatusBadRequest, "`tac` is required")
 			return
 		}
 
 		var networkSliceId sql.NullInt64
-		if gnb.NetworkSliceId != 0 {
-			_, err := env.DBQueries.GetNetworkSlice(context.Background(), gnb.NetworkSliceId)
+		if radio.NetworkSliceId != 0 {
+			_, err := env.DBQueries.GetNetworkSlice(context.Background(), radio.NetworkSliceId)
 			if err != nil {
 				if err == sql.ErrNoRows {
 					writeError(w, http.StatusBadRequest, "network slice not found")
@@ -82,24 +82,24 @@ func CreateGnb(env *HandlerConfig) http.HandlerFunc {
 				return
 			}
 			networkSliceId = sql.NullInt64{
-				Int64: gnb.NetworkSliceId,
+				Int64: radio.NetworkSliceId,
 				Valid: true,
 			}
 		}
 
-		dbGnb := db.CreateGnbParams{
-			Name:           gnb.Name,
-			Tac:            gnb.Tac,
+		dbRadio := db.CreateRadioParams{
+			Name:           radio.Name,
+			Tac:            radio.Tac,
 			NetworkSliceID: networkSliceId,
 		}
-		newGnb, err := env.DBQueries.CreateGnb(context.Background(), dbGnb)
+		newRadio, err := env.DBQueries.CreateRadio(context.Background(), dbRadio)
 		if err != nil {
 			log.Println(err)
 			writeError(w, http.StatusInternalServerError, "internal error")
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
-		response := CreateGnbResponse{ID: newGnb.ID}
+		response := CreateRadioResponse{ID: newRadio.ID}
 		err = writeJSON(w, response)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal error")
@@ -108,7 +108,7 @@ func CreateGnb(env *HandlerConfig) http.HandlerFunc {
 	}
 }
 
-func GetGnb(env *HandlerConfig) http.HandlerFunc {
+func GetRadio(env *HandlerConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		idInt64, err := strconv.ParseInt(id, 10, 64)
@@ -117,10 +117,10 @@ func GetGnb(env *HandlerConfig) http.HandlerFunc {
 			return
 		}
 
-		gnb, err := env.DBQueries.GetGnb(context.Background(), idInt64)
+		radio, err := env.DBQueries.GetRadio(context.Background(), idInt64)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				writeError(w, http.StatusNotFound, "Gnb not found")
+				writeError(w, http.StatusNotFound, "Radio not found")
 				return
 			}
 			log.Println(err)
@@ -128,15 +128,15 @@ func GetGnb(env *HandlerConfig) http.HandlerFunc {
 			return
 		}
 
-		gnbResponse := GetGnbResponse{
-			ID:             gnb.ID,
-			Name:           gnb.Name,
-			Tac:            gnb.Tac,
-			NetworkSliceId: gnb.NetworkSliceID.Int64,
+		radioResponse := GetRadioResponse{
+			ID:             radio.ID,
+			Name:           radio.Name,
+			Tac:            radio.Tac,
+			NetworkSliceId: radio.NetworkSliceID.Int64,
 		}
 
 		w.WriteHeader(http.StatusOK)
-		err = writeJSON(w, gnbResponse)
+		err = writeJSON(w, radioResponse)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal error")
 			return
@@ -144,7 +144,7 @@ func GetGnb(env *HandlerConfig) http.HandlerFunc {
 	}
 }
 
-func DeleteGnb(env *HandlerConfig) http.HandlerFunc {
+func DeleteRadio(env *HandlerConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		idInt64, err := strconv.ParseInt(id, 10, 64)
@@ -152,14 +152,14 @@ func DeleteGnb(env *HandlerConfig) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, "id must be an integer")
 			return
 		}
-		err = env.DBQueries.DeleteGnb(context.Background(), idInt64)
+		err = env.DBQueries.DeleteRadio(context.Background(), idInt64)
 		if err != nil {
 			log.Println(err)
 			writeError(w, http.StatusInternalServerError, "internal error")
 			return
 		}
 		w.WriteHeader(http.StatusAccepted)
-		response := DeleteGnbResponse{ID: idInt64}
+		response := DeleteRadioResponse{ID: idInt64}
 		err = writeJSON(w, response)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal error")

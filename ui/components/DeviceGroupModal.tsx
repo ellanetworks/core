@@ -52,7 +52,7 @@ const DeviceGroupModal = ({
   }
 
   const { data: networkSlices = [], isLoading: isNetworkSlicesLoading } = useQuery({
-    queryKey: [queryKeys.gnbList],
+    queryKey: [queryKeys.networkSlices],
     queryFn: listNetworkSlices,
   });
 

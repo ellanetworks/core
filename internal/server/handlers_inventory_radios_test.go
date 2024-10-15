@@ -7,51 +7,51 @@ import (
 	"testing"
 )
 
-type ListGnbsResponseResult []int
+type ListRadiosResponseResult []int
 
-type ListGnbsResponse struct {
-	Error  string                 `json:"error,omitempty"`
-	Result ListGnbsResponseResult `json:"result"`
+type ListRadiosResponse struct {
+	Error  string                   `json:"error,omitempty"`
+	Result ListRadiosResponseResult `json:"result"`
 }
 
-type CreateGnbParams struct {
+type CreateRadioParams struct {
 	Name           string `json:"name"`
 	Tac            string `json:"tac"`
 	NetworkSliceId int64  `json:"network_slice_id"`
 }
 
-type createGnbResponseResult struct {
+type createRadioResponseResult struct {
 	ID int64 `json:"id"`
 }
 
-type createGnbResponse struct {
-	Error  string                  `json:"error,omitempty"`
-	Result createGnbResponseResult `json:"result"`
+type createRadioResponse struct {
+	Error  string                    `json:"error,omitempty"`
+	Result createRadioResponseResult `json:"result"`
 }
 
-type GetGnbResponseResult struct {
+type GetRadioResponseResult struct {
 	ID             int64  `json:"id"`
 	Name           string `json:"name"`
 	Tac            string `json:"tac"`
 	NetworkSliceId int64  `json:"network_slice_id"`
 }
 
-type GetGnbResponse struct {
-	Error  string               `json:"error,omitempty"`
-	Result GetGnbResponseResult `json:"result"`
+type GetRadioResponse struct {
+	Error  string                 `json:"error,omitempty"`
+	Result GetRadioResponseResult `json:"result"`
 }
 
-type DeleteGnbResponseResult struct {
+type DeleteRadioResponseResult struct {
 	ID int64 `json:"id"`
 }
 
-type DeleteGnbResponse struct {
-	Error  string                  `json:"error,omitempty"`
-	Result DeleteGnbResponseResult `json:"result"`
+type DeleteRadioResponse struct {
+	Error  string                    `json:"error,omitempty"`
+	Result DeleteRadioResponseResult `json:"result"`
 }
 
-func listGnbs(url string, client *http.Client) (int, *ListGnbsResponse, error) {
-	req, err := http.NewRequest("GET", url+"/api/v1/inventory/gnbs", nil)
+func listRadios(url string, client *http.Client) (int, *ListRadiosResponse, error) {
+	req, err := http.NewRequest("GET", url+"/api/v1/inventory/radios", nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -60,15 +60,15 @@ func listGnbs(url string, client *http.Client) (int, *ListGnbsResponse, error) {
 		return 0, nil, err
 	}
 	defer res.Body.Close()
-	var listResponse ListGnbsResponse
+	var listResponse ListRadiosResponse
 	if err := json.NewDecoder(res.Body).Decode(&listResponse); err != nil {
 		return 0, nil, err
 	}
 	return res.StatusCode, &listResponse, nil
 }
 
-func getGnb(url string, client *http.Client, id string) (int, *GetGnbResponse, error) {
-	req, err := http.NewRequest("GET", url+"/api/v1/inventory/gnbs/"+id, nil)
+func getRadio(url string, client *http.Client, id string) (int, *GetRadioResponse, error) {
+	req, err := http.NewRequest("GET", url+"/api/v1/inventory/radios/"+id, nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -77,19 +77,19 @@ func getGnb(url string, client *http.Client, id string) (int, *GetGnbResponse, e
 		return 0, nil, err
 	}
 	defer res.Body.Close()
-	var getResponse GetGnbResponse
+	var getResponse GetRadioResponse
 	if err := json.NewDecoder(res.Body).Decode(&getResponse); err != nil {
 		return 0, nil, err
 	}
 	return res.StatusCode, &getResponse, nil
 }
 
-func createGnb(url string, client *http.Client, data *CreateGnbParams) (int, *createGnbResponse, error) {
+func createRadio(url string, client *http.Client, data *CreateRadioParams) (int, *createRadioResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequest("POST", url+"/api/v1/inventory/gnbs", strings.NewReader(string(body)))
+	req, err := http.NewRequest("POST", url+"/api/v1/inventory/radios", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -98,15 +98,15 @@ func createGnb(url string, client *http.Client, data *CreateGnbParams) (int, *cr
 		return 0, nil, err
 	}
 	defer res.Body.Close()
-	var createResponse createGnbResponse
+	var createResponse createRadioResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
 		return 0, nil, err
 	}
 	return res.StatusCode, &createResponse, nil
 }
 
-func deleteGnb(url string, client *http.Client, id string) (int, *DeleteGnbResponse, error) {
-	req, err := http.NewRequest("DELETE", url+"/api/v1/inventory/gnbs/"+id, nil)
+func deleteRadio(url string, client *http.Client, id string) (int, *DeleteRadioResponse, error) {
+	req, err := http.NewRequest("DELETE", url+"/api/v1/inventory/radios/"+id, nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -115,14 +115,14 @@ func deleteGnb(url string, client *http.Client, id string) (int, *DeleteGnbRespo
 		return 0, nil, err
 	}
 	defer res.Body.Close()
-	var deleteResponse DeleteGnbResponse
+	var deleteResponse DeleteRadioResponse
 	if err := json.NewDecoder(res.Body).Decode(&deleteResponse); err != nil {
 		return 0, nil, err
 	}
 	return res.StatusCode, &deleteResponse, nil
 }
 
-func TestGnbsHandlers(t *testing.T) {
+func TestRadiosHandlers(t *testing.T) {
 	ts, err := setupServer()
 	if err != nil {
 		t.Fatal(err)
@@ -130,8 +130,8 @@ func TestGnbsHandlers(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	t.Run("List inventory gnbs - 0", func(t *testing.T) {
-		statusCode, response, err := listGnbs(ts.URL, client)
+	t.Run("List inventory radios - 0", func(t *testing.T) {
+		statusCode, response, err := listRadios(ts.URL, client)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -149,12 +149,12 @@ func TestGnbsHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("Create inventory gnb - 1", func(t *testing.T) {
-		data := CreateGnbParams{
+	t.Run("Create inventory radio - 1", func(t *testing.T) {
+		data := CreateRadioParams{
 			Name: "Name1",
 			Tac:  "Tac1",
 		}
-		statusCode, response, err := createGnb(ts.URL, client, &data)
+		statusCode, response, err := createRadio(ts.URL, client, &data)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -168,13 +168,13 @@ func TestGnbsHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("Create gnb with non-existent network slice", func(t *testing.T) {
-		data := CreateGnbParams{
+	t.Run("Create radio with non-existent network slice", func(t *testing.T) {
+		data := CreateRadioParams{
 			Name:           "Name2",
 			Tac:            "Tac2",
 			NetworkSliceId: 1,
 		}
-		statusCode, response, _ := createGnb(ts.URL, client, &data)
+		statusCode, response, _ := createRadio(ts.URL, client, &data)
 
 		if statusCode != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
@@ -208,13 +208,13 @@ func TestGnbsHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("Create inventory gnb (with network slice)- 2", func(t *testing.T) {
-		data := CreateGnbParams{
+	t.Run("Create inventory radio (with network slice)- 2", func(t *testing.T) {
+		data := CreateRadioParams{
 			Name:           "Name2",
 			Tac:            "Tac2",
 			NetworkSliceId: 1,
 		}
-		statusCode, response, err := createGnb(ts.URL, client, &data)
+		statusCode, response, err := createRadio(ts.URL, client, &data)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -228,8 +228,8 @@ func TestGnbsHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("List inventory gnbs - 2", func(t *testing.T) {
-		statusCode, response, err := listGnbs(ts.URL, client)
+	t.Run("List inventory radios - 2", func(t *testing.T) {
+		statusCode, response, err := listRadios(ts.URL, client)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -247,8 +247,8 @@ func TestGnbsHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("Get inventory gnb - 1", func(t *testing.T) {
-		statusCode, response, err := getGnb(ts.URL, client, "1")
+	t.Run("Get inventory radio - 1", func(t *testing.T) {
+		statusCode, response, err := getRadio(ts.URL, client, "1")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -278,8 +278,8 @@ func TestGnbsHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("Get inventory gnb - 2", func(t *testing.T) {
-		statusCode, response, err := getGnb(ts.URL, client, "2")
+	t.Run("Get inventory radio - 2", func(t *testing.T) {
+		statusCode, response, err := getRadio(ts.URL, client, "2")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -309,8 +309,8 @@ func TestGnbsHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("Delete inventory gnb - 1", func(t *testing.T) {
-		statusCode, response, err := deleteGnb(ts.URL, client, "1")
+	t.Run("Delete inventory radio - 1", func(t *testing.T) {
+		statusCode, response, err := deleteRadio(ts.URL, client, "1")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -328,8 +328,8 @@ func TestGnbsHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("List inventory gnbs - 1", func(t *testing.T) {
-		statusCode, response, err := listGnbs(ts.URL, client)
+	t.Run("List inventory radios - 1", func(t *testing.T) {
+		statusCode, response, err := listRadios(ts.URL, client)
 		if err != nil {
 			t.Fatal(err)
 		}

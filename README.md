@@ -46,11 +46,11 @@ upf:
 
 ### API
 
-#### Inventory (gNBs)
-- GET `/inventory/gnbs`: List all gNBs
-- GET `/inventory/gnbs/{id}`: Get a gNB
-- DELETE `/inventory/gnbs/{id}`: Delete a gNB
-- POST `/inventory/gnbs`: Create a gNB
+#### Inventory (radios)
+- GET `/inventory/radios`: List all radios
+- GET `/inventory/radios/{id}`: Get a radio from inventory
+- DELETE `/inventory/radios/{id}`: Delete a radio from inventory
+- POST `/inventory/radios`: Create a radio in inventory
 
 #### Subscribers
 - GET `/subscribers`: List all subscribers

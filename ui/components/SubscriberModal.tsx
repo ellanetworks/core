@@ -35,7 +35,7 @@ const SubscriberModal = ({ toggleModal, subscriber }: Props) => {
 
 
   const { data: deviceGroups = [], isLoading: isNetworkSlicesLoading } = useQuery({
-    queryKey: [queryKeys.gnbList],
+    queryKey: [queryKeys.deviceGroups],
     queryFn: listDeviceGroups,
   });
 
