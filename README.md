@@ -1,7 +1,17 @@
 # Ella
 
-ella is a secure, reliable, and easy to operate mobile network.
+Ella is an easy to operate mobile network.
 
+Typical mobile networks are complex, expensive, and difficult to operate. Forget microservices, external databases, complex configurations, and expensive hardware. Ella is a single binary that runs on a single machine.
+
+Use Ella where you need 5G connectivity. For example, in a factory, a warehouse, a farm, a stadium, or a remote location. Ella is perfect for private networks, IoT, and edge computing.
+
+Key features:
+* **5G compliant**: Ella is a 5G compliant core network. It can integrate with any 5G radio access network.
+* **Performant data plane**: Ella uses eBPF to implement the data plane. It is fast, secure, and reliable.
+* **Simple UI**: Ella has a web-based user interface for managing subscribers, radios, device groups, and network slices.
+* **Complete HTTP API**: Ella has a complete HTTP API. You can automate everything you can do in the UI.
+* **Encrypted communication**: Ella's HTTP API and UI are secured with TLS.
 
 ## Getting Started
 
@@ -46,26 +56,22 @@ upf:
 
 ### API
 
-#### Inventory (radios)
-- GET `/inventory/radios`: List all radios
-- GET `/inventory/radios/{id}`: Get a radio from inventory
-- DELETE `/inventory/radios/{id}`: Delete a radio from inventory
-- POST `/inventory/radios`: Create a radio in inventory
-
-#### Subscribers
-- GET `/subscribers`: List all subscribers
-- GET `/subscribers/{id}`: Get a subscriber
-- DELETE `/subscribers/{id}`: Delete a subscriber
-- POST `/subscribers`: Create a subscriber
-
-#### Device Groups
-- GET `/device-groups`: List all device groups
-- GET `/device-groups/{id}`: Get a device group
-- DELETE `/device-groups/{id}`: Delete a device group
-- POST `/device-groups`: Create a device group
-
-#### Network Slices
-- GET `/network-slices`: List all network slices
-- GET `/network-slices/{id}`: Get a network slice
-- DELETE `/network-slices/{id}`: Delete a network slice
-- POST `/network-slices`: Create a network slice
+| Endpoint                        | HTTP Method | Description                   | Parameters |
+| ------------------------------- | ----------- | ----------------------------- | ---------- |
+| `/api/v1/inventory/radios`      | GET         | List all radios               |            |
+| `/api/v1/inventory/radios/{id}` | GET         | Get a radio from inventory    |            |
+| `/api/v1/inventory/radios/{id}` | DELETE      | Delete a radio from inventory |            |
+| `/api/v1/inventory/radios`      | POST        | Create a radio in inventory   |            |
+| `/api/v1/subscribers`           | GET         | List all subscribers          |            |
+| `/api/v1/subscribers/{id}`      | GET         | Get a subscriber              |            |
+| `/api/v1/subscribers/{id}`      | DELETE      | Delete a subscriber           |            |
+| `/api/v1/subscribers`           | POST        | Create a subscriber           |            |
+| `/api/v1/device-groups`         | GET         | List all device groups        |            |
+| `/api/v1/device-groups/{id}`    | GET         | Get a device group            |            |
+| `/api/v1/device-groups/{id}`    | DELETE      | Delete a device group         |            |
+| `/api/v1/device-groups`         | POST        | Create a device group         |            |
+| `/api/v1/network-slices`        | GET         | List all network slices       |            |
+| `/api/v1/network-slices/{id}`   | GET         | Get a network slice           |            |
+| `/api/v1/network-slices/{id}`   | DELETE      | Delete a network slice        |            |
+| `/api/v1/network-slices`        | POST        | Create a network slice        |            |
+| `/api/v1/metrics`               | GET         | Get metrics                   |            |
