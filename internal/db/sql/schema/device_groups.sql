@@ -14,5 +14,7 @@ CREATE TABLE IF NOT EXISTS device_groups (
     traffic_class_arp INTEGER NOT NULL,
     traffic_class_pdb INTEGER NOT NULL,
     traffic_class_pelr INTEGER NOT NULL,
-    traffic_class_qci INTEGER NOT NULL
+    traffic_class_qci INTEGER NOT NULL,
+    network_slice_id INTEGER,
+    FOREIGN KEY (network_slice_id) REFERENCES network_slices(id) ON DELETE SET NULL
 );

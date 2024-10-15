@@ -5,5 +5,7 @@ CREATE TABLE IF NOT EXISTS subscribers (
     plmn_id TEXT NOT NULL,
     opc TEXT NOT NULL,
     key TEXT NOT NULL,
-    sequence_number TEXT NOT NULL
+    sequence_number TEXT NOT NULL,
+    device_group_id INTEGER,
+    FOREIGN KEY (device_group_id) REFERENCES device_groups(id) ON DELETE SET NULL
 );

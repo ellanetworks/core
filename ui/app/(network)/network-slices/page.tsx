@@ -18,8 +18,6 @@ import PageContent from "@/components/PageContent";
 const NetworkSlices = () => {
   const queryClient = useQueryClient();
   const [isCreateModalVisible, setCreateModalVisible] = useState(false);
-  const [isEditModalVisible, setEditModalVisible] = useState(false);
-  const [network_slice, setNetworkSlice] = useState<any | undefined>(undefined);
 
   const { data: network_slices = [], isLoading: isNetworkSlicesLoading } = useQuery({
     queryKey: [queryKeys.networkSlices],
@@ -37,24 +35,6 @@ const NetworkSlices = () => {
   };
 
   const toggleCreateModal = () => setCreateModalVisible((prev) => !prev);
-  const toggleEditModal = () => setEditModalVisible((prev) => !prev);
-
-  const handleEditButton = (network_slice: any) => {
-    setNetworkSlice(network_slice);
-    toggleEditModal();
-  }
-
-  const getEditButton = (network_slice: any) => {
-    return <Button
-      appearance=""
-      className="u-no-margin--bottom"
-      shiftClickEnabled
-      showShiftClickHint
-      onClick={() => { handleEditButton(network_slice) }}
-    >
-      Edit
-    </Button>
-  }
 
   const getDeleteButton = (name: string, network_slice_id: string) => {
     return <ConfirmationButton
@@ -84,15 +64,13 @@ const NetworkSlices = () => {
     return {
       key: network_slice.name,
       columns: [
+        { content: network_slice.id },
         { content: network_slice?.["name"] },
-        { content: network_slice?.["sst"] },
-        { content: network_slice?.["sd"] },
         { content: network_slice?.["mcc"] },
         { content: network_slice?.["mnc"] },
         {
           content: (
             <div className="u-align--right">
-              {getEditButton(network_slice)}
               {getDeleteButton(network_slice.name, network_slice.id)}
             </div>
           ),
@@ -127,9 +105,8 @@ const NetworkSlices = () => {
           defaultSort='"abcd"'
           defaultSortDirection="ascending"
           headers={[
+            { content: "Id" },
             { content: "Name" },
-            { content: "SST" },
-            { content: "SD" },
             { content: "MCC" },
             { content: "MNC" },
             { content: "Actions", className: "u-align--right" },
@@ -138,8 +115,6 @@ const NetworkSlices = () => {
         />
       </PageContent>
       {isCreateModalVisible && <NetworkSliceModal toggleModal={toggleCreateModal} />}
-      {isEditModalVisible &&
-        <NetworkSliceModal toggleModal={toggleEditModal} networkSlice={network_slice} />}
     </>
   );
 };

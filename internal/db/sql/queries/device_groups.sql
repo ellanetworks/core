@@ -12,9 +12,9 @@ ORDER BY id;
 
 -- name: CreateDeviceGroup :one
 INSERT INTO device_groups (
-  name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci
+  name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id
 ) VALUES (
-  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
 RETURNING *;
 
@@ -24,10 +24,3 @@ WHERE id = ?;
 
 -- name: NumDeviceGroups :one
 SELECT COUNT(*) FROM device_groups;
-
--- name: AddSubscriberToDeviceGroup :exec
-INSERT INTO device_group_subscribers (
-  device_group_id, subscriber_id
-) VALUES (
-  ?, ?
-);

@@ -12,8 +12,9 @@ import (
 )
 
 type CreateGnbParams struct {
-	Name string `json:"name"`
-	Tac  string `json:"tac"`
+	Name           string `json:"name"`
+	Tac            string `json:"tac"`
+	NetworkSliceId int64  `json:"network_slice_id"`
 }
 
 type CreateGnbResponse struct {
@@ -21,9 +22,10 @@ type CreateGnbResponse struct {
 }
 
 type GetGnbResponse struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
-	Tac  string `json:"tac"`
+	ID             int64  `json:"id"`
+	Name           string `json:"name"`
+	Tac            string `json:"tac"`
+	NetworkSliceId int64  `json:"network_slice_id"`
 }
 
 type DeleteGnbResponse struct {
@@ -67,9 +69,28 @@ func CreateGnb(env *HandlerConfig) http.HandlerFunc {
 			return
 		}
 
+		var networkSliceId sql.NullInt64
+		if gnb.NetworkSliceId != 0 {
+			_, err := env.DBQueries.GetNetworkSlice(context.Background(), gnb.NetworkSliceId)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					writeError(w, http.StatusBadRequest, "network slice not found")
+					return
+				}
+				log.Println(err)
+				writeError(w, http.StatusInternalServerError, "internal error")
+				return
+			}
+			networkSliceId = sql.NullInt64{
+				Int64: gnb.NetworkSliceId,
+				Valid: true,
+			}
+		}
+
 		dbGnb := db.CreateGnbParams{
-			Name: gnb.Name,
-			Tac:  gnb.Tac,
+			Name:           gnb.Name,
+			Tac:            gnb.Tac,
+			NetworkSliceID: networkSliceId,
 		}
 		newGnb, err := env.DBQueries.CreateGnb(context.Background(), dbGnb)
 		if err != nil {
@@ -108,9 +129,10 @@ func GetGnb(env *HandlerConfig) http.HandlerFunc {
 		}
 
 		gnbResponse := GetGnbResponse{
-			ID:   gnb.ID,
-			Name: gnb.Name,
-			Tac:  gnb.Tac,
+			ID:             gnb.ID,
+			Name:           gnb.Name,
+			Tac:            gnb.Tac,
+			NetworkSliceId: gnb.NetworkSliceID.Int64,
 		}
 
 		w.WriteHeader(http.StatusOK)

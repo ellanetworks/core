@@ -13,9 +13,9 @@ ORDER BY id;
 
 -- name: CreateGnb :one
 INSERT INTO gnbs (
-  name, tac
+  name, tac, network_slice_id
 ) VALUES (
-  ?, ?
+  ?, ?, ?
 )
 RETURNING *;
 

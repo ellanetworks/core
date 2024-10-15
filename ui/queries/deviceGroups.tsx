@@ -1,3 +1,4 @@
+import internal from "stream";
 
 export const apiListDeviceGroups = async () => {
     try {
@@ -129,61 +130,6 @@ const getDeviceGroup = async (id: string) => {
     }
 };
 
-
-interface EditDeviceGroupArgs {
-    name: string;
-    ueIpPool: string;
-    dns: string;
-    mtu: number;
-    MBRUpstreamBps: number;
-    MBRDownstreamBps: number;
-}
-
-export const editDeviceGroup = async ({
-    name,
-    ueIpPool,
-    dns,
-    mtu,
-    MBRUpstreamBps,
-    MBRDownstreamBps,
-}: EditDeviceGroupArgs) => {
-    try {
-        const currentConfig = await getDeviceGroup(name)
-
-        const deviceGroupData = {
-            "site-info": "demo",
-            "ip_domain_name": "pool1",
-            "dnn": "internet",
-            "ue_ip_pool": ueIpPool,
-            "dns_primary": dns,
-            "mtu": mtu,
-            "dnn_mbr_uplink": MBRUpstreamBps,
-            "dnn_mbr_downlink": MBRDownstreamBps,
-            "traffic_class_name": "platinum",
-            "traffic_class_arp": 6,
-            "traffic_class_pdb": 300,
-            "traffic_class_pelr": 6,
-            "traffic_class_qci": 8,
-        };
-
-        const response = await apiPostDeviceGroup(deviceGroupData);
-        if (!response.ok) {
-            throw new Error(
-                `Error updating device group. Error code: ${response.status}`,
-            );
-        }
-        return true;
-    } catch (error: unknown) {
-        console.error(error);
-        const details =
-            error instanceof Error
-                ? error.message
-                : "Failed edit device group.";
-        throw new Error(details);
-    }
-};
-
-
 interface CreateDeviceGroupArgs {
     name: string;
     ueIpPool: string;
@@ -191,6 +137,7 @@ interface CreateDeviceGroupArgs {
     mtu: number;
     MBRUpstreamBps: number;
     MBRDownstreamBps: number;
+    NetworkSliceId: number;
 }
 
 export const createDeviceGroup = async ({
@@ -200,6 +147,7 @@ export const createDeviceGroup = async ({
     mtu,
     MBRUpstreamBps,
     MBRDownstreamBps,
+    NetworkSliceId,
 }: CreateDeviceGroupArgs) => {
     const deviceGroupData = {
         "name": name,
@@ -216,6 +164,7 @@ export const createDeviceGroup = async ({
         "traffic_class_pdb": 300,
         "traffic_class_pelr": 6,
         "traffic_class_qci": 8,
+        "network_slice_id": NetworkSliceId,
     };
 
     try {

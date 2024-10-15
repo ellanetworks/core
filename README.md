@@ -63,9 +63,6 @@ upf:
 - GET `/device-groups/{id}`: Get a device group
 - DELETE `/device-groups/{id}`: Delete a device group
 - POST `/device-groups`: Create a device group
-- GET `/device-groups/{device_group_id}/subscribers`: List all subscribers in a device group
-- POST `/device-groups/{device_group_id}/subscribers`: Add a subscriber to a device group
-- DELETE `/device-groups/{device_group_id}/subscribers/{subscriber_id}`: Remove a subscriber from a device group
 
 #### Network Slices
 - GET `/network-slices`: List all network slices

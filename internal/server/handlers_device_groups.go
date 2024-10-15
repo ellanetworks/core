@@ -26,6 +26,7 @@ type CreateDeviceGroupParams struct {
 	TrafficClassPdb  int64  `json:"traffic_class_pdb"`
 	TrafficClassPelr int64  `json:"traffic_class_pelr"`
 	TrafficClassQci  int64  `json:"traffic_class_qci"`
+	NetworkSliceId   int64  `json:"network_slice_id"`
 }
 
 type CreateDeviceGroupResponse struct {
@@ -48,6 +49,7 @@ type GetDeviceGroupResponse struct {
 	TrafficClassPdb  int64  `json:"traffic_class_pdb"`
 	TrafficClassPelr int64  `json:"traffic_class_pelr"`
 	TrafficClassQci  int64  `json:"traffic_class_qci"`
+	NetworkSliceId   int64  `json:"network_slice_id"`
 }
 
 type DeleteDeviceGroupResponse struct {
@@ -139,6 +141,24 @@ func CreateDeviceGroup(env *HandlerConfig) http.HandlerFunc {
 			return
 		}
 
+		var networkSliceId sql.NullInt64
+		if deviceGroup.NetworkSliceId != 0 {
+			_, err := env.DBQueries.GetNetworkSlice(context.Background(), deviceGroup.NetworkSliceId)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					writeError(w, http.StatusBadRequest, "network slice not found")
+					return
+				}
+				log.Println(err)
+				writeError(w, http.StatusInternalServerError, "internal error")
+				return
+			}
+			networkSliceId = sql.NullInt64{
+				Int64: deviceGroup.NetworkSliceId,
+				Valid: true,
+			}
+		}
+
 		dbDeviceGroup := db.CreateDeviceGroupParams{
 			Name:             deviceGroup.Name,
 			SiteInfo:         deviceGroup.SiteInfo,
@@ -154,6 +174,7 @@ func CreateDeviceGroup(env *HandlerConfig) http.HandlerFunc {
 			TrafficClassPdb:  deviceGroup.TrafficClassPdb,
 			TrafficClassPelr: deviceGroup.TrafficClassPelr,
 			TrafficClassQci:  deviceGroup.TrafficClassQci,
+			NetworkSliceID:   networkSliceId,
 		}
 		newDeviceGroup, err := env.DBQueries.CreateDeviceGroup(context.Background(), dbDeviceGroup)
 		if err != nil {
@@ -207,6 +228,7 @@ func GetDeviceGroup(env *HandlerConfig) http.HandlerFunc {
 			TrafficClassPdb:  deviceGroup.TrafficClassPdb,
 			TrafficClassPelr: deviceGroup.TrafficClassPelr,
 			TrafficClassQci:  deviceGroup.TrafficClassQci,
+			NetworkSliceId:   deviceGroup.NetworkSliceID.Int64,
 		}
 
 		w.WriteHeader(http.StatusOK)

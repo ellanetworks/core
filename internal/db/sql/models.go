@@ -4,6 +4,10 @@
 
 package sql
 
+import (
+	"database/sql"
+)
+
 type DeviceGroup struct {
 	ID               int64
 	Name             string
@@ -20,17 +24,14 @@ type DeviceGroup struct {
 	TrafficClassPdb  int64
 	TrafficClassPelr int64
 	TrafficClassQci  int64
-}
-
-type DeviceGroupSubscriber struct {
-	DeviceGroupID int64
-	SubscriberID  int64
+	NetworkSliceID   sql.NullInt64
 }
 
 type Gnb struct {
-	ID   int64
-	Name string
-	Tac  string
+	ID             int64
+	Name           string
+	Tac            string
+	NetworkSliceID sql.NullInt64
 }
 
 type NetworkSlice struct {
@@ -43,16 +44,6 @@ type NetworkSlice struct {
 	Mnc      string
 }
 
-type NetworkSliceDeviceGroup struct {
-	NetworkSliceID int64
-	DeviceGroupID  int64
-}
-
-type NetworkSliceGnb struct {
-	NetworkSliceID int64
-	GnbID          int64
-}
-
 type Subscriber struct {
 	ID             int64
 	Imsi           string
@@ -60,4 +51,5 @@ type Subscriber struct {
 	Opc            string
 	Key            string
 	SequenceNumber string
+	DeviceGroupID  sql.NullInt64
 }

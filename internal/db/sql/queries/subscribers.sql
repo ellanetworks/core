@@ -12,15 +12,15 @@ ORDER BY imsi;
 
 -- name: CreateSubscriber :one
 INSERT INTO subscribers (
-  imsi, plmn_id, opc, key, sequence_number
+  imsi, plmn_id, opc, key, sequence_number, device_group_id
 ) VALUES (
-  ?, ?, ?, ?, ?
+  ?, ?, ?, ?, ?, ?
 )
 RETURNING *;
 
 -- name: UpdateSubscriber :exec
 UPDATE subscribers
-set imsi = ?, plmn_id = ?, opc = ?, key = ?, sequence_number = ?
+SET imsi = ?, plmn_id = ?, opc = ?, key = ?, sequence_number = ?, device_group_id = ?
 WHERE id = ?;
 
 -- name: DeleteSubscriber :exec

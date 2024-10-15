@@ -3,14 +3,15 @@ import {
   Input,
   Notification,
   Modal,
+  Select,
   Form,
   ActionButton,
 } from "@canonical/react-components";
 import { createDeviceGroup } from "@/queries/deviceGroups";
-import { editDeviceGroup } from "@/queries/deviceGroups";
+import { listNetworkSlices } from "@/queries/networkSlices";
 import * as Yup from "yup";
 import { useFormik } from "formik";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/utils/queryKeys";
 
 const regexIp =
@@ -26,7 +27,7 @@ interface DeviceGroupValues {
   mtu: number;
   MBRDownstreamMbps: number | null;
   MBRUpstreamMbps: number | null;
-
+  networkSliceId: number;
 }
 
 interface DeviceGroupModalProps {
@@ -49,6 +50,11 @@ const DeviceGroupModal = ({
   const modalTitle = () => {
     return deviceGroup && deviceGroup.name ? ("Edit Device Group: " + deviceGroup.name) : "Create Device Group"
   }
+
+  const { data: networkSlices = [], isLoading: isNetworkSlicesLoading } = useQuery({
+    queryKey: [queryKeys.gnbList],
+    queryFn: listNetworkSlices,
+  });
 
   const DeviceGroupSchema = Yup.object().shape({
     name: Yup.string()
@@ -73,6 +79,8 @@ const DeviceGroupModal = ({
       .min(0)
       .max(1000000)
       .required("Value should be between 0 and 1,000,000."),
+    networkSliceId: Yup.number()
+      .required("Please select a network slice."),
   });
 
   const formik = useFormik<DeviceGroupValues>({
@@ -83,6 +91,7 @@ const DeviceGroupModal = ({
       mtu: deviceGroup?.["mtu"] || 1460,
       MBRDownstreamMbps: deviceGroup?.["DnnMbrDownlink"] / 1_000_000 || null,
       MBRUpstreamMbps: deviceGroup?.["DnnMbrUplink"] / 1_000_000 || null,
+      networkSliceId: deviceGroup?.["networkSliceId"] || "",
     },
 
     validationSchema: DeviceGroupSchema,
@@ -90,26 +99,16 @@ const DeviceGroupModal = ({
       const MBRUpstreamBps = Number(values.MBRUpstreamMbps) * 1000000;
       const MBRDownstreamBps = Number(values.MBRDownstreamMbps) * 1000000;
       try {
-        if (deviceGroup) {
-          await editDeviceGroup({
-            name: values.name,
-            ueIpPool: values.ueIpPool,
-            dns: values.dns,
-            mtu: values.mtu,
-            MBRUpstreamBps: MBRUpstreamBps,
-            MBRDownstreamBps: MBRDownstreamBps,
-          });
-        } else {
-          await createDeviceGroup({
-            name: values.name,
-            ueIpPool: values.ueIpPool,
-            dns: values.dns,
-            mtu: values.mtu,
-            MBRUpstreamBps: MBRUpstreamBps,
-            MBRDownstreamBps: MBRDownstreamBps,
-          });
-        }
-        await queryClient.invalidateQueries({ queryKey: [queryKeys.subscribers] });
+        await createDeviceGroup({
+          name: values.name,
+          ueIpPool: values.ueIpPool,
+          dns: values.dns,
+          mtu: values.mtu,
+          MBRUpstreamBps: MBRUpstreamBps,
+          MBRDownstreamBps: MBRDownstreamBps,
+          NetworkSliceId: values.networkSliceId,
+        });
+        await queryClient.invalidateQueries({ queryKey: [queryKeys.deviceGroups] });
         toggleModal();
       } catch (error) {
         console.error(error);
@@ -119,6 +118,10 @@ const DeviceGroupModal = ({
       }
     },
   });
+
+  const handleNetworkSliceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    formik.setFieldValue("networkSliceId", parseInt(e.target.value, 10));
+  };
 
   if (!modalTitle) {
     return (
@@ -224,6 +227,26 @@ const DeviceGroupModal = ({
             }
           />
         </fieldset>
+        <Select
+          id="network_slices"
+          stacked
+          required
+          value={formik.values.networkSliceId}
+          options={[
+            {
+              value: "",
+              disabled: true,
+              label: "Select...",
+            },
+            ...networkSlices.map((networkSlice) => ({
+              label: `${networkSlice.name}`,
+              value: networkSlice.id,
+            })),
+          ]}
+          label="Network Slice"
+          error={formik.touched.networkSliceId ? formik.errors.networkSliceId : null}
+          onChange={handleNetworkSliceChange}
+        />
       </Form>
     </Modal>
   );

@@ -6,10 +6,11 @@ import {
   Input,
   Modal,
   Notification,
+  Select,
 } from "@canonical/react-components";
 import { createSubscriber } from "@/queries/subscribers";
-import { editSubscriber } from "@/utils/editSubscriber";
-import { useQueryClient } from "@tanstack/react-query";
+import { listDeviceGroups } from "@/queries/deviceGroups";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/utils/queryKeys";
 import * as Yup from "yup";
 import { useFormik } from "formik";
@@ -20,6 +21,7 @@ interface SubscriberValues {
   opc: string;
   key: string;
   sequence_number: string;
+  deviceGroupId: number;
 }
 
 type Props = {
@@ -30,6 +32,12 @@ type Props = {
 const SubscriberModal = ({ toggleModal, subscriber }: Props) => {
   const queryClient = useQueryClient();
   const [apiError, setApiError] = useState<string | null>(null);
+
+
+  const { data: deviceGroups = [], isLoading: isNetworkSlicesLoading } = useQuery({
+    queryKey: [queryKeys.gnbList],
+    queryFn: listDeviceGroups,
+  });
 
   const SubscriberSchema = Yup.object().shape({
     imsi: Yup.string()
@@ -56,13 +64,13 @@ const SubscriberModal = ({ toggleModal, subscriber }: Props) => {
     sequence_number: Yup.string().required("Sequence number is required"),
   });
 
-  const modalTitle = () => {
-    return subscriber && subscriber.imsi ? ("Edit Subscriber: " + subscriber.imsi) : "Create Subscriber"
-  }
-
   const buttonText = () => {
     return subscriber ? "Save Changes" : "Create"
   }
+
+  const handleDeviceGroupChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    formik.setFieldValue("deviceGroupId", parseInt(e.target.value, 10));
+  };
 
   const formik = useFormik<SubscriberValues>({
     initialValues: {
@@ -71,26 +79,19 @@ const SubscriberModal = ({ toggleModal, subscriber }: Props) => {
       opc: subscriber?.["opc"] || "",
       key: subscriber?.["key"] || "",
       sequence_number: subscriber?.["sequence_number"] || "",
+      deviceGroupId: subscriber?.["deviceGroupId"] || "",
     },
     validationSchema: SubscriberSchema,
     onSubmit: async (values) => {
       try {
-        if (subscriber) {
-          await editSubscriber({
-            imsi: values.imsi,
-            opc: values.opc,
-            key: values.key,
-            sequence_number: values.sequence_number,
-          });
-        } else {
-          await createSubscriber({
-            imsi: values.imsi,
-            plmn_id: values.plmn_id,
-            opc: values.opc,
-            key: values.key,
-            sequence_number: values.sequence_number,
-          });
-        }
+        await createSubscriber({
+          imsi: values.imsi,
+          plmn_id: values.plmn_id,
+          opc: values.opc,
+          key: values.key,
+          sequence_number: values.sequence_number,
+          device_group_id: values.deviceGroupId,
+        });
         await queryClient.invalidateQueries({ queryKey: [queryKeys.subscribers] });
         toggleModal();
       } catch (error) {
@@ -106,7 +107,7 @@ const SubscriberModal = ({ toggleModal, subscriber }: Props) => {
   return (
     <Modal
       close={toggleModal}
-      title={modalTitle()}
+      title={"Create Subscriber"}
       buttonRow={
         <>
           <ActionButton
@@ -182,6 +183,26 @@ const SubscriberModal = ({ toggleModal, subscriber }: Props) => {
           error={
             formik.touched.sequence_number ? formik.errors.sequence_number : null
           }
+        />
+        <Select
+          id="network_slices"
+          stacked
+          required
+          value={formik.values.deviceGroupId}
+          options={[
+            {
+              value: "",
+              disabled: true,
+              label: "Select...",
+            },
+            ...deviceGroups.map((deviceGroup) => ({
+              label: `${deviceGroup.name}`,
+              value: deviceGroup.id,
+            })),
+          ]}
+          label="Device Group"
+          error={formik.touched.deviceGroupId ? formik.errors.deviceGroupId : null}
+          onChange={handleDeviceGroupChange}
         />
       </Form>
     </Modal>

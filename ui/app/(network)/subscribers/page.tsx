@@ -17,18 +17,18 @@ import PageHeader from "@/components/PageHeader";
 import PageContent from "@/components/PageContent";
 
 export type Subscriber = {
+  id: string;
   imsi: string;
   plmn_id: string;
   opc: string;
   key: string;
   sequence_number: string;
+  device_group_id: string;
 };
 
 const Subscribers = () => {
   const queryClient = useQueryClient();
   const [isCreateModalVisible, setCreateModalVisible] = useState(false);
-  const [isEditModalVisible, setEditModalVisible] = useState(false);
-  const [subscriber, setSubscriber] = useState<any | undefined>(undefined);
 
   const { data: subscribers = [], isLoading: isSubscribersLoading } = useQuery({
     queryKey: [queryKeys.subscribers],
@@ -46,24 +46,7 @@ const Subscribers = () => {
   };
 
   const toggleCreateModal = () => setCreateModalVisible((prev) => !prev);
-  const toggleEditModal = () => setEditModalVisible((prev) => !prev);
 
-  const handleEditButton = (subscriber: any) => {
-    setSubscriber(subscriber);
-    toggleEditModal();
-  }
-
-  const getEditButton = (subscriber: any) => {
-    return <Button
-      appearance=""
-      className="u-no-margin--bottom"
-      shiftClickEnabled
-      showShiftClickHint
-      onClick={() => { handleEditButton(subscriber) }}
-    >
-      Edit
-    </Button>
-  }
 
   const getDeleteButton = (imsi: string, subscriber_id: string) => {
     return <ConfirmationButton
@@ -93,11 +76,12 @@ const Subscribers = () => {
     return {
       key: subscriber.imsi,
       columns: [
+        { content: subscriber.id },
         { content: subscriber.imsi },
+        { content: subscriber.device_group_id },
         {
           content: (
             <div className="u-align--right">
-              {getEditButton(subscriber)}
               {getDeleteButton(subscriber.imsi, subscriber.id)}
             </div>
           ),
@@ -130,15 +114,15 @@ const Subscribers = () => {
           defaultSort='"abcd"'
           defaultSortDirection="ascending"
           headers={[
+            { content: "Id" },
             { content: "IMSI" },
+            { content: "Device Group ID" },
             { content: "Actions", className: "u-align--right" },
           ]}
           rows={tableContent}
         />
       </PageContent>
       {isCreateModalVisible && <SubscriberModal toggleModal={toggleCreateModal} />}
-      {isEditModalVisible &&
-        <SubscriberModal toggleModal={toggleEditModal} subscriber={subscriber} />}
     </>
   );
 };

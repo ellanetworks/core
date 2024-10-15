@@ -8,8 +8,7 @@ import {
 } from "@canonical/react-components";
 import { NetworkSlice } from "@/components/types";
 import { createNetworkSlice } from "@/queries/networkSlices";
-import { editNetworkSlice } from "@/queries/networkSlices";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/utils/queryKeys";
 import { useFormik } from "formik";
 import * as Yup from "yup";
@@ -48,10 +47,6 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
       .required("MNC is required."),
   });
 
-  const modalTitle = () => {
-    return networkSlice?.["name"] ? ("Edit Network Slice: " + networkSlice["name"]) : "Create Network Slice"
-  }
-
   const buttonText = () => {
     return networkSlice ? "Save Changes" : "Create"
   }
@@ -65,19 +60,11 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
     validationSchema: NetworkSliceSchema,
     onSubmit: async (values) => {
       try {
-        if (networkSlice) {
-          await editNetworkSlice({
-            name: values.name,
-            mcc: values.mcc.toString(),
-            mnc: values.mnc.toString(),
-          });
-        } else {
-          await createNetworkSlice({
-            name: values.name,
-            mcc: values.mcc.toString(),
-            mnc: values.mnc.toString(),
-          });
-        }
+        await createNetworkSlice({
+          name: values.name,
+          mcc: values.mcc.toString(),
+          mnc: values.mnc.toString(),
+        });
         await queryClient.invalidateQueries({
           queryKey: [queryKeys.networkSlices],
         });
@@ -91,10 +78,9 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
     },
   });
 
-
   return (
     <Modal
-      title={modalTitle()}
+      title={"Create Network Slice"}
       close={toggleModal}
       buttonRow={
         <ActionButton

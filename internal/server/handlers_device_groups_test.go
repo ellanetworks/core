@@ -29,6 +29,7 @@ type CreateDeviceGroupParams struct {
 	TrafficClassPdb  int64  `json:"traffic_class_pdb"`
 	TrafficClassPelr int64  `json:"traffic_class_pelr"`
 	TrafficClassQci  int64  `json:"traffic_class_qci"`
+	NetworkSliceId   int64  `json:"network_slice_id"`
 }
 
 type createDeviceGroupResponseResult struct {
@@ -56,6 +57,7 @@ type GetDeviceGroupResponseResult struct {
 	TrafficClassPdb  int64  `json:"traffic_class_pdb"`
 	TrafficClassPelr int64  `json:"traffic_class_pelr"`
 	TrafficClassQci  int64  `json:"traffic_class_qci"`
+	NetworkSliceId   int64  `json:"network_slice_id"`
 }
 
 type GetDeviceGroupResponse struct {
@@ -202,7 +204,59 @@ func TestDeviceGroupsHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("Create device group - 2", func(t *testing.T) {
+	t.Run("Create device group with non-existent network slice", func(t *testing.T) {
+		data := CreateDeviceGroupParams{
+			Name:             "Name2",
+			SiteInfo:         "SiteInfo2",
+			IpDomainName:     "IpDomainName1",
+			Dnn:              "internet",
+			UeIpPool:         "11.0.0.0/24",
+			DnsPrimary:       "8.8.8.8",
+			Mtu:              1460,
+			DnnMbrUplink:     20000000,
+			DnnMbrDownlink:   20000000,
+			TrafficClassName: "platinum",
+			TrafficClassArp:  6,
+			TrafficClassPdb:  300,
+			TrafficClassPelr: 6,
+			TrafficClassQci:  8,
+			NetworkSliceId:   2,
+		}
+		statusCode, response, _ := createDeviceGroup(ts.URL, client, &data)
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if response.Error != "network slice not found" {
+			t.Fatalf("expected error %q, got %q", "network slice not found", response.Error)
+		}
+	})
+
+	t.Run("Create network slice - 1", func(t *testing.T) {
+		data := CreateNetworkSliceParams{
+			Name:     "Name1",
+			Sst:      "Sst1",
+			Sd:       "Sd1",
+			SiteName: "SiteName1",
+			Mcc:      "Mcc1",
+			Mnc:      "Mnc1",
+		}
+		statusCode, response, err := createNetworkSlice(ts.URL, client, &data)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+
+		if response.Result.ID != 1 {
+			t.Fatalf("expected id %d, got %d", 1, response.Result.ID)
+		}
+	})
+
+	t.Run("Create device group (with network slice) - 2", func(t *testing.T) {
 		data := CreateDeviceGroupParams{
 			Name:             "Name2",
 			SiteInfo:         "SiteInfo2",
@@ -218,6 +272,7 @@ func TestDeviceGroupsHandlers(t *testing.T) {
 			TrafficClassPdb:  200,
 			TrafficClassPelr: 5,
 			TrafficClassQci:  7,
+			NetworkSliceId:   1,
 		}
 		statusCode, response, err := createDeviceGroup(ts.URL, client, &data)
 		if err != nil {
@@ -325,6 +380,10 @@ func TestDeviceGroupsHandlers(t *testing.T) {
 		if response.Result.TrafficClassQci != 8 {
 			t.Fatalf("expected traffic_class_qci %d, got %d", 8, response.Result.TrafficClassQci)
 		}
+
+		if response.Result.NetworkSliceId != 0 {
+			t.Fatalf("expected network_slice_id %d, got %d", 0, response.Result.NetworkSliceId)
+		}
 	})
 
 	t.Run("Get device group - 2", func(t *testing.T) {
@@ -399,6 +458,10 @@ func TestDeviceGroupsHandlers(t *testing.T) {
 
 		if response.Result.TrafficClassQci != 7 {
 			t.Fatalf("expected traffic_class_qci %d, got %d", 7, response.Result.TrafficClassQci)
+		}
+
+		if response.Result.NetworkSliceId != 1 {
+			t.Fatalf("expected network_slice_id %d, got %d", 1, response.Result.NetworkSliceId)
 		}
 	})
 

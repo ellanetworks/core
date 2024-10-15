@@ -7,26 +7,33 @@ package sql
 
 import (
 	"context"
+	"database/sql"
 )
 
 const createGnb = `-- name: CreateGnb :one
 INSERT INTO gnbs (
-  name, tac
+  name, tac, network_slice_id
 ) VALUES (
-  ?, ?
+  ?, ?, ?
 )
-RETURNING id, name, tac
+RETURNING id, name, tac, network_slice_id
 `
 
 type CreateGnbParams struct {
-	Name string
-	Tac  string
+	Name           string
+	Tac            string
+	NetworkSliceID sql.NullInt64
 }
 
 func (q *Queries) CreateGnb(ctx context.Context, arg CreateGnbParams) (Gnb, error) {
-	row := q.db.QueryRowContext(ctx, createGnb, arg.Name, arg.Tac)
+	row := q.db.QueryRowContext(ctx, createGnb, arg.Name, arg.Tac, arg.NetworkSliceID)
 	var i Gnb
-	err := row.Scan(&i.ID, &i.Name, &i.Tac)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Tac,
+		&i.NetworkSliceID,
+	)
 	return i, err
 }
 
@@ -41,31 +48,41 @@ func (q *Queries) DeleteGnb(ctx context.Context, id int64) error {
 }
 
 const getGnb = `-- name: GetGnb :one
-SELECT id, name, tac FROM gnbs
+SELECT id, name, tac, network_slice_id FROM gnbs
 WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetGnb(ctx context.Context, id int64) (Gnb, error) {
 	row := q.db.QueryRowContext(ctx, getGnb, id)
 	var i Gnb
-	err := row.Scan(&i.ID, &i.Name, &i.Tac)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Tac,
+		&i.NetworkSliceID,
+	)
 	return i, err
 }
 
 const getGnbByName = `-- name: GetGnbByName :one
-SELECT id, name, tac FROM gnbs
+SELECT id, name, tac, network_slice_id FROM gnbs
 WHERE name = ? LIMIT 1
 `
 
 func (q *Queries) GetGnbByName(ctx context.Context, name string) (Gnb, error) {
 	row := q.db.QueryRowContext(ctx, getGnbByName, name)
 	var i Gnb
-	err := row.Scan(&i.ID, &i.Name, &i.Tac)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Tac,
+		&i.NetworkSliceID,
+	)
 	return i, err
 }
 
 const listGnbs = `-- name: ListGnbs :many
-SELECT id, name, tac FROM gnbs
+SELECT id, name, tac, network_slice_id FROM gnbs
 ORDER BY id
 `
 
@@ -78,7 +95,12 @@ func (q *Queries) ListGnbs(ctx context.Context) ([]Gnb, error) {
 	var items []Gnb
 	for rows.Next() {
 		var i Gnb
-		if err := rows.Scan(&i.ID, &i.Name, &i.Tac); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Tac,
+			&i.NetworkSliceID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

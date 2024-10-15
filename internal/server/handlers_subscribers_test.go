@@ -20,6 +20,7 @@ type CreateSubscriberParams struct {
 	OPC            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequence_number"`
+	DeviceGroupID  int64  `json:"device_group_id"`
 }
 
 type createSubscriberResponseResult struct {
@@ -38,6 +39,7 @@ type GetSubscriberResponseResult struct {
 	OPC            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequence_number"`
+	DeviceGroupID  int64  `json:"device_group_id"`
 }
 
 type GetSubscriberResponse struct {
@@ -175,13 +177,66 @@ func TestSubscribersHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("Create subscriber - 2", func(t *testing.T) {
+	t.Run("Create subscriber with non-existent device group", func(t *testing.T) {
 		data := CreateSubscriberParams{
 			IMSI:           "IMSI2",
 			PLMNId:         "PLMNId2",
 			OPC:            "OPC2",
 			Key:            "Key2",
 			SequenceNumber: "SequenceNumber2",
+			DeviceGroupID:  2,
+		}
+		statusCode, response, _ := createSubscriber(ts.URL, client, &data)
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if response.Error != "device group not found" {
+			t.Fatalf("expected error %q, got %q", "device group not found", response.Error)
+		}
+	})
+
+	t.Run("Create device group - 1", func(t *testing.T) {
+		data := CreateDeviceGroupParams{
+			Name:             "Name1",
+			SiteInfo:         "SiteInfo1",
+			IpDomainName:     "IpDomainName1",
+			Dnn:              "internet",
+			UeIpPool:         "11.0.0.0/24",
+			DnsPrimary:       "8.8.8.8",
+			Mtu:              1460,
+			DnnMbrUplink:     20000000,
+			DnnMbrDownlink:   20000000,
+			TrafficClassName: "platinum",
+			TrafficClassArp:  6,
+			TrafficClassPdb:  300,
+			TrafficClassPelr: 6,
+			TrafficClassQci:  8,
+		}
+
+		statusCode, response, err := createDeviceGroup(ts.URL, client, &data)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+
+		if response.Result.ID != 1 {
+			t.Fatalf("expected id %d, got %d", 1, response.Result.ID)
+		}
+	})
+
+	t.Run("Create subscriber (with device group) - 2", func(t *testing.T) {
+		data := CreateSubscriberParams{
+			IMSI:           "IMSI2",
+			PLMNId:         "PLMNId2",
+			OPC:            "OPC2",
+			Key:            "Key2",
+			SequenceNumber: "SequenceNumber2",
+			DeviceGroupID:  1,
 		}
 		statusCode, response, err := createSubscriber(ts.URL, client, &data)
 		if err != nil {
@@ -253,6 +308,10 @@ func TestSubscribersHandlers(t *testing.T) {
 		if response.Result.SequenceNumber != "SequenceNumber1" {
 			t.Fatalf("expected sequence_number %q, got %q", "SequenceNumber1", response.Result.SequenceNumber)
 		}
+
+		if response.Result.DeviceGroupID != 0 {
+			t.Fatalf("expected device_group_id %d, got %d", 0, response.Result.DeviceGroupID)
+		}
 	})
 
 	t.Run("Get subscriber - 2", func(t *testing.T) {
@@ -291,6 +350,10 @@ func TestSubscribersHandlers(t *testing.T) {
 
 		if response.Result.SequenceNumber != "SequenceNumber2" {
 			t.Fatalf("expected sequence_number %q, got %q", "SequenceNumber2", response.Result.SequenceNumber)
+		}
+
+		if response.Result.DeviceGroupID != 1 {
+			t.Fatalf("expected device_group_id %d, got %d", 1, response.Result.DeviceGroupID)
 		}
 	})
 

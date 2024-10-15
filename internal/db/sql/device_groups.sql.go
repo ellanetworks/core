@@ -7,33 +7,16 @@ package sql
 
 import (
 	"context"
+	"database/sql"
 )
-
-const addSubscriberToDeviceGroup = `-- name: AddSubscriberToDeviceGroup :exec
-INSERT INTO device_group_subscribers (
-  device_group_id, subscriber_id
-) VALUES (
-  ?, ?
-)
-`
-
-type AddSubscriberToDeviceGroupParams struct {
-	DeviceGroupID int64
-	SubscriberID  int64
-}
-
-func (q *Queries) AddSubscriberToDeviceGroup(ctx context.Context, arg AddSubscriberToDeviceGroupParams) error {
-	_, err := q.db.ExecContext(ctx, addSubscriberToDeviceGroup, arg.DeviceGroupID, arg.SubscriberID)
-	return err
-}
 
 const createDeviceGroup = `-- name: CreateDeviceGroup :one
 INSERT INTO device_groups (
-  name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci
+  name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id
 ) VALUES (
-  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
-RETURNING id, name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci
+RETURNING id, name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id
 `
 
 type CreateDeviceGroupParams struct {
@@ -51,6 +34,7 @@ type CreateDeviceGroupParams struct {
 	TrafficClassPdb  int64
 	TrafficClassPelr int64
 	TrafficClassQci  int64
+	NetworkSliceID   sql.NullInt64
 }
 
 func (q *Queries) CreateDeviceGroup(ctx context.Context, arg CreateDeviceGroupParams) (DeviceGroup, error) {
@@ -69,6 +53,7 @@ func (q *Queries) CreateDeviceGroup(ctx context.Context, arg CreateDeviceGroupPa
 		arg.TrafficClassPdb,
 		arg.TrafficClassPelr,
 		arg.TrafficClassQci,
+		arg.NetworkSliceID,
 	)
 	var i DeviceGroup
 	err := row.Scan(
@@ -87,6 +72,7 @@ func (q *Queries) CreateDeviceGroup(ctx context.Context, arg CreateDeviceGroupPa
 		&i.TrafficClassPdb,
 		&i.TrafficClassPelr,
 		&i.TrafficClassQci,
+		&i.NetworkSliceID,
 	)
 	return i, err
 }
@@ -102,7 +88,7 @@ func (q *Queries) DeleteDeviceGroup(ctx context.Context, id int64) error {
 }
 
 const getDeviceGroup = `-- name: GetDeviceGroup :one
-SELECT id, name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci FROM device_groups
+SELECT id, name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id FROM device_groups
 WHERE id = ? LIMIT 1
 `
 
@@ -125,12 +111,13 @@ func (q *Queries) GetDeviceGroup(ctx context.Context, id int64) (DeviceGroup, er
 		&i.TrafficClassPdb,
 		&i.TrafficClassPelr,
 		&i.TrafficClassQci,
+		&i.NetworkSliceID,
 	)
 	return i, err
 }
 
 const getDeviceGroupByName = `-- name: GetDeviceGroupByName :one
-SELECT id, name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci FROM device_groups
+SELECT id, name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id FROM device_groups
 WHERE name = ? LIMIT 1
 `
 
@@ -153,12 +140,13 @@ func (q *Queries) GetDeviceGroupByName(ctx context.Context, name string) (Device
 		&i.TrafficClassPdb,
 		&i.TrafficClassPelr,
 		&i.TrafficClassQci,
+		&i.NetworkSliceID,
 	)
 	return i, err
 }
 
 const listDeviceGroups = `-- name: ListDeviceGroups :many
-SELECT id, name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci FROM device_groups
+SELECT id, name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id FROM device_groups
 ORDER BY id
 `
 
@@ -187,6 +175,7 @@ func (q *Queries) ListDeviceGroups(ctx context.Context) ([]DeviceGroup, error) {
 			&i.TrafficClassPdb,
 			&i.TrafficClassPelr,
 			&i.TrafficClassQci,
+			&i.NetworkSliceID,
 		); err != nil {
 			return nil, err
 		}

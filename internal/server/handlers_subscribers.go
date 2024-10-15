@@ -17,6 +17,7 @@ type CreateSubscriberParams struct {
 	OPC            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequence_number"`
+	DeviceGroupId  int64  `json:"device_group_id"`
 }
 
 type CreateSubscriberResponse struct {
@@ -30,6 +31,7 @@ type GetSubscriberResponse struct {
 	OPC            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequence_number"`
+	DeviceGroupId  int64  `json:"device_group_id"`
 }
 
 type DeleteSubscriberResponse struct {
@@ -85,12 +87,28 @@ func CreateSubscriber(env *HandlerConfig) http.HandlerFunc {
 			return
 		}
 
+		var deviceGroupId sql.NullInt64
+		if subscriber.DeviceGroupId != 0 {
+			_, err := env.DBQueries.GetDeviceGroup(context.Background(), subscriber.DeviceGroupId)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					writeError(w, http.StatusBadRequest, "device group not found")
+					return
+				}
+				log.Println(err)
+				writeError(w, http.StatusInternalServerError, "internal error")
+				return
+			}
+			deviceGroupId = sql.NullInt64{Int64: subscriber.DeviceGroupId, Valid: true}
+		}
+
 		dbSubscriber := db.CreateSubscriberParams{
 			Imsi:           subscriber.IMSI,
 			PlmnID:         subscriber.PLMNId,
 			Opc:            subscriber.OPC,
 			Key:            subscriber.Key,
 			SequenceNumber: subscriber.SequenceNumber,
+			DeviceGroupID:  deviceGroupId,
 		}
 		newSubscriber, err := env.DBQueries.CreateSubscriber(context.Background(), dbSubscriber)
 		if err != nil {
@@ -135,6 +153,7 @@ func GetSubscriber(env *HandlerConfig) http.HandlerFunc {
 			OPC:            subscriber.Opc,
 			Key:            subscriber.Key,
 			SequenceNumber: subscriber.SequenceNumber,
+			DeviceGroupId:  subscriber.DeviceGroupID.Int64,
 		}
 
 		w.WriteHeader(http.StatusOK)

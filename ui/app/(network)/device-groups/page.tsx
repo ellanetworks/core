@@ -19,8 +19,6 @@ import PageContent from "@/components/PageContent";
 const DeviceGroups = () => {
   const queryClient = useQueryClient();
   const [isCreateModalVisible, setCreateModalVisible] = useState(false);
-  const [isEditModalVisible, setEditModalVisible] = useState(false);
-  const [device_group, setDeviceGroup] = useState<any | undefined>(undefined);
 
   const { data: device_groups = [], isLoading: isDeviceGroupsLoading } = useQuery({
     queryKey: [queryKeys.deviceGroups],
@@ -38,24 +36,6 @@ const DeviceGroups = () => {
   };
 
   const toggleCreateModal = () => setCreateModalVisible((prev) => !prev);
-  const toggleEditModal = () => setEditModalVisible((prev) => !prev);
-
-  const handleEditButton = (device_group: any) => {
-    setDeviceGroup(device_group);
-    toggleEditModal();
-  }
-
-  const getEditButton = (device_group: any) => {
-    return <Button
-      appearance=""
-      className="u-no-margin--bottom"
-      shiftClickEnabled
-      showShiftClickHint
-      onClick={() => { handleEditButton(device_group) }}
-    >
-      Edit
-    </Button>
-  }
 
   const getDeleteButton = (name: string, device_group_id: string) => {
     return <ConfirmationButton
@@ -84,16 +64,17 @@ const DeviceGroups = () => {
     return {
       key: device_group.name,
       columns: [
+        { content: device_group?.["id"] },
         { content: device_group?.["name"] },
         { content: device_group?.["ue_ip_pool"] },
         { content: device_group?.["dns_primary"] },
         { content: device_group?.["mtu"] },
         { content: device_group?.["dnn_mbr_downlink"] / 1000000 },
         { content: device_group?.["dnn_mbr_uplink"] / 1000000 },
+        { content: device_group?.["network_slice_id"] },
         {
           content: (
             <div className="u-align--right">
-              {getEditButton(device_group)}
               {getDeleteButton(device_group.name, device_group.id)}
             </div>
           ),
@@ -126,20 +107,20 @@ const DeviceGroups = () => {
           defaultSort='"abcd"'
           defaultSortDirection="ascending"
           headers={[
+            { content: "Id" },
             { content: "Name" },
             { content: "IP Pool" },
             { content: "DNS" },
             { content: "MTU" },
-            { content: "Uplink (Mbps)" },
             { content: "Downlink (Mbps)" },
+            { content: "Uplink (Mbps)" },
+            { content: "Network Slice ID" },
             { content: "Actions", className: "u-align--right" },
           ]}
           rows={tableContent}
         />
       </PageContent>
       {isCreateModalVisible && <DeviceGroupModal toggleModal={toggleCreateModal} />}
-      {isEditModalVisible &&
-        <DeviceGroupModal toggleModal={toggleEditModal} deviceGroup={device_group} />}
     </>
   );
 };

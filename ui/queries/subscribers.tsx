@@ -133,6 +133,7 @@ interface CreateSubscriberArgs {
   opc: string;
   key: string;
   sequence_number: string;
+  device_group_id: number;
 }
 
 export const createSubscriber = async ({
@@ -141,6 +142,7 @@ export const createSubscriber = async ({
   opc,
   key,
   sequence_number,
+  device_group_id,
 }: CreateSubscriberArgs) => {
   const subscriberData = {
     imsi: imsi,
@@ -148,6 +150,7 @@ export const createSubscriber = async ({
     opc: opc,
     key: key,
     sequence_number: sequence_number,
+    device_group_id: device_group_id,
   };
 
   try {

@@ -7,15 +7,16 @@ package sql
 
 import (
 	"context"
+	"database/sql"
 )
 
 const createSubscriber = `-- name: CreateSubscriber :one
 INSERT INTO subscribers (
-  imsi, plmn_id, opc, key, sequence_number
+  imsi, plmn_id, opc, key, sequence_number, device_group_id
 ) VALUES (
-  ?, ?, ?, ?, ?
+  ?, ?, ?, ?, ?, ?
 )
-RETURNING id, imsi, plmn_id, opc, "key", sequence_number
+RETURNING id, imsi, plmn_id, opc, "key", sequence_number, device_group_id
 `
 
 type CreateSubscriberParams struct {
@@ -24,6 +25,7 @@ type CreateSubscriberParams struct {
 	Opc            string
 	Key            string
 	SequenceNumber string
+	DeviceGroupID  sql.NullInt64
 }
 
 func (q *Queries) CreateSubscriber(ctx context.Context, arg CreateSubscriberParams) (Subscriber, error) {
@@ -33,6 +35,7 @@ func (q *Queries) CreateSubscriber(ctx context.Context, arg CreateSubscriberPara
 		arg.Opc,
 		arg.Key,
 		arg.SequenceNumber,
+		arg.DeviceGroupID,
 	)
 	var i Subscriber
 	err := row.Scan(
@@ -42,6 +45,7 @@ func (q *Queries) CreateSubscriber(ctx context.Context, arg CreateSubscriberPara
 		&i.Opc,
 		&i.Key,
 		&i.SequenceNumber,
+		&i.DeviceGroupID,
 	)
 	return i, err
 }
@@ -57,7 +61,7 @@ func (q *Queries) DeleteSubscriber(ctx context.Context, id int64) error {
 }
 
 const getSubscriber = `-- name: GetSubscriber :one
-SELECT id, imsi, plmn_id, opc, "key", sequence_number FROM subscribers
+SELECT id, imsi, plmn_id, opc, "key", sequence_number, device_group_id FROM subscribers
 WHERE id = ? LIMIT 1
 `
 
@@ -71,12 +75,13 @@ func (q *Queries) GetSubscriber(ctx context.Context, id int64) (Subscriber, erro
 		&i.Opc,
 		&i.Key,
 		&i.SequenceNumber,
+		&i.DeviceGroupID,
 	)
 	return i, err
 }
 
 const getSubscriberByImsi = `-- name: GetSubscriberByImsi :one
-SELECT id, imsi, plmn_id, opc, "key", sequence_number FROM subscribers
+SELECT id, imsi, plmn_id, opc, "key", sequence_number, device_group_id FROM subscribers
 WHERE imsi = ? LIMIT 1
 `
 
@@ -90,12 +95,13 @@ func (q *Queries) GetSubscriberByImsi(ctx context.Context, imsi string) (Subscri
 		&i.Opc,
 		&i.Key,
 		&i.SequenceNumber,
+		&i.DeviceGroupID,
 	)
 	return i, err
 }
 
 const listSubscribers = `-- name: ListSubscribers :many
-SELECT id, imsi, plmn_id, opc, "key", sequence_number FROM subscribers
+SELECT id, imsi, plmn_id, opc, "key", sequence_number, device_group_id FROM subscribers
 ORDER BY imsi
 `
 
@@ -115,6 +121,7 @@ func (q *Queries) ListSubscribers(ctx context.Context) ([]Subscriber, error) {
 			&i.Opc,
 			&i.Key,
 			&i.SequenceNumber,
+			&i.DeviceGroupID,
 		); err != nil {
 			return nil, err
 		}
@@ -142,7 +149,7 @@ func (q *Queries) NumSubscribers(ctx context.Context) (int64, error) {
 
 const updateSubscriber = `-- name: UpdateSubscriber :exec
 UPDATE subscribers
-set imsi = ?, plmn_id = ?, opc = ?, key = ?, sequence_number = ?
+SET imsi = ?, plmn_id = ?, opc = ?, key = ?, sequence_number = ?, device_group_id = ?
 WHERE id = ?
 `
 
@@ -152,6 +159,7 @@ type UpdateSubscriberParams struct {
 	Opc            string
 	Key            string
 	SequenceNumber string
+	DeviceGroupID  sql.NullInt64
 	ID             int64
 }
 
@@ -162,6 +170,7 @@ func (q *Queries) UpdateSubscriber(ctx context.Context, arg UpdateSubscriberPara
 		arg.Opc,
 		arg.Key,
 		arg.SequenceNumber,
+		arg.DeviceGroupID,
 		arg.ID,
 	)
 	return err

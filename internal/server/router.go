@@ -25,26 +25,11 @@ func NewEllaRouter(config *HandlerConfig) http.Handler {
 	apiV1Router.HandleFunc("DELETE /device-groups/{id}", DeleteDeviceGroup(config))
 	apiV1Router.HandleFunc("POST /device-groups", CreateDeviceGroup(config))
 
-	// Device Group subscribers
-	apiV1Router.HandleFunc("GET /device-groups/{device_group_id}/subscribers", ListDeviceGroupSubscribers(config))
-	apiV1Router.HandleFunc("POST /device-groups/{device_group_id}/subscribers", CreateDeviceGroupSubscriber(config))
-	apiV1Router.HandleFunc("DELETE /device-groups/{device_group_id}/subscribers/{subscriber_id}", DeleteDeviceGroupSubscriber(config))
-
 	// Network Slices
 	apiV1Router.HandleFunc("GET /network-slices", ListNetworkSlices(config))
 	apiV1Router.HandleFunc("GET /network-slices/{id}", GetNetworkSlice(config))
 	apiV1Router.HandleFunc("DELETE /network-slices/{id}", DeleteNetworkSlice(config))
 	apiV1Router.HandleFunc("POST /network-slices", CreateNetworkSlice(config))
-
-	// Network Slice Gnbs
-	apiV1Router.HandleFunc("GET /network-slices/{network_slice_id}/gnbs", ListNetworkSliceGnbs(config))
-	apiV1Router.HandleFunc("POST /network-slices/{network_slice_id}/gnbs", CreateNetworkSliceGnb(config))
-	apiV1Router.HandleFunc("DELETE /network-slices/{network_slice_id}/gnbs/{gnb_id}", DeleteNetworkSliceGnb(config))
-
-	// Network Slice Device Groups
-	apiV1Router.HandleFunc("GET /network-slices/{network_slice_id}/device-groups", ListNetworkSliceDeviceGroups(config))
-	apiV1Router.HandleFunc("POST /network-slices/{network_slice_id}/device-groups", CreateNetworkSliceDeviceGroup(config))
-	apiV1Router.HandleFunc("DELETE /network-slices/{network_slice_id}/device-groups/{device_group_id}", DeleteNetworkSliceDeviceGroup(config))
 
 	// Frontend
 	frontendHandler := newFrontendFileServer()
