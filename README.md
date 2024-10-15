@@ -6,14 +6,23 @@ Typical mobile networks are complex, expensive, and difficult to operate. Forget
 
 Use Ella where you need 5G connectivity. For example, in a factory, a warehouse, a farm, a stadium, or a remote location. Ella is perfect for private networks, IoT, and edge computing.
 
-Key features:
+## Key features
+
 * **5G compliant**: Ella is a 5G compliant core network. It can integrate with any 5G radio access network.
 * **Performant data plane**: Ella uses eBPF to implement the data plane. It is fast, secure, and reliable.
 * **Simple UI**: Ella has a web-based user interface for managing subscribers, radios, device groups, and network slices.
 * **Complete HTTP API**: Ella has a complete HTTP API. You can automate everything you can do in the UI.
 * **Encrypted communication**: Ella's HTTP API and UI are secured with TLS.
 
-## Getting Started
+## Tenets (in order of importance)
+
+1. **Simplicity**: We are commited to develop the simplest possible mobile network out there. We thrive on having a very short "Getting Started" tutorial, a simple configuration file, a single binary, and a simple UI.
+2. **Reliability**: We are commited to develop a reliable mobile network you can trust to work 24/7. We are commited to deliver high quality code, tests, and documentation. We are commited to expose useful metrics and logs to help users monitor their network.
+3. **Performance**: We are commited to develop a high performance mobile network. We aim to minimize latency, maximize throughput, and minimize resource usage. 
+
+## Documentation
+
+### Getting Started
 
 Install the snap:
 
@@ -33,9 +42,9 @@ sudo snap start ella.ellad
 
 Navigate to `https://localhost:5000` to access the Ella UI.
 
-## Reference
+### Reference
 
-### Configuration
+#### Configuration
 
 Example:
 
@@ -54,7 +63,7 @@ upf:
   n3-address: "127.0.0.1"
 ```
 
-### API
+#### API
 
 | Endpoint                        | HTTP Method | Description                   | Parameters |
 | ------------------------------- | ----------- | ----------------------------- | ---------- |
