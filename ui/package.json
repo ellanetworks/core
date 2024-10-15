@@ -1,6 +1,5 @@
 {
-  "name": "sdcore-nms",
-  "version": "0.2.0",
+  "name": "ella",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3005",

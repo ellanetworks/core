@@ -11,7 +11,6 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
 	"github.com/omec-project/util/util_3gpp/suci"
-	"github.com/yeastengine/ella/internal/udm/factory"
 )
 
 var udmContext UDMContext
@@ -43,8 +42,8 @@ type UDMContext struct {
 	SubscriptionOfSharedDataChange sync.Map                     // subscriptionID as key
 	SuciProfiles                   []suci.SuciProfile
 	EeSubscriptionIDGenerator      *idgenerator.IDGenerator
-	PlmnList                       []factory.PlmnSupportItem
-	SBIPort                        int
+	// PlmnList                       []factory.PlmnSupportItem
+	SBIPort int
 }
 
 type UdmUeContext struct {
