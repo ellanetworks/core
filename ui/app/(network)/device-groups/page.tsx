@@ -16,14 +16,6 @@ import { queryKeys } from "@/utils/queryKeys";
 import PageHeader from "@/components/PageHeader";
 import PageContent from "@/components/PageContent";
 
-export type Subscriber = {
-  imsi: string;
-  plmn_id: string;
-  opc: string;
-  key: string;
-  sequence_number: string;
-};
-
 const DeviceGroups = () => {
   const queryClient = useQueryClient();
   const [isCreateModalVisible, setCreateModalVisible] = useState(false);
