@@ -84,3 +84,4 @@ upf:
 | `/api/v1/network-slices/{id}`   | DELETE      | Delete a network slice        |            |
 | `/api/v1/network-slices`        | POST        | Create a network slice        |            |
 | `/api/v1/metrics`               | GET         | Get metrics                   |            |
+| `/api/v1/status`                | GET         | Get status                    |            |
