@@ -42,7 +42,7 @@ func InitAmfContext(context *context.AMFContext) {
 	context.UdmUecmUri = configuration.UdmUecmUri
 	security := configuration.Security
 	context.SecurityAlgorithm.IntegrityOrder = getIntAlgOrder(security.IntegrityOrder)
-		context.SecurityAlgorithm.CipheringOrder = getEncAlgOrder(security.CipheringOrder)
+	context.SecurityAlgorithm.CipheringOrder = getEncAlgOrder(security.CipheringOrder)
 	context.NetworkName = configuration.NetworkName
 	context.T3502Value = configuration.T3502Value
 	context.T3512Value = configuration.T3512Value
