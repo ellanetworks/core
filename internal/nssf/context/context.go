@@ -2,7 +2,6 @@ package context
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -14,14 +13,10 @@ import (
 
 var nssfContext = NSSFContext{}
 
-// Initialize NSSF context with default value
 func init() {
 	nssfContext.NfId = uuid.New().String()
-
 	nssfContext.Name = "NSSF"
-
 	nssfContext.UriScheme = models.UriScheme_HTTP
-
 	serviceName := []models.ServiceName{
 		models.ServiceName_NNSSF_NSSELECTION,
 		models.ServiceName_NNSSF_NSSAIAVAILABILITY,
@@ -30,13 +25,13 @@ func init() {
 }
 
 type NSSFContext struct {
-	NfId              string
-	Name              string
-	UriScheme         models.UriScheme
-	BindingIPv4       string
-	NfService         map[models.ServiceName]models.NfService
-	SupportedPlmnList []models.PlmnId
-	SBIPort           int
+	NfId        string
+	Name        string
+	UriScheme   models.UriScheme
+	BindingIPv4 string
+	NfService   map[models.ServiceName]models.NfService
+	// SupportedPlmnList []models.PlmnId
+	SBIPort int
 }
 
 // Initialize NSSF context with configuration factory
@@ -46,27 +41,11 @@ func InitNssfContext() {
 		return
 	}
 	nssfConfig := factory.NssfConfig
-
-	if nssfConfig.Configuration.NssfName != "" {
-		nssfContext.Name = nssfConfig.Configuration.NssfName
-	}
-
+	nssfContext.Name = nssfConfig.Configuration.NssfName
 	nssfContext.UriScheme = models.UriScheme_HTTP
 	nssfContext.SBIPort = nssfConfig.Configuration.Sbi.Port
-	nssfContext.BindingIPv4 = os.Getenv(nssfConfig.Configuration.Sbi.BindingIPv4)
-	if nssfContext.BindingIPv4 != "" {
-		logger.ContextLog.Info("Parsing ServerIPv4 address from ENV Variable.")
-	} else {
-		nssfContext.BindingIPv4 = nssfConfig.Configuration.Sbi.BindingIPv4
-		if nssfContext.BindingIPv4 == "" {
-			logger.ContextLog.Warn("Error parsing ServerIPv4 address as string. Using the 0.0.0.0 address as default.")
-			nssfContext.BindingIPv4 = "0.0.0.0"
-		}
-	}
-
+	nssfContext.BindingIPv4 = nssfConfig.Configuration.Sbi.BindingIPv4
 	nssfContext.NfService = initNfService(nssfConfig.Configuration.ServiceNameList, nssfConfig.Info.Version)
-
-	nssfContext.SupportedPlmnList = nssfConfig.Configuration.SupportedPlmnList
 }
 
 func initNfService(serviceName []models.ServiceName, version string) (
@@ -96,7 +75,6 @@ func initNfService(serviceName []models.ServiceName, version string) (
 			},
 		}
 	}
-
 	return
 }
 

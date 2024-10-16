@@ -20,7 +20,7 @@ RETURNING id, name, sst, sd, site_name, mcc, mnc
 
 type CreateNetworkSliceParams struct {
 	Name     string
-	Sst      string
+	Sst      int64
 	Sd       string
 	SiteName string
 	Mcc      string

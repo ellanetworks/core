@@ -16,9 +16,7 @@ func InitAmfContext(context *context.AMFContext) {
 		context.NfId = uuid.New().String()
 	}
 
-	if configuration.AmfName != "" {
-		context.Name = configuration.AmfName
-	}
+	context.Name = configuration.AmfName
 	if configuration.NgapIpList != nil {
 		context.NgapIpList = configuration.NgapIpList
 	} else {
@@ -43,10 +41,8 @@ func InitAmfContext(context *context.AMFContext) {
 	context.UdmsdmUri = configuration.UdmsdmUri
 	context.UdmUecmUri = configuration.UdmUecmUri
 	security := configuration.Security
-	if security != nil {
-		context.SecurityAlgorithm.IntegrityOrder = getIntAlgOrder(security.IntegrityOrder)
+	context.SecurityAlgorithm.IntegrityOrder = getIntAlgOrder(security.IntegrityOrder)
 		context.SecurityAlgorithm.CipheringOrder = getEncAlgOrder(security.CipheringOrder)
-	}
 	context.NetworkName = configuration.NetworkName
 	context.T3502Value = configuration.T3502Value
 	context.T3512Value = configuration.T3512Value

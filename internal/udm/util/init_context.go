@@ -12,9 +12,7 @@ func InitUDMContext(udmContext *context.UDMContext) {
 	config := factory.UdmConfig
 	logger.UtilLog.Info("udmconfig Info: Version[", config.Info.Version, "] Description[", config.Info.Description, "]")
 	configuration := config.Configuration
-	if configuration.UdmName != "" {
-		udmContext.Name = configuration.UdmName
-	}
+	udmContext.Name = configuration.UdmName
 	sbi := configuration.Sbi
 	udmContext.UriScheme = ""
 	udmContext.UriScheme = models.UriScheme_HTTP

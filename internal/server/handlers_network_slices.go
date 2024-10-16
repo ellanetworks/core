@@ -13,7 +13,7 @@ import (
 
 type CreateNetworkSliceParams struct {
 	Name     string `json:"name"`
-	Sst      string `json:"sst"`
+	Sst      int32  `json:"sst"`
 	Sd       string `json:"sd"`
 	SiteName string `json:"site_name"`
 	Mcc      string `json:"mcc"`
@@ -27,7 +27,7 @@ type CreateNetworkSliceResponse struct {
 type GetNetworkSliceResponse struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name"`
-	Sst      string `json:"sst"`
+	Sst      int32  `json:"sst"`
 	Sd       string `json:"sd"`
 	SiteName string `json:"site_name"`
 	Mcc      string `json:"mcc"`
@@ -70,7 +70,7 @@ func CreateNetworkSlice(env *HandlerConfig) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, "`name` is required")
 			return
 		}
-		if networkSlice.Sst == "" {
+		if networkSlice.Sst == 0 {
 			writeError(w, http.StatusBadRequest, "`sst` is required")
 			return
 		}
@@ -93,7 +93,7 @@ func CreateNetworkSlice(env *HandlerConfig) http.HandlerFunc {
 
 		dbNetworkSlice := db.CreateNetworkSliceParams{
 			Name:     networkSlice.Name,
-			Sst:      networkSlice.Sst,
+			Sst:      int64(networkSlice.Sst),
 			Sd:       networkSlice.Sd,
 			SiteName: networkSlice.SiteName,
 			Mcc:      networkSlice.Mcc,
@@ -138,7 +138,7 @@ func GetNetworkSlice(env *HandlerConfig) http.HandlerFunc {
 		networkSliceResponse := GetNetworkSliceResponse{
 			ID:       networkSlice.ID,
 			Name:     networkSlice.Name,
-			Sst:      networkSlice.Sst,
+			Sst:      int32(networkSlice.Sst),
 			Sd:       networkSlice.Sd,
 			SiteName: networkSlice.SiteName,
 			Mcc:      networkSlice.Mcc,

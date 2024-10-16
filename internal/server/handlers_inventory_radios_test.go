@@ -188,7 +188,7 @@ func TestRadiosHandlers(t *testing.T) {
 	t.Run("Create network slice - 1", func(t *testing.T) {
 		data := CreateNetworkSliceParams{
 			Name:     "Name1",
-			Sst:      "Sst1",
+			Sst:      1,
 			Sd:       "Sd1",
 			SiteName: "SiteName1",
 			Mcc:      "Mcc1",

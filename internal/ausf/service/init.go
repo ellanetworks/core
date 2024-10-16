@@ -10,16 +10,18 @@ import (
 
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
+	"github.com/omec-project/util/path_util"
 	ausf_context "github.com/yeastengine/ella/internal/ausf/context"
 	"github.com/yeastengine/ella/internal/ausf/factory"
 	"github.com/yeastengine/ella/internal/ausf/logger"
 	"github.com/yeastengine/ella/internal/ausf/ueauthentication"
-	"github.com/yeastengine/ella/internal/ausf/util"
 )
 
 type AUSF struct{}
 
 var initLog *logrus.Entry
+
+var AusfLogPath = path_util.Free5gcPath("free5gc/ausfsslkey.log")
 
 func init() {
 	initLog = logger.InitLog
@@ -57,7 +59,7 @@ func (ausf *AUSF) Start() {
 	ausf_context.Init()
 	self := ausf_context.GetSelf()
 
-	ausfLogPath := util.AusfLogPath
+	ausfLogPath := AusfLogPath
 
 	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
 

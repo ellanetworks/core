@@ -3,6 +3,7 @@ package nssf
 import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/logger"
+	"github.com/yeastengine/ella/internal/db/sql"
 	"github.com/yeastengine/ella/internal/nssf/factory"
 	"github.com/yeastengine/ella/internal/nssf/service"
 )
@@ -15,9 +16,10 @@ const (
 	SBI_PORT = 29531
 )
 
-func Start(webuiURL string) error {
+func Start(dbQueries *sql.Queries) error {
 	configuration := factory.Configuration{
-		NssfName: "NSSF",
+		NssfName:  "NSSF",
+		DBQueries: dbQueries,
 		Sbi: &factory.Sbi{
 			BindingIPv4: "0.0.0.0",
 			Port:        SBI_PORT,
@@ -26,7 +28,6 @@ func Start(webuiURL string) error {
 			"nnssf-nsselection",
 			"nnssf-nssaiavailability",
 		},
-		WebuiUri: webuiURL,
 		NsiList: []factory.NsiConfig{
 			{
 				NsiInformationList: []models.NsiInformation{

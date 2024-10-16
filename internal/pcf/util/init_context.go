@@ -15,10 +15,7 @@ func InitpcfContext(context *context.PCFContext) {
 	logger.UtilLog.Infof("pcfconfig Info: Version[%s] Description[%s]", config.Info.Version, config.Info.Description)
 	configuration := config.Configuration
 	context.NfId = uuid.New().String()
-	if configuration.PcfName != "" {
-		context.Name = configuration.PcfName
-	}
-
+	context.Name = configuration.PcfName
 	sbi := configuration.Sbi
 	context.AmfUri = configuration.AmfUri
 	context.UdrUri = configuration.UdrUri

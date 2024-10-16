@@ -30,7 +30,7 @@ type DeviceGroup struct {
 type NetworkSlice struct {
 	ID       int64
 	Name     string
-	Sst      string
+	Sst      int64
 	Sd       string
 	SiteName string
 	Mcc      string

@@ -14,7 +14,7 @@ Use Ella where you need 5G connectivity. For example, in a factory, a warehouse,
 * **Complete HTTP API**: Ella has a complete HTTP API. You can automate everything you can do in the UI.
 * **Encrypted communication**: Ella's HTTP API and UI are secured with TLS.
 
-## Tenets (in order of importance)
+## Tenets
 
 1. **Simplicity**: We are commited to develop the simplest possible mobile network out there. We thrive on having a very short "Getting Started" tutorial, a simple configuration file, a single binary, and a simple UI.
 2. **Reliability**: We are commited to develop a reliable mobile network you can trust to work 24/7. We are commited to deliver high quality code, tests, and documentation. We are commited to expose useful metrics and logs to help users monitor their network.

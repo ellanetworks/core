@@ -11,6 +11,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
+	"github.com/omec-project/util/path_util"
 	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/smf/callback"
 	"github.com/yeastengine/ella/internal/smf/context"
@@ -23,12 +24,13 @@ import (
 	"github.com/yeastengine/ella/internal/smf/pfcp/message"
 	"github.com/yeastengine/ella/internal/smf/pfcp/udp"
 	"github.com/yeastengine/ella/internal/smf/pfcp/upf"
-	"github.com/yeastengine/ella/internal/smf/util"
 )
 
 type SMF struct{}
 
 var initLog *logrus.Entry
+
+var SmfLogPath = path_util.Free5gcPath("free5gc/smfsslkey.log")
 
 func init() {
 	initLog = logger.InitLog
@@ -113,7 +115,7 @@ func (smf *SMF) Start() {
 	time.Sleep(1000 * time.Millisecond)
 
 	HTTPAddr := fmt.Sprintf("%s:%d", context.SMF_Self().BindingIPv4, context.SMF_Self().SBIPort)
-	server, err := http2_util.NewServer(HTTPAddr, util.SmfLogPath, router)
+	server, err := http2_util.NewServer(HTTPAddr, SmfLogPath, router)
 
 	if server == nil {
 		initLog.Error("Initialize HTTP server failed:", err)

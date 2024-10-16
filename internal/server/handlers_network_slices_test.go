@@ -16,7 +16,7 @@ type ListNetworkSlicesResponse struct {
 
 type CreateNetworkSliceParams struct {
 	Name     string `json:"name"`
-	Sst      string `json:"sst"`
+	Sst      int32  `json:"sst"`
 	Sd       string `json:"sd"`
 	SiteName string `json:"site_name"`
 	Mcc      string `json:"mcc"`
@@ -35,7 +35,7 @@ type createNetworkSliceResponse struct {
 type GetNetworkSliceResponseResult struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name"`
-	Sst      string `json:"sst"`
+	Sst      int32  `json:"sst"`
 	Sd       string `json:"sd"`
 	SiteName string `json:"site_name"`
 	Mcc      string `json:"mcc"`
@@ -159,7 +159,7 @@ func TestNetworkSlicesHandlers(t *testing.T) {
 		data := CreateNetworkSliceParams{
 			Name:     "Name1",
 			SiteName: "SiteName1",
-			Sst:      "SSt1",
+			Sst:      1,
 			Sd:       "SD1",
 			Mcc:      "MCC1",
 			Mnc:      "MNC1",
@@ -182,7 +182,7 @@ func TestNetworkSlicesHandlers(t *testing.T) {
 		data := CreateNetworkSliceParams{
 			Name:     "Name2",
 			SiteName: "SiteName2",
-			Sst:      "SSt2",
+			Sst:      2,
 			Sd:       "SD2",
 			Mcc:      "MCC2",
 			Mnc:      "MNC2",
@@ -246,8 +246,8 @@ func TestNetworkSlicesHandlers(t *testing.T) {
 			t.Fatalf("expected site_name %q, got %q", "SiteName1", response.Result.SiteName)
 		}
 
-		if response.Result.Sst != "SSt1" {
-			t.Fatalf("expected sst %q, got %q", "SSt1", response.Result.Sst)
+		if response.Result.Sst != 1 {
+			t.Fatalf("expected sst %q, got %q", 1, response.Result.Sst)
 		}
 
 		if response.Result.Sd != "SD1" {
@@ -289,8 +289,8 @@ func TestNetworkSlicesHandlers(t *testing.T) {
 			t.Fatalf("expected site_name %q, got %q", "SiteName2", response.Result.SiteName)
 		}
 
-		if response.Result.Sst != "SSt2" {
-			t.Fatalf("expected sst %q, got %q", "SSt2", response.Result.Sst)
+		if response.Result.Sst != 2 {
+			t.Fatalf("expected sst %q, got %q", 2, response.Result.Sst)
 		}
 
 		if response.Result.Sd != "SD2" {
