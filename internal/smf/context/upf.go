@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"net"
-	"os"
 	"reflect"
 	"strconv"
 	"sync"
@@ -15,7 +14,6 @@ import (
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
-	"github.com/omec-project/util/util_3gpp"
 	"github.com/yeastengine/ella/internal/smf/factory"
 	"github.com/yeastengine/ella/internal/smf/logger"
 )
@@ -25,6 +23,7 @@ var upfPool sync.Map
 type UPTunnel struct {
 	PathIDGenerator *idgenerator.IDGenerator
 	DataPathPool    DataPathPool
+	FTEID           uint32
 	ANInformation   struct {
 		IPAddress net.IP
 		TEID      uint32
@@ -56,19 +55,6 @@ type RecoveryTimeStamp struct {
 	RecoveryTimeStamp time.Time
 }
 
-type UserPlaneIPResourceInformation struct {
-	Ipv4Address     net.IP
-	Ipv6Address     net.IP
-	NetworkInstance util_3gpp.Dnn
-	Assosi          bool
-	Assoni          bool
-	V6              bool
-	V4              bool
-	TeidRange       uint8
-	Teidri          uint8 // 0x00011100
-	SourceInterface uint8 // 0x00001111
-}
-
 type UPF struct {
 	SNssaiInfos        []SnssaiUPFInfo
 	N3Interfaces       []UPFInterfaceInfo
@@ -85,11 +71,9 @@ type UPF struct {
 	barIDGenerator *idgenerator.IDGenerator
 	urrIDGenerator *idgenerator.IDGenerator
 	qerIDGenerator *idgenerator.IDGenerator
-	teidGenerator  *idgenerator.IDGenerator
 
 	RecoveryTimeStamp RecoveryTimeStamp
 	NodeID            NodeID
-	UPIPInfo          UserPlaneIPResourceInformation
 	UPFStatus         UPFStatus
 	uuid              uuid.UUID
 	Port              uint16
@@ -235,7 +219,6 @@ func NewUPF(nodeID *NodeID, ifaces []factory.InterfaceUpfInfoItem) (upf *UPF) {
 	upf.barIDGenerator = idgenerator.NewGenerator(1, math.MaxUint8)
 	upf.qerIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
 	upf.urrIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
-	upf.teidGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
 
 	upf.N3Interfaces = make([]UPFInterfaceInfo, 0)
 	upf.N9Interfaces = make([]UPFInterfaceInfo, 0)
@@ -272,33 +255,6 @@ func (upf *UPF) GetInterface(interfaceType models.UpInterfaceType, dnn string) *
 		}
 	}
 	return nil
-}
-
-func (upf *UPF) GenerateTEID() (uint32, error) {
-	if upf.UPFStatus != AssociatedSetUpSuccess {
-		err := fmt.Errorf("this upf not associate with smf")
-		return 0, err
-	}
-
-	var id uint32
-	if tmpID, err := upf.teidGenerator.Allocate(); err != nil {
-		return 0, err
-	} else {
-		id = uint32(tmpID)
-	}
-
-	// Assuming one SMF host 5000 UEs, this code gets offset = smfCount * 5000 and generate unique TEID
-
-	smfCountStr := os.Getenv("SMF_COUNT")
-	smfCount, err := strconv.Atoi(smfCountStr)
-	if err != nil {
-		logger.CtxLog.Errorf("failed to convert SMF_COUNT to int: %v", err)
-	}
-
-	offset := (smfCount - 1) * 5000
-	uniqueId := id + uint32(offset)
-	// return id, nil
-	return uniqueId, nil
 }
 
 func (upf *UPF) PFCPAddr() *net.UDPAddr {
@@ -341,24 +297,6 @@ func RemoveUPFNodeByNodeID(nodeID NodeID) bool {
 		return true
 	}
 	return false
-}
-
-func SelectUPFByDnn(Dnn string) *UPF {
-	var upf *UPF
-	upfPool.Range(func(key, value interface{}) bool {
-		upf = value.(*UPF)
-		if upf.UPIPInfo.Assoni && string(upf.UPIPInfo.NetworkInstance) == Dnn {
-			return false
-		}
-		upf = nil
-		return true
-	})
-	return upf
-}
-
-func (upf *UPF) GetUPFIP() string {
-	upfIP := upf.NodeID.ResolveNodeIdToIp().String()
-	return upfIP
 }
 
 func (upf *UPF) GetUPFID() string {

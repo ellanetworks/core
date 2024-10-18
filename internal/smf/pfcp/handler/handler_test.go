@@ -121,13 +121,4 @@ func TestHandlePfcpAssociationSetupResponse(t *testing.T) {
 	if upf.RecoveryTimeStamp.RecoveryTimeStamp.Truncate(1*time.Second) != recoveryTimestamp.Truncate(1*time.Second) {
 		t.Errorf("Expected RecoveryTimeStamp %v, got %v", recoveryTimestamp.Truncate(1*time.Second), upf.RecoveryTimeStamp.RecoveryTimeStamp.Truncate(1*time.Second))
 	}
-	if upf.UPIPInfo.Ipv4Address.String() != "1.2.3.4" {
-		t.Errorf("Expected IP address %v, got %v", "1.2.3.4", upf.UPIPInfo.Ipv4Address.String())
-	}
-	if upf.UPIPInfo.SourceInterface != ie.SrcInterfaceAccess {
-		t.Errorf("Expected Source Interface Access, got %v", upf.UPIPInfo.SourceInterface)
-	}
-	if string(upf.UPIPInfo.NetworkInstance) != "internet" {
-		t.Errorf("Expected Network Instance %v, got %v", "internet", upf.UPIPInfo.NetworkInstance)
-	}
 }
