@@ -63,12 +63,12 @@ func (pdrContext *PDRCreationContext) extractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 						allocate = false
 						teid = teidFromCache
 						spdrInfo.Allocated = true
+						logger.AppLog.Infof("TEID from cache: %d", teid)
 					}
 				}
 				if allocate {
 					allocatedTeid, err := pdrContext.getFTEID(pdrContext.Session.RemoteSEID, spdrInfo.PdrID)
 					if err != nil {
-						logger.AppLog.Errorf("AllocateTEID err: %v", err)
 						return fmt.Errorf("can't allocate TEID: %s", causeToString(ie.CauseNoResourcesAvailable))
 					}
 					teid = allocatedTeid
@@ -82,23 +82,24 @@ func (pdrContext *PDRCreationContext) extractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 			return nil
 		}
 		return fmt.Errorf("F-TEID IE is missing")
-	} else if ueIP, err := pdr.UEIPAddress(); err == nil {
-		if config.Conf.FeatureUEIP && hasCHV4(ueIP.Flags) {
-			if ip, err := pdrContext.getIP(); err == nil {
-				ueIP.IPv4Address = cloneIP(ip)
-				spdrInfo.Allocated = true
+	} else if ueipPdiId := findIEindex(pdi, 93); ueipPdiId != -1 {
+		if ueIp, _ := pdi[ueipPdiId].UEIPAddress(); ueIp != nil {
+			if config.Conf.FeatureUEIP && hasCHV4(ueIp.Flags) {
+				if ip, err := pdrContext.getIP(); err == nil {
+					ueIp.IPv4Address = cloneIP(ip)
+					spdrInfo.Allocated = true
+				} else {
+					logger.AppLog.Errorf(err.Error())
+				}
+			}
+			if ueIp.IPv4Address != nil {
+				spdrInfo.Ipv4 = cloneIP(ueIp.IPv4Address)
+			} else if ueIp.IPv6Address != nil {
+				spdrInfo.Ipv6 = cloneIP(ueIp.IPv6Address)
 			} else {
-				logger.AppLog.Errorf(err.Error())
+				return fmt.Errorf("UE IP Address IE is missing")
 			}
 		}
-		if ueIP.IPv4Address != nil {
-			spdrInfo.Ipv4 = cloneIP(ueIP.IPv4Address)
-		} else if ueIP.IPv6Address != nil {
-			spdrInfo.Ipv6 = cloneIP(ueIP.IPv6Address)
-		} else {
-			return fmt.Errorf("UE IP Address IE is missing")
-		}
-
 		return nil
 	} else {
 		logger.AppLog.Infof("Both F-TEID IE and UE IP Address IE are missing")

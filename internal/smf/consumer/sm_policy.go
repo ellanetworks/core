@@ -12,7 +12,7 @@ import (
 	"github.com/yeastengine/ella/internal/smf/logger"
 )
 
-// SendSMPolicyAssociationCreate create the session management association to the PCF
+// SendSMPolicyAssociationCreate creates the SM Policy Decision
 func SendSMPolicyAssociationCreate(smContext *smf_context.SMContext) (*models.SmPolicyDecision, int, error) {
 	httpRspStatusCode := http.StatusInternalServerError
 	if smContext.SMPolicyClient == nil {

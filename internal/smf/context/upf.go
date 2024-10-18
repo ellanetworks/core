@@ -23,7 +23,6 @@ var upfPool sync.Map
 type UPTunnel struct {
 	PathIDGenerator *idgenerator.IDGenerator
 	DataPathPool    DataPathPool
-	FTEID           uint32
 	ANInformation   struct {
 		IPAddress net.IP
 		TEID      uint32

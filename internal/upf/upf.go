@@ -50,9 +50,10 @@ func Start(interfaces []string, n3_address string) error {
 		HeartbeatTimeout:  5,
 		LoggingLevel:      "debug",
 		FeatureFTUP:       true,
+		FTEIDPool:         65535,
 	}
 	config.Init(c)
-	initLog.Infof("UPF configuration: %+v", config.Conf)
+	initLog.Warningf("UPF configuration: %+v", config.Conf)
 
 	if err := ebpf.IncreaseResourceLimits(); err != nil {
 		initLog.Fatalf("Can't increase resource limits: %s", err.Error())

@@ -287,6 +287,7 @@ func EstablishRANTunnelInfo(smContext *context.SMContext) {
 	// Uplink ANUPF In TEID
 	activatingANUPF.UpLinkTunnel.TEID = defaultANUPF.UpLinkTunnel.TEID
 	activatingANUPF.UpLinkTunnel.PDR["default"].PDI.LocalFTeid.Teid = defaultANUPF.UpLinkTunnel.PDR["default"].PDI.LocalFTeid.Teid // TODO: Iterate over all PDRs
+	logger.AppLog.Warnf("activatingANUPF.UpLinkTunnel.PDR[\"default\"].PDI.LocalFTeid.Teid: %d\n", activatingANUPF.UpLinkTunnel.PDR["default"].PDI.LocalFTeid.Teid)
 
 	// Downlink ANUPF OutTEID
 

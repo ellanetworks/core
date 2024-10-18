@@ -91,7 +91,7 @@ func HandlePfcpSessionEstablishmentRequest(conn *PfcpConnection, msg message.Mes
 				applyPDR(spdrInfo, mapOperations)
 				createdPDRs = append(createdPDRs, spdrInfo)
 			} else {
-				logger.AppLog.Errorf("error extracting PDR info: %s", err.Error())
+				logger.AppLog.Errorf("couldn't extract PDR info: %s", err.Error())
 			}
 		}
 		return nil
@@ -302,7 +302,7 @@ func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Mess
 				applyPDR(spdrInfo, mapOperations)
 				createdPDRs = append(createdPDRs, spdrInfo)
 			} else {
-				logger.AppLog.Infof("Error extracting PDR info: %s", err.Error())
+				logger.AppLog.Errorf("couldn't extract pdr info: %s", err.Error())
 			}
 		}
 
@@ -317,7 +317,7 @@ func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Mess
 				session.PutPDR(uint32(pdrId), spdrInfo)
 				applyPDR(spdrInfo, mapOperations)
 			} else {
-				logger.AppLog.Printf("Error extracting PDR info: %s", err.Error())
+				logger.AppLog.Printf("couldn't extract PDR info: %s", err.Error())
 			}
 		}
 
