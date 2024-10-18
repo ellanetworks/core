@@ -49,6 +49,7 @@ func Start(interfaces []string, n3_address string) error {
 		HeartbeatInterval: 5,
 		HeartbeatTimeout:  5,
 		LoggingLevel:      "debug",
+		FeatureFTUP:       true,
 	}
 	config.Init(c)
 	initLog.Infof("UPF configuration: %+v", config.Conf)
