@@ -38,10 +38,10 @@ func setEnvironmentVariables() error {
 	if err != nil {
 		return err
 	}
-	err = os.Setenv("PFCP_PORT_UPF", "8806")
-	if err != nil {
-		return err
-	}
+	// err = os.Setenv("PFCP_PORT_UPF", "8806")
+	// if err != nil {
+	// 	return err
+	// }
 	return nil
 }
 
@@ -53,6 +53,7 @@ func startNetwork(cfg config.Config, dbQueries *sql.Queries) error {
 	smfUrl := "http://127.0.0.1:29502"
 	udmUrl := "http://127.0.0.1:29503"
 	udrUrl := "http://127.0.0.1:29504"
+	upfPfcpAddress := "0.0.0.0:8806"
 	err := server.Start(5001, cfg.TLS.Cert, cfg.TLS.Key, dbQueries)
 	if err != nil {
 		return err
@@ -85,7 +86,7 @@ func startNetwork(cfg config.Config, dbQueries *sql.Queries) error {
 	if err != nil {
 		return err
 	}
-	err = smf.Start(amfUrl, pcfUrl, udmUrl, webuiUrl)
+	err = smf.Start(amfUrl, pcfUrl, udmUrl, upfPfcpAddress, dbQueries)
 	if err != nil {
 		return err
 	}

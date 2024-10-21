@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/omec-project/util/logger"
+	"github.com/yeastengine/ella/internal/db/sql"
 	"github.com/yeastengine/ella/internal/smf/factory"
 	"github.com/yeastengine/ella/internal/smf/service"
 )
@@ -12,7 +13,7 @@ var SMF = &service.SMF{}
 
 const SBI_PORT = 29502
 
-func Start(amfURL string, pcfURL string, udmURL string, webuiURL string) error {
+func Start(amfURL string, pcfURL string, udmURL string, upfPfcpAddress string, dbQueries *sql.Queries) error {
 	configuration := factory.Configuration{
 		PFCP: &factory.PFCP{
 			Addr: "0.0.0.0",
@@ -21,16 +22,17 @@ func Start(amfURL string, pcfURL string, udmURL string, webuiURL string) error {
 			BindingIPv4: "0.0.0.0",
 			Port:        SBI_PORT,
 		},
-		AmfUri:   amfURL,
-		PcfUri:   pcfURL,
-		UdmUri:   udmURL,
-		WebuiUri: webuiURL,
-		SmfName:  "SMF",
+		AmfUri:         amfURL,
+		PcfUri:         pcfURL,
+		UdmUri:         udmURL,
+		UpfPfcpAddress: upfPfcpAddress,
+		SmfName:        "SMF",
 		ServiceNameList: []string{
 			"nsmf-pdusession",
 			"nsmf-event-exposure",
 			"nsmf-oam",
 		},
+		DBQueries: dbQueries,
 	}
 
 	config := factory.Config{

@@ -493,3 +493,36 @@ func (upi *UserPlaneInformation) DeleteUPNodeLinks(link *factory.UPLink) error {
 
 	return nil
 }
+
+// TODO: Replace the complicated content below with the hardcoded content
+// The UPF is pre-defined and does not change based on http api configuration
+func GetUserPlaneInformation() (*UserPlaneInformation, error) {
+	upNode := UPNode{
+		UPF:  &UPF{},
+		Type: UPNODE_UPF,
+	}
+	userPlaneInfo := &UserPlaneInformation{
+		UPNodes: map[string]*UPNode{
+			"upf": &upNode,
+		},
+	}
+
+	return userPlaneInfo, nil
+}
+
+// We're replacing the content below
+// 	for _, ns := range rsp.NetworkSlice {
+
+// 		// Update UPF to SMF Config Structure
+// 		c.UserPlaneInformation.UPNodes[ns.Site.Upf.UpfName] = upf
+
+// 		// Update gNB links to UPF(gNB <-> N3_UPF)
+// 		for _, gNb := range ns.Site.Gnb {
+// 			upLink := UPLink{A: gNb.Name, B: ns.Site.Upf.UpfName}
+// 			c.UserPlaneInformation.Links = append(c.UserPlaneInformation.Links, upLink)
+
+// 			// insert gNb to SMF Config Structure
+// 			gNbNode := UPNode{Type: "AN", NodeID: gNb.Name}
+// 			c.UserPlaneInformation.UPNodes[gNb.Name] = gNbNode
+// 		}
+// 	}

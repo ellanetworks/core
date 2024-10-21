@@ -190,6 +190,52 @@ func (q *Queries) ListDeviceGroups(ctx context.Context) ([]DeviceGroup, error) {
 	return items, nil
 }
 
+const listDeviceGroupsByNetworkSliceId = `-- name: ListDeviceGroupsByNetworkSliceId :many
+SELECT id, name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id FROM device_groups
+WHERE network_slice_id = ?
+ORDER BY id
+`
+
+func (q *Queries) ListDeviceGroupsByNetworkSliceId(ctx context.Context, networkSliceID sql.NullInt64) ([]DeviceGroup, error) {
+	rows, err := q.db.QueryContext(ctx, listDeviceGroupsByNetworkSliceId, networkSliceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DeviceGroup
+	for rows.Next() {
+		var i DeviceGroup
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.SiteInfo,
+			&i.IpDomainName,
+			&i.Dnn,
+			&i.UeIpPool,
+			&i.DnsPrimary,
+			&i.Mtu,
+			&i.DnnMbrUplink,
+			&i.DnnMbrDownlink,
+			&i.TrafficClassName,
+			&i.TrafficClassArp,
+			&i.TrafficClassPdb,
+			&i.TrafficClassPelr,
+			&i.TrafficClassQci,
+			&i.NetworkSliceID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const numDeviceGroups = `-- name: NumDeviceGroups :one
 SELECT COUNT(*) FROM device_groups
 `
