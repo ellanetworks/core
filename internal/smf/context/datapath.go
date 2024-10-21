@@ -147,17 +147,6 @@ func (node *DataPathNode) ActivateUpLinkTunnel(smContext *SMContext) error {
 		return err
 	}
 
-	var teid uint32
-	var teidErr error
-
-	teid, teidErr = destUPF.GenerateTEID()
-	if teidErr != nil {
-		logger.CtxLog.Errorf("generate uplink TEID fail: %s", teidErr)
-		return teidErr
-	} else {
-		node.UpLinkTunnel.TEID = teid
-	}
-
 	return nil
 }
 
@@ -198,18 +187,6 @@ func (node *DataPathNode) ActivateDownLinkTunnel(smContext *SMContext) error {
 	if err = smContext.PutPDRtoPFCPSession(destUPF.NodeID, node.DownLinkTunnel.PDR); err != nil {
 		logger.CtxLog.Errorln("put PDR error:", err)
 		return err
-	}
-
-	// Generate TEID for Tunnel
-	var teid uint32
-	var teidErr error
-
-	teid, teidErr = destUPF.GenerateTEID()
-	if teidErr != nil {
-		logger.CtxLog.Errorf("generate downlink TEID fail: %s", teidErr)
-		return teidErr
-	} else {
-		node.DownLinkTunnel.TEID = teid
 	}
 
 	return nil
@@ -256,8 +233,6 @@ func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 		}
 	}
 
-	teid := node.DownLinkTunnel.TEID
-	node.UPF.teidGenerator.FreeID(int64(teid))
 	node.DownLinkTunnel = &GTPTunnel{}
 }
 
@@ -302,12 +277,6 @@ func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 		}
 	}
 
-	teid := node.DownLinkTunnel.TEID
-	var err error
-	node.UPF.teidGenerator.FreeID(int64(teid))
-	if err != nil {
-		logger.CtxLog.Errorln("deactivated DownLinkTunnel", err)
-	}
 	node.DownLinkTunnel = &GTPTunnel{}
 }
 
@@ -499,11 +468,11 @@ func (dpNode *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER,
 	} else {
 		ueIpAddr.V4 = true
 		ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
+		logger.AppLog.Warnf("UE IP Address: %v", ueIpAddr.Ipv4Address)
 	}
 
 	curULTunnel := dpNode.UpLinkTunnel
 	for name, ULPDR := range curULTunnel.PDR {
-		ULDestUPF := curULTunnel.DestEndPoint.UPF
 		ULPDR.QER = append(ULPDR.QER, defQER)
 
 		// Set Default precedence
@@ -511,28 +480,12 @@ func (dpNode *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER,
 			ULPDR.Precedence = defPrecedence
 		}
 
-		var iface *UPFInterfaceInfo
-		if dpNode.IsANUPF() {
-			iface = ULDestUPF.GetInterface(models.UpInterfaceType_N3, smContext.Dnn)
-		} else {
-			iface = ULDestUPF.GetInterface(models.UpInterfaceType_N9, smContext.Dnn)
+		ULPDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceAccess}
+		ULPDR.PDI.LocalFTeid = &FTEID{
+			Ch: true,
 		}
-
-		if upIP, err := iface.IP(smContext.SelectedPDUSessionType); err != nil {
-			logger.CtxLog.Errorf("activate UpLink PDR[%v] failed %v ", name, err)
-			return err
-		} else {
-			ULPDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceAccess}
-			ULPDR.PDI.LocalFTeid = &FTEID{
-				V4:          true,
-				Ipv4Address: upIP,
-				Teid:        curULTunnel.TEID,
-			}
-
-			ULPDR.PDI.UEIPAddress = &ueIpAddr
-
-			ULPDR.PDI.NetworkInstance = util_3gpp.Dnn(smContext.Dnn)
-		}
+		ULPDR.PDI.UEIPAddress = &ueIpAddr
+		ULPDR.PDI.NetworkInstance = util_3gpp.Dnn(smContext.Dnn)
 
 		ULPDR.OuterHeaderRemoval = &OuterHeaderRemoval{
 			OuterHeaderRemovalDescription: OuterHeaderRemovalGtpUUdpIpv4,
@@ -560,7 +513,7 @@ func (dpNode *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER,
 
 		if nextULDest := dpNode.Next(); nextULDest != nil {
 			nextULTunnel := nextULDest.UpLinkTunnel
-			iface = nextULTunnel.DestEndPoint.UPF.GetInterface(models.UpInterfaceType_N9, smContext.Dnn)
+			iface := nextULTunnel.DestEndPoint.UPF.GetInterface(models.UpInterfaceType_N9, smContext.Dnn)
 
 			if upIP, err := iface.IP(smContext.SelectedPDUSessionType); err != nil {
 				logger.CtxLog.Errorf("activate UpLink PDR[%v] failed %v ", name, err)
@@ -593,35 +546,26 @@ func (dpNode *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER,
 
 	for name, DLPDR := range curDLTunnel.PDR {
 		logger.CtxLog.Infof("activate Downlink PDR[%v]:[%v] ", name, DLPDR)
-		DLDestUPF := curDLTunnel.DestEndPoint.UPF
 		DLPDR.QER = append(DLPDR.QER, defQER)
 
 		if DLPDR.Precedence == 0 {
 			DLPDR.Precedence = defPrecedence
 		}
 
-		if dpNode.IsAnchorUPF() {
-			DLPDR.PDI.UEIPAddress = &ueIpAddr
-		} else {
+		if !dpNode.IsAnchorUPF() {
 			DLPDR.OuterHeaderRemoval = &OuterHeaderRemoval{
 				OuterHeaderRemovalDescription: OuterHeaderRemovalGtpUUdpIpv4,
 			}
-
-			iface = DLDestUPF.GetInterface(models.UpInterfaceType_N9, smContext.Dnn)
-			if upIP, err := iface.IP(smContext.SelectedPDUSessionType); err != nil {
-				logger.CtxLog.Errorf("activate Downlink PDR[%v] failed %v ", name, err)
-				return err
-			} else {
-				DLPDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceCore}
-				DLPDR.PDI.LocalFTeid = &FTEID{
-					V4:          true,
-					Ipv4Address: upIP,
-					Teid:        curDLTunnel.TEID,
-				}
-
-				DLPDR.PDI.UEIPAddress = &ueIpAddr
-			}
 		}
+
+		DLPDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceCore}
+		// DLPDR.PDI.LocalFTeid = &FTEID{
+		// 	Ch: true,
+		// }
+
+		DLPDR.PDI.UEIPAddress = &ueIpAddr
+
+		DLPDR.PDI.UEIPAddress = &ueIpAddr
 
 		DLFAR := DLPDR.FAR
 

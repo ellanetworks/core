@@ -92,5 +92,3 @@ require (
 	gopkg.in/h2non/gock.v1 v1.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/wmnsk/go-pfcp => github.com/gruyaume/go-pfcp-fork v0.0.0-20240618005319-485f43e05a01

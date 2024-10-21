@@ -653,6 +653,7 @@ func SendPduSessN1N2Transfer(smContext *smf_context.SMContext, success bool) err
 	}
 
 	smContext.SubPduSessLog.Infof("N1N2 transfer initiated")
+	smContext.SubPduSessLog.Infof("N1N2 Request: %v", n1n2Request)
 	rspData, _, err := smContext.
 		CommunicationClient.
 		N1N2MessageCollectionDocumentApi.
@@ -678,6 +679,7 @@ func SendPduSessN1N2Transfer(smContext *smf_context.SMContext, success bool) err
 	if err != nil {
 		smContext.SubPfcpLog.Errorf("CommitSmPolicyDecision failed, %v", err)
 	}
+	smContext.SubPduSessLog.Infof("Message content: %v", rspData)
 	smContext.SubPduSessLog.Infof("N1N2 Transfer completed")
 	return nil
 }

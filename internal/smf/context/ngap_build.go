@@ -8,14 +8,17 @@ import (
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/qos"
 )
 
 const DefaultNonGBR5QI = 9
 
 func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error) {
+	logger.AppLog.Warnf("BuildPDUSessionResourceSetupRequestTransfer")
 	ANUPF := ctx.Tunnel.DataPathPool.GetDefaultPath().FirstDPNode
 	UpNode := ANUPF.UPF
+	logger.AppLog.Warnf("UPF TEID: %v", ANUPF.UpLinkTunnel.TEID)
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, ANUPF.UpLinkTunnel.TEID)
 
@@ -29,7 +32,7 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
 	sessRule := ctx.SelectedSessionRule()
 	if sessRule == nil || sessRule.AuthSessAmbr == nil {
-		return nil, fmt.Errorf("No PDU Session AMBR")
+		return nil, fmt.Errorf("no PDU Session AMBR")
 	}
 	ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
 		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentPDUSessionAggregateMaximumBitRate,
@@ -51,6 +54,7 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	if n3IP, err := UpNode.N3Interfaces[0].IP(ctx.SelectedPDUSessionType); err != nil {
 		return nil, err
 	} else {
+		logger.PduSessLog.Warnf("N3 IP: %v", n3IP)
 		ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
 			Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentULNGUUPTNLInformation,
 			ULNGUUPTNLInformation: &ngapType.UPTransportLayerInformation{
@@ -226,7 +230,7 @@ func BuildPDUSessionResourceModifyRequestTransfer(ctx *SMContext) ([]byte, error
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
 	sessRule := ctx.SelectedSessionRule()
 	if sessRule == nil || sessRule.AuthSessAmbr == nil {
-		return nil, fmt.Errorf("No PDU Session AMBR")
+		return nil, fmt.Errorf("no PDU Session AMBR")
 	}
 	ie.Value = ngapType.PDUSessionResourceModifyRequestTransferIEsValue{
 		Present: ngapType.PDUSessionResourceModifyRequestTransferIEsPresentPDUSessionAggregateMaximumBitRate,
@@ -319,8 +323,10 @@ func BuildPDUSessionResourceReleaseCommandTransfer(ctx *SMContext) (buf []byte, 
 
 // TS 38.413 9.3.4.9
 func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
+	logger.AppLog.Warnf("BuildPathSwitchRequestAcknowledgeTransfer")
 	ANUPF := ctx.Tunnel.DataPathPool.GetDefaultPath().FirstDPNode
 	UpNode := ANUPF.UPF
+	logger.AppLog.Warnf("UPF TEID: %v", ANUPF.UpLinkTunnel.TEID)
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, ANUPF.UpLinkTunnel.TEID)
 
@@ -337,6 +343,7 @@ func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
 	if n3IP, err := UpNode.N3Interfaces[0].IP(ctx.SelectedPDUSessionType); err != nil {
 		return nil, err
 	} else {
+		logger.PduSessLog.Warnf("N3 IP: %v", n3IP)
 		gtpTunnel := ULNGUUPTNLInformation.GTPTunnel
 		gtpTunnel.GTPTEID.Value = teidOct
 		gtpTunnel.TransportLayerAddress.Value = aper.BitString{
@@ -400,8 +407,10 @@ func BuildPathSwitchRequestUnsuccessfulTransfer(causePresent int, causeValue ape
 }
 
 func BuildHandoverCommandTransfer(ctx *SMContext) ([]byte, error) {
+	logger.AppLog.Warnf("BuildHandoverCommandTransfer")
 	ANUPF := ctx.Tunnel.DataPathPool.GetDefaultPath().FirstDPNode
 	UpNode := ANUPF.UPF
+	logger.AppLog.Warnf("UPF TEID: %v", ANUPF.UpLinkTunnel.TEID)
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, ANUPF.UpLinkTunnel.TEID)
 	handoverCommandTransfer := ngapType.HandoverCommandTransfer{}
@@ -413,6 +422,7 @@ func BuildHandoverCommandTransfer(ctx *SMContext) ([]byte, error) {
 	if n3IP, err := UpNode.N3Interfaces[0].IP(ctx.SelectedPDUSessionType); err != nil {
 		return nil, err
 	} else {
+		logger.PduSessLog.Warnf("N3 IP: %v", n3IP)
 		gtpTunnel := handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel
 		gtpTunnel.GTPTEID.Value = teidOct
 		gtpTunnel.TransportLayerAddress.Value = aper.BitString{

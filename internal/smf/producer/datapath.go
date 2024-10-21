@@ -14,7 +14,7 @@ type PFCPState struct {
 	port    uint16
 }
 
-// SendPFCPRule send one datapath to UPF
+// SendPFCPRule sends the datapath to the UPF
 func SendPFCPRule(smContext *context.SMContext, dataPath *context.DataPath) {
 	logger.PduSessLog.Infoln("Send PFCP Rule")
 	logger.PduSessLog.Infoln("DataPath: ", dataPath)
