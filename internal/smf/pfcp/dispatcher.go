@@ -15,12 +15,6 @@ func Dispatch(msg *udp.Message) {
 		handler.HandlePfcpHeartbeatRequest(msg)
 	case message.MsgTypeHeartbeatResponse:
 		handler.HandlePfcpHeartbeatResponse(msg)
-	case message.MsgTypePFDManagementRequest:
-		handler.HandlePfcpPfdManagementRequest(msg)
-	case message.MsgTypePFDManagementResponse:
-		handler.HandlePfcpPfdManagementResponse(msg)
-	case message.MsgTypeAssociationSetupRequest:
-		handler.HandlePfcpAssociationSetupRequest(msg)
 	case message.MsgTypeAssociationSetupResponse:
 		handler.HandlePfcpAssociationSetupResponse(msg)
 	case message.MsgTypeAssociationUpdateRequest:

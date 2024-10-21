@@ -98,14 +98,10 @@ func HandlePfcpAssociationSetupRequest(conn *PfcpConnection, msg message.Message
 	upFunctionFeaturesIE := ie.NewUPFunctionFeatures(featuresOctets[:]...)
 
 	// shall send a PFCP Association Setup Response including:
-	dnn := "internet"
-	flags := uint8(0x61)
-	networkInstance := string(ie.NewNetworkInstanceFQDN(dnn).Payload)
 	asres := message.NewAssociationSetupResponse(asreq.SequenceNumber,
 		ie.NewCause(ie.CauseRequestAccepted), // a successful cause
 		newIeNodeID(conn.nodeId),             // its Node ID;
 		ie.NewRecoveryTimeStamp(conn.RecoveryTimestamp),
-		ie.NewUserPlaneIPResourceInformation(flags, 0, conn.n3Address.String(), "", networkInstance, ie.SrcInterfaceAccess),
 		upFunctionFeaturesIE,
 	)
 
