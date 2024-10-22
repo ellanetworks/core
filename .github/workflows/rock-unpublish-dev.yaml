@@ -20,6 +20,7 @@ jobs:
           pr_number="${{ github.event.pull_request.number || github.event.issue.number }}"
           image_name="$(yq '.name' rockcraft.yaml)"
           version="$(cat version/VERSION)-${pr_number}"
+          echo version: $version
           curl -L \
             -X GET \
             -H "Accept: application/vnd.github+json" \
