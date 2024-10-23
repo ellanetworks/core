@@ -42,6 +42,3 @@ jobs:
     needs: [snap-build]
     uses: ./.github/workflows/snap-publish.yaml
     secrets: inherit
-  rock-unpublish-dev:
-    uses: ./.github/workflows/rock-unpublish-dev.yaml
-    secrets: inherit

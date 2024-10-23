@@ -1,11 +1,8 @@
 name: Rock delete dev package
 
-# on:
-#   pull_request:
-#     types: [ closed ]
-
 on:
-  workflow_call:
+  pull_request:
+    types: [ closed ]
 
 jobs:
   delete-docker-image:
