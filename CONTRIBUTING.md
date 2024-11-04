@@ -13,7 +13,6 @@ go build cmd/ella/main.go
 
 ### Generate database code
 
-
 Generate the sqlc code:
 
 ```shell
@@ -24,9 +23,8 @@ sqlc generate
 
 ```
 cd ui
-npm install
-npm run build
-cp -r out/* ../internal/webui/ui/frontend_files/
+npm install --prefix ui
+npm run build --prefix ui
 ```
 
 ### Build the Container image

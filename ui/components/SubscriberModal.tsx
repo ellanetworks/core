@@ -1,5 +1,5 @@
 "use client";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   ActionButton,
   Form,
@@ -8,44 +8,36 @@ import {
   Notification,
   Select,
 } from "@canonical/react-components";
-import { NetworkSlice } from "@/components/types";
-import { createSubscriber } from "@/utils/createSubscriber";
-import { editSubscriber } from "@/utils/editSubscriber";
-import { useQueryClient } from "@tanstack/react-query";
+import { createSubscriber } from "@/queries/subscribers";
+import { listDeviceGroups } from "@/queries/deviceGroups";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/utils/queryKeys";
 import * as Yup from "yup";
 import { useFormik } from "formik";
 
 interface SubscriberValues {
   imsi: string;
+  plmn_id: string;
   opc: string;
   key: string;
-  sequenceNumber: string;
-  selectedSlice: string;
-  deviceGroup: string;
+  sequence_number: string;
+  deviceGroupId: number;
 }
 
 type Props = {
   toggleModal: () => void;
   subscriber?: any;
-  slices : NetworkSlice[];
-  deviceGroups : any[]
 };
 
-const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props) => {
+const SubscriberModal = ({ toggleModal, subscriber }: Props) => {
   const queryClient = useQueryClient();
   const [apiError, setApiError] = useState<string | null>(null);
-  const rawIMSI = subscriber?.ueId.split("-")[1];
-  
-  const oldDeviceGroup = deviceGroups.find(
-    (deviceGroup) => deviceGroup["imsis"]?.includes(rawIMSI)
-  );
-  const oldDeviceGroupName : string = oldDeviceGroup ? oldDeviceGroup["group-name"]: "";
 
-  const oldNetworkSlice = slices.find(
-    (slice) => slice["site-device-group"]?.includes(oldDeviceGroupName)
-  );
-  const oldNetworkSliceName : string = oldNetworkSlice ? oldNetworkSlice["slice-name"] : "";
+
+  const { data: deviceGroups = [], isLoading: isNetworkSlicesLoading } = useQuery({
+    queryKey: [queryKeys.deviceGroups],
+    queryFn: listDeviceGroups,
+  });
 
   const SubscriberSchema = Yup.object().shape({
     imsi: Yup.string()
@@ -53,6 +45,10 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
       .max(15)
       .matches(/^[0-9]+$/, { message: "Only numbers are allowed." })
       .required("IMSI must be 14 or 15 digits"),
+    plmn_id: Yup.string()
+      .length(5)
+      .matches(/^[0-9]+$/, { message: "Only numbers are allowed." })
+      .required("PLMN ID must be 5 digits"),
     opc: Yup.string()
       .length(32)
       .matches(/^[A-Za-z0-9]+$/, {
@@ -65,52 +61,38 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
         message: "Only alphanumeric characters are allowed.",
       })
       .required("Key must be a 32 character hexadecimal"),
-    sequenceNumber: Yup.string().required("Sequence number is required"),
-    deviceGroup: Yup.string().required(""),
+    sequence_number: Yup.string().required("Sequence number is required"),
   });
-
-  const modalTitle = () => {
-    return subscriber && rawIMSI ? ("Edit Subscriber: " + rawIMSI) : "Create Subscriber"
-  }
 
   const buttonText = () => {
     return subscriber ? "Save Changes" : "Create"
   }
 
+  const handleDeviceGroupChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    formik.setFieldValue("deviceGroupId", parseInt(e.target.value, 10));
+  };
+
   const formik = useFormik<SubscriberValues>({
     initialValues: {
-      imsi: rawIMSI || "",
-      opc: subscriber?.["AuthenticationSubscription"]["opc"]["opcValue"] ||"",
-      key: subscriber?.["AuthenticationSubscription"]["permanentKey"]["permanentKeyValue"] || "",
-      sequenceNumber: subscriber?.["AuthenticationSubscription"]["sequenceNumber"] || "",
-      selectedSlice: oldNetworkSliceName,
-      deviceGroup: oldDeviceGroupName,
+      imsi: subscriber?.["imsi"] || "",
+      plmn_id: subscriber?.["plmn_id"] || "",
+      opc: subscriber?.["opc"] || "",
+      key: subscriber?.["key"] || "",
+      sequence_number: subscriber?.["sequence_number"] || "",
+      deviceGroupId: subscriber?.["deviceGroupId"] || "",
     },
     validationSchema: SubscriberSchema,
     onSubmit: async (values) => {
-      try{
-        if (subscriber)
-        {
-          await editSubscriber({
-            imsi: values.imsi,
-            opc: values.opc,
-            key: values.key,
-            sequenceNumber: values.sequenceNumber,
-            oldDeviceGroupName: oldDeviceGroupName,
-            newDeviceGroupName: values.deviceGroup,
-          });
-        } else {
-          await createSubscriber({
-            imsi: values.imsi,
-            opc: values.opc,
-            key: values.key,
-            sequenceNumber: values.sequenceNumber,
-            deviceGroupName: values.deviceGroup,
-          });
-        }
+      try {
+        await createSubscriber({
+          imsi: values.imsi,
+          plmn_id: values.plmn_id,
+          opc: values.opc,
+          key: values.key,
+          sequence_number: values.sequence_number,
+          device_group_id: values.deviceGroupId,
+        });
         await queryClient.invalidateQueries({ queryKey: [queryKeys.subscribers] });
-        await queryClient.invalidateQueries({ queryKey: [queryKeys.deviceGroups] });
-        await queryClient.invalidateQueries({ queryKey: [queryKeys.networkSlices] });
         toggleModal();
       } catch (error) {
         console.error(error);
@@ -121,48 +103,11 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
     },
   });
 
-  const handleSliceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    void formik.setFieldValue("selectedSlice", e.target.value);
-  };
-
-  const handleDeviceGroupChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    void formik.setFieldValue("deviceGroup", e.target.value);
-  };
-
-  const selectedSlice = slices.find(
-    (slice) => slice["slice-name"] === formik.values.selectedSlice,
-  );
-
-  const setDeviceGroup = useCallback(
-    (deviceGroup: string) => {
-      if (formik.values.deviceGroup !== deviceGroup) {
-        formik.setFieldValue("deviceGroup", deviceGroup);
-      }
-    },
-    [formik],
-  );
-
-  const deviceGroupOptions =
-    selectedSlice && selectedSlice["site-device-group"]
-      ? selectedSlice["site-device-group"]
-      : [];
-
-  useEffect(() => {
-    if (subscriber && selectedSlice && oldNetworkSliceName == selectedSlice["slice-name"]) {
-      setDeviceGroup(oldDeviceGroupName);
-    }
-    else if (selectedSlice && selectedSlice["site-device-group"]?.length === 1){
-      setDeviceGroup(selectedSlice["site-device-group"][0]);
-    }
-    else {
-      setDeviceGroup("");
-    }
-  }, [deviceGroupOptions]);
 
   return (
     <Modal
       close={toggleModal}
-      title={modalTitle()}
+      title={"Create Subscriber"}
       buttonRow={
         <>
           <ActionButton
@@ -185,7 +130,7 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
       <Form stacked>
         <Input
           type="text"
-          placeholder="208930100007487"
+          placeholder="001010100007487"
           id="imsi"
           label="IMSI"
           stacked
@@ -193,6 +138,17 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
           disabled={subscriber ? true : false}
           {...formik.getFieldProps("imsi")}
           error={formik.touched.imsi ? formik.errors.imsi : null}
+        />
+        <Input
+          type="text"
+          id="plmn_id"
+          placeholder="00101"
+          label="PLMN ID"
+          help="Public Land Mobile Network ID"
+          stacked
+          required
+          {...formik.getFieldProps("plmn_id")}
+          error={formik.touched.plmn_id ? formik.errors.plmn_id : null}
         />
         <Input
           type="text"
@@ -223,52 +179,30 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
           label="Sequence Number"
           stacked
           required
-          {...formik.getFieldProps("sequenceNumber")}
+          {...formik.getFieldProps("sequence_number")}
           error={
-            formik.touched.sequenceNumber ? formik.errors.sequenceNumber : null
+            formik.touched.sequence_number ? formik.errors.sequence_number : null
           }
         />
         <Select
-          id="network-slice"
-          label="Network Slice"
+          id="network_slices"
           stacked
           required
-          value = {formik.values.selectedSlice}
-          onChange={handleSliceChange}
-          error={
-            formik.touched.selectedSlice ? formik.errors.selectedSlice : null
-          }
+          value={formik.values.deviceGroupId}
           options={[
             {
-              disabled: true,
-              label: "Select an option",
               value: "",
+              disabled: true,
+              label: "Select...",
             },
-            ...slices.map((slice) => ({
-              label: slice["slice-name"],
-              value: slice["slice-name"],
+            ...deviceGroups.map((deviceGroup) => ({
+              label: `${deviceGroup.name}`,
+              value: deviceGroup.id,
             })),
           ]}
-        />
-        <Select
-          id="device-group"
           label="Device Group"
-          stacked
-          required
-          value = {formik.values.deviceGroup}
+          error={formik.touched.deviceGroupId ? formik.errors.deviceGroupId : null}
           onChange={handleDeviceGroupChange}
-          error={formik.touched.deviceGroup ? formik.errors.deviceGroup : null}
-          options={[
-            {
-              disabled: true,
-              label: "Select an option",
-              value: "",
-            },
-            ...deviceGroupOptions.map((group) => ({
-              label: group,
-              value: group,
-            })),
-          ]}
         />
       </Form>
     </Modal>

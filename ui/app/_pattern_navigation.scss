@@ -13,20 +13,20 @@
 
 .logo {
   .logo-tag {
-      background-color: #e95420;
-      height: 2.2rem;
-      position: absolute;
-      top: 0;
-      width: 1.313rem;
+    background-color: #e95420;
+    height: 2.2rem;
+    position: absolute;
+    top: 0;
+    width: 1.313rem;
   }
 
   .logo-image {
-      bottom: 0.125rem;
-      height: 1rem;
-      left: 50%;
-      position: absolute;
-      transform: translate(-50%, 0);
-      width: 1rem;
+    bottom: 0.125rem;
+    height: 1rem;
+    left: 50%;
+    position: absolute;
+    transform: translate(-50%, 0);
+    width: 1rem;
   }
 
   .logo-text {
@@ -63,6 +63,7 @@
 }
 
 @media screen and (min-width: $breakpoint-small) {
+
   .l-navigation.is-collapsed,
   .l-navigation.is-collapsed:focus-within,
   .l-navigation.is-collapsed:hover {

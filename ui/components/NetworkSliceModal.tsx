@@ -1,18 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Input,
   Notification,
   Modal,
   Form,
-  Select,
   ActionButton,
 } from "@canonical/react-components";
 import { NetworkSlice } from "@/components/types";
-import { createNetworkSlice } from "@/utils/createNetworkSlice";
-import { editNetworkSlice } from "@/utils/editNetworkSlice";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createNetworkSlice } from "@/queries/networkSlices";
+import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/utils/queryKeys";
-import { getGnbList, GnbItem } from "@/utils/getGnbList";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 
@@ -20,7 +17,6 @@ interface NetworkSliceValues {
   mcc: string;
   mnc: string;
   name: string;
-  gnbList: GnbItem[];
 }
 
 interface NetworkSliceModalProps {
@@ -31,7 +27,6 @@ interface NetworkSliceModalProps {
 const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps) => {
   const queryClient = useQueryClient();
   const [apiError, setApiError] = useState<string | null>(null);
-  const [gnbApiError, setGnbApiError] = useState<string | null>(null);
 
   const NetworkSliceSchema = Yup.object().shape({
     name: Yup.string()
@@ -50,14 +45,7 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
       .min(2)
       .max(3)
       .required("MNC is required."),
-    gnbList: Yup.array()
-      .min(1)
-      .required("Selecting at least 1 gNodeB is required."),
   });
-
-  const modalTitle = () => {
-      return networkSlice?.["slice-name"] ? ("Edit Network Slice: " + networkSlice["slice-name"]) : "Create Network Slice"
-  }
 
   const buttonText = () => {
     return networkSlice ? "Save Changes" : "Create"
@@ -65,33 +53,18 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
 
   const formik = useFormik<NetworkSliceValues>({
     initialValues: {
-      mcc: networkSlice?.["site-info"]["plmn"].mcc || "",
-      mnc: networkSlice?.["site-info"]["plmn"].mnc || "",
-      name: networkSlice?.["slice-name"] || "",
-      gnbList: networkSlice?.["site-info"].gNodeBs || [],
+      mcc: networkSlice?.mcc || "",
+      mnc: networkSlice?.mnc || "",
+      name: networkSlice?.["name"] || "",
     },
     validationSchema: NetworkSliceSchema,
     onSubmit: async (values) => {
       try {
-        if (networkSlice){
-          await editNetworkSlice({
-            name: values.name,
-            mcc: values.mcc.toString(),
-            mnc: values.mnc.toString(),
-            upfName: "0.0.0.0",
-            upfPort: "8806",
-            gnbList: values.gnbList,
-          });
-        } else {
-          await createNetworkSlice({
-            name: values.name,
-            mcc: values.mcc.toString(),
-            mnc: values.mnc.toString(),
-            upfName: "0.0.0.0",
-            upfPort: "8806",
-            gnbList: values.gnbList,
-          });
-        }
+        await createNetworkSlice({
+          name: values.name,
+          mcc: values.mcc.toString(),
+          mnc: values.mnc.toString(),
+        });
         await queryClient.invalidateQueries({
           queryKey: [queryKeys.networkSlices],
         });
@@ -105,39 +78,9 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
     },
   });
 
-  const { data: gnbList = [], isLoading: isGnbLoading } = useQuery({
-    queryKey: [queryKeys.gnbList],
-    queryFn: getGnbList,
-  });
-
-  useEffect(() => {
-    const checkGnbList = async () => {
-      if (!isGnbLoading && gnbList.length === 0) {
-        setGnbApiError("Failed to retrieve the list of GNBs from the server.");
-      }
-    };
-    checkGnbList();
-  }, [isGnbLoading, gnbList]);
-
-  const handleGnbChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedOptions = Array.from(e.target.selectedOptions);
-    const items = gnbList.filter((item) =>
-      selectedOptions.some(
-        (option) => option.value === `${item.name}:${item.tac}`,
-      ),
-    );
-    void formik.setFieldValue("gnbList", items);
-  };
-
-  const getGnbListValueAsString = () => {
-    return (formik.values.gnbList.map((item) =>{
-      return `${item.name}:${item.tac}`
-    }));
-  };
-
   return (
     <Modal
-      title={modalTitle()}
+      title={"Create Network Slice"}
       close={toggleModal}
       buttonRow={
         <ActionButton
@@ -154,11 +97,6 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
       {apiError && (
         <Notification severity="negative" title="Error">
           {apiError}
-        </Notification>
-      )}
-      {gnbApiError && (
-        <Notification severity="negative" title="Error">
-          {gnbApiError}
         </Notification>
       )}
       <Form>
@@ -194,26 +132,6 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
           required
           {...formik.getFieldProps("mnc")}
           error={formik.touched.mnc ? formik.errors.mnc : null}
-        />
-        <Select
-          id="gnb"
-          stacked
-          required
-          value = {getGnbListValueAsString()}
-          options={[
-            {
-              value: "",
-              disabled: true,
-              label: "Select...",
-            },
-            ...gnbList.map((gnb) => ({
-              label: `${gnb.name} (tac:${gnb.tac})`,
-              value: `${gnb.name}:${gnb.tac}`,
-            })),
-          ]}
-          label="gNodeBs"
-          onChange={handleGnbChange}
-          multiple
         />
       </Form>
     </Modal>

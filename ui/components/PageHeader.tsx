@@ -10,16 +10,16 @@ interface Props {
 const PageHeader: FC<Props> = ({ title, children }) => {
 
   return (
-      <Row>
-        <Col size={8}>
-          <div className="p-panel__header">
-            <h1 className="p-panel__title">{title}</h1>
-            <div className="p-panel__controls">
-              {children}
-            </div>
+    <Row>
+      <Col size={10}>
+        <div className="p-panel__header">
+          <h1 className="p-panel__title">{title}</h1>
+          <div className="p-panel__controls">
+            {children}
           </div>
-        </Col>
-      </Row>
+        </div>
+      </Col>
+    </Row>
   );
 };
 export default PageHeader;

@@ -9,9 +9,9 @@ interface Props {
 const PageContent: FC<Props> = ({ children }) => {
   return (
     <Row>
-      <Col size={6}>
+      <Col size={10}>
         <div className="p-panel__content">
-            {children}
+          {children}
         </div>
       </Col>
     </Row>

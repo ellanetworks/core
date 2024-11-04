@@ -1,0 +1,12 @@
+tls:
+  cert: "testdata/cert.pem"
+  key: "testdata/key.pem"
+db:
+  mongo:
+    url: "mongodb://localhost:27017"
+    name: "test"
+  sql:
+    path: "testdata/sqlite.db"
+upf:
+  interfaces: ["eth0", "eth1"]
+  n3-address: "127.0.0.1"

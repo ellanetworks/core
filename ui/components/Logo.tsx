@@ -8,13 +8,13 @@ const Logo: FC = () => {
       <div className="logo-tag">
         <Image
           src="https://assets.ubuntu.com/v1/82818827-CoF_white.svg"
-          alt="circle of friends"
+          alt="ella"
           width={32}
           height={32}
           className="logo-image"
         />
       </div>
-      <span className="logo-text p-heading--4">5G NMS</span>
+      <span className="logo-text p-heading--4">Ella</span>
     </a>
   );
 };
