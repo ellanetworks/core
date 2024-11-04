@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/yeastengine/ella/internal/ausf"
 	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/db/sql"
 	"github.com/yeastengine/ella/internal/server"
@@ -29,7 +30,7 @@ func startNetwork(cfg config.Config, dbQueries *sql.Queries) error {
 	// nssfUrl := "http://127.0.0.1:29531"
 	// pcfUrl := "http://127.0.0.1:29507"
 	// smfUrl := "http://127.0.0.1:29502"
-	// udmUrl := "http://127.0.0.1:29503"
+	udmUrl := "http://127.0.0.1:29503"
 	udrUrl := "http://127.0.0.1:29504"
 	// upfPfcpAddress := "0.0.0.0:8806"
 	err := server.Start(cfg.Port, cfg.TLS.Cert, cfg.TLS.Key, dbQueries)
@@ -44,10 +45,10 @@ func startNetwork(cfg config.Config, dbQueries *sql.Queries) error {
 	// if err != nil {
 	// 	return err
 	// }
-	// err = ausf.Start(udmUrl, webuiUrl)
-	// if err != nil {
-	// 	return err
-	// }
+	err = ausf.Start(udmUrl)
+	if err != nil {
+		return err
+	}
 	// err = pcf.Start(amfUrl, udrUrl, webuiUrl)
 	// if err != nil {
 	// 	return err

@@ -20,7 +20,6 @@ type AUSFContext struct {
 	UdmUeauUrl  string
 	UriScheme   models.UriScheme
 	NfService   map[models.ServiceName]models.NfService
-	PlmnList    []models.PlmnId
 	SBIPort     int
 }
 
