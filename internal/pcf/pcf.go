@@ -10,7 +10,7 @@ var PCF = &service.PCF{}
 
 const SBI_PORT = 29507
 
-func Start(amfURL string, udrURL string, webuiURL string) error {
+func Start(amfURL string) error {
 	configuration := factory.Configuration{
 		PcfName: "PCF",
 		Sbi: &factory.Sbi{
@@ -19,8 +19,6 @@ func Start(amfURL string, udrURL string, webuiURL string) error {
 		},
 		DefaultBdtRefId: "BdtPolicyId-",
 		AmfUri:          amfURL,
-		UdrUri:          udrURL,
-		WebuiUri:        webuiURL,
 		ServiceList: []factory.Service{
 			{
 				ServiceName: "npcf-am-policy-control",

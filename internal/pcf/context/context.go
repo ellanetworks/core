@@ -27,7 +27,7 @@ func init() {
 	pcfCtx.PcfServiceUris = make(map[models.ServiceName]string)
 	pcfCtx.PcfSuppFeats = make(map[models.ServiceName]openapi.SupportedFeature)
 	pcfCtx.BdtPolicyIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
-	pcfCtx.PcfSubscriberPolicyData = make(map[string]*PcfSubscriberPolicyData)
+	// pcfCtx.PcfSubscriberPolicyData = make(map[string]*PcfSubscriberPolicyData)
 }
 
 type PCFContext struct {
@@ -50,12 +50,9 @@ type PCFContext struct {
 	// App Session related
 	AppSessionPool sync.Map
 	// AMF Status Change Subscription related
-	AMFStatusSubsData       sync.Map                            // map[string]AMFStatusSubscriptionData; subscriptionID as key
-	PcfSubscriberPolicyData map[string]*PcfSubscriberPolicyData // subscriberId is key
+	AMFStatusSubsData sync.Map // map[string]AMFStatusSubscriptionData; subscriptionID as key
 
-	DnnList  []string
-	PlmnList []factory.PlmnSupportItem
-	SBIPort  int
+	SBIPort int
 	// lock
 	DefaultUdrURILock sync.RWMutex
 }
@@ -75,7 +72,6 @@ type PccPolicy struct {
 type PcfSubscriberPolicyData struct {
 	PccPolicy map[string]*PccPolicy // sst+sd is key
 	CtxLog    *logrus.Entry
-	Supi      string
 }
 
 type AMFStatusSubscriptionData struct {
@@ -422,66 +418,4 @@ func (sess SessionPolicy) String() string {
 		}
 	}
 	return s
-}
-
-func (c *PCFContext) DisplayPcfSubscriberPolicyData(imsi string) {
-	logger.CtxLog.Infof("Pcf Subscriber [%v] Policy Details :", imsi)
-	subs, exist := pcfCtx.PcfSubscriberPolicyData[imsi]
-	if !exist {
-		logger.CtxLog.Infof("Pcf Subscriber [%v] not exist", imsi)
-	} else {
-		for slice, val := range subs.PccPolicy {
-			subs.CtxLog.Infof("   SliceId: %v", slice)
-			for name, srule := range val.SessionPolicy {
-				subs.CtxLog.Infof("   Session-Name/Dnn: %v", name)
-				for _, srules := range srule.SessionRules {
-					logger.CtxLog.Infof("   SessionRuleId: %v", srules.SessRuleId)
-					if srules.AuthSessAmbr != nil {
-						logger.CtxLog.Infof("   AmbrUplink  %v", srules.AuthSessAmbr.Uplink)
-						logger.CtxLog.Infof("   AmbrDownlink  %v", srules.AuthSessAmbr.Downlink)
-					}
-					if srules.AuthDefQos != nil {
-						logger.CtxLog.Infof("    DefQos.5qi: %v", srules.AuthDefQos.Var5qi)
-						if srules.AuthDefQos.Arp != nil {
-							logger.CtxLog.Infof("    DefQos.Arp.PriorityLevel: %v", srules.AuthDefQos.Arp.PriorityLevel)
-							logger.CtxLog.Infof("    DefQos.Arp.PreemptCapability: %v", srules.AuthDefQos.Arp.PreemptCap)
-							logger.CtxLog.Infof("    DefQos.Arp.PreemptVulnerability: %v", srules.AuthDefQos.Arp.PreemptVuln)
-						}
-						logger.CtxLog.Infof("    DefQos.prioritylevel: %v", srules.AuthDefQos.PriorityLevel)
-					}
-				}
-			}
-			for rulename, rule := range val.PccRules {
-				logger.CtxLog.Infof("   PccRule-Name: %v", rulename)
-				logger.CtxLog.Infof("   PccRule-Id: %v", rule.PccRuleId)
-				logger.CtxLog.Infof("   Precedence: %v", rule.Precedence)
-
-				for _, flow := range rule.FlowInfos {
-					logger.CtxLog.Infof("   FlowDescription: %v", flow.FlowDescription)
-					logger.CtxLog.Infof("   TosTrafficClass: %v", flow.TosTrafficClass)
-					logger.CtxLog.Infof("   FlowDirection: %v", flow.FlowDirection)
-				}
-			}
-			logger.CtxLog.Infof("   Qos Details")
-			for _, qos := range val.QosDecs {
-				logger.CtxLog.Infof("     QosId: %v", qos.QosId)
-				logger.CtxLog.Infof("     5qi: %v", qos.Var5qi)
-				logger.CtxLog.Infof("     MaxbrUl: %v", qos.MaxbrUl)
-				logger.CtxLog.Infof("     MaxbrDl: %v", qos.MaxbrDl)
-				logger.CtxLog.Infof("     GbrDl: %v", qos.GbrDl)
-				logger.CtxLog.Infof("     GbrUl: %v", qos.GbrUl)
-				logger.CtxLog.Infof("     PriorityLevel: %v", qos.PriorityLevel)
-				if qos.Arp != nil {
-					logger.CtxLog.Infof("    Arp.PreemptCapability: %v", qos.Arp.PreemptCap)
-					logger.CtxLog.Infof("    Arp.PreemptVulnerability: %v", qos.Arp.PreemptVuln)
-				}
-			}
-
-			logger.CtxLog.Infof("   Traffic Control Details")
-			for _, t := range val.TraffContDecs {
-				logger.CtxLog.Infof("     TcId: %v", t.TcId)
-				logger.CtxLog.Infof("     FlowStatus: %v", t.FlowStatus)
-			}
-		}
-	}
 }

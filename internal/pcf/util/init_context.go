@@ -21,12 +21,10 @@ func InitpcfContext(context *context.PCFContext) {
 
 	sbi := configuration.Sbi
 	context.AmfUri = configuration.AmfUri
-	context.UdrUri = configuration.UdrUri
 	context.SBIPort = sbi.Port
 	context.UriScheme = models.UriScheme_HTTP
 	context.BindingIPv4 = sbi.BindingIPv4
 	serviceList := configuration.ServiceList
-	context.PlmnList = configuration.PlmnList
 	context.InitNFService(serviceList, config.Info.Version)
 	context.TimeFormat = configuration.TimeFormat
 	context.DefaultBdtRefId = configuration.DefaultBdtRefId
