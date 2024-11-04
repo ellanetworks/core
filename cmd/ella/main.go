@@ -8,6 +8,7 @@ import (
 	"github.com/yeastengine/ella/internal/ausf"
 	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/db/sql"
+	"github.com/yeastengine/ella/internal/nssf"
 	"github.com/yeastengine/ella/internal/server"
 	"github.com/yeastengine/ella/internal/udm"
 )
@@ -61,10 +62,10 @@ func startNetwork(cfg config.Config, dbQueries *sql.Queries) error {
 	if err != nil {
 		return err
 	}
-	// err = nssf.Start(webuiUrl)
-	// if err != nil {
-	// 	return err
-	// }
+	err = nssf.Start(dbQueries)
+	if err != nil {
+		return err
+	}
 	// err = smf.Start(amfUrl, pcfUrl, udmUrl, webuiUrl)
 	// if err != nil {
 	// 	return err

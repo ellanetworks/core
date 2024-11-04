@@ -1,7 +1,3 @@
-/*
- * NSSF Utility
- */
-
 package util
 
 import (
@@ -83,8 +79,12 @@ func CheckSupportedSnssaiInPlmn(snssai models.Snssai, plmnId models.PlmnId) bool
 	if CheckStandardSnssai(snssai) {
 		return true
 	}
-
-	for _, supportedNssaiInPlmn := range factory.NssfConfig.Configuration.SupportedNssaiInPlmnList {
+	supportedNssaiInPlmn, err := GetSupportedNssaiInPlmnList(factory.NssfConfig.Configuration.DBQueries)
+	if err != nil {
+		logger.Util.Errorf("couldn't get supported nssais: %+v", err)
+		return false
+	}
+	for _, supportedNssaiInPlmn := range supportedNssaiInPlmn {
 		if *supportedNssaiInPlmn.PlmnId == plmnId {
 			for _, supportedSnssai := range supportedNssaiInPlmn.SupportedSnssaiList {
 				if snssai == supportedSnssai {
@@ -100,9 +100,12 @@ func CheckSupportedSnssaiInPlmn(snssai models.Snssai, plmnId models.PlmnId) bool
 
 // Check whether S-NSSAIs in NSSAI are supported or not in PLMN
 func CheckSupportedNssaiInPlmn(nssai []models.Snssai, plmnId models.PlmnId) bool {
-	factory.ConfigLock.RLock()
-	defer factory.ConfigLock.RUnlock()
-	for _, supportedNssaiInPlmn := range factory.NssfConfig.Configuration.SupportedNssaiInPlmnList {
+	supportedNssaiInPlmn, err := GetSupportedNssaiInPlmnList(factory.NssfConfig.Configuration.DBQueries)
+	if err != nil {
+		logger.Util.Errorf("couldn't get supported nssais: %+v", err)
+		return false
+	}
+	for _, supportedNssaiInPlmn := range supportedNssaiInPlmn {
 		if *supportedNssaiInPlmn.PlmnId == plmnId {
 			for _, snssai := range nssai {
 				// Standard S-NSSAIs are supposed to be supported
