@@ -1,8 +1,6 @@
 package util
 
 import (
-	"os"
-
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/util_3gpp/suci"
 	"github.com/yeastengine/ella/internal/udm/context"
@@ -22,16 +20,7 @@ func InitUDMContext(udmContext *context.UDMContext) {
 	udmContext.UriScheme = models.UriScheme_HTTP
 	udmContext.SBIPort = sbi.Port
 
-	udmContext.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
-	if udmContext.BindingIPv4 != "" {
-		logger.UtilLog.Info("Parsing ServerIPv4 address from ENV Variable.")
-	} else {
-		udmContext.BindingIPv4 = sbi.BindingIPv4
-		if udmContext.BindingIPv4 == "" {
-			logger.UtilLog.Warn("Error parsing ServerIPv4 address as string. Using the 0.0.0.0 address as default.")
-			udmContext.BindingIPv4 = "0.0.0.0"
-		}
-	}
+	udmContext.BindingIPv4 = sbi.BindingIPv4
 	udmContext.UdrUri = configuration.UdrUri
 	servingNameList := configuration.ServiceNameList
 
@@ -47,6 +36,5 @@ func InitUDMContext(udmContext *context.UDMContext) {
 			PublicKey:        configuration.Keys.UdmProfileBHNPublicKey,
 		},
 	}
-	udmContext.PlmnList = configuration.PlmnList
 	udmContext.InitNFService(servingNameList, config.Info.Version)
 }

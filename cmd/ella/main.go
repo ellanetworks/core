@@ -8,6 +8,7 @@ import (
 	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/db/sql"
 	"github.com/yeastengine/ella/internal/server"
+	"github.com/yeastengine/ella/internal/udm"
 )
 
 func setEnvironmentVariables() error {
@@ -29,7 +30,7 @@ func startNetwork(cfg config.Config, dbQueries *sql.Queries) error {
 	// pcfUrl := "http://127.0.0.1:29507"
 	// smfUrl := "http://127.0.0.1:29502"
 	// udmUrl := "http://127.0.0.1:29503"
-	// udrUrl := "http://127.0.0.1:29504"
+	udrUrl := "http://127.0.0.1:29504"
 	// upfPfcpAddress := "0.0.0.0:8806"
 	err := server.Start(cfg.Port, cfg.TLS.Cert, cfg.TLS.Key, dbQueries)
 	if err != nil {
@@ -55,10 +56,10 @@ func startNetwork(cfg config.Config, dbQueries *sql.Queries) error {
 	// if err != nil {
 	// 	return err
 	// }
-	// err = udm.Start(udrUrl, webuiUrl)
-	// if err != nil {
-	// 	return err
-	// }
+	err = udm.Start(udrUrl)
+	if err != nil {
+		return err
+	}
 	// err = nssf.Start(webuiUrl)
 	// if err != nil {
 	// 	return err

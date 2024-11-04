@@ -1,3 +1,4 @@
+port: 8080
 tls:
   cert: "testdata/cert.pem"
   key: "testdata/key.pem"

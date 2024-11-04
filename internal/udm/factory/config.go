@@ -1,7 +1,6 @@
 package factory
 
 import (
-	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/logger"
 )
 
@@ -17,14 +16,11 @@ type Info struct {
 }
 
 type Configuration struct {
-	UdmName         string            `yaml:"udmName,omitempty"`
-	Sbi             *Sbi              `yaml:"sbi,omitempty"`
-	ServiceNameList []string          `yaml:"serviceNameList,omitempty"`
-	UdrUri          string            `yaml:"udrUri,omitempty"`
-	WebuiUri        string            `yaml:"webuiUri"`
-	Keys            *Keys             `yaml:"keys,omitempty"`
-	PlmnSupportList []models.PlmnId   `yaml:"plmnSupportList,omitempty"`
-	PlmnList        []PlmnSupportItem `yaml:"plmnList,omitempty"`
+	UdmName         string   `yaml:"udmName,omitempty"`
+	Sbi             *Sbi     `yaml:"sbi,omitempty"`
+	ServiceNameList []string `yaml:"serviceNameList,omitempty"`
+	UdrUri          string   `yaml:"udrUri,omitempty"`
+	Keys            *Keys    `yaml:"keys,omitempty"`
 }
 
 type Sbi struct {
@@ -37,8 +33,4 @@ type Keys struct {
 	UdmProfileAHNPublicKey  string `yaml:"udmProfileAHNPublicKey,omitempty"`
 	UdmProfileBHNPrivateKey string `yaml:"udmProfileBHNPrivateKey,omitempty"`
 	UdmProfileBHNPublicKey  string `yaml:"udmProfileBHNPublicKey,omitempty"`
-}
-
-type PlmnSupportItem struct {
-	PlmnId models.PlmnId `yaml:"plmnId"`
 }
