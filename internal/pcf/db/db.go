@@ -74,7 +74,8 @@ func GetSubscriberPolicy(imsi string) (*pcf_context.PcfSubscriberPolicyData, err
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get network slice: %w", err)
 	}
-	sliceid := string(networkSlice.Sst) + networkSlice.Sd
+	sliceid := fmt.Sprintf("%c%v", networkSlice.Sst, networkSlice.Sd)
+	logger.CtxLog.Warnf("TO DELETE: sliceid: %v", sliceid)
 
 	sessionrule := getSessionRule(deviceGroup)
 
