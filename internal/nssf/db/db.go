@@ -1,10 +1,10 @@
-package util
+package db
 
 import (
 	"context"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/db/sql"
+	"github.com/yeastengine/ella/internal/nssf/factory"
 )
 
 type SupportedNssaiInPlmn struct {
@@ -12,7 +12,8 @@ type SupportedNssaiInPlmn struct {
 	SupportedSnssaiList []models.Snssai `yaml:"supportedSnssaiList"`
 }
 
-func GetSupportedNssaiInPlmnList(queries *sql.Queries) ([]SupportedNssaiInPlmn, error) {
+func GetSupportedNssaiInPlmnList() ([]SupportedNssaiInPlmn, error) {
+	queries := factory.NssfConfig.Configuration.DBQueries
 	networkSlices, err := queries.ListNetworkSlices(context.Background())
 	if err != nil {
 		return nil, err

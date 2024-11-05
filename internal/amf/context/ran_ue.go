@@ -11,6 +11,7 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
 	"github.com/sirupsen/logrus"
+	"github.com/yeastengine/ella/internal/amf/db"
 	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
@@ -136,7 +137,6 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 		return
 	}
 
-	amfSelf := AMF_Self()
 	curTime := time.Now().UTC()
 	switch userLocationInformation.Present {
 	case ngapType.UserLocationInformationPresentUserLocationInformationEUTRA:
@@ -230,13 +230,19 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 		ranUe.Location.N3gaLocation.PortNumber = ngapConvert.PortNumberToInt(port)
 		// N3GPP TAI is operator-specific
 		// TODO: define N3GPP TAI
-		tmp, err := strconv.ParseUint(amfSelf.SupportTaiLists[0].Tac, 10, 32)
+		supportTaiList, err := db.GetSupportTaiList()
+		if err != nil {
+			logger.ContextLog.Errorf("Error getting support tai list: %v", err)
+			return
+		}
+		tmp, err := strconv.ParseUint(supportTaiList[0].Tac, 10, 32)
 		if err != nil {
 			logger.ContextLog.Errorf("Error parsing TAC: %v", err)
 		}
 		tac := fmt.Sprintf("%06x", tmp)
+
 		ranUe.Location.N3gaLocation.N3gppTai = &models.Tai{
-			PlmnId: amfSelf.SupportTaiLists[0].PlmnId,
+			PlmnId: supportTaiList[0].PlmnId,
 			Tac:    tac,
 		}
 		ranUe.Tai = deepcopy.Copy(*ranUe.Location.N3gaLocation.N3gppTai).(models.Tai)

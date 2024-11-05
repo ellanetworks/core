@@ -11,6 +11,7 @@ import (
 	"github.com/omec-project/nas/nasType"
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/db"
 	"github.com/yeastengine/ella/internal/amf/factory"
 	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/amf/nas/nas_security"
@@ -485,12 +486,15 @@ func BuildRegistrationAccept(
 		registrationAccept.GUTI5G.SetIei(nasMessage.RegistrationAcceptGUTI5GType)
 	}
 
-	amfSelf := context.AMF_Self()
-	if len(amfSelf.PlmnSupportList) > 1 {
+	dbPlmnSupportList, err := db.GetPLMNSupportList()
+	if err != nil {
+		return nil, err
+	}
+	if len(dbPlmnSupportList) > 1 {
 		registrationAccept.EquivalentPlmns = nasType.NewEquivalentPlmns(nasMessage.RegistrationAcceptEquivalentPlmnsType)
 		var buf []uint8
-		for _, plmnSupportItem := range amfSelf.PlmnSupportList {
-			buf = append(buf, nasConvert.PlmnIDToNas(plmnSupportItem.PlmnId)...)
+		for _, plmn := range dbPlmnSupportList {
+			buf = append(buf, nasConvert.PlmnIDToNas(plmn.PlmnId)...)
 		}
 		registrationAccept.EquivalentPlmns.SetLen(uint8(len(buf)))
 		copy(registrationAccept.EquivalentPlmns.Octet[:], buf)

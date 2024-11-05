@@ -21,6 +21,7 @@ import (
 	"github.com/omec-project/util/fsm"
 	"github.com/yeastengine/ella/internal/amf/consumer"
 	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/db"
 	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
 	"github.com/yeastengine/ella/internal/amf/logger"
 	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
@@ -505,8 +506,12 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	ue.Tai = ue.RanUe[anType].Tai
 
 	// Check TAI
-	taiList := make([]models.Tai, len(amfSelf.SupportTaiLists))
-	copy(taiList, amfSelf.SupportTaiLists)
+	supportTaiList, err := db.GetSupportTaiList()
+	if err != nil {
+		return err
+	}
+	taiList := make([]models.Tai, len(supportTaiList))
+	copy(taiList, supportTaiList)
 	for i := range taiList {
 		taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/consumer"
 	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/db"
 	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
 	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/amf/nas"
@@ -598,11 +599,13 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		}
 	} else {
 		var found bool
-		taiList := make([]models.Tai, len(context.AMF_Self().SupportTaiLists))
-		copy(taiList, context.AMF_Self().SupportTaiLists)
+		dbSupportTaiList, _ := db.GetSupportTaiList()
+
+		taiList := make([]models.Tai, len(dbSupportTaiList))
+		copy(taiList, dbSupportTaiList)
 		for i := range taiList {
 			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
-			ran.Log.Infof("Supported Tai List in AMF Plmn: %v, Tac: 0x%v Tac: %v", taiList[i].PlmnId, taiList[i].Tac, context.AMF_Self().SupportTaiLists[i].Tac)
+			ran.Log.Infof("Supported Tai List in AMF Plmn: %v, Tac: 0x%v Tac: %v", taiList[i].PlmnId, taiList[i].Tac, dbSupportTaiList[i].Tac)
 		}
 
 		for i, tai := range ran.SupportedTAList {
@@ -3868,8 +3871,9 @@ func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU
 		}
 	} else {
 		var found bool
-		taiList := make([]models.Tai, len(context.AMF_Self().SupportTaiLists))
-		copy(taiList, context.AMF_Self().SupportTaiLists)
+		dbSupportedTaiList, _ := db.GetSupportTaiList()
+		taiList := make([]models.Tai, len(dbSupportedTaiList))
+		copy(taiList, dbSupportedTaiList)
 		for i := range taiList {
 			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
 			ran.Log.Infof("Supported Tai List in AMF Plmn: %v, Tac: %v", taiList[i].PlmnId, taiList[i].Tac)

@@ -32,9 +32,6 @@ func InitAmfContext(context *context.AMFContext) {
 	context.BindingIPv4 = sbi.BindingIPv4
 	serviceNameList := configuration.ServiceNameList
 	context.InitNFService(serviceNameList, config.Info.Version)
-	context.ServedGuamiList = configuration.ServedGumaiList
-	context.SupportTaiLists = configuration.SupportTAIList
-	context.PlmnSupportList = configuration.PlmnSupportList
 	context.SupportDnnLists = configuration.SupportDnnList
 	context.AusfUri = configuration.AusfUri
 	context.NssfUri = configuration.NssfUri

@@ -6,6 +6,7 @@ import (
 	"github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/amf/factory"
 	"github.com/yeastengine/ella/internal/amf/service"
+	"github.com/yeastengine/ella/internal/db/sql"
 )
 
 var AMF = &service.AMF{}
@@ -15,9 +16,10 @@ const (
 	NGAPP_PORT = 38412
 )
 
-func Start(ausfURL string, nssfURL string, pcfURL string, smfURL string, UdmsdmURL string, UdmUecmURL string, webuiURL string) error {
+func Start(ausfURL string, nssfURL string, pcfURL string, smfURL string, UdmsdmURL string, UdmUecmURL string, dbQueries *sql.Queries) error {
 	configuration := factory.Configuration{
 		AmfName:      "AMF",
+		DBQueries:    dbQueries,
 		NgapIpList:   []string{"0.0.0.0"},
 		NgapPort:     NGAPP_PORT,
 		SctpGrpcPort: 9000,
@@ -49,7 +51,6 @@ func Start(ausfURL string, nssfURL string, pcfURL string, smfURL string, UdmsdmU
 		SmfUri:         smfURL,
 		UdmsdmUri:      UdmsdmURL,
 		UdmUecmUri:     UdmUecmURL,
-		WebuiUri:       webuiURL,
 		Security: &factory.Security{
 			IntegrityOrder: []string{"NIA1", "NIA2"},
 			CipheringOrder: []string{"NEA0"},

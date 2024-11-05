@@ -5,6 +5,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/logger"
+	"github.com/yeastengine/ella/internal/db/sql"
 )
 
 type Config struct {
@@ -19,16 +20,14 @@ type Info struct {
 }
 
 type Configuration struct {
-	AmfName                         string                    `yaml:"amfName,omitempty"`
+	AmfName                         string `yaml:"amfName,omitempty"`
+	DBQueries                       *sql.Queries
 	NgapIpList                      []string                  `yaml:"ngapIpList,omitempty"`
 	NgapPort                        int                       `yaml:"ngappPort,omitempty"`
 	SctpGrpcPort                    int                       `yaml:"sctpGrpcPort,omitempty"`
 	Sbi                             *Sbi                      `yaml:"sbi,omitempty"`
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS `yaml:"networkFeatureSupport5GS,omitempty"`
 	ServiceNameList                 []string                  `yaml:"serviceNameList,omitempty"`
-	ServedGumaiList                 []models.Guami            `yaml:"servedGuamiList,omitempty"`
-	SupportTAIList                  []models.Tai              `yaml:"supportTaiList,omitempty"`
-	PlmnSupportList                 []PlmnSupportItem         `yaml:"plmnSupportList,omitempty"`
 	SupportDnnList                  []string                  `yaml:"supportDnnList,omitempty"`
 	AusfUri                         string                    `yaml:"ausfUri,omitempty"`
 	NssfUri                         string                    `yaml:"nssfUri,omitempty"`
@@ -36,7 +35,6 @@ type Configuration struct {
 	SmfUri                          string                    `yaml:"smfUri,omitempty"`
 	UdmsdmUri                       string                    `yaml:"udmsdmUri,omitempty"`
 	UdmUecmUri                      string                    `yaml:"udmUecmUri,omitempty"`
-	WebuiUri                        string                    `yaml:"webuiUri"`
 	Security                        *Security                 `yaml:"security,omitempty"`
 	NetworkName                     NetworkName               `yaml:"networkName,omitempty"`
 	T3502Value                      int                       `yaml:"t3502Value,omitempty"`

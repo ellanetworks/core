@@ -11,6 +11,7 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/db"
 	"github.com/yeastengine/ella/internal/amf/logger"
 )
 
@@ -144,7 +145,11 @@ func BuildNGSetupResponse() ([]byte, error) {
 	ie.Value.PLMNSupportList = new(ngapType.PLMNSupportList)
 
 	pLMNSupportList := ie.Value.PLMNSupportList
-	for _, plmnItem := range amfSelf.PlmnSupportList {
+	dbPlmnSupportList, err := db.GetPLMNSupportList()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get PLMN support list: %+v", err)
+	}
+	for _, plmnItem := range dbPlmnSupportList {
 		pLMNSupportItem := ngapType.PLMNSupportItem{}
 		pLMNSupportItem.PLMNIdentity = ngapConvert.PlmnIdToNgap(plmnItem.PlmnId)
 		for _, snssai := range plmnItem.SNssaiList {
@@ -1704,7 +1709,12 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause,
 	ie.Value.AllowedNSSAI = new(ngapType.AllowedNSSAI)
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
-	for _, snssaiItem := range amfSelf.PlmnSupportList[0].SNssaiList {
+	plmnSupportList, err := db.GetPLMNSupportList()
+	if err != nil {
+		logger.NgapLog.Errorf("couldn't get plmn support list: %+v", err)
+		return nil, err
+	}
+	for _, snssaiItem := range plmnSupportList[0].SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 
 		ngapSnssai := ngapConvert.SNssaiToNgap(snssaiItem)
@@ -1800,8 +1810,6 @@ func BuildPathSwitchRequestAcknowledge(
 	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) ([]byte, error) {
-	amfSelf := context.AMF_Self()
-
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
 	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
@@ -1920,7 +1928,12 @@ func BuildPathSwitchRequestAcknowledge(
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
 	// plmnSupportList[0] is serving plmn
-	for _, modelSnssai := range amfSelf.PlmnSupportList[0].SNssaiList {
+	plmnSupportList, err := db.GetPLMNSupportList()
+	if err != nil {
+		logger.NgapLog.Errorf("couldn't get plmn support list: %+v", err)
+		return nil, err
+	}
+	for _, modelSnssai := range plmnSupportList[0].SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 
 		ngapSnssai := ngapConvert.SNssaiToNgap(modelSnssai)
@@ -2937,7 +2950,12 @@ func BuildAMFConfigurationUpdate(tNLassociationUsage ngapType.TNLAssociationUsag
 	ie.Value.PLMNSupportList = new(ngapType.PLMNSupportList)
 
 	pLMNSupportList := ie.Value.PLMNSupportList
-	for _, plmnItem := range amfSelf.PlmnSupportList {
+	dbPlmnSupportList, err := db.GetPLMNSupportList()
+	if err != nil {
+		logger.NgapLog.Errorf("couldn't get plmn support list: %+v", err)
+		return nil, err
+	}
+	for _, plmnItem := range dbPlmnSupportList {
 		pLMNSupportItem := ngapType.PLMNSupportItem{}
 		pLMNSupportItem.PLMNIdentity = ngapConvert.PlmnIdToNgap(plmnItem.PlmnId)
 		for _, snssai := range plmnItem.SNssaiList {

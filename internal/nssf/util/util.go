@@ -7,6 +7,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/path_util"
+	"github.com/yeastengine/ella/internal/nssf/db"
 	"github.com/yeastengine/ella/internal/nssf/factory"
 	"github.com/yeastengine/ella/internal/nssf/logger"
 )
@@ -79,7 +80,7 @@ func CheckSupportedSnssaiInPlmn(snssai models.Snssai, plmnId models.PlmnId) bool
 	if CheckStandardSnssai(snssai) {
 		return true
 	}
-	supportedNssaiInPlmn, err := GetSupportedNssaiInPlmnList(factory.NssfConfig.Configuration.DBQueries)
+	supportedNssaiInPlmn, err := db.GetSupportedNssaiInPlmnList()
 	if err != nil {
 		logger.Util.Errorf("couldn't get supported nssais: %+v", err)
 		return false
@@ -100,7 +101,7 @@ func CheckSupportedSnssaiInPlmn(snssai models.Snssai, plmnId models.PlmnId) bool
 
 // Check whether S-NSSAIs in NSSAI are supported or not in PLMN
 func CheckSupportedNssaiInPlmn(nssai []models.Snssai, plmnId models.PlmnId) bool {
-	supportedNssaiInPlmn, err := GetSupportedNssaiInPlmnList(factory.NssfConfig.Configuration.DBQueries)
+	supportedNssaiInPlmn, err := db.GetSupportedNssaiInPlmnList()
 	if err != nil {
 		logger.Util.Errorf("couldn't get supported nssais: %+v", err)
 		return false

@@ -1,4 +1,4 @@
-package util
+package db
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"github.com/yeastengine/ella/internal/pcf/logger"
 )
 
-func GetBitRateUnit(val int64) (int64, string) {
+func getBitRateUnit(val int64) (int64, string) {
 	unit := " Kbps"
 	if val < 1000 {
 		logger.GrpcLog.Warnf("configured value [%v] is lesser than 1000 bps, so setting 1 Kbps", val)
@@ -46,8 +46,8 @@ func getSessionRule(deviceGroup sql.DeviceGroup) (sessionRule *models.SessionRul
 		Var5qi: int32(deviceGroup.TrafficClassQci),
 		Arp:    &models.Arp{PriorityLevel: int32(deviceGroup.TrafficClassArp)},
 	}
-	ul, uunit := GetBitRateUnit(deviceGroup.DnnMbrUplink)
-	dl, dunit := GetBitRateUnit(deviceGroup.DnnMbrDownlink)
+	ul, uunit := getBitRateUnit(deviceGroup.DnnMbrUplink)
+	dl, dunit := getBitRateUnit(deviceGroup.DnnMbrDownlink)
 	sessionRule.AuthSessAmbr = &models.Ambr{
 		Uplink:   strconv.FormatInt(ul, 10) + uunit,
 		Downlink: strconv.FormatInt(dl, 10) + dunit,

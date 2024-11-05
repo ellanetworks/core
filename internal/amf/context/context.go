@@ -12,6 +12,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
+	"github.com/yeastengine/ella/internal/amf/db"
 	"github.com/yeastengine/ella/internal/amf/factory"
 	"github.com/yeastengine/ella/internal/amf/logger"
 )
@@ -31,7 +32,7 @@ func init() {
 	AMF_Self().UriScheme = models.UriScheme_HTTP
 	AMF_Self().RelativeCapacity = 0xff
 	AMF_Self().ServedGuamiList = make([]models.Guami, 0, MaxNumOfServedGuamiList)
-	AMF_Self().PlmnSupportList = make([]factory.PlmnSupportItem, 0, MaxNumOfPLMNs)
+	// AMF_Self().PlmnSupportList = make([]factory.PlmnSupportItem, 0, MaxNumOfPLMNs)
 	AMF_Self().NfService = make(map[models.ServiceName]models.NfService)
 	AMF_Self().NetworkName.Full = "free5GC"
 	tmsiGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
@@ -46,9 +47,7 @@ type AMFContext struct {
 	RanUePool                       sync.Map         // map[AmfUeNgapID]*RanUe
 	AmfRanPool                      sync.Map         // map[net.Conn]*AmfRan
 	LadnPool                        map[string]*LADN // dnn as key
-	SupportTaiLists                 []models.Tai
 	ServedGuamiList                 []models.Guami
-	PlmnSupportList                 []factory.PlmnSupportItem
 	RelativeCapacity                int64
 	NfId                            string
 	Name                            string
@@ -147,9 +146,13 @@ func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.Acc
 
 	// allocate a new tai list as a registration area to ue
 	// TODO: algorithm to choose TAI list
-
-	taiList := make([]models.Tai, len(context.SupportTaiLists))
-	copy(taiList, context.SupportTaiLists)
+	supportTaiList, err := db.GetSupportTaiList()
+	if err != nil {
+		logger.ContextLog.Errorf("Error getting support tai list: %v", err)
+		return
+	}
+	taiList := make([]models.Tai, len(supportTaiList))
+	copy(taiList, supportTaiList)
 	for i := range taiList {
 		tmp, err := strconv.ParseUint(taiList[i].Tac, 10, 32)
 		if err != nil {
@@ -396,10 +399,15 @@ func (context *AMFContext) InSupportDnnList(targetDnn string) bool {
 	return false
 }
 
-func (context *AMFContext) InPlmnSupportList(snssai models.Snssai) bool {
-	for _, plmnSupportItem := range context.PlmnSupportList {
-		for _, supportSnssai := range plmnSupportItem.SNssaiList {
-			if reflect.DeepEqual(supportSnssai, snssai) {
+func (ctx *AMFContext) InPlmnSupportList(snssai models.Snssai) bool {
+	dbPlmnSupportList, err := db.GetPLMNSupportList()
+	if err != nil {
+		logger.ContextLog.Errorf("GetPLMNSupportList error: %+v", err)
+		return false
+	}
+	for _, plmnSupportItem := range dbPlmnSupportList {
+		for _, snssaiItem := range plmnSupportItem.SNssaiList {
+			if reflect.DeepEqual(snssaiItem, snssai) {
 				return true
 			}
 		}

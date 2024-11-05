@@ -14,6 +14,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	pcf_context "github.com/yeastengine/ella/internal/pcf/context"
+	"github.com/yeastengine/ella/internal/pcf/db"
 	"github.com/yeastengine/ella/internal/pcf/logger"
 	"github.com/yeastengine/ella/internal/pcf/util"
 )
@@ -118,7 +119,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
 	sliceid := sstStr + request.SliceInfo.Sd
 	imsi := strings.TrimPrefix(ue.Supi, "imsi-")
-	subsPolicyData, err := util.GetSubscriberPolicy(imsi)
+	subsPolicyData, err := db.GetSubscriberPolicy(imsi)
 	if err != nil {
 		problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
 		return nil, nil, &problemDetail
