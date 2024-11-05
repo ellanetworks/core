@@ -248,9 +248,8 @@ type SbiMsg struct {
 }
 
 type ConfigMsg struct {
-	Msg  interface{}
 	Supi string
-	Sst  string
+	Sst  int32
 	Sd   string
 }
 

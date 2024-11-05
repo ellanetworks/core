@@ -32,7 +32,6 @@ func init() {
 	AMF_Self().UriScheme = models.UriScheme_HTTP
 	AMF_Self().RelativeCapacity = 0xff
 	AMF_Self().ServedGuamiList = make([]models.Guami, 0, MaxNumOfServedGuamiList)
-	// AMF_Self().PlmnSupportList = make([]factory.PlmnSupportItem, 0, MaxNumOfPLMNs)
 	AMF_Self().NfService = make(map[models.ServiceName]models.NfService)
 	AMF_Self().NetworkName.Full = "free5GC"
 	tmsiGenerator = idgenerator.NewGenerator(1, math.MaxInt32)

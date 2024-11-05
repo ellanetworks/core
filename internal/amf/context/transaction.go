@@ -7,7 +7,7 @@ type EventChannel struct {
 	NasHandler    func(*AmfUe, NasMsg)
 	NgapHandler   func(*AmfUe, NgapMsg)
 	SbiHandler    func(s1, s2 string, msg interface{}) (interface{}, string, interface{}, interface{})
-	ConfigHandler func(s1, s2, s3 string, msg interface{})
+	ConfigHandler func(supi string, sst int32, sd string)
 }
 
 func (tx *EventChannel) UpdateNgapHandler(handler func(*AmfUe, NgapMsg)) {
@@ -25,7 +25,7 @@ func (tx *EventChannel) UpdateSbiHandler(handler func(s1, s2 string, msg interfa
 	tx.SbiHandler = handler
 }
 
-func (tx *EventChannel) UpdateConfigHandler(handler func(s1, s2, s3 string, msg interface{})) {
+func (tx *EventChannel) UpdateConfigHandler(handler func(supi string, sst int32, sd string)) {
 	tx.AmfUe.TxLog.Infof("updated confighandler")
 	tx.ConfigHandler = handler
 }
@@ -49,7 +49,7 @@ func (tx *EventChannel) Start() {
 				}
 				msg.Result <- res
 			case ConfigMsg:
-				tx.ConfigHandler(msg.Supi, msg.Sst, msg.Sd, msg.Msg)
+				tx.ConfigHandler(msg.Supi, msg.Sst, msg.Sd)
 			}
 		case event := <-tx.Event:
 			if event == "quit" {

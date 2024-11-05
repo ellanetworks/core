@@ -8,7 +8,11 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/omec-project/openapi/models"
 	db "github.com/yeastengine/ella/internal/db/sql"
+
+	"github.com/yeastengine/ella/internal/amf/gmm"
+	"github.com/yeastengine/ella/internal/udr/producer"
 )
 
 type CreateSubscriberParams struct {
@@ -116,6 +120,13 @@ func CreateSubscriber(env *HandlerConfig) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, "internal error")
 			return
 		}
+
+		err = addSubscriberToUDR(env.DBQueries, newSubscriber)
+		if err != nil {
+			log.Println("couldn't add subscriber to UDR: ", err)
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
 		w.WriteHeader(http.StatusCreated)
 		response := CreateSubscriberResponse{ID: newSubscriber.ID}
 		err = writeJSON(w, response)
@@ -124,6 +135,40 @@ func CreateSubscriber(env *HandlerConfig) http.HandlerFunc {
 			return
 		}
 	}
+}
+
+func addSubscriberToUDR(queries *db.Queries, subscriber db.Subscriber) error {
+	deviceGroup, err := queries.GetDeviceGroup(context.Background(), subscriber.DeviceGroupID.Int64)
+	if err != nil {
+		return err
+	}
+	networkSlice, err := queries.GetNetworkSlice(context.Background(), deviceGroup.NetworkSliceID.Int64)
+	if err != nil {
+		return err
+	}
+	snssai := models.Snssai{
+		Sst: int32(networkSlice.Sst),
+		Sd:  networkSlice.Sd,
+	}
+	producer.AddEntrySmPolicyTable(subscriber.Imsi, deviceGroup.Dnn, snssai)
+	return nil
+}
+
+func deregisterSubscriberFromAMF(queries *db.Queries, subscriber db.Subscriber) error {
+	deviceGroup, err := queries.GetDeviceGroup(context.Background(), subscriber.DeviceGroupID.Int64)
+	if err != nil {
+		return err
+	}
+	networkSlice, err := queries.GetNetworkSlice(context.Background(), deviceGroup.NetworkSliceID.Int64)
+	if err != nil {
+		return err
+	}
+	snssai := models.Snssai{
+		Sst: int32(networkSlice.Sst),
+		Sd:  networkSlice.Sd,
+	}
+	gmm.SendDeregistrationMessage(subscriber.Imsi, snssai)
+	return nil
 }
 
 func GetSubscriber(env *HandlerConfig) http.HandlerFunc {
@@ -173,9 +218,25 @@ func DeleteSubscriber(env *HandlerConfig) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, "id must be an integer")
 			return
 		}
+		subscriber, err := env.DBQueries.GetSubscriber(context.Background(), idInt64)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				writeError(w, http.StatusNotFound, "Subscriber not found")
+				return
+			}
+			log.Println(err)
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
 		err = env.DBQueries.DeleteSubscriber(context.Background(), idInt64)
 		if err != nil {
 			log.Println(err)
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		err = deregisterSubscriberFromAMF(env.DBQueries, subscriber)
+		if err != nil {
+			log.Println("couldn't deregister subscriber from AMF: ", err)
 			writeError(w, http.StatusInternalServerError, "internal error")
 			return
 		}

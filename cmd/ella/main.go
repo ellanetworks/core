@@ -13,6 +13,7 @@ import (
 	"github.com/yeastengine/ella/internal/pcf"
 	"github.com/yeastengine/ella/internal/server"
 	"github.com/yeastengine/ella/internal/udm"
+	"github.com/yeastengine/ella/internal/udr"
 	"github.com/yeastengine/ella/internal/upf"
 )
 
@@ -56,10 +57,10 @@ func startNetwork(cfg config.Config, dbQueries *sql.Queries) error {
 	if err != nil {
 		return err
 	}
-	// err = udr.Start(cfg.DB.Mongo.Url, cfg.DB.Mongo.Name, webuiUrl)
-	// if err != nil {
-	// 	return err
-	// }
+	err = udr.Start(cfg.DB.Mongo.Url, cfg.DB.Mongo.Name)
+	if err != nil {
+		return err
+	}
 	err = udm.Start(udrUrl)
 	if err != nil {
 		return err

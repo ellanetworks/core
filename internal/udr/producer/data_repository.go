@@ -12,7 +12,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
 	udr_context "github.com/yeastengine/ella/internal/udr/context"
 	"github.com/yeastengine/ella/internal/udr/logger"
 	"github.com/yeastengine/ella/internal/udr/util"
@@ -76,7 +75,7 @@ func toBsonM(data interface{}) (ret bson.M) {
 }
 
 // AddEntrySmPolicyTable ... write table entries into policyData.ues.smData
-func AddEntrySmPolicyTable(imsi string, dnn string, snssai *protos.NSSAI) error {
+func AddEntrySmPolicyTable(imsi string, dnn string, snssai models.Snssai) error {
 	logger.CfgLog.Infoln("AddEntrySmPolicyTable")
 	collName := "policyData.ues.smData"
 	var addUeId bool
@@ -84,15 +83,10 @@ func AddEntrySmPolicyTable(imsi string, dnn string, snssai *protos.NSSAI) error 
 	ueID := "imsi-"
 	ueID += imsi
 
-	sval, err := strconv.ParseUint(snssai.Sst, 10, 32)
-	if err != nil {
-		logger.CfgLog.Infoln("parse fail for sst ", err)
-		return err
-	}
 	filter := bson.M{"ueId": ueID}
 	modelNssai := models.Snssai{
 		Sd:  snssai.Sd,
-		Sst: int32(sval),
+		Sst: snssai.Sst,
 	}
 	smPolicyData, errGetOne := CommonDBClient.RestfulAPIGetOne(collName, filter)
 	if errGetOne != nil {

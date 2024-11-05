@@ -30,8 +30,6 @@ import (
 
 type AMF struct{}
 
-const IMSI_PREFIX = "imsi-"
-
 var initLog *logrus.Entry
 
 func init() {
