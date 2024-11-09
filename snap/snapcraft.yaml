@@ -17,35 +17,18 @@ apps:
     restart-condition: on-failure
 
 parts:
-  frontend:
-    plugin: nil
-    source: ./ui
-    build-snaps:
-      - node/20/stable
-    stage-snaps:
-      - node/20/stable
-    override-build: |
-      craftctl default
-      npm ci
-      npm run build
-
-      mkdir -p ${CRAFT_PART_INSTALL}/app
-      cp -r out/* ${CRAFT_PART_INSTALL}/app/
 
   ella:
     plugin: go
-    after:
-      - frontend
-    go-buildtags:
-      - ui
     source: .
     build-snaps:
       - go/1.22/stable
+      - node/20/stable
     override-build: |
-      rm -rf ${CRAFT_PART_BUILD}/ui/frontend_files/*
-      cp -r ${CRAFT_STAGE}/app/* ${CRAFT_PART_BUILD}/internal/webui/ui/frontend_files
+      npm install --prefix ui
+      npm run build --prefix ui
       craftctl default
-  
+
   service-files:
     plugin: dump
     source: service
