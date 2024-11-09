@@ -173,37 +173,6 @@ func TestDeviceGroupsHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("Create device group - 1", func(t *testing.T) {
-		data := CreateDeviceGroupParams{
-			Name:             "Name1",
-			SiteInfo:         "SiteInfo1",
-			IpDomainName:     "IpDomainName1",
-			Dnn:              "internet",
-			UeIpPool:         "11.0.0.0/24",
-			DnsPrimary:       "8.8.8.8",
-			Mtu:              1460,
-			DnnMbrUplink:     20000000,
-			DnnMbrDownlink:   20000000,
-			TrafficClassName: "platinum",
-			TrafficClassArp:  6,
-			TrafficClassPdb:  300,
-			TrafficClassPelr: 6,
-			TrafficClassQci:  8,
-		}
-		statusCode, response, err := createDeviceGroup(ts.URL, client, &data)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if statusCode != http.StatusCreated {
-			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
-		}
-
-		if response.Result.ID != 1 {
-			t.Fatalf("expected id %d, got %d", 1, response.Result.ID)
-		}
-	})
-
 	t.Run("Create device group with non-existent network slice", func(t *testing.T) {
 		data := CreateDeviceGroupParams{
 			Name:             "Name2",
@@ -283,12 +252,12 @@ func TestDeviceGroupsHandlers(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
 
-		if response.Result.ID != 2 {
-			t.Fatalf("expected id %d, got %d", 2, response.Result.ID)
+		if response.Result.ID != 1 {
+			t.Fatalf("expected id %d, got %d", 1, response.Result.ID)
 		}
 	})
 
-	t.Run("List device groups - 2", func(t *testing.T) {
+	t.Run("List device groups - 1", func(t *testing.T) {
 		statusCode, response, err := listDeviceGroups(ts.URL, client)
 		if err != nil {
 			t.Fatal(err)
@@ -302,8 +271,8 @@ func TestDeviceGroupsHandlers(t *testing.T) {
 			t.Fatalf("expected error %q, got %q", "", response.Error)
 		}
 
-		if len(response.Result) != 2 {
-			t.Fatalf("expected result %v, got %v", []int{1, 2}, response.Result)
+		if len(response.Result) != 1 {
+			t.Fatalf("expected result %v, got %v", []int{1}, response.Result)
 		}
 	})
 
@@ -323,85 +292,6 @@ func TestDeviceGroupsHandlers(t *testing.T) {
 
 		if response.Result.ID != 1 {
 			t.Fatalf("expected id %d, got %d", 1, response.Result.ID)
-		}
-
-		if response.Result.Name != "Name1" {
-			t.Fatalf("expected name %q, got %q", "Name1", response.Result.Name)
-		}
-
-		if response.Result.SiteInfo != "SiteInfo1" {
-			t.Fatalf("expected site_info %q, got %q", "SiteInfo1", response.Result.SiteInfo)
-		}
-
-		if response.Result.IpDomainName != "IpDomainName1" {
-			t.Fatalf("expected ip_domain_name %q, got %q", "IpDomainName1", response.Result.IpDomainName)
-		}
-
-		if response.Result.Dnn != "internet" {
-			t.Fatalf("expected dnn %q, got %q", "internet", response.Result.Dnn)
-		}
-
-		if response.Result.UeIpPool != "11.0.0.0/24" {
-			t.Fatalf("expected ue_ip_pool %q, got %q", "10.0.0.0/24", response.Result.UeIpPool)
-		}
-
-		if response.Result.DnsPrimary != "8.8.8.8" {
-			t.Fatalf("expected dns_primary %q, got %q", "8.8.8.8", response.Result.DnsPrimary)
-		}
-
-		if response.Result.Mtu != 1460 {
-			t.Fatalf("expected mtu %d, got %d", 1460, response.Result.Mtu)
-		}
-
-		if response.Result.DnnMbrUplink != 20000000 {
-			t.Fatalf("expected dnn_mbr_uplink %d, got %d", 20000000, response.Result.DnnMbrUplink)
-		}
-
-		if response.Result.DnnMbrDownlink != 20000000 {
-			t.Fatalf("expected dnn_mbr_downlink %d, got %d", 20000000, response.Result.DnnMbrDownlink)
-		}
-
-		if response.Result.TrafficClassName != "platinum" {
-			t.Fatalf("expected traffic_class_name %q, got %q", "platinum", response.Result.TrafficClassName)
-		}
-
-		if response.Result.TrafficClassArp != 6 {
-			t.Fatalf("expected traffic_class_arp %d, got %d", 6, response.Result.TrafficClassArp)
-		}
-
-		if response.Result.TrafficClassPdb != 300 {
-			t.Fatalf("expected traffic_class_pdb %d, got %d", 300, response.Result.TrafficClassPdb)
-		}
-
-		if response.Result.TrafficClassPelr != 6 {
-			t.Fatalf("expected traffic_class_pelr %d, got %d", 6, response.Result.TrafficClassPelr)
-		}
-
-		if response.Result.TrafficClassQci != 8 {
-			t.Fatalf("expected traffic_class_qci %d, got %d", 8, response.Result.TrafficClassQci)
-		}
-
-		if response.Result.NetworkSliceId != 0 {
-			t.Fatalf("expected network_slice_id %d, got %d", 0, response.Result.NetworkSliceId)
-		}
-	})
-
-	t.Run("Get device group - 2", func(t *testing.T) {
-		statusCode, response, err := getDeviceGroup(ts.URL, client, "2")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if statusCode != http.StatusOK {
-			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
-		}
-
-		if response.Error != "" {
-			t.Fatalf("expected error %q, got %q", "", response.Error)
-		}
-
-		if response.Result.ID != 2 {
-			t.Fatalf("expected id %d, got %d", 2, response.Result.ID)
 		}
 
 		if response.Result.Name != "Name2" {
@@ -484,7 +374,7 @@ func TestDeviceGroupsHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("List device groups - 1", func(t *testing.T) {
+	t.Run("List device groups - 0", func(t *testing.T) {
 		statusCode, response, err := listDeviceGroups(ts.URL, client)
 		if err != nil {
 			t.Fatal(err)
@@ -498,8 +388,8 @@ func TestDeviceGroupsHandlers(t *testing.T) {
 			t.Fatalf("expected error %q, got %q", "", response.Error)
 		}
 
-		if len(response.Result) != 1 {
-			t.Fatalf("expected result %v, got %v", []int{2}, response.Result)
+		if len(response.Result) != 0 {
+			t.Fatalf("expected result %v, got %v", []int{}, response.Result)
 		}
 	})
 }

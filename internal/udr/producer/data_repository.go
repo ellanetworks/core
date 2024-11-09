@@ -88,6 +88,9 @@ func AddEntrySmPolicyTable(imsi string, dnn string, snssai models.Snssai) error 
 		Sd:  snssai.Sd,
 		Sst: snssai.Sst,
 	}
+	if CommonDBClient == nil {
+		return fmt.Errorf("CommonDBClient is nil")
+	}
 	smPolicyData, errGetOne := CommonDBClient.RestfulAPIGetOne(collName, filter)
 	if errGetOne != nil {
 		logger.DataRepoLog.Warnln(errGetOne)

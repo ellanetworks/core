@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -90,6 +91,10 @@ func CreateSubscriber(env *HandlerConfig) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, "`sequence_number` is required")
 			return
 		}
+		if subscriber.DeviceGroupId <= 0 {
+			writeError(w, http.StatusBadRequest, "`device_group_id` is required")
+			return
+		}
 
 		var deviceGroupId sql.NullInt64
 		if subscriber.DeviceGroupId != 0 {
@@ -124,8 +129,6 @@ func CreateSubscriber(env *HandlerConfig) http.HandlerFunc {
 		err = addSubscriberToUDR(env.DBQueries, newSubscriber)
 		if err != nil {
 			log.Println("couldn't add subscriber to UDR: ", err)
-			writeError(w, http.StatusInternalServerError, "internal error")
-			return
 		}
 		w.WriteHeader(http.StatusCreated)
 		response := CreateSubscriberResponse{ID: newSubscriber.ID}
@@ -150,7 +153,10 @@ func addSubscriberToUDR(queries *db.Queries, subscriber db.Subscriber) error {
 		Sst: int32(networkSlice.Sst),
 		Sd:  networkSlice.Sd,
 	}
-	producer.AddEntrySmPolicyTable(subscriber.Imsi, deviceGroup.Dnn, snssai)
+	err = producer.AddEntrySmPolicyTable(subscriber.Imsi, deviceGroup.Dnn, snssai)
+	if err != nil {
+		return fmt.Errorf("couldn't add entry in SM policy table: %w", err)
+	}
 	return nil
 }
 

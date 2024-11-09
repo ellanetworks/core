@@ -155,28 +155,6 @@ func TestSubscribersHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("Create subscriber - 1", func(t *testing.T) {
-		data := CreateSubscriberParams{
-			IMSI:           "IMSI1",
-			PLMNId:         "PLMNId1",
-			OPC:            "OPC1",
-			Key:            "Key1",
-			SequenceNumber: "SequenceNumber1",
-		}
-		statusCode, response, err := createSubscriber(ts.URL, client, &data)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if statusCode != http.StatusCreated {
-			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
-		}
-
-		if response.Result.ID != 1 {
-			t.Fatalf("expected id %d, got %d", 1, response.Result.ID)
-		}
-	})
-
 	t.Run("Create subscriber with non-existent device group", func(t *testing.T) {
 		data := CreateSubscriberParams{
 			IMSI:           "IMSI2",
@@ -197,6 +175,29 @@ func TestSubscribersHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("Create network slice - 1", func(t *testing.T) {
+		data := CreateNetworkSliceParams{
+			Name:     "Name1",
+			Sst:      1,
+			Sd:       "Sd1",
+			SiteName: "SiteName1",
+			Mcc:      "Mcc1",
+			Mnc:      "Mnc1",
+		}
+		statusCode, response, err := createNetworkSlice(ts.URL, client, &data)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+
+		if response.Result.ID != 1 {
+			t.Fatalf("expected id %d, got %d", 1, response.Result.ID)
+		}
+	})
+
 	t.Run("Create device group - 1", func(t *testing.T) {
 		data := CreateDeviceGroupParams{
 			Name:             "Name1",
@@ -213,6 +214,7 @@ func TestSubscribersHandlers(t *testing.T) {
 			TrafficClassPdb:  300,
 			TrafficClassPelr: 6,
 			TrafficClassQci:  8,
+			NetworkSliceId:   1,
 		}
 
 		statusCode, response, err := createDeviceGroup(ts.URL, client, &data)
@@ -229,7 +231,7 @@ func TestSubscribersHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("Create subscriber (with device group) - 2", func(t *testing.T) {
+	t.Run("Create subscriber (with device group) - 1", func(t *testing.T) {
 		data := CreateSubscriberParams{
 			IMSI:           "IMSI2",
 			PLMNId:         "PLMNId2",
@@ -247,12 +249,12 @@ func TestSubscribersHandlers(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
 
-		if response.Result.ID != 2 {
-			t.Fatalf("expected id %d, got %d", 2, response.Result.ID)
+		if response.Result.ID != 1 {
+			t.Fatalf("expected id %d, got %d", 1, response.Result.ID)
 		}
 	})
 
-	t.Run("List subscribers - 2", func(t *testing.T) {
+	t.Run("List subscribers - 1", func(t *testing.T) {
 		statusCode, response, err := listSubscribers(ts.URL, client)
 		if err != nil {
 			t.Fatal(err)
@@ -266,8 +268,8 @@ func TestSubscribersHandlers(t *testing.T) {
 			t.Fatalf("expected error %q, got %q", "", response.Error)
 		}
 
-		if len(response.Result) != 2 {
-			t.Fatalf("expected result %v, got %v", []int{1, 2}, response.Result)
+		if len(response.Result) != 1 {
+			t.Fatalf("expected result %v, got %v", []int{1}, response.Result)
 		}
 	})
 
@@ -287,49 +289,6 @@ func TestSubscribersHandlers(t *testing.T) {
 
 		if response.Result.ID != 1 {
 			t.Fatalf("expected id %d, got %d", 1, response.Result.ID)
-		}
-
-		if response.Result.IMSI != "IMSI1" {
-			t.Fatalf("expected imsi %q, got %q", "IMSI1", response.Result.IMSI)
-		}
-
-		if response.Result.PLMNId != "PLMNId1" {
-			t.Fatalf("expected plmn_id %q, got %q", "PLMNId1", response.Result.PLMNId)
-		}
-
-		if response.Result.OPC != "OPC1" {
-			t.Fatalf("expected opc %q, got %q", "OPC1", response.Result.OPC)
-		}
-
-		if response.Result.Key != "Key1" {
-			t.Fatalf("expected key %q, got %q", "Key1", response.Result.Key)
-		}
-
-		if response.Result.SequenceNumber != "SequenceNumber1" {
-			t.Fatalf("expected sequence_number %q, got %q", "SequenceNumber1", response.Result.SequenceNumber)
-		}
-
-		if response.Result.DeviceGroupID != 0 {
-			t.Fatalf("expected device_group_id %d, got %d", 0, response.Result.DeviceGroupID)
-		}
-	})
-
-	t.Run("Get subscriber - 2", func(t *testing.T) {
-		statusCode, response, err := getSubscriber(ts.URL, client, "2")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if statusCode != http.StatusOK {
-			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
-		}
-
-		if response.Error != "" {
-			t.Fatalf("expected error %q, got %q", "", response.Error)
-		}
-
-		if response.Result.ID != 2 {
-			t.Fatalf("expected id %d, got %d", 2, response.Result.ID)
 		}
 
 		if response.Result.IMSI != "IMSI2" {
@@ -376,7 +335,7 @@ func TestSubscribersHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("List subscribers - 1", func(t *testing.T) {
+	t.Run("List subscribers - 0", func(t *testing.T) {
 		statusCode, response, err := listSubscribers(ts.URL, client)
 		if err != nil {
 			t.Fatal(err)
@@ -390,8 +349,8 @@ func TestSubscribersHandlers(t *testing.T) {
 			t.Fatalf("expected error %q, got %q", "", response.Error)
 		}
 
-		if len(response.Result) != 1 {
-			t.Fatalf("expected result %v, got %v", []int{2}, response.Result)
+		if len(response.Result) != 0 {
+			t.Fatalf("expected result %v, got %v", []int{}, response.Result)
 		}
 	})
 }

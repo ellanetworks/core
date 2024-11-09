@@ -140,6 +140,10 @@ func CreateDeviceGroup(env *HandlerConfig) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, "`traffic_class_qci` is required")
 			return
 		}
+		if deviceGroup.NetworkSliceId <= 0 {
+			writeError(w, http.StatusBadRequest, "`network_slice_id` is required")
+			return
+		}
 
 		var networkSliceId sql.NullInt64
 		if deviceGroup.NetworkSliceId != 0 {
