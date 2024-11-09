@@ -30,12 +30,9 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/tim-ywliu/event v0.1.0
 	github.com/wmnsk/go-pfcp v0.0.24
-	github.com/yeastengine/config5g v0.0.0-20240624120332-b75c495fdf84
 	go.mongodb.org/mongo-driver v1.11.9
 	golang.org/x/exp v0.0.0-20240103183307-be819d1f06fc
 	golang.org/x/sys v0.26.0
-	google.golang.org/grpc v1.67.1
-	google.golang.org/protobuf v1.35.1
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -88,7 +85,7 @@ require (
 	golang.org/x/oauth2 v0.23.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240814211410-ddb44dafa142 // indirect
+	google.golang.org/protobuf v1.35.1 // indirect
 	gopkg.in/h2non/gock.v1 v1.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
