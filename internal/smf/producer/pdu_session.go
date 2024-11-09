@@ -16,6 +16,7 @@ import (
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/smf/consumer"
 	smf_context "github.com/yeastengine/ella/internal/smf/context"
+	"github.com/yeastengine/ella/internal/smf/db"
 	"github.com/yeastengine/ella/internal/smf/logger"
 	pfcp_message "github.com/yeastengine/ella/internal/smf/pfcp/message"
 	"github.com/yeastengine/ella/internal/smf/qos"
@@ -95,8 +96,8 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 	defer smContext.SMLock.Unlock()
 
 	// DNN Information from config
-	smContext.DNNInfo = smf_context.RetrieveDnnInformation(*createData.SNssai, createData.Dnn)
-	if smContext.DNNInfo == nil {
+	dnnInfo := db.RetrieveDnnInformation(*createData.SNssai, createData.Dnn)
+	if dnnInfo == nil {
 		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, S-NSSAI[sst: %d, sd: %s] DNN[%s] not matched DNN Config",
 			createData.SNssai.Sst, createData.SNssai.Sd, createData.Dnn)
 		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("DnnNotSupported")
@@ -110,7 +111,7 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 	smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, send NF Discovery Serving UDM Successful")
 
 	// IP Allocation
-	if ip, err := smContext.DNNInfo.UeIPAllocator.Allocate(smContext.Supi); err != nil {
+	if ip, err := db.AllocateIP(smContext.Supi); err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, failed allocate IP address: ", err)
 		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("IpAllocError")
 		return fmt.Errorf("IpAllocError")

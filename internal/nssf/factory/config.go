@@ -23,7 +23,6 @@ type Configuration struct {
 	DBQueries                *sql.Queries
 	Sbi                      *Sbi                    `yaml:"sbi"`
 	ServiceNameList          []models.ServiceName    `yaml:"serviceNameList"`
-	WebuiUri                 string                  `yaml:"webuiUri"`
 	SupportedPlmnList        []models.PlmnId         `yaml:"supportedPlmnList,omitempty"`
 	SupportedNssaiInPlmnList []SupportedNssaiInPlmn  `yaml:"supportedNssaiInPlmnList"`
 	NsiList                  []NsiConfig             `yaml:"nsiList,omitempty"`

@@ -142,7 +142,7 @@ func addSubscriberToUDR(queries *db.Queries, subscriber db.Subscriber) error {
 	if err != nil {
 		return err
 	}
-	networkSlice, err := queries.GetNetworkSlice(context.Background(), deviceGroup.NetworkSliceID.Int64)
+	networkSlice, err := queries.GetNetworkSlice(context.Background(), deviceGroup.NetworkSliceID)
 	if err != nil {
 		return err
 	}
@@ -159,7 +159,7 @@ func deregisterSubscriberFromAMF(queries *db.Queries, subscriber db.Subscriber) 
 	if err != nil {
 		return err
 	}
-	networkSlice, err := queries.GetNetworkSlice(context.Background(), deviceGroup.NetworkSliceID.Int64)
+	networkSlice, err := queries.GetNetworkSlice(context.Background(), deviceGroup.NetworkSliceID)
 	if err != nil {
 		return err
 	}

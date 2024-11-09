@@ -14,6 +14,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/sirupsen/logrus"
+	"github.com/yeastengine/ella/internal/smf/db"
 	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/qos"
 	errors "github.com/yeastengine/ella/internal/smf/smferrors"
@@ -103,7 +104,7 @@ type SMContext struct {
 
 	BPManager *BPManager `json:"bpManager,omitempty" yaml:"bpManager" bson:"bpManager,omitempty"` // ignore
 
-	DNNInfo *SnssaiSmfDnnInfo `json:"dnnInfo,omitempty" yaml:"dnnInfo" bson:"dnnInfo,omitempty"`
+	// DNNInfo *SnssaiSmfDnnInfo `json:"dnnInfo,omitempty" yaml:"dnnInfo" bson:"dnnInfo,omitempty"`
 
 	// PCO Related
 	ProtocolConfigurationOptions *ProtocolConfigurationOptions `json:"protocolConfigurationOptions" yaml:"protocolConfigurationOptions" bson:"protocolConfigurationOptions"` // ignore
@@ -271,7 +272,7 @@ func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
 func (smContext *SMContext) ReleaseUeIpAddr() error {
 	if ip := smContext.PDUAddress.Ip; ip != nil && !smContext.PDUAddress.UpfProvided {
 		smContext.SubPduSessLog.Infof("Release IP[%s]", smContext.PDUAddress.Ip.String())
-		smContext.DNNInfo.UeIPAllocator.Release(smContext.Supi, ip)
+		db.ReleaseIP(smContext.Supi)
 		smContext.PDUAddress.Ip = net.IPv4(0, 0, 0, 0)
 	}
 	return nil

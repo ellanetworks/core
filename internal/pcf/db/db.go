@@ -70,7 +70,7 @@ func GetSubscriberPolicy(imsi string) (*pcf_context.PcfSubscriberPolicyData, err
 		return nil, fmt.Errorf("couldn't get device group: %w", err)
 	}
 	networkSliceID := deviceGroup.NetworkSliceID
-	networkSlice, err := queries.GetNetworkSlice(context.Background(), networkSliceID.Int64)
+	networkSlice, err := queries.GetNetworkSlice(context.Background(), networkSliceID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get network slice: %w", err)
 	}

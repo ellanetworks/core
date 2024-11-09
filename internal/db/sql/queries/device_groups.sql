@@ -17,7 +17,7 @@ ORDER BY id;
 
 -- name: CreateDeviceGroup :one
 INSERT INTO device_groups (
-  name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id
+  name, site_info, ip_domain_name, dnn, ue_ip_pool_id, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id
 ) VALUES (
   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )

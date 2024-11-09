@@ -8,10 +8,12 @@ import (
 	"github.com/yeastengine/ella/internal/amf"
 	"github.com/yeastengine/ella/internal/ausf"
 	"github.com/yeastengine/ella/internal/config"
+	"github.com/yeastengine/ella/internal/db/mongodb"
 	"github.com/yeastengine/ella/internal/db/sql"
 	"github.com/yeastengine/ella/internal/nssf"
 	"github.com/yeastengine/ella/internal/pcf"
 	"github.com/yeastengine/ella/internal/server"
+	"github.com/yeastengine/ella/internal/smf"
 	"github.com/yeastengine/ella/internal/udm"
 	"github.com/yeastengine/ella/internal/udr"
 	"github.com/yeastengine/ella/internal/upf"
@@ -41,10 +43,6 @@ func startNetwork(cfg config.Config, dbQueries *sql.Queries) error {
 	if err != nil {
 		return err
 	}
-	// webuiUrl, err := webui.Start(cfg.DB.Mongo.Url, cfg.DB.Mongo.Name)
-	// if err != nil {
-	// 	return err
-	// }
 	err = amf.Start(ausfUrl, nssfUrl, pcfUrl, smfUrl, udmUrl, udmUrl, dbQueries)
 	if err != nil {
 		return err
@@ -69,10 +67,10 @@ func startNetwork(cfg config.Config, dbQueries *sql.Queries) error {
 	if err != nil {
 		return err
 	}
-	// err = smf.Start(amfUrl, pcfUrl, udmUrl, webuiUrl)
-	// if err != nil {
-	// 	return err
-	// }
+	err = smf.Start(amfUrl, pcfUrl, udmUrl, dbQueries)
+	if err != nil {
+		return err
+	}
 	err = upf.Start(cfg.UPF.Interfaces, cfg.UPF.N3Address)
 	if err != nil {
 		return err
@@ -94,14 +92,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("Couldn't validate config file: %s", err)
 	}
-	// err = mongodb.TestConnection(cfg.DB.Mongo.Url)
-	// if err != nil {
-	// 	log.Fatalf("failed to connect to MongoDB: %v", err)
-	// }
+	log.Println("config file is valid")
+	err = mongodb.TestConnection(cfg.DB.Mongo.Url)
+	if err != nil {
+		log.Fatalf("failed mongodb test connection: %v", err)
+	}
 	dbQueries, err := sql.Initialize(cfg.DB.Sql.Path)
 	if err != nil {
 		log.Fatalf("Couldn't initialize sql database: %s", err)
 	}
+	log.Println("sql database is initialized")
 	err = startNetwork(cfg, dbQueries)
 	if err != nil {
 		panic(err)

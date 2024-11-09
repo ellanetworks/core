@@ -159,12 +159,30 @@ func CreateDeviceGroup(env *HandlerConfig) http.HandlerFunc {
 			}
 		}
 
+		var poolID int64
+		existingPool, err := env.DBQueries.GetIPPoolByCIDR(context.Background(), deviceGroup.UeIpPool)
+		if err == sql.ErrNoRows {
+			newPool, err := env.DBQueries.CreateIPPool(context.Background(), deviceGroup.UeIpPool)
+			if err != nil {
+				log.Println("failed to create IP pool:", err)
+				writeError(w, http.StatusInternalServerError, "internal error creating IP pool")
+				return
+			}
+			poolID = newPool
+		} else if err != nil {
+			log.Println("failed to check existing IP pool:", err)
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		} else {
+			poolID = existingPool.ID
+		}
+
 		dbDeviceGroup := db.CreateDeviceGroupParams{
 			Name:             deviceGroup.Name,
 			SiteInfo:         deviceGroup.SiteInfo,
 			IpDomainName:     deviceGroup.IpDomainName,
 			Dnn:              deviceGroup.Dnn,
-			UeIpPool:         deviceGroup.UeIpPool,
+			UeIpPoolID:       poolID,
 			DnsPrimary:       deviceGroup.DnsPrimary,
 			Mtu:              deviceGroup.Mtu,
 			DnnMbrUplink:     deviceGroup.DnnMbrUplink,
@@ -174,7 +192,7 @@ func CreateDeviceGroup(env *HandlerConfig) http.HandlerFunc {
 			TrafficClassPdb:  deviceGroup.TrafficClassPdb,
 			TrafficClassPelr: deviceGroup.TrafficClassPelr,
 			TrafficClassQci:  deviceGroup.TrafficClassQci,
-			NetworkSliceID:   networkSliceId,
+			NetworkSliceID:   networkSliceId.Int64,
 		}
 		newDeviceGroup, err := env.DBQueries.CreateDeviceGroup(context.Background(), dbDeviceGroup)
 		if err != nil {
@@ -212,13 +230,20 @@ func GetDeviceGroup(env *HandlerConfig) http.HandlerFunc {
 			return
 		}
 
+		ueIpPool, err := env.DBQueries.GetIPPoolCIDR(context.Background(), deviceGroup.UeIpPoolID)
+		if err != nil {
+			log.Println(err)
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+
 		deviceGroupResponse := GetDeviceGroupResponse{
 			ID:               deviceGroup.ID,
 			Name:             deviceGroup.Name,
 			SiteInfo:         deviceGroup.SiteInfo,
 			IpDomainName:     deviceGroup.IpDomainName,
 			Dnn:              deviceGroup.Dnn,
-			UeIpPool:         deviceGroup.UeIpPool,
+			UeIpPool:         ueIpPool,
 			DnsPrimary:       deviceGroup.DnsPrimary,
 			Mtu:              deviceGroup.Mtu,
 			DnnMbrUplink:     deviceGroup.DnnMbrUplink,
@@ -228,7 +253,7 @@ func GetDeviceGroup(env *HandlerConfig) http.HandlerFunc {
 			TrafficClassPdb:  deviceGroup.TrafficClassPdb,
 			TrafficClassPelr: deviceGroup.TrafficClassPelr,
 			TrafficClassQci:  deviceGroup.TrafficClassQci,
-			NetworkSliceId:   deviceGroup.NetworkSliceID.Int64,
+			NetworkSliceId:   deviceGroup.NetworkSliceID,
 		}
 
 		w.WriteHeader(http.StatusOK)

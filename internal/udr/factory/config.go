@@ -37,11 +37,3 @@ type Mongodb struct {
 	AuthKeysDbName string `yaml:"authKeysDbName"`
 	AuthUrl        string `yaml:"authUrl"`
 }
-
-// func AddSmPolicyInfo(imsi string, dnn string, snssai models.Snssai) error {
-// 	err := producer.AddEntrySmPolicyTable(imsi, dnn, snssai)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	return nil
-// }

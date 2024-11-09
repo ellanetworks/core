@@ -78,13 +78,6 @@ func (smf *SMF) Start() {
 	initLog.Infof("Configuration is managed by Config Pod")
 	initLog.Infof("waiting for initial configuration from config pod")
 
-	// Main thread should be blocked for config update from ROC
-	// Future config update from ROC can be handled via background go-routine.
-	if <-factory.ConfigPodTrigger {
-		initLog.Infof("minimum configuration from config pod available")
-		context.ProcessConfigUpdate()
-	}
-
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 	oam.AddService(router)
 	callback.AddService(router)

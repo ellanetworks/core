@@ -8,13 +8,21 @@ import (
 	"database/sql"
 )
 
+type AllocatedIP struct {
+	ID          int64
+	Imsi        string
+	IpAddress   string
+	PoolID      int64
+	AllocatedAt sql.NullTime
+}
+
 type DeviceGroup struct {
 	ID               int64
 	Name             string
 	SiteInfo         string
 	IpDomainName     string
 	Dnn              string
-	UeIpPool         string
+	UeIpPoolID       int64
 	DnsPrimary       string
 	Mtu              int64
 	DnnMbrUplink     int64
@@ -24,7 +32,13 @@ type DeviceGroup struct {
 	TrafficClassPdb  int64
 	TrafficClassPelr int64
 	TrafficClassQci  int64
-	NetworkSliceID   sql.NullInt64
+	NetworkSliceID   int64
+}
+
+type IPPool struct {
+	ID            int64
+	DeviceGroupID int64
+	Cidr          string
 }
 
 type NetworkSlice struct {

@@ -7,16 +7,15 @@ package sql
 
 import (
 	"context"
-	"database/sql"
 )
 
 const createDeviceGroup = `-- name: CreateDeviceGroup :one
 INSERT INTO device_groups (
-  name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id
+  name, site_info, ip_domain_name, dnn, ue_ip_pool_id, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id
 ) VALUES (
   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
-RETURNING id, name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id
+RETURNING id, name, site_info, ip_domain_name, dnn, ue_ip_pool_id, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id
 `
 
 type CreateDeviceGroupParams struct {
@@ -24,7 +23,7 @@ type CreateDeviceGroupParams struct {
 	SiteInfo         string
 	IpDomainName     string
 	Dnn              string
-	UeIpPool         string
+	UeIpPoolID       int64
 	DnsPrimary       string
 	Mtu              int64
 	DnnMbrUplink     int64
@@ -34,7 +33,7 @@ type CreateDeviceGroupParams struct {
 	TrafficClassPdb  int64
 	TrafficClassPelr int64
 	TrafficClassQci  int64
-	NetworkSliceID   sql.NullInt64
+	NetworkSliceID   int64
 }
 
 func (q *Queries) CreateDeviceGroup(ctx context.Context, arg CreateDeviceGroupParams) (DeviceGroup, error) {
@@ -43,7 +42,7 @@ func (q *Queries) CreateDeviceGroup(ctx context.Context, arg CreateDeviceGroupPa
 		arg.SiteInfo,
 		arg.IpDomainName,
 		arg.Dnn,
-		arg.UeIpPool,
+		arg.UeIpPoolID,
 		arg.DnsPrimary,
 		arg.Mtu,
 		arg.DnnMbrUplink,
@@ -62,7 +61,7 @@ func (q *Queries) CreateDeviceGroup(ctx context.Context, arg CreateDeviceGroupPa
 		&i.SiteInfo,
 		&i.IpDomainName,
 		&i.Dnn,
-		&i.UeIpPool,
+		&i.UeIpPoolID,
 		&i.DnsPrimary,
 		&i.Mtu,
 		&i.DnnMbrUplink,
@@ -88,7 +87,7 @@ func (q *Queries) DeleteDeviceGroup(ctx context.Context, id int64) error {
 }
 
 const getDeviceGroup = `-- name: GetDeviceGroup :one
-SELECT id, name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id FROM device_groups
+SELECT id, name, site_info, ip_domain_name, dnn, ue_ip_pool_id, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id FROM device_groups
 WHERE id = ? LIMIT 1
 `
 
@@ -101,7 +100,7 @@ func (q *Queries) GetDeviceGroup(ctx context.Context, id int64) (DeviceGroup, er
 		&i.SiteInfo,
 		&i.IpDomainName,
 		&i.Dnn,
-		&i.UeIpPool,
+		&i.UeIpPoolID,
 		&i.DnsPrimary,
 		&i.Mtu,
 		&i.DnnMbrUplink,
@@ -117,7 +116,7 @@ func (q *Queries) GetDeviceGroup(ctx context.Context, id int64) (DeviceGroup, er
 }
 
 const getDeviceGroupByName = `-- name: GetDeviceGroupByName :one
-SELECT id, name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id FROM device_groups
+SELECT id, name, site_info, ip_domain_name, dnn, ue_ip_pool_id, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id FROM device_groups
 WHERE name = ? LIMIT 1
 `
 
@@ -130,7 +129,7 @@ func (q *Queries) GetDeviceGroupByName(ctx context.Context, name string) (Device
 		&i.SiteInfo,
 		&i.IpDomainName,
 		&i.Dnn,
-		&i.UeIpPool,
+		&i.UeIpPoolID,
 		&i.DnsPrimary,
 		&i.Mtu,
 		&i.DnnMbrUplink,
@@ -146,7 +145,7 @@ func (q *Queries) GetDeviceGroupByName(ctx context.Context, name string) (Device
 }
 
 const listDeviceGroups = `-- name: ListDeviceGroups :many
-SELECT id, name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id FROM device_groups
+SELECT id, name, site_info, ip_domain_name, dnn, ue_ip_pool_id, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id FROM device_groups
 ORDER BY id
 `
 
@@ -165,7 +164,7 @@ func (q *Queries) ListDeviceGroups(ctx context.Context) ([]DeviceGroup, error) {
 			&i.SiteInfo,
 			&i.IpDomainName,
 			&i.Dnn,
-			&i.UeIpPool,
+			&i.UeIpPoolID,
 			&i.DnsPrimary,
 			&i.Mtu,
 			&i.DnnMbrUplink,
@@ -191,12 +190,12 @@ func (q *Queries) ListDeviceGroups(ctx context.Context) ([]DeviceGroup, error) {
 }
 
 const listDeviceGroupsByNetworkSliceId = `-- name: ListDeviceGroupsByNetworkSliceId :many
-SELECT id, name, site_info, ip_domain_name, dnn, ue_ip_pool, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id FROM device_groups
+SELECT id, name, site_info, ip_domain_name, dnn, ue_ip_pool_id, dns_primary, mtu, dnn_mbr_uplink, dnn_mbr_downlink, traffic_class_name, traffic_class_arp, traffic_class_pdb, traffic_class_pelr, traffic_class_qci, network_slice_id FROM device_groups
 WHERE network_slice_id = ?
 ORDER BY id
 `
 
-func (q *Queries) ListDeviceGroupsByNetworkSliceId(ctx context.Context, networkSliceID sql.NullInt64) ([]DeviceGroup, error) {
+func (q *Queries) ListDeviceGroupsByNetworkSliceId(ctx context.Context, networkSliceID int64) ([]DeviceGroup, error) {
 	rows, err := q.db.QueryContext(ctx, listDeviceGroupsByNetworkSliceId, networkSliceID)
 	if err != nil {
 		return nil, err
@@ -211,7 +210,7 @@ func (q *Queries) ListDeviceGroupsByNetworkSliceId(ctx context.Context, networkS
 			&i.SiteInfo,
 			&i.IpDomainName,
 			&i.Dnn,
-			&i.UeIpPool,
+			&i.UeIpPoolID,
 			&i.DnsPrimary,
 			&i.Mtu,
 			&i.DnnMbrUplink,
