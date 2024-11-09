@@ -1,6 +1,4 @@
 
-import { NetworkSlice } from "@/components/types";
-
 export const apiListNetworkSlices = async () => {
     try {
         const networkSlicesResponse = await fetch(`/api/v1/network-slices`, {
@@ -89,7 +87,7 @@ export const createNetworkSlice = async ({
 }: CreateNetworkSliceArgs) => {
     const sliceData = {
         "name": name,
-        "sst": "1",
+        "sst": 1,
         "sd": "102030",
         "site_name": "demo",
         "mcc": mcc,

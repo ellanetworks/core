@@ -155,7 +155,6 @@ func CreateDeviceGroup(env *HandlerConfig) http.HandlerFunc {
 			}
 			networkSliceId = sql.NullInt64{
 				Int64: deviceGroup.NetworkSliceId,
-				Valid: true,
 			}
 		}
 

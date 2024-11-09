@@ -1,6 +1,6 @@
-CREATE TABLE IPPool (
+CREATE TABLE IF NOT EXISTS IPPool (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    device_group_id INTEGER NOT NULL,
-    cidr TEXT NOT NULL, -- E.g., "16.0.0.0/24"
-    FOREIGN KEY (device_group_id) REFERENCES DeviceGroup(id) ON DELETE CASCADE
+    device_group_id INTEGER,
+    cidr TEXT NOT NULL,
+    FOREIGN KEY (device_group_id) REFERENCES device_groups(id) ON DELETE CASCADE
 );

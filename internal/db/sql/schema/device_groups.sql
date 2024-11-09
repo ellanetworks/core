@@ -16,5 +16,5 @@ CREATE TABLE IF NOT EXISTS device_groups (
     traffic_class_qci INTEGER NOT NULL,
     network_slice_id INTEGER NOT NULL,
     FOREIGN KEY (network_slice_id) REFERENCES network_slices(id) ON DELETE SET NULL,
-    FOREIGN KEY (ue_ip_pool_id) REFERENCES IPPool(id) ON DELETE SET NULL -- New foreign key
+    FOREIGN KEY (ue_ip_pool_id) REFERENCES IPPool(id) ON DELETE SET NULL
 );

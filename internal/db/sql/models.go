@@ -37,7 +37,7 @@ type DeviceGroup struct {
 
 type IPPool struct {
 	ID            int64
-	DeviceGroupID int64
+	DeviceGroupID sql.NullInt64
 	Cidr          string
 }
 

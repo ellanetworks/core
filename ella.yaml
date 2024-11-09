@@ -9,5 +9,5 @@ db:
   sql:
     path: "sqlite.db"
 upf:
-  interfaces: ["enp3s0"]
+  interfaces: ["wlp131s0"]
   n3-address: "127.0.0.1"
