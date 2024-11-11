@@ -8,11 +8,10 @@ platforms:
   amd64:
 
 services:
-  notary:
+  ella:
     command: ella -config /tmp/ella.yaml
     override: replace
     startup: enabled
-    backoff-delay: 5s
 
 parts:
 

@@ -28,7 +28,7 @@ var radiosTableDdl string
 var subscribersTableDdl string
 
 func Initialize(dbPath string) (*Queries, error) {
-	database, err := sql.Open("sqlite3", dbPath+"?_busy_timeout=5000")
+	database, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, err
 	}
