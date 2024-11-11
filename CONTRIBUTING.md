@@ -32,8 +32,8 @@ npm run build --prefix ui
 ```bash
 sudo snap install rockcraft --classic --edge
 rockcraft pack -v
-sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella_0.0.4_amd64.rock docker-daemon:ella:0.0.4
-docker run ella:0.0.4
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella_0.0.5_amd64.rock docker-daemon:ella:0.0.5
+docker run ella:0.0.5
 ```
 
 ## References

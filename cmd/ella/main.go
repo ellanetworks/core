@@ -79,6 +79,7 @@ func startNetwork(cfg config.Config, dbQueries *sql.Queries) error {
 }
 
 func main() {
+	log.SetOutput(os.Stderr)
 	err := setEnvironmentVariables()
 	if err != nil {
 		log.Fatalf("failed to set environment variables: %v", err)
@@ -99,7 +100,7 @@ func main() {
 	}
 	dbQueries, err := sql.Initialize(cfg.DB.Sql.Path)
 	if err != nil {
-		log.Fatalf("Couldn't initialize sql database: %s", err)
+		log.Fatalf("failed to initialize sql database at %s: %v", cfg.DB.Sql.Path, err)
 	}
 	log.Println("sql database is initialized")
 	err = startNetwork(cfg, dbQueries)
