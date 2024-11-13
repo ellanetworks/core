@@ -7,12 +7,6 @@ description: Ella is a secure, reliable, and easy to operate mobile network.
 platforms:
   amd64:
 
-services:
-  ella:
-    command: ella -config /tmp/ella.yaml
-    override: replace
-    startup: enabled
-
 parts:
 
   ella:

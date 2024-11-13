@@ -32,23 +32,26 @@ func Initialize(dbPath string) (*Queries, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer database.Close()
 
-	if _, err := database.ExecContext(context.Background(), "PRAGMA foreign_keys = ON;"); err != nil {
+	ctx := context.Background()
+
+	if _, err := database.ExecContext(ctx, "PRAGMA foreign_keys = ON;"); err != nil {
 		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
 	}
-	if _, err := database.ExecContext(context.Background(), allocatedIpsTableDdl); err != nil {
+	if _, err := database.ExecContext(ctx, allocatedIpsTableDdl); err != nil {
 		return nil, err
 	}
-	if _, err := database.ExecContext(context.Background(), deviceGroupsTableDdl); err != nil {
+	if _, err := database.ExecContext(ctx, deviceGroupsTableDdl); err != nil {
 		return nil, err
 	}
-	if _, err := database.ExecContext(context.Background(), ipPoolsTableDdl); err != nil {
+	if _, err := database.ExecContext(ctx, ipPoolsTableDdl); err != nil {
 		return nil, err
 	}
-	if _, err := database.ExecContext(context.Background(), networkSlicesTableDdl); err != nil {
+	if _, err := database.ExecContext(ctx, networkSlicesTableDdl); err != nil {
 		return nil, err
 	}
-	if _, err := database.ExecContext(context.Background(), radiosTableDdl); err != nil {
+	if _, err := database.ExecContext(ctx, radiosTableDdl); err != nil {
 		return nil, err
 	}
 	if _, err := database.ExecContext(context.Background(), subscribersTableDdl); err != nil {
