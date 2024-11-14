@@ -32,7 +32,6 @@ func Initialize(dbPath string) (*Queries, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer database.Close()
 
 	ctx := context.Background()
 
