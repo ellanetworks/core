@@ -3,4 +3,5 @@ export const queryKeys = {
   networkSlices: "network-slices",
   subscribers: "subscribers",
   radios: "radios",
+  upfs: "upfs",
 };

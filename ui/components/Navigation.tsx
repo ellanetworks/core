@@ -93,7 +93,7 @@ const Navigation: FC = () => {
                     >
                       <Icon
                         className="is-light p-side-navigation__icon"
-                        name="units"
+                        name="profiles"
                       />{" "}
                       Device Groups
                     </a>
@@ -109,9 +109,25 @@ const Navigation: FC = () => {
                     >
                       <Icon
                         className="is-light p-side-navigation__icon"
-                        name="profile"
+                        name="user-group"
                       />{" "}
                       Subscribers
+                    </a>
+                  </li>
+                  <li className="p-side-navigation__item">
+                    <a
+                      className="p-side-navigation__link"
+                      href={`/upfs`}
+                      title={`UPFs`}
+                      aria-current={
+                        pathname === "/upfs" ? "page" : undefined
+                      }
+                    >
+                      <Icon
+                        className="is-light p-side-navigation__icon"
+                        name="machines"
+                      />{" "}
+                      UPFs
                     </a>
                   </li>
                   <li className="p-side-navigation__item">

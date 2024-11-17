@@ -67,3 +67,9 @@ type Subscriber struct {
 	SequenceNumber string
 	DeviceGroupID  sql.NullInt64
 }
+
+type Upf struct {
+	ID             int64
+	Name           string
+	NetworkSliceID sql.NullInt64
+}

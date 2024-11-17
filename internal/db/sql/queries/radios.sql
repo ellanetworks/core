@@ -10,7 +10,6 @@ WHERE name = ? LIMIT 1;
 SELECT * FROM radios
 ORDER BY id;
 
-
 -- name: CreateRadio :one
 INSERT INTO radios (
   name, tac, network_slice_id

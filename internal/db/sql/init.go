@@ -24,6 +24,9 @@ var networkSlicesTableDdl string
 //go:embed schema/radios.sql
 var radiosTableDdl string
 
+//go:embed schema/upfs.sql
+var upfsTableDdl string
+
 //go:embed schema/subscribers.sql
 var subscribersTableDdl string
 
@@ -53,7 +56,10 @@ func Initialize(dbPath string) (*Queries, error) {
 	if _, err := database.ExecContext(ctx, radiosTableDdl); err != nil {
 		return nil, err
 	}
-	if _, err := database.ExecContext(context.Background(), subscribersTableDdl); err != nil {
+	if _, err := database.ExecContext(ctx, upfsTableDdl); err != nil {
+		return nil, err
+	}
+	if _, err := database.ExecContext(ctx, subscribersTableDdl); err != nil {
 		return nil, err
 	}
 

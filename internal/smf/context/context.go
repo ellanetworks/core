@@ -41,7 +41,7 @@ type SMFContext struct {
 
 	SubscriberDataManagementClient *Nudm_SubscriberDataManagement.APIClient
 
-	UserPlaneInformation *UserPlaneInformation
+	// UserPlaneInformation *UserPlaneInformation
 
 	// Now only "IPv4" supported
 	// TODO: support "IPv6", "IPv4v6", "Ethernet"
@@ -84,10 +84,7 @@ func InitSmfContext(config *factory.Config) *SMFContext {
 
 	logger.CtxLog.Infof("smfconfig Info: Version[%s] Description[%s]", config.Info.Version, config.Info.Description)
 	configuration := config.Configuration
-	if configuration.SmfName != "" {
-		smfContext.Name = configuration.SmfName
-	}
-
+	smfContext.Name = configuration.SmfName
 	sbi := configuration.Sbi
 	smfContext.URIScheme = models.UriScheme_HTTP
 	smfContext.SBIPort = configuration.Sbi.Port
@@ -123,7 +120,7 @@ func InitSmfContext(config *factory.Config) *SMFContext {
 	}
 	smfContext.ULCLSupport = configuration.ULCL
 	smfContext.SupportedPDUSessionType = IPV4
-	smfContext.UserPlaneInformation = NewUserPlaneInformation(&configuration.UserPlaneInformation)
+	// smfContext.UserPlaneInformation = NewUserPlaneInformation(&configuration.UserPlaneInformation)
 	smfContext.PodIp = os.Getenv("POD_IP")
 	return &smfContext
 }

@@ -13,6 +13,12 @@ func NewEllaRouter(config *HandlerConfig) http.Handler {
 	apiV1Router.HandleFunc("DELETE /inventory/radios/{id}", DeleteRadio(config))
 	apiV1Router.HandleFunc("POST /inventory/radios", CreateRadio(config))
 
+	// Inventory (UPFs)
+	apiV1Router.HandleFunc("GET /inventory/upfs", ListUPFs(config))
+	apiV1Router.HandleFunc("GET /inventory/upfs/{id}", GetUPF(config))
+	apiV1Router.HandleFunc("DELETE /inventory/upfs/{id}", DeleteUPF(config))
+	apiV1Router.HandleFunc("POST /inventory/upfs", CreateUPF(config))
+
 	// Subscribers
 	apiV1Router.HandleFunc("GET /subscribers", ListSubscribers(config))
 	apiV1Router.HandleFunc("GET /subscribers/{id}", GetSubscriber(config))

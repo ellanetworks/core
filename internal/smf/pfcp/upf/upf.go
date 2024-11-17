@@ -16,8 +16,11 @@ const (
 
 func InitPfcpHeartbeatRequest(userplane *context.UserPlaneInformation) {
 	// Iterate through all UPFs and send heartbeat to active UPFs
+	logger.PfcpLog.Infof("Initiating PFCP heartbeat request")
 	for {
 		time.Sleep(maxHeartbeatInterval * time.Second)
+		logger.PfcpLog.Infof("Sending PFCP heartbeat request to UPFs")
+		logger.PfcpLog.Infof("UPFs: %v", userplane.UPFs)
 		for _, upf := range userplane.UPFs {
 			upf.UPF.UpfLock.Lock()
 			if (upf.UPF.UPFStatus == context.AssociatedSetUpSuccess) && upf.UPF.NHeartBeat < maxHeartbeatRetry {
