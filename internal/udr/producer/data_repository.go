@@ -1587,7 +1587,7 @@ func HandlePolicyDataUesUeIdSmDataPatch(request *httpwrapper.Request) *httpwrapp
 		}
 	}
 
-	logger.DataRepoLog.Infof("Successfully patched usage monitoring data for ueId:", ueId)
+	logger.DataRepoLog.Infoln("Successfully patched usage monitoring data for ueId:", ueId)
 	return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
 }
 
