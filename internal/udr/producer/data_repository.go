@@ -1,7 +1,10 @@
 package producer
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -15,6 +18,7 @@ import (
 	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
 	udr_context "github.com/yeastengine/ella/internal/udr/context"
 	"github.com/yeastengine/ella/internal/udr/logger"
+	db "github.com/yeastengine/ella/internal/udr/sql"
 	"github.com/yeastengine/ella/internal/udr/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -26,7 +30,6 @@ const (
 	APPDATA_PFD_DB_COLLECTION_NAME             = "applicationData.pfds"
 	POLICYDATA_BDTDATA                         = "policyData.bdtData"
 	POLICYDATA_UES_OPSPECDATA                  = "policyData.ues.operatorSpecificData"
-	POLICYDATA_UES_SMDATA_USAGEMONDATA         = "policyData.ues.smData.usageMonData"
 	POLICYDATA_UES_UEPOLICYSET                 = "policyData.ues.uePolicySet"
 	SUBSCDATA_CTXDATA_AMF_3GPPACCESS           = "subscriptionData.contextData.amf3gppAccess"
 	SUBSCDATA_CTXDATA_AMF_NON3GPPACCESS        = "subscriptionData.contextData.amfNon3gppAccess"
@@ -62,76 +65,127 @@ func HandleCreateAccessAndMobilityData(request *httpwrapper.Request) *httpwrappe
 	return httpwrapper.NewResponse(http.StatusOK, nil, map[string]interface{}{})
 }
 
-// seems something which we should move to mongolib
-func toBsonM(data interface{}) (ret bson.M) {
-	tmp, err := json.Marshal(data)
-	if err != nil {
-		logger.CfgLog.Infoln("marshal fail ", err)
-	}
-	err = json.Unmarshal(tmp, &ret)
-	if err != nil {
-		logger.CfgLog.Infoln("unmarshal fail ", err)
-	}
-	return
-}
-
 // AddEntrySmPolicyTable ... write table entries into policyData.ues.smData
+// func AddEntrySmPolicyTable(imsi string, dnn string, snssai *protos.NSSAI) error {
+// 	logger.CfgLog.Infoln("AddEntrySmPolicyTable")
+// 	collName := "policyData.ues.smData"
+// 	var addUeId bool
+// 	logger.CfgLog.Infoln("collname, imsi, dnn, sst, sd : ", collName, imsi, dnn, snssai.Sst, snssai.Sd)
+// 	ueID := "imsi-"
+// 	ueID += imsi
+
+// 	sval, err := strconv.ParseUint(snssai.Sst, 10, 32)
+// 	if err != nil {
+// 		logger.CfgLog.Infoln("parse fail for sst ", err)
+// 		return err
+// 	}
+// 	filter := bson.M{"ueId": ueID}
+// 	modelNssai := models.Snssai{
+// 		Sd:  snssai.Sd,
+// 		Sst: int32(sval),
+// 	}
+// 	smPolicyData, errGetOne := CommonDBClient.RestfulAPIGetOne(collName, filter)
+// 	if errGetOne != nil {
+// 		logger.DataRepoLog.Warnln(errGetOne)
+// 	}
+// 	var smPolicyDataWrite models.SmPolicyData
+// 	if smPolicyData != nil {
+// 		err := json.Unmarshal(util.MapToByte(smPolicyData), &smPolicyDataWrite)
+// 		if err != nil {
+// 			logger.DataRepoLog.Warnln(err)
+// 			return err
+// 		}
+// 	} else {
+// 		smPolicyDataWrite.SmPolicySnssaiData = make(map[string]models.SmPolicySnssaiData)
+// 		addUeId = true
+// 	}
+
+// 	smPolicySnssaiData := models.SmPolicySnssaiData{
+// 		Snssai: &modelNssai,
+// 		SmPolicyDnnData: map[string]models.SmPolicyDnnData{
+// 			dnn: {
+// 				Dnn: dnn,
+// 			},
+// 		},
+// 	}
+
+// 	for key, value := range smPolicyDataWrite.SmPolicySnssaiData {
+// 		logger.CfgLog.Infoln("entry in DB key  ", key)
+// 		logger.CfgLog.Infoln("entry in DB val  ", value)
+// 	}
+// 	smPolicyDataWrite.SmPolicySnssaiData[util.SnssaiModelsToHex(modelNssai)] = smPolicySnssaiData
+// 	smPolicyDataBsonM := toBsonM(smPolicyDataWrite)
+// 	if addUeId {
+// 		smPolicyDataBsonM["ueId"] = ueID
+// 	}
+// 	_, errPost := CommonDBClient.RestfulAPIPost(collName, filter, smPolicyDataBsonM)
+// 	if errPost != nil {
+// 		logger.DataRepoLog.Warnln(errPost)
+// 	}
+// 	return nil
+// }
+
 func AddEntrySmPolicyTable(imsi string, dnn string, snssai *protos.NSSAI) error {
 	logger.CfgLog.Infoln("AddEntrySmPolicyTable")
-	collName := "policyData.ues.smData"
-	var addUeId bool
-	logger.CfgLog.Infoln("collname, imsi, dnn, sst, sd : ", collName, imsi, dnn, snssai.Sst, snssai.Sd)
-	ueID := "imsi-"
-	ueID += imsi
 
+	udrSelf := udr_context.UDR_Self()
+	dBQueries := udrSelf.Sql.Queries
+
+	// Generate UE ID
+	ueID := "imsi-" + imsi
+	logger.CfgLog.Infoln("ueID:", ueID, "dnn:", dnn, "sst:", snssai.Sst, "sd:", snssai.Sd)
+
+	// Parse SST
 	sval, err := strconv.ParseUint(snssai.Sst, 10, 32)
 	if err != nil {
-		logger.CfgLog.Infoln("parse fail for sst ", err)
+		logger.CfgLog.Warnln("Failed to parse SST:", err)
 		return err
 	}
-	filter := bson.M{"ueId": ueID}
+
+	// Check if the policy data for the UE already exists
+	policyData, err := dBQueries.GetSMPolicyDataByUeId(context.Background(), ueID)
+	if err != nil && err != sql.ErrNoRows {
+		logger.CfgLog.Warnln("Error querying SM policy data:", err)
+		return err
+	}
+
+	var smPolicyID int64
+	if err == sql.ErrNoRows {
+		// Insert a new SM Policy Data entry if it doesn't exist
+		logger.CfgLog.Infoln("Creating new SM Policy Data entry for ueID:", ueID)
+		result, err := dBQueries.CreateSMPolicyData(context.Background(), ueID)
+		if err != nil {
+			logger.CfgLog.Warnln("Error creating SM Policy Data:", err)
+			return err
+		}
+		smPolicyID = result.ID
+	} else {
+		// Use the existing SM Policy Data entry
+		smPolicyID = policyData.ID
+		logger.CfgLog.Infoln("Found existing SM Policy Data entry for ueID:", ueID)
+	}
+
+	// Prepare the SNSSAI and DNN data
 	modelNssai := models.Snssai{
 		Sd:  snssai.Sd,
 		Sst: int32(sval),
 	}
-	smPolicyData, errGetOne := CommonDBClient.RestfulAPIGetOne(collName, filter)
-	if errGetOne != nil {
-		logger.DataRepoLog.Warnln(errGetOne)
-	}
-	var smPolicyDataWrite models.SmPolicyData
-	if smPolicyData != nil {
-		err := json.Unmarshal(util.MapToByte(smPolicyData), &smPolicyDataWrite)
-		if err != nil {
-			logger.DataRepoLog.Warnln(err)
-			return err
-		}
-	} else {
-		smPolicyDataWrite.SmPolicySnssaiData = make(map[string]models.SmPolicySnssaiData)
-		addUeId = true
+
+	snssaiKey := util.SnssaiModelsToHex(modelNssai)
+
+	// Insert or update SNSSAI data
+	logger.CfgLog.Infoln("Inserting or updating SNSSAI data with key:", snssaiKey)
+	err = dBQueries.InsertOrUpdateSmPolicySnssaiData(context.Background(), db.InsertOrUpdateSmPolicySnssaiDataParams{
+		SmPolicyDataID: smPolicyID,
+		SnssaiSd:       snssai.Sd,
+		SnssaiSst:      int64(sval),
+	})
+	if err != nil {
+		logger.CfgLog.Warnln("Error inserting/updating SNSSAI data:", err)
+		return err
 	}
 
-	smPolicySnssaiData := models.SmPolicySnssaiData{
-		Snssai: &modelNssai,
-		SmPolicyDnnData: map[string]models.SmPolicyDnnData{
-			dnn: {
-				Dnn: dnn,
-			},
-		},
-	}
-
-	for key, value := range smPolicyDataWrite.SmPolicySnssaiData {
-		logger.CfgLog.Infoln("entry in DB key  ", key)
-		logger.CfgLog.Infoln("entry in DB val  ", value)
-	}
-	smPolicyDataWrite.SmPolicySnssaiData[util.SnssaiModelsToHex(modelNssai)] = smPolicySnssaiData
-	smPolicyDataBsonM := toBsonM(smPolicyDataWrite)
-	if addUeId {
-		smPolicyDataBsonM["ueId"] = ueID
-	}
-	_, errPost := CommonDBClient.RestfulAPIPost(collName, filter, smPolicyDataBsonM)
-	if errPost != nil {
-		logger.DataRepoLog.Warnln(errPost)
-	}
+	logger.CfgLog.Infoln("Successfully added/updated SM Policy Data for ueID:", ueID)
 	return nil
 }
 
@@ -1455,159 +1509,291 @@ func HandlePolicyDataUesUeIdSmDataGet(request *httpwrapper.Request) *httpwrapper
 	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
 }
 
-func PolicyDataUesUeIdSmDataGetProcedure(collName string, ueId string, snssai models.Snssai,
+func PolicyDataUesUeIdSmDataGetProcedure(
+	collName string,
+	ueId string,
+	snssai models.Snssai,
 	dnn string,
 ) (*models.SmPolicyData, *models.ProblemDetails) {
-	filter := bson.M{"ueId": ueId}
+	udrSelf := udr_context.UDR_Self()
+	dBQueries := udrSelf.Sql.Queries
 
-	if !reflect.DeepEqual(snssai, models.Snssai{}) {
-		filter["smPolicySnssaiData."+util.SnssaiModelsToHex(snssai)] = bson.M{"$exists": true}
-	}
-	if !reflect.DeepEqual(snssai, models.Snssai{}) && dnn != "" {
-		filter["smPolicySnssaiData."+util.SnssaiModelsToHex(snssai)+".smPolicyDnnData."+dnn] = bson.M{"$exists": true}
+	// Fetch SM Policy Data
+	smPolicyData, err := dBQueries.GetSMPolicyDataByUeId(context.Background(), ueId)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			logger.DataRepoLog.Warnln("No SM Policy Data found for UE ID:", ueId)
+			return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
+		}
+		logger.DataRepoLog.Warnln("Error fetching SM Policy Data:", err)
+		return nil, util.ProblemDetailsInternalError("could not fetch SM Policy Data")
 	}
 
-	smPolicyData, errGetOne := CommonDBClient.RestfulAPIGetOne(collName, filter)
-	if errGetOne != nil {
-		logger.DataRepoLog.Warnln(errGetOne)
+	// Fetch SNSSAI Data
+	snssaiRows, err := dBQueries.GetSmPolicySnssaiDataByPolicyId(context.Background(), smPolicyData.ID)
+	if err != nil {
+		logger.DataRepoLog.Warnln("Error fetching SNSSAI data:", err)
+		return nil, util.ProblemDetailsInternalError("could not fetch SNSSAI data")
 	}
-	if smPolicyData != nil {
-		var smPolicyDataResp models.SmPolicyData
-		err := json.Unmarshal(util.MapToByte(smPolicyData), &smPolicyDataResp)
+
+	// Build response
+	smPolicyDataResp := models.SmPolicyData{
+		SmPolicySnssaiData: make(map[string]models.SmPolicySnssaiData),
+	}
+
+	for _, snssaiRow := range snssaiRows {
+		// Create SNSSAI Key
+		snssai := models.Snssai{
+			Sd:  snssaiRow.SnssaiSd,
+			Sst: int32(snssaiRow.SnssaiSst),
+		}
+		snssaiKey := util.SnssaiModelsToHex(snssai)
+
+		// Fetch DNN Data
+		dnnRows, err := dBQueries.GetSmPolicyDnnDataBySnssaiId(context.Background(), snssaiRow.ID)
 		if err != nil {
-			logger.DataRepoLog.Warnln(err)
+			logger.DataRepoLog.Warnln("Error fetching DNN data:", err)
+			return nil, util.ProblemDetailsInternalError("could not fetch DNN data")
 		}
-		{
-			collName := POLICYDATA_UES_SMDATA_USAGEMONDATA
-			filter := bson.M{"ueId": ueId}
-			usageMonDataMapArray, errGetMany := CommonDBClient.RestfulAPIGetMany(collName, filter)
-			if errGetMany != nil {
-				logger.DataRepoLog.Warnln(errGetMany)
-			}
 
-			if !reflect.DeepEqual(usageMonDataMapArray, []map[string]interface{}{}) {
-				var usageMonDataArray []models.UsageMonData
-				err = json.Unmarshal(util.MapArrayToByte(usageMonDataMapArray), &usageMonDataArray)
-				if err != nil {
-					logger.DataRepoLog.Warnln(err)
-				}
-				smPolicyDataResp.UmData = make(map[string]models.UsageMonData)
-				for _, element := range usageMonDataArray {
-					smPolicyDataResp.UmData[element.LimitId] = element
-				}
-			}
+		// Build DNN Data
+		dnnData := make(map[string]models.SmPolicyDnnData)
+		for _, dnnRow := range dnnRows {
+			dnnData[dnnRow.Dnn] = models.SmPolicyDnnData{Dnn: dnnRow.Dnn}
 		}
-		return &smPolicyDataResp, nil
-	} else {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
+
+		// Add SNSSAI Data to response
+		smPolicyDataResp.SmPolicySnssaiData[snssaiKey] = models.SmPolicySnssaiData{
+			Snssai: &models.Snssai{
+				Sd:  snssaiRow.SnssaiSd,
+				Sst: int32(snssaiRow.SnssaiSst),
+			},
+			SmPolicyDnnData: dnnData,
+		}
 	}
+
+	return &smPolicyDataResp, nil
 }
 
 func HandlePolicyDataUesUeIdSmDataPatch(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.DataRepoLog.Infof("Handle PolicyDataUesUeIdSmDataPatch")
 
-	collName := POLICYDATA_UES_SMDATA_USAGEMONDATA
+	udrSelf := udr_context.UDR_Self()
+	dBQueries := udrSelf.Sql.Queries
+
+	// Extract UE ID and usage monitoring data from the request
 	ueId := request.Params["ueId"]
 	usageMonData := request.Body.(map[string]models.UsageMonData)
 
-	problemDetails := PolicyDataUesUeIdSmDataPatchProcedure(collName, ueId, usageMonData)
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	// Iterate over each Usage Monitoring Data entry
+	for limitId, data := range usageMonData {
+		// Prepare JSON fields
+		allowedUsageJSON, err := json.Marshal(data.AllowedUsage)
+		if err != nil {
+			logger.DataRepoLog.Warnln("Failed to marshal allowedUsage for limitId:", limitId, err)
+			return httpwrapper.NewResponse(http.StatusInternalServerError, nil, util.ProblemDetailsInternalError("could not marshal allowedUsage"))
+		}
+		resetTimeJSON, err := json.Marshal(data.ResetTime)
+		if err != nil {
+			logger.DataRepoLog.Warnln("Failed to marshal resetTime for limitId:", limitId, err)
+			return httpwrapper.NewResponse(http.StatusInternalServerError, nil, util.ProblemDetailsInternalError("could not marshal resetTime"))
+		}
+
+		// Insert or update Usage Monitoring Data
+		err = dBQueries.InsertOrUpdateUsageMonData(context.Background(), db.InsertOrUpdateUsageMonDataParams{
+			UeID:         ueId,
+			LimitID:      limitId,
+			UmLevel:      string(data.UmLevel),
+			AllowedUsage: string(allowedUsageJSON),
+			ResetTime:    string(resetTimeJSON),
+		})
+		if err != nil {
+			logger.DataRepoLog.Warnln("Failed to insert or update usage monitoring data for limitId:", limitId, err)
+			return httpwrapper.NewResponse(http.StatusInternalServerError, nil, util.ProblemDetailsInternalError("could not insert or update usage monitoring data"))
+		}
+
+		// Fetch the ID of the updated or inserted record
+		params := db.GetUsageMonDataIDParams{
+			UeID:    ueId,
+			LimitID: limitId,
+		}
+		usageMonDataID, err := dBQueries.GetUsageMonDataID(context.Background(), params)
+		if err != nil {
+			logger.DataRepoLog.Warnln("Failed to fetch UsageMonData ID for limitId:", limitId, err)
+			return httpwrapper.NewResponse(http.StatusInternalServerError, nil, util.ProblemDetailsInternalError("could not fetch UsageMonData ID"))
+		}
+
+		// Delete existing Scopes
+		err = dBQueries.DeleteUsageMonDataScopesById(context.Background(), usageMonDataID)
+		if err != nil {
+			logger.DataRepoLog.Warnln("Failed to delete existing scopes for UsageMonData ID:", usageMonDataID, err)
+			return httpwrapper.NewResponse(http.StatusInternalServerError, nil, util.ProblemDetailsInternalError("could not delete existing scopes"))
+		}
+
+		// Insert new Scopes
+		for scopeKey, scope := range data.Scopes {
+			for _, dnn := range scope.Dnn {
+				err = dBQueries.InsertUsageMonDataScope(context.Background(), db.InsertUsageMonDataScopeParams{
+					UsageMonDataID: usageMonDataID,
+					SnssaiSd:       scope.Snssai.Sd,
+					SnssaiSst:      int64(scope.Snssai.Sst),
+					Dnn:            dnn,
+				})
+				if err != nil {
+					logger.DataRepoLog.Warnln("Failed to insert scope for limitId:", limitId, "ScopeKey:", scopeKey, "DNN:", dnn, err)
+					return httpwrapper.NewResponse(http.StatusInternalServerError, nil, util.ProblemDetailsInternalError("could not insert scope"))
+				}
+			}
+		}
 	}
+
+	logger.DataRepoLog.Infof("Successfully patched usage monitoring data for ueId:", ueId)
+	return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
 }
 
-func PolicyDataUesUeIdSmDataPatchProcedure(collName string, ueId string,
-	UsageMonData map[string]models.UsageMonData,
+func PolicyDataUesUeIdSmDataPatchProcedure(
+	ueId string,
+	usageMonData map[string]models.UsageMonData,
 ) *models.ProblemDetails {
-	filter := bson.M{"ueId": ueId}
-
+	udrSelf := udr_context.UDR_Self()
+	dBQueries := udrSelf.Sql.Queries
 	successAll := true
-	for k, usageMonData := range UsageMonData {
-		limitId := k
-		filterTmp := bson.M{"ueId": ueId, "limitId": limitId}
-		failure := CommonDBClient.RestfulAPIMergePatch(collName, filterTmp, util.ToBsonM(usageMonData))
-		if failure != nil {
+
+	for limitId, data := range usageMonData {
+		// Marshal JSON fields for allowed usage and reset time
+		allowedUsageJSON, err := json.Marshal(data.AllowedUsage)
+		if err != nil {
+			logger.DataRepoLog.Warnln("Failed to marshal allowedUsage for limitId:", limitId, err)
 			successAll = false
-		} else {
-			var usageMonData models.UsageMonData
-			usageMonDataBsonM, errGetOne := CommonDBClient.RestfulAPIGetOne(collName, filter)
-			if errGetOne != nil {
-				logger.DataRepoLog.Warnln(errGetOne)
-			}
-			err := json.Unmarshal(util.MapToByte(usageMonDataBsonM), &usageMonData)
-			if err != nil {
-				logger.DataRepoLog.Warnln(err)
-			}
-			PreHandlePolicyDataChangeNotification(ueId, limitId, usageMonData)
+			continue
 		}
+		resetTimeJSON, err := json.Marshal(data.ResetTime)
+		if err != nil {
+			logger.DataRepoLog.Warnln("Failed to marshal resetTime for limitId:", limitId, err)
+			successAll = false
+			continue
+		}
+
+		// Insert or update the Usage Monitoring Data
+		err = dBQueries.InsertOrUpdateUsageMonData(context.Background(), db.InsertOrUpdateUsageMonDataParams{
+			UeID:         ueId,
+			LimitID:      limitId,
+			UmLevel:      string(data.UmLevel),
+			AllowedUsage: string(allowedUsageJSON),
+			ResetTime:    string(resetTimeJSON),
+		})
+		if err != nil {
+			logger.DataRepoLog.Warnln("Failed to insert or update usage monitoring data for limitId:", limitId, err)
+			successAll = false
+			continue
+		}
+
+		// Fetch updated Usage Monitoring Data for notifications
+		params := db.GetUsageMonDataIDParams{
+			UeID:    ueId,
+			LimitID: limitId,
+		}
+		usageMonDataID, err := dBQueries.GetUsageMonDataID(context.Background(), params)
+		if err != nil {
+			logger.DataRepoLog.Warnln("Failed to fetch UsageMonData ID for limitId:", limitId, err)
+			successAll = false
+			continue
+		}
+		row, err := dBQueries.GetUsageMonitoringDataById(context.Background(), usageMonDataID)
+		if err != nil {
+			logger.DataRepoLog.Warnln("Failed to fetch UsageMonData by ID:", usageMonDataID, err)
+			successAll = false
+			continue
+		}
+
+		// Unmarshal the fields back to the model
+		var updatedData models.UsageMonData
+		err = json.Unmarshal([]byte(row.AllowedUsage), &updatedData.AllowedUsage)
+		if err != nil {
+			logger.DataRepoLog.Warnln("Failed to unmarshal allowedUsage for limitId:", limitId, err)
+			successAll = false
+			continue
+		}
+		err = json.Unmarshal([]byte(row.ResetTime), &updatedData.ResetTime)
+		if err != nil {
+			logger.DataRepoLog.Warnln("Failed to unmarshal resetTime for limitId:", limitId, err)
+			successAll = false
+			continue
+		}
+
+		// Notify about the policy data change
+		PreHandlePolicyDataChangeNotification(ueId, limitId, updatedData)
 	}
 
 	if successAll {
-		smPolicyDataBsonM, errGetOneNew := CommonDBClient.RestfulAPIGetOne(collName, filter)
-		if errGetOneNew != nil {
-			logger.DataRepoLog.Warnln(errGetOneNew)
-		}
-		var smPolicyData models.SmPolicyData
-		err := json.Unmarshal(util.MapToByte(smPolicyDataBsonM), &smPolicyData)
+		// Fetch all Usage Monitoring Data for the given UE ID
+		rows, err := dBQueries.GetUsageMonitoringDataByUeID(context.Background(), ueId)
 		if err != nil {
-			logger.DataRepoLog.Warnln(err)
+			logger.DataRepoLog.Warnln("Failed to fetch all Usage Monitoring Data for UE ID:", ueId, err)
+			return util.ProblemDetailsInternalError("could not fetch all Usage Monitoring Data")
 		}
-		{
-			collName := POLICYDATA_UES_SMDATA_USAGEMONDATA
-			filter := bson.M{"ueId": ueId}
-			usageMonDataMapArray, errGetMany := CommonDBClient.RestfulAPIGetMany(collName, filter)
-			if errGetMany != nil {
-				logger.DataRepoLog.Warnln(errGetMany)
-			}
 
-			if !reflect.DeepEqual(usageMonDataMapArray, []map[string]interface{}{}) {
-				var usageMonDataArray []models.UsageMonData
-				err = json.Unmarshal(util.MapArrayToByte(usageMonDataMapArray), &usageMonDataArray)
-				if err != nil {
-					logger.DataRepoLog.Warnln(err)
-				}
-				smPolicyData.UmData = make(map[string]models.UsageMonData)
-				for _, element := range usageMonDataArray {
-					smPolicyData.UmData[element.LimitId] = element
-				}
-			}
+		// Build the complete response
+		smPolicyData := models.SmPolicyData{
+			UmData: make(map[string]models.UsageMonData),
 		}
+		for _, row := range rows {
+			var usageMonData models.UsageMonData
+			err = json.Unmarshal([]byte(row.AllowedUsage), &usageMonData.AllowedUsage)
+			if err != nil {
+				logger.DataRepoLog.Warnln("Failed to unmarshal allowedUsage for row:", row.ID, err)
+				continue
+			}
+			err = json.Unmarshal([]byte(row.ResetTime), &usageMonData.ResetTime)
+			if err != nil {
+				logger.DataRepoLog.Warnln("Failed to unmarshal resetTime for row:", row.ID, err)
+				continue
+			}
+			usageMonData.LimitId = row.LimitID
+			smPolicyData.UmData[row.LimitID] = usageMonData
+		}
+
+		// Notify about the policy data change
 		PreHandlePolicyDataChangeNotification(ueId, "", smPolicyData)
 		return nil
 	} else {
-		return util.ProblemDetailsModifyNotAllowed("")
+		return util.ProblemDetailsModifyNotAllowed("Modification not allowed for some entries")
 	}
 }
 
 func HandlePolicyDataUesUeIdSmDataUsageMonIdDelete(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.DataRepoLog.Infof("Handle PolicyDataUesUeIdSmDataUsageMonIdDelete")
 
-	collName := POLICYDATA_UES_SMDATA_USAGEMONDATA
 	ueId := request.Params["ueId"]
 	usageMonId := request.Params["usageMonId"]
 
-	PolicyDataUesUeIdSmDataUsageMonIdDeleteProcedure(collName, ueId, usageMonId)
+	PolicyDataUesUeIdSmDataUsageMonIdDeleteProcedure(ueId, usageMonId)
 	return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
 }
 
-func PolicyDataUesUeIdSmDataUsageMonIdDeleteProcedure(collName string, ueId string, usageMonId string) {
-	filter := bson.M{"ueId": ueId, "usageMonId": usageMonId}
-	errDelOne := CommonDBClient.RestfulAPIDeleteOne(collName, filter)
-	if errDelOne != nil {
-		logger.DataRepoLog.Warnln(errDelOne)
+func PolicyDataUesUeIdSmDataUsageMonIdDeleteProcedure(ueId string, usageMonId string) {
+	// Fetch the dbQueries instance from the UDR context
+	udrSelf := udr_context.UDR_Self()
+	dBQueries := udrSelf.Sql.Queries
+
+	// Perform the deletion
+	params := db.DeleteUsageMonDataParams{
+		UeID:    ueId,
+		LimitID: usageMonId, // Assuming usageMonId corresponds to the LimitID in the SQL schema
+	}
+	err := dBQueries.DeleteUsageMonData(context.Background(), params)
+	if err != nil {
+		logger.DataRepoLog.Warnln("Failed to delete usage monitoring data:", err)
 	}
 }
 
 func HandlePolicyDataUesUeIdSmDataUsageMonIdGet(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.DataRepoLog.Infof("Handle PolicyDataUesUeIdSmDataUsageMonIdGet")
 
-	collName := POLICYDATA_UES_SMDATA_USAGEMONDATA
 	ueId := request.Params["ueId"]
 	usageMonId := request.Params["usageMonId"]
 
-	response := PolicyDataUesUeIdSmDataUsageMonIdGetProcedure(collName, usageMonId, ueId)
+	response := PolicyDataUesUeIdSmDataUsageMonIdGetProcedure(usageMonId, ueId)
 
 	if response != nil {
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
@@ -1616,17 +1802,33 @@ func HandlePolicyDataUesUeIdSmDataUsageMonIdGet(request *httpwrapper.Request) *h
 	}
 }
 
-func PolicyDataUesUeIdSmDataUsageMonIdGetProcedure(collName string, usageMonId string,
-	ueId string,
-) *map[string]interface{} {
-	filter := bson.M{"ueId": ueId, "usageMonId": usageMonId}
+func PolicyDataUesUeIdSmDataUsageMonIdGetProcedure(usageMonId string, ueId string) *map[string]interface{} {
+	// Fetch the dbQueries instance from the UDR context
+	udrSelf := udr_context.UDR_Self()
+	dBQueries := udrSelf.Sql.Queries
 
-	usageMonData, errGetOne := CommonDBClient.RestfulAPIGetOne(collName, filter)
-	if errGetOne != nil {
-		logger.DataRepoLog.Warnln(errGetOne)
+	// Fetch the Usage Monitoring Data from the database
+	params := db.GetUsageMonitoringDataParams{
+		UeID:    ueId,
+		LimitID: usageMonId, // Assuming usageMonId corresponds to LimitID in the SQL schema
 	}
 
-	return &usageMonData
+	row, err := dBQueries.GetUsageMonitoringData(context.Background(), params)
+	if err != nil {
+		logger.DataRepoLog.Warnln("Failed to fetch usage monitoring data:", err)
+		return nil
+	}
+
+	// Convert the row into a map[string]interface{} for return
+	result := map[string]interface{}{
+		"ueId":         row.UeID,
+		"limitId":      row.LimitID,
+		"umLevel":      row.UmLevel,
+		"allowedUsage": row.AllowedUsage,
+		"resetTime":    row.ResetTime,
+	}
+
+	return &result
 }
 
 func HandlePolicyDataUesUeIdSmDataUsageMonIdPut(request *httpwrapper.Request) *httpwrapper.Response {
@@ -1635,25 +1837,51 @@ func HandlePolicyDataUesUeIdSmDataUsageMonIdPut(request *httpwrapper.Request) *h
 	ueId := request.Params["ueId"]
 	usageMonId := request.Params["usageMonId"]
 	usageMonData := request.Body.(models.UsageMonData)
-	collName := POLICYDATA_UES_SMDATA_USAGEMONDATA
 
-	response := PolicyDataUesUeIdSmDataUsageMonIdPutProcedure(collName, ueId, usageMonId, usageMonData)
+	response := PolicyDataUesUeIdSmDataUsageMonIdPutProcedure(ueId, usageMonId, usageMonData)
 
 	return httpwrapper.NewResponse(http.StatusCreated, nil, response)
 }
 
-func PolicyDataUesUeIdSmDataUsageMonIdPutProcedure(collName string, ueId string, usageMonId string,
-	usageMonData models.UsageMonData,
-) *bson.M {
-	putData := util.ToBsonM(usageMonData)
-	putData["ueId"] = ueId
-	putData["usageMonId"] = usageMonId
-	filter := bson.M{"ueId": ueId, "usageMonId": usageMonId}
+func PolicyDataUesUeIdSmDataUsageMonIdPutProcedure(ueId string, usageMonId string, usageMonData models.UsageMonData) *map[string]interface{} {
+	// Fetch the dbQueries instance from the UDR context
+	udrSelf := udr_context.UDR_Self()
+	dBQueries := udrSelf.Sql.Queries
 
-	_, errPutOne := CommonDBClient.RestfulAPIPutOne(collName, filter, putData)
-	if errPutOne != nil {
-		logger.DataRepoLog.Warnln(errPutOne)
+	// Marshal JSON fields for allowed usage and reset time
+	allowedUsageJSON, err := json.Marshal(usageMonData.AllowedUsage)
+	if err != nil {
+		logger.DataRepoLog.Warnln("Failed to marshal allowedUsage:", err)
+		return nil
 	}
+	resetTimeJSON, err := json.Marshal(usageMonData.ResetTime)
+	if err != nil {
+		logger.DataRepoLog.Warnln("Failed to marshal resetTime:", err)
+		return nil
+	}
+
+	// Insert or update the Usage Monitoring Data
+	err = dBQueries.InsertOrUpdateUsageMonData(context.Background(), db.InsertOrUpdateUsageMonDataParams{
+		UeID:         ueId,
+		LimitID:      usageMonId,
+		UmLevel:      string(usageMonData.UmLevel),
+		AllowedUsage: string(allowedUsageJSON),
+		ResetTime:    string(resetTimeJSON),
+	})
+	if err != nil {
+		logger.DataRepoLog.Warnln("Failed to insert or update usage monitoring data:", err)
+		return nil
+	}
+
+	// Construct the response data
+	putData := map[string]interface{}{
+		"ueId":         ueId,
+		"usageMonId":   usageMonId,
+		"umLevel":      usageMonData.UmLevel,
+		"allowedUsage": usageMonData.AllowedUsage,
+		"resetTime":    usageMonData.ResetTime,
+	}
+
 	return &putData
 }
 

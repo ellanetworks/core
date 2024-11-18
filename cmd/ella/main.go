@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 
@@ -18,20 +17,6 @@ import (
 	"github.com/yeastengine/ella/internal/upf"
 	"github.com/yeastengine/ella/internal/webui"
 )
-
-func parseFlags() (config.Config, error) {
-	flag.String("config", "", "/path/to/config.yaml")
-	flag.Parse()
-	configFile := flag.Lookup("config").Value.String()
-	if configFile == "" {
-		return config.Config{}, fmt.Errorf("config file not provided")
-	}
-	cfg, err := config.Parse(configFile)
-	if err != nil {
-		return config.Config{}, fmt.Errorf("failed to parse config file: %w", err)
-	}
-	return cfg, nil
-}
 
 func setEnvironmentVariables() error {
 	err := os.Setenv("POD_IP", "0.0.0.0")
@@ -53,7 +38,7 @@ func startNetwork(cfg config.Config) error {
 	smfUrl := "http://127.0.0.1:29502"
 	udmUrl := "http://127.0.0.1:29503"
 	udrUrl := "http://127.0.0.1:29504"
-	webuiUrl, err := webui.Start(cfg.DB.Url, cfg.DB.Name)
+	webuiUrl, err := webui.Start(cfg.DB.Mongo.Url, cfg.DB.Mongo.Name)
 	if err != nil {
 		return err
 	}
@@ -69,7 +54,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = udr.Start(cfg.DB.Url, cfg.DB.Name, webuiUrl)
+	err = udr.Start(cfg.DB.Mongo.Url, cfg.DB.Mongo.Name, webuiUrl, cfg.DB.Sql.Path)
 	if err != nil {
 		return err
 	}
@@ -94,19 +79,22 @@ func startNetwork(cfg config.Config) error {
 }
 
 func main() {
+	log.SetOutput(os.Stderr)
 	err := setEnvironmentVariables()
 	if err != nil {
 		log.Fatalf("failed to set environment variables: %v", err)
 	}
-	cfg, err := parseFlags()
-	if err != nil {
-		log.Fatalf("failed to parse flags: %v", err)
+	configFilePtr := flag.String("config", "", "The config file to be provided to the server")
+	flag.Parse()
+	if *configFilePtr == "" {
+		log.Fatalf("Providing a config file is required.")
 	}
-	err = cfg.Validate()
+	cfg, err := config.Validate(*configFilePtr)
 	if err != nil {
-		log.Fatalf("invalid config: %v", err)
+		log.Fatalf("Couldn't validate config file: %s", err)
 	}
-	err = db.TestConnection(cfg.DB.Url)
+	log.Println("config file is valid")
+	err = db.TestConnection(cfg.DB.Mongo.Url)
 	if err != nil {
 		log.Fatalf("failed to connect to MongoDB: %v", err)
 	}

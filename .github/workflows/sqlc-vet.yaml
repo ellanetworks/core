@@ -1,0 +1,15 @@
+name: SQLC Vet
+
+on:
+  workflow_call:
+
+jobs:
+  vet:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: sqlc-dev/setup-sqlc@v4
+      with:
+        sqlc-version: '1.27.0'
+      id: postgres
+    - run: sqlc vet

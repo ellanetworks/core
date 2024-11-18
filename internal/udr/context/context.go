@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/udr/sql"
 )
 
 var udrContext = UDRContext{}
@@ -27,6 +28,11 @@ func init() {
 	UDR_Self().PolicyDataSubscriptions = make(map[subsId]*models.PolicyDataSubscription)
 }
 
+type Sql struct {
+	Path    string
+	Queries *sql.Queries
+}
+
 type UDRContext struct {
 	Name                                    string
 	UriScheme                               models.UriScheme
@@ -39,6 +45,7 @@ type UDRContext struct {
 	UEGroupCollection                       sync.Map // map[ueGroupId]*UEGroupSubsData
 	mtx                                     sync.RWMutex
 	SBIPort                                 int
+	Sql                                     *Sql
 	EeSubscriptionIDGenerator               int
 	SdmSubscriptionIDGenerator              int
 	PolicyDataSubscriptionIDGenerator       int

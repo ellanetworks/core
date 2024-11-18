@@ -1,0 +1,5 @@
+-- SM Policy Data table
+CREATE TABLE IF NOT EXISTS sm_policy_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ue_id TEXT NOT NULL UNIQUE
+);

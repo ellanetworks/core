@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS usage_mon_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ue_id TEXT NOT NULL,
+    limit_id TEXT NOT NULL,
+    um_level TEXT NOT NULL,
+    allowed_usage TEXT NOT NULL,
+    reset_time TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE (ue_id, limit_id)
+);

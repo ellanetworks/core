@@ -41,6 +41,15 @@ func ProblemDetailsNotFound(cause string) *models.ProblemDetails {
 	}
 }
 
+func ProblemDetailsInternalError(detail string) *models.ProblemDetails {
+	return &models.ProblemDetails{
+		Title:  "Internal error",
+		Status: http.StatusInternalServerError,
+		Cause:  "INTERNAL_ERROR",
+		Detail: detail,
+	}
+}
+
 func ProblemDetailsModifyNotAllowed(detail string) *models.ProblemDetails {
 	return &models.ProblemDetails{
 		Title:  "Modify not allowed",

@@ -6,23 +6,17 @@ import (
 	"github.com/omec-project/util/mongoapi"
 	"github.com/yeastengine/ella/internal/udr/logger"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type DBInterface interface {
 	RestfulAPIGetOne(collName string, filter bson.M) (map[string]interface{}, error)
 	RestfulAPIGetMany(collName string, filter bson.M) ([]map[string]interface{}, error)
-	RestfulAPIPutOneTimeout(collName string, filter bson.M, putData map[string]interface{}, timeout int32, timeField string) bool
 	RestfulAPIPutOne(collName string, filter bson.M, putData map[string]interface{}) (bool, error)
-	RestfulAPIPutOneNotUpdate(collName string, filter bson.M, putData map[string]interface{}) (bool, error)
-	RestfulAPIPutMany(collName string, filterArray []primitive.M, putDataArray []map[string]interface{}) error
 	RestfulAPIDeleteOne(collName string, filter bson.M) error
-	RestfulAPIDeleteMany(collName string, filter bson.M) error
 	RestfulAPIMergePatch(collName string, filter bson.M, patchData map[string]interface{}) error
 	RestfulAPIJSONPatch(collName string, filter bson.M, patchJSON []byte) error
 	RestfulAPIJSONPatchExtend(collName string, filter bson.M, patchJSON []byte, dataName string) error
 	RestfulAPIPost(collName string, filter bson.M, postData map[string]interface{}) (bool, error)
-	RestfulAPIPostMany(collName string, filter bson.M, postDataArray []interface{}) error
 }
 
 var (
@@ -86,28 +80,12 @@ func (db *MongoDBClient) RestfulAPIGetMany(collName string, filter bson.M) ([]ma
 	return db.MongoClient.RestfulAPIGetMany(collName, filter)
 }
 
-func (db *MongoDBClient) RestfulAPIPutOneTimeout(collName string, filter bson.M, putData map[string]interface{}, timeout int32, timeField string) bool {
-	return db.MongoClient.RestfulAPIPutOneTimeout(collName, filter, putData, timeout, timeField)
-}
-
 func (db *MongoDBClient) RestfulAPIPutOne(collName string, filter bson.M, putData map[string]interface{}) (bool, error) {
 	return db.MongoClient.RestfulAPIPutOne(collName, filter, putData)
 }
 
-func (db *MongoDBClient) RestfulAPIPutOneNotUpdate(collName string, filter bson.M, putData map[string]interface{}) (bool, error) {
-	return db.MongoClient.RestfulAPIPutOneNotUpdate(collName, filter, putData)
-}
-
-func (db *MongoDBClient) RestfulAPIPutMany(collName string, filterArray []primitive.M, putDataArray []map[string]interface{}) error {
-	return db.MongoClient.RestfulAPIPutMany(collName, filterArray, putDataArray)
-}
-
 func (db *MongoDBClient) RestfulAPIDeleteOne(collName string, filter bson.M) error {
 	return db.MongoClient.RestfulAPIDeleteOne(collName, filter)
-}
-
-func (db *MongoDBClient) RestfulAPIDeleteMany(collName string, filter bson.M) error {
-	return db.MongoClient.RestfulAPIDeleteMany(collName, filter)
 }
 
 func (db *MongoDBClient) RestfulAPIMergePatch(collName string, filter bson.M, patchData map[string]interface{}) error {
@@ -124,8 +102,4 @@ func (db *MongoDBClient) RestfulAPIJSONPatchExtend(collName string, filter bson.
 
 func (db *MongoDBClient) RestfulAPIPost(collName string, filter bson.M, postData map[string]interface{}) (bool, error) {
 	return db.MongoClient.RestfulAPIPost(collName, filter, postData)
-}
-
-func (db *MongoDBClient) RestfulAPIPostMany(collName string, filter bson.M, postDataArray []interface{}) error {
-	return db.MongoClient.RestfulAPIPostMany(collName, filter, postDataArray)
 }

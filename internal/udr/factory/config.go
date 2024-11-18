@@ -5,6 +5,7 @@ import (
 	logger_util "github.com/omec-project/util/logger"
 	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
 	"github.com/yeastengine/ella/internal/udr/logger"
+	"github.com/yeastengine/ella/internal/udr/sql"
 )
 
 type Config struct {
@@ -21,6 +22,7 @@ type Info struct {
 type Configuration struct {
 	Sbi             *Sbi              `yaml:"sbi"`
 	Mongodb         *Mongodb          `yaml:"mongodb"`
+	Sql             *Sql              `yaml:"sql"`
 	WebuiUri        string            `yaml:"webuiUri"`
 	PlmnSupportList []PlmnSupportItem `yaml:"plmnSupportList,omitempty"`
 }
@@ -40,6 +42,11 @@ type Mongodb struct {
 	Url            string `yaml:"url,omitempty"`
 	AuthKeysDbName string `yaml:"authKeysDbName"`
 	AuthUrl        string `yaml:"authUrl"`
+}
+
+type Sql struct {
+	Path    string
+	Queries *sql.Queries
 }
 
 var (

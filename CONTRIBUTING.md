@@ -13,7 +13,6 @@ go build cmd/ella/main.go
 
 ### Generate database code
 
-
 Generate the sqlc code:
 
 ```shell
