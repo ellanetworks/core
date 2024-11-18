@@ -1,7 +1,3 @@
-port: 8080
-tls:
-  cert: "testdata/cert.pem"
-  key: "testdata/key.pem"
 db:
   mongo:
     url: "mongodb://localhost:27017"

@@ -46,26 +46,14 @@ type UPF struct {
 	N3Address  string
 }
 
-type TLS struct {
-	Cert []byte
-	Key  []byte
-}
-
-type TLSYaml struct {
-	Cert string `yaml:"cert"`
-	Key  string `yaml:"key"`
-}
-
 type ConfigYAML struct {
 	DB  DBYaml  `yaml:"db"`
 	UPF UPFYaml `yaml:"upf"`
-	TLS TLSYaml `yaml:"tls"`
 }
 
 type Config struct {
 	DB  DB
 	UPF UPF
-	TLS TLS
 }
 
 func Validate(filePath string) (Config, error) {
@@ -77,20 +65,6 @@ func Validate(filePath string) (Config, error) {
 	c := ConfigYAML{}
 	if err := yaml.Unmarshal(configYaml, &c); err != nil {
 		return Config{}, fmt.Errorf("cannot unmarshal config file: %w", err)
-	}
-	if c.TLS.Cert == "" {
-		return Config{}, fmt.Errorf("tls.cert is empty")
-	}
-	cert, err := os.ReadFile(c.TLS.Cert)
-	if err != nil {
-		return Config{}, fmt.Errorf("cannot read cert file: %w", err)
-	}
-	if c.TLS.Key == "" {
-		return Config{}, fmt.Errorf("tls.key is empty")
-	}
-	key, err := os.ReadFile(c.TLS.Key)
-	if err != nil {
-		return Config{}, fmt.Errorf("cannot read key file: %w", err)
 	}
 	if c.DB == (DBYaml{}) {
 		return Config{}, errors.New("db is empty")
@@ -104,8 +78,6 @@ func Validate(filePath string) (Config, error) {
 	if c.DB.Sql.Path == "" {
 		return Config{}, errors.New("db.sql.path is empty")
 	}
-	config.TLS.Cert = cert
-	config.TLS.Key = key
 	config.DB.Mongo.Url = c.DB.Mongo.Url
 	config.DB.Mongo.Name = c.DB.Mongo.Name
 	config.DB.Sql.Path = c.DB.Sql.Path

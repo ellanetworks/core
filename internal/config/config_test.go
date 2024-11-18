@@ -28,14 +28,6 @@ func TestGoodConfigSuccess(t *testing.T) {
 	if conf.DB.Sql.Path != "testdata/sqlite.db" {
 		t.Fatalf("Database path was not configured correctly")
 	}
-
-	if conf.TLS.Cert == nil {
-		t.Fatalf("TLS cert was not configured correctly")
-	}
-
-	if conf.TLS.Key == nil {
-		t.Fatalf("TLS key was not configured correctly")
-	}
 }
 
 func TestBadConfigFail(t *testing.T) {

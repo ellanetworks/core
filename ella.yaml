@@ -1,6 +1,3 @@
-tls:
-  cert: "cert.pem"
-  key: "key.pem"
 db:
   mongo:
     url: "mongodb://localhost:27017"
