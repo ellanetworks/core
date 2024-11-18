@@ -65,66 +65,6 @@ func HandleCreateAccessAndMobilityData(request *httpwrapper.Request) *httpwrappe
 	return httpwrapper.NewResponse(http.StatusOK, nil, map[string]interface{}{})
 }
 
-// AddEntrySmPolicyTable ... write table entries into policyData.ues.smData
-// func AddEntrySmPolicyTable(imsi string, dnn string, snssai *protos.NSSAI) error {
-// 	logger.CfgLog.Infoln("AddEntrySmPolicyTable")
-// 	collName := "policyData.ues.smData"
-// 	var addUeId bool
-// 	logger.CfgLog.Infoln("collname, imsi, dnn, sst, sd : ", collName, imsi, dnn, snssai.Sst, snssai.Sd)
-// 	ueID := "imsi-"
-// 	ueID += imsi
-
-// 	sval, err := strconv.ParseUint(snssai.Sst, 10, 32)
-// 	if err != nil {
-// 		logger.CfgLog.Infoln("parse fail for sst ", err)
-// 		return err
-// 	}
-// 	filter := bson.M{"ueId": ueID}
-// 	modelNssai := models.Snssai{
-// 		Sd:  snssai.Sd,
-// 		Sst: int32(sval),
-// 	}
-// 	smPolicyData, errGetOne := CommonDBClient.RestfulAPIGetOne(collName, filter)
-// 	if errGetOne != nil {
-// 		logger.DataRepoLog.Warnln(errGetOne)
-// 	}
-// 	var smPolicyDataWrite models.SmPolicyData
-// 	if smPolicyData != nil {
-// 		err := json.Unmarshal(util.MapToByte(smPolicyData), &smPolicyDataWrite)
-// 		if err != nil {
-// 			logger.DataRepoLog.Warnln(err)
-// 			return err
-// 		}
-// 	} else {
-// 		smPolicyDataWrite.SmPolicySnssaiData = make(map[string]models.SmPolicySnssaiData)
-// 		addUeId = true
-// 	}
-
-// 	smPolicySnssaiData := models.SmPolicySnssaiData{
-// 		Snssai: &modelNssai,
-// 		SmPolicyDnnData: map[string]models.SmPolicyDnnData{
-// 			dnn: {
-// 				Dnn: dnn,
-// 			},
-// 		},
-// 	}
-
-// 	for key, value := range smPolicyDataWrite.SmPolicySnssaiData {
-// 		logger.CfgLog.Infoln("entry in DB key  ", key)
-// 		logger.CfgLog.Infoln("entry in DB val  ", value)
-// 	}
-// 	smPolicyDataWrite.SmPolicySnssaiData[util.SnssaiModelsToHex(modelNssai)] = smPolicySnssaiData
-// 	smPolicyDataBsonM := toBsonM(smPolicyDataWrite)
-// 	if addUeId {
-// 		smPolicyDataBsonM["ueId"] = ueID
-// 	}
-// 	_, errPost := CommonDBClient.RestfulAPIPost(collName, filter, smPolicyDataBsonM)
-// 	if errPost != nil {
-// 		logger.DataRepoLog.Warnln(errPost)
-// 	}
-// 	return nil
-// }
-
 func AddEntrySmPolicyTable(imsi string, dnn string, snssai *protos.NSSAI) error {
 	logger.CfgLog.Infoln("AddEntrySmPolicyTable")
 

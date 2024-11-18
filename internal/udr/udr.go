@@ -1,7 +1,6 @@
 package udr
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/omec-project/util/logger"
@@ -19,8 +18,6 @@ func Start(mongoDBURL string, mongoDBName, webuiURL string, sqlDBPath string) er
 	if err != nil {
 		log.Fatalf("failed to initialize sql database at %s: %v", sqlDBPath, err)
 	}
-	fmt.Println("DB Queries initialized: ", dbQueries)
-	fmt.Println("DB Path: ", sqlDBPath)
 	configuration := factory.Configuration{
 		Sbi: &factory.Sbi{
 			BindingIPv4: "0.0.0.0",

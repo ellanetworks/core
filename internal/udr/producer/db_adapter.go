@@ -16,7 +16,6 @@ type DBInterface interface {
 	RestfulAPIMergePatch(collName string, filter bson.M, patchData map[string]interface{}) error
 	RestfulAPIJSONPatch(collName string, filter bson.M, patchJSON []byte) error
 	RestfulAPIJSONPatchExtend(collName string, filter bson.M, patchJSON []byte, dataName string) error
-	RestfulAPIPost(collName string, filter bson.M, postData map[string]interface{}) (bool, error)
 }
 
 var (
@@ -98,8 +97,4 @@ func (db *MongoDBClient) RestfulAPIJSONPatch(collName string, filter bson.M, pat
 
 func (db *MongoDBClient) RestfulAPIJSONPatchExtend(collName string, filter bson.M, patchJSON []byte, dataName string) error {
 	return db.MongoClient.RestfulAPIJSONPatchExtend(collName, filter, patchJSON, dataName)
-}
-
-func (db *MongoDBClient) RestfulAPIPost(collName string, filter bson.M, postData map[string]interface{}) (bool, error) {
-	return db.MongoClient.RestfulAPIPost(collName, filter, postData)
 }
