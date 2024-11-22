@@ -1,0 +1,6 @@
+db:
+  url: "mongodb://root:rootpassword@mongodb-service.dev2.svc.cluster.local:27017"
+  name: "ella"
+upf:
+  interfaces: ["n3", "n6"]
+  n3-address: "192.168.252.3"

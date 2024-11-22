@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ella
+  namespace: dev2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ella
+  template:
+    metadata:
+      labels:
+        app: ella
+      annotations:
+        k8s.v1.cni.cncf.io/networks: |
+          [
+            {"name": "n3-nad", "interface": "n3"},
+            {"name": "n6-nad", "interface": "n6"}
+          ]
+    spec:
+      containers:
+      - name: ella
+        image: localhost:5000/ella:0.0.4
+        command: ["ella"]
+        args: ["--config", "/config/config.yaml"]
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: config-volume
+          mountPath: /config
+        - name: sysfs-bpf
+          mountPath: /sys/fs/bpf
+        ports:
+        - containerPort: 8080
+      volumes:
+      - name: config-volume
+        configMap:
+          name: ella-config
+      - name: sysfs-bpf
+        hostPath:
+          path: /sys/fs/bpf
+          type: Directory

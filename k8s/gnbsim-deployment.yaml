@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gnbsim
+  namespace: dev2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gnbsim
+  template:
+    metadata:
+      labels:
+        app: gnbsim
+      annotations:
+        k8s.v1.cni.cncf.io/networks: |
+          [
+            {
+              "name": "gnb-nad",
+              "interface": "gnb"
+            }
+          ]
+    spec:
+      containers:
+      - name: gnbsim
+        image: ghcr.io/canonical/sdcore-gnbsim:1.4.5
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/gnbsim/configuration.yaml
+          subPath: configuration.yaml
+        ports:
+        - containerPort: 9487
+        - containerPort: 2152
+        env:
+        - name: CONFIG_PATH
+          value: /etc/gnbsim/configuration.yaml
+        - name: LOG_LEVEL
+          value: "trace"
+        securityContext:
+          privileged: true
+      volumes:
+      - name: config-volume
+        configMap:
+          name: gnbsim-config
