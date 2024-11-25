@@ -6,8 +6,9 @@
 
 import json
 import logging
+from dataclasses import asdict, dataclass
 from typing import Any, List
-from dataclasses import dataclass, asdict
+
 import requests
 
 logger = logging.getLogger(__name__)
@@ -54,11 +55,13 @@ NETWORK_SLICE_CONFIG = {
     },
 }
 
+
 @dataclass
 class CreateGnbParams:
     """Parameters to create a gNB."""
 
     tac: str
+
 
 class Ella:
     """Handle Ella API calls."""
@@ -112,9 +115,7 @@ class Ella:
     def create_gnb(self, name: str, tac: int) -> None:
         """Create a gNB in the NMS inventory."""
         create_gnb_params = CreateGnbParams(tac=str(tac))
-        self._make_request(
-            "POST", f"/{GNB_CONFIG_URL}/{name}", data=asdict(create_gnb_params)
-        )
+        self._make_request("POST", f"/{GNB_CONFIG_URL}/{name}", data=asdict(create_gnb_params))
         logger.info("gNB %s created in NMS", name)
 
     def create_subscriber(self, imsi: str) -> None:

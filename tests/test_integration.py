@@ -16,6 +16,7 @@ TEST_IMSI = "001010100007487"
 TEST_NETWORK_SLICE_NAME = "default"
 NUM_PROFILES = 5
 
+
 class TestELLA:
     async def test_given_sdcore_bundle_and_gnbsim_deployed_when_start_simulation_then_simulation_success_status_is_true(  # noqa: E501
         self,
@@ -84,7 +85,9 @@ def configure_sdcore(ella_address: str) -> None:
     time.sleep(5)
 
 
-def run_gnbsim_simulation(namespace: str, application_name: str, config_path: str, timeout: int) -> int:
+def run_gnbsim_simulation(
+    namespace: str, application_name: str, config_path: str, timeout: int
+) -> int:
     """Run the GNBSim simulation command in the container.
 
     Args:
@@ -138,5 +141,5 @@ def run_gnbsim_simulation(namespace: str, application_name: str, config_path: st
         logger.info(f"GNBSim simulation output: {result}")
         # Count the number of times `Profile Status: PASS` appears
         return result.count("Profile Status: PASS")
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         return 0
