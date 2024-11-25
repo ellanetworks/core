@@ -4,40 +4,41 @@ GO_CMD := cmd/ella/main.go
 OUTPUT := ella
 ROCK_FILE := ella_0.0.4_amd64.rock
 TAR_FILE := ella.tar
-K8S_IMAGE_PATH := /var/snap/k8s/common/images/
-CONFIG_FILE := config/config.yaml
 K8S_NAMESPACE := dev2
 OCI_IMAGE_NAME := ella:0.0.4
-N3_NAD := k8s/n3-nad.yaml
-N6_NAD := k8s/n6-nad.yaml
 MONGODB_DEPLOYMENT := k8s/mongodb-deployment.yaml
 MONGODB_SERVICE := k8s/mongodb-service.yaml
 MONGODB_CONFIGMAP := k8s/mongodb-configmap.yaml
+GNBSIM_GNB_NAD := k8s/gnbsim-gnb-nad.yaml
 GNBSIM_DEPLOYMENT := k8s/gnbsim-deployment.yaml
+GNBSIM_SERVICE := k8s/gnbsim-service.yaml
 GNBSIM_CONFIGMAP := k8s/gnbsim-configmap.yaml
-DEPLOYMENT := k8s/deployment.yaml
+ROUTER_RAN_NAD := k8s/router-ran-nad.yaml
+ROUTER_CORE_NAD := k8s/router-core-nad.yaml
+ROUTER_ACCESS_NAD := k8s/router-access-nad.yaml
+ROUTER_DEPLOYMENT := k8s/router-deployment.yaml
+ELLA_N3_NAD := k8s/ella-n3-nad.yaml
+ELLA_N6_NAD := k8s/ella-n6-nad.yaml
+ELLA_DEPLOYMENT := k8s/ella-deployment.yaml
+ELLA_CONFIGMAP := k8s/ella-configmap.yaml
+ELLA_SERVICE := k8s/ella-service.yaml
 
 .PHONY: all clean build ui-build go-build oci-build deploy nad-create rebuild
 
-# Default target
 all: build
 
-# Build everything
 build: ui-build go-build oci-build
 	@echo "Build completed successfully."
 
-# Build the UI
 ui-build:
 	@echo "Installing and building UI..."
 	npm install --prefix $(UI_DIR)
 	npm run build --prefix $(UI_DIR)
 
-# Build the Go application
 go-build:
 	@echo "Building Go application..."
 	go build -o $(OUTPUT) $(GO_CMD)
 
-# Build the OCI image
 oci-build:
 	@echo "Building OCI image..."
 	rockcraft pack
@@ -47,30 +48,43 @@ oci-build:
 	docker tag ella:0.0.4 localhost:5000/ella:0.0.4
 	docker push localhost:5000/ella:0.0.4
 
-# Deploy MongoDB
 mongodb-deploy:
 	@echo "Deploying MongoDB..."
 	kubectl apply -f $(MONGODB_CONFIGMAP)
 	kubectl apply -f $(MONGODB_SERVICE)
 	kubectl apply -f $(MONGODB_DEPLOYMENT)
 
-# Deploy gnbsim
 gnbsim-deploy:
 	@echo "Deploying gnbsim..."
+	kubectl apply -f $(GNBSIM_GNB_NAD)
 	kubectl apply -f $(GNBSIM_CONFIGMAP)
 	kubectl apply -f $(GNBSIM_DEPLOYMENT)
+	kubectl apply -f $(GNBSIM_SERVICE)
 
-# Deploy the container to local Kubernetes
-deploy: oci-build mongodb-deploy gnbsim-deploy
-	@echo "Creating Network Attachment Definitions..."
-	kubectl apply -f $(N3_NAD)
-	kubectl apply -f $(N6_NAD)
+router-deploy:
+	@echo "Deploying router..."
+	kubectl apply -f $(ROUTER_RAN_NAD)
+	kubectl apply -f $(ROUTER_CORE_NAD)
+	kubectl apply -f $(ROUTER_ACCESS_NAD)
+	kubectl apply -f $(ROUTER_DEPLOYMENT)
+
+ella-deploy:
 	@echo "Deploying Ella..."
-	kubectl create configmap ella-config --namespace=$(K8S_NAMESPACE) --from-file=$(CONFIG_FILE) --dry-run=client -o yaml | kubectl apply -f -
-	kubectl apply -n $(K8S_NAMESPACE) -f $(DEPLOYMENT)
+	kubectl apply -f $(ELLA_N3_NAD)
+	kubectl apply -f $(ELLA_N6_NAD)
+	kubectl apply -f $(ELLA_CONFIGMAP)
+	kubectl apply -f $(ELLA_DEPLOYMENT)
+	kubectl apply -f $(ELLA_SERVICE)
+	@echo "Ella deployment completed successfully."
+
+deploy: oci-build mongodb-deploy gnbsim-deploy router-deploy ella-deploy
 	@echo "Deployment completed successfully."
 
-# Clean the build artifacts
+test: deploy
+	@echo "Running end-to-end tests..."
+	python3 tests/test_integration.py
+	@echo "End-to-end tests completed successfully."
+
 clean:
 	@echo "Cleaning build artifacts..."
 	rm -rf $(OUTPUT)
@@ -78,6 +92,5 @@ clean:
 	rm -rf $(UI_DIR)/dist
 	rm -f $(ROCK_FILE) $(TAR_FILE)
 
-# Helper target for cleaning and rebuilding
 rebuild: clean build
 	@echo "Rebuild completed."

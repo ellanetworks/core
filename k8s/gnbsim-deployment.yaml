@@ -21,21 +21,23 @@ spec:
             }
           ]
     spec:
+      initContainers:
+      - name: init-route
+        image: busybox:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Setting up custom route..."
+          ip route replace 192.168.252.0/24 via 192.168.251.1
+        securityContext:
+          privileged: true
       containers:
       - name: gnbsim
         image: ghcr.io/canonical/sdcore-gnbsim:1.4.5
         volumeMounts:
         - name: config-volume
-          mountPath: /etc/gnbsim/configuration.yaml
-          subPath: configuration.yaml
-        ports:
-        - containerPort: 9487
-        - containerPort: 2152
-        env:
-        - name: CONFIG_PATH
-          value: /etc/gnbsim/configuration.yaml
-        - name: LOG_LEVEL
-          value: "trace"
+          mountPath: /etc/gnbsim
         securityContext:
           privileged: true
       volumes:

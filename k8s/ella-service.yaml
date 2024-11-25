@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ella
+  namespace: dev2
+spec:
+  selector:
+    app: ella
+  ports:
+  - protocol: TCP
+    port: 5000
+    targetPort: 5000
+  type: NodePort
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ngapp
+  namespace: dev2
+spec:
+  selector:
+    app: ella
+  ports:
+  - protocol: SCTP
+    port: 38412
+    targetPort: 38412

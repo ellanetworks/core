@@ -40,11 +40,6 @@ docker run ella:0.0.4
 
 ## References
 
-### Makefile
-
-- Build: `make build`
-- Build OCI Image: `make oci-build`
-
 ### SQLC
 
 - [SQLC](https://docs.sqlc.dev/en/latest/)

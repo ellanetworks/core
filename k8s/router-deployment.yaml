@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: router
+  namespace: dev2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: router
+  template:
+    metadata:
+      labels:
+        app: router
+      annotations:
+        k8s.v1.cni.cncf.io/networks: |
+          [
+            {
+              "name": "core-gw",
+              "interface": "core"
+            },
+            {
+              "name": "access-gw",
+              "interface": "access"
+            },
+            {
+              "name": "ran-gw",
+              "interface": "ran"
+            }
+          ]
+    spec:
+      containers:
+      - name: router
+        image: ghcr.io/canonical/ubuntu-router:0.1
+        securityContext:
+          privileged: true
+          runAsUser: 0
+          capabilities:
+            add:
+              - NET_ADMIN
