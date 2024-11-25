@@ -1,0 +1,139 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnbsim-config
+  namespace: dev2
+data:
+  configuration.yaml: |
+    configuration:
+      execInParallel: false
+      gnbs:
+        gnb1:
+          defaultAmf:
+            hostName: ella.dev2.svc.cluster.local
+            port: 38412
+          globalRanId:
+            gNbId:
+              bitLength: 24
+              gNBValue: "000102"
+            plmnId:
+              mcc: 001
+              mnc: 01
+          n2Port: 9487
+          n3IpAddr: 192.168.251.5
+          n3Port: 2152
+          name: gnb1
+          supportedTaList:
+          - broadcastPlmnList:
+            - plmnId:
+                mcc: 001
+                mnc: 01
+              taiSliceSupportList:
+              - sd: "102030"
+                sst: 1
+            tac: "000001"
+      goProfile:
+        enable: false
+        port: 5000
+      httpServer:
+        enable: false
+      profiles:
+      - profileType: register
+        profileName: profile1
+        enable: true
+        gnbName: gnb1
+        startImsi: 001010100007487
+        ueCount: 1
+        defaultAs: 192.168.250.1
+        opc: 981d464c7c52eb6e5036234984ad0bcf
+        key: 5122250214c33e723a5dd523fc145fc0
+        sequenceNumber: 16f3b3f70fc2
+        dnn: internet
+        sNssai:
+          sst: 1
+          sd: "102030"
+        execInParallel: false
+        plmnId:
+          mcc: 001
+          mnc: 01
+      - profileType: pdusessest
+        profileName: profile2
+        dataPktCount: 5
+        defaultAs: 192.168.250.1
+        enable: true
+        execInParallel: false
+        gnbName: gnb1
+        key: 5122250214c33e723a5dd523fc145fc0
+        opc: 981d464c7c52eb6e5036234984ad0bcf
+        perUserTimeout: 100
+        dnn: "internet"
+        sNssai:
+          sst: 1
+          sd: "102030"
+        plmnId:
+          mcc: 001
+          mnc: 01
+        sequenceNumber: 16f3b3f70fc2
+        startImsi: 001010100007487
+        ueCount: 1
+      - profileType: anrelease
+        profileName: profile3
+        enable: true
+        gnbName: gnb1
+        startImsi: 001010100007487
+        ueCount: 1
+        defaultAs: 192.168.250.1
+        opc: 981d464c7c52eb6e5036234984ad0bcf
+        key: 5122250214c33e723a5dd523fc145fc0
+        sequenceNumber: 16f3b3f70fc2
+        dnn: internet
+        sNssai:
+          sst: 1
+          sd: "102030"
+        execInParallel: false
+        plmnId:
+          mcc: 001
+          mnc: 01
+      - profileType: uetriggservicereq
+        profileName: profile4
+        enable: true
+        gnbName: gnb1
+        startImsi: 001010100007487
+        ueCount: 1
+        defaultAs: 192.168.250.1
+        opc: 981d464c7c52eb6e5036234984ad0bcf
+        key: 5122250214c33e723a5dd523fc145fc0
+        sequenceNumber: 16f3b3f70fc2
+        dnn: internet
+        retransMsg: false
+        sNssai:
+          sst: 1
+          sd: "102030"
+        execInParallel: false
+        plmnId:
+          mcc: 001
+          mnc: 01
+      - profileType: deregister
+        profileName: profile5
+        enable: true
+        gnbName: gnb1
+        startImsi: 001010100007487
+        ueCount: 1
+        defaultAs: 192.168.250.1
+        opc: 981d464c7c52eb6e5036234984ad0bcf
+        key: 5122250214c33e723a5dd523fc145fc0
+        sequenceNumber: 16f3b3f70fc2
+        dnn: internet
+        sNssai:
+          sst: 1
+          sd: "102030"
+        execInParallel: false
+        plmnId:
+          mcc: 001
+          mnc: 01
+      runConfigProfilesAtStart: true
+    info:
+      description: gNodeB sim initial configuration
+      version: 1.0.0
+    logger:
+      logLevel: trace
