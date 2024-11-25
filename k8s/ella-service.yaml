@@ -6,22 +6,13 @@ metadata:
 spec:
   selector:
     app: ella
+  type: NodePort
   ports:
-  - protocol: TCP
+  - name: http
+    protocol: TCP
     port: 5000
     targetPort: 5000
-  type: NodePort
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: ngapp
-  namespace: dev2
-spec:
-  selector:
-    app: ella
-  ports:
-  - protocol: SCTP
+  - name: ngapp
+    protocol: SCTP
     port: 38412
     targetPort: 38412

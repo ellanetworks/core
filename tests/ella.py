@@ -7,11 +7,12 @@
 import json
 import logging
 from typing import Any, List
-
+from dataclasses import dataclass, asdict
 import requests
 
 logger = logging.getLogger(__name__)
 
+GNB_CONFIG_URL = "config/v1/inventory/gnb"
 
 JSON_HEADER = {"Content-Type": "application/json"}
 
@@ -29,7 +30,7 @@ DEVICE_GROUP_CONFIG = {
     "ip-domain-name": "pool1",
     "ip-domain-expanded": {
         "dnn": "internet",
-        "ue-ip-pool": "172.250.1.0/16",
+        "ue-ip-pool": "172.250.0.0/16",
         "dns-primary": "8.8.8.8",
         "mtu": 1460,
         "ue-dnn-qos": {
@@ -48,11 +49,16 @@ NETWORK_SLICE_CONFIG = {
     "site-info": {
         "site-name": "demo",
         "plmn": {"mcc": "001", "mnc": "01"},
-        "gNodeBs": [{"name": "demo-gnb1", "tac": 1}],
-        "upf": {"upf-name": "upf-external", "upf-port": "8805"},
+        "gNodeBs": [{"name": "dev2-gnbsim", "tac": 1}],
+        "upf": {"upf-name": "0.0.0.0", "upf-port": "8806"},
     },
 }
 
+@dataclass
+class CreateGnbParams:
+    """Parameters to create a gNB."""
+
+    tac: str
 
 class Ella:
     """Handle Ella API calls."""
@@ -102,6 +108,14 @@ class Ella:
         except json.JSONDecodeError:
             return None
         return json_response
+
+    def create_gnb(self, name: str, tac: int) -> None:
+        """Create a gNB in the NMS inventory."""
+        create_gnb_params = CreateGnbParams(tac=str(tac))
+        self._make_request(
+            "POST", f"/{GNB_CONFIG_URL}/{name}", data=asdict(create_gnb_params)
+        )
+        logger.info("gNB %s created in NMS", name)
 
     def create_subscriber(self, imsi: str) -> None:
         """Create a subscriber."""

@@ -41,7 +41,7 @@ go-build:
 
 oci-build:
 	@echo "Building OCI image..."
-	rockcraft pack
+	# rockcraft pack
 	@echo "Copying OCI image to Docker daemon with skopeo..."
 	sudo rockcraft.skopeo --insecure-policy copy oci-archive:$(ROCK_FILE) docker-daemon:$(OCI_IMAGE_NAME)
 	@echo "Pushing image to local registry..."
@@ -77,12 +77,12 @@ ella-deploy:
 	kubectl apply -f $(ELLA_SERVICE)
 	@echo "Ella deployment completed successfully."
 
-deploy: oci-build mongodb-deploy gnbsim-deploy router-deploy ella-deploy
+deploy: mongodb-deploy gnbsim-deploy router-deploy ella-deploy
 	@echo "Deployment completed successfully."
 
-test: deploy
+test: 
 	@echo "Running end-to-end tests..."
-	python3 tests/test_integration.py
+	tox -e integration
 	@echo "End-to-end tests completed successfully."
 
 clean:

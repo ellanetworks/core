@@ -14,7 +14,7 @@ NAMESPACE = "dev2"
 TEST_DEVICE_GROUP_NAME = "default-default"
 TEST_IMSI = "001010100007487"
 TEST_NETWORK_SLICE_NAME = "default"
-
+NUM_PROFILES = 5
 
 class TestELLA:
     async def test_given_sdcore_bundle_and_gnbsim_deployed_when_start_simulation_then_simulation_success_status_is_true(  # noqa: E501
@@ -23,20 +23,13 @@ class TestELLA:
         ella_port = get_ella_node_port()
         ella_address = f"http://127.0.0.1:{ella_port}"
         configure_sdcore(ella_address=ella_address)
-        for _ in range(5):
-            action_output = run_gnbsim_simulation(
-                namespace=NAMESPACE,
-                application_name="gnbsim",
-                config_path="/etc/gnbsim/configuration.yaml",
-                timeout=6 * 60,
-            )
-            try:
-                assert action_output["success"] == "true"
-                return
-            except AssertionError:
-                time.sleep(1)
-                continue
-        assert False
+        success_runs = run_gnbsim_simulation(
+            namespace=NAMESPACE,
+            application_name="gnbsim",
+            config_path="/etc/gnbsim/configuration.yaml",
+            timeout=6 * 60,
+        )
+        assert success_runs == NUM_PROFILES
 
 
 def get_ella_node_port() -> int:
@@ -81,6 +74,7 @@ def configure_sdcore(ella_address: str) -> None:
     - network slice creation
     """
     ella_client = Ella(url=ella_address)
+    ella_client.create_gnb(name=f"{NAMESPACE}-gnbsim", tac=1)
     ella_client.create_subscriber(imsi=TEST_IMSI)
     ella_client.create_device_group(name=TEST_DEVICE_GROUP_NAME, imsis=[TEST_IMSI])
     ella_client.create_network_slice(
@@ -90,7 +84,7 @@ def configure_sdcore(ella_address: str) -> None:
     time.sleep(5)
 
 
-def run_gnbsim_simulation(namespace: str, application_name: str, config_path: str, timeout: int):
+def run_gnbsim_simulation(namespace: str, application_name: str, config_path: str, timeout: int) -> int:
     """Run the GNBSim simulation command in the container.
 
     Args:
@@ -101,7 +95,7 @@ def run_gnbsim_simulation(namespace: str, application_name: str, config_path: st
         timeout (int): Maximum timeout for the command execution in seconds.
 
     Returns:
-        dict: Simulation result.
+        int: Number of successful profile runs.
     """
     try:
         pod_name = subprocess.check_output(
@@ -120,7 +114,7 @@ def run_gnbsim_simulation(namespace: str, application_name: str, config_path: st
         ).strip()
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to get pod name for {application_name}: {e}")
-        raise
+        return 0
 
     try:
         result = subprocess.check_output(
@@ -139,9 +133,10 @@ def run_gnbsim_simulation(namespace: str, application_name: str, config_path: st
             ],
             text=True,
             timeout=timeout,
+            stderr=subprocess.STDOUT,
         ).strip()
         logger.info(f"GNBSim simulation output: {result}")
-        return {"success": "true", "output": result}
+        # Count the number of times `Profile Status: PASS` appears
+        return result.count("Profile Status: PASS")
     except subprocess.CalledProcessError as e:
-        logger.error(f"GNBSim simulation failed: {e.output}")
-        return {"success": "false", "error": str(e)}
+        return 0
