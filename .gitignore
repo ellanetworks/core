@@ -5,7 +5,7 @@ ui/out/*
 ui/build/*
 ui/npm-debug.log*
 ui/yarn-debug.log*
-ui/yarn-error.log*\
+ui/yarn-error.log*
 ui/*.tsbuildinfo
 ui/next-env.d.ts
 ui/.vercel

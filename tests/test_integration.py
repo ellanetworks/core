@@ -3,8 +3,8 @@
 # See LICENSE file for licensing details.
 
 import logging
-import time
 import subprocess
+import time
 
 from tests.ella import Ella
 
@@ -17,7 +17,6 @@ TEST_NETWORK_SLICE_NAME = "default"
 
 
 class TestELLA:
-
     async def test_given_sdcore_bundle_and_gnbsim_deployed_when_start_simulation_then_simulation_success_status_is_true(  # noqa: E501
         self,
     ):
@@ -38,6 +37,7 @@ class TestELLA:
                 time.sleep(1)
                 continue
         assert False
+
 
 def get_ella_node_port() -> int:
     """Fetch the NodePort for the Ella service in the Kubernetes cluster.
@@ -71,6 +71,7 @@ def get_ella_node_port() -> int:
         logger.error(f"NodePort value is invalid: {e}")
         raise RuntimeError("Invalid NodePort value retrieved") from e
 
+
 def configure_sdcore(ella_address: str) -> None:
     """Configure Charmed SD-Core.
 
@@ -81,14 +82,13 @@ def configure_sdcore(ella_address: str) -> None:
     """
     ella_client = Ella(url=ella_address)
     ella_client.create_subscriber(imsi=TEST_IMSI)
-    ella_client.create_device_group(
-        name=TEST_DEVICE_GROUP_NAME, imsis=[TEST_IMSI]
-    )
+    ella_client.create_device_group(name=TEST_DEVICE_GROUP_NAME, imsis=[TEST_IMSI])
     ella_client.create_network_slice(
         name=TEST_NETWORK_SLICE_NAME,
         device_groups=[TEST_DEVICE_GROUP_NAME],
     )
     time.sleep(5)
+
 
 def run_gnbsim_simulation(namespace: str, application_name: str, config_path: str, timeout: int):
     """Run the GNBSim simulation command in the container.

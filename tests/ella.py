@@ -6,7 +6,7 @@
 
 import json
 import logging
-from typing import Any, List, Optional
+from typing import Any, List
 
 import requests
 

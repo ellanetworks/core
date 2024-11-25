@@ -8,11 +8,8 @@ asttokens==2.4.1
     # via stack-data
 bcrypt==4.2.0
     # via paramiko
-cachetools==5.4.0
-    # via google-auth
 certifi==2024.7.4
     # via
-    #   kubernetes
     #   requests
 cffi==1.17.0
     # via
@@ -30,10 +27,6 @@ decorator==5.1.1
     #   ipython
 executing==2.0.1
     # via stack-data
-google-auth==2.33.0
-    # via kubernetes
-hvac==2.3.0
-    # via juju
 idna==3.7
     # via requests
 iniconfig==2.0.0
@@ -48,14 +41,6 @@ jinja2==3.1.4
     # via
     #   -r requirements.in
     #   pytest-operator
-juju==3.5.2.1
-    # via
-    #   -r requirements.in
-    #   pytest-operator
-kubernetes==30.1.0
-    # via juju
-macaroonbakery==1.3.4
-    # via juju
 markupsafe==2.1.5
     # via jinja2
 matplotlib-inline==0.1.7
@@ -66,14 +51,10 @@ nodeenv==1.9.1
     # via pyright
 oauthlib==3.2.2
     # via
-    #   kubernetes
     #   requests-oauthlib
 packaging==24.1
     # via
-    #   juju
     #   pytest
-paramiko==3.4.0
-    # via juju
 parso==0.8.4
     # via jedi
 pexpect==4.9.0
@@ -90,7 +71,6 @@ pure-eval==0.2.3
     # via stack-data
 pyasn1==0.6.0
     # via
-    #   juju
     #   pyasn1-modules
     #   rsa
 pyasn1-modules==0.4.0
@@ -108,7 +88,6 @@ pynacl==1.5.0
     #   pymacaroons
 pyrfc3339==1.1
     # via
-    #   juju
     #   macaroonbakery
 pyright==1.1.389
     # via -r requirements.in
@@ -121,24 +100,17 @@ pytest-asyncio==0.21.2
     # via pytest-operator
 pytest-operator==0.38.0
     # via -r requirements.in
-python-dateutil==2.9.0.post0
-    # via kubernetes
 pytz==2024.1
     # via pyrfc3339
 pyyaml==6.0.2
     # via
-    #   juju
-    #   kubernetes
     #   pytest-operator
 requests==2.32.3
     # via
     #   -r requirements.in
     #   hvac
-    #   kubernetes
     #   macaroonbakery
     #   requests-oauthlib
-requests-oauthlib==2.0.0
-    # via kubernetes
 rsa==4.9
     # via google-auth
 ruff==0.7.3
@@ -146,14 +118,11 @@ ruff==0.7.3
 six==1.16.0
     # via
     #   asttokens
-    #   kubernetes
     #   macaroonbakery
     #   pymacaroons
     #   python-dateutil
 stack-data==0.6.3
     # via ipython
-toposort==1.10
-    # via juju
 traitlets==5.14.3
     # via
     #   ipython
@@ -162,15 +131,8 @@ typing-extensions==4.12.2
     # via
     #   pyright
     #   typing-inspect
-typing-inspect==0.9.0
-    # via juju
 urllib3==2.2.2
     # via
-    #   kubernetes
     #   requests
 wcwidth==0.2.13
     # via prompt-toolkit
-websocket-client==1.8.0
-    # via kubernetes
-websockets==12.0
-    # via juju
