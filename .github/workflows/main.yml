@@ -29,7 +29,6 @@ jobs:
     uses: ./.github/workflows/rock-publish-dev.yaml
     secrets: inherit
   integration-tests:
-    if: github.ref_name == 'main'
     needs: []
     uses: ./.github/workflows/integration-tests.yaml
   rock-publish:
