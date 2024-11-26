@@ -9,14 +9,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
+      
+      - name: Setup LXD
+        run: |
+          sudo snap install lxd --channel= 5.21/stable
+          sudo snap refresh lxd --channel= 5.21/stable
+          sudo lxd waitready
+          sudo lxd init --auto
+          sudo chmod a+wr /var/snap/lxd/common/lxd/unix.socket
+          lxc network set lxdbr0 ipv6.address none
+          sudo usermod -a -G lxd $USER
+          sudo iptables -F FORWARD
+          sudo iptables -P FORWARD ACCEPT
+    
       - name: Setup MicroK8s
         run: |
           echo "Installing snaps"
           sudo snap install microk8s --channel=1.31-strict/stable
           sudo snap install kubectl --classic
           
-          echo "Adding user to microk8s group"
+          echo "Adding user to snap_microk8s group"
           sudo usermod -a -G snap_microk8s $USER
 
           echo "Starting MicroK8s"
@@ -49,6 +61,7 @@ jobs:
       - name: Install test prerequisites
         run: |
           sudo snap install rockcraft --classic
+          pip install tox
 
       - name: Run integration tests
         run: |
