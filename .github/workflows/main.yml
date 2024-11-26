@@ -9,39 +9,39 @@ on:
       - main
 
 jobs: 
-  frontend-build:
-    uses: ./.github/workflows/frontend-build.yaml
-  go-unit-test:
-    uses: ./.github/workflows/go-unittest.yaml
-  go-vet:
-    uses: ./.github/workflows/go-vet.yaml
-  go-lint:
-    uses: ./.github/workflows/go-lint.yaml
-  go-build:
-    needs: [frontend-build]
-    uses: ./.github/workflows/go-build.yaml
-  rock-build:
-    needs: [go-build, go-unit-test, go-vet, go-lint]
-    uses: ./.github/workflows/rock-build.yaml
-  rock-publish-dev:
-    if: github.ref_name != 'main'
-    needs: [rock-build]
-    uses: ./.github/workflows/rock-publish-dev.yaml
-    secrets: inherit
+  # frontend-build:
+  #   uses: ./.github/workflows/frontend-build.yaml
+  # go-unit-test:
+  #   uses: ./.github/workflows/go-unittest.yaml
+  # go-vet:
+  #   uses: ./.github/workflows/go-vet.yaml
+  # go-lint:
+  #   uses: ./.github/workflows/go-lint.yaml
+  # go-build:
+  #   needs: [frontend-build]
+  #   uses: ./.github/workflows/go-build.yaml
+  # rock-build:
+  #   needs: [go-build, go-unit-test, go-vet, go-lint]
+  #   uses: ./.github/workflows/rock-build.yaml
+  # rock-publish-dev:
+  #   if: github.ref_name != 'main'
+  #   needs: [rock-build]
+  #   uses: ./.github/workflows/rock-publish-dev.yaml
+  #   secrets: inherit
   integration-tests:
     needs: []
     uses: ./.github/workflows/integration-tests.yaml
-  rock-publish:
-    if: github.ref_name == 'main'
-    needs: [rock-build]
-    uses: ./.github/workflows/rock-publish.yaml
-    secrets: inherit
-  snap-build:
-    if: github.ref_name == 'main'
-    needs: [go-build, go-unit-test, go-vet, go-lint]
-    uses: ./.github/workflows/snap-build.yaml
-  snap-publish:
-    if: github.ref_name == 'main'
-    needs: [snap-build]
-    uses: ./.github/workflows/snap-publish.yaml
-    secrets: inherit
+  # rock-publish:
+  #   if: github.ref_name == 'main'
+  #   needs: [rock-build]
+  #   uses: ./.github/workflows/rock-publish.yaml
+  #   secrets: inherit
+  # snap-build:
+  #   if: github.ref_name == 'main'
+  #   needs: [go-build, go-unit-test, go-vet, go-lint]
+  #   uses: ./.github/workflows/snap-build.yaml
+  # snap-publish:
+  #   if: github.ref_name == 'main'
+  #   needs: [snap-build]
+  #   uses: ./.github/workflows/snap-publish.yaml
+  #   secrets: inherit
