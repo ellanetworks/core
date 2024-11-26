@@ -119,6 +119,7 @@ def run_gnbsim_simulation(
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to get pod name for {application_name}: {e}")
         return 0
+    logger.info(f"Running GNBSim simulation in pod {pod_name}")
 
     try:
         result = subprocess.check_output(

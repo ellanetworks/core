@@ -4,7 +4,6 @@
 
 """Module use to handle Ella API calls."""
 
-import json
 import logging
 from dataclasses import asdict, dataclass
 from typing import Any, List
@@ -75,7 +74,7 @@ class Ella:
         self,
         method: str,
         endpoint: str,
-        data: any = None,
+        data: any = None,  # type: ignore[reportGeneralTypeIssues]
     ) -> Any | None:
         """Make an HTTP request and handle common error patterns."""
         headers = JSON_HEADER
