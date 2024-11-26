@@ -2,6 +2,8 @@
 
 ## Getting Started
 
+### Set up MicroK8s
+
 ```shell
 sudo snap install microk8s --channel=1.31-strict/stable
 ```
@@ -19,6 +21,8 @@ sudo microk8s enable multus
 sudo microk8s enable metallb:10.0.0.2-10.0.0.4
 ```
 
+### Setup local Docker registry
+
 Install Docker
 
 ```shell
@@ -30,6 +34,14 @@ Create a local registry
 ```shell
 docker run -d -p 5000:5000 --name registry registry:2
 ```
+
+### Install test pre-requisites
+
+```shell
+sudo snap install rockcraft --classic
+```
+
+### Build and Deploy Ella
 
 Build the image and push it to the local registry
 

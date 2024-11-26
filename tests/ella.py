@@ -81,35 +81,15 @@ class Ella:
         headers = JSON_HEADER
         url = f"{self.url}{endpoint}"
         logger.info("%s request to %s", method, url)
-        try:
-            response = requests.request(
-                method=method,
-                url=url,
-                headers=headers,
-                json=data,
-                verify=False,
-            )
-        except requests.exceptions.SSLError as e:
-            logger.error("SSL error: %s", e)
-            return None
-        except requests.RequestException as e:
-            logger.error("HTTP request failed: %s", e)
-            return None
-        except OSError as e:
-            logger.error("couldn't complete HTTP request: %s", e)
-            return None
-        try:
-            response.raise_for_status()
-        except requests.HTTPError:
-            logger.error(
-                "Request failed: code %s",
-                response.status_code,
-            )
-            return None
-        try:
-            json_response = response.json()
-        except json.JSONDecodeError:
-            return None
+        response = requests.request(
+            method=method,
+            url=url,
+            headers=headers,
+            json=data,
+            verify=False,
+        )
+        response.raise_for_status()
+        json_response = response.json()
         return json_response
 
     def create_gnb(self, name: str, tac: int) -> None:

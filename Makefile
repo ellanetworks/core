@@ -41,7 +41,7 @@ go-build:
 
 oci-build:
 	@echo "Building OCI image..."
-	# rockcraft pack
+	rockcraft pack
 	@echo "Copying OCI image to Docker daemon with skopeo..."
 	sudo rockcraft.skopeo --insecure-policy copy oci-archive:$(ROCK_FILE) docker-daemon:$(OCI_IMAGE_NAME)
 	@echo "Pushing image to local registry..."

@@ -1,0 +1,91 @@
+name: Integration tests
+
+on:
+  workflow_call:
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup LXD
+        run: |
+          sudo snap install lxd --channel=5.21/stable
+          sudo snap refresh lxd --channel=5.21/stable
+          sudo lxd waitready
+          sudo lxd init --auto
+          sudo chmod a+wr /var/snap/lxd/common/lxd/unix.socket
+          lxc network set lxdbr0 ipv6.address none
+          sudo usermod -a -G lxd $USER
+
+          echo "Docker LXD workaround"
+          sudo iptables -F FORWARD
+          sudo iptables -P FORWARD ACCEPT
+
+          # Refresh groups in the current shell
+          exec sg lxd newgrp $(id -gn)
+    
+      - name: Setup MicroK8s
+        run: |
+          echo "Installing snaps"
+          sudo snap install microk8s --channel=1.31-strict/stable
+          sudo snap install kubectl --classic
+          
+          echo "Adding user to snap_microk8s group"
+          sudo usermod -a -G snap_microk8s $USER
+
+          echo "Starting MicroK8s"
+          sudo -g snap_microk8s -E microk8s status --wait-ready --timeout=600 
+          
+          echo "Configuring kubectl"
+          sudo mkdir -p /home/runner/.kube
+          sudo -g snap_microk8s -E microk8s config | sudo tee /home/runner/.kube/config > /dev/null
+          sudo chown -R $USER:$USER /home/runner/.kube
+          export KUBECONFIG=/home/runner/.kube/config
+          
+          echo "Enabling MicroK8s addons"
+          sudo -g snap_microk8s -E sudo microk8s enable hostpath-storage
+          sudo -g snap_microk8s -E sudo microk8s enable metallb:10.0.0.2-10.0.0.4
+
+      - name: Enable MicroK8s Multus addon
+        continue-on-error: true
+        run: |
+          sudo microk8s addons repo add community https://github.com/canonical/microk8s-community-addons --reference feat/strict-fix-multus
+          sudo microk8s enable multus
+          sudo microk8s kubectl -n kube-system rollout status daemonset/kube-multus-ds
+          sudo microk8s kubectl auth can-i create network-attachment-definitions
+
+      - name: Setup local Docker registry
+        run: |
+          sudo snap install docker
+          sleep 10
+          docker run -d -p 5000:5000 --name registry registry:2
+
+      - name: Install test prerequisites
+        run: |
+          sudo snap install rockcraft --classic
+          pip install tox
+
+      - name: Build OCI Image
+        run: |
+          make oci-build
+
+      - name: Deploy to K8s
+        run: |
+          kubectl create ns dev2
+          make deploy
+          sleep 30
+          kubectl get pods -n dev2
+
+      - name: Run integration tests
+        run: |
+          make test
+
+      - name: Show logs
+        if: always()
+        run: |
+          kubectl logs -n dev2 -l app=router --tail=-1
+          kubectl logs -n dev2 -l app=ella --tail=-1
+          kubectl logs -n dev2 -l app=gnbsim --tail=-1
