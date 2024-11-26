@@ -74,7 +74,6 @@ ella-deploy: wait-for-mongodb
 	kubectl apply -f $(ELLA_CONFIGMAP)
 	kubectl apply -f $(ELLA_DEPLOYMENT)
 	kubectl apply -f $(ELLA_SERVICE)
-	# kubectl exec -ti $$(kubectl get pods -n $(K8S_NAMESPACE) -l app=ella -o jsonpath="{.items[0].metadata.name}") -n $(K8S_NAMESPACE) -- pebble add ella /config/pebble.yaml
 	kubectl exec -ti $$(kubectl get pods -n $(K8S_NAMESPACE) -l app=ella -o jsonpath="{.items[0].metadata.name}") -n $(K8S_NAMESPACE) -- pebble start ella
 	@echo "Ella deployment completed successfully."
 
@@ -82,7 +81,7 @@ wait-for-mongodb:
 	@echo "Waiting for MongoDB to be ready..."
 	while ! kubectl wait --namespace $(K8S_NAMESPACE) --for=condition=ready pod -l app=mongodb --timeout=30s; do \
 		echo "MongoDB is not ready yet. Retrying..."; \
-		sleep 5; \
+		sleep 2; \
 	done
 	@echo "MongoDB is ready."
 
@@ -101,6 +100,8 @@ test:
 	@echo "Running end-to-end tests..."
 	tox -e integration
 	@echo "End-to-end tests completed successfully."
+
+hotswap-test: hotswap test
 
 clean:
 	@echo "Cleaning build artifacts..."

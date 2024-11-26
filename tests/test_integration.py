@@ -82,8 +82,8 @@ def configure_ella(ella_address: str) -> None:
         name=TEST_NETWORK_SLICE_NAME,
         device_groups=[TEST_DEVICE_GROUP_NAME],
     )
-    logger.info("Sleeping for 10 seconds to allow configuration to propagate.")
-    time.sleep(10)
+    logger.info("Sleeping for 5 seconds to allow configuration to propagate.")
+    time.sleep(5)
 
 
 def run_gnbsim_simulation(
@@ -119,6 +119,7 @@ def run_gnbsim_simulation(
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to get pod name for {application_name}: {e}")
         return 0
+    logger.info(f"Running GNBSim simulation in pod {pod_name}")
 
     try:
         result = subprocess.check_output(
