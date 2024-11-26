@@ -76,6 +76,7 @@ jobs:
         run: |
           kubectl create ns dev2
           make deploy
+          sleep 30
 
       - name: Run integration tests
         run: |
