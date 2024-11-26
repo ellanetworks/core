@@ -19,8 +19,13 @@ jobs:
           sudo chmod a+wr /var/snap/lxd/common/lxd/unix.socket
           lxc network set lxdbr0 ipv6.address none
           sudo usermod -a -G lxd $USER
+
+          echo "Docker LXD workaround"
           sudo iptables -F FORWARD
           sudo iptables -P FORWARD ACCEPT
+
+          # Refresh groups in the current shell
+          exec sg lxd newgrp $(id -gn)
     
       - name: Setup MicroK8s
         run: |
