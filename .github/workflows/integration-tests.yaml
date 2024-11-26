@@ -16,7 +16,6 @@ jobs:
           sudo snap install microk8s --channel=1.31-strict/stable
           sudo snap install kubectl --classic
           
-          
           echo "Adding user to microk8s group"
           sudo usermod -a -G snap_microk8s $USER
 
@@ -44,6 +43,7 @@ jobs:
       - name: Setup local Docker registry
         run: |
           sudo snap install docker
+          sleep 10
           docker run -d -p 5000:5000 --name registry registry:2
 
       - name: Install test prerequisites
