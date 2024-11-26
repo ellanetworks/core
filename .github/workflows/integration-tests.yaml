@@ -18,7 +18,11 @@ jobs:
           sudo snap install docker
           
           # Add user to microk8s group
-          sudo usermod -a -G microk8s $USER
+          sudo usermod -a -G snap_microk8s $USER
+          newgrp snap_microk8s
+
+          # Wait for microk8s to start
+          microk8s status --wait-ready --timeout=600 
           
           # Allow user to run microk8s commands without sudo
           microk8s config > ~/.kube/config
