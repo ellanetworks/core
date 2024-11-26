@@ -12,28 +12,27 @@ jobs:
 
       - name: Setup MicroK8s
         run: |
-          # Install snaps
+          echo "Installing snaps"
           sudo snap install microk8s --channel=1.31-strict/stable
           sudo snap install kubectl --classic
           sudo snap install docker
           
-          # Add user to microk8s group
+          echo "Adding user to microk8s group"
           sudo usermod -a -G snap_microk8s $USER
-          newgrp snap_microk8s
 
-          # Wait for microk8s to start
-          microk8s status --wait-ready --timeout=600 
+          echo "Starting MicroK8s"
+          sudo -g snap_microk8s -E microk8s status --wait-ready --timeout=600 
           
-          # Allow user to run microk8s commands without sudo
-          microk8s config > ~/.kube/config
+          echo "Configuring kubectl"
+          sudo -g snap_microk8s -E microk8s config > ~/.kube/config
 
-          # Enable required addons
-          sudo microk8s addons repo add community https://github.com/canonical/microk8s-community-addons --reference feat/strict-fix-multus
-          sudo microk8s enable hostpath-storage
-          sudo microk8s enable multus
-          sudo microk8s enable metallb:10.0.0.2-10.0.0.4
+          echo "Enabling MicroK8s addons"
+          sudo -g snap_microk8s -E microk8s addons repo add community https://github.com/canonical/microk8s-community-addons --reference feat/strict-fix-multus
+          sudo -g snap_microk8s -E microk8s enable hostpath-storage
+          sudo -g snap_microk8s -E microk8s enable multus
+          sudo -g snap_microk8s -E microk8s enable metallb:10.0.0.2-10.0.0.4
           
-          # Setup local Docker registry
+          echo "Creating local registry"
           docker run -d -p 5000:5000 --name registry registry:2
 
       - name: Run integration tests
