@@ -40,7 +40,7 @@ parts:
       - ui
     source: .
     build-snaps:
-      - go/1.22/stable
+      - go/1.23/stable
     override-build: |
       rm -rf ${CRAFT_PART_BUILD}/ui/frontend_files/*
       cp -r ${CRAFT_STAGE}/app/* ${CRAFT_PART_BUILD}/internal/webui/ui/frontend_files

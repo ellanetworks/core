@@ -1,6 +1,8 @@
 module github.com/yeastengine/ella
 
-go 1.22.2
+go 1.23
+
+toolchain go1.23.3
 
 require (
 	git.cs.nctu.edu.tw/calee/sctp v1.1.0
@@ -18,23 +20,23 @@ require (
 	github.com/korylprince/ipnetgen v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
-	github.com/omec-project/aper v1.2.1
+	github.com/omec-project/aper v1.2.2
 	github.com/omec-project/nas v1.3.0
-	github.com/omec-project/ngap v1.3.0
-	github.com/omec-project/openapi v1.3.1
+	github.com/omec-project/ngap v1.3.1
+	github.com/omec-project/openapi v1.3.2
 	github.com/omec-project/util v1.1.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.20.4
+	github.com/prometheus/client_golang v1.20.5
 	github.com/sirupsen/logrus v1.9.3
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/tim-ywliu/event v0.1.0
 	github.com/wmnsk/go-pfcp v0.0.24
 	github.com/yeastengine/config5g v0.0.0-20240624120332-b75c495fdf84
 	go.mongodb.org/mongo-driver v1.11.9
 	golang.org/x/exp v0.0.0-20240103183307-be819d1f06fc
-	golang.org/x/sys v0.26.0
-	google.golang.org/grpc v1.67.1
-	google.golang.org/protobuf v1.35.1
+	golang.org/x/sys v0.27.0
+	google.golang.org/grpc v1.68.0
+	google.golang.org/protobuf v1.35.2
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -82,12 +84,12 @@ require (
 	go.uber.org/multierr v1.10.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
-	golang.org/x/crypto v0.27.0 // indirect
-	golang.org/x/net v0.29.0 // indirect
-	golang.org/x/oauth2 v0.23.0 // indirect
-	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/text v0.18.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240814211410-ddb44dafa142 // indirect
+	golang.org/x/crypto v0.29.0 // indirect
+	golang.org/x/net v0.31.0 // indirect
+	golang.org/x/oauth2 v0.24.0 // indirect
+	golang.org/x/sync v0.9.0 // indirect
+	golang.org/x/text v0.20.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	gopkg.in/h2non/gock.v1 v1.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
