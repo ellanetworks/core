@@ -31,9 +31,9 @@ jobs:
           
           echo "Enabling MicroK8s addons"
           sudo -g snap_microk8s -E microk8s addons repo add community https://github.com/canonical/microk8s-community-addons --reference feat/strict-fix-multus
-          sudo -g snap_microk8s -E microk8s enable hostpath-storage
-          sudo -g snap_microk8s -E microk8s enable multus
-          sudo -g snap_microk8s -E microk8s enable metallb:10.0.0.2-10.0.0.4
+          sudo -g snap_microk8s -E sudo microk8s enable hostpath-storage
+          sudo -g snap_microk8s -E sudo microk8s enable multus
+          sudo -g snap_microk8s -E sudo microk8s enable metallb:10.0.0.2-10.0.0.4
           
           echo "Creating local registry"
           docker run -d -p 5000:5000 --name registry registry:2
