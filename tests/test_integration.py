@@ -18,12 +18,12 @@ NUM_PROFILES = 5
 
 
 class TestELLA:
-    async def test_given_sdcore_bundle_and_gnbsim_deployed_when_start_simulation_then_simulation_success_status_is_true(  # noqa: E501
+    async def test_given_ella_and_gnbsim_deployed_when_start_simulation_then_simulation_success_status_is_true(  # noqa: E501
         self,
     ):
         ella_port = get_ella_node_port()
         ella_address = f"http://127.0.0.1:{ella_port}"
-        configure_sdcore(ella_address=ella_address)
+        configure_ella(ella_address=ella_address)
         success_runs = run_gnbsim_simulation(
             namespace=NAMESPACE,
             application_name="gnbsim",
@@ -66,8 +66,8 @@ def get_ella_node_port() -> int:
         raise RuntimeError("Invalid NodePort value retrieved") from e
 
 
-def configure_sdcore(ella_address: str) -> None:
-    """Configure Charmed SD-Core.
+def configure_ella(ella_address: str) -> None:
+    """Configure Ella.
 
     Configuration includes:
     - subscriber creation
@@ -82,7 +82,8 @@ def configure_sdcore(ella_address: str) -> None:
         name=TEST_NETWORK_SLICE_NAME,
         device_groups=[TEST_DEVICE_GROUP_NAME],
     )
-    time.sleep(5)
+    logger.info("Sleeping for 10 seconds to allow configuration to propagate.")
+    time.sleep(10)
 
 
 def run_gnbsim_simulation(
