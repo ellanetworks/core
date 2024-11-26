@@ -15,7 +15,7 @@ jobs:
           echo "Installing snaps"
           sudo snap install microk8s --channel=1.31-strict/stable
           sudo snap install kubectl --classic
-          sudo snap install docker
+          
           
           echo "Adding user to microk8s group"
           sudo usermod -a -G snap_microk8s $USER
@@ -34,9 +34,15 @@ jobs:
           sudo -g snap_microk8s -E sudo microk8s enable hostpath-storage
           sudo -g snap_microk8s -E sudo microk8s enable multus
           sudo -g snap_microk8s -E sudo microk8s enable metallb:10.0.0.2-10.0.0.4
-          
-          echo "Creating local registry"
+
+      - name: Setup local Docker registry
+        run: |
+          sudo snap install docker
           docker run -d -p 5000:5000 --name registry registry:2
+
+      - name: Install test prerequisites
+        run: |
+          sudo snap install rockcraft --classic
 
       - name: Run integration tests
         run: |
