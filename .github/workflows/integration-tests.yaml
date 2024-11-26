@@ -12,8 +12,8 @@ jobs:
       
       - name: Setup LXD
         run: |
-          sudo snap install lxd --channel= 5.21/stable
-          sudo snap refresh lxd --channel= 5.21/stable
+          sudo snap install lxd --channel=5.21/stable
+          sudo snap refresh lxd --channel=5.21/stable
           sudo lxd waitready
           sudo lxd init --auto
           sudo chmod a+wr /var/snap/lxd/common/lxd/unix.socket
