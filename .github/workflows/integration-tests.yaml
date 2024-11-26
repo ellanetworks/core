@@ -30,10 +30,16 @@ jobs:
           export KUBECONFIG=/home/runner/.kube/config
           
           echo "Enabling MicroK8s addons"
-          sudo -g snap_microk8s -E microk8s addons repo add community https://github.com/canonical/microk8s-community-addons --reference feat/strict-fix-multus
           sudo -g snap_microk8s -E sudo microk8s enable hostpath-storage
-          sudo -g snap_microk8s -E sudo microk8s enable multus
           sudo -g snap_microk8s -E sudo microk8s enable metallb:10.0.0.2-10.0.0.4
+
+      - name: Enable MicroK8s Multus addon
+        continue-on-error: true
+        run: |
+          sudo microk8s addons repo add community https://github.com/canonical/microk8s-community-addons --reference feat/strict-fix-multus
+          sudo microk8s enable multus
+          sudo microk8s kubectl -n kube-system rollout status daemonset/kube-multus-ds
+          sudo microk8s kubectl auth can-i create network-attachment-definitions
 
       - name: Setup local Docker registry
         run: |
@@ -47,5 +53,6 @@ jobs:
       - name: Run integration tests
         run: |
           make oci-build
+          kubectl create ns dev2
           make deploy
           make test
