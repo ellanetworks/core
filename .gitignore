@@ -13,3 +13,17 @@ ui/.env*.local
 ui/gnb_config.json
 ui/upf_config.json
 internal/webui/ui/frontend_files/*
+
+# Python
+venv/
+.tox/
+.ruff_cache/
+
+# OCI image
+*.rock
+
+# Certificates
+*.pem
+
+# DB
+*.db

@@ -11,6 +11,8 @@ on:
 jobs: 
   frontend-build:
     uses: ./.github/workflows/frontend-build.yaml
+  python-lint:
+    uses: ./.github/workflows/python-lint.yaml
   go-unit-test:
     uses: ./.github/workflows/go-unittest.yaml
   go-vet:

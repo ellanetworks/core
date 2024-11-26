@@ -37,8 +37,8 @@ spec:
       containers:
       - name: ella
         image: localhost:5000/ella:0.0.4
-        command: ["ella"]
-        args: ["--config", "/config/config.yaml"]
+        command: ["pebble"]
+        args: ["run", "--hold", "--http", ":38813", "--verbose"]
         securityContext:
           privileged: true
         volumeMounts:

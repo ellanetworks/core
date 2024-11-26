@@ -11,3 +11,12 @@ data:
     upf:
       interfaces: ["n3", "n6"]
       n3-address: "192.168.252.3"
+  pebble.yaml: |
+    summary: ella layer
+    description: pebble config layer for ella
+    services:
+      ella:
+        override: replace
+        summary: Ella is a private mobile network.
+        command: ella --config /config/config.yaml
+        startup: enabled

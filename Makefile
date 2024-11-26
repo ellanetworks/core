@@ -1,4 +1,3 @@
-# Define variables
 UI_DIR := ui
 GO_CMD := cmd/ella/main.go
 OUTPUT := ella
@@ -68,19 +67,37 @@ router-deploy:
 	kubectl apply -f $(ROUTER_ACCESS_NAD)
 	kubectl apply -f $(ROUTER_DEPLOYMENT)
 
-ella-deploy:
+ella-deploy: wait-for-mongodb
 	@echo "Deploying Ella..."
 	kubectl apply -f $(ELLA_N3_NAD)
 	kubectl apply -f $(ELLA_N6_NAD)
 	kubectl apply -f $(ELLA_CONFIGMAP)
 	kubectl apply -f $(ELLA_DEPLOYMENT)
 	kubectl apply -f $(ELLA_SERVICE)
+	# kubectl exec -ti $$(kubectl get pods -n $(K8S_NAMESPACE) -l app=ella -o jsonpath="{.items[0].metadata.name}") -n $(K8S_NAMESPACE) -- pebble add ella /config/pebble.yaml
+	kubectl exec -ti $$(kubectl get pods -n $(K8S_NAMESPACE) -l app=ella -o jsonpath="{.items[0].metadata.name}") -n $(K8S_NAMESPACE) -- pebble start ella
 	@echo "Ella deployment completed successfully."
+
+wait-for-mongodb:
+	@echo "Waiting for MongoDB to be ready..."
+	while ! kubectl wait --namespace $(K8S_NAMESPACE) --for=condition=ready pod -l app=mongodb --timeout=30s; do \
+		echo "MongoDB is not ready yet. Retrying..."; \
+		sleep 5; \
+	done
+	@echo "MongoDB is ready."
 
 deploy: mongodb-deploy gnbsim-deploy router-deploy ella-deploy
 	@echo "Deployment completed successfully."
 
-test: 
+hotswap: go-build
+	@echo "Copying the binary to the running container..."
+	@POD_NAME=$$(kubectl get pods -n $(K8S_NAMESPACE) -l app=ella -o jsonpath="{.items[0].metadata.name}"); \
+	CONTAINER_NAME=$$(kubectl get pod $$POD_NAME -n $(K8S_NAMESPACE) -o jsonpath="{.spec.containers[0].name}"); \
+	kubectl cp $(OUTPUT) $$POD_NAME:/bin/ella -c $$CONTAINER_NAME -n $(K8S_NAMESPACE); \
+	kubectl exec -it $$POD_NAME -n $(K8S_NAMESPACE) -c $$CONTAINER_NAME -- pebble restart ella
+	@echo "Hotswap completed successfully."
+
+test:
 	@echo "Running end-to-end tests..."
 	tox -e integration
 	@echo "End-to-end tests completed successfully."
