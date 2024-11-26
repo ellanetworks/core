@@ -74,7 +74,7 @@ ella-deploy: wait-for-mongodb
 	kubectl apply -f $(ELLA_CONFIGMAP)
 	kubectl apply -f $(ELLA_DEPLOYMENT)
 	kubectl apply -f $(ELLA_SERVICE)
-	kubectl exec -ti $$(kubectl get pods -n $(K8S_NAMESPACE) -l app=ella -o jsonpath="{.items[0].metadata.name}") -n $(K8S_NAMESPACE) -- pebble start ella
+	kubectl exec -i $$(kubectl get pods -n $(K8S_NAMESPACE) -l app=ella -o jsonpath="{.items[0].metadata.name}") -n $(K8S_NAMESPACE) -- pebble start ella
 	@echo "Ella deployment completed successfully."
 
 wait-for-mongodb:
@@ -93,7 +93,7 @@ hotswap: go-build
 	@POD_NAME=$$(kubectl get pods -n $(K8S_NAMESPACE) -l app=ella -o jsonpath="{.items[0].metadata.name}"); \
 	CONTAINER_NAME=$$(kubectl get pod $$POD_NAME -n $(K8S_NAMESPACE) -o jsonpath="{.spec.containers[0].name}"); \
 	kubectl cp $(OUTPUT) $$POD_NAME:/bin/ella -c $$CONTAINER_NAME -n $(K8S_NAMESPACE); \
-	kubectl exec -it $$POD_NAME -n $(K8S_NAMESPACE) -c $$CONTAINER_NAME -- pebble restart ella
+	kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -c $$CONTAINER_NAME -- pebble restart ella
 	@echo "Hotswap completed successfully."
 
 test:
