@@ -82,3 +82,10 @@ jobs:
       - name: Run integration tests
         run: |
           make test
+
+      - name: Show logs
+        if: always()
+        run: |
+          kubectl logs -n dev2 -l app=router --tail=-1
+          kubectl logs -n dev2 -l app=ella --tail=-1
+          kubectl logs -n dev2 -l app=gnbsim --tail=-1
