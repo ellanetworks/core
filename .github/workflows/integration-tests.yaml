@@ -24,6 +24,7 @@ jobs:
           sudo -g snap_microk8s -E microk8s status --wait-ready --timeout=600 
           
           echo "Configuring kubectl"
+          sudo mkdir -p ~/.kube
           sudo -g snap_microk8s -E microk8s config > ~/.kube/config
 
           echo "Enabling MicroK8s addons"
