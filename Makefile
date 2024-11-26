@@ -74,7 +74,6 @@ ella-deploy: wait-for-mongodb
 	kubectl apply -f $(ELLA_CONFIGMAP)
 	kubectl apply -f $(ELLA_DEPLOYMENT)
 	kubectl apply -f $(ELLA_SERVICE)
-	kubectl exec -i $$(kubectl get pods -n $(K8S_NAMESPACE) -l app=ella -o jsonpath="{.items[0].metadata.name}") -n $(K8S_NAMESPACE) -- pebble start ella
 	@echo "Ella deployment completed successfully."
 
 wait-for-mongodb:
@@ -85,7 +84,21 @@ wait-for-mongodb:
 	done
 	@echo "MongoDB is ready."
 
-deploy: mongodb-deploy gnbsim-deploy router-deploy ella-deploy
+wait-for-ella:
+	@echo "Waiting for Ella to be ready..."
+	while ! kubectl wait --namespace $(K8S_NAMESPACE) --for=condition=ready pod -l app=ella --timeout=30s; do \
+		echo "Ella is not ready yet. Retrying..."; \
+		sleep 2; \
+	done
+	@echo "Ella is ready."
+
+ella-start: wait-for-ella
+	@echo "Starting Ella..."
+	@POD_NAME=$$(kubectl get pods -n $(K8S_NAMESPACE) -l app=ella -o jsonpath="{.items[0].metadata.name}"); \
+    kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -- pebble add ella /config/pebble.yaml; \
+	kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -- pebble start ella
+
+deploy: mongodb-deploy gnbsim-deploy router-deploy ella-deploy ella-start
 	@echo "Deployment completed successfully."
 
 hotswap: go-build

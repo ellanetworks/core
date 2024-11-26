@@ -18,6 +18,7 @@ internal/webui/ui/frontend_files/*
 venv/
 .tox/
 .ruff_cache/
+tests/__pycache__/
 
 # OCI image
 *.rock
