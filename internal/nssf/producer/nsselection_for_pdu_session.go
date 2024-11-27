@@ -8,19 +8,12 @@ package producer
 
 import (
 	"fmt"
-	"math/rand"
 	"net/http"
 
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/nssf/plugin"
 	"github.com/yeastengine/ella/internal/nssf/util"
 )
-
-func selectNsiInformation(nsiInformationList []models.NsiInformation) models.NsiInformation {
-	// Randomly select a Network Slice Instance
-	idx := rand.Intn(len(nsiInformationList))
-	return nsiInformationList[idx]
-}
 
 // Network slice selection for PDU session
 // The function is executed when the IE, `slice-info-for-pdu-session`, is provided in query parameters

@@ -282,12 +282,6 @@ func nsselectionForRegistration(param plugin.NsselectionQueryParameter,
 					var allowedSnssaiElement models.AllowedSnssai
 					allowedSnssaiElement.AllowedSnssai = new(models.Snssai)
 					*allowedSnssaiElement.AllowedSnssai = requestedSnssai
-					nsiInformationList := util.GetNsiInformationListFromConfig(requestedSnssai)
-					if nsiInformationList != nil {
-						// TODO: `NsiInformationList` should be slice in `AllowedSnssai` instead of pointer of slice
-						allowedSnssaiElement.NsiInformationList = append(allowedSnssaiElement.NsiInformationList,
-							nsiInformationList...)
-					}
 					if param.HomePlmnId != nil && !util.CheckStandardSnssai(requestedSnssai) {
 						allowedSnssaiElement.MappedHomeSnssai = new(models.Snssai)
 						*allowedSnssaiElement.MappedHomeSnssai = *subscribedSnssai.SubscribedSnssai

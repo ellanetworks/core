@@ -178,13 +178,6 @@ func GetMappingOfPlmnFromConfig(homePlmnId models.PlmnId) []models.MappingOfSnss
 	return nil
 }
 
-// Get NSI information list of the given S-NSSAI from configuration
-func GetNsiInformationListFromConfig(snssai models.Snssai) []models.NsiInformation {
-	logger.Util.Warnf("GetNsiInformationListFromConfig")
-
-	return nil
-}
-
 // Get Access Type of the given TAI from configuraion
 func GetAccessTypeFromConfig(tai models.Tai) models.AccessType {
 	factory.ConfigLock.RLock()
