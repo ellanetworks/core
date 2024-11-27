@@ -1179,7 +1179,7 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 			}
 
 			// Guillaume: I'm not sure if what we have here is the right thing to do
-			// As we remvoed the NRF, we don't search for other AMF's anymore and we hardcode the
+			// As we removed the NRF, we don't search for other AMF's anymore and we hardcode the
 			// target AMF to the AMF's own address.
 			// It's possible we need to change this whole block to the following:
 			//  allowedNssaiNgap := ngapConvert.AllowedNssaiToNgap(ue.AllowedNssai[anType])

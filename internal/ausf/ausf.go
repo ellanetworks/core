@@ -13,7 +13,7 @@ const (
 
 var AUSF = &service.AUSF{}
 
-func Start(udmUrl string, webuiUrl string) error {
+func Start(udmUrl string) error {
 	configuration := factory.Configuration{
 		Sbi: &factory.Sbi{
 			BindingIPv4: "0.0.0.0",
@@ -22,9 +22,8 @@ func Start(udmUrl string, webuiUrl string) error {
 		ServiceNameList: []string{
 			"nausf-auth",
 		},
-		UdmUri:   udmUrl,
-		WebuiUri: webuiUrl,
-		GroupId:  AUSF_GROUP_ID,
+		UdmUri:  udmUrl,
+		GroupId: AUSF_GROUP_ID,
 	}
 
 	config := factory.Config{
