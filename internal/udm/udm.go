@@ -15,7 +15,7 @@ const (
 	SBI_PORT            = 29503
 )
 
-func Start(udrURL string, webuiURL string) error {
+func Start(udrURL string) error {
 	configuration := factory.Configuration{
 		UdmName: "UDM",
 		Sbi: &factory.Sbi{
@@ -29,8 +29,7 @@ func Start(udrURL string, webuiURL string) error {
 			"nudm-ee",
 			"nudm-pp",
 		},
-		UdrUri:   udrURL,
-		WebuiUri: webuiURL,
+		UdrUri: udrURL,
 		Keys: &factory.Keys{
 			UdmProfileAHNPrivateKey: UDM_HNP_PRIVATE_KEY,
 		},

@@ -73,7 +73,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = udm.Start(udrUrl, webuiUrl)
+	err = udm.Start(udrUrl)
 	if err != nil {
 		return err
 	}
