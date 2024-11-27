@@ -11,7 +11,6 @@ import (
 
 func InitUdrContext(context *udr_context.UDRContext) {
 	config := factory.UdrConfig
-	logger.UtilLog.Infof("udrconfig Info: Version[%s] Description[%s]", config.Info.Version, config.Info.Description)
 	configuration := config.Configuration
 	sbi := configuration.Sbi
 	context.UriScheme = models.UriScheme_HTTP

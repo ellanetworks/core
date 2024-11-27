@@ -95,7 +95,6 @@ func InitSmfContext(config *factory.Config) *SMFContext {
 	factory.SmfConfigSyncLock.Lock()
 	defer factory.SmfConfigSyncLock.Unlock()
 
-	logger.CtxLog.Infof("smfconfig Info: Version[%s] Description[%s]", config.Info.Version, config.Info.Description)
 	configuration := config.Configuration
 	if configuration.SmfName != "" {
 		smfContext.Name = configuration.SmfName
@@ -184,9 +183,6 @@ func InitSMFUERouting(routingConfig *factory.RoutingConfig) {
 		logger.CtxLog.Error("configuration needs the routing config")
 		return
 	}
-
-	logger.CtxLog.Infof("ue routing config Info: Version[%s] Description[%s]",
-		routingConfig.Info.Version, routingConfig.Info.Description)
 
 	UERoutingInfo := routingConfig.UERoutingInfo
 	smfContext.UEPreConfigPathPool = make(map[string]*UEPreConfigPaths)

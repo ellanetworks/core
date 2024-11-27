@@ -42,10 +42,6 @@ func Start(webuiURL string) error {
 		},
 	}
 	config := factory.Config{
-		Info: &factory.Info{
-			Description: "NSSF initial local configuration",
-			Version:     "1.0.0",
-		},
 		Logger: &logger.Logger{
 			NSSF: &logger.LogSetting{
 				DebugLevel:   "debug",

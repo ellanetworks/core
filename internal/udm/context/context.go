@@ -404,23 +404,15 @@ func (context *UDMContext) GetSDMUri() string {
 	return context.GetIPv4Uri() + "/nudm-sdm/v1"
 }
 
-func (context *UDMContext) InitNFService(serviceName []string, version string) {
-	tmpVersion := strings.Split(version, ".")
-	versionUri := "v" + tmpVersion[0]
+func (context *UDMContext) InitNFService(serviceName []string) {
 	for index, nameString := range serviceName {
 		name := models.ServiceName(nameString)
 		context.NfService[name] = models.NfService{
 			ServiceInstanceId: strconv.Itoa(index),
 			ServiceName:       name,
-			Versions: &[]models.NfServiceVersion{
-				{
-					ApiFullVersion:  version,
-					ApiVersionInUri: versionUri,
-				},
-			},
-			Scheme:          context.UriScheme,
-			NfServiceStatus: models.NfServiceStatus_REGISTERED,
-			ApiPrefix:       context.GetIPv4Uri(),
+			Scheme:            context.UriScheme,
+			NfServiceStatus:   models.NfServiceStatus_REGISTERED,
+			ApiPrefix:         context.GetIPv4Uri(),
 			IpEndPoints: &[]models.IpEndPoint{
 				{
 					Ipv4Address: context.BindingIPv4,

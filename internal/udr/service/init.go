@@ -46,7 +46,6 @@ func (udr *UDR) Start() {
 	// get config file info
 	config := factory.UdrConfig
 	mongodb := config.Configuration.Mongodb
-	initLog.Infof("UDR Config Info: Version[%s] Description[%s]", config.Info.Version, config.Info.Description)
 
 	// Connect to MongoDB
 	producer.ConnectMongo(mongodb.Url, mongodb.Name, mongodb.AuthUrl, mongodb.AuthKeysDbName)

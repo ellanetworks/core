@@ -12,7 +12,6 @@ import (
 
 func InitUDMContext(udmContext *context.UDMContext) {
 	config := factory.UdmConfig
-	logger.UtilLog.Info("udmconfig Info: Version[", config.Info.Version, "] Description[", config.Info.Description, "]")
 	configuration := config.Configuration
 	if configuration.UdmName != "" {
 		udmContext.Name = configuration.UdmName
@@ -48,5 +47,5 @@ func InitUDMContext(udmContext *context.UDMContext) {
 		},
 	}
 	udmContext.PlmnList = configuration.PlmnList
-	udmContext.InitNFService(servingNameList, config.Info.Version)
+	udmContext.InitNFService(servingNameList)
 }

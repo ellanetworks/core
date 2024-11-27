@@ -25,10 +25,6 @@ func Start(mongoDBURL string, mongoDBName, webuiURL string) error {
 		WebuiUri: webuiURL,
 	}
 	config := factory.Config{
-		Info: &factory.Info{
-			Description: "UDR initial local configuration",
-			Version:     "1.0.0",
-		},
 		Logger: &logger.Logger{
 			UDR: &logger.LogSetting{
 				DebugLevel:   "debug",

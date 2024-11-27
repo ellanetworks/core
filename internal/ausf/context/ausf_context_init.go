@@ -12,7 +12,6 @@ import (
 
 func InitAusfContext(context *AUSFContext) {
 	config := factory.AusfConfig
-	logger.InitLog.Infof("ausfconfig Info: Version[%s] Description[%s]\n", config.Info.Version, config.Info.Description)
 
 	configuration := config.Configuration
 
@@ -44,8 +43,6 @@ func AddNfServices(serviceMap *map[models.ServiceName]models.NfService, config *
 	ipEndPoints = append(ipEndPoints, ipEndPoint)
 
 	var nfServiceVersion models.NfServiceVersion
-	nfServiceVersion.ApiFullVersion = config.Info.Version
-	nfServiceVersion.ApiVersionInUri = "v1"
 	nfServiceVersions = append(nfServiceVersions, nfServiceVersion)
 
 	nfService.Scheme = context.UriScheme

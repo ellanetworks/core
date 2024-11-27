@@ -129,23 +129,15 @@ func (c *PCFContext) GetIPv4Uri() string {
 }
 
 // Init NfService with supported service list ,and version of services
-func (c *PCFContext) InitNFService(serviceList []factory.Service, version string) {
-	tmpVersion := strings.Split(version, ".")
-	versionUri := "v" + tmpVersion[0]
+func (c *PCFContext) InitNFService(serviceList []factory.Service) {
 	for index, service := range serviceList {
 		name := models.ServiceName(service.ServiceName)
 		c.NfService[name] = models.NfService{
 			ServiceInstanceId: strconv.Itoa(index),
 			ServiceName:       name,
-			Versions: &[]models.NfServiceVersion{
-				{
-					ApiFullVersion:  version,
-					ApiVersionInUri: versionUri,
-				},
-			},
-			Scheme:          c.UriScheme,
-			NfServiceStatus: models.NfServiceStatus_REGISTERED,
-			ApiPrefix:       c.GetIPv4Uri(),
+			Scheme:            c.UriScheme,
+			NfServiceStatus:   models.NfServiceStatus_REGISTERED,
+			ApiPrefix:         c.GetIPv4Uri(),
 			IpEndPoints: &[]models.IpEndPoint{
 				{
 					Ipv4Address: c.BindingIPv4,
@@ -233,21 +225,6 @@ func (c *PCFContext) PcfUeFindByIPv4(v4 string) *UeContext {
 	return ue
 }
 
-// Find PcfUe which Ipv6 belongs to
-func (c *PCFContext) PcfUeFindByIPv6(v6 string) *UeContext {
-	var ue *UeContext
-	c.UePool.Range(func(key, value interface{}) bool {
-		ue = value.(*UeContext)
-		if ue.SMPolicyFindByIpv6(v6) != nil {
-			return false
-		} else {
-			return true
-		}
-	})
-
-	return ue
-}
-
 // Find SMPolicy with AppSessionContext
 func ueSMPolicyFindByAppSessionContext(ue *UeContext, req *models.AppSessionContextReqData) (*UeSmPolicyData, error) {
 	var policy *UeSmPolicyData
@@ -256,16 +233,16 @@ func ueSMPolicyFindByAppSessionContext(ue *UeContext, req *models.AppSessionCont
 	if req.UeIpv4 != "" {
 		policy = ue.SMPolicyFindByIdentifiersIpv4(req.UeIpv4, req.SliceInfo, req.Dnn, req.IpDomain)
 		if policy == nil {
-			err = fmt.Errorf("Can't find Ue with Ipv4[%s]", req.UeIpv4)
+			err = fmt.Errorf("can't find Ue with Ipv4[%s]", req.UeIpv4)
 		}
 	} else if req.UeIpv6 != "" {
 		policy = ue.SMPolicyFindByIdentifiersIpv6(req.UeIpv6, req.SliceInfo, req.Dnn)
 		if policy == nil {
-			err = fmt.Errorf("Can't find Ue with Ipv6 prefix[%s]", req.UeIpv6)
+			err = fmt.Errorf("can't find Ue with Ipv6 prefix[%s]", req.UeIpv6)
 		}
 	} else {
 		// TODO: find by MAC address
-		err = fmt.Errorf("Ue finding by MAC address does not support")
+		err = fmt.Errorf("UE finding by MAC address does not support")
 	}
 	return policy, err
 }
@@ -304,7 +281,7 @@ func (c *PCFContext) SessionBinding(req *models.AppSessionContextReqData) (*UeSm
 		})
 	}
 	if policy == nil && err == nil {
-		err = fmt.Errorf("No SM policy found")
+		err = fmt.Errorf("no SM policy found")
 	}
 	return policy, err
 }
@@ -359,14 +336,6 @@ func Ipv6Index() int32 {
 		return int32(len(Ipv6_pool))
 	}
 	return 1
-}
-
-func GetIpv6Address(ipindex int32) string {
-	return Ipv6_pool[fmt.Sprint(ipindex)]
-}
-
-func DeleteIpv6index(Ipv6index int32) {
-	delete(Ipv6_pool, fmt.Sprint(Ipv6index))
 }
 
 func (c *PCFContext) NewAmfStatusSubscription(subscriptionID string, subscriptionData AMFStatusSubscriptionData) {
