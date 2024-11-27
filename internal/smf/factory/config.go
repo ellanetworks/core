@@ -15,7 +15,6 @@ import (
 )
 
 type Config struct {
-	Info          *Info               `yaml:"info"`
 	Configuration *Configuration      `yaml:"configuration"`
 	Logger        *logger_util.Logger `yaml:"logger"`
 }
@@ -30,11 +29,6 @@ type UpdateSmfConfig struct {
 	AddLinks       *[]UPLink
 	DelLinks       *[]UPLink
 	EnterpriseList *map[string]string
-}
-
-type Info struct {
-	Version     string `yaml:"version,omitempty"`
-	Description string `yaml:"description,omitempty"`
 }
 
 const (
@@ -138,7 +132,6 @@ type PfdDataForApp struct {
 }
 
 type RoutingConfig struct {
-	Info          *Info                        `yaml:"info"`
 	UERoutingInfo []*UERoutingInfo             `yaml:"ueRoutingInfo"`
 	RouteProf     map[RouteProfID]RouteProfile `yaml:"routeProfile,omitempty"`
 	PfdDatas      []*PfdDataForApp             `yaml:"pfdDataForApp,omitempty"`

@@ -24,10 +24,6 @@ func Start(dbUrl string, dbName string) (string, error) {
 		CfgPort: ConfigPort,
 	}
 	config := factory.Config{
-		Info: &factory.Info{
-			Description: "WebUI initial local configuration",
-			Version:     "1.0.0",
-		},
 		Logger: &logger.Logger{
 			WEBUI: &logger.LogSetting{
 				DebugLevel:   "debug",

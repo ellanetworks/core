@@ -36,10 +36,6 @@ func Start(udrURL string, webuiURL string) error {
 		},
 	}
 	config := factory.Config{
-		Info: &factory.Info{
-			Description: "UDM initial local configuration",
-			Version:     "1.0.0",
-		},
 		Logger: &logger.Logger{
 			UDM: &logger.LogSetting{
 				DebugLevel:   "debug",

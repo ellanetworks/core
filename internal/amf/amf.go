@@ -93,9 +93,6 @@ func Start(ausfURL string, nssfURL string, pcfURL string, smfURL string, UdmsdmU
 				DebugLevel: "debug",
 			},
 		},
-		Info: &factory.Info{
-			Version: "v1.0.0",
-		},
 	}
 	AMF.Initialize(config)
 	go AMF.Start()

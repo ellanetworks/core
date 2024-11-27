@@ -5,14 +5,8 @@ import (
 )
 
 type Config struct {
-	Info          *Info          `yaml:"info"`
 	Configuration *Configuration `yaml:"configuration"`
 	Logger        *logger.Logger `yaml:"logger"`
-}
-
-type Info struct {
-	Version     string `yaml:"version,omitempty"`
-	Description string `yaml:"description,omitempty"`
 }
 
 type Configuration struct {

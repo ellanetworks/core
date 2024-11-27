@@ -45,10 +45,6 @@ func Start(amfURL string, udrURL string, webuiURL string) error {
 		},
 	}
 	config := factory.Config{
-		Info: &factory.Info{
-			Description: "PCF initial local configuration",
-			Version:     "1.0.0",
-		},
 		Logger: &logger.Logger{
 			PCF: &logger.LogSetting{
 				DebugLevel:   "debug",

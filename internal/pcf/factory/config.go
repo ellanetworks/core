@@ -5,15 +5,15 @@ import (
 	"github.com/omec-project/util/logger"
 )
 
-type Config struct {
-	Info          *Info          `yaml:"info"`
-	Configuration *Configuration `yaml:"configuration"`
-	Logger        *logger.Logger `yaml:"logger"`
+var PcfConfig Config
+
+func InitConfigFactory(c Config) {
+	PcfConfig = c
 }
 
-type Info struct {
-	Version     string `yaml:"version,omitempty"`
-	Description string `yaml:"description,omitempty"`
+type Config struct {
+	Configuration *Configuration `yaml:"configuration"`
+	Logger        *logger.Logger `yaml:"logger"`
 }
 
 type Configuration struct {

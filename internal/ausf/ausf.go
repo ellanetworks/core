@@ -29,10 +29,6 @@ func Start(udmUrl string, webuiUrl string) error {
 
 	config := factory.Config{
 		Configuration: &configuration,
-		Info: &factory.Info{
-			Description: "AUSF initial local configuration",
-			Version:     "1.0.0",
-		},
 		Logger: &logger.Logger{
 			AUSF: &logger.LogSetting{
 				ReportCaller: false,

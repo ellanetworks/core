@@ -10,15 +10,9 @@ import (
 )
 
 type Config struct {
-	Info          *Info               `yaml:"info"`
 	Configuration *Configuration      `yaml:"configuration"`
 	Logger        *logger_util.Logger `yaml:"logger"`
 	Subscriptions []Subscription      `yaml:"subscriptions,omitempty"`
-}
-
-type Info struct {
-	Version     string `yaml:"version"`
-	Description string `yaml:"description,omitempty"`
 }
 
 type Configuration struct {

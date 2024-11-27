@@ -477,23 +477,15 @@ func (context *AMFContext) GetIPv4Uri() string {
 	return fmt.Sprintf("%s://%s:%d", context.UriScheme, context.BindingIPv4, context.SBIPort)
 }
 
-func (context *AMFContext) InitNFService(serivceName []string, version string) {
-	tmpVersion := strings.Split(version, ".")
-	versionUri := "v" + tmpVersion[0]
+func (context *AMFContext) InitNFService(serivceName []string) {
 	for index, nameString := range serivceName {
 		name := models.ServiceName(nameString)
 		context.NfService[name] = models.NfService{
 			ServiceInstanceId: strconv.Itoa(index),
 			ServiceName:       name,
-			Versions: &[]models.NfServiceVersion{
-				{
-					ApiFullVersion:  version,
-					ApiVersionInUri: versionUri,
-				},
-			},
-			Scheme:          context.UriScheme,
-			NfServiceStatus: models.NfServiceStatus_REGISTERED,
-			ApiPrefix:       context.GetIPv4Uri(),
+			Scheme:            context.UriScheme,
+			NfServiceStatus:   models.NfServiceStatus_REGISTERED,
+			ApiPrefix:         context.GetIPv4Uri(),
 			IpEndPoints: &[]models.IpEndPoint{
 				{
 					Ipv4Address: context.BindingIPv4,

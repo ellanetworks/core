@@ -63,8 +63,6 @@ func (udm *UDM) Start() {
 	configuration := config.Configuration
 	serviceName := configuration.ServiceNameList
 
-	initLog.Infof("UDM Config Info: Version[%s] Description[%s]", config.Info.Version, config.Info.Description)
-
 	initLog.Infoln("Server started")
 
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
@@ -80,7 +78,7 @@ func (udm *UDM) Start() {
 
 	self := context.UDM_Self()
 	util.InitUDMContext(self)
-	context.UDM_Self().InitNFService(serviceName, config.Info.Version)
+	context.UDM_Self().InitNFService(serviceName)
 
 	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
 

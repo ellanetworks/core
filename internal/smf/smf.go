@@ -35,10 +35,6 @@ func Start(amfURL string, pcfURL string, udmURL string, webuiURL string) error {
 
 	config := factory.Config{
 		Configuration: &configuration,
-		Info: &factory.Info{
-			Description: "SMF initial local configuration",
-			Version:     "1.0.0",
-		},
 		Logger: &logger.Logger{
 			SMF: &logger.LogSetting{
 				DebugLevel:   "debug",
@@ -47,12 +43,7 @@ func Start(amfURL string, pcfURL string, udmURL string, webuiURL string) error {
 		},
 	}
 
-	ueRoutingConfig := factory.RoutingConfig{
-		Info: &factory.Info{
-			Description: "Routing information for UE",
-			Version:     "1.0.0",
-		},
-	}
+	ueRoutingConfig := factory.RoutingConfig{}
 
 	err := SMF.Initialize(config, ueRoutingConfig)
 	if err != nil {
