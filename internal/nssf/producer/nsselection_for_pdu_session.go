@@ -17,9 +17,6 @@ import (
 )
 
 func selectNsiInformation(nsiInformationList []models.NsiInformation) models.NsiInformation {
-	// TODO: Algorithm to select Network Slice Instance
-	//       Take roaming indication into consideration
-
 	// Randomly select a Network Slice Instance
 	idx := rand.Intn(len(nsiInformationList))
 	return nsiInformationList[idx]
@@ -50,22 +47,6 @@ func nsselectionForPduSession(param plugin.NsselectionQueryParameter,
 			status = http.StatusOK
 			return status
 		}
-	}
-
-	if param.Tai != nil &&
-		!util.CheckSupportedSnssaiInPlmn(*param.SliceInfoRequestForPduSession.SNssai, *param.Tai.PlmnId) {
-		// Return ProblemDetails indicating S-NSSAI is not supported
-		// TODO: Based on TS 23.501 V15.2.0, if the Requested NSSAI includes an S-NSSAI that is not valid in the
-		//       Serving PLMN, the NSSF may derive the Configured NSSAI for Serving PLMN
-		*problemDetails = models.ProblemDetails{
-			Title:  util.UNSUPPORTED_RESOURCE,
-			Status: http.StatusForbidden,
-			Detail: "S-NSSAI in Requested NSSAI is not supported in PLMN",
-			Cause:  "SNSSAI_NOT_SUPPORTED",
-		}
-
-		status = http.StatusForbidden
-		return status
 	}
 
 	if param.HomePlmnId != nil {
@@ -115,15 +96,7 @@ func nsselectionForPduSession(param plugin.NsselectionQueryParameter,
 		return status
 	}
 
-	nsiInformationList := util.GetNsiInformationListFromConfig(*param.SliceInfoRequestForPduSession.SNssai)
-
-	if nsiInformationList == nil {
-		*authorizedNetworkSliceInfo = models.AuthorizedNetworkSliceInfo{}
-	} else {
-		nsiInformation := selectNsiInformation(nsiInformationList)
-		authorizedNetworkSliceInfo.NsiInformation = new(models.NsiInformation)
-		*authorizedNetworkSliceInfo.NsiInformation = nsiInformation
-	}
+	*authorizedNetworkSliceInfo = models.AuthorizedNetworkSliceInfo{}
 
 	return http.StatusOK
 }

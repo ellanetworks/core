@@ -11,14 +11,10 @@ import (
 
 var nssfContext = NSSFContext{}
 
-// Initialize NSSF context with default value
 func init() {
 	nssfContext.NfId = uuid.New().String()
-
 	nssfContext.Name = "NSSF"
-
 	nssfContext.UriScheme = models.UriScheme_HTTP
-
 	serviceName := []models.ServiceName{
 		models.ServiceName_NNSSF_NSSELECTION,
 		models.ServiceName_NNSSF_NSSAIAVAILABILITY,
@@ -27,13 +23,12 @@ func init() {
 }
 
 type NSSFContext struct {
-	NfId              string
-	Name              string
-	UriScheme         models.UriScheme
-	BindingIPv4       string
-	NfService         map[models.ServiceName]models.NfService
-	SupportedPlmnList []models.PlmnId
-	SBIPort           int
+	NfId        string
+	Name        string
+	UriScheme   models.UriScheme
+	BindingIPv4 string
+	NfService   map[models.ServiceName]models.NfService
+	SBIPort     int
 }
 
 // Initialize NSSF context with configuration factory
@@ -44,7 +39,6 @@ func InitNssfContext() {
 	nssfContext.SBIPort = nssfConfig.Configuration.Sbi.Port
 	nssfContext.BindingIPv4 = nssfConfig.Configuration.Sbi.BindingIPv4
 	nssfContext.NfService = initNfService(nssfConfig.Configuration.ServiceNameList)
-	nssfContext.SupportedPlmnList = nssfConfig.Configuration.SupportedPlmnList
 }
 
 func initNfService(serviceName []models.ServiceName) (

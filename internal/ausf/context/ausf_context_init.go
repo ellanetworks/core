@@ -7,7 +7,6 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/ausf/factory"
-	"github.com/yeastengine/ella/internal/ausf/logger"
 )
 
 func InitAusfContext(context *AUSFContext) {
@@ -24,7 +23,6 @@ func InitAusfContext(context *AUSFContext) {
 	context.Url = fmt.Sprintf("%s://%s:%d", context.UriScheme, context.BindingIPv4, context.SBIPort)
 	context.NfService = make(map[models.ServiceName]models.NfService)
 	AddNfServices(&context.NfService, &config, context)
-	logger.InitLog.Warnf("TO DELETE: AusfContext: %v", context)
 }
 
 func AddNfServices(serviceMap *map[models.ServiceName]models.NfService, config *factory.Config, context *AUSFContext) {

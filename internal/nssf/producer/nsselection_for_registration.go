@@ -58,12 +58,7 @@ func useDefaultSubscribedSnssai(
 			var allowedSnssaiElement models.AllowedSnssai
 			allowedSnssaiElement.AllowedSnssai = new(models.Snssai)
 			*allowedSnssaiElement.AllowedSnssai = mappingOfSubscribedSnssai
-			nsiInformationList := util.GetNsiInformationListFromConfig(mappingOfSubscribedSnssai)
-			if nsiInformationList != nil {
-				// TODO: `NsiInformationList` should be slice in `AllowedSnssai` instead of pointer of slice
-				allowedSnssaiElement.NsiInformationList = append(allowedSnssaiElement.NsiInformationList,
-					nsiInformationList...)
-			}
+
 			if param.HomePlmnId != nil && !util.CheckStandardSnssai(*subscribedSnssai.SubscribedSnssai) {
 				allowedSnssaiElement.MappedHomeSnssai = new(models.Snssai)
 				*allowedSnssaiElement.MappedHomeSnssai = *subscribedSnssai.SubscribedSnssai
@@ -104,52 +99,6 @@ func useDefaultConfiguredNssai(
 				authorizedNetworkSliceInfo.ConfiguredNssai = append(authorizedNetworkSliceInfo.ConfiguredNssai, configuredSnssai)
 				break
 			}
-		}
-	}
-}
-
-// Set Configured NSSAI with Subscribed S-NSSAI(s)
-func setConfiguredNssai(
-	param plugin.NsselectionQueryParameter, authorizedNetworkSliceInfo *models.AuthorizedNetworkSliceInfo,
-) {
-	var mappingOfSnssai []models.MappingOfSnssai
-	if param.HomePlmnId != nil {
-		// Find mapping of Subscribed S-NSSAI of UE's HPLMN to S-NSSAI in Serving PLMN from NSSF configuration
-		mappingOfSnssai = util.GetMappingOfPlmnFromConfig(*param.HomePlmnId)
-
-		if mappingOfSnssai == nil {
-			logger.Nsselection.Warnf("No S-NSSAI mapping of UE's HPLMN %+v in NSSF configuration", *param.HomePlmnId)
-			return
-		}
-	}
-
-	for _, subscribedSnssai := range param.SliceInfoRequestForRegistration.SubscribedNssai {
-		var mappingOfSubscribedSnssai models.Snssai
-		if param.HomePlmnId != nil && !util.CheckStandardSnssai(*subscribedSnssai.SubscribedSnssai) {
-			targetMapping, found := util.FindMappingWithHomeSnssai(*subscribedSnssai.SubscribedSnssai, mappingOfSnssai)
-
-			if !found {
-				logger.Nsselection.Warnf("No mapping of Subscribed S-NSSAI %+v in PLMN %+v in NSSF configuration",
-					*subscribedSnssai.SubscribedSnssai,
-					*param.HomePlmnId)
-				continue
-			} else {
-				mappingOfSubscribedSnssai = *targetMapping.ServingSnssai
-			}
-		} else {
-			mappingOfSubscribedSnssai = *subscribedSnssai.SubscribedSnssai
-		}
-
-		if util.CheckSupportedSnssaiInPlmn(mappingOfSubscribedSnssai, *param.Tai.PlmnId) {
-			var configuredSnssai models.ConfiguredSnssai
-			configuredSnssai.ConfiguredSnssai = new(models.Snssai)
-			*configuredSnssai.ConfiguredSnssai = mappingOfSubscribedSnssai
-			if param.HomePlmnId != nil && !util.CheckStandardSnssai(*subscribedSnssai.SubscribedSnssai) {
-				configuredSnssai.MappedHomeSnssai = new(models.Snssai)
-				*configuredSnssai.MappedHomeSnssai = *subscribedSnssai.SubscribedSnssai
-			}
-
-			authorizedNetworkSliceInfo.ConfiguredNssai = append(authorizedNetworkSliceInfo.ConfiguredNssai, configuredSnssai)
 		}
 	}
 }
@@ -284,27 +233,10 @@ func nsselectionForRegistration(param plugin.NsselectionQueryParameter,
 		}
 	}
 
-	checkInvalidRequestedNssai := false
 	if param.SliceInfoRequestForRegistration.RequestedNssai != nil &&
 		len(param.SliceInfoRequestForRegistration.RequestedNssai) != 0 {
 		// Requested NSSAI is provided
 		// Verify which S-NSSAI(s) in the Requested NSSAI are permitted based on comparing the Subscribed S-NSSAI(s)
-
-		if param.Tai != nil &&
-			!util.CheckSupportedNssaiInPlmn(param.SliceInfoRequestForRegistration.RequestedNssai, *param.Tai.PlmnId) {
-			// Return ProblemDetails indicating S-NSSAI is not supported
-			// TODO: Based on TS 23.501 V15.2.0, if the Requested NSSAI includes an S-NSSAI that is not valid in the
-			//       Serving PLMN, the NSSF may derive the Configured NSSAI for Serving PLMN
-			*problemDetails = models.ProblemDetails{
-				Title:  util.UNSUPPORTED_RESOURCE,
-				Status: http.StatusForbidden,
-				Detail: "S-NSSAI in Requested NSSAI is not supported in PLMN",
-				Cause:  "SNSSAI_NOT_SUPPORTED",
-			}
-
-			status = http.StatusForbidden
-			return status
-		}
 
 		// Check if any Requested S-NSSAIs is present in Subscribed S-NSSAIs
 		checkIfRequestAllowed := false
@@ -329,7 +261,6 @@ func nsselectionForRegistration(param plugin.NsselectionQueryParameter,
 					// No mapping of Requested S-NSSAI to HPLMN S-NSSAI is provided by UE
 					// TODO: Search for local configuration if there is no provided mapping from UE, and update UE's
 					//       Configured NSSAI
-					checkInvalidRequestedNssai = true
 					authorizedNetworkSliceInfo.RejectedNssaiInPlmn = append(authorizedNetworkSliceInfo.RejectedNssaiInPlmn, requestedSnssai)
 					continue
 				} else {
@@ -380,7 +311,6 @@ func nsselectionForRegistration(param plugin.NsselectionQueryParameter,
 			if !hitSubscription {
 				// Requested S-NSSAI does not match any Subscribed S-NSSAI
 				// Add it to Rejected NSSAI in PLMN
-				checkInvalidRequestedNssai = true
 				authorizedNetworkSliceInfo.RejectedNssaiInPlmn = append(authorizedNetworkSliceInfo.RejectedNssaiInPlmn, requestedSnssai)
 			}
 		}
@@ -393,7 +323,6 @@ func nsselectionForRegistration(param plugin.NsselectionQueryParameter,
 	} else {
 		// No Requested NSSAI is provided
 		// Subscribed S-NSSAIs marked as default are used
-		checkInvalidRequestedNssai = true
 		useDefaultSubscribedSnssai(param, authorizedNetworkSliceInfo)
 	}
 
@@ -406,14 +335,6 @@ func nsselectionForRegistration(param plugin.NsselectionQueryParameter,
 		// Default Configured NSSAI Indication is received from AMF
 		// Determine the Configured NSSAI based on the Default Configured NSSAI
 		useDefaultConfiguredNssai(param, authorizedNetworkSliceInfo)
-	} else if checkInvalidRequestedNssai {
-		// No Requested NSSAI is provided or the Requested NSSAI includes an S-NSSAI that is not valid
-		// Determine the Configured NSSAI based on the subscription
-		// Configure available NSSAI for UE in its PLMN
-		// If TAI is not provided, then unable to check if S-NSSAIs is supported in the PLMN
-		if param.Tai != nil {
-			setConfiguredNssai(param, authorizedNetworkSliceInfo)
-		}
 	}
 
 	status = http.StatusOK
