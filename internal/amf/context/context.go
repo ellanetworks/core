@@ -30,8 +30,6 @@ func init() {
 	AMF_Self().Name = "amf"
 	AMF_Self().UriScheme = models.UriScheme_HTTP
 	AMF_Self().RelativeCapacity = 0xff
-	AMF_Self().ServedGuamiList = make([]models.Guami, 0, MaxNumOfServedGuamiList)
-	AMF_Self().PlmnSupportList = make([]factory.PlmnSupportItem, 0, MaxNumOfPLMNs)
 	AMF_Self().NfService = make(map[models.ServiceName]models.NfService)
 	AMF_Self().NetworkName.Full = "free5GC"
 	tmsiGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
@@ -40,15 +38,14 @@ func init() {
 }
 
 type AMFContext struct {
-	EventSubscriptionIDGenerator    *idgenerator.IDGenerator
-	EventSubscriptions              sync.Map
-	UePool                          sync.Map         // map[supi]*AmfUe
-	RanUePool                       sync.Map         // map[AmfUeNgapID]*RanUe
-	AmfRanPool                      sync.Map         // map[net.Conn]*AmfRan
-	LadnPool                        map[string]*LADN // dnn as key
-	SupportTaiLists                 []models.Tai
-	ServedGuamiList                 []models.Guami
-	PlmnSupportList                 []factory.PlmnSupportItem
+	EventSubscriptionIDGenerator *idgenerator.IDGenerator
+	EventSubscriptions           sync.Map
+	UePool                       sync.Map         // map[supi]*AmfUe
+	RanUePool                    sync.Map         // map[AmfUeNgapID]*RanUe
+	AmfRanPool                   sync.Map         // map[net.Conn]*AmfRan
+	LadnPool                     map[string]*LADN // dnn as key
+	// ServedGuamiList                 []models.Guami
+	// PlmnSupportList                 []factory.PlmnSupportItem
 	RelativeCapacity                int64
 	NfId                            string
 	Name                            string
@@ -123,7 +120,8 @@ func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 }
 
 func (context *AMFContext) AllocateGutiToUe(ue *AmfUe) {
-	servedGuami := context.ServedGuamiList[0]
+	guamis := GetServedGuamiList()
+	servedGuami := guamis[0]
 	ue.Tmsi = context.TmsiAllocate()
 	plmnID := servedGuami.PlmnId.Mcc + servedGuami.PlmnId.Mnc
 	tmsiStr := fmt.Sprintf("%08x", ue.Tmsi)
@@ -131,7 +129,8 @@ func (context *AMFContext) AllocateGutiToUe(ue *AmfUe) {
 }
 
 func (context *AMFContext) ReAllocateGutiToUe(ue *AmfUe) {
-	servedGuami := context.ServedGuamiList[0]
+	guamis := GetServedGuamiList()
+	servedGuami := guamis[0]
 	tmsiGenerator.FreeID(int64(ue.Tmsi))
 	ue.Tmsi = context.TmsiAllocate()
 	plmnID := servedGuami.PlmnId.Mcc + servedGuami.PlmnId.Mnc
@@ -147,9 +146,9 @@ func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.Acc
 
 	// allocate a new tai list as a registration area to ue
 	// TODO: algorithm to choose TAI list
-
-	taiList := make([]models.Tai, len(context.SupportTaiLists))
-	copy(taiList, context.SupportTaiLists)
+	supportTaiList := GetSupportTaiList()
+	taiList := make([]models.Tai, len(supportTaiList))
+	copy(taiList, supportTaiList)
 	for i := range taiList {
 		tmp, err := strconv.ParseUint(taiList[i].Tac, 10, 32)
 		if err != nil {
@@ -397,7 +396,8 @@ func (context *AMFContext) InSupportDnnList(targetDnn string) bool {
 }
 
 func (context *AMFContext) InPlmnSupportList(snssai models.Snssai) bool {
-	for _, plmnSupportItem := range context.PlmnSupportList {
+	plmnSupportList := GetPlmnSupportList()
+	for _, plmnSupportItem := range plmnSupportList {
 		for _, supportSnssai := range plmnSupportItem.SNssaiList {
 			if reflect.DeepEqual(supportSnssai, snssai) {
 				return true

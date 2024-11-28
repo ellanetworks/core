@@ -90,8 +90,8 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 }
 
 func StmsiToGuti(buf [7]byte) (guti string) {
-	amfSelf := context.AMF_Self()
-	servedGuami := amfSelf.ServedGuamiList[0]
+	guamiList := context.GetServedGuamiList()
+	servedGuami := guamiList[0]
 
 	tmpReginID := servedGuami.AmfId[:2]
 	amfID := hex.EncodeToString(buf[1:3])

@@ -113,7 +113,8 @@ func BuildNGSetupResponse() ([]byte, error) {
 	ie.Value.ServedGUAMIList = new(ngapType.ServedGUAMIList)
 
 	servedGUAMIList := ie.Value.ServedGUAMIList
-	for _, guami := range amfSelf.ServedGuamiList {
+	guamiList := context.GetServedGuamiList()
+	for _, guami := range guamiList {
 		servedGUAMIItem := ngapType.ServedGUAMIItem{}
 		servedGUAMIItem.GUAMI.PLMNIdentity = ngapConvert.PlmnIdToNgap(*guami.PlmnId)
 		regionId, setId, prtId := ngapConvert.AmfIdToNgap(guami.AmfId)
@@ -144,7 +145,8 @@ func BuildNGSetupResponse() ([]byte, error) {
 	ie.Value.PLMNSupportList = new(ngapType.PLMNSupportList)
 
 	pLMNSupportList := ie.Value.PLMNSupportList
-	for _, plmnItem := range amfSelf.PlmnSupportList {
+	plmnSupportConfigList := context.GetPlmnSupportList()
+	for _, plmnItem := range plmnSupportConfigList {
 		pLMNSupportItem := ngapType.PLMNSupportItem{}
 		pLMNSupportItem.PLMNIdentity = ngapConvert.PlmnIdToNgap(plmnItem.PlmnId)
 		for _, snssai := range plmnItem.SNssaiList {
@@ -908,7 +910,6 @@ func BuildInitialContextSetupRequest(
 	if !ok {
 		return nil, fmt.Errorf("ranUe for %s is nil", anType)
 	}
-	amfSelf := context.AMF_Self()
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
 	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
@@ -1000,7 +1001,8 @@ func BuildInitialContextSetupRequest(
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	servedGuami := amfSelf.ServedGuamiList[0]
+	guamiList := context.GetServedGuamiList()
+	servedGuami := guamiList[0]
 
 	*plmnID = ngapConvert.PlmnIdToNgap(*servedGuami.PlmnId)
 	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfId)
@@ -1577,7 +1579,6 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause,
 	pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq,
 	sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer, nsci bool,
 ) ([]byte, error) {
-	amfSelf := context.AMF_Self()
 	amfUe := ue.AmfUe
 	if amfUe == nil {
 		return nil, fmt.Errorf("AmfUe is nil")
@@ -1704,7 +1705,8 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause,
 	ie.Value.AllowedNSSAI = new(ngapType.AllowedNSSAI)
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
-	for _, snssaiItem := range amfSelf.PlmnSupportList[0].SNssaiList {
+	plmnSupportList := context.GetPlmnSupportList()
+	for _, snssaiItem := range plmnSupportList[0].SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 
 		ngapSnssai := ngapConvert.SNssaiToNgap(snssaiItem)
@@ -1738,7 +1740,8 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause,
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	servedGuami := amfSelf.ServedGuamiList[0]
+	guamiList := context.GetServedGuamiList()
+	servedGuami := guamiList[0]
 
 	*plmnID = ngapConvert.PlmnIdToNgap(*servedGuami.PlmnId)
 	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfId)
@@ -1800,8 +1803,6 @@ func BuildPathSwitchRequestAcknowledge(
 	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) ([]byte, error) {
-	amfSelf := context.AMF_Self()
-
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
 	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
@@ -1920,7 +1921,8 @@ func BuildPathSwitchRequestAcknowledge(
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
 	// plmnSupportList[0] is serving plmn
-	for _, modelSnssai := range amfSelf.PlmnSupportList[0].SNssaiList {
+	plmnSupportList := context.GetPlmnSupportList()
+	for _, modelSnssai := range plmnSupportList[0].SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 
 		ngapSnssai := ngapConvert.SNssaiToNgap(modelSnssai)
@@ -2906,7 +2908,8 @@ func BuildAMFConfigurationUpdate(tNLassociationUsage ngapType.TNLAssociationUsag
 	ie.Value.ServedGUAMIList = new(ngapType.ServedGUAMIList)
 
 	servedGUAMIList := ie.Value.ServedGUAMIList
-	for _, guami := range amfSelf.ServedGuamiList {
+	guamiList := context.GetServedGuamiList()
+	for _, guami := range guamiList {
 		servedGUAMIItem := ngapType.ServedGUAMIItem{}
 		servedGUAMIItem.GUAMI.PLMNIdentity = ngapConvert.PlmnIdToNgap(*guami.PlmnId)
 		regionId, setId, prtId := ngapConvert.AmfIdToNgap(guami.AmfId)
@@ -2937,7 +2940,8 @@ func BuildAMFConfigurationUpdate(tNLassociationUsage ngapType.TNLAssociationUsag
 	ie.Value.PLMNSupportList = new(ngapType.PLMNSupportList)
 
 	pLMNSupportList := ie.Value.PLMNSupportList
-	for _, plmnItem := range amfSelf.PlmnSupportList {
+	plmnSupportConfigList := context.GetPlmnSupportList()
+	for _, plmnItem := range plmnSupportConfigList {
 		pLMNSupportItem := ngapType.PLMNSupportItem{}
 		pLMNSupportItem.PLMNIdentity = ngapConvert.PlmnIdToNgap(plmnItem.PlmnId)
 		for _, snssai := range plmnItem.SNssaiList {

@@ -18,6 +18,7 @@ func AMPolicyControlCreate(ue *amf_context.AmfUe, anType models.AccessType) (*mo
 	client := Npcf_AMPolicy.NewAPIClient(configuration)
 
 	amfSelf := amf_context.AMF_Self()
+	guamiList := amf_context.GetServedGuamiList()
 
 	policyAssociationRequest := models.PolicyAssociationRequest{
 		NotificationUri: amfSelf.GetIPv4Uri() + "/namf-callback/v1/am-policy/",
@@ -29,7 +30,7 @@ func AMPolicyControlCreate(ue *amf_context.AmfUe, anType models.AccessType) (*mo
 			Mcc: ue.PlmnId.Mcc,
 			Mnc: ue.PlmnId.Mnc,
 		},
-		Guami: &amfSelf.ServedGuamiList[0],
+		Guami: &guamiList[0],
 	}
 
 	if ue.AccessAndMobilitySubscriptionData != nil {

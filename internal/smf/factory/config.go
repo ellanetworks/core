@@ -2,7 +2,6 @@ package factory
 
 import (
 	"fmt"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -221,15 +220,11 @@ func (c *Configuration) parseRocConfig(rsp *protos.NetworkSliceResponse) error {
 
 	// should be updated to be received from webui.
 	// currently adding port info in webui causes crash.
-	pfcpPortStr := os.Getenv("PFCP_PORT_UPF")
+	pfcpPortStr := "8806"
 	pfcpPortVal := UPF_PFCP_PORT
-	if pfcpPortStr != "" {
-		if val, err := strconv.ParseUint(pfcpPortStr, 10, 32); err != nil {
-			logger.CtxLog.Infoln("Parse pfcp port failed : ", pfcpPortStr)
-			return err
-		} else {
-			pfcpPortVal = int(val)
-		}
+	if _, err := strconv.ParseUint(pfcpPortStr, 10, 32); err != nil {
+		logger.CtxLog.Infoln("Parse pfcp port failed : ", pfcpPortStr)
+		return err
 	}
 
 	// Iterate through all NS received

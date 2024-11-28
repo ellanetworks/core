@@ -31,9 +31,10 @@ func AMFStatusChangeSubscribeProcedure(subscriptionDataReq models.SubscriptionDa
 	subscriptionDataRsp models.SubscriptionData, locationHeader string, problemDetails *models.ProblemDetails,
 ) {
 	amfSelf := context.AMF_Self()
+	guamiList := context.GetServedGuamiList()
 
 	for _, guami := range subscriptionDataReq.GuamiList {
-		for _, servedGumi := range amfSelf.ServedGuamiList {
+		for _, servedGumi := range guamiList {
 			if reflect.DeepEqual(guami, servedGumi) {
 				// AMF status is available
 				subscriptionDataRsp.GuamiList = append(subscriptionDataRsp.GuamiList, guami)

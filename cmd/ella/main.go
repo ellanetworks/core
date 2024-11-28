@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/yeastengine/ella/internal/amf"
 	"github.com/yeastengine/ella/internal/ausf"
@@ -31,18 +30,6 @@ func parseFlags() (config.Config, error) {
 		return config.Config{}, fmt.Errorf("failed to parse config file: %w", err)
 	}
 	return cfg, nil
-}
-
-func setEnvironmentVariables() error {
-	err := os.Setenv("POD_IP", "0.0.0.0")
-	if err != nil {
-		return err
-	}
-	err = os.Setenv("PFCP_PORT_UPF", "8806")
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func startNetwork(cfg config.Config) error {
@@ -89,15 +76,10 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func main() {
-	err := setEnvironmentVariables()
-	if err != nil {
-		log.Fatalf("failed to set environment variables: %v", err)
-	}
 	cfg, err := parseFlags()
 	if err != nil {
 		log.Fatalf("failed to parse flags: %v", err)

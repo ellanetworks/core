@@ -25,8 +25,8 @@ func SendUEAuthenticationAuthenticateRequest(ue *amf_context.AmfUe,
 
 	client := Nausf_UEAuthentication.NewAPIClient(configuration)
 
-	amfSelf := amf_context.AMF_Self()
-	servedGuami := amfSelf.ServedGuamiList[0]
+	guamiList := amf_context.GetServedGuamiList()
+	servedGuami := guamiList[0]
 	var plmnId *models.PlmnId
 	// take ServingNetwork plmn from UserLocation.Tai if received
 	if ue.Tai.PlmnId != nil {

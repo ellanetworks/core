@@ -485,11 +485,11 @@ func BuildRegistrationAccept(
 		registrationAccept.GUTI5G.SetIei(nasMessage.RegistrationAcceptGUTI5GType)
 	}
 
-	amfSelf := context.AMF_Self()
-	if len(amfSelf.PlmnSupportList) > 1 {
+	plmnSupportList := context.GetPlmnSupportList()
+	if len(plmnSupportList) > 1 {
 		registrationAccept.EquivalentPlmns = nasType.NewEquivalentPlmns(nasMessage.RegistrationAcceptEquivalentPlmnsType)
 		var buf []uint8
-		for _, plmnSupportItem := range amfSelf.PlmnSupportList {
+		for _, plmnSupportItem := range plmnSupportList {
 			buf = append(buf, nasConvert.PlmnIDToNas(plmnSupportItem.PlmnId)...)
 		}
 		registrationAccept.EquivalentPlmns.SetLen(uint8(len(buf)))
