@@ -15,7 +15,7 @@ const (
 	SBI_PORT = 29531
 )
 
-func Start(webuiURL string) error {
+func Start() error {
 	configuration := factory.Configuration{
 		NssfName: "NSSF",
 		Sbi: &factory.Sbi{
@@ -25,20 +25,6 @@ func Start(webuiURL string) error {
 		ServiceNameList: []models.ServiceName{
 			"nnssf-nsselection",
 			"nnssf-nssaiavailability",
-		},
-		WebuiUri: webuiURL,
-		NsiList: []factory.NsiConfig{
-			{
-				NsiInformationList: []models.NsiInformation{
-					{
-						NsiId: "22",
-					},
-				},
-				Snssai: &models.Snssai{
-					Sd:  SD,
-					Sst: SST,
-				},
-			},
 		},
 	}
 	config := factory.Config{

@@ -5,12 +5,12 @@ import (
 	"github.com/omec-project/util/logger"
 )
 
+var AusfConfig Config
+
 type Config struct {
 	Configuration *Configuration `yaml:"configuration"`
 	Logger        *logger.Logger `yaml:"logger"`
 }
-
-var AusfConfig Config
 
 func InitConfigFactory(c Config) {
 	AusfConfig = c

@@ -76,60 +76,6 @@ func CheckSupportedTa(tai models.Tai) bool {
 	return false
 }
 
-// Check whether the given S-NSSAI is supported or not in PLMN
-func CheckSupportedSnssaiInPlmn(snssai models.Snssai, plmnId models.PlmnId) bool {
-	factory.ConfigLock.RLock()
-	defer factory.ConfigLock.RUnlock()
-	if CheckStandardSnssai(snssai) {
-		return true
-	}
-
-	for _, supportedNssaiInPlmn := range factory.NssfConfig.Configuration.SupportedNssaiInPlmnList {
-		if *supportedNssaiInPlmn.PlmnId == plmnId {
-			for _, supportedSnssai := range supportedNssaiInPlmn.SupportedSnssaiList {
-				if snssai == supportedSnssai {
-					return true
-				}
-			}
-			return false
-		}
-	}
-	logger.Util.Warnf("No supported S-NSSAI list of PLMNID %+v in NSSF configuration", plmnId)
-	return false
-}
-
-// Check whether S-NSSAIs in NSSAI are supported or not in PLMN
-func CheckSupportedNssaiInPlmn(nssai []models.Snssai, plmnId models.PlmnId) bool {
-	factory.ConfigLock.RLock()
-	defer factory.ConfigLock.RUnlock()
-	for _, supportedNssaiInPlmn := range factory.NssfConfig.Configuration.SupportedNssaiInPlmnList {
-		if *supportedNssaiInPlmn.PlmnId == plmnId {
-			for _, snssai := range nssai {
-				// Standard S-NSSAIs are supposed to be supported
-				// If not, disable following check and be sure to add supported standard S-NSSAI(s) in configuration
-				if CheckStandardSnssai(snssai) {
-					continue
-				}
-
-				hitSupportedNssai := false
-				for _, supportedSnssai := range supportedNssaiInPlmn.SupportedSnssaiList {
-					if snssai == supportedSnssai {
-						hitSupportedNssai = true
-						break
-					}
-				}
-
-				if !hitSupportedNssai {
-					return false
-				}
-			}
-			return true
-		}
-	}
-	logger.Util.Warnf("No supported S-NSSAI list of PLMNID %+v in NSSF configuration", plmnId)
-	return false
-}
-
 // Check whether S-NSSAI is supported or not at UE's current TA
 func CheckSupportedSnssaiInTa(snssai models.Snssai, tai models.Tai) bool {
 	factory.ConfigLock.RLock()
@@ -227,18 +173,6 @@ func GetMappingOfPlmnFromConfig(homePlmnId models.PlmnId) []models.MappingOfSnss
 	for _, mappingFromPlmn := range factory.NssfConfig.Configuration.MappingListFromPlmn {
 		if *mappingFromPlmn.HomePlmnId == homePlmnId {
 			return mappingFromPlmn.MappingOfSnssai
-		}
-	}
-	return nil
-}
-
-// Get NSI information list of the given S-NSSAI from configuration
-func GetNsiInformationListFromConfig(snssai models.Snssai) []models.NsiInformation {
-	factory.ConfigLock.RLock()
-	defer factory.ConfigLock.RUnlock()
-	for _, nsiConfig := range factory.NssfConfig.Configuration.NsiList {
-		if *nsiConfig.Snssai == snssai {
-			return nsiConfig.NsiInformationList
 		}
 	}
 	return nil

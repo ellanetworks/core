@@ -159,18 +159,6 @@ func NSSAIAvailabilityPutProcedure(nssaiAvailabilityInfo models.NssaiAvailabilit
 		problemDetails *models.ProblemDetails
 	)
 
-	for _, s := range nssaiAvailabilityInfo.SupportedNssaiAvailabilityData {
-		if !util.CheckSupportedNssaiInPlmn(s.SupportedSnssaiList, *s.Tai.PlmnId) {
-			problemDetails = &models.ProblemDetails{
-				Title:  util.UNSUPPORTED_RESOURCE,
-				Status: http.StatusForbidden,
-				Detail: "S-NSSAI in Requested NSSAI is not supported in PLMN",
-				Cause:  "SNSSAI_NOT_SUPPORTED",
-			}
-			return nil, problemDetails
-		}
-	}
-
 	// TODO: Currently authorize all the provided S-NSSAIs
 	//       Take some issue into consideration e.g. operator policies
 
