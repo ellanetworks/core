@@ -43,13 +43,10 @@ func (udr *UDR) setLogLevel() {
 }
 
 func (udr *UDR) Start() {
-	// get config file info
 	config := factory.UdrConfig
 	mongodb := config.Mongodb
 
-	// Connect to MongoDB
 	producer.ConnectMongo(mongodb.Url, mongodb.Name, mongodb.AuthUrl, mongodb.AuthKeysDbName)
-	initLog.Infoln("Server started")
 
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 
@@ -70,8 +67,6 @@ func (udr *UDR) Start() {
 		os.Exit(0)
 	}()
 
-	go udr.configUpdateDb()
-
 	server, err := http2_util.NewServer(addr, udrLogPath, router)
 	if server == nil {
 		initLog.Errorf("Initialize HTTP server failed: %+v", err)
@@ -90,19 +85,4 @@ func (udr *UDR) Start() {
 
 func (udr *UDR) Terminate() {
 	logger.InitLog.Infof("UDR terminated")
-}
-
-func (udr *UDR) configUpdateDb() {
-	for msg := range factory.ConfigUpdateDbTrigger {
-		initLog.Infof("Config update DB trigger")
-		err := producer.AddEntrySmPolicyTable(
-			msg.SmPolicyTable.Imsi,
-			msg.SmPolicyTable.Dnn,
-			msg.SmPolicyTable.Snssai)
-		if err == nil {
-			initLog.Infof("added entry to sm policy table success")
-		} else {
-			initLog.Errorf("entry add failed %+v", err)
-		}
-	}
 }

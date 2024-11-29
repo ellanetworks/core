@@ -56,7 +56,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = udr.Start(cfg.DB.Url, cfg.DB.Name, webuiUrl)
+	err = udr.Start(cfg.DB.Url, cfg.DB.Name)
 	if err != nil {
 		return err
 	}

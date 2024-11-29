@@ -25,7 +25,7 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (webui *WEBUI) Initialize(c factory.Config) {
+func (webui *WEBUI) Initialize(c factory.Configuration) {
 	factory.InitConfigFactory(c)
 	webui.setLogLevel()
 }
@@ -44,7 +44,7 @@ func (webui *WEBUI) setLogLevel() {
 
 func (webui *WEBUI) Start() {
 	// get config file info from WebUIConfig
-	mongodb := factory.WebUIConfig.Configuration.Mongodb
+	mongodb := factory.WebUIConfig.Mongodb
 
 	// Connect to MongoDB
 	dbadapter.ConnectMongo(mongodb.Url, mongodb.Name, mongodb.AuthUrl, mongodb.AuthKeysDbName)
@@ -73,8 +73,8 @@ func (webui *WEBUI) Start() {
 	}))
 
 	go func() {
-		httpAddr := ":" + strconv.Itoa(factory.WebUIConfig.Configuration.CfgPort)
-		initLog.Infoln("Webui HTTP addr:", httpAddr, factory.WebUIConfig.Configuration.CfgPort)
+		httpAddr := ":" + strconv.Itoa(factory.WebUIConfig.CfgPort)
+		initLog.Infoln("Webui HTTP addr:", httpAddr, factory.WebUIConfig.CfgPort)
 		initLog.Infoln(subconfig_router.Run(httpAddr))
 		initLog.Infoln("Webserver stopped/terminated/not-started ")
 	}()

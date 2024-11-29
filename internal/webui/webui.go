@@ -15,6 +15,12 @@ const (
 
 func Start(dbUrl string, dbName string) (string, error) {
 	configuration := factory.Configuration{
+		Logger: &logger.Logger{
+			WEBUI: &logger.LogSetting{
+				DebugLevel:   "debug",
+				ReportCaller: false,
+			},
+		},
 		Mongodb: &factory.Mongodb{
 			Name:           dbName,
 			Url:            dbUrl,
@@ -23,16 +29,7 @@ func Start(dbUrl string, dbName string) (string, error) {
 		},
 		CfgPort: ConfigPort,
 	}
-	config := factory.Config{
-		Logger: &logger.Logger{
-			WEBUI: &logger.LogSetting{
-				DebugLevel:   "debug",
-				ReportCaller: false,
-			},
-		},
-		Configuration: &configuration,
-	}
-	WEBUI.Initialize(config)
+	WEBUI.Initialize(configuration)
 	go WEBUI.Start()
 	return "localhost:" + GRPC_PORT, nil
 }
