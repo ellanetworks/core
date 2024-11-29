@@ -8,10 +8,6 @@ import (
 	"github.com/yeastengine/ella/internal/smf/logger"
 )
 
-func SetupSMFContext(config *factory.Config) error {
-	return nil
-}
-
 func (c *SMFContext) insertSmfNssaiInfo(snssaiInfoConfig *factory.SnssaiInfoItem) error {
 	logger.InitLog.Infof("Network Slices to be inserted [%v] ", factory.PrettyPrintNetworkSlices([]factory.SnssaiInfoItem{*snssaiInfoConfig}))
 

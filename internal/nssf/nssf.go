@@ -17,6 +17,12 @@ const (
 
 func Start() error {
 	configuration := factory.Configuration{
+		Logger: &logger.Logger{
+			NSSF: &logger.LogSetting{
+				DebugLevel:   "debug",
+				ReportCaller: false,
+			},
+		},
 		NssfName: "NSSF",
 		Sbi: &factory.Sbi{
 			BindingIPv4: "0.0.0.0",
@@ -27,16 +33,7 @@ func Start() error {
 			"nnssf-nssaiavailability",
 		},
 	}
-	config := factory.Config{
-		Logger: &logger.Logger{
-			NSSF: &logger.LogSetting{
-				DebugLevel:   "debug",
-				ReportCaller: false,
-			},
-		},
-		Configuration: &configuration,
-	}
-	NSSF.Initialize(config)
+	NSSF.Initialize(configuration)
 	go NSSF.Start()
 	return nil
 }

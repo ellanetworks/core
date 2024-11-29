@@ -30,7 +30,7 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (udm *UDM) Initialize(c factory.Config) error {
+func (udm *UDM) Initialize(c factory.Configuration) error {
 	factory.InitConfigFactory(c)
 	udm.setLogLevel()
 	return nil
@@ -48,8 +48,7 @@ func (udm *UDM) setLogLevel() {
 
 func (udm *UDM) Start() {
 	config := factory.UdmConfig
-	configuration := config.Configuration
-	serviceName := configuration.ServiceNameList
+	serviceName := config.ServiceNameList
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 	eventexposure.AddService(router)
 	httpcallback.AddService(router)

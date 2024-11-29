@@ -12,6 +12,12 @@ const SBI_PORT = 29507
 
 func Start(amfURL string, udrURL string, webuiURL string) error {
 	configuration := factory.Configuration{
+		Logger: &logger.Logger{
+			PCF: &logger.LogSetting{
+				DebugLevel:   "debug",
+				ReportCaller: false,
+			},
+		},
 		PcfName: "PCF",
 		Sbi: &factory.Sbi{
 			BindingIPv4: "0.0.0.0",
@@ -44,16 +50,7 @@ func Start(amfURL string, udrURL string, webuiURL string) error {
 			},
 		},
 	}
-	config := factory.Config{
-		Logger: &logger.Logger{
-			PCF: &logger.LogSetting{
-				DebugLevel:   "debug",
-				ReportCaller: false,
-			},
-		},
-		Configuration: &configuration,
-	}
-	PCF.Initialize(config)
+	PCF.Initialize(configuration)
 	go PCF.Start()
 	return nil
 }

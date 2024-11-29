@@ -50,7 +50,7 @@ func Contain(target interface{}, slice interface{}) bool {
 func CheckSupportedHplmn(homePlmnId models.PlmnId) bool {
 	factory.ConfigLock.RLock()
 	defer factory.ConfigLock.RUnlock()
-	for _, mappingFromPlmn := range factory.NssfConfig.Configuration.MappingListFromPlmn {
+	for _, mappingFromPlmn := range factory.NssfConfig.MappingListFromPlmn {
 		if *mappingFromPlmn.HomePlmnId == homePlmnId {
 			return true
 		}
@@ -63,7 +63,7 @@ func CheckSupportedHplmn(homePlmnId models.PlmnId) bool {
 func CheckSupportedTa(tai models.Tai) bool {
 	factory.ConfigLock.RLock()
 	defer factory.ConfigLock.RUnlock()
-	for _, taConfig := range factory.NssfConfig.Configuration.TaList {
+	for _, taConfig := range factory.NssfConfig.TaList {
 		if reflect.DeepEqual(*taConfig.Tai, tai) {
 			return true
 		}
@@ -80,7 +80,7 @@ func CheckSupportedTa(tai models.Tai) bool {
 func CheckSupportedSnssaiInTa(snssai models.Snssai, tai models.Tai) bool {
 	factory.ConfigLock.RLock()
 	defer factory.ConfigLock.RUnlock()
-	for _, taConfig := range factory.NssfConfig.Configuration.TaList {
+	for _, taConfig := range factory.NssfConfig.TaList {
 		if reflect.DeepEqual(*taConfig.Tai, tai) {
 			for _, supportedSnssai := range taConfig.SupportedSnssaiList {
 				if supportedSnssai == snssai {
@@ -93,7 +93,7 @@ func CheckSupportedSnssaiInTa(snssai models.Snssai, tai models.Tai) bool {
 	return false
 
 	// // Check supported S-NSSAI in AmfList instead of TaList
-	// for _, amfConfig := range factory.NssfConfig.Configuration.AmfList {
+	// for _, amfConfig := range factory.NssfConfig.AmfList {
 	//     if checkSupportedNssaiAvailabilityData(snssai, tai, amfConfig.SupportedNssaiAvailabilityData) == true {
 	//         return true
 	//     }
@@ -117,13 +117,13 @@ func CheckSupportedNssaiAvailabilityData(
 // Check whether S-NSSAI is supported or not by the AMF at UE's current TA
 func CheckSupportedSnssaiInAmfTa(snssai models.Snssai, nfId string, tai models.Tai) bool {
 	// Uncomment following lines if supported S-NSSAI lists of AMF Sets are independent of those of AMFs
-	// for _, amfSetConfig := range factory.NssfConfig.Configuration.AmfSetList {
+	// for _, amfSetConfig := range factory.NssfConfig.AmfSetList {
 	//     if amfSetConfig.AmfList != nil && len(amfSetConfig.AmfList) != 0 && Contain(nfId, amfSetConfig.AmfList) {
 	//         return checkSupportedNssaiAvailabilityData(snssai, tai, amfSetConfig.SupportedNssaiAvailabilityData)
 	//     }
 	// }
 
-	for _, amfConfig := range factory.NssfConfig.Configuration.AmfList {
+	for _, amfConfig := range factory.NssfConfig.AmfList {
 		if amfConfig.NfId == nfId {
 			return CheckSupportedNssaiAvailabilityData(snssai, tai, amfConfig.SupportedNssaiAvailabilityData)
 		}
@@ -170,7 +170,7 @@ func CheckSnssaiInNssai(targetSnssai models.Snssai, nssai []models.Snssai) bool 
 func GetMappingOfPlmnFromConfig(homePlmnId models.PlmnId) []models.MappingOfSnssai {
 	factory.ConfigLock.RLock()
 	defer factory.ConfigLock.RUnlock()
-	for _, mappingFromPlmn := range factory.NssfConfig.Configuration.MappingListFromPlmn {
+	for _, mappingFromPlmn := range factory.NssfConfig.MappingListFromPlmn {
 		if *mappingFromPlmn.HomePlmnId == homePlmnId {
 			return mappingFromPlmn.MappingOfSnssai
 		}
@@ -182,7 +182,7 @@ func GetMappingOfPlmnFromConfig(homePlmnId models.PlmnId) []models.MappingOfSnss
 func GetAccessTypeFromConfig(tai models.Tai) models.AccessType {
 	factory.ConfigLock.RLock()
 	defer factory.ConfigLock.RUnlock()
-	for _, taConfig := range factory.NssfConfig.Configuration.TaList {
+	for _, taConfig := range factory.NssfConfig.TaList {
 		if reflect.DeepEqual(*taConfig.Tai, tai) {
 			return *taConfig.AccessType
 		}
@@ -199,7 +199,7 @@ func GetAccessTypeFromConfig(tai models.Tai) models.AccessType {
 func GetRestrictedSnssaiListFromConfig(tai models.Tai) []models.RestrictedSnssai {
 	factory.ConfigLock.RLock()
 	defer factory.ConfigLock.RUnlock()
-	for _, taConfig := range factory.NssfConfig.Configuration.TaList {
+	for _, taConfig := range factory.NssfConfig.TaList {
 		if reflect.DeepEqual(*taConfig.Tai, tai) {
 			if taConfig.RestrictedSnssaiList != nil && len(taConfig.RestrictedSnssaiList) != 0 {
 				return taConfig.RestrictedSnssaiList
@@ -222,7 +222,7 @@ func AuthorizeOfAmfTaFromConfig(nfId string, tai models.Tai) (models.AuthorizedN
 	authorizedNssaiAvailabilityData.Tai = new(models.Tai)
 	*authorizedNssaiAvailabilityData.Tai = tai
 
-	for _, amfConfig := range factory.NssfConfig.Configuration.AmfList {
+	for _, amfConfig := range factory.NssfConfig.AmfList {
 		if amfConfig.NfId == nfId {
 			for _, supportedNssaiAvailabilityData := range amfConfig.SupportedNssaiAvailabilityData {
 				if reflect.DeepEqual(*supportedNssaiAvailabilityData.Tai, tai) {
@@ -251,7 +251,7 @@ func AuthorizeOfAmfFromConfig(nfId string) ([]models.AuthorizedNssaiAvailability
 
 	factory.ConfigLock.RLock()
 	defer factory.ConfigLock.RUnlock()
-	for _, amfConfig := range factory.NssfConfig.Configuration.AmfList {
+	for _, amfConfig := range factory.NssfConfig.AmfList {
 		if amfConfig.NfId == nfId {
 			for _, supportedNssaiAvailabilityData := range amfConfig.SupportedNssaiAvailabilityData {
 				var authorizedNssaiAvailabilityData models.AuthorizedNssaiAvailabilityData
@@ -273,7 +273,7 @@ func AuthorizeOfAmfFromConfig(nfId string) ([]models.AuthorizedNssaiAvailability
 func AuthorizeOfTaListFromConfig(taiList []models.Tai) []models.AuthorizedNssaiAvailabilityData {
 	var authorizedNssaiAvailabilityDataList []models.AuthorizedNssaiAvailabilityData
 
-	for _, taConfig := range factory.NssfConfig.Configuration.TaList {
+	for _, taConfig := range factory.NssfConfig.TaList {
 		for _, tai := range taiList {
 			if reflect.DeepEqual(*taConfig.Tai, tai) {
 				var authorizedNssaiAvailabilityData models.AuthorizedNssaiAvailabilityData
@@ -291,7 +291,7 @@ func AuthorizeOfTaListFromConfig(taiList []models.Tai) []models.AuthorizedNssaiA
 
 // Get supported S-NSSAI list of the given NF ID and TAI from configuration
 func GetSupportedSnssaiListFromConfig(nfId string, tai models.Tai) []models.Snssai {
-	for _, amfConfig := range factory.NssfConfig.Configuration.AmfList {
+	for _, amfConfig := range factory.NssfConfig.AmfList {
 		if amfConfig.NfId == nfId {
 			for _, supportedNssaiAvailabilityData := range amfConfig.SupportedNssaiAvailabilityData {
 				if reflect.DeepEqual(*supportedNssaiAvailabilityData.Tai, tai) {
@@ -367,7 +367,7 @@ func AddAmfInformation(tai models.Tai, authorizedNetworkSliceInfo *models.Author
 	// Find AMF Set that could serve UE from AMF Set list in configuration
 	// Simply use the first applicable AMF set
 	// TODO: Policies of AMF selection (e.g. load balance between AMF instances)
-	for _, amfSetConfig := range factory.NssfConfig.Configuration.AmfSetList {
+	for _, amfSetConfig := range factory.NssfConfig.AmfSetList {
 		hitAllowedNssai := true
 		for _, allowedNssai := range authorizedNetworkSliceInfo.AllowedNssaiList {
 			for _, allowedSnssai := range allowedNssai.AllowedSnssaiList {
@@ -402,7 +402,7 @@ func AddAmfInformation(tai models.Tai, authorizedNetworkSliceInfo *models.Author
 	// No AMF Set in configuration can serve the UE
 	// Find all candidate AMFs that could serve UE from AMF list in configuration
 	hitAmf := false
-	for _, amfConfig := range factory.NssfConfig.Configuration.AmfList {
+	for _, amfConfig := range factory.NssfConfig.AmfList {
 		hitAllowedNssai := true
 		for _, allowedNssai := range authorizedNetworkSliceInfo.AllowedNssaiList {
 			for _, allowedSnssai := range allowedNssai.AllowedSnssaiList {

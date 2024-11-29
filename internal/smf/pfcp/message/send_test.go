@@ -22,10 +22,7 @@ import (
 )
 
 func TestSendPfcpAssociationSetupRequest(t *testing.T) {
-	configuration := &factory.Configuration{}
-	factory.SmfConfig = factory.Config{
-		Configuration: configuration,
-	}
+	factory.SmfConfig = factory.Configuration{}
 	upNodeID := context.NodeID{
 		NodeIdType:  context.NodeIdTypeIpv4Address,
 		NodeIdValue: net.ParseIP("127.0.0.1").To4(),
@@ -91,10 +88,7 @@ func TestSendPfcpAssociationSetupResponse(t *testing.T) {
 // When the User Plane Node exists in the stored context, then the PFCP Session Establishment Request is sent
 func TestSendPfcpSessionEstablishmentRequestUpNodeExists(t *testing.T) {
 	const upNodeIDStr = "127.0.0.1"
-	configuration := &factory.Configuration{}
-	factory.SmfConfig = factory.Config{
-		Configuration: configuration,
-	}
+	factory.SmfConfig = factory.Configuration{}
 	upNodeID := context.NodeID{
 		NodeIdType:  context.NodeIdTypeIpv4Address,
 		NodeIdValue: net.ParseIP(upNodeIDStr).To4(),
@@ -145,10 +139,7 @@ func TestSendPfcpSessionEstablishmentRequestUpNodeExists(t *testing.T) {
 // Given the User Plane Node does not exist in the stored context, then the PFCP Session Establishment Request is not sent
 func TestSendPfcpSessionEstablishmentRequestUpNodeDoesNotExist(t *testing.T) {
 	const upNodeIDStr = "127.0.0.1"
-	configuration := &factory.Configuration{}
-	factory.SmfConfig = factory.Config{
-		Configuration: configuration,
-	}
+	factory.SmfConfig = factory.Configuration{}
 	upNodeID := context.NodeID{
 		NodeIdType:  context.NodeIdTypeIpv4Address,
 		NodeIdValue: net.ParseIP(upNodeIDStr).To4(),
@@ -188,10 +179,7 @@ func TestSendPfcpSessionEstablishmentRequestUpNodeDoesNotExist(t *testing.T) {
 
 func TestSendPfcpSessionModificationRequest(t *testing.T) {
 	const upNodeIDStr = "127.0.0.1"
-	configuration := &factory.Configuration{}
-	factory.SmfConfig = factory.Config{
-		Configuration: configuration,
-	}
+	factory.SmfConfig = factory.Configuration{}
 	upNodeID := context.NodeID{
 		NodeIdType:  context.NodeIdTypeIpv4Address,
 		NodeIdValue: net.ParseIP(upNodeIDStr).To4(),
@@ -241,10 +229,7 @@ func TestSendPfcpSessionModificationRequest(t *testing.T) {
 
 func TestSendPfcpSessionDeletionRequest(t *testing.T) {
 	const upNodeIDStr = "127.0.0.1"
-	configuration := &factory.Configuration{}
-	factory.SmfConfig = factory.Config{
-		Configuration: configuration,
-	}
+	factory.SmfConfig = factory.Configuration{}
 	upNodeID := context.NodeID{
 		NodeIdType:  context.NodeIdTypeIpv4Address,
 		NodeIdValue: net.ParseIP(upNodeIDStr).To4(),
@@ -323,10 +308,7 @@ func TestSendPfcpSessionReportResponse(t *testing.T) {
 
 func TestSendHeartbeatRequest(t *testing.T) {
 	const upNodeIDStr = "127.0.0.1"
-	configuration := &factory.Configuration{}
-	factory.SmfConfig = factory.Config{
-		Configuration: configuration,
-	}
+	factory.SmfConfig = factory.Configuration{}
 	upNodeID := context.NodeID{
 		NodeIdType:  context.NodeIdTypeIpv4Address,
 		NodeIdValue: net.ParseIP(upNodeIDStr).To4(),

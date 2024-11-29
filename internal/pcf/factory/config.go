@@ -5,26 +5,22 @@ import (
 	"github.com/omec-project/util/logger"
 )
 
-var PcfConfig Config
+var PcfConfig Configuration
 
-func InitConfigFactory(c Config) {
+func InitConfigFactory(c Configuration) {
 	PcfConfig = c
 }
 
-type Config struct {
-	Configuration *Configuration `yaml:"configuration"`
-	Logger        *logger.Logger `yaml:"logger"`
-}
-
 type Configuration struct {
-	PcfName         string    `yaml:"pcfName,omitempty"`
-	Sbi             *Sbi      `yaml:"sbi,omitempty"`
-	TimeFormat      string    `yaml:"timeFormat,omitempty"`
-	DefaultBdtRefId string    `yaml:"defaultBdtRefId,omitempty"`
-	AmfUri          string    `yaml:"amfUri,omitempty"`
-	UdrUri          string    `yaml:"udrUri,omitempty"`
-	WebuiUri        string    `yaml:"webuiUri"`
-	ServiceList     []Service `yaml:"serviceList,omitempty"`
+	Logger          *logger.Logger
+	PcfName         string
+	Sbi             *Sbi
+	TimeFormat      string
+	DefaultBdtRefId string
+	AmfUri          string
+	UdrUri          string
+	WebuiUri        string
+	ServiceList     []Service
 
 	// config received from RoC
 	DnnList   map[string][]string // sst+sd os key

@@ -7,33 +7,29 @@ import (
 	"github.com/yeastengine/ella/internal/udr/logger"
 )
 
-type Config struct {
-	Configuration *Configuration      `yaml:"configuration"`
-	Logger        *logger_util.Logger `yaml:"logger"`
-}
-
 type Configuration struct {
-	Sbi             *Sbi              `yaml:"sbi"`
-	Mongodb         *Mongodb          `yaml:"mongodb"`
-	WebuiUri        string            `yaml:"webuiUri"`
-	PlmnSupportList []PlmnSupportItem `yaml:"plmnSupportList,omitempty"`
+	Logger          *logger_util.Logger
+	Sbi             *Sbi
+	Mongodb         *Mongodb
+	WebuiUri        string
+	PlmnSupportList []PlmnSupportItem
 }
 
 type PlmnSupportItem struct {
-	PlmnId     models.PlmnId   `yaml:"plmnId"`
-	SNssaiList []models.Snssai `yaml:"snssaiList,omitempty"`
+	PlmnId     models.PlmnId
+	SNssaiList []models.Snssai
 }
 
 type Sbi struct {
-	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
-	Port        int    `yaml:"port"`
+	BindingIPv4 string
+	Port        int
 }
 
 type Mongodb struct {
-	Name           string `yaml:"name,omitempty"`
-	Url            string `yaml:"url,omitempty"`
-	AuthKeysDbName string `yaml:"authKeysDbName"`
-	AuthUrl        string `yaml:"authUrl"`
+	Name           string
+	Url            string
+	AuthKeysDbName string
+	AuthUrl        string
 }
 
 var (
@@ -45,7 +41,7 @@ func init() {
 	ConfigPodTrigger = make(chan bool)
 }
 
-func (c *Config) addSmPolicyInfo(nwSlice *protos.NetworkSlice, dbUpdateChannel chan *UpdateDb) {
+func (c *Configuration) addSmPolicyInfo(nwSlice *protos.NetworkSlice, dbUpdateChannel chan *UpdateDb) {
 	for _, devGrp := range nwSlice.DeviceGroup {
 		for _, imsi := range devGrp.Imsi {
 			smPolicyEntry := &SmPolicyUpdateEntry{
@@ -61,7 +57,7 @@ func (c *Config) addSmPolicyInfo(nwSlice *protos.NetworkSlice, dbUpdateChannel c
 	}
 }
 
-func (c *Config) updateConfig(commChannel chan *protos.NetworkSliceResponse, dbUpdateChannel chan *UpdateDb) bool {
+func (c *Configuration) updateConfig(commChannel chan *protos.NetworkSliceResponse, dbUpdateChannel chan *UpdateDb) bool {
 	var minConfig bool
 	for rsp := range commChannel {
 		logger.GrpcLog.Infoln("Received updateConfig in the udr app : ", rsp)
@@ -77,14 +73,14 @@ func (c *Config) updateConfig(commChannel chan *protos.NetworkSliceResponse, dbU
 					plmn.PlmnId.Mnc = site.Plmn.Mnc
 					plmn.PlmnId.Mcc = site.Plmn.Mcc
 					var found bool = false
-					for _, cplmn := range UdrConfig.Configuration.PlmnSupportList {
+					for _, cplmn := range UdrConfig.PlmnSupportList {
 						if (cplmn.PlmnId.Mnc == plmn.PlmnId.Mnc) && (cplmn.PlmnId.Mcc == plmn.PlmnId.Mcc) {
 							found = true
 							break
 						}
 					}
 					if !found {
-						UdrConfig.Configuration.PlmnSupportList = append(UdrConfig.Configuration.PlmnSupportList, plmn)
+						UdrConfig.PlmnSupportList = append(UdrConfig.PlmnSupportList, plmn)
 					}
 				} else {
 					logger.GrpcLog.Infoln("Plmn not present in the message ")
@@ -94,14 +90,14 @@ func (c *Config) updateConfig(commChannel chan *protos.NetworkSliceResponse, dbU
 		}
 		if !minConfig {
 			// first slice Created
-			if len(UdrConfig.Configuration.PlmnSupportList) > 0 {
+			if len(UdrConfig.PlmnSupportList) > 0 {
 				minConfig = true
 				ConfigPodTrigger <- true
 				logger.GrpcLog.Infoln("Send config trigger to main routine")
 			}
 		} else {
 			// all slices deleted
-			if len(UdrConfig.Configuration.PlmnSupportList) == 0 {
+			if len(UdrConfig.PlmnSupportList) == 0 {
 				minConfig = false
 				ConfigPodTrigger <- false
 				logger.GrpcLog.Infoln("Send config trigger to main routine")

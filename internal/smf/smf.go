@@ -14,6 +14,12 @@ const SBI_PORT = 29502
 
 func Start(amfURL string, pcfURL string, udmURL string, webuiURL string) error {
 	configuration := factory.Configuration{
+		Logger: &logger.Logger{
+			SMF: &logger.LogSetting{
+				DebugLevel:   "debug",
+				ReportCaller: false,
+			},
+		},
 		PFCP: &factory.PFCP{
 			Addr: "0.0.0.0",
 		},
@@ -33,19 +39,9 @@ func Start(amfURL string, pcfURL string, udmURL string, webuiURL string) error {
 		},
 	}
 
-	config := factory.Config{
-		Configuration: &configuration,
-		Logger: &logger.Logger{
-			SMF: &logger.LogSetting{
-				DebugLevel:   "debug",
-				ReportCaller: false,
-			},
-		},
-	}
-
 	ueRoutingConfig := factory.RoutingConfig{}
 
-	err := SMF.Initialize(config, ueRoutingConfig)
+	err := SMF.Initialize(configuration, ueRoutingConfig)
 	if err != nil {
 		return fmt.Errorf("failed to initialize SMF")
 	}

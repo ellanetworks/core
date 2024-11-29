@@ -5,7 +5,7 @@ import (
 	protos "github.com/yeastengine/config5g/proto/sdcoreConfig"
 )
 
-var UdrConfig Config
+var UdrConfig Configuration
 
 type UpdateDb struct {
 	SmPolicyTable *SmPolicyUpdateEntry
@@ -17,9 +17,9 @@ type SmPolicyUpdateEntry struct {
 	Dnn    string
 }
 
-func InitConfigFactory(c Config) {
+func InitConfigFactory(c Configuration) {
 	UdrConfig = c
-	commChannel := client.ConfigWatcher(UdrConfig.Configuration.WebuiUri, "udr")
+	commChannel := client.ConfigWatcher(UdrConfig.WebuiUri, "udr")
 	ConfigUpdateDbTrigger = make(chan *UpdateDb, 10)
 	go UdrConfig.updateConfig(commChannel, ConfigUpdateDbTrigger)
 }

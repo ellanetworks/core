@@ -43,10 +43,10 @@ func init() {
 	ConfigPodTrigger = make(chan bool)
 }
 
-func (pcf *PCF) Initialize(c factory.Config) {
+func (pcf *PCF) Initialize(c factory.Configuration) {
 	factory.InitConfigFactory(c)
 	pcf.setLogLevel()
-	gClient := client.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri, "pcf")
+	gClient := client.ConnectToConfigServer(factory.PcfConfig.WebuiUri, "pcf")
 	commChannel := gClient.PublishOnConfigChange(true)
 	go pcf.updateConfig(commChannel)
 }
@@ -459,7 +459,7 @@ func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 func (pcf *PCF) UpdateDnnList(ns *protos.NetworkSlice) {
 	sliceid := ns.Nssai.Sst + ns.Nssai.Sd
 	pcfContext := context.PCF_Self()
-	pcfConfig := factory.PcfConfig.Configuration
+	pcfConfig := factory.PcfConfig
 	switch ns.OperationType {
 	case protos.OpType_SLICE_ADD:
 		fallthrough
@@ -503,7 +503,7 @@ func (pcf *PCF) UpdateDnnList(ns *protos.NetworkSlice) {
 func (pcf *PCF) UpdatePlmnList(ns *protos.NetworkSlice) {
 	sliceid := ns.Nssai.Sst + ns.Nssai.Sd
 	pcfContext := context.PCF_Self()
-	pcfConfig := factory.PcfConfig.Configuration
+	pcfConfig := factory.PcfConfig
 	switch ns.OperationType {
 	case protos.OpType_SLICE_ADD:
 		fallthrough

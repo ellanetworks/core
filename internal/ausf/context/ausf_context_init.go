@@ -12,20 +12,18 @@ import (
 func InitAusfContext(context *AUSFContext) {
 	config := factory.AusfConfig
 
-	configuration := config.Configuration
-
 	context.NfId = uuid.New().String()
-	context.GroupID = configuration.GroupId
-	context.UdmUri = configuration.UdmUri
-	context.SBIPort = configuration.Sbi.Port
+	context.GroupID = config.GroupId
+	context.UdmUri = config.UdmUri
+	context.SBIPort = config.Sbi.Port
 	context.UriScheme = models.UriScheme_HTTP
-	context.BindingIPv4 = configuration.Sbi.BindingIPv4
+	context.BindingIPv4 = config.Sbi.BindingIPv4
 	context.Url = fmt.Sprintf("%s://%s:%d", context.UriScheme, context.BindingIPv4, context.SBIPort)
 	context.NfService = make(map[models.ServiceName]models.NfService)
 	AddNfServices(&context.NfService, &config, context)
 }
 
-func AddNfServices(serviceMap *map[models.ServiceName]models.NfService, config *factory.Config, context *AUSFContext) {
+func AddNfServices(serviceMap *map[models.ServiceName]models.NfService, config *factory.Configuration, context *AUSFContext) {
 	var nfService models.NfService
 	var ipEndPoints []models.IpEndPoint
 	var nfServiceVersions []models.NfServiceVersion

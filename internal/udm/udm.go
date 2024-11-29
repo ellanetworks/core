@@ -17,6 +17,12 @@ const (
 
 func Start(udrURL string) error {
 	configuration := factory.Configuration{
+		Logger: &logger.Logger{
+			UDM: &logger.LogSetting{
+				DebugLevel:   "debug",
+				ReportCaller: false,
+			},
+		},
 		UdmName: "UDM",
 		Sbi: &factory.Sbi{
 			BindingIPv4: "0.0.0.0",
@@ -34,16 +40,7 @@ func Start(udrURL string) error {
 			UdmProfileAHNPrivateKey: UDM_HNP_PRIVATE_KEY,
 		},
 	}
-	config := factory.Config{
-		Logger: &logger.Logger{
-			UDM: &logger.LogSetting{
-				DebugLevel:   "debug",
-				ReportCaller: false,
-			},
-		},
-		Configuration: &configuration,
-	}
-	err := UDM.Initialize(config)
+	err := UDM.Initialize(configuration)
 	if err != nil {
 		return fmt.Errorf("failed to initialize")
 	}

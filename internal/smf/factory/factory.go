@@ -7,15 +7,15 @@ import (
 )
 
 var (
-	SmfConfig         Config
+	SmfConfig         Configuration
 	UERoutingConfig   RoutingConfig
 	UpdatedSmfConfig  UpdateSmfConfig
 	SmfConfigSyncLock sync.Mutex
 )
 
-func InitConfigFactory(c Config) error {
+func InitConfigFactory(c Configuration) error {
 	SmfConfig = c
-	gClient := client.ConnectToConfigServer(SmfConfig.Configuration.WebuiUri, "smf")
+	gClient := client.ConnectToConfigServer(SmfConfig.WebuiUri, "smf")
 	commChannel := gClient.PublishOnConfigChange(false)
 	go SmfConfig.updateConfig(commChannel)
 

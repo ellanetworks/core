@@ -34,11 +34,11 @@ type NSSFContext struct {
 // Initialize NSSF context with configuration factory
 func InitNssfContext() {
 	nssfConfig := factory.NssfConfig
-	nssfContext.Name = nssfConfig.Configuration.NssfName
+	nssfContext.Name = nssfConfig.NssfName
 	nssfContext.UriScheme = models.UriScheme_HTTP
-	nssfContext.SBIPort = nssfConfig.Configuration.Sbi.Port
-	nssfContext.BindingIPv4 = nssfConfig.Configuration.Sbi.BindingIPv4
-	nssfContext.NfService = initNfService(nssfConfig.Configuration.ServiceNameList)
+	nssfContext.SBIPort = nssfConfig.Sbi.Port
+	nssfContext.BindingIPv4 = nssfConfig.Sbi.BindingIPv4
+	nssfContext.NfService = initNfService(nssfConfig.ServiceNameList)
 }
 
 func initNfService(serviceName []models.ServiceName) (
