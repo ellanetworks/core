@@ -18,19 +18,11 @@ import (
 	"github.com/yeastengine/ella/internal/pcf/util"
 )
 
-// SmPoliciesPost -
 func HandleCreateSmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
 	logger.SMpolicylog.Infof("Handle CreateSmPolicy")
-	// step 2: retrieve request
 	requestDataType := request.Body.(models.SmPolicyContextData)
-
-	// step 3: handle the message
 	header, response, problemDetails := createSMPolicyProcedure(requestDataType)
-
-	// step 4: process the return value from step 3
 	if response != nil {
-		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusCreated, header, response)
 	} else if problemDetails != nil {
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
@@ -117,17 +109,17 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	// Check if local config has pre-configured pccrules, sessionrules for the slice(via ROC)
 	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
 	sliceid := sstStr + request.SliceInfo.Sd
-	self := pcf_context.PCF_Self()
 	imsi := strings.TrimPrefix(ue.Supi, "imsi-")
-	if subsPolicyData, ok := self.PcfSubscriberPolicyData[imsi]; ok {
-		logger.SMpolicylog.Infof("Supi[%s] exist in PcfSubscriberPolicyData", imsi)
+	subscriberPolicies := pcf_context.GetSubscriberPolicies()
+	if subsPolicyData, ok := subscriberPolicies[imsi]; ok {
+		logger.SMpolicylog.Infof("Found an existing policy for subscriber [%s]", imsi)
 		if PccPolicy, ok1 := subsPolicyData.PccPolicy[sliceid]; ok1 {
 			if sessPolicy, exist := PccPolicy.SessionPolicy[request.Dnn]; exist {
 				for _, sessRule := range sessPolicy.SessionRules {
 					decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
 				}
 			} else {
-				logger.SMpolicylog.Infof("Requested Dnn[%s] is not exist in local policy", request.Dnn)
+				logger.SMpolicylog.Warnf("Requested Dnn [%s] does not exist in local policy", request.Dnn)
 				problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
 				return nil, nil, &problemDetail
 			}

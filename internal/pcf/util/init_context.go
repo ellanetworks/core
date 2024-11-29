@@ -21,7 +21,6 @@ func InitpcfContext(context *context.PCFContext) {
 	context.UriScheme = models.UriScheme_HTTP
 	context.BindingIPv4 = sbi.BindingIPv4
 	serviceList := config.ServiceList
-	context.PlmnList = config.PlmnList
 	context.InitNFService(serviceList)
 	context.TimeFormat = config.TimeFormat
 	context.DefaultBdtRefId = config.DefaultBdtRefId

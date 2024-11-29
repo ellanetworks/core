@@ -250,7 +250,7 @@ func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec
 		}
 		delete(decision.PccRules, pccRuleId)
 	} else {
-		return fmt.Errorf("Can't find the pccRuleId[%s] in Session[%d]", pccRuleId, policy.PolicyContext.PduSessionId)
+		return fmt.Errorf("can't find the pccRuleId[%s] in Session[%d]", pccRuleId, policy.PolicyContext.PduSessionId)
 	}
 	return nil
 }
