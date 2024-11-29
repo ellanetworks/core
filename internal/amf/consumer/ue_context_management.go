@@ -18,13 +18,14 @@ func UeCmRegistration(ue *amf_context.AmfUe, accessType models.AccessType, initi
 	client := Nudm_UEContextManagement.NewAPIClient(configuration)
 
 	amfSelf := amf_context.AMF_Self()
+	guamiList := amf_context.GetServedGuamiList()
 
 	switch accessType {
 	case models.AccessType__3_GPP_ACCESS:
 		registrationData := models.Amf3GppAccessRegistration{
 			AmfInstanceId:          amfSelf.NfId,
 			InitialRegistrationInd: initialRegistrationInd,
-			Guami:                  &amfSelf.ServedGuamiList[0],
+			Guami:                  &guamiList[0],
 			RatType:                ue.RatType,
 			// TODO: not support Homogenous Support of IMS Voice over PS Sessions this stage
 			ImsVoPs: models.ImsVoPs_HOMOGENEOUS_NON_SUPPORT,
@@ -48,7 +49,7 @@ func UeCmRegistration(ue *amf_context.AmfUe, accessType models.AccessType, initi
 	case models.AccessType_NON_3_GPP_ACCESS:
 		registrationData := models.AmfNon3GppAccessRegistration{
 			AmfInstanceId: amfSelf.NfId,
-			Guami:         &amfSelf.ServedGuamiList[0],
+			Guami:         &guamiList[0],
 			RatType:       ue.RatType,
 		}
 		ctx, cancel := context.WithTimeout(context.TODO(), 30*time.Second)

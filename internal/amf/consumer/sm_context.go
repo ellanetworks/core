@@ -108,13 +108,14 @@ func buildCreateSmContextRequest(ue *amf_context.AmfUe, smContext *amf_context.S
 	smContextCreateData.SNssai = &snssai
 	smContextCreateData.Dnn = smContext.Dnn()
 	smContextCreateData.ServingNfId = context.NfId
-	smContextCreateData.Guami = &context.ServedGuamiList[0]
+	guamiList := amf_context.GetServedGuamiList()
+	smContextCreateData.Guami = &guamiList[0]
 	// take seving networking plmn from userlocation.Tai
 	if ue.Tai.PlmnId != nil {
 		smContextCreateData.ServingNetwork = ue.Tai.PlmnId
 	} else {
-		ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc %v, Mnc: %v] is taken from Guami List", context.ServedGuamiList[0].PlmnId.Mcc, context.ServedGuamiList[0].PlmnId.Mnc)
-		smContextCreateData.ServingNetwork = context.ServedGuamiList[0].PlmnId
+		ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc %v, Mnc: %v] is taken from Guami List", guamiList[0].PlmnId.Mcc, guamiList[0].PlmnId.Mnc)
+		smContextCreateData.ServingNetwork = guamiList[0].PlmnId
 	}
 	if requestType != nil {
 		smContextCreateData.RequestType = *requestType

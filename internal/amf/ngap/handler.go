@@ -70,7 +70,8 @@ func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context
 				var err error
 
 				if fiveGSTMSI != nil {
-					servedGuami := amfSelf.ServedGuamiList[0]
+					guamiList := context.GetServedGuamiList()
+					servedGuami := guamiList[0]
 
 					// <5G-S-TMSI> := <AMF Set ID><AMF Pointer><5G-TMSI>
 					// GUAMI := <MCC><MNC><AMF Region ID><AMF Set ID><AMF Pointer>
@@ -598,12 +599,12 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		}
 	} else {
 		var found bool
-		taiList := make([]models.Tai, len(context.AMF_Self().SupportTaiLists))
-		copy(taiList, context.AMF_Self().SupportTaiLists)
-		ran.Log.Warnf("TO DELETE: Supported Tai List in AMF: %v", taiList)
+		supportTaiList := context.GetSupportTaiList()
+		taiList := make([]models.Tai, len(supportTaiList))
+		copy(taiList, supportTaiList)
 		for i := range taiList {
 			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
-			ran.Log.Infof("Supported Tai List in AMF Plmn: %v, Tac: 0x%v Tac: %v", taiList[i].PlmnId, taiList[i].Tac, context.AMF_Self().SupportTaiLists[i].Tac)
+			ran.Log.Infof("Supported Tai List in AMF Plmn: %v, Tac: 0x%v Tac: %v", taiList[i].PlmnId, taiList[i].Tac, supportTaiList[i].Tac)
 		}
 
 		for i, tai := range ran.SupportedTAList {
@@ -1460,8 +1461,8 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 
 		if fiveGSTMSI != nil {
 			ranUe.Log.Debug("Receive 5G-S-TMSI")
-
-			servedGuami := amfSelf.ServedGuamiList[0]
+			guamiList := context.GetServedGuamiList()
+			servedGuami := guamiList[0]
 
 			// <5G-S-TMSI> := <AMF Set ID><AMF Pointer><5G-TMSI>
 			// GUAMI := <MCC><MNC><AMF Region ID><AMF Set ID><AMF Pointer>
@@ -3869,8 +3870,9 @@ func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU
 		}
 	} else {
 		var found bool
-		taiList := make([]models.Tai, len(context.AMF_Self().SupportTaiLists))
-		copy(taiList, context.AMF_Self().SupportTaiLists)
+		supportTaiList := context.GetSupportTaiList()
+		taiList := make([]models.Tai, len(supportTaiList))
+		copy(taiList, supportTaiList)
 		for i := range taiList {
 			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
 			ran.Log.Infof("Supported Tai List in AMF Plmn: %v, Tac: %v", taiList[i].PlmnId, taiList[i].Tac)

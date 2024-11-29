@@ -1,7 +1,6 @@
 package util
 
 import (
-	"github.com/google/uuid"
 	"github.com/omec-project/nas/security"
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
@@ -12,18 +11,8 @@ import (
 func InitAmfContext(context *context.AMFContext) {
 	config := factory.AmfConfig
 	configuration := config.Configuration
-	if context.NfId == "" {
-		context.NfId = uuid.New().String()
-	}
-
-	if configuration.AmfName != "" {
-		context.Name = configuration.AmfName
-	}
-	if configuration.NgapIpList != nil {
-		context.NgapIpList = configuration.NgapIpList
-	} else {
-		context.NgapIpList = []string{"127.0.0.1"} // default localhost
-	}
+	context.Name = configuration.AmfName
+	context.NgapIpList = configuration.NgapIpList
 	context.NgapPort = configuration.NgapPort
 	context.SctpGrpcPort = configuration.SctpGrpcPort
 	sbi := configuration.Sbi
@@ -32,9 +21,6 @@ func InitAmfContext(context *context.AMFContext) {
 	context.BindingIPv4 = sbi.BindingIPv4
 	serviceNameList := configuration.ServiceNameList
 	context.InitNFService(serviceNameList)
-	context.ServedGuamiList = configuration.ServedGumaiList
-	context.SupportTaiLists = configuration.SupportTAIList
-	context.PlmnSupportList = configuration.PlmnSupportList
 	context.SupportDnnLists = configuration.SupportDnnList
 	context.AusfUri = configuration.AusfUri
 	context.NssfUri = configuration.NssfUri
@@ -43,10 +29,8 @@ func InitAmfContext(context *context.AMFContext) {
 	context.UdmsdmUri = configuration.UdmsdmUri
 	context.UdmUecmUri = configuration.UdmUecmUri
 	security := configuration.Security
-	if security != nil {
-		context.SecurityAlgorithm.IntegrityOrder = getIntAlgOrder(security.IntegrityOrder)
-		context.SecurityAlgorithm.CipheringOrder = getEncAlgOrder(security.CipheringOrder)
-	}
+	context.SecurityAlgorithm.IntegrityOrder = getIntAlgOrder(security.IntegrityOrder)
+	context.SecurityAlgorithm.CipheringOrder = getEncAlgOrder(security.CipheringOrder)
 	context.NetworkName = configuration.NetworkName
 	context.T3502Value = configuration.T3502Value
 	context.T3512Value = configuration.T3512Value

@@ -98,11 +98,7 @@ func DeviceGroupGroupNamePost(c *gin.Context) {
 	}
 }
 
-// GetNetworkSlices -
-func GetNetworkSlices(c *gin.Context) {
-	setCorsHeader(c)
-	logger.WebUILog.Infoln("Get all Network Slices")
-
+func ListNetworkSlices() []string {
 	var networkSlices []string = make([]string, 0)
 	rawNetworkSlices, errGetMany := dbadapter.CommonDBClient.RestfulAPIGetMany(sliceDataColl, bson.M{})
 	if errGetMany != nil {
@@ -115,23 +111,31 @@ func GetNetworkSlices(c *gin.Context) {
 		}
 		networkSlices = append(networkSlices, rawNetworkSlice["slice-name"].(string))
 	}
+	return networkSlices
+}
 
+func GetNetworkSlices(c *gin.Context) {
+	setCorsHeader(c)
+	logger.WebUILog.Infoln("List Network Slices")
+	networkSlices := ListNetworkSlices()
 	c.JSON(http.StatusOK, networkSlices)
 }
 
-// GetNetworkSliceByName -
-func GetNetworkSliceByName(c *gin.Context) {
-	setCorsHeader(c)
-	logger.WebUILog.Infoln("Get Network Slice by name")
-
+func GetNetworkSliceByName2(sliceName string) configmodels.Slice {
 	var networkSlice configmodels.Slice
-	filter := bson.M{"slice-name": c.Param("slice-name")}
+	filter := bson.M{"slice-name": sliceName}
 	rawNetworkSlice, err := dbadapter.CommonDBClient.RestfulAPIGetOne(sliceDataColl, filter)
 	if err != nil {
 		logger.DbLog.Warnln(err)
 	}
-
 	json.Unmarshal(mapToByte(rawNetworkSlice), &networkSlice)
+	return networkSlice
+}
+
+func GetNetworkSliceByName(c *gin.Context) {
+	setCorsHeader(c)
+	logger.WebUILog.Infoln("Get Network Slice by name")
+	networkSlice := GetNetworkSliceByName2(c.Param("slice-name"))
 	if networkSlice.SliceName == "" {
 		c.JSON(http.StatusNotFound, nil)
 	} else {

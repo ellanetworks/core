@@ -27,8 +27,6 @@ type Configuration struct {
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS `yaml:"networkFeatureSupport5GS,omitempty"`
 	ServiceNameList                 []string                  `yaml:"serviceNameList,omitempty"`
 	ServedGumaiList                 []models.Guami            `yaml:"servedGuamiList,omitempty"`
-	SupportTAIList                  []models.Tai              `yaml:"supportTaiList,omitempty"`
-	PlmnSupportList                 []PlmnSupportItem         `yaml:"plmnSupportList,omitempty"`
 	SupportDnnList                  []string                  `yaml:"supportDnnList,omitempty"`
 	AusfUri                         string                    `yaml:"ausfUri,omitempty"`
 	NssfUri                         string                    `yaml:"nssfUri,omitempty"`
@@ -47,9 +45,6 @@ type Configuration struct {
 	T3550                           TimerValue                `yaml:"t3550"`
 	T3560                           TimerValue                `yaml:"t3560"`
 	T3565                           TimerValue                `yaml:"t3565"`
-
-	// Maintain TaiList per slice
-	SliceTaiList map[string][]models.Tai `yaml:"sliceTaiList,omitempty"`
 }
 
 func (c *Configuration) Get5gsNwFeatSuppEnable() bool {

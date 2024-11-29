@@ -469,7 +469,8 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 		ue.Guti = guti
 		ue.GmmLog.Debugf("GUTI: %s", guti)
 
-		servedGuami := amfSelf.ServedGuamiList[0]
+		guamiList := context.GetServedGuamiList()
+		servedGuami := guamiList[0]
 		if reflect.DeepEqual(guamiFromUeGuti, servedGuami) {
 			ue.ServingAmfChanged = false
 		} else {
@@ -505,8 +506,9 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	ue.Tai = ue.RanUe[anType].Tai
 
 	// Check TAI
-	taiList := make([]models.Tai, len(amfSelf.SupportTaiLists))
-	copy(taiList, amfSelf.SupportTaiLists)
+	supportTaiList := context.GetSupportTaiList()
+	taiList := make([]models.Tai, len(supportTaiList))
+	copy(taiList, supportTaiList)
 	for i := range taiList {
 		taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
 	}
