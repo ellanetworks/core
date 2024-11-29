@@ -8,61 +8,57 @@ import (
 )
 
 var (
-	NssfConfig Config
+	NssfConfig Configuration
 	ConfigLock sync.RWMutex
 )
 
-type Config struct {
-	Configuration *Configuration      `yaml:"configuration"`
-	Logger        *logger_util.Logger `yaml:"logger"`
-	Subscriptions []Subscription      `yaml:"subscriptions,omitempty"`
-}
-
 type Configuration struct {
-	NssfName            string                  `yaml:"nssfName,omitempty"`
-	Sbi                 *Sbi                    `yaml:"sbi"`
-	ServiceNameList     []models.ServiceName    `yaml:"serviceNameList"`
-	AmfSetList          []AmfSetConfig          `yaml:"amfSetList"`
-	AmfList             []AmfConfig             `yaml:"amfList"`
-	TaList              []TaConfig              `yaml:"taList"`
-	MappingListFromPlmn []MappingFromPlmnConfig `yaml:"mappingListFromPlmn"`
+	Logger              *logger_util.Logger
+	Subscriptions       []Subscription
+	NssfName            string
+	Sbi                 *Sbi
+	ServiceNameList     []models.ServiceName
+	AmfSetList          []AmfSetConfig
+	AmfList             []AmfConfig
+	TaList              []TaConfig
+	MappingListFromPlmn []MappingFromPlmnConfig
 }
 
 type Sbi struct {
-	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
-	Port        int    `yaml:"port"`
+	BindingIPv4 string
+	Port        int
 }
 
 type AmfConfig struct {
-	NfId                           string                                  `yaml:"nfId"`
-	SupportedNssaiAvailabilityData []models.SupportedNssaiAvailabilityData `yaml:"supportedNssaiAvailabilityData"`
+	NfId                           string
+	SupportedNssaiAvailabilityData []models.SupportedNssaiAvailabilityData
 }
 
 type TaConfig struct {
-	Tai                  *models.Tai               `yaml:"tai"`
-	AccessType           *models.AccessType        `yaml:"accessType"`
-	SupportedSnssaiList  []models.Snssai           `yaml:"supportedSnssaiList"`
-	RestrictedSnssaiList []models.RestrictedSnssai `yaml:"restrictedSnssaiList,omitempty"`
+	Tai                  *models.Tai
+	AccessType           *models.AccessType
+	SupportedSnssaiList  []models.Snssai
+	RestrictedSnssaiList []models.RestrictedSnssai
 }
 
 type AmfSetConfig struct {
-	AmfSetId                       string                                  `yaml:"amfSetId"`
-	AmfList                        []string                                `yaml:"amfList,omitempty"`
-	SupportedNssaiAvailabilityData []models.SupportedNssaiAvailabilityData `yaml:"supportedNssaiAvailabilityData"`
+	AmfSetId                       string
+	AmfList                        []string
+	SupportedNssaiAvailabilityData []models.SupportedNssaiAvailabilityData
 }
 
 type MappingFromPlmnConfig struct {
-	OperatorName    string                   `yaml:"operatorName,omitempty"`
-	HomePlmnId      *models.PlmnId           `yaml:"homePlmnId"`
-	MappingOfSnssai []models.MappingOfSnssai `yaml:"mappingOfSnssai"`
+	OperatorName    string
+	HomePlmnId      *models.PlmnId
+	MappingOfSnssai []models.MappingOfSnssai
 }
 
 type Subscription struct {
-	SubscriptionData *models.NssfEventSubscriptionCreateData `yaml:"subscriptionData"`
-	SubscriptionId   string                                  `yaml:"subscriptionId"`
+	SubscriptionData *models.NssfEventSubscriptionCreateData
+	SubscriptionId   string
 }
 
-func InitConfigFactory(c Config) error {
+func InitConfigFactory(c Configuration) error {
 	NssfConfig = c
 	return nil
 }

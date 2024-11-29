@@ -13,11 +13,6 @@ import (
 	"github.com/yeastengine/ella/internal/smf/logger"
 )
 
-type Config struct {
-	Configuration *Configuration      `yaml:"configuration"`
-	Logger        *logger_util.Logger `yaml:"logger"`
-}
-
 type UpdateSmfConfig struct {
 	DelSNssaiInfo  *[]SnssaiInfoItem
 	ModSNssaiInfo  *[]SnssaiInfoItem
@@ -36,19 +31,20 @@ const (
 )
 
 type Configuration struct {
-	PFCP                 *PFCP                `yaml:"pfcp,omitempty"`
-	Sbi                  *Sbi                 `yaml:"sbi,omitempty"`
-	AmfUri               string               `yaml:"amfUri,omitempty"`
-	PcfUri               string               `yaml:"pcfUri,omitempty"`
-	UdmUri               string               `yaml:"udmUri,omitempty"`
-	WebuiUri             string               `yaml:"webuiUri"`
-	SmfName              string               `yaml:"smfName,omitempty"`
-	SNssaiInfo           []SnssaiInfoItem     `yaml:"snssaiInfos,omitempty"`
-	StaticIpInfo         []StaticIpInfo       `yaml:"staticIpInfo"`
-	ServiceNameList      []string             `yaml:"serviceNameList,omitempty"`
-	EnterpriseList       map[string]string    `yaml:"enterpriseList,omitempty"`
-	UserPlaneInformation UserPlaneInformation `yaml:"userplane_information"`
-	ULCL                 bool                 `yaml:"ulcl,omitempty"`
+	Logger               *logger_util.Logger
+	PFCP                 *PFCP
+	Sbi                  *Sbi
+	AmfUri               string
+	PcfUri               string
+	UdmUri               string
+	WebuiUri             string
+	SmfName              string
+	SNssaiInfo           []SnssaiInfoItem
+	StaticIpInfo         []StaticIpInfo
+	ServiceNameList      []string
+	EnterpriseList       map[string]string
+	UserPlaneInformation UserPlaneInformation
+	ULCL                 bool
 }
 
 type StaticIpInfo struct {
@@ -170,7 +166,7 @@ func init() {
 	ConfigPodTrigger = make(chan bool, 1)
 }
 
-func (c *Config) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool {
+func (c *Configuration) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool {
 	for {
 		rsp := <-commChannel
 		logger.GrpcLog.Infof("received updateConfig in the smf app: %+v \n", rsp)
@@ -183,14 +179,14 @@ func (c *Config) updateConfig(commChannel chan *protos.NetworkSliceResponse) boo
 		}
 
 		// updates UpdatedSmfConfig struct to be consumed by SMF config update routine.
-		compareAndProcessConfigs(c.Configuration, &cfgNew)
+		compareAndProcessConfigs(c, &cfgNew)
 
 		// Update SMF's config copy for future compare
 		// Acquire Lock before update as SMF main go-routine might be
 		// still processing initial config and we don't want to update it in middle
 		SmfConfigSyncLock.Lock()
-		c.Configuration.SNssaiInfo = cfgNew.SNssaiInfo
-		c.Configuration.UserPlaneInformation = cfgNew.UserPlaneInformation
+		c.SNssaiInfo = cfgNew.SNssaiInfo
+		c.UserPlaneInformation = cfgNew.UserPlaneInformation
 		SmfConfigSyncLock.Unlock()
 		// Send trigger to update SMF Context
 		ConfigPodTrigger <- true

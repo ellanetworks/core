@@ -10,36 +10,35 @@ import (
 
 func InitAmfContext(context *context.AMFContext) {
 	config := factory.AmfConfig
-	configuration := config.Configuration
-	context.Name = configuration.AmfName
-	context.NgapIpList = configuration.NgapIpList
-	context.NgapPort = configuration.NgapPort
-	context.SctpGrpcPort = configuration.SctpGrpcPort
-	sbi := configuration.Sbi
+	context.Name = config.AmfName
+	context.NgapIpList = config.NgapIpList
+	context.NgapPort = config.NgapPort
+	context.SctpGrpcPort = config.SctpGrpcPort
+	sbi := config.Sbi
 	context.UriScheme = models.UriScheme_HTTP
 	context.SBIPort = sbi.Port
 	context.BindingIPv4 = sbi.BindingIPv4
-	serviceNameList := configuration.ServiceNameList
+	serviceNameList := config.ServiceNameList
 	context.InitNFService(serviceNameList)
-	context.SupportDnnLists = configuration.SupportDnnList
-	context.AusfUri = configuration.AusfUri
-	context.NssfUri = configuration.NssfUri
-	context.PcfUri = configuration.PcfUri
-	context.SmfUri = configuration.SmfUri
-	context.UdmsdmUri = configuration.UdmsdmUri
-	context.UdmUecmUri = configuration.UdmUecmUri
-	security := configuration.Security
+	context.SupportDnnLists = config.SupportDnnList
+	context.AusfUri = config.AusfUri
+	context.NssfUri = config.NssfUri
+	context.PcfUri = config.PcfUri
+	context.SmfUri = config.SmfUri
+	context.UdmsdmUri = config.UdmsdmUri
+	context.UdmUecmUri = config.UdmUecmUri
+	security := config.Security
 	context.SecurityAlgorithm.IntegrityOrder = getIntAlgOrder(security.IntegrityOrder)
 	context.SecurityAlgorithm.CipheringOrder = getEncAlgOrder(security.CipheringOrder)
-	context.NetworkName = configuration.NetworkName
-	context.T3502Value = configuration.T3502Value
-	context.T3512Value = configuration.T3512Value
-	context.Non3gppDeregistrationTimerValue = configuration.Non3gppDeregistrationTimerValue
-	context.T3513Cfg = configuration.T3513
-	context.T3522Cfg = configuration.T3522
-	context.T3550Cfg = configuration.T3550
-	context.T3560Cfg = configuration.T3560
-	context.T3565Cfg = configuration.T3565
+	context.NetworkName = config.NetworkName
+	context.T3502Value = config.T3502Value
+	context.T3512Value = config.T3512Value
+	context.Non3gppDeregistrationTimerValue = config.Non3gppDeregistrationTimerValue
+	context.T3513Cfg = config.T3513
+	context.T3522Cfg = config.T3522
+	context.T3550Cfg = config.T3550
+	context.T3560Cfg = config.T3560
+	context.T3565Cfg = config.T3565
 }
 
 func getIntAlgOrder(integrityOrder []string) (intOrder []uint8) {

@@ -25,7 +25,7 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (udr *UDR) Initialize(c factory.Config) {
+func (udr *UDR) Initialize(c factory.Configuration) {
 	factory.InitConfigFactory(c)
 	udr.setLogLevel()
 }
@@ -45,7 +45,7 @@ func (udr *UDR) setLogLevel() {
 func (udr *UDR) Start() {
 	// get config file info
 	config := factory.UdrConfig
-	mongodb := config.Configuration.Mongodb
+	mongodb := config.Mongodb
 
 	// Connect to MongoDB
 	producer.ConnectMongo(mongodb.Url, mongodb.Name, mongodb.AuthUrl, mongodb.AuthKeysDbName)

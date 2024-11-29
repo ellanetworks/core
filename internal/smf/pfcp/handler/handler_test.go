@@ -71,10 +71,7 @@ func TestFindUEIPAddressNoUEIPAddressInCreatedPDR(t *testing.T) {
 }
 
 func TestHandlePfcpAssociationSetupResponse(t *testing.T) {
-	configuration := &factory.Configuration{}
-	factory.SmfConfig = factory.Config{
-		Configuration: configuration,
-	}
+	factory.SmfConfig = factory.Configuration{}
 	upNodeID := context.NewNodeID("1.1.1.1")
 	upf := context.NewUPF(upNodeID, nil)
 	SnssaiInfos := make([]context.SnssaiUPFInfo, 0)

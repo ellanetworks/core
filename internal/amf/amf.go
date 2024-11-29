@@ -15,8 +15,13 @@ const (
 	NGAPP_PORT = 38412
 )
 
-func Start(ausfURL string, nssfURL string, pcfURL string, smfURL string, UdmsdmURL string, UdmUecmURL string, webuiURL string) error {
+func Start(ausfURL string, nssfURL string, pcfURL string, smfURL string, UdmsdmURL string, UdmUecmURL string) error {
 	configuration := factory.Configuration{
+		Logger: &logger.Logger{
+			AMF: &logger.LogSetting{
+				DebugLevel: "debug",
+			},
+		},
 		AmfName:      "AMF",
 		NgapIpList:   []string{"0.0.0.0"},
 		NgapPort:     NGAPP_PORT,
@@ -49,7 +54,6 @@ func Start(ausfURL string, nssfURL string, pcfURL string, smfURL string, UdmsdmU
 		SmfUri:         smfURL,
 		UdmsdmUri:      UdmsdmURL,
 		UdmUecmUri:     UdmUecmURL,
-		WebuiUri:       webuiURL,
 		Security: &factory.Security{
 			IntegrityOrder: []string{"NIA1", "NIA2"},
 			CipheringOrder: []string{"NEA0"},
@@ -86,15 +90,8 @@ func Start(ausfURL string, nssfURL string, pcfURL string, smfURL string, UdmsdmU
 			MaxRetryTimes: 4,
 		},
 	}
-	config := factory.Config{
-		Configuration: &configuration,
-		Logger: &logger.Logger{
-			AMF: &logger.LogSetting{
-				DebugLevel: "debug",
-			},
-		},
-	}
-	AMF.Initialize(config)
+
+	AMF.Initialize(configuration)
 	go AMF.Start()
 	return nil
 }

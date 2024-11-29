@@ -25,7 +25,7 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (ausf *AUSF) Initialize(c factory.Config) {
+func (ausf *AUSF) Initialize(c factory.Configuration) {
 	factory.InitConfigFactory(c)
 	ausf.setLogLevel()
 }

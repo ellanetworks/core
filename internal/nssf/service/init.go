@@ -25,7 +25,7 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (nssf *NSSF) Initialize(c factory.Config) {
+func (nssf *NSSF) Initialize(c factory.Configuration) {
 	factory.InitConfigFactory(c)
 	context.InitNssfContext()
 	nssf.setLogLevel()

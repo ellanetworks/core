@@ -15,6 +15,12 @@ var AUSF = &service.AUSF{}
 
 func Start(udmUrl string) error {
 	configuration := factory.Configuration{
+		Logger: &logger.Logger{
+			AUSF: &logger.LogSetting{
+				ReportCaller: false,
+				DebugLevel:   "debug",
+			},
+		},
 		Sbi: &factory.Sbi{
 			BindingIPv4: "0.0.0.0",
 			Port:        SBI_PORT,
@@ -26,16 +32,7 @@ func Start(udmUrl string) error {
 		GroupId: AUSF_GROUP_ID,
 	}
 
-	config := factory.Config{
-		Configuration: &configuration,
-		Logger: &logger.Logger{
-			AUSF: &logger.LogSetting{
-				ReportCaller: false,
-				DebugLevel:   "debug",
-			},
-		},
-	}
-	AUSF.Initialize(config)
+	AUSF.Initialize(configuration)
 	go AUSF.Start()
 	return nil
 }

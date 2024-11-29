@@ -84,7 +84,7 @@ func ReleaseLocalSEID(seid uint64) error {
 	return nil
 }
 
-func InitSmfContext(config *factory.Config) *SMFContext {
+func InitSmfContext(config *factory.Configuration) *SMFContext {
 	if config == nil {
 		logger.CtxLog.Error("Config is nil")
 		return nil
@@ -95,43 +95,33 @@ func InitSmfContext(config *factory.Config) *SMFContext {
 	factory.SmfConfigSyncLock.Lock()
 	defer factory.SmfConfigSyncLock.Unlock()
 
-	configuration := config.Configuration
-	if configuration.SmfName != "" {
-		smfContext.Name = configuration.SmfName
+	if config.SmfName != "" {
+		smfContext.Name = config.SmfName
 	}
 
 	// copy static UE IP Addr config
-	smfContext.StaticIpInfo = &configuration.StaticIpInfo
+	smfContext.StaticIpInfo = &config.StaticIpInfo
 
-	sbi := configuration.Sbi
+	sbi := config.Sbi
 
 	if sbi == nil {
 		logger.CtxLog.Errorln("Configuration needs \"sbi\" value")
 		return nil
 	} else {
 		smfContext.URIScheme = models.UriScheme_HTTP
-		smfContext.SBIPort = configuration.Sbi.Port
+		smfContext.SBIPort = config.Sbi.Port
 		if sbi.Port != 0 {
 			smfContext.SBIPort = sbi.Port
 		}
 
-		smfContext.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
-		if smfContext.BindingIPv4 != "" {
-			logger.CtxLog.Info("Parsing ServerIPv4 address from ENV Variable.")
-		} else {
-			smfContext.BindingIPv4 = sbi.BindingIPv4
-			if smfContext.BindingIPv4 == "" {
-				logger.CtxLog.Warn("Error parsing ServerIPv4 address as string. Using the 0.0.0.0 address as default.")
-				smfContext.BindingIPv4 = "0.0.0.0"
-			}
-		}
+		smfContext.BindingIPv4 = sbi.BindingIPv4
 	}
 
-	smfContext.AmfUri = configuration.AmfUri
-	smfContext.PcfUri = configuration.PcfUri
-	smfContext.UdmUri = configuration.UdmUri
+	smfContext.AmfUri = config.AmfUri
+	smfContext.PcfUri = config.PcfUri
+	smfContext.UdmUri = config.UdmUri
 
-	if pfcp := configuration.PFCP; pfcp != nil {
+	if pfcp := config.PFCP; pfcp != nil {
 		if pfcp.Port == 0 {
 			pfcp.Port = factory.SMF_PFCP_PORT
 		}
@@ -156,18 +146,18 @@ func InitSmfContext(config *factory.Config) *SMFContext {
 	}
 
 	// Static config
-	for _, snssaiInfoConfig := range configuration.SNssaiInfo {
+	for _, snssaiInfoConfig := range config.SNssaiInfo {
 		err := smfContext.insertSmfNssaiInfo(&snssaiInfoConfig)
 		if err != nil {
 			logger.CtxLog.Warnln(err)
 		}
 	}
 
-	smfContext.ULCLSupport = configuration.ULCL
+	smfContext.ULCLSupport = config.ULCL
 
 	smfContext.SupportedPDUSessionType = IPV4
 
-	smfContext.UserPlaneInformation = NewUserPlaneInformation(&configuration.UserPlaneInformation)
+	smfContext.UserPlaneInformation = NewUserPlaneInformation(&config.UserPlaneInformation)
 
 	smfContext.PodIp = os.Getenv("POD_IP")
 

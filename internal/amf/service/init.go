@@ -38,7 +38,7 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (amf *AMF) Initialize(c factory.Config) {
+func (amf *AMF) Initialize(c factory.Configuration) {
 	factory.InitConfigFactory(c)
 	amf.setLogLevel()
 }
@@ -74,7 +74,7 @@ func (amf *AMF) Start() {
 
 	httpcallback.AddService(router)
 	oam.AddService(router)
-	for _, serviceName := range factory.AmfConfig.Configuration.ServiceNameList {
+	for _, serviceName := range factory.AmfConfig.ServiceNameList {
 		switch models.ServiceName(serviceName) {
 		case models.ServiceName_NAMF_COMM:
 			communication.AddService(router)

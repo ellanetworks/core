@@ -24,11 +24,11 @@ import (
 // NSSAIAvailability DELETE method
 func NSSAIAvailabilityDeleteProcedure(nfId string) *models.ProblemDetails {
 	var problemDetails *models.ProblemDetails
-	for i, amfConfig := range factory.NssfConfig.Configuration.AmfList {
+	for i, amfConfig := range factory.NssfConfig.AmfList {
 		if amfConfig.NfId == nfId {
-			factory.NssfConfig.Configuration.AmfList = append(
-				factory.NssfConfig.Configuration.AmfList[:i],
-				factory.NssfConfig.Configuration.AmfList[i+1:]...)
+			factory.NssfConfig.AmfList = append(
+				factory.NssfConfig.AmfList[:i],
+				factory.NssfConfig.AmfList[i+1:]...)
 			return nil
 		}
 	}
@@ -54,11 +54,11 @@ func NSSAIAvailabilityPatchProcedure(nssaiAvailabilityUpdateInfo plugin.PatchDoc
 	var original []byte
 	hitAmf := false
 	factory.ConfigLock.RLock()
-	for amfIdx, amfConfig := range factory.NssfConfig.Configuration.AmfList {
+	for amfIdx, amfConfig := range factory.NssfConfig.AmfList {
 		if amfConfig.NfId == nfId {
 			// Since json-patch package does not have idea of optional field of datatype,
 			// provide with null or empty value instead of omitting the field
-			temp := factory.NssfConfig.Configuration.AmfList[amfIdx].SupportedNssaiAvailabilityData
+			temp := factory.NssfConfig.AmfList[amfIdx].SupportedNssaiAvailabilityData
 			const dummyString string = "DUMMY"
 			for i := range temp {
 				for j := range temp[i].SupportedSnssaiList {
@@ -74,7 +74,7 @@ func NSSAIAvailabilityPatchProcedure(nssaiAvailabilityUpdateInfo plugin.PatchDoc
 			}
 			original = bytes.ReplaceAll(original, []byte(dummyString), []byte(""))
 
-			// original, _ = json.Marshal(factory.NssfConfig.Configuration.AmfList[amfIdx].SupportedNssaiAvailabilityData)
+			// original, _ = json.Marshal(factory.NssfConfig.AmfList[amfIdx].SupportedNssaiAvailabilityData)
 
 			hitAmf = true
 			break
@@ -128,7 +128,7 @@ func NSSAIAvailabilityPatchProcedure(nssaiAvailabilityUpdateInfo plugin.PatchDoc
 	}
 
 	factory.ConfigLock.Lock()
-	err = json.Unmarshal(modified, &factory.NssfConfig.Configuration.AmfList[amfIdx].SupportedNssaiAvailabilityData)
+	err = json.Unmarshal(modified, &factory.NssfConfig.AmfList[amfIdx].SupportedNssaiAvailabilityData)
 	factory.ConfigLock.Unlock()
 	if err != nil {
 		problemDetails = &models.ProblemDetails{
@@ -166,9 +166,9 @@ func NSSAIAvailabilityPutProcedure(nssaiAvailabilityInfo models.NssaiAvailabilit
 	// Find AMF configuration of given NfId
 	// If found, then update the SupportedNssaiAvailabilityData
 	factory.ConfigLock.Lock()
-	for i, amfConfig := range factory.NssfConfig.Configuration.AmfList {
+	for i, amfConfig := range factory.NssfConfig.AmfList {
 		if amfConfig.NfId == nfId {
-			factory.NssfConfig.Configuration.AmfList[i].SupportedNssaiAvailabilityData = nssaiAvailabilityInfo.SupportedNssaiAvailabilityData
+			factory.NssfConfig.AmfList[i].SupportedNssaiAvailabilityData = nssaiAvailabilityInfo.SupportedNssaiAvailabilityData
 
 			hitAmf = true
 			break
@@ -182,7 +182,7 @@ func NSSAIAvailabilityPutProcedure(nssaiAvailabilityInfo models.NssaiAvailabilit
 		amfConfig.NfId = nfId
 		amfConfig.SupportedNssaiAvailabilityData = nssaiAvailabilityInfo.SupportedNssaiAvailabilityData
 		factory.ConfigLock.Lock()
-		factory.NssfConfig.Configuration.AmfList = append(factory.NssfConfig.Configuration.AmfList, amfConfig)
+		factory.NssfConfig.AmfList = append(factory.NssfConfig.AmfList, amfConfig)
 		factory.ConfigLock.Unlock()
 	}
 

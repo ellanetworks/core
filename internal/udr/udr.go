@@ -12,6 +12,12 @@ const SBI_PORT = 29504
 
 func Start(mongoDBURL string, mongoDBName, webuiURL string) error {
 	configuration := factory.Configuration{
+		Logger: &logger.Logger{
+			UDR: &logger.LogSetting{
+				DebugLevel:   "debug",
+				ReportCaller: false,
+			},
+		},
 		Sbi: &factory.Sbi{
 			BindingIPv4: "0.0.0.0",
 			Port:        SBI_PORT,
@@ -24,16 +30,7 @@ func Start(mongoDBURL string, mongoDBName, webuiURL string) error {
 		},
 		WebuiUri: webuiURL,
 	}
-	config := factory.Config{
-		Logger: &logger.Logger{
-			UDR: &logger.LogSetting{
-				DebugLevel:   "debug",
-				ReportCaller: false,
-			},
-		},
-		Configuration: &configuration,
-	}
-	UDR.Initialize(config)
+	UDR.Initialize(configuration)
 	go UDR.Start()
 	return nil
 }

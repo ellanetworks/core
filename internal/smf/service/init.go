@@ -34,7 +34,7 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (smf *SMF) Initialize(smfConfig factory.Config, ueRoutingConfig factory.RoutingConfig) error {
+func (smf *SMF) Initialize(smfConfig factory.Configuration, ueRoutingConfig factory.RoutingConfig) error {
 	factory.InitConfigFactory(smfConfig)
 	factory.InitRoutingConfigFactory(ueRoutingConfig)
 	smf.setLogLevel()
@@ -88,7 +88,7 @@ func (smf *SMF) Start() {
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 	oam.AddService(router)
 	callback.AddService(router)
-	for _, serviceName := range factory.SmfConfig.Configuration.ServiceNameList {
+	for _, serviceName := range factory.SmfConfig.ServiceNameList {
 		switch models.ServiceName(serviceName) {
 		case models.ServiceName_NSMF_PDUSESSION:
 			pdusession.AddService(router)

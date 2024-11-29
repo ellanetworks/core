@@ -5,39 +5,35 @@ import (
 	"github.com/omec-project/util/logger"
 )
 
-var UdmConfig Config
+var UdmConfig Configuration
 
-func InitConfigFactory(c Config) {
+func InitConfigFactory(c Configuration) {
 	UdmConfig = c
 }
 
-type Config struct {
-	Configuration *Configuration `yaml:"configuration"`
-	Logger        *logger.Logger `yaml:"logger"`
-}
-
 type Configuration struct {
-	UdmName         string            `yaml:"udmName,omitempty"`
-	Sbi             *Sbi              `yaml:"sbi,omitempty"`
-	ServiceNameList []string          `yaml:"serviceNameList,omitempty"`
-	UdrUri          string            `yaml:"udrUri,omitempty"`
-	Keys            *Keys             `yaml:"keys,omitempty"`
-	PlmnSupportList []models.PlmnId   `yaml:"plmnSupportList,omitempty"`
-	PlmnList        []PlmnSupportItem `yaml:"plmnList,omitempty"`
+	Logger          *logger.Logger
+	UdmName         string
+	Sbi             *Sbi
+	ServiceNameList []string
+	UdrUri          string
+	Keys            *Keys
+	PlmnSupportList []models.PlmnId
+	PlmnList        []PlmnSupportItem
 }
 
 type Sbi struct {
-	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
-	Port        int    `yaml:"port,omitempty"`
+	BindingIPv4 string
+	Port        int
 }
 
 type Keys struct {
-	UdmProfileAHNPrivateKey string `yaml:"udmProfileAHNPrivateKey,omitempty"`
-	UdmProfileAHNPublicKey  string `yaml:"udmProfileAHNPublicKey,omitempty"`
-	UdmProfileBHNPrivateKey string `yaml:"udmProfileBHNPrivateKey,omitempty"`
-	UdmProfileBHNPublicKey  string `yaml:"udmProfileBHNPublicKey,omitempty"`
+	UdmProfileAHNPrivateKey string
+	UdmProfileAHNPublicKey  string
+	UdmProfileBHNPrivateKey string
+	UdmProfileBHNPublicKey  string
 }
 
 type PlmnSupportItem struct {
-	PlmnId models.PlmnId `yaml:"plmnId"`
+	PlmnId models.PlmnId
 }
