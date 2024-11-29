@@ -409,8 +409,23 @@ func GetPLMNList() []PlmnSupportItem {
 	return plmnSupportList
 }
 
+// With pcf change
+//     SessionPolicy[internet]:
+//      SessRule[internet-1]: SessionRuleId: internet-1, AuthQos: 5Qi: 8, Arp: PL: 6, PC: , PV: AuthSessAmbr: Uplink: 200 Mbps, Downlink: 200 Mbps
+//     PccRules[DefaultRule]: RuleId: 1, Precedence: 255, FlowInfo[0]: FlowDesc: permit out ip from any to assigned, TrafficClass: , FlowDir: BIDIRECTIONAL
+//     QosDecs[1] QosId: 1, 5Qi: 9, MaxbrUl: 200 Mbps, MaxbrDl: 200 Mbps, GbrUl: , GbrUl: ,PL: 0 PL: 1, PC: MAY_PREEMPT, PV: PREEMPTABLE
+//     TrafficDecs[TcId-2]: TcId: TcId-2, FlowStatus: ]
+
+// SessionPolicy[internet]:
+//
+//	SessRule[internet-1]: SessionRuleId: internet-1, AuthQos: 5Qi: 8, Arp: PL: 6, PC: , PV: AuthSessAmbr: Uplink: 200 Mbps, Downlink: 200 Mbps
+//
+// PccRules[DefaultRule]: RuleId: 1, Precedence: 255, FlowInfo[0]: FlowDesc: permit out ip from any to assigned, TrafficClass: , FlowDir: BIDIRECTIONAL
+// QosDecs[1] QosId: 1, 5Qi: 9, MaxbrUl: 200 Mbps, MaxbrDl: 200 Mbps, GbrUl: , GbrUl: ,PL: 0 PL: 1, PC: MAY_PREEMPT, PV: PREEMPTABLE
+// TrafficDecs[TcId-2]: TcId: TcId-2, FlowStatus: ]
 func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 	subscriberPolicies := make(map[string]*PcfSubscriberPolicyData)
+
 	subscriberPolicies["001010100007487"] = &PcfSubscriberPolicyData{
 		Supi: "001010100007487",
 		PccPolicy: map[string]*PccPolicy{
@@ -432,6 +447,39 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 								},
 							},
 						},
+					},
+				},
+				PccRules: map[string]*models.PccRule{
+					"DefaultRule": {
+						PccRuleId:  "1",
+						Precedence: 255,
+						FlowInfos: []models.FlowInformation{
+							{
+								FlowDescription: "permit out ip from any to assigned",
+								FlowDirection:   models.FlowDirectionRm_BIDIRECTIONAL,
+							},
+						},
+						RefQosData: []string{"1"},
+					},
+				},
+				QosDecs: map[string]*models.QosData{
+					"1": {
+						QosId:         "1",
+						Var5qi:        9,
+						MaxbrUl:       "200 Mbps",
+						MaxbrDl:       "200 Mbps",
+						PriorityLevel: 0,
+						Arp: &models.Arp{
+							PriorityLevel: 1,
+							PreemptCap:    models.PreemptionCapability_MAY_PREEMPT,
+							PreemptVuln:   models.PreemptionVulnerability_PREEMPTABLE,
+						},
+						DefQosFlowIndication: true,
+					},
+				},
+				TraffContDecs: map[string]*models.TrafficControlData{
+					"TcId-2": {
+						TcId: "TcId-2",
 					},
 				},
 			},

@@ -381,6 +381,5 @@ func GetDefaultQoSDataFromPolicyDecision(smPolicyDecision *models.SmPolicyDecisi
 		}
 	}
 
-	log.Fatal("Default Qos Data not received from PCF")
 	return nil
 }
