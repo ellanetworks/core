@@ -410,7 +410,6 @@ func GetPLMNList() []PlmnSupportItem {
 }
 
 func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
-	// return map with 1 subscriber: 001010100007487
 	subscriberPolicies := make(map[string]*PcfSubscriberPolicyData)
 	subscriberPolicies["001010100007487"] = &PcfSubscriberPolicyData{
 		Supi: "001010100007487",
@@ -418,7 +417,21 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 			"1102030": {
 				SessionPolicy: map[string]*SessionPolicy{
 					"internet": {
-						SessionRules: map[string]*models.SessionRule{},
+						SessionRules: map[string]*models.SessionRule{
+							"internet-1": {
+								SessRuleId: "internet-1",
+								AuthDefQos: &models.AuthorizedDefaultQos{
+									Var5qi: 8,
+									Arp: &models.Arp{
+										PriorityLevel: 6,
+									},
+								},
+								AuthSessAmbr: &models.Ambr{
+									Uplink:   "200 Mbps",
+									Downlink: "200 Mbps",
+								},
+							},
+						},
 					},
 				},
 			},

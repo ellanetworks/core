@@ -111,6 +111,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	sliceid := sstStr + request.SliceInfo.Sd
 	imsi := strings.TrimPrefix(ue.Supi, "imsi-")
 	subscriberPolicies := pcf_context.GetSubscriberPolicies()
+	logger.SMpolicylog.Warnf("Policies: %v", subscriberPolicies)
 	if subsPolicyData, ok := subscriberPolicies[imsi]; ok {
 		logger.SMpolicylog.Infof("Found an existing policy for subscriber [%s]", imsi)
 		if PccPolicy, ok1 := subsPolicyData.PccPolicy[sliceid]; ok1 {
