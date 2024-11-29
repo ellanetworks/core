@@ -7,44 +7,39 @@ import (
 	"github.com/omec-project/util/logger"
 )
 
-type Config struct {
-	Configuration *Configuration `yaml:"configuration"`
-	Logger        *logger.Logger `yaml:"logger"`
-}
+var AmfConfig Configuration
 
-var AmfConfig Config
-
-func InitConfigFactory(c Config) {
+func InitConfigFactory(c Configuration) {
 	AmfConfig = c
 }
 
 type Configuration struct {
-	AmfName                         string                    `yaml:"amfName,omitempty"`
-	NgapIpList                      []string                  `yaml:"ngapIpList,omitempty"`
-	NgapPort                        int                       `yaml:"ngappPort,omitempty"`
-	SctpGrpcPort                    int                       `yaml:"sctpGrpcPort,omitempty"`
-	Sbi                             *Sbi                      `yaml:"sbi,omitempty"`
-	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS `yaml:"networkFeatureSupport5GS,omitempty"`
-	ServiceNameList                 []string                  `yaml:"serviceNameList,omitempty"`
-	ServedGumaiList                 []models.Guami            `yaml:"servedGuamiList,omitempty"`
-	SupportDnnList                  []string                  `yaml:"supportDnnList,omitempty"`
-	AusfUri                         string                    `yaml:"ausfUri,omitempty"`
-	NssfUri                         string                    `yaml:"nssfUri,omitempty"`
-	PcfUri                          string                    `yaml:"pcfUri,omitempty"`
-	SmfUri                          string                    `yaml:"smfUri,omitempty"`
-	UdmsdmUri                       string                    `yaml:"udmsdmUri,omitempty"`
-	UdmUecmUri                      string                    `yaml:"udmUecmUri,omitempty"`
-	WebuiUri                        string                    `yaml:"webuiUri"`
-	Security                        *Security                 `yaml:"security,omitempty"`
-	NetworkName                     NetworkName               `yaml:"networkName,omitempty"`
-	T3502Value                      int                       `yaml:"t3502Value,omitempty"`
-	T3512Value                      int                       `yaml:"t3512Value,omitempty"`
-	Non3gppDeregistrationTimerValue int                       `yaml:"non3gppDeregistrationTimerValue,omitempty"`
-	T3513                           TimerValue                `yaml:"t3513"`
-	T3522                           TimerValue                `yaml:"t3522"`
-	T3550                           TimerValue                `yaml:"t3550"`
-	T3560                           TimerValue                `yaml:"t3560"`
-	T3565                           TimerValue                `yaml:"t3565"`
+	Logger                          *logger.Logger
+	AmfName                         string
+	NgapIpList                      []string
+	NgapPort                        int
+	SctpGrpcPort                    int
+	Sbi                             *Sbi
+	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
+	ServiceNameList                 []string
+	ServedGumaiList                 []models.Guami
+	SupportDnnList                  []string
+	AusfUri                         string
+	NssfUri                         string
+	PcfUri                          string
+	SmfUri                          string
+	UdmsdmUri                       string
+	UdmUecmUri                      string
+	Security                        *Security
+	NetworkName                     NetworkName
+	T3502Value                      int
+	T3512Value                      int
+	Non3gppDeregistrationTimerValue int
+	T3513                           TimerValue
+	T3522                           TimerValue
+	T3550                           TimerValue
+	T3560                           TimerValue
+	T3565                           TimerValue
 }
 
 func (c *Configuration) Get5gsNwFeatSuppEnable() bool {
@@ -104,38 +99,38 @@ func (c *Configuration) Get5gsNwFeatSuppMcsi() uint8 {
 }
 
 type NetworkFeatureSupport5GS struct {
-	Enable  bool  `yaml:"enable"`
-	ImsVoPS uint8 `yaml:"imsVoPS"`
-	Emc     uint8 `yaml:"emc"`
-	Emf     uint8 `yaml:"emf"`
-	IwkN26  uint8 `yaml:"iwkN26"`
-	Mpsi    uint8 `yaml:"mpsi"`
-	EmcN3   uint8 `yaml:"emcN3"`
-	Mcsi    uint8 `yaml:"mcsi"`
+	Enable  bool
+	ImsVoPS uint8
+	Emc     uint8
+	Emf     uint8
+	IwkN26  uint8
+	Mpsi    uint8
+	EmcN3   uint8
+	Mcsi    uint8
 }
 
 type Sbi struct {
-	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
-	Port        int    `yaml:"port,omitempty"`
+	BindingIPv4 string
+	Port        int
 }
 
 type Security struct {
-	IntegrityOrder []string `yaml:"integrityOrder,omitempty"`
-	CipheringOrder []string `yaml:"cipheringOrder,omitempty"`
+	IntegrityOrder []string
+	CipheringOrder []string
 }
 
 type PlmnSupportItem struct {
-	PlmnId     models.PlmnId   `yaml:"plmnId"`
-	SNssaiList []models.Snssai `yaml:"snssaiList,omitempty"`
+	PlmnId     models.PlmnId
+	SNssaiList []models.Snssai
 }
 
 type NetworkName struct {
-	Full  string `yaml:"full"`
-	Short string `yaml:"short,omitempty"`
+	Full  string
+	Short string
 }
 
 type TimerValue struct {
-	Enable        bool          `yaml:"enable"`
-	ExpireTime    time.Duration `yaml:"expireTime"`
-	MaxRetryTimes int           `yaml:"maxRetryTimes,omitempty"`
+	Enable        bool
+	ExpireTime    time.Duration
+	MaxRetryTimes int
 }
