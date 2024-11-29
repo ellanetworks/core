@@ -5,9 +5,7 @@ import (
 	logger_util "github.com/omec-project/util/logger"
 )
 
-var (
-	UdrConfig Configuration
-)
+var UdrConfig Configuration
 
 type Configuration struct {
 	Logger  *logger_util.Logger

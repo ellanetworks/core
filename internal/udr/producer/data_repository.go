@@ -61,19 +61,6 @@ func HandleCreateAccessAndMobilityData(request *httpwrapper.Request) *httpwrappe
 	return httpwrapper.NewResponse(http.StatusOK, nil, map[string]interface{}{})
 }
 
-// seems something which we should move to mongolib
-func toBsonM(data interface{}) (ret bson.M) {
-	tmp, err := json.Marshal(data)
-	if err != nil {
-		logger.CfgLog.Infoln("marshal fail ", err)
-	}
-	err = json.Unmarshal(tmp, &ret)
-	if err != nil {
-		logger.CfgLog.Infoln("unmarshal fail ", err)
-	}
-	return
-}
-
 func HandleDeleteAccessAndMobilityData(request *httpwrapper.Request) *httpwrapper.Response {
 	return httpwrapper.NewResponse(http.StatusOK, nil, map[string]interface{}{})
 }
