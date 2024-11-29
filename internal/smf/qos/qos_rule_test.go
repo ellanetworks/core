@@ -25,9 +25,8 @@ func TestDecodeFlowDescToIPFilters(t *testing.T) {
 
 func TestGetPfContent(t *testing.T) {
 	pf := &qos.PacketFilter{}
-	for i, flow := range flowDesc {
+	for _, flow := range flowDesc {
 		pf.GetPfContent(flow)
-		fmt.Println("Flow:", i)
 		for _, pfc := range pf.Content {
 			fmt.Printf("%v", pfc.String())
 		}
@@ -48,8 +47,6 @@ func TestBuildQosRules(t *testing.T) {
 	smPolicyUpdates := qos.BuildSmPolicyUpdate(smCtxtPolData, smPolicyDecision)
 
 	qosRules := qos.BuildQosRules(smPolicyUpdates)
-
-	fmt.Println("QosRules:", qosRules)
 
 	if bytes, err := qosRules.MarshalBinary(); err != nil {
 		fmt.Printf("Marshal Error : %v", err.Error())

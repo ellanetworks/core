@@ -90,7 +90,5 @@ func GetUEPreConfigPaths(SUPI string) *UEPreConfigPaths {
 
 func CheckUEHasPreConfig(SUPI string) (exist bool) {
 	_, exist = smfContext.UEPreConfigPathPool[SUPI]
-	fmt.Println("CheckUEHasPreConfig")
-	fmt.Println(smfContext.UEPreConfigPathPool)
 	return
 }

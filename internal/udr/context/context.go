@@ -31,8 +31,6 @@ type UDRContext struct {
 	Name                                    string
 	UriScheme                               models.UriScheme
 	BindingIPv4                             string
-	HttpIPv6Address                         string
-	NfId                                    string
 	SubscriptionDataSubscriptions           map[subsId]*models.SubscriptionDataSubscriptions
 	PolicyDataSubscriptions                 map[subsId]*models.PolicyDataSubscription
 	UESubsCollection                        sync.Map // map[ueId]*UESubsData
@@ -58,30 +56,6 @@ type UEGroupSubsData struct {
 type EeSubscriptionCollection struct {
 	EeSubscriptions      *models.EeSubscription
 	AmfSubscriptionInfos []models.AmfSubscriptionInfo
-}
-
-// Reset UDR Context
-func (context *UDRContext) Reset() {
-	context.UESubsCollection.Range(func(key, value interface{}) bool {
-		context.UESubsCollection.Delete(key)
-		return true
-	})
-	context.UEGroupCollection.Range(func(key, value interface{}) bool {
-		context.UEGroupCollection.Delete(key)
-		return true
-	})
-	for key := range context.SubscriptionDataSubscriptions {
-		delete(context.SubscriptionDataSubscriptions, key)
-	}
-	for key := range context.PolicyDataSubscriptions {
-		delete(context.PolicyDataSubscriptions, key)
-	}
-	context.EeSubscriptionIDGenerator = 1
-	context.SdmSubscriptionIDGenerator = 1
-	context.SubscriptionDataSubscriptionIDGenerator = 1
-	context.PolicyDataSubscriptionIDGenerator = 1
-	context.UriScheme = models.UriScheme_HTTP
-	context.Name = "udr"
 }
 
 func (context *UDRContext) GetIPv4GroupUri(udrServiceType UDRServiceType) string {

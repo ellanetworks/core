@@ -160,19 +160,7 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 
 	req := httpwrapper.NewRequest(c.Request, request)
 
-	configLog.Infof("Printing Slice: [%v] received from Roc/Simapp : %v", sliceName, request)
-	configLog.Infof("params : %v ", req.Params)
-	configLog.Infof("Header : %v ", req.Header)
-	configLog.Infof("Query  : %v ", req.Query)
-	configLog.Infof("Printing request body : %v ", req.Body)
-	configLog.Infof("URL : %v ", req.URL)
 	procReq := req.Body.(configmodels.Slice)
-
-	slice := procReq.SliceId
-	configLog.Infof("Network Slice : %v", slice)
-	configLog.Infof("  sst         : %v", slice.Sst)
-	configLog.Infof("  sd          : %v", slice.Sd)
-
 	group := procReq.SiteDeviceGroup
 	slices.Sort(group)
 	configLog.Infof("Number of device groups %v", len(group))
@@ -181,13 +169,6 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 	}
 
 	for index, filter := range procReq.ApplicationFilteringRules {
-		configLog.Infof("\tRule Name        : %v", filter.RuleName)
-		configLog.Infof("\tRule Priority    : %v", filter.Priority)
-		configLog.Infof("\tRule Action      : %v", filter.Action)
-		configLog.Infof("\tEndpoint         : %v", filter.Endpoint)
-		configLog.Infof("\tProtocol         : %v", filter.Protocol)
-		configLog.Infof("\tStart Port       : %v", filter.StartPort)
-		configLog.Infof("\tEnd   Port       : %v", filter.EndPort)
 		ul := procReq.ApplicationFilteringRules[index].AppMbrUplink
 		dl := procReq.ApplicationFilteringRules[index].AppMbrDownlink
 		unit := procReq.ApplicationFilteringRules[index].BitrateUnit
@@ -213,18 +194,10 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		}
 	}
 	site := procReq.SiteInfo
-	configLog.Infof("Site name : %v", site.SiteName)
-	configLog.Infof("Site PLMN : %v", site.Plmn)
-	configLog.Infof("   mcc    : %v", site.Plmn.Mcc)
-	configLog.Infof("   mnc    : %v", site.Plmn.Mnc)
-	configLog.Infof("Site gNBs : %v", site.GNodeBs)
 	for e := 0; e < len(site.GNodeBs); e++ {
 		enb := site.GNodeBs[e]
 		configLog.Infof("    enb (%v) - name - %v , tac = %v \n", e+1, enb.Name, enb.Tac)
 	}
-	configLog.Infof("Site UPF : %v", site.Upf)
-	configLog.Infof("    upf-name : %v", site.Upf["upf-name"])
-	configLog.Infof("    upf-port : %v", site.Upf["upf-port"])
 
 	var msg configmodels.ConfigMessage
 	msg.MsgMethod = msgOp
