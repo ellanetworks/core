@@ -141,7 +141,7 @@ requests-oauthlib==2.0.0
     # via kubernetes
 rsa==4.9
     # via google-auth
-ruff==0.8.0
+ruff==0.8.1
     # via -r requirements.in
 six==1.16.0
     # via
