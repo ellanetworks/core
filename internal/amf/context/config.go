@@ -6,6 +6,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/factory"
+	"github.com/yeastengine/ella/internal/pcf/logger"
 	"github.com/yeastengine/ella/internal/webui/configapi"
 )
 
@@ -15,6 +16,7 @@ import (
 func GetSupportTaiList() []models.Tai {
 	tais := make([]models.Tai, 0)
 	networkSliceNames := configapi.ListNetworkSlices()
+	logger.CtxLog.Warnf("networkSliceNames: %v", networkSliceNames)
 	for _, networkSliceName := range networkSliceNames {
 		networkSlice := configapi.GetNetworkSliceByName2(networkSliceName)
 		plmnID := models.PlmnId{

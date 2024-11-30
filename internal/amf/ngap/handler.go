@@ -600,6 +600,7 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	} else {
 		var found bool
 		supportTaiList := context.GetSupportTaiList()
+		ran.Log.Warnf("Supported Tai list: %v", supportTaiList)
 		taiList := make([]models.Tai, len(supportTaiList))
 		copy(taiList, supportTaiList)
 		for i := range taiList {
@@ -607,7 +608,9 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			ran.Log.Infof("Supported Tai List in AMF Plmn: %v, Tac: 0x%v Tac: %v", taiList[i].PlmnId, taiList[i].Tac, supportTaiList[i].Tac)
 		}
 
+		ran.Log.Warnf("Tai list: %v", taiList)
 		for i, tai := range ran.SupportedTAList {
+			ran.Log.Warnf("Checking if TAI is supported in AMF: %v", tai.Tai)
 			if context.InTaiList(tai.Tai, taiList) {
 				ran.Log.Tracef("SERVED_TAI_INDEX[%d]", i)
 				found = true
@@ -615,7 +618,7 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			}
 		}
 		if !found {
-			ran.Log.Warn("NG-Setup failure: Cannot find Served TAI in AMF")
+			ran.Log.Warn("cannot find Served TAI in AMF")
 			cause.Present = ngapType.CausePresentMisc
 			cause.Misc = &ngapType.CauseMisc{
 				Value: ngapType.CauseMiscPresentUnknownPLMN,

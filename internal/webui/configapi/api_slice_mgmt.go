@@ -132,7 +132,6 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		configLog.Infof(" err %v", err)
 		return false
 	}
-	// configLog.Infof("Printing request full after binding : %v ", request)
 
 	req := httpwrapper.NewRequest(c.Request, request)
 
@@ -163,10 +162,7 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 			procReq.ApplicationFilteringRules[index].AppMbrDownlink = int32(bitrate)
 		}
 
-		configLog.Infof("\tApp MBR Uplink   : %v", procReq.ApplicationFilteringRules[index].AppMbrUplink)
-		configLog.Infof("\tApp MBR Downlink : %v", procReq.ApplicationFilteringRules[index].AppMbrDownlink)
 		if filter.TrafficClass != nil {
-			configLog.Infof("\t\tTraffic Class : %v", filter.TrafficClass)
 		}
 	}
 	site := procReq.SiteInfo
