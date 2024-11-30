@@ -44,7 +44,6 @@ func (nssf *NSSF) setLogLevel() {
 }
 
 func (nssf *NSSF) Start() {
-
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 
 	nssaiavailability.AddService(router)

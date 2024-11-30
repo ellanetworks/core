@@ -213,7 +213,6 @@ func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
 }
 
 func HandleSCTPNotificationLb(gnbId string) {
-
 	amfSelf := context.AMF_Self()
 	ran, ok := amfSelf.AmfRanFindByGnbId(gnbId)
 	if !ok {

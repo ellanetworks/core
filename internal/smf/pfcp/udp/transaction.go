@@ -90,7 +90,6 @@ func NewTransaction(pfcpMSG message.Message, binaryMSG []byte, Conn *net.UDPConn
 }
 
 func (transaction *Transaction) Start() error {
-
 	if transaction.TxType == SendingRequest {
 		for iter := 0; iter < NumOfResend; iter++ {
 			timer := time.NewTimer(ResendRequestTimeOutPeriod * time.Second)
