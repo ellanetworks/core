@@ -250,6 +250,7 @@ func getPathBetween(cur *UPNode, dest *UPNode, visited map[*UPNode]bool,
 	selectedSNssai := selection.SNssai
 
 	for _, nodes := range cur.Links {
+		logger.AppLog.Warnf("Nodes in cur.Links: %v", nodes)
 		logger.CtxLog.Warnf("getPathBetween: nodes: %v", nodes)
 		if !visited[nodes] {
 			if !nodes.UPF.isSupportSnssai(selectedSNssai) {
