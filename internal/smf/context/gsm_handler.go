@@ -42,8 +42,6 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 		if unmarshalErr != nil {
 			smContext.SubGsmLog.Errorf("Parsing PCO failed: %s", unmarshalErr)
 		}
-		smContext.SubGsmLog.Infoln("Protocol Configuration Options")
-		smContext.SubGsmLog.Infoln(protocolConfigurationOptions)
 
 		// Send MTU to UE always even if UE does not request it.
 		// Preconfiguring MTU request flag.

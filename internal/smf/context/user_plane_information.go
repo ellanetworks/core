@@ -123,8 +123,9 @@ func (upi *UserPlaneInformation) ExistDefaultPath(dnn string) bool {
 }
 
 func GenerateDataPath(upPath UPPath, smContext *SMContext) (*DataPath, error) {
+	logger.CtxLog.Warnf("GenerateDataPath: upPath: %v", upPath)
 	if len(upPath) < 1 {
-		return nil, fmt.Errorf("userplane path is empty")
+		return nil, fmt.Errorf("user plane path is empty")
 	}
 	lowerBound := 0
 	upperBound := len(upPath) - 1
@@ -133,6 +134,7 @@ func GenerateDataPath(upPath UPPath, smContext *SMContext) (*DataPath, error) {
 	var prevDataPathNode *DataPathNode
 
 	for idx, upNode := range upPath {
+		logger.CtxLog.Warnf("GenerateDataPath: upNode: %v", upNode)
 		curDataPathNode = NewDataPathNode()
 		curDataPathNode.UPF = upNode.UPF
 

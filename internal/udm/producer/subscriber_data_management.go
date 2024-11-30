@@ -496,8 +496,6 @@ func getSharedDataProcedure(sharedDataIds []string, supportedFeatures string) (
 }
 
 func HandleGetSmDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
-	logger.SdmLog.Infof("Handle GetSmData")
 
 	// step 2: retrieve request
 	supi := request.Params["supi"]
@@ -525,7 +523,6 @@ func HandleGetSmDataRequest(request *httpwrapper.Request) *httpwrapper.Response 
 func getSmDataProcedure(supi string, plmnID string, Dnn string, Snssai string) (
 	response interface{}, problemDetails *models.ProblemDetails,
 ) {
-	logger.SdmLog.Infof("getSmDataProcedure: SUPI[%s] PLMNID[%s] DNN[%s] SNssai[%s]", supi, plmnID, Dnn, Snssai)
 
 	clientAPI := createUDMClientToUDR()
 

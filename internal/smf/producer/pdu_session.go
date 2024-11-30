@@ -65,6 +65,7 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 	txn := eventData.(*transaction.Transaction)
 	request := txn.Req.(models.PostSmContextsRequest)
 	smContext := txn.Ctxt.(*smf_context.SMContext)
+	logger.PduSessLog.Infof("Handle PDUSessionSMContextCreate")
 
 	// GSM State
 	// PDU Session Establishment Accept/Reject
@@ -85,9 +86,8 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 
 	// Create SM context
 	// smContext := smf_context.NewSMContext(createData.Supi, createData.PduSessionId)
-	smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, SM context created")
+	smContext.SubPduSessLog.Infof("SM context created")
 	// smContext.ChangeState(smf_context.SmStateActivePending)
-	smContext.SubCtxLog.Traceln("PDUSessionSMContextCreate, SMContextState change state: ", smContext.SMContextState.String())
 	smContext.SetCreateData(createData)
 	smContext.SmStatusNotifyUri = createData.SmContextStatusUri
 
@@ -107,7 +107,6 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 	SDMConf := Nudm_SubscriberDataManagement.NewConfiguration()
 	SDMConf.SetBasePath(smf_context.SMF_Self().UdmUri)
 	smf_context.SMF_Self().SubscriberDataManagementClient = Nudm_SubscriberDataManagement.NewAPIClient(SDMConf)
-	smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, send NF Discovery Serving UDM Successful")
 
 	// IP Allocation
 	if ip, err := smContext.DNNInfo.UeIPAllocator.Allocate(smContext.Supi); err != nil {
@@ -116,7 +115,7 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		return fmt.Errorf("IpAllocError")
 	} else {
 		smContext.PDUAddress = &smf_context.UeIpAddr{Ip: ip, UpfProvided: false}
-		smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, IP alloc success IP[%s]",
+		smContext.SubPduSessLog.Infof("Successfull IP Allocation: %s",
 			smContext.PDUAddress.Ip.String())
 	}
 
@@ -145,12 +144,12 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 	} else {
 		defer func() {
 			if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
-				smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, GetSmData response body cannot close: %+v", rspCloseErr)
+				smContext.SubPduSessLog.Errorf("cannot close GetSmData response body: %+v", rspCloseErr)
 			}
 		}()
 		if len(sessSubData) > 0 {
 			smContext.DnnConfiguration = sessSubData[0].DnnConfigurations[smContext.Dnn]
-			smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, subscription data retrieved from UDM")
+			smContext.SubPduSessLog.Infof("subscription data retrieved from UDM")
 		} else {
 			smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SessionManagementSubscriptionData from UDM is nil")
 			txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("SubscriptionDataLenError")
@@ -201,7 +200,7 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 			Sd:  createData.SNssai.Sd,
 		},
 	}
-	logger.AppLog.Warnf("Selection Params: %v", upfSelectionParams.String())
+	smContext.SubPduSessLog.Warnf("Selection Params: %v", upfSelectionParams.String())
 
 	if smf_context.SMF_Self().ULCLSupport && smf_context.CheckUEHasPreConfig(createData.Supi) {
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, SUPI[%s] has pre-config route", createData.Supi)
@@ -218,11 +217,10 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		// UE has no pre-config path.
 		// Use default route
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, no pre-config route")
-		aa := smf_context.GetUserPlaneInformation()
-		logger.AppLog.Warnf("UserPlaneInformation: %v", aa)
 		defaultUPPath := smf_context.GetUserPlaneInformation().GetDefaultUserPlanePathByDNN(upfSelectionParams)
-		logger.AppLog.Warnf("Default UP Path: %v", defaultUPPath)
+		smContext.SubPduSessLog.Warnf("Default UP Path: %v", defaultUPPath)
 		defaultPath, err := smf_context.GenerateDataPath(defaultUPPath, smContext)
+		smContext.SubPduSessLog.Warnf("Default Path 1: %v", defaultPath)
 		if err != nil {
 			smContext.SubPduSessLog.Errorf("couldn't generate data path: %v", err.Error())
 			txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("UPFDataPathError")
@@ -231,6 +229,8 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		if defaultPath != nil {
 			defaultPath.IsDefaultPath = true
 			smContext.Tunnel.AddDataPath(defaultPath)
+			smContext.SubPduSessLog.Warnf("Default Path 2: %v", defaultPath)
+
 			if err := defaultPath.ActivateTunnelAndPDR(smContext, 255); err != nil {
 				smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, data path error: %v", err.Error())
 				txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("UPFDataPathError")
@@ -239,7 +239,9 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		}
 	}
 
+	smContext.SubPduSessLog.Warnf("Default Path 5: %v", defaultPath)
 	if defaultPath == nil {
+		smContext.SubPduSessLog.Warnf("Default path is nil 2")
 		smContext.ChangeState(smf_context.SmStateInit)
 		smContext.SubCtxLog.Traceln("PDUSessionSMContextCreate, SMContextState Change State: ", smContext.SMContextState.String())
 		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, data path not found for selection param %v", upfSelectionParams.String())

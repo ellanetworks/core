@@ -2,7 +2,6 @@ package context
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 )
@@ -83,8 +82,6 @@ func (a *IPAllocator) Allocate(imsi string) (net.IP, error) {
 		return nil, errors.New("ip allocation failed" + err.Error())
 	} else {
 		ip := IPAddrWithOffset(a.ipNetwork.IP, int(offset))
-		fmt.Printf("unique id - ip %v \n", ip)
-		fmt.Printf("unique id - offset %v \n", offset)
 		return ip, nil
 	}
 }

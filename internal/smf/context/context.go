@@ -283,7 +283,12 @@ func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
 //	:[0xc0001f4400]]}
 //
 // Current UserPlaneInformation
-// UserPlaneInformation: &{map[0.0.0.0:0xc0008b7880 1.1.1.1:0xc0008b7900] map[0.0.0.0:0xc0008b7880] map[1.1.1.1:0xc0008b7900] map[] map[]}
+// UserPlaneInformation: &{
+// map[0.0.0.0:0xc0008b7880 1.1.1.1:0xc0008b7900]
+// map[0.0.0.0:0xc0008b7880]
+// map[1.1.1.1:0xc0008b7900]
+// map[]
+// map[]}
 func GetUserPlaneInformation() *UserPlaneInformation {
 	upfNodeID := NewNodeID("0.0.0.0")
 	upfName := "0.0.0.0"
@@ -312,6 +317,7 @@ func GetUserPlaneInformation() *UserPlaneInformation {
 			},
 		},
 	}
+	upf.UPFStatus = AssociatedSetUpSuccess
 	upfNode := UPNode{
 		Type:   UPNODE_UPF,
 		UPF:    upf,
@@ -329,7 +335,9 @@ func GetUserPlaneInformation() *UserPlaneInformation {
 	gnbNode := &UPNode{
 		Type:   UPNODE_AN,
 		NodeID: *gnbNodeID,
+		Links:  make([]*UPNode, 0),
 	}
+	gnbNode.Links = append(gnbNode.Links, &upfNode)
 	userPlaneInformation.AccessNetwork[gnbName] = gnbNode
 	userPlaneInformation.UPNodes[gnbName] = gnbNode
 
