@@ -27,6 +27,7 @@ func init() {
 }
 
 func SetChannel(cfgChannel chan *configmodels.ConfigMessage) {
+	configLog.Infof("Setting configChannel")
 	configChannel = cfgChannel
 }
 
@@ -61,6 +62,10 @@ func convertToBps(val int64, unit string) (bitrate int64) {
 
 func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	var groupName string
+	var exists bool
+	if groupName, exists = c.Params.Get("group-name"); exists {
+		configLog.Infof("Received group %v", groupName)
+	}
 
 	var err error
 	var request configmodels.DeviceGroups
@@ -75,17 +80,36 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	}
 	req := httpwrapper.NewRequest(c.Request, request)
 
+	configLog.Infof("Printing Device Group [%v] : %+v", groupName, req)
+	configLog.Infof("params : %v", req.Params)
+	configLog.Infof("Header : %v", req.Header)
+	configLog.Infof("Query  : %v", req.Query)
+	configLog.Infof("Printing request body : %v", req.Body)
+	configLog.Infof("URL : %v ", req.URL)
+
 	procReq := req.Body.(configmodels.DeviceGroups)
 	ipdomain := &procReq.IpDomainExpanded
+	configLog.Infof("Imsis.size : %v, Imsis: %v", len(procReq.Imsis), procReq.Imsis)
+
+	configLog.Infof("IP Domain Name : %v", procReq.IpDomainName)
+	configLog.Infof("IP Domain details : %v", ipdomain)
+	configLog.Infof("  dnn name : %v", ipdomain.Dnn)
+	configLog.Infof("  ue pool  : %v", ipdomain.UeIpPool)
+	configLog.Infof("  dns Primary : %v", ipdomain.DnsPrimary)
+	configLog.Infof("  dns Secondary : %v", ipdomain.DnsSecondary)
+	configLog.Infof("  ip mtu : %v", ipdomain.Mtu)
+	configLog.Infof("Device Group Name :  %v ", groupName)
 	if ipdomain.UeDnnQos != nil {
 		ipdomain.UeDnnQos.DnnMbrDownlink = convertToBps(ipdomain.UeDnnQos.DnnMbrDownlink, ipdomain.UeDnnQos.BitrateUnit)
 		if ipdomain.UeDnnQos.DnnMbrDownlink < 0 {
 			ipdomain.UeDnnQos.DnnMbrDownlink = math.MaxInt64
 		}
+		configLog.Infof("  MbrDownLink :  %v ", ipdomain.UeDnnQos.DnnMbrDownlink)
 		ipdomain.UeDnnQos.DnnMbrUplink = convertToBps(ipdomain.UeDnnQos.DnnMbrUplink, ipdomain.UeDnnQos.BitrateUnit)
 		if ipdomain.UeDnnQos.DnnMbrUplink < 0 {
 			ipdomain.UeDnnQos.DnnMbrUplink = math.MaxInt64
 		}
+		configLog.Infof("  MbrUpLink :  %v ", ipdomain.UeDnnQos.DnnMbrUplink)
 	}
 
 	var msg configmodels.ConfigMessage
@@ -132,6 +156,7 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		configLog.Infof(" err %v", err)
 		return false
 	}
+	// configLog.Infof("Printing request full after binding : %v ", request)
 
 	req := httpwrapper.NewRequest(c.Request, request)
 
@@ -162,7 +187,10 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 			procReq.ApplicationFilteringRules[index].AppMbrDownlink = int32(bitrate)
 		}
 
+		configLog.Infof("\tApp MBR Uplink   : %v", procReq.ApplicationFilteringRules[index].AppMbrUplink)
+		configLog.Infof("\tApp MBR Downlink : %v", procReq.ApplicationFilteringRules[index].AppMbrDownlink)
 		if filter.TrafficClass != nil {
+			configLog.Infof("\t\tTraffic Class : %v", filter.TrafficClass)
 		}
 	}
 	site := procReq.SiteInfo

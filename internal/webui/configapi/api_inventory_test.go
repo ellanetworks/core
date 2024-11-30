@@ -135,7 +135,7 @@ func TestPostGnbByName(t *testing.T) {
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("Expected StatusCode %d, got %d", http.StatusBadRequest, w.Code)
 		}
-		expectedError := `{"error":"failed to create gNB test-gnb: json: cannot unmarshal number into Go struct field Gnb.tac of type string"}`
+		expectedError := `{"error":"Failed to create gNB test-gnb: json: cannot unmarshal number into Go struct field Gnb.tac of type string"}`
 		if w.Body.String() != expectedError {
 			t.Errorf("Expected error %v, got %v", expectedError, w.Body.String())
 		}
@@ -155,7 +155,7 @@ func TestPostGnbByName(t *testing.T) {
 			t.Errorf("Expected StatusCode %d, got %d", http.StatusBadRequest, w.Code)
 		}
 
-		expectedError := `{"error":"tac is missing"}`
+		expectedError := `{"error":"Post gNB request body is missing tac"}`
 		if w.Body.String() != expectedError {
 			t.Errorf("Expected error %v, got %v", expectedError, w.Body.String())
 		}
@@ -172,7 +172,7 @@ func TestPostGnbByName(t *testing.T) {
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("Expected StatusCode %d, got %d", http.StatusBadRequest, w.Code)
 		}
-		expectedError := `{"error":"gnb-name is missing"}`
+		expectedError := `{"error":"Post gNB request is missing gnb-name"}`
 		if w.Body.String() != expectedError {
 			t.Errorf("Expected error %v, got %v", expectedError, w.Body.String())
 		}
@@ -193,7 +193,7 @@ func TestDeleteGnbByName(t *testing.T) {
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("Expected StatusCode %d, got %d", http.StatusBadRequest, w.Code)
 		}
-		expectedError := `{"error":"gnb-name is missing"}`
+		expectedError := `{"error":"Delete gNB request is missing gnb-name"}`
 		if w.Body.String() != expectedError {
 			t.Errorf("Expected error %v, got %v", expectedError, w.Body.String())
 		}
