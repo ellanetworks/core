@@ -111,6 +111,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	sliceid := sstStr + request.SliceInfo.Sd
 	imsi := strings.TrimPrefix(ue.Supi, "imsi-")
 	subscriberPolicies := pcf_context.GetSubscriberPolicies()
+	logger.SMpolicylog.Warnf("SubscriberPolicies: %v", subscriberPolicies)
 	if subsPolicyData, ok := subscriberPolicies[imsi]; ok {
 		logger.SMpolicylog.Infof("Found an existing policy for subscriber [%s]", imsi)
 		if PccPolicy, ok1 := subsPolicyData.PccPolicy[sliceid]; ok1 {
@@ -145,44 +146,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		logger.SMpolicylog.Warnf("Can't find UE[%s] in local policy", ue.Supi)
 		return nil, nil, &problemDetail
 	}
-	/*var ambr *models.Ambr
-	//sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
-	if cAmbr, ok := pcfSelf.AmbrMap[sstStr+request.SliceInfo.Sd]; !ok {
-		ambr = request.SubsSessAmbr
-	} else {
-		ambr = &cAmbr
-	}*/
-	/*	SessRuleId := fmt.Sprintf("SessRuleId-%d", request.PduSessionId)
-		sessRule := models.SessionRule{
-			AuthSessAmbr: ambr,
-			SessRuleId:   SessRuleId,
-			// RefUmData
-			// RefCondData
-		}
 
-		//Check if local config has pre-configured def Qos for the slice(via ROC)
-		var defQos *models.SubscribedDefaultQos
-		if dQos, ok := pcfSelf.DefQosMap[sstStr+request.SliceInfo.Sd]; !ok {
-			defQos = request.SubsDefQos
-		} else {
-			//ARP and Priority not coming from ROC yet, copy from request
-			dQos.Arp = request.SubsDefQos.Arp
-			dQos.PriorityLevel = request.SubsDefQos.PriorityLevel
-			defQos = &dQos
-		}
-
-		if defQos != nil {
-			sessRule.AuthDefQos = &models.AuthorizedDefaultQos{
-				Var5qi:        defQos.Var5qi,
-				Arp:           defQos.Arp,
-				PriorityLevel: defQos.PriorityLevel,
-				// AverWindow
-				// MaxDataBurstVol
-			}
-		}
-		decision.SessRules[SessRuleId] = &sessRule
-	*/
-	// TODO: See how UDR used
 	dnnData := util.GetSMPolicyDnnData(smData, request.SliceInfo, request.Dnn)
 	if dnnData != nil {
 		decision.Online = dnnData.Online

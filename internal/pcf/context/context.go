@@ -409,81 +409,96 @@ func GetPLMNList() []PlmnSupportItem {
 	return plmnSupportList
 }
 
-// With pcf change
-//     SessionPolicy[internet]:
-//      SessRule[internet-1]: SessionRuleId: internet-1, AuthQos: 5Qi: 8, Arp: PL: 6, PC: , PV: AuthSessAmbr: Uplink: 200 Mbps, Downlink: 200 Mbps
-//     PccRules[DefaultRule]: RuleId: 1, Precedence: 255, FlowInfo[0]: FlowDesc: permit out ip from any to assigned, TrafficClass: , FlowDir: BIDIRECTIONAL
-//     QosDecs[1] QosId: 1, 5Qi: 9, MaxbrUl: 200 Mbps, MaxbrDl: 200 Mbps, GbrUl: , GbrUl: ,PL: 0 PL: 1, PC: MAY_PREEMPT, PV: PREEMPTABLE
-//     TrafficDecs[TcId-2]: TcId: TcId-2, FlowStatus: ]
-
-// SessionPolicy[internet]:
-//
-//	SessRule[internet-1]: SessionRuleId: internet-1, AuthQos: 5Qi: 8, Arp: PL: 6, PC: , PV: AuthSessAmbr: Uplink: 200 Mbps, Downlink: 200 Mbps
-//
-// PccRules[DefaultRule]: RuleId: 1, Precedence: 255, FlowInfo[0]: FlowDesc: permit out ip from any to assigned, TrafficClass: , FlowDir: BIDIRECTIONAL
-// QosDecs[1] QosId: 1, 5Qi: 9, MaxbrUl: 200 Mbps, MaxbrDl: 200 Mbps, GbrUl: , GbrUl: ,PL: 0 PL: 1, PC: MAY_PREEMPT, PV: PREEMPTABLE
-// TrafficDecs[TcId-2]: TcId: TcId-2, FlowStatus: ]
 func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 	subscriberPolicies := make(map[string]*PcfSubscriberPolicyData)
 
-	subscriberPolicies["001010100007487"] = &PcfSubscriberPolicyData{
-		Supi: "001010100007487",
-		PccPolicy: map[string]*PccPolicy{
-			"1102030": {
-				SessionPolicy: map[string]*SessionPolicy{
-					"internet": {
-						SessionRules: map[string]*models.SessionRule{
-							"internet-1": {
-								SessRuleId: "internet-1",
-								AuthDefQos: &models.AuthorizedDefaultQos{
-									Var5qi: 8,
-									Arp: &models.Arp{
-										PriorityLevel: 6,
-									},
-								},
-								AuthSessAmbr: &models.Ambr{
-									Uplink:   "200 Mbps",
-									Downlink: "200 Mbps",
-								},
-							},
-						},
+	networkSliceNames := configapi.ListNetworkSlices()
+	for _, networkSliceName := range networkSliceNames {
+		networkSlice := configapi.GetNetworkSliceByName2(networkSliceName)
+		pccPolicyId := networkSlice.SliceId.Sst + networkSlice.SliceId.Sd
+		deviceGroupNames := networkSlice.SiteDeviceGroup
+		for _, devGroupName := range deviceGroupNames {
+			deviceGroup := configapi.GetDeviceGroupByName2(devGroupName)
+			for _, imsi := range deviceGroup.Imsis {
+				if _, exists := subscriberPolicies[imsi]; !exists {
+					subscriberPolicies[imsi] = &PcfSubscriberPolicyData{
+						Supi:      imsi,
+						PccPolicy: make(map[string]*PccPolicy),
+					}
+				}
+
+				if _, exists := subscriberPolicies[imsi].PccPolicy[pccPolicyId]; !exists {
+					subscriberPolicies[imsi].PccPolicy[pccPolicyId] = &PccPolicy{
+						SessionPolicy: make(map[string]*SessionPolicy),
+						PccRules:      make(map[string]*models.PccRule),
+						QosDecs:       make(map[string]*models.QosData),
+						TraffContDecs: make(map[string]*models.TrafficControlData),
+					}
+				}
+
+				dnn := deviceGroup.IpDomainExpanded.Dnn
+				if _, exists := subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[dnn]; !exists {
+					subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[dnn] = &SessionPolicy{
+						SessionRules: make(map[string]*models.SessionRule),
+					}
+				}
+				ul, uunit := GetBitRateUnit(deviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink)
+				dl, dunit := GetBitRateUnit(deviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink)
+
+				// Create QoS data
+				qosId := "1"
+				qosData := &models.QosData{
+					QosId:                qosId,
+					Var5qi:               deviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
+					MaxbrUl:              strconv.FormatInt(ul, 10) + uunit,
+					MaxbrDl:              strconv.FormatInt(dl, 10) + dunit,
+					Arp:                  &models.Arp{PriorityLevel: deviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Arp},
+					DefQosFlowIndication: true,
+				}
+				subscriberPolicies[imsi].PccPolicy[pccPolicyId].QosDecs[qosId] = qosData
+
+				// Add session rule
+				sessionRuleId := dnn + "-1"
+				subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[dnn].SessionRules[sessionRuleId] = &models.SessionRule{
+					SessRuleId: sessionRuleId,
+					AuthDefQos: &models.AuthorizedDefaultQos{
+						Var5qi: qosData.Var5qi,
+						Arp:    qosData.Arp,
 					},
-				},
-				PccRules: map[string]*models.PccRule{
-					"DefaultRule": {
-						PccRuleId:  "1",
-						Precedence: 255,
-						FlowInfos: []models.FlowInformation{
-							{
-								FlowDescription: "permit out ip from any to assigned",
-								FlowDirection:   models.FlowDirectionRm_BIDIRECTIONAL,
-							},
-						},
-						RefQosData: []string{"1"},
+					AuthSessAmbr: &models.Ambr{
+						Uplink:   strconv.FormatInt(ul, 10) + uunit,
+						Downlink: strconv.FormatInt(dl, 10) + dunit,
 					},
-				},
-				QosDecs: map[string]*models.QosData{
-					"1": {
-						QosId:         "1",
-						Var5qi:        9,
-						MaxbrUl:       "200 Mbps",
-						MaxbrDl:       "200 Mbps",
-						PriorityLevel: 0,
-						Arp: &models.Arp{
-							PriorityLevel: 1,
-							PreemptCap:    models.PreemptionCapability_MAY_PREEMPT,
-							PreemptVuln:   models.PreemptionVulnerability_PREEMPTABLE,
-						},
-						DefQosFlowIndication: true,
-					},
-				},
-				TraffContDecs: map[string]*models.TrafficControlData{
-					"TcId-2": {
-						TcId: "TcId-2",
-					},
-				},
-			},
-		},
+				}
+			}
+		}
 	}
+
 	return subscriberPolicies
+}
+
+func GetBitRateUnit(val int64) (int64, string) {
+	unit := " Kbps"
+	if val < 1000 {
+		logger.GrpcLog.Warnf("configured value [%v] is lesser than 1000 bps, so setting 1 Kbps", val)
+		val = 1
+		return val, unit
+	}
+	if val >= 0xFFFF {
+		val = (val / 1000)
+		unit = " Kbps"
+		if val >= 0xFFFF {
+			val = (val / 1000)
+			unit = " Mbps"
+		}
+		if val >= 0xFFFF {
+			val = (val / 1000)
+			unit = " Gbps"
+		}
+	} else {
+		// minimum supported is kbps by SMF/UE
+		val = val / 1000
+	}
+
+	return val, unit
 }

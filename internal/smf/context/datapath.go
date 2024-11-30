@@ -123,6 +123,8 @@ func (node *DataPathNode) ActivateUpLinkTunnel(smContext *SMContext) error {
 		for name, rule := range addRules {
 			if pdr, err = destUPF.BuildCreatePdrFromPccRule(rule); err == nil {
 				// Add PCC Rule Qos Data QER
+				logger.AppLog.Warnf("PCC Rule : %v", rule)
+				logger.AppLog.Warnf("PCC Rule Qos Data: %v", rule.RefQosData)
 				if flowQer, err = node.CreatePccRuleQer(smContext, rule.RefQosData[0], rule.RefTcData[0]); err == nil {
 					pdr.QER = append(pdr.QER, flowQer)
 				}

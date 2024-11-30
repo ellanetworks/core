@@ -25,11 +25,7 @@ const (
 	sliceDataColl    = "webconsoleData.snapshots.sliceData"
 )
 
-// GetDeviceGroups -
-func GetDeviceGroups(c *gin.Context) {
-	setCorsHeader(c)
-	logger.WebUILog.Infoln("Get all Device Groups")
-
+func ListDeviceGroups() []string {
 	var deviceGroups []string = make([]string, 0)
 	rawDeviceGroups, errGetMany := dbadapter.CommonDBClient.RestfulAPIGetMany(devGroupDataColl, bson.M{})
 	if errGetMany != nil {
@@ -38,23 +34,31 @@ func GetDeviceGroups(c *gin.Context) {
 	for _, rawDeviceGroup := range rawDeviceGroups {
 		deviceGroups = append(deviceGroups, rawDeviceGroup["group-name"].(string))
 	}
+	return deviceGroups
+}
 
+func GetDeviceGroups(c *gin.Context) {
+	setCorsHeader(c)
+	logger.WebUILog.Infoln("Get all Device Groups")
+	deviceGroups := ListDeviceGroups()
 	c.JSON(http.StatusOK, deviceGroups)
 }
 
-// GetDeviceGroupsByName -
+func GetDeviceGroupByName2(groupName string) configmodels.DeviceGroups {
+	var deviceGroup configmodels.DeviceGroups
+	filter := bson.M{"group-name": groupName}
+	rawDeviceGroup, err := dbadapter.CommonDBClient.RestfulAPIGetOne(devGroupDataColl, filter)
+	if err != nil {
+		logger.DbLog.Warnln(err)
+	}
+	json.Unmarshal(mapToByte(rawDeviceGroup), &deviceGroup)
+	return deviceGroup
+}
+
 func GetDeviceGroupByName(c *gin.Context) {
 	setCorsHeader(c)
 	logger.WebUILog.Infoln("Get Device Group by name")
-
-	var deviceGroup configmodels.DeviceGroups
-	filter := bson.M{"group-name": c.Param("group-name")}
-	rawDeviceGroup, errGetOne := dbadapter.CommonDBClient.RestfulAPIGetOne(devGroupDataColl, filter)
-	if errGetOne != nil {
-		logger.DbLog.Warnln(errGetOne)
-	}
-	json.Unmarshal(mapToByte(rawDeviceGroup), &deviceGroup)
-
+	deviceGroup := GetDeviceGroupByName2(c.Param("group-name"))
 	if deviceGroup.DeviceGroupName == "" {
 		c.JSON(http.StatusNotFound, nil)
 	} else {
