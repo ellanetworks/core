@@ -14,7 +14,6 @@ import (
 	"github.com/yeastengine/ella/internal/webui/configapi"
 	"github.com/yeastengine/ella/internal/webui/configmodels"
 	"github.com/yeastengine/ella/internal/webui/dbadapter"
-	gServ "github.com/yeastengine/ella/internal/webui/proto/server"
 )
 
 type WEBUI struct{}
@@ -81,10 +80,6 @@ func (webui *WEBUI) Start() {
 
 	self := webui_context.WEBUI_Self()
 	self.UpdateNfProfiles()
-
-	var host string = "0.0.0.0:9876"
-	confServ := &gServ.ConfigServer{}
-	go gServ.StartServer(host, confServ, configMsgChan)
 
 	select {}
 }

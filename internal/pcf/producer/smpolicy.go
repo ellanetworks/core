@@ -192,8 +192,6 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	header = http.Header{
 		"Location": {locationHeader},
 	}
-	logger.SMpolicylog.Tracef("SMPolicy PduSessionId[%d] Create", request.PduSessionId)
-	logger.SMpolicylog.Infof("SM Policy Decision Sent to SMF: %v", decision)
 
 	return header, &decision, nil
 }

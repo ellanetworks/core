@@ -60,8 +60,7 @@ func SendHeartbeatRequest(upNodeID smf_context.NodeID, upfPort uint16) error {
 		FetchPfcpTxn(msg.Sequence())
 		return err
 	}
-	logger.PfcpLog.Debugf("sent pfcp heartbeat request seq[%d] to NodeID[%s]", msg.Sequence(),
-		upNodeID.ResolveNodeIdToIp().String())
+	logger.PfcpLog.Infof("sent pfcp heartbeat request to UPF: [%s] (sequence: %d )", upNodeID.ResolveNodeIdToIp().String(), msg.Sequence())
 	return nil
 }
 
@@ -71,13 +70,12 @@ func SendPfcpAssociationSetupRequest(upNodeID smf_context.NodeID, upfPort uint16
 		IP:   upNodeID.ResolveNodeIdToIp(),
 		Port: int(upfPort),
 	}
-	logger.PfcpLog.Infof("Sent PFCP Association Request to NodeID[%s]", upNodeID.ResolveNodeIdToIp().String())
-
 	InsertPfcpTxn(pfcpMsg.Sequence(), &upNodeID)
 	err := udp.SendPfcp(pfcpMsg, addr, nil)
 	if err != nil {
 		return err
 	}
+	logger.PfcpLog.Infof("Sent PFCP Association Request to UPF: %s", upNodeID.ResolveNodeIdToIp().String())
 	return nil
 }
 

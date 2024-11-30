@@ -103,18 +103,16 @@ func (upi *UserPlaneInformation) ResetDefaultUserPlanePath() {
 	upi.DefaultUserPlanePath = make(map[string][]*UPNode)
 }
 
-func (upi *UserPlaneInformation) GetDefaultUserPlanePathByDNN(selection *UPFSelectionParams) (path UPPath) {
+func (upi *UserPlaneInformation) GetDefaultUserPlanePathByDNN(selection *UPFSelectionParams) (UPPath, error) {
 	path, pathExist := upi.DefaultUserPlanePath[selection.String()]
 	if pathExist {
-		logger.CtxLog.Infof("Default path for DNN[%s] S-NSSAI[sst: %d sd: %s] DNAI[%s] already exists", selection.Dnn, selection.SNssai.Sst, selection.SNssai.Sd, selection.Dnai)
-		return path
+		return path, nil
 	}
 	err := upi.GenerateDefaultPath(selection)
 	if err != nil {
-		logger.CtxLog.Errorf("Failed to generate default path for DNN[%s] S-NSSAI[sst: %d sd: %s] DNAI[%s]: %v", selection.Dnn, selection.SNssai.Sst, selection.SNssai.Sd, selection.Dnai, err)
-		return nil
+		return nil, fmt.Errorf("couldn't generate default path: %v", err)
 	}
-	return upi.DefaultUserPlanePath[selection.String()]
+	return upi.DefaultUserPlanePath[selection.String()], nil
 }
 
 func (upi *UserPlaneInformation) ExistDefaultPath(dnn string) bool {
@@ -123,7 +121,6 @@ func (upi *UserPlaneInformation) ExistDefaultPath(dnn string) bool {
 }
 
 func GenerateDataPath(upPath UPPath, smContext *SMContext) (*DataPath, error) {
-	logger.CtxLog.Warnf("GenerateDataPath: upPath: %v", upPath)
 	if len(upPath) < 1 {
 		return nil, fmt.Errorf("user plane path is empty")
 	}
@@ -134,7 +131,6 @@ func GenerateDataPath(upPath UPPath, smContext *SMContext) (*DataPath, error) {
 	var prevDataPathNode *DataPathNode
 
 	for idx, upNode := range upPath {
-		logger.CtxLog.Warnf("GenerateDataPath: upNode: %v", upNode)
 		curDataPathNode = NewDataPathNode()
 		curDataPathNode.UPF = upNode.UPF
 
@@ -194,10 +190,8 @@ func (upi *UserPlaneInformation) GenerateDefaultPath(selection *UPFSelectionPara
 	for anName, node := range upi.AccessNetwork {
 		logger.CtxLog.Warnf("GenerateDefaultPath: anName: %v, node: %v", anName, node)
 		if node.Type == UPNODE_AN {
-			logger.CtxLog.Warnf("Found AN node: %v", node)
 			source = node
 			var path []*UPNode
-			logger.CtxLog.Warnf("Checking if there is a path between Access Network node [%v] and upf [%v] ", anName, string(destinations[0].NodeID.NodeIdValue))
 			path, pathExist := getPathBetween(source, destinations[0], visited, selection)
 			if pathExist {
 				if path[0].Type == UPNODE_AN {
@@ -206,7 +200,6 @@ func (upi *UserPlaneInformation) GenerateDefaultPath(selection *UPFSelectionPara
 				upi.DefaultUserPlanePath[selection.String()] = path
 				break
 			} else {
-				logger.CtxLog.Warnf("couldn't get path between Access Network node [%v] and upf [%v] ", anName, string(destinations[0].NodeID.NodeIdValue))
 				continue
 			}
 		}

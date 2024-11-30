@@ -137,8 +137,7 @@ func (SmfTxnFsm) TxnProcess(txn *transaction.Transaction) (transaction.TxnEvent,
 	eventData := SmEventData{Txn: txn}
 
 	if err := HandleEvent(smContext, event, eventData); err != nil {
-		smContext.SubFsmLog.Errorf("handle event[%v], err [%s]", transaction.TxnEventProcess.String(), err.Error())
-		return transaction.TxnEventFailure, err
+		return transaction.TxnEventFailure, fmt.Errorf("couldn't handle event [%v]: %s", transaction.TxnEventProcess.String(), err.Error())
 	}
 	return transaction.TxnEventSuccess, nil
 }

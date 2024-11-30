@@ -77,7 +77,6 @@ func HandleAuth5gAkaComfirmRequest(request *httpwrapper.Request) *httpwrapper.Re
 }
 
 func HandleUeAuthPostRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.UeAuthPostLog.Infof("HandleUeAuthPostRequest")
 	updateAuthenticationInfo := request.Body.(models.AuthenticationInfo)
 
 	response, locationURI, problemDetails := UeAuthPostRequestProcedure(updateAuthenticationInfo)
@@ -116,7 +115,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		logger.UeAuthPostLog.Infoln("403 forbidden: serving network NOT AUTHORIZED")
 		return nil, "", &problemDetails
 	}
-	logger.UeAuthPostLog.Infoln("Serving network authorized")
+	logger.UeAuthPostLog.Infoln("serving network authorized: ", snName)
 
 	responseBody.ServingNetworkName = snName
 	authInfoReq.ServingNetworkName = snName
@@ -179,7 +178,6 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		}
 		hxresStarAll := sha256.Sum256(hxresStarBytes)
 		hxresStar := hex.EncodeToString(hxresStarAll[16:]) // last 128 bits
-		logger.Auth5gAkaComfirmLog.Infof("XresStar = %x\n", authInfoResult.AuthenticationVector.XresStar)
 
 		// Derive Kseaf from Kausf
 		Kausf := authInfoResult.AuthenticationVector.Kausf

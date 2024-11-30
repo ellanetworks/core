@@ -15,7 +15,6 @@ const (
 )
 
 func InitPfcpHeartbeatRequest(userplane *context.UserPlaneInformation) {
-	// Iterate through all UPFs and send heartbeat to active UPFs
 	for {
 		time.Sleep(maxHeartbeatInterval * time.Second)
 		for _, upf := range userplane.UPFs {
@@ -28,8 +27,10 @@ func InitPfcpHeartbeatRequest(userplane *context.UserPlaneInformation) {
 					upf.UPF.NHeartBeat++
 				}
 			} else if upf.UPF.NHeartBeat == maxHeartbeatRetry {
-				logger.PfcpLog.Errorf("pfcp heartbeat failure for UPF: [%v]", upf.NodeID)
-				upf.UPF.UPFStatus = context.NotAssociated
+				if upf.UPF.UPFStatus == context.AssociatedSetUpSuccess {
+					upf.UPF.UPFStatus = context.NotAssociated
+					logger.PfcpLog.Warnf("did not receive heartbeat response from UPF [%v], set UPF status to NotAssociated", upf.NodeID.ResolveNodeIdToIp())
+				}
 			}
 
 			upf.UPF.UpfLock.Unlock()

@@ -35,7 +35,7 @@ type SMFContext struct {
 
 	SubscriberDataManagementClient *Nudm_SubscriberDataManagement.APIClient
 
-	// UserPlaneInformation *UserPlaneInformation
+	UserPlaneInformation *UserPlaneInformation
 	ueIPAllocatorMapping map[string]*IPAllocator
 
 	// Now only "IPv4" supported
@@ -140,7 +140,7 @@ func InitSmfContext(config *factory.Configuration) *SMFContext {
 
 	smfContext.SupportedPDUSessionType = IPV4
 
-	// smfContext.UserPlaneInformation = NewUserPlaneInformation(&config.UserPlaneInformation)
+	InitUserPlaneInformation()
 	smfContext.ueIPAllocatorMapping = make(map[string]*IPAllocator)
 	smfContext.PodIp = os.Getenv("POD_IP")
 
@@ -289,7 +289,9 @@ func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
 // map[1.1.1.1:0xc0008b7900]
 // map[]
 // map[]}
-func GetUserPlaneInformation() *UserPlaneInformation {
+
+func InitUserPlaneInformation() {
+	smfSelf := SMF_Self()
 	upfNodeID := NewNodeID("0.0.0.0")
 	upfName := "0.0.0.0"
 	gnbNodeID := NewNodeID("1.1.1.1")
@@ -318,10 +320,11 @@ func GetUserPlaneInformation() *UserPlaneInformation {
 		},
 	}
 	upf.UPFStatus = AssociatedSetUpSuccess
-	upfNode := UPNode{
+	upfNode := &UPNode{
 		Type:   UPNODE_UPF,
 		UPF:    upf,
 		NodeID: *upfNodeID,
+		Links:  make([]*UPNode, 0),
 	}
 	userPlaneInformation := &UserPlaneInformation{
 		UPNodes:              make(map[string]*UPNode),
@@ -330,18 +333,24 @@ func GetUserPlaneInformation() *UserPlaneInformation {
 		UPFsIPtoID:           make(map[string]string),
 		DefaultUserPlanePath: make(map[string][]*UPNode),
 	}
-	userPlaneInformation.UPNodes[upfName] = &upfNode
-	userPlaneInformation.UPFs[upfName] = &upfNode
+	userPlaneInformation.UPNodes[upfName] = upfNode
+	userPlaneInformation.UPFs[upfName] = upfNode
 	gnbNode := &UPNode{
 		Type:   UPNODE_AN,
 		NodeID: *gnbNodeID,
 		Links:  make([]*UPNode, 0),
+		Dnn:    "internet",
+		ANIP:   net.ParseIP("1.1.1.1"),
 	}
-	gnbNode.Links = append(gnbNode.Links, &upfNode)
+	gnbNode.Links = append(gnbNode.Links, upfNode)
+	upfNode.Links = append(upfNode.Links, gnbNode)
 	userPlaneInformation.AccessNetwork[gnbName] = gnbNode
 	userPlaneInformation.UPNodes[gnbName] = gnbNode
+	smfSelf.UserPlaneInformation = userPlaneInformation
+}
 
-	return userPlaneInformation
+func GetUserPlaneInformation() *UserPlaneInformation {
+	return SMF_Self().UserPlaneInformation
 }
 
 // func ProcessConfigUpdate() bool {

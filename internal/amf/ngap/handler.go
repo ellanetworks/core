@@ -1386,8 +1386,6 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		return
 	}
 
-	ran.Log.Infoln("handle Initial UE Message")
-
 	for _, ie := range initialUEMessage.ProtocolIEs.List {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDRANUENGAPID: // reject

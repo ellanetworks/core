@@ -237,10 +237,10 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 					hasOP = true
 				}
 			} else {
-				logger.UeauLog.Errorln("opStr length is ", len(opStr))
+				logger.UeauLog.Warnf("opStr is of length %d", len(opStr))
 			}
 		} else {
-			logger.UeauLog.Infoln("Nil Op")
+			logger.UeauLog.Infoln("milenage Op is nil")
 		}
 	} else {
 		problemDetails = &models.ProblemDetails{
@@ -505,7 +505,6 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 			logger.UeauLog.Error(err)
 		}
 		xresStar := kdfValForXresStar[len(kdfValForXresStar)/2:]
-		// fmt.Printf("xresStar = %x\n", xresStar)
 
 		// derive Kausf
 		FC = ueauth.FC_FOR_KAUSF_DERIVATION

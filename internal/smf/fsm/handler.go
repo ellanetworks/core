@@ -63,9 +63,7 @@ func HandleEvent(smContext *smf_context.SMContext, event SmEvent, eventData SmEv
 	ctxtState := smContext.SMContextState
 	smContext.SubFsmLog.Debugf("handle fsm event[%v], state[%v] ", event.String(), ctxtState.String())
 	if nextState, err := SmfFsmHandler[smContext.SMContextState][event](event, &eventData); err != nil {
-		smContext.SubFsmLog.Errorf("fsm state[%v] event[%v], next-state[%v] error, %v",
-			smContext.SMContextState.String(), event.String(), nextState.String(), err.Error())
-		return err
+		return fmt.Errorf("fsm state[%v] event[%v], next-state[%v]: %v", smContext.SMContextState.String(), event.String(), nextState.String(), err.Error())
 	} else {
 		smContext.ChangeState(nextState)
 	}
@@ -88,7 +86,7 @@ func HandleStateInitEventPduSessCreate(event SmEvent, eventData *SmEventData) (s
 	if err := producer.HandlePDUSessionSMContextCreate(eventData.Txn); err != nil {
 		txn := eventData.Txn.(*transaction.Transaction)
 		txn.Err = err
-		return smf_context.SmStateInit, fmt.Errorf("pdu session create error, %v ", err.Error())
+		return smf_context.SmStateInit, fmt.Errorf("error creating pdu session: %v ", err.Error())
 	}
 
 	return smf_context.SmStatePfcpCreatePending, nil
@@ -175,12 +173,9 @@ func HandleStateActiveEventPduSessN1N2TransFailInd(event SmEvent, eventData *SmE
 
 func HandleStateActiveEventPolicyUpdateNotify(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
 	txn := eventData.Txn.(*transaction.Transaction)
-	smCtxt := txn.Ctxt.(*smf_context.SMContext)
-
 	if err := producer.HandleSMPolicyUpdateNotify(eventData.Txn); err != nil {
 		txn.Err = err
-		smCtxt.SubFsmLog.Errorf("sm policy update error, %v ", err.Error())
-		return smf_context.SmStateActive, fmt.Errorf("pdu session create error, %v ", err.Error())
+		return smf_context.SmStateActive, fmt.Errorf("coultn't process policy update: %v ", err.Error())
 	}
 
 	return smf_context.SmStateActive, nil

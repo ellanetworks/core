@@ -115,7 +115,7 @@ func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 		logger.ContextLog.Errorf("Allocate NgapID error: %+v", err)
 		return -1, err
 	}
-	logger.ContextLog.Infof("Allocate AmfUeNgapID : %v", val)
+	logger.ContextLog.Infof("allocated AmfUeNgapID: %v", val)
 	return val, nil
 }
 

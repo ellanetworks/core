@@ -240,7 +240,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 						// TODO: error handling
 						return fmt.Errorf("Failed to Create smContext[pduSessionID: %d], Error[%v]", pduSessionID, problemDetail)
 					} else if errResponse != nil {
-						ue.GmmLog.Warnf("PDU Session Establishment Request is rejected by SMF[pduSessionId:%d]",
+						ue.GmmLog.Warnf("PDU Session Establishment Request was rejected by SMF [pduSessionId: %d]",
 							pduSessionID)
 						gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo,
 							errResponse.BinaryDataN1SmMessage, pduSessionID, 0, nil, 0)
@@ -375,8 +375,6 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
 	}
-
-	ue.GmmLog.Info("Handle Registration Request")
 
 	if ue.RanUe[anType] == nil {
 		return fmt.Errorf("RanUe is nil")

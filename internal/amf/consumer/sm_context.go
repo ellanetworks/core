@@ -48,7 +48,6 @@ func SelectSmf(
 	}
 
 	smContext.SetSmfUri(context.SmfUri)
-	ue.GmmLog.Infof("Selected SMF [smfUri: %s]", context.SmfUri)
 	return smContext, 0, nil
 }
 

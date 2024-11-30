@@ -65,7 +65,6 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 	txn := eventData.(*transaction.Transaction)
 	request := txn.Req.(models.PostSmContextsRequest)
 	smContext := txn.Ctxt.(*smf_context.SMContext)
-	logger.PduSessLog.Infof("Handle PDUSessionSMContextCreate")
 
 	// GSM State
 	// PDU Session Establishment Accept/Reject
@@ -182,10 +181,6 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, Policy association create success")
 		smPolicyDecision = smPolicyDecisionRsp
 
-		// smPolicyDecision = qos.TestMakeSamplePolicyDecision()
-		// Derive QoS change(compare existing vs received Policy Decision)
-		smContext.SubQosLog.Infof("PDUSessionSMContextCreate, received SM policy data: %v",
-			qos.SmPolicyDecisionString(smPolicyDecision))
 		policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, smPolicyDecision)
 		smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
 	}
@@ -200,7 +195,6 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 			Sd:  createData.SNssai.Sd,
 		},
 	}
-	smContext.SubPduSessLog.Warnf("Selection Params: %v", upfSelectionParams.String())
 
 	if smf_context.SMF_Self().ULCLSupport && smf_context.CheckUEHasPreConfig(createData.Supi) {
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, SUPI[%s] has pre-config route", createData.Supi)
@@ -214,11 +208,13 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		}
 		smContext.BPManager = smf_context.NewBPManager(createData.Supi)
 	} else {
-		// UE has no pre-config path.
-		// Use default route
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, no pre-config route")
-		defaultUPPath := smf_context.GetUserPlaneInformation().GetDefaultUserPlanePathByDNN(upfSelectionParams)
-		smContext.SubPduSessLog.Warnf("Default UP Path: %v", defaultUPPath)
+		defaultUPPath, err := smf_context.GetUserPlaneInformation().GetDefaultUserPlanePathByDNN(upfSelectionParams)
+		if err != nil {
+			smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, get default UP path error: %v", err.Error())
+			txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("UPFDataPathError")
+			return fmt.Errorf("DataPathError")
+		}
 		defaultPath, err := smf_context.GenerateDataPath(defaultUPPath, smContext)
 		smContext.SubPduSessLog.Warnf("Default Path 1: %v", defaultPath)
 		if err != nil {
@@ -239,15 +235,10 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		}
 	}
 
-	smContext.SubPduSessLog.Warnf("Default Path 5: %v", defaultPath)
 	if defaultPath == nil {
-		smContext.SubPduSessLog.Warnf("Default path is nil 2")
 		smContext.ChangeState(smf_context.SmStateInit)
-		smContext.SubCtxLog.Traceln("PDUSessionSMContextCreate, SMContextState Change State: ", smContext.SMContextState.String())
-		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, data path not found for selection param %v", upfSelectionParams.String())
-
 		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("InsufficientResourceSliceDnn")
-		return fmt.Errorf("InsufficientResourceSliceDnn")
+		return fmt.Errorf("default data path not found")
 	}
 
 	communicationConf := Namf_Communication.NewConfiguration()

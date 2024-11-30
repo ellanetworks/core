@@ -221,7 +221,7 @@ func (smContext *SMContext) ChangeState(nextState SMContextState) {
 		}
 	}
 
-	smContext.SubCtxLog.Infof("context state change, current state[%v] next state[%v]",
+	smContext.SubCtxLog.Debugf("context state change, current state[%v] next state[%v]",
 		smContext.SMContextState.String(), nextState.String())
 	smContext.SMContextState = nextState
 }
@@ -235,14 +235,12 @@ func GetSMContext(ref string) (smContext *SMContext) {
 	return
 }
 
-// *** add unit test ***//
 func RemoveSMContext(ref string) {
 	var smContext *SMContext
 	if value, ok := smContextPool.Load(ref); ok {
 		smContext = value.(*SMContext)
 	}
 
-	smContext.SubCtxLog.Infof("RemoveSMContext, SM context released ")
 	smContext.ChangeState(SmStateRelease)
 
 	for _, pfcpSessionContext := range smContext.PFCPContext {
@@ -258,6 +256,7 @@ func RemoveSMContext(ref string) {
 	smContextPool.Delete(ref)
 
 	canonicalRef.Delete(canonicalName(smContext.Supi, smContext.PDUSessionID))
+	smContext.SubCtxLog.Infof("SM Context removed")
 }
 
 // *** add unit test ***//
@@ -270,7 +269,7 @@ func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
 
 func (smContext *SMContext) ReleaseUeIpAddr() error {
 	if ip := smContext.PDUAddress.Ip; ip != nil && !smContext.PDUAddress.UpfProvided {
-		smContext.SubPduSessLog.Infof("Release IP[%s]", smContext.PDUAddress.Ip.String())
+		smContext.SubPduSessLog.Infof("Release IP Address: %s", smContext.PDUAddress.Ip.String())
 		smContext.DNNInfo.UeIPAllocator.Release(smContext.Supi, ip)
 		smContext.PDUAddress.Ip = net.IPv4(0, 0, 0, 0)
 	}
