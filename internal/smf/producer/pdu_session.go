@@ -204,19 +204,17 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		defaultPath = smContext.Tunnel.DataPathPool.GetDefaultPath()
 		err := defaultPath.ActivateTunnelAndPDR(smContext, 255)
 		if err != nil {
-			smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, data path error: %v", err.Error())
+			return fmt.Errorf("couldn't activate tunnel and PDR: %v", err)
 		}
 		smContext.BPManager = smf_context.NewBPManager(createData.Supi)
 	} else {
-		smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, no pre-config route")
 		defaultUPPath, err := smf_context.GetUserPlaneInformation().GetDefaultUserPlanePathByDNN(upfSelectionParams)
 		if err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, get default UP path error: %v", err.Error())
 			txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("UPFDataPathError")
 			return fmt.Errorf("DataPathError")
 		}
-		defaultPath, err := smf_context.GenerateDataPath(defaultUPPath, smContext)
-		smContext.SubPduSessLog.Warnf("Default Path 1: %v", defaultPath)
+		defaultPath, err = smf_context.GenerateDataPath(defaultUPPath, smContext)
 		if err != nil {
 			smContext.SubPduSessLog.Errorf("couldn't generate data path: %v", err.Error())
 			txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("UPFDataPathError")
@@ -233,7 +231,6 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 			}
 		}
 	}
-	smContext.SubPduSessLog.Warnf("Default Path: %v", defaultPath)
 	if defaultPath == nil {
 		smContext.ChangeState(smf_context.SmStateInit)
 		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("InsufficientResourceSliceDnn")
@@ -256,7 +253,6 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 	smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, PDU session context create success ")
 
 	return nil
-	// TODO: UECM registration
 }
 
 func HandlePDUSessionSMContextUpdate(eventData interface{}) error {

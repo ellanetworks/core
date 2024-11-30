@@ -105,6 +105,7 @@ func SetUpfInactive(nodeID smf_context.NodeID, msgTypeName string) {
 	defer upf.UpfLock.Unlock()
 	upf.UPFStatus = smf_context.NotAssociated
 	upf.NHeartBeat = 0 // reset Heartbeat attempt to 0
+	logger.PfcpLog.Warnf("set UPF[%s] to NotAssociated due to [%s] response", nodeID.ResolveNodeIdToIp().String(), msgTypeName)
 }
 
 func HandlePfcpAssociationSetupResponse(msg *udp.Message) {

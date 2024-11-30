@@ -121,9 +121,6 @@ func (node *DataPathNode) ActivateUpLinkTunnel(smContext *SMContext) error {
 
 		for name, rule := range addRules {
 			if pdr, err = destUPF.BuildCreatePdrFromPccRule(rule); err == nil {
-				// Add PCC Rule Qos Data QER
-				logger.AppLog.Warnf("PCC Rule : %v", rule)
-				logger.AppLog.Warnf("PCC Rule Qos Data: %v", rule.RefQosData)
 				if flowQer, err = node.CreatePccRuleQer(smContext, rule.RefQosData[0], rule.RefTcData[0]); err == nil {
 					pdr.QER = append(pdr.QER, flowQer)
 				}
@@ -364,7 +361,7 @@ func (dataPath *DataPath) validateDataPathUpfStatus() error {
 	firstDPNode := dataPath.FirstDPNode
 	for curDataPathNode := firstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
 		if curDataPathNode.UPF.UPFStatus != AssociatedSetUpSuccess {
-			return fmt.Errorf("UPF [%v] is not in AssociatedSetUpSuccess status", curDataPathNode.UPF.NodeID)
+			return fmt.Errorf("UPF [%v] is not in AssociatedSetUpSuccess status", curDataPathNode.UPF.NodeID.String())
 		}
 	}
 	return nil
@@ -377,7 +374,6 @@ func (dataPath *DataPath) ActivateUlDlTunnel(smContext *SMContext) error {
 			return fmt.Errorf("couldn't activate UpLinkTunnel: %s", err)
 		}
 		if err := curDataPathNode.ActivateDownLinkTunnel(smContext); err != nil {
-			logger.CtxLog.Warnln(err)
 			return fmt.Errorf("couldn't activate DownLinkTunnel: %s", err)
 		}
 	}
@@ -596,19 +592,19 @@ func (dpNode *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER,
 
 // ActivateTunnelAndPDR
 func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence uint32) error {
-	// Check if UPF association is good
-	if err := dataPath.validateDataPathUpfStatus(); err != nil {
-		logger.PduSessLog.Error("One or more UPF in DataPath not associated")
-		return err
+	err := dataPath.validateDataPathUpfStatus()
+	if err != nil {
+		return fmt.Errorf("one or more UPF in DataPath not associated: %s", err)
 	}
 
-	// Allocate Local SEIDs
-	smContext.AllocateLocalSEIDForDataPath(dataPath)
+	err = smContext.AllocateLocalSEIDForDataPath(dataPath)
+	if err != nil {
+		return fmt.Errorf("could not allocate local SEID for DataPath: %s", err)
+	}
 
-	// Allocate UL/DL PDRs for the Tunnels
-	if err := dataPath.ActivateUlDlTunnel(smContext); err != nil {
-		logger.PduSessLog.Errorf("Activate UL/DL Tunnel error %v", err.Error())
-		return err
+	err = dataPath.ActivateUlDlTunnel(smContext)
+	if err != nil {
+		return fmt.Errorf("could not activate UL/DL Tunnel: %s", err)
 	}
 
 	// Activate PDR
@@ -619,19 +615,17 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence 
 			return err
 		}
 
-		logger.CtxLog.Traceln("Calculate ", curDataPathNode.UPF.PFCPAddr().String())
-
 		// Setup UpLink PDR
 		if curDataPathNode.UpLinkTunnel != nil {
 			if err := curDataPathNode.ActivateUpLinkPdr(smContext, defQER, precedence); err != nil {
-				logger.CtxLog.Errorf("Activate UpLink PDR error %v", err.Error())
+				return fmt.Errorf("couldn't activate uplink pdr: %v", err)
 			}
 		}
 
 		// Setup DownLink PDR
 		if curDataPathNode.DownLinkTunnel != nil {
 			if err := curDataPathNode.ActivateDlLinkPdr(smContext, defQER, precedence, dataPath); err != nil {
-				logger.CtxLog.Errorf("Activate DlLink PDR error %v", err.Error())
+				return fmt.Errorf("couldn't activate downlink pdr: %v", err)
 			}
 		}
 

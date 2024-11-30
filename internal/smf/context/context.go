@@ -263,12 +263,14 @@ func InitUserPlaneInformation() {
 			},
 		},
 	}
+	upf.Port = 8806
 	upf.UPFStatus = AssociatedSetUpSuccess
 	upfNode := &UPNode{
 		Type:   UPNODE_UPF,
 		UPF:    upf,
 		NodeID: *upfNodeID,
 		Links:  make([]*UPNode, 0),
+		Port:   8806,
 	}
 	userPlaneInformation := &UserPlaneInformation{
 		UPNodes:              make(map[string]*UPNode),

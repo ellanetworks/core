@@ -330,15 +330,13 @@ func (smContext *SMContext) GetNodeIDByLocalSEID(seid uint64) (nodeID NodeID) {
 	return
 }
 
-func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) {
-	logger.PduSessLog.Traceln("In AllocateLocalSEIDForDataPath")
+func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) error {
 	for curDataPathNode := dataPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
 		NodeIDtoIP := curDataPathNode.UPF.NodeID.ResolveNodeIdToIp().String()
-		logger.PduSessLog.Traceln("NodeIDtoIP: ", NodeIDtoIP)
 		if _, exist := smContext.PFCPContext[NodeIDtoIP]; !exist {
 			allocatedSEID, err := AllocateLocalSEID()
 			if err != nil {
-				logger.PduSessLog.Errorf("allocateLocalSEID failed, %v", err)
+				return fmt.Errorf("failed allocating SEID, %v", err)
 			}
 			smContext.PFCPContext[NodeIDtoIP] = &PFCPSessionContext{
 				PDRs:      make(map[uint16]*PDR),
@@ -349,6 +347,7 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) {
 			seidSMContextMap.Store(allocatedSEID, smContext)
 		}
 	}
+	return nil
 }
 
 func (smContext *SMContext) PutPDRtoPFCPSession(nodeID NodeID, pdrList map[string]*PDR) error {
