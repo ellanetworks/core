@@ -218,6 +218,8 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		// UE has no pre-config path.
 		// Use default route
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, no pre-config route")
+		aa := smf_context.GetUserPlaneInformation()
+		logger.AppLog.Warnf("UserPlaneInformation: %v", aa)
 		defaultUPPath := smf_context.GetUserPlaneInformation().GetDefaultUserPlanePathByDNN(upfSelectionParams)
 		logger.AppLog.Warnf("Default UP Path: %v", defaultUPPath)
 		defaultPath, err := smf_context.GenerateDataPath(defaultUPPath, smContext)
@@ -658,7 +660,6 @@ func SendPduSessN1N2Transfer(smContext *smf_context.SMContext, success bool) err
 	}
 
 	smContext.SubPduSessLog.Infof("N1N2 transfer initiated")
-	smContext.SubPduSessLog.Infof("N1N2 Request: %v", n1n2Request)
 	rspData, _, err := smContext.
 		CommunicationClient.
 		N1N2MessageCollectionDocumentApi.

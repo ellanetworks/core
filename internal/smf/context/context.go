@@ -269,11 +269,26 @@ func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
 // 	UpfLock sync.RWMutex
 // }
 
+// Correct UserPlaneInformation
+// UserPlaneInformation: &{
+// map[0.0.0.0:0xc0001f4400 dev2-gnbsim:0xc0001f4680]
+// map[0.0.0.0:0xc0001f4400]
+// map[dev2-gnbsim:0xc0001f4680]
+// map[0.0.0.0:0.0.0.0 <nil>:dev2-gnbsim]
+// map[0.0.0.0:1fcf163a-5c93-4656-b81e-5679e8daffa8]
+// map[0.0.0.0:1fcf163a-5c93-4656-b81e-5679e8daffa8]
+// map[Dnn: internet
+//
+//	Sst: 1, Sd: 102030
+//	:[0xc0001f4400]]}
+//
+// Current UserPlaneInformation
+// UserPlaneInformation: &{map[0.0.0.0:0xc0008b7880 1.1.1.1:0xc0008b7900] map[0.0.0.0:0xc0008b7880] map[1.1.1.1:0xc0008b7900] map[] map[]}
 func GetUserPlaneInformation() *UserPlaneInformation {
 	upfNodeID := NewNodeID("0.0.0.0")
 	upfName := "0.0.0.0"
 	gnbNodeID := NewNodeID("1.1.1.1")
-	gnbName := "1.1.1.1"
+	gnbName := "dev2-gnbsim"
 
 	intfUpfInfoItem := factory.InterfaceUpfInfoItem{
 		InterfaceType:   models.UpInterfaceType_N3,
