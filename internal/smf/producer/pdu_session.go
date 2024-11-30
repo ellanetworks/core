@@ -225,7 +225,6 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		if defaultPath != nil {
 			defaultPath.IsDefaultPath = true
 			smContext.Tunnel.AddDataPath(defaultPath)
-			smContext.SubPduSessLog.Warnf("Default Path 2: %v", defaultPath)
 
 			if err := defaultPath.ActivateTunnelAndPDR(smContext, 255); err != nil {
 				smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, data path error: %v", err.Error())
@@ -234,7 +233,7 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 			}
 		}
 	}
-
+	smContext.SubPduSessLog.Warnf("Default Path: %v", defaultPath)
 	if defaultPath == nil {
 		smContext.ChangeState(smf_context.SmStateInit)
 		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("InsufficientResourceSliceDnn")

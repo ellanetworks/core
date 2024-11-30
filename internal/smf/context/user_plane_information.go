@@ -6,7 +6,6 @@ import (
 	"reflect"
 )
 
-// UserPlaneInformation store userplane topology
 type UserPlaneInformation struct {
 	UPNodes              map[string]*UPNode
 	UPFs                 map[string]*UPNode
