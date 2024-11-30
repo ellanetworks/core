@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net"
 	"reflect"
-
-	"github.com/yeastengine/ella/internal/smf/logger"
 )
 
 // UserPlaneInformation store userplane topology
@@ -57,7 +55,6 @@ func (upi *UserPlaneInformation) GetUPFIDByIP(ip string) string {
 }
 
 func (upi *UserPlaneInformation) ResetDefaultUserPlanePath() {
-	logger.UPNodeLog.Infof("resetting the default user plane paths [%v]", upi.DefaultUserPlanePath)
 	upi.DefaultUserPlanePath = make(map[string][]*UPNode)
 }
 
@@ -183,7 +180,6 @@ func getPathBetween(cur *UPNode, dest *UPNode, visited map[*UPNode]bool,
 	selection *UPFSelectionParams,
 ) (path []*UPNode, pathExist bool) {
 	visited[cur] = true
-	logger.CtxLog.Warnf("getPathBetween: cur: %v, dest: %v, visited: %v, selection: %v", cur, dest, visited, selection)
 
 	if reflect.DeepEqual(*cur, *dest) {
 		path = make([]*UPNode, 0)
@@ -195,12 +191,9 @@ func getPathBetween(cur *UPNode, dest *UPNode, visited map[*UPNode]bool,
 	selectedSNssai := selection.SNssai
 
 	for _, nodes := range cur.Links {
-		logger.AppLog.Warnf("Nodes in cur.Links: %v", nodes)
-		logger.CtxLog.Warnf("getPathBetween: nodes: %v", nodes)
 		if !visited[nodes] {
 			if !nodes.UPF.isSupportSnssai(selectedSNssai) {
 				visited[nodes] = true
-				logger.CtxLog.Warnf("getPathBetween: nodes: %v is not support snssai: %v", nodes, selectedSNssai)
 				continue
 			}
 
