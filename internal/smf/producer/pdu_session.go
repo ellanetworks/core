@@ -188,8 +188,6 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		smContext.SubQosLog.Infof("PDUSessionSMContextCreate, received SM policy data: %v",
 			qos.SmPolicyDecisionString(smPolicyDecision))
 		policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, smPolicyDecision)
-		smContext.SubQosLog.Infof("PDUSessionSMContextCreate, generated SM policy update: %v",
-			policyUpdates)
 		smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
 	}
 
@@ -203,6 +201,7 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 			Sd:  createData.SNssai.Sd,
 		},
 	}
+	logger.AppLog.Warnf("Selection Params: %v", upfSelectionParams.String())
 
 	if smf_context.SMF_Self().ULCLSupport && smf_context.CheckUEHasPreConfig(createData.Supi) {
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, SUPI[%s] has pre-config route", createData.Supi)
@@ -220,7 +219,13 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		// Use default route
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, no pre-config route")
 		defaultUPPath := smf_context.GetUserPlaneInformation().GetDefaultUserPlanePathByDNN(upfSelectionParams)
-		defaultPath = smf_context.GenerateDataPath(defaultUPPath, smContext)
+		logger.AppLog.Warnf("Default UP Path: %v", defaultUPPath)
+		defaultPath, err := smf_context.GenerateDataPath(defaultUPPath, smContext)
+		if err != nil {
+			smContext.SubPduSessLog.Errorf("couldn't generate data path: %v", err.Error())
+			txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("UPFDataPathError")
+			return fmt.Errorf("DataPathError")
+		}
 		if defaultPath != nil {
 			defaultPath.IsDefaultPath = true
 			smContext.Tunnel.AddDataPath(defaultPath)

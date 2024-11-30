@@ -283,9 +283,10 @@ func (node *DataPathNode) GetUPFID() (id string, err error) {
 	node_ip := node.GetNodeIP()
 	var exist bool
 
-	if id, exist = smfContext.UserPlaneInformation.UPFsIPtoID[node_ip]; !exist {
+	userPlaneInformation := GetUserPlaneInformation()
+	if id, exist = userPlaneInformation.UPFsIPtoID[node_ip]; !exist {
 		AllocateUPFID()
-		if id, exist = smfContext.UserPlaneInformation.UPFsIPtoID[node_ip]; !exist {
+		if id, exist = userPlaneInformation.UPFsIPtoID[node_ip]; !exist {
 			err = fmt.Errorf("UPNode IP %s doesn't exist in smfcfg.yaml", node_ip)
 			return "", err
 		}

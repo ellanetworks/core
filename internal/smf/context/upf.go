@@ -68,7 +68,6 @@ type UPF struct {
 	pdrIDGenerator *idgenerator.IDGenerator
 	farIDGenerator *idgenerator.IDGenerator
 	barIDGenerator *idgenerator.IDGenerator
-	urrIDGenerator *idgenerator.IDGenerator
 	qerIDGenerator *idgenerator.IDGenerator
 
 	RecoveryTimeStamp RecoveryTimeStamp
@@ -217,7 +216,6 @@ func NewUPF(nodeID *NodeID, ifaces []factory.InterfaceUpfInfoItem) (upf *UPF) {
 	upf.farIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
 	upf.barIDGenerator = idgenerator.NewGenerator(1, math.MaxUint8)
 	upf.qerIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
-	upf.urrIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
 
 	upf.N3Interfaces = make([]UPFInterfaceInfo, 0)
 	upf.N9Interfaces = make([]UPFInterfaceInfo, 0)

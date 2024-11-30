@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
-	"strconv"
 	"sync"
 )
 
@@ -84,15 +82,9 @@ func (a *IPAllocator) Allocate(imsi string) (net.IP, error) {
 	if offset, err := a.g.allocate(); err != nil {
 		return nil, errors.New("ip allocation failed" + err.Error())
 	} else {
-		smfCountStr := os.Getenv("SMF_COUNT")
-		if smfCountStr == "" {
-			smfCountStr = "1"
-		}
-		smfCount, _ := strconv.Atoi(smfCountStr)
-		ip := IPAddrWithOffset(a.ipNetwork.IP, int(offset)+(smfCount-1)*5000)
+		ip := IPAddrWithOffset(a.ipNetwork.IP, int(offset))
 		fmt.Printf("unique id - ip %v \n", ip)
 		fmt.Printf("unique id - offset %v \n", offset)
-		fmt.Printf("unique id - smfCount %v \n", smfCount)
 		return ip, nil
 	}
 }

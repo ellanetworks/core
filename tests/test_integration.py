@@ -82,8 +82,8 @@ def configure_ella(ella_address: str) -> None:
         name=TEST_NETWORK_SLICE_NAME,
         device_groups=[TEST_DEVICE_GROUP_NAME],
     )
-    logger.info("Sleeping for 10 seconds to allow configuration to propagate.")
-    time.sleep(10)
+    logger.info("Sleeping for 2 seconds to allow configuration to propagate.")
+    time.sleep(2)
 
 
 def run_gnbsim_simulation(

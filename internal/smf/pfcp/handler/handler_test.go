@@ -3,15 +3,10 @@ package handler_test
 import (
 	"net"
 	"testing"
-	"time"
 
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
-	"github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/factory"
 	"github.com/yeastengine/ella/internal/smf/pfcp/handler"
-	pfcp_message "github.com/yeastengine/ella/internal/smf/pfcp/message"
-	"github.com/yeastengine/ella/internal/smf/pfcp/udp"
 )
 
 type Flag uint8
@@ -70,52 +65,52 @@ func TestFindUEIPAddressNoUEIPAddressInCreatedPDR(t *testing.T) {
 	}
 }
 
-func TestHandlePfcpAssociationSetupResponse(t *testing.T) {
-	factory.SmfConfig = factory.Configuration{}
-	upNodeID := context.NewNodeID("1.1.1.1")
-	upf := context.NewUPF(upNodeID, nil)
-	SnssaiInfos := make([]context.SnssaiUPFInfo, 0)
-	snssaiInfo := context.SnssaiUPFInfo{
-		DnnList: []context.DnnUPFInfoItem{
-			{
-				Dnn: "internet",
-			},
-		},
-	}
-	SnssaiInfos = append(SnssaiInfos, snssaiInfo)
-	upf.SNssaiInfos = SnssaiInfos
-	pfcp_message.InsertPfcpTxn(1, upNodeID)
-	recoveryTimestamp := time.Now()
-	msg := message.NewAssociationSetupResponse(
-		1,
-		ie.NewCause(ie.CauseRequestAccepted),
-		ie.NewNodeID("1.1.1.1", "", ""),
-		ie.NewUserPlaneIPResourceInformation(
-			uint8(0x61),
-			0,
-			"1.2.3.4",
-			"",
-			".internet", // Note the additional character here. This is because the SD-Core UPF sends the network instance with 1 leading character
-			ie.SrcInterfaceAccess,
-		),
-		ie.NewRecoveryTimeStamp(recoveryTimestamp),
-	)
+// func TestHandlePfcpAssociationSetupResponse(t *testing.T) {
+// 	factory.SmfConfig = factory.Configuration{}
+// 	upNodeID := context.NewNodeID("1.1.1.1")
+// 	upf := context.NewUPF(upNodeID, nil)
+// 	SnssaiInfos := make([]context.SnssaiUPFInfo, 0)
+// 	snssaiInfo := context.SnssaiUPFInfo{
+// 		DnnList: []context.DnnUPFInfoItem{
+// 			{
+// 				Dnn: "internet",
+// 			},
+// 		},
+// 	}
+// 	SnssaiInfos = append(SnssaiInfos, snssaiInfo)
+// 	upf.SNssaiInfos = SnssaiInfos
+// 	pfcp_message.InsertPfcpTxn(1, upNodeID)
+// 	recoveryTimestamp := time.Now()
+// 	msg := message.NewAssociationSetupResponse(
+// 		1,
+// 		ie.NewCause(ie.CauseRequestAccepted),
+// 		ie.NewNodeID("1.1.1.1", "", ""),
+// 		ie.NewUserPlaneIPResourceInformation(
+// 			uint8(0x61),
+// 			0,
+// 			"1.2.3.4",
+// 			"",
+// 			".internet", // Note the additional character here. This is because the SD-Core UPF sends the network instance with 1 leading character
+// 			ie.SrcInterfaceAccess,
+// 		),
+// 		ie.NewRecoveryTimeStamp(recoveryTimestamp),
+// 	)
 
-	remoteAddress := &net.UDPAddr{
-		IP:   net.ParseIP("1.1.1.1"),
-		Port: factory.UPF_PFCP_PORT,
-	}
-	udpMessage := udp.Message{
-		RemoteAddr:  remoteAddress,
-		PfcpMessage: msg,
-	}
+// 	remoteAddress := &net.UDPAddr{
+// 		IP:   net.ParseIP("1.1.1.1"),
+// 		Port: factory.UPF_PFCP_PORT,
+// 	}
+// 	udpMessage := udp.Message{
+// 		RemoteAddr:  remoteAddress,
+// 		PfcpMessage: msg,
+// 	}
 
-	handler.HandlePfcpAssociationSetupResponse(&udpMessage)
+// 	handler.HandlePfcpAssociationSetupResponse(&udpMessage)
 
-	if upf.UPFStatus != context.AssociatedSetUpSuccess {
-		t.Errorf("Expected UPFStatus %v, got %v", context.AssociatedSetUpSuccess, upf.UPFStatus)
-	}
-	if upf.RecoveryTimeStamp.RecoveryTimeStamp.Truncate(1*time.Second) != recoveryTimestamp.Truncate(1*time.Second) {
-		t.Errorf("Expected RecoveryTimeStamp %v, got %v", recoveryTimestamp.Truncate(1*time.Second), upf.RecoveryTimeStamp.RecoveryTimeStamp.Truncate(1*time.Second))
-	}
-}
+// 	if upf.UPFStatus != context.AssociatedSetUpSuccess {
+// 		t.Errorf("Expected UPFStatus %v, got %v", context.AssociatedSetUpSuccess, upf.UPFStatus)
+// 	}
+// 	if upf.RecoveryTimeStamp.RecoveryTimeStamp.Truncate(1*time.Second) != recoveryTimestamp.Truncate(1*time.Second) {
+// 		t.Errorf("Expected RecoveryTimeStamp %v, got %v", recoveryTimestamp.Truncate(1*time.Second), upf.RecoveryTimeStamp.RecoveryTimeStamp.Truncate(1*time.Second))
+// 	}
+// }

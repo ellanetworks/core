@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,21 +21,8 @@ import (
 
 var seq uint32
 
-const UPFAdapterURL = "http://upf-adapter:8090"
-
 func getSeqNumber() uint32 {
-	smfCount := 1
-	var err error
-	if smfCountStr, ok := os.LookupEnv("SMF_COUNT"); ok {
-		smfCount, err = strconv.Atoi(smfCountStr)
-		if err != nil {
-			logger.PfcpLog.Errorf("SMF_COUNT env variable is not a number: %v", smfCountStr)
-		}
-	}
-
-	seqNum := atomic.AddUint32(&seq, 1) + uint32((smfCount-1)*5000)
-	logger.PfcpLog.Debugf("unique seq num: smfCount from os: %v; seqNum %v\n", smfCount, seqNum)
-	return seqNum
+	return atomic.AddUint32(&seq, 1)
 }
 
 func init() {

@@ -12,7 +12,7 @@ var SMF = &service.SMF{}
 
 const SBI_PORT = 29502
 
-func Start(amfURL string, pcfURL string, udmURL string, webuiURL string) error {
+func Start(amfURL string, pcfURL string, udmURL string) error {
 	configuration := factory.Configuration{
 		Logger: &logger.Logger{
 			SMF: &logger.LogSetting{
@@ -27,11 +27,10 @@ func Start(amfURL string, pcfURL string, udmURL string, webuiURL string) error {
 			BindingIPv4: "0.0.0.0",
 			Port:        SBI_PORT,
 		},
-		AmfUri:   amfURL,
-		PcfUri:   pcfURL,
-		UdmUri:   udmURL,
-		WebuiUri: webuiURL,
-		SmfName:  "SMF",
+		AmfUri:  amfURL,
+		PcfUri:  pcfURL,
+		UdmUri:  udmURL,
+		SmfName: "SMF",
 		ServiceNameList: []string{
 			"nsmf-pdusession",
 			"nsmf-event-exposure",

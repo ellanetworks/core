@@ -74,17 +74,6 @@ func (smf *SMF) Start() {
 	// Init UE Specific Config
 	context.InitSMFUERouting(&factory.UERoutingConfig)
 
-	// Wait for additional/updated config from config pod
-	initLog.Infof("Configuration is managed by Config Pod")
-	initLog.Infof("waiting for initial configuration from config pod")
-
-	// Main thread should be blocked for config update from ROC
-	// Future config update from ROC can be handled via background go-routine.
-	if <-factory.ConfigPodTrigger {
-		initLog.Infof("minimum configuration from config pod available")
-		context.ProcessConfigUpdate()
-	}
-
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 	oam.AddService(router)
 	callback.AddService(router)
@@ -99,16 +88,18 @@ func (smf *SMF) Start() {
 
 	udp.Run(pfcp.Dispatch)
 
-	for _, upf := range context.SMF_Self().UserPlaneInformation.UPFs {
+	userPlaneInformation := context.GetUserPlaneInformation()
+
+	for _, upf := range userPlaneInformation.UPFs {
 		logger.AppLog.Infof("Send PFCP Association Request to UPF[%s]\n", upf.NodeID.ResolveNodeIdToIp().String())
 		message.SendPfcpAssociationSetupRequest(upf.NodeID, upf.Port)
 	}
 
 	// Trigger PFCP Heartbeat towards all connected UPFs
-	go upf.InitPfcpHeartbeatRequest(context.SMF_Self().UserPlaneInformation)
+	go upf.InitPfcpHeartbeatRequest(userPlaneInformation)
 
 	// Trigger PFCP association towards not associated UPFs
-	go upf.ProbeInactiveUpfs(context.SMF_Self().UserPlaneInformation)
+	go upf.ProbeInactiveUpfs(userPlaneInformation)
 
 	time.Sleep(1000 * time.Millisecond)
 
