@@ -1,7 +1,6 @@
 package factory
 
 import (
-	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/logger"
 )
 
@@ -19,26 +18,15 @@ type Configuration struct {
 	DefaultBdtRefId string
 	AmfUri          string
 	UdrUri          string
-	WebuiUri        string
 	ServiceList     []Service
-
-	// config received from RoC
-	DnnList   map[string][]string // sst+sd os key
-	SlicePlmn map[string]PlmnSupportItem
-
-	PlmnList []PlmnSupportItem `yaml:"plmnList,omitempty"`
 }
 
 type Service struct {
-	ServiceName string `yaml:"serviceName"`
-	SuppFeat    string `yaml:"suppFeat,omitempty"`
+	ServiceName string
+	SuppFeat    string
 }
 
 type Sbi struct {
-	BindingIPv4 string `yaml:"bindingIPv4,omitempty"` // IP used to run the server in the node.
-	Port        int    `yaml:"port,omitempty"`
-}
-
-type PlmnSupportItem struct {
-	PlmnId models.PlmnId `yaml:"plmnId"`
+	BindingIPv4 string
+	Port        int
 }

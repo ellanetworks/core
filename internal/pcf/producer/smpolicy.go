@@ -18,19 +18,11 @@ import (
 	"github.com/yeastengine/ella/internal/pcf/util"
 )
 
-// SmPoliciesPost -
 func HandleCreateSmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
 	logger.SMpolicylog.Infof("Handle CreateSmPolicy")
-	// step 2: retrieve request
 	requestDataType := request.Body.(models.SmPolicyContextData)
-
-	// step 3: handle the message
 	header, response, problemDetails := createSMPolicyProcedure(requestDataType)
-
-	// step 4: process the return value from step 3
 	if response != nil {
-		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusCreated, header, response)
 	} else if problemDetails != nil {
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
@@ -117,17 +109,18 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	// Check if local config has pre-configured pccrules, sessionrules for the slice(via ROC)
 	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
 	sliceid := sstStr + request.SliceInfo.Sd
-	self := pcf_context.PCF_Self()
 	imsi := strings.TrimPrefix(ue.Supi, "imsi-")
-	if subsPolicyData, ok := self.PcfSubscriberPolicyData[imsi]; ok {
-		logger.SMpolicylog.Infof("Supi[%s] exist in PcfSubscriberPolicyData", imsi)
+	subscriberPolicies := pcf_context.GetSubscriberPolicies()
+	logger.SMpolicylog.Warnf("SubscriberPolicies: %v", subscriberPolicies)
+	if subsPolicyData, ok := subscriberPolicies[imsi]; ok {
+		logger.SMpolicylog.Infof("Found an existing policy for subscriber [%s]", imsi)
 		if PccPolicy, ok1 := subsPolicyData.PccPolicy[sliceid]; ok1 {
 			if sessPolicy, exist := PccPolicy.SessionPolicy[request.Dnn]; exist {
 				for _, sessRule := range sessPolicy.SessionRules {
 					decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
 				}
 			} else {
-				logger.SMpolicylog.Infof("Requested Dnn[%s] is not exist in local policy", request.Dnn)
+				logger.SMpolicylog.Warnf("Requested Dnn [%s] does not exist in local policy", request.Dnn)
 				problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
 				return nil, nil, &problemDetail
 			}
@@ -153,44 +146,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		logger.SMpolicylog.Warnf("Can't find UE[%s] in local policy", ue.Supi)
 		return nil, nil, &problemDetail
 	}
-	/*var ambr *models.Ambr
-	//sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
-	if cAmbr, ok := pcfSelf.AmbrMap[sstStr+request.SliceInfo.Sd]; !ok {
-		ambr = request.SubsSessAmbr
-	} else {
-		ambr = &cAmbr
-	}*/
-	/*	SessRuleId := fmt.Sprintf("SessRuleId-%d", request.PduSessionId)
-		sessRule := models.SessionRule{
-			AuthSessAmbr: ambr,
-			SessRuleId:   SessRuleId,
-			// RefUmData
-			// RefCondData
-		}
 
-		//Check if local config has pre-configured def Qos for the slice(via ROC)
-		var defQos *models.SubscribedDefaultQos
-		if dQos, ok := pcfSelf.DefQosMap[sstStr+request.SliceInfo.Sd]; !ok {
-			defQos = request.SubsDefQos
-		} else {
-			//ARP and Priority not coming from ROC yet, copy from request
-			dQos.Arp = request.SubsDefQos.Arp
-			dQos.PriorityLevel = request.SubsDefQos.PriorityLevel
-			defQos = &dQos
-		}
-
-		if defQos != nil {
-			sessRule.AuthDefQos = &models.AuthorizedDefaultQos{
-				Var5qi:        defQos.Var5qi,
-				Arp:           defQos.Arp,
-				PriorityLevel: defQos.PriorityLevel,
-				// AverWindow
-				// MaxDataBurstVol
-			}
-		}
-		decision.SessRules[SessRuleId] = &sessRule
-	*/
-	// TODO: See how UDR used
 	dnnData := util.GetSMPolicyDnnData(smData, request.SliceInfo, request.Dnn)
 	if dnnData != nil {
 		decision.Online = dnnData.Online

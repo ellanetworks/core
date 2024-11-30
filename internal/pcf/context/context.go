@@ -10,9 +10,9 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
-	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/pcf/factory"
 	"github.com/yeastengine/ella/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/webui/configapi"
 )
 
 var pcfCtx *PCFContext
@@ -27,7 +27,12 @@ func init() {
 	pcfCtx.PcfServiceUris = make(map[models.ServiceName]string)
 	pcfCtx.PcfSuppFeats = make(map[models.ServiceName]openapi.SupportedFeature)
 	pcfCtx.BdtPolicyIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
-	pcfCtx.PcfSubscriberPolicyData = make(map[string]*PcfSubscriberPolicyData)
+	pcfCtx.SessionRuleIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
+	pcfCtx.QoSDataIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
+}
+
+type PlmnSupportItem struct {
+	PlmnId models.PlmnId
 }
 
 type PCFContext struct {
@@ -50,19 +55,19 @@ type PCFContext struct {
 	// App Session related
 	AppSessionPool sync.Map
 	// AMF Status Change Subscription related
-	AMFStatusSubsData       sync.Map                            // map[string]AMFStatusSubscriptionData; subscriptionID as key
-	PcfSubscriberPolicyData map[string]*PcfSubscriberPolicyData // subscriberId is key
+	AMFStatusSubsData sync.Map // map[string]AMFStatusSubscriptionData; subscriptionID as key
 
-	DnnList  []string
-	PlmnList []factory.PlmnSupportItem
-	SBIPort  int
+	DnnList []string
+	SBIPort int
 	// lock
 	DefaultUdrURILock sync.RWMutex
+
+	SessionRuleIDGenerator *idgenerator.IDGenerator
+	QoSDataIDGenerator     *idgenerator.IDGenerator
 }
 
 type SessionPolicy struct {
-	SessionRules           map[string]*models.SessionRule
-	SessionRuleIdGenerator *idgenerator.IDGenerator
+	SessionRules map[string]*models.SessionRule
 }
 
 type PccPolicy struct {
@@ -70,11 +75,10 @@ type PccPolicy struct {
 	QosDecs       map[string]*models.QosData
 	TraffContDecs map[string]*models.TrafficControlData
 	SessionPolicy map[string]*SessionPolicy // dnn is key
-	IdGenerator   *idgenerator.IDGenerator
 }
+
 type PcfSubscriberPolicyData struct {
 	PccPolicy map[string]*PccPolicy // sst+sd is key
-	CtxLog    *logrus.Entry
 	Supi      string
 }
 
@@ -393,64 +397,116 @@ func (sess SessionPolicy) String() string {
 	return s
 }
 
-func (c *PCFContext) DisplayPcfSubscriberPolicyData(imsi string) {
-	logger.CtxLog.Infof("Pcf Subscriber [%v] Policy Details :", imsi)
-	subs, exist := pcfCtx.PcfSubscriberPolicyData[imsi]
-	if !exist {
-		logger.CtxLog.Infof("Pcf Subscriber [%v] not exist", imsi)
-	} else {
-		for slice, val := range subs.PccPolicy {
-			subs.CtxLog.Infof("   SliceId: %v", slice)
-			for name, srule := range val.SessionPolicy {
-				subs.CtxLog.Infof("   Session-Name/Dnn: %v", name)
-				for _, srules := range srule.SessionRules {
-					logger.CtxLog.Infof("   SessionRuleId: %v", srules.SessRuleId)
-					if srules.AuthSessAmbr != nil {
-						logger.CtxLog.Infof("   AmbrUplink  %v", srules.AuthSessAmbr.Uplink)
-						logger.CtxLog.Infof("   AmbrDownlink  %v", srules.AuthSessAmbr.Downlink)
-					}
-					if srules.AuthDefQos != nil {
-						logger.CtxLog.Infof("    DefQos.5qi: %v", srules.AuthDefQos.Var5qi)
-						if srules.AuthDefQos.Arp != nil {
-							logger.CtxLog.Infof("    DefQos.Arp.PriorityLevel: %v", srules.AuthDefQos.Arp.PriorityLevel)
-							logger.CtxLog.Infof("    DefQos.Arp.PreemptCapability: %v", srules.AuthDefQos.Arp.PreemptCap)
-							logger.CtxLog.Infof("    DefQos.Arp.PreemptVulnerability: %v", srules.AuthDefQos.Arp.PreemptVuln)
-						}
-						logger.CtxLog.Infof("    DefQos.prioritylevel: %v", srules.AuthDefQos.PriorityLevel)
-					}
-				}
-			}
-			for rulename, rule := range val.PccRules {
-				logger.CtxLog.Infof("   PccRule-Name: %v", rulename)
-				logger.CtxLog.Infof("   PccRule-Id: %v", rule.PccRuleId)
-				logger.CtxLog.Infof("   Precedence: %v", rule.Precedence)
+func GetPLMNList() []PlmnSupportItem {
+	plmnSupportList := make([]PlmnSupportItem, 0)
+	networkSliceNames := configapi.ListNetworkSlices()
+	for _, networkSliceName := range networkSliceNames {
+		networkSlice := configapi.GetNetworkSliceByName2(networkSliceName)
+		plmnID := models.PlmnId{
+			Mcc: networkSlice.SiteInfo.Plmn.Mcc,
+			Mnc: networkSlice.SiteInfo.Plmn.Mnc,
+		}
+		plmnSupportItem := PlmnSupportItem{
+			PlmnId: plmnID,
+		}
+		plmnSupportList = append(plmnSupportList, plmnSupportItem)
+	}
+	return plmnSupportList
+}
 
-				for _, flow := range rule.FlowInfos {
-					logger.CtxLog.Infof("   FlowDescription: %v", flow.FlowDescription)
-					logger.CtxLog.Infof("   TosTrafficClass: %v", flow.TosTrafficClass)
-					logger.CtxLog.Infof("   FlowDirection: %v", flow.FlowDirection)
-				}
-			}
-			logger.CtxLog.Infof("   Qos Details")
-			for _, qos := range val.QosDecs {
-				logger.CtxLog.Infof("     QosId: %v", qos.QosId)
-				logger.CtxLog.Infof("     5qi: %v", qos.Var5qi)
-				logger.CtxLog.Infof("     MaxbrUl: %v", qos.MaxbrUl)
-				logger.CtxLog.Infof("     MaxbrDl: %v", qos.MaxbrDl)
-				logger.CtxLog.Infof("     GbrDl: %v", qos.GbrDl)
-				logger.CtxLog.Infof("     GbrUl: %v", qos.GbrUl)
-				logger.CtxLog.Infof("     PriorityLevel: %v", qos.PriorityLevel)
-				if qos.Arp != nil {
-					logger.CtxLog.Infof("    Arp.PreemptCapability: %v", qos.Arp.PreemptCap)
-					logger.CtxLog.Infof("    Arp.PreemptVulnerability: %v", qos.Arp.PreemptVuln)
-				}
-			}
+func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
+	subscriberPolicies := make(map[string]*PcfSubscriberPolicyData)
 
-			logger.CtxLog.Infof("   Traffic Control Details")
-			for _, t := range val.TraffContDecs {
-				logger.CtxLog.Infof("     TcId: %v", t.TcId)
-				logger.CtxLog.Infof("     FlowStatus: %v", t.FlowStatus)
+	networkSliceNames := configapi.ListNetworkSlices()
+	for _, networkSliceName := range networkSliceNames {
+		networkSlice := configapi.GetNetworkSliceByName2(networkSliceName)
+		pccPolicyId := networkSlice.SliceId.Sst + networkSlice.SliceId.Sd
+		deviceGroupNames := networkSlice.SiteDeviceGroup
+		for _, devGroupName := range deviceGroupNames {
+			deviceGroup := configapi.GetDeviceGroupByName2(devGroupName)
+			for _, imsi := range deviceGroup.Imsis {
+				if _, exists := subscriberPolicies[imsi]; !exists {
+					subscriberPolicies[imsi] = &PcfSubscriberPolicyData{
+						Supi:      imsi,
+						PccPolicy: make(map[string]*PccPolicy),
+					}
+				}
+
+				if _, exists := subscriberPolicies[imsi].PccPolicy[pccPolicyId]; !exists {
+					subscriberPolicies[imsi].PccPolicy[pccPolicyId] = &PccPolicy{
+						SessionPolicy: make(map[string]*SessionPolicy),
+						PccRules:      make(map[string]*models.PccRule),
+						QosDecs:       make(map[string]*models.QosData),
+						TraffContDecs: make(map[string]*models.TrafficControlData),
+					}
+				}
+
+				dnn := deviceGroup.IpDomainExpanded.Dnn
+				if _, exists := subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[dnn]; !exists {
+					subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[dnn] = &SessionPolicy{
+						SessionRules: make(map[string]*models.SessionRule),
+					}
+				}
+
+				// Generate IDs using ID generators
+				qosId, _ := pcfCtx.QoSDataIDGenerator.Allocate()
+				sessionRuleId, _ := pcfCtx.SessionRuleIDGenerator.Allocate()
+
+				ul, uunit := GetBitRateUnit(deviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink)
+				dl, dunit := GetBitRateUnit(deviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink)
+
+				// Create QoS data
+				qosData := &models.QosData{
+					QosId:                strconv.FormatInt(qosId, 10),
+					Var5qi:               deviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
+					MaxbrUl:              strconv.FormatInt(ul, 10) + uunit,
+					MaxbrDl:              strconv.FormatInt(dl, 10) + dunit,
+					Arp:                  &models.Arp{PriorityLevel: deviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Arp},
+					DefQosFlowIndication: true,
+				}
+				subscriberPolicies[imsi].PccPolicy[pccPolicyId].QosDecs[qosData.QosId] = qosData
+
+				// Add session rule
+				subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[dnn].SessionRules[strconv.FormatInt(sessionRuleId, 10)] = &models.SessionRule{
+					SessRuleId: strconv.FormatInt(sessionRuleId, 10),
+					AuthDefQos: &models.AuthorizedDefaultQos{
+						Var5qi: qosData.Var5qi,
+						Arp:    qosData.Arp,
+					},
+					AuthSessAmbr: &models.Ambr{
+						Uplink:   strconv.FormatInt(ul, 10) + uunit,
+						Downlink: strconv.FormatInt(dl, 10) + dunit,
+					},
+				}
 			}
 		}
 	}
+
+	return subscriberPolicies
+}
+
+func GetBitRateUnit(val int64) (int64, string) {
+	unit := " Kbps"
+	if val < 1000 {
+		logger.GrpcLog.Warnf("configured value [%v] is lesser than 1000 bps, so setting 1 Kbps", val)
+		val = 1
+		return val, unit
+	}
+	if val >= 0xFFFF {
+		val = (val / 1000)
+		unit = " Kbps"
+		if val >= 0xFFFF {
+			val = (val / 1000)
+			unit = " Mbps"
+		}
+		if val >= 0xFFFF {
+			val = (val / 1000)
+			unit = " Gbps"
+		}
+	} else {
+		// minimum supported is kbps by SMF/UE
+		val = val / 1000
+	}
+
+	return val, unit
 }

@@ -1322,7 +1322,7 @@ func flowDescFromN5toN7(n5Flow string) (n7Flow string, direction models.FlowDire
 		n7Flow = strings.Replace(n5Flow, "permit inout", "permit out", -1)
 		direction = models.FlowDirection_BIDIRECTIONAL
 	} else {
-		err = fmt.Errorf("Invaild flow Description[%s]", n5Flow)
+		err = fmt.Errorf("invaild flow Description[%s]", n5Flow)
 	}
 	return
 }

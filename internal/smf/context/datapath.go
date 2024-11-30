@@ -109,7 +109,6 @@ func (node *DataPathNode) ActivateUpLinkTunnel(smContext *SMContext) error {
 	var err error
 	var pdr *PDR
 	var flowQer *QER
-	logger.CtxLog.Debugln("in ActivateUpLinkTunnel")
 	node.UpLinkTunnel.SrcEndPoint = node.Prev()
 	node.UpLinkTunnel.DestEndPoint = node
 
@@ -124,6 +123,8 @@ func (node *DataPathNode) ActivateUpLinkTunnel(smContext *SMContext) error {
 		for name, rule := range addRules {
 			if pdr, err = destUPF.BuildCreatePdrFromPccRule(rule); err == nil {
 				// Add PCC Rule Qos Data QER
+				logger.AppLog.Warnf("PCC Rule : %v", rule)
+				logger.AppLog.Warnf("PCC Rule Qos Data: %v", rule.RefQosData)
 				if flowQer, err = node.CreatePccRuleQer(smContext, rule.RefQosData[0], rule.RefTcData[0]); err == nil {
 					pdr.QER = append(pdr.QER, flowQer)
 				}
@@ -134,8 +135,6 @@ func (node *DataPathNode) ActivateUpLinkTunnel(smContext *SMContext) error {
 	} else {
 		// Default PDR
 		if pdr, err = destUPF.AddPDR(); err != nil {
-			logger.CtxLog.Errorln("in ActivateUpLinkTunnel UPF IP:", node.UPF.NodeID.ResolveNodeIdToIp().String())
-			logger.CtxLog.Errorln("allocate PDR error:", err)
 			return fmt.Errorf("add PDR failed: %s", err)
 		} else {
 			node.UpLinkTunnel.PDR["default"] = pdr
@@ -440,6 +439,9 @@ func (dpNode *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error
 	smPolicyDec := smContext.SmPolicyUpdates[0].SmPolicyDecision
 
 	defQosData := qos.GetDefaultQoSDataFromPolicyDecision(smPolicyDec)
+	if defQosData == nil {
+		return nil, fmt.Errorf("default QOS Data not found in Policy Decision")
+	}
 	if newQER, err := dpNode.UPF.AddQER(); err != nil {
 		logger.PduSessLog.Errorln("new QER failed")
 		return nil, err
@@ -468,7 +470,6 @@ func (dpNode *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER,
 	} else {
 		ueIpAddr.V4 = true
 		ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
-		logger.AppLog.Warnf("UE IP Address: %v", ueIpAddr.Ipv4Address)
 	}
 
 	curULTunnel := dpNode.UpLinkTunnel
