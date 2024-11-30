@@ -271,6 +271,7 @@ func InitUserPlaneInformation() {
 		NodeID: *upfNodeID,
 		Links:  make([]*UPNode, 0),
 		Port:   8806,
+		Dnn:    "internet",
 	}
 	userPlaneInformation := &UserPlaneInformation{
 		UPNodes:              make(map[string]*UPNode),

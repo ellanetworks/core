@@ -36,11 +36,9 @@ func SendToRan(ran *context.AmfRan, packet []byte) {
 		return
 	}
 
-	if n, err := ran.Conn.Write(packet); err != nil {
+	if _, err := ran.Conn.Write(packet); err != nil {
 		ran.Log.Errorf("Send error: %+v", err)
 		return
-	} else {
-		ran.Log.Debugf("Write %d bytes", n)
 	}
 }
 
