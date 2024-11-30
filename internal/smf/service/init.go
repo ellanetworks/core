@@ -54,8 +54,6 @@ func (smf *SMF) setLogLevel() {
 }
 
 func (smf *SMF) Start() {
-	initLog.Infoln("SMF app initialising...")
-
 	// Initialise channel to stop SMF
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)

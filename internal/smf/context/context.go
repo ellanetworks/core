@@ -128,14 +128,6 @@ func InitSmfContext(config *factory.Configuration) *SMFContext {
 		smfContext.CPNodeID.NodeIdValue = addr.IP.To4()
 	}
 
-	// // Static config
-	// for _, snssaiInfoConfig := range config.SNssaiInfo {
-	// 	err := smfContext.insertSmfNssaiInfo(&snssaiInfoConfig)
-	// 	if err != nil {
-	// 		logger.CtxLog.Warnln(err)
-	// 	}
-	// }
-
 	smfContext.ULCLSupport = config.ULCL
 
 	smfContext.SupportedPDUSessionType = IPV4
@@ -242,54 +234,6 @@ func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
 	return alloc, nil
 }
 
-// type UPF struct {
-// 	SNssaiInfos        []SnssaiUPFInfo
-// 	N3Interfaces       []UPFInterfaceInfo
-// 	N9Interfaces       []UPFInterfaceInfo
-// 	UPFunctionFeatures *UPFunctionFeatures
-
-// 	pdrPool sync.Map
-// 	farPool sync.Map
-// 	barPool sync.Map
-// 	qerPool sync.Map
-// 	// urrPool        sync.Map
-// 	pdrIDGenerator *idgenerator.IDGenerator
-// 	farIDGenerator *idgenerator.IDGenerator
-// 	barIDGenerator *idgenerator.IDGenerator
-// 	qerIDGenerator *idgenerator.IDGenerator
-
-// 	RecoveryTimeStamp RecoveryTimeStamp
-// 	NodeID            NodeID
-// 	UPFStatus         UPFStatus
-// 	uuid              uuid.UUID
-// 	Port              uint16
-// 	NHeartBeat        uint8
-
-// 	// lock
-// 	UpfLock sync.RWMutex
-// }
-
-// Correct UserPlaneInformation
-// UserPlaneInformation: &{
-// map[0.0.0.0:0xc0001f4400 dev2-gnbsim:0xc0001f4680]
-// map[0.0.0.0:0xc0001f4400]
-// map[dev2-gnbsim:0xc0001f4680]
-// map[0.0.0.0:0.0.0.0 <nil>:dev2-gnbsim]
-// map[0.0.0.0:1fcf163a-5c93-4656-b81e-5679e8daffa8]
-// map[0.0.0.0:1fcf163a-5c93-4656-b81e-5679e8daffa8]
-// map[Dnn: internet
-//
-//	Sst: 1, Sd: 102030
-//	:[0xc0001f4400]]}
-//
-// Current UserPlaneInformation
-// UserPlaneInformation: &{
-// map[0.0.0.0:0xc0008b7880 1.1.1.1:0xc0008b7900]
-// map[0.0.0.0:0xc0008b7880]
-// map[1.1.1.1:0xc0008b7900]
-// map[]
-// map[]}
-
 func InitUserPlaneInformation() {
 	smfSelf := SMF_Self()
 	upfNodeID := NewNodeID("0.0.0.0")
@@ -351,117 +295,4 @@ func InitUserPlaneInformation() {
 
 func GetUserPlaneInformation() *UserPlaneInformation {
 	return SMF_Self().UserPlaneInformation
-}
-
-// func ProcessConfigUpdate() bool {
-// 	logger.CtxLog.Infof("Dynamic config update received [%+v]", factory.UpdatedSmfConfig)
-
-// 	// Lets check updated config
-// 	updatedCfg := factory.UpdatedSmfConfig
-
-// 	// Lets parse through network slice configs first
-// 	if updatedCfg.DelSNssaiInfo != nil {
-// 		for _, slice := range *updatedCfg.DelSNssaiInfo {
-// 			err := SMF_Self().deleteSmfNssaiInfo(&slice)
-// 			if err != nil {
-// 				logger.CtxLog.Errorf("delete network slice [%v] failed: %v", slice, err)
-// 			}
-// 		}
-// 		factory.UpdatedSmfConfig.DelSNssaiInfo = nil
-// 	}
-
-// 	if updatedCfg.AddSNssaiInfo != nil {
-// 		for _, slice := range *updatedCfg.AddSNssaiInfo {
-// 			err := SMF_Self().insertSmfNssaiInfo(&slice)
-// 			if err != nil {
-// 				logger.CtxLog.Errorf("insert network slice [%v] failed: %v", slice, err)
-// 			}
-// 		}
-// 		factory.UpdatedSmfConfig.AddSNssaiInfo = nil
-// 	}
-
-// 	if updatedCfg.ModSNssaiInfo != nil {
-// 		for _, slice := range *updatedCfg.ModSNssaiInfo {
-// 			err := SMF_Self().updateSmfNssaiInfo(&slice)
-// 			if err != nil {
-// 				logger.CtxLog.Errorf("update network slice [%v] failed: %v", slice, err)
-// 			}
-// 		}
-// 		factory.UpdatedSmfConfig.ModSNssaiInfo = nil
-// 	}
-
-// 	// UP Node Links should be deleted before underlying UPFs are deleted
-// 	if updatedCfg.DelLinks != nil {
-// 		for _, link := range *updatedCfg.DelLinks {
-// 			err := GetUserPlaneInformation().DeleteUPNodeLinks(&link)
-// 			if err != nil {
-// 				logger.CtxLog.Errorf("delete UP Node Links failed: %v", err)
-// 			}
-// 		}
-// 		factory.UpdatedSmfConfig.DelLinks = nil
-// 	}
-
-// 	// Iterate through UserPlane Info
-// 	if updatedCfg.DelUPNodes != nil {
-// 		for name, upf := range *updatedCfg.DelUPNodes {
-// 			err := GetUserPlaneInformation().DeleteSmfUserPlaneNode(name, &upf)
-// 			if err != nil {
-// 				logger.CtxLog.Errorf("delete UP Node [%s] failed: %v", name, err)
-// 			}
-// 		}
-// 		factory.UpdatedSmfConfig.DelUPNodes = nil
-// 	}
-
-// 	if updatedCfg.AddUPNodes != nil {
-// 		for name, upf := range *updatedCfg.AddUPNodes {
-// 			err := GetUserPlaneInformation().InsertSmfUserPlaneNode(name, &upf)
-// 			if err != nil {
-// 				logger.CtxLog.Errorf("insert UP Node [%s] failed: %v", name, err)
-// 			}
-// 		}
-// 		factory.UpdatedSmfConfig.AddUPNodes = nil
-// 		AllocateUPFID()
-// 		// TODO: allocate UPF ID
-// 	}
-
-// 	if updatedCfg.ModUPNodes != nil {
-// 		for name, upf := range *updatedCfg.ModUPNodes {
-// 			err := GetUserPlaneInformation().UpdateSmfUserPlaneNode(name, &upf)
-// 			if err != nil {
-// 				logger.CtxLog.Errorf("update UP Node [%s] failed: %v", name, err)
-// 			}
-// 		}
-// 		factory.UpdatedSmfConfig.ModUPNodes = nil
-// 	}
-
-// 	// Iterate through add UP Node Links info
-// 	// UP Links should be added only after underlying UPFs have been added
-// 	if updatedCfg.AddLinks != nil {
-// 		for _, link := range *updatedCfg.AddLinks {
-// 			err := GetUserPlaneInformation().InsertUPNodeLinks(&link)
-// 			if err != nil {
-// 				logger.CtxLog.Errorf("insert UP Node Links failed: %v", err)
-// 			}
-// 		}
-// 		factory.UpdatedSmfConfig.AddLinks = nil
-// 	}
-
-// 	// Update Enterprise Info
-// 	SMF_Self().EnterpriseList = updatedCfg.EnterpriseList
-// 	logger.CtxLog.Infof("Dynamic config update, enterprise info [%v] ", *updatedCfg.EnterpriseList)
-
-// 	// Any time config changes(Slices/UPFs/Links) then reset Default path(Key= nssai+Dnn)
-// 	GetUserPlaneInformation().ResetDefaultUserPlanePath()
-
-// 	return true
-// }
-
-func (smfCtxt *SMFContext) GetDnnStaticIpInfo(dnn string) *factory.StaticIpInfo {
-	for _, info := range *smfCtxt.StaticIpInfo {
-		if info.Dnn == dnn {
-			logger.CfgLog.Debugf("get static ip info for dnn [%s] found [%v]", dnn, info)
-			return &info
-		}
-	}
-	return nil
 }

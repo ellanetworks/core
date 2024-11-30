@@ -10,13 +10,8 @@ var (
 	SmfConfigSyncLock sync.Mutex
 )
 
-func InitConfigFactory(c Configuration) error {
+func InitConfigFactory(c Configuration) {
 	SmfConfig = c
-	// gClient := client.ConnectToConfigServer(SmfConfig.WebuiUri, "smf")
-	// commChannel := gClient.PublishOnConfigChange(false)
-	// go SmfConfig.updateConfig(commChannel)
-
-	return nil
 }
 
 func InitRoutingConfigFactory(c RoutingConfig) {

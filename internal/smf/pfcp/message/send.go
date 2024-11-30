@@ -75,7 +75,7 @@ func SendPfcpAssociationSetupRequest(upNodeID smf_context.NodeID, upfPort uint16
 	if err != nil {
 		return err
 	}
-	logger.PfcpLog.Infof("Sent PFCP Association Request to UPF: %s", upNodeID.ResolveNodeIdToIp().String())
+	logger.PfcpLog.Infof("sent PFCP Association Request to UPF: %s", upNodeID.ResolveNodeIdToIp().String())
 	return nil
 }
 
@@ -89,7 +89,7 @@ func SendPfcpAssociationSetupResponse(upNodeID smf_context.NodeID, cause uint8, 
 	if err != nil {
 		return err
 	}
-	logger.PfcpLog.Infof("Sent PFCP Association Response to NodeID[%s]", upNodeID.ResolveNodeIdToIp().String())
+	logger.PfcpLog.Infof("sent PFCP Association Response to NodeID[%s]", upNodeID.ResolveNodeIdToIp().String())
 	return nil
 }
 
@@ -103,7 +103,7 @@ func SendPfcpAssociationReleaseResponse(upNodeID smf_context.NodeID, cause uint8
 	if err != nil {
 		return err
 	}
-	logger.PfcpLog.Infof("Sent PFCP Association Release Response to NodeID[%s]", upNodeID.ResolveNodeIdToIp().String())
+	logger.PfcpLog.Infof("sent PFCP Association Release Response to NodeID[%s]", upNodeID.ResolveNodeIdToIp().String())
 	return nil
 }
 

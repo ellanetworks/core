@@ -44,7 +44,6 @@ func (nssf *NSSF) setLogLevel() {
 }
 
 func (nssf *NSSF) Start() {
-	initLog.Infoln("Server started")
 
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 

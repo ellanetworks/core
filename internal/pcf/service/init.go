@@ -50,7 +50,6 @@ func (pcf *PCF) setLogLevel() {
 }
 
 func (pcf *PCF) Start() {
-	initLog.Infoln("Server started")
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 
 	bdtpolicy.AddService(router)

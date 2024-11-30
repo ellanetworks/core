@@ -48,8 +48,6 @@ func (webui *WEBUI) Start() {
 	// Connect to MongoDB
 	dbadapter.ConnectMongo(mongodb.Url, mongodb.Name, mongodb.AuthUrl, mongodb.AuthKeysDbName)
 
-	initLog.Infoln("WebUI Server started")
-
 	/* First HTTP Server running at port to receive Config from ROC */
 	subconfig_router := logger_util.NewGinWithLogrus(logger.GinLog)
 	AddUiService(subconfig_router)
