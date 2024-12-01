@@ -275,21 +275,21 @@ func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 	node.DownLinkTunnel = &GTPTunnel{}
 }
 
-func (node *DataPathNode) GetUPFID() (id string, err error) {
-	node_ip := node.GetNodeIP()
-	var exist bool
+// func (node *DataPathNode) GetUPFID() (id string, err error) {
+// 	node_ip := node.GetNodeIP()
+// 	var exist bool
 
-	userPlaneInformation := GetUserPlaneInformation()
-	if id, exist = userPlaneInformation.UPFsIPtoID[node_ip]; !exist {
-		AllocateUPFID()
-		if id, exist = userPlaneInformation.UPFsIPtoID[node_ip]; !exist {
-			err = fmt.Errorf("UPNode IP %s doesn't exist in smfcfg.yaml", node_ip)
-			return "", err
-		}
-	}
+// 	userPlaneInformation := GetUserPlaneInformation()
+// 	if id, exist = userPlaneInformation.UPFsIPtoID[node_ip]; !exist {
+// 		AllocateUPFID()
+// 		if id, exist = userPlaneInformation.UPFsIPtoID[node_ip]; !exist {
+// 			err = fmt.Errorf("UPNode IP %s doesn't exist in smfcfg.yaml", node_ip)
+// 			return "", err
+// 		}
+// 	}
 
-	return id, nil
-}
+// 	return id, nil
+// }
 
 func (node *DataPathNode) GetNodeIP() (ip string) {
 	ip = node.UPF.NodeID.ResolveNodeIdToIp().String()

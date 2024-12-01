@@ -296,12 +296,6 @@ func RemoveUPFNodeByNodeID(nodeID NodeID) bool {
 	return false
 }
 
-func (upf *UPF) GetUPFID() string {
-	upInfo := GetUserPlaneInformation()
-	upfIP := upf.NodeID.ResolveNodeIdToIp().String()
-	return upInfo.GetUPFIDByIP(upfIP)
-}
-
 func (upf *UPF) pdrID() (uint16, error) {
 	if upf.UPFStatus != AssociatedSetUpSuccess {
 		err := fmt.Errorf("this upf not associate with smf")

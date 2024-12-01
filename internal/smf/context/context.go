@@ -249,13 +249,11 @@ func InitUserPlaneInformation() {
 	}
 	userPlaneInformation := &UserPlaneInformation{
 		UPNodes:              make(map[string]*UPNode),
-		UPFs:                 make(map[string]*UPNode),
+		UPF:                  upfNode,
 		AccessNetwork:        make(map[string]*UPNode),
-		UPFsIPtoID:           make(map[string]string),
 		DefaultUserPlanePath: make(map[string][]*UPNode),
 	}
-	userPlaneInformation.UPNodes[upfName] = upfNode
-	userPlaneInformation.UPFs[upfName] = upfNode
+
 	gnbNode := &UPNode{
 		Type:   UPNODE_AN,
 		NodeID: *gnbNodeID,
@@ -267,6 +265,7 @@ func InitUserPlaneInformation() {
 	upfNode.Links = append(upfNode.Links, gnbNode)
 	userPlaneInformation.AccessNetwork[gnbName] = gnbNode
 	userPlaneInformation.UPNodes[gnbName] = gnbNode
+	userPlaneInformation.UPNodes[upfName] = upfNode
 	smfSelf.UserPlaneInformation = userPlaneInformation
 }
 

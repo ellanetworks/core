@@ -8,9 +8,8 @@ import (
 
 type UserPlaneInformation struct {
 	UPNodes              map[string]*UPNode
-	UPFs                 map[string]*UPNode
+	UPF                  *UPNode
 	AccessNetwork        map[string]*UPNode
-	UPFsIPtoID           map[string]string    // ip->id table, for speed optimization
 	DefaultUserPlanePath map[string][]*UPNode // DNN to Default Path
 }
 
@@ -33,30 +32,6 @@ type UPNode struct {
 
 type UPPath []*UPNode
 
-func AllocateUPFID() {
-	userPlaneInformation := GetUserPlaneInformation()
-	UPFsIPtoID := userPlaneInformation.UPFsIPtoID
-
-	for _, upfNode := range userPlaneInformation.UPFs {
-		upfid := upfNode.UPF.UUID()
-		upfip := upfNode.NodeID.ResolveNodeIdToIp().String()
-
-		UPFsIPtoID[upfip] = upfid
-	}
-}
-
-func (upi *UserPlaneInformation) GetUPFNodeIDByName(name string) NodeID {
-	return upi.UPFs[name].NodeID
-}
-
-func (upi *UserPlaneInformation) GetUPFIDByIP(ip string) string {
-	return upi.UPFsIPtoID[ip]
-}
-
-func (upi *UserPlaneInformation) ResetDefaultUserPlanePath() {
-	upi.DefaultUserPlanePath = make(map[string][]*UPNode)
-}
-
 func (upi *UserPlaneInformation) GetDefaultUserPlanePathByDNN(selection *UPFSelectionParams) (UPPath, error) {
 	path, pathExist := upi.DefaultUserPlanePath[selection.String()]
 	if pathExist {
@@ -67,11 +42,6 @@ func (upi *UserPlaneInformation) GetDefaultUserPlanePathByDNN(selection *UPFSele
 		return nil, fmt.Errorf("couldn't generate default path: %v", err)
 	}
 	return upi.DefaultUserPlanePath[selection.String()], nil
-}
-
-func (upi *UserPlaneInformation) ExistDefaultPath(dnn string) bool {
-	_, exist := upi.DefaultUserPlanePath[dnn]
-	return exist
 }
 
 func GenerateDataPath(upPath UPPath, smContext *SMContext) (*DataPath, error) {
@@ -157,17 +127,15 @@ func (upi *UserPlaneInformation) GenerateDefaultPath(selection *UPFSelectionPara
 func (upi *UserPlaneInformation) selectMatchUPF(selection *UPFSelectionParams) []*UPNode {
 	upList := make([]*UPNode, 0)
 
-	for _, upNode := range upi.UPFs {
-		for _, snssaiInfo := range upNode.UPF.SNssaiInfos {
-			currentSnssai := &snssaiInfo.SNssai
-			targetSnssai := selection.SNssai
+	for _, snssaiInfo := range upi.UPF.UPF.SNssaiInfos {
+		currentSnssai := &snssaiInfo.SNssai
+		targetSnssai := selection.SNssai
 
-			if currentSnssai.Equal(targetSnssai) {
-				for _, dnnInfo := range snssaiInfo.DnnList {
-					if dnnInfo.Dnn == selection.Dnn && dnnInfo.ContainsDNAI(selection.Dnai) {
-						upList = append(upList, upNode)
-						break
-					}
+		if currentSnssai.Equal(targetSnssai) {
+			for _, dnnInfo := range snssaiInfo.DnnList {
+				if dnnInfo.Dnn == selection.Dnn && dnnInfo.ContainsDNAI(selection.Dnai) {
+					upList = append(upList, upi.UPF)
+					break
 				}
 			}
 		}
