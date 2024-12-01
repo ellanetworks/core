@@ -155,7 +155,6 @@ func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.Acc
 			logger.ContextLog.Errorf("Could not convert TAC to int: %v", err)
 		}
 		taiList[i].Tac = fmt.Sprintf("%06x", tmp)
-		logger.ContextLog.Infof("Supported Tai List in AMF Plmn: %v, Tac: %v", taiList[i].PlmnId, taiList[i].Tac)
 	}
 	for _, supportTai := range taiList {
 		if reflect.DeepEqual(supportTai, ue.Tai) {

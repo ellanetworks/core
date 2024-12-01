@@ -600,12 +600,10 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	} else {
 		var found bool
 		supportTaiList := context.GetSupportTaiList()
-		ran.Log.Warnf("Supported Tai list: %v", supportTaiList)
 		taiList := make([]models.Tai, len(supportTaiList))
 		copy(taiList, supportTaiList)
 		for i := range taiList {
 			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
-			ran.Log.Infof("Supported Tai List in AMF Plmn: %v, Tac: 0x%v Tac: %v", taiList[i].PlmnId, taiList[i].Tac, supportTaiList[i].Tac)
 		}
 
 		ran.Log.Warnf("Tai list: %v", taiList)
@@ -3876,7 +3874,6 @@ func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU
 		copy(taiList, supportTaiList)
 		for i := range taiList {
 			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
-			ran.Log.Infof("Supported Tai List in AMF Plmn: %v, Tac: %v", taiList[i].PlmnId, taiList[i].Tac)
 		}
 		for i, tai := range ran.SupportedTAList {
 			if context.InTaiList(tai.Tai, taiList) {

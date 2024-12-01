@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/yeastengine/ella/internal/upf/config"
@@ -52,6 +53,7 @@ func setBit(n uint8, pos uint) uint8 {
 // https://www.etsi.org/deliver/etsi_ts/129200_129299/129244/16.04.00_60/ts_129244v160400p.pdf page 95
 func HandlePfcpAssociationSetupRequest(conn *PfcpConnection, msg message.Message, addr string) (message.Message, error) {
 	asreq := msg.(*message.AssociationSetupRequest)
+	fmt.Println("HELLO")
 	logger.AppLog.Infof("Got Association Setup Request from: %s. \n", addr)
 	if asreq.NodeID == nil {
 		logger.AppLog.Warnf("Got Association Setup Request without NodeID from: %s", addr)

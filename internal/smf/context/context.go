@@ -1,6 +1,7 @@
 package context
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"os"
@@ -131,7 +132,7 @@ func InitSmfContext(config *factory.Configuration) *SMFContext {
 
 	smfContext.SupportedPDUSessionType = IPV4
 
-	InitUserPlaneInformation()
+	// InitUserPlaneInformation()
 	smfContext.ueIPAllocatorMapping = make(map[string]*IPAllocator)
 	smfContext.PodIp = os.Getenv("POD_IP")
 
@@ -208,67 +209,162 @@ func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
 	return alloc, nil
 }
 
-func InitUserPlaneInformation() {
-	smfSelf := SMF_Self()
-	upfNodeID := NewNodeID("0.0.0.0")
-	upfName := "0.0.0.0"
-	gnbNodeID := NewNodeID("1.1.1.1")
-	gnbName := "dev2-gnbsim"
+// Right now we only support 1 UPF
+// This function should be edited when we decide to support multiple UPFs
+func GetUserPlaneInformationFromConfig() *UserPlaneInformation {
+	networkSliceNames := configapi.ListNetworkSlices()
+	for _, networkSliceName := range networkSliceNames {
+		networkSlice := configapi.GetNetworkSliceByName2(networkSliceName)
+		for _, deviceGroupName := range networkSlice.SiteDeviceGroup {
+			deviceGroup := configapi.GetDeviceGroupByName2(deviceGroupName)
+			dnn := deviceGroup.IpDomainExpanded.Dnn
 
-	intfUpfInfoItem := factory.InterfaceUpfInfoItem{
-		InterfaceType:   models.UpInterfaceType_N3,
-		Endpoints:       make([]string, 0),
-		NetworkInstance: "internet",
-	}
-	ifaces := []factory.InterfaceUpfInfoItem{}
-	ifaces = append(ifaces, intfUpfInfoItem)
+			intfUpfInfoItem := factory.InterfaceUpfInfoItem{
+				InterfaceType:   models.UpInterfaceType_N3,
+				Endpoints:       make([]string, 0),
+				NetworkInstance: dnn,
+			}
+			ifaces := []factory.InterfaceUpfInfoItem{}
+			ifaces = append(ifaces, intfUpfInfoItem)
 
-	upf := NewUPF(upfNodeID, ifaces)
-	upf.SNssaiInfos = []SnssaiUPFInfo{
-		{
-			SNssai: SNssai{
-				Sst: 1,
-				Sd:  "102030",
-			},
-			DnnList: []DnnUPFInfoItem{
+			upfNameObj, exists := networkSlice.SiteInfo.Upf["upf-name"]
+			if !exists {
+				logger.CtxLog.Warnf("Key 'upf-name' does not exist in UPF info")
+				continue
+			}
+			upfPortObj, exists := networkSlice.SiteInfo.Upf["upf-port"]
+			if !exists {
+				logger.CtxLog.Warnf("Key 'upf-port' does not exist in UPF info")
+				continue
+			}
+
+			upfName, ok := upfNameObj.(string)
+			if !ok {
+				logger.CtxLog.Warnf("'upf-name' is not a string, actual type: %T, value: %v", upfNameObj, upfNameObj)
+				continue
+			}
+			upfPortStr, ok := upfPortObj.(string)
+			if !ok {
+				logger.CtxLog.Warnf("'upf-port' is not a string, actual type: %T, value: %v", upfPortObj, upfPortObj)
+				continue
+			}
+			upfNodeID := NewNodeID(upfName)
+			upf := NewUPF(upfNodeID, ifaces)
+			sstStr := networkSlice.SliceId.Sst
+			sstInt, err := strconv.Atoi(sstStr)
+			if err != nil {
+				logger.CtxLog.Errorf("Failed to convert sst to int: %v", err)
+				continue
+			}
+			upf.SNssaiInfos = []SnssaiUPFInfo{
 				{
-					Dnn: "internet",
+					SNssai: SNssai{
+						Sst: int32(sstInt),
+						Sd:  networkSlice.SliceId.Sd,
+					},
+					DnnList: []DnnUPFInfoItem{
+						{
+							Dnn: dnn,
+						},
+					},
 				},
-			},
-		},
-	}
-	upf.Port = 8806
-	upf.UPFStatus = AssociatedSetUpSuccess
-	upfNode := &UPNode{
-		Type:   UPNODE_UPF,
-		UPF:    upf,
-		NodeID: *upfNodeID,
-		Links:  make([]*UPNode, 0),
-		Port:   8806,
-		Dnn:    "internet",
-	}
-	userPlaneInformation := &UserPlaneInformation{
-		UPNodes:              make(map[string]*UPNode),
-		UPF:                  upfNode,
-		AccessNetwork:        make(map[string]*UPNode),
-		DefaultUserPlanePath: make(map[string][]*UPNode),
-	}
+			}
+			upfPort, err := strconv.Atoi(upfPortStr)
+			if err != nil {
+				logger.CtxLog.Errorf("Failed to convert upf port to int: %v", err)
+				continue
+			}
+			upf.Port = uint16(upfPort)
 
-	gnbNode := &UPNode{
-		Type:   UPNODE_AN,
-		NodeID: *gnbNodeID,
-		Links:  make([]*UPNode, 0),
-		Dnn:    "internet",
-		ANIP:   net.ParseIP("1.1.1.1"),
+			upfNode := &UPNode{
+				Type:   UPNODE_UPF,
+				UPF:    upf,
+				NodeID: *upfNodeID,
+				Links:  make([]*UPNode, 0),
+				Port:   uint16(upfPort),
+				Dnn:    dnn,
+			}
+			gnbNode := &UPNode{
+				Type:   UPNODE_AN,
+				NodeID: *NewNodeID("1.1.1.1"),
+				Links:  make([]*UPNode, 0),
+				Dnn:    dnn,
+			}
+			gnbNode.Links = append(gnbNode.Links, upfNode)
+			upfNode.Links = append(upfNode.Links, gnbNode)
+
+			userPlaneInformation := &UserPlaneInformation{
+				UPNodes:              make(map[string]*UPNode),
+				UPF:                  upfNode,
+				AccessNetwork:        make(map[string]*UPNode),
+				DefaultUserPlanePath: make(map[string][]*UPNode),
+			}
+			gnbName := networkSlice.SiteInfo.GNodeBs[0].Name
+			userPlaneInformation.AccessNetwork[gnbName] = gnbNode
+			userPlaneInformation.UPNodes[gnbName] = gnbNode
+			userPlaneInformation.UPNodes[upfName] = upfNode
+
+			return userPlaneInformation
+		}
 	}
-	gnbNode.Links = append(gnbNode.Links, upfNode)
-	upfNode.Links = append(upfNode.Links, gnbNode)
-	userPlaneInformation.AccessNetwork[gnbName] = gnbNode
-	userPlaneInformation.UPNodes[gnbName] = gnbNode
-	userPlaneInformation.UPNodes[upfName] = upfNode
-	smfSelf.UserPlaneInformation = userPlaneInformation
+	return nil
+}
+
+func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInformation) bool {
+	if configUserPlaneInfo == nil || contextUserPlaneInfo == nil {
+		return false
+	}
+	if len(configUserPlaneInfo.UPNodes) != len(contextUserPlaneInfo.UPNodes) {
+		return false
+	}
+	for nodeName, node := range configUserPlaneInfo.UPNodes {
+		if _, ok := contextUserPlaneInfo.UPNodes[nodeName]; !ok {
+			return false
+		}
+
+		if node.Type != contextUserPlaneInfo.UPNodes[nodeName].Type {
+			logger.CtxLog.Warnf("Node type mismatch for node %s", nodeName)
+			return false
+		}
+
+		if !bytes.Equal(node.NodeID.NodeIdValue, contextUserPlaneInfo.UPNodes[nodeName].NodeID.NodeIdValue) {
+			logger.CtxLog.Warnf("Node ID mismatch for node %s", nodeName)
+			return false
+		}
+
+		if node.Port != contextUserPlaneInfo.UPNodes[nodeName].Port {
+			logger.CtxLog.Warnf("Port mismatch for node %s", nodeName)
+			return false
+		}
+
+		if node.Dnn != contextUserPlaneInfo.UPNodes[nodeName].Dnn {
+			logger.CtxLog.Warnf("DNN mismatch for node %s", nodeName)
+			return false
+		}
+
+		if node.Type == UPNODE_UPF {
+			if !node.UPF.SNssaiInfos[0].SNssai.Equal(&contextUserPlaneInfo.UPNodes[nodeName].UPF.SNssaiInfos[0].SNssai) {
+				logger.CtxLog.Warnf("SNssai mismatch for node %s", nodeName)
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func UpdateUserPlaneInformation() {
+	smfSelf := SMF_Self()
+	configUserPlaneInfo := GetUserPlaneInformationFromConfig()
+	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)
+	if same {
+		logger.CtxLog.Info("Context user plane info matches config")
+		return
+	}
+	smfSelf.UserPlaneInformation = configUserPlaneInfo
+	logger.CtxLog.Info("Updated user plane information")
 }
 
 func GetUserPlaneInformation() *UserPlaneInformation {
+	UpdateUserPlaneInformation()
 	return SMF_Self().UserPlaneInformation
 }

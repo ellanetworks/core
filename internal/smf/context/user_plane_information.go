@@ -2,7 +2,6 @@ package context
 
 import (
 	"fmt"
-	"net"
 	"reflect"
 )
 
@@ -24,7 +23,6 @@ type UPNode struct {
 	UPF    *UPF
 	Type   UPNodeType
 	NodeID NodeID
-	ANIP   net.IP
 	Dnn    string
 	Links  []*UPNode
 	Port   uint16

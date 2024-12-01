@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"net"
-	"reflect"
 	"strconv"
 	"sync"
 	"time"
@@ -18,7 +17,7 @@ import (
 	"github.com/yeastengine/ella/internal/smf/logger"
 )
 
-var upfPool sync.Map
+// var upfPool sync.Map
 
 type UPTunnel struct {
 	PathIDGenerator *idgenerator.IDGenerator
@@ -207,8 +206,6 @@ func NewUPF(nodeID *NodeID, ifaces []factory.InterfaceUpfInfoItem) (upf *UPF) {
 	upf = new(UPF)
 	upf.uuid = uuid.New()
 
-	upfPool.Store(upf.UUID(), upf)
-
 	// Initialize context
 	upf.UPFStatus = NotAssociated
 	upf.NodeID = *nodeID
@@ -259,41 +256,6 @@ func (upf *UPF) PFCPAddr() *net.UDPAddr {
 		IP:   upf.NodeID.ResolveNodeIdToIp(),
 		Port: factory.UPF_PFCP_PORT,
 	}
-}
-
-// *** add unit test ***//
-func RetrieveUPFNodeByNodeID(nodeID NodeID) *UPF {
-	var targetUPF *UPF = nil
-	upfPool.Range(func(key, value interface{}) bool {
-		curUPF := value.(*UPF)
-		if reflect.DeepEqual(curUPF.NodeID, nodeID) {
-			targetUPF = curUPF
-			return false
-		}
-		return true
-	})
-
-	return targetUPF
-}
-
-// *** add unit test ***//
-func RemoveUPFNodeByNodeID(nodeID NodeID) bool {
-	upfID := ""
-	upfPool.Range(func(key, value interface{}) bool {
-		upfID = key.(string)
-		upf := value.(*UPF)
-		if reflect.DeepEqual(upf.NodeID, nodeID) {
-			return false
-		}
-		upfID = ""
-		return true
-	})
-
-	if upfID != "" {
-		upfPool.Delete(upfID)
-		return true
-	}
-	return false
 }
 
 func (upf *UPF) pdrID() (uint16, error) {
@@ -541,19 +503,6 @@ func (upf *UPF) isSupportSnssai(snssai *SNssai) bool {
 	for _, snssaiInfo := range upf.SNssaiInfos {
 		if snssaiInfo.SNssai.Equal(snssai) {
 			return true
-		}
-	}
-	return false
-}
-
-func (upf *UPF) IsDnnConfigured(sDnn string) bool {
-	// iterate through slices and check if DNN is configured
-
-	for _, slice := range upf.SNssaiInfos {
-		for _, dnn := range slice.DnnList {
-			if dnn.Dnn == sDnn {
-				return true
-			}
 		}
 	}
 	return false

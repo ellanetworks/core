@@ -71,12 +71,11 @@ func SendPfcpAssociationSetupRequest(upNodeID smf_context.NodeID, upfPort uint16
 		Port: int(upfPort),
 	}
 	InsertPfcpTxn(pfcpMsg.Sequence(), &upNodeID)
-	fmt.Println("UPF Address: ", addr)
 	err := udp.SendPfcp(pfcpMsg, addr, nil)
 	if err != nil {
 		return err
 	}
-	logger.PfcpLog.Infof("sent PFCP Association Request to UPF: %s", upNodeID.ResolveNodeIdToIp().String())
+	logger.PfcpLog.Infof("sent PFCP Association Request to UPF: %s", addr.String())
 	return nil
 }
 

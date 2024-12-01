@@ -15,10 +15,8 @@ import (
 const DefaultNonGBR5QI = 9
 
 func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error) {
-	logger.AppLog.Warnf("BuildPDUSessionResourceSetupRequestTransfer")
 	ANUPF := ctx.Tunnel.DataPathPool.GetDefaultPath().FirstDPNode
 	UpNode := ANUPF.UPF
-	logger.AppLog.Warnf("UPF TEID: %v", ANUPF.UpLinkTunnel.TEID)
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, ANUPF.UpLinkTunnel.TEID)
 
@@ -54,7 +52,6 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	if n3IP, err := UpNode.N3Interfaces[0].IP(ctx.SelectedPDUSessionType); err != nil {
 		return nil, err
 	} else {
-		logger.PduSessLog.Warnf("N3 IP: %v", n3IP)
 		ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
 			Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentULNGUUPTNLInformation,
 			ULNGUUPTNLInformation: &ngapType.UPTransportLayerInformation{
@@ -343,7 +340,6 @@ func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
 	if n3IP, err := UpNode.N3Interfaces[0].IP(ctx.SelectedPDUSessionType); err != nil {
 		return nil, err
 	} else {
-		logger.PduSessLog.Warnf("N3 IP: %v", n3IP)
 		gtpTunnel := ULNGUUPTNLInformation.GTPTunnel
 		gtpTunnel.GTPTEID.Value = teidOct
 		gtpTunnel.TransportLayerAddress.Value = aper.BitString{
@@ -422,7 +418,6 @@ func BuildHandoverCommandTransfer(ctx *SMContext) ([]byte, error) {
 	if n3IP, err := UpNode.N3Interfaces[0].IP(ctx.SelectedPDUSessionType); err != nil {
 		return nil, err
 	} else {
-		logger.PduSessLog.Warnf("N3 IP: %v", n3IP)
 		gtpTunnel := handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel
 		gtpTunnel.GTPTEID.Value = teidOct
 		gtpTunnel.TransportLayerAddress.Value = aper.BitString{
