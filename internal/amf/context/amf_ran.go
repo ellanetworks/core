@@ -54,11 +54,9 @@ func NewSupportedTAIList() []SupportedTAI {
 }
 
 func (ran *AmfRan) Remove() {
-	// send nf(gnb) status notification
-
-	ran.Log.Infof("Remove RAN Context[ID: %+v]", ran.RanID())
 	ran.RemoveAllUeInRan()
 	AMF_Self().DeleteAmfRan(ran.Conn)
+	ran.Log.Infof("removed RAN Context [ID: %+v]", ran.RanID())
 }
 
 func (ran *AmfRan) NewRanUe(ranUeNgapID int64) (*RanUe, error) {
@@ -93,7 +91,7 @@ func (ran *AmfRan) RanUeFindByRanUeNgapIDLocal(ranUeNgapID int64) *RanUe {
 			return ranUe
 		}
 	}
-	ran.Log.Infof("RanUe is not exist")
+	ran.Log.Infof("RanUe not found [RanUeNgapID: %d]", ranUeNgapID)
 	return nil
 }
 

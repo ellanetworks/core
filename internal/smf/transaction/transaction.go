@@ -109,13 +109,11 @@ func NewTransaction(req, rsp interface{}, msgType svcmsgtypes.SmfMsgType) *Trans
 	}
 
 	t.initLogTags()
-	t.TxnFsmLog.Debugf("new txn created")
 	return t
 }
 
 func (t *Transaction) TransactionEnd() {
 	t.endTime = time.Now()
-	t.TxnFsmLog.Infof("txn ended, execution time [%v] ", t.endTime.Sub(t.startTime))
 }
 
 type TxnBus []*Transaction
@@ -176,9 +174,8 @@ func (t *Transaction) StartTxnLifeCycle(fsm txnFsm) {
 
 	for {
 		currEvent := nextEvent
-		t.TxnFsmLog.Debugf("processing event[%v] ", currEvent.String())
 		if nextEvent, err = TxnFsmHandler[currEvent](t); err != nil {
-			t.TxnFsmLog.Errorf("TxnFsm Error, Stage[%s] Err[%v] ", currEvent.String(), err.Error())
+			t.TxnFsmLog.Errorf("error processing state machine transaction at stage [%s]: %v", currEvent.String(), err.Error())
 		}
 
 		// Current active txn is over, Schedule Next Txn if available

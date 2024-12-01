@@ -68,11 +68,17 @@ func HandlePfcpHeartbeatResponse(msg *udp.Message) {
 
 	logger.PfcpLog.Debugf("handle pfcp heartbeat response seq[%d] with NodeID[%v, %s]", seq, nodeID, nodeID.ResolveNodeIdToIp().String())
 
-	upf := smf_context.RetrieveUPFNodeByNodeID(*nodeID)
+	userPlaneInfo := smf_context.GetUserPlaneInformation()
+	if userPlaneInfo == nil {
+		logger.PfcpLog.Errorf("can't find UPF[%s]", nodeID.ResolveNodeIdToIp().String())
+		return
+	}
+	upf := userPlaneInfo.UPF.UPF
 	if upf == nil {
 		logger.PfcpLog.Errorf("can't find UPF[%s]", nodeID.ResolveNodeIdToIp().String())
 		return
 	}
+	// logger.PfcpLog.Warnf("S")
 	upf.UpfLock.Lock()
 	defer upf.UpfLock.Unlock()
 
@@ -86,16 +92,15 @@ func HandlePfcpHeartbeatResponse(msg *udp.Message) {
 		// change UPF state to not associated so that
 		// PFCP Association can be initiated again
 		upf.UPFStatus = smf_context.NotAssociated
-		logger.PfcpLog.Warnf("PFCP Heartbeat Response, upf [%v] recovery timestamp changed, previous [%v], new [%v] ", upf.NodeID, upf.RecoveryTimeStamp, *rsp.RecoveryTimeStamp)
-
-		// TODO: Session cleanup required and updated to AMF/PCF
+		logger.PfcpLog.Warnf("upf [%v] recovery timestamp changed, previous [%v], new [%v] ", upf.NodeID, upf.RecoveryTimeStamp, *rsp.RecoveryTimeStamp)
+		logger.PfcpLog.Warnf("set UPF[%s] to NotAssociated due to RecoveryTimeStamp mismatch", nodeID.ResolveNodeIdToIp().String())
 	}
 
 	upf.NHeartBeat = 0 // reset Heartbeat attempt to 0
 }
 
 func SetUpfInactive(nodeID smf_context.NodeID, msgTypeName string) {
-	upf := smf_context.RetrieveUPFNodeByNodeID(nodeID)
+	upf := smf_context.GetUserPlaneInformation().UPF.UPF
 	if upf == nil {
 		logger.PfcpLog.Errorf("can't find UPF[%s]", nodeID.ResolveNodeIdToIp().String())
 		return
@@ -105,6 +110,7 @@ func SetUpfInactive(nodeID smf_context.NodeID, msgTypeName string) {
 	defer upf.UpfLock.Unlock()
 	upf.UPFStatus = smf_context.NotAssociated
 	upf.NHeartBeat = 0 // reset Heartbeat attempt to 0
+	logger.PfcpLog.Warnf("set UPF[%s] to NotAssociated due to [%s] response", nodeID.ResolveNodeIdToIp().String(), msgTypeName)
 }
 
 func HandlePfcpAssociationSetupResponse(msg *udp.Message) {
@@ -145,9 +151,9 @@ func HandlePfcpAssociationSetupResponse(msg *udp.Message) {
 			return
 		}
 
-		upf := smf_context.RetrieveUPFNodeByNodeID(*nodeID)
+		upf := smf_context.GetUserPlaneInformation().UPF.UPF
 		if upf == nil {
-			logger.PfcpLog.Errorf("can't find UPF[%s]", nodeID.ResolveNodeIdToIp().String())
+			logger.PfcpLog.Errorf("can't find UPF[%s]", nodeIDStr)
 			return
 		}
 
@@ -207,12 +213,11 @@ func HandlePfcpAssociationReleaseRequest(msg *udp.Message) {
 
 	nodeID := smf_context.NewNodeID(nodeIDStr)
 
-	upf := smf_context.RetrieveUPFNodeByNodeID(*nodeID)
+	upf := smf_context.GetUserPlaneInformation().UPF.UPF
 	if upf == nil {
 		logger.PfcpLog.Errorf("can't find UPF[%s]", nodeIDStr)
 		return
 	}
-	smf_context.RemoveUPFNodeByNodeID(*nodeID)
 	err = pfcp_message.SendPfcpAssociationReleaseResponse(*nodeID, ie.CauseRequestAccepted, upf.Port)
 	if err != nil {
 		logger.PfcpLog.Errorf("failed to send PFCP Association Release Response: %+v", err)
@@ -241,13 +246,11 @@ func HandlePfcpAssociationReleaseResponse(msg *udp.Message) {
 			logger.PfcpLog.Errorln("pfcp association release needs NodeID")
 			return
 		}
-		nodeIDStr, err := pfcpMsg.NodeID.NodeID()
+		_, err := pfcpMsg.NodeID.NodeID()
 		if err != nil {
 			logger.PfcpLog.Errorf("failed to parse NodeID IE: %+v", err)
 			return
 		}
-		nodeID := smf_context.NewNodeID(nodeIDStr)
-		smf_context.RemoveUPFNodeByNodeID(*nodeID)
 	}
 }
 
@@ -339,7 +342,7 @@ func HandlePfcpSessionEstablishmentResponse(msg *udp.Message) {
 		}
 		logger.PfcpLog.Infof("created PDR FTEID: %+v", fteid)
 		ANUPF.UpLinkTunnel.TEID = fteid.TEID
-		upf := smf_context.RetrieveUPFNodeByNodeID(*nodeID)
+		upf := smf_context.GetUserPlaneInformation().UPF.UPF
 		if upf == nil {
 			logger.PfcpLog.Errorf("can't find UPF[%s]", nodeID.ResolveNodeIdToIp().String())
 			return

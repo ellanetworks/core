@@ -33,7 +33,8 @@ func SmfPlmnConfig() *[]models.PlmnId {
 func SNssaiSmfInfo() *[]models.SnssaiSmfInfoItem {
 	snssaiInfo := make([]models.SnssaiSmfInfoItem, 0)
 	SmfPlmnInfo = make(SmfSnssaiPlmnIdInfo)
-	for _, snssai := range smfContext.SnssaiInfos {
+	smfSnssaiInfo := GetSnssaiInfo()
+	for _, snssai := range smfSnssaiInfo {
 		var snssaiInfoModel models.SnssaiSmfInfoItem
 		snssaiInfoModel.SNssai = &models.Snssai{
 			Sst: snssai.Snssai.Sst,

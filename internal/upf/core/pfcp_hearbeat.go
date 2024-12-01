@@ -32,12 +32,13 @@ func HandlePfcpHeartbeatResponse(conn *PfcpConnection, msg message.Message, addr
 	if err != nil {
 		logger.AppLog.Warnf("Got Heartbeat Response with invalid TS: %s, from: %s", err, addr)
 		return nil, err
-	} else {
-		logger.AppLog.Debugf("Got Heartbeat Response with TS: %s, from: %s", ts, addr)
 	}
+	logger.AppLog.Debugf("Got Heartbeat Response with TS: %s, from: %s", ts, addr)
 
 	if association := conn.GetAssociation(addr); association != nil {
 		association.HandleHeartbeat(msg.Sequence())
+	} else {
+		logger.AppLog.Warnf("Got Heartbeat Response from unknown peer: %s", addr)
 	}
 	return nil, err
 }

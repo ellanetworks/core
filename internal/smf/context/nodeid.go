@@ -22,3 +22,7 @@ func NewNodeID(nodeID string) *NodeID {
 func (n *NodeID) ResolveNodeIdToIp() net.IP {
 	return n.NodeIdValue
 }
+
+func (n *NodeID) String() string {
+	return net.IP(n.NodeIdValue).String()
+}

@@ -56,7 +56,6 @@ func (amf *AMF) setLogLevel() {
 }
 
 func (amf *AMF) Start() {
-	initLog.Infoln("Server started")
 	var err error
 
 	router := logger_util.NewGinWithLogrus(logger.GinLog)

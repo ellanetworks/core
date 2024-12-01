@@ -604,7 +604,6 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		copy(taiList, supportTaiList)
 		for i := range taiList {
 			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
-			ran.Log.Infof("Supported Tai List in AMF Plmn: %v, Tac: 0x%v Tac: %v", taiList[i].PlmnId, taiList[i].Tac, supportTaiList[i].Tac)
 		}
 
 		for i, tai := range ran.SupportedTAList {
@@ -615,7 +614,7 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			}
 		}
 		if !found {
-			ran.Log.Warn("NG-Setup failure: Cannot find Served TAI in AMF")
+			ran.Log.Warn("cannot find Served TAI in AMF")
 			cause.Present = ngapType.CausePresentMisc
 			cause.Misc = &ngapType.CauseMisc{
 				Value: ngapType.CauseMiscPresentUnknownPLMN,
@@ -1385,8 +1384,6 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		ngap_message.SendErrorIndication(ran, nil, nil, &cause, &criticalityDiagnostics)
 		return
 	}
-
-	ran.Log.Infoln("handle Initial UE Message")
 
 	for _, ie := range initialUEMessage.ProtocolIEs.List {
 		switch ie.Id.Value {
@@ -3875,7 +3872,6 @@ func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU
 		copy(taiList, supportTaiList)
 		for i := range taiList {
 			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
-			ran.Log.Infof("Supported Tai List in AMF Plmn: %v, Tac: %v", taiList[i].PlmnId, taiList[i].Tac)
 		}
 		for i, tai := range ran.SupportedTAList {
 			if context.InTaiList(tai.Tai, taiList) {

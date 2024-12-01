@@ -170,10 +170,8 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler NGAPHandler) 
 		if err != nil {
 			switch err {
 			case io.EOF, io.ErrUnexpectedEOF:
-				logger.NgapLog.Debugln("Read EOF from client")
 				return
 			case syscall.EAGAIN:
-				logger.NgapLog.Debugln("SCTP read timeout")
 				continue
 			case syscall.EINTR:
 				logger.NgapLog.Debugf("SCTPRead: %+v", err)

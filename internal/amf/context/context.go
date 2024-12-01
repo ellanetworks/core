@@ -115,7 +115,7 @@ func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 		logger.ContextLog.Errorf("Allocate NgapID error: %+v", err)
 		return -1, err
 	}
-	logger.ContextLog.Infof("Allocate AmfUeNgapID : %v", val)
+	logger.ContextLog.Infof("allocated AmfUeNgapID: %v", val)
 	return val, nil
 }
 
@@ -155,7 +155,6 @@ func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.Acc
 			logger.ContextLog.Errorf("Could not convert TAC to int: %v", err)
 		}
 		taiList[i].Tac = fmt.Sprintf("%06x", tmp)
-		logger.ContextLog.Infof("Supported Tai List in AMF Plmn: %v, Tac: %v", taiList[i].PlmnId, taiList[i].Tac)
 	}
 	for _, supportTai := range taiList {
 		if reflect.DeepEqual(supportTai, ue.Tai) {

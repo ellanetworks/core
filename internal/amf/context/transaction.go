@@ -16,7 +16,6 @@ func (tx *EventChannel) UpdateNgapHandler(handler func(*AmfUe, NgapMsg)) {
 }
 
 func (tx *EventChannel) UpdateNasHandler(handler func(*AmfUe, NasMsg)) {
-	tx.AmfUe.TxLog.Infof("updated nashandler")
 	tx.NasHandler = handler
 }
 

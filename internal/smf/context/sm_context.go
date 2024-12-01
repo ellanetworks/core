@@ -221,7 +221,7 @@ func (smContext *SMContext) ChangeState(nextState SMContextState) {
 		}
 	}
 
-	smContext.SubCtxLog.Infof("context state change, current state[%v] next state[%v]",
+	smContext.SubCtxLog.Debugf("context state change, current state[%v] next state[%v]",
 		smContext.SMContextState.String(), nextState.String())
 	smContext.SMContextState = nextState
 }
@@ -235,14 +235,12 @@ func GetSMContext(ref string) (smContext *SMContext) {
 	return
 }
 
-// *** add unit test ***//
 func RemoveSMContext(ref string) {
 	var smContext *SMContext
 	if value, ok := smContextPool.Load(ref); ok {
 		smContext = value.(*SMContext)
 	}
 
-	smContext.SubCtxLog.Infof("RemoveSMContext, SM context released ")
 	smContext.ChangeState(SmStateRelease)
 
 	for _, pfcpSessionContext := range smContext.PFCPContext {
@@ -258,6 +256,7 @@ func RemoveSMContext(ref string) {
 	smContextPool.Delete(ref)
 
 	canonicalRef.Delete(canonicalName(smContext.Supi, smContext.PDUSessionID))
+	smContext.SubCtxLog.Infof("SM Context removed")
 }
 
 // *** add unit test ***//
@@ -269,8 +268,11 @@ func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
 }
 
 func (smContext *SMContext) ReleaseUeIpAddr() error {
+	if smContext.PDUAddress == nil {
+		return nil
+	}
 	if ip := smContext.PDUAddress.Ip; ip != nil && !smContext.PDUAddress.UpfProvided {
-		smContext.SubPduSessLog.Infof("Release IP[%s]", smContext.PDUAddress.Ip.String())
+		smContext.SubPduSessLog.Infof("Release IP Address: %s", smContext.PDUAddress.Ip.String())
 		smContext.DNNInfo.UeIPAllocator.Release(smContext.Supi, ip)
 		smContext.PDUAddress.Ip = net.IPv4(0, 0, 0, 0)
 	}
@@ -331,15 +333,13 @@ func (smContext *SMContext) GetNodeIDByLocalSEID(seid uint64) (nodeID NodeID) {
 	return
 }
 
-func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) {
-	logger.PduSessLog.Traceln("In AllocateLocalSEIDForDataPath")
+func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) error {
 	for curDataPathNode := dataPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
 		NodeIDtoIP := curDataPathNode.UPF.NodeID.ResolveNodeIdToIp().String()
-		logger.PduSessLog.Traceln("NodeIDtoIP: ", NodeIDtoIP)
 		if _, exist := smContext.PFCPContext[NodeIDtoIP]; !exist {
 			allocatedSEID, err := AllocateLocalSEID()
 			if err != nil {
-				logger.PduSessLog.Errorf("allocateLocalSEID failed, %v", err)
+				return fmt.Errorf("failed allocating SEID, %v", err)
 			}
 			smContext.PFCPContext[NodeIDtoIP] = &PFCPSessionContext{
 				PDRs:      make(map[uint16]*PDR),
@@ -350,6 +350,7 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) {
 			seidSMContextMap.Store(allocatedSEID, smContext)
 		}
 	}
+	return nil
 }
 
 func (smContext *SMContext) PutPDRtoPFCPSession(nodeID NodeID, pdrList map[string]*PDR) error {

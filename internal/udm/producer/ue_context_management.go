@@ -126,20 +126,10 @@ func GetAmfNon3gppAccessProcedure(queryAmfContextNon3gppParamOpts Nudr_DataRepos
 }
 
 func HandleRegistrationAmf3gppAccessRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
-	logger.UecmLog.Infof("Handle RegistrationAmf3gppAccess")
-
-	// step 2: retrieve request
 	registerRequest := request.Body.(models.Amf3GppAccessRegistration)
 	ueID := request.Params["ueId"]
-	logger.UecmLog.Info("UEID: ", ueID)
-
-	// step 3: handle the message
 	header, response, problemDetails := RegistrationAmf3gppAccessProcedure(registerRequest, ueID)
-
-	// step 4: process the return value from step 3
 	if response != nil {
-		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusCreated, header, response)
 	} else if problemDetails != nil {
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)

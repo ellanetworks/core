@@ -2746,8 +2746,6 @@ func QuerysdmsubscriptionsProcedure(ueId string) (*[]models.SdmSubscription, *mo
 }
 
 func HandleQuerySmData(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle QuerySmData")
-
 	collName := "subscriptionData.provisionedData.smData"
 	ueId := request.Params["ueId"]
 	servingPlmnId := request.Params["servingPlmnId"]

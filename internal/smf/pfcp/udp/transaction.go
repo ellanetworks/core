@@ -90,14 +90,11 @@ func NewTransaction(pfcpMSG message.Message, binaryMSG []byte, Conn *net.UDPConn
 }
 
 func (transaction *Transaction) Start() error {
-	logger.PfcpLog.Tracef("Start Transaction [%d]\n", transaction.SequenceNumber)
-
 	if transaction.TxType == SendingRequest {
 		for iter := 0; iter < NumOfResend; iter++ {
 			timer := time.NewTimer(ResendRequestTimeOutPeriod * time.Second)
 			_, err := transaction.Conn.WriteToUDP(transaction.SendMsg, transaction.DestAddr)
 			if err != nil {
-				logger.PfcpLog.Warnf("Request Transaction [%d]: %s\n", transaction.SequenceNumber, err)
 				return err
 			}
 

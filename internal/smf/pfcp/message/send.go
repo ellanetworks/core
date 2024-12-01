@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,21 +21,8 @@ import (
 
 var seq uint32
 
-const UPFAdapterURL = "http://upf-adapter:8090"
-
 func getSeqNumber() uint32 {
-	smfCount := 1
-	var err error
-	if smfCountStr, ok := os.LookupEnv("SMF_COUNT"); ok {
-		smfCount, err = strconv.Atoi(smfCountStr)
-		if err != nil {
-			logger.PfcpLog.Errorf("SMF_COUNT env variable is not a number: %v", smfCountStr)
-		}
-	}
-
-	seqNum := atomic.AddUint32(&seq, 1) + uint32((smfCount-1)*5000)
-	logger.PfcpLog.Debugf("unique seq num: smfCount from os: %v; seqNum %v\n", smfCount, seqNum)
-	return seqNum
+	return atomic.AddUint32(&seq, 1)
 }
 
 func init() {
@@ -75,8 +60,7 @@ func SendHeartbeatRequest(upNodeID smf_context.NodeID, upfPort uint16) error {
 		FetchPfcpTxn(msg.Sequence())
 		return err
 	}
-	logger.PfcpLog.Debugf("sent pfcp heartbeat request seq[%d] to NodeID[%s]", msg.Sequence(),
-		upNodeID.ResolveNodeIdToIp().String())
+	logger.PfcpLog.Infof("sent pfcp heartbeat request to UPF: [%s] (sequence: %d )", upNodeID.ResolveNodeIdToIp().String(), msg.Sequence())
 	return nil
 }
 
@@ -86,13 +70,12 @@ func SendPfcpAssociationSetupRequest(upNodeID smf_context.NodeID, upfPort uint16
 		IP:   upNodeID.ResolveNodeIdToIp(),
 		Port: int(upfPort),
 	}
-	logger.PfcpLog.Infof("Sent PFCP Association Request to NodeID[%s]", upNodeID.ResolveNodeIdToIp().String())
-
 	InsertPfcpTxn(pfcpMsg.Sequence(), &upNodeID)
 	err := udp.SendPfcp(pfcpMsg, addr, nil)
 	if err != nil {
 		return err
 	}
+	logger.PfcpLog.Infof("sent PFCP Association Request to UPF: %s", addr.String())
 	return nil
 }
 
@@ -106,7 +89,7 @@ func SendPfcpAssociationSetupResponse(upNodeID smf_context.NodeID, cause uint8, 
 	if err != nil {
 		return err
 	}
-	logger.PfcpLog.Infof("Sent PFCP Association Response to NodeID[%s]", upNodeID.ResolveNodeIdToIp().String())
+	logger.PfcpLog.Infof("sent PFCP Association Response to NodeID[%s]", upNodeID.ResolveNodeIdToIp().String())
 	return nil
 }
 
@@ -120,7 +103,7 @@ func SendPfcpAssociationReleaseResponse(upNodeID smf_context.NodeID, cause uint8
 	if err != nil {
 		return err
 	}
-	logger.PfcpLog.Infof("Sent PFCP Association Release Response to NodeID[%s]", upNodeID.ResolveNodeIdToIp().String())
+	logger.PfcpLog.Infof("sent PFCP Association Release Response to NodeID[%s]", upNodeID.ResolveNodeIdToIp().String())
 	return nil
 }
 

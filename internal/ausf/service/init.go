@@ -43,8 +43,6 @@ func (ausf *AUSF) setLogLevel() {
 }
 
 func (ausf *AUSF) Start() {
-	initLog.Infoln("Server started")
-
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 	ueauthentication.AddService(router)
 

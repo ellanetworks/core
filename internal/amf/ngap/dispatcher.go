@@ -171,11 +171,9 @@ func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
 	amfSelf := context.AMF_Self()
 
-	logger.NgapLog.Infof("Handle SCTP Notification[addr: %+v]", conn.RemoteAddr())
-
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
-		logger.NgapLog.Warnf("RAN context has been removed[addr: %+v]", conn.RemoteAddr())
+		logger.NgapLog.Warnf("couldn't find RAN context [addr: %+v]", conn.RemoteAddr())
 		return
 	}
 
@@ -215,12 +213,10 @@ func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
 }
 
 func HandleSCTPNotificationLb(gnbId string) {
-	logger.NgapLog.Infof("Handle SCTP Notification[GnbId: %+v]", gnbId)
-
 	amfSelf := context.AMF_Self()
 	ran, ok := amfSelf.AmfRanFindByGnbId(gnbId)
 	if !ok {
-		logger.NgapLog.Warnf("RAN context has been removed[gnbId: %+v]", gnbId)
+		logger.NgapLog.Warnf("couldn't find RAN context for gnbId: %v", gnbId)
 		return
 	}
 

@@ -19,7 +19,6 @@ import (
 )
 
 func HandleCreateSmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.SMpolicylog.Infof("Handle CreateSmPolicy")
 	requestDataType := request.Body.(models.SmPolicyContextData)
 	header, response, problemDetails := createSMPolicyProcedure(requestDataType)
 	if response != nil {
@@ -111,7 +110,6 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	sliceid := sstStr + request.SliceInfo.Sd
 	imsi := strings.TrimPrefix(ue.Supi, "imsi-")
 	subscriberPolicies := pcf_context.GetSubscriberPolicies()
-	logger.SMpolicylog.Warnf("SubscriberPolicies: %v", subscriberPolicies)
 	if subsPolicyData, ok := subscriberPolicies[imsi]; ok {
 		logger.SMpolicylog.Infof("Found an existing policy for subscriber [%s]", imsi)
 		if PccPolicy, ok1 := subsPolicyData.PccPolicy[sliceid]; ok1 {
@@ -135,7 +133,6 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 			for key, trafficData := range PccPolicy.TraffContDecs {
 				decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
 			}
-			logger.SMpolicylog.Infof("PccPolicy in SM Policy Decision[%v]: %v", sliceid, PccPolicy)
 		} else {
 			logger.SMpolicylog.Warnf("Slice[%v] not configured for subscriber", sliceid)
 			problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
@@ -195,8 +192,6 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	header = http.Header{
 		"Location": {locationHeader},
 	}
-	logger.SMpolicylog.Tracef("SMPolicy PduSessionId[%d] Create", request.PduSessionId)
-	logger.SMpolicylog.Infof("SM Policy Decision Sent to SMF: %v", decision)
 
 	return header, &decision, nil
 }

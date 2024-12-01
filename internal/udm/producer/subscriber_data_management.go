@@ -496,21 +496,14 @@ func getSharedDataProcedure(sharedDataIds []string, supportedFeatures string) (
 }
 
 func HandleGetSmDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
-	logger.SdmLog.Infof("Handle GetSmData")
-
-	// step 2: retrieve request
 	supi := request.Params["supi"]
 	plmnID := request.Query.Get("plmn-id")
 	Dnn := request.Query.Get("dnn")
 	Snssai := request.Query.Get("single-nssai")
 
-	// step 3: handle the message
 	response, problemDetails := getSmDataProcedure(supi, plmnID, Dnn, Snssai)
 
-	// step 4: process the return value from step 3
 	if response != nil {
-		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
@@ -525,8 +518,6 @@ func HandleGetSmDataRequest(request *httpwrapper.Request) *httpwrapper.Response 
 func getSmDataProcedure(supi string, plmnID string, Dnn string, Snssai string) (
 	response interface{}, problemDetails *models.ProblemDetails,
 ) {
-	logger.SdmLog.Infof("getSmDataProcedure: SUPI[%s] PLMNID[%s] DNN[%s] SNssai[%s]", supi, plmnID, Dnn, Snssai)
-
 	clientAPI := createUDMClientToUDR()
 
 	var querySmDataParamOpts Nudr.QuerySmDataParamOpts
@@ -816,19 +807,11 @@ func subscribeToSharedDataProcedure(sdmSubscription *models.SdmSubscription) (
 }
 
 func HandleSubscribeRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
-	logger.SdmLog.Infof("Handle Subscribe")
-
-	// step 2: retrieve request
 	sdmSubscription := request.Body.(models.SdmSubscription)
 	supi := request.Params["supi"]
-
-	// step 3: handle the message
 	header, response, problemDetails := subscribeProcedure(&sdmSubscription, supi)
 
-	// step 4: process the return value from step 3
 	if response != nil {
-		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusCreated, header, response)
 	} else if problemDetails != nil {
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)

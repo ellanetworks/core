@@ -34,9 +34,8 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (smf *SMF) Initialize(smfConfig factory.Configuration, ueRoutingConfig factory.RoutingConfig) error {
+func (smf *SMF) Initialize(smfConfig factory.Configuration) error {
 	factory.InitConfigFactory(smfConfig)
-	factory.InitRoutingConfigFactory(ueRoutingConfig)
 	smf.setLogLevel()
 	return nil
 }
@@ -54,8 +53,6 @@ func (smf *SMF) setLogLevel() {
 }
 
 func (smf *SMF) Start() {
-	initLog.Infoln("SMF app initialising...")
-
 	// Initialise channel to stop SMF
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
@@ -67,23 +64,6 @@ func (smf *SMF) Start() {
 
 	// Init SMF Service
 	context.InitSmfContext(&factory.SmfConfig)
-
-	// allocate id for each upf
-	context.AllocateUPFID()
-
-	// Init UE Specific Config
-	context.InitSMFUERouting(&factory.UERoutingConfig)
-
-	// Wait for additional/updated config from config pod
-	initLog.Infof("Configuration is managed by Config Pod")
-	initLog.Infof("waiting for initial configuration from config pod")
-
-	// Main thread should be blocked for config update from ROC
-	// Future config update from ROC can be handled via background go-routine.
-	if <-factory.ConfigPodTrigger {
-		initLog.Infof("minimum configuration from config pod available")
-		context.ProcessConfigUpdate()
-	}
 
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 	oam.AddService(router)
@@ -99,16 +79,17 @@ func (smf *SMF) Start() {
 
 	udp.Run(pfcp.Dispatch)
 
-	for _, upf := range context.SMF_Self().UserPlaneInformation.UPFs {
-		logger.AppLog.Infof("Send PFCP Association Request to UPF[%s]\n", upf.NodeID.ResolveNodeIdToIp().String())
-		message.SendPfcpAssociationSetupRequest(upf.NodeID, upf.Port)
+	userPlaneInformation := context.GetUserPlaneInformation()
+
+	if userPlaneInformation.UPF != nil {
+		message.SendPfcpAssociationSetupRequest(userPlaneInformation.UPF.NodeID, userPlaneInformation.UPF.Port)
 	}
 
 	// Trigger PFCP Heartbeat towards all connected UPFs
-	go upf.InitPfcpHeartbeatRequest(context.SMF_Self().UserPlaneInformation)
+	go upf.InitPfcpHeartbeatRequest(userPlaneInformation)
 
 	// Trigger PFCP association towards not associated UPFs
-	go upf.ProbeInactiveUpfs(context.SMF_Self().UserPlaneInformation)
+	go upf.ProbeInactiveUpfs(userPlaneInformation)
 
 	time.Sleep(1000 * time.Millisecond)
 
