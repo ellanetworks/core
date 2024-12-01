@@ -109,7 +109,6 @@ func NewTransaction(req, rsp interface{}, msgType svcmsgtypes.SmfMsgType) *Trans
 	}
 
 	t.initLogTags()
-	t.TxnFsmLog.Debugf("new txn created")
 	return t
 }
 

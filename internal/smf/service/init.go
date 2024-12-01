@@ -65,9 +65,6 @@ func (smf *SMF) Start() {
 	// Init SMF Service
 	context.InitSmfContext(&factory.SmfConfig)
 
-	// // allocate id for each upf
-	// context.AllocateUPFID()
-
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 	oam.AddService(router)
 	callback.AddService(router)
@@ -84,15 +81,15 @@ func (smf *SMF) Start() {
 
 	userPlaneInformation := context.GetUserPlaneInformation()
 
-	if userPlaneInformation != nil {
+	if userPlaneInformation.UPF != nil {
 		message.SendPfcpAssociationSetupRequest(userPlaneInformation.UPF.NodeID, userPlaneInformation.UPF.Port)
-
-		// Trigger PFCP Heartbeat towards all connected UPFs
-		go upf.InitPfcpHeartbeatRequest(userPlaneInformation)
-
-		// Trigger PFCP association towards not associated UPFs
-		go upf.ProbeInactiveUpfs(userPlaneInformation)
 	}
+
+	// Trigger PFCP Heartbeat towards all connected UPFs
+	go upf.InitPfcpHeartbeatRequest(userPlaneInformation)
+
+	// Trigger PFCP association towards not associated UPFs
+	go upf.ProbeInactiveUpfs(userPlaneInformation)
 
 	time.Sleep(1000 * time.Millisecond)
 

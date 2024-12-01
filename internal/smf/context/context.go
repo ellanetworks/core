@@ -12,7 +12,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/smf/factory"
 	"github.com/yeastengine/ella/internal/smf/logger"
-	"github.com/yeastengine/ella/internal/webui/configapi"
+	"github.com/yeastengine/ella/internal/webui/configmodels"
 )
 
 const IPV4 = "IPv4"
@@ -29,6 +29,8 @@ type SMFContext struct {
 	Key       string
 	PEM       string
 	KeyLog    string
+
+	SnssaiInfos []SnssaiSmfInfo
 
 	AmfUri string
 	PcfUri string
@@ -132,6 +134,14 @@ func InitSmfContext(config *factory.Configuration) *SMFContext {
 
 	smfContext.SupportedPDUSessionType = IPV4
 
+	smfContext.SnssaiInfos = make([]SnssaiSmfInfo, 0)
+	smfContext.UserPlaneInformation = &UserPlaneInformation{
+		UPNodes:              make(map[string]*UPNode),
+		UPF:                  nil,
+		AccessNetwork:        make(map[string]*UPNode),
+		DefaultUserPlanePath: make(map[string][]*UPNode),
+	}
+
 	// InitUserPlaneInformation()
 	smfContext.ueIPAllocatorMapping = make(map[string]*IPAllocator)
 	smfContext.PodIp = os.Getenv("POD_IP")
@@ -143,19 +153,24 @@ func SMF_Self() *SMFContext {
 	return &smfContext
 }
 
-func GetSnssaiInfo() []SnssaiSmfInfo {
+func UpdateSMFContext(networkSlices []configmodels.Slice, deviceGroups []configmodels.DeviceGroups) {
+	UpdateSnssaiInfo(networkSlices, deviceGroups)
+	UpdateUserPlaneInformation(networkSlices, deviceGroups)
+	logger.CtxLog.Infof("Updated SMF context")
+}
+
+func UpdateSnssaiInfo(networkSlices []configmodels.Slice, deviceGroups []configmodels.DeviceGroups) {
+	smfSelf := SMF_Self()
 	snssaiInfoList := make([]SnssaiSmfInfo, 0)
-	networkSliceNames := configapi.ListNetworkSlices()
-	for _, networkSliceName := range networkSliceNames {
-		networkSlice := configapi.GetNetworkSliceByName2(networkSliceName)
+	for _, networkSlice := range networkSlices {
 		plmnID := models.PlmnId{
 			Mcc: networkSlice.SiteInfo.Plmn.Mcc,
 			Mnc: networkSlice.SiteInfo.Plmn.Mnc,
 		}
 		sstInt, err := strconv.Atoi(networkSlice.SliceId.Sst)
 		if err != nil {
-			logger.CtxLog.Errorf("Failed to convert sst to int: %v", err)
-			continue
+			logger.CtxLog.Errorf("failed to convert sst to int: %v", err)
+			return
 		}
 		snssai := SNssai{
 			Sst: int32(sstInt),
@@ -167,8 +182,7 @@ func GetSnssaiInfo() []SnssaiSmfInfo {
 			DnnInfos: make(map[string]*SnssaiSmfDnnInfo),
 		}
 
-		for _, deviceGroupNames := range networkSlice.SiteDeviceGroup {
-			deviceGroup := configapi.GetDeviceGroupByName2(deviceGroupNames)
+		for _, deviceGroup := range deviceGroups {
 			dnn := deviceGroup.IpDomainExpanded.Dnn
 			dnsPrimary := deviceGroup.IpDomainExpanded.DnsPrimary
 			mtu := deviceGroup.IpDomainExpanded.Mtu
@@ -188,7 +202,7 @@ func GetSnssaiInfo() []SnssaiSmfInfo {
 		}
 		snssaiInfoList = append(snssaiInfoList, snssaiInfo)
 	}
-	return snssaiInfoList
+	smfSelf.SnssaiInfos = snssaiInfoList
 }
 
 // This function is used to get or create IP allocator for a DNN
@@ -209,16 +223,19 @@ func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
 	return alloc, nil
 }
 
-// Right now we only support 1 UPF
-// This function should be edited when we decide to support multiple UPFs
-func GetUserPlaneInformationFromConfig() *UserPlaneInformation {
-	networkSliceNames := configapi.ListNetworkSlices()
-	for _, networkSliceName := range networkSliceNames {
-		networkSlice := configapi.GetNetworkSliceByName2(networkSliceName)
-		for _, deviceGroupName := range networkSlice.SiteDeviceGroup {
-			deviceGroup := configapi.GetDeviceGroupByName2(deviceGroupName)
+func BuildUserPlaneInformationFromConfig(networkSlices []configmodels.Slice, deviceGroups []configmodels.DeviceGroups) *UserPlaneInformation {
+	// check if len of networkSlices is 0
+	if len(networkSlices) == 0 {
+		logger.CtxLog.Warn("Network slices is empty")
+		return nil
+	}
+	for _, networkSlice := range networkSlices {
+		if len(deviceGroups) == 0 {
+			logger.CtxLog.Warn("Device groups is empty")
+			return nil
+		}
+		for _, deviceGroup := range deviceGroups {
 			dnn := deviceGroup.IpDomainExpanded.Dnn
-
 			intfUpfInfoItem := factory.InterfaceUpfInfoItem{
 				InterfaceType:   models.UpInterfaceType_N3,
 				Endpoints:       make([]string, 0),
@@ -248,6 +265,7 @@ func GetUserPlaneInformationFromConfig() *UserPlaneInformation {
 				logger.CtxLog.Warnf("'upf-port' is not a string, actual type: %T, value: %v", upfPortObj, upfPortObj)
 				continue
 			}
+
 			upfNodeID := NewNodeID(upfName)
 			upf := NewUPF(upfNodeID, ifaces)
 			sstStr := networkSlice.SliceId.Sst
@@ -269,6 +287,7 @@ func GetUserPlaneInformationFromConfig() *UserPlaneInformation {
 					},
 				},
 			}
+
 			upfPort, err := strconv.Atoi(upfPortStr)
 			if err != nil {
 				logger.CtxLog.Errorf("Failed to convert upf port to int: %v", err)
@@ -303,11 +322,31 @@ func GetUserPlaneInformationFromConfig() *UserPlaneInformation {
 			userPlaneInformation.AccessNetwork[gnbName] = gnbNode
 			userPlaneInformation.UPNodes[gnbName] = gnbNode
 			userPlaneInformation.UPNodes[upfName] = upfNode
-
+			logger.CtxLog.Warnf("Built user plane information: %v", userPlaneInformation)
 			return userPlaneInformation
 		}
 	}
 	return nil
+}
+
+// Right now we only support 1 UPF
+// This function should be edited when we decide to support multiple UPFs
+func UpdateUserPlaneInformation(networkSlices []configmodels.Slice, deviceGroups []configmodels.DeviceGroups) {
+	smfSelf := SMF_Self()
+	configUserPlaneInfo := BuildUserPlaneInformationFromConfig(networkSlices, deviceGroups)
+	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)
+	if same {
+		logger.CtxLog.Info("Context user plane info matches config")
+		return
+	}
+	if configUserPlaneInfo == nil {
+		logger.CtxLog.Warn("Config user plane info is nil")
+		return
+	}
+	smfSelf.UserPlaneInformation.UPNodes = configUserPlaneInfo.UPNodes
+	smfSelf.UserPlaneInformation.UPF = configUserPlaneInfo.UPF
+	smfSelf.UserPlaneInformation.AccessNetwork = configUserPlaneInfo.AccessNetwork
+	smfSelf.UserPlaneInformation.DefaultUserPlanePath = configUserPlaneInfo.DefaultUserPlanePath
 }
 
 func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInformation) bool {
@@ -352,19 +391,10 @@ func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInfo
 	return true
 }
 
-func UpdateUserPlaneInformation() {
-	smfSelf := SMF_Self()
-	configUserPlaneInfo := GetUserPlaneInformationFromConfig()
-	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)
-	if same {
-		logger.CtxLog.Info("Context user plane info matches config")
-		return
-	}
-	smfSelf.UserPlaneInformation = configUserPlaneInfo
-	logger.CtxLog.Info("Updated user plane information")
+func GetUserPlaneInformation() *UserPlaneInformation {
+	return SMF_Self().UserPlaneInformation
 }
 
-func GetUserPlaneInformation() *UserPlaneInformation {
-	UpdateUserPlaneInformation()
-	return SMF_Self().UserPlaneInformation
+func GetSnssaiInfo() []SnssaiSmfInfo {
+	return SMF_Self().SnssaiInfos
 }

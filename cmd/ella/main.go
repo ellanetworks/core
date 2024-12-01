@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/yeastengine/ella/internal/amf"
 	"github.com/yeastengine/ella/internal/ausf"
@@ -40,7 +41,12 @@ func startNetwork(cfg config.Config) error {
 	smfUrl := "http://127.0.0.1:29502"
 	udmUrl := "http://127.0.0.1:29503"
 	udrUrl := "http://127.0.0.1:29504"
-	_, err := webui.Start(cfg.DB.Url, cfg.DB.Name)
+	err := smf.Start(amfUrl, pcfUrl, udmUrl)
+	if err != nil {
+		return err
+	}
+	time.Sleep(1 * time.Second)
+	_, err = webui.Start(cfg.DB.Url, cfg.DB.Name)
 	if err != nil {
 		return err
 	}
@@ -68,10 +74,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = smf.Start(amfUrl, pcfUrl, udmUrl)
-	if err != nil {
-		return err
-	}
+
 	err = upf.Start(cfg.UPF.Interfaces, cfg.UPF.N3Address)
 	if err != nil {
 		return err

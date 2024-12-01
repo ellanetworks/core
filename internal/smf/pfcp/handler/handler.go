@@ -165,7 +165,6 @@ func HandlePfcpAssociationSetupResponse(msg *udp.Message) {
 			logger.PfcpLog.Errorf("failed to parse RecoveryTimeStamp: %+v", err)
 			return
 		}
-		logger.PfcpLog.Warnf("Set recovery timestamp to [%v]", recoveryTimestamp)
 		upf.RecoveryTimeStamp = smf_context.RecoveryTimeStamp{
 			RecoveryTimeStamp: recoveryTimestamp,
 		}

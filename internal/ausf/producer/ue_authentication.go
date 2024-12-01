@@ -333,7 +333,6 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 	servingNetworkName := ausfCurrentContext.ServingNetworkName
 
 	// Compare the received RES* with the stored XRES*
-	logger.Auth5gAkaComfirmLog.Infof("res*: %x\nXres*: %x\n", updateConfirmationData.ResStar, ausfCurrentContext.XresStar)
 	if strings.Compare(updateConfirmationData.ResStar, ausfCurrentContext.XresStar) == 0 {
 		ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
 		responseBody.AuthResult = models.AuthResult_SUCCESS

@@ -96,7 +96,7 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 	// DNN Information from config
 	smContext.DNNInfo = smf_context.RetrieveDnnInformation(*createData.SNssai, createData.Dnn)
 	if smContext.DNNInfo == nil {
-		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, S-NSSAI[sst: %d, sd: %s] DNN[%s] not matched DNN Config",
+		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, S-NSSAI[sst: %d, sd: %s] DNN[%s] does not match DNN Config",
 			createData.SNssai.Sst, createData.SNssai.Sd, createData.Dnn)
 		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("DnnNotSupported")
 		return fmt.Errorf("SnssaiError")
