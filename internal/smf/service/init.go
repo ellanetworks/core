@@ -34,9 +34,8 @@ func init() {
 	initLog = logger.InitLog
 }
 
-func (smf *SMF) Initialize(smfConfig factory.Configuration, ueRoutingConfig factory.RoutingConfig) error {
+func (smf *SMF) Initialize(smfConfig factory.Configuration) error {
 	factory.InitConfigFactory(smfConfig)
-	factory.InitRoutingConfigFactory(ueRoutingConfig)
 	smf.setLogLevel()
 	return nil
 }
@@ -68,9 +67,6 @@ func (smf *SMF) Start() {
 
 	// allocate id for each upf
 	context.AllocateUPFID()
-
-	// Init UE Specific Config
-	context.InitSMFUERouting(&factory.UERoutingConfig)
 
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 	oam.AddService(router)

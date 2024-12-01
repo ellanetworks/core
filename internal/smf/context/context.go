@@ -42,8 +42,7 @@ type SMFContext struct {
 	// TODO: support "IPv6", "IPv4v6", "Ethernet"
 	SupportedPDUSessionType string
 
-	UEPreConfigPathPool map[string]*UEPreConfigPaths
-	EnterpriseList      *map[string]string // map to contain slice-name:enterprise-name
+	EnterpriseList *map[string]string // map to contain slice-name:enterprise-name
 
 	PodIp string
 
@@ -137,31 +136,6 @@ func InitSmfContext(config *factory.Configuration) *SMFContext {
 	smfContext.PodIp = os.Getenv("POD_IP")
 
 	return &smfContext
-}
-
-func InitSMFUERouting(routingConfig *factory.RoutingConfig) {
-	if !smfContext.ULCLSupport {
-		return
-	}
-
-	if routingConfig == nil {
-		logger.CtxLog.Error("configuration needs the routing config")
-		return
-	}
-
-	UERoutingInfo := routingConfig.UERoutingInfo
-	smfContext.UEPreConfigPathPool = make(map[string]*UEPreConfigPaths)
-
-	for _, routingInfo := range UERoutingInfo {
-		supi := routingInfo.SUPI
-		uePreConfigPaths, err := NewUEPreConfigPaths(supi, routingInfo.PathList)
-		if err != nil {
-			logger.CtxLog.Warnln(err)
-			continue
-		}
-
-		smfContext.UEPreConfigPathPool[supi] = uePreConfigPaths
-	}
 }
 
 func SMF_Self() *SMFContext {

@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"sync"
 	"time"
 
 	"github.com/omec-project/openapi/models"
@@ -91,14 +92,17 @@ type PfdDataForApp struct {
 	Pfds []PfdContent
 }
 
-type RoutingConfig struct {
-	UERoutingInfo []*UERoutingInfo
-	RouteProf     map[RouteProfID]RouteProfile
-	PfdDatas      []*PfdDataForApp
-}
-
 type InterfaceUpfInfoItem struct {
 	NetworkInstance string
 	InterfaceType   models.UpInterfaceType
 	Endpoints       []string
+}
+
+var (
+	SmfConfig         Configuration
+	SmfConfigSyncLock sync.Mutex
+)
+
+func InitConfigFactory(c Configuration) {
+	SmfConfig = c
 }

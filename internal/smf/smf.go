@@ -38,9 +38,7 @@ func Start(amfURL string, pcfURL string, udmURL string) error {
 		},
 	}
 
-	ueRoutingConfig := factory.RoutingConfig{}
-
-	err := SMF.Initialize(configuration, ueRoutingConfig)
+	err := SMF.Initialize(configuration)
 	if err != nil {
 		return fmt.Errorf("failed to initialize SMF")
 	}

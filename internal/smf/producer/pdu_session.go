@@ -196,39 +196,26 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		},
 	}
 
-	if smf_context.SMF_Self().ULCLSupport && smf_context.CheckUEHasPreConfig(createData.Supi) {
-		smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, SUPI[%s] has pre-config route", createData.Supi)
-		uePreConfigPaths := smf_context.GetUEPreConfigPaths(createData.Supi)
-		smContext.Tunnel.DataPathPool = uePreConfigPaths.DataPathPool
-		smContext.Tunnel.PathIDGenerator = uePreConfigPaths.PathIDGenerator
-		defaultPath = smContext.Tunnel.DataPathPool.GetDefaultPath()
-		err := defaultPath.ActivateTunnelAndPDR(smContext, 255)
-		if err != nil {
-			return fmt.Errorf("couldn't activate tunnel and PDR: %v", err)
-		}
-		smContext.BPManager = smf_context.NewBPManager(createData.Supi)
-	} else {
-		defaultUPPath, err := smf_context.GetUserPlaneInformation().GetDefaultUserPlanePathByDNN(upfSelectionParams)
-		if err != nil {
-			smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, get default UP path error: %v", err.Error())
-			txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("UPFDataPathError")
-			return fmt.Errorf("DataPathError")
-		}
-		defaultPath, err = smf_context.GenerateDataPath(defaultUPPath, smContext)
-		if err != nil {
-			smContext.SubPduSessLog.Errorf("couldn't generate data path: %v", err.Error())
-			txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("UPFDataPathError")
-			return fmt.Errorf("DataPathError")
-		}
-		if defaultPath != nil {
-			defaultPath.IsDefaultPath = true
-			smContext.Tunnel.AddDataPath(defaultPath)
+	defaultUPPath, err := smf_context.GetUserPlaneInformation().GetDefaultUserPlanePathByDNN(upfSelectionParams)
+	if err != nil {
+		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, get default UP path error: %v", err.Error())
+		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("UPFDataPathError")
+		return fmt.Errorf("DataPathError")
+	}
+	defaultPath, err = smf_context.GenerateDataPath(defaultUPPath, smContext)
+	if err != nil {
+		smContext.SubPduSessLog.Errorf("couldn't generate data path: %v", err.Error())
+		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("UPFDataPathError")
+		return fmt.Errorf("DataPathError")
+	}
+	if defaultPath != nil {
+		defaultPath.IsDefaultPath = true
+		smContext.Tunnel.AddDataPath(defaultPath)
 
-			if err := defaultPath.ActivateTunnelAndPDR(smContext, 255); err != nil {
-				smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, data path error: %v", err.Error())
-				txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("UPFDataPathError")
-				return fmt.Errorf("DataPathError")
-			}
+		if err := defaultPath.ActivateTunnelAndPDR(smContext, 255); err != nil {
+			smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, data path error: %v", err.Error())
+			txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("UPFDataPathError")
+			return fmt.Errorf("DataPathError")
 		}
 	}
 	if defaultPath == nil {
