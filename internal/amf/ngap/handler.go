@@ -606,9 +606,7 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
 		}
 
-		ran.Log.Warnf("Tai list: %v", taiList)
 		for i, tai := range ran.SupportedTAList {
-			ran.Log.Warnf("Checking if TAI is supported in AMF: %v", tai.Tai)
 			if context.InTaiList(tai.Tai, taiList) {
 				ran.Log.Tracef("SERVED_TAI_INDEX[%d]", i)
 				found = true

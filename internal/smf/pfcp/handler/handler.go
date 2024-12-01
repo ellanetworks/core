@@ -68,7 +68,12 @@ func HandlePfcpHeartbeatResponse(msg *udp.Message) {
 
 	logger.PfcpLog.Debugf("handle pfcp heartbeat response seq[%d] with NodeID[%v, %s]", seq, nodeID, nodeID.ResolveNodeIdToIp().String())
 
-	upf := smf_context.GetUserPlaneInformation().UPF.UPF
+	userPlaneInfo := smf_context.GetUserPlaneInformation()
+	if userPlaneInfo == nil {
+		logger.PfcpLog.Errorf("can't find UPF[%s]", nodeID.ResolveNodeIdToIp().String())
+		return
+	}
+	upf := userPlaneInfo.UPF.UPF
 	if upf == nil {
 		logger.PfcpLog.Errorf("can't find UPF[%s]", nodeID.ResolveNodeIdToIp().String())
 		return

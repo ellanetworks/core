@@ -84,14 +84,15 @@ func (smf *SMF) Start() {
 
 	userPlaneInformation := context.GetUserPlaneInformation()
 
-	logger.AppLog.Infof("Send PFCP Association Request to UPF[%s]\n", userPlaneInformation.UPF.NodeID.ResolveNodeIdToIp().String())
-	message.SendPfcpAssociationSetupRequest(userPlaneInformation.UPF.NodeID, userPlaneInformation.UPF.Port)
+	if userPlaneInformation != nil {
+		message.SendPfcpAssociationSetupRequest(userPlaneInformation.UPF.NodeID, userPlaneInformation.UPF.Port)
 
-	// Trigger PFCP Heartbeat towards all connected UPFs
-	go upf.InitPfcpHeartbeatRequest(userPlaneInformation)
+		// Trigger PFCP Heartbeat towards all connected UPFs
+		go upf.InitPfcpHeartbeatRequest(userPlaneInformation)
 
-	// Trigger PFCP association towards not associated UPFs
-	go upf.ProbeInactiveUpfs(userPlaneInformation)
+		// Trigger PFCP association towards not associated UPFs
+		go upf.ProbeInactiveUpfs(userPlaneInformation)
+	}
 
 	time.Sleep(1000 * time.Millisecond)
 
