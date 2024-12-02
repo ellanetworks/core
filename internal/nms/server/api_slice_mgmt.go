@@ -35,18 +35,18 @@ func init() {
 }
 
 func DeviceGroupDeleteHandler(c *gin.Context) bool {
-	var groupName string
-	var exists bool
-	if groupName, exists = c.Params.Get("group-name"); exists {
-		configLog.Infof("Received Delete Group %v from Roc/simapp", groupName)
+	groupName, exists := c.Params.Get("group-name")
+	if !exists {
+		configLog.Errorf("group-name is missing")
+		return false
 	}
-	prevDevGroup := getDeviceGroupByName(groupName)
+	deviceGroup := getDeviceGroupByName(groupName)
 	filter := bson.M{"group-name": groupName}
 	errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.DevGroupDataColl, filter)
 	if errDelOne != nil {
 		logger.DbLog.Warnln(errDelOne)
 	}
-	updateDeviceGroupConfig(groupName, nil, prevDevGroup)
+	deleteDeviceGroupConfig(deviceGroup)
 	updateSMF()
 	configLog.Infof("Deleted Device Group: %v", groupName)
 	return true
@@ -67,10 +67,10 @@ func convertToBps(val int64, unit string) (bitrate int64) {
 }
 
 func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
-	var groupName string
-	var exists bool
-	if groupName, exists = c.Params.Get("group-name"); exists {
-		configLog.Infof("Received group %v", groupName)
+	groupName, exists := c.Params.Get("group-name")
+	if !exists {
+		configLog.Errorf("group-name is missing")
+		return false
 	}
 
 	var err error
@@ -101,8 +101,27 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	}
 
 	procReq.DeviceGroupName = groupName
-	prevDevGroup := getDeviceGroupByName(groupName)
-	updateDeviceGroupConfig(groupName, &procReq, prevDevGroup)
+	slice := isDeviceGroupExistInSlice(groupName)
+	if slice != nil {
+		sVal, err := strconv.ParseUint(slice.SliceId.Sst, 10, 32)
+		if err != nil {
+			logger.DbLog.Errorf("Could not parse SST %v", slice.SliceId.Sst)
+		}
+		snssai := &openAPIModels.Snssai{
+			Sd:  slice.SliceId.Sd,
+			Sst: int32(sVal),
+		}
+
+		aimsis := getAddedImsisList(&procReq)
+		for _, imsi := range aimsis {
+			dnn := procReq.IpDomainExpanded.Dnn
+			updateAmPolicyData(imsi)
+			updateSmPolicyData(snssai, dnn, imsi)
+			updateAmProvisionedData(snssai, procReq.IpDomainExpanded.UeDnnQos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, imsi)
+			updateSmProvisionedData(snssai, procReq.IpDomainExpanded.UeDnnQos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
+			updateSmfSelectionProviosionedData(snssai, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
+		}
+	}
 	filter := bson.M{"group-name": groupName}
 	devGroupDataBsonA := toBsonM(&procReq)
 	_, errPost := db.CommonDBClient.RestfulAPIPost(db.DevGroupDataColl, filter, devGroupDataBsonA)
@@ -115,10 +134,10 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 }
 
 func NetworkSliceDeleteHandler(c *gin.Context) bool {
-	var sliceName string
-	var exists bool
-	if sliceName, exists = c.Params.Get("slice-name"); exists {
-		configLog.Infof("Received Deleted slice : %v from Roc/simapp", sliceName)
+	sliceName, exists := c.Params.Get("slice-name")
+	if !exists {
+		configLog.Errorf("slice-name is missing")
+		return false
 	}
 	prevSlice := getSliceByName(sliceName)
 	filter := bson.M{"slice-name": sliceName}
@@ -164,10 +183,10 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 }
 
 func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
-	var sliceName string
-	var exists bool
-	if sliceName, exists = c.Params.Get("slice-name"); exists {
-		configLog.Infof("Received slice : %v", sliceName)
+	sliceName, exists := c.Params.Get("slice-name")
+	if !exists {
+		configLog.Errorf("slice-name is missing")
+		return false
 	}
 
 	var err error
@@ -288,51 +307,10 @@ func getSliceByName(name string) *models.Slice {
 	return &sliceData
 }
 
-func getAddedImsisList(group, prevGroup *models.DeviceGroups) (aimsis []string) {
-	if group == nil {
-		return
-	}
+func getAddedImsisList(group *models.DeviceGroups) (aimsis []string) {
 	for _, imsi := range group.Imsis {
-		if prevGroup == nil {
-			if imsiData[imsi] != nil {
-				aimsis = append(aimsis, imsi)
-			}
-		} else {
-			var found bool
-			for _, pimsi := range prevGroup.Imsis {
-				if pimsi == imsi {
-					found = true
-				}
-			}
-
-			if !found {
-				aimsis = append(aimsis, imsi)
-			}
-		}
-	}
-
-	return
-}
-
-func getDeletedImsisList(group, prevGroup *models.DeviceGroups) (dimsis []string) {
-	if prevGroup == nil {
-		return
-	}
-
-	if group == nil {
-		return prevGroup.Imsis
-	}
-
-	for _, pimsi := range prevGroup.Imsis {
-		var found bool
-		for _, imsi := range group.Imsis {
-			if pimsi == imsi {
-				found = true
-			}
-		}
-
-		if !found {
-			dimsis = append(dimsis, pimsi)
+		if imsiData[imsi] != nil {
+			aimsis = append(aimsis, imsi)
 		}
 	}
 
@@ -503,29 +481,10 @@ func getDeleteGroupsList(slice, prevSlice *models.Slice) (names []string) {
 	return
 }
 
-func updateDeviceGroupConfig(deviceGroupName string, deviceGroup *models.DeviceGroups, prevDeviceGroup *models.DeviceGroups) {
-	slice := isDeviceGroupExistInSlice(deviceGroupName)
+func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
+	slice := isDeviceGroupExistInSlice(deviceGroup.DeviceGroupName)
 	if slice != nil {
-		sVal, err := strconv.ParseUint(slice.SliceId.Sst, 10, 32)
-		if err != nil {
-			logger.DbLog.Errorf("Could not parse SST %v", slice.SliceId.Sst)
-		}
-		snssai := &openAPIModels.Snssai{
-			Sd:  slice.SliceId.Sd,
-			Sst: int32(sVal),
-		}
-
-		aimsis := getAddedImsisList(deviceGroup, prevDeviceGroup)
-		for _, imsi := range aimsis {
-			dnn := deviceGroup.IpDomainExpanded.Dnn
-			updateAmPolicyData(imsi)
-			updateSmPolicyData(snssai, dnn, imsi)
-			updateAmProvisionedData(snssai, deviceGroup.IpDomainExpanded.UeDnnQos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, imsi)
-			updateSmProvisionedData(snssai, deviceGroup.IpDomainExpanded.UeDnnQos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
-			updateSmfSelectionProviosionedData(snssai, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
-		}
-
-		dimsis := getDeletedImsisList(deviceGroup, prevDeviceGroup)
+		dimsis := deviceGroup.Imsis
 		for _, imsi := range dimsis {
 			mcc := slice.SiteInfo.Plmn.Mcc
 			mnc := slice.SiteInfo.Plmn.Mnc

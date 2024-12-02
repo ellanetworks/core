@@ -340,8 +340,6 @@ func PostSubscriberByID(c *gin.Context) {
 
 	ueId := c.Param("ueId")
 
-	logger.NMSLog.Infoln("Received Post Subscriber Data from Roc/Simapp: ", ueId)
-
 	authSubsData := models.AuthenticationSubscription{
 		AuthenticationManagementField: "8000",
 		AuthenticationMethod:          "5G_AKA", // "5G_AKA", "EAP_AKA_PRIME"
