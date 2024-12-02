@@ -350,8 +350,6 @@ func PostSubscriberByID(c *gin.Context) {
 
 	ueId := c.Param("ueId")
 
-	logger.WebUILog.Infoln("Received Post Subscriber Data from Roc/Simapp: ", ueId)
-
 	authSubsData := models.AuthenticationSubscription{
 		AuthenticationManagementField: "8000",
 		AuthenticationMethod:          "5G_AKA", // "5G_AKA", "EAP_AKA_PRIME"
@@ -390,20 +388,22 @@ func PostSubscriberByID(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, gin.H{})
 
-	msg := configmodels.ConfigMessage{
-		MsgType:     configmodels.Sub_data,
-		MsgMethod:   configmodels.Post_op,
-		AuthSubData: &authSubsData,
-		Imsi:        ueId,
+	basicAmData := map[string]interface{}{
+		"ueId": ueId,
 	}
-	configChannel <- &msg
-	logger.WebUILog.Infoln("Successfully Added Subscriber Data to ConfigChannel: ", ueId)
+	filter := bson.M{"ueId": ueId}
+	basicDataBson := toBsonM(basicAmData)
+	logger.ConfigLog.Warnf("bson data: %v", basicDataBson)
+	_, errPost := dbadapter.AuthDBClient.RestfulAPIPost(authSubsDataColl, filter, basicDataBson)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
+	}
+	logger.WebUILog.Infoln("Created Subscriber: ", ueId)
 }
 
 // Put subscriber by IMSI(ueId) and PlmnID(servingPlmnId)
 func PutSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
-	logger.WebUILog.Infoln("Put One Subscriber Data")
 
 	var subsData configmodels.SubsData
 	if err := c.ShouldBindJSON(&subsData); err != nil {
@@ -413,14 +413,14 @@ func PutSubscriberByID(c *gin.Context) {
 	ueId := c.Param("ueId")
 	c.JSON(http.StatusNoContent, gin.H{})
 
-	msg := configmodels.ConfigMessage{
-		MsgType:     configmodels.Sub_data,
-		MsgMethod:   configmodels.Post_op,
-		AuthSubData: &subsData.AuthenticationSubscription,
-		Imsi:        ueId,
+	filter := bson.M{"ueId": ueId}
+	authDataBsonA := toBsonM(&subsData.AuthenticationSubscription)
+	authDataBsonA["ueId"] = ueId
+	_, errPost := dbadapter.AuthDBClient.RestfulAPIPost(authSubsDataColl, filter, authDataBsonA)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
 	}
-	configChannel <- &msg
-	logger.WebUILog.Infoln("Put Subscriber Data complete")
+	logger.WebUILog.Infoln("Edited Subscriber: ", ueId)
 }
 
 // Patch subscriber by IMSI(ueId) and PlmnID(servingPlmnId)
@@ -438,13 +438,13 @@ func DeleteSubscriberByID(c *gin.Context) {
 
 	c.JSON(http.StatusNoContent, gin.H{})
 
-	msg := configmodels.ConfigMessage{
-		MsgType:   configmodels.Sub_data,
-		MsgMethod: configmodels.Delete_op,
-		Imsi:      ueId,
+	filter := bson.M{"ueId": ueId}
+	errDelOne := dbadapter.AuthDBClient.RestfulAPIDeleteOne(authSubsDataColl, filter)
+	if errDelOne != nil {
+		logger.DbLog.Warnln(errDelOne)
 	}
-	configChannel <- &msg
-	logger.WebUILog.Infoln("Delete Subscriber Data complete")
+
+	logger.WebUILog.Infoln("Deleted Subscriber:", ueId)
 }
 
 func GetRegisteredUEContext(c *gin.Context) {
@@ -457,7 +457,6 @@ func GetRegisteredUEContext(c *gin.Context) {
 
 	supi, supiExists := c.Params.Get("supi")
 
-	// TODO: support fetching data from multiple AMFs
 	if amfUris := webuiSelf.GetOamUris(models.NfType_AMF); amfUris != nil {
 		var requestUri string
 

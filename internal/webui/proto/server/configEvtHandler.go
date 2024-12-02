@@ -9,7 +9,6 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/sirupsen/logrus"
-	"github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/webui/backend/logger"
 	"github.com/yeastengine/ella/internal/webui/configapi"
 	"github.com/yeastengine/ella/internal/webui/configmodels"
@@ -657,7 +656,7 @@ func Config5GUpdateHandle(confChan chan *Update5GSubscriberMsg) {
 					}
 				}
 			}
-			updateSMF()
+			configapi.UpdateSMF()
 			rwLock.RUnlock()
 		}
 	} // end of for loop
@@ -709,22 +708,4 @@ func mapToByte(data map[string]interface{}) (ret []byte) {
 func SnssaiModelsToHex(snssai models.Snssai) string {
 	sst := fmt.Sprintf("%02x", snssai.Sst)
 	return sst + snssai.Sd
-}
-
-func updateSMF() {
-	networkSlices := make([]configmodels.Slice, 0)
-	networkSliceNames := configapi.ListNetworkSlices()
-	for _, networkSliceName := range networkSliceNames {
-		networkSlice := configapi.GetNetworkSliceByName2(networkSliceName)
-		networkSlices = append(networkSlices, networkSlice)
-	}
-	deviceGroups := make([]configmodels.DeviceGroups, 0)
-	deviceGroupNames := configapi.ListDeviceGroups()
-	for _, deviceGroupName := range deviceGroupNames {
-		deviceGroup := configapi.GetDeviceGroupByName2(deviceGroupName)
-		deviceGroups = append(deviceGroups, deviceGroup)
-	}
-	logger.AppLog.Warnf("Network Slices: %v", networkSlices)
-	logger.AppLog.Warnf("Device Groups: %v", deviceGroups)
-	context.UpdateSMFContext(networkSlices, deviceGroups)
 }

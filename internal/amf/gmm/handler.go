@@ -559,7 +559,6 @@ func IdentityVerification(ue *context.AmfUe) bool {
 }
 
 func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) error {
-	ue.GmmLog.Infoln("Handle InitialRegistration")
 
 	amfSelf := context.AMF_Self()
 

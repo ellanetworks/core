@@ -165,7 +165,6 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("PCFDiscoveryFailure")
 		return fmt.Errorf("PcfError")
 	}
-	smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, send NF Discovery Serving PCF success")
 
 	// PCF Policy Association
 	var smPolicyDecision *models.SmPolicyDecision

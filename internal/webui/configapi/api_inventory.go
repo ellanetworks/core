@@ -94,14 +94,14 @@ func handlePostGnb(c *gin.Context) error {
 	req := httpwrapper.NewRequest(c.Request, newGnb)
 	procReq := req.Body.(configmodels.Gnb)
 	procReq.Name = gnbName
-	msg := configmodels.ConfigMessage{
-		MsgType:   configmodels.Inventory,
-		MsgMethod: configmodels.Post_op,
-		GnbName:   gnbName,
-		Gnb:       &procReq,
+
+	filter := bson.M{"name": gnbName}
+	gnbDataBson := toBsonM(&procReq)
+	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(gnbDataColl, filter, gnbDataBson)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
 	}
-	configChannel <- &msg
-	configLog.Infof("Successfully added gNB [%v] to config channel.", gnbName)
+	configLog.Infof("Created gNB: %v ", gnbName)
 	return nil
 }
 
@@ -113,13 +113,13 @@ func handleDeleteGnb(c *gin.Context) error {
 		configLog.Errorf(errorMessage)
 		return fmt.Errorf(errorMessage)
 	}
-	configLog.Infof("Received delete gNB %v request", gnbName)
-	msg := configmodels.ConfigMessage{
-		MsgType:   configmodels.Inventory,
-		MsgMethod: configmodels.Delete_op,
-		GnbName:   gnbName,
+
+	filter := bson.M{"name": gnbName}
+	errDelOne := dbadapter.CommonDBClient.RestfulAPIDeleteOne(gnbDataColl, filter)
+	if errDelOne != nil {
+		logger.DbLog.Warnln(errDelOne)
 	}
-	configChannel <- &msg
-	configLog.Infof("Successfully added gNB [%v] with delete_op to config channel.", gnbName)
+
+	configLog.Infof("Deleted gNB: %v", gnbName)
 	return nil
 }

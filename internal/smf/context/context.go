@@ -322,7 +322,6 @@ func BuildUserPlaneInformationFromConfig(networkSlices []configmodels.Slice, dev
 			userPlaneInformation.AccessNetwork[gnbName] = gnbNode
 			userPlaneInformation.UPNodes[gnbName] = gnbNode
 			userPlaneInformation.UPNodes[upfName] = upfNode
-			logger.CtxLog.Warnf("Built user plane information: %v", userPlaneInformation)
 			return userPlaneInformation
 		}
 	}
@@ -336,11 +335,9 @@ func UpdateUserPlaneInformation(networkSlices []configmodels.Slice, deviceGroups
 	configUserPlaneInfo := BuildUserPlaneInformationFromConfig(networkSlices, deviceGroups)
 	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)
 	if same {
-		logger.CtxLog.Info("Context user plane info matches config")
 		return
 	}
 	if configUserPlaneInfo == nil {
-		logger.CtxLog.Warn("Config user plane info is nil")
 		return
 	}
 	smfSelf.UserPlaneInformation.UPNodes = configUserPlaneInfo.UPNodes

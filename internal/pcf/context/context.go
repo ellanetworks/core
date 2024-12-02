@@ -418,12 +418,15 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 	subscriberPolicies := make(map[string]*PcfSubscriberPolicyData)
 
 	networkSliceNames := configapi.ListNetworkSlices()
+	logger.CtxLog.Warnf("Network Slices Names: %v", networkSliceNames)
 	for _, networkSliceName := range networkSliceNames {
 		networkSlice := configapi.GetNetworkSliceByName2(networkSliceName)
 		pccPolicyId := networkSlice.SliceId.Sst + networkSlice.SliceId.Sd
 		deviceGroupNames := networkSlice.SiteDeviceGroup
+		logger.CtxLog.Warnf("Device Group Names: %v", deviceGroupNames)
 		for _, devGroupName := range deviceGroupNames {
 			deviceGroup := configapi.GetDeviceGroupByName2(devGroupName)
+			logger.CtxLog.Warnf("IMSIs: %v", deviceGroup.Imsis)
 			for _, imsi := range deviceGroup.Imsis {
 				if _, exists := subscriberPolicies[imsi]; !exists {
 					subscriberPolicies[imsi] = &PcfSubscriberPolicyData{

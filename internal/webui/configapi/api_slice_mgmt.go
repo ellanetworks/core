@@ -10,6 +10,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/webui/backend/logger"
 	"github.com/yeastengine/ella/internal/webui/configmodels"
+	"github.com/yeastengine/ella/internal/webui/dbadapter"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 const (
@@ -18,31 +20,25 @@ const (
 	GPS = 1000000000
 )
 
-var configChannel chan *configmodels.ConfigMessage
-
 var configLog *logrus.Entry
 
 func init() {
 	configLog = logger.ConfigLog
 }
 
-func SetChannel(cfgChannel chan *configmodels.ConfigMessage) {
-	configLog.Infof("Setting configChannel")
-	configChannel = cfgChannel
-}
-
 func DeviceGroupDeleteHandler(c *gin.Context) bool {
-	var groupName string
-	var exists bool
-	if groupName, exists = c.Params.Get("group-name"); exists {
-		configLog.Infof("Received Delete Group %v from Roc/simapp", groupName)
+	groupName, exists := c.Params.Get("group-name")
+	if !exists {
+		configLog.Errorf("Delete group request is missing group-name")
+		return false
 	}
-	var msg configmodels.ConfigMessage
-	msg.MsgType = configmodels.Device_group
-	msg.MsgMethod = configmodels.Delete_op
-	msg.DevGroupName = groupName
-	configChannel <- &msg
-	configLog.Infof("Successfully Added Device Group [%v] with delete_op to config channel.", groupName)
+	filter := bson.M{"group-name": groupName}
+	errDelOne := dbadapter.CommonDBClient.RestfulAPIDeleteOne(devGroupDataColl, filter)
+	if errDelOne != nil {
+		logger.DbLog.Warnln(errDelOne)
+	}
+	UpdateSMF()
+	configLog.Infof("Deleted Device Group: %v", groupName)
 	return true
 }
 
@@ -61,10 +57,10 @@ func convertToBps(val int64, unit string) (bitrate int64) {
 }
 
 func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
-	var groupName string
-	var exists bool
-	if groupName, exists = c.Params.Get("group-name"); exists {
-		configLog.Infof("Received group %v", groupName)
+	groupName, exists := c.Params.Get("group-name")
+	if !exists {
+		configLog.Errorf("Post group request is missing group-name")
+		return false
 	}
 
 	var err error
@@ -94,37 +90,39 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 		}
 	}
 
-	var msg configmodels.ConfigMessage
-	procReq.DeviceGroupName = groupName
-	msg.MsgType = configmodels.Device_group
-	msg.MsgMethod = msgOp
-	msg.DevGroup = &procReq
-	msg.DevGroupName = groupName
-	configChannel <- &msg
-	configLog.Infof("Successfully Added Device Group [%v] to config channel.", groupName)
+	filter := bson.M{"group-name": groupName}
+	devGroupDataBsonA := toBsonM(&procReq)
+	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(devGroupDataColl, filter, devGroupDataBsonA)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
+	}
+	UpdateSMF()
+	configLog.Infof("Created Device Group: %v", groupName)
 	return true
 }
 
 func NetworkSliceDeleteHandler(c *gin.Context) bool {
-	var sliceName string
-	var exists bool
-	if sliceName, exists = c.Params.Get("slice-name"); exists {
-		configLog.Infof("Received Deleted slice : %v from Roc/simapp", sliceName)
+	sliceName, exists := c.Params.Get("slice-name")
+	if !exists {
+		configLog.Errorf("Delete slice request is missing slice-name")
+		return false
 	}
-	var msg configmodels.ConfigMessage
-	msg.MsgMethod = configmodels.Delete_op
-	msg.MsgType = configmodels.Network_slice
-	msg.SliceName = sliceName
-	configChannel <- &msg
-	configLog.Infof("Successfully Added Device Group [%v] with delete_op to config channel.", sliceName)
+
+	filter := bson.M{"slice-name": sliceName}
+	errDelOne := dbadapter.CommonDBClient.RestfulAPIDeleteOne(sliceDataColl, filter)
+	if errDelOne != nil {
+		logger.DbLog.Warnln(errDelOne)
+	}
+	UpdateSMF()
+	configLog.Infof("Deleted Network Slice: %v", sliceName)
 	return true
 }
 
 func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
-	var sliceName string
-	var exists bool
-	if sliceName, exists = c.Params.Get("slice-name"); exists {
-		configLog.Infof("Received slice : %v", sliceName)
+	sliceName, exists := c.Params.Get("slice-name")
+	if !exists {
+		configLog.Errorf("Post slice request is missing slice-name")
+		return false
 	}
 
 	var err error
@@ -138,19 +136,14 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		configLog.Infof(" err %v", err)
 		return false
 	}
-	// configLog.Infof("Printing request full after binding : %v ", request)
 
 	req := httpwrapper.NewRequest(c.Request, request)
 
 	procReq := req.Body.(configmodels.Slice)
 	group := procReq.SiteDeviceGroup
 	slices.Sort(group)
-	configLog.Infof("Number of device groups %v", len(group))
-	for i := 0; i < len(group); i++ {
-		configLog.Infof("  device groups(%v) - %v \n", i+1, group[i])
-	}
 
-	for index, filter := range procReq.ApplicationFilteringRules {
+	for index, _ := range procReq.ApplicationFilteringRules {
 		ul := procReq.ApplicationFilteringRules[index].AppMbrUplink
 		dl := procReq.ApplicationFilteringRules[index].AppMbrDownlink
 		unit := procReq.ApplicationFilteringRules[index].BitrateUnit
@@ -169,11 +162,6 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 			procReq.ApplicationFilteringRules[index].AppMbrDownlink = int32(bitrate)
 		}
 
-		configLog.Infof("\tApp MBR Uplink   : %v", procReq.ApplicationFilteringRules[index].AppMbrUplink)
-		configLog.Infof("\tApp MBR Downlink : %v", procReq.ApplicationFilteringRules[index].AppMbrDownlink)
-		if filter.TrafficClass != nil {
-			configLog.Infof("\t\tTraffic Class : %v", filter.TrafficClass)
-		}
 	}
 	site := procReq.SiteInfo
 	for e := 0; e < len(site.GNodeBs); e++ {
@@ -181,13 +169,14 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		configLog.Infof("    enb (%v) - name - %v , tac = %v \n", e+1, enb.Name, enb.Tac)
 	}
 
-	var msg configmodels.ConfigMessage
-	msg.MsgMethod = msgOp
-	procReq.SliceName = sliceName
-	msg.MsgType = configmodels.Network_slice
-	msg.Slice = &procReq
-	msg.SliceName = sliceName
-	configChannel <- &msg
-	configLog.Infof("Successfully Added Slice [%v] to config channel.", sliceName)
+	filter := bson.M{"slice-name": sliceName}
+	sliceDataBsonA := toBsonM(&procReq)
+	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(sliceDataColl, filter, sliceDataBsonA)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
+	}
+
+	UpdateSMF()
+	configLog.Infof("Created Network Slice: %v", sliceName)
 	return true
 }

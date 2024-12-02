@@ -25,6 +25,7 @@ SUBSCRIBER_CONFIG = {
 }
 
 DEVICE_GROUP_CONFIG = {
+    "group-name": "default-default",
     "imsis": [],
     "site-info": "demo",
     "ip-domain-name": "pool1",
@@ -44,6 +45,7 @@ DEVICE_GROUP_CONFIG = {
 
 
 NETWORK_SLICE_CONFIG = {
+    "slice-name": "default",
     "slice-id": {"sst": "1", "sd": "102030"},
     "site-device-group": [],
     "site-info": {

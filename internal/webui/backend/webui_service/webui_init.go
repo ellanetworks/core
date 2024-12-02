@@ -12,7 +12,6 @@ import (
 	"github.com/yeastengine/ella/internal/webui/backend/logger"
 	"github.com/yeastengine/ella/internal/webui/backend/webui_context"
 	"github.com/yeastengine/ella/internal/webui/configapi"
-	"github.com/yeastengine/ella/internal/webui/configmodels"
 	"github.com/yeastengine/ella/internal/webui/dbadapter"
 	gServ "github.com/yeastengine/ella/internal/webui/proto/server"
 )
@@ -57,8 +56,8 @@ func (webui *WEBUI) Start() {
 	configapi.AddServiceSub(subconfig_router)
 	configapi.AddService(subconfig_router)
 
-	configMsgChan := make(chan *configmodels.ConfigMessage, 10)
-	configapi.SetChannel(configMsgChan)
+	// configMsgChan := make(chan *configmodels.ConfigMessage, 10)
+	// configapi.SetChannel(configMsgChan)
 
 	subconfig_router.Use(cors.New(cors.Config{
 		AllowMethods: []string{"GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"},
@@ -84,7 +83,7 @@ func (webui *WEBUI) Start() {
 
 	var host string = "0.0.0.0:9876"
 	confServ := &gServ.ConfigServer{}
-	go gServ.StartServer(host, confServ, configMsgChan)
+	go gServ.StartServer(host, confServ, nil)
 
 	select {}
 }
