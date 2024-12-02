@@ -130,7 +130,7 @@ func Test_handleDeviceGroupPost(t *testing.T) {
 		postData = make([]map[string]interface{}, 0)
 		db.CommonDBClient = &(MockMongoPost{db.CommonDBClient})
 		db.CommonDBClient = &MockMongoGetOneNil{db.CommonDBClient}
-		handleDeviceGroupPost(&configMsg, subsUpdateChan)
+		handleDeviceGroupPost(&configMsg)
 		expected_collection := "webconsoleData.snapshots.devGroupData"
 		if postData[0]["coll"] != expected_collection {
 			t.Errorf("Expected collection %v, got %v", expected_collection, postData[0]["coll"])
@@ -173,7 +173,7 @@ func Test_handleDeviceGroupPost_alreadyExists(t *testing.T) {
 		postData = make([]map[string]interface{}, 0)
 		db.CommonDBClient = &MockMongoPost{db.CommonDBClient}
 		db.CommonDBClient = &(MockMongoDeviceGroupGetOne{db.CommonDBClient, testGroup})
-		handleDeviceGroupPost(&configMsg, subsUpdateChan)
+		handleDeviceGroupPost(&configMsg)
 		expected_collection := "webconsoleData.snapshots.devGroupData"
 		if postData[0]["coll"] != expected_collection {
 			t.Errorf("Expected collection %v, got %v", expected_collection, postData[0]["coll"])

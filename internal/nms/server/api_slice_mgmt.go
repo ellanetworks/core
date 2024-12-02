@@ -135,22 +135,16 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		err = c.ShouldBindJSON(&request)
 	}
 	if err != nil {
-		configLog.Infof(" err %v", err)
 		return false
 	}
-	// configLog.Infof("Printing request full after binding : %v ", request)
 
 	req := httpwrapper.NewRequest(c.Request, request)
 
 	procReq := req.Body.(models.Slice)
 	group := procReq.SiteDeviceGroup
 	slices.Sort(group)
-	configLog.Infof("Number of device groups %v", len(group))
-	for i := 0; i < len(group); i++ {
-		configLog.Infof("  device groups(%v) - %v \n", i+1, group[i])
-	}
 
-	for index, filter := range procReq.ApplicationFilteringRules {
+	for index, _ := range procReq.ApplicationFilteringRules {
 		ul := procReq.ApplicationFilteringRules[index].AppMbrUplink
 		dl := procReq.ApplicationFilteringRules[index].AppMbrDownlink
 		unit := procReq.ApplicationFilteringRules[index].BitrateUnit
@@ -169,16 +163,6 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 			procReq.ApplicationFilteringRules[index].AppMbrDownlink = int32(bitrate)
 		}
 
-		configLog.Infof("\tApp MBR Uplink   : %v", procReq.ApplicationFilteringRules[index].AppMbrUplink)
-		configLog.Infof("\tApp MBR Downlink : %v", procReq.ApplicationFilteringRules[index].AppMbrDownlink)
-		if filter.TrafficClass != nil {
-			configLog.Infof("\t\tTraffic Class : %v", filter.TrafficClass)
-		}
-	}
-	site := procReq.SiteInfo
-	for e := 0; e < len(site.GNodeBs); e++ {
-		enb := site.GNodeBs[e]
-		configLog.Infof("    enb (%v) - name - %v , tac = %v \n", e+1, enb.Name, enb.Tac)
 	}
 
 	var msg models.ConfigMessage
