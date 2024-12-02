@@ -81,7 +81,7 @@ sqlc generate
 cd ui
 npm install
 npm run build
-cp -r out/* ../internal/webui/ui/frontend_files/
+cp -r out/* ../internal/nms/ui/frontend_files/
 ```
 
 ### Build the Container image

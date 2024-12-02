@@ -10,13 +10,13 @@ import (
 	"github.com/yeastengine/ella/internal/ausf"
 	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/db"
+	"github.com/yeastengine/ella/internal/nms"
 	"github.com/yeastengine/ella/internal/nssf"
 	"github.com/yeastengine/ella/internal/pcf"
 	"github.com/yeastengine/ella/internal/smf"
 	"github.com/yeastengine/ella/internal/udm"
 	"github.com/yeastengine/ella/internal/udr"
 	"github.com/yeastengine/ella/internal/upf"
-	"github.com/yeastengine/ella/internal/webui"
 )
 
 func parseFlags() (config.Config, error) {
@@ -46,7 +46,7 @@ func startNetwork(cfg config.Config) error {
 		return err
 	}
 	time.Sleep(1 * time.Second)
-	_, err = webui.Start(cfg.DB.Url, cfg.DB.Name)
+	_, err = nms.Start(cfg.DB.Url, cfg.DB.Name)
 	if err != nil {
 		return err
 	}

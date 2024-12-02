@@ -1,0 +1,35 @@
+package nms
+
+import (
+	"github.com/omec-project/util/logger"
+	"github.com/yeastengine/ella/internal/nms/config"
+	"github.com/yeastengine/ella/internal/nms/server"
+)
+
+var NMS = &server.NMS{}
+
+const (
+	GRPC_PORT  = "9876"
+	ConfigPort = 5000
+)
+
+func Start(dbUrl string, dbName string) (string, error) {
+	configuration := config.Configuration{
+		Logger: &logger.Logger{
+			WEBUI: &logger.LogSetting{
+				DebugLevel:   "debug",
+				ReportCaller: false,
+			},
+		},
+		Mongodb: &config.Mongodb{
+			Name:           dbName,
+			Url:            dbUrl,
+			AuthKeysDbName: dbName,
+			AuthUrl:        dbUrl,
+		},
+		CfgPort: ConfigPort,
+	}
+	NMS.Initialize(configuration)
+	go NMS.Start()
+	return "localhost:" + GRPC_PORT, nil
+}
