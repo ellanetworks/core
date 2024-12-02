@@ -67,7 +67,7 @@ func handlePostGnb(c *gin.Context) error {
 	var gnbName string
 	var exists bool
 	if gnbName, exists = c.Params.Get("gnb-name"); !exists {
-		errorMessage := "Post gNB request is missing gnb-name"
+		errorMessage := "`gnb-name` is missing"
 		configLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
@@ -81,24 +81,24 @@ func handlePostGnb(c *gin.Context) error {
 		err = c.ShouldBindJSON(&newGnb)
 	}
 	if err != nil {
-		configLog.Errorf("err %v", err)
-		return fmt.Errorf("Failed to create gNB %v: %w", gnbName, err)
+		configLog.Errorf(err.Error())
+		return fmt.Errorf("failed to create gNB %v: %v", gnbName, err)
 	}
 	if newGnb.Tac == "" {
-		errorMessage := "Post gNB request body is missing tac"
+		errorMessage := "`tac` is missing"
 		configLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
 	req := httpwrapper.NewRequest(c.Request, newGnb)
 	procReq := req.Body.(models.Gnb)
 	procReq.Name = gnbName
-	msg := models.ConfigMessage{
-		MsgType:   models.Inventory,
-		MsgMethod: models.Post_op,
-		GnbName:   gnbName,
-		Gnb:       &procReq,
+	filter := bson.M{"name": gnbName}
+	gnbDataBson := toBsonM(&procReq)
+	_, errPost := db.CommonDBClient.RestfulAPIPost(db.GnbDataColl, filter, gnbDataBson)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
 	}
-	ConfigHandler(&msg)
+	updateSMF()
 	configLog.Infof("created gnb %v", gnbName)
 	return nil
 }
@@ -107,17 +107,16 @@ func handleDeleteGnb(c *gin.Context) error {
 	var gnbName string
 	var exists bool
 	if gnbName, exists = c.Params.Get("gnb-name"); !exists {
-		errorMessage := "Delete gNB request is missing gnb-name"
+		errorMessage := "`gnb-name` is missing"
 		configLog.Errorf(errorMessage)
-		return fmt.Errorf(errorMessage)
+		return errors.New(errorMessage)
 	}
 	configLog.Infof("Received delete gNB %v request", gnbName)
-	msg := models.ConfigMessage{
-		MsgType:   models.Inventory,
-		MsgMethod: models.Delete_op,
-		GnbName:   gnbName,
+	filter := bson.M{"name": gnbName}
+	errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.GnbDataColl, filter)
+	if errDelOne != nil {
+		logger.DbLog.Warnln(errDelOne)
 	}
-	ConfigHandler(&msg)
 	configLog.Infof("Deleted gnb %v", gnbName)
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/openapi/models"
@@ -385,7 +386,20 @@ func PostSubscriberByID(c *gin.Context) {
 		AuthSubData: &authSubsData,
 		Imsi:        ueId,
 	}
-	ConfigHandler(&msg)
+	imsiVal := strings.ReplaceAll(msg.Imsi, "imsi-", "")
+	imsiData[imsiVal] = msg.AuthSubData
+	basicAmData := map[string]interface{}{
+		"ueId": msg.Imsi,
+	}
+	filter := bson.M{"ueId": msg.Imsi}
+	basicDataBson := toBsonM(basicAmData)
+	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, basicDataBson)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
+	}
+	var configUMsg Update5GSubscriberMsg
+	configUMsg.Msg = &msg
+	updateConfig(&configUMsg)
 	logger.NMSLog.Infof("Created subscriber: %v", ueId)
 }
 
@@ -408,7 +422,20 @@ func PutSubscriberByID(c *gin.Context) {
 		AuthSubData: &subsData.AuthenticationSubscription,
 		Imsi:        ueId,
 	}
-	ConfigHandler(&msg)
+	imsiVal := strings.ReplaceAll(msg.Imsi, "imsi-", "")
+	imsiData[imsiVal] = msg.AuthSubData
+	basicAmData := map[string]interface{}{
+		"ueId": msg.Imsi,
+	}
+	filter := bson.M{"ueId": msg.Imsi}
+	basicDataBson := toBsonM(basicAmData)
+	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, basicDataBson)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
+	}
+	var configUMsg Update5GSubscriberMsg
+	configUMsg.Msg = &msg
+	updateConfig(&configUMsg)
 	logger.NMSLog.Infof("Edited Subscriber: %v", ueId)
 }
 
@@ -422,17 +449,16 @@ func PatchSubscriberByID(c *gin.Context) {
 func DeleteSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
 	logger.NMSLog.Infoln("Delete One Subscriber Data")
-
 	ueId := c.Param("ueId")
-
 	c.JSON(http.StatusNoContent, gin.H{})
-
 	msg := nmsModels.ConfigMessage{
 		MsgType:   nmsModels.Sub_data,
 		MsgMethod: nmsModels.Delete_op,
 		Imsi:      ueId,
 	}
-	ConfigHandler(&msg)
+	var config5gMsg Update5GSubscriberMsg
+	config5gMsg.Msg = &msg
+	updateConfig(&config5gMsg)
 	logger.NMSLog.Infof("Deleted Subscriber: %v", ueId)
 }
 
