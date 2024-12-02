@@ -23,10 +23,8 @@ func Start(mongoDBURL string, mongoDBName string) error {
 			Port:        SBI_PORT,
 		},
 		Mongodb: &factory.Mongodb{
-			Name:           mongoDBName,
-			Url:            mongoDBURL,
-			AuthKeysDbName: mongoDBName,
-			AuthUrl:        mongoDBURL,
+			Name: mongoDBName,
+			Url:  mongoDBURL,
 		},
 	}
 	UDR.Initialize(configuration)

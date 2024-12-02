@@ -277,7 +277,7 @@ func GetSubscriberByID(c *gin.Context) {
 
 	filterUeIdOnly := bson.M{"ueId": ueId}
 
-	authSubsDataInterface, errGetOneAuth := db.AuthDBClient.RestfulAPIGetOne(db.AuthSubsDataColl, filterUeIdOnly)
+	authSubsDataInterface, errGetOneAuth := db.CommonDBClient.RestfulAPIGetOne(db.AuthSubsDataColl, filterUeIdOnly)
 	if errGetOneAuth != nil {
 		logger.DbLog.Warnln(errGetOneAuth)
 	}
@@ -392,7 +392,7 @@ func PostSubscriberByID(c *gin.Context) {
 	filter = bson.M{"ueId": ueId}
 	authDataBsonA := toBsonM(&authSubsData)
 	authDataBsonA["ueId"] = ueId
-	_, errPost = db.AuthDBClient.RestfulAPIPost(db.AuthSubsDataColl, filter, authDataBsonA)
+	_, errPost = db.CommonDBClient.RestfulAPIPost(db.AuthSubsDataColl, filter, authDataBsonA)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
@@ -427,7 +427,7 @@ func PutSubscriberByID(c *gin.Context) {
 	filter = bson.M{"ueId": ueId}
 	authDataBsonA := toBsonM(&subsData.AuthenticationSubscription)
 	authDataBsonA["ueId"] = ueId
-	_, errPost = db.AuthDBClient.RestfulAPIPost(db.AuthSubsDataColl, filter, authDataBsonA)
+	_, errPost = db.CommonDBClient.RestfulAPIPost(db.AuthSubsDataColl, filter, authDataBsonA)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
@@ -445,7 +445,7 @@ func DeleteSubscriberByID(c *gin.Context) {
 	ueId := c.Param("ueId")
 	c.JSON(http.StatusNoContent, gin.H{})
 	filter := bson.M{"ueId": "imsi-" + ueId}
-	errDelOne := db.AuthDBClient.RestfulAPIDeleteOne(db.AuthSubsDataColl, filter)
+	errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.AuthSubsDataColl, filter)
 	if errDelOne != nil {
 		logger.DbLog.Warnln(errDelOne)
 	}

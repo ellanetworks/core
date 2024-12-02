@@ -22,10 +22,8 @@ func Start(dbUrl string, dbName string) (string, error) {
 			},
 		},
 		Mongodb: &config.Mongodb{
-			Name:           dbName,
-			Url:            dbUrl,
-			AuthKeysDbName: dbName,
-			AuthUrl:        dbUrl,
+			Name: dbName,
+			Url:  dbUrl,
 		},
 		CfgPort: ConfigPort,
 	}

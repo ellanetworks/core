@@ -41,11 +41,10 @@ func (nms *NMS) setLogLevel() {
 func (nms *NMS) Start() {
 	mongodb := config.Config.Mongodb
 
-	db.ConnectMongo(mongodb.Url, mongodb.Name, mongodb.AuthUrl, mongodb.AuthKeysDbName)
+	db.ConnectMongo(mongodb.Url, mongodb.Name)
 
 	subconfig_router := logger_util.NewGinWithLogrus(logger.GinLog)
 	AddUiService(subconfig_router)
-	AddServiceSub(subconfig_router)
 	AddService(subconfig_router)
 
 	subconfig_router.Use(cors.New(cors.Config{

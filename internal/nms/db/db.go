@@ -40,16 +40,12 @@ type DBInterface interface {
 	RestfulAPIPostMany(collName string, filter bson.M, postDataArray []interface{}) error
 }
 
-var (
-	CommonDBClient DBInterface
-	AuthDBClient   DBInterface
-)
+var CommonDBClient DBInterface
 
 type MongoDBClient struct {
 	mongoapi.MongoClient
 }
 
-// Set CommonDBClient
 func setCommonDBClient(url string, dbname string) error {
 	mClient, errConnect := mongoapi.NewMongoClient(url, dbname)
 	if mClient.Client != nil {
@@ -59,26 +55,14 @@ func setCommonDBClient(url string, dbname string) error {
 	return errConnect
 }
 
-// Set AuthDBClient
-func setAuthDBClient(authurl string, authkeysdbname string) error {
-	mClient, errConnect := mongoapi.NewMongoClient(authurl, authkeysdbname)
-	if mClient.Client != nil {
-		AuthDBClient = mClient
-		AuthDBClient.(*mongoapi.MongoClient).Client.Database(authkeysdbname)
-	}
-	return errConnect
-}
-
-func ConnectMongo(url string, dbname string, authurl string, authkeysdbname string) {
-	// Connect to MongoDB
+func ConnectMongo(url string, dbname string) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer func() { ticker.Stop() }()
 	timer := time.After(180 * time.Second)
 ConnectMongo:
 	for {
 		commonDbErr := setCommonDBClient(url, dbname)
-		authDbErr := setAuthDBClient(authurl, authkeysdbname)
-		if commonDbErr == nil && authDbErr == nil {
+		if commonDbErr == nil {
 			break ConnectMongo
 		}
 		select {

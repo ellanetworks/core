@@ -4,11 +4,11 @@ function isValidSubscriberName(name: string): boolean {
 
 export const apiGetAllSubscribers = async () => {
   try {
-    var response = await fetch(`/api/subscriber`, {
-        method: "GET",
-        headers: {
+    var response = await fetch(`/api/v1/subscriber`, {
+      method: "GET",
+      headers: {
         "Content-Type": "application/json",
-        },
+      },
     });
     return response
   } catch (error) {
@@ -18,11 +18,11 @@ export const apiGetAllSubscribers = async () => {
 };
 
 export const apiGetSubscriber = async (imsi: string) => {
-  if (!isValidSubscriberName(imsi)){
+  if (!isValidSubscriberName(imsi)) {
     throw new Error(`Error getting subscriber: Invalid name provided.`);
   }
   try {
-    const response = await fetch(`/api/subscriber/${imsi}`, {
+    const response = await fetch(`/api/v1/subscriber/${imsi}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -36,17 +36,17 @@ export const apiGetSubscriber = async (imsi: string) => {
 };
 
 export const apiPostSubscriber = async (imsi: string, subscriberData: any) => {
-  if (!isValidSubscriberName(imsi)){
+  if (!isValidSubscriberName(imsi)) {
     throw new Error(`Error updating subscriber: Invalid name provided.`);
   }
   try {
-    const response = await fetch(`/api/subscriber/imsi-${imsi}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(subscriberData),
-      });
+    const response = await fetch(`/api/v1/subscriber/imsi-${imsi}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(subscriberData),
+    });
     return response
   } catch (error) {
     console.error(error);
@@ -55,15 +55,15 @@ export const apiPostSubscriber = async (imsi: string, subscriberData: any) => {
 };
 
 export const apiDeleteSubscriber = async (imsi: string) => {
-  if (!isValidSubscriberName(imsi)){
+  if (!isValidSubscriberName(imsi)) {
     throw new Error(`Error deleting subscriber: Invalid name provided.`);
   }
   try {
-    const response = await fetch(`/api/subscriber/imsi-${imsi}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
+    const response = await fetch(`/api/v1/subscriber/imsi-${imsi}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
     });
     return response
   } catch (error) {

@@ -46,7 +46,7 @@ func (udr *UDR) Start() {
 	config := factory.UdrConfig
 	mongodb := config.Mongodb
 
-	producer.ConnectMongo(mongodb.Url, mongodb.Name, mongodb.AuthUrl, mongodb.AuthKeysDbName)
+	producer.ConnectMongo(mongodb.Url, mongodb.Name)
 
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 

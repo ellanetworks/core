@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -34,22 +35,76 @@ func init() {
 	imsiData = make(map[string]*openAPIModels.AuthenticationSubscription)
 }
 
-func DeviceGroupDeleteHandler(c *gin.Context) bool {
-	groupName, exists := c.Params.Get("group-name")
-	if !exists {
-		configLog.Errorf("group-name is missing")
-		return false
+func ListNetworkSlices() []string {
+	var networkSlices []string = make([]string, 0)
+	rawNetworkSlices, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.SliceDataColl, bson.M{})
+	if errGetMany != nil {
+		logger.DbLog.Warnln(errGetMany)
 	}
-	deviceGroup := getDeviceGroupByName(groupName)
-	filter := bson.M{"group-name": groupName}
-	errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.DevGroupDataColl, filter)
-	if errDelOne != nil {
-		logger.DbLog.Warnln(errDelOne)
+	for _, rawNetworkSlice := range rawNetworkSlices {
+		if rawNetworkSlice["slice-name"] == nil {
+			logger.ConfigLog.Errorf("slice-name is nil")
+			continue
+		}
+		networkSlices = append(networkSlices, rawNetworkSlice["slice-name"].(string))
 	}
-	deleteDeviceGroupConfig(deviceGroup)
-	updateSMF()
-	configLog.Infof("Deleted Device Group: %v", groupName)
-	return true
+	return networkSlices
+}
+
+func GetNetworkSlices(c *gin.Context) {
+	setCorsHeader(c)
+	logger.NMSLog.Infoln("List Network Slices")
+	networkSlices := ListNetworkSlices()
+	c.JSON(http.StatusOK, networkSlices)
+}
+
+func GetNetworkSliceByName2(sliceName string) models.Slice {
+	var networkSlice models.Slice
+	filter := bson.M{"slice-name": sliceName}
+	rawNetworkSlice, err := db.CommonDBClient.RestfulAPIGetOne(db.SliceDataColl, filter)
+	if err != nil {
+		logger.DbLog.Warnln(err)
+	}
+	json.Unmarshal(mapToByte(rawNetworkSlice), &networkSlice)
+	return networkSlice
+}
+
+func GetNetworkSliceByName(c *gin.Context) {
+	setCorsHeader(c)
+	logger.NMSLog.Infoln("Get Network Slice by name")
+	networkSlice := GetNetworkSliceByName2(c.Param("slice-name"))
+	if networkSlice.SliceName == "" {
+		c.JSON(http.StatusNotFound, nil)
+	} else {
+		c.JSON(http.StatusOK, networkSlice)
+	}
+}
+
+// NetworkSliceSliceNameDelete -
+func NetworkSliceSliceNameDelete(c *gin.Context) {
+	if ret := NetworkSliceDeleteHandler(c); ret {
+		c.JSON(http.StatusOK, gin.H{})
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{})
+	}
+}
+
+// NetworkSliceSliceNamePost -
+func NetworkSliceSliceNamePost(c *gin.Context) {
+	if ret := NetworkSlicePostHandler(c, models.Post_op); ret {
+		c.JSON(http.StatusOK, gin.H{})
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{})
+	}
+}
+
+// NetworkSliceSliceNamePut -
+func NetworkSliceSliceNamePut(c *gin.Context) {
+	if ret := NetworkSlicePostHandler(c, models.Put_op); ret {
+		c.JSON(http.StatusOK, gin.H{})
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{})
+	}
 }
 
 func convertToBps(val int64, unit string) (bitrate int64) {
@@ -64,73 +119,6 @@ func convertToBps(val int64, unit string) (bitrate int64) {
 	}
 	// default consider it as bps
 	return bitrate
-}
-
-func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
-	groupName, exists := c.Params.Get("group-name")
-	if !exists {
-		configLog.Errorf("group-name is missing")
-		return false
-	}
-
-	var err error
-	var request models.DeviceGroups
-	s := strings.Split(c.GetHeader("Content-Type"), ";")
-	switch s[0] {
-	case "application/json":
-		err = c.ShouldBindJSON(&request)
-	}
-	if err != nil {
-		configLog.Infof(" err %v", err)
-		return false
-	}
-	req := httpwrapper.NewRequest(c.Request, request)
-
-	procReq := req.Body.(models.DeviceGroups)
-	ipdomain := &procReq.IpDomainExpanded
-
-	if ipdomain.UeDnnQos != nil {
-		ipdomain.UeDnnQos.DnnMbrDownlink = convertToBps(ipdomain.UeDnnQos.DnnMbrDownlink, ipdomain.UeDnnQos.BitrateUnit)
-		if ipdomain.UeDnnQos.DnnMbrDownlink < 0 {
-			ipdomain.UeDnnQos.DnnMbrDownlink = math.MaxInt64
-		}
-		ipdomain.UeDnnQos.DnnMbrUplink = convertToBps(ipdomain.UeDnnQos.DnnMbrUplink, ipdomain.UeDnnQos.BitrateUnit)
-		if ipdomain.UeDnnQos.DnnMbrUplink < 0 {
-			ipdomain.UeDnnQos.DnnMbrUplink = math.MaxInt64
-		}
-	}
-
-	procReq.DeviceGroupName = groupName
-	slice := isDeviceGroupExistInSlice(groupName)
-	if slice != nil {
-		sVal, err := strconv.ParseUint(slice.SliceId.Sst, 10, 32)
-		if err != nil {
-			logger.DbLog.Errorf("Could not parse SST %v", slice.SliceId.Sst)
-		}
-		snssai := &openAPIModels.Snssai{
-			Sd:  slice.SliceId.Sd,
-			Sst: int32(sVal),
-		}
-
-		aimsis := getAddedImsisList(&procReq)
-		for _, imsi := range aimsis {
-			dnn := procReq.IpDomainExpanded.Dnn
-			updateAmPolicyData(imsi)
-			updateSmPolicyData(snssai, dnn, imsi)
-			updateAmProvisionedData(snssai, procReq.IpDomainExpanded.UeDnnQos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, imsi)
-			updateSmProvisionedData(snssai, procReq.IpDomainExpanded.UeDnnQos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
-			updateSmfSelectionProviosionedData(snssai, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
-		}
-	}
-	filter := bson.M{"group-name": groupName}
-	devGroupDataBsonA := toBsonM(&procReq)
-	_, errPost := db.CommonDBClient.RestfulAPIPost(db.DevGroupDataColl, filter, devGroupDataBsonA)
-	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
-	}
-	updateSMF()
-	configLog.Infof("Created Device Group: %v", groupName)
-	return true
 }
 
 func NetworkSliceDeleteHandler(c *gin.Context) bool {
@@ -276,23 +264,6 @@ func getDeviceGroupByName(name string) *models.DeviceGroups {
 	return &devGroupData
 }
 
-func getSlices() []*models.Slice {
-	rawSlices, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.SliceDataColl, nil)
-	if errGetMany != nil {
-		logger.DbLog.Warnln(errGetMany)
-	}
-	var slices []*models.Slice
-	for _, rawSlice := range rawSlices {
-		var sliceData models.Slice
-		err := json.Unmarshal(mapToByte(rawSlice), &sliceData)
-		if err != nil {
-			logger.DbLog.Errorf("Could not unmarshall slice %v", rawSlice)
-		}
-		slices = append(slices, &sliceData)
-	}
-	return slices
-}
-
 func getSliceByName(name string) *models.Slice {
 	filter := bson.M{"slice-name": name}
 	sliceDataInterface, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SliceDataColl, filter)
@@ -305,16 +276,6 @@ func getSliceByName(name string) *models.Slice {
 		logger.DbLog.Errorf("Could not unmarshall slice %v", sliceDataInterface)
 	}
 	return &sliceData
-}
-
-func getAddedImsisList(group *models.DeviceGroups) (aimsis []string) {
-	for _, imsi := range group.Imsis {
-		if imsiData[imsi] != nil {
-			aimsis = append(aimsis, imsi)
-		}
-	}
-
-	return
 }
 
 func updateAmPolicyData(imsi string) {
@@ -443,19 +404,6 @@ func updateSmfSelectionProviosionedData(snssai *openAPIModels.Snssai, mcc, mnc, 
 	}
 }
 
-func isDeviceGroupExistInSlice(deviceGroupName string) *models.Slice {
-	for name, slice := range getSlices() {
-		for _, dgName := range slice.SiteDeviceGroup {
-			if dgName == deviceGroupName {
-				logger.NMSLog.Infof("Device Group [%v] is part of slice: %v", dgName, name)
-				return slice
-			}
-		}
-	}
-
-	return nil
-}
-
 func getDeleteGroupsList(slice, prevSlice *models.Slice) (names []string) {
 	for prevSlice == nil {
 		return
@@ -479,39 +427,6 @@ func getDeleteGroupsList(slice, prevSlice *models.Slice) (names []string) {
 	}
 
 	return
-}
-
-func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
-	slice := isDeviceGroupExistInSlice(deviceGroup.DeviceGroupName)
-	if slice != nil {
-		dimsis := deviceGroup.Imsis
-		for _, imsi := range dimsis {
-			mcc := slice.SiteInfo.Plmn.Mcc
-			mnc := slice.SiteInfo.Plmn.Mnc
-			filterImsiOnly := bson.M{"ueId": "imsi-" + imsi}
-			filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
-			errDelOneAmPol := db.CommonDBClient.RestfulAPIDeleteOne(db.AmPolicyDataColl, filterImsiOnly)
-			if errDelOneAmPol != nil {
-				logger.DbLog.Warnln(errDelOneAmPol)
-			}
-			errDelOneSmPol := db.CommonDBClient.RestfulAPIDeleteOne(db.SmPolicyDataColl, filterImsiOnly)
-			if errDelOneSmPol != nil {
-				logger.DbLog.Warnln(errDelOneSmPol)
-			}
-			errDelOneAmData := db.CommonDBClient.RestfulAPIDeleteOne(db.AmDataColl, filter)
-			if errDelOneAmData != nil {
-				logger.DbLog.Warnln(errDelOneAmData)
-			}
-			errDelOneSmData := db.CommonDBClient.RestfulAPIDeleteOne(db.SmDataColl, filter)
-			if errDelOneSmData != nil {
-				logger.DbLog.Warnln(errDelOneSmData)
-			}
-			errDelOneSmfSel := db.CommonDBClient.RestfulAPIDeleteOne(db.SmfSelDataColl, filter)
-			if errDelOneSmfSel != nil {
-				logger.DbLog.Warnln(errDelOneSmfSel)
-			}
-		}
-	}
 }
 
 func convertToString(val uint64) string {
