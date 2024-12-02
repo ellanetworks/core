@@ -14,8 +14,7 @@ func Start(mongoDBURL string, mongoDBName string) error {
 	configuration := factory.Configuration{
 		Logger: &logger.Logger{
 			UDR: &logger.LogSetting{
-				DebugLevel:   "debug",
-				ReportCaller: false,
+				DebugLevel: "debug",
 			},
 		},
 		Sbi: &factory.Sbi{

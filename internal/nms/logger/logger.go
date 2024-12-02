@@ -1,64 +1,67 @@
 package logger
 
 import (
-	"os"
-	"time"
-
-	formatter "github.com/antonfisher/nested-logrus-formatter"
-	logger_util "github.com/omec-project/util/logger"
-	"github.com/omec-project/util/logger_conf"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
-	log        *logrus.Logger
-	AppLog     *logrus.Entry
-	InitLog    *logrus.Entry
-	NMSLog     *logrus.Entry
-	ContextLog *logrus.Entry
-	GinLog     *logrus.Entry
-	GrpcLog    *logrus.Entry
-	ConfigLog  *logrus.Entry
-	DbLog      *logrus.Entry
+	log         *zap.Logger
+	AppLog      *zap.SugaredLogger
+	InitLog     *zap.SugaredLogger
+	NMSLog      *zap.SugaredLogger
+	ContextLog  *zap.SugaredLogger
+	GinLog      *zap.SugaredLogger
+	GrpcLog     *zap.SugaredLogger
+	ConfigLog   *zap.SugaredLogger
+	DbLog       *zap.SugaredLogger
+	AuthLog     *zap.SugaredLogger
+	atomicLevel zap.AtomicLevel
 )
 
 func init() {
-	log = logrus.New()
-	log.SetReportCaller(false)
-
-	log.Formatter = &formatter.Formatter{
-		TimestampFormat: time.RFC3339,
-		TrimMessages:    true,
-		NoFieldsSpace:   true,
-		HideKeys:        true,
-		FieldsOrder:     []string{"component", "category"},
+	atomicLevel = zap.NewAtomicLevelAt(zap.InfoLevel)
+	config := zap.Config{
+		Level:            atomicLevel,
+		Development:      false,
+		Encoding:         "console",
+		EncoderConfig:    zap.NewProductionEncoderConfig(),
+		OutputPaths:      []string{"stdout"},
+		ErrorOutputPaths: []string{"stderr"},
 	}
 
-	free5gcLogHook, err := logger_util.NewFileHook(logger_conf.Free5gcLogFile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0o666)
-	if err == nil {
-		log.Hooks.Add(free5gcLogHook)
+	config.EncoderConfig.TimeKey = "timestamp"
+	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	config.EncoderConfig.LevelKey = "level"
+	config.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+	config.EncoderConfig.CallerKey = "caller"
+	config.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
+	config.EncoderConfig.MessageKey = "message"
+	config.EncoderConfig.StacktraceKey = ""
+
+	var err error
+	log, err = config.Build()
+	if err != nil {
+		panic(err)
 	}
 
-	selfLogHook, err := logger_util.NewFileHook(
-		logger_conf.Free5gcLogDir+"webconsole.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0o666)
-	if err == nil {
-		log.Hooks.Add(selfLogHook)
-	}
-
-	AppLog = log.WithFields(logrus.Fields{"component": "NMS", "category": "App"})
-	InitLog = log.WithFields(logrus.Fields{"component": "NMS", "category": "Init"})
-	NMSLog = log.WithFields(logrus.Fields{"component": "NMS", "category": "NMS"})
-	ContextLog = log.WithFields(logrus.Fields{"component": "NMS", "category": "Context"})
-	GinLog = log.WithFields(logrus.Fields{"component": "NMS", "category": "GIN"})
-	GrpcLog = log.WithFields(logrus.Fields{"component": "NMS", "category": "GRPC"})
-	ConfigLog = log.WithFields(logrus.Fields{"component": "NMS", "category": "CONFIG"})
-	DbLog = log.WithFields(logrus.Fields{"component": "NMS", "category": "DB"})
+	AppLog = log.Sugar().With("component", "WebUI", "category", "App")
+	InitLog = log.Sugar().With("component", "WebUI", "category", "Init")
+	NMSLog = log.Sugar().With("component", "WebUI", "category", "WebUI")
+	ContextLog = log.Sugar().With("component", "WebUI", "category", "Context")
+	GinLog = log.Sugar().With("component", "WebUI", "category", "GIN")
+	GrpcLog = log.Sugar().With("component", "WebUI", "category", "GRPC")
+	ConfigLog = log.Sugar().With("component", "WebUI", "category", "CONFIG")
+	DbLog = log.Sugar().With("component", "WebUI", "category", "DB")
+	AuthLog = log.Sugar().With("component", "WebUI", "category", "Auth")
 }
 
-func SetLogLevel(level logrus.Level) {
-	log.SetLevel(level)
+func GetLogger() *zap.Logger {
+	return log
 }
 
-func SetReportCaller(set bool) {
-	log.SetReportCaller(set)
+// SetLogLevel: set the log level (panic|fatal|error|warn|info|debug)
+func SetLogLevel(level zapcore.Level) {
+	InitLog.Infoln("set log level:", level)
+	atomicLevel.SetLevel(level)
 }

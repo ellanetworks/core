@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/wmnsk/go-pfcp/ie"
 	pfcp_message "github.com/wmnsk/go-pfcp/message"
@@ -19,6 +18,7 @@ import (
 	"github.com/yeastengine/ella/internal/smf/factory"
 	"github.com/yeastengine/ella/internal/smf/pfcp/message"
 	"github.com/yeastengine/ella/internal/smf/pfcp/udp"
+	"go.uber.org/zap"
 )
 
 func TestSendPfcpAssociationSetupRequest(t *testing.T) {
@@ -93,8 +93,12 @@ func TestSendPfcpSessionEstablishmentRequestUpNodeExists(t *testing.T) {
 		NodeIdType:  context.NodeIdTypeIpv4Address,
 		NodeIdValue: net.ParseIP(upNodeIDStr).To4(),
 	}
-	log := logrus.New()
-	mockLog := log.WithFields(logrus.Fields{})
+	config := zap.NewProductionConfig()
+	log, err := config.Build()
+	if err != nil {
+		panic(err)
+	}
+	mockLog := log.Sugar()
 	smContext := &context.SMContext{
 		PFCPContext: map[string]*context.PFCPSessionContext{
 			upNodeIDStr: {
@@ -122,7 +126,7 @@ func TestSendPfcpSessionEstablishmentRequestUpNodeExists(t *testing.T) {
 
 	defer func() {
 		if err = conn.Close(); err != nil {
-			log.Printf("error closing connection: %v", err)
+			t.Logf("error closing connection: %v", err)
 		}
 	}()
 
@@ -184,8 +188,12 @@ func TestSendPfcpSessionModificationRequest(t *testing.T) {
 		NodeIdType:  context.NodeIdTypeIpv4Address,
 		NodeIdValue: net.ParseIP(upNodeIDStr).To4(),
 	}
-	log := logrus.New()
-	mockLog := log.WithFields(logrus.Fields{})
+	config := zap.NewProductionConfig()
+	log, err := config.Build()
+	if err != nil {
+		panic(err)
+	}
+	mockLog := log.Sugar()
 	smContext := &context.SMContext{
 		PFCPContext: map[string]*context.PFCPSessionContext{
 			upNodeIDStr: {
@@ -213,7 +221,7 @@ func TestSendPfcpSessionModificationRequest(t *testing.T) {
 
 	defer func() {
 		if err = conn.Close(); err != nil {
-			log.Printf("error closing connection: %v", err)
+			t.Logf("error closing connection: %v", err)
 		}
 	}()
 
@@ -234,8 +242,12 @@ func TestSendPfcpSessionDeletionRequest(t *testing.T) {
 		NodeIdType:  context.NodeIdTypeIpv4Address,
 		NodeIdValue: net.ParseIP(upNodeIDStr).To4(),
 	}
-	log := logrus.New()
-	mockLog := log.WithFields(logrus.Fields{})
+	config := zap.NewProductionConfig()
+	log, err := config.Build()
+	if err != nil {
+		panic(err)
+	}
+	mockLog := log.Sugar()
 	smContext := &context.SMContext{
 		PFCPContext: map[string]*context.PFCPSessionContext{
 			upNodeIDStr: {
@@ -258,7 +270,7 @@ func TestSendPfcpSessionDeletionRequest(t *testing.T) {
 
 	defer func() {
 		if err = conn.Close(); err != nil {
-			log.Printf("error closing connection: %v", err)
+			t.Logf("error closing connection: %v", err)
 		}
 	}()
 

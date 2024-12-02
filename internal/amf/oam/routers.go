@@ -7,8 +7,9 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
-	logger_util "github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/amf/logger"
+
+	utilLogger "github.com/omec-project/util/logger"
 )
 
 // Route is the information for every URI.
@@ -28,7 +29,7 @@ type Routes []Route
 
 // NewRouter returns a new router.
 func NewRouter() *gin.Engine {
-	router := logger_util.NewGinWithLogrus(logger.GinLog)
+	router := utilLogger.NewGinWithZap(logger.GinLog)
 	AddService(router)
 
 	router.Use(cors.New(cors.Config{

@@ -6,24 +6,18 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/omec-project/util/http2_util"
-	logger_util "github.com/omec-project/util/logger"
+	utilLogger "github.com/omec-project/util/logger"
 	ausf_context "github.com/yeastengine/ella/internal/ausf/context"
 	"github.com/yeastengine/ella/internal/ausf/factory"
 	"github.com/yeastengine/ella/internal/ausf/logger"
 	"github.com/yeastengine/ella/internal/ausf/ueauthentication"
-	"github.com/yeastengine/ella/internal/ausf/util"
 )
 
 type AUSF struct{}
-
-var initLog *logrus.Entry
-
-func init() {
-	initLog = logger.InitLog
-}
 
 func (ausf *AUSF) Initialize(c factory.Configuration) {
 	factory.InitConfigFactory(c)
@@ -31,25 +25,22 @@ func (ausf *AUSF) Initialize(c factory.Configuration) {
 }
 
 func (ausf *AUSF) setLogLevel() {
-	if level, err := logrus.ParseLevel(factory.AusfConfig.Logger.AUSF.DebugLevel); err != nil {
-		initLog.Warnf("AUSF Log level [%s] is invalid, set to [info] level",
+	if level, err := zapcore.ParseLevel(factory.AusfConfig.Logger.AUSF.DebugLevel); err != nil {
+		logger.InitLog.Warnf("AUSF Log level [%s] is invalid, set to [info] level",
 			factory.AusfConfig.Logger.AUSF.DebugLevel)
-		logger.SetLogLevel(logrus.InfoLevel)
+		logger.SetLogLevel(zap.InfoLevel)
 	} else {
-		initLog.Infof("AUSF Log level is set to [%s] level", level)
+		logger.InitLog.Infof("AUSF Log level is set to [%s] level", level)
 		logger.SetLogLevel(level)
 	}
-	logger.SetReportCaller(factory.AusfConfig.Logger.AUSF.ReportCaller)
 }
 
 func (ausf *AUSF) Start() {
-	router := logger_util.NewGinWithLogrus(logger.GinLog)
+	router := utilLogger.NewGinWithZap(logger.GinLog)
 	ueauthentication.AddService(router)
 
 	ausf_context.Init()
 	self := ausf_context.GetSelf()
-
-	ausfLogPath := util.AusfLogPath
 
 	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
 
@@ -61,19 +52,19 @@ func (ausf *AUSF) Start() {
 		os.Exit(0)
 	}()
 
-	server, err := http2_util.NewServer(addr, ausfLogPath, router)
+	server, err := http2_util.NewServer(addr, "/var/log/ausf.log", router)
 	if server == nil {
-		initLog.Errorf("Initialize HTTP server failed: %+v", err)
+		logger.InitLog.Errorf("Initialize HTTP server failed: %+v", err)
 		return
 	}
 
 	if err != nil {
-		initLog.Warnf("Initialize HTTP server: +%v", err)
+		logger.InitLog.Warnf("Initialize HTTP server: +%v", err)
 	}
 
 	err = server.ListenAndServe()
 	if err != nil {
-		initLog.Fatalf("HTTP server setup failed: %+v", err)
+		logger.InitLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
 }
 

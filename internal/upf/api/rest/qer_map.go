@@ -30,7 +30,7 @@ func (h *ApiHandler) getQerValue(c *gin.Context) {
 	var value ebpf.QerInfo
 
 	if err = h.BpfObjects.IpEntrypointObjects.QerMap.Lookup(uint32(id), unsafe.Pointer(&value)); err != nil {
-		logger.AppLog.Printf("Error reading map: %s", err.Error())
+		logger.AppLog.Infof("Error reading map: %s", err.Error())
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
@@ -48,7 +48,7 @@ func (h *ApiHandler) getQerValue(c *gin.Context) {
 func (h *ApiHandler) setQerValue(c *gin.Context) {
 	var qerElement ebpf.QerMapElement
 	if err := c.BindJSON(&qerElement); err != nil {
-		logger.AppLog.Printf("Parsing request body error: %s", err.Error())
+		logger.AppLog.Infof("Parsing request body error: %s", err.Error())
 		return
 	}
 
@@ -63,7 +63,7 @@ func (h *ApiHandler) setQerValue(c *gin.Context) {
 	}
 
 	if err := h.BpfObjects.IpEntrypointObjects.QerMap.Put(uint32(qerElement.Id), unsafe.Pointer(&value)); err != nil {
-		logger.AppLog.Printf("Error writting map: %s", err.Error())
+		logger.AppLog.Infof("Error writting map: %s", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

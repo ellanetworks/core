@@ -17,8 +17,7 @@ func Start(dbUrl string, dbName string) (string, error) {
 	configuration := config.Configuration{
 		Logger: &logger.Logger{
 			WEBUI: &logger.LogSetting{
-				DebugLevel:   "debug",
-				ReportCaller: false,
+				DebugLevel: "debug",
 			},
 		},
 		Mongodb: &config.Mongodb{

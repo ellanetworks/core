@@ -45,6 +45,6 @@ func (e SendSMpolicyUpdateNotifyEvent) Handle() {
 	if httpResponse.StatusCode != http.StatusOK && httpResponse.StatusCode != http.StatusNoContent {
 		logger.NotifyEventLog.Warnf("SM Policy Update Notification Failed")
 	} else {
-		logger.NotifyEventLog.Tracef("SM Policy Update Notification Success")
+		logger.NotifyEventLog.Debugf("SM Policy Update Notification Success")
 	}
 }

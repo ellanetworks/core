@@ -48,8 +48,8 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 		smContext.ProtocolConfigurationOptions.IPv4LinkMTURequest = true
 
 		for _, container := range protocolConfigurationOptions.ProtocolOrContainerList {
-			smContext.SubGsmLog.Traceln("Container ID: ", container.ProtocolOrContainerID)
-			smContext.SubGsmLog.Traceln("Container Length: ", container.LengthOfContents)
+			smContext.SubGsmLog.Debugln("Container ID: ", container.ProtocolOrContainerID)
+			smContext.SubGsmLog.Debugln("Container Length: ", container.LengthOfContents)
 			switch container.ProtocolOrContainerID {
 			case nasMessage.PCSCFIPv6AddressRequestUL:
 				smContext.SubGsmLog.Infoln("Didn't Implement container type PCSCFIPv6AddressRequestUL")

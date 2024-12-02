@@ -96,7 +96,7 @@ func DeviceGroupGroupNamePost(c *gin.Context) {
 func DeviceGroupDeleteHandler(c *gin.Context) bool {
 	groupName, exists := c.Params.Get("group-name")
 	if !exists {
-		configLog.Errorf("group-name is missing")
+		logger.ConfigLog.Errorf("group-name is missing")
 		return false
 	}
 	deviceGroup := getDeviceGroupByName(groupName)
@@ -107,14 +107,14 @@ func DeviceGroupDeleteHandler(c *gin.Context) bool {
 	}
 	deleteDeviceGroupConfig(deviceGroup)
 	updateSMF()
-	configLog.Infof("Deleted Device Group: %v", groupName)
+	logger.ConfigLog.Infof("Deleted Device Group: %v", groupName)
 	return true
 }
 
 func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	groupName, exists := c.Params.Get("group-name")
 	if !exists {
-		configLog.Errorf("group-name is missing")
+		logger.ConfigLog.Errorf("group-name is missing")
 		return false
 	}
 
@@ -126,7 +126,7 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 		err = c.ShouldBindJSON(&request)
 	}
 	if err != nil {
-		configLog.Infof(" err %v", err)
+		logger.ConfigLog.Infof(" err %v", err)
 		return false
 	}
 	req := httpwrapper.NewRequest(c.Request, request)
@@ -174,7 +174,7 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 		logger.DbLog.Warnln(errPost)
 	}
 	updateSMF()
-	configLog.Infof("Created Device Group: %v", groupName)
+	logger.ConfigLog.Infof("Created Device Group: %v", groupName)
 	return true
 }
 

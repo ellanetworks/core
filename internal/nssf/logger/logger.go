@@ -1,58 +1,73 @@
 package logger
 
 import (
-	"time"
-
-	formatter "github.com/antonfisher/nested-logrus-formatter"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
-	log               *logrus.Logger
-	AppLog            *logrus.Entry
-	CfgLog            *logrus.Entry
-	ContextLog        *logrus.Entry
-	FactoryLog        *logrus.Entry
-	HandlerLog        *logrus.Entry
-	InitLog           *logrus.Entry
-	Nsselection       *logrus.Entry
-	Nssaiavailability *logrus.Entry
-	Util              *logrus.Entry
-	ConsumerLog       *logrus.Entry
-	GinLog            *logrus.Entry
-	GrpcLog           *logrus.Entry
+	log               *zap.Logger
+	AppLog            *zap.SugaredLogger
+	CfgLog            *zap.SugaredLogger
+	ContextLog        *zap.SugaredLogger
+	FactoryLog        *zap.SugaredLogger
+	HandlerLog        *zap.SugaredLogger
+	InitLog           *zap.SugaredLogger
+	Nsselection       *zap.SugaredLogger
+	Nssaiavailability *zap.SugaredLogger
+	Util              *zap.SugaredLogger
+	ConsumerLog       *zap.SugaredLogger
+	GinLog            *zap.SugaredLogger
+	GrpcLog           *zap.SugaredLogger
+	atomicLevel       zap.AtomicLevel
 )
 
 func init() {
-	log = logrus.New()
-	log.SetReportCaller(false)
-
-	log.Formatter = &formatter.Formatter{
-		TimestampFormat: time.RFC3339,
-		TrimMessages:    true,
-		NoFieldsSpace:   true,
-		HideKeys:        true,
-		FieldsOrder:     []string{"component", "category"},
+	atomicLevel = zap.NewAtomicLevelAt(zap.InfoLevel)
+	config := zap.Config{
+		Level:            atomicLevel,
+		Development:      false,
+		Encoding:         "console",
+		EncoderConfig:    zap.NewProductionEncoderConfig(),
+		OutputPaths:      []string{"stdout"},
+		ErrorOutputPaths: []string{"stderr"},
 	}
 
-	AppLog = log.WithFields(logrus.Fields{"component": "NSSF", "category": "App"})
-	ContextLog = log.WithFields(logrus.Fields{"component": "NSSF", "category": "CTX"})
-	FactoryLog = log.WithFields(logrus.Fields{"component": "NSSF", "category": "Factory"})
-	HandlerLog = log.WithFields(logrus.Fields{"component": "NSSF", "category": "HDLR"})
-	InitLog = log.WithFields(logrus.Fields{"component": "NSSF", "category": "Init"})
-	CfgLog = log.WithFields(logrus.Fields{"component": "NSSF", "category": "CFG"})
-	Nsselection = log.WithFields(logrus.Fields{"component": "NSSF", "category": "NsSelect"})
-	Nssaiavailability = log.WithFields(logrus.Fields{"component": "NSSF", "category": "NssaiAvail"})
-	Util = log.WithFields(logrus.Fields{"component": "NSSF", "category": "Util"})
-	ConsumerLog = log.WithFields(logrus.Fields{"component": "NSSF", "category": "Consumer"})
-	GinLog = log.WithFields(logrus.Fields{"component": "NSSF", "category": "GIN"})
-	GrpcLog = log.WithFields(logrus.Fields{"component": "NSSF", "category": "GRPC"})
+	config.EncoderConfig.TimeKey = "timestamp"
+	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	config.EncoderConfig.LevelKey = "level"
+	config.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+	config.EncoderConfig.CallerKey = "caller"
+	config.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
+	config.EncoderConfig.MessageKey = "message"
+	config.EncoderConfig.StacktraceKey = ""
+
+	var err error
+	log, err = config.Build()
+	if err != nil {
+		panic(err)
+	}
+
+	AppLog = log.Sugar().With("component", "NSSF", "category", "App")
+	ContextLog = log.Sugar().With("component", "NSSF", "category", "CTX")
+	FactoryLog = log.Sugar().With("component", "NSSF", "category", "Factory")
+	HandlerLog = log.Sugar().With("component", "NSSF", "category", "HDLR")
+	InitLog = log.Sugar().With("component", "NSSF", "category", "Init")
+	CfgLog = log.Sugar().With("component", "NSSF", "category", "CFG")
+	Nsselection = log.Sugar().With("component", "NSSF", "category", "NsSelect")
+	Nssaiavailability = log.Sugar().With("component", "NSSF", "category", "NssaiAvail")
+	Util = log.Sugar().With("component", "NSSF", "category", "Util")
+	ConsumerLog = log.Sugar().With("component", "NSSF", "category", "Consumer")
+	GinLog = log.Sugar().With("component", "NSSF", "category", "GIN")
+	GrpcLog = log.Sugar().With("component", "NSSF", "category", "GRPC")
 }
 
-func SetLogLevel(level logrus.Level) {
-	log.SetLevel(level)
+func GetLogger() *zap.Logger {
+	return log
 }
 
-func SetReportCaller(set bool) {
-	log.SetReportCaller(set)
+// SetLogLevel: set the log level (panic|fatal|error|warn|info|debug)
+func SetLogLevel(level zapcore.Level) {
+	InitLog.Infoln("set log level:", level)
+	atomicLevel.SetLevel(level)
 }

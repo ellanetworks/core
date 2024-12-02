@@ -43,7 +43,7 @@ func HandleGetBDTPolicyContextRequest(request *httpwrapper.Request) *httpwrapper
 func getBDTPolicyContextProcedure(bdtPolicyID string) (
 	response *models.BdtPolicy, problemDetails *models.ProblemDetails,
 ) {
-	logger.Bdtpolicylog.Traceln("Handle BDT Policy GET")
+	logger.Bdtpolicylog.Debugln("Handle BDT Policy GET")
 	// check bdtPolicyID from pcfUeContext
 	if value, ok := pcf_context.PCF_Self().BdtPolicyPool.Load(bdtPolicyID); ok {
 		bdtPolicy := value.(*models.BdtPolicy)
@@ -125,7 +125,7 @@ func updateBDTPolicyContextProcedure(request models.BdtPolicyDataPatch, bdtPolic
 					logger.Bdtpolicylog.Errorf("PolicyDataBdtDataBdtReferenceIdPut response body cannot close: %+v", rspCloseErr)
 				}
 			}()
-			logger.Bdtpolicylog.Tracef("bdtPolicyID[%s] has Updated with SelTransPolicyId[%d]",
+			logger.Bdtpolicylog.Debugln("bdtPolicyID[%s] has Updated with SelTransPolicyId[%d]",
 				bdtPolicyID, request.SelTransPolicyId)
 			return bdtPolicy, nil
 		}
@@ -164,7 +164,7 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	header http.Header, response *models.BdtPolicy, problemDetails *models.ProblemDetails,
 ) {
 	response = &models.BdtPolicy{}
-	logger.Bdtpolicylog.Traceln("Handle BDT Policy Create")
+	logger.Bdtpolicylog.Debugln("Handle BDT Policy Create")
 
 	pcfSelf := pcf_context.PCF_Self()
 
@@ -250,7 +250,7 @@ func createBDTPolicyContextProcedure(request *models.BdtReqData) (
 	header = http.Header{
 		"Location": {locationHeader},
 	}
-	logger.Bdtpolicylog.Tracef("BDT Policy Id[%s] Create", bdtPolicyID)
+	logger.Bdtpolicylog.Debugln("BDT Policy Id[%s] Create", bdtPolicyID)
 	return header, response, problemDetails
 }
 

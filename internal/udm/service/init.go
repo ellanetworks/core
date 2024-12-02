@@ -8,8 +8,6 @@ import (
 
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/omec-project/util/path_util"
-	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/udm/context"
 	"github.com/yeastengine/ella/internal/udm/eventexposure"
 	"github.com/yeastengine/ella/internal/udm/factory"
@@ -20,15 +18,10 @@ import (
 	"github.com/yeastengine/ella/internal/udm/ueauthentication"
 	"github.com/yeastengine/ella/internal/udm/uecontextmanagement"
 	"github.com/yeastengine/ella/internal/udm/util"
+	"go.uber.org/zap/zapcore"
 )
 
 type UDM struct{}
-
-var initLog *logrus.Entry
-
-func init() {
-	initLog = logger.InitLog
-}
 
 func (udm *UDM) Initialize(c factory.Configuration) error {
 	factory.InitConfigFactory(c)
@@ -37,27 +30,24 @@ func (udm *UDM) Initialize(c factory.Configuration) error {
 }
 
 func (udm *UDM) setLogLevel() {
-	level, err := logrus.ParseLevel(factory.UdmConfig.Logger.UDM.DebugLevel)
+	level, err := zapcore.ParseLevel(factory.UdmConfig.Logger.UDM.DebugLevel)
 	if err != nil {
-		initLog.Fatalf("UDM Log level [%s] is invalid, set to [info] level", factory.UdmConfig.Logger.UDM.DebugLevel)
+		logger.InitLog.Fatalf("UDM Log level [%s] is invalid, set to [info] level", factory.UdmConfig.Logger.UDM.DebugLevel)
 	}
-	initLog.Infof("UDM Log level is set to [%s] level", level)
+	logger.InitLog.Infof("UDM Log level is set to [%s] level", level)
 	logger.SetLogLevel(level)
-	logger.SetReportCaller(factory.UdmConfig.Logger.UDM.ReportCaller)
 }
 
 func (udm *UDM) Start() {
 	config := factory.UdmConfig
 	serviceName := config.ServiceNameList
-	router := logger_util.NewGinWithLogrus(logger.GinLog)
+	router := logger_util.NewGinWithZap(logger.GinLog)
 	eventexposure.AddService(router)
 	httpcallback.AddService(router)
 	parameterprovision.AddService(router)
 	subscriberdatamanagement.AddService(router)
 	ueauthentication.AddService(router)
 	uecontextmanagement.AddService(router)
-
-	udmLogPath := path_util.Free5gcPath("omec-project/udmsslkey.log")
 
 	self := context.UDM_Self()
 	util.InitUDMContext(self)
@@ -73,19 +63,19 @@ func (udm *UDM) Start() {
 		os.Exit(0)
 	}()
 
-	server, err := http2_util.NewServer(addr, udmLogPath, router)
+	server, err := http2_util.NewServer(addr, "/var/log/udm.log", router)
 	if server == nil {
-		initLog.Errorf("Initialize HTTP server failed: %+v", err)
+		logger.InitLog.Errorf("Initialize HTTP server failed: %+v", err)
 		return
 	}
 
 	if err != nil {
-		initLog.Warnf("Initialize HTTP server: +%v", err)
+		logger.InitLog.Warnf("Initialize HTTP server: +%v", err)
 	}
 
 	err = server.ListenAndServe()
 	if err != nil {
-		initLog.Fatalf("HTTP server setup failed: %+v", err)
+		logger.InitLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
 }
 

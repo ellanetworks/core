@@ -52,11 +52,8 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 			return nil, fmt.Errorf("Plain NAS encode error: %+v", err)
 		}
 
-		ue.NASLog.Tracef("plain payload:\n%+v", hex.Dump(payload))
-
 		if needCiphering {
 			ue.NASLog.Debugf("Encrypt NAS message (algorithm: %+v, DLCount: 0x%0x)", ue.CipheringAlg, ue.DLCount.Get())
-			ue.NASLog.Tracef("NAS ciphering key: %0x", ue.KnasEnc)
 			if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.DLCount.Get(), security.Bearer3GPP,
 				security.DirectionDownlink, payload); err != nil {
 				return nil, fmt.Errorf("Encrypt error: %+v", err)
@@ -76,7 +73,6 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 			return nil, fmt.Errorf("MAC calcuate error: %+v", err)
 		}
 		// Add mac value
-		ue.NASLog.Tracef("MAC: 0x%08x", mac32)
 		payload = append(mac32, payload[:]...)
 
 		// Add EPD and Security Type
@@ -192,7 +188,6 @@ func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*n
 
 	msg := new(nas.Message)
 	msg.SecurityHeaderType = nas.GetSecurityHeaderType(payload) & 0x0f
-	ue.NASLog.Traceln("securityHeaderType is ", msg.SecurityHeaderType)
 	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
 		// RRCEstablishmentCause 0 is for emergency service
 		if ue.SecurityContextAvailable && ue.RanUe[accessType].RRCEstablishmentCause != "0" {
@@ -236,9 +231,7 @@ func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*n
 		}
 	} else { // Security protected NAS message
 		securityHeader := payload[0:6]
-		ue.NASLog.Traceln("securityHeader is ", securityHeader)
 		sequenceNumber := payload[6]
-		ue.NASLog.Traceln("sequenceNumber", sequenceNumber)
 
 		receivedMac32 := securityHeader[2:]
 		// remove security Header except for sequece Number
@@ -278,13 +271,11 @@ func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*n
 			ue.NASLog.Warnf("NAS MAC verification failed(received: 0x%08x, expected: 0x%08x)", receivedMac32, mac32)
 			ue.MacFailed = true
 		} else {
-			ue.NASLog.Tracef("cmac value: 0x%08x", mac32)
 			ue.MacFailed = false
 		}
 
 		if ciphered {
 			ue.NASLog.Debugf("Decrypt NAS message (algorithm: %+v, ULCount: 0x%0x)", ue.CipheringAlg, ue.ULCount.Get())
-			ue.NASLog.Tracef("NAS ciphering key: %0x", ue.KnasEnc)
 			// decrypt payload without sequence number (payload[1])
 			if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP,
 				security.DirectionUplink, payload[1:]); err != nil {

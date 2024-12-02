@@ -1,34 +1,31 @@
 package logger
 
 import (
-	"os"
-	"time"
-
-	formatter "github.com/antonfisher/nested-logrus-formatter"
-	"github.com/omec-project/util/logger"
-	"github.com/omec-project/util/logger_conf"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
-	log                    *logrus.Logger
-	AppLog                 *logrus.Entry
-	InitLog                *logrus.Entry
-	CfgLog                 *logrus.Entry
-	HandlerLog             *logrus.Entry
-	Bdtpolicylog           *logrus.Entry
-	PolicyAuthorizationlog *logrus.Entry
-	AMpolicylog            *logrus.Entry
-	SMpolicylog            *logrus.Entry
-	Consumerlog            *logrus.Entry
-	UtilLog                *logrus.Entry
-	CallbackLog            *logrus.Entry
-	OamLog                 *logrus.Entry
-	CtxLog                 *logrus.Entry
-	ConsumerLog            *logrus.Entry
-	GinLog                 *logrus.Entry
-	GrpcLog                *logrus.Entry
-	NotifyEventLog         *logrus.Entry
+	log                    *zap.Logger
+	AppLog                 *zap.SugaredLogger
+	InitLog                *zap.SugaredLogger
+	CfgLog                 *zap.SugaredLogger
+	HandlerLog             *zap.SugaredLogger
+	Bdtpolicylog           *zap.SugaredLogger
+	PolicyAuthorizationlog *zap.SugaredLogger
+	AMpolicylog            *zap.SugaredLogger
+	SMpolicylog            *zap.SugaredLogger
+	Consumerlog            *zap.SugaredLogger
+	UtilLog                *zap.SugaredLogger
+	CallbackLog            *zap.SugaredLogger
+	OamLog                 *zap.SugaredLogger
+	CtxLog                 *zap.SugaredLogger
+	ConsumerLog            *zap.SugaredLogger
+	GinLog                 *zap.SugaredLogger
+	GrpcLog                *zap.SugaredLogger
+	NotifyEventLog         *zap.SugaredLogger
+	ProducerLog            *zap.SugaredLogger
+	atomicLevel            zap.AtomicLevel
 )
 
 const (
@@ -36,50 +33,56 @@ const (
 )
 
 func init() {
-	log = logrus.New()
-	log.SetReportCaller(false)
-
-	log.Formatter = &formatter.Formatter{
-		TimestampFormat: time.RFC3339,
-		TrimMessages:    true,
-		NoFieldsSpace:   true,
-		HideKeys:        true,
-		FieldsOrder:     []string{"component", "category"},
+	atomicLevel = zap.NewAtomicLevelAt(zap.InfoLevel)
+	config := zap.Config{
+		Level:            atomicLevel,
+		Development:      false,
+		Encoding:         "console",
+		EncoderConfig:    zap.NewProductionEncoderConfig(),
+		OutputPaths:      []string{"stdout"},
+		ErrorOutputPaths: []string{"stderr"},
 	}
 
-	free5gcLogHook, err := logger.NewFileHook(logger_conf.Free5gcLogFile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0o666)
-	if err == nil {
-		log.Hooks.Add(free5gcLogHook)
+	config.EncoderConfig.TimeKey = "timestamp"
+	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	config.EncoderConfig.LevelKey = "level"
+	config.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+	config.EncoderConfig.CallerKey = "caller"
+	config.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
+	config.EncoderConfig.MessageKey = "message"
+	config.EncoderConfig.StacktraceKey = ""
+
+	var err error
+	log, err = config.Build()
+	if err != nil {
+		panic(err)
 	}
 
-	selfLogHook, err := logger.NewFileHook(logger_conf.NfLogDir+"pcf.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0o666)
-	if err == nil {
-		log.Hooks.Add(selfLogHook)
-	}
-
-	AppLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "App"})
-	InitLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Init"})
-	CfgLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "CFG"})
-	HandlerLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Handler"})
-	Bdtpolicylog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Bdtpolicy"})
-	AMpolicylog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Ampolicy"})
-	PolicyAuthorizationlog = log.WithFields(logrus.Fields{"component": "PCF", "category": "PolicyAuth"})
-	SMpolicylog = log.WithFields(logrus.Fields{"component": "PCF", "category": "SMpolicy"})
-	UtilLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Util"})
-	CallbackLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Callback"})
-	Consumerlog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Consumer"})
-	OamLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "OAM"})
-	CtxLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Context"})
-	ConsumerLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Consumer"})
-	GinLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "GIN"})
-	GrpcLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "GRPC"})
-	NotifyEventLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "NotifyEvent"})
+	AppLog = log.Sugar().With("component", "PCF", "category", "App")
+	InitLog = log.Sugar().With("component", "PCF", "category", "Init")
+	CfgLog = log.Sugar().With("component", "PCF", "category", "CFG")
+	HandlerLog = log.Sugar().With("component", "PCF", "category", "Handler")
+	Bdtpolicylog = log.Sugar().With("component", "PCF", "category", "Bdtpolicy")
+	AMpolicylog = log.Sugar().With("component", "PCF", "category", "Ampolicy")
+	PolicyAuthorizationlog = log.Sugar().With("component", "PCF", "category", "PolicyAuth")
+	SMpolicylog = log.Sugar().With("component", "PCF", "category", "SMpolicy")
+	UtilLog = log.Sugar().With("component", "PCF", "category", "Util")
+	CallbackLog = log.Sugar().With("component", "PCF", "category", "Callback")
+	Consumerlog = log.Sugar().With("component", "PCF", "category", "Consumer")
+	OamLog = log.Sugar().With("component", "PCF", "category", "OAM")
+	CtxLog = log.Sugar().With("component", "PCF", "category", "Context")
+	ConsumerLog = log.Sugar().With("component", "PCF", "category", "Consumer")
+	GinLog = log.Sugar().With("component", "PCF", "category", "GIN")
+	GrpcLog = log.Sugar().With("component", "PCF", "category", "GRPC")
+	NotifyEventLog = log.Sugar().With("component", "PCF", "category", "NotifyEvent")
+	ProducerLog = log.Sugar().With("component", "PCF", "category", "Producer")
 }
 
-func SetLogLevel(level logrus.Level) {
-	log.SetLevel(level)
+func GetLogger() *zap.Logger {
+	return log
 }
 
-func SetReportCaller(set bool) {
-	log.SetReportCaller(set)
+func SetLogLevel(level zapcore.Level) {
+	InitLog.Infoln("set log level:", level)
+	atomicLevel.SetLevel(level)
 }

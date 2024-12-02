@@ -124,7 +124,7 @@ func handleMediaSubComponent(smPolicy *pcf_context.UeSmPolicyData, medComp *mode
 // Invocation of Multimedia Priority Services (TODO)
 // Support of content versioning (TODO)
 func HandlePostAppSessionsContext(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.PolicyAuthorizationlog.Traceln("Handle Create AppSessions")
+	logger.PolicyAuthorizationlog.Debugln("Handle Create AppSessions")
 
 	appSessCtx := request.Body.(models.AppSessionContext)
 
@@ -164,7 +164,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		}
 		pcfSelf.AppSessionPool.Store(appSessID, &data)
 		locationHeader := util.GetResourceUri(models.ServiceName_NPCF_POLICYAUTHORIZATION, appSessID)
-		logger.PolicyAuthorizationlog.Tracef("App Session Id[%s] Create", appSessID)
+		logger.PolicyAuthorizationlog.Debugf("App Session Id[%s] Create", appSessID)
 		return appSessCtx, locationHeader, nil
 	}
 	if ascReqData.UeIpv4 == "" && ascReqData.UeIpv6 == "" && ascReqData.UeMac == "" {
@@ -491,7 +491,7 @@ func DeleteAppSessionContextProcedure(appSessID string,
 		SmPolicyDecision: &deletedSmPolicyDec,
 	}
 	notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
-	logger.PolicyAuthorizationlog.Tracef("Send SM Policy[%s] Update Notification", smPolicyID)
+	logger.PolicyAuthorizationlog.Debugf("Send SM Policy[%s] Update Notification", smPolicyID)
 	return nil
 }
 
@@ -519,7 +519,7 @@ func GetAppSessionContextProcedure(appSessID string) (*models.ProblemDetails, *m
 		problemDetail := util.GetProblemDetail("can't find app session", util.APPLICATION_SESSION_CONTEXT_NOT_FOUND)
 		return &problemDetail, nil
 	}
-	logger.PolicyAuthorizationlog.Tracef("App Session Id[%s] Get", appSessID)
+	logger.PolicyAuthorizationlog.Debugf("App Session Id[%s] Get", appSessID)
 	return nil, appSession.AppSessionContext
 }
 
@@ -556,7 +556,7 @@ func ModAppSessionContextProcedure(appSessID string,
 			problemDetail := util.GetProblemDetail(err.Error(), util.ERROR_REQUEST_PARAMETERS)
 			return &problemDetail, nil
 		}
-		logger.PolicyAuthorizationlog.Tracef("App Session Id[%s] Updated", appSessID)
+		logger.PolicyAuthorizationlog.Debugf("App Session Id[%s] Updated", appSessID)
 		return nil, appSessCtx
 	}
 	smPolicy := appSession.SmPolicyData
@@ -789,7 +789,7 @@ func ModAppSessionContextProcedure(appSessID string,
 	}
 
 	// TODO: MPS Service
-	logger.PolicyAuthorizationlog.Tracef("App Session Id[%s] Updated", appSessID)
+	logger.PolicyAuthorizationlog.Debugf("App Session Id[%s] Updated", appSessID)
 
 	smPolicy.ArrangeExistEventSubscription()
 
@@ -801,7 +801,7 @@ func ModAppSessionContextProcedure(appSessID string,
 			SmPolicyDecision: smPolicy.PolicyDecision,
 		}
 		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
-		logger.PolicyAuthorizationlog.Tracef("Send SM Policy[%s] Update Notification", smPolicyID)
+		logger.PolicyAuthorizationlog.Debugf("Send SM Policy[%s] Update Notification", smPolicyID)
 	}
 	return nil, appSessCtx
 }
@@ -809,7 +809,7 @@ func ModAppSessionContextProcedure(appSessID string,
 // HandleDeleteEventsSubsc - deletes the Events Subscription subresource
 func HandleDeleteEventsSubscContext(request *httpwrapper.Request) *httpwrapper.Response {
 	appSessID := request.Params["appSessID"]
-	logger.PolicyAuthorizationlog.Tracef("Handle Del AppSessions Events Subsc, AppSessionId[%s]", appSessID)
+	logger.PolicyAuthorizationlog.Debugf("Handle Del AppSessions Events Subsc, AppSessionId[%s]", appSessID)
 
 	problemDetails := DeleteEventsSubscContextProcedure(appSessID)
 	if problemDetails == nil {
@@ -836,7 +836,7 @@ func DeleteEventsSubscContextProcedure(appSessID string) *models.ProblemDetails 
 
 	// changed := appSession.SmPolicyData.ArrangeExistEventSubscription()
 
-	logger.PolicyAuthorizationlog.Tracef("App Session Id[%s] Del Events Subsc success", appSessID)
+	logger.PolicyAuthorizationlog.Debugf("App Session Id[%s] Del Events Subsc success", appSessID)
 
 	smPolicy := appSession.SmPolicyData
 	// Send Notification to SMF
@@ -847,7 +847,7 @@ func DeleteEventsSubscContextProcedure(appSessID string) *models.ProblemDetails 
 			SmPolicyDecision: smPolicy.PolicyDecision,
 		}
 		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
-		logger.PolicyAuthorizationlog.Tracef("Send SM Policy[%s] Update Notification", smPolicyID)
+		logger.PolicyAuthorizationlog.Debugf("Send SM Policy[%s] Update Notification", smPolicyID)
 	}
 	return nil
 }
@@ -856,7 +856,7 @@ func DeleteEventsSubscContextProcedure(appSessID string) *models.ProblemDetails 
 func HandleUpdateEventsSubscContext(request *httpwrapper.Request) *httpwrapper.Response {
 	EventsSubscReqData := request.Body.(models.EventsSubscReqData)
 	appSessID := request.Params["appSessID"]
-	logger.PolicyAuthorizationlog.Tracef("Handle Put AppSessions Events Subsc, AppSessionId[%s]", appSessID)
+	logger.PolicyAuthorizationlog.Debugf("Handle Put AppSessions Events Subsc, AppSessionId[%s]", appSessID)
 
 	response, locationHeader, status, problemDetails := UpdateEventsSubscContextProcedure(appSessID, EventsSubscReqData)
 	if problemDetails != nil {
@@ -879,7 +879,7 @@ func HandleUpdateEventsSubscContext(request *httpwrapper.Request) *httpwrapper.R
 }
 
 func SendAppSessionEventNotification(appSession *pcf_context.AppSessionData, request models.EventsNotification) {
-	logger.PolicyAuthorizationlog.Tracef("Send App Session Event Notification")
+	logger.PolicyAuthorizationlog.Debugf("Send App Session Event Notification")
 	if appSession == nil {
 		logger.PolicyAuthorizationlog.Warnln("Send App Session Event Notification Error[appSession is nil]")
 		return
@@ -912,7 +912,7 @@ func SendAppSessionEventNotification(appSession *pcf_context.AppSessionData, req
 		if httpResponse.StatusCode != http.StatusOK && httpResponse.StatusCode != http.StatusNoContent {
 			logger.PolicyAuthorizationlog.Warnf("Send App Session Event Notification Failed")
 		} else {
-			logger.PolicyAuthorizationlog.Tracef("Send App Session Event Notification Success")
+			logger.PolicyAuthorizationlog.Debugf("Send App Session Event Notification Success")
 		}
 	}
 }
@@ -1038,24 +1038,24 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 			SmPolicyDecision: smPolicy.PolicyDecision,
 		}
 		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
-		logger.PolicyAuthorizationlog.Tracef("Send SM Policy[%s] Update Notification", smPolicyID)
+		logger.PolicyAuthorizationlog.Debugf("Send SM Policy[%s] Update Notification", smPolicyID)
 	}
 	if created {
 		locationHeader := fmt.Sprintf("%s/events-subscription",
 			util.GetResourceUri(models.ServiceName_NPCF_POLICYAUTHORIZATION, appSessID))
-		logger.PolicyAuthorizationlog.Tracef("App Session Id[%s] Create Subscription", appSessID)
+		logger.PolicyAuthorizationlog.Debugf("App Session Id[%s] Create Subscription", appSessID)
 		return &resp, locationHeader, http.StatusCreated, nil
 	} else if resp.EvsNotif != nil {
-		logger.PolicyAuthorizationlog.Tracef("App Session Id[%s] Modify Subscription", appSessID)
+		logger.PolicyAuthorizationlog.Debugf("App Session Id[%s] Modify Subscription", appSessID)
 		return &resp, "", http.StatusOK, nil
 	} else {
-		logger.PolicyAuthorizationlog.Tracef("App Session Id[%s] Modify Subscription", appSessID)
+		logger.PolicyAuthorizationlog.Debugf("App Session Id[%s] Modify Subscription", appSessID)
 		return &resp, "", http.StatusNoContent, nil
 	}
 }
 
 func SendAppSessionTermination(appSession *pcf_context.AppSessionData, request models.TerminationInfo) {
-	logger.PolicyAuthorizationlog.Tracef("Send App Session Termination")
+	logger.PolicyAuthorizationlog.Debugf("Send App Session Termination")
 	if appSession == nil {
 		logger.PolicyAuthorizationlog.Warnln("Send App Session Termination Error[appSession is nil]")
 		return
@@ -1086,7 +1086,7 @@ func SendAppSessionTermination(appSession *pcf_context.AppSessionData, request m
 		if httpResponse.StatusCode != http.StatusOK && httpResponse.StatusCode != http.StatusNoContent {
 			logger.PolicyAuthorizationlog.Warnf("Send App Session Termination Failed")
 		} else {
-			logger.PolicyAuthorizationlog.Tracef("Send App Session Termination Success")
+			logger.PolicyAuthorizationlog.Debugf("Send App Session Termination Success")
 		}
 	}
 }

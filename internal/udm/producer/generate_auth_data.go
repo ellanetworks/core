@@ -43,7 +43,7 @@ func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte) {
 		return nil, nil
 	}
 
-	logger.UeauLog.Traceln("ConcSQNms", ConcSQNms)
+	logger.UeauLog.Debugln("ConcSQNms", ConcSQNms)
 
 	err = milenage.F2345(opc, k, rand, nil, nil, nil, nil, AK)
 	if err != nil {
@@ -65,8 +65,8 @@ func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte) {
 	}
 	// fmt.Printf("macS %x\n", macS)
 
-	logger.UeauLog.Traceln("SQNms", SQNms)
-	logger.UeauLog.Traceln("macS", macS)
+	logger.UeauLog.Debugln("SQNms", SQNms)
+	logger.UeauLog.Debugln("macS", macS)
 	return SQNms, macS
 }
 
@@ -149,7 +149,7 @@ func ConfirmAuthDataProcedure(authEvent models.AuthEvent, supi string) (problemD
 func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (
 	response *models.AuthenticationInfoResult, problemDetails *models.ProblemDetails,
 ) {
-	logger.UeauLog.Traceln("In GenerateAuthDataProcedure")
+	logger.UeauLog.Debugln("In GenerateAuthDataProcedure")
 
 	response = &models.AuthenticationInfoResult{}
 	supi, err := suci.ToSupi(supiOrSuci, udm_context.UDM_Self().SuciProfiles)
@@ -164,7 +164,7 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 		return nil, problemDetails
 	}
 
-	logger.UeauLog.Tracef("supi conversion => %s\n", supi)
+	logger.UeauLog.Debugf("supi conversion => %s\n", supi)
 
 	client := createUDMClientToUDR()
 	authSubs, res, err := client.AuthenticationDataDocumentApi.QueryAuthSubsData(context.Background(), supi, nil)
@@ -196,7 +196,7 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 
 	k, op, opc := make([]byte, 16), make([]byte, 16), make([]byte, 16)
 
-	logger.UeauLog.Traceln("K", k)
+	logger.UeauLog.Debugln("K", k)
 
 	if authSubs.PermanentKey != nil {
 		kStr = authSubs.PermanentKey.PermanentKeyValue
@@ -295,7 +295,7 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 	}
 
 	sqnStr := strictHex(authSubs.SequenceNumber, 12)
-	logger.UeauLog.Traceln("sqnStr", sqnStr)
+	logger.UeauLog.Debugln("sqnStr", sqnStr)
 	sqn, err := hex.DecodeString(sqnStr)
 	if err != nil {
 		problemDetails = &models.ProblemDetails{
@@ -308,7 +308,7 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 		return nil, problemDetails
 	}
 
-	logger.UeauLog.Traceln("sqn", sqn)
+	logger.UeauLog.Debugln("sqn", sqn)
 	// fmt.Printf("K=%x\nsqn=%x\nOP=%x\nOPC=%x\n", K, sqn, OP, OPC)
 
 	RAND := make([]byte, 16)

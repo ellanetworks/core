@@ -14,8 +14,7 @@ func Start(amfURL string, udrURL string) error {
 	configuration := factory.Configuration{
 		Logger: &logger.Logger{
 			PCF: &logger.LogSetting{
-				DebugLevel:   "debug",
-				ReportCaller: false,
+				DebugLevel: "debug",
 			},
 		},
 		PcfName: "PCF",

@@ -8,8 +8,8 @@ import (
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/amf/logger"
+	"go.uber.org/zap"
 )
 
 const (
@@ -36,7 +36,7 @@ type AmfRan struct {
 	RanUeList []*RanUe `json:"-"` // RanUeNgapId as key
 
 	/* logger */
-	Log *logrus.Entry `json:"-"`
+	Log *zap.SugaredLogger `json:"-"`
 }
 
 type SupportedTAI struct {
@@ -70,7 +70,7 @@ func (ran *AmfRan) NewRanUe(ranUeNgapID int64) (*RanUe, error) {
 	ranUe.AmfUeNgapId = amfUeNgapID
 	ranUe.RanUeNgapId = ranUeNgapID
 	ranUe.Ran = ran
-	ranUe.Log = ran.Log.WithField(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
+	ranUe.Log = ran.Log.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
 	ran.RanUeList = append(ran.RanUeList, &ranUe)
 	self.RanUePool.Store(ranUe.AmfUeNgapId, &ranUe)
 	return &ranUe, nil

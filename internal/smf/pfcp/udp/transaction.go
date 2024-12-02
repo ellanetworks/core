@@ -85,7 +85,7 @@ func NewTransaction(pfcpMSG message.Message, binaryMSG []byte, Conn *net.UDPConn
 		tx.TxType = SendingResponse
 		tx.ConsumerAddr = DestAddr.String()
 	}
-	logger.PfcpLog.Tracef("New Transaction SEQ[%d] DestAddr[%s]", tx.SequenceNumber, DestAddr.String())
+	logger.PfcpLog.Debugf("New Transaction SEQ[%d] DestAddr[%s]", tx.SequenceNumber, DestAddr.String())
 	return tx
 }
 
@@ -102,12 +102,12 @@ func (transaction *Transaction) Start() error {
 			case event := <-transaction.EventChannel:
 
 				if event == ReceiveValidResponse {
-					logger.PfcpLog.Tracef("Request Transaction [%d]: receive valid response\n", transaction.SequenceNumber)
+					logger.PfcpLog.Debugf("Request Transaction [%d]: receive valid response\n", transaction.SequenceNumber)
 					return nil
 				}
 			case <-timer.C:
-				logger.PfcpLog.Tracef("Request Transaction [%d]: timeout expire\n", transaction.SequenceNumber)
-				logger.PfcpLog.Tracef("Request Transaction [%d]: Resend packet\n", transaction.SequenceNumber)
+				logger.PfcpLog.Debugf("Request Transaction [%d]: timeout expire\n", transaction.SequenceNumber)
+				logger.PfcpLog.Debugf("Request Transaction [%d]: Resend packet\n", transaction.SequenceNumber)
 				continue
 			}
 		}
@@ -127,12 +127,12 @@ func (transaction *Transaction) Start() error {
 			case event := <-transaction.EventChannel:
 
 				if event == ReceiveResendRequest {
-					logger.PfcpLog.Tracef("Response Transaction [%d]: receive resend request\n", transaction.SequenceNumber)
-					logger.PfcpLog.Tracef("Response Transaction [%d]: Resend packet\n", transaction.SequenceNumber)
+					logger.PfcpLog.Debugf("Response Transaction [%d]: receive resend request\n", transaction.SequenceNumber)
+					logger.PfcpLog.Debugf("Response Transaction [%d]: Resend packet\n", transaction.SequenceNumber)
 					continue
 				}
 			case <-timer.C:
-				logger.PfcpLog.Tracef("Response Transaction [%d]: timeout expire\n", transaction.SequenceNumber)
+				logger.PfcpLog.Debugf("Response Transaction [%d]: timeout expire\n", transaction.SequenceNumber)
 				return errors.Errorf("response timeout, seq [%d]", transaction.SequenceNumber)
 			}
 		}

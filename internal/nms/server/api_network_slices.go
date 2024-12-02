@@ -12,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 	openAPIModels "github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/nms/db"
 	"github.com/yeastengine/ella/internal/nms/logger"
 	"github.com/yeastengine/ella/internal/nms/models"
@@ -26,12 +25,9 @@ const (
 	GPS = 1000000000
 )
 
-var configLog *logrus.Entry
-
 var imsiData map[string]*openAPIModels.AuthenticationSubscription
 
 func init() {
-	configLog = logger.ConfigLog
 	imsiData = make(map[string]*openAPIModels.AuthenticationSubscription)
 }
 
@@ -124,7 +120,7 @@ func convertToBps(val int64, unit string) (bitrate int64) {
 func NetworkSliceDeleteHandler(c *gin.Context) bool {
 	sliceName, exists := c.Params.Get("slice-name")
 	if !exists {
-		configLog.Errorf("slice-name is missing")
+		logger.ConfigLog.Errorf("slice-name is missing")
 		return false
 	}
 	prevSlice := getSliceByName(sliceName)
@@ -166,14 +162,14 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 		}
 	}
 	updateSMF()
-	configLog.Infof("Deleted Network Slice: %v", sliceName)
+	logger.ConfigLog.Infof("Deleted Network Slice: %v", sliceName)
 	return true
 }
 
 func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 	sliceName, exists := c.Params.Get("slice-name")
 	if !exists {
-		configLog.Errorf("slice-name is missing")
+		logger.ConfigLog.Errorf("slice-name is missing")
 		return false
 	}
 
@@ -224,7 +220,7 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		Sst: int32(sVal),
 	}
 	for _, dgName := range procReq.SiteDeviceGroup {
-		configLog.Infoln("dgName : ", dgName)
+		logger.ConfigLog.Infoln("dgName : ", dgName)
 		devGroupConfig := getDeviceGroupByName(dgName)
 		if devGroupConfig != nil {
 			for _, imsi := range devGroupConfig.Imsis {
@@ -246,7 +242,7 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		logger.DbLog.Warnln(errPost)
 	}
 	updateSMF()
-	configLog.Infof("Created Network Slice: %v", sliceName)
+	logger.ConfigLog.Infof("Created Network Slice: %v", sliceName)
 	return true
 }
 

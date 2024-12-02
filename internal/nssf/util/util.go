@@ -1,7 +1,3 @@
-/*
- * NSSF Utility
- */
-
 package util
 
 import (
@@ -10,7 +6,6 @@ import (
 	"reflect"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/path_util"
 	"github.com/yeastengine/ella/internal/nssf/factory"
 	"github.com/yeastengine/ella/internal/nssf/logger"
 )
@@ -21,13 +16,6 @@ const (
 	MALFORMED_REQUEST     = "Malformed request syntax"
 	UNAUTHORIZED_CONSUMER = "Unauthorized NF service consumer"
 	UNSUPPORTED_RESOURCE  = "Unsupported request resources"
-)
-
-// Path of HTTP2 key and log file
-var (
-	NSSF_LOG_PATH = path_util.Free5gcPath("omec-project/nssfsslkey.log")
-	NSSF_PEM_PATH = path_util.Free5gcPath("free5gc/support/TLS/nssf.pem")
-	NSSF_KEY_PATH = path_util.Free5gcPath("free5gc/support/TLS/nssf.key")
 )
 
 // Default configuration file

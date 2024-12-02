@@ -9,7 +9,6 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/pcf/ampolicy"
 	"github.com/yeastengine/ella/internal/pcf/bdtpolicy"
 	"github.com/yeastengine/ella/internal/pcf/context"
@@ -22,15 +21,11 @@ import (
 	"github.com/yeastengine/ella/internal/pcf/smpolicy"
 	"github.com/yeastengine/ella/internal/pcf/uepolicy"
 	"github.com/yeastengine/ella/internal/pcf/util"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type PCF struct{}
-
-var initLog *logrus.Entry
-
-func init() {
-	initLog = logger.InitLog
-}
 
 func (pcf *PCF) Initialize(c factory.Configuration) {
 	factory.InitConfigFactory(c)
@@ -38,19 +33,18 @@ func (pcf *PCF) Initialize(c factory.Configuration) {
 }
 
 func (pcf *PCF) setLogLevel() {
-	if level, err := logrus.ParseLevel(factory.PcfConfig.Logger.PCF.DebugLevel); err != nil {
-		initLog.Warnf("PCF Log level [%s] is invalid, set to [info] level",
+	if level, err := zapcore.ParseLevel(factory.PcfConfig.Logger.PCF.DebugLevel); err != nil {
+		logger.InitLog.Warnf("PCF Log level [%s] is invalid, set to [info] level",
 			factory.PcfConfig.Logger.PCF.DebugLevel)
-		logger.SetLogLevel(logrus.InfoLevel)
+		logger.SetLogLevel(zap.InfoLevel)
 	} else {
-		initLog.Infof("PCF Log level is set to [%s] level", level)
+		logger.InitLog.Infof("PCF Log level is set to [%s] level", level)
 		logger.SetLogLevel(level)
 	}
-	logger.SetReportCaller(factory.PcfConfig.Logger.PCF.ReportCaller)
 }
 
 func (pcf *PCF) Start() {
-	router := logger_util.NewGinWithLogrus(logger.GinLog)
+	router := logger_util.NewGinWithZap(logger.GinLog)
 
 	bdtpolicy.AddService(router)
 	smpolicy.AddService(router)
@@ -73,7 +67,7 @@ func (pcf *PCF) Start() {
 	}))
 
 	if err := notifyevent.RegisterNotifyDispatcher(); err != nil {
-		initLog.Error("Register NotifyDispatcher Error")
+		logger.InitLog.Error("Register NotifyDispatcher Error")
 	}
 
 	self := context.PCF_Self()
@@ -89,19 +83,19 @@ func (pcf *PCF) Start() {
 		os.Exit(0)
 	}()
 
-	server, err := http2_util.NewServer(addr, util.PCF_LOG_PATH, router)
+	server, err := http2_util.NewServer(addr, "/var/log/pcf.log", router)
 	if server == nil {
-		initLog.Errorf("Initialize HTTP server failed: %+v", err)
+		logger.InitLog.Errorf("Initialize HTTP server failed: %+v", err)
 		return
 	}
 
 	if err != nil {
-		initLog.Warnf("Initialize HTTP server: +%v", err)
+		logger.InitLog.Warnf("Initialize HTTP server: +%v", err)
 	}
 
 	err = server.ListenAndServe()
 	if err != nil {
-		initLog.Fatalf("HTTP server setup failed: %+v", err)
+		logger.InitLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
 }
 

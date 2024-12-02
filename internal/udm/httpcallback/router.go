@@ -5,15 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/udm/logger"
 )
-
-var HttpLog *logrus.Entry
-
-func init() {
-	HttpLog = logger.HttpLog
-}
 
 // Route is the information for every URI.
 type Route struct {
@@ -32,7 +25,7 @@ type Routes []Route
 
 // NewRouter returns a new router
 func NewRouter() *gin.Engine {
-	router := logger_util.NewGinWithLogrus(logger.GinLog)
+	router := logger_util.NewGinWithZap(logger.GinLog)
 	AddService(router)
 	return router
 }

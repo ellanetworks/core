@@ -8,22 +8,16 @@ import (
 
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/nssf/context"
 	"github.com/yeastengine/ella/internal/nssf/factory"
 	"github.com/yeastengine/ella/internal/nssf/logger"
 	"github.com/yeastengine/ella/internal/nssf/nssaiavailability"
 	"github.com/yeastengine/ella/internal/nssf/nsselection"
-	"github.com/yeastengine/ella/internal/nssf/util"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type NSSF struct{}
-
-var initLog *logrus.Entry
-
-func init() {
-	initLog = logger.InitLog
-}
 
 func (nssf *NSSF) Initialize(c factory.Configuration) {
 	factory.InitConfigFactory(c)
@@ -32,19 +26,18 @@ func (nssf *NSSF) Initialize(c factory.Configuration) {
 }
 
 func (nssf *NSSF) setLogLevel() {
-	if level, err := logrus.ParseLevel(factory.NssfConfig.Logger.NSSF.DebugLevel); err != nil {
-		initLog.Warnf("NSSF Log level [%s] is invalid, set to [info] level",
+	if level, err := zapcore.ParseLevel(factory.NssfConfig.Logger.NSSF.DebugLevel); err != nil {
+		logger.InitLog.Warnf("NSSF Log level [%s] is invalid, set to [info] level",
 			factory.NssfConfig.Logger.NSSF.DebugLevel)
-		logger.SetLogLevel(logrus.InfoLevel)
+		logger.SetLogLevel(zap.InfoLevel)
 	} else {
-		initLog.Infof("NSSF Log level is set to [%s] level", level)
+		logger.InitLog.Infof("NSSF Log level is set to [%s] level", level)
 		logger.SetLogLevel(level)
 	}
-	logger.SetReportCaller(factory.NssfConfig.Logger.NSSF.ReportCaller)
 }
 
 func (nssf *NSSF) Start() {
-	router := logger_util.NewGinWithLogrus(logger.GinLog)
+	router := logger_util.NewGinWithZap(logger.GinLog)
 
 	nssaiavailability.AddService(router)
 	nsselection.AddService(router)
@@ -60,20 +53,20 @@ func (nssf *NSSF) Start() {
 		os.Exit(0)
 	}()
 
-	server, err := http2_util.NewServer(addr, util.NSSF_LOG_PATH, router)
+	server, err := http2_util.NewServer(addr, "/var/log/nssf.log", router)
 
 	if server == nil {
-		initLog.Errorf("Initialize HTTP server failed: %+v", err)
+		logger.InitLog.Errorf("Initialize HTTP server failed: %+v", err)
 		return
 	}
 
 	if err != nil {
-		initLog.Warnf("Initialize HTTP server: +%v", err)
+		logger.InitLog.Warnf("Initialize HTTP server: +%v", err)
 	}
 
 	err = server.ListenAndServe()
 	if err != nil {
-		initLog.Fatalf("HTTP server setup failed: %+v", err)
+		logger.InitLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
 }
 

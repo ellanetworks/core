@@ -19,8 +19,7 @@ func Start(udrURL string) error {
 	configuration := factory.Configuration{
 		Logger: &logger.Logger{
 			UDM: &logger.LogSetting{
-				DebugLevel:   "debug",
-				ReportCaller: false,
+				DebugLevel: "debug",
 			},
 		},
 		UdmName: "UDM",

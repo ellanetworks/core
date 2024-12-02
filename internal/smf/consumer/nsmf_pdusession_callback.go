@@ -29,7 +29,7 @@ func SendSMContextStatusNotification(uri string) (*models.ProblemDetails, error)
 				return nil, openapi.ReportError("Send SMContextStatus Notification Failed")
 			}
 
-			logger.PduSessLog.Tracef("Send SMContextStatus Notification Success")
+			logger.PduSessLog.Debugf("Send SMContextStatus Notification Success")
 		} else if httpResp != nil {
 			defer func() {
 				if resCloseErr := httpResp.Body.Close(); resCloseErr != nil {

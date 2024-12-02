@@ -8,22 +8,17 @@ import (
 
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/sirupsen/logrus"
 	udr_context "github.com/yeastengine/ella/internal/udr/context"
 	"github.com/yeastengine/ella/internal/udr/datarepository"
 	"github.com/yeastengine/ella/internal/udr/factory"
 	"github.com/yeastengine/ella/internal/udr/logger"
 	"github.com/yeastengine/ella/internal/udr/producer"
 	"github.com/yeastengine/ella/internal/udr/util"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type UDR struct{}
-
-var initLog *logrus.Entry
-
-func init() {
-	initLog = logger.InitLog
-}
 
 func (udr *UDR) Initialize(c factory.Configuration) {
 	factory.InitConfigFactory(c)
@@ -31,15 +26,14 @@ func (udr *UDR) Initialize(c factory.Configuration) {
 }
 
 func (udr *UDR) setLogLevel() {
-	if level, err := logrus.ParseLevel(factory.UdrConfig.Logger.UDR.DebugLevel); err != nil {
-		initLog.Warnf("UDR Log level [%s] is invalid, set to [info] level",
+	if level, err := zapcore.ParseLevel(factory.UdrConfig.Logger.UDR.DebugLevel); err != nil {
+		logger.InitLog.Warnf("UDR Log level [%s] is invalid, set to [info] level",
 			factory.UdrConfig.Logger.UDR.DebugLevel)
-		logger.SetLogLevel(logrus.InfoLevel)
+		logger.SetLogLevel(zap.InfoLevel)
 	} else {
-		initLog.Infof("UDR Log level is set to [%s] level", level)
+		logger.InitLog.Infof("UDR Log level is set to [%s] level", level)
 		logger.SetLogLevel(level)
 	}
-	logger.SetReportCaller(factory.UdrConfig.Logger.UDR.ReportCaller)
 }
 
 func (udr *UDR) Start() {
@@ -48,11 +42,9 @@ func (udr *UDR) Start() {
 
 	producer.ConnectMongo(mongodb.Url, mongodb.Name)
 
-	router := logger_util.NewGinWithLogrus(logger.GinLog)
+	router := logger_util.NewGinWithZap(logger.GinLog)
 
 	datarepository.AddService(router)
-
-	udrLogPath := util.UdrLogPath
 
 	self := udr_context.UDR_Self()
 	util.InitUdrContext(self)
@@ -67,19 +59,19 @@ func (udr *UDR) Start() {
 		os.Exit(0)
 	}()
 
-	server, err := http2_util.NewServer(addr, udrLogPath, router)
+	server, err := http2_util.NewServer(addr, "/var/log/udr.log", router)
 	if server == nil {
-		initLog.Errorf("Initialize HTTP server failed: %+v", err)
+		logger.InitLog.Errorf("Initialize HTTP server failed: %+v", err)
 		return
 	}
 
 	if err != nil {
-		initLog.Warnf("Initialize HTTP server: %+v", err)
+		logger.InitLog.Warnf("Initialize HTTP server: %+v", err)
 	}
 
 	err = server.ListenAndServe()
 	if err != nil {
-		initLog.Fatalf("HTTP server setup failed: %+v", err)
+		logger.InitLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
 }
 

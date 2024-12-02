@@ -308,7 +308,7 @@ func (context *AMFContext) NewAmfRan(conn net.Conn) *AmfRan {
 	ran.SupportedTAList = NewSupportedTAIList()
 	ran.Conn = conn
 	ran.GnbIp = conn.RemoteAddr().String()
-	ran.Log = logger.NgapLog.WithField(logger.FieldRanAddr, conn.RemoteAddr().String())
+	ran.Log = logger.NgapLog.With(logger.FieldRanAddr, conn.RemoteAddr().String())
 	context.AmfRanPool.Store(conn, &ran)
 	return &ran
 }
@@ -325,7 +325,7 @@ func (context *AMFContext) NewAmfRanAddr(remoteAddr string) *AmfRan {
 	ran := AmfRan{}
 	ran.SupportedTAList = NewSupportedTAIList()
 	ran.GnbIp = remoteAddr
-	ran.Log = logger.NgapLog.WithField(logger.FieldRanAddr, remoteAddr)
+	ran.Log = logger.NgapLog.With(logger.FieldRanAddr, remoteAddr)
 	context.AmfRanPool.Store(remoteAddr, &ran)
 	return &ran
 }
@@ -334,7 +334,7 @@ func (context *AMFContext) NewAmfRanId(GnbId string) *AmfRan {
 	ran := AmfRan{}
 	ran.SupportedTAList = NewSupportedTAIList()
 	ran.GnbId = GnbId
-	ran.Log = logger.NgapLog.WithField(logger.FieldRanId, GnbId)
+	ran.Log = logger.NgapLog.With(logger.FieldRanId, GnbId)
 	context.AmfRanPool.Store(GnbId, &ran)
 	return &ran
 }

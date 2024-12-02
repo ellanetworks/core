@@ -10,8 +10,8 @@ import (
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/amf/logger"
+	"go.uber.org/zap"
 )
 
 type RelAction int
@@ -70,7 +70,7 @@ type RanUe struct {
 	RecvdInitialContextSetupResponse bool
 
 	/* logger */
-	Log *logrus.Entry `json:"-"`
+	Log *zap.SugaredLogger `json:"-"`
 }
 
 func (ranUe *RanUe) Remove() error {

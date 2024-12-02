@@ -7,19 +7,14 @@ import (
 
 	"github.com/gin-contrib/cors"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/nms/config"
 	"github.com/yeastengine/ella/internal/nms/db"
 	"github.com/yeastengine/ella/internal/nms/logger"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type NMS struct{}
-
-var initLog *logrus.Entry
-
-func init() {
-	initLog = logger.InitLog
-}
 
 func (nms *NMS) Initialize(c config.Configuration) {
 	config.InitConfigFactory(c)
@@ -27,15 +22,14 @@ func (nms *NMS) Initialize(c config.Configuration) {
 }
 
 func (nms *NMS) setLogLevel() {
-	if level, err := logrus.ParseLevel(config.Config.Logger.WEBUI.DebugLevel); err != nil {
-		initLog.Warnf("NMS Log level [%s] is invalid, set to [info] level",
+	if level, err := zapcore.ParseLevel(config.Config.Logger.WEBUI.DebugLevel); err != nil {
+		logger.InitLog.Warnf("NMS Log level [%s] is invalid, set to [info] level",
 			config.Config.Logger.WEBUI.DebugLevel)
-		logger.SetLogLevel(logrus.InfoLevel)
+		logger.SetLogLevel(zap.InfoLevel)
 	} else {
-		initLog.Infof("NMS Log level is set to [%s] level", level)
+		logger.InitLog.Infof("NMS Log level is set to [%s] level", level)
 		logger.SetLogLevel(level)
 	}
-	logger.SetReportCaller(config.Config.Logger.WEBUI.ReportCaller)
 }
 
 func (nms *NMS) Start() {
@@ -43,7 +37,7 @@ func (nms *NMS) Start() {
 
 	db.ConnectMongo(mongodb.Url, mongodb.Name)
 
-	subconfig_router := logger_util.NewGinWithLogrus(logger.GinLog)
+	subconfig_router := logger_util.NewGinWithZap(logger.GinLog)
 	AddUiService(subconfig_router)
 	AddService(subconfig_router)
 
@@ -61,9 +55,9 @@ func (nms *NMS) Start() {
 
 	go func() {
 		httpAddr := ":" + strconv.Itoa(config.Config.CfgPort)
-		initLog.Infoln("NMS HTTP addr:", httpAddr, config.Config.CfgPort)
-		initLog.Infoln(subconfig_router.Run(httpAddr))
-		initLog.Infoln("NMS stopped/terminated/not-started ")
+		logger.InitLog.Infoln("NMS HTTP addr:", httpAddr, config.Config.CfgPort)
+		logger.InitLog.Infoln(subconfig_router.Run(httpAddr))
+		logger.InitLog.Infoln("NMS stopped/terminated/not-started ")
 	}()
 
 	select {}
