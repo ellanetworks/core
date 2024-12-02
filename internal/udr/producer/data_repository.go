@@ -312,7 +312,7 @@ func HandleModifyAuthentication(request *httpwrapper.Request) *httpwrapper.Respo
 
 func ModifyAuthenticationProcedure(collName string, ueId string, patchItem []models.PatchItem) *models.ProblemDetails {
 	filter := bson.M{"ueId": ueId}
-	origValue, errGetOne := AuthDBClient.RestfulAPIGetOne(collName, filter)
+	origValue, errGetOne := CommonDBClient.RestfulAPIGetOne(collName, filter)
 	if errGetOne != nil {
 		logger.DataRepoLog.Warnln(errGetOne)
 	}
@@ -321,10 +321,10 @@ func ModifyAuthenticationProcedure(collName string, ueId string, patchItem []mod
 	if err != nil {
 		logger.DataRepoLog.Error(err)
 	}
-	failure := AuthDBClient.RestfulAPIJSONPatch(collName, filter, patchJSON)
+	failure := CommonDBClient.RestfulAPIJSONPatch(collName, filter, patchJSON)
 
 	if failure == nil {
-		newValue, errGetOneNew := AuthDBClient.RestfulAPIGetOne(collName, filter)
+		newValue, errGetOneNew := CommonDBClient.RestfulAPIGetOne(collName, filter)
 		if errGetOneNew != nil {
 			logger.DataRepoLog.Warnln(errGetOneNew)
 		}
@@ -356,7 +356,7 @@ func HandleQueryAuthSubsData(request *httpwrapper.Request) *httpwrapper.Response
 func QueryAuthSubsDataProcedure(collName string, ueId string) (map[string]interface{}, *models.ProblemDetails) {
 	filter := bson.M{"ueId": ueId}
 
-	authenticationSubscription, errGetOne := AuthDBClient.RestfulAPIGetOne(collName, filter)
+	authenticationSubscription, errGetOne := CommonDBClient.RestfulAPIGetOne(collName, filter)
 	if errGetOne != nil {
 		logger.DataRepoLog.Warnln(errGetOne)
 	}

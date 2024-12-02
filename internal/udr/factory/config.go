@@ -24,10 +24,8 @@ type Sbi struct {
 }
 
 type Mongodb struct {
-	Name           string
-	Url            string
-	AuthKeysDbName string
-	AuthUrl        string
+	Name string
+	Url  string
 }
 
 func InitConfigFactory(c Configuration) {

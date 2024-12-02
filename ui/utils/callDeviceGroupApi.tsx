@@ -4,7 +4,7 @@ function isValidDeviceGroupName(name: string): boolean {
 
 export const apiGetAllDeviceGroups = async () => {
   try {
-    const response = await fetch(`/config/v1/device-group/`, {
+    const response = await fetch(`/api/v1/device-group/`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -18,11 +18,11 @@ export const apiGetAllDeviceGroups = async () => {
 };
 
 export const apiGetDeviceGroup = async (name: string) => {
-  if (!isValidDeviceGroupName(name)){
+  if (!isValidDeviceGroupName(name)) {
     throw new Error(`Error getting device group: Invalid name provided.`);
   }
   try {
-    const response = await fetch(`/config/v1/device-group/${name}`, {
+    const response = await fetch(`/api/v1/device-group/${name}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -36,17 +36,17 @@ export const apiGetDeviceGroup = async (name: string) => {
 };
 
 export const apiPostDeviceGroup = async (name: string, deviceGroupData: any) => {
-  if (!isValidDeviceGroupName(name)){
+  if (!isValidDeviceGroupName(name)) {
     throw new Error(`Error updating device group: Invalid name provided.`);
   }
   try {
-    const response = await fetch(`/config/v1/device-group/${name}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(deviceGroupData),
-      });
+    const response = await fetch(`/api/v1/device-group/${name}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(deviceGroupData),
+    });
     return response
   } catch (error) {
     console.error(error);
@@ -55,15 +55,15 @@ export const apiPostDeviceGroup = async (name: string, deviceGroupData: any) => 
 };
 
 export const apiDeleteDeviceGroup = async (name: string) => {
-  if (!isValidDeviceGroupName(name)){
+  if (!isValidDeviceGroupName(name)) {
     throw new Error(`Error deleting device group: Invalid name provided.`);
   }
   try {
-    const response = await fetch(`/config/v1/device-group/${name}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
+    const response = await fetch(`/api/v1/device-group/${name}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
     });
     return response
   } catch (error) {
