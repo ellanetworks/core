@@ -162,6 +162,7 @@ func handleSubscriberPost(configMsg *configmodels.ConfigMessage) {
 	}
 	filter := bson.M{"ueId": configMsg.Imsi}
 	basicDataBson := toBsonM(basicAmData)
+	logger.ConfigLog.Warnf("bson data: %v", basicDataBson)
 	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(amDataColl, filter, basicDataBson)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
