@@ -253,13 +253,12 @@ func GetSampleJSON(c *gin.Context) {
 func GetSubscribers(c *gin.Context) {
 	setCorsHeader(c)
 
-	logger.WebUILog.Infoln("Get All Subscribers List")
-
 	var subsList []configmodels.SubsListIE
 	amDataList, errGetMany := dbadapter.CommonDBClient.RestfulAPIGetMany(amDataColl, bson.M{})
 	if errGetMany != nil {
 		logger.DbLog.Warnln(errGetMany)
 	}
+	logger.ConfigLog.Warnf("amDataList: %v", amDataList)
 	for _, amData := range amDataList {
 		tmp := configmodels.SubsListIE{
 			UeId: amData["ueId"].(string),
@@ -267,6 +266,8 @@ func GetSubscribers(c *gin.Context) {
 
 		if servingPlmnId, plmnIdExists := amData["servingPlmnId"]; plmnIdExists {
 			tmp.PlmnID = servingPlmnId.(string)
+		} else {
+			logger.ConfigLog.Warnf("servingPlmnId not found in %v", amData)
 		}
 
 		subsList = append(subsList, tmp)
@@ -278,8 +279,6 @@ func GetSubscribers(c *gin.Context) {
 // Get subscriber by IMSI(ueId))
 func GetSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
-
-	logger.WebUILog.Infoln("Get One Subscriber Data")
 
 	var subsData configmodels.SubsData
 
@@ -388,16 +387,24 @@ func PostSubscriberByID(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, gin.H{})
 
+	authFilter := bson.M{"ueId": ueId}
+	authDataBsonA := toBsonM(authSubsData)
+	authDataBsonA["ueId"] = ueId
+	_, errPostAuth := dbadapter.AuthDBClient.RestfulAPIPost(authSubsDataColl, authFilter, authDataBsonA)
+	if errPostAuth != nil {
+		logger.DbLog.Warnln(errPostAuth)
+	}
+
 	basicAmData := map[string]interface{}{
 		"ueId": ueId,
 	}
-	filter := bson.M{"ueId": ueId}
+	amFilter := bson.M{"ueId": ueId}
 	basicDataBson := toBsonM(basicAmData)
-	logger.ConfigLog.Warnf("bson data: %v", basicDataBson)
-	_, errPost := dbadapter.AuthDBClient.RestfulAPIPost(authSubsDataColl, filter, basicDataBson)
-	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+	_, errPostAM := dbadapter.AuthDBClient.RestfulAPIPost(amDataColl, amFilter, basicDataBson)
+	if errPostAM != nil {
+		logger.DbLog.Warnln(errPostAM)
 	}
+	updateAmPolicyData(ueId)
 	logger.WebUILog.Infoln("Created Subscriber: ", ueId)
 }
 
@@ -416,7 +423,7 @@ func PutSubscriberByID(c *gin.Context) {
 	filter := bson.M{"ueId": ueId}
 	authDataBsonA := toBsonM(&subsData.AuthenticationSubscription)
 	authDataBsonA["ueId"] = ueId
-	_, errPost := dbadapter.AuthDBClient.RestfulAPIPost(authSubsDataColl, filter, authDataBsonA)
+	_, errPost := dbadapter.AuthDBClient.RestfulAPIPost(amDataColl, filter, authDataBsonA)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
@@ -439,7 +446,7 @@ func DeleteSubscriberByID(c *gin.Context) {
 	c.JSON(http.StatusNoContent, gin.H{})
 
 	filter := bson.M{"ueId": ueId}
-	errDelOne := dbadapter.AuthDBClient.RestfulAPIDeleteOne(authSubsDataColl, filter)
+	errDelOne := dbadapter.AuthDBClient.RestfulAPIDeleteOne(amDataColl, filter)
 	if errDelOne != nil {
 		logger.DbLog.Warnln(errDelOne)
 	}

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/webui/backend/logger"
@@ -179,4 +180,17 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 	UpdateSMF()
 	configLog.Infof("Created Network Slice: %v", sliceName)
 	return true
+}
+
+func updateAmPolicyData(imsi string) {
+	// ampolicydata
+	var amPolicy models.AmPolicyData
+	amPolicy.SubscCats = append(amPolicy.SubscCats, "free5gc")
+	amPolicyDatBsonA := toBsonM(amPolicy)
+	amPolicyDatBsonA["ueId"] = "imsi-" + imsi
+	filter := bson.M{"ueId": "imsi-" + imsi}
+	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(amPolicyDataColl, filter, amPolicyDatBsonA)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
+	}
 }
