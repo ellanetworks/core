@@ -144,7 +144,7 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 	group := procReq.SiteDeviceGroup
 	slices.Sort(group)
 
-	for index, _ := range procReq.ApplicationFilteringRules {
+	for index := range procReq.ApplicationFilteringRules {
 		ul := procReq.ApplicationFilteringRules[index].AppMbrUplink
 		dl := procReq.ApplicationFilteringRules[index].AppMbrDownlink
 		unit := procReq.ApplicationFilteringRules[index].BitrateUnit
@@ -162,7 +162,6 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		} else {
 			procReq.ApplicationFilteringRules[index].AppMbrDownlink = int32(bitrate)
 		}
-
 	}
 
 	var msg models.ConfigMessage

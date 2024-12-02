@@ -126,7 +126,6 @@ func Test_handleDeviceGroupPost(t *testing.T) {
 			DevGroupName: testGroup.DeviceGroupName,
 			DevGroup:     &testGroup,
 		}
-		subsUpdateChan := make(chan *Update5GSubscriberMsg, 10)
 		postData = make([]map[string]interface{}, 0)
 		db.CommonDBClient = &(MockMongoPost{db.CommonDBClient})
 		db.CommonDBClient = &MockMongoGetOneNil{db.CommonDBClient}
@@ -148,13 +147,6 @@ func Test_handleDeviceGroupPost(t *testing.T) {
 		if !reflect.DeepEqual(resultGroup, testGroup) {
 			t.Errorf("Expected group %v, got %v", testGroup, resultGroup)
 		}
-		receivedConfigMsg := <-subsUpdateChan
-		if !reflect.DeepEqual(receivedConfigMsg.Msg, &configMsg) {
-			t.Errorf("Expected config message %v, got %v", configMsg, receivedConfigMsg.Msg)
-		}
-		if receivedConfigMsg.PrevDevGroup.DeviceGroupName != "" {
-			t.Errorf("Expected previous device group name to be empty, got %v", receivedConfigMsg.PrevDevGroup.DeviceGroupName)
-		}
 	}
 }
 
@@ -169,7 +161,6 @@ func Test_handleDeviceGroupPost_alreadyExists(t *testing.T) {
 			DevGroupName: testGroup.DeviceGroupName,
 			DevGroup:     &testGroup,
 		}
-		subsUpdateChan := make(chan *Update5GSubscriberMsg, 10)
 		postData = make([]map[string]interface{}, 0)
 		db.CommonDBClient = &MockMongoPost{db.CommonDBClient}
 		db.CommonDBClient = &(MockMongoDeviceGroupGetOne{db.CommonDBClient, testGroup})
@@ -190,13 +181,6 @@ func Test_handleDeviceGroupPost_alreadyExists(t *testing.T) {
 		}
 		if !reflect.DeepEqual(resultGroup, testGroup) {
 			t.Errorf("Expected group %v, got %v", testGroup, resultGroup)
-		}
-		receivedConfigMsg := <-subsUpdateChan
-		if !reflect.DeepEqual(receivedConfigMsg.Msg, &configMsg) {
-			t.Errorf("Expected config message %v, got %v", configMsg, receivedConfigMsg.Msg)
-		}
-		if !reflect.DeepEqual(receivedConfigMsg.PrevDevGroup, &testGroup) {
-			t.Errorf("Expected previous device group to be %v, got %v", testGroup, receivedConfigMsg.PrevDevGroup)
 		}
 	}
 }
