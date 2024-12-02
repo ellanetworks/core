@@ -15,8 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-const gnbDataColl = "webconsoleData.snapshots.gnbData"
-
 func setInventoryCorsHeader(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -30,7 +28,7 @@ func GetGnbs(c *gin.Context) {
 
 	var gnbs []*models.Gnb
 	gnbs = make([]*models.Gnb, 0)
-	rawGnbs, errGetMany := db.CommonDBClient.RestfulAPIGetMany(gnbDataColl, bson.M{})
+	rawGnbs, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.GnbDataColl, bson.M{})
 	if errGetMany != nil {
 		logger.DbLog.Errorln(errGetMany)
 		c.JSON(http.StatusInternalServerError, gnbs)
@@ -100,8 +98,8 @@ func handlePostGnb(c *gin.Context) error {
 		GnbName:   gnbName,
 		Gnb:       &procReq,
 	}
-	configChannel <- &msg
-	configLog.Infof("Successfully added gNB [%v] to config channel.", gnbName)
+	ConfigHandler(&msg)
+	configLog.Infof("created gnb %v", gnbName)
 	return nil
 }
 
@@ -119,7 +117,7 @@ func handleDeleteGnb(c *gin.Context) error {
 		MsgMethod: models.Delete_op,
 		GnbName:   gnbName,
 	}
-	configChannel <- &msg
-	configLog.Infof("Successfully added gNB [%v] with delete_op to config channel.", gnbName)
+	ConfigHandler(&msg)
+	configLog.Infof("Deleted gnb %v", gnbName)
 	return nil
 }

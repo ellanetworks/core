@@ -18,17 +18,10 @@ const (
 	GPS = 1000000000
 )
 
-var configChannel chan *models.ConfigMessage
-
 var configLog *logrus.Entry
 
 func init() {
 	configLog = logger.ConfigLog
-}
-
-func SetChannel(cfgChannel chan *models.ConfigMessage) {
-	configLog.Infof("Setting configChannel")
-	configChannel = cfgChannel
 }
 
 func DeviceGroupDeleteHandler(c *gin.Context) bool {
@@ -41,8 +34,8 @@ func DeviceGroupDeleteHandler(c *gin.Context) bool {
 	msg.MsgType = models.Device_group
 	msg.MsgMethod = models.Delete_op
 	msg.DevGroupName = groupName
-	configChannel <- &msg
-	configLog.Infof("Successfully Added Device Group [%v] with delete_op to config channel.", groupName)
+	ConfigHandler(&msg)
+	configLog.Infof("Deleted Device Group: %v", groupName)
 	return true
 }
 
@@ -100,8 +93,8 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	msg.MsgMethod = msgOp
 	msg.DevGroup = &procReq
 	msg.DevGroupName = groupName
-	configChannel <- &msg
-	configLog.Infof("Successfully Added Device Group [%v] to config channel.", groupName)
+	ConfigHandler(&msg)
+	configLog.Infof("Created Device Group: %v", groupName)
 	return true
 }
 
@@ -115,8 +108,8 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 	msg.MsgMethod = models.Delete_op
 	msg.MsgType = models.Network_slice
 	msg.SliceName = sliceName
-	configChannel <- &msg
-	configLog.Infof("Successfully Added Device Group [%v] with delete_op to config channel.", sliceName)
+	ConfigHandler(&msg)
+	configLog.Infof("Deleted Network Slice: %v", sliceName)
 	return true
 }
 
@@ -135,22 +128,16 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		err = c.ShouldBindJSON(&request)
 	}
 	if err != nil {
-		configLog.Infof(" err %v", err)
 		return false
 	}
-	// configLog.Infof("Printing request full after binding : %v ", request)
 
 	req := httpwrapper.NewRequest(c.Request, request)
 
 	procReq := req.Body.(models.Slice)
 	group := procReq.SiteDeviceGroup
 	slices.Sort(group)
-	configLog.Infof("Number of device groups %v", len(group))
-	for i := 0; i < len(group); i++ {
-		configLog.Infof("  device groups(%v) - %v \n", i+1, group[i])
-	}
 
-	for index, filter := range procReq.ApplicationFilteringRules {
+	for index := range procReq.ApplicationFilteringRules {
 		ul := procReq.ApplicationFilteringRules[index].AppMbrUplink
 		dl := procReq.ApplicationFilteringRules[index].AppMbrDownlink
 		unit := procReq.ApplicationFilteringRules[index].BitrateUnit
@@ -168,17 +155,6 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		} else {
 			procReq.ApplicationFilteringRules[index].AppMbrDownlink = int32(bitrate)
 		}
-
-		configLog.Infof("\tApp MBR Uplink   : %v", procReq.ApplicationFilteringRules[index].AppMbrUplink)
-		configLog.Infof("\tApp MBR Downlink : %v", procReq.ApplicationFilteringRules[index].AppMbrDownlink)
-		if filter.TrafficClass != nil {
-			configLog.Infof("\t\tTraffic Class : %v", filter.TrafficClass)
-		}
-	}
-	site := procReq.SiteInfo
-	for e := 0; e < len(site.GNodeBs); e++ {
-		enb := site.GNodeBs[e]
-		configLog.Infof("    enb (%v) - name - %v , tac = %v \n", e+1, enb.Name, enb.Tac)
 	}
 
 	var msg models.ConfigMessage
@@ -187,7 +163,7 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 	msg.MsgType = models.Network_slice
 	msg.Slice = &procReq
 	msg.SliceName = sliceName
-	configChannel <- &msg
-	configLog.Infof("Successfully Added Slice [%v] to config channel.", sliceName)
+	ConfigHandler(&msg)
+	configLog.Infof("Created Network Slice: %v", sliceName)
 	return true
 }

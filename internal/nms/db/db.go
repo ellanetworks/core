@@ -9,6 +9,22 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+const (
+	DevGroupDataColl = "webconsoleData.snapshots.devGroupData"
+	SliceDataColl    = "webconsoleData.snapshots.sliceData"
+
+	AuthSubsDataColl = "subscriptionData.authenticationData.authenticationSubscription"
+	AmDataColl       = "subscriptionData.provisionedData.amData"
+	SmDataColl       = "subscriptionData.provisionedData.smData"
+	SmfSelDataColl   = "subscriptionData.provisionedData.smfSelectionSubscriptionData"
+
+	AmPolicyDataColl = "policyData.ues.amData"
+	SmPolicyDataColl = "policyData.ues.smData"
+	FlowRuleDataColl = "policyData.ues.flowRule"
+
+	GnbDataColl = "webconsoleData.snapshots.gnbData"
+)
+
 type DBInterface interface {
 	RestfulAPIGetOne(collName string, filter bson.M) (map[string]interface{}, error)
 	RestfulAPIGetMany(collName string, filter bson.M) ([]map[string]interface{}, error)

@@ -14,16 +14,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-const (
-	authSubsDataColl = "subscriptionData.authenticationData.authenticationSubscription"
-	amDataColl       = "subscriptionData.provisionedData.amData"
-	smDataColl       = "subscriptionData.provisionedData.smData"
-	smfSelDataColl   = "subscriptionData.provisionedData.smfSelectionSubscriptionData"
-	amPolicyDataColl = "policyData.ues.amData"
-	smPolicyDataColl = "policyData.ues.smData"
-	flowRuleDataColl = "policyData.ues.flowRule"
-)
-
 var httpsClient *http.Client
 
 func init() {
@@ -255,7 +245,7 @@ func GetSubscribers(c *gin.Context) {
 	logger.NMSLog.Infoln("Get All Subscribers List")
 
 	var subsList []nmsModels.SubsListIE
-	amDataList, errGetMany := db.CommonDBClient.RestfulAPIGetMany(amDataColl, bson.M{})
+	amDataList, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.AmDataColl, bson.M{})
 	if errGetMany != nil {
 		logger.DbLog.Warnln(errGetMany)
 	}
@@ -286,27 +276,27 @@ func GetSubscriberByID(c *gin.Context) {
 
 	filterUeIdOnly := bson.M{"ueId": ueId}
 
-	authSubsDataInterface, errGetOneAuth := db.AuthDBClient.RestfulAPIGetOne(authSubsDataColl, filterUeIdOnly)
+	authSubsDataInterface, errGetOneAuth := db.AuthDBClient.RestfulAPIGetOne(db.AuthSubsDataColl, filterUeIdOnly)
 	if errGetOneAuth != nil {
 		logger.DbLog.Warnln(errGetOneAuth)
 	}
-	amDataDataInterface, errGetOneAmData := db.CommonDBClient.RestfulAPIGetOne(amDataColl, filterUeIdOnly)
+	amDataDataInterface, errGetOneAmData := db.CommonDBClient.RestfulAPIGetOne(db.AmDataColl, filterUeIdOnly)
 	if errGetOneAmData != nil {
 		logger.DbLog.Warnln(errGetOneAmData)
 	}
-	smDataDataInterface, errGetManySmData := db.CommonDBClient.RestfulAPIGetMany(smDataColl, filterUeIdOnly)
+	smDataDataInterface, errGetManySmData := db.CommonDBClient.RestfulAPIGetMany(db.SmDataColl, filterUeIdOnly)
 	if errGetManySmData != nil {
 		logger.DbLog.Warnln(errGetManySmData)
 	}
-	smfSelDataInterface, errGetOneSmfSel := db.CommonDBClient.RestfulAPIGetOne(smfSelDataColl, filterUeIdOnly)
+	smfSelDataInterface, errGetOneSmfSel := db.CommonDBClient.RestfulAPIGetOne(db.SmfSelDataColl, filterUeIdOnly)
 	if errGetOneSmfSel != nil {
 		logger.DbLog.Warnln(errGetOneSmfSel)
 	}
-	amPolicyDataInterface, errGetOneAmPol := db.CommonDBClient.RestfulAPIGetOne(amPolicyDataColl, filterUeIdOnly)
+	amPolicyDataInterface, errGetOneAmPol := db.CommonDBClient.RestfulAPIGetOne(db.AmPolicyDataColl, filterUeIdOnly)
 	if errGetOneAmPol != nil {
 		logger.DbLog.Warnln(errGetOneAmPol)
 	}
-	smPolicyDataInterface, errGetManySmPol := db.CommonDBClient.RestfulAPIGetOne(smPolicyDataColl, filterUeIdOnly)
+	smPolicyDataInterface, errGetManySmPol := db.CommonDBClient.RestfulAPIGetOne(db.SmPolicyDataColl, filterUeIdOnly)
 	if errGetManySmPol != nil {
 		logger.DbLog.Warnln(errGetManySmPol)
 	}
@@ -395,8 +385,8 @@ func PostSubscriberByID(c *gin.Context) {
 		AuthSubData: &authSubsData,
 		Imsi:        ueId,
 	}
-	configChannel <- &msg
-	logger.NMSLog.Infoln("Successfully Added Subscriber Data to ConfigChannel: ", ueId)
+	ConfigHandler(&msg)
+	logger.NMSLog.Infof("Created subscriber: %v", ueId)
 }
 
 // Put subscriber by IMSI(ueId) and PlmnID(servingPlmnId)
@@ -418,8 +408,8 @@ func PutSubscriberByID(c *gin.Context) {
 		AuthSubData: &subsData.AuthenticationSubscription,
 		Imsi:        ueId,
 	}
-	configChannel <- &msg
-	logger.NMSLog.Infoln("Put Subscriber Data complete")
+	ConfigHandler(&msg)
+	logger.NMSLog.Infof("Edited Subscriber: %v", ueId)
 }
 
 // Patch subscriber by IMSI(ueId) and PlmnID(servingPlmnId)
@@ -442,8 +432,8 @@ func DeleteSubscriberByID(c *gin.Context) {
 		MsgMethod: nmsModels.Delete_op,
 		Imsi:      ueId,
 	}
-	configChannel <- &msg
-	logger.NMSLog.Infoln("Delete Subscriber Data complete")
+	ConfigHandler(&msg)
+	logger.NMSLog.Infof("Deleted Subscriber: %v", ueId)
 }
 
 func GetRegisteredUEContext(c *gin.Context) {

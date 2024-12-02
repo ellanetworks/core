@@ -11,7 +11,6 @@ import (
 	"github.com/yeastengine/ella/internal/nms/config"
 	"github.com/yeastengine/ella/internal/nms/db"
 	"github.com/yeastengine/ella/internal/nms/logger"
-	models "github.com/yeastengine/ella/internal/nms/models"
 )
 
 type NMS struct{}
@@ -46,16 +45,11 @@ func (nms *NMS) Start() {
 	// Connect to MongoDB
 	db.ConnectMongo(mongodb.Url, mongodb.Name, mongodb.AuthUrl, mongodb.AuthKeysDbName)
 
-	initLog.Infoln("NMS Server started")
-
 	/* First HTTP Server running at port to receive Config from ROC */
 	subconfig_router := logger_util.NewGinWithLogrus(logger.GinLog)
 	AddUiService(subconfig_router)
 	AddServiceSub(subconfig_router)
 	AddService(subconfig_router)
-
-	configMsgChan := make(chan *models.ConfigMessage, 10)
-	SetChannel(configMsgChan)
 
 	subconfig_router.Use(cors.New(cors.Config{
 		AllowMethods: []string{"GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"},
@@ -75,8 +69,6 @@ func (nms *NMS) Start() {
 		initLog.Infoln(subconfig_router.Run(httpAddr))
 		initLog.Infoln("NMS stopped/terminated/not-started ")
 	}()
-
-	go ConfigHandler(configMsgChan)
 
 	select {}
 }
