@@ -122,7 +122,7 @@ func EstablishPSA2(smContext *context.SMContext) {
 				Port: factory.UPF_PFCP_PORT,
 			}
 
-			logger.PduSessLog.Traceln("Send to upf addr: ", addr.String())
+			logger.PduSessLog.Debugln("Send to upf addr: ", addr.String())
 
 			upLinkPDR := curDataPathNode.UpLinkTunnel.PDR["default"] // TODO: Iterate over all PDRs
 
@@ -154,7 +154,7 @@ func EstablishPSA2(smContext *context.SMContext) {
 	}
 
 	bpMGR.AddingPSAState = context.EstablishingNewPSA
-	logger.PduSessLog.Traceln("End of EstablishPSA2")
+	logger.PduSessLog.Debugln("End of EstablishPSA2")
 }
 
 func EstablishULCL(smContext *context.SMContext) {
@@ -232,7 +232,7 @@ func EstablishULCL(smContext *context.SMContext) {
 }
 
 func UpdatePSA2DownLink(smContext *context.SMContext) {
-	logger.PduSessLog.Traceln("In UpdatePSA2DownLink")
+	logger.PduSessLog.Debugln("In UpdatePSA2DownLink")
 
 	bpMGR := smContext.BPManager
 	bpMGR.PendingUPF = make(context.PendingUPF)
@@ -274,7 +274,7 @@ func UpdatePSA2DownLink(smContext *context.SMContext) {
 }
 
 func EstablishRANTunnelInfo(smContext *context.SMContext) {
-	logger.PduSessLog.Traceln("In UpdatePSA2DownLink")
+	logger.PduSessLog.Debugln("In UpdatePSA2DownLink")
 
 	bpMGR := smContext.BPManager
 	activatingPath := bpMGR.ActivatingPath

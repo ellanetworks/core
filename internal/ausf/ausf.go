@@ -17,8 +17,7 @@ func Start(udmUrl string) error {
 	configuration := factory.Configuration{
 		Logger: &logger.Logger{
 			AUSF: &logger.LogSetting{
-				ReportCaller: false,
-				DebugLevel:   "debug",
+				DebugLevel: "debug",
 			},
 		},
 		Sbi: &factory.Sbi{

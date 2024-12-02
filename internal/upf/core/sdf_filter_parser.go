@@ -17,7 +17,7 @@ func ParseSdfFilter(flowDescription string) (ebpf.SdfFilter, error) {
 	var err error
 
 	match := re.FindStringSubmatch(flowDescription)
-	logger.AppLog.Printf("Matched groups: %+q\n", match)
+	logger.AppLog.Infof("Matched groups: %+q\n", match)
 	if len(match) == 0 {
 		return ebpf.SdfFilter{}, fmt.Errorf("SDF Filter: bad formatting. Should be compatible with regexp: %s", re.String())
 	}

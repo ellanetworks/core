@@ -45,6 +45,6 @@ func (e SendSMpolicyTerminationNotifyEvent) Handle() {
 	if rsp.StatusCode != http.StatusNoContent {
 		logger.NotifyEventLog.Warnf("SM Policy Termination Request Notification  Failed")
 	} else {
-		logger.NotifyEventLog.Tracef("SM Policy Termination Request Notification Success")
+		logger.NotifyEventLog.Debugf("SM Policy Termination Request Notification Success")
 	}
 }

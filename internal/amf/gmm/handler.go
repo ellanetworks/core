@@ -122,7 +122,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 				ue.GmmLog.Errorf("Could not decode Nas message: %v", err)
 			}
 			if msg.GsmMessage != nil && msg.GsmMessage.Status5GSM != nil {
-				ue.GmmLog.Warningf("SmContext doesn't exist, 5GSM Status message received from UE with cause %v", msg.GsmMessage.Status5GSM.Cause5GSM)
+				ue.GmmLog.Warnf("SmContext doesn't exist, 5GSM Status message received from UE with cause %v", msg.GsmMessage.Status5GSM.Cause5GSM)
 				return nil
 			}
 		}
@@ -144,7 +144,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 					SmContextStatusUri: fmt.Sprintf("%s/namf-callback/v1/smContextStatus/%s/%d",
 						ue.ServingAMF.GetIPv4Uri(), ue.Guti, pduSessionID),
 				}
-				ue.GmmLog.Warningf("Duplicated PDU session ID[%d]", pduSessionID)
+				ue.GmmLog.Warnf("Duplicated PDU session ID[%d]", pduSessionID)
 				smContext.SetDuplicatedPduSessionID(true)
 				response, _, _, err := consumer.SendUpdateSmContextRequest(smContext, updateData, nil, nil)
 				if err != nil {
@@ -1047,22 +1047,17 @@ func negotiateDRXParameters(ue *context.AmfUe, requestedDRXParameters *nasType.R
 	if requestedDRXParameters != nil {
 		switch requestedDRXParameters.GetDRXValue() {
 		case nasMessage.DRXcycleParameterT32:
-			ue.GmmLog.Tracef("Requested DRX: T = 32")
 			ue.UESpecificDRX = nasMessage.DRXcycleParameterT32
 		case nasMessage.DRXcycleParameterT64:
-			ue.GmmLog.Tracef("Requested DRX: T = 64")
 			ue.UESpecificDRX = nasMessage.DRXcycleParameterT64
 		case nasMessage.DRXcycleParameterT128:
-			ue.GmmLog.Tracef("Requested DRX: T = 128")
 			ue.UESpecificDRX = nasMessage.DRXcycleParameterT128
 		case nasMessage.DRXcycleParameterT256:
-			ue.GmmLog.Tracef("Requested DRX: T = 256")
 			ue.UESpecificDRX = nasMessage.DRXcycleParameterT256
 		case nasMessage.DRXValueNotSpecified:
 			fallthrough
 		default:
 			ue.UESpecificDRX = nasMessage.DRXValueNotSpecified
-			ue.GmmLog.Tracef("Requested DRX: Value not specified")
 		}
 	}
 }

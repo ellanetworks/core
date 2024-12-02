@@ -143,8 +143,8 @@ func SendPfcpSessionEstablishmentRequest(
 		IP:   ip,
 		Port: int(upfPort),
 	}
-	ctx.SubPduSessLog.Traceln("[SMF] Send SendPfcpSessionEstablishmentRequest")
-	ctx.SubPduSessLog.Traceln("Send to addr ", upaddr.String())
+	ctx.SubPduSessLog.Debugln("[SMF] Send SendPfcpSessionEstablishmentRequest")
+	ctx.SubPduSessLog.Debugln("Send to addr ", upaddr.String())
 	logger.PfcpLog.Infof("in SendPfcpSessionEstablishmentRequest fseid %v\n", pfcpMsg.SEID())
 
 	InsertPfcpTxn(pfcpMsg.Sequence(), &upNodeID)
@@ -295,7 +295,7 @@ func handleSendPfcpSessEstReqError(msg message.Message, pfcpErr error) {
 		N1N2MessageCollectionDocumentApi.
 		N1N2MessageTransfer(context.Background(), smContext.Supi, n1n2Request)
 	smContext.ChangeState(smf_context.SmStateInit)
-	smContext.SubCtxLog.Traceln("SMContextState Change State: ", smContext.SMContextState.String())
+	smContext.SubCtxLog.Debugln("SMContextState Change State: ", smContext.SMContextState.String())
 	if err != nil {
 		smContext.SubPfcpLog.Warnf("Send N1N2Transfer failed")
 	}

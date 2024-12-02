@@ -317,7 +317,7 @@ func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Mess
 				session.PutPDR(uint32(pdrId), spdrInfo)
 				applyPDR(spdrInfo, mapOperations)
 			} else {
-				logger.AppLog.Printf("couldn't extract PDR info: %s", err.Error())
+				logger.AppLog.Infof("couldn't extract PDR info: %s", err.Error())
 			}
 		}
 

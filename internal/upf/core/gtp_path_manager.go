@@ -40,14 +40,14 @@ func (gtpPathManager *GtpPathManager) Run() {
 				return
 			case <-ticker.C:
 				for peer, sequenceNumber := range gtpPathManager.peers {
-					logger.AppLog.Tracef("Send GTP Echo request to %s, seq %d", peer, sequenceNumber)
+					logger.AppLog.Debugf("Send GTP Echo request to %s, seq %d", peer, sequenceNumber)
 					elapseTime, err := gtpPathManager.sendEcho(peer)
 					if err != nil {
 						logger.AppLog.Warnf("%v", err)
 						continue
 					}
 
-					logger.AppLog.Tracef("Received GTP Echo response from %s, seq %d in %d ms", peer, sequenceNumber, elapseTime.Milliseconds())
+					logger.AppLog.Debugf("Received GTP Echo response from %s, seq %d in %d ms", peer, sequenceNumber, elapseTime.Milliseconds())
 					gtpPathManager.peers[peer] = sequenceNumber + 1
 				}
 			}

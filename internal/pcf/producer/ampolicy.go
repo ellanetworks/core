@@ -267,7 +267,7 @@ func PostPoliciesProcedure(polAssoId string,
 	ue.PolAssociationIDGenerator++
 	// Create location header for update, delete, get
 	locationHeader := util.GetResourceUri(models.ServiceName_NPCF_AM_POLICY_CONTROL, assolId)
-	logger.AMpolicylog.Tracef("AMPolicy association Id[%s] Create", assolId)
+	logger.AMpolicylog.Debugf("AMPolicy association Id[%s] Create", assolId)
 
 	// if consumer is AMF then subscribe this AMF Status
 	if policyAssociationRequest.Guami != nil {

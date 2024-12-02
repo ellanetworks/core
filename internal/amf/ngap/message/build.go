@@ -193,8 +193,6 @@ func BuildNGReset(
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
-	logger.NgapLog.Trace("Build NG Reset message")
-
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
 	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
 
@@ -269,7 +267,7 @@ func BuildNGResetAcknowledge(partOfNGInterface *ngapType.UEAssociatedLogicalNGCo
 
 		uEAssociatedLogicalNGConnectionList := ie.Value.UEAssociatedLogicalNGConnectionList
 
-		for i, item := range partOfNGInterface.List {
+		for _, item := range partOfNGInterface.List {
 			if item.AMFUENGAPID == nil && item.RANUENGAPID == nil {
 				logger.NgapLog.Warn("[Build NG Reset Ack] No AmfUeNgapID & RanUeNgapID")
 				continue
@@ -280,14 +278,10 @@ func BuildNGResetAcknowledge(partOfNGInterface *ngapType.UEAssociatedLogicalNGCo
 			if item.AMFUENGAPID != nil {
 				uEAssociatedLogicalNGConnectionItem.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 				uEAssociatedLogicalNGConnectionItem.AMFUENGAPID = item.AMFUENGAPID
-				logger.NgapLog.Tracef(
-					"[Build NG Reset Ack] (pair %d) AmfUeNgapID[%d]", i, uEAssociatedLogicalNGConnectionItem.AMFUENGAPID)
 			}
 			if item.RANUENGAPID != nil {
 				uEAssociatedLogicalNGConnectionItem.RANUENGAPID = new(ngapType.RANUENGAPID)
 				uEAssociatedLogicalNGConnectionItem.RANUENGAPID = item.RANUENGAPID
-				logger.NgapLog.Tracef(
-					"[Build NG Reset Ack] (pair %d) RanUeNgapID[%d]", i, uEAssociatedLogicalNGConnectionItem.RANUENGAPID)
 			}
 
 			uEAssociatedLogicalNGConnectionList.List = append(uEAssociatedLogicalNGConnectionList.List, uEAssociatedLogicalNGConnectionItem)
@@ -2460,8 +2454,6 @@ func BuildRanConfigurationUpdateFailure(
 func BuildAMFStatusIndication(unavailableGUAMIList ngapType.UnavailableGUAMIList) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
-	logger.NgapLog.Trace("Build AMF Status Indication message")
-
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
 	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
 
@@ -2710,7 +2702,7 @@ func BuildDeactivateTrace(amfUe *context.AmfUe, anType models.AccessType) ([]byt
 		subStringSlice := strings.Split(traceData.TraceRef, "-")
 
 		if len(subStringSlice) != 2 {
-			logger.NgapLog.Warningln("TraceRef format is not correct")
+			logger.NgapLog.Warnln("TraceRef format is not correct")
 		}
 
 		plmnID := models.PlmnId{}

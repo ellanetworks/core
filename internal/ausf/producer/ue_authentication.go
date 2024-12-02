@@ -123,13 +123,13 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	authInfoReq.AusfInstanceId = self.GetSelfID()
 
 	if updateAuthenticationInfo.ResynchronizationInfo != nil {
-		logger.UeAuthPostLog.Warningln("Auts: ", updateAuthenticationInfo.ResynchronizationInfo.Auts)
+		logger.UeAuthPostLog.Warnln("Auts: ", updateAuthenticationInfo.ResynchronizationInfo.Auts)
 		ausfCurrentSupi := ausf_context.GetSupiFromSuciSupiMap(supiOrSuci)
-		logger.UeAuthPostLog.Warningln(ausfCurrentSupi)
+		logger.UeAuthPostLog.Warnln(ausfCurrentSupi)
 		ausfCurrentContext := ausf_context.GetAusfUeContext(ausfCurrentSupi)
-		logger.UeAuthPostLog.Warningln(ausfCurrentContext.Rand)
+		logger.UeAuthPostLog.Warnln(ausfCurrentContext.Rand)
 		updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
-		logger.UeAuthPostLog.Warningln("Rand: ", updateAuthenticationInfo.ResynchronizationInfo.Rand)
+		logger.UeAuthPostLog.Warnln("Rand: ", updateAuthenticationInfo.ResynchronizationInfo.Rand)
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
 	}
 

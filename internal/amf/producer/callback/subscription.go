@@ -44,9 +44,9 @@ func SendAmfStatusChangeNotify(amfStatus string, guamiList []models.Guami) {
 			AmfStatusChangeNotify(context.Background(), uri, amfStatusNotification)
 		if err != nil {
 			if httpResponse == nil {
-				HttpLog.Errorln(err.Error())
+				logger.HttpLog.Errorln(err.Error())
 			} else if err.Error() != httpResponse.Status {
-				HttpLog.Errorln(err.Error())
+				logger.HttpLog.Errorln(err.Error())
 			}
 		}
 		return true

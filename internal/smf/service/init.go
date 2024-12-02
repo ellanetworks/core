@@ -11,7 +11,6 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
-	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/smf/callback"
 	"github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/eventexposure"
@@ -23,16 +22,11 @@ import (
 	"github.com/yeastengine/ella/internal/smf/pfcp/message"
 	"github.com/yeastengine/ella/internal/smf/pfcp/udp"
 	"github.com/yeastengine/ella/internal/smf/pfcp/upf"
-	"github.com/yeastengine/ella/internal/smf/util"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type SMF struct{}
-
-var initLog *logrus.Entry
-
-func init() {
-	initLog = logger.InitLog
-}
 
 func (smf *SMF) Initialize(smfConfig factory.Configuration) error {
 	factory.InitConfigFactory(smfConfig)
@@ -41,15 +35,14 @@ func (smf *SMF) Initialize(smfConfig factory.Configuration) error {
 }
 
 func (smf *SMF) setLogLevel() {
-	if level, err := logrus.ParseLevel(factory.SmfConfig.Logger.SMF.DebugLevel); err != nil {
-		initLog.Warnf("SMF Log level [%s] is invalid, set to [info] level",
+	if level, err := zapcore.ParseLevel(factory.SmfConfig.Logger.SMF.DebugLevel); err != nil {
+		logger.InitLog.Warnf("SMF Log level [%s] is invalid, set to [info] level",
 			factory.SmfConfig.Logger.SMF.DebugLevel)
-		logger.SetLogLevel(logrus.InfoLevel)
+		logger.SetLogLevel(zap.InfoLevel)
 	} else {
-		initLog.Infof("SMF Log level is set to [%s] level", level)
+		logger.InitLog.Infof("SMF Log level is set to [%s] level", level)
 		logger.SetLogLevel(level)
 	}
-	logger.SetReportCaller(factory.SmfConfig.Logger.SMF.ReportCaller)
 }
 
 func (smf *SMF) Start() {
@@ -65,7 +58,7 @@ func (smf *SMF) Start() {
 	// Init SMF Service
 	context.InitSmfContext(&factory.SmfConfig)
 
-	router := logger_util.NewGinWithLogrus(logger.GinLog)
+	router := logger_util.NewGinWithZap(logger.GinLog)
 	oam.AddService(router)
 	callback.AddService(router)
 	for _, serviceName := range factory.SmfConfig.ServiceNameList {
@@ -94,20 +87,20 @@ func (smf *SMF) Start() {
 	time.Sleep(1000 * time.Millisecond)
 
 	HTTPAddr := fmt.Sprintf("%s:%d", context.SMF_Self().BindingIPv4, context.SMF_Self().SBIPort)
-	server, err := http2_util.NewServer(HTTPAddr, util.SmfLogPath, router)
+	server, err := http2_util.NewServer(HTTPAddr, "/var/log/smf.log", router)
 
 	if server == nil {
-		initLog.Error("Initialize HTTP server failed:", err)
+		logger.InitLog.Error("Initialize HTTP server failed:", err)
 		return
 	}
 
 	if err != nil {
-		initLog.Warnln("Initialize HTTP server:", err)
+		logger.InitLog.Warnln("Initialize HTTP server:", err)
 	}
 
 	err = server.ListenAndServe()
 	if err != nil {
-		initLog.Fatalln("HTTP server setup failed:", err)
+		logger.InitLog.Fatalln("HTTP server setup failed:", err)
 	}
 }
 

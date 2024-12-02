@@ -124,7 +124,7 @@ func BuildAndSendQosN1N2TransferMsg(smContext *smf_context.SMContext) error {
 }
 
 func HandleNfSubscriptionStatusNotify(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.PduSessLog.Traceln("[SMF] Handle NF Status Notify")
+	logger.PduSessLog.Debugln("[SMF] Handle NF Status Notify")
 
 	notificationData := request.Body.(models.NotificationData)
 

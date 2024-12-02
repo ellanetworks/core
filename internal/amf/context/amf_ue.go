@@ -19,8 +19,8 @@ import (
 	"github.com/omec-project/util/fsm"
 	"github.com/omec-project/util/idgenerator"
 	"github.com/omec-project/util/ueauth"
-	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/amf/logger"
+	"go.uber.org/zap"
 )
 
 type OnGoingProcedure string
@@ -190,15 +190,11 @@ type AmfUe struct {
 	AmfInstanceName string        `json:"amfInstanceName,omitempty"`
 	AmfInstanceIp   string        `json:"amfInstanceIp,omitempty"`
 	EventChannel    *EventChannel `json:"-"`
-	// logger
-	// NASLog      *logrus.Entry `json:"nasLog,omitempty" yaml:"nasLog" bson:"nasLog,omitempty"`
-	// GmmLog      *logrus.Entry `json:"gmmLog,omitempty" yaml:"gmmLog" bson:"gmmLog,omitempty"`
-	// TxLog       *logrus.Entry `json:"txLog,omitempty" yaml:"txLog" bson:"txLog,omitempty"`
-	// ProducerLog *logrus.Entry `json:"producerLog,omitempty" yaml:"producerLog" bson:"producerLog,omitempty"`
-	NASLog      *logrus.Entry `json:"-"`
-	GmmLog      *logrus.Entry `json:"-"`
-	TxLog       *logrus.Entry `json:"-"`
-	ProducerLog *logrus.Entry `json:"-"`
+
+	NASLog      *zap.SugaredLogger `json:"-"`
+	GmmLog      *zap.SugaredLogger `json:"-"`
+	TxLog       *zap.SugaredLogger `json:"-"`
+	ProducerLog *zap.SugaredLogger `json:"-"`
 }
 
 type InterfaceType uint8
@@ -372,9 +368,9 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	}()
 
 	// set log information
-	ue.NASLog = logger.NasLog.WithField(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
-	ue.GmmLog = logger.GmmLog.WithField(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
-	ue.TxLog = logger.GmmLog.WithField(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
+	ue.NASLog = logger.NasLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
+	ue.GmmLog = logger.GmmLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
+	ue.TxLog = logger.GmmLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
 }
 
 func (ue *AmfUe) GetAnType() models.AccessType {

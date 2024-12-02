@@ -433,7 +433,7 @@ func N1MessageNotifyProcedure(n1MessageNotify models.N1MessageNotify) *models.Pr
 }
 
 // func HandleNfSubscriptionStatusNotify(request *httpwrapper.Request) *httpwrapper.Response {
-// 	logger.ProducerLog.Traceln("[AMF] Handle NF Status Notify")
+// 	logger.ProducerLog.Debugln("[AMF] Handle NF Status Notify")
 
 // 	notificationData := request.Body.(models.NotificationData)
 

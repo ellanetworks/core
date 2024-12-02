@@ -19,8 +19,7 @@ func Start() error {
 	configuration := factory.Configuration{
 		Logger: &logger.Logger{
 			NSSF: &logger.LogSetting{
-				DebugLevel:   "debug",
-				ReportCaller: false,
+				DebugLevel: "debug",
 			},
 		},
 		NssfName: "NSSF",

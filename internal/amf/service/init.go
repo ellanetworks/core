@@ -10,8 +10,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/http2_util"
-	logger_util "github.com/omec-project/util/logger"
-	"github.com/sirupsen/logrus"
+	utilLogger "github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/amf/communication"
 	"github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/eventexposure"
@@ -26,17 +25,13 @@ import (
 	"github.com/yeastengine/ella/internal/amf/oam"
 	"github.com/yeastengine/ella/internal/amf/producer/callback"
 	"github.com/yeastengine/ella/internal/amf/util"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type AMF struct{}
 
 const IMSI_PREFIX = "imsi-"
-
-var initLog *logrus.Entry
-
-func init() {
-	initLog = logger.InitLog
-}
 
 func (amf *AMF) Initialize(c factory.Configuration) {
 	factory.InitConfigFactory(c)
@@ -44,21 +39,20 @@ func (amf *AMF) Initialize(c factory.Configuration) {
 }
 
 func (amf *AMF) setLogLevel() {
-	if level, err := logrus.ParseLevel(factory.AmfConfig.Logger.AMF.DebugLevel); err != nil {
-		initLog.Warnf("AMF Log level [%s] is invalid, set to [info] level",
+	if level, err := zapcore.ParseLevel(factory.AmfConfig.Logger.AMF.DebugLevel); err != nil {
+		logger.InitLog.Warnf("AMF Log level [%s] is invalid, set to [info] level",
 			factory.AmfConfig.Logger.AMF.DebugLevel)
-		logger.SetLogLevel(logrus.InfoLevel)
+		logger.SetLogLevel(zap.InfoLevel)
 	} else {
-		initLog.Infof("AMF Log level is set to [%s] level", level)
+		logger.InitLog.Infof("AMF Log level is set to [%s] level", level)
 		logger.SetLogLevel(level)
 	}
-	logger.SetReportCaller(factory.AmfConfig.Logger.AMF.ReportCaller)
 }
 
 func (amf *AMF) Start() {
 	var err error
 
-	router := logger_util.NewGinWithLogrus(logger.GinLog)
+	router := utilLogger.NewGinWithZap(logger.GinLog)
 	router.Use(cors.New(cors.Config{
 		AllowMethods: []string{"GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"},
 		AllowHeaders: []string{
@@ -105,20 +99,20 @@ func (amf *AMF) Start() {
 		os.Exit(0)
 	}()
 
-	server, err := http2_util.NewServer(addr, util.AmfLogPath, router)
+	server, err := http2_util.NewServer(addr, "/var/log/amf.log", router)
 
 	if server == nil {
-		initLog.Errorf("Initialize HTTP server failed: %+v", err)
+		logger.InitLog.Errorf("Initialize HTTP server failed: %+v", err)
 		return
 	}
 
 	if err != nil {
-		initLog.Warnf("Initialize HTTP server: %+v", err)
+		logger.InitLog.Warnf("Initialize HTTP server: %+v", err)
 	}
 
 	err = server.ListenAndServe()
 	if err != nil {
-		initLog.Fatalf("HTTP server setup failed: %+v", err)
+		logger.InitLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
 }
 

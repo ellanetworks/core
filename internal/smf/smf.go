@@ -16,8 +16,7 @@ func Start(amfURL string, pcfURL string, udmURL string) error {
 	configuration := factory.Configuration{
 		Logger: &logger.Logger{
 			SMF: &logger.LogSetting{
-				DebugLevel:   "debug",
-				ReportCaller: false,
+				DebugLevel: "debug",
 			},
 		},
 		PFCP: &factory.PFCP{

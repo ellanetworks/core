@@ -68,10 +68,10 @@ func handlePostGnb(c *gin.Context) error {
 	var exists bool
 	if gnbName, exists = c.Params.Get("gnb-name"); !exists {
 		errorMessage := "gnb-name is missing"
-		configLog.Errorf(errorMessage)
+		logger.ConfigLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
-	configLog.Infof("Received gNB %v", gnbName)
+	logger.ConfigLog.Infof("Received gNB %v", gnbName)
 	var err error
 	var newGnb models.Gnb
 
@@ -81,12 +81,12 @@ func handlePostGnb(c *gin.Context) error {
 		err = c.ShouldBindJSON(&newGnb)
 	}
 	if err != nil {
-		configLog.Errorf(err.Error())
+		logger.ConfigLog.Errorf(err.Error())
 		return fmt.Errorf("failed to create gNB %v: %v", gnbName, err)
 	}
 	if newGnb.Tac == "" {
 		errorMessage := "tac is missing"
-		configLog.Errorf(errorMessage)
+		logger.ConfigLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
 	req := httpwrapper.NewRequest(c.Request, newGnb)
@@ -99,7 +99,7 @@ func handlePostGnb(c *gin.Context) error {
 		logger.DbLog.Warnln(errPost)
 	}
 	updateSMF()
-	configLog.Infof("created gnb %v", gnbName)
+	logger.ConfigLog.Infof("created gnb %v", gnbName)
 	return nil
 }
 
@@ -108,15 +108,15 @@ func handleDeleteGnb(c *gin.Context) error {
 	var exists bool
 	if gnbName, exists = c.Params.Get("gnb-name"); !exists {
 		errorMessage := "gnb-name is missing"
-		configLog.Errorf(errorMessage)
+		logger.ConfigLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
-	configLog.Infof("Received delete gNB %v request", gnbName)
+	logger.ConfigLog.Infof("Received delete gNB %v request", gnbName)
 	filter := bson.M{"name": gnbName}
 	errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.GnbDataColl, filter)
 	if errDelOne != nil {
 		logger.DbLog.Warnln(errDelOne)
 	}
-	configLog.Infof("Deleted gnb %v", gnbName)
+	logger.ConfigLog.Infof("Deleted gnb %v", gnbName)
 	return nil
 }

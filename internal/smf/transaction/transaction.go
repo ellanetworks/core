@@ -5,9 +5,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/msgtypes/svcmsgtypes"
+	"go.uber.org/zap"
 )
 
 type Transaction struct {
@@ -19,19 +19,14 @@ type Transaction struct {
 	Err                error
 	Status             chan bool
 	NextTxn            *Transaction
-	TxnFsmLog          *logrus.Entry
+	TxnFsmLog          *zap.SugaredLogger
 	MsgType            svcmsgtypes.SmfMsgType
 	TxnId              uint32
 	Priority           uint32
 }
 
 func (t *Transaction) initLogTags() {
-	subField := logrus.Fields{
-		"txnid":   t.TxnId,
-		"txntype": string(t.MsgType), "ctxtkey": t.CtxtKey,
-	}
-
-	t.TxnFsmLog = logger.TxnFsmLog.WithFields(subField)
+	t.TxnFsmLog = logger.TxnFsmLog.With("txnid", t.TxnId, "txntype", string(t.MsgType), "ctxtkey", t.CtxtKey)
 }
 
 type TxnEvent uint

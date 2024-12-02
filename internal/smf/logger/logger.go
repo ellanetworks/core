@@ -1,64 +1,83 @@
 package logger
 
 import (
-	"time"
-
-	formatter "github.com/antonfisher/nested-logrus-formatter"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
-	log         *logrus.Logger
-	AppLog      *logrus.Entry
-	InitLog     *logrus.Entry
-	CfgLog      *logrus.Entry
-	DataRepoLog *logrus.Entry
-	GsmLog      *logrus.Entry
-	PfcpLog     *logrus.Entry
-	PduSessLog  *logrus.Entry
-	CtxLog      *logrus.Entry
-	ConsumerLog *logrus.Entry
-	GinLog      *logrus.Entry
-	GrpcLog     *logrus.Entry
-	UPNodeLog   *logrus.Entry
-	FsmLog      *logrus.Entry
-	TxnFsmLog   *logrus.Entry
-	QosLog      *logrus.Entry
+	log         *zap.Logger
+	AppLog      *zap.SugaredLogger
+	InitLog     *zap.SugaredLogger
+	CfgLog      *zap.SugaredLogger
+	DataRepoLog *zap.SugaredLogger
+	GsmLog      *zap.SugaredLogger
+	PfcpLog     *zap.SugaredLogger
+	PduSessLog  *zap.SugaredLogger
+	CtxLog      *zap.SugaredLogger
+	ConsumerLog *zap.SugaredLogger
+	GinLog      *zap.SugaredLogger
+	GrpcLog     *zap.SugaredLogger
+	ProducerLog *zap.SugaredLogger
+	UPNodeLog   *zap.SugaredLogger
+	FsmLog      *zap.SugaredLogger
+	TxnFsmLog   *zap.SugaredLogger
+	QosLog      *zap.SugaredLogger
+	KafkaLog    *zap.SugaredLogger
+	atomicLevel zap.AtomicLevel
 )
 
 func init() {
-	log = logrus.New()
-	log.SetReportCaller(false)
-
-	log.Formatter = &formatter.Formatter{
-		TimestampFormat: time.RFC3339,
-		TrimMessages:    true,
-		NoFieldsSpace:   true,
-		HideKeys:        true,
-		FieldsOrder:     []string{"component", "category"},
+	atomicLevel = zap.NewAtomicLevelAt(zap.InfoLevel)
+	config := zap.Config{
+		Level:            atomicLevel,
+		Development:      false,
+		Encoding:         "console",
+		EncoderConfig:    zap.NewProductionEncoderConfig(),
+		OutputPaths:      []string{"stdout"},
+		ErrorOutputPaths: []string{"stderr"},
 	}
 
-	AppLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "App"})
-	InitLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "Init"})
-	CfgLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "CFG"})
-	DataRepoLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "DRepo"})
-	PfcpLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "PFCP"})
-	PduSessLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "PduSess"})
-	GsmLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "GSM"})
-	CtxLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "CTX"})
-	ConsumerLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "Consumer"})
-	GinLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "GIN"})
-	GrpcLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "GRPC"})
-	UPNodeLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "UPNode"})
-	FsmLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "Fsm"})
-	TxnFsmLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "TxnFsm"})
-	QosLog = log.WithFields(logrus.Fields{"component": "SMF", "category": "QosFsm"})
+	config.EncoderConfig.TimeKey = "timestamp"
+	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	config.EncoderConfig.LevelKey = "level"
+	config.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+	config.EncoderConfig.CallerKey = "caller"
+	config.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
+	config.EncoderConfig.MessageKey = "message"
+	config.EncoderConfig.StacktraceKey = ""
+
+	var err error
+	log, err = config.Build()
+	if err != nil {
+		panic(err)
+	}
+
+	AppLog = log.Sugar().With("component", "SMF", "category", "App")
+	InitLog = log.Sugar().With("component", "SMF", "category", "Init")
+	CfgLog = log.Sugar().With("component", "SMF", "category", "CFG")
+	DataRepoLog = log.Sugar().With("component", "SMF", "category", "DRepo")
+	PfcpLog = log.Sugar().With("component", "SMF", "category", "PFCP")
+	PduSessLog = log.Sugar().With("component", "SMF", "category", "PduSess")
+	GsmLog = log.Sugar().With("component", "SMF", "category", "GSM")
+	CtxLog = log.Sugar().With("component", "SMF", "category", "CTX")
+	ConsumerLog = log.Sugar().With("component", "SMF", "category", "Consumer")
+	GinLog = log.Sugar().With("component", "SMF", "category", "GIN")
+	GrpcLog = log.Sugar().With("component", "SMF", "category", "GRPC")
+	ProducerLog = log.Sugar().With("component", "SMF", "category", "Producer")
+	UPNodeLog = log.Sugar().With("component", "SMF", "category", "UPNode")
+	FsmLog = log.Sugar().With("component", "SMF", "category", "Fsm")
+	TxnFsmLog = log.Sugar().With("component", "SMF", "category", "TxnFsm")
+	QosLog = log.Sugar().With("component", "SMF", "category", "QosFsm")
+	KafkaLog = log.Sugar().With("component", "SMF", "category", "Kafka")
 }
 
-func SetLogLevel(level logrus.Level) {
-	log.SetLevel(level)
+func GetLogger() *zap.Logger {
+	return log
 }
 
-func SetReportCaller(set bool) {
-	log.SetReportCaller(set)
+// SetLogLevel: set the log level (panic|fatal|error|warn|info|debug)
+func SetLogLevel(level zapcore.Level) {
+	InitLog.Infoln("set log level:", level)
+	atomicLevel.SetLevel(level)
 }

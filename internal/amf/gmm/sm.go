@@ -149,8 +149,8 @@ func Authentication(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 	switch event {
 	case fsm.EntryEvent:
 		amfUe = args[ArgAmfUe].(*context.AmfUe)
-		amfUe.GmmLog = amfUe.GmmLog.WithField(logger.FieldSuci, fmt.Sprintf("SUCI:%s", amfUe.Suci))
-		amfUe.TxLog = amfUe.TxLog.WithField(logger.FieldSuci, fmt.Sprintf("SUCI:%s", amfUe.Suci))
+		amfUe.GmmLog = amfUe.GmmLog.With(logger.FieldSuci, amfUe.Suci)
+		amfUe.TxLog = amfUe.TxLog.With(logger.FieldSuci, amfUe.Suci)
 		amfUe.GmmLog.Debugln("EntryEvent at GMM State[Authentication]")
 		fallthrough
 	case AuthRestartEvent:
@@ -241,10 +241,10 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
 		accessType := args[ArgAccessType].(models.AccessType)
 		// set log information
-		amfUe.NASLog = amfUe.NASLog.WithField(logger.FieldSupi, fmt.Sprintf("SUPI:%s", amfUe.Supi))
-		amfUe.TxLog = amfUe.NASLog.WithField(logger.FieldSupi, fmt.Sprintf("SUPI:%s", amfUe.Supi))
-		amfUe.GmmLog = amfUe.GmmLog.WithField(logger.FieldSupi, fmt.Sprintf("SUPI:%s", amfUe.Supi))
-		amfUe.ProducerLog = logger.ProducerLog.WithField(logger.FieldSupi, fmt.Sprintf("SUPI:%s", amfUe.Supi))
+		amfUe.NASLog = amfUe.NASLog.With(logger.FieldSupi, fmt.Sprintf("SUPI:%s", amfUe.Supi))
+		amfUe.TxLog = amfUe.NASLog.With(logger.FieldSupi, fmt.Sprintf("SUPI:%s", amfUe.Supi))
+		amfUe.GmmLog = amfUe.GmmLog.With(logger.FieldSupi, fmt.Sprintf("SUPI:%s", amfUe.Supi))
+		amfUe.ProducerLog = logger.ProducerLog.With(logger.FieldSupi, fmt.Sprintf("SUPI:%s", amfUe.Supi))
 		amfUe.GmmLog.Debugln("EntryEvent at GMM State[SecurityMode]")
 		if amfUe.SecurityContextIsValid() {
 			amfUe.GmmLog.Debugln("UE has a valid security context - skip security mode control procedure")

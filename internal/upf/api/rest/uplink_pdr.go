@@ -20,14 +20,14 @@ type PdrElement struct {
 func (h *ApiHandler) getUplinkPdrValue(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		logger.AppLog.Printf("Not an integer id: %s", err.Error())
+		logger.AppLog.Infof("Not an integer id: %s", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	var value ebpf.PdrInfo
 	if err = h.BpfObjects.IpEntrypointObjects.PdrMapUplinkIp4.Lookup(uint32(id), unsafe.Pointer(&value)); err != nil {
-		logger.AppLog.Printf("Error reading map: %s", err.Error())
+		logger.AppLog.Infof("Error reading map: %s", err.Error())
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
@@ -43,7 +43,7 @@ func (h *ApiHandler) getUplinkPdrValue(c *gin.Context) {
 func (h *ApiHandler) setUplinkPdrValue(c *gin.Context) {
 	var pdrElement PdrElement
 	if err := c.BindJSON(&pdrElement); err != nil {
-		logger.AppLog.Printf("Parsing request body error: %s", err.Error())
+		logger.AppLog.Infof("Parsing request body error: %s", err.Error())
 		return
 	}
 
@@ -54,7 +54,7 @@ func (h *ApiHandler) setUplinkPdrValue(c *gin.Context) {
 	}
 
 	if err := h.BpfObjects.IpEntrypointObjects.PdrMapUplinkIp4.Put(uint32(pdrElement.Id), unsafe.Pointer(&value)); err != nil {
-		logger.AppLog.Printf("Error writting map: %s", err.Error())
+		logger.AppLog.Infof("Error writting map: %s", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

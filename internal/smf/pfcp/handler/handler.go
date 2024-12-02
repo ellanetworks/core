@@ -446,7 +446,7 @@ func HandlePfcpSessionModificationResponse(msg *udp.Message) {
 			upfNodeID := smContext.GetNodeIDByLocalSEID(SEID)
 			upfIP := upfNodeID.ResolveNodeIdToIp().String()
 			delete(smContext.PendingUPF, upfIP)
-			smContext.SubPduSessLog.Tracef("Delete pending pfcp response: UPF IP [%s]\n", upfIP)
+			smContext.SubPduSessLog.Debugf("Delete pending pfcp response: UPF IP [%s]\n", upfIP)
 
 			if smContext.PendingUPF.IsEmpty() {
 				smContext.SBIPFCPCommunicationChan <- smf_context.SessionUpdateSuccess
@@ -470,9 +470,9 @@ func HandlePfcpSessionModificationResponse(msg *udp.Message) {
 		}
 	}
 
-	smContext.SubCtxLog.Traceln("PFCP Session Context")
+	smContext.SubCtxLog.Debugln("PFCP Session Context")
 	for _, ctx := range smContext.PFCPContext {
-		smContext.SubCtxLog.Traceln(ctx.String())
+		smContext.SubCtxLog.Debugln(ctx.String())
 	}
 }
 
@@ -517,7 +517,7 @@ func HandlePfcpSessionDeletionResponse(msg *udp.Message) {
 			upfNodeID := smContext.GetNodeIDByLocalSEID(SEID)
 			upfIP := upfNodeID.ResolveNodeIdToIp().String()
 			delete(smContext.PendingUPF, upfIP)
-			smContext.SubPduSessLog.Tracef("Delete pending pfcp response: UPF IP [%s]\n", upfIP)
+			smContext.SubPduSessLog.Debugf("Delete pending pfcp response: UPF IP [%s]\n", upfIP)
 
 			if smContext.PendingUPF.IsEmpty() && !smContext.LocalPurged {
 				smContext.SBIPFCPCommunicationChan <- smf_context.SessionReleaseSuccess
