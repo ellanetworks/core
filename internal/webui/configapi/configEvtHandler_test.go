@@ -1,4 +1,4 @@
-package server
+package configapi
 
 import (
 	"encoding/json"
