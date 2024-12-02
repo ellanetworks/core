@@ -15,24 +15,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// const (
-// 	authSubsDataColl = "subscriptionData.authenticationData.authenticationSubscription"
-// 	amDataColl       = "subscriptionData.provisionedData.amData"
-// 	smDataColl       = "subscriptionData.provisionedData.smData"
-// 	smfSelDataColl   = "subscriptionData.provisionedData.smfSelectionSubscriptionData"
-// 	amPolicyDataColl = "policyData.ues.amData"
-// 	smPolicyDataColl = "policyData.ues.smData"
-// 	flowRuleDataColl = "policyData.ues.flowRule"
-// 	devGroupDataColl = "webconsoleData.snapshots.devGroupData"
-// 	sliceDataColl    = "webconsoleData.snapshots.sliceData"
-// 	gnbDataColl      = "webconsoleData.snapshots.gnbData"
-// )
-
-// var configLog *logrus.Entry
-
-// func init() {
-// 	configLog = logger.ConfigLog
-// }
+// Guillaume: This file is way too complex for no good reason.
+// Configuration should be handled in a more atomic way.
+// This issue is tracked here: https://github.com/yeastengine/ella/issues/205
 
 type Update5GSubscriberMsg struct {
 	Msg          *configmodels.ConfigMessage
