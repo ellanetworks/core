@@ -105,7 +105,6 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		TraffContDecs: make(map[string]*models.TrafficControlData),
 	}
 
-	// Check if local config has pre-configured pccrules, sessionrules for the slice(via ROC)
 	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
 	sliceid := sstStr + request.SliceInfo.Sd
 	imsi := strings.TrimPrefix(ue.Supi, "imsi-")

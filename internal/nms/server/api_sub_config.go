@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/openapi/models"
@@ -339,8 +340,6 @@ func PostSubscriberByID(c *gin.Context) {
 
 	ueId := c.Param("ueId")
 
-	logger.NMSLog.Infoln("Received Post Subscriber Data from Roc/Simapp: ", ueId)
-
 	authSubsData := models.AuthenticationSubscription{
 		AuthenticationManagementField: "8000",
 		AuthenticationMethod:          "5G_AKA", // "5G_AKA", "EAP_AKA_PRIME"
@@ -379,13 +378,24 @@ func PostSubscriberByID(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, gin.H{})
 
-	msg := nmsModels.ConfigMessage{
-		MsgType:     nmsModels.Sub_data,
-		MsgMethod:   nmsModels.Post_op,
-		AuthSubData: &authSubsData,
-		Imsi:        ueId,
+	imsiVal := strings.ReplaceAll(ueId, "imsi-", "")
+	imsiData[imsiVal] = &authSubsData
+	basicAmData := map[string]interface{}{
+		"ueId": ueId,
 	}
-	ConfigHandler(&msg)
+	filter := bson.M{"ueId": ueId}
+	basicDataBson := toBsonM(basicAmData)
+	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, basicDataBson)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
+	}
+	filter = bson.M{"ueId": ueId}
+	authDataBsonA := toBsonM(&authSubsData)
+	authDataBsonA["ueId"] = ueId
+	_, errPost = db.AuthDBClient.RestfulAPIPost(db.AuthSubsDataColl, filter, authDataBsonA)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
+	}
 	logger.NMSLog.Infof("Created subscriber: %v", ueId)
 }
 
@@ -402,37 +412,47 @@ func PutSubscriberByID(c *gin.Context) {
 	ueId := c.Param("ueId")
 	c.JSON(http.StatusNoContent, gin.H{})
 
-	msg := nmsModels.ConfigMessage{
-		MsgType:     nmsModels.Sub_data,
-		MsgMethod:   nmsModels.Post_op,
-		AuthSubData: &subsData.AuthenticationSubscription,
-		Imsi:        ueId,
+	imsiVal := strings.ReplaceAll(ueId, "imsi-", "")
+	imsiData[imsiVal] = &subsData.AuthenticationSubscription
+	basicAmData := map[string]interface{}{
+		"ueId": ueId,
 	}
-	ConfigHandler(&msg)
+	filter := bson.M{"ueId": ueId}
+	basicDataBson := toBsonM(basicAmData)
+	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, basicDataBson)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
+	}
+	logger.NMSLog.Debugln("Config5GUpdateHandle: Insert/Update AuthenticationSubscription ", ueId)
+	filter = bson.M{"ueId": ueId}
+	authDataBsonA := toBsonM(&subsData.AuthenticationSubscription)
+	authDataBsonA["ueId"] = ueId
+	_, errPost = db.AuthDBClient.RestfulAPIPost(db.AuthSubsDataColl, filter, authDataBsonA)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
+	}
 	logger.NMSLog.Infof("Edited Subscriber: %v", ueId)
 }
 
-// Patch subscriber by IMSI(ueId) and PlmnID(servingPlmnId)
 func PatchSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
 	logger.NMSLog.Infoln("Patch One Subscriber Data")
 }
 
-// Delete subscriber by IMSI(ueId)
 func DeleteSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
 	logger.NMSLog.Infoln("Delete One Subscriber Data")
-
 	ueId := c.Param("ueId")
-
 	c.JSON(http.StatusNoContent, gin.H{})
-
-	msg := nmsModels.ConfigMessage{
-		MsgType:   nmsModels.Sub_data,
-		MsgMethod: nmsModels.Delete_op,
-		Imsi:      ueId,
+	filter := bson.M{"ueId": "imsi-" + ueId}
+	errDelOne := db.AuthDBClient.RestfulAPIDeleteOne(db.AuthSubsDataColl, filter)
+	if errDelOne != nil {
+		logger.DbLog.Warnln(errDelOne)
 	}
-	ConfigHandler(&msg)
+	errDel := db.CommonDBClient.RestfulAPIDeleteOne(db.AmDataColl, filter)
+	if errDel != nil {
+		logger.DbLog.Warnln(errDel)
+	}
 	logger.NMSLog.Infof("Deleted Subscriber: %v", ueId)
 }
 

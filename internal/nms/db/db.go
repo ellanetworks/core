@@ -12,6 +12,7 @@ import (
 const (
 	DevGroupDataColl = "webconsoleData.snapshots.devGroupData"
 	SliceDataColl    = "webconsoleData.snapshots.sliceData"
+	GnbDataColl      = "webconsoleData.snapshots.gnbData"
 
 	AuthSubsDataColl = "subscriptionData.authenticationData.authenticationSubscription"
 	AmDataColl       = "subscriptionData.provisionedData.amData"
@@ -21,8 +22,6 @@ const (
 	AmPolicyDataColl = "policyData.ues.amData"
 	SmPolicyDataColl = "policyData.ues.smData"
 	FlowRuleDataColl = "policyData.ues.flowRule"
-
-	GnbDataColl = "webconsoleData.snapshots.gnbData"
 )
 
 type DBInterface interface {

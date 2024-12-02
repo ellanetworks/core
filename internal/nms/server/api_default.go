@@ -135,7 +135,6 @@ func GetNetworkSliceByName(c *gin.Context) {
 
 // NetworkSliceSliceNameDelete -
 func NetworkSliceSliceNameDelete(c *gin.Context) {
-	logger.ConfigLog.Debugf("Received NetworkSliceSliceNameDelete ")
 	if ret := NetworkSliceDeleteHandler(c); ret {
 		c.JSON(http.StatusOK, gin.H{})
 	} else {
@@ -145,7 +144,6 @@ func NetworkSliceSliceNameDelete(c *gin.Context) {
 
 // NetworkSliceSliceNamePost -
 func NetworkSliceSliceNamePost(c *gin.Context) {
-	logger.ConfigLog.Debugf("Received NetworkSliceSliceNamePost ")
 	if ret := NetworkSlicePostHandler(c, models.Post_op); ret {
 		c.JSON(http.StatusOK, gin.H{})
 	} else {
@@ -155,7 +153,6 @@ func NetworkSliceSliceNamePost(c *gin.Context) {
 
 // NetworkSliceSliceNamePut -
 func NetworkSliceSliceNamePut(c *gin.Context) {
-	logger.ConfigLog.Debugf("Received NetworkSliceSliceNamePut ")
 	if ret := NetworkSlicePostHandler(c, models.Put_op); ret {
 		c.JSON(http.StatusOK, gin.H{})
 	} else {

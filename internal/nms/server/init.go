@@ -39,13 +39,10 @@ func (nms *NMS) setLogLevel() {
 }
 
 func (nms *NMS) Start() {
-	// get config file info from NMSConfig
 	mongodb := config.Config.Mongodb
 
-	// Connect to MongoDB
 	db.ConnectMongo(mongodb.Url, mongodb.Name, mongodb.AuthUrl, mongodb.AuthKeysDbName)
 
-	/* First HTTP Server running at port to receive Config from ROC */
 	subconfig_router := logger_util.NewGinWithLogrus(logger.GinLog)
 	AddUiService(subconfig_router)
 	AddServiceSub(subconfig_router)
