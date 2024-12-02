@@ -72,7 +72,6 @@ func ConfigHandler(configMsgChan chan *configmodels.ConfigMessage) {
 		}
 
 		if configMsg.MsgMethod == configmodels.Post_op || configMsg.MsgMethod == configmodels.Put_op {
-
 			// configLog.Infoln("Received msg from configApi package ", configMsg)
 			// update config snapshot
 			if configMsg.DevGroup != nil {
@@ -89,7 +88,6 @@ func ConfigHandler(configMsgChan chan *configmodels.ConfigMessage) {
 				configLog.Infof("Received gNB [%v] configuration from config channel", configMsg.GnbName)
 				handleGnbPost(configMsg)
 			}
-
 		} else {
 			var config5gMsg Update5GSubscriberMsg
 			if configMsg.MsgType == configmodels.Inventory {
@@ -125,7 +123,6 @@ func ConfigHandler(configMsgChan chan *configmodels.ConfigMessage) {
 			}
 			config5gMsg.Msg = configMsg
 			subsUpdateChan <- &config5gMsg
-
 		}
 	}
 }
@@ -451,10 +448,6 @@ func isDeviceGroupExistInSlice(msg *Update5GSubscriberMsg) *configmodels.Slice {
 	}
 
 	return nil
-}
-
-func getAddedGroupsList(slice, prevSlice *configmodels.Slice) (names []string) {
-	return getDeleteGroupsList(prevSlice, slice)
 }
 
 func getDeleteGroupsList(slice, prevSlice *configmodels.Slice) (names []string) {
