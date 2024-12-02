@@ -15,8 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-const gnbDataColl = "webconsoleData.snapshots.gnbData"
-
 func setInventoryCorsHeader(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -30,7 +28,7 @@ func GetGnbs(c *gin.Context) {
 
 	var gnbs []*models.Gnb
 	gnbs = make([]*models.Gnb, 0)
-	rawGnbs, errGetMany := db.CommonDBClient.RestfulAPIGetMany(gnbDataColl, bson.M{})
+	rawGnbs, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.GnbDataColl, bson.M{})
 	if errGetMany != nil {
 		logger.DbLog.Errorln(errGetMany)
 		c.JSON(http.StatusInternalServerError, gnbs)

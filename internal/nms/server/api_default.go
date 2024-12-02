@@ -11,14 +11,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-const (
-	devGroupDataColl = "webconsoleData.snapshots.devGroupData"
-	sliceDataColl    = "webconsoleData.snapshots.sliceData"
-)
-
 func ListDeviceGroups() []string {
 	var deviceGroups []string = make([]string, 0)
-	rawDeviceGroups, errGetMany := db.CommonDBClient.RestfulAPIGetMany(devGroupDataColl, bson.M{})
+	rawDeviceGroups, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.DevGroupDataColl, bson.M{})
 	if errGetMany != nil {
 		logger.DbLog.Warnln(errGetMany)
 	}
@@ -38,7 +33,7 @@ func GetDeviceGroups(c *gin.Context) {
 func GetDeviceGroupByName2(groupName string) models.DeviceGroups {
 	var deviceGroup models.DeviceGroups
 	filter := bson.M{"group-name": groupName}
-	rawDeviceGroup, err := db.CommonDBClient.RestfulAPIGetOne(devGroupDataColl, filter)
+	rawDeviceGroup, err := db.CommonDBClient.RestfulAPIGetOne(db.DevGroupDataColl, filter)
 	if err != nil {
 		logger.DbLog.Warnln(err)
 	}
@@ -95,7 +90,7 @@ func DeviceGroupGroupNamePost(c *gin.Context) {
 
 func ListNetworkSlices() []string {
 	var networkSlices []string = make([]string, 0)
-	rawNetworkSlices, errGetMany := db.CommonDBClient.RestfulAPIGetMany(sliceDataColl, bson.M{})
+	rawNetworkSlices, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.SliceDataColl, bson.M{})
 	if errGetMany != nil {
 		logger.DbLog.Warnln(errGetMany)
 	}
@@ -119,7 +114,7 @@ func GetNetworkSlices(c *gin.Context) {
 func GetNetworkSliceByName2(sliceName string) models.Slice {
 	var networkSlice models.Slice
 	filter := bson.M{"slice-name": sliceName}
-	rawNetworkSlice, err := db.CommonDBClient.RestfulAPIGetOne(sliceDataColl, filter)
+	rawNetworkSlice, err := db.CommonDBClient.RestfulAPIGetOne(db.SliceDataColl, filter)
 	if err != nil {
 		logger.DbLog.Warnln(err)
 	}

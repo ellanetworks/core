@@ -87,7 +87,7 @@ func ConfigHandler(configMsgChan chan *nmsModels.ConfigMessage) {
 					configLog.Infof("Received delete Device Group [%v] from config channel", configMsg.DevGroupName)
 					config5gMsg.PrevDevGroup = getDeviceGroupByName(configMsg.DevGroupName)
 					filter := bson.M{"group-name": configMsg.DevGroupName}
-					errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(devGroupDataColl, filter)
+					errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.DevGroupDataColl, filter)
 					if errDelOne != nil {
 						logger.DbLog.Warnln(errDelOne)
 					}
@@ -97,7 +97,7 @@ func ConfigHandler(configMsgChan chan *nmsModels.ConfigMessage) {
 					configLog.Infof("Received delete Slice [%v] from config channel", configMsg.SliceName)
 					config5gMsg.PrevSlice = getSliceByName(configMsg.SliceName)
 					filter := bson.M{"slice-name": configMsg.SliceName}
-					errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(sliceDataColl, filter)
+					errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.SliceDataColl, filter)
 					if errDelOne != nil {
 						logger.DbLog.Warnln(errDelOne)
 					}
@@ -119,7 +119,7 @@ func handleSubscriberPost(configMsg *nmsModels.ConfigMessage) {
 	}
 	filter := bson.M{"ueId": configMsg.Imsi}
 	basicDataBson := toBsonM(basicAmData)
-	_, errPost := db.CommonDBClient.RestfulAPIPost(amDataColl, filter, basicDataBson)
+	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, basicDataBson)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
@@ -134,7 +134,7 @@ func handleDeviceGroupPost(configMsg *nmsModels.ConfigMessage, subsUpdateChan ch
 	subsUpdateChan <- &config5gMsg
 	filter := bson.M{"group-name": configMsg.DevGroupName}
 	devGroupDataBsonA := toBsonM(configMsg.DevGroup)
-	_, errPost := db.CommonDBClient.RestfulAPIPost(devGroupDataColl, filter, devGroupDataBsonA)
+	_, errPost := db.CommonDBClient.RestfulAPIPost(db.DevGroupDataColl, filter, devGroupDataBsonA)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
@@ -149,7 +149,7 @@ func handleNetworkSlicePost(configMsg *nmsModels.ConfigMessage, subsUpdateChan c
 	subsUpdateChan <- &config5gMsg
 	filter := bson.M{"slice-name": configMsg.SliceName}
 	sliceDataBsonA := toBsonM(configMsg.Slice)
-	_, errPost := db.CommonDBClient.RestfulAPIPost(sliceDataColl, filter, sliceDataBsonA)
+	_, errPost := db.CommonDBClient.RestfulAPIPost(db.SliceDataColl, filter, sliceDataBsonA)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
@@ -160,7 +160,7 @@ func handleGnbPost(configMsg *nmsModels.ConfigMessage) {
 	rwLock.Lock()
 	filter := bson.M{"name": configMsg.GnbName}
 	gnbDataBson := toBsonM(configMsg.Gnb)
-	_, errPost := db.CommonDBClient.RestfulAPIPost(gnbDataColl, filter, gnbDataBson)
+	_, errPost := db.CommonDBClient.RestfulAPIPost(db.GnbDataColl, filter, gnbDataBson)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
@@ -170,7 +170,7 @@ func handleGnbPost(configMsg *nmsModels.ConfigMessage) {
 func handleGnbDelete(configMsg *nmsModels.ConfigMessage) {
 	rwLock.Lock()
 	filter := bson.M{"name": configMsg.GnbName}
-	errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(gnbDataColl, filter)
+	errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.GnbDataColl, filter)
 	if errDelOne != nil {
 		logger.DbLog.Warnln(errDelOne)
 	}
@@ -182,7 +182,7 @@ func firstConfigReceived() bool {
 }
 
 func getDeviceGroups() []*nmsModels.DeviceGroups {
-	rawDeviceGroups, errGetMany := db.CommonDBClient.RestfulAPIGetMany(devGroupDataColl, nil)
+	rawDeviceGroups, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.DevGroupDataColl, nil)
 	if errGetMany != nil {
 		logger.DbLog.Warnln(errGetMany)
 	}
@@ -200,7 +200,7 @@ func getDeviceGroups() []*nmsModels.DeviceGroups {
 
 func getDeviceGroupByName(name string) *nmsModels.DeviceGroups {
 	filter := bson.M{"group-name": name}
-	devGroupDataInterface, errGetOne := db.CommonDBClient.RestfulAPIGetOne(devGroupDataColl, filter)
+	devGroupDataInterface, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.DevGroupDataColl, filter)
 	if errGetOne != nil {
 		logger.DbLog.Warnln(errGetOne)
 	}
@@ -213,7 +213,7 @@ func getDeviceGroupByName(name string) *nmsModels.DeviceGroups {
 }
 
 func getSlices() []*nmsModels.Slice {
-	rawSlices, errGetMany := db.CommonDBClient.RestfulAPIGetMany(sliceDataColl, nil)
+	rawSlices, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.SliceDataColl, nil)
 	if errGetMany != nil {
 		logger.DbLog.Warnln(errGetMany)
 	}
@@ -231,7 +231,7 @@ func getSlices() []*nmsModels.Slice {
 
 func getSliceByName(name string) *nmsModels.Slice {
 	filter := bson.M{"slice-name": name}
-	sliceDataInterface, errGetOne := db.CommonDBClient.RestfulAPIGetOne(sliceDataColl, filter)
+	sliceDataInterface, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SliceDataColl, filter)
 	if errGetOne != nil {
 		logger.DbLog.Warnln(errGetOne)
 	}
@@ -301,7 +301,7 @@ func updateAmPolicyData(imsi string) {
 	amPolicyDatBsonA := toBsonM(amPolicy)
 	amPolicyDatBsonA["ueId"] = "imsi-" + imsi
 	filter := bson.M{"ueId": "imsi-" + imsi}
-	_, errPost := db.CommonDBClient.RestfulAPIPost(amPolicyDataColl, filter, amPolicyDatBsonA)
+	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmPolicyDataColl, filter, amPolicyDatBsonA)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
@@ -323,7 +323,7 @@ func updateSmPolicyData(snssai *models.Snssai, dnn string, imsi string) {
 	smPolicyDatBsonA := toBsonM(smPolicyData)
 	smPolicyDatBsonA["ueId"] = "imsi-" + imsi
 	filter := bson.M{"ueId": "imsi-" + imsi}
-	_, errPost := db.CommonDBClient.RestfulAPIPost(smPolicyDataColl, filter, smPolicyDatBsonA)
+	_, errPost := db.CommonDBClient.RestfulAPIPost(db.SmPolicyDataColl, filter, smPolicyDatBsonA)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
@@ -353,7 +353,7 @@ func updateAmProvisionedData(snssai *models.Snssai, qos *nmsModels.DeviceGroupsI
 			{"servingPlmnId": bson.M{"$exists": false}},
 		},
 	}
-	_, errPost := db.CommonDBClient.RestfulAPIPost(amDataColl, filter, amDataBsonA)
+	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, amDataBsonA)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
@@ -394,7 +394,7 @@ func updateSmProvisionedData(snssai *models.Snssai, qos *nmsModels.DeviceGroupsI
 	smDataBsonA["ueId"] = "imsi-" + imsi
 	smDataBsonA["servingPlmnId"] = mcc + mnc
 	filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
-	_, errPost := db.CommonDBClient.RestfulAPIPost(smDataColl, filter, smDataBsonA)
+	_, errPost := db.CommonDBClient.RestfulAPIPost(db.SmDataColl, filter, smDataBsonA)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
@@ -416,7 +416,7 @@ func updateSmfSelectionProviosionedData(snssai *models.Snssai, mcc, mnc, dnn, im
 	smfSelecDataBsonA["ueId"] = "imsi-" + imsi
 	smfSelecDataBsonA["servingPlmnId"] = mcc + mnc
 	filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
-	_, errPost := db.CommonDBClient.RestfulAPIPost(smfSelDataColl, filter, smfSelecDataBsonA)
+	_, errPost := db.CommonDBClient.RestfulAPIPost(db.SmfSelDataColl, filter, smfSelecDataBsonA)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
@@ -472,18 +472,18 @@ func Config5GUpdateHandle(confChan chan *Update5GSubscriberMsg) {
 				filter := bson.M{"ueId": confData.Msg.Imsi}
 				authDataBsonA := toBsonM(confData.Msg.AuthSubData)
 				authDataBsonA["ueId"] = confData.Msg.Imsi
-				_, errPost := db.AuthDBClient.RestfulAPIPost(authSubsDataColl, filter, authDataBsonA)
+				_, errPost := db.AuthDBClient.RestfulAPIPost(db.AuthSubsDataColl, filter, authDataBsonA)
 				if errPost != nil {
 					logger.DbLog.Warnln(errPost)
 				}
 			} else {
 				logger.NMSLog.Debugln("Delete AuthenticationSubscription", imsi)
 				filter := bson.M{"ueId": "imsi-" + imsi}
-				errDelOne := db.AuthDBClient.RestfulAPIDeleteOne(authSubsDataColl, filter)
+				errDelOne := db.AuthDBClient.RestfulAPIDeleteOne(db.AuthSubsDataColl, filter)
 				if errDelOne != nil {
 					logger.DbLog.Warnln(errDelOne)
 				}
-				errDel := db.CommonDBClient.RestfulAPIDeleteOne(amDataColl, filter)
+				errDel := db.CommonDBClient.RestfulAPIDeleteOne(db.AmDataColl, filter)
 				if errDel != nil {
 					logger.DbLog.Warnln(errDel)
 				}
@@ -520,23 +520,23 @@ func Config5GUpdateHandle(confChan chan *Update5GSubscriberMsg) {
 					mnc := slice.SiteInfo.Plmn.Mnc
 					filterImsiOnly := bson.M{"ueId": "imsi-" + imsi}
 					filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
-					errDelOneAmPol := db.CommonDBClient.RestfulAPIDeleteOne(amPolicyDataColl, filterImsiOnly)
+					errDelOneAmPol := db.CommonDBClient.RestfulAPIDeleteOne(db.AmPolicyDataColl, filterImsiOnly)
 					if errDelOneAmPol != nil {
 						logger.DbLog.Warnln(errDelOneAmPol)
 					}
-					errDelOneSmPol := db.CommonDBClient.RestfulAPIDeleteOne(smPolicyDataColl, filterImsiOnly)
+					errDelOneSmPol := db.CommonDBClient.RestfulAPIDeleteOne(db.SmPolicyDataColl, filterImsiOnly)
 					if errDelOneSmPol != nil {
 						logger.DbLog.Warnln(errDelOneSmPol)
 					}
-					errDelOneAmData := db.CommonDBClient.RestfulAPIDeleteOne(amDataColl, filter)
+					errDelOneAmData := db.CommonDBClient.RestfulAPIDeleteOne(db.AmDataColl, filter)
 					if errDelOneAmData != nil {
 						logger.DbLog.Warnln(errDelOneAmData)
 					}
-					errDelOneSmData := db.CommonDBClient.RestfulAPIDeleteOne(smDataColl, filter)
+					errDelOneSmData := db.CommonDBClient.RestfulAPIDeleteOne(db.SmDataColl, filter)
 					if errDelOneSmData != nil {
 						logger.DbLog.Warnln(errDelOneSmData)
 					}
-					errDelOneSmfSel := db.CommonDBClient.RestfulAPIDeleteOne(smfSelDataColl, filter)
+					errDelOneSmfSel := db.CommonDBClient.RestfulAPIDeleteOne(db.SmfSelDataColl, filter)
 					if errDelOneSmfSel != nil {
 						logger.DbLog.Warnln(errDelOneSmfSel)
 					}
@@ -587,23 +587,23 @@ func Config5GUpdateHandle(confChan chan *Update5GSubscriberMsg) {
 						mnc := confData.PrevSlice.SiteInfo.Plmn.Mnc
 						filterImsiOnly := bson.M{"ueId": "imsi-" + imsi}
 						filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
-						errDelOneAmPol := db.CommonDBClient.RestfulAPIDeleteOne(amPolicyDataColl, filterImsiOnly)
+						errDelOneAmPol := db.CommonDBClient.RestfulAPIDeleteOne(db.AmPolicyDataColl, filterImsiOnly)
 						if errDelOneAmPol != nil {
 							logger.DbLog.Warnln(errDelOneAmPol)
 						}
-						errDelOneSmPol := db.CommonDBClient.RestfulAPIDeleteOne(smPolicyDataColl, filterImsiOnly)
+						errDelOneSmPol := db.CommonDBClient.RestfulAPIDeleteOne(db.SmPolicyDataColl, filterImsiOnly)
 						if errDelOneSmPol != nil {
 							logger.DbLog.Warnln(errDelOneSmPol)
 						}
-						errDelOneAmData := db.CommonDBClient.RestfulAPIDeleteOne(amDataColl, filter)
+						errDelOneAmData := db.CommonDBClient.RestfulAPIDeleteOne(db.AmDataColl, filter)
 						if errDelOneAmData != nil {
 							logger.DbLog.Warnln(errDelOneAmData)
 						}
-						errDelOneSmData := db.CommonDBClient.RestfulAPIDeleteOne(smDataColl, filter)
+						errDelOneSmData := db.CommonDBClient.RestfulAPIDeleteOne(db.SmDataColl, filter)
 						if errDelOneSmData != nil {
 							logger.DbLog.Warnln(errDelOneSmData)
 						}
-						errDelOneSmfSel := db.CommonDBClient.RestfulAPIDeleteOne(smfSelDataColl, filter)
+						errDelOneSmfSel := db.CommonDBClient.RestfulAPIDeleteOne(db.SmfSelDataColl, filter)
 						if errDelOneSmfSel != nil {
 							logger.DbLog.Warnln(errDelOneSmfSel)
 						}
