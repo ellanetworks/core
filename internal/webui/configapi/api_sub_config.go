@@ -453,7 +453,6 @@ func GetRegisteredUEContext(c *gin.Context) {
 	logger.WebUILog.Infoln("Get Registered UE Context")
 
 	webuiSelf := webui_context.WEBUI_Self()
-	webuiSelf.UpdateNfProfiles()
 
 	supi, supiExists := c.Params.Get("supi")
 
@@ -487,7 +486,6 @@ func GetUEPDUSessionInfo(c *gin.Context) {
 	logger.WebUILog.Infoln("Get UE PDU Session Info")
 
 	webuiSelf := webui_context.WEBUI_Self()
-	webuiSelf.UpdateNfProfiles()
 
 	smContextRef, smContextRefExists := c.Params.Get("smContextRef")
 	if !smContextRefExists {

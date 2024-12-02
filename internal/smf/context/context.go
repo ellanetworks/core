@@ -322,7 +322,6 @@ func BuildUserPlaneInformationFromConfig(networkSlices []configmodels.Slice, dev
 			userPlaneInformation.AccessNetwork[gnbName] = gnbNode
 			userPlaneInformation.UPNodes[gnbName] = gnbNode
 			userPlaneInformation.UPNodes[upfName] = upfNode
-			logger.CtxLog.Warnf("Built user plane information: %v", userPlaneInformation)
 			return userPlaneInformation
 		}
 	}

@@ -11,7 +11,6 @@ import (
 )
 
 func AddUiService(engine *gin.Engine) {
-	logger.WebUILog.Infoln("Adding UI service")
 	staticFilesSystem, err := fs.Sub(ui.FrontendFS, "frontend_files")
 	if err != nil {
 		logger.WebUILog.Fatal(err)

@@ -1,4 +1,4 @@
-package server
+package configapi
 
 import (
 	"encoding/json"
@@ -8,33 +8,31 @@ import (
 	"sync"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/sirupsen/logrus"
 	"github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/webui/backend/logger"
-	"github.com/yeastengine/ella/internal/webui/configapi"
 	"github.com/yeastengine/ella/internal/webui/configmodels"
 	"github.com/yeastengine/ella/internal/webui/dbadapter"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-const (
-	authSubsDataColl = "subscriptionData.authenticationData.authenticationSubscription"
-	amDataColl       = "subscriptionData.provisionedData.amData"
-	smDataColl       = "subscriptionData.provisionedData.smData"
-	smfSelDataColl   = "subscriptionData.provisionedData.smfSelectionSubscriptionData"
-	amPolicyDataColl = "policyData.ues.amData"
-	smPolicyDataColl = "policyData.ues.smData"
-	flowRuleDataColl = "policyData.ues.flowRule"
-	devGroupDataColl = "webconsoleData.snapshots.devGroupData"
-	sliceDataColl    = "webconsoleData.snapshots.sliceData"
-	gnbDataColl      = "webconsoleData.snapshots.gnbData"
-)
+// const (
+// 	authSubsDataColl = "subscriptionData.authenticationData.authenticationSubscription"
+// 	amDataColl       = "subscriptionData.provisionedData.amData"
+// 	smDataColl       = "subscriptionData.provisionedData.smData"
+// 	smfSelDataColl   = "subscriptionData.provisionedData.smfSelectionSubscriptionData"
+// 	amPolicyDataColl = "policyData.ues.amData"
+// 	smPolicyDataColl = "policyData.ues.smData"
+// 	flowRuleDataColl = "policyData.ues.flowRule"
+// 	devGroupDataColl = "webconsoleData.snapshots.devGroupData"
+// 	sliceDataColl    = "webconsoleData.snapshots.sliceData"
+// 	gnbDataColl      = "webconsoleData.snapshots.gnbData"
+// )
 
-var configLog *logrus.Entry
+// var configLog *logrus.Entry
 
-func init() {
-	configLog = logger.ConfigLog
-}
+// func init() {
+// 	configLog = logger.ConfigLog
+// }
 
 type Update5GSubscriberMsg struct {
 	Msg          *configmodels.ConfigMessage
@@ -50,15 +48,12 @@ func init() {
 	imsiData = make(map[string]*models.AuthenticationSubscription)
 }
 
-func configHandler(configMsgChan chan *configmodels.ConfigMessage, configReceived chan bool) {
+func ConfigHandler(configMsgChan chan *configmodels.ConfigMessage) {
 	// Start Goroutine which will listens for subscriber config updates
 	// and update the mongoDB. Only for 5G
 	subsUpdateChan := make(chan *Update5GSubscriberMsg, 10)
 	go Config5GUpdateHandle(subsUpdateChan)
-	firstConfigRcvd := firstConfigReceived()
-	if firstConfigRcvd {
-		configReceived <- true
-	}
+
 	for {
 		configLog.Infoln("Waiting for configuration event ")
 		configMsg := <-configMsgChan
@@ -77,11 +72,6 @@ func configHandler(configMsgChan chan *configmodels.ConfigMessage, configReceive
 		}
 
 		if configMsg.MsgMethod == configmodels.Post_op || configMsg.MsgMethod == configmodels.Put_op {
-			if !firstConfigRcvd && (configMsg.MsgType == configmodels.Device_group || configMsg.MsgType == configmodels.Network_slice) {
-				configLog.Debugln("First config received from ROC")
-				firstConfigRcvd = true
-				configReceived <- true
-			}
 
 			// configLog.Infoln("Received msg from configApi package ", configMsg)
 			// update config snapshot
@@ -100,14 +90,6 @@ func configHandler(configMsgChan chan *configmodels.ConfigMessage, configReceive
 				handleGnbPost(configMsg)
 			}
 
-			// loop through all clients and send this message to all clients
-			if len(clientNFPool) == 0 {
-				configLog.Infoln("No client available. No need to send config")
-			}
-			for _, client := range clientNFPool {
-				configLog.Infoln("Push config for client : ", client.id)
-				client.outStandingPushConfig <- configMsg
-			}
 		} else {
 			var config5gMsg Update5GSubscriberMsg
 			if configMsg.MsgType == configmodels.Inventory {
@@ -143,14 +125,7 @@ func configHandler(configMsgChan chan *configmodels.ConfigMessage, configReceive
 			}
 			config5gMsg.Msg = configMsg
 			subsUpdateChan <- &config5gMsg
-			// loop through all clients and send this message to all clients
-			if len(clientNFPool) == 0 {
-				configLog.Infoln("No client available. No need to send config")
-			}
-			for _, client := range clientNFPool {
-				configLog.Infoln("Push config for client : ", client.id)
-				client.outStandingPushConfig <- configMsg
-			}
+
 		}
 	}
 }
@@ -162,7 +137,6 @@ func handleSubscriberPost(configMsg *configmodels.ConfigMessage) {
 	}
 	filter := bson.M{"ueId": configMsg.Imsi}
 	basicDataBson := toBsonM(basicAmData)
-	logger.ConfigLog.Warnf("bson data: %v", basicDataBson)
 	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(amDataColl, filter, basicDataBson)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
@@ -683,7 +657,7 @@ func convertToString(val uint64) string {
 	return retStr
 }
 
-// seems something which we should move to mongolib
+// // seems something which we should move to mongolib
 func toBsonM(data interface{}) (ret bson.M) {
 	tmp, err := json.Marshal(data)
 	if err != nil {
@@ -698,15 +672,6 @@ func toBsonM(data interface{}) (ret bson.M) {
 	return ret
 }
 
-func mapToByte(data map[string]interface{}) (ret []byte) {
-	ret, err := json.Marshal(data)
-	if err != nil {
-		logger.DbLog.Errorln("Could not marshall data")
-		return nil
-	}
-	return ret
-}
-
 func SnssaiModelsToHex(snssai models.Snssai) string {
 	sst := fmt.Sprintf("%02x", snssai.Sst)
 	return sst + snssai.Sd
@@ -714,18 +679,16 @@ func SnssaiModelsToHex(snssai models.Snssai) string {
 
 func updateSMF() {
 	networkSlices := make([]configmodels.Slice, 0)
-	networkSliceNames := configapi.ListNetworkSlices()
+	networkSliceNames := ListNetworkSlices()
 	for _, networkSliceName := range networkSliceNames {
-		networkSlice := configapi.GetNetworkSliceByName2(networkSliceName)
+		networkSlice := GetNetworkSliceByName2(networkSliceName)
 		networkSlices = append(networkSlices, networkSlice)
 	}
 	deviceGroups := make([]configmodels.DeviceGroups, 0)
-	deviceGroupNames := configapi.ListDeviceGroups()
+	deviceGroupNames := ListDeviceGroups()
 	for _, deviceGroupName := range deviceGroupNames {
-		deviceGroup := configapi.GetDeviceGroupByName2(deviceGroupName)
+		deviceGroup := GetDeviceGroupByName2(deviceGroupName)
 		deviceGroups = append(deviceGroups, deviceGroup)
 	}
-	logger.AppLog.Warnf("Network Slices: %v", networkSlices)
-	logger.AppLog.Warnf("Device Groups: %v", deviceGroups)
 	context.UpdateSMFContext(networkSlices, deviceGroups)
 }
