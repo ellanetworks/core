@@ -385,8 +385,8 @@ func PostSubscriberByID(c *gin.Context) {
 		AuthSubData: &authSubsData,
 		Imsi:        ueId,
 	}
-	configChannel <- &msg
-	logger.NMSLog.Infoln("Successfully Added Subscriber Data to ConfigChannel: ", ueId)
+	ConfigHandler(&msg)
+	logger.NMSLog.Infof("Created subscriber: %v", ueId)
 }
 
 // Put subscriber by IMSI(ueId) and PlmnID(servingPlmnId)
@@ -408,8 +408,8 @@ func PutSubscriberByID(c *gin.Context) {
 		AuthSubData: &subsData.AuthenticationSubscription,
 		Imsi:        ueId,
 	}
-	configChannel <- &msg
-	logger.NMSLog.Infoln("Put Subscriber Data complete")
+	ConfigHandler(&msg)
+	logger.NMSLog.Infof("Edited Subscriber: %v", ueId)
 }
 
 // Patch subscriber by IMSI(ueId) and PlmnID(servingPlmnId)
@@ -432,8 +432,8 @@ func DeleteSubscriberByID(c *gin.Context) {
 		MsgMethod: nmsModels.Delete_op,
 		Imsi:      ueId,
 	}
-	configChannel <- &msg
-	logger.NMSLog.Infoln("Delete Subscriber Data complete")
+	ConfigHandler(&msg)
+	logger.NMSLog.Infof("Deleted Subscriber: %v", ueId)
 }
 
 func GetRegisteredUEContext(c *gin.Context) {

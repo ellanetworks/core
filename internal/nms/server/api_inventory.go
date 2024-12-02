@@ -98,8 +98,8 @@ func handlePostGnb(c *gin.Context) error {
 		GnbName:   gnbName,
 		Gnb:       &procReq,
 	}
-	configChannel <- &msg
-	configLog.Infof("Successfully added gNB [%v] to config channel.", gnbName)
+	ConfigHandler(&msg)
+	configLog.Infof("created gnb %v", gnbName)
 	return nil
 }
 
@@ -117,7 +117,7 @@ func handleDeleteGnb(c *gin.Context) error {
 		MsgMethod: models.Delete_op,
 		GnbName:   gnbName,
 	}
-	configChannel <- &msg
-	configLog.Infof("Successfully added gNB [%v] with delete_op to config channel.", gnbName)
+	ConfigHandler(&msg)
+	configLog.Infof("Deleted gnb %v", gnbName)
 	return nil
 }

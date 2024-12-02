@@ -18,17 +18,10 @@ const (
 	GPS = 1000000000
 )
 
-var configChannel chan *models.ConfigMessage
-
 var configLog *logrus.Entry
 
 func init() {
 	configLog = logger.ConfigLog
-}
-
-func SetChannel(cfgChannel chan *models.ConfigMessage) {
-	configLog.Infof("Setting configChannel")
-	configChannel = cfgChannel
 }
 
 func DeviceGroupDeleteHandler(c *gin.Context) bool {
@@ -41,8 +34,8 @@ func DeviceGroupDeleteHandler(c *gin.Context) bool {
 	msg.MsgType = models.Device_group
 	msg.MsgMethod = models.Delete_op
 	msg.DevGroupName = groupName
-	configChannel <- &msg
-	configLog.Infof("Successfully Added Device Group [%v] with delete_op to config channel.", groupName)
+	ConfigHandler(&msg)
+	configLog.Infof("Deleted Device Group: %v", groupName)
 	return true
 }
 
@@ -100,8 +93,8 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	msg.MsgMethod = msgOp
 	msg.DevGroup = &procReq
 	msg.DevGroupName = groupName
-	configChannel <- &msg
-	configLog.Infof("Successfully Added Device Group [%v] to config channel.", groupName)
+	ConfigHandler(&msg)
+	configLog.Infof("Created Device Group: %v", groupName)
 	return true
 }
 
@@ -115,8 +108,8 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 	msg.MsgMethod = models.Delete_op
 	msg.MsgType = models.Network_slice
 	msg.SliceName = sliceName
-	configChannel <- &msg
-	configLog.Infof("Successfully Added Device Group [%v] with delete_op to config channel.", sliceName)
+	ConfigHandler(&msg)
+	configLog.Infof("Deleted Network Slice: %v", sliceName)
 	return true
 }
 
@@ -170,7 +163,7 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 	msg.MsgType = models.Network_slice
 	msg.Slice = &procReq
 	msg.SliceName = sliceName
-	configChannel <- &msg
-	configLog.Infof("Successfully Added Slice [%v] to config channel.", sliceName)
+	ConfigHandler(&msg)
+	configLog.Infof("Created Network Slice: %v", sliceName)
 	return true
 }

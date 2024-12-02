@@ -30,69 +30,66 @@ func init() {
 	imsiData = make(map[string]*models.AuthenticationSubscription)
 }
 
-func ConfigHandler(configMsgChan chan *nmsModels.ConfigMessage) {
-	for {
-		configMsg := <-configMsgChan
-		if configMsg.MsgType == nmsModels.Sub_data {
-			imsiVal := strings.ReplaceAll(configMsg.Imsi, "imsi-", "")
-			configLog.Infoln("ConfigHandler: Received imsi from config channel: ", imsiVal)
-			imsiData[imsiVal] = configMsg.AuthSubData
-			configLog.Infof("ConfigHandler: Received Imsi [%v] configuration from config channel", configMsg.Imsi)
-			handleSubscriberPost(configMsg)
-			var configUMsg Update5GSubscriberMsg
-			configUMsg.Msg = configMsg
-			updateConfig(&configUMsg)
+func ConfigHandler(configMsg *nmsModels.ConfigMessage) {
+	if configMsg.MsgType == nmsModels.Sub_data {
+		imsiVal := strings.ReplaceAll(configMsg.Imsi, "imsi-", "")
+		configLog.Infoln("ConfigHandler: Received imsi from config channel: ", imsiVal)
+		imsiData[imsiVal] = configMsg.AuthSubData
+		configLog.Infof("ConfigHandler: Received Imsi [%v] configuration from config channel", configMsg.Imsi)
+		handleSubscriberPost(configMsg)
+		var configUMsg Update5GSubscriberMsg
+		configUMsg.Msg = configMsg
+		updateConfig(&configUMsg)
+	}
+
+	if configMsg.MsgMethod == nmsModels.Post_op || configMsg.MsgMethod == nmsModels.Put_op {
+		if configMsg.DevGroup != nil {
+			handleDeviceGroupPost(configMsg)
 		}
 
-		if configMsg.MsgMethod == nmsModels.Post_op || configMsg.MsgMethod == nmsModels.Put_op {
-			if configMsg.DevGroup != nil {
-				handleDeviceGroupPost(configMsg)
+		if configMsg.Slice != nil {
+			handleNetworkSlicePost(configMsg)
+		}
+
+		if configMsg.Gnb != nil {
+			handleGnbPost(configMsg)
+		}
+	} else {
+		var config5gMsg Update5GSubscriberMsg
+		if configMsg.MsgType == nmsModels.Inventory {
+			if configMsg.GnbName != "" {
+				configLog.Infof("ConfigHandler: Received delete gNB [%v] from config channel", configMsg.GnbName)
+				handleGnbDelete(configMsg)
+			}
+		} else if configMsg.MsgType != nmsModels.Sub_data {
+			// update config snapshot
+			if configMsg.DevGroup == nil {
+				configLog.Infof("ConfigHandler: Received delete Device Group [%v] from config channel", configMsg.DevGroupName)
+				config5gMsg.PrevDevGroup = getDeviceGroupByName(configMsg.DevGroupName)
+				filter := bson.M{"group-name": configMsg.DevGroupName}
+				errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.DevGroupDataColl, filter)
+				if errDelOne != nil {
+					logger.DbLog.Warnln(errDelOne)
+				}
 			}
 
-			if configMsg.Slice != nil {
-				handleNetworkSlicePost(configMsg)
-			}
-
-			if configMsg.Gnb != nil {
-				handleGnbPost(configMsg)
+			if configMsg.Slice == nil {
+				configLog.Infof("ConfigHandler: Received delete Slice [%v] from config channel", configMsg.SliceName)
+				config5gMsg.PrevSlice = getSliceByName(configMsg.SliceName)
+				filter := bson.M{"slice-name": configMsg.SliceName}
+				errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.SliceDataColl, filter)
+				if errDelOne != nil {
+					logger.DbLog.Warnln(errDelOne)
+				}
 			}
 		} else {
-			var config5gMsg Update5GSubscriberMsg
-			if configMsg.MsgType == nmsModels.Inventory {
-				if configMsg.GnbName != "" {
-					configLog.Infof("ConfigHandler: Received delete gNB [%v] from config channel", configMsg.GnbName)
-					handleGnbDelete(configMsg)
-				}
-			} else if configMsg.MsgType != nmsModels.Sub_data {
-				// update config snapshot
-				if configMsg.DevGroup == nil {
-					configLog.Infof("ConfigHandler: Received delete Device Group [%v] from config channel", configMsg.DevGroupName)
-					config5gMsg.PrevDevGroup = getDeviceGroupByName(configMsg.DevGroupName)
-					filter := bson.M{"group-name": configMsg.DevGroupName}
-					errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.DevGroupDataColl, filter)
-					if errDelOne != nil {
-						logger.DbLog.Warnln(errDelOne)
-					}
-				}
-
-				if configMsg.Slice == nil {
-					configLog.Infof("ConfigHandler: Received delete Slice [%v] from config channel", configMsg.SliceName)
-					config5gMsg.PrevSlice = getSliceByName(configMsg.SliceName)
-					filter := bson.M{"slice-name": configMsg.SliceName}
-					errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.SliceDataColl, filter)
-					if errDelOne != nil {
-						logger.DbLog.Warnln(errDelOne)
-					}
-				}
-			} else {
-				configLog.Infof("ConfigHandler: Received delete Subscriber [%v] from config channel", configMsg.Imsi)
-			}
-			config5gMsg.Msg = configMsg
-			// subsUpdateChan <- &config5gMsg
-			updateConfig(&config5gMsg)
+			configLog.Infof("ConfigHandler: Received delete Subscriber [%v] from config channel", configMsg.Imsi)
 		}
-		updateSMF()
+		config5gMsg.Msg = configMsg
+		// subsUpdateChan <- &config5gMsg
+		updateConfig(&config5gMsg)
 	}
+	updateSMF()
 }
 
 func handleSubscriberPost(configMsg *nmsModels.ConfigMessage) {
@@ -125,7 +122,6 @@ func handleNetworkSlicePost(configMsg *nmsModels.ConfigMessage) {
 	var config5gMsg Update5GSubscriberMsg
 	config5gMsg.Msg = configMsg
 	config5gMsg.PrevSlice = getSliceByName(configMsg.SliceName)
-	// subsUpdateChan <- &config5gMsg
 	updateConfig(&config5gMsg)
 	filter := bson.M{"slice-name": configMsg.SliceName}
 	sliceDataBsonA := toBsonM(configMsg.Slice)

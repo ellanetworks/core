@@ -11,7 +11,6 @@ import (
 	"github.com/yeastengine/ella/internal/nms/config"
 	"github.com/yeastengine/ella/internal/nms/db"
 	"github.com/yeastengine/ella/internal/nms/logger"
-	models "github.com/yeastengine/ella/internal/nms/models"
 )
 
 type NMS struct{}
@@ -52,9 +51,6 @@ func (nms *NMS) Start() {
 	AddServiceSub(subconfig_router)
 	AddService(subconfig_router)
 
-	configMsgChan := make(chan *models.ConfigMessage, 10)
-	SetChannel(configMsgChan)
-
 	subconfig_router.Use(cors.New(cors.Config{
 		AllowMethods: []string{"GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"},
 		AllowHeaders: []string{
@@ -73,8 +69,6 @@ func (nms *NMS) Start() {
 		initLog.Infoln(subconfig_router.Run(httpAddr))
 		initLog.Infoln("NMS stopped/terminated/not-started ")
 	}()
-
-	go ConfigHandler(configMsgChan)
 
 	select {}
 }
