@@ -10,9 +10,9 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
+	"github.com/yeastengine/ella/internal/nms/server"
 	"github.com/yeastengine/ella/internal/pcf/factory"
 	"github.com/yeastengine/ella/internal/pcf/logger"
-	"github.com/yeastengine/ella/internal/webui/configapi"
 )
 
 var pcfCtx *PCFContext
@@ -399,9 +399,9 @@ func (sess SessionPolicy) String() string {
 
 func GetPLMNList() []PlmnSupportItem {
 	plmnSupportList := make([]PlmnSupportItem, 0)
-	networkSliceNames := configapi.ListNetworkSlices()
+	networkSliceNames := server.ListNetworkSlices()
 	for _, networkSliceName := range networkSliceNames {
-		networkSlice := configapi.GetNetworkSliceByName2(networkSliceName)
+		networkSlice := server.GetNetworkSliceByName2(networkSliceName)
 		plmnID := models.PlmnId{
 			Mcc: networkSlice.SiteInfo.Plmn.Mcc,
 			Mnc: networkSlice.SiteInfo.Plmn.Mnc,
@@ -417,13 +417,13 @@ func GetPLMNList() []PlmnSupportItem {
 func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 	subscriberPolicies := make(map[string]*PcfSubscriberPolicyData)
 
-	networkSliceNames := configapi.ListNetworkSlices()
+	networkSliceNames := server.ListNetworkSlices()
 	for _, networkSliceName := range networkSliceNames {
-		networkSlice := configapi.GetNetworkSliceByName2(networkSliceName)
+		networkSlice := server.GetNetworkSliceByName2(networkSliceName)
 		pccPolicyId := networkSlice.SliceId.Sst + networkSlice.SliceId.Sd
 		deviceGroupNames := networkSlice.SiteDeviceGroup
 		for _, devGroupName := range deviceGroupNames {
-			deviceGroup := configapi.GetDeviceGroupByName2(devGroupName)
+			deviceGroup := server.GetDeviceGroupByName2(devGroupName)
 			for _, imsi := range deviceGroup.Imsis {
 				if _, exists := subscriberPolicies[imsi]; !exists {
 					subscriberPolicies[imsi] = &PcfSubscriberPolicyData{

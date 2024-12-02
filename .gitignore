@@ -12,7 +12,7 @@ ui/.vercel
 ui/.env*.local
 ui/gnb_config.json
 ui/upf_config.json
-internal/webui/ui/frontend_files/*
+internal/nms/ui/frontend_files/*
 
 # Python
 venv/
