@@ -67,7 +67,7 @@ func handlePostGnb(c *gin.Context) error {
 	var gnbName string
 	var exists bool
 	if gnbName, exists = c.Params.Get("gnb-name"); !exists {
-		errorMessage := "`gnb-name` is missing"
+		errorMessage := "gnb-name is missing"
 		configLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
@@ -85,7 +85,7 @@ func handlePostGnb(c *gin.Context) error {
 		return fmt.Errorf("failed to create gNB %v: %v", gnbName, err)
 	}
 	if newGnb.Tac == "" {
-		errorMessage := "`tac` is missing"
+		errorMessage := "tac is missing"
 		configLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
@@ -107,7 +107,7 @@ func handleDeleteGnb(c *gin.Context) error {
 	var gnbName string
 	var exists bool
 	if gnbName, exists = c.Params.Get("gnb-name"); !exists {
-		errorMessage := "`gnb-name` is missing"
+		errorMessage := "gnb-name is missing"
 		configLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}

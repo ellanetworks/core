@@ -380,26 +380,24 @@ func PostSubscriberByID(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, gin.H{})
 
-	msg := nmsModels.ConfigMessage{
-		MsgType:     nmsModels.Sub_data,
-		MsgMethod:   nmsModels.Post_op,
-		AuthSubData: &authSubsData,
-		Imsi:        ueId,
-	}
-	imsiVal := strings.ReplaceAll(msg.Imsi, "imsi-", "")
-	imsiData[imsiVal] = msg.AuthSubData
+	imsiVal := strings.ReplaceAll(ueId, "imsi-", "")
+	imsiData[imsiVal] = &authSubsData
 	basicAmData := map[string]interface{}{
-		"ueId": msg.Imsi,
+		"ueId": ueId,
 	}
-	filter := bson.M{"ueId": msg.Imsi}
+	filter := bson.M{"ueId": ueId}
 	basicDataBson := toBsonM(basicAmData)
 	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, basicDataBson)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
-	var configUMsg Update5GSubscriberMsg
-	configUMsg.Msg = &msg
-	updateConfig(&configUMsg)
+	filter = bson.M{"ueId": ueId}
+	authDataBsonA := toBsonM(&authSubsData)
+	authDataBsonA["ueId"] = ueId
+	_, errPost = db.AuthDBClient.RestfulAPIPost(db.AuthSubsDataColl, filter, authDataBsonA)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
+	}
 	logger.NMSLog.Infof("Created subscriber: %v", ueId)
 }
 
@@ -416,49 +414,47 @@ func PutSubscriberByID(c *gin.Context) {
 	ueId := c.Param("ueId")
 	c.JSON(http.StatusNoContent, gin.H{})
 
-	msg := nmsModels.ConfigMessage{
-		MsgType:     nmsModels.Sub_data,
-		MsgMethod:   nmsModels.Post_op,
-		AuthSubData: &subsData.AuthenticationSubscription,
-		Imsi:        ueId,
-	}
-	imsiVal := strings.ReplaceAll(msg.Imsi, "imsi-", "")
-	imsiData[imsiVal] = msg.AuthSubData
+	imsiVal := strings.ReplaceAll(ueId, "imsi-", "")
+	imsiData[imsiVal] = &subsData.AuthenticationSubscription
 	basicAmData := map[string]interface{}{
-		"ueId": msg.Imsi,
+		"ueId": ueId,
 	}
-	filter := bson.M{"ueId": msg.Imsi}
+	filter := bson.M{"ueId": ueId}
 	basicDataBson := toBsonM(basicAmData)
 	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, basicDataBson)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
-	var configUMsg Update5GSubscriberMsg
-	configUMsg.Msg = &msg
-	updateConfig(&configUMsg)
+	logger.NMSLog.Debugln("Config5GUpdateHandle: Insert/Update AuthenticationSubscription ", ueId)
+	filter = bson.M{"ueId": ueId}
+	authDataBsonA := toBsonM(&subsData.AuthenticationSubscription)
+	authDataBsonA["ueId"] = ueId
+	_, errPost = db.AuthDBClient.RestfulAPIPost(db.AuthSubsDataColl, filter, authDataBsonA)
+	if errPost != nil {
+		logger.DbLog.Warnln(errPost)
+	}
 	logger.NMSLog.Infof("Edited Subscriber: %v", ueId)
 }
 
-// Patch subscriber by IMSI(ueId) and PlmnID(servingPlmnId)
 func PatchSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
 	logger.NMSLog.Infoln("Patch One Subscriber Data")
 }
 
-// Delete subscriber by IMSI(ueId)
 func DeleteSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
 	logger.NMSLog.Infoln("Delete One Subscriber Data")
 	ueId := c.Param("ueId")
 	c.JSON(http.StatusNoContent, gin.H{})
-	msg := nmsModels.ConfigMessage{
-		MsgType:   nmsModels.Sub_data,
-		MsgMethod: nmsModels.Delete_op,
-		Imsi:      ueId,
+	filter := bson.M{"ueId": "imsi-" + ueId}
+	errDelOne := db.AuthDBClient.RestfulAPIDeleteOne(db.AuthSubsDataColl, filter)
+	if errDelOne != nil {
+		logger.DbLog.Warnln(errDelOne)
 	}
-	var config5gMsg Update5GSubscriberMsg
-	config5gMsg.Msg = &msg
-	updateConfig(&config5gMsg)
+	errDel := db.CommonDBClient.RestfulAPIDeleteOne(db.AmDataColl, filter)
+	if errDel != nil {
+		logger.DbLog.Warnln(errDel)
+	}
 	logger.NMSLog.Infof("Deleted Subscriber: %v", ueId)
 }
 

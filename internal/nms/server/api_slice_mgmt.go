@@ -32,19 +32,13 @@ func DeviceGroupDeleteHandler(c *gin.Context) bool {
 	if groupName, exists = c.Params.Get("group-name"); exists {
 		configLog.Infof("Received Delete Group %v from Roc/simapp", groupName)
 	}
-	var msg models.ConfigMessage
-	msg.MsgType = models.Device_group
-	msg.MsgMethod = models.Delete_op
-	msg.DevGroupName = groupName
-	var config5gMsg Update5GSubscriberMsg
-	config5gMsg.PrevDevGroup = getDeviceGroupByName(msg.DevGroupName)
-	filter := bson.M{"group-name": msg.DevGroupName}
+	prevDevGroup := getDeviceGroupByName(groupName)
+	filter := bson.M{"group-name": groupName}
 	errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.DevGroupDataColl, filter)
 	if errDelOne != nil {
 		logger.DbLog.Warnln(errDelOne)
 	}
-	config5gMsg.Msg = &msg
-	updateConfig(&config5gMsg)
+	updateDeviceGroupConfig(groupName, nil, prevDevGroup)
 	updateSMF()
 	configLog.Infof("Deleted Device Group: %v", groupName)
 	return true
@@ -98,18 +92,11 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 		}
 	}
 
-	var msg models.ConfigMessage
 	procReq.DeviceGroupName = groupName
-	msg.MsgType = models.Device_group
-	msg.MsgMethod = msgOp
-	msg.DevGroup = &procReq
-	msg.DevGroupName = groupName
-	var config5gMsg Update5GSubscriberMsg
-	config5gMsg.Msg = &msg
-	config5gMsg.PrevDevGroup = getDeviceGroupByName(msg.DevGroupName)
-	updateConfig(&config5gMsg)
-	filter := bson.M{"group-name": msg.DevGroupName}
-	devGroupDataBsonA := toBsonM(msg.DevGroup)
+	prevDevGroup := getDeviceGroupByName(groupName)
+	updateDeviceGroupConfig(groupName, &procReq, prevDevGroup)
+	filter := bson.M{"group-name": groupName}
+	devGroupDataBsonA := toBsonM(&procReq)
 	_, errPost := db.CommonDBClient.RestfulAPIPost(db.DevGroupDataColl, filter, devGroupDataBsonA)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
@@ -125,20 +112,13 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 	if sliceName, exists = c.Params.Get("slice-name"); exists {
 		configLog.Infof("Received Deleted slice : %v from Roc/simapp", sliceName)
 	}
-	var msg models.ConfigMessage
-	msg.MsgMethod = models.Delete_op
-	msg.MsgType = models.Network_slice
-	msg.SliceName = sliceName
-	var config5gMsg Update5GSubscriberMsg
-
-	config5gMsg.PrevSlice = getSliceByName(msg.SliceName)
-	filter := bson.M{"slice-name": msg.SliceName}
+	prevSlice := getSliceByName(sliceName)
+	filter := bson.M{"slice-name": sliceName}
 	errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.SliceDataColl, filter)
 	if errDelOne != nil {
 		logger.DbLog.Warnln(errDelOne)
 	}
-	config5gMsg.Msg = &msg
-	updateConfig(&config5gMsg)
+	updateNetworkSliceConfig(nil, prevSlice)
 	updateSMF()
 	configLog.Infof("Deleted Network Slice: %v", sliceName)
 	return true
@@ -188,18 +168,11 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		}
 	}
 
-	var msg models.ConfigMessage
-	msg.MsgMethod = msgOp
 	procReq.SliceName = sliceName
-	msg.MsgType = models.Network_slice
-	msg.Slice = &procReq
-	msg.SliceName = sliceName
-	var config5gMsg Update5GSubscriberMsg
-	config5gMsg.Msg = &msg
-	config5gMsg.PrevSlice = getSliceByName(msg.SliceName)
-	updateConfig(&config5gMsg)
-	filter := bson.M{"slice-name": msg.SliceName}
-	sliceDataBsonA := toBsonM(msg.Slice)
+	prevSlice := getSliceByName(sliceName)
+	updateNetworkSliceConfig(&procReq, prevSlice)
+	filter := bson.M{"slice-name": sliceName}
+	sliceDataBsonA := toBsonM(&procReq)
 	_, errPost := db.CommonDBClient.RestfulAPIPost(db.SliceDataColl, filter, sliceDataBsonA)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
