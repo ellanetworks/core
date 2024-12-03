@@ -32,3 +32,22 @@ func GetNetworkSliceByName(name string) (*Slice, error) {
 	json.Unmarshal(mapToByte(rawNetworkSlice), &networkSlice)
 	return networkSlice, nil
 }
+
+func DeleteNetworkSlice(name string) error {
+	filter := bson.M{"slice-name": name}
+	err := CommonDBClient.RestfulAPIDeleteOne(SliceDataColl, filter)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func CreateNetworkSlice(slice *Slice) error {
+	filter := bson.M{"slice-name": slice.SliceName}
+	sliceDataBsonA := toBsonM(&slice)
+	_, err := CommonDBClient.RestfulAPIPost(SliceDataColl, filter, sliceDataBsonA)
+	if err != nil {
+		return err
+	}
+	return nil
+}

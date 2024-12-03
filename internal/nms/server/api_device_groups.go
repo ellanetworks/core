@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	openAPIModels "github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/nms/logger"
@@ -173,7 +172,7 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 		if err != nil {
 			logger.NMSLog.Errorf("Could not parse SST %v", slice.SliceId.Sst)
 		}
-		snssai := &openAPIModels.Snssai{
+		snssai := &db.Snssai{
 			Sd:  slice.SliceId.Sd,
 			Sst: int32(sVal),
 		}
@@ -181,11 +180,43 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 		aimsis := getAddedImsisList(&procReq)
 		for _, imsi := range aimsis {
 			dnn := procReq.IpDomainExpanded.Dnn
-			updateAmPolicyData(imsi)
-			updateSmPolicyData(snssai, dnn, imsi)
-			updateAmProvisionedData(snssai, procReq.IpDomainExpanded.UeDnnQos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, imsi)
-			updateSmProvisionedData(snssai, procReq.IpDomainExpanded.UeDnnQos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
-			updateSmfSelectionProviosionedData(snssai, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
+			err := db.CreateAmPolicyData(imsi)
+			if err != nil {
+				logger.NMSLog.Warnln(err)
+				return false
+			}
+			err = db.CreateSmPolicyData(snssai, dnn, imsi)
+			if err != nil {
+				logger.NMSLog.Warnln(err)
+				return false
+			}
+			qos := &db.DeviceGroupsIpDomainExpandedUeDnnQos{
+				DnnMbrDownlink: procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink,
+				DnnMbrUplink:   procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink,
+				BitrateUnit:    procReq.IpDomainExpanded.UeDnnQos.BitrateUnit,
+				TrafficClass: &db.TrafficClassInfo{
+					Name: procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Name,
+					Qci:  procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
+					Arp:  procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Arp,
+					Pdb:  procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pdb,
+					Pelr: procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
+				},
+			}
+			err = db.CreateAmProvisionedData(snssai, qos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, imsi)
+			if err != nil {
+				logger.NMSLog.Warnln(err)
+				return false
+			}
+			err = db.CreateSmProvisionedData(snssai, qos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
+			if err != nil {
+				logger.NMSLog.Warnln(err)
+				return false
+			}
+			err = db.CreateSmfSelectionProviosionedData(snssai, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
+			if err != nil {
+				logger.NMSLog.Warnln(err)
+				return false
+			}
 		}
 	}
 	dbDeviceGroup := &db.DeviceGroup{
@@ -256,7 +287,7 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 			}
-			err = db.DeleteSmfSelf(imsi, mcc, mnc)
+			err = db.DeleteSmfSelection(imsi, mcc, mnc)
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 			}
