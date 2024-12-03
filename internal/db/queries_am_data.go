@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/json"
 	"strconv"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -44,6 +45,31 @@ func CreateAmProvisionedData(snssai *Snssai, qos *DeviceGroupsIpDomainExpandedUe
 		return err
 	}
 	return nil
+}
+
+func GetAmData(ueId string) (*AccessAndMobilitySubscriptionData, error) {
+	filterUeIdOnly := bson.M{"ueId": ueId}
+	amData, err := CommonDBClient.RestfulAPIGetOne(AmDataColl, filterUeIdOnly)
+	if err != nil {
+		return nil, err
+	}
+	amDataObj := &AccessAndMobilitySubscriptionData{}
+	json.Unmarshal(mapToByte(amData), &amDataObj)
+	return amDataObj, nil
+}
+
+func ListAmData() ([]*AccessAndMobilitySubscriptionData, error) {
+	amDataListObj := make([]*AccessAndMobilitySubscriptionData, 0)
+	amDataList, err := CommonDBClient.RestfulAPIGetMany(AmDataColl, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	for _, amData := range amDataList {
+		amDataObj := &AccessAndMobilitySubscriptionData{}
+		json.Unmarshal(mapToByte(amData), &amDataObj)
+		amDataListObj = append(amDataListObj, amDataObj)
+	}
+	return amDataListObj, nil
 }
 
 func convertToString(val uint64) string {

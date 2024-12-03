@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"math"
 	"net/http"
 	"strconv"
@@ -295,8 +294,9 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 	}
 }
 
-func isDeviceGroupExistInSlice(deviceGroupName string) *models.Slice {
-	for name, slice := range getSlices() {
+func isDeviceGroupExistInSlice(deviceGroupName string) *db.Slice {
+	dBSlices := db.ListNetworkSlices()
+	for name, slice := range dBSlices {
 		for _, dgName := range slice.SiteDeviceGroup {
 			if dgName == deviceGroupName {
 				logger.NMSLog.Infof("Device Group [%v] is part of slice: %v", dgName, name)
@@ -306,21 +306,4 @@ func isDeviceGroupExistInSlice(deviceGroupName string) *models.Slice {
 	}
 
 	return nil
-}
-
-func getSlices() []*models.Slice {
-	rawSlices, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.SliceDataColl, nil)
-	if errGetMany != nil {
-		logger.NMSLog.Warnln(errGetMany)
-	}
-	var slices []*models.Slice
-	for _, rawSlice := range rawSlices {
-		var sliceData models.Slice
-		err := json.Unmarshal(mapToByte(rawSlice), &sliceData)
-		if err != nil {
-			logger.NMSLog.Errorf("Could not unmarshall slice %v", rawSlice)
-		}
-		slices = append(slices, &sliceData)
-	}
-	return slices
 }

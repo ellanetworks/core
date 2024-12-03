@@ -22,6 +22,24 @@ func ListNetworkSliceNames() ([]string, error) {
 	return networkSlices, nil
 }
 
+func ListNetworkSlices() []*Slice {
+	rawSlices, errGetMany := CommonDBClient.RestfulAPIGetMany(SliceDataColl, nil)
+	if errGetMany != nil {
+		return nil
+	}
+	var slices []*Slice
+	for _, rawSlice := range rawSlices {
+		var sliceData Slice
+		err := json.Unmarshal(mapToByte(rawSlice), &sliceData)
+		if err != nil {
+			DbLog.Warnf("Could not unmarshal slice data: %v", rawSlice)
+			continue
+		}
+		slices = append(slices, &sliceData)
+	}
+	return slices
+}
+
 func GetNetworkSliceByName(name string) (*Slice, error) {
 	var networkSlice *Slice
 	filter := bson.M{"slice-name": name}

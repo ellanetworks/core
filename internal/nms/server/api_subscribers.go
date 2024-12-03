@@ -1,9 +1,7 @@
 package server
 
 import (
-	"crypto/tls"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -14,16 +12,6 @@ import (
 	nmsModels "github.com/yeastengine/ella/internal/nms/models"
 	"go.mongodb.org/mongo-driver/bson"
 )
-
-var httpsClient *http.Client
-
-func init() {
-	httpsClient = &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
-}
 
 func mapToByte(data map[string]interface{}) (ret []byte) {
 	ret, _ = json.Marshal(data)
@@ -40,12 +28,6 @@ func setCorsHeader(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 	c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, PATCH, DELETE")
-}
-
-func sendResponseToClient(c *gin.Context, response *http.Response) {
-	var jsonData interface{}
-	json.NewDecoder(response.Body).Decode(&jsonData)
-	c.JSON(response.StatusCode, jsonData)
 }
 
 func GetSampleJSON(c *gin.Context) {
@@ -239,33 +221,88 @@ func GetSampleJSON(c *gin.Context) {
 	c.JSON(http.StatusOK, subsData)
 }
 
-// Get all subscribers list
 func GetSubscribers(c *gin.Context) {
 	setCorsHeader(c)
-
-	logger.NMSLog.Infoln("Get All Subscribers List")
-
 	var subsList []nmsModels.SubsListIE
-	amDataList, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.AmDataColl, bson.M{})
-	if errGetMany != nil {
-		logger.NMSLog.Warnln(errGetMany)
+	amDataList, err := db.ListAmData()
+	if err != nil {
+		logger.NMSLog.Warnln(err)
 	}
 	for _, amData := range amDataList {
-		tmp := nmsModels.SubsListIE{
-			UeId: amData["ueId"].(string),
+		subscriber := nmsModels.SubsListIE{
+			UeId:   amData.UeId,
+			PlmnID: amData.ServingPlmnId,
 		}
-
-		if servingPlmnId, plmnIdExists := amData["servingPlmnId"]; plmnIdExists {
-			tmp.PlmnID = servingPlmnId.(string)
-		}
-
-		subsList = append(subsList, tmp)
+		subsList = append(subsList, subscriber)
 	}
-
 	c.JSON(http.StatusOK, subsList)
 }
 
-// Get subscriber by IMSI(ueId))
+func convertDbAuthSubsDataToModel(dbAuthSubsData *db.AuthenticationSubscription) models.AuthenticationSubscription {
+	if dbAuthSubsData == nil {
+		return models.AuthenticationSubscription{}
+	}
+	authSubsData := models.AuthenticationSubscription{}
+	authSubsData.AuthenticationManagementField = dbAuthSubsData.AuthenticationManagementField
+	authSubsData.AuthenticationMethod = models.AuthMethod(dbAuthSubsData.AuthenticationMethod)
+	if dbAuthSubsData.Milenage != nil {
+		authSubsData.Milenage = &models.Milenage{
+			Op: &models.Op{
+				EncryptionAlgorithm: dbAuthSubsData.Milenage.Op.EncryptionAlgorithm,
+				EncryptionKey:       dbAuthSubsData.Milenage.Op.EncryptionKey,
+				OpValue:             dbAuthSubsData.Milenage.Op.OpValue,
+			},
+		}
+	}
+	if dbAuthSubsData.Opc != nil {
+		authSubsData.Opc = &models.Opc{
+			EncryptionAlgorithm: dbAuthSubsData.Opc.EncryptionAlgorithm,
+			EncryptionKey:       dbAuthSubsData.Opc.EncryptionKey,
+			OpcValue:            dbAuthSubsData.Opc.OpcValue,
+		}
+	}
+	if dbAuthSubsData.PermanentKey != nil {
+		authSubsData.PermanentKey = &models.PermanentKey{
+			EncryptionAlgorithm: dbAuthSubsData.PermanentKey.EncryptionAlgorithm,
+			EncryptionKey:       dbAuthSubsData.PermanentKey.EncryptionKey,
+			PermanentKeyValue:   dbAuthSubsData.PermanentKey.PermanentKeyValue,
+		}
+	}
+	authSubsData.SequenceNumber = dbAuthSubsData.SequenceNumber
+
+	return authSubsData
+}
+
+func convertDbAmDataToModel(dbAmData *db.AccessAndMobilitySubscriptionData) models.AccessAndMobilitySubscriptionData {
+	if dbAmData == nil {
+		return models.AccessAndMobilitySubscriptionData{}
+	}
+	amData := models.AccessAndMobilitySubscriptionData{
+		Gpsis: dbAmData.Gpsis,
+		Nssai: &models.Nssai{
+			DefaultSingleNssais: make([]models.Snssai, 0),
+			SingleNssais:        make([]models.Snssai, 0),
+		},
+		SubscribedUeAmbr: &models.AmbrRm{
+			Downlink: dbAmData.SubscribedUeAmbr.Downlink,
+			Uplink:   dbAmData.SubscribedUeAmbr.Uplink,
+		},
+	}
+	for _, snssai := range dbAmData.Nssai.DefaultSingleNssais {
+		amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
+			Sd:  snssai.Sd,
+			Sst: snssai.Sst,
+		})
+	}
+	for _, snssai := range dbAmData.Nssai.SingleNssais {
+		amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
+			Sd:  snssai.Sd,
+			Sst: snssai.Sst,
+		})
+	}
+	return amData
+}
+
 func GetSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
 
@@ -277,14 +314,21 @@ func GetSubscriberByID(c *gin.Context) {
 
 	filterUeIdOnly := bson.M{"ueId": ueId}
 
-	authSubsDataInterface, errGetOneAuth := db.CommonDBClient.RestfulAPIGetOne(db.AuthSubsDataColl, filterUeIdOnly)
-	if errGetOneAuth != nil {
-		logger.NMSLog.Warnln(errGetOneAuth)
+	dbAuthSubsData, err := db.GetAuthenticationSubscription(ueId)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+		c.JSON(http.StatusInternalServerError, gin.H{})
+		return
 	}
-	amDataDataInterface, errGetOneAmData := db.CommonDBClient.RestfulAPIGetOne(db.AmDataColl, filterUeIdOnly)
-	if errGetOneAmData != nil {
-		logger.NMSLog.Warnln(errGetOneAmData)
+	if dbAuthSubsData == nil {
+		c.JSON(http.StatusNotFound, gin.H{})
+		return
 	}
+	dbAmData, err := db.GetAmData(ueId)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+	}
+
 	smDataDataInterface, errGetManySmData := db.CommonDBClient.RestfulAPIGetMany(db.SmDataColl, filterUeIdOnly)
 	if errGetManySmData != nil {
 		logger.NMSLog.Warnln(errGetManySmData)
@@ -301,10 +345,8 @@ func GetSubscriberByID(c *gin.Context) {
 	if errGetManySmPol != nil {
 		logger.NMSLog.Warnln(errGetManySmPol)
 	}
-	var authSubsData models.AuthenticationSubscription
-	json.Unmarshal(mapToByte(authSubsDataInterface), &authSubsData)
-	var amDataData models.AccessAndMobilitySubscriptionData
-	json.Unmarshal(mapToByte(amDataDataInterface), &amDataData)
+	authSubsData := convertDbAuthSubsDataToModel(dbAuthSubsData)
+	amData := convertDbAmDataToModel(dbAmData)
 	var smDataData []models.SessionManagementSubscriptionData
 	json.Unmarshal(sliceToByte(smDataDataInterface), &smDataData)
 	var smfSelData models.SmfSelectionSubscriptionData
@@ -317,7 +359,7 @@ func GetSubscriberByID(c *gin.Context) {
 	subsData = nmsModels.SubsData{
 		UeId:                              ueId,
 		AuthenticationSubscription:        authSubsData,
-		AccessAndMobilitySubscriptionData: amDataData,
+		AccessAndMobilitySubscriptionData: amData,
 		SessionManagementSubscriptionData: smDataData,
 		SmfSelectionSubscriptionData:      smfSelData,
 		AmPolicyData:                      amPolicyData,
@@ -454,68 +496,4 @@ func DeleteSubscriberByID(c *gin.Context) {
 		logger.NMSLog.Warnln(errDel)
 	}
 	logger.NMSLog.Infof("Deleted Subscriber: %v", ueId)
-}
-
-func GetRegisteredUEContext(c *gin.Context) {
-	setCorsHeader(c)
-
-	logger.NMSLog.Infoln("Get Registered UE Context")
-
-	nmsSelf := NMS_Self()
-
-	supi, supiExists := c.Params.Get("supi")
-
-	// TODO: support fetching data from multiple AMFs
-	if amfUris := nmsSelf.GetOamUris(models.NfType_AMF); amfUris != nil {
-		var requestUri string
-
-		if supiExists {
-			requestUri = fmt.Sprintf("%s/namf-oam/v1/registered-ue-context/%s", amfUris[0], supi)
-		} else {
-			requestUri = fmt.Sprintf("%s/namf-oam/v1/registered-ue-context", amfUris[0])
-		}
-
-		resp, err := httpsClient.Get(requestUri)
-		if err != nil {
-			logger.NMSLog.Error(err)
-			c.JSON(http.StatusInternalServerError, gin.H{})
-			return
-		}
-		sendResponseToClient(c, resp)
-	} else {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"cause": "No AMF Found",
-		})
-	}
-}
-
-func GetUEPDUSessionInfo(c *gin.Context) {
-	setCorsHeader(c)
-
-	logger.NMSLog.Infoln("Get UE PDU Session Info")
-
-	nmsSelf := NMS_Self()
-
-	smContextRef, smContextRefExists := c.Params.Get("smContextRef")
-	if !smContextRefExists {
-		c.JSON(http.StatusBadRequest, gin.H{})
-		return
-	}
-
-	// TODO: support fetching data from multiple SMF
-	if smfUris := nmsSelf.GetOamUris(models.NfType_SMF); smfUris != nil {
-		requestUri := fmt.Sprintf("%s/nsmf-oam/v1/ue-pdu-session-info/%s", smfUris[0], smContextRef)
-		resp, err := httpsClient.Get(requestUri)
-		if err != nil {
-			logger.NMSLog.Error(err)
-			c.JSON(http.StatusInternalServerError, gin.H{})
-			return
-		}
-
-		sendResponseToClient(c, resp)
-	} else {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"cause": "No SMF Found",
-		})
-	}
 }

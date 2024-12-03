@@ -89,27 +89,6 @@ var routes = Routes{
 	},
 
 	{
-		"Registered UE Context",
-		http.MethodGet,
-		"/registered-ue-context",
-		GetRegisteredUEContext,
-	},
-
-	{
-		"Individual Registered UE Context",
-		http.MethodGet,
-		"/registered-ue-context/:supi",
-		GetRegisteredUEContext,
-	},
-
-	{
-		"UE PDU Session Info",
-		http.MethodGet,
-		"/ue-pdu-session-info/:smContextRef",
-		GetUEPDUSessionInfo,
-	},
-
-	{
 		"Index",
 		http.MethodGet,
 		"/",

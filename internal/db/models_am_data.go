@@ -71,7 +71,14 @@ type Nssai struct {
 	SingleNssais        []Snssai `json:"singleNssais,omitempty" yaml:"singleNssais" bson:"singleNssais" mapstructure:"SingleNssais"`
 }
 
+// type AmData struct {
+// 	UeId          string `json:"ueId"`
+// 	ServingPlmnId string `json:"servingPlmnId"`
+// }
+
 type AccessAndMobilitySubscriptionData struct {
+	UeId                        string                  `json:"ueId"`
+	ServingPlmnId               string                  `json:"servingPlmnId"`
 	SupportedFeatures           string                  `json:"supportedFeatures,omitempty" bson:"supportedFeatures"`
 	Gpsis                       []string                `json:"gpsis,omitempty" bson:"gpsis"`
 	InternalGroupIds            []string                `json:"internalGroupIds,omitempty" bson:"internalGroupIds"`
