@@ -19,7 +19,7 @@ func GetDeviceGroups(c *gin.Context) {
 	setCorsHeader(c)
 	deviceGroups, err := db.ListDeviceGroupNames()
 	if err != nil {
-		logger.DbLog.Warnln(err)
+		logger.NMSLog.Warnln(err)
 		c.JSON(http.StatusInternalServerError, nil)
 		return
 	}
@@ -171,7 +171,7 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	if slice != nil {
 		sVal, err := strconv.ParseUint(slice.SliceId.Sst, 10, 32)
 		if err != nil {
-			logger.DbLog.Errorf("Could not parse SST %v", slice.SliceId.Sst)
+			logger.NMSLog.Errorf("Could not parse SST %v", slice.SliceId.Sst)
 		}
 		snssai := &openAPIModels.Snssai{
 			Sd:  slice.SliceId.Sd,
@@ -215,7 +215,7 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	}
 	err = db.CreateDeviceGroup(dbDeviceGroup)
 	if err != nil {
-		logger.DbLog.Warnln(err)
+		logger.NMSLog.Warnln(err)
 		return false
 	}
 	updateSMF()
@@ -242,23 +242,23 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 			mnc := slice.SiteInfo.Plmn.Mnc
 			err := db.DeleteAmPolicy(imsi)
 			if err != nil {
-				logger.DbLog.Warnln(err)
+				logger.NMSLog.Warnln(err)
 			}
 			err = db.DeleteSmPolicy(imsi)
 			if err != nil {
-				logger.DbLog.Warnln(err)
+				logger.NMSLog.Warnln(err)
 			}
 			err = db.DeleteAmData(imsi, mcc, mnc)
 			if err != nil {
-				logger.DbLog.Warnln(err)
+				logger.NMSLog.Warnln(err)
 			}
 			err = db.DeleteSmData(imsi, mcc, mnc)
 			if err != nil {
-				logger.DbLog.Warnln(err)
+				logger.NMSLog.Warnln(err)
 			}
 			err = db.DeleteSmfSelf(imsi, mcc, mnc)
 			if err != nil {
-				logger.DbLog.Warnln(err)
+				logger.NMSLog.Warnln(err)
 			}
 		}
 	}
@@ -280,14 +280,14 @@ func isDeviceGroupExistInSlice(deviceGroupName string) *models.Slice {
 func getSlices() []*models.Slice {
 	rawSlices, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.SliceDataColl, nil)
 	if errGetMany != nil {
-		logger.DbLog.Warnln(errGetMany)
+		logger.NMSLog.Warnln(errGetMany)
 	}
 	var slices []*models.Slice
 	for _, rawSlice := range rawSlices {
 		var sliceData models.Slice
 		err := json.Unmarshal(mapToByte(rawSlice), &sliceData)
 		if err != nil {
-			logger.DbLog.Errorf("Could not unmarshall slice %v", rawSlice)
+			logger.NMSLog.Errorf("Could not unmarshall slice %v", rawSlice)
 		}
 		slices = append(slices, &sliceData)
 	}

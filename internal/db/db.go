@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/omec-project/util/mongoapi"
-	"github.com/yeastengine/ella/internal/nms/logger"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -69,12 +68,12 @@ ConnectMongo:
 		case <-ticker.C:
 			continue
 		case <-timer:
-			logger.DbLog.Errorln("Timed out while connecting to MongoDB in 3 minutes.")
+			DbLog.Errorln("Timed out while connecting to MongoDB in 3 minutes.")
 			return
 		}
 	}
 
-	logger.DbLog.Infoln("Connected to MongoDB.")
+	DbLog.Infoln("Connected to MongoDB.")
 }
 
 func (db *MongoDBClient) RestfulAPIGetOne(collName string, filter bson.M) (map[string]interface{}, error) {

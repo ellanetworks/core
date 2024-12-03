@@ -248,7 +248,7 @@ func GetSubscribers(c *gin.Context) {
 	var subsList []nmsModels.SubsListIE
 	amDataList, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.AmDataColl, bson.M{})
 	if errGetMany != nil {
-		logger.DbLog.Warnln(errGetMany)
+		logger.NMSLog.Warnln(errGetMany)
 	}
 	for _, amData := range amDataList {
 		tmp := nmsModels.SubsListIE{
@@ -279,27 +279,27 @@ func GetSubscriberByID(c *gin.Context) {
 
 	authSubsDataInterface, errGetOneAuth := db.CommonDBClient.RestfulAPIGetOne(db.AuthSubsDataColl, filterUeIdOnly)
 	if errGetOneAuth != nil {
-		logger.DbLog.Warnln(errGetOneAuth)
+		logger.NMSLog.Warnln(errGetOneAuth)
 	}
 	amDataDataInterface, errGetOneAmData := db.CommonDBClient.RestfulAPIGetOne(db.AmDataColl, filterUeIdOnly)
 	if errGetOneAmData != nil {
-		logger.DbLog.Warnln(errGetOneAmData)
+		logger.NMSLog.Warnln(errGetOneAmData)
 	}
 	smDataDataInterface, errGetManySmData := db.CommonDBClient.RestfulAPIGetMany(db.SmDataColl, filterUeIdOnly)
 	if errGetManySmData != nil {
-		logger.DbLog.Warnln(errGetManySmData)
+		logger.NMSLog.Warnln(errGetManySmData)
 	}
 	smfSelDataInterface, errGetOneSmfSel := db.CommonDBClient.RestfulAPIGetOne(db.SmfSelDataColl, filterUeIdOnly)
 	if errGetOneSmfSel != nil {
-		logger.DbLog.Warnln(errGetOneSmfSel)
+		logger.NMSLog.Warnln(errGetOneSmfSel)
 	}
 	amPolicyDataInterface, errGetOneAmPol := db.CommonDBClient.RestfulAPIGetOne(db.AmPolicyDataColl, filterUeIdOnly)
 	if errGetOneAmPol != nil {
-		logger.DbLog.Warnln(errGetOneAmPol)
+		logger.NMSLog.Warnln(errGetOneAmPol)
 	}
 	smPolicyDataInterface, errGetManySmPol := db.CommonDBClient.RestfulAPIGetOne(db.SmPolicyDataColl, filterUeIdOnly)
 	if errGetManySmPol != nil {
-		logger.DbLog.Warnln(errGetManySmPol)
+		logger.NMSLog.Warnln(errGetManySmPol)
 	}
 	var authSubsData models.AuthenticationSubscription
 	json.Unmarshal(mapToByte(authSubsDataInterface), &authSubsData)
@@ -387,14 +387,14 @@ func PostSubscriberByID(c *gin.Context) {
 	basicDataBson := toBsonM(basicAmData)
 	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, basicDataBson)
 	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+		logger.NMSLog.Warnln(errPost)
 	}
 	filter = bson.M{"ueId": ueId}
 	authDataBsonA := toBsonM(&authSubsData)
 	authDataBsonA["ueId"] = ueId
 	_, errPost = db.CommonDBClient.RestfulAPIPost(db.AuthSubsDataColl, filter, authDataBsonA)
 	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+		logger.NMSLog.Warnln(errPost)
 	}
 	logger.NMSLog.Infof("Created subscriber: %v", ueId)
 }
@@ -421,7 +421,7 @@ func PutSubscriberByID(c *gin.Context) {
 	basicDataBson := toBsonM(basicAmData)
 	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, basicDataBson)
 	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+		logger.NMSLog.Warnln(errPost)
 	}
 	logger.NMSLog.Debugln("Config5GUpdateHandle: Insert/Update AuthenticationSubscription ", ueId)
 	filter = bson.M{"ueId": ueId}
@@ -429,7 +429,7 @@ func PutSubscriberByID(c *gin.Context) {
 	authDataBsonA["ueId"] = ueId
 	_, errPost = db.CommonDBClient.RestfulAPIPost(db.AuthSubsDataColl, filter, authDataBsonA)
 	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+		logger.NMSLog.Warnln(errPost)
 	}
 	logger.NMSLog.Infof("Edited Subscriber: %v", ueId)
 }
@@ -447,11 +447,11 @@ func DeleteSubscriberByID(c *gin.Context) {
 	filter := bson.M{"ueId": "imsi-" + ueId}
 	errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.AuthSubsDataColl, filter)
 	if errDelOne != nil {
-		logger.DbLog.Warnln(errDelOne)
+		logger.NMSLog.Warnln(errDelOne)
 	}
 	errDel := db.CommonDBClient.RestfulAPIDeleteOne(db.AmDataColl, filter)
 	if errDel != nil {
-		logger.DbLog.Warnln(errDel)
+		logger.NMSLog.Warnln(errDel)
 	}
 	logger.NMSLog.Infof("Deleted Subscriber: %v", ueId)
 }

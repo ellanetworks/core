@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,7 +11,6 @@ import (
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/nms/logger"
 	"github.com/yeastengine/ella/internal/nms/models"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 func setInventoryCorsHeader(c *gin.Context) {
@@ -24,23 +22,19 @@ func setInventoryCorsHeader(c *gin.Context) {
 
 func GetGnbs(c *gin.Context) {
 	setInventoryCorsHeader(c)
-	logger.NMSLog.Infoln("Get all gNBs")
-
-	var gnbs []*models.Gnb
-	gnbs = make([]*models.Gnb, 0)
-	rawGnbs, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.GnbDataColl, bson.M{})
-	if errGetMany != nil {
-		logger.DbLog.Errorln(errGetMany)
-		c.JSON(http.StatusInternalServerError, gnbs)
+	dbGnbs, err := db.ListInventoryGnbs()
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+		c.JSON(http.StatusInternalServerError, nil)
+		return
 	}
-
-	for _, rawGnb := range rawGnbs {
-		var gnbData models.Gnb
-		err := json.Unmarshal(mapToByte(rawGnb), &gnbData)
-		if err != nil {
-			logger.DbLog.Errorf("Could not unmarshall gNB %v", rawGnb)
+	gnbs := make([]*models.Gnb, 0)
+	for _, dbGnb := range dbGnbs {
+		gnb := models.Gnb{
+			Name: dbGnb.Name,
+			Tac:  dbGnb.Tac,
 		}
-		gnbs = append(gnbs, &gnbData)
+		gnbs = append(gnbs, &gnb)
 	}
 	c.JSON(http.StatusOK, gnbs)
 }
@@ -92,12 +86,11 @@ func handlePostGnb(c *gin.Context) error {
 	req := httpwrapper.NewRequest(c.Request, newGnb)
 	procReq := req.Body.(models.Gnb)
 	procReq.Name = gnbName
-	filter := bson.M{"name": gnbName}
-	gnbDataBson := toBsonM(&procReq)
-	_, errPost := db.CommonDBClient.RestfulAPIPost(db.GnbDataColl, filter, gnbDataBson)
-	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+	dbGnb := &db.Gnb{
+		Name: procReq.Name,
+		Tac:  procReq.Tac,
 	}
+	db.CreateGnb(dbGnb)
 	logger.ConfigLog.Infof("created gnb %v", gnbName)
 	return nil
 }
@@ -110,11 +103,9 @@ func handleDeleteGnb(c *gin.Context) error {
 		logger.ConfigLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
-	logger.ConfigLog.Infof("Received delete gNB %v request", gnbName)
-	filter := bson.M{"name": gnbName}
-	errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.GnbDataColl, filter)
-	if errDelOne != nil {
-		logger.DbLog.Warnln(errDelOne)
+	err := db.DeleteGnb(gnbName)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
 	}
 	logger.ConfigLog.Infof("Deleted gnb %v", gnbName)
 	return nil

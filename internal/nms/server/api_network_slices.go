@@ -35,7 +35,7 @@ func ListNetworkSlices() []string {
 	var networkSlices []string = make([]string, 0)
 	rawNetworkSlices, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.SliceDataColl, bson.M{})
 	if errGetMany != nil {
-		logger.DbLog.Warnln(errGetMany)
+		logger.NMSLog.Warnln(errGetMany)
 	}
 	for _, rawNetworkSlice := range rawNetworkSlices {
 		if rawNetworkSlice["slice-name"] == nil {
@@ -59,7 +59,7 @@ func GetNetworkSliceByName2(sliceName string) models.Slice {
 	filter := bson.M{"slice-name": sliceName}
 	rawNetworkSlice, err := db.CommonDBClient.RestfulAPIGetOne(db.SliceDataColl, filter)
 	if err != nil {
-		logger.DbLog.Warnln(err)
+		logger.NMSLog.Warnln(err)
 	}
 	json.Unmarshal(mapToByte(rawNetworkSlice), &networkSlice)
 	return networkSlice
@@ -127,7 +127,7 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 	filter := bson.M{"slice-name": sliceName}
 	errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.SliceDataColl, filter)
 	if errDelOne != nil {
-		logger.DbLog.Warnln(errDelOne)
+		logger.NMSLog.Warnln(errDelOne)
 	}
 	dgnames := getDeleteGroupsList(nil, prevSlice)
 	for _, dgname := range dgnames {
@@ -140,23 +140,23 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 				filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
 				errDelOneAmPol := db.CommonDBClient.RestfulAPIDeleteOne(db.AmPolicyDataColl, filterImsiOnly)
 				if errDelOneAmPol != nil {
-					logger.DbLog.Warnln(errDelOneAmPol)
+					logger.NMSLog.Warnln(errDelOneAmPol)
 				}
 				errDelOneSmPol := db.CommonDBClient.RestfulAPIDeleteOne(db.SmPolicyDataColl, filterImsiOnly)
 				if errDelOneSmPol != nil {
-					logger.DbLog.Warnln(errDelOneSmPol)
+					logger.NMSLog.Warnln(errDelOneSmPol)
 				}
 				errDelOneAmData := db.CommonDBClient.RestfulAPIDeleteOne(db.AmDataColl, filter)
 				if errDelOneAmData != nil {
-					logger.DbLog.Warnln(errDelOneAmData)
+					logger.NMSLog.Warnln(errDelOneAmData)
 				}
 				errDelOneSmData := db.CommonDBClient.RestfulAPIDeleteOne(db.SmDataColl, filter)
 				if errDelOneSmData != nil {
-					logger.DbLog.Warnln(errDelOneSmData)
+					logger.NMSLog.Warnln(errDelOneSmData)
 				}
 				errDelOneSmfSel := db.CommonDBClient.RestfulAPIDeleteOne(db.SmfSelDataColl, filter)
 				if errDelOneSmfSel != nil {
-					logger.DbLog.Warnln(errDelOneSmfSel)
+					logger.NMSLog.Warnln(errDelOneSmfSel)
 				}
 			}
 		}
@@ -213,7 +213,7 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 	procReq.SliceName = sliceName
 	sVal, err := strconv.ParseUint(procReq.SliceId.Sst, 10, 32)
 	if err != nil {
-		logger.DbLog.Errorf("Could not parse SST %v", procReq.SliceId.Sst)
+		logger.NMSLog.Errorf("Could not parse SST %v", procReq.SliceId.Sst)
 	}
 	snssai := &openAPIModels.Snssai{
 		Sd:  procReq.SliceId.Sd,
@@ -262,7 +262,7 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 	sliceDataBsonA := toBsonM(&procReq)
 	_, errPost := db.CommonDBClient.RestfulAPIPost(db.SliceDataColl, filter, sliceDataBsonA)
 	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+		logger.NMSLog.Warnln(errPost)
 	}
 	updateSMF()
 	logger.ConfigLog.Infof("Created Network Slice: %v", sliceName)
@@ -273,12 +273,12 @@ func getSliceByName(name string) *models.Slice {
 	filter := bson.M{"slice-name": name}
 	sliceDataInterface, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SliceDataColl, filter)
 	if errGetOne != nil {
-		logger.DbLog.Warnln(errGetOne)
+		logger.NMSLog.Warnln(errGetOne)
 	}
 	var sliceData models.Slice
 	err := json.Unmarshal(mapToByte(sliceDataInterface), &sliceData)
 	if err != nil {
-		logger.DbLog.Errorf("Could not unmarshall slice %v", sliceDataInterface)
+		logger.NMSLog.Errorf("Could not unmarshall slice %v", sliceDataInterface)
 	}
 	return &sliceData
 }
@@ -291,7 +291,7 @@ func updateAmPolicyData(imsi string) {
 	filter := bson.M{"ueId": "imsi-" + imsi}
 	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmPolicyDataColl, filter, amPolicyDatBsonA)
 	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+		logger.NMSLog.Warnln(errPost)
 	}
 }
 
@@ -313,7 +313,7 @@ func updateSmPolicyData(snssai *openAPIModels.Snssai, dnn string, imsi string) {
 	filter := bson.M{"ueId": "imsi-" + imsi}
 	_, errPost := db.CommonDBClient.RestfulAPIPost(db.SmPolicyDataColl, filter, smPolicyDatBsonA)
 	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+		logger.NMSLog.Warnln(errPost)
 	}
 }
 
@@ -343,7 +343,7 @@ func updateAmProvisionedData(snssai *openAPIModels.Snssai, qos *models.DeviceGro
 	}
 	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, amDataBsonA)
 	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+		logger.NMSLog.Warnln(errPost)
 	}
 }
 
@@ -383,7 +383,7 @@ func updateSmProvisionedData(snssai *openAPIModels.Snssai, qos *models.DeviceGro
 	filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
 	_, errPost := db.CommonDBClient.RestfulAPIPost(db.SmDataColl, filter, smDataBsonA)
 	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+		logger.NMSLog.Warnln(errPost)
 	}
 }
 
@@ -405,7 +405,7 @@ func updateSmfSelectionProviosionedData(snssai *openAPIModels.Snssai, mcc, mnc, 
 	filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
 	_, errPost := db.CommonDBClient.RestfulAPIPost(db.SmfSelDataColl, filter, smfSelecDataBsonA)
 	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+		logger.NMSLog.Warnln(errPost)
 	}
 }
 
@@ -468,7 +468,7 @@ func updateSMF() {
 	deviceGroups := make([]models.DeviceGroups, 0)
 	deviceGroupNames, err := db.ListDeviceGroupNames()
 	if err != nil {
-		logger.DbLog.Warnln(err)
+		logger.NMSLog.Warnln(err)
 	}
 	for _, deviceGroupName := range deviceGroupNames {
 		dbDeviceGroup := db.GetDeviceGroupByName(deviceGroupName)

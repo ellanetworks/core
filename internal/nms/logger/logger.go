@@ -14,7 +14,6 @@ var (
 	GinLog      *zap.SugaredLogger
 	GrpcLog     *zap.SugaredLogger
 	ConfigLog   *zap.SugaredLogger
-	DbLog       *zap.SugaredLogger
 	AuthLog     *zap.SugaredLogger
 	atomicLevel zap.AtomicLevel
 )
@@ -52,7 +51,6 @@ func init() {
 	GinLog = log.Sugar().With("component", "NMS", "category", "GIN")
 	GrpcLog = log.Sugar().With("component", "NMS", "category", "GRPC")
 	ConfigLog = log.Sugar().With("component", "NMS", "category", "CONFIG")
-	DbLog = log.Sugar().With("component", "NMS", "category", "DB")
 	AuthLog = log.Sugar().With("component", "NMS", "category", "Auth")
 }
 
