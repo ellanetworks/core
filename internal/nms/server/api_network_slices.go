@@ -31,49 +31,87 @@ func init() {
 	imsiData = make(map[string]*openAPIModels.AuthenticationSubscription)
 }
 
-func ListNetworkSlices() []string {
-	var networkSlices []string = make([]string, 0)
-	rawNetworkSlices, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.SliceDataColl, bson.M{})
-	if errGetMany != nil {
-		logger.NMSLog.Warnln(errGetMany)
-	}
-	for _, rawNetworkSlice := range rawNetworkSlices {
-		if rawNetworkSlice["slice-name"] == nil {
-			logger.ConfigLog.Errorf("slice-name is nil")
-			continue
-		}
-		networkSlices = append(networkSlices, rawNetworkSlice["slice-name"].(string))
-	}
-	return networkSlices
-}
-
 func GetNetworkSlices(c *gin.Context) {
 	setCorsHeader(c)
-	logger.NMSLog.Infoln("List Network Slices")
-	networkSlices := ListNetworkSlices()
+	networkSlices, err := db.ListNetworkSliceNames()
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+		c.JSON(http.StatusInternalServerError, nil)
+		return
+	}
 	c.JSON(http.StatusOK, networkSlices)
 }
 
-func GetNetworkSliceByName2(sliceName string) models.Slice {
-	var networkSlice models.Slice
-	filter := bson.M{"slice-name": sliceName}
-	rawNetworkSlice, err := db.CommonDBClient.RestfulAPIGetOne(db.SliceDataColl, filter)
-	if err != nil {
-		logger.NMSLog.Warnln(err)
+func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *db.Slice) models.Slice {
+	networkSlice := models.Slice{
+		SliceName: dbNetworkSlice.SliceName,
+		SliceId: models.SliceSliceId{
+			Sst: dbNetworkSlice.SliceId.Sst,
+			Sd:  dbNetworkSlice.SliceId.Sd,
+		},
+		SiteDeviceGroup: dbNetworkSlice.SiteDeviceGroup,
+		SiteInfo: models.SliceSiteInfo{
+			SiteName: dbNetworkSlice.SiteInfo.SiteName,
+			Plmn: models.SliceSiteInfoPlmn{
+				Mcc: dbNetworkSlice.SiteInfo.Plmn.Mcc,
+				Mnc: dbNetworkSlice.SiteInfo.Plmn.Mnc,
+			},
+			GNodeBs: make([]models.SliceSiteInfoGNodeBs, 0),
+			Upf:     make(map[string]interface{}),
+		},
+		ApplicationFilteringRules: make([]models.SliceApplicationFilteringRules, 0),
 	}
-	json.Unmarshal(mapToByte(rawNetworkSlice), &networkSlice)
+	for _, dbGnb := range dbNetworkSlice.SiteInfo.GNodeBs {
+		gnb := models.SliceSiteInfoGNodeBs{
+			Name: dbGnb.Name,
+			Tac:  dbGnb.Tac,
+		}
+		networkSlice.SiteInfo.GNodeBs = append(networkSlice.SiteInfo.GNodeBs, gnb)
+	}
+	for key, value := range dbNetworkSlice.SiteInfo.Upf {
+		networkSlice.SiteInfo.Upf[key] = value
+	}
+	for _, dbAppFilterRule := range dbNetworkSlice.ApplicationFilteringRules {
+		appFilterRule := models.SliceApplicationFilteringRules{
+			RuleName:       dbAppFilterRule.RuleName,
+			Priority:       dbAppFilterRule.Priority,
+			Action:         dbAppFilterRule.Action,
+			Endpoint:       dbAppFilterRule.Endpoint,
+			Protocol:       dbAppFilterRule.Protocol,
+			StartPort:      dbAppFilterRule.StartPort,
+			EndPort:        dbAppFilterRule.EndPort,
+			AppMbrUplink:   dbAppFilterRule.AppMbrUplink,
+			AppMbrDownlink: dbAppFilterRule.AppMbrDownlink,
+			BitrateUnit:    dbAppFilterRule.BitrateUnit,
+			TrafficClass: &models.TrafficClassInfo{
+				Name: dbAppFilterRule.TrafficClass.Name,
+				Qci:  dbAppFilterRule.TrafficClass.Qci,
+				Arp:  dbAppFilterRule.TrafficClass.Arp,
+				Pdb:  dbAppFilterRule.TrafficClass.Pdb,
+				Pelr: dbAppFilterRule.TrafficClass.Pelr,
+			},
+			RuleTrigger: dbAppFilterRule.RuleTrigger,
+		}
+		networkSlice.ApplicationFilteringRules = append(networkSlice.ApplicationFilteringRules, appFilterRule)
+	}
 	return networkSlice
 }
 
 func GetNetworkSliceByName(c *gin.Context) {
 	setCorsHeader(c)
 	logger.NMSLog.Infoln("Get Network Slice by name")
-	networkSlice := GetNetworkSliceByName2(c.Param("slice-name"))
-	if networkSlice.SliceName == "" {
-		c.JSON(http.StatusNotFound, nil)
-	} else {
-		c.JSON(http.StatusOK, networkSlice)
+	dbNetworkSlice, err := db.GetNetworkSliceByName(c.Param("slice-name"))
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+		c.JSON(http.StatusInternalServerError, nil)
+		return
 	}
+	if dbNetworkSlice.SliceName == "" {
+		c.JSON(http.StatusNotFound, nil)
+		return
+	}
+	networkSlice := convertDBNetworkSliceToNetworkSlice(dbNetworkSlice)
+	c.JSON(http.StatusOK, networkSlice)
 }
 
 // NetworkSliceSliceNameDelete -
@@ -460,9 +498,17 @@ func SnssaiModelsToHex(snssai openAPIModels.Snssai) string {
 
 func updateSMF() {
 	networkSlices := make([]models.Slice, 0)
-	networkSliceNames := ListNetworkSlices()
+	networkSliceNames, err := db.ListNetworkSliceNames()
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+	}
 	for _, networkSliceName := range networkSliceNames {
-		networkSlice := GetNetworkSliceByName2(networkSliceName)
+		dbNetworkSlice, err := db.GetNetworkSliceByName(networkSliceName)
+		if err != nil {
+			logger.NMSLog.Warnln(err)
+			continue
+		}
+		networkSlice := convertDBNetworkSliceToNetworkSlice(dbNetworkSlice)
 		networkSlices = append(networkSlices, networkSlice)
 	}
 	deviceGroups := make([]models.DeviceGroups, 0)
