@@ -6,16 +6,21 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func ListDeviceGroupNames() []string {
+func ListDeviceGroupNames() ([]string, error) {
 	var deviceGroups []string = make([]string, 0)
 	rawDeviceGroups, errGetMany := CommonDBClient.RestfulAPIGetMany(DevGroupDataColl, bson.M{})
 	if errGetMany != nil {
-		DbLog.Warnln(errGetMany)
+		return nil, errGetMany
 	}
 	for _, rawDeviceGroup := range rawDeviceGroups {
-		deviceGroups = append(deviceGroups, rawDeviceGroup["group-name"].(string))
+		groupName, err := rawDeviceGroup["group-name"].(string)
+		if !err {
+			DbLog.Warnf("Could not get group-name from %v", rawDeviceGroup)
+			continue
+		}
+		deviceGroups = append(deviceGroups, groupName)
 	}
-	return deviceGroups
+	return deviceGroups, nil
 }
 
 func GetDeviceGroupByName(name string) *DeviceGroup {

@@ -17,7 +17,12 @@ import (
 
 func GetDeviceGroups(c *gin.Context) {
 	setCorsHeader(c)
-	deviceGroups := db.ListDeviceGroupNames()
+	deviceGroups, err := db.ListDeviceGroupNames()
+	if err != nil {
+		logger.DbLog.Warnln(err)
+		c.JSON(http.StatusInternalServerError, nil)
+		return
+	}
 	c.JSON(http.StatusOK, deviceGroups)
 }
 

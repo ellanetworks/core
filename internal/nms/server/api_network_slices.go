@@ -466,7 +466,10 @@ func updateSMF() {
 		networkSlices = append(networkSlices, networkSlice)
 	}
 	deviceGroups := make([]models.DeviceGroups, 0)
-	deviceGroupNames := db.ListDeviceGroupNames()
+	deviceGroupNames, err := db.ListDeviceGroupNames()
+	if err != nil {
+		logger.DbLog.Warnln(err)
+	}
 	for _, deviceGroupName := range deviceGroupNames {
 		dbDeviceGroup := db.GetDeviceGroupByName(deviceGroupName)
 		deviceGroup := models.DeviceGroups{
