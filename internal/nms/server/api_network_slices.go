@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	openAPIModels "github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/ella/internal/nms/db"
+	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/nms/logger"
 	"github.com/yeastengine/ella/internal/nms/models"
 	"github.com/yeastengine/ella/internal/smf/context"
@@ -131,7 +131,7 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 	}
 	dgnames := getDeleteGroupsList(nil, prevSlice)
 	for _, dgname := range dgnames {
-		devGroupConfig := getDeviceGroupByName(dgname)
+		devGroupConfig := db.GetDeviceGroupByName(dgname)
 		if devGroupConfig != nil {
 			for _, imsi := range devGroupConfig.Imsis {
 				mcc := prevSlice.SiteInfo.Plmn.Mcc
@@ -220,17 +220,40 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		Sst: int32(sVal),
 	}
 	for _, dgName := range procReq.SiteDeviceGroup {
-		logger.ConfigLog.Infoln("dgName : ", dgName)
-		devGroupConfig := getDeviceGroupByName(dgName)
-		if devGroupConfig != nil {
-			for _, imsi := range devGroupConfig.Imsis {
-				dnn := devGroupConfig.IpDomainExpanded.Dnn
+		dbDeviceGroup := db.GetDeviceGroupByName(dgName)
+		deviceGroup := &models.DeviceGroups{
+			DeviceGroupName: dbDeviceGroup.DeviceGroupName,
+			Imsis:           dbDeviceGroup.Imsis,
+			SiteInfo:        dbDeviceGroup.SiteInfo,
+			IpDomainName:    dbDeviceGroup.IpDomainName,
+			IpDomainExpanded: models.DeviceGroupsIpDomainExpanded{
+				Dnn:          dbDeviceGroup.IpDomainExpanded.Dnn,
+				UeIpPool:     dbDeviceGroup.IpDomainExpanded.UeIpPool,
+				DnsPrimary:   dbDeviceGroup.IpDomainExpanded.DnsPrimary,
+				DnsSecondary: dbDeviceGroup.IpDomainExpanded.DnsSecondary,
+				UeDnnQos: &models.DeviceGroupsIpDomainExpandedUeDnnQos{
+					DnnMbrDownlink: dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink,
+					DnnMbrUplink:   dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink,
+					BitrateUnit:    dbDeviceGroup.IpDomainExpanded.UeDnnQos.BitrateUnit,
+					TrafficClass: &models.TrafficClassInfo{
+						Name: dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Name,
+						Qci:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
+						Arp:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Arp,
+						Pdb:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Pdb,
+						Pelr: dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
+					},
+				},
+			},
+		}
+		if deviceGroup != nil {
+			for _, imsi := range deviceGroup.Imsis {
+				dnn := deviceGroup.IpDomainExpanded.Dnn
 				mcc := procReq.SiteInfo.Plmn.Mcc
 				mnc := procReq.SiteInfo.Plmn.Mnc
 				updateAmPolicyData(imsi)
 				updateSmPolicyData(snssai, dnn, imsi)
-				updateAmProvisionedData(snssai, devGroupConfig.IpDomainExpanded.UeDnnQos, mcc, mnc, imsi)
-				updateSmProvisionedData(snssai, devGroupConfig.IpDomainExpanded.UeDnnQos, mcc, mnc, dnn, imsi)
+				updateAmProvisionedData(snssai, deviceGroup.IpDomainExpanded.UeDnnQos, mcc, mnc, imsi)
+				updateSmProvisionedData(snssai, deviceGroup.IpDomainExpanded.UeDnnQos, mcc, mnc, dnn, imsi)
 				updateSmfSelectionProviosionedData(snssai, mcc, mnc, dnn, imsi)
 			}
 		}
@@ -244,20 +267,6 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 	updateSMF()
 	logger.ConfigLog.Infof("Created Network Slice: %v", sliceName)
 	return true
-}
-
-func getDeviceGroupByName(name string) *models.DeviceGroups {
-	filter := bson.M{"group-name": name}
-	devGroupDataInterface, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.DevGroupDataColl, filter)
-	if errGetOne != nil {
-		logger.DbLog.Warnln(errGetOne)
-	}
-	var devGroupData models.DeviceGroups
-	err := json.Unmarshal(mapToByte(devGroupDataInterface), &devGroupData)
-	if err != nil {
-		logger.DbLog.Errorf("Could not unmarshall device group %v", devGroupDataInterface)
-	}
-	return &devGroupData
 }
 
 func getSliceByName(name string) *models.Slice {
@@ -457,9 +466,33 @@ func updateSMF() {
 		networkSlices = append(networkSlices, networkSlice)
 	}
 	deviceGroups := make([]models.DeviceGroups, 0)
-	deviceGroupNames := ListDeviceGroups()
+	deviceGroupNames := db.ListDeviceGroupNames()
 	for _, deviceGroupName := range deviceGroupNames {
-		deviceGroup := GetDeviceGroupByName2(deviceGroupName)
+		dbDeviceGroup := db.GetDeviceGroupByName(deviceGroupName)
+		deviceGroup := models.DeviceGroups{
+			DeviceGroupName: dbDeviceGroup.DeviceGroupName,
+			Imsis:           dbDeviceGroup.Imsis,
+			SiteInfo:        dbDeviceGroup.SiteInfo,
+			IpDomainName:    dbDeviceGroup.IpDomainName,
+			IpDomainExpanded: models.DeviceGroupsIpDomainExpanded{
+				Dnn:          dbDeviceGroup.IpDomainExpanded.Dnn,
+				UeIpPool:     dbDeviceGroup.IpDomainExpanded.UeIpPool,
+				DnsPrimary:   dbDeviceGroup.IpDomainExpanded.DnsPrimary,
+				DnsSecondary: dbDeviceGroup.IpDomainExpanded.DnsSecondary,
+				UeDnnQos: &models.DeviceGroupsIpDomainExpandedUeDnnQos{
+					DnnMbrDownlink: dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink,
+					DnnMbrUplink:   dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink,
+					BitrateUnit:    dbDeviceGroup.IpDomainExpanded.UeDnnQos.BitrateUnit,
+					TrafficClass: &models.TrafficClassInfo{
+						Name: dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Name,
+						Qci:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
+						Arp:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Arp,
+						Pdb:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Pdb,
+						Pelr: dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
+					},
+				},
+			},
+		}
 		deviceGroups = append(deviceGroups, deviceGroup)
 	}
 	context.UpdateSMFContext(networkSlices, deviceGroups)

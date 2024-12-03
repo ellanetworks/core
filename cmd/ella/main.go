@@ -40,7 +40,7 @@ func startNetwork(cfg config.Config) error {
 	smfUrl := "http://127.0.0.1:29502"
 	udmUrl := "http://127.0.0.1:29503"
 	udrUrl := "http://127.0.0.1:29504"
-	_, err := nms.Start(cfg.DB.Url, cfg.DB.Name)
+	_, err := nms.Start()
 	if err != nil {
 		return err
 	}
@@ -89,9 +89,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("invalid config: %v", err)
 	}
-	err = db.TestConnection(cfg.DB.Url)
+	err = db.Initialize(cfg.DB.Url, cfg.DB.Name)
 	if err != nil {
-		log.Fatalf("failed to connect to MongoDB: %v", err)
+		log.Fatalf("failed to initialize db: %v", err)
 	}
 	err = startNetwork(cfg)
 	if err != nil {

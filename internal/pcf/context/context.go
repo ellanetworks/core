@@ -10,6 +10,7 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
+	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/nms/server"
 	"github.com/yeastengine/ella/internal/pcf/factory"
 	"github.com/yeastengine/ella/internal/pcf/logger"
@@ -423,7 +424,7 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 		pccPolicyId := networkSlice.SliceId.Sst + networkSlice.SliceId.Sd
 		deviceGroupNames := networkSlice.SiteDeviceGroup
 		for _, devGroupName := range deviceGroupNames {
-			deviceGroup := server.GetDeviceGroupByName2(devGroupName)
+			deviceGroup := db.GetDeviceGroupByName(devGroupName)
 			for _, imsi := range deviceGroup.Imsis {
 				if _, exists := subscriberPolicies[imsi]; !exists {
 					subscriberPolicies[imsi] = &PcfSubscriberPolicyData{

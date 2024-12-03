@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/nms/db"
+	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/nms/logger"
 	nmsModels "github.com/yeastengine/ella/internal/nms/models"
 	"go.mongodb.org/mongo-driver/bson"

@@ -8,7 +8,6 @@ import (
 	"github.com/gin-contrib/cors"
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/nms/config"
-	"github.com/yeastengine/ella/internal/nms/db"
 	"github.com/yeastengine/ella/internal/nms/logger"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -18,10 +17,10 @@ type NMS struct{}
 
 func (nms *NMS) Initialize(c config.Configuration) {
 	config.InitConfigFactory(c)
-	nms.setLogLevel()
+	setLogLevel()
 }
 
-func (nms *NMS) setLogLevel() {
+func setLogLevel() {
 	if level, err := zapcore.ParseLevel(config.Config.Logger.WEBUI.DebugLevel); err != nil {
 		logger.InitLog.Warnf("NMS Log level [%s] is invalid, set to [info] level",
 			config.Config.Logger.WEBUI.DebugLevel)
@@ -33,10 +32,6 @@ func (nms *NMS) setLogLevel() {
 }
 
 func (nms *NMS) Start() {
-	mongodb := config.Config.Mongodb
-
-	db.ConnectMongo(mongodb.Url, mongodb.Name)
-
 	subconfig_router := logger_util.NewGinWithZap(logger.GinLog)
 	AddUiService(subconfig_router)
 	AddService(subconfig_router)

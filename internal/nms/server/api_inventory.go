@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/ella/internal/nms/db"
+	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/nms/logger"
 	"github.com/yeastengine/ella/internal/nms/models"
 	"go.mongodb.org/mongo-driver/bson"
@@ -98,7 +98,6 @@ func handlePostGnb(c *gin.Context) error {
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
-	updateSMF()
 	logger.ConfigLog.Infof("created gnb %v", gnbName)
 	return nil
 }
