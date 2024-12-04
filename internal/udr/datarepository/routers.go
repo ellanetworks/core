@@ -254,48 +254,6 @@ var routes = Routes{
 	},
 
 	{
-		"HTTPPolicyDataBdtDataBdtReferenceIdDelete",
-		strings.ToUpper("Delete"),
-		"/policy-data/bdt-data/:bdtReferenceId",
-		HTTPPolicyDataBdtDataBdtReferenceIdDelete,
-	},
-
-	{
-		"HTTPPolicyDataBdtDataBdtReferenceIdGet",
-		strings.ToUpper("Get"),
-		"/policy-data/bdt-data/:bdtReferenceId",
-		HTTPPolicyDataBdtDataBdtReferenceIdGet,
-	},
-
-	{
-		"HTTPPolicyDataBdtDataBdtReferenceIdPut",
-		strings.ToUpper("Put"),
-		"/policy-data/bdt-data/:bdtReferenceId",
-		HTTPPolicyDataBdtDataBdtReferenceIdPut,
-	},
-
-	{
-		"HTTPPolicyDataBdtDataGet",
-		strings.ToUpper("Get"),
-		"/policy-data/bdt-data",
-		HTTPPolicyDataBdtDataGet,
-	},
-
-	{
-		"HTTPPolicyDataPlmnsPlmnIdUePolicySetGet",
-		strings.ToUpper("Get"),
-		"/policy-data/plmns/:plmnId/ue-policy-set",
-		HTTPPolicyDataPlmnsPlmnIdUePolicySetGet,
-	},
-
-	{
-		"HTTPPolicyDataSponsorConnectivityDataSponsorIdGet",
-		strings.ToUpper("Get"),
-		"/policy-data/sponsor-connectivity-data/:sponsorId",
-		HTTPPolicyDataSponsorConnectivityDataSponsorIdGet,
-	},
-
-	{
 		"HTTPPolicyDataSubsToNotifyPost",
 		strings.ToUpper("Post"),
 		"/policy-data/subs-to-notify",
@@ -324,80 +282,10 @@ var routes = Routes{
 	},
 
 	{
-		"HTTPPolicyDataUesUeIdOperatorSpecificDataGet",
-		strings.ToUpper("Get"),
-		"/policy-data/ues/:ueId/operator-specific-data",
-		HTTPPolicyDataUesUeIdOperatorSpecificDataGet,
-	},
-
-	{
-		"HTTPPolicyDataUesUeIdOperatorSpecificDataPatch",
-		strings.ToUpper("Patch"),
-		"/policy-data/ues/:ueId/operator-specific-data",
-		HTTPPolicyDataUesUeIdOperatorSpecificDataPatch,
-	},
-
-	{
-		"HTTPPolicyDataUesUeIdOperatorSpecificDataPut",
-		strings.ToUpper("Put"),
-		"/policy-data/ues/:ueId/operator-specific-data",
-		HTTPPolicyDataUesUeIdOperatorSpecificDataPut,
-	},
-
-	{
 		"HTTPPolicyDataUesUeIdSmDataGet",
 		strings.ToUpper("Get"),
 		"/policy-data/ues/:ueId/sm-data",
 		HTTPPolicyDataUesUeIdSmDataGet,
-	},
-
-	{
-		"HTTPPolicyDataUesUeIdSmDataPatch",
-		strings.ToUpper("Patch"),
-		"/policy-data/ues/:ueId/sm-data",
-		HTTPPolicyDataUesUeIdSmDataPatch,
-	},
-
-	{
-		"HTTPPolicyDataUesUeIdSmDataUsageMonIdDelete",
-		strings.ToUpper("Delete"),
-		"/policy-data/ues/:ueId/sm-data/:usageMonId",
-		HTTPPolicyDataUesUeIdSmDataUsageMonIdDelete,
-	},
-
-	{
-		"HTTPPolicyDataUesUeIdSmDataUsageMonIdGet",
-		strings.ToUpper("Get"),
-		"/policy-data/ues/:ueId/sm-data/:usageMonId",
-		HTTPPolicyDataUesUeIdSmDataUsageMonIdGet,
-	},
-
-	{
-		"HTTPPolicyDataUesUeIdSmDataUsageMonIdPut",
-		strings.ToUpper("Put"),
-		"/policy-data/ues/:ueId/sm-data/:usageMonId",
-		HTTPPolicyDataUesUeIdSmDataUsageMonIdPut,
-	},
-
-	{
-		"HTTPPolicyDataUesUeIdUePolicySetGet",
-		strings.ToUpper("Get"),
-		"/policy-data/ues/:ueId/ue-policy-set",
-		HTTPPolicyDataUesUeIdUePolicySetGet,
-	},
-
-	{
-		"HTTPPolicyDataUesUeIdUePolicySetPatch",
-		strings.ToUpper("Patch"),
-		"/policy-data/ues/:ueId/ue-policy-set",
-		HTTPPolicyDataUesUeIdUePolicySetPatch,
-	},
-
-	{
-		"HTTPPolicyDataUesUeIdUePolicySetPut",
-		strings.ToUpper("Put"),
-		"/policy-data/ues/:ueId/ue-policy-set",
-		HTTPPolicyDataUesUeIdUePolicySetPut,
 	},
 
 	{

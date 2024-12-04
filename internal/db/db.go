@@ -38,14 +38,8 @@ const (
 	SUBSCDATA_SHARED                     = "subscriptionData.sharedData"
 	SUBSCDATA_UEUPDATECONFIRMATION_SOR   = "subscriptionData.ueUpdateConfirmationData.sorData"
 
-	AmPolicyDataColl                   = "policyData.ues.amData" // Used
-	SmPolicyDataColl                   = "policyData.ues.smData" // Used
-	POLICYDATA_BDTDATA                 = "policyData.bdtData"
-	POLICYDATA_UES_OPSPECDATA          = "policyData.ues.operatorSpecificData"
-	POLICYDATA_UES_SMDATA_USAGEMONDATA = "policyData.ues.smData.usageMonData"
-	POLICYDATA_UES_UEPOLICYSET         = "policyData.ues.uePolicySet"
-	POLICYDATA_PLMNs_UEPOLICYSET       = "policyData.plmns.uePolicySet"
-	POLICYDATA_SPONSORS                = "policyData.sponsorConnectivityData"
+	AmPolicyDataColl = "policyData.ues.amData" // Used
+	SmPolicyDataColl = "policyData.ues.smData" // Used
 )
 
 type DBInterface interface {
