@@ -34,23 +34,3 @@ func SendOnDataChangeNotify(ueId string, notifyItems []models.NotifyItem) {
 		}
 	}
 }
-
-func SendPolicyDataChangeNotification(policyDataChangeNotification models.PolicyDataChangeNotification) {
-	udrSelf := udr_context.UDR_Self()
-
-	for _, policyDataSubscription := range udrSelf.PolicyDataSubscriptions {
-		policyDataChangeNotificationUrl := policyDataSubscription.NotificationUri
-
-		configuration := Nudr_DataRepository.NewConfiguration()
-		client := Nudr_DataRepository.NewAPIClient(configuration)
-		httpResponse, err := client.PolicyDataChangeNotificationCallbackDocumentApi.PolicyDataChangeNotification(
-			context.TODO(), policyDataChangeNotificationUrl, policyDataChangeNotification)
-		if err != nil {
-			if httpResponse == nil {
-				logger.HttpLog.Errorln(err.Error())
-			} else if err.Error() != httpResponse.Status {
-				logger.HttpLog.Errorln(err.Error())
-			}
-		}
-	}
-}

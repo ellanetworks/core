@@ -17,20 +17,23 @@ const (
 	SliceDataColl    = "webconsoleData.snapshots.sliceData"
 	GnbDataColl      = "webconsoleData.snapshots.gnbData"
 
-	AuthSubsDataColl = "subscriptionData.authenticationData.authenticationSubscription"
-	AmDataColl       = "subscriptionData.provisionedData.amData"
-	SmDataColl       = "subscriptionData.provisionedData.smData"
-	SmfSelDataColl   = "subscriptionData.provisionedData.smfSelectionSubscriptionData"
+	AuthSubsDataColl                 = "subscriptionData.authenticationData.authenticationSubscription"
+	SUBSCDATA_AUT_AUTHSTATUS         = "subscriptionData.authenticationData.authenticationStatus"
+	AmDataColl                       = "subscriptionData.provisionedData.amData"
+	SmDataColl                       = "subscriptionData.provisionedData.smData"
+	SmfSelDataColl                   = "subscriptionData.provisionedData.smfSelectionSubscriptionData"
+	SUBSCDATA_CTXDATA_AMF_3GPPACCESS = "subscriptionData.contextData.amf3gppAccess"
 
 	AmPolicyDataColl = "policyData.ues.amData"
 	SmPolicyDataColl = "policyData.ues.smData"
-	FlowRuleDataColl = "policyData.ues.flowRule"
 )
 
 type DBInterface interface {
 	RestfulAPIGetOne(collName string, filter bson.M) (map[string]interface{}, error)
 	RestfulAPIGetMany(collName string, filter bson.M) ([]map[string]interface{}, error)
+	RestfulAPIPutOne(collName string, filter bson.M, putData map[string]interface{}) (bool, error)
 	RestfulAPIDeleteOne(collName string, filter bson.M) error
+	RestfulAPIJSONPatch(collName string, filter bson.M, patchJSON []byte) error
 	RestfulAPIPost(collName string, filter bson.M, postData map[string]interface{}) (bool, error)
 }
 
@@ -108,8 +111,16 @@ func (db *MongoDBClient) RestfulAPIGetMany(collName string, filter bson.M) ([]ma
 	return db.MongoClient.RestfulAPIGetMany(collName, filter)
 }
 
+func (db *MongoDBClient) RestfulAPIPutOne(collName string, filter bson.M, putData map[string]interface{}) (bool, error) {
+	return db.MongoClient.RestfulAPIPutOne(collName, filter, putData)
+}
+
 func (db *MongoDBClient) RestfulAPIDeleteOne(collName string, filter bson.M) error {
 	return db.MongoClient.RestfulAPIDeleteOne(collName, filter)
+}
+
+func (db *MongoDBClient) RestfulAPIJSONPatch(collName string, filter bson.M, patchJSON []byte) error {
+	return db.MongoClient.RestfulAPIJSONPatch(collName, filter, patchJSON)
 }
 
 func (db *MongoDBClient) RestfulAPIPost(collName string, filter bson.M, postData map[string]interface{}) (bool, error) {

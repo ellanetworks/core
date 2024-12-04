@@ -10,7 +10,7 @@ var UDR = &service.UDR{}
 
 const SBI_PORT = 29504
 
-func Start(mongoDBURL string, mongoDBName string) error {
+func Start() error {
 	configuration := factory.Configuration{
 		Logger: &logger.Logger{
 			UDR: &logger.LogSetting{
@@ -20,10 +20,6 @@ func Start(mongoDBURL string, mongoDBName string) error {
 		Sbi: &factory.Sbi{
 			BindingIPv4: "0.0.0.0",
 			Port:        SBI_PORT,
-		},
-		Mongodb: &factory.Mongodb{
-			Name: mongoDBName,
-			Url:  mongoDBURL,
 		},
 	}
 	UDR.Initialize(configuration)

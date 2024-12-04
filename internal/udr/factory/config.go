@@ -2,15 +2,14 @@ package factory
 
 import (
 	"github.com/omec-project/openapi/models"
-	logger_util "github.com/omec-project/util/logger"
+	"github.com/omec-project/util/logger"
 )
 
 var UdrConfig Configuration
 
 type Configuration struct {
-	Logger  *logger_util.Logger
-	Sbi     *Sbi
-	Mongodb *Mongodb
+	Logger *logger.Logger
+	Sbi    *Sbi
 }
 
 type PlmnSupportItem struct {
@@ -21,11 +20,6 @@ type PlmnSupportItem struct {
 type Sbi struct {
 	BindingIPv4 string
 	Port        int
-}
-
-type Mongodb struct {
-	Name string
-	Url  string
 }
 
 func InitConfigFactory(c Configuration) {
