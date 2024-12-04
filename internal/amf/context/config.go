@@ -6,17 +6,25 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/factory"
-	"github.com/yeastengine/ella/internal/nms/server"
+	"github.com/yeastengine/ella/internal/db/queries"
+	"github.com/yeastengine/ella/internal/pcf/logger"
 )
 
-// This file contains calls to nms to get configuration data
+// This file contains calls to db to get configuration data
 
-// GetSupportTaiList returns a list of supported TAI
 func GetSupportTaiList() []models.Tai {
 	tais := make([]models.Tai, 0)
-	networkSliceNames := server.ListNetworkSlices()
+	networkSliceNames, err := queries.ListNetworkSliceNames()
+	if err != nil {
+		logger.CtxLog.Warnf("Failed to get network slice names: %s", err)
+		return tais
+	}
 	for _, networkSliceName := range networkSliceNames {
-		networkSlice := server.GetNetworkSliceByName2(networkSliceName)
+		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
+		if err != nil {
+			logger.CtxLog.Warnf("Failed to get network slice by name: %s", networkSliceName)
+			continue
+		}
 		plmnID := models.PlmnId{
 			Mcc: networkSlice.SiteInfo.Plmn.Mcc,
 			Mnc: networkSlice.SiteInfo.Plmn.Mnc,
@@ -32,9 +40,17 @@ func GetSupportTaiList() []models.Tai {
 
 func GetServedGuamiList() []models.Guami {
 	guamis := make([]models.Guami, 0)
-	networkSliceNames := server.ListNetworkSlices()
+	networkSliceNames, err := queries.ListNetworkSliceNames()
+	if err != nil {
+		logger.CtxLog.Warnf("Failed to get network slice names: %s", err)
+		return guamis
+	}
 	for _, networkSliceName := range networkSliceNames {
-		networkSlice := server.GetNetworkSliceByName2(networkSliceName)
+		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
+		if err != nil {
+			logger.CtxLog.Warnf("Failed to get network slice by name: %s", networkSliceName)
+			continue
+		}
 		plmnID := models.PlmnId{
 			Mcc: networkSlice.SiteInfo.Plmn.Mcc,
 			Mnc: networkSlice.SiteInfo.Plmn.Mnc,
@@ -50,9 +66,17 @@ func GetServedGuamiList() []models.Guami {
 
 func GetPlmnSupportList() []factory.PlmnSupportItem {
 	plmnSupportList := make([]factory.PlmnSupportItem, 0)
-	networkSliceNames := server.ListNetworkSlices()
+	networkSliceNames, err := queries.ListNetworkSliceNames()
+	if err != nil {
+		logger.CtxLog.Warnf("Failed to get network slice names: %s", err)
+		return plmnSupportList
+	}
 	for _, networkSliceName := range networkSliceNames {
-		networkSlice := server.GetNetworkSliceByName2(networkSliceName)
+		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
+		if err != nil {
+			logger.CtxLog.Warnf("Failed to get network slice by name: %s", networkSliceName)
+			continue
+		}
 		plmnID := models.PlmnId{
 			Mcc: networkSlice.SiteInfo.Plmn.Mcc,
 			Mnc: networkSlice.SiteInfo.Plmn.Mnc,

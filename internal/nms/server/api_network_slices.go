@@ -1,8 +1,6 @@
 package server
 
 import (
-	"encoding/json"
-	"fmt"
 	"math"
 	"net/http"
 	"slices"
@@ -12,11 +10,11 @@ import (
 	"github.com/gin-gonic/gin"
 	openAPIModels "github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/ella/internal/nms/db"
+	dbModels "github.com/yeastengine/ella/internal/db/models"
+	"github.com/yeastengine/ella/internal/db/queries"
 	"github.com/yeastengine/ella/internal/nms/logger"
 	"github.com/yeastengine/ella/internal/nms/models"
 	"github.com/yeastengine/ella/internal/smf/context"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 const (
@@ -31,52 +29,144 @@ func init() {
 	imsiData = make(map[string]*openAPIModels.AuthenticationSubscription)
 }
 
-func ListNetworkSlices() []string {
-	var networkSlices []string = make([]string, 0)
-	rawNetworkSlices, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.SliceDataColl, bson.M{})
-	if errGetMany != nil {
-		logger.DbLog.Warnln(errGetMany)
-	}
-	for _, rawNetworkSlice := range rawNetworkSlices {
-		if rawNetworkSlice["slice-name"] == nil {
-			logger.ConfigLog.Errorf("slice-name is nil")
-			continue
-		}
-		networkSlices = append(networkSlices, rawNetworkSlice["slice-name"].(string))
-	}
-	return networkSlices
-}
-
 func GetNetworkSlices(c *gin.Context) {
 	setCorsHeader(c)
-	logger.NMSLog.Infoln("List Network Slices")
-	networkSlices := ListNetworkSlices()
+	networkSlices, err := queries.ListNetworkSliceNames()
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+		c.JSON(http.StatusInternalServerError, nil)
+		return
+	}
 	c.JSON(http.StatusOK, networkSlices)
 }
 
-func GetNetworkSliceByName2(sliceName string) models.Slice {
-	var networkSlice models.Slice
-	filter := bson.M{"slice-name": sliceName}
-	rawNetworkSlice, err := db.CommonDBClient.RestfulAPIGetOne(db.SliceDataColl, filter)
-	if err != nil {
-		logger.DbLog.Warnln(err)
+func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *dbModels.Slice) *models.Slice {
+	networkSlice := &models.Slice{
+		SliceName: dbNetworkSlice.SliceName,
+		SliceId: models.SliceSliceId{
+			Sst: dbNetworkSlice.SliceId.Sst,
+			Sd:  dbNetworkSlice.SliceId.Sd,
+		},
+		SiteDeviceGroup: dbNetworkSlice.SiteDeviceGroup,
+		SiteInfo: models.SliceSiteInfo{
+			SiteName: dbNetworkSlice.SiteInfo.SiteName,
+			Plmn: models.SliceSiteInfoPlmn{
+				Mcc: dbNetworkSlice.SiteInfo.Plmn.Mcc,
+				Mnc: dbNetworkSlice.SiteInfo.Plmn.Mnc,
+			},
+			GNodeBs: make([]models.SliceSiteInfoGNodeBs, 0),
+			Upf:     make(map[string]interface{}),
+		},
+		ApplicationFilteringRules: make([]models.SliceApplicationFilteringRules, 0),
 	}
-	json.Unmarshal(mapToByte(rawNetworkSlice), &networkSlice)
+	for _, dbGnb := range dbNetworkSlice.SiteInfo.GNodeBs {
+		gnb := models.SliceSiteInfoGNodeBs{
+			Name: dbGnb.Name,
+			Tac:  dbGnb.Tac,
+		}
+		networkSlice.SiteInfo.GNodeBs = append(networkSlice.SiteInfo.GNodeBs, gnb)
+	}
+	for key, value := range dbNetworkSlice.SiteInfo.Upf {
+		networkSlice.SiteInfo.Upf[key] = value
+	}
+	for _, dbAppFilterRule := range dbNetworkSlice.ApplicationFilteringRules {
+		appFilterRule := models.SliceApplicationFilteringRules{
+			RuleName:       dbAppFilterRule.RuleName,
+			Priority:       dbAppFilterRule.Priority,
+			Action:         dbAppFilterRule.Action,
+			Endpoint:       dbAppFilterRule.Endpoint,
+			Protocol:       dbAppFilterRule.Protocol,
+			StartPort:      dbAppFilterRule.StartPort,
+			EndPort:        dbAppFilterRule.EndPort,
+			AppMbrUplink:   dbAppFilterRule.AppMbrUplink,
+			AppMbrDownlink: dbAppFilterRule.AppMbrDownlink,
+			BitrateUnit:    dbAppFilterRule.BitrateUnit,
+			TrafficClass: &models.TrafficClassInfo{
+				Name: dbAppFilterRule.TrafficClass.Name,
+				Qci:  dbAppFilterRule.TrafficClass.Qci,
+				Arp:  dbAppFilterRule.TrafficClass.Arp,
+				Pdb:  dbAppFilterRule.TrafficClass.Pdb,
+				Pelr: dbAppFilterRule.TrafficClass.Pelr,
+			},
+			RuleTrigger: dbAppFilterRule.RuleTrigger,
+		}
+		networkSlice.ApplicationFilteringRules = append(networkSlice.ApplicationFilteringRules, appFilterRule)
+	}
 	return networkSlice
+}
+
+func convertNetworkSliceToDBNetworkSlice(networkSlice *models.Slice) *dbModels.Slice {
+	dbNetworkSlice := &dbModels.Slice{
+		SliceName: networkSlice.SliceName,
+		SliceId: dbModels.SliceSliceId{
+			Sst: networkSlice.SliceId.Sst,
+			Sd:  networkSlice.SliceId.Sd,
+		},
+		SiteDeviceGroup: networkSlice.SiteDeviceGroup,
+		SiteInfo: dbModels.SliceSiteInfo{
+			SiteName: networkSlice.SiteInfo.SiteName,
+			Plmn: dbModels.SliceSiteInfoPlmn{
+				Mcc: networkSlice.SiteInfo.Plmn.Mcc,
+				Mnc: networkSlice.SiteInfo.Plmn.Mnc,
+			},
+			GNodeBs: make([]dbModels.SliceSiteInfoGNodeBs, 0),
+			Upf:     make(map[string]interface{}),
+		},
+		ApplicationFilteringRules: make([]dbModels.SliceApplicationFilteringRules, 0),
+	}
+	for _, gnb := range networkSlice.SiteInfo.GNodeBs {
+		dbGnb := dbModels.SliceSiteInfoGNodeBs{
+			Name: gnb.Name,
+			Tac:  gnb.Tac,
+		}
+		dbNetworkSlice.SiteInfo.GNodeBs = append(dbNetworkSlice.SiteInfo.GNodeBs, dbGnb)
+	}
+	for key, value := range networkSlice.SiteInfo.Upf {
+		dbNetworkSlice.SiteInfo.Upf[key] = value
+	}
+	for _, appFilterRule := range networkSlice.ApplicationFilteringRules {
+		dbAppFilterRule := dbModels.SliceApplicationFilteringRules{
+			RuleName:       appFilterRule.RuleName,
+			Priority:       appFilterRule.Priority,
+			Action:         appFilterRule.Action,
+			Endpoint:       appFilterRule.Endpoint,
+			Protocol:       appFilterRule.Protocol,
+			StartPort:      appFilterRule.StartPort,
+			EndPort:        appFilterRule.EndPort,
+			AppMbrUplink:   appFilterRule.AppMbrUplink,
+			AppMbrDownlink: appFilterRule.AppMbrDownlink,
+			BitrateUnit:    appFilterRule.BitrateUnit,
+			TrafficClass: &dbModels.TrafficClassInfo{
+				Name: appFilterRule.TrafficClass.Name,
+				Qci:  appFilterRule.TrafficClass.Qci,
+				Arp:  appFilterRule.TrafficClass.Arp,
+				Pdb:  appFilterRule.TrafficClass.Pdb,
+				Pelr: appFilterRule.TrafficClass.Pelr,
+			},
+			RuleTrigger: appFilterRule.RuleTrigger,
+		}
+		dbNetworkSlice.ApplicationFilteringRules = append(dbNetworkSlice.ApplicationFilteringRules, dbAppFilterRule)
+	}
+	return dbNetworkSlice
 }
 
 func GetNetworkSliceByName(c *gin.Context) {
 	setCorsHeader(c)
 	logger.NMSLog.Infoln("Get Network Slice by name")
-	networkSlice := GetNetworkSliceByName2(c.Param("slice-name"))
-	if networkSlice.SliceName == "" {
-		c.JSON(http.StatusNotFound, nil)
-	} else {
-		c.JSON(http.StatusOK, networkSlice)
+	dbNetworkSlice, err := queries.GetNetworkSliceByName(c.Param("slice-name"))
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+		c.JSON(http.StatusInternalServerError, nil)
+		return
 	}
+	if dbNetworkSlice.SliceName == "" {
+		c.JSON(http.StatusNotFound, nil)
+		return
+	}
+	networkSlice := convertDBNetworkSliceToNetworkSlice(dbNetworkSlice)
+	c.JSON(http.StatusOK, networkSlice)
 }
 
-// NetworkSliceSliceNameDelete -
 func NetworkSliceSliceNameDelete(c *gin.Context) {
 	if ret := NetworkSliceDeleteHandler(c); ret {
 		c.JSON(http.StatusOK, gin.H{})
@@ -85,7 +175,6 @@ func NetworkSliceSliceNameDelete(c *gin.Context) {
 	}
 }
 
-// NetworkSliceSliceNamePost -
 func NetworkSliceSliceNamePost(c *gin.Context) {
 	if ret := NetworkSlicePostHandler(c, models.Post_op); ret {
 		c.JSON(http.StatusOK, gin.H{})
@@ -94,7 +183,6 @@ func NetworkSliceSliceNamePost(c *gin.Context) {
 	}
 }
 
-// NetworkSliceSliceNamePut -
 func NetworkSliceSliceNamePut(c *gin.Context) {
 	if ret := NetworkSlicePostHandler(c, models.Put_op); ret {
 		c.JSON(http.StatusOK, gin.H{})
@@ -123,40 +211,41 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 		logger.ConfigLog.Errorf("slice-name is missing")
 		return false
 	}
-	prevSlice := getSliceByName(sliceName)
-	filter := bson.M{"slice-name": sliceName}
-	errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.SliceDataColl, filter)
-	if errDelOne != nil {
-		logger.DbLog.Warnln(errDelOne)
+	prevdbSlice, err := queries.GetNetworkSliceByName(sliceName)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
 	}
+	err = queries.DeleteNetworkSlice(sliceName)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+	}
+	prevSlice := convertDBNetworkSliceToNetworkSlice(prevdbSlice)
 	dgnames := getDeleteGroupsList(nil, prevSlice)
 	for _, dgname := range dgnames {
-		devGroupConfig := getDeviceGroupByName(dgname)
+		devGroupConfig := queries.GetDeviceGroupByName(dgname)
 		if devGroupConfig != nil {
 			for _, imsi := range devGroupConfig.Imsis {
 				mcc := prevSlice.SiteInfo.Plmn.Mcc
 				mnc := prevSlice.SiteInfo.Plmn.Mnc
-				filterImsiOnly := bson.M{"ueId": "imsi-" + imsi}
-				filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
-				errDelOneAmPol := db.CommonDBClient.RestfulAPIDeleteOne(db.AmPolicyDataColl, filterImsiOnly)
-				if errDelOneAmPol != nil {
-					logger.DbLog.Warnln(errDelOneAmPol)
+				err := queries.DeleteAmPolicy(imsi)
+				if err != nil {
+					logger.NMSLog.Warnln(err)
 				}
-				errDelOneSmPol := db.CommonDBClient.RestfulAPIDeleteOne(db.SmPolicyDataColl, filterImsiOnly)
-				if errDelOneSmPol != nil {
-					logger.DbLog.Warnln(errDelOneSmPol)
+				err = queries.DeleteSmPolicy(imsi)
+				if err != nil {
+					logger.NMSLog.Warnln(err)
 				}
-				errDelOneAmData := db.CommonDBClient.RestfulAPIDeleteOne(db.AmDataColl, filter)
-				if errDelOneAmData != nil {
-					logger.DbLog.Warnln(errDelOneAmData)
+				err = queries.DeleteAmData(imsi, mcc, mnc)
+				if err != nil {
+					logger.NMSLog.Warnln(err)
 				}
-				errDelOneSmData := db.CommonDBClient.RestfulAPIDeleteOne(db.SmDataColl, filter)
-				if errDelOneSmData != nil {
-					logger.DbLog.Warnln(errDelOneSmData)
+				err = queries.DeleteSmData(imsi, mcc, mnc)
+				if err != nil {
+					logger.NMSLog.Warnln(err)
 				}
-				errDelOneSmfSel := db.CommonDBClient.RestfulAPIDeleteOne(db.SmfSelDataColl, filter)
-				if errDelOneSmfSel != nil {
-					logger.DbLog.Warnln(errDelOneSmfSel)
+				err = queries.DeleteSmfSelection(imsi, mcc, mnc)
+				if err != nil {
+					logger.NMSLog.Warnln(err)
 				}
 			}
 		}
@@ -213,191 +302,50 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 	procReq.SliceName = sliceName
 	sVal, err := strconv.ParseUint(procReq.SliceId.Sst, 10, 32)
 	if err != nil {
-		logger.DbLog.Errorf("Could not parse SST %v", procReq.SliceId.Sst)
+		logger.NMSLog.Errorf("Could not parse SST %v", procReq.SliceId.Sst)
 	}
-	snssai := &openAPIModels.Snssai{
+	snssai := &dbModels.Snssai{
 		Sd:  procReq.SliceId.Sd,
 		Sst: int32(sVal),
 	}
 	for _, dgName := range procReq.SiteDeviceGroup {
-		logger.ConfigLog.Infoln("dgName : ", dgName)
-		devGroupConfig := getDeviceGroupByName(dgName)
-		if devGroupConfig != nil {
-			for _, imsi := range devGroupConfig.Imsis {
-				dnn := devGroupConfig.IpDomainExpanded.Dnn
+		dbDeviceGroup := queries.GetDeviceGroupByName(dgName)
+		if dbDeviceGroup != nil {
+			for _, imsi := range dbDeviceGroup.Imsis {
+				dnn := dbDeviceGroup.IpDomainExpanded.Dnn
 				mcc := procReq.SiteInfo.Plmn.Mcc
 				mnc := procReq.SiteInfo.Plmn.Mnc
-				updateAmPolicyData(imsi)
-				updateSmPolicyData(snssai, dnn, imsi)
-				updateAmProvisionedData(snssai, devGroupConfig.IpDomainExpanded.UeDnnQos, mcc, mnc, imsi)
-				updateSmProvisionedData(snssai, devGroupConfig.IpDomainExpanded.UeDnnQos, mcc, mnc, dnn, imsi)
-				updateSmfSelectionProviosionedData(snssai, mcc, mnc, dnn, imsi)
+				err := queries.CreateAmPolicyData(imsi)
+				if err != nil {
+					logger.NMSLog.Warnln(err)
+				}
+				err = queries.CreateSmPolicyData(snssai, dnn, imsi)
+				if err != nil {
+					logger.NMSLog.Warnln(err)
+				}
+				err = queries.CreateAmProvisionedData(snssai, dbDeviceGroup.IpDomainExpanded.UeDnnQos, mcc, mnc, imsi)
+				if err != nil {
+					logger.NMSLog.Warnln(err)
+				}
+				err = queries.CreateSmProvisionedData(snssai, dbDeviceGroup.IpDomainExpanded.UeDnnQos, mcc, mnc, dnn, imsi)
+				if err != nil {
+					logger.NMSLog.Warnln(err)
+				}
+				err = queries.CreateSmfSelectionProviosionedData(snssai, mcc, mnc, dnn, imsi)
+				if err != nil {
+					logger.NMSLog.Warnln(err)
+				}
 			}
 		}
 	}
-	filter := bson.M{"slice-name": sliceName}
-	sliceDataBsonA := toBsonM(&procReq)
-	_, errPost := db.CommonDBClient.RestfulAPIPost(db.SliceDataColl, filter, sliceDataBsonA)
-	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+	dbNetworkSlice := convertNetworkSliceToDBNetworkSlice(&procReq)
+	err = queries.CreateNetworkSlice(dbNetworkSlice)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
 	}
 	updateSMF()
 	logger.ConfigLog.Infof("Created Network Slice: %v", sliceName)
 	return true
-}
-
-func getDeviceGroupByName(name string) *models.DeviceGroups {
-	filter := bson.M{"group-name": name}
-	devGroupDataInterface, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.DevGroupDataColl, filter)
-	if errGetOne != nil {
-		logger.DbLog.Warnln(errGetOne)
-	}
-	var devGroupData models.DeviceGroups
-	err := json.Unmarshal(mapToByte(devGroupDataInterface), &devGroupData)
-	if err != nil {
-		logger.DbLog.Errorf("Could not unmarshall device group %v", devGroupDataInterface)
-	}
-	return &devGroupData
-}
-
-func getSliceByName(name string) *models.Slice {
-	filter := bson.M{"slice-name": name}
-	sliceDataInterface, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SliceDataColl, filter)
-	if errGetOne != nil {
-		logger.DbLog.Warnln(errGetOne)
-	}
-	var sliceData models.Slice
-	err := json.Unmarshal(mapToByte(sliceDataInterface), &sliceData)
-	if err != nil {
-		logger.DbLog.Errorf("Could not unmarshall slice %v", sliceDataInterface)
-	}
-	return &sliceData
-}
-
-func updateAmPolicyData(imsi string) {
-	var amPolicy openAPIModels.AmPolicyData
-	amPolicy.SubscCats = append(amPolicy.SubscCats, "free5gc")
-	amPolicyDatBsonA := toBsonM(amPolicy)
-	amPolicyDatBsonA["ueId"] = "imsi-" + imsi
-	filter := bson.M{"ueId": "imsi-" + imsi}
-	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmPolicyDataColl, filter, amPolicyDatBsonA)
-	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
-	}
-}
-
-func updateSmPolicyData(snssai *openAPIModels.Snssai, dnn string, imsi string) {
-	var smPolicyData openAPIModels.SmPolicyData
-	var smPolicySnssaiData openAPIModels.SmPolicySnssaiData
-	dnnData := map[string]openAPIModels.SmPolicyDnnData{
-		dnn: {
-			Dnn: dnn,
-		},
-	}
-	// smpolicydata
-	smPolicySnssaiData.Snssai = snssai
-	smPolicySnssaiData.SmPolicyDnnData = dnnData
-	smPolicyData.SmPolicySnssaiData = make(map[string]openAPIModels.SmPolicySnssaiData)
-	smPolicyData.SmPolicySnssaiData[SnssaiModelsToHex(*snssai)] = smPolicySnssaiData
-	smPolicyDatBsonA := toBsonM(smPolicyData)
-	smPolicyDatBsonA["ueId"] = "imsi-" + imsi
-	filter := bson.M{"ueId": "imsi-" + imsi}
-	_, errPost := db.CommonDBClient.RestfulAPIPost(db.SmPolicyDataColl, filter, smPolicyDatBsonA)
-	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
-	}
-}
-
-func updateAmProvisionedData(snssai *openAPIModels.Snssai, qos *models.DeviceGroupsIpDomainExpandedUeDnnQos, mcc, mnc, imsi string) {
-	amData := openAPIModels.AccessAndMobilitySubscriptionData{
-		Gpsis: []string{
-			"msisdn-0900000000",
-		},
-		Nssai: &openAPIModels.Nssai{
-			DefaultSingleNssais: []openAPIModels.Snssai{*snssai},
-			SingleNssais:        []openAPIModels.Snssai{*snssai},
-		},
-		SubscribedUeAmbr: &openAPIModels.AmbrRm{
-			Downlink: convertToString(uint64(qos.DnnMbrDownlink)),
-			Uplink:   convertToString(uint64(qos.DnnMbrUplink)),
-		},
-	}
-	amDataBsonA := toBsonM(amData)
-	amDataBsonA["ueId"] = "imsi-" + imsi
-	amDataBsonA["servingPlmnId"] = mcc + mnc
-	filter := bson.M{
-		"ueId": "imsi-" + imsi,
-		"$or": []bson.M{
-			{"servingPlmnId": mcc + mnc},
-			{"servingPlmnId": bson.M{"$exists": false}},
-		},
-	}
-	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, amDataBsonA)
-	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
-	}
-}
-
-func updateSmProvisionedData(snssai *openAPIModels.Snssai, qos *models.DeviceGroupsIpDomainExpandedUeDnnQos, mcc, mnc, dnn, imsi string) {
-	smData := openAPIModels.SessionManagementSubscriptionData{
-		SingleNssai: snssai,
-		DnnConfigurations: map[string]openAPIModels.DnnConfiguration{
-			dnn: {
-				PduSessionTypes: &openAPIModels.PduSessionTypes{
-					DefaultSessionType:  openAPIModels.PduSessionType_IPV4,
-					AllowedSessionTypes: []openAPIModels.PduSessionType{openAPIModels.PduSessionType_IPV4},
-				},
-				SscModes: &openAPIModels.SscModes{
-					DefaultSscMode: openAPIModels.SscMode__1,
-					AllowedSscModes: []openAPIModels.SscMode{
-						"SSC_MODE_2",
-						"SSC_MODE_3",
-					},
-				},
-				SessionAmbr: &openAPIModels.Ambr{
-					Downlink: convertToString(uint64(qos.DnnMbrDownlink)),
-					Uplink:   convertToString(uint64(qos.DnnMbrUplink)),
-				},
-				Var5gQosProfile: &openAPIModels.SubscribedDefaultQos{
-					Var5qi: 9,
-					Arp: &openAPIModels.Arp{
-						PriorityLevel: 8,
-					},
-					PriorityLevel: 8,
-				},
-			},
-		},
-	}
-	smDataBsonA := toBsonM(smData)
-	smDataBsonA["ueId"] = "imsi-" + imsi
-	smDataBsonA["servingPlmnId"] = mcc + mnc
-	filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
-	_, errPost := db.CommonDBClient.RestfulAPIPost(db.SmDataColl, filter, smDataBsonA)
-	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
-	}
-}
-
-func updateSmfSelectionProviosionedData(snssai *openAPIModels.Snssai, mcc, mnc, dnn, imsi string) {
-	smfSelData := openAPIModels.SmfSelectionSubscriptionData{
-		SubscribedSnssaiInfos: map[string]openAPIModels.SnssaiInfo{
-			SnssaiModelsToHex(*snssai): {
-				DnnInfos: []openAPIModels.DnnInfo{
-					{
-						Dnn: dnn,
-					},
-				},
-			},
-		},
-	}
-	smfSelecDataBsonA := toBsonM(smfSelData)
-	smfSelecDataBsonA["ueId"] = "imsi-" + imsi
-	smfSelecDataBsonA["servingPlmnId"] = mcc + mnc
-	filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
-	_, errPost := db.CommonDBClient.RestfulAPIPost(db.SmfSelDataColl, filter, smfSelecDataBsonA)
-	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
-	}
 }
 
 func getDeleteGroupsList(slice, prevSlice *models.Slice) (names []string) {
@@ -421,45 +369,55 @@ func getDeleteGroupsList(slice, prevSlice *models.Slice) (names []string) {
 	} else {
 		names = append(names, prevSlice.SiteDeviceGroup...)
 	}
-
 	return
 }
 
-func convertToString(val uint64) string {
-	var mbVal, gbVal, kbVal uint64
-	kbVal = val / 1000
-	mbVal = val / 1000000
-	gbVal = val / 1000000000
-	var retStr string
-	if gbVal != 0 {
-		retStr = strconv.FormatUint(gbVal, 10) + " Gbps"
-	} else if mbVal != 0 {
-		retStr = strconv.FormatUint(mbVal, 10) + " Mbps"
-	} else if kbVal != 0 {
-		retStr = strconv.FormatUint(kbVal, 10) + " Kbps"
-	} else {
-		retStr = strconv.FormatUint(val, 10) + " bps"
-	}
-
-	return retStr
-}
-
-func SnssaiModelsToHex(snssai openAPIModels.Snssai) string {
-	sst := fmt.Sprintf("%02x", snssai.Sst)
-	return sst + snssai.Sd
-}
-
 func updateSMF() {
-	networkSlices := make([]models.Slice, 0)
-	networkSliceNames := ListNetworkSlices()
+	networkSlices := make([]*models.Slice, 0)
+	networkSliceNames, err := queries.ListNetworkSliceNames()
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+	}
 	for _, networkSliceName := range networkSliceNames {
-		networkSlice := GetNetworkSliceByName2(networkSliceName)
+		dbNetworkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
+		if err != nil {
+			logger.NMSLog.Warnln(err)
+			continue
+		}
+		networkSlice := convertDBNetworkSliceToNetworkSlice(dbNetworkSlice)
 		networkSlices = append(networkSlices, networkSlice)
 	}
 	deviceGroups := make([]models.DeviceGroups, 0)
-	deviceGroupNames := ListDeviceGroups()
+	deviceGroupNames, err := queries.ListDeviceGroupNames()
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+	}
 	for _, deviceGroupName := range deviceGroupNames {
-		deviceGroup := GetDeviceGroupByName2(deviceGroupName)
+		dbDeviceGroup := queries.GetDeviceGroupByName(deviceGroupName)
+		deviceGroup := models.DeviceGroups{
+			DeviceGroupName: dbDeviceGroup.DeviceGroupName,
+			Imsis:           dbDeviceGroup.Imsis,
+			SiteInfo:        dbDeviceGroup.SiteInfo,
+			IpDomainName:    dbDeviceGroup.IpDomainName,
+			IpDomainExpanded: models.DeviceGroupsIpDomainExpanded{
+				Dnn:          dbDeviceGroup.IpDomainExpanded.Dnn,
+				UeIpPool:     dbDeviceGroup.IpDomainExpanded.UeIpPool,
+				DnsPrimary:   dbDeviceGroup.IpDomainExpanded.DnsPrimary,
+				DnsSecondary: dbDeviceGroup.IpDomainExpanded.DnsSecondary,
+				UeDnnQos: &models.DeviceGroupsIpDomainExpandedUeDnnQos{
+					DnnMbrDownlink: dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink,
+					DnnMbrUplink:   dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink,
+					BitrateUnit:    dbDeviceGroup.IpDomainExpanded.UeDnnQos.BitrateUnit,
+					TrafficClass: &models.TrafficClassInfo{
+						Name: dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Name,
+						Qci:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
+						Arp:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Arp,
+						Pdb:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Pdb,
+						Pelr: dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
+					},
+				},
+			},
+		}
 		deviceGroups = append(deviceGroups, deviceGroup)
 	}
 	context.UpdateSMFContext(networkSlices, deviceGroups)

@@ -153,13 +153,13 @@ func SMF_Self() *SMFContext {
 	return &smfContext
 }
 
-func UpdateSMFContext(networkSlices []nmsModels.Slice, deviceGroups []nmsModels.DeviceGroups) {
+func UpdateSMFContext(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels.DeviceGroups) {
 	UpdateSnssaiInfo(networkSlices, deviceGroups)
 	UpdateUserPlaneInformation(networkSlices, deviceGroups)
 	logger.CtxLog.Infof("Updated SMF context")
 }
 
-func UpdateSnssaiInfo(networkSlices []nmsModels.Slice, deviceGroups []nmsModels.DeviceGroups) {
+func UpdateSnssaiInfo(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels.DeviceGroups) {
 	smfSelf := SMF_Self()
 	snssaiInfoList := make([]SnssaiSmfInfo, 0)
 	for _, networkSlice := range networkSlices {
@@ -223,7 +223,7 @@ func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
 	return alloc, nil
 }
 
-func BuildUserPlaneInformationFromConfig(networkSlices []nmsModels.Slice, deviceGroups []nmsModels.DeviceGroups) *UserPlaneInformation {
+func BuildUserPlaneInformationFromConfig(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels.DeviceGroups) *UserPlaneInformation {
 	// check if len of networkSlices is 0
 	if len(networkSlices) == 0 {
 		logger.CtxLog.Warn("Network slices is empty")
@@ -330,7 +330,7 @@ func BuildUserPlaneInformationFromConfig(networkSlices []nmsModels.Slice, device
 
 // Right now we only support 1 UPF
 // This function should be edited when we decide to support multiple UPFs
-func UpdateUserPlaneInformation(networkSlices []nmsModels.Slice, deviceGroups []nmsModels.DeviceGroups) {
+func UpdateUserPlaneInformation(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels.DeviceGroups) {
 	smfSelf := SMF_Self()
 	configUserPlaneInfo := BuildUserPlaneInformationFromConfig(networkSlices, deviceGroups)
 	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)

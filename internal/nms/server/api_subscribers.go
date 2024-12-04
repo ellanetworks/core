@@ -1,51 +1,22 @@
 package server
 
 import (
-	"crypto/tls"
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/nms/db"
+	dbModels "github.com/yeastengine/ella/internal/db/models"
+	"github.com/yeastengine/ella/internal/db/queries"
 	"github.com/yeastengine/ella/internal/nms/logger"
 	nmsModels "github.com/yeastengine/ella/internal/nms/models"
-	"go.mongodb.org/mongo-driver/bson"
 )
-
-var httpsClient *http.Client
-
-func init() {
-	httpsClient = &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
-}
-
-func mapToByte(data map[string]interface{}) (ret []byte) {
-	ret, _ = json.Marshal(data)
-	return
-}
-
-func sliceToByte(data []map[string]interface{}) (ret []byte) {
-	ret, _ = json.Marshal(data)
-	return
-}
 
 func setCorsHeader(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 	c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, PATCH, DELETE")
-}
-
-func sendResponseToClient(c *gin.Context, response *http.Response) {
-	var jsonData interface{}
-	json.NewDecoder(response.Body).Decode(&jsonData)
-	c.JSON(response.StatusCode, jsonData)
 }
 
 func GetSampleJSON(c *gin.Context) {
@@ -239,33 +210,191 @@ func GetSampleJSON(c *gin.Context) {
 	c.JSON(http.StatusOK, subsData)
 }
 
-// Get all subscribers list
 func GetSubscribers(c *gin.Context) {
 	setCorsHeader(c)
-
-	logger.NMSLog.Infoln("Get All Subscribers List")
-
 	var subsList []nmsModels.SubsListIE
-	amDataList, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.AmDataColl, bson.M{})
-	if errGetMany != nil {
-		logger.DbLog.Warnln(errGetMany)
+	amDataList, err := queries.ListAmData()
+	if err != nil {
+		logger.NMSLog.Warnln(err)
 	}
 	for _, amData := range amDataList {
-		tmp := nmsModels.SubsListIE{
-			UeId: amData["ueId"].(string),
+		subscriber := nmsModels.SubsListIE{
+			UeId:   amData.UeId,
+			PlmnID: amData.ServingPlmnId,
 		}
-
-		if servingPlmnId, plmnIdExists := amData["servingPlmnId"]; plmnIdExists {
-			tmp.PlmnID = servingPlmnId.(string)
-		}
-
-		subsList = append(subsList, tmp)
+		subsList = append(subsList, subscriber)
 	}
-
 	c.JSON(http.StatusOK, subsList)
 }
 
-// Get subscriber by IMSI(ueId))
+func convertDbAuthSubsDataToModel(dbAuthSubsData *dbModels.AuthenticationSubscription) models.AuthenticationSubscription {
+	if dbAuthSubsData == nil {
+		return models.AuthenticationSubscription{}
+	}
+	authSubsData := models.AuthenticationSubscription{}
+	authSubsData.AuthenticationManagementField = dbAuthSubsData.AuthenticationManagementField
+	authSubsData.AuthenticationMethod = models.AuthMethod(dbAuthSubsData.AuthenticationMethod)
+	if dbAuthSubsData.Milenage != nil {
+		authSubsData.Milenage = &models.Milenage{
+			Op: &models.Op{
+				EncryptionAlgorithm: dbAuthSubsData.Milenage.Op.EncryptionAlgorithm,
+				EncryptionKey:       dbAuthSubsData.Milenage.Op.EncryptionKey,
+				OpValue:             dbAuthSubsData.Milenage.Op.OpValue,
+			},
+		}
+	}
+	if dbAuthSubsData.Opc != nil {
+		authSubsData.Opc = &models.Opc{
+			EncryptionAlgorithm: dbAuthSubsData.Opc.EncryptionAlgorithm,
+			EncryptionKey:       dbAuthSubsData.Opc.EncryptionKey,
+			OpcValue:            dbAuthSubsData.Opc.OpcValue,
+		}
+	}
+	if dbAuthSubsData.PermanentKey != nil {
+		authSubsData.PermanentKey = &models.PermanentKey{
+			EncryptionAlgorithm: dbAuthSubsData.PermanentKey.EncryptionAlgorithm,
+			EncryptionKey:       dbAuthSubsData.PermanentKey.EncryptionKey,
+			PermanentKeyValue:   dbAuthSubsData.PermanentKey.PermanentKeyValue,
+		}
+	}
+	authSubsData.SequenceNumber = dbAuthSubsData.SequenceNumber
+
+	return authSubsData
+}
+
+func convertDbAmDataToModel(dbAmData *dbModels.AccessAndMobilitySubscriptionData) models.AccessAndMobilitySubscriptionData {
+	if dbAmData == nil {
+		return models.AccessAndMobilitySubscriptionData{}
+	}
+	amData := models.AccessAndMobilitySubscriptionData{
+		Gpsis: dbAmData.Gpsis,
+		Nssai: &models.Nssai{
+			DefaultSingleNssais: make([]models.Snssai, 0),
+			SingleNssais:        make([]models.Snssai, 0),
+		},
+		SubscribedUeAmbr: &models.AmbrRm{
+			Downlink: dbAmData.SubscribedUeAmbr.Downlink,
+			Uplink:   dbAmData.SubscribedUeAmbr.Uplink,
+		},
+	}
+	for _, snssai := range dbAmData.Nssai.DefaultSingleNssais {
+		amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
+			Sd:  snssai.Sd,
+			Sst: snssai.Sst,
+		})
+	}
+	for _, snssai := range dbAmData.Nssai.SingleNssais {
+		amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
+			Sd:  snssai.Sd,
+			Sst: snssai.Sst,
+		})
+	}
+	return amData
+}
+
+func convertDbSmDataToModel(dbSmData []*dbModels.SessionManagementSubscriptionData) []models.SessionManagementSubscriptionData {
+	if dbSmData == nil {
+		return nil
+	}
+	smData := make([]models.SessionManagementSubscriptionData, 0)
+	for _, smDataObj := range dbSmData {
+		smDataObjModel := models.SessionManagementSubscriptionData{
+			SingleNssai: &models.Snssai{
+				Sst: smDataObj.SingleNssai.Sst,
+				Sd:  smDataObj.SingleNssai.Sd,
+			},
+			DnnConfigurations: make(map[string]models.DnnConfiguration),
+		}
+		for dnn, dnnConfig := range smDataObj.DnnConfigurations {
+			smDataObjModel.DnnConfigurations[dnn] = models.DnnConfiguration{
+				PduSessionTypes: &models.PduSessionTypes{
+					DefaultSessionType:  models.PduSessionType(dnnConfig.PduSessionTypes.DefaultSessionType),
+					AllowedSessionTypes: make([]models.PduSessionType, 0),
+				},
+				SscModes: &models.SscModes{
+					DefaultSscMode:  models.SscMode(dnnConfig.SscModes.DefaultSscMode),
+					AllowedSscModes: make([]models.SscMode, 0),
+				},
+				SessionAmbr: &models.Ambr{
+					Downlink: dnnConfig.SessionAmbr.Downlink,
+					Uplink:   dnnConfig.SessionAmbr.Uplink,
+				},
+				Var5gQosProfile: &models.SubscribedDefaultQos{
+					Var5qi:        dnnConfig.Var5gQosProfile.Var5qi,
+					Arp:           &models.Arp{PriorityLevel: dnnConfig.Var5gQosProfile.Arp.PriorityLevel},
+					PriorityLevel: dnnConfig.Var5gQosProfile.PriorityLevel,
+				},
+			}
+			for _, sessionType := range dnnConfig.PduSessionTypes.AllowedSessionTypes {
+				smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes, models.PduSessionType(sessionType))
+			}
+			for _, sscMode := range dnnConfig.SscModes.AllowedSscModes {
+				smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes, models.SscMode(sscMode))
+			}
+		}
+		smData = append(smData, smDataObjModel)
+	}
+	return smData
+}
+
+func convertDbSmfSelectionDataToModel(dbSmfSelectionData *dbModels.SmfSelectionSubscriptionData) models.SmfSelectionSubscriptionData {
+	if dbSmfSelectionData == nil {
+		return models.SmfSelectionSubscriptionData{}
+	}
+	smfSelectionData := models.SmfSelectionSubscriptionData{
+		SubscribedSnssaiInfos: make(map[string]models.SnssaiInfo),
+	}
+	for snssai, dbSnssaiInfo := range dbSmfSelectionData.SubscribedSnssaiInfos {
+		smfSelectionData.SubscribedSnssaiInfos[snssai] = models.SnssaiInfo{
+			DnnInfos: make([]models.DnnInfo, 0),
+		}
+		snssaiInfo := smfSelectionData.SubscribedSnssaiInfos[snssai]
+		for _, dbDnnInfo := range dbSnssaiInfo.DnnInfos {
+			snssaiInfo.DnnInfos = append(snssaiInfo.DnnInfos, models.DnnInfo{
+				Dnn: dbDnnInfo.Dnn,
+			})
+		}
+		smfSelectionData.SubscribedSnssaiInfos[snssai] = snssaiInfo
+	}
+	return smfSelectionData
+}
+
+func convertDbAmPolicyDataToModel(dbAmPolicyData *dbModels.AmPolicyData) models.AmPolicyData {
+	if dbAmPolicyData == nil {
+		return models.AmPolicyData{}
+	}
+	amPolicyData := models.AmPolicyData{
+		SubscCats: dbAmPolicyData.SubscCats,
+	}
+	return amPolicyData
+}
+
+func convertDbSmPolicyDataToModel(dbSmPolicyData *dbModels.SmPolicyData) models.SmPolicyData {
+	if dbSmPolicyData == nil {
+		return models.SmPolicyData{}
+	}
+	smPolicyData := models.SmPolicyData{
+		SmPolicySnssaiData: make(map[string]models.SmPolicySnssaiData),
+	}
+	for snssai, dbSmPolicySnssaiData := range dbSmPolicyData.SmPolicySnssaiData {
+		smPolicyData.SmPolicySnssaiData[snssai] = models.SmPolicySnssaiData{
+			Snssai: &models.Snssai{
+				Sd:  dbSmPolicySnssaiData.Snssai.Sd,
+				Sst: dbSmPolicySnssaiData.Snssai.Sst,
+			},
+			SmPolicyDnnData: make(map[string]models.SmPolicyDnnData),
+		}
+		smPolicySnssaiData := smPolicyData.SmPolicySnssaiData[snssai]
+		for dnn, dbSmPolicyDnnData := range dbSmPolicySnssaiData.SmPolicyDnnData {
+			smPolicySnssaiData.SmPolicyDnnData[dnn] = models.SmPolicyDnnData{
+				Dnn: dbSmPolicyDnnData.Dnn,
+			}
+		}
+		smPolicyData.SmPolicySnssaiData[snssai] = smPolicySnssaiData
+	}
+	return smPolicyData
+}
+
 func GetSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
 
@@ -275,51 +404,52 @@ func GetSubscriberByID(c *gin.Context) {
 
 	ueId := c.Param("ueId")
 
-	filterUeIdOnly := bson.M{"ueId": ueId}
+	dbAuthSubsData, err := queries.GetAuthenticationSubscription(ueId)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+		c.JSON(http.StatusInternalServerError, gin.H{})
+		return
+	}
+	if dbAuthSubsData == nil {
+		c.JSON(http.StatusNotFound, gin.H{})
+		return
+	}
+	dbAmData, err := queries.GetAmData(ueId)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+	}
 
-	authSubsDataInterface, errGetOneAuth := db.CommonDBClient.RestfulAPIGetOne(db.AuthSubsDataColl, filterUeIdOnly)
-	if errGetOneAuth != nil {
-		logger.DbLog.Warnln(errGetOneAuth)
+	dbSmData, err := queries.ListSmData(ueId)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
 	}
-	amDataDataInterface, errGetOneAmData := db.CommonDBClient.RestfulAPIGetOne(db.AmDataColl, filterUeIdOnly)
-	if errGetOneAmData != nil {
-		logger.DbLog.Warnln(errGetOneAmData)
-	}
-	smDataDataInterface, errGetManySmData := db.CommonDBClient.RestfulAPIGetMany(db.SmDataColl, filterUeIdOnly)
-	if errGetManySmData != nil {
-		logger.DbLog.Warnln(errGetManySmData)
-	}
-	smfSelDataInterface, errGetOneSmfSel := db.CommonDBClient.RestfulAPIGetOne(db.SmfSelDataColl, filterUeIdOnly)
-	if errGetOneSmfSel != nil {
-		logger.DbLog.Warnln(errGetOneSmfSel)
-	}
-	amPolicyDataInterface, errGetOneAmPol := db.CommonDBClient.RestfulAPIGetOne(db.AmPolicyDataColl, filterUeIdOnly)
-	if errGetOneAmPol != nil {
-		logger.DbLog.Warnln(errGetOneAmPol)
-	}
-	smPolicyDataInterface, errGetManySmPol := db.CommonDBClient.RestfulAPIGetOne(db.SmPolicyDataColl, filterUeIdOnly)
-	if errGetManySmPol != nil {
-		logger.DbLog.Warnln(errGetManySmPol)
-	}
-	var authSubsData models.AuthenticationSubscription
-	json.Unmarshal(mapToByte(authSubsDataInterface), &authSubsData)
-	var amDataData models.AccessAndMobilitySubscriptionData
-	json.Unmarshal(mapToByte(amDataDataInterface), &amDataData)
-	var smDataData []models.SessionManagementSubscriptionData
-	json.Unmarshal(sliceToByte(smDataDataInterface), &smDataData)
-	var smfSelData models.SmfSelectionSubscriptionData
-	json.Unmarshal(mapToByte(smfSelDataInterface), &smfSelData)
-	var amPolicyData models.AmPolicyData
-	json.Unmarshal(mapToByte(amPolicyDataInterface), &amPolicyData)
-	var smPolicyData models.SmPolicyData
-	json.Unmarshal(mapToByte(smPolicyDataInterface), &smPolicyData)
 
+	dbSmfSelectionData, err := queries.GetSmfSelectionSubscriptionData(ueId)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+	}
+
+	dbAmPolicyData, err := queries.GetAmPolicyData(ueId)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+	}
+
+	dbSmPolicyData, err := queries.GetSmPolicyData(ueId)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+	}
+	authSubsData := convertDbAuthSubsDataToModel(dbAuthSubsData)
+	amData := convertDbAmDataToModel(dbAmData)
+	smData := convertDbSmDataToModel(dbSmData)
+	smfSelectionData := convertDbSmfSelectionDataToModel(dbSmfSelectionData)
+	amPolicyData := convertDbAmPolicyDataToModel(dbAmPolicyData)
+	smPolicyData := convertDbSmPolicyDataToModel(dbSmPolicyData)
 	subsData = nmsModels.SubsData{
 		UeId:                              ueId,
 		AuthenticationSubscription:        authSubsData,
-		AccessAndMobilitySubscriptionData: amDataData,
-		SessionManagementSubscriptionData: smDataData,
-		SmfSelectionSubscriptionData:      smfSelData,
+		AccessAndMobilitySubscriptionData: amData,
+		SessionManagementSubscriptionData: smData,
+		SmfSelectionSubscriptionData:      smfSelectionData,
 		AmPolicyData:                      amPolicyData,
 		SmPolicyData:                      smPolicyData,
 	}
@@ -327,7 +457,6 @@ func GetSubscriberByID(c *gin.Context) {
 	c.JSON(http.StatusOK, subsData)
 }
 
-// Post subscriber by IMSI(ueId)
 func PostSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
 
@@ -342,31 +471,24 @@ func PostSubscriberByID(c *gin.Context) {
 
 	authSubsData := models.AuthenticationSubscription{
 		AuthenticationManagementField: "8000",
-		AuthenticationMethod:          "5G_AKA", // "5G_AKA", "EAP_AKA_PRIME"
+		AuthenticationMethod:          "5G_AKA",
 		Milenage: &models.Milenage{
 			Op: &models.Op{
 				EncryptionAlgorithm: 0,
 				EncryptionKey:       0,
-				OpValue:             "", // Required
+				OpValue:             "",
 			},
 		},
 		Opc: &models.Opc{
 			EncryptionAlgorithm: 0,
 			EncryptionKey:       0,
-			// OpcValue:            "8e27b6af0e692e750f32667a3b14605d", // Required
 		},
 		PermanentKey: &models.PermanentKey{
 			EncryptionAlgorithm: 0,
 			EncryptionKey:       0,
-			// PermanentKeyValue:   "8baf473f2f8fd09487cccbd7097c6862", // Required
 		},
-		// SequenceNumber: "16f3b3f70fc2",
 	}
 
-	// override values
-	/*if subsOverrideData.PlmnID != "" {
-		servingPlmnId = subsOverrideData.PlmnID
-	}*/
 	if subsOverrideData.OPc != "" {
 		authSubsData.Opc.OpcValue = subsOverrideData.OPc
 	}
@@ -378,28 +500,43 @@ func PostSubscriberByID(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, gin.H{})
 
+	err := queries.CreateAmData(ueId)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+	}
+
 	imsiVal := strings.ReplaceAll(ueId, "imsi-", "")
 	imsiData[imsiVal] = &authSubsData
-	basicAmData := map[string]interface{}{
-		"ueId": ueId,
+	dbAuthSubsData := &dbModels.AuthenticationSubscription{
+		AuthenticationManagementField: authSubsData.AuthenticationManagementField,
+		AuthenticationMethod:          dbModels.AuthMethod(authSubsData.AuthenticationMethod),
+		Milenage: &dbModels.Milenage{
+			Op: &dbModels.Op{
+				EncryptionAlgorithm: authSubsData.Milenage.Op.EncryptionAlgorithm,
+				EncryptionKey:       authSubsData.Milenage.Op.EncryptionKey,
+				OpValue:             authSubsData.Milenage.Op.OpValue,
+			},
+		},
+		Opc: &dbModels.Opc{
+			EncryptionAlgorithm: authSubsData.Opc.EncryptionAlgorithm,
+			EncryptionKey:       authSubsData.Opc.EncryptionKey,
+			OpcValue:            authSubsData.Opc.OpcValue,
+		},
+		PermanentKey: &dbModels.PermanentKey{
+			EncryptionAlgorithm: authSubsData.PermanentKey.EncryptionAlgorithm,
+			EncryptionKey:       authSubsData.PermanentKey.EncryptionKey,
+			PermanentKeyValue:   authSubsData.PermanentKey.PermanentKeyValue,
+		},
+		SequenceNumber: authSubsData.SequenceNumber,
 	}
-	filter := bson.M{"ueId": ueId}
-	basicDataBson := toBsonM(basicAmData)
-	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, basicDataBson)
-	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+	err = queries.CreateAuthenticationSubscription(ueId, dbAuthSubsData)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
 	}
-	filter = bson.M{"ueId": ueId}
-	authDataBsonA := toBsonM(&authSubsData)
-	authDataBsonA["ueId"] = ueId
-	_, errPost = db.CommonDBClient.RestfulAPIPost(db.AuthSubsDataColl, filter, authDataBsonA)
-	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
-	}
+
 	logger.NMSLog.Infof("Created subscriber: %v", ueId)
 }
 
-// Put subscriber by IMSI(ueId) and PlmnID(servingPlmnId)
 func PutSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
 	logger.NMSLog.Infoln("Put One Subscriber Data")
@@ -414,22 +551,38 @@ func PutSubscriberByID(c *gin.Context) {
 
 	imsiVal := strings.ReplaceAll(ueId, "imsi-", "")
 	imsiData[imsiVal] = &subsData.AuthenticationSubscription
-	basicAmData := map[string]interface{}{
-		"ueId": ueId,
+
+	err := queries.CreateAmData(ueId)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
 	}
-	filter := bson.M{"ueId": ueId}
-	basicDataBson := toBsonM(basicAmData)
-	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, basicDataBson)
-	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
-	}
+
 	logger.NMSLog.Debugln("Config5GUpdateHandle: Insert/Update AuthenticationSubscription ", ueId)
-	filter = bson.M{"ueId": ueId}
-	authDataBsonA := toBsonM(&subsData.AuthenticationSubscription)
-	authDataBsonA["ueId"] = ueId
-	_, errPost = db.CommonDBClient.RestfulAPIPost(db.AuthSubsDataColl, filter, authDataBsonA)
-	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+	dbAuthSubsData := &dbModels.AuthenticationSubscription{
+		AuthenticationManagementField: subsData.AuthenticationSubscription.AuthenticationManagementField,
+		AuthenticationMethod:          dbModels.AuthMethod(subsData.AuthenticationSubscription.AuthenticationMethod),
+		Milenage: &dbModels.Milenage{
+			Op: &dbModels.Op{
+				EncryptionAlgorithm: subsData.AuthenticationSubscription.Milenage.Op.EncryptionAlgorithm,
+				EncryptionKey:       subsData.AuthenticationSubscription.Milenage.Op.EncryptionKey,
+				OpValue:             subsData.AuthenticationSubscription.Milenage.Op.OpValue,
+			},
+		},
+		Opc: &dbModels.Opc{
+			EncryptionAlgorithm: subsData.AuthenticationSubscription.Opc.EncryptionAlgorithm,
+			EncryptionKey:       subsData.AuthenticationSubscription.Opc.EncryptionKey,
+			OpcValue:            subsData.AuthenticationSubscription.Opc.OpcValue,
+		},
+		PermanentKey: &dbModels.PermanentKey{
+			EncryptionAlgorithm: subsData.AuthenticationSubscription.PermanentKey.EncryptionAlgorithm,
+			EncryptionKey:       subsData.AuthenticationSubscription.PermanentKey.EncryptionKey,
+			PermanentKeyValue:   subsData.AuthenticationSubscription.PermanentKey.PermanentKeyValue,
+		},
+		SequenceNumber: subsData.AuthenticationSubscription.SequenceNumber,
+	}
+	err = queries.CreateAuthenticationSubscription(ueId, dbAuthSubsData)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
 	}
 	logger.NMSLog.Infof("Edited Subscriber: %v", ueId)
 }
@@ -444,78 +597,13 @@ func DeleteSubscriberByID(c *gin.Context) {
 	logger.NMSLog.Infoln("Delete One Subscriber Data")
 	ueId := c.Param("ueId")
 	c.JSON(http.StatusNoContent, gin.H{})
-	filter := bson.M{"ueId": "imsi-" + ueId}
-	errDelOne := db.CommonDBClient.RestfulAPIDeleteOne(db.AuthSubsDataColl, filter)
-	if errDelOne != nil {
-		logger.DbLog.Warnln(errDelOne)
+	err := queries.DeleteAuthenticationSubscription(ueId)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
 	}
-	errDel := db.CommonDBClient.RestfulAPIDeleteOne(db.AmDataColl, filter)
-	if errDel != nil {
-		logger.DbLog.Warnln(errDel)
+	err = queries.DeleteAmData2(ueId)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
 	}
 	logger.NMSLog.Infof("Deleted Subscriber: %v", ueId)
-}
-
-func GetRegisteredUEContext(c *gin.Context) {
-	setCorsHeader(c)
-
-	logger.NMSLog.Infoln("Get Registered UE Context")
-
-	nmsSelf := NMS_Self()
-
-	supi, supiExists := c.Params.Get("supi")
-
-	// TODO: support fetching data from multiple AMFs
-	if amfUris := nmsSelf.GetOamUris(models.NfType_AMF); amfUris != nil {
-		var requestUri string
-
-		if supiExists {
-			requestUri = fmt.Sprintf("%s/namf-oam/v1/registered-ue-context/%s", amfUris[0], supi)
-		} else {
-			requestUri = fmt.Sprintf("%s/namf-oam/v1/registered-ue-context", amfUris[0])
-		}
-
-		resp, err := httpsClient.Get(requestUri)
-		if err != nil {
-			logger.NMSLog.Error(err)
-			c.JSON(http.StatusInternalServerError, gin.H{})
-			return
-		}
-		sendResponseToClient(c, resp)
-	} else {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"cause": "No AMF Found",
-		})
-	}
-}
-
-func GetUEPDUSessionInfo(c *gin.Context) {
-	setCorsHeader(c)
-
-	logger.NMSLog.Infoln("Get UE PDU Session Info")
-
-	nmsSelf := NMS_Self()
-
-	smContextRef, smContextRefExists := c.Params.Get("smContextRef")
-	if !smContextRefExists {
-		c.JSON(http.StatusBadRequest, gin.H{})
-		return
-	}
-
-	// TODO: support fetching data from multiple SMF
-	if smfUris := nmsSelf.GetOamUris(models.NfType_SMF); smfUris != nil {
-		requestUri := fmt.Sprintf("%s/nsmf-oam/v1/ue-pdu-session-info/%s", smfUris[0], smContextRef)
-		resp, err := httpsClient.Get(requestUri)
-		if err != nil {
-			logger.NMSLog.Error(err)
-			c.JSON(http.StatusInternalServerError, gin.H{})
-			return
-		}
-
-		sendResponseToClient(c, resp)
-	} else {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"cause": "No SMF Found",
-		})
-	}
 }
