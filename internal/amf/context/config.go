@@ -6,7 +6,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/factory"
-	"github.com/yeastengine/ella/internal/db"
+	"github.com/yeastengine/ella/internal/db/queries"
 	"github.com/yeastengine/ella/internal/pcf/logger"
 )
 
@@ -14,13 +14,13 @@ import (
 
 func GetSupportTaiList() []models.Tai {
 	tais := make([]models.Tai, 0)
-	networkSliceNames, err := db.ListNetworkSliceNames()
+	networkSliceNames, err := queries.ListNetworkSliceNames()
 	if err != nil {
 		logger.CtxLog.Warnf("Failed to get network slice names: %s", err)
 		return tais
 	}
 	for _, networkSliceName := range networkSliceNames {
-		networkSlice, err := db.GetNetworkSliceByName(networkSliceName)
+		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
 		if err != nil {
 			logger.CtxLog.Warnf("Failed to get network slice by name: %s", networkSliceName)
 			continue
@@ -40,13 +40,13 @@ func GetSupportTaiList() []models.Tai {
 
 func GetServedGuamiList() []models.Guami {
 	guamis := make([]models.Guami, 0)
-	networkSliceNames, err := db.ListNetworkSliceNames()
+	networkSliceNames, err := queries.ListNetworkSliceNames()
 	if err != nil {
 		logger.CtxLog.Warnf("Failed to get network slice names: %s", err)
 		return guamis
 	}
 	for _, networkSliceName := range networkSliceNames {
-		networkSlice, err := db.GetNetworkSliceByName(networkSliceName)
+		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
 		if err != nil {
 			logger.CtxLog.Warnf("Failed to get network slice by name: %s", networkSliceName)
 			continue
@@ -66,13 +66,13 @@ func GetServedGuamiList() []models.Guami {
 
 func GetPlmnSupportList() []factory.PlmnSupportItem {
 	plmnSupportList := make([]factory.PlmnSupportItem, 0)
-	networkSliceNames, err := db.ListNetworkSliceNames()
+	networkSliceNames, err := queries.ListNetworkSliceNames()
 	if err != nil {
 		logger.CtxLog.Warnf("Failed to get network slice names: %s", err)
 		return plmnSupportList
 	}
 	for _, networkSliceName := range networkSliceNames {
-		networkSlice, err := db.GetNetworkSliceByName(networkSliceName)
+		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
 		if err != nil {
 			logger.CtxLog.Warnf("Failed to get network slice by name: %s", networkSliceName)
 			continue

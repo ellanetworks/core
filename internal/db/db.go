@@ -1,10 +1,15 @@
 package db
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	"github.com/omec-project/util/mongoapi"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.uber.org/zap"
 )
 
 const (
@@ -64,6 +69,35 @@ ConnectMongo:
 	}
 
 	DbLog.Infoln("Connected to MongoDB.")
+}
+
+func Initialize(url string, name string) error {
+	SetLogLevel(zap.DebugLevel)
+	err := TestConnection(url)
+	if err != nil {
+		DbLog.Fatalf("failed to connect to MongoDB: %v", err)
+		return err
+	}
+	ConnectMongo(url, name)
+	return nil
+}
+
+func TestConnection(url string) error {
+	clientOptions := options.Client().ApplyURI(url)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client, err := mongo.Connect(ctx, clientOptions)
+	if err != nil {
+		return fmt.Errorf("failed to connect to MongoDB: %w", err)
+	}
+	defer client.Disconnect(ctx)
+
+	err = client.Ping(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to ping MongoDB: %w", err)
+	}
+
+	return nil
 }
 
 func (db *MongoDBClient) RestfulAPIGetOne(collName string, filter bson.M) (map[string]interface{}, error) {

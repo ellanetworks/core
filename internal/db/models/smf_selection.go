@@ -1,4 +1,4 @@
-package db
+package models
 
 type DnnInfo struct {
 	Dnn                 string `json:"dnn" yaml:"dnn" bson:"dnn" mapstructure:"Dnn"`

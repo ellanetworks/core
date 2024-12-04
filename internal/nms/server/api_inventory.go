@@ -8,7 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/ella/internal/db"
+	dbModels "github.com/yeastengine/ella/internal/db/models"
+	"github.com/yeastengine/ella/internal/db/queries"
 	"github.com/yeastengine/ella/internal/nms/logger"
 	"github.com/yeastengine/ella/internal/nms/models"
 )
@@ -22,7 +23,7 @@ func setInventoryCorsHeader(c *gin.Context) {
 
 func GetGnbs(c *gin.Context) {
 	setInventoryCorsHeader(c)
-	dbGnbs, err := db.ListInventoryGnbs()
+	dbGnbs, err := queries.ListInventoryGnbs()
 	if err != nil {
 		logger.NMSLog.Warnln(err)
 		c.JSON(http.StatusInternalServerError, nil)
@@ -86,11 +87,11 @@ func handlePostGnb(c *gin.Context) error {
 	req := httpwrapper.NewRequest(c.Request, newGnb)
 	procReq := req.Body.(models.Gnb)
 	procReq.Name = gnbName
-	dbGnb := &db.Gnb{
+	dbGnb := &dbModels.Gnb{
 		Name: procReq.Name,
 		Tac:  procReq.Tac,
 	}
-	db.CreateGnb(dbGnb)
+	queries.CreateGnb(dbGnb)
 	logger.ConfigLog.Infof("created gnb %v", gnbName)
 	return nil
 }
@@ -103,7 +104,7 @@ func handleDeleteGnb(c *gin.Context) error {
 		logger.ConfigLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
-	err := db.DeleteGnb(gnbName)
+	err := queries.DeleteGnb(gnbName)
 	if err != nil {
 		logger.NMSLog.Warnln(err)
 	}

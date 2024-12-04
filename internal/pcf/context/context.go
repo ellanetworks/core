@@ -10,7 +10,7 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
-	"github.com/yeastengine/ella/internal/db"
+	"github.com/yeastengine/ella/internal/db/queries"
 	"github.com/yeastengine/ella/internal/pcf/factory"
 	"github.com/yeastengine/ella/internal/pcf/logger"
 )
@@ -399,13 +399,13 @@ func (sess SessionPolicy) String() string {
 
 func GetPLMNList() []PlmnSupportItem {
 	plmnSupportList := make([]PlmnSupportItem, 0)
-	networkSliceNames, err := db.ListNetworkSliceNames()
+	networkSliceNames, err := queries.ListNetworkSliceNames()
 	if err != nil {
 		logger.CtxLog.Warnf("Failed to get network slice names: %+v", err)
 		return plmnSupportList
 	}
 	for _, networkSliceName := range networkSliceNames {
-		networkSlice, err := db.GetNetworkSliceByName(networkSliceName)
+		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
 		if err != nil {
 			logger.CtxLog.Warnf("Failed to get network slice by name: %+v", err)
 			continue
@@ -424,13 +424,13 @@ func GetPLMNList() []PlmnSupportItem {
 
 func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 	subscriberPolicies := make(map[string]*PcfSubscriberPolicyData)
-	networkSliceNames, err := db.ListNetworkSliceNames()
+	networkSliceNames, err := queries.ListNetworkSliceNames()
 	if err != nil {
 		logger.CtxLog.Warnf("Failed to get network slice names: %+v", err)
 		return subscriberPolicies
 	}
 	for _, networkSliceName := range networkSliceNames {
-		networkSlice, err := db.GetNetworkSliceByName(networkSliceName)
+		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
 		if err != nil {
 			logger.CtxLog.Warnf("Failed to get network slice by name: %+v", err)
 			continue
@@ -438,7 +438,7 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 		pccPolicyId := networkSlice.SliceId.Sst + networkSlice.SliceId.Sd
 		deviceGroupNames := networkSlice.SiteDeviceGroup
 		for _, devGroupName := range deviceGroupNames {
-			deviceGroup := db.GetDeviceGroupByName(devGroupName)
+			deviceGroup := queries.GetDeviceGroupByName(devGroupName)
 			for _, imsi := range deviceGroup.Imsis {
 				if _, exists := subscriberPolicies[imsi]; !exists {
 					subscriberPolicies[imsi] = &PcfSubscriberPolicyData{

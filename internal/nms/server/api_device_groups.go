@@ -8,14 +8,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/ella/internal/db"
+	dbModels "github.com/yeastengine/ella/internal/db/models"
+	"github.com/yeastengine/ella/internal/db/queries"
 	"github.com/yeastengine/ella/internal/nms/logger"
 	"github.com/yeastengine/ella/internal/nms/models"
 )
 
 func GetDeviceGroups(c *gin.Context) {
 	setCorsHeader(c)
-	deviceGroups, err := db.ListDeviceGroupNames()
+	deviceGroups, err := queries.ListDeviceGroupNames()
 	if err != nil {
 		logger.NMSLog.Warnln(err)
 		c.JSON(http.StatusInternalServerError, nil)
@@ -26,7 +27,7 @@ func GetDeviceGroups(c *gin.Context) {
 
 func GetDeviceGroupByName(c *gin.Context) {
 	setCorsHeader(c)
-	dbDeviceGroup := db.GetDeviceGroupByName(c.Param("group-name"))
+	dbDeviceGroup := queries.GetDeviceGroupByName(c.Param("group-name"))
 	if dbDeviceGroup.DeviceGroupName == "" {
 		c.JSON(http.StatusNotFound, nil)
 		return
@@ -93,7 +94,7 @@ func DeviceGroupDeleteHandler(c *gin.Context) bool {
 		logger.ConfigLog.Errorf("group-name is missing")
 		return false
 	}
-	dbDeviceGroup := db.GetDeviceGroupByName(groupName)
+	dbDeviceGroup := queries.GetDeviceGroupByName(groupName)
 	deviceGroup := &models.DeviceGroups{
 		DeviceGroupName: dbDeviceGroup.DeviceGroupName,
 		Imsis:           dbDeviceGroup.Imsis,
@@ -119,8 +120,8 @@ func DeviceGroupDeleteHandler(c *gin.Context) bool {
 			},
 		},
 	}
-	success := db.DeleteDeviceGroup(groupName)
-	if !success {
+	err := queries.DeleteDeviceGroup(groupName)
+	if err != nil {
 		logger.NMSLog.Warnf("Device Group [%v] not found", groupName)
 		return false
 	}
@@ -171,7 +172,7 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 		if err != nil {
 			logger.NMSLog.Errorf("Could not parse SST %v", slice.SliceId.Sst)
 		}
-		snssai := &db.Snssai{
+		snssai := &dbModels.Snssai{
 			Sd:  slice.SliceId.Sd,
 			Sst: int32(sVal),
 		}
@@ -179,21 +180,21 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 		aimsis := getAddedImsisList(&procReq)
 		for _, imsi := range aimsis {
 			dnn := procReq.IpDomainExpanded.Dnn
-			err := db.CreateAmPolicyData(imsi)
+			err := queries.CreateAmPolicyData(imsi)
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 				return false
 			}
-			err = db.CreateSmPolicyData(snssai, dnn, imsi)
+			err = queries.CreateSmPolicyData(snssai, dnn, imsi)
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 				return false
 			}
-			qos := &db.DeviceGroupsIpDomainExpandedUeDnnQos{
+			qos := &dbModels.DeviceGroupsIpDomainExpandedUeDnnQos{
 				DnnMbrDownlink: procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink,
 				DnnMbrUplink:   procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink,
 				BitrateUnit:    procReq.IpDomainExpanded.UeDnnQos.BitrateUnit,
-				TrafficClass: &db.TrafficClassInfo{
+				TrafficClass: &dbModels.TrafficClassInfo{
 					Name: procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Name,
 					Qci:  procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
 					Arp:  procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Arp,
@@ -201,39 +202,39 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 					Pelr: procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
 				},
 			}
-			err = db.CreateAmProvisionedData(snssai, qos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, imsi)
+			err = queries.CreateAmProvisionedData(snssai, qos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, imsi)
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 				return false
 			}
-			err = db.CreateSmProvisionedData(snssai, qos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
+			err = queries.CreateSmProvisionedData(snssai, qos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 				return false
 			}
-			err = db.CreateSmfSelectionProviosionedData(snssai, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
+			err = queries.CreateSmfSelectionProviosionedData(snssai, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 				return false
 			}
 		}
 	}
-	dbDeviceGroup := &db.DeviceGroup{
+	dbDeviceGroup := &dbModels.DeviceGroup{
 		DeviceGroupName: groupName,
 		Imsis:           procReq.Imsis,
 		SiteInfo:        procReq.SiteInfo,
 		IpDomainName:    procReq.IpDomainName,
-		IpDomainExpanded: db.DeviceGroupsIpDomainExpanded{
+		IpDomainExpanded: dbModels.DeviceGroupsIpDomainExpanded{
 			Dnn:          procReq.IpDomainExpanded.Dnn,
 			UeIpPool:     procReq.IpDomainExpanded.UeIpPool,
 			DnsPrimary:   procReq.IpDomainExpanded.DnsPrimary,
 			DnsSecondary: procReq.IpDomainExpanded.DnsSecondary,
 			Mtu:          procReq.IpDomainExpanded.Mtu,
-			UeDnnQos: &db.DeviceGroupsIpDomainExpandedUeDnnQos{
+			UeDnnQos: &dbModels.DeviceGroupsIpDomainExpandedUeDnnQos{
 				DnnMbrDownlink: procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink,
 				DnnMbrUplink:   procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink,
 				BitrateUnit:    procReq.IpDomainExpanded.UeDnnQos.BitrateUnit,
-				TrafficClass: &db.TrafficClassInfo{
+				TrafficClass: &dbModels.TrafficClassInfo{
 					Name: procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Name,
 					Qci:  procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
 					Arp:  procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Arp,
@@ -243,7 +244,7 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 			},
 		},
 	}
-	err = db.CreateDeviceGroup(dbDeviceGroup)
+	err = queries.CreateDeviceGroup(dbDeviceGroup)
 	if err != nil {
 		logger.NMSLog.Warnln(err)
 		return false
@@ -270,23 +271,23 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 		for _, imsi := range dimsis {
 			mcc := slice.SiteInfo.Plmn.Mcc
 			mnc := slice.SiteInfo.Plmn.Mnc
-			err := db.DeleteAmPolicy(imsi)
+			err := queries.DeleteAmPolicy(imsi)
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 			}
-			err = db.DeleteSmPolicy(imsi)
+			err = queries.DeleteSmPolicy(imsi)
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 			}
-			err = db.DeleteAmData(imsi, mcc, mnc)
+			err = queries.DeleteAmData(imsi, mcc, mnc)
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 			}
-			err = db.DeleteSmData(imsi, mcc, mnc)
+			err = queries.DeleteSmData(imsi, mcc, mnc)
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 			}
-			err = db.DeleteSmfSelection(imsi, mcc, mnc)
+			err = queries.DeleteSmfSelection(imsi, mcc, mnc)
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 			}
@@ -294,8 +295,8 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 	}
 }
 
-func isDeviceGroupExistInSlice(deviceGroupName string) *db.Slice {
-	dBSlices := db.ListNetworkSlices()
+func isDeviceGroupExistInSlice(deviceGroupName string) *dbModels.Slice {
+	dBSlices := queries.ListNetworkSlices()
 	for name, slice := range dBSlices {
 		for _, dgName := range slice.SiteDeviceGroup {
 			if dgName == deviceGroupName {

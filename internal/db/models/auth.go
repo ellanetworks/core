@@ -1,4 +1,4 @@
-package db
+package models
 
 const (
 	VectorAlgorithm_MILENAGE VectorAlgorithm = "MILENAGE"

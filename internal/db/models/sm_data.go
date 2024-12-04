@@ -1,4 +1,4 @@
-package db
+package models
 
 const (
 	PduSessionType_IPV4         PduSessionType = "IPV4"

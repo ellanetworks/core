@@ -10,7 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	openAPIModels "github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/ella/internal/db"
+	dbModels "github.com/yeastengine/ella/internal/db/models"
+	"github.com/yeastengine/ella/internal/db/queries"
 	"github.com/yeastengine/ella/internal/nms/logger"
 	"github.com/yeastengine/ella/internal/nms/models"
 	"github.com/yeastengine/ella/internal/smf/context"
@@ -30,7 +31,7 @@ func init() {
 
 func GetNetworkSlices(c *gin.Context) {
 	setCorsHeader(c)
-	networkSlices, err := db.ListNetworkSliceNames()
+	networkSlices, err := queries.ListNetworkSliceNames()
 	if err != nil {
 		logger.NMSLog.Warnln(err)
 		c.JSON(http.StatusInternalServerError, nil)
@@ -39,7 +40,7 @@ func GetNetworkSlices(c *gin.Context) {
 	c.JSON(http.StatusOK, networkSlices)
 }
 
-func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *db.Slice) *models.Slice {
+func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *dbModels.Slice) *models.Slice {
 	networkSlice := &models.Slice{
 		SliceName: dbNetworkSlice.SliceName,
 		SliceId: models.SliceSliceId{
@@ -94,27 +95,27 @@ func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *db.Slice) *models.Slice
 	return networkSlice
 }
 
-func convertNetworkSliceToDBNetworkSlice(networkSlice *models.Slice) *db.Slice {
-	dbNetworkSlice := &db.Slice{
+func convertNetworkSliceToDBNetworkSlice(networkSlice *models.Slice) *dbModels.Slice {
+	dbNetworkSlice := &dbModels.Slice{
 		SliceName: networkSlice.SliceName,
-		SliceId: db.SliceSliceId{
+		SliceId: dbModels.SliceSliceId{
 			Sst: networkSlice.SliceId.Sst,
 			Sd:  networkSlice.SliceId.Sd,
 		},
 		SiteDeviceGroup: networkSlice.SiteDeviceGroup,
-		SiteInfo: db.SliceSiteInfo{
+		SiteInfo: dbModels.SliceSiteInfo{
 			SiteName: networkSlice.SiteInfo.SiteName,
-			Plmn: db.SliceSiteInfoPlmn{
+			Plmn: dbModels.SliceSiteInfoPlmn{
 				Mcc: networkSlice.SiteInfo.Plmn.Mcc,
 				Mnc: networkSlice.SiteInfo.Plmn.Mnc,
 			},
-			GNodeBs: make([]db.SliceSiteInfoGNodeBs, 0),
+			GNodeBs: make([]dbModels.SliceSiteInfoGNodeBs, 0),
 			Upf:     make(map[string]interface{}),
 		},
-		ApplicationFilteringRules: make([]db.SliceApplicationFilteringRules, 0),
+		ApplicationFilteringRules: make([]dbModels.SliceApplicationFilteringRules, 0),
 	}
 	for _, gnb := range networkSlice.SiteInfo.GNodeBs {
-		dbGnb := db.SliceSiteInfoGNodeBs{
+		dbGnb := dbModels.SliceSiteInfoGNodeBs{
 			Name: gnb.Name,
 			Tac:  gnb.Tac,
 		}
@@ -124,7 +125,7 @@ func convertNetworkSliceToDBNetworkSlice(networkSlice *models.Slice) *db.Slice {
 		dbNetworkSlice.SiteInfo.Upf[key] = value
 	}
 	for _, appFilterRule := range networkSlice.ApplicationFilteringRules {
-		dbAppFilterRule := db.SliceApplicationFilteringRules{
+		dbAppFilterRule := dbModels.SliceApplicationFilteringRules{
 			RuleName:       appFilterRule.RuleName,
 			Priority:       appFilterRule.Priority,
 			Action:         appFilterRule.Action,
@@ -135,7 +136,7 @@ func convertNetworkSliceToDBNetworkSlice(networkSlice *models.Slice) *db.Slice {
 			AppMbrUplink:   appFilterRule.AppMbrUplink,
 			AppMbrDownlink: appFilterRule.AppMbrDownlink,
 			BitrateUnit:    appFilterRule.BitrateUnit,
-			TrafficClass: &db.TrafficClassInfo{
+			TrafficClass: &dbModels.TrafficClassInfo{
 				Name: appFilterRule.TrafficClass.Name,
 				Qci:  appFilterRule.TrafficClass.Qci,
 				Arp:  appFilterRule.TrafficClass.Arp,
@@ -152,7 +153,7 @@ func convertNetworkSliceToDBNetworkSlice(networkSlice *models.Slice) *db.Slice {
 func GetNetworkSliceByName(c *gin.Context) {
 	setCorsHeader(c)
 	logger.NMSLog.Infoln("Get Network Slice by name")
-	dbNetworkSlice, err := db.GetNetworkSliceByName(c.Param("slice-name"))
+	dbNetworkSlice, err := queries.GetNetworkSliceByName(c.Param("slice-name"))
 	if err != nil {
 		logger.NMSLog.Warnln(err)
 		c.JSON(http.StatusInternalServerError, nil)
@@ -210,39 +211,39 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 		logger.ConfigLog.Errorf("slice-name is missing")
 		return false
 	}
-	prevdbSlice, err := db.GetNetworkSliceByName(sliceName)
+	prevdbSlice, err := queries.GetNetworkSliceByName(sliceName)
 	if err != nil {
 		logger.NMSLog.Warnln(err)
 	}
-	err = db.DeleteNetworkSlice(sliceName)
+	err = queries.DeleteNetworkSlice(sliceName)
 	if err != nil {
 		logger.NMSLog.Warnln(err)
 	}
 	prevSlice := convertDBNetworkSliceToNetworkSlice(prevdbSlice)
 	dgnames := getDeleteGroupsList(nil, prevSlice)
 	for _, dgname := range dgnames {
-		devGroupConfig := db.GetDeviceGroupByName(dgname)
+		devGroupConfig := queries.GetDeviceGroupByName(dgname)
 		if devGroupConfig != nil {
 			for _, imsi := range devGroupConfig.Imsis {
 				mcc := prevSlice.SiteInfo.Plmn.Mcc
 				mnc := prevSlice.SiteInfo.Plmn.Mnc
-				err := db.DeleteAmPolicy(imsi)
+				err := queries.DeleteAmPolicy(imsi)
 				if err != nil {
 					logger.NMSLog.Warnln(err)
 				}
-				err = db.DeleteSmPolicy(imsi)
+				err = queries.DeleteSmPolicy(imsi)
 				if err != nil {
 					logger.NMSLog.Warnln(err)
 				}
-				err = db.DeleteAmData(imsi, mcc, mnc)
+				err = queries.DeleteAmData(imsi, mcc, mnc)
 				if err != nil {
 					logger.NMSLog.Warnln(err)
 				}
-				err = db.DeleteSmData(imsi, mcc, mnc)
+				err = queries.DeleteSmData(imsi, mcc, mnc)
 				if err != nil {
 					logger.NMSLog.Warnln(err)
 				}
-				err = db.DeleteSmfSelection(imsi, mcc, mnc)
+				err = queries.DeleteSmfSelection(imsi, mcc, mnc)
 				if err != nil {
 					logger.NMSLog.Warnln(err)
 				}
@@ -303,34 +304,34 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 	if err != nil {
 		logger.NMSLog.Errorf("Could not parse SST %v", procReq.SliceId.Sst)
 	}
-	snssai := &db.Snssai{
+	snssai := &dbModels.Snssai{
 		Sd:  procReq.SliceId.Sd,
 		Sst: int32(sVal),
 	}
 	for _, dgName := range procReq.SiteDeviceGroup {
-		dbDeviceGroup := db.GetDeviceGroupByName(dgName)
+		dbDeviceGroup := queries.GetDeviceGroupByName(dgName)
 		if dbDeviceGroup != nil {
 			for _, imsi := range dbDeviceGroup.Imsis {
 				dnn := dbDeviceGroup.IpDomainExpanded.Dnn
 				mcc := procReq.SiteInfo.Plmn.Mcc
 				mnc := procReq.SiteInfo.Plmn.Mnc
-				err := db.CreateAmPolicyData(imsi)
+				err := queries.CreateAmPolicyData(imsi)
 				if err != nil {
 					logger.NMSLog.Warnln(err)
 				}
-				err = db.CreateSmPolicyData(snssai, dnn, imsi)
+				err = queries.CreateSmPolicyData(snssai, dnn, imsi)
 				if err != nil {
 					logger.NMSLog.Warnln(err)
 				}
-				err = db.CreateAmProvisionedData(snssai, dbDeviceGroup.IpDomainExpanded.UeDnnQos, mcc, mnc, imsi)
+				err = queries.CreateAmProvisionedData(snssai, dbDeviceGroup.IpDomainExpanded.UeDnnQos, mcc, mnc, imsi)
 				if err != nil {
 					logger.NMSLog.Warnln(err)
 				}
-				err = db.CreateSmProvisionedData(snssai, dbDeviceGroup.IpDomainExpanded.UeDnnQos, mcc, mnc, dnn, imsi)
+				err = queries.CreateSmProvisionedData(snssai, dbDeviceGroup.IpDomainExpanded.UeDnnQos, mcc, mnc, dnn, imsi)
 				if err != nil {
 					logger.NMSLog.Warnln(err)
 				}
-				err = db.CreateSmfSelectionProviosionedData(snssai, mcc, mnc, dnn, imsi)
+				err = queries.CreateSmfSelectionProviosionedData(snssai, mcc, mnc, dnn, imsi)
 				if err != nil {
 					logger.NMSLog.Warnln(err)
 				}
@@ -338,7 +339,7 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		}
 	}
 	dbNetworkSlice := convertNetworkSliceToDBNetworkSlice(&procReq)
-	err = db.CreateNetworkSlice(dbNetworkSlice)
+	err = queries.CreateNetworkSlice(dbNetworkSlice)
 	if err != nil {
 		logger.NMSLog.Warnln(err)
 	}
@@ -373,12 +374,12 @@ func getDeleteGroupsList(slice, prevSlice *models.Slice) (names []string) {
 
 func updateSMF() {
 	networkSlices := make([]*models.Slice, 0)
-	networkSliceNames, err := db.ListNetworkSliceNames()
+	networkSliceNames, err := queries.ListNetworkSliceNames()
 	if err != nil {
 		logger.NMSLog.Warnln(err)
 	}
 	for _, networkSliceName := range networkSliceNames {
-		dbNetworkSlice, err := db.GetNetworkSliceByName(networkSliceName)
+		dbNetworkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
 		if err != nil {
 			logger.NMSLog.Warnln(err)
 			continue
@@ -387,12 +388,12 @@ func updateSMF() {
 		networkSlices = append(networkSlices, networkSlice)
 	}
 	deviceGroups := make([]models.DeviceGroups, 0)
-	deviceGroupNames, err := db.ListDeviceGroupNames()
+	deviceGroupNames, err := queries.ListDeviceGroupNames()
 	if err != nil {
 		logger.NMSLog.Warnln(err)
 	}
 	for _, deviceGroupName := range deviceGroupNames {
-		dbDeviceGroup := db.GetDeviceGroupByName(deviceGroupName)
+		dbDeviceGroup := queries.GetDeviceGroupByName(deviceGroupName)
 		deviceGroup := models.DeviceGroups{
 			DeviceGroupName: dbDeviceGroup.DeviceGroupName,
 			Imsis:           dbDeviceGroup.Imsis,

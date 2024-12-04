@@ -1,4 +1,4 @@
-package db
+package models
 
 type SliceSiteInfoPlmn struct {
 	Mcc string `json:"mcc,omitempty"`

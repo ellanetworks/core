@@ -1,4 +1,4 @@
-package db
+package models
 
 type TrafficClassInfo struct {
 	Name string `json:"name,omitempty"`

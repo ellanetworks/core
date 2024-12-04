@@ -1,31 +1,43 @@
-package db
+package queries
 
 import (
 	"encoding/json"
 	"strconv"
 
+	"github.com/yeastengine/ella/internal/db"
+	"github.com/yeastengine/ella/internal/db/models"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
 func DeleteAmData(imsi string, mcc string, mnc string) error {
 	filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
-	err := CommonDBClient.RestfulAPIDeleteOne(AmDataColl, filter)
+	err := db.CommonDBClient.RestfulAPIDeleteOne(db.AmDataColl, filter)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func CreateAmProvisionedData(snssai *Snssai, qos *DeviceGroupsIpDomainExpandedUeDnnQos, mcc, mnc, imsi string) error {
-	amData := AccessAndMobilitySubscriptionData{
+func DeleteAmData2(ueId string) error {
+	filter := bson.M{"ueId": "imsi-" + ueId}
+	err := db.CommonDBClient.RestfulAPIDeleteOne(db.AmDataColl, filter)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// This method should be deleted in favor or `CreateAmData`
+func CreateAmProvisionedData(snssai *models.Snssai, qos *models.DeviceGroupsIpDomainExpandedUeDnnQos, mcc, mnc, imsi string) error {
+	amData := models.AccessAndMobilitySubscriptionData{
 		Gpsis: []string{
 			"msisdn-0900000000",
 		},
-		Nssai: &Nssai{
-			DefaultSingleNssais: []Snssai{*snssai},
-			SingleNssais:        []Snssai{*snssai},
+		Nssai: &models.Nssai{
+			DefaultSingleNssais: []models.Snssai{*snssai},
+			SingleNssais:        []models.Snssai{*snssai},
 		},
-		SubscribedUeAmbr: &AmbrRm{
+		SubscribedUeAmbr: &models.AmbrRm{
 			Downlink: convertToString(uint64(qos.DnnMbrDownlink)),
 			Uplink:   convertToString(uint64(qos.DnnMbrUplink)),
 		},
@@ -40,7 +52,7 @@ func CreateAmProvisionedData(snssai *Snssai, qos *DeviceGroupsIpDomainExpandedUe
 			{"servingPlmnId": bson.M{"$exists": false}},
 		},
 	}
-	_, err := CommonDBClient.RestfulAPIPost(AmDataColl, filter, amDataBsonA)
+	_, err := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, amDataBsonA)
 	if err != nil {
 		return err
 	}
@@ -53,32 +65,32 @@ func CreateAmData(ueId string) error {
 	}
 	filter := bson.M{"ueId": ueId}
 	basicDataBson := toBsonM(basicAmData)
-	_, err := CommonDBClient.RestfulAPIPost(AmDataColl, filter, basicDataBson)
+	_, err := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, basicDataBson)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func GetAmData(ueId string) (*AccessAndMobilitySubscriptionData, error) {
+func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	filterUeIdOnly := bson.M{"ueId": ueId}
-	amData, err := CommonDBClient.RestfulAPIGetOne(AmDataColl, filterUeIdOnly)
+	amData, err := db.CommonDBClient.RestfulAPIGetOne(db.AmDataColl, filterUeIdOnly)
 	if err != nil {
 		return nil, err
 	}
-	amDataObj := &AccessAndMobilitySubscriptionData{}
+	amDataObj := &models.AccessAndMobilitySubscriptionData{}
 	json.Unmarshal(mapToByte(amData), &amDataObj)
 	return amDataObj, nil
 }
 
-func ListAmData() ([]*AccessAndMobilitySubscriptionData, error) {
-	amDataListObj := make([]*AccessAndMobilitySubscriptionData, 0)
-	amDataList, err := CommonDBClient.RestfulAPIGetMany(AmDataColl, bson.M{})
+func ListAmData() ([]*models.AccessAndMobilitySubscriptionData, error) {
+	amDataListObj := make([]*models.AccessAndMobilitySubscriptionData, 0)
+	amDataList, err := db.CommonDBClient.RestfulAPIGetMany(db.AmDataColl, bson.M{})
 	if err != nil {
 		return nil, err
 	}
 	for _, amData := range amDataList {
-		amDataObj := &AccessAndMobilitySubscriptionData{}
+		amDataObj := &models.AccessAndMobilitySubscriptionData{}
 		json.Unmarshal(mapToByte(amData), &amDataObj)
 		amDataListObj = append(amDataListObj, amDataObj)
 	}

@@ -1,4 +1,4 @@
-package db
+package models
 
 type Snssai struct {
 	Sst int32  `json:"sst" yaml:"sst" bson:"sst" mapstructure:"Sst"`
