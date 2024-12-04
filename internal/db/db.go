@@ -13,19 +13,19 @@ import (
 )
 
 const (
-	DevGroupDataColl = "webconsoleData.snapshots.devGroupData" // Used
-	SliceDataColl    = "webconsoleData.snapshots.sliceData"    // Used
-	GnbDataColl      = "webconsoleData.snapshots.gnbData"      // Used
+	DevGroupDataColl = "webconsoleData.snapshots.devGroupData"
+	SliceDataColl    = "webconsoleData.snapshots.sliceData"
+	GnbDataColl      = "webconsoleData.snapshots.gnbData"
 
-	AuthSubsDataColl                 = "subscriptionData.authenticationData.authenticationSubscription" // Used
-	SUBSCDATA_AUT_AUTHSTATUS         = "subscriptionData.authenticationData.authenticationStatus"       // Used
-	AmDataColl                       = "subscriptionData.provisionedData.amData"                        // Used
-	SmDataColl                       = "subscriptionData.provisionedData.smData"                        // Used
-	SmfSelDataColl                   = "subscriptionData.provisionedData.smfSelectionSubscriptionData"  // Used
-	SUBSCDATA_CTXDATA_AMF_3GPPACCESS = "subscriptionData.contextData.amf3gppAccess"                     // Used
+	AuthSubsDataColl                 = "subscriptionData.authenticationData.authenticationSubscription"
+	SUBSCDATA_AUT_AUTHSTATUS         = "subscriptionData.authenticationData.authenticationStatus"
+	AmDataColl                       = "subscriptionData.provisionedData.amData"
+	SmDataColl                       = "subscriptionData.provisionedData.smData"
+	SmfSelDataColl                   = "subscriptionData.provisionedData.smfSelectionSubscriptionData"
+	SUBSCDATA_CTXDATA_AMF_3GPPACCESS = "subscriptionData.contextData.amf3gppAccess"
 
-	AmPolicyDataColl = "policyData.ues.amData" // Used
-	SmPolicyDataColl = "policyData.ues.smData" // Used
+	AmPolicyDataColl = "policyData.ues.amData"
+	SmPolicyDataColl = "policyData.ues.smData"
 )
 
 type DBInterface interface {
