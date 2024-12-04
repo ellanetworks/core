@@ -22,10 +22,7 @@ const (
 	AmDataColl                           = "subscriptionData.provisionedData.amData"                        // Used
 	SmDataColl                           = "subscriptionData.provisionedData.smData"                        // Used
 	SmfSelDataColl                       = "subscriptionData.provisionedData.smfSelectionSubscriptionData"  // Used
-	SUBSCDATA_PROVISIONED_SMSMNG         = "subscriptionData.provisionedData.smsMngData"
-	SUBSCDATA_PROVISIONED_SMS            = "subscriptionData.provisionedData.smsData"
-	SUBSCDATA_PROVISIONED_TRACE          = "subscriptionData.provisionedData.traceData"
-	SUBSCDATA_CTXDATA_AMF_3GPPACCESS     = "subscriptionData.contextData.amf3gppAccess" // Used
+	SUBSCDATA_CTXDATA_AMF_3GPPACCESS     = "subscriptionData.contextData.amf3gppAccess"                     // Used
 	SUBSCDATA_CTXDATA_AMF_NON3GPPACCESS  = "subscriptionData.contextData.amfNon3gppAccess"
 	SUBSCDATA_CTXDATA_SMF_REGISTRATION   = "subscriptionData.contextData.smfRegistrations"
 	SUBSCDATA_CTXDATA_SMSF_3GPPACCESS    = "subscriptionData.contextData.smsf3gppAccess"

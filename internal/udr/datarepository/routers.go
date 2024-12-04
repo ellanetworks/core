@@ -401,31 +401,10 @@ var routes = Routes{
 	},
 
 	{
-		"HTTPQuerySmsMngData",
-		strings.ToUpper("Get"),
-		"/subscription-data/:ueId/:servingPlmnId/provisioned-data/sms-mng-data",
-		HTTPQuerySmsMngData,
-	},
-
-	{
-		"HTTPQuerySmsData",
-		strings.ToUpper("Get"),
-		"/subscription-data/:ueId/:servingPlmnId/provisioned-data/sms-data",
-		HTTPQuerySmsData,
-	},
-
-	{
 		"HTTPQuerySmData",
 		strings.ToUpper("Get"),
 		"/subscription-data/:ueId/:servingPlmnId/provisioned-data/sm-data",
 		HTTPQuerySmData,
-	},
-
-	{
-		"HTTPQueryTraceData",
-		strings.ToUpper("Get"),
-		"/subscription-data/:ueId/:servingPlmnId/provisioned-data/trace-data",
-		HTTPQueryTraceData,
 	},
 
 	{

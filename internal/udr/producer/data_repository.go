@@ -1274,22 +1274,6 @@ func QueryProvisionedDataProcedure(ueId string, servingPlmnId string,
 
 	{
 		filter := bson.M{"ueId": ueId, "servingPlmnId": servingPlmnId}
-		smsSubscriptionData, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SUBSCDATA_PROVISIONED_SMS, filter)
-		if errGetOne != nil {
-			logger.DataRepoLog.Warnln(errGetOne)
-		}
-		if smsSubscriptionData != nil {
-			var tmp models.SmsSubscriptionData
-			err := mapstructure.Decode(smsSubscriptionData, &tmp)
-			if err != nil {
-				panic(err)
-			}
-			provisionedDataSets.SmsSubsData = &tmp
-		}
-	}
-
-	{
-		filter := bson.M{"ueId": ueId, "servingPlmnId": servingPlmnId}
 		sessionManagementSubscriptionDatas, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.SmDataColl, filter)
 		if errGetMany != nil {
 			logger.DataRepoLog.Warnln(errGetMany)
@@ -1301,38 +1285,6 @@ func QueryProvisionedDataProcedure(ueId string, servingPlmnId string,
 				panic(err)
 			}
 			provisionedDataSets.SmData = tmp
-		}
-	}
-
-	{
-		filter := bson.M{"ueId": ueId, "servingPlmnId": servingPlmnId}
-		traceData, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SUBSCDATA_PROVISIONED_TRACE, filter)
-		if errGetOne != nil {
-			logger.DataRepoLog.Warnln(errGetOne)
-		}
-		if traceData != nil {
-			var tmp models.TraceData
-			err := mapstructure.Decode(traceData, &tmp)
-			if err != nil {
-				panic(err)
-			}
-			provisionedDataSets.TraceData = &tmp
-		}
-	}
-
-	{
-		filter := bson.M{"ueId": ueId, "servingPlmnId": servingPlmnId}
-		smsManagementSubscriptionData, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SUBSCDATA_PROVISIONED_SMSMNG, filter)
-		if errGetOne != nil {
-			logger.DataRepoLog.Warnln(errGetOne)
-		}
-		if smsManagementSubscriptionData != nil {
-			var tmp models.SmsManagementSubscriptionData
-			err := mapstructure.Decode(smsManagementSubscriptionData, &tmp)
-			if err != nil {
-				panic(err)
-			}
-			provisionedDataSets.SmsMngData = &tmp
 		}
 	}
 
@@ -1980,70 +1932,6 @@ func QuerySmsfContextNon3gppProcedure(ueId string) (*map[string]interface{}, *mo
 	}
 }
 
-func HandleQuerySmsMngData(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle QuerySmsMngData")
-
-	ueId := request.Params["ueId"]
-	servingPlmnId := request.Params["servingPlmnId"]
-	response, problemDetails := QuerySmsMngDataProcedure(ueId, servingPlmnId)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-
-	pd := util.ProblemDetailsUpspecified("")
-	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
-}
-
-func QuerySmsMngDataProcedure(ueId string, servingPlmnId string) (*map[string]interface{}, *models.ProblemDetails) {
-	filter := bson.M{"ueId": ueId, "servingPlmnId": servingPlmnId}
-	smsManagementSubscriptionData, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SUBSCDATA_PROVISIONED_SMSMNG, filter)
-	if errGetOne != nil {
-		logger.DataRepoLog.Warnln(errGetOne)
-	}
-
-	if smsManagementSubscriptionData != nil {
-		return &smsManagementSubscriptionData, nil
-	} else {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
-}
-
-func HandleQuerySmsData(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle QuerySmsData")
-
-	ueId := request.Params["ueId"]
-	servingPlmnId := request.Params["servingPlmnId"]
-
-	response, problemDetails := QuerySmsDataProcedure(ueId, servingPlmnId)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-
-	pd := util.ProblemDetailsUpspecified("")
-	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
-}
-
-func QuerySmsDataProcedure(ueId string, servingPlmnId string) (*map[string]interface{}, *models.ProblemDetails) {
-	filter := bson.M{"ueId": ueId, "servingPlmnId": servingPlmnId}
-
-	smsSubscriptionData, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SUBSCDATA_PROVISIONED_SMS, filter)
-	if errGetOne != nil {
-		logger.DataRepoLog.Warnln(errGetOne)
-	}
-
-	if smsSubscriptionData != nil {
-		return &smsSubscriptionData, nil
-	} else {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
-}
-
 func HandlePostSubscriptionDataSubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.DataRepoLog.Infof("Handle PostSubscriptionDataSubscriptions")
 
@@ -2095,39 +1983,4 @@ func RemovesubscriptionDataSubscriptionsProcedure(subsId string) *models.Problem
 	}
 	delete(udrSelf.SubscriptionDataSubscriptions, subsId)
 	return nil
-}
-
-func HandleQueryTraceData(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle QueryTraceData")
-
-	ueId := request.Params["ueId"]
-	servingPlmnId := request.Params["servingPlmnId"]
-
-	response, problemDetails := QueryTraceDataProcedure(ueId, servingPlmnId)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-
-	pd := util.ProblemDetailsUpspecified("")
-	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
-}
-
-func QueryTraceDataProcedure(ueId string,
-	servingPlmnId string,
-) (*map[string]interface{}, *models.ProblemDetails) {
-	filter := bson.M{"ueId": ueId, "servingPlmnId": servingPlmnId}
-
-	traceData, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SUBSCDATA_PROVISIONED_TRACE, filter)
-	if errGetOne != nil {
-		logger.DataRepoLog.Warnln(errGetOne)
-	}
-
-	if traceData != nil {
-		return &traceData, nil
-	} else {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
 }
