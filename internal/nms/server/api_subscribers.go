@@ -369,7 +369,6 @@ func GetSubscriberByID(c *gin.Context) {
 	c.JSON(http.StatusOK, subsData)
 }
 
-// Post subscriber by IMSI(ueId)
 func PostSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
 
@@ -384,31 +383,24 @@ func PostSubscriberByID(c *gin.Context) {
 
 	authSubsData := models.AuthenticationSubscription{
 		AuthenticationManagementField: "8000",
-		AuthenticationMethod:          "5G_AKA", // "5G_AKA", "EAP_AKA_PRIME"
+		AuthenticationMethod:          "5G_AKA",
 		Milenage: &models.Milenage{
 			Op: &models.Op{
 				EncryptionAlgorithm: 0,
 				EncryptionKey:       0,
-				OpValue:             "", // Required
+				OpValue:             "",
 			},
 		},
 		Opc: &models.Opc{
 			EncryptionAlgorithm: 0,
 			EncryptionKey:       0,
-			// OpcValue:            "8e27b6af0e692e750f32667a3b14605d", // Required
 		},
 		PermanentKey: &models.PermanentKey{
 			EncryptionAlgorithm: 0,
 			EncryptionKey:       0,
-			// PermanentKeyValue:   "8baf473f2f8fd09487cccbd7097c6862", // Required
 		},
-		// SequenceNumber: "16f3b3f70fc2",
 	}
 
-	// override values
-	/*if subsOverrideData.PlmnID != "" {
-		servingPlmnId = subsOverrideData.PlmnID
-	}*/
 	if subsOverrideData.OPc != "" {
 		authSubsData.Opc.OpcValue = subsOverrideData.OPc
 	}
@@ -420,24 +412,40 @@ func PostSubscriberByID(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, gin.H{})
 
+	err := db.CreateAmData(ueId)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
+	}
+
 	imsiVal := strings.ReplaceAll(ueId, "imsi-", "")
 	imsiData[imsiVal] = &authSubsData
-	basicAmData := map[string]interface{}{
-		"ueId": ueId,
+	dbAuthSubsData := &db.AuthenticationSubscription{
+		AuthenticationManagementField: authSubsData.AuthenticationManagementField,
+		AuthenticationMethod:          db.AuthMethod(authSubsData.AuthenticationMethod),
+		Milenage: &db.Milenage{
+			Op: &db.Op{
+				EncryptionAlgorithm: authSubsData.Milenage.Op.EncryptionAlgorithm,
+				EncryptionKey:       authSubsData.Milenage.Op.EncryptionKey,
+				OpValue:             authSubsData.Milenage.Op.OpValue,
+			},
+		},
+		Opc: &db.Opc{
+			EncryptionAlgorithm: authSubsData.Opc.EncryptionAlgorithm,
+			EncryptionKey:       authSubsData.Opc.EncryptionKey,
+			OpcValue:            authSubsData.Opc.OpcValue,
+		},
+		PermanentKey: &db.PermanentKey{
+			EncryptionAlgorithm: authSubsData.PermanentKey.EncryptionAlgorithm,
+			EncryptionKey:       authSubsData.PermanentKey.EncryptionKey,
+			PermanentKeyValue:   authSubsData.PermanentKey.PermanentKeyValue,
+		},
+		SequenceNumber: authSubsData.SequenceNumber,
 	}
-	filter := bson.M{"ueId": ueId}
-	basicDataBson := toBsonM(basicAmData)
-	_, errPost := db.CommonDBClient.RestfulAPIPost(db.AmDataColl, filter, basicDataBson)
-	if errPost != nil {
-		logger.NMSLog.Warnln(errPost)
+	err = db.CreateAuthenticationSubscription(ueId, dbAuthSubsData)
+	if err != nil {
+		logger.NMSLog.Warnln(err)
 	}
-	filter = bson.M{"ueId": ueId}
-	authDataBsonA := toBsonM(&authSubsData)
-	authDataBsonA["ueId"] = ueId
-	_, errPost = db.CommonDBClient.RestfulAPIPost(db.AuthSubsDataColl, filter, authDataBsonA)
-	if errPost != nil {
-		logger.NMSLog.Warnln(errPost)
-	}
+
 	logger.NMSLog.Infof("Created subscriber: %v", ueId)
 }
 

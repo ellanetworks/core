@@ -16,3 +16,14 @@ func GetAuthenticationSubscription(ueId string) (*AuthenticationSubscription, er
 	json.Unmarshal(mapToByte(authSubsDataInterface), &authSubsData)
 	return authSubsData, nil
 }
+
+func CreateAuthenticationSubscription(ueId string, authSubsData *AuthenticationSubscription) error {
+	filter := bson.M{"ueId": ueId}
+	authDataBsonA := toBsonM(authSubsData)
+	authDataBsonA["ueId"] = ueId
+	_, err := CommonDBClient.RestfulAPIPost(AuthSubsDataColl, filter, authDataBsonA)
+	if err != nil {
+		return err
+	}
+	return nil
+}

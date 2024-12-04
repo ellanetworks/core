@@ -47,6 +47,19 @@ func CreateAmProvisionedData(snssai *Snssai, qos *DeviceGroupsIpDomainExpandedUe
 	return nil
 }
 
+func CreateAmData(ueId string) error {
+	basicAmData := map[string]interface{}{
+		"ueId": ueId,
+	}
+	filter := bson.M{"ueId": ueId}
+	basicDataBson := toBsonM(basicAmData)
+	_, err := CommonDBClient.RestfulAPIPost(AmDataColl, filter, basicDataBson)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func GetAmData(ueId string) (*AccessAndMobilitySubscriptionData, error) {
 	filterUeIdOnly := bson.M{"ueId": ueId}
 	amData, err := CommonDBClient.RestfulAPIGetOne(AmDataColl, filterUeIdOnly)
