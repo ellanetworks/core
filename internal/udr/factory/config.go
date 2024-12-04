@@ -2,13 +2,13 @@ package factory
 
 import (
 	"github.com/omec-project/openapi/models"
-	logger_util "github.com/omec-project/util/logger"
+	"github.com/omec-project/util/logger"
 )
 
 var UdrConfig Configuration
 
 type Configuration struct {
-	Logger *logger_util.Logger
+	Logger *logger.Logger
 	Sbi    *Sbi
 }
 

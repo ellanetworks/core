@@ -1,9 +1,3 @@
-// SPDX-FileCopyrightText: 2024 Intel Corporation
-// SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
-// Copyright 2019 free5GC.org
-//
-// SPDX-License-Identifier: Apache-2.0
-
 package logger
 
 import (
@@ -68,7 +62,6 @@ func GetLogger() *zap.Logger {
 	return log
 }
 
-// SetLogLevel: set the log level (panic|fatal|error|warn|info|debug)
 func SetLogLevel(level zapcore.Level) {
 	CfgLog.Infoln("set log level:", level)
 	atomicLevel.SetLevel(level)
