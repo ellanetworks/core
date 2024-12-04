@@ -12,7 +12,6 @@ import (
 	"github.com/yeastengine/ella/internal/udr/datarepository"
 	"github.com/yeastengine/ella/internal/udr/factory"
 	"github.com/yeastengine/ella/internal/udr/logger"
-	"github.com/yeastengine/ella/internal/udr/producer"
 	"github.com/yeastengine/ella/internal/udr/util"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -37,11 +36,6 @@ func (udr *UDR) setLogLevel() {
 }
 
 func (udr *UDR) Start() {
-	config := factory.UdrConfig
-	mongodb := config.Mongodb
-
-	producer.ConnectMongo(mongodb.Url, mongodb.Name)
-
 	router := logger_util.NewGinWithZap(logger.GinLog)
 
 	datarepository.AddService(router)
