@@ -17,23 +17,12 @@ const (
 	SliceDataColl    = "webconsoleData.snapshots.sliceData"    // Used
 	GnbDataColl      = "webconsoleData.snapshots.gnbData"      // Used
 
-	AuthSubsDataColl                     = "subscriptionData.authenticationData.authenticationSubscription" // Used
-	SUBSCDATA_AUT_AUTHSTATUS             = "subscriptionData.authenticationData.authenticationStatus"       // Used
-	AmDataColl                           = "subscriptionData.provisionedData.amData"                        // Used
-	SmDataColl                           = "subscriptionData.provisionedData.smData"                        // Used
-	SmfSelDataColl                       = "subscriptionData.provisionedData.smfSelectionSubscriptionData"  // Used
-	SUBSCDATA_CTXDATA_AMF_3GPPACCESS     = "subscriptionData.contextData.amf3gppAccess"                     // Used
-	SUBSCDATA_CTXDATA_AMF_NON3GPPACCESS  = "subscriptionData.contextData.amfNon3gppAccess"
-	SUBSCDATA_CTXDATA_SMF_REGISTRATION   = "subscriptionData.contextData.smfRegistrations"
-	SUBSCDATA_CTXDATA_SMSF_3GPPACCESS    = "subscriptionData.contextData.smsf3gppAccess"
-	SUBSCDATA_CTXDATA_SMSF_NON3GPPACCESS = "subscriptionData.contextData.smsfNon3gppAccess"
-	SUBSCDATA_PPData                     = "subscriptionData.ppData"
-	SUBSCDATA_IDENTITY                   = "subscriptionData.identityData"
-	SUBSCDATA_EEPROFILE                  = "subscriptionData.eeProfileData"
-	SUBSCDATA_OPERATORSPECIFIC           = "subscriptionData.operatorSpecificData"
-	SUBSCDATA_OPERATORDETERMINEDBARRING  = "subscriptionData.operatorDeterminedBarringData"
-	SUBSCDATA_SHARED                     = "subscriptionData.sharedData"
-	SUBSCDATA_UEUPDATECONFIRMATION_SOR   = "subscriptionData.ueUpdateConfirmationData.sorData"
+	AuthSubsDataColl                 = "subscriptionData.authenticationData.authenticationSubscription" // Used
+	SUBSCDATA_AUT_AUTHSTATUS         = "subscriptionData.authenticationData.authenticationStatus"       // Used
+	AmDataColl                       = "subscriptionData.provisionedData.amData"                        // Used
+	SmDataColl                       = "subscriptionData.provisionedData.smData"                        // Used
+	SmfSelDataColl                   = "subscriptionData.provisionedData.smfSelectionSubscriptionData"  // Used
+	SUBSCDATA_CTXDATA_AMF_3GPPACCESS = "subscriptionData.contextData.amf3gppAccess"                     // Used
 
 	AmPolicyDataColl = "policyData.ues.amData" // Used
 	SmPolicyDataColl = "policyData.ues.smData" // Used

@@ -31,33 +31,3 @@ func PreHandleOnDataChangeNotify(ueId string, resourceId string, patchItems []mo
 
 	go callback.SendOnDataChangeNotify(ueId, notifyItems)
 }
-
-func PreHandlePolicyDataChangeNotification(ueId string, dataId string, value interface{}) {
-	policyDataChangeNotification := models.PolicyDataChangeNotification{}
-
-	if ueId != "" {
-		policyDataChangeNotification.UeId = ueId
-	}
-
-	switch v := value.(type) {
-	case models.AmPolicyData:
-		policyDataChangeNotification.AmPolicyData = &v
-	case models.UePolicySet:
-		policyDataChangeNotification.UePolicySet = &v
-	case models.SmPolicyData:
-		policyDataChangeNotification.SmPolicyData = &v
-	case models.UsageMonData:
-		policyDataChangeNotification.UsageMonId = dataId
-		policyDataChangeNotification.UsageMonData = &v
-	case models.SponsorConnectivityData:
-		policyDataChangeNotification.SponsorId = dataId
-		policyDataChangeNotification.SponsorConnectivityData = &v
-	case models.BdtData:
-		policyDataChangeNotification.BdtRefId = dataId
-		policyDataChangeNotification.BdtData = &v
-	default:
-		return
-	}
-
-	go callback.SendPolicyDataChangeNotification(policyDataChangeNotification)
-}

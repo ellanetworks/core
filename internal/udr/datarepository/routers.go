@@ -184,27 +184,6 @@ var routes = Routes{
 	},
 
 	{
-		"HTTPAmfContextNon3gpp",
-		strings.ToUpper("Patch"),
-		"/subscription-data/:ueId/:servingPlmnId/amf-non-3gpp-access",
-		HTTPAmfContextNon3gpp,
-	},
-
-	{
-		"HTTPCreateAmfContextNon3gpp",
-		strings.ToUpper("Put"),
-		"/subscription-data/:ueId/:servingPlmnId/amf-non-3gpp-access",
-		HTTPCreateAmfContextNon3gpp,
-	},
-
-	{
-		"HTTPQueryAmfContextNon3gpp",
-		strings.ToUpper("Get"),
-		"/subscription-data/:ueId/:servingPlmnId/amf-non-3gpp-access",
-		HTTPQueryAmfContextNon3gpp,
-	},
-
-	{
 		"HTTPQueryAmData",
 		strings.ToUpper("Get"),
 		"/subscription-data/:ueId/:servingPlmnId/provisioned-data/am-data",
@@ -230,20 +209,6 @@ var routes = Routes{
 		strings.ToUpper("Get"),
 		"/subscription-data/:ueId/:servingPlmnId/authentication-subscription",
 		HTTPQueryAuthSubsData,
-	},
-
-	{
-		"HTTPCreateAuthenticationSoR",
-		strings.ToUpper("Put"),
-		"/subscription-data/:ueId/:servingPlmnId/sor-data",
-		HTTPCreateAuthenticationSoR,
-	},
-
-	{
-		"HTTPQueryAuthSoR",
-		strings.ToUpper("Get"),
-		"/subscription-data/:ueId/:servingPlmnId/sor-data",
-		HTTPQueryAuthSoR,
 	},
 
 	{
@@ -324,80 +289,10 @@ var routes = Routes{
 	},
 
 	{
-		"HTTPCreateSmfContextNon3gpp",
-		strings.ToUpper("Put"),
-		"/subscription-data/:ueId/:servingPlmnId/smf-registrations/:pduSessionId",
-		HTTPCreateSmfContextNon3gpp,
-	},
-
-	{
-		"HTTPDeleteSmfContext",
-		strings.ToUpper("Delete"),
-		"/subscription-data/:ueId/:servingPlmnId/smf-registrations/:pduSessionId",
-		HTTPDeleteSmfContext,
-	},
-
-	{
-		"HTTPQuerySmfRegistration",
-		strings.ToUpper("Get"),
-		"/subscription-data/:ueId/:servingPlmnId/smf-registrations/:pduSessionId",
-		HTTPQuerySmfRegistration,
-	},
-
-	{
-		"HTTPQuerySmfRegList",
-		strings.ToUpper("Get"),
-		"/subscription-data/:ueId/:servingPlmnId/smf-registrations",
-		HTTPQuerySmfRegList,
-	},
-
-	{
 		"HTTPQuerySmfSelectData",
 		strings.ToUpper("Get"),
 		"/subscription-data/:ueId/:servingPlmnId/provisioned-data/smf-selection-subscription-data",
 		HTTPQuerySmfSelectData,
-	},
-
-	{
-		"HTTPCreateSmsfContext3gpp",
-		strings.ToUpper("Put"),
-		"/subscription-data/:ueId/:servingPlmnId/smsf-3gpp-access",
-		HTTPCreateSmsfContext3gpp,
-	},
-
-	{
-		"HTTPDeleteSmsfContext3gpp",
-		strings.ToUpper("Delete"),
-		"/subscription-data/:ueId/:servingPlmnId/smsf-3gpp-access",
-		HTTPDeleteSmsfContext3gpp,
-	},
-
-	{
-		"HTTPQuerySmsfContext3gpp",
-		strings.ToUpper("Get"),
-		"/subscription-data/:ueId/:servingPlmnId/smsf-3gpp-access",
-		HTTPQuerySmsfContext3gpp,
-	},
-
-	{
-		"HTTPCreateSmsfContextNon3gpp",
-		strings.ToUpper("Put"),
-		"/subscription-data/:ueId/:servingPlmnId/smsf-non-3gpp-access",
-		HTTPCreateSmsfContextNon3gpp,
-	},
-
-	{
-		"HTTPDeleteSmsfContextNon3gpp",
-		strings.ToUpper("Delete"),
-		"/subscription-data/:ueId/:servingPlmnId/smsf-non-3gpp-access",
-		HTTPDeleteSmsfContextNon3gpp,
-	},
-
-	{
-		"HTTPQuerySmsfContextNon3gpp",
-		strings.ToUpper("Get"),
-		"/subscription-data/:ueId/:servingPlmnId/smsf-non-3gpp-access",
-		HTTPQuerySmsfContextNon3gpp,
 	},
 
 	{
@@ -438,56 +333,6 @@ var routes = Routes{
 
 var subRoutes = Routes{
 	{
-		"HTTPQueryEEData",
-		strings.ToUpper("Get"),
-		"/subscription-data/:ueId/ee-profile-data",
-		HTTPQueryEEData,
-	},
-
-	{
-		"HTTPPatchOperSpecData",
-		strings.ToUpper("Patch"),
-		"/subscription-data/:ueId/operator-specific-data",
-		HTTPPatchOperSpecData,
-	},
-
-	{
-		"HTTPQueryOperSpecData",
-		strings.ToUpper("Get"),
-		"/subscription-data/:ueId/operator-specific-data",
-		HTTPQueryOperSpecData,
-	},
-
-	{
-		"HTTPGetppData",
-		strings.ToUpper("Get"),
-		"/subscription-data/:ueId/pp-data",
-		HTTPGetppData,
-	},
-
-	{
-		"HTTPModifyPpData",
-		strings.ToUpper("Patch"),
-		"/subscription-data/:ueId/pp-data",
-		HTTPModifyPpData,
-	},
-
-	{
-		"HTTPGetIdentityData",
-		strings.ToUpper("Get"),
-		"/subscription-data/:ueId/identity-data",
-		HTTPGetIdentityData,
-	},
-
-	{
-		"HTTPGetOdbData",
-		strings.ToUpper("Get"),
-		"/subscription-data/:ueId/operator-determined-barring-data",
-		HTTPGetOdbData,
-	},
-
-	// Sepcial case
-	{
 		"HTTPRemovesubscriptionDataSubscriptions",
 		strings.ToUpper("Delete"),
 		"/subscription-data/subs-to-notify/:subsId",
@@ -496,13 +341,6 @@ var subRoutes = Routes{
 }
 
 var subShortRoutes = Routes{
-	{
-		"HTTPGetSharedData",
-		strings.ToUpper("Get"),
-		"/subscription-data/shared-data",
-		HTTPGetSharedData,
-	},
-
 	{
 		"HTTPPostSubscriptionDataSubscriptions",
 		strings.ToUpper("Post"),
