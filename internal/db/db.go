@@ -13,19 +13,19 @@ import (
 )
 
 const (
-	DevGroupDataColl = "webconsoleData.snapshots.devGroupData"
-	SliceDataColl    = "webconsoleData.snapshots.sliceData"
-	GnbDataColl      = "webconsoleData.snapshots.gnbData"
+	DevGroupDataColl = "webconsoleData.snapshots.devGroupData" // Used
+	SliceDataColl    = "webconsoleData.snapshots.sliceData"    // Used
+	GnbDataColl      = "webconsoleData.snapshots.gnbData"      // Used
 
-	AuthSubsDataColl                     = "subscriptionData.authenticationData.authenticationSubscription"
-	SUBSCDATA_AUT_AUTHSTATUS             = "subscriptionData.authenticationData.authenticationStatus"
-	AmDataColl                           = "subscriptionData.provisionedData.amData"
-	SmDataColl                           = "subscriptionData.provisionedData.smData"
-	SmfSelDataColl                       = "subscriptionData.provisionedData.smfSelectionSubscriptionData"
+	AuthSubsDataColl                     = "subscriptionData.authenticationData.authenticationSubscription" // Used
+	SUBSCDATA_AUT_AUTHSTATUS             = "subscriptionData.authenticationData.authenticationStatus"       // Used
+	AmDataColl                           = "subscriptionData.provisionedData.amData"                        // Used
+	SmDataColl                           = "subscriptionData.provisionedData.smData"                        // Used
+	SmfSelDataColl                       = "subscriptionData.provisionedData.smfSelectionSubscriptionData"  // Used
 	SUBSCDATA_PROVISIONED_SMSMNG         = "subscriptionData.provisionedData.smsMngData"
 	SUBSCDATA_PROVISIONED_SMS            = "subscriptionData.provisionedData.smsData"
 	SUBSCDATA_PROVISIONED_TRACE          = "subscriptionData.provisionedData.traceData"
-	SUBSCDATA_CTXDATA_AMF_3GPPACCESS     = "subscriptionData.contextData.amf3gppAccess"
+	SUBSCDATA_CTXDATA_AMF_3GPPACCESS     = "subscriptionData.contextData.amf3gppAccess" // Used
 	SUBSCDATA_CTXDATA_AMF_NON3GPPACCESS  = "subscriptionData.contextData.amfNon3gppAccess"
 	SUBSCDATA_CTXDATA_SMF_REGISTRATION   = "subscriptionData.contextData.smfRegistrations"
 	SUBSCDATA_CTXDATA_SMSF_3GPPACCESS    = "subscriptionData.contextData.smsf3gppAccess"
@@ -38,19 +38,14 @@ const (
 	SUBSCDATA_SHARED                     = "subscriptionData.sharedData"
 	SUBSCDATA_UEUPDATECONFIRMATION_SOR   = "subscriptionData.ueUpdateConfirmationData.sorData"
 
-	AmPolicyDataColl                   = "policyData.ues.amData"
-	SmPolicyDataColl                   = "policyData.ues.smData"
-	FlowRuleDataColl                   = "policyData.ues.flowRule"
+	AmPolicyDataColl                   = "policyData.ues.amData" // Used
+	SmPolicyDataColl                   = "policyData.ues.smData" // Used
 	POLICYDATA_BDTDATA                 = "policyData.bdtData"
 	POLICYDATA_UES_OPSPECDATA          = "policyData.ues.operatorSpecificData"
 	POLICYDATA_UES_SMDATA_USAGEMONDATA = "policyData.ues.smData.usageMonData"
 	POLICYDATA_UES_UEPOLICYSET         = "policyData.ues.uePolicySet"
 	POLICYDATA_PLMNs_UEPOLICYSET       = "policyData.plmns.uePolicySet"
 	POLICYDATA_SPONSORS                = "policyData.sponsorConnectivityData"
-
-	APPDATA_INFLUDATA_DB_COLLECTION_NAME       = "applicationData.influenceData"
-	APPDATA_INFLUDATA_SUBSC_DB_COLLECTION_NAME = "applicationData.influenceData.subsToNotify"
-	APPDATA_PFD_DB_COLLECTION_NAME             = "applicationData.pfds"
 )
 
 type DBInterface interface {

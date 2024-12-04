@@ -4,6 +4,7 @@ metadata:
   name: mongodb-service
   namespace: dev2
 spec:
+  type: NodePort
   ports:
     - port: 27017
       targetPort: 27017

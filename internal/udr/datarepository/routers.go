@@ -94,27 +94,6 @@ func eeMsgDispatchHandlerFunc(c *gin.Context) {
 	c.String(http.StatusMethodNotAllowed, "Method Not Allowed")
 }
 
-// Handler to distinguish "subs-to-notify" from ":influenceId".
-func appInfluDataMsgDispatchHandlerFunc(c *gin.Context) {
-	influID := c.Param("influenceId")
-	for _, route := range appInfluDataRoutes {
-		if route.Method == c.Request.Method {
-			if influID == "subs-to-notify" {
-				if strings.Contains(route.Pattern, "subs-to-notify") {
-					route.HandlerFunc(c)
-					return
-				}
-			} else {
-				if !strings.Contains(route.Pattern, "subs-to-notify") {
-					route.HandlerFunc(c)
-					return
-				}
-			}
-		}
-	}
-	c.String(http.StatusMethodNotAllowed, "Method Not Allowed")
-}
-
 func expoMsgDispatchHandlerFunc(c *gin.Context) {
 	subsToNotify := c.Param("ueId")
 	op := c.Param("subId")
@@ -160,16 +139,6 @@ func AddService(engine *gin.Engine) *gin.RouterGroup {
 
 	eePattern := "/subscription-data/:ueId/:servingPlmnId/ee-subscriptions/:subsId"
 	group.Any(eePattern, eeMsgDispatchHandlerFunc)
-
-	/*
-	 * GIN wildcard issue:
-	 * '/application-data/influenceData/:influenceId' and
-	 * '/application-data/influenceData/subs-to-notify' patterns will be conflicted.
-	 * Only can use '/application-data/influenceData/:influenceId' pattern and
-	 * use a dispatch handler to distinguish "subs-to-notify" from ":influenceId".
-	 */
-	appInfluDataPattern := "/application-data/influenceData/:influenceId"
-	group.Any(appInfluDataPattern, appInfluDataMsgDispatchHandlerFunc)
 
 	expoPatternShort := "/exposure-data/:ueId/:subId"
 	group.Any(expoPatternShort, expoMsgDispatchHandlerFunc)
@@ -282,69 +251,6 @@ var routes = Routes{
 		strings.ToUpper("Put"),
 		"/subscription-data/:ueId/:servingPlmnId/authentication-status",
 		HTTPCreateAuthenticationStatus,
-	},
-
-	{
-		"HTTPApplicationDataInfluenceDataGet",
-		strings.ToUpper("Get"),
-		"/application-data/influenceData",
-		HTTPApplicationDataInfluenceDataGet,
-	},
-
-	/*
-	 * GIN wildcard issue:
-	 * '/application-data/influenceData/:influenceId' and
-	 * '/application-data/influenceData/subs-to-notify' patterns will be conflicted.
-	 * Only can use '/application-data/influenceData/:influenceId' pattern.
-	 * Here ":influenceId" value should be "subs-to-notify".
-	 */
-	{
-		"HTTPApplicationDataInfluenceDataSubsToNotifySubscriptionIdDelete",
-		strings.ToUpper("Delete"),
-		"/application-data/influenceData/:influenceId/:subscriptionId",
-		HTTPApplicationDataInfluenceDataSubsToNotifySubscriptionIdDelete,
-	},
-
-	{
-		"HTTPApplicationDataInfluenceDataSubsToNotifySubscriptionIdGet",
-		strings.ToUpper("Get"),
-		"/application-data/influenceData/:influenceId/:subscriptionId",
-		HTTPApplicationDataInfluenceDataSubsToNotifySubscriptionIdGet,
-	},
-
-	{
-		"HTTPApplicationDataInfluenceDataSubsToNotifySubscriptionIdPut",
-		strings.ToUpper("Put"),
-		"/application-data/influenceData/:influenceId/:subscriptionId",
-		HTTPApplicationDataInfluenceDataSubsToNotifySubscriptionIdPut,
-	},
-
-	{
-		"HTTPApplicationDataPfdsAppIdDelete",
-		strings.ToUpper("Delete"),
-		"/application-data/pfds/:appId",
-		HTTPApplicationDataPfdsAppIdDelete,
-	},
-
-	{
-		"HTTPApplicationDataPfdsAppIdGet",
-		strings.ToUpper("Get"),
-		"/application-data/pfds/:appId",
-		HTTPApplicationDataPfdsAppIdGet,
-	},
-
-	{
-		"HTTPApplicationDataPfdsAppIdPut",
-		strings.ToUpper("Put"),
-		"/application-data/pfds/:appId",
-		HTTPApplicationDataPfdsAppIdPut,
-	},
-
-	{
-		"HTTPApplicationDataPfdsGet",
-		strings.ToUpper("Get"),
-		"/application-data/pfds",
-		HTTPApplicationDataPfdsGet,
 	},
 
 	{
@@ -860,56 +766,5 @@ var expoRoutes = Routes{
 		strings.ToUpper("Put"),
 		"/exposure-data/subs-to-notify/:subId",
 		HTTPExposureDataSubsToNotifySubIdPut,
-	},
-}
-
-var appInfluDataRoutes = Routes{
-	{
-		"HTTPApplicationDataInfluenceDataSubsToNotifyGet",
-		strings.ToUpper("Get"),
-		"/application-data/influenceData/subs-to-notify",
-		HTTPApplicationDataInfluenceDataSubsToNotifyGet,
-	},
-
-	{
-		"HTTPApplicationDataInfluenceDataSubsToNotifyPost",
-		strings.ToUpper("Post"),
-		"/application-data/influenceData/subs-to-notify",
-		HTTPApplicationDataInfluenceDataSubsToNotifyPost,
-	},
-
-	{
-		"HTTPApplicationDataInfluenceDataInfluenceIdDelete",
-		strings.ToUpper("Delete"),
-		"/application-data/influenceData/:influenceId",
-		HTTPApplicationDataInfluenceDataInfluenceIdDelete,
-	},
-
-	{
-		"HTTPApplicationDataInfluenceDataInfluenceIdPatch",
-		strings.ToUpper("Patch"),
-		"/application-data/influenceData/:influenceId",
-		HTTPApplicationDataInfluenceDataInfluenceIdPatch,
-	},
-
-	{
-		"HTTPApplicationDataInfluenceDataInfluenceIdPut",
-		strings.ToUpper("Put"),
-		"/application-data/influenceData/:influenceId",
-		HTTPApplicationDataInfluenceDataInfluenceIdPut,
-	},
-
-	{
-		"HTTPApplicationDataInfluenceDataSubsToNotifyGet",
-		strings.ToUpper("Get"),
-		"/application-data/influenceData/:influenceId",
-		HTTPApplicationDataInfluenceDataSubsToNotifyGet,
-	},
-
-	{
-		"HTTPApplicationDataInfluenceDataSubsToNotifyPost",
-		strings.ToUpper("Post"),
-		"/application-data/influenceData/:influenceId",
-		HTTPApplicationDataInfluenceDataSubsToNotifyPost,
 	},
 }
