@@ -8,8 +8,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func DeleteSmfSelection(imsi string, mcc string, mnc string) error {
-	filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
+func DeleteSmfSelection(imsi string) error {
+	filter := bson.M{"ueId": "imsi-" + imsi}
 	err := db.CommonDBClient.RestfulAPIDeleteOne(db.SmfSelDataColl, filter)
 	if err != nil {
 		return err

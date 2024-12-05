@@ -9,17 +9,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func DeleteAmData(imsi string, mcc string, mnc string) error {
-	filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
-	err := db.CommonDBClient.RestfulAPIDeleteOne(db.AmDataColl, filter)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func DeleteAmData2(ueId string) error {
-	filter := bson.M{"ueId": "imsi-" + ueId}
+func DeleteAmData(imsi string) error {
+	filter := bson.M{"ueId": "imsi-" + imsi}
 	err := db.CommonDBClient.RestfulAPIDeleteOne(db.AmDataColl, filter)
 	if err != nil {
 		return err

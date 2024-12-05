@@ -56,22 +56,3 @@ func CreateDeviceGroup(deviceGroup *models.DeviceGroup) error {
 	db.DbLog.Infof("Created Device Group: %v", deviceGroup.DeviceGroupName)
 	return nil
 }
-
-func mapToByte(data map[string]interface{}) (ret []byte) {
-	ret, _ = json.Marshal(data)
-	return
-}
-
-func toBsonM(data interface{}) (ret bson.M) {
-	tmp, err := json.Marshal(data)
-	if err != nil {
-		db.DbLog.Errorln("Could not marshall data")
-		return nil
-	}
-	err = json.Unmarshal(tmp, &ret)
-	if err != nil {
-		db.DbLog.Errorln("Could not unmarshall data")
-		return nil
-	}
-	return ret
-}

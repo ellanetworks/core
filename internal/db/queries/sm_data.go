@@ -8,13 +8,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func sliceToByte(data []map[string]interface{}) (ret []byte) {
-	ret, _ = json.Marshal(data)
-	return
-}
-
-func DeleteSmData(imsi string, mcc string, mnc string) error {
-	filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
+func DeleteSmData(imsi string) error {
+	filter := bson.M{"ueId": "imsi-" + imsi}
 	err := db.CommonDBClient.RestfulAPIDeleteOne(db.SmDataColl, filter)
 	if err != nil {
 		return err

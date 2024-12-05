@@ -269,8 +269,6 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 	if slice != nil {
 		dimsis := deviceGroup.Imsis
 		for _, imsi := range dimsis {
-			mcc := slice.SiteInfo.Plmn.Mcc
-			mnc := slice.SiteInfo.Plmn.Mnc
 			err := queries.DeleteAmPolicy(imsi)
 			if err != nil {
 				logger.NMSLog.Warnln(err)
@@ -279,15 +277,15 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 			}
-			err = queries.DeleteAmData(imsi, mcc, mnc)
+			err = queries.DeleteAmData(imsi)
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 			}
-			err = queries.DeleteSmData(imsi, mcc, mnc)
+			err = queries.DeleteSmData(imsi)
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 			}
-			err = queries.DeleteSmfSelection(imsi, mcc, mnc)
+			err = queries.DeleteSmfSelection(imsi)
 			if err != nil {
 				logger.NMSLog.Warnln(err)
 			}

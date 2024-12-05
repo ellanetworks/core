@@ -12,6 +12,8 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/db"
+	dbModels "github.com/yeastengine/ella/internal/db/models"
+	"github.com/yeastengine/ella/internal/db/queries"
 	udr_context "github.com/yeastengine/ella/internal/udr/context"
 	"github.com/yeastengine/ella/internal/udr/logger"
 	"github.com/yeastengine/ella/internal/udr/util"
@@ -46,16 +48,16 @@ func HandleQueryAmData(request *httpwrapper.Request) *httpwrapper.Response {
 	}
 }
 
-func QueryAmDataProcedure(ueId string, servingPlmnId string) (*map[string]interface{},
+func QueryAmDataProcedure(ueId string, servingPlmnId string) (*dbModels.AccessAndMobilitySubscriptionData,
 	*models.ProblemDetails,
 ) {
-	filter := bson.M{"ueId": ueId, "servingPlmnId": servingPlmnId}
-	accessAndMobilitySubscriptionData, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.AmDataColl, filter)
-	if errGetOne != nil {
-		logger.DataRepoLog.Warnln(errGetOne)
+	accessAndMobilitySubscriptionData, err := queries.GetAmData(ueId)
+	if err != nil {
+		logger.DataRepoLog.Warnln(err)
 	}
+
 	if accessAndMobilitySubscriptionData != nil {
-		return &accessAndMobilitySubscriptionData, nil
+		return accessAndMobilitySubscriptionData, nil
 	} else {
 		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
 	}
@@ -75,22 +77,22 @@ func HandleAmfContext3gpp(request *httpwrapper.Request) *httpwrapper.Response {
 }
 
 func AmfContext3gppProcedure(ueId string, patchItem []models.PatchItem) *models.ProblemDetails {
-	filter := bson.M{"ueId": ueId}
-	origValue, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SUBSCDATA_CTXDATA_AMF_3GPPACCESS, filter)
-	if errGetOne != nil {
-		logger.DataRepoLog.Warnln(errGetOne)
+	origValue, err := queries.GetAmf3GPP(ueId)
+	if err != nil {
+		logger.DataRepoLog.Warnln(err)
 	}
 
 	patchJSON, err := json.Marshal(patchItem)
 	if err != nil {
 		logger.DataRepoLog.Error(err)
 	}
+	filter := bson.M{"ueId": ueId}
 	failure := db.CommonDBClient.RestfulAPIJSONPatch(db.SUBSCDATA_CTXDATA_AMF_3GPPACCESS, filter, patchJSON)
 
 	if failure == nil {
-		newValue, errGetOneNew := db.CommonDBClient.RestfulAPIGetOne(db.SUBSCDATA_CTXDATA_AMF_3GPPACCESS, filter)
-		if errGetOneNew != nil {
-			logger.DataRepoLog.Warnln(errGetOneNew)
+		newValue, err := queries.GetAmf3GPP(ueId)
+		if err != nil {
+			logger.DataRepoLog.Warnln(err)
 		}
 		PreHandleOnDataChangeNotify(ueId, CurrentResourceUri, patchItem, origValue, newValue)
 		return nil
@@ -170,22 +172,22 @@ func HandleModifyAuthentication(request *httpwrapper.Request) *httpwrapper.Respo
 }
 
 func ModifyAuthenticationProcedure(ueId string, patchItem []models.PatchItem) *models.ProblemDetails {
-	filter := bson.M{"ueId": ueId}
-	origValue, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.AuthSubsDataColl, filter)
-	if errGetOne != nil {
-		logger.DataRepoLog.Warnln(errGetOne)
+	origValue, err := queries.GetAuthenticationSubscription(ueId)
+	if err != nil {
+		logger.DataRepoLog.Warnln(err)
 	}
 
 	patchJSON, err := json.Marshal(patchItem)
 	if err != nil {
 		logger.DataRepoLog.Error(err)
 	}
+	filter := bson.M{"ueId": ueId}
 	failure := db.CommonDBClient.RestfulAPIJSONPatch(db.AuthSubsDataColl, filter, patchJSON)
 
 	if failure == nil {
-		newValue, errGetOneNew := db.CommonDBClient.RestfulAPIGetOne(db.AuthSubsDataColl, filter)
-		if errGetOneNew != nil {
-			logger.DataRepoLog.Warnln(errGetOneNew)
+		newValue, err := queries.GetAuthenticationSubscription(ueId)
+		if err != nil {
+			logger.DataRepoLog.Warnln(err)
 		}
 		PreHandleOnDataChangeNotify(ueId, CurrentResourceUri, patchItem, origValue, newValue)
 		return nil
@@ -211,12 +213,10 @@ func HandleQueryAuthSubsData(request *httpwrapper.Request) *httpwrapper.Response
 	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
 }
 
-func QueryAuthSubsDataProcedure(ueId string) (map[string]interface{}, *models.ProblemDetails) {
-	filter := bson.M{"ueId": ueId}
-
-	authenticationSubscription, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.AuthSubsDataColl, filter)
-	if errGetOne != nil {
-		logger.DataRepoLog.Warnln(errGetOne)
+func QueryAuthSubsDataProcedure(ueId string) (*dbModels.AuthenticationSubscription, *models.ProblemDetails) {
+	authenticationSubscription, err := queries.GetAuthenticationSubscription(ueId)
+	if err != nil {
+		logger.DataRepoLog.Warnln(err)
 	}
 
 	if authenticationSubscription != nil {
@@ -264,18 +264,16 @@ func HandleQueryAuthenticationStatus(request *httpwrapper.Request) *httpwrapper.
 	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
 }
 
-func QueryAuthenticationStatusProcedure(ueId string) (*map[string]interface{},
+func QueryAuthenticationStatusProcedure(ueId string) (*dbModels.AuthStatus,
 	*models.ProblemDetails,
 ) {
-	filter := bson.M{"ueId": ueId}
-
-	authEvent, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SUBSCDATA_AUT_AUTHSTATUS, filter)
-	if errGetOne != nil {
-		logger.DataRepoLog.Warnln(errGetOne)
+	authEvent, err := queries.GetAuthenticationStatus(ueId)
+	if err != nil {
+		logger.DataRepoLog.Warnln(err)
 	}
 
 	if authEvent != nil {
-		return &authEvent, nil
+		return authEvent, nil
 	} else {
 		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
 	}
@@ -391,16 +389,14 @@ func HandlePolicyDataUesUeIdAmDataGet(request *httpwrapper.Request) *httpwrapper
 	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
 }
 
-func PolicyDataUesUeIdAmDataGetProcedure(ueId string) (*map[string]interface{}, *models.ProblemDetails) {
-	filter := bson.M{"ueId": ueId}
-
-	amPolicyData, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.AmPolicyDataColl, filter)
-	if errGetOne != nil {
-		logger.DataRepoLog.Warnln(errGetOne)
+func PolicyDataUesUeIdAmDataGetProcedure(ueId string) (*dbModels.AmPolicyData, *models.ProblemDetails) {
+	amPolicyData, err := queries.GetAmPolicyData(ueId)
+	if err != nil {
+		logger.DataRepoLog.Warnln(err)
 	}
 
 	if amPolicyData != nil {
-		return &amPolicyData, nil
+		return amPolicyData, nil
 	} else {
 		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
 	}
@@ -430,27 +426,13 @@ func HandlePolicyDataUesUeIdSmDataGet(request *httpwrapper.Request) *httpwrapper
 
 func PolicyDataUesUeIdSmDataGetProcedure(ueId string, snssai models.Snssai,
 	dnn string,
-) (*models.SmPolicyData, *models.ProblemDetails) {
-	filter := bson.M{"ueId": ueId}
-
-	if !reflect.DeepEqual(snssai, models.Snssai{}) {
-		filter["smPolicySnssaiData."+util.SnssaiModelsToHex(snssai)] = bson.M{"$exists": true}
-	}
-	if !reflect.DeepEqual(snssai, models.Snssai{}) && dnn != "" {
-		filter["smPolicySnssaiData."+util.SnssaiModelsToHex(snssai)+".smPolicyDnnData."+dnn] = bson.M{"$exists": true}
-	}
-
-	smPolicyData, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SmPolicyDataColl, filter)
-	if errGetOne != nil {
-		logger.DataRepoLog.Warnln(errGetOne)
+) (*dbModels.SmPolicyData, *models.ProblemDetails) {
+	smPolicyData, err := queries.GetSmPolicyData(ueId)
+	if err != nil {
+		logger.DataRepoLog.Warnln(err)
 	}
 	if smPolicyData != nil {
-		var smPolicyDataResp models.SmPolicyData
-		err := json.Unmarshal(util.MapToByte(smPolicyData), &smPolicyDataResp)
-		if err != nil {
-			logger.DataRepoLog.Warnln(err)
-		}
-		return &smPolicyDataResp, nil
+		return smPolicyData, nil
 	} else {
 		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
 	}
@@ -935,9 +917,8 @@ func HandleQueryProvisionedData(request *httpwrapper.Request) *httpwrapper.Respo
 
 	var provisionedDataSets models.ProvisionedDataSets
 	ueId := request.Params["ueId"]
-	servingPlmnId := request.Params["servingPlmnId"]
 
-	response, problemDetails := QueryProvisionedDataProcedure(ueId, servingPlmnId, provisionedDataSets)
+	response, problemDetails := QueryProvisionedDataProcedure(ueId, provisionedDataSets)
 
 	if response != nil {
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
@@ -949,14 +930,11 @@ func HandleQueryProvisionedData(request *httpwrapper.Request) *httpwrapper.Respo
 	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
 }
 
-func QueryProvisionedDataProcedure(ueId string, servingPlmnId string,
-	provisionedDataSets models.ProvisionedDataSets,
-) (*models.ProvisionedDataSets, *models.ProblemDetails) {
+func QueryProvisionedDataProcedure(ueId string, provisionedDataSets models.ProvisionedDataSets) (*models.ProvisionedDataSets, *models.ProblemDetails) {
 	{
-		filter := bson.M{"ueId": ueId, "servingPlmnId": servingPlmnId}
-		accessAndMobilitySubscriptionData, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.AmDataColl, filter)
-		if errGetOne != nil {
-			logger.DataRepoLog.Warnln(errGetOne)
+		accessAndMobilitySubscriptionData, err := queries.GetAmData(ueId)
+		if err != nil {
+			logger.DataRepoLog.Warnln(err)
 		}
 		if accessAndMobilitySubscriptionData != nil {
 			var tmp models.AccessAndMobilitySubscriptionData
@@ -969,10 +947,9 @@ func QueryProvisionedDataProcedure(ueId string, servingPlmnId string,
 	}
 
 	{
-		filter := bson.M{"ueId": ueId, "servingPlmnId": servingPlmnId}
-		smfSelectionSubscriptionData, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SmfSelDataColl, filter)
-		if errGetOne != nil {
-			logger.DataRepoLog.Warnln(errGetOne)
+		smfSelectionSubscriptionData, err := queries.GetSmfSelectionSubscriptionData(ueId)
+		if err != nil {
+			logger.DataRepoLog.Warnln(err)
 		}
 		if smfSelectionSubscriptionData != nil {
 			var tmp models.SmfSelectionSubscriptionData
@@ -985,10 +962,9 @@ func QueryProvisionedDataProcedure(ueId string, servingPlmnId string,
 	}
 
 	{
-		filter := bson.M{"ueId": ueId, "servingPlmnId": servingPlmnId}
-		sessionManagementSubscriptionDatas, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.SmDataColl, filter)
-		if errGetMany != nil {
-			logger.DataRepoLog.Warnln(errGetMany)
+		sessionManagementSubscriptionDatas, err := queries.ListSmData(ueId)
+		if err != nil {
+			logger.DataRepoLog.Warnln(err)
 		}
 		if sessionManagementSubscriptionDatas != nil {
 			var tmp []models.SessionManagementSubscriptionData
@@ -1198,8 +1174,7 @@ func HandleQuerySmfSelectData(request *httpwrapper.Request) *httpwrapper.Respons
 	logger.DataRepoLog.Infof("Handle QuerySmfSelectData")
 
 	ueId := request.Params["ueId"]
-	servingPlmnId := request.Params["servingPlmnId"]
-	response, problemDetails := QuerySmfSelectDataProcedure(ueId, servingPlmnId)
+	response, problemDetails := QuerySmfSelectDataProcedure(ueId)
 
 	if problemDetails == nil {
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
@@ -1208,15 +1183,14 @@ func HandleQuerySmfSelectData(request *httpwrapper.Request) *httpwrapper.Respons
 	}
 }
 
-func QuerySmfSelectDataProcedure(ueId string, servingPlmnId string) (*map[string]interface{}, *models.ProblemDetails) {
-	filter := bson.M{"ueId": ueId, "servingPlmnId": servingPlmnId}
-	smfSelectionSubscriptionData, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SmfSelDataColl, filter)
-	if errGetOne != nil {
-		logger.DataRepoLog.Warnln(errGetOne)
+func QuerySmfSelectDataProcedure(ueId string) (*dbModels.SmfSelectionSubscriptionData, *models.ProblemDetails) {
+	smfSelectionSubscriptionData, err := queries.GetSmfSelectionSubscriptionData(ueId)
+	if err != nil {
+		logger.DataRepoLog.Warnln(err)
 	}
 
 	if smfSelectionSubscriptionData != nil {
-		return &smfSelectionSubscriptionData, nil
+		return smfSelectionSubscriptionData, nil
 	} else {
 		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
 	}

@@ -2,7 +2,6 @@ package queries
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/db/models"
@@ -29,11 +28,6 @@ func CreateSmPolicyData(snssai *models.Snssai, dnn string, imsi string) error {
 		return err
 	}
 	return nil
-}
-
-func SnssaiModelsToHex(snssai models.Snssai) string {
-	sst := fmt.Sprintf("%02x", snssai.Sst)
-	return sst + snssai.Sd
 }
 
 func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
