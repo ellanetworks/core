@@ -601,7 +601,7 @@ func DeleteSubscriberByID(c *gin.Context) {
 	if err != nil {
 		logger.NMSLog.Warnln(err)
 	}
-	err = queries.DeleteAmData2(ueId)
+	err = queries.DeleteAmData(ueId)
 	if err != nil {
 		logger.NMSLog.Warnln(err)
 	}

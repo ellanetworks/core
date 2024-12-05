@@ -225,8 +225,6 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 		devGroupConfig := queries.GetDeviceGroupByName(dgname)
 		if devGroupConfig != nil {
 			for _, imsi := range devGroupConfig.Imsis {
-				mcc := prevSlice.SiteInfo.Plmn.Mcc
-				mnc := prevSlice.SiteInfo.Plmn.Mnc
 				err := queries.DeleteAmPolicy(imsi)
 				if err != nil {
 					logger.NMSLog.Warnln(err)
@@ -235,15 +233,15 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 				if err != nil {
 					logger.NMSLog.Warnln(err)
 				}
-				err = queries.DeleteAmData(imsi, mcc, mnc)
+				err = queries.DeleteAmData(imsi)
 				if err != nil {
 					logger.NMSLog.Warnln(err)
 				}
-				err = queries.DeleteSmData(imsi, mcc, mnc)
+				err = queries.DeleteSmData(imsi)
 				if err != nil {
 					logger.NMSLog.Warnln(err)
 				}
-				err = queries.DeleteSmfSelection(imsi, mcc, mnc)
+				err = queries.DeleteSmfSelection(imsi)
 				if err != nil {
 					logger.NMSLog.Warnln(err)
 				}

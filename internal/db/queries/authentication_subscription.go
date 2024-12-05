@@ -38,3 +38,13 @@ func DeleteAuthenticationSubscription(ueId string) error {
 	}
 	return nil
 }
+
+func PatchAuthenticationSubscription(ueId string, patchItem []models.PatchItem) error {
+	patchJSON, err := json.Marshal(patchItem)
+	if err != nil {
+		return err
+	}
+	filter := bson.M{"ueId": ueId}
+	err = db.CommonDBClient.RestfulAPIJSONPatch(db.AuthSubsDataColl, filter, patchJSON)
+	return err
+}
