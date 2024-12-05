@@ -389,29 +389,40 @@ func HandlePolicyDataUesUeIdAmDataGet(request *httpwrapper.Request) *httpwrapper
 
 	ueId := request.Params["ueId"]
 
-	response, problemDetails := PolicyDataUesUeIdAmDataGetProcedure(ueId)
+	response, err := PolicyDataUesUeIdAmDataGetProcedure(ueId)
 
 	if response != nil {
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	} else if err != nil {
+		problem := util.ProblemDetailsNotFound("USER_NOT_FOUND")
+		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
 	}
 
 	pd := util.ProblemDetailsUpspecified("")
 	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
 }
 
-func PolicyDataUesUeIdAmDataGetProcedure(ueId string) (*dbModels.AmPolicyData, *models.ProblemDetails) {
-	amPolicyData, err := queries.GetAmPolicyData(ueId)
+// We have this function twice, here and in the NMSC. We should move it to a common place.
+func convertDbAmPolicyDataToModel(dbAmPolicyData *dbModels.AmPolicyData) *models.AmPolicyData {
+	if dbAmPolicyData == nil {
+		return &models.AmPolicyData{}
+	}
+	amPolicyData := &models.AmPolicyData{
+		SubscCats: dbAmPolicyData.SubscCats,
+	}
+	return amPolicyData
+}
+
+func PolicyDataUesUeIdAmDataGetProcedure(ueId string) (*models.AmPolicyData, error) {
+	dbAmPolicyData, err := queries.GetAmPolicyData(ueId)
 	if err != nil {
 		logger.DataRepoLog.Warnln(err)
 	}
-
-	if amPolicyData != nil {
-		return amPolicyData, nil
-	} else {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
+	if dbAmPolicyData == nil {
+		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
+	amPolicyData := convertDbAmPolicyDataToModel(dbAmPolicyData)
+	return amPolicyData, nil
 }
 
 func HandlePolicyDataUesUeIdSmDataGet(request *httpwrapper.Request) *httpwrapper.Response {
@@ -423,31 +434,56 @@ func HandlePolicyDataUesUeIdSmDataGet(request *httpwrapper.Request) *httpwrapper
 	if err != nil {
 		logger.DataRepoLog.Warnln(err)
 	}
-	dnn := request.Query.Get("dnn")
 
-	response, problemDetails := PolicyDataUesUeIdSmDataGetProcedure(ueId, sNssai, dnn)
+	response, err := PolicyDataUesUeIdSmDataGetProcedure(ueId)
 	if response != nil {
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	} else if err != nil {
+		problem := util.ProblemDetailsNotFound("USER_NOT_FOUND")
+		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
 	}
 
 	pd := util.ProblemDetailsUpspecified("")
 	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
 }
 
-func PolicyDataUesUeIdSmDataGetProcedure(ueId string, snssai models.Snssai,
-	dnn string,
-) (*dbModels.SmPolicyData, *models.ProblemDetails) {
-	smPolicyData, err := queries.GetSmPolicyData(ueId)
+// We have this function twice, here and in the NMSC. We should move it to a common place.
+func convertDbSmPolicyDataToModel(dbSmPolicyData *dbModels.SmPolicyData) *models.SmPolicyData {
+	if dbSmPolicyData == nil {
+		return &models.SmPolicyData{}
+	}
+	smPolicyData := &models.SmPolicyData{
+		SmPolicySnssaiData: make(map[string]models.SmPolicySnssaiData),
+	}
+	for snssai, dbSmPolicySnssaiData := range dbSmPolicyData.SmPolicySnssaiData {
+		smPolicyData.SmPolicySnssaiData[snssai] = models.SmPolicySnssaiData{
+			Snssai: &models.Snssai{
+				Sd:  dbSmPolicySnssaiData.Snssai.Sd,
+				Sst: dbSmPolicySnssaiData.Snssai.Sst,
+			},
+			SmPolicyDnnData: make(map[string]models.SmPolicyDnnData),
+		}
+		smPolicySnssaiData := smPolicyData.SmPolicySnssaiData[snssai]
+		for dnn, dbSmPolicyDnnData := range dbSmPolicySnssaiData.SmPolicyDnnData {
+			smPolicySnssaiData.SmPolicyDnnData[dnn] = models.SmPolicyDnnData{
+				Dnn: dbSmPolicyDnnData.Dnn,
+			}
+		}
+		smPolicyData.SmPolicySnssaiData[snssai] = smPolicySnssaiData
+	}
+	return smPolicyData
+}
+
+func PolicyDataUesUeIdSmDataGetProcedure(ueId string) (*models.SmPolicyData, error) {
+	dbSmPolicyData, err := queries.GetSmPolicyData(ueId)
 	if err != nil {
 		logger.DataRepoLog.Warnln(err)
 	}
-	if smPolicyData != nil {
-		return smPolicyData, nil
-	} else {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
+	if dbSmPolicyData == nil {
+		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
+	smPolicyData := convertDbSmPolicyDataToModel(dbSmPolicyData)
+	return smPolicyData, nil
 }
 
 func HandleCreateAMFSubscriptions(request *httpwrapper.Request) *httpwrapper.Response {

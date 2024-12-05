@@ -1,21 +1,19 @@
 package producer
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/antihax/optional"
 	"github.com/mohae/deepcopy"
 	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	pcf_context "github.com/yeastengine/ella/internal/pcf/context"
 	"github.com/yeastengine/ella/internal/pcf/logger"
 	"github.com/yeastengine/ella/internal/pcf/util"
+	"github.com/yeastengine/ella/internal/udr/producer"
 )
 
 func HandleCreateSmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Response {
@@ -53,31 +51,18 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		logger.SMpolicylog.Warnf("Supi[%s] is not supported in PCF", request.Supi)
 		return nil, nil, &problemDetail
 	}
-	var smData models.SmPolicyData
+	var smData *models.SmPolicyData
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
-		client := util.GetNudrClient(pcfSelf.UdrUri)
-		param := Nudr_DataRepository.PolicyDataUesUeIdSmDataGetParamOpts{
-			Snssai: optional.NewInterface(util.MarshToJsonString(*request.SliceInfo)),
-			Dnn:    optional.NewString(request.Dnn),
-		}
-		var response *http.Response
-		smData, response, err = client.DefaultApi.PolicyDataUesUeIdSmDataGet(context.Background(), ue.Supi, &param)
-		if err != nil || response == nil || response.StatusCode != http.StatusOK {
+		smData, err = producer.PolicyDataUesUeIdSmDataGetProcedure(ue.Supi)
+		if err != nil {
 			problemDetail := util.GetProblemDetail("Can't find UE SM Policy Data in UDR", util.USER_UNKNOWN)
 			logger.SMpolicylog.Warnf("Can't find UE[%s] SM Policy Data in UDR", ue.Supi)
 			return nil, nil, &problemDetail
 		}
-		defer func() {
-			if rspCloseErr := response.Body.Close(); rspCloseErr != nil {
-				logger.SMpolicylog.Errorf(
-					"PolicyDataUesUeIdSmDataGet response body cannot close: %+v", rspCloseErr)
-			}
-		}()
-		// TODO: subscribe to UDR
 	} else {
-		smData = *smPolicyData.SmPolicyData
+		smData = smPolicyData.SmPolicyData
 	}
 	amPolicy := ue.FindAMPolicy(request.AccessType, request.ServingNetwork)
 	if amPolicy == nil {
@@ -96,7 +81,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	if smPolicyData != nil {
 		delete(ue.SmPolicyData, smPolicyID)
 	}
-	smPolicyData = ue.NewUeSmPolicyData(smPolicyID, request, &smData)
+	smPolicyData = ue.NewUeSmPolicyData(smPolicyID, request, smData)
 	// Policy Decision
 	decision := models.SmPolicyDecision{
 		SessRules:     make(map[string]*models.SessionRule),
@@ -143,7 +128,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		return nil, nil, &problemDetail
 	}
 
-	dnnData := util.GetSMPolicyDnnData(smData, request.SliceInfo, request.Dnn)
+	dnnData := util.GetSMPolicyDnnData(*smData, request.SliceInfo, request.Dnn)
 	if dnnData != nil {
 		decision.Online = dnnData.Online
 		decision.Offline = dnnData.Offline

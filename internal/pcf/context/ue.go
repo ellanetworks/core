@@ -15,7 +15,6 @@ import (
 // key is supi
 type UeContext struct {
 	// Udr Ref
-	UdrUri string
 	// SMPolicy
 	SmPolicyData map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionId) as key
 	// App Session Related

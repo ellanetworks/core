@@ -56,7 +56,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = pcf.Start(amfUrl, udrUrl)
+	err = pcf.Start(amfUrl)
 	if err != nil {
 		return err
 	}

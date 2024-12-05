@@ -17,7 +17,6 @@ type Configuration struct {
 	TimeFormat      string
 	DefaultBdtRefId string
 	AmfUri          string
-	UdrUri          string
 	ServiceList     []Service
 }
 
