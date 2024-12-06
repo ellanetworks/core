@@ -1148,7 +1148,7 @@ func HandleUpdatesdmsubscriptions(request *httpwrapper.Request) *httpwrapper.Res
 	subsId := request.Params["subsId"]
 	SdmSubscription := request.Body.(models.SdmSubscription)
 
-	problemDetails := UpdatesdmsubscriptionsProcedure(ueId, subsId, SdmSubscription)
+	problemDetails := Updatesdmsubscriptions(ueId, subsId, SdmSubscription)
 
 	if problemDetails == nil {
 		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
@@ -1157,9 +1157,7 @@ func HandleUpdatesdmsubscriptions(request *httpwrapper.Request) *httpwrapper.Res
 	}
 }
 
-func UpdatesdmsubscriptionsProcedure(ueId string, subsId string,
-	SdmSubscription models.SdmSubscription,
-) *models.ProblemDetails {
+func Updatesdmsubscriptions(ueId string, subsId string, SdmSubscription models.SdmSubscription) *models.ProblemDetails {
 	udrSelf := context.UDR_Self()
 	value, ok := udrSelf.UESubsCollection.Load(ueId)
 	if !ok {

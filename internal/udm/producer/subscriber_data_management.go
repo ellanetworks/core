@@ -2,9 +2,7 @@ package producer
 
 import (
 	"context"
-	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/antihax/optional"
 	"github.com/omec-project/openapi"
@@ -60,19 +58,11 @@ func getAmDataProcedure(supi string) (
 }
 
 func HandleGetSupiRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
 	logger.SdmLog.Infof("Handle GetSupiRequest")
-
-	// step 2: retrieve request
 	supi := request.Params["supi"]
-	supportedFeatures := request.Query.Get("supported-features")
+	response, problemDetails := getSupiProcedure(supi)
 
-	// step 3: handle the message
-	response, problemDetails := getSupiProcedure(supi, supportedFeatures)
-
-	// step 4: process the return value from step 3
 	if response != nil {
-		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
@@ -84,13 +74,10 @@ func HandleGetSupiRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
-func getSupiProcedure(supi string, supportedFeatures string) (
+func getSupiProcedure(supi string) (
 	response *models.SubscriptionDataSets, problemDetails *models.ProblemDetails,
 ) {
-	var subscriptionDataSets, subsDataSetBody models.SubscriptionDataSets
-	var ueContextInSmfDataResp models.UeContextInSmfData
-	pduSessionMap := make(map[string]models.PduSession)
-	var pgwInfoArray []models.PgwInfo
+	var subsDataSetBody models.SubscriptionDataSets
 
 	udm_context.UDM_Self().CreateSubsDataSetsForUe(supi, subsDataSetBody)
 
@@ -106,7 +93,6 @@ func getSupiProcedure(supi string, supportedFeatures string) (
 	}
 	udmUe := udm_context.UDM_Self().NewUdmUe(supi)
 	udmUe.SetAMSubsriptionData(amData)
-	subscriptionDataSets.AmData = amData
 
 	smfSelData, err := producer.GetSmfSelectData(supi)
 	if err != nil {
@@ -120,7 +106,6 @@ func getSupiProcedure(supi string, supportedFeatures string) (
 	}
 	udmUe = udm_context.UDM_Self().NewUdmUe(supi)
 	udmUe.SetSmfSelectionSubsData(smfSelData)
-	subscriptionDataSets.SmfSelData = smfSelData
 
 	sessionManagementSubscriptionData, err := producer.GetSmData(supi)
 	if err != nil {
@@ -135,76 +120,14 @@ func getSupiProcedure(supi string, supportedFeatures string) (
 	udmUe = udm_context.UDM_Self().NewUdmUe(supi)
 	smData, _, _, _ := udm_context.UDM_Self().ManageSmData(sessionManagementSubscriptionData, "", "")
 	udmUe.SetSMSubsData(smData)
-	subscriptionDataSets.SmData = sessionManagementSubscriptionData
-
-	clientAPI := createUDMClientToUDR()
 	var UeContextInSmfbody models.UeContextInSmfData
-	var querySmfRegListParamOpts Nudr.QuerySmfRegListParamOpts
-	querySmfRegListParamOpts.SupportedFeatures = optional.NewString(supportedFeatures)
 	udm_context.UDM_Self().CreateUeContextInSmfDataforUe(supi, UeContextInSmfbody)
-	pdusess, res, err := clientAPI.SMFRegistrationsCollectionApi.QuerySmfRegList(
-		context.Background(), supi, &querySmfRegListParamOpts)
-	if err != nil {
-		if res == nil {
-			fmt.Println(err.Error())
-		} else if err.Error() != res.Status {
-			fmt.Println(err.Error())
-		} else {
-			problemDetails = &models.ProblemDetails{
-				Status: int32(res.StatusCode),
-				Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-				Detail: err.Error(),
-			}
-
-			return nil, problemDetails
-		}
-	}
-	defer func() {
-		if rspCloseErr := res.Body.Close(); rspCloseErr != nil {
-			logger.SdmLog.Errorf("QuerySmfRegList response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-
-	for _, element := range pdusess {
-		var pduSession models.PduSession
-		pduSession.Dnn = element.Dnn
-		pduSession.SmfInstanceId = element.SmfInstanceId
-		pduSession.PlmnId = element.PlmnId
-		pduSessionMap[strconv.Itoa(int(element.PduSessionId))] = pduSession
-	}
-	ueContextInSmfDataResp.PduSessions = pduSessionMap
-
-	for _, element := range pdusess {
-		var pgwInfo models.PgwInfo
-		pgwInfo.Dnn = element.Dnn
-		pgwInfo.PgwFqdn = element.PgwFqdn
-		pgwInfo.PlmnId = element.PlmnId
-		pgwInfoArray = append(pgwInfoArray, pgwInfo)
-	}
-	ueContextInSmfDataResp.PgwInfo = pgwInfoArray
-
-	if res.StatusCode == http.StatusOK {
-		udmUe := udm_context.UDM_Self().NewUdmUe(supi)
-		udmUe.UeCtxtInSmfData = &ueContextInSmfDataResp
-	} else {
-		var problemDetails models.ProblemDetails
-		problemDetails.Cause = "DATA_NOT_FOUND"
-		fmt.Printf(problemDetails.Cause)
+	problemDetails = &models.ProblemDetails{
+		Status: http.StatusNotFound,
+		Cause:  "DATA_NOT_FOUND",
 	}
 
-	if (res.StatusCode == http.StatusOK) && (amData != nil) &&
-		(smfSelData != nil) &&
-		(sessionManagementSubscriptionData != nil) {
-		subscriptionDataSets.UecSmfData = &ueContextInSmfDataResp
-		return &subscriptionDataSets, nil
-	} else {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "DATA_NOT_FOUND",
-		}
-
-		return nil, problemDetails
-	}
+	return nil, problemDetails
 }
 
 func HandleGetSmDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
@@ -655,86 +578,14 @@ func modifyProcedure(supi string, subscriptionID string) (
 	}
 }
 
-func HandleModifyForSharedDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
-	logger.SdmLog.Infof("Handle ModifyForSharedData")
-
-	// step 2: retrieve request
-	supi := request.Params["supi"]
-	subscriptionID := request.Params["subscriptionId"]
-
-	// step 3: handle the message
-	response, problemDetails := modifyForSharedDataProcedure(supi, subscriptionID)
-
-	// step 4: process the return value from step 3
-	if response != nil {
-		// status code is based on SPEC, and option headers
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
-}
-
-func modifyForSharedDataProcedure(supi string, subscriptionID string) (response *models.SdmSubscription, problemDetails *models.ProblemDetails) {
-	var sdmSubscription models.SdmSubscription
-	sdmSubs := models.SdmSubscription{}
-	body := Nudr.UpdatesdmsubscriptionsParamOpts{
-		SdmSubscription: optional.NewInterface(sdmSubs),
-	}
-	clientAPI := createUDMClientToUDR()
-	res, err := clientAPI.SDMSubscriptionDocumentApi.Updatesdmsubscriptions(
-		context.Background(), supi, subscriptionID, &body)
-	if err != nil {
-		if res == nil {
-			logger.SdmLog.Warnln(err)
-		} else if err.Error() != res.Status {
-			logger.SdmLog.Warnln(err)
-		} else {
-			problemDetails = &models.ProblemDetails{
-				Status: int32(res.StatusCode),
-				Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-				Detail: err.Error(),
-			}
-			return nil, problemDetails
-		}
-	}
-	defer func() {
-		if rspCloseErr := res.Body.Close(); rspCloseErr != nil {
-			logger.SdmLog.Errorf("Updatesdmsubscriptions response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-
-	if res.StatusCode == http.StatusOK {
-		return &sdmSubscription, nil
-	} else {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "USER_NOT_FOUND",
-		}
-
-		return nil, problemDetails
-	}
-}
-
 func HandleGetUeContextInSmfDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
 	logger.SdmLog.Infof("Handle GetUeContextInSmfData")
 
-	// step 2: retrieve request
 	supi := request.Params["supi"]
-	supportedFeatures := request.Query.Get("supported-features")
 
-	// step 3: handle the message
-	response, problemDetails := getUeContextInSmfDataProcedure(supi, supportedFeatures)
+	response, problemDetails := getUeContextInSmfDataProcedure(supi)
 
-	// step 4: process the return value from step 3
 	if response != nil {
-		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
@@ -746,70 +597,15 @@ func HandleGetUeContextInSmfDataRequest(request *httpwrapper.Request) *httpwrapp
 	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
-func getUeContextInSmfDataProcedure(supi string, supportedFeatures string) (
+func getUeContextInSmfDataProcedure(supi string) (
 	response *models.UeContextInSmfData, problemDetails *models.ProblemDetails,
 ) {
 	var body models.UeContextInSmfData
-	var ueContextInSmfData models.UeContextInSmfData
-	var pgwInfoArray []models.PgwInfo
-	var querySmfRegListParamOpts Nudr.QuerySmfRegListParamOpts
-	querySmfRegListParamOpts.SupportedFeatures = optional.NewString(supportedFeatures)
-
-	clientAPI := createUDMClientToUDR()
-	pduSessionMap := make(map[string]models.PduSession)
 	udm_context.UDM_Self().CreateUeContextInSmfDataforUe(supi, body)
-
-	pdusess, res, err := clientAPI.SMFRegistrationsCollectionApi.QuerySmfRegList(
-		context.Background(), supi, &querySmfRegListParamOpts)
-	if err != nil {
-		if res == nil {
-			logger.SdmLog.Infoln(err)
-		} else if err.Error() != res.Status {
-			logger.SdmLog.Infoln(err)
-		} else {
-			logger.SdmLog.Infoln(err)
-			problemDetails = &models.ProblemDetails{
-				Status: int32(res.StatusCode),
-				Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-				Detail: err.Error(),
-			}
-
-			return nil, problemDetails
-		}
+	problemDetails = &models.ProblemDetails{
+		Status: int32(http.StatusNotFound),
+		Cause:  "DATA_NOT_FOUND",
+		Detail: "Data not found",
 	}
-	defer func() {
-		if rspCloseErr := res.Body.Close(); rspCloseErr != nil {
-			logger.SdmLog.Errorf("QuerySmfRegList response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-
-	for _, element := range pdusess {
-		var pduSession models.PduSession
-		pduSession.Dnn = element.Dnn
-		pduSession.SmfInstanceId = element.SmfInstanceId
-		pduSession.PlmnId = element.PlmnId
-		pduSessionMap[strconv.Itoa(int(element.PduSessionId))] = pduSession
-	}
-	ueContextInSmfData.PduSessions = pduSessionMap
-
-	for _, element := range pdusess {
-		var pgwInfo models.PgwInfo
-		pgwInfo.Dnn = element.Dnn
-		pgwInfo.PgwFqdn = element.PgwFqdn
-		pgwInfo.PlmnId = element.PlmnId
-		pgwInfoArray = append(pgwInfoArray, pgwInfo)
-	}
-	ueContextInSmfData.PgwInfo = pgwInfoArray
-
-	if res.StatusCode == http.StatusOK {
-		udmUe := udm_context.UDM_Self().NewUdmUe(supi)
-		udmUe.UeCtxtInSmfData = &ueContextInSmfData
-		return udmUe.UeCtxtInSmfData, nil
-	} else {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "DATA_NOT_FOUND",
-		}
-		return nil, problemDetails
-	}
+	return nil, problemDetails
 }

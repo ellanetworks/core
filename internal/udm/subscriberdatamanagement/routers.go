@@ -60,12 +60,6 @@ func twoLayerPathHandlerFunc(c *gin.Context) {
 		return
 	}
 
-	// for "/shared-data-subscriptions/:subscriptionId"
-	if supi == "shared-data-subscriptions" && strings.ToUpper("Patch") == c.Request.Method {
-		HTTPModifyForSharedData(c)
-		return
-	}
-
 	for _, route := range twoLayerPathRouter {
 		if strings.Contains(route.Pattern, op) && route.Method == c.Request.Method {
 			route.HandlerFunc(c)
