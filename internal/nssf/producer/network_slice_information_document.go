@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/nssf/plugin"
 )
 
 // Check if the NF service consumer is authorized
@@ -16,7 +15,7 @@ func checkNfServiceConsumer(nfType models.NfType) error {
 	return nil
 }
 
-func GetNSSelection(param plugin.NsselectionQueryParameter) (*models.AuthorizedNetworkSliceInfo, error) {
+func GetNSSelection(param NsselectionQueryParameter) (*models.AuthorizedNetworkSliceInfo, error) {
 	response := &models.AuthorizedNetworkSliceInfo{}
 	err := checkNfServiceConsumer(*param.NfType)
 	if err != nil {

@@ -6,22 +6,17 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/nssf/logger"
-	"github.com/yeastengine/ella/internal/nssf/plugin"
 )
 
 // Set Allowed NSSAI with Subscribed S-NSSAI(s) which are marked as default S-NSSAI(s)
 func useDefaultSubscribedSnssai(
-	param plugin.NsselectionQueryParameter, authorizedNetworkSliceInfo *models.AuthorizedNetworkSliceInfo,
+	param NsselectionQueryParameter, authorizedNetworkSliceInfo *models.AuthorizedNetworkSliceInfo,
 ) {
 	var mappingOfSnssai []models.MappingOfSnssai
 	if param.HomePlmnId != nil {
 		// Find mapping of Subscribed S-NSSAI of UE's HPLMN to S-NSSAI in Serving PLMN from NSSF configuration
-		mappingOfSnssai = GetMappingOfPlmnFromConfig(*param.HomePlmnId)
-
-		if mappingOfSnssai == nil {
-			logger.Nsselection.Warnf("No S-NSSAI mapping of UE's HPLMN %+v in NSSF configuration", *param.HomePlmnId)
-			return
-		}
+		logger.Nsselection.Warnf("No S-NSSAI mapping of UE's HPLMN %+v in NSSF configuration", *param.HomePlmnId)
+		return
 	}
 
 	for _, subscribedSnssai := range param.SliceInfoRequestForRegistration.SubscribedNssai {
@@ -45,7 +40,7 @@ func useDefaultSubscribedSnssai(
 				mappingOfSubscribedSnssai = *subscribedSnssai.SubscribedSnssai
 			}
 
-			if param.Tai != nil && !CheckSupportedSnssaiInTa(mappingOfSubscribedSnssai, *param.Tai) {
+			if param.Tai != nil {
 				continue
 			}
 
@@ -53,7 +48,7 @@ func useDefaultSubscribedSnssai(
 			allowedSnssaiElement.AllowedSnssai = new(models.Snssai)
 			*allowedSnssaiElement.AllowedSnssai = mappingOfSubscribedSnssai
 
-			if param.HomePlmnId != nil && !CheckStandardSnssai(*subscribedSnssai.SubscribedSnssai) {
+			if param.HomePlmnId != nil {
 				allowedSnssaiElement.MappedHomeSnssai = new(models.Snssai)
 				*allowedSnssaiElement.MappedHomeSnssai = *subscribedSnssai.SubscribedSnssai
 			}
@@ -62,9 +57,6 @@ func useDefaultSubscribedSnssai(
 			// TODO: Depend on operator implementation, it may also return S-NSSAIs in all valid Access Type if
 			//       UE's Access Type could not be identified
 			var accessType models.AccessType = models.AccessType__3_GPP_ACCESS
-			if param.Tai != nil {
-				accessType = GetAccessTypeFromConfig(*param.Tai)
-			}
 
 			AddAllowedSnssai(allowedSnssaiElement, accessType, authorizedNetworkSliceInfo)
 		}
@@ -73,7 +65,7 @@ func useDefaultSubscribedSnssai(
 
 // Set Configured NSSAI with S-NSSAI(s) in Requested NSSAI which are marked as Default Configured NSSAI
 func useDefaultConfiguredNssai(
-	param plugin.NsselectionQueryParameter, authorizedNetworkSliceInfo *models.AuthorizedNetworkSliceInfo,
+	param NsselectionQueryParameter, authorizedNetworkSliceInfo *models.AuthorizedNetworkSliceInfo,
 ) {
 	for _, requestedSnssai := range param.SliceInfoRequestForRegistration.RequestedNssai {
 		// Check whether the Default Configured S-NSSAI is standard, which could be commonly decided by all roaming partners
@@ -99,21 +91,17 @@ func useDefaultConfiguredNssai(
 
 // Network slice selection for registration
 // The function is executed when the IE, `slice-info-request-for-registration`, is provided in query parameters
-func nsselectionForRegistration(param plugin.NsselectionQueryParameter, authorizedNetworkSliceInfo *models.AuthorizedNetworkSliceInfo, problemDetails *models.ProblemDetails) error {
+func nsselectionForRegistration(param NsselectionQueryParameter, authorizedNetworkSliceInfo *models.AuthorizedNetworkSliceInfo, problemDetails *models.ProblemDetails) error {
 	if param.HomePlmnId != nil {
 		// Check whether UE's Home PLMN is supported when UE is a roamer
-		if !CheckSupportedHplmn(*param.HomePlmnId) {
-			authorizedNetworkSliceInfo.RejectedNssaiInPlmn = append(authorizedNetworkSliceInfo.RejectedNssaiInPlmn, param.SliceInfoRequestForRegistration.RequestedNssai...)
-			return nil
-		}
+		authorizedNetworkSliceInfo.RejectedNssaiInPlmn = append(authorizedNetworkSliceInfo.RejectedNssaiInPlmn, param.SliceInfoRequestForRegistration.RequestedNssai...)
+		return nil
 	}
 
 	if param.Tai != nil {
 		// Check whether UE's current TA is supported when UE provides TAI
-		if !CheckSupportedTa(*param.Tai) {
-			authorizedNetworkSliceInfo.RejectedNssaiInTa = append(authorizedNetworkSliceInfo.RejectedNssaiInTa, param.SliceInfoRequestForRegistration.RequestedNssai...)
-			return nil
-		}
+		authorizedNetworkSliceInfo.RejectedNssaiInTa = append(authorizedNetworkSliceInfo.RejectedNssaiInTa, param.SliceInfoRequestForRegistration.RequestedNssai...)
+		return nil
 	}
 
 	if param.SliceInfoRequestForRegistration.RequestMapping {
@@ -139,81 +127,9 @@ func nsselectionForRegistration(param plugin.NsselectionQueryParameter, authoriz
 			return fmt.Errorf("bad request")
 		}
 
-		mappingOfSnssai := GetMappingOfPlmnFromConfig(*param.HomePlmnId)
+		logger.Nsselection.Warnf("No S-NSSAI mapping of UE's HPLMN %+v in NSSF configuration", *param.HomePlmnId)
 
-		if mappingOfSnssai != nil {
-			// Find mappings for S-NSSAIs in `subscribedSnssai`
-			for _, subscribedSnssai := range param.SliceInfoRequestForRegistration.SubscribedNssai {
-				if CheckStandardSnssai(*subscribedSnssai.SubscribedSnssai) {
-					continue
-				}
-
-				targetMapping, found := FindMappingWithHomeSnssai(*subscribedSnssai.SubscribedSnssai, mappingOfSnssai)
-
-				if !found {
-					logger.Nsselection.Warnf("No mapping of Subscribed S-NSSAI %+v in PLMN %+v in NSSF configuration",
-						*subscribedSnssai.SubscribedSnssai,
-						*param.HomePlmnId)
-					continue
-				} else {
-					// Add mappings to Allowed NSSAI list
-					var allowedSnssaiElement models.AllowedSnssai
-					allowedSnssaiElement.AllowedSnssai = new(models.Snssai)
-					*allowedSnssaiElement.AllowedSnssai = *targetMapping.ServingSnssai
-					allowedSnssaiElement.MappedHomeSnssai = new(models.Snssai)
-					*allowedSnssaiElement.MappedHomeSnssai = *subscribedSnssai.SubscribedSnssai
-
-					// Default Access Type is set to 3GPP Access if no TAI is provided
-					// TODO: Depend on operator implementation, it may also return S-NSSAIs in all valid Access Type if
-					//       UE's Access Type could not be identified
-					var accessType models.AccessType = models.AccessType__3_GPP_ACCESS
-					if param.Tai != nil {
-						accessType = GetAccessTypeFromConfig(*param.Tai)
-					}
-
-					AddAllowedSnssai(allowedSnssaiElement, accessType, authorizedNetworkSliceInfo)
-				}
-			}
-
-			// Find mappings for S-NSSAIs in `sNssaiForMapping`
-			for _, snssai := range param.SliceInfoRequestForRegistration.SNssaiForMapping {
-				if CheckStandardSnssai(snssai) {
-					continue
-				}
-
-				targetMapping, found := FindMappingWithHomeSnssai(snssai, mappingOfSnssai)
-
-				if !found {
-					logger.Nsselection.Warnf("No mapping of Subscribed S-NSSAI %+v in PLMN %+v in NSSF configuration",
-						snssai,
-						*param.HomePlmnId)
-					continue
-				} else {
-					// Add mappings to Allowed NSSAI list
-					var allowedSnssaiElement models.AllowedSnssai
-					allowedSnssaiElement.AllowedSnssai = new(models.Snssai)
-					*allowedSnssaiElement.AllowedSnssai = *targetMapping.ServingSnssai
-					allowedSnssaiElement.MappedHomeSnssai = new(models.Snssai)
-					*allowedSnssaiElement.MappedHomeSnssai = snssai
-
-					// Default Access Type is set to 3GPP Access if no TAI is provided
-					// TODO: Depend on operator implementation, it may also return S-NSSAIs in all valid Access Type if
-					//       UE's Access Type could not be identified
-					var accessType models.AccessType = models.AccessType__3_GPP_ACCESS
-					if param.Tai != nil {
-						accessType = GetAccessTypeFromConfig(*param.Tai)
-					}
-
-					AddAllowedSnssai(allowedSnssaiElement, accessType, authorizedNetworkSliceInfo)
-				}
-			}
-
-			return nil
-		} else {
-			logger.Nsselection.Warnf("No S-NSSAI mapping of UE's HPLMN %+v in NSSF configuration", *param.HomePlmnId)
-
-			return nil
-		}
+		return nil
 	}
 
 	if param.SliceInfoRequestForRegistration.RequestedNssai != nil &&
@@ -225,7 +141,7 @@ func nsselectionForRegistration(param plugin.NsselectionQueryParameter, authoriz
 		checkIfRequestAllowed := false
 
 		for _, requestedSnssai := range param.SliceInfoRequestForRegistration.RequestedNssai {
-			if param.Tai != nil && !CheckSupportedSnssaiInTa(requestedSnssai, *param.Tai) {
+			if param.Tai != nil {
 				// Requested S-NSSAI does not supported in UE's current TA
 				// Add it to Rejected NSSAI in TA
 				authorizedNetworkSliceInfo.RejectedNssaiInTa = append(authorizedNetworkSliceInfo.RejectedNssaiInTa, requestedSnssai)
@@ -274,9 +190,6 @@ func nsselectionForRegistration(param plugin.NsselectionQueryParameter, authoriz
 					// TODO: Depend on operator implementation, it may also return S-NSSAIs in all valid Access Type if
 					//       UE's Access Type could not be identified
 					var accessType models.AccessType = models.AccessType__3_GPP_ACCESS
-					if param.Tai != nil {
-						accessType = GetAccessTypeFromConfig(*param.Tai)
-					}
 
 					AddAllowedSnssai(allowedSnssaiElement, accessType, authorizedNetworkSliceInfo)
 
@@ -301,11 +214,6 @@ func nsselectionForRegistration(param plugin.NsselectionQueryParameter, authoriz
 		// No Requested NSSAI is provided
 		// Subscribed S-NSSAIs marked as default are used
 		useDefaultSubscribedSnssai(param, authorizedNetworkSliceInfo)
-	}
-
-	if param.Tai != nil &&
-		!CheckAllowedNssaiInAmfTa(authorizedNetworkSliceInfo.AllowedNssaiList, param.NfId, *param.Tai) {
-		AddAmfInformation(*param.Tai, authorizedNetworkSliceInfo)
 	}
 
 	if param.SliceInfoRequestForRegistration.DefaultConfiguredSnssaiInd {

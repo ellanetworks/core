@@ -4,7 +4,6 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/logger"
-	"github.com/yeastengine/ella/internal/nssf/plugin"
 	"github.com/yeastengine/ella/internal/nssf/producer"
 )
 
@@ -24,7 +23,7 @@ func NSSelectionGetForRegistration(ue *context.AmfUe, requestedNssai []models.Ma
 	}
 
 	amfType := models.NfType_AMF
-	params := plugin.NsselectionQueryParameter{
+	params := producer.NsselectionQueryParameter{
 		NfType:                          &amfType,
 		NfId:                            amfSelf.NfId,
 		SliceInfoRequestForRegistration: &sliceInfo,
@@ -53,7 +52,7 @@ func NSSelectionGetForPduSession(ue *context.AmfUe, snssai models.Snssai) (
 	}
 
 	amfType := models.NfType_AMF
-	params := plugin.NsselectionQueryParameter{
+	params := producer.NsselectionQueryParameter{
 		NfType:                        &amfType,
 		NfId:                          amfSelf.NfId,
 		SliceInfoRequestForPduSession: &sliceInfoForPduSession,

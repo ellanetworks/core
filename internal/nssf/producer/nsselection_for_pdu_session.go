@@ -11,26 +11,21 @@ import (
 	"net/http"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/nssf/plugin"
 )
 
 // Network slice selection for PDU session
 // The function is executed when the IE, `slice-info-for-pdu-session`, is provided in query parameters
-func nsselectionForPduSession(param plugin.NsselectionQueryParameter, authorizedNetworkSliceInfo *models.AuthorizedNetworkSliceInfo, problemDetails *models.ProblemDetails) error {
+func nsselectionForPduSession(param NsselectionQueryParameter, authorizedNetworkSliceInfo *models.AuthorizedNetworkSliceInfo, problemDetails *models.ProblemDetails) error {
 	if param.HomePlmnId != nil {
 		// Check whether UE's Home PLMN is supported when UE is a roamer
-		if !CheckSupportedHplmn(*param.HomePlmnId) {
-			authorizedNetworkSliceInfo.RejectedNssaiInPlmn = append(authorizedNetworkSliceInfo.RejectedNssaiInPlmn, *param.SliceInfoRequestForPduSession.SNssai)
-			return nil
-		}
+		authorizedNetworkSliceInfo.RejectedNssaiInPlmn = append(authorizedNetworkSliceInfo.RejectedNssaiInPlmn, *param.SliceInfoRequestForPduSession.SNssai)
+		return nil
 	}
 
 	if param.Tai != nil {
 		// Check whether UE's current TA is supported when UE provides TAI
-		if !CheckSupportedTa(*param.Tai) {
-			authorizedNetworkSliceInfo.RejectedNssaiInTa = append(authorizedNetworkSliceInfo.RejectedNssaiInTa, *param.SliceInfoRequestForPduSession.SNssai)
-			return nil
-		}
+		authorizedNetworkSliceInfo.RejectedNssaiInTa = append(authorizedNetworkSliceInfo.RejectedNssaiInTa, *param.SliceInfoRequestForPduSession.SNssai)
+		return nil
 	}
 
 	if param.HomePlmnId != nil {
@@ -70,7 +65,7 @@ func nsselectionForPduSession(param plugin.NsselectionQueryParameter, authorized
 		}
 	}
 
-	if param.Tai != nil && !CheckSupportedSnssaiInTa(*param.SliceInfoRequestForPduSession.SNssai, *param.Tai) {
+	if param.Tai != nil {
 		// Requested S-NSSAI does not supported in UE's current TA
 		// Add it to Rejected NSSAI in TA
 		authorizedNetworkSliceInfo.RejectedNssaiInTa = append(authorizedNetworkSliceInfo.RejectedNssaiInTa, *param.SliceInfoRequestForPduSession.SNssai)
