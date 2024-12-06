@@ -211,20 +211,17 @@ func QueryAmfContext3gppProcedure(ueId string) (*models.Amf3GppAccessRegistratio
 
 func HandleModifyAuthentication(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.DataRepoLog.Infof("Handle ModifyAuthentication")
-
 	ueId := request.Params["ueId"]
 	patchItem := request.Body.([]models.PatchItem)
-
-	problemDetails := ModifyAuthenticationProcedure(ueId, patchItem)
-
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	err := EditAuthenticationSubscription(ueId, patchItem)
+	if err != nil {
+		problem := util.ProblemDetailsModifyNotAllowed("")
+		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
 	}
+	return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
 }
 
-func ModifyAuthenticationProcedure(ueId string, patchItem []models.PatchItem) *models.ProblemDetails {
+func EditAuthenticationSubscription(ueId string, patchItem []models.PatchItem) error {
 	origValue, err := queries.GetAuthenticationSubscription(ueId)
 	if err != nil {
 		logger.DataRepoLog.Warnln(err)
@@ -249,38 +246,70 @@ func ModifyAuthenticationProcedure(ueId string, patchItem []models.PatchItem) *m
 		PreHandleOnDataChangeNotify(ueId, CurrentResourceUri, patchItem, origValue, newValue)
 		return nil
 	} else {
-		return util.ProblemDetailsModifyNotAllowed("")
+		return err
 	}
 }
 
 func HandleQueryAuthSubsData(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.DataRepoLog.Infof("Handle QueryAuthSubsData")
-
 	ueId := request.Params["ueId"]
-
-	response, problemDetails := QueryAuthSubsDataProcedure(ueId)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-
-	pd := util.ProblemDetailsUpspecified("")
-	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
-}
-
-func QueryAuthSubsDataProcedure(ueId string) (*dbModels.AuthenticationSubscription, *models.ProblemDetails) {
-	authenticationSubscription, err := queries.GetAuthenticationSubscription(ueId)
+	response, err := GetAuthSubsData(ueId)
 	if err != nil {
 		logger.DataRepoLog.Warnln(err)
 	}
-
-	if authenticationSubscription != nil {
-		return authenticationSubscription, nil
-	} else {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
+	if response == nil {
+		problem := util.ProblemDetailsNotFound("USER_NOT_FOUND")
+		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
 	}
+
+	return httpwrapper.NewResponse(http.StatusOK, nil, response)
+}
+
+func convertDbAuthSubsDataToModel(dbAuthSubsData *dbModels.AuthenticationSubscription) *models.AuthenticationSubscription {
+	if dbAuthSubsData == nil {
+		return &models.AuthenticationSubscription{}
+	}
+	authSubsData := &models.AuthenticationSubscription{}
+	authSubsData.AuthenticationManagementField = dbAuthSubsData.AuthenticationManagementField
+	authSubsData.AuthenticationMethod = models.AuthMethod(dbAuthSubsData.AuthenticationMethod)
+	if dbAuthSubsData.Milenage != nil {
+		authSubsData.Milenage = &models.Milenage{
+			Op: &models.Op{
+				EncryptionAlgorithm: dbAuthSubsData.Milenage.Op.EncryptionAlgorithm,
+				EncryptionKey:       dbAuthSubsData.Milenage.Op.EncryptionKey,
+				OpValue:             dbAuthSubsData.Milenage.Op.OpValue,
+			},
+		}
+	}
+	if dbAuthSubsData.Opc != nil {
+		authSubsData.Opc = &models.Opc{
+			EncryptionAlgorithm: dbAuthSubsData.Opc.EncryptionAlgorithm,
+			EncryptionKey:       dbAuthSubsData.Opc.EncryptionKey,
+			OpcValue:            dbAuthSubsData.Opc.OpcValue,
+		}
+	}
+	if dbAuthSubsData.PermanentKey != nil {
+		authSubsData.PermanentKey = &models.PermanentKey{
+			EncryptionAlgorithm: dbAuthSubsData.PermanentKey.EncryptionAlgorithm,
+			EncryptionKey:       dbAuthSubsData.PermanentKey.EncryptionKey,
+			PermanentKeyValue:   dbAuthSubsData.PermanentKey.PermanentKeyValue,
+		}
+	}
+	authSubsData.SequenceNumber = dbAuthSubsData.SequenceNumber
+
+	return authSubsData
+}
+
+func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
+	dbAuthSubs, err := queries.GetAuthenticationSubscription(ueId)
+	if err != nil {
+		logger.DataRepoLog.Warnln(err)
+	}
+	if dbAuthSubs == nil {
+		return nil, fmt.Errorf("USER_NOT_FOUND")
+	}
+	authSubs := convertDbAuthSubsDataToModel(dbAuthSubs)
+	return authSubs, nil
 }
 
 func HandleCreateAuthenticationStatus(request *httpwrapper.Request) *httpwrapper.Response {
@@ -288,6 +317,16 @@ func HandleCreateAuthenticationStatus(request *httpwrapper.Request) *httpwrapper
 
 	ueId := request.Params["ueId"]
 	authStatus := request.Body.(models.AuthEvent)
+
+	err := EditAuthenticationStatus(ueId, authStatus)
+	if err != nil {
+		logger.DataRepoLog.Warnln(err)
+	}
+
+	return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
+}
+
+func EditAuthenticationStatus(ueID string, authStatus models.AuthEvent) error {
 	dbAuthStatus := &dbModels.AuthEvent{
 		NfInstanceId:       authStatus.NfInstanceId,
 		Success:            authStatus.Success,
@@ -296,12 +335,8 @@ func HandleCreateAuthenticationStatus(request *httpwrapper.Request) *httpwrapper
 		ServingNetworkName: authStatus.ServingNetworkName,
 	}
 
-	err := queries.EditAuthenticationStatus(ueId, dbAuthStatus)
-	if err != nil {
-		logger.DataRepoLog.Warnln(err)
-	}
-
-	return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
+	err := queries.EditAuthenticationStatus(ueID, dbAuthStatus)
+	return err
 }
 
 func HandleQueryAuthenticationStatus(request *httpwrapper.Request) *httpwrapper.Response {
