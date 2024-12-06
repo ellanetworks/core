@@ -1114,27 +1114,28 @@ func HandleRemovesdmSubscriptions(request *httpwrapper.Request) *httpwrapper.Res
 	ueId := request.Params["ueId"]
 	subsId := request.Params["subsId"]
 
-	problemDetails := RemovesdmSubscriptionsProcedure(ueId, subsId)
+	err := RemovesdmSubscriptions(ueId, subsId)
 
-	if problemDetails == nil {
+	if err == nil {
 		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
 	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		problem := util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
+		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
 	}
 }
 
-func RemovesdmSubscriptionsProcedure(ueId string, subsId string) *models.ProblemDetails {
+func RemovesdmSubscriptions(ueId string, subsId string) error {
 	udrSelf := context.UDR_Self()
 	value, ok := udrSelf.UESubsCollection.Load(ueId)
 	if !ok {
-		return util.ProblemDetailsNotFound("USER_NOT_FOUND")
+		return fmt.Errorf("USER_NOT_FOUND")
 	}
 
 	UESubsData := value.(*context.UESubsData)
 	_, ok = UESubsData.SdmSubscriptions[subsId]
 
 	if !ok {
-		return util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
+		return fmt.Errorf("SUBSCRIPTION_NOT_FOUND")
 	}
 	delete(UESubsData.SdmSubscriptions, subsId)
 
@@ -1148,27 +1149,28 @@ func HandleUpdatesdmsubscriptions(request *httpwrapper.Request) *httpwrapper.Res
 	subsId := request.Params["subsId"]
 	SdmSubscription := request.Body.(models.SdmSubscription)
 
-	problemDetails := Updatesdmsubscriptions(ueId, subsId, SdmSubscription)
+	err := Updatesdmsubscriptions(ueId, subsId, SdmSubscription)
 
-	if problemDetails == nil {
+	if err == nil {
 		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
 	} else {
+		problemDetails := util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 }
 
-func Updatesdmsubscriptions(ueId string, subsId string, SdmSubscription models.SdmSubscription) *models.ProblemDetails {
+func Updatesdmsubscriptions(ueId string, subsId string, SdmSubscription models.SdmSubscription) error {
 	udrSelf := context.UDR_Self()
 	value, ok := udrSelf.UESubsCollection.Load(ueId)
 	if !ok {
-		return util.ProblemDetailsNotFound("USER_NOT_FOUND")
+		return fmt.Errorf("USER_NOT_FOUND")
 	}
 
 	UESubsData := value.(*context.UESubsData)
 	_, ok = UESubsData.SdmSubscriptions[subsId]
 
 	if !ok {
-		return util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
+		return fmt.Errorf("SUBSCRIPTION_NOT_FOUND")
 	}
 	SdmSubscription.SubscriptionId = subsId
 	UESubsData.SdmSubscriptions[subsId] = &SdmSubscription
@@ -1182,16 +1184,14 @@ func HandleCreateSdmSubscriptions(request *httpwrapper.Request) *httpwrapper.Res
 	SdmSubscription := request.Body.(models.SdmSubscription)
 	ueId := request.Params["ueId"]
 
-	locationHeader, SdmSubscription := CreateSdmSubscriptionsProcedure(SdmSubscription, ueId)
+	locationHeader, SdmSubscription := CreateSdmSubscriptions(SdmSubscription, ueId)
 
 	headers := http.Header{}
 	headers.Set("Location", locationHeader)
 	return httpwrapper.NewResponse(http.StatusCreated, headers, SdmSubscription)
 }
 
-func CreateSdmSubscriptionsProcedure(SdmSubscription models.SdmSubscription,
-	ueId string,
-) (string, models.SdmSubscription) {
+func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string) (string, models.SdmSubscription) {
 	udrSelf := context.UDR_Self()
 
 	value, ok := udrSelf.UESubsCollection.Load(ueId)

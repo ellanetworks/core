@@ -15,7 +15,7 @@ const (
 	SBI_PORT            = 29503
 )
 
-func Start(udrURL string) error {
+func Start() error {
 	configuration := factory.Configuration{
 		Logger: &logger.Logger{
 			UDM: &logger.LogSetting{
@@ -34,7 +34,6 @@ func Start(udrURL string) error {
 			"nudm-ee",
 			"nudm-pp",
 		},
-		UdrUri: udrURL,
 		Keys: &factory.Keys{
 			UdmProfileAHNPrivateKey: UDM_HNP_PRIVATE_KEY,
 		},

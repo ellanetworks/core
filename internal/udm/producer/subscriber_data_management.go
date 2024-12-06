@@ -4,24 +4,14 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/antihax/optional"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nudm_SubscriberDataManagement"
-	Nudr "github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	udm_context "github.com/yeastengine/ella/internal/udm/context"
 	"github.com/yeastengine/ella/internal/udm/logger"
 	"github.com/yeastengine/ella/internal/udr/producer"
 )
-
-func createUDMClientToUDR() *Nudr.APIClient {
-	uri := udm_context.UDM_Self().UdrUri
-	cfg := Nudr.NewConfiguration()
-	cfg.SetBasePath(uri)
-	clientAPI := Nudr.NewAPIClient(cfg)
-	return clientAPI
-}
 
 func HandleGetAmDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SdmLog.Infof("Handle GetAmData")
@@ -354,53 +344,15 @@ func HandleSubscribeRequest(request *httpwrapper.Request) *httpwrapper.Response 
 func subscribeProcedure(sdmSubscription *models.SdmSubscription, supi string) (
 	header http.Header, response *models.SdmSubscription, problemDetails *models.ProblemDetails,
 ) {
-	clientAPI := createUDMClientToUDR()
-
-	sdmSubscriptionResp, res, err := clientAPI.SDMSubscriptionsCollectionApi.CreateSdmSubscriptions(
-		context.Background(), supi, *sdmSubscription)
-	if err != nil {
-		if res == nil {
-			logger.SdmLog.Warnln(err)
-		} else if err.Error() != res.Status {
-			logger.SdmLog.Warnln(err)
-		} else {
-			logger.SdmLog.Warnln(err)
-			problemDetails = &models.ProblemDetails{
-				Status: int32(res.StatusCode),
-				Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-				Detail: err.Error(),
-			}
-			return nil, nil, problemDetails
-		}
+	_, sdmSubscriptionResp := producer.CreateSdmSubscriptions(*sdmSubscription, supi)
+	header = make(http.Header)
+	udmUe, _ := udm_context.UDM_Self().UdmUeFindBySupi(supi)
+	if udmUe == nil {
+		udmUe = udm_context.UDM_Self().NewUdmUe(supi)
 	}
-	defer func() {
-		if rspCloseErr := res.Body.Close(); rspCloseErr != nil {
-			logger.SdmLog.Errorf("CreateSdmSubscriptions response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-
-	if res.StatusCode == http.StatusCreated {
-		header = make(http.Header)
-		udmUe, _ := udm_context.UDM_Self().UdmUeFindBySupi(supi)
-		if udmUe == nil {
-			udmUe = udm_context.UDM_Self().NewUdmUe(supi)
-		}
-		udmUe.CreateSubscriptiontoNotifChange(sdmSubscriptionResp.SubscriptionId, &sdmSubscriptionResp)
-		header.Set("Location", udmUe.GetLocationURI2(udm_context.LocationUriSdmSubscription, supi))
-		return header, &sdmSubscriptionResp, nil
-	} else if res.StatusCode == http.StatusNotFound {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "DATA_NOT_FOUND",
-		}
-		return nil, nil, problemDetails
-	} else {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusNotImplemented,
-			Cause:  "UNSUPPORTED_RESOURCE_URI",
-		}
-		return nil, nil, problemDetails
-	}
+	udmUe.CreateSubscriptiontoNotifChange(sdmSubscriptionResp.SubscriptionId, &sdmSubscriptionResp)
+	header.Set("Location", udmUe.GetLocationURI2(udm_context.LocationUriSdmSubscription, supi))
+	return header, &sdmSubscriptionResp, nil
 }
 
 func HandleUnsubscribeForSharedDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
@@ -475,39 +427,15 @@ func HandleUnsubscribeRequest(request *httpwrapper.Request) *httpwrapper.Respons
 }
 
 func unsubscribeProcedure(subscriptionID string) *models.ProblemDetails {
-	clientAPI := createUDMClientToUDR()
-
-	res, err := clientAPI.SDMSubscriptionDocumentApi.RemovesdmSubscriptions(context.Background(), "====", subscriptionID)
+	err := producer.RemovesdmSubscriptions("====", subscriptionID)
 	if err != nil {
-		if res == nil {
-			logger.SdmLog.Warnln(err)
-		} else if err.Error() != res.Status {
-			logger.SdmLog.Warnln(err)
-		} else {
-			logger.SdmLog.Warnln(err)
-			problemDetails := &models.ProblemDetails{
-				Status: int32(res.StatusCode),
-				Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-				Detail: err.Error(),
-			}
-			return problemDetails
-		}
-	}
-	defer func() {
-		if rspCloseErr := res.Body.Close(); rspCloseErr != nil {
-			logger.SdmLog.Errorf("RemovesdmSubscriptions response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-
-	if res.StatusCode == http.StatusNoContent {
-		return nil
-	} else {
 		problemDetails := &models.ProblemDetails{
 			Status: http.StatusNotFound,
 			Cause:  "USER_NOT_FOUND",
 		}
 		return problemDetails
 	}
+	return nil
 }
 
 func HandleModifyRequest(request *httpwrapper.Request) *httpwrapper.Response {
@@ -538,44 +466,16 @@ func HandleModifyRequest(request *httpwrapper.Request) *httpwrapper.Response {
 func modifyProcedure(supi string, subscriptionID string) (
 	response *models.SdmSubscription, problemDetails *models.ProblemDetails,
 ) {
-	clientAPI := createUDMClientToUDR()
-
 	sdmSubscription := models.SdmSubscription{}
-	body := Nudr.UpdatesdmsubscriptionsParamOpts{
-		SdmSubscription: optional.NewInterface(sdmSubscription),
-	}
-	res, err := clientAPI.SDMSubscriptionDocumentApi.Updatesdmsubscriptions(
-		context.Background(), supi, subscriptionID, &body)
+	err := producer.Updatesdmsubscriptions(supi, subscriptionID, sdmSubscription)
 	if err != nil {
-		if res == nil {
-			logger.SdmLog.Warnln(err)
-		} else if err.Error() != res.Status {
-			logger.SdmLog.Warnln(err)
-		} else {
-			problemDetails = &models.ProblemDetails{
-				Status: int32(res.StatusCode),
-				Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-				Detail: err.Error(),
-			}
-			return nil, problemDetails
-		}
-	}
-	defer func() {
-		if rspCloseErr := res.Body.Close(); rspCloseErr != nil {
-			logger.SdmLog.Errorf("Updatesdmsubscriptions response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-
-	if res.StatusCode == http.StatusOK {
-		return &sdmSubscription, nil
-	} else {
 		problemDetails = &models.ProblemDetails{
 			Status: http.StatusNotFound,
 			Cause:  "USER_NOT_FOUND",
 		}
-
 		return nil, problemDetails
 	}
+	return nil, nil
 }
 
 func HandleGetUeContextInSmfDataRequest(request *httpwrapper.Request) *httpwrapper.Response {

@@ -37,7 +37,6 @@ type UDMContext struct {
 	UriScheme                      models.UriScheme
 	NfService                      map[models.ServiceName]models.NfService
 	UdmUePool                      sync.Map // map[supi]*UdmUeContext
-	UdrUri                         string
 	GpsiSupiList                   models.IdentityData
 	SharedSubsDataMap              map[string]models.SharedData // sharedDataIds as key
 	SubscriptionOfSharedDataChange sync.Map                     // subscriptionID as key

@@ -39,7 +39,6 @@ func startNetwork(cfg config.Config) error {
 	pcfUrl := "http://127.0.0.1:29507"
 	smfUrl := "http://127.0.0.1:29502"
 	udmUrl := "http://127.0.0.1:29503"
-	udrUrl := "http://127.0.0.1:29504"
 	_, err := nms.Start()
 	if err != nil {
 		return err
@@ -64,7 +63,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = udm.Start(udrUrl)
+	err = udm.Start()
 	if err != nil {
 		return err
 	}
