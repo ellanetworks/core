@@ -1,21 +1,15 @@
 package udr
 
 import (
-	"github.com/omec-project/util/logger"
-	"github.com/yeastengine/ella/internal/udr/factory"
-	"github.com/yeastengine/ella/internal/udr/service"
+	"github.com/yeastengine/ella/internal/udr/logger"
+	"go.uber.org/zap/zapcore"
 )
 
-var UDR = &service.UDR{}
-
 func Start() error {
-	configuration := factory.Configuration{
-		Logger: &logger.Logger{
-			UDR: &logger.LogSetting{
-				DebugLevel: "debug",
-			},
-		},
+	level, err := zapcore.ParseLevel("debug")
+	if err != nil {
+		return err
 	}
-	UDR.Initialize(configuration)
+	logger.SetLogLevel(level)
 	return nil
 }

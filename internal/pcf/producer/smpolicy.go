@@ -55,7 +55,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
-		smData, err = producer.PolicyDataUesUeIdSmDataGetProcedure(ue.Supi)
+		smData, err = producer.GetSmPolicyData(ue.Supi)
 		if err != nil {
 			problemDetail := util.GetProblemDetail("Can't find UE SM Policy Data in UDR", util.USER_UNKNOWN)
 			logger.SMpolicylog.Warnf("Can't find UE[%s] SM Policy Data in UDR", ue.Supi)

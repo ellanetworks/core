@@ -275,7 +275,7 @@ func convertDbSmPolicyDataToModel(dbSmPolicyData *dbModels.SmPolicyData) *models
 	return smPolicyData
 }
 
-func PolicyDataUesUeIdSmDataGetProcedure(ueId string) (*models.SmPolicyData, error) {
+func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
 	dbSmPolicyData, err := queries.GetSmPolicyData(ueId)
 	if err != nil {
 		logger.DataRepoLog.Warnln(err)
