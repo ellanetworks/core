@@ -68,31 +68,10 @@ var routes = Routes{
 	},
 
 	{
-		"Register",
-		strings.ToUpper("Put"),
-		"/:ueId/registrations/amf-non-3gpp-access",
-		HTTPRegistrationAmfNon3gppAccess,
-	},
-
-	{
 		"UpdateAmf3gppAccess",
 		strings.ToUpper("Patch"),
 		"/:ueId/registrations/amf-3gpp-access",
 		HTTPUpdateAmf3gppAccess,
-	},
-
-	{
-		"DeregistrationSmfRegistrations",
-		strings.ToUpper("Delete"),
-		"/:ueId/registrations/smf-registrations/:pduSessionId",
-		HTTPDeregistrationSmfRegistrations,
-	},
-
-	{
-		"RegistrationSmfRegistrations",
-		strings.ToUpper("Put"),
-		"/:ueId/registrations/smf-registrations/:pduSessionId",
-		HTTPRegistrationSmfRegistrations,
 	},
 
 	{

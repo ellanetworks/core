@@ -16,6 +16,14 @@ import (
 	"github.com/yeastengine/ella/internal/udm/logger"
 )
 
+func createUDMClientToUDR() *Nudr.APIClient {
+	uri := udm_context.UDM_Self().UdrUri
+	cfg := Nudr.NewConfiguration()
+	cfg.SetBasePath(uri)
+	clientAPI := Nudr.NewAPIClient(cfg)
+	return clientAPI
+}
+
 func HandleGetAmDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	// step 1: log
 	logger.SdmLog.Infof("Handle GetAmData")

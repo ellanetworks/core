@@ -1,41 +1,25 @@
 package producer
 
 import (
-	"context"
 	"net/http"
-	"strconv"
 
-	"github.com/antihax/optional"
 	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	udm_context "github.com/yeastengine/ella/internal/udm/context"
+	"github.com/yeastengine/ella/internal/udm/context"
 	"github.com/yeastengine/ella/internal/udm/logger"
 	"github.com/yeastengine/ella/internal/udm/producer/callback"
 	"github.com/yeastengine/ella/internal/udr/producer"
 )
 
-func createUDMClientToUDR() *Nudr_DataRepository.APIClient {
-	uri := udm_context.UDM_Self().UdrUri
-	cfg := Nudr_DataRepository.NewConfiguration()
-	cfg.SetBasePath(uri)
-	clientAPI := Nudr_DataRepository.NewAPIClient(cfg)
-	return clientAPI
-}
-
 func HandleGetAmf3gppAccessRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
 	logger.UecmLog.Infof("Handle HandleGetAmf3gppAccessRequest")
 
-	// step 2: retrieve request
 	ueID := request.Params["ueId"]
 	supportedFeatures := request.Query.Get("supported-features")
 
-	// step 3: handle the message
 	response, problemDetails := GetAmf3gppAccessProcedure(ueID, supportedFeatures)
 
-	// step 4: process the return value from step 3
 	if response != nil {
 		// status code is based on SPEC, and option headers
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
@@ -83,33 +67,22 @@ func RegistrationAmf3gppAccessProcedure(registerRequest models.Amf3GppAccessRegi
 ) {
 	// TODO: EPS interworking with N26 is not supported yet in this stage
 	var oldAmf3GppAccessRegContext *models.Amf3GppAccessRegistration
-	if udm_context.UDM_Self().UdmAmf3gppRegContextExists(ueID) {
-		ue, _ := udm_context.UDM_Self().UdmUeFindBySupi(ueID)
+	if context.UDM_Self().UdmAmf3gppRegContextExists(ueID) {
+		ue, _ := context.UDM_Self().UdmUeFindBySupi(ueID)
 		oldAmf3GppAccessRegContext = ue.Amf3GppAccessRegistration
 	}
 
-	udm_context.UDM_Self().CreateAmf3gppRegContext(ueID, registerRequest)
+	context.UDM_Self().CreateAmf3gppRegContext(ueID, registerRequest)
 
-	clientAPI := createUDMClientToUDR()
-	var createAmfContext3gppParamOpts Nudr_DataRepository.CreateAmfContext3gppParamOpts
-	optInterface := optional.NewInterface(registerRequest)
-	createAmfContext3gppParamOpts.Amf3GppAccessRegistration = optInterface
-	resp, err := clientAPI.AMF3GPPAccessRegistrationDocumentApi.CreateAmfContext3gpp(context.Background(),
-		ueID, &createAmfContext3gppParamOpts)
+	err := producer.CreateAmfContext3gppProcedure(ueID, registerRequest)
 	if err != nil {
-		logger.UecmLog.Errorln("CreateAmfContext3gpp error : ", err)
 		problemDetails = &models.ProblemDetails{
-			Status: int32(resp.StatusCode),
+			Status: 404,
 			Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
 			Detail: err.Error(),
 		}
 		return nil, nil, problemDetails
 	}
-	defer func() {
-		if rspCloseErr := resp.Body.Close(); rspCloseErr != nil {
-			logger.UecmLog.Errorf("CreateAmfContext3gpp response body cannot close: %+v", rspCloseErr)
-		}
-	}()
 
 	// TS 23.502 4.2.2.2.2 14d: UDM initiate a Nudm_UECM_DeregistrationNotification to the old AMF
 	// corresponding to the same (e.g. 3GPP) access, if one exists
@@ -124,82 +97,8 @@ func RegistrationAmf3gppAccessProcedure(registerRequest models.Amf3GppAccessRegi
 		return nil, nil, nil
 	} else {
 		header = make(http.Header)
-		udmUe, _ := udm_context.UDM_Self().UdmUeFindBySupi(ueID)
-		header.Set("Location", udmUe.GetLocationURI(udm_context.LocationUriAmf3GppAccessRegistration))
-		return header, &registerRequest, nil
-	}
-}
-
-// TS 29.503 5.3.2.2.3
-func HandleRegisterAmfNon3gppAccessRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
-	logger.UecmLog.Infof("Handle RegisterAmfNon3gppAccessRequest")
-
-	// step 2: retrieve request
-	registerRequest := request.Body.(models.AmfNon3GppAccessRegistration)
-	ueID := request.Params["ueId"]
-
-	// step 3: handle the message
-	header, response, problemDetails := RegisterAmfNon3gppAccessProcedure(registerRequest, ueID)
-
-	// step 4: process the return value from step 3
-	if response != nil {
-		// status code is based on SPEC, and option headers
-		return httpwrapper.NewResponse(http.StatusCreated, header, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	} else {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
-	}
-}
-
-func RegisterAmfNon3gppAccessProcedure(registerRequest models.AmfNon3GppAccessRegistration, ueID string) (
-	header http.Header, response *models.AmfNon3GppAccessRegistration, problemDetails *models.ProblemDetails,
-) {
-	var oldAmfNon3GppAccessRegContext *models.AmfNon3GppAccessRegistration
-	if udm_context.UDM_Self().UdmAmfNon3gppRegContextExists(ueID) {
-		ue, _ := udm_context.UDM_Self().UdmUeFindBySupi(ueID)
-		oldAmfNon3GppAccessRegContext = ue.AmfNon3GppAccessRegistration
-	}
-
-	udm_context.UDM_Self().CreateAmfNon3gppRegContext(ueID, registerRequest)
-
-	clientAPI := createUDMClientToUDR()
-
-	var createAmfContextNon3gppParamOpts Nudr_DataRepository.CreateAmfContextNon3gppParamOpts
-	optInterface := optional.NewInterface(registerRequest)
-	createAmfContextNon3gppParamOpts.AmfNon3GppAccessRegistration = optInterface
-	resp, err := clientAPI.AMFNon3GPPAccessRegistrationDocumentApi.CreateAmfContextNon3gpp(
-		context.Background(), ueID, &createAmfContextNon3gppParamOpts)
-	if err != nil {
-		problemDetails = &models.ProblemDetails{
-			Status: int32(resp.StatusCode),
-			Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-			Detail: err.Error(),
-		}
-		return nil, nil, problemDetails
-	}
-	defer func() {
-		if rspCloseErr := resp.Body.Close(); rspCloseErr != nil {
-			logger.UecmLog.Errorf("CreateAmfContext3gpp response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-
-	// TS 23.502 4.2.2.2.2 14d: UDM initiate a Nudm_UECM_DeregistrationNotification to the old AMF
-	// corresponding to the same (e.g. 3GPP) access, if one exists
-	if oldAmfNon3GppAccessRegContext != nil {
-		deregistData := models.DeregistrationData{
-			DeregReason: models.DeregistrationReason_SUBSCRIPTION_WITHDRAWN,
-			AccessType:  models.AccessType_NON_3_GPP_ACCESS,
-		}
-		callback.SendOnDeregistrationNotification(ueID, oldAmfNon3GppAccessRegContext.DeregCallbackUri,
-			deregistData) // Deregistration Notify Triggered
-
-		return nil, nil, nil
-	} else {
-		header = make(http.Header)
-		udmUe, _ := udm_context.UDM_Self().UdmUeFindBySupi(ueID)
-		header.Set("Location", udmUe.GetLocationURI(udm_context.LocationUriAmfNon3GppAccessRegistration))
+		udmUe, _ := context.UDM_Self().UdmUeFindBySupi(ueID)
+		header.Set("Location", udmUe.GetLocationURI(context.LocationUriAmf3GppAccessRegistration))
 		return header, &registerRequest, nil
 	}
 }
@@ -228,7 +127,7 @@ func UpdateAmf3gppAccessProcedure(request models.Amf3GppAccessRegistrationModifi
 	problemDetails *models.ProblemDetails,
 ) {
 	var patchItemReqArray []models.PatchItem
-	currentContext := udm_context.UDM_Self().GetAmf3gppRegContext(ueID)
+	currentContext := context.UDM_Self().GetAmf3gppRegContext(ueID)
 	if currentContext == nil {
 		logger.UecmLog.Errorln("[UpdateAmf3gppAccess] Empty Amf3gppRegContext")
 		problemDetails = &models.ProblemDetails{
@@ -239,7 +138,7 @@ func UpdateAmf3gppAccessProcedure(request models.Amf3GppAccessRegistrationModifi
 	}
 
 	if request.Guami != nil {
-		udmUe, _ := udm_context.UDM_Self().UdmUeFindBySupi(ueID)
+		udmUe, _ := context.UDM_Self().UdmUeFindBySupi(ueID)
 		if udmUe.SameAsStoredGUAMI3gpp(*request.Guami) { // deregistration
 			logger.UecmLog.Infoln("UpdateAmf3gppAccess - deregistration")
 			request.PurgeFlag = true
@@ -291,138 +190,14 @@ func UpdateAmf3gppAccessProcedure(request models.Amf3GppAccessRegistrationModifi
 		patchItemReqArray = append(patchItemReqArray, patchItemTmp)
 	}
 
-	clientAPI := createUDMClientToUDR()
-
-	resp, err := clientAPI.AMF3GPPAccessRegistrationDocumentApi.AmfContext3gpp(context.Background(), ueID,
-		patchItemReqArray)
+	err := producer.PatchAmfContext3gppProcedure(ueID, patchItemReqArray)
 	if err != nil {
 		problemDetails = &models.ProblemDetails{
-			Status: int32(resp.StatusCode),
-			Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-			Detail: err.Error(),
-		}
-
-		return problemDetails
-	}
-	defer func() {
-		if rspCloseErr := resp.Body.Close(); rspCloseErr != nil {
-			logger.UecmLog.Errorf("AmfContext3gpp response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-
-	return nil
-}
-
-func HandleDeregistrationSmfRegistrations(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
-	logger.UecmLog.Infof("Handle DeregistrationSmfRegistrations")
-
-	// step 2: retrieve request
-	ueID := request.Params["ueId"]
-	pduSessionID := request.Params["pduSessionId"]
-
-	// step 3: handle the message
-	problemDetails := DeregistrationSmfRegistrationsProcedure(ueID, pduSessionID)
-
-	// step 4: process the return value from step 3
-	if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	} else {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
-	}
-}
-
-func DeregistrationSmfRegistrationsProcedure(ueID string, pduSessionID string) (problemDetails *models.ProblemDetails) {
-	clientAPI := createUDMClientToUDR()
-
-	resp, err := clientAPI.SMFRegistrationDocumentApi.DeleteSmfContext(context.Background(), ueID, pduSessionID)
-	if err != nil {
-		problemDetails = &models.ProblemDetails{
-			Status: int32(resp.StatusCode),
+			Status: http.StatusNotFound,
 			Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
 			Detail: err.Error(),
 		}
 		return problemDetails
 	}
-	defer func() {
-		if rspCloseErr := resp.Body.Close(); rspCloseErr != nil {
-			logger.UecmLog.Errorf("DeleteSmfContext response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-
 	return nil
-}
-
-// SmfRegistrations
-func HandleRegistrationSmfRegistrationsRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
-	logger.UecmLog.Infof("Handle RegistrationSmfRegistrations")
-
-	// step 2: retrieve request
-	registerRequest := request.Body.(models.SmfRegistration)
-	ueID := request.Params["ueId"]
-	pduSessionID := request.Params["pduSessionId"]
-
-	// step 3: handle the message
-	header, response, problemDetails := RegistrationSmfRegistrationsProcedure(&registerRequest, ueID, pduSessionID)
-
-	// step 4: process the return value from step 3
-	if response != nil {
-		// status code is based on SPEC, and option headers
-		return httpwrapper.NewResponse(http.StatusCreated, header, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	} else {
-		// all nil
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
-	}
-}
-
-// SmfRegistrationsProcedure
-func RegistrationSmfRegistrationsProcedure(request *models.SmfRegistration, ueID string, pduSessionID string) (
-	header http.Header, response *models.SmfRegistration, problemDetails *models.ProblemDetails,
-) {
-	contextExisted := false
-	udm_context.UDM_Self().CreateSmfRegContext(ueID, pduSessionID)
-	if !udm_context.UDM_Self().UdmSmfRegContextNotExists(ueID) {
-		contextExisted = true
-	}
-
-	pduID64, err := strconv.ParseInt(pduSessionID, 10, 32)
-	if err != nil {
-		logger.UecmLog.Errorln(err.Error())
-	}
-	pduID32 := int32(pduID64)
-
-	var createSmfContextNon3gppParamOpts Nudr_DataRepository.CreateSmfContextNon3gppParamOpts
-	optInterface := optional.NewInterface(request)
-	createSmfContextNon3gppParamOpts.SmfRegistration = optInterface
-
-	clientAPI := createUDMClientToUDR()
-
-	resp, err := clientAPI.SMFRegistrationDocumentApi.CreateSmfContextNon3gpp(context.Background(), ueID,
-		pduID32, &createSmfContextNon3gppParamOpts)
-	if err != nil {
-		problemDetails.Cause = err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause
-		problemDetails = &models.ProblemDetails{
-			Status: int32(resp.StatusCode),
-			Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-			Detail: err.Error(),
-		}
-		return nil, nil, problemDetails
-	}
-	defer func() {
-		if rspCloseErr := resp.Body.Close(); rspCloseErr != nil {
-			logger.UecmLog.Errorf("CreateSmfContextNon3gpp response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-
-	if contextExisted {
-		return nil, nil, nil
-	} else {
-		header = make(http.Header)
-		udmUe, _ := udm_context.UDM_Self().UdmUeFindBySupi(ueID)
-		header.Set("Location", udmUe.GetLocationURI(udm_context.LocationUriSmfRegistration))
-		return header, request, nil
-	}
 }

@@ -65,16 +65,15 @@ func HandleAmfContext3gpp(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.DataRepoLog.Infof("Handle AmfContext3gpp")
 	patchItem := request.Body.([]models.PatchItem)
 	ueId := request.Params["ueId"]
-
-	problemDetails := AmfContext3gppProcedure(ueId, patchItem)
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	err := PatchAmfContext3gppProcedure(ueId, patchItem)
+	if err != nil {
+		problem := util.ProblemDetailsModifyNotAllowed("")
+		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
 	}
+	return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
 }
 
-func AmfContext3gppProcedure(ueId string, patchItem []models.PatchItem) *models.ProblemDetails {
+func PatchAmfContext3gppProcedure(ueId string, patchItem []models.PatchItem) error {
 	origValue, err := queries.GetAmf3GPP(ueId)
 	if err != nil {
 		logger.DataRepoLog.Warnln(err)
@@ -90,17 +89,16 @@ func AmfContext3gppProcedure(ueId string, patchItem []models.PatchItem) *models.
 		})
 	}
 	err = queries.PatchAmf3GPP(ueId, dbPatchItem)
-
-	if err == nil {
-		newValue, err := queries.GetAmf3GPP(ueId)
-		if err != nil {
-			logger.DataRepoLog.Warnln(err)
-		}
-		PreHandleOnDataChangeNotify(ueId, CurrentResourceUri, patchItem, origValue, newValue)
-		return nil
-	} else {
-		return util.ProblemDetailsModifyNotAllowed("")
+	if err != nil {
+		return fmt.Errorf("ModifyNotAllowed")
 	}
+
+	newValue, err := queries.GetAmf3GPP(ueId)
+	if err != nil {
+		logger.DataRepoLog.Warnln(err)
+	}
+	PreHandleOnDataChangeNotify(ueId, CurrentResourceUri, patchItem, origValue, newValue)
+	return nil
 }
 
 func HandleCreateAmfContext3gpp(request *httpwrapper.Request) *httpwrapper.Response {
@@ -109,14 +107,14 @@ func HandleCreateAmfContext3gpp(request *httpwrapper.Request) *httpwrapper.Respo
 	Amf3GppAccessRegistration := request.Body.(models.Amf3GppAccessRegistration)
 	ueId := request.Params["ueId"]
 
-	CreateAmfContext3gppProcedure(ueId, Amf3GppAccessRegistration)
-
+	err := CreateAmfContext3gppProcedure(ueId, Amf3GppAccessRegistration)
+	if err != nil {
+		logger.DataRepoLog.Warnln(err)
+	}
 	return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
 }
 
-func CreateAmfContext3gppProcedure(ueId string,
-	Amf3GppAccessRegistration models.Amf3GppAccessRegistration,
-) {
+func CreateAmfContext3gppProcedure(ueId string, Amf3GppAccessRegistration models.Amf3GppAccessRegistration) error {
 	dbAmfData := &dbModels.Amf3GppAccessRegistration{
 		InitialRegistrationInd: Amf3GppAccessRegistration.InitialRegistrationInd,
 		Guami: &dbModels.Guami{
@@ -132,9 +130,7 @@ func CreateAmfContext3gppProcedure(ueId string,
 		DeregCallbackUri: Amf3GppAccessRegistration.DeregCallbackUri,
 	}
 	err := queries.EditAmf3GPP(ueId, dbAmfData)
-	if err != nil {
-		logger.DataRepoLog.Warnln(err)
-	}
+	return err
 }
 
 func HandleQueryAmfContext3gpp(request *httpwrapper.Request) *httpwrapper.Response {
