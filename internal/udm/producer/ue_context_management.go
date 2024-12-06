@@ -13,6 +13,7 @@ import (
 	udm_context "github.com/yeastengine/ella/internal/udm/context"
 	"github.com/yeastengine/ella/internal/udm/logger"
 	"github.com/yeastengine/ella/internal/udm/producer/callback"
+	"github.com/yeastengine/ella/internal/udr/producer"
 )
 
 func createUDMClientToUDR() *Nudr_DataRepository.APIClient {
@@ -51,78 +52,16 @@ func HandleGetAmf3gppAccessRequest(request *httpwrapper.Request) *httpwrapper.Re
 func GetAmf3gppAccessProcedure(ueID string, supportedFeatures string) (
 	response *models.Amf3GppAccessRegistration, problemDetails *models.ProblemDetails,
 ) {
-	var queryAmfContext3gppParamOpts Nudr_DataRepository.QueryAmfContext3gppParamOpts
-	queryAmfContext3gppParamOpts.SupportedFeatures = optional.NewString(supportedFeatures)
-
-	clientAPI := createUDMClientToUDR()
-	amf3GppAccessRegistration, resp, err := clientAPI.AMF3GPPAccessRegistrationDocumentApi.
-		QueryAmfContext3gpp(context.Background(), ueID, &queryAmfContext3gppParamOpts)
+	amf3GppAccessRegistration, err := producer.QueryAmfContext3gppProcedure(ueID)
 	if err != nil {
 		problemDetails = &models.ProblemDetails{
-			Status: int32(resp.StatusCode),
+			Status: 404,
 			Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
 			Detail: err.Error(),
 		}
 		return nil, problemDetails
 	}
-	defer func() {
-		if rspCloseErr := resp.Body.Close(); rspCloseErr != nil {
-			logger.SdmLog.Errorf("QueryAmfContext3gpp response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-
-	return &amf3GppAccessRegistration, nil
-}
-
-func HandleGetAmfNon3gppAccessRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
-	logger.UecmLog.Infoln("Handle GetAmfNon3gppAccessRequest")
-
-	// step 2: retrieve request
-	ueId := request.Params["ueId"]
-	supportedFeatures := request.Query.Get("supported-features")
-
-	var queryAmfContextNon3gppParamOpts Nudr_DataRepository.QueryAmfContextNon3gppParamOpts
-	queryAmfContextNon3gppParamOpts.SupportedFeatures = optional.NewString(supportedFeatures)
-	// step 3: handle the message
-	response, problemDetails := GetAmfNon3gppAccessProcedure(queryAmfContextNon3gppParamOpts, ueId)
-
-	// step 4: process the return value from step 3
-	if response != nil {
-		// status code is based on SPEC, and option headers
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
-}
-
-func GetAmfNon3gppAccessProcedure(queryAmfContextNon3gppParamOpts Nudr_DataRepository.
-	QueryAmfContextNon3gppParamOpts, ueID string) (response *models.AmfNon3GppAccessRegistration,
-	problemDetails *models.ProblemDetails,
-) {
-	clientAPI := createUDMClientToUDR()
-	amfNon3GppAccessRegistration, resp, err := clientAPI.AMFNon3GPPAccessRegistrationDocumentApi.
-		QueryAmfContextNon3gpp(context.Background(), ueID, &queryAmfContextNon3gppParamOpts)
-	if err != nil {
-		problemDetails = &models.ProblemDetails{
-			Status: int32(resp.StatusCode),
-			Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-			Detail: err.Error(),
-		}
-		return nil, problemDetails
-	}
-	defer func() {
-		if rspCloseErr := resp.Body.Close(); rspCloseErr != nil {
-			logger.SdmLog.Errorf("QueryAmfContext3gpp response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-
-	return &amfNon3GppAccessRegistration, nil
+	return amf3GppAccessRegistration, nil
 }
 
 func HandleRegistrationAmf3gppAccessRequest(request *httpwrapper.Request) *httpwrapper.Response {
@@ -368,114 +307,6 @@ func UpdateAmf3gppAccessProcedure(request models.Amf3GppAccessRegistrationModifi
 	defer func() {
 		if rspCloseErr := resp.Body.Close(); rspCloseErr != nil {
 			logger.UecmLog.Errorf("AmfContext3gpp response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-
-	return nil
-}
-
-// TODO: ueID may be SUPI or GPSI, but this function did not handle this condition
-func HandleUpdateAmfNon3gppAccessRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
-	logger.UecmLog.Infof("Handle UpdateAmfNon3gppAccessRequest")
-
-	// step 2: retrieve request
-	requestMSG := request.Body.(models.AmfNon3GppAccessRegistrationModification)
-	ueID := request.Params["ueId"]
-
-	// step 3: handle the message
-	problemDetails := UpdateAmfNon3gppAccessProcedure(requestMSG, ueID)
-
-	// step 4: process the return value from step 3
-	if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	} else {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
-	}
-}
-
-func UpdateAmfNon3gppAccessProcedure(request models.AmfNon3GppAccessRegistrationModification, ueID string) (
-	problemDetails *models.ProblemDetails,
-) {
-	var patchItemReqArray []models.PatchItem
-	currentContext := udm_context.UDM_Self().GetAmfNon3gppRegContext(ueID)
-	if currentContext == nil {
-		logger.UecmLog.Errorln("[UpdateAmfNon3gppAccess] Empty AmfNon3gppRegContext")
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "CONTEXT_NOT_FOUND",
-		}
-		return problemDetails
-	}
-
-	if request.Guami != nil {
-		udmUe, _ := udm_context.UDM_Self().UdmUeFindBySupi(ueID)
-		if udmUe.SameAsStoredGUAMINon3gpp(*request.Guami) { // deregistration
-			logger.UecmLog.Infoln("UpdateAmfNon3gppAccess - deregistration")
-			request.PurgeFlag = true
-		} else {
-			logger.UecmLog.Errorln("INVALID_GUAMI")
-			problemDetails = &models.ProblemDetails{
-				Status: http.StatusForbidden,
-				Cause:  "INVALID_GUAMI",
-			}
-			return problemDetails
-		}
-
-		var patchItemTmp models.PatchItem
-		patchItemTmp.Path = "/" + "Guami"
-		patchItemTmp.Op = models.PatchOperation_REPLACE
-		patchItemTmp.Value = *request.Guami
-		patchItemReqArray = append(patchItemReqArray, patchItemTmp)
-	}
-
-	if request.PurgeFlag {
-		var patchItemTmp models.PatchItem
-		patchItemTmp.Path = "/" + "PurgeFlag"
-		patchItemTmp.Op = models.PatchOperation_REPLACE
-		patchItemTmp.Value = request.PurgeFlag
-		patchItemReqArray = append(patchItemReqArray, patchItemTmp)
-	}
-
-	if request.Pei != "" {
-		var patchItemTmp models.PatchItem
-		patchItemTmp.Path = "/" + "Pei"
-		patchItemTmp.Op = models.PatchOperation_REPLACE
-		patchItemTmp.Value = request.Pei
-		patchItemReqArray = append(patchItemReqArray, patchItemTmp)
-	}
-
-	if request.ImsVoPs != "" {
-		var patchItemTmp models.PatchItem
-		patchItemTmp.Path = "/" + "ImsVoPs"
-		patchItemTmp.Op = models.PatchOperation_REPLACE
-		patchItemTmp.Value = request.ImsVoPs
-		patchItemReqArray = append(patchItemReqArray, patchItemTmp)
-	}
-
-	if request.BackupAmfInfo != nil {
-		var patchItemTmp models.PatchItem
-		patchItemTmp.Path = "/" + "BackupAmfInfo"
-		patchItemTmp.Op = models.PatchOperation_REPLACE
-		patchItemTmp.Value = request.BackupAmfInfo
-		patchItemReqArray = append(patchItemReqArray, patchItemTmp)
-	}
-
-	clientAPI := createUDMClientToUDR()
-
-	resp, err := clientAPI.AMFNon3GPPAccessRegistrationDocumentApi.AmfContextNon3gpp(context.Background(),
-		ueID, patchItemReqArray)
-	if err != nil {
-		problemDetails = &models.ProblemDetails{
-			Status: int32(resp.StatusCode),
-			Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-			Detail: err.Error(),
-		}
-		return problemDetails
-	}
-	defer func() {
-		if rspCloseErr := resp.Body.Close(); rspCloseErr != nil {
-			logger.UecmLog.Errorf("AmfContextNon3gpp response body cannot close: %+v", rspCloseErr)
 		}
 	}()
 

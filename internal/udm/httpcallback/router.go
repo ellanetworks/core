@@ -1,8 +1,6 @@
 package httpcallback
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/udm/logger"
@@ -50,16 +48,7 @@ func AddService(engine *gin.Engine) *gin.RouterGroup {
 	return group
 }
 
-// Index is the index handler.
-func Index(c *gin.Context) {
-	c.String(http.StatusOK, "Hello World!")
-}
-
 var routes = Routes{
-	{
-		Name: "Index", Method: "GET",
-		Pattern: "/", HandlerFunc: Index,
-	},
 	{
 		Name: "DataChangeNotificationToNF", Method: "POST",
 		Pattern: "/sdm-subscriptions", HandlerFunc: HTTPDataChangeNotificationToNF,

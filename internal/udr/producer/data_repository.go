@@ -142,29 +142,50 @@ func HandleQueryAmfContext3gpp(request *httpwrapper.Request) *httpwrapper.Respon
 
 	ueId := request.Params["ueId"]
 
-	response, problemDetails := QueryAmfContext3gppProcedure(ueId)
+	response, err := QueryAmfContext3gppProcedure(ueId)
 
 	if response != nil {
 		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	} else if err != nil {
+		problem := util.ProblemDetailsNotFound("USER_NOT_FOUND")
+		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
 	}
 
 	pd := util.ProblemDetailsUpspecified("")
 	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
 }
 
-func QueryAmfContext3gppProcedure(ueId string) (*dbModels.Amf3GppAccessRegistration, *models.ProblemDetails) {
-	amf3Gpp, err := queries.GetAmf3GPP(ueId)
+func convertDbAmf3GppAccessRegistrationToModel(dbAmf3Gpp *dbModels.Amf3GppAccessRegistration) *models.Amf3GppAccessRegistration {
+	if dbAmf3Gpp == nil {
+		return &models.Amf3GppAccessRegistration{}
+	}
+	amf3Gpp := &models.Amf3GppAccessRegistration{
+		InitialRegistrationInd: dbAmf3Gpp.InitialRegistrationInd,
+		Guami: &models.Guami{
+			PlmnId: &models.PlmnId{
+				Mcc: dbAmf3Gpp.Guami.PlmnId.Mcc,
+				Mnc: dbAmf3Gpp.Guami.PlmnId.Mnc,
+			},
+			AmfId: dbAmf3Gpp.Guami.AmfId,
+		},
+		RatType:          models.RatType(dbAmf3Gpp.RatType),
+		AmfInstanceId:    dbAmf3Gpp.AmfInstanceId,
+		ImsVoPs:          models.ImsVoPs(dbAmf3Gpp.ImsVoPs),
+		DeregCallbackUri: dbAmf3Gpp.DeregCallbackUri,
+	}
+	return amf3Gpp
+}
+
+func QueryAmfContext3gppProcedure(ueId string) (*models.Amf3GppAccessRegistration, error) {
+	dbAmf3Gpp, err := queries.GetAmf3GPP(ueId)
 	if err != nil {
 		logger.DataRepoLog.Warnln(err)
 	}
-
-	if amf3Gpp != nil {
-		return amf3Gpp, nil
-	} else {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
+	if dbAmf3Gpp == nil {
+		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
+	amf3Gpp := convertDbAmf3GppAccessRegistrationToModel(dbAmf3Gpp)
+	return amf3Gpp, nil
 }
 
 func HandleModifyAuthentication(request *httpwrapper.Request) *httpwrapper.Response {

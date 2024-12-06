@@ -12,7 +12,6 @@ import (
 	"github.com/omec-project/openapi/Npcf_AMPolicy"
 	"github.com/omec-project/openapi/Npcf_PolicyAuthorization"
 	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
-	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/pcf/context"
 	"github.com/yeastengine/ella/internal/pcf/logger"
@@ -67,13 +66,6 @@ func GetNpcfSMPolicyCallbackClient() *Npcf_SMPolicyControl.APIClient {
 func GetNpcfPolicyAuthorizationCallbackClient() *Npcf_PolicyAuthorization.APIClient {
 	configuration := Npcf_PolicyAuthorization.NewConfiguration()
 	client := Npcf_PolicyAuthorization.NewAPIClient(configuration)
-	return client
-}
-
-func GetNudrClient(uri string) *Nudr_DataRepository.APIClient {
-	configuration := Nudr_DataRepository.NewConfiguration()
-	configuration.SetBasePath(uri)
-	client := Nudr_DataRepository.NewAPIClient(configuration)
 	return client
 }
 

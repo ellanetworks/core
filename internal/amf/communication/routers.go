@@ -10,7 +10,6 @@
 package communication
 
 import (
-	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -58,19 +57,7 @@ func AddService(engine *gin.Engine) *gin.RouterGroup {
 	return group
 }
 
-// Index is the index handler.
-func Index(c *gin.Context) {
-	c.String(http.StatusOK, "Hello World!")
-}
-
 var routes = Routes{
-	{
-		"Index",
-		"GET",
-		"/",
-		Index,
-	},
-
 	{
 		"AMFStatusChangeSubscribeModify",
 		strings.ToUpper("Put"),

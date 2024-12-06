@@ -33,19 +33,7 @@ func AddService(engine *gin.Engine) *gin.RouterGroup {
 	return group
 }
 
-// Index is the index handler.
-func Index(c *gin.Context) {
-	c.String(http.StatusOK, "Hello World!")
-}
-
 var routes = Routes{
-	{
-		"GetExample",
-		http.MethodGet,
-		"/sample",
-		GetSampleJSON,
-	},
-
 	{
 		"GetSubscribers",
 		http.MethodGet,
@@ -86,13 +74,6 @@ var routes = Routes{
 		http.MethodPatch,
 		"/subscriber/:ueId/:servingPlmnId",
 		PatchSubscriberByID,
-	},
-
-	{
-		"Index",
-		http.MethodGet,
-		"/",
-		Index,
 	},
 
 	{

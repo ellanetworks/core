@@ -118,21 +118,6 @@ func threeLayerPathHandlerFunc(c *gin.Context) {
 func AddService(engine *gin.Engine) *gin.RouterGroup {
 	group := engine.Group("/nudm-sdm/v1")
 
-	for _, route := range routes {
-		switch route.Method {
-		case "GET":
-			group.GET(route.Pattern, route.HandlerFunc)
-		case "POST":
-			group.POST(route.Pattern, route.HandlerFunc)
-		case "PUT":
-			group.PUT(route.Pattern, route.HandlerFunc)
-		case "DELETE":
-			group.DELETE(route.Pattern, route.HandlerFunc)
-		case "PATCH":
-			group.PATCH(route.Pattern, route.HandlerFunc)
-		}
-	}
-
 	oneLayerPath := "/:supi"
 	group.Any(oneLayerPath, oneLayerPathHandlerFunc)
 
@@ -143,20 +128,6 @@ func AddService(engine *gin.Engine) *gin.RouterGroup {
 	group.Any(threeLayerPath, threeLayerPathHandlerFunc)
 
 	return group
-}
-
-// Index is the index handler.
-func Index(c *gin.Context) {
-	c.String(http.StatusOK, "Hello World!")
-}
-
-var routes = Routes{
-	{
-		"Index",
-		"GET",
-		"/",
-		Index,
-	},
 }
 
 var oneLayerPathRouter = Routes{
