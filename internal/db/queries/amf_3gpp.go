@@ -5,7 +5,6 @@ import (
 
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/db/models"
-	"github.com/yeastengine/ella/internal/udr/util"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -21,7 +20,7 @@ func GetAmf3GPP(ueId string) (*models.Amf3GppAccessRegistration, error) {
 }
 
 func EditAmf3GPP(ueId string, amfData *models.Amf3GppAccessRegistration) error {
-	putData := util.ToBsonM(amfData)
+	putData := toBsonM(amfData)
 	putData["ueId"] = ueId
 	filter := bson.M{"ueId": ueId}
 	_, err := db.CommonDBClient.RestfulAPIPutOne(db.SUBSCDATA_CTXDATA_AMF_3GPPACCESS, filter, putData)

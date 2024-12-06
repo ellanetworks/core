@@ -1,7 +1,6 @@
 package producer
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -10,16 +9,14 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/antihax/optional"
-	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/omec-project/util/milenage"
 	"github.com/omec-project/util/ueauth"
 	"github.com/omec-project/util/util_3gpp/suci"
-	udm_context "github.com/yeastengine/ella/internal/udm/context"
+	"github.com/yeastengine/ella/internal/udm/context"
 	"github.com/yeastengine/ella/internal/udm/logger"
+	"github.com/yeastengine/ella/internal/udr/producer"
 )
 
 const (
@@ -120,29 +117,16 @@ func HandleConfirmAuthDataRequest(request *httpwrapper.Request) *httpwrapper.Res
 }
 
 func ConfirmAuthDataProcedure(authEvent models.AuthEvent, supi string) (problemDetails *models.ProblemDetails) {
-	var createAuthParam Nudr_DataRepository.CreateAuthenticationStatusParamOpts
-	optInterface := optional.NewInterface(authEvent)
-	createAuthParam.AuthEvent = optInterface
-
-	client := createUDMClientToUDR()
-	resp, err := client.AuthenticationStatusDocumentApi.CreateAuthenticationStatus(
-		context.Background(), supi, &createAuthParam)
+	err := producer.EditAuthenticationStatus(supi, authEvent)
 	if err != nil {
 		problemDetails = &models.ProblemDetails{
-			Status: int32(resp.StatusCode),
-			Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
+			Status: http.StatusForbidden,
+			Cause:  authenticationRejected,
 			Detail: err.Error(),
 		}
-
 		logger.UeauLog.Errorln("[ConfirmAuth] ", err.Error())
 		return problemDetails
 	}
-	defer func() {
-		if rspCloseErr := resp.Body.Close(); rspCloseErr != nil {
-			logger.UeauLog.Errorf("CreateAuthenticationStatus response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-
 	return nil
 }
 
@@ -152,7 +136,7 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 	logger.UeauLog.Debugln("In GenerateAuthDataProcedure")
 
 	response = &models.AuthenticationInfoResult{}
-	supi, err := suci.ToSupi(supiOrSuci, udm_context.UDM_Self().SuciProfiles)
+	supi, err := suci.ToSupi(supiOrSuci, context.UDM_Self().SuciProfiles)
 	if err != nil {
 		problemDetails = &models.ProblemDetails{
 			Status: http.StatusForbidden,
@@ -166,8 +150,7 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 
 	logger.UeauLog.Debugf("supi conversion => %s\n", supi)
 
-	client := createUDMClientToUDR()
-	authSubs, res, err := client.AuthenticationDataDocumentApi.QueryAuthSubsData(context.Background(), supi, nil)
+	authSubs, err := producer.GetAuthSubsData(supi)
 	if err != nil {
 		problemDetails = &models.ProblemDetails{
 			Status: http.StatusForbidden,
@@ -175,14 +158,9 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 			Detail: err.Error(),
 		}
 
-		logger.UeauLog.Errorln("Return from UDR QueryAuthSubsData error")
+		logger.UeauLog.Errorln("GetAuthSubsData error: ", err.Error())
 		return nil, problemDetails
 	}
-	defer func() {
-		if rspCloseErr := res.Body.Close(); rspCloseErr != nil {
-			logger.SdmLog.Errorf("QueryAuthSubsData response body cannot close: %+v", rspCloseErr)
-		}
-	}()
 
 	/*
 		K, RAND, CK, IK: 128 bits (16 bytes) (hex len = 32)
@@ -438,24 +416,17 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 		},
 	}
 
-	var rsp *http.Response
-	rsp, err = client.AuthenticationDataDocumentApi.ModifyAuthentication(
-		context.Background(), supi, patchItemArray)
+	err = producer.EditAuthenticationSubscription(supi, patchItemArray)
 	if err != nil {
 		problemDetails = &models.ProblemDetails{
 			Status: http.StatusForbidden,
-			Cause:  "modification is rejected ",
+			Cause:  "modification is rejected",
 			Detail: err.Error(),
 		}
 
 		logger.UeauLog.Errorln("update sqn error", err)
 		return nil, problemDetails
 	}
-	defer func() {
-		if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
-			logger.SdmLog.Errorf("ModifyAuthentication response body cannot close: %+v", rspCloseErr)
-		}
-	}()
 
 	// Run milenage
 	macA, macS := make([]byte, 8), make([]byte, 8)

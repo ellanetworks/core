@@ -13,7 +13,6 @@ import (
 	"github.com/yeastengine/ella/internal/pcf/bdtpolicy"
 	"github.com/yeastengine/ella/internal/pcf/context"
 	"github.com/yeastengine/ella/internal/pcf/factory"
-	"github.com/yeastengine/ella/internal/pcf/httpcallback"
 	"github.com/yeastengine/ella/internal/pcf/internal/notifyevent"
 	"github.com/yeastengine/ella/internal/pcf/logger"
 	"github.com/yeastengine/ella/internal/pcf/oam"
@@ -51,7 +50,6 @@ func (pcf *PCF) Start() {
 	ampolicy.AddService(router)
 	uepolicy.AddService(router)
 	policyauthorization.AddService(router)
-	httpcallback.AddService(router)
 	oam.AddService(router)
 
 	router.Use(cors.New(cors.Config{

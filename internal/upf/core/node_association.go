@@ -19,7 +19,7 @@ type NodeAssociation struct {
 	FailedHeartbeats uint32
 	HeartbeatsActive bool
 	sync.Mutex
-	// AssociationStart time.Time // Held until propper failure detection is implemented
+	// AssociationStart time.Time // Held until proper failure detection is implemented
 }
 
 func NewNodeAssociation(remoteNodeID string, addr string) *NodeAssociation {

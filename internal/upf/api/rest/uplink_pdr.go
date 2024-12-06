@@ -54,7 +54,7 @@ func (h *ApiHandler) setUplinkPdrValue(c *gin.Context) {
 	}
 
 	if err := h.BpfObjects.IpEntrypointObjects.PdrMapUplinkIp4.Put(uint32(pdrElement.Id), unsafe.Pointer(&value)); err != nil {
-		logger.AppLog.Infof("Error writting map: %s", err.Error())
+		logger.AppLog.Infof("Error writing map: %s", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

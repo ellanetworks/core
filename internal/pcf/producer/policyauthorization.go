@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/cydev/zero"
 	"github.com/omec-project/openapi"
@@ -153,10 +152,6 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 
 	// Initial BDT policy indication(the only one which is not related to session)
 	if ascReqData.BdtRefId != "" {
-		if err := handleBDTPolicyInd(pcfSelf, appSessCtx); err != nil {
-			problemDetail := util.GetProblemDetail(err.Error(), util.ERROR_REQUEST_PARAMETERS)
-			return nil, "", &problemDetail
-		}
 		appSessID := fmt.Sprintf("BdtRefId-%s", ascReqData.BdtRefId)
 		data := pcf_context.AppSessionData{
 			AppSessionId:      appSessID,
@@ -552,10 +547,6 @@ func ModAppSessionContextProcedure(appSessID string,
 	appSessCtx := appSession.AppSessionContext
 	if ascUpdateData.BdtRefId != "" {
 		appSessCtx.AscReqData.BdtRefId = ascUpdateData.BdtRefId
-		if err := handleBDTPolicyInd(pcfSelf, appSessCtx); err != nil {
-			problemDetail := util.GetProblemDetail(err.Error(), util.ERROR_REQUEST_PARAMETERS)
-			return &problemDetail, nil
-		}
 		logger.PolicyAuthorizationlog.Debugf("App Session Id[%s] Updated", appSessID)
 		return nil, appSessCtx
 	}
@@ -1089,54 +1080,6 @@ func SendAppSessionTermination(appSession *pcf_context.AppSessionData, request m
 			logger.PolicyAuthorizationlog.Debugf("Send App Session Termination Success")
 		}
 	}
-}
-
-// Handle Create/ Modify Background Data Transfer Policy Indication
-func handleBDTPolicyInd(pcfSelf *pcf_context.PCFContext,
-	appSessCtx *models.AppSessionContext,
-) (err error) {
-	req := appSessCtx.AscReqData
-
-	var requestSuppFeat openapi.SupportedFeature
-	if tempRequestSuppFeat, err := openapi.NewSupportedFeature(req.SuppFeat); err != nil {
-		logger.PolicyAuthorizationlog.Errorf("Sponsored Connectivity is disabled by AF")
-	} else {
-		requestSuppFeat = tempRequestSuppFeat
-	}
-	respData := models.AppSessionContextRespData{
-		ServAuthInfo: models.ServAuthInfo_NOT_KNOWN,
-		SuppFeat: pcfSelf.PcfSuppFeats[models.ServiceName_NPCF_POLICYAUTHORIZATION].NegotiateWith(
-			requestSuppFeat).String(),
-	}
-	client := util.GetNudrClient(pcfSelf.UdrUri)
-	bdtData, resp, err1 := client.DefaultApi.PolicyDataBdtDataBdtReferenceIdGet(context.Background(), req.BdtRefId)
-	if err1 != nil {
-		return fmt.Errorf("UDR Get BdtData error[%s]", err1.Error())
-	} else if resp == nil || resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("UDR Get BdtData error")
-	} else {
-		defer func() {
-			if rspCloseErr := resp.Body.Close(); rspCloseErr != nil {
-				logger.PolicyAuthorizationlog.Errorf(
-					"PolicyDataBdtDataBdtReferenceIdGet response body cannot close: %+v", rspCloseErr)
-			}
-		}()
-		startTime, err1 := time.Parse(util.TimeFormat, bdtData.TransPolicy.RecTimeInt.StartTime)
-		if err1 != nil {
-			return err1
-		}
-		stopTime, err1 := time.Parse(util.TimeFormat, bdtData.TransPolicy.RecTimeInt.StopTime)
-		if err1 != nil {
-			return err1
-		}
-		if startTime.After(time.Now()) {
-			respData.ServAuthInfo = models.ServAuthInfo_NOT_YET_OCURRED
-		} else if stopTime.Before(time.Now()) {
-			respData.ServAuthInfo = models.ServAuthInfo_EXPIRED
-		}
-	}
-	appSessCtx.AscRespData = &respData
-	return nil
 }
 
 // provisioning of sponsored connectivity information

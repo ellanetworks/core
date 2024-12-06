@@ -1,7 +1,6 @@
 package uecontextmanagement
 
 import (
-	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -53,31 +52,12 @@ func AddService(engine *gin.Engine) *gin.RouterGroup {
 	return group
 }
 
-// Index is the index handler.
-func Index(c *gin.Context) {
-	c.String(http.StatusOK, "Hello World!")
-}
-
 var routes = Routes{
-	{
-		"Index",
-		"GET",
-		"/",
-		Index,
-	},
-
 	{
 		"GetAmf3gppAccess",
 		strings.ToUpper("Get"),
 		"/:ueId/registrations/amf-3gpp-access",
 		HTTPGetAmf3gppAccess,
-	},
-
-	{
-		"GetAmfNon3gppAccess",
-		strings.ToUpper("Get"),
-		"/:ueId/registrations/amf-non-3gpp-access",
-		HTTPGetAmfNon3gppAccess,
 	},
 
 	{
@@ -88,38 +68,10 @@ var routes = Routes{
 	},
 
 	{
-		"Register",
-		strings.ToUpper("Put"),
-		"/:ueId/registrations/amf-non-3gpp-access",
-		HTTPRegistrationAmfNon3gppAccess,
-	},
-
-	{
 		"UpdateAmf3gppAccess",
 		strings.ToUpper("Patch"),
 		"/:ueId/registrations/amf-3gpp-access",
 		HTTPUpdateAmf3gppAccess,
-	},
-
-	{
-		"UpdateAmfNon3gppAccess",
-		strings.ToUpper("Patch"),
-		"/:ueId/registrations/amf-non-3gpp-access",
-		HTTPUpdateAmfNon3gppAccess,
-	},
-
-	{
-		"DeregistrationSmfRegistrations",
-		strings.ToUpper("Delete"),
-		"/:ueId/registrations/smf-registrations/:pduSessionId",
-		HTTPDeregistrationSmfRegistrations,
-	},
-
-	{
-		"RegistrationSmfRegistrations",
-		strings.ToUpper("Put"),
-		"/:ueId/registrations/smf-registrations/:pduSessionId",
-		HTTPRegistrationSmfRegistrations,
 	},
 
 	{

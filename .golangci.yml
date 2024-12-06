@@ -190,13 +190,13 @@ linters:
     - gomodguard
     - nakedret
     # - gci
-    # - misspell
+    - misspell
     - gofumpt
     - whitespace
     # - unconvert
     - predeclared
     # - noctx
-    - dogsled
+    # - dogsled
     # - bodyclose
     - asciicheck
     # - stylecheck

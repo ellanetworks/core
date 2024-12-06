@@ -14,6 +14,7 @@ import (
 	pcf_context "github.com/yeastengine/ella/internal/pcf/context"
 	"github.com/yeastengine/ella/internal/pcf/logger"
 	"github.com/yeastengine/ella/internal/pcf/util"
+	"github.com/yeastengine/ella/internal/udr/producer"
 )
 
 func HandleDeletePoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {
@@ -220,34 +221,23 @@ func PostPoliciesProcedure(polAssoId string,
 			ue = newUe
 		}
 	}
-	ue.UdrUri = pcfSelf.UdrUri
 	response.Request = deepcopy.Copy(&policyAssociationRequest).(*models.PolicyAssociationRequest)
 	assolId := fmt.Sprintf("%s-%d", ue.Supi, ue.PolAssociationIDGenerator)
 	amPolicy := ue.AMPolicyData[assolId]
 
 	if amPolicy == nil || amPolicy.AmPolicyData == nil {
-		client := util.GetNudrClient(pcfSelf.UdrUri)
-		var response *http.Response
-		amData, response, err := client.DefaultApi.PolicyDataUesUeIdAmDataGet(context.Background(), ue.Supi)
-		if err != nil || response == nil || response.StatusCode != http.StatusOK {
+		amData, err := producer.GetAmPolicyData(ue.Supi)
+		if err != nil {
 			problemDetail := util.GetProblemDetail("Can't find UE AM Policy Data in UDR", util.USER_UNKNOWN)
 			logger.AMpolicylog.Errorf("Can't find UE[%s] AM Policy Data in UDR", ue.Supi)
 			return nil, "", &problemDetail
 		}
-		defer func() {
-			if rspCloseErr := response.Body.Close(); rspCloseErr != nil {
-				logger.AMpolicylog.Errorf("PolicyDataUesUeIdAmDataGet response cannot close: %+v", rspCloseErr)
-			}
-		}()
 		if amPolicy == nil {
 			amPolicy = ue.NewUeAMPolicyData(assolId, policyAssociationRequest)
 		}
-		amPolicy.AmPolicyData = &amData
+		amPolicy.AmPolicyData = amData
 	}
 
-	// TODO: according to PCF Policy to determine ServAreaRes, Rfsp, SuppFeat
-	// amPolicy.ServAreaRes =
-	// amPolicy.Rfsp =
 	var requestSuppFeat openapi.SupportedFeature
 	if suppFeat, err := openapi.NewSupportedFeature(policyAssociationRequest.SuppFeat); err != nil {
 		logger.AMpolicylog.Warnln(err)

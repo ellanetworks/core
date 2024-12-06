@@ -42,19 +42,7 @@ func AddService(engine *gin.Engine) *gin.RouterGroup {
 	return group
 }
 
-// Index is the index handler.
-func Index(c *gin.Context) {
-	c.String(http.StatusOK, "Hello World!")
-}
-
 var routes = Routes{
-	{
-		"Index",
-		http.MethodGet,
-		"/",
-		Index,
-	},
-
 	{
 		"Get UE AM Policy Data",
 		http.MethodGet,

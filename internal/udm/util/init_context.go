@@ -15,7 +15,6 @@ func InitUDMContext(udmContext *context.UDMContext) {
 	udmContext.UriScheme = models.UriScheme_HTTP
 	udmContext.SBIPort = sbi.Port
 	udmContext.BindingIPv4 = sbi.BindingIPv4
-	udmContext.UdrUri = config.UdrUri
 	servingNameList := config.ServiceNameList
 
 	udmContext.SuciProfiles = []suci.SuciProfile{

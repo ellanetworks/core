@@ -13,10 +13,7 @@ var (
 	HandlerLog  *zap.SugaredLogger
 	DataRepoLog *zap.SugaredLogger
 	UtilLog     *zap.SugaredLogger
-	HttpLog     *zap.SugaredLogger
 	ConsumerLog *zap.SugaredLogger
-	GinLog      *zap.SugaredLogger
-	GrpcLog     *zap.SugaredLogger
 	atomicLevel zap.AtomicLevel
 )
 
@@ -52,10 +49,7 @@ func init() {
 	HandlerLog = log.Sugar().With("component", "UDR", "category", "HDLR")
 	DataRepoLog = log.Sugar().With("component", "UDR", "category", "DRepo")
 	UtilLog = log.Sugar().With("component", "UDR", "category", "Util")
-	HttpLog = log.Sugar().With("component", "UDR", "category", "HTTP")
 	ConsumerLog = log.Sugar().With("component", "UDR", "category", "Consumer")
-	GinLog = log.Sugar().With("component", "UDR", "category", "GIN")
-	GrpcLog = log.Sugar().With("component", "UDR", "category", "GRPC")
 }
 
 func GetLogger() *zap.Logger {

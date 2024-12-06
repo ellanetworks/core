@@ -16,7 +16,6 @@ type Configuration struct {
 	UdmName         string
 	Sbi             *Sbi
 	ServiceNameList []string
-	UdrUri          string
 	Keys            *Keys
 	PlmnSupportList []models.PlmnId
 	PlmnList        []PlmnSupportItem

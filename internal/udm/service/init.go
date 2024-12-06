@@ -13,7 +13,6 @@ import (
 	"github.com/yeastengine/ella/internal/udm/factory"
 	"github.com/yeastengine/ella/internal/udm/httpcallback"
 	"github.com/yeastengine/ella/internal/udm/logger"
-	"github.com/yeastengine/ella/internal/udm/parameterprovision"
 	"github.com/yeastengine/ella/internal/udm/subscriberdatamanagement"
 	"github.com/yeastengine/ella/internal/udm/ueauthentication"
 	"github.com/yeastengine/ella/internal/udm/uecontextmanagement"
@@ -44,7 +43,6 @@ func (udm *UDM) Start() {
 	router := logger_util.NewGinWithZap(logger.GinLog)
 	eventexposure.AddService(router)
 	httpcallback.AddService(router)
-	parameterprovision.AddService(router)
 	subscriberdatamanagement.AddService(router)
 	ueauthentication.AddService(router)
 	uecontextmanagement.AddService(router)

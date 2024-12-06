@@ -15,7 +15,7 @@ const (
 	NGAPP_PORT = 38412
 )
 
-func Start(ausfURL string, nssfURL string, pcfURL string, smfURL string, UdmsdmURL string, UdmUecmURL string) error {
+func Start(ausfURL string, nssfURL string, pcfURL string, smfURL string, udmURL string) error {
 	configuration := factory.Configuration{
 		Logger: &logger.Logger{
 			AMF: &logger.LogSetting{
@@ -52,8 +52,8 @@ func Start(ausfURL string, nssfURL string, pcfURL string, smfURL string, UdmsdmU
 		NssfUri:        nssfURL,
 		PcfUri:         pcfURL,
 		SmfUri:         smfURL,
-		UdmsdmUri:      UdmsdmURL,
-		UdmUecmUri:     UdmUecmURL,
+		UdmsdmUri:      udmURL,
+		UdmUecmUri:     udmURL,
 		Security: &factory.Security{
 			IntegrityOrder: []string{"NIA1", "NIA2"},
 			CipheringOrder: []string{"NEA0"},
