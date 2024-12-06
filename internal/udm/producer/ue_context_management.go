@@ -36,7 +36,7 @@ func HandleGetAmf3gppAccessRequest(request *httpwrapper.Request) *httpwrapper.Re
 func GetAmf3gppAccessProcedure(ueID string, supportedFeatures string) (
 	response *models.Amf3GppAccessRegistration, problemDetails *models.ProblemDetails,
 ) {
-	amf3GppAccessRegistration, err := producer.QueryAmfContext3gppProcedure(ueID)
+	amf3GppAccessRegistration, err := producer.GetAmfContext3gpp(ueID)
 	if err != nil {
 		problemDetails = &models.ProblemDetails{
 			Status: 404,
@@ -74,7 +74,7 @@ func RegistrationAmf3gppAccessProcedure(registerRequest models.Amf3GppAccessRegi
 
 	context.UDM_Self().CreateAmf3gppRegContext(ueID, registerRequest)
 
-	err := producer.CreateAmfContext3gppProcedure(ueID, registerRequest)
+	err := producer.CreateAmfContext3gpp(ueID, registerRequest)
 	if err != nil {
 		problemDetails = &models.ProblemDetails{
 			Status: 404,
@@ -190,7 +190,7 @@ func UpdateAmf3gppAccessProcedure(request models.Amf3GppAccessRegistrationModifi
 		patchItemReqArray = append(patchItemReqArray, patchItemTmp)
 	}
 
-	err := producer.PatchAmfContext3gppProcedure(ueID, patchItemReqArray)
+	err := producer.PatchAmfContext3gpp(ueID, patchItemReqArray)
 	if err != nil {
 		problemDetails = &models.ProblemDetails{
 			Status: http.StatusNotFound,

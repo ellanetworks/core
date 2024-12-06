@@ -226,7 +226,7 @@ func PostPoliciesProcedure(polAssoId string,
 	amPolicy := ue.AMPolicyData[assolId]
 
 	if amPolicy == nil || amPolicy.AmPolicyData == nil {
-		amData, err := producer.PolicyDataUesUeIdAmDataGetProcedure(ue.Supi)
+		amData, err := producer.GetAmPolicyData(ue.Supi)
 		if err != nil {
 			problemDetail := util.GetProblemDetail("Can't find UE AM Policy Data in UDR", util.USER_UNKNOWN)
 			logger.AMpolicylog.Errorf("Can't find UE[%s] AM Policy Data in UDR", ue.Supi)

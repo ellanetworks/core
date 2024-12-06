@@ -26,9 +26,9 @@ func SendOnDataChangeNotify(ueId string, notifyItems []models.NotifyItem) {
 				onDataChangeNotifyUrl, dataChangeNotify)
 			if err != nil {
 				if httpResponse == nil {
-					logger.HttpLog.Errorln(err.Error())
+					logger.AppLog.Errorln(err.Error())
 				} else if err.Error() != httpResponse.Status {
-					logger.HttpLog.Errorln(err.Error())
+					logger.AppLog.Errorln(err.Error())
 				}
 			}
 		}

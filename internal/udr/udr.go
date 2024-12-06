@@ -8,8 +8,6 @@ import (
 
 var UDR = &service.UDR{}
 
-const SBI_PORT = 29504
-
 func Start() error {
 	configuration := factory.Configuration{
 		Logger: &logger.Logger{
@@ -17,12 +15,7 @@ func Start() error {
 				DebugLevel: "debug",
 			},
 		},
-		Sbi: &factory.Sbi{
-			BindingIPv4: "0.0.0.0",
-			Port:        SBI_PORT,
-		},
 	}
 	UDR.Initialize(configuration)
-	go UDR.Start()
 	return nil
 }

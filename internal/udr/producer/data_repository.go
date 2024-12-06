@@ -1,19 +1,14 @@
 package producer
 
 import (
-	"encoding/json"
 	"fmt"
-	"reflect"
 	"strconv"
 
-	jsonpatch "github.com/evanphx/json-patch"
-	"github.com/mitchellh/mapstructure"
 	"github.com/omec-project/openapi/models"
 	dbModels "github.com/yeastengine/ella/internal/db/models"
 	"github.com/yeastengine/ella/internal/db/queries"
 	"github.com/yeastengine/ella/internal/udr/context"
 	"github.com/yeastengine/ella/internal/udr/logger"
-	"github.com/yeastengine/ella/internal/udr/util"
 )
 
 var CurrentResourceUri string
@@ -61,7 +56,7 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	return amData, nil
 }
 
-func PatchAmfContext3gppProcedure(ueId string, patchItem []models.PatchItem) error {
+func PatchAmfContext3gpp(ueId string, patchItem []models.PatchItem) error {
 	origValue, err := queries.GetAmf3GPP(ueId)
 	if err != nil {
 		logger.DataRepoLog.Warnln(err)
@@ -89,7 +84,7 @@ func PatchAmfContext3gppProcedure(ueId string, patchItem []models.PatchItem) err
 	return nil
 }
 
-func CreateAmfContext3gppProcedure(ueId string, Amf3GppAccessRegistration models.Amf3GppAccessRegistration) error {
+func CreateAmfContext3gpp(ueId string, Amf3GppAccessRegistration models.Amf3GppAccessRegistration) error {
 	dbAmfData := &dbModels.Amf3GppAccessRegistration{
 		InitialRegistrationInd: Amf3GppAccessRegistration.InitialRegistrationInd,
 		Guami: &dbModels.Guami{
@@ -129,7 +124,7 @@ func convertDbAmf3GppAccessRegistrationToModel(dbAmf3Gpp *dbModels.Amf3GppAccess
 	return amf3Gpp
 }
 
-func QueryAmfContext3gppProcedure(ueId string) (*models.Amf3GppAccessRegistration, error) {
+func GetAmfContext3gpp(ueId string) (*models.Amf3GppAccessRegistration, error) {
 	dbAmf3Gpp, err := queries.GetAmf3GPP(ueId)
 	if err != nil {
 		logger.DataRepoLog.Warnln(err)
@@ -230,61 +225,6 @@ func EditAuthenticationStatus(ueID string, authStatus models.AuthEvent) error {
 	return err
 }
 
-func QueryAuthenticationStatusProcedure(ueId string) (*dbModels.AuthEvent,
-	*models.ProblemDetails,
-) {
-	authEvent, err := queries.GetAuthenticationStatus(ueId)
-	if err != nil {
-		logger.DataRepoLog.Warnln(err)
-	}
-
-	if authEvent != nil {
-		return authEvent, nil
-	} else {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
-}
-
-func PolicyDataSubsToNotifyPostProcedure(PolicyDataSubscription models.PolicyDataSubscription) string {
-	udrSelf := context.UDR_Self()
-
-	newSubscriptionID := strconv.Itoa(udrSelf.PolicyDataSubscriptionIDGenerator)
-	udrSelf.PolicyDataSubscriptions[newSubscriptionID] = &PolicyDataSubscription
-	udrSelf.PolicyDataSubscriptionIDGenerator++
-
-	/* Contains the URI of the newly created resource, according
-	   to the structure: {apiRoot}/subscription-data/subs-to-notify/{subsId} */
-	locationHeader := fmt.Sprintf("%s/policy-data/subs-to-notify/%s", udrSelf.GetIPv4GroupUri(context.NUDR_DR),
-		newSubscriptionID)
-
-	return locationHeader
-}
-
-func PolicyDataSubsToNotifySubsIdDeleteProcedure(subsId string) (problemDetails *models.ProblemDetails) {
-	udrSelf := context.UDR_Self()
-	_, ok := udrSelf.PolicyDataSubscriptions[subsId]
-	if !ok {
-		return util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
-	}
-	delete(udrSelf.PolicyDataSubscriptions, subsId)
-
-	return nil
-}
-
-func PolicyDataSubsToNotifySubsIdPutProcedure(subsId string,
-	policyDataSubscription models.PolicyDataSubscription,
-) (*models.PolicyDataSubscription, *models.ProblemDetails) {
-	udrSelf := context.UDR_Self()
-	_, ok := udrSelf.PolicyDataSubscriptions[subsId]
-	if !ok {
-		return nil, util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
-	}
-
-	udrSelf.PolicyDataSubscriptions[subsId] = &policyDataSubscription
-
-	return &policyDataSubscription, nil
-}
-
 // We have this function twice, here and in the NMS. We should move it to a common place.
 func convertDbAmPolicyDataToModel(dbAmPolicyData *dbModels.AmPolicyData) *models.AmPolicyData {
 	if dbAmPolicyData == nil {
@@ -296,7 +236,7 @@ func convertDbAmPolicyDataToModel(dbAmPolicyData *dbModels.AmPolicyData) *models
 	return amPolicyData
 }
 
-func PolicyDataUesUeIdAmDataGetProcedure(ueId string) (*models.AmPolicyData, error) {
+func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
 	dbAmPolicyData, err := queries.GetAmPolicyData(ueId)
 	if err != nil {
 		logger.DataRepoLog.Warnln(err)
@@ -347,335 +287,6 @@ func PolicyDataUesUeIdSmDataGetProcedure(ueId string) (*models.SmPolicyData, err
 	return smPolicyData, nil
 }
 
-func CreateAMFSubscriptionsProcedure(subsId string, ueId string,
-	AmfSubscriptionInfo []models.AmfSubscriptionInfo,
-) *models.ProblemDetails {
-	udrSelf := context.UDR_Self()
-	value, ok := udrSelf.UESubsCollection.Load(ueId)
-	if !ok {
-		return util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
-	UESubsData := value.(*context.UESubsData)
-
-	_, ok = UESubsData.EeSubscriptionCollection[subsId]
-	if !ok {
-		return util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
-	}
-
-	UESubsData.EeSubscriptionCollection[subsId].AmfSubscriptionInfos = AmfSubscriptionInfo
-	return nil
-}
-
-func RemoveAmfSubscriptionsInfoProcedure(subsId string, ueId string) *models.ProblemDetails {
-	udrSelf := context.UDR_Self()
-	value, ok := udrSelf.UESubsCollection.Load(ueId)
-	if !ok {
-		return util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
-
-	UESubsData := value.(*context.UESubsData)
-	_, ok = UESubsData.EeSubscriptionCollection[subsId]
-
-	if !ok {
-		return util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
-	}
-
-	if UESubsData.EeSubscriptionCollection[subsId].AmfSubscriptionInfos == nil {
-		return util.ProblemDetailsNotFound("AMFSUBSCRIPTION_NOT_FOUND")
-	}
-
-	UESubsData.EeSubscriptionCollection[subsId].AmfSubscriptionInfos = nil
-
-	return nil
-}
-
-func ModifyAmfSubscriptionInfoProcedure(ueId string, subsId string,
-	patchItem []models.PatchItem,
-) *models.ProblemDetails {
-	udrSelf := context.UDR_Self()
-	value, ok := udrSelf.UESubsCollection.Load(ueId)
-	if !ok {
-		return util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
-	UESubsData := value.(*context.UESubsData)
-
-	_, ok = UESubsData.EeSubscriptionCollection[subsId]
-
-	if !ok {
-		return util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
-	}
-
-	if UESubsData.EeSubscriptionCollection[subsId].AmfSubscriptionInfos == nil {
-		return util.ProblemDetailsNotFound("AMFSUBSCRIPTION_NOT_FOUND")
-	}
-	var patchJSON []byte
-	if patchJSONtemp, err := json.Marshal(patchItem); err != nil {
-		logger.DataRepoLog.Errorln(err)
-	} else {
-		patchJSON = patchJSONtemp
-	}
-	var patch jsonpatch.Patch
-	if patchtemp, err := jsonpatch.DecodePatch(patchJSON); err != nil {
-		logger.DataRepoLog.Errorln(err)
-		return util.ProblemDetailsModifyNotAllowed("PatchItem attributes are invalid")
-	} else {
-		patch = patchtemp
-	}
-	original, err := json.Marshal((UESubsData.EeSubscriptionCollection[subsId]).AmfSubscriptionInfos)
-	if err != nil {
-		logger.DataRepoLog.Warnln(err)
-	}
-
-	modified, err := patch.Apply(original)
-	if err != nil {
-		return util.ProblemDetailsModifyNotAllowed("Occur error when applying PatchItem")
-	}
-	var modifiedData []models.AmfSubscriptionInfo
-	err = json.Unmarshal(modified, &modifiedData)
-	if err != nil {
-		logger.DataRepoLog.Error(err)
-	}
-
-	UESubsData.EeSubscriptionCollection[subsId].AmfSubscriptionInfos = modifiedData
-	return nil
-}
-
-func GetAmfSubscriptionInfoProcedure(subsId string, ueId string) (*[]models.AmfSubscriptionInfo,
-	*models.ProblemDetails,
-) {
-	udrSelf := context.UDR_Self()
-
-	value, ok := udrSelf.UESubsCollection.Load(ueId)
-	if !ok {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
-
-	UESubsData := value.(*context.UESubsData)
-	_, ok = UESubsData.EeSubscriptionCollection[subsId]
-
-	if !ok {
-		return nil, util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
-	}
-
-	if UESubsData.EeSubscriptionCollection[subsId].AmfSubscriptionInfos == nil {
-		return nil, util.ProblemDetailsNotFound("AMFSUBSCRIPTION_NOT_FOUND")
-	}
-	return &UESubsData.EeSubscriptionCollection[subsId].AmfSubscriptionInfos, nil
-}
-
-func RemoveEeGroupSubscriptionsProcedure(ueGroupId string, subsId string) *models.ProblemDetails {
-	udrSelf := context.UDR_Self()
-	value, ok := udrSelf.UEGroupCollection.Load(ueGroupId)
-	if !ok {
-		return util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
-
-	UEGroupSubsData := value.(*context.UEGroupSubsData)
-	_, ok = UEGroupSubsData.EeSubscriptions[subsId]
-
-	if !ok {
-		return util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
-	}
-	delete(UEGroupSubsData.EeSubscriptions, subsId)
-
-	return nil
-}
-
-func UpdateEeGroupSubscriptionsProcedure(ueGroupId string, subsId string,
-	EeSubscription models.EeSubscription,
-) *models.ProblemDetails {
-	udrSelf := context.UDR_Self()
-	value, ok := udrSelf.UEGroupCollection.Load(ueGroupId)
-	if !ok {
-		return util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
-
-	UEGroupSubsData := value.(*context.UEGroupSubsData)
-	_, ok = UEGroupSubsData.EeSubscriptions[subsId]
-
-	if !ok {
-		return util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
-	}
-	UEGroupSubsData.EeSubscriptions[subsId] = &EeSubscription
-
-	return nil
-}
-
-func CreateEeGroupSubscriptionsProcedure(ueGroupId string, EeSubscription models.EeSubscription) string {
-	udrSelf := context.UDR_Self()
-
-	value, ok := udrSelf.UEGroupCollection.Load(ueGroupId)
-	if !ok {
-		udrSelf.UEGroupCollection.Store(ueGroupId, new(context.UEGroupSubsData))
-		value, _ = udrSelf.UEGroupCollection.Load(ueGroupId)
-	}
-	UEGroupSubsData := value.(*context.UEGroupSubsData)
-	if UEGroupSubsData.EeSubscriptions == nil {
-		UEGroupSubsData.EeSubscriptions = make(map[string]*models.EeSubscription)
-	}
-
-	newSubscriptionID := strconv.Itoa(udrSelf.EeSubscriptionIDGenerator)
-	UEGroupSubsData.EeSubscriptions[newSubscriptionID] = &EeSubscription
-	udrSelf.EeSubscriptionIDGenerator++
-
-	/* Contains the URI of the newly created resource, according
-	   to the structure: {apiRoot}/nudr-dr/v1/subscription-data/group-data/{ueGroupId}/ee-subscriptions */
-	locationHeader := fmt.Sprintf("%s/nudr-dr/v1/subscription-data/group-data/%s/ee-subscriptions/%s",
-		udrSelf.GetIPv4GroupUri(context.NUDR_DR), ueGroupId, newSubscriptionID)
-
-	return locationHeader
-}
-
-func QueryEeGroupSubscriptionsProcedure(ueGroupId string) ([]models.EeSubscription, *models.ProblemDetails) {
-	udrSelf := context.UDR_Self()
-
-	value, ok := udrSelf.UEGroupCollection.Load(ueGroupId)
-	if !ok {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
-
-	UEGroupSubsData := value.(*context.UEGroupSubsData)
-	var eeSubscriptionSlice []models.EeSubscription
-
-	for _, v := range UEGroupSubsData.EeSubscriptions {
-		eeSubscriptionSlice = append(eeSubscriptionSlice, *v)
-	}
-	return eeSubscriptionSlice, nil
-}
-
-func RemoveeeSubscriptionsProcedure(ueId string, subsId string) *models.ProblemDetails {
-	udrSelf := context.UDR_Self()
-	value, ok := udrSelf.UESubsCollection.Load(ueId)
-	if !ok {
-		return util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
-
-	UESubsData := value.(*context.UESubsData)
-	_, ok = UESubsData.EeSubscriptionCollection[subsId]
-
-	if !ok {
-		return util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
-	}
-	delete(UESubsData.EeSubscriptionCollection, subsId)
-	return nil
-}
-
-func UpdateEesubscriptionsProcedure(ueId string, subsId string,
-	EeSubscription models.EeSubscription,
-) *models.ProblemDetails {
-	udrSelf := context.UDR_Self()
-	value, ok := udrSelf.UESubsCollection.Load(ueId)
-	if !ok {
-		return util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
-
-	UESubsData := value.(*context.UESubsData)
-	_, ok = UESubsData.EeSubscriptionCollection[subsId]
-
-	if !ok {
-		return util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
-	}
-	UESubsData.EeSubscriptionCollection[subsId].EeSubscriptions = &EeSubscription
-
-	return nil
-}
-
-func CreateEeSubscriptionsProcedure(ueId string, EeSubscription models.EeSubscription) string {
-	udrSelf := context.UDR_Self()
-
-	value, ok := udrSelf.UESubsCollection.Load(ueId)
-	if !ok {
-		udrSelf.UESubsCollection.Store(ueId, new(context.UESubsData))
-		value, _ = udrSelf.UESubsCollection.Load(ueId)
-	}
-	UESubsData := value.(*context.UESubsData)
-	if UESubsData.EeSubscriptionCollection == nil {
-		UESubsData.EeSubscriptionCollection = make(map[string]*context.EeSubscriptionCollection)
-	}
-
-	newSubscriptionID := strconv.Itoa(udrSelf.EeSubscriptionIDGenerator)
-	UESubsData.EeSubscriptionCollection[newSubscriptionID] = new(context.EeSubscriptionCollection)
-	UESubsData.EeSubscriptionCollection[newSubscriptionID].EeSubscriptions = &EeSubscription
-	udrSelf.EeSubscriptionIDGenerator++
-
-	/* Contains the URI of the newly created resource, according
-	   to the structure: {apiRoot}/subscription-data/{ueId}/context-data/ee-subscriptions/{subsId} */
-	locationHeader := fmt.Sprintf("%s/subscription-data/%s/context-data/ee-subscriptions/%s",
-		udrSelf.GetIPv4GroupUri(context.NUDR_DR), ueId, newSubscriptionID)
-
-	return locationHeader
-}
-
-func QueryeesubscriptionsProcedure(ueId string) ([]models.EeSubscription, *models.ProblemDetails) {
-	udrSelf := context.UDR_Self()
-
-	value, ok := udrSelf.UESubsCollection.Load(ueId)
-	if !ok {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
-
-	UESubsData := value.(*context.UESubsData)
-	var eeSubscriptionSlice []models.EeSubscription
-
-	for _, v := range UESubsData.EeSubscriptionCollection {
-		eeSubscriptionSlice = append(eeSubscriptionSlice, *v.EeSubscriptions)
-	}
-	return eeSubscriptionSlice, nil
-}
-
-func QueryProvisionedDataProcedure(ueId string, provisionedDataSets models.ProvisionedDataSets) (*models.ProvisionedDataSets, *models.ProblemDetails) {
-	{
-		accessAndMobilitySubscriptionData, err := queries.GetAmData(ueId)
-		if err != nil {
-			logger.DataRepoLog.Warnln(err)
-		}
-		if accessAndMobilitySubscriptionData != nil {
-			var tmp models.AccessAndMobilitySubscriptionData
-			err := mapstructure.Decode(accessAndMobilitySubscriptionData, &tmp)
-			if err != nil {
-				panic(err)
-			}
-			provisionedDataSets.AmData = &tmp
-		}
-	}
-
-	{
-		smfSelectionSubscriptionData, err := queries.GetSmfSelectionSubscriptionData(ueId)
-		if err != nil {
-			logger.DataRepoLog.Warnln(err)
-		}
-		if smfSelectionSubscriptionData != nil {
-			var tmp models.SmfSelectionSubscriptionData
-			err := mapstructure.Decode(smfSelectionSubscriptionData, &tmp)
-			if err != nil {
-				panic(err)
-			}
-			provisionedDataSets.SmfSelData = &tmp
-		}
-	}
-
-	{
-		sessionManagementSubscriptionDatas, err := queries.ListSmData(ueId)
-		if err != nil {
-			logger.DataRepoLog.Warnln(err)
-		}
-		if sessionManagementSubscriptionDatas != nil {
-			var tmp []models.SessionManagementSubscriptionData
-			err := mapstructure.Decode(sessionManagementSubscriptionDatas, &tmp)
-			if err != nil {
-				panic(err)
-			}
-			provisionedDataSets.SmData = tmp
-		}
-	}
-
-	if !reflect.DeepEqual(provisionedDataSets, models.ProvisionedDataSets{}) {
-		return &provisionedDataSets, nil
-	} else {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
-}
-
 func RemovesdmSubscriptions(ueId string, subsId string) error {
 	udrSelf := context.UDR_Self()
 	value, ok := udrSelf.UESubsCollection.Load(ueId)
@@ -713,7 +324,7 @@ func Updatesdmsubscriptions(ueId string, subsId string, SdmSubscription models.S
 	return nil
 }
 
-func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string) (string, models.SdmSubscription) {
+func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string) models.SdmSubscription {
 	udrSelf := context.UDR_Self()
 
 	value, ok := udrSelf.UESubsCollection.Load(ueId)
@@ -731,29 +342,7 @@ func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string)
 	UESubsData.SdmSubscriptions[newSubscriptionID] = &SdmSubscription
 	udrSelf.SdmSubscriptionIDGenerator++
 
-	/* Contains the URI of the newly created resource, according
-	   to the structure: {apiRoot}/subscription-data/{ueId}/context-data/sdm-subscriptions/{subsId}' */
-	locationHeader := fmt.Sprintf("%s/subscription-data/%s/context-data/sdm-subscriptions/%s",
-		udrSelf.GetIPv4GroupUri(context.NUDR_DR), ueId, newSubscriptionID)
-
-	return locationHeader, SdmSubscription
-}
-
-func QuerysdmsubscriptionsProcedure(ueId string) (*[]models.SdmSubscription, *models.ProblemDetails) {
-	udrSelf := context.UDR_Self()
-
-	value, ok := udrSelf.UESubsCollection.Load(ueId)
-	if !ok {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
-	}
-
-	UESubsData := value.(*context.UESubsData)
-	var sdmSubscriptionSlice []models.SdmSubscription
-
-	for _, v := range UESubsData.SdmSubscriptions {
-		sdmSubscriptionSlice = append(sdmSubscriptionSlice, *v)
-	}
-	return &sdmSubscriptionSlice, nil
+	return SdmSubscription
 }
 
 func convertDbSessionManagementDataToModel(dbSmData []*dbModels.SessionManagementSubscriptionData) []models.SessionManagementSubscriptionData {
@@ -843,31 +432,4 @@ func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error)
 	}
 	smfSelectionSubscriptionData := convertDbSmfSelectionDataToModel(dbSmfSelectionSubscriptionData)
 	return smfSelectionSubscriptionData, nil
-}
-
-func PostSubscriptionDataSubscriptionsProcedure(
-	SubscriptionDataSubscriptions models.SubscriptionDataSubscriptions,
-) string {
-	udrSelf := context.UDR_Self()
-
-	newSubscriptionID := strconv.Itoa(udrSelf.SubscriptionDataSubscriptionIDGenerator)
-	udrSelf.SubscriptionDataSubscriptions[newSubscriptionID] = &SubscriptionDataSubscriptions
-	udrSelf.SubscriptionDataSubscriptionIDGenerator++
-
-	/* Contains the URI of the newly created resource, according
-	   to the structure: {apiRoot}/subscription-data/subs-to-notify/{subsId} */
-	locationHeader := fmt.Sprintf("%s/subscription-data/subs-to-notify/%s",
-		udrSelf.GetIPv4GroupUri(context.NUDR_DR), newSubscriptionID)
-
-	return locationHeader
-}
-
-func RemovesubscriptionDataSubscriptionsProcedure(subsId string) *models.ProblemDetails {
-	udrSelf := context.UDR_Self()
-	_, ok := udrSelf.SubscriptionDataSubscriptions[subsId]
-	if !ok {
-		return util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
-	}
-	delete(udrSelf.SubscriptionDataSubscriptions, subsId)
-	return nil
 }

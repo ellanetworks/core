@@ -331,7 +331,7 @@ func HandleSubscribeRequest(request *httpwrapper.Request) *httpwrapper.Response 
 func subscribeProcedure(sdmSubscription *models.SdmSubscription, supi string) (
 	header http.Header, response *models.SdmSubscription,
 ) {
-	_, sdmSubscriptionResp := producer.CreateSdmSubscriptions(*sdmSubscription, supi)
+	sdmSubscriptionResp := producer.CreateSdmSubscriptions(*sdmSubscription, supi)
 	header = make(http.Header)
 	udmUe, _ := udm_context.UDM_Self().UdmUeFindBySupi(supi)
 	if udmUe == nil {

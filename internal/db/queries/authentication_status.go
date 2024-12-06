@@ -6,7 +6,6 @@ import (
 	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/db/models"
-	"github.com/yeastengine/ella/internal/udr/util"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -24,7 +23,7 @@ func GetAuthenticationStatus(ueId string) (*models.AuthEvent, error) {
 
 func EditAuthenticationStatus(ueId string, authStatus *models.AuthEvent) error {
 	filter := bson.M{"ueId": ueId}
-	putData := util.ToBsonM(authStatus)
+	putData := toBsonM(authStatus)
 	putData["ueId"] = ueId
 	_, err := db.CommonDBClient.RestfulAPIPutOne(db.SUBSCDATA_AUT_AUTHSTATUS, filter, putData)
 	if err != nil {
