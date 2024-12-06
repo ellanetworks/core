@@ -9,7 +9,6 @@ import (
 	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
 	udr_context "github.com/yeastengine/ella/internal/udr/context"
-	"github.com/yeastengine/ella/internal/udr/datarepository"
 	"github.com/yeastengine/ella/internal/udr/factory"
 	"github.com/yeastengine/ella/internal/udr/logger"
 	"github.com/yeastengine/ella/internal/udr/util"
@@ -37,8 +36,6 @@ func (udr *UDR) setLogLevel() {
 
 func (udr *UDR) Start() {
 	router := logger_util.NewGinWithZap(logger.GinLog)
-
-	datarepository.AddService(router)
 
 	self := udr_context.UDR_Self()
 	util.InitUdrContext(self)

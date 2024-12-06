@@ -50,22 +50,12 @@ func getAmDataProcedure(supi string) (
 func HandleGetSupiRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SdmLog.Infof("Handle GetSupiRequest")
 	supi := request.Params["supi"]
-	response, problemDetails := getSupiProcedure(supi)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	problemDetails := getSupiProcedure(supi)
+	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 }
 
 func getSupiProcedure(supi string) (
-	response *models.SubscriptionDataSets, problemDetails *models.ProblemDetails,
+	problemDetails *models.ProblemDetails,
 ) {
 	var subsDataSetBody models.SubscriptionDataSets
 
@@ -79,7 +69,7 @@ func getSupiProcedure(supi string) (
 			Cause:  "DATA_NOT_FOUND",
 			Detail: err.Error(),
 		}
-		return nil, problemDetails
+		return problemDetails
 	}
 	udmUe := udm_context.UDM_Self().NewUdmUe(supi)
 	udmUe.SetAMSubsriptionData(amData)
@@ -92,7 +82,7 @@ func getSupiProcedure(supi string) (
 			Cause:  "DATA_NOT_FOUND",
 			Detail: err.Error(),
 		}
-		return nil, problemDetails
+		return problemDetails
 	}
 	udmUe = udm_context.UDM_Self().NewUdmUe(supi)
 	udmUe.SetSmfSelectionSubsData(smfSelData)
@@ -105,7 +95,7 @@ func getSupiProcedure(supi string) (
 			Cause:  "DATA_NOT_FOUND",
 			Detail: err.Error(),
 		}
-		return nil, problemDetails
+		return problemDetails
 	}
 	udmUe = udm_context.UDM_Self().NewUdmUe(supi)
 	smData, _, _, _ := udm_context.UDM_Self().ManageSmData(sessionManagementSubscriptionData, "", "")
@@ -117,7 +107,7 @@ func getSupiProcedure(supi string) (
 		Cause:  "DATA_NOT_FOUND",
 	}
 
-	return nil, problemDetails
+	return problemDetails
 }
 
 func HandleGetSmDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
@@ -330,19 +320,16 @@ func subscribeToSharedDataProcedure(sdmSubscription *models.SdmSubscription) (
 func HandleSubscribeRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	sdmSubscription := request.Body.(models.SdmSubscription)
 	supi := request.Params["supi"]
-	header, response, problemDetails := subscribeProcedure(&sdmSubscription, supi)
-
+	header, response := subscribeProcedure(&sdmSubscription, supi)
 	if response != nil {
 		return httpwrapper.NewResponse(http.StatusCreated, header, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	} else {
 		return httpwrapper.NewResponse(http.StatusNotFound, nil, nil)
 	}
 }
 
 func subscribeProcedure(sdmSubscription *models.SdmSubscription, supi string) (
-	header http.Header, response *models.SdmSubscription, problemDetails *models.ProblemDetails,
+	header http.Header, response *models.SdmSubscription,
 ) {
 	_, sdmSubscriptionResp := producer.CreateSdmSubscriptions(*sdmSubscription, supi)
 	header = make(http.Header)
@@ -352,7 +339,7 @@ func subscribeProcedure(sdmSubscription *models.SdmSubscription, supi string) (
 	}
 	udmUe.CreateSubscriptiontoNotifChange(sdmSubscriptionResp.SubscriptionId, &sdmSubscriptionResp)
 	header.Set("Location", udmUe.GetLocationURI2(udm_context.LocationUriSdmSubscription, supi))
-	return header, &sdmSubscriptionResp, nil
+	return header, &sdmSubscriptionResp
 }
 
 func HandleUnsubscribeForSharedDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
@@ -439,32 +426,15 @@ func unsubscribeProcedure(subscriptionID string) *models.ProblemDetails {
 }
 
 func HandleModifyRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
 	logger.SdmLog.Infof("Handle Modify")
-
-	// step 2: retrieve request
 	supi := request.Params["supi"]
 	subscriptionID := request.Params["subscriptionId"]
-
-	// step 3: handle the message
-	response, problemDetails := modifyProcedure(supi, subscriptionID)
-
-	// step 4: process the return value from step 3
-	if response != nil {
-		// status code is based on SPEC, and option headers
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	problemDetails := modifyProcedure(supi, subscriptionID)
+	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 }
 
 func modifyProcedure(supi string, subscriptionID string) (
-	response *models.SdmSubscription, problemDetails *models.ProblemDetails,
+	problemDetails *models.ProblemDetails,
 ) {
 	sdmSubscription := models.SdmSubscription{}
 	err := producer.Updatesdmsubscriptions(supi, subscriptionID, sdmSubscription)
@@ -473,32 +443,20 @@ func modifyProcedure(supi string, subscriptionID string) (
 			Status: http.StatusNotFound,
 			Cause:  "USER_NOT_FOUND",
 		}
-		return nil, problemDetails
+		return problemDetails
 	}
-	return nil, nil
+	return nil
 }
 
 func HandleGetUeContextInSmfDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SdmLog.Infof("Handle GetUeContextInSmfData")
-
 	supi := request.Params["supi"]
-
-	response, problemDetails := getUeContextInSmfDataProcedure(supi)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	problemDetails := getUeContextInSmfDataProcedure(supi)
+	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 }
 
 func getUeContextInSmfDataProcedure(supi string) (
-	response *models.UeContextInSmfData, problemDetails *models.ProblemDetails,
+	problemDetails *models.ProblemDetails,
 ) {
 	var body models.UeContextInSmfData
 	udm_context.UDM_Self().CreateUeContextInSmfDataforUe(supi, body)
@@ -507,5 +465,5 @@ func getUeContextInSmfDataProcedure(supi string) (
 		Cause:  "DATA_NOT_FOUND",
 		Detail: "Data not found",
 	}
-	return nil, problemDetails
+	return problemDetails
 }

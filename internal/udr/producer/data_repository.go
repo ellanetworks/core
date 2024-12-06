@@ -3,14 +3,12 @@ package producer
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"reflect"
 	"strconv"
 
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/mitchellh/mapstructure"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/httpwrapper"
 	dbModels "github.com/yeastengine/ella/internal/db/models"
 	"github.com/yeastengine/ella/internal/db/queries"
 	"github.com/yeastengine/ella/internal/udr/context"
@@ -19,29 +17,6 @@ import (
 )
 
 var CurrentResourceUri string
-
-func HandleCreateAccessAndMobilityData(request *httpwrapper.Request) *httpwrapper.Response {
-	return httpwrapper.NewResponse(http.StatusOK, nil, map[string]interface{}{})
-}
-
-func HandleDeleteAccessAndMobilityData(request *httpwrapper.Request) *httpwrapper.Response {
-	return httpwrapper.NewResponse(http.StatusOK, nil, map[string]interface{}{})
-}
-
-func HandleQueryAccessAndMobilityData(request *httpwrapper.Request) *httpwrapper.Response {
-	return httpwrapper.NewResponse(http.StatusOK, nil, map[string]interface{}{})
-}
-
-func HandleQueryAmData(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle QueryAmData")
-	ueId := request.Params["ueId"]
-	response, err := GetAmData(ueId)
-	if err != nil {
-		problem := util.ProblemDetailsNotFound("USER_NOT_FOUND")
-		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
-	}
-	return httpwrapper.NewResponse(http.StatusOK, nil, response)
-}
 
 // This function is defined twice, here and in the NMS. We should move it to a common place.
 func convertDbAmDataToModel(dbAmData *dbModels.AccessAndMobilitySubscriptionData) *models.AccessAndMobilitySubscriptionData {
@@ -86,18 +61,6 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	return amData, nil
 }
 
-func HandleAmfContext3gpp(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle AmfContext3gpp")
-	patchItem := request.Body.([]models.PatchItem)
-	ueId := request.Params["ueId"]
-	err := PatchAmfContext3gppProcedure(ueId, patchItem)
-	if err != nil {
-		problem := util.ProblemDetailsModifyNotAllowed("")
-		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
-	}
-	return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-}
-
 func PatchAmfContext3gppProcedure(ueId string, patchItem []models.PatchItem) error {
 	origValue, err := queries.GetAmf3GPP(ueId)
 	if err != nil {
@@ -126,19 +89,6 @@ func PatchAmfContext3gppProcedure(ueId string, patchItem []models.PatchItem) err
 	return nil
 }
 
-func HandleCreateAmfContext3gpp(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle CreateAmfContext3gpp")
-
-	Amf3GppAccessRegistration := request.Body.(models.Amf3GppAccessRegistration)
-	ueId := request.Params["ueId"]
-
-	err := CreateAmfContext3gppProcedure(ueId, Amf3GppAccessRegistration)
-	if err != nil {
-		logger.DataRepoLog.Warnln(err)
-	}
-	return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-}
-
 func CreateAmfContext3gppProcedure(ueId string, Amf3GppAccessRegistration models.Amf3GppAccessRegistration) error {
 	dbAmfData := &dbModels.Amf3GppAccessRegistration{
 		InitialRegistrationInd: Amf3GppAccessRegistration.InitialRegistrationInd,
@@ -156,24 +106,6 @@ func CreateAmfContext3gppProcedure(ueId string, Amf3GppAccessRegistration models
 	}
 	err := queries.EditAmf3GPP(ueId, dbAmfData)
 	return err
-}
-
-func HandleQueryAmfContext3gpp(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle QueryAmfContext3gpp")
-
-	ueId := request.Params["ueId"]
-
-	response, err := QueryAmfContext3gppProcedure(ueId)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if err != nil {
-		problem := util.ProblemDetailsNotFound("USER_NOT_FOUND")
-		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
-	}
-
-	pd := util.ProblemDetailsUpspecified("")
-	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
 }
 
 func convertDbAmf3GppAccessRegistrationToModel(dbAmf3Gpp *dbModels.Amf3GppAccessRegistration) *models.Amf3GppAccessRegistration {
@@ -209,18 +141,6 @@ func QueryAmfContext3gppProcedure(ueId string) (*models.Amf3GppAccessRegistratio
 	return amf3Gpp, nil
 }
 
-func HandleModifyAuthentication(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle ModifyAuthentication")
-	ueId := request.Params["ueId"]
-	patchItem := request.Body.([]models.PatchItem)
-	err := EditAuthenticationSubscription(ueId, patchItem)
-	if err != nil {
-		problem := util.ProblemDetailsModifyNotAllowed("")
-		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
-	}
-	return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-}
-
 func EditAuthenticationSubscription(ueId string, patchItem []models.PatchItem) error {
 	origValue, err := queries.GetAuthenticationSubscription(ueId)
 	if err != nil {
@@ -248,21 +168,6 @@ func EditAuthenticationSubscription(ueId string, patchItem []models.PatchItem) e
 	} else {
 		return err
 	}
-}
-
-func HandleQueryAuthSubsData(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle QueryAuthSubsData")
-	ueId := request.Params["ueId"]
-	response, err := GetAuthSubsData(ueId)
-	if err != nil {
-		logger.DataRepoLog.Warnln(err)
-	}
-	if response == nil {
-		problem := util.ProblemDetailsNotFound("USER_NOT_FOUND")
-		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
-	}
-
-	return httpwrapper.NewResponse(http.StatusOK, nil, response)
 }
 
 func convertDbAuthSubsDataToModel(dbAuthSubsData *dbModels.AuthenticationSubscription) *models.AuthenticationSubscription {
@@ -312,20 +217,6 @@ func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 	return authSubs, nil
 }
 
-func HandleCreateAuthenticationStatus(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle CreateAuthenticationStatus")
-
-	ueId := request.Params["ueId"]
-	authStatus := request.Body.(models.AuthEvent)
-
-	err := EditAuthenticationStatus(ueId, authStatus)
-	if err != nil {
-		logger.DataRepoLog.Warnln(err)
-	}
-
-	return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-}
-
 func EditAuthenticationStatus(ueID string, authStatus models.AuthEvent) error {
 	dbAuthStatus := &dbModels.AuthEvent{
 		NfInstanceId:       authStatus.NfInstanceId,
@@ -337,20 +228,6 @@ func EditAuthenticationStatus(ueID string, authStatus models.AuthEvent) error {
 
 	err := queries.EditAuthenticationStatus(ueID, dbAuthStatus)
 	return err
-}
-
-func HandleQueryAuthenticationStatus(request *httpwrapper.Request) *httpwrapper.Response {
-	ueId := request.Params["ueId"]
-	response, problemDetails := QueryAuthenticationStatusProcedure(ueId)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-
-	pd := util.ProblemDetailsUpspecified("")
-	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
 }
 
 func QueryAuthenticationStatusProcedure(ueId string) (*dbModels.AuthEvent,
@@ -368,30 +245,6 @@ func QueryAuthenticationStatusProcedure(ueId string) (*dbModels.AuthEvent,
 	}
 }
 
-func HandleExposureDataSubsToNotifyPost(request *httpwrapper.Request) *httpwrapper.Response {
-	return httpwrapper.NewResponse(http.StatusOK, nil, map[string]interface{}{})
-}
-
-func HandleExposureDataSubsToNotifySubIdDelete(request *httpwrapper.Request) *httpwrapper.Response {
-	return httpwrapper.NewResponse(http.StatusOK, nil, map[string]interface{}{})
-}
-
-func HandleExposureDataSubsToNotifySubIdPut(request *httpwrapper.Request) *httpwrapper.Response {
-	return httpwrapper.NewResponse(http.StatusOK, nil, map[string]interface{}{})
-}
-
-func HandlePolicyDataSubsToNotifyPost(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle PolicyDataSubsToNotifyPost")
-
-	PolicyDataSubscription := request.Body.(models.PolicyDataSubscription)
-
-	locationHeader := PolicyDataSubsToNotifyPostProcedure(PolicyDataSubscription)
-
-	headers := http.Header{}
-	headers.Set("Location", locationHeader)
-	return httpwrapper.NewResponse(http.StatusCreated, headers, PolicyDataSubscription)
-}
-
 func PolicyDataSubsToNotifyPostProcedure(PolicyDataSubscription models.PolicyDataSubscription) string {
 	udrSelf := context.UDR_Self()
 
@@ -407,20 +260,6 @@ func PolicyDataSubsToNotifyPostProcedure(PolicyDataSubscription models.PolicyDat
 	return locationHeader
 }
 
-func HandlePolicyDataSubsToNotifySubsIdDelete(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle PolicyDataSubsToNotifySubsIdDelete")
-
-	subsId := request.Params["subsId"]
-
-	problemDetails := PolicyDataSubsToNotifySubsIdDeleteProcedure(subsId)
-
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-}
-
 func PolicyDataSubsToNotifySubsIdDeleteProcedure(subsId string) (problemDetails *models.ProblemDetails) {
 	udrSelf := context.UDR_Self()
 	_, ok := udrSelf.PolicyDataSubscriptions[subsId]
@@ -430,21 +269,6 @@ func PolicyDataSubsToNotifySubsIdDeleteProcedure(subsId string) (problemDetails 
 	delete(udrSelf.PolicyDataSubscriptions, subsId)
 
 	return nil
-}
-
-func HandlePolicyDataSubsToNotifySubsIdPut(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle PolicyDataSubsToNotifySubsIdPut")
-
-	subsId := request.Params["subsId"]
-	policyDataSubscription := request.Body.(models.PolicyDataSubscription)
-
-	response, problemDetails := PolicyDataSubsToNotifySubsIdPutProcedure(subsId, policyDataSubscription)
-
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
 }
 
 func PolicyDataSubsToNotifySubsIdPutProcedure(subsId string,
@@ -459,24 +283,6 @@ func PolicyDataSubsToNotifySubsIdPutProcedure(subsId string,
 	udrSelf.PolicyDataSubscriptions[subsId] = &policyDataSubscription
 
 	return &policyDataSubscription, nil
-}
-
-func HandlePolicyDataUesUeIdAmDataGet(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle PolicyDataUesUeIdAmDataGet")
-
-	ueId := request.Params["ueId"]
-
-	response, err := PolicyDataUesUeIdAmDataGetProcedure(ueId)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if err != nil {
-		problem := util.ProblemDetailsNotFound("USER_NOT_FOUND")
-		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
-	}
-
-	pd := util.ProblemDetailsUpspecified("")
-	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
 }
 
 // We have this function twice, here and in the NMS. We should move it to a common place.
@@ -500,28 +306,6 @@ func PolicyDataUesUeIdAmDataGetProcedure(ueId string) (*models.AmPolicyData, err
 	}
 	amPolicyData := convertDbAmPolicyDataToModel(dbAmPolicyData)
 	return amPolicyData, nil
-}
-
-func HandlePolicyDataUesUeIdSmDataGet(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle PolicyDataUesUeIdSmDataGet")
-	ueId := request.Params["ueId"]
-	sNssai := models.Snssai{}
-	sNssaiQuery := request.Query.Get("snssai")
-	err := json.Unmarshal([]byte(sNssaiQuery), &sNssai)
-	if err != nil {
-		logger.DataRepoLog.Warnln(err)
-	}
-
-	response, err := PolicyDataUesUeIdSmDataGetProcedure(ueId)
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if err != nil {
-		problem := util.ProblemDetailsNotFound("USER_NOT_FOUND")
-		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
-	}
-
-	pd := util.ProblemDetailsUpspecified("")
-	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
 }
 
 // We have this function twice, here and in the NMS. We should move it to a common place.
@@ -563,22 +347,6 @@ func PolicyDataUesUeIdSmDataGetProcedure(ueId string) (*models.SmPolicyData, err
 	return smPolicyData, nil
 }
 
-func HandleCreateAMFSubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle CreateAMFSubscriptions")
-
-	ueId := request.Params["ueId"]
-	subsId := request.Params["subsId"]
-	AmfSubscriptionInfo := request.Body.([]models.AmfSubscriptionInfo)
-
-	problemDetails := CreateAMFSubscriptionsProcedure(subsId, ueId, AmfSubscriptionInfo)
-
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-}
-
 func CreateAMFSubscriptionsProcedure(subsId string, ueId string,
 	AmfSubscriptionInfo []models.AmfSubscriptionInfo,
 ) *models.ProblemDetails {
@@ -596,21 +364,6 @@ func CreateAMFSubscriptionsProcedure(subsId string, ueId string,
 
 	UESubsData.EeSubscriptionCollection[subsId].AmfSubscriptionInfos = AmfSubscriptionInfo
 	return nil
-}
-
-func HandleRemoveAmfSubscriptionsInfo(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle RemoveAmfSubscriptionsInfo")
-
-	ueId := request.Params["ueId"]
-	subsId := request.Params["subsId"]
-
-	problemDetails := RemoveAmfSubscriptionsInfoProcedure(subsId, ueId)
-
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
 }
 
 func RemoveAmfSubscriptionsInfoProcedure(subsId string, ueId string) *models.ProblemDetails {
@@ -634,22 +387,6 @@ func RemoveAmfSubscriptionsInfoProcedure(subsId string, ueId string) *models.Pro
 	UESubsData.EeSubscriptionCollection[subsId].AmfSubscriptionInfos = nil
 
 	return nil
-}
-
-func HandleModifyAmfSubscriptionInfo(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle ModifyAmfSubscriptionInfo")
-
-	patchItem := request.Body.([]models.PatchItem)
-	ueId := request.Params["ueId"]
-	subsId := request.Params["subsId"]
-
-	problemDetails := ModifyAmfSubscriptionInfoProcedure(ueId, subsId, patchItem)
-
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
 }
 
 func ModifyAmfSubscriptionInfoProcedure(ueId string, subsId string,
@@ -703,23 +440,6 @@ func ModifyAmfSubscriptionInfoProcedure(ueId string, subsId string,
 	return nil
 }
 
-func HandleGetAmfSubscriptionInfo(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle GetAmfSubscriptionInfo")
-
-	ueId := request.Params["ueId"]
-	subsId := request.Params["subsId"]
-
-	response, problemDetails := GetAmfSubscriptionInfoProcedure(subsId, ueId)
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-
-	pd := util.ProblemDetailsUpspecified("")
-	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
-}
-
 func GetAmfSubscriptionInfoProcedure(subsId string, ueId string) (*[]models.AmfSubscriptionInfo,
 	*models.ProblemDetails,
 ) {
@@ -743,21 +463,6 @@ func GetAmfSubscriptionInfoProcedure(subsId string, ueId string) (*[]models.AmfS
 	return &UESubsData.EeSubscriptionCollection[subsId].AmfSubscriptionInfos, nil
 }
 
-func HandleRemoveEeGroupSubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle RemoveEeGroupSubscriptions")
-
-	ueGroupId := request.Params["ueGroupId"]
-	subsId := request.Params["subsId"]
-
-	problemDetails := RemoveEeGroupSubscriptionsProcedure(ueGroupId, subsId)
-
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-}
-
 func RemoveEeGroupSubscriptionsProcedure(ueGroupId string, subsId string) *models.ProblemDetails {
 	udrSelf := context.UDR_Self()
 	value, ok := udrSelf.UEGroupCollection.Load(ueGroupId)
@@ -774,22 +479,6 @@ func RemoveEeGroupSubscriptionsProcedure(ueGroupId string, subsId string) *model
 	delete(UEGroupSubsData.EeSubscriptions, subsId)
 
 	return nil
-}
-
-func HandleUpdateEeGroupSubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle UpdateEeGroupSubscriptions")
-
-	ueGroupId := request.Params["ueGroupId"]
-	subsId := request.Params["subsId"]
-	EeSubscription := request.Body.(models.EeSubscription)
-
-	problemDetails := UpdateEeGroupSubscriptionsProcedure(ueGroupId, subsId, EeSubscription)
-
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
 }
 
 func UpdateEeGroupSubscriptionsProcedure(ueGroupId string, subsId string,
@@ -810,19 +499,6 @@ func UpdateEeGroupSubscriptionsProcedure(ueGroupId string, subsId string,
 	UEGroupSubsData.EeSubscriptions[subsId] = &EeSubscription
 
 	return nil
-}
-
-func HandleCreateEeGroupSubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle CreateEeGroupSubscriptions")
-
-	ueGroupId := request.Params["ueGroupId"]
-	EeSubscription := request.Body.(models.EeSubscription)
-
-	locationHeader := CreateEeGroupSubscriptionsProcedure(ueGroupId, EeSubscription)
-
-	headers := http.Header{}
-	headers.Set("Location", locationHeader)
-	return httpwrapper.NewResponse(http.StatusCreated, headers, EeSubscription)
 }
 
 func CreateEeGroupSubscriptionsProcedure(ueGroupId string, EeSubscription models.EeSubscription) string {
@@ -850,23 +526,6 @@ func CreateEeGroupSubscriptionsProcedure(ueGroupId string, EeSubscription models
 	return locationHeader
 }
 
-func HandleQueryEeGroupSubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle QueryEeGroupSubscriptions")
-
-	ueGroupId := request.Params["ueGroupId"]
-
-	response, problemDetails := QueryEeGroupSubscriptionsProcedure(ueGroupId)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-
-	pd := util.ProblemDetailsUpspecified("")
-	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
-}
-
 func QueryEeGroupSubscriptionsProcedure(ueGroupId string) ([]models.EeSubscription, *models.ProblemDetails) {
 	udrSelf := context.UDR_Self()
 
@@ -884,21 +543,6 @@ func QueryEeGroupSubscriptionsProcedure(ueGroupId string) ([]models.EeSubscripti
 	return eeSubscriptionSlice, nil
 }
 
-func HandleRemoveeeSubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle RemoveeeSubscriptions")
-
-	ueId := request.Params["ueId"]
-	subsId := request.Params["subsId"]
-
-	problemDetails := RemoveeeSubscriptionsProcedure(ueId, subsId)
-
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-}
-
 func RemoveeeSubscriptionsProcedure(ueId string, subsId string) *models.ProblemDetails {
 	udrSelf := context.UDR_Self()
 	value, ok := udrSelf.UESubsCollection.Load(ueId)
@@ -914,22 +558,6 @@ func RemoveeeSubscriptionsProcedure(ueId string, subsId string) *models.ProblemD
 	}
 	delete(UESubsData.EeSubscriptionCollection, subsId)
 	return nil
-}
-
-func HandleUpdateEesubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle UpdateEesubscriptions")
-
-	ueId := request.Params["ueId"]
-	subsId := request.Params["subsId"]
-	EeSubscription := request.Body.(models.EeSubscription)
-
-	problemDetails := UpdateEesubscriptionsProcedure(ueId, subsId, EeSubscription)
-
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
 }
 
 func UpdateEesubscriptionsProcedure(ueId string, subsId string,
@@ -950,19 +578,6 @@ func UpdateEesubscriptionsProcedure(ueId string, subsId string,
 	UESubsData.EeSubscriptionCollection[subsId].EeSubscriptions = &EeSubscription
 
 	return nil
-}
-
-func HandleCreateEeSubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle CreateEeSubscriptions")
-
-	ueId := request.Params["ueId"]
-	EeSubscription := request.Body.(models.EeSubscription)
-
-	locationHeader := CreateEeSubscriptionsProcedure(ueId, EeSubscription)
-
-	headers := http.Header{}
-	headers.Set("Location", locationHeader)
-	return httpwrapper.NewResponse(http.StatusCreated, headers, EeSubscription)
 }
 
 func CreateEeSubscriptionsProcedure(ueId string, EeSubscription models.EeSubscription) string {
@@ -991,23 +606,6 @@ func CreateEeSubscriptionsProcedure(ueId string, EeSubscription models.EeSubscri
 	return locationHeader
 }
 
-func HandleQueryeesubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle Queryeesubscriptions")
-
-	ueId := request.Params["ueId"]
-
-	response, problemDetails := QueryeesubscriptionsProcedure(ueId)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-
-	pd := util.ProblemDetailsUpspecified("")
-	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
-}
-
 func QueryeesubscriptionsProcedure(ueId string) ([]models.EeSubscription, *models.ProblemDetails) {
 	udrSelf := context.UDR_Self()
 
@@ -1023,36 +621,6 @@ func QueryeesubscriptionsProcedure(ueId string) ([]models.EeSubscription, *model
 		eeSubscriptionSlice = append(eeSubscriptionSlice, *v.EeSubscriptions)
 	}
 	return eeSubscriptionSlice, nil
-}
-
-func HandleCreateSessionManagementData(request *httpwrapper.Request) *httpwrapper.Response {
-	return httpwrapper.NewResponse(http.StatusOK, nil, map[string]interface{}{})
-}
-
-func HandleDeleteSessionManagementData(request *httpwrapper.Request) *httpwrapper.Response {
-	return httpwrapper.NewResponse(http.StatusOK, nil, map[string]interface{}{})
-}
-
-func HandleQuerySessionManagementData(request *httpwrapper.Request) *httpwrapper.Response {
-	return httpwrapper.NewResponse(http.StatusOK, nil, map[string]interface{}{})
-}
-
-func HandleQueryProvisionedData(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle QueryProvisionedData")
-
-	var provisionedDataSets models.ProvisionedDataSets
-	ueId := request.Params["ueId"]
-
-	response, problemDetails := QueryProvisionedDataProcedure(ueId, provisionedDataSets)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-
-	pd := util.ProblemDetailsUpspecified("")
-	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
 }
 
 func QueryProvisionedDataProcedure(ueId string, provisionedDataSets models.ProvisionedDataSets) (*models.ProvisionedDataSets, *models.ProblemDetails) {
@@ -1108,22 +676,6 @@ func QueryProvisionedDataProcedure(ueId string, provisionedDataSets models.Provi
 	}
 }
 
-func HandleRemovesdmSubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle RemovesdmSubscriptions")
-
-	ueId := request.Params["ueId"]
-	subsId := request.Params["subsId"]
-
-	err := RemovesdmSubscriptions(ueId, subsId)
-
-	if err == nil {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-	} else {
-		problem := util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
-		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
-	}
-}
-
 func RemovesdmSubscriptions(ueId string, subsId string) error {
 	udrSelf := context.UDR_Self()
 	value, ok := udrSelf.UESubsCollection.Load(ueId)
@@ -1140,23 +692,6 @@ func RemovesdmSubscriptions(ueId string, subsId string) error {
 	delete(UESubsData.SdmSubscriptions, subsId)
 
 	return nil
-}
-
-func HandleUpdatesdmsubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle Updatesdmsubscriptions")
-
-	ueId := request.Params["ueId"]
-	subsId := request.Params["subsId"]
-	SdmSubscription := request.Body.(models.SdmSubscription)
-
-	err := Updatesdmsubscriptions(ueId, subsId, SdmSubscription)
-
-	if err == nil {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-	} else {
-		problemDetails := util.ProblemDetailsNotFound("SUBSCRIPTION_NOT_FOUND")
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
 }
 
 func Updatesdmsubscriptions(ueId string, subsId string, SdmSubscription models.SdmSubscription) error {
@@ -1176,19 +711,6 @@ func Updatesdmsubscriptions(ueId string, subsId string, SdmSubscription models.S
 	UESubsData.SdmSubscriptions[subsId] = &SdmSubscription
 
 	return nil
-}
-
-func HandleCreateSdmSubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle CreateSdmSubscriptions")
-
-	SdmSubscription := request.Body.(models.SdmSubscription)
-	ueId := request.Params["ueId"]
-
-	locationHeader, SdmSubscription := CreateSdmSubscriptions(SdmSubscription, ueId)
-
-	headers := http.Header{}
-	headers.Set("Location", locationHeader)
-	return httpwrapper.NewResponse(http.StatusCreated, headers, SdmSubscription)
 }
 
 func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string) (string, models.SdmSubscription) {
@@ -1217,23 +739,6 @@ func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string)
 	return locationHeader, SdmSubscription
 }
 
-func HandleQuerysdmsubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle Querysdmsubscriptions")
-
-	ueId := request.Params["ueId"]
-
-	response, problemDetails := QuerysdmsubscriptionsProcedure(ueId)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-
-	pd := util.ProblemDetailsUpspecified("")
-	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
-}
-
 func QuerysdmsubscriptionsProcedure(ueId string) (*[]models.SdmSubscription, *models.ProblemDetails) {
 	udrSelf := context.UDR_Self()
 
@@ -1249,23 +754,6 @@ func QuerysdmsubscriptionsProcedure(ueId string) (*[]models.SdmSubscription, *mo
 		sdmSubscriptionSlice = append(sdmSubscriptionSlice, *v)
 	}
 	return &sdmSubscriptionSlice, nil
-}
-
-func HandleQuerySmData(request *httpwrapper.Request) *httpwrapper.Response {
-	ueId := request.Params["ueId"]
-	singleNssai := models.Snssai{}
-	singleNssaiQuery := request.Query.Get("single-nssai")
-	err := json.Unmarshal([]byte(singleNssaiQuery), &singleNssai)
-	if err != nil {
-		logger.DataRepoLog.Warnln(err)
-	}
-
-	response, err := GetSmData(ueId)
-	if err != nil {
-		logger.DataRepoLog.Warnln(err)
-	}
-
-	return httpwrapper.NewResponse(http.StatusOK, nil, response)
 }
 
 func convertDbSessionManagementDataToModel(dbSmData []*dbModels.SessionManagementSubscriptionData) []models.SessionManagementSubscriptionData {
@@ -1322,17 +810,6 @@ func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) 
 	return sessionManagementData, nil
 }
 
-func HandleQuerySmfSelectData(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle QuerySmfSelectData")
-	ueId := request.Params["ueId"]
-	response, err := GetSmfSelectData(ueId)
-	if err != nil {
-		problem := util.ProblemDetailsNotFound("USER_NOT_FOUND")
-		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
-	}
-	return httpwrapper.NewResponse(http.StatusOK, nil, response)
-}
-
 // We have this function twice, here and in the NMS. We should move it to a common place.
 func convertDbSmfSelectionDataToModel(dbSmfSelectionData *dbModels.SmfSelectionSubscriptionData) *models.SmfSelectionSubscriptionData {
 	if dbSmfSelectionData == nil {
@@ -1368,18 +845,6 @@ func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error)
 	return smfSelectionSubscriptionData, nil
 }
 
-func HandlePostSubscriptionDataSubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle PostSubscriptionDataSubscriptions")
-
-	SubscriptionDataSubscriptions := request.Body.(models.SubscriptionDataSubscriptions)
-
-	locationHeader := PostSubscriptionDataSubscriptionsProcedure(SubscriptionDataSubscriptions)
-
-	headers := http.Header{}
-	headers.Set("Location", locationHeader)
-	return httpwrapper.NewResponse(http.StatusCreated, headers, SubscriptionDataSubscriptions)
-}
-
 func PostSubscriptionDataSubscriptionsProcedure(
 	SubscriptionDataSubscriptions models.SubscriptionDataSubscriptions,
 ) string {
@@ -1395,20 +860,6 @@ func PostSubscriptionDataSubscriptionsProcedure(
 		udrSelf.GetIPv4GroupUri(context.NUDR_DR), newSubscriptionID)
 
 	return locationHeader
-}
-
-func HandleRemovesubscriptionDataSubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.DataRepoLog.Infof("Handle RemovesubscriptionDataSubscriptions")
-
-	subsId := request.Params["subsId"]
-
-	problemDetails := RemovesubscriptionDataSubscriptionsProcedure(subsId)
-
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, map[string]interface{}{})
-	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
 }
 
 func RemovesubscriptionDataSubscriptionsProcedure(subsId string) *models.ProblemDetails {
