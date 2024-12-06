@@ -164,7 +164,6 @@ type AmfUe struct {
 	RegistrationArea map[models.AccessType][]models.Tai `json:"registrationArea,omitempty"`
 	LadnInfo         []LADN                             `json:"ladnInfo,omitempty"`
 	/* Network Slicing related context and Nssf */
-	NssfUri                           string                                       `json:"nssfUri,omitempty"`
 	NetworkSliceInfo                  *models.AuthorizedNetworkSliceInfo           `json:"networkSliceInfo,omitempty"`
 	AllowedNssai                      map[models.AccessType][]models.AllowedSnssai `json:"allowedNssai,omitempty"`
 	ConfiguredNssai                   []models.ConfiguredSnssai                    `json:"configuredNssai,omitempty"`

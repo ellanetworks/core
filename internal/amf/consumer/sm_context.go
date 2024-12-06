@@ -26,7 +26,6 @@ func SelectSmf(
 	ue.GmmLog.Infof("Select SMF [snssai: %+v, dnn: %+v]", snssai, dnn)
 	nsiInformation := ue.GetNsiInformationFromSnssai(anType, snssai)
 	if nsiInformation == nil {
-		ue.NssfUri = context.NssfUri
 		response, problemDetails, err := NSSelectionGetForPduSession(ue, snssai)
 		if err != nil {
 			err = fmt.Errorf("NSSelection Get Error[%+v]", err)
