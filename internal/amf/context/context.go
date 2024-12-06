@@ -60,8 +60,7 @@ type AMFContext struct {
 	SupportDnnLists        []string
 	AMFStatusSubscriptions sync.Map // map[subscriptionID]models.SubscriptionData
 	NfStatusSubscriptions  sync.Map // map[NfInstanceID]models.NrfSubscriptionData.SubscriptionId
-	AusfUri                string
-	// NssfUri                         string
+	// AusfUri                         string
 	PcfUri                          string
 	SmfUri                          string
 	UdmsdmUri                       string

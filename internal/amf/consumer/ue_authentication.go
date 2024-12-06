@@ -15,15 +15,14 @@ import (
 	"github.com/omec-project/openapi/models"
 	amf_context "github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/ausf/producer"
 )
 
 func SendUEAuthenticationAuthenticateRequest(ue *amf_context.AmfUe,
 	resynchronizationInfo *models.ResynchronizationInfo,
 ) (*models.UeAuthenticationCtx, *models.ProblemDetails, error) {
-	configuration := Nausf_UEAuthentication.NewConfiguration()
-	configuration.SetBasePath(ue.AusfUri)
-
-	client := Nausf_UEAuthentication.NewAPIClient(configuration)
+	// configuration := Nausf_UEAuthentication.NewConfiguration()
+	// configuration.SetBasePath(ue.AusfUri)
 
 	guamiList := amf_context.GetServedGuamiList()
 	servedGuami := guamiList[0]
@@ -46,21 +45,29 @@ func SendUEAuthenticationAuthenticateRequest(ue *amf_context.AmfUe,
 	if resynchronizationInfo != nil {
 		authInfo.ResynchronizationInfo = resynchronizationInfo
 	}
-	ctx, cancel := context.WithTimeout(context.TODO(), 30*time.Second)
-	defer cancel()
+	// ctx, cancel := context.WithTimeout(context.TODO(), 30*time.Second)
+	// defer cancel()
 
-	ueAuthenticationCtx, httpResponse, err := client.DefaultApi.UeAuthenticationsPost(ctx, authInfo)
-	if err == nil {
-		return &ueAuthenticationCtx, nil, nil
-	} else if httpResponse != nil {
-		if httpResponse.Status != err.Error() {
-			return nil, nil, err
-		}
-		problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-		return nil, &problem, nil
-	} else {
-		return nil, nil, openapi.ReportError("server no response")
+	ueAuthenticationCtx, err := producer.UeAuthPostRequestProcedure(authInfo)
+	if err != nil {
+		logger.ConsumerLog.Errorf("UE Authentication Authenticate Request failed: %+v", err)
+		return nil, nil, err
 	}
+	return ueAuthenticationCtx, nil, nil
+
+	// client := Nausf_UEAuthentication.NewAPIClient(configuration)
+	// ueAuthenticationCtx, httpResponse, err := client.DefaultApi.UeAuthenticationsPost(ctx, authInfo)
+	// if err == nil {
+	// 	return &ueAuthenticationCtx, nil, nil
+	// } else if httpResponse != nil {
+	// 	if httpResponse.Status != err.Error() {
+	// 		return nil, nil, err
+	// 	}
+	// 	problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
+	// 	return nil, &problem, nil
+	// } else {
+	// 	return nil, nil, openapi.ReportError("server no response")
+	// }
 }
 
 func SendAuth5gAkaConfirmRequest(ue *amf_context.AmfUe, resStar string) (

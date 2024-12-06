@@ -78,29 +78,22 @@ func HandleAuth5gAkaComfirmRequest(request *httpwrapper.Request) *httpwrapper.Re
 
 func HandleUeAuthPostRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	updateAuthenticationInfo := request.Body.(models.AuthenticationInfo)
-
-	response, locationURI, problemDetails := UeAuthPostRequestProcedure(updateAuthenticationInfo)
+	response, err := UeAuthPostRequestProcedure(updateAuthenticationInfo)
+	if err != nil {
+		var problemDetails models.ProblemDetails
+		problemDetails.Cause = err.Error()
+		problemDetails.Status = http.StatusInternalServerError
+		return httpwrapper.NewResponse(http.StatusInternalServerError, nil, &problemDetails)
+	}
 	respHeader := make(http.Header)
-	respHeader.Set("Location", locationURI)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusCreated, respHeader, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	return httpwrapper.NewResponse(http.StatusCreated, respHeader, response)
 }
 
 // func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (
 
 // response *models.UeAuthenticationCtx, locationURI string, problemDetails *models.ProblemDetails) {
-func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (*models.UeAuthenticationCtx,
-	string, *models.ProblemDetails,
-) {
+func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (*models.UeAuthenticationCtx, error) {
+	logger.AppLog.Warnf("HELLO - UeAuthPostRequestProcedure")
 	var responseBody models.UeAuthenticationCtx
 	var authInfoReq models.AuthenticationInfoRequest
 
@@ -109,11 +102,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	snName := updateAuthenticationInfo.ServingNetworkName
 	servingNetworkAuthorized := ausf_context.IsServingNetworkAuthorized(snName)
 	if !servingNetworkAuthorized {
-		var problemDetails models.ProblemDetails
-		problemDetails.Cause = SERVING_NETWORK_NOT_AUTHORIZED_ERROR
-		problemDetails.Status = http.StatusForbidden
-		logger.UeAuthPostLog.Infoln("403 forbidden: serving network NOT AUTHORIZED")
-		return nil, "", &problemDetails
+		return nil, fmt.Errorf("serving network NOT AUTHORIZED")
 	}
 	logger.UeAuthPostLog.Infoln("serving network authorized: ", snName)
 
@@ -137,14 +126,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	authInfoResult, rsp, err := client.GenerateAuthDataApi.GenerateAuthData(context.Background(), supiOrSuci, authInfoReq)
 	if err != nil {
 		logger.UeAuthPostLog.Infoln(err.Error())
-		var problemDetails models.ProblemDetails
-		if authInfoResult.AuthenticationVector == nil {
-			problemDetails.Cause = AV_GENERATION_PROBLEM_ERROR
-		} else {
-			problemDetails.Cause = UPSTREAM_SERVER_ERROR
-		}
-		problemDetails.Status = http.StatusInternalServerError
-		return nil, "", &problemDetails
+		return nil, fmt.Errorf("GenerateAuthDataApi failed")
 	}
 	defer func() {
 		if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
@@ -297,7 +279,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	responseBody.Links["link"] = linksValue
 	responseBody.AuthType = authInfoResult.AuthType
 
-	return &responseBody, locationURI, nil
+	return &responseBody, nil
 }
 
 // func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.ConfirmationData,

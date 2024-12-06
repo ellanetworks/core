@@ -105,9 +105,9 @@ type AmfUe struct {
 	SubscribedNssai                   []models.SubscribedSnssai                 `json:"subscribeNssai,omitempty"`
 	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData `json:"accessAndMobilitySubscriptionData,omitempty"`
 	/* contex abut ausf */
-	AusfGroupId                       string                      `json:"ausfGroupId,omitempty"`
-	AusfId                            string                      `json:"ausfId,omitempty"`
-	AusfUri                           string                      `json:"ausfUri,omitempty"`
+	AusfGroupId string `json:"ausfGroupId,omitempty"`
+	AusfId      string `json:"ausfId,omitempty"`
+	// AusfUri                           string                      `json:"ausfUri,omitempty"`
 	RoutingIndicator                  string                      `json:"routingIndicator,omitempty"`
 	AuthenticationCtx                 *models.UeAuthenticationCtx `json:"authenticationCtx,omitempty"`
 	AuthFailureCauseSynchFailureTimes int                         `json:"authFailureCauseSynchFailureTimes,omitempty"`

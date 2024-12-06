@@ -33,7 +33,6 @@ func parseFlags() (config.Config, error) {
 }
 
 func startNetwork(cfg config.Config) error {
-	ausfUrl := "http://127.0.0.1:29509"
 	amfUrl := "http://127.0.0.1:29518"
 	pcfUrl := "http://127.0.0.1:29507"
 	smfUrl := "http://127.0.0.1:29502"
@@ -46,7 +45,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = amf.Start(ausfUrl, pcfUrl, smfUrl, udmUrl)
+	err = amf.Start(pcfUrl, smfUrl, udmUrl)
 	if err != nil {
 		return err
 	}
