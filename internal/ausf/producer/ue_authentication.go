@@ -8,14 +8,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
-	"net/http"
 	"strings"
 
 	"github.com/bronze1man/radius"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/httpwrapper"
 	"github.com/omec-project/util/ueauth"
 	ausf_context "github.com/yeastengine/ella/internal/ausf/context"
 	"github.com/yeastengine/ella/internal/ausf/logger"
@@ -38,60 +36,6 @@ func GenerateRandomNumber() (uint8, error) {
 	return uint8(randomNumber.Int64()), nil
 }
 
-func HandleEapAuthComfirmRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.Auth5gAkaComfirmLog.Infof("EapAuthComfirmRequest")
-
-	updateEapSession := request.Body.(models.EapSession)
-	eapSessionID := request.Params["authCtxId"]
-
-	response, problemDetails := EapAuthComfirmRequestProcedure(updateEapSession, eapSessionID)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
-}
-
-func HandleAuth5gAkaComfirmRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.Auth5gAkaComfirmLog.Infof("Auth5gAkaComfirmRequest")
-	updateConfirmationData := request.Body.(models.ConfirmationData)
-	ConfirmationDataResponseID := request.Params["authCtxId"]
-
-	response, problemDetails := Auth5gAkaComfirmRequestProcedure(updateConfirmationData, ConfirmationDataResponseID)
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
-}
-
-func HandleUeAuthPostRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	updateAuthenticationInfo := request.Body.(models.AuthenticationInfo)
-	response, err := UeAuthPostRequestProcedure(updateAuthenticationInfo)
-	if err != nil {
-		var problemDetails models.ProblemDetails
-		problemDetails.Cause = err.Error()
-		problemDetails.Status = http.StatusInternalServerError
-		return httpwrapper.NewResponse(http.StatusInternalServerError, nil, &problemDetails)
-	}
-	respHeader := make(http.Header)
-	return httpwrapper.NewResponse(http.StatusCreated, respHeader, response)
-}
-
-// func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (
-
-// response *models.UeAuthenticationCtx, locationURI string, problemDetails *models.ProblemDetails) {
 func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (*models.UeAuthenticationCtx, error) {
 	logger.AppLog.Warnf("HELLO - UeAuthPostRequestProcedure")
 	var responseBody models.UeAuthenticationCtx
@@ -144,11 +88,8 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	logger.UeAuthPostLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)
 	ausf_context.AddSuciSupiPairToMap(supiOrSuci, ueid)
 
-	locationURI := self.Url + "/nausf-auth/v1/ue-authentications/" + supiOrSuci
-	putLink := locationURI
 	if authInfoResult.AuthType == models.AuthType__5_G_AKA {
 		logger.UeAuthPostLog.Infoln("Use 5G AKA auth method")
-		putLink += "/5g-aka-confirmation"
 
 		// Derive HXRES* from XRES*
 		concat := authInfoResult.AuthenticationVector.Rand + authInfoResult.AuthenticationVector.XresStar
@@ -187,7 +128,6 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		responseBody.Var5gAuthData = av5gAka
 	} else if authInfoResult.AuthType == models.AuthType_EAP_AKA_PRIME {
 		logger.UeAuthPostLog.Infoln("Use EAP-AKA' auth method")
-		putLink += "/eap-session"
 
 		identity := ueid
 		ikPrime := authInfoResult.AuthenticationVector.IkPrime
@@ -274,21 +214,14 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		responseBody.Var5gAuthData = base64.StdEncoding.EncodeToString(encodedPktAfterMAC)
 	}
 
-	linksValue := models.LinksValueSchema{Href: putLink}
 	responseBody.Links = make(map[string]models.LinksValueSchema)
-	responseBody.Links["link"] = linksValue
 	responseBody.AuthType = authInfoResult.AuthType
 
 	return &responseBody, nil
 }
 
-// func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.ConfirmationData,
-//	ConfirmationDataResponseID string) (response *models.ConfirmationDataResponse,
-//  problemDetails *models.ProblemDetails) {
-
-func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.ConfirmationData,
-	ConfirmationDataResponseID string,
-) (*models.ConfirmationDataResponse, *models.ProblemDetails) {
+func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.ConfirmationData, ConfirmationDataResponseID string,
+) (*models.ConfirmationDataResponse, error) {
 	var responseBody models.ConfirmationDataResponse
 	success := false
 	responseBody.AuthResult = models.AuthResult_FAILURE
@@ -296,19 +229,13 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 	if !ausf_context.CheckIfSuciSupiPairExists(ConfirmationDataResponseID) {
 		logger.Auth5gAkaComfirmLog.Infof("supiSuciPair does not exist, confirmation failed (queried by %s)\n",
 			ConfirmationDataResponseID)
-		var problemDetails models.ProblemDetails
-		problemDetails.Cause = USER_NOT_FOUND_ERROR
-		problemDetails.Status = http.StatusBadRequest
-		return nil, &problemDetails
+		return nil, fmt.Errorf("supiSuciPair does not exist")
 	}
 
 	currentSupi := ausf_context.GetSupiFromSuciSupiMap(ConfirmationDataResponseID)
 	if !ausf_context.CheckIfAusfUeContextExists(currentSupi) {
 		logger.Auth5gAkaComfirmLog.Infof("SUPI does not exist, confirmation failed (queried by %s)\n", currentSupi)
-		var problemDetails models.ProblemDetails
-		problemDetails.Cause = USER_NOT_FOUND_ERROR
-		problemDetails.Status = http.StatusBadRequest
-		return nil, &problemDetails
+		return nil, fmt.Errorf("SUPI does not exist")
 	}
 
 	ausfCurrentContext := ausf_context.GetAusfUeContext(currentSupi)
@@ -331,11 +258,7 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 	if sendErr := sendAuthResultToUDM(currentSupi, models.AuthType__5_G_AKA, success, servingNetworkName,
 		ausfCurrentContext.UdmUeauUrl); sendErr != nil {
 		logger.Auth5gAkaComfirmLog.Infoln(sendErr.Error())
-		var problemDetails models.ProblemDetails
-		problemDetails.Status = http.StatusInternalServerError
-		problemDetails.Cause = UPSTREAM_SERVER_ERROR
-
-		return nil, &problemDetails
+		return nil, fmt.Errorf("sendAuthResultToUDM failed")
 	}
 
 	responseBody.Supi = currentSupi
@@ -344,23 +267,19 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 
 // return response, problemDetails
 func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessionID string) (*models.EapSession,
-	*models.ProblemDetails,
+	error,
 ) {
 	var responseBody models.EapSession
 
 	if !ausf_context.CheckIfSuciSupiPairExists(eapSessionID) {
 		logger.Auth5gAkaComfirmLog.Infoln("supiSuciPair does not exist, confirmation failed")
-		var problemDetails models.ProblemDetails
-		problemDetails.Cause = USER_NOT_FOUND_ERROR
-		return nil, &problemDetails
+		return nil, fmt.Errorf("supiSuciPair does not exist")
 	}
 
 	currentSupi := ausf_context.GetSupiFromSuciSupiMap(eapSessionID)
 	if !ausf_context.CheckIfAusfUeContextExists(currentSupi) {
 		logger.Auth5gAkaComfirmLog.Infoln("SUPI does not exist, confirmation failed")
-		var problemDetails models.ProblemDetails
-		problemDetails.Cause = USER_NOT_FOUND_ERROR
-		return nil, &problemDetails
+		return nil, fmt.Errorf("SUPI does not exist")
 	}
 
 	ausfCurrentContext := ausf_context.GetAusfUeContext(currentSupi)
@@ -408,9 +327,7 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 			if sendErr := sendAuthResultToUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, true, servingNetworkName,
 				udmUrl); sendErr != nil {
 				logger.EapAuthComfirmLog.Infoln(sendErr.Error())
-				var problemDetails models.ProblemDetails
-				problemDetails.Cause = UPSTREAM_SERVER_ERROR
-				return nil, &problemDetails
+				return nil, fmt.Errorf("sendAuthResultToUDM failed")
 			}
 			ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
 		} else {

@@ -1909,6 +1909,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 
 	switch ue.AuthenticationCtx.AuthType {
 	case models.AuthType__5_G_AKA:
+		ue.GmmLog.Warnf("In 5G-AKA")
 		var av5gAka models.Av5gAka
 		if err := mapstructure.Decode(ue.AuthenticationCtx.Var5gAuthData, &av5gAka); err != nil {
 			return fmt.Errorf("Var5gAuthData Convert Type Error")
@@ -1973,6 +1974,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 			}
 		}
 	case models.AuthType_EAP_AKA_PRIME:
+		ue.GmmLog.Warnf("In EAP-AKA-PRIME")
 		response, problemDetails, err := consumer.SendEapAuthConfirmRequest(ue, *authenticationResponse.EAPMessage)
 		if err != nil {
 			return err

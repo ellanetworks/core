@@ -4,7 +4,9 @@ import (
 	"regexp"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/ausf/factory"
 	"github.com/yeastengine/ella/internal/ausf/logger"
 )
 
@@ -14,14 +16,9 @@ type AUSFContext struct {
 	snRegex     *regexp.Regexp
 	NfId        string
 	GroupID     string
-	BindingIPv4 string
-	Url         string
 	UdmUri      string
 	UdmUeauUrl  string
-	UriScheme   models.UriScheme
-	NfService   map[models.ServiceName]models.NfService
 	PlmnList    []models.PlmnId
-	SBIPort     int
 }
 
 type AusfUeContext struct {
@@ -127,4 +124,12 @@ func GetSelf() *AUSFContext {
 
 func (a *AUSFContext) GetSelfID() string {
 	return a.NfId
+}
+
+func InitAusfContext(context *AUSFContext) {
+	config := factory.AusfConfig
+
+	context.NfId = uuid.New().String()
+	context.GroupID = config.GroupId
+	context.UdmUri = config.UdmUri
 }

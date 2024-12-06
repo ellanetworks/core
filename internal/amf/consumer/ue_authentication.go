@@ -1,17 +1,11 @@
 package consumer
 
 import (
-	"context"
 	"encoding/base64"
 	"fmt"
-	"net/url"
 	"strconv"
-	"time"
 
-	"github.com/antihax/optional"
 	"github.com/omec-project/nas/nasType"
-	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/Nausf_UEAuthentication"
 	"github.com/omec-project/openapi/models"
 	amf_context "github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/logger"
@@ -73,80 +67,41 @@ func SendUEAuthenticationAuthenticateRequest(ue *amf_context.AmfUe,
 func SendAuth5gAkaConfirmRequest(ue *amf_context.AmfUe, resStar string) (
 	*models.ConfirmationDataResponse, *models.ProblemDetails, error,
 ) {
-	confirmUri, err := url.Parse(ue.AuthenticationCtx.Links["link"].Href)
+	logger.ConsumerLog.Warnf("SendAuth5gAkaConfirmRequest")
+	confirmationData := models.ConfirmationData{
+		ResStar: resStar,
+	}
+	confirmResult, err := producer.Auth5gAkaComfirmRequestProcedure(confirmationData, ue.Suci)
 	if err != nil {
-		return nil, nil, err
-	}
-	ausfUri := fmt.Sprintf("%s://%s", confirmUri.Scheme, confirmUri.Host)
-
-	configuration := Nausf_UEAuthentication.NewConfiguration()
-	configuration.SetBasePath(ausfUri)
-	client := Nausf_UEAuthentication.NewAPIClient(configuration)
-
-	confirmData := &Nausf_UEAuthentication.UeAuthenticationsAuthCtxId5gAkaConfirmationPutParamOpts{
-		ConfirmationData: optional.NewInterface(models.ConfirmationData{
-			ResStar: resStar,
-		}),
-	}
-	ctx, cancel := context.WithTimeout(context.TODO(), 30*time.Second)
-	defer cancel()
-
-	confirmResult, httpResponse, err := client.DefaultApi.UeAuthenticationsAuthCtxId5gAkaConfirmationPut(
-		ctx, ue.Suci, confirmData)
-	if err == nil {
-		return &confirmResult, nil, nil
-	} else if httpResponse != nil {
-		if httpResponse.Status != err.Error() {
-			return nil, nil, err
+		logger.ConsumerLog.Errorf("Auth5gAkaComfirmRequestProcedure failed: %+v", err)
+		problemDetails := &models.ProblemDetails{
+			Status: 500,
+			Cause:  "SYSTEM_FAILURE",
+			Detail: err.Error(),
 		}
-		switch httpResponse.StatusCode {
-		case 400, 500:
-			problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-			return nil, &problem, nil
-		}
-		return nil, nil, nil
-	} else {
-		return nil, nil, openapi.ReportError("server no response")
+		return nil, problemDetails, err
 	}
+	return confirmResult, nil, nil
 }
 
 func SendEapAuthConfirmRequest(ue *amf_context.AmfUe, eapMsg nasType.EAPMessage) (
-	response *models.EapSession, problemDetails *models.ProblemDetails, err1 error,
+	*models.EapSession, *models.ProblemDetails, error,
 ) {
-	confirmUri, err := url.Parse(ue.AuthenticationCtx.Links["link"].Href)
+	logger.ConsumerLog.Warnf("SendEapAuthConfirmRequest")
+
+	eapSession := models.EapSession{
+		EapPayload: base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage()),
+	}
+
+	response, err := producer.EapAuthComfirmRequestProcedure(eapSession, ue.Suci)
 	if err != nil {
-		logger.ConsumerLog.Errorf("url Parse failed: %+v", err)
-	}
-	ausfUri := fmt.Sprintf("%s://%s", confirmUri.Scheme, confirmUri.Host)
-
-	configuration := Nausf_UEAuthentication.NewConfiguration()
-	configuration.SetBasePath(ausfUri)
-	client := Nausf_UEAuthentication.NewAPIClient(configuration)
-
-	eapSessionReq := &Nausf_UEAuthentication.EapAuthMethodParamOpts{
-		EapSession: optional.NewInterface(models.EapSession{
-			EapPayload: base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage()),
-		}),
-	}
-	ctx, cancel := context.WithTimeout(context.TODO(), 30*time.Second)
-	defer cancel()
-
-	eapSession, httpResponse, err := client.DefaultApi.EapAuthMethod(ctx, ue.Suci, eapSessionReq)
-	if err == nil {
-		response = &eapSession
-	} else if httpResponse != nil {
-		if httpResponse.Status != err.Error() {
-			err1 = err
-			return response, problemDetails, err1
+		logger.ConsumerLog.Errorf("EapAuthComfirmRequestProcedure failed: %+v", err)
+		problemDetails := &models.ProblemDetails{
+			Status: 500,
+			Cause:  "SYSTEM_FAILURE",
+			Detail: err.Error(),
 		}
-		switch httpResponse.StatusCode {
-		case 400, 500:
-			problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-			problemDetails = &problem
-		}
-	} else {
-		err1 = openapi.ReportError("server no response")
+		return nil, problemDetails, err
 	}
-
-	return response, problemDetails, err1
+	return response, nil, nil
 }
