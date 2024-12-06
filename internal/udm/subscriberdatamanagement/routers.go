@@ -132,13 +132,6 @@ var oneLayerPathRouter = Routes{
 	},
 
 	{
-		"GetSharedData",
-		strings.ToUpper("Get"),
-		"/shared-data",
-		HTTPGetSharedData,
-	},
-
-	{
 		"SubscribeToSharedData",
 		strings.ToUpper("Post"),
 		"/shared-data-subscriptions",
