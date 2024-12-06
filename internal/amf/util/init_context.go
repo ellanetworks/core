@@ -21,7 +21,6 @@ func InitAmfContext(context *context.AMFContext) {
 	serviceNameList := config.ServiceNameList
 	context.InitNFService(serviceNameList)
 	context.SupportDnnLists = config.SupportDnnList
-	context.AusfUri = config.AusfUri
 	context.PcfUri = config.PcfUri
 	context.SmfUri = config.SmfUri
 	context.UdmsdmUri = config.UdmsdmUri
