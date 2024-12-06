@@ -65,11 +65,10 @@ func HandleGetSupiRequest(request *httpwrapper.Request) *httpwrapper.Response {
 
 	// step 2: retrieve request
 	supi := request.Params["supi"]
-	plmnID := request.Query.Get("plmn-id")
 	supportedFeatures := request.Query.Get("supported-features")
 
 	// step 3: handle the message
-	response, problemDetails := getSupiProcedure(supi, plmnID, supportedFeatures)
+	response, problemDetails := getSupiProcedure(supi, supportedFeatures)
 
 	// step 4: process the return value from step 3
 	if response != nil {
@@ -85,16 +84,13 @@ func HandleGetSupiRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
-func getSupiProcedure(supi string, plmnID string, supportedFeatures string) (
+func getSupiProcedure(supi string, supportedFeatures string) (
 	response *models.SubscriptionDataSets, problemDetails *models.ProblemDetails,
 ) {
 	var subscriptionDataSets, subsDataSetBody models.SubscriptionDataSets
 	var ueContextInSmfDataResp models.UeContextInSmfData
 	pduSessionMap := make(map[string]models.PduSession)
 	var pgwInfoArray []models.PgwInfo
-
-	var queryTraceDataParamOpts Nudr.QueryTraceDataParamOpts
-	var querySmDataParamOpts Nudr.QuerySmDataParamOpts
 
 	udm_context.UDM_Self().CreateSubsDataSetsForUe(supi, subsDataSetBody)
 
@@ -126,80 +122,22 @@ func getSupiProcedure(supi string, plmnID string, supportedFeatures string) (
 	udmUe.SetSmfSelectionSubsData(smfSelData)
 	subscriptionDataSets.SmfSelData = smfSelData
 
+	sessionManagementSubscriptionData, err := producer.GetSmData(supi)
+	if err != nil {
+		logger.SdmLog.Errorf("GetSmData error: %+v", err)
+		problemDetails = &models.ProblemDetails{
+			Status: http.StatusNotFound,
+			Cause:  "DATA_NOT_FOUND",
+			Detail: err.Error(),
+		}
+		return nil, problemDetails
+	}
+	udmUe = udm_context.UDM_Self().NewUdmUe(supi)
+	smData, _, _, _ := udm_context.UDM_Self().ManageSmData(sessionManagementSubscriptionData, "", "")
+	udmUe.SetSMSubsData(smData)
+	subscriptionDataSets.SmData = sessionManagementSubscriptionData
+
 	clientAPI := createUDMClientToUDR()
-	var TraceDatabody models.TraceData
-	udm_context.UDM_Self().CreateTraceDataforUe(supi, TraceDatabody)
-	traceData, res3, err3 := clientAPI.TraceDataDocumentApi.QueryTraceData(
-		context.Background(), supi, plmnID, &queryTraceDataParamOpts)
-	if err3 != nil {
-		if res3 == nil {
-			fmt.Println(err3.Error())
-		} else if err3.Error() != res3.Status {
-			fmt.Println(err3.Error())
-		} else {
-			problemDetails = &models.ProblemDetails{
-				Status: int32(res3.StatusCode),
-				Cause:  err3.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-				Detail: err3.Error(),
-			}
-		}
-		return nil, problemDetails
-	}
-	defer func() {
-		if rspCloseErr := res3.Body.Close(); rspCloseErr != nil {
-			logger.SdmLog.Errorf("QueryTraceData response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-	if res3.StatusCode == http.StatusOK {
-		udmUe := udm_context.UDM_Self().NewUdmUe(supi)
-		udmUe.TraceData = &traceData
-		udmUe.TraceDataResponse.TraceData = &traceData
-		subscriptionDataSets.TraceData = &traceData
-	} else {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "DATA_NOT_FOUND",
-		}
-
-		return nil, problemDetails
-	}
-
-	sessionManagementSubscriptionData, res4, err4 := clientAPI.SessionManagementSubscriptionDataApi.
-		QuerySmData(context.Background(), supi, plmnID, &querySmDataParamOpts)
-	if err4 != nil {
-		if res4 == nil {
-			fmt.Println(err4.Error())
-		} else if err4.Error() != res4.Status {
-			fmt.Println(err4.Error())
-		} else {
-			problemDetails = &models.ProblemDetails{
-				Status: int32(res4.StatusCode),
-				Cause:  err4.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-				Detail: err4.Error(),
-			}
-
-			return nil, problemDetails
-		}
-	}
-	defer func() {
-		if rspCloseErr := res4.Body.Close(); rspCloseErr != nil {
-			logger.SdmLog.Errorf("QuerySmData response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-	if res4.StatusCode == http.StatusOK {
-		udmUe := udm_context.UDM_Self().NewUdmUe(supi)
-		smData, _, _, _ := udm_context.UDM_Self().ManageSmData(sessionManagementSubscriptionData, "", "")
-		udmUe.SetSMSubsData(smData)
-		subscriptionDataSets.SmData = sessionManagementSubscriptionData
-	} else {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "DATA_NOT_FOUND",
-		}
-
-		return nil, problemDetails
-	}
-
 	var UeContextInSmfbody models.UeContextInSmfData
 	var querySmfRegListParamOpts Nudr.QuerySmfRegListParamOpts
 	querySmfRegListParamOpts.SupportedFeatures = optional.NewString(supportedFeatures)
@@ -255,8 +193,8 @@ func getSupiProcedure(supi string, plmnID string, supportedFeatures string) (
 	}
 
 	if (res.StatusCode == http.StatusOK) && (amData != nil) &&
-		(smfSelData != nil) && (res3.StatusCode == http.StatusOK) &&
-		(res4.StatusCode == http.StatusOK) {
+		(smfSelData != nil) &&
+		(sessionManagementSubscriptionData != nil) {
 		subscriptionDataSets.UecSmfData = &ueContextInSmfDataResp
 		return &subscriptionDataSets, nil
 	} else {
@@ -948,80 +886,6 @@ func modifyForSharedDataProcedure(supi string, subscriptionID string) (response 
 
 	if res.StatusCode == http.StatusOK {
 		return &sdmSubscription, nil
-	} else {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "USER_NOT_FOUND",
-		}
-
-		return nil, problemDetails
-	}
-}
-
-func HandleGetTraceDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
-	logger.SdmLog.Infof("Handle GetTraceData")
-
-	// step 2: retrieve request
-	supi := request.Params["supi"]
-	plmnID := request.Query.Get("plmn-id")
-
-	// step 3: handle the message
-	response, problemDetails := getTraceDataProcedure(supi, plmnID)
-
-	// step 4: process the return value from step 3
-	if response != nil {
-		// status code is based on SPEC, and option headers
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
-}
-
-func getTraceDataProcedure(supi string, plmnID string) (
-	response *models.TraceData, problemDetails *models.ProblemDetails,
-) {
-	var body models.TraceData
-	var queryTraceDataParamOpts Nudr.QueryTraceDataParamOpts
-
-	clientAPI := createUDMClientToUDR()
-
-	udm_context.UDM_Self().CreateTraceDataforUe(supi, body)
-
-	traceDataRes, res, err := clientAPI.TraceDataDocumentApi.QueryTraceData(
-		context.Background(), supi, plmnID, &queryTraceDataParamOpts)
-	if err != nil {
-		if res == nil {
-			logger.SdmLog.Warnln(err)
-		} else if err.Error() != res.Status {
-			logger.SdmLog.Warnln(err)
-		} else {
-			problemDetails = &models.ProblemDetails{
-				Status: int32(res.StatusCode),
-				Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-				Detail: err.Error(),
-			}
-
-			return nil, problemDetails
-		}
-	}
-	defer func() {
-		if rspCloseErr := res.Body.Close(); rspCloseErr != nil {
-			logger.SdmLog.Errorf("QueryTraceData response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-
-	if res.StatusCode == http.StatusOK {
-		udmUe := udm_context.UDM_Self().NewUdmUe(supi)
-		udmUe.TraceData = &traceDataRes
-		udmUe.TraceDataResponse.TraceData = &traceDataRes
-
-		return udmUe.TraceDataResponse.TraceData, nil
 	} else {
 		problemDetails = &models.ProblemDetails{
 			Status: http.StatusNotFound,

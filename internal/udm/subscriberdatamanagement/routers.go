@@ -197,13 +197,6 @@ var twoLayerPathRouter = Routes{
 	},
 
 	{
-		"GetTraceData",
-		strings.ToUpper("Get"),
-		"/:supi/trace-data",
-		HTTPGetTraceData,
-	},
-
-	{
 		"GetUeContextInSmfData",
 		strings.ToUpper("Get"),
 		"/:supi/ue-context-in-smf-data",

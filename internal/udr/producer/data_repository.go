@@ -1227,17 +1227,66 @@ func HandleQuerySmData(request *httpwrapper.Request) *httpwrapper.Response {
 		logger.DataRepoLog.Warnln(err)
 	}
 
-	response := QuerySmDataProcedure(ueId)
+	response, err := GetSmData(ueId)
+	if err != nil {
+		logger.DataRepoLog.Warnln(err)
+	}
 
 	return httpwrapper.NewResponse(http.StatusOK, nil, response)
 }
 
-func QuerySmDataProcedure(ueId string) []*dbModels.SessionManagementSubscriptionData {
-	sessionManagementData, err := queries.ListSmData(ueId)
-	if err != nil {
-		logger.DataRepoLog.Warnln(err)
+func convertDbSessionManagementDataToModel(dbSmData []*dbModels.SessionManagementSubscriptionData) []models.SessionManagementSubscriptionData {
+	if dbSmData == nil {
+		return nil
 	}
-	return sessionManagementData
+	smData := make([]models.SessionManagementSubscriptionData, 0)
+	for _, smDataObj := range dbSmData {
+		smDataObjModel := models.SessionManagementSubscriptionData{
+			SingleNssai: &models.Snssai{
+				Sst: smDataObj.SingleNssai.Sst,
+				Sd:  smDataObj.SingleNssai.Sd,
+			},
+			DnnConfigurations: make(map[string]models.DnnConfiguration),
+		}
+		for dnn, dnnConfig := range smDataObj.DnnConfigurations {
+			smDataObjModel.DnnConfigurations[dnn] = models.DnnConfiguration{
+				PduSessionTypes: &models.PduSessionTypes{
+					DefaultSessionType:  models.PduSessionType(dnnConfig.PduSessionTypes.DefaultSessionType),
+					AllowedSessionTypes: make([]models.PduSessionType, 0),
+				},
+				SscModes: &models.SscModes{
+					DefaultSscMode:  models.SscMode(dnnConfig.SscModes.DefaultSscMode),
+					AllowedSscModes: make([]models.SscMode, 0),
+				},
+				SessionAmbr: &models.Ambr{
+					Downlink: dnnConfig.SessionAmbr.Downlink,
+					Uplink:   dnnConfig.SessionAmbr.Uplink,
+				},
+				Var5gQosProfile: &models.SubscribedDefaultQos{
+					Var5qi:        dnnConfig.Var5gQosProfile.Var5qi,
+					Arp:           &models.Arp{PriorityLevel: dnnConfig.Var5gQosProfile.Arp.PriorityLevel},
+					PriorityLevel: dnnConfig.Var5gQosProfile.PriorityLevel,
+				},
+			}
+			for _, sessionType := range dnnConfig.PduSessionTypes.AllowedSessionTypes {
+				smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes, models.PduSessionType(sessionType))
+			}
+			for _, sscMode := range dnnConfig.SscModes.AllowedSscModes {
+				smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes, models.SscMode(sscMode))
+			}
+		}
+		smData = append(smData, smDataObjModel)
+	}
+	return smData
+}
+
+func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) {
+	dbSessionManagementData, err := queries.ListSmData(ueId)
+	if err != nil {
+		return nil, fmt.Errorf("USER_NOT_FOUND")
+	}
+	sessionManagementData := convertDbSessionManagementDataToModel(dbSessionManagementData)
+	return sessionManagementData, nil
 }
 
 func HandleQuerySmfSelectData(request *httpwrapper.Request) *httpwrapper.Response {
