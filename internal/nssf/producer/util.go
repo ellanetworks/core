@@ -1,4 +1,4 @@
-package util
+package producer
 
 import (
 	"encoding/json"
@@ -20,19 +20,6 @@ const (
 
 // Default configuration file
 var DEFAULT_CONFIG string = "free5gc/config/nssfcfg.yaml"
-
-// Check if a slice contains an element
-func Contain(target interface{}, slice interface{}) bool {
-	arr := reflect.ValueOf(slice)
-	if arr.Kind() == reflect.Slice {
-		for i := 0; i < arr.Len(); i++ {
-			if reflect.DeepEqual(arr.Index(i).Interface(), target) {
-				return true
-			}
-		}
-	}
-	return false
-}
 
 // Check whether UE's Home PLMN is configured/supported
 func CheckSupportedHplmn(homePlmnId models.PlmnId) bool {

@@ -1149,7 +1149,6 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 		}
 
 		if needSliceSelection {
-			ue.NssfUri = amfSelf.NssfUri
 			// Step 4
 			problemDetails, err := consumer.NSSelectionGetForRegistration(ue, requestedNssai)
 			if problemDetails != nil {

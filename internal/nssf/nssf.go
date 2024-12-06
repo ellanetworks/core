@@ -5,6 +5,7 @@ import (
 	"github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/nssf/factory"
 	"github.com/yeastengine/ella/internal/nssf/service"
+	"go.uber.org/zap/zapcore"
 )
 
 var NSSF = &service.NSSF{}
@@ -34,5 +35,14 @@ func Start() error {
 	}
 	NSSF.Initialize(configuration)
 	go NSSF.Start()
+	return nil
+}
+
+func Start2() error {
+	level, err := zapcore.ParseLevel("debug")
+	if err != nil {
+		return err
+	}
+	logger.SetLogLevel(level)
 	return nil
 }

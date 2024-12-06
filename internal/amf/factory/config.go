@@ -25,7 +25,6 @@ type Configuration struct {
 	ServedGumaiList                 []models.Guami
 	SupportDnnList                  []string
 	AusfUri                         string
-	NssfUri                         string
 	PcfUri                          string
 	SmfUri                          string
 	UdmsdmUri                       string

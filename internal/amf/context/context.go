@@ -46,22 +46,22 @@ type AMFContext struct {
 	LadnPool                     map[string]*LADN // dnn as key
 	// ServedGuamiList                 []models.Guami
 	// PlmnSupportList                 []factory.PlmnSupportItem
-	RelativeCapacity                int64
-	NfId                            string
-	Name                            string
-	NfService                       map[models.ServiceName]models.NfService // nfservice that amf support
-	UriScheme                       models.UriScheme
-	BindingIPv4                     string
-	SBIPort                         int
-	NgapPort                        int
-	SctpGrpcPort                    int
-	HttpIPv6Address                 string
-	TNLWeightFactor                 int64
-	SupportDnnLists                 []string
-	AMFStatusSubscriptions          sync.Map // map[subscriptionID]models.SubscriptionData
-	NfStatusSubscriptions           sync.Map // map[NfInstanceID]models.NrfSubscriptionData.SubscriptionId
-	AusfUri                         string
-	NssfUri                         string
+	RelativeCapacity       int64
+	NfId                   string
+	Name                   string
+	NfService              map[models.ServiceName]models.NfService // nfservice that amf support
+	UriScheme              models.UriScheme
+	BindingIPv4            string
+	SBIPort                int
+	NgapPort               int
+	SctpGrpcPort           int
+	HttpIPv6Address        string
+	TNLWeightFactor        int64
+	SupportDnnLists        []string
+	AMFStatusSubscriptions sync.Map // map[subscriptionID]models.SubscriptionData
+	NfStatusSubscriptions  sync.Map // map[NfInstanceID]models.NrfSubscriptionData.SubscriptionId
+	AusfUri                string
+	// NssfUri                         string
 	PcfUri                          string
 	SmfUri                          string
 	UdmsdmUri                       string
