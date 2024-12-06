@@ -66,13 +66,6 @@ func twoLayerPathHandlerFunc(c *gin.Context) {
 		return
 	}
 
-	// for "/:gpsi/id-translation-result"
-	if op == "id-translation-result" && strings.ToUpper("Get") == c.Request.Method {
-		c.Params = append(c.Params, gin.Param{Key: "gpsi", Value: c.Param("supi")})
-		HTTPGetIdTranslationResult(c)
-		return
-	}
-
 	for _, route := range twoLayerPathRouter {
 		if strings.Contains(route.Pattern, op) && route.Method == c.Request.Method {
 			route.HandlerFunc(c)

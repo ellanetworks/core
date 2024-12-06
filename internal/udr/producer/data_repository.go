@@ -34,31 +34,56 @@ func HandleQueryAccessAndMobilityData(request *httpwrapper.Request) *httpwrapper
 
 func HandleQueryAmData(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.DataRepoLog.Infof("Handle QueryAmData")
-
 	ueId := request.Params["ueId"]
-	servingPlmnId := request.Params["servingPlmnId"]
-	response, problemDetails := QueryAmDataProcedure(ueId, servingPlmnId)
-
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	response, err := GetAmData(ueId)
+	if err != nil {
+		problem := util.ProblemDetailsNotFound("USER_NOT_FOUND")
+		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
 	}
+	return httpwrapper.NewResponse(http.StatusOK, nil, response)
 }
 
-func QueryAmDataProcedure(ueId string, servingPlmnId string) (*dbModels.AccessAndMobilitySubscriptionData,
-	*models.ProblemDetails,
-) {
-	accessAndMobilitySubscriptionData, err := queries.GetAmData(ueId)
+// This function is defined twice, here and in the NMS. We should move it to a common place.
+func convertDbAmDataToModel(dbAmData *dbModels.AccessAndMobilitySubscriptionData) *models.AccessAndMobilitySubscriptionData {
+	if dbAmData == nil {
+		return &models.AccessAndMobilitySubscriptionData{}
+	}
+	amData := &models.AccessAndMobilitySubscriptionData{
+		Gpsis: dbAmData.Gpsis,
+		Nssai: &models.Nssai{
+			DefaultSingleNssais: make([]models.Snssai, 0),
+			SingleNssais:        make([]models.Snssai, 0),
+		},
+		SubscribedUeAmbr: &models.AmbrRm{
+			Downlink: dbAmData.SubscribedUeAmbr.Downlink,
+			Uplink:   dbAmData.SubscribedUeAmbr.Uplink,
+		},
+	}
+	for _, snssai := range dbAmData.Nssai.DefaultSingleNssais {
+		amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
+			Sd:  snssai.Sd,
+			Sst: snssai.Sst,
+		})
+	}
+	for _, snssai := range dbAmData.Nssai.SingleNssais {
+		amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
+			Sd:  snssai.Sd,
+			Sst: snssai.Sst,
+		})
+	}
+	return amData
+}
+
+func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
+	dbAmData, err := queries.GetAmData(ueId)
 	if err != nil {
 		logger.DataRepoLog.Warnln(err)
 	}
-
-	if accessAndMobilitySubscriptionData != nil {
-		return accessAndMobilitySubscriptionData, nil
-	} else {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
+	if dbAmData == nil {
+		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
+	amData := convertDbAmDataToModel(dbAmData)
+	return amData, nil
 }
 
 func HandleAmfContext3gpp(request *httpwrapper.Request) *httpwrapper.Response {
@@ -419,7 +444,7 @@ func HandlePolicyDataUesUeIdAmDataGet(request *httpwrapper.Request) *httpwrapper
 	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
 }
 
-// We have this function twice, here and in the NMSC. We should move it to a common place.
+// We have this function twice, here and in the NMS. We should move it to a common place.
 func convertDbAmPolicyDataToModel(dbAmPolicyData *dbModels.AmPolicyData) *models.AmPolicyData {
 	if dbAmPolicyData == nil {
 		return &models.AmPolicyData{}
@@ -464,7 +489,7 @@ func HandlePolicyDataUesUeIdSmDataGet(request *httpwrapper.Request) *httpwrapper
 	return httpwrapper.NewResponse(int(pd.Status), nil, pd)
 }
 
-// We have this function twice, here and in the NMSC. We should move it to a common place.
+// We have this function twice, here and in the NMS. We should move it to a common place.
 func convertDbSmPolicyDataToModel(dbSmPolicyData *dbModels.SmPolicyData) *models.SmPolicyData {
 	if dbSmPolicyData == nil {
 		return &models.SmPolicyData{}
@@ -1217,28 +1242,48 @@ func QuerySmDataProcedure(ueId string) []*dbModels.SessionManagementSubscription
 
 func HandleQuerySmfSelectData(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.DataRepoLog.Infof("Handle QuerySmfSelectData")
-
 	ueId := request.Params["ueId"]
-	response, problemDetails := QuerySmfSelectDataProcedure(ueId)
-
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	response, err := GetSmfSelectData(ueId)
+	if err != nil {
+		problem := util.ProblemDetailsNotFound("USER_NOT_FOUND")
+		return httpwrapper.NewResponse(int(problem.Status), nil, problem)
 	}
+	return httpwrapper.NewResponse(http.StatusOK, nil, response)
 }
 
-func QuerySmfSelectDataProcedure(ueId string) (*dbModels.SmfSelectionSubscriptionData, *models.ProblemDetails) {
-	smfSelectionSubscriptionData, err := queries.GetSmfSelectionSubscriptionData(ueId)
+// We have this function twice, here and in the NMS. We should move it to a common place.
+func convertDbSmfSelectionDataToModel(dbSmfSelectionData *dbModels.SmfSelectionSubscriptionData) *models.SmfSelectionSubscriptionData {
+	if dbSmfSelectionData == nil {
+		return &models.SmfSelectionSubscriptionData{}
+	}
+	smfSelectionData := &models.SmfSelectionSubscriptionData{
+		SubscribedSnssaiInfos: make(map[string]models.SnssaiInfo),
+	}
+	for snssai, dbSnssaiInfo := range dbSmfSelectionData.SubscribedSnssaiInfos {
+		smfSelectionData.SubscribedSnssaiInfos[snssai] = models.SnssaiInfo{
+			DnnInfos: make([]models.DnnInfo, 0),
+		}
+		snssaiInfo := smfSelectionData.SubscribedSnssaiInfos[snssai]
+		for _, dbDnnInfo := range dbSnssaiInfo.DnnInfos {
+			snssaiInfo.DnnInfos = append(snssaiInfo.DnnInfos, models.DnnInfo{
+				Dnn: dbDnnInfo.Dnn,
+			})
+		}
+		smfSelectionData.SubscribedSnssaiInfos[snssai] = snssaiInfo
+	}
+	return smfSelectionData
+}
+
+func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
+	dbSmfSelectionSubscriptionData, err := queries.GetSmfSelectionSubscriptionData(ueId)
 	if err != nil {
 		logger.DataRepoLog.Warnln(err)
 	}
-
-	if smfSelectionSubscriptionData != nil {
-		return smfSelectionSubscriptionData, nil
-	} else {
-		return nil, util.ProblemDetailsNotFound("USER_NOT_FOUND")
+	if dbSmfSelectionSubscriptionData == nil {
+		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
+	smfSelectionSubscriptionData := convertDbSmfSelectionDataToModel(dbSmfSelectionSubscriptionData)
+	return smfSelectionSubscriptionData, nil
 }
 
 func HandlePostSubscriptionDataSubscriptions(request *httpwrapper.Request) *httpwrapper.Response {
