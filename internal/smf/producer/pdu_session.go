@@ -114,7 +114,7 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		return fmt.Errorf("IpAllocError")
 	} else {
 		smContext.PDUAddress = &smf_context.UeIpAddr{Ip: ip, UpfProvided: false}
-		smContext.SubPduSessLog.Infof("Successfull IP Allocation: %s",
+		smContext.SubPduSessLog.Infof("Successful IP Allocation: %s",
 			smContext.PDUAddress.Ip.String())
 	}
 
