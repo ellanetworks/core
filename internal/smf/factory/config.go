@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/omec-project/openapi/models"
-	logger_util "github.com/omec-project/util/logger"
 )
 
 const (
@@ -14,7 +13,6 @@ const (
 )
 
 type Configuration struct {
-	Logger       *logger_util.Logger
 	PFCP         *PFCP
 	AmfUri       string
 	PcfUri       string

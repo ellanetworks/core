@@ -6,7 +6,6 @@ type SmfMsgType string
 const (
 
 	// N11 Service
-	MsgTypeNone           SmfMsgType = "none"
 	CreateSmContext       SmfMsgType = "CreateSmContext"
 	UpdateSmContext       SmfMsgType = "UpdateSmContext"
 	ReleaseSmContext      SmfMsgType = "ReleaseSmContext"
