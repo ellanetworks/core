@@ -1,46 +1,54 @@
 package smf
 
 import (
-	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/omec-project/util/logger"
+	"github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/factory"
-	"github.com/yeastengine/ella/internal/smf/service"
+	"github.com/yeastengine/ella/internal/smf/logger"
+	"github.com/yeastengine/ella/internal/smf/pfcp"
+	"github.com/yeastengine/ella/internal/smf/pfcp/message"
+	"github.com/yeastengine/ella/internal/smf/pfcp/udp"
+	"github.com/yeastengine/ella/internal/smf/pfcp/upf"
+	"go.uber.org/zap/zapcore"
 )
-
-var SMF = &service.SMF{}
-
-const SBI_PORT = 29502
 
 func Start(amfURL string, pcfURL string, udmURL string) error {
 	configuration := factory.Configuration{
-		Logger: &logger.Logger{
-			SMF: &logger.LogSetting{
-				DebugLevel: "debug",
-			},
-		},
 		PFCP: &factory.PFCP{
 			Addr: "0.0.0.0",
-		},
-		Sbi: &factory.Sbi{
-			BindingIPv4: "0.0.0.0",
-			Port:        SBI_PORT,
 		},
 		AmfUri:  amfURL,
 		PcfUri:  pcfURL,
 		UdmUri:  udmURL,
 		SmfName: "SMF",
-		ServiceNameList: []string{
-			"nsmf-pdusession",
-			"nsmf-event-exposure",
-			"nsmf-oam",
-		},
 	}
 
-	err := SMF.Initialize(configuration)
+	factory.InitConfigFactory(configuration)
+	level, err := zapcore.ParseLevel("debug")
 	if err != nil {
-		return fmt.Errorf("failed to initialize SMF")
+		return err
 	}
-	go SMF.Start()
+	logger.SetLogLevel(level)
+	StartPfcpServer()
 	return nil
+}
+
+func StartPfcpServer() {
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-signalChannel
+		os.Exit(0)
+	}()
+	context.InitSmfContext(&factory.SmfConfig)
+	udp.Run(pfcp.Dispatch)
+	userPlaneInformation := context.GetUserPlaneInformation()
+	if userPlaneInformation.UPF != nil {
+		message.SendPfcpAssociationSetupRequest(userPlaneInformation.UPF.NodeID, userPlaneInformation.UPF.Port)
+	}
+	go upf.InitPfcpHeartbeatRequest(userPlaneInformation)
+	go upf.ProbeInactiveUpfs(userPlaneInformation)
 }

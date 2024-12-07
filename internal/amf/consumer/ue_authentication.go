@@ -15,13 +15,9 @@ import (
 func SendUEAuthenticationAuthenticateRequest(ue *amf_context.AmfUe,
 	resynchronizationInfo *models.ResynchronizationInfo,
 ) (*models.UeAuthenticationCtx, *models.ProblemDetails, error) {
-	// configuration := Nausf_UEAuthentication.NewConfiguration()
-	// configuration.SetBasePath(ue.AusfUri)
-
 	guamiList := amf_context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 	var plmnId *models.PlmnId
-	// take ServingNetwork plmn from UserLocation.Tai if received
 	if ue.Tai.PlmnId != nil {
 		plmnId = ue.Tai.PlmnId
 	} else {
@@ -39,8 +35,6 @@ func SendUEAuthenticationAuthenticateRequest(ue *amf_context.AmfUe,
 	if resynchronizationInfo != nil {
 		authInfo.ResynchronizationInfo = resynchronizationInfo
 	}
-	// ctx, cancel := context.WithTimeout(context.TODO(), 30*time.Second)
-	// defer cancel()
 
 	ueAuthenticationCtx, err := producer.UeAuthPostRequestProcedure(authInfo)
 	if err != nil {
@@ -48,26 +42,11 @@ func SendUEAuthenticationAuthenticateRequest(ue *amf_context.AmfUe,
 		return nil, nil, err
 	}
 	return ueAuthenticationCtx, nil, nil
-
-	// client := Nausf_UEAuthentication.NewAPIClient(configuration)
-	// ueAuthenticationCtx, httpResponse, err := client.DefaultApi.UeAuthenticationsPost(ctx, authInfo)
-	// if err == nil {
-	// 	return &ueAuthenticationCtx, nil, nil
-	// } else if httpResponse != nil {
-	// 	if httpResponse.Status != err.Error() {
-	// 		return nil, nil, err
-	// 	}
-	// 	problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-	// 	return nil, &problem, nil
-	// } else {
-	// 	return nil, nil, openapi.ReportError("server no response")
-	// }
 }
 
 func SendAuth5gAkaConfirmRequest(ue *amf_context.AmfUe, resStar string) (
 	*models.ConfirmationDataResponse, *models.ProblemDetails, error,
 ) {
-	logger.ConsumerLog.Warnf("SendAuth5gAkaConfirmRequest")
 	confirmationData := models.ConfirmationData{
 		ResStar: resStar,
 	}

@@ -22,9 +22,6 @@ var smfContext SMFContext
 type SMFContext struct {
 	Name string
 
-	URIScheme   models.UriScheme
-	BindingIPv4 string
-
 	UPNodeIDs []NodeID
 	Key       string
 	PEM       string
@@ -53,7 +50,6 @@ type SMFContext struct {
 	CPNodeID       NodeID
 	PFCPPort       int
 	UDMProfile     models.NfProfile
-	SBIPort        int
 	LocalSEIDCount uint64
 
 	// For ULCL
@@ -95,12 +91,6 @@ func InitSmfContext(config *factory.Configuration) *SMFContext {
 
 	// copy static UE IP Addr config
 	smfContext.StaticIpInfo = &config.StaticIpInfo
-
-	sbi := config.Sbi
-
-	smfContext.URIScheme = models.UriScheme_HTTP
-	smfContext.SBIPort = sbi.Port
-	smfContext.BindingIPv4 = sbi.BindingIPv4
 
 	smfContext.AmfUri = config.AmfUri
 	smfContext.PcfUri = config.PcfUri

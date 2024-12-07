@@ -38,31 +38,27 @@ func init() {
 }
 
 type AMFContext struct {
-	EventSubscriptionIDGenerator *idgenerator.IDGenerator
-	EventSubscriptions           sync.Map
-	UePool                       sync.Map         // map[supi]*AmfUe
-	RanUePool                    sync.Map         // map[AmfUeNgapID]*RanUe
-	AmfRanPool                   sync.Map         // map[net.Conn]*AmfRan
-	LadnPool                     map[string]*LADN // dnn as key
-	// ServedGuamiList                 []models.Guami
-	// PlmnSupportList                 []factory.PlmnSupportItem
-	RelativeCapacity       int64
-	NfId                   string
-	Name                   string
-	NfService              map[models.ServiceName]models.NfService // nfservice that amf support
-	UriScheme              models.UriScheme
-	BindingIPv4            string
-	SBIPort                int
-	NgapPort               int
-	SctpGrpcPort           int
-	HttpIPv6Address        string
-	TNLWeightFactor        int64
-	SupportDnnLists        []string
-	AMFStatusSubscriptions sync.Map // map[subscriptionID]models.SubscriptionData
-	NfStatusSubscriptions  sync.Map // map[NfInstanceID]models.NrfSubscriptionData.SubscriptionId
-	// AusfUri                         string
+	EventSubscriptionIDGenerator    *idgenerator.IDGenerator
+	EventSubscriptions              sync.Map
+	UePool                          sync.Map         // map[supi]*AmfUe
+	RanUePool                       sync.Map         // map[AmfUeNgapID]*RanUe
+	AmfRanPool                      sync.Map         // map[net.Conn]*AmfRan
+	LadnPool                        map[string]*LADN // dnn as key
+	RelativeCapacity                int64
+	NfId                            string
+	Name                            string
+	NfService                       map[models.ServiceName]models.NfService // nfservice that amf support
+	UriScheme                       models.UriScheme
+	BindingIPv4                     string
+	SBIPort                         int
+	NgapPort                        int
+	SctpGrpcPort                    int
+	HttpIPv6Address                 string
+	TNLWeightFactor                 int64
+	SupportDnnLists                 []string
+	AMFStatusSubscriptions          sync.Map // map[subscriptionID]models.SubscriptionData
+	NfStatusSubscriptions           sync.Map // map[NfInstanceID]models.NrfSubscriptionData.SubscriptionId
 	PcfUri                          string
-	SmfUri                          string
 	UdmsdmUri                       string
 	UdmUecmUri                      string
 	SecurityAlgorithm               SecurityAlgorithm

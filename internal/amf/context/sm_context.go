@@ -21,8 +21,8 @@ type SmContext struct {
 	PlmnIDVal       models.PlmnId
 
 	// SMF information
-	SmfIDVal  string
-	SmfUriVal string
+	SmfIDVal string
+	// SmfUriVal string
 	HSmfIDVal string
 	VSmfIDVal string
 
@@ -146,18 +146,6 @@ func (c *SmContext) SetPlmnID(plmnID models.PlmnId) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.PlmnIDVal = plmnID
-}
-
-func (c *SmContext) SmfUri() string {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
-	return c.SmfUriVal
-}
-
-func (c *SmContext) SetSmfUri(smfUri string) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-	c.SmfUriVal = smfUri
 }
 
 func (c *SmContext) HSmfID() string {

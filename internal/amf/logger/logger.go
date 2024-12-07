@@ -1,6 +1,8 @@
 package logger
 
 import (
+	"fmt"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -27,7 +29,6 @@ var (
 	EeLog       *zap.SugaredLogger
 	GinLog      *zap.SugaredLogger
 	GrpcLog     *zap.SugaredLogger
-	KafkaLog    *zap.SugaredLogger
 	atomicLevel zap.AtomicLevel
 )
 
@@ -41,23 +42,26 @@ const (
 
 func init() {
 	atomicLevel = zap.NewAtomicLevelAt(zap.InfoLevel)
+
+	// Define a custom encoder with colorized levels
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoderConfig.TimeKey = "timestamp"
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	encoderConfig.LevelKey = "level"
+	encoderConfig.EncodeLevel = CapitalColorLevelEncoder // Use custom colorized levels
+	encoderConfig.CallerKey = "caller"
+	encoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
+	encoderConfig.MessageKey = "message"
+	encoderConfig.StacktraceKey = ""
+
 	config := zap.Config{
 		Level:            atomicLevel,
 		Development:      false,
 		Encoding:         "console",
-		EncoderConfig:    zap.NewProductionEncoderConfig(),
+		EncoderConfig:    encoderConfig,
 		OutputPaths:      []string{"stdout"},
 		ErrorOutputPaths: []string{"stderr"},
 	}
-
-	config.EncoderConfig.TimeKey = "timestamp"
-	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	config.EncoderConfig.LevelKey = "level"
-	config.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
-	config.EncoderConfig.CallerKey = "caller"
-	config.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
-	config.EncoderConfig.MessageKey = "message"
-	config.EncoderConfig.StacktraceKey = ""
 
 	var err error
 	log, err = config.Build()
@@ -85,7 +89,6 @@ func init() {
 	EeLog = log.Sugar().With("component", "AMF", "category", "EventExposure")
 	GinLog = log.Sugar().With("component", "AMF", "category", "GIN")
 	GrpcLog = log.Sugar().With("component", "AMF", "category", "GRPC")
-	KafkaLog = log.Sugar().With("component", "AMF", "category", "Kafka")
 }
 
 func GetLogger() *zap.Logger {
@@ -96,4 +99,23 @@ func GetLogger() *zap.Logger {
 func SetLogLevel(level zapcore.Level) {
 	CfgLog.Infoln("set log level:", level)
 	atomicLevel.SetLevel(level)
+}
+
+func CapitalColorLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
+	var color string
+	switch l {
+	case zapcore.DebugLevel:
+		color = "\033[37m" // White
+	case zapcore.InfoLevel:
+		color = "\033[32m" // Green
+	case zapcore.WarnLevel:
+		color = "\033[33m" // Yellow
+	case zapcore.ErrorLevel:
+		color = "\033[31m" // Red
+	case zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel:
+		color = "\033[35m" // Magenta
+	default:
+		color = "\033[0m" // Reset
+	}
+	enc.AppendString(fmt.Sprintf("%s%s\033[0m", color, l.CapitalString()))
 }
