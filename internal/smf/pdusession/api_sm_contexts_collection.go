@@ -1,7 +1,6 @@
 package pdusession
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -85,8 +84,7 @@ func HTTPPostSmContexts(c *gin.Context) {
 	}(smContext)
 }
 
-// CreateSmContext - Creates SM Context
-func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContextsResponse, *models.PostSmContextsErrorResponse, error) {
+func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse, error) {
 	logger.PduSessLog.Info("Processing Create SM Context Request")
 
 	// Ensure request data is present
@@ -94,7 +92,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContex
 		errResponse := &models.PostSmContextsErrorResponse{
 			JsonData: &models.SmContextCreateError{},
 		}
-		return nil, errResponse, errors.New("missing JsonData in request")
+		return nil, "", errResponse, fmt.Errorf("missing JsonData in request")
 	}
 
 	// Create transaction
@@ -107,26 +105,32 @@ func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContex
 	// Handle transaction response
 	HTTPResponse, ok := txn.Rsp.(*httpwrapper.Response)
 	if !ok {
-		return nil, nil, errors.New("unexpected transaction response type")
+		return nil, "", nil, fmt.Errorf("unexpected transaction response type")
 	}
 
 	// Check for SM Context in transaction context
-	_, ok = txn.Ctxt.(*context.SMContext)
+	smContext, ok := txn.Ctxt.(*context.SMContext)
 	if !ok && HTTPResponse.Status == http.StatusCreated {
-		return nil, nil, errors.New("failed to retrieve SMContext from transaction context")
+		return nil, "", nil, fmt.Errorf("failed to retrieve SMContext from transaction context")
 	}
 
 	// Process response based on HTTP status
 	switch HTTPResponse.Status {
 	case http.StatusCreated:
 		// Successful creation
-		// Print content of the response body
-		fmt.Println("HTTPResponse.Body: ", HTTPResponse.Body)
 		response, ok := HTTPResponse.Body.(models.PostSmContextsResponse)
 		if !ok {
-			return nil, nil, errors.New("unexpected response body type for successful creation")
+			return nil, "", nil, fmt.Errorf("unexpected response body type for successful creation")
 		}
-		return &response, nil, nil
+
+		// Start PfcpSessCreate transaction
+		pfcpTxn := transaction.NewTransaction(nil, nil, svcmsgtypes.SmfMsgType(svcmsgtypes.PfcpSessCreate))
+		pfcpTxn.Ctxt = smContext
+		go pfcpTxn.StartTxnLifeCycle(fsm.SmfTxnFsmHandle)
+		<-pfcpTxn.Status // Wait for the PFCP session transaction to complete
+		smContextRef := HTTPResponse.Header.Get("Location")
+
+		return &response, smContextRef, nil, nil
 
 	case http.StatusBadRequest,
 		http.StatusForbidden,
@@ -137,12 +141,12 @@ func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContex
 		// Handle errors
 		errResponse, ok := HTTPResponse.Body.(*models.PostSmContextsErrorResponse)
 		if !ok {
-			return nil, nil, errors.New("unexpected response body type for error")
+			return nil, "", nil, fmt.Errorf("unexpected response body type for error")
 		}
-		return nil, errResponse, nil
+		return nil, "", errResponse, nil
 
 	default:
 		// Unexpected status
-		return nil, nil, errors.New("unexpected HTTP status code")
+		return nil, "", nil, fmt.Errorf("unexpected HTTP status code")
 	}
 }

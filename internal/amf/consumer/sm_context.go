@@ -7,6 +7,7 @@ import (
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
 	amf_context "github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/pdusession"
 )
 
@@ -47,8 +48,8 @@ func SelectSmf(
 
 func SendCreateSmContextRequest(ue *amf_context.AmfUe, smContext *amf_context.SmContext,
 	requestType *models.RequestType, nasPdu []byte) (
-	response *models.PostSmContextsResponse, smContextRef string, errorResponse *models.PostSmContextsErrorResponse,
-	problemDetail *models.ProblemDetails, err1 error,
+	*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse,
+	*models.ProblemDetails, error,
 ) {
 	smContextCreateData := buildCreateSmContextRequest(ue, smContext, nil)
 
@@ -57,23 +58,19 @@ func SendCreateSmContextRequest(ue *amf_context.AmfUe, smContext *amf_context.Sm
 		BinaryDataN1SmMessage: nasPdu,
 	}
 
-	// configuration := Nsmf_PDUSession.NewConfiguration()
-	// configuration.SetBasePath(smContext.SmfUri())
-	// client := Nsmf_PDUSession.NewAPIClient(configuration)
+	logger.PduSessLog.Warnf("STARTING CREATE SM CONTEXT")
 
-	// ctx, cancel := context.WithTimeout(context.TODO(), 30*time.Second)
-	// defer cancel()
-
-	postSmContextReponse, postSmContextErrorReponse, err := pdusession.CreateSmContext(postSmContextsRequest)
+	postSmContextReponse, smContextRef, postSmContextErrorReponse, err := pdusession.CreateSmContext(postSmContextsRequest)
 	if err != nil {
-		problemDetail = &models.ProblemDetails{
+		problemDetail := &models.ProblemDetails{
 			Title:  "Create SmContext Request Error",
 			Status: 500,
 			Detail: err.Error(),
 		}
-		return response, smContextRef, postSmContextErrorReponse, problemDetail, err1
+		return nil, smContextRef, postSmContextErrorReponse, problemDetail, err
 	}
-	return postSmContextReponse, smContext.SmContextRef(), errorResponse, problemDetail, err1
+
+	return postSmContextReponse, smContextRef, nil, nil, nil
 
 	// postSmContextReponse, httpResponse, err := client.SMContextsCollectionApi.PostSmContexts(ctx, postSmContextsRequest)
 
@@ -366,16 +363,10 @@ func SendUpdateSmContextHandoverBetweenAMF(
 
 func SendUpdateSmContextRequest(smContext *amf_context.SmContext,
 	updateData models.SmContextUpdateData, n1Msg []byte, n2Info []byte) (
-	response *models.UpdateSmContextResponse, errorResponse *models.UpdateSmContextErrorResponse,
-	problemDetail *models.ProblemDetails, err1 error,
+	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse,
+	*models.ProblemDetails, error,
 ) {
-	// configuration := Nsmf_PDUSession.NewConfiguration()
-	// configuration.SetBasePath(smContext.SmfUri())
-	// client := Nsmf_PDUSession.NewAPIClient(configuration)
-
-	// ctx, cancel := context.WithTimeout(context.TODO(), 30*time.Second)
-	// defer cancel()
-
+	logger.PduSessLog.Warnf("STARTING UPDATE SM CONTEXT")
 	var updateSmContextRequest models.UpdateSmContextRequest
 	updateSmContextRequest.JsonData = &updateData
 	updateSmContextRequest.BinaryDataN1SmMessage = n1Msg
@@ -385,14 +376,16 @@ func SendUpdateSmContextRequest(smContext *amf_context.SmContext,
 	// 	updateSmContextRequest)
 	updateSmContextReponse, err := pdusession.UpdateSmContext(smContext.SmContextRef(), updateSmContextRequest)
 	if err != nil {
-		problemDetail = &models.ProblemDetails{
+		problemDetail := &models.ProblemDetails{
 			Title:  "Update SmContext Request Error",
 			Status: 500,
 			Detail: err.Error(),
 		}
-		return response, errorResponse, problemDetail, err1
+		logger.PduSessLog.Warnf("Update SmContext Request Error[%+v]", err)
+		return updateSmContextReponse, nil, problemDetail, err
 	}
-	return updateSmContextReponse, errorResponse, problemDetail, err1
+	logger.PduSessLog.Warnf("Update SmContext Request Success")
+	return updateSmContextReponse, nil, nil, nil
 
 	// if err == nil {
 	// 	response = &updateSmContextReponse
@@ -414,8 +407,6 @@ func SendUpdateSmContextRequest(smContext *amf_context.SmContext,
 	// }
 	// return response, errorResponse, problemDetail, err1
 }
-
-// Release SmContext Request
 
 func SendReleaseSmContextRequest(ue *amf_context.AmfUe, smContext *amf_context.SmContext,
 	cause *amf_context.CauseAll, n2SmInfoType models.N2SmInfoType,

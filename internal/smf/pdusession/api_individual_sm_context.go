@@ -163,29 +163,27 @@ func HTTPUpdateSmContext(c *gin.Context) {
 func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSmContextRequest) (*models.UpdateSmContextResponse, error) {
 	logger.PduSessLog.Info("Processing Update SM Context Request")
 
-	// Validate the request content
+	if smContextRef == "" {
+		return nil, errors.New("SM Context reference is missing")
+	}
+
 	if updateSmContextRequest.JsonData == nil {
 		return nil, errors.New("update request is missing JsonData")
 	}
 
-	// Start transaction
 	txn := transaction.NewTransaction(updateSmContextRequest, nil, svcmsgtypes.SmfMsgType(svcmsgtypes.UpdateSmContext))
 	txn.CtxtKey = smContextRef
 
-	// Execute FSM lifecycle
 	go txn.StartTxnLifeCycle(fsm.SmfTxnFsmHandle)
 	<-txn.Status // Wait for transaction to complete
 
-	// Handle transaction response
 	HTTPResponse, ok := txn.Rsp.(*httpwrapper.Response)
 	if !ok {
 		return nil, errors.New("unexpected transaction response type")
 	}
 
-	// Process response based on HTTP status
 	switch HTTPResponse.Status {
 	case http.StatusOK, http.StatusNoContent:
-		// Successful update
 		response, ok := HTTPResponse.Body.(models.UpdateSmContextResponse)
 		if !ok {
 			return nil, errors.New("unexpected response body type for successful update")
@@ -193,7 +191,6 @@ func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSm
 		return &response, nil
 
 	default:
-		// Handle errors
 		errResponse, ok := HTTPResponse.Body.(*models.ProblemDetails)
 		if ok {
 			logger.PduSessLog.Errorf("SM Context update failed: %s", errResponse.Detail)
