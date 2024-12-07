@@ -14,26 +14,19 @@ const (
 )
 
 type Configuration struct {
-	Logger          *logger_util.Logger
-	PFCP            *PFCP
-	Sbi             *Sbi
-	AmfUri          string
-	PcfUri          string
-	UdmUri          string
-	SmfName         string
-	StaticIpInfo    []StaticIpInfo
-	ServiceNameList []string
-	ULCL            bool
+	Logger       *logger_util.Logger
+	PFCP         *PFCP
+	AmfUri       string
+	PcfUri       string
+	UdmUri       string
+	SmfName      string
+	StaticIpInfo []StaticIpInfo
+	ULCL         bool
 }
 
 type StaticIpInfo struct {
 	ImsiIpInfo map[string]string
 	Dnn        string
-}
-
-type Sbi struct {
-	BindingIPv4 string
-	Port        int
 }
 
 type PFCP struct {

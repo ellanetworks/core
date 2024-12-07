@@ -10,8 +10,6 @@ import (
 
 var SMF = &service.SMF{}
 
-const SBI_PORT = 29502
-
 func Start(amfURL string, pcfURL string, udmURL string) error {
 	configuration := factory.Configuration{
 		Logger: &logger.Logger{
@@ -22,19 +20,10 @@ func Start(amfURL string, pcfURL string, udmURL string) error {
 		PFCP: &factory.PFCP{
 			Addr: "0.0.0.0",
 		},
-		Sbi: &factory.Sbi{
-			BindingIPv4: "0.0.0.0",
-			Port:        SBI_PORT,
-		},
 		AmfUri:  amfURL,
 		PcfUri:  pcfURL,
 		UdmUri:  udmURL,
 		SmfName: "SMF",
-		ServiceNameList: []string{
-			"nsmf-pdusession",
-			"nsmf-event-exposure",
-			"nsmf-oam",
-		},
 	}
 
 	err := SMF.Initialize(configuration)
