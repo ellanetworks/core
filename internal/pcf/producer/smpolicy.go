@@ -18,26 +18,23 @@ import (
 
 func HandleCreateSmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	requestDataType := request.Body.(models.SmPolicyContextData)
-	header, response, problemDetails := createSMPolicyProcedure(requestDataType)
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusCreated, header, response)
-	} else if problemDetails != nil {
+	response, err := CreateSMPolicy(requestDataType)
+	if err != nil {
+		problemDetails := util.GetProblemDetail(err.Error(), util.CONTEXT_NOT_FOUND)
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	} else {
-		return httpwrapper.NewResponse(http.StatusNotFound, nil, nil)
 	}
+	header := make(map[string][]string)
+	return httpwrapper.NewResponse(http.StatusCreated, header, response)
 }
 
-func createSMPolicyProcedure(request models.SmPolicyContextData) (
-	header http.Header, response *models.SmPolicyDecision, problemDetails *models.ProblemDetails,
+func CreateSMPolicy(request models.SmPolicyContextData) (
+	response *models.SmPolicyDecision, err1 error,
 ) {
 	var err error
 	logger.SMpolicylog.Debugf("Handle Create SM Policy Request")
 
 	if request.Supi == "" || request.SliceInfo == nil || len(request.SliceInfo.Sd) != 6 {
-		problemDetail := util.GetProblemDetail("Errorneous/Missing Mandotory IE", util.ERROR_INITIAL_PARAMETERS)
-		logger.SMpolicylog.Warnln("Errorneous/Missing Mandotory IE", util.ERROR_INITIAL_PARAMETERS)
-		return nil, nil, &problemDetail
+		return nil, fmt.Errorf("Errorneous/Missing Mandotory IE")
 	}
 
 	pcfSelf := pcf_context.PCF_Self()
@@ -47,9 +44,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	}
 
 	if ue == nil {
-		problemDetail := util.GetProblemDetail("Supi is not supported in PCF", util.USER_UNKNOWN)
-		logger.SMpolicylog.Warnf("Supi[%s] is not supported in PCF", request.Supi)
-		return nil, nil, &problemDetail
+		return nil, fmt.Errorf("Supi is not supported in PCF")
 	}
 	var smData *models.SmPolicyData
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
@@ -57,19 +52,14 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
 		smData, err = producer.GetSmPolicyData(ue.Supi)
 		if err != nil {
-			problemDetail := util.GetProblemDetail("Can't find UE SM Policy Data in UDR", util.USER_UNKNOWN)
-			logger.SMpolicylog.Warnf("Can't find UE[%s] SM Policy Data in UDR", ue.Supi)
-			return nil, nil, &problemDetail
+			return nil, fmt.Errorf("Can't find UE SM Policy Data in UDR: %s", ue.Supi)
 		}
 	} else {
 		smData = smPolicyData.SmPolicyData
 	}
 	amPolicy := ue.FindAMPolicy(request.AccessType, request.ServingNetwork)
 	if amPolicy == nil {
-		problemDetail := util.GetProblemDetail("Can't find corresponding AM Policy", util.POLICY_CONTEXT_DENIED)
-		logger.SMpolicylog.Warnf("Can't find corresponding AM Policy")
-		// message.SendHttpResponseMessage(httpChannel, nil, int(rsp.Status), rsp)
-		return nil, nil, &problemDetail
+		return nil, fmt.Errorf("Can't find corresponding AM Policy")
 	}
 	// TODO: check service restrict
 	if ue.Gpsi == "" {
@@ -102,9 +92,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 					decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
 				}
 			} else {
-				logger.SMpolicylog.Warnf("Requested Dnn [%s] does not exist in local policy", request.Dnn)
-				problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
-				return nil, nil, &problemDetail
+				return nil, fmt.Errorf("Can't find local policy")
 			}
 
 			for key, pccRule := range PccPolicy.PccRules {
@@ -118,14 +106,10 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 				decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
 			}
 		} else {
-			logger.SMpolicylog.Warnf("Slice[%v] not configured for subscriber", sliceid)
-			problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
-			return nil, nil, &problemDetail
+			return nil, fmt.Errorf("Can't find local policy")
 		}
 	} else {
-		problemDetail := util.GetProblemDetail("Can't find in local policy", util.USER_UNKNOWN)
-		logger.SMpolicylog.Warnf("Can't find UE[%s] in local policy", ue.Supi)
-		return nil, nil, &problemDetail
+		return nil, fmt.Errorf("Can't find UE in local policy: %s", ue.Supi)
 	}
 
 	dnnData := util.GetSMPolicyDnnData(*smData, request.SliceInfo, request.Dnn)
@@ -173,11 +157,8 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	smPolicyData.PolicyDecision = &decision
 	// TODO: PCC rule, PraInfo ...
 	locationHeader := util.GetResourceUri(models.ServiceName_NPCF_SMPOLICYCONTROL, smPolicyID)
-	header = http.Header{
-		"Location": {locationHeader},
-	}
-
-	return header, &decision, nil
+	logger.ProducerLog.Infof("Location Header: %s", locationHeader)
+	return &decision, nil
 }
 
 // SmPoliciessmPolicyIDDeletePost -
@@ -189,26 +170,22 @@ func HandleDeleteSmPolicyContextRequest(request *httpwrapper.Request) *httpwrapp
 	smPolicyID := request.Params["smPolicyId"]
 
 	// step 3: handle the message
-	problemDetails := deleteSmPolicyContextProcedure(smPolicyID)
+	err := DeleteSMPolicy(smPolicyID)
 
-	// step 4: process the return value from step 3
-	if problemDetails != nil {
-		// status code is based on SPEC, and option headers
+	if err != nil {
+		problemDetails := util.GetProblemDetail(err.Error(), util.CONTEXT_NOT_FOUND)
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	} else {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
 	}
+	return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
 }
 
-func deleteSmPolicyContextProcedure(smPolicyID string) *models.ProblemDetails {
+func DeleteSMPolicy(smPolicyID string) error {
 	logger.AMpolicylog.Debugln("Handle SM Policy Delete")
 
 	ue := pcf_context.PCF_Self().PCFUeFindByPolicyId(smPolicyID)
 	logger.SMpolicylog.Infof("smPolicyID: %v, ue: %v", smPolicyID, ue)
 	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
-		problemDetail := util.GetProblemDetail("smPolicyID not found in PCF", util.CONTEXT_NOT_FOUND)
-		logger.SMpolicylog.Warnf(problemDetail.Detail)
-		return &problemDetail
+		return fmt.Errorf("smPolicyID not found in PCF")
 	}
 
 	pcfSelf := pcf_context.PCF_Self()
