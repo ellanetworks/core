@@ -25,10 +25,8 @@ type PlmnSupportItem struct {
 }
 
 type PCFContext struct {
-	TimeFormat string
-	// DefaultBdtRefId        string
+	TimeFormat             string
 	PcfSuppFeats           map[models.ServiceName]openapi.SupportedFeature
-	AmfUri                 string
 	UePool                 sync.Map
 	AppSessionPool         sync.Map
 	AMFStatusSubsData      sync.Map // map[string]AMFStatusSubscriptionData; subscriptionID as key

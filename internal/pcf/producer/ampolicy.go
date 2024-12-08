@@ -2,12 +2,10 @@ package producer
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/mohae/deepcopy"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/pcf/consumer"
 	pcf_context "github.com/yeastengine/ella/internal/pcf/context"
 	"github.com/yeastengine/ella/internal/pcf/logger"
 	"github.com/yeastengine/ella/internal/pcf/util"
@@ -132,36 +130,5 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 	// Create location header for update, delete, get
 	locationHeader := util.GetResourceUri(models.ServiceName_NPCF_AM_POLICY_CONTROL, assolId)
 	logger.AMpolicylog.Debugf("AMPolicy association Id[%s] Create", assolId)
-
-	// if consumer is AMF then subscribe this AMF Status
-	if policyAssociationRequest.Guami != nil {
-		// if policyAssociationRequest.Guami has been subscribed, then no need to subscribe again
-		needSubscribe := true
-		pcfSelf.AMFStatusSubsData.Range(func(key, value interface{}) bool {
-			data := value.(pcf_context.AMFStatusSubscriptionData)
-			for _, guami := range data.GuamiList {
-				if reflect.DeepEqual(guami, *policyAssociationRequest.Guami) {
-					needSubscribe = false
-					break
-				}
-			}
-			// if no need to subscribe => stop iteration
-			return needSubscribe
-		})
-
-		if needSubscribe {
-			logger.AMpolicylog.Debugf("Subscribe AMF status change[GUAMI: %+v]", *policyAssociationRequest.Guami)
-			problemDetails, err := consumer.AmfStatusChangeSubscribe(pcfSelf.AmfUri, []models.Guami{*policyAssociationRequest.Guami})
-			if err != nil {
-				logger.AMpolicylog.Errorf("Subscribe AMF status change error[%+v]", err)
-			} else if problemDetails != nil {
-				logger.AMpolicylog.Errorf("Subscribe AMF status change failed[%+v]", problemDetails)
-			} else {
-				amPolicy.Guami = policyAssociationRequest.Guami
-			}
-		} else {
-			logger.AMpolicylog.Debugf("AMF status[GUAMI: %+v] has been subscribed", *policyAssociationRequest.Guami)
-		}
-	}
 	return &response, locationHeader, nil
 }
