@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"sync/atomic"
 
-	"github.com/omec-project/openapi/Nudm_SubscriberDataManagement"
 	"github.com/omec-project/openapi/models"
 	nmsModels "github.com/yeastengine/ella/internal/nms/models"
 	"github.com/yeastengine/ella/internal/smf/factory"
@@ -30,9 +29,6 @@ type SMFContext struct {
 	SnssaiInfos []SnssaiSmfInfo
 
 	AmfUri string
-	UdmUri string
-
-	SubscriberDataManagementClient *Nudm_SubscriberDataManagement.APIClient
 
 	UserPlaneInformation *UserPlaneInformation
 	ueIPAllocatorMapping map[string]*IPAllocator
@@ -92,7 +88,6 @@ func InitSmfContext(config *factory.Configuration) *SMFContext {
 	smfContext.StaticIpInfo = &config.StaticIpInfo
 
 	smfContext.AmfUri = config.AmfUri
-	smfContext.UdmUri = config.UdmUri
 
 	if pfcp := config.PFCP; pfcp != nil {
 		if pfcp.Port == 0 {

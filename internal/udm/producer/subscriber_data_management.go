@@ -111,36 +111,26 @@ func HandleGetSmDataRequest(request *httpwrapper.Request) *httpwrapper.Response 
 	Dnn := request.Query.Get("dnn")
 	Snssai := request.Query.Get("single-nssai")
 
-	response, problemDetails := getSmDataProcedure(supi, Dnn, Snssai)
-
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
-}
-
-func getSmDataProcedure(supi string, Dnn string, Snssai string) (
-	response interface{}, problemDetails *models.ProblemDetails,
-) {
-	sessionManagementSubscriptionDataResp, err := producer.GetSmData(supi)
+	response, err := GetSmData(supi, Dnn, Snssai)
 	if err != nil {
-		logger.SdmLog.Errorf("GetSmData error: %+v", err)
-		problemDetails = &models.ProblemDetails{
+		problemDetails := &models.ProblemDetails{
 			Status: http.StatusNotFound,
 			Cause:  "DATA_NOT_FOUND",
 			Detail: err.Error(),
 		}
-		return nil, problemDetails
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	}
+	return httpwrapper.NewResponse(http.StatusOK, nil, response)
+}
+
+func GetSmData(supi string, Dnn string, Snssai string) ([]models.SessionManagementSubscriptionData, error) {
+	sessionManagementSubscriptionDataResp, err := producer.GetSmData(supi)
+	if err != nil {
+		return nil, fmt.Errorf("GetSmData error: %+v", err)
 	}
 
 	udmUe := udm_context.UDM_Self().NewUdmUe(supi)
-	smData, snssaikey, AllDnnConfigsbyDnn, AllDnns := udm_context.UDM_Self().ManageSmData(
+	smData, _, _, _ := udm_context.UDM_Self().ManageSmData(
 		sessionManagementSubscriptionDataResp, Snssai, Dnn)
 	udmUe.SetSMSubsData(smData)
 
@@ -152,22 +142,7 @@ func getSmDataProcedure(supi string, Dnn string, Snssai string) (
 	}
 	udmUe.SmSubsDataLock.RUnlock()
 
-	switch {
-	case Snssai == "" && Dnn == "":
-		return AllDnns, nil
-	case Snssai != "" && Dnn == "":
-		udmUe.SmSubsDataLock.RLock()
-		defer udmUe.SmSubsDataLock.RUnlock()
-		return udmUe.SessionManagementSubsData[snssaikey].DnnConfigurations, nil
-	case Snssai == "" && Dnn != "":
-		return AllDnnConfigsbyDnn, nil
-	case Snssai != "" && Dnn != "":
-		return rspSMSubDataList, nil
-	default:
-		udmUe.SmSubsDataLock.RLock()
-		defer udmUe.SmSubsDataLock.RUnlock()
-		return udmUe.SessionManagementSubsData, nil
-	}
+	return rspSMSubDataList, nil
 }
 
 func HandleGetNssaiRequest(request *httpwrapper.Request) *httpwrapper.Response {

@@ -15,13 +15,12 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func Start(amfURL string, udmURL string) error {
+func Start(amfURL string) error {
 	configuration := factory.Configuration{
 		PFCP: &factory.PFCP{
 			Addr: "0.0.0.0",
 		},
 		AmfUri:  amfURL,
-		UdmUri:  udmURL,
 		SmfName: "SMF",
 	}
 
