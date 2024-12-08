@@ -21,8 +21,6 @@ func InitAmfContext(context *context.AMFContext) {
 	serviceNameList := config.ServiceNameList
 	context.InitNFService(serviceNameList)
 	context.SupportDnnLists = config.SupportDnnList
-	context.UdmsdmUri = config.UdmsdmUri
-	context.UdmUecmUri = config.UdmUecmUri
 	security := config.Security
 	context.SecurityAlgorithm.IntegrityOrder = getIntAlgOrder(security.IntegrityOrder)
 	context.SecurityAlgorithm.CipheringOrder = getEncAlgOrder(security.CipheringOrder)

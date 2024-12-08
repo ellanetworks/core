@@ -24,8 +24,6 @@ type Configuration struct {
 	ServiceNameList                 []string
 	ServedGumaiList                 []models.Guami
 	SupportDnnList                  []string
-	UdmsdmUri                       string
-	UdmUecmUri                      string
 	Security                        *Security
 	NetworkName                     NetworkName
 	T3502Value                      int

@@ -15,7 +15,6 @@ const (
 type Configuration struct {
 	PFCP         *PFCP
 	AmfUri       string
-	UdmUri       string
 	SmfName      string
 	StaticIpInfo []StaticIpInfo
 	ULCL         bool

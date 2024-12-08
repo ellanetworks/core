@@ -149,10 +149,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 }
 
 func DeleteSMPolicy(smPolicyID string) error {
-	logger.AMpolicylog.Debugln("Handle SM Policy Delete")
-
 	ue := pcf_context.PCF_Self().PCFUeFindByPolicyId(smPolicyID)
-	logger.SMpolicylog.Infof("smPolicyID: %v, ue: %v", smPolicyID, ue)
 	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
 		return fmt.Errorf("smPolicyID not found in PCF")
 	}

@@ -1,24 +1,17 @@
 package consumer
 
 import (
-	"context"
-	"time"
-
 	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/Nudm_UEContextManagement"
 	"github.com/omec-project/openapi/models"
-	amf_context "github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/amf/context"
+	"github.com/yeastengine/ella/internal/udm/producer"
 )
 
-func UeCmRegistration(ue *amf_context.AmfUe, accessType models.AccessType, initialRegistrationInd bool) (
+func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRegistrationInd bool) (
 	*models.ProblemDetails, error,
 ) {
-	configuration := Nudm_UEContextManagement.NewConfiguration()
-	configuration.SetBasePath(ue.NudmUECMUri)
-	client := Nudm_UEContextManagement.NewAPIClient(configuration)
-
-	amfSelf := amf_context.AMF_Self()
-	guamiList := amf_context.GetServedGuamiList()
+	amfSelf := context.AMF_Self()
+	guamiList := context.GetServedGuamiList()
 
 	switch accessType {
 	case models.AccessType__3_GPP_ACCESS:
@@ -27,46 +20,15 @@ func UeCmRegistration(ue *amf_context.AmfUe, accessType models.AccessType, initi
 			InitialRegistrationInd: initialRegistrationInd,
 			Guami:                  &guamiList[0],
 			RatType:                ue.RatType,
-			// TODO: not support Homogenous Support of IMS Voice over PS Sessions this stage
-			ImsVoPs: models.ImsVoPs_HOMOGENEOUS_NON_SUPPORT,
+			ImsVoPs:                models.ImsVoPs_HOMOGENEOUS_NON_SUPPORT,
 		}
-		ctx, cancel := context.WithTimeout(context.TODO(), 30*time.Second)
-		defer cancel()
-
-		_, httpResp, localErr := client.AMFRegistrationFor3GPPAccessApi.Registration(ctx,
-			ue.Supi, registrationData)
-		if localErr == nil {
-			return nil, nil
-		} else if httpResp != nil {
-			if httpResp.Status != localErr.Error() {
-				return nil, localErr
-			}
-			problem := localErr.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-			return &problem, nil
-		} else {
-			return nil, openapi.ReportError("server no response")
+		err := producer.EditRegistrationAmf3gppAccess(registrationData, ue.Supi)
+		if err != nil {
+			return nil, err
 		}
 	case models.AccessType_NON_3_GPP_ACCESS:
-		registrationData := models.AmfNon3GppAccessRegistration{
-			AmfInstanceId: amfSelf.NfId,
-			Guami:         &guamiList[0],
-			RatType:       ue.RatType,
-		}
-		ctx, cancel := context.WithTimeout(context.TODO(), 30*time.Second)
-		defer cancel()
-
-		_, httpResp, localErr := client.AMFRegistrationForNon3GPPAccessApi.Register(ctx, ue.Supi, registrationData)
-		if localErr == nil {
-			return nil, nil
-		} else if httpResp != nil {
-			if httpResp.Status != localErr.Error() {
-				return nil, localErr
-			}
-			problem := localErr.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-			return &problem, nil
-		} else {
-			return nil, openapi.ReportError("server no response")
-		}
+		// log an error
+		return nil, openapi.ReportError("Non-3GPP access is not supported")
 	}
 
 	return nil, nil

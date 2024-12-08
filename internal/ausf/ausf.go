@@ -9,9 +9,8 @@ import (
 
 const AUSF_GROUP_ID = "ausfGroup001"
 
-func Start(udmUrl string) error {
+func Start() error {
 	configuration := factory.Configuration{
-		UdmUri:  udmUrl,
 		GroupId: AUSF_GROUP_ID,
 	}
 

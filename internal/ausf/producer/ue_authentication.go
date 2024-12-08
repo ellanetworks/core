@@ -1,7 +1,6 @@
 package producer
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -17,6 +16,7 @@ import (
 	"github.com/omec-project/util/ueauth"
 	ausf_context "github.com/yeastengine/ella/internal/ausf/context"
 	"github.com/yeastengine/ella/internal/ausf/logger"
+	"github.com/yeastengine/ella/internal/udm/producer"
 )
 
 const (
@@ -37,7 +37,6 @@ func GenerateRandomNumber() (uint8, error) {
 }
 
 func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (*models.UeAuthenticationCtx, error) {
-	logger.AppLog.Warnf("HELLO - UeAuthPostRequestProcedure")
 	var responseBody models.UeAuthenticationCtx
 	var authInfoReq models.AuthenticationInfoRequest
 
@@ -66,23 +65,15 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
 	}
 
-	client := createClientToUdmUeau(self.UdmUri)
-	authInfoResult, rsp, err := client.GenerateAuthDataApi.GenerateAuthData(context.Background(), supiOrSuci, authInfoReq)
+	authInfoResult, err := producer.CreateAuthData(authInfoReq, supiOrSuci)
 	if err != nil {
-		logger.UeAuthPostLog.Infoln(err.Error())
-		return nil, fmt.Errorf("GenerateAuthDataApi failed")
+		return nil, fmt.Errorf("CreateAuthData failed: %s", err.Error())
 	}
-	defer func() {
-		if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
-			logger.UeAuthPostLog.Errorf("GenerateAuthDataApi response body cannot close: %+v", rspCloseErr)
-		}
-	}()
 
 	ueid := authInfoResult.Supi
 	ausfUeContext := ausf_context.NewAusfUeContext(ueid)
 	ausfUeContext.ServingNetworkName = snName
 	ausfUeContext.AuthStatus = models.AuthResult_ONGOING
-	ausfUeContext.UdmUeauUrl = self.UdmUri
 	ausf_context.AddAusfUeContextToPool(ausfUeContext)
 
 	logger.UeAuthPostLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)
@@ -252,11 +243,10 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		responseBody.AuthResult = models.AuthResult_FAILURE
 		logConfirmFailureAndInformUDM(ConfirmationDataResponseID, models.AuthType__5_G_AKA,
-			"5G AKA confirmation failed", ausfCurrentContext.UdmUeauUrl)
+			"5G AKA confirmation failed")
 	}
 
-	if sendErr := sendAuthResultToUDM(currentSupi, models.AuthType__5_G_AKA, success, servingNetworkName,
-		ausfCurrentContext.UdmUeauUrl); sendErr != nil {
+	if sendErr := sendAuthResultToUDM(currentSupi, models.AuthType__5_G_AKA, success, servingNetworkName); sendErr != nil {
 		logger.Auth5gAkaComfirmLog.Infoln(sendErr.Error())
 		return nil, fmt.Errorf("sendAuthResultToUDM failed")
 	}
@@ -297,7 +287,7 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 
 	if eapContent.Code != layers.EAPCodeResponse {
 		logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME,
-			"eap packet code error", ausfCurrentContext.UdmUeauUrl)
+			"eap packet code error")
 		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		responseBody.AuthResult = models.AuthResult_ONGOING
 		failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
@@ -315,7 +305,7 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 			responseBody.AuthResult = models.AuthResult_ONGOING
 			logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME,
-				"eap packet decode error", ausfCurrentContext.UdmUeauUrl)
+				"eap packet decode error")
 			failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 			responseBody.EapPayload = failEapAkaNoti
 		} else if XRES == string(RES) { // decodeOK && XRES == res, auth success
@@ -323,9 +313,7 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 			responseBody.AuthResult = models.AuthResult_SUCCESS
 			eapSuccPkt := ConstructEapNoTypePkt(radius.EapCodeSuccess, eapContent.Id)
 			responseBody.EapPayload = eapSuccPkt
-			udmUrl := ausfCurrentContext.UdmUeauUrl
-			if sendErr := sendAuthResultToUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, true, servingNetworkName,
-				udmUrl); sendErr != nil {
+			if sendErr := sendAuthResultToUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, true, servingNetworkName); sendErr != nil {
 				logger.EapAuthComfirmLog.Infoln(sendErr.Error())
 				return nil, fmt.Errorf("sendAuthResultToUDM failed")
 			}
@@ -334,7 +322,7 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 			responseBody.AuthResult = models.AuthResult_ONGOING
 			logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME,
-				"Wrong RES value, EAP-AKA' auth failed", ausfCurrentContext.UdmUeauUrl)
+				"Wrong RES value, EAP-AKA' auth failed")
 			failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 			responseBody.EapPayload = failEapAkaNoti
 		}

@@ -15,7 +15,7 @@ const (
 	NGAPP_PORT = 38412
 )
 
-func Start(udmURL string) error {
+func Start() error {
 	configuration := factory.Configuration{
 		Logger: &logger.Logger{
 			AMF: &logger.LogSetting{
@@ -48,8 +48,6 @@ func Start(udmURL string) error {
 			"namf-oam",
 		},
 		SupportDnnList: []string{"internet"},
-		UdmsdmUri:      udmURL,
-		UdmUecmUri:     udmURL,
 		Security: &factory.Security{
 			IntegrityOrder: []string{"NIA1", "NIA2"},
 			CipheringOrder: []string{"NEA0"},

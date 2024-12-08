@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/antihax/optional"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Namf_Communication"
 	"github.com/omec-project/openapi/Nsmf_PDUSession"
-	"github.com/omec-project/openapi/Nudm_SubscriberDataManagement"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/smf/consumer"
@@ -20,6 +18,7 @@ import (
 	pfcp_message "github.com/yeastengine/ella/internal/smf/pfcp/message"
 	"github.com/yeastengine/ella/internal/smf/qos"
 	"github.com/yeastengine/ella/internal/smf/transaction"
+	"github.com/yeastengine/ella/internal/udm/producer"
 )
 
 func formContextCreateErrRsp(httpStatus int, problemBody *models.ProblemDetails, n1SmMsg *models.RefToBinaryData) *httpwrapper.Response {
@@ -102,11 +101,6 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		return fmt.Errorf("SnssaiError")
 	}
 
-	// Query UDM
-	SDMConf := Nudm_SubscriberDataManagement.NewConfiguration()
-	SDMConf.SetBasePath(smf_context.SMF_Self().UdmUri)
-	smf_context.SMF_Self().SubscriberDataManagementClient = Nudm_SubscriberDataManagement.NewAPIClient(SDMConf)
-
 	// IP Allocation
 	if ip, err := smContext.DNNInfo.UeIPAllocator.Allocate(smContext.Supi); err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, failed allocate IP address: ", err)
@@ -118,42 +112,21 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 			smContext.PDUAddress.Ip.String())
 	}
 
-	// UDM-Fetch Subscription Data based on servingnetwork.plmn and dnn, snssai
-	var smPlmnID *models.PlmnId
-	if createData.ServingNetwork != nil {
-		smPlmnID = createData.ServingNetwork
-	} else {
-		smContext.SubPduSessLog.Infof("ServingNetwork not received from AMF, so taking from guami")
-		smPlmnID = createData.Guami.PlmnId
-	}
-	smDataParams := &Nudm_SubscriberDataManagement.GetSmDataParamOpts{
-		Dnn:         optional.NewString(createData.Dnn),
-		PlmnId:      optional.NewInterface(smPlmnID.Mcc + smPlmnID.Mnc),
-		SingleNssai: optional.NewInterface(openapi.MarshToJsonString(smContext.Snssai)),
-	}
+	snssai := openapi.MarshToJsonString(createData.SNssai)[0]
 
-	SubscriberDataManagementClient := smf_context.SMF_Self().SubscriberDataManagementClient
-
-	if sessSubData, rsp, err := SubscriberDataManagementClient.
-		SessionManagementSubscriptionDataRetrievalApi.
-		GetSmData(context.Background(), smContext.Supi, smDataParams); err != nil {
+	sessSubData, err := producer.GetSmData(smContext.Supi, createData.Dnn, snssai)
+	if err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, get SessionManagementSubscriptionData error: ", err)
 		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("SubscriptionDataFetchError")
 		return fmt.Errorf("SubscriptionError")
+	}
+	if len(sessSubData) > 0 {
+		smContext.DnnConfiguration = sessSubData[0].DnnConfigurations[createData.Dnn]
+		smContext.SubPduSessLog.Infof("subscription data retrieved from UDM")
 	} else {
-		defer func() {
-			if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
-				smContext.SubPduSessLog.Errorf("cannot close GetSmData response body: %+v", rspCloseErr)
-			}
-		}()
-		if len(sessSubData) > 0 {
-			smContext.DnnConfiguration = sessSubData[0].DnnConfigurations[smContext.Dnn]
-			smContext.SubPduSessLog.Infof("subscription data retrieved from UDM")
-		} else {
-			smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SessionManagementSubscriptionData from UDM is nil")
-			txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("SubscriptionDataLenError")
-			return fmt.Errorf("NoSubscriptionError")
-		}
+		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SessionManagementSubscriptionData from UDM is nil")
+		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("SubscriptionDataLenError")
+		return fmt.Errorf("NoSubscriptionError")
 	}
 
 	// Decode UE content(PCO)

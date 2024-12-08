@@ -16,7 +16,6 @@ type AUSFContext struct {
 	snRegex     *regexp.Regexp
 	NfId        string
 	GroupID     string
-	UdmUri      string
 	UdmUeauUrl  string
 	PlmnList    []models.PlmnId
 }
@@ -27,7 +26,7 @@ type AusfUeContext struct {
 	Kseaf              string
 	ServingNetworkName string
 	AuthStatus         models.AuthResult
-	UdmUeauUrl         string
+	// UdmUeauUrl         string
 
 	// for 5G AKA
 	XresStar string
@@ -131,5 +130,4 @@ func InitAusfContext(context *AUSFContext) {
 
 	context.NfId = uuid.New().String()
 	context.GroupID = config.GroupId
-	context.UdmUri = config.UdmUri
 }

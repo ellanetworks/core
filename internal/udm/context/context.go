@@ -3,7 +3,6 @@ package context
 import (
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
 	"github.com/omec-project/util/util_3gpp/suci"
-	"github.com/yeastengine/ella/internal/udm/factory"
 )
 
 var udmContext UDMContext
@@ -30,10 +28,8 @@ func init() {
 }
 
 type UDMContext struct {
-	Name                           string
 	NfId                           string
 	GroupId                        string
-	BindingIPv4                    string
 	UriScheme                      models.UriScheme
 	NfService                      map[models.ServiceName]models.NfService
 	UdmUePool                      sync.Map // map[supi]*UdmUeContext
@@ -42,8 +38,6 @@ type UDMContext struct {
 	SubscriptionOfSharedDataChange sync.Map                     // subscriptionID as key
 	SuciProfiles                   []suci.SuciProfile
 	EeSubscriptionIDGenerator      *idgenerator.IDGenerator
-	PlmnList                       []factory.PlmnSupportItem
-	SBIPort                        int
 }
 
 type UdmUeContext struct {
@@ -112,83 +106,11 @@ func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagement
 	return smDataMap, snssaikey, AllDnnConfigsbyDnn, AllDnns
 }
 
-// HandleGetSharedData related functions
-func MappingSharedData(sharedDatafromUDR []models.SharedData) (mp map[string]models.SharedData) {
-	sharedSubsDataMap := make(map[string]models.SharedData)
-	for i := 0; i < len(sharedDatafromUDR); i++ {
-		sharedSubsDataMap[sharedDatafromUDR[i].SharedDataId] = sharedDatafromUDR[i]
-	}
-	return sharedSubsDataMap
-}
-
-func ObtainRequiredSharedData(Sharedids []string, response []models.SharedData) (sharedDatas []models.SharedData) {
-	sharedSubsDataMap := MappingSharedData(response)
-	Allkeys := make([]string, len(sharedSubsDataMap))
-	MatchedKeys := make([]string, len(Sharedids))
-	counter := 0
-	for k := range sharedSubsDataMap {
-		Allkeys = append(Allkeys, k)
-	}
-
-	for j := 0; j < len(Sharedids); j++ {
-		for i := 0; i < len(Allkeys); i++ {
-			if strings.Contains(Allkeys[i], Sharedids[j]) {
-				MatchedKeys[counter] = Allkeys[i]
-			}
-		}
-		counter += 1
-	}
-
-	shared_Data := make([]models.SharedData, len(MatchedKeys))
-	if len(MatchedKeys) != 1 {
-		for i := 0; i < len(MatchedKeys); i++ {
-			shared_Data[i] = sharedSubsDataMap[MatchedKeys[i]]
-		}
-	} else {
-		shared_Data[0] = sharedSubsDataMap[MatchedKeys[0]]
-	}
-	return shared_Data
-}
-
-// Returns the  SUPI from the SUPI list (SUPI list contains either a SUPI or a NAI)
-func GetCorrespondingSupi(list models.IdentityData) (id string) {
-	var identifier string
-	for i := 0; i < len(list.SupiList); i++ {
-		if strings.Contains(list.SupiList[i], "imsi") {
-			identifier = list.SupiList[i]
-		}
-	}
-	return identifier
-}
-
-// functions related to Retrieval of multiple datasets(GetSupi)
-func (context *UDMContext) CreateSubsDataSetsForUe(supi string, body models.SubscriptionDataSets) {
-	ue, ok := context.UdmUeFindBySupi(supi)
-	if !ok {
-		ue = context.NewUdmUe(supi)
-	}
-	ue.SubsDataSets = &body
-}
-
-// Functions related to the trace data configuration
-func (context *UDMContext) CreateTraceDataforUe(supi string, body models.TraceData) {
-	ue, ok := context.UdmUeFindBySupi(supi)
-	if !ok {
-		ue = context.NewUdmUe(supi)
-	}
-	ue.TraceData = &body
-}
-
 // functions related to sdmSubscription (subscribe to notification of data change)
 func (udmUeContext *UdmUeContext) CreateSubscriptiontoNotifChange(subscriptionID string, body *models.SdmSubscription) {
 	if _, exist := udmUeContext.SubscribeToNotifChange[subscriptionID]; !exist {
 		udmUeContext.SubscribeToNotifChange[subscriptionID] = body
 	}
-}
-
-// TODO: this function has wrong UE pool key with subscriptionID
-func (context *UDMContext) CreateSubstoNotifSharedData(subscriptionID string, body *models.SdmSubscription) {
-	context.SubscriptionOfSharedDataChange.Store(subscriptionID, body)
 }
 
 // functions related UecontextInSmfData
@@ -252,17 +174,6 @@ func (context *UDMContext) UdmUeFindByGpsi(gpsi string) (*UdmUeContext, bool) {
 		return true
 	})
 	return ue, ok
-}
-
-// Function to create the AccessAndMobilitySubscriptionData for Ue
-func (context *UDMContext) CreateAccessMobilitySubsDataForUe(supi string,
-	body models.AccessAndMobilitySubscriptionData,
-) {
-	ue, ok := context.UdmUeFindBySupi(supi)
-	if !ok {
-		ue = context.NewUdmUe(supi)
-	}
-	ue.AccessAndMobilitySubscriptionData = &body
 }
 
 // Function to set the AccessAndMobilitySubscriptionData for Ue
@@ -395,32 +306,12 @@ func (ue *UdmUeContext) SameAsStoredGUAMINon3gpp(inGuami models.Guami) bool {
 }
 
 func (context *UDMContext) GetIPv4Uri() string {
-	return fmt.Sprintf("%s://%s:%d", context.UriScheme, context.BindingIPv4, context.SBIPort)
+	return fmt.Sprintf("%s://", context.UriScheme)
 }
 
 // GetSDMUri ... get subscriber data management service uri
 func (context *UDMContext) GetSDMUri() string {
 	return context.GetIPv4Uri() + "/nudm-sdm/v1"
-}
-
-func (context *UDMContext) InitNFService(serviceName []string) {
-	for index, nameString := range serviceName {
-		name := models.ServiceName(nameString)
-		context.NfService[name] = models.NfService{
-			ServiceInstanceId: strconv.Itoa(index),
-			ServiceName:       name,
-			Scheme:            context.UriScheme,
-			NfServiceStatus:   models.NfServiceStatus_REGISTERED,
-			ApiPrefix:         context.GetIPv4Uri(),
-			IpEndPoints: &[]models.IpEndPoint{
-				{
-					Ipv4Address: context.BindingIPv4,
-					Transport:   models.TransportProtocol_TCP,
-					Port:        int32(context.SBIPort),
-				},
-			},
-		}
-	}
 }
 
 func UDM_Self() *UDMContext {

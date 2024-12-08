@@ -73,7 +73,7 @@ func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.Poli
 			}
 		case models.RequestTrigger_RFSP_CH:
 			if policyAssociationUpdateRequest.Rfsp == 0 {
-				return nil, fmt.Errorf("Rfsp doesn't exist in Policy Association Requset Update while Triggers include RFSP_CH")
+				return nil, fmt.Errorf("rfsp doesn't exist in Policy Association Requset Update while Triggers include RFSP_CH")
 			} else {
 				amPolicyData.Rfsp = policyAssociationUpdateRequest.Rfsp
 				response.Rfsp = policyAssociationUpdateRequest.Rfsp

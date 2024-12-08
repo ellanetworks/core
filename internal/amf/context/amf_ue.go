@@ -93,8 +93,6 @@ type AmfUe struct {
 	TimeZone                 string              `json:"timezone,omitempty"`
 	/* context about udm */
 	// UdmId                             string                                    `json:"udmId,omitempty"`
-	NudmUECMUri                       string                                    `json:"nudmUECMUri,omitempty"`
-	NudmSDMUri                        string                                    `json:"nudmSDMUri,omitempty"`
 	SubscriptionDataValid             bool                                      `json:"subscriptionDataValid,omitempty"`
 	Reachability                      models.UeReachability                     `json:"reachability,omitempty"`
 	SubscribedData                    models.SubscribedData                     `json:"subscribedData,omitempty"`
