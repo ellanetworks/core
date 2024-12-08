@@ -23,7 +23,6 @@ func DeleteAMPolicy(polAssoId string) error {
 	_, exists := ue.AMPolicyData[polAssoId]
 	if !exists {
 		return fmt.Errorf("polAssoId[%s] not found in AMPolicyData", polAssoId)
-
 	}
 	delete(ue.AMPolicyData, polAssoId)
 	return nil

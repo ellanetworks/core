@@ -433,7 +433,7 @@ func modifyProcedure(supi string, subscriptionID string) (
 func HandleGetUeContextInSmfDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SdmLog.Infof("Handle GetUeContextInSmfData")
 	supi := request.Params["supi"]
-	_, err := getUeContextInSmfDataProcedure(supi)
+	_, err := GetUeContextInSmfData(supi)
 	if err != nil {
 		problemDetails := &models.ProblemDetails{
 			Status: http.StatusNotFound,
@@ -445,10 +445,7 @@ func HandleGetUeContextInSmfDataRequest(request *httpwrapper.Request) *httpwrapp
 	return httpwrapper.NewResponse(http.StatusOK, nil, nil)
 }
 
-
-func getUeContextInSmfDataProcedure(supi string) (
-	*models.UeContextInSmfData, error,
-) {
+func GetUeContextInSmfData(supi string) (*models.UeContextInSmfData, error) {
 	var body models.UeContextInSmfData
 	udm_context.UDM_Self().CreateUeContextInSmfDataforUe(supi, body)
 	pdusess, err := producer.GetSMFRegistrations(supi)
