@@ -1,28 +1,17 @@
 package service
 
 import (
-	"fmt"
-	_ "net/http/pprof" // Using package only for invoking initialization.
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/gin-contrib/cors"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/http2_util"
-	utilLogger "github.com/omec-project/util/logger"
-	"github.com/yeastengine/ella/internal/amf/communication"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/eventexposure"
 	"github.com/yeastengine/ella/internal/amf/factory"
-	"github.com/yeastengine/ella/internal/amf/httpcallback"
-	"github.com/yeastengine/ella/internal/amf/location"
 	"github.com/yeastengine/ella/internal/amf/logger"
-	"github.com/yeastengine/ella/internal/amf/mt"
 	"github.com/yeastengine/ella/internal/amf/ngap"
 	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
 	ngap_service "github.com/yeastengine/ella/internal/amf/ngap/service"
-	"github.com/yeastengine/ella/internal/amf/oam"
 	"github.com/yeastengine/ella/internal/amf/producer/callback"
 	"github.com/yeastengine/ella/internal/amf/util"
 	"go.uber.org/zap"
@@ -50,40 +39,8 @@ func (amf *AMF) setLogLevel() {
 }
 
 func (amf *AMF) Start() {
-	var err error
-
-	router := utilLogger.NewGinWithZap(logger.GinLog)
-	router.Use(cors.New(cors.Config{
-		AllowMethods: []string{"GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"},
-		AllowHeaders: []string{
-			"Origin", "Content-Length", "Content-Type", "User-Agent", "Referrer", "Host",
-			"Token", "X-Requested-With",
-		},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-		AllowAllOrigins:  true,
-		MaxAge:           86400,
-	}))
-
-	httpcallback.AddService(router)
-	oam.AddService(router)
-	for _, serviceName := range factory.AmfConfig.ServiceNameList {
-		switch models.ServiceName(serviceName) {
-		case models.ServiceName_NAMF_COMM:
-			communication.AddService(router)
-		case models.ServiceName_NAMF_EVTS:
-			eventexposure.AddService(router)
-		case models.ServiceName_NAMF_MT:
-			mt.AddService(router)
-		case models.ServiceName_NAMF_LOC:
-			location.AddService(router)
-		}
-	}
-
 	self := context.AMF_Self()
 	util.InitAmfContext(self)
-
-	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
 
 	ngapHandler := ngap_service.NGAPHandler{
 		HandleMessage:      ngap.Dispatch,
@@ -98,22 +55,6 @@ func (amf *AMF) Start() {
 		amf.Terminate()
 		os.Exit(0)
 	}()
-
-	server, err := http2_util.NewServer(addr, "/var/log/amf.log", router)
-
-	if server == nil {
-		logger.InitLog.Errorf("Initialize HTTP server failed: %+v", err)
-		return
-	}
-
-	if err != nil {
-		logger.InitLog.Warnf("Initialize HTTP server: %+v", err)
-	}
-
-	err = server.ListenAndServe()
-	if err != nil {
-		logger.InitLog.Fatalf("HTTP server setup failed: %+v", err)
-	}
 }
 
 // Used in AMF planned removal procedure

@@ -49,8 +49,6 @@ type AMFContext struct {
 	Name                            string
 	NfService                       map[models.ServiceName]models.NfService // nfservice that amf support
 	UriScheme                       models.UriScheme
-	BindingIPv4                     string
-	SBIPort                         int
 	NgapPort                        int
 	SctpGrpcPort                    int
 	HttpIPv6Address                 string
@@ -465,27 +463,7 @@ func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 }
 
 func (context *AMFContext) GetIPv4Uri() string {
-	return fmt.Sprintf("%s://%s:%d", context.UriScheme, context.BindingIPv4, context.SBIPort)
-}
-
-func (context *AMFContext) InitNFService(serivceName []string) {
-	for index, nameString := range serivceName {
-		name := models.ServiceName(nameString)
-		context.NfService[name] = models.NfService{
-			ServiceInstanceId: strconv.Itoa(index),
-			ServiceName:       name,
-			Scheme:            context.UriScheme,
-			NfServiceStatus:   models.NfServiceStatus_REGISTERED,
-			ApiPrefix:         context.GetIPv4Uri(),
-			IpEndPoints: &[]models.IpEndPoint{
-				{
-					Ipv4Address: context.BindingIPv4,
-					Transport:   models.TransportProtocol_TCP,
-					Port:        int32(context.SBIPort),
-				},
-			},
-		}
-	}
+	return fmt.Sprintf("%s://", context.UriScheme)
 }
 
 // Create new AMF context

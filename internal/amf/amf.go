@@ -11,7 +11,6 @@ import (
 var AMF = &service.AMF{}
 
 const (
-	SBI_PORT   = 29518
 	NGAPP_PORT = 38412
 )
 
@@ -26,10 +25,6 @@ func Start() error {
 		NgapIpList:   []string{"0.0.0.0"},
 		NgapPort:     NGAPP_PORT,
 		SctpGrpcPort: 9000,
-		Sbi: &factory.Sbi{
-			BindingIPv4: "0.0.0.0",
-			Port:        SBI_PORT,
-		},
 		NetworkFeatureSupport5GS: &factory.NetworkFeatureSupport5GS{
 			Emc:     0,
 			EmcN3:   0,

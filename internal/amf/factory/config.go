@@ -19,7 +19,6 @@ type Configuration struct {
 	NgapIpList                      []string
 	NgapPort                        int
 	SctpGrpcPort                    int
-	Sbi                             *Sbi
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
 	ServiceNameList                 []string
 	ServedGumaiList                 []models.Guami
