@@ -37,7 +37,6 @@ func GenerateRandomNumber() (uint8, error) {
 }
 
 func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (*models.UeAuthenticationCtx, error) {
-	logger.AppLog.Warnf("HELLO - UeAuthPostRequestProcedure")
 	var responseBody models.UeAuthenticationCtx
 	var authInfoReq models.AuthenticationInfoRequest
 

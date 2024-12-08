@@ -102,6 +102,7 @@ func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 		newUeContext.PolAssociationIDGenerator = 1
 		newUeContext.AppSessionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
 		newUeContext.Supi = Supi
+		logger.CtxLog.Warnf("Storing new UeContext with Supi[%s]", Supi)
 		c.UePool.Store(Supi, newUeContext)
 		return newUeContext, nil
 	} else {
@@ -113,14 +114,12 @@ func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 func (c *PCFContext) PCFUeFindByPolicyId(PolicyId string) *UeContext {
 	index := strings.LastIndex(PolicyId, "-")
 	if index == -1 {
+		logger.CtxLog.Errorf("Invalid PolicyId format: %s", PolicyId)
 		return nil
 	}
 	supi := PolicyId[:index]
-	if supi != "" {
-		if value, ok := c.UePool.Load(supi); ok {
-			ueContext := value.(*UeContext)
-			return ueContext
-		}
+	if value, ok := c.UePool.Load(supi); ok {
+		return value.(*UeContext)
 	}
 	return nil
 }

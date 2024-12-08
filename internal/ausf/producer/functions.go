@@ -14,9 +14,8 @@ import (
 
 	"github.com/bronze1man/radius"
 
-	Nudm_UEAU "github.com/omec-project/openapi/Nudm_UEAuthentication"
 	"github.com/omec-project/openapi/models"
-	ausf_context "github.com/yeastengine/ella/internal/ausf/context"
+	"github.com/yeastengine/ella/internal/ausf/context"
 	"github.com/yeastengine/ella/internal/ausf/logger"
 	"github.com/yeastengine/ella/internal/udm/producer"
 )
@@ -71,7 +70,7 @@ func EapEncodeAttribute(attributeType string, data string) (string, error) {
 		if length != 5 {
 			return "", fmt.Errorf("[eapEncodeAttribute] AT_RAND Length Error")
 		}
-		attrNum := fmt.Sprintf("%02x", ausf_context.AT_RAND_ATTRIBUTE)
+		attrNum := fmt.Sprintf("%02x", context.AT_RAND_ATTRIBUTE)
 		attribute = attrNum + "05" + "0000" + data
 
 	case "AT_AUTN":
@@ -79,7 +78,7 @@ func EapEncodeAttribute(attributeType string, data string) (string, error) {
 		if length != 5 {
 			return "", fmt.Errorf("[eapEncodeAttribute] AT_AUTN Length Error")
 		}
-		attrNum := fmt.Sprintf("%02x", ausf_context.AT_AUTN_ATTRIBUTE)
+		attrNum := fmt.Sprintf("%02x", context.AT_AUTN_ATTRIBUTE)
 		attribute = attrNum + "05" + "0000" + data
 
 	case "AT_KDF_INPUT":
@@ -98,12 +97,12 @@ func EapEncodeAttribute(attributeType string, data string) (string, error) {
 
 	case "AT_KDF":
 		// Value 1 default key derivation function for EAP-AKA'
-		attrNum := fmt.Sprintf("%02x", ausf_context.AT_KDF_ATTRIBUTE)
+		attrNum := fmt.Sprintf("%02x", context.AT_KDF_ATTRIBUTE)
 		attribute = attrNum + "01" + "0001"
 
 	case "AT_MAC":
 		// Pad MAC value with 16 bytes of 0 since this is just for the calculation of MAC
-		attrNum := fmt.Sprintf("%02x", ausf_context.AT_MAC_ATTRIBUTE)
+		attrNum := fmt.Sprintf("%02x", context.AT_MAC_ATTRIBUTE)
 		attribute = attrNum + "05" + "0000" + "00000000000000000000000000000000"
 
 	case "AT_RES":
@@ -211,14 +210,14 @@ func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) ([]byte, 
 		attributeLength = int(uint(dataArray[1+i])) * 4
 		attributeType = int(uint(dataArray[0+i]))
 
-		if attributeType == ausf_context.AT_RES_ATTRIBUTE {
+		if attributeType == context.AT_RES_ATTRIBUTE {
 			logger.EapAuthComfirmLog.Infoln("Detect AT_RES attribute")
 			detectRes = true
 			resLength := int(uint(dataArray[3+i]) | uint(dataArray[2+i])<<8)
 			RES = dataArray[4+i : 4+i+attributeLength-4]
 			byteRes := padZeros(RES, resLength)
 			RES = byteRes
-		} else if attributeType == ausf_context.AT_MAC_ATTRIBUTE {
+		} else if attributeType == context.AT_MAC_ATTRIBUTE {
 			logger.EapAuthComfirmLog.Infoln("Detect AT_MAC attribute")
 			detectMac = true
 			macStr := string(dataArray[4+i : 20+i])
@@ -242,8 +241,8 @@ func ConstructFailEapAkaNotification(oldPktId uint8) string {
 	var eapPkt radius.EapPacket
 	eapPkt.Code = radius.EapCodeRequest
 	eapPkt.Identifier = oldPktId + 1
-	eapPkt.Type = ausf_context.EAP_AKA_PRIME_TYPENUM
-	attrNum := fmt.Sprintf("%02x", ausf_context.AT_NOTIFICATION_ATTRIBUTE)
+	eapPkt.Type = context.EAP_AKA_PRIME_TYPENUM
+	attrNum := fmt.Sprintf("%02x", context.AT_NOTIFICATION_ATTRIBUTE)
 	attribute := attrNum + "01" + "4000"
 	var attrHex []byte
 	if attrHexTmp, err := hex.DecodeString(attribute); err != nil {
@@ -262,14 +261,6 @@ func ConstructEapNoTypePkt(code radius.EapCode, pktID uint8) string {
 	b[1] = pktID
 	binary.BigEndian.PutUint16(b[2:4], uint16(4))
 	return base64.StdEncoding.EncodeToString(b)
-}
-
-// This function should be deleted at the end of this task
-func createClientToUdmUeau(udmUrl string) *Nudm_UEAU.APIClient {
-	cfg := Nudm_UEAU.NewConfiguration()
-	cfg.SetBasePath(udmUrl)
-	clientAPI := Nudm_UEAU.NewAPIClient(cfg)
-	return clientAPI
 }
 
 func sendAuthResultToUDM(id string, authType models.AuthType, success bool, servingNetworkName string) error {

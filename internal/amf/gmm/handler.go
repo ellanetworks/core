@@ -64,10 +64,6 @@ func HandleULNASTransport(ue *context.AmfUe, anType models.AccessType,
 		if err != nil {
 			return err
 		}
-		err = consumer.PutUpuAck(ue, upuMac)
-		if err != nil {
-			return err
-		}
 		ue.GmmLog.Debugf("UpuMac[%s] in UPU ACK NAS Msg", upuMac)
 	case nasMessage.PayloadContainerTypeMultiplePayload:
 		return fmt.Errorf("PayloadContainerTypeMultiplePayload has not been implemented yet in UL NAS TRANSPORT")
@@ -1061,12 +1057,6 @@ func negotiateDRXParameters(ue *context.AmfUe, requestedDRXParameters *nasType.R
 }
 
 func communicateWithUDM(ue *context.AmfUe, accessType models.AccessType) error {
-	ue.GmmLog.Debugln("communicateWithUDM")
-	amfSelf := context.AMF_Self()
-
-	ue.NudmUECMUri = amfSelf.UdmUecmUri
-	ue.NudmSDMUri = amfSelf.UdmsdmUri
-
 	problemDetails, err := consumer.UeCmRegistration(ue, accessType, true)
 	if problemDetails != nil {
 		ue.GmmLog.Errorf("UECM_Registration Failed Problem[%+v]", problemDetails)
@@ -1107,8 +1097,6 @@ func communicateWithUDM(ue *context.AmfUe, accessType models.AccessType) error {
 }
 
 func getSubscribedNssai(ue *context.AmfUe) {
-	amfSelf := context.AMF_Self()
-	ue.NudmSDMUri = amfSelf.UdmsdmUri
 	problemDetails, err := consumer.SDMGetSliceSelectionSubscriptionData(ue)
 	if problemDetails != nil {
 		ue.GmmLog.Errorf("SDM_Get Slice Selection Subscription Data Failed Problem[%+v]", problemDetails)
@@ -1907,7 +1895,6 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 
 	switch ue.AuthenticationCtx.AuthType {
 	case models.AuthType__5_G_AKA:
-		ue.GmmLog.Warnf("In 5G-AKA")
 		var av5gAka models.Av5gAka
 		if err := mapstructure.Decode(ue.AuthenticationCtx.Var5gAuthData, &av5gAka); err != nil {
 			return fmt.Errorf("Var5gAuthData Convert Type Error")

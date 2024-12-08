@@ -42,7 +42,6 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) (*models
 	// re := regexp.MustCompile("/policies/.*")
 	// match := re.FindStringSubmatch(locationHeader)
 	ue.PolicyAssociationId = locationHeader
-	logger.ConsumerLog.Warnf("PolicyAssociationId: %+v", ue.PolicyAssociationId)
 	ue.AmPolicyAssociation = res
 	if res.Triggers != nil {
 		for _, trigger := range res.Triggers {

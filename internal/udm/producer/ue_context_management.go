@@ -1,6 +1,7 @@
 package producer
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/omec-project/openapi"
@@ -51,20 +52,19 @@ func GetAmf3gppAccessProcedure(ueID string, supportedFeatures string) (
 func HandleRegistrationAmf3gppAccessRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	registerRequest := request.Body.(models.Amf3GppAccessRegistration)
 	ueID := request.Params["ueId"]
-	header, response, problemDetails := RegistrationAmf3gppAccessProcedure(registerRequest, ueID)
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusCreated, header, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	} else {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
+	err := EditRegistrationAmf3gppAccess(registerRequest, ueID)
+	if err != nil {
+		problemDetails := &models.ProblemDetails{
+			Status: http.StatusNotFound,
+			Cause:  err.Error(),
+		}
+		return httpwrapper.NewResponse(http.StatusNotFound, nil, problemDetails)
 	}
+	return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
 }
 
 // TS 29.503 5.3.2.2.2
-func RegistrationAmf3gppAccessProcedure(registerRequest models.Amf3GppAccessRegistration, ueID string) (
-	header http.Header, response *models.Amf3GppAccessRegistration, problemDetails *models.ProblemDetails,
-) {
+func EditRegistrationAmf3gppAccess(registerRequest models.Amf3GppAccessRegistration, ueID string) error {
 	// TODO: EPS interworking with N26 is not supported yet in this stage
 	var oldAmf3GppAccessRegContext *models.Amf3GppAccessRegistration
 	if context.UDM_Self().UdmAmf3gppRegContextExists(ueID) {
@@ -76,12 +76,7 @@ func RegistrationAmf3gppAccessProcedure(registerRequest models.Amf3GppAccessRegi
 
 	err := producer.CreateAmfContext3gpp(ueID, registerRequest)
 	if err != nil {
-		problemDetails = &models.ProblemDetails{
-			Status: 404,
-			Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-			Detail: err.Error(),
-		}
-		return nil, nil, problemDetails
+		return fmt.Errorf("CreateAmfContext3gpp failed: %s", err)
 	}
 
 	// TS 23.502 4.2.2.2.2 14d: UDM initiate a Nudm_UECM_DeregistrationNotification to the old AMF
@@ -94,12 +89,12 @@ func RegistrationAmf3gppAccessProcedure(registerRequest models.Amf3GppAccessRegi
 		callback.SendOnDeregistrationNotification(ueID, oldAmf3GppAccessRegContext.DeregCallbackUri,
 			deregistData) // Deregistration Notify Triggered
 
-		return nil, nil, nil
+		return nil
 	} else {
-		header = make(http.Header)
+		header := make(http.Header)
 		udmUe, _ := context.UDM_Self().UdmUeFindBySupi(ueID)
 		header.Set("Location", udmUe.GetLocationURI(context.LocationUriAmf3GppAccessRegistration))
-		return header, &registerRequest, nil
+		return nil
 	}
 }
 

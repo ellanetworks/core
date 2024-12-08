@@ -43,7 +43,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = amf.Start(udmUrl)
+	err = amf.Start()
 	if err != nil {
 		return err
 	}

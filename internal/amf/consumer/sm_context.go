@@ -52,14 +52,10 @@ func SendCreateSmContextRequest(ue *amf_context.AmfUe, smContext *amf_context.Sm
 	*models.ProblemDetails, error,
 ) {
 	smContextCreateData := buildCreateSmContextRequest(ue, smContext, nil)
-
 	postSmContextsRequest := models.PostSmContextsRequest{
 		JsonData:              &smContextCreateData,
 		BinaryDataN1SmMessage: nasPdu,
 	}
-
-	logger.PduSessLog.Warnf("STARTING CREATE SM CONTEXT")
-
 	postSmContextReponse, smContextRef, postSmContextErrorReponse, err := pdusession.CreateSmContext(postSmContextsRequest)
 	if err != nil {
 		problemDetail := &models.ProblemDetails{
@@ -343,7 +339,6 @@ func SendUpdateSmContextRequest(smContext *amf_context.SmContext,
 	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse,
 	*models.ProblemDetails, error,
 ) {
-	logger.PduSessLog.Warnf("STARTING UPDATE SM CONTEXT")
 	var updateSmContextRequest models.UpdateSmContextRequest
 	updateSmContextRequest.JsonData = &updateData
 	updateSmContextRequest.BinaryDataN1SmMessage = n1Msg

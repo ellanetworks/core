@@ -2,6 +2,7 @@ package producer
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/omec-project/openapi"
@@ -16,31 +17,25 @@ import (
 func HandleGetAmDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SdmLog.Infof("Handle GetAmData")
 	supi := request.Params["supi"]
-	response, problemDetails := getAmDataProcedure(supi)
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
-}
-
-func getAmDataProcedure(supi string) (
-	response *models.AccessAndMobilitySubscriptionData, problemDetails *models.ProblemDetails,
-) {
-	amData, err := producer.GetAmData(supi)
+	response, err := GetAmData(supi)
 	if err != nil {
-		logger.SdmLog.Errorf("GetAmData error: %+v", err)
-		problemDetails = &models.ProblemDetails{
+		problemDetails := &models.ProblemDetails{
 			Status: http.StatusNotFound,
 			Cause:  "DATA_NOT_FOUND",
 			Detail: err.Error(),
 		}
-		return nil, problemDetails
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	}
+	return httpwrapper.NewResponse(http.StatusOK, nil, response)
+}
+
+func GetAmData(supi string) (
+	*models.AccessAndMobilitySubscriptionData, error,
+) {
+	amData, err := producer.GetAmData(supi)
+	if err != nil {
+		logger.SdmLog.Errorf("GetAmData error: %+v", err)
+		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
 	udmUe := udm_context.UDM_Self().NewUdmUe(supi)
 	udmUe.SetAMSubsriptionData(amData)
@@ -177,31 +172,22 @@ func getSmDataProcedure(supi string, Dnn string, Snssai string) (
 func HandleGetNssaiRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SdmLog.Infof("Handle GetNssai")
 	supi := request.Params["supi"]
-	response, problemDetails := getNssaiProcedure(supi)
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
-}
-
-func getNssaiProcedure(supi string) (
-	*models.Nssai, *models.ProblemDetails,
-) {
-	accessAndMobilitySubscriptionDataResp, err := producer.GetAmData(supi)
+	response, err := GetNssai(supi)
 	if err != nil {
-		logger.SdmLog.Errorf("GetAmData error: %+v", err)
 		problemDetails := &models.ProblemDetails{
 			Status: http.StatusNotFound,
 			Cause:  "DATA_NOT_FOUND",
 			Detail: err.Error(),
 		}
-		return nil, problemDetails
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	}
+	return httpwrapper.NewResponse(http.StatusOK, nil, response)
+}
+
+func GetNssai(supi string) (*models.Nssai, error) {
+	accessAndMobilitySubscriptionDataResp, err := producer.GetAmData(supi)
+	if err != nil {
+		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
 	nssaiResp := *accessAndMobilitySubscriptionDataResp.Nssai
 	udmUe := udm_context.UDM_Self().NewUdmUe(supi)
@@ -212,33 +198,27 @@ func getNssaiProcedure(supi string) (
 func HandleGetSmfSelectDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SdmLog.Infof("Handle GetSmfSelectData")
 	supi := request.Params["supi"]
-	response, problemDetails := getSmfSelectDataProcedure(supi)
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
+	response, err := GetSmfSelectData(supi)
+	if err != nil {
+		problemDetails := &models.ProblemDetails{
+			Status: http.StatusNotFound,
+			Cause:  "DATA_NOT_FOUND",
+			Detail: err.Error(),
+		}
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	return httpwrapper.NewResponse(http.StatusOK, nil, response)
 }
 
-func getSmfSelectDataProcedure(supi string) (
-	response *models.SmfSelectionSubscriptionData, problemDetails *models.ProblemDetails,
+func GetSmfSelectData(supi string) (
+	*models.SmfSelectionSubscriptionData, error,
 ) {
 	var body models.SmfSelectionSubscriptionData
 	udm_context.UDM_Self().CreateSmfSelectionSubsDataforUe(supi, body)
 	smfSelectionSubscriptionDataResp, err := producer.GetSmfSelectData(supi)
 	if err != nil {
 		logger.SdmLog.Errorf("GetSmfSelectData error: %+v", err)
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "DATA_NOT_FOUND",
-			Detail: err.Error(),
-		}
-		return nil, problemDetails
+		return nil, fmt.Errorf("GetSmfSelectData error: %+v", err)
 	}
 	udmUe := udm_context.UDM_Self().NewUdmUe(supi)
 	udmUe.SetSmfSelectionSubsData(smfSelectionSubscriptionDataResp)
@@ -320,26 +300,27 @@ func subscribeToSharedDataProcedure(sdmSubscription *models.SdmSubscription) (
 func HandleSubscribeRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	sdmSubscription := request.Body.(models.SdmSubscription)
 	supi := request.Params["supi"]
-	header, response := subscribeProcedure(&sdmSubscription, supi)
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusCreated, header, response)
-	} else {
-		return httpwrapper.NewResponse(http.StatusNotFound, nil, nil)
+	err := CreateSubscription(&sdmSubscription, supi)
+	if err != nil {
+		problemDetails := &models.ProblemDetails{
+			Status: http.StatusNotFound,
+			Cause:  "USER_NOT_FOUND",
+		}
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
+	return httpwrapper.NewResponse(http.StatusCreated, nil, nil)
 }
 
-func subscribeProcedure(sdmSubscription *models.SdmSubscription, supi string) (
-	header http.Header, response *models.SdmSubscription,
-) {
+func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string) error {
 	sdmSubscriptionResp := producer.CreateSdmSubscriptions(*sdmSubscription, supi)
-	header = make(http.Header)
+	header := make(http.Header)
 	udmUe, _ := udm_context.UDM_Self().UdmUeFindBySupi(supi)
 	if udmUe == nil {
 		udmUe = udm_context.UDM_Self().NewUdmUe(supi)
 	}
 	udmUe.CreateSubscriptiontoNotifChange(sdmSubscriptionResp.SubscriptionId, &sdmSubscriptionResp)
 	header.Set("Location", udmUe.GetLocationURI2(udm_context.LocationUriSdmSubscription, supi))
-	return header, &sdmSubscriptionResp
+	return nil
 }
 
 func HandleUnsubscribeForSharedDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
@@ -451,19 +432,22 @@ func modifyProcedure(supi string, subscriptionID string) (
 func HandleGetUeContextInSmfDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SdmLog.Infof("Handle GetUeContextInSmfData")
 	supi := request.Params["supi"]
-	problemDetails := getUeContextInSmfDataProcedure(supi)
-	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	_, err := GetUeContextInSmfData(supi)
+	if err != nil {
+		problemDetails := &models.ProblemDetails{
+			Status: http.StatusNotFound,
+			Cause:  "DATA_NOT_FOUND",
+			Detail: err.Error(),
+		}
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	}
+	return httpwrapper.NewResponse(http.StatusOK, nil, nil)
 }
 
-func getUeContextInSmfDataProcedure(supi string) (
-	problemDetails *models.ProblemDetails,
-) {
-	var body models.UeContextInSmfData
-	udm_context.UDM_Self().CreateUeContextInSmfDataforUe(supi, body)
-	problemDetails = &models.ProblemDetails{
-		Status: int32(http.StatusNotFound),
-		Cause:  "DATA_NOT_FOUND",
-		Detail: "Data not found",
-	}
-	return problemDetails
+// Something does not seem right here. The function signature is not matching with the one in the generated code.
+func GetUeContextInSmfData(supi string) (*models.UeContextInSmfData, error) {
+	var ueContext models.UeContextInSmfData
+	udm_context.UDM_Self().CreateUeContextInSmfDataforUe(supi, ueContext)
+	logger.ProducerLog.Errorf("UeContext: %v", ueContext)
+	return nil, nil
 }
