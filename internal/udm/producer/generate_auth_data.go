@@ -5,12 +5,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
-	"net/http"
 	"reflect"
 	"strings"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/httpwrapper"
 	"github.com/omec-project/util/milenage"
 	"github.com/omec-project/util/ueauth"
 	"github.com/omec-project/util/util_3gpp/suci"
@@ -25,10 +23,6 @@ const (
 	keyStrLen int   = 32
 	opStrLen  int   = 32
 	opcStrLen int   = 32
-)
-
-const (
-	authenticationRejected string = "AUTHENTICATION_REJECTED"
 )
 
 func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte) {
@@ -74,41 +68,6 @@ func strictHex(s string, n int) string {
 	} else {
 		return s[l-n : l]
 	}
-}
-
-func HandleGenerateAuthDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.UeauLog.Infoln("Handle GenerateAuthDataRequest")
-	authInfoRequest := request.Body.(models.AuthenticationInfoRequest)
-	supiOrSuci := request.Params["supiOrSuci"]
-
-	response, err := CreateAuthData(authInfoRequest, supiOrSuci)
-	if err != nil {
-		problemDetails := &models.ProblemDetails{
-			Status: http.StatusForbidden,
-			Cause:  "UNSPECIFIED",
-			Detail: err.Error(),
-		}
-		return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
-	}
-	return httpwrapper.NewResponse(http.StatusOK, nil, response)
-}
-
-func HandleConfirmAuthDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.UeauLog.Infoln("Handle ConfirmAuthDataRequest")
-
-	authEvent := request.Body.(models.AuthEvent)
-	supi := request.Params["supi"]
-
-	err := CreateAuthEvent(authEvent, supi)
-	if err != nil {
-		problemDetails := &models.ProblemDetails{
-			Status: http.StatusForbidden,
-			Cause:  authenticationRejected,
-			Detail: err.Error(),
-		}
-		return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
-	}
-	return httpwrapper.NewResponse(http.StatusCreated, nil, nil)
 }
 
 func CreateAuthEvent(authEvent models.AuthEvent, supi string) error {
