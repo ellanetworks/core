@@ -1,8 +1,6 @@
 package consumer
 
 import (
-	"regexp"
-
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/logger"
@@ -41,9 +39,10 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) (*models
 		return problem, err
 	}
 	ue.AmPolicyUri = locationHeader
-	re := regexp.MustCompile("/policies/.*")
-	match := re.FindStringSubmatch(locationHeader)
-	ue.PolicyAssociationId = match[0][10:]
+	// re := regexp.MustCompile("/policies/.*")
+	// match := re.FindStringSubmatch(locationHeader)
+	ue.PolicyAssociationId = locationHeader
+	logger.ConsumerLog.Warnf("PolicyAssociationId: %+v", ue.PolicyAssociationId)
 	ue.AmPolicyAssociation = res
 	if res.Triggers != nil {
 		for _, trigger := range res.Triggers {

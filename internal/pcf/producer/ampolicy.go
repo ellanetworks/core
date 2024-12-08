@@ -24,6 +24,7 @@ func DeleteAMPolicy(polAssoId string) error {
 }
 
 func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest) (*models.PolicyUpdate, error) {
+	logger.ProducerLog.Warnf("UpdateAMPolicy[%s]", polAssoId)
 	ue := pcf_context.PCF_Self().PCFUeFindByPolicyId(polAssoId)
 	if ue == nil || ue.AMPolicyData[polAssoId] == nil {
 		return nil, fmt.Errorf("polAssoId not found  in PCF")

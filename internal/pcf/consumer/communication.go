@@ -2,7 +2,6 @@ package consumer
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/omec-project/openapi"
@@ -20,7 +19,7 @@ func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (
 	client := util.GetNamfClient(amfUri)
 
 	subscriptionData := models.SubscriptionData{
-		AmfStatusUri: fmt.Sprintf("%s/npcf-callback/v1/amfstatus"),
+		AmfStatusUri: "/npcf-callback/v1/amfstatus",
 		GuamiList:    guamiList,
 	}
 

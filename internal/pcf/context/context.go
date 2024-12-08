@@ -17,15 +17,7 @@ import (
 var pcfCtx *PCFContext
 
 func init() {
-	pcfCtx = new(PCFContext)
-	pcfCtx.Name = "pcf"
-	pcfCtx.TimeFormat = "2006-01-02 15:04:05"
-	pcfCtx.DefaultBdtRefId = "BdtPolicyId-"
-	pcfCtx.PcfServiceUris = make(map[models.ServiceName]string)
-	pcfCtx.PcfSuppFeats = make(map[models.ServiceName]openapi.SupportedFeature)
-	pcfCtx.BdtPolicyIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
-	pcfCtx.SessionRuleIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
-	pcfCtx.QoSDataIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
+	pcfCtx = &PCFContext{}
 }
 
 type PlmnSupportItem struct {
@@ -33,27 +25,14 @@ type PlmnSupportItem struct {
 }
 
 type PCFContext struct {
-	NfId            string
-	Name            string
-	TimeFormat      string
-	DefaultBdtRefId string
-	PcfServiceUris  map[models.ServiceName]string
-	PcfSuppFeats    map[models.ServiceName]openapi.SupportedFeature
-	AmfUri          string
-	// UePool          map[string]*UeContext
-	UePool sync.Map
-	// Bdt Policy related
-	BdtPolicyPool        sync.Map
-	BdtPolicyIDGenerator *idgenerator.IDGenerator
-	// App Session related
-	AppSessionPool sync.Map
-	// AMF Status Change Subscription related
-	AMFStatusSubsData sync.Map // map[string]AMFStatusSubscriptionData; subscriptionID as key
-
-	DnnList []string
-	// lock
-	DefaultUdrURILock sync.RWMutex
-
+	TimeFormat string
+	// DefaultBdtRefId        string
+	PcfSuppFeats           map[models.ServiceName]openapi.SupportedFeature
+	AmfUri                 string
+	UePool                 sync.Map
+	AppSessionPool         sync.Map
+	AMFStatusSubsData      sync.Map // map[string]AMFStatusSubscriptionData; subscriptionID as key
+	DefaultUdrURILock      sync.RWMutex
 	SessionRuleIDGenerator *idgenerator.IDGenerator
 	QoSDataIDGenerator     *idgenerator.IDGenerator
 }
@@ -103,10 +82,6 @@ func GetTimeformat() string {
 	return pcfCtx.TimeFormat
 }
 
-func GetUri(name models.ServiceName) string {
-	return pcfCtx.PcfServiceUris[name]
-}
-
 var (
 	PolicyAuthorizationUri = "/npcf-policyauthorization/v1/app-sessions/"
 	SmUri                  = "/npcf-smpolicycontrol/v1"
@@ -134,18 +109,6 @@ func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 	} else {
 		return nil, fmt.Errorf(" add Ue context fail ")
 	}
-}
-
-// Return Bdt Policy Id with format "BdtPolicyId-%d" which be allocated
-func (c *PCFContext) AllocBdtPolicyID() (bdtPolicyID string, err error) {
-	var allocID int64
-	if allocID, err = c.BdtPolicyIDGenerator.Allocate(); err != nil {
-		logger.CtxLog.Warnf("Allocate pathID error: %+v", err)
-		return "", err
-	}
-
-	bdtPolicyID = fmt.Sprintf("BdtPolicyId-%d", allocID)
-	return bdtPolicyID, nil
 }
 
 // Find PcfUe which the policyId belongs to

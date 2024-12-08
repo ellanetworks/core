@@ -30,16 +30,3 @@ func DispatchSendSMPolicyUpdateNotifyEvent(uri string, request *models.SmPolicyN
 		logger.NotifyEventLog.Errorln(err)
 	}
 }
-
-func DispatchSendSMPolicyTerminationNotifyEvent(uri string, request *models.TerminationNotification) {
-	if notifyDispatcher == nil {
-		logger.NotifyEventLog.Errorf("notifyDispatcher is nil")
-	}
-	err := notifyDispatcher.Dispatch(SendSMpolicyTerminationNotifyEventName, SendSMpolicyTerminationNotifyEvent{
-		uri:     uri,
-		request: request,
-	})
-	if err != nil {
-		logger.NotifyEventLog.Errorln(err)
-	}
-}
