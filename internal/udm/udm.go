@@ -1,47 +1,30 @@
 package udm
 
 import (
-	"fmt"
-
+	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/logger"
-	"github.com/yeastengine/ella/internal/udm/factory"
-	"github.com/yeastengine/ella/internal/udm/service"
+	"github.com/omec-project/util/util_3gpp/suci"
+	"github.com/yeastengine/ella/internal/udm/context"
+	"go.uber.org/zap/zapcore"
 )
-
-var UDM = &service.UDM{}
 
 const (
 	UDM_HNP_PRIVATE_KEY = "c09c17bddf23357f614f492075b970d825767718114f59554ce2f345cf8c4b6a"
-	SBI_PORT            = 29503
 )
 
 func Start() error {
-	configuration := factory.Configuration{
-		Logger: &logger.Logger{
-			UDM: &logger.LogSetting{
-				DebugLevel: "debug",
-			},
-		},
-		UdmName: "UDM",
-		Sbi: &factory.Sbi{
-			BindingIPv4: "0.0.0.0",
-			Port:        SBI_PORT,
-		},
-		ServiceNameList: []string{
-			"nudm-sdm",
-			"nudm-uecm",
-			"nudm-ueau",
-			"nudm-ee",
-			"nudm-pp",
-		},
-		Keys: &factory.Keys{
-			UdmProfileAHNPrivateKey: UDM_HNP_PRIVATE_KEY,
-		},
-	}
-	err := UDM.Initialize(configuration)
+	level, err := zapcore.ParseLevel("debug")
 	if err != nil {
-		return fmt.Errorf("failed to initialize")
+		return err
 	}
-	go UDM.Start()
+	logger.SetLogLevel(level)
+	self := context.UDM_Self()
+	self.UriScheme = models.UriScheme_HTTP
+	self.SuciProfiles = []suci.SuciProfile{
+		{
+			ProtectionScheme: "1", // Standard defined value for Protection Scheme A (TS 33.501 Annex C)
+			PrivateKey:       UDM_HNP_PRIVATE_KEY,
+		},
+	}
 	return nil
 }

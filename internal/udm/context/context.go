@@ -3,7 +3,6 @@ package context
 import (
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
 	"github.com/omec-project/util/util_3gpp/suci"
-	"github.com/yeastengine/ella/internal/udm/factory"
 )
 
 var udmContext UDMContext
@@ -30,10 +28,8 @@ func init() {
 }
 
 type UDMContext struct {
-	Name                           string
 	NfId                           string
 	GroupId                        string
-	BindingIPv4                    string
 	UriScheme                      models.UriScheme
 	NfService                      map[models.ServiceName]models.NfService
 	UdmUePool                      sync.Map // map[supi]*UdmUeContext
@@ -42,8 +38,6 @@ type UDMContext struct {
 	SubscriptionOfSharedDataChange sync.Map                     // subscriptionID as key
 	SuciProfiles                   []suci.SuciProfile
 	EeSubscriptionIDGenerator      *idgenerator.IDGenerator
-	PlmnList                       []factory.PlmnSupportItem
-	SBIPort                        int
 }
 
 type UdmUeContext struct {
@@ -395,32 +389,12 @@ func (ue *UdmUeContext) SameAsStoredGUAMINon3gpp(inGuami models.Guami) bool {
 }
 
 func (context *UDMContext) GetIPv4Uri() string {
-	return fmt.Sprintf("%s://%s:%d", context.UriScheme, context.BindingIPv4, context.SBIPort)
+	return fmt.Sprintf("%s://", context.UriScheme)
 }
 
 // GetSDMUri ... get subscriber data management service uri
 func (context *UDMContext) GetSDMUri() string {
 	return context.GetIPv4Uri() + "/nudm-sdm/v1"
-}
-
-func (context *UDMContext) InitNFService(serviceName []string) {
-	for index, nameString := range serviceName {
-		name := models.ServiceName(nameString)
-		context.NfService[name] = models.NfService{
-			ServiceInstanceId: strconv.Itoa(index),
-			ServiceName:       name,
-			Scheme:            context.UriScheme,
-			NfServiceStatus:   models.NfServiceStatus_REGISTERED,
-			ApiPrefix:         context.GetIPv4Uri(),
-			IpEndPoints: &[]models.IpEndPoint{
-				{
-					Ipv4Address: context.BindingIPv4,
-					Transport:   models.TransportProtocol_TCP,
-					Port:        int32(context.SBIPort),
-				},
-			},
-		}
-	}
 }
 
 func UDM_Self() *UDMContext {
