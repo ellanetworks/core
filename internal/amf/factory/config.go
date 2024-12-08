@@ -24,7 +24,6 @@ type Configuration struct {
 	ServiceNameList                 []string
 	ServedGumaiList                 []models.Guami
 	SupportDnnList                  []string
-	PcfUri                          string
 	UdmsdmUri                       string
 	UdmUecmUri                      string
 	Security                        *Security

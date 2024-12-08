@@ -44,7 +44,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = amf.Start(pcfUrl, udmUrl)
+	err = amf.Start(udmUrl)
 	if err != nil {
 		return err
 	}

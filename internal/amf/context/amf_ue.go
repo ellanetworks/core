@@ -114,7 +114,6 @@ type AmfUe struct {
 	Kseaf                             string                      `json:"kseaf,omitempty"`
 	Kamf                              string                      `json:"kamf,omitempty"`
 	/* context about PCF */
-	PcfUri                       string                    `json:"pcfUri,omitempty"`
 	PolicyAssociationId          string                    `json:"policyAssociationId,omitempty"`
 	AmPolicyUri                  string                    `json:"amPolicyUri,omitempty"`
 	AmPolicyAssociation          *models.PolicyAssociation `json:"amPolicyAssociation,omitempty"`

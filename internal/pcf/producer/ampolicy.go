@@ -22,19 +22,18 @@ func HandleDeletePoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Re
 
 	polAssoId := request.Params["polAssoId"]
 
-	problemDetails := DeletePoliciesPolAssoIdProcedure(polAssoId)
-	if problemDetails == nil {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
-	} else {
+	err := DeleteAMPolicy(polAssoId)
+	if err != nil {
+		problemDetails := util.GetProblemDetail(err.Error(), util.ERROR_REQUEST_PARAMETERS)
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
+	return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
 }
 
-func DeletePoliciesPolAssoIdProcedure(polAssoId string) *models.ProblemDetails {
+func DeleteAMPolicy(polAssoId string) error {
 	ue := pcf_context.PCF_Self().PCFUeFindByPolicyId(polAssoId)
 	if ue == nil || ue.AMPolicyData[polAssoId] == nil {
-		problemDetails := util.GetProblemDetail("polAssoId not found  in PCF", util.CONTEXT_NOT_FOUND)
-		return &problemDetails
+		return fmt.Errorf("polAssoId not found  in PCF")
 	}
 	delete(ue.AMPolicyData, polAssoId)
 	return nil
@@ -93,26 +92,18 @@ func HandleUpdatePostPoliciesPolAssoId(request *httpwrapper.Request) *httpwrappe
 	polAssoId := request.Params["polAssoId"]
 	policyAssociationUpdateRequest := request.Body.(models.PolicyAssociationUpdateRequest)
 
-	response, problemDetails := UpdatePostPoliciesPolAssoIdProcedure(polAssoId, policyAssociationUpdateRequest)
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
+	response, err := UpdateAMPolicy(polAssoId, policyAssociationUpdateRequest)
+	if err != nil {
+		problemDetails := util.GetProblemDetail(err.Error(), util.ERROR_REQUEST_PARAMETERS)
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	return httpwrapper.NewResponse(http.StatusOK, nil, response)
 }
 
-func UpdatePostPoliciesPolAssoIdProcedure(polAssoId string,
-	policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest,
-) (*models.PolicyUpdate, *models.ProblemDetails) {
+func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest) (*models.PolicyUpdate, error) {
 	ue := pcf_context.PCF_Self().PCFUeFindByPolicyId(polAssoId)
 	if ue == nil || ue.AMPolicyData[polAssoId] == nil {
-		problemDetails := util.GetProblemDetail("polAssoId not found  in PCF", util.CONTEXT_NOT_FOUND)
-		return nil, &problemDetails
+		return nil, fmt.Errorf("polAssoId not found  in PCF")
 	}
 
 	amPolicyData := ue.AMPolicyData[polAssoId]
@@ -132,19 +123,13 @@ func UpdatePostPoliciesPolAssoIdProcedure(polAssoId string,
 		case models.RequestTrigger_LOC_CH:
 			// TODO: report to AF subscriber
 			if policyAssociationUpdateRequest.UserLoc == nil {
-				problemDetail := util.GetProblemDetail("UserLoc are nli", util.ERROR_REQUEST_PARAMETERS)
-				logger.AMpolicylog.Warnln(
-					"UserLoc doesn't exist in Policy Association Requset Update while Triggers include LOC_CH")
-				return nil, &problemDetail
+				return nil, fmt.Errorf("UserLoc doesn't exist in Policy Association Requset Update while Triggers include LOC_CH")
 			}
 			amPolicyData.UserLoc = policyAssociationUpdateRequest.UserLoc
 			logger.AMpolicylog.Infof("Ue[%s] UserLocation %+v", ue.Supi, amPolicyData.UserLoc)
 		case models.RequestTrigger_PRA_CH:
 			if policyAssociationUpdateRequest.PraStatuses == nil {
-				problemDetail := util.GetProblemDetail("PraStatuses are nli", util.ERROR_REQUEST_PARAMETERS)
-				logger.AMpolicylog.Warnln("PraStatuses doesn't exist in Policy Association",
-					"Requset Update while Triggers include PRA_CH")
-				return nil, &problemDetail
+				return nil, fmt.Errorf("PraStatuses doesn't exist in Policy Association")
 			}
 			for praId, praInfo := range policyAssociationUpdateRequest.PraStatuses {
 				// TODO: report to AF subscriber
@@ -152,19 +137,14 @@ func UpdatePostPoliciesPolAssoIdProcedure(polAssoId string,
 			}
 		case models.RequestTrigger_SERV_AREA_CH:
 			if policyAssociationUpdateRequest.ServAreaRes == nil {
-				problemDetail := util.GetProblemDetail("ServAreaRes are nli", util.ERROR_REQUEST_PARAMETERS)
-				logger.AMpolicylog.Warnln("ServAreaRes doesn't exist in Policy Association",
-					"Requset Update while Triggers include SERV_AREA_CH")
-				return nil, &problemDetail
+				return nil, fmt.Errorf("ServAreaRes doesn't exist in Policy Association Requset Update while Triggers include SERV_AREA_CH")
 			} else {
 				amPolicyData.ServAreaRes = policyAssociationUpdateRequest.ServAreaRes
 				response.ServAreaRes = policyAssociationUpdateRequest.ServAreaRes
 			}
 		case models.RequestTrigger_RFSP_CH:
 			if policyAssociationUpdateRequest.Rfsp == 0 {
-				problemDetail := util.GetProblemDetail("Rfsp are nli", util.ERROR_REQUEST_PARAMETERS)
-				logger.AMpolicylog.Warnln("Rfsp doesn't exist in Policy Association Requset Update while Triggers include RFSP_CH")
-				return nil, &problemDetail
+				return nil, fmt.Errorf("Rfsp doesn't exist in Policy Association Requset Update while Triggers include RFSP_CH")
 			} else {
 				amPolicyData.Rfsp = policyAssociationUpdateRequest.Rfsp
 				response.Rfsp = policyAssociationUpdateRequest.Rfsp
@@ -183,28 +163,21 @@ func UpdatePostPoliciesPolAssoIdProcedure(polAssoId string,
 func HandlePostPolicies(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.AMpolicylog.Infof("Handle AM Policy Create Request")
 
-	polAssoId := request.Params["polAssoId"]
 	policyAssociationRequest := request.Body.(models.PolicyAssociationRequest)
 
-	response, locationHeader, problemDetails := PostPoliciesProcedure(polAssoId, policyAssociationRequest)
+	response, locationHeader, err := CreateAMPolicy(policyAssociationRequest)
 	headers := http.Header{
 		"Location": {locationHeader},
 	}
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusCreated, headers, response)
-	} else if problemDetails != nil {
+	if err != nil {
+		problemDetails := util.GetProblemDetail(err.Error(), util.ERROR_REQUEST_PARAMETERS)
 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+
+	return httpwrapper.NewResponse(http.StatusCreated, headers, response)
 }
 
-func PostPoliciesProcedure(polAssoId string,
-	policyAssociationRequest models.PolicyAssociationRequest,
-) (*models.PolicyAssociation, string, *models.ProblemDetails) {
+func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*models.PolicyAssociation, string, error) {
 	var response models.PolicyAssociation
 	pcfSelf := pcf_context.PCF_Self()
 	var ue *pcf_context.UeContext
@@ -213,10 +186,7 @@ func PostPoliciesProcedure(polAssoId string,
 	}
 	if ue == nil {
 		if newUe, err := pcfSelf.NewPCFUe(policyAssociationRequest.Supi); err != nil {
-			// supi format dose not match "imsi-..."
-			problemDetail := util.GetProblemDetail("Supi Format Error", util.ERROR_REQUEST_PARAMETERS)
-			logger.AMpolicylog.Errorln(err.Error())
-			return nil, "", &problemDetail
+			return nil, "", fmt.Errorf("supi Format Error: %s", err.Error())
 		} else {
 			ue = newUe
 		}
@@ -228,9 +198,7 @@ func PostPoliciesProcedure(polAssoId string,
 	if amPolicy == nil || amPolicy.AmPolicyData == nil {
 		amData, err := producer.GetAmPolicyData(ue.Supi)
 		if err != nil {
-			problemDetail := util.GetProblemDetail("Can't find UE AM Policy Data in UDR", util.USER_UNKNOWN)
-			logger.AMpolicylog.Errorf("Can't find UE[%s] AM Policy Data in UDR", ue.Supi)
-			return nil, "", &problemDetail
+			return nil, "", fmt.Errorf("can't find UE[%s] AM Policy Data in UDR", ue.Supi)
 		}
 		if amPolicy == nil {
 			amPolicy = ue.NewUeAMPolicyData(assolId, policyAssociationRequest)
