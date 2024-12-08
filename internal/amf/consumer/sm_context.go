@@ -71,29 +71,6 @@ func SendCreateSmContextRequest(ue *amf_context.AmfUe, smContext *amf_context.Sm
 	}
 
 	return postSmContextReponse, smContextRef, nil, nil, nil
-
-	// postSmContextReponse, httpResponse, err := client.SMContextsCollectionApi.PostSmContexts(ctx, postSmContextsRequest)
-
-	// if err == nil {
-	// 	response = &postSmContextReponse
-	// 	smContextRef = httpResponse.Header.Get("Location")
-	// } else if httpResponse != nil {
-	// 	if httpResponse.Status != err.Error() {
-	// 		err1 = err
-	// 		return response, smContextRef, errorResponse, problemDetail, err1
-	// 	}
-	// 	switch httpResponse.StatusCode {
-	// 	case 400, 403, 404, 500, 503, 504:
-	// 		errResponse := err.(openapi.GenericOpenAPIError).Model().(models.PostSmContextsErrorResponse)
-	// 		errorResponse = &errResponse
-	// 	case 411, 413, 415, 429:
-	// 		problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-	// 		problemDetail = &problem
-	// 	}
-	// } else {
-	// 	err1 = openapi.ReportError("server no response")
-	// }
-	// return response, smContextRef, errorResponse, problemDetail, err1
 }
 
 func buildCreateSmContextRequest(ue *amf_context.AmfUe, smContext *amf_context.SmContext,
@@ -384,38 +361,13 @@ func SendUpdateSmContextRequest(smContext *amf_context.SmContext,
 		logger.PduSessLog.Warnf("Update SmContext Request Error[%+v]", err)
 		return updateSmContextReponse, nil, problemDetail, err
 	}
-	logger.PduSessLog.Warnf("Update SmContext Request Success")
 	return updateSmContextReponse, nil, nil, nil
-
-	// if err == nil {
-	// 	response = &updateSmContextReponse
-	// } else if httpResponse != nil {
-	// 	if httpResponse.Status != err.Error() {
-	// 		err1 = err
-	// 		return response, errorResponse, problemDetail, err1
-	// 	}
-	// 	switch httpResponse.StatusCode {
-	// 	case 400, 403, 404, 500, 503:
-	// 		errResponse := err.(openapi.GenericOpenAPIError).Model().(models.UpdateSmContextErrorResponse)
-	// 		errorResponse = &errResponse
-	// 	case 411, 413, 415, 429:
-	// 		problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-	// 		problemDetail = &problem
-	// 	}
-	// } else {
-	// 	err1 = openapi.ReportError("server no response")
-	// }
-	// return response, errorResponse, problemDetail, err1
 }
 
 func SendReleaseSmContextRequest(ue *amf_context.AmfUe, smContext *amf_context.SmContext,
 	cause *amf_context.CauseAll, n2SmInfoType models.N2SmInfoType,
 	n2Info []byte,
 ) (detail *models.ProblemDetails, err error) {
-	// configuration := Nsmf_PDUSession.NewConfiguration()
-	// configuration.SetBasePath(smContext.SmfUri())
-	// client := Nsmf_PDUSession.NewAPIClient(configuration)
-
 	releaseData := buildReleaseSmContextRequest(ue, cause, n2SmInfoType, n2Info)
 	releaseSmContextRequest := models.ReleaseSmContextRequest{
 		JsonData: &releaseData,
@@ -425,22 +377,6 @@ func SendReleaseSmContextRequest(ue *amf_context.AmfUe, smContext *amf_context.S
 		return nil, err
 	}
 	return nil, nil
-
-	// ctx, cancel := context.WithTimeout(context.TODO(), 30*time.Second)
-	// defer cancel()
-
-	// response, err1 := client.IndividualSMContextApi.ReleaseSmContext(
-	// 	ctx, smContext.SmContextRef(), releaseSmContextRequest)
-
-	// if err1 == nil {
-	// 	ue.SmContextList.Delete(smContext.PduSessionID())
-	// } else if response != nil && response.Status == err1.Error() {
-	// 	problem := err1.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-	// 	detail = &problem
-	// } else {
-	// 	err = err1
-	// }
-	// return
 }
 
 func buildReleaseSmContextRequest(

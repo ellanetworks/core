@@ -11,7 +11,6 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
 	"github.com/yeastengine/ella/internal/db/queries"
-	"github.com/yeastengine/ella/internal/pcf/factory"
 	"github.com/yeastengine/ella/internal/pcf/logger"
 )
 
@@ -20,10 +19,8 @@ var pcfCtx *PCFContext
 func init() {
 	pcfCtx = new(PCFContext)
 	pcfCtx.Name = "pcf"
-	pcfCtx.UriScheme = models.UriScheme_HTTP
 	pcfCtx.TimeFormat = "2006-01-02 15:04:05"
 	pcfCtx.DefaultBdtRefId = "BdtPolicyId-"
-	pcfCtx.NfService = make(map[models.ServiceName]models.NfService)
 	pcfCtx.PcfServiceUris = make(map[models.ServiceName]string)
 	pcfCtx.PcfSuppFeats = make(map[models.ServiceName]openapi.SupportedFeature)
 	pcfCtx.BdtPolicyIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
@@ -38,11 +35,8 @@ type PlmnSupportItem struct {
 type PCFContext struct {
 	NfId            string
 	Name            string
-	UriScheme       models.UriScheme
-	BindingIPv4     string
 	TimeFormat      string
 	DefaultBdtRefId string
-	NfService       map[models.ServiceName]models.NfService
 	PcfServiceUris  map[models.ServiceName]string
 	PcfSuppFeats    map[models.ServiceName]openapi.SupportedFeature
 	AmfUri          string
@@ -57,7 +51,6 @@ type PCFContext struct {
 	AMFStatusSubsData sync.Map // map[string]AMFStatusSubscriptionData; subscriptionID as key
 
 	DnnList []string
-	SBIPort int
 	// lock
 	DefaultUdrURILock sync.RWMutex
 
@@ -126,32 +119,6 @@ var (
 
 // BdtPolicy default value
 const DefaultBdtRefId = "BdtPolicyId-"
-
-func (c *PCFContext) GetIPv4Uri() string {
-	return fmt.Sprintf("%s://%s:%d", c.UriScheme, c.BindingIPv4, c.SBIPort)
-}
-
-// Init NfService with supported service list ,and version of services
-func (c *PCFContext) InitNFService(serviceList []factory.Service) {
-	for index, service := range serviceList {
-		name := models.ServiceName(service.ServiceName)
-		c.NfService[name] = models.NfService{
-			ServiceInstanceId: strconv.Itoa(index),
-			ServiceName:       name,
-			Scheme:            c.UriScheme,
-			NfServiceStatus:   models.NfServiceStatus_REGISTERED,
-			ApiPrefix:         c.GetIPv4Uri(),
-			IpEndPoints: &[]models.IpEndPoint{
-				{
-					Ipv4Address: c.BindingIPv4,
-					Transport:   models.TransportProtocol_TCP,
-					Port:        int32(c.SBIPort),
-				},
-			},
-			SupportedFeatures: service.SuppFeat,
-		}
-	}
-}
 
 // Allocate PCF Ue with supi and add to pcf Context and returns allocated ue
 func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {

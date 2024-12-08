@@ -20,7 +20,7 @@ func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (
 	client := util.GetNamfClient(amfUri)
 
 	subscriptionData := models.SubscriptionData{
-		AmfStatusUri: fmt.Sprintf("%s/npcf-callback/v1/amfstatus", pcfSelf.GetIPv4Uri()),
+		AmfStatusUri: fmt.Sprintf("%s/npcf-callback/v1/amfstatus"),
 		GuamiList:    guamiList,
 	}
 

@@ -51,44 +51,7 @@ func SendSMPolicyAssociationModify(smContext *smf_context.SMContext) {
 }
 
 func SendSMPolicyAssociationDelete(smContext *smf_context.SMContext, smDelReq *models.ReleaseSmContextRequest) (int, error) {
-	smPolicyDelData := models.SmPolicyDeleteData{}
-
-	// Populate Policy delete data
-	// Network Id
-	smPolicyDelData.ServingNetwork = &models.NetworkId{
-		Mcc: smContext.ServingNetwork.Mcc,
-		Mnc: smContext.ServingNetwork.Mnc,
-	}
-
-	// User location info
-	if smDelReq.JsonData.UeLocation != nil {
-		smPolicyDelData.UserLocationInfo = smDelReq.JsonData.UeLocation
-	} else if smDelReq.JsonData.AddUeLocation != nil {
-		smPolicyDelData.UserLocationInfo = smDelReq.JsonData.AddUeLocation
-	}
-
-	// UE Time Zone
-	if smDelReq.JsonData.UeTimeZone != "" {
-		smPolicyDelData.UeTimeZone = smDelReq.JsonData.UeTimeZone
-	}
-
-	// RAN/NAS Release Cause
-	ranNasRelCause := models.RanNasRelCause{}
-	if smDelReq.JsonData.NgApCause != nil {
-		ranNasRelCause.NgApCause = smDelReq.JsonData.NgApCause
-	}
-	// MM cause
-	ranNasRelCause.Var5gMmCause = smDelReq.JsonData.Var5gMmCauseValue
-
-	// SM Cause ?
-	// ranNasRelCause.Var5gSmCause =
-
-	smPolicyDelData.RanNasRelCauses = []models.RanNasRelCause{ranNasRelCause}
-
-	// Policy Id (supi-pduSessId)
 	smPolicyID := fmt.Sprintf("%s-%d", smContext.Supi, smContext.PDUSessionID)
-
-	// Send to  PCF
 	err := producer.DeleteSMPolicy(smPolicyID)
 	if err != nil {
 		logger.ConsumerLog.Warnf("smf policy delete failed, [%v] ", err.Error())

@@ -8,8 +8,6 @@ import (
 
 var PCF = &service.PCF{}
 
-const SBI_PORT = 29507
-
 func Start(amfURL string) error {
 	configuration := factory.Configuration{
 		Logger: &logger.Logger{
@@ -17,35 +15,9 @@ func Start(amfURL string) error {
 				DebugLevel: "debug",
 			},
 		},
-		PcfName: "PCF",
-		Sbi: &factory.Sbi{
-			BindingIPv4: "0.0.0.0",
-			Port:        SBI_PORT,
-		},
+		PcfName:         "PCF",
 		DefaultBdtRefId: "BdtPolicyId-",
 		AmfUri:          amfURL,
-		ServiceList: []factory.Service{
-			{
-				ServiceName: "npcf-am-policy-control",
-			},
-			{
-				ServiceName: "npcf-smpolicycontrol",
-				SuppFeat:    "3fff",
-			},
-			{
-				ServiceName: "npcf-bdtpolicycontrol",
-			},
-			{
-				ServiceName: "npcf-policyauthorization",
-				SuppFeat:    "3",
-			},
-			{
-				ServiceName: "npcf-eventexposure",
-			},
-			{
-				ServiceName: "npcf-ue-policy-control",
-			},
-		},
 	}
 	PCF.Initialize(configuration)
 	go PCF.Start()

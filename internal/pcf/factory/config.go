@@ -13,19 +13,12 @@ func InitConfigFactory(c Configuration) {
 type Configuration struct {
 	Logger          *logger.Logger
 	PcfName         string
-	Sbi             *Sbi
 	TimeFormat      string
 	DefaultBdtRefId string
 	AmfUri          string
-	ServiceList     []Service
 }
 
 type Service struct {
 	ServiceName string
 	SuppFeat    string
-}
-
-type Sbi struct {
-	BindingIPv4 string
-	Port        int
 }

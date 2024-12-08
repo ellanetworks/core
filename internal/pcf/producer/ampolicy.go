@@ -1,34 +1,18 @@
 package producer
 
 import (
-	"context"
 	"fmt"
-	"net/http"
 	"reflect"
 
 	"github.com/mohae/deepcopy"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/pcf/consumer"
 	pcf_context "github.com/yeastengine/ella/internal/pcf/context"
 	"github.com/yeastengine/ella/internal/pcf/logger"
 	"github.com/yeastengine/ella/internal/pcf/util"
 	"github.com/yeastengine/ella/internal/udr/producer"
 )
-
-func HandleDeletePoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.AMpolicylog.Infof("Handle AM Policy Association Delete")
-
-	polAssoId := request.Params["polAssoId"]
-
-	err := DeleteAMPolicy(polAssoId)
-	if err != nil {
-		problemDetails := util.GetProblemDetail(err.Error(), util.ERROR_REQUEST_PARAMETERS)
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
-}
 
 func DeleteAMPolicy(polAssoId string) error {
 	ue := pcf_context.PCF_Self().PCFUeFindByPolicyId(polAssoId)
@@ -37,67 +21,6 @@ func DeleteAMPolicy(polAssoId string) error {
 	}
 	delete(ue.AMPolicyData, polAssoId)
 	return nil
-}
-
-// PoliciesPolAssoIdGet -
-func HandleGetPoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.AMpolicylog.Infof("Handle AM Policy Association Get")
-
-	polAssoId := request.Params["polAssoId"]
-
-	response, problemDetails := GetPoliciesPolAssoIdProcedure(polAssoId)
-	if response != nil {
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-}
-
-func GetPoliciesPolAssoIdProcedure(polAssoId string) (*models.PolicyAssociation, *models.ProblemDetails) {
-	ue := pcf_context.PCF_Self().PCFUeFindByPolicyId(polAssoId)
-	if ue == nil || ue.AMPolicyData[polAssoId] == nil {
-		problemDetails := util.GetProblemDetail("polAssoId not found  in PCF", util.CONTEXT_NOT_FOUND)
-		return nil, &problemDetails
-	}
-	amPolicyData := ue.AMPolicyData[polAssoId]
-	rsp := models.PolicyAssociation{
-		SuppFeat: amPolicyData.SuppFeat,
-	}
-	if amPolicyData.Rfsp != 0 {
-		rsp.Rfsp = amPolicyData.Rfsp
-	}
-	if amPolicyData.ServAreaRes != nil {
-		rsp.ServAreaRes = amPolicyData.ServAreaRes
-	}
-	if amPolicyData.Triggers != nil {
-		rsp.Triggers = amPolicyData.Triggers
-		for _, trigger := range amPolicyData.Triggers {
-			if trigger == models.RequestTrigger_PRA_CH {
-				rsp.Pras = amPolicyData.Pras
-				break
-			}
-		}
-	}
-	return &rsp, nil
-}
-
-func HandleUpdatePostPoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.AMpolicylog.Infof("Handle AM Policy Association Update")
-
-	polAssoId := request.Params["polAssoId"]
-	policyAssociationUpdateRequest := request.Body.(models.PolicyAssociationUpdateRequest)
-
-	response, err := UpdateAMPolicy(polAssoId, policyAssociationUpdateRequest)
-	if err != nil {
-		problemDetails := util.GetProblemDetail(err.Error(), util.ERROR_REQUEST_PARAMETERS)
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	return httpwrapper.NewResponse(http.StatusOK, nil, response)
 }
 
 func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest) (*models.PolicyUpdate, error) {
@@ -157,24 +80,6 @@ func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.Poli
 	// TODO: Change Policies if needed
 	// rsp.Pras
 	return &response, nil
-}
-
-// Create AM Policy
-func HandlePostPolicies(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.AMpolicylog.Infof("Handle AM Policy Create Request")
-
-	policyAssociationRequest := request.Body.(models.PolicyAssociationRequest)
-
-	response, locationHeader, err := CreateAMPolicy(policyAssociationRequest)
-	headers := http.Header{
-		"Location": {locationHeader},
-	}
-	if err != nil {
-		problemDetails := util.GetProblemDetail(err.Error(), util.ERROR_REQUEST_PARAMETERS)
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-
-	return httpwrapper.NewResponse(http.StatusCreated, headers, response)
 }
 
 func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*models.PolicyAssociation, string, error) {
@@ -258,102 +163,4 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 		}
 	}
 	return &response, locationHeader, nil
-}
-
-// Send AM Policy Update to AMF if policy has changed
-func SendAMPolicyUpdateNotification(ue *pcf_context.UeContext, PolId string, request models.PolicyUpdate) {
-	if ue == nil {
-		logger.AMpolicylog.Warnln("Policy Update Notification Error[Ue is nil]")
-		return
-	}
-	amPolicyData := ue.AMPolicyData[PolId]
-	if amPolicyData == nil {
-		logger.AMpolicylog.Warnf("Policy Update Notification Error[Can't find polAssoId[%s] in UE(%s)]", PolId, ue.Supi)
-		return
-	}
-	client := util.GetNpcfAMPolicyCallbackClient()
-	uri := amPolicyData.NotificationUri
-	for uri != "" {
-		rsp, err := client.DefaultCallbackApi.PolicyUpdateNotification(context.Background(), uri, request)
-		if err != nil {
-			if rsp != nil && rsp.StatusCode != http.StatusNoContent {
-				logger.AMpolicylog.Warnf("Policy Update Notification Error[%s]", rsp.Status)
-			} else {
-				logger.AMpolicylog.Warnf("Policy Update Notification Failed[%s]", err.Error())
-			}
-			return
-		} else if rsp == nil {
-			logger.AMpolicylog.Warnln("Policy Update Notification Failed[HTTP Response is nil]")
-			return
-		}
-		defer func() {
-			if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
-				logger.AMpolicylog.Errorf("PolicyUpdateNotification response cannot close: %+v", rspCloseErr)
-			}
-		}()
-		if rsp.StatusCode == http.StatusTemporaryRedirect {
-			// for redirect case, resend the notification to redirect target
-			uRI, err := rsp.Location()
-			if err != nil {
-				logger.AMpolicylog.Warnln("Policy Update Notification Redirect Need Supply URI")
-				return
-			}
-			uri = uRI.String()
-			continue
-		}
-
-		logger.AMpolicylog.Infoln("Policy Update Notification Success")
-		return
-	}
-}
-
-// Send AM Policy Update to AMF if policy has been terminated
-func SendAMPolicyTerminationRequestNotification(ue *pcf_context.UeContext,
-	PolId string, request models.TerminationNotification,
-) {
-	if ue == nil {
-		logger.AMpolicylog.Warnln("Policy Assocition Termination Request Notification Error[Ue is nil]")
-		return
-	}
-	amPolicyData := ue.AMPolicyData[PolId]
-	if amPolicyData == nil {
-		logger.AMpolicylog.Warnf(
-			"Policy Assocition Termination Request Notification Error[Can't find polAssoId[%s] in UE(%s)]", PolId, ue.Supi)
-		return
-	}
-	client := util.GetNpcfAMPolicyCallbackClient()
-	uri := amPolicyData.NotificationUri
-	for uri != "" {
-		rsp, err := client.DefaultCallbackApi.PolicyAssocitionTerminationRequestNotification(
-			context.Background(), uri, request)
-		if err != nil {
-			if rsp != nil && rsp.StatusCode != http.StatusNoContent {
-				logger.AMpolicylog.Warnf("Policy Assocition Termination Request Notification Error[%s]", rsp.Status)
-			} else {
-				logger.AMpolicylog.Warnf("Policy Assocition Termination Request Notification Failed[%s]", err.Error())
-			}
-			return
-		} else if rsp == nil {
-			logger.AMpolicylog.Warnln("Policy Assocition Termination Request Notification Failed[HTTP Response is nil]")
-			return
-		}
-		defer func() {
-			if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
-				logger.AMpolicylog.Errorf(
-					"PolicyAssociationTerminationRequestNotification response body cannot close: %+v",
-					rspCloseErr)
-			}
-		}()
-		if rsp.StatusCode == http.StatusTemporaryRedirect {
-			// for redirect case, resend the notification to redirect target
-			uRI, err := rsp.Location()
-			if err != nil {
-				logger.AMpolicylog.Warnln("Policy Assocition Termination Request Notification Redirect Need Supply URI")
-				return
-			}
-			uri = uRI.String()
-			continue
-		}
-		return
-	}
 }
