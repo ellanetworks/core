@@ -77,28 +77,20 @@ func strictHex(s string, n int) string {
 }
 
 func HandleGenerateAuthDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	// step 1: log
 	logger.UeauLog.Infoln("Handle GenerateAuthDataRequest")
-
-	// step 2: retrieve request
 	authInfoRequest := request.Body.(models.AuthenticationInfoRequest)
 	supiOrSuci := request.Params["supiOrSuci"]
 
-	// step 3: handle the message
-	response, problemDetails := GenerateAuthDataProcedure(authInfoRequest, supiOrSuci)
-
-	// step 4: process the return value from step 3
-	if response != nil {
-		// status code is based on SPEC, and option headers
-		return httpwrapper.NewResponse(http.StatusOK, nil, response)
-	} else if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	response, err := CreateAuthData(authInfoRequest, supiOrSuci)
+	if err != nil {
+		problemDetails := &models.ProblemDetails{
+			Status: http.StatusForbidden,
+			Cause:  "UNSPECIFIED",
+			Detail: err.Error(),
+		}
+		return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 	}
-	problemDetails = &models.ProblemDetails{
-		Status: http.StatusForbidden,
-		Cause:  "UNSPECIFIED",
-	}
-	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	return httpwrapper.NewResponse(http.StatusOK, nil, response)
 }
 
 func HandleConfirmAuthDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
@@ -107,59 +99,41 @@ func HandleConfirmAuthDataRequest(request *httpwrapper.Request) *httpwrapper.Res
 	authEvent := request.Body.(models.AuthEvent)
 	supi := request.Params["supi"]
 
-	problemDetails := ConfirmAuthDataProcedure(authEvent, supi)
-
-	if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	} else {
-		return httpwrapper.NewResponse(http.StatusCreated, nil, nil)
-	}
-}
-
-func ConfirmAuthDataProcedure(authEvent models.AuthEvent, supi string) (problemDetails *models.ProblemDetails) {
-	err := producer.EditAuthenticationStatus(supi, authEvent)
+	err := CreateAuthEvent(authEvent, supi)
 	if err != nil {
-		problemDetails = &models.ProblemDetails{
+		problemDetails := &models.ProblemDetails{
 			Status: http.StatusForbidden,
 			Cause:  authenticationRejected,
 			Detail: err.Error(),
 		}
-		logger.UeauLog.Errorln("[ConfirmAuth] ", err.Error())
-		return problemDetails
+		return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	}
+	return httpwrapper.NewResponse(http.StatusCreated, nil, nil)
+}
+
+func CreateAuthEvent(authEvent models.AuthEvent, supi string) error {
+	err := producer.EditAuthenticationStatus(supi, authEvent)
+	if err != nil {
+		return fmt.Errorf("EditAuthenticationStatus error: %w", err)
 	}
 	return nil
 }
 
-func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (
-	response *models.AuthenticationInfoResult, problemDetails *models.ProblemDetails,
+func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (
+	*models.AuthenticationInfoResult, error,
 ) {
-	logger.UeauLog.Debugln("In GenerateAuthDataProcedure")
-
-	response = &models.AuthenticationInfoResult{}
+	logger.UeauLog.Debugln("In CreateAuthData")
+	response := &models.AuthenticationInfoResult{}
 	supi, err := suci.ToSupi(supiOrSuci, context.UDM_Self().SuciProfiles)
 	if err != nil {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusForbidden,
-			Cause:  authenticationRejected,
-			Detail: err.Error(),
-		}
-
-		logger.UeauLog.Errorln("suciToSupi error: ", err.Error())
-		return nil, problemDetails
+		return nil, fmt.Errorf("suciToSupi error: %w", err)
 	}
 
 	logger.UeauLog.Debugf("supi conversion => %s\n", supi)
 
 	authSubs, err := producer.GetAuthSubsData(supi)
 	if err != nil {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusForbidden,
-			Cause:  authenticationRejected,
-			Detail: err.Error(),
-		}
-
-		logger.UeauLog.Errorln("GetAuthSubsData error: ", err.Error())
-		return nil, problemDetails
+		return nil, fmt.Errorf("GetAuthSubsData error: %w", err)
 	}
 
 	/*
@@ -186,22 +160,10 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 				hasK = true
 			}
 		} else {
-			problemDetails = &models.ProblemDetails{
-				Status: http.StatusForbidden,
-				Cause:  authenticationRejected,
-			}
-
-			logger.UeauLog.Errorln("kStr length is ", len(kStr))
-			return nil, problemDetails
+			return nil, fmt.Errorf("kStr length is %d", len(kStr))
 		}
 	} else {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusForbidden,
-			Cause:  authenticationRejected,
-		}
-
-		logger.UeauLog.Errorln("Nil PermanentKey")
-		return nil, problemDetails
+		return nil, fmt.Errorf("Nil PermanentKey")
 	}
 
 	if authSubs.Milenage != nil {
@@ -221,13 +183,7 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 			logger.UeauLog.Infoln("milenage Op is nil")
 		}
 	} else {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusForbidden,
-			Cause:  authenticationRejected,
-		}
-
-		logger.UeauLog.Infoln("Nil Milenage")
-		return nil, problemDetails
+		return nil, fmt.Errorf("Nil Milenage")
 	}
 
 	if authSubs.Opc != nil && authSubs.Opc.OpcValue != "" {
@@ -247,12 +203,7 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 	}
 
 	if !hasOPC && !hasOP {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusForbidden,
-			Cause:  authenticationRejected,
-		}
-
-		return nil, problemDetails
+		return nil, fmt.Errorf("Unable to derive OP")
 	}
 
 	if !hasOPC {
@@ -262,13 +213,7 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 				logger.UeauLog.Errorln("milenage GenerateOPC err ", err)
 			}
 		} else {
-			problemDetails = &models.ProblemDetails{
-				Status: http.StatusForbidden,
-				Cause:  authenticationRejected,
-			}
-
-			logger.UeauLog.Errorln("Unable to derive OPC")
-			return nil, problemDetails
+			return nil, fmt.Errorf("Unable to derive OPC")
 		}
 	}
 
@@ -276,14 +221,7 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 	logger.UeauLog.Debugln("sqnStr", sqnStr)
 	sqn, err := hex.DecodeString(sqnStr)
 	if err != nil {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusForbidden,
-			Cause:  authenticationRejected,
-			Detail: err.Error(),
-		}
-
-		logger.UeauLog.Errorln("err", err)
-		return nil, problemDetails
+		return nil, fmt.Errorf("sqnStr decode error: %w", err)
 	}
 
 	logger.UeauLog.Debugln("sqn", sqn)
@@ -292,26 +230,12 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 	RAND := make([]byte, 16)
 	_, err = rand.Read(RAND)
 	if err != nil {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusForbidden,
-			Cause:  authenticationRejected,
-			Detail: err.Error(),
-		}
-
-		logger.UeauLog.Errorln("err", err)
-		return nil, problemDetails
+		return nil, fmt.Errorf("rand read error: %w", err)
 	}
 
 	AMF, err := hex.DecodeString("8000")
 	if err != nil {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusForbidden,
-			Cause:  authenticationRejected,
-			Detail: err.Error(),
-		}
-
-		logger.UeauLog.Errorln("err", err)
-		return nil, problemDetails
+		return nil, fmt.Errorf("AMF decode error: %w", err)
 	}
 
 	// fmt.Printf("RAND=%x\nAMF=%x\n", RAND, AMF)
@@ -325,40 +249,19 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 	if authInfoRequest.ResynchronizationInfo != nil {
 		Auts, deCodeErr := hex.DecodeString(authInfoRequest.ResynchronizationInfo.Auts)
 		if deCodeErr != nil {
-			problemDetails = &models.ProblemDetails{
-				Status: http.StatusForbidden,
-				Cause:  authenticationRejected,
-				Detail: deCodeErr.Error(),
-			}
-
-			logger.UeauLog.Errorln("err", deCodeErr)
-			return nil, problemDetails
+			return nil, fmt.Errorf("Auts decode error: %w", deCodeErr)
 		}
 
 		randHex, deCodeErr := hex.DecodeString(authInfoRequest.ResynchronizationInfo.Rand)
 		if deCodeErr != nil {
-			problemDetails = &models.ProblemDetails{
-				Status: http.StatusForbidden,
-				Cause:  authenticationRejected,
-				Detail: deCodeErr.Error(),
-			}
-
-			logger.UeauLog.Errorln("err", deCodeErr)
-			return nil, problemDetails
+			return nil, fmt.Errorf("randHex decode error: %w", deCodeErr)
 		}
 
 		SQNms, macS := aucSQN(opc, k, Auts, randHex)
 		if reflect.DeepEqual(macS, Auts[6:]) {
 			_, err = rand.Read(RAND)
 			if err != nil {
-				problemDetails = &models.ProblemDetails{
-					Status: http.StatusForbidden,
-					Cause:  authenticationRejected,
-					Detail: err.Error(),
-				}
-
-				logger.UeauLog.Errorln("err", err)
-				return nil, problemDetails
+				return nil, fmt.Errorf("rand read error: %w", err)
 			}
 
 			// increment sqn authSubs.SequenceNumber
@@ -379,11 +282,7 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 			logger.UeauLog.Errorln("MACS ", macS)
 			logger.UeauLog.Errorln("Auts[6:] ", Auts[6:])
 			logger.UeauLog.Errorln("Sqn ", SQNms)
-			problemDetails = &models.ProblemDetails{
-				Status: http.StatusForbidden,
-				Cause:  "modification is rejected",
-			}
-			return nil, problemDetails
+			return nil, fmt.Errorf("Re-Sync MAC failed")
 		}
 	}
 
@@ -391,14 +290,7 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 	bigSQN := big.NewInt(0)
 	sqn, err = hex.DecodeString(sqnStr)
 	if err != nil {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusForbidden,
-			Cause:  authenticationRejected,
-			Detail: err.Error(),
-		}
-
-		logger.UeauLog.Errorln("err", err)
-		return nil, problemDetails
+		return nil, fmt.Errorf("sqn decode error: %w", err)
 	}
 
 	bigSQN.SetString(sqnStr, 16)
@@ -418,14 +310,7 @@ func GenerateAuthDataProcedure(authInfoRequest models.AuthenticationInfoRequest,
 
 	err = producer.EditAuthenticationSubscription(supi, patchItemArray)
 	if err != nil {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusForbidden,
-			Cause:  "modification is rejected",
-			Detail: err.Error(),
-		}
-
-		logger.UeauLog.Errorln("update sqn error", err)
-		return nil, problemDetails
+		return nil, fmt.Errorf("update sqn error: %w", err)
 	}
 
 	// Run milenage

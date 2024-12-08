@@ -47,7 +47,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = ausf.Start(udmUrl)
+	err = ausf.Start()
 	if err != nil {
 		return err
 	}

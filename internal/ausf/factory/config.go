@@ -7,6 +7,5 @@ func InitConfigFactory(c Configuration) {
 }
 
 type Configuration struct {
-	UdmUri  string
 	GroupId string
 }

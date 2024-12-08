@@ -2,7 +2,6 @@ package producer
 
 import (
 	"bytes"
-	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -19,6 +18,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	ausf_context "github.com/yeastengine/ella/internal/ausf/context"
 	"github.com/yeastengine/ella/internal/ausf/logger"
+	"github.com/yeastengine/ella/internal/udm/producer"
 )
 
 func KDF5gAka(param ...string) hash.Hash {
@@ -264,6 +264,7 @@ func ConstructEapNoTypePkt(code radius.EapCode, pktID uint8) string {
 	return base64.StdEncoding.EncodeToString(b)
 }
 
+// This function should be deleted at the end of this task
 func createClientToUdmUeau(udmUrl string) *Nudm_UEAU.APIClient {
 	cfg := Nudm_UEAU.NewConfiguration()
 	cfg.SetBasePath(udmUrl)
@@ -271,7 +272,7 @@ func createClientToUdmUeau(udmUrl string) *Nudm_UEAU.APIClient {
 	return clientAPI
 }
 
-func sendAuthResultToUDM(id string, authType models.AuthType, success bool, servingNetworkName, udmUrl string) error {
+func sendAuthResultToUDM(id string, authType models.AuthType, success bool, servingNetworkName string) error {
 	timeNow := time.Now()
 	timePtr := &timeNow
 
@@ -281,20 +282,22 @@ func sendAuthResultToUDM(id string, authType models.AuthType, success bool, serv
 	authEvent.Success = success
 	authEvent.ServingNetworkName = servingNetworkName
 
-	client := createClientToUdmUeau(udmUrl)
-	_, _, confirmAuthErr := client.ConfirmAuthApi.ConfirmAuth(context.Background(), id, authEvent)
-	return confirmAuthErr
+	err := producer.CreateAuthEvent(authEvent, id)
+	if err != nil {
+		logger.Auth5gAkaComfirmLog.Infoln(err.Error())
+	}
+	return err
 }
 
-func logConfirmFailureAndInformUDM(id string, authType models.AuthType, errStr, udmUrl string) {
+func logConfirmFailureAndInformUDM(id string, authType models.AuthType, errStr string) {
 	if authType == models.AuthType__5_G_AKA {
 		logger.Auth5gAkaComfirmLog.Infoln(errStr)
-		if sendErr := sendAuthResultToUDM(id, authType, false, "", udmUrl); sendErr != nil {
+		if sendErr := sendAuthResultToUDM(id, authType, false, ""); sendErr != nil {
 			logger.Auth5gAkaComfirmLog.Infoln(sendErr.Error())
 		}
 	} else if authType == models.AuthType_EAP_AKA_PRIME {
 		logger.EapAuthComfirmLog.Infoln(errStr)
-		if sendErr := sendAuthResultToUDM(id, authType, false, "", udmUrl); sendErr != nil {
+		if sendErr := sendAuthResultToUDM(id, authType, false, ""); sendErr != nil {
 			logger.EapAuthComfirmLog.Infoln(sendErr.Error())
 		}
 	}
