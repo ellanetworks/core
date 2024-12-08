@@ -2,7 +2,9 @@ package producer
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nudm_SubscriberDataManagement"
@@ -451,19 +453,49 @@ func modifyProcedure(supi string, subscriptionID string) (
 func HandleGetUeContextInSmfDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SdmLog.Infof("Handle GetUeContextInSmfData")
 	supi := request.Params["supi"]
-	problemDetails := getUeContextInSmfDataProcedure(supi)
-	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	_, err := getUeContextInSmfDataProcedure(supi)
+	if err != nil {
+		problemDetails := &models.ProblemDetails{
+			Status: http.StatusNotFound,
+			Cause:  "DATA_NOT_FOUND",
+			Detail: err.Error(),
+		}
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+	}
+	return httpwrapper.NewResponse(http.StatusOK, nil, nil)
 }
 
 func getUeContextInSmfDataProcedure(supi string) (
-	problemDetails *models.ProblemDetails,
+	*models.UeContextInSmfData, error,
 ) {
 	var body models.UeContextInSmfData
 	udm_context.UDM_Self().CreateUeContextInSmfDataforUe(supi, body)
-	problemDetails = &models.ProblemDetails{
-		Status: int32(http.StatusNotFound),
-		Cause:  "DATA_NOT_FOUND",
-		Detail: "Data not found",
+	pdusess, err := producer.GetSMFRegistrations(supi)
+	if err != nil {
+		return nil, fmt.Errorf("GetSMFRegistrations error: %+v", err)
 	}
-	return problemDetails
+	pduSessionMap := make(map[string]models.PduSession)
+	for _, element := range pdusess {
+		var pduSession models.PduSession
+		pduSession.Dnn = element.Dnn
+		pduSession.SmfInstanceId = element.SmfInstanceId
+		pduSession.PlmnId = element.PlmnId
+		pduSessionMap[strconv.Itoa(int(element.PduSessionId))] = pduSession
+	}
+	var ueContextInSmfData models.UeContextInSmfData
+	ueContextInSmfData.PduSessions = pduSessionMap
+	var pgwInfoArray []models.PgwInfo
+	for _, element := range pdusess {
+		var pgwInfo models.PgwInfo
+		pgwInfo.Dnn = element.Dnn
+		pgwInfo.PgwFqdn = element.PgwFqdn
+		pgwInfo.PlmnId = element.PlmnId
+		pgwInfoArray = append(pgwInfoArray, pgwInfo)
+	}
+
+	ueContextInSmfData.PgwInfo = pgwInfoArray
+
+	udmUe := udm_context.UDM_Self().NewUdmUe(supi)
+	udmUe.UeCtxtInSmfData = &ueContextInSmfData
+	return udmUe.UeCtxtInSmfData, nil
 }

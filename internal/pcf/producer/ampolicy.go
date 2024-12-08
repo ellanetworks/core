@@ -2,20 +2,27 @@ package producer
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mohae/deepcopy"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
-	pcf_context "github.com/yeastengine/ella/internal/pcf/context"
+	"github.com/yeastengine/ella/internal/pcf/context"
 	"github.com/yeastengine/ella/internal/pcf/logger"
 	"github.com/yeastengine/ella/internal/pcf/util"
 	"github.com/yeastengine/ella/internal/udr/producer"
 )
 
 func DeleteAMPolicy(polAssoId string) error {
-	ue := pcf_context.PCF_Self().PCFUeFindByPolicyId(polAssoId)
-	if ue == nil || ue.AMPolicyData[polAssoId] == nil {
-		return fmt.Errorf("polAssoId not found  in PCF")
+	const prefix = "policies/"
+	polAssoId = strings.TrimPrefix(polAssoId, prefix)
+	ue := context.PCF_Self().PCFUeFindByPolicyId(polAssoId)
+	if ue == nil {
+		return fmt.Errorf("polAssoId[%s] not found in UePool", polAssoId)
+	}
+	_, exists := ue.AMPolicyData[polAssoId]
+	if !exists {
+		return fmt.Errorf("polAssoId[%s] not found in AMPolicyData", polAssoId)
 	}
 	delete(ue.AMPolicyData, polAssoId)
 	return nil
@@ -23,7 +30,7 @@ func DeleteAMPolicy(polAssoId string) error {
 
 func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest) (*models.PolicyUpdate, error) {
 	logger.ProducerLog.Warnf("UpdateAMPolicy[%s]", polAssoId)
-	ue := pcf_context.PCF_Self().PCFUeFindByPolicyId(polAssoId)
+	ue := context.PCF_Self().PCFUeFindByPolicyId(polAssoId)
 	if ue == nil || ue.AMPolicyData[polAssoId] == nil {
 		return nil, fmt.Errorf("polAssoId not found  in PCF")
 	}
@@ -83,10 +90,10 @@ func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.Poli
 
 func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*models.PolicyAssociation, string, error) {
 	var response models.PolicyAssociation
-	pcfSelf := pcf_context.PCF_Self()
-	var ue *pcf_context.UeContext
+	pcfSelf := context.PCF_Self()
+	var ue *context.UeContext
 	if val, ok := pcfSelf.UePool.Load(policyAssociationRequest.Supi); ok {
-		ue = val.(*pcf_context.UeContext)
+		ue = val.(*context.UeContext)
 	}
 	if ue == nil {
 		if newUe, err := pcfSelf.NewPCFUe(policyAssociationRequest.Supi); err != nil {

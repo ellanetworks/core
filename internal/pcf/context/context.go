@@ -116,11 +116,9 @@ func (c *PCFContext) PCFUeFindByPolicyId(PolicyId string) *UeContext {
 		return nil
 	}
 	supi := PolicyId[:index]
-	if supi != "" {
-		if value, ok := c.UePool.Load(supi); ok {
-			ueContext := value.(*UeContext)
-			return ueContext
-		}
+	if value, ok := c.UePool.Load(supi); ok {
+		ueContext := value.(*UeContext)
+		return ueContext
 	}
 	return nil
 }
