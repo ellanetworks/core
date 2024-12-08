@@ -75,12 +75,6 @@ var routes = Routes{
 	},
 
 	{
-		"Purge UE Context",
-		strings.ToUpper("Delete"),
-		"/purge-ue-context/:supi",
-		HTTPPurgeUEContext,
-	},
-	{
 		"Amf Instance Down Notification",
 		strings.ToUpper("post"),
 		"/amfInstanceDown/:nfid",

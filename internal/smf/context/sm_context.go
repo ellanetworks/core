@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/openapi/Namf_Communication"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/smf/logger"
@@ -94,7 +93,7 @@ type SMContext struct {
 	PDUAddress *UeIpAddr `json:"pduAddress,omitempty" yaml:"pduAddress" bson:"pduAddress,omitempty"`
 
 	// Client
-	CommunicationClient *Namf_Communication.APIClient `json:"communicationClient,omitempty" yaml:"communicationClient" bson:"communicationClient,omitempty"` // ?
+	// CommunicationClient *Namf_Communication.APIClient `json:"communicationClient,omitempty" yaml:"communicationClient" bson:"communicationClient,omitempty"` // ?
 
 	// encountered a cycle via *context.GTPTunnel
 	Tunnel *UPTunnel `json:"-" yaml:"tunnel" bson:"-"`

@@ -1,13 +1,13 @@
 package handler
 
 import (
-	"context"
 	"fmt"
 	"net"
 
 	"github.com/omec-project/openapi/models"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
+	amf_producer "github.com/yeastengine/ella/internal/amf/producer"
 	smf_context "github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/pfcp/ies"
@@ -610,10 +610,11 @@ func HandlePfcpSessionReportRequest(msg *udp.Message) {
 					},
 				},
 			}
-
-			rspData, _, err := smContext.CommunicationClient.
-				N1N2MessageCollectionDocumentApi.
-				N1N2MessageTransfer(context.Background(), smContext.Supi, n1n2Request)
+			// communicationClient := Namf_Communication.NewAPIClient(communicationConf)
+			rspData, err := amf_producer.CreateN1N2MessageTransfer(smContext.Supi, n1n2Request, "")
+			// rspData, _, err := communicationClient.
+			// 	N1N2MessageCollectionDocumentApi.
+			// 	N1N2MessageTransfer(context.Background(), smContext.Supi, n1n2Request)
 			if err != nil {
 				smContext.SubPfcpLog.Warnf("Send N1N2Transfer failed")
 			}

@@ -28,8 +28,6 @@ type SMFContext struct {
 
 	SnssaiInfos []SnssaiSmfInfo
 
-	AmfUri string
-
 	UserPlaneInformation *UserPlaneInformation
 	ueIPAllocatorMapping map[string]*IPAllocator
 
@@ -86,8 +84,6 @@ func InitSmfContext(config *factory.Configuration) *SMFContext {
 
 	// copy static UE IP Addr config
 	smfContext.StaticIpInfo = &config.StaticIpInfo
-
-	smfContext.AmfUri = config.AmfUri
 
 	if pfcp := config.PFCP; pfcp != nil {
 		if pfcp.Port == 0 {

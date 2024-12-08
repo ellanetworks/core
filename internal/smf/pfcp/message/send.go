@@ -14,6 +14,7 @@ import (
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
 	"github.com/wmnsk/go-pfcp/message"
+	"github.com/yeastengine/ella/internal/amf/producer"
 	smf_context "github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/pfcp/udp"
@@ -290,10 +291,11 @@ func handleSendPfcpSessEstReqError(msg message.Message, pfcpErr error) {
 	}
 
 	// Send N1N2 Reject request
-	rspData, _, err := smContext.
-		CommunicationClient.
-		N1N2MessageCollectionDocumentApi.
-		N1N2MessageTransfer(context.Background(), smContext.Supi, n1n2Request)
+	// communicationClient := Namf_Communication.NewAPIClient(communicationConf)
+	rspData, err := producer.CreateN1N2MessageTransfer(smContext.Supi, n1n2Request, "")
+	// rspData, _, err := communicationClient.
+	// 	N1N2MessageCollectionDocumentApi.
+	// 	N1N2MessageTransfer(context.Background(), smContext.Supi, n1n2Request)
 	smContext.ChangeState(smf_context.SmStateInit)
 	smContext.SubCtxLog.Debugln("SMContextState Change State: ", smContext.SMContextState.String())
 	if err != nil {

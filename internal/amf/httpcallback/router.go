@@ -1,8 +1,6 @@
 package httpcallback
 
 import (
-	"strings"
-
 	"github.com/gin-gonic/gin"
 	utilLogger "github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/amf/logger"
@@ -51,33 +49,13 @@ func AddService(engine *gin.Engine) *gin.RouterGroup {
 }
 
 var routes = Routes{
-	{
-		"SmContextStatusNotify",
-		strings.ToUpper("Post"),
-		"/smContextStatus/:guti/:pduSessionId",
-		HTTPSmContextStatusNotify,
-	},
 
-	{
-		"AmPolicyControlUpdateNotifyUpdate",
-		strings.ToUpper("Post"),
-		"/am-policy/:polAssoId/update",
-		HTTPAmPolicyControlUpdateNotifyUpdate,
-	},
-
-	{
-		"AmPolicyControlUpdateNotifyTerminate",
-		strings.ToUpper("Post"),
-		"/am-policy/:polAssoId/terminate",
-		HTTPAmPolicyControlUpdateNotifyTerminate,
-	},
-
-	{
-		"N1MessageNotify",
-		strings.ToUpper("Post"),
-		"/n1-message-notify",
-		HTTPN1MessageNotify,
-	},
+	// {
+	// 	"N1MessageNotify",
+	// 	strings.ToUpper("Post"),
+	// 	"/n1-message-notify",
+	// 	HTTPN1MessageNotify,
+	// },
 	// {
 	// 	"DeregistrationNotify",
 	// 	strings.ToUpper("Post"),

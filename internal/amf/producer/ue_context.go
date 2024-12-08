@@ -2,11 +2,9 @@ package producer
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/ella/internal/amf/consumer"
 	"github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/logger"
 )
@@ -26,8 +24,8 @@ func UeContextHandler(s1, s2 string, msg interface{}) (interface{}, string, inte
 		r1, r2, r3 := AssignEbiDataProcedure(s1, msg)
 		return r1, "", r3, r2
 	case models.UeRegStatusUpdateReqData:
-		r1, r2 := RegistrationStatusUpdateProcedure(s1, msg)
-		return r1, "", r2, nil
+		// r1, r2 := RegistrationStatusUpdateProcedure(s1, msg)
+		// return r1, "", r2, nil
 	}
 
 	return nil, "", nil, nil
@@ -589,67 +587,4 @@ func HandleRegistrationStatusUpdateRequest(request *httpwrapper.Request) *httpwr
 	} else {
 		return httpwrapper.NewResponse(http.StatusOK, nil, ueRegStatusUpdateRspData)
 	}
-}
-
-func RegistrationStatusUpdateProcedure(ueContextID string, ueRegStatusUpdateReqData models.UeRegStatusUpdateReqData) (
-	*models.UeRegStatusUpdateRspData, *models.ProblemDetails,
-) {
-	amfSelf := context.AMF_Self()
-
-	// ueContextID must be a 5g GUTI (TS 29.518 6.1.3.2.4.5.1)
-	if !strings.HasPrefix(ueContextID, "5g-guti") {
-		problemDetails := &models.ProblemDetails{
-			Status: http.StatusForbidden,
-			Cause:  "UNSPECIFIED",
-		}
-		return nil, problemDetails
-	}
-
-	ue, ok := amfSelf.AmfUeFindByUeContextID(ueContextID)
-	if !ok {
-		problemDetails := &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "CONTEXT_NOT_FOUND",
-		}
-		return nil, problemDetails
-	}
-
-	ueRegStatusUpdateRspData := new(models.UeRegStatusUpdateRspData)
-
-	if ueRegStatusUpdateReqData.TransferStatus == models.UeContextTransferStatus_TRANSFERRED {
-		// remove the individual ueContext resource and release any PDU session(s)
-		for _, pduSessionId := range ueRegStatusUpdateReqData.ToReleaseSessionList {
-			cause := models.Cause_REL_DUE_TO_SLICE_NOT_AVAILABLE
-			causeAll := &context.CauseAll{
-				Cause: &cause,
-			}
-			smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionId)
-			if !ok {
-				ue.ProducerLog.Errorf("SmContext[PDU Session ID:%d] not found", pduSessionId)
-			}
-			problem, err := consumer.SendReleaseSmContextRequest(ue, smContext, causeAll, "", nil)
-			if problem != nil {
-				logger.GmmLog.Errorf("Release SmContext[pduSessionId: %d] Failed Problem[%+v]", pduSessionId, problem)
-			} else if err != nil {
-				logger.GmmLog.Errorf("Release SmContext[pduSessionId: %d] Error[%v]", pduSessionId, err.Error())
-			}
-		}
-
-		if ueRegStatusUpdateReqData.PcfReselectedInd {
-			problem, err := consumer.AMPolicyControlDelete(ue)
-			if problem != nil {
-				logger.GmmLog.Errorf("AM Policy Control Delete Failed Problem[%+v]", problem)
-			} else if err != nil {
-				logger.GmmLog.Errorf("AM Policy Control Delete Error[%v]", err.Error())
-			}
-		}
-
-		ue.Remove()
-	} else {
-		// NOT_TRANSFERRED
-		logger.CommLog.Debug("[AMF] RegistrationStatusUpdate: NOT_TRANSFERRED")
-	}
-
-	ueRegStatusUpdateRspData.RegStatusTransferComplete = true
-	return ueRegStatusUpdateRspData, nil
 }

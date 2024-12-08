@@ -1,6 +1,7 @@
 package producer
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -32,28 +33,19 @@ func ProducerHandler(s1, s2 string, msg interface{}) (interface{}, string, inter
 	return nil, "", nil, nil
 }
 
-// TS23502 4.2.3.3, 4.2.4.3, 4.3.2.2, 4.3.2.3, 4.3.3.2, 4.3.7
-func HandleN1N2MessageTransferRequest(request *httpwrapper.Request) *httpwrapper.Response {
+func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, reqUri string) (*models.N1N2MessageTransferRspData, error) {
 	var ue *context.AmfUe
 	var ok bool
 	var problemDetails *models.ProblemDetails
 	logger.ProducerLog.Infof("Handle N1N2 Message Transfer Request")
 
-	n1n2MessageTransferRequest := request.Body.(models.N1N2MessageTransferRequest)
-	ueContextID := request.Params["ueContextId"]
-	reqUri := request.Params["reqUri"]
-
 	amfSelf := context.AMF_Self()
 
-	if ue, ok = amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
-		problemDetails = &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "CONTEXT_NOT_FOUND",
-		}
-		return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	if ue, ok = amfSelf.AmfUeFindByUeContextID(ueContextId); !ok {
+		return nil, fmt.Errorf("UE context not found")
 	}
 	sbiMsg := context.SbiMsg{
-		UeContextId: ueContextID,
+		UeContextId: ueContextId,
 		ReqUri:      reqUri,
 		Msg:         n1n2MessageTransferRequest,
 		Result:      make(chan context.SbiResponseMsg, 10),
@@ -66,7 +58,6 @@ func HandleN1N2MessageTransferRequest(request *httpwrapper.Request) *httpwrapper
 	if msg.RespData != nil {
 		n1n2MessageTransferRspData = msg.RespData.(*models.N1N2MessageTransferRspData)
 	}
-	locationHeader := msg.LocationHeader
 	if msg.ProblemDetails != nil {
 		problemDetails = msg.ProblemDetails.(*models.ProblemDetails)
 	}
@@ -77,20 +68,20 @@ func HandleN1N2MessageTransferRequest(request *httpwrapper.Request) *httpwrapper
 	//			ueContextID, reqUri, n1n2MessageTransferRequest)
 
 	if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return nil, fmt.Errorf("Problem Details: %v", problemDetails)
 	} else if transferErr != nil {
-		return httpwrapper.NewResponse(int(transferErr.Error.Status), nil, transferErr)
+		return nil, fmt.Errorf("Transfer Error: %v", transferErr)
 	} else if n1n2MessageTransferRspData != nil {
 		switch n1n2MessageTransferRspData.Cause {
 		case models.N1N2MessageTransferCause_N1_MSG_NOT_TRANSFERRED:
 			fallthrough
 		case models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED:
-			return httpwrapper.NewResponse(http.StatusOK, nil, n1n2MessageTransferRspData)
+			return n1n2MessageTransferRspData, nil
 		case models.N1N2MessageTransferCause_ATTEMPTING_TO_REACH_UE:
-			headers := http.Header{
-				"Location": {locationHeader},
-			}
-			return httpwrapper.NewResponse(http.StatusAccepted, headers, n1n2MessageTransferRspData)
+			// headers := http.Header{
+			// 	"Location": {locationHeader},
+			// }
+			return n1n2MessageTransferRspData, nil
 		}
 	}
 
@@ -98,7 +89,7 @@ func HandleN1N2MessageTransferRequest(request *httpwrapper.Request) *httpwrapper
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	return nil, fmt.Errorf("Problem Details: %v", problemDetails)
 }
 
 // There are 4 possible return value for this function:
