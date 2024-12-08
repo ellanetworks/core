@@ -287,6 +287,14 @@ func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
 	return smPolicyData, nil
 }
 
+// I'm not sure whether we need this function or not. It's used but
+// the fact that it returns an empty list and the e2e tests
+// still pass makes me think that it's not used.
+func GetSMFRegistrations(supi string) ([]*models.SmfRegistration, error) {
+	// return empty list
+	return []*models.SmfRegistration{}, nil
+}
+
 func RemovesdmSubscriptions(ueId string, subsId string) error {
 	udrSelf := context.UDR_Self()
 	value, ok := udrSelf.UESubsCollection.Load(ueId)

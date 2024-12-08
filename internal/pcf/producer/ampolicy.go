@@ -14,14 +14,16 @@ import (
 )
 
 func DeleteAMPolicy(polAssoId string) error {
-	// Normalize the PolicyId by removing the "policies/" prefix
 	const prefix = "policies/"
-	if strings.HasPrefix(polAssoId, prefix) {
-		polAssoId = strings.TrimPrefix(polAssoId, prefix)
-	}
+	polAssoId = strings.TrimPrefix(polAssoId, prefix)
 	ue := context.PCF_Self().PCFUeFindByPolicyId(polAssoId)
 	if ue == nil {
 		return fmt.Errorf("polAssoId[%s] not found in UePool", polAssoId)
+	}
+	_, exists := ue.AMPolicyData[polAssoId]
+	if !exists {
+		return fmt.Errorf("polAssoId[%s] not found in AMPolicyData", polAssoId)
+
 	}
 	delete(ue.AMPolicyData, polAssoId)
 	return nil
