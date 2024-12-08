@@ -1,13 +1,13 @@
 package consumer
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/openapi/models"
 	"github.com/pkg/errors"
+	"github.com/yeastengine/ella/internal/pcf/producer"
 	smf_context "github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/logger"
 )
@@ -15,12 +15,7 @@ import (
 // SendSMPolicyAssociationCreate creates the SM Policy Decision
 func SendSMPolicyAssociationCreate(smContext *smf_context.SMContext) (*models.SmPolicyDecision, int, error) {
 	httpRspStatusCode := http.StatusInternalServerError
-	if smContext.SMPolicyClient == nil {
-		return nil, httpRspStatusCode, errors.Errorf("smContext not selected PCF")
-	}
-
 	smPolicyData := models.SmPolicyContextData{}
-
 	smPolicyData.Supi = smContext.Supi
 	smPolicyData.PduSessionId = smContext.PDUSessionID
 	smPolicyData.NotificationUri = fmt.Sprintf("nsmf-callback/sm-policies/%s",
@@ -40,23 +35,15 @@ func SendSMPolicyAssociationCreate(smContext *smf_context.SMContext) (*models.Sm
 	}
 	smPolicyData.SuppFeat = "F"
 
-	var smPolicyDecision *models.SmPolicyDecision
-	if smPolicyDecisionFromPCF, httpRsp, err := smContext.SMPolicyClient.
-		DefaultApi.SmPoliciesPost(context.Background(), smPolicyData); err != nil {
-		if httpRsp != nil {
-			httpRspStatusCode = httpRsp.StatusCode
-		}
-		return nil, httpRspStatusCode, fmt.Errorf("setup sm policy association failed: %s", err.Error())
-	} else {
-		httpRspStatusCode = http.StatusCreated
-		smPolicyDecision = &smPolicyDecisionFromPCF
+	smPolicyDecision, err := producer.CreateSMPolicy(smPolicyData)
+	if err != nil {
+		return nil, httpRspStatusCode, errors.Wrap(err, "setup sm policy association failed")
 	}
-
-	if err := validateSmPolicyDecision(smPolicyDecision); err != nil {
-		return nil, httpRspStatusCode, fmt.Errorf("setup sm policy association failed: %s", err.Error())
+	err = validateSmPolicyDecision(smPolicyDecision)
+	if err != nil {
+		return nil, httpRspStatusCode, errors.Wrap(err, "setup sm policy association failed")
 	}
-
-	return smPolicyDecision, httpRspStatusCode, nil
+	return smPolicyDecision, http.StatusCreated, nil
 }
 
 func SendSMPolicyAssociationModify(smContext *smf_context.SMContext) {
@@ -64,51 +51,13 @@ func SendSMPolicyAssociationModify(smContext *smf_context.SMContext) {
 }
 
 func SendSMPolicyAssociationDelete(smContext *smf_context.SMContext, smDelReq *models.ReleaseSmContextRequest) (int, error) {
-	smPolicyDelData := models.SmPolicyDeleteData{}
-
-	// Populate Policy delete data
-	// Network Id
-	smPolicyDelData.ServingNetwork = &models.NetworkId{
-		Mcc: smContext.ServingNetwork.Mcc,
-		Mnc: smContext.ServingNetwork.Mnc,
-	}
-
-	// User location info
-	if smDelReq.JsonData.UeLocation != nil {
-		smPolicyDelData.UserLocationInfo = smDelReq.JsonData.UeLocation
-	} else if smDelReq.JsonData.AddUeLocation != nil {
-		smPolicyDelData.UserLocationInfo = smDelReq.JsonData.AddUeLocation
-	}
-
-	// UE Time Zone
-	if smDelReq.JsonData.UeTimeZone != "" {
-		smPolicyDelData.UeTimeZone = smDelReq.JsonData.UeTimeZone
-	}
-
-	// RAN/NAS Release Cause
-	ranNasRelCause := models.RanNasRelCause{}
-	if smDelReq.JsonData.NgApCause != nil {
-		ranNasRelCause.NgApCause = smDelReq.JsonData.NgApCause
-	}
-	// MM cause
-	ranNasRelCause.Var5gMmCause = smDelReq.JsonData.Var5gMmCauseValue
-
-	// SM Cause ?
-	// ranNasRelCause.Var5gSmCause =
-
-	smPolicyDelData.RanNasRelCauses = []models.RanNasRelCause{ranNasRelCause}
-
-	// Policy Id (supi-pduSessId)
 	smPolicyID := fmt.Sprintf("%s-%d", smContext.Supi, smContext.PDUSessionID)
-
-	// Send to  PCF
-	if httpRsp, err := smContext.SMPolicyClient.
-		DefaultApi.SmPoliciesSmPolicyIdDeletePost(context.Background(), smPolicyID, smPolicyDelData); err != nil {
+	err := producer.DeleteSMPolicy(smPolicyID)
+	if err != nil {
 		logger.ConsumerLog.Warnf("smf policy delete failed, [%v] ", err.Error())
-		return 0, err
-	} else {
-		return httpRsp.StatusCode, nil
+		return http.StatusInternalServerError, err
 	}
+	return http.StatusAccepted, nil
 }
 
 func validateSmPolicyDecision(smPolicy *models.SmPolicyDecision) error {

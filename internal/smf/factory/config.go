@@ -15,7 +15,6 @@ const (
 type Configuration struct {
 	PFCP         *PFCP
 	AmfUri       string
-	PcfUri       string
 	UdmUri       string
 	SmfName      string
 	StaticIpInfo []StaticIpInfo

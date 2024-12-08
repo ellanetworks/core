@@ -13,7 +13,6 @@ import (
 	"github.com/omec-project/openapi/Npcf_PolicyAuthorization"
 	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/pcf/context"
 	"github.com/yeastengine/ella/internal/pcf/logger"
 )
 
@@ -198,7 +197,7 @@ var serviceUriMap = map[models.ServiceName]string{
 
 // Get Resource Uri (location Header) with param id string
 func GetResourceUri(name models.ServiceName, id string) string {
-	return fmt.Sprintf("%s/%s/%s", context.GetUri(name), serviceUriMap[name], id)
+	return fmt.Sprintf("%s/%s", serviceUriMap[name], id)
 }
 
 // Check if Feature is Supported or not

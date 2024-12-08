@@ -18,26 +18,6 @@ var MediaTypeTo5qiMap = map[models.MediaType]int32{
 	models.MediaType_OTHER:       9,
 }
 
-// Create default pcc rule in PCF,
-// TODO: use config file to pass default pcc rule
-func CreateDefalutPccRules(id int32) *models.PccRule {
-	flowInfo := []models.FlowInformation{
-		{
-			FlowDescription:   "permit out ip from any to assigned",
-			FlowDirection:     models.FlowDirectionRm_DOWNLINK,
-			PacketFilterUsage: true,
-			PackFiltId:        "PackFiltId-0",
-		},
-		{
-			FlowDescription:   "permit out ip from any to assigned",
-			FlowDirection:     models.FlowDirectionRm_DOWNLINK,
-			PacketFilterUsage: true,
-			PackFiltId:        "PackFiltId-1",
-		},
-	}
-	return CreatePccRule(id, 10, flowInfo, "")
-}
-
 // Get pcc rule Identity(PccRuleId-%d)
 func GetPccRuleId(id int32) string {
 	return fmt.Sprintf("PccRuleId-%d", id)

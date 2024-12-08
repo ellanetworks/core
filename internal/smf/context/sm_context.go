@@ -10,7 +10,6 @@ import (
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/Namf_Communication"
-	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/smf/logger"
@@ -95,8 +94,7 @@ type SMContext struct {
 	PDUAddress *UeIpAddr `json:"pduAddress,omitempty" yaml:"pduAddress" bson:"pduAddress,omitempty"`
 
 	// Client
-	SMPolicyClient      *Npcf_SMPolicyControl.APIClient `json:"smPolicyClient,omitempty" yaml:"smPolicyClient" bson:"smPolicyClient,omitempty"`                // ?
-	CommunicationClient *Namf_Communication.APIClient   `json:"communicationClient,omitempty" yaml:"communicationClient" bson:"communicationClient,omitempty"` // ?
+	CommunicationClient *Namf_Communication.APIClient `json:"communicationClient,omitempty" yaml:"communicationClient" bson:"communicationClient,omitempty"` // ?
 
 	// encountered a cycle via *context.GTPTunnel
 	Tunnel *UPTunnel `json:"-" yaml:"tunnel" bson:"-"`
@@ -308,14 +306,6 @@ func (smContext *SMContext) PDUAddressToNAS() (addr [12]byte, addrLen uint8) {
 		addrLen = 12 + 1
 	}
 	return
-}
-
-// PCFSelection will select PCF for this SM Context
-func (smContext *SMContext) PCFSelection() error {
-	SmPolicyControlConf := Npcf_SMPolicyControl.NewConfiguration()
-	SmPolicyControlConf.SetBasePath(SMF_Self().PcfUri)
-	smContext.SMPolicyClient = Npcf_SMPolicyControl.NewAPIClient(SmPolicyControlConf)
-	return nil
 }
 
 func (smContext *SMContext) GetNodeIDByLocalSEID(seid uint64) (nodeID NodeID) {

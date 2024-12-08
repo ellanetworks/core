@@ -30,7 +30,6 @@ type SMFContext struct {
 	SnssaiInfos []SnssaiSmfInfo
 
 	AmfUri string
-	PcfUri string
 	UdmUri string
 
 	SubscriberDataManagementClient *Nudm_SubscriberDataManagement.APIClient
@@ -93,7 +92,6 @@ func InitSmfContext(config *factory.Configuration) *SMFContext {
 	smfContext.StaticIpInfo = &config.StaticIpInfo
 
 	smfContext.AmfUri = config.AmfUri
-	smfContext.PcfUri = config.PcfUri
 	smfContext.UdmUri = config.UdmUri
 
 	if pfcp := config.PFCP; pfcp != nil {

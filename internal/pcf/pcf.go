@@ -1,53 +1,31 @@
 package pcf
 
 import (
+	"math"
+
+	"github.com/omec-project/openapi"
+	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/util/idgenerator"
 	"github.com/omec-project/util/logger"
-	"github.com/yeastengine/ella/internal/pcf/factory"
-	"github.com/yeastengine/ella/internal/pcf/service"
+	"github.com/yeastengine/ella/internal/pcf/context"
+	"github.com/yeastengine/ella/internal/pcf/internal/notifyevent"
+	"go.uber.org/zap/zapcore"
 )
 
-var PCF = &service.PCF{}
-
-const SBI_PORT = 29507
-
-func Start(amfURL string) error {
-	configuration := factory.Configuration{
-		Logger: &logger.Logger{
-			PCF: &logger.LogSetting{
-				DebugLevel: "debug",
-			},
-		},
-		PcfName: "PCF",
-		Sbi: &factory.Sbi{
-			BindingIPv4: "0.0.0.0",
-			Port:        SBI_PORT,
-		},
-		DefaultBdtRefId: "BdtPolicyId-",
-		AmfUri:          amfURL,
-		ServiceList: []factory.Service{
-			{
-				ServiceName: "npcf-am-policy-control",
-			},
-			{
-				ServiceName: "npcf-smpolicycontrol",
-				SuppFeat:    "3fff",
-			},
-			{
-				ServiceName: "npcf-bdtpolicycontrol",
-			},
-			{
-				ServiceName: "npcf-policyauthorization",
-				SuppFeat:    "3",
-			},
-			{
-				ServiceName: "npcf-eventexposure",
-			},
-			{
-				ServiceName: "npcf-ue-policy-control",
-			},
-		},
+func Start() error {
+	level, err := zapcore.ParseLevel("debug")
+	if err != nil {
+		return err
 	}
-	PCF.Initialize(configuration)
-	go PCF.Start()
+	logger.SetLogLevel(level)
+	err = notifyevent.RegisterNotifyDispatcher()
+	if err != nil {
+		return err
+	}
+	context := context.PCF_Self()
+	context.TimeFormat = "2006-01-02 15:04:05"
+	context.PcfSuppFeats = make(map[models.ServiceName]openapi.SupportedFeature)
+	context.SessionRuleIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
+	context.QoSDataIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
 	return nil
 }
