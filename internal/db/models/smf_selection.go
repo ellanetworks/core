@@ -12,6 +12,8 @@ type SnssaiInfo struct {
 }
 
 type SmfSelectionSubscriptionData struct {
+	UeId                  string                `json:"ueId"`
+	ServingPlmnId         string                `json:"servingPlmnId"`
 	SupportedFeatures     string                `json:"supportedFeatures,omitempty" yaml:"supportedFeatures" bson:"supportedFeatures" mapstructure:"SupportedFeatures"`
 	SubscribedSnssaiInfos map[string]SnssaiInfo `json:"subscribedSnssaiInfos,omitempty" yaml:"subscribedSnssaiInfos" bson:"subscribedSnssaiInfos" mapstructure:"SubscribedSnssaiInfos"`
 	SharedSnssaiInfosId   string                `json:"sharedSnssaiInfosId,omitempty" yaml:"sharedSnssaiInfosId" bson:"sharedSnssaiInfosId" mapstructure:"SharedSnssaiInfosId"`

@@ -8,21 +8,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func CreateSmPolicyData(snssai *models.Snssai, dnn string, imsi string) error {
-	var smPolicyData models.SmPolicyData
-	var smPolicySnssaiData models.SmPolicySnssaiData
-	dnnData := map[string]models.SmPolicyDnnData{
-		dnn: {
-			Dnn: dnn,
-		},
-	}
-	smPolicySnssaiData.Snssai = snssai
-	smPolicySnssaiData.SmPolicyDnnData = dnnData
-	smPolicyData.SmPolicySnssaiData = make(map[string]models.SmPolicySnssaiData)
-	smPolicyData.SmPolicySnssaiData[SnssaiModelsToHex(*snssai)] = smPolicySnssaiData
+func CreateSmPolicyData(smPolicyData *models.SmPolicyData) error {
 	smPolicyDatBsonA := toBsonM(smPolicyData)
-	smPolicyDatBsonA["ueId"] = "imsi-" + imsi
-	filter := bson.M{"ueId": "imsi-" + imsi}
+	filter := bson.M{"ueId": smPolicyData.UeId}
 	_, err := db.CommonDBClient.RestfulAPIPost(db.SmPolicyDataColl, filter, smPolicyDatBsonA)
 	if err != nil {
 		return err

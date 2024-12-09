@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"math"
 	"net/http"
 	"slices"
@@ -27,6 +28,11 @@ var imsiData map[string]*openAPIModels.AuthenticationSubscription
 
 func init() {
 	imsiData = make(map[string]*openAPIModels.AuthenticationSubscription)
+}
+
+func SnssaiModelsToHex(snssai dbModels.Snssai) string {
+	sst := fmt.Sprintf("%02x", snssai.Sst)
+	return sst + snssai.Sd
 }
 
 func GetNetworkSlices(c *gin.Context) {
@@ -317,19 +323,91 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 				if err != nil {
 					logger.NmsLog.Warnln(err)
 				}
-				err = queries.CreateSmPolicyData(snssai, dnn, imsi)
+				smPolicyData := &dbModels.SmPolicyData{
+					UeId: "imsi-" + imsi,
+					SmPolicySnssaiData: map[string]dbModels.SmPolicySnssaiData{
+						SnssaiModelsToHex(*snssai): {
+							Snssai: snssai,
+							SmPolicyDnnData: map[string]dbModels.SmPolicyDnnData{
+								dnn: {
+									Dnn: dnn,
+								},
+							},
+						},
+					},
+				}
+				err = queries.CreateSmPolicyData(smPolicyData)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
 				}
-				err = queries.CreateAmProvisionedData(snssai, dbDeviceGroup.IpDomainExpanded.UeDnnQos, mcc, mnc, imsi)
+				amData := &dbModels.AccessAndMobilitySubscriptionData{
+					UeId:          "imsi-" + imsi,
+					ServingPlmnId: mcc + mnc,
+					Gpsis: []string{
+						"msisdn-0900000000",
+					},
+					Nssai: &dbModels.Nssai{
+						DefaultSingleNssais: []dbModels.Snssai{*snssai},
+						SingleNssais:        []dbModels.Snssai{*snssai},
+					},
+					SubscribedUeAmbr: &dbModels.AmbrRm{
+						Downlink: convertToString(uint64(dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink)),
+						Uplink:   convertToString(uint64(dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink)),
+					},
+				}
+				err = queries.CreateAmData(amData)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
 				}
-				err = queries.CreateSmProvisionedData(snssai, dbDeviceGroup.IpDomainExpanded.UeDnnQos, mcc, mnc, dnn, imsi)
+				smData := &dbModels.SessionManagementSubscriptionData{
+					UeId:          "imsi-" + imsi,
+					ServingPlmnId: mcc + mnc,
+					SingleNssai:   snssai,
+					DnnConfigurations: map[string]dbModels.DnnConfiguration{
+						dnn: {
+							PduSessionTypes: &dbModels.PduSessionTypes{
+								DefaultSessionType:  dbModels.PduSessionType_IPV4,
+								AllowedSessionTypes: []dbModels.PduSessionType{dbModels.PduSessionType_IPV4},
+							},
+							SscModes: &dbModels.SscModes{
+								DefaultSscMode: dbModels.SscMode__1,
+								AllowedSscModes: []dbModels.SscMode{
+									"SSC_MODE_2",
+									"SSC_MODE_3",
+								},
+							},
+							SessionAmbr: &dbModels.Ambr{
+								Downlink: convertToString(uint64(dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink)),
+								Uplink:   convertToString(uint64(dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink)),
+							},
+							Var5gQosProfile: &dbModels.SubscribedDefaultQos{
+								Var5qi: 9,
+								Arp: &dbModels.Arp{
+									PriorityLevel: 8,
+								},
+								PriorityLevel: 8,
+							},
+						},
+					},
+				}
+				err = queries.CreateSmData(smData)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
 				}
-				err = queries.CreateSmfSelectionProviosionedData(snssai, mcc, mnc, dnn, imsi)
+				smfSelData := &dbModels.SmfSelectionSubscriptionData{
+					UeId:          "imsi-" + imsi,
+					ServingPlmnId: mcc + mnc,
+					SubscribedSnssaiInfos: map[string]dbModels.SnssaiInfo{
+						SnssaiModelsToHex(*snssai): {
+							DnnInfos: []dbModels.DnnInfo{
+								{
+									Dnn: dnn,
+								},
+							},
+						},
+					},
+				}
+				err = queries.CreateSmfSelectionData(smfSelData)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
 				}

@@ -2,9 +2,7 @@ package queries
 
 import (
 	"encoding/json"
-	"fmt"
 
-	"github.com/yeastengine/ella/internal/db/models"
 	"github.com/yeastengine/ella/internal/logger"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -31,9 +29,4 @@ func toBsonM(data interface{}) (ret bson.M) {
 		return nil
 	}
 	return ret
-}
-
-func SnssaiModelsToHex(snssai models.Snssai) string {
-	sst := fmt.Sprintf("%02x", snssai.Sst)
-	return sst + snssai.Sd
 }
