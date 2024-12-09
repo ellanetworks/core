@@ -8,13 +8,11 @@ import (
 	"time"
 
 	"github.com/wmnsk/go-pfcp/message"
-	"github.com/yeastengine/ella/internal/upf/api/rest"
 	"github.com/yeastengine/ella/internal/upf/config"
 	"github.com/yeastengine/ella/internal/upf/core"
 	"github.com/yeastengine/ella/internal/upf/core/service"
 	"github.com/yeastengine/ella/internal/upf/ebpf"
 	"github.com/yeastengine/ella/internal/upf/logger"
-	"github.com/yeastengine/ella/internal/upf/server"
 	"go.uber.org/zap"
 
 	"github.com/cilium/ebpf/link"
@@ -111,32 +109,6 @@ func Start(interfaces []string, n3_address string) error {
 	}
 	go pfcpConn.Run()
 	defer pfcpConn.Close()
-
-	ForwardPlaneStats := ebpf.UpfXdpActionStatistic{
-		BpfObjects: bpfObjects,
-	}
-
-	h := rest.NewApiHandler(bpfObjects, pfcpConn, &ForwardPlaneStats, &config.Conf)
-
-	engine := h.InitRoutes()
-	metricsEngine := h.InitMetricsRoute()
-
-	apiSrv := server.New(config.Conf.ApiAddress, engine)
-	metricsSrv := server.New(config.Conf.MetricsAddress, metricsEngine)
-
-	// Start api servers
-	go func() {
-		if err := apiSrv.Run(); err != nil {
-			logger.AppLog.Fatalf("Could not start api server: %s", err.Error())
-		}
-	}()
-
-	// Start metrics servers
-	go func() {
-		if err := metricsSrv.Run(); err != nil {
-			logger.AppLog.Fatalf("Could not start metrics server: %s", err.Error())
-		}
-	}()
 
 	gtpPathManager := core.NewGtpPathManager(config.Conf.N3Address+":2152", time.Duration(config.Conf.EchoInterval)*time.Second)
 	for _, peer := range config.Conf.GtpPeer {
