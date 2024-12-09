@@ -19,10 +19,10 @@ type EapType uint8
 const (
 	EapTypeIdentity         EapType = 1
 	EapTypeNotification     EapType = 2
-	EapTypeNak              EapType = 3 //Response only
+	EapTypeNak              EapType = 3 // Response only
 	EapTypeMd5Challenge     EapType = 4
-	EapTypeOneTimePassword  EapType = 5 //otp
-	EapTypeGenericTokenCard EapType = 6 //gtc
+	EapTypeOneTimePassword  EapType = 5 // otp
+	EapTypeGenericTokenCard EapType = 6 // gtc
 	EapTypeMSCHAPV2         EapType = 26
 	EapTypeExpandedTypes    EapType = 254
 	EapTypeExperimentalUse  EapType = 255
