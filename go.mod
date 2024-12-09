@@ -7,7 +7,6 @@ toolchain go1.23.3
 require (
 	git.cs.nctu.edu.tw/calee/sctp v1.1.0
 	github.com/RoaringBitmap/roaring v1.9.4
-	github.com/bronze1man/radius v0.0.0-20190516032554-afd8baec892d
 	github.com/cilium/ebpf v0.16.0
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.10.0

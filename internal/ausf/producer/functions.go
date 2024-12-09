@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/bronze1man/radius"
-
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/ausf/context"
 	"github.com/yeastengine/ella/internal/ausf/logger"
@@ -177,7 +175,7 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 }
 
 func checkMACintegrity(offset int, expectedMacValue []byte, packet []byte, Kautn string) bool {
-	eapDecode, decodeErr := radius.EapDecode(packet)
+	eapDecode, decodeErr := EapDecode(packet)
 	if decodeErr != nil {
 		logger.EapAuthComfirmLog.Infoln(decodeErr.Error())
 	}
@@ -238,8 +236,8 @@ func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) ([]byte, 
 }
 
 func ConstructFailEapAkaNotification(oldPktId uint8) string {
-	var eapPkt radius.EapPacket
-	eapPkt.Code = radius.EapCodeRequest
+	var eapPkt EapPacket
+	eapPkt.Code = EapCodeRequest
 	eapPkt.Identifier = oldPktId + 1
 	eapPkt.Type = context.EAP_AKA_PRIME_TYPENUM
 	attrNum := fmt.Sprintf("%02x", context.AT_NOTIFICATION_ATTRIBUTE)
@@ -255,7 +253,7 @@ func ConstructFailEapAkaNotification(oldPktId uint8) string {
 	return base64.StdEncoding.EncodeToString(eapPktEncode)
 }
 
-func ConstructEapNoTypePkt(code radius.EapCode, pktID uint8) string {
+func ConstructEapNoTypePkt(code EapCode, pktID uint8) string {
 	b := make([]byte, 4)
 	b[0] = byte(code)
 	b[1] = pktID
