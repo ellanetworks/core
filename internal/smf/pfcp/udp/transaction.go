@@ -7,9 +7,9 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/wmnsk/go-pfcp/message"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/factory"
-	"github.com/yeastengine/ella/internal/smf/logger"
 )
 
 type TransactionType uint8
@@ -24,7 +24,7 @@ func (t *TxTable) Store(sequenceNumber uint32, tx *Transaction) {
 
 func (t *TxTable) Load(sequenceNumber uint32) (*Transaction, bool) {
 	if t == nil {
-		logger.PfcpLog.Warnf("TxTable is nil")
+		logger.SmfLog.Warnf("TxTable is nil")
 		return nil, false
 	}
 
@@ -85,7 +85,7 @@ func NewTransaction(pfcpMSG message.Message, binaryMSG []byte, Conn *net.UDPConn
 		tx.TxType = SendingResponse
 		tx.ConsumerAddr = DestAddr.String()
 	}
-	logger.PfcpLog.Debugf("New Transaction SEQ[%d] DestAddr[%s]", tx.SequenceNumber, DestAddr.String())
+	logger.SmfLog.Debugf("New Transaction SEQ[%d] DestAddr[%s]", tx.SequenceNumber, DestAddr.String())
 	return tx
 }
 
@@ -102,12 +102,12 @@ func (transaction *Transaction) Start() error {
 			case event := <-transaction.EventChannel:
 
 				if event == ReceiveValidResponse {
-					logger.PfcpLog.Debugf("Request Transaction [%d]: receive valid response\n", transaction.SequenceNumber)
+					logger.SmfLog.Debugf("Request Transaction [%d]: receive valid response\n", transaction.SequenceNumber)
 					return nil
 				}
 			case <-timer.C:
-				logger.PfcpLog.Debugf("Request Transaction [%d]: timeout expire\n", transaction.SequenceNumber)
-				logger.PfcpLog.Debugf("Request Transaction [%d]: Resend packet\n", transaction.SequenceNumber)
+				logger.SmfLog.Debugf("Request Transaction [%d]: timeout expire\n", transaction.SequenceNumber)
+				logger.SmfLog.Debugf("Request Transaction [%d]: Resend packet\n", transaction.SequenceNumber)
 				continue
 			}
 		}
@@ -119,7 +119,7 @@ func (transaction *Transaction) Start() error {
 		for iter := 0; iter < NumOfResend; iter++ {
 			_, err := transaction.Conn.WriteToUDP(transaction.SendMsg, transaction.DestAddr)
 			if err != nil {
-				logger.PfcpLog.Warnf("Response Transaction [%d]: sending error\n", transaction.SequenceNumber)
+				logger.SmfLog.Warnf("Response Transaction [%d]: sending error\n", transaction.SequenceNumber)
 				return err
 			}
 
@@ -127,12 +127,12 @@ func (transaction *Transaction) Start() error {
 			case event := <-transaction.EventChannel:
 
 				if event == ReceiveResendRequest {
-					logger.PfcpLog.Debugf("Response Transaction [%d]: receive resend request\n", transaction.SequenceNumber)
-					logger.PfcpLog.Debugf("Response Transaction [%d]: Resend packet\n", transaction.SequenceNumber)
+					logger.SmfLog.Debugf("Response Transaction [%d]: receive resend request\n", transaction.SequenceNumber)
+					logger.SmfLog.Debugf("Response Transaction [%d]: Resend packet\n", transaction.SequenceNumber)
 					continue
 				}
 			case <-timer.C:
-				logger.PfcpLog.Debugf("Response Transaction [%d]: timeout expire\n", transaction.SequenceNumber)
+				logger.SmfLog.Debugf("Response Transaction [%d]: timeout expire\n", transaction.SequenceNumber)
 				return errors.Errorf("response timeout, seq [%d]", transaction.SequenceNumber)
 			}
 		}

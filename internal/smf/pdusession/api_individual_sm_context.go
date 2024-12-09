@@ -6,14 +6,14 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/fsm"
-	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/msgtypes/svcmsgtypes"
 	"github.com/yeastengine/ella/internal/smf/transaction"
 )
 
 func ReleaseSmContext(smContextRef string, releaseSmContextRequest models.ReleaseSmContextRequest) error {
-	logger.PduSessLog.Info("Processing Release SM Context Request")
+	logger.SmfLog.Info("Processing Release SM Context Request")
 
 	// Validate the request content
 	if releaseSmContextRequest.JsonData == nil {
@@ -43,7 +43,7 @@ func ReleaseSmContext(smContextRef string, releaseSmContextRequest models.Releas
 		// Handle errors
 		errResponse, ok := HTTPResponse.Body.(*models.ProblemDetails)
 		if ok {
-			logger.PduSessLog.Errorf("SM Context release failed: %s", errResponse.Detail)
+			logger.SmfLog.Errorf("SM Context release failed: %s", errResponse.Detail)
 			return errors.New(errResponse.Detail)
 		}
 		return errors.New("unexpected error during SM Context release")
@@ -51,7 +51,7 @@ func ReleaseSmContext(smContextRef string, releaseSmContextRequest models.Releas
 }
 
 func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSmContextRequest) (*models.UpdateSmContextResponse, error) {
-	logger.PduSessLog.Info("Processing Update SM Context Request")
+	logger.SmfLog.Info("Processing Update SM Context Request")
 
 	if smContextRef == "" {
 		return nil, errors.New("SM Context reference is missing")
@@ -83,7 +83,7 @@ func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSm
 	default:
 		errResponse, ok := HTTPResponse.Body.(*models.ProblemDetails)
 		if ok {
-			logger.PduSessLog.Errorf("SM Context update failed: %s", errResponse.Detail)
+			logger.SmfLog.Errorf("SM Context update failed: %s", errResponse.Detail)
 			return nil, errors.New(errResponse.Detail)
 		}
 		return nil, errors.New("unexpected error during SM Context update")

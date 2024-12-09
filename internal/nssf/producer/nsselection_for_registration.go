@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/nssf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 // Set Allowed NSSAI with Subscribed S-NSSAI(s) which are marked as default S-NSSAI(s)
@@ -15,7 +15,7 @@ func useDefaultSubscribedSnssai(
 	var mappingOfSnssai []models.MappingOfSnssai
 	if param.HomePlmnId != nil {
 		// Find mapping of Subscribed S-NSSAI of UE's HPLMN to S-NSSAI in Serving PLMN from NSSF configuration
-		logger.Nsselection.Warnf("No S-NSSAI mapping of UE's HPLMN %+v in NSSF configuration", *param.HomePlmnId)
+		logger.NssfLog.Warnf("No S-NSSAI mapping of UE's HPLMN %+v in NSSF configuration", *param.HomePlmnId)
 		return
 	}
 
@@ -29,7 +29,7 @@ func useDefaultSubscribedSnssai(
 				targetMapping, found := FindMappingWithHomeSnssai(*subscribedSnssai.SubscribedSnssai, mappingOfSnssai)
 
 				if !found {
-					logger.Nsselection.Warnf("No mapping of Subscribed S-NSSAI %+v in PLMN %+v in NSSF configuration",
+					logger.NssfLog.Warnf("No mapping of Subscribed S-NSSAI %+v in PLMN %+v in NSSF configuration",
 						*subscribedSnssai.SubscribedSnssai,
 						*param.HomePlmnId)
 					continue
@@ -70,7 +70,7 @@ func useDefaultConfiguredNssai(
 	for _, requestedSnssai := range param.SliceInfoRequestForRegistration.RequestedNssai {
 		// Check whether the Default Configured S-NSSAI is standard, which could be commonly decided by all roaming partners
 		if !CheckStandardSnssai(requestedSnssai) {
-			logger.Nsselection.Infof("S-NSSAI %+v in Requested NSSAI which based on Default Configured NSSAI is not standard",
+			logger.NssfLog.Infof("S-NSSAI %+v in Requested NSSAI which based on Default Configured NSSAI is not standard",
 				requestedSnssai)
 			continue
 		}
@@ -127,7 +127,7 @@ func nsselectionForRegistration(param NsselectionQueryParameter, authorizedNetwo
 			return fmt.Errorf("bad request")
 		}
 
-		logger.Nsselection.Warnf("No S-NSSAI mapping of UE's HPLMN %+v in NSSF configuration", *param.HomePlmnId)
+		logger.NssfLog.Warnf("No S-NSSAI mapping of UE's HPLMN %+v in NSSF configuration", *param.HomePlmnId)
 
 		return nil
 	}

@@ -7,8 +7,8 @@ import (
 	"github.com/mohae/deepcopy"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/pcf/context"
-	"github.com/yeastengine/ella/internal/pcf/logger"
 	"github.com/yeastengine/ella/internal/pcf/util"
 	"github.com/yeastengine/ella/internal/udr/producer"
 )
@@ -29,7 +29,7 @@ func DeleteAMPolicy(polAssoId string) error {
 }
 
 func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest) (*models.PolicyUpdate, error) {
-	logger.ProducerLog.Warnf("UpdateAMPolicy[%s]", polAssoId)
+	logger.PcfLog.Warnf("UpdateAMPolicy[%s]", polAssoId)
 	ue := context.PCF_Self().PCFUeFindByPolicyId(polAssoId)
 	if ue == nil || ue.AMPolicyData[polAssoId] == nil {
 		return nil, fmt.Errorf("polAssoId not found  in PCF")
@@ -55,14 +55,14 @@ func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.Poli
 				return nil, fmt.Errorf("UserLoc doesn't exist in Policy Association Requset Update while Triggers include LOC_CH")
 			}
 			amPolicyData.UserLoc = policyAssociationUpdateRequest.UserLoc
-			logger.AMpolicylog.Infof("Ue[%s] UserLocation %+v", ue.Supi, amPolicyData.UserLoc)
+			logger.PcfLog.Infof("Ue[%s] UserLocation %+v", ue.Supi, amPolicyData.UserLoc)
 		case models.RequestTrigger_PRA_CH:
 			if policyAssociationUpdateRequest.PraStatuses == nil {
 				return nil, fmt.Errorf("PraStatuses doesn't exist in Policy Association")
 			}
 			for praId, praInfo := range policyAssociationUpdateRequest.PraStatuses {
 				// TODO: report to AF subscriber
-				logger.AMpolicylog.Infof("Policy Association Presence Id[%s] change state to %s", praId, praInfo.PresenceState)
+				logger.PcfLog.Infof("Policy Association Presence Id[%s] change state to %s", praId, praInfo.PresenceState)
 			}
 		case models.RequestTrigger_SERV_AREA_CH:
 			if policyAssociationUpdateRequest.ServAreaRes == nil {
@@ -119,7 +119,7 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 
 	var requestSuppFeat openapi.SupportedFeature
 	if suppFeat, err := openapi.NewSupportedFeature(policyAssociationRequest.SuppFeat); err != nil {
-		logger.AMpolicylog.Warnln(err)
+		logger.PcfLog.Warnln(err)
 	} else {
 		requestSuppFeat = suppFeat
 	}
@@ -136,6 +136,6 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 	ue.PolAssociationIDGenerator++
 	// Create location header for update, delete, get
 	locationHeader := util.GetResourceUri(models.ServiceName_NPCF_AM_POLICY_CONTROL, assolId)
-	logger.AMpolicylog.Debugf("AMPolicy association Id[%s] Create", assolId)
+	logger.PcfLog.Debugf("AMPolicy association Id[%s] Create", assolId)
 	return &response, locationHeader, nil
 }

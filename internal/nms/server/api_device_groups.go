@@ -18,7 +18,7 @@ func GetDeviceGroups(c *gin.Context) {
 	setCorsHeader(c)
 	deviceGroups, err := queries.ListDeviceGroupNames()
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 		c.JSON(http.StatusInternalServerError, nil)
 		return
 	}
@@ -91,7 +91,7 @@ func DeviceGroupGroupNamePost(c *gin.Context) {
 func DeviceGroupDeleteHandler(c *gin.Context) bool {
 	groupName, exists := c.Params.Get("group-name")
 	if !exists {
-		logger.NMSLog.Errorf("group-name is missing")
+		logger.NmsLog.Errorf("group-name is missing")
 		return false
 	}
 	dbDeviceGroup := queries.GetDeviceGroupByName(groupName)
@@ -122,19 +122,19 @@ func DeviceGroupDeleteHandler(c *gin.Context) bool {
 	}
 	err := queries.DeleteDeviceGroup(groupName)
 	if err != nil {
-		logger.NMSLog.Warnf("Device Group [%v] not found", groupName)
+		logger.NmsLog.Warnf("Device Group [%v] not found", groupName)
 		return false
 	}
 	deleteDeviceGroupConfig(deviceGroup)
 	updateSMF()
-	logger.NMSLog.Infof("Deleted Device Group: %v", groupName)
+	logger.NmsLog.Infof("Deleted Device Group: %v", groupName)
 	return true
 }
 
 func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	groupName, exists := c.Params.Get("group-name")
 	if !exists {
-		logger.NMSLog.Errorf("group-name is missing")
+		logger.NmsLog.Errorf("group-name is missing")
 		return false
 	}
 
@@ -146,7 +146,7 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 		err = c.ShouldBindJSON(&request)
 	}
 	if err != nil {
-		logger.NMSLog.Infof(" err %v", err)
+		logger.NmsLog.Infof(" err %v", err)
 		return false
 	}
 	req := httpwrapper.NewRequest(c.Request, request)
@@ -170,7 +170,7 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	if slice != nil {
 		sVal, err := strconv.ParseUint(slice.SliceId.Sst, 10, 32)
 		if err != nil {
-			logger.NMSLog.Errorf("Could not parse SST %v", slice.SliceId.Sst)
+			logger.NmsLog.Errorf("Could not parse SST %v", slice.SliceId.Sst)
 		}
 		snssai := &dbModels.Snssai{
 			Sd:  slice.SliceId.Sd,
@@ -182,12 +182,12 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 			dnn := procReq.IpDomainExpanded.Dnn
 			err := queries.CreateAmPolicyData(imsi)
 			if err != nil {
-				logger.NMSLog.Warnln(err)
+				logger.NmsLog.Warnln(err)
 				return false
 			}
 			err = queries.CreateSmPolicyData(snssai, dnn, imsi)
 			if err != nil {
-				logger.NMSLog.Warnln(err)
+				logger.NmsLog.Warnln(err)
 				return false
 			}
 			qos := &dbModels.DeviceGroupsIpDomainExpandedUeDnnQos{
@@ -204,17 +204,17 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 			}
 			err = queries.CreateAmProvisionedData(snssai, qos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, imsi)
 			if err != nil {
-				logger.NMSLog.Warnln(err)
+				logger.NmsLog.Warnln(err)
 				return false
 			}
 			err = queries.CreateSmProvisionedData(snssai, qos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
 			if err != nil {
-				logger.NMSLog.Warnln(err)
+				logger.NmsLog.Warnln(err)
 				return false
 			}
 			err = queries.CreateSmfSelectionProviosionedData(snssai, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
 			if err != nil {
-				logger.NMSLog.Warnln(err)
+				logger.NmsLog.Warnln(err)
 				return false
 			}
 		}
@@ -246,11 +246,11 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	}
 	err = queries.CreateDeviceGroup(dbDeviceGroup)
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 		return false
 	}
 	updateSMF()
-	logger.NMSLog.Infof("Created Device Group: %v", groupName)
+	logger.NmsLog.Infof("Created Device Group: %v", groupName)
 	return true
 }
 
@@ -271,23 +271,23 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 		for _, imsi := range dimsis {
 			err := queries.DeleteAmPolicy(imsi)
 			if err != nil {
-				logger.NMSLog.Warnln(err)
+				logger.NmsLog.Warnln(err)
 			}
 			err = queries.DeleteSmPolicy(imsi)
 			if err != nil {
-				logger.NMSLog.Warnln(err)
+				logger.NmsLog.Warnln(err)
 			}
 			err = queries.DeleteAmData(imsi)
 			if err != nil {
-				logger.NMSLog.Warnln(err)
+				logger.NmsLog.Warnln(err)
 			}
 			err = queries.DeleteSmData(imsi)
 			if err != nil {
-				logger.NMSLog.Warnln(err)
+				logger.NmsLog.Warnln(err)
 			}
 			err = queries.DeleteSmfSelection(imsi)
 			if err != nil {
-				logger.NMSLog.Warnln(err)
+				logger.NmsLog.Warnln(err)
 			}
 		}
 	}
@@ -298,7 +298,7 @@ func isDeviceGroupExistInSlice(deviceGroupName string) *dbModels.Slice {
 	for name, slice := range dBSlices {
 		for _, dgName := range slice.SiteDeviceGroup {
 			if dgName == deviceGroupName {
-				logger.NMSLog.Infof("Device Group [%v] is part of slice: %v", dgName, name)
+				logger.NmsLog.Infof("Device Group [%v] is part of slice: %v", dgName, name)
 				return slice
 			}
 		}

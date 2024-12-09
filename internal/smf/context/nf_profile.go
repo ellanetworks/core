@@ -4,7 +4,7 @@ import (
 	"strconv"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/smf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 var NFServices *[]models.NfService
@@ -24,7 +24,7 @@ func SmfPlmnConfig() *[]models.PlmnId {
 	}
 
 	if len(plmns) > 0 {
-		logger.CfgLog.Debugf("plmnId configured [%v] ", plmns)
+		logger.SmfLog.Debugf("plmnId configured [%v] ", plmns)
 		return &plmns
 	}
 	return nil

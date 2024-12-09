@@ -8,7 +8,7 @@ import (
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/smf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/qos"
 )
 
@@ -320,10 +320,10 @@ func BuildPDUSessionResourceReleaseCommandTransfer(ctx *SMContext) (buf []byte, 
 
 // TS 38.413 9.3.4.9
 func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
-	logger.AppLog.Warnf("BuildPathSwitchRequestAcknowledgeTransfer")
+	logger.SmfLog.Warnf("BuildPathSwitchRequestAcknowledgeTransfer")
 	ANUPF := ctx.Tunnel.DataPathPool.GetDefaultPath().FirstDPNode
 	UpNode := ANUPF.UPF
-	logger.AppLog.Warnf("UPF TEID: %v", ANUPF.UpLinkTunnel.TEID)
+	logger.SmfLog.Warnf("UPF TEID: %v", ANUPF.UpLinkTunnel.TEID)
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, ANUPF.UpLinkTunnel.TEID)
 
@@ -403,10 +403,10 @@ func BuildPathSwitchRequestUnsuccessfulTransfer(causePresent int, causeValue ape
 }
 
 func BuildHandoverCommandTransfer(ctx *SMContext) ([]byte, error) {
-	logger.AppLog.Warnf("BuildHandoverCommandTransfer")
+	logger.SmfLog.Warnf("BuildHandoverCommandTransfer")
 	ANUPF := ctx.Tunnel.DataPathPool.GetDefaultPath().FirstDPNode
 	UpNode := ANUPF.UPF
-	logger.AppLog.Warnf("UPF TEID: %v", ANUPF.UpLinkTunnel.TEID)
+	logger.SmfLog.Warnf("UPF TEID: %v", ANUPF.UpLinkTunnel.TEID)
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, ANUPF.UpLinkTunnel.TEID)
 	handoverCommandTransfer := ngapType.HandoverCommandTransfer{}

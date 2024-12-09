@@ -1,8 +1,8 @@
 package producer
 
 import (
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/pfcp/message"
 )
 
@@ -16,8 +16,8 @@ type PFCPState struct {
 
 // SendPFCPRule sends the datapath to the UPF
 func SendPFCPRule(smContext *context.SMContext, dataPath *context.DataPath) {
-	logger.PduSessLog.Infoln("Send PFCP Rule")
-	logger.PduSessLog.Infoln("DataPath: ", dataPath)
+	logger.SmfLog.Infoln("Send PFCP Rule")
+	logger.SmfLog.Infoln("DataPath: ", dataPath)
 	for curDataPathNode := dataPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
 		pdrList := make([]*context.PDR, 0, 2)
 		farList := make([]*context.FAR, 0, 2)
@@ -47,13 +47,13 @@ func SendPFCPRule(smContext *context.SMContext, dataPath *context.DataPath) {
 			err := message.SendPfcpSessionEstablishmentRequest(
 				curDataPathNode.UPF.NodeID, smContext, pdrList, farList, nil, qerList, curDataPathNode.UPF.Port)
 			if err != nil {
-				logger.PduSessLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
 			}
 		} else {
 			err := message.SendPfcpSessionModificationRequest(
 				curDataPathNode.UPF.NodeID, smContext, pdrList, farList, nil, qerList, curDataPathNode.UPF.Port)
 			if err != nil {
-				logger.PduSessLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
 			}
 		}
 	}
@@ -113,13 +113,13 @@ func SendPFCPRules(smContext *context.SMContext) {
 			err := message.SendPfcpSessionEstablishmentRequest(
 				pfcp.nodeID, smContext, pfcp.pdrList, pfcp.farList, nil, pfcp.qerList, pfcp.port)
 			if err != nil {
-				logger.PduSessLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, pfcp.nodeID, pfcp.nodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, pfcp.nodeID, pfcp.nodeID.ResolveNodeIdToIp())
 			}
 		} else {
 			err := message.SendPfcpSessionModificationRequest(
 				pfcp.nodeID, smContext, pfcp.pdrList, pfcp.farList, nil, pfcp.qerList, pfcp.port)
 			if err != nil {
-				logger.PduSessLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, pfcp.nodeID, pfcp.nodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, pfcp.nodeID, pfcp.nodeID.ResolveNodeIdToIp())
 			}
 		}
 	}

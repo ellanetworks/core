@@ -9,7 +9,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
-	"github.com/yeastengine/ella/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 // key is supi
@@ -392,7 +392,7 @@ func (ue *UeContext) AllocUeAppSessionId(context *PCFContext) string {
 	var allocID int64
 	var err error
 	if allocID, err = ue.AppSessionIDGenerator.Allocate(); err != nil {
-		logger.CtxLog.Warnf("Allocate AppSessionId error: %+v", err)
+		logger.PcfLog.Warnf("Allocate AppSessionId error: %+v", err)
 		return ""
 	}
 	appSessionID := fmt.Sprintf("%s-%d", ue.Supi, allocID)

@@ -11,7 +11,7 @@ import (
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
-	"github.com/yeastengine/ella/internal/smf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/qos"
 	errors "github.com/yeastengine/ella/internal/smf/smferrors"
 	"github.com/yeastengine/ella/internal/smf/transaction"
@@ -191,13 +191,13 @@ func NewSMContext(identifier string, pduSessID int32) (smContext *SMContext) {
 }
 
 func (smContext *SMContext) initLogTags() {
-	smContext.SubPfcpLog = logger.PfcpLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
-	smContext.SubCtxLog = logger.CtxLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
-	smContext.SubPduSessLog = logger.PduSessLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
-	smContext.SubGsmLog = logger.GsmLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
-	smContext.SubConsumerLog = logger.ConsumerLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
-	smContext.SubFsmLog = logger.FsmLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
-	smContext.SubQosLog = logger.QosLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
+	smContext.SubPfcpLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
+	smContext.SubCtxLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
+	smContext.SubPduSessLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
+	smContext.SubGsmLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
+	smContext.SubConsumerLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
+	smContext.SubFsmLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
+	smContext.SubQosLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
 }
 
 func (smContext *SMContext) ChangeState(nextState SMContextState) {
@@ -517,7 +517,7 @@ func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 	if status {
 		err := qos.CommitSmPolicyDecision(&smContext.SmPolicyData, smContext.SmPolicyUpdates[0])
 		if err != nil {
-			logger.CtxLog.Errorf("failed to commit SM Policy Decision, %v", err)
+			logger.SmfLog.Errorf("failed to commit SM Policy Decision, %v", err)
 		}
 	}
 

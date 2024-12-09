@@ -13,8 +13,8 @@ import (
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/factory"
-	"github.com/yeastengine/ella/internal/smf/logger"
 )
 
 // var upfPool sync.Map
@@ -102,7 +102,7 @@ func NewUPFInterfaceInfo(i *factory.InterfaceUpfInfoItem) *UPFInterfaceInfo {
 	interfaceInfo.IPv4EndPointAddresses = make([]net.IP, 0)
 	interfaceInfo.IPv6EndPointAddresses = make([]net.IP, 0)
 
-	logger.CtxLog.Infoln("Endpoints:", i.Endpoints)
+	logger.SmfLog.Infoln("Endpoints:", i.Endpoints)
 
 	for _, endpoint := range i.Endpoints {
 		eIP := net.ParseIP(endpoint)
@@ -133,7 +133,7 @@ func (i *UPFInterfaceInfo) IP(pduSessType uint8) (net.IP, error) {
 
 	if i.EndpointFQDN != "" {
 		if resolvedAddr, err := net.ResolveIPAddr("ip", i.EndpointFQDN); err != nil {
-			logger.CtxLog.Errorf("resolve addr [%s] failed", i.EndpointFQDN)
+			logger.SmfLog.Errorf("resolve addr [%s] failed", i.EndpointFQDN)
 		} else {
 			if pduSessType == nasMessage.PDUSessionTypeIPv4 {
 				return resolvedAddr.IP.To4(), nil
@@ -193,7 +193,7 @@ func NewUPTunnel() (tunnel *UPTunnel) {
 func (upTunnel *UPTunnel) AddDataPath(dataPath *DataPath) {
 	pathID, err := upTunnel.PathIDGenerator.Allocate()
 	if err != nil {
-		logger.CtxLog.Warnf("Allocate pathID error: %+v", err)
+		logger.SmfLog.Warnf("Allocate pathID error: %+v", err)
 		return
 	}
 

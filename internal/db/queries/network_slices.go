@@ -5,6 +5,7 @@ import (
 
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/db/models"
+	"github.com/yeastengine/ella/internal/logger"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -16,7 +17,7 @@ func ListNetworkSliceNames() ([]string, error) {
 	}
 	for _, rawNetworkSlice := range rawNetworkSlices {
 		if rawNetworkSlice["slice-name"] == nil {
-			db.DbLog.Warnln("Could not find slice-name in network slice")
+			logger.DBLog.Warnln("Could not find slice-name in network slice")
 			continue
 		}
 		networkSlices = append(networkSlices, rawNetworkSlice["slice-name"].(string))
@@ -34,7 +35,7 @@ func ListNetworkSlices() []*models.Slice {
 		var sliceData models.Slice
 		err := json.Unmarshal(mapToByte(rawSlice), &sliceData)
 		if err != nil {
-			db.DbLog.Warnf("Could not unmarshal slice data: %v", rawSlice)
+			logger.DBLog.Warnf("Could not unmarshal slice data: %v", rawSlice)
 			continue
 		}
 		slices = append(slices, &sliceData)

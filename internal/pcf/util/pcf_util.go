@@ -13,7 +13,7 @@ import (
 	"github.com/omec-project/openapi/Npcf_PolicyAuthorization"
 	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 const TimeFormat = time.RFC3339
@@ -87,7 +87,7 @@ func GetDefaultTime() models.TimeWindow {
 	timeWindow.StartTime = time.Now().Format(time.RFC3339)
 	lease, err := time.ParseDuration("720h")
 	if err != nil {
-		logger.UtilLog.Errorf("ParseDuration error: %+v", err)
+		logger.PcfLog.Errorf("ParseDuration error: %+v", err)
 	}
 	timeWindow.StopTime = time.Now().Add(lease).Format(time.RFC3339)
 	return timeWindow
@@ -149,14 +149,14 @@ func MarshToJsonString(v interface{}) (result []string) {
 		for i := 0; i < val.Len(); i++ {
 			tmp, err := json.Marshal(val.Index(i).Interface())
 			if err != nil {
-				logger.UtilLog.Errorf("Marshal error: %+v", err)
+				logger.PcfLog.Errorf("Marshal error: %+v", err)
 			}
 			result = append(result, string(tmp))
 		}
 	} else {
 		tmp, err := json.Marshal(v)
 		if err != nil {
-			logger.UtilLog.Errorf("Marshal error: %+v", err)
+			logger.PcfLog.Errorf("Marshal error: %+v", err)
 		}
 		result = append(result, string(tmp))
 	}
@@ -182,7 +182,7 @@ func GetNegotiateSuppFeat(suppFeat string, serviceSuppFeat []byte) string {
 	}
 	bytes, err := hex.DecodeString(suppFeat)
 	if err != nil {
-		logger.UtilLog.Errorf("DecodeString error: %+v", err)
+		logger.PcfLog.Errorf("DecodeString error: %+v", err)
 	}
 	negoSuppFeat := AndBytes(bytes, serviceSuppFeat)
 	return hex.EncodeToString(negoSuppFeat)

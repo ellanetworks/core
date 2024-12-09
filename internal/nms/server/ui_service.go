@@ -13,7 +13,7 @@ import (
 func AddUiService(engine *gin.Engine) {
 	staticFilesSystem, err := fs.Sub(ui.FrontendFS, "frontend_files")
 	if err != nil {
-		logger.NMSLog.Fatal(err)
+		logger.NmsLog.Fatal(err)
 	}
 
 	engine.Use(func(c *gin.Context) {

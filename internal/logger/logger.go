@@ -13,7 +13,10 @@ var (
 	DBLog       *zap.SugaredLogger
 	AmfLog      *zap.SugaredLogger
 	AusfLog     *zap.SugaredLogger
-	NMSLog      *zap.SugaredLogger
+	NmsLog      *zap.SugaredLogger
+	NssfLog     *zap.SugaredLogger
+	PcfLog      *zap.SugaredLogger
+	SmfLog      *zap.SugaredLogger
 	atomicLevel zap.AtomicLevel
 )
 
@@ -58,7 +61,10 @@ func init() {
 	DBLog = log.Sugar().With("component", "DB")
 	AmfLog = log.Sugar().With("component", "AMF")
 	AusfLog = log.Sugar().With("component", "AUSF")
-	NMSLog = log.Sugar().With("component", "NMS")
+	NmsLog = log.Sugar().With("component", "NMS")
+	NssfLog = log.Sugar().With("component", "NSSF")
+	PcfLog = log.Sugar().With("component", "PCF")
+	SmfLog = log.Sugar().With("component", "SMF")
 }
 
 func GetLogger() *zap.Logger {

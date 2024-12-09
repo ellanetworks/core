@@ -5,6 +5,7 @@ import (
 
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/db/models"
+	"github.com/yeastengine/ella/internal/logger"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -17,7 +18,7 @@ func ListDeviceGroupNames() ([]string, error) {
 	for _, rawDeviceGroup := range rawDeviceGroups {
 		groupName, err := rawDeviceGroup["group-name"].(string)
 		if !err {
-			db.DbLog.Warnf("Could not get group-name from %v", rawDeviceGroup)
+			logger.DBLog.Warnf("Could not get group-name from %v", rawDeviceGroup)
 			continue
 		}
 		deviceGroups = append(deviceGroups, groupName)
@@ -30,7 +31,7 @@ func GetDeviceGroupByName(name string) *models.DeviceGroup {
 	filter := bson.M{"group-name": name}
 	rawDeviceGroup, err := db.CommonDBClient.RestfulAPIGetOne(db.DevGroupDataColl, filter)
 	if err != nil {
-		db.DbLog.Warnln(err)
+		logger.DBLog.Warnln(err)
 		return nil
 	}
 	json.Unmarshal(mapToByte(rawDeviceGroup), &deviceGroup)
@@ -53,6 +54,6 @@ func CreateDeviceGroup(deviceGroup *models.DeviceGroup) error {
 	if err != nil {
 		return err
 	}
-	db.DbLog.Infof("Created Device Group: %v", deviceGroup.DeviceGroupName)
+	logger.DBLog.Infof("Created Device Group: %v", deviceGroup.DeviceGroupName)
 	return nil
 }

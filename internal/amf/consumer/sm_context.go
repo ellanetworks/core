@@ -7,7 +7,7 @@ import (
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
 	amf_context "github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/smf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/pdusession"
 )
 
@@ -353,7 +353,7 @@ func SendUpdateSmContextRequest(smContext *amf_context.SmContext,
 			Status: 500,
 			Detail: err.Error(),
 		}
-		logger.PduSessLog.Warnf("Update SmContext Request Error[%+v]", err)
+		logger.AmfLog.Warnf("Update SmContext Request Error[%+v]", err)
 		return updateSmContextReponse, nil, problemDetail, err
 	}
 	return updateSmContextReponse, nil, nil, nil

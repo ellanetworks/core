@@ -5,6 +5,7 @@ import (
 
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/db/models"
+	"github.com/yeastengine/ella/internal/logger"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -18,7 +19,7 @@ func ListInventoryGnbs() ([]*models.Gnb, error) {
 		var gnbData models.Gnb
 		err := json.Unmarshal(mapToByte(rawGnb), &gnbData)
 		if err != nil {
-			db.DbLog.Errorf("Could not unmarshall gNB %v", rawGnb)
+			logger.DBLog.Errorf("Could not unmarshall gNB %v", rawGnb)
 			continue
 		}
 		gnbs = append(gnbs, &gnbData)

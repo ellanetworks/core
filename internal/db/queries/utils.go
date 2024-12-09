@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/db/models"
+	"github.com/yeastengine/ella/internal/logger"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -22,12 +22,12 @@ func sliceToByte(data []map[string]interface{}) (ret []byte) {
 func toBsonM(data interface{}) (ret bson.M) {
 	tmp, err := json.Marshal(data)
 	if err != nil {
-		db.DbLog.Errorln("Could not marshall data")
+		logger.DBLog.Errorln("Could not marshall data")
 		return nil
 	}
 	err = json.Unmarshal(tmp, &ret)
 	if err != nil {
-		db.DbLog.Errorln("Could not unmarshall data")
+		logger.DBLog.Errorln("Could not unmarshall data")
 		return nil
 	}
 	return ret

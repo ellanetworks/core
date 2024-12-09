@@ -6,9 +6,9 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/context"
 	smf_context "github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/msgtypes/svcmsgtypes"
 	"github.com/yeastengine/ella/internal/smf/producer"
 	"github.com/yeastengine/ella/internal/smf/transaction"
@@ -95,7 +95,7 @@ func (SmfTxnFsm) TxnCtxtRun(txn *transaction.Transaction) (transaction.TxnEvent,
 	defer smContext.SMTxnBusLock.Unlock()
 
 	if smContext.ActiveTxn != nil {
-		logger.TxnFsmLog.Errorf("active transaction [%v] not completed", smContext.ActiveTxn)
+		logger.SmfLog.Errorf("active transaction [%v] not completed", smContext.ActiveTxn)
 	}
 
 	// make current txn as Active now, move it to processing
@@ -186,7 +186,7 @@ func (SmfTxnFsm) TxnFailure(txn *transaction.Transaction) (transaction.TxnEvent,
 
 	case svcmsgtypes.UpdateSmContext:
 		if txn.Ctxt == nil {
-			logger.PduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext[%s] is not found", txn.CtxtKey)
+			logger.SmfLog.Warnf("PDUSessionSMContextUpdate, SMContext[%s] is not found", txn.CtxtKey)
 
 			httpResponse := &httpwrapper.Response{
 				Header: nil,
@@ -207,7 +207,7 @@ func (SmfTxnFsm) TxnFailure(txn *transaction.Transaction) (transaction.TxnEvent,
 
 	case svcmsgtypes.ReleaseSmContext:
 		if txn.Ctxt == nil {
-			logger.PduSessLog.Warnf("PDUSessionSMContextRelease [%s] is not found", txn.CtxtKey)
+			logger.SmfLog.Warnf("PDUSessionSMContextRelease [%s] is not found", txn.CtxtKey)
 
 			// 4xx/5xx Error not defined in spec 29502 for Release SM ctxt error
 			// Send Not Found

@@ -3,8 +3,8 @@ package upf
 import (
 	"time"
 
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/pfcp/message"
 )
 
@@ -27,14 +27,14 @@ func InitPfcpHeartbeatRequest(userplane *context.UserPlaneInformation) {
 		if (userplane.UPF.UPF.UPFStatus == context.AssociatedSetUpSuccess) && userplane.UPF.UPF.NHeartBeat < maxHeartbeatRetry {
 			err := message.SendHeartbeatRequest(userplane.UPF.NodeID, userplane.UPF.Port) // needs lock in sync rsp(adapter mode)
 			if err != nil {
-				logger.PfcpLog.Errorf("send pfcp heartbeat request failed: %v for UPF[%v, %v]: ", err, userplane.UPF.NodeID, userplane.UPF.NodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Errorf("send pfcp heartbeat request failed: %v for UPF[%v, %v]: ", err, userplane.UPF.NodeID, userplane.UPF.NodeID.ResolveNodeIdToIp())
 			} else {
 				userplane.UPF.UPF.NHeartBeat++
 			}
 		} else if userplane.UPF.UPF.NHeartBeat == maxHeartbeatRetry {
 			if userplane.UPF.UPF.UPFStatus == context.AssociatedSetUpSuccess {
 				userplane.UPF.UPF.UPFStatus = context.NotAssociated
-				logger.PfcpLog.Warnf("did not receive heartbeat response from UPF [%v], set UPF status to NotAssociated", userplane.UPF.NodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Warnf("did not receive heartbeat response from UPF [%v], set UPF status to NotAssociated", userplane.UPF.NodeID.ResolveNodeIdToIp())
 			}
 		}
 
@@ -56,7 +56,7 @@ func ProbeInactiveUpfs(upfs *context.UserPlaneInformation) {
 		if upfs.UPF.UPF.UPFStatus == context.NotAssociated {
 			err := message.SendPfcpAssociationSetupRequest(upfs.UPF.NodeID, upfs.UPF.Port)
 			if err != nil {
-				logger.PfcpLog.Errorf("send pfcp association setup request failed: %v ", err)
+				logger.SmfLog.Errorf("send pfcp association setup request failed: %v ", err)
 			}
 		}
 		upfs.UPF.UPF.UpfLock.Unlock()

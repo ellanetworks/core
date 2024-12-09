@@ -25,7 +25,7 @@ func GetGnbs(c *gin.Context) {
 	setInventoryCorsHeader(c)
 	dbGnbs, err := queries.ListInventoryGnbs()
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 		c.JSON(http.StatusInternalServerError, nil)
 		return
 	}
@@ -63,10 +63,10 @@ func handlePostGnb(c *gin.Context) error {
 	var exists bool
 	if gnbName, exists = c.Params.Get("gnb-name"); !exists {
 		errorMessage := "gnb-name is missing"
-		logger.NMSLog.Errorf(errorMessage)
+		logger.NmsLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
-	logger.NMSLog.Infof("Received gNB %v", gnbName)
+	logger.NmsLog.Infof("Received gNB %v", gnbName)
 	var err error
 	var newGnb models.Gnb
 
@@ -76,12 +76,12 @@ func handlePostGnb(c *gin.Context) error {
 		err = c.ShouldBindJSON(&newGnb)
 	}
 	if err != nil {
-		logger.NMSLog.Errorf(err.Error())
+		logger.NmsLog.Errorf(err.Error())
 		return fmt.Errorf("failed to create gNB %v: %v", gnbName, err)
 	}
 	if newGnb.Tac == "" {
 		errorMessage := "tac is missing"
-		logger.NMSLog.Errorf(errorMessage)
+		logger.NmsLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
 	req := httpwrapper.NewRequest(c.Request, newGnb)
@@ -92,7 +92,7 @@ func handlePostGnb(c *gin.Context) error {
 		Tac:  procReq.Tac,
 	}
 	queries.CreateGnb(dbGnb)
-	logger.NMSLog.Infof("created gnb %v", gnbName)
+	logger.NmsLog.Infof("created gnb %v", gnbName)
 	return nil
 }
 
@@ -101,13 +101,13 @@ func handleDeleteGnb(c *gin.Context) error {
 	var exists bool
 	if gnbName, exists = c.Params.Get("gnb-name"); !exists {
 		errorMessage := "gnb-name is missing"
-		logger.NMSLog.Errorf(errorMessage)
+		logger.NmsLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
 	err := queries.DeleteGnb(gnbName)
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 	}
-	logger.NMSLog.Infof("Deleted gnb %v", gnbName)
+	logger.NmsLog.Infof("Deleted gnb %v", gnbName)
 	return nil
 }

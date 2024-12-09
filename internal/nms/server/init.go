@@ -18,7 +18,7 @@ func (nms *NMS) Initialize(c config.Configuration) {
 }
 
 func (nms *NMS) Start() {
-	subconfig_router := logger_util.NewGinWithZap(logger.NMSLog)
+	subconfig_router := logger_util.NewGinWithZap(logger.NmsLog)
 	AddUiService(subconfig_router)
 	AddService(subconfig_router)
 
@@ -36,9 +36,9 @@ func (nms *NMS) Start() {
 
 	go func() {
 		httpAddr := ":" + strconv.Itoa(config.Config.CfgPort)
-		logger.NMSLog.Infoln("NMS HTTP addr:", httpAddr, config.Config.CfgPort)
-		logger.NMSLog.Infoln(subconfig_router.Run(httpAddr))
-		logger.NMSLog.Infoln("NMS stopped/terminated/not-started ")
+		logger.NmsLog.Infoln("NMS HTTP addr:", httpAddr, config.Config.CfgPort)
+		logger.NmsLog.Infoln(subconfig_router.Run(httpAddr))
+		logger.NmsLog.Infoln("NMS stopped/terminated/not-started ")
 	}()
 
 	select {}

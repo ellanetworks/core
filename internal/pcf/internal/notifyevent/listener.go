@@ -1,7 +1,7 @@
 package notifyevent
 
 import (
-	"github.com/yeastengine/ella/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 type NotifyListener struct{}
@@ -13,6 +13,6 @@ func (l NotifyListener) Listen(event interface{}) {
 	case SendSMpolicyTerminationNotifyEvent:
 		event.Handle()
 	default:
-		logger.NotifyEventLog.Warnf("registered an invalid user event: %T\n", event)
+		logger.PcfLog.Warnf("registered an invalid user event: %T\n", event)
 	}
 }

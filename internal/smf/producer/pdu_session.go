@@ -11,9 +11,9 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	amf_producer "github.com/yeastengine/ella/internal/amf/producer"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/consumer"
 	smf_context "github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/logger"
 	pfcp_message "github.com/yeastengine/ella/internal/smf/pfcp/message"
 	"github.com/yeastengine/ella/internal/smf/qos"
 	"github.com/yeastengine/ella/internal/smf/transaction"
@@ -73,7 +73,7 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 	m := nas.NewMessage()
 	if err := m.GsmMessageDecode(&request.BinaryDataN1SmMessage); err != nil ||
 		m.GsmHeader.GetMessageType() != nas.MsgTypePDUSessionEstablishmentRequest {
-		logger.PduSessLog.Errorln("PDUSessionSMContextCreate, GsmMessageDecode Error: ", err)
+		logger.SmfLog.Errorln("PDUSessionSMContextCreate, GsmMessageDecode Error: ", err)
 
 		txn.Rsp = formContextCreateErrRsp(http.StatusForbidden, &Nsmf_PDUSession.N1SmError, nil)
 		return fmt.Errorf("GsmMsgDecodeError")
@@ -571,14 +571,14 @@ func SendPduSessN1N2Transfer(smContext *smf_context.SMContext, success bool) err
 
 	if success {
 		if smNasBuf, err := smf_context.BuildGSMPDUSessionEstablishmentAccept(smContext); err != nil {
-			logger.PduSessLog.Errorf("Build GSM PDUSessionEstablishmentAccept failed: %s", err)
+			logger.SmfLog.Errorf("Build GSM PDUSessionEstablishmentAccept failed: %s", err)
 		} else {
 			n1n2Request.BinaryDataN1Message = smNasBuf
 			n1n2Request.JsonData.N1MessageContainer = &n1MsgContainer
 		}
 
 		if n2Pdu, err := smf_context.BuildPDUSessionResourceSetupRequestTransfer(smContext); err != nil {
-			logger.PduSessLog.Errorf("Build PDUSessionResourceSetupRequestTransfer failed: %s", err)
+			logger.SmfLog.Errorf("Build PDUSessionResourceSetupRequestTransfer failed: %s", err)
 		} else {
 			n1n2Request.BinaryDataN2Information = n2Pdu
 			n1n2Request.JsonData.N2InfoContainer = &n2InfoContainer
@@ -586,7 +586,7 @@ func SendPduSessN1N2Transfer(smContext *smf_context.SMContext, success bool) err
 	} else {
 		if smNasBuf, err := smf_context.BuildGSMPDUSessionEstablishmentReject(smContext,
 			nasMessage.Cause5GSMRequestRejectedUnspecified); err != nil {
-			logger.PduSessLog.Errorf("Build GSM PDUSessionEstablishmentReject failed: %s", err)
+			logger.SmfLog.Errorf("Build GSM PDUSessionEstablishmentReject failed: %s", err)
 		} else {
 			n1n2Request.BinaryDataN1Message = smNasBuf
 			n1n2Request.JsonData.N1MessageContainer = &n1MsgContainer
