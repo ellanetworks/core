@@ -3,7 +3,7 @@ package gmm
 import (
 	"github.com/omec-project/util/fsm"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 const (
@@ -75,7 +75,7 @@ var GmmFSM *fsm.FSM
 
 func init() {
 	if f, err := fsm.NewFSM(transitions, callbacks); err != nil {
-		logger.GmmLog.Errorf("Initialize Gmm FSM Error: %+v", err)
+		logger.AmfLog.Errorf("Initialize Gmm FSM Error: %+v", err)
 	} else {
 		GmmFSM = f
 	}

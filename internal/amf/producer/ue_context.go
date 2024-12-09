@@ -6,7 +6,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func UeContextHandler(s1, s2 string, msg interface{}) (interface{}, string, interface{}, interface{}) {
@@ -33,7 +33,7 @@ func UeContextHandler(s1, s2 string, msg interface{}) (interface{}, string, inte
 
 // TS 29.518 5.2.2.2.3
 func HandleCreateUEContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.CommLog.Infof("Handle Create UE Context Request")
+	logger.AmfLog.Infof("Handle Create UE Context Request")
 
 	createUeContextRequest := request.Body.(models.CreateUeContextRequest)
 	ueContextID := request.Params["ueContextId"]
@@ -173,7 +173,7 @@ func CreateUEContextProcedure(ueContextID string, createUeContextRequest models.
 
 // TS 29.518 5.2.2.2.4
 func HandleReleaseUEContextRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.CommLog.Info("Handle Release UE Context Request")
+	logger.AmfLog.Info("Handle Release UE Context Request")
 
 	ueContextRelease := request.Body.(models.UeContextRelease)
 	ueContextID := request.Params["ueContextId"]
@@ -210,7 +210,7 @@ func ReleaseUEContextProcedure(ueContextID string, ueContextRelease models.UeCon
 
 	// TODO: UE is emergency registered and the SUPI is not authenticated
 	if ueContextRelease.Supi != "" {
-		logger.GmmLog.Warnf("Emergency registered UE is not supported.")
+		logger.AmfLog.Warnf("Emergency registered UE is not supported.")
 		problemDetails := &models.ProblemDetails{
 			Status: http.StatusForbidden,
 			Cause:  "UNSPECIFIED",
@@ -226,7 +226,7 @@ func ReleaseUEContextProcedure(ueContextID string, ueContextRelease models.UeCon
 		return problemDetails
 	}
 
-	logger.CommLog.Debugf("Release UE Context NGAP cause: %+v", ueContextRelease.NgapCause)
+	logger.AmfLog.Debugf("Release UE Context NGAP cause: %+v", ueContextRelease.NgapCause)
 
 	if ue, ok := amfSelf.AmfUeFindByUeContextID(ueContextID); ok {
 		ue.Remove()
@@ -243,7 +243,7 @@ func ReleaseUEContextProcedure(ueContextID string, ueContextRelease models.UeCon
 
 // TS 29.518 5.2.2.2.1
 func HandleUEContextTransferRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.CommLog.Info("Handle UE Context Transfer Request")
+	logger.AmfLog.Info("Handle UE Context Transfer Request")
 
 	ueContextTransferRequest := request.Body.(models.UeContextTransferRequest)
 	ueContextID := request.Params["ueContextId"]
@@ -391,7 +391,7 @@ func UEContextTransferProcedure(ueContextID string, ueContextTransferRequest mod
 		b := []byte(ue.UeRadioCapability)
 		copy(ueContextTransferResponse.BinaryDataN2Information, b)
 	default:
-		logger.ProducerLog.Warnf("Invalid Transfer Reason: %+v", UeContextTransferReqData.Reason)
+		logger.AmfLog.Warnf("Invalid Transfer Reason: %+v", UeContextTransferReqData.Reason)
 		problemDetails := &models.ProblemDetails{
 			Status: http.StatusForbidden,
 			Cause:  "MANDATORY_IE_INCORRECT",
@@ -483,7 +483,7 @@ func buildAmPolicyReqTriggers(triggers []models.RequestTrigger) (amPolicyReqTrig
 
 // TS 29.518 5.2.2.6
 func HandleAssignEbiDataRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.CommLog.Info("Handle Assign Ebi Data Request")
+	logger.AmfLog.Info("Handle Assign Ebi Data Request")
 
 	assignEbiData := request.Body.(models.AssignEbiData)
 	ueContextID := request.Params["ueContextId"]
@@ -546,14 +546,14 @@ func AssignEbiDataProcedure(ueContextID string, assignEbiData models.AssignEbiDa
 		assignedEbiData.PduSessionId = assignEbiData.PduSessionId
 		return assignedEbiData, nil, nil
 	} else {
-		logger.ProducerLog.Errorln("ue.SmContextList is nil")
+		logger.AmfLog.Errorln("ue.SmContextList is nil")
 		return nil, nil, nil
 	}
 }
 
 // TS 29.518 5.2.2.2.2
 func HandleRegistrationStatusUpdateRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.CommLog.Info("Handle Registration Status Update Request")
+	logger.AmfLog.Info("Handle Registration Status Update Request")
 
 	ueRegStatusUpdateReqData := request.Body.(models.UeRegStatusUpdateReqData)
 	ueContextID := request.Params["ueContextId"]

@@ -7,7 +7,7 @@ import (
 
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func SnssaiHexToModels(hexString string) (*models.Snssai, error) {
@@ -55,7 +55,7 @@ func PlmnIdStringToModels(plmnId string) (plmnID models.PlmnId) {
 func TACConfigToModels(intString string) (hexString string) {
 	tmp, err := strconv.ParseUint(intString, 10, 32)
 	if err != nil {
-		logger.UtilLog.Errorf("ParseUint error: %+v", err)
+		logger.AmfLog.Errorf("ParseUint error: %+v", err)
 		return
 	}
 	hexString = fmt.Sprintf("%06x", tmp)

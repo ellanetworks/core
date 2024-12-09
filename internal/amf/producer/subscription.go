@@ -7,12 +7,12 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 // TS 29.518 5.2.2.5.1
 func HandleAMFStatusChangeSubscribeRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.CommLog.Info("Handle AMF Status Change Subscribe Request")
+	logger.AmfLog.Info("Handle AMF Status Change Subscribe Request")
 
 	subscriptionDataReq := request.Body.(models.SubscriptionData)
 
@@ -45,7 +45,7 @@ func AMFStatusChangeSubscribeProcedure(subscriptionDataReq models.SubscriptionDa
 	if subscriptionDataRsp.GuamiList != nil {
 		newSubscriptionID := amfSelf.NewAMFStatusSubscription(subscriptionDataReq)
 		locationHeader = subscriptionDataReq.AmfStatusUri + "/" + newSubscriptionID
-		logger.CommLog.Infof("new AMF Status Subscription[%s]", newSubscriptionID)
+		logger.AmfLog.Infof("new AMF Status Subscription[%s]", newSubscriptionID)
 		return
 	} else {
 		problemDetails = &models.ProblemDetails{
@@ -58,7 +58,7 @@ func AMFStatusChangeSubscribeProcedure(subscriptionDataReq models.SubscriptionDa
 
 // TS 29.518 5.2.2.5.2
 func HandleAMFStatusChangeUnSubscribeRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.CommLog.Info("Handle AMF Status Change UnSubscribe Request")
+	logger.AmfLog.Info("Handle AMF Status Change UnSubscribe Request")
 
 	subscriptionID := request.Params["subscriptionId"]
 
@@ -79,7 +79,7 @@ func AMFStatusChangeUnSubscribeProcedure(subscriptionID string) (problemDetails 
 			Cause:  "SUBSCRIPTION_NOT_FOUND",
 		}
 	} else {
-		logger.CommLog.Debugf("Delete AMF status subscription[%s]", subscriptionID)
+		logger.AmfLog.Debugf("Delete AMF status subscription[%s]", subscriptionID)
 		amfSelf.DeleteAMFStatusSubscription(subscriptionID)
 	}
 	return
@@ -87,7 +87,7 @@ func AMFStatusChangeUnSubscribeProcedure(subscriptionID string) (problemDetails 
 
 // TS 29.518 5.2.2.5.1.3
 func HandleAMFStatusChangeSubscribeModify(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.CommLog.Info("Handle AMF Status Change Subscribe Modify Request")
+	logger.AmfLog.Info("Handle AMF Status Change Subscribe Modify Request")
 
 	updateSubscriptionData := request.Body.(models.SubscriptionData)
 	subscriptionID := request.Params["subscriptionId"]
@@ -113,7 +113,7 @@ func AMFStatusChangeSubscribeModifyProcedure(subscriptionID string, subscription
 		}
 		return nil, problemDetails
 	} else {
-		logger.CommLog.Debugf("Modify AMF status subscription[%s]", subscriptionID)
+		logger.AmfLog.Debugf("Modify AMF status subscription[%s]", subscriptionID)
 
 		currentSubscriptionData.GuamiList = currentSubscriptionData.GuamiList[:0]
 

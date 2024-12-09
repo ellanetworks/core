@@ -11,7 +11,7 @@ import (
 	"github.com/omec-project/openapi/Namf_Communication"
 	"github.com/omec-project/openapi/models"
 	amf_context "github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func BuildUeContextCreateData(ue *amf_context.AmfUe, targetRanId models.NgRanTargetId,
@@ -128,7 +128,7 @@ func CreateUEContextRequest(ue *amf_context.AmfUe, ueContextCreateData models.Ue
 	res, httpResp, localErr := client.IndividualUeContextDocumentApi.CreateUEContext(ctx, ue.Guti, req)
 	if localErr == nil {
 		ueContextCreatedData = res.JsonData
-		logger.ConsumerLog.Debugf("UeContextCreatedData: %+v", *ueContextCreatedData)
+		logger.AmfLog.Debugf("UeContextCreatedData: %+v", *ueContextCreatedData)
 	} else if httpResp != nil {
 		if httpResp.Status != localErr.Error() {
 			err = localErr
@@ -220,7 +220,7 @@ func UEContextTransferRequest(
 	res, httpResp, localErr := client.IndividualUeContextDocumentApi.UEContextTransfer(ctx, ueContextId, req)
 	if localErr == nil {
 		ueContextTransferRspData = res.JsonData
-		logger.ConsumerLog.Debugf("UeContextTransferRspData: %+v", *ueContextTransferRspData)
+		logger.AmfLog.Debugf("UeContextTransferRspData: %+v", *ueContextTransferRspData)
 	} else if httpResp != nil {
 		if httpResp.Status != localErr.Error() {
 			err = localErr

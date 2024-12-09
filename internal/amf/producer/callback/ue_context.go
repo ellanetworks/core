@@ -7,7 +7,7 @@ import (
 	"github.com/omec-project/openapi/Namf_Communication"
 	"github.com/omec-project/openapi/models"
 	amf_context "github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func SendN2InfoNotifyN2Handover(ue *amf_context.AmfUe, releaseList []int32) error {
@@ -29,9 +29,9 @@ func SendN2InfoNotifyN2Handover(ue *amf_context.AmfUe, releaseList []int32) erro
 	if err == nil {
 	} else {
 		if httpResponse == nil {
-			logger.HttpLog.Errorln(err.Error())
+			logger.AmfLog.Errorln(err.Error())
 		} else if err.Error() != httpResponse.Status {
-			logger.HttpLog.Errorln(err.Error())
+			logger.AmfLog.Errorln(err.Error())
 		}
 	}
 	return nil

@@ -5,7 +5,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/factory"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func InitAmfContext(context *context.AMFContext) {
@@ -42,7 +42,7 @@ func getIntAlgOrder(integrityOrder []string) (intOrder []uint8) {
 		case "NIA3":
 			intOrder = append(intOrder, security.AlgIntegrity128NIA3)
 		default:
-			logger.UtilLog.Errorf("Unsupported algorithm: %s", intAlg)
+			logger.AmfLog.Errorf("Unsupported algorithm: %s", intAlg)
 		}
 	}
 	return
@@ -60,7 +60,7 @@ func getEncAlgOrder(cipheringOrder []string) (encOrder []uint8) {
 		case "NEA3":
 			encOrder = append(encOrder, security.AlgCiphering128NEA3)
 		default:
-			logger.UtilLog.Errorf("Unsupported algorithm: %s", encAlg)
+			logger.AmfLog.Errorf("Unsupported algorithm: %s", encAlg)
 		}
 	}
 	return

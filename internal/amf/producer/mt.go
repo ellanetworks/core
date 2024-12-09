@@ -6,7 +6,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func MtHandler(s1, s2 string, msg interface{}) (interface{}, string, interface{}, interface{}) {
@@ -22,7 +22,7 @@ func MtHandler(s1, s2 string, msg interface{}) (interface{}, string, interface{}
 func HandleProvideDomainSelectionInfoRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	var ue *context.AmfUe
 	var ok bool
-	logger.MtLog.Info("Handle Provide Domain Selection Info Request")
+	logger.AmfLog.Info("Handle Provide Domain Selection Info Request")
 
 	ueContextID := request.Params["ueContextId"]
 	infoClassQuery := request.Query.Get("info-class")

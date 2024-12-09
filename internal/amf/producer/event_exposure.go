@@ -8,7 +8,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func HandleCreateAMFEventSubscription(request *httpwrapper.Request) *httpwrapper.Response {
@@ -188,7 +188,7 @@ func CreateAMFEventSubscriptionProcedure(createEventSubscription models.AmfCreat
 }
 
 func HandleDeleteAMFEventSubscription(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.EeLog.Infoln("Handle Delete AMF Event Subscription")
+	logger.AmfLog.Infoln("Handle Delete AMF Event Subscription")
 
 	subscriptionID := request.Params["subscriptionId"]
 
@@ -222,7 +222,7 @@ func DeleteAMFEventSubscriptionProcedure(subscriptionID string) *models.ProblemD
 }
 
 func HandleModifyAMFEventSubscription(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.EeLog.Infoln("Handle Modify AMF Event Subscription")
+	logger.AmfLog.Infoln("Handle Modify AMF Event Subscription")
 
 	subscriptionID := request.Params["subscriptionId"]
 	modifySubscriptionRequest := request.Body.(models.ModifySubscriptionRequest)

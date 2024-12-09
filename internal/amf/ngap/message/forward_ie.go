@@ -7,7 +7,7 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func AppendPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetupListSUReq,
@@ -112,7 +112,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 			for _, tac := range info.Tacs {
 				tacBytes, err := hex.DecodeString(tac)
 				if err != nil {
-					logger.NgapLog.Errorf(
+					logger.AmfLog.Errorf(
 						"[Error] DecodeString tac error: %+v", err)
 				}
 				tacNgap := ngapType.TAC{}
@@ -134,7 +134,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 			for _, tac := range area.Tacs {
 				tacBytes, err := hex.DecodeString(tac)
 				if err != nil {
-					logger.NgapLog.Errorf(
+					logger.AmfLog.Errorf(
 						"[Error] DecodeString tac error: %+v", err)
 				}
 				tacNgap := ngapType.TAC{}

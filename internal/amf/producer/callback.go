@@ -7,8 +7,8 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
 	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
-	"github.com/yeastengine/ella/internal/amf/logger"
 	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func AmPolicyControlUpdateNotifyUpdateProcedure(polAssoID string,
@@ -56,7 +56,7 @@ func AmPolicyControlUpdateNotifyUpdateProcedure(polAssoID string,
 			} else {
 				message, err := gmm_message.BuildConfigurationUpdateCommand(ue, models.AccessType__3_GPP_ACCESS, nil)
 				if err != nil {
-					logger.GmmLog.Errorf("Build Configuration Update Command Failed : %s", err.Error())
+					logger.AmfLog.Errorf("Build Configuration Update Command Failed : %s", err.Error())
 					return
 				}
 
@@ -67,7 +67,7 @@ func AmPolicyControlUpdateNotifyUpdateProcedure(polAssoID string,
 
 				pkg, err := ngap_message.BuildPaging(ue, nil, false)
 				if err != nil {
-					logger.NgapLog.Errorf("Build Paging failed : %s", err.Error())
+					logger.AmfLog.Errorf("Build Paging failed : %s", err.Error())
 					return
 				}
 				ngap_message.SendPaging(ue, pkg)
@@ -76,80 +76,3 @@ func AmPolicyControlUpdateNotifyUpdateProcedure(polAssoID string,
 	}
 	return nil
 }
-
-// func HandleNfSubscriptionStatusNotify(request *httpwrapper.Request) *httpwrapper.Response {
-// 	logger.ProducerLog.Debugln("[AMF] Handle NF Status Notify")
-
-// 	notificationData := request.Body.(models.NotificationData)
-
-// 	problemDetails := NfSubscriptionStatusNotifyProcedure(notificationData)
-// 	if problemDetails != nil {
-// 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-// 	} else {
-// 		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
-// 	}
-// }
-
-// // To delete (?)
-// func NfSubscriptionStatusNotifyProcedure(notificationData models.NotificationData) *models.ProblemDetails {
-// 	logger.ProducerLog.Debugf("NfSubscriptionStatusNotify: %+v", notificationData)
-
-// 	if notificationData.Event == "" || notificationData.NfInstanceUri == "" {
-// 		problemDetails := &models.ProblemDetails{
-// 			Status: http.StatusBadRequest,
-// 			Cause:  "MANDATORY_IE_MISSING", // Defined in TS 29.510 6.1.6.2.17
-// 			Detail: "Missing IE [Event]/[NfInstanceUri] in NotificationData",
-// 		}
-// 		return problemDetails
-// 	}
-// 	return nil
-// }
-
-// func HandleDeregistrationNotification(request *httpwrapper.Request) *httpwrapper.Response {
-// 	logger.ProducerLog.Infoln("Handle Deregistration Notification")
-// 	deregistrationData := request.Body.(models.DeregistrationData)
-
-// 	switch deregistrationData.DeregReason {
-// 	case "SUBSCRIPTION_WITHDRAWN":
-// 		amfSelf := context.AMF_Self()
-// 		if supi, exists := request.Params["supi"]; exists {
-// 			reqUri := request.URL.RequestURI()
-// 			if ue, ok := amfSelf.AmfUeFindBySupi(supi); ok {
-// 				logger.ProducerLog.Debugln("amf ue found: ", ue.Supi)
-// 				sbiMsg := context.SbiMsg{
-// 					UeContextId: ue.Supi,
-// 					ReqUri:      reqUri,
-// 					Msg:         nil,
-// 					Result:      make(chan context.SbiResponseMsg, 10),
-// 				}
-// 				ue.EventChannel.UpdateSbiHandler(HandleOAMPurgeUEContextRequest)
-// 				ue.EventChannel.SubmitMessage(sbiMsg)
-// 				msg := <-sbiMsg.Result
-// 				if msg.ProblemDetails != nil {
-// 					return httpwrapper.NewResponse(int(msg.ProblemDetails.(*models.ProblemDetails).Status), nil, msg.ProblemDetails.(*models.ProblemDetails))
-// 				} else {
-// 					return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
-// 				}
-// 			} else {
-// 				return httpwrapper.NewResponse(http.StatusNotFound, nil, nil)
-// 			}
-// 		}
-
-// 	case "":
-// 		problemDetails := &models.ProblemDetails{
-// 			Status: http.StatusBadRequest,
-// 			Cause:  "MANDATORY_IE_MISSING", // Defined in TS 29.503 6.2.5.2
-// 			Detail: "Missing IE [DeregReason] in DeregistrationData",
-// 		}
-// 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-
-// 	default:
-// 		problemDetails := &models.ProblemDetails{
-// 			Status: http.StatusNotImplemented,
-// 			Cause:  "NOT_IMPLEMENTED", // Defined in TS 29.503
-// 			Detail: "Unsupported [DeregReason] in DeregistrationData",
-// 		}
-// 		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-// 	}
-// 	return nil
-// }

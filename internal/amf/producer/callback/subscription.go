@@ -7,7 +7,7 @@ import (
 	"github.com/omec-project/openapi/Namf_Communication"
 	"github.com/omec-project/openapi/models"
 	amf_context "github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func SendAmfStatusChangeNotify(amfStatus string, guamiList []models.Guami) {
@@ -39,14 +39,14 @@ func SendAmfStatusChangeNotify(amfStatus string, guamiList []models.Guami) {
 		amfStatusNotification.AmfStatusInfoList = append(amfStatusNotification.AmfStatusInfoList, amfStatusInfo)
 		uri := subscriptionData.AmfStatusUri
 
-		logger.ProducerLog.Infof("[AMF] Send Amf Status Change Notify to %s", uri)
+		logger.AmfLog.Infof("[AMF] Send Amf Status Change Notify to %s", uri)
 		httpResponse, err := client.AmfStatusChangeCallbackDocumentApiServiceCallbackDocumentApi.
 			AmfStatusChangeNotify(context.Background(), uri, amfStatusNotification)
 		if err != nil {
 			if httpResponse == nil {
-				logger.HttpLog.Errorln(err.Error())
+				logger.AmfLog.Errorln(err.Error())
 			} else if err.Error() != httpResponse.Status {
-				logger.HttpLog.Errorln(err.Error())
+				logger.AmfLog.Errorln(err.Error())
 			}
 		}
 		return true

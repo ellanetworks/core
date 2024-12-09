@@ -13,10 +13,10 @@ import (
 	"github.com/yeastengine/ella/internal/amf/consumer"
 	"github.com/yeastengine/ella/internal/amf/context"
 	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
-	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/amf/nas"
 	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
 	"github.com/yeastengine/ella/internal/amf/util"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context.RanUe, *ngapType.AMFUENGAPID) {
@@ -28,7 +28,7 @@ func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context
 	var ranUe *context.RanUe
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return nil, nil
 	}
 	if message == nil {
@@ -496,7 +496,7 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var cause ngapType.Cause
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -636,7 +636,7 @@ func HandleUplinkNasTransport(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var userLocationInformation *ngapType.UserLocationInformation
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -723,7 +723,7 @@ func HandleNGReset(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var resetType *ngapType.ResetType
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -820,7 +820,7 @@ func HandleNGResetAcknowledge(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -876,7 +876,7 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -1104,7 +1104,7 @@ func HandlePDUSessionResourceReleaseResponse(ran *context.AmfRan, message *ngapT
 	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -1211,7 +1211,7 @@ func HandleUERadioCapabilityCheckResponse(ran *context.AmfRan, message *ngapType
 	var ranUe *context.RanUe
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -1282,7 +1282,7 @@ func HandleLocationReportingFailureIndication(ran *context.AmfRan, message *ngap
 	var cause *ngapType.Cause
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -1537,7 +1537,7 @@ func HandlePDUSessionResourceSetupResponse(ran *context.AmfRan, message *ngapTyp
 	var ranUe *context.RanUe
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -1699,7 +1699,7 @@ func HandlePDUSessionResourceModifyResponse(ran *context.AmfRan, message *ngapTy
 	var ranUe *context.RanUe
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -1833,7 +1833,7 @@ func HandlePDUSessionResourceNotify(ran *context.AmfRan, message *ngapType.NGAPP
 	var ranUe *context.RanUe
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -2007,7 +2007,7 @@ func HandlePDUSessionResourceModifyIndication(ran *context.AmfRan, message *ngap
 	var ranUe *context.RanUe
 
 	if ran == nil {
-		logger.NgapLog.Errorln("ran is nil")
+		logger.AmfLog.Errorln("ran is nil")
 		return
 	}
 	if message == nil {
@@ -2142,7 +2142,7 @@ func HandleInitialContextSetupResponse(ran *context.AmfRan, message *ngapType.NG
 	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -2287,7 +2287,7 @@ func HandleInitialContextSetupFailure(ran *context.AmfRan, message *ngapType.NGA
 	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -2396,7 +2396,7 @@ func HandleUEContextReleaseRequest(ran *context.AmfRan, message *ngapType.NGAPPD
 	var cause *ngapType.Cause
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -2540,7 +2540,7 @@ func HandleUEContextModificationResponse(ran *context.AmfRan, message *ngapType.
 	var ranUe *context.RanUe
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -2633,7 +2633,7 @@ func HandleUEContextModificationFailure(ran *context.AmfRan, message *ngapType.N
 	var ranUe *context.RanUe
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -2714,7 +2714,7 @@ func HandleRRCInactiveTransitionReport(ran *context.AmfRan, message *ngapType.NG
 	var userLocationInformation *ngapType.UserLocationInformation
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -2793,7 +2793,7 @@ func HandleHandoverNotify(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var userLocationInformation *ngapType.UserLocationInformation
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -2900,7 +2900,7 @@ func HandlePathSwitchRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var ranUe *context.RanUe
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -3093,7 +3093,7 @@ func HandleHandoverRequestAcknowledge(ran *context.AmfRan, message *ngapType.NGA
 	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
 
 	if ran == nil {
-		logger.NgapLog.Errorln("ran is nil")
+		logger.AmfLog.Errorln("ran is nil")
 		return
 	}
 	if message == nil {
@@ -3257,7 +3257,7 @@ func HandleHandoverFailure(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -3356,7 +3356,7 @@ func HandleHandoverRequired(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
 
 	if ran == nil {
-		logger.NgapLog.Errorln("ran is nil")
+		logger.AmfLog.Errorln("ran is nil")
 		return
 	}
 	if message == nil {
@@ -3541,7 +3541,7 @@ func HandleHandoverCancel(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var cause *ngapType.Cause
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -3648,7 +3648,7 @@ func HandleUplinkRanStatusTransfer(ran *context.AmfRan, message *ngapType.NGAPPD
 	var ranUe *context.RanUe
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -3714,7 +3714,7 @@ func HandleNasNonDeliveryIndication(ran *context.AmfRan, message *ngapType.NGAPP
 	var cause *ngapType.Cause
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -3784,7 +3784,7 @@ func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU
 	var cause ngapType.Cause
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 
@@ -3902,7 +3902,7 @@ func HandleUplinkRanConfigurationTransfer(ran *context.AmfRan, message *ngapType
 	var sONConfigurationTransferUL *ngapType.SONConfigurationTransfer
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -3956,7 +3956,7 @@ func HandleUplinkUEAssociatedNRPPATransport(ran *context.AmfRan, message *ngapTy
 	var nRPPaPDU *ngapType.NRPPaPDU
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -4027,7 +4027,7 @@ func HandleUplinkNonUEAssociatedNRPPATransport(ran *context.AmfRan, message *nga
 	var nRPPaPDU *ngapType.NRPPaPDU
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -4082,7 +4082,7 @@ func HandleLocationReport(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var locationReportingRequestType *ngapType.LocationReportingRequestType
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -4191,7 +4191,7 @@ func HandleUERadioCapabilityInfoIndication(ran *context.AmfRan, message *ngapTyp
 	var uERadioCapabilityForPaging *ngapType.UERadioCapabilityForPaging
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -4280,7 +4280,7 @@ func HandleAMFconfigurationUpdateFailure(ran *context.AmfRan, message *ngapType.
 	var cause *ngapType.Cause
 	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -4328,7 +4328,7 @@ func HandleAMFconfigurationUpdateAcknowledge(ran *context.AmfRan, message *ngapT
 	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 	var aMFTNLAssociationFailedToSetupList *ngapType.TNLAssociationList
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -4384,7 +4384,7 @@ func HandleErrorIndication(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var criticalityDiagnostics *ngapType.CriticalityDiagnostics
 
 	if ran == nil {
-		logger.NgapLog.Error("ran is nil")
+		logger.AmfLog.Error("ran is nil")
 		return
 	}
 	if message == nil {
@@ -4453,7 +4453,7 @@ func HandleCellTrafficTrace(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var iesCriticalityDiagnostics ngapType.CriticalityDiagnosticsIEList
 
 	if ran == nil {
-		logger.NgapLog.Errorln("ran is nil")
+		logger.AmfLog.Errorln("ran is nil")
 		return
 	}
 	if message == nil {

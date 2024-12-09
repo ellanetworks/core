@@ -6,7 +6,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func LocationInfoHandler(s1, s2 string, msg interface{}) (interface{}, string, interface{}, interface{}) {
@@ -22,7 +22,7 @@ func LocationInfoHandler(s1, s2 string, msg interface{}) (interface{}, string, i
 func HandleProvideLocationInfoRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	var ue *context.AmfUe
 	var ok bool
-	logger.ProducerLog.Info("Handle Provide Location Info Request")
+	logger.AmfLog.Info("Handle Provide Location Info Request")
 
 	requestLocInfo := request.Body.(models.RequestLocInfo)
 	ueContextID := request.Params["ueContextId"]

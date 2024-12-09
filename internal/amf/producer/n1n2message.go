@@ -12,9 +12,9 @@ import (
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/amf/context"
 	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
-	"github.com/yeastengine/ella/internal/amf/logger"
 	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
 	"github.com/yeastengine/ella/internal/amf/producer/callback"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func ProducerHandler(s1, s2 string, msg interface{}) (interface{}, string, interface{}, interface{}) {
@@ -37,7 +37,7 @@ func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest mo
 	var ue *context.AmfUe
 	var ok bool
 	var problemDetails *models.ProblemDetails
-	logger.ProducerLog.Infof("Handle N1N2 Message Transfer Request")
+	logger.AmfLog.Infof("Handle N1N2 Message Transfer Request")
 
 	amfSelf := context.AMF_Self()
 
@@ -347,7 +347,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			}
 			pkg, err := ngap_message.BuildPaging(ue, pagingPriority, false)
 			if err != nil {
-				logger.NgapLog.Errorf("Build Paging failed : %s", err.Error())
+				logger.AmfLog.Errorf("Build Paging failed : %s", err.Error())
 				return n1n2MessageTransferRspData, locationHeader, problemDetails, transferErr
 			}
 			ngap_message.SendPaging(ue, pkg)
@@ -372,7 +372,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 				ue.N1N2Message = &message
 				nasMsg, err := gmm_message.BuildNotification(ue, models.AccessType_NON_3_GPP_ACCESS)
 				if err != nil {
-					logger.GmmLog.Errorf("Build Notification failed : %s", err.Error())
+					logger.AmfLog.Errorf("Build Notification failed : %s", err.Error())
 					return n1n2MessageTransferRspData, locationHeader, problemDetails, transferErr
 				}
 				gmm_message.SendNotification(ue.RanUe[models.AccessType__3_GPP_ACCESS], nasMsg)
@@ -399,7 +399,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			}
 			pkg, err := ngap_message.BuildPaging(ue, pagingPriority, true)
 			if err != nil {
-				logger.NgapLog.Errorf("Build Paging failed : %s", err.Error())
+				logger.AmfLog.Errorf("Build Paging failed : %s", err.Error())
 			}
 			ngap_message.SendPaging(ue, pkg)
 			return n1n2MessageTransferRspData, locationHeader, nil, nil
@@ -408,7 +408,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 }
 
 func HandleN1N2MessageTransferStatusRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.CommLog.Info("Handle N1N2Message Transfer Status Request")
+	logger.AmfLog.Info("Handle N1N2Message Transfer Status Request")
 
 	ueContextID := request.Params["ueContextId"]
 	reqUri := request.Params["reqUri"]
@@ -528,7 +528,7 @@ func N1N2MessageSubscribeProcedure(ueContextID string,
 	ueN1N2InfoSubscriptionCreatedData := new(models.UeN1N2InfoSubscriptionCreatedData)
 
 	if newSubscriptionID, err := ue.N1N2MessageSubscribeIDGenerator.Allocate(); err != nil {
-		logger.CommLog.Errorf("Create subscriptionID Error: %+v", err)
+		logger.AmfLog.Errorf("Create subscriptionID Error: %+v", err)
 		problemDetails := &models.ProblemDetails{
 			Status: http.StatusInternalServerError,
 			Cause:  "SYSTEM_FAILURE",
@@ -542,7 +542,7 @@ func N1N2MessageSubscribeProcedure(ueContextID string,
 }
 
 func HandleN1N2MessageUnSubscribeRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.CommLog.Info("Handle N1N2Message Unsubscribe Request")
+	logger.AmfLog.Info("Handle N1N2Message Unsubscribe Request")
 
 	ueContextID := request.Params["ueContextId"]
 	subscriptionID := request.Params["subscriptionId"]

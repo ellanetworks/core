@@ -3,9 +3,9 @@ package queries
 import (
 	"encoding/json"
 
-	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/db/models"
+	"github.com/yeastengine/ella/internal/logger"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -14,7 +14,7 @@ func GetAuthenticationStatus(ueId string) (*models.AuthEvent, error) {
 
 	dbAuthStatus, errGetOne := db.CommonDBClient.RestfulAPIGetOne(db.SUBSCDATA_AUT_AUTHSTATUS, filter)
 	if errGetOne != nil {
-		logger.DataRepoLog.Warnln(errGetOne)
+		logger.DBLog.Warnln(errGetOne)
 	}
 	var authStatus *models.AuthEvent
 	json.Unmarshal(mapToByte(dbAuthStatus), &authStatus)
