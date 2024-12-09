@@ -7,36 +7,17 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/factory"
 	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/amf/ngap"
 	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
 	ngap_service "github.com/yeastengine/ella/internal/amf/ngap/service"
 	"github.com/yeastengine/ella/internal/amf/producer/callback"
 	"github.com/yeastengine/ella/internal/amf/util"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type AMF struct{}
 
 const IMSI_PREFIX = "imsi-"
-
-func (amf *AMF) Initialize(c factory.Configuration) {
-	factory.InitConfigFactory(c)
-	amf.setLogLevel()
-}
-
-func (amf *AMF) setLogLevel() {
-	if level, err := zapcore.ParseLevel(factory.AmfConfig.Logger.AMF.DebugLevel); err != nil {
-		logger.InitLog.Warnf("AMF Log level [%s] is invalid, set to [info] level",
-			factory.AmfConfig.Logger.AMF.DebugLevel)
-		logger.SetLogLevel(zap.InfoLevel)
-	} else {
-		logger.InitLog.Infof("AMF Log level is set to [%s] level", level)
-		logger.SetLogLevel(level)
-	}
-}
 
 func (amf *AMF) Start() {
 	self := context.AMF_Self()

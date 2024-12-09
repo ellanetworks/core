@@ -6,6 +6,7 @@ import (
 	"github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/amf/factory"
 	"github.com/yeastengine/ella/internal/amf/service"
+	"go.uber.org/zap/zapcore"
 )
 
 var AMF = &service.AMF{}
@@ -16,11 +17,6 @@ const (
 
 func Start() error {
 	configuration := factory.Configuration{
-		Logger: &logger.Logger{
-			AMF: &logger.LogSetting{
-				DebugLevel: "debug",
-			},
-		},
 		AmfName:      "AMF",
 		NgapIpList:   []string{"0.0.0.0"},
 		NgapPort:     NGAPP_PORT,
@@ -34,13 +30,6 @@ func Start() error {
 			IwkN26:  0,
 			Mcsi:    0,
 			Mpsi:    0,
-		},
-		ServiceNameList: []string{
-			"namf-comm",
-			"namf-evts",
-			"namf-mt",
-			"namf-loc",
-			"namf-oam",
 		},
 		SupportDnnList: []string{"internet"},
 		Security: &factory.Security{
@@ -80,7 +69,12 @@ func Start() error {
 		},
 	}
 
-	AMF.Initialize(configuration)
-	go AMF.Start()
+	factory.InitConfigFactory(configuration)
+	level, err := zapcore.ParseLevel("debug")
+	if err != nil {
+		return err
+	}
+	logger.SetLogLevel(level)
+	AMF.Start()
 	return nil
 }
