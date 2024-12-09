@@ -4,8 +4,8 @@ import (
 	"net"
 
 	"github.com/wmnsk/go-pfcp/ie"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/upf/ebpf"
-	"github.com/yeastengine/ella/internal/upf/logger"
 )
 
 const flagPresentIPv4 = 2
@@ -13,15 +13,15 @@ const flagPresentIPv4 = 2
 func applyPDR(spdrInfo SPDRInfo, mapOperations ebpf.ForwardingPlaneController) {
 	if spdrInfo.Ipv4 != nil {
 		if err := mapOperations.PutPdrDownlink(spdrInfo.Ipv4, spdrInfo.PdrInfo); err != nil {
-			logger.AppLog.Infof("Can't apply IPv4 PDR: %s", err.Error())
+			logger.UpfLog.Infof("Can't apply IPv4 PDR: %s", err.Error())
 		}
 	} else if spdrInfo.Ipv6 != nil {
 		if err := mapOperations.PutDownlinkPdrIp6(spdrInfo.Ipv6, spdrInfo.PdrInfo); err != nil {
-			logger.AppLog.Infof("Can't apply IPv6 PDR: %s", err.Error())
+			logger.UpfLog.Infof("Can't apply IPv6 PDR: %s", err.Error())
 		}
 	} else {
 		if err := mapOperations.PutPdrUplink(spdrInfo.Teid, spdrInfo.PdrInfo); err != nil {
-			logger.AppLog.Infof("Can't apply GTP PDR: %s", err.Error())
+			logger.UpfLog.Infof("Can't apply GTP PDR: %s", err.Error())
 		}
 	}
 }

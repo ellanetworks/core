@@ -5,8 +5,8 @@ import (
 
 	"github.com/omec-project/openapi/Nudr_DataRepository"
 	"github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/logger"
 	udr_context "github.com/yeastengine/ella/internal/udr/context"
-	"github.com/yeastengine/ella/internal/udr/logger"
 )
 
 func SendOnDataChangeNotify(ueId string, notifyItems []models.NotifyItem) {
@@ -26,9 +26,9 @@ func SendOnDataChangeNotify(ueId string, notifyItems []models.NotifyItem) {
 				onDataChangeNotifyUrl, dataChangeNotify)
 			if err != nil {
 				if httpResponse == nil {
-					logger.AppLog.Errorln(err.Error())
+					logger.UdrLog.Errorln(err.Error())
 				} else if err.Error() != httpResponse.Status {
-					logger.AppLog.Errorln(err.Error())
+					logger.UdrLog.Errorln(err.Error())
 				}
 			}
 		}

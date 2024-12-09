@@ -5,8 +5,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/upf/core/service"
-	"github.com/yeastengine/ella/internal/upf/logger"
 
 	"github.com/yeastengine/ella/internal/upf/config"
 	"github.com/yeastengine/ella/internal/upf/ebpf"
@@ -36,12 +36,12 @@ func (connection *PfcpConnection) GetAssociation(assocAddr string) *NodeAssociat
 func CreatePfcpConnection(addr string, pfcpHandlerMap PfcpHandlerMap, nodeId string, n3Ip string, mapOperations ebpf.ForwardingPlaneController, resourceManager *service.ResourceManager) (*PfcpConnection, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
-		logger.AppLog.Warnf("Can't resolve UDP address: %s", err.Error())
+		logger.UpfLog.Warnf("Can't resolve UDP address: %s", err.Error())
 		return nil, err
 	}
 	udpConn, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
-		logger.AppLog.Warnf("Can't listen UDP address: %s", err.Error())
+		logger.UpfLog.Warnf("Can't listen UDP address: %s", err.Error())
 		return nil, err
 	}
 
@@ -49,7 +49,7 @@ func CreatePfcpConnection(addr string, pfcpHandlerMap PfcpHandlerMap, nodeId str
 	if n3Addr == nil {
 		return nil, fmt.Errorf("failed to parse N3 IP address ID: %s", n3Ip)
 	}
-	logger.AppLog.Infof("Starting PFCP connection: %v with Node ID: %v and N3 address: %v", udpAddr, nodeId, n3Addr)
+	logger.UpfLog.Infof("Starting PFCP connection: %v with Node ID: %v and N3 address: %v", udpAddr, nodeId, n3Addr)
 
 	return &PfcpConnection{
 		udpConn:           udpConn,
@@ -75,11 +75,11 @@ func (connection *PfcpConnection) Run() {
 	for {
 		n, addr, err := connection.Receive(buf)
 		if err != nil {
-			logger.AppLog.Warnf("Error reading from UDP socket: %s", err.Error())
+			logger.UpfLog.Warnf("Error reading from UDP socket: %s", err.Error())
 			time.Sleep(1 * time.Second)
 			continue
 		}
-		logger.AppLog.Debugf("Received %d bytes from %s", n, addr)
+		logger.UpfLog.Debugf("Received %d bytes from %s", n, addr)
 		connection.Handle(buf[:n], addr)
 	}
 }
@@ -95,7 +95,7 @@ func (connection *PfcpConnection) Receive(b []byte) (n int, addr *net.UDPAddr, e
 func (connection *PfcpConnection) Handle(b []byte, addr *net.UDPAddr) {
 	err := connection.pfcpHandlerMap.Handle(connection, b, addr)
 	if err != nil {
-		logger.AppLog.Warnf("Error handling PFCP message: %s", err.Error())
+		logger.UpfLog.Warnf("Error handling PFCP message: %s", err.Error())
 	}
 }
 
@@ -106,11 +106,11 @@ func (connection *PfcpConnection) Send(b []byte, addr *net.UDPAddr) (int, error)
 func (connection *PfcpConnection) SendMessage(msg message.Message, addr *net.UDPAddr) error {
 	responseBytes := make([]byte, msg.MarshalLen())
 	if err := msg.MarshalTo(responseBytes); err != nil {
-		logger.AppLog.Warnf(err.Error())
+		logger.UpfLog.Warnf(err.Error())
 		return err
 	}
 	if _, err := connection.Send(responseBytes, addr); err != nil {
-		logger.AppLog.Warnf(err.Error())
+		logger.UpfLog.Warnf(err.Error())
 		return err
 	}
 	return nil
@@ -127,9 +127,9 @@ func (connection *PfcpConnection) RefreshAssociations() {
 // DeleteAssociation deletes an association and all sessions associated with it.
 func (connection *PfcpConnection) DeleteAssociation(assocAddr string) {
 	assoc := connection.GetAssociation(assocAddr)
-	logger.AppLog.Infof("Pruning expired node association: %s", assocAddr)
+	logger.UpfLog.Infof("Pruning expired node association: %s", assocAddr)
 	for sessionId, session := range assoc.Sessions {
-		logger.AppLog.Infof("Deleting session: %d", sessionId)
+		logger.UpfLog.Infof("Deleting session: %d", sessionId)
 		connection.DeleteSession(session)
 	}
 	delete(connection.NodeAssociations, assocAddr)

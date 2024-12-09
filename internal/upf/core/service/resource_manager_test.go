@@ -4,13 +4,13 @@ import (
 	"net"
 	"testing"
 
-	"github.com/yeastengine/ella/internal/upf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func TestAllocateIP(t *testing.T) {
 	resourceManager, err := NewResourceManager("10.61.0.0/16", 65536)
 	if err != nil {
-		logger.AppLog.Errorf("Error creating resource manager: %v", err)
+		logger.UpfLog.Errorf("Error creating resource manager: %v", err)
 	}
 
 	// IP TESTS

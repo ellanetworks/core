@@ -6,7 +6,7 @@ import (
 
 	"github.com/omec-project/openapi/Nudm_UEContextManagement"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/udm/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func SendOnDeregistrationNotification(ueId string, onDeregistrationNotificationUrl string,
@@ -19,7 +19,7 @@ func SendOnDeregistrationNotification(ueId string, onDeregistrationNotificationU
 		context.TODO(), onDeregistrationNotificationUrl, deregistData)
 	if err != nil {
 		if httpResponse == nil {
-			logger.HttpLog.Error(err.Error())
+			logger.UdmLog.Error(err.Error())
 			problemDetails := &models.ProblemDetails{
 				Status: http.StatusInternalServerError,
 				Cause:  "DEREGISTRATION_NOTIFICATION_ERROR",
@@ -28,7 +28,7 @@ func SendOnDeregistrationNotification(ueId string, onDeregistrationNotificationU
 
 			return problemDetails
 		} else {
-			logger.HttpLog.Errorln(err.Error())
+			logger.UdmLog.Errorln(err.Error())
 			problemDetails := &models.ProblemDetails{
 				Status: int32(httpResponse.StatusCode),
 				Cause:  "DEREGISTRATION_NOTIFICATION_ERROR",
@@ -40,7 +40,7 @@ func SendOnDeregistrationNotification(ueId string, onDeregistrationNotificationU
 	}
 	defer func() {
 		if rspCloseErr := httpResponse.Body.Close(); rspCloseErr != nil {
-			logger.HttpLog.Errorf("DeregistrationNotify response body cannot close: %+v", rspCloseErr)
+			logger.UdmLog.Errorf("DeregistrationNotify response body cannot close: %+v", rspCloseErr)
 		}
 	}()
 

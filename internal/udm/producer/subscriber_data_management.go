@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/udm/context"
-	"github.com/yeastengine/ella/internal/udm/logger"
 	"github.com/yeastengine/ella/internal/udr/producer"
 )
 
@@ -16,7 +16,7 @@ func GetAmData(supi string) (
 ) {
 	amData, err := producer.GetAmData(supi)
 	if err != nil {
-		logger.SdmLog.Errorf("GetAmData error: %+v", err)
+		logger.UdmLog.Errorf("GetAmData error: %+v", err)
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
 	udmUe := context.UDM_Self().NewUdmUe(supi)
@@ -64,7 +64,7 @@ func GetSmfSelectData(supi string) (
 	context.UDM_Self().CreateSmfSelectionSubsDataforUe(supi, body)
 	smfSelectionSubscriptionDataResp, err := producer.GetSmfSelectData(supi)
 	if err != nil {
-		logger.SdmLog.Errorf("GetSmfSelectData error: %+v", err)
+		logger.UdmLog.Errorf("GetSmfSelectData error: %+v", err)
 		return nil, fmt.Errorf("GetSmfSelectData error: %+v", err)
 	}
 	udmUe := context.UDM_Self().NewUdmUe(supi)

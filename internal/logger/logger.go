@@ -17,6 +17,9 @@ var (
 	NssfLog     *zap.SugaredLogger
 	PcfLog      *zap.SugaredLogger
 	SmfLog      *zap.SugaredLogger
+	UdmLog      *zap.SugaredLogger
+	UdrLog      *zap.SugaredLogger
+	UpfLog      *zap.SugaredLogger
 	atomicLevel zap.AtomicLevel
 )
 
@@ -31,12 +34,11 @@ const (
 func init() {
 	atomicLevel = zap.NewAtomicLevelAt(zap.InfoLevel)
 
-	// Define a custom encoder with colorized levels
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.TimeKey = "timestamp"
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	encoderConfig.LevelKey = "level"
-	encoderConfig.EncodeLevel = CapitalColorLevelEncoder // Use custom colorized levels
+	encoderConfig.EncodeLevel = CapitalColorLevelEncoder
 	encoderConfig.CallerKey = "caller"
 	encoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
 	encoderConfig.MessageKey = "message"
@@ -65,6 +67,9 @@ func init() {
 	NssfLog = log.Sugar().With("component", "NSSF")
 	PcfLog = log.Sugar().With("component", "PCF")
 	SmfLog = log.Sugar().With("component", "SMF")
+	UdmLog = log.Sugar().With("component", "UDM")
+	UdrLog = log.Sugar().With("component", "UDR")
+	UpfLog = log.Sugar().With("component", "UPF")
 }
 
 func GetLogger() *zap.Logger {
