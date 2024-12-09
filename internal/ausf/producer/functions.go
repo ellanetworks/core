@@ -14,7 +14,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/ausf/context"
-	"github.com/yeastengine/ella/internal/ausf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/udm/producer"
 )
 
@@ -22,7 +22,7 @@ func KDF5gAka(param ...string) hash.Hash {
 	s := param[0]
 	s += param[1]
 	if p0len, err := strconv.Atoi(param[2]); err != nil {
-		logger.EapAuthComfirmLog.Warnf("atoi failed: %+v", err)
+		logger.AusfLog.Warnf("atoi failed: %+v", err)
 	} else {
 		s += strconv.FormatInt(int64(p0len), 16)
 	}
@@ -51,7 +51,7 @@ func CalculateAtMAC(key []byte, input []byte) []byte {
 	// keyed with K_aut
 	h := hmac.New(sha256.New, key)
 	if _, err := h.Write(input); err != nil {
-		logger.EapAuthComfirmLog.Errorln(err.Error())
+		logger.AusfLog.Errorln(err.Error())
 	}
 	sha := string(h.Sum(nil))
 	return []byte(sha[:16])
@@ -118,7 +118,7 @@ func EapEncodeAttribute(attributeType string, data string) (string, error) {
 		return string(b[:]), nil
 
 	default:
-		logger.EapAuthComfirmLog.Errorf("UNKNOWN attributeType %s\n", attributeType)
+		logger.AusfLog.Errorf("UNKNOWN attributeType %s\n", attributeType)
 		return "", nil
 	}
 
@@ -137,7 +137,7 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 
 	var key []byte
 	if keyTmp, err := hex.DecodeString(keyAp); err != nil {
-		logger.EapAuthComfirmLog.Warnf("Decode key AP failed: %+v", err)
+		logger.AusfLog.Warnf("Decode key AP failed: %+v", err)
 	} else {
 		key = keyTmp
 	}
@@ -157,7 +157,7 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 
 		// Write Data to it
 		if _, err := h.Write(s); err != nil {
-			logger.EapAuthComfirmLog.Errorln(err.Error())
+			logger.AusfLog.Errorln(err.Error())
 		}
 
 		// Get result and encode as hexadecimal string
@@ -177,10 +177,10 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 func checkMACintegrity(offset int, expectedMacValue []byte, packet []byte, Kautn string) bool {
 	eapDecode, decodeErr := EapDecode(packet)
 	if decodeErr != nil {
-		logger.EapAuthComfirmLog.Infoln(decodeErr.Error())
+		logger.AusfLog.Infoln(decodeErr.Error())
 	}
 	if zeroBytes, err := hex.DecodeString("00000000000000000000000000000000"); err != nil {
-		logger.EapAuthComfirmLog.Warnf("Decode error: %+v", err)
+		logger.AusfLog.Warnf("Decode error: %+v", err)
 	} else {
 		copy(eapDecode.Data[offset+4:offset+20], zeroBytes)
 	}
@@ -209,24 +209,24 @@ func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) ([]byte, 
 		attributeType = int(uint(dataArray[0+i]))
 
 		if attributeType == context.AT_RES_ATTRIBUTE {
-			logger.EapAuthComfirmLog.Infoln("Detect AT_RES attribute")
+			logger.AusfLog.Infoln("Detect AT_RES attribute")
 			detectRes = true
 			resLength := int(uint(dataArray[3+i]) | uint(dataArray[2+i])<<8)
 			RES = dataArray[4+i : 4+i+attributeLength-4]
 			byteRes := padZeros(RES, resLength)
 			RES = byteRes
 		} else if attributeType == context.AT_MAC_ATTRIBUTE {
-			logger.EapAuthComfirmLog.Infoln("Detect AT_MAC attribute")
+			logger.AusfLog.Infoln("Detect AT_MAC attribute")
 			detectMac = true
 			macStr := string(dataArray[4+i : 20+i])
 			if checkMACintegrity(i, []byte(macStr), wholePacket, Kautn) {
-				logger.EapAuthComfirmLog.Infoln("check MAC integrity succeed")
+				logger.AusfLog.Infoln("check MAC integrity succeed")
 				macCorrect = true
 			} else {
-				logger.EapAuthComfirmLog.Infoln("check MAC integrity failed")
+				logger.AusfLog.Infoln("check MAC integrity failed")
 			}
 		} else {
-			logger.EapAuthComfirmLog.Infof("Detect unknown attribute with type %d\n", attributeType)
+			logger.AusfLog.Infof("Detect unknown attribute with type %d\n", attributeType)
 		}
 	}
 	if detectRes && detectMac && macCorrect {
@@ -244,7 +244,7 @@ func ConstructFailEapAkaNotification(oldPktId uint8) string {
 	attribute := attrNum + "01" + "4000"
 	var attrHex []byte
 	if attrHexTmp, err := hex.DecodeString(attribute); err != nil {
-		logger.EapAuthComfirmLog.Warnf("Decode attribute failed: %+v", err)
+		logger.AusfLog.Warnf("Decode attribute failed: %+v", err)
 	} else {
 		attrHex = attrHexTmp
 	}
@@ -273,21 +273,21 @@ func sendAuthResultToUDM(id string, authType models.AuthType, success bool, serv
 
 	err := producer.CreateAuthEvent(authEvent, id)
 	if err != nil {
-		logger.Auth5gAkaComfirmLog.Infoln(err.Error())
+		logger.AusfLog.Infoln(err.Error())
 	}
 	return err
 }
 
 func logConfirmFailureAndInformUDM(id string, authType models.AuthType, errStr string) {
 	if authType == models.AuthType__5_G_AKA {
-		logger.Auth5gAkaComfirmLog.Infoln(errStr)
+		logger.AusfLog.Infoln(errStr)
 		if sendErr := sendAuthResultToUDM(id, authType, false, ""); sendErr != nil {
-			logger.Auth5gAkaComfirmLog.Infoln(sendErr.Error())
+			logger.AusfLog.Infoln(sendErr.Error())
 		}
 	} else if authType == models.AuthType_EAP_AKA_PRIME {
-		logger.EapAuthComfirmLog.Infoln(errStr)
+		logger.AusfLog.Infoln(errStr)
 		if sendErr := sendAuthResultToUDM(id, authType, false, ""); sendErr != nil {
-			logger.EapAuthComfirmLog.Infoln(sendErr.Error())
+			logger.AusfLog.Infoln(sendErr.Error())
 		}
 	}
 }

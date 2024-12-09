@@ -9,6 +9,7 @@ import (
 	"github.com/yeastengine/ella/internal/ausf"
 	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/db"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/nms"
 	"github.com/yeastengine/ella/internal/nssf"
 	"github.com/yeastengine/ella/internal/pcf"
@@ -16,6 +17,7 @@ import (
 	"github.com/yeastengine/ella/internal/udm"
 	"github.com/yeastengine/ella/internal/udr"
 	"github.com/yeastengine/ella/internal/upf"
+	"go.uber.org/zap/zapcore"
 )
 
 func parseFlags() (config.Config, error) {
@@ -81,6 +83,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("invalid config: %v", err)
 	}
+	level, err := zapcore.ParseLevel("debug")
+	if err != nil {
+		log.Fatalf("failed to parse log level: %v", err)
+	}
+	logger.SetLogLevel(level)
 	err = db.Initialize(cfg.DB.Url, cfg.DB.Name)
 	if err != nil {
 		log.Fatalf("failed to initialize db: %v", err)
