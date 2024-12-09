@@ -18,7 +18,7 @@ Use Ella where you need 5G connectivity: in a factory, a warehouse, a farm, a st
 
 1. **Simplicity**: We are commited to develop the simplest possible mobile network out there. We thrive on having a very short "Getting Started" tutorial, a simple configuration file, a single binary, and a simple UI.
 2. **Reliability**: We are commited to develop a reliable mobile network you can trust to work 24/7. We are commited to deliver high quality code, tests, and documentation. We are commited to expose useful metrics and logs to help users monitor their network.
-3. **Performance**: We are commited to develop a high performance mobile network. We aim to minimize latency, maximize throughput, and minimize resource usage. 
+3. **Security**: We are commited to minimizing the attack surface of the private network and to use secure encryption protocols to protect the data of our users.
 
 ## Documentation
 
@@ -44,14 +44,36 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 
 ### Reference
 
+#### API
+
+| Endpoint                     | HTTP Method | Description             |
+| ---------------------------- | ----------- | ----------------------- |
+| `/api/v1/subscriber`         | GET         | List subscribers        |
+| `/api/v1/subscriber`         | POST        | Create a new subscriber |
+| `/api/v1/subscriber/{id}`    | GET         | Get a subscriber        |
+| `/api/v1/subscriber/{id}`    | PUT         | Update a subscriber     |
+| `/api/v1/subscriber/{id}`    | DELETE      | Delete a subscriber     |
+| `/api/v1/inventory/gnb`      | GET         | List radios             |
+| `/api/v1/inventory/gnb`      | POST        | Create a new radio      |
+| `/api/v1/inventory/gnb/{id}` | GET         | Get a radio             |
+| `/api/v1/inventory/gnb/{id}` | DELETE      | Delete a radio          |
+| `/api/v1/network-slice`      | GET         | List network slices     |
+| `/api/v1/network-slice`      | POST        | Create a new slice      |
+| `/api/v1/network-slice/{id}` | GET         | Get a slice             |
+| `/api/v1/network-slice/{id}` | PUT         | Update a slice          |
+| `/api/v1/network-slice/{id}` | DELETE      | Delete a slice          |
+| `/api/v1/device-group`       | GET         | List device groups      |
+| `/api/v1/device-group`       | POST        | Create a new group      |
+| `/api/v1/device-group/{id}`  | GET         | Get a group             |
+| `/api/v1/device-group/{id}`  | PUT         | Update a group          |
+| `/api/v1/device-group/{id}`  | DELETE      | Delete a group          |
+
+
 #### Configuration
 
 Example:
 
 ```yaml
-tls:
-  cert: "testdata/cert.pem"
-  key: "testdata/key.pem"
 db:
   url: "mongodb://localhost:27017"
   name: "test"
@@ -59,3 +81,12 @@ upf:
   interfaces: ["enp3s0"]
   n3-address: "127.0.0.1"
 ```
+
+#### Connectivity
+
+Ella uses the following ports:
+- **5000**: HTTPs API and UI
+- **38412**: N2 interface between Ella and 5G Radio (Control Plane)
+- **2152**: N3 interface between Ella and 5G Radio (User Plane)
+
+![alt text](connectivity.png)
