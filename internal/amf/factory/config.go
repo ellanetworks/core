@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/logger"
 )
 
 var AmfConfig Configuration
@@ -14,14 +13,11 @@ func InitConfigFactory(c Configuration) {
 }
 
 type Configuration struct {
-	Logger                          *logger.Logger
 	AmfName                         string
 	NgapIpList                      []string
 	NgapPort                        int
 	SctpGrpcPort                    int
-	Sbi                             *Sbi
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
-	ServiceNameList                 []string
 	ServedGumaiList                 []models.Guami
 	SupportDnnList                  []string
 	Security                        *Security

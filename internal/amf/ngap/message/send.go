@@ -943,25 +943,6 @@ func SendUETNLABindingReleaseRequest(ue *context.RanUe) {
 	SendToRanUe(ue, pkt)
 }
 
-// Weight Factor associated with each of the TNL association within the AMF
-func SendAMFConfigurationUpdate(ran *context.AmfRan, usage ngapType.TNLAssociationUsage,
-	weightfactor ngapType.TNLAddressWeightFactor,
-) {
-	if ran == nil {
-		logger.NgapLog.Error("Ran is nil")
-		return
-	}
-
-	ran.Log.Info("Send AMF Configuration Update")
-
-	pkt, err := BuildAMFConfigurationUpdate(usage, weightfactor)
-	if err != nil {
-		ran.Log.Errorf("Build AMFConfigurationUpdate failed : %s", err.Error())
-		return
-	}
-	SendToRan(ran, pkt)
-}
-
 // NRPPa PDU is a pdu from LMF to RAN defined in TS 23.502 4.13.5.5 step 3
 // NRPPa PDU is by pass
 func SendDownlinkUEAssociatedNRPPaTransport(ue *context.RanUe, nRPPaPDU ngapType.NRPPaPDU) {

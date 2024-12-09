@@ -14,12 +14,7 @@ func InitAmfContext(context *context.AMFContext) {
 	context.NgapIpList = config.NgapIpList
 	context.NgapPort = config.NgapPort
 	context.SctpGrpcPort = config.SctpGrpcPort
-	sbi := config.Sbi
 	context.UriScheme = models.UriScheme_HTTP
-	context.SBIPort = sbi.Port
-	context.BindingIPv4 = sbi.BindingIPv4
-	serviceNameList := config.ServiceNameList
-	context.InitNFService(serviceNameList)
 	context.SupportDnnLists = config.SupportDnnList
 	security := config.Security
 	context.SecurityAlgorithm.IntegrityOrder = getIntAlgOrder(security.IntegrityOrder)

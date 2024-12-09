@@ -1,17 +1,16 @@
 package producer
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/Namf_Communication"
 	"github.com/omec-project/openapi/Nsmf_PDUSession"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
+	amf_producer "github.com/yeastengine/ella/internal/amf/producer"
 	"github.com/yeastengine/ella/internal/smf/consumer"
 	smf_context "github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/logger"
@@ -191,10 +190,6 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("InsufficientResourceSliceDnn")
 		return fmt.Errorf("default data path not found")
 	}
-
-	communicationConf := Namf_Communication.NewConfiguration()
-	communicationConf.SetBasePath(smf_context.SMF_Self().AmfUri)
-	smContext.CommunicationClient = Namf_Communication.NewAPIClient(communicationConf)
 
 	response.JsonData = smContext.BuildCreatedData()
 	txn.Rsp = &httpwrapper.Response{
@@ -599,10 +594,8 @@ func SendPduSessN1N2Transfer(smContext *smf_context.SMContext, success bool) err
 	}
 
 	smContext.SubPduSessLog.Infof("N1N2 transfer initiated")
-	rspData, _, err := smContext.
-		CommunicationClient.
-		N1N2MessageCollectionDocumentApi.
-		N1N2MessageTransfer(context.Background(), smContext.Supi, n1n2Request)
+	// communicationClient := Namf_Communication.NewAPIClient(communicationConf)
+	rspData, err := amf_producer.CreateN1N2MessageTransfer(smContext.Supi, n1n2Request, "")
 	if err != nil {
 		smContext.SubPfcpLog.Warnf("Send N1N2Transfer failed, %v ", err.Error())
 		err = smContext.CommitSmPolicyDecision(false)
