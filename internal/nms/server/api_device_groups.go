@@ -10,7 +10,7 @@ import (
 	"github.com/omec-project/util/httpwrapper"
 	dbModels "github.com/yeastengine/ella/internal/db/models"
 	"github.com/yeastengine/ella/internal/db/queries"
-	"github.com/yeastengine/ella/internal/nms/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/nms/models"
 )
 
@@ -91,7 +91,7 @@ func DeviceGroupGroupNamePost(c *gin.Context) {
 func DeviceGroupDeleteHandler(c *gin.Context) bool {
 	groupName, exists := c.Params.Get("group-name")
 	if !exists {
-		logger.ConfigLog.Errorf("group-name is missing")
+		logger.NMSLog.Errorf("group-name is missing")
 		return false
 	}
 	dbDeviceGroup := queries.GetDeviceGroupByName(groupName)
@@ -127,14 +127,14 @@ func DeviceGroupDeleteHandler(c *gin.Context) bool {
 	}
 	deleteDeviceGroupConfig(deviceGroup)
 	updateSMF()
-	logger.ConfigLog.Infof("Deleted Device Group: %v", groupName)
+	logger.NMSLog.Infof("Deleted Device Group: %v", groupName)
 	return true
 }
 
 func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	groupName, exists := c.Params.Get("group-name")
 	if !exists {
-		logger.ConfigLog.Errorf("group-name is missing")
+		logger.NMSLog.Errorf("group-name is missing")
 		return false
 	}
 
@@ -146,7 +146,7 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 		err = c.ShouldBindJSON(&request)
 	}
 	if err != nil {
-		logger.ConfigLog.Infof(" err %v", err)
+		logger.NMSLog.Infof(" err %v", err)
 		return false
 	}
 	req := httpwrapper.NewRequest(c.Request, request)
@@ -250,7 +250,7 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 		return false
 	}
 	updateSMF()
-	logger.ConfigLog.Infof("Created Device Group: %v", groupName)
+	logger.NMSLog.Infof("Created Device Group: %v", groupName)
 	return true
 }
 

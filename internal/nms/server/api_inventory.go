@@ -10,7 +10,7 @@ import (
 	"github.com/omec-project/util/httpwrapper"
 	dbModels "github.com/yeastengine/ella/internal/db/models"
 	"github.com/yeastengine/ella/internal/db/queries"
-	"github.com/yeastengine/ella/internal/nms/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/nms/models"
 )
 
@@ -63,10 +63,10 @@ func handlePostGnb(c *gin.Context) error {
 	var exists bool
 	if gnbName, exists = c.Params.Get("gnb-name"); !exists {
 		errorMessage := "gnb-name is missing"
-		logger.ConfigLog.Errorf(errorMessage)
+		logger.NMSLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
-	logger.ConfigLog.Infof("Received gNB %v", gnbName)
+	logger.NMSLog.Infof("Received gNB %v", gnbName)
 	var err error
 	var newGnb models.Gnb
 
@@ -76,12 +76,12 @@ func handlePostGnb(c *gin.Context) error {
 		err = c.ShouldBindJSON(&newGnb)
 	}
 	if err != nil {
-		logger.ConfigLog.Errorf(err.Error())
+		logger.NMSLog.Errorf(err.Error())
 		return fmt.Errorf("failed to create gNB %v: %v", gnbName, err)
 	}
 	if newGnb.Tac == "" {
 		errorMessage := "tac is missing"
-		logger.ConfigLog.Errorf(errorMessage)
+		logger.NMSLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
 	req := httpwrapper.NewRequest(c.Request, newGnb)
@@ -92,7 +92,7 @@ func handlePostGnb(c *gin.Context) error {
 		Tac:  procReq.Tac,
 	}
 	queries.CreateGnb(dbGnb)
-	logger.ConfigLog.Infof("created gnb %v", gnbName)
+	logger.NMSLog.Infof("created gnb %v", gnbName)
 	return nil
 }
 
@@ -101,13 +101,13 @@ func handleDeleteGnb(c *gin.Context) error {
 	var exists bool
 	if gnbName, exists = c.Params.Get("gnb-name"); !exists {
 		errorMessage := "gnb-name is missing"
-		logger.ConfigLog.Errorf(errorMessage)
+		logger.NMSLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
 	err := queries.DeleteGnb(gnbName)
 	if err != nil {
 		logger.NMSLog.Warnln(err)
 	}
-	logger.ConfigLog.Infof("Deleted gnb %v", gnbName)
+	logger.NMSLog.Infof("Deleted gnb %v", gnbName)
 	return nil
 }

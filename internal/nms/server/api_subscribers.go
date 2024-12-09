@@ -8,7 +8,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	dbModels "github.com/yeastengine/ella/internal/db/models"
 	"github.com/yeastengine/ella/internal/db/queries"
-	"github.com/yeastengine/ella/internal/nms/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	nmsModels "github.com/yeastengine/ella/internal/nms/models"
 )
 

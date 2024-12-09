@@ -12,7 +12,7 @@ import (
 	"github.com/omec-project/util/httpwrapper"
 	dbModels "github.com/yeastengine/ella/internal/db/models"
 	"github.com/yeastengine/ella/internal/db/queries"
-	"github.com/yeastengine/ella/internal/nms/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/nms/models"
 	"github.com/yeastengine/ella/internal/smf/context"
 )
@@ -208,7 +208,7 @@ func convertToBps(val int64, unit string) (bitrate int64) {
 func NetworkSliceDeleteHandler(c *gin.Context) bool {
 	sliceName, exists := c.Params.Get("slice-name")
 	if !exists {
-		logger.ConfigLog.Errorf("slice-name is missing")
+		logger.NMSLog.Errorf("slice-name is missing")
 		return false
 	}
 	prevdbSlice, err := queries.GetNetworkSliceByName(sliceName)
@@ -249,14 +249,14 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 		}
 	}
 	updateSMF()
-	logger.ConfigLog.Infof("Deleted Network Slice: %v", sliceName)
+	logger.NMSLog.Infof("Deleted Network Slice: %v", sliceName)
 	return true
 }
 
 func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 	sliceName, exists := c.Params.Get("slice-name")
 	if !exists {
-		logger.ConfigLog.Errorf("slice-name is missing")
+		logger.NMSLog.Errorf("slice-name is missing")
 		return false
 	}
 
@@ -342,7 +342,7 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		logger.NMSLog.Warnln(err)
 	}
 	updateSMF()
-	logger.ConfigLog.Infof("Created Network Slice: %v", sliceName)
+	logger.NMSLog.Infof("Created Network Slice: %v", sliceName)
 	return true
 }
 

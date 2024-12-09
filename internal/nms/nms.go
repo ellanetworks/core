@@ -1,7 +1,6 @@
 package nms
 
 import (
-	"github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/nms/config"
 	"github.com/yeastengine/ella/internal/nms/server"
 )
@@ -15,11 +14,6 @@ const (
 
 func Start() (string, error) {
 	configuration := config.Configuration{
-		Logger: &logger.Logger{
-			WEBUI: &logger.LogSetting{
-				DebugLevel: "debug",
-			},
-		},
 		CfgPort: ConfigPort,
 	}
 	NMS.Initialize(configuration)
