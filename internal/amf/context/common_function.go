@@ -5,7 +5,7 @@ import (
 
 	"github.com/mohae/deepcopy"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func CompareUserLocation(loc1 models.UserLocation, loc2 models.UserLocation) bool {
@@ -52,16 +52,16 @@ func TacInAreas(targetTac string, areas []models.Area) bool {
 
 func AttachSourceUeTargetUe(sourceUe, targetUe *RanUe) {
 	if sourceUe == nil {
-		logger.ContextLog.Error("Source Ue is Nil")
+		logger.AmfLog.Error("Source Ue is Nil")
 		return
 	}
 	if targetUe == nil {
-		logger.ContextLog.Error("Target Ue is Nil")
+		logger.AmfLog.Error("Target Ue is Nil")
 		return
 	}
 	amfUe := sourceUe.AmfUe
 	if amfUe == nil {
-		logger.ContextLog.Error("AmfUe is Nil")
+		logger.AmfLog.Error("AmfUe is Nil")
 		return
 	}
 	targetUe.AmfUe = amfUe
@@ -71,7 +71,7 @@ func AttachSourceUeTargetUe(sourceUe, targetUe *RanUe) {
 
 func DetachSourceUeTargetUe(ranUe *RanUe) {
 	if ranUe == nil {
-		logger.ContextLog.Error("ranUe is Nil")
+		logger.AmfLog.Error("ranUe is Nil")
 		return
 	}
 	if ranUe.TargetUe != nil {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
-	"github.com/yeastengine/ella/internal/upf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func writeLineTabbed(sb *strings.Builder, s string, tab int) {
@@ -31,7 +31,7 @@ func printAssociationSetupRequest(req *message.AssociationSetupRequest) {
 			writeLineTabbed(&sb, fmt.Sprintf("Recovery Time: %s", recoveryTime.String()), 1)
 		}
 	}
-	logger.AppLog.Infof(sb.String())
+	logger.UpfLog.Infof(sb.String())
 }
 
 func printSessionEstablishmentRequest(req *message.SessionEstablishmentRequest) {
@@ -62,7 +62,7 @@ func printSessionEstablishmentRequest(req *message.SessionEstablishmentRequest) 
 		sb.WriteString("  Create")
 		displayBar(&sb, req.CreateBAR)
 	}
-	logger.AppLog.Infof(sb.String())
+	logger.UpfLog.Infof(sb.String())
 }
 
 // IE Contents of Create/Update/Remove are mostly the same
@@ -163,7 +163,7 @@ func printSessionModificationRequest(req *message.SessionModificationRequest) {
 			writeLineTabbed(&sb, fmt.Sprintf("BAR ID: %d ", barId), 2)
 		}
 	}
-	logger.AppLog.Infof(sb.String())
+	logger.UpfLog.Infof(sb.String())
 }
 
 func printSessionDeleteRequest(req *message.SessionDeletionRequest) {
@@ -363,7 +363,7 @@ func displayPdr(sb *strings.Builder, pdr *ie.IE) {
 					writeLineTabbed(sb, fmt.Sprintf("UE IPv6 Address: %s ", ueIp.IPv6Address), 2)
 				}
 			} else {
-				logger.AppLog.Infof("ueIp is nil. ueipPdiId: %d", ueipPdiId)
+				logger.UpfLog.Infof("ueIp is nil. ueipPdiId: %d", ueipPdiId)
 			}
 		}
 

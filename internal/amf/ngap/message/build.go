@@ -11,7 +11,7 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func BuildPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte,
@@ -269,7 +269,7 @@ func BuildNGResetAcknowledge(partOfNGInterface *ngapType.UEAssociatedLogicalNGCo
 
 		for _, item := range partOfNGInterface.List {
 			if item.AMFUENGAPID == nil && item.RANUENGAPID == nil {
-				logger.NgapLog.Warn("[Build NG Reset Ack] No AmfUeNgapID & RanUeNgapID")
+				logger.AmfLog.Warn("[Build NG Reset Ack] No AmfUeNgapID & RanUeNgapID")
 				continue
 			}
 
@@ -492,7 +492,7 @@ func BuildErrorIndication(amfUeNgapId, ranUeNgapId *int64, cause *ngapType.Cause
 	errorIndicationIEs := &errorIndication.ProtocolIEs
 
 	if cause == nil && criticalityDiagnostics == nil {
-		logger.NgapLog.Error(
+		logger.AmfLog.Error(
 			"[Build Error Indication] shall contain at least either the Cause or the Criticality Diagnostics")
 	}
 
@@ -1151,7 +1151,7 @@ func BuildInitialContextSetupRequest(
 		imeisv := strings.TrimPrefix(amfUe.Pei, "imeisv-")
 		imeisvBytes, err := hex.DecodeString(imeisv)
 		if err != nil {
-			logger.NgapLog.Errorf("[Build Error] DecodeString imeisv error: %+v", err)
+			logger.AmfLog.Errorf("[Build Error] DecodeString imeisv error: %+v", err)
 		}
 
 		var maskedImeisv []byte
@@ -1210,13 +1210,13 @@ func BuildInitialContextSetupRequest(
 		if amfUe.UeRadioCapabilityForPaging.NR != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value, err = hex.DecodeString(amfUe.UeRadioCapabilityForPaging.NR)
 			if err != nil {
-				logger.NgapLog.Errorf("[Build Error] DecodeString amfUe.UeRadioCapabilityForPaging.NR error: %+v", err)
+				logger.AmfLog.Errorf("[Build Error] DecodeString amfUe.UeRadioCapabilityForPaging.NR error: %+v", err)
 			}
 		}
 		if amfUe.UeRadioCapabilityForPaging.EUTRA != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value, err = hex.DecodeString(amfUe.UeRadioCapabilityForPaging.EUTRA)
 			if err != nil {
-				logger.NgapLog.Errorf("[Build Error] DecodeString amfUe.UeRadioCapabilityForPaging.NR error: %+v", err)
+				logger.AmfLog.Errorf("[Build Error] DecodeString amfUe.UeRadioCapabilityForPaging.NR error: %+v", err)
 			}
 		}
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
@@ -2137,7 +2137,7 @@ func BuildPaging(
 	uePagingIdentity.FiveGSTMSI.AMFPointer.Value = amfPointer
 	uePagingIdentity.FiveGSTMSI.FiveGTMSI.Value, err = hex.DecodeString(tmsi)
 	if err != nil {
-		logger.NgapLog.Errorf("[Build Error] DecodeString tmsi error: %+v", err)
+		logger.AmfLog.Errorf("[Build Error] DecodeString tmsi error: %+v", err)
 	}
 
 	pagingIEs.List = append(pagingIEs.List, ie)
@@ -2162,7 +2162,7 @@ func BuildPaging(
 			taiListforPagingItem.TAI.PLMNIdentity = ngapConvert.PlmnIdToNgap(*tai.PlmnId)
 			tac, err = hex.DecodeString(tai.Tac)
 			if err != nil {
-				logger.NgapLog.Errorf("[Build Error] DecodeString tai.Tac error: %+v", err)
+				logger.AmfLog.Errorf("[Build Error] DecodeString tai.Tac error: %+v", err)
 			}
 			taiListforPagingItem.TAI.TAC.Value = tac
 			taiListForPaging.List = append(taiListForPaging.List, taiListforPagingItem)
@@ -2192,14 +2192,14 @@ func BuildPaging(
 		if ue.UeRadioCapabilityForPaging.NR != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value, err = hex.DecodeString(ue.UeRadioCapabilityForPaging.NR)
 			if err != nil {
-				logger.NgapLog.Errorf(
+				logger.AmfLog.Errorf(
 					"[Build Error] DecodeString ue.UeRadioCapabilityForPaging.NR error: %+v", err)
 			}
 		}
 		if ue.UeRadioCapabilityForPaging.EUTRA != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value, err = hex.DecodeString(ue.UeRadioCapabilityForPaging.EUTRA)
 			if err != nil {
-				logger.NgapLog.Errorf("[Build Error] DecodeString ue.UeRadioCapabilityForPaging.EUTRA error: %+v", err)
+				logger.AmfLog.Errorf("[Build Error] DecodeString ue.UeRadioCapabilityForPaging.EUTRA error: %+v", err)
 			}
 		}
 		pagingIEs.List = append(pagingIEs.List, ie)
@@ -2621,7 +2621,7 @@ func BuildDownlinkNonUEAssociatedNRPPATransport(
 	routingID := ie.Value.RoutingID
 	routingID.Value, err = hex.DecodeString(ue.RoutingID)
 	if err != nil {
-		logger.NgapLog.Errorf("[Build Error] DecodeString ue.RoutingID error: %+v", err)
+		logger.AmfLog.Errorf("[Build Error] DecodeString ue.RoutingID error: %+v", err)
 	}
 
 	downlinkNonUEAssociatedNRPPaTransportIEs.List = append(downlinkNonUEAssociatedNRPPaTransportIEs.List, ie)
@@ -2702,7 +2702,7 @@ func BuildDeactivateTrace(amfUe *context.AmfUe, anType models.AccessType) ([]byt
 		subStringSlice := strings.Split(traceData.TraceRef, "-")
 
 		if len(subStringSlice) != 2 {
-			logger.NgapLog.Warnln("TraceRef format is not correct")
+			logger.AmfLog.Warnln("TraceRef format is not correct")
 		}
 
 		plmnID := models.PlmnId{}
@@ -2710,7 +2710,7 @@ func BuildDeactivateTrace(amfUe *context.AmfUe, anType models.AccessType) ([]byt
 		plmnID.Mnc = subStringSlice[0][3:]
 		traceID, err := hex.DecodeString(subStringSlice[1])
 		if err != nil {
-			logger.NgapLog.Errorf("[Build Error] DecodeString traceID error: %+v", err)
+			logger.AmfLog.Errorf("[Build Error] DecodeString traceID error: %+v", err)
 		}
 
 		tmp := ngapConvert.PlmnIdToNgap(plmnID)
@@ -2718,7 +2718,7 @@ func BuildDeactivateTrace(amfUe *context.AmfUe, anType models.AccessType) ([]byt
 		trsr := ranUe.Trsr
 		trsrNgap, err := hex.DecodeString(trsr)
 		if err != nil {
-			logger.NgapLog.Errorf(
+			logger.AmfLog.Errorf(
 				"[Build Error] DecodeString trsr error: %+v", err)
 		}
 		ie.Value.NGRANTraceID.Value = append(traceReference, trsrNgap...)
@@ -2913,7 +2913,7 @@ func BuildDownlinkUEAssociatedNRPPaTransport(ue *context.RanUe, nRPPaPDU ngapTyp
 	routingID := ie.Value.RoutingID
 	routingID.Value, err = hex.DecodeString(ue.RoutingID)
 	if err != nil {
-		logger.NgapLog.Errorf("[Build Error] DecodeString ue.RoutingID error: %+v", err)
+		logger.AmfLog.Errorf("[Build Error] DecodeString ue.RoutingID error: %+v", err)
 	}
 
 	downlinkUEAssociatedNRPPaTransportIEs.List = append(downlinkUEAssociatedNRPPaTransportIEs.List, ie)

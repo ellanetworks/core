@@ -6,9 +6,9 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
 	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
 	"github.com/yeastengine/ella/internal/amf/producer/callback"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 // backOffTimerUint = 7 means backoffTimer is null
@@ -67,7 +67,7 @@ func SendIdentityRequest(ue *context.RanUe, typeOfIdentity uint8) {
 func SendAuthenticationRequest(ue *context.RanUe) {
 	amfUe := ue.AmfUe
 	if amfUe == nil {
-		logger.GmmLog.Error("AmfUe is nil")
+		logger.AmfLog.Error("AmfUe is nil")
 		return
 	}
 
@@ -138,7 +138,7 @@ func SendAuthenticationReject(ue *context.RanUe, eapMsg string) {
 
 func SendAuthenticationResult(ue *context.RanUe, eapSuccess bool, eapMsg string) {
 	if ue.AmfUe == nil {
-		logger.GmmLog.Errorf("AmfUe is nil")
+		logger.AmfLog.Errorf("AmfUe is nil")
 		return
 	}
 

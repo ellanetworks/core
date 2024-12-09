@@ -7,32 +7,18 @@ import (
 
 	"github.com/gin-contrib/cors"
 	logger_util "github.com/omec-project/util/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/nms/config"
-	"github.com/yeastengine/ella/internal/nms/logger"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type NMS struct{}
 
 func (nms *NMS) Initialize(c config.Configuration) {
 	config.InitConfigFactory(c)
-	setLogLevel()
-}
-
-func setLogLevel() {
-	if level, err := zapcore.ParseLevel(config.Config.Logger.WEBUI.DebugLevel); err != nil {
-		logger.InitLog.Warnf("NMS Log level [%s] is invalid, set to [info] level",
-			config.Config.Logger.WEBUI.DebugLevel)
-		logger.SetLogLevel(zap.InfoLevel)
-	} else {
-		logger.InitLog.Infof("NMS Log level is set to [%s] level", level)
-		logger.SetLogLevel(level)
-	}
 }
 
 func (nms *NMS) Start() {
-	subconfig_router := logger_util.NewGinWithZap(logger.GinLog)
+	subconfig_router := logger_util.NewGinWithZap(logger.NmsLog)
 	AddUiService(subconfig_router)
 	AddService(subconfig_router)
 
@@ -50,9 +36,9 @@ func (nms *NMS) Start() {
 
 	go func() {
 		httpAddr := ":" + strconv.Itoa(config.Config.CfgPort)
-		logger.InitLog.Infoln("NMS HTTP addr:", httpAddr, config.Config.CfgPort)
-		logger.InitLog.Infoln(subconfig_router.Run(httpAddr))
-		logger.InitLog.Infoln("NMS stopped/terminated/not-started ")
+		logger.NmsLog.Infoln("NMS HTTP addr:", httpAddr, config.Config.CfgPort)
+		logger.NmsLog.Infoln(subconfig_router.Run(httpAddr))
+		logger.NmsLog.Infoln("NMS stopped/terminated/not-started ")
 	}()
 
 	select {}

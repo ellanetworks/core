@@ -8,8 +8,8 @@ import (
 	"github.com/omec-project/nas/nasType"
 	"github.com/omec-project/openapi/models"
 	amf_context "github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/ausf/producer"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func SendUEAuthenticationAuthenticateRequest(ue *amf_context.AmfUe,
@@ -38,7 +38,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *amf_context.AmfUe,
 
 	ueAuthenticationCtx, err := producer.UeAuthPostRequestProcedure(authInfo)
 	if err != nil {
-		logger.ConsumerLog.Errorf("UE Authentication Authenticate Request failed: %+v", err)
+		logger.AmfLog.Errorf("UE Authentication Authenticate Request failed: %+v", err)
 		return nil, nil, err
 	}
 	return ueAuthenticationCtx, nil, nil
@@ -52,7 +52,7 @@ func SendAuth5gAkaConfirmRequest(ue *amf_context.AmfUe, resStar string) (
 	}
 	confirmResult, err := producer.Auth5gAkaComfirmRequestProcedure(confirmationData, ue.Suci)
 	if err != nil {
-		logger.ConsumerLog.Errorf("Auth5gAkaComfirmRequestProcedure failed: %+v", err)
+		logger.AmfLog.Errorf("Auth5gAkaComfirmRequestProcedure failed: %+v", err)
 		problemDetails := &models.ProblemDetails{
 			Status: 500,
 			Cause:  "SYSTEM_FAILURE",
@@ -66,7 +66,7 @@ func SendAuth5gAkaConfirmRequest(ue *amf_context.AmfUe, resStar string) (
 func SendEapAuthConfirmRequest(ue *amf_context.AmfUe, eapMsg nasType.EAPMessage) (
 	*models.EapSession, *models.ProblemDetails, error,
 ) {
-	logger.ConsumerLog.Warnf("SendEapAuthConfirmRequest")
+	logger.AmfLog.Warnf("SendEapAuthConfirmRequest")
 
 	eapSession := models.EapSession{
 		EapPayload: base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage()),
@@ -74,7 +74,7 @@ func SendEapAuthConfirmRequest(ue *amf_context.AmfUe, eapMsg nasType.EAPMessage)
 
 	response, err := producer.EapAuthComfirmRequestProcedure(eapSession, ue.Suci)
 	if err != nil {
-		logger.ConsumerLog.Errorf("EapAuthComfirmRequestProcedure failed: %+v", err)
+		logger.AmfLog.Errorf("EapAuthComfirmRequestProcedure failed: %+v", err)
 		problemDetails := &models.ProblemDetails{
 			Status: 500,
 			Cause:  "SYSTEM_FAILURE",

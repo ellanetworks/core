@@ -8,7 +8,7 @@ import (
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"go.uber.org/zap"
 )
 
@@ -79,7 +79,7 @@ func (ran *AmfRan) NewRanUe(ranUeNgapID int64) (*RanUe, error) {
 func (ran *AmfRan) RemoveAllUeInRan() {
 	for _, ranUe := range ran.RanUeList {
 		if err := ranUe.Remove(); err != nil {
-			logger.ContextLog.Errorf("Remove RanUe error: %v", err)
+			logger.AmfLog.Errorf("Remove RanUe error: %v", err)
 		}
 	}
 }

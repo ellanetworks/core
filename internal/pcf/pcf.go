@@ -6,19 +6,12 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
-	"github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/pcf/context"
 	"github.com/yeastengine/ella/internal/pcf/internal/notifyevent"
-	"go.uber.org/zap/zapcore"
 )
 
 func Start() error {
-	level, err := zapcore.ParseLevel("debug")
-	if err != nil {
-		return err
-	}
-	logger.SetLogLevel(level)
-	err = notifyevent.RegisterNotifyDispatcher()
+	err := notifyevent.RegisterNotifyDispatcher()
 	if err != nil {
 		return err
 	}

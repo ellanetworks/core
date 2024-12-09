@@ -6,10 +6,10 @@ import (
 	"net"
 
 	"github.com/wmnsk/go-pfcp/ie"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/upf/config"
 	"github.com/yeastengine/ella/internal/upf/core/service"
 	"github.com/yeastengine/ella/internal/upf/ebpf"
-	"github.com/yeastengine/ella/internal/upf/logger"
 )
 
 type PDRCreationContext struct {
@@ -44,11 +44,11 @@ func (pdrContext *PDRCreationContext) extractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 
 	if sdfFilter, err := pdr.SDFFilter(); err == nil {
 		if sdfFilter.FlowDescription == "" {
-			logger.AppLog.Warnf("SDFFilter is empty")
+			logger.UpfLog.Warnf("SDFFilter is empty")
 		} else if sdfFilterParsed, err := ParseSdfFilter(sdfFilter.FlowDescription); err == nil {
 			spdrInfo.PdrInfo.SdfFilter = &sdfFilterParsed
 		} else {
-			logger.AppLog.Errorf("SDFFilter err: %v", err)
+			logger.UpfLog.Errorf("SDFFilter err: %v", err)
 			return err
 		}
 	}
@@ -63,7 +63,7 @@ func (pdrContext *PDRCreationContext) extractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 						allocate = false
 						teid = teidFromCache
 						spdrInfo.Allocated = true
-						logger.AppLog.Infof("TEID from cache: %d", teid)
+						logger.UpfLog.Infof("TEID from cache: %d", teid)
 					}
 				}
 				if allocate {
@@ -89,7 +89,7 @@ func (pdrContext *PDRCreationContext) extractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 					ueIp.IPv4Address = cloneIP(ip)
 					spdrInfo.Allocated = true
 				} else {
-					logger.AppLog.Errorf(err.Error())
+					logger.UpfLog.Errorf(err.Error())
 				}
 			}
 			if ueIp.IPv4Address != nil {
@@ -102,7 +102,7 @@ func (pdrContext *PDRCreationContext) extractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 		}
 		return nil
 	} else {
-		logger.AppLog.Infof("Both F-TEID IE and UE IP Address IE are missing")
+		logger.UpfLog.Infof("Both F-TEID IE and UE IP Address IE are missing")
 		return err
 	}
 }
@@ -145,7 +145,7 @@ func (pdrContext *PDRCreationContext) getFTEID(seID uint64, pdrID uint32) (uint3
 
 	allocatedTeid, err := pdrContext.ResourceManager.FTEIDM.AllocateTEID(seID, pdrID)
 	if err != nil {
-		logger.AppLog.Errorf("AllocateTEID err: %v", err)
+		logger.UpfLog.Errorf("AllocateTEID err: %v", err)
 		return 0, fmt.Errorf("Can't allocate TEID: %s", causeToString(ie.CauseNoResourcesAvailable))
 	}
 	return allocatedTeid, nil

@@ -6,14 +6,14 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yeastengine/ella/internal/nms/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/nms/ui"
 )
 
 func AddUiService(engine *gin.Engine) {
 	staticFilesSystem, err := fs.Sub(ui.FrontendFS, "frontend_files")
 	if err != nil {
-		logger.NMSLog.Fatal(err)
+		logger.NmsLog.Fatal(err)
 	}
 
 	engine.Use(func(c *gin.Context) {

@@ -22,10 +22,10 @@ import (
 	"github.com/yeastengine/ella/internal/amf/consumer"
 	"github.com/yeastengine/ella/internal/amf/context"
 	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
-	"github.com/yeastengine/ella/internal/amf/logger"
 	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
 	"github.com/yeastengine/ella/internal/amf/producer/callback"
 	"github.com/yeastengine/ella/internal/amf/util"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 const (
@@ -1468,7 +1468,7 @@ func HandleUeSliceInfoDelete(ue *context.AmfUe, accessType models.AccessType, ns
 	ue.SmContextList.Range(func(key, value interface{}) bool {
 		smContext := value.(*context.SmContext)
 		if smContext.Snssai().Sst == nssai.Sst && smContext.Snssai().Sd == nssai.Sd {
-			logger.GmmLog.Infof("Deleted Slice [sst: %v, sd: %v]matched with smcontext, sending Release SMContext Request to SMF",
+			logger.AmfLog.Infof("Deleted Slice [sst: %v, sd: %v]matched with smcontext, sending Release SMContext Request to SMF",
 				smContext.Snssai().Sst, smContext.Snssai().Sd)
 			// send smcontext release request
 			problemDetails, err = consumer.SendReleaseSmContextRequest(ue, smContext, nil, "", nil)

@@ -9,7 +9,7 @@ import (
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/smf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) (err error) {
@@ -61,22 +61,22 @@ func HandlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte, ctx *SMContext)
 
 	switch resourceSetupUnsuccessfulTransfer.Cause.Present {
 	case ngapType.CausePresentRadioNetwork:
-		logger.PduSessLog.Warnf("PDU Session Resource Setup Unsuccessful by RadioNetwork[%d]",
+		logger.SmfLog.Warnf("PDU Session Resource Setup Unsuccessful by RadioNetwork[%d]",
 			resourceSetupUnsuccessfulTransfer.Cause.RadioNetwork.Value)
 	case ngapType.CausePresentTransport:
-		logger.PduSessLog.Warnf("PDU Session Resource Setup Unsuccessful by Transport[%d]",
+		logger.SmfLog.Warnf("PDU Session Resource Setup Unsuccessful by Transport[%d]",
 			resourceSetupUnsuccessfulTransfer.Cause.Transport.Value)
 	case ngapType.CausePresentNas:
-		logger.PduSessLog.Warnf("PDU Session Resource Setup Unsuccessful by NAS[%d]",
+		logger.SmfLog.Warnf("PDU Session Resource Setup Unsuccessful by NAS[%d]",
 			resourceSetupUnsuccessfulTransfer.Cause.Nas.Value)
 	case ngapType.CausePresentProtocol:
-		logger.PduSessLog.Warnf("PDU Session Resource Setup Unsuccessful by Protocol[%d]",
+		logger.SmfLog.Warnf("PDU Session Resource Setup Unsuccessful by Protocol[%d]",
 			resourceSetupUnsuccessfulTransfer.Cause.Protocol.Value)
 	case ngapType.CausePresentMisc:
-		logger.PduSessLog.Warnf("PDU Session Resource Setup Unsuccessful by Protocol[%d]",
+		logger.SmfLog.Warnf("PDU Session Resource Setup Unsuccessful by Protocol[%d]",
 			resourceSetupUnsuccessfulTransfer.Cause.Misc.Value)
 	case ngapType.CausePresentChoiceExtensions:
-		logger.PduSessLog.Warnf("PDU Session Resource Setup Unsuccessful by Protocol[%v]",
+		logger.SmfLog.Warnf("PDU Session Resource Setup Unsuccessful by Protocol[%v]",
 			resourceSetupUnsuccessfulTransfer.Cause.ChoiceExtensions)
 	}
 

@@ -13,7 +13,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
 	"github.com/yeastengine/ella/internal/amf/factory"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 var (
@@ -92,20 +92,20 @@ func (context *AMFContext) TmsiAllocate() int32 {
 	tmp, err := AllocateUniqueID(&tmsiGenerator, "tmsi")
 	val := int32(tmp)
 	if err != nil {
-		logger.ContextLog.Errorf("Allocate TMSI error: %+v", err)
+		logger.AmfLog.Errorf("Allocate TMSI error: %+v", err)
 		return -1
 	}
-	logger.ContextLog.Infof("Allocate TMSI : %v", val)
+	logger.AmfLog.Infof("Allocate TMSI : %v", val)
 	return val
 }
 
 func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 	val, err := AllocateUniqueID(&amfUeNGAPIDGenerator, "amfUeNgapID")
 	if err != nil {
-		logger.ContextLog.Errorf("Allocate NgapID error: %+v", err)
+		logger.AmfLog.Errorf("Allocate NgapID error: %+v", err)
 		return -1, err
 	}
-	logger.ContextLog.Infof("allocated AmfUeNgapID: %v", val)
+	logger.AmfLog.Infof("allocated AmfUeNgapID: %v", val)
 	return val, nil
 }
 
@@ -142,7 +142,7 @@ func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.Acc
 	for i := range taiList {
 		tmp, err := strconv.ParseUint(taiList[i].Tac, 10, 32)
 		if err != nil {
-			logger.ContextLog.Errorf("Could not convert TAC to int: %v", err)
+			logger.AmfLog.Errorf("Could not convert TAC to int: %v", err)
 		}
 		taiList[i].Tac = fmt.Sprintf("%06x", tmp)
 	}
@@ -157,7 +157,7 @@ func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.Acc
 func (context *AMFContext) NewAMFStatusSubscription(subscriptionData models.SubscriptionData) (subscriptionID string) {
 	tmp, err := amfStatusSubscriptionIDGenerator.Allocate()
 	if err != nil {
-		logger.ContextLog.Errorf("Allocate subscriptionID error: %+v", err)
+		logger.AmfLog.Errorf("Allocate subscriptionID error: %+v", err)
 		return ""
 	}
 	id := int32(tmp)
@@ -180,7 +180,7 @@ func (context *AMFContext) DeleteAMFStatusSubscription(subscriptionID string) {
 	context.AMFStatusSubscriptions.Delete(subscriptionID)
 	id, err := strconv.ParseInt(subscriptionID, 10, 64)
 	if err != nil {
-		logger.ContextLog.Error(err)
+		logger.AmfLog.Error(err)
 		return
 	}
 	amfStatusSubscriptionIDGenerator.FreeID(id)
@@ -201,7 +201,7 @@ func (context *AMFContext) FindEventSubscription(subscriptionID string) (*AMFCon
 func (context *AMFContext) DeleteEventSubscription(subscriptionID string) {
 	context.EventSubscriptions.Delete(subscriptionID)
 	if id, err := strconv.ParseInt(subscriptionID, 10, 32); err != nil {
-		logger.ContextLog.Error(err)
+		logger.AmfLog.Error(err)
 	} else {
 		context.EventSubscriptionIDGenerator.FreeID(id)
 	}
@@ -209,7 +209,7 @@ func (context *AMFContext) DeleteEventSubscription(subscriptionID string) {
 
 func (context *AMFContext) AddAmfUeToUePool(ue *AmfUe, supi string) {
 	if len(supi) == 0 {
-		logger.ContextLog.Errorf("Supi is nil")
+		logger.AmfLog.Errorf("Supi is nil")
 	}
 	ue.Supi = supi
 	context.UePool.Store(ue.Supi, ue)
@@ -249,7 +249,7 @@ func (context *AMFContext) AmfUeFindBySupi(supi string) (ue *AmfUe, ok bool) {
 		ue = value.(*AmfUe)
 		ok = loadOk
 	} else {
-		logger.ContextLog.Infoln("Ue with Supi not found : ", supi)
+		logger.AmfLog.Infoln("Ue with Supi not found : ", supi)
 	}
 
 	return
@@ -298,7 +298,7 @@ func (context *AMFContext) NewAmfRan(conn net.Conn) *AmfRan {
 	ran.SupportedTAList = NewSupportedTAIList()
 	ran.Conn = conn
 	ran.GnbIp = conn.RemoteAddr().String()
-	ran.Log = logger.NgapLog.With(logger.FieldRanAddr, conn.RemoteAddr().String())
+	ran.Log = logger.AmfLog.With(logger.FieldRanAddr, conn.RemoteAddr().String())
 	context.AmfRanPool.Store(conn, &ran)
 	return &ran
 }
@@ -315,7 +315,7 @@ func (context *AMFContext) NewAmfRanAddr(remoteAddr string) *AmfRan {
 	ran := AmfRan{}
 	ran.SupportedTAList = NewSupportedTAIList()
 	ran.GnbIp = remoteAddr
-	ran.Log = logger.NgapLog.With(logger.FieldRanAddr, remoteAddr)
+	ran.Log = logger.AmfLog.With(logger.FieldRanAddr, remoteAddr)
 	context.AmfRanPool.Store(remoteAddr, &ran)
 	return &ran
 }
@@ -324,7 +324,7 @@ func (context *AMFContext) NewAmfRanId(GnbId string) *AmfRan {
 	ran := AmfRan{}
 	ran.SupportedTAList = NewSupportedTAIList()
 	ran.GnbId = GnbId
-	ran.Log = logger.NgapLog.With(logger.FieldRanId, GnbId)
+	ran.Log = logger.AmfLog.With(logger.FieldRanId, GnbId)
 	context.AmfRanPool.Store(GnbId, &ran)
 	return &ran
 }
@@ -425,9 +425,9 @@ func (context *AMFContext) AmfUeFindBySupiLocal(supi string) (ue *AmfUe, ok bool
 func (context *AMFContext) AmfUeFindByGuti(guti string) (ue *AmfUe, ok bool) {
 	ue, ok = context.AmfUeFindByGutiLocal(guti)
 	if ok {
-		logger.ContextLog.Infoln("Guti found locally : ", guti)
+		logger.AmfLog.Infoln("Guti found locally : ", guti)
 	} else {
-		logger.ContextLog.Infoln("Ue with Guti not found : ", guti)
+		logger.AmfLog.Infoln("Ue with Guti not found : ", guti)
 	}
 	return
 }
@@ -458,7 +458,7 @@ func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 		return ranUe
 	}
 
-	logger.ContextLog.Errorf("ranUe not found with AmfUeNgapID")
+	logger.AmfLog.Errorf("ranUe not found with AmfUeNgapID")
 	return nil
 }
 

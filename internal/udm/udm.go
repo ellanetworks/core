@@ -2,10 +2,8 @@ package udm
 
 import (
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/logger"
 	"github.com/omec-project/util/util_3gpp/suci"
 	"github.com/yeastengine/ella/internal/udm/context"
-	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -13,11 +11,6 @@ const (
 )
 
 func Start() error {
-	level, err := zapcore.ParseLevel("debug")
-	if err != nil {
-		return err
-	}
-	logger.SetLogLevel(level)
 	self := context.UDM_Self()
 	self.UriScheme = models.UriScheme_HTTP
 	self.SuciProfiles = []suci.SuciProfile{

@@ -7,7 +7,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 type PduSession struct {
@@ -59,7 +59,7 @@ type ActiveUeContext struct {
 type ActiveUeContexts []ActiveUeContext
 
 func HandleOAMRegisteredUEContext(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.ProducerLog.Infof("[OAM] Handle Registered UE Context")
+	logger.AmfLog.Infof("[OAM] Handle Registered UE Context")
 
 	supi := request.Params["supi"]
 

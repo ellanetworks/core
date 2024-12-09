@@ -7,8 +7,8 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
 	amf_producer "github.com/yeastengine/ella/internal/amf/producer"
+	"github.com/yeastengine/ella/internal/logger"
 	smf_context "github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/qos"
 	"github.com/yeastengine/ella/internal/smf/transaction"
 )
@@ -18,13 +18,13 @@ func HandleSMPolicyUpdateNotify(eventData interface{}) error {
 	request := txn.Req.(models.SmPolicyNotification)
 	smContext := txn.Ctxt.(*smf_context.SMContext)
 
-	logger.PduSessLog.Infoln("In HandleSMPolicyUpdateNotify")
+	logger.SmfLog.Infoln("In HandleSMPolicyUpdateNotify")
 	pcfPolicyDecision := request.SmPolicyDecision
 
 	if smContext.SMContextState != smf_context.SmStateActive {
 		// Wait till the state becomes SmStateActive again
 		// TODO: implement waiting in concurrent architecture
-		logger.PduSessLog.Warnf("SMContext[%s-%02d] should be SmStateActive, but actual %s",
+		logger.SmfLog.Warnf("SMContext[%s-%02d] should be SmStateActive, but actual %s",
 			smContext.Supi, smContext.PDUSessionID, smContext.SMContextState.String())
 	}
 
@@ -91,7 +91,7 @@ func BuildAndSendQosN1N2TransferMsg(smContext *smf_context.SMContext) error {
 
 	// N1 Msg
 	if smNasBuf, err := smf_context.BuildGSMPDUSessionModificationCommand(smContext); err != nil {
-		logger.PduSessLog.Errorf("Build GSM BuildGSMPDUSessionModificationCommand failed: %s", err)
+		logger.SmfLog.Errorf("Build GSM BuildGSMPDUSessionModificationCommand failed: %s", err)
 	} else {
 		n1n2Request.BinaryDataN1Message = smNasBuf
 		n1n2Request.JsonData.N1MessageContainer = &n1MsgContainer
@@ -125,7 +125,7 @@ func BuildAndSendQosN1N2TransferMsg(smContext *smf_context.SMContext) error {
 }
 
 func HandleNfSubscriptionStatusNotify(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.PduSessLog.Debugln("[SMF] Handle NF Status Notify")
+	logger.SmfLog.Debugln("[SMF] Handle NF Status Notify")
 
 	notificationData := request.Body.(models.NotificationData)
 
@@ -138,7 +138,7 @@ func HandleNfSubscriptionStatusNotify(request *httpwrapper.Request) *httpwrapper
 }
 
 func NfSubscriptionStatusNotifyProcedure(notificationData models.NotificationData) *models.ProblemDetails {
-	logger.PduSessLog.Debugf("NfSubscriptionStatusNotify: %+v", notificationData)
+	logger.SmfLog.Debugf("NfSubscriptionStatusNotify: %+v", notificationData)
 
 	if notificationData.Event == "" || notificationData.NfInstanceUri == "" {
 		problemDetails := &models.ProblemDetails{

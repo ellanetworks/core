@@ -9,12 +9,11 @@ import (
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/amf/context"
 	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
-	"github.com/yeastengine/ella/internal/amf/logger"
 	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
 	"github.com/yeastengine/ella/internal/amf/producer/callback"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func ProducerHandler(s1, s2 string, msg interface{}) (interface{}, string, interface{}, interface{}) {
@@ -37,7 +36,7 @@ func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest mo
 	var ue *context.AmfUe
 	var ok bool
 	var problemDetails *models.ProblemDetails
-	logger.ProducerLog.Infof("Handle N1N2 Message Transfer Request")
+	logger.AmfLog.Infof("Handle N1N2 Message Transfer Request")
 
 	amfSelf := context.AMF_Self()
 
@@ -347,7 +346,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			}
 			pkg, err := ngap_message.BuildPaging(ue, pagingPriority, false)
 			if err != nil {
-				logger.NgapLog.Errorf("Build Paging failed : %s", err.Error())
+				logger.AmfLog.Errorf("Build Paging failed : %s", err.Error())
 				return n1n2MessageTransferRspData, locationHeader, problemDetails, transferErr
 			}
 			ngap_message.SendPaging(ue, pkg)
@@ -372,7 +371,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 				ue.N1N2Message = &message
 				nasMsg, err := gmm_message.BuildNotification(ue, models.AccessType_NON_3_GPP_ACCESS)
 				if err != nil {
-					logger.GmmLog.Errorf("Build Notification failed : %s", err.Error())
+					logger.AmfLog.Errorf("Build Notification failed : %s", err.Error())
 					return n1n2MessageTransferRspData, locationHeader, problemDetails, transferErr
 				}
 				gmm_message.SendNotification(ue.RanUe[models.AccessType__3_GPP_ACCESS], nasMsg)
@@ -399,50 +398,11 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			}
 			pkg, err := ngap_message.BuildPaging(ue, pagingPriority, true)
 			if err != nil {
-				logger.NgapLog.Errorf("Build Paging failed : %s", err.Error())
+				logger.AmfLog.Errorf("Build Paging failed : %s", err.Error())
 			}
 			ngap_message.SendPaging(ue, pkg)
 			return n1n2MessageTransferRspData, locationHeader, nil, nil
 		}
-	}
-}
-
-func HandleN1N2MessageTransferStatusRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.CommLog.Info("Handle N1N2Message Transfer Status Request")
-
-	ueContextID := request.Params["ueContextId"]
-	reqUri := request.Params["reqUri"]
-
-	amfSelf := context.AMF_Self()
-
-	ue, ok := amfSelf.AmfUeFindByUeContextID(ueContextID)
-	if !ok {
-		problemDetails := &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "CONTEXT_NOT_FOUND",
-		}
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	sbiMsg := context.SbiMsg{
-		UeContextId: ueContextID,
-		ReqUri:      reqUri,
-		Msg:         nil,
-		Result:      make(chan context.SbiResponseMsg, 10),
-	}
-	ue.EventChannel.UpdateSbiHandler(ProducerHandler)
-	ue.EventChannel.SubmitMessage(sbiMsg)
-	msg := <-sbiMsg.Result
-
-	var n1n2MessageRspData *models.N1N2MessageTransferCause
-	if msg.RespData != nil {
-		n1n2MessageRspData = msg.RespData.(*models.N1N2MessageTransferCause)
-	}
-
-	// status, problemDetails := N1N2MessageTransferStatusProcedure(ueContextID, reqUri)
-	if msg.ProblemDetails != nil {
-		return httpwrapper.NewResponse(int(msg.ProblemDetails.(*models.ProblemDetails).Status), nil, msg.ProblemDetails.(*models.ProblemDetails))
-	} else {
-		return httpwrapper.NewResponse(http.StatusOK, nil, n1n2MessageRspData)
 	}
 }
 
@@ -473,43 +433,6 @@ func N1N2MessageTransferStatusProcedure(ueContextID string, reqUri string) (mode
 	return n1n2Message.Status, nil
 }
 
-// TS 29.518 5.2.2.3.3
-func HandleN1N2MessageSubscirbeRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	ueN1N2InfoSubscriptionCreateData := request.Body.(models.UeN1N2InfoSubscriptionCreateData)
-	ueContextID := request.Params["ueContextId"]
-
-	amfSelf := context.AMF_Self()
-
-	ue, ok := amfSelf.AmfUeFindByUeContextID(ueContextID)
-	if !ok {
-		problemDetails := &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "CONTEXT_NOT_FOUND",
-		}
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	}
-	sbiMsg := context.SbiMsg{
-		UeContextId: ueContextID,
-		ReqUri:      "",
-		Msg:         ueN1N2InfoSubscriptionCreateData,
-		Result:      make(chan context.SbiResponseMsg, 10),
-	}
-	ue.EventChannel.UpdateSbiHandler(ProducerHandler)
-	ue.EventChannel.SubmitMessage(sbiMsg)
-	msg := <-sbiMsg.Result
-
-	var n1n2MessageRspData *models.UeN1N2InfoSubscriptionCreateData
-	if msg.RespData != nil {
-		n1n2MessageRspData = msg.RespData.(*models.UeN1N2InfoSubscriptionCreateData)
-	}
-	// ueN1N2InfoSubscriptionCreatedData, problemDetails := N1N2MessageSubscribeProcedure(ueContextID, ueN1N2InfoSubscriptionCreateData)
-	if msg.ProblemDetails != nil {
-		return httpwrapper.NewResponse(int(msg.ProblemDetails.(*models.ProblemDetails).Status), nil, msg.ProblemDetails.(*models.ProblemDetails))
-	} else {
-		return httpwrapper.NewResponse(http.StatusCreated, nil, n1n2MessageRspData)
-	}
-}
-
 func N1N2MessageSubscribeProcedure(ueContextID string,
 	ueN1N2InfoSubscriptionCreateData models.UeN1N2InfoSubscriptionCreateData) (
 	*models.UeN1N2InfoSubscriptionCreatedData, *models.ProblemDetails,
@@ -528,7 +451,7 @@ func N1N2MessageSubscribeProcedure(ueContextID string,
 	ueN1N2InfoSubscriptionCreatedData := new(models.UeN1N2InfoSubscriptionCreatedData)
 
 	if newSubscriptionID, err := ue.N1N2MessageSubscribeIDGenerator.Allocate(); err != nil {
-		logger.CommLog.Errorf("Create subscriptionID Error: %+v", err)
+		logger.AmfLog.Errorf("Create subscriptionID Error: %+v", err)
 		problemDetails := &models.ProblemDetails{
 			Status: http.StatusInternalServerError,
 			Cause:  "SYSTEM_FAILURE",
@@ -539,20 +462,6 @@ func N1N2MessageSubscribeProcedure(ueContextID string,
 		ue.N1N2MessageSubscription.Store(newSubscriptionID, ueN1N2InfoSubscriptionCreateData)
 	}
 	return ueN1N2InfoSubscriptionCreatedData, nil
-}
-
-func HandleN1N2MessageUnSubscribeRequest(request *httpwrapper.Request) *httpwrapper.Response {
-	logger.CommLog.Info("Handle N1N2Message Unsubscribe Request")
-
-	ueContextID := request.Params["ueContextId"]
-	subscriptionID := request.Params["subscriptionId"]
-
-	problemDetails := N1N2MessageUnSubscribeProcedure(ueContextID, subscriptionID)
-	if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
-	} else {
-		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
-	}
 }
 
 func N1N2MessageUnSubscribeProcedure(ueContextID string, subscriptionID string) *models.ProblemDetails {

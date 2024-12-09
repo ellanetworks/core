@@ -8,19 +8,17 @@ import (
 	"time"
 
 	"github.com/wmnsk/go-pfcp/message"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/upf/config"
 	"github.com/yeastengine/ella/internal/upf/core"
 	"github.com/yeastengine/ella/internal/upf/core/service"
 	"github.com/yeastengine/ella/internal/upf/ebpf"
-	"github.com/yeastengine/ella/internal/upf/logger"
-	"go.uber.org/zap"
 
 	"github.com/cilium/ebpf/link"
 )
 
 func Start(interfaces []string, n3_address string) error {
-	logger.SetLogLevel(zap.DebugLevel)
-	logger.AppLog.Infof("UPF Log level is set to [%s] level", "debug")
+	logger.UpfLog.Infof("UPF Log level is set to [%s] level", "debug")
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 
@@ -47,18 +45,18 @@ func Start(interfaces []string, n3_address string) error {
 	config.Init(c)
 
 	if err := ebpf.IncreaseResourceLimits(); err != nil {
-		logger.AppLog.Fatalf("Can't increase resource limits: %s", err.Error())
+		logger.UpfLog.Fatalf("Can't increase resource limits: %s", err.Error())
 	}
 
 	bpfObjects := ebpf.NewBpfObjects()
 	if err := bpfObjects.Load(); err != nil {
-		logger.AppLog.Fatalf("Loading bpf objects failed: %s", err.Error())
+		logger.UpfLog.Fatalf("Loading bpf objects failed: %s", err.Error())
 		return err
 	}
 
 	if config.Conf.EbpfMapResize {
 		if err := bpfObjects.ResizeAllMaps(config.Conf.QerMapSize, config.Conf.FarMapSize, config.Conf.PdrMapSize); err != nil {
-			logger.AppLog.Fatalf("Failed to set ebpf map sizes: %s", err)
+			logger.UpfLog.Fatalf("Failed to set ebpf map sizes: %s", err)
 			return err
 		}
 	}
@@ -68,7 +66,7 @@ func Start(interfaces []string, n3_address string) error {
 	for _, ifaceName := range config.Conf.InterfaceName {
 		iface, err := net.InterfaceByName(ifaceName)
 		if err != nil {
-			logger.AppLog.Fatalf("Lookup network iface %q: %s", ifaceName, err.Error())
+			logger.UpfLog.Fatalf("Lookup network iface %q: %s", ifaceName, err.Error())
 			return err
 		}
 
@@ -79,18 +77,18 @@ func Start(interfaces []string, n3_address string) error {
 			Flags:     StringToXDPAttachMode(config.Conf.XDPAttachMode),
 		})
 		if err != nil {
-			logger.AppLog.Fatalf("Could not attach XDP program: %s", err.Error())
+			logger.UpfLog.Fatalf("Could not attach XDP program: %s", err.Error())
 		}
 		defer l.Close()
 
-		logger.AppLog.Infof("Attached XDP program to iface %q (index %d)", iface.Name, iface.Index)
+		logger.UpfLog.Infof("Attached XDP program to iface %q (index %d)", iface.Name, iface.Index)
 	}
 
-	logger.AppLog.Infof("Initialize resources: UEIP pool (CIDR: \"%s\"), TEID pool (size: %d)", config.Conf.UEIPPool, config.Conf.FTEIDPool)
+	logger.UpfLog.Infof("Initialize resources: UEIP pool (CIDR: \"%s\"), TEID pool (size: %d)", config.Conf.UEIPPool, config.Conf.FTEIDPool)
 	var err error
 	resourceManager, err := service.NewResourceManager(config.Conf.UEIPPool, config.Conf.FTEIDPool)
 	if err != nil {
-		logger.AppLog.Errorf("failed to create ResourceManager - err: %v", err)
+		logger.UpfLog.Errorf("failed to create ResourceManager - err: %v", err)
 	}
 
 	// Create PFCP connection
@@ -105,7 +103,7 @@ func Start(interfaces []string, n3_address string) error {
 
 	pfcpConn, err := core.CreatePfcpConnection(config.Conf.PfcpAddress, pfcpHandlers, config.Conf.PfcpNodeId, config.Conf.N3Address, bpfObjects, resourceManager)
 	if err != nil {
-		logger.AppLog.Fatalf("Could not create PFCP connection: %s", err.Error())
+		logger.UpfLog.Fatalf("Could not create PFCP connection: %s", err.Error())
 	}
 	go pfcpConn.Run()
 	defer pfcpConn.Close()
@@ -126,12 +124,12 @@ func Start(interfaces []string, n3_address string) error {
 		case <-ticker.C:
 			// s, err := FormatMapContents(bpfObjects.UpfXdpObjects.UpfPipeline)
 			// if err != nil {
-			// 	logger.AppLog.Printf("Error reading map: %s", err)
+			// 	logger.UpfLog.Printf("Error reading map: %s", err)
 			// 	continue
 			// }
-			// logger.AppLog.Printf("Pipeline map contents:\n%s", s)
+			// logger.UpfLog.Printf("Pipeline map contents:\n%s", s)
 		case <-stopper:
-			logger.AppLog.Infof("Received signal, exiting program..")
+			logger.UpfLog.Infof("Received signal, exiting program..")
 			return nil
 		}
 	}

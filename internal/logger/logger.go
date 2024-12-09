@@ -1,4 +1,4 @@
-package db
+package logger
 
 import (
 	"fmt"
@@ -9,8 +9,26 @@ import (
 
 var (
 	log         *zap.Logger
-	DbLog       *zap.SugaredLogger
+	EllaLog     *zap.SugaredLogger
+	DBLog       *zap.SugaredLogger
+	AmfLog      *zap.SugaredLogger
+	AusfLog     *zap.SugaredLogger
+	NmsLog      *zap.SugaredLogger
+	NssfLog     *zap.SugaredLogger
+	PcfLog      *zap.SugaredLogger
+	SmfLog      *zap.SugaredLogger
+	UdmLog      *zap.SugaredLogger
+	UdrLog      *zap.SugaredLogger
+	UpfLog      *zap.SugaredLogger
 	atomicLevel zap.AtomicLevel
+)
+
+const (
+	FieldRanAddr     string = "ran_addr"
+	FieldRanId       string = "ran_id"
+	FieldAmfUeNgapID string = "amf_ue_ngap_id"
+	FieldSupi        string = "supi"
+	FieldSuci        string = "suci"
 )
 
 func init() {
@@ -41,10 +59,26 @@ func init() {
 		panic(err)
 	}
 
-	DbLog = log.Sugar().With("component", "DB", "category", "DB")
+	EllaLog = log.Sugar().With("component", "Ella")
+	DBLog = log.Sugar().With("component", "DB")
+	AmfLog = log.Sugar().With("component", "AMF")
+	AusfLog = log.Sugar().With("component", "AUSF")
+	NmsLog = log.Sugar().With("component", "NMS")
+	NssfLog = log.Sugar().With("component", "NSSF")
+	PcfLog = log.Sugar().With("component", "PCF")
+	SmfLog = log.Sugar().With("component", "SMF")
+	UdmLog = log.Sugar().With("component", "UDM")
+	UdrLog = log.Sugar().With("component", "UDR")
+	UpfLog = log.Sugar().With("component", "UPF")
 }
 
+func GetLogger() *zap.Logger {
+	return log
+}
+
+// SetLogLevel: set the log level (panic|fatal|error|warn|info|debug)
 func SetLogLevel(level zapcore.Level) {
+	EllaLog.Infoln("set log level:", level)
 	atomicLevel.SetLevel(level)
 }
 

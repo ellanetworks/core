@@ -1,6 +1,6 @@
 package ebpf
 
-import "github.com/yeastengine/ella/internal/upf/logger"
+import "github.com/yeastengine/ella/internal/logger"
 
 type UpfXdpActionStatistic struct {
 	BpfObjects *BpfObjects
@@ -46,7 +46,7 @@ func (stat *UpfXdpActionStatistic) getUpfXdpStatisticField(field uint32) uint64 
 	var statistics []IpEntrypointUpfStatistic
 	err := stat.BpfObjects.UpfExtStat.Lookup(uint32(0), &statistics)
 	if err != nil {
-		logger.AppLog.Infof(err.Error())
+		logger.UpfLog.Infof(err.Error())
 		return 0
 	}
 
@@ -85,7 +85,7 @@ func (stat *UpfXdpActionStatistic) GetUpfExtStatField() UpfCounters {
 	var counters UpfCounters
 	err := stat.BpfObjects.UpfExtStat.Lookup(uint32(0), &statistics)
 	if err != nil {
-		logger.AppLog.Infof(err.Error())
+		logger.UpfLog.Infof(err.Error())
 		return counters
 	}
 

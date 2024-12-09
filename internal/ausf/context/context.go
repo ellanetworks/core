@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/ausf/factory"
-	"github.com/yeastengine/ella/internal/ausf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 type AUSFContext struct {
@@ -63,7 +63,7 @@ var ausfContext AUSFContext
 func Init() {
 	snRegex, err := regexp.Compile("5G:mnc[0-9]{3}[.]mcc[0-9]{3}[.]3gppnetwork[.]org")
 	if err != nil {
-		logger.ContextLog.Warnf("SN compile error: %+v", err)
+		logger.AusfLog.Warnf("SN compile error: %+v", err)
 	}
 	ausfContext.snRegex = snRegex
 	InitAusfContext(&ausfContext)

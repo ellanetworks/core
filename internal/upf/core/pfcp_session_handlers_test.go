@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/upf/config"
 	"github.com/yeastengine/ella/internal/upf/core/service"
-	"github.com/yeastengine/ella/internal/upf/logger"
 
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
@@ -335,7 +335,7 @@ func TestTEIDAllocationInSessionEstablishmentResponse(t *testing.T) {
 
 	resourceManager, err := service.NewResourceManager("10.61.0.0/16", 65536)
 	if err != nil {
-		logger.AppLog.Errorf("failed to create ResourceManager. err: %v", err)
+		logger.UpfLog.Errorf("failed to create ResourceManager. err: %v", err)
 	}
 	pfcpConn.ResourceManager = resourceManager
 
@@ -389,7 +389,7 @@ func TestTEIDAllocationInSessionEstablishmentResponse(t *testing.T) {
 	}
 
 	// Checking TEID for each PDR
-	logger.AppLog.Infof("seRes.CreatedPDR len: %d", len(seRes.CreatedPDR))
+	logger.UpfLog.Infof("seRes.CreatedPDR len: %d", len(seRes.CreatedPDR))
 	if len(seRes.CreatedPDR) != 2 {
 		t.Errorf("Unexpected count TEIDs: got %d, expected %d", len(seRes.CreatedPDR), 2)
 	}
@@ -397,12 +397,12 @@ func TestTEIDAllocationInSessionEstablishmentResponse(t *testing.T) {
 	for _, pdr := range seRes.CreatedPDR {
 		fteid, err := pdr.FindByType(ie.FTEID)
 		if err != nil {
-			logger.AppLog.Fatalf("FindByType err: %v", err)
+			logger.UpfLog.Fatalf("FindByType err: %v", err)
 		}
 
 		teid, err := fteid.FTEID()
 		if err != nil {
-			logger.AppLog.Fatalf("FTEID err: %v", err)
+			logger.UpfLog.Fatalf("FTEID err: %v", err)
 		}
 
 		if teid.TEID != 1 && teid.TEID != 2 {
@@ -425,7 +425,7 @@ func TestIPAllocationInSessionEstablishmentResponse(t *testing.T) {
 
 		resourceManager, err := service.NewResourceManager("10.61.0.0/16", 65536)
 		if err != nil {
-			logger.AppLog.Errorf("failed to create ResourceManager. err: %v", err)
+			logger.UpfLog.Errorf("failed to create ResourceManager. err: %v", err)
 		}
 		pfcpConn.ResourceManager = resourceManager
 
@@ -459,7 +459,7 @@ func TestIPAllocationInSessionEstablishmentResponse(t *testing.T) {
 		}
 
 		// Checking UEIP for each PDR
-		logger.AppLog.Infof("seRes.CreatedPDR len: %d", len(seRes.CreatedPDR))
+		logger.UpfLog.Infof("seRes.CreatedPDR len: %d", len(seRes.CreatedPDR))
 		if len(seRes.CreatedPDR) != 1 {
 			t.Errorf("Unexpected count PRD's: got %d, expected %d", len(seRes.CreatedPDR), 1)
 		}
@@ -476,10 +476,10 @@ func TestIPAllocationInSessionEstablishmentResponse(t *testing.T) {
 			}
 
 			if ueip.IPv4Address == nil {
-				logger.AppLog.Infof("IPv4Address is nil")
+				logger.UpfLog.Infof("IPv4Address is nil")
 			} else {
 				if ueip.IPv4Address.String() == "10.61.0.0" {
-					logger.AppLog.Infof("PASSED. IPv4: %s", ueip.IPv4Address.String())
+					logger.UpfLog.Infof("PASSED. IPv4: %s", ueip.IPv4Address.String())
 				} else {
 					t.Errorf("Unexpected IPv4, got %s, expected %s", ueip.IPv4Address.String(), "10.61.0.0")
 				}

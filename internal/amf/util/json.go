@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"reflect"
 
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func MarshToJsonString(v interface{}) (result []string) {
@@ -14,7 +14,7 @@ func MarshToJsonString(v interface{}) (result []string) {
 		for i := 0; i < val.Len(); i++ {
 			tmp, err := json.Marshal(val.Index(i).Interface())
 			if err != nil {
-				logger.UtilLog.Errorf("Marshal error: %+v", err)
+				logger.AmfLog.Errorf("Marshal error: %+v", err)
 			}
 
 			result = append(result, string(tmp))
@@ -22,7 +22,7 @@ func MarshToJsonString(v interface{}) (result []string) {
 	} else {
 		tmp, err := json.Marshal(v)
 		if err != nil {
-			logger.UtilLog.Errorf("Marshal error: %+v", err)
+			logger.AmfLog.Errorf("Marshal error: %+v", err)
 		}
 
 		result = append(result, string(tmp))

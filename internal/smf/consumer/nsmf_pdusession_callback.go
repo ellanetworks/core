@@ -7,7 +7,7 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nsmf_PDUSession"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/smf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func SendSMContextStatusNotification(uri string) (*models.ProblemDetails, error) {
@@ -19,7 +19,7 @@ func SendSMContextStatusNotification(uri string) (*models.ProblemDetails, error)
 		configuration := Nsmf_PDUSession.NewConfiguration()
 		client := Nsmf_PDUSession.NewAPIClient(configuration)
 
-		logger.CtxLog.Infoln("[SMF] Send SMContext Status Notification")
+		logger.SmfLog.Infoln("[SMF] Send SMContext Status Notification")
 		httpResp, localErr := client.
 			IndividualSMContextNotificationApi.
 			SMContextNotification(context.Background(), uri, request)
@@ -29,21 +29,21 @@ func SendSMContextStatusNotification(uri string) (*models.ProblemDetails, error)
 				return nil, openapi.ReportError("Send SMContextStatus Notification Failed")
 			}
 
-			logger.PduSessLog.Debugf("Send SMContextStatus Notification Success")
+			logger.SmfLog.Debugf("Send SMContextStatus Notification Success")
 		} else if httpResp != nil {
 			defer func() {
 				if resCloseErr := httpResp.Body.Close(); resCloseErr != nil {
-					logger.ConsumerLog.Errorf("SMContextNotification response body cannot close: %+v", resCloseErr)
+					logger.SmfLog.Errorf("SMContextNotification response body cannot close: %+v", resCloseErr)
 				}
 			}()
-			logger.PduSessLog.Warnf("Send SMContextStatus Notification Error[%s]", httpResp.Status)
+			logger.SmfLog.Warnf("Send SMContextStatus Notification Error[%s]", httpResp.Status)
 			if httpResp.Status != localErr.Error() {
 				return nil, localErr
 			}
 			problem := localErr.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
 			return &problem, nil
 		} else {
-			logger.PduSessLog.Warnln("Http Response is nil in comsumer API SMContextNotification")
+			logger.SmfLog.Warnln("Http Response is nil in comsumer API SMContextNotification")
 			return nil, openapi.ReportError("Send SMContextStatus Notification Failed[%s]", localErr.Error())
 		}
 	}

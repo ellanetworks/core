@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/wmnsk/go-pfcp/message"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/logger"
 )
 
 const PFCP_MAX_UDP_LEN = 2048
@@ -53,23 +53,23 @@ func Run(Dispatch func(*Message)) {
 	}
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		logger.PfcpLog.Errorf("Failed to listen on %s: %v", addr.String(), err)
+		logger.SmfLog.Errorf("Failed to listen on %s: %v", addr.String(), err)
 		return
 	}
 	Server = &PfcpServer{
 		Addr: addr,
 		Conn: conn,
 	}
-	logger.PfcpLog.Infof("Listen on %s", addr.String())
+	logger.SmfLog.Infof("Listen on %s", addr.String())
 
 	go func() {
 		for {
 			remoteAddr, pfcpMessage, eventData, err := readPfcpMessage()
 			if err != nil {
 				if err.Error() == "Receive resend PFCP request" {
-					logger.PfcpLog.Infoln(err)
+					logger.SmfLog.Infoln(err)
 				} else {
-					logger.PfcpLog.Warnf("Read PFCP error: %v", err)
+					logger.SmfLog.Warnf("Read PFCP error: %v", err)
 				}
 				continue
 			}
@@ -91,7 +91,7 @@ func WaitForServer() error {
 		if Server != nil && Server.Conn != nil {
 			return nil
 		}
-		logger.PfcpLog.Infof("Waiting for PFCP server to start...")
+		logger.SmfLog.Infof("Waiting for PFCP server to start...")
 		time.Sleep(1 * time.Second)
 	}
 }
@@ -113,7 +113,7 @@ func SendPfcp(msg message.Message, addr *net.UDPAddr, eventData interface{}) err
 	tx := NewTransaction(msg, buf, Server.Conn, addr, eventData)
 	err = PutTransaction(tx)
 	if err != nil {
-		logger.PfcpLog.Errorf("Failed to send PFCP message: %v", err)
+		logger.SmfLog.Errorf("Failed to send PFCP message: %v", err)
 		return err
 	}
 	go startTxLifeCycle(tx)
@@ -136,7 +136,7 @@ func readPfcpMessage() (*net.UDPAddr, message.Message, interface{}, error) {
 
 	msg, err := message.Parse(buf[:n])
 	if err != nil {
-		logger.PfcpLog.Errorf("error parsing PFCP message: %v", err)
+		logger.SmfLog.Errorf("error parsing PFCP message: %v", err)
 		return addr, nil, nil, err
 	}
 
@@ -221,7 +221,7 @@ func startTxLifeCycle(tx *Transaction) {
 
 	err := removeTransaction(tx)
 	if err != nil {
-		logger.PfcpLog.Warnln(err)
+		logger.SmfLog.Warnln(err)
 	}
 
 	if sendErr != nil && tx.EventData != nil {
@@ -229,7 +229,7 @@ func startTxLifeCycle(tx *Transaction) {
 			if errHandler := eventData.ErrHandler; errHandler != nil {
 				msg, err := message.Parse(tx.SendMsg)
 				if err != nil {
-					logger.PfcpLog.Warnf("Parse message error: %v", err)
+					logger.SmfLog.Warnf("Parse message error: %v", err)
 					return
 				}
 				errHandler(msg, sendErr)

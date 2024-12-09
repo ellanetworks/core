@@ -6,15 +6,15 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/httpwrapper"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/fsm"
-	"github.com/yeastengine/ella/internal/smf/logger"
 	"github.com/yeastengine/ella/internal/smf/msgtypes/svcmsgtypes"
 	"github.com/yeastengine/ella/internal/smf/transaction"
 )
 
 func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse, error) {
-	logger.PduSessLog.Info("Processing Create SM Context Request")
+	logger.SmfLog.Info("Processing Create SM Context Request")
 
 	// Ensure request data is present
 	if request.JsonData == nil {

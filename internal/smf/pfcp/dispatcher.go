@@ -2,7 +2,7 @@ package pfcp
 
 import (
 	"github.com/wmnsk/go-pfcp/message"
-	"github.com/yeastengine/ella/internal/smf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/pfcp/handler"
 	"github.com/yeastengine/ella/internal/smf/pfcp/udp"
 )
@@ -46,7 +46,7 @@ func Dispatch(msg *udp.Message) {
 	case message.MsgTypeSessionReportResponse:
 		handler.HandlePfcpSessionReportResponse(msg)
 	default:
-		logger.PfcpLog.Errorf("Unknown PFCP message type: %d", msgType)
+		logger.SmfLog.Errorf("Unknown PFCP message type: %d", msgType)
 		return
 	}
 }

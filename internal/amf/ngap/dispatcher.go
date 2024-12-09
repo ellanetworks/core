@@ -8,7 +8,7 @@ import (
 	"github.com/omec-project/ngap"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func Dispatch(conn net.Conn, msg []byte) {
@@ -17,7 +17,7 @@ func Dispatch(conn net.Conn, msg []byte) {
 
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
-		logger.NgapLog.Infof("Create a new NG connection for: %s", conn.RemoteAddr().String())
+		logger.AmfLog.Infof("Create a new NG connection for: %s", conn.RemoteAddr().String())
 		ran = amfSelf.NewAmfRan(conn)
 	}
 
@@ -173,7 +173,7 @@ func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
 
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
-		logger.NgapLog.Warnf("couldn't find RAN context [addr: %+v]", conn.RemoteAddr())
+		logger.AmfLog.Warnf("couldn't find RAN context [addr: %+v]", conn.RemoteAddr())
 		return
 	}
 
@@ -216,7 +216,7 @@ func HandleSCTPNotificationLb(gnbId string) {
 	amfSelf := context.AMF_Self()
 	ran, ok := amfSelf.AmfRanFindByGnbId(gnbId)
 	if !ok {
-		logger.NgapLog.Warnf("couldn't find RAN context for gnbId: %v", gnbId)
+		logger.AmfLog.Warnf("couldn't find RAN context for gnbId: %v", gnbId)
 		return
 	}
 

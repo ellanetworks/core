@@ -12,8 +12,8 @@ import (
 	"github.com/omec-project/util/milenage"
 	"github.com/omec-project/util/ueauth"
 	"github.com/omec-project/util/util_3gpp/suci"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/udm/context"
-	"github.com/yeastengine/ella/internal/udm/logger"
 	"github.com/yeastengine/ella/internal/udr/producer"
 )
 
@@ -34,11 +34,11 @@ func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte) {
 		return nil, nil
 	}
 
-	logger.UeauLog.Debugln("ConcSQNms", ConcSQNms)
+	logger.UdmLog.Debugln("ConcSQNms", ConcSQNms)
 
 	err = milenage.F2345(opc, k, rand, nil, nil, nil, nil, AK)
 	if err != nil {
-		logger.UeauLog.Errorln("milenage F2345 err ", err)
+		logger.UdmLog.Errorln("milenage F2345 err ", err)
 	}
 
 	for i := 0; i < 6; i++ {
@@ -52,12 +52,12 @@ func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte) {
 	// fmt.Printf("SQNms %x\n", SQNms)
 	err = milenage.F1(opc, k, rand, SQNms, AMF, nil, macS)
 	if err != nil {
-		logger.UeauLog.Errorln("milenage F1 err ", err)
+		logger.UdmLog.Errorln("milenage F1 err ", err)
 	}
 	// fmt.Printf("macS %x\n", macS)
 
-	logger.UeauLog.Debugln("SQNms", SQNms)
-	logger.UeauLog.Debugln("macS", macS)
+	logger.UdmLog.Debugln("SQNms", SQNms)
+	logger.UdmLog.Debugln("macS", macS)
 	return SQNms, macS
 }
 
@@ -81,14 +81,14 @@ func CreateAuthEvent(authEvent models.AuthEvent, supi string) error {
 func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (
 	*models.AuthenticationInfoResult, error,
 ) {
-	logger.UeauLog.Debugln("In CreateAuthData")
+	logger.UdmLog.Debugln("In CreateAuthData")
 	response := &models.AuthenticationInfoResult{}
 	supi, err := suci.ToSupi(supiOrSuci, context.UDM_Self().SuciProfiles)
 	if err != nil {
 		return nil, fmt.Errorf("suciToSupi error: %w", err)
 	}
 
-	logger.UeauLog.Debugf("supi conversion => %s\n", supi)
+	logger.UdmLog.Debugf("supi conversion => %s\n", supi)
 
 	authSubs, err := producer.GetAuthSubsData(supi)
 	if err != nil {
@@ -107,14 +107,14 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 
 	k, op, opc := make([]byte, 16), make([]byte, 16), make([]byte, 16)
 
-	logger.UeauLog.Debugln("K", k)
+	logger.UdmLog.Debugln("K", k)
 
 	if authSubs.PermanentKey != nil {
 		kStr = authSubs.PermanentKey.PermanentKeyValue
 		if len(kStr) == keyStrLen {
 			k, err = hex.DecodeString(kStr)
 			if err != nil {
-				logger.UeauLog.Errorln("err", err)
+				logger.UdmLog.Errorln("err", err)
 			} else {
 				hasK = true
 			}
@@ -131,15 +131,15 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 			if len(opStr) == opStrLen {
 				op, err = hex.DecodeString(opStr)
 				if err != nil {
-					logger.UeauLog.Errorln("err", err)
+					logger.UdmLog.Errorln("err", err)
 				} else {
 					hasOP = true
 				}
 			} else {
-				logger.UeauLog.Warnf("opStr is of length %d", len(opStr))
+				logger.UdmLog.Warnf("opStr is of length %d", len(opStr))
 			}
 		} else {
-			logger.UeauLog.Infoln("milenage Op is nil")
+			logger.UdmLog.Infoln("milenage Op is nil")
 		}
 	} else {
 		return nil, fmt.Errorf("Nil Milenage")
@@ -150,15 +150,15 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		if len(opcStr) == opcStrLen {
 			opc, err = hex.DecodeString(opcStr)
 			if err != nil {
-				logger.UeauLog.Errorln("err", err)
+				logger.UdmLog.Errorln("err", err)
 			} else {
 				hasOPC = true
 			}
 		} else {
-			logger.UeauLog.Errorln("opcStr length is ", len(opcStr))
+			logger.UdmLog.Errorln("opcStr length is ", len(opcStr))
 		}
 	} else {
-		logger.UeauLog.Infoln("Nil Opc")
+		logger.UdmLog.Infoln("Nil Opc")
 	}
 
 	if !hasOPC && !hasOP {
@@ -169,7 +169,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		if hasK && hasOP {
 			opc, err = milenage.GenerateOPC(k, op)
 			if err != nil {
-				logger.UeauLog.Errorln("milenage GenerateOPC err ", err)
+				logger.UdmLog.Errorln("milenage GenerateOPC err ", err)
 			}
 		} else {
 			return nil, fmt.Errorf("Unable to derive OPC")
@@ -177,13 +177,13 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	}
 
 	sqnStr := strictHex(authSubs.SequenceNumber, 12)
-	logger.UeauLog.Debugln("sqnStr", sqnStr)
+	logger.UdmLog.Debugln("sqnStr", sqnStr)
 	sqn, err := hex.DecodeString(sqnStr)
 	if err != nil {
 		return nil, fmt.Errorf("sqnStr decode error: %w", err)
 	}
 
-	logger.UeauLog.Debugln("sqn", sqn)
+	logger.UdmLog.Debugln("sqn", sqn)
 	// fmt.Printf("K=%x\nsqn=%x\nOP=%x\nOPC=%x\n", K, sqn, OP, OPC)
 
 	RAND := make([]byte, 16)
@@ -237,10 +237,10 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 			sqnStr = fmt.Sprintf("%x", bigSQN)
 			sqnStr = strictHex(sqnStr, 12)
 		} else {
-			logger.UeauLog.Errorln("Re-Sync MAC failed ", supi)
-			logger.UeauLog.Errorln("MACS ", macS)
-			logger.UeauLog.Errorln("Auts[6:] ", Auts[6:])
-			logger.UeauLog.Errorln("Sqn ", SQNms)
+			logger.UdmLog.Errorln("Re-Sync MAC failed ", supi)
+			logger.UdmLog.Errorln("MACS ", macS)
+			logger.UdmLog.Errorln("Auts[6:] ", Auts[6:])
+			logger.UdmLog.Errorln("Sqn ", SQNms)
 			return nil, fmt.Errorf("Re-Sync MAC failed")
 		}
 	}
@@ -281,14 +281,14 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	// Generate macA, macS
 	err = milenage.F1(opc, k, RAND, sqn, AMF, macA, macS)
 	if err != nil {
-		logger.UeauLog.Errorln("milenage F1 err ", err)
+		logger.UdmLog.Errorln("milenage F1 err ", err)
 	}
 
 	// Generate RES, CK, IK, AK, AKstar
 	// RES == XRES (expected RES) for server
 	err = milenage.F2345(opc, k, RAND, RES, CK, IK, AK, AKstar)
 	if err != nil {
-		logger.UeauLog.Errorln("milenage F2345 err ", err)
+		logger.UdmLog.Errorln("milenage F2345 err ", err)
 	}
 	// fmt.Printf("milenage RES = %s\n", hex.EncodeToString(RES))
 
@@ -317,7 +317,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		kdfValForXresStar, err := ueauth.GetKDFValue(
 			key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1), P2, ueauth.KDFLen(P2))
 		if err != nil {
-			logger.UeauLog.Error(err)
+			logger.UdmLog.Error(err)
 		}
 		xresStar := kdfValForXresStar[len(kdfValForXresStar)/2:]
 
@@ -327,7 +327,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		P1 = SQNxorAK
 		kdfValForKausf, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))
 		if err != nil {
-			logger.UeauLog.Error(err)
+			logger.UdmLog.Error(err)
 		}
 		// fmt.Printf("Kausf = %x\n", kdfValForKausf)
 
@@ -346,7 +346,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		P1 := SQNxorAK
 		kdfVal, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))
 		if err != nil {
-			logger.UeauLog.Error(err)
+			logger.UdmLog.Error(err)
 		}
 		// fmt.Printf("kdfVal = %x (len = %d)\n", kdfVal, len(kdfVal))
 

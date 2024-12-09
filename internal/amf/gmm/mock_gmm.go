@@ -3,7 +3,7 @@ package gmm
 import (
 	"github.com/omec-project/util/fsm"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 var (
@@ -26,40 +26,40 @@ var mockCallbacks = fsm.Callbacks{
 
 func Mockinit() {
 	if f, err := fsm.NewFSM(transitions, mockCallbacks); err != nil {
-		logger.GmmLog.Errorf("Initialize Gmm FSM Error: %+v", err)
+		logger.AmfLog.Errorf("Initialize Gmm FSM Error: %+v", err)
 	} else {
 		GmmFSM = f
 	}
 }
 
 func MockDeRegistered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
-	logger.GmmLog.Info("MockDeRegistered")
+	logger.AmfLog.Info("MockDeRegistered")
 	MockDeRegisteredCallCount++
 }
 
 func MockAuthentication(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
-	logger.GmmLog.Info("MockAuthentication")
+	logger.AmfLog.Info("MockAuthentication")
 	MockAuthenticationCallCount++
 }
 
 func MockSecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
-	logger.GmmLog.Info("MockSecurityMode")
+	logger.AmfLog.Info("MockSecurityMode")
 	MockSecurityModeCallCount++
 }
 
 func MockContextSetup(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
-	logger.GmmLog.Info("MockContextSetup")
+	logger.AmfLog.Info("MockContextSetup")
 	MockContextSetupCallCount++
 }
 
 func MockRegistered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
-	logger.GmmLog.Info(event)
-	logger.GmmLog.Info("MockRegistered")
+	logger.AmfLog.Info(event)
+	logger.AmfLog.Info("MockRegistered")
 	MockRegisteredCallCount++
 }
 
 func MockDeregisteredInitiated(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
-	logger.GmmLog.Info("MockDeregisteredInitiated")
+	logger.AmfLog.Info("MockDeregisteredInitiated")
 	MockDeregisteredInitiatedCallCount++
 
 	amfUe := args[ArgAmfUe].(*context.AmfUe)

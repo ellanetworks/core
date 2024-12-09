@@ -4,7 +4,7 @@ import (
 	"reflect"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/nssf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 // Title in Problem Details for NSSF HTTP APIs
@@ -79,7 +79,7 @@ func AddAllowedSnssai(allowedSnssai models.AllowedSnssai, accessType models.Acce
 		if authorizedNetworkSliceInfo.AllowedNssaiList[i].AccessType == accessType {
 			hitAllowedNssai = true
 			if len(authorizedNetworkSliceInfo.AllowedNssaiList[i].AllowedSnssaiList) == allowedNssaiNum {
-				logger.Util.Infof("Unable to add a new Allowed S-NSSAI since already eight S-NSSAIs in Allowed NSSAI")
+				logger.NssfLog.Infof("Unable to add a new Allowed S-NSSAI since already eight S-NSSAIs in Allowed NSSAI")
 			} else {
 				authorizedNetworkSliceInfo.AllowedNssaiList[i].AllowedSnssaiList = append(authorizedNetworkSliceInfo.AllowedNssaiList[i].AllowedSnssaiList, allowedSnssai)
 			}

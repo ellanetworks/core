@@ -7,7 +7,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/factory"
 	"github.com/yeastengine/ella/internal/db/queries"
-	"github.com/yeastengine/ella/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 // This file contains calls to db to get configuration data
@@ -16,13 +16,13 @@ func GetSupportTaiList() []models.Tai {
 	tais := make([]models.Tai, 0)
 	networkSliceNames, err := queries.ListNetworkSliceNames()
 	if err != nil {
-		logger.CtxLog.Warnf("Failed to get network slice names: %s", err)
+		logger.AmfLog.Warnf("Failed to get network slice names: %s", err)
 		return tais
 	}
 	for _, networkSliceName := range networkSliceNames {
 		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
 		if err != nil {
-			logger.CtxLog.Warnf("Failed to get network slice by name: %s", networkSliceName)
+			logger.AmfLog.Warnf("Failed to get network slice by name: %s", networkSliceName)
 			continue
 		}
 		plmnID := models.PlmnId{
@@ -42,13 +42,13 @@ func GetServedGuamiList() []models.Guami {
 	guamis := make([]models.Guami, 0)
 	networkSliceNames, err := queries.ListNetworkSliceNames()
 	if err != nil {
-		logger.CtxLog.Warnf("Failed to get network slice names: %s", err)
+		logger.AmfLog.Warnf("Failed to get network slice names: %s", err)
 		return guamis
 	}
 	for _, networkSliceName := range networkSliceNames {
 		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
 		if err != nil {
-			logger.CtxLog.Warnf("Failed to get network slice by name: %s", networkSliceName)
+			logger.AmfLog.Warnf("Failed to get network slice by name: %s", networkSliceName)
 			continue
 		}
 		plmnID := models.PlmnId{
@@ -68,13 +68,13 @@ func GetPlmnSupportList() []factory.PlmnSupportItem {
 	plmnSupportList := make([]factory.PlmnSupportItem, 0)
 	networkSliceNames, err := queries.ListNetworkSliceNames()
 	if err != nil {
-		logger.CtxLog.Warnf("Failed to get network slice names: %s", err)
+		logger.AmfLog.Warnf("Failed to get network slice names: %s", err)
 		return plmnSupportList
 	}
 	for _, networkSliceName := range networkSliceNames {
 		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
 		if err != nil {
-			logger.CtxLog.Warnf("Failed to get network slice by name: %s", networkSliceName)
+			logger.AmfLog.Warnf("Failed to get network slice by name: %s", networkSliceName)
 			continue
 		}
 		plmnID := models.PlmnId{

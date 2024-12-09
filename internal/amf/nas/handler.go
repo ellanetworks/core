@@ -2,15 +2,15 @@ package nas
 
 import (
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/amf/nas/nas_security"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {
 	amfSelf := context.AMF_Self()
 
 	if ue == nil {
-		logger.NasLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 

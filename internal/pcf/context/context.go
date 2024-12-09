@@ -11,7 +11,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/idgenerator"
 	"github.com/yeastengine/ella/internal/db/queries"
-	"github.com/yeastengine/ella/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 var pcfCtx *PCFContext
@@ -102,7 +102,7 @@ func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 		newUeContext.PolAssociationIDGenerator = 1
 		newUeContext.AppSessionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
 		newUeContext.Supi = Supi
-		logger.CtxLog.Warnf("Storing new UeContext with Supi[%s]", Supi)
+		logger.PcfLog.Warnf("Storing new UeContext with Supi[%s]", Supi)
 		c.UePool.Store(Supi, newUeContext)
 		return newUeContext, nil
 	} else {
@@ -114,7 +114,7 @@ func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 func (c *PCFContext) PCFUeFindByPolicyId(PolicyId string) *UeContext {
 	index := strings.LastIndex(PolicyId, "-")
 	if index == -1 {
-		logger.CtxLog.Errorf("Invalid PolicyId format: %s", PolicyId)
+		logger.PcfLog.Errorf("Invalid PolicyId format: %s", PolicyId)
 		return nil
 	}
 	supi := PolicyId[:index]
@@ -327,13 +327,13 @@ func GetPLMNList() []PlmnSupportItem {
 	plmnSupportList := make([]PlmnSupportItem, 0)
 	networkSliceNames, err := queries.ListNetworkSliceNames()
 	if err != nil {
-		logger.CtxLog.Warnf("Failed to get network slice names: %+v", err)
+		logger.PcfLog.Warnf("Failed to get network slice names: %+v", err)
 		return plmnSupportList
 	}
 	for _, networkSliceName := range networkSliceNames {
 		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
 		if err != nil {
-			logger.CtxLog.Warnf("Failed to get network slice by name: %+v", err)
+			logger.PcfLog.Warnf("Failed to get network slice by name: %+v", err)
 			continue
 		}
 		plmnID := models.PlmnId{
@@ -352,13 +352,13 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 	subscriberPolicies := make(map[string]*PcfSubscriberPolicyData)
 	networkSliceNames, err := queries.ListNetworkSliceNames()
 	if err != nil {
-		logger.CtxLog.Warnf("Failed to get network slice names: %+v", err)
+		logger.PcfLog.Warnf("Failed to get network slice names: %+v", err)
 		return subscriberPolicies
 	}
 	for _, networkSliceName := range networkSliceNames {
 		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
 		if err != nil {
-			logger.CtxLog.Warnf("Failed to get network slice by name: %+v", err)
+			logger.PcfLog.Warnf("Failed to get network slice by name: %+v", err)
 			continue
 		}
 		pccPolicyId := networkSlice.SliceId.Sst + networkSlice.SliceId.Sd
@@ -429,7 +429,7 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 func GetBitRateUnit(val int64) (int64, string) {
 	unit := " Kbps"
 	if val < 1000 {
-		logger.GrpcLog.Warnf("configured value [%v] is lesser than 1000 bps, so setting 1 Kbps", val)
+		logger.PcfLog.Warnf("configured value [%v] is lesser than 1000 bps, so setting 1 Kbps", val)
 		val = 1
 		return val, unit
 	}

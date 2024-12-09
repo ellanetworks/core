@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/yeastengine/ella/internal/upf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 type GtpPathManager struct {
@@ -40,14 +40,14 @@ func (gtpPathManager *GtpPathManager) Run() {
 				return
 			case <-ticker.C:
 				for peer, sequenceNumber := range gtpPathManager.peers {
-					logger.AppLog.Debugf("Send GTP Echo request to %s, seq %d", peer, sequenceNumber)
+					logger.UpfLog.Debugf("Send GTP Echo request to %s, seq %d", peer, sequenceNumber)
 					elapseTime, err := gtpPathManager.sendEcho(peer)
 					if err != nil {
-						logger.AppLog.Warnf("%v", err)
+						logger.UpfLog.Warnf("%v", err)
 						continue
 					}
 
-					logger.AppLog.Debugf("Received GTP Echo response from %s, seq %d in %d ms", peer, sequenceNumber, elapseTime.Milliseconds())
+					logger.UpfLog.Debugf("Received GTP Echo response from %s, seq %d in %d ms", peer, sequenceNumber, elapseTime.Milliseconds())
 					gtpPathManager.peers[peer] = sequenceNumber + 1
 				}
 			}

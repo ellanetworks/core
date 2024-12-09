@@ -12,8 +12,8 @@ import (
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/factory"
-	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/amf/nas/nas_security"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu []byte,
@@ -121,7 +121,7 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 		var av5gAka models.Av5gAka
 
 		if err := mapstructure.Decode(ue.AuthenticationCtx.Var5gAuthData, &av5gAka); err != nil {
-			logger.GmmLog.Error("Var5gAuthData Convert Type Error")
+			logger.AmfLog.Error("Var5gAuthData Convert Type Error")
 			return nil, err
 		}
 

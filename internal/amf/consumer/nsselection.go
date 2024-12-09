@@ -3,7 +3,7 @@ package consumer
 import (
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/nssf/producer"
 )
 
@@ -31,7 +31,7 @@ func NSSelectionGetForRegistration(ue *context.AmfUe, requestedNssai []models.Ma
 
 	res, err := producer.GetNSSelection(params)
 	if err != nil {
-		logger.ConsumerLog.Warnf("GetNSSelection failed: %+v", err)
+		logger.AmfLog.Warnf("GetNSSelection failed: %+v", err)
 		return nil, err
 	}
 	ue.NetworkSliceInfo = res
@@ -60,7 +60,7 @@ func NSSelectionGetForPduSession(ue *context.AmfUe, snssai models.Snssai) (
 
 	res, err := producer.GetNSSelection(params)
 	if err != nil {
-		logger.ConsumerLog.Warnf("GetNSSelection failed: %+v", err)
+		logger.AmfLog.Warnf("GetNSSelection failed: %+v", err)
 		return nil, nil, err
 	}
 	return res, nil, nil

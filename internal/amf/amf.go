@@ -3,10 +3,8 @@ package amf
 import (
 	"time"
 
-	"github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/amf/factory"
 	"github.com/yeastengine/ella/internal/amf/service"
-	"go.uber.org/zap/zapcore"
 )
 
 var AMF = &service.AMF{}
@@ -70,11 +68,6 @@ func Start() error {
 	}
 
 	factory.InitConfigFactory(configuration)
-	level, err := zapcore.ParseLevel("debug")
-	if err != nil {
-		return err
-	}
-	logger.SetLogLevel(level)
 	AMF.Start()
 	return nil
 }

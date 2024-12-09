@@ -8,7 +8,7 @@ import (
 	"github.com/omec-project/openapi/models"
 	dbModels "github.com/yeastengine/ella/internal/db/models"
 	"github.com/yeastengine/ella/internal/db/queries"
-	"github.com/yeastengine/ella/internal/nms/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	nmsModels "github.com/yeastengine/ella/internal/nms/models"
 )
 
@@ -22,7 +22,7 @@ func setCorsHeader(c *gin.Context) {
 func GetSampleJSON(c *gin.Context) {
 	setCorsHeader(c)
 
-	logger.NMSLog.Infoln("Get a JSON Example")
+	logger.NmsLog.Infoln("Get a JSON Example")
 
 	var subsData nmsModels.SubsData
 
@@ -215,7 +215,7 @@ func GetSubscribers(c *gin.Context) {
 	var subsList []nmsModels.SubsListIE
 	amDataList, err := queries.ListAmData()
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 	}
 	for _, amData := range amDataList {
 		subscriber := nmsModels.SubsListIE{
@@ -398,7 +398,7 @@ func convertDbSmPolicyDataToModel(dbSmPolicyData *dbModels.SmPolicyData) models.
 func GetSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
 
-	logger.NMSLog.Infoln("Get One Subscriber Data")
+	logger.NmsLog.Infoln("Get One Subscriber Data")
 
 	var subsData nmsModels.SubsData
 
@@ -406,7 +406,7 @@ func GetSubscriberByID(c *gin.Context) {
 
 	dbAuthSubsData, err := queries.GetAuthenticationSubscription(ueId)
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 		c.JSON(http.StatusInternalServerError, gin.H{})
 		return
 	}
@@ -416,27 +416,27 @@ func GetSubscriberByID(c *gin.Context) {
 	}
 	dbAmData, err := queries.GetAmData(ueId)
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 	}
 
 	dbSmData, err := queries.ListSmData(ueId)
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 	}
 
 	dbSmfSelectionData, err := queries.GetSmfSelectionSubscriptionData(ueId)
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 	}
 
 	dbAmPolicyData, err := queries.GetAmPolicyData(ueId)
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 	}
 
 	dbSmPolicyData, err := queries.GetSmPolicyData(ueId)
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 	}
 	authSubsData := convertDbAuthSubsDataToModel(dbAuthSubsData)
 	amData := convertDbAmDataToModel(dbAmData)
@@ -462,7 +462,7 @@ func PostSubscriberByID(c *gin.Context) {
 
 	var subsOverrideData nmsModels.SubsOverrideData
 	if err := c.ShouldBindJSON(&subsOverrideData); err != nil {
-		logger.NMSLog.Errorln("Post One Subscriber Data - ShouldBindJSON failed ", err)
+		logger.NmsLog.Errorln("Post One Subscriber Data - ShouldBindJSON failed ", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -502,7 +502,7 @@ func PostSubscriberByID(c *gin.Context) {
 
 	err := queries.CreateAmData(ueId)
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 	}
 
 	imsiVal := strings.ReplaceAll(ueId, "imsi-", "")
@@ -531,19 +531,19 @@ func PostSubscriberByID(c *gin.Context) {
 	}
 	err = queries.CreateAuthenticationSubscription(ueId, dbAuthSubsData)
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 	}
 
-	logger.NMSLog.Infof("Created subscriber: %v", ueId)
+	logger.NmsLog.Infof("Created subscriber: %v", ueId)
 }
 
 func PutSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
-	logger.NMSLog.Infoln("Put One Subscriber Data")
+	logger.NmsLog.Infoln("Put One Subscriber Data")
 
 	var subsData nmsModels.SubsData
 	if err := c.ShouldBindJSON(&subsData); err != nil {
-		logger.NMSLog.Panic(err.Error())
+		logger.NmsLog.Panic(err.Error())
 	}
 
 	ueId := c.Param("ueId")
@@ -554,10 +554,10 @@ func PutSubscriberByID(c *gin.Context) {
 
 	err := queries.CreateAmData(ueId)
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 	}
 
-	logger.NMSLog.Debugln("Config5GUpdateHandle: Insert/Update AuthenticationSubscription ", ueId)
+	logger.NmsLog.Debugln("Config5GUpdateHandle: Insert/Update AuthenticationSubscription ", ueId)
 	dbAuthSubsData := &dbModels.AuthenticationSubscription{
 		AuthenticationManagementField: subsData.AuthenticationSubscription.AuthenticationManagementField,
 		AuthenticationMethod:          dbModels.AuthMethod(subsData.AuthenticationSubscription.AuthenticationMethod),
@@ -582,28 +582,28 @@ func PutSubscriberByID(c *gin.Context) {
 	}
 	err = queries.CreateAuthenticationSubscription(ueId, dbAuthSubsData)
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 	}
-	logger.NMSLog.Infof("Edited Subscriber: %v", ueId)
+	logger.NmsLog.Infof("Edited Subscriber: %v", ueId)
 }
 
 func PatchSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
-	logger.NMSLog.Infoln("Patch One Subscriber Data")
+	logger.NmsLog.Infoln("Patch One Subscriber Data")
 }
 
 func DeleteSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
-	logger.NMSLog.Infoln("Delete One Subscriber Data")
+	logger.NmsLog.Infoln("Delete One Subscriber Data")
 	ueId := c.Param("ueId")
 	c.JSON(http.StatusNoContent, gin.H{})
 	err := queries.DeleteAuthenticationSubscription(ueId)
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 	}
 	err = queries.DeleteAmData(ueId)
 	if err != nil {
-		logger.NMSLog.Warnln(err)
+		logger.NmsLog.Warnln(err)
 	}
-	logger.NMSLog.Infof("Deleted Subscriber: %v", ueId)
+	logger.NmsLog.Infof("Deleted Subscriber: %v", ueId)
 }

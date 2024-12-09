@@ -3,7 +3,7 @@ package consumer
 import (
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/pcf/producer"
 )
 
@@ -30,7 +30,7 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) (*models
 
 	res, locationHeader, err := producer.CreateAMPolicy(policyAssociationRequest)
 	if err != nil {
-		logger.ConsumerLog.Warnf("Failed to create policy: %+v", err)
+		logger.AmfLog.Warnf("Failed to create policy: %+v", err)
 		problem := &models.ProblemDetails{
 			Status: 500,
 			Cause:  "SYSTEM_FAILURE",

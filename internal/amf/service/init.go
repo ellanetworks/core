@@ -7,12 +7,12 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/amf/ngap"
 	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
 	ngap_service "github.com/yeastengine/ella/internal/amf/ngap/service"
 	"github.com/yeastengine/ella/internal/amf/producer/callback"
 	"github.com/yeastengine/ella/internal/amf/util"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 type AMF struct{}
@@ -40,11 +40,11 @@ func (amf *AMF) Start() {
 
 // Used in AMF planned removal procedure
 func (amf *AMF) Terminate() {
-	logger.InitLog.Infof("Terminating AMF...")
+	logger.AmfLog.Infof("Terminating AMF...")
 	amfSelf := context.AMF_Self()
 
 	// send AMF status indication to ran to notify ran that this AMF will be unavailable
-	logger.InitLog.Infof("Send AMF Status Indication to Notify RANs due to AMF terminating")
+	logger.AmfLog.Infof("Send AMF Status Indication to Notify RANs due to AMF terminating")
 	guamiList := context.GetServedGuamiList()
 	unavailableGuamiList := ngap_message.BuildUnavailableGUAMIList(guamiList)
 	amfSelf.AmfRanPool.Range(func(key, value interface{}) bool {
@@ -57,5 +57,5 @@ func (amf *AMF) Terminate() {
 
 	callback.SendAmfStatusChangeNotify((string)(models.StatusChange_UNAVAILABLE), guamiList)
 
-	logger.InitLog.Infof("AMF terminated")
+	logger.AmfLog.Infof("AMF terminated")
 }

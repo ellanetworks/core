@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/pcf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func (obj *IPFilterRule) String() string {
@@ -165,8 +165,8 @@ func PccRuleString(pcc *models.PccRule) string {
 	if pcc == nil {
 		return ""
 	}
-	logger.SMpolicylog.Warnf("PccRuleString: %v", pcc)
-	logger.SMpolicylog.Warnf("PccRuleString RefQosData: %v", pcc.RefQosData)
+	logger.SmfLog.Warnf("PccRuleString: %v", pcc)
+	logger.SmfLog.Warnf("PccRuleString RefQosData: %v", pcc.RefQosData)
 
 	return fmt.Sprintf("PccRule:[RuleId:[%v], Precdence:[%v], RefQosData:[%v], flow:[%v]]",
 		pcc.PccRuleId, pcc.Precedence, pcc.RefQosData[0], PccFlowInfosString(pcc.FlowInfos))

@@ -9,9 +9,9 @@ import (
 	"sync/atomic"
 
 	"github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/logger"
 	nmsModels "github.com/yeastengine/ella/internal/nms/models"
 	"github.com/yeastengine/ella/internal/smf/factory"
-	"github.com/yeastengine/ella/internal/smf/logger"
 )
 
 const IPV4 = "IPv4"
@@ -71,7 +71,7 @@ func ReleaseLocalSEID(seid uint64) error {
 
 func InitSmfContext(config *factory.Configuration) *SMFContext {
 	if config == nil {
-		logger.CtxLog.Error("Config is nil")
+		logger.SmfLog.Error("Config is nil")
 		return nil
 	}
 
@@ -91,16 +91,16 @@ func InitSmfContext(config *factory.Configuration) *SMFContext {
 		}
 		pfcpAddrEnv := os.Getenv(pfcp.Addr)
 		if pfcpAddrEnv != "" {
-			logger.CtxLog.Info("Parsing PFCP IPv4 address from ENV variable found.")
+			logger.SmfLog.Info("Parsing PFCP IPv4 address from ENV variable found.")
 			pfcp.Addr = pfcpAddrEnv
 		}
 		if pfcp.Addr == "" {
-			logger.CtxLog.Warn("Error parsing PFCP IPv4 address as string. Using the 0.0.0.0 address as default.")
+			logger.SmfLog.Warn("Error parsing PFCP IPv4 address as string. Using the 0.0.0.0 address as default.")
 			pfcp.Addr = "0.0.0.0"
 		}
 		addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", pfcp.Addr, pfcp.Port))
 		if err != nil {
-			logger.CtxLog.Warnf("PFCP Parse Addr Fail: %v", err)
+			logger.SmfLog.Warnf("PFCP Parse Addr Fail: %v", err)
 		}
 
 		smfContext.PFCPPort = int(pfcp.Port)
@@ -135,7 +135,7 @@ func SMF_Self() *SMFContext {
 func UpdateSMFContext(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels.DeviceGroups) {
 	UpdateSnssaiInfo(networkSlices, deviceGroups)
 	UpdateUserPlaneInformation(networkSlices, deviceGroups)
-	logger.CtxLog.Infof("Updated SMF context")
+	logger.SmfLog.Infof("Updated SMF context")
 }
 
 func UpdateSnssaiInfo(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels.DeviceGroups) {
@@ -148,7 +148,7 @@ func UpdateSnssaiInfo(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels
 		}
 		sstInt, err := strconv.Atoi(networkSlice.SliceId.Sst)
 		if err != nil {
-			logger.CtxLog.Errorf("failed to convert sst to int: %v", err)
+			logger.SmfLog.Errorf("failed to convert sst to int: %v", err)
 			return
 		}
 		snssai := SNssai{
@@ -167,7 +167,7 @@ func UpdateSnssaiInfo(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels
 			mtu := deviceGroup.IpDomainExpanded.Mtu
 			alloc, err := GetOrCreateIPAllocator(dnn, deviceGroup.IpDomainExpanded.UeIpPool)
 			if err != nil {
-				logger.CtxLog.Errorf("failed to get or create IP allocator for DNN %s: %v", dnn, err)
+				logger.SmfLog.Errorf("failed to get or create IP allocator for DNN %s: %v", dnn, err)
 				continue
 			}
 			dnnInfo := SnssaiSmfDnnInfo{
@@ -205,12 +205,12 @@ func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
 func BuildUserPlaneInformationFromConfig(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels.DeviceGroups) *UserPlaneInformation {
 	// check if len of networkSlices is 0
 	if len(networkSlices) == 0 {
-		logger.CtxLog.Warn("Network slices is empty")
+		logger.SmfLog.Warn("Network slices is empty")
 		return nil
 	}
 	for _, networkSlice := range networkSlices {
 		if len(deviceGroups) == 0 {
-			logger.CtxLog.Warn("Device groups is empty")
+			logger.SmfLog.Warn("Device groups is empty")
 			return nil
 		}
 		for _, deviceGroup := range deviceGroups {
@@ -225,23 +225,23 @@ func BuildUserPlaneInformationFromConfig(networkSlices []*nmsModels.Slice, devic
 
 			upfNameObj, exists := networkSlice.SiteInfo.Upf["upf-name"]
 			if !exists {
-				logger.CtxLog.Warnf("Key 'upf-name' does not exist in UPF info")
+				logger.SmfLog.Warnf("Key 'upf-name' does not exist in UPF info")
 				continue
 			}
 			upfPortObj, exists := networkSlice.SiteInfo.Upf["upf-port"]
 			if !exists {
-				logger.CtxLog.Warnf("Key 'upf-port' does not exist in UPF info")
+				logger.SmfLog.Warnf("Key 'upf-port' does not exist in UPF info")
 				continue
 			}
 
 			upfName, ok := upfNameObj.(string)
 			if !ok {
-				logger.CtxLog.Warnf("'upf-name' is not a string, actual type: %T, value: %v", upfNameObj, upfNameObj)
+				logger.SmfLog.Warnf("'upf-name' is not a string, actual type: %T, value: %v", upfNameObj, upfNameObj)
 				continue
 			}
 			upfPortStr, ok := upfPortObj.(string)
 			if !ok {
-				logger.CtxLog.Warnf("'upf-port' is not a string, actual type: %T, value: %v", upfPortObj, upfPortObj)
+				logger.SmfLog.Warnf("'upf-port' is not a string, actual type: %T, value: %v", upfPortObj, upfPortObj)
 				continue
 			}
 
@@ -250,7 +250,7 @@ func BuildUserPlaneInformationFromConfig(networkSlices []*nmsModels.Slice, devic
 			sstStr := networkSlice.SliceId.Sst
 			sstInt, err := strconv.Atoi(sstStr)
 			if err != nil {
-				logger.CtxLog.Errorf("Failed to convert sst to int: %v", err)
+				logger.SmfLog.Errorf("Failed to convert sst to int: %v", err)
 				continue
 			}
 			upf.SNssaiInfos = []SnssaiUPFInfo{
@@ -269,7 +269,7 @@ func BuildUserPlaneInformationFromConfig(networkSlices []*nmsModels.Slice, devic
 
 			upfPort, err := strconv.Atoi(upfPortStr)
 			if err != nil {
-				logger.CtxLog.Errorf("Failed to convert upf port to int: %v", err)
+				logger.SmfLog.Errorf("Failed to convert upf port to int: %v", err)
 				continue
 			}
 			upf.Port = uint16(upfPort)
@@ -314,11 +314,11 @@ func UpdateUserPlaneInformation(networkSlices []*nmsModels.Slice, deviceGroups [
 	configUserPlaneInfo := BuildUserPlaneInformationFromConfig(networkSlices, deviceGroups)
 	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)
 	if same {
-		logger.CtxLog.Info("Context user plane info matches config")
+		logger.SmfLog.Info("Context user plane info matches config")
 		return
 	}
 	if configUserPlaneInfo == nil {
-		logger.CtxLog.Warn("Config user plane info is nil")
+		logger.SmfLog.Warn("Config user plane info is nil")
 		return
 	}
 	smfSelf.UserPlaneInformation.UPNodes = configUserPlaneInfo.UPNodes
@@ -340,28 +340,28 @@ func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInfo
 		}
 
 		if node.Type != contextUserPlaneInfo.UPNodes[nodeName].Type {
-			logger.CtxLog.Warnf("Node type mismatch for node %s", nodeName)
+			logger.SmfLog.Warnf("Node type mismatch for node %s", nodeName)
 			return false
 		}
 
 		if !bytes.Equal(node.NodeID.NodeIdValue, contextUserPlaneInfo.UPNodes[nodeName].NodeID.NodeIdValue) {
-			logger.CtxLog.Warnf("Node ID mismatch for node %s", nodeName)
+			logger.SmfLog.Warnf("Node ID mismatch for node %s", nodeName)
 			return false
 		}
 
 		if node.Port != contextUserPlaneInfo.UPNodes[nodeName].Port {
-			logger.CtxLog.Warnf("Port mismatch for node %s", nodeName)
+			logger.SmfLog.Warnf("Port mismatch for node %s", nodeName)
 			return false
 		}
 
 		if node.Dnn != contextUserPlaneInfo.UPNodes[nodeName].Dnn {
-			logger.CtxLog.Warnf("DNN mismatch for node %s", nodeName)
+			logger.SmfLog.Warnf("DNN mismatch for node %s", nodeName)
 			return false
 		}
 
 		if node.Type == UPNODE_UPF {
 			if !node.UPF.SNssaiInfos[0].SNssai.Equal(&contextUserPlaneInfo.UPNodes[nodeName].UPF.SNssaiInfos[0].SNssai) {
-				logger.CtxLog.Warnf("SNssai mismatch for node %s", nodeName)
+				logger.SmfLog.Warnf("SNssai mismatch for node %s", nodeName)
 				return false
 			}
 		}

@@ -10,7 +10,7 @@ import (
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"go.uber.org/zap"
 )
 
@@ -127,7 +127,7 @@ func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapId int64) error {
 	ranUe.Ran = newRan
 	ranUe.RanUeNgapId = ranUeNgapId
 
-	logger.ContextLog.Infof("RanUe[RanUeNgapID: %d] Switch to new Ran[Name: %s]", ranUe.RanUeNgapId, ranUe.Ran.Name)
+	logger.AmfLog.Infof("RanUe[RanUeNgapID: %d] Switch to new Ran[Name: %s]", ranUe.RanUeNgapId, ranUe.Ran.Name)
 	return nil
 }
 
@@ -233,7 +233,7 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 		supportTaiList := GetSupportTaiList()
 		tmp, err := strconv.ParseUint(supportTaiList[0].Tac, 10, 32)
 		if err != nil {
-			logger.ContextLog.Errorf("Error parsing TAC: %v", err)
+			logger.AmfLog.Errorf("Error parsing TAC: %v", err)
 		}
 		tac := fmt.Sprintf("%06x", tmp)
 		ranUe.Location.N3gaLocation.N3gppTai = &models.Tai{

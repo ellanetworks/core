@@ -7,9 +7,9 @@ import (
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/openapi/models"
 	"github.com/pkg/errors"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/pcf/producer"
 	smf_context "github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/logger"
 )
 
 // SendSMPolicyAssociationCreate creates the SM Policy Decision
@@ -54,7 +54,7 @@ func SendSMPolicyAssociationDelete(smContext *smf_context.SMContext, smDelReq *m
 	smPolicyID := fmt.Sprintf("%s-%d", smContext.Supi, smContext.PDUSessionID)
 	err := producer.DeleteSMPolicy(smPolicyID)
 	if err != nil {
-		logger.ConsumerLog.Warnf("smf policy delete failed, [%v] ", err.Error())
+		logger.SmfLog.Warnf("smf policy delete failed, [%v] ", err.Error())
 		return http.StatusInternalServerError, err
 	}
 	return http.StatusAccepted, nil
@@ -65,12 +65,12 @@ func validateSmPolicyDecision(smPolicy *models.SmPolicyDecision) error {
 	// Sess Rules
 	for name, rule := range smPolicy.SessRules {
 		if rule.AuthSessAmbr == nil {
-			logger.ConsumerLog.Errorf("SM policy decision rule [%s] validation failure, authorised session ambr missing", name)
+			logger.SmfLog.Errorf("SM policy decision rule [%s] validation failure, authorised session ambr missing", name)
 			return fmt.Errorf("authorised session ambr missing")
 		}
 
 		if rule.AuthDefQos == nil {
-			logger.ConsumerLog.Errorf("SM policy decision rule [%s] validation failure, authorised default qos missing", name)
+			logger.SmfLog.Errorf("SM policy decision rule [%s] validation failure, authorised default qos missing", name)
 			return fmt.Errorf("authorised default qos missing")
 		}
 	}

@@ -19,7 +19,7 @@ import (
 	"github.com/omec-project/util/fsm"
 	"github.com/omec-project/util/idgenerator"
 	"github.com/omec-project/util/ueauth"
-	"github.com/yeastengine/ella/internal/amf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"go.uber.org/zap"
 )
 
@@ -330,7 +330,7 @@ func (ue *AmfUe) CmIdle(anType models.AccessType) bool {
 func (ue *AmfUe) Remove() {
 	for _, ranUe := range ue.RanUe {
 		if err := ranUe.Remove(); err != nil {
-			logger.ContextLog.Errorf("Remove RanUe error: %v", err)
+			logger.AmfLog.Errorf("Remove RanUe error: %v", err)
 		}
 	}
 
@@ -363,9 +363,9 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	}()
 
 	// set log information
-	ue.NASLog = logger.NasLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
-	ue.GmmLog = logger.GmmLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
-	ue.TxLog = logger.GmmLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
+	ue.NASLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
+	ue.GmmLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
+	ue.TxLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
 }
 
 func (ue *AmfUe) GetAnType() models.AccessType {
@@ -454,12 +454,12 @@ func (ue *AmfUe) SecurityContextIsValid() bool {
 func (ue *AmfUe) DerivateKamf() {
 	supiRegexp, err := regexp.Compile("(?:imsi|supi)-([0-9]{5,15})")
 	if err != nil {
-		logger.ContextLog.Error(err)
+		logger.AmfLog.Error(err)
 		return
 	}
 	groups := supiRegexp.FindStringSubmatch(ue.Supi)
 	if groups == nil {
-		logger.NasLog.Errorln("supi is not correct")
+		logger.AmfLog.Errorln("supi is not correct")
 		return
 	}
 
@@ -470,12 +470,12 @@ func (ue *AmfUe) DerivateKamf() {
 
 	KseafDecode, err := hex.DecodeString(ue.Kseaf)
 	if err != nil {
-		logger.ContextLog.Error(err)
+		logger.AmfLog.Error(err)
 		return
 	}
 	KamfBytes, err := ueauth.GetKDFValue(KseafDecode, ueauth.FC_FOR_KAMF_DERIVATION, P0, L0, P1, L1)
 	if err != nil {
-		logger.ContextLog.Error(err)
+		logger.AmfLog.Error(err)
 		return
 	}
 	ue.Kamf = hex.EncodeToString(KamfBytes)
@@ -491,12 +491,12 @@ func (ue *AmfUe) DerivateAlgKey() {
 
 	KamfBytes, err := hex.DecodeString(ue.Kamf)
 	if err != nil {
-		logger.ContextLog.Error(err)
+		logger.AmfLog.Error(err)
 		return
 	}
 	kenc, err := ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_ALGORITHM_KEY_DERIVATION, P0, L0, P1, L1)
 	if err != nil {
-		logger.ContextLog.Error(err)
+		logger.AmfLog.Error(err)
 		return
 	}
 	copy(ue.KnasEnc[:], kenc[16:32])
@@ -509,7 +509,7 @@ func (ue *AmfUe) DerivateAlgKey() {
 
 	kint, err := ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_ALGORITHM_KEY_DERIVATION, P0, L0, P1, L1)
 	if err != nil {
-		logger.ContextLog.Error(err)
+		logger.AmfLog.Error(err)
 		return
 	}
 	copy(ue.KnasInt[:], kint[16:32])
@@ -529,12 +529,12 @@ func (ue *AmfUe) DerivateAnKey(anType models.AccessType) {
 
 	KamfBytes, err := hex.DecodeString(ue.Kamf)
 	if err != nil {
-		logger.ContextLog.Error(err)
+		logger.AmfLog.Error(err)
 		return
 	}
 	key, err := ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_KGNB_KN3IWF_DERIVATION, P0, L0, P1, L1)
 	if err != nil {
-		logger.ContextLog.Error(err)
+		logger.AmfLog.Error(err)
 		return
 	}
 	switch accessType {
@@ -552,12 +552,12 @@ func (ue *AmfUe) DerivateNH(syncInput []byte) {
 
 	KamfBytes, err := hex.DecodeString(ue.Kamf)
 	if err != nil {
-		logger.ContextLog.Error(err)
+		logger.AmfLog.Error(err)
 		return
 	}
 	ue.NH, err = ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_NH_DERIVATION, P0, L0)
 	if err != nil {
-		logger.ContextLog.Error(err)
+		logger.AmfLog.Error(err)
 		return
 	}
 }
@@ -737,7 +737,7 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 			}
 		}
 		if nh, err := hex.DecodeString(seafData.Nh); err != nil {
-			logger.ContextLog.Error(err)
+			logger.AmfLog.Error(err)
 			return
 		} else {
 			ue.NH = nh
@@ -827,7 +827,7 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 						// ue.SecurityCapabilities
 						buf, err := base64.StdEncoding.DecodeString(mmContext.UeSecurityCapability)
 						if err != nil {
-							logger.ContextLog.Error(err)
+							logger.AmfLog.Error(err)
 							return
 						}
 						ue.UESecurityCapability.Buffer = buf

@@ -7,8 +7,8 @@ import (
 	"github.com/omec-project/openapi/models"
 	dbModels "github.com/yeastengine/ella/internal/db/models"
 	"github.com/yeastengine/ella/internal/db/queries"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/udr/context"
-	"github.com/yeastengine/ella/internal/udr/logger"
 )
 
 var CurrentResourceUri string
@@ -47,7 +47,7 @@ func convertDbAmDataToModel(dbAmData *dbModels.AccessAndMobilitySubscriptionData
 func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	dbAmData, err := queries.GetAmData(ueId)
 	if err != nil {
-		logger.DataRepoLog.Warnln(err)
+		logger.UdrLog.Warnln(err)
 	}
 	if dbAmData == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
@@ -59,7 +59,7 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 func PatchAmfContext3gpp(ueId string, patchItem []models.PatchItem) error {
 	origValue, err := queries.GetAmf3GPP(ueId)
 	if err != nil {
-		logger.DataRepoLog.Warnln(err)
+		logger.UdrLog.Warnln(err)
 	}
 
 	dbPatchItem := make([]dbModels.PatchItem, 0)
@@ -78,7 +78,7 @@ func PatchAmfContext3gpp(ueId string, patchItem []models.PatchItem) error {
 
 	newValue, err := queries.GetAmf3GPP(ueId)
 	if err != nil {
-		logger.DataRepoLog.Warnln(err)
+		logger.UdrLog.Warnln(err)
 	}
 	PreHandleOnDataChangeNotify(ueId, CurrentResourceUri, patchItem, origValue, newValue)
 	return nil
@@ -127,7 +127,7 @@ func convertDbAmf3GppAccessRegistrationToModel(dbAmf3Gpp *dbModels.Amf3GppAccess
 func GetAmfContext3gpp(ueId string) (*models.Amf3GppAccessRegistration, error) {
 	dbAmf3Gpp, err := queries.GetAmf3GPP(ueId)
 	if err != nil {
-		logger.DataRepoLog.Warnln(err)
+		logger.UdrLog.Warnln(err)
 	}
 	if dbAmf3Gpp == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
@@ -139,7 +139,7 @@ func GetAmfContext3gpp(ueId string) (*models.Amf3GppAccessRegistration, error) {
 func EditAuthenticationSubscription(ueId string, patchItem []models.PatchItem) error {
 	origValue, err := queries.GetAuthenticationSubscription(ueId)
 	if err != nil {
-		logger.DataRepoLog.Warnln(err)
+		logger.UdrLog.Warnln(err)
 	}
 
 	dbPatchItem := make([]dbModels.PatchItem, 0)
@@ -156,7 +156,7 @@ func EditAuthenticationSubscription(ueId string, patchItem []models.PatchItem) e
 	if err == nil {
 		newValue, err := queries.GetAuthenticationSubscription(ueId)
 		if err != nil {
-			logger.DataRepoLog.Warnln(err)
+			logger.UdrLog.Warnln(err)
 		}
 		PreHandleOnDataChangeNotify(ueId, CurrentResourceUri, patchItem, origValue, newValue)
 		return nil
@@ -203,7 +203,7 @@ func convertDbAuthSubsDataToModel(dbAuthSubsData *dbModels.AuthenticationSubscri
 func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 	dbAuthSubs, err := queries.GetAuthenticationSubscription(ueId)
 	if err != nil {
-		logger.DataRepoLog.Warnln(err)
+		logger.UdrLog.Warnln(err)
 	}
 	if dbAuthSubs == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
@@ -239,7 +239,7 @@ func convertDbAmPolicyDataToModel(dbAmPolicyData *dbModels.AmPolicyData) *models
 func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
 	dbAmPolicyData, err := queries.GetAmPolicyData(ueId)
 	if err != nil {
-		logger.DataRepoLog.Warnln(err)
+		logger.UdrLog.Warnln(err)
 	}
 	if dbAmPolicyData == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
@@ -278,7 +278,7 @@ func convertDbSmPolicyDataToModel(dbSmPolicyData *dbModels.SmPolicyData) *models
 func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
 	dbSmPolicyData, err := queries.GetSmPolicyData(ueId)
 	if err != nil {
-		logger.DataRepoLog.Warnln(err)
+		logger.UdrLog.Warnln(err)
 	}
 	if dbSmPolicyData == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
@@ -433,7 +433,7 @@ func convertDbSmfSelectionDataToModel(dbSmfSelectionData *dbModels.SmfSelectionS
 func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
 	dbSmfSelectionSubscriptionData, err := queries.GetSmfSelectionSubscriptionData(ueId)
 	if err != nil {
-		logger.DataRepoLog.Warnln(err)
+		logger.UdrLog.Warnln(err)
 	}
 	if dbSmfSelectionSubscriptionData == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")

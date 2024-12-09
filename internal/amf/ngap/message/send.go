@@ -5,20 +5,20 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/logger"
 	"github.com/yeastengine/ella/internal/amf/producer/callback"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 func SendToRan(ran *context.AmfRan, packet []byte) {
 	defer func() {
 		err := recover()
 		if err != nil {
-			logger.NgapLog.Warnf("Send error, gNB may have been lost: %+v", err)
+			logger.AmfLog.Warnf("Send error, gNB may have been lost: %+v", err)
 		}
 	}()
 
 	if ran == nil {
-		logger.NgapLog.Error("Ran is nil")
+		logger.AmfLog.Error("Ran is nil")
 		return
 	}
 
@@ -46,12 +46,12 @@ func SendToRanUe(ue *context.RanUe, packet []byte) {
 	var ran *context.AmfRan
 
 	if ue == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
 	if ran = ue.Ran; ran == nil {
-		logger.NgapLog.Error("Ran is nil")
+		logger.AmfLog.Error("Ran is nil")
 		return
 	}
 
@@ -64,13 +64,13 @@ func SendToRanUe(ue *context.RanUe, packet []byte) {
 
 func NasSendToRan(ue *context.AmfUe, accessType models.AccessType, packet []byte) {
 	if ue == nil {
-		logger.NgapLog.Error("AmfUe is nil")
+		logger.AmfLog.Error("AmfUe is nil")
 		return
 	}
 
 	ranUe := ue.RanUe[accessType]
 	if ranUe == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
@@ -140,7 +140,7 @@ func SendDownlinkNasTransport(ue *context.RanUe, nasPdu []byte,
 	mobilityRestrictionList *ngapType.MobilityRestrictionList,
 ) {
 	if ue == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
@@ -162,7 +162,7 @@ func SendPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte,
 	pduSessionResourceReleasedList ngapType.PDUSessionResourceToReleaseListRelCmd,
 ) {
 	if ue == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
@@ -178,7 +178,7 @@ func SendPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte,
 
 func SendUEContextReleaseCommand(ue *context.RanUe, action context.RelAction, causePresent int, cause aper.Enumerated) {
 	if ue == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
@@ -205,7 +205,7 @@ func SendErrorIndication(ran *context.AmfRan, amfUeNgapId, ranUeNgapId *int64, c
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) {
 	if ran == nil {
-		logger.NgapLog.Error("Ran is nil")
+		logger.AmfLog.Error("Ran is nil")
 		return
 	}
 
@@ -221,7 +221,7 @@ func SendErrorIndication(ran *context.AmfRan, amfUeNgapId, ranUeNgapId *int64, c
 
 func SendUERadioCapabilityCheckRequest(ue *context.RanUe) {
 	if ue == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
@@ -237,7 +237,7 @@ func SendUERadioCapabilityCheckRequest(ue *context.RanUe) {
 
 func SendHandoverCancelAcknowledge(ue *context.RanUe, criticalityDiagnostics *ngapType.CriticalityDiagnostics) {
 	if ue == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
@@ -257,7 +257,7 @@ func SendPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte,
 	pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq,
 ) {
 	if ue == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
@@ -285,7 +285,7 @@ func SendPDUSessionResourceModifyConfirm(
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) {
 	if ue == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
@@ -315,7 +315,7 @@ func SendPDUSessionResourceModifyRequest(ue *context.RanUe,
 	pduSessionResourceModifyRequestList ngapType.PDUSessionResourceModifyListModReq,
 ) {
 	if ue == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
@@ -344,7 +344,7 @@ func SendInitialContextSetupRequest(
 	emergencyFallbackIndicator *ngapType.EmergencyFallbackIndicator,
 ) {
 	if amfUe == nil {
-		logger.NgapLog.Error("AmfUe is nil")
+		logger.AmfLog.Error("AmfUe is nil")
 		return
 	}
 
@@ -377,7 +377,7 @@ func SendUEContextModificationRequest(
 	emergencyFallbackIndicator *ngapType.EmergencyFallbackIndicator,
 ) {
 	if amfUe == nil {
-		logger.NgapLog.Error("AmfUe is nil")
+		logger.AmfLog.Error("AmfUe is nil")
 		return
 	}
 
@@ -404,7 +404,7 @@ func SendHandoverCommand(
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) {
 	if sourceUe == nil {
-		logger.NgapLog.Error("SourceUe is nil")
+		logger.AmfLog.Error("SourceUe is nil")
 		return
 	}
 
@@ -436,7 +436,7 @@ func SendHandoverPreparationFailure(sourceUe *context.RanUe, cause ngapType.Caus
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) {
 	if sourceUe == nil {
-		logger.NgapLog.Error("SourceUe is nil")
+		logger.AmfLog.Error("SourceUe is nil")
 		return
 	}
 
@@ -470,7 +470,7 @@ func SendHandoverRequest(sourceUe *context.RanUe, targetRan *context.AmfRan, cau
 	sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer, nsci bool,
 ) {
 	if sourceUe == nil {
-		logger.NgapLog.Error("sourceUe is nil")
+		logger.AmfLog.Error("sourceUe is nil")
 		return
 	}
 
@@ -538,7 +538,7 @@ func SendPathSwitchRequestAcknowledge(
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) {
 	if ue == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
@@ -592,7 +592,7 @@ func SendPathSwitchRequestFailure(
 // RanStatusTransferTransparentContainer from Uplink Ran Configuration Transfer
 func SendDownlinkRanStatusTransfer(ue *context.RanUe, container ngapType.RANStatusTransferTransparentContainer) {
 	if ue == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
@@ -624,7 +624,7 @@ func SendDownlinkRanStatusTransfer(ue *context.RanUe, container ngapType.RANStat
 func SendPaging(ue *context.AmfUe, ngapBuf []byte) {
 	// var pagingPriority *ngapType.PagingPriority
 	if ue == nil {
-		logger.NgapLog.Error("AmfUe is nil")
+		logger.AmfLog.Error("AmfUe is nil")
 		return
 	}
 
@@ -683,7 +683,7 @@ func SendRerouteNasRequest(ue *context.AmfUe, anType models.AccessType, amfUeNga
 	allowedNSSAI *ngapType.AllowedNSSAI,
 ) {
 	if ue == nil {
-		logger.NgapLog.Error("AmfUe is nil")
+		logger.AmfLog.Error("AmfUe is nil")
 		return
 	}
 
@@ -707,7 +707,7 @@ func SendRanConfigurationUpdateAcknowledge(
 	ran *context.AmfRan, criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) {
 	if ran == nil {
-		logger.NgapLog.Error("Ran is nil")
+		logger.AmfLog.Error("Ran is nil")
 		return
 	}
 
@@ -728,7 +728,7 @@ func SendRanConfigurationUpdateFailure(ran *context.AmfRan, cause ngapType.Cause
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) {
 	if ran == nil {
-		logger.NgapLog.Error("Ran is nil")
+		logger.AmfLog.Error("Ran is nil")
 		return
 	}
 
@@ -750,7 +750,7 @@ func SendRanConfigurationUpdateFailure(ran *context.AmfRan, cause ngapType.Cause
 // Defined in 23.501 5.21.2.2.2
 func SendAMFStatusIndication(ran *context.AmfRan, unavailableGUAMIList ngapType.UnavailableGUAMIList) {
 	if ran == nil {
-		logger.NgapLog.Error("Ran is nil")
+		logger.AmfLog.Error("Ran is nil")
 		return
 	}
 
@@ -781,7 +781,7 @@ func SendOverloadStart(
 	overloadStartNSSAIList *ngapType.OverloadStartNSSAIList,
 ) {
 	if ran == nil {
-		logger.NgapLog.Error("Ran is nil")
+		logger.AmfLog.Error("Ran is nil")
 		return
 	}
 
@@ -808,7 +808,7 @@ func SendOverloadStart(
 
 func SendOverloadStop(ran *context.AmfRan) {
 	if ran == nil {
-		logger.NgapLog.Error("Ran is nil")
+		logger.AmfLog.Error("Ran is nil")
 		return
 	}
 
@@ -825,7 +825,7 @@ func SendOverloadStop(ran *context.AmfRan) {
 // SONConfigurationTransfer = sONConfigurationTransfer from uplink Ran Configuration Transfer
 func SendDownlinkRanConfigurationTransfer(ran *context.AmfRan, transfer *ngapType.SONConfigurationTransfer) {
 	if ran == nil {
-		logger.NgapLog.Error("Ran is nil")
+		logger.AmfLog.Error("Ran is nil")
 		return
 	}
 
@@ -843,7 +843,7 @@ func SendDownlinkRanConfigurationTransfer(ran *context.AmfRan, transfer *ngapTyp
 // NRPPa PDU is from LMF define in 4.13.5.6
 func SendDownlinkNonUEAssociatedNRPPATransport(ue *context.RanUe, nRPPaPDU ngapType.NRPPaPDU) {
 	if ue == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
@@ -864,13 +864,13 @@ func SendDownlinkNonUEAssociatedNRPPATransport(ue *context.RanUe, nRPPaPDU ngapT
 
 func SendDeactivateTrace(amfUe *context.AmfUe, anType models.AccessType) {
 	if amfUe == nil {
-		logger.NgapLog.Error("AmfUe is nil")
+		logger.AmfLog.Error("AmfUe is nil")
 		return
 	}
 
 	ranUe := amfUe.RanUe[anType]
 	if ranUe == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
@@ -901,7 +901,7 @@ func SendLocationReportingControl(
 	eventType ngapType.EventType,
 ) {
 	if ue == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
@@ -929,7 +929,7 @@ func SendLocationReportingControl(
 
 func SendUETNLABindingReleaseRequest(ue *context.RanUe) {
 	if ue == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 
@@ -947,7 +947,7 @@ func SendUETNLABindingReleaseRequest(ue *context.RanUe) {
 // NRPPa PDU is by pass
 func SendDownlinkUEAssociatedNRPPaTransport(ue *context.RanUe, nRPPaPDU ngapType.NRPPaPDU) {
 	if ue == nil {
-		logger.NgapLog.Error("RanUe is nil")
+		logger.AmfLog.Error("RanUe is nil")
 		return
 	}
 

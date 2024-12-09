@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/omec-project/util/mongoapi"
+	"github.com/yeastengine/ella/internal/logger"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.uber.org/zap"
 )
 
 const (
@@ -66,19 +66,18 @@ ConnectMongo:
 		case <-ticker.C:
 			continue
 		case <-timer:
-			DbLog.Errorln("Timed out while connecting to MongoDB in 3 minutes.")
+			logger.DBLog.Errorln("Timed out while connecting to MongoDB in 3 minutes.")
 			return
 		}
 	}
 
-	DbLog.Infoln("Connected to MongoDB.")
+	logger.DBLog.Infoln("Connected to MongoDB.")
 }
 
 func Initialize(url string, name string) error {
-	SetLogLevel(zap.DebugLevel)
 	err := TestConnection(url)
 	if err != nil {
-		DbLog.Fatalf("failed to connect to MongoDB: %v", err)
+		logger.DBLog.Fatalf("failed to connect to MongoDB: %v", err)
 		return err
 	}
 	ConnectMongo(url, name)

@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/yeastengine/ella/internal/smf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/msgtypes/svcmsgtypes"
 	"go.uber.org/zap"
 )
@@ -26,7 +26,7 @@ type Transaction struct {
 }
 
 func (t *Transaction) initLogTags() {
-	t.TxnFsmLog = logger.TxnFsmLog.With("txnid", t.TxnId, "txntype", string(t.MsgType), "ctxtkey", t.CtxtKey)
+	t.TxnFsmLog = logger.SmfLog.With("txnid", t.TxnId, "txntype", string(t.MsgType), "ctxtkey", t.CtxtKey)
 }
 
 type TxnEvent uint

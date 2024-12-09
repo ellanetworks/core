@@ -6,7 +6,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/util_3gpp"
-	"github.com/yeastengine/ella/internal/smf/logger"
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/qos"
 	"github.com/yeastengine/ella/internal/smf/util"
 )
@@ -138,7 +138,7 @@ func (node *DataPathNode) ActivateUpLinkTunnel(smContext *SMContext) error {
 	}
 
 	if err = smContext.PutPDRtoPFCPSession(destUPF.NodeID, node.UpLinkTunnel.PDR); err != nil {
-		logger.CtxLog.Errorln("put PDR Error:", err)
+		logger.SmfLog.Errorln("put PDR Error:", err)
 		return err
 	}
 
@@ -170,8 +170,8 @@ func (node *DataPathNode) ActivateDownLinkTunnel(smContext *SMContext) error {
 	} else {
 		// Default PDR
 		if pdr, err = destUPF.AddPDR(); err != nil {
-			logger.CtxLog.Errorln("in ActivateDownLinkTunnel UPF IP:", node.UPF.NodeID.ResolveNodeIdToIp().String())
-			logger.CtxLog.Errorln("allocate PDR Error:", err)
+			logger.SmfLog.Errorln("in ActivateDownLinkTunnel UPF IP:", node.UPF.NodeID.ResolveNodeIdToIp().String())
+			logger.SmfLog.Errorln("allocate PDR Error:", err)
 			return fmt.Errorf("add PDR failed: %s", err)
 		} else {
 			node.DownLinkTunnel.PDR["default"] = pdr
@@ -180,7 +180,7 @@ func (node *DataPathNode) ActivateDownLinkTunnel(smContext *SMContext) error {
 
 	// Put PDRs in PFCP session
 	if err = smContext.PutPDRtoPFCPSession(destUPF.NodeID, node.DownLinkTunnel.PDR); err != nil {
-		logger.CtxLog.Errorln("put PDR error:", err)
+		logger.SmfLog.Errorln("put PDR error:", err)
 		return err
 	}
 
@@ -190,7 +190,7 @@ func (node *DataPathNode) ActivateDownLinkTunnel(smContext *SMContext) error {
 func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 	for name, pdr := range node.UpLinkTunnel.PDR {
 		if pdr != nil {
-			logger.CtxLog.Infof("deactivated UpLinkTunnel PDR name[%v], id[%v]", name, pdr.PDRID)
+			logger.SmfLog.Infof("deactivated UpLinkTunnel PDR name[%v], id[%v]", name, pdr.PDRID)
 
 			// Remove PDR from PFCP Session
 			smContext.RemovePDRfromPFCPSession(node.UPF.NodeID, pdr)
@@ -198,20 +198,20 @@ func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 			// Remove of UPF
 			err := node.UPF.RemovePDR(pdr)
 			if err != nil {
-				logger.CtxLog.Warnln("deactivated UpLinkTunnel", err)
+				logger.SmfLog.Warnln("deactivated UpLinkTunnel", err)
 			}
 
 			if far := pdr.FAR; far != nil {
 				err = node.UPF.RemoveFAR(far)
 				if err != nil {
-					logger.CtxLog.Warnln("deactivated UpLinkTunnel", err)
+					logger.SmfLog.Warnln("deactivated UpLinkTunnel", err)
 				}
 
 				bar := far.BAR
 				if bar != nil {
 					err = node.UPF.RemoveBAR(bar)
 					if err != nil {
-						logger.CtxLog.Warnln("deactivated UpLinkTunnel", err)
+						logger.SmfLog.Warnln("deactivated UpLinkTunnel", err)
 					}
 				}
 			}
@@ -220,7 +220,7 @@ func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 					if qer != nil {
 						err = node.UPF.RemoveQER(qer)
 						if err != nil {
-							logger.CtxLog.Warnln("deactivated UpLinkTunnel", err)
+							logger.SmfLog.Warnln("deactivated UpLinkTunnel", err)
 						}
 					}
 				}
@@ -234,7 +234,7 @@ func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 	for name, pdr := range node.DownLinkTunnel.PDR {
 		if pdr != nil {
-			logger.CtxLog.Infof("deactivated DownLinkTunnel PDR name[%v], id[%v]", name, pdr.PDRID)
+			logger.SmfLog.Infof("deactivated DownLinkTunnel PDR name[%v], id[%v]", name, pdr.PDRID)
 
 			// Remove PDR from PFCP Session
 			smContext.RemovePDRfromPFCPSession(node.UPF.NodeID, pdr)
@@ -242,20 +242,20 @@ func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 			// Remove from UPF
 			err := node.UPF.RemovePDR(pdr)
 			if err != nil {
-				logger.CtxLog.Warnln("deactivated DownLinkTunnel", err)
+				logger.SmfLog.Warnln("deactivated DownLinkTunnel", err)
 			}
 
 			if far := pdr.FAR; far != nil {
 				err = node.UPF.RemoveFAR(far)
 				if err != nil {
-					logger.CtxLog.Warnln("deactivated DownLinkTunnel", err)
+					logger.SmfLog.Warnln("deactivated DownLinkTunnel", err)
 				}
 
 				bar := far.BAR
 				if bar != nil {
 					err = node.UPF.RemoveBAR(bar)
 					if err != nil {
-						logger.CtxLog.Warnln("deactivated DownLinkTunnel", err)
+						logger.SmfLog.Warnln("deactivated DownLinkTunnel", err)
 					}
 				}
 			}
@@ -264,7 +264,7 @@ func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 					if qer != nil {
 						err = node.UPF.RemoveQER(qer)
 						if err != nil {
-							logger.CtxLog.Warnln("deactivated UpLinkTunnel", err)
+							logger.SmfLog.Warnln("deactivated UpLinkTunnel", err)
 						}
 					}
 				}
@@ -378,7 +378,7 @@ func (dpNode *DataPathNode) CreatePccRuleQer(smContext *SMContext, qosData strin
 	var flowQER *QER
 
 	if newQER, err := dpNode.UPF.AddQER(); err != nil {
-		logger.PduSessLog.Errorln("new QER failed")
+		logger.SmfLog.Errorln("new QER failed")
 		return nil, err
 	} else {
 		newQER.QFI.QFI = qos.GetQosFlowIdFromQosId(refQos.QosId)
@@ -414,7 +414,7 @@ func (dpNode *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error
 		return nil, fmt.Errorf("default QOS Data not found in Policy Decision")
 	}
 	if newQER, err := dpNode.UPF.AddQER(); err != nil {
-		logger.PduSessLog.Errorln("new QER failed")
+		logger.SmfLog.Errorln("new QER failed")
 		return nil, err
 	} else {
 		newQER.QFI.QFI = qos.GetQosFlowIdFromQosId(defQosData.QosId)
