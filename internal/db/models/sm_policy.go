@@ -91,6 +91,7 @@ type SmPolicySnssaiData struct {
 }
 
 type SmPolicyData struct {
+	UeId               string                        `json:"ueId"`
 	SmPolicySnssaiData map[string]SmPolicySnssaiData `json:"smPolicySnssaiData" bson:"smPolicySnssaiData"`
 	UmDataLimits       map[string]UsageMonDataLimit  `json:"umDataLimits,omitempty" bson:"umDataLimits"`
 	UmData             map[string]UsageMonData       `json:"umData,omitempty" bson:"umData"`

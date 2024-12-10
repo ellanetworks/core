@@ -500,7 +500,10 @@ func PostSubscriberByID(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, gin.H{})
 
-	err := queries.CreateAmData(ueId)
+	amData := &dbModels.AccessAndMobilitySubscriptionData{
+		UeId: ueId,
+	}
+	err := queries.CreateAmData(amData)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}
@@ -551,8 +554,10 @@ func PutSubscriberByID(c *gin.Context) {
 
 	imsiVal := strings.ReplaceAll(ueId, "imsi-", "")
 	imsiData[imsiVal] = &subsData.AuthenticationSubscription
-
-	err := queries.CreateAmData(ueId)
+	amData := &dbModels.AccessAndMobilitySubscriptionData{
+		UeId: ueId,
+	}
+	err := queries.CreateAmData(amData)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}

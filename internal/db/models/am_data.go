@@ -71,11 +71,6 @@ type Nssai struct {
 	SingleNssais        []Snssai `json:"singleNssais,omitempty" yaml:"singleNssais" bson:"singleNssais" mapstructure:"SingleNssais"`
 }
 
-// type AmData struct {
-// 	UeId          string `json:"ueId"`
-// 	ServingPlmnId string `json:"servingPlmnId"`
-// }
-
 type AccessAndMobilitySubscriptionData struct {
 	UeId                        string                  `json:"ueId"`
 	ServingPlmnId               string                  `json:"servingPlmnId"`

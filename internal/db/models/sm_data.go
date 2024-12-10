@@ -98,6 +98,8 @@ type DnnConfiguration struct {
 }
 
 type SessionManagementSubscriptionData struct {
+	UeId                       string                      `json:"ueId"`
+	ServingPlmnId              string                      `json:"servingPlmnId"`
 	SingleNssai                *Snssai                     `json:"singleNssai" yaml:"singleNssai" bson:"singleNssai" mapstructure:"SingleNssai"`
 	DnnConfigurations          map[string]DnnConfiguration `json:"dnnConfigurations,omitempty" yaml:"dnnConfigurations" bson:"dnnConfigurations" mapstructure:"DnnConfigurations"`
 	InternalGroupIds           []string                    `json:"internalGroupIds,omitempty" yaml:"internalGroupIds" bson:"internalGroupIds" mapstructure:"InternalGroupIds"`

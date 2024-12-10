@@ -17,22 +17,9 @@ func DeleteSmfSelection(imsi string) error {
 	return nil
 }
 
-func CreateSmfSelectionProviosionedData(snssai *models.Snssai, mcc, mnc, dnn, imsi string) error {
-	smfSelData := models.SmfSelectionSubscriptionData{
-		SubscribedSnssaiInfos: map[string]models.SnssaiInfo{
-			SnssaiModelsToHex(*snssai): {
-				DnnInfos: []models.DnnInfo{
-					{
-						Dnn: dnn,
-					},
-				},
-			},
-		},
-	}
+func CreateSmfSelectionData(smfSelData *models.SmfSelectionSubscriptionData) error {
 	smfSelecDataBsonA := toBsonM(smfSelData)
-	smfSelecDataBsonA["ueId"] = "imsi-" + imsi
-	smfSelecDataBsonA["servingPlmnId"] = mcc + mnc
-	filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
+	filter := bson.M{"ueId": smfSelData.UeId}
 	_, err := db.CommonDBClient.RestfulAPIPost(db.SmfSelDataColl, filter, smfSelecDataBsonA)
 	if err != nil {
 		return err

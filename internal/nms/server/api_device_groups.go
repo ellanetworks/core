@@ -14,6 +14,25 @@ import (
 	"github.com/yeastengine/ella/internal/nms/models"
 )
 
+func convertToString(val uint64) string {
+	var mbVal, gbVal, kbVal uint64
+	kbVal = val / 1000
+	mbVal = val / 1000000
+	gbVal = val / 1000000000
+	var retStr string
+	if gbVal != 0 {
+		retStr = strconv.FormatUint(gbVal, 10) + " Gbps"
+	} else if mbVal != 0 {
+		retStr = strconv.FormatUint(mbVal, 10) + " Mbps"
+	} else if kbVal != 0 {
+		retStr = strconv.FormatUint(kbVal, 10) + " Kbps"
+	} else {
+		retStr = strconv.FormatUint(val, 10) + " bps"
+	}
+
+	return retStr
+}
+
 func GetDeviceGroups(c *gin.Context) {
 	setCorsHeader(c)
 	deviceGroups, err := queries.ListDeviceGroupNames()
@@ -185,7 +204,20 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 				logger.NmsLog.Warnln(err)
 				return false
 			}
-			err = queries.CreateSmPolicyData(snssai, dnn, imsi)
+			smPolicyData := &dbModels.SmPolicyData{
+				UeId: "imsi-" + imsi,
+				SmPolicySnssaiData: map[string]dbModels.SmPolicySnssaiData{
+					SnssaiModelsToHex(*snssai): {
+						Snssai: snssai,
+						SmPolicyDnnData: map[string]dbModels.SmPolicyDnnData{
+							dnn: {
+								Dnn: dnn,
+							},
+						},
+					},
+				},
+			}
+			err = queries.CreateSmPolicyData(smPolicyData)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 				return false
@@ -202,17 +234,76 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 					Pelr: procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
 				},
 			}
-			err = queries.CreateAmProvisionedData(snssai, qos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, imsi)
+			amData := &dbModels.AccessAndMobilitySubscriptionData{
+				UeId:          "imsi-" + imsi,
+				ServingPlmnId: slice.SiteInfo.Plmn.Mcc + slice.SiteInfo.Plmn.Mnc,
+				Gpsis: []string{
+					"msisdn-0900000000",
+				},
+				Nssai: &dbModels.Nssai{
+					DefaultSingleNssais: []dbModels.Snssai{*snssai},
+					SingleNssais:        []dbModels.Snssai{*snssai},
+				},
+				SubscribedUeAmbr: &dbModels.AmbrRm{
+					Downlink: convertToString(uint64(qos.DnnMbrDownlink)),
+					Uplink:   convertToString(uint64(qos.DnnMbrUplink)),
+				},
+			}
+			err = queries.CreateAmData(amData)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 				return false
 			}
-			err = queries.CreateSmProvisionedData(snssai, qos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
+			smData := &dbModels.SessionManagementSubscriptionData{
+				UeId:          "imsi-" + imsi,
+				ServingPlmnId: slice.SiteInfo.Plmn.Mcc + slice.SiteInfo.Plmn.Mnc,
+				SingleNssai:   snssai,
+				DnnConfigurations: map[string]dbModels.DnnConfiguration{
+					dnn: {
+						PduSessionTypes: &dbModels.PduSessionTypes{
+							DefaultSessionType:  dbModels.PduSessionType_IPV4,
+							AllowedSessionTypes: []dbModels.PduSessionType{dbModels.PduSessionType_IPV4},
+						},
+						SscModes: &dbModels.SscModes{
+							DefaultSscMode: dbModels.SscMode__1,
+							AllowedSscModes: []dbModels.SscMode{
+								"SSC_MODE_2",
+								"SSC_MODE_3",
+							},
+						},
+						SessionAmbr: &dbModels.Ambr{
+							Downlink: convertToString(uint64(qos.DnnMbrDownlink)),
+							Uplink:   convertToString(uint64(qos.DnnMbrUplink)),
+						},
+						Var5gQosProfile: &dbModels.SubscribedDefaultQos{
+							Var5qi: 9,
+							Arp: &dbModels.Arp{
+								PriorityLevel: 8,
+							},
+							PriorityLevel: 8,
+						},
+					},
+				},
+			}
+			err = queries.CreateSmData(smData)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 				return false
 			}
-			err = queries.CreateSmfSelectionProviosionedData(snssai, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
+			smfSelData := &dbModels.SmfSelectionSubscriptionData{
+				UeId:          "imsi-" + imsi,
+				ServingPlmnId: slice.SiteInfo.Plmn.Mcc + slice.SiteInfo.Plmn.Mnc,
+				SubscribedSnssaiInfos: map[string]dbModels.SnssaiInfo{
+					SnssaiModelsToHex(*snssai): {
+						DnnInfos: []dbModels.DnnInfo{
+							{
+								Dnn: dnn,
+							},
+						},
+					},
+				},
+			}
+			err = queries.CreateSmfSelectionData(smfSelData)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 				return false
