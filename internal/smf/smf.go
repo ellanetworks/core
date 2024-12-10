@@ -20,7 +20,6 @@ func Start() error {
 		},
 		SmfName: "SMF",
 	}
-
 	factory.InitConfigFactory(configuration)
 	StartPfcpServer()
 	return nil

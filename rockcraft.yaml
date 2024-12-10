@@ -8,46 +8,22 @@ platforms:
   amd64:
 
 parts:
-  frontend:
-    plugin: nil
-    source: ./ui
-    build-snaps:
-      - node/20/stable
-    stage-snaps:
-      - node/20/stable
-    override-build: |
-      craftctl default
-      npm ci
-      npm run build
-
-      mkdir -p ${CRAFT_PART_INSTALL}/app
-      cp -r out/* ${CRAFT_PART_INSTALL}/app/
-
-  ella:
+  notary:
     plugin: go
-    after:
-      - frontend
-    go-buildtags:
-      - ui
     source: .
+    source-type: local
     build-snaps:
       - go/1.23/stable
+      - node/20/stable
     override-build: |
-      rm -rf ${CRAFT_PART_BUILD}/ui/frontend_files/*
-      cp -r ${CRAFT_STAGE}/app/* ${CRAFT_PART_BUILD}/internal/nms/ui/frontend_files
+      npm install --prefix ui
+      npm run build --prefix ui
       craftctl default
 
   ip:
     plugin: nil
     stage-packages:
       - iproute2
-
-  tcpdump:
-    plugin: nil
-    stage-packages:
-      - tcpdump
-    overlay-script: |
-      useradd -R $CRAFT_OVERLAY -M -r tcpdump
 
   iptables:
     plugin: nil
