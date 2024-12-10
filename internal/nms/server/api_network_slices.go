@@ -65,12 +65,12 @@ func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *dbModels.Slice) *models
 		},
 		ApplicationFilteringRules: make([]models.SliceApplicationFilteringRules, 0),
 	}
-	for _, dbGnb := range dbNetworkSlice.SiteInfo.GNodeBs {
-		gnb := models.SliceSiteInfoGNodeBs{
-			Name: dbGnb.Name,
-			Tac:  dbGnb.Tac,
+	for _, dbRadio := range dbNetworkSlice.SiteInfo.GNodeBs {
+		radio := models.SliceSiteInfoGNodeBs{
+			Name: dbRadio.Name,
+			Tac:  dbRadio.Tac,
 		}
-		networkSlice.SiteInfo.GNodeBs = append(networkSlice.SiteInfo.GNodeBs, gnb)
+		networkSlice.SiteInfo.GNodeBs = append(networkSlice.SiteInfo.GNodeBs, radio)
 	}
 	for key, value := range dbNetworkSlice.SiteInfo.Upf {
 		networkSlice.SiteInfo.Upf[key] = value
@@ -120,12 +120,12 @@ func convertNetworkSliceToDBNetworkSlice(networkSlice *models.Slice) *dbModels.S
 		},
 		ApplicationFilteringRules: make([]dbModels.SliceApplicationFilteringRules, 0),
 	}
-	for _, gnb := range networkSlice.SiteInfo.GNodeBs {
-		dbGnb := dbModels.SliceSiteInfoGNodeBs{
-			Name: gnb.Name,
-			Tac:  gnb.Tac,
+	for _, radio := range networkSlice.SiteInfo.GNodeBs {
+		dbRadio := dbModels.SliceSiteInfoGNodeBs{
+			Name: radio.Name,
+			Tac:  radio.Tac,
 		}
-		dbNetworkSlice.SiteInfo.GNodeBs = append(dbNetworkSlice.SiteInfo.GNodeBs, dbGnb)
+		dbNetworkSlice.SiteInfo.GNodeBs = append(dbNetworkSlice.SiteInfo.GNodeBs, dbRadio)
 	}
 	for key, value := range networkSlice.SiteInfo.Upf {
 		dbNetworkSlice.SiteInfo.Upf[key] = value

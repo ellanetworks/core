@@ -12,7 +12,7 @@ import { createNetworkSlice } from "@/utils/createNetworkSlice";
 import { editNetworkSlice } from "@/utils/editNetworkSlice";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/utils/queryKeys";
-import { getGnbList, GnbItem } from "@/utils/getGnbList";
+import { getGnbList, GnbItem } from "@/utils/getRadioList";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 

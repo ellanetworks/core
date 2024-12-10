@@ -155,19 +155,19 @@ var routes = Routes{
 	{
 		"ListRadios",
 		http.MethodGet,
-		"/inventory/radios",
+		"/radios",
 		ListRadios,
 	},
 	{
 		"CreateRadio",
 		http.MethodPost,
-		"/inventory/radios/:radio-name",
+		"/radios/:radio-name",
 		CreateRadio,
 	},
 	{
 		"DeleteRadio",
 		http.MethodDelete,
-		"/inventory/radios/:radio-name",
+		"/radios/:radio-name",
 		DeleteRadio,
 	},
 }

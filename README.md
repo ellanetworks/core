@@ -46,27 +46,27 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 
 #### API
 
-| Endpoint                        | HTTP Method | Description             |
-| ------------------------------- | ----------- | ----------------------- |
-| `/api/v1/subscriber`            | GET         | List subscribers        |
-| `/api/v1/subscriber`            | POST        | Create a new subscriber |
-| `/api/v1/subscriber/{id}`       | GET         | Get a subscriber        |
-| `/api/v1/subscriber/{id}`       | PUT         | Update a subscriber     |
-| `/api/v1/subscriber/{id}`       | DELETE      | Delete a subscriber     |
-| `/api/v1/inventory/radios`      | GET         | List radios             |
-| `/api/v1/inventory/radios`      | POST        | Create a new radio      |
-| `/api/v1/inventory/radios/{id}` | GET         | Get a radio             |
-| `/api/v1/inventory/radios/{id}` | DELETE      | Delete a radio          |
-| `/api/v1/network-slice`         | GET         | List network slices     |
-| `/api/v1/network-slice`         | POST        | Create a new slice      |
-| `/api/v1/network-slice/{id}`    | GET         | Get a slice             |
-| `/api/v1/network-slice/{id}`    | PUT         | Update a slice          |
-| `/api/v1/network-slice/{id}`    | DELETE      | Delete a slice          |
-| `/api/v1/device-group`          | GET         | List device groups      |
-| `/api/v1/device-group`          | POST        | Create a new group      |
-| `/api/v1/device-group/{id}`     | GET         | Get a group             |
-| `/api/v1/device-group/{id}`     | PUT         | Update a group          |
-| `/api/v1/device-group/{id}`     | DELETE      | Delete a group          |
+| Endpoint                     | HTTP Method | Description             |
+| ---------------------------- | ----------- | ----------------------- |
+| `/api/v1/subscriber`         | GET         | List subscribers        |
+| `/api/v1/subscriber`         | POST        | Create a new subscriber |
+| `/api/v1/subscriber/{id}`    | GET         | Get a subscriber        |
+| `/api/v1/subscriber/{id}`    | PUT         | Update a subscriber     |
+| `/api/v1/subscriber/{id}`    | DELETE      | Delete a subscriber     |
+| `/api/v1/radios`             | GET         | List radios             |
+| `/api/v1/radios`             | POST        | Create a new radio      |
+| `/api/v1/radios/{id}`        | GET         | Get a radio             |
+| `/api/v1/radios/{id}`        | DELETE      | Delete a radio          |
+| `/api/v1/network-slice`      | GET         | List network slices     |
+| `/api/v1/network-slice`      | POST        | Create a new slice      |
+| `/api/v1/network-slice/{id}` | GET         | Get a slice             |
+| `/api/v1/network-slice/{id}` | PUT         | Update a slice          |
+| `/api/v1/network-slice/{id}` | DELETE      | Delete a slice          |
+| `/api/v1/device-group`       | GET         | List device groups      |
+| `/api/v1/device-group`       | POST        | Create a new group      |
+| `/api/v1/device-group/{id}`  | GET         | Get a group             |
+| `/api/v1/device-group/{id}`  | PUT         | Update a group          |
+| `/api/v1/device-group/{id}`  | DELETE      | Delete a group          |
 
 
 #### Configuration

@@ -9,7 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func ListInventoryRadios() ([]*models.Radio, error) {
+func ListRadios() ([]*models.Radio, error) {
 	var radios []*models.Radio
 	rawGnbs, err := db.CommonDBClient.RestfulAPIGetMany(db.RadiosColl, bson.M{})
 	if err != nil {
