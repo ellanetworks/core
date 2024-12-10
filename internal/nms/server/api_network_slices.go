@@ -18,6 +18,8 @@ import (
 	"github.com/yeastengine/ella/internal/smf/context"
 )
 
+const DNN = "internet"
+
 const (
 	KPS = 1000
 	MPS = 1000000
@@ -48,110 +50,55 @@ func GetNetworkSlices(c *gin.Context) {
 
 func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *dbModels.Slice) *models.Slice {
 	networkSlice := &models.Slice{
-		SliceName: dbNetworkSlice.SliceName,
+		SliceName: dbNetworkSlice.Name,
 		SliceId: models.SliceSliceId{
-			Sst: dbNetworkSlice.SliceId.Sst,
-			Sd:  dbNetworkSlice.SliceId.Sd,
+			Sst: dbNetworkSlice.Sst,
+			Sd:  dbNetworkSlice.Sd,
 		},
 		SiteDeviceGroup: dbNetworkSlice.SiteDeviceGroup,
 		SiteInfo: models.SliceSiteInfo{
-			SiteName: dbNetworkSlice.SiteInfo.SiteName,
 			Plmn: models.SliceSiteInfoPlmn{
-				Mcc: dbNetworkSlice.SiteInfo.Plmn.Mcc,
-				Mnc: dbNetworkSlice.SiteInfo.Plmn.Mnc,
+				Mcc: dbNetworkSlice.Mcc,
+				Mnc: dbNetworkSlice.Mnc,
 			},
 			GNodeBs: make([]models.SliceSiteInfoGNodeBs, 0),
 			Upf:     make(map[string]interface{}),
 		},
 		ApplicationFilteringRules: make([]models.SliceApplicationFilteringRules, 0),
 	}
-	for _, dbRadio := range dbNetworkSlice.SiteInfo.GNodeBs {
+	for _, dbRadio := range dbNetworkSlice.GNodeBs {
 		radio := models.SliceSiteInfoGNodeBs{
 			Name: dbRadio.Name,
 			Tac:  dbRadio.Tac,
 		}
 		networkSlice.SiteInfo.GNodeBs = append(networkSlice.SiteInfo.GNodeBs, radio)
 	}
-	for key, value := range dbNetworkSlice.SiteInfo.Upf {
+	for key, value := range dbNetworkSlice.Upf {
 		networkSlice.SiteInfo.Upf[key] = value
-	}
-	for _, dbAppFilterRule := range dbNetworkSlice.ApplicationFilteringRules {
-		appFilterRule := models.SliceApplicationFilteringRules{
-			RuleName:       dbAppFilterRule.RuleName,
-			Priority:       dbAppFilterRule.Priority,
-			Action:         dbAppFilterRule.Action,
-			Endpoint:       dbAppFilterRule.Endpoint,
-			Protocol:       dbAppFilterRule.Protocol,
-			StartPort:      dbAppFilterRule.StartPort,
-			EndPort:        dbAppFilterRule.EndPort,
-			AppMbrUplink:   dbAppFilterRule.AppMbrUplink,
-			AppMbrDownlink: dbAppFilterRule.AppMbrDownlink,
-			BitrateUnit:    dbAppFilterRule.BitrateUnit,
-			TrafficClass: &models.TrafficClassInfo{
-				Name: dbAppFilterRule.TrafficClass.Name,
-				Qci:  dbAppFilterRule.TrafficClass.Qci,
-				Arp:  dbAppFilterRule.TrafficClass.Arp,
-				Pdb:  dbAppFilterRule.TrafficClass.Pdb,
-				Pelr: dbAppFilterRule.TrafficClass.Pelr,
-			},
-			RuleTrigger: dbAppFilterRule.RuleTrigger,
-		}
-		networkSlice.ApplicationFilteringRules = append(networkSlice.ApplicationFilteringRules, appFilterRule)
 	}
 	return networkSlice
 }
 
 func convertNetworkSliceToDBNetworkSlice(networkSlice *models.Slice) *dbModels.Slice {
 	dbNetworkSlice := &dbModels.Slice{
-		SliceName: networkSlice.SliceName,
-		SliceId: dbModels.SliceSliceId{
-			Sst: networkSlice.SliceId.Sst,
-			Sd:  networkSlice.SliceId.Sd,
-		},
+		Name:            networkSlice.SliceName,
+		Sst:             networkSlice.SliceId.Sst,
+		Sd:              networkSlice.SliceId.Sd,
 		SiteDeviceGroup: networkSlice.SiteDeviceGroup,
-		SiteInfo: dbModels.SliceSiteInfo{
-			SiteName: networkSlice.SiteInfo.SiteName,
-			Plmn: dbModels.SliceSiteInfoPlmn{
-				Mcc: networkSlice.SiteInfo.Plmn.Mcc,
-				Mnc: networkSlice.SiteInfo.Plmn.Mnc,
-			},
-			GNodeBs: make([]dbModels.SliceSiteInfoGNodeBs, 0),
-			Upf:     make(map[string]interface{}),
-		},
-		ApplicationFilteringRules: make([]dbModels.SliceApplicationFilteringRules, 0),
+		Mcc:             networkSlice.SiteInfo.Plmn.Mcc,
+		Mnc:             networkSlice.SiteInfo.Plmn.Mnc,
+		GNodeBs:         make([]dbModels.SliceSiteInfoGNodeBs, 0),
+		Upf:             make(map[string]interface{}),
 	}
 	for _, radio := range networkSlice.SiteInfo.GNodeBs {
 		dbRadio := dbModels.SliceSiteInfoGNodeBs{
 			Name: radio.Name,
 			Tac:  radio.Tac,
 		}
-		dbNetworkSlice.SiteInfo.GNodeBs = append(dbNetworkSlice.SiteInfo.GNodeBs, dbRadio)
+		dbNetworkSlice.GNodeBs = append(dbNetworkSlice.GNodeBs, dbRadio)
 	}
 	for key, value := range networkSlice.SiteInfo.Upf {
-		dbNetworkSlice.SiteInfo.Upf[key] = value
-	}
-	for _, appFilterRule := range networkSlice.ApplicationFilteringRules {
-		dbAppFilterRule := dbModels.SliceApplicationFilteringRules{
-			RuleName:       appFilterRule.RuleName,
-			Priority:       appFilterRule.Priority,
-			Action:         appFilterRule.Action,
-			Endpoint:       appFilterRule.Endpoint,
-			Protocol:       appFilterRule.Protocol,
-			StartPort:      appFilterRule.StartPort,
-			EndPort:        appFilterRule.EndPort,
-			AppMbrUplink:   appFilterRule.AppMbrUplink,
-			AppMbrDownlink: appFilterRule.AppMbrDownlink,
-			BitrateUnit:    appFilterRule.BitrateUnit,
-			TrafficClass: &dbModels.TrafficClassInfo{
-				Name: appFilterRule.TrafficClass.Name,
-				Qci:  appFilterRule.TrafficClass.Qci,
-				Arp:  appFilterRule.TrafficClass.Arp,
-				Pdb:  appFilterRule.TrafficClass.Pdb,
-				Pelr: appFilterRule.TrafficClass.Pelr,
-			},
-			RuleTrigger: appFilterRule.RuleTrigger,
-		}
-		dbNetworkSlice.ApplicationFilteringRules = append(dbNetworkSlice.ApplicationFilteringRules, dbAppFilterRule)
+		dbNetworkSlice.Upf[key] = value
 	}
 	return dbNetworkSlice
 }
@@ -165,7 +112,7 @@ func GetNetworkSliceByName(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, nil)
 		return
 	}
-	if dbNetworkSlice.SliceName == "" {
+	if dbNetworkSlice.Name == "" {
 		c.JSON(http.StatusNotFound, nil)
 		return
 	}
@@ -228,7 +175,7 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 	prevSlice := convertDBNetworkSliceToNetworkSlice(prevdbSlice)
 	dgnames := getDeleteGroupsList(nil, prevSlice)
 	for _, dgname := range dgnames {
-		devGroupConfig := queries.GetDeviceGroupByName(dgname)
+		devGroupConfig := queries.GetProfile(dgname)
 		if devGroupConfig != nil {
 			for _, imsi := range devGroupConfig.Imsis {
 				err := queries.DeleteAmPolicy(imsi)
@@ -313,10 +260,10 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		Sst: int32(sVal),
 	}
 	for _, dgName := range procReq.SiteDeviceGroup {
-		dbDeviceGroup := queries.GetDeviceGroupByName(dgName)
+		dbDeviceGroup := queries.GetProfile(dgName)
 		if dbDeviceGroup != nil {
 			for _, imsi := range dbDeviceGroup.Imsis {
-				dnn := dbDeviceGroup.IpDomainExpanded.Dnn
+				dnn := DNN
 				mcc := procReq.SiteInfo.Plmn.Mcc
 				mnc := procReq.SiteInfo.Plmn.Mnc
 				err := queries.CreateAmPolicyData(imsi)
@@ -343,16 +290,13 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 				amData := &dbModels.AccessAndMobilitySubscriptionData{
 					UeId:          "imsi-" + imsi,
 					ServingPlmnId: mcc + mnc,
-					Gpsis: []string{
-						"msisdn-0900000000",
-					},
 					Nssai: &dbModels.Nssai{
 						DefaultSingleNssais: []dbModels.Snssai{*snssai},
 						SingleNssais:        []dbModels.Snssai{*snssai},
 					},
 					SubscribedUeAmbr: &dbModels.AmbrRm{
-						Downlink: convertToString(uint64(dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink)),
-						Uplink:   convertToString(uint64(dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink)),
+						Downlink: convertToString(uint64(dbDeviceGroup.DnnMbrDownlink)),
+						Uplink:   convertToString(uint64(dbDeviceGroup.DnnMbrUplink)),
 					},
 				}
 				err = queries.CreateAmData(amData)
@@ -377,8 +321,8 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 								},
 							},
 							SessionAmbr: &dbModels.Ambr{
-								Downlink: convertToString(uint64(dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink)),
-								Uplink:   convertToString(uint64(dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink)),
+								Downlink: convertToString(uint64(dbDeviceGroup.DnnMbrDownlink)),
+								Uplink:   convertToString(uint64(dbDeviceGroup.DnnMbrUplink)),
 							},
 							Var5gQosProfile: &dbModels.SubscribedDefaultQos{
 								Var5qi: 9,
@@ -464,32 +408,30 @@ func updateSMF() {
 		networkSlices = append(networkSlices, networkSlice)
 	}
 	deviceGroups := make([]models.DeviceGroups, 0)
-	deviceGroupNames, err := queries.ListDeviceGroupNames()
+	deviceGroupNames, err := queries.ListProfiles()
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}
 	for _, deviceGroupName := range deviceGroupNames {
-		dbDeviceGroup := queries.GetDeviceGroupByName(deviceGroupName)
+		dbDeviceGroup := queries.GetProfile(deviceGroupName)
 		deviceGroup := models.DeviceGroups{
-			DeviceGroupName: dbDeviceGroup.DeviceGroupName,
+			DeviceGroupName: dbDeviceGroup.Name,
 			Imsis:           dbDeviceGroup.Imsis,
-			SiteInfo:        dbDeviceGroup.SiteInfo,
-			IpDomainName:    dbDeviceGroup.IpDomainName,
 			IpDomainExpanded: models.DeviceGroupsIpDomainExpanded{
-				Dnn:          dbDeviceGroup.IpDomainExpanded.Dnn,
-				UeIpPool:     dbDeviceGroup.IpDomainExpanded.UeIpPool,
-				DnsPrimary:   dbDeviceGroup.IpDomainExpanded.DnsPrimary,
-				DnsSecondary: dbDeviceGroup.IpDomainExpanded.DnsSecondary,
+				Dnn:          DNN,
+				UeIpPool:     dbDeviceGroup.UeIpPool,
+				DnsPrimary:   dbDeviceGroup.DnsPrimary,
+				DnsSecondary: dbDeviceGroup.DnsSecondary,
 				UeDnnQos: &models.DeviceGroupsIpDomainExpandedUeDnnQos{
-					DnnMbrDownlink: dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink,
-					DnnMbrUplink:   dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink,
-					BitrateUnit:    dbDeviceGroup.IpDomainExpanded.UeDnnQos.BitrateUnit,
+					DnnMbrDownlink: dbDeviceGroup.DnnMbrDownlink,
+					DnnMbrUplink:   dbDeviceGroup.DnnMbrUplink,
+					BitrateUnit:    dbDeviceGroup.BitrateUnit,
 					TrafficClass: &models.TrafficClassInfo{
-						Name: dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Name,
-						Qci:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
-						Arp:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Arp,
-						Pdb:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Pdb,
-						Pelr: dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
+						Name: dbDeviceGroup.Name,
+						Qci:  dbDeviceGroup.Qci,
+						Arp:  dbDeviceGroup.Arp,
+						Pdb:  dbDeviceGroup.Pdb,
+						Pelr: dbDeviceGroup.Pelr,
 					},
 				},
 			},

@@ -12,7 +12,6 @@ func SDMGetAmData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err
 		return nil, err
 	}
 	ue.AccessAndMobilitySubscriptionData = data
-	ue.Gpsi = data.Gpsis[0]
 	return nil, nil
 }
 

@@ -75,7 +75,6 @@ type AccessAndMobilitySubscriptionData struct {
 	UeId                        string                  `json:"ueId"`
 	ServingPlmnId               string                  `json:"servingPlmnId"`
 	SupportedFeatures           string                  `json:"supportedFeatures,omitempty" bson:"supportedFeatures"`
-	Gpsis                       []string                `json:"gpsis,omitempty" bson:"gpsis"`
 	InternalGroupIds            []string                `json:"internalGroupIds,omitempty" bson:"internalGroupIds"`
 	SubscribedUeAmbr            *AmbrRm                 `json:"subscribedUeAmbr,omitempty" bson:"subscribedUeAmbr"`
 	Nssai                       *Nssai                  `json:"nssai,omitempty" bson:"nssai"`

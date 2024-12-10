@@ -19,7 +19,6 @@ func convertDbAmDataToModel(dbAmData *dbModels.AccessAndMobilitySubscriptionData
 		return &models.AccessAndMobilitySubscriptionData{}
 	}
 	amData := &models.AccessAndMobilitySubscriptionData{
-		Gpsis: dbAmData.Gpsis,
 		Nssai: &models.Nssai{
 			DefaultSingleNssais: make([]models.Snssai, 0),
 			SingleNssais:        make([]models.Snssai, 0),

@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	DevGroupDataColl = "webconsoleData.snapshots.devGroupData"
-	SliceDataColl    = "webconsoleData.snapshots.sliceData"
-	RadiosColl       = "radios"
+	ProfilesColl      = "profiles"
+	NetworkSlicesColl = "networkSlices"
+	RadiosColl        = "radios"
 
 	AuthSubsDataColl = "subscriptionData.authenticationData.authenticationSubscription"
 	AmDataColl       = "subscriptionData.provisionedData.amData"

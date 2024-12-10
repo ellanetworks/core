@@ -16,6 +16,8 @@ import (
 
 var pcfCtx *PCFContext
 
+const DNN = "internet"
+
 func init() {
 	pcfCtx = &PCFContext{}
 }
@@ -337,8 +339,8 @@ func GetPLMNList() []PlmnSupportItem {
 			continue
 		}
 		plmnID := models.PlmnId{
-			Mcc: networkSlice.SiteInfo.Plmn.Mcc,
-			Mnc: networkSlice.SiteInfo.Plmn.Mnc,
+			Mcc: networkSlice.Mcc,
+			Mnc: networkSlice.Mnc,
 		}
 		plmnSupportItem := PlmnSupportItem{
 			PlmnId: plmnID,
@@ -361,10 +363,10 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 			logger.PcfLog.Warnf("Failed to get network slice by name: %+v", err)
 			continue
 		}
-		pccPolicyId := networkSlice.SliceId.Sst + networkSlice.SliceId.Sd
+		pccPolicyId := networkSlice.Sst + networkSlice.Sd
 		deviceGroupNames := networkSlice.SiteDeviceGroup
 		for _, devGroupName := range deviceGroupNames {
-			deviceGroup := queries.GetDeviceGroupByName(devGroupName)
+			deviceGroup := queries.GetProfile(devGroupName)
 			for _, imsi := range deviceGroup.Imsis {
 				if _, exists := subscriberPolicies[imsi]; !exists {
 					subscriberPolicies[imsi] = &PcfSubscriberPolicyData{
@@ -382,9 +384,8 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 					}
 				}
 
-				dnn := deviceGroup.IpDomainExpanded.Dnn
-				if _, exists := subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[dnn]; !exists {
-					subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[dnn] = &SessionPolicy{
+				if _, exists := subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[DNN]; !exists {
+					subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[DNN] = &SessionPolicy{
 						SessionRules: make(map[string]*models.SessionRule),
 					}
 				}
@@ -393,22 +394,22 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 				qosId, _ := pcfCtx.QoSDataIDGenerator.Allocate()
 				sessionRuleId, _ := pcfCtx.SessionRuleIDGenerator.Allocate()
 
-				ul, uunit := GetBitRateUnit(deviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink)
-				dl, dunit := GetBitRateUnit(deviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink)
+				ul, uunit := GetBitRateUnit(deviceGroup.DnnMbrUplink)
+				dl, dunit := GetBitRateUnit(deviceGroup.DnnMbrDownlink)
 
 				// Create QoS data
 				qosData := &models.QosData{
 					QosId:                strconv.FormatInt(qosId, 10),
-					Var5qi:               deviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
+					Var5qi:               deviceGroup.Qci,
 					MaxbrUl:              strconv.FormatInt(ul, 10) + uunit,
 					MaxbrDl:              strconv.FormatInt(dl, 10) + dunit,
-					Arp:                  &models.Arp{PriorityLevel: deviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Arp},
+					Arp:                  &models.Arp{PriorityLevel: deviceGroup.Arp},
 					DefQosFlowIndication: true,
 				}
 				subscriberPolicies[imsi].PccPolicy[pccPolicyId].QosDecs[qosData.QosId] = qosData
 
 				// Add session rule
-				subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[dnn].SessionRules[strconv.FormatInt(sessionRuleId, 10)] = &models.SessionRule{
+				subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[DNN].SessionRules[strconv.FormatInt(sessionRuleId, 10)] = &models.SessionRule{
 					SessRuleId: strconv.FormatInt(sessionRuleId, 10),
 					AuthDefQos: &models.AuthorizedDefaultQos{
 						Var5qi: qosData.Var5qi,
