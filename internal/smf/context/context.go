@@ -70,6 +70,7 @@ func ReleaseLocalSEID(seid uint64) error {
 }
 
 func InitSmfContext(config *factory.Configuration) *SMFContext {
+	logger.SmfLog.Warnf("SMF context initializing")
 	if config == nil {
 		logger.SmfLog.Error("Config is nil")
 		return nil
@@ -124,6 +125,7 @@ func InitSmfContext(config *factory.Configuration) *SMFContext {
 	// InitUserPlaneInformation()
 	smfContext.ueIPAllocatorMapping = make(map[string]*IPAllocator)
 	smfContext.PodIp = os.Getenv("POD_IP")
+	logger.SmfLog.Warnf("SMF context initialized")
 
 	return &smfContext
 }

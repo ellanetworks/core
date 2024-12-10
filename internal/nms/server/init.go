@@ -1,28 +1,20 @@
 package server
 
 import (
-	_ "net/http"
-	_ "net/http/pprof"
 	"strconv"
 
 	"github.com/gin-contrib/cors"
+	"github.com/omec-project/util/http2_util"
 	logger_util "github.com/omec-project/util/logger"
 	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/nms/config"
 )
 
-type NMS struct{}
+func Start(port int, cert_file string, key_file string) {
+	router := logger_util.NewGinWithZap(logger.NmsLog)
+	AddUiService(router)
+	AddApiService(router)
 
-func (nms *NMS) Initialize(c config.Configuration) {
-	config.InitConfigFactory(c)
-}
-
-func (nms *NMS) Start() {
-	subconfig_router := logger_util.NewGinWithZap(logger.NmsLog)
-	AddUiService(subconfig_router)
-	AddService(subconfig_router)
-
-	subconfig_router.Use(cors.New(cors.Config{
+	router.Use(cors.New(cors.Config{
 		AllowMethods: []string{"GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"},
 		AllowHeaders: []string{
 			"Origin", "Content-Length", "Content-Type", "User-Agent",
@@ -35,11 +27,20 @@ func (nms *NMS) Start() {
 	}))
 
 	go func() {
-		httpAddr := ":" + strconv.Itoa(config.Config.CfgPort)
-		logger.NmsLog.Infoln("NMS HTTP addr:", httpAddr, config.Config.CfgPort)
-		logger.NmsLog.Infoln(subconfig_router.Run(httpAddr))
-		logger.NmsLog.Infoln("NMS stopped/terminated/not-started ")
+		httpAddr := ":" + strconv.Itoa(port)
+		logger.NmsLog.Infoln("NMS HTTP addr:", httpAddr, port)
+		server, err := http2_util.NewServer(httpAddr, "", router)
+		if server == nil {
+			logger.NmsLog.Errorln("NMS server is nil")
+			return
+		}
+		if err != nil {
+			logger.NmsLog.Errorln("couldn't create NMS server:", err)
+			return
+		}
+		err = server.ListenAndServeTLS(cert_file, key_file)
+		if err != nil {
+			logger.NmsLog.Errorln("couldn't start NMS server:", err)
+		}
 	}()
-
-	select {}
 }

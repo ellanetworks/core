@@ -18,7 +18,6 @@ import (
 )
 
 func Start(interfaces []string, n3_address string) error {
-	logger.UpfLog.Infof("UPF Log level is set to [%s] level", "debug")
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 

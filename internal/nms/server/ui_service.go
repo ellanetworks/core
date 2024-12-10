@@ -7,11 +7,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/nms/ui"
+	"github.com/yeastengine/ella/ui"
 )
 
 func AddUiService(engine *gin.Engine) {
-	staticFilesSystem, err := fs.Sub(ui.FrontendFS, "frontend_files")
+	staticFilesSystem, err := fs.Sub(ui.FrontendFS, "out")
 	if err != nil {
 		logger.NmsLog.Fatal(err)
 	}

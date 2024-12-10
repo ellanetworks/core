@@ -1,0 +1,8 @@
+upf:
+  interfaces: ["enp3s0"]
+  n3-address: "127.0.0.1"
+api:
+  port: 5000
+  tls:
+    cert: "/etc/ssl/certs/ella.crt"
+    key: "/etc/ssl/private/ella.key"

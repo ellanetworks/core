@@ -15,7 +15,7 @@ type Route struct {
 
 type Routes []Route
 
-func AddService(engine *gin.Engine) *gin.RouterGroup {
+func AddApiService(engine *gin.Engine) *gin.RouterGroup {
 	group := engine.Group("/api/v1")
 
 	for _, route := range routes {
