@@ -23,7 +23,6 @@ class TestELLA:
     ):
         ella_port = get_ella_node_port()
         ella_address = f"https://127.0.0.1:{ella_port}"
-        time.sleep(20)
         configure_ella(ella_address=ella_address)
         success_runs = run_gnbsim_simulation(
             namespace=NAMESPACE,

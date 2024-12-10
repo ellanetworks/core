@@ -17,12 +17,11 @@ const (
 	SliceDataColl    = "webconsoleData.snapshots.sliceData"
 	GnbDataColl      = "webconsoleData.snapshots.gnbData"
 
-	AuthSubsDataColl                 = "subscriptionData.authenticationData.authenticationSubscription"
-	SUBSCDATA_AUT_AUTHSTATUS         = "subscriptionData.authenticationData.authenticationStatus"
-	AmDataColl                       = "subscriptionData.provisionedData.amData"
-	SmDataColl                       = "subscriptionData.provisionedData.smData"
-	SmfSelDataColl                   = "subscriptionData.provisionedData.smfSelectionSubscriptionData"
-	SUBSCDATA_CTXDATA_AMF_3GPPACCESS = "subscriptionData.contextData.amf3gppAccess"
+	AuthSubsDataColl         = "subscriptionData.authenticationData.authenticationSubscription"
+	SUBSCDATA_AUT_AUTHSTATUS = "subscriptionData.authenticationData.authenticationStatus"
+	AmDataColl               = "subscriptionData.provisionedData.amData"
+	SmDataColl               = "subscriptionData.provisionedData.smData"
+	SmfSelDataColl           = "subscriptionData.provisionedData.smfSelectionSubscriptionData"
 
 	AmPolicyDataColl = "policyData.ues.amData"
 	SmPolicyDataColl = "policyData.ues.smData"

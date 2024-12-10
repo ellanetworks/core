@@ -1,30 +1,12 @@
 package producer
 
 import (
-	"fmt"
 	"net/http"
 
-	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/udm/context"
 	"github.com/yeastengine/ella/internal/udm/producer/callback"
-	"github.com/yeastengine/ella/internal/udr/producer"
 )
-
-func GetAmf3gppAccessProcedure(ueID string, supportedFeatures string) (
-	response *models.Amf3GppAccessRegistration, problemDetails *models.ProblemDetails,
-) {
-	amf3GppAccessRegistration, err := producer.GetAmfContext3gpp(ueID)
-	if err != nil {
-		problemDetails = &models.ProblemDetails{
-			Status: 404,
-			Cause:  err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails).Cause,
-			Detail: err.Error(),
-		}
-		return nil, problemDetails
-	}
-	return amf3GppAccessRegistration, nil
-}
 
 // TS 29.503 5.3.2.2.2
 func EditRegistrationAmf3gppAccess(registerRequest models.Amf3GppAccessRegistration, ueID string) error {
@@ -36,11 +18,6 @@ func EditRegistrationAmf3gppAccess(registerRequest models.Amf3GppAccessRegistrat
 	}
 
 	context.UDM_Self().CreateAmf3gppRegContext(ueID, registerRequest)
-
-	err := producer.CreateAmfContext3gpp(ueID, registerRequest)
-	if err != nil {
-		return fmt.Errorf("CreateAmfContext3gpp failed: %s", err)
-	}
 
 	// TS 23.502 4.2.2.2.2 14d: UDM initiate a Nudm_UECM_DeregistrationNotification to the old AMF
 	// corresponding to the same (e.g. 3GPP) access, if one exists
