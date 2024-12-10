@@ -9,37 +9,37 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func ListInventoryGnbs() ([]*models.Gnb, error) {
-	var gnbs []*models.Gnb
-	rawGnbs, err := db.CommonDBClient.RestfulAPIGetMany(db.GnbDataColl, bson.M{})
+func ListInventoryRadios() ([]*models.Radio, error) {
+	var radios []*models.Radio
+	rawGnbs, err := db.CommonDBClient.RestfulAPIGetMany(db.RadiosColl, bson.M{})
 	if err != nil {
 		return nil, err
 	}
 	for _, rawGnb := range rawGnbs {
-		var gnbData models.Gnb
-		err := json.Unmarshal(mapToByte(rawGnb), &gnbData)
+		var radioData models.Radio
+		err := json.Unmarshal(mapToByte(rawGnb), &radioData)
 		if err != nil {
 			logger.DBLog.Errorf("Could not unmarshall gNB %v", rawGnb)
 			continue
 		}
-		gnbs = append(gnbs, &gnbData)
+		radios = append(radios, &radioData)
 	}
-	return gnbs, nil
+	return radios, nil
 }
 
-func CreateGnb(gnb *models.Gnb) error {
-	filter := bson.M{"name": gnb.Name}
-	gnbDataBson := toBsonM(&gnb)
-	_, err := db.CommonDBClient.RestfulAPIPost(db.GnbDataColl, filter, gnbDataBson)
+func CreateRadio(radio *models.Radio) error {
+	filter := bson.M{"name": radio.Name}
+	radioDataBson := toBsonM(&radio)
+	_, err := db.CommonDBClient.RestfulAPIPost(db.RadiosColl, filter, radioDataBson)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func DeleteGnb(name string) error {
+func DeleteRadio(name string) error {
 	filter := bson.M{"name": name}
-	err := db.CommonDBClient.RestfulAPIDeleteOne(db.GnbDataColl, filter)
+	err := db.CommonDBClient.RestfulAPIDeleteOne(db.RadiosColl, filter)
 	if err != nil {
 		return err
 	}

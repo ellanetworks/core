@@ -75,7 +75,7 @@ def configure_ella(ella_address: str) -> None:
     - network slice creation
     """
     ella_client = Ella(url=ella_address)
-    ella_client.create_gnb(name=f"{NAMESPACE}-gnbsim", tac=1)
+    ella_client.create_radio(name=f"{NAMESPACE}-gnbsim", tac=1)
     ella_client.create_subscriber(imsi=TEST_IMSI)
     ella_client.create_device_group(name=TEST_DEVICE_GROUP_NAME, imsis=[TEST_IMSI])
     ella_client.create_network_slice(

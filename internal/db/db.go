@@ -15,7 +15,7 @@ import (
 const (
 	DevGroupDataColl = "webconsoleData.snapshots.devGroupData"
 	SliceDataColl    = "webconsoleData.snapshots.sliceData"
-	GnbDataColl      = "webconsoleData.snapshots.gnbData"
+	RadiosColl       = "radios"
 
 	AuthSubsDataColl = "subscriptionData.authenticationData.authenticationSubscription"
 	AmDataColl       = "subscriptionData.provisionedData.amData"

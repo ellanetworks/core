@@ -21,52 +21,52 @@ func setInventoryCorsHeader(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, DELETE")
 }
 
-func GetGnbs(c *gin.Context) {
+func ListRadios(c *gin.Context) {
 	setInventoryCorsHeader(c)
-	dbGnbs, err := queries.ListInventoryGnbs()
+	dbGnbs, err := queries.ListInventoryRadios()
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 		c.JSON(http.StatusInternalServerError, nil)
 		return
 	}
-	gnbs := make([]*models.Gnb, 0)
+	radios := make([]*models.Gnb, 0)
 	for _, dbGnb := range dbGnbs {
-		gnb := models.Gnb{
+		radio := models.Gnb{
 			Name: dbGnb.Name,
 			Tac:  dbGnb.Tac,
 		}
-		gnbs = append(gnbs, &gnb)
+		radios = append(radios, &radio)
 	}
-	c.JSON(http.StatusOK, gnbs)
+	c.JSON(http.StatusOK, radios)
 }
 
-func PostGnb(c *gin.Context) {
+func CreateRadio(c *gin.Context) {
 	setInventoryCorsHeader(c)
-	if err := handlePostGnb(c); err == nil {
+	if err := handleCreateRadio(c); err == nil {
 		c.JSON(http.StatusOK, gin.H{})
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 }
 
-func DeleteGnb(c *gin.Context) {
+func DeleteRadio(c *gin.Context) {
 	setInventoryCorsHeader(c)
-	if err := handleDeleteGnb(c); err == nil {
+	if err := handleDeleteRadio(c); err == nil {
 		c.JSON(http.StatusOK, gin.H{})
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 }
 
-func handlePostGnb(c *gin.Context) error {
-	var gnbName string
+func handleCreateRadio(c *gin.Context) error {
+	var radioName string
 	var exists bool
-	if gnbName, exists = c.Params.Get("gnb-name"); !exists {
-		errorMessage := "gnb-name is missing"
+	if radioName, exists = c.Params.Get("radio-name"); !exists {
+		errorMessage := "radio-name is missing"
 		logger.NmsLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
-	logger.NmsLog.Infof("Received gNB %v", gnbName)
+	logger.NmsLog.Infof("Received gNB %v", radioName)
 	var err error
 	var newGnb models.Gnb
 
@@ -77,7 +77,7 @@ func handlePostGnb(c *gin.Context) error {
 	}
 	if err != nil {
 		logger.NmsLog.Errorf(err.Error())
-		return fmt.Errorf("failed to create gNB %v: %v", gnbName, err)
+		return fmt.Errorf("failed to create gNB %v: %v", radioName, err)
 	}
 	if newGnb.Tac == "" {
 		errorMessage := "tac is missing"
@@ -86,28 +86,28 @@ func handlePostGnb(c *gin.Context) error {
 	}
 	req := httpwrapper.NewRequest(c.Request, newGnb)
 	procReq := req.Body.(models.Gnb)
-	procReq.Name = gnbName
-	dbGnb := &dbModels.Gnb{
+	procReq.Name = radioName
+	dbRadio := &dbModels.Radio{
 		Name: procReq.Name,
 		Tac:  procReq.Tac,
 	}
-	queries.CreateGnb(dbGnb)
-	logger.NmsLog.Infof("created gnb %v", gnbName)
+	queries.CreateRadio(dbRadio)
+	logger.NmsLog.Infof("created radio %v", radioName)
 	return nil
 }
 
-func handleDeleteGnb(c *gin.Context) error {
-	var gnbName string
+func handleDeleteRadio(c *gin.Context) error {
+	var radioName string
 	var exists bool
-	if gnbName, exists = c.Params.Get("gnb-name"); !exists {
-		errorMessage := "gnb-name is missing"
+	if radioName, exists = c.Params.Get("radio-name"); !exists {
+		errorMessage := "radio-name is missing"
 		logger.NmsLog.Errorf(errorMessage)
 		return errors.New(errorMessage)
 	}
-	err := queries.DeleteGnb(gnbName)
+	err := queries.DeleteRadio(radioName)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}
-	logger.NmsLog.Infof("Deleted gnb %v", gnbName)
+	logger.NmsLog.Infof("Deleted radio %v", radioName)
 	return nil
 }

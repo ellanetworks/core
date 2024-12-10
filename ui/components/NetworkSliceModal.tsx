@@ -20,7 +20,7 @@ interface NetworkSliceValues {
   mcc: string;
   mnc: string;
   name: string;
-  gnbList: GnbItem[];
+  radioList: GnbItem[];
 }
 
 interface NetworkSliceModalProps {
@@ -31,7 +31,7 @@ interface NetworkSliceModalProps {
 const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps) => {
   const queryClient = useQueryClient();
   const [apiError, setApiError] = useState<string | null>(null);
-  const [gnbApiError, setGnbApiError] = useState<string | null>(null);
+  const [radioApiError, setGnbApiError] = useState<string | null>(null);
 
   const NetworkSliceSchema = Yup.object().shape({
     name: Yup.string()
@@ -50,13 +50,13 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
       .min(2)
       .max(3)
       .required("MNC is required."),
-    gnbList: Yup.array()
+    radioList: Yup.array()
       .min(1)
       .required("Selecting at least 1 gNodeB is required."),
   });
 
   const modalTitle = () => {
-      return networkSlice?.["slice-name"] ? ("Edit Network Slice: " + networkSlice["slice-name"]) : "Create Network Slice"
+    return networkSlice?.["slice-name"] ? ("Edit Network Slice: " + networkSlice["slice-name"]) : "Create Network Slice"
   }
 
   const buttonText = () => {
@@ -68,19 +68,19 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
       mcc: networkSlice?.["site-info"]["plmn"].mcc || "",
       mnc: networkSlice?.["site-info"]["plmn"].mnc || "",
       name: networkSlice?.["slice-name"] || "",
-      gnbList: networkSlice?.["site-info"].gNodeBs || [],
+      radioList: networkSlice?.["site-info"].gNodeBs || [],
     },
     validationSchema: NetworkSliceSchema,
     onSubmit: async (values) => {
       try {
-        if (networkSlice){
+        if (networkSlice) {
           await editNetworkSlice({
             name: values.name,
             mcc: values.mcc.toString(),
             mnc: values.mnc.toString(),
             upfName: "0.0.0.0",
             upfPort: "8806",
-            gnbList: values.gnbList,
+            radioList: values.radioList,
           });
         } else {
           await createNetworkSlice({
@@ -89,7 +89,7 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
             mnc: values.mnc.toString(),
             upfName: "0.0.0.0",
             upfPort: "8806",
-            gnbList: values.gnbList,
+            radioList: values.radioList,
           });
         }
         await queryClient.invalidateQueries({
@@ -105,32 +105,32 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
     },
   });
 
-  const { data: gnbList = [], isLoading: isGnbLoading } = useQuery({
-    queryKey: [queryKeys.gnbList],
+  const { data: radioList = [], isLoading: isGnbLoading } = useQuery({
+    queryKey: [queryKeys.radioList],
     queryFn: getGnbList,
   });
 
   useEffect(() => {
     const checkGnbList = async () => {
-      if (!isGnbLoading && gnbList.length === 0) {
+      if (!isGnbLoading && radioList.length === 0) {
         setGnbApiError("Failed to retrieve the list of GNBs from the server.");
       }
     };
     checkGnbList();
-  }, [isGnbLoading, gnbList]);
+  }, [isGnbLoading, radioList]);
 
   const handleGnbChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedOptions = Array.from(e.target.selectedOptions);
-    const items = gnbList.filter((item) =>
+    const items = radioList.filter((item) =>
       selectedOptions.some(
         (option) => option.value === `${item.name}:${item.tac}`,
       ),
     );
-    void formik.setFieldValue("gnbList", items);
+    void formik.setFieldValue("radioList", items);
   };
 
   const getGnbListValueAsString = () => {
-    return (formik.values.gnbList.map((item) =>{
+    return (formik.values.radioList.map((item) => {
       return `${item.name}:${item.tac}`
     }));
   };
@@ -156,9 +156,9 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
           {apiError}
         </Notification>
       )}
-      {gnbApiError && (
+      {radioApiError && (
         <Notification severity="negative" title="Error">
-          {gnbApiError}
+          {radioApiError}
         </Notification>
       )}
       <Form>
@@ -196,19 +196,19 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
           error={formik.touched.mnc ? formik.errors.mnc : null}
         />
         <Select
-          id="gnb"
+          id="radio"
           stacked
           required
-          value = {getGnbListValueAsString()}
+          value={getGnbListValueAsString()}
           options={[
             {
               value: "",
               disabled: true,
               label: "Select...",
             },
-            ...gnbList.map((gnb) => ({
-              label: `${gnb.name} (tac:${gnb.tac})`,
-              value: `${gnb.name}:${gnb.tac}`,
+            ...radioList.map((radio) => ({
+              label: `${radio.name} (tac:${radio.tac})`,
+              value: `${radio.name}:${radio.tac}`,
             })),
           ]}
           label="gNodeBs"

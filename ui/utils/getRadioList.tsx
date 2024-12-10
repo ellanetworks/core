@@ -5,7 +5,7 @@ export interface GnbItem {
 
 export const getGnbList = async (): Promise<GnbItem[]> => {
   try {
-    const response = await fetch("/api/v1/inventory/gnb", {
+    const response = await fetch("/api/v1/inventory/radios", {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -14,10 +14,10 @@ export const getGnbList = async (): Promise<GnbItem[]> => {
     if (!response.ok) {
       throw new Error("Failed to fetch GNB list");
     }
-    const gnbList = await response.json();
-    return gnbList.map((gnb: GnbItem) => ({
-      ...gnb,
-      tac: Number(gnb.tac),
+    const radioList = await response.json();
+    return radioList.map((radio: GnbItem) => ({
+      ...radio,
+      tac: Number(radio.tac),
     }));
   } catch (error) {
     console.error(error);
