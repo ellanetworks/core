@@ -20,7 +20,6 @@ func Start() error {
 		},
 		SmfName: "SMF",
 	}
-	context.InitSmfContext(&factory.SmfConfig)
 	factory.InitConfigFactory(configuration)
 	StartPfcpServer()
 	return nil
@@ -33,6 +32,7 @@ func StartPfcpServer() {
 		<-signalChannel
 		os.Exit(0)
 	}()
+	context.InitSmfContext(&factory.SmfConfig)
 	udp.Run(pfcp.Dispatch)
 	userPlaneInformation := context.GetUserPlaneInformation()
 	if userPlaneInformation.UPF != nil {

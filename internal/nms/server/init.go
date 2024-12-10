@@ -43,6 +43,4 @@ func Start(port int, cert_file string, key_file string) {
 			logger.NmsLog.Errorln("couldn't start NMS server:", err)
 		}
 	}()
-
-	select {}
 }

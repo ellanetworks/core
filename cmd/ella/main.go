@@ -21,7 +21,11 @@ import (
 )
 
 func startNetwork(cfg config.Config) error {
-	err := smf.Start()
+	err := nms.Start(cfg.Api.Port, cfg.Api.TLS.Cert, cfg.Api.TLS.Key)
+	if err != nil {
+		return err
+	}
+	err = smf.Start()
 	if err != nil {
 		return err
 	}
@@ -46,10 +50,6 @@ func startNetwork(cfg config.Config) error {
 		return err
 	}
 	err = nssf.Start()
-	if err != nil {
-		return err
-	}
-	err = nms.Start(cfg.Api.Port, cfg.Api.TLS.Cert, cfg.Api.TLS.Key)
 	if err != nil {
 		return err
 	}
