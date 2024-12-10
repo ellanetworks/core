@@ -70,14 +70,6 @@ func strictHex(s string, n int) string {
 	}
 }
 
-func CreateAuthEvent(authEvent models.AuthEvent, supi string) error {
-	err := producer.EditAuthenticationStatus(supi, authEvent)
-	if err != nil {
-		return fmt.Errorf("EditAuthenticationStatus error: %w", err)
-	}
-	return nil
-}
-
 func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (
 	*models.AuthenticationInfoResult, error,
 ) {

@@ -213,7 +213,6 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.ConfirmationData, ConfirmationDataResponseID string,
 ) (*models.ConfirmationDataResponse, error) {
 	var responseBody models.ConfirmationDataResponse
-	success := false
 	responseBody.AuthResult = models.AuthResult_FAILURE
 
 	if !context.CheckIfSuciSupiPairExists(ConfirmationDataResponseID) {
@@ -229,25 +228,17 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 	}
 
 	ausfCurrentContext := context.GetAusfUeContext(currentSupi)
-	servingNetworkName := ausfCurrentContext.ServingNetworkName
 
 	// Compare the received RES* with the stored XRES*
 	if strings.Compare(updateConfirmationData.ResStar, ausfCurrentContext.XresStar) == 0 {
 		ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
 		responseBody.AuthResult = models.AuthResult_SUCCESS
-		success = true
 		logger.AusfLog.Infoln("5G AKA confirmation succeeded")
 		responseBody.Kseaf = ausfCurrentContext.Kseaf
 	} else {
 		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		responseBody.AuthResult = models.AuthResult_FAILURE
-		logConfirmFailureAndInformUDM(ConfirmationDataResponseID, models.AuthType__5_G_AKA,
-			"5G AKA confirmation failed")
-	}
-
-	if sendErr := sendAuthResultToUDM(currentSupi, models.AuthType__5_G_AKA, success, servingNetworkName); sendErr != nil {
-		logger.AusfLog.Infoln(sendErr.Error())
-		return nil, fmt.Errorf("sendAuthResultToUDM failed")
+		logger.AusfLog.Infoln("5G AKA confirmation failed")
 	}
 
 	responseBody.Supi = currentSupi
@@ -272,7 +263,6 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 	}
 
 	ausfCurrentContext := context.GetAusfUeContext(currentSupi)
-	servingNetworkName := ausfCurrentContext.ServingNetworkName
 	var eapPayload []byte
 	if eapPayloadTmp, err := base64.StdEncoding.DecodeString(updateEapSession.EapPayload); err != nil {
 		logger.AusfLog.Warnf("EAP Payload decode failed: %+v", err)
@@ -285,8 +275,7 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 	eapContent, _ := eapLayer.(*layers.EAP)
 
 	if eapContent.Code != layers.EAPCodeResponse {
-		logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME,
-			"eap packet code error")
+		logger.AusfLog.Infoln("eap packet code error")
 		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		responseBody.AuthResult = models.AuthResult_ONGOING
 		failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
@@ -303,8 +292,7 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 		if !decodeOK {
 			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 			responseBody.AuthResult = models.AuthResult_ONGOING
-			logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME,
-				"eap packet decode error")
+			logger.AusfLog.Infoln("eap packet decode error")
 			failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 			responseBody.EapPayload = failEapAkaNoti
 		} else if XRES == string(RES) { // decodeOK && XRES == res, auth success
@@ -312,16 +300,11 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 			responseBody.AuthResult = models.AuthResult_SUCCESS
 			eapSuccPkt := ConstructEapNoTypePkt(EapCodeSuccess, eapContent.Id)
 			responseBody.EapPayload = eapSuccPkt
-			if sendErr := sendAuthResultToUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, true, servingNetworkName); sendErr != nil {
-				logger.AusfLog.Infoln(sendErr.Error())
-				return nil, fmt.Errorf("sendAuthResultToUDM failed")
-			}
 			ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
 		} else {
 			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 			responseBody.AuthResult = models.AuthResult_ONGOING
-			logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME,
-				"Wrong RES value, EAP-AKA' auth failed")
+			logger.AusfLog.Infoln("Wrong RES value, EAP-AKA' auth failed")
 			failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 			responseBody.EapPayload = failEapAkaNoti
 		}

@@ -132,19 +132,6 @@ func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 	return authSubs, nil
 }
 
-func EditAuthenticationStatus(ueID string, authStatus models.AuthEvent) error {
-	dbAuthStatus := &dbModels.AuthEvent{
-		NfInstanceId:       authStatus.NfInstanceId,
-		Success:            authStatus.Success,
-		TimeStamp:          authStatus.TimeStamp,
-		AuthType:           dbModels.AuthType(authStatus.AuthType),
-		ServingNetworkName: authStatus.ServingNetworkName,
-	}
-
-	err := queries.EditAuthenticationStatus(ueID, dbAuthStatus)
-	return err
-}
-
 // We have this function twice, here and in the NMS. We should move it to a common place.
 func convertDbAmPolicyDataToModel(dbAmPolicyData *dbModels.AmPolicyData) *models.AmPolicyData {
 	if dbAmPolicyData == nil {
