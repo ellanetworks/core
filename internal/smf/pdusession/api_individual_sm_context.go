@@ -21,7 +21,7 @@ func ReleaseSmContext(smContextRef string, releaseSmContextRequest models.Releas
 	}
 
 	// Start transaction
-	txn := transaction.NewTransaction(releaseSmContextRequest, nil, svcmsgtypes.SmfMsgType(svcmsgtypes.ReleaseSmContext))
+	txn := transaction.NewTransaction(releaseSmContextRequest, nil, svcmsgtypes.ReleaseSmContext)
 	txn.CtxtKey = smContextRef
 
 	// Execute FSM lifecycle
@@ -61,7 +61,7 @@ func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSm
 		return nil, errors.New("update request is missing JsonData")
 	}
 
-	txn := transaction.NewTransaction(updateSmContextRequest, nil, svcmsgtypes.SmfMsgType(svcmsgtypes.UpdateSmContext))
+	txn := transaction.NewTransaction(updateSmContextRequest, nil, svcmsgtypes.UpdateSmContext)
 	txn.CtxtKey = smContextRef
 
 	go txn.StartTxnLifeCycle(fsm.SmfTxnFsmHandle)

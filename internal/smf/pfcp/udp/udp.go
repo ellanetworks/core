@@ -247,9 +247,6 @@ func removeTransaction(tx *Transaction) error {
 
 	if txTmp, exist := txTable.Load(tx.SequenceNumber); exist {
 		tx = txTmp
-		if tx.TxType == SendingRequest {
-		} else if tx.TxType == SendingResponse {
-		}
 
 		txTable.Delete(tx.SequenceNumber)
 	} else {
