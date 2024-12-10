@@ -34,7 +34,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <title>Aether SD-Core</title>
+        <title>Ella</title>
         <link
           rel="shortcut icon"
           href="https://assets.ubuntu.com/v1/49a1a858-favicon-32x32.png"
