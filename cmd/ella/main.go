@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
+	"os"
 
 	"github.com/yeastengine/ella/internal/amf"
 	"github.com/yeastengine/ella/internal/ausf"
@@ -20,26 +20,8 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func parseFlags() (config.Config, error) {
-	flag.String("config", "", "/path/to/config.yaml")
-	flag.Parse()
-	configFile := flag.Lookup("config").Value.String()
-	if configFile == "" {
-		return config.Config{}, fmt.Errorf("config file not provided")
-	}
-	cfg, err := config.Parse(configFile)
-	if err != nil {
-		return config.Config{}, fmt.Errorf("failed to parse config file: %w", err)
-	}
-	return cfg, nil
-}
-
 func startNetwork(cfg config.Config) error {
-	_, err := nms.Start()
-	if err != nil {
-		return err
-	}
-	err = smf.Start()
+	err := smf.Start()
 	if err != nil {
 		return err
 	}
@@ -67,6 +49,10 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
+	err = nms.Start(cfg.Api.Port, cfg.Api.TLS.Cert, cfg.Api.TLS.Key)
+	if err != nil {
+		return err
+	}
 	err = upf.Start(cfg.UPF.Interfaces, cfg.UPF.N3Address)
 	if err != nil {
 		return err
@@ -75,13 +61,15 @@ func startNetwork(cfg config.Config) error {
 }
 
 func main() {
-	cfg, err := parseFlags()
-	if err != nil {
-		log.Fatalf("failed to parse flags: %v", err)
+	log.SetOutput(os.Stderr)
+	configFilePtr := flag.String("config", "", "The config file to be provided to the server")
+	flag.Parse()
+	if *configFilePtr == "" {
+		log.Fatalf("No config file provided. Use `-config` to provide a config file")
 	}
-	err = cfg.Validate()
+	cfg, err := config.Validate(*configFilePtr)
 	if err != nil {
-		log.Fatalf("invalid config: %v", err)
+		log.Fatalf("Couldn't validate config file: %s", err)
 	}
 	level, err := zapcore.ParseLevel("debug")
 	if err != nil {
