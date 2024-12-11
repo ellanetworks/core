@@ -48,14 +48,14 @@ func GetNetworkSlices(c *gin.Context) {
 	c.JSON(http.StatusOK, networkSlices)
 }
 
-func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *dbModels.NetworkSlice) *models.Slice {
+func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *dbModels.Slice) *models.Slice {
 	networkSlice := &models.Slice{
 		SliceName: dbNetworkSlice.Name,
 		SliceId: models.SliceSliceId{
 			Sst: dbNetworkSlice.Sst,
 			Sd:  dbNetworkSlice.Sd,
 		},
-		SiteDeviceGroup: dbNetworkSlice.DeviceGroups,
+		SiteDeviceGroup: dbNetworkSlice.SiteDeviceGroup,
 		SiteInfo: models.SliceSiteInfo{
 			Plmn: models.SliceSiteInfoPlmn{
 				Mcc: dbNetworkSlice.Mcc,
@@ -73,41 +73,34 @@ func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *dbModels.NetworkSlice) 
 		}
 		networkSlice.SiteInfo.GNodeBs = append(networkSlice.SiteInfo.GNodeBs, radio)
 	}
-	networkSlice.SiteInfo.Upf["upf-name"] = dbNetworkSlice.Upf.Name
-	networkSlice.SiteInfo.Upf["upf-port"] = dbNetworkSlice.Upf.Port
+	for key, value := range dbNetworkSlice.Upf {
+		networkSlice.SiteInfo.Upf[key] = value
+	}
 	return networkSlice
 }
 
-func convertNetworkSliceToDBNetworkSlice(networkSlice *models.Slice) (*dbModels.NetworkSlice, error) {
-	upfName, ok := networkSlice.SiteInfo.Upf["upf-name"].(string)
-	if !ok {
-		return nil, fmt.Errorf("could not convert upf-name to string")
-	}
-	upfPort, ok := networkSlice.SiteInfo.Upf["upf-port"].(string)
-	if !ok {
-		return nil, fmt.Errorf("could not convert upf-port to string")
-	}
-	dbNetworkSlice := &dbModels.NetworkSlice{
-		Name:         networkSlice.SliceName,
-		Sst:          networkSlice.SliceId.Sst,
-		Sd:           networkSlice.SliceId.Sd,
-		DeviceGroups: networkSlice.SiteDeviceGroup,
-		Mcc:          networkSlice.SiteInfo.Plmn.Mcc,
-		Mnc:          networkSlice.SiteInfo.Plmn.Mnc,
-		GNodeBs:      make([]dbModels.Radio, 0),
-		Upf: dbModels.UPF{
-			Name: upfName,
-			Port: upfPort,
-		},
+func convertNetworkSliceToDBNetworkSlice(networkSlice *models.Slice) *dbModels.Slice {
+	dbNetworkSlice := &dbModels.Slice{
+		Name:            networkSlice.SliceName,
+		Sst:             networkSlice.SliceId.Sst,
+		Sd:              networkSlice.SliceId.Sd,
+		SiteDeviceGroup: networkSlice.SiteDeviceGroup,
+		Mcc:             networkSlice.SiteInfo.Plmn.Mcc,
+		Mnc:             networkSlice.SiteInfo.Plmn.Mnc,
+		GNodeBs:         make([]dbModels.SliceSiteInfoGNodeBs, 0),
+		Upf:             make(map[string]interface{}),
 	}
 	for _, radio := range networkSlice.SiteInfo.GNodeBs {
-		dbRadio := dbModels.Radio{
+		dbRadio := dbModels.SliceSiteInfoGNodeBs{
 			Name: radio.Name,
 			Tac:  radio.Tac,
 		}
 		dbNetworkSlice.GNodeBs = append(dbNetworkSlice.GNodeBs, dbRadio)
 	}
-	return dbNetworkSlice, nil
+	for key, value := range networkSlice.SiteInfo.Upf {
+		dbNetworkSlice.Upf[key] = value
+	}
+	return dbNetworkSlice
 }
 
 func GetNetworkSliceByName(c *gin.Context) {
@@ -298,7 +291,8 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 					UeId:          "imsi-" + imsi,
 					ServingPlmnId: mcc + mnc,
 					Nssai: &dbModels.Nssai{
-						SingleNssais: []dbModels.Snssai{*snssai},
+						DefaultSingleNssais: []dbModels.Snssai{*snssai},
+						SingleNssais:        []dbModels.Snssai{*snssai},
 					},
 					SubscribedUeAmbr: &dbModels.AmbrRm{
 						Downlink: convertToString(uint64(dbDeviceGroup.DnnMbrDownlink)),
@@ -364,11 +358,7 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 			}
 		}
 	}
-	dbNetworkSlice, err := convertNetworkSliceToDBNetworkSlice(&procReq)
-	if err != nil {
-		logger.NmsLog.Warnf("Could not convert network slice to db network slice: %v", err)
-		return false
-	}
+	dbNetworkSlice := convertNetworkSliceToDBNetworkSlice(&procReq)
 	err = queries.CreateNetworkSlice(dbNetworkSlice)
 	if err != nil {
 		logger.NmsLog.Warnln(err)

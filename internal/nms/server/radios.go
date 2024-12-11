@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -34,7 +33,7 @@ func ListRadios(c *gin.Context) {
 	for _, dbRadio := range dbRadios {
 		radio := models.Radio{
 			Name: dbRadio.Name,
-			Tac:  string(dbRadio.Tac),
+			Tac:  dbRadio.Tac,
 		}
 		radios = append(radios, &radio)
 	}
@@ -88,13 +87,9 @@ func handleCreateRadio(c *gin.Context) error {
 	req := httpwrapper.NewRequest(c.Request, newRadio)
 	procReq := req.Body.(models.Radio)
 	procReq.Name = radioName
-	intTac, err := strconv.Atoi(procReq.Tac)
-	if err != nil {
-		return fmt.Errorf("failed to convert tac %v to int: %v", procReq.Tac, err)
-	}
 	dbRadio := &dbModels.Radio{
 		Name: procReq.Name,
-		Tac:  int32(intTac),
+		Tac:  procReq.Tac,
 	}
 	queries.CreateRadio(dbRadio)
 	logger.NmsLog.Infof("created radio %v", radioName)

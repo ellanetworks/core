@@ -276,6 +276,12 @@ func convertDbAmDataToModel(dbAmData *dbModels.AccessAndMobilitySubscriptionData
 			Uplink:   dbAmData.SubscribedUeAmbr.Uplink,
 		},
 	}
+	for _, snssai := range dbAmData.Nssai.DefaultSingleNssais {
+		amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
+			Sd:  snssai.Sd,
+			Sst: snssai.Sst,
+		})
+	}
 	for _, snssai := range dbAmData.Nssai.SingleNssais {
 		amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
 			Sd:  snssai.Sd,
@@ -393,6 +399,8 @@ func GetSubscriberByID(c *gin.Context) {
 
 	logger.NmsLog.Infoln("Get One Subscriber Data")
 
+	var subsData nmsModels.SubsData
+
 	ueId := c.Param("ueId")
 
 	dbAuthSubsData, err := queries.GetAuthenticationSubscription(ueId)
@@ -435,7 +443,7 @@ func GetSubscriberByID(c *gin.Context) {
 	smfSelectionData := convertDbSmfSelectionDataToModel(dbSmfSelectionData)
 	amPolicyData := convertDbAmPolicyDataToModel(dbAmPolicyData)
 	smPolicyData := convertDbSmPolicyDataToModel(dbSmPolicyData)
-	subsData := nmsModels.SubsData{
+	subsData = nmsModels.SubsData{
 		UeId:                              ueId,
 		AuthenticationSubscription:        authSubsData,
 		AccessAndMobilitySubscriptionData: amData,
