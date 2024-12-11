@@ -12,11 +12,6 @@ func mapToByte(data map[string]interface{}) (ret []byte) {
 	return
 }
 
-func sliceToByte(data []map[string]interface{}) (ret []byte) {
-	ret, _ = json.Marshal(data)
-	return
-}
-
 func toBsonM(data interface{}) (ret bson.M) {
 	tmp, err := json.Marshal(data)
 	if err != nil {

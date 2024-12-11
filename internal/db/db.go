@@ -17,13 +17,6 @@ const (
 	NetworkSlicesColl = "networkSlices"
 	RadiosColl        = "radios"
 	SubscribersColl   = "subscribers"
-
-	AuthSubsDataColl = "subscriptionData.authenticationData.authenticationSubscription"
-	SmDataColl       = "subscriptionData.provisionedData.smData"
-	SmfSelDataColl   = "subscriptionData.provisionedData.smfSelectionSubscriptionData"
-
-	AmPolicyDataColl = "policyData.ues.amData"
-	SmPolicyDataColl = "policyData.ues.smData"
 )
 
 type DBInterface interface {

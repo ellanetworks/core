@@ -212,11 +212,6 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 					},
 				},
 			}
-			err = queries.CreateSmPolicyData(smPolicyData) // To delete in favor of CreateSubscriberSmPolicyData
-			if err != nil {
-				logger.NmsLog.Warnln(err)
-				return false
-			}
 			err = queries.CreateSubscriberSmPolicyData(smPolicyData)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
@@ -270,11 +265,6 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 					},
 				},
 			}
-			err = queries.CreateSmData(smData) // To delete in favor of CreateSubscriberSmData
-			if err != nil {
-				logger.NmsLog.Warnln(err)
-				return false
-			}
 			err = queries.CreateSubscriberSmData(smData)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
@@ -292,11 +282,6 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 						},
 					},
 				},
-			}
-			err = queries.CreateSmfSelectionData(smfSelData) // To delete in favor of CreateSubscriberSmfSelectionData
-			if err != nil {
-				logger.NmsLog.Warnln(err)
-				return false
 			}
 			err = queries.CreateSubscriberSmfSelectionData(smfSelData)
 			if err != nil {

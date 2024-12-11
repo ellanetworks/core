@@ -285,11 +285,6 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 						},
 					},
 				}
-				err = queries.CreateSmPolicyData(smPolicyData) // To delete in favor of CreateSubscriberSmPolicyData
-				if err != nil {
-					logger.NmsLog.Warnln(err)
-					return false
-				}
 				err = queries.CreateSubscriberSmPolicyData(smPolicyData)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
@@ -343,11 +338,7 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 						},
 					},
 				}
-				err = queries.CreateSmData(smData)
-				if err != nil {
-					logger.NmsLog.Warnln(err)
-				}
-				err = queries.CreateSubscriberSmData(smData) // To delete in favor of CreateSubscriberSmData
+				err = queries.CreateSubscriberSmData(smData)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
 					return false
@@ -364,11 +355,6 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 							},
 						},
 					},
-				}
-				err = queries.CreateSmfSelectionData(smfSelData) // To delete in favor of CreateSubscriberSmfSelectionData
-				if err != nil {
-					logger.NmsLog.Warnln(err)
-					return false
 				}
 				err = queries.CreateSubscriberSmfSelectionData(smfSelData)
 				if err != nil {

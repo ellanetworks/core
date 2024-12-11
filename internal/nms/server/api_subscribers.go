@@ -338,18 +338,13 @@ func PostSubscriberByID(c *gin.Context) {
 		},
 		SequenceNumber: authSubsData.SequenceNumber,
 	}
-	err := queries.CreateAuthenticationSubscription(ueId, &dbAuthSubsData)
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-		return
-	}
 
 	dbSubscriber := &dbModels.Subscriber{
 		UeId:                              ueId,
 		AuthenticationSubscription:        dbAuthSubsData,
 		AccessAndMobilitySubscriptionData: amData,
 	}
-	err = queries.CreateSubscriber(dbSubscriber)
+	err := queries.CreateSubscriber(dbSubscriber)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 		return
@@ -402,10 +397,6 @@ func PutSubscriberByID(c *gin.Context) {
 			PermanentKeyValue:   subsData.AuthenticationSubscription.PermanentKey.PermanentKeyValue,
 		},
 		SequenceNumber: subsData.AuthenticationSubscription.SequenceNumber,
-	}
-	err = queries.CreateAuthenticationSubscription(ueId, dbAuthSubsData) // To delete in favor of CreateSubscriberAuthenticationSubscription
-	if err != nil {
-		logger.NmsLog.Warnln(err)
 	}
 	err = queries.CreateSubscriberAuthenticationSubscription(ueId, dbAuthSubsData)
 	if err != nil {
