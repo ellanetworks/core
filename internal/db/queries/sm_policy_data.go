@@ -5,6 +5,7 @@ import (
 
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/db/models"
+	"github.com/yeastengine/ella/internal/logger"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -15,6 +16,7 @@ func CreateSmPolicyData(smPolicyData *models.SmPolicyData) error {
 	if err != nil {
 		return err
 	}
+	logger.DBLog.Infof("Created SmPolicyData for ueId %s", smPolicyData.UeId)
 	return nil
 }
 
@@ -27,4 +29,15 @@ func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
 	var smPolicyData *models.SmPolicyData
 	json.Unmarshal(mapToByte(smPolicyDataInterface), &smPolicyData)
 	return smPolicyData, nil
+}
+
+func DeleteSmPolicy(imsi string) error {
+	filter := bson.M{"ueId": "imsi-" + imsi}
+	err := db.CommonDBClient.RestfulAPIDeleteOne(db.SmPolicyDataColl, filter)
+	if err != nil {
+		logger.DBLog.Warnln(err)
+		return err
+	}
+	logger.DBLog.Infof("Deleted SmPolicyData for ueId %s", imsi)
+	return nil
 }

@@ -44,7 +44,7 @@ func convertDbAmDataToModel(dbAmData *dbModels.AccessAndMobilitySubscriptionData
 }
 
 func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
-	dbAmData, err := queries.GetAmData(ueId)
+	dbAmData, err := queries.GetSubscriberAmData(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 	}
@@ -143,7 +143,7 @@ func convertDbAmPolicyDataToModel(dbAmPolicyData *dbModels.AmPolicyData) *models
 }
 
 func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
-	dbAmPolicyData, err := queries.GetAmPolicyData(ueId)
+	dbAmPolicyData, err := queries.GetSubscriberAmPolicyData(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 	}

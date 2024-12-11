@@ -193,13 +193,14 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 		aimsis := getAddedImsisList(&procReq)
 		for _, imsi := range aimsis {
 			dnn := procReq.IpDomainExpanded.Dnn
-			err := queries.CreateAmPolicyData(imsi)
+			ueId := "imsi-" + imsi
+			err = queries.CreateSubscriberAmPolicyData(ueId)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 				return false
 			}
 			smPolicyData := &dbModels.SmPolicyData{
-				UeId: "imsi-" + imsi,
+				UeId: ueId,
 				SmPolicySnssaiData: map[string]dbModels.SmPolicySnssaiData{
 					SnssaiModelsToHex(*snssai): {
 						Snssai: snssai,
@@ -211,13 +212,18 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 					},
 				},
 			}
-			err = queries.CreateSmPolicyData(smPolicyData)
+			err = queries.CreateSmPolicyData(smPolicyData) // To delete in favor of CreateSubscriberSmPolicyData
+			if err != nil {
+				logger.NmsLog.Warnln(err)
+				return false
+			}
+			err = queries.CreateSubscriberSmPolicyData(smPolicyData)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 				return false
 			}
 			amData := &dbModels.AccessAndMobilitySubscriptionData{
-				UeId:          "imsi-" + imsi,
+				UeId:          ueId,
 				ServingPlmnId: slice.Mcc + slice.Mnc,
 				Nssai: &dbModels.Nssai{
 					DefaultSingleNssais: []dbModels.Snssai{*snssai},
@@ -228,13 +234,13 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 					Uplink:   convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink)),
 				},
 			}
-			err = queries.CreateAmData(amData)
+			err = queries.CreateSubscriberAmData(amData)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 				return false
 			}
 			smData := &dbModels.SessionManagementSubscriptionData{
-				UeId:          "imsi-" + imsi,
+				UeId:          ueId,
 				ServingPlmnId: slice.Mcc + slice.Mnc,
 				SingleNssai:   snssai,
 				DnnConfigurations: map[string]dbModels.DnnConfiguration{
@@ -264,13 +270,18 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 					},
 				},
 			}
-			err = queries.CreateSmData(smData)
+			err = queries.CreateSmData(smData) // To delete in favor of CreateSubscriberSmData
+			if err != nil {
+				logger.NmsLog.Warnln(err)
+				return false
+			}
+			err = queries.CreateSubscriberSmData(smData)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 				return false
 			}
 			smfSelData := &dbModels.SmfSelectionSubscriptionData{
-				UeId:          "imsi-" + imsi,
+				UeId:          ueId,
 				ServingPlmnId: slice.Mcc + slice.Mnc,
 				SubscribedSnssaiInfos: map[string]dbModels.SnssaiInfo{
 					SnssaiModelsToHex(*snssai): {
@@ -282,7 +293,12 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 					},
 				},
 			}
-			err = queries.CreateSmfSelectionData(smfSelData)
+			err = queries.CreateSmfSelectionData(smfSelData) // To delete in favor of CreateSubscriberSmfSelectionData
+			if err != nil {
+				logger.NmsLog.Warnln(err)
+				return false
+			}
+			err = queries.CreateSubscriberSmfSelectionData(smfSelData)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 				return false
@@ -337,7 +353,7 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 			}
-			err = queries.DeleteAmData(imsi)
+			err = queries.DeleteSubscriberAmData(imsi)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 			}

@@ -56,10 +56,6 @@ type SorInfo struct {
 
 type OdbPacketServices string
 
-type AmPolicyData struct {
-	SubscCats []string `json:"subscCats,omitempty" bson:"subscCats"`
-}
-
 type AmbrRm struct {
 	Uplink   string `json:"uplink" yaml:"uplink" bson:"uplink" mapstructure:"Uplink"`
 	Downlink string `json:"downlink" yaml:"downlink" bson:"downlink" mapstructure:"Downlink"`

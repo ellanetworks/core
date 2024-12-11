@@ -16,9 +16,9 @@ const (
 	ProfilesColl      = "profiles"
 	NetworkSlicesColl = "networkSlices"
 	RadiosColl        = "radios"
+	SubscribersColl   = "subscribers"
 
 	AuthSubsDataColl = "subscriptionData.authenticationData.authenticationSubscription"
-	AmDataColl       = "subscriptionData.provisionedData.amData"
 	SmDataColl       = "subscriptionData.provisionedData.smData"
 	SmfSelDataColl   = "subscriptionData.provisionedData.smfSelectionSubscriptionData"
 

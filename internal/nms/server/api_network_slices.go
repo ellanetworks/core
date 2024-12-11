@@ -186,7 +186,7 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 				if err != nil {
 					logger.NmsLog.Warnln(err)
 				}
-				err = queries.DeleteAmData(imsi)
+				err = queries.DeleteSubscriberAmData(imsi)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
 				}
@@ -266,12 +266,14 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 				dnn := DNN
 				mcc := procReq.SiteInfo.Plmn.Mcc
 				mnc := procReq.SiteInfo.Plmn.Mnc
-				err := queries.CreateAmPolicyData(imsi)
+				ueId := "imsi-" + imsi
+				err = queries.CreateSubscriberAmPolicyData(ueId)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
+					return false
 				}
 				smPolicyData := &dbModels.SmPolicyData{
-					UeId: "imsi-" + imsi,
+					UeId: ueId,
 					SmPolicySnssaiData: map[string]dbModels.SmPolicySnssaiData{
 						SnssaiModelsToHex(*snssai): {
 							Snssai: snssai,
@@ -283,12 +285,18 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 						},
 					},
 				}
-				err = queries.CreateSmPolicyData(smPolicyData)
+				err = queries.CreateSmPolicyData(smPolicyData) // To delete in favor of CreateSubscriberSmPolicyData
 				if err != nil {
 					logger.NmsLog.Warnln(err)
+					return false
+				}
+				err = queries.CreateSubscriberSmPolicyData(smPolicyData)
+				if err != nil {
+					logger.NmsLog.Warnln(err)
+					return false
 				}
 				amData := &dbModels.AccessAndMobilitySubscriptionData{
-					UeId:          "imsi-" + imsi,
+					UeId:          ueId,
 					ServingPlmnId: mcc + mnc,
 					Nssai: &dbModels.Nssai{
 						DefaultSingleNssais: []dbModels.Snssai{*snssai},
@@ -299,12 +307,13 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 						Uplink:   convertToString(uint64(dbDeviceGroup.DnnMbrUplink)),
 					},
 				}
-				err = queries.CreateAmData(amData)
+				err = queries.CreateSubscriberAmData(amData)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
+					return false
 				}
 				smData := &dbModels.SessionManagementSubscriptionData{
-					UeId:          "imsi-" + imsi,
+					UeId:          ueId,
 					ServingPlmnId: mcc + mnc,
 					SingleNssai:   snssai,
 					DnnConfigurations: map[string]dbModels.DnnConfiguration{
@@ -338,8 +347,13 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 				if err != nil {
 					logger.NmsLog.Warnln(err)
 				}
+				err = queries.CreateSubscriberSmData(smData) // To delete in favor of CreateSubscriberSmData
+				if err != nil {
+					logger.NmsLog.Warnln(err)
+					return false
+				}
 				smfSelData := &dbModels.SmfSelectionSubscriptionData{
-					UeId:          "imsi-" + imsi,
+					UeId:          ueId,
 					ServingPlmnId: mcc + mnc,
 					SubscribedSnssaiInfos: map[string]dbModels.SnssaiInfo{
 						SnssaiModelsToHex(*snssai): {
@@ -351,9 +365,15 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 						},
 					},
 				}
-				err = queries.CreateSmfSelectionData(smfSelData)
+				err = queries.CreateSmfSelectionData(smfSelData) // To delete in favor of CreateSubscriberSmfSelectionData
 				if err != nil {
 					logger.NmsLog.Warnln(err)
+					return false
+				}
+				err = queries.CreateSubscriberSmfSelectionData(smfSelData)
+				if err != nil {
+					logger.NmsLog.Warnln(err)
+					return false
 				}
 			}
 		}
@@ -362,6 +382,7 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 	err = queries.CreateNetworkSlice(dbNetworkSlice)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
+		return false
 	}
 	updateSMF()
 	logger.NmsLog.Infof("Created Network Slice: %v", sliceName)

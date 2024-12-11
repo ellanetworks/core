@@ -19,201 +19,10 @@ func setCorsHeader(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, PATCH, DELETE")
 }
 
-func GetSampleJSON(c *gin.Context) {
-	setCorsHeader(c)
-
-	logger.NmsLog.Infoln("Get a JSON Example")
-
-	var subsData nmsModels.SubsData
-
-	authSubsData := models.AuthenticationSubscription{
-		AuthenticationManagementField: "8000",
-		AuthenticationMethod:          "5G_AKA", // "5G_AKA", "EAP_AKA_PRIME"
-		Milenage: &models.Milenage{
-			Op: &models.Op{
-				EncryptionAlgorithm: 0,
-				EncryptionKey:       0,
-				OpValue:             "c9e8763286b5b9ffbdf56e1297d0887b", // Required
-			},
-		},
-		Opc: &models.Opc{
-			EncryptionAlgorithm: 0,
-			EncryptionKey:       0,
-			OpcValue:            "981d464c7c52eb6e5036234984ad0bcf", // Required
-		},
-		PermanentKey: &models.PermanentKey{
-			EncryptionAlgorithm: 0,
-			EncryptionKey:       0,
-			PermanentKeyValue:   "5122250214c33e723a5dd523fc145fc0", // Required
-		},
-		SequenceNumber: "16f3b3f70fc2",
-	}
-
-	amDataData := models.AccessAndMobilitySubscriptionData{
-		Gpsis: []string{
-			"msisdn-0900000000",
-		},
-		Nssai: &models.Nssai{
-			DefaultSingleNssais: []models.Snssai{
-				{
-					Sd:  "010203",
-					Sst: 1,
-				},
-				{
-					Sd:  "112233",
-					Sst: 1,
-				},
-			},
-			SingleNssais: []models.Snssai{
-				{
-					Sd:  "010203",
-					Sst: 1,
-				},
-				{
-					Sd:  "112233",
-					Sst: 1,
-				},
-			},
-		},
-		SubscribedUeAmbr: &models.AmbrRm{
-			Downlink: "1000 Kbps",
-			Uplink:   "1000 Kbps",
-		},
-	}
-
-	smDataData := []models.SessionManagementSubscriptionData{
-		{
-			SingleNssai: &models.Snssai{
-				Sst: 1,
-				Sd:  "010203",
-			},
-			DnnConfigurations: map[string]models.DnnConfiguration{
-				"internet": {
-					PduSessionTypes: &models.PduSessionTypes{
-						DefaultSessionType:  models.PduSessionType_IPV4,
-						AllowedSessionTypes: []models.PduSessionType{models.PduSessionType_IPV4},
-					},
-					SscModes: &models.SscModes{
-						DefaultSscMode:  models.SscMode__1,
-						AllowedSscModes: []models.SscMode{models.SscMode__1},
-					},
-					SessionAmbr: &models.Ambr{
-						Downlink: "1000 Kbps",
-						Uplink:   "1000 Kbps",
-					},
-					Var5gQosProfile: &models.SubscribedDefaultQos{
-						Var5qi: 9,
-						Arp: &models.Arp{
-							PriorityLevel: 8,
-						},
-						PriorityLevel: 8,
-					},
-				},
-			},
-		},
-		{
-			SingleNssai: &models.Snssai{
-				Sst: 1,
-				Sd:  "112233",
-			},
-			DnnConfigurations: map[string]models.DnnConfiguration{
-				"internet": {
-					PduSessionTypes: &models.PduSessionTypes{
-						DefaultSessionType:  models.PduSessionType_IPV4,
-						AllowedSessionTypes: []models.PduSessionType{models.PduSessionType_IPV4},
-					},
-					SscModes: &models.SscModes{
-						DefaultSscMode:  models.SscMode__1,
-						AllowedSscModes: []models.SscMode{models.SscMode__1},
-					},
-					SessionAmbr: &models.Ambr{
-						Downlink: "1000 Kbps",
-						Uplink:   "1000 Kbps",
-					},
-					Var5gQosProfile: &models.SubscribedDefaultQos{
-						Var5qi: 9,
-						Arp: &models.Arp{
-							PriorityLevel: 8,
-						},
-						PriorityLevel: 8,
-					},
-				},
-			},
-		},
-	}
-
-	smfSelData := models.SmfSelectionSubscriptionData{
-		SubscribedSnssaiInfos: map[string]models.SnssaiInfo{
-			"01010203": {
-				DnnInfos: []models.DnnInfo{
-					{
-						Dnn: "internet",
-					},
-				},
-			},
-			"01112233": {
-				DnnInfos: []models.DnnInfo{
-					{
-						Dnn: "internet",
-					},
-				},
-			},
-		},
-	}
-
-	amPolicyData := models.AmPolicyData{
-		SubscCats: []string{
-			"free5gc",
-		},
-	}
-
-	smPolicyData := models.SmPolicyData{
-		SmPolicySnssaiData: map[string]models.SmPolicySnssaiData{
-			"01010203": {
-				Snssai: &models.Snssai{
-					Sd:  "010203",
-					Sst: 1,
-				},
-				SmPolicyDnnData: map[string]models.SmPolicyDnnData{
-					"internet": {
-						Dnn: "internet",
-					},
-				},
-			},
-			"01112233": {
-				Snssai: &models.Snssai{
-					Sd:  "112233",
-					Sst: 1,
-				},
-				SmPolicyDnnData: map[string]models.SmPolicyDnnData{
-					"internet": {
-						Dnn: "internet",
-					},
-				},
-			},
-		},
-	}
-
-	servingPlmnId := "20893"
-	ueId := "imsi-2089300007487"
-
-	subsData = nmsModels.SubsData{
-		PlmnID:                            servingPlmnId,
-		UeId:                              ueId,
-		AuthenticationSubscription:        authSubsData,
-		AccessAndMobilitySubscriptionData: amDataData,
-		SessionManagementSubscriptionData: smDataData,
-		SmfSelectionSubscriptionData:      smfSelData,
-		AmPolicyData:                      amPolicyData,
-		SmPolicyData:                      smPolicyData,
-	}
-	c.JSON(http.StatusOK, subsData)
-}
-
 func GetSubscribers(c *gin.Context) {
 	setCorsHeader(c)
 	var subsList []nmsModels.SubsListIE
-	amDataList, err := queries.ListAmData()
+	amDataList, err := queries.ListSubscribersAmData()
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}
@@ -399,9 +208,11 @@ func GetSubscriberByID(c *gin.Context) {
 
 	logger.NmsLog.Infoln("Get One Subscriber Data")
 
-	var subsData nmsModels.SubsData
-
 	ueId := c.Param("ueId")
+	if ueId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{})
+		return
+	}
 
 	dbAuthSubsData, err := queries.GetAuthenticationSubscription(ueId)
 	if err != nil {
@@ -413,7 +224,7 @@ func GetSubscriberByID(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{})
 		return
 	}
-	dbAmData, err := queries.GetAmData(ueId)
+	dbAmData, err := queries.GetSubscriberAmData(ueId)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}
@@ -428,7 +239,7 @@ func GetSubscriberByID(c *gin.Context) {
 		logger.NmsLog.Warnln(err)
 	}
 
-	dbAmPolicyData, err := queries.GetAmPolicyData(ueId)
+	dbAmPolicyData, err := queries.GetSubscriberAmPolicyData(ueId)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}
@@ -443,7 +254,7 @@ func GetSubscriberByID(c *gin.Context) {
 	smfSelectionData := convertDbSmfSelectionDataToModel(dbSmfSelectionData)
 	amPolicyData := convertDbAmPolicyDataToModel(dbAmPolicyData)
 	smPolicyData := convertDbSmPolicyDataToModel(dbSmPolicyData)
-	subsData = nmsModels.SubsData{
+	subsData := nmsModels.SubsData{
 		UeId:                              ueId,
 		AuthenticationSubscription:        authSubsData,
 		AccessAndMobilitySubscriptionData: amData,
@@ -499,17 +310,13 @@ func PostSubscriberByID(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, gin.H{})
 
-	amData := &dbModels.AccessAndMobilitySubscriptionData{
+	amData := dbModels.AccessAndMobilitySubscriptionData{
 		UeId: ueId,
-	}
-	err := queries.CreateAmData(amData)
-	if err != nil {
-		logger.NmsLog.Warnln(err)
 	}
 
 	imsiVal := strings.ReplaceAll(ueId, "imsi-", "")
 	imsiData[imsiVal] = &authSubsData
-	dbAuthSubsData := &dbModels.AuthenticationSubscription{
+	dbAuthSubsData := dbModels.AuthenticationSubscription{
 		AuthenticationManagementField: authSubsData.AuthenticationManagementField,
 		AuthenticationMethod:          dbModels.AuthMethod(authSubsData.AuthenticationMethod),
 		Milenage: &dbModels.Milenage{
@@ -531,11 +338,22 @@ func PostSubscriberByID(c *gin.Context) {
 		},
 		SequenceNumber: authSubsData.SequenceNumber,
 	}
-	err = queries.CreateAuthenticationSubscription(ueId, dbAuthSubsData)
+	err := queries.CreateAuthenticationSubscription(ueId, &dbAuthSubsData)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
+		return
 	}
 
+	dbSubscriber := &dbModels.Subscriber{
+		UeId:                              ueId,
+		AuthenticationSubscription:        dbAuthSubsData,
+		AccessAndMobilitySubscriptionData: amData,
+	}
+	err = queries.CreateSubscriber(dbSubscriber)
+	if err != nil {
+		logger.NmsLog.Warnln(err)
+		return
+	}
 	logger.NmsLog.Infof("Created subscriber: %v", ueId)
 }
 
@@ -556,9 +374,10 @@ func PutSubscriberByID(c *gin.Context) {
 	amData := &dbModels.AccessAndMobilitySubscriptionData{
 		UeId: ueId,
 	}
-	err := queries.CreateAmData(amData)
+	err := queries.CreateSubscriberAmData(amData)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
+		return
 	}
 
 	logger.NmsLog.Debugln("Config5GUpdateHandle: Insert/Update AuthenticationSubscription ", ueId)
@@ -584,7 +403,11 @@ func PutSubscriberByID(c *gin.Context) {
 		},
 		SequenceNumber: subsData.AuthenticationSubscription.SequenceNumber,
 	}
-	err = queries.CreateAuthenticationSubscription(ueId, dbAuthSubsData)
+	err = queries.CreateAuthenticationSubscription(ueId, dbAuthSubsData) // To delete in favor of CreateSubscriberAuthenticationSubscription
+	if err != nil {
+		logger.NmsLog.Warnln(err)
+	}
+	err = queries.CreateSubscriberAuthenticationSubscription(ueId, dbAuthSubsData)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}
@@ -605,7 +428,7 @@ func DeleteSubscriberByID(c *gin.Context) {
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}
-	err = queries.DeleteAmData(ueId)
+	err = queries.DeleteSubscriberAmData(ueId)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}
