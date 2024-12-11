@@ -28,12 +28,6 @@ func convertDbAmDataToModel(dbAmData *dbModels.AccessAndMobilitySubscriptionData
 			Uplink:   dbAmData.SubscribedUeAmbr.Uplink,
 		},
 	}
-	for _, snssai := range dbAmData.Nssai.DefaultSingleNssais {
-		amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
-			Sd:  snssai.Sd,
-			Sst: snssai.Sst,
-		})
-	}
 	for _, snssai := range dbAmData.Nssai.SingleNssais {
 		amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
 			Sd:  snssai.Sd,

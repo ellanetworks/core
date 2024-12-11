@@ -220,8 +220,7 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 				UeId:          "imsi-" + imsi,
 				ServingPlmnId: slice.Mcc + slice.Mnc,
 				Nssai: &dbModels.Nssai{
-					DefaultSingleNssais: []dbModels.Snssai{*snssai},
-					SingleNssais:        []dbModels.Snssai{*snssai},
+					SingleNssais: []dbModels.Snssai{*snssai},
 				},
 				SubscribedUeAmbr: &dbModels.AmbrRm{
 					Downlink: convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink)),
@@ -353,10 +352,10 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 	}
 }
 
-func isDeviceGroupExistInSlice(deviceGroupName string) *dbModels.Slice {
+func isDeviceGroupExistInSlice(deviceGroupName string) *dbModels.NetworkSlice {
 	dBSlices := queries.ListNetworkSlices()
 	for name, slice := range dBSlices {
-		for _, dgName := range slice.SiteDeviceGroup {
+		for _, dgName := range slice.DeviceGroups {
 			if dgName == deviceGroupName {
 				logger.NmsLog.Infof("Device Group [%v] is part of slice: %v", dgName, name)
 				return slice

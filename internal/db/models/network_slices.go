@@ -1,17 +1,17 @@
 package models
 
-type SliceSiteInfoGNodeBs struct {
+type UPF struct {
 	Name string `json:"name,omitempty"`
-	Tac  int32  `json:"tac,omitempty"`
+	Port string `json:"port,omitempty"`
 }
 
-type Slice struct {
-	Name            string                 `json:"name,omitempty"`
-	Sst             string                 `json:"sst,omitempty"`
-	Sd              string                 `json:"sd,omitempty"`
-	SiteDeviceGroup []string               `json:"site-device-group"`
-	Mcc             string                 `json:"mcc,omitempty"`
-	Mnc             string                 `json:"mnc,omitempty"`
-	GNodeBs         []SliceSiteInfoGNodeBs `json:"gNodeBs"`
-	Upf             map[string]interface{} `json:"upf,omitempty"`
+type NetworkSlice struct {
+	Name         string   `json:"name,omitempty"`
+	Sst          string   `json:"sst,omitempty"`
+	Sd           string   `json:"sd,omitempty"`
+	DeviceGroups []string `json:"device-groups"`
+	Mcc          string   `json:"mcc,omitempty"`
+	Mnc          string   `json:"mnc,omitempty"`
+	GNodeBs      []Radio  `json:"gNodeBs"`
+	Upf          UPF      `json:"upf,omitempty"`
 }

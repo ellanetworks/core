@@ -364,7 +364,7 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 			continue
 		}
 		pccPolicyId := networkSlice.Sst + networkSlice.Sd
-		deviceGroupNames := networkSlice.SiteDeviceGroup
+		deviceGroupNames := networkSlice.DeviceGroups
 		for _, devGroupName := range deviceGroupNames {
 			deviceGroup := queries.GetProfile(devGroupName)
 			for _, imsi := range deviceGroup.Imsis {
