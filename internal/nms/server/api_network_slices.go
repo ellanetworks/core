@@ -48,14 +48,14 @@ func GetNetworkSlices(c *gin.Context) {
 	c.JSON(http.StatusOK, networkSlices)
 }
 
-func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *dbModels.Slice) *models.Slice {
+func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *dbModels.NetworkSlice) *models.Slice {
 	networkSlice := &models.Slice{
 		SliceName: dbNetworkSlice.Name,
 		SliceId: models.SliceSliceId{
 			Sst: dbNetworkSlice.Sst,
 			Sd:  dbNetworkSlice.Sd,
 		},
-		SiteDeviceGroup: dbNetworkSlice.SiteDeviceGroup,
+		SiteDeviceGroup: dbNetworkSlice.DeviceGroups,
 		SiteInfo: models.SliceSiteInfo{
 			Plmn: models.SliceSiteInfoPlmn{
 				Mcc: dbNetworkSlice.Mcc,
@@ -79,19 +79,19 @@ func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *dbModels.Slice) *models
 	return networkSlice
 }
 
-func convertNetworkSliceToDBNetworkSlice(networkSlice *models.Slice) *dbModels.Slice {
-	dbNetworkSlice := &dbModels.Slice{
-		Name:            networkSlice.SliceName,
-		Sst:             networkSlice.SliceId.Sst,
-		Sd:              networkSlice.SliceId.Sd,
-		SiteDeviceGroup: networkSlice.SiteDeviceGroup,
-		Mcc:             networkSlice.SiteInfo.Plmn.Mcc,
-		Mnc:             networkSlice.SiteInfo.Plmn.Mnc,
-		GNodeBs:         make([]dbModels.SliceSiteInfoGNodeBs, 0),
-		Upf:             make(map[string]interface{}),
+func convertNetworkSliceToDBNetworkSlice(networkSlice *models.Slice) *dbModels.NetworkSlice {
+	dbNetworkSlice := &dbModels.NetworkSlice{
+		Name:         networkSlice.SliceName,
+		Sst:          networkSlice.SliceId.Sst,
+		Sd:           networkSlice.SliceId.Sd,
+		DeviceGroups: networkSlice.SiteDeviceGroup,
+		Mcc:          networkSlice.SiteInfo.Plmn.Mcc,
+		Mnc:          networkSlice.SiteInfo.Plmn.Mnc,
+		GNodeBs:      make([]dbModels.GNodeB, 0),
+		Upf:          make(map[string]interface{}),
 	}
 	for _, radio := range networkSlice.SiteInfo.GNodeBs {
-		dbRadio := dbModels.SliceSiteInfoGNodeBs{
+		dbRadio := dbModels.GNodeB{
 			Name: radio.Name,
 			Tac:  radio.Tac,
 		}

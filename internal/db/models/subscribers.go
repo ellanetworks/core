@@ -237,18 +237,6 @@ type FlowRule struct {
 	BitRateUnit string `json:"bitrate-unit,omitempty" yaml:"bitrate-unit" bson:"bitrate-unit" mapstructure:"bitrate-unit"`
 }
 
-type Subscriber struct {
-	PlmnID                            string                               `json:"plmnID"`
-	UeId                              string                               `json:"ueId"`
-	AuthenticationSubscription        AuthenticationSubscription           `json:"AuthenticationSubscription"`
-	AccessAndMobilitySubscriptionData AccessAndMobilitySubscriptionData    `json:"AccessAndMobilitySubscriptionData"`
-	SessionManagementSubscriptionData []*SessionManagementSubscriptionData `json:"SessionManagementSubscriptionData"`
-	SmfSelectionSubscriptionData      SmfSelectionSubscriptionData         `json:"SmfSelectionSubscriptionData"`
-	AmPolicyData                      AmPolicyData                         `json:"AmPolicyData"`
-	SmPolicyData                      SmPolicyData                         `json:"SmPolicyData"`
-	FlowRules                         []FlowRule                           `json:"FlowRules"`
-}
-
 const (
 	PduSessionType_IPV4         PduSessionType = "IPV4"
 	PduSessionType_IPV6         PduSessionType = "IPV6"
@@ -470,4 +458,16 @@ type SmfSelectionSubscriptionData struct {
 type Snssai struct {
 	Sst int32  `json:"sst" yaml:"sst" bson:"sst" mapstructure:"Sst"`
 	Sd  string `json:"sd,omitempty" yaml:"sd" bson:"sd" mapstructure:"Sd"`
+}
+
+type Subscriber struct {
+	PlmnID                            string                               `json:"plmnID"`
+	UeId                              string                               `json:"ueId"`
+	AuthenticationSubscription        AuthenticationSubscription           `json:"AuthenticationSubscription"`
+	AccessAndMobilitySubscriptionData AccessAndMobilitySubscriptionData    `json:"AccessAndMobilitySubscriptionData"`
+	SessionManagementSubscriptionData []*SessionManagementSubscriptionData `json:"SessionManagementSubscriptionData"`
+	SmfSelectionSubscriptionData      SmfSelectionSubscriptionData         `json:"SmfSelectionSubscriptionData"`
+	AmPolicyData                      AmPolicyData                         `json:"AmPolicyData"`
+	SmPolicyData                      SmPolicyData                         `json:"SmPolicyData"`
+	FlowRules                         []FlowRule                           `json:"FlowRules"`
 }
