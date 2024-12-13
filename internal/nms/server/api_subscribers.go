@@ -22,13 +22,14 @@ func setCorsHeader(c *gin.Context) {
 func GetSubscribers(c *gin.Context) {
 	setCorsHeader(c)
 	var subsList []nmsModels.SubsListIE
-	amDataList, err := queries.ListSubscribersAmData()
+	subscribers, err := queries.ListSubscribers()
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}
-	for _, amData := range amDataList {
+	for _, subscriber := range subscribers {
 		subscriber := nmsModels.SubsListIE{
-			PlmnID: amData.ServingPlmnId,
+			PlmnID: subscriber.UeId,
+			UeId:   subscriber.UeId,
 		}
 		subsList = append(subsList, subscriber)
 	}
@@ -223,36 +224,17 @@ func GetSubscriberByID(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{})
 		return
 	}
-	dbAmData, err := queries.GetSubscriberAmData(ueId)
+	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}
 
-	dbSmData, err := queries.ListSmData(ueId)
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-	}
-
-	dbSmfSelectionData, err := queries.GetSmfSelectionSubscriptionData(ueId)
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-	}
-
-	dbAmPolicyData, err := queries.GetSubscriberAmPolicyData(ueId)
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-	}
-
-	dbSmPolicyData, err := queries.GetSmPolicyData(ueId)
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-	}
 	authSubsData := convertDbAuthSubsDataToModel(dbAuthSubsData)
-	amData := convertDbAmDataToModel(dbAmData)
-	smData := convertDbSmDataToModel(dbSmData)
-	smfSelectionData := convertDbSmfSelectionDataToModel(dbSmfSelectionData)
-	amPolicyData := convertDbAmPolicyDataToModel(dbAmPolicyData)
-	smPolicyData := convertDbSmPolicyDataToModel(dbSmPolicyData)
+	amData := convertDbAmDataToModel(subscriber.AccessAndMobilitySubscriptionData)
+	smData := convertDbSmDataToModel(subscriber.SessionManagementSubscriptionData)
+	smfSelectionData := convertDbSmfSelectionDataToModel(subscriber.SmfSelectionSubscriptionData)
+	amPolicyData := convertDbAmPolicyDataToModel(subscriber.AmPolicyData)
+	smPolicyData := convertDbSmPolicyDataToModel(subscriber.SmPolicyData)
 	subsData := nmsModels.SubsData{
 		UeId:                              ueId,
 		AuthenticationSubscription:        authSubsData,
@@ -339,7 +321,7 @@ func PostSubscriberByID(c *gin.Context) {
 	dbSubscriber := &dbModels.Subscriber{
 		UeId:                              ueId,
 		AuthenticationSubscription:        dbAuthSubsData,
-		AccessAndMobilitySubscriptionData: amData,
+		AccessAndMobilitySubscriptionData: &amData,
 	}
 	err := queries.CreateSubscriber(dbSubscriber)
 	if err != nil {

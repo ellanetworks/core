@@ -46,6 +46,9 @@ func ListSubscribers() ([]*models.Subscriber, error) {
 	return subscribers, nil
 }
 
+// All the methods below should be removed in favor of the more generic
+// Get, List, Create, Delete methods above
+
 func CreateSubscriberAmPolicyData(ueId string) error {
 	subscriber, err := GetSubscriber(ueId)
 	if err != nil {
@@ -54,7 +57,9 @@ func CreateSubscriberAmPolicyData(ueId string) error {
 	if subscriber == nil {
 		return fmt.Errorf("subscriber %s not found", ueId)
 	}
-	var amPolicy models.AmPolicyData
+	amPolicy := &models.AmPolicyData{
+		SubscCats: make([]string, 0),
+	}
 	amPolicy.SubscCats = append(amPolicy.SubscCats, "free5gc")
 	subscriber.AmPolicyData = amPolicy
 	subscriberBson := toBsonM(subscriber)
@@ -75,7 +80,7 @@ func CreateSubscriberAmData(ueId string, amData *models.AccessAndMobilitySubscri
 	if subscriber == nil {
 		return fmt.Errorf("subscriber %s not found", ueId)
 	}
-	subscriber.AccessAndMobilitySubscriptionData = *amData
+	subscriber.AccessAndMobilitySubscriptionData = amData
 	subscriberBson := toBsonM(subscriber)
 	filter := bson.M{"ueId": ueId}
 	_, err = db.CommonDBClient.RestfulAPIPost(db.SubscribersColl, filter, subscriberBson)
@@ -94,7 +99,7 @@ func CreateSubscriberSmPolicyData(ueId string, smPolicyData *models.SmPolicyData
 	if subscriber == nil {
 		return fmt.Errorf("subscriber %s not found", ueId)
 	}
-	subscriber.SmPolicyData = *smPolicyData
+	subscriber.SmPolicyData = smPolicyData
 	subscriberBson := toBsonM(subscriber)
 	filter := bson.M{"ueId": ueId}
 	_, err = db.CommonDBClient.RestfulAPIPost(db.SubscribersColl, filter, subscriberBson)
@@ -149,7 +154,7 @@ func CreateSubscriberSmfSelectionData(ueId string, smfSelData *models.SmfSelecti
 	if subscriber == nil {
 		return fmt.Errorf("subscriber %s not found", ueId)
 	}
-	subscriber.SmfSelectionSubscriptionData = *smfSelData
+	subscriber.SmfSelectionSubscriptionData = smfSelData
 	subscriberBson := toBsonM(subscriber)
 	filter := bson.M{"ueId": ueId}
 	_, err = db.CommonDBClient.RestfulAPIPost(db.SubscribersColl, filter, subscriberBson)
@@ -157,17 +162,6 @@ func CreateSubscriberSmfSelectionData(ueId string, smfSelData *models.SmfSelecti
 		return err
 	}
 	return nil
-}
-
-func GetSubscriberAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
-	subscriber, err := GetSubscriber(ueId)
-	if err != nil {
-		return nil, err
-	}
-	if subscriber == nil {
-		return nil, fmt.Errorf("subscriber %s not found", ueId)
-	}
-	return &subscriber.AccessAndMobilitySubscriptionData, nil
 }
 
 func DeleteSubscriberAmData(imsi string) error {
@@ -178,7 +172,7 @@ func DeleteSubscriberAmData(imsi string) error {
 	if subscriber == nil {
 		return fmt.Errorf("subscriber %s not found", imsi)
 	}
-	subscriber.AccessAndMobilitySubscriptionData = models.AccessAndMobilitySubscriptionData{}
+	subscriber.AccessAndMobilitySubscriptionData = &models.AccessAndMobilitySubscriptionData{}
 	subscriberBson := toBsonM(subscriber)
 	filter := bson.M{"ueId": "imsi-" + imsi}
 	_, err = db.CommonDBClient.RestfulAPIPost(db.SubscribersColl, filter, subscriberBson)
@@ -189,29 +183,6 @@ func DeleteSubscriberAmData(imsi string) error {
 	return nil
 }
 
-func ListSubscribersAmData() ([]*models.AccessAndMobilitySubscriptionData, error) {
-	subscribers, err := ListSubscribers()
-	if err != nil {
-		return nil, err
-	}
-	amDataList := make([]*models.AccessAndMobilitySubscriptionData, 0)
-	for _, subscriber := range subscribers {
-		amDataList = append(amDataList, &subscriber.AccessAndMobilitySubscriptionData)
-	}
-	return amDataList, nil
-}
-
-func GetSubscriberAmPolicyData(ueId string) (*models.AmPolicyData, error) {
-	subscriber, err := GetSubscriber(ueId)
-	if err != nil {
-		return nil, err
-	}
-	if subscriber == nil {
-		return nil, fmt.Errorf("subscriber %s not found", ueId)
-	}
-	return &subscriber.AmPolicyData, nil
-}
-
 func DeleteAmPolicy(imsi string) error {
 	subscriber, err := GetSubscriber("imsi-" + imsi)
 	if err != nil {
@@ -220,7 +191,7 @@ func DeleteAmPolicy(imsi string) error {
 	if subscriber == nil {
 		return fmt.Errorf("subscriber %s not found", imsi)
 	}
-	subscriber.AmPolicyData = models.AmPolicyData{}
+	subscriber.AmPolicyData = &models.AmPolicyData{}
 	subscriberBson := toBsonM(subscriber)
 	filter := bson.M{"ueId": "imsi-" + imsi}
 	_, err = db.CommonDBClient.RestfulAPIPost(db.SubscribersColl, filter, subscriberBson)
@@ -229,17 +200,6 @@ func DeleteAmPolicy(imsi string) error {
 	}
 	logger.DBLog.Infof("Deleted AM policy data for subscriber %s", imsi)
 	return nil
-}
-
-func ListSmData(ueId string) ([]*models.SessionManagementSubscriptionData, error) {
-	subscriber, err := GetSubscriber(ueId)
-	if err != nil {
-		return nil, err
-	}
-	if subscriber == nil {
-		return nil, fmt.Errorf("subscriber %s not found", ueId)
-	}
-	return subscriber.SessionManagementSubscriptionData, nil
 }
 
 func DeleteSmData(imsi string) error {
@@ -261,17 +221,6 @@ func DeleteSmData(imsi string) error {
 	return nil
 }
 
-func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
-	subscriber, err := GetSubscriber(ueId)
-	if err != nil {
-		return nil, err
-	}
-	if subscriber == nil {
-		return nil, fmt.Errorf("subscriber %s not found", ueId)
-	}
-	return &subscriber.SmPolicyData, nil
-}
-
 func DeleteSmPolicy(imsi string) error {
 	subscriber, err := GetSubscriber("imsi-" + imsi)
 	if err != nil {
@@ -280,7 +229,7 @@ func DeleteSmPolicy(imsi string) error {
 	if subscriber == nil {
 		return fmt.Errorf("subscriber %s not found", imsi)
 	}
-	subscriber.SmPolicyData = models.SmPolicyData{}
+	subscriber.SmPolicyData = &models.SmPolicyData{}
 	subscriberBson := toBsonM(subscriber)
 	filter := bson.M{"ueId": "imsi-" + imsi}
 	_, err = db.CommonDBClient.RestfulAPIPost(db.SubscribersColl, filter, subscriberBson)
@@ -341,27 +290,6 @@ func PatchAuthenticationSubscription(ueId string, patchItem []models.PatchItem) 
 	return nil
 }
 
-// func PatchAuthenticationSubscription(ueId string, patchItem []models.PatchItem) error {
-// 	patchJSON, err := json.Marshal(patchItem)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	filter := bson.M{"ueId": ueId}
-// 	err = db.CommonDBClient.RestfulAPIJSONPatch(db.AuthSubsDataColl, filter, patchJSON)
-// 	return err
-// }
-
-func GetSmfSelectionSubscriptionData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
-	subscriber, err := GetSubscriber(ueId)
-	if err != nil {
-		return nil, err
-	}
-	if subscriber == nil {
-		return nil, fmt.Errorf("subscriber %s not found", ueId)
-	}
-	return &subscriber.SmfSelectionSubscriptionData, nil
-}
-
 func DeleteSmfSelection(imsi string) error {
 	subscriber, err := GetSubscriber("imsi-" + imsi)
 	if err != nil {
@@ -370,7 +298,7 @@ func DeleteSmfSelection(imsi string) error {
 	if subscriber == nil {
 		return fmt.Errorf("subscriber %s not found", imsi)
 	}
-	subscriber.SmfSelectionSubscriptionData = models.SmfSelectionSubscriptionData{}
+	subscriber.SmfSelectionSubscriptionData = &models.SmfSelectionSubscriptionData{}
 	subscriberBson := toBsonM(subscriber)
 	filter := bson.M{"ueId": "imsi-" + imsi}
 	_, err = db.CommonDBClient.RestfulAPIPost(db.SubscribersColl, filter, subscriberBson)

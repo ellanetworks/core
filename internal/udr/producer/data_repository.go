@@ -44,11 +44,12 @@ func convertDbAmDataToModel(dbAmData *dbModels.AccessAndMobilitySubscriptionData
 }
 
 func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
-	dbAmData, err := queries.GetSubscriberAmData(ueId)
+	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 	}
-	if dbAmData == nil {
+	dbAmData := subscriber.AccessAndMobilitySubscriptionData
+	if subscriber.AccessAndMobilitySubscriptionData == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
 	amData := convertDbAmDataToModel(dbAmData)
@@ -143,10 +144,11 @@ func convertDbAmPolicyDataToModel(dbAmPolicyData *dbModels.AmPolicyData) *models
 }
 
 func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
-	dbAmPolicyData, err := queries.GetSubscriberAmPolicyData(ueId)
+	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 	}
+	dbAmPolicyData := subscriber.AmPolicyData
 	if dbAmPolicyData == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
@@ -182,10 +184,11 @@ func convertDbSmPolicyDataToModel(dbSmPolicyData *dbModels.SmPolicyData) *models
 }
 
 func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
-	dbSmPolicyData, err := queries.GetSmPolicyData(ueId)
+	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 	}
+	dbSmPolicyData := subscriber.SmPolicyData
 	if dbSmPolicyData == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
@@ -305,8 +308,12 @@ func convertDbSessionManagementDataToModel(dbSmData []*dbModels.SessionManagemen
 }
 
 func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) {
-	dbSessionManagementData, err := queries.ListSmData(ueId)
+	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
+		logger.UdrLog.Warnln(err)
+	}
+	dbSessionManagementData := subscriber.SessionManagementSubscriptionData
+	if dbSessionManagementData == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
 	sessionManagementData := convertDbSessionManagementDataToModel(dbSessionManagementData)
@@ -337,10 +344,11 @@ func convertDbSmfSelectionDataToModel(dbSmfSelectionData *dbModels.SmfSelectionS
 }
 
 func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
-	dbSmfSelectionSubscriptionData, err := queries.GetSmfSelectionSubscriptionData(ueId)
+	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 	}
+	dbSmfSelectionSubscriptionData := subscriber.SmfSelectionSubscriptionData
 	if dbSmfSelectionSubscriptionData == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}

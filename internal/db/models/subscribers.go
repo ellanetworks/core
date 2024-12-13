@@ -200,9 +200,9 @@ type Subscriber struct {
 	PlmnID                            string                               `json:"plmnID"`
 	UeId                              string                               `json:"ueId"`
 	AuthenticationSubscription        AuthenticationSubscription           `json:"AuthenticationSubscription"`
-	AccessAndMobilitySubscriptionData AccessAndMobilitySubscriptionData    `json:"AccessAndMobilitySubscriptionData"`
+	AccessAndMobilitySubscriptionData *AccessAndMobilitySubscriptionData   `json:"AccessAndMobilitySubscriptionData"`
 	SessionManagementSubscriptionData []*SessionManagementSubscriptionData `json:"SessionManagementSubscriptionData"`
-	SmfSelectionSubscriptionData      SmfSelectionSubscriptionData         `json:"SmfSelectionSubscriptionData"`
-	AmPolicyData                      AmPolicyData                         `json:"AmPolicyData"`
-	SmPolicyData                      SmPolicyData                         `json:"SmPolicyData"`
+	SmfSelectionSubscriptionData      *SmfSelectionSubscriptionData        `json:"SmfSelectionSubscriptionData"`
+	AmPolicyData                      *AmPolicyData                        `json:"AmPolicyData"`
+	SmPolicyData                      *SmPolicyData                        `json:"SmPolicyData"`
 }
