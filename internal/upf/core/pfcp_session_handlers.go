@@ -10,7 +10,6 @@ import (
 
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
-	"golang.org/x/exp/slices"
 )
 
 var (
@@ -385,8 +384,17 @@ func validateRequest(nodeId *ie.IE, cpfseid *ie.IE) (fseid *ie.FSEIDFields, err 
 	return fseid, nil
 }
 
+func IndexFunc[S ~[]E, E any](s S, f func(E) bool) int {
+	for i := range s {
+		if f(s[i]) {
+			return i
+		}
+	}
+	return -1
+}
+
 func findIEindex(ieArr []*ie.IE, ieType uint16) int {
-	arrIndex := slices.IndexFunc(ieArr, func(ie *ie.IE) bool {
+	arrIndex := IndexFunc(ieArr, func(ie *ie.IE) bool {
 		return ie.Type == ieType
 	})
 	return arrIndex

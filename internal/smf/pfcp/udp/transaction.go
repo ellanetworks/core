@@ -1,11 +1,11 @@
 package udp
 
 import (
+	"fmt"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/wmnsk/go-pfcp/message"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/context"
@@ -112,7 +112,7 @@ func (transaction *Transaction) Start() error {
 			}
 		}
 		// Num of retries exhausted, send failure back to app
-		return errors.Errorf("request timeout, seq [%d]", transaction.SequenceNumber)
+		return fmt.Errorf("request timeout, seq [%d]", transaction.SequenceNumber)
 	} else if transaction.TxType == SendingResponse {
 		// Todo :Implement SendingResponse type of reliable delivery
 		timer := time.NewTimer(ResendResponseTimeOutPeriod * time.Second)
@@ -133,7 +133,7 @@ func (transaction *Transaction) Start() error {
 				}
 			case <-timer.C:
 				logger.SmfLog.Debugf("Response Transaction [%d]: timeout expire\n", transaction.SequenceNumber)
-				return errors.Errorf("response timeout, seq [%d]", transaction.SequenceNumber)
+				return fmt.Errorf("response timeout, seq [%d]", transaction.SequenceNumber)
 			}
 		}
 	}

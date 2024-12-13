@@ -25,7 +25,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContex
 	}
 
 	// Create transaction
-	txn := transaction.NewTransaction(request, nil, svcmsgtypes.SmfMsgType(svcmsgtypes.CreateSmContext))
+	txn := transaction.NewTransaction(request, nil, svcmsgtypes.CreateSmContext)
 
 	// Start FSM lifecycle
 	go txn.StartTxnLifeCycle(fsm.SmfTxnFsmHandle)
@@ -53,7 +53,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContex
 		}
 
 		// Start PfcpSessCreate transaction
-		pfcpTxn := transaction.NewTransaction(nil, nil, svcmsgtypes.SmfMsgType(svcmsgtypes.PfcpSessCreate))
+		pfcpTxn := transaction.NewTransaction(nil, nil, svcmsgtypes.PfcpSessCreate)
 		pfcpTxn.Ctxt = smContext
 		go pfcpTxn.StartTxnLifeCycle(fsm.SmfTxnFsmHandle)
 		<-pfcpTxn.Status // Wait for the PFCP session transaction to complete

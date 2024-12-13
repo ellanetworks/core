@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mohae/deepcopy"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/logger"
@@ -102,7 +101,7 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 			ue = newUe
 		}
 	}
-	response.Request = deepcopy.Copy(&policyAssociationRequest).(*models.PolicyAssociationRequest)
+	response.Request = &policyAssociationRequest
 	assolId := fmt.Sprintf("%s-%d", ue.Supi, ue.PolAssociationIDGenerator)
 	amPolicy := ue.AMPolicyData[assolId]
 
