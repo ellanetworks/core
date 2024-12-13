@@ -54,26 +54,3 @@ func ListSubscribers() ([]*models.Subscriber, error) {
 	}
 	return subscribers, nil
 }
-
-// All the methods below should be removed in favor of the more generic
-// Get, List, Create, Delete methods above
-
-// func PatchAuthenticationSubscription(ueId string, patchItem []models.PatchItem) error {
-// 	subscriber, err := GetSubscriber(ueId)
-// 	if err != nil {
-// 		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
-// 	}
-// 	if subscriber == nil {
-// 		return fmt.Errorf("subscriber %s not found", ueId)
-// 	}
-// 	patchJSON, err := json.Marshal(patchItem)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	filter := bson.M{"ueId": ueId}
-// 	err = db.CommonDBClient.RestfulAPIJSONPatch(db.SubscribersColl, filter, patchJSON)
-// 	if err != nil {
-// 		return fmt.Errorf("couldn't patch authentication subscription for subscriber %s: %v", ueId, err)
-// 	}
-// 	return nil
-// }

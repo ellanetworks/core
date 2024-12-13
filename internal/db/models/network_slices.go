@@ -9,7 +9,7 @@ type NetworkSlice struct {
 	Name         string                 `json:"name,omitempty"`
 	Sst          string                 `json:"sst,omitempty"`
 	Sd           string                 `json:"sd,omitempty"`
-	DeviceGroups []string               `json:"device-group"`
+	DeviceGroups []string               `json:"device-groups"`
 	Mcc          string                 `json:"mcc,omitempty"`
 	Mnc          string                 `json:"mnc,omitempty"`
 	GNodeBs      []GNodeB               `json:"gNodeBs"`

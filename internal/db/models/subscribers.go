@@ -151,18 +151,6 @@ type SessionManagementSubscriptionData struct {
 	DnnConfigurations map[string]DnnConfiguration `json:"dnnConfigurations,omitempty" yaml:"dnnConfigurations" bson:"dnnConfigurations" mapstructure:"DnnConfigurations"`
 }
 
-type DnnInfo struct {
-	Dnn string `json:"dnn" yaml:"dnn" bson:"dnn" mapstructure:"Dnn"`
-}
-
-// type SnssaiInfo struct {
-// 	DnnInfos []DnnInfo `json:"dnnInfos" yaml:"dnnInfos" bson:"dnnInfos" mapstructure:"DnnInfos"`
-// }
-
-// type SmfSelectionSubscriptionData struct {
-// 	SubscribedSnssaiInfos map[string]SnssaiInfo `json:"subscribedSnssaiInfos,omitempty" yaml:"subscribedSnssaiInfos" bson:"subscribedSnssaiInfos" mapstructure:"SubscribedSnssaiInfos"`
-// }
-
 type Snssai struct {
 	Sst int32  `json:"sst" yaml:"sst" bson:"sst" mapstructure:"Sst"`
 	Sd  string `json:"sd,omitempty" yaml:"sd" bson:"sd" mapstructure:"Sd"`
@@ -177,5 +165,4 @@ type Subscriber struct {
 	AuthenticationSubscription        *AuthenticationSubscription          `json:"AuthenticationSubscription"`
 	AccessAndMobilitySubscriptionData *AccessAndMobilitySubscriptionData   `json:"AccessAndMobilitySubscriptionData"`
 	SessionManagementSubscriptionData []*SessionManagementSubscriptionData `json:"SessionManagementSubscriptionData"`
-	// SmfSelectionSubscriptionData      *SmfSelectionSubscriptionData        `json:"SmfSelectionSubscriptionData"`
 }

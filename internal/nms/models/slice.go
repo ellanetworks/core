@@ -1,6 +1,5 @@
 package models
 
-// adawd
 type Slice struct {
 	SliceName string `json:"slice-name,omitempty"`
 
