@@ -200,7 +200,6 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 				return false
 			}
 			smPolicyData := &dbModels.SmPolicyData{
-				UeId: ueId,
 				SmPolicySnssaiData: map[string]dbModels.SmPolicySnssaiData{
 					SnssaiModelsToHex(*snssai): {
 						Snssai: snssai,
@@ -212,13 +211,12 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 					},
 				},
 			}
-			err = queries.CreateSubscriberSmPolicyData(smPolicyData)
+			err = queries.CreateSubscriberSmPolicyData(ueId, smPolicyData)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 				return false
 			}
 			amData := &dbModels.AccessAndMobilitySubscriptionData{
-				UeId:          ueId,
 				ServingPlmnId: slice.Mcc + slice.Mnc,
 				Nssai: &dbModels.Nssai{
 					DefaultSingleNssais: []dbModels.Snssai{*snssai},
@@ -229,13 +227,12 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 					Uplink:   convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink)),
 				},
 			}
-			err = queries.CreateSubscriberAmData(amData)
+			err = queries.CreateSubscriberAmData(ueId, amData)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 				return false
 			}
 			smData := &dbModels.SessionManagementSubscriptionData{
-				UeId:          ueId,
 				ServingPlmnId: slice.Mcc + slice.Mnc,
 				SingleNssai:   snssai,
 				DnnConfigurations: map[string]dbModels.DnnConfiguration{
@@ -265,13 +262,12 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 					},
 				},
 			}
-			err = queries.CreateSubscriberSmData(smData)
+			err = queries.CreateSubscriberSmData(ueId, smData)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 				return false
 			}
 			smfSelData := &dbModels.SmfSelectionSubscriptionData{
-				UeId:          ueId,
 				ServingPlmnId: slice.Mcc + slice.Mnc,
 				SubscribedSnssaiInfos: map[string]dbModels.SnssaiInfo{
 					SnssaiModelsToHex(*snssai): {
@@ -283,7 +279,7 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 					},
 				},
 			}
-			err = queries.CreateSubscriberSmfSelectionData(smfSelData)
+			err = queries.CreateSubscriberSmfSelectionData(ueId, smfSelData)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 				return false

@@ -28,7 +28,6 @@ func GetSubscribers(c *gin.Context) {
 	}
 	for _, amData := range amDataList {
 		subscriber := nmsModels.SubsListIE{
-			UeId:   amData.UeId,
 			PlmnID: amData.ServingPlmnId,
 		}
 		subsList = append(subsList, subscriber)
@@ -310,9 +309,7 @@ func PostSubscriberByID(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, gin.H{})
 
-	amData := dbModels.AccessAndMobilitySubscriptionData{
-		UeId: ueId,
-	}
+	amData := dbModels.AccessAndMobilitySubscriptionData{}
 
 	imsiVal := strings.ReplaceAll(ueId, "imsi-", "")
 	imsiData[imsiVal] = &authSubsData
@@ -366,10 +363,8 @@ func PutSubscriberByID(c *gin.Context) {
 
 	imsiVal := strings.ReplaceAll(ueId, "imsi-", "")
 	imsiData[imsiVal] = &subsData.AuthenticationSubscription
-	amData := &dbModels.AccessAndMobilitySubscriptionData{
-		UeId: ueId,
-	}
-	err := queries.CreateSubscriberAmData(amData)
+	amData := &dbModels.AccessAndMobilitySubscriptionData{}
+	err := queries.CreateSubscriberAmData(ueId, amData)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 		return

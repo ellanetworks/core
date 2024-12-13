@@ -56,7 +56,6 @@ func CreateSubscriberAmPolicyData(ueId string) error {
 	}
 	var amPolicy models.AmPolicyData
 	amPolicy.SubscCats = append(amPolicy.SubscCats, "free5gc")
-	amPolicy.UeId = ueId
 	subscriber.AmPolicyData = amPolicy
 	subscriberBson := toBsonM(subscriber)
 	filter := bson.M{"ueId": ueId}
@@ -68,8 +67,7 @@ func CreateSubscriberAmPolicyData(ueId string) error {
 	return nil
 }
 
-func CreateSubscriberAmData(amData *models.AccessAndMobilitySubscriptionData) error {
-	ueId := amData.UeId
+func CreateSubscriberAmData(ueId string, amData *models.AccessAndMobilitySubscriptionData) error {
 	subscriber, err := GetSubscriber(ueId)
 	if err != nil {
 		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
@@ -88,8 +86,7 @@ func CreateSubscriberAmData(amData *models.AccessAndMobilitySubscriptionData) er
 	return nil
 }
 
-func CreateSubscriberSmPolicyData(smPolicyData *models.SmPolicyData) error {
-	ueId := smPolicyData.UeId
+func CreateSubscriberSmPolicyData(ueId string, smPolicyData *models.SmPolicyData) error {
 	subscriber, err := GetSubscriber(ueId)
 	if err != nil {
 		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
@@ -104,7 +101,7 @@ func CreateSubscriberSmPolicyData(smPolicyData *models.SmPolicyData) error {
 	if err != nil {
 		return err
 	}
-	logger.DBLog.Infof("Created Subscriber SmPolicyData for ueId %s", smPolicyData.UeId)
+	logger.DBLog.Infof("Created Subscriber SmPolicyData for ueId %s", ueId)
 	return nil
 }
 
@@ -126,8 +123,7 @@ func CreateSubscriberAuthenticationSubscription(ueId string, authSubsData *model
 	return nil
 }
 
-func CreateSubscriberSmData(smData *models.SessionManagementSubscriptionData) error {
-	ueId := smData.UeId
+func CreateSubscriberSmData(ueId string, smData *models.SessionManagementSubscriptionData) error {
 	subscriber, err := GetSubscriber(ueId)
 	if err != nil {
 		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
@@ -145,8 +141,7 @@ func CreateSubscriberSmData(smData *models.SessionManagementSubscriptionData) er
 	return nil
 }
 
-func CreateSubscriberSmfSelectionData(smfSelData *models.SmfSelectionSubscriptionData) error {
-	ueId := smfSelData.UeId
+func CreateSubscriberSmfSelectionData(ueId string, smfSelData *models.SmfSelectionSubscriptionData) error {
 	subscriber, err := GetSubscriber(ueId)
 	if err != nil {
 		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)

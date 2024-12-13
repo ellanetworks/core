@@ -1,50 +1,9 @@
 package models
 
-import "time"
-
-const (
-	OdbPacketServices_ALL_PACKET_SERVICES    OdbPacketServices = "ALL_PACKET_SERVICES"
-	OdbPacketServices_ROAMER_ACCESS_HPLMN_AP OdbPacketServices = "ROAMER_ACCESS_HPLMN_AP"
-	OdbPacketServices_ROAMER_ACCESS_VPLMN_AP OdbPacketServices = "ROAMER_ACCESS_VPLMN_AP"
-)
-
-const (
-	CoreNetworkType__5_GC CoreNetworkType = "5GC"
-	CoreNetworkType_EPC   CoreNetworkType = "EPC"
-)
-
-const (
-	RestrictionType_ALLOWED_AREAS     RestrictionType = "ALLOWED_AREAS"
-	RestrictionType_NOT_ALLOWED_AREAS RestrictionType = "NOT_ALLOWED_AREAS"
-)
-
-const (
-	RatType_NR      RatType = "NR"
-	RatType_EUTRA   RatType = "EUTRA"
-	RatType_WLAN    RatType = "WLAN"
-	RatType_VIRTUAL RatType = "VIRTUAL"
-)
-
-const (
-	VectorAlgorithm_MILENAGE VectorAlgorithm = "MILENAGE"
-	VectorAlgorithm_TUAK     VectorAlgorithm = "TUAK"
-)
-
 const (
 	AuthMethod__5_G_AKA      AuthMethod = "5G_AKA"
 	AuthMethod_EAP_AKA_PRIME AuthMethod = "EAP_AKA_PRIME"
 )
-
-const (
-	TraceDepth_MINIMUM                     TraceDepth = "MINIMUM"
-	TraceDepth_MEDIUM                      TraceDepth = "MEDIUM"
-	TraceDepth_MAXIMUM                     TraceDepth = "MAXIMUM"
-	TraceDepth_MINIMUM_WO_VENDOR_EXTENSION TraceDepth = "MINIMUM_WO_VENDOR_EXTENSION"
-	TraceDepth_MEDIUM_WO_VENDOR_EXTENSION  TraceDepth = "MEDIUM_WO_VENDOR_EXTENSION"
-	TraceDepth_MAXIMUM_WO_VENDOR_EXTENSION TraceDepth = "MAXIMUM_WO_VENDOR_EXTENSION"
-)
-
-type TraceDepth string
 
 type Constants struct {
 	C1 string `json:"c1" bson:"c1"`
@@ -70,71 +29,16 @@ type PermanentKey struct {
 	EncryptionAlgorithm int32  `json:"encryptionAlgorithm" bson:"encryptionAlgorithm"`
 }
 
-type Top struct {
-	TopValue            string `json:"topValue" bson:"topValue"`
-	EncryptionKey       int32  `json:"encryptionKey" bson:"encryptionKey"`
-	EncryptionAlgorithm int32  `json:"encryptionAlgorithm" bson:"encryptionAlgorithm"`
-}
-
-type VectorAlgorithm string
-
-type Topc struct {
-	TopcValue           string `json:"topcValue" bson:"topcValue"`
-	EncryptionKey       int32  `json:"encryptionKey" bson:"encryptionKey"`
-	EncryptionAlgorithm int32  `json:"encryptionAlgorithm" bson:"encryptionAlgorithm"`
-}
-
 type Op struct {
 	OpValue             string `json:"opValue" bson:"opValue"`
 	EncryptionKey       int32  `json:"encryptionKey" bson:"encryptionKey"`
 	EncryptionAlgorithm int32  `json:"encryptionAlgorithm" bson:"encryptionAlgorithm"`
 }
 
-type TraceData struct {
-	TraceRef                 string     `json:"traceRef" yaml:"traceRef" bson:"traceRef" mapstructure:"TraceRef"`
-	TraceDepth               TraceDepth `json:"traceDepth" yaml:"traceDepth" bson:"traceDepth" mapstructure:"TraceDepth"`
-	NeTypeList               string     `json:"neTypeList" yaml:"neTypeList" bson:"neTypeList" mapstructure:"NeTypeList"`
-	EventList                string     `json:"eventList" yaml:"eventList" bson:"eventList" mapstructure:"EventList"`
-	CollectionEntityIpv4Addr string     `json:"collectionEntityIpv4Addr,omitempty" yaml:"collectionEntityIpv4Addr" bson:"collectionEntityIpv4Addr" mapstructure:"CollectionEntityIpv4Addr"`
-	CollectionEntityIpv6Addr string     `json:"collectionEntityIpv6Addr,omitempty" yaml:"collectionEntityIpv6Addr" bson:"collectionEntityIpv6Addr" mapstructure:"CollectionEntityIpv6Addr"`
-	InterfaceList            string     `json:"interfaceList,omitempty" yaml:"interfaceList" bson:"interfaceList" mapstructure:"InterfaceList"`
-}
-
-type SmsManagementSubscriptionData struct {
-	SupportedFeatures   string   `json:"supportedFeatures,omitempty" yaml:"supportedFeatures" bson:"supportedFeatures" mapstructure:"SupportedFeatures"`
-	MtSmsSubscribed     bool     `json:"mtSmsSubscribed,omitempty" yaml:"mtSmsSubscribed" bson:"mtSmsSubscribed" mapstructure:"MtSmsSubscribed"`
-	MtSmsBarringAll     bool     `json:"mtSmsBarringAll,omitempty" yaml:"mtSmsBarringAll" bson:"mtSmsBarringAll" mapstructure:"MtSmsBarringAll"`
-	MtSmsBarringRoaming bool     `json:"mtSmsBarringRoaming,omitempty" yaml:"mtSmsBarringRoaming" bson:"mtSmsBarringRoaming" mapstructure:"MtSmsBarringRoaming"`
-	MoSmsSubscribed     bool     `json:"moSmsSubscribed,omitempty" yaml:"moSmsSubscribed" bson:"moSmsSubscribed" mapstructure:"MoSmsSubscribed"`
-	MoSmsBarringAll     bool     `json:"moSmsBarringAll,omitempty" yaml:"moSmsBarringAll" bson:"moSmsBarringAll" mapstructure:"MoSmsBarringAll"`
-	MoSmsBarringRoaming bool     `json:"moSmsBarringRoaming,omitempty" yaml:"moSmsBarringRoaming" bson:"moSmsBarringRoaming" mapstructure:"MoSmsBarringRoaming"`
-	SharedSmsMngDataIds []string `json:"sharedSmsMngDataIds,omitempty" yaml:"sharedSmsMngDataIds" bson:"sharedSmsMngDataIds" mapstructure:"SharedSmsMngDataIds"`
-}
-
-type SmsSubscriptionData struct {
-	SmsSubscribed       bool     `json:"smsSubscribed,omitempty" yaml:"smsSubscribed" bson:"smsSubscribed" mapstructure:"SmsSubscribed"`
-	SharedSmsSubsDataId []string `json:"sharedSmsSubsDataId,omitempty" yaml:"sharedSmsSubsDataId" bson:"sharedSmsSubsDataId" mapstructure:"SharedSmsSubsDataId"`
-}
-
-type SharedData struct {
-	SharedDataId            string                             `json:"sharedDataId" yaml:"sharedDataId" bson:"sharedDataId" mapstructure:"SharedDataId"`
-	SharedAmData            *AccessAndMobilitySubscriptionData `json:"sharedAmData,omitempty" yaml:"sharedAmData" bson:"sharedAmData" mapstructure:"SharedAmData"`
-	SharedSmsSubsData       *SmsSubscriptionData               `json:"sharedSmsSubsData,omitempty" yaml:"sharedSmsSubsData" bson:"sharedSmsSubsData" mapstructure:"SharedSmsSubsData"`
-	SharedSmsMngSubsData    *SmsManagementSubscriptionData     `json:"sharedSmsMngSubsData,omitempty" yaml:"sharedSmsMngSubsData" bson:"sharedSmsMngSubsData" mapstructure:"SharedSmsMngSubsData"`
-	SharedDnnConfigurations map[string]DnnConfiguration        `json:"sharedDnnConfigurations,omitempty" yaml:"sharedDnnConfigurations" bson:"sharedDnnConfigurations" mapstructure:"SharedDnnConfigurations"`
-	SharedTraceData         *TraceData                         `json:"sharedTraceData,omitempty" yaml:"sharedTraceData" bson:"sharedTraceData" mapstructure:"SharedTraceData"`
-	SharedSnssaiInfos       map[string]SnssaiInfo              `json:"sharedSnssaiInfos,omitempty" yaml:"sharedSnssaiInfos" bson:"sharedSnssaiInfos" mapstructure:"SharedSnssaiInfos"`
-}
-
 type Opc struct {
 	OpcValue            string `json:"opcValue" bson:"opcValue"`
 	EncryptionKey       int32  `json:"encryptionKey" bson:"encryptionKey"`
 	EncryptionAlgorithm int32  `json:"encryptionAlgorithm" bson:"encryptionAlgorithm"`
-}
-
-type Tuak struct {
-	Top              *Top  `json:"top,omitempty" bson:"top"`
-	KeccakIterations int32 `json:"keccakIterations,omitempty" bson:"keccakIterations"`
 }
 
 type Milenage struct {
@@ -144,51 +48,17 @@ type Milenage struct {
 }
 
 type AuthenticationSubscription struct {
-	AuthenticationMethod               AuthMethod      `json:"authenticationMethod" bson:"authenticationMethod"`
-	PermanentKey                       *PermanentKey   `json:"permanentKey" bson:"permanentKey"`
-	SequenceNumber                     string          `json:"sequenceNumber" bson:"sequenceNumber"`
-	AuthenticationManagementField      string          `json:"authenticationManagementField,omitempty" bson:"authenticationManagementField"`
-	VectorAlgorithm                    VectorAlgorithm `json:"vectorAlgorithm,omitempty" bson:"vectorAlgorithm"`
-	Milenage                           *Milenage       `json:"milenage,omitempty" bson:"milenage"`
-	Tuak                               *Tuak           `json:"tuak,omitempty" bson:"tuak"`
-	Opc                                *Opc            `json:"opc,omitempty" bson:"opc"`
-	Topc                               *Topc           `json:"topc,omitempty" bson:"topc"`
-	SharedAuthenticationSubscriptionId *SharedData     `json:"sharedAuthenticationSubscriptionId,omitempty" bson:"sharedAuthenticationSubscriptionId"`
-}
-
-type RatType string
-
-type Area struct {
-	Tacs      []string `json:"tacs,omitempty" yaml:"tacs" bson:"tacs" mapstructure:"Tacs"`
-	AreaCodes string   `json:"areaCodes,omitempty" yaml:"areaCodes" bson:"areaCodes" mapstructure:"AreaCodes"`
+	Milenage                      *Milenage     `json:"milenage,omitempty" bson:"milenage"`
+	Opc                           *Opc          `json:"opc,omitempty" bson:"opc"`
+	PermanentKey                  *PermanentKey `json:"permanentKey" bson:"permanentKey"`
+	SequenceNumber                string        `json:"sequenceNumber" bson:"sequenceNumber"`
+	AuthenticationManagementField string        `json:"authenticationManagementField,omitempty" bson:"authenticationManagementField"`
+	AuthenticationMethod          AuthMethod    `json:"authenticationMethod" bson:"authenticationMethod"`
 }
 
 type AmPolicyData struct {
-	UeId      string   `json:"ueId" yaml:"ueId" bson:"ueId" mapstructure:"UeId"`
 	SubscCats []string `json:"subscCats,omitempty" bson:"subscCats"`
 }
-
-type CoreNetworkType string
-
-type RestrictionType string
-
-type ServiceAreaRestriction struct {
-	RestrictionType RestrictionType `json:"restrictionType,omitempty" yaml:"restrictionType" bson:"restrictionType" mapstructure:"RestrictionType"`
-	Areas           []Area          `json:"areas,omitempty" yaml:"areas" bson:"areas" mapstructure:"Areas"`
-	MaxNumOfTAs     int32           `json:"maxNumOfTAs,omitempty" yaml:"maxNumOfTAs" bson:"maxNumOfTAs" mapstructure:"MaxNumOfTAs"`
-}
-
-type SteeringContainer struct{}
-
-type SorInfo struct {
-	SteeringContainer *SteeringContainer `json:"steeringContainer,omitempty" yaml:"steeringContainer" bson:"steeringContainer" mapstructure:"SteeringContainer"`
-	AckInd            bool               `json:"ackInd" yaml:"ackInd" bson:"ackInd" mapstructure:"AckInd"`
-	SorMacIausf       string             `json:"sorMacIausf,omitempty" yaml:"sorMacIausf" bson:"sorMacIausf" mapstructure:"SorMacIausf"`
-	Countersor        string             `json:"countersor,omitempty" yaml:"countersor" bson:"countersor" mapstructure:"Countersor"`
-	ProvisioningTime  *time.Time         `json:"provisioningTime" yaml:"provisioningTime" bson:"provisioningTime" mapstructure:"ProvisioningTime"`
-}
-
-type OdbPacketServices string
 
 type AmbrRm struct {
 	Uplink   string `json:"uplink" yaml:"uplink" bson:"uplink" mapstructure:"Uplink"`
@@ -202,39 +72,9 @@ type Nssai struct {
 }
 
 type AccessAndMobilitySubscriptionData struct {
-	UeId                        string                  `json:"ueId"`
-	ServingPlmnId               string                  `json:"servingPlmnId"`
-	SupportedFeatures           string                  `json:"supportedFeatures,omitempty" bson:"supportedFeatures"`
-	InternalGroupIds            []string                `json:"internalGroupIds,omitempty" bson:"internalGroupIds"`
-	SubscribedUeAmbr            *AmbrRm                 `json:"subscribedUeAmbr,omitempty" bson:"subscribedUeAmbr"`
-	Nssai                       *Nssai                  `json:"nssai,omitempty" bson:"nssai"`
-	RatRestrictions             []RatType               `json:"ratRestrictions,omitempty" bson:"ratRestrictions"`
-	ForbiddenAreas              []Area                  `json:"forbiddenAreas,omitempty" bson:"forbiddenAreas"`
-	ServiceAreaRestriction      *ServiceAreaRestriction `json:"serviceAreaRestriction,omitempty" bson:"serviceAreaRestriction"`
-	CoreNetworkTypeRestrictions []CoreNetworkType       `json:"coreNetworkTypeRestrictions,omitempty" bson:"coreNetworkTypeRestrictions"`
-	RfspIndex                   int32                   `json:"rfspIndex,omitempty" bson:"rfspIndex"`
-	SubsRegTimer                int32                   `json:"subsRegTimer,omitempty" bson:"subsRegTimer"`
-	UeUsageType                 int32                   `json:"ueUsageType,omitempty" bson:"ueUsageType"`
-	MpsPriority                 bool                    `json:"mpsPriority,omitempty" bson:"mpsPriority"`
-	McsPriority                 bool                    `json:"mcsPriority,omitempty" bson:"mcsPriority"`
-	ActiveTime                  int32                   `json:"activeTime,omitempty" bson:"activeTime"`
-	DlPacketCount               int32                   `json:"dlPacketCount,omitempty" bson:"dlPacketCount"`
-	SorInfo                     *SorInfo                `json:"sorInfo,omitempty" bson:"sorInfo"`
-	MicoAllowed                 bool                    `json:"micoAllowed,omitempty" bson:"micoAllowed"`
-	SharedAmDataIds             []string                `json:"sharedAmDataIds,omitempty" bson:"sharedAmDataIds"`
-	OdbPacketServices           OdbPacketServices       `json:"odbPacketServices,omitempty" bson:"odbPacketServices"`
-}
-
-type FlowRule struct {
-	Filter      string `json:"filter,omitempty" yaml:"filter" bson:"filter" mapstructure:"filter"`
-	Snssai      string `json:"snssai,omitempty" yaml:"snssai" bson:"snssai" mapstructure:"snssai"`
-	Dnn         string `json:"dnn,omitempty" yaml:"v" bson:"dnn" mapstructure:"dnn"`
-	Var5QI      int    `json:"5qi,omitempty" yaml:"5qi" bson:"5qi" mapstructure:"5qi"`
-	MBRUL       string `json:"mbrUL,omitempty" yaml:"mbrUL" bson:"mbrUL" mapstructure:"mbrUL"`
-	MBRDL       string `json:"mbrDL,omitempty" yaml:"mbrDL" bson:"mbrDL" mapstructure:"mbrDL"`
-	GBRUL       string `json:"gbrUL,omitempty" yaml:"gbrUL" bson:"gbrUL" mapstructure:"gbrUL"`
-	GBRDL       string `json:"gbrDL,omitempty" yaml:"gbrDL" bson:"gbrDL" mapstructure:"gbrDL"`
-	BitRateUnit string `json:"bitrate-unit,omitempty" yaml:"bitrate-unit" bson:"bitrate-unit" mapstructure:"bitrate-unit"`
+	Nssai            *Nssai  `json:"nssai,omitempty" bson:"nssai"`
+	ServingPlmnId    string  `json:"servingPlmnId"`
+	SubscribedUeAmbr *AmbrRm `json:"subscribedUeAmbr,omitempty" bson:"subscribedUeAmbr"`
 }
 
 const (
@@ -291,17 +131,6 @@ type Arp struct {
 	PreemptVuln   PreemptionVulnerability `json:"preemptVuln" yaml:"preemptVuln" bson:"preemptVuln" mapstructure:"PreemptVuln"`
 }
 
-type IpAddress struct {
-	Ipv4Addr   string `json:"ipv4Addr,omitempty" yaml:"ipv4Addr" bson:"ipv4Addr" mapstructure:"Ipv4Addr"`
-	Ipv6Addr   string `json:"ipv6Addr,omitempty" yaml:"ipv6Addr" bson:"ipv6Addr" mapstructure:"Ipv6Addr"`
-	Ipv6Prefix string `json:"ipv6Prefix,omitempty" yaml:"ipv6Prefix" bson:"ipv6Prefix" mapstructure:"Ipv6Prefix"`
-}
-
-type UpSecurity struct {
-	UpIntegr UpIntegrity       `json:"upIntegr" yaml:"upIntegr" bson:"upIntegr" mapstructure:"UpIntegr"`
-	UpConfid UpConfidentiality `json:"upConfid" yaml:"upConfid" bson:"upConfid" mapstructure:"UpConfid"`
-}
-
 type Ambr struct {
 	Uplink   string `json:"uplink" yaml:"uplink" bson:"uplink" mapstructure:"Uplink"`
 	Downlink string `json:"downlink" yaml:"downlink" bson:"downlink" mapstructure:"Downlink"`
@@ -324,104 +153,20 @@ type PduSessionTypes struct {
 }
 
 type DnnConfiguration struct {
-	PduSessionTypes                *PduSessionTypes      `json:"pduSessionTypes" yaml:"pduSessionTypes" bson:"pduSessionTypes" mapstructure:"PduSessionTypes"`
-	SscModes                       *SscModes             `json:"sscModes" yaml:"sscModes" bson:"sscModes" mapstructure:"SscModes"`
-	IwkEpsInd                      bool                  `json:"iwkEpsInd,omitempty" yaml:"iwkEpsInd" bson:"iwkEpsInd" mapstructure:"IwkEpsInd"`
-	Var5gQosProfile                *SubscribedDefaultQos `json:"5gQosProfile,omitempty" yaml:"5gQosProfile" bson:"5gQosProfile" mapstructure:"Var5gQosProfile"`
-	SessionAmbr                    *Ambr                 `json:"sessionAmbr,omitempty" yaml:"sessionAmbr" bson:"sessionAmbr" mapstructure:"SessionAmbr"`
-	Var3gppChargingCharacteristics string                `json:"3gppChargingCharacteristics,omitempty" yaml:"3gppChargingCharacteristics" bson:"3gppChargingCharacteristics" mapstructure:"Var3gppChargingCharacteristics"`
-	StaticIpAddress                []IpAddress           `json:"staticIpAddress,omitempty" yaml:"staticIpAddress" bson:"staticIpAddress" mapstructure:"StaticIpAddress"`
-	UpSecurity                     *UpSecurity           `json:"upSecurity,omitempty" yaml:"upSecurity" bson:"upSecurity" mapstructure:"UpSecurity"`
+	SessionAmbr     *Ambr                 `json:"sessionAmbr,omitempty" yaml:"sessionAmbr" bson:"sessionAmbr" mapstructure:"SessionAmbr"`
+	SscModes        *SscModes             `json:"sscModes" yaml:"sscModes" bson:"sscModes" mapstructure:"SscModes"`
+	Var5gQosProfile *SubscribedDefaultQos `json:"5gQosProfile,omitempty" yaml:"5gQosProfile" bson:"5gQosProfile" mapstructure:"Var5gQosProfile"`
+	PduSessionTypes *PduSessionTypes      `json:"pduSessionTypes" yaml:"pduSessionTypes" bson:"pduSessionTypes" mapstructure:"PduSessionTypes"`
 }
 
 type SessionManagementSubscriptionData struct {
-	UeId                       string                      `json:"ueId"`
-	ServingPlmnId              string                      `json:"servingPlmnId"`
-	SingleNssai                *Snssai                     `json:"singleNssai" yaml:"singleNssai" bson:"singleNssai" mapstructure:"SingleNssai"`
-	DnnConfigurations          map[string]DnnConfiguration `json:"dnnConfigurations,omitempty" yaml:"dnnConfigurations" bson:"dnnConfigurations" mapstructure:"DnnConfigurations"`
-	InternalGroupIds           []string                    `json:"internalGroupIds,omitempty" yaml:"internalGroupIds" bson:"internalGroupIds" mapstructure:"InternalGroupIds"`
-	SharedDnnConfigurationsIds string                      `json:"sharedDnnConfigurationsIds,omitempty" yaml:"sharedDnnConfigurationsIds" bson:"sharedDnnConfigurationsIds" mapstructure:"SharedDnnConfigurationsIds"`
-}
-
-const (
-	UsageMonLevel_SESSION_LEVEL UsageMonLevel = "SESSION_LEVEL"
-	UsageMonLevel_SERVICE_LEVEL UsageMonLevel = "SERVICE_LEVEL"
-)
-
-type Periodicity string
-
-const (
-	Periodicity_YEARLY  Periodicity = "YEARLY"
-	Periodicity_MONTHLY Periodicity = "MONTHLY"
-	Periodicity_WEEKLY  Periodicity = "WEEKLY"
-	Periodicity_DAILY   Periodicity = "DAILY"
-	Periodicity_HOURLY  Periodicity = "HOURLY"
-)
-
-type UsageMonLevel string
-
-type UsageMonDataScope struct {
-	Snssai *Snssai  `json:"snssai" bson:"snssai"`
-	Dnn    []string `json:"dnn,omitempty" bson:"dnn"`
-}
-
-type TimePeriod struct {
-	Period       Periodicity `json:"period" bson:"period"`
-	MaxNumPeriod int32       `json:"maxNumPeriod,omitempty" bson:"maxNumPeriod"`
-}
-
-type UsageThreshold struct {
-	Duration       int32 `json:"duration,omitempty" yaml:"duration" bson:"duration" mapstructure:"Duration"`
-	TotalVolume    int64 `json:"totalVolume,omitempty" yaml:"totalVolume" bson:"totalVolume" mapstructure:"TotalVolume"`
-	DownlinkVolume int64 `json:"downlinkVolume,omitempty" yaml:"downlinkVolume" bson:"downlinkVolume" mapstructure:"DownlinkVolume"`
-	UplinkVolume   int64 `json:"uplinkVolume,omitempty" yaml:"uplinkVolume" bson:"uplinkVolume" mapstructure:"UplinkVolume"`
-}
-
-type UsageMonDataLimit struct {
-	LimitId     string                       `json:"limitId" bson:"limitId"`
-	Scopes      map[string]UsageMonDataScope `json:"scopes,omitempty" bson:"scopes"`
-	UmLevel     UsageMonLevel                `json:"umLevel,omitempty" bson:"umLevel"`
-	StartDate   *time.Time                   `json:"startDate,omitempty" bson:"startDate"`
-	EndDate     *time.Time                   `json:"endDate,omitempty" bson:"endDate"`
-	UsageLimit  *UsageThreshold              `json:"usageLimit,omitempty" bson:"usageLimit"`
-	ResetPeriod *time.Time                   `json:"resetPeriod,omitempty" bson:"resetPeriod"`
-}
-
-type UsageMonData struct {
-	LimitId      string                       `json:"limitId" bson:"limitId"`
-	Scopes       map[string]UsageMonDataScope `json:"scopes,omitempty" bson:"scopes"`
-	UmLevel      UsageMonLevel                `json:"umLevel,omitempty" bson:"umLevel"`
-	AllowedUsage *UsageThreshold              `json:"allowedUsage,omitempty" bson:"allowedUsage"`
-	ResetTime    *TimePeriod                  `json:"resetTime,omitempty" bson:"resetTime"`
-}
-
-type LimitIdToMonitoringKey struct {
-	LimitId string   `json:"limitId" bson:"limitId"`
-	Monkey  []string `json:"monkey,omitempty" bson:"monkey"`
-}
-
-type ChargingInformation struct {
-	PrimaryChfAddress   string `json:"primaryChfAddress" yaml:"primaryChfAddress" bson:"primaryChfAddress" mapstructure:"PrimaryChfAddress"`
-	SecondaryChfAddress string `json:"secondaryChfAddress" yaml:"secondaryChfAddress" bson:"secondaryChfAddress" mapstructure:"SecondaryChfAddress"`
+	DnnConfigurations map[string]DnnConfiguration `json:"dnnConfigurations,omitempty" yaml:"dnnConfigurations" bson:"dnnConfigurations" mapstructure:"DnnConfigurations"`
+	ServingPlmnId     string                      `json:"servingPlmnId"`
+	SingleNssai       *Snssai                     `json:"singleNssai" yaml:"singleNssai" bson:"singleNssai" mapstructure:"SingleNssai"`
 }
 
 type SmPolicyDnnData struct {
-	Dnn                 string                            `json:"dnn" bson:"dnn"`
-	AllowedServices     []string                          `json:"allowedServices,omitempty" bson:"allowedServices"`
-	SubscCats           []string                          `json:"subscCats,omitempty" bson:"subscCats"`
-	GbrUl               string                            `json:"gbrUl,omitempty" bson:"gbrUl"`
-	GbrDl               string                            `json:"gbrDl,omitempty" bson:"gbrDl"`
-	AdcSupport          bool                              `json:"adcSupport,omitempty" bson:"adcSupport"`
-	SubscSpendingLimits bool                              `json:"subscSpendingLimits,omitempty" bson:"subscSpendingLimits"`
-	Ipv4Index           int32                             `json:"ipv4Index,omitempty" bson:"ipv4Index"`
-	Ipv6Index           int32                             `json:"ipv6Index,omitempty" bson:"ipv6Index"`
-	Offline             bool                              `json:"offline,omitempty" bson:"offline"`
-	Online              bool                              `json:"online,omitempty" bson:"online"`
-	ChfInfo             *ChargingInformation              `json:"chfInfo,omitempty" bson:"chfInfo"`
-	RefUmDataLimitIds   map[string]LimitIdToMonitoringKey `json:"refUmDataLimitIds,omitempty" bson:"refUmDataLimitIds"`
-	MpsPriority         bool                              `json:"mpsPriority,omitempty" bson:"mpsPriority"`
-	ImsSignallingPrio   bool                              `json:"imsSignallingPrio,omitempty" bson:"imsSignallingPrio"`
-	MpsPriorityLevel    int32                             `json:"mpsPriorityLevel,omitempty" bson:"mpsPriorityLevel"`
+	Dnn string `json:"dnn" bson:"dnn"`
 }
 
 type SmPolicySnssaiData struct {
@@ -430,17 +175,11 @@ type SmPolicySnssaiData struct {
 }
 
 type SmPolicyData struct {
-	UeId               string                        `json:"ueId"`
 	SmPolicySnssaiData map[string]SmPolicySnssaiData `json:"smPolicySnssaiData" bson:"smPolicySnssaiData"`
-	UmDataLimits       map[string]UsageMonDataLimit  `json:"umDataLimits,omitempty" bson:"umDataLimits"`
-	UmData             map[string]UsageMonData       `json:"umData,omitempty" bson:"umData"`
 }
 
 type DnnInfo struct {
-	Dnn                 string `json:"dnn" yaml:"dnn" bson:"dnn" mapstructure:"Dnn"`
-	DefaultDnnIndicator bool   `json:"defaultDnnIndicator,omitempty" yaml:"defaultDnnIndicator" bson:"defaultDnnIndicator" mapstructure:"DefaultDnnIndicator"`
-	LboRoamingAllowed   bool   `json:"lboRoamingAllowed,omitempty" yaml:"lboRoamingAllowed" bson:"lboRoamingAllowed" mapstructure:"LboRoamingAllowed"`
-	IwkEpsInd           bool   `json:"iwkEpsInd,omitempty" yaml:"iwkEpsInd" bson:"iwkEpsInd" mapstructure:"IwkEpsInd"`
+	Dnn string `json:"dnn" yaml:"dnn" bson:"dnn" mapstructure:"Dnn"`
 }
 
 type SnssaiInfo struct {
@@ -448,11 +187,8 @@ type SnssaiInfo struct {
 }
 
 type SmfSelectionSubscriptionData struct {
-	UeId                  string                `json:"ueId"`
 	ServingPlmnId         string                `json:"servingPlmnId"`
-	SupportedFeatures     string                `json:"supportedFeatures,omitempty" yaml:"supportedFeatures" bson:"supportedFeatures" mapstructure:"SupportedFeatures"`
 	SubscribedSnssaiInfos map[string]SnssaiInfo `json:"subscribedSnssaiInfos,omitempty" yaml:"subscribedSnssaiInfos" bson:"subscribedSnssaiInfos" mapstructure:"SubscribedSnssaiInfos"`
-	SharedSnssaiInfosId   string                `json:"sharedSnssaiInfosId,omitempty" yaml:"sharedSnssaiInfosId" bson:"sharedSnssaiInfosId" mapstructure:"SharedSnssaiInfosId"`
 }
 
 type Snssai struct {
@@ -469,5 +205,4 @@ type Subscriber struct {
 	SmfSelectionSubscriptionData      SmfSelectionSubscriptionData         `json:"SmfSelectionSubscriptionData"`
 	AmPolicyData                      AmPolicyData                         `json:"AmPolicyData"`
 	SmPolicyData                      SmPolicyData                         `json:"SmPolicyData"`
-	FlowRules                         []FlowRule                           `json:"FlowRules"`
 }
