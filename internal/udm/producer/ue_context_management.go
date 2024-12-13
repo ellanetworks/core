@@ -5,7 +5,6 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/udm/context"
-	"github.com/yeastengine/ella/internal/udm/producer/callback"
 )
 
 // TS 29.503 5.3.2.2.2
@@ -22,13 +21,6 @@ func EditRegistrationAmf3gppAccess(registerRequest models.Amf3GppAccessRegistrat
 	// TS 23.502 4.2.2.2.2 14d: UDM initiate a Nudm_UECM_DeregistrationNotification to the old AMF
 	// corresponding to the same (e.g. 3GPP) access, if one exists
 	if oldAmf3GppAccessRegContext != nil {
-		deregistData := models.DeregistrationData{
-			DeregReason: models.DeregistrationReason_SUBSCRIPTION_WITHDRAWN,
-			AccessType:  models.AccessType__3_GPP_ACCESS,
-		}
-		callback.SendOnDeregistrationNotification(ueID, oldAmf3GppAccessRegContext.DeregCallbackUri,
-			deregistData) // Deregistration Notify Triggered
-
 		return nil
 	} else {
 		header := make(http.Header)
