@@ -120,27 +120,14 @@ func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 	return authSubsData, nil
 }
 
-// We have this function twice, here and in the NMS. We should move it to a common place.
-func convertDbAmPolicyDataToModel(dbAmPolicyData *dbModels.AmPolicyData) *models.AmPolicyData {
-	if dbAmPolicyData == nil {
-		return &models.AmPolicyData{}
-	}
-	amPolicyData := &models.AmPolicyData{
-		SubscCats: dbAmPolicyData.SubscCats,
-	}
-	return amPolicyData
-}
-
 func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
-	subscriber, err := queries.GetSubscriber(ueId)
+	_, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
-	}
-	dbAmPolicyData := subscriber.AmPolicyData
-	if dbAmPolicyData == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
-	amPolicyData := convertDbAmPolicyDataToModel(dbAmPolicyData)
+
+	amPolicyData := &models.AmPolicyData{}
 	return amPolicyData, nil
 }
 

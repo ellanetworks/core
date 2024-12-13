@@ -56,10 +56,6 @@ type AuthenticationSubscription struct {
 	AuthenticationMethod          AuthMethod    `json:"authenticationMethod" bson:"authenticationMethod"`
 }
 
-type AmPolicyData struct {
-	SubscCats []string `json:"subscCats,omitempty" bson:"subscCats"`
-}
-
 type AmbrRm struct {
 	Uplink   string `json:"uplink" yaml:"uplink" bson:"uplink" mapstructure:"Uplink"`
 	Downlink string `json:"downlink" yaml:"downlink" bson:"downlink" mapstructure:"Downlink"`
@@ -203,6 +199,5 @@ type Subscriber struct {
 	AccessAndMobilitySubscriptionData *AccessAndMobilitySubscriptionData   `json:"AccessAndMobilitySubscriptionData"`
 	SessionManagementSubscriptionData []*SessionManagementSubscriptionData `json:"SessionManagementSubscriptionData"`
 	SmfSelectionSubscriptionData      *SmfSelectionSubscriptionData        `json:"SmfSelectionSubscriptionData"`
-	AmPolicyData                      *AmPolicyData                        `json:"AmPolicyData"`
 	SmPolicyData                      *SmPolicyData                        `json:"SmPolicyData"`
 }

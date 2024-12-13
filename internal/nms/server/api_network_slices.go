@@ -187,7 +187,6 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 				subscriber.SmfSelectionSubscriptionData = &dbModels.SmfSelectionSubscriptionData{}
 				subscriber.SmPolicyData = &dbModels.SmPolicyData{}
 				subscriber.SessionManagementSubscriptionData = []*dbModels.SessionManagementSubscriptionData{}
-				subscriber.AmPolicyData = &dbModels.AmPolicyData{}
 				subscriber.AccessAndMobilitySubscriptionData = &dbModels.AccessAndMobilitySubscriptionData{}
 				err = queries.CreateSubscriber(subscriber)
 				if err != nil {
@@ -267,10 +266,6 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 					logger.NmsLog.Warnf("Could not get subscriber %v", ueId)
 					continue
 				}
-				amPolicy := &dbModels.AmPolicyData{
-					SubscCats: make([]string, 0),
-				}
-				amPolicy.SubscCats = append(amPolicy.SubscCats, "free5gc")
 				subscriber.SmPolicyData = &dbModels.SmPolicyData{
 					SmPolicySnssaiData: map[string]dbModels.SmPolicySnssaiData{
 						SnssaiModelsToHex(*snssai): {
@@ -283,7 +278,6 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 						},
 					},
 				}
-				subscriber.AmPolicyData = amPolicy
 				subscriber.AccessAndMobilitySubscriptionData = &dbModels.AccessAndMobilitySubscriptionData{
 					ServingPlmnId: mcc + mnc,
 					Nssai: &dbModels.Nssai{

@@ -199,10 +199,6 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 				logger.NmsLog.Warnf("Could not get subscriber %v", ueId)
 				continue
 			}
-			amPolicy := &dbModels.AmPolicyData{
-				SubscCats: make([]string, 0),
-			}
-			amPolicy.SubscCats = append(amPolicy.SubscCats, "free5gc")
 
 			smPolicyData := &dbModels.SmPolicyData{
 				SmPolicySnssaiData: map[string]dbModels.SmPolicySnssaiData{
@@ -248,7 +244,6 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 			}
 			subscriber.SessionManagementSubscriptionData = append(subscriber.SessionManagementSubscriptionData, smData)
 			subscriber.SmPolicyData = smPolicyData
-			subscriber.AmPolicyData = amPolicy
 			subscriber.AccessAndMobilitySubscriptionData = &dbModels.AccessAndMobilitySubscriptionData{
 				ServingPlmnId: slice.Mcc + slice.Mnc,
 				Nssai: &dbModels.Nssai{
@@ -328,7 +323,6 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 			subscriber.SmfSelectionSubscriptionData = &dbModels.SmfSelectionSubscriptionData{}
 			subscriber.SmPolicyData = &dbModels.SmPolicyData{}
 			subscriber.SessionManagementSubscriptionData = []*dbModels.SessionManagementSubscriptionData{}
-			subscriber.AmPolicyData = &dbModels.AmPolicyData{}
 			subscriber.AccessAndMobilitySubscriptionData = &dbModels.AccessAndMobilitySubscriptionData{}
 			err = queries.CreateSubscriber(subscriber)
 			if err != nil {

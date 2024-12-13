@@ -24,7 +24,6 @@ type DBInterface interface {
 	RestfulAPIGetMany(collName string, filter bson.M) ([]map[string]interface{}, error)
 	RestfulAPIPutOne(collName string, filter bson.M, putData map[string]interface{}) (bool, error)
 	RestfulAPIDeleteOne(collName string, filter bson.M) error
-	RestfulAPIJSONPatch(collName string, filter bson.M, patchJSON []byte) error
 	RestfulAPIPost(collName string, filter bson.M, postData map[string]interface{}) (bool, error)
 }
 
@@ -107,10 +106,6 @@ func (db *MongoDBClient) RestfulAPIPutOne(collName string, filter bson.M, putDat
 
 func (db *MongoDBClient) RestfulAPIDeleteOne(collName string, filter bson.M) error {
 	return db.MongoClient.RestfulAPIDeleteOne(collName, filter)
-}
-
-func (db *MongoDBClient) RestfulAPIJSONPatch(collName string, filter bson.M, patchJSON []byte) error {
-	return db.MongoClient.RestfulAPIJSONPatch(collName, filter, patchJSON)
 }
 
 func (db *MongoDBClient) RestfulAPIPost(collName string, filter bson.M, postData map[string]interface{}) (bool, error) {

@@ -167,16 +167,6 @@ func convertDbSmfSelectionDataToModel(dbSmfSelectionData *dbModels.SmfSelectionS
 	return smfSelectionData
 }
 
-func convertDbAmPolicyDataToModel(dbAmPolicyData *dbModels.AmPolicyData) models.AmPolicyData {
-	if dbAmPolicyData == nil {
-		return models.AmPolicyData{}
-	}
-	amPolicyData := models.AmPolicyData{
-		SubscCats: dbAmPolicyData.SubscCats,
-	}
-	return amPolicyData
-}
-
 func convertDbSmPolicyDataToModel(dbSmPolicyData *dbModels.SmPolicyData) models.SmPolicyData {
 	if dbSmPolicyData == nil {
 		return models.SmPolicyData{}
@@ -223,7 +213,6 @@ func GetSubscriberByID(c *gin.Context) {
 	amData := convertDbAmDataToModel(subscriber.AccessAndMobilitySubscriptionData)
 	smData := convertDbSmDataToModel(subscriber.SessionManagementSubscriptionData)
 	smfSelectionData := convertDbSmfSelectionDataToModel(subscriber.SmfSelectionSubscriptionData)
-	amPolicyData := convertDbAmPolicyDataToModel(subscriber.AmPolicyData)
 	smPolicyData := convertDbSmPolicyDataToModel(subscriber.SmPolicyData)
 	subsData := nmsModels.SubsData{
 		UeId:                              ueId,
@@ -231,7 +220,6 @@ func GetSubscriberByID(c *gin.Context) {
 		AccessAndMobilitySubscriptionData: amData,
 		SessionManagementSubscriptionData: smData,
 		SmfSelectionSubscriptionData:      smfSelectionData,
-		AmPolicyData:                      amPolicyData,
 		SmPolicyData:                      smPolicyData,
 	}
 
