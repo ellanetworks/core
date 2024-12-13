@@ -9,6 +9,7 @@ import (
 
 	"github.com/wmnsk/go-pfcp/message"
 	"github.com/yeastengine/ella/internal/logger"
+	"github.com/yeastengine/ella/internal/metrics"
 	"github.com/yeastengine/ella/internal/upf/config"
 	"github.com/yeastengine/ella/internal/upf/core"
 	"github.com/yeastengine/ella/internal/upf/core/service"
@@ -27,7 +28,6 @@ func Start(interfaces []string, n3_address string) error {
 		ApiAddress:        ":8080",
 		PfcpAddress:       "0.0.0.0:8806",
 		PfcpNodeId:        "0.0.0.0",
-		MetricsAddress:    ":8081",
 		N3Address:         n3_address,
 		EchoInterval:      10,
 		QerMapSize:        1024,
@@ -106,6 +106,12 @@ func Start(interfaces []string, n3_address string) error {
 	}
 	go pfcpConn.Run()
 	defer pfcpConn.Close()
+
+	ForwardPlaneStats := ebpf.UpfXdpActionStatistic{
+		BpfObjects: bpfObjects,
+	}
+
+	metrics.RegisterUPFMetrics(ForwardPlaneStats, pfcpConn)
 
 	gtpPathManager := core.NewGtpPathManager(config.Conf.N3Address+":2152", time.Duration(config.Conf.EchoInterval)*time.Second)
 	for _, peer := range config.Conf.GtpPeer {

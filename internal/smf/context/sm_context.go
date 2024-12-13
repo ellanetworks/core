@@ -31,7 +31,10 @@ var (
 	seidSMContextMap sync.Map
 )
 
-var smContextCount uint64
+var (
+	smContextCount  uint64
+	smContextActive uint64
+)
 
 type SMContextState uint
 
@@ -162,6 +165,14 @@ func ResolveRef(identifier string, pduSessID int32) (ref string, err error) {
 	return
 }
 
+func incSMContextActive() {
+	atomic.AddUint64(&smContextActive, 1)
+}
+
+func decSMContextActive() {
+	atomic.AddUint64(&smContextActive, ^uint64(0))
+}
+
 func NewSMContext(identifier string, pduSessID int32) (smContext *SMContext) {
 	smContext = new(SMContext)
 	// Create Ref and identifier
@@ -183,6 +194,9 @@ func NewSMContext(identifier string, pduSessID int32) (smContext *SMContext) {
 		DNSIPv4Request: false,
 		DNSIPv6Request: false,
 	}
+
+	// Sess Stats
+	incSMContextActive()
 
 	// initialise log tags
 	smContext.initLogTags()
@@ -218,13 +232,15 @@ func (smContext *SMContext) ChangeState(nextState SMContextState) {
 	smContext.SMContextState = nextState
 }
 
-// *** add unit test ***//
 func GetSMContext(ref string) (smContext *SMContext) {
 	if value, ok := smContextPool.Load(ref); ok {
 		smContext = value.(*SMContext)
 	}
-
 	return
+}
+
+func GetPDUSessionCount() int {
+	return int(smContextActive)
 }
 
 func RemoveSMContext(ref string) {
@@ -248,6 +264,7 @@ func RemoveSMContext(ref string) {
 	smContextPool.Delete(ref)
 
 	canonicalRef.Delete(canonicalName(smContext.Supi, smContext.PDUSessionID))
+	decSMContextActive()
 	smContext.SubCtxLog.Infof("SM Context removed")
 }
 

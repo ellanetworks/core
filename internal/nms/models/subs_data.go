@@ -1,9 +1,5 @@
 package models
 
-import (
-	"github.com/omec-project/openapi/models"
-)
-
 type SubsData struct {
 	PlmnID          string `json:"plmnID"`
 	UeId            string `json:"ueId"`
@@ -17,13 +13,6 @@ type SubsData struct {
 	BitrateUplink   string `json:"bitrateUplink"`
 	Var5qi          int32  `json:"var5qi"`
 	PriorityLevel   int32  `json:"priorityLevel"`
-
-	AuthenticationSubscription        models.AuthenticationSubscription          `json:"AuthenticationSubscription"`
-	AccessAndMobilitySubscriptionData models.AccessAndMobilitySubscriptionData   `json:"AccessAndMobilitySubscriptionData"`
-	SessionManagementSubscriptionData []models.SessionManagementSubscriptionData `json:"SessionManagementSubscriptionData"`
-	AmPolicyData                      models.AmPolicyData                        `json:"AmPolicyData"`
-	SmPolicyData                      models.SmPolicyData                        `json:"SmPolicyData"`
-	FlowRules                         []FlowRule                                 `json:"FlowRules"`
 }
 
 type SubsOverrideData struct {

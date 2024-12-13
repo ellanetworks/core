@@ -1,12 +1,13 @@
-package core
+package metrics
 
 import (
 	"time"
 
-	"github.com/yeastengine/ella/internal/upf/ebpf"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	smfStats "github.com/yeastengine/ella/internal/smf/stats"
+	"github.com/yeastengine/ella/internal/upf/core"
+	"github.com/yeastengine/ella/internal/upf/ebpf"
 )
 
 var (
@@ -26,6 +27,7 @@ var (
 	}, []string{"message_name", "cause_code"})
 
 	UpfXdpAborted       prometheus.CounterFunc
+	PduSessions         prometheus.CounterFunc
 	UpfXdpDrop          prometheus.CounterFunc
 	UpfXdpPass          prometheus.CounterFunc
 	UpfXdpTx            prometheus.CounterFunc
@@ -46,7 +48,18 @@ var (
 	}, []string{"message_type"})
 )
 
-func RegisterMetrics(stats ebpf.UpfXdpActionStatistic, conn *PfcpConnection) {
+func RegisterSmfMetrics() {
+	PduSessions = prometheus.NewCounterFunc(prometheus.CounterOpts{
+		Name: "pdu_sessions",
+		Help: "Number of PDU sessions currently in Ella",
+	}, func() float64 {
+		return float64(smfStats.GetPDUSessionCount())
+	})
+
+	prometheus.MustRegister(PduSessions)
+}
+
+func RegisterUPFMetrics(stats ebpf.UpfXdpActionStatistic, conn *core.PfcpConnection) {
 	// Metrics for the upf_xdp_statistic (xdp_action)
 	UpfXdpAborted = prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "upf_xdp_aborted",

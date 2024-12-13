@@ -31,11 +31,6 @@ func init() {
 	imsiData = make(map[string]*openAPIModels.AuthenticationSubscription)
 }
 
-// func SnssaiModelsToHex(snssai dbModels.Snssai) string {
-// 	sst := fmt.Sprintf("%02x", snssai.Sst)
-// 	return sst + snssai.Sd
-// }
-
 func GetNetworkSlices(c *gin.Context) {
 	setCorsHeader(c)
 	networkSlices, err := queries.ListNetworkSliceNames()

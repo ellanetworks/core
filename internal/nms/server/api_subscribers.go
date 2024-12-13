@@ -2,7 +2,6 @@ package server
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	dbModels "github.com/yeastengine/ella/internal/db/models"
@@ -110,16 +109,12 @@ func PutSubscriberByID(c *gin.Context) {
 	ueId := c.Param("ueId")
 	c.JSON(http.StatusNoContent, gin.H{})
 
-	imsiVal := strings.ReplaceAll(ueId, "imsi-", "")
-	imsiData[imsiVal] = &subsData.AuthenticationSubscription
 	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 		return
 	}
 
-	subscriber.BitRateDownlink = subsData.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Downlink
-	subscriber.BitRateUplink = subsData.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Uplink
 	subscriber.OpcValue = subsData.Opc
 	subscriber.SequenceNumber = subsData.SequenceNumber
 	subscriber.PermanentKeyValue = subsData.Key

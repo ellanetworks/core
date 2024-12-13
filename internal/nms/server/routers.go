@@ -35,6 +35,18 @@ func AddApiService(engine *gin.Engine) *gin.RouterGroup {
 
 var routes = Routes{
 	{
+		"GetMetrics",
+		http.MethodGet,
+		"/metrics",
+		GetMetrics,
+	},
+	{
+		"GetStatus",
+		http.MethodGet,
+		"/status",
+		GetStatus,
+	},
+	{
 		"GetSubscribers",
 		http.MethodGet,
 		"/subscriber",
