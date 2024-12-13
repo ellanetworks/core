@@ -38,7 +38,7 @@ type EapPacket struct {
 func (a *EapPacket) Encode() (b []byte) {
 	b = make([]byte, len(a.Data)+5)
 	b[0] = byte(a.Code)
-	b[1] = byte(a.Identifier)
+	b[1] = a.Identifier
 	binary.BigEndian.PutUint16(b[2:4], uint16(len(a.Data)+5))
 	b[4] = byte(a.Type)
 	copy(b[5:], a.Data)
@@ -55,7 +55,7 @@ func EapDecode(b []byte) (eap *EapPacket, err error) {
 	}
 	eap = &EapPacket{
 		Code:       EapCode(b[0]),
-		Identifier: uint8(b[1]),
+		Identifier: b[1],
 		Type:       EapType(b[4]),
 		Data:       b[5:length],
 	}

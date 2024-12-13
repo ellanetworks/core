@@ -38,7 +38,7 @@ func NewResourceManager(ipRange string, teidRange uint32) (*ResourceManager, err
 
 		freeIPs := make([]net.IP, 0, 1024)
 		for ip := ipGenerator.Next(); ip != nil; ip = ipGenerator.Next() {
-			freeIPs = append(freeIPs, net.IP(ip))
+			freeIPs = append(freeIPs, ip)
 		}
 
 		ipam = IPAM{

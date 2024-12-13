@@ -17,32 +17,32 @@ func deepCopySessionRule(src *models.SessionRule) *models.SessionRule {
 	if src == nil {
 		return nil
 	}
-	copy := *src
-	return &copy
+	copiedSessionRule := *src
+	return &copiedSessionRule
 }
 
 func deepCopyPccRule(src *models.PccRule) *models.PccRule {
 	if src == nil {
 		return nil
 	}
-	copy := *src
-	return &copy
+	copiedPccRule := *src
+	return &copiedPccRule
 }
 
 func deepCopyQosData(src *models.QosData) *models.QosData {
 	if src == nil {
 		return nil
 	}
-	copy := *src
-	return &copy
+	copiedQosData := *src
+	return &copiedQosData
 }
 
 func deepCopyTrafficControlData(src *models.TrafficControlData) *models.TrafficControlData {
 	if src == nil {
 		return nil
 	}
-	copy := *src
-	return &copy
+	copiedTrafficControlData := *src
+	return &copiedTrafficControlData
 }
 
 func CreateSMPolicy(request models.SmPolicyContextData) (
