@@ -1,6 +1,6 @@
 package models
 
-type Gnb struct {
+type Radio struct {
 	Name string `json:"name"`
 	Tac  string `json:"tac"`
 }

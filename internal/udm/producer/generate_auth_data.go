@@ -70,14 +70,6 @@ func strictHex(s string, n int) string {
 	}
 }
 
-func CreateAuthEvent(authEvent models.AuthEvent, supi string) error {
-	err := producer.EditAuthenticationStatus(supi, authEvent)
-	if err != nil {
-		return fmt.Errorf("EditAuthenticationStatus error: %w", err)
-	}
-	return nil
-}
-
 func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (
 	*models.AuthenticationInfoResult, error,
 ) {
@@ -226,7 +218,6 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 			// increment sqn authSubs.SequenceNumber
 			bigSQN := big.NewInt(0)
 			sqnStr = hex.EncodeToString(SQNms)
-			fmt.Printf("SQNstr %s\n", sqnStr)
 			bigSQN.SetString(sqnStr, 16)
 
 			bigInc := big.NewInt(ind + 1)
@@ -259,15 +250,8 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 
 	SQNheStr := fmt.Sprintf("%x", bigSQN)
 	SQNheStr = strictHex(SQNheStr, 12)
-	patchItemArray := []models.PatchItem{
-		{
-			Op:    models.PatchOperation_REPLACE,
-			Path:  "/sequenceNumber",
-			Value: SQNheStr,
-		},
-	}
 
-	err = producer.EditAuthenticationSubscription(supi, patchItemArray)
+	err = producer.EditAuthenticationSubscription(supi, SQNheStr)
 	if err != nil {
 		return nil, fmt.Errorf("update sqn error: %w", err)
 	}

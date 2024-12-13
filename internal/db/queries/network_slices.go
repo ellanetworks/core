@@ -11,28 +11,28 @@ import (
 
 func ListNetworkSliceNames() ([]string, error) {
 	var networkSlices []string = make([]string, 0)
-	rawNetworkSlices, err := db.CommonDBClient.RestfulAPIGetMany(db.SliceDataColl, bson.M{})
+	rawNetworkSlices, err := db.CommonDBClient.RestfulAPIGetMany(db.NetworkSlicesColl, bson.M{})
 	if err != nil {
 		return nil, err
 	}
 	for _, rawNetworkSlice := range rawNetworkSlices {
-		if rawNetworkSlice["slice-name"] == nil {
-			logger.DBLog.Warnln("Could not find slice-name in network slice")
+		if rawNetworkSlice["name"] == nil {
+			logger.DBLog.Warnln("Could not find name in network slice")
 			continue
 		}
-		networkSlices = append(networkSlices, rawNetworkSlice["slice-name"].(string))
+		networkSlices = append(networkSlices, rawNetworkSlice["name"].(string))
 	}
 	return networkSlices, nil
 }
 
-func ListNetworkSlices() []*models.Slice {
-	rawSlices, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.SliceDataColl, nil)
+func ListNetworkSlices() []*models.NetworkSlice {
+	rawSlices, errGetMany := db.CommonDBClient.RestfulAPIGetMany(db.NetworkSlicesColl, nil)
 	if errGetMany != nil {
 		return nil
 	}
-	var slices []*models.Slice
+	var slices []*models.NetworkSlice
 	for _, rawSlice := range rawSlices {
-		var sliceData models.Slice
+		var sliceData models.NetworkSlice
 		err := json.Unmarshal(mapToByte(rawSlice), &sliceData)
 		if err != nil {
 			logger.DBLog.Warnf("Could not unmarshal slice data: %v", rawSlice)
@@ -43,10 +43,10 @@ func ListNetworkSlices() []*models.Slice {
 	return slices
 }
 
-func GetNetworkSliceByName(name string) (*models.Slice, error) {
-	var networkSlice *models.Slice
-	filter := bson.M{"slice-name": name}
-	rawNetworkSlice, err := db.CommonDBClient.RestfulAPIGetOne(db.SliceDataColl, filter)
+func GetNetworkSliceByName(name string) (*models.NetworkSlice, error) {
+	var networkSlice *models.NetworkSlice
+	filter := bson.M{"name": name}
+	rawNetworkSlice, err := db.CommonDBClient.RestfulAPIGetOne(db.NetworkSlicesColl, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -55,18 +55,18 @@ func GetNetworkSliceByName(name string) (*models.Slice, error) {
 }
 
 func DeleteNetworkSlice(name string) error {
-	filter := bson.M{"slice-name": name}
-	err := db.CommonDBClient.RestfulAPIDeleteOne(db.SliceDataColl, filter)
+	filter := bson.M{"name": name}
+	err := db.CommonDBClient.RestfulAPIDeleteOne(db.NetworkSlicesColl, filter)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func CreateNetworkSlice(slice *models.Slice) error {
-	filter := bson.M{"slice-name": slice.SliceName}
+func CreateNetworkSlice(slice *models.NetworkSlice) error {
+	filter := bson.M{"name": slice.Name}
 	sliceDataBsonA := toBsonM(&slice)
-	_, err := db.CommonDBClient.RestfulAPIPost(db.SliceDataColl, filter, sliceDataBsonA)
+	_, err := db.CommonDBClient.RestfulAPIPost(db.NetworkSlicesColl, filter, sliceDataBsonA)
 	if err != nil {
 		return err
 	}

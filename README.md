@@ -16,6 +16,7 @@ Use Ella where you need 5G connectivity: in a factory, a warehouse, a farm, a st
 
 ## Tenets
 
+Building Ella, we make engineering decisions based on the following tenets:
 1. **Simplicity**: We are commited to develop the simplest possible mobile network out there. We thrive on having a very short "Getting Started" tutorial, a simple configuration file, a single binary, and a simple UI.
 2. **Reliability**: We are commited to develop a reliable mobile network you can trust to work 24/7. We are commited to deliver high quality code, tests, and documentation. We are commited to expose useful metrics and logs to help users monitor their network.
 3. **Security**: We are commited to minimizing the attack surface of the private network and to use secure encryption protocols to protect the data of our users.
@@ -53,10 +54,10 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 | `/api/v1/subscriber/{id}`    | GET         | Get a subscriber        |
 | `/api/v1/subscriber/{id}`    | PUT         | Update a subscriber     |
 | `/api/v1/subscriber/{id}`    | DELETE      | Delete a subscriber     |
-| `/api/v1/inventory/gnb`      | GET         | List radios             |
-| `/api/v1/inventory/gnb`      | POST        | Create a new radio      |
-| `/api/v1/inventory/gnb/{id}` | GET         | Get a radio             |
-| `/api/v1/inventory/gnb/{id}` | DELETE      | Delete a radio          |
+| `/api/v1/radios`             | GET         | List radios             |
+| `/api/v1/radios`             | POST        | Create a new radio      |
+| `/api/v1/radios/{id}`        | GET         | Get a radio             |
+| `/api/v1/radios/{id}`        | DELETE      | Delete a radio          |
 | `/api/v1/network-slice`      | GET         | List network slices     |
 | `/api/v1/network-slice`      | POST        | Create a new slice      |
 | `/api/v1/network-slice/{id}` | GET         | Get a slice             |
@@ -96,4 +97,14 @@ Ella uses 4 different interfaces:
 - **N3**: The user plane interface between Ella and the 5G Radio (SCTP:2152)
 - **N6**: The user plane interface between Ella and the internet
 
-![alt text](image.png)
+![alt text](connectivity.png)
+
+#### Acknowledgements
+
+Ella is built on top of the following open source projects:
+- [Aether](https://aetherproject.org/)
+- [eUPF](https://github.com/edgecomllc/eupf)
+
+#### Contributing
+
+We welcome contributions to Ella. Please read our [Contributing Guide](CONTRIBUTING.md) to get started.

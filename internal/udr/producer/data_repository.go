@@ -5,285 +5,147 @@ import (
 	"strconv"
 
 	"github.com/omec-project/openapi/models"
-	dbModels "github.com/yeastengine/ella/internal/db/models"
 	"github.com/yeastengine/ella/internal/db/queries"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/udr/context"
 )
 
-var CurrentResourceUri string
+const (
+	AuthenticationManagementField = "8000"
+	EncryptionAlgorithm           = 0
+	EncryptionKey                 = 0
+	OpValue                       = ""
+)
+
+var AllowedSscModes = []string{
+	"SSC_MODE_2",
+	"SSC_MODE_3",
+}
+
+var AllowedSessionTypes = []models.PduSessionType{models.PduSessionType_IPV4}
 
 // This function is defined twice, here and in the NMS. We should move it to a common place.
-func convertDbAmDataToModel(dbAmData *dbModels.AccessAndMobilitySubscriptionData) *models.AccessAndMobilitySubscriptionData {
-	if dbAmData == nil {
-		return &models.AccessAndMobilitySubscriptionData{}
-	}
+func convertDbAmDataToModel(sd string, sst int32, bitrateDownlink string, bitrateUplink string) *models.AccessAndMobilitySubscriptionData {
 	amData := &models.AccessAndMobilitySubscriptionData{
-		Gpsis: dbAmData.Gpsis,
 		Nssai: &models.Nssai{
 			DefaultSingleNssais: make([]models.Snssai, 0),
 			SingleNssais:        make([]models.Snssai, 0),
 		},
 		SubscribedUeAmbr: &models.AmbrRm{
-			Downlink: dbAmData.SubscribedUeAmbr.Downlink,
-			Uplink:   dbAmData.SubscribedUeAmbr.Uplink,
+			Downlink: bitrateDownlink,
+			Uplink:   bitrateUplink,
 		},
 	}
-	for _, snssai := range dbAmData.Nssai.DefaultSingleNssais {
-		amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
-			Sd:  snssai.Sd,
-			Sst: snssai.Sst,
-		})
-	}
-	for _, snssai := range dbAmData.Nssai.SingleNssais {
-		amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
-			Sd:  snssai.Sd,
-			Sst: snssai.Sst,
-		})
-	}
+	amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
+		Sd:  sd,
+		Sst: sst,
+	})
+	amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
+		Sd:  sd,
+		Sst: sst,
+	})
 	return amData
 }
 
 func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
-	dbAmData, err := queries.GetAmData(ueId)
+	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	if dbAmData == nil {
-		return nil, fmt.Errorf("USER_NOT_FOUND")
-	}
-	amData := convertDbAmDataToModel(dbAmData)
+	amData := convertDbAmDataToModel(subscriber.Sd, subscriber.Sst, subscriber.BitRateDownlink, subscriber.BitRateUplink)
 	return amData, nil
 }
 
-func PatchAmfContext3gpp(ueId string, patchItem []models.PatchItem) error {
-	origValue, err := queries.GetAmf3GPP(ueId)
+func EditAuthenticationSubscription(ueId string, sequenceNumber string) error {
+	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
+		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-
-	dbPatchItem := make([]dbModels.PatchItem, 0)
-	for _, item := range patchItem {
-		dbPatchItem = append(dbPatchItem, dbModels.PatchItem{
-			Op:    item.Op,
-			Path:  item.Path,
-			From:  item.From,
-			Value: item.Value,
-		})
-	}
-	err = queries.PatchAmf3GPP(ueId, dbPatchItem)
+	subscriber.SequenceNumber = sequenceNumber
+	err = queries.CreateSubscriber(subscriber)
 	if err != nil {
-		return fmt.Errorf("ModifyNotAllowed")
+		return fmt.Errorf("couldn't update subscriber %s: %v", ueId, err)
 	}
-
-	newValue, err := queries.GetAmf3GPP(ueId)
-	if err != nil {
-		logger.UdrLog.Warnln(err)
-	}
-	PreHandleOnDataChangeNotify(ueId, CurrentResourceUri, patchItem, origValue, newValue)
 	return nil
 }
 
-func CreateAmfContext3gpp(ueId string, Amf3GppAccessRegistration models.Amf3GppAccessRegistration) error {
-	dbAmfData := &dbModels.Amf3GppAccessRegistration{
-		InitialRegistrationInd: Amf3GppAccessRegistration.InitialRegistrationInd,
-		Guami: &dbModels.Guami{
-			PlmnId: &dbModels.PlmnId{
-				Mcc: Amf3GppAccessRegistration.Guami.PlmnId.Mcc,
-				Mnc: Amf3GppAccessRegistration.Guami.PlmnId.Mnc,
-			},
-			AmfId: Amf3GppAccessRegistration.Guami.AmfId,
-		},
-		RatType:          dbModels.RatType(Amf3GppAccessRegistration.RatType),
-		AmfInstanceId:    Amf3GppAccessRegistration.AmfInstanceId,
-		ImsVoPs:          dbModels.ImsVoPs(Amf3GppAccessRegistration.ImsVoPs),
-		DeregCallbackUri: Amf3GppAccessRegistration.DeregCallbackUri,
-	}
-	err := queries.EditAmf3GPP(ueId, dbAmfData)
-	return err
-}
-
-func convertDbAmf3GppAccessRegistrationToModel(dbAmf3Gpp *dbModels.Amf3GppAccessRegistration) *models.Amf3GppAccessRegistration {
-	if dbAmf3Gpp == nil {
-		return &models.Amf3GppAccessRegistration{}
-	}
-	amf3Gpp := &models.Amf3GppAccessRegistration{
-		InitialRegistrationInd: dbAmf3Gpp.InitialRegistrationInd,
-		Guami: &models.Guami{
-			PlmnId: &models.PlmnId{
-				Mcc: dbAmf3Gpp.Guami.PlmnId.Mcc,
-				Mnc: dbAmf3Gpp.Guami.PlmnId.Mnc,
-			},
-			AmfId: dbAmf3Gpp.Guami.AmfId,
-		},
-		RatType:          models.RatType(dbAmf3Gpp.RatType),
-		AmfInstanceId:    dbAmf3Gpp.AmfInstanceId,
-		ImsVoPs:          models.ImsVoPs(dbAmf3Gpp.ImsVoPs),
-		DeregCallbackUri: dbAmf3Gpp.DeregCallbackUri,
-	}
-	return amf3Gpp
-}
-
-func GetAmfContext3gpp(ueId string) (*models.Amf3GppAccessRegistration, error) {
-	dbAmf3Gpp, err := queries.GetAmf3GPP(ueId)
-	if err != nil {
-		logger.UdrLog.Warnln(err)
-	}
-	if dbAmf3Gpp == nil {
-		return nil, fmt.Errorf("USER_NOT_FOUND")
-	}
-	amf3Gpp := convertDbAmf3GppAccessRegistrationToModel(dbAmf3Gpp)
-	return amf3Gpp, nil
-}
-
-func EditAuthenticationSubscription(ueId string, patchItem []models.PatchItem) error {
-	origValue, err := queries.GetAuthenticationSubscription(ueId)
-	if err != nil {
-		logger.UdrLog.Warnln(err)
-	}
-
-	dbPatchItem := make([]dbModels.PatchItem, 0)
-	for _, item := range patchItem {
-		dbPatchItem = append(dbPatchItem, dbModels.PatchItem{
-			Op:    item.Op,
-			Path:  item.Path,
-			From:  item.From,
-			Value: item.Value,
-		})
-	}
-	err = queries.PatchAuthenticationSubscription(ueId, dbPatchItem)
-
-	if err == nil {
-		newValue, err := queries.GetAuthenticationSubscription(ueId)
-		if err != nil {
-			logger.UdrLog.Warnln(err)
-		}
-		PreHandleOnDataChangeNotify(ueId, CurrentResourceUri, patchItem, origValue, newValue)
-		return nil
-	} else {
-		return err
-	}
-}
-
-func convertDbAuthSubsDataToModel(dbAuthSubsData *dbModels.AuthenticationSubscription) *models.AuthenticationSubscription {
-	if dbAuthSubsData == nil {
-		return &models.AuthenticationSubscription{}
-	}
+func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string) *models.AuthenticationSubscription {
 	authSubsData := &models.AuthenticationSubscription{}
-	authSubsData.AuthenticationManagementField = dbAuthSubsData.AuthenticationManagementField
-	authSubsData.AuthenticationMethod = models.AuthMethod(dbAuthSubsData.AuthenticationMethod)
-	if dbAuthSubsData.Milenage != nil {
-		authSubsData.Milenage = &models.Milenage{
-			Op: &models.Op{
-				EncryptionAlgorithm: dbAuthSubsData.Milenage.Op.EncryptionAlgorithm,
-				EncryptionKey:       dbAuthSubsData.Milenage.Op.EncryptionKey,
-				OpValue:             dbAuthSubsData.Milenage.Op.OpValue,
-			},
-		}
+	authSubsData.AuthenticationManagementField = AuthenticationManagementField
+	authSubsData.AuthenticationMethod = models.AuthMethod__5_G_AKA
+	authSubsData.Milenage = &models.Milenage{
+		Op: &models.Op{
+			EncryptionAlgorithm: EncryptionAlgorithm,
+			EncryptionKey:       EncryptionKey,
+			OpValue:             OpValue,
+		},
 	}
-	if dbAuthSubsData.Opc != nil {
-		authSubsData.Opc = &models.Opc{
-			EncryptionAlgorithm: dbAuthSubsData.Opc.EncryptionAlgorithm,
-			EncryptionKey:       dbAuthSubsData.Opc.EncryptionKey,
-			OpcValue:            dbAuthSubsData.Opc.OpcValue,
-		}
+	authSubsData.Opc = &models.Opc{
+		EncryptionAlgorithm: EncryptionAlgorithm,
+		EncryptionKey:       EncryptionKey,
+		OpcValue:            opc,
 	}
-	if dbAuthSubsData.PermanentKey != nil {
-		authSubsData.PermanentKey = &models.PermanentKey{
-			EncryptionAlgorithm: dbAuthSubsData.PermanentKey.EncryptionAlgorithm,
-			EncryptionKey:       dbAuthSubsData.PermanentKey.EncryptionKey,
-			PermanentKeyValue:   dbAuthSubsData.PermanentKey.PermanentKeyValue,
-		}
+	authSubsData.PermanentKey = &models.PermanentKey{
+		EncryptionAlgorithm: EncryptionAlgorithm,
+		EncryptionKey:       EncryptionKey,
+		PermanentKeyValue:   key,
 	}
-	authSubsData.SequenceNumber = dbAuthSubsData.SequenceNumber
+	authSubsData.SequenceNumber = sequenceNumber
 
 	return authSubsData
 }
 
 func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
-	dbAuthSubs, err := queries.GetAuthenticationSubscription(ueId)
+	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	if dbAuthSubs == nil {
-		return nil, fmt.Errorf("USER_NOT_FOUND")
-	}
-	authSubs := convertDbAuthSubsDataToModel(dbAuthSubs)
-	return authSubs, nil
-}
-
-func EditAuthenticationStatus(ueID string, authStatus models.AuthEvent) error {
-	dbAuthStatus := &dbModels.AuthEvent{
-		NfInstanceId:       authStatus.NfInstanceId,
-		Success:            authStatus.Success,
-		TimeStamp:          authStatus.TimeStamp,
-		AuthType:           dbModels.AuthType(authStatus.AuthType),
-		ServingNetworkName: authStatus.ServingNetworkName,
-	}
-
-	err := queries.EditAuthenticationStatus(ueID, dbAuthStatus)
-	return err
-}
-
-// We have this function twice, here and in the NMS. We should move it to a common place.
-func convertDbAmPolicyDataToModel(dbAmPolicyData *dbModels.AmPolicyData) *models.AmPolicyData {
-	if dbAmPolicyData == nil {
-		return &models.AmPolicyData{}
-	}
-	amPolicyData := &models.AmPolicyData{
-		SubscCats: dbAmPolicyData.SubscCats,
-	}
-	return amPolicyData
+	authSubsData := convertDbAuthSubsDataToModel(subscriber.OpcValue, subscriber.PermanentKeyValue, subscriber.SequenceNumber)
+	return authSubsData, nil
 }
 
 func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
-	dbAmPolicyData, err := queries.GetAmPolicyData(ueId)
+	_, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
-	}
-	if dbAmPolicyData == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
-	amPolicyData := convertDbAmPolicyDataToModel(dbAmPolicyData)
+
+	amPolicyData := &models.AmPolicyData{}
 	return amPolicyData, nil
 }
 
 // We have this function twice, here and in the NMS. We should move it to a common place.
-func convertDbSmPolicyDataToModel(dbSmPolicyData *dbModels.SmPolicyData) *models.SmPolicyData {
-	if dbSmPolicyData == nil {
-		return &models.SmPolicyData{}
-	}
+func convertDbSmPolicyDataToModel(sst int32, sd string, dnn string) *models.SmPolicyData {
 	smPolicyData := &models.SmPolicyData{
 		SmPolicySnssaiData: make(map[string]models.SmPolicySnssaiData),
 	}
-	for snssai, dbSmPolicySnssaiData := range dbSmPolicyData.SmPolicySnssaiData {
-		smPolicyData.SmPolicySnssaiData[snssai] = models.SmPolicySnssaiData{
-			Snssai: &models.Snssai{
-				Sd:  dbSmPolicySnssaiData.Snssai.Sd,
-				Sst: dbSmPolicySnssaiData.Snssai.Sst,
-			},
-			SmPolicyDnnData: make(map[string]models.SmPolicyDnnData),
-		}
-		smPolicySnssaiData := smPolicyData.SmPolicySnssaiData[snssai]
-		for dnn, dbSmPolicyDnnData := range dbSmPolicySnssaiData.SmPolicyDnnData {
-			smPolicySnssaiData.SmPolicyDnnData[dnn] = models.SmPolicyDnnData{
-				Dnn: dbSmPolicyDnnData.Dnn,
-			}
-		}
-		smPolicyData.SmPolicySnssaiData[snssai] = smPolicySnssaiData
+	snssai := fmt.Sprintf("%d%s", sst, sd)
+	smPolicyData.SmPolicySnssaiData[snssai] = models.SmPolicySnssaiData{
+		Snssai: &models.Snssai{
+			Sd:  sd,
+			Sst: sst,
+		},
+		SmPolicyDnnData: make(map[string]models.SmPolicyDnnData),
 	}
+	smPolicySnssaiData := smPolicyData.SmPolicySnssaiData[snssai]
+	smPolicySnssaiData.SmPolicyDnnData[dnn] = models.SmPolicyDnnData{
+		Dnn: dnn,
+	}
+	smPolicyData.SmPolicySnssaiData[snssai] = smPolicySnssaiData
 	return smPolicyData
 }
 
 func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
-	dbSmPolicyData, err := queries.GetSmPolicyData(ueId)
+	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	if dbSmPolicyData == nil {
-		return nil, fmt.Errorf("USER_NOT_FOUND")
-	}
-	smPolicyData := convertDbSmPolicyDataToModel(dbSmPolicyData)
+	smPolicyData := convertDbSmPolicyDataToModel(subscriber.Sst, subscriber.Sd, subscriber.Dnn)
 	return smPolicyData, nil
 }
 
@@ -353,91 +215,84 @@ func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string)
 	return SdmSubscription
 }
 
-func convertDbSessionManagementDataToModel(dbSmData []*dbModels.SessionManagementSubscriptionData) []models.SessionManagementSubscriptionData {
-	if dbSmData == nil {
-		return nil
-	}
+func convertDbSessionManagementDataToModel(
+	dnn string,
+	sst int32,
+	sd string,
+	bitrateDownlink string,
+	bitrateUplink string,
+	var5qi int32,
+	priorityLevel int32,
+) []models.SessionManagementSubscriptionData {
 	smData := make([]models.SessionManagementSubscriptionData, 0)
-	for _, smDataObj := range dbSmData {
-		smDataObjModel := models.SessionManagementSubscriptionData{
-			SingleNssai: &models.Snssai{
-				Sst: smDataObj.SingleNssai.Sst,
-				Sd:  smDataObj.SingleNssai.Sd,
-			},
-			DnnConfigurations: make(map[string]models.DnnConfiguration),
-		}
-		for dnn, dnnConfig := range smDataObj.DnnConfigurations {
-			smDataObjModel.DnnConfigurations[dnn] = models.DnnConfiguration{
-				PduSessionTypes: &models.PduSessionTypes{
-					DefaultSessionType:  models.PduSessionType(dnnConfig.PduSessionTypes.DefaultSessionType),
-					AllowedSessionTypes: make([]models.PduSessionType, 0),
-				},
-				SscModes: &models.SscModes{
-					DefaultSscMode:  models.SscMode(dnnConfig.SscModes.DefaultSscMode),
-					AllowedSscModes: make([]models.SscMode, 0),
-				},
-				SessionAmbr: &models.Ambr{
-					Downlink: dnnConfig.SessionAmbr.Downlink,
-					Uplink:   dnnConfig.SessionAmbr.Uplink,
-				},
-				Var5gQosProfile: &models.SubscribedDefaultQos{
-					Var5qi:        dnnConfig.Var5gQosProfile.Var5qi,
-					Arp:           &models.Arp{PriorityLevel: dnnConfig.Var5gQosProfile.Arp.PriorityLevel},
-					PriorityLevel: dnnConfig.Var5gQosProfile.PriorityLevel,
-				},
-			}
-			for _, sessionType := range dnnConfig.PduSessionTypes.AllowedSessionTypes {
-				smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes, models.PduSessionType(sessionType))
-			}
-			for _, sscMode := range dnnConfig.SscModes.AllowedSscModes {
-				smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes, models.SscMode(sscMode))
-			}
-		}
-		smData = append(smData, smDataObjModel)
+	smDataObjModel := models.SessionManagementSubscriptionData{
+		SingleNssai: &models.Snssai{
+			Sst: sst,
+			Sd:  sd,
+		},
+		DnnConfigurations: make(map[string]models.DnnConfiguration),
 	}
+	smDataObjModel.DnnConfigurations[dnn] = models.DnnConfiguration{
+		PduSessionTypes: &models.PduSessionTypes{
+			DefaultSessionType:  models.PduSessionType_IPV4,
+			AllowedSessionTypes: make([]models.PduSessionType, 0),
+		},
+		SscModes: &models.SscModes{
+			DefaultSscMode:  models.SscMode__1,
+			AllowedSscModes: make([]models.SscMode, 0),
+		},
+		SessionAmbr: &models.Ambr{
+			Downlink: bitrateDownlink,
+			Uplink:   bitrateUplink,
+		},
+		Var5gQosProfile: &models.SubscribedDefaultQos{
+			Var5qi:        var5qi,
+			Arp:           &models.Arp{PriorityLevel: priorityLevel},
+			PriorityLevel: priorityLevel,
+		},
+	}
+	for _, sessionType := range AllowedSessionTypes {
+		smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes, models.PduSessionType(sessionType))
+	}
+	for _, sscMode := range AllowedSscModes {
+		smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes, models.SscMode(sscMode))
+	}
+	smData = append(smData, smDataObjModel)
 	return smData
 }
 
 func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) {
-	dbSessionManagementData, err := queries.ListSmData(ueId)
+	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
-		return nil, fmt.Errorf("USER_NOT_FOUND")
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	sessionManagementData := convertDbSessionManagementDataToModel(dbSessionManagementData)
+
+	sessionManagementData := convertDbSessionManagementDataToModel(subscriber.Dnn, subscriber.Sst, subscriber.Sd, subscriber.BitRateDownlink, subscriber.BitRateUplink, subscriber.Var5qi, subscriber.PriorityLevel)
 	return sessionManagementData, nil
 }
 
 // We have this function twice, here and in the NMS. We should move it to a common place.
-func convertDbSmfSelectionDataToModel(dbSmfSelectionData *dbModels.SmfSelectionSubscriptionData) *models.SmfSelectionSubscriptionData {
-	if dbSmfSelectionData == nil {
-		return &models.SmfSelectionSubscriptionData{}
-	}
+func convertDbSmfSelectionDataToModel(snssai, dnn string) *models.SmfSelectionSubscriptionData {
 	smfSelectionData := &models.SmfSelectionSubscriptionData{
 		SubscribedSnssaiInfos: make(map[string]models.SnssaiInfo),
 	}
-	for snssai, dbSnssaiInfo := range dbSmfSelectionData.SubscribedSnssaiInfos {
-		smfSelectionData.SubscribedSnssaiInfos[snssai] = models.SnssaiInfo{
-			DnnInfos: make([]models.DnnInfo, 0),
-		}
-		snssaiInfo := smfSelectionData.SubscribedSnssaiInfos[snssai]
-		for _, dbDnnInfo := range dbSnssaiInfo.DnnInfos {
-			snssaiInfo.DnnInfos = append(snssaiInfo.DnnInfos, models.DnnInfo{
-				Dnn: dbDnnInfo.Dnn,
-			})
-		}
-		smfSelectionData.SubscribedSnssaiInfos[snssai] = snssaiInfo
+	smfSelectionData.SubscribedSnssaiInfos[snssai] = models.SnssaiInfo{
+		DnnInfos: make([]models.DnnInfo, 0),
 	}
+	snssaiInfo := smfSelectionData.SubscribedSnssaiInfos[snssai]
+	snssaiInfo.DnnInfos = append(snssaiInfo.DnnInfos, models.DnnInfo{
+		Dnn: dnn,
+	})
+	smfSelectionData.SubscribedSnssaiInfos[snssai] = snssaiInfo
 	return smfSelectionData
 }
 
 func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
-	dbSmfSelectionSubscriptionData, err := queries.GetSmfSelectionSubscriptionData(ueId)
+	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 	}
-	if dbSmfSelectionSubscriptionData == nil {
-		return nil, fmt.Errorf("USER_NOT_FOUND")
-	}
-	smfSelectionSubscriptionData := convertDbSmfSelectionDataToModel(dbSmfSelectionSubscriptionData)
+	snssai := fmt.Sprintf("%d%s", subscriber.Sst, subscriber.Sd)
+	smfSelectionSubscriptionData := convertDbSmfSelectionDataToModel(snssai, subscriber.Dnn)
 	return smfSelectionSubscriptionData, nil
 }
