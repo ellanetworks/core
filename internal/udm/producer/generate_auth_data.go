@@ -251,15 +251,8 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 
 	SQNheStr := fmt.Sprintf("%x", bigSQN)
 	SQNheStr = strictHex(SQNheStr, 12)
-	patchItemArray := []models.PatchItem{
-		{
-			Op:    models.PatchOperation_REPLACE,
-			Path:  "/sequenceNumber",
-			Value: SQNheStr,
-		},
-	}
 
-	err = producer.EditAuthenticationSubscription(supi, patchItemArray)
+	err = producer.EditAuthenticationSubscription(supi, SQNheStr)
 	if err != nil {
 		return nil, fmt.Errorf("update sqn error: %w", err)
 	}

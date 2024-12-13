@@ -214,22 +214,12 @@ func GetSubscriberByID(c *gin.Context) {
 		return
 	}
 
-	dbAuthSubsData, err := queries.GetAuthenticationSubscription(ueId)
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-		c.JSON(http.StatusInternalServerError, gin.H{})
-		return
-	}
-	if dbAuthSubsData == nil {
-		c.JSON(http.StatusNotFound, gin.H{})
-		return
-	}
 	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}
 
-	authSubsData := convertDbAuthSubsDataToModel(dbAuthSubsData)
+	authSubsData := convertDbAuthSubsDataToModel(subscriber.AuthenticationSubscription)
 	amData := convertDbAmDataToModel(subscriber.AccessAndMobilitySubscriptionData)
 	smData := convertDbSmDataToModel(subscriber.SessionManagementSubscriptionData)
 	smfSelectionData := convertDbSmfSelectionDataToModel(subscriber.SmfSelectionSubscriptionData)
@@ -320,7 +310,7 @@ func PostSubscriberByID(c *gin.Context) {
 
 	dbSubscriber := &dbModels.Subscriber{
 		UeId:                              ueId,
-		AuthenticationSubscription:        dbAuthSubsData,
+		AuthenticationSubscription:        &dbAuthSubsData,
 		AccessAndMobilitySubscriptionData: &amData,
 	}
 	err := queries.CreateSubscriber(dbSubscriber)
@@ -345,15 +335,14 @@ func PutSubscriberByID(c *gin.Context) {
 
 	imsiVal := strings.ReplaceAll(ueId, "imsi-", "")
 	imsiData[imsiVal] = &subsData.AuthenticationSubscription
-	amData := &dbModels.AccessAndMobilitySubscriptionData{}
-	err := queries.CreateSubscriberAmData(ueId, amData)
+	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 		return
 	}
-
-	logger.NmsLog.Debugln("Config5GUpdateHandle: Insert/Update AuthenticationSubscription ", ueId)
-	dbAuthSubsData := &dbModels.AuthenticationSubscription{
+	amData := &dbModels.AccessAndMobilitySubscriptionData{}
+	subscriber.AccessAndMobilitySubscriptionData = amData
+	subscriber.AuthenticationSubscription = &dbModels.AuthenticationSubscription{
 		AuthenticationManagementField: subsData.AuthenticationSubscription.AuthenticationManagementField,
 		AuthenticationMethod:          dbModels.AuthMethod(subsData.AuthenticationSubscription.AuthenticationMethod),
 		Milenage: &dbModels.Milenage{
@@ -375,10 +364,13 @@ func PutSubscriberByID(c *gin.Context) {
 		},
 		SequenceNumber: subsData.AuthenticationSubscription.SequenceNumber,
 	}
-	err = queries.CreateSubscriberAuthenticationSubscription(ueId, dbAuthSubsData)
+
+	err = queries.CreateSubscriber(subscriber)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
+		return
 	}
+
 	logger.NmsLog.Infof("Edited Subscriber: %v", ueId)
 }
 
@@ -389,14 +381,9 @@ func PatchSubscriberByID(c *gin.Context) {
 
 func DeleteSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
-	logger.NmsLog.Infoln("Delete One Subscriber Data")
 	ueId := c.Param("ueId")
 	c.JSON(http.StatusNoContent, gin.H{})
-	err := queries.DeleteAuthenticationSubscription(ueId)
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-	}
-	err = queries.DeleteSubscriberAmData(ueId)
+	err := queries.DeleteSubscriber(ueId)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}

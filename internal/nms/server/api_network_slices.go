@@ -178,23 +178,18 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 		devGroupConfig := queries.GetProfile(dgname)
 		if devGroupConfig != nil {
 			for _, imsi := range devGroupConfig.Imsis {
-				err := queries.DeleteAmPolicy(imsi)
+				ueId := "imsi-" + imsi
+				subscriber, err := queries.GetSubscriber(ueId)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
+					continue
 				}
-				err = queries.DeleteSmPolicy(imsi)
-				if err != nil {
-					logger.NmsLog.Warnln(err)
-				}
-				err = queries.DeleteSubscriberAmData(imsi)
-				if err != nil {
-					logger.NmsLog.Warnln(err)
-				}
-				err = queries.DeleteSmData(imsi)
-				if err != nil {
-					logger.NmsLog.Warnln(err)
-				}
-				err = queries.DeleteSmfSelection(imsi)
+				subscriber.SmfSelectionSubscriptionData = &dbModels.SmfSelectionSubscriptionData{}
+				subscriber.SmPolicyData = &dbModels.SmPolicyData{}
+				subscriber.SessionManagementSubscriptionData = []*dbModels.SessionManagementSubscriptionData{}
+				subscriber.AmPolicyData = &dbModels.AmPolicyData{}
+				subscriber.AccessAndMobilitySubscriptionData = &dbModels.AccessAndMobilitySubscriptionData{}
+				err = queries.CreateSubscriber(subscriber)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
 				}
@@ -267,12 +262,16 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 				mcc := procReq.SiteInfo.Plmn.Mcc
 				mnc := procReq.SiteInfo.Plmn.Mnc
 				ueId := "imsi-" + imsi
-				err = queries.CreateSubscriberAmPolicyData(ueId)
+				subscriber, err := queries.GetSubscriber(ueId)
 				if err != nil {
-					logger.NmsLog.Warnln(err)
-					return false
+					logger.NmsLog.Warnf("Could not get subscriber %v", ueId)
+					continue
 				}
-				smPolicyData := &dbModels.SmPolicyData{
+				amPolicy := &dbModels.AmPolicyData{
+					SubscCats: make([]string, 0),
+				}
+				amPolicy.SubscCats = append(amPolicy.SubscCats, "free5gc")
+				subscriber.SmPolicyData = &dbModels.SmPolicyData{
 					SmPolicySnssaiData: map[string]dbModels.SmPolicySnssaiData{
 						SnssaiModelsToHex(*snssai): {
 							Snssai: snssai,
@@ -284,12 +283,8 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 						},
 					},
 				}
-				err = queries.CreateSubscriberSmPolicyData(ueId, smPolicyData)
-				if err != nil {
-					logger.NmsLog.Warnln(err)
-					return false
-				}
-				amData := &dbModels.AccessAndMobilitySubscriptionData{
+				subscriber.AmPolicyData = amPolicy
+				subscriber.AccessAndMobilitySubscriptionData = &dbModels.AccessAndMobilitySubscriptionData{
 					ServingPlmnId: mcc + mnc,
 					Nssai: &dbModels.Nssai{
 						DefaultSingleNssais: []dbModels.Snssai{*snssai},
@@ -299,11 +294,6 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 						Downlink: convertToString(uint64(dbDeviceGroup.DnnMbrDownlink)),
 						Uplink:   convertToString(uint64(dbDeviceGroup.DnnMbrUplink)),
 					},
-				}
-				err = queries.CreateSubscriberAmData(ueId, amData)
-				if err != nil {
-					logger.NmsLog.Warnln(err)
-					return false
 				}
 				smData := &dbModels.SessionManagementSubscriptionData{
 					ServingPlmnId: mcc + mnc,
@@ -335,12 +325,8 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 						},
 					},
 				}
-				err = queries.CreateSubscriberSmData(ueId, smData)
-				if err != nil {
-					logger.NmsLog.Warnln(err)
-					return false
-				}
-				smfSelData := &dbModels.SmfSelectionSubscriptionData{
+				subscriber.SessionManagementSubscriptionData = append(subscriber.SessionManagementSubscriptionData, smData)
+				subscriber.SmfSelectionSubscriptionData = &dbModels.SmfSelectionSubscriptionData{
 					ServingPlmnId: mcc + mnc,
 					SubscribedSnssaiInfos: map[string]dbModels.SnssaiInfo{
 						SnssaiModelsToHex(*snssai): {
@@ -352,10 +338,10 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 						},
 					},
 				}
-				err = queries.CreateSubscriberSmfSelectionData(ueId, smfSelData)
+				err = queries.CreateSubscriber(subscriber)
 				if err != nil {
-					logger.NmsLog.Warnln(err)
-					return false
+					logger.NmsLog.Warnf("Could not create subscriber %v", ueId)
+					continue
 				}
 			}
 		}

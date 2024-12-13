@@ -199,7 +199,7 @@ type Snssai struct {
 type Subscriber struct {
 	PlmnID                            string                               `json:"plmnID"`
 	UeId                              string                               `json:"ueId"`
-	AuthenticationSubscription        AuthenticationSubscription           `json:"AuthenticationSubscription"`
+	AuthenticationSubscription        *AuthenticationSubscription          `json:"AuthenticationSubscription"`
 	AccessAndMobilitySubscriptionData *AccessAndMobilitySubscriptionData   `json:"AccessAndMobilitySubscriptionData"`
 	SessionManagementSubscriptionData []*SessionManagementSubscriptionData `json:"SessionManagementSubscriptionData"`
 	SmfSelectionSubscriptionData      *SmfSelectionSubscriptionData        `json:"SmfSelectionSubscriptionData"`

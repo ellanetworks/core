@@ -56,33 +56,20 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	return amData, nil
 }
 
-func EditAuthenticationSubscription(ueId string, patchItem []models.PatchItem) error {
-	origValue, err := queries.GetAuthenticationSubscription(ueId)
+func EditAuthenticationSubscription(ueId string, sequenceNumber string) error {
+	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 	}
-
-	dbPatchItem := make([]dbModels.PatchItem, 0)
-	for _, item := range patchItem {
-		dbPatchItem = append(dbPatchItem, dbModels.PatchItem{
-			Op:    item.Op,
-			Path:  item.Path,
-			From:  item.From,
-			Value: item.Value,
-		})
+	if subscriber.AuthenticationSubscription == nil {
+		return fmt.Errorf("USER_NOT_FOUND")
 	}
-	err = queries.PatchAuthenticationSubscription(ueId, dbPatchItem)
-
-	if err == nil {
-		newValue, err := queries.GetAuthenticationSubscription(ueId)
-		if err != nil {
-			logger.UdrLog.Warnln(err)
-		}
-		PreHandleOnDataChangeNotify(ueId, CurrentResourceUri, patchItem, origValue, newValue)
-		return nil
-	} else {
-		return err
+	subscriber.AuthenticationSubscription.SequenceNumber = sequenceNumber
+	err = queries.CreateSubscriber(subscriber)
+	if err != nil {
+		return fmt.Errorf("couldn't update subscriber %s: %v", ueId, err)
 	}
+	return nil
 }
 
 func convertDbAuthSubsDataToModel(dbAuthSubsData *dbModels.AuthenticationSubscription) *models.AuthenticationSubscription {
@@ -121,15 +108,16 @@ func convertDbAuthSubsDataToModel(dbAuthSubsData *dbModels.AuthenticationSubscri
 }
 
 func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
-	dbAuthSubs, err := queries.GetAuthenticationSubscription(ueId)
+	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 	}
-	if dbAuthSubs == nil {
+	dbAuthSubsData := subscriber.AuthenticationSubscription
+	if dbAuthSubsData == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
-	authSubs := convertDbAuthSubsDataToModel(dbAuthSubs)
-	return authSubs, nil
+	authSubsData := convertDbAuthSubsDataToModel(dbAuthSubsData)
+	return authSubsData, nil
 }
 
 // We have this function twice, here and in the NMS. We should move it to a common place.
