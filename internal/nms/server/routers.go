@@ -35,6 +35,18 @@ func AddApiService(engine *gin.Engine) *gin.RouterGroup {
 
 var routes = Routes{
 	{
+		"GetMetrics",
+		http.MethodGet,
+		"/metrics",
+		GetMetrics,
+	},
+	{
+		"GetStatus",
+		http.MethodGet,
+		"/status",
+		GetStatus,
+	},
+	{
 		"GetSubscribers",
 		http.MethodGet,
 		"/subscriber",
@@ -153,21 +165,21 @@ var routes = Routes{
 		NetworkSliceSliceNamePut,
 	},
 	{
-		"GetGnbs",
+		"ListRadios",
 		http.MethodGet,
-		"/inventory/gnb",
-		GetGnbs,
+		"/radios",
+		ListRadios,
 	},
 	{
-		"PostGnb",
+		"CreateRadio",
 		http.MethodPost,
-		"/inventory/gnb/:gnb-name",
-		PostGnb,
+		"/radios/:radio-name",
+		CreateRadio,
 	},
 	{
-		"DeleteGnb",
+		"DeleteRadio",
 		http.MethodDelete,
-		"/inventory/gnb/:gnb-name",
-		DeleteGnb,
+		"/radios/:radio-name",
+		DeleteRadio,
 	},
 }

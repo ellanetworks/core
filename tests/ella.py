@@ -12,7 +12,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-GNB_CONFIG_URL = "api/v1/inventory/gnb"
+GNB_CONFIG_URL = "api/v1/radios"
 
 JSON_HEADER = {"Content-Type": "application/json"}
 
@@ -56,8 +56,8 @@ NETWORK_SLICE_CONFIG = {
 
 
 @dataclass
-class CreateGnbParams:
-    """Parameters to create a gNB."""
+class CreateRadioParams:
+    """Parameters to create a radio."""
 
     tac: str
 
@@ -91,11 +91,11 @@ class Ella:
         json_response = response.json()
         return json_response
 
-    def create_gnb(self, name: str, tac: int) -> None:
-        """Create a gNB in the NMS inventory."""
-        create_gnb_params = CreateGnbParams(tac=str(tac))
-        self._make_request("POST", f"/{GNB_CONFIG_URL}/{name}", data=asdict(create_gnb_params))
-        logger.info("gNB %s created in NMS", name)
+    def create_radio(self, name: str, tac: int) -> None:
+        """Create a radio in the NMS."""
+        create_radio_params = CreateRadioParams(tac=str(tac))
+        self._make_request("POST", f"/{GNB_CONFIG_URL}/{name}", data=asdict(create_radio_params))
+        logger.info("Radio %s created in NMS", name)
 
     def create_subscriber(self, imsi: str) -> None:
         """Create a subscriber."""

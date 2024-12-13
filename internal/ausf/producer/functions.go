@@ -10,12 +10,9 @@ import (
 	"fmt"
 	"hash"
 	"strconv"
-	"time"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/ausf/context"
 	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/udm/producer"
 )
 
 func KDF5gAka(param ...string) hash.Hash {
@@ -259,35 +256,4 @@ func ConstructEapNoTypePkt(code EapCode, pktID uint8) string {
 	b[1] = pktID
 	binary.BigEndian.PutUint16(b[2:4], uint16(4))
 	return base64.StdEncoding.EncodeToString(b)
-}
-
-func sendAuthResultToUDM(id string, authType models.AuthType, success bool, servingNetworkName string) error {
-	timeNow := time.Now()
-	timePtr := &timeNow
-
-	var authEvent models.AuthEvent
-	authEvent.TimeStamp = timePtr
-	authEvent.AuthType = authType
-	authEvent.Success = success
-	authEvent.ServingNetworkName = servingNetworkName
-
-	err := producer.CreateAuthEvent(authEvent, id)
-	if err != nil {
-		logger.AusfLog.Infoln(err.Error())
-	}
-	return err
-}
-
-func logConfirmFailureAndInformUDM(id string, authType models.AuthType, errStr string) {
-	if authType == models.AuthType__5_G_AKA {
-		logger.AusfLog.Infoln(errStr)
-		if sendErr := sendAuthResultToUDM(id, authType, false, ""); sendErr != nil {
-			logger.AusfLog.Infoln(sendErr.Error())
-		}
-	} else if authType == models.AuthType_EAP_AKA_PRIME {
-		logger.AusfLog.Infoln(errStr)
-		if sendErr := sendAuthResultToUDM(id, authType, false, ""); sendErr != nil {
-			logger.AusfLog.Infoln(sendErr.Error())
-		}
-	}
 }

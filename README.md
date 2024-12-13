@@ -11,11 +11,12 @@ Use Ella where you need 5G connectivity: in a factory, a warehouse, a farm, a st
 * **5G compliant**: Ella is a 5G compliant core network. It can integrate with any 5G radio access network.
 * **Performant data plane**: Ella uses eBPF to implement the data plane. It is fast, secure, and reliable.
 * **Simple UI**: Ella has a web-based user interface for managing subscribers, radios, device groups, and network slices.
-* **Complete HTTP API**: Ella has a complete HTTP API. You can automate everything you can do in the UI.
-* **Encrypted communication**: Ella's HTTP API and UI are secured with TLS.
+* **Complete HTTP API**: Ella has a complete REST API. You can automate everything you can do in the UI.
+* **Encrypted communication**: Ella's API and UI are secured with TLS.
 
 ## Tenets
 
+Building Ella, we make engineering decisions based on the following tenets:
 1. **Simplicity**: We are commited to develop the simplest possible mobile network out there. We thrive on having a very short "Getting Started" tutorial, a simple configuration file, a single binary, and a simple UI.
 2. **Reliability**: We are commited to develop a reliable mobile network you can trust to work 24/7. We are commited to deliver high quality code, tests, and documentation. We are commited to expose useful metrics and logs to help users monitor their network.
 3. **Security**: We are commited to minimizing the attack surface of the private network and to use secure encryption protocols to protect the data of our users.
@@ -48,15 +49,17 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 
 | Endpoint                     | HTTP Method | Description             |
 | ---------------------------- | ----------- | ----------------------- |
+| `/api/v1/status`             | GET         | Get status              |
+| `/api/v1/metrics`            | GET         | Get metrics             |
 | `/api/v1/subscriber`         | GET         | List subscribers        |
 | `/api/v1/subscriber`         | POST        | Create a new subscriber |
 | `/api/v1/subscriber/{id}`    | GET         | Get a subscriber        |
 | `/api/v1/subscriber/{id}`    | PUT         | Update a subscriber     |
 | `/api/v1/subscriber/{id}`    | DELETE      | Delete a subscriber     |
-| `/api/v1/inventory/gnb`      | GET         | List radios             |
-| `/api/v1/inventory/gnb`      | POST        | Create a new radio      |
-| `/api/v1/inventory/gnb/{id}` | GET         | Get a radio             |
-| `/api/v1/inventory/gnb/{id}` | DELETE      | Delete a radio          |
+| `/api/v1/radios`             | GET         | List radios             |
+| `/api/v1/radios`             | POST        | Create a new radio      |
+| `/api/v1/radios/{id}`        | GET         | Get a radio             |
+| `/api/v1/radios/{id}`        | DELETE      | Delete a radio          |
 | `/api/v1/network-slice`      | GET         | List network slices     |
 | `/api/v1/network-slice`      | POST        | Create a new slice      |
 | `/api/v1/network-slice/{id}` | GET         | Get a slice             |
@@ -96,4 +99,14 @@ Ella uses 4 different interfaces:
 - **N3**: The user plane interface between Ella and the 5G Radio (SCTP:2152)
 - **N6**: The user plane interface between Ella and the internet
 
-![alt text](image.png)
+![alt text](connectivity.png)
+
+#### Acknowledgements
+
+Ella is built on top of the following open source projects:
+- [Aether](https://aetherproject.org/)
+- [eUPF](https://github.com/edgecomllc/eupf)
+
+#### Contributing
+
+We welcome contributions to Ella. Please read our [Contributing Guide](CONTRIBUTING.md) to get started.

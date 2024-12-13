@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mohae/deepcopy"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
@@ -173,8 +172,8 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 			if ranUe.AmfUe.Tai != ranUe.Tai {
 				ranUe.AmfUe.LocationChanged = true
 			}
-			ranUe.AmfUe.Location = deepcopy.Copy(ranUe.Location).(models.UserLocation)
-			ranUe.AmfUe.Tai = deepcopy.Copy(*ranUe.AmfUe.Location.EutraLocation.Tai).(models.Tai)
+			ranUe.AmfUe.Location = ranUe.Location
+			ranUe.AmfUe.Tai = *ranUe.AmfUe.Location.NrLocation.Tai
 		}
 	case ngapType.UserLocationInformationPresentUserLocationInformationNR:
 		locationInfoNR := userLocationInformation.UserLocationInformationNR
@@ -191,7 +190,7 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 		}
 		ranUe.Location.NrLocation.Tai.PlmnId = &plmnID
 		ranUe.Location.NrLocation.Tai.Tac = tac
-		ranUe.Tai = deepcopy.Copy(*ranUe.Location.NrLocation.Tai).(models.Tai)
+		ranUe.Tai = *ranUe.Location.NrLocation.Tai
 
 		nRCGI := locationInfoNR.NRCGI
 		nRPlmnID := ngapConvert.PlmnIdToModels(nRCGI.PLMNIdentity)
@@ -210,8 +209,8 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 			if ranUe.AmfUe.Tai != ranUe.Tai {
 				ranUe.AmfUe.LocationChanged = true
 			}
-			ranUe.AmfUe.Location = deepcopy.Copy(ranUe.Location).(models.UserLocation)
-			ranUe.AmfUe.Tai = deepcopy.Copy(*ranUe.AmfUe.Location.NrLocation.Tai).(models.Tai)
+			ranUe.AmfUe.Location = ranUe.Location
+			ranUe.AmfUe.Tai = *ranUe.AmfUe.Location.NrLocation.Tai
 		}
 	case ngapType.UserLocationInformationPresentUserLocationInformationN3IWF:
 		locationInfoN3IWF := userLocationInformation.UserLocationInformationN3IWF
@@ -240,10 +239,10 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 			PlmnId: supportTaiList[0].PlmnId,
 			Tac:    tac,
 		}
-		ranUe.Tai = deepcopy.Copy(*ranUe.Location.N3gaLocation.N3gppTai).(models.Tai)
+		ranUe.Tai = *ranUe.Location.N3gaLocation.N3gppTai
 
 		if ranUe.AmfUe != nil {
-			ranUe.AmfUe.Location = deepcopy.Copy(ranUe.Location).(models.UserLocation)
+			ranUe.AmfUe.Location = ranUe.Location
 			ranUe.AmfUe.Tai = *ranUe.Location.N3gaLocation.N3gppTai
 		}
 	case ngapType.UserLocationInformationPresentNothing:

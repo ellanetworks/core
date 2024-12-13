@@ -35,7 +35,7 @@ func convertToString(val uint64) string {
 
 func GetDeviceGroups(c *gin.Context) {
 	setCorsHeader(c)
-	deviceGroups, err := queries.ListDeviceGroupNames()
+	deviceGroups, err := queries.ListProfiles()
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 		c.JSON(http.StatusInternalServerError, nil)
@@ -46,31 +46,28 @@ func GetDeviceGroups(c *gin.Context) {
 
 func GetDeviceGroupByName(c *gin.Context) {
 	setCorsHeader(c)
-	dbDeviceGroup := queries.GetDeviceGroupByName(c.Param("group-name"))
-	if dbDeviceGroup.DeviceGroupName == "" {
+	dbDeviceGroup := queries.GetProfile(c.Param("group-name"))
+	if dbDeviceGroup.Name == "" {
 		c.JSON(http.StatusNotFound, nil)
 		return
 	}
 	deviceGroup := models.DeviceGroups{
-		DeviceGroupName: dbDeviceGroup.DeviceGroupName,
+		DeviceGroupName: dbDeviceGroup.Name,
 		Imsis:           dbDeviceGroup.Imsis,
-		SiteInfo:        dbDeviceGroup.SiteInfo,
-		IpDomainName:    dbDeviceGroup.IpDomainName,
 		IpDomainExpanded: models.DeviceGroupsIpDomainExpanded{
-			Dnn:          dbDeviceGroup.IpDomainExpanded.Dnn,
-			UeIpPool:     dbDeviceGroup.IpDomainExpanded.UeIpPool,
-			DnsPrimary:   dbDeviceGroup.IpDomainExpanded.DnsPrimary,
-			DnsSecondary: dbDeviceGroup.IpDomainExpanded.DnsSecondary,
+			UeIpPool:     dbDeviceGroup.UeIpPool,
+			DnsPrimary:   dbDeviceGroup.DnsPrimary,
+			DnsSecondary: dbDeviceGroup.DnsSecondary,
 			UeDnnQos: &models.DeviceGroupsIpDomainExpandedUeDnnQos{
-				DnnMbrDownlink: dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink,
-				DnnMbrUplink:   dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink,
-				BitrateUnit:    dbDeviceGroup.IpDomainExpanded.UeDnnQos.BitrateUnit,
+				DnnMbrDownlink: dbDeviceGroup.DnnMbrDownlink,
+				DnnMbrUplink:   dbDeviceGroup.DnnMbrUplink,
+				BitrateUnit:    dbDeviceGroup.BitrateUnit,
 				TrafficClass: &models.TrafficClassInfo{
-					Name: dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Name,
-					Qci:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
-					Arp:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Arp,
-					Pdb:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Pdb,
-					Pelr: dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
+					Name: dbDeviceGroup.Name,
+					Qci:  dbDeviceGroup.Qci,
+					Arp:  dbDeviceGroup.Arp,
+					Pdb:  dbDeviceGroup.Pdb,
+					Pelr: dbDeviceGroup.Pelr,
 				},
 			},
 		},
@@ -113,33 +110,30 @@ func DeviceGroupDeleteHandler(c *gin.Context) bool {
 		logger.NmsLog.Errorf("group-name is missing")
 		return false
 	}
-	dbDeviceGroup := queries.GetDeviceGroupByName(groupName)
+	dbDeviceGroup := queries.GetProfile(groupName)
 	deviceGroup := &models.DeviceGroups{
-		DeviceGroupName: dbDeviceGroup.DeviceGroupName,
+		DeviceGroupName: dbDeviceGroup.Name,
 		Imsis:           dbDeviceGroup.Imsis,
-		SiteInfo:        dbDeviceGroup.SiteInfo,
-		IpDomainName:    dbDeviceGroup.IpDomainName,
 		IpDomainExpanded: models.DeviceGroupsIpDomainExpanded{
-			Dnn:          dbDeviceGroup.IpDomainExpanded.Dnn,
-			UeIpPool:     dbDeviceGroup.IpDomainExpanded.UeIpPool,
-			DnsPrimary:   dbDeviceGroup.IpDomainExpanded.DnsPrimary,
-			DnsSecondary: dbDeviceGroup.IpDomainExpanded.DnsSecondary,
-			Mtu:          dbDeviceGroup.IpDomainExpanded.Mtu,
+			UeIpPool:     dbDeviceGroup.UeIpPool,
+			DnsPrimary:   dbDeviceGroup.DnsPrimary,
+			DnsSecondary: dbDeviceGroup.DnsSecondary,
+			Mtu:          dbDeviceGroup.Mtu,
 			UeDnnQos: &models.DeviceGroupsIpDomainExpandedUeDnnQos{
-				DnnMbrDownlink: dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink,
-				DnnMbrUplink:   dbDeviceGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink,
-				BitrateUnit:    dbDeviceGroup.IpDomainExpanded.UeDnnQos.BitrateUnit,
+				DnnMbrDownlink: dbDeviceGroup.DnnMbrDownlink,
+				DnnMbrUplink:   dbDeviceGroup.DnnMbrUplink,
+				BitrateUnit:    dbDeviceGroup.BitrateUnit,
 				TrafficClass: &models.TrafficClassInfo{
-					Name: dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Name,
-					Qci:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
-					Arp:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Arp,
-					Pdb:  dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Pdb,
-					Pelr: dbDeviceGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
+					Name: dbDeviceGroup.Name,
+					Qci:  dbDeviceGroup.Qci,
+					Arp:  dbDeviceGroup.Arp,
+					Pdb:  dbDeviceGroup.Pdb,
+					Pelr: dbDeviceGroup.Pelr,
 				},
 			},
 		},
 	}
-	err := queries.DeleteDeviceGroup(groupName)
+	err := queries.DeleteProfile(groupName)
 	if err != nil {
 		logger.NmsLog.Warnf("Device Group [%v] not found", groupName)
 		return false
@@ -187,155 +181,51 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	procReq.DeviceGroupName = groupName
 	slice := isDeviceGroupExistInSlice(groupName)
 	if slice != nil {
-		sVal, err := strconv.ParseUint(slice.SliceId.Sst, 10, 32)
+		sVal, err := strconv.ParseUint(slice.Sst, 10, 32)
 		if err != nil {
-			logger.NmsLog.Errorf("Could not parse SST %v", slice.SliceId.Sst)
-		}
-		snssai := &dbModels.Snssai{
-			Sd:  slice.SliceId.Sd,
-			Sst: int32(sVal),
+			logger.NmsLog.Errorf("Could not parse SST %v", slice.Sst)
 		}
 
 		aimsis := getAddedImsisList(&procReq)
 		for _, imsi := range aimsis {
 			dnn := procReq.IpDomainExpanded.Dnn
-			err := queries.CreateAmPolicyData(imsi)
+			ueId := "imsi-" + imsi
+			subscriber, err := queries.GetSubscriber(ueId)
 			if err != nil {
-				logger.NmsLog.Warnln(err)
-				return false
+				logger.NmsLog.Warnf("Could not get subscriber %v", ueId)
+				continue
 			}
-			smPolicyData := &dbModels.SmPolicyData{
-				UeId: "imsi-" + imsi,
-				SmPolicySnssaiData: map[string]dbModels.SmPolicySnssaiData{
-					SnssaiModelsToHex(*snssai): {
-						Snssai: snssai,
-						SmPolicyDnnData: map[string]dbModels.SmPolicyDnnData{
-							dnn: {
-								Dnn: dnn,
-							},
-						},
-					},
-				},
-			}
-			err = queries.CreateSmPolicyData(smPolicyData)
+			subscriber.Dnn = dnn
+			subscriber.Sd = slice.Sd
+			subscriber.Sst = int32(sVal)
+			subscriber.PlmnID = slice.Mcc + slice.Mnc
+			subscriber.BitRateUplink = convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink))
+			subscriber.BitRateDownlink = convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink))
+			subscriber.Var5qi = 9
+			subscriber.PriorityLevel = 8
+			err = queries.CreateSubscriber(subscriber)
 			if err != nil {
-				logger.NmsLog.Warnln(err)
-				return false
-			}
-			qos := &dbModels.DeviceGroupsIpDomainExpandedUeDnnQos{
-				DnnMbrDownlink: procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink,
-				DnnMbrUplink:   procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink,
-				BitrateUnit:    procReq.IpDomainExpanded.UeDnnQos.BitrateUnit,
-				TrafficClass: &dbModels.TrafficClassInfo{
-					Name: procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Name,
-					Qci:  procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
-					Arp:  procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Arp,
-					Pdb:  procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pdb,
-					Pelr: procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
-				},
-			}
-			amData := &dbModels.AccessAndMobilitySubscriptionData{
-				UeId:          "imsi-" + imsi,
-				ServingPlmnId: slice.SiteInfo.Plmn.Mcc + slice.SiteInfo.Plmn.Mnc,
-				Gpsis: []string{
-					"msisdn-0900000000",
-				},
-				Nssai: &dbModels.Nssai{
-					DefaultSingleNssais: []dbModels.Snssai{*snssai},
-					SingleNssais:        []dbModels.Snssai{*snssai},
-				},
-				SubscribedUeAmbr: &dbModels.AmbrRm{
-					Downlink: convertToString(uint64(qos.DnnMbrDownlink)),
-					Uplink:   convertToString(uint64(qos.DnnMbrUplink)),
-				},
-			}
-			err = queries.CreateAmData(amData)
-			if err != nil {
-				logger.NmsLog.Warnln(err)
-				return false
-			}
-			smData := &dbModels.SessionManagementSubscriptionData{
-				UeId:          "imsi-" + imsi,
-				ServingPlmnId: slice.SiteInfo.Plmn.Mcc + slice.SiteInfo.Plmn.Mnc,
-				SingleNssai:   snssai,
-				DnnConfigurations: map[string]dbModels.DnnConfiguration{
-					dnn: {
-						PduSessionTypes: &dbModels.PduSessionTypes{
-							DefaultSessionType:  dbModels.PduSessionType_IPV4,
-							AllowedSessionTypes: []dbModels.PduSessionType{dbModels.PduSessionType_IPV4},
-						},
-						SscModes: &dbModels.SscModes{
-							DefaultSscMode: dbModels.SscMode__1,
-							AllowedSscModes: []dbModels.SscMode{
-								"SSC_MODE_2",
-								"SSC_MODE_3",
-							},
-						},
-						SessionAmbr: &dbModels.Ambr{
-							Downlink: convertToString(uint64(qos.DnnMbrDownlink)),
-							Uplink:   convertToString(uint64(qos.DnnMbrUplink)),
-						},
-						Var5gQosProfile: &dbModels.SubscribedDefaultQos{
-							Var5qi: 9,
-							Arp: &dbModels.Arp{
-								PriorityLevel: 8,
-							},
-							PriorityLevel: 8,
-						},
-					},
-				},
-			}
-			err = queries.CreateSmData(smData)
-			if err != nil {
-				logger.NmsLog.Warnln(err)
-				return false
-			}
-			smfSelData := &dbModels.SmfSelectionSubscriptionData{
-				UeId:          "imsi-" + imsi,
-				ServingPlmnId: slice.SiteInfo.Plmn.Mcc + slice.SiteInfo.Plmn.Mnc,
-				SubscribedSnssaiInfos: map[string]dbModels.SnssaiInfo{
-					SnssaiModelsToHex(*snssai): {
-						DnnInfos: []dbModels.DnnInfo{
-							{
-								Dnn: dnn,
-							},
-						},
-					},
-				},
-			}
-			err = queries.CreateSmfSelectionData(smfSelData)
-			if err != nil {
-				logger.NmsLog.Warnln(err)
-				return false
+				logger.NmsLog.Warnf("Could not create subscriber %v", ueId)
+				continue
 			}
 		}
 	}
-	dbDeviceGroup := &dbModels.DeviceGroup{
-		DeviceGroupName: groupName,
-		Imsis:           procReq.Imsis,
-		SiteInfo:        procReq.SiteInfo,
-		IpDomainName:    procReq.IpDomainName,
-		IpDomainExpanded: dbModels.DeviceGroupsIpDomainExpanded{
-			Dnn:          procReq.IpDomainExpanded.Dnn,
-			UeIpPool:     procReq.IpDomainExpanded.UeIpPool,
-			DnsPrimary:   procReq.IpDomainExpanded.DnsPrimary,
-			DnsSecondary: procReq.IpDomainExpanded.DnsSecondary,
-			Mtu:          procReq.IpDomainExpanded.Mtu,
-			UeDnnQos: &dbModels.DeviceGroupsIpDomainExpandedUeDnnQos{
-				DnnMbrDownlink: procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink,
-				DnnMbrUplink:   procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink,
-				BitrateUnit:    procReq.IpDomainExpanded.UeDnnQos.BitrateUnit,
-				TrafficClass: &dbModels.TrafficClassInfo{
-					Name: procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Name,
-					Qci:  procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
-					Arp:  procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Arp,
-					Pdb:  procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pdb,
-					Pelr: procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
-				},
-			},
-		},
+	dbDeviceGroup := &dbModels.Profile{
+		Name:           groupName,
+		Imsis:          procReq.Imsis,
+		UeIpPool:       procReq.IpDomainExpanded.UeIpPool,
+		DnsPrimary:     procReq.IpDomainExpanded.DnsPrimary,
+		DnsSecondary:   procReq.IpDomainExpanded.DnsSecondary,
+		Mtu:            procReq.IpDomainExpanded.Mtu,
+		DnnMbrDownlink: procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink,
+		DnnMbrUplink:   procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink,
+		BitrateUnit:    procReq.IpDomainExpanded.UeDnnQos.BitrateUnit,
+		Qci:            procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
+		Arp:            procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Arp,
+		Pdb:            procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pdb,
+		Pelr:           procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
 	}
-	err = queries.CreateDeviceGroup(dbDeviceGroup)
+	err = queries.CreateProfile(dbDeviceGroup)
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 		return false
@@ -360,23 +250,17 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 	if slice != nil {
 		dimsis := deviceGroup.Imsis
 		for _, imsi := range dimsis {
-			err := queries.DeleteAmPolicy(imsi)
+			ueId := "imsi-" + imsi
+			subscriber, err := queries.GetSubscriber(ueId)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
+				continue
 			}
-			err = queries.DeleteSmPolicy(imsi)
-			if err != nil {
-				logger.NmsLog.Warnln(err)
-			}
-			err = queries.DeleteAmData(imsi)
-			if err != nil {
-				logger.NmsLog.Warnln(err)
-			}
-			err = queries.DeleteSmData(imsi)
-			if err != nil {
-				logger.NmsLog.Warnln(err)
-			}
-			err = queries.DeleteSmfSelection(imsi)
+			subscriber.BitRateUplink = ""
+			subscriber.BitRateDownlink = ""
+			subscriber.Var5qi = 0
+			subscriber.PriorityLevel = 0
+			err = queries.CreateSubscriber(subscriber)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 			}
@@ -384,10 +268,10 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 	}
 }
 
-func isDeviceGroupExistInSlice(deviceGroupName string) *dbModels.Slice {
+func isDeviceGroupExistInSlice(deviceGroupName string) *dbModels.NetworkSlice {
 	dBSlices := queries.ListNetworkSlices()
 	for name, slice := range dBSlices {
-		for _, dgName := range slice.SiteDeviceGroup {
+		for _, dgName := range slice.DeviceGroups {
 			if dgName == deviceGroupName {
 				logger.NmsLog.Infof("Device Group [%v] is part of slice: %v", dgName, name)
 				return slice

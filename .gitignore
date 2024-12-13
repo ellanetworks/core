@@ -10,8 +10,6 @@ ui/*.tsbuildinfo
 ui/next-env.d.ts
 ui/.vercel
 ui/.env*.local
-ui/gnb_config.json
-ui/upf_config.json
 
 # Python
 venv/

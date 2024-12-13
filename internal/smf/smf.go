@@ -5,6 +5,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/yeastengine/ella/internal/metrics"
 	"github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/factory"
 	"github.com/yeastengine/ella/internal/smf/pfcp"
@@ -22,6 +23,7 @@ func Start() error {
 	}
 	factory.InitConfigFactory(configuration)
 	StartPfcpServer()
+	metrics.RegisterSmfMetrics()
 	return nil
 }
 

@@ -12,7 +12,7 @@ interface CreateNetworkSliceArgs {
   mnc: string;
   upfName: string;
   upfPort: string;
-  gnbList: GnbItem[];
+  radioList: GnbItem[];
 }
 
 export const createNetworkSlice = async ({
@@ -21,7 +21,7 @@ export const createNetworkSlice = async ({
   mnc,
   upfName,
   upfPort,
-  gnbList,
+  radioList,
 }: CreateNetworkSliceArgs) => {
   const deviceGroupName = `${name}-default`;
   const sliceData = {
@@ -36,7 +36,7 @@ export const createNetworkSlice = async ({
         mcc,
         mnc,
       },
-      gNodeBs: gnbList,
+      gNodeBs: radioList,
       upf: {
         "upf-name": upfName,
         "upf-port": upfPort,

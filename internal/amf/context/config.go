@@ -26,12 +26,12 @@ func GetSupportTaiList() []models.Tai {
 			continue
 		}
 		plmnID := models.PlmnId{
-			Mcc: networkSlice.SiteInfo.Plmn.Mcc,
-			Mnc: networkSlice.SiteInfo.Plmn.Mnc,
+			Mcc: networkSlice.Mcc,
+			Mnc: networkSlice.Mnc,
 		}
 		tai := models.Tai{
 			PlmnId: &plmnID,
-			Tac:    fmt.Sprintf("%06x", networkSlice.SiteInfo.GNodeBs[0].Tac),
+			Tac:    fmt.Sprintf("%06x", networkSlice.GNodeBs[0].Tac),
 		}
 		tais = append(tais, tai)
 	}
@@ -52,8 +52,8 @@ func GetServedGuamiList() []models.Guami {
 			continue
 		}
 		plmnID := models.PlmnId{
-			Mcc: networkSlice.SiteInfo.Plmn.Mcc,
-			Mnc: networkSlice.SiteInfo.Plmn.Mnc,
+			Mcc: networkSlice.Mcc,
+			Mnc: networkSlice.Mnc,
 		}
 		guami := models.Guami{
 			PlmnId: &plmnID,
@@ -78,17 +78,17 @@ func GetPlmnSupportList() []factory.PlmnSupportItem {
 			continue
 		}
 		plmnID := models.PlmnId{
-			Mcc: networkSlice.SiteInfo.Plmn.Mcc,
-			Mnc: networkSlice.SiteInfo.Plmn.Mnc,
+			Mcc: networkSlice.Mcc,
+			Mnc: networkSlice.Mnc,
 		}
-		sstString := networkSlice.SliceId.Sst
+		sstString := networkSlice.Sst
 		sstInt64, err := strconv.ParseInt(sstString, 10, 32)
 		if err != nil {
 			continue
 		}
 		snssai := models.Snssai{
 			Sst: int32(sstInt64),
-			Sd:  networkSlice.SliceId.Sd,
+			Sd:  networkSlice.Sd,
 		}
 		plmnSupportItem := factory.PlmnSupportItem{
 			PlmnId:     plmnID,

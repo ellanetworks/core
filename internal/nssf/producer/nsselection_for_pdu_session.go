@@ -1,9 +1,3 @@
-/*
- * NSSF NS Selection
- *
- * NSSF Network Slice Selection Service
- */
-
 package producer
 
 import (
