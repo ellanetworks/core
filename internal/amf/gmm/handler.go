@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/mohae/deepcopy"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
@@ -242,7 +241,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 							errResponse.BinaryDataN1SmMessage, pduSessionID, 0, nil, 0)
 					} else {
 						newSmContext.SetSmContextRef(smContextRef)
-						newSmContext.SetUserLocation(deepcopy.Copy(ue.Location).(models.UserLocation))
+						newSmContext.SetUserLocation(ue.Location)
 						ue.StoreSmContext(pduSessionID, newSmContext)
 						ue.GmmLog.Infof("create smContext[pduSessionID: %d] Success", pduSessionID)
 						// TODO: handle response(response N2SmInfo to RAN if exists)
@@ -928,7 +927,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 						}
 						errCause = append(errCause, cause)
 					} else {
-						smContext.SetUserLocation(deepcopy.Copy(ue.Location).(models.UserLocation))
+						smContext.SetUserLocation(ue.Location)
 						smContext.SetAccessType(models.AccessType__3_GPP_ACCESS)
 						if response.BinaryDataN2SmInformation != nil &&
 							response.JsonData.N2SmInfoType == models.N2SmInfoType_PDU_RES_SETUP_REQ {
@@ -1754,7 +1753,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 							}
 							errCause = append(errCause, cause)
 						} else {
-							smContext.SetUserLocation(deepcopy.Copy(ue.Location).(models.UserLocation))
+							smContext.SetUserLocation(ue.Location)
 							smContext.SetAccessType(models.AccessType__3_GPP_ACCESS)
 							if response.BinaryDataN2SmInformation != nil &&
 								response.JsonData.N2SmInfoType == models.N2SmInfoType_PDU_RES_SETUP_REQ {

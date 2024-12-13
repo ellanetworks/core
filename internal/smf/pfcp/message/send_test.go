@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/wmnsk/go-pfcp/ie"
 	pfcp_message "github.com/wmnsk/go-pfcp/message"
 	"github.com/yeastengine/ella/internal/smf/context"
@@ -445,5 +444,7 @@ func TestSendPfcpMsgToAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error sending PFCP message to adapter: %v", err)
 	}
-	assert.Equal(t, http.StatusOK, rsp.StatusCode)
+	if rsp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rsp.StatusCode)
+	}
 }

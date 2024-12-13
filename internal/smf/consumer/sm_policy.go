@@ -6,7 +6,6 @@ import (
 
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/openapi/models"
-	"github.com/pkg/errors"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/pcf/producer"
 	smf_context "github.com/yeastengine/ella/internal/smf/context"
@@ -37,11 +36,11 @@ func SendSMPolicyAssociationCreate(smContext *smf_context.SMContext) (*models.Sm
 
 	smPolicyDecision, err := producer.CreateSMPolicy(smPolicyData)
 	if err != nil {
-		return nil, httpRspStatusCode, errors.Wrap(err, "setup sm policy association failed")
+		return nil, httpRspStatusCode, fmt.Errorf("setup sm policy association failed: %s", err.Error())
 	}
 	err = validateSmPolicyDecision(smPolicyDecision)
 	if err != nil {
-		return nil, httpRspStatusCode, errors.Wrap(err, "setup sm policy association failed")
+		return nil, httpRspStatusCode, fmt.Errorf("setup sm policy association failed: %s", err.Error())
 	}
 	return smPolicyDecision, http.StatusCreated, nil
 }
