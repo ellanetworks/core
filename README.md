@@ -11,8 +11,8 @@ Use Ella where you need 5G connectivity: in a factory, a warehouse, a farm, a st
 * **5G compliant**: Ella is a 5G compliant core network. It can integrate with any 5G radio access network.
 * **Performant data plane**: Ella uses eBPF to implement the data plane. It is fast, secure, and reliable.
 * **Simple UI**: Ella has a web-based user interface for managing subscribers, radios, device groups, and network slices.
-* **Complete HTTP API**: Ella has a complete HTTP API. You can automate everything you can do in the UI.
-* **Encrypted communication**: Ella's HTTP API and UI are secured with TLS.
+* **Complete HTTP API**: Ella has a complete REST API. You can automate everything you can do in the UI.
+* **Encrypted communication**: Ella's API and UI are secured with TLS.
 
 ## Tenets
 
@@ -49,6 +49,8 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 
 | Endpoint                     | HTTP Method | Description             |
 | ---------------------------- | ----------- | ----------------------- |
+| `/api/v1/status`             | GET         | Get status              |
+| `/api/v1/metrics`            | GET         | Get metrics             |
 | `/api/v1/subscriber`         | GET         | List subscribers        |
 | `/api/v1/subscriber`         | POST        | Create a new subscriber |
 | `/api/v1/subscriber/{id}`    | GET         | Get a subscriber        |
