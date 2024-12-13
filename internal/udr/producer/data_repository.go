@@ -14,7 +14,7 @@ import (
 var CurrentResourceUri string
 
 // This function is defined twice, here and in the NMS. We should move it to a common place.
-func convertDbAmDataToModel(dbAmData *dbModels.AccessAndMobilitySubscriptionData) *models.AccessAndMobilitySubscriptionData {
+func convertDbAmDataToModel(dbAmData *dbModels.AccessAndMobilitySubscriptionData, sd string, sst int32) *models.AccessAndMobilitySubscriptionData {
 	if dbAmData == nil {
 		return &models.AccessAndMobilitySubscriptionData{}
 	}
@@ -28,18 +28,14 @@ func convertDbAmDataToModel(dbAmData *dbModels.AccessAndMobilitySubscriptionData
 			Uplink:   dbAmData.SubscribedUeAmbr.Uplink,
 		},
 	}
-	for _, snssai := range dbAmData.Nssai.DefaultSingleNssais {
-		amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
-			Sd:  snssai.Sd,
-			Sst: snssai.Sst,
-		})
-	}
-	for _, snssai := range dbAmData.Nssai.SingleNssais {
-		amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
-			Sd:  snssai.Sd,
-			Sst: snssai.Sst,
-		})
-	}
+	amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
+		Sd:  sd,
+		Sst: sst,
+	})
+	amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
+		Sd:  sd,
+		Sst: sst,
+	})
 	return amData
 }
 
@@ -52,7 +48,7 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	if subscriber.AccessAndMobilitySubscriptionData == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
-	amData := convertDbAmDataToModel(dbAmData)
+	amData := convertDbAmDataToModel(dbAmData, subscriber.Sd, subscriber.Sst)
 	return amData, nil
 }
 
@@ -132,29 +128,23 @@ func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
 }
 
 // We have this function twice, here and in the NMS. We should move it to a common place.
-func convertDbSmPolicyDataToModel(dbSmPolicyData *dbModels.SmPolicyData) *models.SmPolicyData {
-	if dbSmPolicyData == nil {
-		return &models.SmPolicyData{}
-	}
+func convertDbSmPolicyDataToModel(sst int32, sd string, dnn string) *models.SmPolicyData {
 	smPolicyData := &models.SmPolicyData{
 		SmPolicySnssaiData: make(map[string]models.SmPolicySnssaiData),
 	}
-	for snssai, dbSmPolicySnssaiData := range dbSmPolicyData.SmPolicySnssaiData {
-		smPolicyData.SmPolicySnssaiData[snssai] = models.SmPolicySnssaiData{
-			Snssai: &models.Snssai{
-				Sd:  dbSmPolicySnssaiData.Snssai.Sd,
-				Sst: dbSmPolicySnssaiData.Snssai.Sst,
-			},
-			SmPolicyDnnData: make(map[string]models.SmPolicyDnnData),
-		}
-		smPolicySnssaiData := smPolicyData.SmPolicySnssaiData[snssai]
-		for dnn, dbSmPolicyDnnData := range dbSmPolicySnssaiData.SmPolicyDnnData {
-			smPolicySnssaiData.SmPolicyDnnData[dnn] = models.SmPolicyDnnData{
-				Dnn: dbSmPolicyDnnData.Dnn,
-			}
-		}
-		smPolicyData.SmPolicySnssaiData[snssai] = smPolicySnssaiData
+	snssai := fmt.Sprintf("%d%s", sst, sd)
+	smPolicyData.SmPolicySnssaiData[snssai] = models.SmPolicySnssaiData{
+		Snssai: &models.Snssai{
+			Sd:  sd,
+			Sst: sst,
+		},
+		SmPolicyDnnData: make(map[string]models.SmPolicyDnnData),
 	}
+	smPolicySnssaiData := smPolicyData.SmPolicySnssaiData[snssai]
+	smPolicySnssaiData.SmPolicyDnnData[dnn] = models.SmPolicyDnnData{
+		Dnn: dnn,
+	}
+	smPolicyData.SmPolicySnssaiData[snssai] = smPolicySnssaiData
 	return smPolicyData
 }
 
@@ -162,12 +152,9 @@ func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
 	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	dbSmPolicyData := subscriber.SmPolicyData
-	if dbSmPolicyData == nil {
-		return nil, fmt.Errorf("USER_NOT_FOUND")
-	}
-	smPolicyData := convertDbSmPolicyDataToModel(dbSmPolicyData)
+	smPolicyData := convertDbSmPolicyDataToModel(subscriber.Sst, subscriber.Sd, subscriber.Dnn)
 	return smPolicyData, nil
 }
 
@@ -237,7 +224,7 @@ func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string)
 	return SdmSubscription
 }
 
-func convertDbSessionManagementDataToModel(dbSmData []*dbModels.SessionManagementSubscriptionData) []models.SessionManagementSubscriptionData {
+func convertDbSessionManagementDataToModel(dbSmData []*dbModels.SessionManagementSubscriptionData, sst int32, sd string) []models.SessionManagementSubscriptionData {
 	if dbSmData == nil {
 		return nil
 	}
@@ -245,8 +232,8 @@ func convertDbSessionManagementDataToModel(dbSmData []*dbModels.SessionManagemen
 	for _, smDataObj := range dbSmData {
 		smDataObjModel := models.SessionManagementSubscriptionData{
 			SingleNssai: &models.Snssai{
-				Sst: smDataObj.SingleNssai.Sst,
-				Sd:  smDataObj.SingleNssai.Sd,
+				Sst: sst,
+				Sd:  sd,
 			},
 			DnnConfigurations: make(map[string]models.DnnConfiguration),
 		}
@@ -291,30 +278,23 @@ func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) 
 	if dbSessionManagementData == nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
-	sessionManagementData := convertDbSessionManagementDataToModel(dbSessionManagementData)
+	sessionManagementData := convertDbSessionManagementDataToModel(dbSessionManagementData, subscriber.Sst, subscriber.Sd)
 	return sessionManagementData, nil
 }
 
 // We have this function twice, here and in the NMS. We should move it to a common place.
-func convertDbSmfSelectionDataToModel(dbSmfSelectionData *dbModels.SmfSelectionSubscriptionData) *models.SmfSelectionSubscriptionData {
-	if dbSmfSelectionData == nil {
-		return &models.SmfSelectionSubscriptionData{}
-	}
+func convertDbSmfSelectionDataToModel(snssai, dnn string) *models.SmfSelectionSubscriptionData {
 	smfSelectionData := &models.SmfSelectionSubscriptionData{
 		SubscribedSnssaiInfos: make(map[string]models.SnssaiInfo),
 	}
-	for snssai, dbSnssaiInfo := range dbSmfSelectionData.SubscribedSnssaiInfos {
-		smfSelectionData.SubscribedSnssaiInfos[snssai] = models.SnssaiInfo{
-			DnnInfos: make([]models.DnnInfo, 0),
-		}
-		snssaiInfo := smfSelectionData.SubscribedSnssaiInfos[snssai]
-		for _, dbDnnInfo := range dbSnssaiInfo.DnnInfos {
-			snssaiInfo.DnnInfos = append(snssaiInfo.DnnInfos, models.DnnInfo{
-				Dnn: dbDnnInfo.Dnn,
-			})
-		}
-		smfSelectionData.SubscribedSnssaiInfos[snssai] = snssaiInfo
+	smfSelectionData.SubscribedSnssaiInfos[snssai] = models.SnssaiInfo{
+		DnnInfos: make([]models.DnnInfo, 0),
 	}
+	snssaiInfo := smfSelectionData.SubscribedSnssaiInfos[snssai]
+	snssaiInfo.DnnInfos = append(snssaiInfo.DnnInfos, models.DnnInfo{
+		Dnn: dnn,
+	})
+	smfSelectionData.SubscribedSnssaiInfos[snssai] = snssaiInfo
 	return smfSelectionData
 }
 
@@ -323,10 +303,7 @@ func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 	}
-	dbSmfSelectionSubscriptionData := subscriber.SmfSelectionSubscriptionData
-	if dbSmfSelectionSubscriptionData == nil {
-		return nil, fmt.Errorf("USER_NOT_FOUND")
-	}
-	smfSelectionSubscriptionData := convertDbSmfSelectionDataToModel(dbSmfSelectionSubscriptionData)
+	snssai := fmt.Sprintf("%d%s", subscriber.Sst, subscriber.Sd)
+	smfSelectionSubscriptionData := convertDbSmfSelectionDataToModel(snssai, subscriber.Dnn)
 	return smfSelectionSubscriptionData, nil
 }

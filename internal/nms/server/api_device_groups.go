@@ -185,10 +185,6 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 		if err != nil {
 			logger.NmsLog.Errorf("Could not parse SST %v", slice.Sst)
 		}
-		snssai := &dbModels.Snssai{
-			Sd:  slice.Sd,
-			Sst: int32(sVal),
-		}
 
 		aimsis := getAddedImsisList(&procReq)
 		for _, imsi := range aimsis {
@@ -199,22 +195,8 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 				logger.NmsLog.Warnf("Could not get subscriber %v", ueId)
 				continue
 			}
-
-			smPolicyData := &dbModels.SmPolicyData{
-				SmPolicySnssaiData: map[string]dbModels.SmPolicySnssaiData{
-					SnssaiModelsToHex(*snssai): {
-						Snssai: snssai,
-						SmPolicyDnnData: map[string]dbModels.SmPolicyDnnData{
-							dnn: {
-								Dnn: dnn,
-							},
-						},
-					},
-				},
-			}
+			subscriber.Dnn = dnn
 			smData := &dbModels.SessionManagementSubscriptionData{
-				ServingPlmnId: slice.Mcc + slice.Mnc,
-				SingleNssai:   snssai,
 				DnnConfigurations: map[string]dbModels.DnnConfiguration{
 					dnn: {
 						PduSessionTypes: &dbModels.PduSessionTypes{
@@ -242,31 +224,16 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 					},
 				},
 			}
+			subscriber.Sd = slice.Sd
+			subscriber.Sst = int32(sVal)
 			subscriber.SessionManagementSubscriptionData = append(subscriber.SessionManagementSubscriptionData, smData)
-			subscriber.SmPolicyData = smPolicyData
 			subscriber.AccessAndMobilitySubscriptionData = &dbModels.AccessAndMobilitySubscriptionData{
-				ServingPlmnId: slice.Mcc + slice.Mnc,
-				Nssai: &dbModels.Nssai{
-					DefaultSingleNssais: []dbModels.Snssai{*snssai},
-					SingleNssais:        []dbModels.Snssai{*snssai},
-				},
 				SubscribedUeAmbr: &dbModels.AmbrRm{
 					Downlink: convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink)),
 					Uplink:   convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink)),
 				},
 			}
-			subscriber.SmfSelectionSubscriptionData = &dbModels.SmfSelectionSubscriptionData{
-				ServingPlmnId: slice.Mcc + slice.Mnc,
-				SubscribedSnssaiInfos: map[string]dbModels.SnssaiInfo{
-					SnssaiModelsToHex(*snssai): {
-						DnnInfos: []dbModels.DnnInfo{
-							{
-								Dnn: dnn,
-							},
-						},
-					},
-				},
-			}
+			subscriber.PlmnID = slice.Mcc + slice.Mnc
 			err = queries.CreateSubscriber(subscriber)
 			if err != nil {
 				logger.NmsLog.Warnf("Could not create subscriber %v", ueId)
@@ -320,8 +287,6 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 				logger.NmsLog.Warnln(err)
 				continue
 			}
-			subscriber.SmfSelectionSubscriptionData = &dbModels.SmfSelectionSubscriptionData{}
-			subscriber.SmPolicyData = &dbModels.SmPolicyData{}
 			subscriber.SessionManagementSubscriptionData = []*dbModels.SessionManagementSubscriptionData{}
 			subscriber.AccessAndMobilitySubscriptionData = &dbModels.AccessAndMobilitySubscriptionData{}
 			err = queries.CreateSubscriber(subscriber)

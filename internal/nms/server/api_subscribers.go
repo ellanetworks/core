@@ -85,18 +85,6 @@ func convertDbAmDataToModel(dbAmData *dbModels.AccessAndMobilitySubscriptionData
 			Uplink:   dbAmData.SubscribedUeAmbr.Uplink,
 		},
 	}
-	for _, snssai := range dbAmData.Nssai.DefaultSingleNssais {
-		amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
-			Sd:  snssai.Sd,
-			Sst: snssai.Sst,
-		})
-	}
-	for _, snssai := range dbAmData.Nssai.SingleNssais {
-		amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
-			Sd:  snssai.Sd,
-			Sst: snssai.Sst,
-		})
-	}
 	return amData
 }
 
@@ -107,10 +95,6 @@ func convertDbSmDataToModel(dbSmData []*dbModels.SessionManagementSubscriptionDa
 	smData := make([]models.SessionManagementSubscriptionData, 0)
 	for _, smDataObj := range dbSmData {
 		smDataObjModel := models.SessionManagementSubscriptionData{
-			SingleNssai: &models.Snssai{
-				Sst: smDataObj.SingleNssai.Sst,
-				Sd:  smDataObj.SingleNssai.Sd,
-			},
 			DnnConfigurations: make(map[string]models.DnnConfiguration),
 		}
 		for dnn, dnnConfig := range smDataObj.DnnConfigurations {
@@ -145,54 +129,6 @@ func convertDbSmDataToModel(dbSmData []*dbModels.SessionManagementSubscriptionDa
 	return smData
 }
 
-func convertDbSmfSelectionDataToModel(dbSmfSelectionData *dbModels.SmfSelectionSubscriptionData) models.SmfSelectionSubscriptionData {
-	if dbSmfSelectionData == nil {
-		return models.SmfSelectionSubscriptionData{}
-	}
-	smfSelectionData := models.SmfSelectionSubscriptionData{
-		SubscribedSnssaiInfos: make(map[string]models.SnssaiInfo),
-	}
-	for snssai, dbSnssaiInfo := range dbSmfSelectionData.SubscribedSnssaiInfos {
-		smfSelectionData.SubscribedSnssaiInfos[snssai] = models.SnssaiInfo{
-			DnnInfos: make([]models.DnnInfo, 0),
-		}
-		snssaiInfo := smfSelectionData.SubscribedSnssaiInfos[snssai]
-		for _, dbDnnInfo := range dbSnssaiInfo.DnnInfos {
-			snssaiInfo.DnnInfos = append(snssaiInfo.DnnInfos, models.DnnInfo{
-				Dnn: dbDnnInfo.Dnn,
-			})
-		}
-		smfSelectionData.SubscribedSnssaiInfos[snssai] = snssaiInfo
-	}
-	return smfSelectionData
-}
-
-func convertDbSmPolicyDataToModel(dbSmPolicyData *dbModels.SmPolicyData) models.SmPolicyData {
-	if dbSmPolicyData == nil {
-		return models.SmPolicyData{}
-	}
-	smPolicyData := models.SmPolicyData{
-		SmPolicySnssaiData: make(map[string]models.SmPolicySnssaiData),
-	}
-	for snssai, dbSmPolicySnssaiData := range dbSmPolicyData.SmPolicySnssaiData {
-		smPolicyData.SmPolicySnssaiData[snssai] = models.SmPolicySnssaiData{
-			Snssai: &models.Snssai{
-				Sd:  dbSmPolicySnssaiData.Snssai.Sd,
-				Sst: dbSmPolicySnssaiData.Snssai.Sst,
-			},
-			SmPolicyDnnData: make(map[string]models.SmPolicyDnnData),
-		}
-		smPolicySnssaiData := smPolicyData.SmPolicySnssaiData[snssai]
-		for dnn, dbSmPolicyDnnData := range dbSmPolicySnssaiData.SmPolicyDnnData {
-			smPolicySnssaiData.SmPolicyDnnData[dnn] = models.SmPolicyDnnData{
-				Dnn: dbSmPolicyDnnData.Dnn,
-			}
-		}
-		smPolicyData.SmPolicySnssaiData[snssai] = smPolicySnssaiData
-	}
-	return smPolicyData
-}
-
 func GetSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
 
@@ -212,15 +148,14 @@ func GetSubscriberByID(c *gin.Context) {
 	authSubsData := convertDbAuthSubsDataToModel(subscriber.AuthenticationSubscription)
 	amData := convertDbAmDataToModel(subscriber.AccessAndMobilitySubscriptionData)
 	smData := convertDbSmDataToModel(subscriber.SessionManagementSubscriptionData)
-	smfSelectionData := convertDbSmfSelectionDataToModel(subscriber.SmfSelectionSubscriptionData)
-	smPolicyData := convertDbSmPolicyDataToModel(subscriber.SmPolicyData)
 	subsData := nmsModels.SubsData{
+		Sst:                               subscriber.Sst,
+		Sd:                                subscriber.Sd,
+		Dnn:                               subscriber.Dnn,
 		UeId:                              ueId,
 		AuthenticationSubscription:        authSubsData,
 		AccessAndMobilitySubscriptionData: amData,
 		SessionManagementSubscriptionData: smData,
-		SmfSelectionSubscriptionData:      smfSelectionData,
-		SmPolicyData:                      smPolicyData,
 	}
 
 	c.JSON(http.StatusOK, subsData)

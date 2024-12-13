@@ -61,15 +61,7 @@ type AmbrRm struct {
 	Downlink string `json:"downlink" yaml:"downlink" bson:"downlink" mapstructure:"Downlink"`
 }
 
-type Nssai struct {
-	SupportedFeatures   string   `json:"supportedFeatures,omitempty" yaml:"supportedFeatures" bson:"supportedFeatures" mapstructure:"SupportedFeatures"`
-	DefaultSingleNssais []Snssai `json:"defaultSingleNssais" yaml:"defaultSingleNssais" bson:"defaultSingleNssais" mapstructure:"DefaultSingleNssais"`
-	SingleNssais        []Snssai `json:"singleNssais,omitempty" yaml:"singleNssais" bson:"singleNssais" mapstructure:"SingleNssais"`
-}
-
 type AccessAndMobilitySubscriptionData struct {
-	Nssai            *Nssai  `json:"nssai,omitempty" bson:"nssai"`
-	ServingPlmnId    string  `json:"servingPlmnId"`
 	SubscribedUeAmbr *AmbrRm `json:"subscribedUeAmbr,omitempty" bson:"subscribedUeAmbr"`
 }
 
@@ -157,35 +149,19 @@ type DnnConfiguration struct {
 
 type SessionManagementSubscriptionData struct {
 	DnnConfigurations map[string]DnnConfiguration `json:"dnnConfigurations,omitempty" yaml:"dnnConfigurations" bson:"dnnConfigurations" mapstructure:"DnnConfigurations"`
-	ServingPlmnId     string                      `json:"servingPlmnId"`
-	SingleNssai       *Snssai                     `json:"singleNssai" yaml:"singleNssai" bson:"singleNssai" mapstructure:"SingleNssai"`
-}
-
-type SmPolicyDnnData struct {
-	Dnn string `json:"dnn" bson:"dnn"`
-}
-
-type SmPolicySnssaiData struct {
-	Snssai          *Snssai                    `json:"snssai" bson:"snssai"`
-	SmPolicyDnnData map[string]SmPolicyDnnData `json:"smPolicyDnnData,omitempty" bson:"smPolicyDnnData"`
-}
-
-type SmPolicyData struct {
-	SmPolicySnssaiData map[string]SmPolicySnssaiData `json:"smPolicySnssaiData" bson:"smPolicySnssaiData"`
 }
 
 type DnnInfo struct {
 	Dnn string `json:"dnn" yaml:"dnn" bson:"dnn" mapstructure:"Dnn"`
 }
 
-type SnssaiInfo struct {
-	DnnInfos []DnnInfo `json:"dnnInfos" yaml:"dnnInfos" bson:"dnnInfos" mapstructure:"DnnInfos"`
-}
+// type SnssaiInfo struct {
+// 	DnnInfos []DnnInfo `json:"dnnInfos" yaml:"dnnInfos" bson:"dnnInfos" mapstructure:"DnnInfos"`
+// }
 
-type SmfSelectionSubscriptionData struct {
-	ServingPlmnId         string                `json:"servingPlmnId"`
-	SubscribedSnssaiInfos map[string]SnssaiInfo `json:"subscribedSnssaiInfos,omitempty" yaml:"subscribedSnssaiInfos" bson:"subscribedSnssaiInfos" mapstructure:"SubscribedSnssaiInfos"`
-}
+// type SmfSelectionSubscriptionData struct {
+// 	SubscribedSnssaiInfos map[string]SnssaiInfo `json:"subscribedSnssaiInfos,omitempty" yaml:"subscribedSnssaiInfos" bson:"subscribedSnssaiInfos" mapstructure:"SubscribedSnssaiInfos"`
+// }
 
 type Snssai struct {
 	Sst int32  `json:"sst" yaml:"sst" bson:"sst" mapstructure:"Sst"`
@@ -195,9 +171,11 @@ type Snssai struct {
 type Subscriber struct {
 	PlmnID                            string                               `json:"plmnID"`
 	UeId                              string                               `json:"ueId"`
+	Sst                               int32                                `json:"sst" yaml:"sst" bson:"sst" mapstructure:"Sst"`
+	Sd                                string                               `json:"sd,omitempty" yaml:"sd" bson:"sd" mapstructure:"Sd"`
+	Dnn                               string                               `json:"dnn" yaml:"dnn" bson:"dnn" mapstructure:"Dnn"`
 	AuthenticationSubscription        *AuthenticationSubscription          `json:"AuthenticationSubscription"`
 	AccessAndMobilitySubscriptionData *AccessAndMobilitySubscriptionData   `json:"AccessAndMobilitySubscriptionData"`
 	SessionManagementSubscriptionData []*SessionManagementSubscriptionData `json:"SessionManagementSubscriptionData"`
-	SmfSelectionSubscriptionData      *SmfSelectionSubscriptionData        `json:"SmfSelectionSubscriptionData"`
-	SmPolicyData                      *SmPolicyData                        `json:"SmPolicyData"`
+	// SmfSelectionSubscriptionData      *SmfSelectionSubscriptionData        `json:"SmfSelectionSubscriptionData"`
 }
