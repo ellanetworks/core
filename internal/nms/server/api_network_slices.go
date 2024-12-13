@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"math"
 	"net/http"
 	"slices"
@@ -32,10 +31,10 @@ func init() {
 	imsiData = make(map[string]*openAPIModels.AuthenticationSubscription)
 }
 
-func SnssaiModelsToHex(snssai dbModels.Snssai) string {
-	sst := fmt.Sprintf("%02x", snssai.Sst)
-	return sst + snssai.Sd
-}
+// func SnssaiModelsToHex(snssai dbModels.Snssai) string {
+// 	sst := fmt.Sprintf("%02x", snssai.Sst)
+// 	return sst + snssai.Sd
+// }
 
 func GetNetworkSlices(c *gin.Context) {
 	setCorsHeader(c)
@@ -184,8 +183,10 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 					logger.NmsLog.Warnln(err)
 					continue
 				}
-				subscriber.SessionManagementSubscriptionData = []*dbModels.SessionManagementSubscriptionData{}
-				subscriber.AccessAndMobilitySubscriptionData = &dbModels.AccessAndMobilitySubscriptionData{}
+				subscriber.BitRateDownlink = ""
+				subscriber.BitRateUplink = ""
+				subscriber.Var5qi = 0
+				subscriber.PriorityLevel = 0
 				err = queries.CreateSubscriber(subscriber)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
@@ -264,41 +265,11 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 				subscriber.Sd = procReq.SliceId.Sd
 				subscriber.Dnn = dnn
 				subscriber.PlmnID = mcc + mnc
-				subscriber.AccessAndMobilitySubscriptionData = &dbModels.AccessAndMobilitySubscriptionData{
-					SubscribedUeAmbr: &dbModels.AmbrRm{
-						Downlink: convertToString(uint64(dbDeviceGroup.DnnMbrDownlink)),
-						Uplink:   convertToString(uint64(dbDeviceGroup.DnnMbrUplink)),
-					},
-				}
-				smData := &dbModels.SessionManagementSubscriptionData{
-					DnnConfigurations: map[string]dbModels.DnnConfiguration{
-						dnn: {
-							PduSessionTypes: &dbModels.PduSessionTypes{
-								DefaultSessionType:  dbModels.PduSessionType_IPV4,
-								AllowedSessionTypes: []dbModels.PduSessionType{dbModels.PduSessionType_IPV4},
-							},
-							SscModes: &dbModels.SscModes{
-								DefaultSscMode: dbModels.SscMode__1,
-								AllowedSscModes: []dbModels.SscMode{
-									"SSC_MODE_2",
-									"SSC_MODE_3",
-								},
-							},
-							SessionAmbr: &dbModels.Ambr{
-								Downlink: convertToString(uint64(dbDeviceGroup.DnnMbrDownlink)),
-								Uplink:   convertToString(uint64(dbDeviceGroup.DnnMbrUplink)),
-							},
-							Var5gQosProfile: &dbModels.SubscribedDefaultQos{
-								Var5qi: 9,
-								Arp: &dbModels.Arp{
-									PriorityLevel: 8,
-								},
-								PriorityLevel: 8,
-							},
-						},
-					},
-				}
-				subscriber.SessionManagementSubscriptionData = append(subscriber.SessionManagementSubscriptionData, smData)
+				subscriber.BitRateDownlink = convertToString(uint64(dbDeviceGroup.DnnMbrDownlink))
+				subscriber.BitRateUplink = convertToString(uint64(dbDeviceGroup.DnnMbrUplink))
+
+				subscriber.Var5qi = 9
+				subscriber.PriorityLevel = 8
 				err = queries.CreateSubscriber(subscriber)
 				if err != nil {
 					logger.NmsLog.Warnf("Could not create subscriber %v", ueId)

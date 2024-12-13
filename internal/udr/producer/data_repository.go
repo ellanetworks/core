@@ -5,27 +5,35 @@ import (
 	"strconv"
 
 	"github.com/omec-project/openapi/models"
-	dbModels "github.com/yeastengine/ella/internal/db/models"
 	"github.com/yeastengine/ella/internal/db/queries"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/udr/context"
 )
 
-var CurrentResourceUri string
+const (
+	AuthenticationManagementField = "8000"
+	EncryptionAlgorithm           = 0
+	EncryptionKey                 = 0
+	OpValue                       = ""
+)
+
+var AllowedSscModes = []string{
+	"SSC_MODE_2",
+	"SSC_MODE_3",
+}
+
+var AllowedSessionTypes = []models.PduSessionType{models.PduSessionType_IPV4}
 
 // This function is defined twice, here and in the NMS. We should move it to a common place.
-func convertDbAmDataToModel(dbAmData *dbModels.AccessAndMobilitySubscriptionData, sd string, sst int32) *models.AccessAndMobilitySubscriptionData {
-	if dbAmData == nil {
-		return &models.AccessAndMobilitySubscriptionData{}
-	}
+func convertDbAmDataToModel(sd string, sst int32, bitrateDownlink string, bitrateUplink string) *models.AccessAndMobilitySubscriptionData {
 	amData := &models.AccessAndMobilitySubscriptionData{
 		Nssai: &models.Nssai{
 			DefaultSingleNssais: make([]models.Snssai, 0),
 			SingleNssais:        make([]models.Snssai, 0),
 		},
 		SubscribedUeAmbr: &models.AmbrRm{
-			Downlink: dbAmData.SubscribedUeAmbr.Downlink,
-			Uplink:   dbAmData.SubscribedUeAmbr.Uplink,
+			Downlink: bitrateDownlink,
+			Uplink:   bitrateUplink,
 		},
 	}
 	amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
@@ -43,12 +51,9 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	dbAmData := subscriber.AccessAndMobilitySubscriptionData
-	if subscriber.AccessAndMobilitySubscriptionData == nil {
-		return nil, fmt.Errorf("USER_NOT_FOUND")
-	}
-	amData := convertDbAmDataToModel(dbAmData, subscriber.Sd, subscriber.Sst)
+	amData := convertDbAmDataToModel(subscriber.Sd, subscriber.Sst, subscriber.BitRateDownlink, subscriber.BitRateUplink)
 	return amData, nil
 }
 
@@ -56,11 +61,9 @@ func EditAuthenticationSubscription(ueId string, sequenceNumber string) error {
 	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
+		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	if subscriber.AuthenticationSubscription == nil {
-		return fmt.Errorf("USER_NOT_FOUND")
-	}
-	subscriber.AuthenticationSubscription.SequenceNumber = sequenceNumber
+	subscriber.SequenceNumber = sequenceNumber
 	err = queries.CreateSubscriber(subscriber)
 	if err != nil {
 		return fmt.Errorf("couldn't update subscriber %s: %v", ueId, err)
@@ -68,37 +71,28 @@ func EditAuthenticationSubscription(ueId string, sequenceNumber string) error {
 	return nil
 }
 
-func convertDbAuthSubsDataToModel(dbAuthSubsData *dbModels.AuthenticationSubscription) *models.AuthenticationSubscription {
-	if dbAuthSubsData == nil {
-		return &models.AuthenticationSubscription{}
-	}
+func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string) *models.AuthenticationSubscription {
 	authSubsData := &models.AuthenticationSubscription{}
-	authSubsData.AuthenticationManagementField = dbAuthSubsData.AuthenticationManagementField
-	authSubsData.AuthenticationMethod = models.AuthMethod(dbAuthSubsData.AuthenticationMethod)
-	if dbAuthSubsData.Milenage != nil {
-		authSubsData.Milenage = &models.Milenage{
-			Op: &models.Op{
-				EncryptionAlgorithm: dbAuthSubsData.Milenage.Op.EncryptionAlgorithm,
-				EncryptionKey:       dbAuthSubsData.Milenage.Op.EncryptionKey,
-				OpValue:             dbAuthSubsData.Milenage.Op.OpValue,
-			},
-		}
+	authSubsData.AuthenticationManagementField = AuthenticationManagementField
+	authSubsData.AuthenticationMethod = models.AuthMethod__5_G_AKA
+	authSubsData.Milenage = &models.Milenage{
+		Op: &models.Op{
+			EncryptionAlgorithm: EncryptionAlgorithm,
+			EncryptionKey:       EncryptionKey,
+			OpValue:             OpValue,
+		},
 	}
-	if dbAuthSubsData.Opc != nil {
-		authSubsData.Opc = &models.Opc{
-			EncryptionAlgorithm: dbAuthSubsData.Opc.EncryptionAlgorithm,
-			EncryptionKey:       dbAuthSubsData.Opc.EncryptionKey,
-			OpcValue:            dbAuthSubsData.Opc.OpcValue,
-		}
+	authSubsData.Opc = &models.Opc{
+		EncryptionAlgorithm: EncryptionAlgorithm,
+		EncryptionKey:       EncryptionKey,
+		OpcValue:            opc,
 	}
-	if dbAuthSubsData.PermanentKey != nil {
-		authSubsData.PermanentKey = &models.PermanentKey{
-			EncryptionAlgorithm: dbAuthSubsData.PermanentKey.EncryptionAlgorithm,
-			EncryptionKey:       dbAuthSubsData.PermanentKey.EncryptionKey,
-			PermanentKeyValue:   dbAuthSubsData.PermanentKey.PermanentKeyValue,
-		}
+	authSubsData.PermanentKey = &models.PermanentKey{
+		EncryptionAlgorithm: EncryptionAlgorithm,
+		EncryptionKey:       EncryptionKey,
+		PermanentKeyValue:   key,
 	}
-	authSubsData.SequenceNumber = dbAuthSubsData.SequenceNumber
+	authSubsData.SequenceNumber = sequenceNumber
 
 	return authSubsData
 }
@@ -107,12 +101,9 @@ func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	dbAuthSubsData := subscriber.AuthenticationSubscription
-	if dbAuthSubsData == nil {
-		return nil, fmt.Errorf("USER_NOT_FOUND")
-	}
-	authSubsData := convertDbAuthSubsDataToModel(dbAuthSubsData)
+	authSubsData := convertDbAuthSubsDataToModel(subscriber.OpcValue, subscriber.PermanentKeyValue, subscriber.SequenceNumber)
 	return authSubsData, nil
 }
 
@@ -224,61 +215,59 @@ func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string)
 	return SdmSubscription
 }
 
-func convertDbSessionManagementDataToModel(dbSmData []*dbModels.SessionManagementSubscriptionData, sst int32, sd string) []models.SessionManagementSubscriptionData {
-	if dbSmData == nil {
-		return nil
-	}
+func convertDbSessionManagementDataToModel(
+	dnn string,
+	sst int32,
+	sd string,
+	bitrateDownlink string,
+	bitrateUplink string,
+	var5qi int32,
+	priorityLevel int32,
+) []models.SessionManagementSubscriptionData {
 	smData := make([]models.SessionManagementSubscriptionData, 0)
-	for _, smDataObj := range dbSmData {
-		smDataObjModel := models.SessionManagementSubscriptionData{
-			SingleNssai: &models.Snssai{
-				Sst: sst,
-				Sd:  sd,
-			},
-			DnnConfigurations: make(map[string]models.DnnConfiguration),
-		}
-		for dnn, dnnConfig := range smDataObj.DnnConfigurations {
-			smDataObjModel.DnnConfigurations[dnn] = models.DnnConfiguration{
-				PduSessionTypes: &models.PduSessionTypes{
-					DefaultSessionType:  models.PduSessionType(dnnConfig.PduSessionTypes.DefaultSessionType),
-					AllowedSessionTypes: make([]models.PduSessionType, 0),
-				},
-				SscModes: &models.SscModes{
-					DefaultSscMode:  models.SscMode(dnnConfig.SscModes.DefaultSscMode),
-					AllowedSscModes: make([]models.SscMode, 0),
-				},
-				SessionAmbr: &models.Ambr{
-					Downlink: dnnConfig.SessionAmbr.Downlink,
-					Uplink:   dnnConfig.SessionAmbr.Uplink,
-				},
-				Var5gQosProfile: &models.SubscribedDefaultQos{
-					Var5qi:        dnnConfig.Var5gQosProfile.Var5qi,
-					Arp:           &models.Arp{PriorityLevel: dnnConfig.Var5gQosProfile.Arp.PriorityLevel},
-					PriorityLevel: dnnConfig.Var5gQosProfile.PriorityLevel,
-				},
-			}
-			for _, sessionType := range dnnConfig.PduSessionTypes.AllowedSessionTypes {
-				smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes, models.PduSessionType(sessionType))
-			}
-			for _, sscMode := range dnnConfig.SscModes.AllowedSscModes {
-				smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes, models.SscMode(sscMode))
-			}
-		}
-		smData = append(smData, smDataObjModel)
+	smDataObjModel := models.SessionManagementSubscriptionData{
+		SingleNssai: &models.Snssai{
+			Sst: sst,
+			Sd:  sd,
+		},
+		DnnConfigurations: make(map[string]models.DnnConfiguration),
 	}
+	smDataObjModel.DnnConfigurations[dnn] = models.DnnConfiguration{
+		PduSessionTypes: &models.PduSessionTypes{
+			DefaultSessionType:  models.PduSessionType_IPV4,
+			AllowedSessionTypes: make([]models.PduSessionType, 0),
+		},
+		SscModes: &models.SscModes{
+			DefaultSscMode:  models.SscMode__1,
+			AllowedSscModes: make([]models.SscMode, 0),
+		},
+		SessionAmbr: &models.Ambr{
+			Downlink: bitrateDownlink,
+			Uplink:   bitrateUplink,
+		},
+		Var5gQosProfile: &models.SubscribedDefaultQos{
+			Var5qi:        var5qi,
+			Arp:           &models.Arp{PriorityLevel: priorityLevel},
+			PriorityLevel: priorityLevel,
+		},
+	}
+	for _, sessionType := range AllowedSessionTypes {
+		smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes, models.PduSessionType(sessionType))
+	}
+	for _, sscMode := range AllowedSscModes {
+		smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes, models.SscMode(sscMode))
+	}
+	smData = append(smData, smDataObjModel)
 	return smData
 }
 
 func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) {
 	subscriber, err := queries.GetSubscriber(ueId)
 	if err != nil {
-		logger.UdrLog.Warnln(err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	dbSessionManagementData := subscriber.SessionManagementSubscriptionData
-	if dbSessionManagementData == nil {
-		return nil, fmt.Errorf("USER_NOT_FOUND")
-	}
-	sessionManagementData := convertDbSessionManagementDataToModel(dbSessionManagementData, subscriber.Sst, subscriber.Sd)
+
+	sessionManagementData := convertDbSessionManagementDataToModel(subscriber.Dnn, subscriber.Sst, subscriber.Sd, subscriber.BitRateDownlink, subscriber.BitRateUplink, subscriber.Var5qi, subscriber.PriorityLevel)
 	return sessionManagementData, nil
 }
 

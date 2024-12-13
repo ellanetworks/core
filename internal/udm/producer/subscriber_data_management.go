@@ -16,7 +16,6 @@ func GetAmData(supi string) (
 ) {
 	amData, err := producer.GetAmData(supi)
 	if err != nil {
-		logger.UdmLog.Errorf("GetAmData error: %+v", err)
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
 	udmUe := context.UDM_Self().NewUdmUe(supi)
@@ -42,7 +41,6 @@ func GetSmData(supi string, Dnn string, Snssai string) ([]models.SessionManageme
 		rspSMSubDataList = append(rspSMSubDataList, eachSMSubData)
 	}
 	udmUe.SmSubsDataLock.RUnlock()
-
 	return rspSMSubDataList, nil
 }
 

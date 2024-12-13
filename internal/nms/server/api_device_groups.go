@@ -196,44 +196,13 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 				continue
 			}
 			subscriber.Dnn = dnn
-			smData := &dbModels.SessionManagementSubscriptionData{
-				DnnConfigurations: map[string]dbModels.DnnConfiguration{
-					dnn: {
-						PduSessionTypes: &dbModels.PduSessionTypes{
-							DefaultSessionType:  dbModels.PduSessionType_IPV4,
-							AllowedSessionTypes: []dbModels.PduSessionType{dbModels.PduSessionType_IPV4},
-						},
-						SscModes: &dbModels.SscModes{
-							DefaultSscMode: dbModels.SscMode__1,
-							AllowedSscModes: []dbModels.SscMode{
-								"SSC_MODE_2",
-								"SSC_MODE_3",
-							},
-						},
-						SessionAmbr: &dbModels.Ambr{
-							Downlink: convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink)),
-							Uplink:   convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink)),
-						},
-						Var5gQosProfile: &dbModels.SubscribedDefaultQos{
-							Var5qi: 9,
-							Arp: &dbModels.Arp{
-								PriorityLevel: 8,
-							},
-							PriorityLevel: 8,
-						},
-					},
-				},
-			}
 			subscriber.Sd = slice.Sd
 			subscriber.Sst = int32(sVal)
-			subscriber.SessionManagementSubscriptionData = append(subscriber.SessionManagementSubscriptionData, smData)
-			subscriber.AccessAndMobilitySubscriptionData = &dbModels.AccessAndMobilitySubscriptionData{
-				SubscribedUeAmbr: &dbModels.AmbrRm{
-					Downlink: convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink)),
-					Uplink:   convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink)),
-				},
-			}
 			subscriber.PlmnID = slice.Mcc + slice.Mnc
+			subscriber.BitRateUplink = convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink))
+			subscriber.BitRateDownlink = convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink))
+			subscriber.Var5qi = 9
+			subscriber.PriorityLevel = 8
 			err = queries.CreateSubscriber(subscriber)
 			if err != nil {
 				logger.NmsLog.Warnf("Could not create subscriber %v", ueId)
@@ -287,8 +256,10 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 				logger.NmsLog.Warnln(err)
 				continue
 			}
-			subscriber.SessionManagementSubscriptionData = []*dbModels.SessionManagementSubscriptionData{}
-			subscriber.AccessAndMobilitySubscriptionData = &dbModels.AccessAndMobilitySubscriptionData{}
+			subscriber.BitRateUplink = ""
+			subscriber.BitRateDownlink = ""
+			subscriber.Var5qi = 0
+			subscriber.PriorityLevel = 0
 			err = queries.CreateSubscriber(subscriber)
 			if err != nil {
 				logger.NmsLog.Warnln(err)

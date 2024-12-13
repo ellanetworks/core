@@ -218,7 +218,6 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 			// increment sqn authSubs.SequenceNumber
 			bigSQN := big.NewInt(0)
 			sqnStr = hex.EncodeToString(SQNms)
-			fmt.Printf("SQNstr %s\n", sqnStr)
 			bigSQN.SetString(sqnStr, 16)
 
 			bigInc := big.NewInt(ind + 1)
