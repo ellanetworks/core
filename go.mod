@@ -24,7 +24,7 @@ require (
 	github.com/wmnsk/go-pfcp v0.0.24
 	go.mongodb.org/mongo-driver v1.17.1
 	go.uber.org/zap v1.27.0
-	golang.org/x/net v0.31.0
+	golang.org/x/net v0.32.0
 	golang.org/x/sys v0.28.0
 	gopkg.in/yaml.v2 v2.4.0
 )
