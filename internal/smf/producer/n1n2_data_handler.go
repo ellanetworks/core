@@ -6,10 +6,10 @@ import (
 	"github.com/omec-project/nas"
 	"github.com/omec-project/openapi/Nsmf_PDUSession"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/smf/consumer"
 	"github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/transaction"
+	"github.com/yeastengine/ella/internal/util/httpwrapper"
 )
 
 type pfcpAction struct {

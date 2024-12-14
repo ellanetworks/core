@@ -5,8 +5,8 @@ import (
 	"strconv"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/smf/context"
+	"github.com/yeastengine/ella/internal/util/httpwrapper"
 )
 
 type PDUSessionInfo struct {

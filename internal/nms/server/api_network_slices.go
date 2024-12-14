@@ -9,12 +9,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	openAPIModels "github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/httpwrapper"
 	dbModels "github.com/yeastengine/ella/internal/db/models"
 	"github.com/yeastengine/ella/internal/db/queries"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/nms/models"
 	"github.com/yeastengine/ella/internal/smf/context"
+	"github.com/yeastengine/ella/internal/util/httpwrapper"
 )
 
 const DNN = "internet"

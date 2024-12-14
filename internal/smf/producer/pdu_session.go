@@ -9,7 +9,6 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nsmf_PDUSession"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/httpwrapper"
 	amf_producer "github.com/yeastengine/ella/internal/amf/producer"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/consumer"
@@ -18,6 +17,7 @@ import (
 	"github.com/yeastengine/ella/internal/smf/qos"
 	"github.com/yeastengine/ella/internal/smf/transaction"
 	"github.com/yeastengine/ella/internal/udm/producer"
+	"github.com/yeastengine/ella/internal/util/httpwrapper"
 )
 
 func formContextCreateErrRsp(httpStatus int, problemBody *models.ProblemDetails, n1SmMsg *models.RefToBinaryData) *httpwrapper.Response {

@@ -77,7 +77,7 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 ##### Example
 
 ```yaml
-log-level: "info"
+log-level: "info"  # debug, info, warn, error
 db:
   url: "mongodb://localhost:27017"
   name: "test"
