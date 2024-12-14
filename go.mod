@@ -19,7 +19,6 @@ require (
 	github.com/omec-project/nas v1.4.3
 	github.com/omec-project/ngap v1.3.1
 	github.com/omec-project/openapi v1.3.2
-	github.com/omec-project/util v1.2.7
 	github.com/prometheus/client_golang v1.20.5
 	github.com/tim-ywliu/event v0.1.0
 	github.com/wmnsk/go-pfcp v0.0.24
@@ -61,6 +60,7 @@ require (
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/omec-project/util v1.2.7 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect

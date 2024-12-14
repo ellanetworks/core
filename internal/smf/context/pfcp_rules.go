@@ -5,7 +5,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/omec-project/util/util_3gpp"
 	"github.com/yeastengine/ella/internal/util/dnn"
 )
 
@@ -103,7 +102,7 @@ type ForwardingParameters struct {
 	OuterHeaderCreation  *OuterHeaderCreation
 	PFCPSMReqFlags       *PFCPSMReqFlags
 	ForwardingPolicyID   string
-	NetworkInstance      util_3gpp.Dnn
+	NetworkInstance      dnn.Dnn
 	DestinationInterface DestinationInterface
 }
 
