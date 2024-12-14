@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/idgenerator"
 	"github.com/yeastengine/ella/internal/amf/factory"
 	"github.com/yeastengine/ella/internal/logger"
+	"github.com/yeastengine/ella/internal/util/idgenerator"
 )
 
 var (

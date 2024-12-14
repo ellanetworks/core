@@ -17,9 +17,9 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/fsm"
-	"github.com/omec-project/util/idgenerator"
 	"github.com/omec-project/util/ueauth"
 	"github.com/yeastengine/ella/internal/logger"
+	"github.com/yeastengine/ella/internal/util/idgenerator"
 	"go.uber.org/zap"
 )
 

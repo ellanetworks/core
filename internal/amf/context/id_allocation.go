@@ -1,8 +1,8 @@
 package context
 
 import (
-	"github.com/omec-project/util/idgenerator"
 	"github.com/yeastengine/ella/internal/logger"
+	"github.com/yeastengine/ella/internal/util/idgenerator"
 )
 
 func AllocateUniqueID(generator **idgenerator.IDGenerator, idName string) (int64, error) {

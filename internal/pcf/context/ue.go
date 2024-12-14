@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/idgenerator"
 	"github.com/yeastengine/ella/internal/logger"
+	"github.com/yeastengine/ella/internal/util/idgenerator"
 )
 
 // key is supi
