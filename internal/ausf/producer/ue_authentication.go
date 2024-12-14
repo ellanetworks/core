@@ -12,10 +12,10 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/ueauth"
 	"github.com/yeastengine/ella/internal/ausf/context"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/udm/producer"
+	"github.com/yeastengine/ella/internal/util/ueauth"
 )
 
 const (
