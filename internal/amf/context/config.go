@@ -6,32 +6,32 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/factory"
-	"github.com/yeastengine/ella/internal/db/queries"
 	"github.com/yeastengine/ella/internal/logger"
 )
 
 // This file contains calls to db to get configuration data
 
 func GetSupportTaiList() []models.Tai {
+	amfSelf := AMF_Self()
 	tais := make([]models.Tai, 0)
-	networkSliceNames, err := queries.ListNetworkSliceNames()
+	networkSlices, err := amfSelf.DbInstance.ListNetworkSlices()
 	if err != nil {
 		logger.AmfLog.Warnf("Failed to get network slice names: %s", err)
 		return tais
 	}
-	for _, networkSliceName := range networkSliceNames {
-		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
-		if err != nil {
-			logger.AmfLog.Warnf("Failed to get network slice by name: %s", networkSliceName)
-			continue
-		}
+	for _, networkSlice := range networkSlices {
 		plmnID := models.PlmnId{
 			Mcc: networkSlice.Mcc,
 			Mnc: networkSlice.Mnc,
 		}
+		gnbs, err := networkSlice.GetGNodeBs()
+		if err != nil {
+			logger.AmfLog.Warnf("Failed to get gNodeBs: %s", err)
+			continue
+		}
 		tai := models.Tai{
 			PlmnId: &plmnID,
-			Tac:    fmt.Sprintf("%06x", networkSlice.GNodeBs[0].Tac),
+			Tac:    fmt.Sprintf("%06x", gnbs[0].Tac),
 		}
 		tais = append(tais, tai)
 	}
@@ -39,18 +39,14 @@ func GetSupportTaiList() []models.Tai {
 }
 
 func GetServedGuamiList() []models.Guami {
+	amfSelf := AMF_Self()
 	guamis := make([]models.Guami, 0)
-	networkSliceNames, err := queries.ListNetworkSliceNames()
+	networkSlices, err := amfSelf.DbInstance.ListNetworkSlices()
 	if err != nil {
 		logger.AmfLog.Warnf("Failed to get network slice names: %s", err)
 		return guamis
 	}
-	for _, networkSliceName := range networkSliceNames {
-		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
-		if err != nil {
-			logger.AmfLog.Warnf("Failed to get network slice by name: %s", networkSliceName)
-			continue
-		}
+	for _, networkSlice := range networkSlices {
 		plmnID := models.PlmnId{
 			Mcc: networkSlice.Mcc,
 			Mnc: networkSlice.Mnc,
@@ -65,18 +61,14 @@ func GetServedGuamiList() []models.Guami {
 }
 
 func GetPlmnSupportList() []factory.PlmnSupportItem {
+	amfSelf := AMF_Self()
 	plmnSupportList := make([]factory.PlmnSupportItem, 0)
-	networkSliceNames, err := queries.ListNetworkSliceNames()
+	networkSlices, err := amfSelf.DbInstance.ListNetworkSlices()
 	if err != nil {
 		logger.AmfLog.Warnf("Failed to get network slice names: %s", err)
 		return plmnSupportList
 	}
-	for _, networkSliceName := range networkSliceNames {
-		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
-		if err != nil {
-			logger.AmfLog.Warnf("Failed to get network slice by name: %s", networkSliceName)
-			continue
-		}
+	for _, networkSlice := range networkSlices {
 		plmnID := models.PlmnId{
 			Mcc: networkSlice.Mcc,
 			Mnc: networkSlice.Mnc,

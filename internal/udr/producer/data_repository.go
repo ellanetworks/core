@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/db/queries"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/udr/context"
 )
@@ -48,7 +47,8 @@ func convertDbAmDataToModel(sd string, sst int32, bitrateDownlink string, bitrat
 }
 
 func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
-	subscriber, err := queries.GetSubscriber(ueId)
+	udrSelf := context.UDR_Self()
+	subscriber, err := udrSelf.DbInstance.GetSubscriberByUeID(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
@@ -58,13 +58,14 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 }
 
 func EditAuthenticationSubscription(ueId string, sequenceNumber string) error {
-	subscriber, err := queries.GetSubscriber(ueId)
+	udrSelf := context.UDR_Self()
+	subscriber, err := udrSelf.DbInstance.GetSubscriberByUeID(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
 	subscriber.SequenceNumber = sequenceNumber
-	err = queries.CreateSubscriber(subscriber)
+	err = udrSelf.DbInstance.CreateSubscriber(subscriber)
 	if err != nil {
 		return fmt.Errorf("couldn't update subscriber %s: %v", ueId, err)
 	}
@@ -98,7 +99,8 @@ func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 }
 
 func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
-	subscriber, err := queries.GetSubscriber(ueId)
+	udrSelf := context.UDR_Self()
+	subscriber, err := udrSelf.DbInstance.GetSubscriberByUeID(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
@@ -108,12 +110,12 @@ func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 }
 
 func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
-	_, err := queries.GetSubscriber(ueId)
+	udrSelf := context.UDR_Self()
+	_, err := udrSelf.DbInstance.GetSubscriberByUeID(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
-
 	amPolicyData := &models.AmPolicyData{}
 	return amPolicyData, nil
 }
@@ -140,7 +142,8 @@ func convertDbSmPolicyDataToModel(sst int32, sd string, dnn string) *models.SmPo
 }
 
 func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
-	subscriber, err := queries.GetSubscriber(ueId)
+	udrSelf := context.UDR_Self()
+	subscriber, err := udrSelf.DbInstance.GetSubscriberByUeID(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
@@ -155,43 +158,6 @@ func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
 func GetSMFRegistrations(supi string) ([]*models.SmfRegistration, error) {
 	// return empty list
 	return []*models.SmfRegistration{}, nil
-}
-
-func RemovesdmSubscriptions(ueId string, subsId string) error {
-	udrSelf := context.UDR_Self()
-	value, ok := udrSelf.UESubsCollection.Load(ueId)
-	if !ok {
-		return fmt.Errorf("USER_NOT_FOUND")
-	}
-
-	UESubsData := value.(*context.UESubsData)
-	_, ok = UESubsData.SdmSubscriptions[subsId]
-
-	if !ok {
-		return fmt.Errorf("SUBSCRIPTION_NOT_FOUND")
-	}
-	delete(UESubsData.SdmSubscriptions, subsId)
-
-	return nil
-}
-
-func Updatesdmsubscriptions(ueId string, subsId string, SdmSubscription models.SdmSubscription) error {
-	udrSelf := context.UDR_Self()
-	value, ok := udrSelf.UESubsCollection.Load(ueId)
-	if !ok {
-		return fmt.Errorf("USER_NOT_FOUND")
-	}
-
-	UESubsData := value.(*context.UESubsData)
-	_, ok = UESubsData.SdmSubscriptions[subsId]
-
-	if !ok {
-		return fmt.Errorf("SUBSCRIPTION_NOT_FOUND")
-	}
-	SdmSubscription.SubscriptionId = subsId
-	UESubsData.SdmSubscriptions[subsId] = &SdmSubscription
-
-	return nil
 }
 
 func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string) models.SdmSubscription {
@@ -262,7 +228,8 @@ func convertDbSessionManagementDataToModel(
 }
 
 func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) {
-	subscriber, err := queries.GetSubscriber(ueId)
+	udrSelf := context.UDR_Self()
+	subscriber, err := udrSelf.DbInstance.GetSubscriberByUeID(ueId)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
@@ -288,7 +255,8 @@ func convertDbSmfSelectionDataToModel(snssai, dnn string) *models.SmfSelectionSu
 }
 
 func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
-	subscriber, err := queries.GetSubscriber(ueId)
+	udrSelf := context.UDR_Self()
+	subscriber, err := udrSelf.DbInstance.GetSubscriberByUeID(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 	}

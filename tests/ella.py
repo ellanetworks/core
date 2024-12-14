@@ -99,7 +99,7 @@ class Ella:
 
     def create_subscriber(self, imsi: str) -> None:
         """Create a subscriber."""
-        url = f"/api/v1/subscriber/imsi-{imsi}"
+        url = f"/api/v1/subscribers/imsi-{imsi}"
         data = SUBSCRIBER_CONFIG.copy()
         data["UeId"] = imsi
         self._make_request(method="POST", endpoint=url, data=data)
@@ -108,13 +108,13 @@ class Ella:
     def create_device_group(self, name: str, imsis: List[str]) -> None:
         """Create a device group."""
         DEVICE_GROUP_CONFIG["imsis"] = imsis
-        url = f"/api/v1/device-group/{name}"
+        url = f"/api/v1/device-groups/{name}"
         self._make_request("POST", url, data=DEVICE_GROUP_CONFIG)
         logger.info(f"Created device group {name}.")
 
     def create_network_slice(self, name: str, device_groups: List[str]) -> None:
         """Create a network slice."""
         NETWORK_SLICE_CONFIG["site-device-group"] = device_groups
-        url = f"/api/v1/network-slice/{name}"
+        url = f"/api/v1/network-slices/{name}"
         self._make_request("POST", url, data=NETWORK_SLICE_CONFIG)
         logger.info(f"Created network slice {name}.")

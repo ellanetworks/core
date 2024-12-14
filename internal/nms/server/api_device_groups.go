@@ -7,12 +7,18 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	dbModels "github.com/yeastengine/ella/internal/db/models"
-	"github.com/yeastengine/ella/internal/db/queries"
+	openAPIModels "github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/nms/models"
 	"github.com/yeastengine/ella/internal/util/httpwrapper"
 )
+
+var imsiData map[string]*openAPIModels.AuthenticationSubscription
+
+func init() {
+	imsiData = make(map[string]*openAPIModels.AuthenticationSubscription)
+}
 
 func convertToString(val uint64) string {
 	var mbVal, gbVal, kbVal uint64
@@ -33,206 +39,186 @@ func convertToString(val uint64) string {
 	return retStr
 }
 
-func GetDeviceGroups(c *gin.Context) {
-	setCorsHeader(c)
-	deviceGroups, err := queries.ListProfiles()
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-		c.JSON(http.StatusInternalServerError, nil)
-		return
-	}
-	c.JSON(http.StatusOK, deviceGroups)
-}
-
-func GetDeviceGroupByName(c *gin.Context) {
-	setCorsHeader(c)
-	dbDeviceGroup := queries.GetProfile(c.Param("group-name"))
-	if dbDeviceGroup.Name == "" {
-		c.JSON(http.StatusNotFound, nil)
-		return
-	}
-	deviceGroup := models.DeviceGroups{
-		DeviceGroupName: dbDeviceGroup.Name,
-		Imsis:           dbDeviceGroup.Imsis,
-		IpDomainExpanded: models.DeviceGroupsIpDomainExpanded{
-			UeIpPool:     dbDeviceGroup.UeIpPool,
-			DnsPrimary:   dbDeviceGroup.DnsPrimary,
-			DnsSecondary: dbDeviceGroup.DnsSecondary,
-			UeDnnQos: &models.DeviceGroupsIpDomainExpandedUeDnnQos{
-				DnnMbrDownlink: dbDeviceGroup.DnnMbrDownlink,
-				DnnMbrUplink:   dbDeviceGroup.DnnMbrUplink,
-				BitrateUnit:    dbDeviceGroup.BitrateUnit,
-				TrafficClass: &models.TrafficClassInfo{
-					Name: dbDeviceGroup.Name,
-					Qci:  dbDeviceGroup.Qci,
-					Arp:  dbDeviceGroup.Arp,
-					Pdb:  dbDeviceGroup.Pdb,
-					Pelr: dbDeviceGroup.Pelr,
-				},
-			},
-		},
-	}
-
-	c.JSON(http.StatusOK, deviceGroup)
-}
-
-func DeviceGroupGroupNameDelete(c *gin.Context) {
-	if ret := DeviceGroupDeleteHandler(c); ret {
-		c.JSON(http.StatusOK, gin.H{})
-	} else {
-		c.JSON(http.StatusBadRequest, gin.H{})
-	}
-}
-
-func DeviceGroupGroupNamePut(c *gin.Context) {
-	if ret := DeviceGroupPostHandler(c, models.Put_op); ret {
-		c.JSON(http.StatusOK, gin.H{})
-	} else {
-		c.JSON(http.StatusBadRequest, gin.H{})
-	}
-}
-
-func DeviceGroupGroupNamePatch(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{})
-}
-
-func DeviceGroupGroupNamePost(c *gin.Context) {
-	if ret := DeviceGroupPostHandler(c, models.Post_op); ret {
-		c.JSON(http.StatusOK, gin.H{})
-	} else {
-		c.JSON(http.StatusBadRequest, gin.H{})
-	}
-}
-
-func DeviceGroupDeleteHandler(c *gin.Context) bool {
-	groupName, exists := c.Params.Get("group-name")
-	if !exists {
-		logger.NmsLog.Errorf("group-name is missing")
-		return false
-	}
-	dbDeviceGroup := queries.GetProfile(groupName)
-	deviceGroup := &models.DeviceGroups{
-		DeviceGroupName: dbDeviceGroup.Name,
-		Imsis:           dbDeviceGroup.Imsis,
-		IpDomainExpanded: models.DeviceGroupsIpDomainExpanded{
-			UeIpPool:     dbDeviceGroup.UeIpPool,
-			DnsPrimary:   dbDeviceGroup.DnsPrimary,
-			DnsSecondary: dbDeviceGroup.DnsSecondary,
-			Mtu:          dbDeviceGroup.Mtu,
-			UeDnnQos: &models.DeviceGroupsIpDomainExpandedUeDnnQos{
-				DnnMbrDownlink: dbDeviceGroup.DnnMbrDownlink,
-				DnnMbrUplink:   dbDeviceGroup.DnnMbrUplink,
-				BitrateUnit:    dbDeviceGroup.BitrateUnit,
-				TrafficClass: &models.TrafficClassInfo{
-					Name: dbDeviceGroup.Name,
-					Qci:  dbDeviceGroup.Qci,
-					Arp:  dbDeviceGroup.Arp,
-					Pdb:  dbDeviceGroup.Pdb,
-					Pelr: dbDeviceGroup.Pelr,
-				},
-			},
-		},
-	}
-	err := queries.DeleteProfile(groupName)
-	if err != nil {
-		logger.NmsLog.Warnf("Device Group [%v] not found", groupName)
-		return false
-	}
-	deleteDeviceGroupConfig(deviceGroup)
-	updateSMF()
-	logger.NmsLog.Infof("Deleted Device Group: %v", groupName)
-	return true
-}
-
-func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
-	groupName, exists := c.Params.Get("group-name")
-	if !exists {
-		logger.NmsLog.Errorf("group-name is missing")
-		return false
-	}
-
-	var err error
-	var request models.DeviceGroups
-	s := strings.Split(c.GetHeader("Content-Type"), ";")
-	switch s[0] {
-	case "application/json":
-		err = c.ShouldBindJSON(&request)
-	}
-	if err != nil {
-		logger.NmsLog.Infof(" err %v", err)
-		return false
-	}
-	req := httpwrapper.NewRequest(c.Request, request)
-
-	procReq := req.Body.(models.DeviceGroups)
-	ipdomain := &procReq.IpDomainExpanded
-
-	if ipdomain.UeDnnQos != nil {
-		ipdomain.UeDnnQos.DnnMbrDownlink = convertToBps(ipdomain.UeDnnQos.DnnMbrDownlink, ipdomain.UeDnnQos.BitrateUnit)
-		if ipdomain.UeDnnQos.DnnMbrDownlink < 0 {
-			ipdomain.UeDnnQos.DnnMbrDownlink = math.MaxInt64
-		}
-		ipdomain.UeDnnQos.DnnMbrUplink = convertToBps(ipdomain.UeDnnQos.DnnMbrUplink, ipdomain.UeDnnQos.BitrateUnit)
-		if ipdomain.UeDnnQos.DnnMbrUplink < 0 {
-			ipdomain.UeDnnQos.DnnMbrUplink = math.MaxInt64
-		}
-	}
-
-	procReq.DeviceGroupName = groupName
-	slice := isDeviceGroupExistInSlice(groupName)
-	if slice != nil {
-		sVal, err := strconv.ParseUint(slice.Sst, 10, 32)
+func GetDeviceGroups(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		setCorsHeader(c)
+		deviceGroups, err := dbInstance.ListProfiles()
 		if err != nil {
-			logger.NmsLog.Errorf("Could not parse SST %v", slice.Sst)
+			logger.NmsLog.Warnln(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve device groups"})
+			return
+		}
+		c.JSON(http.StatusOK, deviceGroups)
+	}
+}
+
+func GetDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		setCorsHeader(c)
+		groupName, exists := c.Params.Get("group-name")
+		if !exists {
+			logger.NmsLog.Errorf("group-name is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing group-name parameter"})
+			return
+		}
+		dbDeviceGroup, err := dbInstance.GetProfileByName(groupName)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Unable to retrieve device group"})
+			return
+		}
+		deviceGroup := models.DeviceGroups{
+			DeviceGroupName: dbDeviceGroup.Name,
+			Imsis:           dbDeviceGroup.Imsis,
+			IpDomainExpanded: models.DeviceGroupsIpDomainExpanded{
+				UeIpPool:     dbDeviceGroup.UeIpPool,
+				DnsPrimary:   dbDeviceGroup.DnsPrimary,
+				DnsSecondary: dbDeviceGroup.DnsSecondary,
+				UeDnnQos: &models.DeviceGroupsIpDomainExpandedUeDnnQos{
+					DnnMbrDownlink: dbDeviceGroup.DnnMbrDownlink,
+					DnnMbrUplink:   dbDeviceGroup.DnnMbrUplink,
+					BitrateUnit:    dbDeviceGroup.BitrateUnit,
+					TrafficClass: &models.TrafficClassInfo{
+						Name: dbDeviceGroup.Name,
+						Qci:  dbDeviceGroup.Qci,
+						Arp:  dbDeviceGroup.Arp,
+						Pdb:  dbDeviceGroup.Pdb,
+						Pelr: dbDeviceGroup.Pelr,
+					},
+				},
+			},
+		}
+		c.JSON(http.StatusOK, deviceGroup)
+	}
+}
+
+func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		setCorsHeader(c)
+		groupName, exists := c.Params.Get("group-name")
+		if !exists {
+			logger.NmsLog.Errorf("group-name is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing group-name parameter"})
+			return
+		}
+		_, err := dbInstance.GetProfileByName(groupName)
+		if err == nil {
+			logger.NmsLog.Warnf("Device Group [%v] already exists", groupName)
+			c.JSON(http.StatusConflict, gin.H{"error": "Device Group already exists"})
+			return
+		}
+		var request models.DeviceGroups
+		s := strings.Split(c.GetHeader("Content-Type"), ";")
+		switch s[0] {
+		case "application/json":
+			err = c.ShouldBindJSON(&request)
+		}
+		if err != nil {
+			logger.NmsLog.Infof(" err %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+			return
+		}
+		req := httpwrapper.NewRequest(c.Request, request)
+
+		procReq := req.Body.(models.DeviceGroups)
+		ipdomain := &procReq.IpDomainExpanded
+
+		if ipdomain.UeDnnQos != nil {
+			ipdomain.UeDnnQos.DnnMbrDownlink = convertToBps(ipdomain.UeDnnQos.DnnMbrDownlink, ipdomain.UeDnnQos.BitrateUnit)
+			if ipdomain.UeDnnQos.DnnMbrDownlink < 0 {
+				ipdomain.UeDnnQos.DnnMbrDownlink = math.MaxInt64
+			}
+			ipdomain.UeDnnQos.DnnMbrUplink = convertToBps(ipdomain.UeDnnQos.DnnMbrUplink, ipdomain.UeDnnQos.BitrateUnit)
+			if ipdomain.UeDnnQos.DnnMbrUplink < 0 {
+				ipdomain.UeDnnQos.DnnMbrUplink = math.MaxInt64
+			}
 		}
 
-		aimsis := getAddedImsisList(&procReq)
-		for _, imsi := range aimsis {
-			dnn := procReq.IpDomainExpanded.Dnn
-			ueId := "imsi-" + imsi
-			subscriber, err := queries.GetSubscriber(ueId)
+		procReq.DeviceGroupName = groupName
+		slice := isDeviceGroupExistInSlice(dbInstance, groupName)
+		if slice != nil {
+			sVal, err := strconv.ParseUint(slice.Sst, 10, 32)
 			if err != nil {
-				logger.NmsLog.Warnf("Could not get subscriber %v", ueId)
-				continue
+				logger.NmsLog.Errorf("Could not parse SST %v", slice.Sst)
 			}
-			subscriber.Dnn = dnn
-			subscriber.Sd = slice.Sd
-			subscriber.Sst = int32(sVal)
-			subscriber.PlmnID = slice.Mcc + slice.Mnc
-			subscriber.BitRateUplink = convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink))
-			subscriber.BitRateDownlink = convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink))
-			subscriber.Var5qi = 9
-			subscriber.PriorityLevel = 8
-			err = queries.CreateSubscriber(subscriber)
-			if err != nil {
-				logger.NmsLog.Warnf("Could not create subscriber %v", ueId)
-				continue
+
+			aimsis := getAddedImsisList(&procReq)
+			for _, imsi := range aimsis {
+				dnn := procReq.IpDomainExpanded.Dnn
+				ueId := "imsi-" + imsi
+				subscriber, err := dbInstance.GetSubscriberByUeID(ueId)
+				if err != nil {
+					logger.NmsLog.Warnf("Could not get subscriber %v", ueId)
+					continue
+				}
+				subscriber.Dnn = dnn
+				subscriber.Sd = slice.Sd
+				subscriber.Sst = int32(sVal)
+				subscriber.PlmnID = slice.Mcc + slice.Mnc
+				subscriber.BitRateUplink = convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink))
+				subscriber.BitRateDownlink = convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink))
+				subscriber.Var5qi = 9
+				subscriber.PriorityLevel = 8
+				err = dbInstance.CreateSubscriber(subscriber)
+				if err != nil {
+					logger.NmsLog.Warnf("Could not create subscriber %v", ueId)
+					continue
+				}
 			}
 		}
+		dbDeviceGroup := &db.Profile{
+			Name:           groupName,
+			Imsis:          procReq.Imsis,
+			UeIpPool:       procReq.IpDomainExpanded.UeIpPool,
+			DnsPrimary:     procReq.IpDomainExpanded.DnsPrimary,
+			DnsSecondary:   procReq.IpDomainExpanded.DnsSecondary,
+			Mtu:            procReq.IpDomainExpanded.Mtu,
+			DnnMbrDownlink: procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink,
+			DnnMbrUplink:   procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink,
+			BitrateUnit:    procReq.IpDomainExpanded.UeDnnQos.BitrateUnit,
+			Qci:            procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
+			Arp:            procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Arp,
+			Pdb:            procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pdb,
+			Pelr:           procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
+		}
+		err = dbInstance.CreateProfile(dbDeviceGroup)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create device group"})
+			return
+		}
+		updateSMF(dbInstance)
+		logger.NmsLog.Infof("Created Device Group: %v", groupName)
+		c.JSON(http.StatusCreated, gin.H{"message": "Device Group created successfully"})
 	}
-	dbDeviceGroup := &dbModels.Profile{
-		Name:           groupName,
-		Imsis:          procReq.Imsis,
-		UeIpPool:       procReq.IpDomainExpanded.UeIpPool,
-		DnsPrimary:     procReq.IpDomainExpanded.DnsPrimary,
-		DnsSecondary:   procReq.IpDomainExpanded.DnsSecondary,
-		Mtu:            procReq.IpDomainExpanded.Mtu,
-		DnnMbrDownlink: procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink,
-		DnnMbrUplink:   procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink,
-		BitrateUnit:    procReq.IpDomainExpanded.UeDnnQos.BitrateUnit,
-		Qci:            procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
-		Arp:            procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Arp,
-		Pdb:            procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pdb,
-		Pelr:           procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
+}
+
+func DeleteDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		setCorsHeader(c)
+		groupName, exists := c.Params.Get("group-name")
+		if !exists {
+			logger.NmsLog.Errorf("group-name is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing group-name parameter"})
+			return
+		}
+		profile, err := dbInstance.GetProfileByName(groupName)
+		if err != nil {
+			logger.NmsLog.Warnf("Device Group [%v] not found", groupName)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Device Group not found"})
+			return
+		}
+		deleteDeviceGroupConfig(dbInstance, profile)
+		err = dbInstance.DeleteProfile(profile.ID)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete device group"})
+			return
+		}
+		updateSMF(dbInstance)
+		logger.NmsLog.Infof("Deleted Device Group: %v", groupName)
+		c.JSON(http.StatusOK, gin.H{"message": "Device Group deleted successfully"})
 	}
-	err = queries.CreateProfile(dbDeviceGroup)
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-		return false
-	}
-	updateSMF()
-	logger.NmsLog.Infof("Created Device Group: %v", groupName)
-	return true
 }
 
 func getAddedImsisList(group *models.DeviceGroups) (aimsis []string) {
@@ -245,13 +231,13 @@ func getAddedImsisList(group *models.DeviceGroups) (aimsis []string) {
 	return
 }
 
-func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
-	slice := isDeviceGroupExistInSlice(deviceGroup.DeviceGroupName)
+func deleteDeviceGroupConfig(dbInstance *db.Database, deviceGroup *db.Profile) {
+	slice := isDeviceGroupExistInSlice(dbInstance, deviceGroup.Name)
 	if slice != nil {
 		dimsis := deviceGroup.Imsis
 		for _, imsi := range dimsis {
 			ueId := "imsi-" + imsi
-			subscriber, err := queries.GetSubscriber(ueId)
+			subscriber, err := dbInstance.GetSubscriberByUeID(ueId)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 				continue
@@ -260,7 +246,7 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 			subscriber.BitRateDownlink = ""
 			subscriber.Var5qi = 0
 			subscriber.PriorityLevel = 0
-			err = queries.CreateSubscriber(subscriber)
+			err = dbInstance.CreateSubscriber(subscriber)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 			}
@@ -268,13 +254,18 @@ func deleteDeviceGroupConfig(deviceGroup *models.DeviceGroups) {
 	}
 }
 
-func isDeviceGroupExistInSlice(deviceGroupName string) *dbModels.NetworkSlice {
-	dBSlices := queries.ListNetworkSlices()
+func isDeviceGroupExistInSlice(dbInstance *db.Database, deviceGroupName string) *db.NetworkSlice {
+	dBSlices, err := dbInstance.ListNetworkSlices()
+	if err != nil {
+		logger.NmsLog.Warnln(err)
+		return nil
+	}
 	for name, slice := range dBSlices {
-		for _, dgName := range slice.DeviceGroups {
+		deviceGroups := slice.GetDeviceGroups()
+		for _, dgName := range deviceGroups {
 			if dgName == deviceGroupName {
 				logger.NmsLog.Infof("Device Group [%v] is part of slice: %v", dgName, name)
-				return slice
+				return &slice
 			}
 		}
 	}

@@ -4,8 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	dbModels "github.com/yeastengine/ella/internal/db/models"
-	"github.com/yeastengine/ella/internal/db/queries"
+	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/logger"
 	nmsModels "github.com/yeastengine/ella/internal/nms/models"
 )
@@ -17,129 +16,120 @@ func setCorsHeader(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, PATCH, DELETE")
 }
 
-func GetSubscribers(c *gin.Context) {
-	setCorsHeader(c)
-	var subsList []nmsModels.SubsListIE
-	subscribers, err := queries.ListSubscribers()
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-	}
-	for _, subscriber := range subscribers {
-		subscriber := nmsModels.SubsListIE{
-			PlmnID: subscriber.UeId,
-			UeId:   subscriber.UeId,
+func GetSubscribers(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		setCorsHeader(c)
+		subscribers, err := dbInstance.ListSubscribers()
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve subscribers"})
+			return
 		}
-		subsList = append(subsList, subscriber)
+
+		var subsList []nmsModels.SubsListIE
+		for _, subscriber := range subscribers {
+			subsList = append(subsList, nmsModels.SubsListIE{
+				PlmnID: subscriber.PlmnID,
+				UeId:   subscriber.UeId,
+			})
+		}
+		c.JSON(http.StatusOK, subsList)
 	}
-	c.JSON(http.StatusOK, subsList)
 }
 
-func GetSubscriberByID(c *gin.Context) {
-	setCorsHeader(c)
+func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		setCorsHeader(c)
+		ueId := c.Param("ueId")
+		if ueId == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing ueId parameter"})
+			return
+		}
 
-	logger.NmsLog.Infoln("Get One Subscriber Data")
+		subscriber, err := dbInstance.GetSubscriberByUeID(ueId)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Subscriber not found"})
+			return
+		}
 
-	ueId := c.Param("ueId")
-	if ueId == "" {
-		c.JSON(http.StatusBadRequest, gin.H{})
-		return
+		c.JSON(http.StatusOK, nmsModels.SubsData{
+			PlmnID:          subscriber.PlmnID,
+			Sst:             subscriber.Sst,
+			Sd:              subscriber.Sd,
+			Dnn:             subscriber.Dnn,
+			UeId:            subscriber.UeId,
+			Opc:             subscriber.OpcValue,
+			SequenceNumber:  subscriber.SequenceNumber,
+			Key:             subscriber.PermanentKeyValue,
+			Var5qi:          subscriber.Var5qi,
+			PriorityLevel:   subscriber.PriorityLevel,
+			BitrateDownlink: subscriber.BitRateDownlink,
+			BitrateUplink:   subscriber.BitRateUplink,
+		})
 	}
-
-	subscriber, err := queries.GetSubscriber(ueId)
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-	}
-
-	subsData := nmsModels.SubsData{
-		Sst:             subscriber.Sst,
-		Sd:              subscriber.Sd,
-		Dnn:             subscriber.Dnn,
-		UeId:            ueId,
-		Opc:             subscriber.OpcValue,
-		SequenceNumber:  subscriber.SequenceNumber,
-		Key:             subscriber.PermanentKeyValue,
-		Var5qi:          subscriber.Var5qi,
-		PriorityLevel:   subscriber.PriorityLevel,
-		BitrateDownlink: subscriber.BitRateDownlink,
-		BitrateUplink:   subscriber.BitRateUplink,
-	}
-
-	c.JSON(http.StatusOK, subsData)
 }
 
-func PostSubscriberByID(c *gin.Context) {
-	setCorsHeader(c)
+func PostSubscriber(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		setCorsHeader(c)
+		var subsOverrideData nmsModels.SubsOverrideData
+		if err := c.ShouldBindJSON(&subsOverrideData); err != nil {
+			logger.NmsLog.Errorln("Invalid input:", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+			return
+		}
 
-	var subsOverrideData nmsModels.SubsOverrideData
-	if err := c.ShouldBindJSON(&subsOverrideData); err != nil {
-		logger.NmsLog.Errorln("Post One Subscriber Data - ShouldBindJSON failed ", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+		ueId := c.Param("ueId")
+		if ueId == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing ueId parameter"})
+			return
+		}
+		_, err := dbInstance.GetSubscriberByUeID(ueId)
+		if err == nil {
+			c.JSON(http.StatusConflict, gin.H{"error": "Subscriber already exists"})
+			return
+		}
+		newSubscriber := &db.Subscriber{
+			UeId:              ueId,
+			PlmnID:            subsOverrideData.PlmnID,
+			SequenceNumber:    subsOverrideData.SequenceNumber,
+			PermanentKeyValue: subsOverrideData.Key,
+			OpcValue:          subsOverrideData.OPc,
+		}
+
+		if err := dbInstance.CreateSubscriber(newSubscriber); err != nil {
+			logger.NmsLog.Warnln(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create subscriber"})
+			return
+		}
+
+		c.JSON(http.StatusCreated, gin.H{"message": "Subscriber created successfully"})
 	}
-
-	ueId := c.Param("ueId")
-
-	c.JSON(http.StatusCreated, gin.H{})
-
-	dbSubscriber := &dbModels.Subscriber{
-		UeId:              ueId,
-		OpcValue:          subsOverrideData.OPc,
-		PermanentKeyValue: subsOverrideData.Key,
-		SequenceNumber:    subsOverrideData.SequenceNumber,
-		BitRateUplink:     "",
-		BitRateDownlink:   "",
-	}
-	err := queries.CreateSubscriber(dbSubscriber)
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-		return
-	}
-	logger.NmsLog.Infof("Created subscriber: %v", ueId)
 }
 
-func PutSubscriberByID(c *gin.Context) {
-	setCorsHeader(c)
-	logger.NmsLog.Infoln("Put One Subscriber Data")
+func DeleteSubscriber(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		setCorsHeader(c)
+		ueId := c.Param("ueId")
+		if ueId == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing ueId parameter"})
+			return
+		}
 
-	var subsData nmsModels.SubsData
-	if err := c.ShouldBindJSON(&subsData); err != nil {
-		logger.NmsLog.Panic(err.Error())
+		subscriber, err := dbInstance.GetSubscriberByUeID(ueId)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Subscriber not found"})
+			return
+		}
+
+		if err := dbInstance.DeleteSubscriber(subscriber.ID); err != nil {
+			logger.NmsLog.Warnln(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete subscriber"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Subscriber deleted successfully"})
 	}
-
-	ueId := c.Param("ueId")
-	c.JSON(http.StatusNoContent, gin.H{})
-
-	subscriber, err := queries.GetSubscriber(ueId)
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-		return
-	}
-
-	subscriber.OpcValue = subsData.Opc
-	subscriber.SequenceNumber = subsData.SequenceNumber
-	subscriber.PermanentKeyValue = subsData.Key
-
-	err = queries.CreateSubscriber(subscriber)
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-		return
-	}
-
-	logger.NmsLog.Infof("Edited Subscriber: %v", ueId)
-}
-
-func PatchSubscriberByID(c *gin.Context) {
-	setCorsHeader(c)
-	logger.NmsLog.Infoln("Patch One Subscriber Data")
-}
-
-func DeleteSubscriberByID(c *gin.Context) {
-	setCorsHeader(c)
-	ueId := c.Param("ueId")
-	c.JSON(http.StatusNoContent, gin.H{})
-	err := queries.DeleteSubscriber(ueId)
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-	}
-	logger.NmsLog.Infof("Deleted Subscriber: %v", ueId)
 }

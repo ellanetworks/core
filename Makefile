@@ -5,9 +5,6 @@ ROCK_FILE := ella_0.0.4_amd64.rock
 TAR_FILE := ella.tar
 K8S_NAMESPACE := dev2
 OCI_IMAGE_NAME := ella:0.0.4
-MONGODB_DEPLOYMENT := k8s/mongodb-deployment.yaml
-MONGODB_SERVICE := k8s/mongodb-service.yaml
-MONGODB_CONFIGMAP := k8s/mongodb-configmap.yaml
 GNBSIM_GNB_NAD := k8s/gnbsim-gnb-nad.yaml
 GNBSIM_DEPLOYMENT := k8s/gnbsim-deployment.yaml
 GNBSIM_SERVICE := k8s/gnbsim-service.yaml
@@ -47,12 +44,6 @@ oci-build:
 	docker tag ella:0.0.4 localhost:5000/ella:0.0.4
 	docker push localhost:5000/ella:0.0.4
 
-mongodb-deploy:
-	@echo "Deploying MongoDB..."
-	kubectl apply -f $(MONGODB_CONFIGMAP)
-	kubectl apply -f $(MONGODB_SERVICE)
-	kubectl apply -f $(MONGODB_DEPLOYMENT)
-
 gnbsim-deploy:
 	@echo "Deploying gnbsim..."
 	kubectl apply -f $(GNBSIM_GNB_NAD)
@@ -67,7 +58,7 @@ router-deploy:
 	kubectl apply -f $(ROUTER_ACCESS_NAD)
 	kubectl apply -f $(ROUTER_DEPLOYMENT)
 
-ella-deploy: wait-for-mongodb
+ella-deploy: 
 	@echo "Deploying Ella..."
 	kubectl apply -f $(ELLA_N3_NAD)
 	kubectl apply -f $(ELLA_N6_NAD)
@@ -75,14 +66,6 @@ ella-deploy: wait-for-mongodb
 	kubectl apply -f $(ELLA_DEPLOYMENT)
 	kubectl apply -f $(ELLA_SERVICE)
 	@echo "Ella deployment completed successfully."
-
-wait-for-mongodb:
-	@echo "Waiting for MongoDB to be ready..."
-	while ! kubectl wait --namespace $(K8S_NAMESPACE) --for=condition=ready pod -l app=mongodb --timeout=30s; do \
-		echo "MongoDB is not ready yet. Retrying..."; \
-		sleep 2; \
-	done
-	@echo "MongoDB is ready."
 
 wait-for-ella:
 	@echo "Waiting for Ella to be ready..."
@@ -98,7 +81,7 @@ ella-start: wait-for-ella
     kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -- pebble add ella /config/pebble.yaml; \
 	kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -- pebble start ella
 
-deploy: mongodb-deploy gnbsim-deploy router-deploy ella-deploy ella-start
+deploy: gnbsim-deploy router-deploy ella-deploy ella-start
 	@echo "Deployment completed successfully."
 
 hotswap: go-build

@@ -12,6 +12,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/factory"
+	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/util/idgenerator"
 )
@@ -24,7 +25,7 @@ var (
 	mutex                            sync.Mutex
 )
 
-func init() {
+func Initialize(dbInstance *db.Database) {
 	AMF_Self().LadnPool = make(map[string]*LADN)
 	AMF_Self().EventSubscriptionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
 	AMF_Self().Name = "amf"
@@ -38,6 +39,7 @@ func init() {
 }
 
 type AMFContext struct {
+	DbInstance                      *db.Database
 	EventSubscriptionIDGenerator    *idgenerator.IDGenerator
 	EventSubscriptions              sync.Map
 	UePool                          sync.Map         // map[supi]*AmfUe

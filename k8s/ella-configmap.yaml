@@ -7,8 +7,7 @@ data:
   config.yaml: |
     log-level: "info"
     db:
-      url: "mongodb://root:rootpassword@mongodb-service.dev2.svc.cluster.local:27017"
-      name: "ella"
+      path: "ella"
     interfaces: 
       n3: 
         name: "n3"

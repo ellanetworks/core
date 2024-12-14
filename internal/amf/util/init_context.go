@@ -28,6 +28,7 @@ func InitAmfContext(context *context.AMFContext) {
 	context.T3550Cfg = config.T3550
 	context.T3560Cfg = config.T3560
 	context.T3565Cfg = config.T3565
+	context.DbInstance = config.DBInstance
 }
 
 func getIntAlgOrder(integrityOrder []string) (intOrder []uint8) {

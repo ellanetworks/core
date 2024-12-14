@@ -11,8 +11,3 @@ interfaces:
     tls:
       cert: "/etc/ssl/certs/ella.crt"
       key: "/etc/ssl/private/ella.key"
-api:
-  port: 5000
-  tls:
-    cert: "/etc/ssl/certs/ella.crt"
-    key: "/etc/ssl/private/ella.key"

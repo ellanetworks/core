@@ -9,4 +9,4 @@ spec:
       port: 38412
       targetPort: 38412
   selector:
-    app: mongodb
+    app: gnbsim

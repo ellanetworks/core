@@ -9,13 +9,11 @@ import (
 )
 
 type DB struct {
-	Url  string
-	Name string
+	Path string
 }
 
 type DBYaml struct {
-	Url  string `yaml:"url"`
-	Name string `yaml:"name"`
+	Path string `yaml:"path"`
 }
 
 type APIYaml struct {
@@ -112,11 +110,8 @@ func Validate(filePath string) (Config, error) {
 	if c.DB == (DBYaml{}) {
 		return Config{}, errors.New("db is empty")
 	}
-	if c.DB.Url == "" {
-		return Config{}, errors.New("db.url is empty")
-	}
-	if c.DB.Name == "" {
-		return Config{}, errors.New("db.name is empty")
+	if c.DB.Path == "" {
+		return Config{}, errors.New("db.path is empty")
 	}
 	if c.Interfaces == (InterfacesYaml{}) {
 		return Config{}, errors.New("interfaces is empty")
@@ -152,8 +147,7 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, fmt.Errorf("interfaces.api.tls.key is empty")
 	}
 	config.LogLevel = c.LogLevel
-	config.DB.Url = c.DB.Url
-	config.DB.Name = c.DB.Name
+	config.DB.Path = c.DB.Path
 	config.Interfaces.N3.Name = c.Interfaces.N3.Name
 	config.Interfaces.N3.Address = c.Interfaces.N3.Address
 	config.Interfaces.N6.Name = c.Interfaces.N6.Name
