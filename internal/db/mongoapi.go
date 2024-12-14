@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -10,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	jsonpatch "github.com/evanphx/json-patch"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -203,106 +201,6 @@ func (c *MongoClient) RestfulAPIDeleteMany(collName string, filter bson.M) error
 
 	if _, err := collection.DeleteMany(context.TODO(), filter); err != nil {
 		return fmt.Errorf("RestfulAPIDeleteMany err: %+v", err)
-	}
-	return nil
-}
-
-func (c *MongoClient) RestfulAPIMergePatch(collName string, filter bson.M, patchData map[string]interface{}) error {
-	collection := c.Client.Database(c.dbName).Collection(collName)
-
-	originalData, err := getOrigData(collection, filter)
-	if err != nil {
-		return fmt.Errorf("RestfulAPIMergePatch getOrigData err: %+v", err)
-	}
-
-	original, err := json.Marshal(originalData)
-	if err != nil {
-		return fmt.Errorf("RestfulAPIMergePatch Marshal err: %+v", err)
-	}
-
-	patchDataByte, err := json.Marshal(patchData)
-	if err != nil {
-		return fmt.Errorf("RestfulAPIMergePatch Marshal err: %+v", err)
-	}
-
-	modifiedAlternative, err := jsonpatch.MergePatch(original, patchDataByte)
-	if err != nil {
-		return fmt.Errorf("RestfulAPIMergePatch MergePatch err: %+v", err)
-	}
-
-	var modifiedData map[string]interface{}
-	if err := json.Unmarshal(modifiedAlternative, &modifiedData); err != nil {
-		return fmt.Errorf("RestfulAPIMergePatch Unmarshal err: %+v", err)
-	}
-	if _, err := collection.UpdateOne(context.TODO(), filter, bson.M{"$set": modifiedData}); err != nil {
-		return fmt.Errorf("RestfulAPIMergePatch UpdateOne err: %+v", err)
-	}
-	return nil
-}
-
-func (c *MongoClient) RestfulAPIJSONPatch(collName string, filter bson.M, patchJSON []byte) error {
-	collection := c.Client.Database(c.dbName).Collection(collName)
-
-	originalData, err := getOrigData(collection, filter)
-	if err != nil {
-		return fmt.Errorf("RestfulAPIJSONPatch getOrigData err: %+v", err)
-	}
-
-	original, err := json.Marshal(originalData)
-	if err != nil {
-		return fmt.Errorf("RestfulAPIJSONPatch Marshal err: %+v", err)
-	}
-
-	patch, err := jsonpatch.DecodePatch(patchJSON)
-	if err != nil {
-		return fmt.Errorf("RestfulAPIJSONPatch DecodePatch err: %+v", err)
-	}
-
-	modified, err := patch.Apply(original)
-	if err != nil {
-		return fmt.Errorf("RestfulAPIJSONPatch Apply err: %+v", err)
-	}
-
-	var modifiedData map[string]interface{}
-	if err := json.Unmarshal(modified, &modifiedData); err != nil {
-		return fmt.Errorf("RestfulAPIJSONPatch Unmarshal err: %+v", err)
-	}
-	if _, err := collection.UpdateOne(context.TODO(), filter, bson.M{"$set": modifiedData}); err != nil {
-		return fmt.Errorf("RestfulAPIJSONPatch UpdateOne err: %+v", err)
-	}
-	return nil
-}
-
-func (c *MongoClient) RestfulAPIJSONPatchExtend(collName string, filter bson.M, patchJSON []byte, dataName string) error {
-	collection := c.Client.Database(c.dbName).Collection(collName)
-
-	originalDataCover, err := getOrigData(collection, filter)
-	if err != nil {
-		return fmt.Errorf("RestfulAPIJSONPatchExtend getOrigData err: %+v", err)
-	}
-
-	originalData := originalDataCover[dataName]
-	original, err := json.Marshal(originalData)
-	if err != nil {
-		return fmt.Errorf("RestfulAPIJSONPatchExtend Marshal err: %+v", err)
-	}
-
-	patch, err := jsonpatch.DecodePatch(patchJSON)
-	if err != nil {
-		return fmt.Errorf("RestfulAPIJSONPatchExtend DecodePatch err: %+v", err)
-	}
-
-	modified, err := patch.Apply(original)
-	if err != nil {
-		return fmt.Errorf("RestfulAPIJSONPatchExtend Apply err: %+v", err)
-	}
-
-	var modifiedData map[string]interface{}
-	if err := json.Unmarshal(modified, &modifiedData); err != nil {
-		return fmt.Errorf("RestfulAPIJSONPatchExtend Unmarshal err: %+v", err)
-	}
-	if _, err := collection.UpdateOne(context.TODO(), filter, bson.M{"$set": bson.M{dataName: modifiedData}}); err != nil {
-		return fmt.Errorf("RestfulAPIJSONPatchExtend UpdateOne err: %+v", err)
 	}
 	return nil
 }
