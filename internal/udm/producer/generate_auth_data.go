@@ -10,10 +10,10 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/util/milenage"
-	"github.com/omec-project/util/util_3gpp/suci"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/udm/context"
 	"github.com/yeastengine/ella/internal/udr/producer"
+	"github.com/yeastengine/ella/internal/util/suci"
 	"github.com/yeastengine/ella/internal/util/ueauth"
 )
 
