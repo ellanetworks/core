@@ -5,17 +5,22 @@ metadata:
   namespace: dev2
 data:
   config.yaml: |
+    log-level: "info"
     db:
       url: "mongodb://root:rootpassword@mongodb-service.dev2.svc.cluster.local:27017"
       name: "ella"
-    upf:
-      interfaces: ["n3", "n6"]
-      n3-address: "192.168.252.3"
-    api:
-      port: 5000
-      tls:
-        cert: "/config/cert.pem"
-        key: "/config/key.pem"
+    interfaces: 
+      n3: 
+        name: "n3"
+        address: "192.168.252.3"
+      n6:
+        name: "n6"
+      api:
+        name: "enp0s8"
+        port: 5000
+        tls:
+          cert: "/config/cert.pem"
+          key: "/config/key.pem"
   pebble.yaml: |
     summary: ella layer
     description: pebble config layer for ella

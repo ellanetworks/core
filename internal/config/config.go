@@ -25,12 +25,6 @@ type APIYaml struct {
 
 type UPFYaml struct {
 	Interfaces []string `yaml:"interfaces"`
-	N3Address  string   `yaml:"n3-address"`
-}
-
-type UPF struct {
-	Interfaces []string
-	N3Address  string
 }
 
 type TLS struct {
@@ -43,10 +37,31 @@ type TLSYaml struct {
 	Key  string `yaml:"key"`
 }
 
+type N3InterfaceYaml struct {
+	Name    string `yaml:"name"`
+	Address string `yaml:"address"`
+}
+
+type N6InterfaceYaml struct {
+	Name string `yaml:"name"`
+}
+
+type APIInterfaceYaml struct {
+	Name string `yaml:"name"`
+	Port int    `yaml:"port"`
+	TLS  TLSYaml
+}
+
+type InterfacesYaml struct {
+	N3  N3InterfaceYaml  `yaml:"n3"`
+	N6  N6InterfaceYaml  `yaml:"n6"`
+	API APIInterfaceYaml `yaml:"api"`
+}
+
 type ConfigYAML struct {
-	DB  DBYaml  `yaml:"db"`
-	UPF UPFYaml `yaml:"upf"`
-	API APIYaml `yaml:"api"`
+	DB         DBYaml         `yaml:"db"`
+	LogLevel   string         `yaml:"log-level"`
+	Interfaces InterfacesYaml `yaml:"interfaces"`
 }
 
 type API struct {
@@ -54,10 +69,31 @@ type API struct {
 	TLS  TLS
 }
 
+type N3Interface struct {
+	Name    string
+	Address string
+}
+
+type N6Interface struct {
+	Name string
+}
+
+type APIInterface struct {
+	Name string
+	Port int
+	TLS  TLS
+}
+
+type Interfaces struct {
+	N3  N3Interface
+	N6  N6Interface
+	API APIInterface
+}
+
 type Config struct {
-	DB  DB
-	UPF UPF
-	Api API
+	DB         DB
+	LogLevel   string
+	Interfaces Interfaces
 }
 
 func Validate(filePath string) (Config, error) {
@@ -70,14 +106,8 @@ func Validate(filePath string) (Config, error) {
 	if err := yaml.Unmarshal(configYaml, &c); err != nil {
 		return Config{}, fmt.Errorf("cannot unmarshal config file")
 	}
-	if c.API.Port == 0 {
-		return Config{}, errors.New("api.port is empty")
-	}
-	if c.API.TLS.Cert == "" {
-		return Config{}, fmt.Errorf("api.tls.cert is empty")
-	}
-	if c.API.TLS.Key == "" {
-		return Config{}, fmt.Errorf("api.tls.key is empty")
+	if c.LogLevel == "" {
+		return Config{}, errors.New("log-level is empty. Allowed values are: debug, info, warn, error, panic, fatal")
 	}
 	if c.DB == (DBYaml{}) {
 		return Config{}, errors.New("db is empty")
@@ -88,13 +118,48 @@ func Validate(filePath string) (Config, error) {
 	if c.DB.Name == "" {
 		return Config{}, errors.New("db.name is empty")
 	}
-	config.Api.Port = c.API.Port
-	config.Api.Port = c.API.Port
-	config.Api.TLS.Cert = c.API.TLS.Cert
-	config.Api.TLS.Key = c.API.TLS.Key
+	if c.Interfaces == (InterfacesYaml{}) {
+		return Config{}, errors.New("interfaces is empty")
+	}
+	if c.Interfaces.N3 == (N3InterfaceYaml{}) {
+		return Config{}, errors.New("interfaces.n3 is empty")
+	}
+	if c.Interfaces.N3.Address == "" {
+		return Config{}, errors.New("interfaces.n3.address is empty")
+	}
+	if c.Interfaces.N3.Name == "" {
+		return Config{}, errors.New("interfaces.n3.name is empty")
+	}
+	if c.Interfaces.N6 == (N6InterfaceYaml{}) {
+		return Config{}, errors.New("interfaces.n6 is empty")
+	}
+	if c.Interfaces.N6.Name == "" {
+		return Config{}, errors.New("interfaces.n6.name is empty")
+	}
+	if c.Interfaces.API == (APIInterfaceYaml{}) {
+		return Config{}, errors.New("interfaces.api is empty")
+	}
+	if c.Interfaces.API.Name == "" {
+		return Config{}, errors.New("interfaces.api.name is empty")
+	}
+	if c.Interfaces.API.Port == 0 {
+		return Config{}, errors.New("interfaces.api.port is empty")
+	}
+	if c.Interfaces.API.TLS.Cert == "" {
+		return Config{}, fmt.Errorf("interfaces.api.tls.cert is empty")
+	}
+	if c.Interfaces.API.TLS.Key == "" {
+		return Config{}, fmt.Errorf("interfaces.api.tls.key is empty")
+	}
+	config.LogLevel = c.LogLevel
 	config.DB.Url = c.DB.Url
 	config.DB.Name = c.DB.Name
-	config.UPF.Interfaces = c.UPF.Interfaces
-	config.UPF.N3Address = c.UPF.N3Address
+	config.Interfaces.N3.Name = c.Interfaces.N3.Name
+	config.Interfaces.N3.Address = c.Interfaces.N3.Address
+	config.Interfaces.N6.Name = c.Interfaces.N6.Name
+	config.Interfaces.API.Name = c.Interfaces.API.Name
+	config.Interfaces.API.Port = c.Interfaces.API.Port
+	config.Interfaces.API.TLS.Cert = c.Interfaces.API.TLS.Cert
+	config.Interfaces.API.TLS.Key = c.Interfaces.API.TLS.Key
 	return config, nil
 }
