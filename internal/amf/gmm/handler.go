@@ -17,7 +17,6 @@ import (
 	"github.com/omec-project/nas/security"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/fsm"
 	"github.com/yeastengine/ella/internal/amf/consumer"
 	"github.com/yeastengine/ella/internal/amf/context"
 	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
@@ -25,6 +24,7 @@ import (
 	"github.com/yeastengine/ella/internal/amf/producer/callback"
 	"github.com/yeastengine/ella/internal/amf/util"
 	"github.com/yeastengine/ella/internal/logger"
+	"github.com/yeastengine/ella/internal/util/fsm"
 )
 
 const (

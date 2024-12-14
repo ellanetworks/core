@@ -1,9 +1,9 @@
 package gmm
 
 import (
-	"github.com/omec-project/util/fsm"
 	"github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/logger"
+	"github.com/yeastengine/ella/internal/util/fsm"
 )
 
 const (
