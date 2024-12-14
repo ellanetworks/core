@@ -18,7 +18,7 @@ require (
 	github.com/omec-project/nas v1.4.3
 	github.com/omec-project/ngap v1.3.1
 	github.com/omec-project/openapi v1.3.2
-	github.com/omec-project/util v1.2.6
+	github.com/omec-project/util v1.2.7
 	github.com/prometheus/client_golang v1.20.5
 	github.com/tim-ywliu/event v0.1.0
 	github.com/wmnsk/go-pfcp v0.0.24
@@ -66,7 +66,6 @@ require (
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/stretchr/testify v1.10.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
@@ -77,7 +76,7 @@ require (
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/exp v0.0.0-20240103183307-be819d1f06fc // indirect
-	golang.org/x/net v0.31.0 // indirect
+	golang.org/x/net v0.32.0 // indirect
 	golang.org/x/oauth2 v0.24.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
