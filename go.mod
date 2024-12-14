@@ -8,6 +8,7 @@ require (
 	git.cs.nctu.edu.tw/calee/sctp v1.1.0
 	github.com/RoaringBitmap/roaring v1.9.4
 	github.com/cilium/ebpf v0.16.0
+	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/gopacket v1.1.19
@@ -41,7 +42,6 @@ require (
 	github.com/cloudwego/base64x v0.1.4 // indirect
 	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/evanphx/json-patch v5.9.0+incompatible // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
