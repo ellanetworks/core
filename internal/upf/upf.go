@@ -18,10 +18,10 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
-func Start(interfaces []string, n3_address string) error {
+func Start(n3_address string, n3Interface string, n6Interface string) error {
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
-
+	interfaces := []string{n3Interface, n6Interface}
 	c := config.UpfConfig{
 		InterfaceName:     interfaces,
 		XDPAttachMode:     "generic",

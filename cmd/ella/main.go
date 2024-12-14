@@ -21,7 +21,7 @@ import (
 )
 
 func startNetwork(cfg config.Config) error {
-	err := nms.Start(cfg.Api.Port, cfg.Api.TLS.Cert, cfg.Api.TLS.Key)
+	err := nms.Start(cfg.Interfaces.API.Port, cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = upf.Start(cfg.UPF.Interfaces, cfg.UPF.N3Address)
+	err = upf.Start(cfg.Interfaces.N3.Address, cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name)
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Couldn't validate config file: %s", err)
 	}
-	level, err := zapcore.ParseLevel("debug")
+	level, err := zapcore.ParseLevel(cfg.LogLevel)
 	if err != nil {
 		log.Fatalf("failed to parse log level: %v", err)
 	}

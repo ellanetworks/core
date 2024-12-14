@@ -1,9 +1,19 @@
+log-level: "info"
 db:
   url: "mongodb://localhost:27017"
   name: "test"
-upf:
-  interfaces: ["enp3s0"]
-  n3-address: "127.0.0.1"
+interfaces: 
+  n3: 
+    name: "enp3s0"
+    address: "127.0.0.1"
+  n6:
+    name: "enp6s0"
+  api:
+    name: "enp0s8"
+    port: 5000
+    tls:
+      cert: "/etc/ssl/certs/ella.crt"
+      key: "/etc/ssl/private/ella.key"
 api:
   port: 5001
   tls:

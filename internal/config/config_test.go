@@ -13,28 +13,36 @@ func TestGoodConfigSuccess(t *testing.T) {
 		t.Fatalf("Error occurred: %s", err)
 	}
 
-	if conf.UPF.Interfaces == nil {
-		t.Fatalf("Interfaces was not configured correctly")
+	if conf.Interfaces.N3.Name != "enp3s0" {
+		t.Fatalf("N3 interface was not configured correctly")
 	}
 
-	if conf.UPF.Interfaces[0] != "enp3s0" {
-		t.Fatalf("Interfaces was not configured correctly")
+	if conf.Interfaces.N3.Address != "127.0.0.1" {
+		t.Fatalf("N3 interface address was not configured correctly")
+	}
+
+	if conf.Interfaces.N6.Name != "enp6s0" {
+		t.Fatalf("N6 interface was not configured correctly")
+	}
+
+	if conf.Interfaces.API.Name != "enp0s8" {
+		t.Fatalf("API interface was not configured correctly")
+	}
+
+	if conf.Interfaces.API.Port != 5000 {
+		t.Fatalf("API port was not configured correctly")
+	}
+
+	if conf.Interfaces.API.TLS.Cert != "/etc/ssl/certs/ella.crt" {
+		t.Fatalf("TLS cert was not configured correctly")
+	}
+
+	if conf.Interfaces.API.TLS.Key != "/etc/ssl/private/ella.key" {
+		t.Fatalf("TLS key was not configured correctly")
 	}
 
 	if conf.DB.Name != "test" {
 		t.Fatalf("Database name was not configured correctly")
-	}
-
-	if conf.Api.Port != 5000 {
-		t.Fatalf("API port was not configured correctly")
-	}
-
-	if conf.Api.TLS.Cert != "/etc/ssl/certs/ella.crt" {
-		t.Fatalf("TLS cert was not configured correctly")
-	}
-
-	if conf.Api.TLS.Key != "/etc/ssl/private/ella.key" {
-		t.Fatalf("TLS key was not configured correctly")
 	}
 }
 

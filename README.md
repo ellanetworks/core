@@ -74,20 +74,25 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 
 #### Configuration
 
-Example:
+##### Example
 
 ```yaml
+log-level: "info"
 db:
   url: "mongodb://localhost:27017"
   name: "test"
-upf:
-  interfaces: ["enp3s0"]
-  n3-address: "127.0.0.1"
-api:
-  port: 5000
-  tls:
-    cert: "/var/snap/ella/common/cert.pem"
-    key: "/var/snap/ella/common/key.pem"
+interfaces: 
+  n3: 
+    name: "enp3s0"
+    address: "127.0.0.1"
+  n6:
+    name: "enp6s0"
+  api:
+    name: "enp0s8"
+    port: 5000
+    tls:
+      cert: "/etc/ssl/certs/ella.crt"
+      key: "/etc/ssl/private/ella.key"
 ```
 
 #### Connectivity
