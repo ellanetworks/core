@@ -5,7 +5,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/omec-project/util/util_3gpp"
+	"github.com/yeastengine/ella/internal/util/dnn"
 )
 
 const (
@@ -76,7 +76,7 @@ type PDI struct {
 	UEIPAddress     *UEIPAddress
 	SDFFilter       *SDFFilter
 	ApplicationID   string
-	NetworkInstance util_3gpp.Dnn
+	NetworkInstance dnn.Dnn
 	SourceInterface SourceInterface
 }
 
@@ -102,7 +102,7 @@ type ForwardingParameters struct {
 	OuterHeaderCreation  *OuterHeaderCreation
 	PFCPSMReqFlags       *PFCPSMReqFlags
 	ForwardingPolicyID   string
-	NetworkInstance      util_3gpp.Dnn
+	NetworkInstance      dnn.Dnn
 	DestinationInterface DestinationInterface
 }
 

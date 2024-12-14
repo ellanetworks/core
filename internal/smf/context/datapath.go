@@ -5,10 +5,10 @@ import (
 	"strconv"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/util_3gpp"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/qos"
 	"github.com/yeastengine/ella/internal/smf/util"
+	"github.com/yeastengine/ella/internal/util/dnn"
 )
 
 // GTPTunnel represents the GTP tunnel information
@@ -457,7 +457,7 @@ func (dpNode *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER,
 			Ch: true,
 		}
 		ULPDR.PDI.UEIPAddress = &ueIpAddr
-		ULPDR.PDI.NetworkInstance = util_3gpp.Dnn(smContext.Dnn)
+		ULPDR.PDI.NetworkInstance = dnn.Dnn(smContext.Dnn)
 
 		ULPDR.OuterHeaderRemoval = &OuterHeaderRemoval{
 			OuterHeaderRemovalDescription: OuterHeaderRemovalGtpUUdpIpv4,
@@ -625,7 +625,7 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence 
 			if curDataPathNode.DownLinkTunnel.SrcEndPoint == nil {
 				for _, DNDLPDR := range curDataPathNode.DownLinkTunnel.PDR {
 					DNDLPDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceCore}
-					DNDLPDR.PDI.NetworkInstance = util_3gpp.Dnn(smContext.Dnn)
+					DNDLPDR.PDI.NetworkInstance = dnn.Dnn(smContext.Dnn)
 					DNDLPDR.PDI.UEIPAddress = &ueIpAddr
 				}
 			}

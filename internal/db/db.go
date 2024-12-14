@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/omec-project/util/mongoapi"
 	"github.com/yeastengine/ella/internal/logger"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -30,14 +29,14 @@ type DBInterface interface {
 var CommonDBClient DBInterface
 
 type MongoDBClient struct {
-	mongoapi.MongoClient
+	MongoClient
 }
 
 func setCommonDBClient(url string, dbname string) error {
-	mClient, errConnect := mongoapi.NewMongoClient(url, dbname)
+	mClient, errConnect := NewMongoClient(url, dbname)
 	if mClient.Client != nil {
 		CommonDBClient = mClient
-		CommonDBClient.(*mongoapi.MongoClient).Client.Database(dbname)
+		CommonDBClient.(*MongoClient).Client.Database(dbname)
 	}
 	return errConnect
 }

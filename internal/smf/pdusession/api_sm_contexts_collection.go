@@ -5,12 +5,12 @@ import (
 	"net/http"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/httpwrapper"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/fsm"
 	"github.com/yeastengine/ella/internal/smf/msgtypes/svcmsgtypes"
 	"github.com/yeastengine/ella/internal/smf/transaction"
+	"github.com/yeastengine/ella/internal/util/httpwrapper"
 )
 
 func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse, error) {

@@ -10,6 +10,7 @@ import (
 var (
 	log         *zap.Logger
 	EllaLog     *zap.SugaredLogger
+	UtilLog     *zap.SugaredLogger
 	MetricsLog  *zap.SugaredLogger
 	DBLog       *zap.SugaredLogger
 	AmfLog      *zap.SugaredLogger
@@ -62,6 +63,7 @@ func init() {
 
 	EllaLog = log.Sugar().With("component", "Ella")
 	MetricsLog = log.Sugar().With("component", "Metrics")
+	UtilLog = log.Sugar().With("component", "Util")
 	DBLog = log.Sugar().With("component", "DB")
 	AmfLog = log.Sugar().With("component", "AMF")
 	AusfLog = log.Sugar().With("component", "AUSF")

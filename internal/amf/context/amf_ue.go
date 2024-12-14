@@ -16,10 +16,10 @@ import (
 	"github.com/omec-project/nas/security"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/omec-project/util/fsm"
-	"github.com/omec-project/util/idgenerator"
-	"github.com/omec-project/util/ueauth"
 	"github.com/yeastengine/ella/internal/logger"
+	"github.com/yeastengine/ella/internal/util/fsm"
+	"github.com/yeastengine/ella/internal/util/idgenerator"
+	"github.com/yeastengine/ella/internal/util/ueauth"
 	"go.uber.org/zap"
 )
 
