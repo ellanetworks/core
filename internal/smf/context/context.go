@@ -239,9 +239,9 @@ func BuildUserPlaneInformationFromConfig(networkSlices []*nmsModels.Slice, devic
 				logger.SmfLog.Warnf("'upf-name' is not a string, actual type: %T, value: %v", upfNameObj, upfNameObj)
 				continue
 			}
-			upfPortStr, ok := upfPortObj.(string)
+			upfPort, ok := upfPortObj.(int)
 			if !ok {
-				logger.SmfLog.Warnf("'upf-port' is not a string, actual type: %T, value: %v", upfPortObj, upfPortObj)
+				logger.SmfLog.Warnf("'upf-port' is not an int, actual type: %T, value: %v", upfPortObj, upfPortObj)
 				continue
 			}
 
@@ -267,11 +267,6 @@ func BuildUserPlaneInformationFromConfig(networkSlices []*nmsModels.Slice, devic
 				},
 			}
 
-			upfPort, err := strconv.Atoi(upfPortStr)
-			if err != nil {
-				logger.SmfLog.Errorf("Failed to convert upf port to int: %v", err)
-				continue
-			}
 			upf.Port = uint16(upfPort)
 
 			upfNode := &UPNode{

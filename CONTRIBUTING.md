@@ -5,7 +5,7 @@
 ### Set up MicroK8s
 
 ```shell
-sudo snap install microk8s --channel=1.31-strict/stable
+sudo snap install microk8s --channel=1.31/stable --classic
 ```
 
 ```shell

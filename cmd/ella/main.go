@@ -81,7 +81,7 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer dbInstance.Close()
-
+	logger.EllaLog.Info("Database initialized")
 	err = startNetwork(dbInstance, cfg)
 	if err != nil {
 		panic(err)

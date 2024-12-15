@@ -30,7 +30,7 @@ jobs:
       - name: Setup MicroK8s
         run: |
           echo "Installing snaps"
-          sudo snap install microk8s --channel=1.31-strict/stable
+          sudo snap install microk8s --channel=1.31/stable --classic
           sudo snap install kubectl --classic
           
           echo "Adding user to snap_microk8s group"

@@ -91,8 +91,6 @@ func ginRecover(logger *zap.SugaredLogger) gin.HandlerFunc {
 }
 
 func Start(dbInstance *db.Database, port int, cert_file string, key_file string) error {
-	logger.NmsLog.Infof("Database initialized successfully")
-
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(ginToZap(logger.NmsLog), ginRecover(logger.NmsLog))
