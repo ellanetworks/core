@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 const SubscribersTableName = "subscribers"
@@ -29,9 +30,6 @@ const QueryCreateSubscribersTable = `
 		var5qi INTEGER,
 		priorityLevel INTEGER
 )`
-
-// UpdateSubscriberProfile should include the following fields:
-// dnn, sd, sst, plmnId, bitRateUplink, bitRateDownlink, var5qi, priorityLevel
 
 const (
 	listSubscribersStmt            = "SELECT &Subscriber.* from %s"
@@ -136,6 +134,7 @@ func (db *Database) UpdateSubscriberSequenceNumber(id int, sequenceNumber string
 		SequenceNumber: sequenceNumber,
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
+	logger.DBLog.Infof("Updated sequence number for subscriber with ID %d", id)
 	return err
 }
 
@@ -160,6 +159,8 @@ func (db *Database) UpdateSubscriberProfile(id int, dnn string, sd string, sst i
 		PriorityLevel:   int32(priorityLevel),
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
+	logger.DBLog.Infof("Updated profile for subscriber with ID %d", id)
+	logger.DBLog.Infof("New SST: %d, SD: %s, DNN: %s, PLMN ID: %s, Uplink: %s, Downlink: %s, Var5qi: %d, Priority Level: %d", sst, sd, dnn, plmnId, bitrateUplink, bitrateDownlink, var5qi, priorityLevel)
 	return err
 }
 

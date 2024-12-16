@@ -25,7 +25,7 @@ var (
 	mutex                            sync.Mutex
 )
 
-func Initialize(dbInstance *db.Database) {
+func init() {
 	AMF_Self().LadnPool = make(map[string]*LADN)
 	AMF_Self().EventSubscriptionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
 	AMF_Self().Name = "amf"

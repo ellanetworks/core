@@ -364,7 +364,12 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 				logger.PcfLog.Warnf("Failed to get device group profile: %+v", err)
 				continue
 			}
-			for _, imsi := range deviceGroup.Imsis {
+			imsis, err := deviceGroup.GetImsis()
+			if err != nil {
+				logger.PcfLog.Warnf("Failed to get imsis from device group: %+v", err)
+				continue
+			}
+			for _, imsi := range imsis {
 				if _, exists := subscriberPolicies[imsi]; !exists {
 					subscriberPolicies[imsi] = &PcfSubscriberPolicyData{
 						Supi:      imsi,

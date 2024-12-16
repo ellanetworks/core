@@ -87,6 +87,7 @@ class Ella:
             json=data,
             verify=False,
         )
+        response.raise_for_status()
         json_response = response.json()
         return json_response
 

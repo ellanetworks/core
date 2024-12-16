@@ -3,9 +3,11 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 
 	"github.com/canonical/sqlair"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 const ProfilesTableName = "profiles"
@@ -34,25 +36,43 @@ const QueryCreateProfilesTable = `
 const (
 	listProfilesStmt  = "SELECT &Profile.* from %s"
 	getProfileStmt    = "SELECT &Profile.* from %s WHERE id==$Profile.id or name==$Profile.name"
-	createProfileStmt = "INSERT INTO %s (name, ueIpPool, dnsPrimary, mtu, dnnMbrUplink, dnnMbrDownlink, bitrateUnit, qci, arp, pdb, pelr) VALUES ($Profile.name, $Profile.ueIpPool, $Profile.dnsPrimary, $Profile.mtu, $Profile.dnnMbrUplink, $Profile.dnnMbrDownlink, $Profile.bitrateUnit, $Profile.qci, $Profile.arp, $Profile.pdb, $Profile.pelr)"
+	createProfileStmt = "INSERT INTO %s (name, imsis, ueIpPool, dnsPrimary, mtu, dnnMbrUplink, dnnMbrDownlink, bitrateUnit, qci, arp, pdb, pelr) VALUES ($Profile.name, $Profile.imsis, $Profile.ueIpPool, $Profile.dnsPrimary, $Profile.mtu, $Profile.dnnMbrUplink, $Profile.dnnMbrDownlink, $Profile.bitrateUnit, $Profile.qci, $Profile.arp, $Profile.pdb, $Profile.pelr)"
 	deleteProfileStmt = "DELETE FROM %s WHERE id==$Profile.id"
 )
 
 type Profile struct {
-	ID             int      `db:"id"`
-	Name           string   `db:"name"`
-	Imsis          []string `db:"imsis"`
-	UeIpPool       string   `db:"ueIpPool"`
-	DnsPrimary     string   `db:"dnsPrimary"`
-	DnsSecondary   string   `db:"dnsSecondary"`
-	Mtu            int32    `db:"mtu"`
-	DnnMbrUplink   int64    `db:"dnnMbrUplink"`
-	DnnMbrDownlink int64    `db:"dnnMbrDownlink"`
-	BitrateUnit    string   `db:"bitrateUnit"`
-	Qci            int32    `db:"qci"`
-	Arp            int32    `db:"arp"`
-	Pdb            int32    `db:"pdb"`
-	Pelr           int32    `db:"pelr"`
+	ID             int    `db:"id"`
+	Name           string `db:"name"`
+	Imsis          string `db:"imsis"`
+	UeIpPool       string `db:"ueIpPool"`
+	DnsPrimary     string `db:"dnsPrimary"`
+	DnsSecondary   string `db:"dnsSecondary"`
+	Mtu            int32  `db:"mtu"`
+	DnnMbrUplink   int64  `db:"dnnMbrUplink"`
+	DnnMbrDownlink int64  `db:"dnnMbrDownlink"`
+	BitrateUnit    string `db:"bitrateUnit"`
+	Qci            int32  `db:"qci"`
+	Arp            int32  `db:"arp"`
+	Pdb            int32  `db:"pdb"`
+	Pelr           int32  `db:"pelr"`
+}
+
+func (ns *Profile) SetImsis(Imsis []string) error {
+	data, err := json.Marshal(Imsis)
+	if err != nil {
+		return err
+	}
+	ns.Imsis = string(data)
+	return nil
+}
+
+func (ns *Profile) GetImsis() ([]string, error) {
+	var Imsis []string
+	if ns.Imsis == "" {
+		return Imsis, nil
+	}
+	err := json.Unmarshal([]byte(ns.Imsis), &Imsis)
+	return Imsis, err
 }
 
 func (db *Database) ListProfiles() ([]Profile, error) {
@@ -111,6 +131,7 @@ func (db *Database) CreateProfile(profile *Profile) error {
 		return err
 	}
 	err = db.conn.Query(context.Background(), stmt, profile).Run()
+	logger.DBLog.Infof("Created Profile: %v with Imsis: %v", profile.Name, profile.Imsis)
 	return err
 }
 

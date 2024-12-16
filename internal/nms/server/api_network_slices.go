@@ -193,14 +193,24 @@ func PostNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 		sVal, err := strconv.ParseUint(procReq.SliceId.Sst, 10, 32)
 		if err != nil {
 			logger.NmsLog.Errorf("Could not parse SST %v", procReq.SliceId.Sst)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid SST"})
+			return
 		}
+		logger.NmsLog.Warnf("Editing subscribers in device groups: %v", procReq.SiteDeviceGroup)
 		for _, dgName := range procReq.SiteDeviceGroup {
 			dbDeviceGroup, err := dbInstance.GetProfileByName(dgName)
 			if err != nil {
 				logger.NmsLog.Warnf("Could not get device group %v", dgName)
 				continue
 			}
-			for _, imsi := range dbDeviceGroup.Imsis {
+			logger.NmsLog.Warnf("Profile info: %v", dbDeviceGroup)
+			imsis, err := dbDeviceGroup.GetImsis()
+			if err != nil {
+				logger.NmsLog.Warnf("Could not get imsis %v", dbDeviceGroup.Imsis)
+				continue
+			}
+			logger.NmsLog.Warnf("Editing subscribers: %v", imsis)
+			for _, imsi := range imsis {
 				mcc := procReq.SiteInfo.Plmn.Mcc
 				mnc := procReq.SiteInfo.Plmn.Mnc
 				ueId := "imsi-" + imsi
@@ -218,7 +228,7 @@ func PostNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 				priorityLevel := 8
 				err = dbInstance.UpdateSubscriberProfile(subscriber.ID, DNN, sd, sst, plmnID, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
 				if err != nil {
-					logger.NmsLog.Warnf("Could not create subscriber %v", ueId)
+					logger.NmsLog.Warnf("Could not update subscriber %v", ueId)
 					continue
 				}
 			}
@@ -231,6 +241,7 @@ func PostNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		updateSMF(dbInstance)
+		logger.NmsLog.Infof("Network slice %s created successfully", sliceName)
 		c.JSON(http.StatusOK, gin.H{"message": "Network slice created successfully"})
 	}
 }
@@ -261,7 +272,12 @@ func DeleteNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 				logger.NmsLog.Warnln(err)
 				continue
 			}
-			for _, imsi := range devGroupConfig.Imsis {
+			imsis, err := devGroupConfig.GetImsis()
+			if err != nil {
+				logger.NmsLog.Warnln(err)
+				continue
+			}
+			for _, imsi := range imsis {
 				ueId := "imsi-" + imsi
 				subscriber, err := dbInstance.GetSubscriberByUeID(ueId)
 				if err != nil {
@@ -321,7 +337,6 @@ func updateSMF(dbInstance *db.Database) {
 	for _, dbDeviceGroup := range dbDeviceGroups {
 		deviceGroup := models.DeviceGroups{
 			DeviceGroupName: dbDeviceGroup.Name,
-			Imsis:           dbDeviceGroup.Imsis,
 			IpDomainExpanded: models.DeviceGroupsIpDomainExpanded{
 				Dnn:          DNN,
 				UeIpPool:     dbDeviceGroup.UeIpPool,
@@ -341,6 +356,11 @@ func updateSMF(dbInstance *db.Database) {
 				},
 			},
 		}
+		imsis, err := dbDeviceGroup.GetImsis()
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+		}
+		deviceGroup.Imsis = imsis
 		deviceGroups = append(deviceGroups, deviceGroup)
 	}
 	context.UpdateSMFContext(networkSlices, deviceGroups)

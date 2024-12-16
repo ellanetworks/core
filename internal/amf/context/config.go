@@ -76,6 +76,7 @@ func GetPlmnSupportList() []factory.PlmnSupportItem {
 		sstString := networkSlice.Sst
 		sstInt64, err := strconv.ParseInt(sstString, 10, 32)
 		if err != nil {
+			logger.AmfLog.Warnf("Failed to parse sst: %s", err)
 			continue
 		}
 		snssai := models.Snssai{

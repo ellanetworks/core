@@ -67,9 +67,9 @@ func GetDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Unable to retrieve device group"})
 			return
 		}
+
 		deviceGroup := models.DeviceGroups{
 			DeviceGroupName: dbDeviceGroup.Name,
-			Imsis:           dbDeviceGroup.Imsis,
 			IpDomainExpanded: models.DeviceGroupsIpDomainExpanded{
 				UeIpPool:     dbDeviceGroup.UeIpPool,
 				DnsPrimary:   dbDeviceGroup.DnsPrimary,
@@ -88,6 +88,13 @@ func GetDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 				},
 			},
 		}
+		imsis, err := dbDeviceGroup.GetImsis()
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve device group"})
+			return
+		}
+		deviceGroup.Imsis = imsis
 		c.JSON(http.StatusOK, deviceGroup)
 	}
 }
@@ -136,13 +143,17 @@ func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 
 		procReq.DeviceGroupName = groupName
 		slice := isDeviceGroupExistInSlice(dbInstance, groupName)
+		logger.NmsLog.Warnf("Slice %v", slice)
 		if slice != nil {
 			sVal, err := strconv.ParseUint(slice.Sst, 10, 32)
 			if err != nil {
 				logger.NmsLog.Errorf("Could not parse SST %v", slice.Sst)
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid SST"})
+				return
 			}
 
 			aimsis := getAddedImsisList(&procReq)
+			logger.NmsLog.Warnf("Added imsis %v", aimsis)
 			for _, imsi := range aimsis {
 				dnn := procReq.IpDomainExpanded.Dnn
 				ueId := "imsi-" + imsi
@@ -156,16 +167,16 @@ func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 				bitRateDownlink := convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink))
 				var5qi := 9
 				priorityLevel := 8
-				err = dbInstance.UpdateSubscriberProfile(subscriber.ID, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, int(var5qi), int(priorityLevel))
+				err = dbInstance.UpdateSubscriberProfile(subscriber.ID, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
 				if err != nil {
-					logger.NmsLog.Warnf("Could not create subscriber %v", ueId)
-					continue
+					logger.NmsLog.Warnf("Could not update subscriber %v", ueId)
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to update subscriber"})
+					return
 				}
 			}
 		}
 		dbDeviceGroup := &db.Profile{
 			Name:           groupName,
-			Imsis:          procReq.Imsis,
 			UeIpPool:       procReq.IpDomainExpanded.UeIpPool,
 			DnsPrimary:     procReq.IpDomainExpanded.DnsPrimary,
 			DnsSecondary:   procReq.IpDomainExpanded.DnsSecondary,
@@ -178,6 +189,7 @@ func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 			Pdb:            procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pdb,
 			Pelr:           procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
 		}
+		dbDeviceGroup.SetImsis(procReq.Imsis)
 		err = dbInstance.CreateProfile(dbDeviceGroup)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
@@ -224,14 +236,17 @@ func getAddedImsisList(group *models.DeviceGroups) (aimsis []string) {
 			aimsis = append(aimsis, imsi)
 		}
 	}
-
 	return
 }
 
 func deleteDeviceGroupConfig(dbInstance *db.Database, deviceGroup *db.Profile) {
 	slice := isDeviceGroupExistInSlice(dbInstance, deviceGroup.Name)
 	if slice != nil {
-		dimsis := deviceGroup.Imsis
+		dimsis, err := deviceGroup.GetImsis()
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			return
+		}
 		for _, imsi := range dimsis {
 			ueId := "imsi-" + imsi
 			subscriber, err := dbInstance.GetSubscriberByUeID(ueId)
