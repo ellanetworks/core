@@ -30,11 +30,16 @@ const QueryCreateSubscribersTable = `
 		priorityLevel INTEGER
 )`
 
+// UpdateSubscriberProfile should include the following fields:
+// dnn, sd, sst, plmnId, bitRateUplink, bitRateDownlink, var5qi, priorityLevel
+
 const (
-	listSubscribersStmt  = "SELECT &Subscriber.* from %s"
-	getSubscriberStmt    = "SELECT &Subscriber.* from %s WHERE id==$Subscriber.id or ueId==$Subscriber.ueId"
-	createSubscriberStmt = "INSERT INTO %s (ueId, plmnID, sequenceNumber, permanentKeyValue, opcValue) VALUES ($Subscriber.ueId, $Subscriber.plmnID, $Subscriber.sequenceNumber, $Subscriber.permanentKeyValue, $Subscriber.opcValue)"
-	deleteSubscriberStmt = "DELETE FROM %s WHERE id==$Subscriber.id"
+	listSubscribersStmt            = "SELECT &Subscriber.* from %s"
+	getSubscriberStmt              = "SELECT &Subscriber.* from %s WHERE id==$Subscriber.id or ueId==$Subscriber.ueId"
+	createSubscriberStmt           = "INSERT INTO %s (ueId, plmnID, sequenceNumber, permanentKeyValue, opcValue) VALUES ($Subscriber.ueId, $Subscriber.plmnID, $Subscriber.sequenceNumber, $Subscriber.permanentKeyValue, $Subscriber.opcValue)"
+	updateSubscriberSequenceNumber = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE id==$Subscriber.id"
+	updateSubscriberProfile        = "UPDATE %s SET dnn=$Subscriber.dnn, sd=$Subscriber.sd, sst=$Subscriber.sst, plmnID=$Subscriber.plmnID, uplink=$Subscriber.uplink, downlink=$Subscriber.downlink, var5qi=$Subscriber.var5qi, priorityLevel=$Subscriber.priorityLevel WHERE id==$Subscriber.id"
+	deleteSubscriberStmt           = "DELETE FROM %s WHERE id==$Subscriber.id"
 )
 
 type Subscriber struct {
@@ -114,6 +119,47 @@ func (db *Database) CreateSubscriber(subscriber *Subscriber) error {
 		return err
 	}
 	err = db.conn.Query(context.Background(), stmt, subscriber).Run()
+	return err
+}
+
+func (db *Database) UpdateSubscriberSequenceNumber(id int, sequenceNumber string) error {
+	_, err := db.GetSubscriberByID(id)
+	if err != nil {
+		return err
+	}
+	stmt, err := sqlair.Prepare(fmt.Sprintf(updateSubscriberSequenceNumber, db.subscribersTable), Subscriber{})
+	if err != nil {
+		return err
+	}
+	row := Subscriber{
+		ID:             id,
+		SequenceNumber: sequenceNumber,
+	}
+	err = db.conn.Query(context.Background(), stmt, row).Run()
+	return err
+}
+
+func (db *Database) UpdateSubscriberProfile(id int, dnn string, sd string, sst int32, plmnId string, bitrateUplink string, bitrateDownlink string, var5qi int, priorityLevel int) error {
+	_, err := db.GetSubscriberByID(id)
+	if err != nil {
+		return err
+	}
+	stmt, err := sqlair.Prepare(fmt.Sprintf(updateSubscriberProfile, db.subscribersTable), Subscriber{})
+	if err != nil {
+		return err
+	}
+	row := Subscriber{
+		ID:              id,
+		Dnn:             dnn,
+		Sd:              sd,
+		Sst:             sst,
+		PlmnID:          plmnId,
+		BitRateUplink:   bitrateUplink,
+		BitRateDownlink: bitrateDownlink,
+		Var5qi:          int32(var5qi),
+		PriorityLevel:   int32(priorityLevel),
+	}
+	err = db.conn.Query(context.Background(), stmt, row).Run()
 	return err
 }
 

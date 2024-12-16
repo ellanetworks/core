@@ -3,6 +3,7 @@ package amf
 import (
 	"time"
 
+	"github.com/yeastengine/ella/internal/amf/context"
 	"github.com/yeastengine/ella/internal/amf/factory"
 	"github.com/yeastengine/ella/internal/amf/service"
 	"github.com/yeastengine/ella/internal/db"
@@ -70,6 +71,7 @@ func Start(dbInstance *db.Database) error {
 	}
 
 	factory.InitConfigFactory(configuration)
+	context.Initialize(dbInstance)
 	AMF.Start()
 	return nil
 }

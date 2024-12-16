@@ -65,7 +65,7 @@ func EditAuthenticationSubscription(ueId string, sequenceNumber string) error {
 		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
 	subscriber.SequenceNumber = sequenceNumber
-	err = udrSelf.DbInstance.CreateSubscriber(subscriber)
+	err = udrSelf.DbInstance.UpdateSubscriberSequenceNumber(subscriber.ID, sequenceNumber)
 	if err != nil {
 		return fmt.Errorf("couldn't update subscriber %s: %v", ueId, err)
 	}

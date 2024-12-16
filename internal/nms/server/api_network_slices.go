@@ -201,7 +201,6 @@ func PostNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 				continue
 			}
 			for _, imsi := range dbDeviceGroup.Imsis {
-				dnn := DNN
 				mcc := procReq.SiteInfo.Plmn.Mcc
 				mnc := procReq.SiteInfo.Plmn.Mnc
 				ueId := "imsi-" + imsi
@@ -210,16 +209,14 @@ func PostNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 					logger.NmsLog.Warnf("Could not get subscriber %v", ueId)
 					continue
 				}
-				subscriber.Sst = int32(sVal)
-				subscriber.Sd = procReq.SliceId.Sd
-				subscriber.Dnn = dnn
-				subscriber.PlmnID = mcc + mnc
-				subscriber.BitRateDownlink = convertToString(uint64(dbDeviceGroup.DnnMbrDownlink))
-				subscriber.BitRateUplink = convertToString(uint64(dbDeviceGroup.DnnMbrUplink))
-
-				subscriber.Var5qi = 9
-				subscriber.PriorityLevel = 8
-				err = dbInstance.CreateSubscriber(subscriber)
+				sst := int32(sVal)
+				sd := procReq.SliceId.Sd
+				plmnID := mcc + mnc
+				bitRateUplink := convertToString(uint64(dbDeviceGroup.DnnMbrUplink))
+				bitRateDownlink := convertToString(uint64(dbDeviceGroup.DnnMbrDownlink))
+				var5qi := 9
+				priorityLevel := 8
+				err = dbInstance.UpdateSubscriberProfile(subscriber.ID, DNN, sd, sst, plmnID, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
 				if err != nil {
 					logger.NmsLog.Warnf("Could not create subscriber %v", ueId)
 					continue
@@ -271,11 +268,7 @@ func DeleteNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 					logger.NmsLog.Warnln(err)
 					continue
 				}
-				subscriber.BitRateDownlink = ""
-				subscriber.BitRateUplink = ""
-				subscriber.Var5qi = 0
-				subscriber.PriorityLevel = 0
-				err = dbInstance.CreateSubscriber(subscriber)
+				err = dbInstance.UpdateSubscriberProfile(subscriber.ID, DNN, "", 0, "", "", "", 0, 0)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
 				}

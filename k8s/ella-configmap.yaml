@@ -5,7 +5,7 @@ metadata:
   namespace: dev2
 data:
   config.yaml: |
-    log-level: "info"
+    log-level: "debug"
     db:
       path: /ella/data/ella.db
     interfaces:

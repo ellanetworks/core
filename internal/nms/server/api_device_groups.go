@@ -151,15 +151,12 @@ func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 					logger.NmsLog.Warnf("Could not get subscriber %v", ueId)
 					continue
 				}
-				subscriber.Dnn = dnn
-				subscriber.Sd = slice.Sd
-				subscriber.Sst = int32(sVal)
-				subscriber.PlmnID = slice.Mcc + slice.Mnc
-				subscriber.BitRateUplink = convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink))
-				subscriber.BitRateDownlink = convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink))
-				subscriber.Var5qi = 9
-				subscriber.PriorityLevel = 8
-				err = dbInstance.CreateSubscriber(subscriber)
+				plmnId := slice.Mcc + slice.Mnc
+				bitRateUplink := convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink))
+				bitRateDownlink := convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink))
+				var5qi := 9
+				priorityLevel := 8
+				err = dbInstance.UpdateSubscriberProfile(subscriber.ID, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, int(var5qi), int(priorityLevel))
 				if err != nil {
 					logger.NmsLog.Warnf("Could not create subscriber %v", ueId)
 					continue
@@ -242,11 +239,7 @@ func deleteDeviceGroupConfig(dbInstance *db.Database, deviceGroup *db.Profile) {
 				logger.NmsLog.Warnln(err)
 				continue
 			}
-			subscriber.BitRateUplink = ""
-			subscriber.BitRateDownlink = ""
-			subscriber.Var5qi = 0
-			subscriber.PriorityLevel = 0
-			err = dbInstance.CreateSubscriber(subscriber)
+			err = dbInstance.UpdateSubscriberProfile(subscriber.ID, "", "", 0, "", "", "", 0, 0)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 			}
