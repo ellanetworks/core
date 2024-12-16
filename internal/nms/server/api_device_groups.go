@@ -143,7 +143,6 @@ func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 
 		procReq.DeviceGroupName = groupName
 		slice := isDeviceGroupExistInSlice(dbInstance, groupName)
-		logger.NmsLog.Warnf("Slice %v", slice)
 		if slice != nil {
 			sVal, err := strconv.ParseUint(slice.Sst, 10, 32)
 			if err != nil {
@@ -153,7 +152,6 @@ func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 			}
 
 			aimsis := getAddedImsisList(&procReq)
-			logger.NmsLog.Warnf("Added imsis %v", aimsis)
 			for _, imsi := range aimsis {
 				dnn := procReq.IpDomainExpanded.Dnn
 				ueId := "imsi-" + imsi

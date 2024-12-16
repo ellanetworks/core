@@ -21,7 +21,6 @@ require (
 	github.com/omec-project/ngap v1.3.1
 	github.com/omec-project/openapi v1.3.2
 	github.com/prometheus/client_golang v1.20.5
-	github.com/tim-ywliu/event v0.1.0
 	github.com/wmnsk/go-pfcp v0.0.24
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.31.0

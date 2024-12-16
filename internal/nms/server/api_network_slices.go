@@ -196,20 +196,17 @@ func PostNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid SST"})
 			return
 		}
-		logger.NmsLog.Warnf("Editing subscribers in device groups: %v", procReq.SiteDeviceGroup)
 		for _, dgName := range procReq.SiteDeviceGroup {
 			dbDeviceGroup, err := dbInstance.GetProfileByName(dgName)
 			if err != nil {
 				logger.NmsLog.Warnf("Could not get device group %v", dgName)
 				continue
 			}
-			logger.NmsLog.Warnf("Profile info: %v", dbDeviceGroup)
 			imsis, err := dbDeviceGroup.GetImsis()
 			if err != nil {
 				logger.NmsLog.Warnf("Could not get imsis %v", dbDeviceGroup.Imsis)
 				continue
 			}
-			logger.NmsLog.Warnf("Editing subscribers: %v", imsis)
 			for _, imsi := range imsis {
 				mcc := procReq.SiteInfo.Plmn.Mcc
 				mnc := procReq.SiteInfo.Plmn.Mnc
