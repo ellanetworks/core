@@ -1,7 +1,6 @@
 log-level: "info"
 db:
-  url: "mongodb://localhost:27017"
-  name: "ella"
+  path: "ella.db"
 interfaces: 
   n3: 
     name: "enp3s0"

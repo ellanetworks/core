@@ -4,7 +4,7 @@ function isValidSubscriberName(name: string): boolean {
 
 export const apiGetAllSubscribers = async () => {
   try {
-    var response = await fetch(`/api/v1/subscriber`, {
+    var response = await fetch(`/api/v1/subscribers`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -22,7 +22,7 @@ export const apiGetSubscriber = async (imsi: string) => {
     throw new Error(`Error getting subscriber: Invalid name provided.`);
   }
   try {
-    const response = await fetch(`/api/v1/subscriber/${imsi}`, {
+    const response = await fetch(`/api/v1/subscribers/${imsi}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -40,7 +40,7 @@ export const apiPostSubscriber = async (imsi: string, subscriberData: any) => {
     throw new Error(`Error updating subscriber: Invalid name provided.`);
   }
   try {
-    const response = await fetch(`/api/v1/subscriber/imsi-${imsi}`, {
+    const response = await fetch(`/api/v1/subscribers/imsi-${imsi}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -59,7 +59,7 @@ export const apiDeleteSubscriber = async (imsi: string) => {
     throw new Error(`Error deleting subscriber: Invalid name provided.`);
   }
   try {
-    const response = await fetch(`/api/v1/subscriber/imsi-${imsi}`, {
+    const response = await fetch(`/api/v1/subscribers/imsi-${imsi}`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",

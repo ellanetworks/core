@@ -17,7 +17,7 @@ Use Ella where you need 5G connectivity: in a factory, a warehouse, a farm, a st
 ## Tenets
 
 Building Ella, we make engineering decisions based on the following tenets:
-1. **Simplicity**: We are commited to develop the simplest possible mobile network out there. We thrive on having a very short "Getting Started" tutorial, a simple configuration file, a single binary, and a simple UI.
+1. **Simplicity**: We are commited to develop the simplest possible mobile network out there. We thrive on having a very short "Getting Started" tutorial, a simple configuration file, a single binary, an embedded database, and a simple UI.
 2. **Reliability**: We are commited to develop a reliable mobile network you can trust to work 24/7. We are commited to deliver high quality code, tests, and documentation. We are commited to expose useful metrics and logs to help users monitor their network.
 3. **Security**: We are commited to minimizing the attack surface of the private network and to use secure encryption protocols to protect the data of our users.
 
@@ -47,29 +47,29 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 
 #### API
 
-| Endpoint                     | HTTP Method | Description             |
-| ---------------------------- | ----------- | ----------------------- |
-| `/api/v1/status`             | GET         | Get status              |
-| `/api/v1/metrics`            | GET         | Get metrics             |
-| `/api/v1/subscriber`         | GET         | List subscribers        |
-| `/api/v1/subscriber`         | POST        | Create a new subscriber |
-| `/api/v1/subscriber/{id}`    | GET         | Get a subscriber        |
-| `/api/v1/subscriber/{id}`    | PUT         | Update a subscriber     |
-| `/api/v1/subscriber/{id}`    | DELETE      | Delete a subscriber     |
-| `/api/v1/radios`             | GET         | List radios             |
-| `/api/v1/radios`             | POST        | Create a new radio      |
-| `/api/v1/radios/{id}`        | GET         | Get a radio             |
-| `/api/v1/radios/{id}`        | DELETE      | Delete a radio          |
-| `/api/v1/network-slice`      | GET         | List network slices     |
-| `/api/v1/network-slice`      | POST        | Create a new slice      |
-| `/api/v1/network-slice/{id}` | GET         | Get a slice             |
-| `/api/v1/network-slice/{id}` | PUT         | Update a slice          |
-| `/api/v1/network-slice/{id}` | DELETE      | Delete a slice          |
-| `/api/v1/device-group`       | GET         | List device groups      |
-| `/api/v1/device-group`       | POST        | Create a new group      |
-| `/api/v1/device-group/{id}`  | GET         | Get a group             |
-| `/api/v1/device-group/{id}`  | PUT         | Update a group          |
-| `/api/v1/device-group/{id}`  | DELETE      | Delete a group          |
+| Endpoint                      | HTTP Method | Description               |
+| ----------------------------- | ----------- | ------------------------- |
+| `/api/v1/status`              | GET         | Get status                |
+| `/api/v1/metrics`             | GET         | Get metrics               |
+| `/api/v1/subscribers`         | GET         | List subscribers          |
+| `/api/v1/subscribers`         | POST        | Create a new subscriber   |
+| `/api/v1/subscribers/{id}`    | GET         | Get a subscriber          |
+| `/api/v1/subscribers/{id}`    | PUT         | Update a subscriber       |
+| `/api/v1/subscribers/{id}`    | DELETE      | Delete a subscriber       |
+| `/api/v1/radios`              | GET         | List radios               |
+| `/api/v1/radios`              | POST        | Create a new radio        |
+| `/api/v1/radios/{id}`         | GET         | Get a radio               |
+| `/api/v1/radios/{id}`         | DELETE      | Delete a radio            |
+| `/api/v1/network-slices`      | GET         | List network slices       |
+| `/api/v1/network-slices`      | POST        | Create a new slice        |
+| `/api/v1/network-slices/{id}` | GET         | Get a network slice       |
+| `/api/v1/network-slices/{id}` | PUT         | Update a network slice    |
+| `/api/v1/network-slices/{id}` | DELETE      | Delete a network slice    |
+| `/api/v1/device-groups`       | GET         | List device groups        |
+| `/api/v1/device-groups`       | POST        | Create a new device group |
+| `/api/v1/device-groups/{id}`  | GET         | Get a device group        |
+| `/api/v1/device-groups/{id}`  | PUT         | Update a device group     |
+| `/api/v1/device-groups/{id}`  | DELETE      | Delete a device group     |
 
 
 #### Configuration
@@ -79,8 +79,7 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 ```yaml
 log-level: "info"  # debug, info, warn, error
 db:
-  url: "mongodb://localhost:27017"
-  name: "test"
+  path: "ella.db"
 interfaces: 
   n3: 
     name: "enp3s0"

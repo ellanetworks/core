@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/db"
 )
 
 var AmfConfig Configuration
@@ -30,6 +31,7 @@ type Configuration struct {
 	T3550                           TimerValue
 	T3560                           TimerValue
 	T3565                           TimerValue
+	DBInstance                      *db.Database
 }
 
 func (c *Configuration) Get5gsNwFeatSuppEnable() bool {

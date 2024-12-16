@@ -5,12 +5,11 @@ metadata:
   namespace: dev2
 data:
   config.yaml: |
-    log-level: "info"
+    log-level: "debug"
     db:
-      url: "mongodb://root:rootpassword@mongodb-service.dev2.svc.cluster.local:27017"
-      name: "ella"
-    interfaces: 
-      n3: 
+      path: /ella/data/ella.db
+    interfaces:
+      n3:
         name: "n3"
         address: "192.168.252.3"
       n6:

@@ -41,8 +41,8 @@ func TestGoodConfigSuccess(t *testing.T) {
 		t.Fatalf("TLS key was not configured correctly")
 	}
 
-	if conf.DB.Name != "test" {
-		t.Fatalf("Database name was not configured correctly")
+	if conf.DB.Path != "test" {
+		t.Fatalf("Database path was not configured correctly")
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/nms/server"
 	"go.uber.org/zap"
@@ -89,12 +90,43 @@ func ginRecover(logger *zap.SugaredLogger) gin.HandlerFunc {
 	}
 }
 
-func Start(port int, cert_file string, key_file string) error {
+func Start(dbInstance *db.Database, port int, cert_file string, key_file string) error {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(ginToZap(logger.NmsLog), ginRecover(logger.NmsLog))
 	server.AddUiService(router)
-	server.AddApiService(router)
+
+	apiGroup := router.Group("/api/v1")
+
+	// Metrics
+	apiGroup.GET("/metrics", server.GetMetrics())
+
+	// Status
+	apiGroup.GET("/status", server.GetStatus())
+
+	// Subscribers
+	apiGroup.GET("/subscribers", server.GetSubscribers(dbInstance))
+	apiGroup.GET("/subscribers/:ueId", server.GetSubscriber(dbInstance))
+	apiGroup.POST("/subscribers/:ueId", server.PostSubscriber(dbInstance))
+	apiGroup.DELETE("/subscribers/:ueId", server.DeleteSubscriber(dbInstance))
+
+	// Device Groups
+	apiGroup.GET("/device-groups", server.GetDeviceGroups(dbInstance))
+	apiGroup.GET("/device-groups/:group-name", server.GetDeviceGroup(dbInstance))
+	apiGroup.POST("/device-groups/:group-name", server.PostDeviceGroup(dbInstance))
+	apiGroup.DELETE("/device-groups/:group-name", server.DeleteDeviceGroup(dbInstance))
+
+	// Network Slices
+	apiGroup.GET("/network-slices", server.GetNetworkSlices(dbInstance))
+	apiGroup.GET("/network-slices/:slice-name", server.GetNetworkSlice(dbInstance))
+	apiGroup.POST("/network-slices/:slice-name", server.PostNetworkSlice(dbInstance))
+	apiGroup.DELETE("/network-slices/:slice-name", server.DeleteNetworkSlice(dbInstance))
+
+	// Radios
+	apiGroup.GET("/radios", server.GetRadios(dbInstance))
+	apiGroup.GET("/radios/:radio-name", server.GetRadio(dbInstance))
+	apiGroup.POST("/radios/:radio-name", server.PostRadio(dbInstance))
+	apiGroup.DELETE("/radios/:radio-name", server.DeleteRadio(dbInstance))
 
 	router.Use(cors.New(cors.Config{
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE"},

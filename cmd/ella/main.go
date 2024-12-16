@@ -20,8 +20,8 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func startNetwork(cfg config.Config) error {
-	err := nms.Start(cfg.Interfaces.API.Port, cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
+func startNetwork(dbInstance *db.Database, cfg config.Config) error {
+	err := nms.Start(dbInstance, cfg.Interfaces.API.Port, cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
 	if err != nil {
 		return err
 	}
@@ -29,7 +29,7 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = amf.Start()
+	err = amf.Start(dbInstance)
 	if err != nil {
 		return err
 	}
@@ -37,11 +37,11 @@ func startNetwork(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = pcf.Start()
+	err = pcf.Start(dbInstance)
 	if err != nil {
 		return err
 	}
-	err = udr.Start()
+	err = udr.Start(dbInstance)
 	if err != nil {
 		return err
 	}
@@ -76,11 +76,13 @@ func main() {
 		log.Fatalf("failed to parse log level: %v", err)
 	}
 	logger.SetLogLevel(level)
-	err = db.Initialize(cfg.DB.Url, cfg.DB.Name)
+	dbInstance, err := db.NewDatabase(cfg.DB.Path)
 	if err != nil {
-		log.Fatalf("failed to initialize db: %v", err)
+		log.Fatalf("Failed to initialize database: %v", err)
 	}
-	err = startNetwork(cfg)
+	defer dbInstance.Close()
+	logger.EllaLog.Info("Database initialized")
+	err = startNetwork(dbInstance, cfg)
 	if err != nil {
 		panic(err)
 	}

@@ -581,7 +581,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 		ngap_message.SendUEContextReleaseCommand(ue.RanUe[anType], context.UeContextN2NormalRelease,
 			ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		ue.Remove()
-		return fmt.Errorf("Allowed Nssai List is nil")
+		return fmt.Errorf("no allowed nssai")
 	}
 
 	//TODO: this is commented because Radysis USIM is not sending this IE

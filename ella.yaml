@@ -1,7 +1,6 @@
 log-level: "info"
 db:
-  url: "mongodb://localhost:27017"
-  name: "test"
+  path: "ella.db"
 interfaces: 
   n3: 
     name: "enp3s0"
@@ -10,12 +9,7 @@ interfaces:
     name: "enp6s0"
   api:
     name: "enp0s8"
-    port: 5000
+    port: 5001
     tls:
-      cert: "/etc/ssl/certs/ella.crt"
-      key: "/etc/ssl/private/ella.key"
-api:
-  port: 5001
-  tls:
-    cert: "cert.pem"
-    key: "key.pem"
+      cert: "cert.pem"
+      key: "key.pem"

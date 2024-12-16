@@ -37,6 +37,7 @@ spec:
       containers:
       - name: ella
         image: localhost:5000/ella:0.0.4
+        imagePullPolicy: Always
         command: ["pebble"]
         args: ["run", "--hold", "--http", ":38813", "--verbose"]
         securityContext:
@@ -46,6 +47,8 @@ spec:
           mountPath: /config
         - name: sysfs-bpf
           mountPath: /sys/fs/bpf
+        - name: data-volume
+          mountPath: /ella/data
         ports:
         - containerPort: 5000
         - containerPort: 38412
@@ -69,6 +72,9 @@ spec:
       - name: config-volume
         configMap:
           name: ella-config
+      - name: data-volume
+        emptyDir:
+          sizeLimit: 500Mi
       - name: sysfs-bpf
         hostPath:
           path: /sys/fs/bpf

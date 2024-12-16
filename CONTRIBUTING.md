@@ -5,7 +5,7 @@
 ### Set up MicroK8s
 
 ```shell
-sudo snap install microk8s --channel=1.31-strict/stable
+sudo snap install microk8s --channel=1.31/stable --classic
 ```
 
 ```shell
@@ -66,15 +66,6 @@ go generate -v ./internal/upf/...
 go build cmd/ella/main.go
 ```
 
-### Generate database code
-
-
-Generate the sqlc code:
-
-```shell
-sqlc generate
-```
-
 ### Build Frontend
 
 ```
@@ -94,6 +85,7 @@ docker run ella:0.0.4
 
 ## References
 
-### SQLC
+### Embedded Database
 
-- [SQLC](https://docs.sqlc.dev/en/latest/)
+Ella uses an embedded [SQLite](https://www.sqlite.org/) database to store its data. Type mappings between Go and SQLite are managed 
+using [sqlair](https://github.com/canonical/sqlair).

@@ -1,112 +1,60 @@
+// Package db provides a simplistic ORM to communicate with an SQL database for storage
 package db
 
 import (
-	"context"
+	"database/sql"
 	"fmt"
-	"time"
 
-	"github.com/yeastengine/ella/internal/logger"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/canonical/sqlair"
+	_ "github.com/mattn/go-sqlite3"
 )
 
-const (
-	ProfilesColl      = "profiles"
-	NetworkSlicesColl = "networkSlices"
-	RadiosColl        = "radios"
-	SubscribersColl   = "subscribers"
-)
-
-type DBInterface interface {
-	RestfulAPIGetOne(collName string, filter bson.M) (map[string]interface{}, error)
-	RestfulAPIGetMany(collName string, filter bson.M) ([]map[string]interface{}, error)
-	RestfulAPIPutOne(collName string, filter bson.M, putData map[string]interface{}) (bool, error)
-	RestfulAPIDeleteOne(collName string, filter bson.M) error
-	RestfulAPIPost(collName string, filter bson.M, postData map[string]interface{}) (bool, error)
+// Database is the object used to communicate with the established repository.
+type Database struct {
+	subscribersTable   string
+	profilesTable      string
+	networkSlicesTable string
+	radiosTable        string
+	conn               *sqlair.DB
 }
 
-var CommonDBClient DBInterface
-
-type MongoDBClient struct {
-	MongoClient
-}
-
-func setCommonDBClient(url string, dbname string) error {
-	mClient, errConnect := NewMongoClient(url, dbname)
-	if mClient.Client != nil {
-		CommonDBClient = mClient
-		CommonDBClient.(*MongoClient).Client.Database(dbname)
+// Close closes the connection to the repository cleanly.
+func (db *Database) Close() error {
+	if db.conn == nil {
+		return nil
 	}
-	return errConnect
-}
-
-func ConnectMongo(url string, dbname string) {
-	ticker := time.NewTicker(2 * time.Second)
-	defer func() { ticker.Stop() }()
-	timer := time.After(180 * time.Second)
-ConnectMongo:
-	for {
-		commonDbErr := setCommonDBClient(url, dbname)
-		if commonDbErr == nil {
-			break ConnectMongo
-		}
-		select {
-		case <-ticker.C:
-			continue
-		case <-timer:
-			logger.DBLog.Errorln("Timed out while connecting to MongoDB in 3 minutes.")
-			return
-		}
-	}
-
-	logger.DBLog.Infoln("Connected to MongoDB.")
-}
-
-func Initialize(url string, name string) error {
-	err := TestConnection(url)
-	if err != nil {
-		logger.DBLog.Fatalf("failed to connect to MongoDB: %v", err)
+	if err := db.conn.PlainDB().Close(); err != nil {
 		return err
 	}
-	ConnectMongo(url, name)
 	return nil
 }
 
-func TestConnection(url string) error {
-	clientOptions := options.Client().ApplyURI(url)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	client, err := mongo.Connect(ctx, clientOptions)
+// NewDatabase connects to a given table in a given database,
+// stores the connection information and returns an object containing the information.
+// The database path must be a valid file path or ":memory:".
+// The table will be created if it doesn't exist in the format expected by the package.
+func NewDatabase(databasePath string) (*Database, error) {
+	sqlConnection, err := sql.Open("sqlite3", databasePath)
 	if err != nil {
-		return fmt.Errorf("failed to connect to MongoDB: %w", err)
+		return nil, err
 	}
-	defer client.Disconnect(ctx)
-
-	err = client.Ping(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to ping MongoDB: %w", err)
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateSubscribersTable, SubscribersTableName)); err != nil {
+		return nil, err
 	}
-
-	return nil
-}
-
-func (db *MongoDBClient) RestfulAPIGetOne(collName string, filter bson.M) (map[string]interface{}, error) {
-	return db.MongoClient.RestfulAPIGetOne(collName, filter)
-}
-
-func (db *MongoDBClient) RestfulAPIGetMany(collName string, filter bson.M) ([]map[string]interface{}, error) {
-	return db.MongoClient.RestfulAPIGetMany(collName, filter)
-}
-
-func (db *MongoDBClient) RestfulAPIPutOne(collName string, filter bson.M, putData map[string]interface{}) (bool, error) {
-	return db.MongoClient.RestfulAPIPutOne(collName, filter, putData)
-}
-
-func (db *MongoDBClient) RestfulAPIDeleteOne(collName string, filter bson.M) error {
-	return db.MongoClient.RestfulAPIDeleteOne(collName, filter)
-}
-
-func (db *MongoDBClient) RestfulAPIPost(collName string, filter bson.M, postData map[string]interface{}) (bool, error) {
-	return db.MongoClient.RestfulAPIPost(collName, filter, postData)
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateProfilesTable, ProfilesTableName)); err != nil {
+		return nil, err
+	}
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateNetworkSlicesTable, NetworkSlicesTableName)); err != nil {
+		return nil, err
+	}
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateRadiosTable, RadiosTableName)); err != nil {
+		return nil, err
+	}
+	db := new(Database)
+	db.conn = sqlair.NewDB(sqlConnection)
+	db.subscribersTable = SubscribersTableName
+	db.profilesTable = ProfilesTableName
+	db.networkSlicesTable = NetworkSlicesTableName
+	db.radiosTable = RadiosTableName
+	return db, nil
 }

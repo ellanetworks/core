@@ -5,12 +5,13 @@ import (
 
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/pcf/context"
 	"github.com/yeastengine/ella/internal/pcf/internal/notifyevent"
 	"github.com/yeastengine/ella/internal/util/idgenerator"
 )
 
-func Start() error {
+func Start(dbInstance *db.Database) error {
 	err := notifyevent.RegisterNotifyDispatcher()
 	if err != nil {
 		return err
@@ -20,5 +21,6 @@ func Start() error {
 	context.PcfSuppFeats = make(map[models.ServiceName]openapi.SupportedFeature)
 	context.SessionRuleIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
 	context.QoSDataIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
+	context.DbInstance = dbInstance
 	return nil
 }

@@ -9,7 +9,7 @@ import (
 
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/db/queries"
+	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/util/idgenerator"
 )
@@ -35,6 +35,7 @@ type PCFContext struct {
 	DefaultUdrURILock      sync.RWMutex
 	SessionRuleIDGenerator *idgenerator.IDGenerator
 	QoSDataIDGenerator     *idgenerator.IDGenerator
+	DbInstance             *db.Database
 }
 
 type SessionPolicy struct {
@@ -326,18 +327,14 @@ func (sess SessionPolicy) String() string {
 }
 
 func GetPLMNList() []PlmnSupportItem {
+	pcfSelf := PCF_Self()
 	plmnSupportList := make([]PlmnSupportItem, 0)
-	networkSliceNames, err := queries.ListNetworkSliceNames()
+	networkSlices, err := pcfSelf.DbInstance.ListNetworkSlices()
 	if err != nil {
 		logger.PcfLog.Warnf("Failed to get network slice names: %+v", err)
 		return plmnSupportList
 	}
-	for _, networkSliceName := range networkSliceNames {
-		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
-		if err != nil {
-			logger.PcfLog.Warnf("Failed to get network slice by name: %+v", err)
-			continue
-		}
+	for _, networkSlice := range networkSlices {
 		plmnID := models.PlmnId{
 			Mcc: networkSlice.Mcc,
 			Mnc: networkSlice.Mnc,
@@ -351,23 +348,28 @@ func GetPLMNList() []PlmnSupportItem {
 }
 
 func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
+	pcfSelf := PCF_Self()
 	subscriberPolicies := make(map[string]*PcfSubscriberPolicyData)
-	networkSliceNames, err := queries.ListNetworkSliceNames()
+	networkSlices, err := pcfSelf.DbInstance.ListNetworkSlices()
 	if err != nil {
 		logger.PcfLog.Warnf("Failed to get network slice names: %+v", err)
 		return subscriberPolicies
 	}
-	for _, networkSliceName := range networkSliceNames {
-		networkSlice, err := queries.GetNetworkSliceByName(networkSliceName)
-		if err != nil {
-			logger.PcfLog.Warnf("Failed to get network slice by name: %+v", err)
-			continue
-		}
+	for _, networkSlice := range networkSlices {
 		pccPolicyId := networkSlice.Sst + networkSlice.Sd
-		deviceGroupNames := networkSlice.DeviceGroups
+		deviceGroupNames := networkSlice.GetDeviceGroups()
 		for _, devGroupName := range deviceGroupNames {
-			deviceGroup := queries.GetProfile(devGroupName)
-			for _, imsi := range deviceGroup.Imsis {
+			deviceGroup, err := pcfSelf.DbInstance.GetProfileByName(devGroupName)
+			if err != nil {
+				logger.PcfLog.Warnf("Failed to get device group profile: %+v", err)
+				continue
+			}
+			imsis, err := deviceGroup.GetImsis()
+			if err != nil {
+				logger.PcfLog.Warnf("Failed to get imsis from device group: %+v", err)
+				continue
+			}
+			for _, imsi := range imsis {
 				if _, exists := subscriberPolicies[imsi]; !exists {
 					subscriberPolicies[imsi] = &PcfSubscriberPolicyData{
 						Supi:      imsi,

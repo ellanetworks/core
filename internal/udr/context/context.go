@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/db"
 )
 
 var udrContext = UDRContext{}
@@ -34,6 +35,7 @@ type UDRContext struct {
 	SdmSubscriptionIDGenerator              int
 	PolicyDataSubscriptionIDGenerator       int
 	SubscriptionDataSubscriptionIDGenerator int
+	DbInstance                              *db.Database
 }
 
 type UESubsData struct {

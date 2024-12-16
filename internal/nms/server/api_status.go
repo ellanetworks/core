@@ -11,9 +11,11 @@ type StatusResponse struct {
 	Version string `json:"version"`
 }
 
-func GetStatus(c *gin.Context) {
-	statusResponse := StatusResponse{
-		Version: version.GetVersion(),
+func GetStatus() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		statusResponse := StatusResponse{
+			Version: version.GetVersion(),
+		}
+		c.JSON(http.StatusOK, statusResponse)
 	}
-	c.JSON(http.StatusOK, statusResponse)
 }

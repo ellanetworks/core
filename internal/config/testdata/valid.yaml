@@ -1,7 +1,6 @@
 log-level: "info"
 db:
-  url: "mongodb://localhost:27017"
-  name: "test"
+  path: "test"
 interfaces: 
   n3: 
     name: "enp3s0"

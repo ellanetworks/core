@@ -5,6 +5,7 @@ import (
 
 	"github.com/yeastengine/ella/internal/amf/factory"
 	"github.com/yeastengine/ella/internal/amf/service"
+	"github.com/yeastengine/ella/internal/db"
 )
 
 var AMF = &service.AMF{}
@@ -13,7 +14,7 @@ const (
 	NGAPP_PORT = 38412
 )
 
-func Start() error {
+func Start(dbInstance *db.Database) error {
 	configuration := factory.Configuration{
 		AmfName:      "AMF",
 		NgapIpList:   []string{"0.0.0.0"},
@@ -65,6 +66,7 @@ func Start() error {
 			ExpireTime:    6 * time.Second,
 			MaxRetryTimes: 4,
 		},
+		DBInstance: dbInstance,
 	}
 
 	factory.InitConfigFactory(configuration)
