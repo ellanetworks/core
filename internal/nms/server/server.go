@@ -1,6 +1,7 @@
 package server
 
 import (
+	"io/fs"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -12,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/logger"
+	"github.com/yeastengine/ella/ui"
 	"go.uber.org/zap"
 )
 
@@ -136,4 +138,27 @@ func NewHandler(dbInstance *db.Database) http.Handler {
 	}))
 
 	return router
+}
+
+func AddUiService(engine *gin.Engine) {
+	staticFilesSystem, err := fs.Sub(ui.FrontendFS, "out")
+	if err != nil {
+		logger.NmsLog.Fatal(err)
+	}
+
+	engine.Use(func(c *gin.Context) {
+		if !isApiUrlPath(c.Request.URL.Path) {
+			htmlPath := strings.TrimPrefix(c.Request.URL.Path, "/") + ".html"
+			if _, err := staticFilesSystem.Open(htmlPath); err == nil {
+				c.Request.URL.Path = htmlPath
+			}
+			fileServer := http.FileServer(http.FS(staticFilesSystem))
+			fileServer.ServeHTTP(c.Writer, c.Request)
+			c.Abort()
+		}
+	})
+}
+
+func isApiUrlPath(path string) bool {
+	return strings.HasPrefix(path, "/api/v1/")
 }

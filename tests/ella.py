@@ -99,7 +99,7 @@ class Ella:
 
     def create_subscriber(self, imsi: str) -> None:
         """Create a subscriber."""
-        url = f"/api/v1/subscribers"
+        url = "/api/v1/subscribers"
         data = SUBSCRIBER_CONFIG.copy()
         data["UeId"] = imsi
         self._make_request(method="POST", endpoint=url, data=data)
