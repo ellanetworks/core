@@ -29,5 +29,6 @@ func Start(dbInstance *db.Database, port int, cert_file string, key_file string)
 			logger.NmsLog.Errorln("couldn't start NMS server:", err)
 		}
 	}()
+	logger.NmsLog.Infof("NMS server started on https://localhost:%d", port)
 	return nil
 }

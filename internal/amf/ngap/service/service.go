@@ -60,7 +60,7 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 		sctpListener = listener
 	}
 
-	logger.AmfLog.Infof("Listen on %s", sctpListener.Addr())
+	logger.AmfLog.Infof("Listen on %s", addr.String())
 
 	for {
 		newConn, err := sctpListener.AcceptSCTP()
