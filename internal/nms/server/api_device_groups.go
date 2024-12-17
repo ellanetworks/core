@@ -61,7 +61,7 @@ func GetDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing group-name parameter"})
 			return
 		}
-		dbDeviceGroup, err := dbInstance.GetProfileByName(groupName)
+		dbDeviceGroup, err := dbInstance.GetProfile(groupName)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusNotFound, gin.H{"error": "Unable to retrieve device group"})
@@ -108,7 +108,7 @@ func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing group-name parameter"})
 			return
 		}
-		_, err := dbInstance.GetProfileByName(groupName)
+		_, err := dbInstance.GetProfile(groupName)
 		if err == nil {
 			logger.NmsLog.Warnf("Device Group [%v] already exists", groupName)
 			c.JSON(http.StatusConflict, gin.H{"error": "Device Group already exists"})
@@ -204,14 +204,14 @@ func DeleteDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing group-name parameter"})
 			return
 		}
-		profile, err := dbInstance.GetProfileByName(groupName)
+		profile, err := dbInstance.GetProfile(groupName)
 		if err != nil {
 			logger.NmsLog.Warnf("Device Group [%v] not found", groupName)
 			c.JSON(http.StatusNotFound, gin.H{"error": "Device Group not found"})
 			return
 		}
 		deleteDeviceGroupConfig(dbInstance, profile)
-		err = dbInstance.DeleteProfile(profile.ID)
+		err = dbInstance.DeleteProfile(groupName)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete device group"})

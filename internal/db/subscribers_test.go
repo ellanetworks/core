@@ -15,13 +15,6 @@ func TestSubscribersEndToEnd(t *testing.T) {
 	}
 	defer database.Close()
 
-	subscriber := &db.Subscriber{
-		UeId:              "imsi-001010100007487",
-		PlmnID:            "123456",
-		SequenceNumber:    "123456",
-		PermanentKeyValue: "123456",
-		OpcValue:          "123456",
-	}
 	res, err := database.ListSubscribers()
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
@@ -31,6 +24,13 @@ func TestSubscribersEndToEnd(t *testing.T) {
 		t.Fatalf("One or more subscribers were found in DB")
 	}
 
+	subscriber := &db.Subscriber{
+		UeId:              "imsi-001010100007487",
+		PlmnID:            "123456",
+		SequenceNumber:    "123456",
+		PermanentKeyValue: "123456",
+		OpcValue:          "123456",
+	}
 	err = database.CreateSubscriber(subscriber)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
@@ -50,6 +50,18 @@ func TestSubscribersEndToEnd(t *testing.T) {
 	}
 	if retrievedSubscriber.UeId != subscriber.UeId {
 		t.Fatalf("The subscriber from the database doesn't match the subscriber that was given")
+	}
+	if retrievedSubscriber.PlmnID != subscriber.PlmnID {
+		t.Fatalf("The PLMN ID from the database doesn't match the PLMN ID that was given")
+	}
+	if retrievedSubscriber.SequenceNumber != subscriber.SequenceNumber {
+		t.Fatalf("The sequence number from the database doesn't match the sequence number that was given")
+	}
+	if retrievedSubscriber.PermanentKeyValue != subscriber.PermanentKeyValue {
+		t.Fatalf("The permanent key value from the database doesn't match the permanent key value that was given")
+	}
+	if retrievedSubscriber.OpcValue != subscriber.OpcValue {
+		t.Fatalf("The OPC value from the database doesn't match the OPC value that was given")
 	}
 
 	err = database.UpdateSubscriberSequenceNumber(subscriber.UeId, "654321")
