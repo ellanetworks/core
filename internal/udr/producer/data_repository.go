@@ -48,7 +48,7 @@ func convertDbAmDataToModel(sd string, sst int32, bitrateDownlink string, bitrat
 
 func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	udrSelf := context.UDR_Self()
-	subscriber, err := udrSelf.DbInstance.GetSubscriberByUeID(ueId)
+	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
@@ -59,13 +59,7 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 
 func EditAuthenticationSubscription(ueId string, sequenceNumber string) error {
 	udrSelf := context.UDR_Self()
-	subscriber, err := udrSelf.DbInstance.GetSubscriberByUeID(ueId)
-	if err != nil {
-		logger.UdrLog.Warnln(err)
-		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
-	}
-	subscriber.SequenceNumber = sequenceNumber
-	err = udrSelf.DbInstance.UpdateSubscriberSequenceNumber(subscriber.ID, sequenceNumber)
+	err := udrSelf.DbInstance.UpdateSubscriberSequenceNumber(ueId, sequenceNumber)
 	if err != nil {
 		return fmt.Errorf("couldn't update subscriber %s: %v", ueId, err)
 	}
@@ -100,7 +94,7 @@ func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 
 func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 	udrSelf := context.UDR_Self()
-	subscriber, err := udrSelf.DbInstance.GetSubscriberByUeID(ueId)
+	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
@@ -111,7 +105,7 @@ func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 
 func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
 	udrSelf := context.UDR_Self()
-	_, err := udrSelf.DbInstance.GetSubscriberByUeID(ueId)
+	_, err := udrSelf.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("USER_NOT_FOUND")
@@ -143,7 +137,7 @@ func convertDbSmPolicyDataToModel(sst int32, sd string, dnn string) *models.SmPo
 
 func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
 	udrSelf := context.UDR_Self()
-	subscriber, err := udrSelf.DbInstance.GetSubscriberByUeID(ueId)
+	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
@@ -229,7 +223,7 @@ func convertDbSessionManagementDataToModel(
 
 func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) {
 	udrSelf := context.UDR_Self()
-	subscriber, err := udrSelf.DbInstance.GetSubscriberByUeID(ueId)
+	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
@@ -256,7 +250,7 @@ func convertDbSmfSelectionDataToModel(snssai, dnn string) *models.SmfSelectionSu
 
 func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
 	udrSelf := context.UDR_Self()
-	subscriber, err := udrSelf.DbInstance.GetSubscriberByUeID(ueId)
+	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 	}

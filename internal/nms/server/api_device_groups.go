@@ -155,17 +155,12 @@ func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 			for _, imsi := range aimsis {
 				dnn := procReq.IpDomainExpanded.Dnn
 				ueId := "imsi-" + imsi
-				subscriber, err := dbInstance.GetSubscriberByUeID(ueId)
-				if err != nil {
-					logger.NmsLog.Warnf("Could not get subscriber %v", ueId)
-					continue
-				}
 				plmnId := slice.Mcc + slice.Mnc
 				bitRateUplink := convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink))
 				bitRateDownlink := convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink))
 				var5qi := 9
 				priorityLevel := 8
-				err = dbInstance.UpdateSubscriberProfile(subscriber.ID, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
+				err = dbInstance.UpdateSubscriberProfile(ueId, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
 				if err != nil {
 					logger.NmsLog.Warnf("Could not update subscriber %v", ueId)
 					c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to update subscriber"})
@@ -247,12 +242,7 @@ func deleteDeviceGroupConfig(dbInstance *db.Database, deviceGroup *db.Profile) {
 		}
 		for _, imsi := range dimsis {
 			ueId := "imsi-" + imsi
-			subscriber, err := dbInstance.GetSubscriberByUeID(ueId)
-			if err != nil {
-				logger.NmsLog.Warnln(err)
-				continue
-			}
-			err = dbInstance.UpdateSubscriberProfile(subscriber.ID, "", "", 0, "", "", "", 0, 0)
+			err = dbInstance.UpdateSubscriberProfile(ueId, "", "", 0, "", "", "", 0, 0)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 			}

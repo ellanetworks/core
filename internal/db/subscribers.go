@@ -33,11 +33,11 @@ const QueryCreateSubscribersTable = `
 
 const (
 	listSubscribersStmt            = "SELECT &Subscriber.* from %s"
-	getSubscriberStmt              = "SELECT &Subscriber.* from %s WHERE id==$Subscriber.id or ueId==$Subscriber.ueId"
+	getSubscriberStmt              = "SELECT &Subscriber.* from %s WHERE ueId==$Subscriber.ueId"
 	createSubscriberStmt           = "INSERT INTO %s (ueId, plmnID, sequenceNumber, permanentKeyValue, opcValue) VALUES ($Subscriber.ueId, $Subscriber.plmnID, $Subscriber.sequenceNumber, $Subscriber.permanentKeyValue, $Subscriber.opcValue)"
-	updateSubscriberSequenceNumber = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE id==$Subscriber.id"
-	updateSubscriberProfile        = "UPDATE %s SET dnn=$Subscriber.dnn, sd=$Subscriber.sd, sst=$Subscriber.sst, plmnID=$Subscriber.plmnID, uplink=$Subscriber.uplink, downlink=$Subscriber.downlink, var5qi=$Subscriber.var5qi, priorityLevel=$Subscriber.priorityLevel WHERE id==$Subscriber.id"
-	deleteSubscriberStmt           = "DELETE FROM %s WHERE id==$Subscriber.id"
+	updateSubscriberSequenceNumber = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE ueId==$Subscriber.ueId"
+	updateSubscriberProfile        = "UPDATE %s SET dnn=$Subscriber.dnn, sd=$Subscriber.sd, sst=$Subscriber.sst, plmnID=$Subscriber.plmnID, uplink=$Subscriber.uplink, downlink=$Subscriber.downlink, var5qi=$Subscriber.var5qi, priorityLevel=$Subscriber.priorityLevel WHERE ueId==$Subscriber.ueId"
+	deleteSubscriberStmt           = "DELETE FROM %s WHERE ueId==$Subscriber.ueId"
 )
 
 type Subscriber struct {
@@ -76,23 +76,7 @@ func (db *Database) ListSubscribers() ([]Subscriber, error) {
 	return subscribers, nil
 }
 
-// GetSubscriberByID retrieves the name, password and the permission level of a user.
-func (db *Database) GetSubscriberByID(id int) (*Subscriber, error) {
-	row := Subscriber{
-		ID: id,
-	}
-	stmt, err := sqlair.Prepare(fmt.Sprintf(getSubscriberStmt, db.subscribersTable), Subscriber{})
-	if err != nil {
-		return nil, err
-	}
-	err = db.conn.Query(context.Background(), stmt, row).Get(&row)
-	if err != nil {
-		return nil, err
-	}
-	return &row, nil
-}
-
-func (db *Database) GetSubscriberByUeID(ueID string) (*Subscriber, error) {
+func (db *Database) GetSubscriber(ueID string) (*Subscriber, error) {
 	row := Subscriber{
 		UeId: ueID,
 	}
@@ -108,7 +92,7 @@ func (db *Database) GetSubscriberByUeID(ueID string) (*Subscriber, error) {
 }
 
 func (db *Database) CreateSubscriber(subscriber *Subscriber) error {
-	_, err := db.GetSubscriberByUeID(subscriber.UeId)
+	_, err := db.GetSubscriber(subscriber.UeId)
 	if err == nil {
 		return fmt.Errorf("subscriber with ueId %s already exists", subscriber.UeId)
 	}
@@ -120,8 +104,8 @@ func (db *Database) CreateSubscriber(subscriber *Subscriber) error {
 	return err
 }
 
-func (db *Database) UpdateSubscriberSequenceNumber(id int, sequenceNumber string) error {
-	_, err := db.GetSubscriberByID(id)
+func (db *Database) UpdateSubscriberSequenceNumber(ueID string, sequenceNumber string) error {
+	_, err := db.GetSubscriber(ueID)
 	if err != nil {
 		return err
 	}
@@ -130,16 +114,16 @@ func (db *Database) UpdateSubscriberSequenceNumber(id int, sequenceNumber string
 		return err
 	}
 	row := Subscriber{
-		ID:             id,
+		UeId:           ueID,
 		SequenceNumber: sequenceNumber,
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
-	logger.DBLog.Infof("Updated sequence number for subscriber with ID %d", id)
+	logger.DBLog.Infof("Updated sequence number for subscriber with ueID %d", ueID)
 	return err
 }
 
-func (db *Database) UpdateSubscriberProfile(id int, dnn string, sd string, sst int32, plmnId string, bitrateUplink string, bitrateDownlink string, var5qi int, priorityLevel int) error {
-	_, err := db.GetSubscriberByID(id)
+func (db *Database) UpdateSubscriberProfile(ueID string, dnn string, sd string, sst int32, plmnId string, bitrateUplink string, bitrateDownlink string, var5qi int, priorityLevel int) error {
+	_, err := db.GetSubscriber(ueID)
 	if err != nil {
 		return err
 	}
@@ -148,7 +132,7 @@ func (db *Database) UpdateSubscriberProfile(id int, dnn string, sd string, sst i
 		return err
 	}
 	row := Subscriber{
-		ID:              id,
+		UeId:            ueID,
 		Dnn:             dnn,
 		Sd:              sd,
 		Sst:             sst,
@@ -159,23 +143,23 @@ func (db *Database) UpdateSubscriberProfile(id int, dnn string, sd string, sst i
 		PriorityLevel:   int32(priorityLevel),
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
-	logger.DBLog.Infof("Updated profile for subscriber with ID %d", id)
-	logger.DBLog.Infof("New SST: %d, SD: %s, DNN: %s, PLMN ID: %s, Uplink: %s, Downlink: %s, Var5qi: %d, Priority Level: %d", sst, sd, dnn, plmnId, bitrateUplink, bitrateDownlink, var5qi, priorityLevel)
+	logger.DBLog.Infof("Updated profile for subscriber with ueID %d", ueID)
 	return err
 }
 
-func (db *Database) DeleteSubscriber(id int) error {
-	_, err := db.GetSubscriberByID(id)
+func (db *Database) DeleteSubscriber(ueID string) error {
+	_, err := db.GetSubscriber(ueID)
 	if err != nil {
-		return err
+		return fmt.Errorf("subscriber with ueID %s not found", ueID)
 	}
 	stmt, err := sqlair.Prepare(fmt.Sprintf(deleteSubscriberStmt, db.subscribersTable), Subscriber{})
 	if err != nil {
 		return err
 	}
 	row := Subscriber{
-		ID: id,
+		UeId: ueID,
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
+	logger.DBLog.Infof("Deleted subscriber with ueID %d", ueID)
 	return err
 }
