@@ -121,9 +121,9 @@ func NewHandler(dbInstance *db.Database) http.Handler {
 
 	// Radios
 	apiGroup.GET("/radios", ListRadios(dbInstance))
-	apiGroup.GET("/radios/:radio-name", GetRadio(dbInstance))
-	apiGroup.POST("/radios/:radio-name", CreateRadio(dbInstance))
-	apiGroup.DELETE("/radios/:radio-name", DeleteRadio(dbInstance))
+	apiGroup.POST("/radios/", CreateRadio(dbInstance))
+	apiGroup.GET("/radios/:name", GetRadio(dbInstance))
+	apiGroup.DELETE("/radios/:name", DeleteRadio(dbInstance))
 
 	router.Use(cors.New(cors.Config{
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE"},

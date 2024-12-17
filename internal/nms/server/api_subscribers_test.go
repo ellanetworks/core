@@ -10,14 +10,8 @@ import (
 
 const UeId = "imsi-001010100007487"
 
-type SuccessResponse struct {
+type CreateSubscriberSuccessResponse struct {
 	Message string `json:"message"`
-}
-
-type GetSubscriberResponseResult struct {
-	ID          int    `json:"id"`
-	Username    string `json:"username"`
-	Permissions int    `json:"permissions"`
 }
 
 type GetSubscriberResponse struct {
@@ -41,8 +35,8 @@ type CreateSubscriberResponseResult struct {
 }
 
 type CreateSubscriberResponse struct {
-	Result SuccessResponse `json:"result"`
-	Error  string          `json:"error,omitempty"`
+	Result CreateSubscriberSuccessResponse `json:"result"`
+	Error  string                          `json:"error,omitempty"`
 }
 
 type DeleteSubscriberResponseResult struct {
@@ -106,7 +100,7 @@ func deleteSubscriber(url string, client *http.Client, ueId string) (int, error)
 func TestSubscribersEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path)
+	ts, err := setupServer(db_path)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -141,8 +135,8 @@ func TestSubscribersEndToEnd(t *testing.T) {
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if response.UeId != "imsi-001010100007487" {
-			t.Fatalf("expected ueId imsi-001010100007487, got %s", response.UeId)
+		if response.UeId != UeId {
+			t.Fatalf("expected ueId %s, got %s", UeId, response.UeId)
 		}
 		if response.PlmnID != "123456" {
 			t.Fatalf("expected plmnID 123456, got %s", response.PlmnID)

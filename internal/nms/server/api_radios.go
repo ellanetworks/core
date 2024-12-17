@@ -7,8 +7,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/nms/models"
 )
+
+type CreateRadioParams struct {
+	Name string `json:"name"`
+	Tac  string `json:"tac"`
+}
+
+type GetRadioParams struct {
+	Name string `json:"name"`
+	Tac  string `json:"tac"`
+}
 
 func ListRadios(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -20,9 +29,9 @@ func ListRadios(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		var radios []models.Radio
+		var radios []GetRadioParams
 		for _, radio := range dbRadios {
-			radios = append(radios, models.Radio{
+			radios = append(radios, GetRadioParams{
 				Name: radio.Name,
 				Tac:  strconv.Itoa(radio.Tac),
 			})
@@ -34,20 +43,19 @@ func ListRadios(dbInstance *db.Database) gin.HandlerFunc {
 func GetRadio(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
-		radioName := c.Param("radio-name")
+		radioName := c.Param("name")
 		if radioName == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing radio-name parameter"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing name parameter"})
 			return
 		}
-
+		logger.NmsLog.Infof("Received GET radio %v", radioName)
 		radio, err := dbInstance.GetRadio(radioName)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusNotFound, gin.H{"error": "Radio not found"})
 			return
 		}
 
-		c.JSON(http.StatusOK, models.Radio{
+		c.JSON(http.StatusOK, GetRadioParams{
 			Name: radio.Name,
 			Tac:  strconv.Itoa(radio.Tac),
 		})
@@ -57,27 +65,17 @@ func GetRadio(dbInstance *db.Database) gin.HandlerFunc {
 func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
-		var radioName string
-		var exists bool
-		if radioName, exists = c.Params.Get("radio-name"); !exists {
-			errorMessage := "radio-name is missing"
-			logger.NmsLog.Errorf(errorMessage)
-			c.JSON(http.StatusBadRequest, gin.H{"error": errorMessage})
-			return
-		}
-		_, err := dbInstance.GetRadio(radioName)
-		if err == nil {
-			errorMessage := "radio already exists"
-			logger.NmsLog.Errorf(errorMessage)
-			c.JSON(http.StatusBadRequest, gin.H{"error": errorMessage})
-			return
-		}
-		logger.NmsLog.Infof("Received radio %v", radioName)
-		var newRadio models.Radio
-		err = c.ShouldBindJSON(&newRadio)
+		var newRadio CreateRadioParams
+		err := c.ShouldBindJSON(&newRadio)
 		if err != nil {
 			logger.NmsLog.Errorf(err.Error())
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+			return
+		}
+		if newRadio.Name == "" {
+			errorMessage := "name is missing"
+			logger.NmsLog.Errorf(errorMessage)
+			c.JSON(http.StatusBadRequest, gin.H{"error": errorMessage})
 			return
 		}
 		if newRadio.Tac == "" {
@@ -86,6 +84,15 @@ func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": errorMessage})
 			return
 		}
+		_, err = dbInstance.GetRadio(newRadio.Name)
+		if err == nil {
+			errorMessage := "radio already exists"
+			logger.NmsLog.Errorf(errorMessage)
+			c.JSON(http.StatusBadRequest, gin.H{"error": errorMessage})
+			return
+		}
+		logger.NmsLog.Infof("Received radio %v", newRadio.Name)
+
 		tacInt, err := strconv.Atoi(newRadio.Tac)
 		if err != nil {
 			logger.NmsLog.Errorf(err.Error())
@@ -93,7 +100,7 @@ func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		dbRadio := &db.Radio{
-			Name: radioName,
+			Name: newRadio.Name,
 			Tac:  tacInt,
 		}
 		err = dbInstance.CreateRadio(dbRadio)
@@ -102,7 +109,7 @@ func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create radio"})
 			return
 		}
-		logger.NmsLog.Infof("created radio %v", radioName)
+		logger.NmsLog.Infof("created radio %v", newRadio.Name)
 		c.JSON(http.StatusCreated, gin.H{"message": "Radio created successfully"})
 	}
 }
@@ -110,13 +117,17 @@ func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
 func DeleteRadio(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
-		radioName := c.Param("radio-name")
+		radioName := c.Param("name")
 		if radioName == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing radio-name parameter"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing name parameter"})
 			return
 		}
-
-		err := dbInstance.DeleteRadio(radioName)
+		_, err := dbInstance.GetRadio(radioName)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Radio not found"})
+			return
+		}
+		err = dbInstance.DeleteRadio(radioName)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete radio"})

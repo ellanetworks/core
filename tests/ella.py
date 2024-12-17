@@ -12,7 +12,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-GNB_CONFIG_URL = "api/v1/radios"
+GNB_CONFIG_URL = "/api/v1/radios"
 
 JSON_HEADER = {"Content-Type": "application/json"}
 
@@ -93,8 +93,8 @@ class Ella:
 
     def create_radio(self, name: str, tac: int) -> None:
         """Create a radio in the NMS."""
-        create_radio_params = CreateRadioParams(tac=str(tac))
-        self._make_request("POST", f"/{GNB_CONFIG_URL}/{name}", data=asdict(create_radio_params))
+        create_radio_params = CreateRadioParams(name=name, tac=str(tac))
+        self._make_request("POST", GNB_CONFIG_URL, data=asdict(create_radio_params))
         logger.info("Radio %s created in NMS", name)
 
     def create_subscriber(self, imsi: str) -> None:

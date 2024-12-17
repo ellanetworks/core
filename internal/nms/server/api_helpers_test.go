@@ -8,11 +8,11 @@ import (
 	"github.com/yeastengine/ella/internal/nms/server"
 )
 
-func setupServer(filepath string) (*httptest.Server, *db.Database, error) {
+func setupServer(filepath string) (*httptest.Server, error) {
 	testdb, err := db.NewDatabase(filepath)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	ts := httptest.NewTLSServer(server.NewHandler(testdb))
-	return ts, testdb, nil
+	return ts, nil
 }
