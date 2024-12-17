@@ -4,7 +4,7 @@ function isValidDeviceGroupName(name: string): boolean {
 
 export const apiGetAllDeviceGroups = async () => {
   try {
-    const response = await fetch(`/api/v1/device-groups/`, {
+    const response = await fetch(`/api/v1/profiles/`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -22,7 +22,7 @@ export const apiGetDeviceGroup = async (name: string) => {
     throw new Error(`Error getting device group: Invalid name provided.`);
   }
   try {
-    const response = await fetch(`/api/v1/device-groups/${name}`, {
+    const response = await fetch(`/api/v1/profiles/${name}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -40,7 +40,7 @@ export const apiPostDeviceGroup = async (name: string, deviceGroupData: any) => 
     throw new Error(`Error updating device group: Invalid name provided.`);
   }
   try {
-    const response = await fetch(`/api/v1/device-groups/${name}`, {
+    const response = await fetch(`/api/v1/profiles/${name}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -59,7 +59,7 @@ export const apiDeleteDeviceGroup = async (name: string) => {
     throw new Error(`Error deleting device group: Invalid name provided.`);
   }
   try {
-    const response = await fetch(`/api/v1/device-groups/${name}`, {
+    const response = await fetch(`/api/v1/profiles/${name}`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",

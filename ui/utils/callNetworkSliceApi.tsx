@@ -35,7 +35,7 @@ export const apiGetNetworkSlice = async (name: string) => {
   }
 };
 
-export const apiPostNetworkSlice = async (name: string, sliceData: any) => {
+export const apiCreateNetworkSlice = async (name: string, sliceData: any) => {
   if (!isValidNetworkSliceName(name)) {
     throw new Error(`Error updating network slice: Invalid name provided.`);
   }

@@ -20,7 +20,7 @@ const QueryCreateNetworkSlicesTable = `
 
 		sst TEXT NOT NULL,
 		sd TEXT NOT NULL,
-		deviceGroups TEXT NOT NULL,
+		profiles TEXT NOT NULL,
 		mcc TEXT NOT NULL,
 		mnc TEXT NOT NULL,
 		gNodeBs TEXT NOT NULL,
@@ -30,7 +30,7 @@ const QueryCreateNetworkSlicesTable = `
 const (
 	listNetworkSlicesStmt  = "SELECT &NetworkSlice.* from %s"
 	getNetworkSliceStmt    = "SELECT &NetworkSlice.* from %s WHERE name==$NetworkSlice.name"
-	createNetworkSliceStmt = "INSERT INTO %s (name, sst, sd, deviceGroups, mcc, mnc, gNodeBs, upf) VALUES ($NetworkSlice.name, $NetworkSlice.sst, $NetworkSlice.sd, $NetworkSlice.deviceGroups, $NetworkSlice.mcc, $NetworkSlice.mnc, $NetworkSlice.gNodeBs, $NetworkSlice.upf)"
+	createNetworkSliceStmt = "INSERT INTO %s (name, sst, sd, profiles, mcc, mnc, gNodeBs, upf) VALUES ($NetworkSlice.name, $NetworkSlice.sst, $NetworkSlice.sd, $NetworkSlice.profiles, $NetworkSlice.mcc, $NetworkSlice.mnc, $NetworkSlice.gNodeBs, $NetworkSlice.upf)"
 	deleteNetworkSliceStmt = "DELETE FROM %s WHERE name==$NetworkSlice.name"
 )
 
@@ -45,26 +45,26 @@ type UPF struct {
 }
 
 type NetworkSlice struct {
-	ID           int    `db:"id"`
-	Name         string `db:"name"`
-	Sst          string `db:"sst"`
-	Sd           string `db:"sd"`
-	DeviceGroups string `db:"deviceGroups"`
-	Mcc          string `db:"mcc"`
-	Mnc          string `db:"mnc"`
-	GNodeBs      string `db:"gNodeBs"`
-	Upf          string `db:"upf"`
+	ID       int    `db:"id"`
+	Name     string `db:"name"`
+	Sst      string `db:"sst"`
+	Sd       string `db:"sd"`
+	Profiles string `db:"profiles"`
+	Mcc      string `db:"mcc"`
+	Mnc      string `db:"mnc"`
+	GNodeBs  string `db:"gNodeBs"`
+	Upf      string `db:"upf"`
 }
 
-func (ns *NetworkSlice) GetDeviceGroups() []string {
-	if ns.DeviceGroups == "" {
+func (ns *NetworkSlice) ListProfiles() []string {
+	if ns.Profiles == "" {
 		return []string{}
 	}
-	return strings.Split(ns.DeviceGroups, ",")
+	return strings.Split(ns.Profiles, ",")
 }
 
-func (ns *NetworkSlice) SetDeviceGroups(groups []string) {
-	ns.DeviceGroups = strings.Join(groups, ",")
+func (ns *NetworkSlice) SetProfiles(groups []string) {
+	ns.Profiles = strings.Join(groups, ",")
 }
 
 func (ns *NetworkSlice) GetGNodeBs() ([]GNodeB, error) {

@@ -1,5 +1,5 @@
 import { apiGetDeviceGroup, apiPostDeviceGroup } from "@/utils/callDeviceGroupApi";
-import { apiGetSubscriber, apiPostSubscriber } from "@/utils/callSubscriberApi";
+import { apiGetSubscriber, apiCreateSubscriber } from "@/utils/callSubscriberApi";
 
 interface EditSubscriberArgs {
   imsi: string;
@@ -60,7 +60,7 @@ const updateSubscriber = async (subscriberData: any) => {
     existingSubscriberData["AuthenticationSubscription"]["permanentKey"]["permanentKeyValue"] = subscriberData.key;
     existingSubscriberData["AuthenticationSubscription"]["sequenceNumber"] = subscriberData.sequenceNumber;
 
-    const updateSubscriberResponse = await apiPostSubscriber(subscriberData.UeId, subscriberData);
+    const updateSubscriberResponse = await apiCreateSubscriber(subscriberData.UeId, subscriberData);
     if (!updateSubscriberResponse.ok) {
       throw new Error(
       `Error editing subscriber. Error code: ${updateSubscriberResponse.status}`,

@@ -1,4 +1,4 @@
-import { apiGetNetworkSlice, apiPostNetworkSlice } from "@/utils/callNetworkSliceApi";
+import { apiGetNetworkSlice, apiCreateNetworkSlice } from "@/utils/callNetworkSliceApi";
 import { apiPostDeviceGroup } from "@/utils/callDeviceGroupApi";
 
 interface GnbItem {
@@ -73,7 +73,7 @@ export const createNetworkSlice = async ({
       throw new Error("Network slice already exists");
     }
 
-    const updateNetworkSliceResponse = await apiPostNetworkSlice(name, sliceData);
+    const updateNetworkSliceResponse = await apiCreateNetworkSlice(name, sliceData);
     if (!updateNetworkSliceResponse.ok) {
       const networkSliceData = await updateNetworkSliceResponse.json();
       if (networkSliceData.error) {

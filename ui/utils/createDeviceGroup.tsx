@@ -1,4 +1,4 @@
-import { apiGetNetworkSlice, apiPostNetworkSlice } from "@/utils/callNetworkSliceApi";
+import { apiGetNetworkSlice, apiCreateNetworkSlice } from "@/utils/callNetworkSliceApi";
 import { apiGetDeviceGroup, apiPostDeviceGroup } from "@/utils/callDeviceGroupApi";
 
 interface DeviceGroupArgs {
@@ -64,7 +64,7 @@ export const createDeviceGroup = async ({
     }
     existingSliceData["site-device-group"].push(name);
 
-    const updateSliceResponse = await apiPostNetworkSlice(networkSliceName, existingSliceData);
+    const updateSliceResponse = await apiCreateNetworkSlice(networkSliceName, existingSliceData);
     if (!updateSliceResponse.ok) {
       throw new Error(
         `Error updating network slice. Error code: ${updateSliceResponse.status}`,

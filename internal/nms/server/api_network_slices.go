@@ -36,7 +36,7 @@ func convertToBps(val int64, unit string) (bitrate int64) {
 	return bitrate
 }
 
-func GetNetworkSlices(dbInstance *db.Database) gin.HandlerFunc {
+func ListNetworkSlices(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
 		networkSlices, err := dbInstance.ListNetworkSlices()
@@ -56,7 +56,7 @@ func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *db.NetworkSlice) *model
 			Sst: dbNetworkSlice.Sst,
 			Sd:  dbNetworkSlice.Sd,
 		},
-		SiteDeviceGroup: dbNetworkSlice.GetDeviceGroups(),
+		SiteDeviceGroup: dbNetworkSlice.ListProfiles(),
 		SiteInfo: models.SliceSiteInfo{
 			Plmn: models.SliceSiteInfoPlmn{
 				Mcc: dbNetworkSlice.Mcc,
@@ -107,7 +107,7 @@ func convertNetworkSliceToDBNetworkSlice(networkSlice *models.Slice) *db.Network
 		Port: upfPortInt,
 	})
 
-	dbNetworkSlice.SetDeviceGroups(networkSlice.SiteDeviceGroup)
+	dbNetworkSlice.SetProfiles(networkSlice.SiteDeviceGroup)
 	dbGnodeBs := make([]db.GNodeB, 0)
 	for _, radio := range networkSlice.SiteInfo.GNodeBs {
 		dbRadio := db.GNodeB{
@@ -139,7 +139,7 @@ func GetNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 	}
 }
 
-func PostNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
+func CreateNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sliceName, exists := c.Params.Get("slice-name")
 		if !exists {

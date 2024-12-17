@@ -357,7 +357,7 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 	}
 	for _, networkSlice := range networkSlices {
 		pccPolicyId := networkSlice.Sst + networkSlice.Sd
-		deviceGroupNames := networkSlice.GetDeviceGroups()
+		deviceGroupNames := networkSlice.ListProfiles()
 		for _, devGroupName := range deviceGroupNames {
 			deviceGroup, err := pcfSelf.DbInstance.GetProfile(devGroupName)
 			if err != nil {

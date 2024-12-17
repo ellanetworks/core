@@ -10,7 +10,7 @@ import (
 	"github.com/yeastengine/ella/internal/nms/models"
 )
 
-func GetRadios(dbInstance *db.Database) gin.HandlerFunc {
+func ListRadios(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
 		dbRadios, err := dbInstance.ListRadios()
@@ -54,7 +54,7 @@ func GetRadio(dbInstance *db.Database) gin.HandlerFunc {
 	}
 }
 
-func PostRadio(dbInstance *db.Database) gin.HandlerFunc {
+func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
 		var radioName string

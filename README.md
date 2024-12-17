@@ -47,29 +47,29 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 
 #### API
 
-| Endpoint                      | HTTP Method | Description               |
-| ----------------------------- | ----------- | ------------------------- |
-| `/api/v1/status`              | GET         | Get status                |
-| `/api/v1/metrics`             | GET         | Get metrics               |
-| `/api/v1/subscribers`         | GET         | List subscribers          |
-| `/api/v1/subscribers`         | POST        | Create a new subscriber   |
-| `/api/v1/subscribers/{id}`    | GET         | Get a subscriber          |
-| `/api/v1/subscribers/{id}`    | PUT         | Update a subscriber       |
-| `/api/v1/subscribers/{id}`    | DELETE      | Delete a subscriber       |
-| `/api/v1/radios`              | GET         | List radios               |
-| `/api/v1/radios`              | POST        | Create a new radio        |
-| `/api/v1/radios/{id}`         | GET         | Get a radio               |
-| `/api/v1/radios/{id}`         | DELETE      | Delete a radio            |
-| `/api/v1/network-slices`      | GET         | List network slices       |
-| `/api/v1/network-slices`      | POST        | Create a new slice        |
-| `/api/v1/network-slices/{id}` | GET         | Get a network slice       |
-| `/api/v1/network-slices/{id}` | PUT         | Update a network slice    |
-| `/api/v1/network-slices/{id}` | DELETE      | Delete a network slice    |
-| `/api/v1/device-groups`       | GET         | List device groups        |
-| `/api/v1/device-groups`       | POST        | Create a new device group |
-| `/api/v1/device-groups/{id}`  | GET         | Get a device group        |
-| `/api/v1/device-groups/{id}`  | PUT         | Update a device group     |
-| `/api/v1/device-groups/{id}`  | DELETE      | Delete a device group     |
+| Endpoint                      | HTTP Method | Description             |
+| ----------------------------- | ----------- | ----------------------- |
+| `/api/v1/status`              | GET         | Get status              |
+| `/api/v1/metrics`             | GET         | Get metrics             |
+| `/api/v1/subscribers`         | GET         | List subscribers        |
+| `/api/v1/subscribers`         | POST        | Create a new subscriber |
+| `/api/v1/subscribers/{id}`    | GET         | Get a subscriber        |
+| `/api/v1/subscribers/{id}`    | PUT         | Update a subscriber     |
+| `/api/v1/subscribers/{id}`    | DELETE      | Delete a subscriber     |
+| `/api/v1/radios`              | GET         | List radios             |
+| `/api/v1/radios`              | POST        | Create a new radio      |
+| `/api/v1/radios/{id}`         | GET         | Get a radio             |
+| `/api/v1/radios/{id}`         | DELETE      | Delete a radio          |
+| `/api/v1/network-slices`      | GET         | List network slices     |
+| `/api/v1/network-slices`      | POST        | Create a new slice      |
+| `/api/v1/network-slices/{id}` | GET         | Get a network slice     |
+| `/api/v1/network-slices/{id}` | PUT         | Update a network slice  |
+| `/api/v1/network-slices/{id}` | DELETE      | Delete a network slice  |
+| `/api/v1/profiles`            | GET         | List profiles           |
+| `/api/v1/profiles`            | POST        | Create a new profile    |
+| `/api/v1/profiles/{id}`       | GET         | Get a profile           |
+| `/api/v1/profiles/{id}`       | PUT         | Update a profile        |
+| `/api/v1/profiles/{id}`       | DELETE      | Delete a profile        |
 
 
 #### Configuration

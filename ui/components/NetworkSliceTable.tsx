@@ -76,9 +76,8 @@ export const NetworkSliceTable: React.FC<NetworkSliceTableProps> = ({
             columns: [
               { content: "UPF" },
               {
-                content: `${slice["site-info"]?.upf?.["upf-name"] || "N/A"}:${
-                  slice["site-info"]?.upf?.["upf-port"] || "N/A"
-                }`,
+                content: `${slice["site-info"]?.upf?.["upf-name"] || "N/A"}:${slice["site-info"]?.upf?.["upf-port"] || "N/A"
+                  }`,
 
                 className: "u-align--right",
               },
@@ -99,10 +98,9 @@ export const NetworkSliceTable: React.FC<NetworkSliceTableProps> = ({
           {
             columns: [
               {
-                content: `Device Groups (${
-                  !slice["site-device-group"] ||
+                content: `Device Groups (${!slice["site-device-group"] ||
                   slice["site-device-group"].length
-                })`,
+                  })`,
               },
               {
                 content: (
@@ -149,7 +147,7 @@ export const NetworkSliceTable: React.FC<NetworkSliceTableProps> = ({
               <NetworkSliceGroups slice={slice} isExpanded={isExpanded} />
             ),
             expanded: isExpanded,
-            key: `device-groups-${slice["slice-name"]}`,
+            key: `profiles-${slice["slice-name"]}`,
           },
         ]}
       />

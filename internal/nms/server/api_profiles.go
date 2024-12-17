@@ -39,20 +39,20 @@ func convertToString(val uint64) string {
 	return retStr
 }
 
-func GetDeviceGroups(dbInstance *db.Database) gin.HandlerFunc {
+func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
-		deviceGroups, err := dbInstance.ListProfiles()
+		profiles, err := dbInstance.ListProfiles()
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve device groups"})
 			return
 		}
-		c.JSON(http.StatusOK, deviceGroups)
+		c.JSON(http.StatusOK, profiles)
 	}
 }
 
-func GetDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
+func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
 		groupName, exists := c.Params.Get("group-name")
@@ -61,7 +61,7 @@ func GetDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing group-name parameter"})
 			return
 		}
-		dbDeviceGroup, err := dbInstance.GetProfile(groupName)
+		dbProfile, err := dbInstance.GetProfile(groupName)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusNotFound, gin.H{"error": "Unable to retrieve device group"})
@@ -69,26 +69,26 @@ func GetDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 		}
 
 		deviceGroup := models.DeviceGroups{
-			DeviceGroupName: dbDeviceGroup.Name,
+			DeviceGroupName: dbProfile.Name,
 			IpDomainExpanded: models.DeviceGroupsIpDomainExpanded{
-				UeIpPool:     dbDeviceGroup.UeIpPool,
-				DnsPrimary:   dbDeviceGroup.DnsPrimary,
-				DnsSecondary: dbDeviceGroup.DnsSecondary,
+				UeIpPool:     dbProfile.UeIpPool,
+				DnsPrimary:   dbProfile.DnsPrimary,
+				DnsSecondary: dbProfile.DnsSecondary,
 				UeDnnQos: &models.DeviceGroupsIpDomainExpandedUeDnnQos{
-					DnnMbrDownlink: dbDeviceGroup.DnnMbrDownlink,
-					DnnMbrUplink:   dbDeviceGroup.DnnMbrUplink,
-					BitrateUnit:    dbDeviceGroup.BitrateUnit,
+					DnnMbrDownlink: dbProfile.DnnMbrDownlink,
+					DnnMbrUplink:   dbProfile.DnnMbrUplink,
+					BitrateUnit:    dbProfile.BitrateUnit,
 					TrafficClass: &models.TrafficClassInfo{
-						Name: dbDeviceGroup.Name,
-						Qci:  dbDeviceGroup.Qci,
-						Arp:  dbDeviceGroup.Arp,
-						Pdb:  dbDeviceGroup.Pdb,
-						Pelr: dbDeviceGroup.Pelr,
+						Name: dbProfile.Name,
+						Qci:  dbProfile.Qci,
+						Arp:  dbProfile.Arp,
+						Pdb:  dbProfile.Pdb,
+						Pelr: dbProfile.Pelr,
 					},
 				},
 			},
 		}
-		imsis, err := dbDeviceGroup.GetImsis()
+		imsis, err := dbProfile.GetImsis()
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve device group"})
@@ -99,7 +99,7 @@ func GetDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 	}
 }
 
-func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
+func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
 		groupName, exists := c.Params.Get("group-name")
@@ -142,7 +142,7 @@ func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 		}
 
 		procReq.DeviceGroupName = groupName
-		slice := isDeviceGroupExistInSlice(dbInstance, groupName)
+		slice := isProfileExistInSlice(dbInstance, groupName)
 		if slice != nil {
 			sVal, err := strconv.ParseUint(slice.Sst, 10, 32)
 			if err != nil {
@@ -168,7 +168,7 @@ func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 				}
 			}
 		}
-		dbDeviceGroup := &db.Profile{
+		dbProfile := &db.Profile{
 			Name:           groupName,
 			UeIpPool:       procReq.IpDomainExpanded.UeIpPool,
 			DnsPrimary:     procReq.IpDomainExpanded.DnsPrimary,
@@ -182,8 +182,8 @@ func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 			Pdb:            procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pdb,
 			Pelr:           procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
 		}
-		dbDeviceGroup.SetImsis(procReq.Imsis)
-		err = dbInstance.CreateProfile(dbDeviceGroup)
+		dbProfile.SetImsis(procReq.Imsis)
+		err = dbInstance.CreateProfile(dbProfile)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create device group"})
@@ -195,7 +195,7 @@ func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 	}
 }
 
-func DeleteDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
+func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
 		groupName, exists := c.Params.Get("group-name")
@@ -210,7 +210,7 @@ func DeleteDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Device Group not found"})
 			return
 		}
-		deleteDeviceGroupConfig(dbInstance, profile)
+		deleteProfileConfig(dbInstance, profile)
 		err = dbInstance.DeleteProfile(groupName)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
@@ -232,8 +232,8 @@ func getAddedImsisList(group *models.DeviceGroups) (aimsis []string) {
 	return
 }
 
-func deleteDeviceGroupConfig(dbInstance *db.Database, deviceGroup *db.Profile) {
-	slice := isDeviceGroupExistInSlice(dbInstance, deviceGroup.Name)
+func deleteProfileConfig(dbInstance *db.Database, deviceGroup *db.Profile) {
+	slice := isProfileExistInSlice(dbInstance, deviceGroup.Name)
 	if slice != nil {
 		dimsis, err := deviceGroup.GetImsis()
 		if err != nil {
@@ -250,15 +250,15 @@ func deleteDeviceGroupConfig(dbInstance *db.Database, deviceGroup *db.Profile) {
 	}
 }
 
-func isDeviceGroupExistInSlice(dbInstance *db.Database, deviceGroupName string) *db.NetworkSlice {
+func isProfileExistInSlice(dbInstance *db.Database, deviceGroupName string) *db.NetworkSlice {
 	dBSlices, err := dbInstance.ListNetworkSlices()
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 		return nil
 	}
 	for name, slice := range dBSlices {
-		deviceGroups := slice.GetDeviceGroups()
-		for _, dgName := range deviceGroups {
+		profiles := slice.ListProfiles()
+		for _, dgName := range profiles {
 			if dgName == deviceGroupName {
 				logger.NmsLog.Infof("Device Group [%v] is part of slice: %v", dgName, name)
 				return &slice

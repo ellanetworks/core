@@ -99,7 +99,7 @@ class Ella:
 
     def create_subscriber(self, imsi: str) -> None:
         """Create a subscriber."""
-        url = f"/api/v1/subscribers/imsi-{imsi}"
+        url = f"/api/v1/subscribers"
         data = SUBSCRIBER_CONFIG.copy()
         data["UeId"] = imsi
         self._make_request(method="POST", endpoint=url, data=data)
@@ -108,7 +108,7 @@ class Ella:
     def create_device_group(self, name: str, imsis: List[str]) -> None:
         """Create a device group."""
         DEVICE_GROUP_CONFIG["imsis"] = imsis
-        url = f"/api/v1/device-groups/{name}"
+        url = f"/api/v1/profiles/{name}"
         self._make_request("POST", url, data=DEVICE_GROUP_CONFIG)
         logger.info(f"Created device group {name}.")
 

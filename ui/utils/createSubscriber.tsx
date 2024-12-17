@@ -1,5 +1,5 @@
 import { apiGetDeviceGroup, apiPostDeviceGroup } from "@/utils/callDeviceGroupApi";
-import { apiGetSubscriber, apiPostSubscriber } from "@/utils/callSubscriberApi";
+import { apiGetSubscriber, apiCreateSubscriber } from "@/utils/callSubscriberApi";
 
 interface CreateSubscriberArgs {
   imsi: string;
@@ -32,7 +32,7 @@ export const createSubscriber = async ({
       throw new Error("Subscriber already exists.");
     }
 
-    const updateSubscriberResponse = await apiPostSubscriber(imsi, subscriberData);
+    const updateSubscriberResponse = await apiCreateSubscriber(imsi, subscriberData);
     if (!updateSubscriberResponse.ok) {
       throw new Error(
         `Error creating subscriber. Error code: ${updateSubscriberResponse.status}`,
