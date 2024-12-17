@@ -1,4 +1,4 @@
-import { apiGetDeviceGroup, apiPostDeviceGroup } from "@/utils/callDeviceGroupApi";
+import { apiGetProfile, apiPostProfile } from "@/utils/callProfileApi";
 import { apiGetSubscriber, apiCreateSubscriber } from "@/utils/callSubscriberApi";
 
 interface CreateSubscriberArgs {
@@ -39,18 +39,18 @@ export const createSubscriber = async ({
       );
     }
 
-    const existingDeviceGroupResponse = await apiGetDeviceGroup(deviceGroupName);
-    var existingDeviceGroupData = await existingDeviceGroupResponse.json();
+    const existingProfileResponse = await apiGetProfile(deviceGroupName);
+    var existingProfileData = await existingProfileResponse.json();
 
-    if (!existingDeviceGroupData["imsis"]) {
-      existingDeviceGroupData["imsis"] = [];
+    if (!existingProfileData["imsis"]) {
+      existingProfileData["imsis"] = [];
     }
-    existingDeviceGroupData["imsis"].push(imsi);
+    existingProfileData["imsis"].push(imsi);
 
-    const updateDeviceGroupResponse = await apiPostDeviceGroup(deviceGroupName, existingDeviceGroupData);
-    if (!updateDeviceGroupResponse.ok) {
+    const updateProfileResponse = await apiPostProfile(deviceGroupName, existingProfileData);
+    if (!updateProfileResponse.ok) {
       throw new Error(
-        `Error updating device group. Error code: ${updateDeviceGroupResponse.status}`,
+        `Error updating device group. Error code: ${updateProfileResponse.status}`,
       );
     }
 

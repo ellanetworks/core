@@ -4,14 +4,12 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/nms/models"
 	"github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/util/httpwrapper"
 )
 
 const DNN = "internet"
@@ -21,20 +19,6 @@ const (
 	MPS = 1000000
 	GPS = 1000000000
 )
-
-func convertToBps(val int64, unit string) (bitrate int64) {
-	if strings.EqualFold(unit, "bps") {
-		bitrate = val
-	} else if strings.EqualFold(unit, "kbps") {
-		bitrate = val * KPS
-	} else if strings.EqualFold(unit, "mbps") {
-		bitrate = val * MPS
-	} else if strings.EqualFold(unit, "gbps") {
-		bitrate = val * GPS
-	}
-	// default consider it as bps
-	return bitrate
-}
 
 func ListNetworkSlices(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -65,7 +49,6 @@ func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *db.NetworkSlice) *model
 			GNodeBs: make([]models.SliceSiteInfoGNodeBs, 0),
 			Upf:     make(map[string]interface{}),
 		},
-		ApplicationFilteringRules: make([]models.SliceApplicationFilteringRules, 0),
 	}
 	dbGnodeBs, err := dbNetworkSlice.GetGNodeBs()
 	if err != nil {
@@ -141,62 +124,30 @@ func GetNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 
 func CreateNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sliceName, exists := c.Params.Get("slice-name")
-		if !exists {
-			logger.NmsLog.Errorf("slice-name is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing slice-name parameter"})
-			return
-		}
-		_, err := dbInstance.GetNetworkSlice(sliceName)
-		if err == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Network slice already exists"})
-			return
-		}
-		var request models.Slice
-		s := strings.Split(c.GetHeader("Content-Type"), ";")
-		switch s[0] {
-		case "application/json":
-			err = c.ShouldBindJSON(&request)
-		}
+		var createNetworkSliceParams models.Slice
+		err := c.ShouldBindJSON(&createNetworkSliceParams)
 		if err != nil {
+			logger.NmsLog.Errorf(" err %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 			return
 		}
 
-		req := httpwrapper.NewRequest(c.Request, request)
-
-		procReq := req.Body.(models.Slice)
-		group := procReq.SiteDeviceGroup
-		slices.Sort(group)
-
-		for index := range procReq.ApplicationFilteringRules {
-			ul := procReq.ApplicationFilteringRules[index].AppMbrUplink
-			dl := procReq.ApplicationFilteringRules[index].AppMbrDownlink
-			unit := procReq.ApplicationFilteringRules[index].BitrateUnit
-
-			bitrate := convertToBps(int64(ul), unit)
-			if bitrate < 0 || bitrate > 2147483647 {
-				procReq.ApplicationFilteringRules[index].AppMbrUplink = 2147483647
-			} else {
-				procReq.ApplicationFilteringRules[index].AppMbrUplink = int32(bitrate)
-			}
-
-			bitrate = convertToBps(int64(dl), unit)
-			if bitrate < 0 || bitrate > 2147483647 {
-				procReq.ApplicationFilteringRules[index].AppMbrDownlink = 2147483647
-			} else {
-				procReq.ApplicationFilteringRules[index].AppMbrDownlink = int32(bitrate)
-			}
+		_, err = dbInstance.GetNetworkSlice(createNetworkSliceParams.SliceName)
+		if err == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Network slice already exists"})
+			return
 		}
 
-		procReq.SliceName = sliceName
-		sVal, err := strconv.ParseUint(procReq.SliceId.Sst, 10, 32)
+		group := createNetworkSliceParams.SiteDeviceGroup
+		slices.Sort(group)
+
+		sVal, err := strconv.ParseUint(createNetworkSliceParams.SliceId.Sst, 10, 32)
 		if err != nil {
-			logger.NmsLog.Errorf("Could not parse SST %v", procReq.SliceId.Sst)
+			logger.NmsLog.Errorf("Could not parse SST %v", createNetworkSliceParams.SliceId.Sst)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid SST"})
 			return
 		}
-		for _, dgName := range procReq.SiteDeviceGroup {
+		for _, dgName := range createNetworkSliceParams.SiteDeviceGroup {
 			dbDeviceGroup, err := dbInstance.GetProfile(dgName)
 			if err != nil {
 				logger.NmsLog.Warnf("Could not get device group %v", dgName)
@@ -208,11 +159,11 @@ func CreateNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 				continue
 			}
 			for _, imsi := range imsis {
-				mcc := procReq.SiteInfo.Plmn.Mcc
-				mnc := procReq.SiteInfo.Plmn.Mnc
+				mcc := createNetworkSliceParams.SiteInfo.Plmn.Mcc
+				mnc := createNetworkSliceParams.SiteInfo.Plmn.Mnc
 				ueId := "imsi-" + imsi
 				sst := int32(sVal)
-				sd := procReq.SliceId.Sd
+				sd := createNetworkSliceParams.SliceId.Sd
 				plmnID := mcc + mnc
 				bitRateUplink := convertToString(uint64(dbDeviceGroup.DnnMbrUplink))
 				bitRateDownlink := convertToString(uint64(dbDeviceGroup.DnnMbrDownlink))
@@ -225,7 +176,7 @@ func CreateNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 				}
 			}
 		}
-		dbNetworkSlice := convertNetworkSliceToDBNetworkSlice(&procReq)
+		dbNetworkSlice := convertNetworkSliceToDBNetworkSlice(&createNetworkSliceParams)
 		err = dbInstance.CreateNetworkSlice(dbNetworkSlice)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
@@ -233,7 +184,7 @@ func CreateNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		updateSMF(dbInstance)
-		logger.NmsLog.Infof("Network slice %s created successfully", sliceName)
+		logger.NmsLog.Infof("Network slice %s created successfully", createNetworkSliceParams.SliceName)
 		c.JSON(http.StatusOK, gin.H{"message": "Network slice created successfully"})
 	}
 }
@@ -316,32 +267,25 @@ func updateSMF(dbInstance *db.Database) {
 		networkSlice := convertDBNetworkSliceToNetworkSlice(&dbNetworkSlice)
 		networkSlices = append(networkSlices, networkSlice)
 	}
-	deviceGroups := make([]models.DeviceGroups, 0)
+	deviceGroups := make([]models.Profile, 0)
 	dbDeviceGroups, err := dbInstance.ListProfiles()
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}
 	for _, dbDeviceGroup := range dbDeviceGroups {
-		deviceGroup := models.DeviceGroups{
-			DeviceGroupName: dbDeviceGroup.Name,
-			IpDomainExpanded: models.DeviceGroupsIpDomainExpanded{
-				Dnn:          DNN,
-				UeIpPool:     dbDeviceGroup.UeIpPool,
-				DnsPrimary:   dbDeviceGroup.DnsPrimary,
-				DnsSecondary: dbDeviceGroup.DnsSecondary,
-				UeDnnQos: &models.DeviceGroupsIpDomainExpandedUeDnnQos{
-					DnnMbrDownlink: dbDeviceGroup.DnnMbrDownlink,
-					DnnMbrUplink:   dbDeviceGroup.DnnMbrUplink,
-					BitrateUnit:    dbDeviceGroup.BitrateUnit,
-					TrafficClass: &models.TrafficClassInfo{
-						Name: dbDeviceGroup.Name,
-						Qci:  dbDeviceGroup.Qci,
-						Arp:  dbDeviceGroup.Arp,
-						Pdb:  dbDeviceGroup.Pdb,
-						Pelr: dbDeviceGroup.Pelr,
-					},
-				},
-			},
+		deviceGroup := models.Profile{
+			Name:           dbDeviceGroup.Name,
+			Dnn:            DNN,
+			UeIpPool:       dbDeviceGroup.UeIpPool,
+			DnsPrimary:     dbDeviceGroup.DnsPrimary,
+			DnsSecondary:   dbDeviceGroup.DnsSecondary,
+			DnnMbrDownlink: dbDeviceGroup.DnnMbrDownlink,
+			DnnMbrUplink:   dbDeviceGroup.DnnMbrUplink,
+			BitrateUnit:    dbDeviceGroup.BitrateUnit,
+			Qci:            dbDeviceGroup.Qci,
+			Arp:            dbDeviceGroup.Arp,
+			Pdb:            dbDeviceGroup.Pdb,
+			Pelr:           dbDeviceGroup.Pelr,
 		}
 		imsis, err := dbDeviceGroup.GetImsis()
 		if err != nil {

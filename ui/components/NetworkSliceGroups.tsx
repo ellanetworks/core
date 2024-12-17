@@ -4,9 +4,9 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 
 import React, { useState } from "react";
 import { Button, Col, ConfirmationButton, MainTable, Row, } from "@canonical/react-components";
-import DeviceGroupModal from "@/components/DeviceGroupModal";
-import { getDeviceGroupsFromNetworkSlice } from "@/utils/getDeviceGroup";
-import { deleteDeviceGroup } from "@/utils/deleteProfile";
+import ProfileModal from "@/components/ProfileModal";
+import { getProfilesFromNetworkSlice } from "@/utils/getProfile";
+import { deleteProfile } from "@/utils/deleteProfile";
 import { queryKeys } from "@/utils/queryKeys";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NetworkSlice } from "@/components/types";
@@ -39,19 +39,19 @@ export const NetworkSliceGroups: React.FC<NetworkSliceTableProps> = ({
   };
   const { data: deviceGroupContent = [], isLoading } = useQuery({
     queryKey: [queryKeys.deviceGroups, slice["slice-name"], slice["site-device-group"]?.join(",")],
-    queryFn: () => getDeviceGroupsFromNetworkSlice(slice),
+    queryFn: () => getProfilesFromNetworkSlice(slice),
     enabled: isExpanded,
   });
 
   const handleConfirmDelete = async (name: string, networkSliceName: string) => {
-    await deleteDeviceGroup({
+    await deleteProfile({
       name,
       networkSliceName,
     });
     await queryClient.invalidateQueries({ queryKey: [queryKeys.networkSlices] });
   };
 
-  const handleDeviceGroupEdited = async () => {
+  const handleProfileEdited = async () => {
     await queryClient.invalidateQueries({
       queryKey: [queryKeys.deviceGroups],
     });
@@ -145,9 +145,9 @@ export const NetworkSliceGroups: React.FC<NetworkSliceTableProps> = ({
     <Row key={deviceGroup["group-name"]}>
       <Col size={8}>
         {modal.active && modal.id === deviceGroup_id && (
-          <DeviceGroupModal
+          <ProfileModal
             toggleModal={toggleModal}
-            onDeviceGroupAction={handleDeviceGroupEdited}
+            onProfileAction={handleProfileEdited}
             deviceGroup={deviceGroup}
           />
         )}

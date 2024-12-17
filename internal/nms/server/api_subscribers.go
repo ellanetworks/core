@@ -89,7 +89,8 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
 		var createSubscriberParams CreateSubscriberParams
-		if err := c.ShouldBindJSON(&createSubscriberParams); err != nil {
+		err := c.ShouldBindJSON(&createSubscriberParams)
+		if err != nil {
 			logger.NmsLog.Errorln("Invalid input:", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 			return
@@ -115,7 +116,7 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		_, err := dbInstance.GetSubscriber(createSubscriberParams.UeId)
+		_, err = dbInstance.GetSubscriber(createSubscriberParams.UeId)
 		if err == nil {
 			c.JSON(http.StatusConflict, gin.H{"error": "Subscriber already exists"})
 			return

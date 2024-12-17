@@ -1,7 +1,7 @@
-import { apiPostDeviceGroup } from "@/utils/callDeviceGroupApi";
-import { getDeviceGroup } from "@/utils/getDeviceGroup";
+import { apiPostProfile } from "@/utils/callProfileApi";
+import { getProfile } from "@/utils/getProfile";
 
-interface DeviceGroupArgs {
+interface ProfileArgs {
   name: string;
   ueIpPool: string;
   dns: string;
@@ -10,16 +10,16 @@ interface DeviceGroupArgs {
   MBRDownstreamBps: number;
 }
 
-export const editDeviceGroup = async ({
+export const editProfile = async ({
   name,
   ueIpPool,
   dns,
   mtu,
   MBRUpstreamBps,
   MBRDownstreamBps,
-}: DeviceGroupArgs) => {
+}: ProfileArgs) => {
   try {
-    const currentConfig = await getDeviceGroup(name)
+    const currentConfig = await getProfile(name)
     var imsis = currentConfig["imsis"]
 
     const deviceGroupData = {
@@ -46,7 +46,7 @@ export const editDeviceGroup = async ({
       },
     };
 
-    const response = await apiPostDeviceGroup(name, deviceGroupData);
+    const response = await apiPostProfile(name, deviceGroupData);
     if (!response.ok) {
       throw new Error(
         `Error updating device group. Error code: ${response.status}`,

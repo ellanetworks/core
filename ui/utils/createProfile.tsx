@@ -1,7 +1,7 @@
 import { apiGetNetworkSlice, apiCreateNetworkSlice } from "@/utils/callNetworkSliceApi";
-import { apiGetDeviceGroup, apiPostDeviceGroup } from "@/utils/callDeviceGroupApi";
+import { apiGetProfile, apiPostProfile } from "@/utils/callProfileApi";
 
-interface DeviceGroupArgs {
+interface ProfileArgs {
   name: string;
   ueIpPool: string;
   dns: string;
@@ -11,7 +11,7 @@ interface DeviceGroupArgs {
   networkSliceName: string;
 }
 
-export const createDeviceGroup = async ({
+export const createProfile = async ({
   name,
   ueIpPool,
   dns,
@@ -19,7 +19,7 @@ export const createDeviceGroup = async ({
   MBRUpstreamBps,
   MBRDownstreamBps,
   networkSliceName,
-}: DeviceGroupArgs) => {
+}: ProfileArgs) => {
   const deviceGroupData = {
     "site-info": "demo",
     "ip-domain-name": "pool1",
@@ -44,15 +44,15 @@ export const createDeviceGroup = async ({
   };
 
   try {
-    const getDeviceGroupResponse = await apiGetDeviceGroup(name);
-    if (getDeviceGroupResponse.ok) {
+    const getProfileResponse = await apiGetProfile(name);
+    if (getProfileResponse.ok) {
       throw new Error("Device group already exists");
     }
 
-    const updateDeviceGroupResponse = await apiPostDeviceGroup(name, deviceGroupData);
-    if (!updateDeviceGroupResponse.ok) {
+    const updateProfileResponse = await apiPostProfile(name, deviceGroupData);
+    if (!updateProfileResponse.ok) {
       throw new Error(
-        `Error creating device group. Error code: ${updateDeviceGroupResponse.status}`,
+        `Error creating device group. Error code: ${updateProfileResponse.status}`,
       );
     }
 

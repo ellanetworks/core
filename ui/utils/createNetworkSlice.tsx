@@ -1,5 +1,5 @@
 import { apiGetNetworkSlice, apiCreateNetworkSlice } from "@/utils/callNetworkSliceApi";
-import { apiPostDeviceGroup } from "@/utils/callDeviceGroupApi";
+import { apiPostProfile } from "@/utils/callProfileApi";
 
 interface GnbItem {
   name: string;
@@ -85,7 +85,7 @@ export const createNetworkSlice = async ({
       );
     }
 
-    const devicegroupResponse = await apiPostDeviceGroup(deviceGroupName, deviceGroupData);
+    const devicegroupResponse = await apiPostProfile(deviceGroupName, deviceGroupData);
     if (!devicegroupResponse.ok) {
       throw new Error(
         `Error creating device group. Error code: ${devicegroupResponse.status}`,

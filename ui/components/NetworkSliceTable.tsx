@@ -4,7 +4,7 @@ import ExpandMoreOutlinedIcon from "@mui/icons-material/ExpandMoreOutlined";
 
 import React, { useState } from "react";
 import { Button, MainTable } from "@canonical/react-components";
-import DeviceGroupModal from "@/components/DeviceGroupModal";
+import ProfileModal from "@/components/ProfileModal";
 import { queryKeys } from "@/utils/queryKeys";
 import { useQueryClient } from "@tanstack/react-query";
 import { NetworkSlice } from "@/components/types";
@@ -22,7 +22,7 @@ export const NetworkSliceTable: React.FC<NetworkSliceTableProps> = ({
   const [isModalVisible, setIsModalVisible] = useState(false);
   const toggleModal = () => setIsModalVisible(!isModalVisible);
 
-  const handleDeviceGroupCreated = async () => {
+  const handleProfileCreated = async () => {
     await queryClient.invalidateQueries({
       queryKey: [queryKeys.networkSlices],
     });
@@ -34,9 +34,9 @@ export const NetworkSliceTable: React.FC<NetworkSliceTableProps> = ({
   return (
     <>
       {isModalVisible && slice?.["slice-name"] && (
-        <DeviceGroupModal
+        <ProfileModal
           toggleModal={toggleModal}
-          onDeviceGroupAction={handleDeviceGroupCreated}
+          onProfileAction={handleProfileCreated}
           networkSliceName={slice["slice-name"]}
         />
       )}

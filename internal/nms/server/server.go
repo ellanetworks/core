@@ -109,15 +109,15 @@ func NewHandler(dbInstance *db.Database) http.Handler {
 
 	// Device Groups
 	apiGroup.GET("/profiles", ListProfiles(dbInstance))
-	apiGroup.GET("/profiles/:group-name", GetProfile(dbInstance))
-	apiGroup.POST("/profiles/:group-name", CreateProfile(dbInstance))
-	apiGroup.DELETE("/profiles/:group-name", DeleteProfile(dbInstance))
+	apiGroup.POST("/profiles", CreateProfile(dbInstance))
+	apiGroup.GET("/profiles/:name", GetProfile(dbInstance))
+	apiGroup.DELETE("/profiles/:name", DeleteProfile(dbInstance))
 
 	// Network Slices
 	apiGroup.GET("/network-slices", ListNetworkSlices(dbInstance))
-	apiGroup.GET("/network-slices/:slice-name", GetNetworkSlice(dbInstance))
-	apiGroup.POST("/network-slices/:slice-name", CreateNetworkSlice(dbInstance))
-	apiGroup.DELETE("/network-slices/:slice-name", DeleteNetworkSlice(dbInstance))
+	apiGroup.POST("/network-slices", CreateNetworkSlice(dbInstance))
+	apiGroup.GET("/network-slices/:name", GetNetworkSlice(dbInstance))
+	apiGroup.DELETE("/network-slices/:name", DeleteNetworkSlice(dbInstance))
 
 	// Radios
 	apiGroup.GET("/radios", ListRadios(dbInstance))

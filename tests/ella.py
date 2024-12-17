@@ -13,6 +13,9 @@ import requests
 logger = logging.getLogger(__name__)
 
 GNB_CONFIG_URL = "/api/v1/radios"
+NETWORK_SLICE_CONFIG_URL = "/api/v1/network-slices"
+DEVICE_GROUPS_CONFIG_URL = "/api/v1/profiles"
+SUBSCRIBERS_CONFIG_URL = "/api/v1/subscribers"
 
 JSON_HEADER = {"Content-Type": "application/json"}
 
@@ -58,7 +61,7 @@ NETWORK_SLICE_CONFIG = {
 @dataclass
 class CreateRadioParams:
     """Parameters to create a radio."""
-
+    name: str
     tac: str
 
 
@@ -99,22 +102,21 @@ class Ella:
 
     def create_subscriber(self, imsi: str) -> None:
         """Create a subscriber."""
-        url = "/api/v1/subscribers"
         data = SUBSCRIBER_CONFIG.copy()
         data["UeId"] = imsi
-        self._make_request(method="POST", endpoint=url, data=data)
+        self._make_request(method="POST", endpoint=SUBSCRIBERS_CONFIG_URL, data=data)
         logger.info(f"Created subscriber with IMSI {imsi}.")
 
     def create_device_group(self, name: str, imsis: List[str]) -> None:
         """Create a device group."""
         DEVICE_GROUP_CONFIG["imsis"] = imsis
-        url = f"/api/v1/profiles/{name}"
-        self._make_request("POST", url, data=DEVICE_GROUP_CONFIG)
+        DEVICE_GROUP_CONFIG["name"] = name
+        self._make_request("POST", DEVICE_GROUPS_CONFIG_URL, data=DEVICE_GROUP_CONFIG)
         logger.info(f"Created device group {name}.")
 
     def create_network_slice(self, name: str, device_groups: List[str]) -> None:
         """Create a network slice."""
         NETWORK_SLICE_CONFIG["site-device-group"] = device_groups
-        url = f"/api/v1/network-slices/{name}"
-        self._make_request("POST", url, data=NETWORK_SLICE_CONFIG)
+        NETWORK_SLICE_CONFIG["slice-name"] = name
+        self._make_request("POST", NETWORK_SLICE_CONFIG_URL, data=NETWORK_SLICE_CONFIG)
         logger.info(f"Created network slice {name}.")

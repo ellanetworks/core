@@ -13,16 +13,6 @@ type Request struct {
 	URL    *url.URL
 }
 
-func NewRequest(req *http.Request, body interface{}) *Request {
-	ret := &Request{}
-	ret.Query = req.URL.Query()
-	ret.Header = req.Header
-	ret.Body = body
-	ret.Params = make(map[string]string)
-	ret.URL = req.URL
-	return ret
-}
-
 type Response struct {
 	Header http.Header
 	Status int

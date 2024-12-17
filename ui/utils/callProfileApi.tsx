@@ -1,8 +1,8 @@
-function isValidDeviceGroupName(name: string): boolean {
+function isValidProfileName(name: string): boolean {
   return /^[a-zA-Z0-9-_]+$/.test(name);
 }
 
-export const apiGetAllDeviceGroups = async () => {
+export const apiGetAllProfiles = async () => {
   try {
     const response = await fetch(`/api/v1/profiles/`, {
       method: "GET",
@@ -17,8 +17,8 @@ export const apiGetAllDeviceGroups = async () => {
   }
 };
 
-export const apiGetDeviceGroup = async (name: string) => {
-  if (!isValidDeviceGroupName(name)) {
+export const apiGetProfile = async (name: string) => {
+  if (!isValidProfileName(name)) {
     throw new Error(`Error getting device group: Invalid name provided.`);
   }
   try {
@@ -35,12 +35,12 @@ export const apiGetDeviceGroup = async (name: string) => {
   }
 };
 
-export const apiPostDeviceGroup = async (name: string, deviceGroupData: any) => {
-  if (!isValidDeviceGroupName(name)) {
+export const apiPostProfile = async (name: string, deviceGroupData: any) => {
+  if (!isValidProfileName(name)) {
     throw new Error(`Error updating device group: Invalid name provided.`);
   }
   try {
-    const response = await fetch(`/api/v1/profiles/${name}`, {
+    const response = await fetch(`/api/v1/profiles`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -54,8 +54,8 @@ export const apiPostDeviceGroup = async (name: string, deviceGroupData: any) => 
   }
 };
 
-export const apiDeleteDeviceGroup = async (name: string) => {
-  if (!isValidDeviceGroupName(name)) {
+export const apiDeleteProfile = async (name: string) => {
+  if (!isValidProfileName(name)) {
     throw new Error(`Error deleting device group: Invalid name provided.`);
   }
   try {

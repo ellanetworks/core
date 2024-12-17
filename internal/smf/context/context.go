@@ -132,13 +132,13 @@ func SMF_Self() *SMFContext {
 	return &smfContext
 }
 
-func UpdateSMFContext(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels.DeviceGroups) {
+func UpdateSMFContext(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels.Profile) {
 	UpdateSnssaiInfo(networkSlices, deviceGroups)
 	UpdateUserPlaneInformation(networkSlices, deviceGroups)
 	logger.SmfLog.Infof("Updated SMF context")
 }
 
-func UpdateSnssaiInfo(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels.DeviceGroups) {
+func UpdateSnssaiInfo(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels.Profile) {
 	smfSelf := SMF_Self()
 	snssaiInfoList := make([]SnssaiSmfInfo, 0)
 	for _, networkSlice := range networkSlices {
@@ -162,10 +162,10 @@ func UpdateSnssaiInfo(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels
 		}
 
 		for _, deviceGroup := range deviceGroups {
-			dnn := deviceGroup.IpDomainExpanded.Dnn
-			dnsPrimary := deviceGroup.IpDomainExpanded.DnsPrimary
-			mtu := deviceGroup.IpDomainExpanded.Mtu
-			alloc, err := GetOrCreateIPAllocator(dnn, deviceGroup.IpDomainExpanded.UeIpPool)
+			dnn := deviceGroup.Dnn
+			dnsPrimary := deviceGroup.DnsPrimary
+			mtu := deviceGroup.Mtu
+			alloc, err := GetOrCreateIPAllocator(dnn, deviceGroup.UeIpPool)
 			if err != nil {
 				logger.SmfLog.Errorf("failed to get or create IP allocator for DNN %s: %v", dnn, err)
 				continue
@@ -202,7 +202,7 @@ func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
 	return alloc, nil
 }
 
-func BuildUserPlaneInformationFromConfig(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels.DeviceGroups) *UserPlaneInformation {
+func BuildUserPlaneInformationFromConfig(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels.Profile) *UserPlaneInformation {
 	// check if len of networkSlices is 0
 	if len(networkSlices) == 0 {
 		logger.SmfLog.Warn("Network slices is empty")
@@ -214,7 +214,7 @@ func BuildUserPlaneInformationFromConfig(networkSlices []*nmsModels.Slice, devic
 			return nil
 		}
 		for _, deviceGroup := range deviceGroups {
-			dnn := deviceGroup.IpDomainExpanded.Dnn
+			dnn := deviceGroup.Dnn
 			intfUpfInfoItem := factory.InterfaceUpfInfoItem{
 				InterfaceType:   models.UpInterfaceType_N3,
 				Endpoints:       make([]string, 0),
@@ -304,7 +304,7 @@ func BuildUserPlaneInformationFromConfig(networkSlices []*nmsModels.Slice, devic
 
 // Right now we only support 1 UPF
 // This function should be edited when we decide to support multiple UPFs
-func UpdateUserPlaneInformation(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels.DeviceGroups) {
+func UpdateUserPlaneInformation(networkSlices []*nmsModels.Slice, deviceGroups []nmsModels.Profile) {
 	smfSelf := SMF_Self()
 	configUserPlaneInfo := BuildUserPlaneInformationFromConfig(networkSlices, deviceGroups)
 	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)

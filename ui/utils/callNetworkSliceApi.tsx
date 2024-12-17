@@ -40,7 +40,7 @@ export const apiCreateNetworkSlice = async (name: string, sliceData: any) => {
     throw new Error(`Error updating network slice: Invalid name provided.`);
   }
   try {
-    const response = await fetch(`/api/v1/network-slices/${name}`, {
+    const response = await fetch(`/api/v1/network-slices`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

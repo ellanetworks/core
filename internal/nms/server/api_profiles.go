@@ -1,23 +1,48 @@
 package server
 
 import (
-	"math"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
-	openAPIModels "github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/nms/models"
-	"github.com/yeastengine/ella/internal/util/httpwrapper"
 )
 
-var imsiData map[string]*openAPIModels.AuthenticationSubscription
+type CreateProfileParams struct {
+	Name  string   `json:"name"`
+	Imsis []string `json:"imsis"`
 
-func init() {
-	imsiData = make(map[string]*openAPIModels.AuthenticationSubscription)
+	Dnn            string `json:"dnn,omitempty"`
+	UeIpPool       string `json:"ue-ip-pool,omitempty"`
+	DnsPrimary     string `json:"dns-primary,omitempty"`
+	DnsSecondary   string `json:"dns-secondary,omitempty"`
+	Mtu            int32  `json:"mtu,omitempty"`
+	DnnMbrUplink   int64  `json:"dnn-mbr-uplink,omitempty"`
+	DnnMbrDownlink int64  `json:"dnn-mbr-downlink,omitempty"`
+	BitrateUnit    string `json:"bitrate-unit,omitempty"`
+	Qci            int32  `json:"qci,omitempty"`
+	Arp            int32  `json:"arp,omitempty"`
+	Pdb            int32  `json:"pdb,omitempty"`
+	Pelr           int32  `json:"pelr,omitempty"`
+}
+
+type GetProfileResponse struct {
+	Name  string   `json:"name"`
+	Imsis []string `json:"imsis"`
+
+	Dnn            string `json:"dnn,omitempty"`
+	UeIpPool       string `json:"ue-ip-pool,omitempty"`
+	DnsPrimary     string `json:"dns-primary,omitempty"`
+	DnsSecondary   string `json:"dns-secondary,omitempty"`
+	Mtu            int32  `json:"mtu,omitempty"`
+	DnnMbrUplink   int64  `json:"dnn-mbr-uplink,omitempty"`
+	DnnMbrDownlink int64  `json:"dnn-mbr-downlink,omitempty"`
+	BitrateUnit    string `json:"bitrate-unit,omitempty"`
+	Qci            int32  `json:"qci,omitempty"`
+	Arp            int32  `json:"arp,omitempty"`
+	Pdb            int32  `json:"pdb,omitempty"`
+	Pelr           int32  `json:"pelr,omitempty"`
 }
 
 func convertToString(val uint64) string {
@@ -42,23 +67,47 @@ func convertToString(val uint64) string {
 func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
-		profiles, err := dbInstance.ListProfiles()
+		dbProfiles, err := dbInstance.ListProfiles()
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve device groups"})
 			return
 		}
-		c.JSON(http.StatusOK, profiles)
+		var profileList []GetProfileResponse
+		for _, profile := range dbProfiles {
+			deviceGroup := GetProfileResponse{
+				Name:           profile.Name,
+				UeIpPool:       profile.UeIpPool,
+				DnsPrimary:     profile.DnsPrimary,
+				DnsSecondary:   profile.DnsSecondary,
+				DnnMbrDownlink: profile.DnnMbrDownlink,
+				DnnMbrUplink:   profile.DnnMbrUplink,
+				BitrateUnit:    profile.BitrateUnit,
+				Qci:            profile.Qci,
+				Arp:            profile.Arp,
+				Pdb:            profile.Pdb,
+				Pelr:           profile.Pelr,
+			}
+			imsis, err := profile.GetImsis()
+			if err != nil {
+				logger.NmsLog.Warnln(err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve device groups"})
+				return
+			}
+			deviceGroup.Imsis = imsis
+			profileList = append(profileList, deviceGroup)
+		}
+		c.JSON(http.StatusOK, profileList)
 	}
 }
 
 func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
-		groupName, exists := c.Params.Get("group-name")
+		groupName, exists := c.Params.Get("name")
 		if !exists {
-			logger.NmsLog.Errorf("group-name is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing group-name parameter"})
+			logger.NmsLog.Errorf("name is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing name parameter"})
 			return
 		}
 		dbProfile, err := dbInstance.GetProfile(groupName)
@@ -68,25 +117,19 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		deviceGroup := models.DeviceGroups{
-			DeviceGroupName: dbProfile.Name,
-			IpDomainExpanded: models.DeviceGroupsIpDomainExpanded{
-				UeIpPool:     dbProfile.UeIpPool,
-				DnsPrimary:   dbProfile.DnsPrimary,
-				DnsSecondary: dbProfile.DnsSecondary,
-				UeDnnQos: &models.DeviceGroupsIpDomainExpandedUeDnnQos{
-					DnnMbrDownlink: dbProfile.DnnMbrDownlink,
-					DnnMbrUplink:   dbProfile.DnnMbrUplink,
-					BitrateUnit:    dbProfile.BitrateUnit,
-					TrafficClass: &models.TrafficClassInfo{
-						Name: dbProfile.Name,
-						Qci:  dbProfile.Qci,
-						Arp:  dbProfile.Arp,
-						Pdb:  dbProfile.Pdb,
-						Pelr: dbProfile.Pelr,
-					},
-				},
-			},
+		deviceGroup := GetProfileResponse{
+			Name:           dbProfile.Name,
+			UeIpPool:       dbProfile.UeIpPool,
+			DnsPrimary:     dbProfile.DnsPrimary,
+			DnsSecondary:   dbProfile.DnsSecondary,
+			Mtu:            dbProfile.Mtu,
+			DnnMbrDownlink: dbProfile.DnnMbrDownlink,
+			DnnMbrUplink:   dbProfile.DnnMbrUplink,
+			BitrateUnit:    dbProfile.BitrateUnit,
+			Qci:            dbProfile.Qci,
+			Arp:            dbProfile.Arp,
+			Pdb:            dbProfile.Pdb,
+			Pelr:           dbProfile.Pelr,
 		}
 		imsis, err := dbProfile.GetImsis()
 		if err != nil {
@@ -102,47 +145,76 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
-		groupName, exists := c.Params.Get("group-name")
-		if !exists {
-			logger.NmsLog.Errorf("group-name is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing group-name parameter"})
-			return
-		}
-		_, err := dbInstance.GetProfile(groupName)
-		if err == nil {
-			logger.NmsLog.Warnf("Device Group [%v] already exists", groupName)
-			c.JSON(http.StatusConflict, gin.H{"error": "Device Group already exists"})
-			return
-		}
-		var request models.DeviceGroups
-		s := strings.Split(c.GetHeader("Content-Type"), ";")
-		switch s[0] {
-		case "application/json":
-			err = c.ShouldBindJSON(&request)
-		}
+		var createProfileParams CreateProfileParams
+		err := c.ShouldBindJSON(&createProfileParams)
 		if err != nil {
-			logger.NmsLog.Infof(" err %v", err)
+			logger.NmsLog.Errorf(" err %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 			return
 		}
-		req := httpwrapper.NewRequest(c.Request, request)
-
-		procReq := req.Body.(models.DeviceGroups)
-		ipdomain := &procReq.IpDomainExpanded
-
-		if ipdomain.UeDnnQos != nil {
-			ipdomain.UeDnnQos.DnnMbrDownlink = convertToBps(ipdomain.UeDnnQos.DnnMbrDownlink, ipdomain.UeDnnQos.BitrateUnit)
-			if ipdomain.UeDnnQos.DnnMbrDownlink < 0 {
-				ipdomain.UeDnnQos.DnnMbrDownlink = math.MaxInt64
-			}
-			ipdomain.UeDnnQos.DnnMbrUplink = convertToBps(ipdomain.UeDnnQos.DnnMbrUplink, ipdomain.UeDnnQos.BitrateUnit)
-			if ipdomain.UeDnnQos.DnnMbrUplink < 0 {
-				ipdomain.UeDnnQos.DnnMbrUplink = math.MaxInt64
-			}
+		if createProfileParams.Name == "" {
+			logger.NmsLog.Errorf("name is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing name parameter"})
+			return
+		}
+		if createProfileParams.UeIpPool == "" {
+			logger.NmsLog.Errorf("ue-ip-pool is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing ue-ip-pool parameter"})
+			return
+		}
+		if createProfileParams.DnsPrimary == "" {
+			logger.NmsLog.Errorf("dns-primary is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing dns-primary parameter"})
+			return
+		}
+		if createProfileParams.Mtu == 0 {
+			logger.NmsLog.Errorf("mtu is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing mtu parameter"})
+			return
+		}
+		if createProfileParams.DnnMbrUplink == 0 {
+			logger.NmsLog.Errorf("dnn-mbr-uplink is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing dnn-mbr-uplink parameter"})
+			return
+		}
+		if createProfileParams.DnnMbrDownlink == 0 {
+			logger.NmsLog.Errorf("dnn-mbr-downlink is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing dnn-mbr-downlink parameter"})
+			return
+		}
+		if createProfileParams.BitrateUnit == "" {
+			logger.NmsLog.Errorf("bitrate-unit is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing bitrate-unit parameter"})
+			return
+		}
+		if createProfileParams.Qci == 0 {
+			logger.NmsLog.Errorf("qci is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing qci parameter"})
+			return
+		}
+		if createProfileParams.Arp == 0 {
+			logger.NmsLog.Errorf("arp is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing arp parameter"})
+			return
+		}
+		if createProfileParams.Pdb == 0 {
+			logger.NmsLog.Errorf("pdb is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing pdb parameter"})
+			return
+		}
+		if createProfileParams.Pelr == 0 {
+			logger.NmsLog.Errorf("pelr is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing pelr parameter"})
+			return
+		}
+		_, err = dbInstance.GetProfile(createProfileParams.Name)
+		if err == nil {
+			logger.NmsLog.Warnf("Device Group [%v] already exists", createProfileParams.Name)
+			c.JSON(http.StatusConflict, gin.H{"error": "Device Group already exists"})
+			return
 		}
 
-		procReq.DeviceGroupName = groupName
-		slice := isProfileExistInSlice(dbInstance, groupName)
+		slice := isProfileExistInSlice(dbInstance, createProfileParams.Name)
 		if slice != nil {
 			sVal, err := strconv.ParseUint(slice.Sst, 10, 32)
 			if err != nil {
@@ -151,13 +223,12 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 				return
 			}
 
-			aimsis := getAddedImsisList(&procReq)
-			for _, imsi := range aimsis {
-				dnn := procReq.IpDomainExpanded.Dnn
+			for _, imsi := range createProfileParams.Imsis {
+				dnn := createProfileParams.Dnn
 				ueId := "imsi-" + imsi
 				plmnId := slice.Mcc + slice.Mnc
-				bitRateUplink := convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink))
-				bitRateDownlink := convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink))
+				bitRateUplink := convertToString(uint64(createProfileParams.DnnMbrUplink))
+				bitRateDownlink := convertToString(uint64(createProfileParams.DnnMbrDownlink))
 				var5qi := 9
 				priorityLevel := 8
 				err = dbInstance.UpdateSubscriberProfile(ueId, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
@@ -169,20 +240,20 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			}
 		}
 		dbProfile := &db.Profile{
-			Name:           groupName,
-			UeIpPool:       procReq.IpDomainExpanded.UeIpPool,
-			DnsPrimary:     procReq.IpDomainExpanded.DnsPrimary,
-			DnsSecondary:   procReq.IpDomainExpanded.DnsSecondary,
-			Mtu:            procReq.IpDomainExpanded.Mtu,
-			DnnMbrDownlink: procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink,
-			DnnMbrUplink:   procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink,
-			BitrateUnit:    procReq.IpDomainExpanded.UeDnnQos.BitrateUnit,
-			Qci:            procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Qci,
-			Arp:            procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Arp,
-			Pdb:            procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pdb,
-			Pelr:           procReq.IpDomainExpanded.UeDnnQos.TrafficClass.Pelr,
+			Name:           createProfileParams.Name,
+			UeIpPool:       createProfileParams.UeIpPool,
+			DnsPrimary:     createProfileParams.DnsPrimary,
+			DnsSecondary:   createProfileParams.DnsSecondary,
+			Mtu:            createProfileParams.Mtu,
+			DnnMbrDownlink: createProfileParams.DnnMbrDownlink,
+			DnnMbrUplink:   createProfileParams.DnnMbrUplink,
+			BitrateUnit:    createProfileParams.BitrateUnit,
+			Qci:            createProfileParams.Qci,
+			Arp:            createProfileParams.Arp,
+			Pdb:            createProfileParams.Pdb,
+			Pelr:           createProfileParams.Pelr,
 		}
-		dbProfile.SetImsis(procReq.Imsis)
+		dbProfile.SetImsis(createProfileParams.Imsis)
 		err = dbInstance.CreateProfile(dbProfile)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
@@ -190,18 +261,18 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		updateSMF(dbInstance)
-		logger.NmsLog.Infof("Created Device Group: %v", groupName)
-		c.JSON(http.StatusCreated, gin.H{"message": "Device Group created successfully"})
+		logger.NmsLog.Infof("Created Profile: %v", createProfileParams.Name)
+		c.JSON(http.StatusCreated, gin.H{"message": "Profile created successfully"})
 	}
 }
 
 func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
-		groupName, exists := c.Params.Get("group-name")
+		groupName, exists := c.Params.Get("name")
 		if !exists {
-			logger.NmsLog.Errorf("group-name is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing group-name parameter"})
+			logger.NmsLog.Errorf("name is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing name parameter"})
 			return
 		}
 		profile, err := dbInstance.GetProfile(groupName)
@@ -221,15 +292,6 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 		logger.NmsLog.Infof("Deleted Device Group: %v", groupName)
 		c.JSON(http.StatusOK, gin.H{"message": "Device Group deleted successfully"})
 	}
-}
-
-func getAddedImsisList(group *models.DeviceGroups) (aimsis []string) {
-	for _, imsi := range group.Imsis {
-		if imsiData[imsi] != nil {
-			aimsis = append(aimsis, imsi)
-		}
-	}
-	return
 }
 
 func deleteProfileConfig(dbInstance *db.Database, deviceGroup *db.Profile) {

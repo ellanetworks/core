@@ -1,15 +1,15 @@
 import { apiGetNetworkSlice, apiCreateNetworkSlice } from "@/utils/callNetworkSliceApi";
-import { apiDeleteDeviceGroup } from "@/utils/callDeviceGroupApi";
+import { apiDeleteProfile } from "@/utils/callProfileApi";
 
-interface DeleteDeviceGroupArgs {
+interface DeleteProfileArgs {
   name: string;
   networkSliceName: string;
 }
 
-export const deleteDeviceGroup = async ({
+export const deleteProfile = async ({
   name,
   networkSliceName,
-}: DeleteDeviceGroupArgs) => {
+}: DeleteProfileArgs) => {
   try {
     const existingSliceResponse = await apiGetNetworkSlice(networkSliceName);
     if (!existingSliceResponse.ok) {
@@ -34,7 +34,7 @@ export const deleteDeviceGroup = async ({
       }
     }
 
-    const deleteResponse = await apiDeleteDeviceGroup(name);
+    const deleteResponse = await apiDeleteProfile(name);
     if (!deleteResponse.ok) {
       throw new Error(
         `Error deleting device group. Error code: ${deleteResponse.status}`,

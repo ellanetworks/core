@@ -1,4 +1,4 @@
-import { apiGetDeviceGroup, apiPostDeviceGroup } from "@/utils/callDeviceGroupApi";
+import { apiGetProfile, apiPostProfile } from "@/utils/callProfileApi";
 import { apiGetSubscriber, apiCreateSubscriber } from "@/utils/callSubscriberApi";
 
 interface EditSubscriberArgs {
@@ -6,8 +6,8 @@ interface EditSubscriberArgs {
   opc: string;
   key: string;
   sequenceNumber: string;
-  oldDeviceGroupName: string;
-  newDeviceGroupName: string;
+  oldProfileName: string;
+  newProfileName: string;
 }
 
 export const editSubscriber = async ({
@@ -15,8 +15,8 @@ export const editSubscriber = async ({
   opc,
   key,
   sequenceNumber,
-  oldDeviceGroupName,
-  newDeviceGroupName,
+  oldProfileName,
+  newProfileName,
 }: EditSubscriberArgs) => {
   const subscriberData = {
     UeId: imsi,
@@ -27,22 +27,22 @@ export const editSubscriber = async ({
 
   try {
     await updateSubscriber(subscriberData);
-    if (oldDeviceGroupName != newDeviceGroupName) {
-      var oldDeviceGroupData = await getDeviceGroupData(oldDeviceGroupName);
-      const index = oldDeviceGroupData["imsis"].indexOf(imsi);
-      oldDeviceGroupData["imsis"].splice(index, 1);
-      await updateDeviceGroupData(oldDeviceGroupName, oldDeviceGroupData);
-      var newDeviceGroupData = await getDeviceGroupData(newDeviceGroupName);
-      newDeviceGroupData["imsis"].push(imsi);
-      await updateDeviceGroupData(newDeviceGroupName, newDeviceGroupData);
+    if (oldProfileName != newProfileName) {
+      var oldProfileData = await getProfileData(oldProfileName);
+      const index = oldProfileData["imsis"].indexOf(imsi);
+      oldProfileData["imsis"].splice(index, 1);
+      await updateProfileData(oldProfileName, oldProfileData);
+      var newProfileData = await getProfileData(newProfileName);
+      newProfileData["imsis"].push(imsi);
+      await updateProfileData(newProfileName, newProfileData);
     }
   } catch (error) {
     console.error(error);
     const details =
       error instanceof Error
-      ? error.message
-      : `Failed to edit subscriber .`;
-  throw new Error(details);
+        ? error.message
+        : `Failed to edit subscriber .`;
+    throw new Error(details);
   }
 };
 
@@ -63,7 +63,7 @@ const updateSubscriber = async (subscriberData: any) => {
     const updateSubscriberResponse = await apiCreateSubscriber(subscriberData.UeId, subscriberData);
     if (!updateSubscriberResponse.ok) {
       throw new Error(
-      `Error editing subscriber. Error code: ${updateSubscriberResponse.status}`,
+        `Error editing subscriber. Error code: ${updateSubscriberResponse.status}`,
       );
     }
   } catch (error) {
@@ -71,26 +71,26 @@ const updateSubscriber = async (subscriberData: any) => {
   }
 }
 
-const getDeviceGroupData = async (deviceGroupName: string) => {
+const getProfileData = async (deviceGroupName: string) => {
   try {
-    const existingDeviceGroupResponse = await apiGetDeviceGroup(deviceGroupName);
-    var existingDeviceGroupData = await existingDeviceGroupResponse.json();
+    const existingProfileResponse = await apiGetProfile(deviceGroupName);
+    var existingProfileData = await existingProfileResponse.json();
 
-    if (!existingDeviceGroupData["imsis"]) {
-      existingDeviceGroupData["imsis"] = [];
+    if (!existingProfileData["imsis"]) {
+      existingProfileData["imsis"] = [];
     }
-    return existingDeviceGroupData;
+    return existingProfileData;
   } catch (error) {
     console.error(error);
   }
 }
 
-const updateDeviceGroupData = async (deviceGroupName:string, deviceGroupData: any) => {
+const updateProfileData = async (deviceGroupName: string, deviceGroupData: any) => {
   try {
-    const updateDeviceGroupResponse = await apiPostDeviceGroup(deviceGroupName, deviceGroupData);
-    if (!updateDeviceGroupResponse.ok) {
+    const updateProfileResponse = await apiPostProfile(deviceGroupName, deviceGroupData);
+    if (!updateProfileResponse.ok) {
       throw new Error(
-      `Error updating device group. Error code: ${updateDeviceGroupResponse.status}`,
+        `Error updating device group. Error code: ${updateProfileResponse.status}`,
       );
     }
   } catch (error) {
