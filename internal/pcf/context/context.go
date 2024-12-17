@@ -359,7 +359,7 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 		pccPolicyId := networkSlice.Sst + networkSlice.Sd
 		deviceGroupNames := networkSlice.GetDeviceGroups()
 		for _, devGroupName := range deviceGroupNames {
-			deviceGroup, err := pcfSelf.DbInstance.GetProfileByName(devGroupName)
+			deviceGroup, err := pcfSelf.DbInstance.GetProfile(devGroupName)
 			if err != nil {
 				logger.PcfLog.Warnf("Failed to get device group profile: %+v", err)
 				continue

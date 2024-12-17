@@ -61,7 +61,7 @@ func GetDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing group-name parameter"})
 			return
 		}
-		dbDeviceGroup, err := dbInstance.GetProfileByName(groupName)
+		dbDeviceGroup, err := dbInstance.GetProfile(groupName)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusNotFound, gin.H{"error": "Unable to retrieve device group"})
@@ -108,7 +108,7 @@ func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing group-name parameter"})
 			return
 		}
-		_, err := dbInstance.GetProfileByName(groupName)
+		_, err := dbInstance.GetProfile(groupName)
 		if err == nil {
 			logger.NmsLog.Warnf("Device Group [%v] already exists", groupName)
 			c.JSON(http.StatusConflict, gin.H{"error": "Device Group already exists"})
@@ -155,17 +155,12 @@ func PostDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 			for _, imsi := range aimsis {
 				dnn := procReq.IpDomainExpanded.Dnn
 				ueId := "imsi-" + imsi
-				subscriber, err := dbInstance.GetSubscriberByUeID(ueId)
-				if err != nil {
-					logger.NmsLog.Warnf("Could not get subscriber %v", ueId)
-					continue
-				}
 				plmnId := slice.Mcc + slice.Mnc
 				bitRateUplink := convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrUplink))
 				bitRateDownlink := convertToString(uint64(procReq.IpDomainExpanded.UeDnnQos.DnnMbrDownlink))
 				var5qi := 9
 				priorityLevel := 8
-				err = dbInstance.UpdateSubscriberProfile(subscriber.ID, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
+				err = dbInstance.UpdateSubscriberProfile(ueId, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
 				if err != nil {
 					logger.NmsLog.Warnf("Could not update subscriber %v", ueId)
 					c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to update subscriber"})
@@ -209,14 +204,14 @@ func DeleteDeviceGroup(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing group-name parameter"})
 			return
 		}
-		profile, err := dbInstance.GetProfileByName(groupName)
+		profile, err := dbInstance.GetProfile(groupName)
 		if err != nil {
 			logger.NmsLog.Warnf("Device Group [%v] not found", groupName)
 			c.JSON(http.StatusNotFound, gin.H{"error": "Device Group not found"})
 			return
 		}
 		deleteDeviceGroupConfig(dbInstance, profile)
-		err = dbInstance.DeleteProfile(profile.ID)
+		err = dbInstance.DeleteProfile(groupName)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete device group"})
@@ -247,12 +242,7 @@ func deleteDeviceGroupConfig(dbInstance *db.Database, deviceGroup *db.Profile) {
 		}
 		for _, imsi := range dimsis {
 			ueId := "imsi-" + imsi
-			subscriber, err := dbInstance.GetSubscriberByUeID(ueId)
-			if err != nil {
-				logger.NmsLog.Warnln(err)
-				continue
-			}
-			err = dbInstance.UpdateSubscriberProfile(subscriber.ID, "", "", 0, "", "", "", 0, 0)
+			err = dbInstance.UpdateSubscriberProfile(ueId, "", "", 0, "", "", "", 0, 0)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 			}

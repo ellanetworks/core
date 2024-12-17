@@ -35,9 +35,9 @@ const QueryCreateProfilesTable = `
 
 const (
 	listProfilesStmt  = "SELECT &Profile.* from %s"
-	getProfileStmt    = "SELECT &Profile.* from %s WHERE id==$Profile.id or name==$Profile.name"
-	createProfileStmt = "INSERT INTO %s (name, imsis, ueIpPool, dnsPrimary, mtu, dnnMbrUplink, dnnMbrDownlink, bitrateUnit, qci, arp, pdb, pelr) VALUES ($Profile.name, $Profile.imsis, $Profile.ueIpPool, $Profile.dnsPrimary, $Profile.mtu, $Profile.dnnMbrUplink, $Profile.dnnMbrDownlink, $Profile.bitrateUnit, $Profile.qci, $Profile.arp, $Profile.pdb, $Profile.pelr)"
-	deleteProfileStmt = "DELETE FROM %s WHERE id==$Profile.id"
+	getProfileStmt    = "SELECT &Profile.* from %s WHERE name==$Profile.name"
+	createProfileStmt = "INSERT INTO %s (name, imsis, ueIpPool, dnsPrimary, dnsSecondary, mtu, dnnMbrUplink, dnnMbrDownlink, bitrateUnit, qci, arp, pdb, pelr) VALUES ($Profile.name, $Profile.imsis, $Profile.ueIpPool, $Profile.dnsPrimary, $Profile.dnsSecondary, $Profile.mtu, $Profile.dnnMbrUplink, $Profile.dnnMbrDownlink, $Profile.bitrateUnit, $Profile.qci, $Profile.arp, $Profile.pdb, $Profile.pelr)"
+	deleteProfileStmt = "DELETE FROM %s WHERE name==$Profile.name"
 )
 
 type Profile struct {
@@ -91,22 +91,7 @@ func (db *Database) ListProfiles() ([]Profile, error) {
 	return profiles, nil
 }
 
-func (db *Database) GetProfileByID(id int) (*Profile, error) {
-	row := Profile{
-		ID: id,
-	}
-	stmt, err := sqlair.Prepare(fmt.Sprintf(getProfileStmt, db.profilesTable), Profile{})
-	if err != nil {
-		return nil, err
-	}
-	err = db.conn.Query(context.Background(), stmt, row).Get(&row)
-	if err != nil {
-		return nil, err
-	}
-	return &row, nil
-}
-
-func (db *Database) GetProfileByName(name string) (*Profile, error) {
+func (db *Database) GetProfile(name string) (*Profile, error) {
 	row := Profile{
 		Name: name,
 	}
@@ -122,7 +107,7 @@ func (db *Database) GetProfileByName(name string) (*Profile, error) {
 }
 
 func (db *Database) CreateProfile(profile *Profile) error {
-	_, err := db.GetProfileByName(profile.Name)
+	_, err := db.GetProfile(profile.Name)
 	if err == nil {
 		return fmt.Errorf("profile with name %s already exists", profile.Name)
 	}
@@ -135,8 +120,8 @@ func (db *Database) CreateProfile(profile *Profile) error {
 	return err
 }
 
-func (db *Database) DeleteProfile(id int) error {
-	_, err := db.GetProfileByID(id)
+func (db *Database) DeleteProfile(name string) error {
+	_, err := db.GetProfile(name)
 	if err != nil {
 		return err
 	}
@@ -145,7 +130,7 @@ func (db *Database) DeleteProfile(id int) error {
 		return err
 	}
 	row := Profile{
-		ID: id,
+		Name: name,
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
 	return err

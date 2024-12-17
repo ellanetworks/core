@@ -128,7 +128,7 @@ func GetNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing slice-name parameter"})
 			return
 		}
-		dbNetworkSlice, err := dbInstance.GetNetworkSliceByName(name)
+		dbNetworkSlice, err := dbInstance.GetNetworkSlice(name)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusNotFound, gin.H{"error": "Unable to retrieve network slice"})
@@ -147,7 +147,7 @@ func PostNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing slice-name parameter"})
 			return
 		}
-		_, err := dbInstance.GetNetworkSliceByName(sliceName)
+		_, err := dbInstance.GetNetworkSlice(sliceName)
 		if err == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Network slice already exists"})
 			return
@@ -197,7 +197,7 @@ func PostNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		for _, dgName := range procReq.SiteDeviceGroup {
-			dbDeviceGroup, err := dbInstance.GetProfileByName(dgName)
+			dbDeviceGroup, err := dbInstance.GetProfile(dgName)
 			if err != nil {
 				logger.NmsLog.Warnf("Could not get device group %v", dgName)
 				continue
@@ -211,11 +211,6 @@ func PostNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 				mcc := procReq.SiteInfo.Plmn.Mcc
 				mnc := procReq.SiteInfo.Plmn.Mnc
 				ueId := "imsi-" + imsi
-				subscriber, err := dbInstance.GetSubscriberByUeID(ueId)
-				if err != nil {
-					logger.NmsLog.Warnf("Could not get subscriber %v", ueId)
-					continue
-				}
 				sst := int32(sVal)
 				sd := procReq.SliceId.Sd
 				plmnID := mcc + mnc
@@ -223,7 +218,7 @@ func PostNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 				bitRateDownlink := convertToString(uint64(dbDeviceGroup.DnnMbrDownlink))
 				var5qi := 9
 				priorityLevel := 8
-				err = dbInstance.UpdateSubscriberProfile(subscriber.ID, DNN, sd, sst, plmnID, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
+				err = dbInstance.UpdateSubscriberProfile(ueId, DNN, sd, sst, plmnID, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
 				if err != nil {
 					logger.NmsLog.Warnf("Could not update subscriber %v", ueId)
 					continue
@@ -251,20 +246,20 @@ func DeleteNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing slice-name parameter"})
 			return
 		}
-		dbNetworkSlice, err := dbInstance.GetNetworkSliceByName(sliceName)
+		dbNetworkSlice, err := dbInstance.GetNetworkSlice(sliceName)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusNotFound, gin.H{"error": "Unable to retrieve network slice"})
 			return
 		}
-		err = dbInstance.DeleteNetworkSlice(dbNetworkSlice.ID)
+		err = dbInstance.DeleteNetworkSlice(sliceName)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 		}
 		prevSlice := convertDBNetworkSliceToNetworkSlice(dbNetworkSlice)
 		dgnames := getDeleteGroupsList(nil, prevSlice)
 		for _, dgname := range dgnames {
-			devGroupConfig, err := dbInstance.GetProfileByName(dgname)
+			devGroupConfig, err := dbInstance.GetProfile(dgname)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 				continue
@@ -276,12 +271,7 @@ func DeleteNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 			}
 			for _, imsi := range imsis {
 				ueId := "imsi-" + imsi
-				subscriber, err := dbInstance.GetSubscriberByUeID(ueId)
-				if err != nil {
-					logger.NmsLog.Warnln(err)
-					continue
-				}
-				err = dbInstance.UpdateSubscriberProfile(subscriber.ID, DNN, "", 0, "", "", "", 0, 0)
+				err = dbInstance.UpdateSubscriberProfile(ueId, DNN, "", 0, "", "", "", 0, 0)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
 				}

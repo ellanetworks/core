@@ -40,7 +40,7 @@ func GetRadio(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		radio, err := dbInstance.GetRadioByName(radioName)
+		radio, err := dbInstance.GetRadio(radioName)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusNotFound, gin.H{"error": "Radio not found"})
@@ -65,7 +65,7 @@ func PostRadio(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": errorMessage})
 			return
 		}
-		_, err := dbInstance.GetRadioByName(radioName)
+		_, err := dbInstance.GetRadio(radioName)
 		if err == nil {
 			errorMessage := "radio already exists"
 			logger.NmsLog.Errorf(errorMessage)
@@ -116,14 +116,7 @@ func DeleteRadio(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		radio, err := dbInstance.GetRadioByName(radioName)
-		if err != nil {
-			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusNotFound, gin.H{"error": "Radio not found"})
-			return
-		}
-
-		err = dbInstance.DeleteRadio(radio.ID)
+		err := dbInstance.DeleteRadio(radioName)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete radio"})

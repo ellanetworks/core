@@ -20,9 +20,9 @@ const QueryCreateRadiosTable = `
 
 const (
 	listRadiosStmt  = "SELECT &Radio.* from %s"
-	getRadioStmt    = "SELECT &Radio.* from %s WHERE id==$Radio.id or name==$Radio.name"
+	getRadioStmt    = "SELECT &Radio.* from %s WHERE name==$Radio.name"
 	createRadioStmt = "INSERT INTO %s (name, tac) VALUES ($Radio.name, $Radio.tac)"
-	deleteRadioStmt = "DELETE FROM %s WHERE id==$Radio.id"
+	deleteRadioStmt = "DELETE FROM %s WHERE name==$Radio.name"
 )
 
 type Radio struct {
@@ -47,7 +47,7 @@ func (db *Database) ListRadios() ([]Radio, error) {
 	return radios, nil
 }
 
-func (db *Database) GetRadioByName(name string) (*Radio, error) {
+func (db *Database) GetRadio(name string) (*Radio, error) {
 	row := Radio{
 		Name: name,
 	}
@@ -62,23 +62,8 @@ func (db *Database) GetRadioByName(name string) (*Radio, error) {
 	return &row, nil
 }
 
-func (db *Database) GetRadioByID(id int) (*Radio, error) {
-	row := Radio{
-		ID: id,
-	}
-	stmt, err := sqlair.Prepare(fmt.Sprintf(getRadioStmt, db.radiosTable), Radio{})
-	if err != nil {
-		return nil, err
-	}
-	err = db.conn.Query(context.Background(), stmt, row).Get(&row)
-	if err != nil {
-		return nil, err
-	}
-	return &row, nil
-}
-
 func (db *Database) CreateRadio(radio *Radio) error {
-	_, err := db.GetRadioByName(radio.Name)
+	_, err := db.GetRadio(radio.Name)
 	if err == nil {
 		return fmt.Errorf("radio with name %s already exists", radio.Name)
 	}
@@ -90,8 +75,8 @@ func (db *Database) CreateRadio(radio *Radio) error {
 	return err
 }
 
-func (db *Database) DeleteRadio(id int) error {
-	_, err := db.GetRadioByID(id)
+func (db *Database) DeleteRadio(name string) error {
+	_, err := db.GetRadio(name)
 	if err != nil {
 		return err
 	}
@@ -100,7 +85,7 @@ func (db *Database) DeleteRadio(id int) error {
 		return err
 	}
 	row := Radio{
-		ID: id,
+		Name: name,
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
 	return err

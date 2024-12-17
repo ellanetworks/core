@@ -29,9 +29,9 @@ const QueryCreateNetworkSlicesTable = `
 
 const (
 	listNetworkSlicesStmt  = "SELECT &NetworkSlice.* from %s"
-	getNetworkSliceStmt    = "SELECT &NetworkSlice.* from %s WHERE id==$NetworkSlice.id or name==$NetworkSlice.name"
+	getNetworkSliceStmt    = "SELECT &NetworkSlice.* from %s WHERE name==$NetworkSlice.name"
 	createNetworkSliceStmt = "INSERT INTO %s (name, sst, sd, deviceGroups, mcc, mnc, gNodeBs, upf) VALUES ($NetworkSlice.name, $NetworkSlice.sst, $NetworkSlice.sd, $NetworkSlice.deviceGroups, $NetworkSlice.mcc, $NetworkSlice.mnc, $NetworkSlice.gNodeBs, $NetworkSlice.upf)"
-	deleteNetworkSliceStmt = "DELETE FROM %s WHERE id==$NetworkSlice.id"
+	deleteNetworkSliceStmt = "DELETE FROM %s WHERE name==$NetworkSlice.name"
 )
 
 type GNodeB struct {
@@ -122,7 +122,7 @@ func (db *Database) ListNetworkSlices() ([]NetworkSlice, error) {
 	return networkSlices, nil
 }
 
-func (db *Database) GetNetworkSliceByName(name string) (*NetworkSlice, error) {
+func (db *Database) GetNetworkSlice(name string) (*NetworkSlice, error) {
 	row := NetworkSlice{
 		Name: name,
 	}
@@ -137,23 +137,8 @@ func (db *Database) GetNetworkSliceByName(name string) (*NetworkSlice, error) {
 	return &row, nil
 }
 
-func (db *Database) GetNetworkSliceByID(id int) (*NetworkSlice, error) {
-	row := NetworkSlice{
-		ID: id,
-	}
-	stmt, err := sqlair.Prepare(fmt.Sprintf(getNetworkSliceStmt, db.networkSlicesTable), NetworkSlice{})
-	if err != nil {
-		return nil, err
-	}
-	err = db.conn.Query(context.Background(), stmt, row).Get(&row)
-	if err != nil {
-		return nil, err
-	}
-	return &row, nil
-}
-
 func (db *Database) CreateNetworkSlice(networkSlice *NetworkSlice) error {
-	_, err := db.GetNetworkSliceByName(networkSlice.Name)
+	_, err := db.GetNetworkSlice(networkSlice.Name)
 	if err == nil {
 		return fmt.Errorf("network slice with name %s already exists", networkSlice.Name)
 	}
@@ -165,8 +150,8 @@ func (db *Database) CreateNetworkSlice(networkSlice *NetworkSlice) error {
 	return err
 }
 
-func (db *Database) DeleteNetworkSlice(id int) error {
-	_, err := db.GetNetworkSliceByID(id)
+func (db *Database) DeleteNetworkSlice(name string) error {
+	_, err := db.GetNetworkSlice(name)
 	if err != nil {
 		return err
 	}
@@ -175,7 +160,7 @@ func (db *Database) DeleteNetworkSlice(id int) error {
 		return err
 	}
 	row := NetworkSlice{
-		ID: id,
+		Name: name,
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
 	return err

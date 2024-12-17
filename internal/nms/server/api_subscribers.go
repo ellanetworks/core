@@ -46,7 +46,7 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		subscriber, err := dbInstance.GetSubscriberByUeID(ueId)
+		subscriber, err := dbInstance.GetSubscriber(ueId)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusNotFound, gin.H{"error": "Subscriber not found"})
@@ -85,7 +85,7 @@ func PostSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing ueId parameter"})
 			return
 		}
-		_, err := dbInstance.GetSubscriberByUeID(ueId)
+		_, err := dbInstance.GetSubscriber(ueId)
 		if err == nil {
 			c.JSON(http.StatusConflict, gin.H{"error": "Subscriber already exists"})
 			return
@@ -117,14 +117,7 @@ func DeleteSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		subscriber, err := dbInstance.GetSubscriberByUeID(ueId)
-		if err != nil {
-			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusNotFound, gin.H{"error": "Subscriber not found"})
-			return
-		}
-
-		if err := dbInstance.DeleteSubscriber(subscriber.ID); err != nil {
+		if err := dbInstance.DeleteSubscriber(ueId); err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete subscriber"})
 			return
