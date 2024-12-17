@@ -24,8 +24,8 @@ const QueryCreateProfilesTable = `
 		dnsPrimary TEXT NOT NULL,
 		dnsSecondary TEXT,
 		mtu INTEGER NOT NULL,
-		dnnMbrUplink INTEGER NOT NULL,
-		dnnMbrDownlink INTEGER NOT NULL,
+		bitrateUplink INTEGER NOT NULL,
+		bitrateDownlink INTEGER NOT NULL,
 		bitrateUnit TEXT NOT NULL,
 		qci INTEGER NOT NULL,
 		arp INTEGER NOT NULL,
@@ -36,25 +36,25 @@ const QueryCreateProfilesTable = `
 const (
 	listProfilesStmt  = "SELECT &Profile.* from %s"
 	getProfileStmt    = "SELECT &Profile.* from %s WHERE name==$Profile.name"
-	createProfileStmt = "INSERT INTO %s (name, imsis, ueIpPool, dnsPrimary, dnsSecondary, mtu, dnnMbrUplink, dnnMbrDownlink, bitrateUnit, qci, arp, pdb, pelr) VALUES ($Profile.name, $Profile.imsis, $Profile.ueIpPool, $Profile.dnsPrimary, $Profile.dnsSecondary, $Profile.mtu, $Profile.dnnMbrUplink, $Profile.dnnMbrDownlink, $Profile.bitrateUnit, $Profile.qci, $Profile.arp, $Profile.pdb, $Profile.pelr)"
+	createProfileStmt = "INSERT INTO %s (name, imsis, ueIpPool, dnsPrimary, dnsSecondary, mtu, bitrateUplink, bitrateDownlink, bitrateUnit, qci, arp, pdb, pelr) VALUES ($Profile.name, $Profile.imsis, $Profile.ueIpPool, $Profile.dnsPrimary, $Profile.dnsSecondary, $Profile.mtu, $Profile.bitrateUplink, $Profile.bitrateDownlink, $Profile.bitrateUnit, $Profile.qci, $Profile.arp, $Profile.pdb, $Profile.pelr)"
 	deleteProfileStmt = "DELETE FROM %s WHERE name==$Profile.name"
 )
 
 type Profile struct {
-	ID             int    `db:"id"`
-	Name           string `db:"name"`
-	Imsis          string `db:"imsis"`
-	UeIpPool       string `db:"ueIpPool"`
-	DnsPrimary     string `db:"dnsPrimary"`
-	DnsSecondary   string `db:"dnsSecondary"`
-	Mtu            int32  `db:"mtu"`
-	DnnMbrUplink   int64  `db:"dnnMbrUplink"`
-	DnnMbrDownlink int64  `db:"dnnMbrDownlink"`
-	BitrateUnit    string `db:"bitrateUnit"`
-	Qci            int32  `db:"qci"`
-	Arp            int32  `db:"arp"`
-	Pdb            int32  `db:"pdb"`
-	Pelr           int32  `db:"pelr"`
+	ID              int    `db:"id"`
+	Name            string `db:"name"`
+	Imsis           string `db:"imsis"`
+	UeIpPool        string `db:"ueIpPool"`
+	DnsPrimary      string `db:"dnsPrimary"`
+	DnsSecondary    string `db:"dnsSecondary"`
+	Mtu             int32  `db:"mtu"`
+	BitrateUplink   int64  `db:"bitrateUplink"`
+	BitrateDownlink int64  `db:"bitrateDownlink"`
+	BitrateUnit     string `db:"bitrateUnit"`
+	Qci             int32  `db:"qci"`
+	Arp             int32  `db:"arp"`
+	Pdb             int32  `db:"pdb"`
+	Pelr            int32  `db:"pelr"`
 }
 
 func (ns *Profile) SetImsis(Imsis []string) error {

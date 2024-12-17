@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 GNB_CONFIG_URL = "/api/v1/radios"
 NETWORK_SLICE_CONFIG_URL = "/api/v1/network-slices"
-DEVICE_GROUPS_CONFIG_URL = "/api/v1/profiles"
+PROFILE_CONFIG_URL = "/api/v1/profiles"
 SUBSCRIBERS_CONFIG_URL = "/api/v1/subscribers"
 
 JSON_HEADER = {"Content-Type": "application/json"}
@@ -27,22 +27,19 @@ SUBSCRIBER_CONFIG = {
     "sequenceNumber": "16f3b3f70fc2",
 }
 
-DEVICE_GROUP_CONFIG = {
+PROFILE_CONFIG = {
     "imsis": [],
-    "site-info": "demo",
-    "ip-domain-name": "pool1",
-    "ip-domain-expanded": {
-        "dnn": "internet",
-        "ue-ip-pool": "172.250.0.0/16",
-        "dns-primary": "8.8.8.8",
-        "mtu": 1460,
-        "ue-dnn-qos": {
-            "dnn-mbr-uplink": 200000000,
-            "dnn-mbr-downlink": 200000000,
-            "bitrate-unit": "bps",
-            "traffic-class": {"name": "platinum", "arp": 6, "pdb": 300, "pelr": 6, "qci": 8},
-        },
-    },
+    "dnn": "internet",
+    "ue-ip-pool": "172.250.0.0/16",
+    "dns-primary": "8.8.8.8",
+    "mtu": 1460,
+    "bitrate-uplink": 200000000,
+    "bitrate-downlink": 200000000,
+    "bitrate-unit": "bps",
+    "arp": 6,
+    "pdb": 300,
+    "pelr": 6,
+    "qci": 8
 }
 
 
@@ -107,12 +104,12 @@ class Ella:
         self._make_request(method="POST", endpoint=SUBSCRIBERS_CONFIG_URL, data=data)
         logger.info(f"Created subscriber with IMSI {imsi}.")
 
-    def create_device_group(self, name: str, imsis: List[str]) -> None:
-        """Create a device group."""
-        DEVICE_GROUP_CONFIG["imsis"] = imsis
-        DEVICE_GROUP_CONFIG["name"] = name
-        self._make_request("POST", DEVICE_GROUPS_CONFIG_URL, data=DEVICE_GROUP_CONFIG)
-        logger.info(f"Created device group {name}.")
+    def create_profile(self, name: str, imsis: List[str]) -> None:
+        """Create a profile."""
+        PROFILE_CONFIG["imsis"] = imsis
+        PROFILE_CONFIG["name"] = name
+        self._make_request("POST", PROFILE_CONFIG_URL, data=PROFILE_CONFIG)
+        logger.info(f"Created profile {name}.")
 
     def create_network_slice(self, name: str, device_groups: List[str]) -> None:
         """Create a network slice."""

@@ -89,8 +89,8 @@ const ProfileModal = ({
       ueIpPool: deviceGroup?.["ip-domain-expanded"]?.["ue-ip-pool"] || "",
       dns: deviceGroup?.["ip-domain-expanded"]?.["dns-primary"] || "8.8.8.8",
       mtu: deviceGroup?.["ip-domain-expanded"]?.["mtu"] || 1460,
-      MBRDownstreamMbps: deviceGroup?.["ip-domain-expanded"]?.["ue-dnn-qos"]?.["dnn-mbr-downlink"] / 1_000_000 || null,
-      MBRUpstreamMbps: deviceGroup?.["ip-domain-expanded"]?.["ue-dnn-qos"]?.["dnn-mbr-uplink"] / 1_000_000 || null,
+      MBRDownstreamMbps: deviceGroup?.["ip-domain-expanded"]?.["ue-dnn-qos"]?.["bitrate-downlink"] / 1_000_000 || null,
+      MBRUpstreamMbps: deviceGroup?.["ip-domain-expanded"]?.["ue-dnn-qos"]?.["bitrate-uplink"] / 1_000_000 || null,
     },
     validationSchema: ProfileSchema,
     onSubmit: async (values) => {

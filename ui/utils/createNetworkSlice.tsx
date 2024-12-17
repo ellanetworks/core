@@ -53,8 +53,8 @@ export const createNetworkSlice = async ({
       "dns-primary": "8.8.8.8",
       mtu: 1460,
       "ue-dnn-qos": {
-        "dnn-mbr-uplink": 20 * 1000000,
-        "dnn-mbr-downlink": 200 * 1000000,
+        "bitrate-uplink": 20 * 1000000,
+        "bitrate-downlink": 200 * 1000000,
         "bitrate-unit": "bps",
         "traffic-class": {
           name: "platinum",

@@ -214,10 +214,10 @@ export const NetworkSliceGroups: React.FC<NetworkSliceTableProps> = ({
                 {
                   content: deviceGroup?.[
                     "ip-domain-expanded"
-                  ]?.["ue-dnn-qos"]?.["dnn-mbr-downlink"]
+                  ]?.["ue-dnn-qos"]?.["bitrate-downlink"]
                     ? `${deviceGroup?.["ip-domain-expanded"]?.[
                     "ue-dnn-qos"
-                    ]?.["dnn-mbr-downlink"] / 1_000_000
+                    ]?.["bitrate-downlink"] / 1_000_000
                     } Mbps`
                     : "N/A",
                   className: "u-align--right",
@@ -232,10 +232,10 @@ export const NetworkSliceGroups: React.FC<NetworkSliceTableProps> = ({
                 {
                   content: deviceGroup?.[
                     "ip-domain-expanded"
-                  ]?.["ue-dnn-qos"]?.["dnn-mbr-uplink"]
+                  ]?.["ue-dnn-qos"]?.["bitrate-uplink"]
                     ? `${deviceGroup?.["ip-domain-expanded"]?.[
                     "ue-dnn-qos"
-                    ]?.["dnn-mbr-uplink"] / 1_000_000
+                    ]?.["bitrate-uplink"] / 1_000_000
                     } Mbps`
                     : "N/A",
                   className: "u-align--right",

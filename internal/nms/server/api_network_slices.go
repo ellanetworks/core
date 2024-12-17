@@ -165,8 +165,8 @@ func CreateNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 				sst := int32(sVal)
 				sd := createNetworkSliceParams.SliceId.Sd
 				plmnID := mcc + mnc
-				bitRateUplink := convertToString(uint64(dbDeviceGroup.DnnMbrUplink))
-				bitRateDownlink := convertToString(uint64(dbDeviceGroup.DnnMbrDownlink))
+				bitRateUplink := convertToString(uint64(dbDeviceGroup.BitrateUplink))
+				bitRateDownlink := convertToString(uint64(dbDeviceGroup.BitrateDownlink))
 				var5qi := 9
 				priorityLevel := 8
 				err = dbInstance.UpdateSubscriberProfile(ueId, DNN, sd, sst, plmnID, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
@@ -274,18 +274,18 @@ func updateSMF(dbInstance *db.Database) {
 	}
 	for _, dbDeviceGroup := range dbDeviceGroups {
 		deviceGroup := models.Profile{
-			Name:           dbDeviceGroup.Name,
-			Dnn:            DNN,
-			UeIpPool:       dbDeviceGroup.UeIpPool,
-			DnsPrimary:     dbDeviceGroup.DnsPrimary,
-			DnsSecondary:   dbDeviceGroup.DnsSecondary,
-			DnnMbrDownlink: dbDeviceGroup.DnnMbrDownlink,
-			DnnMbrUplink:   dbDeviceGroup.DnnMbrUplink,
-			BitrateUnit:    dbDeviceGroup.BitrateUnit,
-			Qci:            dbDeviceGroup.Qci,
-			Arp:            dbDeviceGroup.Arp,
-			Pdb:            dbDeviceGroup.Pdb,
-			Pelr:           dbDeviceGroup.Pelr,
+			Name:            dbDeviceGroup.Name,
+			Dnn:             DNN,
+			UeIpPool:        dbDeviceGroup.UeIpPool,
+			DnsPrimary:      dbDeviceGroup.DnsPrimary,
+			DnsSecondary:    dbDeviceGroup.DnsSecondary,
+			BitrateDownlink: dbDeviceGroup.BitrateDownlink,
+			BitrateUplink:   dbDeviceGroup.BitrateUplink,
+			BitrateUnit:     dbDeviceGroup.BitrateUnit,
+			Qci:             dbDeviceGroup.Qci,
+			Arp:             dbDeviceGroup.Arp,
+			Pdb:             dbDeviceGroup.Pdb,
+			Pelr:            dbDeviceGroup.Pelr,
 		}
 		imsis, err := dbDeviceGroup.GetImsis()
 		if err != nil {

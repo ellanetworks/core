@@ -11,7 +11,7 @@ from tests.ella import Ella
 logger = logging.getLogger(__name__)
 
 NAMESPACE = "dev2"
-TEST_DEVICE_GROUP_NAME = "default-default"
+TEST_PROFILE_NAME = "default-default"
 TEST_IMSI = "001010100007487"
 TEST_NETWORK_SLICE_NAME = "default"
 NUM_PROFILES = 5
@@ -71,16 +71,16 @@ def configure_ella(ella_address: str) -> None:
 
     Configuration includes:
     - subscriber creation
-    - device group creation
+    - profile creation
     - network slice creation
     """
     ella_client = Ella(url=ella_address)
     ella_client.create_radio(name=f"{NAMESPACE}-gnbsim", tac=1)
     ella_client.create_subscriber(imsi=TEST_IMSI)
-    ella_client.create_device_group(name=TEST_DEVICE_GROUP_NAME, imsis=[TEST_IMSI])
+    ella_client.create_profile(name=TEST_PROFILE_NAME, imsis=[TEST_IMSI])
     ella_client.create_network_slice(
         name=TEST_NETWORK_SLICE_NAME,
-        device_groups=[TEST_DEVICE_GROUP_NAME],
+        device_groups=[TEST_PROFILE_NAME],
     )
     logger.info("Sleeping for 10 seconds to allow configuration to propagate.")
     time.sleep(10)

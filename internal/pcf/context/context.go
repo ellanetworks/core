@@ -396,8 +396,8 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 				qosId, _ := pcfCtx.QoSDataIDGenerator.Allocate()
 				sessionRuleId, _ := pcfCtx.SessionRuleIDGenerator.Allocate()
 
-				ul, uunit := GetBitRateUnit(deviceGroup.DnnMbrUplink)
-				dl, dunit := GetBitRateUnit(deviceGroup.DnnMbrDownlink)
+				ul, uunit := GetBitRateUnit(deviceGroup.BitrateUplink)
+				dl, dunit := GetBitRateUnit(deviceGroup.BitrateDownlink)
 
 				// Create QoS data
 				qosData := &models.QosData{

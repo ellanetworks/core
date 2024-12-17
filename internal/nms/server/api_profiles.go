@@ -13,36 +13,36 @@ type CreateProfileParams struct {
 	Name  string   `json:"name"`
 	Imsis []string `json:"imsis"`
 
-	Dnn            string `json:"dnn,omitempty"`
-	UeIpPool       string `json:"ue-ip-pool,omitempty"`
-	DnsPrimary     string `json:"dns-primary,omitempty"`
-	DnsSecondary   string `json:"dns-secondary,omitempty"`
-	Mtu            int32  `json:"mtu,omitempty"`
-	DnnMbrUplink   int64  `json:"dnn-mbr-uplink,omitempty"`
-	DnnMbrDownlink int64  `json:"dnn-mbr-downlink,omitempty"`
-	BitrateUnit    string `json:"bitrate-unit,omitempty"`
-	Qci            int32  `json:"qci,omitempty"`
-	Arp            int32  `json:"arp,omitempty"`
-	Pdb            int32  `json:"pdb,omitempty"`
-	Pelr           int32  `json:"pelr,omitempty"`
+	Dnn             string `json:"dnn,omitempty"`
+	UeIpPool        string `json:"ue-ip-pool,omitempty"`
+	DnsPrimary      string `json:"dns-primary,omitempty"`
+	DnsSecondary    string `json:"dns-secondary,omitempty"`
+	Mtu             int32  `json:"mtu,omitempty"`
+	BitrateUplink   int64  `json:"bitrate-uplink,omitempty"`
+	BitrateDownlink int64  `json:"bitrate-downlink,omitempty"`
+	BitrateUnit     string `json:"bitrate-unit,omitempty"`
+	Qci             int32  `json:"qci,omitempty"`
+	Arp             int32  `json:"arp,omitempty"`
+	Pdb             int32  `json:"pdb,omitempty"`
+	Pelr            int32  `json:"pelr,omitempty"`
 }
 
 type GetProfileResponse struct {
 	Name  string   `json:"name"`
 	Imsis []string `json:"imsis"`
 
-	Dnn            string `json:"dnn,omitempty"`
-	UeIpPool       string `json:"ue-ip-pool,omitempty"`
-	DnsPrimary     string `json:"dns-primary,omitempty"`
-	DnsSecondary   string `json:"dns-secondary,omitempty"`
-	Mtu            int32  `json:"mtu,omitempty"`
-	DnnMbrUplink   int64  `json:"dnn-mbr-uplink,omitempty"`
-	DnnMbrDownlink int64  `json:"dnn-mbr-downlink,omitempty"`
-	BitrateUnit    string `json:"bitrate-unit,omitempty"`
-	Qci            int32  `json:"qci,omitempty"`
-	Arp            int32  `json:"arp,omitempty"`
-	Pdb            int32  `json:"pdb,omitempty"`
-	Pelr           int32  `json:"pelr,omitempty"`
+	Dnn             string `json:"dnn,omitempty"`
+	UeIpPool        string `json:"ue-ip-pool,omitempty"`
+	DnsPrimary      string `json:"dns-primary,omitempty"`
+	DnsSecondary    string `json:"dns-secondary,omitempty"`
+	Mtu             int32  `json:"mtu,omitempty"`
+	BitrateUplink   int64  `json:"bitrate-uplink,omitempty"`
+	BitrateDownlink int64  `json:"bitrate-downlink,omitempty"`
+	BitrateUnit     string `json:"bitrate-unit,omitempty"`
+	Qci             int32  `json:"qci,omitempty"`
+	Arp             int32  `json:"arp,omitempty"`
+	Pdb             int32  `json:"pdb,omitempty"`
+	Pelr            int32  `json:"pelr,omitempty"`
 }
 
 func convertToString(val uint64) string {
@@ -76,17 +76,17 @@ func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 		var profileList []GetProfileResponse
 		for _, profile := range dbProfiles {
 			deviceGroup := GetProfileResponse{
-				Name:           profile.Name,
-				UeIpPool:       profile.UeIpPool,
-				DnsPrimary:     profile.DnsPrimary,
-				DnsSecondary:   profile.DnsSecondary,
-				DnnMbrDownlink: profile.DnnMbrDownlink,
-				DnnMbrUplink:   profile.DnnMbrUplink,
-				BitrateUnit:    profile.BitrateUnit,
-				Qci:            profile.Qci,
-				Arp:            profile.Arp,
-				Pdb:            profile.Pdb,
-				Pelr:           profile.Pelr,
+				Name:            profile.Name,
+				UeIpPool:        profile.UeIpPool,
+				DnsPrimary:      profile.DnsPrimary,
+				DnsSecondary:    profile.DnsSecondary,
+				BitrateDownlink: profile.BitrateDownlink,
+				BitrateUplink:   profile.BitrateUplink,
+				BitrateUnit:     profile.BitrateUnit,
+				Qci:             profile.Qci,
+				Arp:             profile.Arp,
+				Pdb:             profile.Pdb,
+				Pelr:            profile.Pelr,
 			}
 			imsis, err := profile.GetImsis()
 			if err != nil {
@@ -118,18 +118,18 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 		}
 
 		deviceGroup := GetProfileResponse{
-			Name:           dbProfile.Name,
-			UeIpPool:       dbProfile.UeIpPool,
-			DnsPrimary:     dbProfile.DnsPrimary,
-			DnsSecondary:   dbProfile.DnsSecondary,
-			Mtu:            dbProfile.Mtu,
-			DnnMbrDownlink: dbProfile.DnnMbrDownlink,
-			DnnMbrUplink:   dbProfile.DnnMbrUplink,
-			BitrateUnit:    dbProfile.BitrateUnit,
-			Qci:            dbProfile.Qci,
-			Arp:            dbProfile.Arp,
-			Pdb:            dbProfile.Pdb,
-			Pelr:           dbProfile.Pelr,
+			Name:            dbProfile.Name,
+			UeIpPool:        dbProfile.UeIpPool,
+			DnsPrimary:      dbProfile.DnsPrimary,
+			DnsSecondary:    dbProfile.DnsSecondary,
+			Mtu:             dbProfile.Mtu,
+			BitrateDownlink: dbProfile.BitrateDownlink,
+			BitrateUplink:   dbProfile.BitrateUplink,
+			BitrateUnit:     dbProfile.BitrateUnit,
+			Qci:             dbProfile.Qci,
+			Arp:             dbProfile.Arp,
+			Pdb:             dbProfile.Pdb,
+			Pelr:            dbProfile.Pelr,
 		}
 		imsis, err := dbProfile.GetImsis()
 		if err != nil {
@@ -172,14 +172,14 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing mtu parameter"})
 			return
 		}
-		if createProfileParams.DnnMbrUplink == 0 {
-			logger.NmsLog.Errorf("dnn-mbr-uplink is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing dnn-mbr-uplink parameter"})
+		if createProfileParams.BitrateUplink == 0 {
+			logger.NmsLog.Errorf("bitrate-uplink is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing bitrate-uplink parameter"})
 			return
 		}
-		if createProfileParams.DnnMbrDownlink == 0 {
-			logger.NmsLog.Errorf("dnn-mbr-downlink is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing dnn-mbr-downlink parameter"})
+		if createProfileParams.BitrateDownlink == 0 {
+			logger.NmsLog.Errorf("bitrate-downlink is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing bitrate-downlink parameter"})
 			return
 		}
 		if createProfileParams.BitrateUnit == "" {
@@ -227,8 +227,8 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 				dnn := createProfileParams.Dnn
 				ueId := "imsi-" + imsi
 				plmnId := slice.Mcc + slice.Mnc
-				bitRateUplink := convertToString(uint64(createProfileParams.DnnMbrUplink))
-				bitRateDownlink := convertToString(uint64(createProfileParams.DnnMbrDownlink))
+				bitRateUplink := convertToString(uint64(createProfileParams.BitrateUplink))
+				bitRateDownlink := convertToString(uint64(createProfileParams.BitrateDownlink))
 				var5qi := 9
 				priorityLevel := 8
 				err = dbInstance.UpdateSubscriberProfile(ueId, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
@@ -240,18 +240,18 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			}
 		}
 		dbProfile := &db.Profile{
-			Name:           createProfileParams.Name,
-			UeIpPool:       createProfileParams.UeIpPool,
-			DnsPrimary:     createProfileParams.DnsPrimary,
-			DnsSecondary:   createProfileParams.DnsSecondary,
-			Mtu:            createProfileParams.Mtu,
-			DnnMbrDownlink: createProfileParams.DnnMbrDownlink,
-			DnnMbrUplink:   createProfileParams.DnnMbrUplink,
-			BitrateUnit:    createProfileParams.BitrateUnit,
-			Qci:            createProfileParams.Qci,
-			Arp:            createProfileParams.Arp,
-			Pdb:            createProfileParams.Pdb,
-			Pelr:           createProfileParams.Pelr,
+			Name:            createProfileParams.Name,
+			UeIpPool:        createProfileParams.UeIpPool,
+			DnsPrimary:      createProfileParams.DnsPrimary,
+			DnsSecondary:    createProfileParams.DnsSecondary,
+			Mtu:             createProfileParams.Mtu,
+			BitrateDownlink: createProfileParams.BitrateDownlink,
+			BitrateUplink:   createProfileParams.BitrateUplink,
+			BitrateUnit:     createProfileParams.BitrateUnit,
+			Qci:             createProfileParams.Qci,
+			Arp:             createProfileParams.Arp,
+			Pdb:             createProfileParams.Pdb,
+			Pelr:            createProfileParams.Pelr,
 		}
 		dbProfile.SetImsis(createProfileParams.Imsis)
 		err = dbInstance.CreateProfile(dbProfile)

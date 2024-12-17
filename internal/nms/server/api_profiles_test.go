@@ -18,36 +18,36 @@ type GetProfileResponse struct {
 	Name  string   `json:"name"`
 	Imsis []string `json:"imsis"`
 
-	Dnn            string `json:"dnn,omitempty"`
-	UeIpPool       string `json:"ue-ip-pool,omitempty"`
-	DnsPrimary     string `json:"dns-primary,omitempty"`
-	DnsSecondary   string `json:"dns-secondary,omitempty"`
-	Mtu            int32  `json:"mtu,omitempty"`
-	DnnMbrUplink   int64  `json:"dnn-mbr-uplink,omitempty"`
-	DnnMbrDownlink int64  `json:"dnn-mbr-downlink,omitempty"`
-	BitrateUnit    string `json:"bitrate-unit,omitempty"`
-	Qci            int32  `json:"qci,omitempty"`
-	Arp            int32  `json:"arp,omitempty"`
-	Pdb            int32  `json:"pdb,omitempty"`
-	Pelr           int32  `json:"pelr,omitempty"`
+	Dnn             string `json:"dnn,omitempty"`
+	UeIpPool        string `json:"ue-ip-pool,omitempty"`
+	DnsPrimary      string `json:"dns-primary,omitempty"`
+	DnsSecondary    string `json:"dns-secondary,omitempty"`
+	Mtu             int32  `json:"mtu,omitempty"`
+	BitrateUplink   int64  `json:"bitrate-uplink,omitempty"`
+	BitrateDownlink int64  `json:"bitrate-downlink,omitempty"`
+	BitrateUnit     string `json:"bitrate-unit,omitempty"`
+	Qci             int32  `json:"qci,omitempty"`
+	Arp             int32  `json:"arp,omitempty"`
+	Pdb             int32  `json:"pdb,omitempty"`
+	Pelr            int32  `json:"pelr,omitempty"`
 }
 
 type CreateProfileParams struct {
 	Name  string   `json:"name"`
 	Imsis []string `json:"imsis"`
 
-	Dnn            string `json:"dnn,omitempty"`
-	UeIpPool       string `json:"ue-ip-pool,omitempty"`
-	DnsPrimary     string `json:"dns-primary,omitempty"`
-	DnsSecondary   string `json:"dns-secondary,omitempty"`
-	Mtu            int32  `json:"mtu,omitempty"`
-	DnnMbrUplink   int64  `json:"dnn-mbr-uplink,omitempty"`
-	DnnMbrDownlink int64  `json:"dnn-mbr-downlink,omitempty"`
-	BitrateUnit    string `json:"bitrate-unit,omitempty"`
-	Qci            int32  `json:"qci,omitempty"`
-	Arp            int32  `json:"arp,omitempty"`
-	Pdb            int32  `json:"pdb,omitempty"`
-	Pelr           int32  `json:"pelr,omitempty"`
+	Dnn             string `json:"dnn,omitempty"`
+	UeIpPool        string `json:"ue-ip-pool,omitempty"`
+	DnsPrimary      string `json:"dns-primary,omitempty"`
+	DnsSecondary    string `json:"dns-secondary,omitempty"`
+	Mtu             int32  `json:"mtu,omitempty"`
+	BitrateUplink   int64  `json:"bitrate-uplink,omitempty"`
+	BitrateDownlink int64  `json:"bitrate-downlink,omitempty"`
+	BitrateUnit     string `json:"bitrate-unit,omitempty"`
+	Qci             int32  `json:"qci,omitempty"`
+	Arp             int32  `json:"arp,omitempty"`
+	Pdb             int32  `json:"pdb,omitempty"`
+	Pelr            int32  `json:"pelr,omitempty"`
 }
 
 type CreateProfileResponseResult struct {
@@ -129,19 +129,19 @@ func TestProfilesEndToEnd(t *testing.T) {
 
 	t.Run("1. Create profile", func(t *testing.T) {
 		createProfileParams := &CreateProfileParams{
-			Name:           ProfileName,
-			Dnn:            "internet",
-			UeIpPool:       "0.0.0.0/24",
-			DnsPrimary:     "8.8.8.8",
-			DnsSecondary:   "2.2.2.2",
-			Mtu:            1500,
-			DnnMbrUplink:   1000000,
-			DnnMbrDownlink: 2000000,
-			BitrateUnit:    "bps",
-			Qci:            9,
-			Arp:            1,
-			Pdb:            1,
-			Pelr:           1,
+			Name:            ProfileName,
+			Dnn:             "internet",
+			UeIpPool:        "0.0.0.0/24",
+			DnsPrimary:      "8.8.8.8",
+			DnsSecondary:    "2.2.2.2",
+			Mtu:             1500,
+			BitrateUplink:   1000000,
+			BitrateDownlink: 2000000,
+			BitrateUnit:     "bps",
+			Qci:             9,
+			Arp:             1,
+			Pdb:             1,
+			Pelr:            1,
 		}
 		statusCode, response, err := createProfile(ts.URL, client, createProfileParams)
 		if err != nil {
@@ -178,11 +178,11 @@ func TestProfilesEndToEnd(t *testing.T) {
 		if response.Mtu != 1500 {
 			t.Fatalf("expected mtu 1500 got %d", response.Mtu)
 		}
-		if response.DnnMbrUplink != 1000000 {
-			t.Fatalf("expected dnn-mbr-uplink 1000000 got %d", response.DnnMbrUplink)
+		if response.BitrateUplink != 1000000 {
+			t.Fatalf("expected bitrate-uplink 1000000 got %d", response.BitrateUplink)
 		}
-		if response.DnnMbrDownlink != 2000000 {
-			t.Fatalf("expected dnn-mbr-downlink 2000000 got %d", response.DnnMbrDownlink)
+		if response.BitrateDownlink != 2000000 {
+			t.Fatalf("expected bitrate-downlink 2000000 got %d", response.BitrateDownlink)
 		}
 		if response.BitrateUnit != "bps" {
 			t.Fatalf("expected bitrate-unit bps got %s", response.BitrateUnit)

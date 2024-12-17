@@ -29,8 +29,8 @@ export const createProfile = async ({
       "dns-primary": dns,
       mtu: mtu,
       "ue-dnn-qos": {
-        "dnn-mbr-uplink": MBRUpstreamBps,
-        "dnn-mbr-downlink": MBRDownstreamBps,
+        "bitrate-uplink": MBRUpstreamBps,
+        "bitrate-downlink": MBRDownstreamBps,
         "bitrate-unit": "bps",
         "traffic-class": {
           name: "platinum",
