@@ -65,9 +65,17 @@ jobs:
           sudo snap install rockcraft --classic
           pip install tox
 
-      - name: Build OCI Image
+      - name: Fetch Container image
+        uses: actions/download-artifact@v4
+        with:
+          name: rock
+      
+      - name: Push container image to local registry
         run: |
-          make oci-build
+          rock_file=$(ls *.rock | tail -n 1)
+          sudo rockcraft.skopeo --insecure-policy copy oci-archive:"${rock_file}" docker-daemon:ella:0.0.4
+          docker tag ella:0.0.4 localhost:5000/ella:0.0.4
+          docker push localhost:5000/ella:0.0.4
 
       - name: Deploy to K8s
         run: |
