@@ -60,12 +60,7 @@ jobs:
           sleep 10
           docker run -d -p 5000:5000 --name registry registry:2
 
-      - name: Install test prerequisites
-        run: |
-          sudo snap install rockcraft --classic
-          pip install tox
-
-      - name: Fetch Container image
+      - name: Download Container image from GitHub Artifact
         uses: actions/download-artifact@v4
         with:
           name: rock
@@ -82,6 +77,11 @@ jobs:
           kubectl create ns dev2
           make deploy
           kubectl get pods -n dev2
+
+      - name: Install test prerequisites
+        run: |
+          sudo snap install rockcraft --classic
+          pip install tox
 
       - name: Run integration tests
         run: |
