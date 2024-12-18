@@ -57,6 +57,9 @@ type NetworkSlice struct {
 }
 
 func (ns *NetworkSlice) ListProfiles() []string {
+	if ns == nil {
+		return []string{}
+	}
 	if ns.Profiles == "" {
 		return []string{}
 	}

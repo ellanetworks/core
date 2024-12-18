@@ -7,6 +7,7 @@ import (
 
 	"github.com/canonical/sqlair"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 // Database is the object used to communicate with the established repository.
@@ -56,5 +57,6 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.profilesTable = ProfilesTableName
 	db.networkSlicesTable = NetworkSlicesTableName
 	db.radiosTable = RadiosTableName
+	logger.DBLog.Infof("Database Initialized")
 	return db, nil
 }

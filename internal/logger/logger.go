@@ -45,11 +45,13 @@ func init() {
 	encoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
 	encoderConfig.MessageKey = "message"
 	encoderConfig.StacktraceKey = ""
+	encoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
 
 	config := zap.Config{
 		Level:            atomicLevel,
 		Development:      false,
 		Encoding:         "console",
+		DisableCaller:    false,
 		EncoderConfig:    encoderConfig,
 		OutputPaths:      []string{"stdout"},
 		ErrorOutputPaths: []string{"stderr"},

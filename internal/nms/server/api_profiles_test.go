@@ -202,7 +202,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Get profile - id not found", func(t *testing.T) {
-		statusCode, _, err := getProfile(ts.URL, client, "gnb-002")
+		statusCode, _, err := getProfile(ts.URL, client, "device-group-002")
 		if err != nil {
 			t.Fatalf("couldn't get profile: %s", err)
 		}
@@ -232,7 +232,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("6. Delete profile - no user", func(t *testing.T) {
+	t.Run("6. Delete profile - no device group", func(t *testing.T) {
 		statusCode, err := deleteProfile(ts.URL, client, ProfileName)
 		if err != nil {
 			t.Fatalf("couldn't delete profile: %s", err)

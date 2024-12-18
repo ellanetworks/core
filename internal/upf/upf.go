@@ -80,10 +80,9 @@ func Start(n3_address string, n3Interface string, n6Interface string) error {
 		}
 		defer l.Close()
 
-		logger.UpfLog.Infof("Attached XDP program to iface %q (index %d)", iface.Name, iface.Index)
+		logger.UpfLog.Infof("Attached XDP program to iface %q", iface.Name)
 	}
 
-	logger.UpfLog.Infof("Initialize resources: UEIP pool (CIDR: \"%s\"), TEID pool (size: %d)", config.Conf.UEIPPool, config.Conf.FTEIDPool)
 	var err error
 	resourceManager, err := service.NewResourceManager(config.Conf.UEIPPool, config.Conf.FTEIDPool)
 	if err != nil {
@@ -118,7 +117,9 @@ func Start(n3_address string, n3Interface string, n6Interface string) error {
 		gtpPathManager.AddGtpPath(peer)
 	}
 	gtpPathManager.Run()
+
 	defer gtpPathManager.Stop()
+	logger.UpfLog.Infof("GTP server started on %s", config.Conf.N3Address+":2152")
 
 	// Print the contents of the BPF hash map (source IP address -> packet count).
 	ticker := time.NewTicker(5 * time.Second)

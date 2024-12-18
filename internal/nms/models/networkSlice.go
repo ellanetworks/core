@@ -1,30 +1,22 @@
 package models
 
-type SliceSliceId struct {
-	Sst string `json:"sst,omitempty"`
-	Sd  string `json:"sd,omitempty"`
+type GNodeB struct {
+	Name string
+	Tac  int32
 }
 
-type SliceSiteInfoPlmn struct {
-	Mcc string `json:"mcc,omitempty"`
-	Mnc string `json:"mnc,omitempty"`
+type UPF struct {
+	Name string
+	Port int
 }
 
-type SliceSiteInfoGNodeBs struct {
-	Name string `json:"name,omitempty"`
-	Tac  int32  `json:"tac,omitempty"`
-}
-
-type SliceSiteInfo struct {
-	SiteName string                 `json:"site-name,omitempty"`
-	Plmn     SliceSiteInfoPlmn      `json:"plmn,omitempty"`
-	GNodeBs  []SliceSiteInfoGNodeBs `json:"gNodeBs"`
-	Upf      map[string]interface{} `json:"upf,omitempty"`
-}
-
-type Slice struct {
-	SliceName       string        `json:"slice-name,omitempty"`
-	SliceId         SliceSliceId  `json:"slice-id,omitempty"`
-	SiteDeviceGroup []string      `json:"site-device-group"`
-	SiteInfo        SliceSiteInfo `json:"site-info,omitempty"`
+type NetworkSlice struct {
+	Name     string
+	Sst      string
+	Sd       string
+	Profiles []string
+	Mcc      string
+	Mnc      string
+	GNodeBs  []GNodeB
+	Upf      UPF
 }

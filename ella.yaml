@@ -1,4 +1,4 @@
-log-level: "info"
+log-level: "debug"
 db:
   path: "ella.db"
 interfaces: 

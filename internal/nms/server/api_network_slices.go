@@ -20,95 +20,90 @@ const (
 	GPS = 1000000000
 )
 
+type GNodeB struct {
+	Name string `json:"name,omitempty"`
+	Tac  int32  `json:"tac,omitempty"`
+}
+
+type UPF struct {
+	Name string `json:"name,omitempty"`
+	Port int    `json:"port,omitempty"`
+}
+
+type CreateNetworkSliceParams struct {
+	Name     string   `json:"name,omitempty"`
+	Sst      string   `json:"sst,omitempty"`
+	Sd       string   `json:"sd,omitempty"`
+	Profiles []string `json:"profiles"`
+	Mcc      string   `json:"mcc,omitempty"`
+	Mnc      string   `json:"mnc,omitempty"`
+	GNodeBs  []GNodeB `json:"gNodeBs"`
+	Upf      UPF      `json:"upf,omitempty"`
+}
+
+type GetNetworkSliceResponse struct {
+	Name     string   `json:"name,omitempty"`
+	Sst      string   `json:"sst,omitempty"`
+	Sd       string   `json:"sd,omitempty"`
+	Profiles []string `json:"profiles"`
+	Mcc      string   `json:"mcc,omitempty"`
+	Mnc      string   `json:"mnc,omitempty"`
+	GNodeBs  []GNodeB `json:"gNodeBs"`
+	Upf      UPF      `json:"upf,omitempty"`
+}
+
 func ListNetworkSlices(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
-		networkSlices, err := dbInstance.ListNetworkSlices()
+		dbNetworkSlices, err := dbInstance.ListNetworkSlices()
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			c.JSON(http.StatusNotFound, gin.H{"error": "Unable to retrieve network slices"})
 			return
 		}
-		c.JSON(http.StatusOK, networkSlices)
-	}
-}
-
-func convertDBNetworkSliceToNetworkSlice(dbNetworkSlice *db.NetworkSlice) *models.Slice {
-	networkSlice := &models.Slice{
-		SliceName: dbNetworkSlice.Name,
-		SliceId: models.SliceSliceId{
-			Sst: dbNetworkSlice.Sst,
-			Sd:  dbNetworkSlice.Sd,
-		},
-		SiteDeviceGroup: dbNetworkSlice.ListProfiles(),
-		SiteInfo: models.SliceSiteInfo{
-			Plmn: models.SliceSiteInfoPlmn{
-				Mcc: dbNetworkSlice.Mcc,
-				Mnc: dbNetworkSlice.Mnc,
-			},
-			GNodeBs: make([]models.SliceSiteInfoGNodeBs, 0),
-			Upf:     make(map[string]interface{}),
-		},
-	}
-	dbGnodeBs, err := dbNetworkSlice.GetGNodeBs()
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-	}
-	for _, dbRadio := range dbGnodeBs {
-		radio := models.SliceSiteInfoGNodeBs{
-			Name: dbRadio.Name,
-			Tac:  dbRadio.Tac,
+		var networkSliceList []GetNetworkSliceResponse
+		for _, dbNetworkSlice := range dbNetworkSlices {
+			dbGnodeBs, err := dbNetworkSlice.GetGNodeBs()
+			if err != nil {
+				logger.NmsLog.Warnln(err)
+			}
+			gNodeBs := make([]GNodeB, 0)
+			for _, dbRadio := range dbGnodeBs {
+				radio := GNodeB{
+					Name: dbRadio.Name,
+					Tac:  dbRadio.Tac,
+				}
+				gNodeBs = append(gNodeBs, radio)
+			}
+			dbUpf, err := dbNetworkSlice.GetUpf()
+			if err != nil {
+				logger.NmsLog.Warnln(err)
+			}
+			networkSlice := GetNetworkSliceResponse{
+				Name:     dbNetworkSlice.Name,
+				Sst:      dbNetworkSlice.Sst,
+				Sd:       dbNetworkSlice.Sd,
+				Profiles: dbNetworkSlice.ListProfiles(),
+				Mcc:      dbNetworkSlice.Mcc,
+				Mnc:      dbNetworkSlice.Mnc,
+				GNodeBs:  gNodeBs,
+				Upf: UPF{
+					Name: dbUpf.Name,
+					Port: dbUpf.Port,
+				},
+			}
+			networkSliceList = append(networkSliceList, networkSlice)
 		}
-		networkSlice.SiteInfo.GNodeBs = append(networkSlice.SiteInfo.GNodeBs, radio)
+		c.JSON(http.StatusOK, networkSliceList)
 	}
-	dbUpf, err := dbNetworkSlice.GetUpf()
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-	}
-	networkSlice.SiteInfo.Upf["upf-name"] = dbUpf.Name
-	networkSlice.SiteInfo.Upf["upf-port"] = dbUpf.Port
-	return networkSlice
-}
-
-func convertNetworkSliceToDBNetworkSlice(networkSlice *models.Slice) *db.NetworkSlice {
-	upfPort := networkSlice.SiteInfo.Upf["upf-port"].(string)
-	upfName := networkSlice.SiteInfo.Upf["upf-name"].(string)
-	upfPortInt, err := strconv.Atoi(upfPort)
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-		return nil
-	}
-	dbNetworkSlice := &db.NetworkSlice{
-		Name: networkSlice.SliceName,
-		Sst:  networkSlice.SliceId.Sst,
-		Sd:   networkSlice.SliceId.Sd,
-		Mcc:  networkSlice.SiteInfo.Plmn.Mcc,
-		Mnc:  networkSlice.SiteInfo.Plmn.Mnc,
-	}
-	dbNetworkSlice.SetUpf(db.UPF{
-		Name: upfName,
-		Port: upfPortInt,
-	})
-
-	dbNetworkSlice.SetProfiles(networkSlice.SiteDeviceGroup)
-	dbGnodeBs := make([]db.GNodeB, 0)
-	for _, radio := range networkSlice.SiteInfo.GNodeBs {
-		dbRadio := db.GNodeB{
-			Name: radio.Name,
-			Tac:  radio.Tac,
-		}
-		dbGnodeBs = append(dbGnodeBs, dbRadio)
-	}
-	dbNetworkSlice.SetGNodeBs(dbGnodeBs)
-	return dbNetworkSlice
 }
 
 func GetNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
-		name := c.Param("slice-name")
+		name := c.Param("name")
 		if name == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing slice-name parameter"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing name parameter"})
 			return
 		}
 		dbNetworkSlice, err := dbInstance.GetNetworkSlice(name)
@@ -117,56 +112,85 @@ func GetNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Unable to retrieve network slice"})
 			return
 		}
-		networkSlice := convertDBNetworkSliceToNetworkSlice(dbNetworkSlice)
+		dbGnodeBs, err := dbNetworkSlice.GetGNodeBs()
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+		}
+		gNodeBs := make([]GNodeB, 0)
+		for _, dbRadio := range dbGnodeBs {
+			radio := GNodeB{
+				Name: dbRadio.Name,
+				Tac:  dbRadio.Tac,
+			}
+			gNodeBs = append(gNodeBs, radio)
+		}
+		dbUpf, err := dbNetworkSlice.GetUpf()
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+		}
+		networkSlice := &GetNetworkSliceResponse{
+			Name:     dbNetworkSlice.Name,
+			Sst:      dbNetworkSlice.Sst,
+			Sd:       dbNetworkSlice.Sd,
+			Profiles: dbNetworkSlice.ListProfiles(),
+			Mcc:      dbNetworkSlice.Mcc,
+			Mnc:      dbNetworkSlice.Mnc,
+			GNodeBs:  gNodeBs,
+			Upf: UPF{
+				Name: dbUpf.Name,
+				Port: dbUpf.Port,
+			},
+		}
+
 		c.JSON(http.StatusOK, networkSlice)
 	}
 }
 
 func CreateNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var createNetworkSliceParams models.Slice
+		var createNetworkSliceParams CreateNetworkSliceParams
 		err := c.ShouldBindJSON(&createNetworkSliceParams)
 		if err != nil {
-			logger.NmsLog.Errorf(" err %v", err)
+			logger.NmsLog.Errorf("Invalid request data %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 			return
 		}
 
-		_, err = dbInstance.GetNetworkSlice(createNetworkSliceParams.SliceName)
+		_, err = dbInstance.GetNetworkSlice(createNetworkSliceParams.Name)
 		if err == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Network slice already exists"})
 			return
 		}
 
-		group := createNetworkSliceParams.SiteDeviceGroup
-		slices.Sort(group)
+		profiles := createNetworkSliceParams.Profiles
+		slices.Sort(profiles)
 
-		sVal, err := strconv.ParseUint(createNetworkSliceParams.SliceId.Sst, 10, 32)
+		sVal, err := strconv.ParseUint(createNetworkSliceParams.Sst, 10, 32)
 		if err != nil {
-			logger.NmsLog.Errorf("Could not parse SST %v", createNetworkSliceParams.SliceId.Sst)
+			logger.NmsLog.Errorf("Could not parse SST %v", createNetworkSliceParams.Sst)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid SST"})
 			return
 		}
-		for _, dgName := range createNetworkSliceParams.SiteDeviceGroup {
-			dbDeviceGroup, err := dbInstance.GetProfile(dgName)
+		for _, dgName := range createNetworkSliceParams.Profiles {
+			dbProfile, err := dbInstance.GetProfile(dgName)
 			if err != nil {
-				logger.NmsLog.Warnf("Could not get device group %v", dgName)
+				logger.NmsLog.Warnf("Could not get profile %v", dgName)
 				continue
 			}
-			imsis, err := dbDeviceGroup.GetImsis()
+			imsis, err := dbProfile.GetImsis()
 			if err != nil {
-				logger.NmsLog.Warnf("Could not get imsis %v", dbDeviceGroup.Imsis)
+				logger.NmsLog.Warnf("Could not get imsis %v", dbProfile.Imsis)
 				continue
 			}
 			for _, imsi := range imsis {
-				mcc := createNetworkSliceParams.SiteInfo.Plmn.Mcc
-				mnc := createNetworkSliceParams.SiteInfo.Plmn.Mnc
+				mcc := createNetworkSliceParams.Mcc
+				mnc := createNetworkSliceParams.Mnc
 				ueId := "imsi-" + imsi
 				sst := int32(sVal)
-				sd := createNetworkSliceParams.SliceId.Sd
+				sd := createNetworkSliceParams.Sd
 				plmnID := mcc + mnc
-				bitRateUplink := convertToString(uint64(dbDeviceGroup.BitrateUplink))
-				bitRateDownlink := convertToString(uint64(dbDeviceGroup.BitrateDownlink))
+				bitRateUplink := convertToString(uint64(dbProfile.BitrateUplink))
+				bitRateDownlink := convertToString(uint64(dbProfile.BitrateDownlink))
 				var5qi := 9
 				priorityLevel := 8
 				err = dbInstance.UpdateSubscriberProfile(ueId, DNN, sd, sst, plmnID, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
@@ -176,7 +200,30 @@ func CreateNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 				}
 			}
 		}
-		dbNetworkSlice := convertNetworkSliceToDBNetworkSlice(&createNetworkSliceParams)
+
+		dbNetworkSlice := &db.NetworkSlice{
+			Name: createNetworkSliceParams.Name,
+			Sst:  createNetworkSliceParams.Sst,
+			Sd:   createNetworkSliceParams.Sd,
+			Mcc:  createNetworkSliceParams.Mcc,
+			Mnc:  createNetworkSliceParams.Mnc,
+		}
+		dbNetworkSlice.SetUpf(db.UPF{
+			Name: createNetworkSliceParams.Upf.Name,
+			Port: createNetworkSliceParams.Upf.Port,
+		})
+
+		dbNetworkSlice.SetProfiles(createNetworkSliceParams.Profiles)
+		dbGnodeBs := make([]db.GNodeB, 0)
+		for _, radio := range createNetworkSliceParams.GNodeBs {
+			dbRadio := db.GNodeB{
+				Name: radio.Name,
+				Tac:  radio.Tac,
+			}
+			dbGnodeBs = append(dbGnodeBs, dbRadio)
+		}
+		dbNetworkSlice.SetGNodeBs(dbGnodeBs)
+
 		err = dbInstance.CreateNetworkSlice(dbNetworkSlice)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
@@ -184,17 +231,17 @@ func CreateNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		updateSMF(dbInstance)
-		logger.NmsLog.Infof("Network slice %s created successfully", createNetworkSliceParams.SliceName)
-		c.JSON(http.StatusOK, gin.H{"message": "Network slice created successfully"})
+		logger.NmsLog.Infof("Network slice %s created successfully", createNetworkSliceParams.Name)
+		c.JSON(http.StatusCreated, gin.H{"message": "Network slice created successfully"})
 	}
 }
 
 func DeleteNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sliceName, exists := c.Params.Get("slice-name")
+		sliceName, exists := c.Params.Get("name")
 		if !exists {
-			logger.NmsLog.Errorf("slice-name is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing slice-name parameter"})
+			logger.NmsLog.Errorf("name is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing name parameter"})
 			return
 		}
 		dbNetworkSlice, err := dbInstance.GetNetworkSlice(sliceName)
@@ -207,8 +254,7 @@ func DeleteNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 		}
-		prevSlice := convertDBNetworkSliceToNetworkSlice(dbNetworkSlice)
-		dgnames := getDeleteGroupsList(nil, prevSlice)
+		dgnames := getDeleteGroupsList(nil, dbNetworkSlice)
 		for _, dgname := range dgnames {
 			devGroupConfig, err := dbInstance.GetProfile(dgname)
 			if err != nil {
@@ -233,15 +279,16 @@ func DeleteNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 	}
 }
 
-func getDeleteGroupsList(slice, prevSlice *models.Slice) (names []string) {
+func getDeleteGroupsList(slice *db.NetworkSlice, prevSlice *db.NetworkSlice) (names []string) {
 	for prevSlice == nil {
 		return
 	}
-
+	prevSliceProfiles := prevSlice.ListProfiles()
 	if slice != nil {
-		for _, pdgName := range prevSlice.SiteDeviceGroup {
+		for _, pdgName := range prevSliceProfiles {
 			var found bool
-			for _, dgName := range slice.SiteDeviceGroup {
+			sliceProfiles := slice.ListProfiles()
+			for _, dgName := range sliceProfiles {
 				if dgName == pdgName {
 					found = true
 					break
@@ -252,47 +299,72 @@ func getDeleteGroupsList(slice, prevSlice *models.Slice) (names []string) {
 			}
 		}
 	} else {
-		names = append(names, prevSlice.SiteDeviceGroup...)
+		names = append(names, prevSliceProfiles...)
 	}
 	return
 }
 
 func updateSMF(dbInstance *db.Database) {
-	networkSlices := make([]*models.Slice, 0)
+	networkSlices := make([]*models.NetworkSlice, 0)
 	dbNetworkSlices, err := dbInstance.ListNetworkSlices()
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 	}
 	for _, dbNetworkSlice := range dbNetworkSlices {
-		networkSlice := convertDBNetworkSliceToNetworkSlice(&dbNetworkSlice)
-		networkSlices = append(networkSlices, networkSlice)
-	}
-	deviceGroups := make([]models.Profile, 0)
-	dbDeviceGroups, err := dbInstance.ListProfiles()
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-	}
-	for _, dbDeviceGroup := range dbDeviceGroups {
-		deviceGroup := models.Profile{
-			Name:            dbDeviceGroup.Name,
-			Dnn:             DNN,
-			UeIpPool:        dbDeviceGroup.UeIpPool,
-			DnsPrimary:      dbDeviceGroup.DnsPrimary,
-			DnsSecondary:    dbDeviceGroup.DnsSecondary,
-			BitrateDownlink: dbDeviceGroup.BitrateDownlink,
-			BitrateUplink:   dbDeviceGroup.BitrateUplink,
-			BitrateUnit:     dbDeviceGroup.BitrateUnit,
-			Qci:             dbDeviceGroup.Qci,
-			Arp:             dbDeviceGroup.Arp,
-			Pdb:             dbDeviceGroup.Pdb,
-			Pelr:            dbDeviceGroup.Pelr,
+		networkSlice := &models.NetworkSlice{
+			Name:     dbNetworkSlice.Name,
+			Sst:      dbNetworkSlice.Sst,
+			Sd:       dbNetworkSlice.Sd,
+			Profiles: dbNetworkSlice.ListProfiles(),
+			Mcc:      dbNetworkSlice.Mcc,
+			Mnc:      dbNetworkSlice.Mnc,
+			GNodeBs:  make([]models.GNodeB, 0),
 		}
-		imsis, err := dbDeviceGroup.GetImsis()
+		dbGnodeBs, err := dbNetworkSlice.GetGNodeBs()
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 		}
-		deviceGroup.Imsis = imsis
-		deviceGroups = append(deviceGroups, deviceGroup)
+		for _, dbRadio := range dbGnodeBs {
+			radio := models.GNodeB{
+				Name: dbRadio.Name,
+				Tac:  dbRadio.Tac,
+			}
+			networkSlice.GNodeBs = append(networkSlice.GNodeBs, radio)
+		}
+		dbUpf, err := dbNetworkSlice.GetUpf()
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+		}
+		networkSlice.Upf.Name = dbUpf.Name
+		networkSlice.Upf.Port = dbUpf.Port
+		networkSlices = append(networkSlices, networkSlice)
 	}
-	context.UpdateSMFContext(networkSlices, deviceGroups)
+	profiles := make([]models.Profile, 0)
+	dbProfiles, err := dbInstance.ListProfiles()
+	if err != nil {
+		logger.NmsLog.Warnln(err)
+	}
+	for _, dbProfile := range dbProfiles {
+		profile := models.Profile{
+			Name:            dbProfile.Name,
+			Dnn:             DNN,
+			UeIpPool:        dbProfile.UeIpPool,
+			DnsPrimary:      dbProfile.DnsPrimary,
+			DnsSecondary:    dbProfile.DnsSecondary,
+			BitrateDownlink: dbProfile.BitrateDownlink,
+			BitrateUplink:   dbProfile.BitrateUplink,
+			BitrateUnit:     dbProfile.BitrateUnit,
+			Qci:             dbProfile.Qci,
+			Arp:             dbProfile.Arp,
+			Pdb:             dbProfile.Pdb,
+			Pelr:            dbProfile.Pelr,
+		}
+		imsis, err := dbProfile.GetImsis()
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+		}
+		profile.Imsis = imsis
+		profiles = append(profiles, profile)
+	}
+	context.UpdateSMFContext(networkSlices, profiles)
 }

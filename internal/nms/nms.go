@@ -26,9 +26,9 @@ func Start(dbInstance *db.Database, port int, cert_file string, key_file string)
 		}
 		err := server.ListenAndServeTLS(cert_file, key_file)
 		if err != nil {
-			logger.NmsLog.Errorln("couldn't start NMS server:", err)
+			logger.NmsLog.Errorln("couldn't start API server:", err)
 		}
 	}()
-	logger.NmsLog.Infof("NMS server started on https://localhost:%d", port)
+	logger.NmsLog.Infof("API server started on https://localhost:%d", port)
 	return nil
 }
