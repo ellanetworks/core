@@ -8,7 +8,7 @@ platforms:
   amd64:
 
 parts:
-  notary:
+  ella:
     plugin: go
     source: .
     source-type: local

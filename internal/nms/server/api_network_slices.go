@@ -57,8 +57,7 @@ func ListNetworkSlices(dbInstance *db.Database) gin.HandlerFunc {
 		setCorsHeader(c)
 		dbNetworkSlices, err := dbInstance.ListNetworkSlices()
 		if err != nil {
-			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusNotFound, gin.H{"error": "Unable to retrieve network slices"})
+			writeError(c.Writer, http.StatusInternalServerError, "Network slice not founds")
 			return
 		}
 		var networkSliceList []GetNetworkSliceResponse
@@ -94,7 +93,11 @@ func ListNetworkSlices(dbInstance *db.Database) gin.HandlerFunc {
 			}
 			networkSliceList = append(networkSliceList, networkSlice)
 		}
-		c.JSON(http.StatusOK, networkSliceList)
+		err = writeResponse(c.Writer, networkSliceList, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 }
 
@@ -103,13 +106,12 @@ func GetNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 		setCorsHeader(c)
 		name := c.Param("name")
 		if name == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing name parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
 			return
 		}
 		dbNetworkSlice, err := dbInstance.GetNetworkSlice(name)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusNotFound, gin.H{"error": "Unable to retrieve network slice"})
+			writeError(c.Writer, http.StatusNotFound, "Network slice not found")
 			return
 		}
 		dbGnodeBs, err := dbNetworkSlice.GetGNodeBs()
@@ -142,7 +144,11 @@ func GetNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 			},
 		}
 
-		c.JSON(http.StatusOK, networkSlice)
+		err = writeResponse(c.Writer, networkSlice, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 }
 
@@ -151,49 +157,41 @@ func CreateNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 		var createNetworkSliceParams CreateNetworkSliceParams
 		err := c.ShouldBindJSON(&createNetworkSliceParams)
 		if err != nil {
-			logger.NmsLog.Errorf("Invalid request data: %v", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
 			return
 		}
 		if createNetworkSliceParams.Name == "" {
-			logger.NmsLog.Errorf("name is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing name parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "name is missing")
 			return
 		}
 		if createNetworkSliceParams.Sst == "" {
-			logger.NmsLog.Errorf("sst is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing sst parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "sst is missing")
 			return
 		}
 		if createNetworkSliceParams.Sd == "" {
-			logger.NmsLog.Errorf("sd is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing sd parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "sd is missing")
 			return
 		}
 		if createNetworkSliceParams.Mcc == "" {
-			logger.NmsLog.Errorf("mcc is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing mcc parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "mcc is missing")
 			return
 		}
 		if createNetworkSliceParams.Mnc == "" {
-			logger.NmsLog.Errorf("mnc is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing mnc parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "mnc is missing")
 			return
 		}
 		if createNetworkSliceParams.Upf.Name == "" {
-			logger.NmsLog.Errorf("upf name is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing upf name parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "upf name is missing")
 			return
 		}
 		if createNetworkSliceParams.Upf.Port == 0 {
-			logger.NmsLog.Errorf("upf port is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing upf port parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "upf port is missing")
 			return
 		}
 
 		_, err = dbInstance.GetNetworkSlice(createNetworkSliceParams.Name)
 		if err == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Network slice already exists"})
+			writeError(c.Writer, http.StatusBadRequest, "Network slice already exists")
 			return
 		}
 
@@ -202,8 +200,7 @@ func CreateNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 
 		sVal, err := strconv.ParseUint(createNetworkSliceParams.Sst, 10, 32)
 		if err != nil {
-			logger.NmsLog.Errorf("Could not parse SST %v", createNetworkSliceParams.Sst)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid SST"})
+			writeError(c.Writer, http.StatusBadRequest, "Invalid SST")
 			return
 		}
 		for _, dgName := range createNetworkSliceParams.Profiles {
@@ -262,12 +259,17 @@ func CreateNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 		err = dbInstance.CreateNetworkSlice(dbNetworkSlice)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create network slice"})
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to create network slice")
 			return
 		}
 		updateSMF(dbInstance)
 		logger.NmsLog.Infof("Network slice %s created successfully", createNetworkSliceParams.Name)
-		c.JSON(http.StatusCreated, gin.H{"message": "Network slice created successfully"})
+		message := SuccessResponse{Message: "Network slice created successfully"}
+		err = writeResponse(c.Writer, message, http.StatusCreated)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 }
 
@@ -275,14 +277,12 @@ func DeleteNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sliceName, exists := c.Params.Get("name")
 		if !exists {
-			logger.NmsLog.Errorf("name is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing name parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "name is missing")
 			return
 		}
 		dbNetworkSlice, err := dbInstance.GetNetworkSlice(sliceName)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusNotFound, gin.H{"error": "Unable to retrieve network slice"})
+			writeError(c.Writer, http.StatusNotFound, "Network slice not found")
 			return
 		}
 		err = dbInstance.DeleteNetworkSlice(sliceName)
@@ -310,7 +310,12 @@ func DeleteNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 			}
 		}
 		updateSMF(dbInstance)
-		c.JSON(http.StatusOK, gin.H{"message": "Network slice deleted successfully"})
+		response := SuccessResponse{Message: "Network slice deleted successfully"}
+		err = writeResponse(c.Writer, response, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 }
 

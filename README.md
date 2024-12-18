@@ -47,6 +47,8 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 
 #### API
 
+##### Endpoints
+
 | Endpoint                      | HTTP Method | Description             |
 | ----------------------------- | ----------- | ----------------------- |
 | `/api/v1/status`              | GET         | Get status              |
@@ -71,6 +73,16 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 | `/api/v1/profiles/{id}`       | PUT         | Update a profile        |
 | `/api/v1/profiles/{id}`       | DELETE      | Delete a profile        |
 
+##### Responses
+
+Ella API responses are JSON objects with the following structure:
+
+```json
+{
+  "result": "Result content", // Any
+  "error": "Error message",  // String
+}
+```
 
 #### Configuration
 

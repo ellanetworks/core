@@ -7,8 +7,13 @@ import (
 	"testing"
 )
 
-type GetStatusResponse struct {
+type GetStatusResponseResult struct {
 	Version string `json:"version"`
+}
+
+type GetStatusResponse struct {
+	Error  string                  `json:"error,omitempty"`
+	Result GetStatusResponseResult `json:"result"`
 }
 
 func getStatus(url string, client *http.Client) (int, *GetStatusResponse, error) {
@@ -41,15 +46,15 @@ func TestStatusEndToEnd(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	t.Run("1. Get radio", func(t *testing.T) {
+	t.Run("1. Get status", func(t *testing.T) {
 		statusCode, response, err := getStatus(ts.URL, client)
 		if err != nil {
-			t.Fatalf("couldn't get radio: %s", err)
+			t.Fatalf("couldn't get status: %s", err)
 		}
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if response.Version == "" {
+		if response.Result.Version == "" {
 			t.Fatalf("expected version to be non-empty")
 		}
 	})

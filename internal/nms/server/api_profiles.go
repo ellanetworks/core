@@ -69,8 +69,7 @@ func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 		setCorsHeader(c)
 		dbProfiles, err := dbInstance.ListProfiles()
 		if err != nil {
-			logger.NmsLog.Warnf("couldn't list profiles: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve profiles"})
+			writeError(c.Writer, http.StatusInternalServerError, "Profiles not found")
 			return
 		}
 		var profileList []GetProfileResponse
@@ -90,14 +89,17 @@ func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 			}
 			imsis, err := dbProfile.GetImsis()
 			if err != nil {
-				logger.NmsLog.Warnf("couldn't get imsis: %v", err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve profile"})
+				writeError(c.Writer, http.StatusInternalServerError, "Profile not found")
 				return
 			}
 			profileResponse.Imsis = imsis
 			profileList = append(profileList, profileResponse)
 		}
-		c.JSON(http.StatusOK, profileList)
+		err = writeResponse(c.Writer, profileList, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 }
 
@@ -106,14 +108,12 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 		setCorsHeader(c)
 		groupName, exists := c.Params.Get("name")
 		if !exists {
-			logger.NmsLog.Errorf("name is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing name parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
 			return
 		}
 		dbProfile, err := dbInstance.GetProfile(groupName)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusNotFound, gin.H{"error": "Unable to retrieve profile"})
+			writeError(c.Writer, http.StatusNotFound, "Profile not found")
 			return
 		}
 
@@ -133,12 +133,15 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		imsis, err := dbProfile.GetImsis()
 		if err != nil {
-			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve profile"})
+			writeError(c.Writer, http.StatusInternalServerError, "Profile not found")
 			return
 		}
 		profileResponse.Imsis = imsis
-		c.JSON(http.StatusOK, profileResponse)
+		err = writeResponse(c.Writer, profileResponse, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 }
 
@@ -148,69 +151,56 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		var createProfileParams CreateProfileParams
 		err := c.ShouldBindJSON(&createProfileParams)
 		if err != nil {
-			logger.NmsLog.Errorf(" err %v", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
 			return
 		}
 		if createProfileParams.Name == "" {
-			logger.NmsLog.Errorf("name is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing name parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "name is missing")
 			return
 		}
 		if createProfileParams.UeIpPool == "" {
-			logger.NmsLog.Errorf("ue-ip-pool is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing ue-ip-pool parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "ue-ip-pool is missing")
 			return
 		}
 		if createProfileParams.DnsPrimary == "" {
-			logger.NmsLog.Errorf("dns-primary is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing dns-primary parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "dns-primary is missing")
 			return
 		}
 		if createProfileParams.Mtu == 0 {
-			logger.NmsLog.Errorf("mtu is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing mtu parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "mtu is missing")
 			return
 		}
 		if createProfileParams.BitrateUplink == 0 {
-			logger.NmsLog.Errorf("bitrate-uplink is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing bitrate-uplink parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "bitrate-uplink is missing")
 			return
 		}
 		if createProfileParams.BitrateDownlink == 0 {
-			logger.NmsLog.Errorf("bitrate-downlink is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing bitrate-downlink parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "bitrate-downlink is missing")
 			return
 		}
 		if createProfileParams.BitrateUnit == "" {
-			logger.NmsLog.Errorf("bitrate-unit is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing bitrate-unit parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "bitrate-unit is missing")
 			return
 		}
 		if createProfileParams.Qci == 0 {
-			logger.NmsLog.Errorf("qci is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing qci parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "qci is missing")
 			return
 		}
 		if createProfileParams.Arp == 0 {
-			logger.NmsLog.Errorf("arp is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing arp parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "arp is missing")
 			return
 		}
 		if createProfileParams.Pdb == 0 {
-			logger.NmsLog.Errorf("pdb is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing pdb parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "pdb is missing")
 			return
 		}
 		if createProfileParams.Pelr == 0 {
-			logger.NmsLog.Errorf("pelr is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing pelr parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "pelr is missing")
 			return
 		}
 		_, err = dbInstance.GetProfile(createProfileParams.Name)
 		if err == nil {
-			logger.NmsLog.Warnf("Device Group [%v] already exists", createProfileParams.Name)
-			c.JSON(http.StatusConflict, gin.H{"error": "Device Group already exists"})
+			writeError(c.Writer, http.StatusBadRequest, "Profile already exists")
 			return
 		}
 
@@ -218,8 +208,7 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		if slice != nil {
 			sVal, err := strconv.ParseUint(slice.Sst, 10, 32)
 			if err != nil {
-				logger.NmsLog.Errorf("Could not parse SST %v", slice.Sst)
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid SST"})
+				writeError(c.Writer, http.StatusBadRequest, "Invalid SST")
 				return
 			}
 
@@ -233,8 +222,7 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 				priorityLevel := 8
 				err = dbInstance.UpdateSubscriberProfile(ueId, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
 				if err != nil {
-					logger.NmsLog.Warnf("Could not update subscriber %v", ueId)
-					c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to update subscriber"})
+					writeError(c.Writer, http.StatusBadRequest, "Failed to update subscriber")
 					return
 				}
 			}
@@ -256,13 +244,17 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		dbProfile.SetImsis(createProfileParams.Imsis)
 		err = dbInstance.CreateProfile(dbProfile)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create profile"})
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to create profile")
 			return
 		}
 		updateSMF(dbInstance)
 		logger.NmsLog.Infof("Created Profile: %v", createProfileParams.Name)
-		c.JSON(http.StatusCreated, gin.H{"message": "Profile created successfully"})
+		response := SuccessResponse{Message: "Profile created successfully"}
+		err = writeResponse(c.Writer, response, http.StatusCreated)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 }
 
@@ -271,26 +263,24 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 		setCorsHeader(c)
 		groupName, exists := c.Params.Get("name")
 		if !exists {
-			logger.NmsLog.Errorf("name is missing")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing name parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
 			return
 		}
 		profile, err := dbInstance.GetProfile(groupName)
 		if err != nil {
-			logger.NmsLog.Warnf("Device Group [%v] not found", groupName)
-			c.JSON(http.StatusNotFound, gin.H{"error": "Device Group not found"})
+			writeError(c.Writer, http.StatusNotFound, "Profile not found")
 			return
 		}
 		deleteProfileConfig(dbInstance, profile)
 		err = dbInstance.DeleteProfile(groupName)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete profile"})
+			writeResponse(c.Writer, gin.H{"error": "Failed to delete profile"}, http.StatusInternalServerError)
 			return
 		}
 		updateSMF(dbInstance)
-		logger.NmsLog.Infof("Deleted Device Group: %v", groupName)
-		c.JSON(http.StatusOK, gin.H{"message": "Device Group deleted successfully"})
+		logger.NmsLog.Infof("Deleted Profile: %v", groupName)
+		response := SuccessResponse{Message: "Profile deleted successfully"}
+		writeResponse(c.Writer, response, http.StatusOK)
 	}
 }
 
@@ -322,7 +312,7 @@ func isProfileExistInSlice(dbInstance *db.Database, profileName string) *db.Netw
 		profiles := slice.ListProfiles()
 		for _, dgName := range profiles {
 			if dgName == profileName {
-				logger.NmsLog.Infof("Device Group [%v] is part of slice: %v", dgName, name)
+				logger.NmsLog.Infof("Profile [%v] is part of slice: %v", dgName, name)
 				return &slice
 			}
 		}
