@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 NAMESPACE = "dev2"
 TEST_PROFILE_NAME = "default-default"
-TEST_IMSI = "imsi-001010100007487"
+TEST_IMSI = "001010100007487"
 TEST_NETWORK_SLICE_NAME = "default"
 NUM_PROFILES = 5
 
