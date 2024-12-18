@@ -8,17 +8,18 @@ Use Ella where you need 5G connectivity: in a factory, a warehouse, a farm, a st
 
 ## Key features
 
-* **5G compliant**: Ella is a 5G compliant core network. It can integrate with any 5G radio access network.
+* **5G compliant**: Ella is a 5G compliant core network. It can integrate with any 5G radio that support the 3GPP defined N2, and N3 interfaces.
 * **Performant data plane**: Ella uses eBPF to implement the data plane. It is fast, secure, and reliable.
-* **Simple UI**: Ella has a web-based user interface for managing subscribers, radios, device groups, and network slices.
+* **Simple UI**: Ella has a web-based user interface for managing subscribers, radios, profiles, and network slices.
 * **Complete HTTP API**: Ella has a complete REST API. You can automate everything you can do in the UI.
 * **Encrypted communication**: Ella's API and UI are secured with TLS.
+* **Observability**: Ella exposes meaningful metrics in a Prometheus format to help you monitor your network. The UI also has a dashboard with real-time information.
 
 ## Tenets
 
 Building Ella, we make engineering decisions based on the following tenets:
 1. **Simplicity**: We are commited to develop the simplest possible mobile network out there. We thrive on having a very short "Getting Started" tutorial, a simple configuration file, a single binary, an embedded database, and a simple UI.
-2. **Reliability**: We are commited to develop a reliable mobile network you can trust to work 24/7. We are commited to deliver high quality code, tests, and documentation. We are commited to expose useful metrics and logs to help users monitor their network.
+2. **Reliability**: We are commited to develop a reliable mobile network you can trust to work 24/7. We are commited to deliver high quality code, tests, and documentation. We are commited to expose dashboards, metrics and logs to help users monitor their network.
 3. **Security**: We are commited to minimizing the attack surface of the private network and to use secure encryption protocols to protect the data of our users.
 
 ## Documentation
@@ -45,6 +46,13 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 
 ### Reference
 
+#### Concepts
+
+- **Network Slice**: A network slice is a logical network that provides a set of services to a group of subscribers. This concept is to be removed
+in favor of a simpler single "Network Configuration".
+- **Profile**: A profile is a reusable set of parameters for managing subscribers in the network. The profile includes Bitrate and Quality of Service (QoS) parameters.
+- **Subscriber**: A subscriber is a user of the private mobile network.
+
 #### API
 
 ##### Endpoints
@@ -56,7 +64,6 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 | `/api/v1/subscribers`         | GET         | List subscribers        |
 | `/api/v1/subscribers`         | POST        | Create a new subscriber |
 | `/api/v1/subscribers/{id}`    | GET         | Get a subscriber        |
-| `/api/v1/subscribers/{id}`    | PUT         | Update a subscriber     |
 | `/api/v1/subscribers/{id}`    | DELETE      | Delete a subscriber     |
 | `/api/v1/radios`              | GET         | List radios             |
 | `/api/v1/radios`              | POST        | Create a new radio      |
@@ -65,12 +72,10 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 | `/api/v1/network-slices`      | GET         | List network slices     |
 | `/api/v1/network-slices`      | POST        | Create a new slice      |
 | `/api/v1/network-slices/{id}` | GET         | Get a network slice     |
-| `/api/v1/network-slices/{id}` | PUT         | Update a network slice  |
 | `/api/v1/network-slices/{id}` | DELETE      | Delete a network slice  |
 | `/api/v1/profiles`            | GET         | List profiles           |
 | `/api/v1/profiles`            | POST        | Create a new profile    |
 | `/api/v1/profiles/{id}`       | GET         | Get a profile           |
-| `/api/v1/profiles/{id}`       | PUT         | Update a profile        |
 | `/api/v1/profiles/{id}`       | DELETE      | Delete a profile        |
 
 ##### Responses
@@ -79,8 +84,8 @@ Ella API responses are JSON objects with the following structure:
 
 ```json
 {
-  "result": "Result content", // Any
-  "error": "Error message",  // String
+  "result": "Result content",
+  "error": "Error message",
 }
 ```
 
@@ -89,7 +94,7 @@ Ella API responses are JSON objects with the following structure:
 ##### Example
 
 ```yaml
-log-level: "info"  # debug, info, warn, error
+log-level: "debug"  # debug, info, warn, error
 db:
   path: "ella.db"
 interfaces: 
@@ -115,7 +120,7 @@ Ella uses 4 different interfaces:
 - **N3**: The user plane interface between Ella and the 5G Radio (SCTP:2152)
 - **N6**: The user plane interface between Ella and the internet
 
-![alt text](connectivity.png)
+![Connectivity](connectivity.png)
 
 #### Acknowledgements
 

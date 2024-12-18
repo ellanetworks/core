@@ -196,7 +196,7 @@ func TestRadiosEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("6. Delete radio - no user", func(t *testing.T) {
+	t.Run("6. Delete radio - no radio", func(t *testing.T) {
 		statusCode, response, err := deleteRadio(ts.URL, client, RadioName)
 		if err != nil {
 			t.Fatalf("couldn't delete radio: %s", err)
