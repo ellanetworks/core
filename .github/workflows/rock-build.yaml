@@ -15,7 +15,8 @@ jobs:
         with:
           rockcraft-channel: edge
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload container image to GitHub Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: rock
           path: ${{ steps.rockcraft.outputs.rock }}

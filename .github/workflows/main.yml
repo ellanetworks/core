@@ -9,8 +9,6 @@ on:
       - main
 
 jobs: 
-  frontend-build:
-    uses: ./.github/workflows/frontend-build.yaml
   python-lint:
     uses: ./.github/workflows/python-lint.yaml
   go-unit-test:
@@ -19,16 +17,12 @@ jobs:
     uses: ./.github/workflows/go-vet.yaml
   go-lint:
     uses: ./.github/workflows/go-lint.yaml
-  go-build:
-    needs: [frontend-build]
-    uses: ./.github/workflows/go-build.yaml
-  integration-tests:
-    needs: [go-build, go-unit-test, go-vet, go-lint]
-    uses: ./.github/workflows/integration-tests.yaml
   rock-build:
-    if: github.ref_name == 'main'
-    needs: [go-build, go-unit-test, go-vet, go-lint]
+    needs: [go-unit-test, go-vet, go-lint]
     uses: ./.github/workflows/rock-build.yaml
+  integration-tests:
+    needs: [go-unit-test, go-vet, go-lint, rock-build]
+    uses: ./.github/workflows/integration-tests.yaml
   rock-publish:
     if: github.ref_name == 'main'
     needs: [rock-build]
@@ -36,7 +30,7 @@ jobs:
     secrets: inherit
   snap-build:
     if: github.ref_name == 'main'
-    needs: [go-build, go-unit-test, go-vet, go-lint]
+    needs: [go-unit-test, go-vet, go-lint]
     uses: ./.github/workflows/snap-build.yaml
   snap-publish:
     if: github.ref_name == 'main'
