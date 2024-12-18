@@ -10,7 +10,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/logger"
-	nmsModels "github.com/yeastengine/ella/internal/nms/models"
+	nmsModels "github.com/yeastengine/ella/internal/models"
 	"github.com/yeastengine/ella/internal/smf/factory"
 )
 

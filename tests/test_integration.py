@@ -80,7 +80,7 @@ def configure_ella(ella_address: str) -> None:
     ella_client.create_profile(name=TEST_PROFILE_NAME, imsis=[TEST_IMSI])
     ella_client.create_network_slice(
         name=TEST_NETWORK_SLICE_NAME,
-        device_groups=[TEST_PROFILE_NAME],
+        profiles=[TEST_PROFILE_NAME],
     )
     logger.info("Sleeping for 10 seconds to allow configuration to propagate.")
     time.sleep(10)

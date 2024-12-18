@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/nms/models"
+	"github.com/yeastengine/ella/internal/models"
 	"github.com/yeastengine/ella/internal/smf/context"
 )
 

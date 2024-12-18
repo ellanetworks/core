@@ -46,7 +46,7 @@ PROFILE_CONFIG = {
 NETWORK_SLICE_CONFIG = {
     "sst": "1",
     "sd": "102030",
-    "device-groups": [],
+    "profiles": [],
     "mcc": "001",
     "mnc": "01",
     "gNodeBs": [{"name": "dev2-gnbsim", "tac": 1}],
@@ -110,9 +110,9 @@ class Ella:
         self._make_request("POST", PROFILE_CONFIG_URL, data=PROFILE_CONFIG)
         logger.info(f"Created profile {name}.")
 
-    def create_network_slice(self, name: str, device_groups: List[str]) -> None:
+    def create_network_slice(self, name: str, profiles: List[str]) -> None:
         """Create a network slice."""
-        NETWORK_SLICE_CONFIG["device-groups"] = device_groups
+        NETWORK_SLICE_CONFIG["profiles"] = profiles
         NETWORK_SLICE_CONFIG["name"] = name
         self._make_request("POST", NETWORK_SLICE_CONFIG_URL, data=NETWORK_SLICE_CONFIG)
         logger.info(f"Created network slice {name}.")
