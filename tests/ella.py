@@ -50,7 +50,7 @@ NETWORK_SLICE_CONFIG = {
     "mcc": "001",
     "mnc": "01",
     "gNodeBs": [{"name": "dev2-gnbsim", "tac": 1}],
-    "upf": {"name": "0.0.0.0", "port": "8806"},
+    "upf": {"name": "0.0.0.0", "port": 8806},
 }
 
 

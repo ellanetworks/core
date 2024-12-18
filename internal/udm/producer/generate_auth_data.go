@@ -84,7 +84,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 
 	authSubs, err := producer.GetAuthSubsData(supi)
 	if err != nil {
-		return nil, fmt.Errorf("GetAuthSubsData error: %w", err)
+		return nil, fmt.Errorf("couldn't get authentication subscriber data: %w", err)
 	}
 
 	/*

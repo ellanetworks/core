@@ -151,7 +151,7 @@ func CreateNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 		var createNetworkSliceParams CreateNetworkSliceParams
 		err := c.ShouldBindJSON(&createNetworkSliceParams)
 		if err != nil {
-			logger.NmsLog.Errorf("Invalid request data %v", err)
+			logger.NmsLog.Errorf("Invalid request data: %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 			return
 		}
