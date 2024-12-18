@@ -143,7 +143,7 @@ func (db *Database) UpdateSubscriberProfile(ueID string, dnn string, sd string, 
 		PriorityLevel:   int32(priorityLevel),
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
-	logger.DBLog.Infof("Updated profile for subscriber with ueID %d", ueID)
+	logger.DBLog.Infof("Updated profile for subscriber with ueID %s", ueID)
 	return err
 }
 
@@ -160,6 +160,6 @@ func (db *Database) DeleteSubscriber(ueID string) error {
 		UeId: ueID,
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
-	logger.DBLog.Infof("Deleted subscriber with ueID %d", ueID)
+	logger.DBLog.Infof("Deleted subscriber with ueID %s", ueID)
 	return err
 }

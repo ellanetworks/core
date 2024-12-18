@@ -1,5 +1,5 @@
 import { apiGetNetworkSlice, apiGetAllNetworkSlices } from "@/utils/callNetworkSliceApi";
-import { apiGetDeviceGroup, apiPostDeviceGroup } from "@/utils/callDeviceGroupApi";
+import { apiGetProfile, apiPostProfile } from "@/utils/callProfileApi";
 import { apiDeleteSubscriber } from "@/utils/callSubscriberApi";
 
 export const deleteSubscriber = async (imsi: string) => {
@@ -24,9 +24,9 @@ export const deleteSubscriber = async (imsi: string) => {
       }
 
       const sliceData = await networkSliceResponse.json();
-      const deviceGroupNames = sliceData["site-device-group"];
+      const deviceGroupNames = sliceData["profiles"];
       for (const groupName of deviceGroupNames) {
-        const deviceGroupResponse = await apiGetDeviceGroup(groupName);
+        const deviceGroupResponse = await apiGetProfile(groupName);
 
         if (!deviceGroupResponse.ok) {
           throw new Error(
@@ -41,7 +41,7 @@ export const deleteSubscriber = async (imsi: string) => {
             (id: string) => id !== imsi,
           );
 
-          await apiPostDeviceGroup(groupName, deviceGroupData);
+          await apiPostProfile(groupName, deviceGroupData);
         }
       }
     }

@@ -12,7 +12,10 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-GNB_CONFIG_URL = "api/v1/radios"
+GNB_CONFIG_URL = "/api/v1/radios"
+NETWORK_SLICE_CONFIG_URL = "/api/v1/network-slices"
+PROFILE_CONFIG_URL = "/api/v1/profiles"
+SUBSCRIBERS_CONFIG_URL = "/api/v1/subscribers"
 
 JSON_HEADER = {"Content-Type": "application/json"}
 
@@ -24,41 +27,37 @@ SUBSCRIBER_CONFIG = {
     "sequenceNumber": "16f3b3f70fc2",
 }
 
-DEVICE_GROUP_CONFIG = {
+PROFILE_CONFIG = {
     "imsis": [],
-    "site-info": "demo",
-    "ip-domain-name": "pool1",
-    "ip-domain-expanded": {
-        "dnn": "internet",
-        "ue-ip-pool": "172.250.0.0/16",
-        "dns-primary": "8.8.8.8",
-        "mtu": 1460,
-        "ue-dnn-qos": {
-            "dnn-mbr-uplink": 200000000,
-            "dnn-mbr-downlink": 200000000,
-            "bitrate-unit": "bps",
-            "traffic-class": {"name": "platinum", "arp": 6, "pdb": 300, "pelr": 6, "qci": 8},
-        },
-    },
+    "dnn": "internet",
+    "ue-ip-pool": "172.250.0.0/16",
+    "dns-primary": "8.8.8.8",
+    "mtu": 1460,
+    "bitrate-uplink": 200000000,
+    "bitrate-downlink": 200000000,
+    "bitrate-unit": "bps",
+    "arp": 6,
+    "pdb": 300,
+    "pelr": 6,
+    "qci": 8
 }
 
 
 NETWORK_SLICE_CONFIG = {
-    "slice-id": {"sst": "1", "sd": "102030"},
-    "site-device-group": [],
-    "site-info": {
-        "site-name": "demo",
-        "plmn": {"mcc": "001", "mnc": "01"},
-        "gNodeBs": [{"name": "dev2-gnbsim", "tac": 1}],
-        "upf": {"upf-name": "0.0.0.0", "upf-port": "8806"},
-    },
+    "sst": "1",
+    "sd": "102030",
+    "profiles": [],
+    "mcc": "001",
+    "mnc": "01",
+    "gNodeBs": [{"name": "dev2-gnbsim", "tac": 1}],
+    "upf": {"name": "0.0.0.0", "port": 8806},
 }
 
 
 @dataclass
 class CreateRadioParams:
     """Parameters to create a radio."""
-
+    name: str
     tac: str
 
 
@@ -93,28 +92,27 @@ class Ella:
 
     def create_radio(self, name: str, tac: int) -> None:
         """Create a radio in the NMS."""
-        create_radio_params = CreateRadioParams(tac=str(tac))
-        self._make_request("POST", f"/{GNB_CONFIG_URL}/{name}", data=asdict(create_radio_params))
+        create_radio_params = CreateRadioParams(name=name, tac=str(tac))
+        self._make_request("POST", GNB_CONFIG_URL, data=asdict(create_radio_params))
         logger.info("Radio %s created in NMS", name)
 
     def create_subscriber(self, imsi: str) -> None:
         """Create a subscriber."""
-        url = f"/api/v1/subscribers/imsi-{imsi}"
         data = SUBSCRIBER_CONFIG.copy()
-        data["UeId"] = imsi
-        self._make_request(method="POST", endpoint=url, data=data)
+        data["UeId"] = f"imsi-{imsi}"
+        self._make_request(method="POST", endpoint=SUBSCRIBERS_CONFIG_URL, data=data)
         logger.info(f"Created subscriber with IMSI {imsi}.")
 
-    def create_device_group(self, name: str, imsis: List[str]) -> None:
-        """Create a device group."""
-        DEVICE_GROUP_CONFIG["imsis"] = imsis
-        url = f"/api/v1/device-groups/{name}"
-        self._make_request("POST", url, data=DEVICE_GROUP_CONFIG)
-        logger.info(f"Created device group {name}.")
+    def create_profile(self, name: str, imsis: List[str]) -> None:
+        """Create a profile."""
+        PROFILE_CONFIG["imsis"] = imsis
+        PROFILE_CONFIG["name"] = name
+        self._make_request("POST", PROFILE_CONFIG_URL, data=PROFILE_CONFIG)
+        logger.info(f"Created profile {name}.")
 
-    def create_network_slice(self, name: str, device_groups: List[str]) -> None:
+    def create_network_slice(self, name: str, profiles: List[str]) -> None:
         """Create a network slice."""
-        NETWORK_SLICE_CONFIG["site-device-group"] = device_groups
-        url = f"/api/v1/network-slices/{name}"
-        self._make_request("POST", url, data=NETWORK_SLICE_CONFIG)
+        NETWORK_SLICE_CONFIG["profiles"] = profiles
+        NETWORK_SLICE_CONFIG["name"] = name
+        self._make_request("POST", NETWORK_SLICE_CONFIG_URL, data=NETWORK_SLICE_CONFIG)
         logger.info(f"Created network slice {name}.")

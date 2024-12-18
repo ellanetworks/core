@@ -357,7 +357,7 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 	}
 	for _, networkSlice := range networkSlices {
 		pccPolicyId := networkSlice.Sst + networkSlice.Sd
-		deviceGroupNames := networkSlice.GetDeviceGroups()
+		deviceGroupNames := networkSlice.ListProfiles()
 		for _, devGroupName := range deviceGroupNames {
 			deviceGroup, err := pcfSelf.DbInstance.GetProfile(devGroupName)
 			if err != nil {
@@ -396,8 +396,8 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 				qosId, _ := pcfCtx.QoSDataIDGenerator.Allocate()
 				sessionRuleId, _ := pcfCtx.SessionRuleIDGenerator.Allocate()
 
-				ul, uunit := GetBitRateUnit(deviceGroup.DnnMbrUplink)
-				dl, dunit := GetBitRateUnit(deviceGroup.DnnMbrDownlink)
+				ul, uunit := GetBitRateUnit(deviceGroup.BitrateUplink)
+				dl, dunit := GetBitRateUnit(deviceGroup.BitrateDownlink)
 
 				// Create QoS data
 				qosData := &models.QosData{

@@ -49,7 +49,7 @@ func CreatePfcpConnection(addr string, pfcpHandlerMap PfcpHandlerMap, nodeId str
 	if n3Addr == nil {
 		return nil, fmt.Errorf("failed to parse N3 IP address ID: %s", n3Ip)
 	}
-	logger.UpfLog.Infof("Starting PFCP connection: %v with Node ID: %v and N3 address: %v", udpAddr, nodeId, n3Addr)
+	logger.UpfLog.Infof("PFCP server started on %v", udpAddr)
 
 	return &PfcpConnection{
 		udpConn:           udpConn,

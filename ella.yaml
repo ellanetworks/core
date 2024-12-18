@@ -1,12 +1,12 @@
-log-level: "info"
+log-level: "debug"
 db:
   path: "ella.db"
 interfaces: 
   n3: 
-    name: "enp3s0"
+    name: "access-br"
     address: "127.0.0.1"
   n6:
-    name: "enp6s0"
+    name: "core-br"
   api:
     name: "enp0s8"
     port: 5001

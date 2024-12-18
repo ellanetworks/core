@@ -1,5 +1,5 @@
-import { apiGetNetworkSlice, apiPostNetworkSlice } from "@/utils/callNetworkSliceApi";
-import { apiPostDeviceGroup } from "@/utils/callDeviceGroupApi";
+import { apiGetNetworkSlice, apiCreateNetworkSlice } from "@/utils/callNetworkSliceApi";
+import { apiPostProfile } from "@/utils/callProfileApi";
 
 interface GnbItem {
   name: string;
@@ -11,7 +11,7 @@ interface CreateNetworkSliceArgs {
   mcc: string;
   mnc: string;
   upfName: string;
-  upfPort: string;
+  upfPort: number;
   radioList: GnbItem[];
 }
 
@@ -25,46 +25,32 @@ export const createNetworkSlice = async ({
 }: CreateNetworkSliceArgs) => {
   const deviceGroupName = `${name}-default`;
   const sliceData = {
-    "slice-id": {
-      sst: "1",
-      sd: "102030",
-    },
-    "site-device-group": [deviceGroupName],
-    "site-info": {
-      "site-name": "demo",
-      plmn: {
-        mcc,
-        mnc,
-      },
-      gNodeBs: radioList,
-      upf: {
-        "upf-name": upfName,
-        "upf-port": upfPort,
-      },
+    name: name,
+    sst: "1",
+    sd: "102030",
+    profiles: [deviceGroupName],
+    mcc,
+    mnc,
+    gNodeBs: radioList,
+    upf: {
+      name: upfName,
+      port: upfPort,
     },
   };
 
   const deviceGroupData = {
-    "site-info": "demo",
-    "ip-domain-name": "pool1",
-    "ip-domain-expanded": {
-      dnn: "internet",
-      "ue-ip-pool": "172.250.1.0/16",
-      "dns-primary": "8.8.8.8",
-      mtu: 1460,
-      "ue-dnn-qos": {
-        "dnn-mbr-uplink": 20 * 1000000,
-        "dnn-mbr-downlink": 200 * 1000000,
-        "bitrate-unit": "bps",
-        "traffic-class": {
-          name: "platinum",
-          arp: 6,
-          pdb: 300,
-          pelr: 6,
-          qci: 8,
-        },
-      },
-    },
+    name: deviceGroupName,
+    dnn: "internet",
+    "ue-ip-pool": "172.250.1.0/16",
+    "dns-primary": "8.8.8.8",
+    mtu: 1460,
+    "bitrate-uplink": 20 * 1000000,
+    "bitrate-downlink": 200 * 1000000,
+    "bitrate-unit": "bps",
+    arp: 6,
+    pdb: 300,
+    pelr: 6,
+    qci: 8,
   };
 
   try {
@@ -73,7 +59,7 @@ export const createNetworkSlice = async ({
       throw new Error("Network slice already exists");
     }
 
-    const updateNetworkSliceResponse = await apiPostNetworkSlice(name, sliceData);
+    const updateNetworkSliceResponse = await apiCreateNetworkSlice(name, sliceData);
     if (!updateNetworkSliceResponse.ok) {
       const networkSliceData = await updateNetworkSliceResponse.json();
       if (networkSliceData.error) {
@@ -85,10 +71,10 @@ export const createNetworkSlice = async ({
       );
     }
 
-    const devicegroupResponse = await apiPostDeviceGroup(deviceGroupName, deviceGroupData);
+    const devicegroupResponse = await apiPostProfile(deviceGroupName, deviceGroupData);
     if (!devicegroupResponse.ok) {
       throw new Error(
-        `Error creating device group. Error code: ${devicegroupResponse.status}`,
+        `Error creating profile. Error code: ${devicegroupResponse.status}`,
       );
     }
 

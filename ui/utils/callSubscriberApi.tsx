@@ -35,12 +35,12 @@ export const apiGetSubscriber = async (imsi: string) => {
   }
 };
 
-export const apiPostSubscriber = async (imsi: string, subscriberData: any) => {
+export const apiCreateSubscriber = async (imsi: string, subscriberData: any) => {
   if (!isValidSubscriberName(imsi)) {
     throw new Error(`Error updating subscriber: Invalid name provided.`);
   }
   try {
-    const response = await fetch(`/api/v1/subscribers/imsi-${imsi}`, {
+    const response = await fetch(`/api/v1/subscribers`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

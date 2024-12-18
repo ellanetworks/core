@@ -1,8 +1,9 @@
-import { apiGetDeviceGroup, apiPostDeviceGroup } from "@/utils/callDeviceGroupApi";
-import { apiGetSubscriber, apiPostSubscriber } from "@/utils/callSubscriberApi";
+import { apiGetProfile, apiPostProfile } from "@/utils/callProfileApi";
+import { apiGetSubscriber, apiCreateSubscriber } from "@/utils/callSubscriberApi";
 
 interface CreateSubscriberArgs {
   imsi: string;
+  plmnID: string;
   opc: string;
   key: string;
   sequenceNumber: string;
@@ -11,6 +12,7 @@ interface CreateSubscriberArgs {
 
 export const createSubscriber = async ({
   imsi,
+  plmnID,
   opc,
   key,
   sequenceNumber,
@@ -18,6 +20,7 @@ export const createSubscriber = async ({
 }: CreateSubscriberArgs) => {
   const subscriberData = {
     UeId: imsi,
+    plmnID: plmnID,
     opc: opc,
     key: key,
     sequenceNumber: sequenceNumber,
@@ -32,25 +35,25 @@ export const createSubscriber = async ({
       throw new Error("Subscriber already exists.");
     }
 
-    const updateSubscriberResponse = await apiPostSubscriber(imsi, subscriberData);
+    const updateSubscriberResponse = await apiCreateSubscriber(imsi, subscriberData);
     if (!updateSubscriberResponse.ok) {
       throw new Error(
         `Error creating subscriber. Error code: ${updateSubscriberResponse.status}`,
       );
     }
 
-    const existingDeviceGroupResponse = await apiGetDeviceGroup(deviceGroupName);
-    var existingDeviceGroupData = await existingDeviceGroupResponse.json();
+    const existingProfileResponse = await apiGetProfile(deviceGroupName);
+    var existingProfileData = await existingProfileResponse.json();
 
-    if (!existingDeviceGroupData["imsis"]) {
-      existingDeviceGroupData["imsis"] = [];
+    if (!existingProfileData["imsis"]) {
+      existingProfileData["imsis"] = [];
     }
-    existingDeviceGroupData["imsis"].push(imsi);
+    existingProfileData["imsis"].push(imsi);
 
-    const updateDeviceGroupResponse = await apiPostDeviceGroup(deviceGroupName, existingDeviceGroupData);
-    if (!updateDeviceGroupResponse.ok) {
+    const updateProfileResponse = await apiPostProfile(deviceGroupName, existingProfileData);
+    if (!updateProfileResponse.ok) {
       throw new Error(
-        `Error updating device group. Error code: ${updateDeviceGroupResponse.status}`,
+        `Error updating device group. Error code: ${updateProfileResponse.status}`,
       );
     }
 

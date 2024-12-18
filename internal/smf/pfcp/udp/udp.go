@@ -60,7 +60,7 @@ func Run(Dispatch func(*Message)) {
 		Addr: addr,
 		Conn: conn,
 	}
-	logger.SmfLog.Infof("Listen on %s", addr.String())
+	logger.SmfLog.Infof("PFCP server started on %s", addr.String())
 
 	go func() {
 		for {

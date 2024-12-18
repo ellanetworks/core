@@ -1,5 +1,5 @@
 export const queryKeys = {
-  deviceGroups: "device-groups",
+  deviceGroups: "profiles",
   networkSlices: "network-slices",
   subscribers: "subscribers",
   upfList: "upf-list",

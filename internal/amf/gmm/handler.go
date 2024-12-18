@@ -1938,7 +1938,6 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 			ue.Kseaf = response.Kseaf
 			ue.Supi = response.Supi
 			ue.DerivateKamf()
-			ue.GmmLog.Debugln("ue.DerivateKamf()", ue.Kamf)
 			return GmmFSM.SendEvent(ue.State[accessType], AuthSuccessEvent, fsm.ArgsType{
 				ArgAmfUe:      ue,
 				ArgAccessType: accessType,

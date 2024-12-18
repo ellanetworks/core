@@ -28,24 +28,24 @@ interface SubscriberValues {
 type Props = {
   toggleModal: () => void;
   subscriber?: any;
-  slices : NetworkSlice[];
-  deviceGroups : any[]
+  slices: NetworkSlice[];
+  deviceGroups: any[]
 };
 
-const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props) => {
+const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups }: Props) => {
   const queryClient = useQueryClient();
   const [apiError, setApiError] = useState<string | null>(null);
   const rawIMSI = subscriber?.ueId.split("-")[1];
-  
-  const oldDeviceGroup = deviceGroups.find(
+
+  const oldProfile = deviceGroups.find(
     (deviceGroup) => deviceGroup["imsis"]?.includes(rawIMSI)
   );
-  const oldDeviceGroupName : string = oldDeviceGroup ? oldDeviceGroup["group-name"]: "";
+  const oldProfileName: string = oldProfile ? oldProfile["group-name"] : "";
 
   const oldNetworkSlice = slices.find(
-    (slice) => slice["site-device-group"]?.includes(oldDeviceGroupName)
+    (slice) => slice["profiles"]?.includes(oldProfileName)
   );
-  const oldNetworkSliceName : string = oldNetworkSlice ? oldNetworkSlice["slice-name"] : "";
+  const oldNetworkSliceName: string = oldNetworkSlice ? oldNetworkSlice["name"] : "";
 
   const SubscriberSchema = Yup.object().shape({
     imsi: Yup.string()
@@ -80,28 +80,28 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
   const formik = useFormik<SubscriberValues>({
     initialValues: {
       imsi: rawIMSI || "",
-      opc: subscriber?.["AuthenticationSubscription"]["opc"]["opcValue"] ||"",
+      opc: subscriber?.["AuthenticationSubscription"]["opc"]["opcValue"] || "",
       key: subscriber?.["AuthenticationSubscription"]["permanentKey"]["permanentKeyValue"] || "",
       sequenceNumber: subscriber?.["AuthenticationSubscription"]["sequenceNumber"] || "",
       selectedSlice: oldNetworkSliceName,
-      deviceGroup: oldDeviceGroupName,
+      deviceGroup: oldProfileName,
     },
     validationSchema: SubscriberSchema,
     onSubmit: async (values) => {
-      try{
-        if (subscriber)
-        {
+      try {
+        if (subscriber) {
           await editSubscriber({
             imsi: values.imsi,
             opc: values.opc,
             key: values.key,
             sequenceNumber: values.sequenceNumber,
-            oldDeviceGroupName: oldDeviceGroupName,
-            newDeviceGroupName: values.deviceGroup,
+            oldProfileName: oldProfileName,
+            newProfileName: values.deviceGroup,
           });
         } else {
           await createSubscriber({
             imsi: values.imsi,
+            plmnID: "00101",
             opc: values.opc,
             key: values.key,
             sequenceNumber: values.sequenceNumber,
@@ -125,15 +125,15 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
     void formik.setFieldValue("selectedSlice", e.target.value);
   };
 
-  const handleDeviceGroupChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleProfileChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     void formik.setFieldValue("deviceGroup", e.target.value);
   };
 
   const selectedSlice = slices.find(
-    (slice) => slice["slice-name"] === formik.values.selectedSlice,
+    (slice) => slice["name"] === formik.values.selectedSlice,
   );
 
-  const setDeviceGroup = useCallback(
+  const setProfile = useCallback(
     (deviceGroup: string) => {
       if (formik.values.deviceGroup !== deviceGroup) {
         formik.setFieldValue("deviceGroup", deviceGroup);
@@ -143,19 +143,19 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
   );
 
   const deviceGroupOptions =
-    selectedSlice && selectedSlice["site-device-group"]
-      ? selectedSlice["site-device-group"]
+    selectedSlice && selectedSlice["profiles"]
+      ? selectedSlice["profiles"]
       : [];
 
   useEffect(() => {
-    if (subscriber && selectedSlice && oldNetworkSliceName == selectedSlice["slice-name"]) {
-      setDeviceGroup(oldDeviceGroupName);
+    if (subscriber && selectedSlice && oldNetworkSliceName == selectedSlice["name"]) {
+      setProfile(oldProfileName);
     }
-    else if (selectedSlice && selectedSlice["site-device-group"]?.length === 1){
-      setDeviceGroup(selectedSlice["site-device-group"][0]);
+    else if (selectedSlice && selectedSlice["profiles"]?.length === 1) {
+      setProfile(selectedSlice["profiles"][0]);
     }
     else {
-      setDeviceGroup("");
+      setProfile("");
     }
   }, [deviceGroupOptions]);
 
@@ -233,7 +233,7 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
           label="Network Slice"
           stacked
           required
-          value = {formik.values.selectedSlice}
+          value={formik.values.selectedSlice}
           onChange={handleSliceChange}
           error={
             formik.touched.selectedSlice ? formik.errors.selectedSlice : null
@@ -245,8 +245,8 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
               value: "",
             },
             ...slices.map((slice) => ({
-              label: slice["slice-name"],
-              value: slice["slice-name"],
+              label: slice["name"],
+              value: slice["name"],
             })),
           ]}
         />
@@ -255,8 +255,8 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups}: Props
           label="Device Group"
           stacked
           required
-          value = {formik.values.deviceGroup}
-          onChange={handleDeviceGroupChange}
+          value={formik.values.deviceGroup}
+          onChange={handleProfileChange}
           error={formik.touched.deviceGroup ? formik.errors.deviceGroup : null}
           options={[
             {

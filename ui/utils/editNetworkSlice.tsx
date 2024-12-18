@@ -1,4 +1,4 @@
-import { apiGetNetworkSlice, apiPostNetworkSlice } from "@/utils/callNetworkSliceApi";
+import { apiGetNetworkSlice, apiCreateNetworkSlice } from "@/utils/callNetworkSliceApi";
 
 interface GnbItem {
   name: string;
@@ -10,7 +10,7 @@ interface EditNetworkSliceArgs {
   mcc: string;
   mnc: string;
   upfName: string;
-  upfPort: string;
+  upfPort: number;
   radioList: GnbItem[];
 }
 
@@ -35,13 +35,13 @@ export const editNetworkSlice = async ({
     }
 
     var sliceData = await getSliceResponse.json();
-    sliceData["site-info"]["plmn"].mcc = mcc
-    sliceData["site-info"]["plmn"].mnc = mnc
-    sliceData["site-info"]["gNodeBs"] = radioList
-    sliceData["site-info"]["upf"]["upf-name"] = upfName
-    sliceData["site-info"]["upf"]["upf-port"] = upfPort
+    sliceData.mcc = mcc
+    sliceData.mnc = mnc
+    sliceData["gNodeBs"] = radioList
+    sliceData["upf"]["name"] = upfName
+    sliceData["upf"]["port"] = upfPort
 
-    const updateSliceResponse = await apiPostNetworkSlice(name, sliceData);
+    const updateSliceResponse = await apiCreateNetworkSlice(name, sliceData);
 
     if (!updateSliceResponse.ok) {
       const result = await updateSliceResponse.json();

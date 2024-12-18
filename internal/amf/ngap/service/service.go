@@ -39,7 +39,6 @@ func Run(addresses []string, port int, handler NGAPHandler) {
 		if netAddr, err := net.ResolveIPAddr("ip", addr); err != nil {
 			logger.AmfLog.Errorf("Error resolving address '%s': %v\n", addr, err)
 		} else {
-			logger.AmfLog.Debugf("Resolved address '%s' to %s\n", addr, netAddr)
 			ips = append(ips, *netAddr)
 		}
 	}
@@ -60,7 +59,7 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 		sctpListener = listener
 	}
 
-	logger.AmfLog.Infof("Listen on %s", sctpListener.Addr())
+	logger.AmfLog.Infof("NGAP server started on %s", addr.String())
 
 	for {
 		newConn, err := sctpListener.AcceptSCTP()

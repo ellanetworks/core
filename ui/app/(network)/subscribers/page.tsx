@@ -8,7 +8,7 @@ import {
 } from "@canonical/react-components";
 import SubscriberModal from "@/components/SubscriberModal";
 import { getSubscribers } from "@/utils/getSubscribers";
-import { getDeviceGroups } from "@/utils/getDeviceGroup";
+import { getProfiles } from "@/utils/getProfile";
 import { getNetworkSlices } from "@/utils/getNetworkSlices";
 import SyncOutlinedIcon from "@mui/icons-material/SyncOutlined";
 import { deleteSubscriber } from "@/utils/deleteSubscriber";
@@ -34,9 +34,9 @@ const Subscribers = () => {
     queryFn: getSubscribers,
   });
 
-  const { data: deviceGroups = [], isLoading: isDeviceGroupsLoading } = useQuery({
+  const { data: deviceGroups = [], isLoading: isProfilesLoading } = useQuery({
     queryKey: [queryKeys.deviceGroups],
-    queryFn: getDeviceGroups,
+    queryFn: getProfiles,
   });
 
   const { data: slices = [], isLoading: isSlicesLoading } = useQuery({
@@ -63,42 +63,40 @@ const Subscribers = () => {
     toggleEditModal();
   }
 
-  const getEditButton = (subscriber: any) => 
-  {
+  const getEditButton = (subscriber: any) => {
     return <Button
-              appearance=""
-              className="u-no-margin--bottom"
-              shiftClickEnabled
-              showShiftClickHint
-              onClick={() =>{handleEditButton(subscriber)}}
-            >
-              Edit
-            </Button>
-  } 
+      appearance=""
+      className="u-no-margin--bottom"
+      shiftClickEnabled
+      showShiftClickHint
+      onClick={() => { handleEditButton(subscriber) }}
+    >
+      Edit
+    </Button>
+  }
 
-  const getDeleteButton = (imsi: string) =>
-  {
+  const getDeleteButton = (imsi: string) => {
     return <ConfirmationButton
-              appearance="negative"
-              className="u-no-margin--bottom"
-              shiftClickEnabled
-              showShiftClickHint
-              confirmationModalProps={{
-                title: "Confirm Delete",
-                confirmButtonLabel: "Delete",
-                onConfirm: () => handleConfirmDelete(imsi),
-                children: (
-                  <p>
-                    This will permanently delete the subscriber{" "}
-                    <b>{imsi}</b>
-                    <br />
-                    This action cannot be undone.
-                  </p>
-                ),
-              }}
-            >
-              Delete
-            </ConfirmationButton>
+      appearance="negative"
+      className="u-no-margin--bottom"
+      shiftClickEnabled
+      showShiftClickHint
+      confirmationModalProps={{
+        title: "Confirm Delete",
+        confirmButtonLabel: "Delete",
+        onConfirm: () => handleConfirmDelete(imsi),
+        children: (
+          <p>
+            This will permanently delete the subscriber{" "}
+            <b>{imsi}</b>
+            <br />
+            This action cannot be undone.
+          </p>
+        ),
+      }}
+    >
+      Delete
+    </ConfirmationButton>
   }
 
   const tableContent = subscribers.map((subscriber) => {
@@ -119,7 +117,7 @@ const Subscribers = () => {
     };
   });
 
-  if (isSubscribersLoading || isDeviceGroupsLoading || isSlicesLoading) {
+  if (isSubscribersLoading || isProfilesLoading || isSlicesLoading) {
     return <Loader text="Loading..." />;
   }
 
@@ -150,8 +148,8 @@ const Subscribers = () => {
         />
       </PageContent>
       {isCreateModalVisible && <SubscriberModal toggleModal={toggleCreateModal} slices={slices} deviceGroups={deviceGroups} />}
-      {isEditModalVisible && 
-        <SubscriberModal toggleModal={toggleEditModal} subscriber={subscriber} slices={slices} deviceGroups={deviceGroups}/>}
+      {isEditModalVisible &&
+        <SubscriberModal toggleModal={toggleEditModal} subscriber={subscriber} slices={slices} deviceGroups={deviceGroups} />}
     </>
   );
 };

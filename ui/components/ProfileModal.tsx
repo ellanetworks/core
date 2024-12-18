@@ -6,8 +6,8 @@ import {
   Form,
   ActionButton,
 } from "@canonical/react-components";
-import { createDeviceGroup } from "@/utils/createDeviceGroup";
-import { editDeviceGroup } from "@/utils/editDeviceGroup";
+import { createProfile } from "@/utils/createProfile";
+import { editProfile } from "@/utils/editProfile";
 import * as Yup from "yup";
 import { useFormik } from "formik";
 
@@ -17,7 +17,7 @@ const regexIp =
 const regexpCIDR =
   /^((25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\/([1-9]|[1-2][0-9]|3[0-2])$/;
 
-interface DeviceGroupValues {
+interface ProfileValues {
   name: string;
   ueIpPool: string;
   dns: string;
@@ -26,9 +26,9 @@ interface DeviceGroupValues {
   MBRUpstreamMbps: number | null;
 }
 
-interface DeviceGroupModalProps {
+interface ProfileModalProps {
   toggleModal: () => void;
-  onDeviceGroupAction: () => void;
+  onProfileAction: () => void;
   networkSliceName?: string;
   deviceGroup?: any;
 }
@@ -48,17 +48,17 @@ const ModalButtonText = (deviceGroupName: string | undefined) => {
   return deviceGroupName ? "Save Changes" : "Create"
 }
 
-const DeviceGroupModal = ({
+const ProfileModal = ({
   toggleModal,
-  onDeviceGroupAction,
+  onProfileAction,
   networkSliceName,
   deviceGroup,
-}: DeviceGroupModalProps) => {
+}: ProfileModalProps) => {
   const [apiError, setApiError] = useState<string | null>(null);
   const modalTitle = ModalTitle(networkSliceName, deviceGroup?.["group-name"])
   const modalButtonText = ModalButtonText(deviceGroup?.["group-name"])
 
-  const DeviceGroupSchema = Yup.object().shape({
+  const ProfileSchema = Yup.object().shape({
     name: Yup.string()
       .min(1)
       .max(20, "Name should not exceed 20 characters.")
@@ -83,22 +83,22 @@ const DeviceGroupModal = ({
       .required("Value should be between 0 and 1,000,000."),
   });
 
-  const formik = useFormik<DeviceGroupValues>({
+  const formik = useFormik<ProfileValues>({
     initialValues: {
       name: deviceGroup?.["group-name"] || "",
       ueIpPool: deviceGroup?.["ip-domain-expanded"]?.["ue-ip-pool"] || "",
       dns: deviceGroup?.["ip-domain-expanded"]?.["dns-primary"] || "8.8.8.8",
       mtu: deviceGroup?.["ip-domain-expanded"]?.["mtu"] || 1460,
-      MBRDownstreamMbps: deviceGroup?.["ip-domain-expanded"]?.["ue-dnn-qos"]?.["dnn-mbr-downlink"] / 1_000_000 || null,
-      MBRUpstreamMbps: deviceGroup?.["ip-domain-expanded"]?.["ue-dnn-qos"]?.["dnn-mbr-uplink"] / 1_000_000 || null,
+      MBRDownstreamMbps: deviceGroup?.["ip-domain-expanded"]?.["ue-dnn-qos"]?.["bitrate-downlink"] / 1_000_000 || null,
+      MBRUpstreamMbps: deviceGroup?.["ip-domain-expanded"]?.["ue-dnn-qos"]?.["bitrate-uplink"] / 1_000_000 || null,
     },
-    validationSchema: DeviceGroupSchema,
+    validationSchema: ProfileSchema,
     onSubmit: async (values) => {
       const MBRUpstreamBps = Number(values.MBRUpstreamMbps) * 1000000;
       const MBRDownstreamBps = Number(values.MBRDownstreamMbps) * 1000000;
       try {
         if (deviceGroup) {
-          await editDeviceGroup({
+          await editProfile({
             name: values.name,
             ueIpPool: values.ueIpPool,
             dns: values.dns,
@@ -107,7 +107,7 @@ const DeviceGroupModal = ({
             MBRDownstreamBps: MBRDownstreamBps,
           });
         } else if (networkSliceName) {
-          await createDeviceGroup({
+          await createProfile({
             name: values.name,
             ueIpPool: values.ueIpPool,
             dns: values.dns,
@@ -117,7 +117,7 @@ const DeviceGroupModal = ({
             networkSliceName: networkSliceName,
           });
         }
-        onDeviceGroupAction();
+        onProfileAction();
         toggleModal();
       } catch (error) {
         console.error(error);
@@ -236,4 +236,4 @@ const DeviceGroupModal = ({
     </Modal>
   );
 };
-export default DeviceGroupModal;
+export default ProfileModal;

@@ -25,18 +25,18 @@ func TestProfilesEndToEnd(t *testing.T) {
 	}
 
 	profile := &db.Profile{
-		Name:           "my-profile",
-		UeIpPool:       "0.0.0.0/24",
-		DnsPrimary:     "8.8.8.8",
-		DnsSecondary:   "9.9.9.9",
-		Mtu:            1500,
-		DnnMbrUplink:   1000000,
-		DnnMbrDownlink: 2000000,
-		BitrateUnit:    "bps",
-		Qci:            9,
-		Arp:            1,
-		Pdb:            1,
-		Pelr:           1,
+		Name:            "my-profile",
+		UeIpPool:        "0.0.0.0/24",
+		DnsPrimary:      "8.8.8.8",
+		DnsSecondary:    "9.9.9.9",
+		Mtu:             1500,
+		BitrateUplink:   1000000,
+		BitrateDownlink: 2000000,
+		BitrateUnit:     "bps",
+		Qci:             9,
+		Arp:             1,
+		Pdb:             1,
+		Pelr:            1,
 	}
 	err = database.CreateProfile(profile)
 	if err != nil {
@@ -70,11 +70,11 @@ func TestProfilesEndToEnd(t *testing.T) {
 	if retrievedProfile.Mtu != profile.Mtu {
 		t.Fatalf("The mtu from the database doesn't match the mtu that was given")
 	}
-	if retrievedProfile.DnnMbrUplink != profile.DnnMbrUplink {
-		t.Fatalf("The dnn mbr uplink from the database doesn't match the dnn mbr uplink that was given")
+	if retrievedProfile.BitrateUplink != profile.BitrateUplink {
+		t.Fatalf("The bitrate uplink from the database doesn't match the bitrate uplink that was given")
 	}
-	if retrievedProfile.DnnMbrDownlink != profile.DnnMbrDownlink {
-		t.Fatalf("The dnn mbr downlink from the database doesn't match the dnn mbr downlink that was given")
+	if retrievedProfile.BitrateDownlink != profile.BitrateDownlink {
+		t.Fatalf("The bitrate downlink from the database doesn't match the bitrate downlink that was given")
 	}
 	if retrievedProfile.BitrateUnit != profile.BitrateUnit {
 		t.Fatalf("The bitrate unit from the database doesn't match the bitrate unit that was given")

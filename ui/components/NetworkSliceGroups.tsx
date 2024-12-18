@@ -4,9 +4,9 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 
 import React, { useState } from "react";
 import { Button, Col, ConfirmationButton, MainTable, Row, } from "@canonical/react-components";
-import DeviceGroupModal from "@/components/DeviceGroupModal";
-import { getDeviceGroupsFromNetworkSlice } from "@/utils/getDeviceGroup";
-import { deleteDeviceGroup } from "@/utils/deleteDeviceGroup";
+import ProfileModal from "@/components/ProfileModal";
+import { getProfilesFromNetworkSlice } from "@/utils/getProfile";
+import { deleteProfile } from "@/utils/deleteProfile";
 import { queryKeys } from "@/utils/queryKeys";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NetworkSlice } from "@/components/types";
@@ -38,20 +38,20 @@ export const NetworkSliceGroups: React.FC<NetworkSliceTableProps> = ({
     }));
   };
   const { data: deviceGroupContent = [], isLoading } = useQuery({
-    queryKey: [queryKeys.deviceGroups, slice["slice-name"], slice["site-device-group"]?.join(",")],
-    queryFn: () => getDeviceGroupsFromNetworkSlice(slice),
+    queryKey: [queryKeys.deviceGroups, slice["name"], slice["profiles"]?.join(",")],
+    queryFn: () => getProfilesFromNetworkSlice(slice),
     enabled: isExpanded,
   });
 
   const handleConfirmDelete = async (name: string, networkSliceName: string) => {
-    await deleteDeviceGroup({
+    await deleteProfile({
       name,
       networkSliceName,
     });
     await queryClient.invalidateQueries({ queryKey: [queryKeys.networkSlices] });
   };
 
-  const handleDeviceGroupEdited = async () => {
+  const handleProfileEdited = async () => {
     await queryClient.invalidateQueries({
       queryKey: [queryKeys.deviceGroups],
     });
@@ -67,189 +67,184 @@ export const NetworkSliceGroups: React.FC<NetworkSliceTableProps> = ({
     return <span className="u-text--muted">No device groups found.</span>;
   }
 
-  const getDeleteButton = (deviceGroupName: string, subscribers: string[], sliceName: string) =>
-  {
-    const deleteIcon=<DeleteOutlinedIcon
-                        className="device-group-action-button"
-                      />
+  const getDeleteButton = (deviceGroupName: string, subscribers: string[], sliceName: string) => {
+    const deleteIcon = <DeleteOutlinedIcon
+      className="device-group-action-button"
+    />
     if (subscribers &&
-        subscribers.length > 0)
-    {
+      subscribers.length > 0) {
       return (
-          <ConfirmationButton
-            appearance="base"
-            className="u-no-margin--bottom is-small"
-            title="Delete device group"
-            confirmationModalProps={{
-              title: "Warning",
-              confirmButtonLabel: "Delete",
-              buttonRow:(null),
-              onConfirm: () => {},
-              children: (
-                <p>
-                  Device group <b>{deviceGroupName}</b> cannot be deleted.
-                  <br />
-                  Please remove the following subscribers first:
-                  <br />
-                  {subscribers.join(", ")}.
-                </p>
-              ),
-            }}
-          >
-            {deleteIcon}
-          </ConfirmationButton>
-      )
-    }
-    return (
         <ConfirmationButton
           appearance="base"
           className="u-no-margin--bottom is-small"
-          shiftClickEnabled
-          showShiftClickHint
           title="Delete device group"
           confirmationModalProps={{
-            title: "Confirm Delete",
+            title: "Warning",
             confirmButtonLabel: "Delete",
-            onConfirm: () => handleConfirmDelete(deviceGroupName, sliceName),
+            buttonRow: (null),
+            onConfirm: () => { },
             children: (
               <p>
-                This will permanently delete the device group <b>{deviceGroupName}</b>.
+                Device group <b>{deviceGroupName}</b> cannot be deleted.
                 <br />
-                You cannot undo this action.
+                Please remove the following subscribers first:
+                <br />
+                {subscribers.join(", ")}.
               </p>
             ),
           }}
         >
           {deleteIcon}
         </ConfirmationButton>
+      )
+    }
+    return (
+      <ConfirmationButton
+        appearance="base"
+        className="u-no-margin--bottom is-small"
+        shiftClickEnabled
+        showShiftClickHint
+        title="Delete device group"
+        confirmationModalProps={{
+          title: "Confirm Delete",
+          confirmButtonLabel: "Delete",
+          onConfirm: () => handleConfirmDelete(deviceGroupName, sliceName),
+          children: (
+            <p>
+              This will permanently delete the device group <b>{deviceGroupName}</b>.
+              <br />
+              You cannot undo this action.
+            </p>
+          ),
+        }}
+      >
+        {deleteIcon}
+      </ConfirmationButton>
     )
   }
 
-  const getEditButton = (modal_id: number) =>
-    {
-      const editIcon=<EditOutlinedIcon
-                        className="device-group-action-button"
-                      />
-      return (
-          <Button
-            className="u-no-margin--bottom is-small"
-            small
-            hasIcon
-            appearance={"base"}
-            onClick={() => showModal(modal_id)}
-            title="Edit"
-          >
-            {editIcon}
-          </Button>
-      )
-    }
+  const getEditButton = (modal_id: number) => {
+    const editIcon = <EditOutlinedIcon
+      className="device-group-action-button"
+    />
+    return (
+      <Button
+        className="u-no-margin--bottom is-small"
+        small
+        hasIcon
+        appearance={"base"}
+        onClick={() => showModal(modal_id)}
+        title="Edit"
+      >
+        {editIcon}
+      </Button>
+    )
+  }
 
   return deviceGroupContent.map((deviceGroup, deviceGroup_id) => (
-      <Row key={deviceGroup["group-name"]}>
-        <Col size={8}>
-          {modal.active && modal.id === deviceGroup_id && (
-            <DeviceGroupModal
-              toggleModal={toggleModal}
-              onDeviceGroupAction={handleDeviceGroupEdited}
-              deviceGroup={deviceGroup}
-            />
-          )}
-          <MainTable
-            headers={[
-              {
-                content: deviceGroup?.["group-name"] || "N/A",
-              },
-              {
-                content:
-                  (<div className="u-align--right">
-                    {getEditButton(deviceGroup_id)}
-                    {getDeleteButton(deviceGroup?.["group-name"], deviceGroup?.["imsis"] , slice["slice-name"])}
-                  </div>
-                  ),
-                className: "u-align--right",
-              },
-            ]}
-            rows={[
-              {
-                columns: [
-                  { content: "Subscriber IP Pool" },
-                  {
-                    content:
-                      deviceGroup?.["ip-domain-expanded"]?.[
-                        "ue-ip-pool"
-                      ] || "N/A",
-
-                    className: "u-align--right",
-                  },
-                ],
-              },
-              {
-                columns: [
-                  { content: "DNS" },
-                  {
-                    content:
-                      deviceGroup?.["ip-domain-expanded"]?.[
-                        "dns-primary"
-                      ] || "N/A",
-
-                    className: "u-align--right",
-                  },
-                ],
-              },
-              {
-                columns: [
-                  { content: "MTU" },
-                  {
-                    content:
-                      deviceGroup?.["ip-domain-expanded"]?.[
-                        "mtu"
-                      ] || "N/A",
-
-                    className: "u-align--right",
-                  },
-                ],
-              },
-              {
-                columns: [
-                  {
-                    content: "Maximum Bitrate - Downstream",
-                  },
-                  {
-                    content: deviceGroup?.[
-                      "ip-domain-expanded"
-                    ]?.["ue-dnn-qos"]?.["dnn-mbr-downlink"]
-                      ? `${
-                          deviceGroup?.["ip-domain-expanded"]?.[
-                            "ue-dnn-qos"
-                          ]?.["dnn-mbr-downlink"] / 1_000_000
-                        } Mbps`
-                      : "N/A",
-                    className: "u-align--right",
-                  },
-                ],
-              },
-              {
-                columns: [
-                  {
-                    content: "Maximum Bitrate - Upstream",
-                  },
-                  {
-                    content: deviceGroup?.[
-                      "ip-domain-expanded"
-                    ]?.["ue-dnn-qos"]?.["dnn-mbr-uplink"]
-                      ? `${
-                          deviceGroup?.["ip-domain-expanded"]?.[
-                            "ue-dnn-qos"
-                          ]?.["dnn-mbr-uplink"] / 1_000_000
-                        } Mbps`
-                      : "N/A",
-                    className: "u-align--right",
-                  },
-                ],
-              },
-            ]}
+    <Row key={deviceGroup["group-name"]}>
+      <Col size={8}>
+        {modal.active && modal.id === deviceGroup_id && (
+          <ProfileModal
+            toggleModal={toggleModal}
+            onProfileAction={handleProfileEdited}
+            deviceGroup={deviceGroup}
           />
-        </Col>
-      </Row>
-    ));
+        )}
+        <MainTable
+          headers={[
+            {
+              content: deviceGroup?.["group-name"] || "N/A",
+            },
+            {
+              content:
+                (<div className="u-align--right">
+                  {getEditButton(deviceGroup_id)}
+                  {getDeleteButton(deviceGroup?.["group-name"], deviceGroup?.["imsis"], slice["name"])}
+                </div>
+                ),
+              className: "u-align--right",
+            },
+          ]}
+          rows={[
+            {
+              columns: [
+                { content: "Subscriber IP Pool" },
+                {
+                  content:
+                    deviceGroup?.["ip-domain-expanded"]?.[
+                    "ue-ip-pool"
+                    ] || "N/A",
+
+                  className: "u-align--right",
+                },
+              ],
+            },
+            {
+              columns: [
+                { content: "DNS" },
+                {
+                  content:
+                    deviceGroup?.["ip-domain-expanded"]?.[
+                    "dns-primary"
+                    ] || "N/A",
+
+                  className: "u-align--right",
+                },
+              ],
+            },
+            {
+              columns: [
+                { content: "MTU" },
+                {
+                  content:
+                    deviceGroup?.["ip-domain-expanded"]?.[
+                    "mtu"
+                    ] || "N/A",
+
+                  className: "u-align--right",
+                },
+              ],
+            },
+            {
+              columns: [
+                {
+                  content: "Maximum Bitrate - Downstream",
+                },
+                {
+                  content: deviceGroup?.[
+                    "ip-domain-expanded"
+                  ]?.["ue-dnn-qos"]?.["bitrate-downlink"]
+                    ? `${deviceGroup?.["ip-domain-expanded"]?.[
+                    "ue-dnn-qos"
+                    ]?.["bitrate-downlink"] / 1_000_000
+                    } Mbps`
+                    : "N/A",
+                  className: "u-align--right",
+                },
+              ],
+            },
+            {
+              columns: [
+                {
+                  content: "Maximum Bitrate - Upstream",
+                },
+                {
+                  content: deviceGroup?.[
+                    "ip-domain-expanded"
+                  ]?.["ue-dnn-qos"]?.["bitrate-uplink"]
+                    ? `${deviceGroup?.["ip-domain-expanded"]?.[
+                    "ue-dnn-qos"
+                    ]?.["bitrate-uplink"] / 1_000_000
+                    } Mbps`
+                    : "N/A",
+                  className: "u-align--right",
+                },
+              ],
+            },
+          ]}
+        />
+      </Col>
+    </Row>
+  ));
 };

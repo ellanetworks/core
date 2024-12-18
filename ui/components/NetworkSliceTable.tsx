@@ -4,7 +4,7 @@ import ExpandMoreOutlinedIcon from "@mui/icons-material/ExpandMoreOutlined";
 
 import React, { useState } from "react";
 import { Button, MainTable } from "@canonical/react-components";
-import DeviceGroupModal from "@/components/DeviceGroupModal";
+import ProfileModal from "@/components/ProfileModal";
 import { queryKeys } from "@/utils/queryKeys";
 import { useQueryClient } from "@tanstack/react-query";
 import { NetworkSlice } from "@/components/types";
@@ -22,22 +22,22 @@ export const NetworkSliceTable: React.FC<NetworkSliceTableProps> = ({
   const [isModalVisible, setIsModalVisible] = useState(false);
   const toggleModal = () => setIsModalVisible(!isModalVisible);
 
-  const handleDeviceGroupCreated = async () => {
+  const handleProfileCreated = async () => {
     await queryClient.invalidateQueries({
       queryKey: [queryKeys.networkSlices],
     });
     await queryClient.invalidateQueries({
-      queryKey: [queryKeys.deviceGroups, slice["slice-name"]],
+      queryKey: [queryKeys.deviceGroups, slice["name"]],
     });
   };
 
   return (
     <>
-      {isModalVisible && slice?.["slice-name"] && (
-        <DeviceGroupModal
+      {isModalVisible && slice?.["name"] && (
+        <ProfileModal
           toggleModal={toggleModal}
-          onDeviceGroupAction={handleDeviceGroupCreated}
-          networkSliceName={slice["slice-name"]}
+          onProfileAction={handleProfileCreated}
+          networkSliceName={slice["name"]}
         />
       )}
       <MainTable
@@ -56,53 +56,51 @@ export const NetworkSliceTable: React.FC<NetworkSliceTableProps> = ({
             columns: [
               { content: "MCC" },
               {
-                content: slice["site-info"]?.plmn.mcc || "N/A",
+                content: slice.mcc || "N/A",
                 className: "u-align--right",
               },
             ],
-            key: `mcc-${slice["slice-name"]}`,
+            key: `mcc-${slice["name"]}`,
           },
           {
             columns: [
               { content: "MNC" },
               {
-                content: slice["site-info"]?.plmn.mnc || "N/A",
+                content: slice.mnc || "N/A",
                 className: "u-align--right",
               },
             ],
-            key: `mnc-${slice["slice-name"]}`,
+            key: `mnc-${slice["name"]}`,
           },
           {
             columns: [
               { content: "UPF" },
               {
-                content: `${slice["site-info"]?.upf?.["upf-name"] || "N/A"}:${
-                  slice["site-info"]?.upf?.["upf-port"] || "N/A"
-                }`,
+                content: `${slice.upf?.name || "N/A"}:${slice.upf?.port || "N/A"
+                  }`,
 
                 className: "u-align--right",
               },
             ],
-            key: `upf-${slice["slice-name"]}`,
+            key: `upf-${slice["name"]}`,
           },
           {
             columns: [
               { content: "gNodeBs" },
               {
                 content:
-                  slice?.["site-info"]?.gNodeBs?.length.toString() || "N/A",
+                  slice?.gNodeBs?.length.toString() || "N/A",
                 className: "u-align--right",
               },
             ],
-            key: `gNodeBs-${slice["slice-name"]}`,
+            key: `gNodeBs-${slice["name"]}`,
           },
           {
             columns: [
               {
-                content: `Device Groups (${
-                  !slice["site-device-group"] ||
-                  slice["site-device-group"].length
-                })`,
+                content: `Device Groups (${!slice["profiles"] ||
+                  slice["profiles"].length
+                  })`,
               },
               {
                 content: (
@@ -124,12 +122,12 @@ export const NetworkSliceTable: React.FC<NetworkSliceTableProps> = ({
                       small
                       hasIcon
                       disabled={
-                        !slice["site-device-group"] ||
-                        slice["site-device-group"].length === 0
+                        !slice["profiles"] ||
+                        slice["profiles"].length === 0
                       }
                       appearance={"base"}
                       onClick={() => setExpanded(!isExpanded)}
-                      title="expand device groups"
+                      title="expand profiles"
                     >
                       <ExpandMoreOutlinedIcon
                         fontSize="small"
@@ -149,7 +147,7 @@ export const NetworkSliceTable: React.FC<NetworkSliceTableProps> = ({
               <NetworkSliceGroups slice={slice} isExpanded={isExpanded} />
             ),
             expanded: isExpanded,
-            key: `device-groups-${slice["slice-name"]}`,
+            key: `profiles-${slice["name"]}`,
           },
         ]}
       />
