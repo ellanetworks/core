@@ -56,7 +56,7 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
   });
 
   const modalTitle = () => {
-    return networkSlice?.["slice-name"] ? ("Edit Network Slice: " + networkSlice["slice-name"]) : "Create Network Slice"
+    return networkSlice?.["name"] ? ("Edit Network Slice: " + networkSlice["name"]) : "Create Network Slice"
   }
 
   const buttonText = () => {
@@ -65,10 +65,10 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
 
   const formik = useFormik<NetworkSliceValues>({
     initialValues: {
-      mcc: networkSlice?.["site-info"]["plmn"].mcc || "",
-      mnc: networkSlice?.["site-info"]["plmn"].mnc || "",
-      name: networkSlice?.["slice-name"] || "",
-      radioList: networkSlice?.["site-info"].gNodeBs || [],
+      mcc: networkSlice?.mcc || "",
+      mnc: networkSlice?.mnc || "",
+      name: networkSlice?.["name"] || "",
+      radioList: networkSlice?.gNodeBs || [],
     },
     validationSchema: NetworkSliceSchema,
     onSubmit: async (values) => {
@@ -79,7 +79,7 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
             mcc: values.mcc.toString(),
             mnc: values.mnc.toString(),
             upfName: "0.0.0.0",
-            upfPort: "8806",
+            upfPort: 8806,
             radioList: values.radioList,
           });
         } else {
@@ -88,7 +88,7 @@ const NetworkSliceModal = ({ networkSlice, toggleModal }: NetworkSliceModalProps
             mcc: values.mcc.toString(),
             mnc: values.mnc.toString(),
             upfName: "0.0.0.0",
-            upfPort: "8806",
+            upfPort: 8806,
             radioList: values.radioList,
           });
         }

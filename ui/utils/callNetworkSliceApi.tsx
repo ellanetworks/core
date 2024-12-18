@@ -19,7 +19,7 @@ export const apiGetAllNetworkSlices = async () => {
 
 export const apiGetNetworkSlice = async (name: string) => {
   if (!isValidNetworkSliceName(name)) {
-    throw new Error(`Error getting network slice: Invalid name provided.`);
+    throw new Error(`Error getting network slice: Invalid name provided: ${name}`);
   }
   try {
     const response = await fetch(`/api/v1/network-slices/${name}`, {

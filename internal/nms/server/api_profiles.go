@@ -69,33 +69,33 @@ func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 		setCorsHeader(c)
 		dbProfiles, err := dbInstance.ListProfiles()
 		if err != nil {
-			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve device groups"})
+			logger.NmsLog.Warnf("couldn't list profiles: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve profiles"})
 			return
 		}
 		var profileList []GetProfileResponse
-		for _, profile := range dbProfiles {
-			deviceGroup := GetProfileResponse{
-				Name:            profile.Name,
-				UeIpPool:        profile.UeIpPool,
-				DnsPrimary:      profile.DnsPrimary,
-				DnsSecondary:    profile.DnsSecondary,
-				BitrateDownlink: profile.BitrateDownlink,
-				BitrateUplink:   profile.BitrateUplink,
-				BitrateUnit:     profile.BitrateUnit,
-				Qci:             profile.Qci,
-				Arp:             profile.Arp,
-				Pdb:             profile.Pdb,
-				Pelr:            profile.Pelr,
+		for _, dbProfile := range dbProfiles {
+			profileResponse := GetProfileResponse{
+				Name:            dbProfile.Name,
+				UeIpPool:        dbProfile.UeIpPool,
+				DnsPrimary:      dbProfile.DnsPrimary,
+				DnsSecondary:    dbProfile.DnsSecondary,
+				BitrateDownlink: dbProfile.BitrateDownlink,
+				BitrateUplink:   dbProfile.BitrateUplink,
+				BitrateUnit:     dbProfile.BitrateUnit,
+				Qci:             dbProfile.Qci,
+				Arp:             dbProfile.Arp,
+				Pdb:             dbProfile.Pdb,
+				Pelr:            dbProfile.Pelr,
 			}
-			imsis, err := profile.GetImsis()
+			imsis, err := dbProfile.GetImsis()
 			if err != nil {
-				logger.NmsLog.Warnln(err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve device groups"})
+				logger.NmsLog.Warnf("couldn't get imsis: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve profile"})
 				return
 			}
-			deviceGroup.Imsis = imsis
-			profileList = append(profileList, deviceGroup)
+			profileResponse.Imsis = imsis
+			profileList = append(profileList, profileResponse)
 		}
 		c.JSON(http.StatusOK, profileList)
 	}
@@ -113,11 +113,11 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 		dbProfile, err := dbInstance.GetProfile(groupName)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusNotFound, gin.H{"error": "Unable to retrieve device group"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Unable to retrieve profile"})
 			return
 		}
 
-		deviceGroup := GetProfileResponse{
+		profileResponse := GetProfileResponse{
 			Name:            dbProfile.Name,
 			UeIpPool:        dbProfile.UeIpPool,
 			DnsPrimary:      dbProfile.DnsPrimary,
@@ -134,11 +134,11 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 		imsis, err := dbProfile.GetImsis()
 		if err != nil {
 			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve device group"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve profile"})
 			return
 		}
-		deviceGroup.Imsis = imsis
-		c.JSON(http.StatusOK, deviceGroup)
+		profileResponse.Imsis = imsis
+		c.JSON(http.StatusOK, profileResponse)
 	}
 }
 
@@ -257,7 +257,7 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		err = dbInstance.CreateProfile(dbProfile)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create device group"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create profile"})
 			return
 		}
 		updateSMF(dbInstance)
@@ -285,7 +285,7 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 		err = dbInstance.DeleteProfile(groupName)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete device group"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete profile"})
 			return
 		}
 		updateSMF(dbInstance)
@@ -294,10 +294,10 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 	}
 }
 
-func deleteProfileConfig(dbInstance *db.Database, deviceGroup *db.Profile) {
-	slice := isProfileExistInSlice(dbInstance, deviceGroup.Name)
+func deleteProfileConfig(dbInstance *db.Database, dbProfile *db.Profile) {
+	slice := isProfileExistInSlice(dbInstance, dbProfile.Name)
 	if slice != nil {
-		dimsis, err := deviceGroup.GetImsis()
+		dimsis, err := dbProfile.GetImsis()
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			return
@@ -312,7 +312,7 @@ func deleteProfileConfig(dbInstance *db.Database, deviceGroup *db.Profile) {
 	}
 }
 
-func isProfileExistInSlice(dbInstance *db.Database, deviceGroupName string) *db.NetworkSlice {
+func isProfileExistInSlice(dbInstance *db.Database, profileName string) *db.NetworkSlice {
 	dBSlices, err := dbInstance.ListNetworkSlices()
 	if err != nil {
 		logger.NmsLog.Warnln(err)
@@ -321,7 +321,7 @@ func isProfileExistInSlice(dbInstance *db.Database, deviceGroupName string) *db.
 	for name, slice := range dBSlices {
 		profiles := slice.ListProfiles()
 		for _, dgName := range profiles {
-			if dgName == deviceGroupName {
+			if dgName == profileName {
 				logger.NmsLog.Infof("Device Group [%v] is part of slice: %v", dgName, name)
 				return &slice
 			}

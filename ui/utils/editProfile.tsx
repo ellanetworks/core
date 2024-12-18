@@ -23,27 +23,18 @@ export const editProfile = async ({
     var imsis = currentConfig["imsis"]
 
     const deviceGroupData = {
-      "site-info": "demo",
       "imsis": imsis,
-      "ip-domain-name": "pool1",
-      "ip-domain-expanded": {
-        dnn: "internet",
-        "ue-ip-pool": ueIpPool,
-        "dns-primary": dns,
-        mtu: mtu,
-        "ue-dnn-qos": {
-          "bitrate-uplink": MBRUpstreamBps,
-          "bitrate-downlink": MBRDownstreamBps,
-          "bitrate-unit": "bps",
-          "traffic-class": {
-            name: "platinum",
-            arp: 6,
-            pdb: 300,
-            pelr: 6,
-            qci: 8,
-          },
-        },
-      },
+      dnn: "internet",
+      "ue-ip-pool": ueIpPool,
+      "dns-primary": dns,
+      mtu: mtu,
+      "bitrate-uplink": MBRUpstreamBps,
+      "bitrate-downlink": MBRDownstreamBps,
+      "bitrate-unit": "bps",
+      arp: 6,
+      pdb: 300,
+      pelr: 6,
+      qci: 8,
     };
 
     const response = await apiPostProfile(name, deviceGroupData);

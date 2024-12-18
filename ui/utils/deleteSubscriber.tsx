@@ -24,7 +24,7 @@ export const deleteSubscriber = async (imsi: string) => {
       }
 
       const sliceData = await networkSliceResponse.json();
-      const deviceGroupNames = sliceData["site-device-group"];
+      const deviceGroupNames = sliceData["profiles"];
       for (const groupName of deviceGroupNames) {
         const deviceGroupResponse = await apiGetProfile(groupName);
 

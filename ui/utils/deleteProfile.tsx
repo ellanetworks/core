@@ -20,10 +20,10 @@ export const deleteProfile = async ({
 
     var existingSliceData = await existingSliceResponse.json();
 
-    if (existingSliceData["site-device-group"]) {
-      const index = existingSliceData["site-device-group"].indexOf(name);
+    if (existingSliceData["profiles"]) {
+      const index = existingSliceData["profiles"].indexOf(name);
       if (index > -1) {
-        existingSliceData["site-device-group"].splice(index, 1);
+        existingSliceData["profiles"].splice(index, 1);
 
         const updateSliceResponse = await apiCreateNetworkSlice(networkSliceName, existingSliceData);
         if (!updateSliceResponse.ok) {

@@ -54,6 +54,25 @@ export const apiPostProfile = async (name: string, deviceGroupData: any) => {
   }
 };
 
+export const apiPutProfile = async (name: string, deviceGroupData: any) => {
+  if (!isValidProfileName(name)) {
+    throw new Error(`Error updating device group: Invalid name provided.`);
+  }
+  try {
+    const response = await fetch(`/api/v1/profiles/${name}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(deviceGroupData),
+    });
+    return response
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+}
+
 export const apiDeleteProfile = async (name: string) => {
   if (!isValidProfileName(name)) {
     throw new Error(`Error deleting device group: Invalid name provided.`);

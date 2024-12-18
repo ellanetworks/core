@@ -7,7 +7,9 @@ export const getNetworkSlices = async (): Promise<NetworkSlice[]> => {
     if (!response.ok) {
       throw new Error("Failed to fetch network slices");
     }
-    const sliceNames = await response.json();
+    const slices = await response.json();
+
+    const sliceNames = slices.map((slice: any) => slice.name);
 
     const sliceDetailsPromises = sliceNames.map(async (sliceName: string) => {
       const detailResponse = await apiGetNetworkSlice(sliceName);

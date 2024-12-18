@@ -63,6 +63,23 @@ type DeleteProfileResponseResult struct {
 	ID int `json:"id"`
 }
 
+func listProfiles(url string, client *http.Client) (int, []*GetProfileResponse, error) {
+	req, err := http.NewRequest("GET", url+"/api/v1/profiles", nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer res.Body.Close()
+	var profileResponse []*GetProfileResponse
+	if err := json.NewDecoder(res.Body).Decode(&profileResponse); err != nil {
+		return 0, nil, err
+	}
+	return res.StatusCode, profileResponse, nil
+}
+
 func getProfile(url string, client *http.Client, name string) (int, *GetProfileResponse, error) {
 	req, err := http.NewRequest("GET", url+"/api/v1/profiles/"+name, nil)
 	if err != nil {
@@ -127,7 +144,20 @@ func TestProfilesEndToEnd(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	t.Run("1. Create profile", func(t *testing.T) {
+	t.Run("1. List profiles - 0", func(t *testing.T) {
+		statusCode, profiles, err := listProfiles(ts.URL, client)
+		if err != nil {
+			t.Fatalf("couldn't list profile: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+		if len(profiles) != 0 {
+			t.Fatalf("expected 0 profiles, got %d", len(profiles))
+		}
+	})
+
+	t.Run("2. Create profile", func(t *testing.T) {
 		createProfileParams := &CreateProfileParams{
 			Name:            ProfileName,
 			Dnn:             "internet",
@@ -155,7 +185,20 @@ func TestProfilesEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("2. Get profile", func(t *testing.T) {
+	t.Run("3. List profiles - 1", func(t *testing.T) {
+		statusCode, profiles, err := listProfiles(ts.URL, client)
+		if err != nil {
+			t.Fatalf("couldn't list profile: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+		if len(profiles) != 1 {
+			t.Fatalf("expected 1 profile, got %d", len(profiles))
+		}
+	})
+
+	t.Run("4. Get profile", func(t *testing.T) {
 		statusCode, response, err := getProfile(ts.URL, client, ProfileName)
 		if err != nil {
 			t.Fatalf("couldn't get profile: %s", err)
@@ -201,7 +244,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("3. Get profile - id not found", func(t *testing.T) {
+	t.Run("5. Get profile - id not found", func(t *testing.T) {
 		statusCode, _, err := getProfile(ts.URL, client, "device-group-002")
 		if err != nil {
 			t.Fatalf("couldn't get profile: %s", err)
@@ -211,7 +254,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("4. Create profile - no name", func(t *testing.T) {
+	t.Run("5. Create profile - no name", func(t *testing.T) {
 		createProfileParams := &CreateProfileParams{}
 		statusCode, _, err := createProfile(ts.URL, client, createProfileParams)
 		if err != nil {
@@ -222,7 +265,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("5. Delete profile - success", func(t *testing.T) {
+	t.Run("6. Delete profile - success", func(t *testing.T) {
 		statusCode, err := deleteProfile(ts.URL, client, ProfileName)
 		if err != nil {
 			t.Fatalf("couldn't delete profile: %s", err)
@@ -232,7 +275,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("6. Delete profile - no device group", func(t *testing.T) {
+	t.Run("7. Delete profile - no device group", func(t *testing.T) {
 		statusCode, err := deleteProfile(ts.URL, client, ProfileName)
 		if err != nil {
 			t.Fatalf("couldn't delete profile: %s", err)

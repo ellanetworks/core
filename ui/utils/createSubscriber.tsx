@@ -3,6 +3,7 @@ import { apiGetSubscriber, apiCreateSubscriber } from "@/utils/callSubscriberApi
 
 interface CreateSubscriberArgs {
   imsi: string;
+  plmnID: string;
   opc: string;
   key: string;
   sequenceNumber: string;
@@ -11,6 +12,7 @@ interface CreateSubscriberArgs {
 
 export const createSubscriber = async ({
   imsi,
+  plmnID,
   opc,
   key,
   sequenceNumber,
@@ -18,6 +20,7 @@ export const createSubscriber = async ({
 }: CreateSubscriberArgs) => {
   const subscriberData = {
     UeId: imsi,
+    plmnID: plmnID,
     opc: opc,
     key: key,
     sequenceNumber: sequenceNumber,

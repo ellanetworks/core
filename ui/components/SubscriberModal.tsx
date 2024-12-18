@@ -43,9 +43,9 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups }: Prop
   const oldProfileName: string = oldProfile ? oldProfile["group-name"] : "";
 
   const oldNetworkSlice = slices.find(
-    (slice) => slice["site-device-group"]?.includes(oldProfileName)
+    (slice) => slice["profiles"]?.includes(oldProfileName)
   );
-  const oldNetworkSliceName: string = oldNetworkSlice ? oldNetworkSlice["slice-name"] : "";
+  const oldNetworkSliceName: string = oldNetworkSlice ? oldNetworkSlice["name"] : "";
 
   const SubscriberSchema = Yup.object().shape({
     imsi: Yup.string()
@@ -101,6 +101,7 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups }: Prop
         } else {
           await createSubscriber({
             imsi: values.imsi,
+            plmnID: "00101",
             opc: values.opc,
             key: values.key,
             sequenceNumber: values.sequenceNumber,
@@ -129,7 +130,7 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups }: Prop
   };
 
   const selectedSlice = slices.find(
-    (slice) => slice["slice-name"] === formik.values.selectedSlice,
+    (slice) => slice["name"] === formik.values.selectedSlice,
   );
 
   const setProfile = useCallback(
@@ -142,16 +143,16 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups }: Prop
   );
 
   const deviceGroupOptions =
-    selectedSlice && selectedSlice["site-device-group"]
-      ? selectedSlice["site-device-group"]
+    selectedSlice && selectedSlice["profiles"]
+      ? selectedSlice["profiles"]
       : [];
 
   useEffect(() => {
-    if (subscriber && selectedSlice && oldNetworkSliceName == selectedSlice["slice-name"]) {
+    if (subscriber && selectedSlice && oldNetworkSliceName == selectedSlice["name"]) {
       setProfile(oldProfileName);
     }
-    else if (selectedSlice && selectedSlice["site-device-group"]?.length === 1) {
-      setProfile(selectedSlice["site-device-group"][0]);
+    else if (selectedSlice && selectedSlice["profiles"]?.length === 1) {
+      setProfile(selectedSlice["profiles"][0]);
     }
     else {
       setProfile("");
@@ -244,8 +245,8 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups }: Prop
               value: "",
             },
             ...slices.map((slice) => ({
-              label: slice["slice-name"],
-              value: slice["slice-name"],
+              label: slice["name"],
+              value: slice["name"],
             })),
           ]}
         />

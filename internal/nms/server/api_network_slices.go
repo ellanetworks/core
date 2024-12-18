@@ -155,6 +155,41 @@ func CreateNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 			return
 		}
+		if createNetworkSliceParams.Name == "" {
+			logger.NmsLog.Errorf("name is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing name parameter"})
+			return
+		}
+		if createNetworkSliceParams.Sst == "" {
+			logger.NmsLog.Errorf("sst is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing sst parameter"})
+			return
+		}
+		if createNetworkSliceParams.Sd == "" {
+			logger.NmsLog.Errorf("sd is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing sd parameter"})
+			return
+		}
+		if createNetworkSliceParams.Mcc == "" {
+			logger.NmsLog.Errorf("mcc is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing mcc parameter"})
+			return
+		}
+		if createNetworkSliceParams.Mnc == "" {
+			logger.NmsLog.Errorf("mnc is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing mnc parameter"})
+			return
+		}
+		if createNetworkSliceParams.Upf.Name == "" {
+			logger.NmsLog.Errorf("upf name is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing upf name parameter"})
+			return
+		}
+		if createNetworkSliceParams.Upf.Port == 0 {
+			logger.NmsLog.Errorf("upf port is missing")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing upf port parameter"})
+			return
+		}
 
 		_, err = dbInstance.GetNetworkSlice(createNetworkSliceParams.Name)
 		if err == nil {

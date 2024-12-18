@@ -1,4 +1,4 @@
-import { apiGetProfile, apiPostProfile } from "@/utils/callProfileApi";
+import { apiGetProfile, apiPutProfile } from "@/utils/callProfileApi";
 import { apiGetSubscriber, apiCreateSubscriber } from "@/utils/callSubscriberApi";
 
 interface EditSubscriberArgs {
@@ -87,7 +87,7 @@ const getProfileData = async (deviceGroupName: string) => {
 
 const updateProfileData = async (deviceGroupName: string, deviceGroupData: any) => {
   try {
-    const updateProfileResponse = await apiPostProfile(deviceGroupName, deviceGroupData);
+    const updateProfileResponse = await apiPutProfile(deviceGroupName, deviceGroupData);
     if (!updateProfileResponse.ok) {
       throw new Error(
         `Error updating device group. Error code: ${updateProfileResponse.status}`,

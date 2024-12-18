@@ -21,26 +21,18 @@ export const createProfile = async ({
   networkSliceName,
 }: ProfileArgs) => {
   const deviceGroupData = {
-    "site-info": "demo",
-    "ip-domain-name": "pool1",
-    "ip-domain-expanded": {
-      dnn: "internet",
-      "ue-ip-pool": ueIpPool,
-      "dns-primary": dns,
-      mtu: mtu,
-      "ue-dnn-qos": {
-        "bitrate-uplink": MBRUpstreamBps,
-        "bitrate-downlink": MBRDownstreamBps,
-        "bitrate-unit": "bps",
-        "traffic-class": {
-          name: "platinum",
-          arp: 6,
-          pdb: 300,
-          pelr: 6,
-          qci: 8,
-        },
-      },
-    },
+    name: name,
+    dnn: "internet",
+    "ue-ip-pool": ueIpPool,
+    "dns-primary": dns,
+    mtu: mtu,
+    "bitrate-uplink": MBRUpstreamBps,
+    "bitrate-downlink": MBRDownstreamBps,
+    "bitrate-unit": "bps",
+    arp: 6,
+    pdb: 300,
+    pelr: 6,
+    qci: 8,
   };
 
   try {
@@ -52,17 +44,17 @@ export const createProfile = async ({
     const updateProfileResponse = await apiPostProfile(name, deviceGroupData);
     if (!updateProfileResponse.ok) {
       throw new Error(
-        `Error creating device group. Error code: ${updateProfileResponse.status}`,
+        `Error creating profile. Error code: ${updateProfileResponse.status}`,
       );
     }
 
     const existingSliceResponse = await apiGetNetworkSlice(networkSliceName);
     var existingSliceData = await existingSliceResponse.json();
 
-    if (!existingSliceData["site-device-group"]) {
-      existingSliceData["site-device-group"] = [];
+    if (!existingSliceData["profiles"]) {
+      existingSliceData["profiles"] = [];
     }
-    existingSliceData["site-device-group"].push(name);
+    existingSliceData["profiles"].push(name);
 
     const updateSliceResponse = await apiCreateNetworkSlice(networkSliceName, existingSliceData);
     if (!updateSliceResponse.ok) {
