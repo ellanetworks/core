@@ -12,11 +12,11 @@ import (
 
 // Database is the object used to communicate with the established repository.
 type Database struct {
-	subscribersTable   string
-	profilesTable      string
-	networkSlicesTable string
-	radiosTable        string
-	conn               *sqlair.DB
+	subscribersTable string
+	profilesTable    string
+	networkTable     string
+	radiosTable      string
+	conn             *sqlair.DB
 }
 
 // Close closes the connection to the repository cleanly.
@@ -45,7 +45,7 @@ func NewDatabase(databasePath string) (*Database, error) {
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateProfilesTable, ProfilesTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateNetworkSlicesTable, NetworkSlicesTableName)); err != nil {
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateNetworkTable, NetworkTableName)); err != nil {
 		return nil, err
 	}
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateRadiosTable, RadiosTableName)); err != nil {
@@ -55,8 +55,12 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.conn = sqlair.NewDB(sqlConnection)
 	db.subscribersTable = SubscribersTableName
 	db.profilesTable = ProfilesTableName
-	db.networkSlicesTable = NetworkSlicesTableName
+	db.networkTable = NetworkTableName
 	db.radiosTable = RadiosTableName
+	err = db.InitializeNetwork()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize network configuration: %v", err)
+	}
 	logger.DBLog.Infof("Database Initialized")
 	return db, nil
 }

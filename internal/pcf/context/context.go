@@ -329,99 +329,95 @@ func (sess SessionPolicy) String() string {
 func GetPLMNList() []PlmnSupportItem {
 	pcfSelf := PCF_Self()
 	plmnSupportList := make([]PlmnSupportItem, 0)
-	networkSlices, err := pcfSelf.DbInstance.ListNetworkSlices()
+	dbNetwork, err := pcfSelf.DbInstance.GetNetwork()
 	if err != nil {
 		logger.PcfLog.Warnf("Failed to get network slice names: %+v", err)
 		return plmnSupportList
 	}
-	for _, networkSlice := range networkSlices {
-		plmnID := models.PlmnId{
-			Mcc: networkSlice.Mcc,
-			Mnc: networkSlice.Mnc,
-		}
-		plmnSupportItem := PlmnSupportItem{
-			PlmnId: plmnID,
-		}
-		plmnSupportList = append(plmnSupportList, plmnSupportItem)
+	plmnID := models.PlmnId{
+		Mcc: dbNetwork.Mcc,
+		Mnc: dbNetwork.Mnc,
 	}
+	plmnSupportItem := PlmnSupportItem{
+		PlmnId: plmnID,
+	}
+	plmnSupportList = append(plmnSupportList, plmnSupportItem)
 	return plmnSupportList
 }
 
 func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 	pcfSelf := PCF_Self()
 	subscriberPolicies := make(map[string]*PcfSubscriberPolicyData)
-	networkSlices, err := pcfSelf.DbInstance.ListNetworkSlices()
+	dbNetwork, err := pcfSelf.DbInstance.GetNetwork()
 	if err != nil {
 		logger.PcfLog.Warnf("Failed to get network slice names: %+v", err)
 		return subscriberPolicies
 	}
-	for _, networkSlice := range networkSlices {
-		pccPolicyId := networkSlice.Sst + networkSlice.Sd
-		deviceGroupNames := networkSlice.ListProfiles()
-		for _, devGroupName := range deviceGroupNames {
-			deviceGroup, err := pcfSelf.DbInstance.GetProfile(devGroupName)
-			if err != nil {
-				logger.PcfLog.Warnf("Failed to get device group profile: %+v", err)
-				continue
+	pccPolicyId := dbNetwork.Sst + dbNetwork.Sd
+	deviceGroupNames := dbNetwork.ListProfiles()
+	for _, devGroupName := range deviceGroupNames {
+		deviceGroup, err := pcfSelf.DbInstance.GetProfile(devGroupName)
+		if err != nil {
+			logger.PcfLog.Warnf("Failed to get device group profile: %+v", err)
+			continue
+		}
+		imsis, err := deviceGroup.GetImsis()
+		if err != nil {
+			logger.PcfLog.Warnf("Failed to get imsis from device group: %+v", err)
+			continue
+		}
+		for _, imsi := range imsis {
+			if _, exists := subscriberPolicies[imsi]; !exists {
+				subscriberPolicies[imsi] = &PcfSubscriberPolicyData{
+					Supi:      imsi,
+					PccPolicy: make(map[string]*PccPolicy),
+				}
 			}
-			imsis, err := deviceGroup.GetImsis()
-			if err != nil {
-				logger.PcfLog.Warnf("Failed to get imsis from device group: %+v", err)
-				continue
+
+			if _, exists := subscriberPolicies[imsi].PccPolicy[pccPolicyId]; !exists {
+				subscriberPolicies[imsi].PccPolicy[pccPolicyId] = &PccPolicy{
+					SessionPolicy: make(map[string]*SessionPolicy),
+					PccRules:      make(map[string]*models.PccRule),
+					QosDecs:       make(map[string]*models.QosData),
+					TraffContDecs: make(map[string]*models.TrafficControlData),
+				}
 			}
-			for _, imsi := range imsis {
-				if _, exists := subscriberPolicies[imsi]; !exists {
-					subscriberPolicies[imsi] = &PcfSubscriberPolicyData{
-						Supi:      imsi,
-						PccPolicy: make(map[string]*PccPolicy),
-					}
+
+			if _, exists := subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[DNN]; !exists {
+				subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[DNN] = &SessionPolicy{
+					SessionRules: make(map[string]*models.SessionRule),
 				}
+			}
 
-				if _, exists := subscriberPolicies[imsi].PccPolicy[pccPolicyId]; !exists {
-					subscriberPolicies[imsi].PccPolicy[pccPolicyId] = &PccPolicy{
-						SessionPolicy: make(map[string]*SessionPolicy),
-						PccRules:      make(map[string]*models.PccRule),
-						QosDecs:       make(map[string]*models.QosData),
-						TraffContDecs: make(map[string]*models.TrafficControlData),
-					}
-				}
+			// Generate IDs using ID generators
+			qosId, _ := pcfCtx.QoSDataIDGenerator.Allocate()
+			sessionRuleId, _ := pcfCtx.SessionRuleIDGenerator.Allocate()
 
-				if _, exists := subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[DNN]; !exists {
-					subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[DNN] = &SessionPolicy{
-						SessionRules: make(map[string]*models.SessionRule),
-					}
-				}
+			ul, uunit := GetBitRateUnit(deviceGroup.BitrateUplink)
+			dl, dunit := GetBitRateUnit(deviceGroup.BitrateDownlink)
 
-				// Generate IDs using ID generators
-				qosId, _ := pcfCtx.QoSDataIDGenerator.Allocate()
-				sessionRuleId, _ := pcfCtx.SessionRuleIDGenerator.Allocate()
+			// Create QoS data
+			qosData := &models.QosData{
+				QosId:                strconv.FormatInt(qosId, 10),
+				Var5qi:               deviceGroup.Var5qi,
+				MaxbrUl:              strconv.FormatInt(ul, 10) + uunit,
+				MaxbrDl:              strconv.FormatInt(dl, 10) + dunit,
+				Arp:                  &models.Arp{PriorityLevel: deviceGroup.Arp},
+				DefQosFlowIndication: true,
+			}
+			subscriberPolicies[imsi].PccPolicy[pccPolicyId].QosDecs[qosData.QosId] = qosData
 
-				ul, uunit := GetBitRateUnit(deviceGroup.BitrateUplink)
-				dl, dunit := GetBitRateUnit(deviceGroup.BitrateDownlink)
-
-				// Create QoS data
-				qosData := &models.QosData{
-					QosId:                strconv.FormatInt(qosId, 10),
-					Var5qi:               deviceGroup.Var5qi,
-					MaxbrUl:              strconv.FormatInt(ul, 10) + uunit,
-					MaxbrDl:              strconv.FormatInt(dl, 10) + dunit,
-					Arp:                  &models.Arp{PriorityLevel: deviceGroup.Arp},
-					DefQosFlowIndication: true,
-				}
-				subscriberPolicies[imsi].PccPolicy[pccPolicyId].QosDecs[qosData.QosId] = qosData
-
-				// Add session rule
-				subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[DNN].SessionRules[strconv.FormatInt(sessionRuleId, 10)] = &models.SessionRule{
-					SessRuleId: strconv.FormatInt(sessionRuleId, 10),
-					AuthDefQos: &models.AuthorizedDefaultQos{
-						Var5qi: qosData.Var5qi,
-						Arp:    qosData.Arp,
-					},
-					AuthSessAmbr: &models.Ambr{
-						Uplink:   strconv.FormatInt(ul, 10) + uunit,
-						Downlink: strconv.FormatInt(dl, 10) + dunit,
-					},
-				}
+			// Add session rule
+			subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[DNN].SessionRules[strconv.FormatInt(sessionRuleId, 10)] = &models.SessionRule{
+				SessRuleId: strconv.FormatInt(sessionRuleId, 10),
+				AuthDefQos: &models.AuthorizedDefaultQos{
+					Var5qi: qosData.Var5qi,
+					Arp:    qosData.Arp,
+				},
+				AuthSessAmbr: &models.Ambr{
+					Uplink:   strconv.FormatInt(ul, 10) + uunit,
+					Downlink: strconv.FormatInt(dl, 10) + dunit,
+				},
 			}
 		}
 	}

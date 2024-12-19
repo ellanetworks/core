@@ -132,55 +132,53 @@ func SMF_Self() *SMFContext {
 	return &smfContext
 }
 
-func UpdateSMFContext(networkSlices []*nmsModels.NetworkSlice, deviceGroups []nmsModels.Profile) {
-	UpdateSnssaiInfo(networkSlices, deviceGroups)
-	UpdateUserPlaneInformation(networkSlices, deviceGroups)
+func UpdateSMFContext(network *nmsModels.NetworkSlice, deviceGroups []nmsModels.Profile) {
+	UpdateSnssaiInfo(network, deviceGroups)
+	UpdateUserPlaneInformation(network, deviceGroups)
 	logger.SmfLog.Infof("Updated SMF context")
 }
 
-func UpdateSnssaiInfo(networkSlices []*nmsModels.NetworkSlice, deviceGroups []nmsModels.Profile) {
+func UpdateSnssaiInfo(network *nmsModels.NetworkSlice, deviceGroups []nmsModels.Profile) {
 	smfSelf := SMF_Self()
 	snssaiInfoList := make([]SnssaiSmfInfo, 0)
-	for _, networkSlice := range networkSlices {
-		plmnID := models.PlmnId{
-			Mcc: networkSlice.Mcc,
-			Mnc: networkSlice.Mnc,
-		}
-		sstInt, err := strconv.Atoi(networkSlice.Sst)
-		if err != nil {
-			logger.SmfLog.Errorf("failed to convert sst to int: %v", err)
-			return
-		}
-		snssai := SNssai{
-			Sst: int32(sstInt),
-			Sd:  networkSlice.Sd,
-		}
-		snssaiInfo := SnssaiSmfInfo{
-			Snssai:   snssai,
-			PlmnId:   plmnID,
-			DnnInfos: make(map[string]*SnssaiSmfDnnInfo),
-		}
-
-		for _, deviceGroup := range deviceGroups {
-			dnn := deviceGroup.Dnn
-			dnsPrimary := deviceGroup.DnsPrimary
-			mtu := deviceGroup.Mtu
-			alloc, err := GetOrCreateIPAllocator(dnn, deviceGroup.UeIpPool)
-			if err != nil {
-				logger.SmfLog.Errorf("failed to get or create IP allocator for DNN %s: %v", dnn, err)
-				continue
-			}
-			dnnInfo := SnssaiSmfDnnInfo{
-				DNS: DNS{
-					IPv4Addr: net.ParseIP(dnsPrimary).To4(),
-				},
-				MTU:           uint16(mtu),
-				UeIPAllocator: alloc,
-			}
-			snssaiInfo.DnnInfos[dnn] = &dnnInfo
-		}
-		snssaiInfoList = append(snssaiInfoList, snssaiInfo)
+	plmnID := models.PlmnId{
+		Mcc: network.Mcc,
+		Mnc: network.Mnc,
 	}
+	sstInt, err := strconv.Atoi(network.Sst)
+	if err != nil {
+		logger.SmfLog.Errorf("failed to convert sst to int: %v", err)
+		return
+	}
+	snssai := SNssai{
+		Sst: int32(sstInt),
+		Sd:  network.Sd,
+	}
+	snssaiInfo := SnssaiSmfInfo{
+		Snssai:   snssai,
+		PlmnId:   plmnID,
+		DnnInfos: make(map[string]*SnssaiSmfDnnInfo),
+	}
+
+	for _, deviceGroup := range deviceGroups {
+		dnn := deviceGroup.Dnn
+		dnsPrimary := deviceGroup.DnsPrimary
+		mtu := deviceGroup.Mtu
+		alloc, err := GetOrCreateIPAllocator(dnn, deviceGroup.UeIpPool)
+		if err != nil {
+			logger.SmfLog.Errorf("failed to get or create IP allocator for DNN %s: %v", dnn, err)
+			continue
+		}
+		dnnInfo := SnssaiSmfDnnInfo{
+			DNS: DNS{
+				IPv4Addr: net.ParseIP(dnsPrimary).To4(),
+			},
+			MTU:           uint16(mtu),
+			UeIPAllocator: alloc,
+		}
+		snssaiInfo.DnnInfos[dnn] = &dnnInfo
+	}
+	snssaiInfoList = append(snssaiInfoList, snssaiInfo)
 	smfSelf.SnssaiInfos = snssaiInfoList
 }
 
@@ -191,6 +189,10 @@ func UpdateSnssaiInfo(networkSlices []*nmsModels.NetworkSlice, deviceGroups []nm
 // This issue is tracked through: https://github.com/yeastengine/ella/issues/204
 func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
 	smfSelf := SMF_Self()
+	if smfSelf.ueIPAllocatorMapping == nil {
+		logger.SmfLog.Warnf("IP allocator mapping is nil")
+		return nil, fmt.Errorf("IP allocator mapping is nil")
+	}
 	if _, ok := smfSelf.ueIPAllocatorMapping[dnn]; ok {
 		return smfSelf.ueIPAllocatorMapping[dnn], nil
 	}
@@ -202,87 +204,84 @@ func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
 	return alloc, nil
 }
 
-func BuildUserPlaneInformationFromConfig(networkSlices []*nmsModels.NetworkSlice, deviceGroups []nmsModels.Profile) *UserPlaneInformation {
-	// check if len of networkSlices is 0
-	if len(networkSlices) == 0 {
-		logger.SmfLog.Warn("Network slices is empty")
+func BuildUserPlaneInformationFromConfig(network *nmsModels.NetworkSlice, deviceGroups []nmsModels.Profile) *UserPlaneInformation {
+	if len(deviceGroups) == 0 {
+		logger.SmfLog.Warn("Device groups is empty")
 		return nil
 	}
-	for _, networkSlice := range networkSlices {
-		if len(deviceGroups) == 0 {
-			logger.SmfLog.Warn("Device groups is empty")
-			return nil
+	for _, deviceGroup := range deviceGroups {
+		dnn := deviceGroup.Dnn
+		intfUpfInfoItem := factory.InterfaceUpfInfoItem{
+			InterfaceType:   models.UpInterfaceType_N3,
+			Endpoints:       make([]string, 0),
+			NetworkInstance: dnn,
 		}
-		for _, deviceGroup := range deviceGroups {
-			dnn := deviceGroup.Dnn
-			intfUpfInfoItem := factory.InterfaceUpfInfoItem{
-				InterfaceType:   models.UpInterfaceType_N3,
-				Endpoints:       make([]string, 0),
-				NetworkInstance: dnn,
-			}
-			ifaces := []factory.InterfaceUpfInfoItem{}
-			ifaces = append(ifaces, intfUpfInfoItem)
+		ifaces := []factory.InterfaceUpfInfoItem{}
+		ifaces = append(ifaces, intfUpfInfoItem)
 
-			upfNodeID := NewNodeID(networkSlice.Upf.Name)
-			upf := NewUPF(upfNodeID, ifaces)
-			sstStr := networkSlice.Sst
-			sstInt, err := strconv.Atoi(sstStr)
-			if err != nil {
-				logger.SmfLog.Errorf("Failed to convert sst to int: %v", err)
-				continue
-			}
-			upf.SNssaiInfos = []SnssaiUPFInfo{
-				{
-					SNssai: SNssai{
-						Sst: int32(sstInt),
-						Sd:  networkSlice.Sd,
-					},
-					DnnList: []DnnUPFInfoItem{
-						{
-							Dnn: dnn,
-						},
+		upfNodeID := NewNodeID(network.Upf.Name)
+		upf := NewUPF(upfNodeID, ifaces)
+		sstStr := network.Sst
+		sstInt, err := strconv.Atoi(sstStr)
+		if err != nil {
+			logger.SmfLog.Errorf("Failed to convert sst to int: %v", err)
+			continue
+		}
+		upf.SNssaiInfos = []SnssaiUPFInfo{
+			{
+				SNssai: SNssai{
+					Sst: int32(sstInt),
+					Sd:  network.Sd,
+				},
+				DnnList: []DnnUPFInfoItem{
+					{
+						Dnn: dnn,
 					},
 				},
-			}
-
-			upf.Port = uint16(networkSlice.Upf.Port)
-
-			upfNode := &UPNode{
-				Type:   UPNODE_UPF,
-				UPF:    upf,
-				NodeID: *upfNodeID,
-				Links:  make([]*UPNode, 0),
-				Port:   uint16(networkSlice.Upf.Port),
-				Dnn:    dnn,
-			}
-			gnbNode := &UPNode{
-				Type:   UPNODE_AN,
-				NodeID: *NewNodeID("1.1.1.1"),
-				Links:  make([]*UPNode, 0),
-				Dnn:    dnn,
-			}
-			gnbNode.Links = append(gnbNode.Links, upfNode)
-			upfNode.Links = append(upfNode.Links, gnbNode)
-
-			userPlaneInformation := &UserPlaneInformation{
-				UPNodes:              make(map[string]*UPNode),
-				UPF:                  upfNode,
-				AccessNetwork:        make(map[string]*UPNode),
-				DefaultUserPlanePath: make(map[string][]*UPNode),
-			}
-			gnbName := networkSlice.GNodeBs[0].Name
-			userPlaneInformation.AccessNetwork[gnbName] = gnbNode
-			userPlaneInformation.UPNodes[gnbName] = gnbNode
-			userPlaneInformation.UPNodes[networkSlice.Upf.Name] = upfNode
-			return userPlaneInformation
+			},
 		}
+
+		upf.Port = uint16(network.Upf.Port)
+
+		upfNode := &UPNode{
+			Type:   UPNODE_UPF,
+			UPF:    upf,
+			NodeID: *upfNodeID,
+			Links:  make([]*UPNode, 0),
+			Port:   uint16(network.Upf.Port),
+			Dnn:    dnn,
+		}
+		gnbNode := &UPNode{
+			Type:   UPNODE_AN,
+			NodeID: *NewNodeID("1.1.1.1"),
+			Links:  make([]*UPNode, 0),
+			Dnn:    dnn,
+		}
+		gnbNode.Links = append(gnbNode.Links, upfNode)
+		upfNode.Links = append(upfNode.Links, gnbNode)
+
+		userPlaneInformation := &UserPlaneInformation{
+			UPNodes:              make(map[string]*UPNode),
+			UPF:                  upfNode,
+			AccessNetwork:        make(map[string]*UPNode),
+			DefaultUserPlanePath: make(map[string][]*UPNode),
+		}
+		if len(network.GNodeBs) == 0 {
+			logger.SmfLog.Warn("GNodeBs is empty")
+			return nil
+		}
+		gnbName := network.GNodeBs[0].Name
+		userPlaneInformation.AccessNetwork[gnbName] = gnbNode
+		userPlaneInformation.UPNodes[gnbName] = gnbNode
+		userPlaneInformation.UPNodes[network.Upf.Name] = upfNode
+		return userPlaneInformation
 	}
 	return nil
 }
 
 // Right now we only support 1 UPF
 // This function should be edited when we decide to support multiple UPFs
-func UpdateUserPlaneInformation(networkSlices []*nmsModels.NetworkSlice, deviceGroups []nmsModels.Profile) {
+func UpdateUserPlaneInformation(networkSlices *nmsModels.NetworkSlice, deviceGroups []nmsModels.Profile) {
 	smfSelf := SMF_Self()
 	configUserPlaneInfo := BuildUserPlaneInformationFromConfig(networkSlices, deviceGroups)
 	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)

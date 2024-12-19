@@ -11,7 +11,6 @@ type UPF struct {
 }
 
 type NetworkSlice struct {
-	Name     string
 	Sst      string
 	Sd       string
 	Profiles []string

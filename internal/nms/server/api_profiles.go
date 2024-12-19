@@ -418,18 +418,16 @@ func deleteProfileConfig(dbInstance *db.Database, dbProfile *db.Profile) {
 	}
 }
 
-func isProfileExistInSlice(dbInstance *db.Database, profileName string) *db.NetworkSlice {
-	dBSlices, err := dbInstance.ListNetworkSlices()
+func isProfileExistInSlice(dbInstance *db.Database, profileName string) *db.Network {
+	dbNetwork, err := dbInstance.GetNetwork()
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 		return nil
 	}
-	for _, slice := range dBSlices {
-		profiles := slice.ListProfiles()
-		for _, dgName := range profiles {
-			if dgName == profileName {
-				return &slice
-			}
+	profiles := dbNetwork.ListProfiles()
+	for _, dgName := range profiles {
+		if dgName == profileName {
+			return dbNetwork
 		}
 	}
 

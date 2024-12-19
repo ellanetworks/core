@@ -13,6 +13,10 @@ func setupServer(filepath string) (*httptest.Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	err = testdb.InitializeNetwork()
+	if err != nil {
+		return nil, err
+	}
 	ts := httptest.NewTLSServer(server.NewHandler(testdb))
 	return ts, nil
 }
