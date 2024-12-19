@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"path/filepath"
@@ -17,7 +18,7 @@ type GetStatusResponse struct {
 }
 
 func getStatus(url string, client *http.Client) (int, *GetStatusResponse, error) {
-	req, err := http.NewRequest("GET", url+"/api/v1/status", nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/status", nil)
 	if err != nil {
 		return 0, nil, err
 	}

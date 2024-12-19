@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"path/filepath"
@@ -51,7 +52,7 @@ type UpdateNetworkResponse struct {
 }
 
 func getNetwork(url string, client *http.Client) (int, *GetNetworkResponse, error) {
-	req, err := http.NewRequest("GET", url+"/api/v1/network", nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/network", nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -76,7 +77,7 @@ func updateNetwork(url string, client *http.Client, data *UpdateNetworkParams) (
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequest("PUT", url+"/api/v1/network", strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/network", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}

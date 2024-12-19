@@ -20,9 +20,9 @@ linters:
     - whitespace
     - unconvert
     - predeclared
-    # - noctx
-    # - dogsled
-    # - bodyclose
+    - noctx
+    - dogsled
+    - bodyclose
     - asciicheck
     # - stylecheck
     - unparam

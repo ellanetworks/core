@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"path/filepath"
@@ -69,7 +70,7 @@ func createRadio(url string, client *http.Client, data *CreateRadioParams) (int,
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequest("POST", url+"/api/v1/radios", strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/radios", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}

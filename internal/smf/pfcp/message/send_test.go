@@ -444,6 +444,11 @@ func TestSendPfcpMsgToAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error sending PFCP message to adapter: %v", err)
 	}
+	defer func() {
+		if err := rsp.Body.Close(); err != nil {
+			log.Fatalf("Failed to close database: %v", err)
+		}
+	}()
 	if rsp.StatusCode != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, rsp.StatusCode)
 	}

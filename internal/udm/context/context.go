@@ -3,7 +3,6 @@ package context
 import (
 	"fmt"
 	"math"
-	"strings"
 	"sync"
 
 	"github.com/omec-project/openapi"
@@ -78,32 +77,18 @@ type UdmNFContext struct {
 }
 
 func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData, snssaiFromReq string,
-	dnnFromReq string) (mp map[string]models.SessionManagementSubscriptionData, ind string,
-	Dnns []models.DnnConfiguration, allDnns []map[string]models.DnnConfiguration,
+	dnnFromReq string) (mp map[string]models.SessionManagementSubscriptionData,
 ) {
 	smDataMap := make(map[string]models.SessionManagementSubscriptionData)
-	sNssaiList := make([]string, len(smDatafromUDR))
-	// to obtain all DNN configurations identified by "dnn" for all network slices where such DNN is available
-	AllDnnConfigsbyDnn := make([]models.DnnConfiguration, len(sNssaiList))
-	// to obtain all DNN configurations for all network slice(s)
 	AllDnns := make([]map[string]models.DnnConfiguration, len(smDatafromUDR))
-	var snssaikey string // Required snssai to obtain all DNN configurations
 
 	for idx, smSubscriptionData := range smDatafromUDR {
 		singleNssaiStr := openapi.MarshToJsonString(smSubscriptionData.SingleNssai)[0]
 		smDataMap[singleNssaiStr] = smSubscriptionData
-		// sNssaiList = append(sNssaiList, singleNssaiStr)
 		AllDnns[idx] = smSubscriptionData.DnnConfigurations
-		if strings.Contains(singleNssaiStr, snssaiFromReq) {
-			snssaikey = singleNssaiStr
-		}
-
-		if _, ok := smSubscriptionData.DnnConfigurations[dnnFromReq]; ok {
-			AllDnnConfigsbyDnn = append(AllDnnConfigsbyDnn, smSubscriptionData.DnnConfigurations[dnnFromReq])
-		}
 	}
 
-	return smDataMap, snssaikey, AllDnnConfigsbyDnn, AllDnns
+	return smDataMap
 }
 
 // functions related to sdmSubscription (subscribe to notification of data change)

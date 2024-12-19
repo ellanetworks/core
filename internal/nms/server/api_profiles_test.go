@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"path/filepath"
@@ -75,7 +76,7 @@ type ListProfileResponse struct {
 }
 
 func listProfiles(url string, client *http.Client) (int, *ListProfileResponse, error) {
-	req, err := http.NewRequest("GET", url+"/api/v1/profiles", nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/profiles", nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -121,7 +122,7 @@ func createProfile(url string, client *http.Client, data *CreateProfileParams) (
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequest("POST", url+"/api/v1/profiles", strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/profiles", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -146,7 +147,7 @@ func editProfile(url string, client *http.Client, name string, data *CreateProfi
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequest("PUT", url+"/api/v1/profiles/"+name, strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/profiles/"+name, strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
