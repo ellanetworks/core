@@ -83,10 +83,6 @@ func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context
 
 					guti := servedGuami.PlmnId.Mcc + servedGuami.PlmnId.Mnc + amfID + tmsi
 
-					// TODO: invoke Namf_Communication_UEContextTransfer if serving AMF has changed since
-					// last Registration Request procedure
-					// Described in TS 23.502 4.2.2.2.2 step 4 (without UDSF deployment)
-
 					if amfUe, ok := amfSelf.AmfUeFindByGuti(guti); ok {
 						ranUe, err = ran.NewRanUe(rANUENGAPID.Value)
 						if err != nil {
@@ -960,7 +956,6 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 		}
 		return
 	}
-	// TODO: AMF shall, if supported, store it and may use it for subsequent paging
 	if infoOnRecommendedCellsAndRANNodesForPaging != nil {
 		amfUe.InfoOnRecommendedCellsAndRanNodesForPaging = new(context.InfoOnRecommendedCellsAndRanNodesForPaging)
 
@@ -1001,7 +996,6 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 			case ngapType.AMFPagingTargetPresentGlobalRANNodeID:
 				recommendedRanNode.Present = context.RecommendRanNodePresentRanNode
 				recommendedRanNode.GlobalRanNodeId = new(models.GlobalRanNodeId)
-				// TODO: recommendedRanNode.GlobalRanNodeId = ngapConvert.RanIdToModels(item.AMFPagingTarget.GlobalRANNodeID)
 			case ngapType.AMFPagingTargetPresentTAI:
 				recommendedRanNode.Present = context.RecommendRanNodePresentTAI
 				tai := ngapConvert.TaiToModels(*item.AMFPagingTarget.TAI)
@@ -1080,7 +1074,6 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 		amfUe.Remove()
 	case context.UeContextReleaseHandover:
 		ran.Log.Infof("Release UE[%s] Context : Release for Handover", amfUe.Supi)
-		// TODO: it's a workaround, need to fix it.
 		targetRanUe := context.AMF_Self().RanUeFindByAmfUeNgapID(ranUe.TargetUe.AmfUeNgapId)
 
 		targetRanUe.Ran = ran
@@ -1090,7 +1083,6 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 			ran.Log.Errorln(err.Error())
 		}
 		amfUe.AttachRanUe(targetRanUe)
-		// Todo: remove indirect tunnel
 	default:
 		ran.Log.Errorf("Invalid Release Action[%d]", ranUe.ReleaseAction)
 	}
@@ -1190,7 +1182,6 @@ func HandlePDUSessionResourceReleaseResponse(ran *context.AmfRan, message *ngapT
 			if err == nil && smContext != nil {
 				smContext.SetPduSessionInActive(true)
 			}
-			// TODO: error handling
 			if err != nil {
 				ranUe.Log.Errorf("SendUpdateSmContextN2Info[PDUSessionResourceReleaseResponse] Error: %+v", err)
 			} else if responseErr != nil && responseErr.JsonData.Error != nil {
@@ -1266,8 +1257,6 @@ func HandleUERadioCapabilityCheckResponse(ran *context.AmfRan, message *ngapType
 		ran.Log.Errorf("No UE Context[RanUeNgapID: %d]", rANUENGAPID.Value)
 		return
 	}
-
-	// TODO: handle iMSVoiceSupportIndicator
 
 	if criticalityDiagnostics != nil {
 		printCriticalityDiagnostics(ran, criticalityDiagnostics)
@@ -1471,10 +1460,6 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 
 			guti := servedGuami.PlmnId.Mcc + servedGuami.PlmnId.Mnc + amfID + tmsi
 
-			// TODO: invoke Namf_Communication_UEContextTransfer if serving AMF has changed since
-			// last Registration Request procedure
-			// Described in TS 23.502 4.2.2.2.2 step 4 (without UDSF deployment)
-
 			if amfUe, ok := amfSelf.AmfUeFindByGuti(guti); !ok {
 				ranUe.Log.Warnf("Unknown UE [GUTI: %s]", guti)
 			} else {
@@ -1486,7 +1471,6 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 					ranUe.Log.Debugf("RanUeNgapID[%d]", amfUe.RanUe[ran.AnType].RanUeNgapId)
 					amfUe.DetachRanUe(ran.AnType)
 				}
-				// TODO: stop Implicit Deregistration timer
 				ranUe.Log.Debugf("AmfUe Attach RanUe [RanUeNgapID: %d]", ranUe.RanUeNgapId)
 				amfUe.AttachRanUe(ranUe)
 			}
@@ -1508,16 +1492,9 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	if uEContextRequest != nil {
 		ran.Log.Debug("Trigger initial Context Setup procedure")
 		ranUe.UeContextRequest = true
-		// TODO: Trigger Initial Context Setup procedure
 	} else {
 		ranUe.UeContextRequest = false
 	}
-
-	// ng-ran propagate allowedNssai in the rerouted initial ue message (TS 38.413 8.6.5)
-	// TS 23.502 4.2.2.2.3 step 4a Nnssf_NSSelection_Get
-	// if allowedNSSAI != nil {
-	// TODO: AMF should use it as defined in TS 23.502
-	// }
 
 	pdu, err := libngap.Encoder(*message)
 	if err != nil {
@@ -1619,9 +1596,7 @@ func HandlePDUSessionResourceSetupResponse(ran *context.AmfRan, message *ngapTyp
 				}
 				// RAN initiated QoS Flow Mobility in subclause 5.2.2.3.7
 				if response != nil && response.BinaryDataN2SmInformation != nil {
-					// TODO: n2SmInfo send to RAN
 				} else if response == nil {
-					// TODO: error handling
 					ranUe.Log.Errorf("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error: received error response from SMF")
 					if errResponse != nil {
 						responseData := errResponse.JsonData
@@ -1648,12 +1623,6 @@ func HandlePDUSessionResourceSetupResponse(ran *context.AmfRan, message *ngapTyp
 				if err != nil {
 					ranUe.Log.Errorf("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error: %+v", err)
 				}
-
-				// if response != nil && response.BinaryDataN2SmInformation != nil {
-				// TODO: n2SmInfo send to RAN
-				// } else if response == nil {
-				// TODO: error handling
-				// }
 			}
 		}
 
@@ -1781,11 +1750,6 @@ func HandlePDUSessionResourceModifyResponse(ran *context.AmfRan, message *ngapTy
 				if err != nil {
 					ranUe.Log.Errorf("SendUpdateSmContextN2Info[PDUSessionResourceModifyResponseTransfer] Error: %+v", err)
 				}
-				// if response != nil && response.BinaryDataN2SmInformation != nil {
-				// TODO: n2SmInfo send to RAN
-				// } else if response == nil {
-				// TODO: error handling
-				// }
 			}
 		}
 
@@ -1805,11 +1769,6 @@ func HandlePDUSessionResourceModifyResponse(ran *context.AmfRan, message *ngapTy
 				if err != nil {
 					ranUe.Log.Errorf("SendUpdateSmContextN2Info[PDUSessionResourceModifyUnsuccessfulTransfer] Error: %+v", err)
 				}
-				// if response != nil && response.BinaryDataN2SmInformation != nil {
-				// TODO: n2SmInfo send to RAN
-				// } else if response == nil {
-				// TODO: error handling
-				// }
 			}
 		}
 
@@ -1948,11 +1907,9 @@ func HandlePDUSessionResourceNotify(ran *context.AmfRan, message *ngapType.NGAPP
 				gmm_message.SendDLNASTransport(
 					ranUe, nasMessage.PayloadContainerTypeN1SMInfo, errResponse.BinaryDataN1SmMessage, pduSessionID, 0, nil, 0)
 			}
-			// TODO: handle n2 info transfer
 		} else if err != nil {
 			return
 		} else {
-			// TODO: error handling
 			ranUe.Log.Errorf("Failed to Update smContext[pduSessionID: %d], Error[%v]", pduSessionID, problemDetail)
 			return
 		}
@@ -1989,7 +1946,6 @@ func HandlePDUSessionResourceNotify(ran *context.AmfRan, message *ngapType.NGAPP
 			} else if err != nil {
 				return
 			} else {
-				// TODO: error handling
 				ranUe.Log.Errorf("Failed to Update smContext[pduSessionID: %d], Error[%v]", pduSessionID, problemDetail)
 				return
 			}
@@ -2229,7 +2185,6 @@ func HandleInitialContextSetupResponse(ran *context.AmfRan, message *ngapType.NG
 			}
 			// RAN initiated QoS Flow Mobility in subclause 5.2.2.3.7
 			if response != nil && response.BinaryDataN2SmInformation != nil {
-				// TODO: n2SmInfo send to RAN
 			} else if response == nil {
 				// error handling
 				ranUe.Log.Errorf("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error: received error response from SMF")
@@ -2254,18 +2209,11 @@ func HandleInitialContextSetupResponse(ran *context.AmfRan, message *ngapType.NG
 				ranUe.Log.Errorf("SmContext[PDU Session ID:%d] not found", pduSessionID)
 				return
 			}
-			// response, _, _, err := consumer.SendUpdateSmContextN2Info(amfUe, pduSessionID,
 			_, _, _, err := consumer.SendUpdateSmContextN2Info(amfUe, smContext,
 				models.N2SmInfoType_PDU_RES_SETUP_FAIL, transfer)
 			if err != nil {
 				ranUe.Log.Errorf("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error: %+v", err)
 			}
-
-			// if response != nil && response.BinaryDataN2SmInformation != nil {
-			// TODO: n2SmInfo send to RAN
-			// } else if response == nil {
-			// TODO: error handling
-			// }
 		}
 	}
 
@@ -2379,12 +2327,6 @@ func HandleInitialContextSetupFailure(ran *context.AmfRan, message *ngapType.NGA
 			if err != nil {
 				ranUe.Log.Errorf("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error: %+v", err)
 			}
-
-			// if response != nil && response.BinaryDataN2SmInformation != nil {
-			// TODO: n2SmInfo send to RAN
-			// } else if response == nil {
-			// TODO: error handling
-			// }
 		}
 	}
 }
@@ -2865,8 +2807,6 @@ func HandleHandoverNotify(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	}
 	sourceUe := targetUe.SourceUe
 	if sourceUe == nil {
-		// TODO: Send to S-AMF
-		// Desciibed in (23.502 4.9.1.3.3) [conditional] 6a.Namf_Communication_N2InfoNotify.
 		ran.Log.Error("N2 Handover between AMF has not been implemented yet")
 	} else {
 		ran.Log.Info("Handle Handover notification Finshed ")
@@ -2884,8 +2824,6 @@ func HandleHandoverNotify(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		ngap_message.SendUEContextReleaseCommand(sourceUe, context.UeContextReleaseHandover, ngapType.CausePresentNas,
 			ngapType.CauseNasPresentNormalRelease)
 	}
-
-	// TODO: The UE initiates Mobility Registration Update procedure as described in clause 4.2.2.2.2.
 }
 
 // TS 23.502 4.9.1
@@ -3066,7 +3004,6 @@ func HandlePathSwitchRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	// TS 23.502 4.9.1.2.2 step 7: send ack to Target NG-RAN. If none of the requested PDU Sessions have been switched
 	// successfully, the AMF shall send an N2 Path Switch Request Failure message to the Target NG-RAN
 	if len(pduSessionResourceSwitchedList.List) > 0 {
-		// TODO: set newSecurityContextIndicator to true if there is a new security context
 		err := ranUe.SwitchToRan(ran, rANUENGAPID.Value)
 		if err != nil {
 			ranUe.Log.Error(err.Error())
@@ -3229,7 +3166,6 @@ func HandleHandoverRequestAcknowledge(ran *context.AmfRan, message *ngapType.NGA
 
 	sourceUe := targetUe.SourceUe
 	if sourceUe == nil {
-		// TODO: Send Namf_Communication_CreateUEContext Response to S-AMF
 		ran.Log.Errorln("handover between different Ue has not been implement yet")
 	} else {
 		ran.Log.Debugf("source: RanUeNgapID[%d] AmfUeNgapID[%d]", sourceUe.RanUeNgapId, sourceUe.AmfUeNgapId)
@@ -3318,7 +3254,6 @@ func HandleHandoverFailure(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	targetUe.Ran = ran
 	sourceUe := targetUe.SourceUe
 	if sourceUe == nil {
-		// TODO: handle N2 Handover between AMF
 		ran.Log.Error("N2 Handover between AMF has not been implemented yet")
 	} else {
 		amfUe := targetUe.AmfUe
@@ -3489,7 +3424,6 @@ func HandleHandoverRequired(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		sourceUe.Log.Warnf("Handover required : cannot find target Ran Node Id[%+v] in this AMF", targetRanNodeId)
 		sourceUe.Log.Errorln("Handover between different AMF has not been implemented yet")
 		return
-		// TODO: Send to T-AMF
 		// Described in (23.502 4.9.1.3.2) step 3.Namf_Communication_CreateUEContext Request
 	} else {
 		// Handover in same AMF
@@ -3613,8 +3547,6 @@ func HandleHandoverCancel(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	}
 	targetUe := sourceUe.TargetUe
 	if targetUe == nil {
-		// Described in (23.502 4.11.1.2.3) step 2
-		// Todo : send to T-AMF invoke Namf_UeContextReleaseRequest(targetUe)
 		ran.Log.Error("N2 Handover between AMF has not been implemented yet")
 	} else {
 		ran.Log.Debugf("Target : RAN_UE_NGAP_ID[%d] AMF_UE_NGAP_ID[%d]", targetUe.RanUeNgapId, targetUe.AmfUeNgapId)
@@ -4018,8 +3950,6 @@ func HandleUplinkUEAssociatedNRPPATransport(ran *context.AmfRan, message *ngapTy
 	ran.Log.Debugf("RanUeNgapId[%d] AmfUeNgapId[%d]", ranUe.RanUeNgapId, ranUe.AmfUeNgapId)
 
 	ranUe.RoutingID = hex.EncodeToString(routingID.Value)
-
-	// TODO: Forward NRPPaPDU to LMF
 }
 
 func HandleUplinkNonUEAssociatedNRPPATransport(ran *context.AmfRan, message *ngapType.NGAPPDU) {
@@ -4071,7 +4001,6 @@ func HandleUplinkNonUEAssociatedNRPPATransport(ran *context.AmfRan, message *nga
 		ran.Log.Error("NRPPaPDU is nil")
 		return
 	}
-	// TODO: Forward NRPPaPDU to LMF
 }
 
 func HandleLocationReport(ran *context.AmfRan, message *ngapType.NGAPPDU) {
@@ -4169,17 +4098,14 @@ func HandleLocationReport(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	case ngapType.EventTypePresentStopChangeOfServeCell:
 		ranUe.Log.Debugln("To stop reporting at change of serving cell")
 		ngap_message.SendLocationReportingControl(ranUe, nil, 0, locationReportingRequestType.EventType)
-		// TODO: Clear location report
 
 	case ngapType.EventTypePresentStopUePresenceInAreaOfInterest:
 		ranUe.Log.Debugln("To stop reporting UE presence in the area of interest")
 		ranUe.Log.Debugf("ReferenceID To Be Cancelled[%d]",
 			locationReportingRequestType.LocationReportingReferenceIDToBeCancelled.Value)
-		// TODO: Clear location report
 
 	case ngapType.EventTypePresentCancelLocationReportingForTheUe:
 		ranUe.Log.Debugln("To cancel location reporting for the UE")
-		// TODO: Clear location report
 	}
 }
 
@@ -4316,8 +4242,6 @@ func HandleAMFconfigurationUpdateFailure(ran *context.AmfRan, message *ngapType.
 		}
 	}
 
-	//	TODO: Time To Wait
-
 	if criticalityDiagnostics != nil {
 		printCriticalityDiagnostics(ran, criticalityDiagnostics)
 	}
@@ -4437,8 +4361,6 @@ func HandleErrorIndication(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	if criticalityDiagnostics != nil {
 		printCriticalityDiagnostics(ran, criticalityDiagnostics)
 	}
-
-	// TODO: handle error based on cause/criticalityDiagnostics
 }
 
 func HandleCellTrafficTrace(ran *context.AmfRan, message *ngapType.NGAPPDU) {
@@ -4554,12 +4476,6 @@ func HandleCellTrafficTrace(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	if tceIpv6 != "" {
 		ranUe.Log.Debugf("TCE IP Address[v6: %s]", tceIpv6)
 	}
-
-	// TODO: TS 32.422 4.2.2.10
-	// When AMF receives this new NG signalling message containing the Trace Recording Session Reference (TRSR)
-	// and Trace Reference (TR), the AMF shall look up the SUPI/IMEI(SV) of the given call from its database and
-	// shall send the SUPI/IMEI(SV) numbers together with the Trace Recording Session Reference and Trace Reference
-	// to the Trace Collection Entity.
 }
 
 func printAndGetCause(ran *context.AmfRan, cause *ngapType.Cause) (present int, value aper.Enumerated) {

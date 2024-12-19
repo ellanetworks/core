@@ -3,6 +3,7 @@ package producer
 import (
 	"fmt"
 
+	"github.com/yeastengine/ella/internal/logger"
 	smf_context "github.com/yeastengine/ella/internal/smf/context"
 	pfcp_message "github.com/yeastengine/ella/internal/smf/pfcp/message"
 )
@@ -10,9 +11,11 @@ import (
 func SendPfcpSessionModifyReq(smContext *smf_context.SMContext, pfcpParam *pfcpParam) error {
 	defaultPath := smContext.Tunnel.DataPathPool.GetDefaultPath()
 	ANUPF := defaultPath.FirstDPNode
-	pfcp_message.SendPfcpSessionModificationRequest(ANUPF.UPF.NodeID, smContext,
+	err := pfcp_message.SendPfcpSessionModificationRequest(ANUPF.UPF.NodeID, smContext,
 		pfcpParam.pdrList, pfcpParam.farList, pfcpParam.barList, pfcpParam.qerList, ANUPF.UPF.Port)
-
+	if err != nil {
+		logger.SmfLog.Warnf("Failed to send PFCP session modification request: %+v", err)
+	}
 	PFCPResponseStatus := <-smContext.SBIPFCPCommunicationChan
 
 	switch PFCPResponseStatus {

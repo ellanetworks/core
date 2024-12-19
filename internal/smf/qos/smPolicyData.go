@@ -33,7 +33,6 @@ type SmCtxtSessionRulesInfo struct {
 
 type SmCtxtPccRulesInfo struct {
 	PccRules map[string]*models.PccRule
-	// TODO:Rulename to RuleId Map
 }
 
 type SmCtxtQosData struct {

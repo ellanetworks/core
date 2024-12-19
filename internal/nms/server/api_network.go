@@ -75,12 +75,11 @@ func GetNetwork(dbInstance *db.Database) gin.HandlerFunc {
 			logger.NmsLog.Warnln(err)
 		}
 		network := &GetNetworkResponse{
-			Sst:      dbNetwork.Sst,
-			Sd:       dbNetwork.Sd,
-			Profiles: dbNetwork.ListProfiles(),
-			Mcc:      dbNetwork.Mcc,
-			Mnc:      dbNetwork.Mnc,
-			GNodeBs:  gNodeBs,
+			Sst:     dbNetwork.Sst,
+			Sd:      dbNetwork.Sd,
+			Mcc:     dbNetwork.Mcc,
+			Mnc:     dbNetwork.Mnc,
+			GNodeBs: gNodeBs,
 			Upf: UPF{
 				Name: dbUpf.Name,
 				Port: dbUpf.Port,
@@ -170,12 +169,16 @@ func UpdateNetwork(dbInstance *db.Database) gin.HandlerFunc {
 			Mcc: updateNetworkParams.Mcc,
 			Mnc: updateNetworkParams.Mnc,
 		}
-		dbNetwork.SetUpf(db.UPF{
+		err = dbNetwork.SetUpf(db.UPF{
 			Name: updateNetworkParams.Upf.Name,
 			Port: updateNetworkParams.Upf.Port,
 		})
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to create network")
+			return
+		}
 
-		dbNetwork.SetProfiles(updateNetworkParams.Profiles)
 		dbGnodeBs := make([]db.GNodeB, 0)
 		for _, radio := range updateNetworkParams.GNodeBs {
 			dbRadio := db.GNodeB{
@@ -184,8 +187,12 @@ func UpdateNetwork(dbInstance *db.Database) gin.HandlerFunc {
 			}
 			dbGnodeBs = append(dbGnodeBs, dbRadio)
 		}
-		dbNetwork.SetGNodeBs(dbGnodeBs)
-
+		err = dbNetwork.SetGNodeBs(dbGnodeBs)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to create network")
+			return
+		}
 		err = dbInstance.UpdateNetwork(dbNetwork)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
@@ -210,12 +217,11 @@ func updateSMF(dbInstance *db.Database) {
 		return
 	}
 	network := &models.NetworkSlice{
-		Sst:      dbNetwork.Sst,
-		Sd:       dbNetwork.Sd,
-		Profiles: dbNetwork.ListProfiles(),
-		Mcc:      dbNetwork.Mcc,
-		Mnc:      dbNetwork.Mnc,
-		GNodeBs:  make([]models.GNodeB, 0),
+		Sst:     dbNetwork.Sst,
+		Sd:      dbNetwork.Sd,
+		Mcc:     dbNetwork.Mcc,
+		Mnc:     dbNetwork.Mnc,
+		GNodeBs: make([]models.GNodeB, 0),
 	}
 	dbGnodeBs, err := dbNetwork.GetGNodeBs()
 	if err != nil {

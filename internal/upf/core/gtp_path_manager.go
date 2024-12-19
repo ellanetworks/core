@@ -85,7 +85,11 @@ func (gtpPathManager *GtpPathManager) sendEcho(gtpPeerAddress string) (time.Dura
 	if err != nil {
 		return 0, fmt.Errorf("can't create UDP connection: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			logger.UpfLog.Warnf("can't close UDP connection: %v", err)
+		}
+	}()
 
 	receiveBuffer := make([]byte, 1500)
 	_ = conn.SetReadDeadline(time.Now().Add(time.Second * 3))

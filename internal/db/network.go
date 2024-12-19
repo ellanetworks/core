@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/canonical/sqlair"
 	"github.com/yeastengine/ella/internal/logger"
@@ -18,7 +17,6 @@ const QueryCreateNetworkTable = `
 
 		sst TEXT NOT NULL,
 		sd TEXT NOT NULL,
-		profiles TEXT NOT NULL,
 		mcc TEXT NOT NULL,
 		mnc TEXT NOT NULL,
 		gNodeBs TEXT NOT NULL,
@@ -31,10 +29,11 @@ const (
 	DefaultMcc = "001"
 	DefaultMnc = "01"
 )
+
 const (
 	getNetworkStmt        = "SELECT &Network.* FROM %s WHERE id=1"
-	updateNetworkStmt     = "UPDATE %s SET sst=$Network.sst, sd=$Network.sd, profiles=$Network.profiles, mcc=$Network.mcc, mnc=$Network.mnc, gNodeBs=$Network.gNodeBs, upf=$Network.upf WHERE id=1"
-	initializeNetworkStmt = "INSERT INTO %s (sst, sd, profiles, mcc, mnc, gNodeBs, upf) VALUES ($Network.sst, $Network.sd, $Network.profiles, $Network.mcc, $Network.mnc, $Network.gNodeBs, $Network.upf)"
+	updateNetworkStmt     = "UPDATE %s SET sst=$Network.sst, sd=$Network.sd, mcc=$Network.mcc, mnc=$Network.mnc, gNodeBs=$Network.gNodeBs, upf=$Network.upf WHERE id=1"
+	initializeNetworkStmt = "INSERT INTO %s (sst, sd, mcc, mnc, gNodeBs, upf) VALUES ($Network.sst, $Network.sd, $Network.mcc, $Network.mnc, $Network.gNodeBs, $Network.upf)"
 )
 
 type GNodeB struct {
@@ -48,28 +47,13 @@ type UPF struct {
 }
 
 type Network struct {
-	ID       int    `db:"id"`
-	Sst      string `db:"sst"`
-	Sd       string `db:"sd"`
-	Profiles string `db:"profiles"`
-	Mcc      string `db:"mcc"`
-	Mnc      string `db:"mnc"`
-	GNodeBs  string `db:"gNodeBs"`
-	Upf      string `db:"upf"`
-}
-
-func (ns *Network) ListProfiles() []string {
-	if ns == nil {
-		return []string{}
-	}
-	if ns.Profiles == "" {
-		return []string{}
-	}
-	return strings.Split(ns.Profiles, ",")
-}
-
-func (ns *Network) SetProfiles(groups []string) {
-	ns.Profiles = strings.Join(groups, ",")
+	ID      int    `db:"id"`
+	Sst     string `db:"sst"`
+	Sd      string `db:"sd"`
+	Mcc     string `db:"mcc"`
+	Mnc     string `db:"mnc"`
+	GNodeBs string `db:"gNodeBs"`
+	Upf     string `db:"upf"`
 }
 
 func (ns *Network) GetGNodeBs() ([]GNodeB, error) {
@@ -130,13 +114,12 @@ func (db *Database) InitializeNetwork() error {
 		return fmt.Errorf("failed to prepare initialize network configuration statement: %v", err)
 	}
 	network := Network{
-		Sst:      DefaultSst,
-		Sd:       DefaultSd,
-		Profiles: "",
-		Mcc:      DefaultMcc,
-		Mnc:      DefaultMnc,
-		GNodeBs:  "",
-		Upf:      "",
+		Sst:     DefaultSst,
+		Sd:      DefaultSd,
+		Mcc:     DefaultMcc,
+		Mnc:     DefaultMnc,
+		GNodeBs: "",
+		Upf:     "",
 	}
 	err = db.conn.Query(context.Background(), stmt, network).Run()
 	if err != nil {

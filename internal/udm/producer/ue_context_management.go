@@ -9,7 +9,6 @@ import (
 
 // TS 29.503 5.3.2.2.2
 func EditRegistrationAmf3gppAccess(registerRequest models.Amf3GppAccessRegistration, ueID string) error {
-	// TODO: EPS interworking with N26 is not supported yet in this stage
 	var oldAmf3GppAccessRegContext *models.Amf3GppAccessRegistration
 	if context.UDM_Self().UdmAmf3gppRegContextExists(ueID) {
 		ue, _ := context.UDM_Self().UdmUeFindBySupi(ueID)

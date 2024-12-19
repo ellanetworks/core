@@ -178,7 +178,6 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 
 	onGoing := ue.GetOnGoing(anType)
 	// 4xx response cases
-	// TODO: Error Status 307, 403 in TS29.518 Table 6.1.3.5.3.1-3
 	switch onGoing.Procedure {
 	case context.OnGoingProcedurePaging:
 		if requestData.Ppi == 0 || (onGoing.Ppi != 0 && onGoing.Ppi <= requestData.Ppi) {
@@ -234,7 +233,6 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			}
 		}
 
-		// TODO: only support transfer N2 SM information now
 		if n2Info != nil {
 			smInfo := requestData.N2InfoContainer.SmInfo
 			switch smInfo.N2InfoContent.NgapIeType {
@@ -351,7 +349,6 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			}
 			ngap_message.SendPaging(ue, pkg)
 		}
-		// TODO: WAITING_FOR_ASYNCHRONOUS_TRANSFER
 		return n1n2MessageTransferRspData, locationHeader, nil, nil
 	} else {
 		// Case B (UE is CM-IDLE in Non-3GPP access but CM-CONNECTED in 3GPP access and the associated

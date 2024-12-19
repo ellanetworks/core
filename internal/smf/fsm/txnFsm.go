@@ -30,7 +30,10 @@ func (SmfTxnFsm) TxnLoadCtxt(txn *transaction.Transaction) (transaction.TxnEvent
 		createData := req.JsonData
 		if smCtxtRef, err := smf_context.ResolveRef(createData.Supi, createData.PduSessionId); err == nil {
 			// Previous context exist
-			producer.HandlePduSessionContextReplacement(smCtxtRef)
+			err := producer.HandlePduSessionContextReplacement(smCtxtRef)
+			if err != nil {
+				logger.SmfLog.Warnf("Failed to replace existing context[%s] with new context[%s]", smCtxtRef, txn.CtxtKey)
+			}
 		}
 		// Create fresh context
 		txn.Ctxt = smf_context.NewSMContext(createData.Supi, createData.PduSessionId)

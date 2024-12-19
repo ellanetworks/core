@@ -134,7 +134,6 @@ func Registered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType); err != nil {
 			logger.AmfLog.Errorln(err)
 		}
-	/*TODO */
 	case SliceInfoAddEvent:
 	case SliceInfoDeleteEvent:
 	case fsm.ExitEvent:

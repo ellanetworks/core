@@ -46,7 +46,6 @@ PROFILE_CONFIG = {
 NETWORK_CONFIG = {
     "sst": "1",
     "sd": "102030",
-    "profiles": [],
     "mcc": "001",
     "mnc": "01",
     "gNodeBs": [{"name": "dev2-gnbsim", "tac": 1}],
@@ -110,8 +109,7 @@ class Ella:
         self._make_request("POST", PROFILE_CONFIG_URL, data=PROFILE_CONFIG)
         logger.info(f"Created profile {name}.")
 
-    def update_network(self, profiles: List[str]) -> None:
+    def update_network(self) -> None:
         """Create a network slice."""
-        NETWORK_CONFIG["profiles"] = profiles
         self._make_request("PUT", NETWORK_CONFIG_URL, data=NETWORK_CONFIG)
         logger.info(f"Updated network configuration.")

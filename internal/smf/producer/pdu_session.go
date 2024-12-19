@@ -45,9 +45,6 @@ func HandlePduSessionContextReplacement(smCtxtRef string) error {
 		// Disassociate ctxt from any look-ups(Report-Req from UPF shouldn't get this context)
 		smf_context.RemoveSMContext(smCtxt.Ref)
 
-		// check if PCF session set, send release(Npcf_SMPolicyControl_Delete)
-		// TODO: not done as part of ctxt release
-
 		// Check if UPF session set, send release
 		if smCtxt.Tunnel != nil {
 			releaseTunnel(smCtxt)
@@ -289,17 +286,6 @@ func HandlePDUSessionSMContextUpdate(eventData interface{}) error {
 
 				// Form Modify err rsp
 				httpResponse = makePduCtxtModifyErrRsp(smContext, err.Error())
-
-				/*
-					// TODO: Add Ctxt cleanup if PFCP response is context not found,
-					// just initiating PFCP session release will not help
-						//PFCP Modify Err, initiate release
-						SendPfcpSessionReleaseReq(smContext)
-
-						//Change state to InactivePending
-						smContext.ChangeState(smf_context.SmStateInActivePending)
-						smContext.SubCtxLog.Debugln("PDUSessionSMContextUpdate, SMContextState Change State: ", smContext.SMContextState.String())
-				*/
 			} else {
 				// Modify Success
 				httpResponse = &httpwrapper.Response{
@@ -373,28 +359,6 @@ func makePduCtxtModifyErrRsp(smContext *smf_context.SMContext, errStr string) *h
 	return httpResponse
 }
 
-/*
-	func HandleNwInitiatedPduSessionRelease(smContextRef string) {
-		smContext := smf_context.GetSMContext(smContextRef)
-		PFCPResponseStatus := <-smContext.SBIPFCPCommunicationChan
-
-		switch PFCPResponseStatus {
-		case smf_context.SessionReleaseSuccess:
-			smContext.SubCtxLog.Debugln("PDUSessionSMContextRelease, PFCP SessionReleaseSuccess")
-			smContext.ChangeState(smf_context.SmStateInActivePending)
-			smContext.SubCtxLog.Debugln("PDUSessionSMContextRelease, SMContextState Change State: ", smContext.SMContextState.String())
-		//TODO: i will uncomment this in next PR SDCORE-209
-		//case smf_context.SessionReleaseTimeout:
-		//	fallthrough
-		case smf_context.SessionReleaseFailed:
-			smContext.SubCtxLog.Debugln("PDUSessionSMContextRelease, PFCP SessionReleaseFailed")
-			smContext.ChangeState(smf_context.SmStateInActivePending)
-			smContext.SubCtxLog.Debugln("PDUSessionSMContextRelease,  SMContextState Change State: ", smContext.SMContextState.String())
-		}
-
-		smf_context.RemoveSMContext(smContext.Ref)
-	}
-*/
 func HandlePDUSessionSMContextRelease(eventData interface{}) error {
 	txn := eventData.(*transaction.Transaction)
 	body := txn.Req.(models.ReleaseSmContextRequest)
@@ -702,9 +666,6 @@ func HandlePFCPResponse(smContext *smf_context.SMContext,
 	case smf_context.SessionUpdateTimeout:
 		smContext.SubCtxLog.Debugln("PDUSessionSMContextUpdate, PFCP Session Modification Timeout")
 
-		/* TODO: exact http error response code for this usecase is 504, so relevant cause for
-		   this usecase is 500. If it gets added in spec 29.502 new release that can be added
-		*/
 		problemDetail := models.ProblemDetails{
 			Title:  "PFCP Session Mod Timeout",
 			Status: http.StatusInternalServerError,

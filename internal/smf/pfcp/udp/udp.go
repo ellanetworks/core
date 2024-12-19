@@ -142,7 +142,6 @@ func readPfcpMessage() (*net.UDPAddr, message.Message, interface{}, error) {
 
 	var eventData interface{}
 	if IsRequest(msg) {
-		// Todo: Implement SendingResponse type of reliable delivery
 		tx, err := findTransaction(msg, addr)
 		if err != nil {
 			return addr, msg, nil, err
@@ -247,9 +246,6 @@ func removeTransaction(tx *Transaction) error {
 
 	if txTmp, exist := txTable.Load(tx.SequenceNumber); exist {
 		tx = txTmp
-		if tx.TxType == SendingRequest {
-		} else if tx.TxType == SendingResponse {
-		}
 
 		txTable.Delete(tx.SequenceNumber)
 	} else {

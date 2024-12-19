@@ -60,7 +60,11 @@ func Start(n3_address string, n3Interface string, n6Interface string) error {
 		}
 	}
 
-	defer bpfObjects.Close()
+	defer func() {
+		if err := bpfObjects.Close(); err != nil {
+			logger.UpfLog.Warnf("Failed to detach XDP program: %s", err)
+		}
+	}()
 
 	for _, ifaceName := range config.Conf.InterfaceName {
 		iface, err := net.InterfaceByName(ifaceName)
@@ -78,7 +82,11 @@ func Start(n3_address string, n3Interface string, n6Interface string) error {
 		if err != nil {
 			logger.UpfLog.Fatalf("Could not attach XDP program: %s", err.Error())
 		}
-		defer l.Close()
+		defer func() {
+			if err := l.Close(); err != nil {
+				logger.UpfLog.Warnf("Failed to detach XDP program: %s", err)
+			}
+		}()
 
 		logger.UpfLog.Infof("Attached XDP program to iface %q", iface.Name)
 	}

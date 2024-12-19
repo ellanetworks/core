@@ -38,14 +38,13 @@ func TestAssociationSetup(t *testing.T) {
 	// Create pfcp connection struct
 	pfcpConn := PfcpConnection{
 		NodeAssociations: make(map[string]*NodeAssociation),
-		nodeId:           "test-node",
+		nodeId:           "NodeId",
 	}
 	asReq := message.NewAssociationSetupRequest(0,
 		ie.NewNodeID("", "", "test"),
 	)
 
-	remoteIP := "127.0.0.1"
-	response, err := HandlePfcpAssociationSetupRequest(&pfcpConn, asReq, remoteIP)
+	response, err := HandlePfcpAssociationSetupRequest(&pfcpConn, asReq, RemoteIP)
 	if err != nil {
 		t.Errorf("Error handling association setup request: %s", err)
 	}
@@ -61,10 +60,10 @@ func TestAssociationSetup(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting node ID from association setup response: %s", err)
 	}
-	if nodeId != "test-node" {
+	if nodeId != "NodeId" {
 		t.Errorf("Unexpected node ID in association setup response: %s", nodeId)
 	}
-	if _, ok := pfcpConn.NodeAssociations[remoteIP]; !ok {
+	if _, ok := pfcpConn.NodeAssociations[RemoteIP]; !ok {
 		t.Errorf("Association not created")
 	}
 }
@@ -83,7 +82,7 @@ func PreparePfcpConnection(t *testing.T) (PfcpConnection, string) {
 	smfIP := "127.0.0.1"
 	pfcpConn := PfcpConnection{
 		NodeAssociations: make(map[string]*NodeAssociation),
-		nodeId:           "test-node",
+		nodeId:           "NodeId",
 		mapOperations:    &mapOps,
 		pfcpHandlerMap:   pfcpHandlers,
 		n3Address:        net.ParseIP("1.2.3.4"),
@@ -107,7 +106,7 @@ func PreparePfcpConnection(t *testing.T) (PfcpConnection, string) {
 	if err != nil {
 		t.Errorf("Error getting node ID from association setup response: %s", err)
 	}
-	if nodeId != "test-node" {
+	if nodeId != "NodeId" {
 		t.Errorf("Unexpected node ID in association setup response: %s", nodeId)
 	}
 	if _, ok := pfcpConn.NodeAssociations[smfIP]; !ok {
@@ -118,8 +117,8 @@ func PreparePfcpConnection(t *testing.T) (PfcpConnection, string) {
 }
 
 func SendDefaulMappingPdrs(t *testing.T, pfcpConn *PfcpConnection, smfIP string) {
-	ip1, _ := net.ResolveIPAddr("ip", "1.1.1.1")
-	ip2, _ := net.ResolveIPAddr("ip", "2.2.2.2")
+	ip1, _ := net.ResolveIPAddr("ip", UeAddress1)
+	ip2, _ := net.ResolveIPAddr("ip", UeAddress2)
 
 	// Requests for default mapping (without SDF filter)
 
@@ -163,7 +162,7 @@ func SendDefaulMappingPdrs(t *testing.T, pfcpConn *PfcpConnection, smfIP string)
 	}
 
 	// Check that session PDRs are correct
-	if pfcpConn.NodeAssociations[smfIP].Sessions[2].PDRs[1].Ipv4.String() != "1.1.1.1" {
+	if pfcpConn.NodeAssociations[smfIP].Sessions[2].PDRs[1].Ipv4.String() != UeAddress1 {
 		t.Errorf("Session 1, got broken")
 	}
 	if pfcpConn.NodeAssociations[smfIP].Sessions[3].PDRs[1].Teid != 0 {
@@ -183,8 +182,8 @@ func TestSdfFilterStoreValid(t *testing.T) {
 		t.Errorf("Session 2, should have already stored 1 PDR")
 	}
 
-	ip1, _ := net.ResolveIPAddr("ip", "1.1.1.1")
-	ip2, _ := net.ResolveIPAddr("ip", "2.2.2.2")
+	ip1, _ := net.ResolveIPAddr("ip", UeAddress1)
+	ip2, _ := net.ResolveIPAddr("ip", UeAddress2)
 
 	fd := SdfFilterTestStruct{
 		FlowDescription: "permit out ip from 10.62.0.1 to 8.8.8.8/32", Protocol: 1,
@@ -238,7 +237,7 @@ func TestSdfFilterStoreValid(t *testing.T) {
 	}
 
 	// Check that session PDRs are correct
-	if pfcpConn.NodeAssociations[smfIP].Sessions[2].PDRs[2].Ipv4.String() != "1.1.1.1" {
+	if pfcpConn.NodeAssociations[smfIP].Sessions[2].PDRs[2].Ipv4.String() != UeAddress1 {
 		t.Errorf("Session 1, got broken")
 	}
 
@@ -258,8 +257,6 @@ func TestSdfFilterStoreValid(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
-
-	// TODO: Check that FAR and QER are successfully stored in PDR with SDF
 }
 
 func TestSdfFilterStoreInvalid(t *testing.T) {
@@ -270,7 +267,7 @@ func TestSdfFilterStoreInvalid(t *testing.T) {
 		t.Errorf("Session 1, should have already stored 1 PDR")
 	}
 
-	ip1, _ := net.ResolveIPAddr("ip", "1.1.1.1")
+	ip1, _ := net.ResolveIPAddr("ip", UeAddress1)
 
 	// Request with bad/unsuported SDF
 	seReq1 := message.NewSessionModificationRequest(0, 0,

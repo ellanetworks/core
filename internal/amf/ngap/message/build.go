@@ -588,9 +588,6 @@ func BuildUERadioCapabilityCheckRequest(ue *context.RanUe) ([]byte, error) {
 	rANUENGAPID.Value = ue.RanUeNgapId
 
 	uERadioCapabilityCheckRequestIEs.List = append(uERadioCapabilityCheckRequestIEs.List, ie)
-
-	// TODO:UE Radio Capability(optional)
-
 	return ngap.Encoder(pdu)
 }
 
@@ -655,8 +652,6 @@ func BuildHandoverCancelAcknowledge(
 func BuildPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte,
 	pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq,
 ) ([]byte, error) {
-	// TODO: Ran Paging Priority (optional)
-
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
 	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
@@ -814,8 +809,6 @@ func BuildPDUSessionResourceModifyConfirm(
 func BuildPDUSessionResourceModifyRequest(ue *context.RanUe,
 	pduSessionResourceModifyRequestList ngapType.PDUSessionResourceModifyListModReq,
 ) ([]byte, error) {
-	// TODO: Ran Paging Priority (optional)
-
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
 	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
@@ -1087,8 +1080,6 @@ func BuildInitialContextSetupRequest(
 		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
 		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentTraceActivation
 		ie.Value.TraceActivation = new(ngapType.TraceActivation)
-		// TS 32.422 4.2.2.9
-		// TODO: AMF allocate Trace Recording Session Reference
 		traceActivation := ngapConvert.TraceDataToNgap(*amfUe.TraceData, ranUe.Trsr)
 		ie.Value.TraceActivation = &traceActivation
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
@@ -1238,9 +1229,6 @@ func BuildUEContextModificationRequest(
 	// oldAmfUeNgapID: if amf allocate a new amf ue ngap id to amfUe, the caller should
 	// update the context by itself, and pass the old AmfUeNgapID to this function
 	// for other parameters, please reference the comments in BuildInitialContextSetupRequest
-
-	// TODO: Ran Paging Priority (optional) [int: 1~256] TS 38.413 9.3.3.15, TS 23.501
-	// TODO: fill IE securityKey & ueSecurityCapabilities to code
 
 	if amfUe == nil {
 		return nil, fmt.Errorf("amfUe is nil")
@@ -2094,8 +2082,6 @@ func BuildDownlinkRanStatusTransfer(ue *context.RanUe,
 func BuildPaging(
 	ue *context.AmfUe, pagingPriority *ngapType.PagingPriority, pagingOriginNon3GPP bool,
 ) ([]byte, error) {
-	// TODO: Paging DRX (optional)
-
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
 	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
@@ -2241,7 +2227,6 @@ func BuildPaging(
 			recommendedCellList.List = append(recommendedCellList.List, recommendedCellItem)
 		}
 
-		// TODO: Paging Attempt Information (optional): provided by AMF (TS 23.502 4.2.3.3, TS 38.300 9.2.5)
 		pagingIEs.List = append(pagingIEs.List, ie)
 	}
 
@@ -2697,7 +2682,6 @@ func BuildDeactivateTrace(amfUe *context.AmfUe, anType models.AccessType) ([]byt
 		ie.Value.Present = ngapType.DeactivateTraceIEsPresentNGRANTraceID
 		ie.Value.NGRANTraceID = new(ngapType.NGRANTraceID)
 
-		// TODO:composed of the following TS:32.422
 		traceData := *amfUe.TraceData
 		subStringSlice := strings.Split(traceData.TraceRef, "-")
 

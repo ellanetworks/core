@@ -19,13 +19,12 @@ type UPF struct {
 }
 
 type GetNetworkResponseResult struct {
-	Sst      string   `json:"sst,omitempty"`
-	Sd       string   `json:"sd,omitempty"`
-	Profiles []string `json:"profiles"`
-	Mcc      string   `json:"mcc,omitempty"`
-	Mnc      string   `json:"mnc,omitempty"`
-	GNodeBs  []GNodeB `json:"gNodeBs"`
-	Upf      UPF      `json:"upf,omitempty"`
+	Sst     string   `json:"sst,omitempty"`
+	Sd      string   `json:"sd,omitempty"`
+	Mcc     string   `json:"mcc,omitempty"`
+	Mnc     string   `json:"mnc,omitempty"`
+	GNodeBs []GNodeB `json:"gNodeBs"`
+	Upf     UPF      `json:"upf,omitempty"`
 }
 
 type GetNetworkResponse struct {
@@ -34,13 +33,12 @@ type GetNetworkResponse struct {
 }
 
 type UpdateNetworkParams struct {
-	Sst      string   `json:"sst,omitempty"`
-	Sd       string   `json:"sd,omitempty"`
-	Profiles []string `json:"profiles"`
-	Mcc      string   `json:"mcc,omitempty"`
-	Mnc      string   `json:"mnc,omitempty"`
-	GNodeBs  []GNodeB `json:"gNodeBs"`
-	Upf      UPF      `json:"upf,omitempty"`
+	Sst     string   `json:"sst,omitempty"`
+	Sd      string   `json:"sd,omitempty"`
+	Mcc     string   `json:"mcc,omitempty"`
+	Mnc     string   `json:"mnc,omitempty"`
+	GNodeBs []GNodeB `json:"gNodeBs"`
+	Upf     UPF      `json:"upf,omitempty"`
 }
 
 type UpdateNetworkResponseResult struct {
@@ -61,7 +59,11 @@ func getNetwork(url string, client *http.Client) (int, *GetNetworkResponse, erro
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var networkSliceResponse GetNetworkResponse
 	if err := json.NewDecoder(res.Body).Decode(&networkSliceResponse); err != nil {
 		return 0, nil, err
@@ -82,7 +84,11 @@ func updateNetwork(url string, client *http.Client, data *UpdateNetworkParams) (
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var createResponse UpdateNetworkResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
 		return 0, nil, err
@@ -93,7 +99,7 @@ func updateNetwork(url string, client *http.Client, data *UpdateNetworkParams) (
 // This is an end-to-end test for the networks handlers.
 // The order of the tests is important, as some tests depend on
 // the state of the server after previous tests.
-func TestNetworksEndToEnd(t *testing.T) {
+func TestApiNetworksEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
 	ts, err := setupServer(db_path)
@@ -107,9 +113,6 @@ func TestNetworksEndToEnd(t *testing.T) {
 		updateNetworkParams := &UpdateNetworkParams{
 			Sst: "001",
 			Sd:  "1",
-			Profiles: []string{
-				"my-profile",
-			},
 			Mcc: "123",
 			Mnc: "456",
 			GNodeBs: []GNodeB{
@@ -151,13 +154,6 @@ func TestNetworksEndToEnd(t *testing.T) {
 		}
 		if response.Result.Sd != "1" {
 			t.Fatalf("expected sd %s, got %s", "1", response.Result.Sd)
-		}
-		if len(response.Result.Profiles) != 1 {
-			t.Fatalf("expected 1 profile, got %d", len(response.Result.Profiles))
-		}
-
-		if response.Result.Profiles[0] != "my-profile" {
-			t.Fatalf("expected profile my-profile, got %s", response.Result.Profiles[0])
 		}
 		if response.Result.Mcc != "123" {
 			t.Fatalf("expected mcc %s, got %s", "123", response.Result.Mcc)

@@ -7,13 +7,17 @@ import (
 	"github.com/yeastengine/ella/internal/db"
 )
 
-func TestNetworksEndToEnd(t *testing.T) {
+func TestDbNetworksEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
-	defer database.Close()
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
 
 	err = database.InitializeNetwork()
 	if err != nil {

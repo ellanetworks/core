@@ -44,10 +44,9 @@ type UeAMPolicyData struct {
 	ServingPlmn       *models.NetworkId
 	AltNotifIpv4Addrs []string
 	AltNotifIpv6Addrs []string
-	// TODO: AMF Status Change
-	AmfStatusUri string
-	Guami        *models.Guami
-	ServiveName  string
+	AmfStatusUri      string
+	Guami             *models.Guami
+	ServiveName       string
 	// TraceReq *TraceData
 	// about AF request
 	Pras map[string]models.PresenceInfo

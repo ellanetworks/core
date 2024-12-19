@@ -25,7 +25,11 @@ func getStatus(url string, client *http.Client) (int, *GetStatusResponse, error)
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var radioResponse GetStatusResponse
 	if err := json.NewDecoder(res.Body).Decode(&radioResponse); err != nil {
 		return 0, nil, err

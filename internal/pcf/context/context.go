@@ -174,7 +174,6 @@ func ueSMPolicyFindByAppSessionContext(ue *UeContext, req *models.AppSessionCont
 			err = fmt.Errorf("can't find Ue with Ipv6 prefix[%s]", req.UeIpv6)
 		}
 	} else {
-		// TODO: find by MAC address
 		err = fmt.Errorf("UE finding by MAC address does not support")
 	}
 	return policy, err
@@ -354,14 +353,13 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 		return subscriberPolicies
 	}
 	pccPolicyId := dbNetwork.Sst + dbNetwork.Sd
-	deviceGroupNames := dbNetwork.ListProfiles()
-	for _, devGroupName := range deviceGroupNames {
-		deviceGroup, err := pcfSelf.DbInstance.GetProfile(devGroupName)
-		if err != nil {
-			logger.PcfLog.Warnf("Failed to get device group profile: %+v", err)
-			continue
-		}
-		imsis, err := deviceGroup.GetImsis()
+	profiles, err := pcfSelf.DbInstance.ListProfiles()
+	if err != nil {
+		logger.PcfLog.Warnf("Failed to get profiles: %+v", err)
+		return subscriberPolicies
+	}
+	for _, profile := range profiles {
+		imsis, err := profile.GetImsis()
 		if err != nil {
 			logger.PcfLog.Warnf("Failed to get imsis from device group: %+v", err)
 			continue
@@ -393,16 +391,16 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 			qosId, _ := pcfCtx.QoSDataIDGenerator.Allocate()
 			sessionRuleId, _ := pcfCtx.SessionRuleIDGenerator.Allocate()
 
-			ul, uunit := GetBitRateUnit(deviceGroup.BitrateUplink)
-			dl, dunit := GetBitRateUnit(deviceGroup.BitrateDownlink)
+			ul, uunit := GetBitRateUnit(profile.BitrateUplink)
+			dl, dunit := GetBitRateUnit(profile.BitrateDownlink)
 
 			// Create QoS data
 			qosData := &models.QosData{
 				QosId:                strconv.FormatInt(qosId, 10),
-				Var5qi:               deviceGroup.Var5qi,
+				Var5qi:               profile.Var5qi,
 				MaxbrUl:              strconv.FormatInt(ul, 10) + uunit,
 				MaxbrDl:              strconv.FormatInt(dl, 10) + dunit,
-				Arp:                  &models.Arp{PriorityLevel: deviceGroup.Arp},
+				Arp:                  &models.Arp{PriorityLevel: profile.Arp},
 				DefQosFlowIndication: true,
 			}
 			subscriberPolicies[imsi].PccPolicy[pccPolicyId].QosDecs[qosData.QosId] = qosData

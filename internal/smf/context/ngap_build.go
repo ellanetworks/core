@@ -24,7 +24,6 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 
 	// PDU Session Aggregate Maximum Bit Rate
 	// This IE is Conditional and shall be present when at least one NonGBR QoS flow is being setup.
-	// TODO: should check if there is at least one NonGBR QoS flow
 	ie := ngapType.PDUSessionResourceSetupRequestTransferIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -218,10 +217,6 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 
 func BuildPDUSessionResourceModifyRequestTransfer(ctx *SMContext) ([]byte, error) {
 	resourceModifyRequestTransfer := ngapType.PDUSessionResourceModifyRequestTransfer{}
-
-	// PDU Session Aggregate Maximum Bit Rate
-	// This IE is Conditional and shall be present when at least one NonGBR QoS flow is being setup.
-	// TODO: should check if there is at least one NonGBR QoS flow
 	ie := ngapType.PDUSessionResourceModifyRequestTransferIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -244,7 +239,6 @@ func BuildPDUSessionResourceModifyRequestTransfer(ctx *SMContext) ([]byte, error
 
 	// QoS Flow Modify Request List
 	// use Default 5qi, arp
-	// TODO: Get QFI from PCF/UDM
 	arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
 	if sessRule.AuthDefQos.Arp.PreemptCap == models.PreemptionCapability_NOT_PREEMPT {
 		arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
@@ -351,16 +345,13 @@ func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
 	// Security Indication(optional) TS 38.413 9.3.1.27
 	pathSwitchRequestAcknowledgeTransfer.SecurityIndication = new(ngapType.SecurityIndication)
 	securityIndication := pathSwitchRequestAcknowledgeTransfer.SecurityIndication
-	// TODO: use real value
 	securityIndication.IntegrityProtectionIndication.Value = ngapType.IntegrityProtectionIndicationPresentNotNeeded
-	// TODO: use real value
 	securityIndication.ConfidentialityProtectionIndication.Value = ngapType.ConfidentialityProtectionIndicationPresentNotNeeded
 
 	integrityProtectionInd := securityIndication.IntegrityProtectionIndication.Value
 	if integrityProtectionInd == ngapType.IntegrityProtectionIndicationPresentRequired ||
 		integrityProtectionInd == ngapType.IntegrityProtectionIndicationPresentPreferred {
 		securityIndication.MaximumIntegrityProtectedDataRateUL = new(ngapType.MaximumIntegrityProtectedDataRate)
-		// TODO: use real value
 		securityIndication.MaximumIntegrityProtectedDataRateUL.Value = ngapType.MaximumIntegrityProtectedDataRatePresentBitrate64kbs
 	}
 

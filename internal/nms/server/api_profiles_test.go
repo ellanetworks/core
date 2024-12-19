@@ -83,7 +83,11 @@ func listProfiles(url string, client *http.Client) (int, *ListProfileResponse, e
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var profileResponse ListProfileResponse
 	if err := json.NewDecoder(res.Body).Decode(&profileResponse); err != nil {
 		return 0, nil, err
@@ -100,7 +104,11 @@ func getProfile(url string, client *http.Client, name string) (int, *GetProfileR
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var profileResponse GetProfileResponse
 	if err := json.NewDecoder(res.Body).Decode(&profileResponse); err != nil {
 		return 0, nil, err
@@ -121,7 +129,11 @@ func createProfile(url string, client *http.Client, data *CreateProfileParams) (
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var createResponse CreateProfileResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
 		return 0, nil, err
@@ -142,7 +154,11 @@ func editProfile(url string, client *http.Client, name string, data *CreateProfi
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var createResponse CreateProfileResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
 		return 0, nil, err
@@ -159,7 +175,11 @@ func deleteProfile(url string, client *http.Client, name string) (int, *DeletePr
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var deleteProfileResponse DeleteProfileResponse
 	if err := json.NewDecoder(res.Body).Decode(&deleteProfileResponse); err != nil {
 		return 0, nil, err

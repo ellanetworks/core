@@ -62,7 +62,11 @@ func getSubscriber(url string, client *http.Client, ueId string) (int, *GetSubsc
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var subscriberResponse GetSubscriberResponse
 	if err := json.NewDecoder(res.Body).Decode(&subscriberResponse); err != nil {
 		return 0, nil, err
@@ -83,7 +87,11 @@ func createSubscriber(url string, client *http.Client, data *CreateSubscriberPar
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var createResponse CreateSubscriberResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
 		return 0, nil, err
@@ -100,7 +108,11 @@ func deleteSubscriber(url string, client *http.Client, ueId string) (int, *Delet
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var deleteResponse DeleteSubscriberResponse
 	if err := json.NewDecoder(res.Body).Decode(&deleteResponse); err != nil {
 		return 0, nil, err

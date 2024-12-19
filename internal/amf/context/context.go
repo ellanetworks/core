@@ -136,8 +136,6 @@ func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.Acc
 		ue.RegistrationArea[anType] = nil
 	}
 
-	// allocate a new tai list as a registration area to ue
-	// TODO: algorithm to choose TAI list
 	supportTaiList := GetSupportTaiList()
 	taiList := make([]models.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)

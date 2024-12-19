@@ -104,12 +104,6 @@ func BuildAuthorizedQosFlowDescriptions(smPolicyUpdates *PolicyUpdate) *QosFlowD
 		}
 	}
 
-	// QoS Flow Description to be Modified
-	// TODO
-
-	// QoS Flow Description to be Deleted
-	// TODO
-
 	return &QFDescriptions
 }
 
@@ -154,7 +148,6 @@ func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *
 }
 
 func BuildModQosFlowDescFromQoSDesc(qosData *models.QosData) {
-	// TODO
 }
 
 func BuildDelQosFlowDescFromQoSDesc(qosData *models.QosData) {
@@ -330,9 +323,6 @@ func CommitQosFlowDescUpdate(smCtxtPolData *SmCtxtPolicyData, update *QosFlowsUp
 		}
 	}
 
-	// Mod flows
-	// TODO
-
 	// Del flows
 	if len(update.del) > 0 {
 		for name := range update.del {
@@ -343,7 +333,6 @@ func CommitQosFlowDescUpdate(smCtxtPolData *SmCtxtPolicyData, update *QosFlowsUp
 
 // Compare if any change in QoS Data
 func GetQosDataChanges(qf1, qf2 *models.QosData) bool {
-	// TODO
 	return false
 }
 

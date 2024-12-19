@@ -477,7 +477,6 @@ func BuildRegistrationAccept(
 		}
 	}
 	registrationAccept.RegistrationResult5GS.SetRegistrationResultValue5GS(registrationResult)
-	// TODO: set smsAllowed value of RegistrationResult5GS if need
 
 	if ue.Guti != "" {
 		gutiNas := nasConvert.GutiToNas(ue.Guti)
@@ -512,27 +511,7 @@ func BuildRegistrationAccept(
 		registrationAccept.AllowedNSSAI.SetLen(uint8(len(buf)))
 		registrationAccept.AllowedNSSAI.SetSNSSAIValue(buf)
 	}
-	/* TODO: DT-Trial: Commented below code because UE is not allowing rejected Nssais */
-	/*
-		if ue.NetworkSliceInfo != nil {
-			if len(ue.NetworkSliceInfo.RejectedNssaiInPlmn) != 0 || len(ue.NetworkSliceInfo.RejectedNssaiInTa) != 0 {
-				rejectedNssaiNas := nasConvert.RejectedNssaiToNas(
-					ue.NetworkSliceInfo.RejectedNssaiInPlmn, ue.NetworkSliceInfo.RejectedNssaiInTa)
-				registrationAccept.RejectedNSSAI = &rejectedNssaiNas
-				registrationAccept.RejectedNSSAI.SetIei(nasMessage.RegistrationAcceptRejectedNSSAIType)
-			}
-		}
 
-		if includeConfiguredNssaiCheck(ue) {
-			registrationAccept.ConfiguredNSSAI = nasType.NewConfiguredNSSAI(nasMessage.RegistrationAcceptConfiguredNSSAIType)
-			var buf []uint8
-			for _, snssai := range ue.ConfiguredNssai {
-				buf = append(buf, nasConvert.SnssaiToNas(*snssai.ConfiguredSnssai)...)
-			}
-			registrationAccept.ConfiguredNSSAI.SetLen(uint8(len(buf)))
-			registrationAccept.ConfiguredNSSAI.SetSNSSAIValue(buf)
-		}
-	*/
 	// 5gs network feature support
 	if factory.AmfConfig.Get5gsNwFeatSuppEnable() {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
@@ -711,7 +690,6 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType
 		}
 	}
 
-	// TODO: UniversalTimeAndLocalTimeZone
 	if anType == models.AccessType__3_GPP_ACCESS && ue.AmPolicyAssociation != nil &&
 		ue.AmPolicyAssociation.ServAreaRes != nil {
 		configurationUpdateCommand.ServiceAreaList = nasType.NewServiceAreaList(nasMessage.ConfigurationUpdateCommandServiceAreaListType)

@@ -114,7 +114,6 @@ func (t *Transaction) TransactionEnd() {
 type TxnBus []*Transaction
 
 func (txnBus TxnBus) AddTxn(t *Transaction) TxnBus {
-	// TODO: Keep Txn Bus Priority sorted
 	txnBus = append(txnBus, t)
 	return txnBus
 }

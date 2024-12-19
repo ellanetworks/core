@@ -23,8 +23,6 @@ func GetSessionRulesUpdate(pcfSessRules, ctxtSessRules map[string]*models.Sessio
 		del: make(map[string]*models.SessionRule),
 	}
 
-	// TODO: Iterate through all session rules from PCF and check against ctxt session rules
-	// Get only active session Rule for now
 	for name, sessRule := range pcfSessRules {
 		// Rules to be deleted
 		if sessRule == nil {
@@ -41,8 +39,6 @@ func GetSessionRulesUpdate(pcfSessRules, ctxtSessRules map[string]*models.Sessio
 			change.ActiveSessRule = sessRule
 		} else {
 			change.mod[name] = sessRule
-			// Rules to be modified
-			// TODO
 		}
 	}
 	return &change
@@ -57,9 +53,6 @@ func CommitSessionRulesUpdate(smCtxtPolData *SmCtxtPolicyData, update *SessRules
 			smCtxtPolData.SmCtxtSessionRules.SessionRules[name] = rule
 		}
 	}
-
-	// Mod rules
-	// TODO
 
 	// Del Rules
 	if len(update.del) > 0 {

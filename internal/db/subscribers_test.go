@@ -13,7 +13,11 @@ func TestSubscribersEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
-	defer database.Close()
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
 
 	res, err := database.ListSubscribers()
 	if err != nil {

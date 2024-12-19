@@ -130,10 +130,9 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 
 func (smContext *SMContext) HandlePDUSessionReleaseRequest(req *nasMessage.PDUSessionReleaseRequest) {
 	smContext.SubGsmLog.Infof("Handle Pdu Session Release Request")
-
-	// Retrieve PTI (Procedure transaction identity)
 	smContext.Pti = req.GetPTI()
-
-	// Release UE IP Addr
-	smContext.ReleaseUeIpAddr()
+	err := smContext.ReleaseUeIpAddr()
+	if err != nil {
+		smContext.SubGsmLog.Errorf("Error in releasing UE IP Addr: %s", err)
+	}
 }

@@ -8,7 +8,6 @@ import (
 )
 
 func Dispatch(msg *udp.Message) {
-	// TODO: Add return status to all handlers
 	msgType := msg.PfcpMessage.MessageType()
 	switch msgType {
 	case message.MsgTypeHeartbeatRequest:

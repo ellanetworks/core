@@ -1,12 +1,12 @@
 /**
  * Copyright 2023 Edgecom LLC
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,15 +27,14 @@
 #include "xdp/utils/packet_context.h"
 #include "xdp/utils/trace.h"
 
-#define ETH_P_IPV6_BE	0xDD86
-#define ETH_P_IP_BE 	0x0008
+#define ETH_P_IPV6_BE 0xDD86
+#define ETH_P_IP_BE 0x0008
 
-static __always_inline int parse_ethernet(struct packet_context *ctx) {
+static __always_inline int parse_ethernet(struct packet_context *ctx)
+{
     struct ethhdr *eth = (struct ethhdr *)ctx->data;
     if ((const char *)(eth + 1) > ctx->data_end)
         return -1;
-
-    /* TODO: Add vlan support */
 
     ctx->data += sizeof(*eth);
     ctx->eth = eth;
@@ -45,7 +44,8 @@ static __always_inline int parse_ethernet(struct packet_context *ctx) {
 /* 0x3FFF mask to check for fragment offset field */
 #define IP_FRAGMENTED 65343
 
-static __always_inline int parse_ip4(struct packet_context *ctx) {
+static __always_inline int parse_ip4(struct packet_context *ctx)
+{
     struct iphdr *ip4 = (struct iphdr *)ctx->data;
     if ((const char *)(ip4 + 1) > ctx->data_end)
         return -1;
@@ -59,11 +59,12 @@ static __always_inline int parse_ip4(struct packet_context *ctx) {
     return ip4->protocol;
 }
 
-static __always_inline int parse_ip6(struct packet_context *ctx) {
+static __always_inline int parse_ip6(struct packet_context *ctx)
+{
     struct ipv6hdr *ip6 = (struct ipv6hdr *)ctx->data;
     if ((const char *)(ip6 + 1) > ctx->data_end)
         return -1;
-    
+
     /* TODO: Add extention headers support */
 
     ctx->data += sizeof(*ip6);
@@ -71,7 +72,8 @@ static __always_inline int parse_ip6(struct packet_context *ctx) {
     return ip6->nexthdr;
 }
 
-static __always_inline int parse_udp(struct packet_context *ctx) {
+static __always_inline int parse_udp(struct packet_context *ctx)
+{
     struct udphdr *udp = (struct udphdr *)ctx->data;
     if ((const char *)(udp + 1) > ctx->data_end)
         return -1;
@@ -81,12 +83,13 @@ static __always_inline int parse_udp(struct packet_context *ctx) {
     return bpf_ntohs(udp->dest);
 }
 
-static __always_inline int parse_tcp(struct packet_context *ctx) {
+static __always_inline int parse_tcp(struct packet_context *ctx)
+{
     struct tcphdr *tcp = (struct tcphdr *)ctx->data;
     if ((const char *)(tcp + 1) > ctx->data_end)
         return -1;
 
-    //TODO: parse header lenght correctly (tcp options)
+    // TODO: parse header lenght correctly (tcp options)
 
     ctx->data += sizeof(*tcp);
     ctx->tcp = tcp;
@@ -95,24 +98,27 @@ static __always_inline int parse_tcp(struct packet_context *ctx) {
 
 static __always_inline int parse_l4(int ip_protocol, struct packet_context *ctx)
 {
-    switch (ip_protocol) {
-        case IPPROTO_UDP:
-            return parse_udp(ctx);
-        case IPPROTO_TCP:
-            return parse_tcp(ctx);
-        default:
-            return 0;
+    switch (ip_protocol)
+    {
+    case IPPROTO_UDP:
+        return parse_udp(ctx);
+    case IPPROTO_TCP:
+        return parse_tcp(ctx);
+    default:
+        return 0;
     }
 }
 
-static __always_inline void swap_mac(struct ethhdr *eth) {
+static __always_inline void swap_mac(struct ethhdr *eth)
+{
     __u8 mac[6];
     __builtin_memcpy(mac, eth->h_source, sizeof(mac));
     __builtin_memcpy(eth->h_source, eth->h_dest, sizeof(eth->h_source));
     __builtin_memcpy(eth->h_dest, mac, sizeof(eth->h_dest));
 }
 
-static __always_inline void swap_port(struct udphdr *udp) {
+static __always_inline void swap_port(struct udphdr *udp)
+{
     __u16 tmp = udp->dest;
     udp->dest = udp->source;
     udp->source = tmp;
@@ -123,7 +129,8 @@ static __always_inline void swap_port(struct udphdr *udp) {
     // udp->check = cs;
 }
 
-static __always_inline void swap_ip(struct iphdr *iph) {
+static __always_inline void swap_ip(struct iphdr *iph)
+{
     __u32 tmp_ip = iph->daddr;
     iph->daddr = iph->saddr;
     iph->saddr = tmp_ip;
@@ -132,7 +139,8 @@ static __always_inline void swap_ip(struct iphdr *iph) {
     // ip->check = ipv4_csum(ip, sizeof(*ip));
 }
 
-static __always_inline void context_set_ip4(struct packet_context *ctx, char *data, const char *data_end, struct ethhdr *eth, struct iphdr *ip4, struct udphdr *udp, struct gtpuhdr *gtp) {
+static __always_inline void context_set_ip4(struct packet_context *ctx, char *data, const char *data_end, struct ethhdr *eth, struct iphdr *ip4, struct udphdr *udp, struct gtpuhdr *gtp)
+{
     ctx->data = data;
     ctx->data_end = data_end;
     ctx->eth = eth;
@@ -142,7 +150,8 @@ static __always_inline void context_set_ip4(struct packet_context *ctx, char *da
     ctx->gtp = gtp;
 }
 
-static __always_inline void context_reset(struct packet_context *ctx, char *data, const char *data_end) {
+static __always_inline void context_reset(struct packet_context *ctx, char *data, const char *data_end)
+{
     ctx->data = data;
     ctx->data_end = data_end;
     ctx->eth = 0;
@@ -152,30 +161,35 @@ static __always_inline void context_reset(struct packet_context *ctx, char *data
     ctx->gtp = 0;
 }
 
-
-static __always_inline long context_reinit(struct packet_context *ctx, char *data, const char *data_end) {
+static __always_inline long context_reinit(struct packet_context *ctx, char *data, const char *data_end)
+{
     context_reset(ctx, data, data_end);
 
     int ethertype = parse_ethernet(ctx);
-    switch (ethertype) {
-        case ETH_P_IPV6: {
-            if (-1 == parse_ip6(ctx)) {
-                upf_printk("upf: can't parse ip6");
-                return -1;
-            }
-            return 0;
-        }
-        case ETH_P_IP: {
-            if (-1 == parse_ip4(ctx)) {
-                upf_printk("upf: can't parse ip4");
-                return -1;
-            }
-            return 0;
-        }
-
-        default:
-            /* do nothing with non-ip packets */
-            upf_printk("upf: can't process not an ip packet: %d", ethertype);
+    switch (ethertype)
+    {
+    case ETH_P_IPV6:
+    {
+        if (-1 == parse_ip6(ctx))
+        {
+            upf_printk("upf: can't parse ip6");
             return -1;
+        }
+        return 0;
+    }
+    case ETH_P_IP:
+    {
+        if (-1 == parse_ip4(ctx))
+        {
+            upf_printk("upf: can't parse ip4");
+            return -1;
+        }
+        return 0;
+    }
+
+    default:
+        /* do nothing with non-ip packets */
+        upf_printk("upf: can't process not an ip packet: %d", ethertype);
+        return -1;
     }
 }

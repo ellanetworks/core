@@ -11,11 +11,10 @@ type UPF struct {
 }
 
 type NetworkSlice struct {
-	Sst      string
-	Sd       string
-	Profiles []string
-	Mcc      string
-	Mnc      string
-	GNodeBs  []GNodeB
-	Upf      UPF
+	Sst     string
+	Sd      string
+	Mcc     string
+	Mnc     string
+	GNodeBs []GNodeB
+	Upf     UPF
 }

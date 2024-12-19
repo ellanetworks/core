@@ -48,8 +48,6 @@ func HandleUpdateN1Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 		case nas.MsgTypePDUSessionReleaseRequest:
 			smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N1 Msg PDU Session Release Request received")
 			if smContext.SMContextState != context.SmStateActive {
-				// Wait till the state becomes SmStateActive again
-				// TODO: implement sleep wait in concurrent architecture
 				smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, SM Context State[%v] should be SmStateActive", smContext.SMContextState.String())
 			}
 
@@ -85,8 +83,6 @@ func HandleUpdateN1Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 		case nas.MsgTypePDUSessionReleaseComplete:
 			smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N1 Msg PDU Session Release Complete received")
 			if smContext.SMContextState != context.SmStateInActivePending {
-				// Wait till the state becomes SmStateActive again
-				// TODO: implement sleep wait in concurrent architecture
 				smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, SMContext State[%v] should be SmStateInActivePending State", smContext.SMContextState.String())
 			}
 			// Send Release Notify to AMF
@@ -124,8 +120,6 @@ func HandleUpCnxState(txn *transaction.Transaction, response *models.UpdateSmCon
 	case models.UpCnxState_ACTIVATING:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, UP cnx state %v received", smContextUpdateData.UpCnxState)
 		if smContext.SMContextState != context.SmStateActive {
-			// Wait till the state becomes SmStateActive again
-			// TODO: implement sleep wait in concurrent architecture
 			smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, SMContext State[%v] should be SmStateActive State", smContext.SMContextState.String())
 		}
 		smContext.ChangeState(context.SmStateModify)
@@ -144,8 +138,6 @@ func HandleUpCnxState(txn *transaction.Transaction, response *models.UpdateSmCon
 	case models.UpCnxState_DEACTIVATED:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, UP cnx state %v received", smContextUpdateData.UpCnxState)
 		if smContext.SMContextState != context.SmStateActive {
-			// Wait till the state becomes Active again
-			// TODO: implement sleep wait in concurrent architecture
 			smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, SMContext State[%v] should be Active State", smContext.SMContextState.String())
 		}
 		if smContext.Tunnel != nil {
@@ -154,8 +146,6 @@ func HandleUpCnxState(txn *transaction.Transaction, response *models.UpdateSmCon
 			response.JsonData.UpCnxState = models.UpCnxState_DEACTIVATED
 			smContext.UpCnxState = body.JsonData.UpCnxState
 			smContext.UeLocation = body.JsonData.UeLocation
-			// TODO: Deactivate N2 downlink tunnel
-			// Set FAR and An, N3 Release Info
 			farList := []*context.FAR{}
 			smContext.PendingUPF = make(context.PendingUPF)
 			for _, dataPath := range smContext.Tunnel.DataPathPool {
@@ -198,8 +188,6 @@ func HandleUpdateHoState(txn *transaction.Transaction, response *models.UpdateSm
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, Ho state %v received", smContextUpdateData.HoState)
 		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, in HoState_PREPARING")
 		if smContext.SMContextState != context.SmStateActive {
-			// Wait till the state becomes SmStateActive again
-			// TODO: implement sleep wait in concurrent architecture
 			smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state[%v] should be SmStateActive",
 				smContext.SMContextState.String())
 		}
@@ -225,8 +213,6 @@ func HandleUpdateHoState(txn *transaction.Transaction, response *models.UpdateSm
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, Ho state %v received", smContextUpdateData.HoState)
 		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, in HoState_PREPARED")
 		if smContext.SMContextState != context.SmStateActive {
-			// Wait till the state becomes SmStateActive again
-			// TODO: implement sleep wait in concurrent architecture
 			smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state [%v] should be SmStateActive",
 				smContext.SMContextState.String())
 		}
@@ -253,8 +239,6 @@ func HandleUpdateHoState(txn *transaction.Transaction, response *models.UpdateSm
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, Ho state %v received", smContextUpdateData.HoState)
 		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, in HoState_COMPLETED")
 		if smContext.SMContextState != context.SmStateActive {
-			// Wait till the state becomes SmStateActive again
-			// TODO: implement sleep wait in concurrent architecture
 			smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state[%v] should be SmStateActive",
 				smContext.SMContextState.String())
 		}
@@ -276,8 +260,6 @@ func HandleUpdateCause(txn *transaction.Transaction, response *models.UpdateSmCo
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, update cause %v received", smContextUpdateData.Cause)
 		//* release PDU Session Here
 		if smContext.SMContextState != context.SmStateActive {
-			// Wait till the state becomes SmStateActive again
-			// TODO: implement sleep wait in concurrent architecture
 			smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state[%v] should be SmStateActive",
 				smContext.SMContextState.String())
 		}
@@ -315,8 +297,6 @@ func HandleUpdateN2Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received",
 			smContextUpdateData.N2SmInfoType)
 		if smContext.SMContextState != context.SmStateActive {
-			// Wait till the state becomes Active again
-			// TODO: implement sleep wait in concurrent architecture
 			smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state[%v] should be Active",
 				smContext.SMContextState.String())
 		}
@@ -375,8 +355,6 @@ func HandleUpdateN2Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 PDUSession Release Complete ")
 		if smContext.PDUSessionRelease_DUE_TO_DUP_PDU_ID {
 			if smContext.SMContextState != context.SmStateInActivePending {
-				// Wait till the state becomes Active again
-				// TODO: implement sleep wait in concurrent architecture
 				smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state[%v] should be ActivePending",
 					smContext.SMContextState.String())
 			}
@@ -401,8 +379,6 @@ func HandleUpdateN2Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 			}
 		} else { // normal case
 			if smContext.SMContextState != context.SmStateInActivePending {
-				// Wait till the state becomes Active again
-				// TODO: implement sleep wait in concurrent architecture
 				smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state[%v] should be ActivePending",
 					smContext.SMContextState.String())
 			}
@@ -415,8 +391,6 @@ func HandleUpdateN2Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 			smContextUpdateData.N2SmInfoType)
 		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, handle Path Switch Request")
 		if smContext.SMContextState != context.SmStateActive {
-			// Wait till the state becomes Active again
-			// TODO: implement sleep wait in concurrent architecture
 			smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state[%v] should be Active",
 				smContext.SMContextState.String())
 		}
@@ -465,8 +439,6 @@ func HandleUpdateN2Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received",
 			smContextUpdateData.N2SmInfoType)
 		if smContext.SMContextState != context.SmStateActive {
-			// Wait till the state becomes SmStateActive again
-			// TODO: implement sleep wait in concurrent architecture
 			smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state[%v] should be SmStateActive",
 				smContext.SMContextState.String())
 		}
@@ -479,8 +451,6 @@ func HandleUpdateN2Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received",
 			smContextUpdateData.N2SmInfoType)
 		if smContext.SMContextState != context.SmStateActive {
-			// Wait till the state becomes SmStateActive again
-			// TODO: implement sleep wait in concurrent architecture
 			smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state[%v] should be SmStateActive",
 				smContext.SMContextState.String())
 		}

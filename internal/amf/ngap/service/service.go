@@ -192,7 +192,6 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler NGAPHandler) 
 				continue
 			}
 
-			// TODO: concurrent on per-UE message
 			handler.HandleMessage(conn, buf[:n])
 		}
 	}

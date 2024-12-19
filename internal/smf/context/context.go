@@ -31,8 +31,6 @@ type SMFContext struct {
 	UserPlaneInformation *UserPlaneInformation
 	ueIPAllocatorMapping map[string]*IPAllocator
 
-	// Now only "IPv4" supported
-	// TODO: support "IPv6", "IPv4v6", "Ethernet"
 	SupportedPDUSessionType string
 
 	EnterpriseList *map[string]string // map to contain slice-name:enterprise-name

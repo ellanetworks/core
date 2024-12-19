@@ -204,25 +204,28 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		slice := isProfileExistInSlice(dbInstance, createProfileParams.Name)
-		if slice != nil {
-			sVal, err := strconv.ParseUint(slice.Sst, 10, 32)
-			if err != nil {
-				writeError(c.Writer, http.StatusBadRequest, "Invalid SST")
-				return
-			}
+		network, err := dbInstance.GetNetwork()
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "Network not found")
+			return
+		}
 
-			for _, imsi := range createProfileParams.Imsis {
-				dnn := createProfileParams.Dnn
-				ueId := "imsi-" + imsi
-				plmnId := slice.Mcc + slice.Mnc
-				bitRateUplink := convertToString(uint64(createProfileParams.BitrateUplink))
-				bitRateDownlink := convertToString(uint64(createProfileParams.BitrateDownlink))
-				err = dbInstance.UpdateSubscriberProfile(ueId, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, createProfileParams.Var5qi)
-				if err != nil {
-					writeError(c.Writer, http.StatusBadRequest, "Failed to update subscriber")
-					return
-				}
+		sVal, err := strconv.ParseUint(network.Sst, 10, 32)
+		if err != nil {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid SST")
+			return
+		}
+
+		for _, imsi := range createProfileParams.Imsis {
+			dnn := createProfileParams.Dnn
+			ueId := "imsi-" + imsi
+			plmnId := network.Mcc + network.Mnc
+			bitRateUplink := convertToString(uint64(createProfileParams.BitrateUplink))
+			bitRateDownlink := convertToString(uint64(createProfileParams.BitrateDownlink))
+			err = dbInstance.UpdateSubscriberProfile(ueId, dnn, network.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, createProfileParams.Var5qi)
+			if err != nil {
+				writeError(c.Writer, http.StatusBadRequest, "Failed to update subscriber")
+				return
 			}
 		}
 		dbProfile := &db.Profile{
@@ -239,7 +242,11 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			Pdb:             createProfileParams.Pdb,
 			Pelr:            createProfileParams.Pelr,
 		}
-		dbProfile.SetImsis(createProfileParams.Imsis)
+		err = dbProfile.SetImsis(createProfileParams.Imsis)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to create profile")
+			return
+		}
 		err = dbInstance.CreateProfile(dbProfile)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to create profile")
@@ -319,28 +326,30 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusNotFound, "Profile not found")
 			return
 		}
-		slice := isProfileExistInSlice(dbInstance, profile.Name)
-		if slice != nil {
-			dimsis, err := profile.GetImsis()
+		dimsis, err := profile.GetImsis()
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			return
+		}
+		network, err := dbInstance.GetNetwork()
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "Network not found")
+			return
+		}
+		sVal, err := strconv.ParseUint(network.Sst, 10, 32)
+		if err != nil {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid SST")
+			return
+		}
+		for _, imsi := range dimsis {
+			dnn := updateProfileParams.Dnn
+			ueId := "imsi-" + imsi
+			plmnId := network.Mcc + network.Mnc
+			bitRateUplink := convertToString(uint64(updateProfileParams.BitrateUplink))
+			bitRateDownlink := convertToString(uint64(updateProfileParams.BitrateDownlink))
+			err = dbInstance.UpdateSubscriberProfile(ueId, dnn, network.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, updateProfileParams.Var5qi)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
-				return
-			}
-			sVal, err := strconv.ParseUint(slice.Sst, 10, 32)
-			if err != nil {
-				writeError(c.Writer, http.StatusBadRequest, "Invalid SST")
-				return
-			}
-			for _, imsi := range dimsis {
-				dnn := updateProfileParams.Dnn
-				ueId := "imsi-" + imsi
-				plmnId := slice.Mcc + slice.Mnc
-				bitRateUplink := convertToString(uint64(updateProfileParams.BitrateUplink))
-				bitRateDownlink := convertToString(uint64(updateProfileParams.BitrateDownlink))
-				err = dbInstance.UpdateSubscriberProfile(ueId, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, updateProfileParams.Var5qi)
-				if err != nil {
-					logger.NmsLog.Warnln(err)
-				}
 			}
 		}
 
@@ -356,7 +365,11 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		profile.Arp = updateProfileParams.Arp
 		profile.Pdb = updateProfileParams.Pdb
 		profile.Pelr = updateProfileParams.Pelr
-		profile.SetImsis(updateProfileParams.Imsis)
+		err = profile.SetImsis(updateProfileParams.Imsis)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to update profile")
+			return
+		}
 		err = dbInstance.UpdateProfile(profile)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update profile")
@@ -390,46 +403,31 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 		deleteProfileConfig(dbInstance, profile)
 		err = dbInstance.DeleteProfile(groupName)
 		if err != nil {
-			writeResponse(c.Writer, gin.H{"error": "Failed to delete profile"}, http.StatusInternalServerError)
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete profile")
 			return
 		}
 		updateSMF(dbInstance)
 		logger.NmsLog.Infof("Deleted Profile: %v", groupName)
 		response := SuccessResponse{Message: "Profile deleted successfully"}
-		writeResponse(c.Writer, response, http.StatusOK)
+		err = writeResponse(c.Writer, response, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 }
 
 func deleteProfileConfig(dbInstance *db.Database, dbProfile *db.Profile) {
-	slice := isProfileExistInSlice(dbInstance, dbProfile.Name)
-	if slice != nil {
-		dimsis, err := dbProfile.GetImsis()
-		if err != nil {
-			logger.NmsLog.Warnln(err)
-			return
-		}
-		for _, imsi := range dimsis {
-			ueId := "imsi-" + imsi
-			err = dbInstance.UpdateSubscriberProfile(ueId, "", "", 0, "", "", "", 0)
-			if err != nil {
-				logger.NmsLog.Warnln(err)
-			}
-		}
-	}
-}
-
-func isProfileExistInSlice(dbInstance *db.Database, profileName string) *db.Network {
-	dbNetwork, err := dbInstance.GetNetwork()
+	dimsis, err := dbProfile.GetImsis()
 	if err != nil {
 		logger.NmsLog.Warnln(err)
-		return nil
+		return
 	}
-	profiles := dbNetwork.ListProfiles()
-	for _, dgName := range profiles {
-		if dgName == profileName {
-			return dbNetwork
+	for _, imsi := range dimsis {
+		ueId := "imsi-" + imsi
+		err = dbInstance.UpdateSubscriberProfile(ueId, "", "", 0, "", "", "", 0)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
 		}
 	}
-
-	return nil
 }

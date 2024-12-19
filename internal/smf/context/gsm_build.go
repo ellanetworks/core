@@ -211,7 +211,6 @@ func BuildGSMPDUSessionReleaseReject(smContext *SMContext) ([]byte, error) {
 	pDUSessionReleaseReject.SetPDUSessionID(uint8(smContext.PDUSessionID))
 
 	pDUSessionReleaseReject.SetPTI(smContext.Pti)
-	// TODO: fix to real value
 	pDUSessionReleaseReject.SetCauseValue(nasMessage.Cause5GSMRequestRejectedUnspecified)
 
 	return m.PlainNasEncode()

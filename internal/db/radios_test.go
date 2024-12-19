@@ -13,7 +13,11 @@ func TestRadiosEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
-	defer database.Close()
+	defer func() {
+		if err := database.Close(); err != nil {
+			panic(err)
+		}
+	}()
 
 	res, err := database.ListRadios()
 	if err != nil {

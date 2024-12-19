@@ -498,7 +498,6 @@ func HandlePfcpSessionDeletionResponse(msg *udp.Message) {
 	if smContext == nil {
 		logger.SmfLog.Warnf("PFCP Session Deletion Response found SM context nil, response discarded")
 		return
-		// TODO fix: SEID should be the value sent by UPF but now the SEID value is from sm context
 	}
 
 	if rsp.Cause == nil {
@@ -554,7 +553,6 @@ func HandlePfcpSessionReportRequest(msg *udp.Message) {
 
 		// Rejecting buffering at UPF since not able to process Session Report Request
 		pfcpSRflag.Drobu = true
-		// TODO fix: SEID should be the value sent by UPF but now the SEID value is from sm context
 		err := pfcp_message.SendPfcpSessionReportResponse(msg.RemoteAddr, cause, pfcpSRflag, seqFromUPF, SEID)
 		if err != nil {
 			logger.SmfLog.Errorf("failed to send PFCP Session Report Response: %+v", err)
@@ -592,9 +590,8 @@ func HandlePfcpSessionReportRequest(msg *udp.Message) {
 			n1n2FailureTxfNotifURI += smContext.Ref
 
 			n1n2Request.JsonData = &models.N1N2MessageTransferReqData{
-				PduSessionId: smContext.PDUSessionID,
-				SkipInd:      false,
-				// Temporarily assign SMF itself, TODO: TS 23.502 4.2.3.3 5. Namf_Communication_N1N2TransferFailureNotification
+				PduSessionId:           smContext.PDUSessionID,
+				SkipInd:                false,
 				N1n2FailureTxfNotifURI: n1n2FailureTxfNotifURI,
 				N2InfoContainer: &models.N2InfoContainer{
 					N2InformationClass: models.N2InformationClass_SM,
@@ -626,7 +623,6 @@ func HandlePfcpSessionReportRequest(msg *udp.Message) {
 			}
 			if rspData.Cause == models.N1N2MessageTransferCause_UE_NOT_RESPONDING {
 				smContext.SubPfcpLog.Infof("Receive %v, UE is not responding to N1N2 transfer message", rspData.Cause)
-				// TODO: TS 23.502 4.2.3.3 3c. Failure indication
 
 				// Adding Session report flag to drop buffered packet at UPF
 				pfcpSRflag.Drobu = true
@@ -643,11 +639,6 @@ func HandlePfcpSessionReportRequest(msg *udp.Message) {
 			}
 		}
 	}
-
-	// TS 23.502 4.2.3.3 2b. Send Data Notification Ack, SMF->UPF
-	//	cause.CauseValue = ie.CauseRequestAccepted
-	// TODO fix: SEID should be the value sent by UPF but now the SEID value is from sm context
-	// pfcp_message.SendPfcpSessionReportResponse(msg.RemoteAddr, cause, seqFromUPF, SEID)
 }
 
 func HandlePfcpSessionReportResponse(msg *udp.Message) {

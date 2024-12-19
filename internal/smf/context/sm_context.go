@@ -355,7 +355,6 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) err
 }
 
 func (smContext *SMContext) PutPDRtoPFCPSession(nodeID NodeID, pdrList map[string]*PDR) error {
-	// TODO: Iterate over PDRS
 	NodeIDtoIP := nodeID.ResolveNodeIdToIp().String()
 	if pfcpSessCtx, exist := smContext.PFCPContext[NodeIDtoIP]; exist {
 		for name, pdr := range pdrList {
@@ -543,7 +542,5 @@ func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 		smContext.SmPolicyUpdates = smContext.SmPolicyUpdates[1:]
 	}
 
-	// Notify PCF of failure ?
-	// TODO
 	return nil
 }

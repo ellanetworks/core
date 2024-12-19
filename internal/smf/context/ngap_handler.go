@@ -130,7 +130,6 @@ func HandlePathSwitchRequestSetupFailedTransfer(b []byte, ctx *SMContext) (err e
 		return err
 	}
 
-	// TODO: finish handler
 	return nil
 }
 
@@ -142,7 +141,6 @@ func HandleHandoverRequiredTransfer(b []byte, ctx *SMContext) (err error) {
 		return err
 	}
 
-	// TODO: Handle Handover Required Transfer
 	return nil
 }
 

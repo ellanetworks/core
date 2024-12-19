@@ -13,10 +13,8 @@ func GetConditionDataUpdate(condData, ctxtCondData map[string]*models.ConditionD
 		del: make(map[string]*models.ConditionData),
 	}
 
-	// TODO
 	return &change
 }
 
 func CommitConditionDataUpdate(smCtxtPolData *SmCtxtPolicyData, update *CondDataUpdate) {
-	// TODO
 }

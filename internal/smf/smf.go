@@ -5,6 +5,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/metrics"
 	"github.com/yeastengine/ella/internal/smf/context"
 	"github.com/yeastengine/ella/internal/smf/factory"
@@ -38,7 +39,11 @@ func StartPfcpServer() {
 	udp.Run(pfcp.Dispatch)
 	userPlaneInformation := context.GetUserPlaneInformation()
 	if userPlaneInformation.UPF != nil {
-		message.SendPfcpAssociationSetupRequest(userPlaneInformation.UPF.NodeID, userPlaneInformation.UPF.Port)
+		err := message.SendPfcpAssociationSetupRequest(userPlaneInformation.UPF.NodeID, userPlaneInformation.UPF.Port)
+		if err != nil {
+			logger.SmfLog.Warnf("Failed to send PFCP Association Setup Request to UPF: %+v", err)
+			return
+		}
 	}
 	go upf.InitPfcpHeartbeatRequest(userPlaneInformation)
 	go upf.ProbeInactiveUpfs(userPlaneInformation)
