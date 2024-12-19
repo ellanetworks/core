@@ -50,6 +50,7 @@ gnbsim-deploy:
 	kubectl apply -f $(GNBSIM_CONFIGMAP)
 	kubectl apply -f $(GNBSIM_DEPLOYMENT)
 	kubectl apply -f $(GNBSIM_SERVICE)
+	sleep 5
 
 router-deploy:
 	@echo "Deploying router..."
@@ -57,6 +58,7 @@ router-deploy:
 	kubectl apply -f $(ROUTER_CORE_NAD)
 	kubectl apply -f $(ROUTER_ACCESS_NAD)
 	kubectl apply -f $(ROUTER_DEPLOYMENT)
+	sleep 5
 
 ella-deploy: 
 	@echo "Deploying Ella..."
@@ -65,6 +67,7 @@ ella-deploy:
 	kubectl apply -f $(ELLA_CONFIGMAP)
 	kubectl apply -f $(ELLA_DEPLOYMENT)
 	kubectl apply -f $(ELLA_SERVICE)
+	sleep 5
 	@echo "Ella deployment completed successfully."
 
 wait-for-ella:
@@ -81,12 +84,8 @@ ella-start: wait-for-ella
     kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -- pebble add ella /config/pebble.yaml; \
 	kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -- pebble start ella
 
-deploy: router-deploy wait-for-router gnbsim-deploy ella-deploy ella-start
+deploy: router-deploy gnbsim-deploy ella-deploy ella-start
 	@echo "Deployment completed successfully."
-
-wait-for-router:
-	@echo "Waiting 5 seconds after deploying the router..."
-	sleep 5
 
 hotswap: go-build
 	@echo "Copying the binary to the running container..."
