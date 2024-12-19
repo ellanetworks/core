@@ -34,21 +34,24 @@ type GetSubscriberResponse struct {
 func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
-		subscribers, err := dbInstance.ListSubscribers()
+		dbSubscribers, err := dbInstance.ListSubscribers()
 		if err != nil {
-			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve subscribers"})
+			writeError(c.Writer, http.StatusInternalServerError, "Unable to retrieve subscribers")
 			return
 		}
 
-		var subsList []GetSubscriberResponse
-		for _, subscriber := range subscribers {
-			subsList = append(subsList, GetSubscriberResponse{
-				PlmnID: subscriber.PlmnID,
-				UeId:   subscriber.UeId,
+		subscribers := make([]GetSubscriberResponse, 0)
+		for _, dbSubscriber := range dbSubscribers {
+			subscribers = append(subscribers, GetSubscriberResponse{
+				PlmnID: dbSubscriber.PlmnID,
+				UeId:   dbSubscriber.UeId,
 			})
 		}
-		c.JSON(http.StatusOK, subsList)
+		err = writeResponse(c.Writer, subscribers, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 }
 
@@ -57,31 +60,34 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		setCorsHeader(c)
 		ueId := c.Param("ueId")
 		if ueId == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing ueId parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "Missing ueId parameter")
 			return
 		}
 
-		subscriber, err := dbInstance.GetSubscriber(ueId)
+		dbSubscriber, err := dbInstance.GetSubscriber(ueId)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusNotFound, gin.H{"error": "Subscriber not found"})
+			writeError(c.Writer, http.StatusNotFound, "Subscriber not found")
 			return
 		}
-
-		c.JSON(http.StatusOK, GetSubscriberResponse{
-			UeId:            subscriber.UeId,
-			PlmnID:          subscriber.PlmnID,
-			Sst:             subscriber.Sst,
-			Sd:              subscriber.Sd,
-			Dnn:             subscriber.Dnn,
-			Opc:             subscriber.OpcValue,
-			SequenceNumber:  subscriber.SequenceNumber,
-			Key:             subscriber.PermanentKeyValue,
-			Var5qi:          subscriber.Var5qi,
-			PriorityLevel:   subscriber.PriorityLevel,
-			BitrateDownlink: subscriber.BitRateDownlink,
-			BitrateUplink:   subscriber.BitRateUplink,
-		})
+		subscriber := GetSubscriberResponse{
+			UeId:            dbSubscriber.UeId,
+			PlmnID:          dbSubscriber.PlmnID,
+			Sst:             dbSubscriber.Sst,
+			Sd:              dbSubscriber.Sd,
+			Dnn:             dbSubscriber.Dnn,
+			Opc:             dbSubscriber.OpcValue,
+			SequenceNumber:  dbSubscriber.SequenceNumber,
+			Key:             dbSubscriber.PermanentKeyValue,
+			Var5qi:          dbSubscriber.Var5qi,
+			PriorityLevel:   dbSubscriber.PriorityLevel,
+			BitrateDownlink: dbSubscriber.BitRateDownlink,
+			BitrateUplink:   dbSubscriber.BitRateUplink,
+		}
+		err = writeResponse(c.Writer, subscriber, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 }
 
@@ -91,34 +97,33 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		var createSubscriberParams CreateSubscriberParams
 		err := c.ShouldBindJSON(&createSubscriberParams)
 		if err != nil {
-			logger.NmsLog.Errorln("Invalid input:", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
 			return
 		}
 		if createSubscriberParams.UeId == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing ueId parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "Missing ueId parameter")
 			return
 		}
 		if createSubscriberParams.PlmnID == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing plmnID parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "Missing plmnID parameter")
 			return
 		}
 		if createSubscriberParams.SequenceNumber == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing sequenceNumber parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "Missing sequenceNumber parameter")
 			return
 		}
 		if createSubscriberParams.Key == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing key parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "Missing key parameter")
 			return
 		}
 		if createSubscriberParams.OPc == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing opc parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "Missing opc parameter")
 			return
 		}
 
 		_, err = dbInstance.GetSubscriber(createSubscriberParams.UeId)
 		if err == nil {
-			c.JSON(http.StatusConflict, gin.H{"error": "Subscriber already exists"})
+			writeError(c.Writer, http.StatusBadRequest, "Subscriber already exists")
 			return
 		}
 		newSubscriber := &db.Subscriber{
@@ -131,11 +136,16 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 
 		if err := dbInstance.CreateSubscriber(newSubscriber); err != nil {
 			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create subscriber"})
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to create subscriber")
 			return
 		}
 
-		c.JSON(http.StatusCreated, gin.H{"message": "Subscriber created successfully"})
+		response := SuccessResponse{Message: "Subscriber created successfully"}
+		err = writeResponse(c.Writer, response, http.StatusCreated)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 }
 
@@ -144,21 +154,26 @@ func DeleteSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		setCorsHeader(c)
 		ueId := c.Param("ueId")
 		if ueId == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing ueId parameter"})
+			writeError(c.Writer, http.StatusBadRequest, "Missing ueId parameter")
 			return
 		}
 		_, err := dbInstance.GetSubscriber(ueId)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Subscriber not found"})
+			writeError(c.Writer, http.StatusNotFound, "Subscriber not found")
 			return
 		}
 		err = dbInstance.DeleteSubscriber(ueId)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete subscriber"})
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete subscriber")
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"message": "Subscriber deleted successfully"})
+		response := SuccessResponse{Message: "Subscriber deleted successfully"}
+		err = writeResponse(c.Writer, response, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 }

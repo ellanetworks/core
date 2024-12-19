@@ -16,6 +16,10 @@ func GetStatus() gin.HandlerFunc {
 		statusResponse := StatusResponse{
 			Version: version.GetVersion(),
 		}
-		c.JSON(http.StatusOK, statusResponse)
+		err := writeResponse(c.Writer, statusResponse, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 }

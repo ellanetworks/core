@@ -8,7 +8,7 @@ export const getProfilesFromNetworkSlice = async (slice?: NetworkSlice) => {
 
   const allProfiles = await Promise.all(
     slice["profiles"].map(async (name: string) =>
-      await getProfile(name),
+      await apiGetProfile(name),
     ),
   );
 
@@ -17,16 +17,10 @@ export const getProfilesFromNetworkSlice = async (slice?: NetworkSlice) => {
 
 export const getProfiles = async () => {
   try {
-    const response = await apiGetAllProfiles();
-    if (!response.ok)
-      throw new Error(
-        `Failed to fetch device group. Status: ${response.status}`,
-      );
-    const deviceGroups = await response.json();
-
+    const deviceGroups = await apiGetAllProfiles();
     const deviceGroupsDetails = await Promise.all(
       deviceGroups.map(async (name: string) =>
-        await getProfile(name),
+        await apiGetProfile(name),
       ),
     );
 
@@ -36,19 +30,3 @@ export const getProfiles = async () => {
     console.error(error);
   }
 };
-
-export const getProfile = async (deviceGroupName: string) => {
-  try {
-    const response = await apiGetProfile(deviceGroupName);
-    if (!response.ok)
-      throw new Error(
-        `Failed to fetch device group. Status: ${response.status}`,
-      );
-    const deviceGroup = await response.json();
-    return deviceGroup;
-  } catch (error) {
-    console.error(error);
-  }
-};
-
-

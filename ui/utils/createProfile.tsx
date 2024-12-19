@@ -48,8 +48,7 @@ export const createProfile = async ({
       );
     }
 
-    const existingSliceResponse = await apiGetNetworkSlice(networkSliceName);
-    var existingSliceData = await existingSliceResponse.json();
+    const existingSliceData = await apiGetNetworkSlice(networkSliceName);
 
     if (!existingSliceData["profiles"]) {
       existingSliceData["profiles"] = [];
@@ -57,11 +56,6 @@ export const createProfile = async ({
     existingSliceData["profiles"].push(name);
 
     const updateSliceResponse = await apiCreateNetworkSlice(networkSliceName, existingSliceData);
-    if (!updateSliceResponse.ok) {
-      throw new Error(
-        `Error updating network slice. Error code: ${updateSliceResponse.status}`,
-      );
-    }
 
     return true;
   } catch (error: unknown) {
