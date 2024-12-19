@@ -81,8 +81,12 @@ ella-start: wait-for-ella
     kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -- pebble add ella /config/pebble.yaml; \
 	kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -- pebble start ella
 
-deploy: gnbsim-deploy router-deploy ella-deploy ella-start
+deploy: router-deploy wait-for-router gnbsim-deploy ella-deploy ella-start
 	@echo "Deployment completed successfully."
+
+wait-for-router:
+	@echo "Waiting 5 seconds after deploying the router..."
+	sleep 5
 
 hotswap: go-build
 	@echo "Copying the binary to the running container..."
