@@ -1,5 +1,5 @@
 import { apiGetNetworkSlice, apiGetAllNetworkSlices } from "@/utils/callNetworkSliceApi";
-import { apiGetProfile, apiPostProfile } from "@/utils/callProfileApi";
+import { apiGetProfile, apiPutProfile } from "@/utils/callProfileApi";
 import { apiDeleteSubscriber } from "@/utils/callSubscriberApi";
 
 export const deleteSubscriber = async (imsi: string) => {
@@ -17,7 +17,7 @@ export const deleteSubscriber = async (imsi: string) => {
             (id: string) => id !== imsi,
           );
 
-          await apiPostProfile(groupName, deviceGroupResponse);
+          await apiPutProfile(groupName, deviceGroupResponse);
         }
       }
     }

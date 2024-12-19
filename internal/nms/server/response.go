@@ -2,8 +2,9 @@ package server
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
+
+	"github.com/yeastengine/ella/internal/logger"
 )
 
 type SuccessResponse struct {
@@ -33,11 +34,11 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	type errorResponse struct {
 		Error string `json:"error"`
 	}
-	log.Println(message)
+	logger.NmsLog.Infof("API Error: %s", message)
 	resp := errorResponse{Error: message}
 	respBytes, err := json.Marshal(&resp)
 	if err != nil {
-		log.Printf("Error marshalling error response: %v", err)
+		logger.NmsLog.Warnf("Error marshalling error response: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -45,6 +46,6 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	w.WriteHeader(status)
 	_, err = w.Write(respBytes)
 	if err != nil {
-		log.Printf("Error writing error response: %v", err)
+		logger.NmsLog.Warnf("Error writing error response: %v", err)
 	}
 }

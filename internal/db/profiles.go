@@ -37,6 +37,7 @@ const (
 	listProfilesStmt  = "SELECT &Profile.* from %s"
 	getProfileStmt    = "SELECT &Profile.* from %s WHERE name==$Profile.name"
 	createProfileStmt = "INSERT INTO %s (name, imsis, ueIpPool, dnsPrimary, dnsSecondary, mtu, bitrateUplink, bitrateDownlink, bitrateUnit, qci, arp, pdb, pelr) VALUES ($Profile.name, $Profile.imsis, $Profile.ueIpPool, $Profile.dnsPrimary, $Profile.dnsSecondary, $Profile.mtu, $Profile.bitrateUplink, $Profile.bitrateDownlink, $Profile.bitrateUnit, $Profile.qci, $Profile.arp, $Profile.pdb, $Profile.pelr)"
+	editProfileStmt   = "UPDATE %s SET imsis=$Profile.imsis, ueIpPool=$Profile.ueIpPool, dnsPrimary=$Profile.dnsPrimary, dnsSecondary=$Profile.dnsSecondary, mtu=$Profile.mtu, bitrateUplink=$Profile.bitrateUplink, bitrateDownlink=$Profile.bitrateDownlink, bitrateUnit=$Profile.bitrateUnit, qci=$Profile.qci, arp=$Profile.arp, pdb=$Profile.pdb, pelr=$Profile.pelr WHERE name==$Profile.name"
 	deleteProfileStmt = "DELETE FROM %s WHERE name==$Profile.name"
 )
 
@@ -117,6 +118,19 @@ func (db *Database) CreateProfile(profile *Profile) error {
 	}
 	err = db.conn.Query(context.Background(), stmt, profile).Run()
 	logger.DBLog.Infof("Created Profile: %v with Imsis: %v", profile.Name, profile.Imsis)
+	return err
+}
+
+func (db *Database) UpdateProfile(profile *Profile) error {
+	_, err := db.GetProfile(profile.Name)
+	if err != nil {
+		return err
+	}
+	stmt, err := sqlair.Prepare(fmt.Sprintf(editProfileStmt, db.profilesTable), Profile{})
+	if err != nil {
+		return err
+	}
+	err = db.conn.Query(context.Background(), stmt, profile).Run()
 	return err
 }
 

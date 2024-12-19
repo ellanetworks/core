@@ -1,8 +1,8 @@
-import { apiGetProfile, apiPostProfile } from "@/utils/callProfileApi";
-import { apiGetSubscriber, apiCreateSubscriber } from "@/utils/callSubscriberApi";
+import { apiGetProfile, apiPutProfile } from "@/utils/callProfileApi";
+import { apiCreateSubscriber } from "@/utils/callSubscriberApi";
 
 interface CreateSubscriberArgs {
-  imsi: string;
+  ueId: string;  // UEID (Should start with `imsi-`)
   plmnID: string;
   opc: string;
   key: string;
@@ -11,7 +11,7 @@ interface CreateSubscriberArgs {
 }
 
 export const createSubscriber = async ({
-  imsi,
+  ueId,
   plmnID,
   opc,
   key,
@@ -19,7 +19,7 @@ export const createSubscriber = async ({
   deviceGroupName,
 }: CreateSubscriberArgs) => {
   const subscriberData = {
-    UeId: imsi,
+    UeId: ueId,
     plmnID: plmnID,
     opc: opc,
     key: key,
@@ -27,13 +27,14 @@ export const createSubscriber = async ({
   };
 
   try {
-    await apiCreateSubscriber(imsi, subscriberData);
+    await apiCreateSubscriber(ueId, subscriberData);
     const existingProfileData = await apiGetProfile(deviceGroupName);
     if (!existingProfileData["imsis"]) {
       existingProfileData["imsis"] = [];
     }
+    const imsi = ueId.replace("imsi-", "");
     existingProfileData["imsis"].push(imsi);
-    const updateProfileResponse = await apiPostProfile(deviceGroupName, existingProfileData);
+    const updateProfileResponse = await apiPutProfile(deviceGroupName, existingProfileData);
     return updateProfileResponse;
   } catch (error) {
     console.error(error);

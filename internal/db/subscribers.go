@@ -125,7 +125,7 @@ func (db *Database) UpdateSubscriberSequenceNumber(ueID string, sequenceNumber s
 func (db *Database) UpdateSubscriberProfile(ueID string, dnn string, sd string, sst int32, plmnId string, bitrateUplink string, bitrateDownlink string, var5qi int, priorityLevel int) error {
 	_, err := db.GetSubscriber(ueID)
 	if err != nil {
-		return err
+		return fmt.Errorf("subscriber with ueID %s not found", ueID)
 	}
 	stmt, err := sqlair.Prepare(fmt.Sprintf(updateSubscriberProfile, db.subscribersTable), Subscriber{})
 	if err != nil {

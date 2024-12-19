@@ -258,6 +258,134 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 	}
 }
 
+func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		setCorsHeader(c)
+		groupName, exists := c.Params.Get("name")
+		if !exists {
+			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
+			return
+		}
+		var updateProfileParams CreateProfileParams
+		err := c.ShouldBindJSON(&updateProfileParams)
+		if err != nil {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			return
+		}
+		if updateProfileParams.Name == "" {
+			writeError(c.Writer, http.StatusBadRequest, "name is missing")
+			return
+		}
+		if updateProfileParams.UeIpPool == "" {
+			writeError(c.Writer, http.StatusBadRequest, "ue-ip-pool is missing")
+			return
+		}
+		if updateProfileParams.DnsPrimary == "" {
+			writeError(c.Writer, http.StatusBadRequest, "dns-primary is missing")
+			return
+		}
+		if updateProfileParams.Mtu == 0 {
+			writeError(c.Writer, http.StatusBadRequest, "mtu is missing")
+			return
+		}
+		if updateProfileParams.BitrateUplink == 0 {
+			writeError(c.Writer, http.StatusBadRequest, "bitrate-uplink is missing")
+			return
+		}
+		if updateProfileParams.BitrateDownlink == 0 {
+			writeError(c.Writer, http.StatusBadRequest, "bitrate-downlink is missing")
+			return
+		}
+		if updateProfileParams.BitrateUnit == "" {
+			writeError(c.Writer, http.StatusBadRequest, "bitrate-unit is missing")
+			return
+		}
+		if updateProfileParams.Qci == 0 {
+			writeError(c.Writer, http.StatusBadRequest, "qci is missing")
+			return
+		}
+		if updateProfileParams.Arp == 0 {
+			writeError(c.Writer, http.StatusBadRequest, "arp is missing")
+			return
+		}
+		if updateProfileParams.Pdb == 0 {
+			writeError(c.Writer, http.StatusBadRequest, "pdb is missing")
+			return
+		}
+		if updateProfileParams.Pelr == 0 {
+			writeError(c.Writer, http.StatusBadRequest, "pelr is missing")
+			return
+		}
+		profile, err := dbInstance.GetProfile(groupName)
+		if err != nil {
+			writeError(c.Writer, http.StatusNotFound, "Profile not found")
+			return
+		}
+		slice := isProfileExistInSlice(dbInstance, profile.Name)
+		if slice != nil {
+			dimsis, err := profile.GetImsis()
+			if err != nil {
+				logger.NmsLog.Warnln(err)
+				return
+			}
+			for _, imsi := range dimsis {
+				ueId := "imsi-" + imsi
+				err = dbInstance.UpdateSubscriberProfile(ueId, "", "", 0, "", "", "", 0, 0)
+				if err != nil {
+					logger.NmsLog.Warnln(err)
+				}
+			}
+		}
+		sVal, err := strconv.ParseUint(slice.Sst, 10, 32)
+		if err != nil {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid SST")
+			return
+		}
+		for _, imsi := range updateProfileParams.Imsis {
+			dnn := updateProfileParams.Dnn
+			ueId := "imsi-" + imsi
+			plmnId := slice.Mcc + slice.Mnc
+			bitRateUplink := convertToString(uint64(updateProfileParams.BitrateUplink))
+			bitRateDownlink := convertToString(uint64(updateProfileParams.BitrateDownlink))
+			var5qi := 9
+			priorityLevel := 8
+			err = dbInstance.UpdateSubscriberProfile(ueId, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
+			if err != nil {
+				logger.NmsLog.Warnf("could not update subscriber profile: %v", err)
+				writeError(c.Writer, http.StatusBadRequest, "Failed to update subscriber")
+				return
+			}
+		}
+		profile.Name = updateProfileParams.Name
+		profile.UeIpPool = updateProfileParams.UeIpPool
+		profile.DnsPrimary = updateProfileParams.DnsPrimary
+		profile.DnsSecondary = updateProfileParams.DnsSecondary
+		profile.Mtu = updateProfileParams.Mtu
+		profile.BitrateDownlink = updateProfileParams.BitrateDownlink
+		profile.BitrateUplink = updateProfileParams.BitrateUplink
+		profile.BitrateUnit = updateProfileParams.BitrateUnit
+		profile.Qci = updateProfileParams.Qci
+		profile.Arp = updateProfileParams.Arp
+		profile.Pdb = updateProfileParams.Pdb
+		profile.Pelr = updateProfileParams.Pelr
+		profile.SetImsis(updateProfileParams.Imsis)
+		err = dbInstance.UpdateProfile(profile)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to update profile")
+			return
+		}
+
+		updateSMF(dbInstance)
+		logger.NmsLog.Infof("Updated Profile: %v", updateProfileParams.Name)
+		response := SuccessResponse{Message: "Profile updated successfully"}
+		err = writeResponse(c.Writer, response, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
+	}
+}
+
 func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
@@ -308,11 +436,10 @@ func isProfileExistInSlice(dbInstance *db.Database, profileName string) *db.Netw
 		logger.NmsLog.Warnln(err)
 		return nil
 	}
-	for name, slice := range dBSlices {
+	for _, slice := range dBSlices {
 		profiles := slice.ListProfiles()
 		for _, dgName := range profiles {
 			if dgName == profileName {
-				logger.NmsLog.Infof("Profile [%v] is part of slice: %v", dgName, name)
 				return &slice
 			}
 		}

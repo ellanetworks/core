@@ -92,6 +92,31 @@ func TestProfilesEndToEnd(t *testing.T) {
 		t.Fatalf("The pelr from the database doesn't match the pelr that was given")
 	}
 
+	// Edit the profile
+	profile.UeIpPool = "1.1.1.0/24"
+	profile.DnsPrimary = "2.2.2.2"
+
+	if err = database.UpdateProfile(profile); err != nil {
+		t.Fatalf("Couldn't complete Update: %s", err)
+	}
+
+	retrievedProfile, err = database.GetProfile(profile.Name)
+	if err != nil {
+		t.Fatalf("Couldn't complete Retrieve: %s", err)
+	}
+	if retrievedProfile.Name != profile.Name {
+		t.Fatalf("The profile name from the database doesn't match the profile name that was given")
+	}
+	if retrievedProfile.Mtu != profile.Mtu {
+		t.Fatalf("The mtu from the database doesn't match the mtu that was given")
+	}
+	if retrievedProfile.UeIpPool != profile.UeIpPool {
+		t.Fatalf("The ue ip pool from the database doesn't match the ue ip pool that was given")
+	}
+	if retrievedProfile.DnsPrimary != profile.DnsPrimary {
+		t.Fatalf("The dns primary from the database doesn't match the dns primary that was given")
+	}
+
 	if err = database.DeleteProfile(profile.Name); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
