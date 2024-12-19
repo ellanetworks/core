@@ -84,6 +84,8 @@ ella-start: wait-for-ella
 	@POD_NAME=$$(kubectl get pods -n $(K8S_NAMESPACE) -l app=ella -o jsonpath="{.items[0].metadata.name}"); \
     kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -- pebble add ella /config/pebble.yaml; \
 	kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -- pebble start ella
+	@echo "Ella started successfully."
+	kubectl get network-attachment-definitions -n $(K8S_NAMESPACE)
 
 deploy: router-deploy gnbsim-deploy ella-deploy ella-start
 	@echo "Deployment completed successfully."

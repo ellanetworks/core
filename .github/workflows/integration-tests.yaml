@@ -82,9 +82,17 @@ jobs:
           pip install tox
           make test
 
-      - name: Show logs
+      - name: Show router logs
         if: always()
         run: |
           kubectl logs -n dev2 -l app=router --tail=-1
+
+      - name: Show ella logs
+        if: always()
+        run: |
           kubectl logs -n dev2 -l app=ella --tail=-1
+      
+      - name: Show gnbsim logs
+        if: always()
+        run: |
           kubectl logs -n dev2 -l app=gnbsim --tail=-1
