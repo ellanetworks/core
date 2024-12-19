@@ -57,26 +57,27 @@ in favor of a simpler single "Network Configuration".
 
 ##### Endpoints
 
-| Endpoint                      | HTTP Method | Description             |
-| ----------------------------- | ----------- | ----------------------- |
-| `/api/v1/status`              | GET         | Get status              |
-| `/api/v1/metrics`             | GET         | Get metrics             |
-| `/api/v1/subscribers`         | GET         | List subscribers        |
-| `/api/v1/subscribers`         | POST        | Create a new subscriber |
-| `/api/v1/subscribers/{id}`    | GET         | Get a subscriber        |
-| `/api/v1/subscribers/{id}`    | DELETE      | Delete a subscriber     |
-| `/api/v1/radios`              | GET         | List radios             |
-| `/api/v1/radios`              | POST        | Create a new radio      |
-| `/api/v1/radios/{id}`         | GET         | Get a radio             |
-| `/api/v1/radios/{id}`         | DELETE      | Delete a radio          |
-| `/api/v1/network-slices`      | GET         | List network slices     |
-| `/api/v1/network-slices`      | POST        | Create a new slice      |
-| `/api/v1/network-slices/{id}` | GET         | Get a network slice     |
-| `/api/v1/network-slices/{id}` | DELETE      | Delete a network slice  |
-| `/api/v1/profiles`            | GET         | List profiles           |
-| `/api/v1/profiles`            | POST        | Create a new profile    |
-| `/api/v1/profiles/{id}`       | GET         | Get a profile           |
-| `/api/v1/profiles/{id}`       | DELETE      | Delete a profile        |
+| Endpoint                        | HTTP Method | Description             |
+| ------------------------------- | ----------- | ----------------------- |
+| `/api/v1/status`                | GET         | Get status              |
+| `/api/v1/metrics`               | GET         | Get metrics             |
+| `/api/v1/subscribers`           | GET         | List subscribers        |
+| `/api/v1/subscribers`           | POST        | Create a new subscriber |
+| `/api/v1/subscribers/{name}`    | GET         | Get a subscriber        |
+| `/api/v1/subscribers/{name}`    | DELETE      | Delete a subscriber     |
+| `/api/v1/radios`                | GET         | List radios             |
+| `/api/v1/radios`                | POST        | Create a new radio      |
+| `/api/v1/radios/{name}`         | GET         | Get a radio             |
+| `/api/v1/radios/{name}`         | DELETE      | Delete a radio          |
+| `/api/v1/network-slices`        | GET         | List network slices     |
+| `/api/v1/network-slices`        | POST        | Create a new slice      |
+| `/api/v1/network-slices/{name}` | GET         | Get a network slice     |
+| `/api/v1/network-slices/{name}` | DELETE      | Delete a network slice  |
+| `/api/v1/profiles`              | GET         | List profiles           |
+| `/api/v1/profiles`              | POST        | Create a new profile    |
+| `/api/v1/profiles/{name}`       | PUT         | Update a profile        |
+| `/api/v1/profiles/{name}`       | GET         | Get a profile           |
+| `/api/v1/profiles/{name}`       | DELETE      | Delete a profile        |
 
 ##### Responses
 

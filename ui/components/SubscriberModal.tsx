@@ -80,9 +80,9 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups }: Prop
   const formik = useFormik<SubscriberValues>({
     initialValues: {
       imsi: rawIMSI || "",
-      opc: subscriber?.["AuthenticationSubscription"]["opc"]["opcValue"] || "",
-      key: subscriber?.["AuthenticationSubscription"]["permanentKey"]["permanentKeyValue"] || "",
-      sequenceNumber: subscriber?.["AuthenticationSubscription"]["sequenceNumber"] || "",
+      opc: subscriber?.opc || "",
+      key: subscriber?.key || "",
+      sequenceNumber: subscriber?.sequenceNumber || "",
       selectedSlice: oldNetworkSliceName,
       deviceGroup: oldProfileName,
     },
@@ -100,7 +100,7 @@ const SubscriberModal = ({ toggleModal, subscriber, slices, deviceGroups }: Prop
           });
         } else {
           await createSubscriber({
-            imsi: values.imsi,
+            ueId: `imsi-${values.imsi}`,
             plmnID: "00101",
             opc: values.opc,
             key: values.key,

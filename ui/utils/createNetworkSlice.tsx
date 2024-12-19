@@ -1,4 +1,4 @@
-import { apiGetNetworkSlice, apiCreateNetworkSlice } from "@/utils/callNetworkSliceApi";
+import { apiCreateNetworkSlice } from "@/utils/callNetworkSliceApi";
 import { apiPostProfile } from "@/utils/callProfileApi";
 
 interface GnbItem {
@@ -50,12 +50,12 @@ export const createNetworkSlice = async ({
     arp: 6,
     pdb: 300,
     pelr: 6,
-    qci: 8,
+    var5qi: 8,
   };
 
   try {
     const updateNetworkSliceResponse = await apiCreateNetworkSlice(name, sliceData);
-    const devicegroupResponse = await apiPostProfile(deviceGroupName, deviceGroupData);
+    await apiPostProfile(deviceGroupName, deviceGroupData);
     return updateNetworkSliceResponse;
   } catch (error: unknown) {
     console.error(error);

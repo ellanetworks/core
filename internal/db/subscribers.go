@@ -122,10 +122,10 @@ func (db *Database) UpdateSubscriberSequenceNumber(ueID string, sequenceNumber s
 	return err
 }
 
-func (db *Database) UpdateSubscriberProfile(ueID string, dnn string, sd string, sst int32, plmnId string, bitrateUplink string, bitrateDownlink string, var5qi int, priorityLevel int) error {
-	_, err := db.GetSubscriber(ueID)
+func (db *Database) UpdateSubscriberProfile(ueID string, dnn string, sd string, sst int32, plmnId string, bitrateUplink string, bitrateDownlink string, var5qi int32) error {
+	subscriber, err := db.GetSubscriber(ueID)
 	if err != nil {
-		return err
+		return fmt.Errorf("subscriber with ueID %s not found", ueID)
 	}
 	stmt, err := sqlair.Prepare(fmt.Sprintf(updateSubscriberProfile, db.subscribersTable), Subscriber{})
 	if err != nil {
@@ -139,8 +139,8 @@ func (db *Database) UpdateSubscriberProfile(ueID string, dnn string, sd string, 
 		PlmnID:          plmnId,
 		BitRateUplink:   bitrateUplink,
 		BitRateDownlink: bitrateDownlink,
-		Var5qi:          int32(var5qi),
-		PriorityLevel:   int32(priorityLevel),
+		Var5qi:          var5qi,
+		PriorityLevel:   subscriber.PriorityLevel,
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
 	logger.DBLog.Infof("Updated profile for subscriber with ueID %s", ueID)

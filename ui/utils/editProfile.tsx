@@ -33,7 +33,7 @@ export const editProfile = async ({
       arp: 6,
       pdb: 300,
       pelr: 6,
-      qci: 8,
+      var5qi: 8,
     };
 
     await apiPostProfile(name, deviceGroupData);

@@ -27,7 +27,7 @@ const QueryCreateProfilesTable = `
 		bitrateUplink INTEGER NOT NULL,
 		bitrateDownlink INTEGER NOT NULL,
 		bitrateUnit TEXT NOT NULL,
-		qci INTEGER NOT NULL,
+		var5qi INTEGER NOT NULL,
 		arp INTEGER NOT NULL,
 		pdb INTEGER NOT NULL,
 		pelr INTEGER NOT NULL
@@ -36,7 +36,8 @@ const QueryCreateProfilesTable = `
 const (
 	listProfilesStmt  = "SELECT &Profile.* from %s"
 	getProfileStmt    = "SELECT &Profile.* from %s WHERE name==$Profile.name"
-	createProfileStmt = "INSERT INTO %s (name, imsis, ueIpPool, dnsPrimary, dnsSecondary, mtu, bitrateUplink, bitrateDownlink, bitrateUnit, qci, arp, pdb, pelr) VALUES ($Profile.name, $Profile.imsis, $Profile.ueIpPool, $Profile.dnsPrimary, $Profile.dnsSecondary, $Profile.mtu, $Profile.bitrateUplink, $Profile.bitrateDownlink, $Profile.bitrateUnit, $Profile.qci, $Profile.arp, $Profile.pdb, $Profile.pelr)"
+	createProfileStmt = "INSERT INTO %s (name, imsis, ueIpPool, dnsPrimary, dnsSecondary, mtu, bitrateUplink, bitrateDownlink, bitrateUnit, var5qi, arp, pdb, pelr) VALUES ($Profile.name, $Profile.imsis, $Profile.ueIpPool, $Profile.dnsPrimary, $Profile.dnsSecondary, $Profile.mtu, $Profile.bitrateUplink, $Profile.bitrateDownlink, $Profile.bitrateUnit, $Profile.var5qi, $Profile.arp, $Profile.pdb, $Profile.pelr)"
+	editProfileStmt   = "UPDATE %s SET imsis=$Profile.imsis, ueIpPool=$Profile.ueIpPool, dnsPrimary=$Profile.dnsPrimary, dnsSecondary=$Profile.dnsSecondary, mtu=$Profile.mtu, bitrateUplink=$Profile.bitrateUplink, bitrateDownlink=$Profile.bitrateDownlink, bitrateUnit=$Profile.bitrateUnit, var5qi=$Profile.var5qi, arp=$Profile.arp, pdb=$Profile.pdb, pelr=$Profile.pelr WHERE name==$Profile.name"
 	deleteProfileStmt = "DELETE FROM %s WHERE name==$Profile.name"
 )
 
@@ -51,7 +52,7 @@ type Profile struct {
 	BitrateUplink   int64  `db:"bitrateUplink"`
 	BitrateDownlink int64  `db:"bitrateDownlink"`
 	BitrateUnit     string `db:"bitrateUnit"`
-	Qci             int32  `db:"qci"`
+	Var5qi          int32  `db:"var5qi"`
 	Arp             int32  `db:"arp"`
 	Pdb             int32  `db:"pdb"`
 	Pelr            int32  `db:"pelr"`
@@ -117,6 +118,19 @@ func (db *Database) CreateProfile(profile *Profile) error {
 	}
 	err = db.conn.Query(context.Background(), stmt, profile).Run()
 	logger.DBLog.Infof("Created Profile: %v with Imsis: %v", profile.Name, profile.Imsis)
+	return err
+}
+
+func (db *Database) UpdateProfile(profile *Profile) error {
+	_, err := db.GetProfile(profile.Name)
+	if err != nil {
+		return err
+	}
+	stmt, err := sqlair.Prepare(fmt.Sprintf(editProfileStmt, db.profilesTable), Profile{})
+	if err != nil {
+		return err
+	}
+	err = db.conn.Query(context.Background(), stmt, profile).Run()
 	return err
 }
 

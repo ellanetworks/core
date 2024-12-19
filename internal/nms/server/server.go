@@ -110,6 +110,7 @@ func NewHandler(dbInstance *db.Database) http.Handler {
 	// Device Groups
 	apiGroup.GET("/profiles", ListProfiles(dbInstance))
 	apiGroup.POST("/profiles", CreateProfile(dbInstance))
+	apiGroup.PUT("/profiles/:name", UpdateProfile(dbInstance))
 	apiGroup.GET("/profiles/:name", GetProfile(dbInstance))
 	apiGroup.DELETE("/profiles/:name", DeleteProfile(dbInstance))
 

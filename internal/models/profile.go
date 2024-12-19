@@ -12,7 +12,7 @@ type Profile struct {
 	BitrateUplink   int64
 	BitrateDownlink int64
 	BitrateUnit     string
-	Qci             int32
+	Var5qi          int32
 	Arp             int32
 	Pdb             int32
 	Pelr            int32

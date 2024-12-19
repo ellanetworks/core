@@ -73,7 +73,7 @@ const getProfileData = async (deviceGroupName: string) => {
 
 const updateProfileData = async (deviceGroupName: string, deviceGroupData: any) => {
   try {
-    const updateProfileResponse = await apiPutProfile(deviceGroupName, deviceGroupData);
+    await apiPutProfile(deviceGroupName, deviceGroupData);
   } catch (error) {
     console.error(error);
   }

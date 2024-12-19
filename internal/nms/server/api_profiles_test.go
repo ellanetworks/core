@@ -26,7 +26,7 @@ type GetProfileResponseResult struct {
 	BitrateUplink   int64  `json:"bitrate-uplink,omitempty"`
 	BitrateDownlink int64  `json:"bitrate-downlink,omitempty"`
 	BitrateUnit     string `json:"bitrate-unit,omitempty"`
-	Qci             int32  `json:"qci,omitempty"`
+	Var5qi          int32  `json:"var5qi,omitempty"`
 	Arp             int32  `json:"arp,omitempty"`
 	Pdb             int32  `json:"pdb,omitempty"`
 	Pelr            int32  `json:"pelr,omitempty"`
@@ -49,7 +49,7 @@ type CreateProfileParams struct {
 	BitrateUplink   int64  `json:"bitrate-uplink,omitempty"`
 	BitrateDownlink int64  `json:"bitrate-downlink,omitempty"`
 	BitrateUnit     string `json:"bitrate-unit,omitempty"`
-	Qci             int32  `json:"qci,omitempty"`
+	Var5qi          int32  `json:"var5qi,omitempty"`
 	Arp             int32  `json:"arp,omitempty"`
 	Pdb             int32  `json:"pdb,omitempty"`
 	Pelr            int32  `json:"pelr,omitempty"`
@@ -129,6 +129,27 @@ func createProfile(url string, client *http.Client, data *CreateProfileParams) (
 	return res.StatusCode, &createResponse, nil
 }
 
+func editProfile(url string, client *http.Client, name string, data *CreateProfileParams) (int, *CreateProfileResponse, error) {
+	body, err := json.Marshal(data)
+	if err != nil {
+		return 0, nil, err
+	}
+	req, err := http.NewRequest("PUT", url+"/api/v1/profiles/"+name, strings.NewReader(string(body)))
+	if err != nil {
+		return 0, nil, err
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer res.Body.Close()
+	var createResponse CreateProfileResponse
+	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
+		return 0, nil, err
+	}
+	return res.StatusCode, &createResponse, nil
+}
+
 func deleteProfile(url string, client *http.Client, name string) (int, *DeleteProfileResponse, error) {
 	req, err := http.NewRequest("DELETE", url+"/api/v1/profiles/"+name, nil)
 	if err != nil {
@@ -186,7 +207,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 			BitrateUplink:   1000000,
 			BitrateDownlink: 2000000,
 			BitrateUnit:     "bps",
-			Qci:             9,
+			Var5qi:          9,
 			Arp:             1,
 			Pdb:             1,
 			Pelr:            1,
@@ -254,8 +275,8 @@ func TestProfilesEndToEnd(t *testing.T) {
 		if response.Result.BitrateUnit != "bps" {
 			t.Fatalf("expected bitrate-unit bps got %s", response.Result.BitrateUnit)
 		}
-		if response.Result.Qci != 9 {
-			t.Fatalf("expected qci 9 got %d", response.Result.Qci)
+		if response.Result.Var5qi != 9 {
+			t.Fatalf("expected var5qi 9 got %d", response.Result.Var5qi)
 		}
 		if response.Result.Arp != 1 {
 			t.Fatalf("expected arp 1 got %d", response.Result.Arp)
@@ -295,6 +316,33 @@ func TestProfilesEndToEnd(t *testing.T) {
 		}
 		if response.Error != "name is missing" {
 			t.Fatalf("expected error %q, got %q", "name is missing", response.Error)
+		}
+	})
+
+	t.Run("6. Edit profile - success", func(t *testing.T) {
+		createProfileParams := &CreateProfileParams{
+			Name:            ProfileName,
+			Dnn:             "internet",
+			UeIpPool:        "2.2.2.2/24",
+			DnsPrimary:      "1.1.1.1",
+			Mtu:             1500,
+			BitrateUplink:   1000000,
+			BitrateDownlink: 2000000,
+			BitrateUnit:     "bps",
+			Var5qi:          9,
+			Arp:             1,
+			Pdb:             1,
+			Pelr:            1,
+		}
+		statusCode, response, err := editProfile(ts.URL, client, ProfileName, createProfileParams)
+		if err != nil {
+			t.Fatalf("couldn't edit profile: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
 		}
 	})
 

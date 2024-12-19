@@ -33,7 +33,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 		BitrateUplink:   1000000,
 		BitrateDownlink: 2000000,
 		BitrateUnit:     "bps",
-		Qci:             9,
+		Var5qi:          9,
 		Arp:             1,
 		Pdb:             1,
 		Pelr:            1,
@@ -79,8 +79,8 @@ func TestProfilesEndToEnd(t *testing.T) {
 	if retrievedProfile.BitrateUnit != profile.BitrateUnit {
 		t.Fatalf("The bitrate unit from the database doesn't match the bitrate unit that was given")
 	}
-	if retrievedProfile.Qci != profile.Qci {
-		t.Fatalf("The qci from the database doesn't match the qci that was given")
+	if retrievedProfile.Var5qi != profile.Var5qi {
+		t.Fatalf("The Var5qi from the database doesn't match the Var5qi that was given")
 	}
 	if retrievedProfile.Arp != profile.Arp {
 		t.Fatalf("The arp from the database doesn't match the arp that was given")
@@ -90,6 +90,31 @@ func TestProfilesEndToEnd(t *testing.T) {
 	}
 	if retrievedProfile.Pelr != profile.Pelr {
 		t.Fatalf("The pelr from the database doesn't match the pelr that was given")
+	}
+
+	// Edit the profile
+	profile.UeIpPool = "1.1.1.0/24"
+	profile.DnsPrimary = "2.2.2.2"
+
+	if err = database.UpdateProfile(profile); err != nil {
+		t.Fatalf("Couldn't complete Update: %s", err)
+	}
+
+	retrievedProfile, err = database.GetProfile(profile.Name)
+	if err != nil {
+		t.Fatalf("Couldn't complete Retrieve: %s", err)
+	}
+	if retrievedProfile.Name != profile.Name {
+		t.Fatalf("The profile name from the database doesn't match the profile name that was given")
+	}
+	if retrievedProfile.Mtu != profile.Mtu {
+		t.Fatalf("The mtu from the database doesn't match the mtu that was given")
+	}
+	if retrievedProfile.UeIpPool != profile.UeIpPool {
+		t.Fatalf("The ue ip pool from the database doesn't match the ue ip pool that was given")
+	}
+	if retrievedProfile.DnsPrimary != profile.DnsPrimary {
+		t.Fatalf("The dns primary from the database doesn't match the dns primary that was given")
 	}
 
 	if err = database.DeleteProfile(profile.Name); err != nil {
