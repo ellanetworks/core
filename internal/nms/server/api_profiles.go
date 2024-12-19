@@ -21,7 +21,7 @@ type CreateProfileParams struct {
 	BitrateUplink   int64  `json:"bitrate-uplink,omitempty"`
 	BitrateDownlink int64  `json:"bitrate-downlink,omitempty"`
 	BitrateUnit     string `json:"bitrate-unit,omitempty"`
-	Qci             int32  `json:"qci,omitempty"`
+	Var5qi          int32  `json:"var5qi,omitempty"`
 	Arp             int32  `json:"arp,omitempty"`
 	Pdb             int32  `json:"pdb,omitempty"`
 	Pelr            int32  `json:"pelr,omitempty"`
@@ -39,7 +39,7 @@ type GetProfileResponse struct {
 	BitrateUplink   int64  `json:"bitrate-uplink,omitempty"`
 	BitrateDownlink int64  `json:"bitrate-downlink,omitempty"`
 	BitrateUnit     string `json:"bitrate-unit,omitempty"`
-	Qci             int32  `json:"qci,omitempty"`
+	Var5qi          int32  `json:"var5qi,omitempty"`
 	Arp             int32  `json:"arp,omitempty"`
 	Pdb             int32  `json:"pdb,omitempty"`
 	Pelr            int32  `json:"pelr,omitempty"`
@@ -82,7 +82,7 @@ func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 				BitrateDownlink: dbProfile.BitrateDownlink,
 				BitrateUplink:   dbProfile.BitrateUplink,
 				BitrateUnit:     dbProfile.BitrateUnit,
-				Qci:             dbProfile.Qci,
+				Var5qi:          dbProfile.Var5qi,
 				Arp:             dbProfile.Arp,
 				Pdb:             dbProfile.Pdb,
 				Pelr:            dbProfile.Pelr,
@@ -126,7 +126,7 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 			BitrateDownlink: dbProfile.BitrateDownlink,
 			BitrateUplink:   dbProfile.BitrateUplink,
 			BitrateUnit:     dbProfile.BitrateUnit,
-			Qci:             dbProfile.Qci,
+			Var5qi:          dbProfile.Var5qi,
 			Arp:             dbProfile.Arp,
 			Pdb:             dbProfile.Pdb,
 			Pelr:            dbProfile.Pelr,
@@ -182,8 +182,8 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "bitrate-unit is missing")
 			return
 		}
-		if createProfileParams.Qci == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "qci is missing")
+		if createProfileParams.Var5qi == 0 {
+			writeError(c.Writer, http.StatusBadRequest, "Var5qi is missing")
 			return
 		}
 		if createProfileParams.Arp == 0 {
@@ -218,9 +218,7 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 				plmnId := slice.Mcc + slice.Mnc
 				bitRateUplink := convertToString(uint64(createProfileParams.BitrateUplink))
 				bitRateDownlink := convertToString(uint64(createProfileParams.BitrateDownlink))
-				var5qi := 9
-				priorityLevel := 8
-				err = dbInstance.UpdateSubscriberProfile(ueId, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
+				err = dbInstance.UpdateSubscriberProfile(ueId, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, createProfileParams.Var5qi)
 				if err != nil {
 					writeError(c.Writer, http.StatusBadRequest, "Failed to update subscriber")
 					return
@@ -236,7 +234,7 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			BitrateDownlink: createProfileParams.BitrateDownlink,
 			BitrateUplink:   createProfileParams.BitrateUplink,
 			BitrateUnit:     createProfileParams.BitrateUnit,
-			Qci:             createProfileParams.Qci,
+			Var5qi:          createProfileParams.Var5qi,
 			Arp:             createProfileParams.Arp,
 			Pdb:             createProfileParams.Pdb,
 			Pelr:            createProfileParams.Pelr,
@@ -300,8 +298,8 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "bitrate-unit is missing")
 			return
 		}
-		if updateProfileParams.Qci == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "qci is missing")
+		if updateProfileParams.Var5qi == 0 {
+			writeError(c.Writer, http.StatusBadRequest, "Var5qi is missing")
 			return
 		}
 		if updateProfileParams.Arp == 0 {
@@ -328,34 +326,24 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 				logger.NmsLog.Warnln(err)
 				return
 			}
+			sVal, err := strconv.ParseUint(slice.Sst, 10, 32)
+			if err != nil {
+				writeError(c.Writer, http.StatusBadRequest, "Invalid SST")
+				return
+			}
 			for _, imsi := range dimsis {
+				dnn := updateProfileParams.Dnn
 				ueId := "imsi-" + imsi
-				err = dbInstance.UpdateSubscriberProfile(ueId, "", "", 0, "", "", "", 0, 0)
+				plmnId := slice.Mcc + slice.Mnc
+				bitRateUplink := convertToString(uint64(updateProfileParams.BitrateUplink))
+				bitRateDownlink := convertToString(uint64(updateProfileParams.BitrateDownlink))
+				err = dbInstance.UpdateSubscriberProfile(ueId, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, updateProfileParams.Var5qi)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
 				}
 			}
 		}
-		sVal, err := strconv.ParseUint(slice.Sst, 10, 32)
-		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid SST")
-			return
-		}
-		for _, imsi := range updateProfileParams.Imsis {
-			dnn := updateProfileParams.Dnn
-			ueId := "imsi-" + imsi
-			plmnId := slice.Mcc + slice.Mnc
-			bitRateUplink := convertToString(uint64(updateProfileParams.BitrateUplink))
-			bitRateDownlink := convertToString(uint64(updateProfileParams.BitrateDownlink))
-			var5qi := 9
-			priorityLevel := 8
-			err = dbInstance.UpdateSubscriberProfile(ueId, dnn, slice.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
-			if err != nil {
-				logger.NmsLog.Warnf("could not update subscriber profile: %v", err)
-				writeError(c.Writer, http.StatusBadRequest, "Failed to update subscriber")
-				return
-			}
-		}
+
 		profile.Name = updateProfileParams.Name
 		profile.UeIpPool = updateProfileParams.UeIpPool
 		profile.DnsPrimary = updateProfileParams.DnsPrimary
@@ -364,7 +352,7 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		profile.BitrateDownlink = updateProfileParams.BitrateDownlink
 		profile.BitrateUplink = updateProfileParams.BitrateUplink
 		profile.BitrateUnit = updateProfileParams.BitrateUnit
-		profile.Qci = updateProfileParams.Qci
+		profile.Var5qi = updateProfileParams.Var5qi
 		profile.Arp = updateProfileParams.Arp
 		profile.Pdb = updateProfileParams.Pdb
 		profile.Pelr = updateProfileParams.Pelr
@@ -422,7 +410,7 @@ func deleteProfileConfig(dbInstance *db.Database, dbProfile *db.Profile) {
 		}
 		for _, imsi := range dimsis {
 			ueId := "imsi-" + imsi
-			err = dbInstance.UpdateSubscriberProfile(ueId, "", "", 0, "", "", "", 0, 0)
+			err = dbInstance.UpdateSubscriberProfile(ueId, "", "", 0, "", "", "", 0)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 			}

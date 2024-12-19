@@ -32,7 +32,7 @@ export const createProfile = async ({
     arp: 6,
     pdb: 300,
     pelr: 6,
-    qci: 8,
+    var5qi: 8,
   };
 
   try {
@@ -55,7 +55,7 @@ export const createProfile = async ({
     }
     existingSliceData["profiles"].push(name);
 
-    const updateSliceResponse = await apiCreateNetworkSlice(networkSliceName, existingSliceData);
+    await apiCreateNetworkSlice(networkSliceName, existingSliceData);
 
     return true;
   } catch (error: unknown) {

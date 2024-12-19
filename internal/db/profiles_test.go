@@ -33,7 +33,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 		BitrateUplink:   1000000,
 		BitrateDownlink: 2000000,
 		BitrateUnit:     "bps",
-		Qci:             9,
+		Var5qi:          9,
 		Arp:             1,
 		Pdb:             1,
 		Pelr:            1,
@@ -79,8 +79,8 @@ func TestProfilesEndToEnd(t *testing.T) {
 	if retrievedProfile.BitrateUnit != profile.BitrateUnit {
 		t.Fatalf("The bitrate unit from the database doesn't match the bitrate unit that was given")
 	}
-	if retrievedProfile.Qci != profile.Qci {
-		t.Fatalf("The qci from the database doesn't match the qci that was given")
+	if retrievedProfile.Var5qi != profile.Var5qi {
+		t.Fatalf("The Var5qi from the database doesn't match the Var5qi that was given")
 	}
 	if retrievedProfile.Arp != profile.Arp {
 		t.Fatalf("The arp from the database doesn't match the arp that was given")

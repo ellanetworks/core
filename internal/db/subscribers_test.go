@@ -77,7 +77,7 @@ func TestSubscribersEndToEnd(t *testing.T) {
 		t.Fatalf("Sequence numbers don't match: %s", retrievedSubscriber.SequenceNumber)
 	}
 
-	if err = database.UpdateSubscriberProfile(retrievedSubscriber.UeId, "internet", "001", 1, "2314", "200000", "200000", 9, 8); err != nil {
+	if err = database.UpdateSubscriberProfile(retrievedSubscriber.UeId, "internet", "001", 1, "2314", "200000", "200000", 9); err != nil {
 		t.Fatalf("Couldn't complete Update: %s", err)
 	}
 
@@ -105,9 +105,6 @@ func TestSubscribersEndToEnd(t *testing.T) {
 	}
 	if retrievedSubscriber.Var5qi != 9 {
 		t.Fatalf("The var5qi from the database doesn't match the var5qi that was given")
-	}
-	if retrievedSubscriber.PriorityLevel != 8 {
-		t.Fatalf("The priority level from the database doesn't match the priority level that was given")
 	}
 
 	if err = database.DeleteSubscriber(subscriber.UeId); err != nil {

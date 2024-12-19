@@ -402,7 +402,7 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 				// Create QoS data
 				qosData := &models.QosData{
 					QosId:                strconv.FormatInt(qosId, 10),
-					Var5qi:               deviceGroup.Qci,
+					Var5qi:               deviceGroup.Var5qi,
 					MaxbrUl:              strconv.FormatInt(ul, 10) + uunit,
 					MaxbrDl:              strconv.FormatInt(dl, 10) + dunit,
 					Arp:                  &models.Arp{PriorityLevel: deviceGroup.Arp},

@@ -223,9 +223,7 @@ func CreateNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 				plmnID := mcc + mnc
 				bitRateUplink := convertToString(uint64(dbProfile.BitrateUplink))
 				bitRateDownlink := convertToString(uint64(dbProfile.BitrateDownlink))
-				var5qi := 9
-				priorityLevel := 8
-				err = dbInstance.UpdateSubscriberProfile(ueId, DNN, sd, sst, plmnID, bitRateUplink, bitRateDownlink, var5qi, priorityLevel)
+				err = dbInstance.UpdateSubscriberProfile(ueId, DNN, sd, sst, plmnID, bitRateUplink, bitRateDownlink, dbProfile.Var5qi)
 				if err != nil {
 					logger.NmsLog.Warnf("Could not update subscriber %v", ueId)
 					continue
@@ -303,7 +301,7 @@ func DeleteNetworkSlice(dbInstance *db.Database) gin.HandlerFunc {
 			}
 			for _, imsi := range imsis {
 				ueId := "imsi-" + imsi
-				err = dbInstance.UpdateSubscriberProfile(ueId, DNN, "", 0, "", "", "", 0, 0)
+				err = dbInstance.UpdateSubscriberProfile(ueId, DNN, "", 0, "", "", "", 0)
 				if err != nil {
 					logger.NmsLog.Warnln(err)
 				}
@@ -394,7 +392,7 @@ func updateSMF(dbInstance *db.Database) {
 			BitrateDownlink: dbProfile.BitrateDownlink,
 			BitrateUplink:   dbProfile.BitrateUplink,
 			BitrateUnit:     dbProfile.BitrateUnit,
-			Qci:             dbProfile.Qci,
+			Var5qi:          dbProfile.Var5qi,
 			Arp:             dbProfile.Arp,
 			Pdb:             dbProfile.Pdb,
 			Pelr:            dbProfile.Pelr,
