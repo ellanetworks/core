@@ -76,6 +76,7 @@ wait-for-ella:
 		echo "Ella is not ready yet. Retrying..."; \
 		sleep 2; \
 	done
+	sleep 5
 	@echo "Ella is ready."
 
 ella-start: wait-for-ella
