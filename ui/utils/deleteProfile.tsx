@@ -12,20 +12,13 @@ export const deleteProfile = async ({
 }: DeleteProfileArgs) => {
   try {
     const existingSliceResponse = await apiGetNetworkSlice(networkSliceName);
-    if (!existingSliceResponse.ok) {
-      throw new Error(
-        `Error fetching network slice. Error code: ${existingSliceResponse.status}`,
-      );
-    }
 
-    var existingSliceData = await existingSliceResponse.json();
-
-    if (existingSliceData["profiles"]) {
-      const index = existingSliceData["profiles"].indexOf(name);
+    if (existingSliceResponse["profiles"]) {
+      const index = existingSliceResponse["profiles"].indexOf(name);
       if (index > -1) {
-        existingSliceData["profiles"].splice(index, 1);
+        existingSliceResponse["profiles"].splice(index, 1);
 
-        const updateSliceResponse = await apiCreateNetworkSlice(networkSliceName, existingSliceData);
+        const updateSliceResponse = await apiCreateNetworkSlice(networkSliceName, existingSliceResponse);
         if (!updateSliceResponse.ok) {
           throw new Error(
             `Error updating network slice. Error code: ${updateSliceResponse.status}`,
@@ -35,11 +28,6 @@ export const deleteProfile = async ({
     }
 
     const deleteResponse = await apiDeleteProfile(name);
-    if (!deleteResponse.ok) {
-      throw new Error(
-        `Error deleting device group. Error code: ${deleteResponse.status}`,
-      );
-    }
 
     return true;
   } catch (error) {

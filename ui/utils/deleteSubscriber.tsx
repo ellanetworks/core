@@ -6,49 +6,22 @@ export const deleteSubscriber = async (imsi: string) => {
   try {
     const networkSlicesResponse = await apiGetAllNetworkSlices();
 
-    if (!networkSlicesResponse.ok) {
-      throw new Error(
-        `Error fetching network slices. Error code: ${networkSlicesResponse.status}`,
-      );
-    }
-
-    const sliceNames = await networkSlicesResponse.json();
-
-    for (const sliceName of sliceNames) {
-      const networkSliceResponse = await apiGetNetworkSlice(sliceName);
-
-      if (!networkSliceResponse.ok) {
-        throw new Error(
-          `Error fetching network slice. Error code: ${networkSlicesResponse.status}`,
-        );
-      }
-
-      const sliceData = await networkSliceResponse.json();
-      const deviceGroupNames = sliceData["profiles"];
+    for (const slice of networkSlicesResponse) {
+      const networkSliceResponse = await apiGetNetworkSlice(slice.name);
+      const deviceGroupNames = networkSliceResponse["profiles"];
       for (const groupName of deviceGroupNames) {
         const deviceGroupResponse = await apiGetProfile(groupName);
 
-        if (!deviceGroupResponse.ok) {
-          throw new Error(
-            `Error fetching device group ${groupName}. Error code: ${deviceGroupResponse.status}`,
-          );
-        }
-
-        var deviceGroupData = await deviceGroupResponse.json();
-
-        if (deviceGroupData.imsis?.includes(imsi)) {
-          deviceGroupData.imsis = deviceGroupData.imsis.filter(
+        if (deviceGroupResponse.imsis?.includes(imsi)) {
+          deviceGroupResponse.imsis = deviceGroupResponse.imsis.filter(
             (id: string) => id !== imsi,
           );
 
-          await apiPostProfile(groupName, deviceGroupData);
+          await apiPostProfile(groupName, deviceGroupResponse);
         }
       }
     }
-    const deleteSubscriberResponse = await apiDeleteSubscriber(imsi);
-    if (!deleteSubscriberResponse.ok) {
-      throw new Error("Failed to delete subscriber");
-    }
+    await apiDeleteSubscriber(imsi);
 
     return true;
   } catch (error) {

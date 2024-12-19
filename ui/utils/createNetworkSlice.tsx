@@ -54,31 +54,9 @@ export const createNetworkSlice = async ({
   };
 
   try {
-    const getNetworkSliceResponse = await apiGetNetworkSlice(name)
-    if (getNetworkSliceResponse.ok) {
-      throw new Error("Network slice already exists");
-    }
-
     const updateNetworkSliceResponse = await apiCreateNetworkSlice(name, sliceData);
-    if (!updateNetworkSliceResponse.ok) {
-      const networkSliceData = await updateNetworkSliceResponse.json();
-      if (networkSliceData.error) {
-        throw new Error(networkSliceData.error);
-      }
-      debugger;
-      throw new Error(
-        `Error creating network slice. Error code: ${updateNetworkSliceResponse.status}`,
-      );
-    }
-
     const devicegroupResponse = await apiPostProfile(deviceGroupName, deviceGroupData);
-    if (!devicegroupResponse.ok) {
-      throw new Error(
-        `Error creating profile. Error code: ${devicegroupResponse.status}`,
-      );
-    }
-
-    return updateNetworkSliceResponse.json();
+    return updateNetworkSliceResponse;
   } catch (error: unknown) {
     console.error(error);
     const details =

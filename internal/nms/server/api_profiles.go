@@ -72,7 +72,7 @@ func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Profiles not found")
 			return
 		}
-		var profileList []GetProfileResponse
+		profileList := make([]GetProfileResponse, 0)
 		for _, dbProfile := range dbProfiles {
 			profileResponse := GetProfileResponse{
 				Name:            dbProfile.Name,

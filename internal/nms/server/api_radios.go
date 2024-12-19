@@ -29,7 +29,7 @@ func ListRadios(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		var radios []GetRadioParams
+		radios := make([]GetRadioParams, 0)
 		for _, radio := range dbRadios {
 			radios = append(radios, GetRadioParams{
 				Name: radio.Name,

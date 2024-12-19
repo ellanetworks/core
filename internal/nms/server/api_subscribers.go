@@ -34,20 +34,20 @@ type GetSubscriberResponse struct {
 func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
-		subscribers, err := dbInstance.ListSubscribers()
+		dbSubscribers, err := dbInstance.ListSubscribers()
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Unable to retrieve subscribers")
 			return
 		}
 
-		var subsList []GetSubscriberResponse
-		for _, subscriber := range subscribers {
-			subsList = append(subsList, GetSubscriberResponse{
-				PlmnID: subscriber.PlmnID,
-				UeId:   subscriber.UeId,
+		subscribers := make([]GetSubscriberResponse, 0)
+		for _, dbSubscriber := range dbSubscribers {
+			subscribers = append(subscribers, GetSubscriberResponse{
+				PlmnID: dbSubscriber.PlmnID,
+				UeId:   dbSubscriber.UeId,
 			})
 		}
-		err = writeResponse(c.Writer, subsList, http.StatusOK)
+		err = writeResponse(c.Writer, subscribers, http.StatusOK)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return

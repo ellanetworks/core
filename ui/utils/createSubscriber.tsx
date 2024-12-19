@@ -27,37 +27,14 @@ export const createSubscriber = async ({
   };
 
   try {
-    const getSubscriberResponse = await apiGetSubscriber(imsi);
-
-    // Workaround for https://github.com/omec-project/webconsole/issues/109
-    const existingSubscriberData = await getSubscriberResponse.json();
-    if (getSubscriberResponse.ok && existingSubscriberData["AuthenticationSubscription"]["authenticationMethod"]) {
-      throw new Error("Subscriber already exists.");
-    }
-
-    const updateSubscriberResponse = await apiCreateSubscriber(imsi, subscriberData);
-    if (!updateSubscriberResponse.ok) {
-      throw new Error(
-        `Error creating subscriber. Error code: ${updateSubscriberResponse.status}`,
-      );
-    }
-
-    const existingProfileResponse = await apiGetProfile(deviceGroupName);
-    var existingProfileData = await existingProfileResponse.json();
-
+    await apiCreateSubscriber(imsi, subscriberData);
+    const existingProfileData = await apiGetProfile(deviceGroupName);
     if (!existingProfileData["imsis"]) {
       existingProfileData["imsis"] = [];
     }
     existingProfileData["imsis"].push(imsi);
-
     const updateProfileResponse = await apiPostProfile(deviceGroupName, existingProfileData);
-    if (!updateProfileResponse.ok) {
-      throw new Error(
-        `Error updating device group. Error code: ${updateProfileResponse.status}`,
-      );
-    }
-
-    return updateSubscriberResponse.json();
+    return updateProfileResponse;
   } catch (error) {
     console.error(error);
     const details =

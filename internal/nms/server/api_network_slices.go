@@ -60,7 +60,7 @@ func ListNetworkSlices(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Network slice not founds")
 			return
 		}
-		var networkSliceList []GetNetworkSliceResponse
+		networkSliceList := make([]GetNetworkSliceResponse, 0)
 		for _, dbNetworkSlice := range dbNetworkSlices {
 			dbGnodeBs, err := dbNetworkSlice.GetGNodeBs()
 			if err != nil {

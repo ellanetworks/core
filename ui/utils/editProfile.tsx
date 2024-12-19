@@ -1,5 +1,4 @@
-import { apiPostProfile } from "@/utils/callProfileApi";
-import { getProfile } from "@/utils/getProfile";
+import { apiGetProfile, apiPostProfile } from "@/utils/callProfileApi";
 
 interface ProfileArgs {
   name: string;
@@ -19,7 +18,7 @@ export const editProfile = async ({
   MBRDownstreamBps,
 }: ProfileArgs) => {
   try {
-    const currentConfig = await getProfile(name)
+    const currentConfig = await apiGetProfile(name)
     var imsis = currentConfig["imsis"]
 
     const deviceGroupData = {
@@ -37,12 +36,7 @@ export const editProfile = async ({
       qci: 8,
     };
 
-    const response = await apiPostProfile(name, deviceGroupData);
-    if (!response.ok) {
-      throw new Error(
-        `Error updating device group. Error code: ${response.status}`,
-      );
-    }
+    await apiPostProfile(name, deviceGroupData);
     return true;
   } catch (error: unknown) {
     console.error(error);

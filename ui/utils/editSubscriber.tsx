@@ -48,24 +48,12 @@ export const editSubscriber = async ({
 
 const updateSubscriber = async (subscriberData: any) => {
   try {
-    const getSubscriberResponse = await apiGetSubscriber(subscriberData.UeId);
-
-    // Workaround for https://github.com/omec-project/webconsole/issues/109
-    var existingSubscriberData = await getSubscriberResponse.json();
-    if (!getSubscriberResponse.ok || !existingSubscriberData["AuthenticationSubscription"]["authenticationMethod"]) {
-      throw new Error("Subscriber does not exist.");
-    }
-
+    const existingSubscriberData = await apiGetSubscriber(subscriberData.UeId);
     existingSubscriberData["AuthenticationSubscription"]["opc"]["opcValue"] = subscriberData.opc;
     existingSubscriberData["AuthenticationSubscription"]["permanentKey"]["permanentKeyValue"] = subscriberData.key;
     existingSubscriberData["AuthenticationSubscription"]["sequenceNumber"] = subscriberData.sequenceNumber;
+    await apiCreateSubscriber(subscriberData.UeId, subscriberData);
 
-    const updateSubscriberResponse = await apiCreateSubscriber(subscriberData.UeId, subscriberData);
-    if (!updateSubscriberResponse.ok) {
-      throw new Error(
-        `Error editing subscriber. Error code: ${updateSubscriberResponse.status}`,
-      );
-    }
   } catch (error) {
     console.error(error);
   }
@@ -73,9 +61,7 @@ const updateSubscriber = async (subscriberData: any) => {
 
 const getProfileData = async (deviceGroupName: string) => {
   try {
-    const existingProfileResponse = await apiGetProfile(deviceGroupName);
-    var existingProfileData = await existingProfileResponse.json();
-
+    const existingProfileData = await apiGetProfile(deviceGroupName);
     if (!existingProfileData["imsis"]) {
       existingProfileData["imsis"] = [];
     }
@@ -88,11 +74,6 @@ const getProfileData = async (deviceGroupName: string) => {
 const updateProfileData = async (deviceGroupName: string, deviceGroupData: any) => {
   try {
     const updateProfileResponse = await apiPutProfile(deviceGroupName, deviceGroupData);
-    if (!updateProfileResponse.ok) {
-      throw new Error(
-        `Error updating device group. Error code: ${updateProfileResponse.status}`,
-      );
-    }
   } catch (error) {
     console.error(error);
   }
