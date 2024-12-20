@@ -6,7 +6,7 @@
 
 import logging
 from dataclasses import asdict, dataclass
-from typing import Any, List
+from typing import Any
 
 import requests
 
