@@ -318,7 +318,6 @@ func BuildPfcpSessionEstablishmentRequest(
 	), nil
 }
 
-// TODO: Replace dummy value in PFCP message
 func BuildPfcpSessionModificationRequest(
 	sequenceNumber uint32,
 	localSEID uint64,

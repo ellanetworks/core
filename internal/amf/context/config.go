@@ -14,80 +14,74 @@ import (
 func GetSupportTaiList() []models.Tai {
 	amfSelf := AMF_Self()
 	tais := make([]models.Tai, 0)
-	networkSlices, err := amfSelf.DbInstance.ListNetworkSlices()
+	dbNetwork, err := amfSelf.DbInstance.GetNetwork()
 	if err != nil {
 		logger.AmfLog.Warnf("Failed to get network slice names: %s", err)
 		return tais
 	}
-	for _, networkSlice := range networkSlices {
-		plmnID := models.PlmnId{
-			Mcc: networkSlice.Mcc,
-			Mnc: networkSlice.Mnc,
-		}
-		gnbs, err := networkSlice.GetGNodeBs()
-		if err != nil {
-			logger.AmfLog.Warnf("Failed to get gNodeBs: %s", err)
-			continue
-		}
-		tai := models.Tai{
-			PlmnId: &plmnID,
-			Tac:    fmt.Sprintf("%06x", gnbs[0].Tac),
-		}
-		tais = append(tais, tai)
+	plmnID := models.PlmnId{
+		Mcc: dbNetwork.Mcc,
+		Mnc: dbNetwork.Mnc,
 	}
+	gnbs, err := dbNetwork.GetGNodeBs()
+	if err != nil {
+		logger.AmfLog.Warnf("Failed to get gNodeBs: %s", err)
+		return tais
+	}
+	tai := models.Tai{
+		PlmnId: &plmnID,
+		Tac:    fmt.Sprintf("%06x", gnbs[0].Tac),
+	}
+	tais = append(tais, tai)
 	return tais
 }
 
 func GetServedGuamiList() []models.Guami {
 	amfSelf := AMF_Self()
 	guamis := make([]models.Guami, 0)
-	networkSlices, err := amfSelf.DbInstance.ListNetworkSlices()
+	dbNetwork, err := amfSelf.DbInstance.GetNetwork()
 	if err != nil {
 		logger.AmfLog.Warnf("Failed to get network slice names: %s", err)
 		return guamis
 	}
-	for _, networkSlice := range networkSlices {
-		plmnID := models.PlmnId{
-			Mcc: networkSlice.Mcc,
-			Mnc: networkSlice.Mnc,
-		}
-		guami := models.Guami{
-			PlmnId: &plmnID,
-			AmfId:  "cafe00", // To edit
-		}
-		guamis = append(guamis, guami)
+	plmnID := models.PlmnId{
+		Mcc: dbNetwork.Mcc,
+		Mnc: dbNetwork.Mnc,
 	}
+	guami := models.Guami{
+		PlmnId: &plmnID,
+		AmfId:  "cafe00", // To edit
+	}
+	guamis = append(guamis, guami)
 	return guamis
 }
 
 func GetPlmnSupportList() []factory.PlmnSupportItem {
 	amfSelf := AMF_Self()
 	plmnSupportList := make([]factory.PlmnSupportItem, 0)
-	networkSlices, err := amfSelf.DbInstance.ListNetworkSlices()
+	dbNetwork, err := amfSelf.DbInstance.GetNetwork()
 	if err != nil {
 		logger.AmfLog.Warnf("Failed to get network slice names: %s", err)
 		return plmnSupportList
 	}
-	for _, networkSlice := range networkSlices {
-		plmnID := models.PlmnId{
-			Mcc: networkSlice.Mcc,
-			Mnc: networkSlice.Mnc,
-		}
-		sstString := networkSlice.Sst
-		sstInt64, err := strconv.ParseInt(sstString, 10, 32)
-		if err != nil {
-			logger.AmfLog.Warnf("Failed to parse sst: %s", err)
-			continue
-		}
-		snssai := models.Snssai{
-			Sst: int32(sstInt64),
-			Sd:  networkSlice.Sd,
-		}
-		plmnSupportItem := factory.PlmnSupportItem{
-			PlmnId:     plmnID,
-			SNssaiList: []models.Snssai{snssai},
-		}
-		plmnSupportList = append(plmnSupportList, plmnSupportItem)
+	plmnID := models.PlmnId{
+		Mcc: dbNetwork.Mcc,
+		Mnc: dbNetwork.Mnc,
 	}
+	sstString := dbNetwork.Sst
+	sstInt64, err := strconv.ParseInt(sstString, 10, 32)
+	if err != nil {
+		logger.AmfLog.Warnf("Failed to parse sst: %s", err)
+		return plmnSupportList
+	}
+	snssai := models.Snssai{
+		Sst: int32(sstInt64),
+		Sd:  dbNetwork.Sd,
+	}
+	plmnSupportItem := factory.PlmnSupportItem{
+		PlmnId:     plmnID,
+		SNssaiList: []models.Snssai{snssai},
+	}
+	plmnSupportList = append(plmnSupportList, plmnSupportItem)
 	return plmnSupportList
 }

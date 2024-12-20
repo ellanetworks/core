@@ -215,20 +215,6 @@ func (smContext *SMContext) initLogTags() {
 }
 
 func (smContext *SMContext) ChangeState(nextState SMContextState) {
-	// Update Subscriber profile Metrics
-	if nextState == SmStateActive || smContext.SMContextState == SmStateActive {
-		// enterprise name
-		if smfContext.EnterpriseList != nil {
-			entMap := *smfContext.EnterpriseList
-			smContext.SubCtxLog.Debugf("context state change, Enterprises configured = [%v], subscriber slice sst [%v], sd [%v]",
-				entMap, smContext.Snssai.Sst, smContext.Snssai.Sd)
-		} else {
-			smContext.SubCtxLog.Debug("context state change, enterprise info not available")
-		}
-	}
-
-	smContext.SubCtxLog.Debugf("context state change, current state[%v] next state[%v]",
-		smContext.SMContextState.String(), nextState.String())
 	smContext.SMContextState = nextState
 }
 
@@ -355,7 +341,6 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) err
 }
 
 func (smContext *SMContext) PutPDRtoPFCPSession(nodeID NodeID, pdrList map[string]*PDR) error {
-	// TODO: Iterate over PDRS
 	NodeIDtoIP := nodeID.ResolveNodeIdToIp().String()
 	if pfcpSessCtx, exist := smContext.PFCPContext[NodeIDtoIP]; exist {
 		for name, pdr := range pdrList {
@@ -543,7 +528,5 @@ func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 		smContext.SmPolicyUpdates = smContext.SmPolicyUpdates[1:]
 	}
 
-	// Notify PCF of failure ?
-	// TODO
 	return nil
 }

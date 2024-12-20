@@ -13,7 +13,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 GNB_CONFIG_URL = "/api/v1/radios"
-NETWORK_SLICE_CONFIG_URL = "/api/v1/network-slices"
+NETWORK_CONFIG_URL = "/api/v1/network"
 PROFILE_CONFIG_URL = "/api/v1/profiles"
 SUBSCRIBERS_CONFIG_URL = "/api/v1/subscribers"
 
@@ -43,10 +43,9 @@ PROFILE_CONFIG = {
 }
 
 
-NETWORK_SLICE_CONFIG = {
+NETWORK_CONFIG = {
     "sst": "1",
     "sd": "102030",
-    "profiles": [],
     "mcc": "001",
     "mnc": "01",
     "gNodeBs": [{"name": "dev2-gnbsim", "tac": 1}],
@@ -110,9 +109,7 @@ class Ella:
         self._make_request("POST", PROFILE_CONFIG_URL, data=PROFILE_CONFIG)
         logger.info(f"Created profile {name}.")
 
-    def create_network_slice(self, name: str, profiles: List[str]) -> None:
+    def update_network(self) -> None:
         """Create a network slice."""
-        NETWORK_SLICE_CONFIG["profiles"] = profiles
-        NETWORK_SLICE_CONFIG["name"] = name
-        self._make_request("POST", NETWORK_SLICE_CONFIG_URL, data=NETWORK_SLICE_CONFIG)
-        logger.info(f"Created network slice {name}.")
+        self._make_request("PUT", NETWORK_CONFIG_URL, data=NETWORK_CONFIG)
+        logger.info("Updated network configuration.")

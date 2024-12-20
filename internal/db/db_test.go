@@ -13,5 +13,8 @@ func TestConnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Can't connect to SQLite: %s", err)
 	}
-	db.Close()
+	err = db.Close()
+	if err != nil {
+		t.Fatalf("Can't close connection: %s", err)
+	}
 }

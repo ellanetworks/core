@@ -22,7 +22,6 @@ func (handlerMap PfcpHandlerMap) Handle(conn *PfcpConnection, buf []byte, addr *
 		return err
 	}
 	if handler, ok := handlerMap[incomingMsg.MessageType()]; ok {
-		// TODO: Trim port as a workaround for NAT changing the port. Explore proper solutions.
 		stringIpAddr := addr.IP.String()
 		if stringIpAddr == "::1" {
 			logger.UpfLog.Debugf("Got loopback address, setting to 0.0.0.0")

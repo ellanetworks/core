@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"path/filepath"
@@ -52,7 +53,11 @@ func getRadio(url string, client *http.Client, name string) (int, *GetRadioRespo
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var radioResponse GetRadioResponse
 	if err := json.NewDecoder(res.Body).Decode(&radioResponse); err != nil {
 		return 0, nil, err
@@ -65,7 +70,7 @@ func createRadio(url string, client *http.Client, data *CreateRadioParams) (int,
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequest("POST", url+"/api/v1/radios", strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/radios", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -73,7 +78,11 @@ func createRadio(url string, client *http.Client, data *CreateRadioParams) (int,
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var createResponse CreateRadioResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
 		return 0, nil, err
@@ -90,7 +99,11 @@ func deleteRadio(url string, client *http.Client, name string) (int, *DeleteRadi
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var deleteResponse DeleteRadioResponse
 	if err := json.NewDecoder(res.Body).Decode(&deleteResponse); err != nil {
 		return 0, nil, err

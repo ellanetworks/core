@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"path/filepath"
@@ -17,7 +18,7 @@ type GetStatusResponse struct {
 }
 
 func getStatus(url string, client *http.Client) (int, *GetStatusResponse, error) {
-	req, err := http.NewRequest("GET", url+"/api/v1/status", nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/status", nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -25,7 +26,11 @@ func getStatus(url string, client *http.Client) (int, *GetStatusResponse, error)
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var radioResponse GetStatusResponse
 	if err := json.NewDecoder(res.Body).Decode(&radioResponse); err != nil {
 		return 0, nil, err

@@ -25,12 +25,12 @@ type AmfRan struct {
 	RanId      *models.GlobalRanNodeId
 	Name       string
 	AnType     models.AccessType
-	GnbIp      string `json:"-"` // TODO to be removed
+	GnbIp      string `json:"-"`
 	GnbId      string // RanId in string format, i.e.,mcc:mnc:gnbid
 	/* socket Connect*/
 	Conn net.Conn `json:"-"`
 	/* Supported TA List */
-	SupportedTAList []SupportedTAI // TODO SupportedTaList store and recover from DB
+	SupportedTAList []SupportedTAI
 
 	/* RAN UE List */
 	RanUeList []*RanUe `json:"-"` // RanUeNgapId as key
@@ -85,7 +85,6 @@ func (ran *AmfRan) RemoveAllUeInRan() {
 }
 
 func (ran *AmfRan) RanUeFindByRanUeNgapIDLocal(ranUeNgapID int64) *RanUe {
-	// TODO - need fix..Make this map so search is fast
 	for _, ranUe := range ran.RanUeList {
 		if ranUe.RanUeNgapId == ranUeNgapID {
 			return ranUe

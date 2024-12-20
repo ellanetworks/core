@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"path/filepath"
@@ -54,7 +55,7 @@ type DeleteSubscriberResponse struct {
 }
 
 func getSubscriber(url string, client *http.Client, ueId string) (int, *GetSubscriberResponse, error) {
-	req, err := http.NewRequest("GET", url+"/api/v1/subscribers/"+ueId, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/subscribers/"+ueId, nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -62,7 +63,11 @@ func getSubscriber(url string, client *http.Client, ueId string) (int, *GetSubsc
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var subscriberResponse GetSubscriberResponse
 	if err := json.NewDecoder(res.Body).Decode(&subscriberResponse); err != nil {
 		return 0, nil, err
@@ -75,7 +80,7 @@ func createSubscriber(url string, client *http.Client, data *CreateSubscriberPar
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequest("POST", url+"/api/v1/subscribers", strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/subscribers", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -83,7 +88,11 @@ func createSubscriber(url string, client *http.Client, data *CreateSubscriberPar
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var createResponse CreateSubscriberResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
 		return 0, nil, err
@@ -92,7 +101,7 @@ func createSubscriber(url string, client *http.Client, data *CreateSubscriberPar
 }
 
 func deleteSubscriber(url string, client *http.Client, ueId string) (int, *DeleteSubscriberResponse, error) {
-	req, err := http.NewRequest("DELETE", url+"/api/v1/subscribers/"+ueId, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/subscribers/"+ueId, nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -100,7 +109,11 @@ func deleteSubscriber(url string, client *http.Client, ueId string) (int, *Delet
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var deleteResponse DeleteSubscriberResponse
 	if err := json.NewDecoder(res.Body).Decode(&deleteResponse); err != nil {
 		return 0, nil, err

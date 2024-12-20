@@ -80,7 +80,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer dbInstance.Close()
+	defer func() {
+		if err := dbInstance.Close(); err != nil {
+			log.Fatalf("Failed to close database: %v", err)
+		}
+	}()
 	err = startNetwork(dbInstance, cfg)
 	if err != nil {
 		logger.EllaLog.Panicf("Failed to start network: %v", err)

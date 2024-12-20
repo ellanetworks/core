@@ -111,10 +111,8 @@ func (transaction *Transaction) Start() error {
 				continue
 			}
 		}
-		// Num of retries exhausted, send failure back to app
 		return fmt.Errorf("request timeout, seq [%d]", transaction.SequenceNumber)
 	} else if transaction.TxType == SendingResponse {
-		// Todo :Implement SendingResponse type of reliable delivery
 		timer := time.NewTimer(ResendResponseTimeOutPeriod * time.Second)
 		for iter := 0; iter < NumOfResend; iter++ {
 			_, err := transaction.Conn.WriteToUDP(transaction.SendMsg, transaction.DestAddr)

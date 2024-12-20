@@ -30,8 +30,7 @@ func GetSmData(supi string, Dnn string, Snssai string) ([]models.SessionManageme
 	}
 
 	udmUe := context.UDM_Self().NewUdmUe(supi)
-	smData, _, _, _ := context.UDM_Self().ManageSmData(
-		sessionManagementSubscriptionDataResp, Snssai, Dnn)
+	smData := context.UDM_Self().ManageSmData(sessionManagementSubscriptionDataResp, Snssai, Dnn)
 	udmUe.SetSMSubsData(smData)
 
 	rspSMSubDataList := make([]models.SessionManagementSubscriptionData, 0, 4)

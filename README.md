@@ -48,8 +48,7 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 
 #### Concepts
 
-- **Network Slice**: A network slice is a logical network that provides a set of services to a group of subscribers. This concept is to be removed
-in favor of a simpler single "Network Configuration".
+- **Network**: A network represents a private mobile network. It includes the configuration of the network, the radios, the profiles, and the subscribers.
 - **Profile**: A profile is a reusable set of parameters for managing subscribers in the network. The profile includes Bitrate and Quality of Service (QoS) parameters.
 - **Subscriber**: A subscriber is a user of the private mobile network.
 
@@ -57,27 +56,25 @@ in favor of a simpler single "Network Configuration".
 
 ##### Endpoints
 
-| Endpoint                        | HTTP Method | Description             |
-| ------------------------------- | ----------- | ----------------------- |
-| `/api/v1/status`                | GET         | Get status              |
-| `/api/v1/metrics`               | GET         | Get metrics             |
-| `/api/v1/subscribers`           | GET         | List subscribers        |
-| `/api/v1/subscribers`           | POST        | Create a new subscriber |
-| `/api/v1/subscribers/{name}`    | GET         | Get a subscriber        |
-| `/api/v1/subscribers/{name}`    | DELETE      | Delete a subscriber     |
-| `/api/v1/radios`                | GET         | List radios             |
-| `/api/v1/radios`                | POST        | Create a new radio      |
-| `/api/v1/radios/{name}`         | GET         | Get a radio             |
-| `/api/v1/radios/{name}`         | DELETE      | Delete a radio          |
-| `/api/v1/network-slices`        | GET         | List network slices     |
-| `/api/v1/network-slices`        | POST        | Create a new slice      |
-| `/api/v1/network-slices/{name}` | GET         | Get a network slice     |
-| `/api/v1/network-slices/{name}` | DELETE      | Delete a network slice  |
-| `/api/v1/profiles`              | GET         | List profiles           |
-| `/api/v1/profiles`              | POST        | Create a new profile    |
-| `/api/v1/profiles/{name}`       | PUT         | Update a profile        |
-| `/api/v1/profiles/{name}`       | GET         | Get a profile           |
-| `/api/v1/profiles/{name}`       | DELETE      | Delete a profile        |
+| Endpoint                     | HTTP Method | Description                  |
+| ---------------------------- | ----------- | ---------------------------- |
+| `/api/v1/status`             | GET         | Get status                   |
+| `/api/v1/metrics`            | GET         | Get metrics                  |
+| `/api/v1/subscribers`        | GET         | List subscribers             |
+| `/api/v1/subscribers`        | POST        | Create a new subscriber      |
+| `/api/v1/subscribers/{name}` | GET         | Get a subscriber             |
+| `/api/v1/subscribers/{name}` | DELETE      | Delete a subscriber          |
+| `/api/v1/radios`             | GET         | List radios                  |
+| `/api/v1/radios`             | POST        | Create a new radio           |
+| `/api/v1/radios/{name}`      | GET         | Get a radio                  |
+| `/api/v1/radios/{name}`      | DELETE      | Delete a radio               |
+| `/api/v1/network`            | PUT         | Update network configuration |
+| `/api/v1/network`            | GET         | Get network configuration    |
+| `/api/v1/profiles`           | GET         | List profiles                |
+| `/api/v1/profiles`           | POST        | Create a new profile         |
+| `/api/v1/profiles/{name}`    | PUT         | Update a profile             |
+| `/api/v1/profiles/{name}`    | GET         | Get a profile                |
+| `/api/v1/profiles/{name}`    | DELETE      | Delete a profile             |
 
 ##### Responses
 

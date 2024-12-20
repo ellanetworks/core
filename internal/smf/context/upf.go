@@ -102,8 +102,6 @@ func NewUPFInterfaceInfo(i *factory.InterfaceUpfInfoItem) *UPFInterfaceInfo {
 	interfaceInfo.IPv4EndPointAddresses = make([]net.IP, 0)
 	interfaceInfo.IPv6EndPointAddresses = make([]net.IP, 0)
 
-	logger.SmfLog.Infoln("Endpoints:", i.Endpoints)
-
 	for _, endpoint := range i.Endpoints {
 		eIP := net.ParseIP(endpoint)
 		if eIP == nil {

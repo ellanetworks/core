@@ -24,7 +24,6 @@ func useDefaultSubscribedSnssai(
 			// Subscribed S-NSSAI is marked as default S-NSSAI
 
 			var mappingOfSubscribedSnssai models.Snssai
-			// TODO: Compared with Restricted S-NSSAI list in configuration under roaming scenario
 			if param.HomePlmnId != nil && !CheckStandardSnssai(*subscribedSnssai.SubscribedSnssai) {
 				targetMapping, found := FindMappingWithHomeSnssai(*subscribedSnssai.SubscribedSnssai, mappingOfSnssai)
 
@@ -53,9 +52,6 @@ func useDefaultSubscribedSnssai(
 				*allowedSnssaiElement.MappedHomeSnssai = *subscribedSnssai.SubscribedSnssai
 			}
 
-			// Default Access Type is set to 3GPP Access if no TAI is provided
-			// TODO: Depend on operator implementation, it may also return S-NSSAIs in all valid Access Type if
-			//       UE's Access Type could not be identified
 			var accessType models.AccessType = models.AccessType__3_GPP_ACCESS
 
 			AddAllowedSnssai(allowedSnssaiElement, accessType, authorizedNetworkSliceInfo)
@@ -149,7 +145,6 @@ func nsselectionForRegistration(param NsselectionQueryParameter, authorizedNetwo
 			}
 
 			var mappingOfRequestedSnssai models.Snssai
-			// TODO: Compared with Restricted S-NSSAI list in configuration under roaming scenario
 			if param.HomePlmnId != nil && !CheckStandardSnssai(requestedSnssai) {
 				// Standard S-NSSAIs are supported to be commonly decided by all roaming partners
 				// Only non-standard S-NSSAIs are required to find mappings
@@ -157,14 +152,9 @@ func nsselectionForRegistration(param NsselectionQueryParameter, authorizedNetwo
 					param.SliceInfoRequestForRegistration.MappingOfNssai)
 
 				if !found {
-					// No mapping of Requested S-NSSAI to HPLMN S-NSSAI is provided by UE
-					// TODO: Search for local configuration if there is no provided mapping from UE, and update UE's
-					//       Configured NSSAI
 					authorizedNetworkSliceInfo.RejectedNssaiInPlmn = append(authorizedNetworkSliceInfo.RejectedNssaiInPlmn, requestedSnssai)
 					continue
 				} else {
-					// TODO: Check if mappings of S-NSSAIs are correct
-					//       If not, update UE's Configured NSSAI
 					mappingOfRequestedSnssai = *targetMapping.HomeSnssai
 				}
 			} else {
@@ -186,9 +176,6 @@ func nsselectionForRegistration(param NsselectionQueryParameter, authorizedNetwo
 						*allowedSnssaiElement.MappedHomeSnssai = *subscribedSnssai.SubscribedSnssai
 					}
 
-					// Default Access Type is set to 3GPP Access if no TAI is provided
-					// TODO: Depend on operator implementation, it may also return S-NSSAIs in all valid Access Type if
-					//       UE's Access Type could not be identified
 					var accessType models.AccessType = models.AccessType__3_GPP_ACCESS
 
 					AddAllowedSnssai(allowedSnssaiElement, accessType, authorizedNetworkSliceInfo)

@@ -46,9 +46,6 @@ func CommitTrafficControlUpdate(smCtxtPolData *SmCtxtPolicyData, update *Traffic
 		}
 	}
 
-	// Mod rules
-	// TODO
-
 	// Del Rules
 	if len(update.del) > 0 {
 		for name := range update.del {
@@ -58,7 +55,6 @@ func CommitTrafficControlUpdate(smCtxtPolData *SmCtxtPolicyData, update *Traffic
 }
 
 func GetTCDataChanges(pcfTc, ctxtTc *models.TrafficControlData) bool {
-	// TODO
 	return false
 }
 

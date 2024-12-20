@@ -557,7 +557,7 @@ func (dpNode *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER,
 		} else {
 			if anIP := smContext.Tunnel.ANInformation.IPAddress; anIP != nil {
 				ANUPF := dataPath.FirstDPNode
-				DefaultDLPDR := ANUPF.DownLinkTunnel.PDR["default"] // TODO: Iterate over all PDRs
+				DefaultDLPDR := ANUPF.DownLinkTunnel.PDR["default"]
 				DLFAR := DefaultDLPDR.FAR
 				DLFAR.ForwardingParameters = new(ForwardingParameters)
 				DLFAR.ForwardingParameters.DestinationInterface.InterfaceValue = DestinationInterfaceAccess

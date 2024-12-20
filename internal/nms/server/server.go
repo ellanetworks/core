@@ -114,11 +114,9 @@ func NewHandler(dbInstance *db.Database) http.Handler {
 	apiGroup.GET("/profiles/:name", GetProfile(dbInstance))
 	apiGroup.DELETE("/profiles/:name", DeleteProfile(dbInstance))
 
-	// Network Slices
-	apiGroup.GET("/network-slices", ListNetworkSlices(dbInstance))
-	apiGroup.POST("/network-slices", CreateNetworkSlice(dbInstance))
-	apiGroup.GET("/network-slices/:name", GetNetworkSlice(dbInstance))
-	apiGroup.DELETE("/network-slices/:name", DeleteNetworkSlice(dbInstance))
+	// Network Configuration
+	apiGroup.PUT("/network", UpdateNetwork(dbInstance))
+	apiGroup.GET("/network", GetNetwork(dbInstance))
 
 	// Radios
 	apiGroup.GET("/radios", ListRadios(dbInstance))

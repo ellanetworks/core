@@ -85,7 +85,10 @@ func (connection *PfcpConnection) Run() {
 }
 
 func (connection *PfcpConnection) Close() {
-	connection.udpConn.Close()
+	err := connection.udpConn.Close()
+	if err != nil {
+		logger.UpfLog.Warnf("Error closing UDP connection: %s", err.Error())
+	}
 }
 
 func (connection *PfcpConnection) Receive(b []byte) (n int, addr *net.UDPAddr, err error) {

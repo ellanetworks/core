@@ -232,8 +232,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 						ue.GmmLog.Errorf("CreateSmContextRequest Error: %+v", err)
 						return nil
 					} else if problemDetail != nil {
-						// TODO: error handling
-						return fmt.Errorf("Failed to Create smContext[pduSessionID: %d], Error[%v]", pduSessionID, problemDetail)
+						return fmt.Errorf("failed to Create smContext[pduSessionID: %d], Error[%v]", pduSessionID, problemDetail)
 					} else if errResponse != nil {
 						ue.GmmLog.Warnf("PDU Session Establishment Request was rejected by SMF [pduSessionId: %d]",
 							pduSessionID)
@@ -244,7 +243,6 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 						newSmContext.SetUserLocation(ue.Location)
 						ue.StoreSmContext(pduSessionID, newSmContext)
 						ue.GmmLog.Infof("create smContext[pduSessionID: %d] Success", pduSessionID)
-						// TODO: handle response(response N2SmInfo to RAN if exists)
 					}
 				}
 			case nasMessage.ULNASTransportRequestTypeModificationRequest:
@@ -273,7 +271,6 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 			}
 		}
 	} else {
-		// TODO: implement SSC mode3 Op
 		return fmt.Errorf("SSC mode3 operation has not been implemented yet")
 	}
 	return nil
@@ -305,7 +302,6 @@ func forward5GSMMessageToSMF(
 		smContextUpdateData, smMessage, nil)
 
 	if err != nil {
-		// TODO: error handling
 		ue.GmmLog.Errorf("Update SMContext error [pduSessionID: %d], Error[%v]", pduSessionID, err)
 		return nil
 	} else if problemDetail != nil {
@@ -320,7 +316,6 @@ func forward5GSMMessageToSMF(
 			gmm_message.SendDLNASTransport(ue.RanUe[accessType], nasMessage.PayloadContainerTypeN1SMInfo,
 				errResponse.BinaryDataN1SmMessage, pduSessionID, 0, nil, 0)
 		}
-		// TODO: handle n2 info transfer
 	} else if response != nil {
 		// update SmContext in AMF
 		smContext.SetAccessType(accessType)
@@ -350,7 +345,7 @@ func forward5GSMMessageToSMF(
 				ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2SmInfo)
 				ngap_message.SendPDUSessionResourceReleaseCommand(ue.RanUe[accessType], n1Msg, list)
 			default:
-				return fmt.Errorf("Error N2 SM information type[%s]", responseData.N2SmInfoType)
+				return fmt.Errorf("error N2 SM information type[%s]", responseData.N2SmInfoType)
 			}
 		} else if n1Msg != nil {
 			ue.GmmLog.Debugf("AMF forward Only N1 SM Message to UE")
@@ -507,7 +502,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	}
 	if !context.InTaiList(ue.Tai, taiList) {
 		gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMMTrackingAreaNotAllowed, "")
-		return fmt.Errorf("Registration Reject[Tracking area not allowed]")
+		return fmt.Errorf("registration Reject[Tracking area not allowed]")
 	}
 
 	if registrationRequest.UESecurityCapability != nil {
@@ -516,9 +511,6 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 		gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMMProtocolErrorUnspecified, "")
 		return fmt.Errorf("UESecurityCapability is nil")
 	}
-	// TODO (TS 23.502 4.2.2.2 step 4): if UE's 5g-GUTI is included & serving AMF has changed
-	// since last registration procedure, new AMF may invoke Namf_Communication_UEContextTransfer
-	// to old AMF, including the complete registration request nas msg, to request UE's SUPI & UE Context
 	if ue.ServingAmfChanged {
 		var transferReason models.TransferReason
 		switch ue.RegistrationType5GS {
@@ -584,12 +576,6 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 		return fmt.Errorf("no allowed nssai")
 	}
 
-	//TODO: this is commented because Radysis USIM is not sending this IE
-	/*else {
-		gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMMProtocolErrorUnspecified, "")
-		return fmt.Errorf("Capability5GMM is nil")
-	}*/
-
 	storeLastVisitedRegisteredTAI(ue, ue.RegistrationRequest.LastVisitedRegisteredTAI)
 
 	if ue.RegistrationRequest.MICOIndication != nil {
@@ -597,16 +583,13 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 			ue.RegistrationRequest.MICOIndication.GetRAAI())
 	}
 
-	// TODO: Negotiate DRX value if need (TS 23.501 5.4.5)
 	negotiateDRXParameters(ue, ue.RegistrationRequest.RequestedDRXParameters)
 
-	// TODO (step 10 optional): send Namf_Communication_RegistrationCompleteNotify to old AMF if need
 	if ue.ServingAmfChanged {
 		// If the AMF has changed the new AMF notifies the old AMF that the registration of the UE in the new AMF is completed
 		req := models.UeRegStatusUpdateReqData{
 			TransferStatus: models.UeContextTransferStatus_TRANSFERRED,
 		}
-		// TODO: based on locol policy, decide if need to change serving PCF for UE
 		regStatusTransferComplete, problemDetails, err := consumer.RegistrationStatusUpdate(ue, req)
 		if problemDetails != nil {
 			ue.GmmLog.Errorf("Registration Status Update Failed Problem[%+v]", problemDetails)
@@ -618,15 +601,6 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 			}
 		}
 	}
-
-	// TODO: Not supporting IMEI check with EIR. please uncomment when we support EIR check
-	/*if len(ue.Pei) == 0 {
-		gmm_message.SendIdentityRequest(ue.RanUe[anType], nasMessage.MobileIdentity5GSTypeImei)
-		return nil
-	}*/
-
-	// TODO (step 12 optional): the new AMF initiates ME identity check by invoking the
-	// N5g-eir_EquipmentIdentityCheck_Get service operation
 
 	if ue.ServingAmfChanged || ue.State[models.AccessType_NON_3_GPP_ACCESS].Is(context.Registered) ||
 		!ue.SubscriptionDataValid {
@@ -655,20 +629,9 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 				for _, area := range servAreaRes.Areas {
 					numOfallowedTAs += len(area.Tacs)
 				}
-				// if numOfallowedTAs < int(servAreaRes.MaxNumOfTAs) {
-				// 	TODO: based on AMF Policy, assign additional allowed area for UE,
-				// 	and the upper limit is servAreaRes.MaxNumOfTAs (TS 29.507 4.2.2.3)
-				// }
 			}
 		}
 	}
-
-	// TODO (step 18 optional):
-	// If the AMF has changed and the old AMF has indicated an existing NGAP UE association towards a N3IWF, the new AMF
-	// creates an NGAP UE association towards the N3IWF to which the UE is connectedsend N2 AMF mobility request to N3IWF
-	// if anType == models.AccessType_NON_3_GPP_ACCESS && ue.ServingAmfChanged {
-	// 	TODO: send N2 AMF Mobility Request
-	// }
 
 	amfSelf.AllocateRegistrationArea(ue, anType)
 	ue.GmmLog.Debugf("Use original GUTI[%s]", ue.Guti)
@@ -737,21 +700,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			ue.RegistrationRequest.MICOIndication.GetRAAI())
 	}
 
-	// TODO: Negotiate DRX value if need (TS 23.501 5.4.5)
 	negotiateDRXParameters(ue, ue.RegistrationRequest.RequestedDRXParameters)
-
-	// TODO (step 10 optional): send Namf_Communication_RegistrationCompleteNotify to old AMF if need
-	// if ue.ServingAmfChanged {
-	// 	If the AMF has changed the new AMF notifies the old AMF that the registration of the UE in the new AMF is completed
-	// }
 
 	if len(ue.Pei) == 0 {
 		gmm_message.SendIdentityRequest(ue.RanUe[anType], nasMessage.MobileIdentity5GSTypeImei)
 		return nil
 	}
-
-	// TODO (step 12 optional): the new AMF initiates ME identity check by invoking the
-	// N5g-eir_EquipmentIdentityCheck_Get service operation
 
 	if ue.ServingAmfChanged || ue.State[models.AccessType_NON_3_GPP_ACCESS].Is(context.Registered) ||
 		!ue.SubscriptionDataValid {
@@ -899,7 +853,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			smContext, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionId)
 			if !exist {
 				ue.N1N2Message = nil
-				return fmt.Errorf("Pdu Session Id not Exists")
+				return fmt.Errorf("pdu Session Id does not Exists")
 			}
 
 			if smContext.AccessType() == models.AccessType_NON_3_GPP_ACCESS {
@@ -907,7 +861,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 					reactivationResult = new([16]bool)
 				}
 				if allowedPsis[requestData.PduSessionId] {
-					// TODO: error handling
 					response, errRes, _, err := consumer.SendUpdateSmContextChangeAccessType(ue, smContext, true)
 					if err != nil {
 						return err
@@ -970,18 +923,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		ue.LocationChanged = false
 	}
 
-	// TODO (step 18 optional):
-	// If the AMF has changed and the old AMF has indicated an existing NGAP UE association towards a N3IWF, the new AMF
-	// creates an NGAP UE association towards the N3IWF to which the UE is connectedsend N2 AMF mobility request to N3IWF
-	// if anType == models.AccessType_NON_3_GPP_ACCESS && ue.ServingAmfChanged {
-	// 	TODO: send N2 AMF Mobility Request
-	// }
-
 	amfSelf.AllocateRegistrationArea(ue, anType)
 	assignLadnInfo(ue, anType)
-
-	// TODO: GUTI reassignment if need (based on operator poilcy)
-	// TODO: T3512/Non3GPP de-registration timer reassignment if need (based on operator policy)
 
 	if ue.RanUe[anType].UeContextRequest {
 		if anType == models.AccessType__3_GPP_ACCESS {
@@ -1009,8 +952,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		} else {
 			ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasPdu, nil)
 		}
-		// TODO: when state machaine, remove it
-		// ue.ClearRegistrationRequestData(anType)
 		return nil
 	}
 }
@@ -1356,10 +1297,6 @@ func HandleConfigurationUpdateComplete(ue *context.AmfUe,
 		return fmt.Errorf("NAS message integrity check failed")
 	}
 
-	// TODO: Stop timer T3555 in TS 24.501 Figure 5.4.4.1.1 in handler
-	// TODO: Send acknowledgment by Nudm_SMD_Info_Service to UDM in handler
-	//		import "github.com/omec-project/openapi/Nudm_SubscriberDataManagement" client.Info
-
 	return nil
 }
 
@@ -1402,7 +1339,6 @@ func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType model
 	} else {
 		SetDeregisteredState(ue, anType)
 	}
-	// TODO: Need to implement Nudm_SDM_Unsubscribe
 
 	var problemDetails *models.ProblemDetails
 	ue.SmContextList.Range(func(key, value interface{}) bool {
@@ -1455,14 +1391,7 @@ func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType model
 	return err
 }
 
-// TODO: to be implemented
 func HandleUeSliceInfoDelete(ue *context.AmfUe, accessType models.AccessType, nssai models.Snssai) (err error) {
-	// TODO send configuration update to update allowed nssai list with re-registration required to UE
-	//     so that pdu session sync up happen in registration procedure when UE triggers this procedure
-	// gmm_message.SendConfigurationUpdateCommand(ue, models.AccessType__3_GPP_ACCESS, nil)
-
-	// we are doing local cleanup for now, below code will be deprecated when we support
-	// Configuration Update
 	var problemDetails *models.ProblemDetails
 	ue.SmContextList.Range(func(key, value interface{}) bool {
 		smContext := value.(*context.SmContext)
@@ -1492,12 +1421,7 @@ func HandleUeSliceInfoDelete(ue *context.AmfUe, accessType models.AccessType, ns
 	return err
 }
 
-// TODO: to be implemented
 func HandleUeSliceInfoAdd(ue *context.AmfUe, accessType models.AccessType, nssai models.Snssai) (err error) {
-	// TODO send configuration update to update allowed nssai list with re-registration required to UE
-	//     so that pdu session sync up happen in registration procedure when UE triggers this procedure
-	// gmm_message.SendConfigurationUpdateCommand(ue, models.AccessType__3_GPP_ACCESS, nil)
-
 	var allowedList []models.AllowedSnssai
 	// update Allowed Nssai List
 	for _, slice := range ue.AllowedNssai[accessType] {
@@ -1606,7 +1530,6 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 		return nil
 	}
 
-	// TODO: workaround to send service accept in ICSR
 	ue.RanUe[anType].UeContextRequest = true
 	if serviceType == nasMessage.ServiceTypeSignalling {
 		err := sendServiceAccept(ue, anType, ctxList, suList, nil, nil, nil, nil)
@@ -1718,12 +1641,11 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 				ue.N1N2Message = nil
 				return nil
 			}
-			// TODO: Area of validity for the N2 SM information
 			smInfo := requestData.N2InfoContainer.SmInfo
 			smContext, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionId)
 			if !exist {
 				ue.N1N2Message = nil
-				return fmt.Errorf("Service Request triggered by Network error for pduSessionId does not exist")
+				return fmt.Errorf("service Request triggered by Network error for pduSessionId does not exist")
 			}
 
 			if smContext.AccessType() == models.AccessType_NON_3_GPP_ACCESS {
@@ -1972,8 +1894,6 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 			ue.Kseaf = response.KSeaf
 			ue.Supi = response.Supi
 			ue.DerivateKamf()
-			// TODO: select enc/int algorithm based on ue security capability & amf's policy,
-			// then generate KnasEnc, KnasInt
 			return GmmFSM.SendEvent(ue.State[accessType], SecurityModeSuccessEvent, fsm.ArgsType{
 				ArgAmfUe:      ue,
 				ArgAccessType: accessType,
@@ -2090,16 +2010,6 @@ func HandleRegistrationComplete(ue *context.AmfUe, accessType models.AccessType,
 		ue.T3550 = nil // clear the timer
 	}
 
-	// if registrationComplete.SORTransparentContainer != nil {
-	// 	TODO: if at regsitration procedure 14b, udm provide amf Steering of Roaming info & request an ack,
-	// 	AMF provides the UE's ack with Nudm_SDM_Info (SOR not supportted in this stage)
-	// }
-
-	// TODO: if
-	//	1. AMF has evaluated the support of IMS Voice over PS Sessions (TS 23.501 5.16.3.2)
-	//	2. AMF determines that it needs to update the Homogeneous Support of IMS Voice over PS Sessions (TS 23.501 5.16.3.3)
-	// Then invoke Nudm_UECM_Update to send "Homogeneous Support of IMS Voice over PS Sessions" indication to udm
-
 	if ue.RegistrationRequest.UplinkDataStatus == nil &&
 		ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestNoPending {
 		ngap_message.SendUEContextReleaseCommand(ue.RanUe[accessType], context.UeContextN2NormalRelease,
@@ -2137,7 +2047,6 @@ func HandleSecurityModeComplete(ue *context.AmfUe, anType models.AccessType, pro
 		ue.Pei = nasConvert.PeiToString(securityModeComplete.IMEISV.Octet[:])
 	}
 
-	// TODO: AMF shall set the NAS COUNTs to zero if horizontal derivation of KAMF is performed
 	if securityModeComplete.NASMessageContainer != nil {
 		contents := securityModeComplete.NASMessageContainer.GetNASMessageContainerContents()
 		m := nas.NewMessage()

@@ -162,7 +162,6 @@ func BuildUnavailableGUAMIList(guamiList []models.Guami) (unavailableGUAMIList n
 		item.GUAMI.AMFRegionID.Value = regionId
 		item.GUAMI.AMFSetID.Value = setId
 		item.GUAMI.AMFPointer.Value = ptrId
-		// TODO: item.TimerApproachForGUAMIRemoval and item.BackupAMFName not support yet
 		unavailableGUAMIList.List = append(unavailableGUAMIList.List, item)
 	}
 	return

@@ -37,7 +37,6 @@ func HandlePfcpSessionEstablishmentRequest(conn *PfcpConnection, msg message.Mes
 	session := NewSession(localSEID, remoteSEID.SEID)
 
 	printSessionEstablishmentRequest(req)
-	// #TODO: Implement rollback on error
 	createdPDRs := []SPDRInfo{}
 	pdrContext := NewPDRCreationContext(session, conn.ResourceManager)
 
@@ -191,7 +190,6 @@ func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Mess
 
 	printSessionModificationRequest(req)
 
-	// #TODO: Implement rollback on error
 	createdPDRs := []SPDRInfo{}
 	pdrContext := NewPDRCreationContext(session, conn.ResourceManager)
 

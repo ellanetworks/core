@@ -45,9 +45,7 @@ func SendSMPolicyAssociationCreate(smContext *smf_context.SMContext) (*models.Sm
 	return smPolicyDecision, http.StatusCreated, nil
 }
 
-func SendSMPolicyAssociationModify(smContext *smf_context.SMContext) {
-	// TODO
-}
+func SendSMPolicyAssociationModify(smContext *smf_context.SMContext) {}
 
 func SendSMPolicyAssociationDelete(smContext *smf_context.SMContext, smDelReq *models.ReleaseSmContextRequest) (int, error) {
 	smPolicyID := fmt.Sprintf("%s-%d", smContext.Supi, smContext.PDUSessionID)

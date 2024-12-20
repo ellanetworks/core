@@ -146,6 +146,15 @@ func Validate(filePath string) (Config, error) {
 	if c.Interfaces.API.TLS.Key == "" {
 		return Config{}, fmt.Errorf("interfaces.api.tls.key is empty")
 	}
+
+	if _, err := os.Stat(c.Interfaces.API.TLS.Cert); os.IsNotExist(err) {
+		return Config{}, fmt.Errorf("cert file %s does not exist", c.Interfaces.API.TLS.Cert)
+	}
+
+	if _, err := os.Stat(c.Interfaces.API.TLS.Key); os.IsNotExist(err) {
+		return Config{}, fmt.Errorf("key file %s does not exist", c.Interfaces.API.TLS.Key)
+	}
+
 	config.LogLevel = c.LogLevel
 	config.DB.Path = c.DB.Path
 	config.Interfaces.N3.Name = c.Interfaces.N3.Name

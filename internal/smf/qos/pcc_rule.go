@@ -48,9 +48,6 @@ func CommitPccRulesUpdate(smCtxtPolData *SmCtxtPolicyData, update *PccRulesUpdat
 		}
 	}
 
-	// Mod rules
-	// TODO
-
 	// Del Rules
 	if len(update.del) > 0 {
 		for name := range update.del {
@@ -61,7 +58,6 @@ func CommitPccRulesUpdate(smCtxtPolData *SmCtxtPolicyData, update *PccRulesUpdat
 
 // Get the difference between 2 pcc rules
 func GetPccRuleChanges(s, d *models.PccRule) bool {
-	// TODO
 	return false
 }
 

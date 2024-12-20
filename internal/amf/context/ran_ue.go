@@ -226,8 +226,6 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 		ranUe.Location.N3gaLocation.UeIpv4Addr = ipv4Addr
 		ranUe.Location.N3gaLocation.UeIpv6Addr = ipv6Addr
 		ranUe.Location.N3gaLocation.PortNumber = ngapConvert.PortNumberToInt(port)
-		// N3GPP TAI is operator-specific
-		// TODO: define N3GPP TAI
 
 		supportTaiList := GetSupportTaiList()
 		tmp, err := strconv.ParseUint(supportTaiList[0].Tac, 10, 32)

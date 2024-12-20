@@ -1,6 +1,9 @@
 package config_test
 
 import (
+	"fmt"
+	"log"
+	"os"
 	"strings"
 	"testing"
 
@@ -8,7 +11,69 @@ import (
 )
 
 func TestGoodConfigSuccess(t *testing.T) {
-	conf, err := config.Validate("testdata/valid.yaml")
+	// Create temporary cert and key files
+	tempCertFile, err := os.CreateTemp("", "ella_cert_*.crt")
+	if err != nil {
+		t.Fatalf("Failed to create temp cert file: %s", err)
+	}
+	defer func() {
+		if err := os.Remove(tempCertFile.Name()); err != nil {
+			log.Fatalf("Failed to remove temp key file: %v", err)
+		}
+	}()
+
+	tempKeyFile, err := os.CreateTemp("", "ella_key_*.key")
+	if err != nil {
+		t.Fatalf("Failed to create temp key file: %s", err)
+	}
+	defer func() {
+		if err := os.Remove(tempKeyFile.Name()); err != nil {
+			log.Fatalf("Failed to remove temp key file: %v", err)
+		}
+	}()
+
+	if _, err := tempCertFile.WriteString("dummy cert data"); err != nil {
+		t.Fatalf("Failed to write to temp cert file: %s", err)
+	}
+	if _, err := tempKeyFile.WriteString("dummy key data"); err != nil {
+		t.Fatalf("Failed to write to temp key file: %s", err)
+	}
+
+	defer func() {
+		if err := tempCertFile.Close(); err != nil {
+			log.Fatalf("Faile to close temp cert file: %v", err)
+		}
+	}()
+	defer func() {
+		if err := tempKeyFile.Close(); err != nil {
+			log.Fatalf("Faile to close temp key file: %v", err)
+		}
+	}()
+
+	// Update the config file to use the temporary cert and key paths
+	confFilePath := "testdata/valid.yaml"
+	originalContent, err := os.ReadFile(confFilePath)
+	if err != nil {
+		t.Fatalf("Failed to read config file: %s", err)
+	}
+
+	fmt.Println("Temp file name: ", tempCertFile.Name())
+
+	updatedContent := strings.ReplaceAll(string(originalContent), "/etc/ssl/certs/ella.crt", tempCertFile.Name())
+	updatedContent = strings.ReplaceAll(updatedContent, "/etc/ssl/private/ella.key", tempKeyFile.Name())
+
+	err = os.WriteFile(confFilePath, []byte(updatedContent), os.FileMode(0o644))
+	if err != nil {
+		t.Fatalf("Failed to update config file: %s", err)
+	}
+	defer func() {
+		if err := os.WriteFile(confFilePath, originalContent, os.FileMode(0o644)); err != nil {
+			log.Fatalf("Failed to close database: %v", err)
+		}
+	}()
+
+	// Run the validation
+	conf, err := config.Validate(confFilePath)
 	if err != nil {
 		t.Fatalf("Error occurred: %s", err)
 	}
@@ -33,11 +98,11 @@ func TestGoodConfigSuccess(t *testing.T) {
 		t.Fatalf("API port was not configured correctly")
 	}
 
-	if conf.Interfaces.API.TLS.Cert != "/etc/ssl/certs/ella.crt" {
+	if conf.Interfaces.API.TLS.Cert != tempCertFile.Name() {
 		t.Fatalf("TLS cert was not configured correctly")
 	}
 
-	if conf.Interfaces.API.TLS.Key != "/etc/ssl/private/ella.key" {
+	if conf.Interfaces.API.TLS.Key != tempKeyFile.Name() {
 		t.Fatalf("TLS key was not configured correctly")
 	}
 

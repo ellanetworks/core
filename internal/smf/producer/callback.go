@@ -22,23 +22,13 @@ func HandleSMPolicyUpdateNotify(eventData interface{}) error {
 	pcfPolicyDecision := request.SmPolicyDecision
 
 	if smContext.SMContextState != smf_context.SmStateActive {
-		// Wait till the state becomes SmStateActive again
-		// TODO: implement waiting in concurrent architecture
 		logger.SmfLog.Warnf("SMContext[%s-%02d] should be SmStateActive, but actual %s",
 			smContext.Supi, smContext.PDUSessionID, smContext.SMContextState.String())
 	}
 
-	//TODO: Response data type -
-	//[200 OK] UeCampingRep
-	//[200 OK] array(PartialSuccessReport)
-	//[400 Bad Request] ErrorReport
-
 	// Derive QoS change(compare existing vs received Policy Decision)
 	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, pcfPolicyDecision)
 	smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
-
-	// Update UPF
-	// TODO
 
 	httpResponse := httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
 	txn.Rsp = httpResponse
@@ -52,12 +42,6 @@ func HandleSMPolicyUpdateNotify(eventData interface{}) error {
 		return err
 	}
 
-	// N1N2 and UPF update Success
-	// Commit SM Policy Decision to SM Context
-	// TODO
-	// smContext.SMLock.Lock()
-	// defer smContext.SMLock.Unlock()
-	// smContext.CommitSmPolicyDecision(true)
 	return nil
 }
 

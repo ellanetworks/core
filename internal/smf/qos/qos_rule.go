@@ -142,12 +142,6 @@ func BuildQosRules(smPolicyUpdates *PolicyUpdate) QoSRules {
 			qosRules = append(qosRules, *defQosRule)
 		}
 	*/
-
-	// Rules to be modified
-	// TODO
-
-	// Rules to be deleted
-	// TODO
 	return qosRules
 }
 
@@ -182,7 +176,6 @@ func btou(b bool) uint8 {
 
 func GetQosRuleIdFromPccRuleId(pccRuleId string) uint8 {
 	if id, err := strconv.Atoi(pccRuleId); err != nil {
-		// TODO: Error Log
 		return 0
 	} else {
 		return uint8(id)
@@ -214,7 +207,6 @@ func GetPacketFilterFromFlowInfo(flowInfo *models.FlowInformation) PacketFilter 
 
 func GetPfId(ids string) uint8 {
 	if id, err := strconv.Atoi(ids); err != nil {
-		// TODO: Error Log
 		return 0
 	} else {
 		return (uint8(id) & PacketFilterIdBitmask)
@@ -231,7 +223,6 @@ func GetPfDirectionFromPccFlowInfo(flowDir models.FlowDirectionRm) uint8 {
 	case models.FlowDirectionRm_BIDIRECTIONAL:
 		return PacketFilterDirectionBidirectional
 	default:
-		// TODO: Error Log
 		return PacketFilterDirectionBidirectional
 	}
 }
@@ -502,7 +493,6 @@ func BuildPFCompProtocolId(val string) (*PacketFilterComponent, uint8) {
 		binary.BigEndian.PutUint32(bs, uint32(pfcVal))
 		pfc.ComponentValue = []byte{bs[3]}
 	} else {
-		// log TODO
 		return nil, 0
 	}
 

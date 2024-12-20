@@ -417,7 +417,6 @@ func (ue *AmfUe) InSubscribedNssai(targetSNssai models.Snssai) bool {
 func (ue *AmfUe) GetNsiInformationFromSnssai(anType models.AccessType, snssai models.Snssai) *models.NsiInformation {
 	for _, allowedSnssai := range ue.AllowedNssai[anType] {
 		if reflect.DeepEqual(*allowedSnssai.AllowedSnssai, snssai) {
-			// TODO: select NsiInformation based on operator policy
 			if len(allowedSnssai.NsiInformationList) != 0 {
 				return &allowedSnssai.NsiInformationList[0]
 			}

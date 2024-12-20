@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"path/filepath"
@@ -75,7 +76,7 @@ type ListProfileResponse struct {
 }
 
 func listProfiles(url string, client *http.Client) (int, *ListProfileResponse, error) {
-	req, err := http.NewRequest("GET", url+"/api/v1/profiles", nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/profiles", nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -83,7 +84,11 @@ func listProfiles(url string, client *http.Client) (int, *ListProfileResponse, e
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var profileResponse ListProfileResponse
 	if err := json.NewDecoder(res.Body).Decode(&profileResponse); err != nil {
 		return 0, nil, err
@@ -100,7 +105,11 @@ func getProfile(url string, client *http.Client, name string) (int, *GetProfileR
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var profileResponse GetProfileResponse
 	if err := json.NewDecoder(res.Body).Decode(&profileResponse); err != nil {
 		return 0, nil, err
@@ -113,7 +122,7 @@ func createProfile(url string, client *http.Client, data *CreateProfileParams) (
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequest("POST", url+"/api/v1/profiles", strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/profiles", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -121,7 +130,11 @@ func createProfile(url string, client *http.Client, data *CreateProfileParams) (
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var createResponse CreateProfileResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
 		return 0, nil, err
@@ -134,7 +147,7 @@ func editProfile(url string, client *http.Client, name string, data *CreateProfi
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequest("PUT", url+"/api/v1/profiles/"+name, strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/profiles/"+name, strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -142,7 +155,11 @@ func editProfile(url string, client *http.Client, name string, data *CreateProfi
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var createResponse CreateProfileResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
 		return 0, nil, err
@@ -159,7 +176,11 @@ func deleteProfile(url string, client *http.Client, name string) (int, *DeletePr
 	if err != nil {
 		return 0, nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	var deleteProfileResponse DeleteProfileResponse
 	if err := json.NewDecoder(res.Body).Decode(&deleteProfileResponse); err != nil {
 		return 0, nil, err

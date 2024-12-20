@@ -46,10 +46,8 @@ func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.Poli
 		amPolicyData.AltNotifIpv6Addrs = policyAssociationUpdateRequest.AltNotifIpv6Addrs
 	}
 	for _, trigger := range policyAssociationUpdateRequest.Triggers {
-		// TODO: Modify the value according to policies
 		switch trigger {
 		case models.RequestTrigger_LOC_CH:
-			// TODO: report to AF subscriber
 			if policyAssociationUpdateRequest.UserLoc == nil {
 				return nil, fmt.Errorf("UserLoc doesn't exist in Policy Association Requset Update while Triggers include LOC_CH")
 			}
@@ -60,7 +58,6 @@ func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.Poli
 				return nil, fmt.Errorf("PraStatuses doesn't exist in Policy Association")
 			}
 			for praId, praInfo := range policyAssociationUpdateRequest.PraStatuses {
-				// TODO: report to AF subscriber
 				logger.PcfLog.Infof("Policy Association Presence Id[%s] change state to %s", praId, praInfo.PresenceState)
 			}
 		case models.RequestTrigger_SERV_AREA_CH:
@@ -79,11 +76,9 @@ func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.Poli
 			}
 		}
 	}
-	// TODO: handle TraceReq
-	// TODO: Change Request Trigger Policies if needed
+
 	response.Triggers = amPolicyData.Triggers
-	// TODO: Change Policies if needed
-	// rsp.Pras
+
 	return &response, nil
 }
 
@@ -129,9 +124,6 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 		response.Rfsp = amPolicy.Rfsp
 	}
 	response.SuppFeat = amPolicy.SuppFeat
-	// TODO: add Reports
-	// rsp.Triggers
-	// rsp.Pras
 	ue.PolAssociationIDGenerator++
 	// Create location header for update, delete, get
 	locationHeader := util.GetResourceUri(models.ServiceName_NPCF_AM_POLICY_CONTROL, assolId)

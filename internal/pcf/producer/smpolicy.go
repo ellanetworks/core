@@ -79,7 +79,6 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 	if amPolicy == nil {
 		return nil, fmt.Errorf("Can't find corresponding AM Policy")
 	}
-	// TODO: check service restrict
 	if ue.Gpsi == "" {
 		ue.Gpsi = request.Gpsi
 	}
@@ -170,10 +169,8 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 	}
 	decision.SuppFeat = pcfSelf.PcfSuppFeats[models.ServiceName_NPCF_SMPOLICYCONTROL].NegotiateWith(requestSuppFeat).String()
 	decision.QosFlowUsage = request.QosFlowUsage
-	// TODO: Trigger about UMC, ADC, NetLoc,...
 	decision.PolicyCtrlReqTriggers = util.PolicyControlReqTrigToArray(0x40780f)
 	smPolicyData.PolicyDecision = &decision
-	// TODO: PCC rule, PraInfo ...
 	locationHeader := util.GetResourceUri(models.ServiceName_NPCF_SMPOLICYCONTROL, smPolicyID)
 	logger.PcfLog.Infof("Location Header: %s", locationHeader)
 	return &decision, nil

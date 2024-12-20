@@ -9,6 +9,13 @@ import (
 	"github.com/yeastengine/ella/internal/upf/ebpf"
 )
 
+const (
+	RemoteIP   = "127.0.0.1"
+	UeAddress1 = "1.1.1.1"
+	UeAddress2 = "2.2.2.2"
+	NodeId     = "test-node"
+)
+
 type MapOperationsMock struct{}
 
 func (mapOps *MapOperationsMock) PutPdrUplink(teid uint32, pdrInfo ebpf.PdrInfo) error {
@@ -76,15 +83,14 @@ func TestSessionOverwrite(t *testing.T) {
 	// Create pfcp connection struct
 	pfcpConn := PfcpConnection{
 		NodeAssociations: make(map[string]*NodeAssociation),
-		nodeId:           "test-node",
+		nodeId:           NodeId,
 		mapOperations:    &mapOps,
-		n3Address:        net.ParseIP("127.0.0.1"),
+		n3Address:        net.ParseIP(RemoteIP),
 	}
 	asReq := message.NewAssociationSetupRequest(0,
 		ie.NewNodeID("", "", "test"),
 	)
-	remoteIP := "127.0.0.1"
-	response, err := HandlePfcpAssociationSetupRequest(&pfcpConn, asReq, remoteIP)
+	response, err := HandlePfcpAssociationSetupRequest(&pfcpConn, asReq, RemoteIP)
 	if err != nil {
 		t.Errorf("Error handling association setup request: %s", err)
 	}
@@ -100,10 +106,10 @@ func TestSessionOverwrite(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting node ID from association setup response: %s", err)
 	}
-	if nodeId != "test-node" {
+	if nodeId != NodeId {
 		t.Errorf("Unexpected node ID in association setup response: %s", nodeId)
 	}
-	if _, ok := pfcpConn.NodeAssociations[remoteIP]; !ok {
+	if _, ok := pfcpConn.NodeAssociations[RemoteIP]; !ok {
 		t.Errorf("Association not created")
 	}
 
@@ -112,13 +118,13 @@ func TestSessionOverwrite(t *testing.T) {
 	seReq1 := message.NewSessionEstablishmentRequest(0, 0,
 		1, 1, 0,
 		ie.NewNodeID("", "", "test"),
-		ie.NewFSEID(1, net.ParseIP(remoteIP), nil),
+		ie.NewFSEID(1, net.ParseIP(RemoteIP), nil),
 		ie.NewCreatePDR(
 			ie.NewPDRID(1),
 			ie.NewPDI(
 				ie.NewSourceInterface(ie.SrcInterfaceCore),
 				// ie.NewFTEID(0, 0, ip1.IP, nil, 0),
-				ie.NewUEIPAddress(2, "1.1.1.1", "", 0, 0),
+				ie.NewUEIPAddress(2, UeAddress1, "", 0, 0),
 			),
 		),
 	)
@@ -126,34 +132,34 @@ func TestSessionOverwrite(t *testing.T) {
 	seReq2 := message.NewSessionEstablishmentRequest(0, 0,
 		2, 1, 0,
 		ie.NewNodeID("", "", "test"),
-		ie.NewFSEID(2, net.ParseIP(remoteIP), nil),
+		ie.NewFSEID(2, net.ParseIP(RemoteIP), nil),
 		ie.NewCreatePDR(
 			ie.NewPDRID(1),
 			ie.NewPDI(
 				ie.NewSourceInterface(ie.SrcInterfaceCore),
 				// ie.NewFTEID(0, 0, ip2.IP, nil, 0),
-				ie.NewUEIPAddress(2, "2.2.2.2", "", 0, 0),
+				ie.NewUEIPAddress(2, UeAddress2, "", 0, 0),
 			),
 		),
 	)
 
 	// Send first request
-	_, err = HandlePfcpSessionEstablishmentRequest(&pfcpConn, seReq1, remoteIP)
+	_, err = HandlePfcpSessionEstablishmentRequest(&pfcpConn, seReq1, RemoteIP)
 	if err != nil {
 		t.Errorf("Error handling session establishment request: %s", err)
 	}
 
 	// Send second request
-	_, err = HandlePfcpSessionEstablishmentRequest(&pfcpConn, seReq2, remoteIP)
+	_, err = HandlePfcpSessionEstablishmentRequest(&pfcpConn, seReq2, RemoteIP)
 	if err != nil {
 		t.Errorf("Error handling session establishment request: %s", err)
 	}
 
 	// Check that session PDRs are correct
-	if pfcpConn.NodeAssociations[remoteIP].Sessions[2].PDRs[1].Ipv4.String() != "1.1.1.1" {
+	if pfcpConn.NodeAssociations[RemoteIP].Sessions[2].PDRs[1].Ipv4.String() != UeAddress1 {
 		t.Errorf("Session 1, got broken")
 	}
-	if pfcpConn.NodeAssociations[remoteIP].Sessions[3].PDRs[1].Ipv4.String() != "2.2.2.2" {
+	if pfcpConn.NodeAssociations[RemoteIP].Sessions[3].PDRs[1].Ipv4.String() != UeAddress2 {
 		t.Errorf("Session 2, got broken")
 	}
 
@@ -161,7 +167,7 @@ func TestSessionOverwrite(t *testing.T) {
 	smReq := message.NewSessionModificationRequest(0, 0,
 		2, 1, 0,
 		ie.NewNodeID("", "", "test"),
-		ie.NewFSEID(2, net.ParseIP(remoteIP), nil),
+		ie.NewFSEID(2, net.ParseIP(RemoteIP), nil),
 		ie.NewCreateFAR(
 			ie.NewFARID(1),
 			ie.NewApplyAction(2),
@@ -173,16 +179,16 @@ func TestSessionOverwrite(t *testing.T) {
 	)
 
 	// Send modification request
-	_, err = HandlePfcpSessionModificationRequest(&pfcpConn, smReq, remoteIP)
+	_, err = HandlePfcpSessionModificationRequest(&pfcpConn, smReq, RemoteIP)
 	if err != nil {
 		t.Errorf("Error handling session modification request: %s", err)
 	}
 
 	// Check that session PDRs are correct
-	if pfcpConn.NodeAssociations[remoteIP].Sessions[2].PDRs[1].Ipv4.String() != "1.1.1.1" {
+	if pfcpConn.NodeAssociations[RemoteIP].Sessions[2].PDRs[1].Ipv4.String() != UeAddress1 {
 		t.Errorf("Session 1, got broken")
 	}
-	if pfcpConn.NodeAssociations[remoteIP].Sessions[3].PDRs[1].Ipv4.String() != "2.2.2.2" {
+	if pfcpConn.NodeAssociations[RemoteIP].Sessions[3].PDRs[1].Ipv4.String() != UeAddress2 {
 		t.Errorf("Session 2, got broken")
 	}
 }
