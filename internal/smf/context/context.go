@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 	"sync/atomic"
 
 	"github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/logger"
 	nmsModels "github.com/yeastengine/ella/internal/models"
 	"github.com/yeastengine/ella/internal/smf/factory"
@@ -139,22 +139,15 @@ func UpdateSMFContext(network *nmsModels.NetworkSlice, deviceGroups []nmsModels.
 func UpdateSnssaiInfo(network *nmsModels.NetworkSlice, deviceGroups []nmsModels.Profile) {
 	smfSelf := SMF_Self()
 	snssaiInfoList := make([]SnssaiSmfInfo, 0)
-	plmnID := models.PlmnId{
-		Mcc: network.Mcc,
-		Mnc: network.Mnc,
-	}
-	sstInt, err := strconv.Atoi(network.Sst)
-	if err != nil {
-		logger.SmfLog.Errorf("failed to convert sst to int: %v", err)
-		return
-	}
-	snssai := SNssai{
-		Sst: int32(sstInt),
-		Sd:  network.Sd,
-	}
 	snssaiInfo := SnssaiSmfInfo{
-		Snssai:   snssai,
-		PlmnId:   plmnID,
+		Snssai: SNssai{
+			Sst: network.Sst,
+			Sd:  network.Sd,
+		},
+		PlmnId: models.PlmnId{
+			Mcc: network.Mcc,
+			Mnc: network.Mnc,
+		},
 		DnnInfos: make(map[string]*SnssaiSmfDnnInfo),
 	}
 
@@ -202,79 +195,69 @@ func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
 	return alloc, nil
 }
 
-func BuildUserPlaneInformationFromConfig(network *nmsModels.NetworkSlice, deviceGroups []nmsModels.Profile) *UserPlaneInformation {
-	if len(deviceGroups) == 0 {
-		logger.SmfLog.Warn("Device groups is empty")
+func BuildUserPlaneInformationFromConfig(network *nmsModels.NetworkSlice, profiles []nmsModels.Profile) *UserPlaneInformation {
+	if len(profiles) == 0 {
+		logger.SmfLog.Warn("Profiles is empty")
 		return nil
 	}
-	for _, deviceGroup := range deviceGroups {
-		dnn := deviceGroup.Dnn
-		intfUpfInfoItem := factory.InterfaceUpfInfoItem{
-			InterfaceType:   models.UpInterfaceType_N3,
-			Endpoints:       make([]string, 0),
-			NetworkInstance: dnn,
-		}
-		ifaces := []factory.InterfaceUpfInfoItem{}
-		ifaces = append(ifaces, intfUpfInfoItem)
+	intfUpfInfoItem := factory.InterfaceUpfInfoItem{
+		InterfaceType:   models.UpInterfaceType_N3,
+		Endpoints:       make([]string, 0),
+		NetworkInstance: config.DNN,
+	}
+	ifaces := []factory.InterfaceUpfInfoItem{}
+	ifaces = append(ifaces, intfUpfInfoItem)
 
-		upfNodeID := NewNodeID(network.Upf.Name)
-		upf := NewUPF(upfNodeID, ifaces)
-		sstStr := network.Sst
-		sstInt, err := strconv.Atoi(sstStr)
-		if err != nil {
-			logger.SmfLog.Errorf("Failed to convert sst to int: %v", err)
-			continue
-		}
-		upf.SNssaiInfos = []SnssaiUPFInfo{
-			{
-				SNssai: SNssai{
-					Sst: int32(sstInt),
-					Sd:  network.Sd,
-				},
-				DnnList: []DnnUPFInfoItem{
-					{
-						Dnn: dnn,
-					},
+	upfNodeID := NewNodeID(network.Upf.Name)
+	upf := NewUPF(upfNodeID, ifaces)
+	upf.SNssaiInfos = []SnssaiUPFInfo{
+		{
+			SNssai: SNssai{
+				Sst: network.Sst,
+				Sd:  network.Sd,
+			},
+			DnnList: []DnnUPFInfoItem{
+				{
+					Dnn: config.DNN,
 				},
 			},
-		}
-
-		upf.Port = uint16(network.Upf.Port)
-
-		upfNode := &UPNode{
-			Type:   UPNODE_UPF,
-			UPF:    upf,
-			NodeID: *upfNodeID,
-			Links:  make([]*UPNode, 0),
-			Port:   uint16(network.Upf.Port),
-			Dnn:    dnn,
-		}
-		gnbNode := &UPNode{
-			Type:   UPNODE_AN,
-			NodeID: *NewNodeID("1.1.1.1"),
-			Links:  make([]*UPNode, 0),
-			Dnn:    dnn,
-		}
-		gnbNode.Links = append(gnbNode.Links, upfNode)
-		upfNode.Links = append(upfNode.Links, gnbNode)
-
-		userPlaneInformation := &UserPlaneInformation{
-			UPNodes:              make(map[string]*UPNode),
-			UPF:                  upfNode,
-			AccessNetwork:        make(map[string]*UPNode),
-			DefaultUserPlanePath: make(map[string][]*UPNode),
-		}
-		if len(network.GNodeBs) == 0 {
-			logger.SmfLog.Warn("GNodeBs is empty")
-			return nil
-		}
-		gnbName := network.GNodeBs[0].Name
-		userPlaneInformation.AccessNetwork[gnbName] = gnbNode
-		userPlaneInformation.UPNodes[gnbName] = gnbNode
-		userPlaneInformation.UPNodes[network.Upf.Name] = upfNode
-		return userPlaneInformation
+		},
 	}
-	return nil
+
+	upf.Port = uint16(network.Upf.Port)
+
+	upfNode := &UPNode{
+		Type:   UPNODE_UPF,
+		UPF:    upf,
+		NodeID: *upfNodeID,
+		Links:  make([]*UPNode, 0),
+		Port:   uint16(network.Upf.Port),
+		Dnn:    config.DNN,
+	}
+	gnbNode := &UPNode{
+		Type:   UPNODE_AN,
+		NodeID: *NewNodeID("1.1.1.1"),
+		Links:  make([]*UPNode, 0),
+		Dnn:    config.DNN,
+	}
+	gnbNode.Links = append(gnbNode.Links, upfNode)
+	upfNode.Links = append(upfNode.Links, gnbNode)
+
+	userPlaneInformation := &UserPlaneInformation{
+		UPNodes:              make(map[string]*UPNode),
+		UPF:                  upfNode,
+		AccessNetwork:        make(map[string]*UPNode),
+		DefaultUserPlanePath: make(map[string][]*UPNode),
+	}
+	if len(network.GNodeBs) == 0 {
+		logger.SmfLog.Debugf("GNodeBs is empty")
+		return nil
+	}
+	gnbName := network.GNodeBs[0].Name
+	userPlaneInformation.AccessNetwork[gnbName] = gnbNode
+	userPlaneInformation.UPNodes[gnbName] = gnbNode
+	userPlaneInformation.UPNodes[network.Upf.Name] = upfNode
+	return userPlaneInformation
 }
 
 // Right now we only support 1 UPF
@@ -288,7 +271,7 @@ func UpdateUserPlaneInformation(networkSlices *nmsModels.NetworkSlice, deviceGro
 		return
 	}
 	if configUserPlaneInfo == nil {
-		logger.SmfLog.Warn("Config user plane info is nil")
+		logger.SmfLog.Debugf("Config user plane info is nil")
 		return
 	}
 	smfSelf.UserPlaneInformation.UPNodes = configUserPlaneInfo.UPNodes

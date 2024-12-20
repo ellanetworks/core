@@ -8,6 +8,10 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const (
+	DNN = "internet"
+)
+
 type DB struct {
 	Path string
 }

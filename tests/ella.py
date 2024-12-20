@@ -44,7 +44,7 @@ PROFILE_CONFIG = {
 
 
 NETWORK_CONFIG = {
-    "sst": "1",
+    "sst": 1,
     "sd": "102030",
     "mcc": "001",
     "mnc": "01",

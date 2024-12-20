@@ -28,7 +28,7 @@ func TestDbNetworksEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
-	if retrievedNetwork.Sst != "1" {
+	if retrievedNetwork.Sst != 1 {
 		t.Fatalf("The sst from the database doesn't match the expected default")
 	}
 	if retrievedNetwork.Sd != "102030" {
@@ -48,7 +48,7 @@ func TestDbNetworksEndToEnd(t *testing.T) {
 	}
 
 	network := &db.Network{
-		Sst:     "123456",
+		Sst:     123456,
 		Sd:      "1",
 		Mcc:     "123",
 		Mnc:     "456",
@@ -64,7 +64,7 @@ func TestDbNetworksEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
-	if retrievedNetwork.Sst != "123456" {
+	if retrievedNetwork.Sst != 123456 {
 		t.Fatalf("The sst from the database doesn't match the expected value")
 	}
 	if retrievedNetwork.Sd != "1" {

@@ -24,7 +24,7 @@ const QueryCreateNetworkTable = `
 )`
 
 const (
-	DefaultSst = "1"
+	DefaultSst = 1
 	DefaultSd  = "102030"
 	DefaultMcc = "001"
 	DefaultMnc = "01"
@@ -48,7 +48,7 @@ type UPF struct {
 
 type Network struct {
 	ID      int    `db:"id"`
-	Sst     string `db:"sst"`
+	Sst     int32  `db:"sst"`
 	Sd      string `db:"sd"`
 	Mcc     string `db:"mcc"`
 	Mnc     string `db:"mnc"`

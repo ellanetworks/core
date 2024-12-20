@@ -13,7 +13,6 @@ type CreateProfileParams struct {
 	Name  string   `json:"name"`
 	Imsis []string `json:"imsis"`
 
-	Dnn             string `json:"dnn,omitempty"`
 	UeIpPool        string `json:"ue-ip-pool,omitempty"`
 	DnsPrimary      string `json:"dns-primary,omitempty"`
 	DnsSecondary    string `json:"dns-secondary,omitempty"`
@@ -31,7 +30,6 @@ type GetProfileResponse struct {
 	Name  string   `json:"name"`
 	Imsis []string `json:"imsis"`
 
-	Dnn             string `json:"dnn,omitempty"`
 	UeIpPool        string `json:"ue-ip-pool,omitempty"`
 	DnsPrimary      string `json:"dns-primary,omitempty"`
 	DnsSecondary    string `json:"dns-secondary,omitempty"`
@@ -210,19 +208,12 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		sVal, err := strconv.ParseUint(network.Sst, 10, 32)
-		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid SST")
-			return
-		}
-
 		for _, imsi := range createProfileParams.Imsis {
-			dnn := createProfileParams.Dnn
 			ueId := "imsi-" + imsi
 			plmnId := network.Mcc + network.Mnc
 			bitRateUplink := convertToString(uint64(createProfileParams.BitrateUplink))
 			bitRateDownlink := convertToString(uint64(createProfileParams.BitrateDownlink))
-			err = dbInstance.UpdateSubscriberProfile(ueId, dnn, network.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, createProfileParams.Var5qi)
+			err = dbInstance.UpdateSubscriberProfile(ueId, plmnId, bitRateUplink, bitRateDownlink, createProfileParams.Var5qi)
 			if err != nil {
 				writeError(c.Writer, http.StatusBadRequest, "Failed to update subscriber")
 				return
@@ -336,18 +327,13 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Network not found")
 			return
 		}
-		sVal, err := strconv.ParseUint(network.Sst, 10, 32)
-		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid SST")
-			return
-		}
+
 		for _, imsi := range dimsis {
-			dnn := updateProfileParams.Dnn
 			ueId := "imsi-" + imsi
 			plmnId := network.Mcc + network.Mnc
 			bitRateUplink := convertToString(uint64(updateProfileParams.BitrateUplink))
 			bitRateDownlink := convertToString(uint64(updateProfileParams.BitrateDownlink))
-			err = dbInstance.UpdateSubscriberProfile(ueId, dnn, network.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, updateProfileParams.Var5qi)
+			err = dbInstance.UpdateSubscriberProfile(ueId, plmnId, bitRateUplink, bitRateDownlink, updateProfileParams.Var5qi)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 			}
@@ -425,7 +411,7 @@ func deleteProfileConfig(dbInstance *db.Database, dbProfile *db.Profile) {
 	}
 	for _, imsi := range dimsis {
 		ueId := "imsi-" + imsi
-		err = dbInstance.UpdateSubscriberProfile(ueId, "", "", 0, "", "", "", 0)
+		err = dbInstance.UpdateSubscriberProfile(ueId, "", "", "", 0)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 		}

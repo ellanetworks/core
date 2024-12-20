@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/udr/context"
 )
@@ -50,10 +51,13 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	udrSelf := context.UDR_Self()
 	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
 	if err != nil {
-		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	amData := convertDbAmDataToModel(subscriber.Sd, subscriber.Sst, subscriber.BitRateDownlink, subscriber.BitRateUplink)
+	network, err := udrSelf.DbInstance.GetNetwork()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get network: %v", err)
+	}
+	amData := convertDbAmDataToModel(network.Sd, network.Sst, subscriber.BitRateDownlink, subscriber.BitRateUplink)
 	return amData, nil
 }
 
@@ -137,12 +141,11 @@ func convertDbSmPolicyDataToModel(sst int32, sd string, dnn string) *models.SmPo
 
 func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
 	udrSelf := context.UDR_Self()
-	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
+	network, err := udrSelf.DbInstance.GetNetwork()
 	if err != nil {
-		logger.UdrLog.Warnln(err)
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
+		return nil, fmt.Errorf("couldn't get network: %v", err)
 	}
-	smPolicyData := convertDbSmPolicyDataToModel(subscriber.Sst, subscriber.Sd, subscriber.Dnn)
+	smPolicyData := convertDbSmPolicyDataToModel(network.Sst, network.Sd, config.DNN)
 	return smPolicyData, nil
 }
 
@@ -176,7 +179,6 @@ func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string)
 }
 
 func convertDbSessionManagementDataToModel(
-	dnn string,
 	sst int32,
 	sd string,
 	bitrateDownlink string,
@@ -192,7 +194,7 @@ func convertDbSessionManagementDataToModel(
 		},
 		DnnConfigurations: make(map[string]models.DnnConfiguration),
 	}
-	smDataObjModel.DnnConfigurations[dnn] = models.DnnConfiguration{
+	smDataObjModel.DnnConfigurations[config.DNN] = models.DnnConfiguration{
 		PduSessionTypes: &models.PduSessionTypes{
 			DefaultSessionType:  models.PduSessionType_IPV4,
 			AllowedSessionTypes: make([]models.PduSessionType, 0),
@@ -212,10 +214,10 @@ func convertDbSessionManagementDataToModel(
 		},
 	}
 	for _, sessionType := range AllowedSessionTypes {
-		smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes, sessionType)
+		smDataObjModel.DnnConfigurations[config.DNN].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[config.DNN].PduSessionTypes.AllowedSessionTypes, sessionType)
 	}
 	for _, sscMode := range AllowedSscModes {
-		smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes, models.SscMode(sscMode))
+		smDataObjModel.DnnConfigurations[config.DNN].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[config.DNN].SscModes.AllowedSscModes, models.SscMode(sscMode))
 	}
 	smData = append(smData, smDataObjModel)
 	return smData
@@ -227,13 +229,17 @@ func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) 
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
+	network, err := udrSelf.DbInstance.GetNetwork()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get network: %v", err)
+	}
 
-	sessionManagementData := convertDbSessionManagementDataToModel(subscriber.Dnn, subscriber.Sst, subscriber.Sd, subscriber.BitRateDownlink, subscriber.BitRateUplink, subscriber.Var5qi, subscriber.PriorityLevel)
+	sessionManagementData := convertDbSessionManagementDataToModel(network.Sst, network.Sd, subscriber.BitRateDownlink, subscriber.BitRateUplink, subscriber.Var5qi, subscriber.PriorityLevel)
 	return sessionManagementData, nil
 }
 
 // We have this function twice, here and in the NMS. We should move it to a common place.
-func convertDbSmfSelectionDataToModel(snssai, dnn string) *models.SmfSelectionSubscriptionData {
+func convertDbSmfSelectionDataToModel(snssai string) *models.SmfSelectionSubscriptionData {
 	smfSelectionData := &models.SmfSelectionSubscriptionData{
 		SubscribedSnssaiInfos: make(map[string]models.SnssaiInfo),
 	}
@@ -242,7 +248,7 @@ func convertDbSmfSelectionDataToModel(snssai, dnn string) *models.SmfSelectionSu
 	}
 	snssaiInfo := smfSelectionData.SubscribedSnssaiInfos[snssai]
 	snssaiInfo.DnnInfos = append(snssaiInfo.DnnInfos, models.DnnInfo{
-		Dnn: dnn,
+		Dnn: config.DNN,
 	})
 	smfSelectionData.SubscribedSnssaiInfos[snssai] = snssaiInfo
 	return smfSelectionData
@@ -250,11 +256,11 @@ func convertDbSmfSelectionDataToModel(snssai, dnn string) *models.SmfSelectionSu
 
 func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
 	udrSelf := context.UDR_Self()
-	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
+	network, err := udrSelf.DbInstance.GetNetwork()
 	if err != nil {
-		logger.UdrLog.Warnln(err)
+		return nil, fmt.Errorf("couldn't get network: %v", err)
 	}
-	snssai := fmt.Sprintf("%d%s", subscriber.Sst, subscriber.Sd)
-	smfSelectionSubscriptionData := convertDbSmfSelectionDataToModel(snssai, subscriber.Dnn)
+	snssai := fmt.Sprintf("%d%s", network.Sst, network.Sd)
+	smfSelectionSubscriptionData := convertDbSmfSelectionDataToModel(snssai)
 	return smfSelectionSubscriptionData, nil
 }

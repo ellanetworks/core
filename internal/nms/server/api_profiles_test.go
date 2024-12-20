@@ -19,7 +19,6 @@ type GetProfileResponseResult struct {
 	Name  string   `json:"name"`
 	Imsis []string `json:"imsis"`
 
-	Dnn             string `json:"dnn,omitempty"`
 	UeIpPool        string `json:"ue-ip-pool,omitempty"`
 	DnsPrimary      string `json:"dns-primary,omitempty"`
 	DnsSecondary    string `json:"dns-secondary,omitempty"`
@@ -42,7 +41,6 @@ type CreateProfileParams struct {
 	Name  string   `json:"name"`
 	Imsis []string `json:"imsis"`
 
-	Dnn             string `json:"dnn,omitempty"`
 	UeIpPool        string `json:"ue-ip-pool,omitempty"`
 	DnsPrimary      string `json:"dns-primary,omitempty"`
 	DnsSecondary    string `json:"dns-secondary,omitempty"`
@@ -220,7 +218,6 @@ func TestProfilesEndToEnd(t *testing.T) {
 	t.Run("2. Create profile", func(t *testing.T) {
 		createProfileParams := &CreateProfileParams{
 			Name:            ProfileName,
-			Dnn:             "internet",
 			UeIpPool:        "0.0.0.0/24",
 			DnsPrimary:      "8.8.8.8",
 			DnsSecondary:    "2.2.2.2",
@@ -343,7 +340,6 @@ func TestProfilesEndToEnd(t *testing.T) {
 	t.Run("6. Edit profile - success", func(t *testing.T) {
 		createProfileParams := &CreateProfileParams{
 			Name:            ProfileName,
-			Dnn:             "internet",
 			UeIpPool:        "2.2.2.2/24",
 			DnsPrimary:      "1.1.1.1",
 			Mtu:             1500,

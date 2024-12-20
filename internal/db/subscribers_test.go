@@ -81,22 +81,13 @@ func TestSubscribersEndToEnd(t *testing.T) {
 		t.Fatalf("Sequence numbers don't match: %s", retrievedSubscriber.SequenceNumber)
 	}
 
-	if err = database.UpdateSubscriberProfile(retrievedSubscriber.UeId, "internet", "001", 1, "2314", "200000", "200000", 9); err != nil {
+	if err = database.UpdateSubscriberProfile(retrievedSubscriber.UeId, "2314", "200000", "200000", 9); err != nil {
 		t.Fatalf("Couldn't complete Update: %s", err)
 	}
 
 	retrievedSubscriber, err = database.GetSubscriber(subscriber.UeId)
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
-	}
-	if retrievedSubscriber.Dnn != "internet" {
-		t.Fatalf("The DNN from the database doesn't match the DNN that was given")
-	}
-	if retrievedSubscriber.Sd != "001" {
-		t.Fatalf("The SD from the database doesn't match the SD that was given")
-	}
-	if retrievedSubscriber.Sst != 1 {
-		t.Fatalf("The SST from the database doesn't match the SST that was given")
 	}
 	if retrievedSubscriber.PlmnID != "2314" {
 		t.Fatalf("The PLMN ID from the database doesn't match the PLMN ID that was given")

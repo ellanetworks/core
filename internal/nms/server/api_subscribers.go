@@ -19,9 +19,6 @@ type CreateSubscriberParams struct {
 type GetSubscriberResponse struct {
 	UeId            string `json:"ueId"`
 	PlmnID          string `json:"plmnID"`
-	Sst             int32  `json:"sst" yaml:"sst" bson:"sst" mapstructure:"Sst"`
-	Sd              string `json:"sd,omitempty" yaml:"sd" bson:"sd" mapstructure:"Sd"`
-	Dnn             string `json:"dnn" yaml:"dnn" bson:"dnn" mapstructure:"Dnn"`
 	Opc             string `json:"opc"`
 	SequenceNumber  string `json:"sequenceNumber"`
 	Key             string `json:"key"`
@@ -72,9 +69,6 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		subscriber := GetSubscriberResponse{
 			UeId:            dbSubscriber.UeId,
 			PlmnID:          dbSubscriber.PlmnID,
-			Sst:             dbSubscriber.Sst,
-			Sd:              dbSubscriber.Sd,
-			Dnn:             dbSubscriber.Dnn,
 			Opc:             dbSubscriber.OpcValue,
 			SequenceNumber:  dbSubscriber.SequenceNumber,
 			Key:             dbSubscriber.PermanentKeyValue,

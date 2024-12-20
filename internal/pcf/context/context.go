@@ -9,14 +9,13 @@ import (
 
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/util/idgenerator"
 )
 
 var pcfCtx *PCFContext
-
-const DNN = "internet"
 
 func init() {
 	pcfCtx = &PCFContext{}
@@ -352,7 +351,7 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 		logger.PcfLog.Warnf("Failed to get network slice names: %+v", err)
 		return subscriberPolicies
 	}
-	pccPolicyId := dbNetwork.Sst + dbNetwork.Sd
+	pccPolicyId := fmt.Sprintf("%d%s", dbNetwork.Sst, dbNetwork.Sd)
 	profiles, err := pcfSelf.DbInstance.ListProfiles()
 	if err != nil {
 		logger.PcfLog.Warnf("Failed to get profiles: %+v", err)
@@ -381,8 +380,8 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 				}
 			}
 
-			if _, exists := subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[DNN]; !exists {
-				subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[DNN] = &SessionPolicy{
+			if _, exists := subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[config.DNN]; !exists {
+				subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[config.DNN] = &SessionPolicy{
 					SessionRules: make(map[string]*models.SessionRule),
 				}
 			}
@@ -406,7 +405,7 @@ func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 			subscriberPolicies[imsi].PccPolicy[pccPolicyId].QosDecs[qosData.QosId] = qosData
 
 			// Add session rule
-			subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[DNN].SessionRules[strconv.FormatInt(sessionRuleId, 10)] = &models.SessionRule{
+			subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[config.DNN].SessionRules[strconv.FormatInt(sessionRuleId, 10)] = &models.SessionRule{
 				SessRuleId: strconv.FormatInt(sessionRuleId, 10),
 				AuthDefQos: &models.AuthorizedDefaultQos{
 					Var5qi: qosData.Var5qi,
