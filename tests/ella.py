@@ -112,4 +112,4 @@ class Ella:
     def update_network(self) -> None:
         """Create a network slice."""
         self._make_request("PUT", NETWORK_CONFIG_URL, data=NETWORK_CONFIG)
-        logger.info(f"Updated network configuration.")
+        logger.info("Updated network configuration.")
