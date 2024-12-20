@@ -114,8 +114,6 @@ func HandleUpCnxState(txn *transaction.Transaction, response *models.UpdateSmCon
 
 	switch smContextUpdateData.UpCnxState {
 	case models.UpCnxState_ACTIVATING:
-		if smContext.SMContextState != context.SmStateActive {
-		}
 		smContext.ChangeState(context.SmStateModify)
 		response.JsonData.N2SmInfo = &models.RefToBinaryData{ContentId: "PDUSessionResourceSetupRequestTransfer"}
 		response.JsonData.UpCnxState = models.UpCnxState_ACTIVATING
@@ -411,7 +409,6 @@ func HandleUpdateN2Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 
 		pfcpAction.sendPfcpModify = true
 		smContext.ChangeState(context.SmStatePfcpModify)
-		smContext.SubCtxLog.Debugln("PDUSessionSMContextUpdate, SMContextState Change State: ", smContext.SMContextState.String())
 	case models.N2SmInfoType_PATH_SWITCH_SETUP_FAIL:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received",
 			smContextUpdateData.N2SmInfoType)
@@ -420,7 +417,6 @@ func HandleUpdateN2Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 				smContext.SMContextState.String())
 		}
 		smContext.ChangeState(context.SmStateModify)
-		smContext.SubCtxLog.Debugln("PDUSessionSMContextUpdate, SMContextState Change State: ", smContext.SMContextState.String())
 		if err := context.HandlePathSwitchRequestSetupFailedTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
 			smContext.SubPduSessLog.Error()
 		}
@@ -432,7 +428,6 @@ func HandleUpdateN2Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 				smContext.SMContextState.String())
 		}
 		smContext.ChangeState(context.SmStateModify)
-		smContext.SubCtxLog.Debugln("PDUSessionSMContextUpdate, SMContextState Change State: ", smContext.SMContextState.String())
 		response.JsonData.N2SmInfo = &models.RefToBinaryData{ContentId: "Handover"}
 	}
 
