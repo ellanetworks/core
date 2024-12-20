@@ -13,17 +13,15 @@ type CreateSubscriberParams struct {
 	OPc            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequenceNumber"`
+	ProfileName    string `json:"profileName"`
 }
 
 type GetSubscriberResponse struct {
-	UeId            string `json:"ueId"`
-	Opc             string `json:"opc"`
-	SequenceNumber  string `json:"sequenceNumber"`
-	Key             string `json:"key"`
-	BitrateDownlink string `json:"bitrateDownlink"`
-	BitrateUplink   string `json:"bitrateUplink"`
-	Var5qi          int32  `json:"var5qi"`
-	PriorityLevel   int32  `json:"priorityLevel"`
+	UeId           string `json:"ueId"`
+	Opc            string `json:"opc"`
+	SequenceNumber string `json:"sequenceNumber"`
+	Key            string `json:"key"`
+	ProfileName    string `json:"profileName"`
 }
 
 func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
@@ -63,15 +61,18 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusNotFound, "Subscriber not found")
 			return
 		}
+		profile, err := dbInstance.GetProfileByID(dbSubscriber.ProfileID)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to retrieve profile")
+			return
+		}
+
 		subscriber := GetSubscriberResponse{
-			UeId:            dbSubscriber.UeId,
-			Opc:             dbSubscriber.OpcValue,
-			SequenceNumber:  dbSubscriber.SequenceNumber,
-			Key:             dbSubscriber.PermanentKeyValue,
-			Var5qi:          dbSubscriber.Var5qi,
-			PriorityLevel:   dbSubscriber.PriorityLevel,
-			BitrateDownlink: dbSubscriber.BitRateDownlink,
-			BitrateUplink:   dbSubscriber.BitRateUplink,
+			UeId:           dbSubscriber.UeId,
+			Opc:            dbSubscriber.OpcValue,
+			SequenceNumber: dbSubscriber.SequenceNumber,
+			Key:            dbSubscriber.PermanentKeyValue,
+			ProfileName:    profile.Name,
 		}
 		err = writeResponse(c.Writer, subscriber, http.StatusOK)
 		if err != nil {
@@ -106,10 +107,19 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Missing opc parameter")
 			return
 		}
+		if createSubscriberParams.ProfileName == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing profileName parameter")
+			return
+		}
 
 		_, err = dbInstance.GetSubscriber(createSubscriberParams.UeId)
 		if err == nil {
 			writeError(c.Writer, http.StatusBadRequest, "Subscriber already exists")
+			return
+		}
+		profile, err := dbInstance.GetProfile(createSubscriberParams.ProfileName)
+		if err != nil {
+			writeError(c.Writer, http.StatusNotFound, "Profile not found")
 			return
 		}
 		newSubscriber := &db.Subscriber{
@@ -117,6 +127,7 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			SequenceNumber:    createSubscriberParams.SequenceNumber,
 			PermanentKeyValue: createSubscriberParams.Key,
 			OpcValue:          createSubscriberParams.OPc,
+			ProfileID:         profile.ID,
 		}
 
 		if err := dbInstance.CreateSubscriber(newSubscriber); err != nil {

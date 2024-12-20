@@ -9,7 +9,9 @@ import (
 	"testing"
 )
 
-const UeId = "imsi-001010100007487"
+const (
+	UeId = "imsi-001010100007487"
+)
 
 type CreateSubscriberSuccessResponse struct {
 	Message string `json:"message"`
@@ -20,6 +22,7 @@ type GetSubscriberResponseResult struct {
 	OPc            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequenceNumber"`
+	ProfileName    string `json:"profileName"`
 }
 
 type GetSubscriberResponse struct {
@@ -32,6 +35,7 @@ type CreateSubscriberParams struct {
 	OPc            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequenceNumber"`
+	ProfileName    string `json:"profileName"`
 }
 
 type CreateSubscriberResponseResult struct {
@@ -122,7 +126,7 @@ func deleteSubscriber(url string, client *http.Client, ueId string) (int, *Delet
 // This is an end-to-end test for the subscribers handlers.
 // The order of the tests is important, as some tests depend on
 // the state of the server after previous tests.
-func TestSubscribersEndToEnd(t *testing.T) {
+func TestSubscribersApiEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
 	ts, err := setupServer(db_path)
@@ -132,12 +136,37 @@ func TestSubscribersEndToEnd(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	t.Run("1. Create subscriber", func(t *testing.T) {
+	t.Run("1. Create profile", func(t *testing.T) {
+		createProfileParams := &CreateProfileParams{
+			Name:            ProfileName,
+			UeIpPool:        "0.0.0.0/24",
+			DnsPrimary:      "8.8.8.8",
+			DnsSecondary:    "1.1.1.1",
+			Mtu:             1500,
+			BitrateUplink:   "100 Mbps",
+			BitrateDownlink: "100 Mbps",
+			Var5qi:          9,
+			PriorityLevel:   1,
+		}
+		statusCode, response, err := createProfile(ts.URL, client, createProfileParams)
+		if err != nil {
+			t.Fatalf("couldn't create subscriber: %s", err)
+		}
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	})
+
+	t.Run("2. Create subscriber", func(t *testing.T) {
 		createSubscriberParams := &CreateSubscriberParams{
 			UeId:           UeId,
 			OPc:            "123456",
 			Key:            "123",
 			SequenceNumber: "123456",
+			ProfileName:    ProfileName,
 		}
 		statusCode, response, err := createSubscriber(ts.URL, client, createSubscriberParams)
 		if err != nil {
@@ -154,7 +183,7 @@ func TestSubscribersEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("2. Get subscriber", func(t *testing.T) {
+	t.Run("3. Get subscriber", func(t *testing.T) {
 		statusCode, response, err := getSubscriber(ts.URL, client, UeId)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber: %s", err)
@@ -174,12 +203,15 @@ func TestSubscribersEndToEnd(t *testing.T) {
 		if response.Result.SequenceNumber != "123456" {
 			t.Fatalf("expected sequenceNumber 123456, got %s", response.Result.SequenceNumber)
 		}
+		if response.Result.ProfileName != ProfileName {
+			t.Fatalf("expected profileName %s, got %s", ProfileName, response.Result.ProfileName)
+		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
 	})
 
-	t.Run("3. Get subscriber - id not found", func(t *testing.T) {
+	t.Run("4. Get subscriber - id not found", func(t *testing.T) {
 		statusCode, response, err := getSubscriber(ts.URL, client, "imsi-001010100007488")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber: %s", err)
@@ -192,7 +224,7 @@ func TestSubscribersEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("4. Create subscriber - no ueId", func(t *testing.T) {
+	t.Run("5. Create subscriber - no ueId", func(t *testing.T) {
 		createSubscriberParams := &CreateSubscriberParams{}
 		statusCode, response, err := createSubscriber(ts.URL, client, createSubscriberParams)
 		if err != nil {
@@ -206,7 +238,7 @@ func TestSubscribersEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("5. Delete subscriber - success", func(t *testing.T) {
+	t.Run("6. Delete subscriber - success", func(t *testing.T) {
 		statusCode, response, err := deleteSubscriber(ts.URL, client, UeId)
 		if err != nil {
 			t.Fatalf("couldn't delete subscriber: %s", err)
@@ -222,7 +254,7 @@ func TestSubscribersEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("6. Delete subscriber - no user", func(t *testing.T) {
+	t.Run("7. Delete subscriber - no user", func(t *testing.T) {
 		statusCode, response, err := deleteSubscriber(ts.URL, client, "imsi-001010100007488")
 		if err != nil {
 			t.Fatalf("couldn't delete subscriber: %s", err)

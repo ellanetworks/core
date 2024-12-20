@@ -100,33 +100,32 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
 	sliceid := sstStr + request.SliceInfo.Sd
 	imsi := strings.TrimPrefix(ue.Supi, "imsi-")
-	subscriberPolicies := context.GetSubscriberPolicies()
-	if subsPolicyData, ok := subscriberPolicies[imsi]; ok {
-		logger.PcfLog.Infof("Found an existing policy for subscriber [%s]", imsi)
-		if PccPolicy, ok1 := subsPolicyData.PccPolicy[sliceid]; ok1 {
-			if sessPolicy, exist := PccPolicy.SessionPolicy[request.Dnn]; exist {
-				for _, sessRule := range sessPolicy.SessionRules {
-					decision.SessRules[sessRule.SessRuleId] = deepCopySessionRule(sessRule)
-				}
-			} else {
-				return nil, fmt.Errorf("can't find local policy")
-			}
-
-			for key, pccRule := range PccPolicy.PccRules {
-				decision.PccRules[key] = deepCopyPccRule(pccRule)
-			}
-
-			for key, qosData := range PccPolicy.QosDecs {
-				decision.QosDecs[key] = deepCopyQosData(qosData)
-			}
-			for key, trafficData := range PccPolicy.TraffContDecs {
-				decision.TraffContDecs[key] = deepCopyTrafficControlData(trafficData)
+	subscriberPolicy := context.GetSubscriberPolicy(ue.Supi)
+	if subscriberPolicy == nil {
+		return nil, fmt.Errorf("can't find subscriber policy")
+	}
+	logger.PcfLog.Infof("Found an existing policy for subscriber [%s]", imsi)
+	if PccPolicy, ok1 := subscriberPolicy.PccPolicy[sliceid]; ok1 {
+		if sessPolicy, exist := PccPolicy.SessionPolicy[request.Dnn]; exist {
+			for _, sessRule := range sessPolicy.SessionRules {
+				decision.SessRules[sessRule.SessRuleId] = deepCopySessionRule(sessRule)
 			}
 		} else {
 			return nil, fmt.Errorf("can't find local policy")
 		}
+
+		for key, pccRule := range PccPolicy.PccRules {
+			decision.PccRules[key] = deepCopyPccRule(pccRule)
+		}
+
+		for key, qosData := range PccPolicy.QosDecs {
+			decision.QosDecs[key] = deepCopyQosData(qosData)
+		}
+		for key, trafficData := range PccPolicy.TraffContDecs {
+			decision.TraffContDecs[key] = deepCopyTrafficControlData(trafficData)
+		}
 	} else {
-		return nil, fmt.Errorf("can't find UE in local policy: %s", ue.Supi)
+		return nil, fmt.Errorf("can't find local policy")
 	}
 
 	dnnData := util.GetSMPolicyDnnData(*smData, request.SliceInfo, request.Dnn)

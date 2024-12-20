@@ -3,11 +3,9 @@ package db
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 
 	"github.com/canonical/sqlair"
-	"github.com/yeastengine/ella/internal/logger"
 )
 
 const ProfilesTableName = "profiles"
@@ -18,62 +16,36 @@ const QueryCreateProfilesTable = `
 
 		name TEXT NOT NULL,
 
-		imsis TEXT,
-
 		ueIpPool TEXT NOT NULL,
 		dnsPrimary TEXT NOT NULL,
 		dnsSecondary TEXT,
 		mtu INTEGER NOT NULL,
-		bitrateUplink INTEGER NOT NULL,
-		bitrateDownlink INTEGER NOT NULL,
-		bitrateUnit TEXT NOT NULL,
+		bitrateUplink TEXT NOT NULL,
+		bitrateDownlink TEXT NOT NULL,
 		var5qi INTEGER NOT NULL,
-		arp INTEGER NOT NULL,
-		pdb INTEGER NOT NULL,
-		pelr INTEGER NOT NULL
+		priorityLevel INTEGER NOT NULL
 )`
 
 const (
-	listProfilesStmt  = "SELECT &Profile.* from %s"
-	getProfileStmt    = "SELECT &Profile.* from %s WHERE name==$Profile.name"
-	createProfileStmt = "INSERT INTO %s (name, imsis, ueIpPool, dnsPrimary, dnsSecondary, mtu, bitrateUplink, bitrateDownlink, bitrateUnit, var5qi, arp, pdb, pelr) VALUES ($Profile.name, $Profile.imsis, $Profile.ueIpPool, $Profile.dnsPrimary, $Profile.dnsSecondary, $Profile.mtu, $Profile.bitrateUplink, $Profile.bitrateDownlink, $Profile.bitrateUnit, $Profile.var5qi, $Profile.arp, $Profile.pdb, $Profile.pelr)"
-	editProfileStmt   = "UPDATE %s SET imsis=$Profile.imsis, ueIpPool=$Profile.ueIpPool, dnsPrimary=$Profile.dnsPrimary, dnsSecondary=$Profile.dnsSecondary, mtu=$Profile.mtu, bitrateUplink=$Profile.bitrateUplink, bitrateDownlink=$Profile.bitrateDownlink, bitrateUnit=$Profile.bitrateUnit, var5qi=$Profile.var5qi, arp=$Profile.arp, pdb=$Profile.pdb, pelr=$Profile.pelr WHERE name==$Profile.name"
-	deleteProfileStmt = "DELETE FROM %s WHERE name==$Profile.name"
+	listProfilesStmt   = "SELECT &Profile.* from %s"
+	getProfileStmt     = "SELECT &Profile.* from %s WHERE name==$Profile.name"
+	getProfileByIDStmt = "SELECT &Profile.* FROM %s WHERE id==$Profile.id"
+	createProfileStmt  = "INSERT INTO %s (name, ueIpPool, dnsPrimary, dnsSecondary, mtu, bitrateUplink, bitrateDownlink, var5qi, priorityLevel) VALUES ($Profile.name, $Profile.ueIpPool, $Profile.dnsPrimary, $Profile.dnsSecondary, $Profile.mtu, $Profile.bitrateUplink, $Profile.bitrateDownlink, $Profile.var5qi, $Profile.priorityLevel)"
+	editProfileStmt    = "UPDATE %s SET ueIpPool=$Profile.ueIpPool, dnsPrimary=$Profile.dnsPrimary, dnsSecondary=$Profile.dnsSecondary, mtu=$Profile.mtu, bitrateUplink=$Profile.bitrateUplink, bitrateDownlink=$Profile.bitrateDownlink, var5qi=$Profile.var5qi, priorityLevel=$Profile.priorityLevel WHERE name==$Profile.name"
+	deleteProfileStmt  = "DELETE FROM %s WHERE name==$Profile.name"
 )
 
 type Profile struct {
 	ID              int    `db:"id"`
 	Name            string `db:"name"`
-	Imsis           string `db:"imsis"`
 	UeIpPool        string `db:"ueIpPool"`
 	DnsPrimary      string `db:"dnsPrimary"`
 	DnsSecondary    string `db:"dnsSecondary"`
 	Mtu             int32  `db:"mtu"`
-	BitrateUplink   int64  `db:"bitrateUplink"`
-	BitrateDownlink int64  `db:"bitrateDownlink"`
-	BitrateUnit     string `db:"bitrateUnit"`
+	BitrateUplink   string `db:"bitrateUplink"`
+	BitrateDownlink string `db:"bitrateDownlink"`
 	Var5qi          int32  `db:"var5qi"`
-	Arp             int32  `db:"arp"`
-	Pdb             int32  `db:"pdb"`
-	Pelr            int32  `db:"pelr"`
-}
-
-func (ns *Profile) SetImsis(Imsis []string) error {
-	data, err := json.Marshal(Imsis)
-	if err != nil {
-		return err
-	}
-	ns.Imsis = string(data)
-	return nil
-}
-
-func (ns *Profile) GetImsis() ([]string, error) {
-	var Imsis []string
-	if ns.Imsis == "" {
-		return Imsis, nil
-	}
-	err := json.Unmarshal([]byte(ns.Imsis), &Imsis)
-	return Imsis, err
+	PriorityLevel   int32  `db:"priorityLevel"`
 }
 
 func (db *Database) ListProfiles() ([]Profile, error) {
@@ -107,6 +79,24 @@ func (db *Database) GetProfile(name string) (*Profile, error) {
 	return &row, nil
 }
 
+func (db *Database) GetProfileByID(id int) (*Profile, error) {
+	row := Profile{
+		ID: id,
+	}
+	stmt, err := sqlair.Prepare(fmt.Sprintf(getProfileByIDStmt, db.profilesTable), Profile{})
+	if err != nil {
+		return nil, err
+	}
+	err = db.conn.Query(context.Background(), stmt, row).Get(&row)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("profile with ID %d not found", id)
+		}
+		return nil, err
+	}
+	return &row, nil
+}
+
 func (db *Database) CreateProfile(profile *Profile) error {
 	_, err := db.GetProfile(profile.Name)
 	if err == nil {
@@ -117,7 +107,6 @@ func (db *Database) CreateProfile(profile *Profile) error {
 		return err
 	}
 	err = db.conn.Query(context.Background(), stmt, profile).Run()
-	logger.DBLog.Infof("Created Profile: %v with Imsis: %v", profile.Name, profile.Imsis)
 	return err
 }
 

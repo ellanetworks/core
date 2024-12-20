@@ -53,7 +53,11 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	amData := convertDbAmDataToModel(subscriber.BitRateDownlink, subscriber.BitRateUplink)
+	profile, err := udrSelf.DbInstance.GetProfileByID(subscriber.ProfileID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
+	}
+	amData := convertDbAmDataToModel(profile.BitrateDownlink, profile.BitrateUplink)
 	return amData, nil
 }
 
@@ -212,7 +216,11 @@ func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) 
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	sessionManagementData := convertDbSessionManagementDataToModel(subscriber.BitRateDownlink, subscriber.BitRateUplink, subscriber.Var5qi, subscriber.PriorityLevel)
+	profile, err := udrSelf.DbInstance.GetProfileByID(subscriber.ProfileID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
+	}
+	sessionManagementData := convertDbSessionManagementDataToModel(profile.BitrateDownlink, profile.BitrateUplink, profile.Var5qi, profile.PriorityLevel)
 	return sessionManagementData, nil
 }
 

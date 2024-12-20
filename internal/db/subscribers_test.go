@@ -7,7 +7,7 @@ import (
 	"github.com/yeastengine/ella/internal/db"
 )
 
-func TestSubscribersEndToEnd(t *testing.T) {
+func TestSubscribersDbEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
@@ -77,7 +77,20 @@ func TestSubscribersEndToEnd(t *testing.T) {
 		t.Fatalf("Sequence numbers don't match: %s", retrievedSubscriber.SequenceNumber)
 	}
 
-	if err = database.UpdateSubscriberProfile(retrievedSubscriber.UeId, "200000", "200000", 9); err != nil {
+	profileData := &db.Profile{
+		Name:     "myprofilename",
+		UeIpPool: "0.0.0.0/24",
+	}
+	err = database.CreateProfile(profileData)
+	if err != nil {
+		t.Fatalf("Couldn't complete Create: %s", err)
+	}
+	profile, err := database.GetProfile("myprofilename")
+	if err != nil {
+		t.Fatalf("Couldn't complete Retrieve: %s", err)
+	}
+
+	if err = database.UpdateSubscriberProfile(retrievedSubscriber.UeId, "myprofilename"); err != nil {
 		t.Fatalf("Couldn't complete Update: %s", err)
 	}
 
@@ -85,14 +98,9 @@ func TestSubscribersEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
-	if retrievedSubscriber.BitRateUplink != "200000" {
-		t.Fatalf("The uplink bitrate from the database doesn't match the uplink bitrate that was given")
-	}
-	if retrievedSubscriber.BitRateDownlink != "200000" {
-		t.Fatalf("The downlink bitrate from the database doesn't match the downlink bitrate that was given")
-	}
-	if retrievedSubscriber.Var5qi != 9 {
-		t.Fatalf("The var5qi from the database doesn't match the var5qi that was given")
+
+	if retrievedSubscriber.ProfileID != profile.ID {
+		t.Fatalf("Profile IDs don't match: %d vs. %d", retrievedSubscriber.ProfileID, profile.ID)
 	}
 
 	if err = database.DeleteSubscriber(subscriber.UeId); err != nil {

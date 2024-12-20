@@ -24,20 +24,18 @@ SUBSCRIBER_CONFIG = {
     "opc": "981d464c7c52eb6e5036234984ad0bcf",
     "key": "5122250214c33e723a5dd523fc145fc0",
     "sequenceNumber": "16f3b3f70fc2",
+    "profileName": "PLACEHOLDER",
 }
 
 PROFILE_CONFIG = {
-    "imsis": [],
+    "name": "PLACEHOLDER",
     "dnn": "internet",
     "ue-ip-pool": "172.250.0.0/16",
     "dns-primary": "8.8.8.8",
     "mtu": 1460,
-    "bitrate-uplink": 200000000,
-    "bitrate-downlink": 200000000,
-    "bitrate-unit": "bps",
-    "arp": 6,
-    "pdb": 300,
-    "pelr": 6,
+    "bitrate-uplink": "200 Mbps",
+    "bitrate-downlink": "100 Mbps",
+    "priority-level": 1,
     "var5qi": 8
 }
 
@@ -92,16 +90,16 @@ class Ella:
         self._make_request("POST", GNB_CONFIG_URL, data=asdict(create_radio_params))
         logger.info("Radio %s created in NMS", name)
 
-    def create_subscriber(self, imsi: str) -> None:
+    def create_subscriber(self, imsi: str, profile_name: str) -> None:
         """Create a subscriber."""
         data = SUBSCRIBER_CONFIG.copy()
         data["UeId"] = f"imsi-{imsi}"
+        data["profileName"] = profile_name
         self._make_request(method="POST", endpoint=SUBSCRIBERS_CONFIG_URL, data=data)
         logger.info(f"Created subscriber with IMSI {imsi}.")
 
-    def create_profile(self, name: str, imsis: List[str]) -> None:
+    def create_profile(self, name: str) -> None:
         """Create a profile."""
-        PROFILE_CONFIG["imsis"] = imsis
         PROFILE_CONFIG["name"] = name
         self._make_request("POST", PROFILE_CONFIG_URL, data=PROFILE_CONFIG)
         logger.info(f"Created profile {name}.")

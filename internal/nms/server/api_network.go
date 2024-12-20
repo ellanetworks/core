@@ -2,7 +2,6 @@ package server
 
 import (
 	"net/http"
-	"slices"
 
 	"github.com/gin-gonic/gin"
 	"github.com/yeastengine/ella/internal/config"
@@ -29,19 +28,17 @@ type UPF struct {
 }
 
 type UpdateNetworkParams struct {
-	Profiles []string `json:"profiles"`
-	Mcc      string   `json:"mcc,omitempty"`
-	Mnc      string   `json:"mnc,omitempty"`
-	GNodeBs  []GNodeB `json:"gNodeBs"`
-	Upf      UPF      `json:"upf,omitempty"`
+	Mcc     string   `json:"mcc,omitempty"`
+	Mnc     string   `json:"mnc,omitempty"`
+	GNodeBs []GNodeB `json:"gNodeBs"`
+	Upf     UPF      `json:"upf,omitempty"`
 }
 
 type GetNetworkResponse struct {
-	Profiles []string `json:"profiles"`
-	Mcc      string   `json:"mcc,omitempty"`
-	Mnc      string   `json:"mnc,omitempty"`
-	GNodeBs  []GNodeB `json:"gNodeBs"`
-	Upf      UPF      `json:"upf,omitempty"`
+	Mcc     string   `json:"mcc,omitempty"`
+	Mnc     string   `json:"mnc,omitempty"`
+	GNodeBs []GNodeB `json:"gNodeBs"`
+	Upf     UPF      `json:"upf,omitempty"`
 }
 
 func GetNetwork(dbInstance *db.Database) gin.HandlerFunc {
@@ -68,14 +65,16 @@ func GetNetwork(dbInstance *db.Database) gin.HandlerFunc {
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 		}
+		upf := UPF{}
+		if dbUpf != nil {
+			upf.Name = dbUpf.Name
+			upf.Port = dbUpf.Port
+		}
 		network := &GetNetworkResponse{
 			Mcc:     dbNetwork.Mcc,
 			Mnc:     dbNetwork.Mnc,
 			GNodeBs: gNodeBs,
-			Upf: UPF{
-				Name: dbUpf.Name,
-				Port: dbUpf.Port,
-			},
+			Upf:     upf,
 		}
 
 		err = writeResponse(c.Writer, network, http.StatusOK)
@@ -109,32 +108,6 @@ func UpdateNetwork(dbInstance *db.Database) gin.HandlerFunc {
 		if updateNetworkParams.Upf.Port == 0 {
 			writeError(c.Writer, http.StatusBadRequest, "upf port is missing")
 			return
-		}
-
-		profiles := updateNetworkParams.Profiles
-		slices.Sort(profiles)
-
-		for _, dgName := range updateNetworkParams.Profiles {
-			dbProfile, err := dbInstance.GetProfile(dgName)
-			if err != nil {
-				logger.NmsLog.Warnf("Could not get profile %v", dgName)
-				continue
-			}
-			imsis, err := dbProfile.GetImsis()
-			if err != nil {
-				logger.NmsLog.Warnf("Could not get imsis %v", dbProfile.Imsis)
-				continue
-			}
-			for _, imsi := range imsis {
-				ueId := "imsi-" + imsi
-				bitRateUplink := convertToString(uint64(dbProfile.BitrateUplink))
-				bitRateDownlink := convertToString(uint64(dbProfile.BitrateDownlink))
-				err = dbInstance.UpdateSubscriberProfile(ueId, bitRateUplink, bitRateDownlink, dbProfile.Var5qi)
-				if err != nil {
-					logger.NmsLog.Warnf("Could not update subscriber %v", ueId)
-					continue
-				}
-			}
 		}
 
 		dbNetwork := &db.Network{
@@ -230,18 +203,9 @@ func updateSMF(dbInstance *db.Database) {
 			DnsSecondary:    dbProfile.DnsSecondary,
 			BitrateDownlink: dbProfile.BitrateDownlink,
 			BitrateUplink:   dbProfile.BitrateUplink,
-			BitrateUnit:     dbProfile.BitrateUnit,
 			Var5qi:          dbProfile.Var5qi,
-			Arp:             dbProfile.Arp,
-			Pdb:             dbProfile.Pdb,
-			Pelr:            dbProfile.Pelr,
+			PriorityLevel:   dbProfile.PriorityLevel,
 		}
-		imsis, err := dbProfile.GetImsis()
-		if err != nil {
-			logger.NmsLog.Warnln(err)
-			return
-		}
-		profile.Imsis = imsis
 		profiles = append(profiles, profile)
 	}
 	context.UpdateSMFContext(network, profiles)

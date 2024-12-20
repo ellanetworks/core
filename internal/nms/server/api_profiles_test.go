@@ -16,20 +16,16 @@ type CreateProfileResponseResult struct {
 }
 
 type GetProfileResponseResult struct {
-	Name  string   `json:"name"`
-	Imsis []string `json:"imsis"`
+	Name string `json:"name"`
 
 	UeIpPool        string `json:"ue-ip-pool,omitempty"`
 	DnsPrimary      string `json:"dns-primary,omitempty"`
 	DnsSecondary    string `json:"dns-secondary,omitempty"`
 	Mtu             int32  `json:"mtu,omitempty"`
-	BitrateUplink   int64  `json:"bitrate-uplink,omitempty"`
-	BitrateDownlink int64  `json:"bitrate-downlink,omitempty"`
-	BitrateUnit     string `json:"bitrate-unit,omitempty"`
+	BitrateUplink   string `json:"bitrate-uplink,omitempty"`
+	BitrateDownlink string `json:"bitrate-downlink,omitempty"`
 	Var5qi          int32  `json:"var5qi,omitempty"`
-	Arp             int32  `json:"arp,omitempty"`
-	Pdb             int32  `json:"pdb,omitempty"`
-	Pelr            int32  `json:"pelr,omitempty"`
+	PriorityLevel   int32  `json:"priority-level,omitempty"`
 }
 
 type GetProfileResponse struct {
@@ -38,20 +34,16 @@ type GetProfileResponse struct {
 }
 
 type CreateProfileParams struct {
-	Name  string   `json:"name"`
-	Imsis []string `json:"imsis"`
+	Name string `json:"name"`
 
 	UeIpPool        string `json:"ue-ip-pool,omitempty"`
 	DnsPrimary      string `json:"dns-primary,omitempty"`
 	DnsSecondary    string `json:"dns-secondary,omitempty"`
 	Mtu             int32  `json:"mtu,omitempty"`
-	BitrateUplink   int64  `json:"bitrate-uplink,omitempty"`
-	BitrateDownlink int64  `json:"bitrate-downlink,omitempty"`
-	BitrateUnit     string `json:"bitrate-unit,omitempty"`
+	BitrateUplink   string `json:"bitrate-uplink,omitempty"`
+	BitrateDownlink string `json:"bitrate-downlink,omitempty"`
 	Var5qi          int32  `json:"var5qi,omitempty"`
-	Arp             int32  `json:"arp,omitempty"`
-	Pdb             int32  `json:"pdb,omitempty"`
-	Pelr            int32  `json:"pelr,omitempty"`
+	PriorityLevel   int32  `json:"priority-level,omitempty"`
 }
 
 type CreateProfileResponse struct {
@@ -222,13 +214,10 @@ func TestProfilesEndToEnd(t *testing.T) {
 			DnsPrimary:      "8.8.8.8",
 			DnsSecondary:    "2.2.2.2",
 			Mtu:             1500,
-			BitrateUplink:   1000000,
-			BitrateDownlink: 2000000,
-			BitrateUnit:     "bps",
+			BitrateUplink:   "100 Mbps",
+			BitrateDownlink: "200 Mbps",
 			Var5qi:          9,
-			Arp:             1,
-			Pdb:             1,
-			Pelr:            1,
+			PriorityLevel:   1,
 		}
 		statusCode, response, err := createProfile(ts.URL, client, createProfileParams)
 		if err != nil {
@@ -284,26 +273,17 @@ func TestProfilesEndToEnd(t *testing.T) {
 		if response.Result.Mtu != 1500 {
 			t.Fatalf("expected mtu 1500 got %d", response.Result.Mtu)
 		}
-		if response.Result.BitrateUplink != 1000000 {
-			t.Fatalf("expected bitrate-uplink 1000000 got %d", response.Result.BitrateUplink)
+		if response.Result.BitrateUplink != "100 Mbps" {
+			t.Fatalf("expected bitrate-uplink 100 Mbps got %s", response.Result.BitrateUplink)
 		}
-		if response.Result.BitrateDownlink != 2000000 {
-			t.Fatalf("expected bitrate-downlink 2000000 got %d", response.Result.BitrateDownlink)
-		}
-		if response.Result.BitrateUnit != "bps" {
-			t.Fatalf("expected bitrate-unit bps got %s", response.Result.BitrateUnit)
+		if response.Result.BitrateDownlink != "200 Mbps" {
+			t.Fatalf("expected bitrate-downlink 200 Mbps got %s", response.Result.BitrateDownlink)
 		}
 		if response.Result.Var5qi != 9 {
 			t.Fatalf("expected var5qi 9 got %d", response.Result.Var5qi)
 		}
-		if response.Result.Arp != 1 {
-			t.Fatalf("expected arp 1 got %d", response.Result.Arp)
-		}
-		if response.Result.Pdb != 1 {
-			t.Fatalf("expected pdb 1 got %d", response.Result.Pdb)
-		}
-		if response.Result.Pelr != 1 {
-			t.Fatalf("expected pelr 1 got %d", response.Result.Pelr)
+		if response.Result.PriorityLevel != 1 {
+			t.Fatalf("expected priority-level 1 got %d", response.Result.PriorityLevel)
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -343,13 +323,10 @@ func TestProfilesEndToEnd(t *testing.T) {
 			UeIpPool:        "2.2.2.2/24",
 			DnsPrimary:      "1.1.1.1",
 			Mtu:             1500,
-			BitrateUplink:   1000000,
-			BitrateDownlink: 2000000,
-			BitrateUnit:     "bps",
+			BitrateUplink:   "100 Mbps",
+			BitrateDownlink: "200 Mbps",
 			Var5qi:          9,
-			Arp:             1,
-			Pdb:             1,
-			Pelr:            1,
+			PriorityLevel:   1,
 		}
 		statusCode, response, err := editProfile(ts.URL, client, ProfileName, createProfileParams)
 		if err != nil {
