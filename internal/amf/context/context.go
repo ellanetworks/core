@@ -6,7 +6,6 @@ import (
 	"net"
 	"reflect"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -231,17 +230,7 @@ func (context *AMFContext) NewAmfUe(supi string) *AmfUe {
 }
 
 func (context *AMFContext) AmfUeFindByUeContextID(ueContextID string) (*AmfUe, bool) {
-	if strings.HasPrefix(ueContextID, "imsi") {
-		return context.AmfUeFindBySupi(ueContextID)
-	}
-	if strings.HasPrefix(ueContextID, "imei") {
-		return context.AmfUeFindByPei(ueContextID)
-	}
-	if strings.HasPrefix(ueContextID, "5g-guti") {
-		guti := ueContextID[strings.LastIndex(ueContextID, "-")+1:]
-		return context.AmfUeFindByGuti(guti)
-	}
-	return nil, false
+	return context.AmfUeFindBySupi(ueContextID)
 }
 
 func (context *AMFContext) AmfUeFindBySupi(supi string) (ue *AmfUe, ok bool) {
@@ -252,18 +241,6 @@ func (context *AMFContext) AmfUeFindBySupi(supi string) (ue *AmfUe, ok bool) {
 		logger.AmfLog.Infoln("Ue with Supi not found : ", supi)
 	}
 
-	return
-}
-
-func (context *AMFContext) AmfUeFindByPei(pei string) (ue *AmfUe, ok bool) {
-	context.UePool.Range(func(key, value interface{}) bool {
-		candidate := value.(*AmfUe)
-		if ok = (candidate.Pei == pei); ok {
-			ue = candidate
-			return false
-		}
-		return true
-	})
 	return
 }
 

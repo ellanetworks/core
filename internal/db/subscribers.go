@@ -15,7 +15,7 @@ const QueryCreateSubscribersTable = `
 	CREATE TABLE IF NOT EXISTS %s (
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-		ueId TEXT NOT NULL,
+		imsi TEXT NOT NULL,
 
 		sequenceNumber TEXT NOT NULL,
 		permanentKeyValue TEXT NOT NULL,
@@ -27,17 +27,17 @@ const QueryCreateSubscribersTable = `
 
 const (
 	listSubscribersStmt            = "SELECT &Subscriber.* from %s"
-	getSubscriberStmt              = "SELECT &Subscriber.* from %s WHERE ueId==$Subscriber.ueId"
-	createSubscriberStmt           = "INSERT INTO %s (ueId, sequenceNumber, permanentKeyValue, opcValue, profileID) VALUES ($Subscriber.ueId, $Subscriber.sequenceNumber, $Subscriber.permanentKeyValue, $Subscriber.opcValue, $Subscriber.profileID)"
-	updateSubscriberSequenceNumber = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE ueId==$Subscriber.ueId"
-	updateSubscriberProfile        = "UPDATE %s SET profileID=$Subscriber.profileID WHERE ueId==$Subscriber.ueId"
-	deleteSubscriberStmt           = "DELETE FROM %s WHERE ueId==$Subscriber.ueId"
+	getSubscriberStmt              = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
+	createSubscriberStmt           = "INSERT INTO %s (imsi, sequenceNumber, permanentKeyValue, opcValue, profileID) VALUES ($Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKeyValue, $Subscriber.opcValue, $Subscriber.profileID)"
+	updateSubscriberSequenceNumber = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
+	updateSubscriberProfile        = "UPDATE %s SET profileID=$Subscriber.profileID WHERE imsi==$Subscriber.imsi"
+	deleteSubscriberStmt           = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
 )
 
 type Subscriber struct {
 	ID int `db:"id"`
 
-	UeId string `db:"ueId"`
+	Imsi string `db:"imsi"`
 
 	SequenceNumber    string `db:"sequenceNumber"`
 	PermanentKeyValue string `db:"permanentKeyValue"`
@@ -63,9 +63,9 @@ func (db *Database) ListSubscribers() ([]Subscriber, error) {
 	return subscribers, nil
 }
 
-func (db *Database) GetSubscriber(ueID string) (*Subscriber, error) {
+func (db *Database) GetSubscriber(imsi string) (*Subscriber, error) {
 	row := Subscriber{
-		UeId: ueID,
+		Imsi: imsi,
 	}
 	stmt, err := sqlair.Prepare(fmt.Sprintf(getSubscriberStmt, db.subscribersTable), Subscriber{})
 	if err != nil {
@@ -79,9 +79,9 @@ func (db *Database) GetSubscriber(ueID string) (*Subscriber, error) {
 }
 
 func (db *Database) CreateSubscriber(subscriber *Subscriber) error {
-	_, err := db.GetSubscriber(subscriber.UeId)
+	_, err := db.GetSubscriber(subscriber.Imsi)
 	if err == nil {
-		return fmt.Errorf("subscriber with ueId %s already exists", subscriber.UeId)
+		return fmt.Errorf("subscriber with imsi %s already exists", subscriber.Imsi)
 	}
 	stmt, err := sqlair.Prepare(fmt.Sprintf(createSubscriberStmt, db.subscribersTable), Subscriber{})
 	if err != nil {
@@ -91,8 +91,8 @@ func (db *Database) CreateSubscriber(subscriber *Subscriber) error {
 	return err
 }
 
-func (db *Database) UpdateSubscriberSequenceNumber(ueID string, sequenceNumber string) error {
-	_, err := db.GetSubscriber(ueID)
+func (db *Database) UpdateSubscriberSequenceNumber(imsi string, sequenceNumber string) error {
+	_, err := db.GetSubscriber(imsi)
 	if err != nil {
 		return err
 	}
@@ -101,23 +101,23 @@ func (db *Database) UpdateSubscriberSequenceNumber(ueID string, sequenceNumber s
 		return err
 	}
 	row := Subscriber{
-		UeId:           ueID,
+		Imsi:           imsi,
 		SequenceNumber: sequenceNumber,
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
-	logger.DBLog.Infof("Updated sequence number for subscriber with ueID %d", ueID)
+	logger.DBLog.Infof("Updated sequence number for subscriber with Imsi %d", imsi)
 	return err
 }
 
-func (db *Database) UpdateSubscriberProfile(ueID string, profileName string) error {
+func (db *Database) UpdateSubscriberProfile(imsi string, profileName string) error {
 	profile, err := db.GetProfile(profileName)
 	if err != nil {
 		return fmt.Errorf("profile with name %s not found", profileName)
 	}
 
-	subscriber, err := db.GetSubscriber(ueID)
+	subscriber, err := db.GetSubscriber(imsi)
 	if err != nil {
-		return fmt.Errorf("subscriber with ueID %s not found: %v", ueID, err)
+		return fmt.Errorf("subscriber with Imsi %s not found: %v", imsi, err)
 	}
 
 	stmt, err := sqlair.Prepare(fmt.Sprintf(updateSubscriberProfile, db.subscribersTable), Subscriber{})
@@ -126,7 +126,7 @@ func (db *Database) UpdateSubscriberProfile(ueID string, profileName string) err
 	}
 
 	row := Subscriber{
-		UeId:              ueID,
+		Imsi:              imsi,
 		SequenceNumber:    subscriber.SequenceNumber,
 		PermanentKeyValue: subscriber.PermanentKeyValue,
 		OpcValue:          subscriber.OpcValue,
@@ -135,26 +135,26 @@ func (db *Database) UpdateSubscriberProfile(ueID string, profileName string) err
 
 	err = db.conn.Query(context.Background(), stmt, row).Run()
 	if err != nil {
-		return fmt.Errorf("failed to update profile for subscriber with ueID %s: %v", ueID, err)
+		return fmt.Errorf("failed to update profile for subscriber with Imsi %s: %v", imsi, err)
 	}
 
-	logger.DBLog.Infof("Updated profile for subscriber with ueID %s to profile %s (ID: %d)", ueID, profileName, profile.ID)
+	logger.DBLog.Infof("Updated profile for subscriber with Imsi %s to profile %s (ID: %d)", imsi, profileName, profile.ID)
 	return nil
 }
 
-func (db *Database) DeleteSubscriber(ueID string) error {
-	_, err := db.GetSubscriber(ueID)
+func (db *Database) DeleteSubscriber(imsi string) error {
+	_, err := db.GetSubscriber(imsi)
 	if err != nil {
-		return fmt.Errorf("subscriber with ueID %s not found", ueID)
+		return fmt.Errorf("subscriber with imsi %s not found", imsi)
 	}
 	stmt, err := sqlair.Prepare(fmt.Sprintf(deleteSubscriberStmt, db.subscribersTable), Subscriber{})
 	if err != nil {
 		return err
 	}
 	row := Subscriber{
-		UeId: ueID,
+		Imsi: imsi,
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
-	logger.DBLog.Infof("Deleted subscriber with ueID %s", ueID)
+	logger.DBLog.Infof("Deleted subscriber with Imsi %s", imsi)
 	return err
 }

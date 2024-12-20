@@ -97,19 +97,15 @@ const DefaultBdtRefId = "BdtPolicyId-"
 
 // Allocate PCF Ue with supi and add to pcf Context and returns allocated ue
 func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
-	if strings.HasPrefix(Supi, "imsi-") {
-		newUeContext := &UeContext{}
-		newUeContext.SmPolicyData = make(map[string]*UeSmPolicyData)
-		newUeContext.AMPolicyData = make(map[string]*UeAMPolicyData)
-		newUeContext.PolAssociationIDGenerator = 1
-		newUeContext.AppSessionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
-		newUeContext.Supi = Supi
-		logger.PcfLog.Warnf("Storing new UeContext with Supi[%s]", Supi)
-		c.UePool.Store(Supi, newUeContext)
-		return newUeContext, nil
-	} else {
-		return nil, fmt.Errorf(" add Ue context fail ")
-	}
+	newUeContext := &UeContext{}
+	newUeContext.SmPolicyData = make(map[string]*UeSmPolicyData)
+	newUeContext.AMPolicyData = make(map[string]*UeAMPolicyData)
+	newUeContext.PolAssociationIDGenerator = 1
+	newUeContext.AppSessionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
+	newUeContext.Supi = Supi
+	logger.PcfLog.Warnf("Storing new UeContext with Supi[%s]", Supi)
+	c.UePool.Store(Supi, newUeContext)
+	return newUeContext, nil
 }
 
 // Find PcfUe which the policyId belongs to
@@ -343,11 +339,11 @@ func GetPLMNList() []PlmnSupportItem {
 	return plmnSupportList
 }
 
-func GetSubscriberPolicy(ueId string) *PcfSubscriberPolicyData {
+func GetSubscriberPolicy(imsi string) *PcfSubscriberPolicyData {
 	pcfSelf := PCF_Self()
-	subscriber, err := pcfSelf.DbInstance.GetSubscriber(ueId)
+	subscriber, err := pcfSelf.DbInstance.GetSubscriber(imsi)
 	if err != nil {
-		logger.PcfLog.Warnf("Failed to get subscriber %s: %+v", ueId, err)
+		logger.PcfLog.Warnf("Failed to get subscriber %s: %+v", imsi, err)
 		return nil
 	}
 	profile, err := pcfSelf.DbInstance.GetProfileByID(subscriber.ProfileID)
@@ -355,7 +351,6 @@ func GetSubscriberPolicy(ueId string) *PcfSubscriberPolicyData {
 		logger.PcfLog.Warnf("Failed to get profile %d: %+v", subscriber.ProfileID, err)
 		return nil
 	}
-	imsi := strings.TrimPrefix(ueId, "imsi-")
 	subscriberPolicies := &PcfSubscriberPolicyData{
 		Supi:      imsi,
 		PccPolicy: make(map[string]*PccPolicy),

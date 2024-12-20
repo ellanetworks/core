@@ -3,7 +3,6 @@ package producer
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
@@ -99,12 +98,11 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 
 	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
 	sliceid := sstStr + request.SliceInfo.Sd
-	imsi := strings.TrimPrefix(ue.Supi, "imsi-")
 	subscriberPolicy := context.GetSubscriberPolicy(ue.Supi)
 	if subscriberPolicy == nil {
 		return nil, fmt.Errorf("can't find subscriber policy")
 	}
-	logger.PcfLog.Infof("Found an existing policy for subscriber [%s]", imsi)
+	logger.PcfLog.Infof("Found an existing policy for subscriber [%s]", ue.Supi)
 	if PccPolicy, ok1 := subscriberPolicy.PccPolicy[sliceid]; ok1 {
 		if sessPolicy, exist := PccPolicy.SessionPolicy[request.Dnn]; exist {
 			for _, sessRule := range sessPolicy.SessionRules {

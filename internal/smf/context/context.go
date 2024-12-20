@@ -130,13 +130,13 @@ func SMF_Self() *SMFContext {
 	return &smfContext
 }
 
-func UpdateSMFContext(network *nmsModels.NetworkSlice, deviceGroups []nmsModels.Profile) {
-	UpdateSnssaiInfo(network, deviceGroups)
-	UpdateUserPlaneInformation(network, deviceGroups)
+func UpdateSMFContext(network *nmsModels.NetworkSlice, profiles []nmsModels.Profile) {
+	UpdateSnssaiInfo(network, profiles)
+	UpdateUserPlaneInformation(network, profiles)
 	logger.SmfLog.Infof("Updated SMF context")
 }
 
-func UpdateSnssaiInfo(network *nmsModels.NetworkSlice, deviceGroups []nmsModels.Profile) {
+func UpdateSnssaiInfo(network *nmsModels.NetworkSlice, profiles []nmsModels.Profile) {
 	smfSelf := SMF_Self()
 	snssaiInfoList := make([]SnssaiSmfInfo, 0)
 	snssaiInfo := SnssaiSmfInfo{
@@ -151,11 +151,11 @@ func UpdateSnssaiInfo(network *nmsModels.NetworkSlice, deviceGroups []nmsModels.
 		DnnInfos: make(map[string]*SnssaiSmfDnnInfo),
 	}
 
-	for _, deviceGroup := range deviceGroups {
-		dnn := deviceGroup.Dnn
-		dnsPrimary := deviceGroup.DnsPrimary
-		mtu := deviceGroup.Mtu
-		alloc, err := GetOrCreateIPAllocator(dnn, deviceGroup.UeIpPool)
+	for _, profile := range profiles {
+		dnn := profile.Dnn
+		dnsPrimary := profile.DnsPrimary
+		mtu := profile.Mtu
+		alloc, err := GetOrCreateIPAllocator(dnn, profile.UeIpPool)
 		if err != nil {
 			logger.SmfLog.Errorf("failed to get or create IP allocator for DNN %s: %v", dnn, err)
 			continue
@@ -262,9 +262,9 @@ func BuildUserPlaneInformationFromConfig(network *nmsModels.NetworkSlice, profil
 
 // Right now we only support 1 UPF
 // This function should be edited when we decide to support multiple UPFs
-func UpdateUserPlaneInformation(networkSlices *nmsModels.NetworkSlice, deviceGroups []nmsModels.Profile) {
+func UpdateUserPlaneInformation(networkSlices *nmsModels.NetworkSlice, profiles []nmsModels.Profile) {
 	smfSelf := SMF_Self()
-	configUserPlaneInfo := BuildUserPlaneInformationFromConfig(networkSlices, deviceGroups)
+	configUserPlaneInfo := BuildUserPlaneInformationFromConfig(networkSlices, profiles)
 	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)
 	if same {
 		logger.SmfLog.Info("Context user plane info matches config")

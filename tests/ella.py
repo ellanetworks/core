@@ -20,7 +20,7 @@ SUBSCRIBERS_CONFIG_URL = "/api/v1/subscribers"
 JSON_HEADER = {"Content-Type": "application/json"}
 
 SUBSCRIBER_CONFIG = {
-    "UeId": "PLACEHOLDER",
+    "imsi": "PLACEHOLDER",
     "opc": "981d464c7c52eb6e5036234984ad0bcf",
     "key": "5122250214c33e723a5dd523fc145fc0",
     "sequenceNumber": "16f3b3f70fc2",
@@ -93,7 +93,7 @@ class Ella:
     def create_subscriber(self, imsi: str, profile_name: str) -> None:
         """Create a subscriber."""
         data = SUBSCRIBER_CONFIG.copy()
-        data["UeId"] = f"imsi-{imsi}"
+        data["imsi"] = imsi
         data["profileName"] = profile_name
         self._make_request(method="POST", endpoint=SUBSCRIBERS_CONFIG_URL, data=data)
         logger.info(f"Created subscriber with IMSI {imsi}.")

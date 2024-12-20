@@ -29,7 +29,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 	}
 
 	subscriber := &db.Subscriber{
-		UeId:              "imsi-001010100007487",
+		Imsi:              "001010100007487",
 		SequenceNumber:    "123456",
 		PermanentKeyValue: "123456",
 		OpcValue:          "123456",
@@ -47,11 +47,11 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("One or more subscribers weren't found in DB")
 	}
 
-	retrievedSubscriber, err := database.GetSubscriber(subscriber.UeId)
+	retrievedSubscriber, err := database.GetSubscriber(subscriber.Imsi)
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
-	if retrievedSubscriber.UeId != subscriber.UeId {
+	if retrievedSubscriber.Imsi != subscriber.Imsi {
 		t.Fatalf("The subscriber from the database doesn't match the subscriber that was given")
 	}
 	if retrievedSubscriber.SequenceNumber != subscriber.SequenceNumber {
@@ -64,12 +64,12 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("The OPC value from the database doesn't match the OPC value that was given")
 	}
 
-	err = database.UpdateSubscriberSequenceNumber(subscriber.UeId, "654321")
+	err = database.UpdateSubscriberSequenceNumber(subscriber.Imsi, "654321")
 	if err != nil {
 		t.Fatalf("Couldn't complete Update: %s", err)
 	}
 
-	retrievedSubscriber, err = database.GetSubscriber(subscriber.UeId)
+	retrievedSubscriber, err = database.GetSubscriber(subscriber.Imsi)
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -90,11 +90,11 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
 
-	if err = database.UpdateSubscriberProfile(retrievedSubscriber.UeId, "myprofilename"); err != nil {
+	if err = database.UpdateSubscriberProfile(retrievedSubscriber.Imsi, "myprofilename"); err != nil {
 		t.Fatalf("Couldn't complete Update: %s", err)
 	}
 
-	retrievedSubscriber, err = database.GetSubscriber(subscriber.UeId)
+	retrievedSubscriber, err = database.GetSubscriber(subscriber.Imsi)
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -103,7 +103,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("Profile IDs don't match: %d vs. %d", retrievedSubscriber.ProfileID, profile.ID)
 	}
 
-	if err = database.DeleteSubscriber(subscriber.UeId); err != nil {
+	if err = database.DeleteSubscriber(subscriber.Imsi); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
 	res, _ = database.ListSubscribers()

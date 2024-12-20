@@ -311,7 +311,6 @@ const (
 
 const (
 	typeIMSI       = "0"
-	imsiPrefix     = "imsi-"
 	nullScheme     = "0"
 	profileAScheme = "1"
 	profileBScheme = "2"
@@ -337,14 +336,12 @@ func ToSupi(suci string, suciProfiles []SuciProfile) (string, error) {
 	scheme := suciPart[schemePlace]
 	mccMnc := suciPart[mccPlace] + suciPart[mncPlace]
 
-	supiPrefix := imsiPrefix
 	if suciPrefix == "suci" && suciPart[supiTypePlace] == typeIMSI {
-		supiPrefix = imsiPrefix
 		logger.UtilLog.Infoln("supi type is IMSI")
 	}
 
 	if scheme == nullScheme { // NULL scheme
-		return supiPrefix + mccMnc + suciPart[len(suciPart)-1], nil
+		return mccMnc + suciPart[len(suciPart)-1], nil
 	}
 
 	// (HNPublicKeyID-1) is the index of "suciProfiles" slices
@@ -367,13 +364,13 @@ func ToSupi(suci string, suciProfiles []SuciProfile) (string, error) {
 		if profileAResult, err := profileA(suciPart[len(suciPart)-1], suciPart[supiTypePlace], privateKey); err != nil {
 			return "", err
 		} else {
-			return supiPrefix + mccMnc + profileAResult, nil
+			return mccMnc + profileAResult, nil
 		}
 	} else if scheme == profileBScheme {
 		if profileBResult, err := profileB(suciPart[len(suciPart)-1], suciPart[supiTypePlace], privateKey); err != nil {
 			return "", err
 		} else {
-			return supiPrefix + mccMnc + profileBResult, nil
+			return mccMnc + profileBResult, nil
 		}
 	} else {
 		return "", fmt.Errorf("protect Scheme (%s) is not supported", scheme)

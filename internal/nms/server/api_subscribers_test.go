@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	UeId = "imsi-001010100007487"
+	Imsi = "001010100007487"
 )
 
 type CreateSubscriberSuccessResponse struct {
@@ -18,7 +18,7 @@ type CreateSubscriberSuccessResponse struct {
 }
 
 type GetSubscriberResponseResult struct {
-	UeId           string `json:"ueId"`
+	Imsi           string `json:"imsi"`
 	OPc            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequenceNumber"`
@@ -31,7 +31,7 @@ type GetSubscriberResponse struct {
 }
 
 type CreateSubscriberParams struct {
-	UeId           string `json:"ueId"`
+	Imsi           string `json:"imsi"`
 	OPc            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequenceNumber"`
@@ -56,8 +56,8 @@ type DeleteSubscriberResponse struct {
 	Error  string                         `json:"error,omitempty"`
 }
 
-func getSubscriber(url string, client *http.Client, ueId string) (int, *GetSubscriberResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/subscribers/"+ueId, nil)
+func getSubscriber(url string, client *http.Client, imsi string) (int, *GetSubscriberResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/subscribers/"+imsi, nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -102,8 +102,8 @@ func createSubscriber(url string, client *http.Client, data *CreateSubscriberPar
 	return res.StatusCode, &createResponse, nil
 }
 
-func deleteSubscriber(url string, client *http.Client, ueId string) (int, *DeleteSubscriberResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/subscribers/"+ueId, nil)
+func deleteSubscriber(url string, client *http.Client, imsi string) (int, *DeleteSubscriberResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/subscribers/"+imsi, nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -162,7 +162,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 	t.Run("2. Create subscriber", func(t *testing.T) {
 		createSubscriberParams := &CreateSubscriberParams{
-			UeId:           UeId,
+			Imsi:           Imsi,
 			OPc:            "123456",
 			Key:            "123",
 			SequenceNumber: "123456",
@@ -184,15 +184,15 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Get subscriber", func(t *testing.T) {
-		statusCode, response, err := getSubscriber(ts.URL, client, UeId)
+		statusCode, response, err := getSubscriber(ts.URL, client, Imsi)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber: %s", err)
 		}
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if response.Result.UeId != UeId {
-			t.Fatalf("expected ueId %s, got %s", UeId, response.Result.UeId)
+		if response.Result.Imsi != Imsi {
+			t.Fatalf("expected imsi %s, got %s", Imsi, response.Result.Imsi)
 		}
 		if response.Result.OPc != "123456" {
 			t.Fatalf("expected opc 123456, got %s", response.Result.OPc)
@@ -212,7 +212,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Get subscriber - id not found", func(t *testing.T) {
-		statusCode, response, err := getSubscriber(ts.URL, client, "imsi-001010100007488")
+		statusCode, response, err := getSubscriber(ts.URL, client, "001010100007488")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber: %s", err)
 		}
@@ -224,7 +224,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("5. Create subscriber - no ueId", func(t *testing.T) {
+	t.Run("5. Create subscriber - no Imsi", func(t *testing.T) {
 		createSubscriberParams := &CreateSubscriberParams{}
 		statusCode, response, err := createSubscriber(ts.URL, client, createSubscriberParams)
 		if err != nil {
@@ -233,13 +233,13 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		if statusCode != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
-		if response.Error != "Missing ueId parameter" {
-			t.Fatalf("expected error %q, got %q", "Missing ueId parameter", response.Error)
+		if response.Error != "Missing imsi parameter" {
+			t.Fatalf("expected error %q, got %q", "Missing imsi parameter", response.Error)
 		}
 	})
 
 	t.Run("6. Delete subscriber - success", func(t *testing.T) {
-		statusCode, response, err := deleteSubscriber(ts.URL, client, UeId)
+		statusCode, response, err := deleteSubscriber(ts.URL, client, Imsi)
 		if err != nil {
 			t.Fatalf("couldn't delete subscriber: %s", err)
 		}
@@ -255,7 +255,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("7. Delete subscriber - no user", func(t *testing.T) {
-		statusCode, response, err := deleteSubscriber(ts.URL, client, "imsi-001010100007488")
+		statusCode, response, err := deleteSubscriber(ts.URL, client, "001010100007488")
 		if err != nil {
 			t.Fatalf("couldn't delete subscriber: %s", err)
 		}
@@ -266,4 +266,47 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected error %q, got %q", "Subscriber not found", response.Error)
 		}
 	})
+}
+
+func TestCreateSubscribersBadImsis(t *testing.T) {
+	tempDir := t.TempDir()
+	db_path := filepath.Join(tempDir, "db.sqlite3")
+	ts, err := setupServer(db_path)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	tests := []struct {
+		imsi string
+	}{
+		{imsi: "12345"},
+		{imsi: "00101010000748812"},
+		{imsi: "002010100007488"},
+		{imsi: "00101"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.imsi, func(t *testing.T) {
+			createSubscriberParams := &CreateSubscriberParams{
+				Imsi:           tt.imsi,
+				OPc:            "123456",
+				Key:            "123",
+				SequenceNumber: "123456",
+				ProfileName:    ProfileName,
+			}
+			statusCode, response, err := createSubscriber(ts.URL, client, createSubscriberParams)
+			if err != nil {
+				t.Fatalf("couldn't create subscriber: %s", err)
+			}
+			if statusCode != http.StatusBadRequest {
+				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+			}
+			if response.Error != "Invalid imsi" {
+				t.Fatalf("expected error %q, got %q", "Invalid imsi", response.Error)
+			}
+		})
+	}
+
 }
