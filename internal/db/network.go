@@ -15,8 +15,6 @@ const QueryCreateNetworkTable = `
 	CREATE TABLE IF NOT EXISTS %s (
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-		sst TEXT NOT NULL,
-		sd TEXT NOT NULL,
 		mcc TEXT NOT NULL,
 		mnc TEXT NOT NULL,
 		gNodeBs TEXT NOT NULL,
@@ -24,16 +22,14 @@ const QueryCreateNetworkTable = `
 )`
 
 const (
-	DefaultSst = 1
-	DefaultSd  = "102030"
 	DefaultMcc = "001"
 	DefaultMnc = "01"
 )
 
 const (
 	getNetworkStmt        = "SELECT &Network.* FROM %s WHERE id=1"
-	updateNetworkStmt     = "UPDATE %s SET sst=$Network.sst, sd=$Network.sd, mcc=$Network.mcc, mnc=$Network.mnc, gNodeBs=$Network.gNodeBs, upf=$Network.upf WHERE id=1"
-	initializeNetworkStmt = "INSERT INTO %s (sst, sd, mcc, mnc, gNodeBs, upf) VALUES ($Network.sst, $Network.sd, $Network.mcc, $Network.mnc, $Network.gNodeBs, $Network.upf)"
+	updateNetworkStmt     = "UPDATE %s SET mcc=$Network.mcc, mnc=$Network.mnc, gNodeBs=$Network.gNodeBs, upf=$Network.upf WHERE id=1"
+	initializeNetworkStmt = "INSERT INTO %s (mcc, mnc, gNodeBs, upf) VALUES ($Network.mcc, $Network.mnc, $Network.gNodeBs, $Network.upf)"
 )
 
 type GNodeB struct {
@@ -48,8 +44,6 @@ type UPF struct {
 
 type Network struct {
 	ID      int    `db:"id"`
-	Sst     int32  `db:"sst"`
-	Sd      string `db:"sd"`
 	Mcc     string `db:"mcc"`
 	Mnc     string `db:"mnc"`
 	GNodeBs string `db:"gNodeBs"`
@@ -114,8 +108,6 @@ func (db *Database) InitializeNetwork() error {
 		return fmt.Errorf("failed to prepare initialize network configuration statement: %v", err)
 	}
 	network := Network{
-		Sst:     DefaultSst,
-		Sd:      DefaultSd,
 		Mcc:     DefaultMcc,
 		Mnc:     DefaultMnc,
 		GNodeBs: "",

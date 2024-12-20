@@ -141,8 +141,8 @@ func UpdateSnssaiInfo(network *nmsModels.NetworkSlice, deviceGroups []nmsModels.
 	snssaiInfoList := make([]SnssaiSmfInfo, 0)
 	snssaiInfo := SnssaiSmfInfo{
 		Snssai: SNssai{
-			Sst: network.Sst,
-			Sd:  network.Sd,
+			Sst: config.Sst,
+			Sd:  config.Sd,
 		},
 		PlmnId: models.PlmnId{
 			Mcc: network.Mcc,
@@ -213,8 +213,8 @@ func BuildUserPlaneInformationFromConfig(network *nmsModels.NetworkSlice, profil
 	upf.SNssaiInfos = []SnssaiUPFInfo{
 		{
 			SNssai: SNssai{
-				Sst: network.Sst,
-				Sd:  network.Sd,
+				Sst: config.Sst,
+				Sd:  config.Sd,
 			},
 			DnnList: []DnnUPFInfoItem{
 				{

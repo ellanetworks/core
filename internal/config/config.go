@@ -10,6 +10,8 @@ import (
 
 const (
 	DNN = "internet"
+	Sst = 1
+	Sd  = "102030"
 )
 
 type DB struct {

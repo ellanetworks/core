@@ -5,6 +5,7 @@ import (
 
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/factory"
+	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/logger"
 )
 
@@ -70,8 +71,8 @@ func GetPlmnSupportList() []factory.PlmnSupportItem {
 		},
 		SNssaiList: []models.Snssai{
 			{
-				Sst: dbNetwork.Sst,
-				Sd:  dbNetwork.Sd,
+				Sst: config.Sst,
+				Sd:  config.Sd,
 			},
 		},
 	}

@@ -29,8 +29,6 @@ type UPF struct {
 }
 
 type UpdateNetworkParams struct {
-	Sst      int32    `json:"sst,omitempty"`
-	Sd       string   `json:"sd,omitempty"`
 	Profiles []string `json:"profiles"`
 	Mcc      string   `json:"mcc,omitempty"`
 	Mnc      string   `json:"mnc,omitempty"`
@@ -39,8 +37,6 @@ type UpdateNetworkParams struct {
 }
 
 type GetNetworkResponse struct {
-	Sst      int32    `json:"sst,omitempty"`
-	Sd       string   `json:"sd,omitempty"`
 	Profiles []string `json:"profiles"`
 	Mcc      string   `json:"mcc,omitempty"`
 	Mnc      string   `json:"mnc,omitempty"`
@@ -73,8 +69,6 @@ func GetNetwork(dbInstance *db.Database) gin.HandlerFunc {
 			logger.NmsLog.Warnln(err)
 		}
 		network := &GetNetworkResponse{
-			Sst:     dbNetwork.Sst,
-			Sd:      dbNetwork.Sd,
 			Mcc:     dbNetwork.Mcc,
 			Mnc:     dbNetwork.Mnc,
 			GNodeBs: gNodeBs,
@@ -98,14 +92,6 @@ func UpdateNetwork(dbInstance *db.Database) gin.HandlerFunc {
 		err := c.ShouldBindJSON(&updateNetworkParams)
 		if err != nil {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
-			return
-		}
-		if updateNetworkParams.Sst == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "sst is missing")
-			return
-		}
-		if updateNetworkParams.Sd == "" {
-			writeError(c.Writer, http.StatusBadRequest, "sd is missing")
 			return
 		}
 		if updateNetworkParams.Mcc == "" {
@@ -155,8 +141,6 @@ func UpdateNetwork(dbInstance *db.Database) gin.HandlerFunc {
 		}
 
 		dbNetwork := &db.Network{
-			Sst: updateNetworkParams.Sst,
-			Sd:  updateNetworkParams.Sd,
 			Mcc: updateNetworkParams.Mcc,
 			Mnc: updateNetworkParams.Mnc,
 		}
@@ -208,8 +192,6 @@ func updateSMF(dbInstance *db.Database) {
 		return
 	}
 	network := &models.NetworkSlice{
-		Sst:     dbNetwork.Sst,
-		Sd:      dbNetwork.Sd,
 		Mcc:     dbNetwork.Mcc,
 		Mnc:     dbNetwork.Mnc,
 		GNodeBs: make([]models.GNodeB, 0),

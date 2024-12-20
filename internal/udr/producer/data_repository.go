@@ -25,7 +25,7 @@ var AllowedSscModes = []string{
 var AllowedSessionTypes = []models.PduSessionType{models.PduSessionType_IPV4}
 
 // This function is defined twice, here and in the NMS. We should move it to a common place.
-func convertDbAmDataToModel(sd string, sst int32, bitrateDownlink string, bitrateUplink string) *models.AccessAndMobilitySubscriptionData {
+func convertDbAmDataToModel(bitrateDownlink string, bitrateUplink string) *models.AccessAndMobilitySubscriptionData {
 	amData := &models.AccessAndMobilitySubscriptionData{
 		Nssai: &models.Nssai{
 			DefaultSingleNssais: make([]models.Snssai, 0),
@@ -37,12 +37,12 @@ func convertDbAmDataToModel(sd string, sst int32, bitrateDownlink string, bitrat
 		},
 	}
 	amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
-		Sd:  sd,
-		Sst: sst,
+		Sd:  config.Sd,
+		Sst: config.Sst,
 	})
 	amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
-		Sd:  sd,
-		Sst: sst,
+		Sd:  config.Sd,
+		Sst: config.Sst,
 	})
 	return amData
 }
@@ -53,11 +53,7 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	network, err := udrSelf.DbInstance.GetNetwork()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get network: %v", err)
-	}
-	amData := convertDbAmDataToModel(network.Sd, network.Sst, subscriber.BitRateDownlink, subscriber.BitRateUplink)
+	amData := convertDbAmDataToModel(subscriber.BitRateDownlink, subscriber.BitRateUplink)
 	return amData, nil
 }
 
@@ -118,34 +114,23 @@ func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
 	return amPolicyData, nil
 }
 
-// We have this function twice, here and in the NMS. We should move it to a common place.
-func convertDbSmPolicyDataToModel(sst int32, sd string, dnn string) *models.SmPolicyData {
+func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
 	smPolicyData := &models.SmPolicyData{
 		SmPolicySnssaiData: make(map[string]models.SmPolicySnssaiData),
 	}
-	snssai := fmt.Sprintf("%d%s", sst, sd)
+	snssai := fmt.Sprintf("%d%s", config.Sst, config.Sd)
 	smPolicyData.SmPolicySnssaiData[snssai] = models.SmPolicySnssaiData{
 		Snssai: &models.Snssai{
-			Sd:  sd,
-			Sst: sst,
+			Sd:  config.Sd,
+			Sst: config.Sst,
 		},
 		SmPolicyDnnData: make(map[string]models.SmPolicyDnnData),
 	}
 	smPolicySnssaiData := smPolicyData.SmPolicySnssaiData[snssai]
-	smPolicySnssaiData.SmPolicyDnnData[dnn] = models.SmPolicyDnnData{
-		Dnn: dnn,
+	smPolicySnssaiData.SmPolicyDnnData[config.DNN] = models.SmPolicyDnnData{
+		Dnn: config.DNN,
 	}
 	smPolicyData.SmPolicySnssaiData[snssai] = smPolicySnssaiData
-	return smPolicyData
-}
-
-func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
-	udrSelf := context.UDR_Self()
-	network, err := udrSelf.DbInstance.GetNetwork()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get network: %v", err)
-	}
-	smPolicyData := convertDbSmPolicyDataToModel(network.Sst, network.Sd, config.DNN)
 	return smPolicyData, nil
 }
 
@@ -179,8 +164,6 @@ func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string)
 }
 
 func convertDbSessionManagementDataToModel(
-	sst int32,
-	sd string,
 	bitrateDownlink string,
 	bitrateUplink string,
 	var5qi int32,
@@ -189,8 +172,8 @@ func convertDbSessionManagementDataToModel(
 	smData := make([]models.SessionManagementSubscriptionData, 0)
 	smDataObjModel := models.SessionManagementSubscriptionData{
 		SingleNssai: &models.Snssai{
-			Sst: sst,
-			Sd:  sd,
+			Sst: config.Sst,
+			Sd:  config.Sd,
 		},
 		DnnConfigurations: make(map[string]models.DnnConfiguration),
 	}
@@ -229,17 +212,12 @@ func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) 
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	network, err := udrSelf.DbInstance.GetNetwork()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get network: %v", err)
-	}
-
-	sessionManagementData := convertDbSessionManagementDataToModel(network.Sst, network.Sd, subscriber.BitRateDownlink, subscriber.BitRateUplink, subscriber.Var5qi, subscriber.PriorityLevel)
+	sessionManagementData := convertDbSessionManagementDataToModel(subscriber.BitRateDownlink, subscriber.BitRateUplink, subscriber.Var5qi, subscriber.PriorityLevel)
 	return sessionManagementData, nil
 }
 
-// We have this function twice, here and in the NMS. We should move it to a common place.
-func convertDbSmfSelectionDataToModel(snssai string) *models.SmfSelectionSubscriptionData {
+func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
+	snssai := fmt.Sprintf("%d%s", config.Sst, config.Sd)
 	smfSelectionData := &models.SmfSelectionSubscriptionData{
 		SubscribedSnssaiInfos: make(map[string]models.SnssaiInfo),
 	}
@@ -251,16 +229,5 @@ func convertDbSmfSelectionDataToModel(snssai string) *models.SmfSelectionSubscri
 		Dnn: config.DNN,
 	})
 	smfSelectionData.SubscribedSnssaiInfos[snssai] = snssaiInfo
-	return smfSelectionData
-}
-
-func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
-	udrSelf := context.UDR_Self()
-	network, err := udrSelf.DbInstance.GetNetwork()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get network: %v", err)
-	}
-	snssai := fmt.Sprintf("%d%s", network.Sst, network.Sd)
-	smfSelectionSubscriptionData := convertDbSmfSelectionDataToModel(snssai)
-	return smfSelectionSubscriptionData, nil
+	return smfSelectionData, nil
 }

@@ -11,8 +11,6 @@ type UPF struct {
 }
 
 type NetworkSlice struct {
-	Sst     int32
-	Sd      string
 	Mcc     string
 	Mnc     string
 	GNodeBs []GNodeB

@@ -346,12 +346,7 @@ func GetPLMNList() []PlmnSupportItem {
 func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
 	pcfSelf := PCF_Self()
 	subscriberPolicies := make(map[string]*PcfSubscriberPolicyData)
-	dbNetwork, err := pcfSelf.DbInstance.GetNetwork()
-	if err != nil {
-		logger.PcfLog.Warnf("Failed to get network slice names: %+v", err)
-		return subscriberPolicies
-	}
-	pccPolicyId := fmt.Sprintf("%d%s", dbNetwork.Sst, dbNetwork.Sd)
+	pccPolicyId := fmt.Sprintf("%d%s", config.Sst, config.Sd)
 	profiles, err := pcfSelf.DbInstance.ListProfiles()
 	if err != nil {
 		logger.PcfLog.Warnf("Failed to get profiles: %+v", err)
