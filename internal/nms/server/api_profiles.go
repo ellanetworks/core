@@ -202,18 +202,11 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		network, err := dbInstance.GetNetwork()
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Network not found")
-			return
-		}
-
 		for _, imsi := range createProfileParams.Imsis {
 			ueId := "imsi-" + imsi
-			plmnId := network.Mcc + network.Mnc
 			bitRateUplink := convertToString(uint64(createProfileParams.BitrateUplink))
 			bitRateDownlink := convertToString(uint64(createProfileParams.BitrateDownlink))
-			err = dbInstance.UpdateSubscriberProfile(ueId, plmnId, bitRateUplink, bitRateDownlink, createProfileParams.Var5qi)
+			err = dbInstance.UpdateSubscriberProfile(ueId, bitRateUplink, bitRateDownlink, createProfileParams.Var5qi)
 			if err != nil {
 				writeError(c.Writer, http.StatusBadRequest, "Failed to update subscriber")
 				return
@@ -322,18 +315,12 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			logger.NmsLog.Warnln(err)
 			return
 		}
-		network, err := dbInstance.GetNetwork()
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Network not found")
-			return
-		}
 
 		for _, imsi := range dimsis {
 			ueId := "imsi-" + imsi
-			plmnId := network.Mcc + network.Mnc
 			bitRateUplink := convertToString(uint64(updateProfileParams.BitrateUplink))
 			bitRateDownlink := convertToString(uint64(updateProfileParams.BitrateDownlink))
-			err = dbInstance.UpdateSubscriberProfile(ueId, plmnId, bitRateUplink, bitRateDownlink, updateProfileParams.Var5qi)
+			err = dbInstance.UpdateSubscriberProfile(ueId, bitRateUplink, bitRateDownlink, updateProfileParams.Var5qi)
 			if err != nil {
 				logger.NmsLog.Warnln(err)
 			}
@@ -411,7 +398,7 @@ func deleteProfileConfig(dbInstance *db.Database, dbProfile *db.Profile) {
 	}
 	for _, imsi := range dimsis {
 		ueId := "imsi-" + imsi
-		err = dbInstance.UpdateSubscriberProfile(ueId, "", "", "", 0)
+		err = dbInstance.UpdateSubscriberProfile(ueId, "", "", 0)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 		}

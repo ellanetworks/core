@@ -10,7 +10,6 @@ import (
 
 type CreateSubscriberParams struct {
 	UeId           string `json:"ueId"`
-	PlmnID         string `json:"plmnID"`
 	OPc            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequenceNumber"`
@@ -18,7 +17,6 @@ type CreateSubscriberParams struct {
 
 type GetSubscriberResponse struct {
 	UeId            string `json:"ueId"`
-	PlmnID          string `json:"plmnID"`
 	Opc             string `json:"opc"`
 	SequenceNumber  string `json:"sequenceNumber"`
 	Key             string `json:"key"`
@@ -40,8 +38,7 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 		subscribers := make([]GetSubscriberResponse, 0)
 		for _, dbSubscriber := range dbSubscribers {
 			subscribers = append(subscribers, GetSubscriberResponse{
-				PlmnID: dbSubscriber.PlmnID,
-				UeId:   dbSubscriber.UeId,
+				UeId: dbSubscriber.UeId,
 			})
 		}
 		err = writeResponse(c.Writer, subscribers, http.StatusOK)
@@ -68,7 +65,6 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		subscriber := GetSubscriberResponse{
 			UeId:            dbSubscriber.UeId,
-			PlmnID:          dbSubscriber.PlmnID,
 			Opc:             dbSubscriber.OpcValue,
 			SequenceNumber:  dbSubscriber.SequenceNumber,
 			Key:             dbSubscriber.PermanentKeyValue,
@@ -98,10 +94,6 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Missing ueId parameter")
 			return
 		}
-		if createSubscriberParams.PlmnID == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing plmnID parameter")
-			return
-		}
 		if createSubscriberParams.SequenceNumber == "" {
 			writeError(c.Writer, http.StatusBadRequest, "Missing sequenceNumber parameter")
 			return
@@ -122,7 +114,6 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		newSubscriber := &db.Subscriber{
 			UeId:              createSubscriberParams.UeId,
-			PlmnID:            createSubscriberParams.PlmnID,
 			SequenceNumber:    createSubscriberParams.SequenceNumber,
 			PermanentKeyValue: createSubscriberParams.Key,
 			OpcValue:          createSubscriberParams.OPc,

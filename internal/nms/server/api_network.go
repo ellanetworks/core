@@ -126,13 +126,10 @@ func UpdateNetwork(dbInstance *db.Database) gin.HandlerFunc {
 				continue
 			}
 			for _, imsi := range imsis {
-				mcc := updateNetworkParams.Mcc
-				mnc := updateNetworkParams.Mnc
 				ueId := "imsi-" + imsi
-				plmnID := mcc + mnc
 				bitRateUplink := convertToString(uint64(dbProfile.BitrateUplink))
 				bitRateDownlink := convertToString(uint64(dbProfile.BitrateDownlink))
-				err = dbInstance.UpdateSubscriberProfile(ueId, plmnID, bitRateUplink, bitRateDownlink, dbProfile.Var5qi)
+				err = dbInstance.UpdateSubscriberProfile(ueId, bitRateUplink, bitRateDownlink, dbProfile.Var5qi)
 				if err != nil {
 					logger.NmsLog.Warnf("Could not update subscriber %v", ueId)
 					continue

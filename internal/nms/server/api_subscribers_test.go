@@ -17,7 +17,6 @@ type CreateSubscriberSuccessResponse struct {
 
 type GetSubscriberResponseResult struct {
 	UeId           string `json:"ueId"`
-	PlmnID         string `json:"plmnID"`
 	OPc            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequenceNumber"`
@@ -30,7 +29,6 @@ type GetSubscriberResponse struct {
 
 type CreateSubscriberParams struct {
 	UeId           string `json:"ueId"`
-	PlmnID         string `json:"plmnID"`
 	OPc            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequenceNumber"`
@@ -137,7 +135,6 @@ func TestSubscribersEndToEnd(t *testing.T) {
 	t.Run("1. Create subscriber", func(t *testing.T) {
 		createSubscriberParams := &CreateSubscriberParams{
 			UeId:           UeId,
-			PlmnID:         "123456",
 			OPc:            "123456",
 			Key:            "123",
 			SequenceNumber: "123456",
@@ -168,9 +165,6 @@ func TestSubscribersEndToEnd(t *testing.T) {
 		if response.Result.UeId != UeId {
 			t.Fatalf("expected ueId %s, got %s", UeId, response.Result.UeId)
 		}
-		if response.Result.PlmnID != "123456" {
-			t.Fatalf("expected plmnID 123456, got %s", response.Result.PlmnID)
-		}
 		if response.Result.OPc != "123456" {
 			t.Fatalf("expected opc 123456, got %s", response.Result.OPc)
 		}
@@ -199,9 +193,7 @@ func TestSubscribersEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Create subscriber - no ueId", func(t *testing.T) {
-		createSubscriberParams := &CreateSubscriberParams{
-			PlmnID: "1234",
-		}
+		createSubscriberParams := &CreateSubscriberParams{}
 		statusCode, response, err := createSubscriber(ts.URL, client, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)

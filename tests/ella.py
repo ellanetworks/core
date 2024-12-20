@@ -21,7 +21,6 @@ JSON_HEADER = {"Content-Type": "application/json"}
 
 SUBSCRIBER_CONFIG = {
     "UeId": "PLACEHOLDER",
-    "plmnId": "00101",
     "opc": "981d464c7c52eb6e5036234984ad0bcf",
     "key": "5122250214c33e723a5dd523fc145fc0",
     "sequenceNumber": "16f3b3f70fc2",
@@ -44,8 +43,6 @@ PROFILE_CONFIG = {
 
 
 NETWORK_CONFIG = {
-    "sst": 1,
-    "sd": "102030",
     "mcc": "001",
     "mnc": "01",
     "gNodeBs": [{"name": "dev2-gnbsim", "tac": 1}],

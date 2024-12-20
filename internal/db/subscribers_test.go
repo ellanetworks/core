@@ -30,7 +30,6 @@ func TestSubscribersEndToEnd(t *testing.T) {
 
 	subscriber := &db.Subscriber{
 		UeId:              "imsi-001010100007487",
-		PlmnID:            "123456",
 		SequenceNumber:    "123456",
 		PermanentKeyValue: "123456",
 		OpcValue:          "123456",
@@ -55,9 +54,6 @@ func TestSubscribersEndToEnd(t *testing.T) {
 	if retrievedSubscriber.UeId != subscriber.UeId {
 		t.Fatalf("The subscriber from the database doesn't match the subscriber that was given")
 	}
-	if retrievedSubscriber.PlmnID != subscriber.PlmnID {
-		t.Fatalf("The PLMN ID from the database doesn't match the PLMN ID that was given")
-	}
 	if retrievedSubscriber.SequenceNumber != subscriber.SequenceNumber {
 		t.Fatalf("The sequence number from the database doesn't match the sequence number that was given")
 	}
@@ -81,16 +77,13 @@ func TestSubscribersEndToEnd(t *testing.T) {
 		t.Fatalf("Sequence numbers don't match: %s", retrievedSubscriber.SequenceNumber)
 	}
 
-	if err = database.UpdateSubscriberProfile(retrievedSubscriber.UeId, "2314", "200000", "200000", 9); err != nil {
+	if err = database.UpdateSubscriberProfile(retrievedSubscriber.UeId, "200000", "200000", 9); err != nil {
 		t.Fatalf("Couldn't complete Update: %s", err)
 	}
 
 	retrievedSubscriber, err = database.GetSubscriber(subscriber.UeId)
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
-	}
-	if retrievedSubscriber.PlmnID != "2314" {
-		t.Fatalf("The PLMN ID from the database doesn't match the PLMN ID that was given")
 	}
 	if retrievedSubscriber.BitRateUplink != "200000" {
 		t.Fatalf("The uplink bitrate from the database doesn't match the uplink bitrate that was given")

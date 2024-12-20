@@ -16,9 +16,6 @@ const QueryCreateSubscribersTable = `
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
 		ueId TEXT NOT NULL,
-		plmnID TEXT NOT NULL,
-		sst INTEGER,
-		sd TEXT,
 
 		sequenceNumber TEXT NOT NULL,
 		permanentKeyValue TEXT NOT NULL,
@@ -33,17 +30,16 @@ const QueryCreateSubscribersTable = `
 const (
 	listSubscribersStmt            = "SELECT &Subscriber.* from %s"
 	getSubscriberStmt              = "SELECT &Subscriber.* from %s WHERE ueId==$Subscriber.ueId"
-	createSubscriberStmt           = "INSERT INTO %s (ueId, plmnID, sequenceNumber, permanentKeyValue, opcValue) VALUES ($Subscriber.ueId, $Subscriber.plmnID, $Subscriber.sequenceNumber, $Subscriber.permanentKeyValue, $Subscriber.opcValue)"
+	createSubscriberStmt           = "INSERT INTO %s (ueId, sequenceNumber, permanentKeyValue, opcValue) VALUES ($Subscriber.ueId, $Subscriber.sequenceNumber, $Subscriber.permanentKeyValue, $Subscriber.opcValue)"
 	updateSubscriberSequenceNumber = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE ueId==$Subscriber.ueId"
-	updateSubscriberProfile        = "UPDATE %s SET plmnID=$Subscriber.plmnID, uplink=$Subscriber.uplink, downlink=$Subscriber.downlink, var5qi=$Subscriber.var5qi, priorityLevel=$Subscriber.priorityLevel WHERE ueId==$Subscriber.ueId"
+	updateSubscriberProfile        = "UPDATE %s SET uplink=$Subscriber.uplink, downlink=$Subscriber.downlink, var5qi=$Subscriber.var5qi, priorityLevel=$Subscriber.priorityLevel WHERE ueId==$Subscriber.ueId"
 	deleteSubscriberStmt           = "DELETE FROM %s WHERE ueId==$Subscriber.ueId"
 )
 
 type Subscriber struct {
 	ID int `db:"id"`
 
-	UeId   string `db:"ueId"`
-	PlmnID string `db:"plmnID"`
+	UeId string `db:"ueId"`
 
 	SequenceNumber    string `db:"sequenceNumber"`
 	PermanentKeyValue string `db:"permanentKeyValue"`
@@ -118,7 +114,7 @@ func (db *Database) UpdateSubscriberSequenceNumber(ueID string, sequenceNumber s
 	return err
 }
 
-func (db *Database) UpdateSubscriberProfile(ueID string, plmnId string, bitrateUplink string, bitrateDownlink string, var5qi int32) error {
+func (db *Database) UpdateSubscriberProfile(ueID string, bitrateUplink string, bitrateDownlink string, var5qi int32) error {
 	subscriber, err := db.GetSubscriber(ueID)
 	if err != nil {
 		return fmt.Errorf("subscriber with ueID %s not found", ueID)
@@ -129,7 +125,6 @@ func (db *Database) UpdateSubscriberProfile(ueID string, plmnId string, bitrateU
 	}
 	row := Subscriber{
 		UeId:            ueID,
-		PlmnID:          plmnId,
 		BitRateUplink:   bitrateUplink,
 		BitRateDownlink: bitrateDownlink,
 		Var5qi:          var5qi,
