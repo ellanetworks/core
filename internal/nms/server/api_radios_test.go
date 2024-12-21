@@ -9,7 +9,10 @@ import (
 	"testing"
 )
 
-const RadioName = "gnb-001"
+const (
+	RadioName = "gnb-001"
+	Tac       = "001"
+)
 
 type GetRadioResponseResult struct {
 	Name string `json:"name"`
@@ -115,7 +118,7 @@ func deleteRadio(url string, client *http.Client, name string) (int, *DeleteRadi
 // This is an end-to-end test for the radios handlers.
 // The order of the tests is important, as some tests depend on
 // the state of the server after previous tests.
-func TestRadiosEndToEnd(t *testing.T) {
+func TestAPIRadiosEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
 	ts, err := setupServer(db_path)
@@ -128,7 +131,7 @@ func TestRadiosEndToEnd(t *testing.T) {
 	t.Run("1. Create radio", func(t *testing.T) {
 		createRadioParams := &CreateRadioParams{
 			Name: RadioName,
-			Tac:  "123456",
+			Tac:  Tac,
 		}
 		statusCode, response, err := createRadio(ts.URL, client, createRadioParams)
 		if err != nil {
@@ -156,8 +159,8 @@ func TestRadiosEndToEnd(t *testing.T) {
 		if response.Result.Name != RadioName {
 			t.Fatalf("expected name %s, got %s", RadioName, response.Result.Name)
 		}
-		if response.Result.Tac != "123456" {
-			t.Fatalf("expected tac 123456, got %s", response.Result.Tac)
+		if response.Result.Tac != Tac {
+			t.Fatalf("expected tac %s, got %s", Tac, response.Result.Tac)
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -179,7 +182,7 @@ func TestRadiosEndToEnd(t *testing.T) {
 
 	t.Run("4. Create radio - no name", func(t *testing.T) {
 		createRadioParams := &CreateRadioParams{
-			Tac: "123456",
+			Tac: Tac,
 		}
 		statusCode, response, err := createRadio(ts.URL, client, createRadioParams)
 		if err != nil {
@@ -221,4 +224,55 @@ func TestRadiosEndToEnd(t *testing.T) {
 			t.Fatalf("expected error %q, got %q", "Radio not found", response.Error)
 		}
 	})
+}
+
+func TestCreateRadioInvalidInput(t *testing.T) {
+	tempDir := t.TempDir()
+	db_path := filepath.Join(tempDir, "db.sqlite3")
+	ts, err := setupServer(db_path)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	tests := []struct {
+		name  string
+		tac   string
+		error string
+	}{
+		{
+			name:  "my-gnb-001",
+			tac:   "001123",
+			error: "Invalid TAC format. Must be a 3-digit number",
+		},
+		{
+			name:  "my-gnb-002",
+			tac:   "00",
+			error: "Invalid TAC format. Must be a 3-digit number",
+		},
+		{
+			name:  strings.Repeat("a", 257),
+			tac:   "001",
+			error: "Invalid name format. Must be less than 256 characters",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			createRadioParams := &CreateRadioParams{
+				Name: tt.name,
+				Tac:  tt.tac,
+			}
+			statusCode, response, err := createRadio(ts.URL, client, createRadioParams)
+			if err != nil {
+				t.Fatalf("couldn't create radio: %s", err)
+			}
+			if statusCode != http.StatusBadRequest {
+				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+			}
+			if response.Error != tt.error {
+				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
+			}
+		})
+	}
 }

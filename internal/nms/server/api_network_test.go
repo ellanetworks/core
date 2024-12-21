@@ -9,21 +9,9 @@ import (
 	"testing"
 )
 
-type GNodeB struct {
-	Name string `json:"name,omitempty"`
-	Tac  int32  `json:"tac,omitempty"`
-}
-
-type UPF struct {
-	Name string `json:"name,omitempty"`
-	Port int    `json:"port,omitempty"`
-}
-
 type GetNetworkResponseResult struct {
-	Mcc     string   `json:"mcc,omitempty"`
-	Mnc     string   `json:"mnc,omitempty"`
-	GNodeBs []GNodeB `json:"gNodeBs"`
-	Upf     UPF      `json:"upf,omitempty"`
+	Mcc string `json:"mcc,omitempty"`
+	Mnc string `json:"mnc,omitempty"`
 }
 
 type GetNetworkResponse struct {
@@ -32,10 +20,8 @@ type GetNetworkResponse struct {
 }
 
 type UpdateNetworkParams struct {
-	Mcc     string   `json:"mcc,omitempty"`
-	Mnc     string   `json:"mnc,omitempty"`
-	GNodeBs []GNodeB `json:"gNodeBs"`
-	Upf     UPF      `json:"upf,omitempty"`
+	Mcc string `json:"mcc,omitempty"`
+	Mnc string `json:"mnc,omitempty"`
 }
 
 type UpdateNetworkResponseResult struct {
@@ -110,16 +96,6 @@ func TestApiNetworksEndToEnd(t *testing.T) {
 		updateNetworkParams := &UpdateNetworkParams{
 			Mcc: "123",
 			Mnc: "456",
-			GNodeBs: []GNodeB{
-				{
-					Name: "gnb-001",
-					Tac:  12345,
-				},
-			},
-			Upf: UPF{
-				Name: "upf-001",
-				Port: 1234,
-			},
 		}
 		statusCode, response, err := updateNetwork(ts.URL, client, updateNetworkParams)
 		if err != nil {
@@ -149,21 +125,6 @@ func TestApiNetworksEndToEnd(t *testing.T) {
 		}
 		if response.Result.Mnc != "456" {
 			t.Fatalf("expected mnc %s, got %s", "456", response.Result.Mnc)
-		}
-		if len(response.Result.GNodeBs) != 1 {
-			t.Fatalf("expected 1 gNodeB, got %d", len(response.Result.GNodeBs))
-		}
-		if response.Result.GNodeBs[0].Name != "gnb-001" {
-			t.Fatalf("expected gnb-001, got %s", response.Result.GNodeBs[0].Name)
-		}
-		if response.Result.GNodeBs[0].Tac != 12345 {
-			t.Fatalf("expected tac 12345, got %d", response.Result.GNodeBs[0].Tac)
-		}
-		if response.Result.Upf.Name != "upf-001" {
-			t.Fatalf("expected upf-001, got %s", response.Result.Upf.Name)
-		}
-		if response.Result.Upf.Port != 1234 {
-			t.Fatalf("expected port 1234, got %d", response.Result.Upf.Port)
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)

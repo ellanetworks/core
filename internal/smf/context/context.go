@@ -130,13 +130,13 @@ func SMF_Self() *SMFContext {
 	return &smfContext
 }
 
-func UpdateSMFContext(network *nmsModels.NetworkSlice, profiles []nmsModels.Profile) {
+func UpdateSMFContext(network *nmsModels.Network, profiles []nmsModels.Profile, radios []nmsModels.Radio) {
 	UpdateSnssaiInfo(network, profiles)
-	UpdateUserPlaneInformation(network, profiles)
+	UpdateUserPlaneInformation(profiles, radios)
 	logger.SmfLog.Infof("Updated SMF context")
 }
 
-func UpdateSnssaiInfo(network *nmsModels.NetworkSlice, profiles []nmsModels.Profile) {
+func UpdateSnssaiInfo(network *nmsModels.Network, profiles []nmsModels.Profile) {
 	smfSelf := SMF_Self()
 	snssaiInfoList := make([]SnssaiSmfInfo, 0)
 	snssaiInfo := SnssaiSmfInfo{
@@ -152,7 +152,7 @@ func UpdateSnssaiInfo(network *nmsModels.NetworkSlice, profiles []nmsModels.Prof
 	}
 
 	for _, profile := range profiles {
-		dnn := profile.Dnn
+		dnn := config.DNN
 		dnsPrimary := profile.DnsPrimary
 		mtu := profile.Mtu
 		alloc, err := GetOrCreateIPAllocator(dnn, profile.UeIpPool)
@@ -195,9 +195,13 @@ func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
 	return alloc, nil
 }
 
-func BuildUserPlaneInformationFromConfig(network *nmsModels.NetworkSlice, profiles []nmsModels.Profile) *UserPlaneInformation {
+func BuildUserPlaneInformationFromConfig(profiles []nmsModels.Profile, radios []nmsModels.Radio) *UserPlaneInformation {
 	if len(profiles) == 0 {
-		logger.SmfLog.Warn("Profiles is empty")
+		logger.SmfLog.Warn("Profiles not found")
+		return nil
+	}
+	if len(radios) == 0 {
+		logger.SmfLog.Debugf("Radios not found")
 		return nil
 	}
 	intfUpfInfoItem := factory.InterfaceUpfInfoItem{
@@ -208,7 +212,7 @@ func BuildUserPlaneInformationFromConfig(network *nmsModels.NetworkSlice, profil
 	ifaces := []factory.InterfaceUpfInfoItem{}
 	ifaces = append(ifaces, intfUpfInfoItem)
 
-	upfNodeID := NewNodeID(network.Upf.Name)
+	upfNodeID := NewNodeID(config.UpfName)
 	upf := NewUPF(upfNodeID, ifaces)
 	upf.SNssaiInfos = []SnssaiUPFInfo{
 		{
@@ -224,14 +228,14 @@ func BuildUserPlaneInformationFromConfig(network *nmsModels.NetworkSlice, profil
 		},
 	}
 
-	upf.Port = uint16(network.Upf.Port)
+	upf.Port = config.UpfPort
 
 	upfNode := &UPNode{
 		Type:   UPNODE_UPF,
 		UPF:    upf,
 		NodeID: *upfNodeID,
 		Links:  make([]*UPNode, 0),
-		Port:   uint16(network.Upf.Port),
+		Port:   config.UpfPort,
 		Dnn:    config.DNN,
 	}
 	gnbNode := &UPNode{
@@ -249,22 +253,19 @@ func BuildUserPlaneInformationFromConfig(network *nmsModels.NetworkSlice, profil
 		AccessNetwork:        make(map[string]*UPNode),
 		DefaultUserPlanePath: make(map[string][]*UPNode),
 	}
-	if len(network.GNodeBs) == 0 {
-		logger.SmfLog.Debugf("GNodeBs is empty")
-		return nil
-	}
-	gnbName := network.GNodeBs[0].Name
+
+	gnbName := radios[0].Name
 	userPlaneInformation.AccessNetwork[gnbName] = gnbNode
 	userPlaneInformation.UPNodes[gnbName] = gnbNode
-	userPlaneInformation.UPNodes[network.Upf.Name] = upfNode
+	userPlaneInformation.UPNodes[config.UpfName] = upfNode
 	return userPlaneInformation
 }
 
 // Right now we only support 1 UPF
 // This function should be edited when we decide to support multiple UPFs
-func UpdateUserPlaneInformation(networkSlices *nmsModels.NetworkSlice, profiles []nmsModels.Profile) {
+func UpdateUserPlaneInformation(profiles []nmsModels.Profile, radios []nmsModels.Radio) {
 	smfSelf := SMF_Self()
-	configUserPlaneInfo := BuildUserPlaneInformationFromConfig(networkSlices, profiles)
+	configUserPlaneInfo := BuildUserPlaneInformationFromConfig(profiles, radios)
 	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)
 	if same {
 		logger.SmfLog.Info("Context user plane info matches config")

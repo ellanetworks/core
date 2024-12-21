@@ -34,18 +34,10 @@ func TestDbNetworksEndToEnd(t *testing.T) {
 	if retrievedNetwork.Mnc != "01" {
 		t.Fatalf("The mnc from the database doesn't match the expected default")
 	}
-	if retrievedNetwork.GNodeBs != "" {
-		t.Fatalf("The gNodeBs from the database doesn't match the expected default")
-	}
-	if retrievedNetwork.Upf != "" {
-		t.Fatalf("The upf from the database doesn't match the expected default")
-	}
 
 	network := &db.Network{
-		Mcc:     "123",
-		Mnc:     "456",
-		GNodeBs: "1",
-		Upf:     "1",
+		Mcc: "123",
+		Mnc: "456",
 	}
 	err = database.UpdateNetwork(network)
 	if err != nil {

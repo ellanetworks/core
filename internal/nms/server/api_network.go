@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/models"
@@ -22,23 +21,14 @@ type GNodeB struct {
 	Tac  int32  `json:"tac,omitempty"`
 }
 
-type UPF struct {
-	Name string `json:"name,omitempty"`
-	Port int    `json:"port,omitempty"`
-}
-
 type UpdateNetworkParams struct {
-	Mcc     string   `json:"mcc,omitempty"`
-	Mnc     string   `json:"mnc,omitempty"`
-	GNodeBs []GNodeB `json:"gNodeBs"`
-	Upf     UPF      `json:"upf,omitempty"`
+	Mcc string `json:"mcc,omitempty"`
+	Mnc string `json:"mnc,omitempty"`
 }
 
 type GetNetworkResponse struct {
-	Mcc     string   `json:"mcc,omitempty"`
-	Mnc     string   `json:"mnc,omitempty"`
-	GNodeBs []GNodeB `json:"gNodeBs"`
-	Upf     UPF      `json:"upf,omitempty"`
+	Mcc string `json:"mcc,omitempty"`
+	Mnc string `json:"mnc,omitempty"`
 }
 
 func GetNetwork(dbInstance *db.Database) gin.HandlerFunc {
@@ -49,32 +39,10 @@ func GetNetwork(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusNotFound, "Network not found")
 			return
 		}
-		dbGnodeBs, err := dbNetwork.GetGNodeBs()
-		if err != nil {
-			logger.NmsLog.Warnln(err)
-		}
-		gNodeBs := make([]GNodeB, 0)
-		for _, dbRadio := range dbGnodeBs {
-			radio := GNodeB{
-				Name: dbRadio.Name,
-				Tac:  dbRadio.Tac,
-			}
-			gNodeBs = append(gNodeBs, radio)
-		}
-		dbUpf, err := dbNetwork.GetUpf()
-		if err != nil {
-			logger.NmsLog.Warnln(err)
-		}
-		upf := UPF{}
-		if dbUpf != nil {
-			upf.Name = dbUpf.Name
-			upf.Port = dbUpf.Port
-		}
+
 		network := &GetNetworkResponse{
-			Mcc:     dbNetwork.Mcc,
-			Mnc:     dbNetwork.Mnc,
-			GNodeBs: gNodeBs,
-			Upf:     upf,
+			Mcc: dbNetwork.Mcc,
+			Mnc: dbNetwork.Mnc,
 		}
 
 		err = writeResponse(c.Writer, network, http.StatusOK)
@@ -101,47 +69,16 @@ func UpdateNetwork(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "mnc is missing")
 			return
 		}
-		if updateNetworkParams.Upf.Name == "" {
-			writeError(c.Writer, http.StatusBadRequest, "upf name is missing")
-			return
-		}
-		if updateNetworkParams.Upf.Port == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "upf port is missing")
-			return
-		}
 
 		dbNetwork := &db.Network{
 			Mcc: updateNetworkParams.Mcc,
 			Mnc: updateNetworkParams.Mnc,
 		}
-		err = dbNetwork.SetUpf(db.UPF{
-			Name: updateNetworkParams.Upf.Name,
-			Port: updateNetworkParams.Upf.Port,
-		})
-		if err != nil {
-			logger.NmsLog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to create network")
-			return
-		}
 
-		dbGnodeBs := make([]db.GNodeB, 0)
-		for _, radio := range updateNetworkParams.GNodeBs {
-			dbRadio := db.GNodeB{
-				Name: radio.Name,
-				Tac:  radio.Tac,
-			}
-			dbGnodeBs = append(dbGnodeBs, dbRadio)
-		}
-		err = dbNetwork.SetGNodeBs(dbGnodeBs)
-		if err != nil {
-			logger.NmsLog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to create network")
-			return
-		}
 		err = dbInstance.UpdateNetwork(dbNetwork)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to create network")
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to update network")
 			return
 		}
 		updateSMF(dbInstance)
@@ -161,31 +98,9 @@ func updateSMF(dbInstance *db.Database) {
 		logger.NmsLog.Warnln(err)
 		return
 	}
-	network := &models.NetworkSlice{
-		Mcc:     dbNetwork.Mcc,
-		Mnc:     dbNetwork.Mnc,
-		GNodeBs: make([]models.GNodeB, 0),
-	}
-	dbGnodeBs, err := dbNetwork.GetGNodeBs()
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-		return
-	}
-	for _, dbRadio := range dbGnodeBs {
-		radio := models.GNodeB{
-			Name: dbRadio.Name,
-			Tac:  dbRadio.Tac,
-		}
-		network.GNodeBs = append(network.GNodeBs, radio)
-	}
-	dbUpf, err := dbNetwork.GetUpf()
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-		return
-	}
-	if dbUpf != nil {
-		network.Upf.Name = dbUpf.Name
-		network.Upf.Port = dbUpf.Port
+	network := &models.Network{
+		Mcc: dbNetwork.Mcc,
+		Mnc: dbNetwork.Mnc,
 	}
 
 	profiles := make([]models.Profile, 0)
@@ -197,7 +112,6 @@ func updateSMF(dbInstance *db.Database) {
 	for _, dbProfile := range dbProfiles {
 		profile := models.Profile{
 			Name:            dbProfile.Name,
-			Dnn:             config.DNN,
 			UeIpPool:        dbProfile.UeIpPool,
 			DnsPrimary:      dbProfile.DnsPrimary,
 			DnsSecondary:    dbProfile.DnsSecondary,
@@ -208,5 +122,18 @@ func updateSMF(dbInstance *db.Database) {
 		}
 		profiles = append(profiles, profile)
 	}
-	context.UpdateSMFContext(network, profiles)
+	dbRadios, err := dbInstance.ListRadios()
+	if err != nil {
+		logger.NmsLog.Warnln(err)
+		return
+	}
+	radios := make([]models.Radio, 0)
+	for _, dbRadio := range dbRadios {
+		radio := models.Radio{
+			Name: dbRadio.Name,
+			Tac:  dbRadio.Tac,
+		}
+		radios = append(radios, radio)
+	}
+	context.UpdateSMFContext(network, profiles, radios)
 }

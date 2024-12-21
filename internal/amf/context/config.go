@@ -1,8 +1,6 @@
 package context
 
 import (
-	"fmt"
-
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/factory"
 	"github.com/yeastengine/ella/internal/config"
@@ -23,14 +21,14 @@ func GetSupportTaiList() []models.Tai {
 		Mcc: dbNetwork.Mcc,
 		Mnc: dbNetwork.Mnc,
 	}
-	gnbs, err := dbNetwork.GetGNodeBs()
+	radios, err := amfSelf.DbInstance.ListRadios()
 	if err != nil {
-		logger.AmfLog.Warnf("Failed to get gNodeBs: %s", err)
+		logger.AmfLog.Warnf("Failed to get radios: %s", err)
 		return tais
 	}
 	tai := models.Tai{
 		PlmnId: &plmnID,
-		Tac:    fmt.Sprintf("%06x", gnbs[0].Tac),
+		Tac:    radios[0].Tac,
 	}
 	tais = append(tais, tai)
 	return tais

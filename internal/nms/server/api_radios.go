@@ -19,6 +19,19 @@ type GetRadioParams struct {
 	Tac  string `json:"tac"`
 }
 
+// TAC is a 24-bit identifier
+func isValidTac(tac string) bool {
+	if len(tac) != 3 {
+		return false
+	}
+	_, err := strconv.Atoi(tac)
+	return err == nil
+}
+
+func isValidRadioName(name string) bool {
+	return len(name) > 0 && len(name) < 256
+}
+
 func ListRadios(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
@@ -33,7 +46,7 @@ func ListRadios(dbInstance *db.Database) gin.HandlerFunc {
 		for _, radio := range dbRadios {
 			radios = append(radios, GetRadioParams{
 				Name: radio.Name,
-				Tac:  strconv.Itoa(radio.Tac),
+				Tac:  radio.Tac,
 			})
 		}
 		err = writeResponse(c.Writer, radios, http.StatusOK)
@@ -61,7 +74,7 @@ func GetRadio(dbInstance *db.Database) gin.HandlerFunc {
 
 		radio := GetRadioParams{
 			Name: dbRadio.Name,
-			Tac:  strconv.Itoa(dbRadio.Tac),
+			Tac:  dbRadio.Tac,
 		}
 		err = writeResponse(c.Writer, radio, http.StatusOK)
 		if err != nil {
@@ -88,21 +101,23 @@ func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "tac is missing")
 			return
 		}
+		if !isValidRadioName(newRadio.Name) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid name format. Must be less than 256 characters")
+			return
+		}
+		if !isValidTac(newRadio.Tac) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid TAC format. Must be a 3-digit number")
+			return
+		}
 		_, err = dbInstance.GetRadio(newRadio.Name)
 		if err == nil {
 			writeError(c.Writer, http.StatusBadRequest, "radio already exists")
 			return
 		}
-		logger.NmsLog.Infof("Received radio %v", newRadio.Name)
 
-		tacInt, err := strconv.Atoi(newRadio.Tac)
-		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
-			return
-		}
 		dbRadio := &db.Radio{
 			Name: newRadio.Name,
-			Tac:  tacInt,
+			Tac:  newRadio.Tac,
 		}
 		err = dbInstance.CreateRadio(dbRadio)
 		if err != nil {

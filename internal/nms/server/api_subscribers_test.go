@@ -271,7 +271,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 }
 
-func TestCreateSubscribersInvalidInput(t *testing.T) {
+func TestCreateSubscriberInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
 	ts, err := setupServer(db_path)

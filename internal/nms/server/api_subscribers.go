@@ -42,16 +42,9 @@ func isImsiValid(imsi string, dbInstance *db.Database) bool {
 	return true
 }
 
-func isHexString(input string, length int) bool {
-	if len(input) != length {
-		return false
-	}
-	for _, c := range input {
-		if !(('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')) {
-			return false
-		}
-	}
-	return true
+func isHexString(input string) bool {
+	_, err := hex.DecodeString(input)
+	return err == nil
 }
 
 func isSequenceNumberValid(sequenceNumber string) bool {
@@ -157,11 +150,11 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid sequenceNumber. Must be a 6-byte hexadecimal string.")
 			return
 		}
-		if !isHexString(createSubscriberParams.Key, 32) {
+		if !isHexString(createSubscriberParams.Key) {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid key format. Must be a 32-character hexadecimal string.")
 			return
 		}
-		if !isHexString(createSubscriberParams.OPc, 32) {
+		if !isHexString(createSubscriberParams.OPc) {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid OPc format. Must be a 32-character hexadecimal string.")
 			return
 		}

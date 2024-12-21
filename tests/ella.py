@@ -43,8 +43,6 @@ PROFILE_CONFIG = {
 NETWORK_CONFIG = {
     "mcc": "001",
     "mnc": "01",
-    "gNodeBs": [{"name": "dev2-gnbsim", "tac": 1}],
-    "upf": {"name": "0.0.0.0", "port": 8806},
 }
 
 
@@ -84,7 +82,7 @@ class Ella:
         json_response = response.json()
         return json_response
 
-    def create_radio(self, name: str, tac: int) -> None:
+    def create_radio(self, name: str, tac: str) -> None:
         """Create a radio in the NMS."""
         create_radio_params = CreateRadioParams(name=name, tac=str(tac))
         self._make_request("POST", GNB_CONFIG_URL, data=asdict(create_radio_params))

@@ -3,7 +3,6 @@ package models
 type Profile struct {
 	Name string
 
-	Dnn             string
 	UeIpPool        string
 	DnsPrimary      string
 	DnsSecondary    string
