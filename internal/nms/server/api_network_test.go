@@ -9,6 +9,11 @@ import (
 	"testing"
 )
 
+const (
+	Mcc = "123"
+	Mnc = "456"
+)
+
 type GetNetworkResponseResult struct {
 	Mcc string `json:"mcc,omitempty"`
 	Mnc string `json:"mnc,omitempty"`
@@ -146,4 +151,77 @@ func TestApiNetworksEndToEnd(t *testing.T) {
 			t.Fatalf("expected error %q, got %q", "mnc is missing", response.Error)
 		}
 	})
+}
+
+func TestUpdateNetworkInvalidInput(t *testing.T) {
+	tempDir := t.TempDir()
+	db_path := filepath.Join(tempDir, "db.sqlite3")
+	ts, err := setupServer(db_path)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	tests := []struct {
+		testName string
+		mcc      string
+		mnc      string
+		error    string
+	}{
+		{
+			testName: "Invalid mcc - strings instead of numbers",
+			mcc:      "abc",
+			mnc:      Mnc,
+			error:    "Invalid mcc format. Must be a 3-decimal digit.",
+		},
+		{
+			testName: "Invalid mcc - too long",
+			mcc:      "1234",
+			mnc:      Mnc,
+			error:    "Invalid mcc format. Must be a 3-decimal digit.",
+		},
+		{
+			testName: "Invalid mcc - too short",
+			mcc:      "12",
+			mnc:      Mnc,
+			error:    "Invalid mcc format. Must be a 3-decimal digit.",
+		},
+		{
+			testName: "Invalid mnc - strings instead of numbers",
+			mcc:      Mcc,
+			mnc:      "abc",
+			error:    "Invalid mnc format. Must be a 2 or 3-decimal digit.",
+		},
+		{
+			testName: "Invalid mnc - too long",
+			mcc:      Mcc,
+			mnc:      "1234",
+			error:    "Invalid mnc format. Must be a 2 or 3-decimal digit.",
+		},
+		{
+			testName: "Invalid mnc - too short",
+			mcc:      Mcc,
+			mnc:      "1",
+			error:    "Invalid mnc format. Must be a 2 or 3-decimal digit.",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			updateNetworkParams := &UpdateNetworkParams{
+				Mcc: tt.mcc,
+				Mnc: tt.mnc,
+			}
+			statusCode, response, err := updateNetwork(ts.URL, client, updateNetworkParams)
+			if err != nil {
+				t.Fatalf("couldn't update network: %s", err)
+			}
+			if statusCode != http.StatusBadRequest {
+				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+			}
+			if response.Error != tt.error {
+				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
+			}
+		})
+	}
 }

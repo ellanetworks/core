@@ -31,6 +31,32 @@ type GetNetworkResponse struct {
 	Mnc string `json:"mnc,omitempty"`
 }
 
+// Mcc is a 3-decimal digit
+func isValidMcc(mcc string) bool {
+	if len(mcc) != 3 {
+		return false
+	}
+	for _, c := range mcc {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// Mnc is a 2 or 3-decimal digit
+func isValidMnc(mnc string) bool {
+	if len(mnc) != 2 && len(mnc) != 3 {
+		return false
+	}
+	for _, c := range mnc {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func GetNetwork(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
@@ -67,6 +93,14 @@ func UpdateNetwork(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		if updateNetworkParams.Mnc == "" {
 			writeError(c.Writer, http.StatusBadRequest, "mnc is missing")
+			return
+		}
+		if !isValidMcc(updateNetworkParams.Mcc) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid mcc format. Must be a 3-decimal digit.")
+			return
+		}
+		if !isValidMnc(updateNetworkParams.Mnc) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid mnc format. Must be a 2 or 3-decimal digit.")
 			return
 		}
 

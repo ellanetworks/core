@@ -191,7 +191,7 @@ func deleteProfile(url string, client *http.Client, name string) (int, *DeletePr
 // This is an end-to-end test for the profiles handlers.
 // The order of the tests is important, as some tests depend on
 // the state of the server after previous tests.
-func TestProfilesEndToEnd(t *testing.T) {
+func TestAPIProfilesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
 	ts, err := setupServer(db_path)
@@ -332,6 +332,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 			Name:            ProfileName,
 			UeIpPool:        "2.2.2.2/24",
 			DnsPrimary:      "1.1.1.1",
+			DnsSecondary:    "3.3.3.3",
 			Mtu:             1500,
 			BitrateUplink:   "100 Mbps",
 			BitrateDownlink: "200 Mbps",
