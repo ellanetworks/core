@@ -20,8 +20,6 @@ type UPF struct {
 }
 
 type GetNetworkResponseResult struct {
-	Sst     string   `json:"sst,omitempty"`
-	Sd      string   `json:"sd,omitempty"`
 	Mcc     string   `json:"mcc,omitempty"`
 	Mnc     string   `json:"mnc,omitempty"`
 	GNodeBs []GNodeB `json:"gNodeBs"`
@@ -34,8 +32,6 @@ type GetNetworkResponse struct {
 }
 
 type UpdateNetworkParams struct {
-	Sst     string   `json:"sst,omitempty"`
-	Sd      string   `json:"sd,omitempty"`
 	Mcc     string   `json:"mcc,omitempty"`
 	Mnc     string   `json:"mnc,omitempty"`
 	GNodeBs []GNodeB `json:"gNodeBs"`
@@ -112,8 +108,6 @@ func TestApiNetworksEndToEnd(t *testing.T) {
 
 	t.Run("1. Update network", func(t *testing.T) {
 		updateNetworkParams := &UpdateNetworkParams{
-			Sst: "001",
-			Sd:  "1",
 			Mcc: "123",
 			Mnc: "456",
 			GNodeBs: []GNodeB{
@@ -150,12 +144,6 @@ func TestApiNetworksEndToEnd(t *testing.T) {
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if response.Result.Sst != "001" {
-			t.Fatalf("expected sst %s, got %s", "001", response.Result.Sst)
-		}
-		if response.Result.Sd != "1" {
-			t.Fatalf("expected sd %s, got %s", "1", response.Result.Sd)
-		}
 		if response.Result.Mcc != "123" {
 			t.Fatalf("expected mcc %s, got %s", "123", response.Result.Mcc)
 		}
@@ -182,11 +170,9 @@ func TestApiNetworksEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("4. Update network - no sst", func(t *testing.T) {
+	t.Run("4. Update network - no mnc", func(t *testing.T) {
 		updateNetworkParams := &UpdateNetworkParams{
-			Sd:  "1",
 			Mcc: "123",
-			Mnc: "456",
 		}
 		statusCode, response, err := updateNetwork(ts.URL, client, updateNetworkParams)
 		if err != nil {
@@ -195,8 +181,8 @@ func TestApiNetworksEndToEnd(t *testing.T) {
 		if statusCode != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
-		if response.Error != "sst is missing" {
-			t.Fatalf("expected error %q, got %q", "sst is missing", response.Error)
+		if response.Error != "mnc is missing" {
+			t.Fatalf("expected error %q, got %q", "mnc is missing", response.Error)
 		}
 	})
 }

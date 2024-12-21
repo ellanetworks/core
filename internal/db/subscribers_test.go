@@ -7,7 +7,7 @@ import (
 	"github.com/yeastengine/ella/internal/db"
 )
 
-func TestSubscribersEndToEnd(t *testing.T) {
+func TestSubscribersDbEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
@@ -29,8 +29,7 @@ func TestSubscribersEndToEnd(t *testing.T) {
 	}
 
 	subscriber := &db.Subscriber{
-		UeId:              "imsi-001010100007487",
-		PlmnID:            "123456",
+		Imsi:              "001010100007487",
 		SequenceNumber:    "123456",
 		PermanentKeyValue: "123456",
 		OpcValue:          "123456",
@@ -48,15 +47,12 @@ func TestSubscribersEndToEnd(t *testing.T) {
 		t.Fatalf("One or more subscribers weren't found in DB")
 	}
 
-	retrievedSubscriber, err := database.GetSubscriber(subscriber.UeId)
+	retrievedSubscriber, err := database.GetSubscriber(subscriber.Imsi)
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
-	if retrievedSubscriber.UeId != subscriber.UeId {
+	if retrievedSubscriber.Imsi != subscriber.Imsi {
 		t.Fatalf("The subscriber from the database doesn't match the subscriber that was given")
-	}
-	if retrievedSubscriber.PlmnID != subscriber.PlmnID {
-		t.Fatalf("The PLMN ID from the database doesn't match the PLMN ID that was given")
 	}
 	if retrievedSubscriber.SequenceNumber != subscriber.SequenceNumber {
 		t.Fatalf("The sequence number from the database doesn't match the sequence number that was given")
@@ -68,12 +64,12 @@ func TestSubscribersEndToEnd(t *testing.T) {
 		t.Fatalf("The OPC value from the database doesn't match the OPC value that was given")
 	}
 
-	err = database.UpdateSubscriberSequenceNumber(subscriber.UeId, "654321")
+	err = database.UpdateSubscriberSequenceNumber(subscriber.Imsi, "654321")
 	if err != nil {
 		t.Fatalf("Couldn't complete Update: %s", err)
 	}
 
-	retrievedSubscriber, err = database.GetSubscriber(subscriber.UeId)
+	retrievedSubscriber, err = database.GetSubscriber(subscriber.Imsi)
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -81,37 +77,33 @@ func TestSubscribersEndToEnd(t *testing.T) {
 		t.Fatalf("Sequence numbers don't match: %s", retrievedSubscriber.SequenceNumber)
 	}
 
-	if err = database.UpdateSubscriberProfile(retrievedSubscriber.UeId, "internet", "001", 1, "2314", "200000", "200000", 9); err != nil {
-		t.Fatalf("Couldn't complete Update: %s", err)
+	profileData := &db.Profile{
+		Name:     "myprofilename",
+		UeIpPool: "0.0.0.0/24",
 	}
-
-	retrievedSubscriber, err = database.GetSubscriber(subscriber.UeId)
+	err = database.CreateProfile(profileData)
+	if err != nil {
+		t.Fatalf("Couldn't complete Create: %s", err)
+	}
+	profile, err := database.GetProfile("myprofilename")
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
-	if retrievedSubscriber.Dnn != "internet" {
-		t.Fatalf("The DNN from the database doesn't match the DNN that was given")
-	}
-	if retrievedSubscriber.Sd != "001" {
-		t.Fatalf("The SD from the database doesn't match the SD that was given")
-	}
-	if retrievedSubscriber.Sst != 1 {
-		t.Fatalf("The SST from the database doesn't match the SST that was given")
-	}
-	if retrievedSubscriber.PlmnID != "2314" {
-		t.Fatalf("The PLMN ID from the database doesn't match the PLMN ID that was given")
-	}
-	if retrievedSubscriber.BitRateUplink != "200000" {
-		t.Fatalf("The uplink bitrate from the database doesn't match the uplink bitrate that was given")
-	}
-	if retrievedSubscriber.BitRateDownlink != "200000" {
-		t.Fatalf("The downlink bitrate from the database doesn't match the downlink bitrate that was given")
-	}
-	if retrievedSubscriber.Var5qi != 9 {
-		t.Fatalf("The var5qi from the database doesn't match the var5qi that was given")
+
+	if err = database.UpdateSubscriberProfile(retrievedSubscriber.Imsi, "myprofilename"); err != nil {
+		t.Fatalf("Couldn't complete Update: %s", err)
 	}
 
-	if err = database.DeleteSubscriber(subscriber.UeId); err != nil {
+	retrievedSubscriber, err = database.GetSubscriber(subscriber.Imsi)
+	if err != nil {
+		t.Fatalf("Couldn't complete Retrieve: %s", err)
+	}
+
+	if retrievedSubscriber.ProfileID != profile.ID {
+		t.Fatalf("Profile IDs don't match: %d vs. %d", retrievedSubscriber.ProfileID, profile.ID)
+	}
+
+	if err = database.DeleteSubscriber(subscriber.Imsi); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
 	res, _ = database.ListSubscribers()

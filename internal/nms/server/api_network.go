@@ -2,17 +2,14 @@ package server
 
 import (
 	"net/http"
-	"slices"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/models"
 	"github.com/yeastengine/ella/internal/smf/context"
 )
-
-const DNN = "internet"
 
 const (
 	KPS = 1000
@@ -31,23 +28,17 @@ type UPF struct {
 }
 
 type UpdateNetworkParams struct {
-	Sst      string   `json:"sst,omitempty"`
-	Sd       string   `json:"sd,omitempty"`
-	Profiles []string `json:"profiles"`
-	Mcc      string   `json:"mcc,omitempty"`
-	Mnc      string   `json:"mnc,omitempty"`
-	GNodeBs  []GNodeB `json:"gNodeBs"`
-	Upf      UPF      `json:"upf,omitempty"`
+	Mcc     string   `json:"mcc,omitempty"`
+	Mnc     string   `json:"mnc,omitempty"`
+	GNodeBs []GNodeB `json:"gNodeBs"`
+	Upf     UPF      `json:"upf,omitempty"`
 }
 
 type GetNetworkResponse struct {
-	Sst      string   `json:"sst,omitempty"`
-	Sd       string   `json:"sd,omitempty"`
-	Profiles []string `json:"profiles"`
-	Mcc      string   `json:"mcc,omitempty"`
-	Mnc      string   `json:"mnc,omitempty"`
-	GNodeBs  []GNodeB `json:"gNodeBs"`
-	Upf      UPF      `json:"upf,omitempty"`
+	Mcc     string   `json:"mcc,omitempty"`
+	Mnc     string   `json:"mnc,omitempty"`
+	GNodeBs []GNodeB `json:"gNodeBs"`
+	Upf     UPF      `json:"upf,omitempty"`
 }
 
 func GetNetwork(dbInstance *db.Database) gin.HandlerFunc {
@@ -74,16 +65,16 @@ func GetNetwork(dbInstance *db.Database) gin.HandlerFunc {
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 		}
+		upf := UPF{}
+		if dbUpf != nil {
+			upf.Name = dbUpf.Name
+			upf.Port = dbUpf.Port
+		}
 		network := &GetNetworkResponse{
-			Sst:     dbNetwork.Sst,
-			Sd:      dbNetwork.Sd,
 			Mcc:     dbNetwork.Mcc,
 			Mnc:     dbNetwork.Mnc,
 			GNodeBs: gNodeBs,
-			Upf: UPF{
-				Name: dbUpf.Name,
-				Port: dbUpf.Port,
-			},
+			Upf:     upf,
 		}
 
 		err = writeResponse(c.Writer, network, http.StatusOK)
@@ -100,14 +91,6 @@ func UpdateNetwork(dbInstance *db.Database) gin.HandlerFunc {
 		err := c.ShouldBindJSON(&updateNetworkParams)
 		if err != nil {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
-			return
-		}
-		if updateNetworkParams.Sst == "" {
-			writeError(c.Writer, http.StatusBadRequest, "sst is missing")
-			return
-		}
-		if updateNetworkParams.Sd == "" {
-			writeError(c.Writer, http.StatusBadRequest, "sd is missing")
 			return
 		}
 		if updateNetworkParams.Mcc == "" {
@@ -127,45 +110,7 @@ func UpdateNetwork(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		profiles := updateNetworkParams.Profiles
-		slices.Sort(profiles)
-
-		sVal, err := strconv.ParseUint(updateNetworkParams.Sst, 10, 32)
-		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid SST")
-			return
-		}
-		for _, dgName := range updateNetworkParams.Profiles {
-			dbProfile, err := dbInstance.GetProfile(dgName)
-			if err != nil {
-				logger.NmsLog.Warnf("Could not get profile %v", dgName)
-				continue
-			}
-			imsis, err := dbProfile.GetImsis()
-			if err != nil {
-				logger.NmsLog.Warnf("Could not get imsis %v", dbProfile.Imsis)
-				continue
-			}
-			for _, imsi := range imsis {
-				mcc := updateNetworkParams.Mcc
-				mnc := updateNetworkParams.Mnc
-				ueId := "imsi-" + imsi
-				sst := int32(sVal)
-				sd := updateNetworkParams.Sd
-				plmnID := mcc + mnc
-				bitRateUplink := convertToString(uint64(dbProfile.BitrateUplink))
-				bitRateDownlink := convertToString(uint64(dbProfile.BitrateDownlink))
-				err = dbInstance.UpdateSubscriberProfile(ueId, DNN, sd, sst, plmnID, bitRateUplink, bitRateDownlink, dbProfile.Var5qi)
-				if err != nil {
-					logger.NmsLog.Warnf("Could not update subscriber %v", ueId)
-					continue
-				}
-			}
-		}
-
 		dbNetwork := &db.Network{
-			Sst: updateNetworkParams.Sst,
-			Sd:  updateNetworkParams.Sd,
 			Mcc: updateNetworkParams.Mcc,
 			Mnc: updateNetworkParams.Mnc,
 		}
@@ -217,8 +162,6 @@ func updateSMF(dbInstance *db.Database) {
 		return
 	}
 	network := &models.NetworkSlice{
-		Sst:     dbNetwork.Sst,
-		Sd:      dbNetwork.Sd,
 		Mcc:     dbNetwork.Mcc,
 		Mnc:     dbNetwork.Mnc,
 		GNodeBs: make([]models.GNodeB, 0),
@@ -254,24 +197,15 @@ func updateSMF(dbInstance *db.Database) {
 	for _, dbProfile := range dbProfiles {
 		profile := models.Profile{
 			Name:            dbProfile.Name,
-			Dnn:             DNN,
+			Dnn:             config.DNN,
 			UeIpPool:        dbProfile.UeIpPool,
 			DnsPrimary:      dbProfile.DnsPrimary,
 			DnsSecondary:    dbProfile.DnsSecondary,
 			BitrateDownlink: dbProfile.BitrateDownlink,
 			BitrateUplink:   dbProfile.BitrateUplink,
-			BitrateUnit:     dbProfile.BitrateUnit,
 			Var5qi:          dbProfile.Var5qi,
-			Arp:             dbProfile.Arp,
-			Pdb:             dbProfile.Pdb,
-			Pelr:            dbProfile.Pelr,
+			PriorityLevel:   dbProfile.PriorityLevel,
 		}
-		imsis, err := dbProfile.GetImsis()
-		if err != nil {
-			logger.NmsLog.Warnln(err)
-			return
-		}
-		profile.Imsis = imsis
 		profiles = append(profiles, profile)
 	}
 	context.UpdateSMFContext(network, profiles)

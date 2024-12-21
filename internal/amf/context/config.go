@@ -2,10 +2,10 @@ package context
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/omec-project/openapi/models"
 	"github.com/yeastengine/ella/internal/amf/factory"
+	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/logger"
 )
 
@@ -64,23 +64,17 @@ func GetPlmnSupportList() []factory.PlmnSupportItem {
 		logger.AmfLog.Warnf("Failed to get network slice names: %s", err)
 		return plmnSupportList
 	}
-	plmnID := models.PlmnId{
-		Mcc: dbNetwork.Mcc,
-		Mnc: dbNetwork.Mnc,
-	}
-	sstString := dbNetwork.Sst
-	sstInt64, err := strconv.ParseInt(sstString, 10, 32)
-	if err != nil {
-		logger.AmfLog.Warnf("Failed to parse sst: %s", err)
-		return plmnSupportList
-	}
-	snssai := models.Snssai{
-		Sst: int32(sstInt64),
-		Sd:  dbNetwork.Sd,
-	}
 	plmnSupportItem := factory.PlmnSupportItem{
-		PlmnId:     plmnID,
-		SNssaiList: []models.Snssai{snssai},
+		PlmnId: models.PlmnId{
+			Mcc: dbNetwork.Mcc,
+			Mnc: dbNetwork.Mnc,
+		},
+		SNssaiList: []models.Snssai{
+			{
+				Sst: config.Sst,
+				Sd:  config.Sd,
+			},
+		},
 	}
 	plmnSupportList = append(plmnSupportList, plmnSupportItem)
 	return plmnSupportList

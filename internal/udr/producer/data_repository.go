@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/udr/context"
 )
@@ -24,7 +25,7 @@ var AllowedSscModes = []string{
 var AllowedSessionTypes = []models.PduSessionType{models.PduSessionType_IPV4}
 
 // This function is defined twice, here and in the NMS. We should move it to a common place.
-func convertDbAmDataToModel(sd string, sst int32, bitrateDownlink string, bitrateUplink string) *models.AccessAndMobilitySubscriptionData {
+func convertDbAmDataToModel(bitrateDownlink string, bitrateUplink string) *models.AccessAndMobilitySubscriptionData {
 	amData := &models.AccessAndMobilitySubscriptionData{
 		Nssai: &models.Nssai{
 			DefaultSingleNssais: make([]models.Snssai, 0),
@@ -36,12 +37,12 @@ func convertDbAmDataToModel(sd string, sst int32, bitrateDownlink string, bitrat
 		},
 	}
 	amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
-		Sd:  sd,
-		Sst: sst,
+		Sd:  config.Sd,
+		Sst: config.Sst,
 	})
 	amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
-		Sd:  sd,
-		Sst: sst,
+		Sd:  config.Sd,
+		Sst: config.Sst,
 	})
 	return amData
 }
@@ -50,10 +51,13 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	udrSelf := context.UDR_Self()
 	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
 	if err != nil {
-		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	amData := convertDbAmDataToModel(subscriber.Sd, subscriber.Sst, subscriber.BitRateDownlink, subscriber.BitRateUplink)
+	profile, err := udrSelf.DbInstance.GetProfileByID(subscriber.ProfileID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
+	}
+	amData := convertDbAmDataToModel(profile.BitrateDownlink, profile.BitrateUplink)
 	return amData, nil
 }
 
@@ -114,35 +118,23 @@ func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
 	return amPolicyData, nil
 }
 
-// We have this function twice, here and in the NMS. We should move it to a common place.
-func convertDbSmPolicyDataToModel(sst int32, sd string, dnn string) *models.SmPolicyData {
+func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
 	smPolicyData := &models.SmPolicyData{
 		SmPolicySnssaiData: make(map[string]models.SmPolicySnssaiData),
 	}
-	snssai := fmt.Sprintf("%d%s", sst, sd)
+	snssai := fmt.Sprintf("%d%s", config.Sst, config.Sd)
 	smPolicyData.SmPolicySnssaiData[snssai] = models.SmPolicySnssaiData{
 		Snssai: &models.Snssai{
-			Sd:  sd,
-			Sst: sst,
+			Sd:  config.Sd,
+			Sst: config.Sst,
 		},
 		SmPolicyDnnData: make(map[string]models.SmPolicyDnnData),
 	}
 	smPolicySnssaiData := smPolicyData.SmPolicySnssaiData[snssai]
-	smPolicySnssaiData.SmPolicyDnnData[dnn] = models.SmPolicyDnnData{
-		Dnn: dnn,
+	smPolicySnssaiData.SmPolicyDnnData[config.DNN] = models.SmPolicyDnnData{
+		Dnn: config.DNN,
 	}
 	smPolicyData.SmPolicySnssaiData[snssai] = smPolicySnssaiData
-	return smPolicyData
-}
-
-func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
-	udrSelf := context.UDR_Self()
-	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
-	if err != nil {
-		logger.UdrLog.Warnln(err)
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
-	}
-	smPolicyData := convertDbSmPolicyDataToModel(subscriber.Sst, subscriber.Sd, subscriber.Dnn)
 	return smPolicyData, nil
 }
 
@@ -176,9 +168,6 @@ func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string)
 }
 
 func convertDbSessionManagementDataToModel(
-	dnn string,
-	sst int32,
-	sd string,
 	bitrateDownlink string,
 	bitrateUplink string,
 	var5qi int32,
@@ -187,12 +176,12 @@ func convertDbSessionManagementDataToModel(
 	smData := make([]models.SessionManagementSubscriptionData, 0)
 	smDataObjModel := models.SessionManagementSubscriptionData{
 		SingleNssai: &models.Snssai{
-			Sst: sst,
-			Sd:  sd,
+			Sst: config.Sst,
+			Sd:  config.Sd,
 		},
 		DnnConfigurations: make(map[string]models.DnnConfiguration),
 	}
-	smDataObjModel.DnnConfigurations[dnn] = models.DnnConfiguration{
+	smDataObjModel.DnnConfigurations[config.DNN] = models.DnnConfiguration{
 		PduSessionTypes: &models.PduSessionTypes{
 			DefaultSessionType:  models.PduSessionType_IPV4,
 			AllowedSessionTypes: make([]models.PduSessionType, 0),
@@ -212,10 +201,10 @@ func convertDbSessionManagementDataToModel(
 		},
 	}
 	for _, sessionType := range AllowedSessionTypes {
-		smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[dnn].PduSessionTypes.AllowedSessionTypes, sessionType)
+		smDataObjModel.DnnConfigurations[config.DNN].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[config.DNN].PduSessionTypes.AllowedSessionTypes, sessionType)
 	}
 	for _, sscMode := range AllowedSscModes {
-		smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[dnn].SscModes.AllowedSscModes, models.SscMode(sscMode))
+		smDataObjModel.DnnConfigurations[config.DNN].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[config.DNN].SscModes.AllowedSscModes, models.SscMode(sscMode))
 	}
 	smData = append(smData, smDataObjModel)
 	return smData
@@ -227,13 +216,16 @@ func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) 
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-
-	sessionManagementData := convertDbSessionManagementDataToModel(subscriber.Dnn, subscriber.Sst, subscriber.Sd, subscriber.BitRateDownlink, subscriber.BitRateUplink, subscriber.Var5qi, subscriber.PriorityLevel)
+	profile, err := udrSelf.DbInstance.GetProfileByID(subscriber.ProfileID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
+	}
+	sessionManagementData := convertDbSessionManagementDataToModel(profile.BitrateDownlink, profile.BitrateUplink, profile.Var5qi, profile.PriorityLevel)
 	return sessionManagementData, nil
 }
 
-// We have this function twice, here and in the NMS. We should move it to a common place.
-func convertDbSmfSelectionDataToModel(snssai, dnn string) *models.SmfSelectionSubscriptionData {
+func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
+	snssai := fmt.Sprintf("%d%s", config.Sst, config.Sd)
 	smfSelectionData := &models.SmfSelectionSubscriptionData{
 		SubscribedSnssaiInfos: make(map[string]models.SnssaiInfo),
 	}
@@ -242,19 +234,8 @@ func convertDbSmfSelectionDataToModel(snssai, dnn string) *models.SmfSelectionSu
 	}
 	snssaiInfo := smfSelectionData.SubscribedSnssaiInfos[snssai]
 	snssaiInfo.DnnInfos = append(snssaiInfo.DnnInfos, models.DnnInfo{
-		Dnn: dnn,
+		Dnn: config.DNN,
 	})
 	smfSelectionData.SubscribedSnssaiInfos[snssai] = snssaiInfo
-	return smfSelectionData
-}
-
-func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
-	udrSelf := context.UDR_Self()
-	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
-	if err != nil {
-		logger.UdrLog.Warnln(err)
-	}
-	snssai := fmt.Sprintf("%d%s", subscriber.Sst, subscriber.Sd)
-	smfSelectionSubscriptionData := convertDbSmfSelectionDataToModel(snssai, subscriber.Dnn)
-	return smfSelectionSubscriptionData, nil
+	return smfSelectionData, nil
 }

@@ -250,7 +250,6 @@ func HandlePDUSessionSMContextUpdate(eventData interface{}) error {
 	switch smContext.SMContextState {
 	case smf_context.SmStatePfcpModify:
 
-		smContext.SubCtxLog.Debugln("PDUSessionSMContextUpdate, ctxt in PFCP Modification State")
 		var err error
 
 		// Initiate PFCP Delete
@@ -294,14 +293,12 @@ func HandlePDUSessionSMContextUpdate(eventData interface{}) error {
 		}
 
 	case smf_context.SmStateModify:
-		smContext.SubCtxLog.Debugln("PDUSessionSMContextUpdate, ctxt in Modification Pending")
 		smContext.ChangeState(smf_context.SmStateActive)
 		httpResponse = &httpwrapper.Response{
 			Status: http.StatusOK,
 			Body:   response,
 		}
 	case smf_context.SmStateInit, smf_context.SmStateInActivePending:
-		smContext.SubCtxLog.Debugln("PDUSessionSMContextUpdate, ctxt in SmStateInit, SmStateInActivePending")
 		httpResponse = &httpwrapper.Response{
 			Status: http.StatusOK,
 			Body:   response,
@@ -645,7 +642,6 @@ func HandlePFCPResponse(smContext *smf_context.SMContext,
 			}, // Depends on the reason why N4 fail
 		}
 	case smf_context.SessionUpdateTimeout:
-		smContext.SubCtxLog.Debugln("PDUSessionSMContextUpdate, PFCP Session Modification Timeout")
 
 		problemDetail := models.ProblemDetails{
 			Title:  "PFCP Session Mod Timeout",

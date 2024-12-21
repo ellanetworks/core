@@ -34,13 +34,10 @@ func TestProfilesEndToEnd(t *testing.T) {
 		DnsPrimary:      "8.8.8.8",
 		DnsSecondary:    "9.9.9.9",
 		Mtu:             1500,
-		BitrateUplink:   1000000,
-		BitrateDownlink: 2000000,
-		BitrateUnit:     "bps",
+		BitrateUplink:   "100 Mbps",
+		BitrateDownlink: "200 Mbps",
 		Var5qi:          9,
-		Arp:             1,
-		Pdb:             1,
-		Pelr:            1,
+		PriorityLevel:   1,
 	}
 	err = database.CreateProfile(profile)
 	if err != nil {
@@ -80,20 +77,11 @@ func TestProfilesEndToEnd(t *testing.T) {
 	if retrievedProfile.BitrateDownlink != profile.BitrateDownlink {
 		t.Fatalf("The bitrate downlink from the database doesn't match the bitrate downlink that was given")
 	}
-	if retrievedProfile.BitrateUnit != profile.BitrateUnit {
-		t.Fatalf("The bitrate unit from the database doesn't match the bitrate unit that was given")
-	}
 	if retrievedProfile.Var5qi != profile.Var5qi {
 		t.Fatalf("The Var5qi from the database doesn't match the Var5qi that was given")
 	}
-	if retrievedProfile.Arp != profile.Arp {
-		t.Fatalf("The arp from the database doesn't match the arp that was given")
-	}
-	if retrievedProfile.Pdb != profile.Pdb {
-		t.Fatalf("The pdb from the database doesn't match the pdb that was given")
-	}
-	if retrievedProfile.Pelr != profile.Pelr {
-		t.Fatalf("The pelr from the database doesn't match the pelr that was given")
+	if retrievedProfile.PriorityLevel != profile.PriorityLevel {
+		t.Fatalf("The priority level from the database doesn't match the priority level that was given")
 	}
 
 	// Edit the profile

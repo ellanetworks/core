@@ -5,6 +5,7 @@ import (
 
 	"github.com/yeastengine/ella/internal/amf/factory"
 	"github.com/yeastengine/ella/internal/amf/service"
+	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/db"
 )
 
@@ -30,7 +31,7 @@ func Start(dbInstance *db.Database) error {
 			Mcsi:    0,
 			Mpsi:    0,
 		},
-		SupportDnnList: []string{"internet"},
+		SupportDnnList: []string{config.DNN},
 		Security: &factory.Security{
 			IntegrityOrder: []string{"NIA1", "NIA2"},
 			CipheringOrder: []string{"NEA0"},

@@ -17,8 +17,6 @@ import (
 
 type AMF struct{}
 
-const IMSI_PREFIX = "imsi-"
-
 func (amf *AMF) Start() {
 	self := context.AMF_Self()
 	util.InitAmfContext(self)

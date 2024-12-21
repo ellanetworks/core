@@ -15,48 +15,35 @@ const QueryCreateSubscribersTable = `
 	CREATE TABLE IF NOT EXISTS %s (
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-		ueId TEXT NOT NULL,
-		plmnID TEXT NOT NULL,
-		sst INTEGER,
-		sd TEXT,
-		dnn TEXT,
+		imsi TEXT NOT NULL,
 
 		sequenceNumber TEXT NOT NULL,
 		permanentKeyValue TEXT NOT NULL,
 		opcValue TEXT NOT NULL,
 
-		uplink TEXT,
-		downlink TEXT,
-		var5qi INTEGER,
-		priorityLevel INTEGER
+		profileID INTEGER NOT NULL,
+    	FOREIGN KEY (profileID) REFERENCES profiles (id)
 )`
 
 const (
 	listSubscribersStmt            = "SELECT &Subscriber.* from %s"
-	getSubscriberStmt              = "SELECT &Subscriber.* from %s WHERE ueId==$Subscriber.ueId"
-	createSubscriberStmt           = "INSERT INTO %s (ueId, plmnID, sequenceNumber, permanentKeyValue, opcValue) VALUES ($Subscriber.ueId, $Subscriber.plmnID, $Subscriber.sequenceNumber, $Subscriber.permanentKeyValue, $Subscriber.opcValue)"
-	updateSubscriberSequenceNumber = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE ueId==$Subscriber.ueId"
-	updateSubscriberProfile        = "UPDATE %s SET dnn=$Subscriber.dnn, sd=$Subscriber.sd, sst=$Subscriber.sst, plmnID=$Subscriber.plmnID, uplink=$Subscriber.uplink, downlink=$Subscriber.downlink, var5qi=$Subscriber.var5qi, priorityLevel=$Subscriber.priorityLevel WHERE ueId==$Subscriber.ueId"
-	deleteSubscriberStmt           = "DELETE FROM %s WHERE ueId==$Subscriber.ueId"
+	getSubscriberStmt              = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
+	createSubscriberStmt           = "INSERT INTO %s (imsi, sequenceNumber, permanentKeyValue, opcValue, profileID) VALUES ($Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKeyValue, $Subscriber.opcValue, $Subscriber.profileID)"
+	updateSubscriberSequenceNumber = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
+	updateSubscriberProfile        = "UPDATE %s SET profileID=$Subscriber.profileID WHERE imsi==$Subscriber.imsi"
+	deleteSubscriberStmt           = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
 )
 
 type Subscriber struct {
 	ID int `db:"id"`
 
-	UeId   string `db:"ueId"`
-	PlmnID string `db:"plmnID"`
-	Sst    int32  `db:"sst"`
-	Sd     string `db:"sd"`
-	Dnn    string `db:"dnn"`
+	Imsi string `db:"imsi"`
 
 	SequenceNumber    string `db:"sequenceNumber"`
 	PermanentKeyValue string `db:"permanentKeyValue"`
 	OpcValue          string `db:"opcValue"`
 
-	BitRateUplink   string `db:"uplink"`
-	BitRateDownlink string `db:"downlink"`
-	Var5qi          int32  `db:"var5qi"`
-	PriorityLevel   int32  `db:"priorityLevel"`
+	ProfileID int `db:"profileID"`
 }
 
 // ListSubscribers returns all of the subscribers and their fields available in the database.
@@ -76,9 +63,9 @@ func (db *Database) ListSubscribers() ([]Subscriber, error) {
 	return subscribers, nil
 }
 
-func (db *Database) GetSubscriber(ueID string) (*Subscriber, error) {
+func (db *Database) GetSubscriber(imsi string) (*Subscriber, error) {
 	row := Subscriber{
-		UeId: ueID,
+		Imsi: imsi,
 	}
 	stmt, err := sqlair.Prepare(fmt.Sprintf(getSubscriberStmt, db.subscribersTable), Subscriber{})
 	if err != nil {
@@ -92,9 +79,9 @@ func (db *Database) GetSubscriber(ueID string) (*Subscriber, error) {
 }
 
 func (db *Database) CreateSubscriber(subscriber *Subscriber) error {
-	_, err := db.GetSubscriber(subscriber.UeId)
+	_, err := db.GetSubscriber(subscriber.Imsi)
 	if err == nil {
-		return fmt.Errorf("subscriber with ueId %s already exists", subscriber.UeId)
+		return fmt.Errorf("subscriber with imsi %s already exists", subscriber.Imsi)
 	}
 	stmt, err := sqlair.Prepare(fmt.Sprintf(createSubscriberStmt, db.subscribersTable), Subscriber{})
 	if err != nil {
@@ -104,8 +91,8 @@ func (db *Database) CreateSubscriber(subscriber *Subscriber) error {
 	return err
 }
 
-func (db *Database) UpdateSubscriberSequenceNumber(ueID string, sequenceNumber string) error {
-	_, err := db.GetSubscriber(ueID)
+func (db *Database) UpdateSubscriberSequenceNumber(imsi string, sequenceNumber string) error {
+	_, err := db.GetSubscriber(imsi)
 	if err != nil {
 		return err
 	}
@@ -114,52 +101,60 @@ func (db *Database) UpdateSubscriberSequenceNumber(ueID string, sequenceNumber s
 		return err
 	}
 	row := Subscriber{
-		UeId:           ueID,
+		Imsi:           imsi,
 		SequenceNumber: sequenceNumber,
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
-	logger.DBLog.Infof("Updated sequence number for subscriber with ueID %d", ueID)
+	logger.DBLog.Infof("Updated sequence number for subscriber with Imsi %d", imsi)
 	return err
 }
 
-func (db *Database) UpdateSubscriberProfile(ueID string, dnn string, sd string, sst int32, plmnId string, bitrateUplink string, bitrateDownlink string, var5qi int32) error {
-	subscriber, err := db.GetSubscriber(ueID)
+func (db *Database) UpdateSubscriberProfile(imsi string, profileName string) error {
+	profile, err := db.GetProfile(profileName)
 	if err != nil {
-		return fmt.Errorf("subscriber with ueID %s not found", ueID)
+		return fmt.Errorf("profile with name %s not found", profileName)
 	}
+
+	subscriber, err := db.GetSubscriber(imsi)
+	if err != nil {
+		return fmt.Errorf("subscriber with Imsi %s not found: %v", imsi, err)
+	}
+
 	stmt, err := sqlair.Prepare(fmt.Sprintf(updateSubscriberProfile, db.subscribersTable), Subscriber{})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to prepare update query: %v", err)
 	}
+
 	row := Subscriber{
-		UeId:            ueID,
-		Dnn:             dnn,
-		Sd:              sd,
-		Sst:             sst,
-		PlmnID:          plmnId,
-		BitRateUplink:   bitrateUplink,
-		BitRateDownlink: bitrateDownlink,
-		Var5qi:          var5qi,
-		PriorityLevel:   subscriber.PriorityLevel,
+		Imsi:              imsi,
+		SequenceNumber:    subscriber.SequenceNumber,
+		PermanentKeyValue: subscriber.PermanentKeyValue,
+		OpcValue:          subscriber.OpcValue,
+		ProfileID:         profile.ID,
 	}
+
 	err = db.conn.Query(context.Background(), stmt, row).Run()
-	logger.DBLog.Infof("Updated profile for subscriber with ueID %s", ueID)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to update profile for subscriber with Imsi %s: %v", imsi, err)
+	}
+
+	logger.DBLog.Infof("Updated profile for subscriber with Imsi %s to profile %s (ID: %d)", imsi, profileName, profile.ID)
+	return nil
 }
 
-func (db *Database) DeleteSubscriber(ueID string) error {
-	_, err := db.GetSubscriber(ueID)
+func (db *Database) DeleteSubscriber(imsi string) error {
+	_, err := db.GetSubscriber(imsi)
 	if err != nil {
-		return fmt.Errorf("subscriber with ueID %s not found", ueID)
+		return fmt.Errorf("subscriber with imsi %s not found", imsi)
 	}
 	stmt, err := sqlair.Prepare(fmt.Sprintf(deleteSubscriberStmt, db.subscribersTable), Subscriber{})
 	if err != nil {
 		return err
 	}
 	row := Subscriber{
-		UeId: ueID,
+		Imsi: imsi,
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
-	logger.DBLog.Infof("Deleted subscriber with ueID %s", ueID)
+	logger.DBLog.Infof("Deleted subscriber with Imsi %s", imsi)
 	return err
 }

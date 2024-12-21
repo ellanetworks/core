@@ -15,7 +15,6 @@ type PfcpFunc func(conn *PfcpConnection, msg message.Message, addr string) (mess
 type PfcpHandlerMap map[uint8]PfcpFunc
 
 func (handlerMap PfcpHandlerMap) Handle(conn *PfcpConnection, buf []byte, addr *net.UDPAddr) error {
-	logger.UpfLog.Debugf("Handling PFCP message from %s", addr)
 	incomingMsg, err := message.Parse(buf)
 	if err != nil {
 		logger.UpfLog.Warnf("Ignored undecodable message: %x, error: %s", buf, err)

@@ -9,26 +9,36 @@ import (
 )
 
 type CreateSubscriberParams struct {
-	UeId           string `json:"ueId"`
-	PlmnID         string `json:"plmnID"`
+	Imsi           string `json:"imsi"`
 	OPc            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequenceNumber"`
+	ProfileName    string `json:"profileName"`
 }
 
 type GetSubscriberResponse struct {
-	UeId            string `json:"ueId"`
-	PlmnID          string `json:"plmnID"`
-	Sst             int32  `json:"sst" yaml:"sst" bson:"sst" mapstructure:"Sst"`
-	Sd              string `json:"sd,omitempty" yaml:"sd" bson:"sd" mapstructure:"Sd"`
-	Dnn             string `json:"dnn" yaml:"dnn" bson:"dnn" mapstructure:"Dnn"`
-	Opc             string `json:"opc"`
-	SequenceNumber  string `json:"sequenceNumber"`
-	Key             string `json:"key"`
-	BitrateDownlink string `json:"bitrateDownlink"`
-	BitrateUplink   string `json:"bitrateUplink"`
-	Var5qi          int32  `json:"var5qi"`
-	PriorityLevel   int32  `json:"priorityLevel"`
+	Imsi           string `json:"imsi"`
+	Opc            string `json:"opc"`
+	SequenceNumber string `json:"sequenceNumber"`
+	Key            string `json:"key"`
+	ProfileName    string `json:"profileName"`
+}
+
+func isImsiValid(imsi string, dbInstance *db.Database) bool {
+	if len(imsi) != 15 {
+		return false
+	}
+	network, err := dbInstance.GetNetwork()
+	if err != nil {
+		logger.NmsLog.Warnf("Failed to retrieve network: %v", err)
+		return false
+	}
+	Mcc := network.Mcc
+	Mnc := network.Mnc
+	if imsi[:3] != Mcc || imsi[3:5] != Mnc {
+		return false
+	}
+	return true
 }
 
 func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
@@ -43,8 +53,7 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 		subscribers := make([]GetSubscriberResponse, 0)
 		for _, dbSubscriber := range dbSubscribers {
 			subscribers = append(subscribers, GetSubscriberResponse{
-				PlmnID: dbSubscriber.PlmnID,
-				UeId:   dbSubscriber.UeId,
+				Imsi: dbSubscriber.Imsi,
 			})
 		}
 		err = writeResponse(c.Writer, subscribers, http.StatusOK)
@@ -58,30 +67,29 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
-		ueId := c.Param("ueId")
-		if ueId == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing ueId parameter")
+		imsi := c.Param("imsi")
+		if imsi == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing imsi parameter")
 			return
 		}
 
-		dbSubscriber, err := dbInstance.GetSubscriber(ueId)
+		dbSubscriber, err := dbInstance.GetSubscriber(imsi)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "Subscriber not found")
 			return
 		}
+		profile, err := dbInstance.GetProfileByID(dbSubscriber.ProfileID)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to retrieve profile")
+			return
+		}
+
 		subscriber := GetSubscriberResponse{
-			UeId:            dbSubscriber.UeId,
-			PlmnID:          dbSubscriber.PlmnID,
-			Sst:             dbSubscriber.Sst,
-			Sd:              dbSubscriber.Sd,
-			Dnn:             dbSubscriber.Dnn,
-			Opc:             dbSubscriber.OpcValue,
-			SequenceNumber:  dbSubscriber.SequenceNumber,
-			Key:             dbSubscriber.PermanentKeyValue,
-			Var5qi:          dbSubscriber.Var5qi,
-			PriorityLevel:   dbSubscriber.PriorityLevel,
-			BitrateDownlink: dbSubscriber.BitRateDownlink,
-			BitrateUplink:   dbSubscriber.BitRateUplink,
+			Imsi:           dbSubscriber.Imsi,
+			Opc:            dbSubscriber.OpcValue,
+			SequenceNumber: dbSubscriber.SequenceNumber,
+			Key:            dbSubscriber.PermanentKeyValue,
+			ProfileName:    profile.Name,
 		}
 		err = writeResponse(c.Writer, subscriber, http.StatusOK)
 		if err != nil {
@@ -100,12 +108,8 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
 			return
 		}
-		if createSubscriberParams.UeId == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing ueId parameter")
-			return
-		}
-		if createSubscriberParams.PlmnID == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing plmnID parameter")
+		if createSubscriberParams.Imsi == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing imsi parameter")
 			return
 		}
 		if createSubscriberParams.SequenceNumber == "" {
@@ -120,18 +124,31 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Missing opc parameter")
 			return
 		}
+		if createSubscriberParams.ProfileName == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing profileName parameter")
+			return
+		}
+		if !isImsiValid(createSubscriberParams.Imsi, dbInstance) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid imsi")
+			return
+		}
 
-		_, err = dbInstance.GetSubscriber(createSubscriberParams.UeId)
+		_, err = dbInstance.GetSubscriber(createSubscriberParams.Imsi)
 		if err == nil {
 			writeError(c.Writer, http.StatusBadRequest, "Subscriber already exists")
 			return
 		}
+		profile, err := dbInstance.GetProfile(createSubscriberParams.ProfileName)
+		if err != nil {
+			writeError(c.Writer, http.StatusNotFound, "Profile not found")
+			return
+		}
 		newSubscriber := &db.Subscriber{
-			UeId:              createSubscriberParams.UeId,
-			PlmnID:            createSubscriberParams.PlmnID,
+			Imsi:              createSubscriberParams.Imsi,
 			SequenceNumber:    createSubscriberParams.SequenceNumber,
 			PermanentKeyValue: createSubscriberParams.Key,
 			OpcValue:          createSubscriberParams.OPc,
+			ProfileID:         profile.ID,
 		}
 
 		if err := dbInstance.CreateSubscriber(newSubscriber); err != nil {
@@ -152,17 +169,17 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 func DeleteSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)
-		ueId := c.Param("ueId")
-		if ueId == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing ueId parameter")
+		imsi := c.Param("imsi")
+		if imsi == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing imsi parameter")
 			return
 		}
-		_, err := dbInstance.GetSubscriber(ueId)
+		_, err := dbInstance.GetSubscriber(imsi)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "Subscriber not found")
 			return
 		}
-		err = dbInstance.DeleteSubscriber(ueId)
+		err = dbInstance.DeleteSubscriber(imsi)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete subscriber")

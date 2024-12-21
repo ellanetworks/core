@@ -9,14 +9,13 @@ import (
 
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
+	"github.com/yeastengine/ella/internal/config"
 	"github.com/yeastengine/ella/internal/db"
 	"github.com/yeastengine/ella/internal/logger"
 	"github.com/yeastengine/ella/internal/util/idgenerator"
 )
 
 var pcfCtx *PCFContext
-
-const DNN = "internet"
 
 func init() {
 	pcfCtx = &PCFContext{}
@@ -98,19 +97,15 @@ const DefaultBdtRefId = "BdtPolicyId-"
 
 // Allocate PCF Ue with supi and add to pcf Context and returns allocated ue
 func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
-	if strings.HasPrefix(Supi, "imsi-") {
-		newUeContext := &UeContext{}
-		newUeContext.SmPolicyData = make(map[string]*UeSmPolicyData)
-		newUeContext.AMPolicyData = make(map[string]*UeAMPolicyData)
-		newUeContext.PolAssociationIDGenerator = 1
-		newUeContext.AppSessionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
-		newUeContext.Supi = Supi
-		logger.PcfLog.Warnf("Storing new UeContext with Supi[%s]", Supi)
-		c.UePool.Store(Supi, newUeContext)
-		return newUeContext, nil
-	} else {
-		return nil, fmt.Errorf(" add Ue context fail ")
-	}
+	newUeContext := &UeContext{}
+	newUeContext.SmPolicyData = make(map[string]*UeSmPolicyData)
+	newUeContext.AMPolicyData = make(map[string]*UeAMPolicyData)
+	newUeContext.PolAssociationIDGenerator = 1
+	newUeContext.AppSessionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
+	newUeContext.Supi = Supi
+	logger.PcfLog.Warnf("Storing new UeContext with Supi[%s]", Supi)
+	c.UePool.Store(Supi, newUeContext)
+	return newUeContext, nil
 }
 
 // Find PcfUe which the policyId belongs to
@@ -344,107 +339,64 @@ func GetPLMNList() []PlmnSupportItem {
 	return plmnSupportList
 }
 
-func GetSubscriberPolicies() map[string]*PcfSubscriberPolicyData {
+func GetSubscriberPolicy(imsi string) *PcfSubscriberPolicyData {
 	pcfSelf := PCF_Self()
-	subscriberPolicies := make(map[string]*PcfSubscriberPolicyData)
-	dbNetwork, err := pcfSelf.DbInstance.GetNetwork()
+	subscriber, err := pcfSelf.DbInstance.GetSubscriber(imsi)
 	if err != nil {
-		logger.PcfLog.Warnf("Failed to get network slice names: %+v", err)
-		return subscriberPolicies
+		logger.PcfLog.Warnf("Failed to get subscriber %s: %+v", imsi, err)
+		return nil
 	}
-	pccPolicyId := dbNetwork.Sst + dbNetwork.Sd
-	profiles, err := pcfSelf.DbInstance.ListProfiles()
+	profile, err := pcfSelf.DbInstance.GetProfileByID(subscriber.ProfileID)
 	if err != nil {
-		logger.PcfLog.Warnf("Failed to get profiles: %+v", err)
-		return subscriberPolicies
+		logger.PcfLog.Warnf("Failed to get profile %d: %+v", subscriber.ProfileID, err)
+		return nil
 	}
-	for _, profile := range profiles {
-		imsis, err := profile.GetImsis()
-		if err != nil {
-			logger.PcfLog.Warnf("Failed to get imsis from device group: %+v", err)
-			continue
-		}
-		for _, imsi := range imsis {
-			if _, exists := subscriberPolicies[imsi]; !exists {
-				subscriberPolicies[imsi] = &PcfSubscriberPolicyData{
-					Supi:      imsi,
-					PccPolicy: make(map[string]*PccPolicy),
-				}
-			}
-
-			if _, exists := subscriberPolicies[imsi].PccPolicy[pccPolicyId]; !exists {
-				subscriberPolicies[imsi].PccPolicy[pccPolicyId] = &PccPolicy{
-					SessionPolicy: make(map[string]*SessionPolicy),
-					PccRules:      make(map[string]*models.PccRule),
-					QosDecs:       make(map[string]*models.QosData),
-					TraffContDecs: make(map[string]*models.TrafficControlData),
-				}
-			}
-
-			if _, exists := subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[DNN]; !exists {
-				subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[DNN] = &SessionPolicy{
-					SessionRules: make(map[string]*models.SessionRule),
-				}
-			}
-
-			// Generate IDs using ID generators
-			qosId, _ := pcfCtx.QoSDataIDGenerator.Allocate()
-			sessionRuleId, _ := pcfCtx.SessionRuleIDGenerator.Allocate()
-
-			ul, uunit := GetBitRateUnit(profile.BitrateUplink)
-			dl, dunit := GetBitRateUnit(profile.BitrateDownlink)
-
-			// Create QoS data
-			qosData := &models.QosData{
-				QosId:                strconv.FormatInt(qosId, 10),
-				Var5qi:               profile.Var5qi,
-				MaxbrUl:              strconv.FormatInt(ul, 10) + uunit,
-				MaxbrDl:              strconv.FormatInt(dl, 10) + dunit,
-				Arp:                  &models.Arp{PriorityLevel: profile.Arp},
-				DefQosFlowIndication: true,
-			}
-			subscriberPolicies[imsi].PccPolicy[pccPolicyId].QosDecs[qosData.QosId] = qosData
-
-			// Add session rule
-			subscriberPolicies[imsi].PccPolicy[pccPolicyId].SessionPolicy[DNN].SessionRules[strconv.FormatInt(sessionRuleId, 10)] = &models.SessionRule{
-				SessRuleId: strconv.FormatInt(sessionRuleId, 10),
-				AuthDefQos: &models.AuthorizedDefaultQos{
-					Var5qi: qosData.Var5qi,
-					Arp:    qosData.Arp,
-				},
-				AuthSessAmbr: &models.Ambr{
-					Uplink:   strconv.FormatInt(ul, 10) + uunit,
-					Downlink: strconv.FormatInt(dl, 10) + dunit,
-				},
-			}
+	subscriberPolicies := &PcfSubscriberPolicyData{
+		Supi:      imsi,
+		PccPolicy: make(map[string]*PccPolicy),
+	}
+	pccPolicyId := fmt.Sprintf("%d%s", config.Sst, config.Sd)
+	if _, exists := subscriberPolicies.PccPolicy[pccPolicyId]; !exists {
+		subscriberPolicies.PccPolicy[pccPolicyId] = &PccPolicy{
+			SessionPolicy: make(map[string]*SessionPolicy),
+			PccRules:      make(map[string]*models.PccRule),
+			QosDecs:       make(map[string]*models.QosData),
+			TraffContDecs: make(map[string]*models.TrafficControlData),
 		}
 	}
 
+	if _, exists := subscriberPolicies.PccPolicy[pccPolicyId].SessionPolicy[config.DNN]; !exists {
+		subscriberPolicies.PccPolicy[pccPolicyId].SessionPolicy[config.DNN] = &SessionPolicy{
+			SessionRules: make(map[string]*models.SessionRule),
+		}
+	}
+
+	// Generate IDs using ID generators
+	qosId, _ := pcfCtx.QoSDataIDGenerator.Allocate()
+	sessionRuleId, _ := pcfCtx.SessionRuleIDGenerator.Allocate()
+
+	// Create QoS data
+	qosData := &models.QosData{
+		QosId:                strconv.FormatInt(qosId, 10),
+		Var5qi:               profile.Var5qi,
+		MaxbrUl:              profile.BitrateUplink,
+		MaxbrDl:              profile.BitrateDownlink,
+		Arp:                  &models.Arp{PriorityLevel: profile.PriorityLevel},
+		DefQosFlowIndication: true,
+	}
+	subscriberPolicies.PccPolicy[pccPolicyId].QosDecs[qosData.QosId] = qosData
+
+	// Add session rule
+	subscriberPolicies.PccPolicy[pccPolicyId].SessionPolicy[config.DNN].SessionRules[strconv.FormatInt(sessionRuleId, 10)] = &models.SessionRule{
+		SessRuleId: strconv.FormatInt(sessionRuleId, 10),
+		AuthDefQos: &models.AuthorizedDefaultQos{
+			Var5qi: qosData.Var5qi,
+			Arp:    qosData.Arp,
+		},
+		AuthSessAmbr: &models.Ambr{
+			Uplink:   profile.BitrateUplink,
+			Downlink: profile.BitrateDownlink,
+		},
+	}
 	return subscriberPolicies
-}
-
-func GetBitRateUnit(val int64) (int64, string) {
-	unit := " Kbps"
-	if val < 1000 {
-		logger.PcfLog.Warnf("configured value [%v] is lesser than 1000 bps, so setting 1 Kbps", val)
-		val = 1
-		return val, unit
-	}
-	if val >= 0xFFFF {
-		val = (val / 1000)
-		unit = " Kbps"
-		if val >= 0xFFFF {
-			val = (val / 1000)
-			unit = " Mbps"
-		}
-		if val >= 0xFFFF {
-			val = (val / 1000)
-			unit = " Gbps"
-		}
-	} else {
-		// minimum supported is kbps by SMF/UE
-		val = val / 1000
-	}
-
-	return val, unit
 }

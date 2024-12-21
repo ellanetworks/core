@@ -44,6 +44,69 @@ sudo snap start ella.ellad
 
 Navigate to `https://localhost:5000` to access the Ella UI.
 
+### How-to Guides
+
+#### Deploy Ella
+
+##### Option 1: Snap
+
+Install the snap:
+
+```bash
+sudo snap install ella --channel=edge --devmode
+```
+
+Generate (or copy) a certificate and private key to the following location:
+
+```bash
+sudo openssl req -newkey rsa:2048 -nodes -keyout /var/snap/ella/common/key.pem -x509 -days 1 -out /var/snap/ella/common/cert.pem -subj "/CN=example.com"
+```
+
+Start the service:
+```bash
+sudo snap start ella.ellad
+```
+
+Navigate to `https://localhost:5000` to access the Ella UI.
+
+#### Option 2: Kubernetes (MicroK8s) with Juju
+
+Install MicroK8s:
+
+```shell
+sudo snap install microk8s --channel=1.31/stable --classic
+```
+
+Add the necessary MicroK8s addons:
+
+```shell
+sudo microk8s addons repo add community https://github.com/canonical/microk8s-community-addons --reference feat/strict-fix-multus
+sudo microk8s enable hostpath-storage
+sudo microk8s enable multus
+```
+
+Install Juju:
+
+```shell
+sudo snap install juju
+```
+
+Bootstrap a Juju controller:
+
+```shell
+juju bootstrap microk8s
+```
+
+Create a Juju model:
+
+```shell
+juju add-model ella
+```
+
+```shell
+juju deploy ella-k8s --trust
+```
+
 ### Reference
 
 #### Concepts
@@ -62,8 +125,8 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 | `/api/v1/metrics`            | GET         | Get metrics                  |
 | `/api/v1/subscribers`        | GET         | List subscribers             |
 | `/api/v1/subscribers`        | POST        | Create a new subscriber      |
-| `/api/v1/subscribers/{name}` | GET         | Get a subscriber             |
-| `/api/v1/subscribers/{name}` | DELETE      | Delete a subscriber          |
+| `/api/v1/subscribers/{imsi}` | GET         | Get a subscriber             |
+| `/api/v1/subscribers/{imsi}` | DELETE      | Delete a subscriber          |
 | `/api/v1/radios`             | GET         | List radios                  |
 | `/api/v1/radios`             | POST        | Create a new radio           |
 | `/api/v1/radios/{name}`      | GET         | Get a radio                  |

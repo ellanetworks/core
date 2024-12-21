@@ -2,7 +2,6 @@ package server
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/yeastengine/ella/internal/db"
@@ -10,58 +9,29 @@ import (
 )
 
 type CreateProfileParams struct {
-	Name  string   `json:"name"`
-	Imsis []string `json:"imsis"`
+	Name string `json:"name"`
 
-	Dnn             string `json:"dnn,omitempty"`
 	UeIpPool        string `json:"ue-ip-pool,omitempty"`
 	DnsPrimary      string `json:"dns-primary,omitempty"`
 	DnsSecondary    string `json:"dns-secondary,omitempty"`
 	Mtu             int32  `json:"mtu,omitempty"`
-	BitrateUplink   int64  `json:"bitrate-uplink,omitempty"`
-	BitrateDownlink int64  `json:"bitrate-downlink,omitempty"`
-	BitrateUnit     string `json:"bitrate-unit,omitempty"`
+	BitrateUplink   string `json:"bitrate-uplink,omitempty"`
+	BitrateDownlink string `json:"bitrate-downlink,omitempty"`
 	Var5qi          int32  `json:"var5qi,omitempty"`
-	Arp             int32  `json:"arp,omitempty"`
-	Pdb             int32  `json:"pdb,omitempty"`
-	Pelr            int32  `json:"pelr,omitempty"`
+	PriorityLevel   int32  `json:"priority-level,omitempty"`
 }
 
 type GetProfileResponse struct {
-	Name  string   `json:"name"`
-	Imsis []string `json:"imsis"`
+	Name string `json:"name"`
 
-	Dnn             string `json:"dnn,omitempty"`
 	UeIpPool        string `json:"ue-ip-pool,omitempty"`
 	DnsPrimary      string `json:"dns-primary,omitempty"`
 	DnsSecondary    string `json:"dns-secondary,omitempty"`
 	Mtu             int32  `json:"mtu,omitempty"`
-	BitrateUplink   int64  `json:"bitrate-uplink,omitempty"`
-	BitrateDownlink int64  `json:"bitrate-downlink,omitempty"`
-	BitrateUnit     string `json:"bitrate-unit,omitempty"`
+	BitrateUplink   string `json:"bitrate-uplink,omitempty"`
+	BitrateDownlink string `json:"bitrate-downlink,omitempty"`
 	Var5qi          int32  `json:"var5qi,omitempty"`
-	Arp             int32  `json:"arp,omitempty"`
-	Pdb             int32  `json:"pdb,omitempty"`
-	Pelr            int32  `json:"pelr,omitempty"`
-}
-
-func convertToString(val uint64) string {
-	var mbVal, gbVal, kbVal uint64
-	kbVal = val / 1000
-	mbVal = val / 1000000
-	gbVal = val / 1000000000
-	var retStr string
-	if gbVal != 0 {
-		retStr = strconv.FormatUint(gbVal, 10) + " Gbps"
-	} else if mbVal != 0 {
-		retStr = strconv.FormatUint(mbVal, 10) + " Mbps"
-	} else if kbVal != 0 {
-		retStr = strconv.FormatUint(kbVal, 10) + " Kbps"
-	} else {
-		retStr = strconv.FormatUint(val, 10) + " bps"
-	}
-
-	return retStr
+	PriorityLevel   int32  `json:"priority-level,omitempty"`
 }
 
 func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
@@ -81,18 +51,9 @@ func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 				DnsSecondary:    dbProfile.DnsSecondary,
 				BitrateDownlink: dbProfile.BitrateDownlink,
 				BitrateUplink:   dbProfile.BitrateUplink,
-				BitrateUnit:     dbProfile.BitrateUnit,
 				Var5qi:          dbProfile.Var5qi,
-				Arp:             dbProfile.Arp,
-				Pdb:             dbProfile.Pdb,
-				Pelr:            dbProfile.Pelr,
+				PriorityLevel:   dbProfile.PriorityLevel,
 			}
-			imsis, err := dbProfile.GetImsis()
-			if err != nil {
-				writeError(c.Writer, http.StatusInternalServerError, "Profile not found")
-				return
-			}
-			profileResponse.Imsis = imsis
 			profileList = append(profileList, profileResponse)
 		}
 		err = writeResponse(c.Writer, profileList, http.StatusOK)
@@ -125,18 +86,9 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 			Mtu:             dbProfile.Mtu,
 			BitrateDownlink: dbProfile.BitrateDownlink,
 			BitrateUplink:   dbProfile.BitrateUplink,
-			BitrateUnit:     dbProfile.BitrateUnit,
 			Var5qi:          dbProfile.Var5qi,
-			Arp:             dbProfile.Arp,
-			Pdb:             dbProfile.Pdb,
-			Pelr:            dbProfile.Pelr,
+			PriorityLevel:   dbProfile.PriorityLevel,
 		}
-		imsis, err := dbProfile.GetImsis()
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Profile not found")
-			return
-		}
-		profileResponse.Imsis = imsis
 		err = writeResponse(c.Writer, profileResponse, http.StatusOK)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
@@ -170,64 +122,29 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "mtu is missing")
 			return
 		}
-		if createProfileParams.BitrateUplink == 0 {
+		if createProfileParams.BitrateUplink == "" {
 			writeError(c.Writer, http.StatusBadRequest, "bitrate-uplink is missing")
 			return
 		}
-		if createProfileParams.BitrateDownlink == 0 {
+		if createProfileParams.BitrateDownlink == "" {
 			writeError(c.Writer, http.StatusBadRequest, "bitrate-downlink is missing")
-			return
-		}
-		if createProfileParams.BitrateUnit == "" {
-			writeError(c.Writer, http.StatusBadRequest, "bitrate-unit is missing")
 			return
 		}
 		if createProfileParams.Var5qi == 0 {
 			writeError(c.Writer, http.StatusBadRequest, "Var5qi is missing")
 			return
 		}
-		if createProfileParams.Arp == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "arp is missing")
+		if createProfileParams.PriorityLevel == 0 {
+			writeError(c.Writer, http.StatusBadRequest, "priority-level is missing")
 			return
 		}
-		if createProfileParams.Pdb == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "pdb is missing")
-			return
-		}
-		if createProfileParams.Pelr == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "pelr is missing")
-			return
-		}
+
 		_, err = dbInstance.GetProfile(createProfileParams.Name)
 		if err == nil {
 			writeError(c.Writer, http.StatusBadRequest, "Profile already exists")
 			return
 		}
 
-		network, err := dbInstance.GetNetwork()
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Network not found")
-			return
-		}
-
-		sVal, err := strconv.ParseUint(network.Sst, 10, 32)
-		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid SST")
-			return
-		}
-
-		for _, imsi := range createProfileParams.Imsis {
-			dnn := createProfileParams.Dnn
-			ueId := "imsi-" + imsi
-			plmnId := network.Mcc + network.Mnc
-			bitRateUplink := convertToString(uint64(createProfileParams.BitrateUplink))
-			bitRateDownlink := convertToString(uint64(createProfileParams.BitrateDownlink))
-			err = dbInstance.UpdateSubscriberProfile(ueId, dnn, network.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, createProfileParams.Var5qi)
-			if err != nil {
-				writeError(c.Writer, http.StatusBadRequest, "Failed to update subscriber")
-				return
-			}
-		}
 		dbProfile := &db.Profile{
 			Name:            createProfileParams.Name,
 			UeIpPool:        createProfileParams.UeIpPool,
@@ -236,16 +153,8 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			Mtu:             createProfileParams.Mtu,
 			BitrateDownlink: createProfileParams.BitrateDownlink,
 			BitrateUplink:   createProfileParams.BitrateUplink,
-			BitrateUnit:     createProfileParams.BitrateUnit,
 			Var5qi:          createProfileParams.Var5qi,
-			Arp:             createProfileParams.Arp,
-			Pdb:             createProfileParams.Pdb,
-			Pelr:            createProfileParams.Pelr,
-		}
-		err = dbProfile.SetImsis(createProfileParams.Imsis)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to create profile")
-			return
+			PriorityLevel:   createProfileParams.PriorityLevel,
 		}
 		err = dbInstance.CreateProfile(dbProfile)
 		if err != nil {
@@ -293,64 +202,27 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "mtu is missing")
 			return
 		}
-		if updateProfileParams.BitrateUplink == 0 {
+		if updateProfileParams.BitrateUplink == "" {
 			writeError(c.Writer, http.StatusBadRequest, "bitrate-uplink is missing")
 			return
 		}
-		if updateProfileParams.BitrateDownlink == 0 {
+		if updateProfileParams.BitrateDownlink == "" {
 			writeError(c.Writer, http.StatusBadRequest, "bitrate-downlink is missing")
-			return
-		}
-		if updateProfileParams.BitrateUnit == "" {
-			writeError(c.Writer, http.StatusBadRequest, "bitrate-unit is missing")
 			return
 		}
 		if updateProfileParams.Var5qi == 0 {
 			writeError(c.Writer, http.StatusBadRequest, "Var5qi is missing")
 			return
 		}
-		if updateProfileParams.Arp == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "arp is missing")
+		if updateProfileParams.PriorityLevel == 0 {
+			writeError(c.Writer, http.StatusBadRequest, "priority-level is missing")
 			return
 		}
-		if updateProfileParams.Pdb == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "pdb is missing")
-			return
-		}
-		if updateProfileParams.Pelr == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "pelr is missing")
-			return
-		}
+
 		profile, err := dbInstance.GetProfile(groupName)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "Profile not found")
 			return
-		}
-		dimsis, err := profile.GetImsis()
-		if err != nil {
-			logger.NmsLog.Warnln(err)
-			return
-		}
-		network, err := dbInstance.GetNetwork()
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Network not found")
-			return
-		}
-		sVal, err := strconv.ParseUint(network.Sst, 10, 32)
-		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid SST")
-			return
-		}
-		for _, imsi := range dimsis {
-			dnn := updateProfileParams.Dnn
-			ueId := "imsi-" + imsi
-			plmnId := network.Mcc + network.Mnc
-			bitRateUplink := convertToString(uint64(updateProfileParams.BitrateUplink))
-			bitRateDownlink := convertToString(uint64(updateProfileParams.BitrateDownlink))
-			err = dbInstance.UpdateSubscriberProfile(ueId, dnn, network.Sd, int32(sVal), plmnId, bitRateUplink, bitRateDownlink, updateProfileParams.Var5qi)
-			if err != nil {
-				logger.NmsLog.Warnln(err)
-			}
 		}
 
 		profile.Name = updateProfileParams.Name
@@ -360,16 +232,8 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		profile.Mtu = updateProfileParams.Mtu
 		profile.BitrateDownlink = updateProfileParams.BitrateDownlink
 		profile.BitrateUplink = updateProfileParams.BitrateUplink
-		profile.BitrateUnit = updateProfileParams.BitrateUnit
 		profile.Var5qi = updateProfileParams.Var5qi
-		profile.Arp = updateProfileParams.Arp
-		profile.Pdb = updateProfileParams.Pdb
-		profile.Pelr = updateProfileParams.Pelr
-		err = profile.SetImsis(updateProfileParams.Imsis)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to update profile")
-			return
-		}
+		profile.PriorityLevel = updateProfileParams.PriorityLevel
 		err = dbInstance.UpdateProfile(profile)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update profile")
@@ -395,12 +259,11 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
 			return
 		}
-		profile, err := dbInstance.GetProfile(groupName)
+		_, err := dbInstance.GetProfile(groupName)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "Profile not found")
 			return
 		}
-		deleteProfileConfig(dbInstance, profile)
 		err = dbInstance.DeleteProfile(groupName)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete profile")
@@ -413,21 +276,6 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
-		}
-	}
-}
-
-func deleteProfileConfig(dbInstance *db.Database, dbProfile *db.Profile) {
-	dimsis, err := dbProfile.GetImsis()
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-		return
-	}
-	for _, imsi := range dimsis {
-		ueId := "imsi-" + imsi
-		err = dbInstance.UpdateSubscriberProfile(ueId, "", "", 0, "", "", "", 0)
-		if err != nil {
-			logger.NmsLog.Warnln(err)
 		}
 	}
 }
