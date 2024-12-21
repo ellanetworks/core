@@ -1,7 +1,10 @@
 package server
 
 import (
+	"net"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/yeastengine/ella/internal/db"
@@ -32,6 +35,49 @@ type GetProfileResponse struct {
 	BitrateDownlink string `json:"bitrate-downlink,omitempty"`
 	Var5qi          int32  `json:"var5qi,omitempty"`
 	PriorityLevel   int32  `json:"priority-level,omitempty"`
+}
+
+func isProfileNameValid(name string) bool {
+	return len(name) > 0 && len(name) < 256
+}
+
+func isUeIpPoolValid(ueIpPool string) bool {
+	_, _, err := net.ParseCIDR(ueIpPool)
+	return err == nil
+}
+
+func isValidDNS(dns string) bool {
+	return net.ParseIP(dns) != nil
+}
+
+func isValidMTU(mtu int32) bool {
+	return mtu >= 0 && mtu <= 65535
+}
+
+func isValidBitrate(bitrate string) bool {
+	s := strings.Split(bitrate, " ")
+	if len(s) != 2 {
+		return false
+	}
+	value := s[0]
+	unit := s[1]
+	if unit != "Mbps" && unit != "Gbps" {
+		return false
+	}
+
+	valueInt, err := strconv.Atoi(value)
+	if err != nil {
+		return false
+	}
+	return valueInt > 0 && valueInt <= 1000
+}
+
+func isValid5Qi(var5qi int32) bool {
+	return var5qi >= 1 && var5qi <= 255
+}
+
+func isValidPriorityLevel(priorityLevel int32) bool {
+	return priorityLevel >= 1 && priorityLevel <= 255
 }
 
 func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
@@ -138,6 +184,42 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "priority-level is missing")
 			return
 		}
+		if !isProfileNameValid(createProfileParams.Name) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid name format. Must be less than 256 characters")
+			return
+		}
+		if !isUeIpPoolValid(createProfileParams.UeIpPool) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid ue-ip-pool format. Must be in CIDR format")
+			return
+		}
+		if !isValidDNS(createProfileParams.DnsPrimary) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid dns-primary format. Must be a valid IP address")
+			return
+		}
+		if !isValidDNS(createProfileParams.DnsSecondary) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid dns-secondary format. Must be a valid IP address")
+			return
+		}
+		if !isValidMTU(createProfileParams.Mtu) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid mtu format. Must be an integer between 0 and 65535")
+			return
+		}
+		if !isValidBitrate(createProfileParams.BitrateUplink) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid bitrate-uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
+			return
+		}
+		if !isValidBitrate(createProfileParams.BitrateDownlink) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid bitrate-downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
+			return
+		}
+		if !isValid5Qi(createProfileParams.Var5qi) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid Var5qi format. Must be an integer between 1 and 255")
+			return
+		}
+		if !isValidPriorityLevel(createProfileParams.PriorityLevel) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid priority-level format. Must be an integer between 1 and 255")
+			return
+		}
 
 		_, err = dbInstance.GetProfile(createProfileParams.Name)
 		if err == nil {
@@ -216,6 +298,42 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		if updateProfileParams.PriorityLevel == 0 {
 			writeError(c.Writer, http.StatusBadRequest, "priority-level is missing")
+			return
+		}
+		if !isProfileNameValid(updateProfileParams.Name) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid name format. Must be less than 256 characters")
+			return
+		}
+		if !isUeIpPoolValid(updateProfileParams.UeIpPool) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid ue-ip-pool format. Must be in CIDR format")
+			return
+		}
+		if !isValidDNS(updateProfileParams.DnsPrimary) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid dns-primary format. Must be a valid IP address")
+			return
+		}
+		if !isValidDNS(updateProfileParams.DnsSecondary) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid dns-secondary format. Must be a valid IP address")
+			return
+		}
+		if !isValidMTU(updateProfileParams.Mtu) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid mtu format. Must be an integer between 0 and 65535")
+			return
+		}
+		if !isValidBitrate(updateProfileParams.BitrateUplink) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid bitrate-uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
+			return
+		}
+		if !isValidBitrate(updateProfileParams.BitrateDownlink) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid bitrate-downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
+			return
+		}
+		if !isValid5Qi(updateProfileParams.Var5qi) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid Var5qi format. Must be an integer between 1 and 255")
+			return
+		}
+		if !isValidPriorityLevel(updateProfileParams.PriorityLevel) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid priority-level format. Must be an integer between 1 and 255")
 			return
 		}
 

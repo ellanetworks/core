@@ -32,6 +32,7 @@ PROFILE_CONFIG = {
     "dnn": "internet",
     "ue-ip-pool": "172.250.0.0/16",
     "dns-primary": "8.8.8.8",
+    "dns-secondary": "8.8.8.8",
     "mtu": 1460,
     "bitrate-uplink": "200 Mbps",
     "bitrate-downlink": "100 Mbps",
