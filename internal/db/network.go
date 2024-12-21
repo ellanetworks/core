@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/canonical/sqlair"
@@ -16,9 +15,7 @@ const QueryCreateNetworkTable = `
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
 		mcc TEXT NOT NULL,
-		mnc TEXT NOT NULL,
-		gNodeBs TEXT NOT NULL,
-		upf TEXT NOT NULL
+		mnc TEXT NOT NULL
 )`
 
 const (
@@ -28,65 +25,14 @@ const (
 
 const (
 	getNetworkStmt        = "SELECT &Network.* FROM %s WHERE id=1"
-	updateNetworkStmt     = "UPDATE %s SET mcc=$Network.mcc, mnc=$Network.mnc, gNodeBs=$Network.gNodeBs, upf=$Network.upf WHERE id=1"
-	initializeNetworkStmt = "INSERT INTO %s (mcc, mnc, gNodeBs, upf) VALUES ($Network.mcc, $Network.mnc, $Network.gNodeBs, $Network.upf)"
+	updateNetworkStmt     = "UPDATE %s SET mcc=$Network.mcc, mnc=$Network.mnc WHERE id=1"
+	initializeNetworkStmt = "INSERT INTO %s (mcc, mnc) VALUES ($Network.mcc, $Network.mnc)"
 )
 
-type GNodeB struct {
-	Name string `json:"name,omitempty"`
-	Tac  int32  `json:"tac,omitempty"`
-}
-
-type UPF struct {
-	Name string `json:"name,omitempty"`
-	Port int    `json:"port,omitempty"`
-}
-
 type Network struct {
-	ID      int    `db:"id"`
-	Mcc     string `db:"mcc"`
-	Mnc     string `db:"mnc"`
-	GNodeBs string `db:"gNodeBs"`
-	Upf     string `db:"upf"`
-}
-
-func (ns *Network) GetGNodeBs() ([]GNodeB, error) {
-	var gNodeBs []GNodeB
-	if ns.GNodeBs == "" {
-		return gNodeBs, nil
-	}
-	err := json.Unmarshal([]byte(ns.GNodeBs), &gNodeBs)
-	return gNodeBs, err
-}
-
-func (ns *Network) SetGNodeBs(gNodeBs []GNodeB) error {
-	data, err := json.Marshal(gNodeBs)
-	if err != nil {
-		return err
-	}
-	ns.GNodeBs = string(data)
-	return nil
-}
-
-func (ns *Network) GetUpf() (*UPF, error) {
-	if ns.Upf == "" {
-		return nil, nil
-	}
-	var upf UPF
-	err := json.Unmarshal([]byte(ns.Upf), &upf)
-	if err != nil {
-		return nil, err
-	}
-	return &upf, nil
-}
-
-func (ns *Network) SetUpf(upf UPF) error {
-	data, err := json.Marshal(upf)
-	if err != nil {
-		return err
-	}
-	ns.Upf = string(data)
-	return nil
+	ID  int    `db:"id"`
+	Mcc string `db:"mcc"`
+	Mnc string `db:"mnc"`
 }
 
 func (db *Database) GetNetwork() (*Network, error) {
@@ -108,10 +54,8 @@ func (db *Database) InitializeNetwork() error {
 		return fmt.Errorf("failed to prepare initialize network configuration statement: %v", err)
 	}
 	network := Network{
-		Mcc:     DefaultMcc,
-		Mnc:     DefaultMnc,
-		GNodeBs: "",
-		Upf:     "",
+		Mcc: DefaultMcc,
+		Mnc: DefaultMnc,
 	}
 	err = db.conn.Query(context.Background(), stmt, network).Run()
 	if err != nil {

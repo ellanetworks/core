@@ -74,7 +74,7 @@ def configure_ella(ella_address: str) -> None:
     - network config update
     """
     ella_client = Ella(url=ella_address)
-    ella_client.create_radio(name=f"{NAMESPACE}-gnbsim", tac=1)
+    ella_client.create_radio(name=f"{NAMESPACE}-gnbsim", tac="001")
     ella_client.create_profile(name=TEST_PROFILE_NAME)
     ella_client.create_subscriber(imsi=TEST_IMSI, profile_name=TEST_PROFILE_NAME)
     ella_client.update_network()

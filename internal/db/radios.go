@@ -15,7 +15,7 @@ const QueryCreateRadiosTable = `
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
 		name TEXT NOT NULL,
-		tac INTEGER NOT NULL
+		tac TEXT NOT NULL
 )`
 
 const (
@@ -28,7 +28,7 @@ const (
 type Radio struct {
 	ID   int    `db:"id"`
 	Name string `db:"name"`
-	Tac  int    `db:"tac"`
+	Tac  string `db:"tac"`
 }
 
 func (db *Database) ListRadios() ([]Radio, error) {

@@ -9,21 +9,14 @@ import (
 	"testing"
 )
 
-type GNodeB struct {
-	Name string `json:"name,omitempty"`
-	Tac  int32  `json:"tac,omitempty"`
-}
-
-type UPF struct {
-	Name string `json:"name,omitempty"`
-	Port int    `json:"port,omitempty"`
-}
+const (
+	Mcc = "123"
+	Mnc = "456"
+)
 
 type GetNetworkResponseResult struct {
-	Mcc     string   `json:"mcc,omitempty"`
-	Mnc     string   `json:"mnc,omitempty"`
-	GNodeBs []GNodeB `json:"gNodeBs"`
-	Upf     UPF      `json:"upf,omitempty"`
+	Mcc string `json:"mcc,omitempty"`
+	Mnc string `json:"mnc,omitempty"`
 }
 
 type GetNetworkResponse struct {
@@ -32,10 +25,8 @@ type GetNetworkResponse struct {
 }
 
 type UpdateNetworkParams struct {
-	Mcc     string   `json:"mcc,omitempty"`
-	Mnc     string   `json:"mnc,omitempty"`
-	GNodeBs []GNodeB `json:"gNodeBs"`
-	Upf     UPF      `json:"upf,omitempty"`
+	Mcc string `json:"mcc,omitempty"`
+	Mnc string `json:"mnc,omitempty"`
 }
 
 type UpdateNetworkResponseResult struct {
@@ -110,16 +101,6 @@ func TestApiNetworksEndToEnd(t *testing.T) {
 		updateNetworkParams := &UpdateNetworkParams{
 			Mcc: "123",
 			Mnc: "456",
-			GNodeBs: []GNodeB{
-				{
-					Name: "gnb-001",
-					Tac:  12345,
-				},
-			},
-			Upf: UPF{
-				Name: "upf-001",
-				Port: 1234,
-			},
 		}
 		statusCode, response, err := updateNetwork(ts.URL, client, updateNetworkParams)
 		if err != nil {
@@ -150,21 +131,6 @@ func TestApiNetworksEndToEnd(t *testing.T) {
 		if response.Result.Mnc != "456" {
 			t.Fatalf("expected mnc %s, got %s", "456", response.Result.Mnc)
 		}
-		if len(response.Result.GNodeBs) != 1 {
-			t.Fatalf("expected 1 gNodeB, got %d", len(response.Result.GNodeBs))
-		}
-		if response.Result.GNodeBs[0].Name != "gnb-001" {
-			t.Fatalf("expected gnb-001, got %s", response.Result.GNodeBs[0].Name)
-		}
-		if response.Result.GNodeBs[0].Tac != 12345 {
-			t.Fatalf("expected tac 12345, got %d", response.Result.GNodeBs[0].Tac)
-		}
-		if response.Result.Upf.Name != "upf-001" {
-			t.Fatalf("expected upf-001, got %s", response.Result.Upf.Name)
-		}
-		if response.Result.Upf.Port != 1234 {
-			t.Fatalf("expected port 1234, got %d", response.Result.Upf.Port)
-		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
@@ -185,4 +151,77 @@ func TestApiNetworksEndToEnd(t *testing.T) {
 			t.Fatalf("expected error %q, got %q", "mnc is missing", response.Error)
 		}
 	})
+}
+
+func TestUpdateNetworkInvalidInput(t *testing.T) {
+	tempDir := t.TempDir()
+	db_path := filepath.Join(tempDir, "db.sqlite3")
+	ts, err := setupServer(db_path)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	tests := []struct {
+		testName string
+		mcc      string
+		mnc      string
+		error    string
+	}{
+		{
+			testName: "Invalid mcc - strings instead of numbers",
+			mcc:      "abc",
+			mnc:      Mnc,
+			error:    "Invalid mcc format. Must be a 3-decimal digit.",
+		},
+		{
+			testName: "Invalid mcc - too long",
+			mcc:      "1234",
+			mnc:      Mnc,
+			error:    "Invalid mcc format. Must be a 3-decimal digit.",
+		},
+		{
+			testName: "Invalid mcc - too short",
+			mcc:      "12",
+			mnc:      Mnc,
+			error:    "Invalid mcc format. Must be a 3-decimal digit.",
+		},
+		{
+			testName: "Invalid mnc - strings instead of numbers",
+			mcc:      Mcc,
+			mnc:      "abc",
+			error:    "Invalid mnc format. Must be a 2 or 3-decimal digit.",
+		},
+		{
+			testName: "Invalid mnc - too long",
+			mcc:      Mcc,
+			mnc:      "1234",
+			error:    "Invalid mnc format. Must be a 2 or 3-decimal digit.",
+		},
+		{
+			testName: "Invalid mnc - too short",
+			mcc:      Mcc,
+			mnc:      "1",
+			error:    "Invalid mnc format. Must be a 2 or 3-decimal digit.",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			updateNetworkParams := &UpdateNetworkParams{
+				Mcc: tt.mcc,
+				Mnc: tt.mnc,
+			}
+			statusCode, response, err := updateNetwork(ts.URL, client, updateNetworkParams)
+			if err != nil {
+				t.Fatalf("couldn't update network: %s", err)
+			}
+			if statusCode != http.StatusBadRequest {
+				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+			}
+			if response.Error != tt.error {
+				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
+			}
+		})
+	}
 }

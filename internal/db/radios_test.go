@@ -7,7 +7,7 @@ import (
 	"github.com/yeastengine/ella/internal/db"
 )
 
-func TestRadiosEndToEnd(t *testing.T) {
+func TestDBRadiosEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
@@ -30,7 +30,7 @@ func TestRadiosEndToEnd(t *testing.T) {
 
 	radio := &db.Radio{
 		Name: "my-radio",
-		Tac:  123456,
+		Tac:  "001",
 	}
 	err = database.CreateRadio(radio)
 	if err != nil {
