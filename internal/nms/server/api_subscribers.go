@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/hex"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -39,6 +40,26 @@ func isImsiValid(imsi string, dbInstance *db.Database) bool {
 		return false
 	}
 	return true
+}
+
+func isHexString(input string, length int) bool {
+	if len(input) != length {
+		return false
+	}
+	for _, c := range input {
+		if !(('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
+
+func isSequenceNumberValid(sequenceNumber string) bool {
+	bytes, err := hex.DecodeString(sequenceNumber)
+	if err != nil {
+		return false
+	}
+	return len(bytes) == 6
 }
 
 func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
@@ -129,7 +150,19 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		if !isImsiValid(createSubscriberParams.Imsi, dbInstance) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid imsi")
+			writeError(c.Writer, http.StatusBadRequest, "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.")
+			return
+		}
+		if !isSequenceNumberValid(createSubscriberParams.SequenceNumber) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid sequenceNumber. Must be a 6-byte hexadecimal string.")
+			return
+		}
+		if !isHexString(createSubscriberParams.Key, 32) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid key format. Must be a 32-character hexadecimal string.")
+			return
+		}
+		if !isHexString(createSubscriberParams.OPc, 32) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid OPc format. Must be a 32-character hexadecimal string.")
 			return
 		}
 

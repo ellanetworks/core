@@ -10,7 +10,10 @@ import (
 )
 
 const (
-	Imsi = "001010100007487"
+	Imsi           = "001010100007487"
+	Opc            = "981d464c7c52eb6e5036234984ad0bcf"
+	Key            = "5122250214c33e723a5dd523fc145fc0"
+	SequenceNumber = "16f3b3f70fc2"
 )
 
 type CreateSubscriberSuccessResponse struct {
@@ -163,9 +166,9 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	t.Run("2. Create subscriber", func(t *testing.T) {
 		createSubscriberParams := &CreateSubscriberParams{
 			Imsi:           Imsi,
-			OPc:            "123456",
-			Key:            "123",
-			SequenceNumber: "123456",
+			OPc:            Opc,
+			Key:            Key,
+			SequenceNumber: SequenceNumber,
 			ProfileName:    ProfileName,
 		}
 		statusCode, response, err := createSubscriber(ts.URL, client, createSubscriberParams)
@@ -194,14 +197,14 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		if response.Result.Imsi != Imsi {
 			t.Fatalf("expected imsi %s, got %s", Imsi, response.Result.Imsi)
 		}
-		if response.Result.OPc != "123456" {
-			t.Fatalf("expected opc 123456, got %s", response.Result.OPc)
+		if response.Result.OPc != Opc {
+			t.Fatalf("expected opc %s, got %s", Opc, response.Result.OPc)
 		}
-		if response.Result.Key != "123" {
-			t.Fatalf("expected key 123, got %s", response.Result.Key)
+		if response.Result.Key != Key {
+			t.Fatalf("expected key %s, got %s", Key, response.Result.Key)
 		}
-		if response.Result.SequenceNumber != "123456" {
-			t.Fatalf("expected sequenceNumber 123456, got %s", response.Result.SequenceNumber)
+		if response.Result.SequenceNumber != SequenceNumber {
+			t.Fatalf("expected sequenceNumber %s, got %s", SequenceNumber, response.Result.SequenceNumber)
 		}
 		if response.Result.ProfileName != ProfileName {
 			t.Fatalf("expected profileName %s, got %s", ProfileName, response.Result.ProfileName)
@@ -268,7 +271,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 }
 
-func TestCreateSubscribersBadImsis(t *testing.T) {
+func TestCreateSubscribersInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
 	ts, err := setupServer(db_path)
@@ -279,21 +282,90 @@ func TestCreateSubscribersBadImsis(t *testing.T) {
 	client := ts.Client()
 
 	tests := []struct {
-		imsi string
+		imsi           string
+		opc            string
+		key            string
+		sequenceNumber string
+		error          string
 	}{
-		{imsi: "12345"},
-		{imsi: "00101010000748812"},
-		{imsi: "002010100007488"},
-		{imsi: "00101"},
+		{
+			imsi:           "12345",
+			opc:            Opc,
+			key:            Key,
+			sequenceNumber: SequenceNumber,
+			error:          "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.",
+		},
+		{
+			imsi:           "00101010000748812",
+			opc:            Opc,
+			key:            Key,
+			sequenceNumber: SequenceNumber,
+			error:          "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.",
+		},
+		{
+			imsi:           "002010100007488",
+			opc:            Opc,
+			key:            Key,
+			sequenceNumber: SequenceNumber,
+			error:          "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.",
+		},
+		{
+			imsi:           "00101",
+			opc:            Opc,
+			key:            Key,
+			sequenceNumber: SequenceNumber,
+			error:          "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.",
+		},
+		{
+			imsi:           Imsi,
+			opc:            "12345",
+			key:            Key,
+			sequenceNumber: SequenceNumber,
+			error:          "Invalid OPc format. Must be a 32-character hexadecimal string.",
+		},
+		{
+			imsi:           Imsi,
+			opc:            "12345678901234567890123456789012345678901234567890123456789012345",
+			key:            Key,
+			sequenceNumber: SequenceNumber,
+			error:          "Invalid OPc format. Must be a 32-character hexadecimal string.",
+		},
+		{
+			imsi:           Imsi,
+			opc:            Opc,
+			key:            "12345",
+			sequenceNumber: SequenceNumber,
+			error:          "Invalid key format. Must be a 32-character hexadecimal string.",
+		},
+		{
+			imsi:           Imsi,
+			opc:            Opc,
+			key:            "12345678901234567890123456789012345678901234567890123456789012345",
+			sequenceNumber: SequenceNumber,
+			error:          "Invalid key format. Must be a 32-character hexadecimal string.",
+		},
+		{
+			imsi:           Imsi,
+			opc:            Opc,
+			key:            Key,
+			sequenceNumber: "12345",
+			error:          "Invalid sequenceNumber. Must be a 6-byte hexadecimal string.",
+		},
+		{
+			imsi:           Imsi,
+			opc:            Opc,
+			key:            Key,
+			sequenceNumber: "1234567890123",
+			error:          "Invalid sequenceNumber. Must be a 6-byte hexadecimal string.",
+		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.imsi, func(t *testing.T) {
 			createSubscriberParams := &CreateSubscriberParams{
 				Imsi:           tt.imsi,
-				OPc:            "123456",
-				Key:            "123",
-				SequenceNumber: "123456",
+				OPc:            tt.opc,
+				Key:            tt.key,
+				SequenceNumber: tt.sequenceNumber,
 				ProfileName:    ProfileName,
 			}
 			statusCode, response, err := createSubscriber(ts.URL, client, createSubscriberParams)
@@ -303,8 +375,8 @@ func TestCreateSubscribersBadImsis(t *testing.T) {
 			if statusCode != http.StatusBadRequest {
 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 			}
-			if response.Error != "Invalid imsi" {
-				t.Fatalf("expected error %q, got %q", "Invalid imsi", response.Error)
+			if response.Error != tt.error {
+				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}
 		})
 	}
