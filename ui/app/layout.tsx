@@ -5,8 +5,9 @@ import { Box, CssBaseline, Toolbar, AppBar, Typography, Drawer, List, ListItem, 
 import {
   Info as InfoIcon,
   BugReport as BugReportIcon,
-  People as PeopleIcon,
-  NetworkCheck as NetworkIcon,
+  Person as PersonIcon,
+  Sensors as SensorsIcon,
+  Groups as GroupsIcon,
 } from "@mui/icons-material";
 import { usePathname } from "next/navigation";
 import { ThemeProvider } from "@mui/material/styles";
@@ -68,9 +69,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       selected={pathname === "/network-configuration"}
                     >
                       <ListItemIcon>
-                        <NetworkIcon />
+                        <SensorsIcon />
                       </ListItemIcon>
                       <ListItemText primary="Network Configuration" />
+                    </ListItemButton>
+                  </ListItem>
+                  <ListItem disablePadding>
+                    <ListItemButton
+                      component="a"
+                      href="/profiles"
+                      selected={pathname === "/profiles"}
+                    >
+                      <ListItemIcon>
+                        <GroupsIcon />
+                      </ListItemIcon>
+                      <ListItemText primary="Profiles" />
                     </ListItemButton>
                   </ListItem>
                   <ListItem disablePadding>
@@ -80,7 +93,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       selected={pathname === "/subscribers"}
                     >
                       <ListItemIcon>
-                        <PeopleIcon />
+                        <PersonIcon />
                       </ListItemIcon>
                       <ListItemText primary="Subscribers" />
                     </ListItemButton>
