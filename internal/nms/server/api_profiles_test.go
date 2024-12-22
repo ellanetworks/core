@@ -11,8 +11,7 @@ import (
 
 const (
 	ProfileName     = "test-profile"
-	DnsPrimary      = "8.8.8.8"
-	DnsSecondary    = "9.9.9.9"
+	Dns             = "8.8.8.8"
 	UeIpPool        = "0.0.0.0/24"
 	Mtu             = 1500
 	BitrateUplink   = "100 Mbps"
@@ -29,8 +28,7 @@ type GetProfileResponseResult struct {
 	Name string `json:"name"`
 
 	UeIpPool        string `json:"ue-ip-pool,omitempty"`
-	DnsPrimary      string `json:"dns-primary,omitempty"`
-	DnsSecondary    string `json:"dns-secondary,omitempty"`
+	Dns             string `json:"dns,omitempty"`
 	Mtu             int32  `json:"mtu,omitempty"`
 	BitrateUplink   string `json:"bitrate-uplink,omitempty"`
 	BitrateDownlink string `json:"bitrate-downlink,omitempty"`
@@ -47,8 +45,7 @@ type CreateProfileParams struct {
 	Name string `json:"name"`
 
 	UeIpPool        string `json:"ue-ip-pool,omitempty"`
-	DnsPrimary      string `json:"dns-primary,omitempty"`
-	DnsSecondary    string `json:"dns-secondary,omitempty"`
+	Dns             string `json:"dns,omitempty"`
 	Mtu             int32  `json:"mtu,omitempty"`
 	BitrateUplink   string `json:"bitrate-uplink,omitempty"`
 	BitrateDownlink string `json:"bitrate-downlink,omitempty"`
@@ -221,8 +218,7 @@ func TestAPIProfilesEndToEnd(t *testing.T) {
 		createProfileParams := &CreateProfileParams{
 			Name:            ProfileName,
 			UeIpPool:        "0.0.0.0/24",
-			DnsPrimary:      "8.8.8.8",
-			DnsSecondary:    "2.2.2.2",
+			Dns:             "8.8.8.8",
 			Mtu:             1500,
 			BitrateUplink:   "100 Mbps",
 			BitrateDownlink: "200 Mbps",
@@ -274,11 +270,8 @@ func TestAPIProfilesEndToEnd(t *testing.T) {
 		if response.Result.UeIpPool != "0.0.0.0/24" {
 			t.Fatalf("expected ue-ip-pool 0.0.0.0/24 got %s", response.Result.UeIpPool)
 		}
-		if response.Result.DnsPrimary != "8.8.8.8" {
-			t.Fatalf("expected dns-primary 8.8.8.8 got %s", response.Result.DnsPrimary)
-		}
-		if response.Result.DnsSecondary != "2.2.2.2" {
-			t.Fatalf("expected dns-secondary 2.2.2.2 got %s", response.Result.DnsSecondary)
+		if response.Result.Dns != "8.8.8.8" {
+			t.Fatalf("expected dns 8.8.8.8 got %s", response.Result.Dns)
 		}
 		if response.Result.Mtu != 1500 {
 			t.Fatalf("expected mtu 1500 got %d", response.Result.Mtu)
@@ -331,8 +324,7 @@ func TestAPIProfilesEndToEnd(t *testing.T) {
 		createProfileParams := &CreateProfileParams{
 			Name:            ProfileName,
 			UeIpPool:        "2.2.2.2/24",
-			DnsPrimary:      "1.1.1.1",
-			DnsSecondary:    "3.3.3.3",
+			Dns:             "1.1.1.1",
 			Mtu:             1500,
 			BitrateUplink:   "100 Mbps",
 			BitrateDownlink: "200 Mbps",
@@ -395,8 +387,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 		testName        string
 		name            string
 		ueIpPool        string
-		dnsPrimary      string
-		dnsSecondary    string
+		dns             string
 		mtu             int32
 		bitrateUplink   string
 		bitrateDownlink string
@@ -408,8 +399,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid ueIpPool - missing subnet",
 			name:            ProfileName,
 			ueIpPool:        "0.0.0.0",
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             Mtu,
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: BitrateDownlink,
@@ -421,8 +411,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid ueIpPool - Too many bits",
 			name:            ProfileName,
 			ueIpPool:        "0.0.0.0/2555",
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             Mtu,
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: BitrateDownlink,
@@ -434,8 +423,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid Name",
 			name:            strings.Repeat("a", 257),
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             Mtu,
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: BitrateDownlink,
@@ -447,34 +435,19 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid DNS Primary",
 			name:            ProfileName,
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      "not a valid ip",
-			dnsSecondary:    DnsSecondary,
+			dns:             "not a valid ip",
 			mtu:             Mtu,
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: BitrateDownlink,
 			var5qi:          Var5qi,
 			priorityLevel:   PriorityLevel,
-			error:           "Invalid dns-primary format. Must be a valid IP address",
-		},
-		{
-			testName:        "Invalid DNS Secondary",
-			name:            ProfileName,
-			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    "not a valid ip",
-			mtu:             Mtu,
-			bitrateUplink:   BitrateUplink,
-			bitrateDownlink: BitrateDownlink,
-			var5qi:          Var5qi,
-			priorityLevel:   PriorityLevel,
-			error:           "Invalid dns-secondary format. Must be a valid IP address",
+			error:           "Invalid dns format. Must be a valid IP address",
 		},
 		{
 			testName:        "Invalid MTU - Negative",
 			name:            ProfileName,
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             -1,
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: BitrateDownlink,
@@ -486,8 +459,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid MTU - Too large",
 			name:            ProfileName,
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             65536,
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: BitrateDownlink,
@@ -499,8 +471,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid Uplink Bitrate - Missing unit",
 			name:            ProfileName,
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             Mtu,
 			bitrateUplink:   "200",
 			bitrateDownlink: BitrateDownlink,
@@ -512,8 +483,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid Uplink Bitrate - Invalid unit",
 			name:            ProfileName,
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             Mtu,
 			bitrateUplink:   "200 Tbps",
 			bitrateDownlink: BitrateDownlink,
@@ -525,8 +495,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid Uplink Bitrate - Zero value",
 			name:            ProfileName,
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             Mtu,
 			bitrateUplink:   "0 Mbps",
 			bitrateDownlink: BitrateDownlink,
@@ -538,8 +507,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid Uplink Bitrate - Negative value",
 			name:            ProfileName,
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             Mtu,
 			bitrateUplink:   "-1 Mbps",
 			bitrateDownlink: BitrateDownlink,
@@ -551,8 +519,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid Uplink Bitrate - Too large value",
 			name:            ProfileName,
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             Mtu,
 			bitrateUplink:   "1001 Mbps",
 			bitrateDownlink: BitrateDownlink,
@@ -564,8 +531,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid Downlink Bitrate - Missing unit",
 			name:            ProfileName,
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             Mtu,
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: "200",
@@ -577,8 +543,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid Downlink Bitrate - Invalid unit",
 			name:            ProfileName,
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             Mtu,
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: "200 Tbps",
@@ -590,8 +555,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid Downlink Bitrate - Zero value",
 			name:            ProfileName,
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             Mtu,
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: "0 Mbps",
@@ -603,8 +567,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid Downlink Bitrate - Negative value",
 			name:            ProfileName,
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             Mtu,
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: "-1 Mbps",
@@ -616,8 +579,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid Downlink Bitrate - Too large value",
 			name:            ProfileName,
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             Mtu,
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: "1001 Mbps",
@@ -629,8 +591,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid 5QI - Too large value",
 			name:            ProfileName,
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             Mtu,
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: BitrateDownlink,
@@ -642,8 +603,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			testName:        "Invalid Priority Level - Too large value",
 			name:            ProfileName,
 			ueIpPool:        UeIpPool,
-			dnsPrimary:      DnsPrimary,
-			dnsSecondary:    DnsSecondary,
+			dns:             Dns,
 			mtu:             Mtu,
 			bitrateUplink:   BitrateUplink,
 			bitrateDownlink: BitrateDownlink,
@@ -657,8 +617,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 			createProfileParams := &CreateProfileParams{
 				Name:            tt.name,
 				UeIpPool:        tt.ueIpPool,
-				DnsPrimary:      tt.dnsPrimary,
-				DnsSecondary:    tt.dnsSecondary,
+				Dns:             tt.dns,
 				Mtu:             tt.mtu,
 				BitrateUplink:   tt.bitrateUplink,
 				BitrateDownlink: tt.bitrateDownlink,

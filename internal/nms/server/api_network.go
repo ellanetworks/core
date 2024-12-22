@@ -147,8 +147,7 @@ func updateSMF(dbInstance *db.Database) {
 		profile := models.Profile{
 			Name:            dbProfile.Name,
 			UeIpPool:        dbProfile.UeIpPool,
-			DnsPrimary:      dbProfile.DnsPrimary,
-			DnsSecondary:    dbProfile.DnsSecondary,
+			Dns:             dbProfile.Dns,
 			BitrateDownlink: dbProfile.BitrateDownlink,
 			BitrateUplink:   dbProfile.BitrateUplink,
 			Var5qi:          dbProfile.Var5qi,
