@@ -1,17 +1,21 @@
 import { HTTPStatus } from "@/queries/utils";
 
 export const getNetwork = async () => {
-  const networkResponse = await fetch(`/api/v1/network`, {
+  const response = await fetch(`/api/v1/network`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
     },
   });
-  const respData = await networkResponse.json();
-  if (!networkResponse.ok) {
-    throw new Error(`${networkResponse.status}: ${HTTPStatus(networkResponse.status)}. ${respData.error}`)
+  try {
+    const respData = await response.json();
+    if (!response.ok) {
+      throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData.error}`)
+    }
+    return respData.result
+  } catch (error) {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`)
   }
-  return respData.result
 };
 
 export const updateNetwork = async (mcc: string, mnc: string) => {
@@ -35,9 +39,13 @@ export const updateNetwork = async (mcc: string, mnc: string) => {
     },
     body: JSON.stringify(networkData),
   });
-  const respData = await response.json();
-  if (!response.ok) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData.error}`)
+  try {
+    const respData = await response.json();
+    if (!response.ok) {
+      throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData.error}`)
+    }
+    return respData.result
+  } catch (error) {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`)
   }
-  return respData.result
 };

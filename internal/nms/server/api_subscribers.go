@@ -66,8 +66,17 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 
 		subscribers := make([]GetSubscriberResponse, 0)
 		for _, dbSubscriber := range dbSubscribers {
+			profile, err := dbInstance.GetProfileByID(dbSubscriber.ProfileID)
+			if err != nil {
+				writeError(c.Writer, http.StatusInternalServerError, "Failed to retrieve profile")
+				return
+			}
 			subscribers = append(subscribers, GetSubscriberResponse{
-				Imsi: dbSubscriber.Imsi,
+				Imsi:           dbSubscriber.Imsi,
+				Opc:            dbSubscriber.OpcValue,
+				Key:            dbSubscriber.PermanentKeyValue,
+				SequenceNumber: dbSubscriber.SequenceNumber,
+				ProfileName:    profile.Name,
 			})
 		}
 		err = writeResponse(c.Writer, subscribers, http.StatusOK)
