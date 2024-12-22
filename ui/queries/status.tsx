@@ -1,6 +1,6 @@
-import { HTTPStatus } from "@/utils/utils";
+import { HTTPStatus } from "@/queries/utils";
 
-export const apiGetStatus = async () => {
+export const getStatus = async () => {
   const statusResponse = await fetch(`/api/v1/status`, {
     method: "GET",
     headers: {

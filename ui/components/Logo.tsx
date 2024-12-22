@@ -14,7 +14,7 @@ const Logo: FC = () => {
           className="logo-image"
         />
       </div>
-      <span className="logo-text p-heading--4">5G NMS</span>
+      <span className="logo-text p-heading--4">Ella</span>
     </a>
   );
 };
