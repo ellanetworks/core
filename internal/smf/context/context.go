@@ -153,7 +153,7 @@ func UpdateSnssaiInfo(network *nmsModels.Network, profiles []nmsModels.Profile) 
 
 	for _, profile := range profiles {
 		dnn := config.DNN
-		dnsPrimary := profile.DnsPrimary
+		dnsPrimary := profile.Dns
 		mtu := profile.Mtu
 		alloc, err := GetOrCreateIPAllocator(dnn, profile.UeIpPool)
 		if err != nil {

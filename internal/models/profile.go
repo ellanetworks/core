@@ -4,8 +4,7 @@ type Profile struct {
 	Name string
 
 	UeIpPool        string
-	DnsPrimary      string
-	DnsSecondary    string
+	Dns             string
 	Mtu             int32
 	BitrateUplink   string
 	BitrateDownlink string
