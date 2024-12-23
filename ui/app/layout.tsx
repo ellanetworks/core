@@ -55,8 +55,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
               >
                 <Toolbar>
-                  <Logo width={120} height={60} />
-                  <Typography variant="h6" noWrap component="div">
+                  <Logo width={50} height={50} />
+                  <Typography variant="h6" noWrap component="div" sx={{ ml: 2 }}>
                     Ella Private Network
                   </Typography>
                 </Toolbar>
