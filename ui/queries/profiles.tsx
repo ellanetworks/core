@@ -7,15 +7,18 @@ export const listProfiles = async () => {
       "Content-Type": "application/json",
     },
   });
+  let respData;
   try {
-    const respData = await response.json();
-    if (!response.ok) {
-      throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData.error}`)
-    }
-    return respData.result
-  } catch (error) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`)
+    respData = await response.json();
+  } catch {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
   }
+
+  if (!response.ok) {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+  }
+
+  return respData.result;
 };
 
 export const createProfile = async (name: string, ipPool: string, dns: string, mtu: number, bitrateUplink: string, bitrateDownlink: string, var5qi: number, priorityLevel: number) => {
@@ -37,15 +40,18 @@ export const createProfile = async (name: string, ipPool: string, dns: string, m
     },
     body: JSON.stringify(profileData),
   });
+  let respData;
   try {
-    const respData = await response.json();
-    if (!response.ok) {
-      throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData.error}`)
-    }
-    return respData.result
-  } catch (error) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`)
+    respData = await response.json();
+  } catch {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
   }
+
+  if (!response.ok) {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+  }
+
+  return respData.result;
 };
 
 export const updateProfile = async (name: string, ipPool: string, dns: string, mtu: number, bitrateUplink: string, bitrateDownlink: string, var5qi: number, priorityLevel: number) => {
@@ -67,15 +73,18 @@ export const updateProfile = async (name: string, ipPool: string, dns: string, m
     },
     body: JSON.stringify(profileData),
   });
+  let respData;
   try {
-    const respData = await response.json();
-    if (!response.ok) {
-      throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData.error}`)
-    }
-    return respData.result
-  } catch (error) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`)
+    respData = await response.json();
+  } catch {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
   }
+
+  if (!response.ok) {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+  }
+
+  return respData.result;
 }
 
 export const deleteProfile = async (name: string) => {
@@ -85,13 +94,16 @@ export const deleteProfile = async (name: string) => {
       "Content-Type": "application/json",
     },
   });
+  let respData;
   try {
-    const respData = await response.json();
-    if (!response.ok) {
-      throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData.error}`)
-    }
-    return respData.result
-  } catch (error) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`)
+    respData = await response.json();
+  } catch {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
   }
+
+  if (!response.ok) {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+  }
+
+  return respData.result;
 }
