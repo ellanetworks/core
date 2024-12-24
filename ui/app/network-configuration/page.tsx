@@ -132,7 +132,7 @@ const NetworkConfiguration = () => {
         <Button
           fullWidth
           variant="contained"
-          color="primary"
+          color="success"
           onClick={handleSave}
           disabled={isSaveDisabled}
           sx={{ marginTop: 2 }}

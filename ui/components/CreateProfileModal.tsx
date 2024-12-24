@@ -287,7 +287,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({ open, onClose, 
                     </Button>
                     <Button
                         variant="contained"
-                        color="primary"
+                        color="success"
                         onClick={handleSubmit}
                         disabled={!isValid || loading}
                     >
