@@ -53,7 +53,11 @@ const DeleteProfileModal: React.FC<ConfirmationModalProps> = ({
                     <Button onClick={onClose} sx={{ marginRight: 2 }}>
                         Cancel
                     </Button>
-                    <Button variant="contained" color="error" onClick={onConfirm}>
+                    <Button
+                        variant="contained"
+                        color="error"
+                        onClick={onConfirm}
+                    >
                         Confirm
                     </Button>
                 </Box>

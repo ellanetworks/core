@@ -5,7 +5,6 @@ import {
     TextField,
     Button,
     Typography,
-    MenuItem,
     Alert,
     Collapse,
 } from "@mui/material";
@@ -198,7 +197,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                     </Button>
                     <Button
                         variant="contained"
-                        color="primary"
+                        color="success"
                         onClick={handleSubmit}
                         disabled={!isValid || loading}
                     >

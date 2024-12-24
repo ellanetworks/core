@@ -252,7 +252,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     </Button>
                     <Button
                         variant="contained"
-                        color="primary"
+                        color="success"
                         onClick={handleSubmit}
                         disabled={loading}
                     >

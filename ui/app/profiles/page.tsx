@@ -173,7 +173,11 @@ const Profile = () => {
         <Typography variant="h4" component="h1" gutterBottom>
           Profiles
         </Typography>
-        <Button variant="contained" color="primary" onClick={handleOpenCreateModal}>
+        <Button
+          variant="contained"
+          color="success"
+          onClick={handleOpenCreateModal}
+        >
           Create
         </Button>
       </Box>
