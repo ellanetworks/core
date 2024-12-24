@@ -19,11 +19,27 @@ interface CreateSubscriberModalProps {
 }
 
 const schema = yup.object().shape({
-    imsi: yup.string().min(1).max(256).required("IMSI is required"),
-    opc: yup.string().min(1).max(256).required("OPC is required"),
-    key: yup.string().min(1).max(256).required("Key is required"),
-    sequenceNumber: yup.string().min(1).max(256).required("Sequence Number is required"),
-    profileName: yup.string().min(1).max(256).required("Profile Name is required"),
+    imsi: yup
+        .string()
+        .length(15, "IMSI must be exactly 15 characters long.")
+        .required("IMSI is required."),
+    opc: yup
+        .string()
+        .matches(/^[0-9a-fA-F]{32}$/, "OPC must be a 32-character hexadecimal string.")
+        .required("OPC is required."),
+    key: yup
+        .string()
+        .matches(/^[0-9a-fA-F]{32}$/, "Key must be a 32-character hexadecimal string.")
+        .required("Key is required."),
+    sequenceNumber: yup
+        .string()
+        .matches(/^[0-9a-fA-F]{12}$/, "Sequence Number must be a 6-byte (12-character) hexadecimal string.")
+        .required("Sequence Number is required."),
+    profileName: yup
+        .string()
+        .min(1, "Profile Name must be at least 1 character.")
+        .max(256, "Profile Name cannot exceed 256 characters.")
+        .required("Profile Name is required."),
 });
 
 const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onClose, onSuccess }) => {
@@ -36,11 +52,10 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
+    const [touched, setTouched] = useState<Record<string, boolean>>({});
     const [isValid, setIsValid] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [alert, setAlert] = useState<{ message: string; }>({
-        message: "",
-    });
+    const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
     const handleChange = (field: string, value: string | number) => {
         setFormValues((prev) => ({
@@ -48,6 +63,13 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
             [field]: value,
         }));
         validateField(field, value);
+    };
+
+    const handleBlur = (field: string) => {
+        setTouched((prev) => ({
+            ...prev,
+            [field]: true,
+        }));
     };
 
     const validateField = async (field: string, value: string | number) => {
@@ -113,7 +135,6 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
         }
     };
 
-
     return (
         <Modal
             open={open}
@@ -139,7 +160,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                 </Typography>
                 <Collapse in={!!alert.message}>
                     <Alert
-                        onClose={() => setAlert({ message: "", })}
+                        onClose={() => setAlert({ message: "" })}
                         sx={{ mb: 2 }}
                         severity="error"
                     >
@@ -151,8 +172,9 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                     label="IMSI"
                     value={formValues.imsi}
                     onChange={(e) => handleChange("imsi", e.target.value)}
-                    error={!!errors.imsi}
-                    helperText={errors.imsi}
+                    onBlur={() => handleBlur("imsi")}
+                    error={!!errors.imsi && touched.imsi}
+                    helperText={touched.imsi ? errors.imsi : ""}
                     margin="normal"
                 />
                 <TextField
@@ -160,8 +182,9 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                     label="OPC"
                     value={formValues.opc}
                     onChange={(e) => handleChange("opc", e.target.value)}
-                    error={!!errors.opc}
-                    helperText={errors.opc}
+                    onBlur={() => handleBlur("opc")}
+                    error={!!errors.opc && touched.opc}
+                    helperText={touched.opc ? errors.opc : ""}
                     margin="normal"
                 />
                 <TextField
@@ -169,8 +192,9 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                     label="Key"
                     value={formValues.key}
                     onChange={(e) => handleChange("key", e.target.value)}
-                    error={!!errors.key}
-                    helperText={errors.key}
+                    onBlur={() => handleBlur("key")}
+                    error={!!errors.key && touched.key}
+                    helperText={touched.key ? errors.key : ""}
                     margin="normal"
                 />
                 <TextField
@@ -178,8 +202,9 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                     label="Sequence Number"
                     value={formValues.sequenceNumber}
                     onChange={(e) => handleChange("sequenceNumber", e.target.value)}
-                    error={!!errors.sequenceNumber}
-                    helperText={errors.sequenceNumber}
+                    onBlur={() => handleBlur("sequenceNumber")}
+                    error={!!errors.sequenceNumber && touched.sequenceNumber}
+                    helperText={touched.sequenceNumber ? errors.sequenceNumber : ""}
                     margin="normal"
                 />
                 <TextField
@@ -187,8 +212,9 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                     label="Profile Name"
                     value={formValues.profileName}
                     onChange={(e) => handleChange("profileName", e.target.value)}
-                    error={!!errors.profileName}
-                    helperText={errors.profileName}
+                    onBlur={() => handleBlur("profileName")}
+                    error={!!errors.profileName && touched.profileName}
+                    helperText={touched.profileName ? errors.profileName : ""}
                     margin="normal"
                 />
                 <Box sx={{ textAlign: "right", marginTop: 2 }}>
