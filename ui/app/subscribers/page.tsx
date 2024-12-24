@@ -180,7 +180,7 @@ const Subscriber = () => {
                 </Box>
             ) : subscribers.length === 0 ? (
                 <EmptyState
-                    primaryText="No subscribers found."
+                    primaryText="No subscriber found."
                     secondaryText="Create a new subscriber."
                     buttonText="Create"
                     onCreate={handleOpenCreateModal}

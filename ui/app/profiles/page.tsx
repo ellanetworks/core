@@ -189,7 +189,7 @@ const Profile = () => {
         </Box>
       ) : profiles.length === 0 ? (
         <EmptyState
-          primaryText="No profiles found."
+          primaryText="No profile found."
           secondaryText="Create a new profile in order to add subscribers to the network."
           buttonText="Create"
           onCreate={handleOpenCreateModal}
