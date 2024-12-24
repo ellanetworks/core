@@ -7,13 +7,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/wmnsk/go-pfcp/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/upf/config"
 	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/core/service"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"github.com/wmnsk/go-pfcp/message"
 
 	"github.com/cilium/ebpf/link"
 )

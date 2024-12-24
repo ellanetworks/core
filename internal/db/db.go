@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/ellanetworks/core/internal/logger"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // Database is the object used to communicate with the established repository.

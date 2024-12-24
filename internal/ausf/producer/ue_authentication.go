@@ -9,13 +9,13 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/ausf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/udm/producer"
 	"github.com/ellanetworks/core/internal/util/ueauth"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/omec-project/openapi/models"
 )
 
 const (

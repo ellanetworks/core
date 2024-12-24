@@ -1,11 +1,11 @@
 package util
 
 import (
-	"github.com/omec-project/nas/security"
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/factory"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/omec-project/nas/security"
+	"github.com/omec-project/openapi/models"
 )
 
 func InitAmfContext(context *context.AMFContext) {

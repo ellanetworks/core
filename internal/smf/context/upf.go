@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/factory"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
+	"github.com/google/uuid"
+	"github.com/omec-project/nas/nasMessage"
+	"github.com/omec-project/openapi/models"
 )
 
 // var upfPool sync.Map

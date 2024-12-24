@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/omec-project/nas/nasType"
-	"github.com/omec-project/openapi/models"
 	amf_context "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/ausf/producer"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/omec-project/nas/nasType"
+	"github.com/omec-project/openapi/models"
 )
 
 func SendUEAuthenticationAuthenticateRequest(ue *amf_context.AmfUe,

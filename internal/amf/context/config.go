@@ -1,10 +1,10 @@
 package context
 
 import (
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/amf/factory"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/omec-project/openapi/models"
 )
 
 // This file contains calls to db to get configuration data

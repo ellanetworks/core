@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
+	"github.com/omec-project/openapi/models"
 )
 
 // key is supi

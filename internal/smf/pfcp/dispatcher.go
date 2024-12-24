@@ -1,10 +1,10 @@
 package pfcp
 
 import (
-	"github.com/wmnsk/go-pfcp/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pfcp/handler"
 	"github.com/ellanetworks/core/internal/smf/pfcp/udp"
+	"github.com/wmnsk/go-pfcp/message"
 )
 
 func Dispatch(msg *udp.Message) {

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/udr/context"
+	"github.com/omec-project/openapi/models"
 )
 
 const (

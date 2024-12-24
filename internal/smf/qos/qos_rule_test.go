@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
+	"github.com/omec-project/openapi/models"
 )
 
 var flowDesc = []string{

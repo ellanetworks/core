@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/udm/context"
 	"github.com/ellanetworks/core/internal/udr/producer"
+	"github.com/omec-project/openapi/models"
 )
 
 func GetAmData(supi string) (

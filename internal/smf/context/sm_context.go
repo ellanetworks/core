@@ -6,15 +6,15 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/google/uuid"
-	"github.com/omec-project/nas/nasConvert"
-	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	errors "github.com/ellanetworks/core/internal/smf/smferrors"
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
+	"github.com/google/uuid"
+	"github.com/omec-project/nas/nasConvert"
+	"github.com/omec-project/nas/nasMessage"
+	"github.com/omec-project/openapi/models"
 	"go.uber.org/zap"
 )
 

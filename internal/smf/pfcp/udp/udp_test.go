@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wmnsk/go-pfcp/ie"
-	"github.com/wmnsk/go-pfcp/message"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/factory"
 	"github.com/ellanetworks/core/internal/smf/pfcp/udp"
+	"github.com/wmnsk/go-pfcp/ie"
+	"github.com/wmnsk/go-pfcp/message"
 )
 
 var heartbeatRequestReceived bool

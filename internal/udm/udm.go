@@ -1,9 +1,9 @@
 package udm
 
 import (
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/udm/context"
 	"github.com/ellanetworks/core/internal/util/suci"
+	"github.com/omec-project/openapi/models"
 )
 
 const (

@@ -5,7 +5,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
@@ -13,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/producer/callback"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/omec-project/openapi/models"
 )
 
 type AMF struct{}

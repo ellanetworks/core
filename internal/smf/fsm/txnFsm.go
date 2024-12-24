@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
 	smf_context "github.com/ellanetworks/core/internal/smf/context"
@@ -12,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf/producer"
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
+	"github.com/omec-project/openapi/models"
 )
 
 func (SmfTxnFsm) TxnInit(txn *transaction.Transaction) (transaction.TxnEvent, error) {

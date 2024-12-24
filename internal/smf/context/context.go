@@ -7,11 +7,11 @@ import (
 	"os"
 	"sync/atomic"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/logger"
 	nmsModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/factory"
+	"github.com/omec-project/openapi/models"
 )
 
 const IPV4 = "IPv4"

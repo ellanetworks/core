@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wmnsk/go-pfcp/ie"
-	pfcp_message "github.com/wmnsk/go-pfcp/message"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp/message"
 	"github.com/ellanetworks/core/internal/util/dnn"
+	"github.com/wmnsk/go-pfcp/ie"
+	pfcp_message "github.com/wmnsk/go-pfcp/message"
 )
 
 const cpNodeID = "1.2.3.4"

@@ -4,9 +4,9 @@ import (
 	"net"
 	"time"
 
+	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
-	"github.com/ellanetworks/core/internal/smf/context"
 )
 
 type Flag uint8

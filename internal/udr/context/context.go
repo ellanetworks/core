@@ -3,8 +3,8 @@ package context
 import (
 	"sync"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/omec-project/openapi/models"
 )
 
 var udrContext = UDRContext{}

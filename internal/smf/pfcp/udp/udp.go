@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wmnsk/go-pfcp/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
+	"github.com/wmnsk/go-pfcp/message"
 )
 
 const PFCP_MAX_UDP_LEN = 2048

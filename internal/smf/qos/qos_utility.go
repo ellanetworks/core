@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/omec-project/openapi/models"
 )
 
 func (obj *IPFilterRule) String() string {

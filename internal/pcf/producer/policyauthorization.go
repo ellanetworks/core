@@ -4,10 +4,10 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/logger"
 	pcf_context "github.com/ellanetworks/core/internal/pcf/context"
 	"github.com/ellanetworks/core/internal/pcf/util"
+	"github.com/omec-project/openapi/models"
 )
 
 func SendAppSessionTermination(appSession *pcf_context.AppSessionData, request models.TerminationInfo) {

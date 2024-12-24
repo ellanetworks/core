@@ -3,9 +3,9 @@ package core
 import (
 	"net"
 
-	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"github.com/wmnsk/go-pfcp/ie"
 )
 
 const flagPresentIPv4 = 2

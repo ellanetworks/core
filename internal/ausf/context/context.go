@@ -4,10 +4,10 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/google/uuid"
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/ausf/factory"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/google/uuid"
+	"github.com/omec-project/openapi/models"
 )
 
 type AUSFContext struct {

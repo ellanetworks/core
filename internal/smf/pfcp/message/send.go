@@ -11,13 +11,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/openapi/models"
-	"github.com/wmnsk/go-pfcp/message"
 	"github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/logger"
 	smf_context "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp/udp"
+	"github.com/omec-project/nas/nasMessage"
+	"github.com/omec-project/openapi/models"
+	"github.com/wmnsk/go-pfcp/message"
 )
 
 var seq uint32

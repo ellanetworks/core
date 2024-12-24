@@ -3,8 +3,8 @@ package ies_test
 import (
 	"testing"
 
-	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/ellanetworks/core/internal/smf/pfcp/ies"
+	"github.com/wmnsk/go-pfcp/ie"
 )
 
 func TestUnmarshallUserPlaneFunctionFeaturesEmpty(t *testing.T) {

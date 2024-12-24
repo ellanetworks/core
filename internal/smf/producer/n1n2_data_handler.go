@@ -3,13 +3,13 @@ package producer
 import (
 	"net/http"
 
-	"github.com/omec-project/nas"
-	"github.com/omec-project/openapi/Nsmf_PDUSession"
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/smf/consumer"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
+	"github.com/omec-project/nas"
+	"github.com/omec-project/openapi/Nsmf_PDUSession"
+	"github.com/omec-project/openapi/models"
 )
 
 type pfcpAction struct {

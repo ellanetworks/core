@@ -3,8 +3,8 @@ package server
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/ellanetworks/core/version"
+	"github.com/gin-gonic/gin"
 )
 
 type StatusResponse struct {

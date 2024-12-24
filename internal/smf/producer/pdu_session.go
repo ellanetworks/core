@@ -4,11 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/omec-project/nas"
-	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/Nsmf_PDUSession"
-	"github.com/omec-project/openapi/models"
 	amf_producer "github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/consumer"
@@ -18,6 +13,11 @@ import (
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/udm/producer"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
+	"github.com/omec-project/nas"
+	"github.com/omec-project/nas/nasMessage"
+	"github.com/omec-project/openapi"
+	"github.com/omec-project/openapi/Nsmf_PDUSession"
+	"github.com/omec-project/openapi/models"
 )
 
 func formContextCreateErrRsp(httpStatus int, problemBody *models.ProblemDetails, n1SmMsg *models.RefToBinaryData) *httpwrapper.Response {

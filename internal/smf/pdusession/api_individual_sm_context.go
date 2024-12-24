@@ -4,12 +4,12 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/fsm"
 	"github.com/ellanetworks/core/internal/smf/msgtypes/svcmsgtypes"
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
+	"github.com/omec-project/openapi/models"
 )
 
 func ReleaseSmContext(smContextRef string, releaseSmContextRequest models.ReleaseSmContextRequest) error {

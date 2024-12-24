@@ -3,9 +3,9 @@ package core
 import (
 	"net"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
-	"github.com/ellanetworks/core/internal/logger"
 )
 
 func HandlePfcpHeartbeatRequest(conn *PfcpConnection, msg message.Message, addr string) (message.Message, error) {

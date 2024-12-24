@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wmnsk/go-pfcp/ie"
-	pfcp_message "github.com/wmnsk/go-pfcp/message"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/factory"
 	"github.com/ellanetworks/core/internal/smf/pfcp/message"
 	"github.com/ellanetworks/core/internal/smf/pfcp/udp"
+	"github.com/wmnsk/go-pfcp/ie"
+	pfcp_message "github.com/wmnsk/go-pfcp/message"
 	"go.uber.org/zap"
 )
 

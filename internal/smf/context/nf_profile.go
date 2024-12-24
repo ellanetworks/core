@@ -3,8 +3,8 @@ package context
 import (
 	"strconv"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/omec-project/openapi/models"
 )
 
 var NFServices *[]models.NfService

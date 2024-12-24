@@ -4,9 +4,9 @@ import (
 	"net"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/smf/pfcp/handler"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
-	"github.com/ellanetworks/core/internal/smf/pfcp/handler"
 )
 
 type Flag uint8

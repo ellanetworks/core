@@ -3,11 +3,11 @@ package pcf
 import (
 	"math"
 
-	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/pcf/context"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
+	"github.com/omec-project/openapi"
+	"github.com/omec-project/openapi/models"
 )
 
 func Start(dbInstance *db.Database) error {

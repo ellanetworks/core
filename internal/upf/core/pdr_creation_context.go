@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/config"
 	"github.com/ellanetworks/core/internal/upf/core/service"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"github.com/wmnsk/go-pfcp/ie"
 )
 
 type PDRCreationContext struct {

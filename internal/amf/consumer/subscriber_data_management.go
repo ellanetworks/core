@@ -1,9 +1,9 @@
 package consumer
 
 import (
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/udm/producer"
+	"github.com/omec-project/openapi/models"
 )
 
 func SDMGetAmData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err error) {

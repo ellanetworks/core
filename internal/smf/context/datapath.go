@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/ellanetworks/core/internal/util/dnn"
+	"github.com/omec-project/openapi/models"
 )
 
 // GTPTunnel represents the GTP tunnel information

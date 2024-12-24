@@ -5,10 +5,10 @@ import (
 	"math"
 	"sync"
 
-	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/internal/util/suci"
+	"github.com/omec-project/openapi"
+	"github.com/omec-project/openapi/models"
 )
 
 var udmContext UDMContext

@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/amf/factory"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
+	"github.com/omec-project/openapi/models"
 )
 
 var (

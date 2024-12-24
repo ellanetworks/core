@@ -8,13 +8,13 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/omec-project/openapi/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/udm/context"
 	"github.com/ellanetworks/core/internal/udr/producer"
 	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/ellanetworks/core/internal/util/ueauth"
+	"github.com/omec-project/openapi/models"
 )
 
 const (

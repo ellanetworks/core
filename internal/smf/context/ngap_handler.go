@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/ellanetworks/core/internal/logger"
 )
 
 func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) (err error) {
