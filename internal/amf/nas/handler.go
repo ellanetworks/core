@@ -1,9 +1,9 @@
 package nas
 
 import (
-	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/amf/nas/nas_security"
-	"github.com/yeastengine/ella/internal/logger"
+	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf/nas/nas_security"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {

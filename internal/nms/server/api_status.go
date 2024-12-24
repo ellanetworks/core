@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yeastengine/ella/version"
+	"github.com/ellanetworks/core/version"
 )
 
 type StatusResponse struct {

@@ -6,7 +6,7 @@ import logging
 import subprocess
 import time
 
-from tests.ella import Ella
+from tests.core import EllaCore
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +20,9 @@ class TestELLA:
     async def test_given_ella_and_gnbsim_deployed_when_start_simulation_then_simulation_success_status_is_true(  # noqa: E501
         self,
     ):
-        ella_port = get_ella_node_port()
-        ella_address = f"https://127.0.0.1:{ella_port}"
-        configure_ella(ella_address=ella_address)
+        core_port = get_core_node_port()
+        core_address = f"https://127.0.0.1:{core_port}"
+        configure_ella_core(core_address=core_address)
         success_runs = run_gnbsim_simulation(
             namespace=NAMESPACE,
             application_name="gnbsim",
@@ -32,11 +32,11 @@ class TestELLA:
         assert success_runs == NUM_PROFILES
 
 
-def get_ella_node_port() -> int:
-    """Fetch the NodePort for the Ella service in the Kubernetes cluster.
+def get_core_node_port() -> int:
+    """Fetch the NodePort for the Ella Core service in the Kubernetes cluster.
 
     Returns:
-        int: The NodePort of the Ella service.
+        int: The NodePort of the Ella Core service.
 
     Raises:
         RuntimeError: If the NodePort cannot be retrieved.
@@ -47,7 +47,7 @@ def get_ella_node_port() -> int:
                 "kubectl",
                 "get",
                 "service",
-                "ella",
+                "ella-core",
                 "-n",
                 NAMESPACE,
                 "-o",
@@ -55,7 +55,7 @@ def get_ella_node_port() -> int:
             ],
             text=True,
         ).strip()
-        logger.info(f"Retrieved Ella NodePort: {node_port}")
+        logger.info(f"Retrieved Ella Core NodePort: {node_port}")
         return int(node_port)
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to fetch Ella NodePort: {e.output}")
@@ -65,15 +65,15 @@ def get_ella_node_port() -> int:
         raise RuntimeError("Invalid NodePort value retrieved") from e
 
 
-def configure_ella(ella_address: str) -> None:
-    """Configure Ella.
+def configure_ella_core(core_address: str) -> None:
+    """Configure Ella Core.
 
     Configuration includes:
     - subscriber creation
     - profile creation
     - network config update
     """
-    ella_client = Ella(url=ella_address)
+    ella_client = EllaCore(url=core_address)
     ella_client.create_radio(name=f"{NAMESPACE}-gnbsim", tac="001")
     ella_client.create_profile(name=TEST_PROFILE_NAME)
     ella_client.create_subscriber(imsi=TEST_IMSI, profile_name=TEST_PROFILE_NAME)

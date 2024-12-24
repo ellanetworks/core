@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 func (obj *IPFilterRule) String() string {

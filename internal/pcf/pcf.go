@@ -5,9 +5,9 @@ import (
 
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/db"
-	"github.com/yeastengine/ella/internal/pcf/context"
-	"github.com/yeastengine/ella/internal/util/idgenerator"
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/pcf/context"
+	"github.com/ellanetworks/core/internal/util/idgenerator"
 )
 
 func Start(dbInstance *db.Database) error {

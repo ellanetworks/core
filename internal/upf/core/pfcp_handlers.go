@@ -3,8 +3,8 @@ package core
 import (
 	"net"
 
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/upf/config"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/upf/config"
 
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"

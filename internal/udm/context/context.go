@@ -7,8 +7,8 @@ import (
 
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/util/idgenerator"
-	"github.com/yeastengine/ella/internal/util/suci"
+	"github.com/ellanetworks/core/internal/util/idgenerator"
+	"github.com/ellanetworks/core/internal/util/suci"
 )
 
 var udmContext UDMContext

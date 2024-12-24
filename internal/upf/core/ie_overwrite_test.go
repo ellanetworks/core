@@ -6,7 +6,7 @@ import (
 
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
-	"github.com/yeastengine/ella/internal/upf/ebpf"
+	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
 const (

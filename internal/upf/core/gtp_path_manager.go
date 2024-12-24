@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/yeastengine/ella/internal/logger"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 type GtpPathManager struct {

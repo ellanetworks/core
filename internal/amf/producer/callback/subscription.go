@@ -6,8 +6,8 @@ import (
 
 	"github.com/omec-project/openapi/Namf_Communication"
 	"github.com/omec-project/openapi/models"
-	amf_context "github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/logger"
+	amf_context "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 func SendAmfStatusChangeNotify(amfStatus string, guamiList []models.Guami) {

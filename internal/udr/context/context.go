@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/db"
+	"github.com/ellanetworks/core/internal/db"
 )
 
 var udrContext = UDRContext{}

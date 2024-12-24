@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ella-config
+  name: core-config
   namespace: dev2
 data:
   config.yaml: |
     log-level: "debug"
     db:
-      path: /ella/data/ella.db
+      path: /core/data/core.db
     interfaces:
       n3:
         name: "n3"
@@ -21,13 +21,13 @@ data:
           cert: "/config/cert.pem"
           key: "/config/key.pem"
   pebble.yaml: |
-    summary: ella layer
-    description: pebble config layer for ella
+    summary: Ella Core layer
+    description: pebble config layer for Ella Core
     services:
-      ella:
+      core:
         override: replace
-        summary: Ella is a private mobile network.
-        command: ella --config /config/config.yaml
+        summary: Ella Core is a private mobile network.
+        command: core --config /config/config.yaml
         startup: enabled
   cert.pem: |
     -----BEGIN CERTIFICATE-----

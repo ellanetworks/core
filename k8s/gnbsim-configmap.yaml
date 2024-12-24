@@ -10,7 +10,7 @@ data:
       gnbs:
         gnb1:
           defaultAmf:
-            hostName: ella.dev2.svc.cluster.local
+            hostName: ella-core.dev2.svc.cluster.local
             port: 38412
           globalRanId:
             gNbId:

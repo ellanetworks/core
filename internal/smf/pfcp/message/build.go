@@ -6,7 +6,7 @@ import (
 
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
-	"github.com/yeastengine/ella/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf/context"
 )
 
 type Flag uint8

@@ -1,10 +1,10 @@
 package consumer
 
 import (
+	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/pcf/producer"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/pcf/producer"
 )
 
 func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) (*models.ProblemDetails, error) {

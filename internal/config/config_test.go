@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yeastengine/ella/internal/config"
+	"github.com/ellanetworks/core/internal/config"
 )
 
 func TestGoodConfigSuccess(t *testing.T) {

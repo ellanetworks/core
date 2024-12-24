@@ -8,10 +8,10 @@ import (
 	"sync/atomic"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/config"
-	"github.com/yeastengine/ella/internal/logger"
-	nmsModels "github.com/yeastengine/ella/internal/models"
-	"github.com/yeastengine/ella/internal/smf/factory"
+	"github.com/ellanetworks/core/internal/config"
+	"github.com/ellanetworks/core/internal/logger"
+	nmsModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/factory"
 )
 
 const IPV4 = "IPv4"
@@ -177,7 +177,7 @@ func UpdateSnssaiInfo(network *nmsModels.Network, profiles []nmsModels.Profile) 
 // There are two issues with it:
 // 1. Allocation will restart from the beginning on every restart as it is not persisted
 // 2. It is not cleaned up when the DNN is removed
-// This issue is tracked through: https://github.com/yeastengine/ella/issues/204
+// This issue is tracked through: https://github.com/ellanetworks/core/issues/204
 func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
 	smfSelf := SMF_Self()
 	if smfSelf.ueIPAllocatorMapping == nil {

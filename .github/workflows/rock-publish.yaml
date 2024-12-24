@@ -34,7 +34,7 @@ jobs:
             --insecure-policy \
             copy \
             oci-archive:"${rock_file}" \
-            docker-daemon:"ghcr.io/yeastengine/${image_name}:${version}"
-          docker tag ghcr.io/yeastengine/${image_name}:${version} ghcr.io/yeastengine/${image_name}:latest
-          docker push ghcr.io/yeastengine/${image_name}:${version}
-          docker push ghcr.io/yeastengine/${image_name}:latest
+            docker-daemon:"ghcr.io/ellanetworks/${image_name}:${version}"
+          docker tag ghcr.io/ellanetworks/${image_name}:${version} ghcr.io/ellanetworks/${image_name}:latest
+          docker push ghcr.io/ellanetworks/${image_name}:${version}
+          docker push ghcr.io/ellanetworks/${image_name}:latest

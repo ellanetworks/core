@@ -5,9 +5,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	smfStats "github.com/yeastengine/ella/internal/smf/stats"
-	"github.com/yeastengine/ella/internal/upf/core"
-	"github.com/yeastengine/ella/internal/upf/ebpf"
+	smfStats "github.com/ellanetworks/core/internal/smf/stats"
+	"github.com/ellanetworks/core/internal/upf/core"
+	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
 var (

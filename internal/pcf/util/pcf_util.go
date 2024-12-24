@@ -13,7 +13,7 @@ import (
 	"github.com/omec-project/openapi/Npcf_PolicyAuthorization"
 	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 const TimeFormat = time.RFC3339

@@ -7,9 +7,9 @@ import (
 
 	"github.com/wmnsk/go-pfcp/ie"
 	pfcp_message "github.com/wmnsk/go-pfcp/message"
-	"github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/pfcp/message"
-	"github.com/yeastengine/ella/internal/util/dnn"
+	"github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf/pfcp/message"
+	"github.com/ellanetworks/core/internal/util/dnn"
 )
 
 const cpNodeID = "1.2.3.4"

@@ -4,7 +4,7 @@ import (
 	"reflect"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 // Title in Problem Details for NSSF HTTP APIs

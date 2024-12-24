@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/smf/qos"
+	"github.com/ellanetworks/core/internal/smf/qos"
 )
 
 var flowDesc = []string{

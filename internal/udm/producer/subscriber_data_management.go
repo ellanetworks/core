@@ -6,9 +6,9 @@ import (
 	"strconv"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/udm/context"
-	"github.com/yeastengine/ella/internal/udr/producer"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/udm/context"
+	"github.com/ellanetworks/core/internal/udr/producer"
 )
 
 func GetAmData(supi string) (

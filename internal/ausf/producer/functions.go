@@ -11,8 +11,8 @@ import (
 	"hash"
 	"strconv"
 
-	"github.com/yeastengine/ella/internal/ausf/context"
-	"github.com/yeastengine/ella/internal/logger"
+	"github.com/ellanetworks/core/internal/ausf/context"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 func KDF5gAka(param ...string) hash.Hash {

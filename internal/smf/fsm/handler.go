@@ -3,9 +3,9 @@ package fsm
 import (
 	"fmt"
 
-	smf_context "github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/producer"
-	"github.com/yeastengine/ella/internal/smf/transaction"
+	smf_context "github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf/producer"
+	"github.com/ellanetworks/core/internal/smf/transaction"
 )
 
 // Define SM Context level Events

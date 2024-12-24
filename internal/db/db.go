@@ -7,7 +7,7 @@ import (
 
 	"github.com/canonical/sqlair"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/yeastengine/ella/internal/logger"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 // Database is the object used to communicate with the established repository.

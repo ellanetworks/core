@@ -1,6 +1,6 @@
 log-level: "info"
 db:
-  path: "ella.db"
+  path: "core.db"
 interfaces: 
   n3: 
     name: "enp3s0"
@@ -11,5 +11,5 @@ interfaces:
     name: "enp0s8"
     port: 5000
     tls:
-      cert: "/etc/ssl/certs/ella.crt"
-      key: "/etc/ssl/private/ella.key"
+      cert: "/etc/ssl/certs/core.crt"
+      key: "/etc/ssl/private/core.key"

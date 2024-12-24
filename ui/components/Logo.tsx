@@ -5,7 +5,7 @@ export default function Logo({ width = 50, height = 50 }: { width?: number; heig
     return (
         <Image
             src="https://raw.githubusercontent.com/yeastengine/ella-public/refs/heads/dev-logo/logo.png"
-            alt="Ella Private Network Logo"
+            alt="Ella Core Logo"
             width={width}
             height={height}
             unoptimized

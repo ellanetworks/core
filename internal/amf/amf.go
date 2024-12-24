@@ -3,10 +3,10 @@ package amf
 import (
 	"time"
 
-	"github.com/yeastengine/ella/internal/amf/factory"
-	"github.com/yeastengine/ella/internal/amf/service"
-	"github.com/yeastengine/ella/internal/config"
-	"github.com/yeastengine/ella/internal/db"
+	"github.com/ellanetworks/core/internal/amf/factory"
+	"github.com/ellanetworks/core/internal/amf/service"
+	"github.com/ellanetworks/core/internal/config"
+	"github.com/ellanetworks/core/internal/db"
 )
 
 var AMF = &service.AMF{}

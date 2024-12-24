@@ -1,8 +1,8 @@
 package udr
 
 import (
-	"github.com/yeastengine/ella/internal/db"
-	"github.com/yeastengine/ella/internal/udr/context"
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/udr/context"
 )
 
 func Start(dbInstance *db.Database) error {

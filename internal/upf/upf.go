@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/wmnsk/go-pfcp/message"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/metrics"
-	"github.com/yeastengine/ella/internal/upf/config"
-	"github.com/yeastengine/ella/internal/upf/core"
-	"github.com/yeastengine/ella/internal/upf/core/service"
-	"github.com/yeastengine/ella/internal/upf/ebpf"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
+	"github.com/ellanetworks/core/internal/upf/config"
+	"github.com/ellanetworks/core/internal/upf/core"
+	"github.com/ellanetworks/core/internal/upf/core/service"
+	"github.com/ellanetworks/core/internal/upf/ebpf"
 
 	"github.com/cilium/ebpf/link"
 )

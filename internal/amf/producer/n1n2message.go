@@ -9,11 +9,11 @@ import (
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/amf/context"
-	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
-	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
-	"github.com/yeastengine/ella/internal/amf/producer/callback"
-	"github.com/yeastengine/ella/internal/logger"
+	"github.com/ellanetworks/core/internal/amf/context"
+	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
+	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
+	"github.com/ellanetworks/core/internal/amf/producer/callback"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 func ProducerHandler(s1, s2 string, msg interface{}) (interface{}, string, interface{}, interface{}) {

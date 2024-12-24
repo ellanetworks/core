@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
-	"github.com/yeastengine/ella/internal/logger"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 const SubscribersTableName = "subscribers"

@@ -4,11 +4,11 @@ import (
 	"net"
 	"reflect"
 
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/factory"
-	"github.com/yeastengine/ella/internal/smf/pfcp/message"
-	"github.com/yeastengine/ella/internal/util/flowdesc"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf/factory"
+	"github.com/ellanetworks/core/internal/smf/pfcp/message"
+	"github.com/ellanetworks/core/internal/util/flowdesc"
 )
 
 func AddPDUSessionAnchorAndULCL(smContext *context.SMContext, nodeID context.NodeID) {

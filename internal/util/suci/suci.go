@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yeastengine/ella/internal/logger"
+	"github.com/ellanetworks/core/internal/logger"
 	"golang.org/x/crypto/curve25519"
 )
 

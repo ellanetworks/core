@@ -5,11 +5,11 @@ import (
 	"net/http"
 
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/smf/fsm"
-	"github.com/yeastengine/ella/internal/smf/msgtypes/svcmsgtypes"
-	"github.com/yeastengine/ella/internal/smf/transaction"
-	"github.com/yeastengine/ella/internal/util/httpwrapper"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/smf/fsm"
+	"github.com/ellanetworks/core/internal/smf/msgtypes/svcmsgtypes"
+	"github.com/ellanetworks/core/internal/smf/transaction"
+	"github.com/ellanetworks/core/internal/util/httpwrapper"
 )
 
 func ReleaseSmContext(smContextRef string, releaseSmContextRequest models.ReleaseSmContextRequest) error {

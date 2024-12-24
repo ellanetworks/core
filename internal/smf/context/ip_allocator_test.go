@@ -5,7 +5,7 @@ import (
 	"net"
 	"testing"
 
-	smf_context "github.com/yeastengine/ella/internal/smf/context"
+	smf_context "github.com/ellanetworks/core/internal/smf/context"
 )
 
 func TestIPPoolAlloc(t *testing.T) {

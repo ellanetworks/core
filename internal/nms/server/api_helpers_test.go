@@ -4,8 +4,8 @@ package server_test
 import (
 	"net/http/httptest"
 
-	"github.com/yeastengine/ella/internal/db"
-	"github.com/yeastengine/ella/internal/nms/server"
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/nms/server"
 )
 
 func setupServer(filepath string) (*httptest.Server, error) {

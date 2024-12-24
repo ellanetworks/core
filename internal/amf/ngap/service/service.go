@@ -8,7 +8,7 @@ import (
 
 	"git.cs.nctu.edu.tw/calee/sctp"
 	"github.com/omec-project/ngap"
-	"github.com/yeastengine/ella/internal/logger"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 type NGAPHandler struct {

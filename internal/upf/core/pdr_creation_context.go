@@ -6,10 +6,10 @@ import (
 	"net"
 
 	"github.com/wmnsk/go-pfcp/ie"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/upf/config"
-	"github.com/yeastengine/ella/internal/upf/core/service"
-	"github.com/yeastengine/ella/internal/upf/ebpf"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/upf/config"
+	"github.com/ellanetworks/core/internal/upf/core/service"
+	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
 type PDRCreationContext struct {

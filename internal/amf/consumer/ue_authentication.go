@@ -7,9 +7,9 @@ import (
 
 	"github.com/omec-project/nas/nasType"
 	"github.com/omec-project/openapi/models"
-	amf_context "github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/ausf/producer"
-	"github.com/yeastengine/ella/internal/logger"
+	amf_context "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/ausf/producer"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 func SendUEAuthenticationAuthenticateRequest(ue *amf_context.AmfUe,

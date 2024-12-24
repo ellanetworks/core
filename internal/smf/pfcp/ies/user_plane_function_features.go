@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/yeastengine/ella/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf/context"
 )
 
 func UnmarshallUserPlaneFunctionFeatures(data []byte) (*context.UPFunctionFeatures, error) {

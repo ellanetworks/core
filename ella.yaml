@@ -1,6 +1,6 @@
 log-level: "debug"
 db:
-  path: "ella.db"
+  path: "core.db"
 interfaces: 
   n3: 
     name: "access-br"

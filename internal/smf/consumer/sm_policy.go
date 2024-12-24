@@ -6,9 +6,9 @@ import (
 
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/pcf/producer"
-	smf_context "github.com/yeastengine/ella/internal/smf/context"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/pcf/producer"
+	smf_context "github.com/ellanetworks/core/internal/smf/context"
 )
 
 // SendSMPolicyAssociationCreate creates the SM Policy Decision

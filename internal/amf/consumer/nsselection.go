@@ -2,9 +2,9 @@ package consumer
 
 import (
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/nssf/producer"
+	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nssf/producer"
 )
 
 func NSSelectionGetForRegistration(ue *context.AmfUe, requestedNssai []models.MappingOfSnssai) (

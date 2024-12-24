@@ -7,7 +7,7 @@ import (
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Nsmf_PDUSession"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 func SendSMContextStatusNotification(uri string) (*models.ProblemDetails, error) {

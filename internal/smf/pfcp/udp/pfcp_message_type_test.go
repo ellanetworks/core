@@ -5,7 +5,7 @@ import (
 
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
-	"github.com/yeastengine/ella/internal/smf/pfcp/udp"
+	"github.com/ellanetworks/core/internal/smf/pfcp/udp"
 )
 
 func TestGivenRequestWhenIsRequestThenReturnTrue(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/wmnsk/go-pfcp/ie"
-	"github.com/yeastengine/ella/internal/smf/pfcp/ies"
+	"github.com/ellanetworks/core/internal/smf/pfcp/ies"
 )
 
 func TestUnmarshallUserPlaneFunctionFeaturesEmpty(t *testing.T) {

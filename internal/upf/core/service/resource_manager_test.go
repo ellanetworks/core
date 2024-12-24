@@ -4,7 +4,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/yeastengine/ella/internal/logger"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 func TestAllocateIP(t *testing.T) {

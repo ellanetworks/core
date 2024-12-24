@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/ausf/factory"
-	"github.com/yeastengine/ella/internal/logger"
+	"github.com/ellanetworks/core/internal/ausf/factory"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 type AUSFContext struct {
