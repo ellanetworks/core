@@ -24,7 +24,7 @@ data:
     summary: Ella Core layer
     description: pebble config layer for Ella Core
     services:
-      core:
+      ella-core:
         override: replace
         summary: Ella Core is a private mobile network.
         command: core --config /config/config.yaml

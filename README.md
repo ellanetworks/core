@@ -1,6 +1,6 @@
 # Ella Core
 
-<img src="logo.png" alt="alt text" width="200"/>
+<img src="images/logo.png" alt="alt text" width="200"/>
 
 Ella Core is a 5G mobile core network for private deployments. It is designed to be easy to operate, reliable, and secure.
 
@@ -142,7 +142,7 @@ juju deploy ella-core-k8s --trust
 
 ##### Responses
 
-Ella API responses are JSON objects with the following structure:
+Ella Core's API responses are JSON objects with the following structure:
 
 ```json
 {
@@ -175,14 +175,14 @@ interfaces:
 
 #### Connectivity
 
-Ella uses 4 different interfaces:
+Ella Core uses 4 different interfaces:
 
 - **API**: The HTTP API and UI (HTTPS:5000)
-- **N2**: The control plane interface between Ella and the 5G Radio (SCTP:38412)
-- **N3**: The user plane interface between Ella and the 5G Radio (SCTP:2152)
-- **N6**: The user plane interface between Ella and the internet
+- **N2**: The control plane interface between Ella Core and the 5G Radio (SCTP:38412)
+- **N3**: The user plane interface between Ella Core and the 5G Radio (SCTP:2152)
+- **N6**: The user plane interface between Ella Core and the internet
 
-![Connectivity](connectivity.png)
+![Connectivity](images/connectivity.png)
 
 #### Acknowledgements
 
