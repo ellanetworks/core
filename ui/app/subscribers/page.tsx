@@ -25,6 +25,7 @@ import { listSubscribers, deleteSubscriber } from "@/queries/subscribers";
 import CreateSubscriberModal from "@/components/CreateSubscriberModal";
 import EditSubscriberModal from "@/components/EditSubscriberModal";
 import DeleteSubscriberModal from "@/components/DeleteSubscriberModal";
+import EmptyState from "@/components/EmptyState";
 
 interface SubscriberData {
     imsi: string;
@@ -39,39 +40,10 @@ const Subscriber = () => {
     const [loading, setLoading] = useState(true);
     const [isCreateModalOpen, setCreateModalOpen] = useState(false);
     const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-
     const [isEditModalOpen, setEditModalOpen] = useState(false);
     const [editData, setEditData] = useState<SubscriberData | null>(null);
-
-    const handleEditClick = (subscriber: any) => {
-        const mappedSubscriber = {
-            imsi: subscriber.imsi,
-            opc: subscriber.opc,
-            key: subscriber.key,
-            sequenceNumber: subscriber["sequenceNumber"],
-            profileName: subscriber["profileName"],
-        };
-
-        setEditData(mappedSubscriber);
-        setEditModalOpen(true);
-    };
-
-
-    const handleEditModalClose = () => {
-        setEditModalOpen(false);
-        setEditData(null);
-    };
-
-    const handleEditSuccess = () => {
-        fetchSubscribers();
-        setAlert({ message: "Subscriber updated successfully!" });
-    };
-
-
     const [selectedSubscriber, setSelectedSubscriber] = useState<string | null>(null);
-    const [alert, setAlert] = useState<{ message: string; }>({
-        message: "",
-    });
+    const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
     const fetchSubscribers = async () => {
         setLoading(true);
@@ -94,7 +66,30 @@ const Subscriber = () => {
 
     const handleModalSuccess = () => {
         fetchSubscribers();
-        setAlert({ message: "Subscriber created successfully!", });
+        setAlert({ message: "Subscriber created successfully!" });
+    };
+
+    const handleEditClick = (subscriber: any) => {
+        const mappedSubscriber = {
+            imsi: subscriber.imsi,
+            opc: subscriber.opc,
+            key: subscriber.key,
+            sequenceNumber: subscriber.sequenceNumber,
+            profileName: subscriber.profileName,
+        };
+
+        setEditData(mappedSubscriber);
+        setEditModalOpen(true);
+    };
+
+    const handleEditModalClose = () => {
+        setEditModalOpen(false);
+        setEditData(null);
+    };
+
+    const handleEditSuccess = () => {
+        fetchSubscribers();
+        setAlert({ message: "Subscribers updated successfully!" });
     };
 
     const handleDeleteClick = (subscriberName: string) => {
@@ -122,7 +117,6 @@ const Subscriber = () => {
         }
     };
 
-
     const handleConfirmationClose = () => {
         setConfirmationOpen(false);
         setSelectedSubscriber(null);
@@ -144,51 +138,60 @@ const Subscriber = () => {
                 <Collapse in={!!alert.message}>
                     <Alert
                         severity={"success"}
-                        onClose={() => setAlert({ message: "", })}
+                        onClose={() => setAlert({ message: "" })}
                         sx={{ marginBottom: 2 }}
                     >
                         {alert.message}
                     </Alert>
                 </Collapse>
             </Box>
-            <Box
-                sx={{
-                    marginBottom: 4,
-                    width: "50%",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                }}
-            >
-                <Typography variant="h4" component="h1" gutterBottom>
-                    Subscribers
-                </Typography>
-                <Button
-                    variant="contained"
-                    color="success"
-                    onClick={handleOpenCreateModal}
+            {!loading && subscribers.length > 0 && (
+                <Box
+                    sx={{
+                        marginBottom: 4,
+                        width: "50%",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                    }}
                 >
-                    Create
-                </Button>
-            </Box>
-            <Box
-                sx={{
-                    width: "50%",
-                    overflowX: "auto",
-                }}
-            >
-                {loading ? (
-                    <Box
-                        sx={{
-                            height: "100vh",
-                            display: "flex",
-                            justifyContent: "center",
-                            alignItems: "center",
-                        }}
+                    <Typography variant="h4" component="h1" gutterBottom>
+                        Subscribers
+                    </Typography>
+                    <Button
+                        variant="contained"
+                        color="success"
+                        onClick={handleOpenCreateModal}
                     >
-                        <CircularProgress />
-                    </Box>
-                ) : (
+                        Create
+                    </Button>
+                </Box>
+            )}
+            {loading ? (
+                <Box
+                    sx={{
+                        height: "100vh",
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                    }}
+                >
+                    <CircularProgress />
+                </Box>
+            ) : subscribers.length === 0 ? (
+                <EmptyState
+                    primaryText="No subscribers found."
+                    secondaryText="Create a new subscriber."
+                    buttonText="Create"
+                    onCreate={handleOpenCreateModal}
+                />
+            ) : (
+                <Box
+                    sx={{
+                        width: "50%",
+                        overflowX: "auto",
+                    }}
+                >
                     <TableContainer component={Paper}>
                         <Table sx={{ minWidth: 900 }} aria-label="subscriber table">
                             <TableHead>
@@ -212,8 +215,8 @@ const Subscriber = () => {
                                         </TableCell>
                                         <TableCell align="right">{subscriber.opc}</TableCell>
                                         <TableCell align="right">{subscriber.key}</TableCell>
-                                        <TableCell align="right">{subscriber["sequenceNumber"]}</TableCell>
-                                        <TableCell align="right">{subscriber["profileName"]}</TableCell>
+                                        <TableCell align="right">{subscriber.sequenceNumber}</TableCell>
+                                        <TableCell align="right">{subscriber.profileName}</TableCell>
                                         <TableCell align="right">
                                             <IconButton
                                                 aria-label="edit"
@@ -233,9 +236,8 @@ const Subscriber = () => {
                             </TableBody>
                         </Table>
                     </TableContainer>
-                )}
-            </Box>
-
+                </Box>
+            )}
             <CreateSubscriberModal
                 open={isCreateModalOpen}
                 onClose={handleCloseCreateModal}

@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -25,6 +24,7 @@ import { listProfiles, deleteProfile } from "@/queries/profiles";
 import CreateProfileModal from "@/components/CreateProfileModal";
 import EditProfileModal from "@/components/EditProfileModal";
 import DeleteProfileModal from "@/components/DeleteProfileModal";
+import EmptyState from "@/components/EmptyState";
 
 interface ProfileData {
   name: string;
@@ -44,44 +44,10 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-
   const [isEditModalOpen, setEditModalOpen] = useState(false);
-  const [editData, setEditData] = useState<ProfileData | null>(null); // Allow null or ProfileData
-
-  const handleEditClick = (profile: any) => {
-    const mappedProfile = {
-      name: profile.name,
-      ipPool: profile["ue-ip-pool"],
-      dns: profile.dns,
-      mtu: profile.mtu || 1500,
-      bitrateUpValue: parseInt(profile["bitrate-uplink"]) || 100,
-      bitrateUpUnit: profile["bitrate-uplink"].includes("Gbps") ? "Gbps" : "Mbps",
-      bitrateDownValue: parseInt(profile["bitrate-downlink"]) || 100,
-      bitrateDownUnit: profile["bitrate-downlink"].includes("Gbps") ? "Gbps" : "Mbps",
-      fiveQi: profile["var5qi"] || 1,
-      priorityLevel: profile["priority-level"] || 1,
-    };
-
-    setEditData(mappedProfile);
-    setEditModalOpen(true);
-  };
-
-
-  const handleEditModalClose = () => {
-    setEditModalOpen(false);
-    setEditData(null);
-  };
-
-  const handleEditSuccess = () => {
-    fetchProfiles();
-    setAlert({ message: "Profile updated successfully!" });
-  };
-
-
+  const [editData, setEditData] = useState<ProfileData | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
-  const [alert, setAlert] = useState<{ message: string; }>({
-    message: "",
-  });
+  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
   const fetchProfiles = async () => {
     setLoading(true);
@@ -104,7 +70,35 @@ const Profile = () => {
 
   const handleModalSuccess = () => {
     fetchProfiles();
-    setAlert({ message: "Profile created successfully!", });
+    setAlert({ message: "Profile created successfully!" });
+  };
+
+  const handleEditClick = (profile: any) => {
+    const mappedProfile = {
+      name: profile.name,
+      ipPool: profile["ue-ip-pool"],
+      dns: profile.dns,
+      mtu: profile.mtu || 1500,
+      bitrateUpValue: parseInt(profile["bitrate-uplink"]) || 100,
+      bitrateUpUnit: profile["bitrate-uplink"].includes("Gbps") ? "Gbps" : "Mbps",
+      bitrateDownValue: parseInt(profile["bitrate-downlink"]) || 100,
+      bitrateDownUnit: profile["bitrate-downlink"].includes("Gbps") ? "Gbps" : "Mbps",
+      fiveQi: profile["var5qi"] || 1,
+      priorityLevel: profile["priority-level"] || 1,
+    };
+
+    setEditData(mappedProfile);
+    setEditModalOpen(true);
+  };
+
+  const handleEditModalClose = () => {
+    setEditModalOpen(false);
+    setEditData(null);
+  };
+
+  const handleEditSuccess = () => {
+    fetchProfiles();
+    setAlert({ message: "Profile updated successfully!" });
   };
 
   const handleDeleteClick = (profileName: string) => {
@@ -132,7 +126,6 @@ const Profile = () => {
     }
   };
 
-
   const handleConfirmationClose = () => {
     setConfirmationOpen(false);
     setSelectedProfile(null);
@@ -154,51 +147,60 @@ const Profile = () => {
         <Collapse in={!!alert.message}>
           <Alert
             severity={"success"}
-            onClose={() => setAlert({ message: "", })}
+            onClose={() => setAlert({ message: "" })}
             sx={{ marginBottom: 2 }}
           >
             {alert.message}
           </Alert>
         </Collapse>
       </Box>
-      <Box
-        sx={{
-          marginBottom: 4,
-          width: "50%",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <Typography variant="h4" component="h1" gutterBottom>
-          Profiles
-        </Typography>
-        <Button
-          variant="contained"
-          color="success"
-          onClick={handleOpenCreateModal}
+      {!loading && profiles.length > 0 && (
+        <Box
+          sx={{
+            marginBottom: 4,
+            width: "50%",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
         >
-          Create
-        </Button>
-      </Box>
-      <Box
-        sx={{
-          width: "50%",
-          overflowX: "auto",
-        }}
-      >
-        {loading ? (
-          <Box
-            sx={{
-              height: "100vh",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
+          <Typography variant="h4" component="h1" gutterBottom>
+            Profiles
+          </Typography>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={handleOpenCreateModal}
           >
-            <CircularProgress />
-          </Box>
-        ) : (
+            Create
+          </Button>
+        </Box>
+      )}
+      {loading ? (
+        <Box
+          sx={{
+            height: "100vh",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <CircularProgress />
+        </Box>
+      ) : profiles.length === 0 ? (
+        <EmptyState
+          primaryText="No profiles found."
+          secondaryText="Create a new profile in order to add subscribers to the network."
+          buttonText="Create"
+          onCreate={handleOpenCreateModal}
+        />
+      ) : (
+        <Box
+          sx={{
+            width: "50%",
+            overflowX: "auto",
+          }}
+        >
           <TableContainer component={Paper}>
             <Table sx={{ minWidth: 900 }} aria-label="profile table">
               <TableHead>
@@ -247,9 +249,8 @@ const Profile = () => {
               </TableBody>
             </Table>
           </TableContainer>
-        )}
-      </Box>
-
+        </Box>
+      )}
       <CreateProfileModal
         open={isCreateModalOpen}
         onClose={handleCloseCreateModal}
