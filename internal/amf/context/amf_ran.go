@@ -5,10 +5,10 @@ import (
 	"net"
 	"strings"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
 	"go.uber.org/zap"
 )
 

@@ -1,8 +1,8 @@
 package context
 
 import (
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/util/idgenerator"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/util/idgenerator"
 )
 
 func AllocateUniqueID(generator **idgenerator.IDGenerator, idName string) (int64, error) {

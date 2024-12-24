@@ -7,12 +7,12 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ellanetworks/core/internal/config"
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/config"
-	"github.com/yeastengine/ella/internal/db"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/util/idgenerator"
 )
 
 var pcfCtx *PCFContext

@@ -8,12 +8,12 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/openapi/Namf_Communication"
 	"github.com/omec-project/openapi/Npcf_AMPolicy"
 	"github.com/omec-project/openapi/Npcf_PolicyAuthorization"
 	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
 )
 
 const TimeFormat = time.RFC3339

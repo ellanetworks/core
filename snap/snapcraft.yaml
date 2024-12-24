@@ -1,23 +1,23 @@
-name: ella
+name: ella-core
 base: core22
-adopt-info: ella-release-data
-summary: ella is a secure, reliable, and easy to operate mobile network.
+adopt-info: core-release-data
+summary: Ella Core is a secure, reliable, and easy to operate mobile network.
 description: |
-  ella is a secure, reliable, and easy to operate mobile network.
+  Ella Core is a secure, reliable, and easy to operate mobile network.
 
 grade: devel
 confinement: devmode
 
 apps:
-  ella:
+  cored:
     daemon: simple
     install-mode: disable
-    command: bin/ella-start
+    command: bin/core-start
     refresh-mode: endure
     restart-condition: on-failure
 
 parts:
-  ella:
+  core:
     plugin: go
     source: .
     source-type: local
@@ -33,7 +33,7 @@ parts:
     plugin: dump
     source: service
 
-  ella-release-data:
+  core-release-data:
     plugin: nil
     source: .
     override-build: |

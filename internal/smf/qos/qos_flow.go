@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
 )
 
 // TS 24.501 Table 9.11.4.12

@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/yeastengine/ella/internal/db"
+	"github.com/ellanetworks/core/internal/db"
 )
 
 func TestDbNetworksEndToEnd(t *testing.T) {

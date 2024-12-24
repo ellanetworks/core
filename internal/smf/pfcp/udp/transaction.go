@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf/factory"
 	"github.com/wmnsk/go-pfcp/message"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/factory"
 )
 
 type TransactionType uint8

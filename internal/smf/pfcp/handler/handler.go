@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"net"
 
+	amf_producer "github.com/ellanetworks/core/internal/amf/producer"
+	"github.com/ellanetworks/core/internal/logger"
+	smf_context "github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf/pfcp/ies"
+	pfcp_message "github.com/ellanetworks/core/internal/smf/pfcp/message"
+	"github.com/ellanetworks/core/internal/smf/pfcp/udp"
+	"github.com/ellanetworks/core/internal/smf/producer"
 	"github.com/omec-project/openapi/models"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
-	amf_producer "github.com/yeastengine/ella/internal/amf/producer"
-	"github.com/yeastengine/ella/internal/logger"
-	smf_context "github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/pfcp/ies"
-	pfcp_message "github.com/yeastengine/ella/internal/smf/pfcp/message"
-	"github.com/yeastengine/ella/internal/smf/pfcp/udp"
-	"github.com/yeastengine/ella/internal/smf/producer"
 )
 
 func FindFTEID(createdPDRIEs []*ie.IE) (*ie.FTEIDFields, error) {

@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/util/httpwrapper"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/util/httpwrapper"
 )
 
 type PDUSessionInfo struct {

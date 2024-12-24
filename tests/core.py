@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2024 Guillaume Belanger
+# Copyright 2024 Ella Networks
 # See LICENSE file for licensing details.
 
 """Module use to handle Ella API calls."""
@@ -53,8 +53,8 @@ class CreateRadioParams:
     tac: str
 
 
-class Ella:
-    """Handle Ella API calls."""
+class EllaCore:
+    """Handle Ella Core API calls."""
 
     def __init__(self, url: str):
         if url.endswith("/"):

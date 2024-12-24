@@ -9,6 +9,14 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/ellanetworks/core/internal/amf/consumer"
+	"github.com/ellanetworks/core/internal/amf/context"
+	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
+	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
+	"github.com/ellanetworks/core/internal/amf/producer/callback"
+	"github.com/ellanetworks/core/internal/amf/util"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/mitchellh/mapstructure"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
@@ -17,14 +25,6 @@ import (
 	"github.com/omec-project/nas/security"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/amf/consumer"
-	"github.com/yeastengine/ella/internal/amf/context"
-	gmm_message "github.com/yeastengine/ella/internal/amf/gmm/message"
-	ngap_message "github.com/yeastengine/ella/internal/amf/ngap/message"
-	"github.com/yeastengine/ella/internal/amf/producer/callback"
-	"github.com/yeastengine/ella/internal/amf/util"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/util/fsm"
 )
 
 const (

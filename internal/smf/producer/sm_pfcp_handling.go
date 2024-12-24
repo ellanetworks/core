@@ -3,9 +3,9 @@ package producer
 import (
 	"fmt"
 
-	"github.com/yeastengine/ella/internal/logger"
-	smf_context "github.com/yeastengine/ella/internal/smf/context"
-	pfcp_message "github.com/yeastengine/ella/internal/smf/pfcp/message"
+	"github.com/ellanetworks/core/internal/logger"
+	smf_context "github.com/ellanetworks/core/internal/smf/context"
+	pfcp_message "github.com/ellanetworks/core/internal/smf/pfcp/message"
 )
 
 func SendPfcpSessionModifyReq(smContext *smf_context.SMContext, pfcpParam *pfcpParam) error {

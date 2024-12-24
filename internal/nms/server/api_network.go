@@ -3,11 +3,11 @@ package server
 import (
 	"net/http"
 
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/gin-gonic/gin"
-	"github.com/yeastengine/ella/internal/db"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/models"
-	"github.com/yeastengine/ella/internal/smf/context"
 )
 
 const (

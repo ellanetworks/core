@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
-	"github.com/yeastengine/ella/internal/logger"
 )
 
 func writeLineTabbed(sb *strings.Builder, s string, tab int) {

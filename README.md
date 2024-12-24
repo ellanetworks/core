@@ -1,23 +1,24 @@
-# Ella
+# Ella Core
 
-Ella is a wireless private mobile network.
+<img src="images/logo.png" alt="alt text" width="200"/>
 
-Typical mobile networks are complex, expensive, and difficult to operate. Forget microservices, external databases, complex configurations, and expensive hardware. Ella is a single binary that runs on a single machine.
+Ella Core is a 5G mobile core network for private deployments. It is designed to be easy to operate, reliable, and secure.
 
-Use Ella where you need 5G connectivity: in a factory, a warehouse, a farm, a stadium, a ship, or a remote location.
+Typical mobile mobile networks are complex, expensive, and difficult to operate. Forget microservices, external databases, complex configurations, and expensive hardware. Ella Core is a single binary that runs on a single machine.
+
+Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm, a stadium, a ship, or a remote location.
 
 ## Key features
 
-* **5G compliant**: Ella is a 5G compliant core network. It can integrate with any 5G radio that support the 3GPP defined N2, and N3 interfaces.
-* **Performant data plane**: Ella uses eBPF to implement the data plane. It is fast, secure, and reliable.
-* **Simple UI**: Ella has a web-based user interface for managing subscribers, radios, profiles, and network slices.
-* **Complete HTTP API**: Ella has a complete REST API. You can automate everything you can do in the UI.
-* **Encrypted communication**: Ella's API and UI are secured with TLS.
-* **Observability**: Ella exposes meaningful metrics in a Prometheus format to help you monitor your network. The UI also has a dashboard with real-time information.
+* **5G compliant**: A 5G compliant core network  that integrates with 3GPP compliant 5G radios.
+* **Performant data plane**: An eBPF-based data plane that is fast, secure, and reliable.
+* **Simple UI**: A web-based user interface for managing subscribers, radios, profiles, and network slices.
+* **Complete HTTP API**: A complete REST API which allows users to automate network operations.
+* **Observability**: Meaningful metrics and dashboards to monitor the network in real-time.
 
 ## Tenets
 
-Building Ella, we make engineering decisions based on the following tenets:
+Building Ella Core, we make engineering decisions based on the following tenets:
 1. **Simplicity**: We are commited to develop the simplest possible mobile network out there. We thrive on having a very short "Getting Started" tutorial, a simple configuration file, a single binary, an embedded database, and a simple UI.
 2. **Reliability**: We are commited to develop a reliable mobile network you can trust to work 24/7. We are commited to deliver high quality code, tests, and documentation. We are commited to expose dashboards, metrics and logs to help users monitor their network.
 3. **Security**: We are commited to minimizing the attack surface of the private network and to use secure encryption protocols to protect the data of our users.
@@ -29,20 +30,20 @@ Building Ella, we make engineering decisions based on the following tenets:
 Install the snap:
 
 ```bash
-sudo snap install ella --channel=edge --devmode
+sudo snap install ella-core --channel=edge --devmode
 ```
 
 Generate (or copy) a certificate and private key to the following location:
 ```bash
-sudo openssl req -newkey rsa:2048 -nodes -keyout /var/snap/ella/common/key.pem -x509 -days 1 -out /var/snap/ella/common/cert.pem -subj "/CN=example.com"
+sudo openssl req -newkey rsa:2048 -nodes -keyout /var/snap/ella-core/common/key.pem -x509 -days 1 -out /var/snap/ella-core/common/cert.pem -subj "/CN=example.com"
 ```
 
 Start the service:
 ```bash
-sudo snap start ella.ellad
+sudo snap start ella-core.cored
 ```
 
-Navigate to `https://localhost:5000` to access the Ella UI.
+Navigate to `https://localhost:5000` to access Ella Core's UI.
 
 ### How-to Guides
 
@@ -53,18 +54,18 @@ Navigate to `https://localhost:5000` to access the Ella UI.
 Install the snap:
 
 ```bash
-sudo snap install ella --channel=edge --devmode
+sudo snap install ella-core --channel=edge --devmode
 ```
 
 Generate (or copy) a certificate and private key to the following location:
 
 ```bash
-sudo openssl req -newkey rsa:2048 -nodes -keyout /var/snap/ella/common/key.pem -x509 -days 1 -out /var/snap/ella/common/cert.pem -subj "/CN=example.com"
+sudo openssl req -newkey rsa:2048 -nodes -keyout /var/snap/ella-core/common/key.pem -x509 -days 1 -out /var/snap/ella-core/common/cert.pem -subj "/CN=example.com"
 ```
 
 Start the service:
 ```bash
-sudo snap start ella.ellad
+sudo snap start ella-core.cored
 ```
 
 Navigate to `https://localhost:5000` to access the Ella UI.
@@ -100,11 +101,11 @@ juju bootstrap microk8s
 Create a Juju model:
 
 ```shell
-juju add-model ella
+juju add-model ella-core
 ```
 
 ```shell
-juju deploy ella-k8s --trust
+juju deploy ella-core-k8s --trust
 ```
 
 ### Reference
@@ -141,7 +142,7 @@ juju deploy ella-k8s --trust
 
 ##### Responses
 
-Ella API responses are JSON objects with the following structure:
+Ella Core's API responses are JSON objects with the following structure:
 
 ```json
 {
@@ -157,7 +158,7 @@ Ella API responses are JSON objects with the following structure:
 ```yaml
 log-level: "debug"  # debug, info, warn, error
 db:
-  path: "ella.db"
+  path: "core.db"
 interfaces: 
   n3: 
     name: "enp3s0"
@@ -168,20 +169,20 @@ interfaces:
     name: "enp0s8"
     port: 5000
     tls:
-      cert: "/etc/ssl/certs/ella.crt"
-      key: "/etc/ssl/private/ella.key"
+      cert: "/etc/ssl/certs/core.crt"
+      key: "/etc/ssl/private/core.key"
 ```
 
 #### Connectivity
 
-Ella uses 4 different interfaces:
+Ella Core uses 4 different interfaces:
 
 - **API**: The HTTP API and UI (HTTPS:5000)
-- **N2**: The control plane interface between Ella and the 5G Radio (SCTP:38412)
-- **N3**: The user plane interface between Ella and the 5G Radio (SCTP:2152)
-- **N6**: The user plane interface between Ella and the internet
+- **N2**: The control plane interface between Ella Core and the 5G Radio (SCTP:38412)
+- **N3**: The user plane interface between Ella Core and the 5G Radio (SCTP:2152)
+- **N6**: The user plane interface between Ella Core and the internet
 
-![Connectivity](connectivity.png)
+![Connectivity](images/connectivity.png)
 
 #### Acknowledgements
 

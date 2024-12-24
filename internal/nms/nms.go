@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/yeastengine/ella/internal/db"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/nms/server"
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/nms/server"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )

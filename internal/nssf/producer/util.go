@@ -3,8 +3,8 @@ package producer
 import (
 	"reflect"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
 )
 
 // Title in Problem Details for NSSF HTTP APIs

@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"net/http"
 
+	amf_producer "github.com/ellanetworks/core/internal/amf/producer"
+	"github.com/ellanetworks/core/internal/logger"
+	smf_context "github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf/qos"
+	"github.com/ellanetworks/core/internal/smf/transaction"
+	"github.com/ellanetworks/core/internal/util/httpwrapper"
 	"github.com/omec-project/openapi/models"
-	amf_producer "github.com/yeastengine/ella/internal/amf/producer"
-	"github.com/yeastengine/ella/internal/logger"
-	smf_context "github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/qos"
-	"github.com/yeastengine/ella/internal/smf/transaction"
-	"github.com/yeastengine/ella/internal/util/httpwrapper"
 )
 
 func HandleSMPolicyUpdateNotify(eventData interface{}) error {

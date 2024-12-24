@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strconv"
 
+	amf_context "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/openapi/Namf_Communication"
 	"github.com/omec-project/openapi/models"
-	amf_context "github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/logger"
 )
 
 func SendN1N2TransferFailureNotification(ue *amf_context.AmfUe, cause models.N1N2MessageTransferCause) {

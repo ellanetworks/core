@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ella
+  name: ella-core
   namespace: dev2
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: ella
+      app: ella-core
   template:
     metadata:
       labels:
-        app: ella
+        app: ella-core
       annotations:
         k8s.v1.cni.cncf.io/networks: |
           [
@@ -35,8 +35,8 @@ spec:
             add:
               - NET_ADMIN
       containers:
-      - name: ella
-        image: localhost:5000/ella:0.0.4
+      - name: core
+        image: localhost:5000/ella-core:0.0.4
         imagePullPolicy: Always
         command: ["pebble"]
         args: ["run", "--hold", "--http", ":38813", "--verbose"]
@@ -48,7 +48,7 @@ spec:
         - name: sysfs-bpf
           mountPath: /sys/fs/bpf
         - name: data-volume
-          mountPath: /ella/data
+          mountPath: /core/data
         ports:
         - containerPort: 5000
         - containerPort: 38412
@@ -71,7 +71,7 @@ spec:
       volumes:
       - name: config-volume
         configMap:
-          name: ella-config
+          name: core-config
       - name: data-volume
         emptyDir:
           sizeLimit: 500Mi

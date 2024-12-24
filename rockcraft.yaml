@@ -1,14 +1,14 @@
-name: ella
+name: ella-core
 base: ubuntu@24.04
 build-base: ubuntu@24.04
-adopt-info: ella-release-data
-summary: Ella is a secure, reliable, and easy to operate mobile network.
-description: Ella is a secure, reliable, and easy to operate mobile network.
+adopt-info: core-release-data
+summary: Ella Core is a secure, reliable, and easy to operate mobile network.
+description: Ella Core is a secure, reliable, and easy to operate mobile network.
 platforms:
   amd64:
 
 parts:
-  ella:
+  core:
     plugin: go
     source: .
     source-type: local
@@ -30,7 +30,7 @@ parts:
     stage-packages:
       - iptables
 
-  ella-release-data:
+  core-release-data:
     plugin: nil
     source: .
     override-build: |

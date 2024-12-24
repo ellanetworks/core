@@ -1,4 +1,4 @@
-module github.com/yeastengine/ella
+module github.com/ellanetworks/core
 
 go 1.23
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/yeastengine/ella/internal/upf/ebpf"
+	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
 func TestSdfFilterParseValid(t *testing.T) {

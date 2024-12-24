@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/smf/qos"
+	"github.com/ellanetworks/core/internal/smf/util"
+	"github.com/ellanetworks/core/internal/util/dnn"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/smf/qos"
-	"github.com/yeastengine/ella/internal/smf/util"
-	"github.com/yeastengine/ella/internal/util/dnn"
 )
 
 // GTPTunnel represents the GTP tunnel information

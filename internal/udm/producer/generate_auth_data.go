@@ -8,13 +8,13 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/udm/context"
+	"github.com/ellanetworks/core/internal/udr/producer"
+	"github.com/ellanetworks/core/internal/util/milenage"
+	"github.com/ellanetworks/core/internal/util/suci"
+	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/udm/context"
-	"github.com/yeastengine/ella/internal/udr/producer"
-	"github.com/yeastengine/ella/internal/util/milenage"
-	"github.com/yeastengine/ella/internal/util/suci"
-	"github.com/yeastengine/ella/internal/util/ueauth"
 )
 
 const (

@@ -3,8 +3,8 @@ package factory
 import (
 	"time"
 
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/db"
 )
 
 var AmfConfig Configuration

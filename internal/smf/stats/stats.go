@@ -1,6 +1,6 @@
 package stats
 
-import "github.com/yeastengine/ella/internal/smf/context"
+import "github.com/ellanetworks/core/internal/smf/context"
 
 func GetPDUSessionCount() int {
 	return context.GetPDUSessionCount()

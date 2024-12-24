@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/upf/ebpf"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/upf/ebpf"
 
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"

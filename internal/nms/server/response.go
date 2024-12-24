@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/yeastengine/ella/internal/logger"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 type SuccessResponse struct {

@@ -11,15 +11,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/util/fsm"
+	"github.com/ellanetworks/core/internal/util/idgenerator"
+	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
 	"github.com/omec-project/nas/security"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/util/fsm"
-	"github.com/yeastengine/ella/internal/util/idgenerator"
-	"github.com/yeastengine/ella/internal/util/ueauth"
 	"go.uber.org/zap"
 )
 

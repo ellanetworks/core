@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf/fsm"
+	"github.com/ellanetworks/core/internal/smf/msgtypes/svcmsgtypes"
+	"github.com/ellanetworks/core/internal/smf/transaction"
+	"github.com/ellanetworks/core/internal/util/httpwrapper"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/smf/context"
-	"github.com/yeastengine/ella/internal/smf/fsm"
-	"github.com/yeastengine/ella/internal/smf/msgtypes/svcmsgtypes"
-	"github.com/yeastengine/ella/internal/smf/transaction"
-	"github.com/yeastengine/ella/internal/util/httpwrapper"
 )
 
 func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse, error) {

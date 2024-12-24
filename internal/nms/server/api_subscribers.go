@@ -4,9 +4,9 @@ import (
 	"encoding/hex"
 	"net/http"
 
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
-	"github.com/yeastengine/ella/internal/db"
-	"github.com/yeastengine/ella/internal/logger"
 )
 
 type CreateSubscriberParams struct {

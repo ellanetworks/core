@@ -3,8 +3,8 @@ package core
 import (
 	"testing"
 
+	"github.com/ellanetworks/core/internal/upf/core/service"
 	"github.com/wmnsk/go-pfcp/ie"
-	"github.com/yeastengine/ella/internal/upf/core/service"
 )
 
 func TestPDRCreationContext_extractPDR(t *testing.T) {

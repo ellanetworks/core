@@ -3,8 +3,8 @@ package server
 import (
 	"net/http"
 
+	"github.com/ellanetworks/core/version"
 	"github.com/gin-gonic/gin"
-	"github.com/yeastengine/ella/version"
 )
 
 type StatusResponse struct {

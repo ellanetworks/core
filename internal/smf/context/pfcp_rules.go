@@ -5,7 +5,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/yeastengine/ella/internal/util/dnn"
+	"github.com/ellanetworks/core/internal/util/dnn"
 )
 
 const (

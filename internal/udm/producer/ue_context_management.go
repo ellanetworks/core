@@ -3,8 +3,8 @@ package producer
 import (
 	"net/http"
 
+	"github.com/ellanetworks/core/internal/udm/context"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/udm/context"
 )
 
 // TS 29.503 5.3.2.2.2

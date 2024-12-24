@@ -57,7 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Toolbar>
                   <Logo width={50} height={50} />
                   <Typography variant="h6" noWrap component="div" sx={{ ml: 2 }}>
-                    Ella Private Network
+                    Ella Core
                   </Typography>
                 </Toolbar>
               </AppBar>
@@ -122,7 +122,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <ListItem disablePadding>
                       <ListItemButton
                         component="a"
-                        href="https://github.com/yeastengine/ella"
+                        href="https://github.com/ellanetworks/core"
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -135,7 +135,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <ListItem disablePadding>
                       <ListItemButton
                         component="a"
-                        href="https://github.com/yeastengine/ella/issues/new/choose"
+                        href="https://github.com/ellanetworks/core/issues/new/choose"
                         target="_blank"
                         rel="noreferrer"
                       >

@@ -7,9 +7,9 @@ import (
 	"net"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/yeastengine/ella/internal/logger"
 )
 
 type GtpPathManager struct {

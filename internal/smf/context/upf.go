@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/smf/factory"
+	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/google/uuid"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/smf/factory"
-	"github.com/yeastengine/ella/internal/util/idgenerator"
 )
 
 // var upfPool sync.Map

@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strconv"
 
+	amf_context "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
-	amf_context "github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/smf/pdusession"
 )
 
 const N2SMINFO_ID = "N2SmInfo"

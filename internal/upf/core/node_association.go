@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/upf/config"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/upf/config"
 )
 
 type NodeAssociation struct {

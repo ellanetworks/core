@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/pcf/context"
+	"github.com/ellanetworks/core/internal/pcf/util"
+	"github.com/ellanetworks/core/internal/udr/producer"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/pcf/context"
-	"github.com/yeastengine/ella/internal/pcf/util"
-	"github.com/yeastengine/ella/internal/udr/producer"
 )
 
 func deepCopySessionRule(src *models.SessionRule) *models.SessionRule {

@@ -1,8 +1,8 @@
 package ausf
 
 import (
-	"github.com/yeastengine/ella/internal/ausf/context"
-	"github.com/yeastengine/ella/internal/ausf/factory"
+	"github.com/ellanetworks/core/internal/ausf/context"
+	"github.com/ellanetworks/core/internal/ausf/factory"
 )
 
 const AUSF_GROUP_ID = "ausfGroup001"

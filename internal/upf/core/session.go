@@ -3,7 +3,7 @@ package core
 import (
 	"net"
 
-	"github.com/yeastengine/ella/internal/upf/ebpf"
+	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
 type Session struct {

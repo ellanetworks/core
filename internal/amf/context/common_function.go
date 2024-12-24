@@ -3,8 +3,8 @@ package context
 import (
 	"reflect"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/logger"
 )
 
 func CompareUserLocation(loc1 models.UserLocation, loc2 models.UserLocation) bool {

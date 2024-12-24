@@ -1,9 +1,9 @@
 package gmm
 
 import (
-	"github.com/yeastengine/ella/internal/amf/context"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/util/fsm"
+	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/util/fsm"
 )
 
 var (

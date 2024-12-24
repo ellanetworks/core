@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/amf/factory"
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/omec-project/openapi/models"
-	"github.com/yeastengine/ella/internal/amf/factory"
-	"github.com/yeastengine/ella/internal/db"
-	"github.com/yeastengine/ella/internal/logger"
-	"github.com/yeastengine/ella/internal/util/idgenerator"
 )
 
 var (
