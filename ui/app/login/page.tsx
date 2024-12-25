@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation"
 import {
     Box,
     Button,
@@ -10,8 +11,12 @@ import {
     CircularProgress,
 } from "@mui/material";
 import { login } from "@/queries/login";
+import { useCookies } from "react-cookie"
+
 
 const LoginPage = () => {
+    const router = useRouter()
+    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
@@ -23,9 +28,19 @@ const LoginPage = () => {
         setError(null);
 
         try {
-            const { token } = await login(username, password);
-            localStorage.setItem("token", token);
-            window.location.href = "/";
+            const result = await login(username, password);
+
+            if (result?.token) {
+                setCookie("user_token", result.token, {
+                    sameSite: "strict",
+                    secure: true,
+                    expires: new Date(new Date().getTime() + 60 * 60 * 1000), // 1 hour expiry
+                });
+
+                router.push("/dashboard");
+            } else {
+                throw new Error("Invalid response: Token not found.");
+            }
         } catch (err: any) {
             setError(err.message || "Login failed");
         } finally {
