@@ -46,11 +46,12 @@ type DeleteUserResponse struct {
 	Error  string                   `json:"error,omitempty"`
 }
 
-func getUser(url string, client *http.Client, name string) (int, *GetUserResponse, error) {
+func getUser(url string, client *http.Client, token string, name string) (int, *GetUserResponse, error) {
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/users/"+name, nil)
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -67,7 +68,7 @@ func getUser(url string, client *http.Client, name string) (int, *GetUserRespons
 	return res.StatusCode, &userResponse, nil
 }
 
-func createUser(url string, client *http.Client, data *CreateUserParams) (int, *CreateUserResponse, error) {
+func createUser(url string, client *http.Client, token string, data *CreateUserParams) (int, *CreateUserResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
@@ -76,6 +77,7 @@ func createUser(url string, client *http.Client, data *CreateUserParams) (int, *
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -92,7 +94,7 @@ func createUser(url string, client *http.Client, data *CreateUserParams) (int, *
 	return res.StatusCode, &createResponse, nil
 }
 
-func editUser(url string, client *http.Client, name string, data *CreateUserParams) (int, *CreateUserResponse, error) {
+func editUser(url string, client *http.Client, token string, name string, data *CreateUserParams) (int, *CreateUserResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
@@ -101,6 +103,7 @@ func editUser(url string, client *http.Client, name string, data *CreateUserPara
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -117,11 +120,12 @@ func editUser(url string, client *http.Client, name string, data *CreateUserPara
 	return res.StatusCode, &createResponse, nil
 }
 
-func deleteUser(url string, client *http.Client, name string) (int, *DeleteUserResponse, error) {
+func deleteUser(url string, client *http.Client, token string, name string) (int, *DeleteUserResponse, error) {
 	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/users/"+name, nil)
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -145,19 +149,24 @@ func deleteUser(url string, client *http.Client, name string) (int, *DeleteUserR
 func TestAPIUsersEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
 	client := ts.Client()
 
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
 	t.Run("1. Create user", func(t *testing.T) {
 		createUserParams := &CreateUserParams{
 			Username: Username,
 			Password: Password,
 		}
-		statusCode, response, err := createUser(ts.URL, client, createUserParams)
+		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
 		if err != nil {
 			t.Fatalf("couldn't create user: %s", err)
 		}
@@ -173,7 +182,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	})
 
 	t.Run("2. Get user", func(t *testing.T) {
-		statusCode, response, err := getUser(ts.URL, client, Username)
+		statusCode, response, err := getUser(ts.URL, client, token, Username)
 		if err != nil {
 			t.Fatalf("couldn't get user: %s", err)
 		}
@@ -189,7 +198,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Get user - id not found", func(t *testing.T) {
-		statusCode, response, err := getUser(ts.URL, client, "gruyaume2")
+		statusCode, response, err := getUser(ts.URL, client, token, "gruyaume2")
 		if err != nil {
 			t.Fatalf("couldn't get user: %s", err)
 		}
@@ -205,7 +214,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		createUserParams := &CreateUserParams{
 			Password: Password,
 		}
-		statusCode, response, err := createUser(ts.URL, client, createUserParams)
+		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
 		if err != nil {
 			t.Fatalf("couldn't create user: %s", err)
 		}
@@ -222,7 +231,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 			Username: Username,
 			Password: "password1234",
 		}
-		statusCode, response, err := editUser(ts.URL, client, Username, createUserParams)
+		statusCode, response, err := editUser(ts.URL, client, token, Username, createUserParams)
 		if err != nil {
 			t.Fatalf("couldn't edit user: %s", err)
 		}
@@ -238,7 +247,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	})
 
 	t.Run("6. Delete user - success", func(t *testing.T) {
-		statusCode, response, err := deleteUser(ts.URL, client, Username)
+		statusCode, response, err := deleteUser(ts.URL, client, token, Username)
 		if err != nil {
 			t.Fatalf("couldn't delete user: %s", err)
 		}
@@ -253,7 +262,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		}
 	})
 	t.Run("7. Delete user - no user", func(t *testing.T) {
-		statusCode, response, err := deleteUser(ts.URL, client, Username)
+		statusCode, response, err := deleteUser(ts.URL, client, token, Username)
 		if err != nil {
 			t.Fatalf("couldn't delete user: %s", err)
 		}
@@ -269,12 +278,17 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 func TestCreateUserInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
 	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
 
 	tests := []struct {
 		username string
@@ -294,7 +308,7 @@ func TestCreateUserInvalidInput(t *testing.T) {
 				Username: tt.username,
 				Password: tt.password,
 			}
-			statusCode, response, err := createUser(ts.URL, client, createUserParams)
+			statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
 			if err != nil {
 				t.Fatalf("couldn't create user: %s", err)
 			}

@@ -64,14 +64,6 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("The OPC value from the database doesn't match the OPC value that was given")
 	}
 
-	retrievedSubscriber, err = database.GetSubscriber(subscriber.Imsi)
-	if err != nil {
-		t.Fatalf("Couldn't complete Retrieve: %s", err)
-	}
-	if retrievedSubscriber.SequenceNumber != "654321" {
-		t.Fatalf("Sequence numbers don't match: %s", retrievedSubscriber.SequenceNumber)
-	}
-
 	profileData := &db.Profile{
 		Name:     "myprofilename",
 		UeIpPool: "0.0.0.0/24",

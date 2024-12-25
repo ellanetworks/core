@@ -47,11 +47,12 @@ type DeleteRadioResponse struct {
 	Error  string                    `json:"error,omitempty"`
 }
 
-func getRadio(url string, client *http.Client, name string) (int, *GetRadioResponse, error) {
+func getRadio(url string, client *http.Client, token string, name string) (int, *GetRadioResponse, error) {
 	req, err := http.NewRequest("GET", url+"/api/v1/radios/"+name, nil)
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -68,7 +69,7 @@ func getRadio(url string, client *http.Client, name string) (int, *GetRadioRespo
 	return res.StatusCode, &radioResponse, nil
 }
 
-func createRadio(url string, client *http.Client, data *CreateRadioParams) (int, *CreateRadioResponse, error) {
+func createRadio(url string, client *http.Client, token string, data *CreateRadioParams) (int, *CreateRadioResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
@@ -77,6 +78,7 @@ func createRadio(url string, client *http.Client, data *CreateRadioParams) (int,
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -93,7 +95,7 @@ func createRadio(url string, client *http.Client, data *CreateRadioParams) (int,
 	return res.StatusCode, &createResponse, nil
 }
 
-func editRadio(url string, client *http.Client, name string, data *CreateRadioParams) (int, *CreateRadioResponse, error) {
+func editRadio(url string, client *http.Client, token string, name string, data *CreateRadioParams) (int, *CreateRadioResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
@@ -102,6 +104,7 @@ func editRadio(url string, client *http.Client, name string, data *CreateRadioPa
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -118,11 +121,12 @@ func editRadio(url string, client *http.Client, name string, data *CreateRadioPa
 	return res.StatusCode, &createResponse, nil
 }
 
-func deleteRadio(url string, client *http.Client, name string) (int, *DeleteRadioResponse, error) {
+func deleteRadio(url string, client *http.Client, token string, name string) (int, *DeleteRadioResponse, error) {
 	req, err := http.NewRequest("DELETE", url+"/api/v1/radios/"+name, nil)
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -146,19 +150,24 @@ func deleteRadio(url string, client *http.Client, name string) (int, *DeleteRadi
 func TestAPIRadiosEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
 	client := ts.Client()
 
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
 	t.Run("1. Create radio", func(t *testing.T) {
 		createRadioParams := &CreateRadioParams{
 			Name: RadioName,
 			Tac:  Tac,
 		}
-		statusCode, response, err := createRadio(ts.URL, client, createRadioParams)
+		statusCode, response, err := createRadio(ts.URL, client, token, createRadioParams)
 		if err != nil {
 			t.Fatalf("couldn't create radio: %s", err)
 		}
@@ -174,7 +183,7 @@ func TestAPIRadiosEndToEnd(t *testing.T) {
 	})
 
 	t.Run("2. Get radio", func(t *testing.T) {
-		statusCode, response, err := getRadio(ts.URL, client, RadioName)
+		statusCode, response, err := getRadio(ts.URL, client, token, RadioName)
 		if err != nil {
 			t.Fatalf("couldn't get radio: %s", err)
 		}
@@ -193,7 +202,7 @@ func TestAPIRadiosEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Get radio - id not found", func(t *testing.T) {
-		statusCode, response, err := getRadio(ts.URL, client, "gnb-002")
+		statusCode, response, err := getRadio(ts.URL, client, token, "gnb-002")
 		if err != nil {
 			t.Fatalf("couldn't get radio: %s", err)
 		}
@@ -209,7 +218,7 @@ func TestAPIRadiosEndToEnd(t *testing.T) {
 		createRadioParams := &CreateRadioParams{
 			Tac: Tac,
 		}
-		statusCode, response, err := createRadio(ts.URL, client, createRadioParams)
+		statusCode, response, err := createRadio(ts.URL, client, token, createRadioParams)
 		if err != nil {
 			t.Fatalf("couldn't create radio: %s", err)
 		}
@@ -226,7 +235,7 @@ func TestAPIRadiosEndToEnd(t *testing.T) {
 			Name: RadioName,
 			Tac:  "002",
 		}
-		statusCode, response, err := editRadio(ts.URL, client, RadioName, createRadioParams)
+		statusCode, response, err := editRadio(ts.URL, client, token, RadioName, createRadioParams)
 		if err != nil {
 			t.Fatalf("couldn't edit radio: %s", err)
 		}
@@ -242,7 +251,7 @@ func TestAPIRadiosEndToEnd(t *testing.T) {
 	})
 
 	t.Run("6. Delete radio - success", func(t *testing.T) {
-		statusCode, response, err := deleteRadio(ts.URL, client, RadioName)
+		statusCode, response, err := deleteRadio(ts.URL, client, token, RadioName)
 		if err != nil {
 			t.Fatalf("couldn't delete radio: %s", err)
 		}
@@ -257,7 +266,7 @@ func TestAPIRadiosEndToEnd(t *testing.T) {
 		}
 	})
 	t.Run("7. Delete radio - no radio", func(t *testing.T) {
-		statusCode, response, err := deleteRadio(ts.URL, client, RadioName)
+		statusCode, response, err := deleteRadio(ts.URL, client, token, RadioName)
 		if err != nil {
 			t.Fatalf("couldn't delete radio: %s", err)
 		}
@@ -273,12 +282,17 @@ func TestAPIRadiosEndToEnd(t *testing.T) {
 func TestCreateRadioInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
 	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
 
 	tests := []struct {
 		name  string
@@ -307,7 +321,7 @@ func TestCreateRadioInvalidInput(t *testing.T) {
 				Name: tt.name,
 				Tac:  tt.tac,
 			}
-			statusCode, response, err := createRadio(ts.URL, client, createRadioParams)
+			statusCode, response, err := createRadio(ts.URL, client, token, createRadioParams)
 			if err != nil {
 				t.Fatalf("couldn't create radio: %s", err)
 			}
