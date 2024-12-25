@@ -7,20 +7,25 @@ import {
     Typography,
     Alert,
     Collapse,
+    Select,
+    MenuItem,
+    InputLabel,
+    FormControl,
 } from "@mui/material";
 import * as yup from "yup";
 import { updateSubscriber } from "@/queries/subscribers";
+import { listProfiles } from "@/queries/profiles";
 
 interface EditSubscriberModalProps {
     open: boolean;
     onClose: () => void;
     onSuccess: () => void;
     initialData: {
-        imsi: string
-        opc: string
-        key: string
-        sequenceNumber: string
-        profileName: string
+        imsi: string;
+        opc: string;
+        key: string;
+        sequenceNumber: string;
+        profileName: string;
     };
 }
 
@@ -39,12 +44,23 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
     initialData,
 }) => {
     const [formValues, setFormValues] = useState(initialData);
+    const [profiles, setProfiles] = useState<string[]>([]);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
     const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
     useEffect(() => {
+        const fetchProfiles = async () => {
+            try {
+                const profileData = await listProfiles();
+                setProfiles(profileData.map((profile: any) => profile.name));
+            } catch (error) {
+                console.error("Failed to fetch profiles:", error);
+            }
+        };
+
         if (open) {
+            fetchProfiles();
             setFormValues(initialData);
             setErrors({});
         }
@@ -145,15 +161,21 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
                     helperText={errors.sequenceNumber}
                     margin="normal"
                 />
-                <TextField
-                    fullWidth
-                    label="Profile Name"
-                    value={formValues.profileName}
-                    onChange={(e) => handleChange("profileName", e.target.value)}
-                    error={!!errors.profileName}
-                    helperText={errors.profileName}
-                    margin="normal"
-                />
+                <FormControl fullWidth margin="normal">
+                    <InputLabel id="profile-name-label">Profile Name</InputLabel>
+                    <Select
+                        labelId="profile-name-label"
+                        value={formValues.profileName}
+                        onChange={(e) => handleChange("profileName", e.target.value)}
+                        error={!!errors.profileName}
+                    >
+                        {profiles.map((profile) => (
+                            <MenuItem key={profile} value={profile}>
+                                {profile}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
                 <Box sx={{ textAlign: "right", marginTop: 2 }}>
                     <Button onClick={onClose} sx={{ marginRight: 2 }}>
                         Cancel

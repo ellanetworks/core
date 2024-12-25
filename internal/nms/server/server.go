@@ -104,6 +104,7 @@ func NewHandler(dbInstance *db.Database) http.Handler {
 	// Subscribers
 	apiGroup.GET("/subscribers", ListSubscribers(dbInstance))
 	apiGroup.POST("/subscribers", CreateSubscriber(dbInstance))
+	apiGroup.PUT("/subscribers/:imsi", UpdateSubscriber(dbInstance))
 	apiGroup.GET("/subscribers/:imsi", GetSubscriber(dbInstance))
 	apiGroup.DELETE("/subscribers/:imsi", DeleteSubscriber(dbInstance))
 
@@ -124,6 +125,13 @@ func NewHandler(dbInstance *db.Database) http.Handler {
 	apiGroup.PUT("/radios/:name", UpdateRadio(dbInstance))
 	apiGroup.GET("/radios/:name", GetRadio(dbInstance))
 	apiGroup.DELETE("/radios/:name", DeleteRadio(dbInstance))
+
+	// Users
+	apiGroup.GET("/users", ListUsers(dbInstance))
+	apiGroup.POST("/users", CreateUser(dbInstance))
+	apiGroup.PUT("/users/:username", UpdateUser(dbInstance))
+	apiGroup.GET("/users/:username", GetUser(dbInstance))
+	apiGroup.DELETE("/users/:username", DeleteUser(dbInstance))
 
 	router.Use(cors.New(cors.Config{
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE"},

@@ -63,7 +63,13 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 
 func EditAuthenticationSubscription(ueId string, sequenceNumber string) error {
 	udrSelf := context.UDR_Self()
-	err := udrSelf.DbInstance.UpdateSubscriberSequenceNumber(ueId, sequenceNumber)
+
+	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
+	if err != nil {
+		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
+	}
+	subscriber.SequenceNumber = sequenceNumber
+	err = udrSelf.DbInstance.UpdateSubscriber(subscriber)
 	if err != nil {
 		return fmt.Errorf("couldn't update subscriber %s: %v", ueId, err)
 	}

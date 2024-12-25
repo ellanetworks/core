@@ -16,6 +16,7 @@ type Database struct {
 	profilesTable    string
 	networkTable     string
 	radiosTable      string
+	usersTable       string
 	conn             *sqlair.DB
 }
 
@@ -51,12 +52,16 @@ func NewDatabase(databasePath string) (*Database, error) {
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateRadiosTable, RadiosTableName)); err != nil {
 		return nil, err
 	}
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateUsersTable, UsersTableName)); err != nil {
+		return nil, err
+	}
 	db := new(Database)
 	db.conn = sqlair.NewDB(sqlConnection)
 	db.subscribersTable = SubscribersTableName
 	db.profilesTable = ProfilesTableName
 	db.networkTable = NetworkTableName
 	db.radiosTable = RadiosTableName
+	db.usersTable = UsersTableName
 	err = db.InitializeNetwork()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize network configuration: %v", err)

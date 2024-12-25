@@ -125,21 +125,26 @@ juju deploy ella-core-k8s --trust
 | `/api/v1/status`             | GET         | Get status                   |
 | `/api/v1/metrics`            | GET         | Get metrics                  |
 | `/api/v1/subscribers`        | GET         | List subscribers             |
-| `/api/v1/subscribers`        | POST        | Create a new subscriber      |
+| `/api/v1/subscribers`        | POST        | Create a subscriber          |
+| `/api/v1/subscribers/{imsi}` | PUT         | Update a subscriber          |
 | `/api/v1/subscribers/{imsi}` | GET         | Get a subscriber             |
 | `/api/v1/subscribers/{imsi}` | DELETE      | Delete a subscriber          |
 | `/api/v1/radios`             | GET         | List radios                  |
-| `/api/v1/radios`             | POST        | Create a new radio           |
+| `/api/v1/radios`             | POST        | Create a radio               |
 | `/api/v1/radios/{name}`      | PUT         | Update a radio               |
 | `/api/v1/radios/{name}`      | GET         | Get a radio                  |
 | `/api/v1/radios/{name}`      | DELETE      | Delete a radio               |
 | `/api/v1/network`            | PUT         | Update network configuration |
 | `/api/v1/network`            | GET         | Get network configuration    |
 | `/api/v1/profiles`           | GET         | List profiles                |
-| `/api/v1/profiles`           | POST        | Create a new profile         |
+| `/api/v1/profiles`           | POST        | Create a profile             |
 | `/api/v1/profiles/{name}`    | PUT         | Update a profile             |
 | `/api/v1/profiles/{name}`    | GET         | Get a profile                |
 | `/api/v1/profiles/{name}`    | DELETE      | Delete a profile             |
+| `/api/v1/users`              | GET         | List users                   |
+| `/api/v1/users`              | POST        | Create a user                |
+| `/api/v1/users/{username}`   | PUT         | Update a user                |
+| `/api/v1/users/{username}`   | GET         | Get a user                   |
 
 ##### Responses
 
@@ -183,7 +188,7 @@ Ella Core uses 4 different interfaces:
 - **N3**: The user plane interface between Ella Core and the 5G Radio (SCTP:2152)
 - **N6**: The user plane interface between Ella Core and the internet
 
-![Connectivity](images/connectivity.png)
+<img src="images/connectivity.png" alt="alt text" width="400"/>
 
 #### Acknowledgements
 
