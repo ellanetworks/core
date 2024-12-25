@@ -21,6 +21,7 @@ import {
   Person as PersonIcon,
   Sensors as SensorsIcon,
   Groups as GroupsIcon,
+  Dashboard as DashboardIcon,
 } from "@mui/icons-material";
 import { usePathname } from "next/navigation";
 import { ThemeProvider } from "@mui/material/styles";
@@ -78,6 +79,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Toolbar />
                 <Box sx={{ flexGrow: 1, overflow: "auto" }}>
                   <List>
+                    <ListItem disablePadding>
+                      <ListItemButton
+                        component="a"
+                        href="/dashboard"
+                        selected={pathname === "/dashboard"}
+                      >
+                        <ListItemIcon>
+                          <DashboardIcon />
+                        </ListItemIcon>
+                        <ListItemText primary="Dashboard" />
+                      </ListItemButton>
+                    </ListItem>
                     <ListItem disablePadding>
                       <ListItemButton
                         component="a"

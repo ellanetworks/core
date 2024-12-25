@@ -11,6 +11,7 @@ import {
     Select,
     InputLabel,
     FormControl,
+    FormGroup,
 } from "@mui/material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
@@ -163,7 +164,6 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
         }
     };
 
-
     return (
         <Modal
             open={open}
@@ -196,32 +196,40 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                         {alert.message}
                     </Alert>
                 </Collapse>
-                <Box display="flex" gap={2} marginBottom={2}>
-                    <TextField
-                        label="MCC"
-                        value={mcc}
-                        disabled
-                        margin="normal"
-                        sx={{ flex: 1 }}
-                    />
-                    <TextField
-                        label="MNC"
-                        value={mnc}
-                        disabled
-                        margin="normal"
-                        sx={{ flex: 1 }}
-                    />
-                    <TextField
-                        label="MSIN"
-                        value={formValues.msin}
-                        onChange={(e) => handleChange("msin", e.target.value)}
-                        onBlur={() => handleBlur("msin")}
-                        error={!!errors.msin && touched.msin}
-                        helperText={touched.msin ? errors.msin : ""}
-                        margin="normal"
-                        sx={{ flex: 2 }}
-                    />
-                </Box>
+                <FormGroup sx={{ mb: 2, p: 2, border: "1px solid #ccc", borderRadius: 1 }}>
+                    <Typography
+                        variant="subtitle1"
+                        gutterBottom
+                    >
+                        IMSI
+                    </Typography>
+                    <Box display="flex" gap={2}>
+                        <TextField
+                            label="MCC"
+                            value={mcc}
+                            disabled
+                            margin="normal"
+                            sx={{ flex: 1 }}
+                        />
+                        <TextField
+                            label="MNC"
+                            value={mnc}
+                            disabled
+                            margin="normal"
+                            sx={{ flex: 1 }}
+                        />
+                        <TextField
+                            label="MSIN"
+                            value={formValues.msin}
+                            onChange={(e) => handleChange("msin", e.target.value)}
+                            onBlur={() => handleBlur("msin")}
+                            error={!!errors.msin && touched.msin}
+                            helperText={touched.msin ? errors.msin : ""}
+                            margin="normal"
+                            sx={{ flex: 2 }}
+                        />
+                    </Box>
+                </FormGroup>
                 <TextField
                     fullWidth
                     label="OPC"
