@@ -93,6 +93,31 @@ func createRadio(url string, client *http.Client, data *CreateRadioParams) (int,
 	return res.StatusCode, &createResponse, nil
 }
 
+func editRadio(url string, client *http.Client, name string, data *CreateRadioParams) (int, *CreateRadioResponse, error) {
+	body, err := json.Marshal(data)
+	if err != nil {
+		return 0, nil, err
+	}
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/radios/"+name, strings.NewReader(string(body)))
+	if err != nil {
+		return 0, nil, err
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+	var createResponse CreateRadioResponse
+	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
+		return 0, nil, err
+	}
+	return res.StatusCode, &createResponse, nil
+}
+
 func deleteRadio(url string, client *http.Client, name string) (int, *DeleteRadioResponse, error) {
 	req, err := http.NewRequest("DELETE", url+"/api/v1/radios/"+name, nil)
 	if err != nil {
@@ -196,7 +221,27 @@ func TestAPIRadiosEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("5. Delete radio - success", func(t *testing.T) {
+	t.Run("5. Edit radio", func(t *testing.T) {
+		createRadioParams := &CreateRadioParams{
+			Name: RadioName,
+			Tac:  "002",
+		}
+		statusCode, response, err := editRadio(ts.URL, client, RadioName, createRadioParams)
+		if err != nil {
+			t.Fatalf("couldn't edit radio: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+		if response.Result.Message != "Radio updated successfully" {
+			t.Fatalf("expected message %q, got %q", "Radio updated successfully", response.Result.Message)
+		}
+	})
+
+	t.Run("6. Delete radio - success", func(t *testing.T) {
 		statusCode, response, err := deleteRadio(ts.URL, client, RadioName)
 		if err != nil {
 			t.Fatalf("couldn't delete radio: %s", err)
@@ -211,8 +256,7 @@ func TestAPIRadiosEndToEnd(t *testing.T) {
 			t.Fatalf("expected message %q, got %q", "Radio deleted successfully", response.Result.Message)
 		}
 	})
-
-	t.Run("6. Delete radio - no radio", func(t *testing.T) {
+	t.Run("7. Delete radio - no radio", func(t *testing.T) {
 		statusCode, response, err := deleteRadio(ts.URL, client, RadioName)
 		if err != nil {
 			t.Fatalf("couldn't delete radio: %s", err)

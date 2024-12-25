@@ -135,6 +135,62 @@ func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
 	}
 }
 
+func UpdateRadio(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		setCorsHeader(c)
+		radioName := c.Param("name")
+		if radioName == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
+			return
+		}
+		var updateRadioParams CreateRadioParams
+		err := c.ShouldBindJSON(&updateRadioParams)
+		if err != nil {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			return
+		}
+		if updateRadioParams.Name == "" {
+			writeError(c.Writer, http.StatusBadRequest, "name is missing")
+			return
+		}
+		if updateRadioParams.Tac == "" {
+			writeError(c.Writer, http.StatusBadRequest, "tac is missing")
+			return
+		}
+		if !isValidRadioName(updateRadioParams.Name) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid name format. Must be less than 256 characters")
+			return
+		}
+		if !isValidTac(updateRadioParams.Tac) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid TAC format. Must be a 3-digit number")
+			return
+		}
+		_, err = dbInstance.GetRadio(radioName)
+		if err != nil {
+			writeError(c.Writer, http.StatusNotFound, "Radio not found")
+			return
+		}
+
+		dbRadio := &db.Radio{
+			Name: updateRadioParams.Name,
+			Tac:  updateRadioParams.Tac,
+		}
+		err = dbInstance.UpdateRadio(dbRadio)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to update radio")
+			return
+		}
+		logger.NmsLog.Infof("updated radio %v", radioName)
+		successResponse := SuccessResponse{Message: "Radio updated successfully"}
+		err = writeResponse(c.Writer, successResponse, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
+	}
+}
+
 func DeleteRadio(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)

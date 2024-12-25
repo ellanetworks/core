@@ -10,9 +10,9 @@ import {
 } from "@mui/material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
-import { createProfile } from "@/queries/profiles";
+import { createRadio } from "@/queries/radios";
 
-interface CreateProfileModalProps {
+interface CreateRadioModalProps {
     open: boolean;
     onClose: () => void;
     onSuccess: () => void;
@@ -20,49 +20,17 @@ interface CreateProfileModalProps {
 
 const schema = yup.object().shape({
     name: yup.string().min(1).max(256).required("Name is required"),
-    ipPool: yup
+    tac: yup
         .string()
-        .matches(
-            /^(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\/\d{1,2}$/,
-            "Must be a valid IP pool (e.g., 192.168.0.0/24)"
-        )
-        .required("IP Pool is required"),
-    dns: yup
-        .string()
-        .matches(
-            /^(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)$/,
-            "Must be a valid IP address"
-        )
-        .required("DNS is required"),
-    mtu: yup.number().min(1).max(65535).required("MTU is required"),
-    bitrateUpValue: yup
-        .number()
-        .min(1, "Bitrate value must be between 1 and 999")
-        .max(999, "Bitrate value must be between 1 and 999")
-        .required("Bitrate value is required"),
-    bitrateUpUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
-    bitrateDownValue: yup
-        .number()
-        .min(1, "Bitrate value must be between 1 and 999")
-        .max(999, "Bitrate value must be between 1 and 999")
-        .required("Bitrate value is required"),
-    bitrateDownUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
-    fiveQi: yup.number().min(0).max(256).required("5QI is required"),
-    priorityLevel: yup.number().min(0).max(256).required("Priority Level is required"),
+        .min(1)
+        .max(256)
+        .required("TAC is required"),
 });
 
-const CreateProfileModal: React.FC<CreateProfileModalProps> = ({ open, onClose, onSuccess }) => {
+const CreateRadioModal: React.FC<CreateRadioModalProps> = ({ open, onClose, onSuccess }) => {
     const [formValues, setFormValues] = useState({
         name: "",
-        ipPool: "192.168.0.0/24",
-        dns: "8.8.8.8",
-        mtu: 1500,
-        bitrateUpValue: 100,
-        bitrateUpUnit: "Mbps",
-        bitrateDownValue: 100,
-        bitrateDownUnit: "Mbps",
-        fiveQi: 1,
-        priorityLevel: 1,
+        tac: "001",
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -129,26 +97,18 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({ open, onClose, 
         setLoading(true);
         setAlert({ message: "" });
         try {
-            const bitrateUplink = `${formValues.bitrateUpValue} ${formValues.bitrateUpUnit}`;
-            const bitrateDownlink = `${formValues.bitrateDownValue} ${formValues.bitrateDownUnit}`;
-            await createProfile(
+            await createRadio(
                 formValues.name,
-                formValues.ipPool,
-                formValues.dns,
-                formValues.mtu,
-                bitrateUplink,
-                bitrateDownlink,
-                formValues.fiveQi,
-                formValues.priorityLevel
+                formValues.tac,
             );
             onClose();
             onSuccess();
         } catch (error: any) {
             const errorMessage = error?.message || "Unknown error occurred.";
             setAlert({
-                message: `Failed to create profile: ${errorMessage}`,
+                message: `Failed to create radio: ${errorMessage}`,
             });
-            console.error("Failed to create profile:", error);
+            console.error("Failed to create radio:", error);
         } finally {
             setLoading(false);
         }
@@ -158,8 +118,8 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({ open, onClose, 
         <Modal
             open={open}
             onClose={onClose}
-            aria-labelledby="create-profile-modal-title"
-            aria-describedby="create-profile-modal-description"
+            aria-labelledby="create-radio-modal-title"
+            aria-describedby="create-radio-modal-description"
         >
             <Box
                 sx={{
@@ -174,8 +134,8 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({ open, onClose, 
                     p: 4,
                 }}
             >
-                <Typography id="create-profile-modal-title" variant="h6" gutterBottom>
-                    Create Profile
+                <Typography id="create-radio-modal-title" variant="h6" gutterBottom>
+                    Create Radio
                 </Typography>
                 <Collapse in={!!alert.message}>
                     <Alert
@@ -198,36 +158,15 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({ open, onClose, 
                 />
                 <TextField
                     fullWidth
-                    label="IP Pool"
-                    value={formValues.ipPool}
-                    onChange={(e) => handleChange("ipPool", e.target.value)}
-                    onBlur={() => handleBlur("ipPool")}
-                    error={!!errors.ipPool && touched.ipPool}
-                    helperText={touched.ipPool ? errors.ipPool : ""}
+                    label="TAC"
+                    value={formValues.tac}
+                    onChange={(e) => handleChange("tac", e.target.value)}
+                    onBlur={() => handleBlur("tac")}
+                    error={!!errors.tac && touched.tac}
+                    helperText={touched.tac ? errors.tac : ""}
                     margin="normal"
                 />
-                <TextField
-                    fullWidth
-                    label="DNS"
-                    value={formValues.dns}
-                    onChange={(e) => handleChange("dns", e.target.value)}
-                    onBlur={() => handleBlur("dns")}
-                    error={!!errors.dns && touched.dns}
-                    helperText={touched.dns ? errors.dns : ""}
-                    margin="normal"
-                />
-                <TextField
-                    fullWidth
-                    label="MTU"
-                    type="number"
-                    value={formValues.mtu}
-                    onChange={(e) => handleChange("mtu", Number(e.target.value))}
-                    onBlur={() => handleBlur("mtu")}
-                    error={!!errors.mtu && touched.mtu}
-                    helperText={touched.mtu ? errors.mtu : ""}
-                    margin="normal"
-                />
-                {/* Similar changes for other fields */}
+
                 <Box sx={{ textAlign: "right", marginTop: 2 }}>
                     <Button onClick={onClose} sx={{ marginRight: 2 }}>
                         Cancel
@@ -246,4 +185,4 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({ open, onClose, 
     );
 };
 
-export default CreateProfileModal;
+export default CreateRadioModal;

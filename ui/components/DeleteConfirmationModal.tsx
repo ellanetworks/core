@@ -16,7 +16,7 @@ interface ConfirmationModalProps {
     description: string;
 }
 
-const DeleteSubscriberModal: React.FC<ConfirmationModalProps> = ({
+const DeleteConfirmationModal: React.FC<ConfirmationModalProps> = ({
     open,
     onClose,
     onConfirm,
@@ -53,7 +53,11 @@ const DeleteSubscriberModal: React.FC<ConfirmationModalProps> = ({
                     <Button onClick={onClose} sx={{ marginRight: 2 }}>
                         Cancel
                     </Button>
-                    <Button variant="contained" color="error" onClick={onConfirm}>
+                    <Button
+                        variant="contained"
+                        color="error"
+                        onClick={onConfirm}
+                    >
                         Confirm
                     </Button>
                 </Box>
@@ -62,4 +66,4 @@ const DeleteSubscriberModal: React.FC<ConfirmationModalProps> = ({
     );
 };
 
-export default DeleteSubscriberModal;
+export default DeleteConfirmationModal;

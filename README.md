@@ -130,6 +130,7 @@ juju deploy ella-core-k8s --trust
 | `/api/v1/subscribers/{imsi}` | DELETE      | Delete a subscriber          |
 | `/api/v1/radios`             | GET         | List radios                  |
 | `/api/v1/radios`             | POST        | Create a new radio           |
+| `/api/v1/radios/{name}`      | PUT         | Update a radio               |
 | `/api/v1/radios/{name}`      | GET         | Get a radio                  |
 | `/api/v1/radios/{name}`      | DELETE      | Delete a radio               |
 | `/api/v1/network`            | PUT         | Update network configuration |
