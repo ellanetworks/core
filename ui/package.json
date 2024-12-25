@@ -11,9 +11,9 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
-    "@mui/icons-material": "^6.2.1",
+    "@mui/icons-material": "^6.3.0",
     "@mui/material": "^6.2.1",
-    "@tanstack/react-query": "^5.62.8",
+    "@tanstack/react-query": "^5.62.10",
     "@types/react": "18.3.12",
     "autoprefixer": "^10.4.20",
     "next": "15.1.2",
