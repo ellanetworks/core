@@ -17,6 +17,8 @@ func setupServer(filepath string) (*httptest.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	ts := httptest.NewTLSServer(server.NewHandler(testdb))
+	jwtSecretStr := "testsecret"
+	jwtSecret := []byte(jwtSecretStr)
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, jwtSecret))
 	return ts, nil
 }

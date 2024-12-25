@@ -19,12 +19,17 @@ const QueryCreateUsersTable = `
 )`
 
 const (
-	listUsersStmt  = "SELECT &User.* from %s"
-	getUserStmt    = "SELECT &User.* from %s WHERE username==$User.username"
-	createUserStmt = "INSERT INTO %s (username, hashedPassword) VALUES ($User.username, $User.hashedPassword)"
-	editUserStmt   = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE username==$User.username"
-	deleteUserStmt = "DELETE FROM %s WHERE username==$User.username"
+	listUsersStmt   = "SELECT &User.* from %s"
+	getUserStmt     = "SELECT &User.* from %s WHERE username==$User.username"
+	createUserStmt  = "INSERT INTO %s (username, hashedPassword) VALUES ($User.username, $User.hashedPassword)"
+	editUserStmt    = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE username==$User.username"
+	deleteUserStmt  = "DELETE FROM %s WHERE username==$User.username"
+	getNumUsersStmt = "SELECT COUNT(*) AS &NumUsers.count FROM %s"
 )
+
+type NumUsers struct {
+	Count int `db:"count"`
+}
 
 type User struct {
 	ID             int    `db:"id"`
@@ -103,4 +108,17 @@ func (db *Database) DeleteUser(username string) error {
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
 	return err
+}
+
+func (db *Database) NumUsers() (int, error) {
+	stmt, err := sqlair.Prepare(fmt.Sprintf(getNumUsersStmt, db.usersTable), NumUsers{})
+	if err != nil {
+		return 0, err
+	}
+	result := NumUsers{}
+	err = db.conn.Query(context.Background(), stmt).Get(&result)
+	if err != nil {
+		return 0, err
+	}
+	return result.Count, nil
 }
