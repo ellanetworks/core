@@ -151,10 +151,8 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     fullWidth
                     label="Name"
                     value={formValues.name}
-                    onChange={(e) => handleChange("name", e.target.value)}
-                    error={!!errors.name}
-                    helperText={errors.name}
                     margin="normal"
+                    disabled
                 />
                 <TextField
                     fullWidth

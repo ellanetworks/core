@@ -7,21 +7,28 @@ export const listSubscribers = async () => {
       "Content-Type": "application/json",
     },
   });
-  const respData = await response.json();
-  if (!response.ok) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData.error}`)
+  let respData;
+  try {
+    respData = await response.json();
+  } catch {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
   }
-  return respData.result
+
+  if (!response.ok) {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+  }
+
+  return respData.result;
 };
 
 export const createSubscriber = async (imsi: string, opc: string, key: string, sequenceNumber: string, profileName: string) => {
   const subscriberData = {
-    "imsi": imsi,
-    "opc": opc,
-    "key": key,
-    "sequenceNumber": sequenceNumber,
-    "profileName": profileName
-  }
+    imsi,
+    opc,
+    key,
+    sequenceNumber,
+    profileName,
+  };
 
   const response = await fetch(`/api/v1/subscribers`, {
     method: "POST",
@@ -30,15 +37,19 @@ export const createSubscriber = async (imsi: string, opc: string, key: string, s
     },
     body: JSON.stringify(subscriberData),
   });
+
+  let respData;
   try {
-    const respData = await response.json();
-    if (!response.ok) {
-      throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData.error}`)
-    }
-    return respData.result
-  } catch (error) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`)
+    respData = await response.json();
+  } catch {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
   }
+
+  if (!response.ok) {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+  }
+
+  return respData.result;
 };
 
 export const updateSubscriber = async (imsi: string, opc: string, key: string, sequenceNumber: string, profileName: string) => {
@@ -57,15 +68,18 @@ export const updateSubscriber = async (imsi: string, opc: string, key: string, s
     },
     body: JSON.stringify(subscriberData),
   });
+  let respData;
   try {
-    const respData = await response.json();
-    if (!response.ok) {
-      throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData.error}`)
-    }
-    return respData.result
-  } catch (error) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`)
+    respData = await response.json();
+  } catch {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
   }
+
+  if (!response.ok) {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+  }
+
+  return respData.result;
 }
 
 export const deleteSubscriber = async (name: string) => {
@@ -75,13 +89,16 @@ export const deleteSubscriber = async (name: string) => {
       "Content-Type": "application/json",
     },
   });
+  let respData;
   try {
-    const respData = await response.json();
-    if (!response.ok) {
-      throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData.error}`)
-    }
-    return respData.result
-  } catch (error) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`)
+    respData = await response.json();
+  } catch {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
   }
+
+  if (!response.ok) {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+  }
+
+  return respData.result;
 }

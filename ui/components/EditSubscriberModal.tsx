@@ -115,10 +115,8 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
                     fullWidth
                     label="IMSI"
                     value={formValues.imsi}
-                    onChange={(e) => handleChange("imsi", e.target.value)}
-                    error={!!errors.imsi}
-                    helperText={errors.imsi}
                     margin="normal"
+                    disabled
                 />
                 <TextField
                     fullWidth
