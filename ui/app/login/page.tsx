@@ -32,7 +32,7 @@ const LoginPage = () => {
 
             if (result?.token) {
                 setCookie("user_token", result.token, {
-                    sameSite: "strict",
+                    sameSite: true,
                     secure: true,
                     expires: new Date(new Date().getTime() + 60 * 60 * 1000), // 1 hour expiry
                 });
