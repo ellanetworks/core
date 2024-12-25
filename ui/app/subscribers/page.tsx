@@ -24,7 +24,7 @@ import {
 import { listSubscribers, deleteSubscriber } from "@/queries/subscribers";
 import CreateSubscriberModal from "@/components/CreateSubscriberModal";
 import EditSubscriberModal from "@/components/EditSubscriberModal";
-import DeleteSubscriberModal from "@/components/DeleteSubscriberModal";
+import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 
 interface SubscriberData {
@@ -257,7 +257,7 @@ const Subscriber = () => {
                     }
                 }
             />
-            <DeleteSubscriberModal
+            <DeleteConfirmationModal
                 open={isConfirmationOpen}
                 onClose={handleConfirmationClose}
                 onConfirm={handleDeleteConfirm}

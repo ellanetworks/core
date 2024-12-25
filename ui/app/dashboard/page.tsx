@@ -24,19 +24,13 @@ const Dashboard = () => {
       line.startsWith("go_memstats_alloc_bytes ")
     );
 
-    console.log("Memory Metric", memoryMetric);
-
-    const memoryUsageMb = memoryMetric
-      ? Math.round(parseFloat(memoryMetric.split(" ")[1]) / (1024 * 1024))
-      : 0;
-
-    console.log("Memory Metric MB", memoryUsageMb);
-
     return {
       pduSessions: pduSessionMetric
         ? parseInt(pduSessionMetric.split(" ")[1], 10)
         : 0,
-      memoryUsage: memoryUsageMb,
+      memoryUsage: memoryMetric
+        ? Math.round(parseFloat(memoryMetric.split(" ")[1]) / (1024 * 1024))
+        : 0,
     };
   };
 

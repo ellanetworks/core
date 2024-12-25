@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -20,74 +21,58 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon,
 } from "@mui/icons-material";
-import { listProfiles, deleteProfile } from "@/queries/profiles";
-import CreateProfileModal from "@/components/CreateProfileModal";
-import EditProfileModal from "@/components/EditProfileModal";
+import { listRadios, deleteRadio } from "@/queries/radios";
+import CreateRadioModal from "@/components/CreateRadioModal";
+import EditRadioModal from "@/components/EditRadioModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 
-interface ProfileData {
+interface RadioData {
   name: string;
-  ipPool: string;
-  dns: string;
-  mtu: number;
-  bitrateUpValue: number;
-  bitrateUpUnit: string;
-  bitrateDownValue: number;
-  bitrateDownUnit: string;
-  fiveQi: number;
-  priorityLevel: number;
+  tac: string;
 }
 
-const Profile = () => {
-  const [profiles, setProfiles] = useState<any[]>([]);
+const Radio = () => {
+  const [radios, setRadios] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
-  const [editData, setEditData] = useState<ProfileData | null>(null);
-  const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
+  const [editData, setEditData] = useState<RadioData | null>(null);
+  const [selectedRadio, setSelectedRadio] = useState<string | null>(null);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
-  const fetchProfiles = async () => {
+  const fetchRadios = async () => {
     setLoading(true);
     try {
-      const data = await listProfiles();
-      setProfiles(data);
+      const data = await listRadios();
+      setRadios(data);
     } catch (error) {
-      console.error("Error fetching profiles:", error);
+      console.error("Error fetching radios:", error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProfiles();
+    fetchRadios();
   }, []);
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
 
   const handleModalSuccess = () => {
-    fetchProfiles();
-    setAlert({ message: "Profile created successfully!" });
+    fetchRadios();
+    setAlert({ message: "Radio created successfully!" });
   };
 
-  const handleEditClick = (profile: any) => {
-    const mappedProfile = {
-      name: profile.name,
-      ipPool: profile["ue-ip-pool"],
-      dns: profile.dns,
-      mtu: profile.mtu || 1500,
-      bitrateUpValue: parseInt(profile["bitrate-uplink"]) || 100,
-      bitrateUpUnit: profile["bitrate-uplink"].includes("Gbps") ? "Gbps" : "Mbps",
-      bitrateDownValue: parseInt(profile["bitrate-downlink"]) || 100,
-      bitrateDownUnit: profile["bitrate-downlink"].includes("Gbps") ? "Gbps" : "Mbps",
-      fiveQi: profile["var5qi"] || 1,
-      priorityLevel: profile["priority-level"] || 1,
+  const handleEditClick = (radio: any) => {
+    const mappedRadio = {
+      name: radio.name,
+      tac: radio.tac,
     };
 
-    setEditData(mappedProfile);
+    setEditData(mappedRadio);
     setEditModalOpen(true);
   };
 
@@ -97,38 +82,38 @@ const Profile = () => {
   };
 
   const handleEditSuccess = () => {
-    fetchProfiles();
-    setAlert({ message: "Profile updated successfully!" });
+    fetchRadios();
+    setAlert({ message: "Radio updated successfully!" });
   };
 
-  const handleDeleteClick = (profileName: string) => {
-    setSelectedProfile(profileName);
+  const handleDeleteClick = (radioName: string) => {
+    setSelectedRadio(radioName);
     setConfirmationOpen(true);
   };
 
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
-    if (selectedProfile) {
+    if (selectedRadio) {
       try {
-        await deleteProfile(selectedProfile);
+        await deleteRadio(selectedRadio);
         setAlert({
-          message: `Profile "${selectedProfile}" deleted successfully!`,
+          message: `Radio "${selectedRadio}" deleted successfully!`,
         });
-        fetchProfiles();
+        fetchRadios();
       } catch (error) {
-        console.error("Error deleting profile:", error);
+        console.error("Error deleting radio:", error);
         setAlert({
-          message: `Failed to delete profile "${selectedProfile}".`,
+          message: `Failed to delete radio "${selectedRadio}".`,
         });
       } finally {
-        setSelectedProfile(null);
+        setSelectedRadio(null);
       }
     }
   };
 
   const handleConfirmationClose = () => {
     setConfirmationOpen(false);
-    setSelectedProfile(null);
+    setSelectedRadio(null);
   };
 
   return (
@@ -154,7 +139,7 @@ const Profile = () => {
           </Alert>
         </Collapse>
       </Box>
-      {!loading && profiles.length > 0 && (
+      {!loading && radios.length > 0 && (
         <Box
           sx={{
             marginBottom: 4,
@@ -165,7 +150,7 @@ const Profile = () => {
           }}
         >
           <Typography variant="h4" component="h1" gutterBottom>
-            Profiles
+            Radios
           </Typography>
           <Button
             variant="contained"
@@ -187,10 +172,10 @@ const Profile = () => {
         >
           <CircularProgress />
         </Box>
-      ) : profiles.length === 0 ? (
+      ) : radios.length === 0 ? (
         <EmptyState
-          primaryText="No profile found."
-          secondaryText="Create a new profile in order to add subscribers to the network."
+          primaryText="No radio found."
+          secondaryText="Create a new radio."
           buttonText="Create"
           onCreate={handleOpenCreateModal}
         />
@@ -202,44 +187,34 @@ const Profile = () => {
           }}
         >
           <TableContainer component={Paper}>
-            <Table sx={{ minWidth: 900 }} aria-label="profile table">
+            <Table sx={{ minWidth: 900 }} aria-label="radio table">
               <TableHead>
                 <TableRow>
                   <TableCell>Name</TableCell>
-                  <TableCell align="right">IP Pool</TableCell>
-                  <TableCell align="right">DNS</TableCell>
-                  <TableCell align="right">Bitrate (up)</TableCell>
-                  <TableCell align="right">Bitrate (down)</TableCell>
-                  <TableCell align="right">5QI</TableCell>
-                  <TableCell align="right">Priority Level</TableCell>
+                  <TableCell align="right">TAC</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {profiles.map((profile) => (
+                {radios.map((radio) => (
                   <TableRow
-                    key={profile.name}
+                    key={radio.name}
                     sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
                   >
                     <TableCell component="th" scope="row">
-                      {profile.name}
+                      {radio.name}
                     </TableCell>
-                    <TableCell align="right">{profile?.["ue-ip-pool"]}</TableCell>
-                    <TableCell align="right">{profile?.["dns"]}</TableCell>
-                    <TableCell align="right">{profile?.["bitrate-uplink"]}</TableCell>
-                    <TableCell align="right">{profile?.["bitrate-downlink"]}</TableCell>
-                    <TableCell align="right">{profile?.["var5qi"]}</TableCell>
-                    <TableCell align="right">{profile?.["priority-level"]}</TableCell>
+                    <TableCell align="right">{radio.tac}</TableCell>
                     <TableCell align="right">
                       <IconButton
                         aria-label="edit"
-                        onClick={() => handleEditClick(profile)}
+                        onClick={() => handleEditClick(radio)}
                       >
                         <EditIcon />
                       </IconButton>
                       <IconButton
                         aria-label="delete"
-                        onClick={() => handleDeleteClick(profile.name)}
+                        onClick={() => handleDeleteClick(radio.name)}
                       >
                         <DeleteIcon />
                       </IconButton>
@@ -251,27 +226,19 @@ const Profile = () => {
           </TableContainer>
         </Box>
       )}
-      <CreateProfileModal
+      <CreateRadioModal
         open={isCreateModalOpen}
         onClose={handleCloseCreateModal}
         onSuccess={handleModalSuccess}
       />
-      <EditProfileModal
+      <EditRadioModal
         open={isEditModalOpen}
         onClose={handleEditModalClose}
         onSuccess={handleEditSuccess}
         initialData={
           editData || {
             name: "",
-            ipPool: "",
-            dns: "",
-            mtu: 1500,
-            bitrateUpValue: 100,
-            bitrateUpUnit: "Mbps",
-            bitrateDownValue: 100,
-            bitrateDownUnit: "Mbps",
-            fiveQi: 1,
-            priorityLevel: 1,
+            tac: "",
           }
         }
       />
@@ -280,10 +247,10 @@ const Profile = () => {
         onClose={handleConfirmationClose}
         onConfirm={handleDeleteConfirm}
         title="Confirm Deletion"
-        description={`Are you sure you want to delete the profile "${selectedProfile}"? This action cannot be undone.`}
+        description={`Are you sure you want to delete the radio "${selectedRadio}"? This action cannot be undone.`}
       />
     </Box>
   );
 };
 
-export default Profile;
+export default Radio;

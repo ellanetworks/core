@@ -22,6 +22,7 @@ import {
   Sensors as SensorsIcon,
   Groups as GroupsIcon,
   Dashboard as DashboardIcon,
+  Router as RouterIcon,
 } from "@mui/icons-material";
 import { usePathname } from "next/navigation";
 import { ThemeProvider } from "@mui/material/styles";
@@ -101,6 +102,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                           <SensorsIcon />
                         </ListItemIcon>
                         <ListItemText primary="Network Configuration" />
+                      </ListItemButton>
+                    </ListItem>
+                    <ListItem disablePadding>
+                      <ListItemButton
+                        component="a"
+                        href="/radios"
+                        selected={pathname === "/radios"}
+                      >
+                        <ListItemIcon>
+                          <RouterIcon />
+                        </ListItemIcon>
+                        <ListItemText primary="Radios" />
                       </ListItemButton>
                     </ListItem>
                     <ListItem disablePadding>
