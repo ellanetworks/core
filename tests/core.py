@@ -36,7 +36,7 @@ PROFILE_CONFIG = {
     "bitrate-uplink": "200 Mbps",
     "bitrate-downlink": "100 Mbps",
     "priority-level": 1,
-    "var5qi": 8
+    "var5qi": 8,
 }
 
 
@@ -49,6 +49,7 @@ NETWORK_CONFIG = {
 @dataclass
 class CreateRadioParams:
     """Parameters to create a radio."""
+
     name: str
     tac: str
 
@@ -60,6 +61,7 @@ class EllaCore:
         if url.endswith("/"):
             url = url[:-1]
         self.url = url
+        self.token = None
 
     def _make_request(
         self,
@@ -69,6 +71,8 @@ class EllaCore:
     ) -> Any | None:
         """Make an HTTP request and handle common error patterns."""
         headers = JSON_HEADER
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
         url = f"{self.url}{endpoint}"
         logger.info("%s request to %s", method, url)
         response = requests.request(
@@ -82,11 +86,40 @@ class EllaCore:
         json_response = response.json()
         return json_response
 
+    def set_token(self, token: str) -> None:
+        """Set the authentication token."""
+        self.token = token
+
+    def login(self, username: str, password: str) -> str | None:
+        """Login to Ella Core.
+
+        Returns:
+            str: The authentication token.
+        """
+        data = {"username": username, "password": password}
+        response = self._make_request("POST", "/api/v1/login", data=data)
+        result = response.get("result")
+        if not result:
+            logger.error("Failed to login to Ella Core.")
+            return None
+        token = result.get("token")
+        if not token:
+            logger.error("Failed to login to Ella Core.")
+            return None
+        logger.info("Logged in to Ella Core.")
+        return token
+
+    def create_user(self, username: str, password: str) -> None:
+        """Create a user in Ella Core."""
+        data = {"username": username, "password": password}
+        self._make_request("POST", "/api/v1/users", data=data)
+        logger.info("User %s created in Ella Core", username)
+
     def create_radio(self, name: str, tac: str) -> None:
-        """Create a radio in the NMS."""
+        """Create a radio in Ella Core."""
         create_radio_params = CreateRadioParams(name=name, tac=str(tac))
         self._make_request("POST", GNB_CONFIG_URL, data=asdict(create_radio_params))
-        logger.info("Radio %s created in NMS", name)
+        logger.info("Radio %s created in Ella Core", name)
 
     def create_subscriber(self, imsi: str, profile_name: str) -> None:
         """Create a subscriber."""
