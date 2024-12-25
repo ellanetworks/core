@@ -121,6 +121,7 @@ func NewHandler(dbInstance *db.Database) http.Handler {
 	// Radios
 	apiGroup.GET("/radios", ListRadios(dbInstance))
 	apiGroup.POST("/radios/", CreateRadio(dbInstance))
+	apiGroup.PUT("/radios/:name", UpdateRadio(dbInstance))
 	apiGroup.GET("/radios/:name", GetRadio(dbInstance))
 	apiGroup.DELETE("/radios/:name", DeleteRadio(dbInstance))
 
