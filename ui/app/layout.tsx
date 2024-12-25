@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Box,
   CssBaseline,
@@ -14,7 +14,6 @@ import {
   ListItemText,
   Divider,
   Typography,
-  CircularProgress,
 } from "@mui/material";
 import {
   Info as InfoIcon,
@@ -25,10 +24,9 @@ import {
   Dashboard as DashboardIcon,
   Router as RouterIcon,
 } from "@mui/icons-material";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { ThemeProvider } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useCookies } from "react-cookie";
 import theme from "@/utils/theme";
 import "./globals.scss";
 import Logo from "@/components/Logo";
@@ -37,49 +35,7 @@ const drawerWidth = 250;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [cookies] = useCookies(["user_token"]);
   const [queryClient] = useState(() => new QueryClient());
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-
-  const isLoginPage = pathname === "/login";
-
-  useEffect(() => {
-    const token = cookies.user_token;
-
-    if (isLoginPage) {
-      // On the login page, skip authentication check.
-      setIsAuthenticated(null);
-    } else if (token) {
-      // If token exists, authenticate user.
-      setIsAuthenticated(true);
-    } else {
-      // No token, redirect to login page.
-      setIsAuthenticated(false);
-      router.push("/login");
-    }
-  }, [cookies, isLoginPage, router]);
-
-  if (isAuthenticated === null && !isLoginPage) {
-    // Show a loader while determining the authentication state.
-    return (
-      <Box
-        sx={{
-          height: "100vh",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (!isAuthenticated && !isLoginPage) {
-    // Block content rendering until the user is redirected.
-    return null;
-  }
 
   return (
     <html lang="en">
@@ -95,143 +51,134 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <QueryClientProvider client={queryClient}>
           <ThemeProvider theme={theme}>
             <CssBaseline />
-            {isLoginPage ? (
-              <Box sx={{ height: "100vh", display: "flex" }}>{children}</Box>
-            ) : (
-              <Box sx={{ display: "flex" }}>
-                <AppBar
-                  position="fixed"
-                  sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
-                >
-                  <Toolbar>
-                    <Logo width={50} height={50} />
-                    <Typography
-                      variant="h6"
-                      noWrap
-                      component="div"
-                      sx={{ ml: 2 }}
-                    >
-                      Ella Core
-                    </Typography>
-                  </Toolbar>
-                </AppBar>
+            <Box sx={{ display: "flex" }}>
+              <AppBar
+                position="fixed"
+                sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
+              >
+                <Toolbar>
+                  <Logo width={50} height={50} />
+                  <Typography variant="h6" noWrap component="div" sx={{ ml: 2 }}>
+                    Ella Core
+                  </Typography>
+                </Toolbar>
+              </AppBar>
 
-                <Drawer
-                  variant="permanent"
-                  sx={{
+              <Drawer
+                variant="permanent"
+                sx={{
+                  width: drawerWidth,
+                  flexShrink: 0,
+                  [`& .MuiDrawer-paper`]: {
                     width: drawerWidth,
-                    flexShrink: 0,
-                    [`& .MuiDrawer-paper`]: {
-                      width: drawerWidth,
-                      boxSizing: "border-box",
-                      display: "flex",
-                      flexDirection: "column",
-                    },
-                  }}
-                >
-                  <Toolbar />
-                  <Box sx={{ flexGrow: 1, overflow: "auto" }}>
-                    <List>
-                      <ListItem disablePadding>
-                        <ListItemButton
-                          component="a"
-                          href="/dashboard"
-                          selected={pathname === "/dashboard"}
-                        >
-                          <ListItemIcon>
-                            <DashboardIcon />
-                          </ListItemIcon>
-                          <ListItemText primary="Dashboard" />
-                        </ListItemButton>
-                      </ListItem>
-                      <ListItem disablePadding>
-                        <ListItemButton
-                          component="a"
-                          href="/network-configuration"
-                          selected={pathname === "/network-configuration"}
-                        >
-                          <ListItemIcon>
-                            <SensorsIcon />
-                          </ListItemIcon>
-                          <ListItemText primary="Network Configuration" />
-                        </ListItemButton>
-                      </ListItem>
-                      <ListItem disablePadding>
-                        <ListItemButton
-                          component="a"
-                          href="/radios"
-                          selected={pathname === "/radios"}
-                        >
-                          <ListItemIcon>
-                            <RouterIcon />
-                          </ListItemIcon>
-                          <ListItemText primary="Radios" />
-                        </ListItemButton>
-                      </ListItem>
-                      <ListItem disablePadding>
-                        <ListItemButton
-                          component="a"
-                          href="/profiles"
-                          selected={pathname === "/profiles"}
-                        >
-                          <ListItemIcon>
-                            <GroupsIcon />
-                          </ListItemIcon>
-                          <ListItemText primary="Profiles" />
-                        </ListItemButton>
-                      </ListItem>
-                      <ListItem disablePadding>
-                        <ListItemButton
-                          component="a"
-                          href="/subscribers"
-                          selected={pathname === "/subscribers"}
-                        >
-                          <ListItemIcon>
-                            <PersonIcon />
-                          </ListItemIcon>
-                          <ListItemText primary="Subscribers" />
-                        </ListItemButton>
-                      </ListItem>
-                    </List>
-                  </Box>
-                  <Divider />
-                  <Box>
-                    <List>
-                      <ListItem disablePadding>
-                        <ListItemButton
-                          component="a"
-                          href="https://github.com/ellanetworks/core"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          <ListItemIcon>
-                            <InfoIcon />
-                          </ListItemIcon>
-                          <ListItemText primary="Documentation" />
-                        </ListItemButton>
-                      </ListItem>
-                      <ListItem disablePadding>
-                        <ListItemButton
-                          component="a"
-                          href="https://github.com/ellanetworks/core/issues/new/choose"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          <ListItemIcon>
-                            <BugReportIcon />
-                          </ListItemIcon>
-                          <ListItemText primary="Report a bug" />
-                        </ListItemButton>
-                      </ListItem>
-                    </List>
-                  </Box>
-                </Drawer>
-                <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
-                  <Toolbar />
-                  {children}
+                    boxSizing: "border-box",
+                    display: "flex",
+                    flexDirection: "column",
+                  },
+                }}
+              >
+                <Toolbar />
+                <Box sx={{ flexGrow: 1, overflow: "auto" }}>
+                  <List>
+                    <ListItem disablePadding>
+                      <ListItemButton
+                        component="a"
+                        href="/dashboard"
+                        selected={pathname === "/dashboard"}
+                      >
+                        <ListItemIcon>
+                          <DashboardIcon />
+                        </ListItemIcon>
+                        <ListItemText primary="Dashboard" />
+                      </ListItemButton>
+                    </ListItem>
+                    <ListItem disablePadding>
+                      <ListItemButton
+                        component="a"
+                        href="/network-configuration"
+                        selected={pathname === "/network-configuration"}
+                      >
+                        <ListItemIcon>
+                          <SensorsIcon />
+                        </ListItemIcon>
+                        <ListItemText primary="Network Configuration" />
+                      </ListItemButton>
+                    </ListItem>
+                    <ListItem disablePadding>
+                      <ListItemButton
+                        component="a"
+                        href="/radios"
+                        selected={pathname === "/radios"}
+                      >
+                        <ListItemIcon>
+                          <RouterIcon />
+                        </ListItemIcon>
+                        <ListItemText primary="Radios" />
+                      </ListItemButton>
+                    </ListItem>
+                    <ListItem disablePadding>
+                      <ListItemButton
+                        component="a"
+                        href="/profiles"
+                        selected={pathname === "/profiles"}
+                      >
+                        <ListItemIcon>
+                          <GroupsIcon />
+                        </ListItemIcon>
+                        <ListItemText primary="Profiles" />
+                      </ListItemButton>
+                    </ListItem>
+                    <ListItem disablePadding>
+                      <ListItemButton
+                        component="a"
+                        href="/subscribers"
+                        selected={pathname === "/subscribers"}
+                      >
+                        <ListItemIcon>
+                          <PersonIcon />
+                        </ListItemIcon>
+                        <ListItemText primary="Subscribers" />
+                      </ListItemButton>
+                    </ListItem>
+                  </List>
                 </Box>
+                <Divider />
+                <Box>
+                  <List>
+                    <ListItem disablePadding>
+                      <ListItemButton
+                        component="a"
+                        href="https://github.com/ellanetworks/core"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <ListItemIcon>
+                          <InfoIcon />
+                        </ListItemIcon>
+                        <ListItemText primary="Documentation" />
+                      </ListItemButton>
+                    </ListItem>
+                    <ListItem disablePadding>
+                      <ListItemButton
+                        component="a"
+                        href="https://github.com/ellanetworks/core/issues/new/choose"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <ListItemIcon>
+                          <BugReportIcon />
+                        </ListItemIcon>
+                        <ListItemText primary="Report a bug" />
+                      </ListItemButton>
+                    </ListItem>
+                  </List>
+                </Box>
+              </Drawer>
+              <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+                <Toolbar />
+                {children}
               </Box>
-            )}
+            </Box>
           </ThemeProvider>
         </QueryClientProvider>
       </body>
