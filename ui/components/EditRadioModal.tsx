@@ -5,12 +5,13 @@ import {
     TextField,
     Button,
     Typography,
-    MenuItem,
     Alert,
     Collapse,
 } from "@mui/material";
-import * as yup from "yup";
 import { updateRadio } from "@/queries/radios";
+import { useRouter } from "next/navigation"
+import { useCookies } from "react-cookie"
+
 
 interface EditRadioModalProps {
     open: boolean;
@@ -28,6 +29,12 @@ const EditRadioModal: React.FC<EditRadioModalProps> = ({
     onSuccess,
     initialData,
 }) => {
+    const router = useRouter();
+    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+
+    if (!cookies.user_token) {
+        router.push("/login")
+    }
     const [formValues, setFormValues] = useState(initialData);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
@@ -53,6 +60,7 @@ const EditRadioModal: React.FC<EditRadioModalProps> = ({
 
         try {
             await updateRadio(
+                cookies.user_token,
                 formValues.name,
                 formValues.tac,
             );

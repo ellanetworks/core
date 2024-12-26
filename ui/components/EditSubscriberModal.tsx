@@ -15,6 +15,9 @@ import {
 import * as yup from "yup";
 import { updateSubscriber } from "@/queries/subscribers";
 import { listProfiles } from "@/queries/profiles";
+import { useRouter } from "next/navigation"
+import { useCookies } from "react-cookie"
+
 
 interface EditSubscriberModalProps {
     open: boolean;
@@ -29,20 +32,18 @@ interface EditSubscriberModalProps {
     };
 }
 
-const schema = yup.object().shape({
-    imsi: yup.string().min(1).max(256).required("IMSI is required"),
-    opc: yup.string().min(1).max(256).required("OPC is required"),
-    key: yup.string().min(1).max(256).required("Key is required"),
-    sequenceNumber: yup.string().min(1).max(256).required("Sequence Number is required"),
-    profileName: yup.string().min(1).max(256).required("Profile Name is required"),
-});
-
 const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
     open,
     onClose,
     onSuccess,
     initialData,
 }) => {
+    const router = useRouter();
+    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+
+    if (!cookies.user_token) {
+        router.push("/login")
+    }
     const [formValues, setFormValues] = useState(initialData);
     const [profiles, setProfiles] = useState<string[]>([]);
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -52,7 +53,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
     useEffect(() => {
         const fetchProfiles = async () => {
             try {
-                const profileData = await listProfiles();
+                const profileData = await listProfiles(cookies.user_token);
                 setProfiles(profileData.map((profile: any) => profile.name));
             } catch (error) {
                 console.error("Failed to fetch profiles:", error);
@@ -79,6 +80,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
 
         try {
             await updateSubscriber(
+                cookies.user_token,
                 formValues.imsi,
                 formValues.opc,
                 formValues.key,

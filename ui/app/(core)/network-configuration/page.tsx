@@ -3,15 +3,36 @@
 import React, { useState, useEffect } from "react";
 import { Button, Box, TextField, Alert, Typography } from "@mui/material";
 import { updateNetwork, getNetwork } from "@/queries/network";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import * as yup from "yup";
 import { ValidationError } from "yup";
+import { useRouter } from "next/navigation"
+import { useCookies } from "react-cookie"
+
 
 const NetworkConfiguration = () => {
-  const { data: network } = useQuery({
-    queryKey: ["network"],
-    queryFn: getNetwork,
-  });
+  const router = useRouter();
+  const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+
+  if (!cookies.user_token) {
+    router.push("/login")
+  }
+
+  const [network, setNetwork] = useState<{ mcc: string; mnc: string } | null>(null);
+
+  const fetchNetwork = async () => {
+    try {
+      const data = await getNetwork(cookies.user_token);
+      setNetwork(data);
+    } catch (error) {
+      console.error("Error fetching network:", error);
+    } finally {
+    }
+  };
+
+  useEffect(() => {
+    fetchNetwork();
+  }, []);
 
   const [mcc, setMcc] = useState("");
   const [mnc, setMnc] = useState("");
@@ -52,7 +73,7 @@ const NetworkConfiguration = () => {
 
   const mutation = useMutation({
     mutationFn: (variables: { mcc: string; mnc: string }) =>
-      updateNetwork(variables.mcc, variables.mnc),
+      updateNetwork(cookies.user_token, variables.mcc, variables.mnc),
     onSuccess: () => {
       setAlert({ message: "Network configuration updated successfully!", severity: "success" });
     },

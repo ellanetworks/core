@@ -19,7 +19,16 @@ type GetUserParams struct {
 }
 
 func isValidUsername(username string) bool {
-	return len(username) > 0 && len(username) < 256
+	if username == "me" {
+		return false
+	}
+	if len(username) <= 0 {
+		return false
+	}
+	if len(username) > 255 {
+		return false
+	}
+	return true
 }
 
 func hashPassword(password string) (string, error) {
@@ -63,6 +72,36 @@ func GetUser(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		logger.NmsLog.Infof("Received GET user %v", username)
+		dbUser, err := dbInstance.GetUser(username)
+		if err != nil {
+			writeError(c.Writer, http.StatusNotFound, "User not found")
+			return
+		}
+
+		user := GetUserParams{
+			Username: dbUser.Username,
+		}
+		err = writeResponse(c.Writer, user, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
+	}
+}
+
+func GetLoggedInUser(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		setCorsHeader(c)
+		usernameAny, exists := c.Get("username")
+		if !exists {
+			writeError(c.Writer, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+		username, ok := usernameAny.(string)
+		if !ok {
+			writeError(c.Writer, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
 		dbUser, err := dbInstance.GetUser(username)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "User not found")

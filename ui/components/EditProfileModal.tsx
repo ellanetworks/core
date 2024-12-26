@@ -9,8 +9,10 @@ import {
     Alert,
     Collapse,
 } from "@mui/material";
-import * as yup from "yup";
 import { updateProfile } from "@/queries/profiles";
+import { useRouter } from "next/navigation"
+import { useCookies } from "react-cookie"
+
 
 interface EditProfileModalProps {
     open: boolean;
@@ -30,38 +32,6 @@ interface EditProfileModalProps {
     };
 }
 
-const schema = yup.object().shape({
-    name: yup.string().min(1).max(256).required("Name is required"),
-    ipPool: yup
-        .string()
-        .matches(
-            /^(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\/\d{1,2}$/,
-            "Must be a valid IP pool (e.g., 192.168.0.0/24)"
-        )
-        .required("IP Pool is required"),
-    dns: yup
-        .string()
-        .matches(
-            /^(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)$/,
-            "Must be a valid IP address"
-        )
-        .required("DNS is required"),
-    mtu: yup.number().min(1).max(65535).required("MTU is required"),
-    bitrateUpValue: yup
-        .number()
-        .min(1, "Bitrate value must be between 1 and 999")
-        .max(999, "Bitrate value must be between 1 and 999")
-        .required("Bitrate value is required"),
-    bitrateUpUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
-    bitrateDownValue: yup
-        .number()
-        .min(1, "Bitrate value must be between 1 and 999")
-        .max(999, "Bitrate value must be between 1 and 999")
-        .required("Bitrate value is required"),
-    bitrateDownUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
-    fiveQi: yup.number().min(0).max(256).required("5QI is required"),
-    priorityLevel: yup.number().min(0).max(256).required("Priority Level is required"),
-});
 
 const EditProfileModal: React.FC<EditProfileModalProps> = ({
     open,
@@ -69,6 +39,12 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
     onSuccess,
     initialData,
 }) => {
+    const router = useRouter();
+    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+
+    if (!cookies.user_token) {
+        router.push("/login")
+    }
     const [formValues, setFormValues] = useState(initialData);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
@@ -96,6 +72,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
             const bitrateUplink = `${formValues.bitrateUpValue} ${formValues.bitrateUpUnit}`;
             const bitrateDownlink = `${formValues.bitrateDownValue} ${formValues.bitrateDownUnit}`;
             await updateProfile(
+                cookies.user_token,
                 formValues.name,
                 formValues.ipPool,
                 formValues.dns,

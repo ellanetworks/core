@@ -16,18 +16,18 @@ const EmptyState: React.FC<EmptyStateProps> = ({ primaryText, secondaryText, but
             sx={{
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "flex-start", // Keep text left-aligned
-                justifyContent: "flex-start", // Align content towards the top
-                margin: "0 auto", // Center horizontally
+                alignItems: "flex-start",
+                justifyContent: "flex-start",
+                margin: "0 auto",
                 padding: 2,
-                width: "50%", // Set a width for better layout
-                marginTop: 4, // Add some margin from the top
+                width: "50%",
+                marginTop: 4,
             }}
         >
             <Typography variant="h4" gutterBottom>
                 {primaryText}
             </Typography>
-            <Typography variant="body1" gutterBottom>
+            <Typography variant="h6" gutterBottom>
                 {secondaryText}
             </Typography>
             <Button

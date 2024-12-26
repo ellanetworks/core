@@ -26,6 +26,9 @@ import CreateSubscriberModal from "@/components/CreateSubscriberModal";
 import EditSubscriberModal from "@/components/EditSubscriberModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
+import { useRouter } from "next/navigation"
+import { useCookies } from "react-cookie"
+
 
 interface SubscriberData {
     imsi: string;
@@ -36,6 +39,12 @@ interface SubscriberData {
 }
 
 const Subscriber = () => {
+    const router = useRouter();
+    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+
+    if (!cookies.user_token) {
+        router.push("/login")
+    }
     const [subscribers, setSubscribers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [isCreateModalOpen, setCreateModalOpen] = useState(false);
@@ -48,7 +57,7 @@ const Subscriber = () => {
     const fetchSubscribers = async () => {
         setLoading(true);
         try {
-            const data = await listSubscribers();
+            const data = await listSubscribers(cookies.user_token);
             setSubscribers(data);
         } catch (error) {
             console.error("Error fetching subscribers:", error);
@@ -101,7 +110,7 @@ const Subscriber = () => {
         setConfirmationOpen(false);
         if (selectedSubscriber) {
             try {
-                await deleteSubscriber(selectedSubscriber);
+                await deleteSubscriber(cookies.user_token, selectedSubscriber);
                 setAlert({
                     message: `Subscriber "${selectedSubscriber}" deleted successfully!`,
                 });

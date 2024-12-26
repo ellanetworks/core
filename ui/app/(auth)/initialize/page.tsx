@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation"
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
     Box,
     Button,
@@ -10,17 +10,34 @@ import {
     Alert,
     CircularProgress,
 } from "@mui/material";
-import { login } from "@/queries/login";
-import { useCookies } from "react-cookie"
+import { createUser } from "@/queries/users";
+import { getStatus } from "@/queries/status";
 
-
-const LoginPage = () => {
-    const router = useRouter()
-    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+const InitializePage = () => {
+    const router = useRouter();
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [checkingInitialization, setCheckingInitialization] = useState(true);
+
+    useEffect(() => {
+        const checkInitialization = async () => {
+            try {
+                const status = await getStatus();
+                if (status?.initialized) {
+                    router.push("/login");
+                } else {
+                    setCheckingInitialization(false);
+                }
+            } catch (err) {
+                console.error("Failed to fetch system status:", err);
+                setError("Failed to check system initialization.");
+            }
+        };
+
+        checkInitialization();
+    }, [router]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -28,25 +45,29 @@ const LoginPage = () => {
         setError(null);
 
         try {
-            const result = await login(username, password);
-
-            if (result?.token) {
-                setCookie("user_token", result.token, {
-                    sameSite: true,
-                    secure: true,
-                    expires: new Date(new Date().getTime() + 60 * 60 * 1000), // 1 hour expiry
-                });
-
-                router.push("/dashboard");
-            } else {
-                throw new Error("Invalid response: Token not found.");
-            }
+            await createUser("", username, password);
+            router.push("/login");
         } catch (err: any) {
-            setError(err.message || "Login failed");
+            setError(err.message || "User creation failed");
         } finally {
             setLoading(false);
         }
     };
+
+    if (checkingInitialization) {
+        return (
+            <Box
+                sx={{
+                    height: "100vh",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                }}
+            >
+                <CircularProgress />
+            </Box>
+        );
+    }
 
     return (
         <Box
@@ -73,8 +94,11 @@ const LoginPage = () => {
                     boxShadow: 2,
                 }}
             >
-                <Typography variant="h5" textAlign="center">
-                    Login
+                <Typography variant="h5">
+                    Initialize Ella Core
+                </Typography>
+                <Typography variant="body1" sx={{ marginBottom: 2 }}>
+                    Create the first user
                 </Typography>
 
                 {error && <Alert severity="error">{error}</Alert>}
@@ -101,15 +125,15 @@ const LoginPage = () => {
                 <Button
                     type="submit"
                     variant="contained"
-                    color="primary"
+                    color="success"
                     fullWidth
                     disabled={loading}
                 >
-                    {loading ? <CircularProgress size={24} /> : "Login"}
+                    {loading ? <CircularProgress size={24} /> : "Create"}
                 </Button>
             </Box>
         </Box>
     );
 };
 
-export default LoginPage;
+export default InitializePage;

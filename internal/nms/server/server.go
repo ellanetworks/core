@@ -99,7 +99,7 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	apiGroup.GET("/metrics", Any(GetMetrics()))
 
 	// Status (Unauthenticated)
-	apiGroup.GET("/status", Any(GetStatus()))
+	apiGroup.GET("/status", Any(GetStatus(dbInstance)))
 
 	// Subscribers (Authenticated)
 	apiGroup.GET("/subscribers", User(ListSubscribers(dbInstance), jwtSecret))
@@ -132,6 +132,7 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	apiGroup.PUT("/users/:username", User(UpdateUser(dbInstance), jwtSecret))
 	apiGroup.GET("/users/:username", User(GetUser(dbInstance), jwtSecret))
 	apiGroup.DELETE("/users/:username", User(DeleteUser(dbInstance), jwtSecret))
+	apiGroup.GET("/users/me", User(GetLoggedInUser(dbInstance), jwtSecret))
 
 	// Authentication
 	apiGroup.POST("/login", Any(Login(dbInstance, jwtSecret)))

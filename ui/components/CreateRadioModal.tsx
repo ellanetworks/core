@@ -11,6 +11,8 @@ import {
 import * as yup from "yup";
 import { ValidationError } from "yup";
 import { createRadio } from "@/queries/radios";
+import { useRouter } from "next/navigation"
+import { useCookies } from "react-cookie"
 
 interface CreateRadioModalProps {
     open: boolean;
@@ -28,6 +30,12 @@ const schema = yup.object().shape({
 });
 
 const CreateRadioModal: React.FC<CreateRadioModalProps> = ({ open, onClose, onSuccess }) => {
+    const router = useRouter();
+    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+
+    if (!cookies.user_token) {
+        router.push("/login")
+    }
     const [formValues, setFormValues] = useState({
         name: "",
         tac: "001",
@@ -98,6 +106,7 @@ const CreateRadioModal: React.FC<CreateRadioModalProps> = ({ open, onClose, onSu
         setAlert({ message: "" });
         try {
             await createRadio(
+                cookies.user_token,
                 formValues.name,
                 formValues.tac,
             );
