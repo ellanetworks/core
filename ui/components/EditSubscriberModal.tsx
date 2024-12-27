@@ -7,30 +7,30 @@ import {
     Typography,
     Alert,
     Collapse,
+    Select,
+    MenuItem,
+    InputLabel,
+    FormControl,
 } from "@mui/material";
 import * as yup from "yup";
 import { updateSubscriber } from "@/queries/subscribers";
+import { listProfiles } from "@/queries/profiles";
+import { useRouter } from "next/navigation"
+import { useCookies } from "react-cookie"
+
 
 interface EditSubscriberModalProps {
     open: boolean;
     onClose: () => void;
     onSuccess: () => void;
     initialData: {
-        imsi: string
-        opc: string
-        key: string
-        sequenceNumber: string
-        profileName: string
+        imsi: string;
+        opc: string;
+        key: string;
+        sequenceNumber: string;
+        profileName: string;
     };
 }
-
-const schema = yup.object().shape({
-    imsi: yup.string().min(1).max(256).required("IMSI is required"),
-    opc: yup.string().min(1).max(256).required("OPC is required"),
-    key: yup.string().min(1).max(256).required("Key is required"),
-    sequenceNumber: yup.string().min(1).max(256).required("Sequence Number is required"),
-    profileName: yup.string().min(1).max(256).required("Profile Name is required"),
-});
 
 const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
     open,
@@ -38,13 +38,30 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
     onSuccess,
     initialData,
 }) => {
+    const router = useRouter();
+    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+
+    if (!cookies.user_token) {
+        router.push("/login")
+    }
     const [formValues, setFormValues] = useState(initialData);
+    const [profiles, setProfiles] = useState<string[]>([]);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
     const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
     useEffect(() => {
+        const fetchProfiles = async () => {
+            try {
+                const profileData = await listProfiles(cookies.user_token);
+                setProfiles(profileData.map((profile: any) => profile.name));
+            } catch (error) {
+                console.error("Failed to fetch profiles:", error);
+            }
+        };
+
         if (open) {
+            fetchProfiles();
             setFormValues(initialData);
             setErrors({});
         }
@@ -63,6 +80,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
 
         try {
             await updateSubscriber(
+                cookies.user_token,
                 formValues.imsi,
                 formValues.opc,
                 formValues.key,
@@ -145,15 +163,21 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
                     helperText={errors.sequenceNumber}
                     margin="normal"
                 />
-                <TextField
-                    fullWidth
-                    label="Profile Name"
-                    value={formValues.profileName}
-                    onChange={(e) => handleChange("profileName", e.target.value)}
-                    error={!!errors.profileName}
-                    helperText={errors.profileName}
-                    margin="normal"
-                />
+                <FormControl fullWidth margin="normal">
+                    <InputLabel id="profile-name-label">Profile Name</InputLabel>
+                    <Select
+                        labelId="profile-name-label"
+                        value={formValues.profileName}
+                        onChange={(e) => handleChange("profileName", e.target.value)}
+                        error={!!errors.profileName}
+                    >
+                        {profiles.map((profile) => (
+                            <MenuItem key={profile} value={profile}>
+                                {profile}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
                 <Box sx={{ textAlign: "right", marginTop: 2 }}>
                     <Button onClick={onClose} sx={{ marginRight: 2 }}>
                         Cancel

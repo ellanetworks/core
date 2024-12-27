@@ -59,11 +59,12 @@ type DeleteSubscriberResponse struct {
 	Error  string                         `json:"error,omitempty"`
 }
 
-func getSubscriber(url string, client *http.Client, imsi string) (int, *GetSubscriberResponse, error) {
+func getSubscriber(url string, client *http.Client, token string, imsi string) (int, *GetSubscriberResponse, error) {
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/subscribers/"+imsi, nil)
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -80,7 +81,7 @@ func getSubscriber(url string, client *http.Client, imsi string) (int, *GetSubsc
 	return res.StatusCode, &subscriberResponse, nil
 }
 
-func createSubscriber(url string, client *http.Client, data *CreateSubscriberParams) (int, *CreateSubscriberResponse, error) {
+func createSubscriber(url string, client *http.Client, token string, data *CreateSubscriberParams) (int, *CreateSubscriberResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
@@ -89,6 +90,7 @@ func createSubscriber(url string, client *http.Client, data *CreateSubscriberPar
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -105,11 +107,12 @@ func createSubscriber(url string, client *http.Client, data *CreateSubscriberPar
 	return res.StatusCode, &createResponse, nil
 }
 
-func deleteSubscriber(url string, client *http.Client, imsi string) (int, *DeleteSubscriberResponse, error) {
+func deleteSubscriber(url string, client *http.Client, token string, imsi string) (int, *DeleteSubscriberResponse, error) {
 	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/subscribers/"+imsi, nil)
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -132,12 +135,17 @@ func deleteSubscriber(url string, client *http.Client, imsi string) (int, *Delet
 func TestSubscribersApiEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
 	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
 
 	t.Run("1. Create profile", func(t *testing.T) {
 		createProfileParams := &CreateProfileParams{
@@ -150,7 +158,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			Var5qi:          9,
 			PriorityLevel:   1,
 		}
-		statusCode, response, err := createProfile(ts.URL, client, createProfileParams)
+		statusCode, response, err := createProfile(ts.URL, client, token, createProfileParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -170,7 +178,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			SequenceNumber: SequenceNumber,
 			ProfileName:    ProfileName,
 		}
-		statusCode, response, err := createSubscriber(ts.URL, client, createSubscriberParams)
+		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -186,7 +194,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Get subscriber", func(t *testing.T) {
-		statusCode, response, err := getSubscriber(ts.URL, client, Imsi)
+		statusCode, response, err := getSubscriber(ts.URL, client, token, Imsi)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber: %s", err)
 		}
@@ -214,7 +222,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Get subscriber - id not found", func(t *testing.T) {
-		statusCode, response, err := getSubscriber(ts.URL, client, "001010100007488")
+		statusCode, response, err := getSubscriber(ts.URL, client, token, "001010100007488")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber: %s", err)
 		}
@@ -228,7 +236,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 	t.Run("5. Create subscriber - no Imsi", func(t *testing.T) {
 		createSubscriberParams := &CreateSubscriberParams{}
-		statusCode, response, err := createSubscriber(ts.URL, client, createSubscriberParams)
+		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -241,7 +249,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("6. Delete subscriber - success", func(t *testing.T) {
-		statusCode, response, err := deleteSubscriber(ts.URL, client, Imsi)
+		statusCode, response, err := deleteSubscriber(ts.URL, client, token, Imsi)
 		if err != nil {
 			t.Fatalf("couldn't delete subscriber: %s", err)
 		}
@@ -257,7 +265,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("7. Delete subscriber - no user", func(t *testing.T) {
-		statusCode, response, err := deleteSubscriber(ts.URL, client, "001010100007488")
+		statusCode, response, err := deleteSubscriber(ts.URL, client, token, "001010100007488")
 		if err != nil {
 			t.Fatalf("couldn't delete subscriber: %s", err)
 		}
@@ -273,12 +281,17 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 func TestCreateSubscriberInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
 	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
 
 	tests := []struct {
 		imsi           string
@@ -367,7 +380,7 @@ func TestCreateSubscriberInvalidInput(t *testing.T) {
 				SequenceNumber: tt.sequenceNumber,
 				ProfileName:    ProfileName,
 			}
-			statusCode, response, err := createSubscriber(ts.URL, client, createSubscriberParams)
+			statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
 			if err != nil {
 				t.Fatalf("couldn't create subscriber: %s", err)
 			}

@@ -8,46 +8,61 @@ import {
     Alert,
     Collapse,
 } from "@mui/material";
-import { updateRadio } from "@/queries/radios";
-import { useRouter } from "next/navigation"
-import { useCookies } from "react-cookie"
+import { updateUser } from "@/queries/users";
+import { useRouter } from "next/navigation";
+import { useCookies } from "react-cookie";
 
-
-interface EditRadioModalProps {
+interface EditUserModalProps {
     open: boolean;
     onClose: () => void;
     onSuccess: () => void;
     initialData: {
-        name: string;
-        tac: string;
+        username: string;
+        // We only have `username` here, no password from the server/props
     };
 }
 
-const EditRadioModal: React.FC<EditRadioModalProps> = ({
+// 1. Define form values interface
+interface FormValues {
+    username: string;
+    password: string;
+}
+
+const EditUserModal: React.FC<EditUserModalProps> = ({
     open,
     onClose,
     onSuccess,
     initialData,
 }) => {
     const router = useRouter();
-    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+    const [cookies] = useCookies(["user_token"]);
 
     if (!cookies.user_token) {
-        router.push("/login")
+        router.push("/login");
     }
-    const [formValues, setFormValues] = useState(initialData);
+
+    // 2. Use the interface here
+    const [formValues, setFormValues] = useState<FormValues>({
+        username: initialData.username,
+        password: "",
+    });
+
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
     const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
     useEffect(() => {
         if (open) {
-            setFormValues(initialData);
+            // Whenever modal opens, reset the form:
+            setFormValues({
+                username: initialData.username,
+                password: "",
+            });
             setErrors({});
         }
     }, [open, initialData]);
 
-    const handleChange = (field: string, value: string | number) => {
+    const handleChange = (field: keyof FormValues, value: string) => {
         setFormValues((prev) => ({
             ...prev,
             [field]: value,
@@ -59,16 +74,16 @@ const EditRadioModal: React.FC<EditRadioModalProps> = ({
         setAlert({ message: "" });
 
         try {
-            await updateRadio(
+            await updateUser(
                 cookies.user_token,
-                formValues.name,
-                formValues.tac,
+                formValues.username,
+                formValues.password
             );
             onClose();
             onSuccess();
         } catch (error: any) {
             const errorMessage = error?.message || "Unknown error occurred.";
-            setAlert({ message: `Failed to update radio: ${errorMessage}` });
+            setAlert({ message: `Failed to update user: ${errorMessage}` });
         } finally {
             setLoading(false);
         }
@@ -78,8 +93,8 @@ const EditRadioModal: React.FC<EditRadioModalProps> = ({
         <Modal
             open={open}
             onClose={onClose}
-            aria-labelledby="edit-radio-modal-title"
-            aria-describedby="edit-radio-modal-description"
+            aria-labelledby="edit-user-modal-title"
+            aria-describedby="edit-user-modal-description"
         >
             <Box
                 sx={{
@@ -94,8 +109,8 @@ const EditRadioModal: React.FC<EditRadioModalProps> = ({
                     p: 4,
                 }}
             >
-                <Typography id="edit-radio-modal-title" variant="h6" gutterBottom>
-                    Edit Radio
+                <Typography id="edit-user-modal-title" variant="h6" gutterBottom>
+                    Edit User
                 </Typography>
                 <Collapse in={!!alert.message}>
                     <Alert
@@ -108,18 +123,19 @@ const EditRadioModal: React.FC<EditRadioModalProps> = ({
                 </Collapse>
                 <TextField
                     fullWidth
-                    label="Name"
-                    value={formValues.name}
+                    label="Username"
+                    value={formValues.username}
                     margin="normal"
                     disabled
                 />
                 <TextField
                     fullWidth
-                    label="TAC"
-                    value={formValues.tac}
-                    onChange={(e) => handleChange("tac", e.target.value)}
-                    error={!!errors.tac}
-                    helperText={errors.tac}
+                    label="Password"
+                    type="password"
+                    value={formValues.password}
+                    onChange={(e) => handleChange("password", e.target.value)}
+                    error={!!errors.password}
+                    helperText={errors.password}
                     margin="normal"
                 />
                 <Box sx={{ textAlign: "right", marginTop: 2 }}>
@@ -140,4 +156,4 @@ const EditRadioModal: React.FC<EditRadioModalProps> = ({
     );
 };
 
-export default EditRadioModal;
+export default EditUserModal;

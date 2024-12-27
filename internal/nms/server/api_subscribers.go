@@ -201,6 +201,90 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 	}
 }
 
+func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		setCorsHeader(c)
+		imsi := c.Param("imsi")
+		if imsi == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing imsi parameter")
+			return
+		}
+		var updateSubscriberParams CreateSubscriberParams
+		err := c.ShouldBindJSON(&updateSubscriberParams)
+		if err != nil {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			return
+		}
+		if updateSubscriberParams.Imsi == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing imsi parameter")
+			return
+		}
+		if updateSubscriberParams.SequenceNumber == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing sequenceNumber parameter")
+			return
+		}
+		if updateSubscriberParams.Key == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing key parameter")
+			return
+		}
+		if updateSubscriberParams.OPc == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing opc parameter")
+			return
+		}
+		if updateSubscriberParams.ProfileName == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing profileName parameter")
+			return
+		}
+		if !isImsiValid(updateSubscriberParams.Imsi, dbInstance) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.")
+			return
+		}
+		if !isSequenceNumberValid(updateSubscriberParams.SequenceNumber) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid sequenceNumber. Must be a 6-byte hexadecimal string.")
+			return
+		}
+		if !isHexString(updateSubscriberParams.Key) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid key format. Must be a 32-character hexadecimal string.")
+			return
+		}
+		if !isHexString(updateSubscriberParams.OPc) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid OPc format. Must be a 32-character hexadecimal string.")
+			return
+		}
+
+		_, err = dbInstance.GetSubscriber(imsi)
+		if err != nil {
+			writeError(c.Writer, http.StatusNotFound, "Subscriber not found")
+			return
+		}
+		profile, err := dbInstance.GetProfile(updateSubscriberParams.ProfileName)
+		if err != nil {
+			writeError(c.Writer, http.StatusNotFound, "Profile not found")
+			return
+		}
+		newSubscriber := &db.Subscriber{
+			Imsi:              updateSubscriberParams.Imsi,
+			SequenceNumber:    updateSubscriberParams.SequenceNumber,
+			PermanentKeyValue: updateSubscriberParams.Key,
+			OpcValue:          updateSubscriberParams.OPc,
+			ProfileID:         profile.ID,
+		}
+
+		if err := dbInstance.UpdateSubscriber(newSubscriber); err != nil {
+			logger.NmsLog.Warnln(err)
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to update subscriber")
+			return
+		}
+
+		response := SuccessResponse{Message: "Subscriber updated successfully"}
+		err = writeResponse(c.Writer, response, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
+	}
+}
+
 func DeleteSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		setCorsHeader(c)

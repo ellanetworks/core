@@ -38,11 +38,12 @@ type UpdateNetworkResponse struct {
 	Error  string                      `json:"error,omitempty"`
 }
 
-func getNetwork(url string, client *http.Client) (int, *GetNetworkResponse, error) {
+func getNetwork(url string, client *http.Client, token string) (int, *GetNetworkResponse, error) {
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/network", nil)
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -59,7 +60,7 @@ func getNetwork(url string, client *http.Client) (int, *GetNetworkResponse, erro
 	return res.StatusCode, &networkSliceResponse, nil
 }
 
-func updateNetwork(url string, client *http.Client, data *UpdateNetworkParams) (int, *UpdateNetworkResponse, error) {
+func updateNetwork(url string, client *http.Client, token string, data *UpdateNetworkParams) (int, *UpdateNetworkResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
@@ -68,6 +69,7 @@ func updateNetwork(url string, client *http.Client, data *UpdateNetworkParams) (
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -90,19 +92,24 @@ func updateNetwork(url string, client *http.Client, data *UpdateNetworkParams) (
 func TestApiNetworksEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
 	client := ts.Client()
 
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
 	t.Run("1. Update network", func(t *testing.T) {
 		updateNetworkParams := &UpdateNetworkParams{
 			Mcc: "123",
 			Mnc: "456",
 		}
-		statusCode, response, err := updateNetwork(ts.URL, client, updateNetworkParams)
+		statusCode, response, err := updateNetwork(ts.URL, client, token, updateNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't create network: %s", err)
 		}
@@ -118,7 +125,7 @@ func TestApiNetworksEndToEnd(t *testing.T) {
 	})
 
 	t.Run("2. Get network", func(t *testing.T) {
-		statusCode, response, err := getNetwork(ts.URL, client)
+		statusCode, response, err := getNetwork(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get network: %s", err)
 		}
@@ -140,7 +147,7 @@ func TestApiNetworksEndToEnd(t *testing.T) {
 		updateNetworkParams := &UpdateNetworkParams{
 			Mcc: "123",
 		}
-		statusCode, response, err := updateNetwork(ts.URL, client, updateNetworkParams)
+		statusCode, response, err := updateNetwork(ts.URL, client, token, updateNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't create network: %s", err)
 		}
@@ -156,12 +163,17 @@ func TestApiNetworksEndToEnd(t *testing.T) {
 func TestUpdateNetworkInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
 	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
 
 	tests := []struct {
 		testName string
@@ -212,7 +224,7 @@ func TestUpdateNetworkInvalidInput(t *testing.T) {
 				Mcc: tt.mcc,
 				Mnc: tt.mnc,
 			}
-			statusCode, response, err := updateNetwork(ts.URL, client, updateNetworkParams)
+			statusCode, response, err := updateNetwork(ts.URL, client, token, updateNetworkParams)
 			if err != nil {
 				t.Fatalf("couldn't update network: %s", err)
 			}

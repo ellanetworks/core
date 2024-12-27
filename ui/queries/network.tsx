@@ -1,10 +1,11 @@
 import { HTTPStatus } from "@/queries/utils";
 
-export const getNetwork = async () => {
+export const getNetwork = async (authToken: string) => {
   const response = await fetch(`/api/v1/network`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
+      "Authorization": "Bearer " + authToken
     },
   });
   let respData;
@@ -21,11 +22,12 @@ export const getNetwork = async () => {
   return respData.result;
 };
 
-export const updateNetwork = async (mcc: string, mnc: string) => {
+export const updateNetwork = async (authToken: string, mcc: string, mnc: string) => {
   const getResponse = await fetch(`/api/v1/network`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
+      "Authorization": "Bearer " + authToken
     },
   });
   const getRespData = await getResponse.json();

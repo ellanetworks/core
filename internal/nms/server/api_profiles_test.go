@@ -72,11 +72,12 @@ type ListProfileResponse struct {
 	Error  string               `json:"error,omitempty"`
 }
 
-func listProfiles(url string, client *http.Client) (int, *ListProfileResponse, error) {
+func listProfiles(url string, client *http.Client, token string) (int, *ListProfileResponse, error) {
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/profiles", nil)
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -93,11 +94,12 @@ func listProfiles(url string, client *http.Client) (int, *ListProfileResponse, e
 	return res.StatusCode, &profileResponse, nil
 }
 
-func getProfile(url string, client *http.Client, name string) (int, *GetProfileResponse, error) {
+func getProfile(url string, client *http.Client, token string, name string) (int, *GetProfileResponse, error) {
 	req, err := http.NewRequest("GET", url+"/api/v1/profiles/"+name, nil)
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -114,7 +116,7 @@ func getProfile(url string, client *http.Client, name string) (int, *GetProfileR
 	return res.StatusCode, &profileResponse, nil
 }
 
-func createProfile(url string, client *http.Client, data *CreateProfileParams) (int, *CreateProfileResponse, error) {
+func createProfile(url string, client *http.Client, token string, data *CreateProfileParams) (int, *CreateProfileResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
@@ -123,6 +125,7 @@ func createProfile(url string, client *http.Client, data *CreateProfileParams) (
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -139,7 +142,7 @@ func createProfile(url string, client *http.Client, data *CreateProfileParams) (
 	return res.StatusCode, &createResponse, nil
 }
 
-func editProfile(url string, client *http.Client, name string, data *CreateProfileParams) (int, *CreateProfileResponse, error) {
+func editProfile(url string, client *http.Client, name string, token string, data *CreateProfileParams) (int, *CreateProfileResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
@@ -148,6 +151,7 @@ func editProfile(url string, client *http.Client, name string, data *CreateProfi
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -164,11 +168,12 @@ func editProfile(url string, client *http.Client, name string, data *CreateProfi
 	return res.StatusCode, &createResponse, nil
 }
 
-func deleteProfile(url string, client *http.Client, name string) (int, *DeleteProfileResponse, error) {
+func deleteProfile(url string, client *http.Client, token, name string) (int, *DeleteProfileResponse, error) {
 	req, err := http.NewRequest("DELETE", url+"/api/v1/profiles/"+name, nil)
 	if err != nil {
 		return 0, nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -191,15 +196,20 @@ func deleteProfile(url string, client *http.Client, name string) (int, *DeletePr
 func TestAPIProfilesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
 	client := ts.Client()
 
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
 	t.Run("1. List profiles - 0", func(t *testing.T) {
-		statusCode, response, err := listProfiles(ts.URL, client)
+		statusCode, response, err := listProfiles(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't list profile: %s", err)
 		}
@@ -225,7 +235,7 @@ func TestAPIProfilesEndToEnd(t *testing.T) {
 			Var5qi:          9,
 			PriorityLevel:   1,
 		}
-		statusCode, response, err := createProfile(ts.URL, client, createProfileParams)
+		statusCode, response, err := createProfile(ts.URL, client, token, createProfileParams)
 		if err != nil {
 			t.Fatalf("couldn't create profile: %s", err)
 		}
@@ -241,7 +251,7 @@ func TestAPIProfilesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. List profiles - 1", func(t *testing.T) {
-		statusCode, response, err := listProfiles(ts.URL, client)
+		statusCode, response, err := listProfiles(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't list profile: %s", err)
 		}
@@ -257,7 +267,7 @@ func TestAPIProfilesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Get profile", func(t *testing.T) {
-		statusCode, response, err := getProfile(ts.URL, client, ProfileName)
+		statusCode, response, err := getProfile(ts.URL, client, token, ProfileName)
 		if err != nil {
 			t.Fatalf("couldn't get profile: %s", err)
 		}
@@ -294,7 +304,7 @@ func TestAPIProfilesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("5. Get profile - id not found", func(t *testing.T) {
-		statusCode, response, err := getProfile(ts.URL, client, "profile-002")
+		statusCode, response, err := getProfile(ts.URL, client, token, "profile-002")
 		if err != nil {
 			t.Fatalf("couldn't get profile: %s", err)
 		}
@@ -308,7 +318,7 @@ func TestAPIProfilesEndToEnd(t *testing.T) {
 
 	t.Run("5. Create profile - no name", func(t *testing.T) {
 		createProfileParams := &CreateProfileParams{}
-		statusCode, response, err := createProfile(ts.URL, client, createProfileParams)
+		statusCode, response, err := createProfile(ts.URL, client, token, createProfileParams)
 		if err != nil {
 			t.Fatalf("couldn't create profile: %s", err)
 		}
@@ -331,7 +341,7 @@ func TestAPIProfilesEndToEnd(t *testing.T) {
 			Var5qi:          9,
 			PriorityLevel:   1,
 		}
-		statusCode, response, err := editProfile(ts.URL, client, ProfileName, createProfileParams)
+		statusCode, response, err := editProfile(ts.URL, client, ProfileName, token, createProfileParams)
 		if err != nil {
 			t.Fatalf("couldn't edit profile: %s", err)
 		}
@@ -344,7 +354,7 @@ func TestAPIProfilesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("6. Delete profile - success", func(t *testing.T) {
-		statusCode, response, err := deleteProfile(ts.URL, client, ProfileName)
+		statusCode, response, err := deleteProfile(ts.URL, client, token, ProfileName)
 		if err != nil {
 			t.Fatalf("couldn't delete profile: %s", err)
 		}
@@ -360,7 +370,7 @@ func TestAPIProfilesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("7. Delete profile - no profile", func(t *testing.T) {
-		statusCode, response, err := deleteProfile(ts.URL, client, ProfileName)
+		statusCode, response, err := deleteProfile(ts.URL, client, token, ProfileName)
 		if err != nil {
 			t.Fatalf("couldn't delete profile: %s", err)
 		}
@@ -376,12 +386,17 @@ func TestAPIProfilesEndToEnd(t *testing.T) {
 func TestCreateProfileInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 	defer ts.Close()
 	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
 
 	tests := []struct {
 		testName        string
@@ -624,7 +639,7 @@ func TestCreateProfileInvalidInput(t *testing.T) {
 				Var5qi:          tt.var5qi,
 				PriorityLevel:   tt.priorityLevel,
 			}
-			statusCode, response, err := createProfile(ts.URL, client, createProfileParams)
+			statusCode, response, err := createProfile(ts.URL, client, token, createProfileParams)
 			if err != nil {
 				t.Fatalf("couldn't create profile: %s", err)
 			}

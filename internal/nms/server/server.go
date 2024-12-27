@@ -87,7 +87,7 @@ func ginRecover(logger *zap.SugaredLogger) gin.HandlerFunc {
 	}
 }
 
-func NewHandler(dbInstance *db.Database) http.Handler {
+func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(ginToZap(logger.NmsLog), ginRecover(logger.NmsLog))
@@ -95,35 +95,47 @@ func NewHandler(dbInstance *db.Database) http.Handler {
 
 	apiGroup := router.Group("/api/v1")
 
-	// Metrics
-	apiGroup.GET("/metrics", GetMetrics())
+	// Metrics (Unauthenticated)
+	apiGroup.GET("/metrics", Any(GetMetrics()))
 
-	// Status
-	apiGroup.GET("/status", GetStatus())
+	// Status (Unauthenticated)
+	apiGroup.GET("/status", Any(GetStatus(dbInstance)))
 
-	// Subscribers
-	apiGroup.GET("/subscribers", ListSubscribers(dbInstance))
-	apiGroup.POST("/subscribers", CreateSubscriber(dbInstance))
-	apiGroup.GET("/subscribers/:imsi", GetSubscriber(dbInstance))
-	apiGroup.DELETE("/subscribers/:imsi", DeleteSubscriber(dbInstance))
+	// Subscribers (Authenticated)
+	apiGroup.GET("/subscribers", User(ListSubscribers(dbInstance), jwtSecret))
+	apiGroup.POST("/subscribers", User(CreateSubscriber(dbInstance), jwtSecret))
+	apiGroup.PUT("/subscribers/:imsi", User(UpdateSubscriber(dbInstance), jwtSecret))
+	apiGroup.GET("/subscribers/:imsi", User(GetSubscriber(dbInstance), jwtSecret))
+	apiGroup.DELETE("/subscribers/:imsi", User(DeleteSubscriber(dbInstance), jwtSecret))
 
-	// Profiles
-	apiGroup.GET("/profiles", ListProfiles(dbInstance))
-	apiGroup.POST("/profiles", CreateProfile(dbInstance))
-	apiGroup.PUT("/profiles/:name", UpdateProfile(dbInstance))
-	apiGroup.GET("/profiles/:name", GetProfile(dbInstance))
-	apiGroup.DELETE("/profiles/:name", DeleteProfile(dbInstance))
+	// Profiles (Authenticated)
+	apiGroup.GET("/profiles", User(ListProfiles(dbInstance), jwtSecret))
+	apiGroup.POST("/profiles", User(CreateProfile(dbInstance), jwtSecret))
+	apiGroup.PUT("/profiles/:name", User(UpdateProfile(dbInstance), jwtSecret))
+	apiGroup.GET("/profiles/:name", User(GetProfile(dbInstance), jwtSecret))
+	apiGroup.DELETE("/profiles/:name", User(DeleteProfile(dbInstance), jwtSecret))
 
-	// Network Configuration
-	apiGroup.PUT("/network", UpdateNetwork(dbInstance))
-	apiGroup.GET("/network", GetNetwork(dbInstance))
+	// Network Configuration (Authenticated)
+	apiGroup.PUT("/network", User(UpdateNetwork(dbInstance), jwtSecret))
+	apiGroup.GET("/network", User(GetNetwork(dbInstance), jwtSecret))
 
-	// Radios
-	apiGroup.GET("/radios", ListRadios(dbInstance))
-	apiGroup.POST("/radios/", CreateRadio(dbInstance))
-	apiGroup.PUT("/radios/:name", UpdateRadio(dbInstance))
-	apiGroup.GET("/radios/:name", GetRadio(dbInstance))
-	apiGroup.DELETE("/radios/:name", DeleteRadio(dbInstance))
+	// Radios (Authenticated)
+	apiGroup.GET("/radios", User(ListRadios(dbInstance), jwtSecret))
+	apiGroup.POST("/radios", User(CreateRadio(dbInstance), jwtSecret))
+	apiGroup.PUT("/radios/:name", User(UpdateRadio(dbInstance), jwtSecret))
+	apiGroup.GET("/radios/:name", User(GetRadio(dbInstance), jwtSecret))
+	apiGroup.DELETE("/radios/:name", User(DeleteRadio(dbInstance), jwtSecret))
+
+	// Users (Special Wrapping for Creation)
+	apiGroup.GET("/users", User(ListUsers(dbInstance), jwtSecret))
+	apiGroup.POST("/users", UserOrFirstUser(CreateUser(dbInstance), dbInstance, jwtSecret))
+	apiGroup.PUT("/users/:username", User(UpdateUser(dbInstance), jwtSecret))
+	apiGroup.GET("/users/:username", User(GetUser(dbInstance), jwtSecret))
+	apiGroup.DELETE("/users/:username", User(DeleteUser(dbInstance), jwtSecret))
+	apiGroup.GET("/users/me", User(GetLoggedInUser(dbInstance), jwtSecret))
+
+	// Authentication
+	apiGroup.POST("/login", Any(Login(dbInstance, jwtSecret)))
 
 	router.Use(cors.New(cors.Config{
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE"},

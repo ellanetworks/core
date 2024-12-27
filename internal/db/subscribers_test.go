@@ -64,19 +64,6 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("The OPC value from the database doesn't match the OPC value that was given")
 	}
 
-	err = database.UpdateSubscriberSequenceNumber(subscriber.Imsi, "654321")
-	if err != nil {
-		t.Fatalf("Couldn't complete Update: %s", err)
-	}
-
-	retrievedSubscriber, err = database.GetSubscriber(subscriber.Imsi)
-	if err != nil {
-		t.Fatalf("Couldn't complete Retrieve: %s", err)
-	}
-	if retrievedSubscriber.SequenceNumber != "654321" {
-		t.Fatalf("Sequence numbers don't match: %s", retrievedSubscriber.SequenceNumber)
-	}
-
 	profileData := &db.Profile{
 		Name:     "myprofilename",
 		UeIpPool: "0.0.0.0/24",
@@ -85,12 +72,9 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
-	profile, err := database.GetProfile("myprofilename")
-	if err != nil {
-		t.Fatalf("Couldn't complete Retrieve: %s", err)
-	}
 
-	if err = database.UpdateSubscriberProfile(retrievedSubscriber.Imsi, "myprofilename"); err != nil {
+	subscriber.SequenceNumber = "654321"
+	if err = database.UpdateSubscriber(subscriber); err != nil {
 		t.Fatalf("Couldn't complete Update: %s", err)
 	}
 
@@ -99,8 +83,8 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
 
-	if retrievedSubscriber.ProfileID != profile.ID {
-		t.Fatalf("Profile IDs don't match: %d vs. %d", retrievedSubscriber.ProfileID, profile.ID)
+	if retrievedSubscriber.SequenceNumber != "654321" {
+		t.Fatalf("Sequence numbers don't match: %s", retrievedSubscriber.SequenceNumber)
 	}
 
 	if err = database.DeleteSubscriber(subscriber.Imsi); err != nil {

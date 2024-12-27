@@ -18,6 +18,9 @@ import { ValidationError } from "yup";
 import { createSubscriber } from "@/queries/subscribers";
 import { listProfiles } from "@/queries/profiles";
 import { getNetwork } from "@/queries/network";
+import { useRouter } from "next/navigation"
+import { useCookies } from "react-cookie"
+
 
 interface CreateSubscriberModalProps {
     open: boolean;
@@ -49,6 +52,12 @@ const schema = yup.object().shape({
 });
 
 const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onClose, onSuccess }) => {
+    const router = useRouter();
+    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+
+    if (!cookies.user_token) {
+        router.push("/login")
+    }
     const [formValues, setFormValues] = useState({
         msin: "",
         opc: "",
@@ -69,11 +78,11 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
     useEffect(() => {
         const fetchNetworkAndProfiles = async () => {
             try {
-                const network = await getNetwork();
+                const network = await getNetwork(cookies.user_token);
                 setMcc(network.mcc);
                 setMnc(network.mnc);
 
-                const profileData = await listProfiles();
+                const profileData = await listProfiles(cookies.user_token);
                 setProfiles(profileData.map((profile: any) => profile.name));
             } catch (error) {
                 console.error("Failed to fetch data:", error);
@@ -145,6 +154,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
         try {
             const imsi = `${mcc}${mnc}${formValues.msin}`;
             await createSubscriber(
+                cookies.user_token,
                 imsi,
                 formValues.opc,
                 formValues.key,

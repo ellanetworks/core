@@ -10,26 +10,22 @@ import {
 } from "@mui/material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
-import { createRadio } from "@/queries/radios";
+import { createUser } from "@/queries/users";
 import { useRouter } from "next/navigation"
 import { useCookies } from "react-cookie"
 
-interface CreateRadioModalProps {
+interface CreateUserModalProps {
     open: boolean;
     onClose: () => void;
     onSuccess: () => void;
 }
 
 const schema = yup.object().shape({
-    name: yup.string().min(1).max(256).required("Name is required"),
-    tac: yup
-        .string()
-        .min(1)
-        .max(256)
-        .required("TAC is required"),
+    username: yup.string().min(1).max(256).required("Username is required"),
+    password: yup.string().min(1).max(256).required("Password is required"),
 });
 
-const CreateRadioModal: React.FC<CreateRadioModalProps> = ({ open, onClose, onSuccess }) => {
+const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSuccess }) => {
     const router = useRouter();
     const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
 
@@ -37,8 +33,8 @@ const CreateRadioModal: React.FC<CreateRadioModalProps> = ({ open, onClose, onSu
         router.push("/login")
     }
     const [formValues, setFormValues] = useState({
-        name: "",
-        tac: "001",
+        username: "",
+        password: "",
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -105,19 +101,19 @@ const CreateRadioModal: React.FC<CreateRadioModalProps> = ({ open, onClose, onSu
         setLoading(true);
         setAlert({ message: "" });
         try {
-            await createRadio(
+            await createUser(
                 cookies.user_token,
-                formValues.name,
-                formValues.tac,
+                formValues.username,
+                formValues.password,
             );
             onClose();
             onSuccess();
         } catch (error: any) {
             const errorMessage = error?.message || "Unknown error occurred.";
             setAlert({
-                message: `Failed to create radio: ${errorMessage}`,
+                message: `Failed to create user: ${errorMessage}`,
             });
-            console.error("Failed to create radio:", error);
+            console.error("Failed to create user:", error);
         } finally {
             setLoading(false);
         }
@@ -127,8 +123,8 @@ const CreateRadioModal: React.FC<CreateRadioModalProps> = ({ open, onClose, onSu
         <Modal
             open={open}
             onClose={onClose}
-            aria-labelledby="create-radio-modal-title"
-            aria-describedby="create-radio-modal-description"
+            aria-labelledby="create-user-modal-title"
+            aria-describedby="create-user-modal-description"
         >
             <Box
                 sx={{
@@ -143,8 +139,8 @@ const CreateRadioModal: React.FC<CreateRadioModalProps> = ({ open, onClose, onSu
                     p: 4,
                 }}
             >
-                <Typography id="create-radio-modal-title" variant="h6" gutterBottom>
-                    Create Radio
+                <Typography id="create-user-modal-title" variant="h6" gutterBottom>
+                    Create User
                 </Typography>
                 <Collapse in={!!alert.message}>
                     <Alert
@@ -157,22 +153,23 @@ const CreateRadioModal: React.FC<CreateRadioModalProps> = ({ open, onClose, onSu
                 </Collapse>
                 <TextField
                     fullWidth
-                    label="Name"
-                    value={formValues.name}
-                    onChange={(e) => handleChange("name", e.target.value)}
-                    onBlur={() => handleBlur("name")}
-                    error={!!errors.name && touched.name}
-                    helperText={touched.name ? errors.name : ""}
+                    label="Username"
+                    value={formValues.username}
+                    onChange={(e) => handleChange("username", e.target.value)}
+                    onBlur={() => handleBlur("username")}
+                    error={!!errors.username && touched.username}
+                    helperText={touched.username ? errors.username : ""}
                     margin="normal"
                 />
                 <TextField
                     fullWidth
-                    label="TAC"
-                    value={formValues.tac}
-                    onChange={(e) => handleChange("tac", e.target.value)}
-                    onBlur={() => handleBlur("tac")}
-                    error={!!errors.tac && touched.tac}
-                    helperText={touched.tac ? errors.tac : ""}
+                    label="Password"
+                    type="password"
+                    value={formValues.password}
+                    onChange={(e) => handleChange("password", e.target.value)}
+                    onBlur={() => handleBlur("password")}
+                    error={!!errors.password && touched.password}
+                    helperText={touched.password ? errors.password : ""}
                     margin="normal"
                 />
 
@@ -194,4 +191,4 @@ const CreateRadioModal: React.FC<CreateRadioModalProps> = ({ open, onClose, onSu
     );
 };
 
-export default CreateRadioModal;
+export default CreateUserModal;

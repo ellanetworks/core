@@ -44,7 +44,7 @@ func getStatus(url string, client *http.Client) (int, *GetStatusResponse, error)
 func TestStatusEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

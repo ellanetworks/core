@@ -1,7 +1,7 @@
 UI_DIR := ui
-GO_CMD := cmd/ella/main.go
-OUTPUT := ella
-ROCK_FILE := ella_0.0.4_amd64.rock
+GO_CMD := cmd/core/main.go
+OUTPUT := core
+ROCK_FILE := ella-core_0.0.4_amd64.rock
 TAR_FILE := ella.tar
 K8S_NAMESPACE := dev2
 OCI_IMAGE_NAME := ella-core:0.0.4

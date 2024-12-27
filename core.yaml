@@ -3,10 +3,10 @@ db:
   path: "core.db"
 interfaces: 
   n3: 
-    name: "access-br"
+    name: "wlp9s0"
     address: "127.0.0.1"
   n6:
-    name: "core-br"
+    name: "lo"
   api:
     name: "enp0s8"
     port: 5001

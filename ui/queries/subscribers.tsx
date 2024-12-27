@@ -1,10 +1,11 @@
 import { HTTPStatus } from "@/queries/utils";
 
-export const listSubscribers = async () => {
+export const listSubscribers = async (authToken: string) => {
   const response = await fetch(`/api/v1/subscribers`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
+      "Authorization": "Bearer " + authToken
     },
   });
   let respData;
@@ -21,7 +22,7 @@ export const listSubscribers = async () => {
   return respData.result;
 };
 
-export const createSubscriber = async (imsi: string, opc: string, key: string, sequenceNumber: string, profileName: string) => {
+export const createSubscriber = async (authToken: string, imsi: string, opc: string, key: string, sequenceNumber: string, profileName: string) => {
   const subscriberData = {
     imsi,
     opc,
@@ -34,6 +35,7 @@ export const createSubscriber = async (imsi: string, opc: string, key: string, s
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "Authorization": "Bearer " + authToken
     },
     body: JSON.stringify(subscriberData),
   });
@@ -52,7 +54,7 @@ export const createSubscriber = async (imsi: string, opc: string, key: string, s
   return respData.result;
 };
 
-export const updateSubscriber = async (imsi: string, opc: string, key: string, sequenceNumber: string, profileName: string) => {
+export const updateSubscriber = async (authToken: string, imsi: string, opc: string, key: string, sequenceNumber: string, profileName: string) => {
   const subscriberData = {
     "imsi": imsi,
     "opc": opc,
@@ -65,6 +67,7 @@ export const updateSubscriber = async (imsi: string, opc: string, key: string, s
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
+      "Authorization": "Bearer " + authToken
     },
     body: JSON.stringify(subscriberData),
   });
@@ -82,11 +85,12 @@ export const updateSubscriber = async (imsi: string, opc: string, key: string, s
   return respData.result;
 }
 
-export const deleteSubscriber = async (name: string) => {
+export const deleteSubscriber = async (authToken: string, name: string) => {
   const response = await fetch(`/api/v1/subscribers/${name}`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",
+      "Authorization": "Bearer " + authToken
     },
   });
   let respData;

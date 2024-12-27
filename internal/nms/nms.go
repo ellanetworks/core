@@ -1,6 +1,7 @@
 package nms
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,7 +14,11 @@ import (
 )
 
 func Start(dbInstance *db.Database, port int, cert_file string, key_file string) error {
-	router := server.NewHandler(dbInstance)
+	jwtSecret, err := server.GenerateJWTSecret()
+	if err != nil {
+		return fmt.Errorf("couldn't generate jwt secret: %v", err)
+	}
+	router := server.NewHandler(dbInstance, jwtSecret)
 
 	go func() {
 		httpAddr := ":" + strconv.Itoa(port)

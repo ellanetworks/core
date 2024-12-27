@@ -11,6 +11,9 @@ import {
 import * as yup from "yup";
 import { ValidationError } from "yup";
 import { createProfile } from "@/queries/profiles";
+import { useRouter } from "next/navigation"
+import { useCookies } from "react-cookie"
+
 
 interface CreateProfileModalProps {
     open: boolean;
@@ -52,6 +55,13 @@ const schema = yup.object().shape({
 });
 
 const CreateProfileModal: React.FC<CreateProfileModalProps> = ({ open, onClose, onSuccess }) => {
+    const router = useRouter();
+    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+
+    if (!cookies.user_token) {
+        router.push("/login")
+    }
+
     const [formValues, setFormValues] = useState({
         name: "",
         ipPool: "192.168.0.0/24",
@@ -132,6 +142,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({ open, onClose, 
             const bitrateUplink = `${formValues.bitrateUpValue} ${formValues.bitrateUpUnit}`;
             const bitrateDownlink = `${formValues.bitrateDownValue} ${formValues.bitrateDownUnit}`;
             await createProfile(
+                cookies.user_token,
                 formValues.name,
                 formValues.ipPool,
                 formValues.dns,
