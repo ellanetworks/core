@@ -143,7 +143,7 @@ const Subscriber = () => {
                 textAlign: "center",
             }}
         >
-            <Box sx={{ width: "50%" }}>
+            <Box sx={{ width: "60%" }}>
                 <Collapse in={!!alert.message}>
                     <Alert
                         severity={"success"}
@@ -158,7 +158,7 @@ const Subscriber = () => {
                 <Box
                     sx={{
                         marginBottom: 4,
-                        width: "50%",
+                        width: "60%",
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
@@ -197,7 +197,7 @@ const Subscriber = () => {
             ) : (
                 <Box
                     sx={{
-                        width: "50%",
+                        width: "60%",
                         overflowX: "auto",
                     }}
                 >

@@ -20,7 +20,9 @@ import {
 import {
     Info as InfoIcon,
     BugReport as BugReportIcon,
-    Person as PersonIcon,
+    Tune as TuneIcon,
+    AdminPanelSettings as AdminPanelSettingsIcon,
+    Engineering as EngineeringIcon,
     Sensors as SensorsIcon,
     Groups as GroupsIcon,
     Dashboard as DashboardIcon,
@@ -133,7 +135,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                         <ListItem disablePadding>
                             <ListItemButton component="a" href="/profiles" selected={pathname === "/profiles"}>
                                 <ListItemIcon>
-                                    <GroupsIcon />
+                                    <TuneIcon />
                                 </ListItemIcon>
                                 <ListItemText primary="Profiles" />
                             </ListItemButton>
@@ -141,9 +143,18 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                         <ListItem disablePadding>
                             <ListItemButton component="a" href="/subscribers" selected={pathname === "/subscribers"}>
                                 <ListItemIcon>
-                                    <PersonIcon />
+                                    <GroupsIcon />
                                 </ListItemIcon>
                                 <ListItemText primary="Subscribers" />
+                            </ListItemButton>
+                        </ListItem>
+                        <Divider />
+                        <ListItem disablePadding>
+                            <ListItemButton component="a" href="/users" selected={pathname === "/users"}>
+                                <ListItemIcon>
+                                    <AdminPanelSettingsIcon />
+                                </ListItemIcon>
+                                <ListItemText primary="Users" />
                             </ListItemButton>
                         </ListItem>
                     </List>

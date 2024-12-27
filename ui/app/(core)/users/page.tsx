@@ -21,67 +21,65 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon,
 } from "@mui/icons-material";
-import { listRadios, deleteRadio } from "@/queries/radios";
-import CreateRadioModal from "@/components/CreateRadioModal";
-import EditRadioModal from "@/components/EditRadioModal";
+import { listUsers, deleteUser } from "@/queries/users";
+import CreateUserModal from "@/components/CreateUserModal";
+import EditUserModal from "@/components/EditUserModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useRouter } from "next/navigation"
 import { useCookies } from "react-cookie"
 
 
-interface RadioData {
-  name: string;
-  tac: string;
+interface UserData {
+  username: string;
 }
 
-const Radio = () => {
+const User = () => {
   const router = useRouter();
   const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
 
   if (!cookies.user_token) {
     router.push("/login")
   }
-  const [radios, setRadios] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
-  const [editData, setEditData] = useState<RadioData | null>(null);
-  const [selectedRadio, setSelectedRadio] = useState<string | null>(null);
+  const [editData, setEditData] = useState<UserData | null>(null);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
-  const fetchRadios = async () => {
+  const fetchUsers = async () => {
     setLoading(true);
     try {
-      const data = await listRadios(cookies.user_token);
-      setRadios(data);
+      const data = await listUsers(cookies.user_token);
+      setUsers(data);
     } catch (error) {
-      console.error("Error fetching radios:", error);
+      console.error("Error fetching users:", error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchRadios();
+    fetchUsers();
   }, []);
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
 
   const handleModalSuccess = () => {
-    fetchRadios();
-    setAlert({ message: "Radio created successfully!" });
+    fetchUsers();
+    setAlert({ message: "User created successfully!" });
   };
 
-  const handleEditClick = (radio: any) => {
-    const mappedRadio = {
-      name: radio.name,
-      tac: radio.tac,
+  const handleEditClick = (user: any) => {
+    const mappedUser = {
+      username: user.username,
     };
 
-    setEditData(mappedRadio);
+    setEditData(mappedUser);
     setEditModalOpen(true);
   };
 
@@ -91,38 +89,38 @@ const Radio = () => {
   };
 
   const handleEditSuccess = () => {
-    fetchRadios();
-    setAlert({ message: "Radio updated successfully!" });
+    fetchUsers();
+    setAlert({ message: "User updated successfully!" });
   };
 
-  const handleDeleteClick = (radioName: string) => {
-    setSelectedRadio(radioName);
+  const handleDeleteClick = (userName: string) => {
+    setSelectedUser(userName);
     setConfirmationOpen(true);
   };
 
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
-    if (selectedRadio) {
+    if (selectedUser) {
       try {
-        await deleteRadio(cookies.user_token, selectedRadio);
+        await deleteUser(cookies.user_token, selectedUser);
         setAlert({
-          message: `Radio "${selectedRadio}" deleted successfully!`,
+          message: `User "${selectedUser}" deleted successfully!`,
         });
-        fetchRadios();
+        fetchUsers();
       } catch (error) {
-        console.error("Error deleting radio:", error);
+        console.error("Error deleting user:", error);
         setAlert({
-          message: `Failed to delete radio "${selectedRadio}".`,
+          message: `Failed to delete user "${selectedUser}".`,
         });
       } finally {
-        setSelectedRadio(null);
+        setSelectedUser(null);
       }
     }
   };
 
   const handleConfirmationClose = () => {
     setConfirmationOpen(false);
-    setSelectedRadio(null);
+    setSelectedUser(null);
   };
 
   return (
@@ -148,7 +146,7 @@ const Radio = () => {
           </Alert>
         </Collapse>
       </Box>
-      {!loading && radios.length > 0 && (
+      {!loading && users.length > 0 && (
         <Box
           sx={{
             marginBottom: 4,
@@ -159,7 +157,7 @@ const Radio = () => {
           }}
         >
           <Typography variant="h4" component="h1" gutterBottom>
-            Radios
+            Users
           </Typography>
           <Button
             variant="contained"
@@ -181,10 +179,10 @@ const Radio = () => {
         >
           <CircularProgress />
         </Box>
-      ) : radios.length === 0 ? (
+      ) : users.length === 0 ? (
         <EmptyState
-          primaryText="No radio found."
-          secondaryText="Create a new radio."
+          primaryText="No user found."
+          secondaryText="Create a new user."
           buttonText="Create"
           onCreate={handleOpenCreateModal}
         />
@@ -196,34 +194,32 @@ const Radio = () => {
           }}
         >
           <TableContainer component={Paper}>
-            <Table sx={{ minWidth: 900 }} aria-label="radio table">
+            <Table sx={{ minWidth: 900 }} aria-label="user table">
               <TableHead>
                 <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell align="right">TAC</TableCell>
+                  <TableCell>Username</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {radios.map((radio) => (
+                {users.map((user) => (
                   <TableRow
-                    key={radio.name}
+                    key={user.username}
                     sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
                   >
                     <TableCell component="th" scope="row">
-                      {radio.name}
+                      {user.username}
                     </TableCell>
-                    <TableCell align="right">{radio.tac}</TableCell>
                     <TableCell align="right">
                       <IconButton
                         aria-label="edit"
-                        onClick={() => handleEditClick(radio)}
+                        onClick={() => handleEditClick(user)}
                       >
                         <EditIcon />
                       </IconButton>
                       <IconButton
                         aria-label="delete"
-                        onClick={() => handleDeleteClick(radio.name)}
+                        onClick={() => handleDeleteClick(user.username)}
                       >
                         <DeleteIcon />
                       </IconButton>
@@ -235,19 +231,18 @@ const Radio = () => {
           </TableContainer>
         </Box>
       )}
-      <CreateRadioModal
+      <CreateUserModal
         open={isCreateModalOpen}
         onClose={handleCloseCreateModal}
         onSuccess={handleModalSuccess}
       />
-      <EditRadioModal
+      <EditUserModal
         open={isEditModalOpen}
         onClose={handleEditModalClose}
         onSuccess={handleEditSuccess}
         initialData={
           editData || {
-            name: "",
-            tac: "",
+            username: "",
           }
         }
       />
@@ -256,10 +251,10 @@ const Radio = () => {
         onClose={handleConfirmationClose}
         onConfirm={handleDeleteConfirm}
         title="Confirm Deletion"
-        description={`Are you sure you want to delete the radio "${selectedRadio}"? This action cannot be undone.`}
+        description={`Are you sure you want to delete the user "${selectedUser}"? This action cannot be undone.`}
       />
     </Box>
   );
 };
 
-export default Radio;
+export default User;
