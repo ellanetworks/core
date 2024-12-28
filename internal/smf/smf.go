@@ -1,6 +1,7 @@
 package smf
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -17,6 +18,9 @@ import (
 )
 
 func Start(dbInstance *db.Database) error {
+	if dbInstance == nil {
+		return fmt.Errorf("dbInstance is nil")
+	}
 	configuration := factory.Configuration{
 		PFCP: &factory.PFCP{
 			Addr: "0.0.0.0",

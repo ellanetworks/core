@@ -8,8 +8,8 @@
 sudo snap install microk8s --channel=1.31/stable --classic
 ```
 
-```shell
 Add the community repository MicroK8s addon:
+```shell
 sudo microk8s addons repo add community https://github.com/canonical/microk8s-community-addons --reference feat/strict-fix-multus
 ```
 
@@ -18,7 +18,6 @@ Enable the following MicroK8s addons. We must give MetalLB an address range that
 ```shell
 sudo microk8s enable hostpath-storage
 sudo microk8s enable multus
-sudo microk8s enable metallb:10.0.0.2-10.0.0.4
 ```
 
 ### Setup local Docker registry

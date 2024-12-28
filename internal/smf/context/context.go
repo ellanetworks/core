@@ -122,6 +122,7 @@ func InitSmfContext(config *factory.Configuration) *SMFContext {
 	}
 
 	smfContext.PodIp = os.Getenv("POD_IP")
+	smfContext.DbInstance = config.DbInstance
 
 	return &smfContext
 }

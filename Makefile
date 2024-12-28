@@ -86,10 +86,10 @@ deploy: gnbsim-deploy router-deploy core-deploy core-start
 
 hotswap: go-build
 	@echo "Copying the binary to the running container..."
-	@POD_NAME=$$(kubectl get pods -n $(K8S_NAMESPACE) -l app=ella -o jsonpath="{.items[0].metadata.name}"); \
+	@POD_NAME=$$(kubectl get pods -n $(K8S_NAMESPACE) -l app=ella-core -o jsonpath="{.items[0].metadata.name}"); \
 	CONTAINER_NAME=$$(kubectl get pod $$POD_NAME -n $(K8S_NAMESPACE) -o jsonpath="{.spec.containers[0].name}"); \
-	kubectl cp $(OUTPUT) $$POD_NAME:/bin/ella -c $$CONTAINER_NAME -n $(K8S_NAMESPACE); \
-	kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -c $$CONTAINER_NAME -- pebble restart ella
+	kubectl cp $(OUTPUT) $$POD_NAME:/bin/core -c $$CONTAINER_NAME -n $(K8S_NAMESPACE); \
+	kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -c $$CONTAINER_NAME -- pebble restart ella-core
 	@echo "Hotswap completed successfully."
 
 test:
