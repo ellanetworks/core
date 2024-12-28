@@ -8,7 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/qos"
-	errors "github.com/ellanetworks/core/internal/smf/smferrors"
+	"github.com/ellanetworks/core/internal/smf/smferrors"
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
 	"github.com/google/uuid"
@@ -263,12 +263,16 @@ func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
 }
 
 func (smContext *SMContext) ReleaseUeIpAddr() error {
+	smfSelf := SMF_Self()
 	if smContext.PDUAddress == nil {
 		return nil
 	}
 	if ip := smContext.PDUAddress.Ip; ip != nil && !smContext.PDUAddress.UpfProvided {
-		smContext.SubPduSessLog.Infof("Release IP Address: %s", smContext.PDUAddress.Ip.String())
-		smContext.DNNInfo.UeIPAllocator.Release(smContext.Supi, ip)
+		err := smfSelf.DbInstance.ReleaseIP(smContext.Supi)
+		if err != nil {
+			return fmt.Errorf("failed to release IP Address, %v", err)
+		}
+		smContext.SubPduSessLog.Infof("Released IP Address: %s", smContext.PDUAddress.Ip.String())
 		smContext.PDUAddress.Ip = net.IPv4(0, 0, 0, 0)
 	}
 	return nil
@@ -483,13 +487,13 @@ func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(cause string) 
 
 	if buf, err := BuildGSMPDUSessionEstablishmentReject(
 		smContext,
-		errors.ErrorCause[cause]); err != nil {
+		smferrors.ErrorCause[cause]); err != nil {
 		httpResponse = &httpwrapper.Response{
 			Header: nil,
-			Status: int(errors.ErrorType[cause].Status),
+			Status: int(smferrors.ErrorType[cause].Status),
 			Body: models.PostSmContextsErrorResponse{
 				JsonData: &models.SmContextCreateError{
-					Error:   errors.ErrorType[cause],
+					Error:   smferrors.ErrorType[cause],
 					N1SmMsg: &models.RefToBinaryData{ContentId: "n1SmMsg"},
 				},
 			},
@@ -497,10 +501,10 @@ func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(cause string) 
 	} else {
 		httpResponse = &httpwrapper.Response{
 			Header: nil,
-			Status: int(errors.ErrorType[cause].Status),
+			Status: int(smferrors.ErrorType[cause].Status),
 			Body: models.PostSmContextsErrorResponse{
 				JsonData: &models.SmContextCreateError{
-					Error:   errors.ErrorType[cause],
+					Error:   smferrors.ErrorType[cause],
 					N1SmMsg: &models.RefToBinaryData{ContentId: "n1SmMsg"},
 				},
 				BinaryDataN1SmMessage: buf,

@@ -1,10 +1,12 @@
 package smf
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/smf/context"
@@ -15,14 +17,19 @@ import (
 	"github.com/ellanetworks/core/internal/smf/pfcp/upf"
 )
 
-func Start() error {
+func Start(dbInstance *db.Database) error {
+	if dbInstance == nil {
+		return fmt.Errorf("dbInstance is nil")
+	}
 	configuration := factory.Configuration{
 		PFCP: &factory.PFCP{
 			Addr: "0.0.0.0",
 		},
-		SmfName: "SMF",
+		SmfName:    "SMF",
+		DbInstance: dbInstance,
 	}
 	factory.InitConfigFactory(configuration)
+	context.InitSmfContext(&factory.SmfConfig)
 	StartPfcpServer()
 	metrics.RegisterSmfMetrics()
 	return nil
@@ -35,7 +42,6 @@ func StartPfcpServer() {
 		<-signalChannel
 		os.Exit(0)
 	}()
-	context.InitSmfContext(&factory.SmfConfig)
 	udp.Run(pfcp.Dispatch)
 	userPlaneInformation := context.GetUserPlaneInformation()
 	if userPlaneInformation.UPF != nil {

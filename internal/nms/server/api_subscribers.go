@@ -19,6 +19,7 @@ type CreateSubscriberParams struct {
 
 type GetSubscriberResponse struct {
 	Imsi           string `json:"imsi"`
+	IpAddress      string `json:"ipAddress"`
 	Opc            string `json:"opc"`
 	SequenceNumber string `json:"sequenceNumber"`
 	Key            string `json:"key"`
@@ -73,6 +74,7 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 			}
 			subscribers = append(subscribers, GetSubscriberResponse{
 				Imsi:           dbSubscriber.Imsi,
+				IpAddress:      dbSubscriber.IpAddress,
 				Opc:            dbSubscriber.OpcValue,
 				Key:            dbSubscriber.PermanentKeyValue,
 				SequenceNumber: dbSubscriber.SequenceNumber,
@@ -109,6 +111,7 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 
 		subscriber := GetSubscriberResponse{
 			Imsi:           dbSubscriber.Imsi,
+			IpAddress:      dbSubscriber.IpAddress,
 			Opc:            dbSubscriber.OpcValue,
 			SequenceNumber: dbSubscriber.SequenceNumber,
 			Key:            dbSubscriber.PermanentKeyValue,

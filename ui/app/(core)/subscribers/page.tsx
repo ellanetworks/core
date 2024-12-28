@@ -32,6 +32,7 @@ import { useCookies } from "react-cookie"
 
 interface SubscriberData {
     imsi: string;
+    ipAddress: string;
     opc: string;
     key: string;
     sequenceNumber: string;
@@ -81,6 +82,7 @@ const Subscriber = () => {
     const handleEditClick = (subscriber: any) => {
         const mappedSubscriber = {
             imsi: subscriber.imsi,
+            ipAddress: subscriber.ipAddress,
             opc: subscriber.opc,
             key: subscriber.key,
             sequenceNumber: subscriber.sequenceNumber,
@@ -206,6 +208,7 @@ const Subscriber = () => {
                             <TableHead>
                                 <TableRow>
                                     <TableCell>IMSI</TableCell>
+                                    <TableCell align="right">IP Address</TableCell>
                                     <TableCell align="right">OPC</TableCell>
                                     <TableCell align="right">Key</TableCell>
                                     <TableCell align="right">Sequence Number</TableCell>
@@ -222,6 +225,7 @@ const Subscriber = () => {
                                         <TableCell component="th" scope="row">
                                             {subscriber.imsi}
                                         </TableCell>
+                                        <TableCell align="right">{subscriber.ipAddress}</TableCell>
                                         <TableCell align="right">{subscriber.opc}</TableCell>
                                         <TableCell align="right">{subscriber.key}</TableCell>
                                         <TableCell align="right">{subscriber.sequenceNumber}</TableCell>
