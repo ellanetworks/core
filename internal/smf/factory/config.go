@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -13,6 +14,7 @@ const (
 )
 
 type Configuration struct {
+	DbInstance   *db.Database
 	PFCP         *PFCP
 	SmfName      string
 	StaticIpInfo []StaticIpInfo

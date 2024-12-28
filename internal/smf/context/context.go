@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/config"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	nmsModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/factory"
@@ -20,6 +21,8 @@ var smfContext SMFContext
 
 type SMFContext struct {
 	Name string
+
+	DbInstance *db.Database
 
 	UPNodeIDs []NodeID
 	Key       string
@@ -187,12 +190,28 @@ func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
 	if _, ok := smfSelf.ueIPAllocatorMapping[dnn]; ok {
 		return smfSelf.ueIPAllocatorMapping[dnn], nil
 	}
-	alloc, err := NewIPAllocator(cidr)
+	alloc, err := NewIPAllocator(cidr, storeIpAddress)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create IP allocator for DNN %s: %v", dnn, err)
 	}
 	smfSelf.ueIPAllocatorMapping[dnn] = alloc
 	return alloc, nil
+}
+
+func storeIpAddress(imsi string, ipAddress *net.IP) error {
+	smfSelf := SMF_Self()
+	subscriber, err := smfSelf.DbInstance.GetSubscriber(imsi)
+	if err != nil {
+		return fmt.Errorf("couldn't get subscriber %s: %v", imsi, err)
+	}
+
+	subscriber.IpAddress = ipAddress.String()
+	err = smfSelf.DbInstance.UpdateSubscriber(subscriber)
+	if err != nil {
+		return fmt.Errorf("couldn't update subscriber %s: %v", imsi, err)
+	}
+
+	return nil
 }
 
 func BuildUserPlaneInformationFromConfig(profiles []nmsModels.Profile, radios []nmsModels.Radio) *UserPlaneInformation {

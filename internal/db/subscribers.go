@@ -17,6 +17,8 @@ const QueryCreateSubscribersTable = `
 
 		imsi TEXT NOT NULL,
 
+		ipAddress TEXT,
+
 		sequenceNumber TEXT NOT NULL,
 		permanentKeyValue TEXT NOT NULL,
 		opcValue TEXT NOT NULL,
@@ -28,8 +30,8 @@ const QueryCreateSubscribersTable = `
 const (
 	listSubscribersStmt  = "SELECT &Subscriber.* from %s"
 	getSubscriberStmt    = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
-	createSubscriberStmt = "INSERT INTO %s (imsi, sequenceNumber, permanentKeyValue, opcValue, profileID) VALUES ($Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKeyValue, $Subscriber.opcValue, $Subscriber.profileID)"
-	editSubscriberStmt   = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber, permanentKeyValue=$Subscriber.permanentKeyValue, opcValue=$Subscriber.opcValue, profileID=$Subscriber.profileID WHERE imsi==$Subscriber.imsi"
+	createSubscriberStmt = "INSERT INTO %s (imsi, ipAddress, sequenceNumber, permanentKeyValue, opcValue, profileID) VALUES ($Subscriber.imsi, $Subscriber.ipAddress, $Subscriber.sequenceNumber, $Subscriber.permanentKeyValue, $Subscriber.opcValue, $Subscriber.profileID)"
+	editSubscriberStmt   = "UPDATE %s SET ipAddress=$Subscriber.ipAddress, sequenceNumber=$Subscriber.sequenceNumber, permanentKeyValue=$Subscriber.permanentKeyValue, opcValue=$Subscriber.opcValue, profileID=$Subscriber.profileID WHERE imsi==$Subscriber.imsi"
 	deleteSubscriberStmt = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
 )
 
@@ -37,6 +39,8 @@ type Subscriber struct {
 	ID int `db:"id"`
 
 	Imsi string `db:"imsi"`
+
+	IpAddress string `db:"ipAddress"`
 
 	SequenceNumber    string `db:"sequenceNumber"`
 	PermanentKeyValue string `db:"permanentKeyValue"`

@@ -13,7 +13,6 @@ import {
     ListItemText,
     Divider,
     Typography,
-    IconButton,
     Menu,
     MenuItem,
 } from "@mui/material";
@@ -22,7 +21,6 @@ import {
     BugReport as BugReportIcon,
     Tune as TuneIcon,
     AdminPanelSettings as AdminPanelSettingsIcon,
-    Engineering as EngineeringIcon,
     Sensors as SensorsIcon,
     Groups as GroupsIcon,
     Dashboard as DashboardIcon,

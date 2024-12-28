@@ -25,7 +25,7 @@ func startNetwork(dbInstance *db.Database, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = smf.Start()
+	err = smf.Start(dbInstance)
 	if err != nil {
 		return err
 	}

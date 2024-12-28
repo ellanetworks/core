@@ -5,89 +5,118 @@ import (
 	"net"
 	"testing"
 
-	smf_context "github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf/context"
 )
 
-func TestIPPoolAlloc(t *testing.T) {
-	allocator, err := smf_context.NewIPAllocator("192.168.1.0/24")
+func TestIPAllocator_SingleIMSI(t *testing.T) {
+	cidr := "192.168.1.0/24"
+
+	mockStore := func(imsi string, ip *net.IP) error {
+		return nil
+	}
+
+	allocator, err := context.NewIPAllocator(cidr, mockStore)
 	if err != nil {
-		t.Errorf("failed to allocate pool %v", err)
+		t.Fatalf("failed to create IP allocator: %v", err)
 	}
 
-	var allocAddresses []string
-	// check if we can allocate 254 addresses
-	for i := 1; i <= 254; i++ {
-		ip, err := allocator.Allocate("")
-		if err != nil {
-			t.Errorf("failed to allocate pool %v", err)
-		}
-		fmt.Printf("Allocated address = %v\n", ip)
-		allocAddresses = append(allocAddresses, ip.String())
+	imsi := "IMSI12345"
+
+	ip, err := allocator.Allocate(imsi)
+	if err != nil {
+		t.Fatalf("failed to allocate IP: %v", err)
+	}
+	if ip == nil {
+		t.Fatalf("allocated IP should not be nil")
 	}
 
-	// Test what happens if we releae all addresses
-	for _, ips := range allocAddresses {
-		ip := net.ParseIP(ips)
-		allocator.Release("", ip)
+	_, ipNet, _ := net.ParseCIDR(cidr)
+	if !ipNet.Contains(ip) {
+		t.Fatalf("allocated IP should be within the CIDR range")
 	}
 
-	// Check what happens if we try to release unknown address
-	ip := net.ParseIP("192.168.2.1")
-	allocator.Release("", ip)
+	ip2, err := allocator.Allocate(imsi)
+	if err != nil {
+		t.Fatalf("failed to allocate IP again for the same IMSI: %v", err)
+	}
+	if !ip.Equal(ip2) {
+		t.Fatalf("re-allocating the same IMSI should return the same IP")
+	}
+
+	err = allocator.Release(imsi)
+	if err != nil {
+		t.Fatalf("failed to release IP: %v", err)
+	}
+
+	ip3, err := allocator.Allocate(imsi)
+	if err != nil {
+		t.Fatalf("failed to allocate a new IP after release: %v", err)
+	}
+	if ip3 == nil {
+		t.Fatalf("newly allocated IP should not be nil")
+	}
+	if !ipNet.Contains(ip3) {
+		t.Fatalf("newly allocated IP should be within the CIDR range")
+	}
+
+	newImsi := "IMSI54321"
+	ip4, err := allocator.Allocate(newImsi)
+	if err != nil {
+		t.Fatalf("failed to allocate IP for a new IMSI: %v", err)
+	}
+	if ip4 == nil {
+		t.Fatalf("allocated IP for a new IMSI should not be nil")
+	}
+
+	if ip3.Equal(ip4) {
+		t.Fatalf("allocated IP for a new IMSI should be different from the previous IMSI")
+	}
 }
 
-func TestIPPoolAllocRelease(t *testing.T) {
-	allocator, err := smf_context.NewIPAllocator("192.168.1.0/24")
-	if err != nil {
-		t.Errorf("failed to allocate pool %v", err)
+func TestIPAllocator_ExhaustAllIPs(t *testing.T) {
+	cidr := "192.168.1.0/24"
+
+	mockStore := func(imsi string, ip *net.IP) error {
+		return nil
 	}
 
-	ip1 := net.ParseIP("192.168.1.1")
-	for i := 1; i <= 255; i++ {
-		ip, err := allocator.Allocate("")
+	allocator, err := context.NewIPAllocator(cidr, mockStore)
+	if err != nil {
+		t.Fatalf("failed to create IP allocator: %v", err)
+	}
+
+	_, ipNet, _ := net.ParseCIDR(cidr)
+	maskBits, totalBits := ipNet.Mask.Size()
+	totalIPs := 1 << (totalBits - maskBits)
+
+	allocatedIPs := make(map[string]struct{})
+
+	// Allocate all possible IPs in the range.
+	for i := 1; i < totalIPs-1; i++ { // Skip network (0) and broadcast (-1) addresses.
+		imsi := fmt.Sprintf("IMSI%d", i)
+		ip, err := allocator.Allocate(imsi)
 		if err != nil {
-			t.Errorf("failed to allocate pool %v", err)
+			t.Fatalf("failed to allocate IP for IMSI %s: %v", imsi, err)
 		}
-		fmt.Printf("Allocated address = %v\n", ip)
-		if i == 1 {
-			if ip.Equal(ip1) == false {
-				t.Errorf("address not allocated in order ? allocated address %v", ip1)
-			}
-			allocator.Release("", ip)
-		}
-		if i == 2 {
-			ip2 := net.ParseIP("192.168.1.2")
-			if ip.Equal(ip2) == false {
-				t.Errorf("address not allocated in order ? allocated address %v", ip2)
-			}
-		}
-		// rollover, we should be using first address again
-		if i == 255 && ip.Equal(ip1) != true {
-			t.Errorf("Failed to allocate IP address = %v %v \n", ip, ip1)
-		}
-	}
-}
 
-func TestIPPoolAllocLeastRecentlyUsed(t *testing.T) {
-	allocator, err := smf_context.NewIPAllocator("192.168.1.0/24")
-	if err != nil {
-		t.Errorf("failed to allocate pool %v", err)
+		if !ipNet.Contains(ip) {
+			t.Fatalf("allocated IP %s is not within the CIDR range", ip.String())
+		}
+
+		ipStr := ip.String()
+		if _, exists := allocatedIPs[ipStr]; exists {
+			t.Fatalf("IP %s was allocated more than once", ipStr)
+		}
+
+		allocatedIPs[ipStr] = struct{}{}
 	}
 
-	ip1, err := allocator.Allocate("")
-	if err != nil {
-		t.Errorf("failed to allocate pool %v", err)
+	_, err = allocator.Allocate("IMSIOverflow")
+	if err == nil {
+		t.Fatalf("allocator should return an error when the range is exhausted")
 	}
-	fmt.Printf("Allocated address = %v\n", ip1)
-	allocator.Release("", ip1)
-	ip2, err := allocator.Allocate("")
-	if err != nil {
-		t.Errorf("failed to allocate pool %v", err)
-	}
-	fmt.Printf("Allocated address = %v\n", ip2)
 
-	// Same address is not allocate again..
-	if ip1.Equal(ip2) {
-		t.Errorf("ip1 %v & ip2 %v same ", ip1, ip2)
+	if len(allocatedIPs) != totalIPs-2 {
+		t.Fatalf("expected %d allocated IPs, got %d", totalIPs-2, len(allocatedIPs))
 	}
 }
