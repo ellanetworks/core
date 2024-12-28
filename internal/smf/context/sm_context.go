@@ -263,15 +263,16 @@ func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
 }
 
 func (smContext *SMContext) ReleaseUeIpAddr() error {
+	smfSelf := SMF_Self()
 	if smContext.PDUAddress == nil {
 		return nil
 	}
 	if ip := smContext.PDUAddress.Ip; ip != nil && !smContext.PDUAddress.UpfProvided {
-		smContext.SubPduSessLog.Infof("Release IP Address: %s", smContext.PDUAddress.Ip.String())
-		err := smContext.DNNInfo.UeIPAllocator.Release(smContext.Supi)
+		err := smfSelf.DbInstance.ReleaseIP(smContext.Supi)
 		if err != nil {
 			return fmt.Errorf("failed to release IP Address, %v", err)
 		}
+		smContext.SubPduSessLog.Infof("Released IP Address: %s", smContext.PDUAddress.Ip.String())
 		smContext.PDUAddress.Ip = net.IPv4(0, 0, 0, 0)
 	}
 	return nil

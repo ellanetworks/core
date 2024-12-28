@@ -32,7 +32,6 @@ type SMFContext struct {
 	SnssaiInfos []SnssaiSmfInfo
 
 	UserPlaneInformation *UserPlaneInformation
-	ueIPAllocatorMapping map[string]*IPAllocator
 
 	SupportedPDUSessionType string
 
@@ -122,8 +121,6 @@ func InitSmfContext(config *factory.Configuration) *SMFContext {
 		DefaultUserPlanePath: make(map[string][]*UPNode),
 	}
 
-	// InitUserPlaneInformation()
-	smfContext.ueIPAllocatorMapping = make(map[string]*IPAllocator)
 	smfContext.PodIp = os.Getenv("POD_IP")
 
 	return &smfContext
@@ -158,60 +155,16 @@ func UpdateSnssaiInfo(network *nmsModels.Network, profiles []nmsModels.Profile) 
 		dnn := config.DNN
 		dnsPrimary := profile.Dns
 		mtu := profile.Mtu
-		alloc, err := GetOrCreateIPAllocator(dnn, profile.UeIpPool)
-		if err != nil {
-			logger.SmfLog.Errorf("failed to get or create IP allocator for DNN %s: %v", dnn, err)
-			continue
-		}
 		dnnInfo := SnssaiSmfDnnInfo{
 			DNS: DNS{
 				IPv4Addr: net.ParseIP(dnsPrimary).To4(),
 			},
-			MTU:           uint16(mtu),
-			UeIPAllocator: alloc,
+			MTU: uint16(mtu),
 		}
 		snssaiInfo.DnnInfos[dnn] = &dnnInfo
 	}
 	snssaiInfoList = append(snssaiInfoList, snssaiInfo)
 	smfSelf.SnssaiInfos = snssaiInfoList
-}
-
-// This function is used to get or create IP allocator for a DNN
-// There are two issues with it:
-// 1. Allocation will restart from the beginning on every restart as it is not persisted
-// 2. It is not cleaned up when the DNN is removed
-// This issue is tracked through: https://github.com/ellanetworks/core/issues/204
-func GetOrCreateIPAllocator(dnn string, cidr string) (*IPAllocator, error) {
-	smfSelf := SMF_Self()
-	if smfSelf.ueIPAllocatorMapping == nil {
-		logger.SmfLog.Warnf("IP allocator mapping is nil")
-		return nil, fmt.Errorf("IP allocator mapping is nil")
-	}
-	if _, ok := smfSelf.ueIPAllocatorMapping[dnn]; ok {
-		return smfSelf.ueIPAllocatorMapping[dnn], nil
-	}
-	alloc, err := NewIPAllocator(cidr, storeIpAddress)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create IP allocator for DNN %s: %v", dnn, err)
-	}
-	smfSelf.ueIPAllocatorMapping[dnn] = alloc
-	return alloc, nil
-}
-
-func storeIpAddress(imsi string, ipAddress *net.IP) error {
-	smfSelf := SMF_Self()
-	subscriber, err := smfSelf.DbInstance.GetSubscriber(imsi)
-	if err != nil {
-		return fmt.Errorf("couldn't get subscriber %s: %v", imsi, err)
-	}
-
-	subscriber.IpAddress = ipAddress.String()
-	err = smfSelf.DbInstance.UpdateSubscriber(subscriber)
-	if err != nil {
-		return fmt.Errorf("couldn't update subscriber %s: %v", imsi, err)
-	}
-
-	return nil
 }
 
 func BuildUserPlaneInformationFromConfig(profiles []nmsModels.Profile, radios []nmsModels.Radio) *UserPlaneInformation {
