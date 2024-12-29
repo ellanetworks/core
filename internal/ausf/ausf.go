@@ -1,18 +1,19 @@
 package ausf
 
 import (
-	"github.com/ellanetworks/core/internal/ausf/context"
-	"github.com/ellanetworks/core/internal/ausf/factory"
+	"regexp"
+
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/google/uuid"
 )
 
-const AUSF_GROUP_ID = "ausfGroup001"
-
 func Start() error {
-	configuration := factory.Configuration{
-		GroupId: AUSF_GROUP_ID,
+	snRegex, err := regexp.Compile("5G:mnc[0-9]{3}[.]mcc[0-9]{3}[.]3gppnetwork[.]org")
+	if err != nil {
+		logger.AusfLog.Warnf("SN compile error: %+v", err)
 	}
+	ausfContext.snRegex = snRegex
 
-	factory.InitConfigFactory(configuration)
-	context.Init()
+	ausfContext.NfId = uuid.New().String()
 	return nil
 }

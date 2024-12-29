@@ -1,4 +1,4 @@
-package producer
+package ausf
 
 import (
 	"crypto/rand"
@@ -9,7 +9,6 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ellanetworks/core/internal/ausf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/ueauth"
@@ -42,7 +41,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	supiOrSuci := updateAuthenticationInfo.SupiOrSuci
 
 	snName := updateAuthenticationInfo.ServingNetworkName
-	servingNetworkAuthorized := context.IsServingNetworkAuthorized(snName)
+	servingNetworkAuthorized := IsServingNetworkAuthorized(snName)
 	if !servingNetworkAuthorized {
 		return nil, fmt.Errorf("serving network NOT AUTHORIZED")
 	}
@@ -50,14 +49,14 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 
 	responseBody.ServingNetworkName = snName
 	authInfoReq.ServingNetworkName = snName
-	self := context.GetSelf()
+	self := GetSelf()
 	authInfoReq.AusfInstanceId = self.GetSelfID()
 
 	if updateAuthenticationInfo.ResynchronizationInfo != nil {
 		logger.AusfLog.Warnln("Auts: ", updateAuthenticationInfo.ResynchronizationInfo.Auts)
-		ausfCurrentSupi := context.GetSupiFromSuciSupiMap(supiOrSuci)
+		ausfCurrentSupi := GetSupiFromSuciSupiMap(supiOrSuci)
 		logger.AusfLog.Warnln(ausfCurrentSupi)
-		ausfCurrentContext := context.GetAusfUeContext(ausfCurrentSupi)
+		ausfCurrentContext := GetAusfUeContext(ausfCurrentSupi)
 		logger.AusfLog.Warnln(ausfCurrentContext.Rand)
 		updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
 		logger.AusfLog.Warnln("Rand: ", updateAuthenticationInfo.ResynchronizationInfo.Rand)
@@ -70,13 +69,13 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	}
 
 	ueid := authInfoResult.Supi
-	ausfUeContext := context.NewAusfUeContext(ueid)
+	ausfUeContext := NewAusfUeContext(ueid)
 	ausfUeContext.ServingNetworkName = snName
 	ausfUeContext.AuthStatus = models.AuthResult_ONGOING
-	context.AddAusfUeContextToPool(ausfUeContext)
+	AddAusfUeContextToPool(ausfUeContext)
 
 	logger.AusfLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)
-	context.AddSuciSupiPairToMap(supiOrSuci, ueid)
+	AddSuciSupiPairToMap(supiOrSuci, ueid)
 
 	if authInfoResult.AuthType == models.AuthType__5_G_AKA {
 		logger.AusfLog.Infoln("Use 5G AKA auth method")
@@ -187,7 +186,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		encodedPktBeforeMAC := eapPkt.Encode()
 
 		MACvalue := CalculateAtMAC([]byte(K_aut), encodedPktBeforeMAC)
-		atMacNum := fmt.Sprintf("%02x", context.AT_MAC_ATTRIBUTE)
+		atMacNum := fmt.Sprintf("%02x", AT_MAC_ATTRIBUTE)
 		var atMACfirstRow []byte
 		if atMACfirstRowTmp, err := hex.DecodeString(atMacNum + "05" + "0000"); err != nil {
 			logger.AusfLog.Warnf("MAC decode failed: %+v", err)
@@ -215,19 +214,19 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 	var responseBody models.ConfirmationDataResponse
 	responseBody.AuthResult = models.AuthResult_FAILURE
 
-	if !context.CheckIfSuciSupiPairExists(ConfirmationDataResponseID) {
+	if !CheckIfSuciSupiPairExists(ConfirmationDataResponseID) {
 		logger.AusfLog.Infof("supiSuciPair does not exist, confirmation failed (queried by %s)\n",
 			ConfirmationDataResponseID)
 		return nil, fmt.Errorf("supiSuciPair does not exist")
 	}
 
-	currentSupi := context.GetSupiFromSuciSupiMap(ConfirmationDataResponseID)
-	if !context.CheckIfAusfUeContextExists(currentSupi) {
+	currentSupi := GetSupiFromSuciSupiMap(ConfirmationDataResponseID)
+	if !CheckIfAusfUeContextExists(currentSupi) {
 		logger.AusfLog.Infof("SUPI does not exist, confirmation failed (queried by %s)\n", currentSupi)
 		return nil, fmt.Errorf("SUPI does not exist")
 	}
 
-	ausfCurrentContext := context.GetAusfUeContext(currentSupi)
+	ausfCurrentContext := GetAusfUeContext(currentSupi)
 
 	// Compare the received RES* with the stored XRES*
 	if strings.Compare(updateConfirmationData.ResStar, ausfCurrentContext.XresStar) == 0 {
@@ -251,18 +250,18 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 ) {
 	var responseBody models.EapSession
 
-	if !context.CheckIfSuciSupiPairExists(eapSessionID) {
+	if !CheckIfSuciSupiPairExists(eapSessionID) {
 		logger.AusfLog.Infoln("supiSuciPair does not exist, confirmation failed")
 		return nil, fmt.Errorf("supiSuciPair does not exist")
 	}
 
-	currentSupi := context.GetSupiFromSuciSupiMap(eapSessionID)
-	if !context.CheckIfAusfUeContextExists(currentSupi) {
+	currentSupi := GetSupiFromSuciSupiMap(eapSessionID)
+	if !CheckIfAusfUeContextExists(currentSupi) {
 		logger.AusfLog.Infoln("SUPI does not exist, confirmation failed")
 		return nil, fmt.Errorf("SUPI does not exist")
 	}
 
-	ausfCurrentContext := context.GetAusfUeContext(currentSupi)
+	ausfCurrentContext := GetAusfUeContext(currentSupi)
 	var eapPayload []byte
 	if eapPayloadTmp, err := base64.StdEncoding.DecodeString(updateEapSession.EapPayload); err != nil {
 		logger.AusfLog.Warnf("EAP Payload decode failed: %+v", err)

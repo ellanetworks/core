@@ -1,12 +1,9 @@
-package context
+package ausf
 
 import (
 	"regexp"
 	"sync"
 
-	"github.com/ellanetworks/core/internal/ausf/factory"
-	"github.com/ellanetworks/core/internal/logger"
-	"github.com/google/uuid"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -15,7 +12,6 @@ type AUSFContext struct {
 	UePool      sync.Map
 	snRegex     *regexp.Regexp
 	NfId        string
-	GroupID     string
 	UdmUeauUrl  string
 	PlmnList    []models.PlmnId
 }
@@ -59,15 +55,6 @@ const (
 )
 
 var ausfContext AUSFContext
-
-func Init() {
-	snRegex, err := regexp.Compile("5G:mnc[0-9]{3}[.]mcc[0-9]{3}[.]3gppnetwork[.]org")
-	if err != nil {
-		logger.AusfLog.Warnf("SN compile error: %+v", err)
-	}
-	ausfContext.snRegex = snRegex
-	InitAusfContext(&ausfContext)
-}
 
 func NewAusfUeContext(identifier string) (ausfUeContext *AusfUeContext) {
 	ausfUeContext = new(AusfUeContext)
@@ -125,9 +112,9 @@ func (a *AUSFContext) GetSelfID() string {
 	return a.NfId
 }
 
-func InitAusfContext(context *AUSFContext) {
-	config := factory.AusfConfig
+// func InitAusfContext(context *AUSFContext) {
+// 	config := factory.AusfConfig
 
-	context.NfId = uuid.New().String()
-	context.GroupID = config.GroupId
-}
+// 	context.NfId = uuid.New().String()
+// 	context.GroupID = config.GroupId
+// }

@@ -1,4 +1,4 @@
-package producer
+package ausf
 
 import (
 	"encoding/binary"
