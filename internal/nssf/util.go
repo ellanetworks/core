@@ -1,8 +1,6 @@
-package producer
+package nssf
 
 import (
-	"reflect"
-
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/openapi/models"
 )
@@ -15,34 +13,11 @@ const (
 	UNSUPPORTED_RESOURCE  = "Unsupported request resources"
 )
 
-// Check whether S-NSSAI is in SupportedNssaiAvailabilityData under the given TAI
-func CheckSupportedNssaiAvailabilityData(
-	snssai models.Snssai, tai models.Tai, s []models.SupportedNssaiAvailabilityData,
-) bool {
-	for _, supportedNssaiAvailabilityData := range s {
-		if reflect.DeepEqual(*supportedNssaiAvailabilityData.Tai, tai) &&
-			CheckSnssaiInNssai(snssai, supportedNssaiAvailabilityData.SupportedSnssaiList) {
-			return true
-		}
-	}
-	return false
-}
-
 // Check whether S-NSSAI is standard or non-standard value
 // A standard S-NSSAI is only comprised of a standardized SST value and no SD
 func CheckStandardSnssai(snssai models.Snssai) bool {
 	if snssai.Sst >= 1 && snssai.Sst <= 3 && snssai.Sd == "" {
 		return true
-	}
-	return false
-}
-
-// Check whether the NSSAI contains the specific S-NSSAI
-func CheckSnssaiInNssai(targetSnssai models.Snssai, nssai []models.Snssai) bool {
-	for _, snssai := range nssai {
-		if snssai == targetSnssai {
-			return true
-		}
 	}
 	return false
 }

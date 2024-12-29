@@ -3,7 +3,7 @@ package consumer
 import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/nssf/producer"
+	"github.com/ellanetworks/core/internal/nssf"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -23,13 +23,13 @@ func NSSelectionGetForRegistration(ue *context.AmfUe, requestedNssai []models.Ma
 	}
 
 	amfType := models.NfType_AMF
-	params := producer.NsselectionQueryParameter{
+	params := nssf.NsselectionQueryParameter{
 		NfType:                          &amfType,
 		NfId:                            amfSelf.NfId,
 		SliceInfoRequestForRegistration: &sliceInfo,
 	}
 
-	res, err := producer.GetNSSelection(params)
+	res, err := nssf.GetNSSelection(params)
 	if err != nil {
 		logger.AmfLog.Warnf("GetNSSelection failed: %+v", err)
 		return nil, err
@@ -52,13 +52,13 @@ func NSSelectionGetForPduSession(ue *context.AmfUe, snssai models.Snssai) (
 	}
 
 	amfType := models.NfType_AMF
-	params := producer.NsselectionQueryParameter{
+	params := nssf.NsselectionQueryParameter{
 		NfType:                        &amfType,
 		NfId:                          amfSelf.NfId,
 		SliceInfoRequestForPduSession: &sliceInfoForPduSession,
 	}
 
-	res, err := producer.GetNSSelection(params)
+	res, err := nssf.GetNSSelection(params)
 	if err != nil {
 		logger.AmfLog.Warnf("GetNSSelection failed: %+v", err)
 		return nil, nil, err
