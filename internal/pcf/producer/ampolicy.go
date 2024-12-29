@@ -7,7 +7,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pcf/context"
 	"github.com/ellanetworks/core/internal/pcf/util"
-	"github.com/ellanetworks/core/internal/udr/producer"
+	"github.com/ellanetworks/core/internal/udr"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 )
@@ -101,7 +101,7 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 	amPolicy := ue.AMPolicyData[assolId]
 
 	if amPolicy == nil || amPolicy.AmPolicyData == nil {
-		amData, err := producer.GetAmPolicyData(ue.Supi)
+		amData, err := udr.GetAmPolicyData(ue.Supi)
 		if err != nil {
 			return nil, "", fmt.Errorf("can't find UE[%s] AM Policy Data in UDR", ue.Supi)
 		}

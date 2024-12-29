@@ -2,7 +2,7 @@ package consumer
 
 import (
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/udm/producer"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 )
@@ -22,7 +22,7 @@ func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRe
 			RatType:                ue.RatType,
 			ImsVoPs:                models.ImsVoPs_HOMOGENEOUS_NON_SUPPORT,
 		}
-		err := producer.EditRegistrationAmf3gppAccess(registrationData, ue.Supi)
+		err := udm.EditRegistrationAmf3gppAccess(registrationData, ue.Supi)
 		if err != nil {
 			return nil, err
 		}

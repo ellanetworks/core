@@ -1,4 +1,4 @@
-package producer
+package udm
 
 import (
 	"crypto/rand"
@@ -9,8 +9,7 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/udm/context"
-	"github.com/ellanetworks/core/internal/udr/producer"
+	"github.com/ellanetworks/core/internal/udr"
 	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/ellanetworks/core/internal/util/ueauth"
@@ -73,16 +72,15 @@ func strictHex(s string, n int) string {
 func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (
 	*models.AuthenticationInfoResult, error,
 ) {
-	logger.UdmLog.Debugln("In CreateAuthData")
 	response := &models.AuthenticationInfoResult{}
-	supi, err := suci.ToSupi(supiOrSuci, context.UDM_Self().SuciProfiles)
+	supi, err := suci.ToSupi(supiOrSuci, udmContext.SuciProfiles)
 	if err != nil {
 		return nil, fmt.Errorf("suciToSupi error: %w", err)
 	}
 
 	logger.UdmLog.Debugf("supi conversion => %s\n", supi)
 
-	authSubs, err := producer.GetAuthSubsData(supi)
+	authSubs, err := udr.GetAuthSubsData(supi)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get authentication subscriber data: %w", err)
 	}
@@ -251,7 +249,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	SQNheStr := fmt.Sprintf("%x", bigSQN)
 	SQNheStr = strictHex(SQNheStr, 12)
 
-	err = producer.EditAuthenticationSubscription(supi, SQNheStr)
+	err = udr.EditAuthenticationSubscription(supi, SQNheStr)
 	if err != nil {
 		return nil, fmt.Errorf("update sqn error: %w", err)
 	}

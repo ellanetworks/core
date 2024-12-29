@@ -7,7 +7,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pcf/context"
 	"github.com/ellanetworks/core/internal/pcf/util"
-	"github.com/ellanetworks/core/internal/udr/producer"
+	"github.com/ellanetworks/core/internal/udr"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 )
@@ -67,7 +67,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
-		smData, err = producer.GetSmPolicyData(ue.Supi)
+		smData, err = udr.GetSmPolicyData(ue.Supi)
 		if err != nil {
 			return nil, fmt.Errorf("Can't find UE SM Policy Data in UDR: %s", ue.Supi)
 		}

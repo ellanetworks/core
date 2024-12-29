@@ -11,7 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/ausf/context"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/udm/producer"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -64,7 +64,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
 	}
 
-	authInfoResult, err := producer.CreateAuthData(authInfoReq, supiOrSuci)
+	authInfoResult, err := udm.CreateAuthData(authInfoReq, supiOrSuci)
 	if err != nil {
 		return nil, fmt.Errorf("CreateAuthData failed: %s", err.Error())
 	}

@@ -1,36 +1,34 @@
-package producer
+package udm
 
 import (
 	"fmt"
-	"net/http"
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/udm/context"
-	"github.com/ellanetworks/core/internal/udr/producer"
+	"github.com/ellanetworks/core/internal/udr"
 	"github.com/omec-project/openapi/models"
 )
 
 func GetAmData(supi string) (
 	*models.AccessAndMobilitySubscriptionData, error,
 ) {
-	amData, err := producer.GetAmData(supi)
+	amData, err := udr.GetAmData(supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
-	udmUe := context.UDM_Self().NewUdmUe(supi)
+	udmUe := udmContext.NewUdmUe(supi)
 	udmUe.SetAMSubsriptionData(amData)
 	return amData, nil
 }
 
 func GetSmData(supi string, Dnn string, Snssai string) ([]models.SessionManagementSubscriptionData, error) {
-	sessionManagementSubscriptionDataResp, err := producer.GetSmData(supi)
+	sessionManagementSubscriptionDataResp, err := udr.GetSmData(supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetSmData error: %+v", err)
 	}
 
-	udmUe := context.UDM_Self().NewUdmUe(supi)
-	smData := context.UDM_Self().ManageSmData(sessionManagementSubscriptionDataResp, Snssai, Dnn)
+	udmUe := udmContext.NewUdmUe(supi)
+	smData := udmContext.ManageSmData(sessionManagementSubscriptionDataResp, Snssai, Dnn)
 	udmUe.SetSMSubsData(smData)
 
 	rspSMSubDataList := make([]models.SessionManagementSubscriptionData, 0, 4)
@@ -44,12 +42,12 @@ func GetSmData(supi string, Dnn string, Snssai string) ([]models.SessionManageme
 }
 
 func GetNssai(supi string) (*models.Nssai, error) {
-	accessAndMobilitySubscriptionDataResp, err := producer.GetAmData(supi)
+	accessAndMobilitySubscriptionDataResp, err := udr.GetAmData(supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
 	nssaiResp := *accessAndMobilitySubscriptionDataResp.Nssai
-	udmUe := context.UDM_Self().NewUdmUe(supi)
+	udmUe := udmContext.NewUdmUe(supi)
 	udmUe.Nssai = &nssaiResp
 	return udmUe.Nssai, nil
 }
@@ -58,33 +56,31 @@ func GetSmfSelectData(supi string) (
 	*models.SmfSelectionSubscriptionData, error,
 ) {
 	var body models.SmfSelectionSubscriptionData
-	context.UDM_Self().CreateSmfSelectionSubsDataforUe(supi, body)
-	smfSelectionSubscriptionDataResp, err := producer.GetSmfSelectData(supi)
+	udmContext.CreateSmfSelectionSubsDataforUe(supi, body)
+	smfSelectionSubscriptionDataResp, err := udr.GetSmfSelectData(supi)
 	if err != nil {
 		logger.UdmLog.Errorf("GetSmfSelectData error: %+v", err)
 		return nil, fmt.Errorf("GetSmfSelectData error: %+v", err)
 	}
-	udmUe := context.UDM_Self().NewUdmUe(supi)
+	udmUe := udmContext.NewUdmUe(supi)
 	udmUe.SetSmfSelectionSubsData(smfSelectionSubscriptionDataResp)
 	return udmUe.SmfSelSubsData, nil
 }
 
 func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string) error {
-	sdmSubscriptionResp := producer.CreateSdmSubscriptions(*sdmSubscription, supi)
-	header := make(http.Header)
-	udmUe, _ := context.UDM_Self().UdmUeFindBySupi(supi)
+	sdmSubscriptionResp := udr.CreateSdmSubscriptions(*sdmSubscription, supi)
+	udmUe, _ := udmContext.UdmUeFindBySupi(supi)
 	if udmUe == nil {
-		udmUe = context.UDM_Self().NewUdmUe(supi)
+		udmUe = udmContext.NewUdmUe(supi)
 	}
 	udmUe.CreateSubscriptiontoNotifChange(sdmSubscriptionResp.SubscriptionId, &sdmSubscriptionResp)
-	header.Set("Location", udmUe.GetLocationURI2(context.LocationUriSdmSubscription, supi))
 	return nil
 }
 
 func GetUeContextInSmfData(supi string) (*models.UeContextInSmfData, error) {
 	var body models.UeContextInSmfData
-	context.UDM_Self().CreateUeContextInSmfDataforUe(supi, body)
-	pdusess, err := producer.GetSMFRegistrations(supi)
+	udmContext.CreateUeContextInSmfDataforUe(supi, body)
+	pdusess, err := udr.GetSMFRegistrations(supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetSMFRegistrations error: %+v", err)
 	}
@@ -109,7 +105,7 @@ func GetUeContextInSmfData(supi string) (*models.UeContextInSmfData, error) {
 
 	ueContextInSmfData.PgwInfo = pgwInfoArray
 
-	udmUe := context.UDM_Self().NewUdmUe(supi)
+	udmUe := udmContext.NewUdmUe(supi)
 	udmUe.UeCtxtInSmfData = &ueContextInSmfData
 	return udmUe.UeCtxtInSmfData, nil
 }

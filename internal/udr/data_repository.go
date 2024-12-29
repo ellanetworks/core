@@ -1,4 +1,4 @@
-package producer
+package udr
 
 import (
 	"fmt"
@@ -6,7 +6,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/udr/context"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -48,12 +47,11 @@ func convertDbAmDataToModel(bitrateDownlink string, bitrateUplink string) *model
 }
 
 func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
-	udrSelf := context.UDR_Self()
-	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
+	subscriber, err := udrContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	profile, err := udrSelf.DbInstance.GetProfileByID(subscriber.ProfileID)
+	profile, err := udrContext.DbInstance.GetProfileByID(subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
@@ -62,14 +60,12 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 }
 
 func EditAuthenticationSubscription(ueId string, sequenceNumber string) error {
-	udrSelf := context.UDR_Self()
-
-	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
+	subscriber, err := udrContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
 	subscriber.SequenceNumber = sequenceNumber
-	err = udrSelf.DbInstance.UpdateSubscriber(subscriber)
+	err = udrContext.DbInstance.UpdateSubscriber(subscriber)
 	if err != nil {
 		return fmt.Errorf("couldn't update subscriber %s: %v", ueId, err)
 	}
@@ -103,8 +99,7 @@ func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 }
 
 func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
-	udrSelf := context.UDR_Self()
-	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
+	subscriber, err := udrContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
@@ -114,8 +109,7 @@ func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 }
 
 func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
-	udrSelf := context.UDR_Self()
-	_, err := udrSelf.DbInstance.GetSubscriber(ueId)
+	_, err := udrContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("USER_NOT_FOUND")
@@ -153,22 +147,20 @@ func GetSMFRegistrations(supi string) ([]*models.SmfRegistration, error) {
 }
 
 func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string) models.SdmSubscription {
-	udrSelf := context.UDR_Self()
-
-	value, ok := udrSelf.UESubsCollection.Load(ueId)
+	value, ok := udrContext.UESubsCollection.Load(ueId)
 	if !ok {
-		udrSelf.UESubsCollection.Store(ueId, new(context.UESubsData))
-		value, _ = udrSelf.UESubsCollection.Load(ueId)
+		udrContext.UESubsCollection.Store(ueId, new(UESubsData))
+		value, _ = udrContext.UESubsCollection.Load(ueId)
 	}
-	UESubsData := value.(*context.UESubsData)
+	UESubsData := value.(*UESubsData)
 	if UESubsData.SdmSubscriptions == nil {
 		UESubsData.SdmSubscriptions = make(map[string]*models.SdmSubscription)
 	}
 
-	newSubscriptionID := strconv.Itoa(udrSelf.SdmSubscriptionIDGenerator)
+	newSubscriptionID := strconv.Itoa(udrContext.SdmSubscriptionIDGenerator)
 	SdmSubscription.SubscriptionId = newSubscriptionID
 	UESubsData.SdmSubscriptions[newSubscriptionID] = &SdmSubscription
-	udrSelf.SdmSubscriptionIDGenerator++
+	udrContext.SdmSubscriptionIDGenerator++
 
 	return SdmSubscription
 }
@@ -217,12 +209,11 @@ func convertDbSessionManagementDataToModel(
 }
 
 func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) {
-	udrSelf := context.UDR_Self()
-	subscriber, err := udrSelf.DbInstance.GetSubscriber(ueId)
+	subscriber, err := udrContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	profile, err := udrSelf.DbInstance.GetProfileByID(subscriber.ProfileID)
+	profile, err := udrContext.DbInstance.GetProfileByID(subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
