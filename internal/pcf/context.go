@@ -1,8 +1,7 @@
-package context
+package pcf
 
 import (
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,10 +15,6 @@ import (
 )
 
 var pcfCtx *PCFContext
-
-func init() {
-	pcfCtx = &PCFContext{}
-}
 
 type PlmnSupportItem struct {
 	PlmnId models.PlmnId
@@ -73,11 +68,6 @@ type AppSessionData struct {
 	AppSessionId string
 }
 
-// Create new PCF context
-func PCF_Self() *PCFContext {
-	return pcfCtx
-}
-
 func GetTimeformat() string {
 	return pcfCtx.TimeFormat
 }
@@ -101,7 +91,6 @@ func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 	newUeContext.SmPolicyData = make(map[string]*UeSmPolicyData)
 	newUeContext.AMPolicyData = make(map[string]*UeAMPolicyData)
 	newUeContext.PolAssociationIDGenerator = 1
-	newUeContext.AppSessionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
 	newUeContext.Supi = Supi
 	logger.PcfLog.Warnf("Storing new UeContext with Supi[%s]", Supi)
 	c.UePool.Store(Supi, newUeContext)
@@ -138,81 +127,6 @@ func (c *PCFContext) PCFUeFindByAppSessionId(appSessionId string) *UeContext {
 	return nil
 }
 
-// Find PcfUe which Ipv4 belongs to
-func (c *PCFContext) PcfUeFindByIPv4(v4 string) *UeContext {
-	var ue *UeContext
-	c.UePool.Range(func(key, value interface{}) bool {
-		ue = value.(*UeContext)
-		if ue.SMPolicyFindByIpv4(v4) != nil {
-			return false
-		} else {
-			return true
-		}
-	})
-
-	return ue
-}
-
-// Find SMPolicy with AppSessionContext
-func ueSMPolicyFindByAppSessionContext(ue *UeContext, req *models.AppSessionContextReqData) (*UeSmPolicyData, error) {
-	var policy *UeSmPolicyData
-	var err error
-
-	if req.UeIpv4 != "" {
-		policy = ue.SMPolicyFindByIdentifiersIpv4(req.UeIpv4, req.SliceInfo, req.Dnn, req.IpDomain)
-		if policy == nil {
-			err = fmt.Errorf("can't find Ue with Ipv4[%s]", req.UeIpv4)
-		}
-	} else if req.UeIpv6 != "" {
-		policy = ue.SMPolicyFindByIdentifiersIpv6(req.UeIpv6, req.SliceInfo, req.Dnn)
-		if policy == nil {
-			err = fmt.Errorf("can't find Ue with Ipv6 prefix[%s]", req.UeIpv6)
-		}
-	} else {
-		err = fmt.Errorf("UE finding by MAC address does not support")
-	}
-	return policy, err
-}
-
-// SessionBinding from application request to get corresponding Sm policy
-func (c *PCFContext) SessionBinding(req *models.AppSessionContextReqData) (*UeSmPolicyData, error) {
-	var selectedUE *UeContext
-	var policy *UeSmPolicyData
-	var err error
-
-	if req.Supi != "" {
-		if val, exist := c.UePool.Load(req.Supi); exist {
-			selectedUE = val.(*UeContext)
-		}
-	}
-
-	if req.Gpsi != "" && selectedUE == nil {
-		c.UePool.Range(func(key, value interface{}) bool {
-			ue := value.(*UeContext)
-			if ue.Gpsi == req.Gpsi {
-				selectedUE = ue
-				return false
-			} else {
-				return true
-			}
-		})
-	}
-
-	if selectedUE != nil {
-		policy, err = ueSMPolicyFindByAppSessionContext(selectedUE, req)
-	} else {
-		c.UePool.Range(func(key, value interface{}) bool {
-			ue := value.(*UeContext)
-			policy, err = ueSMPolicyFindByAppSessionContext(ue, req)
-			return true
-		})
-	}
-	if policy == nil && err == nil {
-		err = fmt.Errorf("no SM policy found")
-	}
-	return policy, err
-}
-
 func Ipv4Pool(ipindex int32) string {
 	ipv4address := IPv4Address + fmt.Sprint((int(ipindex)/255)+1) + "." + fmt.Sprint(int(ipindex)%255)
 	return ipv4address
@@ -235,14 +149,6 @@ func Ipv4Index() int32 {
 	return 1
 }
 
-func GetIpv4Address(ipindex int32) string {
-	return Ipv4_pool[fmt.Sprint(ipindex)]
-}
-
-func DeleteIpv4index(Ipv4index int32) {
-	delete(Ipv4_pool, fmt.Sprint(Ipv4index))
-}
-
 func Ipv6Pool(ipindex int32) string {
 	ipv6address := IPv6Address + fmt.Sprintf("%x\n", ipindex)
 	return ipv6address
@@ -263,10 +169,6 @@ func Ipv6Index() int32 {
 		return int32(len(Ipv6_pool))
 	}
 	return 1
-}
-
-func (c *PCFContext) NewAmfStatusSubscription(subscriptionID string, subscriptionData AMFStatusSubscriptionData) {
-	c.AMFStatusSubsData.Store(subscriptionID, subscriptionData)
 }
 
 func (subs PcfSubscriberPolicyData) String() string {
@@ -320,33 +222,13 @@ func (sess SessionPolicy) String() string {
 	return s
 }
 
-func GetPLMNList() []PlmnSupportItem {
-	pcfSelf := PCF_Self()
-	plmnSupportList := make([]PlmnSupportItem, 0)
-	dbNetwork, err := pcfSelf.DbInstance.GetNetwork()
-	if err != nil {
-		logger.PcfLog.Warnf("Failed to get network slice names: %+v", err)
-		return plmnSupportList
-	}
-	plmnID := models.PlmnId{
-		Mcc: dbNetwork.Mcc,
-		Mnc: dbNetwork.Mnc,
-	}
-	plmnSupportItem := PlmnSupportItem{
-		PlmnId: plmnID,
-	}
-	plmnSupportList = append(plmnSupportList, plmnSupportItem)
-	return plmnSupportList
-}
-
 func GetSubscriberPolicy(imsi string) *PcfSubscriberPolicyData {
-	pcfSelf := PCF_Self()
-	subscriber, err := pcfSelf.DbInstance.GetSubscriber(imsi)
+	subscriber, err := pcfCtx.DbInstance.GetSubscriber(imsi)
 	if err != nil {
 		logger.PcfLog.Warnf("Failed to get subscriber %s: %+v", imsi, err)
 		return nil
 	}
-	profile, err := pcfSelf.DbInstance.GetProfileByID(subscriber.ProfileID)
+	profile, err := pcfCtx.DbInstance.GetProfileByID(subscriber.ProfileID)
 	if err != nil {
 		logger.PcfLog.Warnf("Failed to get profile %d: %+v", subscriber.ProfileID, err)
 		return nil

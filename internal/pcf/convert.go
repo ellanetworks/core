@@ -1,4 +1,4 @@
-package util
+package pcf
 
 import (
 	"fmt"
@@ -35,13 +35,6 @@ var policyTriggerArray = []models.PolicyControlRequestTrigger{
 	models.PolicyControlRequestTrigger_UE_STATUS_RESUME,
 	models.PolicyControlRequestTrigger_UE_TZ_CH,
 }
-
-// func GetSMPolicyKey(snssai *models.Snssai, dnn string) string {
-// 	if snssai == nil || len(snssai.Sd) != 6 || dnn == "" {
-// 		return ""
-// 	}
-// 	return fmt.Sprintf("%02x%s-%s", snssai.Sst, snssai.Sd, dnn)
-// }
 
 // Convert Snssai form models to hexString(sst(2)+sd(6))
 func SnssaiModelsToHex(snssai models.Snssai) string {

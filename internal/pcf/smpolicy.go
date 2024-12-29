@@ -1,12 +1,10 @@
-package producer
+package pcf
 
 import (
 	"fmt"
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/pcf/context"
-	"github.com/ellanetworks/core/internal/pcf/util"
 	"github.com/ellanetworks/core/internal/udr"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
@@ -54,10 +52,9 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 		return nil, fmt.Errorf("Errorneous/Missing Mandotory IE")
 	}
 
-	pcfSelf := context.PCF_Self()
-	var ue *context.UeContext
-	if val, exist := pcfSelf.UePool.Load(request.Supi); exist {
-		ue = val.(*context.UeContext)
+	var ue *UeContext
+	if val, exist := pcfCtx.UePool.Load(request.Supi); exist {
+		ue = val.(*UeContext)
 	}
 
 	if ue == nil {
@@ -98,7 +95,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 
 	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
 	sliceid := sstStr + request.SliceInfo.Sd
-	subscriberPolicy := context.GetSubscriberPolicy(ue.Supi)
+	subscriberPolicy := GetSubscriberPolicy(ue.Supi)
 	if subscriberPolicy == nil {
 		return nil, fmt.Errorf("can't find subscriber policy")
 	}
@@ -126,7 +123,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 		return nil, fmt.Errorf("can't find local policy")
 	}
 
-	dnnData := util.GetSMPolicyDnnData(*smData, request.SliceInfo, request.Dnn)
+	dnnData := GetSMPolicyDnnData(*smData, request.SliceInfo, request.Dnn)
 	if dnnData != nil {
 		decision.Online = dnnData.Online
 		decision.Offline = dnnData.Offline
@@ -135,7 +132,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 		// Set Aggregate GBR if exist
 		if dnnData.GbrDl != "" {
 			var gbrDL float64
-			gbrDL, err = context.ConvertBitRateToKbps(dnnData.GbrDl)
+			gbrDL, err = ConvertBitRateToKbps(dnnData.GbrDl)
 			if err != nil {
 				logger.PcfLog.Warnf(err.Error())
 			} else {
@@ -145,7 +142,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 		}
 		if dnnData.GbrUl != "" {
 			var gbrUL float64
-			gbrUL, err = context.ConvertBitRateToKbps(dnnData.GbrUl)
+			gbrUL, err = ConvertBitRateToKbps(dnnData.GbrUl)
 			if err != nil {
 				logger.PcfLog.Warnf(err.Error())
 			} else {
@@ -164,22 +161,21 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 	if err != nil {
 		logger.PcfLog.Errorf("openapi NewSupportedFeature error: %+v", err)
 	}
-	decision.SuppFeat = pcfSelf.PcfSuppFeats[models.ServiceName_NPCF_SMPOLICYCONTROL].NegotiateWith(requestSuppFeat).String()
+	decision.SuppFeat = pcfCtx.PcfSuppFeats[models.ServiceName_NPCF_SMPOLICYCONTROL].NegotiateWith(requestSuppFeat).String()
 	decision.QosFlowUsage = request.QosFlowUsage
-	decision.PolicyCtrlReqTriggers = util.PolicyControlReqTrigToArray(0x40780f)
+	decision.PolicyCtrlReqTriggers = PolicyControlReqTrigToArray(0x40780f)
 	smPolicyData.PolicyDecision = &decision
-	locationHeader := util.GetResourceUri(models.ServiceName_NPCF_SMPOLICYCONTROL, smPolicyID)
+	locationHeader := GetResourceUri(models.ServiceName_NPCF_SMPOLICYCONTROL, smPolicyID)
 	logger.PcfLog.Infof("Location Header: %s", locationHeader)
 	return &decision, nil
 }
 
 func DeleteSMPolicy(smPolicyID string) error {
-	ue := context.PCF_Self().PCFUeFindByPolicyId(smPolicyID)
+	ue := pcfCtx.PCFUeFindByPolicyId(smPolicyID)
 	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
 		return fmt.Errorf("smPolicyID not found in PCF")
 	}
 
-	pcfSelf := context.PCF_Self()
 	smPolicy := ue.SmPolicyData[smPolicyID]
 
 	// Unsubscrice UDR
@@ -187,14 +183,9 @@ func DeleteSMPolicy(smPolicyID string) error {
 	logger.PcfLog.Debugf("SMPolicy smPolicyID[%s] DELETE", smPolicyID)
 
 	// Release related App Session
-	terminationInfo := models.TerminationInfo{
-		TermCause: models.TerminationCause_PDU_SESSION_TERMINATION,
-	}
 	for appSessionID := range smPolicy.AppSessions {
-		if val, exist := pcfSelf.AppSessionPool.Load(appSessionID); exist {
-			appSession := val.(*context.AppSessionData)
-			SendAppSessionTermination(appSession, terminationInfo)
-			pcfSelf.AppSessionPool.Delete(appSessionID)
+		if _, exist := pcfCtx.AppSessionPool.Load(appSessionID); exist {
+			pcfCtx.AppSessionPool.Delete(appSessionID)
 			logger.PcfLog.Debugf("SMPolicy[%s] DELETE Related AppSession[%s]", smPolicyID, appSessionID)
 		}
 	}
