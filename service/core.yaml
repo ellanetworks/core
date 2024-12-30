@@ -3,13 +3,13 @@ db:
   path: "core.db"
 interfaces: 
   n3: 
-    name: "enp3s0"
+    name: "lo"
     address: "127.0.0.1"
   n6:
-    name: "enp6s0"
+    name: "wlp131s0"
   api:
-    name: "enp0s8"
-    port: 5000
+    name: "lo"
+    port: 5002
     tls:
-      cert: "/etc/ssl/certs/core.crt"
-      key: "/etc/ssl/private/core.key"
+      cert: "/var/snap/ella-core/common/cert.pem"
+      key: "/var/snap/ella-core/common/key.pem"

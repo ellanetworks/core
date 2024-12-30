@@ -56,26 +56,29 @@ make deploy
 
 ## How-to Guides
 
-### Build
+### Build Backend
 
-```
-go install github.com/swaggo/swag/cmd/swag@v1.8.12
-export PATH=$(go env GOPATH)/bin:$PATH
-go generate -v ./internal/upf/...
+```shell
 go build cmd/core/main.go
 ```
 
 ### Build Frontend
 
-```
+```shell
 cd ui
 npm install
 npm run build --prefix ui
 ```
 
+### Build documentation
+
+```shell
+mkdocs build
+```
+
 ### Build the Container image
 
-```bash
+```shell
 sudo snap install rockcraft --classic --edge
 rockcraft pack -v
 sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_0.0.4_amd64.rock docker-daemon:ella-core:0.0.4

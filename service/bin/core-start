@@ -2,4 +2,4 @@
 
 set -ex
 
-"$SNAP"/bin/ella -config "$SNAP_COMMON"/ella.yaml
+"$SNAP"/bin/core -config "$SNAP_COMMON"/core.yaml
