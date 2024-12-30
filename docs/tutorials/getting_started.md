@@ -43,6 +43,7 @@ Navigate to `https://localhost:5002` to access Ella Core's UI.
 You should be prompted to initialize Ella Core and to create the first user.
 
 Create the first user with the following credentials:
+
 - Username: `admin`
 - Password: `admin`
 
@@ -55,6 +56,7 @@ You will be redirected to the dashboard.
 Navigate to the `Radios` page and click on the `Create` button.
 
 Create a radio with the following parameters:
+
 - Name: `test`
 - TAC: `001`
 
@@ -63,6 +65,7 @@ Create a radio with the following parameters:
 Navigate to the `Profiles` page and click on the `Create` button.
 
 Create a profile with the following parameters:
+
 - Name: `default`
 - UE IP Pool: `172.250.0.0/16`
 - DNS: `8.8.8.8`
@@ -75,6 +78,7 @@ Create a profile with the following parameters:
 Navigate to the `Subscribers` page and click on the `Create` button.
 
 Create a subscriber with the following parameters:
+
 - IMSI: `001010100007488`
 - OPC: `981d464c7c52eb6e5036234984ad0bcf`
 - Key: `5122250214c33e723a5dd523fc145fc0`

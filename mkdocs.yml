@@ -9,9 +9,8 @@ theme:
   font:
     text: Source Code Pro
   features:
-    - navigation.tabs
+    - navigation.sections
     - navigation.footer
-    - navigation.indexes
     - navigation.expand
   icon:
     repo: fontawesome/brands/github
@@ -31,3 +30,21 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
+nav:
+  - Home: index.md
+  - Tutorials:
+    - Getting Started: tutorials/getting_started.md
+  - How-to Guides:
+    - Deploy: how_to/deploy.md
+  - Reference:
+    - API:
+      - Introduction: reference/api/index.md
+      - Login: reference/api/login.md
+      - Network: reference/api/network.md
+      - Profiles: reference/api/profiles.md
+      - Radios: reference/api/radios.md
+      - Status: reference/api/status.md
+      - Subscribers: reference/api/subscribers.md
+      - Users: reference/api/users.md
+    - Configuration File: reference/config_file.md
+    - Connectivity: reference/connectivity.md
