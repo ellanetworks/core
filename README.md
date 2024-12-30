@@ -1,12 +1,14 @@
 # Ella Core
 
-<img src="images/logo.png" alt="alt text" width="200"/>
+<img src="docs/images/logo.png" alt="alt text" width="200"/>
 
 Ella Core is a 5G mobile core network for private deployments. It is designed to be easy to operate, reliable, and secure.
 
 Typical mobile networks are complex, expensive, and difficult to operate. Forget microservices, external databases, complex configurations, and expensive hardware. Ella Core is a single binary that runs on a single machine.
 
 Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm, a stadium, a ship, or a remote location.
+
+[Get Started Now!](https://ellanetworks.github.io/core/tutorials/getting_started/)
 
 ## Key features
 
@@ -25,171 +27,7 @@ Building Ella Core, we make engineering decisions based on the following tenets:
 
 ## Documentation
 
-### Getting Started
-
-Install the snap:
-
-```bash
-sudo snap install ella-core --channel=edge --devmode
-```
-
-Generate (or copy) a certificate and private key to the following location:
-```bash
-sudo openssl req -newkey rsa:2048 -nodes -keyout /var/snap/ella-core/common/key.pem -x509 -days 1 -out /var/snap/ella-core/common/cert.pem -subj "/CN=example.com"
-```
-
-Start the service:
-```bash
-sudo snap start ella-core.cored
-```
-
-Navigate to `https://localhost:5000` to access Ella Core's UI.
-
-### How-to Guides
-
-#### Deploy Ella
-
-##### Option 1: Snap
-
-Install the snap:
-
-```bash
-sudo snap install ella-core --channel=edge --devmode
-```
-
-Generate (or copy) a certificate and private key to the following location:
-
-```bash
-sudo openssl req -newkey rsa:2048 -nodes -keyout /var/snap/ella-core/common/key.pem -x509 -days 1 -out /var/snap/ella-core/common/cert.pem -subj "/CN=example.com"
-```
-
-Start the service:
-```bash
-sudo snap start ella-core.cored
-```
-
-Navigate to `https://localhost:5000` to access the Ella UI.
-
-#### Option 2: Kubernetes (MicroK8s) with Juju
-
-Install MicroK8s:
-
-```shell
-sudo snap install microk8s --channel=1.31/stable --classic
-```
-
-Add the necessary MicroK8s addons:
-
-```shell
-sudo microk8s addons repo add community https://github.com/canonical/microk8s-community-addons --reference feat/strict-fix-multus
-sudo microk8s enable hostpath-storage
-sudo microk8s enable multus
-```
-
-Install Juju:
-
-```shell
-sudo snap install juju
-```
-
-Bootstrap a Juju controller:
-
-```shell
-juju bootstrap microk8s
-```
-
-Create a Juju model:
-
-```shell
-juju add-model ella-core
-```
-
-```shell
-juju deploy ella-core-k8s --trust
-```
-
-### Reference
-
-#### Concepts
-
-- **Profile**: A profile is a reusable set of parameters for managing subscribers in the network. The profile includes Bitrate and Quality of Service (QoS) parameters.
-- **Subscriber**: A subscriber is a user of the private mobile network.
-
-#### API
-
-##### Endpoints
-
-| Endpoint                     | HTTP Method | Description                                    |
-| ---------------------------- | ----------- | ---------------------------------------------- |
-| `/api/v1/status`             | GET         | Get status (Unauthenticated)                   |
-| `/api/v1/metrics`            | GET         | Get metrics (Unauthenticated)                  |
-| `/api/v1/subscribers`        | GET         | List subscribers                               |
-| `/api/v1/subscribers`        | POST        | Create a subscriber                            |
-| `/api/v1/subscribers/{imsi}` | PUT         | Update a subscriber                            |
-| `/api/v1/subscribers/{imsi}` | GET         | Get a subscriber                               |
-| `/api/v1/subscribers/{imsi}` | DELETE      | Delete a subscriber                            |
-| `/api/v1/radios`             | GET         | List radios                                    |
-| `/api/v1/radios`             | POST        | Create a radio                                 |
-| `/api/v1/radios/{name}`      | PUT         | Update a radio                                 |
-| `/api/v1/radios/{name}`      | GET         | Get a radio                                    |
-| `/api/v1/radios/{name}`      | DELETE      | Delete a radio                                 |
-| `/api/v1/network`            | PUT         | Update network configuration                   |
-| `/api/v1/network`            | GET         | Get network configuration                      |
-| `/api/v1/profiles`           | GET         | List profiles                                  |
-| `/api/v1/profiles`           | POST        | Create a profile                               |
-| `/api/v1/profiles/{name}`    | PUT         | Update a profile                               |
-| `/api/v1/profiles/{name}`    | GET         | Get a profile                                  |
-| `/api/v1/profiles/{name}`    | DELETE      | Delete a profile                               |
-| `/api/v1/users`              | GET         | List users                                     |
-| `/api/v1/users`              | POST        | Create a user (Unauthenticated for first user) |
-| `/api/v1/users/{username}`   | PUT         | Update a user                                  |
-| `/api/v1/users/{username}`   | GET         | Get a user                                     |
-| `/api/v1/users/{username}`   | DELETE      | Delete a user                                  |
-| `api/v1/login`               | POST        | Login (Unauthenticated)                        |
-
-##### Responses
-
-Ella Core's API responses are JSON objects with the following structure:
-
-```json
-{
-  "result": "Result content",
-  "error": "Error message",
-}
-```
-
-#### Configuration
-
-##### Example
-
-```yaml
-log-level: "debug"  # debug, info, warn, error
-db:
-  path: "core.db"
-interfaces: 
-  n3: 
-    name: "enp3s0"
-    address: "127.0.0.1"
-  n6:
-    name: "enp6s0"
-  api:
-    name: "enp0s8"
-    port: 5000
-    tls:
-      cert: "/etc/ssl/certs/core.crt"
-      key: "/etc/ssl/private/core.key"
-```
-
-#### Connectivity
-
-Ella Core uses 4 different interfaces:
-
-- **API**: The HTTP API and UI (HTTPS:5000)
-- **N2**: The control plane interface between Ella Core and the 5G Radio (SCTP:38412)
-- **N3**: The user plane interface between Ella Core and the 5G Radio (SCTP:2152)
-- **N6**: The user plane interface between Ella Core and the internet
-
-<img src="images/connectivity.png" alt="alt text" width="400"/>
+Documentation is available at [ellanetworks.github.io/core/](https://ellanetworks.github.io/core/).
 
 #### Acknowledgements
 

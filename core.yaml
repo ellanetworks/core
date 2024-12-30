@@ -8,7 +8,7 @@ interfaces:
   n6:
     name: "lo"
   api:
-    name: "enp0s8"
+    name: "lo"
     port: 5001
     tls:
       cert: "cert.pem"

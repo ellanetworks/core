@@ -1,0 +1,54 @@
+site_name: Ella Core Documentation
+site_url: https://mydomain.org/mysite
+theme:
+  name: material
+  logo: images/logo.png
+  favicon: images/logo.png
+  palette:
+    primary: custom
+  font:
+    text: Source Code Pro
+  features:
+    - navigation.sections
+    - navigation.footer
+    - navigation.expand
+  icon:
+    repo: fontawesome/brands/github
+extra_css:
+  - stylesheets/extra.css
+repo_url: https://github.com/ellanetworks/core
+repo_name: ellanetworks/core
+copyright: Copyright &copy; 2024 Guillaume Belanger
+extra:
+  generator: false
+markdown_extensions: 
+  - attr_list
+  - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+nav:
+  - Home: index.md
+  - Tutorials:
+    - Getting Started: tutorials/getting_started.md
+  - How-to Guides:
+    - Deploy: how_to/deploy.md
+  - Reference:
+    - API:
+      - Introduction: reference/api/index.md
+      - Login: reference/api/login.md
+      - Metrics: reference/api/metrics.md
+      - Network: reference/api/network.md
+      - Profiles: reference/api/profiles.md
+      - Radios: reference/api/radios.md
+      - Status: reference/api/status.md
+      - Subscribers: reference/api/subscribers.md
+      - Users: reference/api/users.md
+    - Metrics: reference/metrics.md
+    - Configuration File: reference/config_file.md
+    - Connectivity: reference/connectivity.md
