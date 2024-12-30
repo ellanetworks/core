@@ -8,7 +8,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
-	"github.com/ellanetworks/core/internal/amf/producer/callback"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/nas/nasMessage"
@@ -189,7 +188,6 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			return nil, "", nil, transferErr
 		}
 		ue.T3513.Stop()
-		callback.SendN1N2TransferFailureNotification(ue, models.N1N2MessageTransferCause_UE_NOT_RESPONDING)
 	case context.OnGoingProcedureRegistration:
 		transferErr = new(models.N1N2MessageTransferError)
 		transferErr.Error = &models.ProblemDetails{

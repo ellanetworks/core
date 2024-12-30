@@ -2,7 +2,6 @@ package message
 
 import (
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/producer/callback"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap/ngapType"
@@ -667,9 +666,6 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) {
 		}, func() {
 			ue.GmmLog.Warnf("T3513 expires %d times, abort paging procedure", cfg.MaxRetryTimes)
 			ue.T3513 = nil // clear the timer
-			if ue.GetOnGoing(models.AccessType__3_GPP_ACCESS).Procedure != context.OnGoingProcedureN2Handover {
-				callback.SendN1N2TransferFailureNotification(ue, models.N1N2MessageTransferCause_UE_NOT_RESPONDING)
-			}
 		})
 	}
 }
