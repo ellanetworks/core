@@ -113,12 +113,12 @@ func (db *Database) DeleteUser(username string) error {
 func (db *Database) NumUsers() (int, error) {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(getNumUsersStmt, db.usersTable), NumUsers{})
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to prepare statement: %v", err)
 	}
 	result := NumUsers{}
 	err = db.conn.Query(context.Background(), stmt).Get(&result)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to get number of users: %v", err)
 	}
 	return result.Count, nil
 }

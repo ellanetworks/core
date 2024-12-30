@@ -160,7 +160,7 @@ func (connection *PfcpConnection) GetSessionCount() int {
 	return count
 }
 
-func (connection *PfcpConnection) GetAssiciationCount() int {
+func (connection *PfcpConnection) GetAssociationCount() int {
 	return len(connection.NodeAssociations)
 }
 

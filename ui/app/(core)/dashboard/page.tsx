@@ -4,6 +4,7 @@ import { Box, Typography, CircularProgress, Alert } from "@mui/material";
 import { getStatus } from "@/queries/status";
 import { getMetrics } from "@/queries/metrics";
 import { listSubscribers } from "@/queries/subscribers";
+import { listRadios } from "@/queries/radios";
 import Grid from "@mui/material/Grid2";
 import { useRouter } from "next/navigation"
 import { useCookies } from "react-cookie"
@@ -15,8 +16,10 @@ const Dashboard = () => {
 
   const [version, setVersion] = useState<string | null>(null);
   const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
+  const [radioCount, setRadioCount] = useState<number | null>(null);
   const [activeSessions, setActiveSessions] = useState<number | null>(null);
   const [memoryUsage, setMemoryUsage] = useState<number | null>(null);
+  const [databaseSize, setDatabaseSize] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,33 +36,41 @@ const Dashboard = () => {
     const memoryMetric = lines.find((line) =>
       line.startsWith("go_memstats_alloc_bytes ")
     );
+    const databaseSizeMetric = lines.find((line) =>
+      line.startsWith("app_database_storage_bytes ")
+    );
 
     return {
       pduSessions: pduSessionMetric
         ? parseInt(pduSessionMetric.split(" ")[1], 10)
         : 0,
       memoryUsage: memoryMetric
-        ? Math.round(parseFloat(memoryMetric.split(" ")[1]) / (1024 * 1024))
+        ? Math.round(parseFloat(memoryMetric.split(" ")[1]) / (1024 * 1024)) // Convert bytes to MB
+        : 0,
+      databaseSize: databaseSizeMetric
+        ? Math.round(parseFloat(databaseSizeMetric.split(" ")[1]) / (1024)) // Convert bytes to KB
         : 0,
     };
   };
 
-
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [status, subscribers, metrics] = await Promise.all([
+        const [status, subscribers, radios, metrics] = await Promise.all([
           getStatus(),
           listSubscribers(cookies.user_token),
+          listRadios(cookies.user_token),
           getMetrics(),
         ]);
 
         setVersion(status.version);
         setSubscriberCount(subscribers.length);
+        setRadioCount(radios.length);
 
-        const { pduSessions, memoryUsage } = parseMetrics(metrics);
+        const { pduSessions, memoryUsage, databaseSize } = parseMetrics(metrics);
         setActiveSessions(pduSessions);
         setMemoryUsage(memoryUsage);
+        setDatabaseSize(databaseSize);
       } catch (err: any) {
         console.error("Failed to fetch data:", err);
         setError("Failed to fetch data.");
@@ -97,6 +108,29 @@ const Dashboard = () => {
         Network
       </Typography>
       <Grid container spacing={2} justifyContent="flex-start">
+        <Grid size={{ xs: 6, sm: 3 }}>
+          <Box
+            sx={{
+              width: "200px",
+              height: "200px",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              textAlign: "center",
+            }}
+          >
+            <Typography variant="h6">Radios</Typography>
+            {loading ? (
+              <CircularProgress />
+            ) : (
+              <Typography variant="h4">{radioCount ?? 0}</Typography>
+            )}
+          </Box>
+        </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
           <Box
             sx={{
@@ -175,6 +209,31 @@ const Dashboard = () => {
             ) : (
               <Typography variant="h4">
                 {memoryUsage !== null ? `${memoryUsage} MB` : "N/A"}
+              </Typography>
+            )}
+          </Box>
+        </Grid>
+        <Grid size={{ xs: 6, sm: 3 }}>
+          <Box
+            sx={{
+              width: "200px",
+              height: "200px",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              textAlign: "center",
+            }}
+          >
+            <Typography variant="h6">Database Size</Typography>
+            {loading ? (
+              <CircularProgress />
+            ) : (
+              <Typography variant="h4">
+                {databaseSize !== null ? `${databaseSize} KB` : "N/A"}
               </Typography>
             )}
           </Box>

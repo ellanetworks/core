@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/nms"
 	"github.com/ellanetworks/core/internal/nssf"
 	"github.com/ellanetworks/core/internal/pcf"
@@ -85,6 +86,7 @@ func main() {
 			log.Fatalf("Failed to close database: %v", err)
 		}
 	}()
+	metrics.RegisterDatabaseMetrics(dbInstance)
 	err = startNetwork(dbInstance, cfg)
 	if err != nil {
 		logger.EllaLog.Panicf("Failed to start network: %v", err)

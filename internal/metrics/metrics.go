@@ -3,6 +3,8 @@ package metrics
 import (
 	"time"
 
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
 	smfStats "github.com/ellanetworks/core/internal/smf/stats"
 	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
@@ -46,7 +48,24 @@ var (
 		Help:       "Duration of the PFCP message processing",
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	}, []string{"message_type"})
+	DatabaseStorageUsed prometheus.GaugeFunc
 )
+
+func RegisterDatabaseMetrics(db *db.Database) {
+	DatabaseStorageUsed = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "app_database_storage_bytes",
+		Help: "The total storage used by the database in bytes. This is the size of the database file on disk.",
+	}, func() float64 {
+		dbSize, err := db.GetSize()
+		if err != nil {
+			logger.MetricsLog.Warnf("Failed to get database storage used: %v", err)
+			return 0
+		}
+		return float64(dbSize)
+	})
+
+	prometheus.MustRegister(DatabaseStorageUsed)
+}
 
 func RegisterSmfMetrics() {
 	PduSessions = prometheus.NewCounterFunc(prometheus.CounterOpts{
@@ -107,7 +126,7 @@ func RegisterUPFMetrics(stats ebpf.UpfXdpActionStatistic, conn *core.PfcpConnect
 		Name: "upf_pfcp_associations",
 		Help: "The current number of PFCP associations",
 	}, func() float64 {
-		return float64(conn.GetAssiciationCount())
+		return float64(conn.GetAssociationCount())
 	})
 
 	// Register metrics
