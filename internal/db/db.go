@@ -12,6 +12,7 @@ import (
 
 // Database is the object used to communicate with the established repository.
 type Database struct {
+	filepath         string
 	subscribersTable string
 	profilesTable    string
 	networkTable     string
@@ -57,6 +58,7 @@ func NewDatabase(databasePath string) (*Database, error) {
 	}
 	db := new(Database)
 	db.conn = sqlair.NewDB(sqlConnection)
+	db.filepath = databasePath
 	db.subscribersTable = SubscribersTableName
 	db.profilesTable = ProfilesTableName
 	db.networkTable = NetworkTableName

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/version"
 	"github.com/gin-gonic/gin"
 )
@@ -17,6 +18,7 @@ func GetStatus(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		numUsers, err := dbInstance.NumUsers()
 		if err != nil {
+			logger.NmsLog.Warnf("Failed to query number of users: %v", err)
 			writeError(c.Writer, http.StatusInternalServerError, "Unable to retrieve number of users")
 			return
 		}

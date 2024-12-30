@@ -3,7 +3,7 @@ db:
   path: "core.db"
 interfaces: 
   n3: 
-    name: "wlp9s0"
+    name: "wlp131s0"
     address: "127.0.0.1"
   n6:
     name: "lo"
