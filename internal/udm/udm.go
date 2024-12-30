@@ -1,7 +1,9 @@
 package udm
 
 import (
-	"github.com/ellanetworks/core/internal/udm/context"
+	"math"
+
+	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/omec-project/openapi/models"
 )
@@ -11,13 +13,14 @@ const (
 )
 
 func Start() error {
-	self := context.UDM_Self()
-	self.UriScheme = models.UriScheme_HTTP
-	self.SuciProfiles = []suci.SuciProfile{
+	udmContext.UriScheme = models.UriScheme_HTTP
+	udmContext.SuciProfiles = []suci.SuciProfile{
 		{
 			ProtectionScheme: "1", // Standard defined value for Protection Scheme A (TS 33.501 Annex C)
 			PrivateKey:       UDM_HNP_PRIVATE_KEY,
 		},
 	}
+	udmContext.NfService = make(map[models.ServiceName]models.NfService)
+	udmContext.EeSubscriptionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
 	return nil
 }

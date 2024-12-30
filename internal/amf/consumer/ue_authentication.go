@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"strconv"
 
-	amf_context "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/ausf/producer"
+	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/nas/nasType"
 	"github.com/omec-project/openapi/models"
 )
 
-func SendUEAuthenticationAuthenticateRequest(ue *amf_context.AmfUe,
+func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 	resynchronizationInfo *models.ResynchronizationInfo,
 ) (*models.UeAuthenticationCtx, *models.ProblemDetails, error) {
-	guamiList := amf_context.GetServedGuamiList()
+	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 	var plmnId *models.PlmnId
 	if ue.Tai.PlmnId != nil {
@@ -36,7 +36,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *amf_context.AmfUe,
 		authInfo.ResynchronizationInfo = resynchronizationInfo
 	}
 
-	ueAuthenticationCtx, err := producer.UeAuthPostRequestProcedure(authInfo)
+	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(authInfo)
 	if err != nil {
 		logger.AmfLog.Errorf("UE Authentication Authenticate Request failed: %+v", err)
 		return nil, nil, err
@@ -44,13 +44,13 @@ func SendUEAuthenticationAuthenticateRequest(ue *amf_context.AmfUe,
 	return ueAuthenticationCtx, nil, nil
 }
 
-func SendAuth5gAkaConfirmRequest(ue *amf_context.AmfUe, resStar string) (
+func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string) (
 	*models.ConfirmationDataResponse, *models.ProblemDetails, error,
 ) {
 	confirmationData := models.ConfirmationData{
 		ResStar: resStar,
 	}
-	confirmResult, err := producer.Auth5gAkaComfirmRequestProcedure(confirmationData, ue.Suci)
+	confirmResult, err := ausf.Auth5gAkaComfirmRequestProcedure(confirmationData, ue.Suci)
 	if err != nil {
 		logger.AmfLog.Errorf("Auth5gAkaComfirmRequestProcedure failed: %+v", err)
 		problemDetails := &models.ProblemDetails{
@@ -63,7 +63,7 @@ func SendAuth5gAkaConfirmRequest(ue *amf_context.AmfUe, resStar string) (
 	return confirmResult, nil, nil
 }
 
-func SendEapAuthConfirmRequest(ue *amf_context.AmfUe, eapMsg nasType.EAPMessage) (
+func SendEapAuthConfirmRequest(ue *context.AmfUe, eapMsg nasType.EAPMessage) (
 	*models.EapSession, *models.ProblemDetails, error,
 ) {
 	logger.AmfLog.Warnf("SendEapAuthConfirmRequest")
@@ -72,7 +72,7 @@ func SendEapAuthConfirmRequest(ue *amf_context.AmfUe, eapMsg nasType.EAPMessage)
 		EapPayload: base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage()),
 	}
 
-	response, err := producer.EapAuthComfirmRequestProcedure(eapSession, ue.Suci)
+	response, err := ausf.EapAuthComfirmRequestProcedure(eapSession, ue.Suci)
 	if err != nil {
 		logger.AmfLog.Errorf("EapAuthComfirmRequestProcedure failed: %+v", err)
 		problemDetails := &models.ProblemDetails{

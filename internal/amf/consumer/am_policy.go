@@ -3,7 +3,7 @@ package consumer
 import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/pcf/producer"
+	"github.com/ellanetworks/core/internal/pcf"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -28,7 +28,7 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) (*models
 		policyAssociationRequest.Rfsp = ue.AccessAndMobilitySubscriptionData.RfspIndex
 	}
 
-	res, locationHeader, err := producer.CreateAMPolicy(policyAssociationRequest)
+	res, locationHeader, err := pcf.CreateAMPolicy(policyAssociationRequest)
 	if err != nil {
 		logger.AmfLog.Warnf("Failed to create policy: %+v", err)
 		problem := &models.ProblemDetails{
@@ -56,7 +56,7 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) (*models
 func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssociationUpdateRequest) (
 	*models.ProblemDetails, error,
 ) {
-	res, err := producer.UpdateAMPolicy(ue.PolicyAssociationId, updateRequest)
+	res, err := pcf.UpdateAMPolicy(ue.PolicyAssociationId, updateRequest)
 	if err != nil {
 		problemDetails := &models.ProblemDetails{
 			Status: 500,
@@ -82,7 +82,7 @@ func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssocia
 }
 
 func AMPolicyControlDelete(ue *context.AmfUe) (*models.ProblemDetails, error) {
-	err := producer.DeleteAMPolicy(ue.PolicyAssociationId)
+	err := pcf.DeleteAMPolicy(ue.PolicyAssociationId)
 	if err != nil {
 		problemDetails := &models.ProblemDetails{
 			Status: 500,

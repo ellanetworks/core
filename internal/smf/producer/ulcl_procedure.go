@@ -6,7 +6,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/factory"
 	"github.com/ellanetworks/core/internal/smf/pfcp/message"
 	"github.com/ellanetworks/core/internal/util/flowdesc"
 )
@@ -113,6 +112,7 @@ func AddPDUSessionAnchorAndULCL(smContext *context.SMContext, nodeID context.Nod
 }
 
 func EstablishPSA2(smContext *context.SMContext) {
+	self := context.SMF_Self()
 	bpMGR := smContext.BPManager
 	bpMGR.PendingUPF = make(context.PendingUPF)
 	activatingPath := bpMGR.ActivatingPath
@@ -123,7 +123,7 @@ func EstablishPSA2(smContext *context.SMContext) {
 		if nodeAfterULCL {
 			addr := net.UDPAddr{
 				IP:   curDataPathNode.UPF.NodeID.NodeIdValue,
-				Port: factory.UPF_PFCP_PORT,
+				Port: self.UpfPfcpPort,
 			}
 
 			logger.SmfLog.Debugln("Send to upf addr: ", addr.String())

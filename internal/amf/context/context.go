@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ellanetworks/core/internal/amf/factory"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
@@ -37,6 +36,43 @@ func init() {
 	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapId)
 }
 
+type NetworkFeatureSupport5GS struct {
+	Enable  bool
+	ImsVoPS uint8
+	Emc     uint8
+	Emf     uint8
+	IwkN26  uint8
+	Mpsi    uint8
+	EmcN3   uint8
+	Mcsi    uint8
+}
+
+type Sbi struct {
+	BindingIPv4 string
+	Port        int
+}
+
+type Security struct {
+	IntegrityOrder []string
+	CipheringOrder []string
+}
+
+type PlmnSupportItem struct {
+	PlmnId     models.PlmnId
+	SNssaiList []models.Snssai
+}
+
+type NetworkName struct {
+	Full  string
+	Short string
+}
+
+type TimerValue struct {
+	Enable        bool
+	ExpireTime    time.Duration
+	MaxRetryTimes int
+}
+
 type AMFContext struct {
 	DbInstance                      *db.Database
 	EventSubscriptionIDGenerator    *idgenerator.IDGenerator
@@ -51,6 +87,7 @@ type AMFContext struct {
 	NfService                       map[models.ServiceName]models.NfService // nfservice that amf support
 	UriScheme                       models.UriScheme
 	NgapPort                        int
+	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
 	SctpGrpcPort                    int
 	HttpIPv6Address                 string
 	TNLWeightFactor                 int64
@@ -58,17 +95,17 @@ type AMFContext struct {
 	AMFStatusSubscriptions          sync.Map // map[subscriptionID]models.SubscriptionData
 	NfStatusSubscriptions           sync.Map // map[NfInstanceID]models.NrfSubscriptionData.SubscriptionId
 	SecurityAlgorithm               SecurityAlgorithm
-	NetworkName                     factory.NetworkName
+	NetworkName                     NetworkName
 	NgapIpList                      []string // NGAP Server IP
 	T3502Value                      int      // unit is second
 	T3512Value                      int      // unit is second
 	Non3gppDeregistrationTimerValue int      // unit is second
 	// read-only fields
-	T3513Cfg factory.TimerValue
-	T3522Cfg factory.TimerValue
-	T3550Cfg factory.TimerValue
-	T3560Cfg factory.TimerValue
-	T3565Cfg factory.TimerValue
+	T3513Cfg TimerValue
+	T3522Cfg TimerValue
+	T3550Cfg TimerValue
+	T3560Cfg TimerValue
+	T3565Cfg TimerValue
 }
 
 type AMFContextEventSubscription struct {
@@ -84,7 +121,7 @@ type SecurityAlgorithm struct {
 	CipheringOrder []uint8 // slice of security.AlgCipheringXXX
 }
 
-func NewPlmnSupportItem() (item factory.PlmnSupportItem) {
+func NewPlmnSupportItem() (item PlmnSupportItem) {
 	item.SNssaiList = make([]models.Snssai, 0, MaxNumOfSlice)
 	return
 }
@@ -441,6 +478,62 @@ func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 
 func (context *AMFContext) GetIPv4Uri() string {
 	return fmt.Sprintf("%s://", context.UriScheme)
+}
+
+func (context *AMFContext) Get5gsNwFeatSuppImsVoPS() uint8 {
+	if context.NetworkFeatureSupport5GS != nil {
+		return context.NetworkFeatureSupport5GS.ImsVoPS
+	}
+	return 0
+}
+
+func (context *AMFContext) Get5gsNwFeatSuppEnable() bool {
+	if context.NetworkFeatureSupport5GS != nil {
+		return context.NetworkFeatureSupport5GS.Enable
+	}
+	return true
+}
+
+func (context *AMFContext) Get5gsNwFeatSuppEmcN3() uint8 {
+	if context.NetworkFeatureSupport5GS != nil {
+		return context.NetworkFeatureSupport5GS.EmcN3
+	}
+	return 0
+}
+
+func (context *AMFContext) Get5gsNwFeatSuppEmc() uint8 {
+	if context.NetworkFeatureSupport5GS != nil {
+		return context.NetworkFeatureSupport5GS.Emc
+	}
+	return 0
+}
+
+func (context *AMFContext) Get5gsNwFeatSuppEmf() uint8 {
+	if context.NetworkFeatureSupport5GS != nil {
+		return context.NetworkFeatureSupport5GS.Emf
+	}
+	return 0
+}
+
+func (context *AMFContext) Get5gsNwFeatSuppIwkN26() uint8 {
+	if context.NetworkFeatureSupport5GS != nil {
+		return context.NetworkFeatureSupport5GS.IwkN26
+	}
+	return 0
+}
+
+func (context *AMFContext) Get5gsNwFeatSuppMpsi() uint8 {
+	if context.NetworkFeatureSupport5GS != nil {
+		return context.NetworkFeatureSupport5GS.Mpsi
+	}
+	return 0
+}
+
+func (context *AMFContext) Get5gsNwFeatSuppMcsi() uint8 {
+	if context.NetworkFeatureSupport5GS != nil {
+		return context.NetworkFeatureSupport5GS.Mcsi
+	}
+	return 0
 }
 
 // Create new AMF context

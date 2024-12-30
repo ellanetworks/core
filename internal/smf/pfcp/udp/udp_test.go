@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/factory"
 	"github.com/ellanetworks/core/internal/smf/pfcp/udp"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
@@ -121,11 +120,11 @@ func TestRun(t *testing.T) {
 func TestServerSendPfcp(t *testing.T) {
 	localAddress := &net.UDPAddr{
 		IP:   net.ParseIP("127.0.0.1"),
-		Port: factory.SMF_PFCP_PORT,
+		Port: 8805,
 	}
 	remoteAddress := &net.UDPAddr{
 		IP:   net.ParseIP("127.0.0.1"),
-		Port: factory.UPF_PFCP_PORT,
+		Port: 8806,
 	}
 
 	msg := message.NewAssociationSetupResponse(1)
@@ -155,7 +154,7 @@ func TestServerNotSetSendPfcp(t *testing.T) {
 	udp.Server = nil
 	remoteAddress := &net.UDPAddr{
 		IP:   net.ParseIP("127.0.0.1"),
-		Port: factory.UPF_PFCP_PORT,
+		Port: 8806,
 	}
 
 	msg := message.NewAssociationSetupResponse(1)

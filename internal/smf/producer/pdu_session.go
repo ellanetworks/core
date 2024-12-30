@@ -11,7 +11,7 @@ import (
 	pfcp_message "github.com/ellanetworks/core/internal/smf/pfcp/message"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/smf/transaction"
-	"github.com/ellanetworks/core/internal/udm/producer"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
@@ -111,7 +111,7 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 
 	snssai := openapi.MarshToJsonString(createData.SNssai)[0]
 
-	sessSubData, err := producer.GetSmData(smContext.Supi, createData.Dnn, snssai)
+	sessSubData, err := udm.GetSmData(smContext.Supi, createData.Dnn, snssai)
 	if err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, get SessionManagementSubscriptionData error: ", err)
 		txn.Rsp = smContext.GeneratePDUSessionEstablishmentReject("SubscriptionDataFetchError")

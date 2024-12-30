@@ -5,7 +5,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
-	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/omec-project/nas"
@@ -484,7 +483,7 @@ func DeregisteredInitiated(state *fsm.State, event fsm.EventType, args fsm.ArgsT
 	case DeregistrationAcceptEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
 		accessType := args[ArgAccessType].(models.AccessType)
-		SetDeregisteredState(amfUe, util.AnTypeToNas(accessType))
+		SetDeregisteredState(amfUe, AnTypeToNas(accessType))
 		logger.AmfLog.Debugln(event)
 	case fsm.ExitEvent:
 		logger.AmfLog.Debugln(event)

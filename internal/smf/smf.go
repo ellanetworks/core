@@ -2,6 +2,7 @@ package smf
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,26 +11,47 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/factory"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/ellanetworks/core/internal/smf/pfcp/message"
 	"github.com/ellanetworks/core/internal/smf/pfcp/udp"
 	"github.com/ellanetworks/core/internal/smf/pfcp/upf"
 )
 
+const (
+	SMF_PFCP_PORT = 8805
+	UPF_PFCP_PORT = 8806
+)
+
 func Start(dbInstance *db.Database) error {
 	if dbInstance == nil {
 		return fmt.Errorf("dbInstance is nil")
 	}
-	configuration := factory.Configuration{
-		PFCP: &factory.PFCP{
-			Addr: "0.0.0.0",
-		},
-		SmfName:    "SMF",
-		DbInstance: dbInstance,
+	smfContext := context.SMF_Self()
+	smfContext.Name = "SMF"
+
+	smfContext.PFCPPort = SMF_PFCP_PORT
+	smfContext.UpfPfcpPort = UPF_PFCP_PORT
+
+	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", "0.0.0.0", SMF_PFCP_PORT))
+	if err != nil {
+		logger.SmfLog.Warnf("PFCP Parse Addr Fail: %v", err)
 	}
-	factory.InitConfigFactory(configuration)
-	context.InitSmfContext(&factory.SmfConfig)
+
+	smfContext.CPNodeID.NodeIdType = 0
+	smfContext.CPNodeID.NodeIdValue = addr.IP.To4()
+
+	smfContext.SupportedPDUSessionType = context.IPV4
+
+	smfContext.SnssaiInfos = make([]context.SnssaiSmfInfo, 0)
+	smfContext.UserPlaneInformation = &context.UserPlaneInformation{
+		UPNodes:              make(map[string]*context.UPNode),
+		UPF:                  nil,
+		AccessNetwork:        make(map[string]*context.UPNode),
+		DefaultUserPlanePath: make(map[string][]*context.UPNode),
+	}
+
+	smfContext.PodIp = os.Getenv("POD_IP")
+	smfContext.DbInstance = dbInstance
 	StartPfcpServer()
 	metrics.RegisterSmfMetrics()
 	return nil
