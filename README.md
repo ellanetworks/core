@@ -8,6 +8,8 @@ Typical mobile networks are complex, expensive, and difficult to operate. Forget
 
 Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm, a stadium, a ship, or a remote location.
 
+[Get Started Now!](https://ellanetworks.github.io/core/tutorials/getting_started/)
+
 ## Key features
 
 * **5G compliant**: A 5G compliant core network  that integrates with 3GPP compliant 5G radios.
@@ -25,7 +27,7 @@ Building Ella Core, we make engineering decisions based on the following tenets:
 
 ## Documentation
 
-Documentation is available at [docs.core.ellanetworks.com](https://docs.core.ellanetworks.com).
+Documentation is available at [ellanetworks.github.io/core/](https://ellanetworks.github.io/core/).
 
 #### Acknowledgements
 
