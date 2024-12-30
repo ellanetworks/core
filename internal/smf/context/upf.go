@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/smf/factory"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/google/uuid"
 	"github.com/omec-project/nas/nasMessage"
@@ -96,7 +95,7 @@ type UPFInterfaceInfo struct {
 }
 
 // NewUPFInterfaceInfo parse the InterfaceUpfInfoItem to generate UPFInterfaceInfo
-func NewUPFInterfaceInfo(i *factory.InterfaceUpfInfoItem) *UPFInterfaceInfo {
+func NewUPFInterfaceInfo(i *InterfaceUpfInfoItem) *UPFInterfaceInfo {
 	interfaceInfo := new(UPFInterfaceInfo)
 
 	interfaceInfo.IPv4EndPointAddresses = make([]net.IP, 0)
@@ -200,7 +199,7 @@ func (upTunnel *UPTunnel) AddDataPath(dataPath *DataPath) {
 
 // *** add unit test ***//
 // NewUPF returns a new UPF context in SMF
-func NewUPF(nodeID *NodeID, ifaces []factory.InterfaceUpfInfoItem) (upf *UPF) {
+func NewUPF(nodeID *NodeID, ifaces []InterfaceUpfInfoItem) (upf *UPF) {
 	upf = new(UPF)
 	upf.uuid = uuid.New()
 
@@ -247,13 +246,6 @@ func (upf *UPF) GetInterface(interfaceType models.UpInterfaceType, dnn string) *
 		}
 	}
 	return nil
-}
-
-func (upf *UPF) PFCPAddr() *net.UDPAddr {
-	return &net.UDPAddr{
-		IP:   upf.NodeID.ResolveNodeIdToIp(),
-		Port: factory.UPF_PFCP_PORT,
-	}
 }
 
 func (upf *UPF) pdrID() (uint16, error) {

@@ -8,7 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/factory"
 	"github.com/wmnsk/go-pfcp/message"
 )
 
@@ -73,12 +72,12 @@ func NewTransaction(pfcpMSG message.Message, binaryMSG []byte, Conn *net.UDPConn
 		DestAddr:       DestAddr,
 		EventData:      eventData,
 	}
-
+	self := context.SMF_Self()
 	if IsRequest(pfcpMSG) {
 		tx.TxType = SendingRequest
 		udpAddr := &net.UDPAddr{
 			IP:   net.ParseIP(context.SMF_Self().CPNodeID.ResolveNodeIdToIp().String()),
-			Port: factory.SMF_PFCP_PORT,
+			Port: self.PFCPPort,
 		}
 		tx.ConsumerAddr = udpAddr.String()
 	} else if IsResponse(pfcpMSG) {
