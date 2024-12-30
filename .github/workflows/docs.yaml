@@ -1,13 +1,12 @@
-name: ci 
+name: docs
 on:
   push:
     branches:
       - main
-      - dev-docshosted
 permissions:
   contents: write
 jobs:
-  deploy:
+  publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
