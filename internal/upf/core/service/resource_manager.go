@@ -4,8 +4,6 @@ import (
 	"errors"
 	"net"
 	"sync"
-
-	"github.com/korylprince/ipnetgen"
 )
 
 type ResourceManager struct {
@@ -25,27 +23,9 @@ type IPAM struct {
 	sync.RWMutex
 }
 
-func NewResourceManager(ipRange string, teidRange uint32) (*ResourceManager, error) {
+func NewResourceManager(teidRange uint32) (*ResourceManager, error) {
 	var ipam IPAM
 	var fteidm FTEIDM
-
-	if ipRange != "" {
-		ipGenerator, err := ipnetgen.New(ipRange)
-		if err != nil {
-			return nil, err
-		}
-		ipGenerator.Next() // Skip first 0-IP
-
-		freeIPs := make([]net.IP, 0, 1024)
-		for ip := ipGenerator.Next(); ip != nil; ip = ipGenerator.Next() {
-			freeIPs = append(freeIPs, ip)
-		}
-
-		ipam = IPAM{
-			freeIPs: freeIPs,
-			busyIPs: make(map[uint64]net.IP),
-		}
-	}
 
 	if teidRange != 0 {
 		freeTEIDs := make([]uint32, 0, 10000)

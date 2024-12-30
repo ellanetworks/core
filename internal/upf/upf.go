@@ -92,7 +92,7 @@ func Start(n3_address string, n3Interface string, n6Interface string) error {
 	}
 
 	var err error
-	resourceManager, err := service.NewResourceManager(config.Conf.UEIPPool, config.Conf.FTEIDPool)
+	resourceManager, err := service.NewResourceManager(config.Conf.FTEIDPool)
 	if err != nil {
 		logger.UpfLog.Errorf("failed to create ResourceManager - err: %v", err)
 	}
