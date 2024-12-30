@@ -2,6 +2,8 @@
 
 === "Snap"
 
+    Ella Core is available as a snap package [here](https://snapcraft.io/ella-core).
+
     Install the snap:
 
     ```bash
