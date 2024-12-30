@@ -48,7 +48,11 @@ var (
 		Help:       "Duration of the PFCP message processing",
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	}, []string{"message_type"})
-	DatabaseStorageUsed prometheus.GaugeFunc
+
+	// Database metrics
+	DatabaseStorageUsed  prometheus.GaugeFunc
+	IPAddressesTotal     prometheus.GaugeFunc
+	IPAddressesAllocated prometheus.GaugeFunc
 )
 
 func RegisterDatabaseMetrics(db *db.Database) {
@@ -64,7 +68,33 @@ func RegisterDatabaseMetrics(db *db.Database) {
 		return float64(dbSize)
 	})
 
+	IPAddressesTotal = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "app_ip_addresses_total",
+		Help: "The total number of IP addresses allocated to subscribers",
+	}, func() float64 {
+		total, err := db.GetIPAddressesTotal()
+		if err != nil {
+			logger.MetricsLog.Warnf("Failed to get total IP addresses: %v", err)
+			return 0
+		}
+		return float64(total)
+	})
+
+	IPAddressesAllocated = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "app_ip_addresses_allocated",
+		Help: "The total number of IP addresses currently allocated to subscribers",
+	}, func() float64 {
+		allocated, err := db.GetIPAddressesAllocated()
+		if err != nil {
+			logger.MetricsLog.Warnf("Failed to get allocated IP addresses: %v", err)
+			return 0
+		}
+		return float64(allocated)
+	})
+
 	prometheus.MustRegister(DatabaseStorageUsed)
+	prometheus.MustRegister(IPAddressesTotal)
+	prometheus.MustRegister(IPAddressesAllocated)
 }
 
 func RegisterSmfMetrics() {

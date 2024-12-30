@@ -5,6 +5,7 @@ import { getStatus } from "@/queries/status";
 import { getMetrics } from "@/queries/metrics";
 import { listSubscribers } from "@/queries/subscribers";
 import { listRadios } from "@/queries/radios";
+import { PieChart } from "@mui/x-charts/PieChart";
 import Grid from "@mui/material/Grid2";
 import { useRouter } from "next/navigation"
 import { useCookies } from "react-cookie"
@@ -20,6 +21,8 @@ const Dashboard = () => {
   const [activeSessions, setActiveSessions] = useState<number | null>(null);
   const [memoryUsage, setMemoryUsage] = useState<number | null>(null);
   const [databaseSize, setDatabaseSize] = useState<number | null>(null);
+  const [allocatedIPs, setAllocatedIPs] = useState<number | null>(null);
+  const [totalIPs, setTotalIPs] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +43,14 @@ const Dashboard = () => {
       line.startsWith("app_database_storage_bytes ")
     );
 
+    const allocatedIPsMetric = lines.find((line) =>
+      line.startsWith("app_ip_addresses_allocated ")
+    );
+    const totalIPsMetric = lines.find((line) =>
+      line.startsWith("app_ip_addresses_total ")
+    );
+
+
     return {
       pduSessions: pduSessionMetric
         ? parseInt(pduSessionMetric.split(" ")[1], 10)
@@ -49,6 +60,12 @@ const Dashboard = () => {
         : 0,
       databaseSize: databaseSizeMetric
         ? Math.round(parseFloat(databaseSizeMetric.split(" ")[1]) / (1024)) // Convert bytes to KB
+        : 0,
+      allocatedIPs: allocatedIPsMetric
+        ? parseInt(allocatedIPsMetric.split(" ")[1], 10)
+        : 0,
+      totalIPs: totalIPsMetric
+        ? parseInt(totalIPsMetric.split(" ")[1], 10)
         : 0,
     };
   };
@@ -67,10 +84,14 @@ const Dashboard = () => {
         setSubscriberCount(subscribers.length);
         setRadioCount(radios.length);
 
-        const { pduSessions, memoryUsage, databaseSize } = parseMetrics(metrics);
+        const { pduSessions, memoryUsage, databaseSize, allocatedIPs, totalIPs } = parseMetrics(metrics);
         setActiveSessions(pduSessions);
         setMemoryUsage(memoryUsage);
         setDatabaseSize(databaseSize);
+        setAllocatedIPs(allocatedIPs);
+        setTotalIPs(totalIPs);
+        console.log("Allocated IPs: ", allocatedIPs);
+        console.log("Total IPs: ", totalIPs);
       } catch (err: any) {
         console.error("Failed to fetch data:", err);
         setError("Failed to fetch data.");
@@ -107,12 +128,12 @@ const Dashboard = () => {
       >
         Network
       </Typography>
-      <Grid container spacing={2} justifyContent="flex-start">
-        <Grid size={{ xs: 6, sm: 3 }}>
+      <Grid container spacing={4} justifyContent="flex-start">
+        <Grid size={3}>
           <Box
             sx={{
-              width: "200px",
-              height: "200px",
+              width: "100%",
+              aspectRatio: "1 / 1",
               display: "flex",
               flexDirection: "column",
               justifyContent: "center",
@@ -131,11 +152,11 @@ const Dashboard = () => {
             )}
           </Box>
         </Grid>
-        <Grid size={{ xs: 6, sm: 3 }}>
+        <Grid size={3}>
           <Box
             sx={{
-              width: "200px",
-              height: "200px",
+              width: "100%",
+              aspectRatio: "1 / 1",
               display: "flex",
               flexDirection: "column",
               justifyContent: "center",
@@ -154,11 +175,11 @@ const Dashboard = () => {
             )}
           </Box>
         </Grid>
-        <Grid size={{ xs: 6, sm: 3 }}>
+        <Grid size={3}>
           <Box
             sx={{
-              width: "200px",
-              height: "200px",
+              width: "100%",
+              aspectRatio: "1 / 1",
               display: "flex",
               flexDirection: "column",
               justifyContent: "center",
@@ -177,6 +198,39 @@ const Dashboard = () => {
             )}
           </Box>
         </Grid>
+        <Grid size={6}>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              textAlign: "center",
+              padding: 2,
+            }}
+          >
+            <Typography variant="h6">IP Allocation</Typography>
+            {loading ? (
+              <CircularProgress />
+            ) : (
+              <PieChart
+                series={[
+                  {
+                    data: [
+                      { id: 0, value: allocatedIPs ?? 0, label: "Allocated" },
+                      { id: 1, value: (totalIPs ?? 0) - (allocatedIPs ?? 0), label: "Available" },
+                    ],
+                  },
+                ]}
+                width={400}
+                height={200}
+              />
+            )}
+          </Box>
+        </Grid>
       </Grid>
 
       <Typography
@@ -188,11 +242,11 @@ const Dashboard = () => {
         System
       </Typography>
       <Grid container spacing={2} justifyContent="flex-start">
-        <Grid size={{ xs: 6, sm: 3 }}>
+        <Grid size={3}>
           <Box
             sx={{
-              width: "200px",
-              height: "200px",
+              width: "100%",
+              aspectRatio: "1 / 1",
               display: "flex",
               flexDirection: "column",
               justifyContent: "center",
@@ -213,11 +267,11 @@ const Dashboard = () => {
             )}
           </Box>
         </Grid>
-        <Grid size={{ xs: 6, sm: 3 }}>
+        <Grid size={3}>
           <Box
             sx={{
-              width: "200px",
-              height: "200px",
+              width: "100%",
+              aspectRatio: "1 / 1",
               display: "flex",
               flexDirection: "column",
               justifyContent: "center",
