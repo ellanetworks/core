@@ -2,22 +2,30 @@ package context
 
 import (
 	"bytes"
-	"fmt"
 	"net"
-	"os"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	nmsModels "github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/factory"
 	"github.com/omec-project/openapi/models"
 )
 
 const IPV4 = "IPv4"
 
 var smfContext SMFContext
+
+type StaticIpInfo struct {
+	ImsiIpInfo map[string]string
+	Dnn        string
+}
+
+type InterfaceUpfInfoItem struct {
+	NetworkInstance string
+	InterfaceType   models.UpInterfaceType
+	Endpoints       []string
+}
 
 type SMFContext struct {
 	Name string
@@ -39,9 +47,10 @@ type SMFContext struct {
 
 	PodIp string
 
-	StaticIpInfo   *[]factory.StaticIpInfo
+	StaticIpInfo   *[]StaticIpInfo
 	CPNodeID       NodeID
 	PFCPPort       int
+	UpfPfcpPort    int
 	UDMProfile     models.NfProfile
 	LocalSEIDCount uint64
 
@@ -67,64 +76,6 @@ func AllocateLocalSEID() (uint64, error) {
 
 func ReleaseLocalSEID(seid uint64) error {
 	return nil
-}
-
-func InitSmfContext(config *factory.Configuration) *SMFContext {
-	if config == nil {
-		logger.SmfLog.Error("Config is nil")
-		return nil
-	}
-
-	// Acquire master SMF config lock, no one should update it in parallel,
-	// until SMF is done updating SMF context
-	factory.SmfConfigSyncLock.Lock()
-	defer factory.SmfConfigSyncLock.Unlock()
-
-	smfContext.Name = config.SmfName
-
-	// copy static UE IP Addr config
-	smfContext.StaticIpInfo = &config.StaticIpInfo
-
-	if pfcp := config.PFCP; pfcp != nil {
-		if pfcp.Port == 0 {
-			pfcp.Port = factory.SMF_PFCP_PORT
-		}
-		pfcpAddrEnv := os.Getenv(pfcp.Addr)
-		if pfcpAddrEnv != "" {
-			logger.SmfLog.Info("Parsing PFCP IPv4 address from ENV variable found.")
-			pfcp.Addr = pfcpAddrEnv
-		}
-		if pfcp.Addr == "" {
-			logger.SmfLog.Warn("Error parsing PFCP IPv4 address as string. Using the 0.0.0.0 address as default.")
-			pfcp.Addr = "0.0.0.0"
-		}
-		addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", pfcp.Addr, pfcp.Port))
-		if err != nil {
-			logger.SmfLog.Warnf("PFCP Parse Addr Fail: %v", err)
-		}
-
-		smfContext.PFCPPort = int(pfcp.Port)
-
-		smfContext.CPNodeID.NodeIdType = 0
-		smfContext.CPNodeID.NodeIdValue = addr.IP.To4()
-	}
-
-	smfContext.ULCLSupport = config.ULCL
-
-	smfContext.SupportedPDUSessionType = IPV4
-
-	smfContext.SnssaiInfos = make([]SnssaiSmfInfo, 0)
-	smfContext.UserPlaneInformation = &UserPlaneInformation{
-		UPNodes:              make(map[string]*UPNode),
-		UPF:                  nil,
-		AccessNetwork:        make(map[string]*UPNode),
-		DefaultUserPlanePath: make(map[string][]*UPNode),
-	}
-
-	smfContext.PodIp = os.Getenv("POD_IP")
-	smfContext.DbInstance = config.DbInstance
-
-	return &smfContext
 }
 
 func SMF_Self() *SMFContext {
@@ -177,12 +128,12 @@ func BuildUserPlaneInformationFromConfig(profiles []nmsModels.Profile, radios []
 		logger.SmfLog.Debugf("Radios not found")
 		return nil
 	}
-	intfUpfInfoItem := factory.InterfaceUpfInfoItem{
+	intfUpfInfoItem := InterfaceUpfInfoItem{
 		InterfaceType:   models.UpInterfaceType_N3,
 		Endpoints:       make([]string, 0),
 		NetworkInstance: config.DNN,
 	}
-	ifaces := []factory.InterfaceUpfInfoItem{}
+	ifaces := []InterfaceUpfInfoItem{}
 	ifaces = append(ifaces, intfUpfInfoItem)
 
 	upfNodeID := NewNodeID(config.UpfName)

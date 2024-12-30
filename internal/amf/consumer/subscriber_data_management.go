@@ -2,12 +2,12 @@ package consumer
 
 import (
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/udm/producer"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/omec-project/openapi/models"
 )
 
 func SDMGetAmData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err error) {
-	data, err := producer.GetAmData(ue.Supi)
+	data, err := udm.GetAmData(ue.Supi)
 	if err != nil {
 		return nil, err
 	}
@@ -16,7 +16,7 @@ func SDMGetAmData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err
 }
 
 func SDMGetSmfSelectData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err error) {
-	data, err := producer.GetSmfSelectData(ue.Supi)
+	data, err := udm.GetSmfSelectData(ue.Supi)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +25,7 @@ func SDMGetSmfSelectData(ue *context.AmfUe) (problemDetails *models.ProblemDetai
 }
 
 func SDMGetUeContextInSmfData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err error) {
-	data, err := producer.GetUeContextInSmfData(ue.Supi)
+	data, err := udm.GetUeContextInSmfData(ue.Supi)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func SDMSubscribe(ue *context.AmfUe) (*models.ProblemDetails, error) {
 		PlmnId:       &ue.PlmnId,
 	}
 
-	err := producer.CreateSubscription(sdmSubscription, ue.Supi)
+	err := udm.CreateSubscription(sdmSubscription, ue.Supi)
 	if err != nil {
 		problemDetails := &models.ProblemDetails{
 			Status: 500,
@@ -53,7 +53,7 @@ func SDMSubscribe(ue *context.AmfUe) (*models.ProblemDetails, error) {
 }
 
 func SDMGetSliceSelectionSubscriptionData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err error) {
-	nssai, err := producer.GetNssai(ue.Supi)
+	nssai, err := udm.GetNssai(ue.Supi)
 	if err != nil {
 		problemDetails := &models.ProblemDetails{
 			Status: 500,

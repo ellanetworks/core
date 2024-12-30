@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
-	"github.com/ellanetworks/core/internal/amf/producer/callback"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/util/fsm"
@@ -33,6 +32,17 @@ const (
 	PRIORITIZED_SERVICES_ONLY = "PRIORITIZED_SERVICES_ONLY"
 	OUT_OF_LADN_SERVICE_AREA  = "OUT_OF_LADN_SERVICE_AREA"
 )
+
+func SnssaiModelsToHex(snssai models.Snssai) string {
+	sst := fmt.Sprintf("%02x", snssai.Sst)
+	return sst + snssai.Sd
+}
+
+func PlmnIdStringToModels(plmnId string) (plmnID models.PlmnId) {
+	plmnID.Mcc = plmnId[:3]
+	plmnID.Mnc = plmnId[3:]
+	return
+}
 
 func HandleULNASTransport(ue *context.AmfUe, anType models.AccessType,
 	ulNasTransport *nasMessage.ULNASTransport,
@@ -55,8 +65,6 @@ func HandleULNASTransport(ue *context.AmfUe, anType models.AccessType,
 		return fmt.Errorf("PayloadContainerTypeSOR has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeUEPolicy:
 		ue.GmmLog.Infoln("AMF Transfer UEPolicy To PCF")
-		callback.SendN1MessageNotify(ue, models.N1MessageClass_UPDP,
-			ulNasTransport.PayloadContainer.GetPayloadContainerContents(), nil)
 	case nasMessage.PayloadContainerTypeUEParameterUpdate:
 		ue.GmmLog.Infoln("AMF Transfer UEParameterUpdate To UDM")
 		upuMac, err := nasConvert.UpuAckToModels(ulNasTransport.PayloadContainer.GetPayloadContainerContents())
@@ -211,7 +219,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 					dnn = ue.ServingAMF.SupportDnnLists[0]
 
 					if ue.SmfSelectionData != nil {
-						snssaiStr := util.SnssaiModelsToHex(snssai)
+						snssaiStr := SnssaiModelsToHex(snssai)
 						if snssaiInfo, ok := ue.SmfSelectionData.SubscribedSnssaiInfos[snssaiStr]; ok {
 							for _, dnnInfo := range snssaiInfo.DnnInfos {
 								if dnnInfo.DefaultDnnIndicator {
@@ -449,7 +457,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		var plmnId string
 		ue.Suci, plmnId = nasConvert.SuciToString(mobileIdentity5GSContents)
-		ue.PlmnId = util.PlmnIdStringToModels(plmnId)
+		ue.PlmnId = PlmnIdStringToModels(plmnId)
 		ue.GmmLog.Debugf("SUCI: %s", ue.Suci)
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		guamiFromUeGutiTmp, guti := nasConvert.GutiToString(mobileIdentity5GSContents)
@@ -891,7 +899,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 				} else {
 					ue.GmmLog.Warnf("UE was reachable but did not accept to re-activate the PDU Session[%d]",
 						requestData.PduSessionId)
-					callback.SendN1N2TransferFailureNotification(ue, models.N1N2MessageTransferCause_UE_NOT_REACHABLE_FOR_SESSION)
 				}
 			} else if smInfo.N2InfoContent.NgapIeType == models.NgapIeType_PDU_RES_SETUP_REQ {
 				var nasPdu []byte
@@ -1130,7 +1137,6 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 
 			var n1Message bytes.Buffer
 			ue.RegistrationRequest.EncodeRegistrationRequest(&n1Message)
-			callback.SendN1MessageNotifyAtAMFReAllocation(ue, n1Message.Bytes(), &registerContext)
 			return nil
 		}
 	}
@@ -1214,7 +1220,7 @@ func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.Iden
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		var plmnId string
 		ue.Suci, plmnId = nasConvert.SuciToString(mobileIdentityContents)
-		ue.PlmnId = util.PlmnIdStringToModels(plmnId)
+		ue.PlmnId = PlmnIdStringToModels(plmnId)
 		ue.GmmLog.Debugf("get SUCI: %s", ue.Suci)
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		if ue.MacFailed {
@@ -1332,7 +1338,7 @@ func AuthenticationProcedure(ue *context.AmfUe, accessType models.AccessType) (b
 }
 
 func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType models.AccessType) (err error) {
-	anType := util.AnTypeToNas(accessType)
+	anType := AnTypeToNas(accessType)
 	if ue.CmConnect(accessType) && ue.State[accessType].Is(context.Registered) {
 		// setting reregistration required flag to true
 		gmm_message.SendDeregistrationRequest(ue.RanUe[accessType], anType, true, 0)
@@ -1691,7 +1697,6 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 					} else {
 						ue.GmmLog.Warnf("UE was reachable but did not accept to re-activate the PDU Session[%d]",
 							requestData.PduSessionId)
-						callback.SendN1N2TransferFailureNotification(ue, models.N1N2MessageTransferCause_UE_NOT_REACHABLE_FOR_SESSION)
 					}
 				}
 			} else if smInfo.N2InfoContent.NgapIeType == models.NgapIeType_PDU_RES_SETUP_REQ {

@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/factory"
 	"github.com/ellanetworks/core/internal/amf/nas/nas_security"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/mitchellh/mapstructure"
@@ -513,20 +512,21 @@ func BuildRegistrationAccept(
 	}
 
 	// 5gs network feature support
-	if factory.AmfConfig.Get5gsNwFeatSuppEnable() {
+	amfSelf := context.AMF_Self()
+	if amfSelf.Get5gsNwFeatSuppEnable() {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
 		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)
 		if anType == models.AccessType__3_GPP_ACCESS {
-			registrationAccept.SetIMSVoPS3GPP(factory.AmfConfig.Get5gsNwFeatSuppImsVoPS())
+			registrationAccept.SetIMSVoPS3GPP(amfSelf.Get5gsNwFeatSuppImsVoPS())
 		} else {
-			registrationAccept.SetIMSVoPSN3GPP(factory.AmfConfig.Get5gsNwFeatSuppImsVoPS())
+			registrationAccept.SetIMSVoPSN3GPP(amfSelf.Get5gsNwFeatSuppImsVoPS())
 		}
-		registrationAccept.SetEMC(factory.AmfConfig.Get5gsNwFeatSuppEmc())
-		registrationAccept.SetEMF(factory.AmfConfig.Get5gsNwFeatSuppEmf())
-		registrationAccept.SetIWKN26(factory.AmfConfig.Get5gsNwFeatSuppIwkN26())
-		registrationAccept.SetMPSI(factory.AmfConfig.Get5gsNwFeatSuppMpsi())
-		registrationAccept.SetEMCN(factory.AmfConfig.Get5gsNwFeatSuppEmcN3())
-		registrationAccept.SetMCSI(factory.AmfConfig.Get5gsNwFeatSuppMcsi())
+		registrationAccept.SetEMC(amfSelf.Get5gsNwFeatSuppEmc())
+		registrationAccept.SetEMF(amfSelf.Get5gsNwFeatSuppEmf())
+		registrationAccept.SetIWKN26(amfSelf.Get5gsNwFeatSuppIwkN26())
+		registrationAccept.SetMPSI(amfSelf.Get5gsNwFeatSuppMpsi())
+		registrationAccept.SetEMCN(amfSelf.Get5gsNwFeatSuppEmcN3())
+		registrationAccept.SetMCSI(amfSelf.Get5gsNwFeatSuppMcsi())
 	}
 
 	if pDUSessionStatus != nil {

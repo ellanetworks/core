@@ -1,7 +1,6 @@
 package context
 
 import (
-	"github.com/ellanetworks/core/internal/amf/factory"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/openapi/models"
@@ -54,15 +53,15 @@ func GetServedGuamiList() []models.Guami {
 	return guamis
 }
 
-func GetPlmnSupportList() []factory.PlmnSupportItem {
+func GetPlmnSupportList() []PlmnSupportItem {
 	amfSelf := AMF_Self()
-	plmnSupportList := make([]factory.PlmnSupportItem, 0)
+	plmnSupportList := make([]PlmnSupportItem, 0)
 	dbNetwork, err := amfSelf.DbInstance.GetNetwork()
 	if err != nil {
 		logger.AmfLog.Warnf("Failed to get network slice names: %s", err)
 		return plmnSupportList
 	}
-	plmnSupportItem := factory.PlmnSupportItem{
+	plmnSupportItem := PlmnSupportItem{
 		PlmnId: models.PlmnId{
 			Mcc: dbNetwork.Mcc,
 			Mnc: dbNetwork.Mnc,
