@@ -330,7 +330,7 @@ func TestFTUPInAssociationSetupResponse(t *testing.T) {
 func TestTEIDAllocationInSessionEstablishmentResponse(t *testing.T) {
 	pfcpConn, smfIP := PreparePfcpConnection(t)
 
-	resourceManager, err := service.NewResourceManager("10.61.0.0/16", 65536)
+	resourceManager, err := service.NewResourceManager(65536)
 	if err != nil {
 		logger.UpfLog.Errorf("failed to create ResourceManager. err: %v", err)
 	}
@@ -420,7 +420,7 @@ func TestIPAllocationInSessionEstablishmentResponse(t *testing.T) {
 	if config.Conf.FeatureUEIP {
 		pfcpConn, smfIP := PreparePfcpConnection(t)
 
-		resourceManager, err := service.NewResourceManager("10.61.0.0/16", 65536)
+		resourceManager, err := service.NewResourceManager(65536)
 		if err != nil {
 			logger.UpfLog.Errorf("failed to create ResourceManager. err: %v", err)
 		}
@@ -487,7 +487,6 @@ func TestIPAllocationInSessionEstablishmentResponse(t *testing.T) {
 
 func TestUEIPInAssociationSetupResponse(t *testing.T) {
 	config.Conf = config.UpfConfig{
-		UEIPPool:    "10.61.0.0/16",
 		FTEIDPool:   65536,
 		FeatureUEIP: true,
 		FeatureFTUP: false,
