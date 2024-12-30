@@ -14,40 +14,31 @@ import (
 
 var (
 	PfcpMessageRx = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "upf_pfcp_rx",
+		Name: "app_pfcp_rx",
 		Help: "The total number of received PFCP messages",
 	}, []string{"message_name"})
 
 	PfcpMessageTx = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "upf_pfcp_tx",
+		Name: "app_pfcp_tx",
 		Help: "The total number of transmitted PFCP messages",
 	}, []string{"message_name"})
 
 	PfcpMessageRxErrors = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "upf_pfcp_rx_errors",
+		Name: "app_pfcp_rx_errors",
 		Help: "The total number of received PFCP messages with cause code",
 	}, []string{"message_name", "cause_code"})
 
-	UpfXdpAborted       prometheus.CounterFunc
-	PduSessions         prometheus.CounterFunc
-	UpfXdpDrop          prometheus.CounterFunc
-	UpfXdpPass          prometheus.CounterFunc
-	UpfXdpTx            prometheus.CounterFunc
-	UpfXdpRedirect      prometheus.CounterFunc
-	UpfPfcpSessions     prometheus.GaugeFunc
-	UpfPfcpAssociations prometheus.GaugeFunc
+	UpfXdpAborted  prometheus.CounterFunc
+	PduSessions    prometheus.CounterFunc
+	UpfXdpDrop     prometheus.CounterFunc
+	UpfXdpPass     prometheus.CounterFunc
+	UpfXdpTx       prometheus.CounterFunc
+	UpfXdpRedirect prometheus.CounterFunc
 
 	UpfRx = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "upf_rx",
+		Name: "app_rx",
 		Help: "The total number of received packets",
 	}, []string{"packet_type"})
-
-	UpfMessageRxLatency = promauto.NewSummaryVec(prometheus.SummaryOpts{
-		Name:       "upf_pfcp_rx_latency",
-		Subsystem:  "pfcp",
-		Help:       "Duration of the PFCP message processing",
-		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
-	}, []string{"message_type"})
 
 	// Database metrics
 	DatabaseStorageUsed  prometheus.GaugeFunc
@@ -99,7 +90,7 @@ func RegisterDatabaseMetrics(db *db.Database) {
 
 func RegisterSmfMetrics() {
 	PduSessions = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "pdu_sessions",
+		Name: "app_pdu_sessions",
 		Help: "Number of PDU sessions currently in Ella",
 	}, func() float64 {
 		return float64(smfStats.GetPDUSessionCount())
@@ -109,54 +100,40 @@ func RegisterSmfMetrics() {
 }
 
 func RegisterUPFMetrics(stats ebpf.UpfXdpActionStatistic, conn *core.PfcpConnection) {
-	// Metrics for the upf_xdp_statistic (xdp_action)
+	// Metrics for the app_xdp_statistic (xdp_action)
 	UpfXdpAborted = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "upf_xdp_aborted",
+		Name: "app_xdp_aborted",
 		Help: "The total number of aborted packets",
 	}, func() float64 {
 		return float64(stats.GetAborted())
 	})
 
 	UpfXdpDrop = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "upf_xdp_drop",
+		Name: "app_xdp_drop",
 		Help: "The total number of dropped packets",
 	}, func() float64 {
 		return float64(stats.GetDrop())
 	})
 
 	UpfXdpPass = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "upf_xdp_pass",
+		Name: "app_xdp_pass",
 		Help: "The total number of passed packets",
 	}, func() float64 {
 		return float64(stats.GetPass())
 	})
 
 	UpfXdpTx = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "upf_xdp_tx",
+		Name: "app_xdp_tx",
 		Help: "The total number of transmitted packets",
 	}, func() float64 {
 		return float64(stats.GetTx())
 	})
 
 	UpfXdpRedirect = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "upf_xdp_redirect",
+		Name: "app_xdp_redirect",
 		Help: "The total number of redirected packets",
 	}, func() float64 {
 		return float64(stats.GetRedirect())
-	})
-
-	UpfPfcpSessions = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-		Name: "upf_pfcp_sessions",
-		Help: "The current number of PFCP sessions",
-	}, func() float64 {
-		return float64(conn.GetSessionCount())
-	})
-
-	UpfPfcpAssociations = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-		Name: "upf_pfcp_associations",
-		Help: "The current number of PFCP associations",
-	}, func() float64 {
-		return float64(conn.GetAssociationCount())
 	})
 
 	// Register metrics
@@ -165,8 +142,6 @@ func RegisterUPFMetrics(stats ebpf.UpfXdpActionStatistic, conn *core.PfcpConnect
 	prometheus.MustRegister(UpfXdpPass)
 	prometheus.MustRegister(UpfXdpTx)
 	prometheus.MustRegister(UpfXdpRedirect)
-	prometheus.MustRegister(UpfPfcpSessions)
-	prometheus.MustRegister(UpfPfcpAssociations)
 
 	// Used for getting difference between two counters to increment the prometheus counter (counters cannot be written only incremented)
 	var prevUpfCounters ebpf.UpfCounters

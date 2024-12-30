@@ -30,6 +30,8 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
+  - admonition
+  - pymdownx.details
 nav:
   - Home: index.md
   - Tutorials:
@@ -40,11 +42,13 @@ nav:
     - API:
       - Introduction: reference/api/index.md
       - Login: reference/api/login.md
+      - Metrics: reference/api/metrics.md
       - Network: reference/api/network.md
       - Profiles: reference/api/profiles.md
       - Radios: reference/api/radios.md
       - Status: reference/api/status.md
       - Subscribers: reference/api/subscribers.md
       - Users: reference/api/users.md
+    - Metrics: reference/metrics.md
     - Configuration File: reference/config_file.md
     - Connectivity: reference/connectivity.md

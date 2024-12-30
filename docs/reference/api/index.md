@@ -18,6 +18,10 @@ Ella Core's API responses are JSON objects with the following structure:
 }
 ```
 
+!!! info
+
+    GET calls to the `/metrics` endpoint don't follow this rule, it returns text response in the [Prometheus exposition format](https://prometheus.io/docs/instrumenting/exposition_formats/#text-format-details).
+
 ## Status codes
 
 - 200 - Success.
@@ -25,11 +29,3 @@ Ella Core's API responses are JSON objects with the following structure:
 - 400 - Bad request.
 - 401 - Unauthorized.
 - 500 - Internal server error.
-
-## Endpoints
-
-| Endpoint          | HTTP Method | Description                   |
-| ----------------- | ----------- | ----------------------------- |
-| `/api/v1/metrics` | GET         | Get metrics (Unauthenticated) |
-| `/api/v1/network` | PUT         | Update network configuration  |
-| `/api/v1/network` | GET         | Get network configuration     |
