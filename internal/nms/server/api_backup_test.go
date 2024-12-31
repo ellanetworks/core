@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"os"
@@ -9,7 +10,7 @@ import (
 )
 
 func backup(url string, client *http.Client, token string) (int, []byte, error) {
-	req, err := http.NewRequest("POST", url+"/api/v1/backup", nil)
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/backup", nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -56,7 +57,7 @@ func TestBackupEndpoint(t *testing.T) {
 
 		// Check that the backup file was created and returned
 		backupFilePath := filepath.Join(tempDir, "backup_test.db")
-		err = os.WriteFile(backupFilePath, body, 0644)
+		err = os.WriteFile(backupFilePath, body, 0o644)
 		if err != nil {
 			t.Fatalf("couldn't write backup file: %s", err)
 		}

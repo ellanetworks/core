@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/canonical/sqlair"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 func (db *Database) Restore(backupFilePath string) error {
@@ -26,13 +27,23 @@ func (db *Database) Restore(backupFilePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open backup file: %v", err)
 	}
-	defer sourceFile.Close()
+	defer func() {
+		err := sourceFile.Close()
+		if err != nil {
+			logger.DBLog.Errorf("Failed to close source backup file: %v", err)
+		}
+	}()
 
 	destinationFile, err := os.Create(db.filepath)
 	if err != nil {
 		return fmt.Errorf("failed to open destination database file: %v", err)
 	}
-	defer destinationFile.Close()
+	defer func() {
+		err := destinationFile.Close()
+		if err != nil {
+			logger.DBLog.Errorf("Failed to close destination database file: %v", err)
+		}
+	}()
 
 	_, err = io.Copy(destinationFile, sourceFile)
 	if err != nil {

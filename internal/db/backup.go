@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"time"
+
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 func (db *Database) Backup() (string, error) {
@@ -27,13 +29,23 @@ func (db *Database) Backup() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to open database file: %v", err)
 	}
-	defer sourceFile.Close()
+	defer func() {
+		err := sourceFile.Close()
+		if err != nil {
+			logger.DBLog.Errorf("Failed to close source database file: %v", err)
+		}
+	}()
 
 	backupFile, err := os.Create(backupFilePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to create backup file: %v", err)
 	}
-	defer backupFile.Close()
+	defer func() {
+		err := backupFile.Close()
+		if err != nil {
+			logger.DBLog.Errorf("Failed to close backup file: %v", err)
+		}
+	}()
 
 	_, err = io.Copy(backupFile, sourceFile)
 	if err != nil {

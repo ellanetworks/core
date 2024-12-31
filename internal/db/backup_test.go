@@ -55,5 +55,4 @@ func TestDatabaseBackup(t *testing.T) {
 	if err := os.Remove(backupFilePath); err != nil {
 		t.Fatalf("Couldn't delete backup file: %s", err)
 	}
-
 }

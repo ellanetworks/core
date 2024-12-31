@@ -23,11 +23,11 @@ func TestRestore(t *testing.T) {
 		}
 	}()
 
-	if err := os.WriteFile(databasePath, []byte("dummy data"), 0644); err != nil {
+	if err := os.WriteFile(databasePath, []byte("dummy data"), 0o644); err != nil {
 		t.Fatalf("failed to write dummy data to database: %v", err)
 	}
 
-	if err := os.WriteFile(backupFilePath, []byte("backup data"), 0644); err != nil {
+	if err := os.WriteFile(backupFilePath, []byte("backup data"), 0o644); err != nil {
 		t.Fatalf("failed to create backup file: %v", err)
 	}
 

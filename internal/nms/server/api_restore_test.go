@@ -2,6 +2,7 @@ package server_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"mime/multipart"
@@ -25,7 +26,12 @@ func restore(url string, client *http.Client, token string, backupFilePath strin
 	if err != nil {
 		return 0, nil, err
 	}
-	defer file.Close()
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	var requestBody bytes.Buffer
 	writer := multipart.NewWriter(&requestBody)
@@ -36,9 +42,14 @@ func restore(url string, client *http.Client, token string, backupFilePath strin
 	if _, err := io.Copy(part, file); err != nil {
 		return 0, nil, err
 	}
-	writer.Close()
+	defer func() {
+		err := writer.Close()
+		if err != nil {
+			panic(err)
+		}
+	}()
 
-	req, err := http.NewRequest("POST", url+"/api/v1/restore", &requestBody)
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/restore", &requestBody)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -49,7 +60,8 @@ func restore(url string, client *http.Client, token string, backupFilePath strin
 		return 0, nil, err
 	}
 	defer func() {
-		if err := res.Body.Close(); err != nil {
+		err := res.Body.Close()
+		if err != nil {
 			panic(err)
 		}
 	}()
@@ -67,7 +79,7 @@ func TestRestoreEndpoint(t *testing.T) {
 	restoreFilePath := filepath.Join(tempDir, "restore_test.db")
 
 	// Create a dummy backup file
-	if err := os.WriteFile(restoreFilePath, []byte("dummy backup data"), 0644); err != nil {
+	if err := os.WriteFile(restoreFilePath, []byte("dummy backup data"), 0o644); err != nil {
 		t.Fatalf("failed to create dummy backup file: %s", err)
 	}
 
@@ -119,6 +131,5 @@ func TestRestoreEndpoint(t *testing.T) {
 		if statusCode != http.StatusUnauthorized {
 			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
 		}
-
 	})
 }
