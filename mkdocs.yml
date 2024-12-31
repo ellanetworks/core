@@ -38,14 +38,17 @@ nav:
     - Getting Started: tutorials/getting_started.md
   - How-to Guides:
     - Deploy: how_to/deploy.md
+    - Backup and Restore: how_to/backup_and_restore.md
   - Reference:
     - API:
-      - Introduction: reference/api/index.md
+      - Overview: reference/api/overview.md
+      - Backup: reference/api/backup.md
       - Login: reference/api/login.md
       - Metrics: reference/api/metrics.md
       - Network: reference/api/network.md
       - Profiles: reference/api/profiles.md
       - Radios: reference/api/radios.md
+      - Restore: reference/api/restore.md
       - Status: reference/api/status.md
       - Subscribers: reference/api/subscribers.md
       - Users: reference/api/users.md

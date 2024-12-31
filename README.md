@@ -17,6 +17,7 @@ Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm,
 * **Simple UI**: A web-based user interface for managing subscribers, radios, profiles, and network slices.
 * **Complete HTTP API**: A complete REST API which allows users to automate network operations.
 * **Observability**: Meaningful metrics and dashboards to monitor the network in real-time.
+* **Backup and restore**: Backup and restore the network configuration and data.
 
 ## Tenets
 
@@ -29,12 +30,12 @@ Building Ella Core, we make engineering decisions based on the following tenets:
 
 Documentation is available at [ellanetworks.github.io/core/](https://ellanetworks.github.io/core/).
 
-#### Acknowledgements
+## Acknowledgements
 
 Ella is built on top of the following open source projects:
 - [Aether](https://aetherproject.org/)
 - [eUPF](https://github.com/edgecomllc/eupf)
 
-#### Contributing
+## Contributing
 
 We welcome contributions to Ella. Please read our [Contributing Guide](CONTRIBUTING.md) to get started.

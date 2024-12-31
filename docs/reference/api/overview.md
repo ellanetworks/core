@@ -1,5 +1,5 @@
 
-# API
+# API Overview
 
 Ella Core exposes a RESTful API for managing subscribers, radios, profiles, users, and network configuration.
 

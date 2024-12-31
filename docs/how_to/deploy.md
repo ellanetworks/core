@@ -1,6 +1,8 @@
-# Deploy Ella Core
+# Deploy
 
-=== "Snap"
+Ella Core is available as a Snap, a OCI container image, and a Juju Kubernetes charm.
+
+=== "Snap (Recommended)"
 
     Ella Core is available as a snap package [here](https://snapcraft.io/ella-core).
 
