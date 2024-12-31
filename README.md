@@ -29,12 +29,12 @@ Building Ella Core, we make engineering decisions based on the following tenets:
 
 Documentation is available at [ellanetworks.github.io/core/](https://ellanetworks.github.io/core/).
 
-#### Acknowledgements
+## Acknowledgements
 
 Ella is built on top of the following open source projects:
 - [Aether](https://aetherproject.org/)
 - [eUPF](https://github.com/edgecomllc/eupf)
 
-#### Contributing
+## Contributing
 
 We welcome contributions to Ella. Please read our [Contributing Guide](CONTRIBUTING.md) to get started.

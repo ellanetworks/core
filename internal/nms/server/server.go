@@ -126,7 +126,7 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	apiGroup.GET("/radios/:name", User(GetRadio(dbInstance), jwtSecret))
 	apiGroup.DELETE("/radios/:name", User(DeleteRadio(dbInstance), jwtSecret))
 
-	// Users (Special Wrapping for Creation)
+	// Users (Authenticated except for first user creation)
 	apiGroup.GET("/users", User(ListUsers(dbInstance), jwtSecret))
 	apiGroup.POST("/users", UserOrFirstUser(CreateUser(dbInstance), dbInstance, jwtSecret))
 	apiGroup.PUT("/users/:username", User(UpdateUser(dbInstance), jwtSecret))
@@ -136,6 +136,9 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 
 	// Authentication
 	apiGroup.POST("/login", Any(Login(dbInstance, jwtSecret)))
+
+	// Backup and Restore
+	apiGroup.POST("/backup", User(Backup(dbInstance), jwtSecret))
 
 	router.Use(cors.New(cors.Config{
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE"},
