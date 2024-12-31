@@ -1,6 +1,6 @@
 # Backup and Restore
 
-This how-to guide provides step-by-step instructions for backing up and restoring the Ella Core database.
+This how-to guide provides step-by-step instructions for backing up and restoring the Ella Core database. Here, we will create a backup of the Ella Core database, download the backup file, and restore the database from the backup file on a new instance of Ella Core.
 
 Pre-requisites:
 
@@ -22,7 +22,9 @@ Pre-requisites:
     ```
 
 === "Restore"
-        
+
+    Run the following commands on a new instance of Ella Core.
+    
     1. Get a token by logging in to Ella Core.
 
     ```shell
