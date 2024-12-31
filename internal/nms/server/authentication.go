@@ -17,7 +17,6 @@ const AuthenticationAction = "user_authentication"
 
 func Any(handlerFunc gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// No authentication required; proceed directly to the handler
 		handlerFunc(c)
 	}
 }

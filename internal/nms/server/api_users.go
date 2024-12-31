@@ -156,8 +156,7 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		usernameAny, _ := c.Get("username")
 		username, ok := usernameAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
-			return
+			username = "First User"
 		}
 		var newUser CreateUserParams
 		err := c.ShouldBindJSON(&newUser)
