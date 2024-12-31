@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func triggerBackup(url string, client *http.Client, token string) (int, []byte, error) {
+func backup(url string, client *http.Client, token string) (int, []byte, error) {
 	req, err := http.NewRequest("POST", url+"/api/v1/backup", nil)
 	if err != nil {
 		return 0, nil, err
@@ -46,7 +46,7 @@ func TestBackupEndpoint(t *testing.T) {
 	}
 
 	t.Run("1. Trigger backup successfully", func(t *testing.T) {
-		statusCode, body, err := triggerBackup(ts.URL, client, token)
+		statusCode, body, err := backup(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't trigger backup: %s", err)
 		}
@@ -82,7 +82,7 @@ func TestBackupEndpoint(t *testing.T) {
 	})
 
 	t.Run("2. Trigger backup without authorization", func(t *testing.T) {
-		statusCode, _, err := triggerBackup(ts.URL, client, "")
+		statusCode, _, err := backup(ts.URL, client, "")
 		if err != nil {
 			t.Fatalf("couldn't trigger backup: %s", err)
 		}

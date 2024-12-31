@@ -32,7 +32,5 @@ Pre-requisites:
     2. Use the token to restore the Ella Core database from a backup file. Here we restore the database from `backup_file.db`.
 
     ```shell
-    curl -k -X POST https://127.0.0.1:5001/api/v1/restore 
-    -H "Authorization: Bearer <Your Token>"
-    -F "file=@backup_file.db"
+    curl -k -X POST https://127.0.0.1:5001/api/v1/restore -H "Authorization: Bearer <Your Token>" -F "backup=@backup_file.db"
     ```

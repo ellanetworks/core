@@ -2,7 +2,7 @@
 
 This path creates a backup of the Ella Core database.
 
-## Backup
+## Create a Backup
 
 | Method | Path             |
 | ------ | ---------------- |

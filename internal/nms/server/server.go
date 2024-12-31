@@ -139,6 +139,7 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 
 	// Backup and Restore
 	apiGroup.POST("/backup", User(Backup(dbInstance), jwtSecret))
+	apiGroup.POST("/restore", User(Restore(dbInstance), jwtSecret))
 
 	router.Use(cors.New(cors.Config{
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE"},
