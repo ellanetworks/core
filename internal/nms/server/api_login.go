@@ -45,7 +45,7 @@ func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
 		if err != nil {
 			logger.LogAuditEvent(
 				LoginAction,
-				user.Username,
+				loginParams.Username,
 				"User failed to log in",
 			)
 			writeError(c.Writer, http.StatusUnauthorized, "The username or password is incorrect. Try again.")
