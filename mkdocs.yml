@@ -38,9 +38,11 @@ nav:
     - Getting Started: tutorials/getting_started.md
   - How-to Guides:
     - Deploy: how_to/deploy.md
+    - Backup and Restore: how_to/backup_and_restore.md
   - Reference:
     - API:
       - Introduction: reference/api/index.md
+      - Backup: reference/api/backup.md
       - Login: reference/api/login.md
       - Metrics: reference/api/metrics.md
       - Network: reference/api/network.md

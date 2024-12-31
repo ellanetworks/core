@@ -17,6 +17,7 @@ Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm,
 * **Simple UI**: A web-based user interface for managing subscribers, radios, profiles, and network slices.
 * **Complete HTTP API**: A complete REST API which allows users to automate network operations.
 * **Observability**: Meaningful metrics and dashboards to monitor the network in real-time.
+* **Backup and restore**: Backup and restore the network configuration and data.
 
 ## Tenets
 
