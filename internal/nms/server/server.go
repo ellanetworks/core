@@ -20,6 +20,16 @@ import (
 func ginToZap(logger *zap.SugaredLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
+
+		// Skip logging for static files and other unwanted paths
+		if strings.HasPrefix(path, "/_next/static") ||
+			strings.HasPrefix(path, "/favicon.ico") ||
+			strings.HasPrefix(path, "/assets/") ||
+			strings.HasPrefix(path, "/static/") {
+			c.Next()
+			return
+		}
+
 		raw := c.Request.URL.RawQuery
 
 		c.Next()
