@@ -27,9 +27,8 @@ func restore(url string, client *http.Client, token string, backupFilePath strin
 		return 0, nil, err
 	}
 	defer func() {
-		err := file.Close()
-		if err != nil {
-			panic(err)
+		if closeErr := file.Close(); closeErr != nil {
+			panic(closeErr)
 		}
 	}()
 
@@ -42,12 +41,9 @@ func restore(url string, client *http.Client, token string, backupFilePath strin
 	if _, err := io.Copy(part, file); err != nil {
 		return 0, nil, err
 	}
-	defer func() {
-		err := writer.Close()
-		if err != nil {
-			panic(err)
-		}
-	}()
+	if err := writer.Close(); err != nil {
+		return 0, nil, err
+	}
 
 	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/restore", &requestBody)
 	if err != nil {
@@ -60,16 +56,17 @@ func restore(url string, client *http.Client, token string, backupFilePath strin
 		return 0, nil, err
 	}
 	defer func() {
-		err := res.Body.Close()
-		if err != nil {
-			panic(err)
+		if closeErr := res.Body.Close(); closeErr != nil {
+			panic(closeErr)
 		}
 	}()
+
 	var restoreResponse RestoreResponse
 	err = json.NewDecoder(res.Body).Decode(&restoreResponse)
 	if err != nil {
-		return 0, nil, err
+		return res.StatusCode, nil, err
 	}
+
 	return res.StatusCode, &restoreResponse, nil
 }
 
@@ -96,14 +93,15 @@ func TestRestoreEndpoint(t *testing.T) {
 	}
 
 	t.Run("1. Trigger restore successfully", func(t *testing.T) {
-		statusCode, restore, err := restore(ts.URL, client, token, restoreFilePath)
+		statusCode, restoreResponse, err := restore(ts.URL, client, token, restoreFilePath)
 		if err != nil {
 			t.Fatalf("couldn't trigger restore: %s", err)
 		}
 		if statusCode != http.StatusOK {
-			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+			t.Fatalf("expected status %d, got %d: %s", http.StatusOK, statusCode, restoreResponse.Error)
 		}
 
+		// Verify the database was restored
 		restoredData, err := os.ReadFile(dbPath)
 		if err != nil {
 			t.Fatalf("failed to read restored database: %s", err)
@@ -118,8 +116,8 @@ func TestRestoreEndpoint(t *testing.T) {
 			t.Fatalf("restored data does not match expected data")
 		}
 
-		if restore.Result.Message != "Database restored successfully" {
-			t.Fatalf("expected message 'Database restored successfully', got '%s'", restore.Result.Message)
+		if restoreResponse.Result.Message != "Database restored successfully" {
+			t.Fatalf("expected message 'Database restored successfully', got '%s'", restoreResponse.Result.Message)
 		}
 	})
 

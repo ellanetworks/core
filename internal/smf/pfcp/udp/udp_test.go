@@ -120,11 +120,11 @@ func TestRun(t *testing.T) {
 func TestServerSendPfcp(t *testing.T) {
 	localAddress := &net.UDPAddr{
 		IP:   net.ParseIP("127.0.0.1"),
-		Port: 8805,
+		Port: 8807,
 	}
 	remoteAddress := &net.UDPAddr{
 		IP:   net.ParseIP("127.0.0.1"),
-		Port: 8806,
+		Port: 8808,
 	}
 
 	msg := message.NewAssociationSetupResponse(1)
