@@ -35,6 +35,14 @@ type GetProfileResponse struct {
 	PriorityLevel   int32  `json:"priority-level,omitempty"`
 }
 
+const (
+	ListProfilesAction  = "list_profiles"
+	GetProfileAction    = "get_profile"
+	CreateProfileAction = "create_profile"
+	UpdateProfileAction = "update_profile"
+	DeleteProfileAction = "delete_profile"
+)
+
 func isProfileNameValid(name string) bool {
 	return len(name) > 0 && len(name) < 256
 }
@@ -80,7 +88,12 @@ func isValidPriorityLevel(priorityLevel int32) bool {
 
 func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		dbProfiles, err := dbInstance.ListProfiles()
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Profiles not found")
@@ -104,12 +117,22 @@ func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			ListProfilesAction,
+			username,
+			"User listed profiles",
+		)
 	}
 }
 
 func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		groupName, exists := c.Params.Get("name")
 		if !exists {
 			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
@@ -136,12 +159,22 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			GetProfileAction,
+			username,
+			"User retrieved profile",
+		)
 	}
 }
 
 func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		var createProfileParams CreateProfileParams
 		err := c.ShouldBindJSON(&createProfileParams)
 		if err != nil {
@@ -235,19 +268,28 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		updateSMF(dbInstance)
-		logger.NmsLog.Infof("Created Profile: %v", createProfileParams.Name)
 		response := SuccessResponse{Message: "Profile created successfully"}
 		err = writeResponse(c.Writer, response, http.StatusCreated)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			CreateProfileAction,
+			username,
+			"User created profile",
+		)
 	}
 }
 
 func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		groupName, exists := c.Params.Get("name")
 		if !exists {
 			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
@@ -345,19 +387,28 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		}
 
 		updateSMF(dbInstance)
-		logger.NmsLog.Infof("Updated Profile: %v", updateProfileParams.Name)
 		response := SuccessResponse{Message: "Profile updated successfully"}
 		err = writeResponse(c.Writer, response, http.StatusOK)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			UpdateProfileAction,
+			username,
+			"User updated profile",
+		)
 	}
 }
 
 func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		groupName, exists := c.Params.Get("name")
 		if !exists {
 			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
@@ -374,12 +425,16 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		updateSMF(dbInstance)
-		logger.NmsLog.Infof("Deleted Profile: %v", groupName)
 		response := SuccessResponse{Message: "Profile deleted successfully"}
 		err = writeResponse(c.Writer, response, http.StatusOK)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			DeleteProfileAction,
+			username,
+			"User deleted profile",
+		)
 	}
 }

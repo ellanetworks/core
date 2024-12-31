@@ -18,6 +18,15 @@ type GetUserParams struct {
 	Username string `json:"username"`
 }
 
+const (
+	ListUsersAction       = "list_users"
+	GetUserAction         = "get_user"
+	GetLoggedInUserAction = "get_logged_in_user"
+	CreateUserAction      = "create_user"
+	UpdateUserAction      = "update_user"
+	DeleteUserAction      = "delete_user"
+)
+
 func isValidUsername(username string) bool {
 	if username == "me" {
 		return false
@@ -41,7 +50,12 @@ func hashPassword(password string) (string, error) {
 
 func ListUsers(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		dbUsers, err := dbInstance.ListUsers()
 		if err != nil {
 			logger.NmsLog.Warnln(err)
@@ -60,19 +74,28 @@ func ListUsers(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			ListUsersAction,
+			username,
+			"Successfully retrieved list of users",
+		)
 	}
 }
 
 func GetUser(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
-		username := c.Param("username")
-		if username == "" {
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
+		usernameParam := c.Param("username")
+		if usernameParam == "" {
 			writeError(c.Writer, http.StatusBadRequest, "Missing username parameter")
 			return
 		}
-		logger.NmsLog.Infof("Received GET user %v", username)
-		dbUser, err := dbInstance.GetUser(username)
+		dbUser, err := dbInstance.GetUser(usernameParam)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "User not found")
 			return
@@ -86,12 +109,16 @@ func GetUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			GetUserAction,
+			username,
+			"Successfully retrieved user",
+		)
 	}
 }
 
 func GetLoggedInUser(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
 		usernameAny, exists := c.Get("username")
 		if !exists {
 			writeError(c.Writer, http.StatusUnauthorized, "Unauthorized")
@@ -116,12 +143,22 @@ func GetLoggedInUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			GetLoggedInUserAction,
+			username,
+			"Successfully retrieved logged in user",
+		)
 	}
 }
 
 func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		var newUser CreateUserParams
 		err := c.ShouldBindJSON(&newUser)
 		if err != nil {
@@ -162,21 +199,30 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to create user")
 			return
 		}
-		logger.NmsLog.Infof("created user %v", newUser.Username)
 		successResponse := SuccessResponse{Message: "User created successfully"}
 		err = writeResponse(c.Writer, successResponse, http.StatusCreated)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			CreateUserAction,
+			username,
+			"Successfully created user",
+		)
 	}
 }
 
 func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
-		username := c.Param("username")
-		if username == "" {
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
+		usernameParam := c.Param("username")
+		if usernameParam == "" {
 			writeError(c.Writer, http.StatusBadRequest, "Missing username parameter")
 			return
 		}
@@ -199,7 +245,7 @@ func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		_, err = dbInstance.GetUser(username)
+		_, err = dbInstance.GetUser(usernameParam)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "User not found")
 			return
@@ -221,30 +267,39 @@ func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update user")
 			return
 		}
-		logger.NmsLog.Infof("updated user %v", username)
 		successResponse := SuccessResponse{Message: "User updated successfully"}
 		err = writeResponse(c.Writer, successResponse, http.StatusOK)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			UpdateUserAction,
+			username,
+			"Successfully updated user",
+		)
 	}
 }
 
 func DeleteUser(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
-		username := c.Param("username")
-		if username == "" {
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
+		usernameParam := c.Param("username")
+		if usernameParam == "" {
 			writeError(c.Writer, http.StatusBadRequest, "Missing username parameter")
 			return
 		}
-		_, err := dbInstance.GetUser(username)
+		_, err := dbInstance.GetUser(usernameParam)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "User not found")
 			return
 		}
-		err = dbInstance.DeleteUser(username)
+		err = dbInstance.DeleteUser(usernameParam)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete user")
@@ -257,5 +312,10 @@ func DeleteUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			DeleteUserAction,
+			username,
+			"Successfully deleted user",
+		)
 	}
 }

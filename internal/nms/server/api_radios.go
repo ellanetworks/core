@@ -19,6 +19,14 @@ type GetRadioParams struct {
 	Tac  string `json:"tac"`
 }
 
+const (
+	ListRadiosAction  = "list_radios"
+	GetRadioAction    = "get_radio"
+	CreateRadioAction = "create_radio"
+	UpdateRadioAction = "update_radio"
+	DeleteRadioAction = "delete_radio"
+)
+
 // TAC is a 24-bit identifier
 func isValidTac(tac string) bool {
 	if len(tac) != 3 {
@@ -34,7 +42,12 @@ func isValidRadioName(name string) bool {
 
 func ListRadios(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		dbRadios, err := dbInstance.ListRadios()
 		if err != nil {
 			logger.NmsLog.Warnln(err)
@@ -54,12 +67,22 @@ func ListRadios(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			ListRadiosAction,
+			username,
+			"User listed radios",
+		)
 	}
 }
 
 func GetRadio(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		radioName := c.Param("name")
 		if radioName == "" {
 			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
@@ -81,12 +104,22 @@ func GetRadio(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			GetRadioAction,
+			username,
+			"User got radio",
+		)
 	}
 }
 
 func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		var newRadio CreateRadioParams
 		err := c.ShouldBindJSON(&newRadio)
 		if err != nil {
@@ -125,19 +158,28 @@ func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to create radio")
 			return
 		}
-		logger.NmsLog.Infof("created radio %v", newRadio.Name)
 		successResponse := SuccessResponse{Message: "Radio created successfully"}
 		err = writeResponse(c.Writer, successResponse, http.StatusCreated)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			CreateRadioAction,
+			username,
+			"User created radio",
+		)
 	}
 }
 
 func UpdateRadio(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		radioName := c.Param("name")
 		if radioName == "" {
 			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
@@ -181,19 +223,28 @@ func UpdateRadio(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update radio")
 			return
 		}
-		logger.NmsLog.Infof("updated radio %v", radioName)
 		successResponse := SuccessResponse{Message: "Radio updated successfully"}
 		err = writeResponse(c.Writer, successResponse, http.StatusOK)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			UpdateRadioAction,
+			username,
+			"User updated radio",
+		)
 	}
 }
 
 func DeleteRadio(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		radioName := c.Param("name")
 		if radioName == "" {
 			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
@@ -217,5 +268,10 @@ func DeleteRadio(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			DeleteRadioAction,
+			username,
+			"User deleted radio",
+		)
 	}
 }

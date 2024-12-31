@@ -10,6 +10,7 @@ import (
 var (
 	log         *zap.Logger
 	EllaLog     *zap.SugaredLogger
+	AuditLog    *zap.SugaredLogger
 	UtilLog     *zap.SugaredLogger
 	MetricsLog  *zap.SugaredLogger
 	DBLog       *zap.SugaredLogger
@@ -76,6 +77,7 @@ func init() {
 	UdmLog = log.Sugar().With("component", "UDM")
 	UdrLog = log.Sugar().With("component", "UDR")
 	UpfLog = log.Sugar().With("component", "UPF")
+	AuditLog = log.Sugar().With("component", "Audit")
 }
 
 func GetLogger() *zap.Logger {
@@ -105,4 +107,13 @@ func CapitalColorLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder
 		color = "\033[0m" // Reset
 	}
 	enc.AppendString(fmt.Sprintf("%s%s\033[0m", color, l.CapitalString()))
+}
+
+func LogAuditEvent(action string, actor string, details string) {
+	fields := []interface{}{
+		"action", action,
+		"actor", actor,
+		"details", details,
+	}
+	AuditLog.Infow("audit event", fields...)
 }

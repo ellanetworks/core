@@ -14,6 +14,8 @@ type StatusResponse struct {
 	Initialized bool   `json:"initialized"`
 }
 
+const GetStatusAction = "get_status"
+
 func GetStatus(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		numUsers, err := dbInstance.NumUsers()
@@ -37,5 +39,10 @@ func GetStatus(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			GetStatusAction,
+			"",
+			"Successfully retrieved status",
+		)
 	}
 }

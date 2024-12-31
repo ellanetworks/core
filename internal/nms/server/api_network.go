@@ -31,6 +31,11 @@ type GetNetworkResponse struct {
 	Mnc string `json:"mnc,omitempty"`
 }
 
+const (
+	GetNetworkAction    = "get_network"
+	UpdateNetworkAction = "update_network"
+)
+
 // Mcc is a 3-decimal digit
 func isValidMcc(mcc string) bool {
 	if len(mcc) != 3 {
@@ -59,7 +64,12 @@ func isValidMnc(mnc string) bool {
 
 func GetNetwork(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		dbNetwork, err := dbInstance.GetNetwork()
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "Network not found")
@@ -76,11 +86,22 @@ func GetNetwork(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			GetNetworkAction,
+			username,
+			"Successfully retrieved network",
+		)
 	}
 }
 
 func UpdateNetwork(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		var updateNetworkParams UpdateNetworkParams
 		err := c.ShouldBindJSON(&updateNetworkParams)
 		if err != nil {
@@ -116,13 +137,17 @@ func UpdateNetwork(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		updateSMF(dbInstance)
-		logger.NmsLog.Infof("Network updated successfully")
 		message := SuccessResponse{Message: "Network updated successfully"}
 		err = writeResponse(c.Writer, message, http.StatusCreated)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			UpdateNetworkAction,
+			username,
+			"Successfully updated network",
+		)
 	}
 }
 
