@@ -8,6 +8,7 @@ import * as yup from "yup";
 import { ValidationError } from "yup";
 import { useRouter } from "next/navigation"
 import { useCookies } from "react-cookie"
+import Grid from "@mui/material/Grid2";
 
 
 const NetworkConfiguration = () => {
@@ -102,65 +103,72 @@ const NetworkConfiguration = () => {
   };
 
   return (
-    <Box
-      sx={{
-        height: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "flex-start",
-        alignItems: "center",
-        paddingTop: 6,
-        textAlign: "center",
-      }}
-    >
-      <Box sx={{ marginBottom: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Network Configuration
-        </Typography>
-      </Box>
-      <Box sx={{ maxWidth: 400, width: "100%" }}>
-        {alert.severity && (
-          <Alert
-            severity={alert.severity}
-            onClose={() => setAlert({ message: "", severity: null })}
-            sx={{ marginBottom: 2 }}
-          >
-            {alert.message}
-          </Alert>
-        )}
-        <TextField
-          fullWidth
-          id="mcc"
-          label="Mobile Country Code (MCC)"
-          value={mcc}
-          onChange={(e) => setMcc(e.target.value)}
-          variant="outlined"
-          margin="normal"
-          error={!!mccError}
-          helperText={mccError}
-        />
-        <TextField
-          fullWidth
-          id="mnc"
-          label="Mobile Network Code (MNC)"
-          value={mnc}
-          onChange={(e) => setMnc(e.target.value)}
-          variant="outlined"
-          margin="normal"
-          error={!!mncError}
-          helperText={mncError}
-        />
-        <Button
-          fullWidth
-          variant="contained"
-          color="success"
-          onClick={handleSave}
-          disabled={isSaveDisabled}
-          sx={{ marginTop: 2 }}
+    <Box sx={{ padding: 4, maxWidth: "1200px", margin: "0 auto" }}>
+      <Typography
+        variant="h4"
+        component="h1"
+        gutterBottom
+        sx={{ textAlign: "left", marginBottom: 4 }}
+      >
+        Network Configuration
+      </Typography>
+
+      {alert.severity && (
+        <Alert
+          severity={alert.severity}
+          onClose={() => setAlert({ message: "", severity: null })}
         >
-          Save
-        </Button>
-      </Box>
+          {alert.message}
+        </Alert>
+      )}
+
+      <Grid container spacing={4} justifyContent="flex-start">
+        <Grid size={4}>
+          <Box
+            sx={{
+              border: "1px solid #ccc",
+              borderRadius: 4,
+              padding: 4,
+              width: "100%",
+              margin: "0 auto",
+              textAlign: "center",
+            }}
+          >
+            <TextField
+              fullWidth
+              id="mcc"
+              label="Mobile Country Code (MCC)"
+              value={mcc}
+              onChange={(e) => setMcc(e.target.value)}
+              variant="outlined"
+              margin="normal"
+              error={!!mccError}
+              helperText={mccError}
+            />
+            <TextField
+              fullWidth
+              id="mnc"
+              label="Mobile Network Code (MNC)"
+              value={mnc}
+              onChange={(e) => setMnc(e.target.value)}
+              variant="outlined"
+              margin="normal"
+              error={!!mncError}
+              helperText={mncError}
+            />
+            <Button
+              fullWidth
+              variant="contained"
+              color="success"
+              onClick={handleSave}
+              disabled={isSaveDisabled}
+              sx={{ marginTop: 2 }}
+            >
+              Save
+            </Button>
+          </Box>
+        </Grid>
+      </Grid>
     </Box>
   );
 };

@@ -7,6 +7,7 @@ import {
     AppBar,
     Drawer,
     List,
+    ListSubheader,
     ListItem,
     ListItemButton,
     ListItemIcon,
@@ -27,6 +28,7 @@ import {
     Router as RouterIcon,
     Logout as LogoutIcon,
     AccountCircle as AccountCircleIcon,
+    Storage as StorageIcon,
 } from "@mui/icons-material";
 import { usePathname, useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
@@ -147,12 +149,21 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                             </ListItemButton>
                         </ListItem>
                         <Divider />
+                        <ListSubheader>System</ListSubheader>
                         <ListItem disablePadding>
                             <ListItemButton component="a" href="/users" selected={pathname === "/users"}>
                                 <ListItemIcon>
                                     <AdminPanelSettingsIcon />
                                 </ListItemIcon>
                                 <ListItemText primary="Users" />
+                            </ListItemButton>
+                        </ListItem>
+                        <ListItem disablePadding>
+                            <ListItemButton component="a" href="/backup_restore" selected={pathname === "/backup_restore"}>
+                                <ListItemIcon>
+                                    <StorageIcon />
+                                </ListItemIcon>
+                                <ListItemText primary="Backup and Restore" />
                             </ListItemButton>
                         </ListItem>
                     </List>

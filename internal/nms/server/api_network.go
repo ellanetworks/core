@@ -89,7 +89,7 @@ func GetNetwork(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			GetNetworkAction,
 			username,
-			"Successfully retrieved network",
+			"User retrieved network",
 		)
 	}
 }
@@ -146,7 +146,7 @@ func UpdateNetwork(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			UpdateNetworkAction,
 			username,
-			"Successfully updated network",
+			"User updated network with mcc: "+updateNetworkParams.Mcc+" and mnc: "+updateNetworkParams.Mnc,
 		)
 	}
 }

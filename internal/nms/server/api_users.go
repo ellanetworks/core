@@ -207,7 +207,7 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			CreateUserAction,
 			username,
-			"Successfully created user",
+			"User created user: "+newUser.Username,
 		)
 	}
 }
@@ -275,7 +275,7 @@ func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			UpdateUserAction,
 			username,
-			"Successfully updated user",
+			"User updated user: "+updateUserParams.Username,
 		)
 	}
 }
@@ -314,7 +314,7 @@ func DeleteUser(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			DeleteUserAction,
 			username,
-			"Successfully deleted user",
+			"User deleted user: "+usernameParam,
 		)
 	}
 }
