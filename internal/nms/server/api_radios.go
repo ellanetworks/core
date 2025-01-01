@@ -107,7 +107,7 @@ func GetRadio(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			GetRadioAction,
 			username,
-			"User got radio",
+			"User retrieved radio: "+radioName,
 		)
 	}
 }
@@ -167,7 +167,7 @@ func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			CreateRadioAction,
 			username,
-			"User created radio",
+			"User created radio: "+newRadio.Name,
 		)
 	}
 }
@@ -232,7 +232,7 @@ func UpdateRadio(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			UpdateRadioAction,
 			username,
-			"User updated radio",
+			"User updated radio: "+radioName,
 		)
 	}
 }
@@ -271,7 +271,7 @@ func DeleteRadio(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			DeleteRadioAction,
 			username,
-			"User deleted radio",
+			"User deleted radio: "+radioName,
 		)
 	}
 }

@@ -133,12 +133,12 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
 			return
 		}
-		groupName, exists := c.Params.Get("name")
+		profileName, exists := c.Params.Get("name")
 		if !exists {
 			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
 			return
 		}
-		dbProfile, err := dbInstance.GetProfile(groupName)
+		dbProfile, err := dbInstance.GetProfile(profileName)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "Profile not found")
 			return
@@ -162,7 +162,7 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			GetProfileAction,
 			username,
-			"User retrieved profile",
+			"User retrieved profile: "+profileName,
 		)
 	}
 }
@@ -277,7 +277,7 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			CreateProfileAction,
 			username,
-			"User created profile",
+			"User created profile: "+createProfileParams.Name,
 		)
 	}
 }
@@ -396,7 +396,7 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			UpdateProfileAction,
 			username,
-			"User updated profile",
+			"User updated profile: "+updateProfileParams.Name,
 		)
 	}
 }
@@ -409,17 +409,17 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
 			return
 		}
-		groupName, exists := c.Params.Get("name")
+		profileName, exists := c.Params.Get("name")
 		if !exists {
 			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
 			return
 		}
-		_, err := dbInstance.GetProfile(groupName)
+		_, err := dbInstance.GetProfile(profileName)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "Profile not found")
 			return
 		}
-		err = dbInstance.DeleteProfile(groupName)
+		err = dbInstance.DeleteProfile(profileName)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete profile")
 			return
@@ -434,7 +434,7 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			DeleteProfileAction,
 			username,
-			"User deleted profile",
+			"User deleted profile: "+profileName,
 		)
 	}
 }

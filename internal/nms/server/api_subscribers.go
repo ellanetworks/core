@@ -148,7 +148,7 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			GetSubscriberAction,
 			username,
-			"User got subscriber",
+			"User retrieved subscriber: "+imsi,
 		)
 	}
 }
@@ -237,7 +237,7 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			CreateSubscriberAction,
 			username,
-			"User created subscriber",
+			"User created subscriber: "+createSubscriberParams.Imsi,
 		)
 	}
 }
@@ -331,7 +331,7 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			UpdateSubscriberAction,
 			username,
-			"User updated subscriber",
+			"User updated subscriber: "+imsi,
 		)
 	}
 }
@@ -370,7 +370,7 @@ func DeleteSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			DeleteSubscriberAction,
 			username,
-			"User deleted subscriber",
+			"User deleted subscriber: "+imsi,
 		)
 	}
 }
