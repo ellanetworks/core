@@ -41,6 +41,7 @@ export const updateNetwork = async (authToken: string, mcc: string, mnc: string)
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
+      "Authorization": "Bearer " + authToken
     },
     body: JSON.stringify(networkData),
   });
