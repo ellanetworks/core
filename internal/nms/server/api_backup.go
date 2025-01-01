@@ -9,8 +9,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const BackupAction = "backup_database"
+
 func Backup(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
+
 		backupFilePath, err := dbInstance.Backup()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -24,5 +33,10 @@ func Backup(dbInstance *db.Database) gin.HandlerFunc {
 		}()
 
 		c.File(backupFilePath)
+		logger.LogAuditEvent(
+			BackupAction,
+			username,
+			"Successfully backed up database",
+		)
 	}
 }

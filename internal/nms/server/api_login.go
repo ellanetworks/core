@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -21,6 +22,8 @@ type LoginParams struct {
 type LoginResponse struct {
 	Token string `json:"token"`
 }
+
+const LoginAction = "login"
 
 func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -40,12 +43,22 @@ func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
 		}
 		user, err := dbInstance.GetUser(loginParams.Username)
 		if err != nil {
+			logger.LogAuditEvent(
+				LoginAction,
+				loginParams.Username,
+				"User failed to log in",
+			)
 			writeError(c.Writer, http.StatusUnauthorized, "The username or password is incorrect. Try again.")
 			return
 		}
 
 		err = bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(loginParams.Password))
 		if err != nil {
+			logger.LogAuditEvent(
+				LoginAction,
+				user.Username,
+				"User failed to log in",
+			)
 			writeError(c.Writer, http.StatusUnauthorized, "The username or password is incorrect. Try again.")
 			return
 		}
@@ -64,5 +77,10 @@ func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Internal Error")
 			return
 		}
+		logger.LogAuditEvent(
+			LoginAction,
+			user.Username,
+			"User logged in",
+		)
 	}
 }

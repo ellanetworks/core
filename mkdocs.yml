@@ -55,3 +55,4 @@ nav:
     - Metrics: reference/metrics.md
     - Configuration File: reference/config_file.md
     - Connectivity: reference/connectivity.md
+    - Audit Logs: reference/audit_logs.md

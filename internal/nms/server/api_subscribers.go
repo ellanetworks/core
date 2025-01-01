@@ -26,6 +26,14 @@ type GetSubscriberResponse struct {
 	ProfileName    string `json:"profileName"`
 }
 
+const (
+	ListSubscribersAction  = "list_subscribers"
+	GetSubscriberAction    = "get_subscriber"
+	CreateSubscriberAction = "create_subscriber"
+	UpdateSubscriberAction = "update_subscriber"
+	DeleteSubscriberAction = "delete_subscriber"
+)
+
 func isImsiValid(imsi string, dbInstance *db.Database) bool {
 	if len(imsi) != 15 {
 		return false
@@ -58,7 +66,12 @@ func isSequenceNumberValid(sequenceNumber string) bool {
 
 func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		dbSubscribers, err := dbInstance.ListSubscribers()
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Unable to retrieve subscribers")
@@ -86,12 +99,22 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			ListSubscribersAction,
+			username,
+			"User listed subscribers",
+		)
 	}
 }
 
 func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		imsi := c.Param("imsi")
 		if imsi == "" {
 			writeError(c.Writer, http.StatusBadRequest, "Missing imsi parameter")
@@ -122,12 +145,22 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			GetSubscriberAction,
+			username,
+			"User got subscriber",
+		)
 	}
 }
 
 func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		var createSubscriberParams CreateSubscriberParams
 		err := c.ShouldBindJSON(&createSubscriberParams)
 		if err != nil {
@@ -201,12 +234,22 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			CreateSubscriberAction,
+			username,
+			"User created subscriber",
+		)
 	}
 }
 
 func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		imsi := c.Param("imsi")
 		if imsi == "" {
 			writeError(c.Writer, http.StatusBadRequest, "Missing imsi parameter")
@@ -285,12 +328,22 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			UpdateSubscriberAction,
+			username,
+			"User updated subscriber",
+		)
 	}
 }
 
 func DeleteSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		setCorsHeader(c)
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		imsi := c.Param("imsi")
 		if imsi == "" {
 			writeError(c.Writer, http.StatusBadRequest, "Missing imsi parameter")
@@ -314,5 +367,10 @@ func DeleteSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			DeleteSubscriberAction,
+			username,
+			"User deleted subscriber",
+		)
 	}
 }

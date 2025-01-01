@@ -13,9 +13,10 @@ import (
 	"github.com/golang-jwt/jwt"
 )
 
+const AuthenticationAction = "user_authentication"
+
 func Any(handlerFunc gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// No authentication required; proceed directly to the handler
 		handlerFunc(c)
 	}
 }
@@ -25,11 +26,15 @@ func User(handlerFunc gin.HandlerFunc, jwtSecret []byte) gin.HandlerFunc {
 		authHeader := c.GetHeader("Authorization")
 		claims, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
 		if err != nil {
+			logger.LogAuditEvent(
+				AuthenticationAction,
+				"",
+				"Unauthorized access attempt",
+			)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
 
-		// Store claims in context for further use
 		c.Set("userID", claims.ID)
 		c.Set("username", claims.Username)
 
@@ -48,12 +53,19 @@ func UserOrFirstUser(handlerFunc gin.HandlerFunc, db *db.Database, jwtSecret []b
 		}
 
 		if numUsers > 0 {
-			_, err := getClaimsFromAuthorizationHeader(c.GetHeader("Authorization"), jwtSecret)
+			claims, err := getClaimsFromAuthorizationHeader(c.GetHeader("Authorization"), jwtSecret)
 			if err != nil {
-				logger.NmsLog.Warnf("Unauthorized request: %v", err)
+				logger.LogAuditEvent(
+					AuthenticationAction,
+					"",
+					"Unauthorized access attempt",
+				)
 				writeError(c.Writer, http.StatusUnauthorized, "Unauthorized")
 				return
 			}
+
+			c.Set("userID", claims.ID)
+			c.Set("username", claims.Username)
 		}
 		handlerFunc(c)
 	}

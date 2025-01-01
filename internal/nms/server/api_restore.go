@@ -6,11 +6,20 @@ import (
 	"os"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
 )
 
+const RestoreAction = "restore_database"
+
 func Restore(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		usernameAny, _ := c.Get("username")
+		username, ok := usernameAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			return
+		}
 		file, err := c.FormFile("backup")
 		if err != nil {
 			writeError(c.Writer, http.StatusBadRequest, "No backup file provided")
@@ -46,5 +55,10 @@ func Restore(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+		logger.LogAuditEvent(
+			RestoreAction,
+			username,
+			"User restored database",
+		)
 	}
 }
