@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2024 Guillaume Belanger
-# See LICENSE file for licensing details.
 
-import json
 import logging
 import subprocess
 import time
@@ -23,11 +20,15 @@ class TestELLA:
     async def test_given_ella_and_gnbsim_deployed_when_start_simulation_then_simulation_success_status_is_true(  # noqa: E501
         self,
     ):
+        deploy_core_and_router_components()
+        wait_for_ella_core_ready()
+        configure_pebble_for_ella_core()
+        time.sleep(10)
         core_port = get_core_node_port()
         core_address = f"https://127.0.0.1:{core_port}"
         subscriber = configure_ella_core(core_address=core_address)
-        push_config_file(subscriber)
-        time.sleep(20)
+        create_gnbsim_configmap_and_deployment(subscriber)
+        time.sleep(10)
         success_runs = run_gnbsim_simulation(
             namespace=NAMESPACE,
             application_name="gnbsim",
@@ -37,15 +38,134 @@ class TestELLA:
         assert success_runs == NUM_PROFILES
 
 
+def configure_pebble_for_ella_core():
+    """Add and start the Pebble layer for Ella Core."""
+    try:
+        logger.info("Configuring Pebble layer for Ella Core...")
+        # Get the name of the Ella Core pod
+        pod_name = subprocess.check_output(
+            [
+                "kubectl",
+                "get",
+                "pods",
+                "-n",
+                NAMESPACE,
+                "-l",
+                "app=ella-core",
+                "-o",
+                "jsonpath={.items[0].metadata.name}",
+            ],
+            text=True,
+        ).strip()
+
+        # Add the Pebble layer
+        subprocess.check_call(
+            [
+                "kubectl",
+                "exec",
+                "-i",
+                pod_name,
+                "-n",
+                NAMESPACE,
+                "--",
+                "pebble",
+                "add",
+                "ella-core",
+                "/config/pebble.yaml",
+            ]
+        )
+        logger.info("Pebble layer added successfully.")
+
+        # Start the Pebble service
+        subprocess.check_call(
+            [
+                "kubectl",
+                "exec",
+                "-i",
+                pod_name,
+                "-n",
+                NAMESPACE,
+                "--",
+                "pebble",
+                "start",
+                "ella-core",
+            ]
+        )
+        logger.info("Ella Core started successfully using Pebble.")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to configure Pebble layer for Ella Core: {e}")
+        raise RuntimeError("Failed to configure Pebble for Ella Core") from e
+
+
+def deploy_core_and_router_components():
+    """Deploy core and router components."""
+    logger.info("Deploying core and router components...")
+    manifests = [
+        "k8s/router-ran-nad.yaml",
+        "k8s/router-core-nad.yaml",
+        "k8s/router-access-nad.yaml",
+        "k8s/router-deployment.yaml",
+        "k8s/core-n3-nad.yaml",
+        "k8s/core-n6-nad.yaml",
+        "k8s/core-configmap.yaml",
+        "k8s/core-deployment.yaml",
+        "k8s/core-service.yaml",
+    ]
+    for manifest in manifests:
+        logger.info(f"Applying manifest: {manifest}")
+        subprocess.check_call(["kubectl", "apply", "-f", manifest])
+    logger.info("Core and router components deployed successfully.")
+
+
+def wait_for_ella_core_ready():
+    """Wait for Ella Core and Router components to be ready."""
+    logger.info("Waiting for Ella Core and Router components to be ready...")
+
+    components = {
+        "ella-core": "app=ella-core",
+        "router": "app=router",
+    }
+
+    for component_name, label_selector in components.items():
+        try:
+            logger.info(f"Waiting for {component_name} pods to be ready...")
+            subprocess.check_call(
+                [
+                    "kubectl",
+                    "wait",
+                    "--namespace",
+                    NAMESPACE,
+                    "--for=condition=ready",
+                    "pod",
+                    "-l",
+                    label_selector,
+                    "--timeout=120s",
+                ]
+            )
+            logger.info(f"{component_name} is ready.")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Timed out waiting for {component_name} to be ready: {e}")
+            raise RuntimeError(f"{component_name} is not ready") from e
+
+
+def create_gnbsim_configmap_and_deployment(subscriber: Subscriber):
+    """Create GNBSim ConfigMap and deployment."""
+    logger.info("Creating GNBSim ConfigMap and deployment...")
+    push_config_file(subscriber)
+
+    manifests = [
+        "k8s/gnbsim-gnb-nad.yaml",
+        "k8s/gnbsim-deployment.yaml",
+        "k8s/gnbsim-service.yaml",
+    ]
+    for manifest in manifests:
+        logger.info(f"Applying manifest: {manifest}")
+        subprocess.check_call(["kubectl", "apply", "-f", manifest])
+    logger.info("GNBSim components deployed successfully.")
+
+
 def get_core_node_port() -> int:
-    """Fetch the NodePort for the Ella Core service in the Kubernetes cluster.
-
-    Returns:
-        int: The NodePort of the Ella Core service.
-
-    Raises:
-        RuntimeError: If the NodePort cannot be retrieved.
-    """
+    """Fetch the NodePort for the Ella Core service in the Kubernetes cluster."""
     try:
         node_port = subprocess.check_output(
             [
@@ -65,19 +185,10 @@ def get_core_node_port() -> int:
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to fetch Ella NodePort: {e.output}")
         raise RuntimeError("Could not retrieve NodePort for Ella service") from e
-    except ValueError as e:
-        logger.error(f"NodePort value is invalid: {e}")
-        raise RuntimeError("Invalid NodePort value retrieved") from e
 
 
 def configure_ella_core(core_address: str) -> Subscriber:
-    """Configure Ella Core.
-
-    Configuration includes:
-    - subscriber creation
-    - profile creation
-    - operator configuration update
-    """
+    """Configure Ella Core."""
     ella_client = EllaCore(url=core_address)
     ella_client.create_user(username="admin", password="admin")
     token = ella_client.login(username="admin", password="admin")
@@ -92,21 +203,119 @@ def configure_ella_core(core_address: str) -> Subscriber:
     return subscriber
 
 
+def push_config_file(subscriber: Subscriber) -> None:
+    """Generate and create the GNBSim ConfigMap with the subscriber information."""
+    logger.info("Creating GNBSim ConfigMap...")
+    config = {
+        "configuration.yaml": yaml.dump(
+            {
+                "configuration": {
+                    "execInParallel": False,
+                    "gnbs": {
+                        "gnb1": {
+                            "defaultAmf": {
+                                "hostName": "ella-core.dev2.svc.cluster.local",
+                                "port": 38412,
+                            },
+                            "globalRanId": {
+                                "gNbId": {
+                                    "bitLength": 24,
+                                    "gNBValue": "000102",
+                                },
+                                "plmnId": {
+                                    "mcc": "001",
+                                    "mnc": "01",
+                                },
+                            },
+                            "n2Port": 9487,
+                            "n3IpAddr": "192.168.251.5",
+                            "n3Port": 2152,
+                            "name": "gnb1",
+                            "supportedTaList": [
+                                {
+                                    "broadcastPlmnList": [
+                                        {
+                                            "plmnId": {
+                                                "mcc": "001",
+                                                "mnc": "01",
+                                            },
+                                            "taiSliceSupportList": [
+                                                {
+                                                    "sd": "102030",
+                                                    "sst": 1,
+                                                }
+                                            ],
+                                        }
+                                    ],
+                                    "tac": "000001",
+                                }
+                            ],
+                        },
+                    },
+                    "profiles": [
+                        {
+                            "profileType": "register",
+                            "profileName": "profile1",
+                            "enable": True,
+                            "gnbName": "gnb1",
+                            "startImsi": subscriber.imsi,
+                            "ueCount": 1,
+                            "defaultAs": "192.168.250.1",
+                            "opc": subscriber.opc,
+                            "key": subscriber.key,
+                            "sequenceNumber": subscriber.sequence_number,
+                            "dnn": "internet",
+                            "sNssai": {
+                                "sst": 1,
+                                "sd": "102030",
+                            },
+                            "plmnId": {
+                                "mcc": "001",
+                                "mnc": "01",
+                            },
+                        },
+                    ],
+                },
+                "info": {
+                    "description": "gNodeB sim initial configuration",
+                    "version": "1.0.0",
+                },
+                "logger": {
+                    "logLevel": "trace",
+                },
+            },
+            default_flow_style=False,
+        )
+    }
+
+    configmap_manifest = {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {
+            "name": "gnbsim-config",
+            "namespace": NAMESPACE,
+        },
+        "data": config,
+    }
+
+    # Save ConfigMap manifest to a temporary file
+    configmap_path = "/tmp/gnbsim-configmap.yaml"
+    with open(configmap_path, "w") as f:
+        yaml.dump(configmap_manifest, f)
+
+    try:
+        # Apply the ConfigMap manifest
+        subprocess.check_call(["kubectl", "apply", "-f", configmap_path])
+        logger.info("ConfigMap created successfully.")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to create ConfigMap: {e}")
+        raise RuntimeError("Failed to create ConfigMap for GNBSim") from e
+
+
 def run_gnbsim_simulation(
     namespace: str, application_name: str, config_path: str, timeout: int
 ) -> int:
-    """Run the GNBSim simulation command in the container.
-
-    Args:
-        namespace (str): Kubernetes namespace.
-        application_name (str): Application name (K8s deployment name).
-        container_name (str): Container name in the pod.
-        config_path (str): Path to the GNBSim configuration file.
-        timeout (int): Maximum timeout for the command execution in seconds.
-
-    Returns:
-        int: Number of successful profile runs.
-    """
+    """Run the GNBSim simulation."""
     try:
         pod_name = subprocess.check_output(
             [
@@ -122,12 +331,8 @@ def run_gnbsim_simulation(
             ],
             text=True,
         ).strip()
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to get pod name for {application_name}: {e}")
-        return 0
-    logger.info(f"Running GNBSim simulation in pod {pod_name}")
+        logger.info(f"Running GNBSim simulation in pod {pod_name}")
 
-    try:
         result = subprocess.check_output(
             [
                 "kubectl",
@@ -147,252 +352,7 @@ def run_gnbsim_simulation(
             stderr=subprocess.STDOUT,
         ).strip()
         logger.info(f"GNBSim simulation output: {result}")
-        # Count the number of times `Profile Status: PASS` appears
         return result.count("Profile Status: PASS")
-    except subprocess.CalledProcessError:
-        return 0
-
-
-def push_config_file(subscriber: Subscriber) -> None:
-    """Generate the configuration file for GNBSim and push it to the container.
-
-    Args:
-        subscriber (Subscriber): The subscriber information.
-    """
-    config = {
-        "configuration": {
-            "execInParallel": False,
-            "gnbs": {
-                "gnb1": {
-                    "defaultAmf": {
-                        "hostName": "ella-core.dev2.svc.cluster.local",
-                        "port": 38412,
-                    },
-                    "globalRanId": {
-                        "gNbId": {
-                            "bitLength": 24,
-                            "gNBValue": "000102",
-                        },
-                        "plmnId": {
-                            "mcc": "001",
-                            "mnc": "01",
-                        },
-                    },
-                    "n2Port": 9487,
-                    "n3IpAddr": "192.168.251.5",
-                    "n3Port": 2152,
-                    "name": "gnb1",
-                    "supportedTaList": [
-                        {
-                            "broadcastPlmnList": [
-                                {
-                                    "plmnId": {
-                                        "mcc": "001",
-                                        "mnc": "01",
-                                    },
-                                    "taiSliceSupportList": [
-                                        {
-                                            "sd": "102030",
-                                            "sst": 1,
-                                        }
-                                    ],
-                                }
-                            ],
-                            "tac": "000001",
-                        }
-                    ],
-                },
-            },
-            "goProfile": {
-                "enable": False,
-                "port": 5000,
-            },
-            "httpServer": {
-                "enable": False,
-            },
-            "profiles": [
-                {
-                    "profileType": "register",
-                    "profileName": "profile1",
-                    "enable": True,
-                    "gnbName": "gnb1",
-                    "startImsi": subscriber.imsi,
-                    "ueCount": 1,
-                    "defaultAs": "192.168.250.1",
-                    "opc": subscriber.opc,
-                    "key": subscriber.key,
-                    "sequenceNumber": subscriber.sequence_number,
-                    "dnn": "internet",
-                    "sNssai": {
-                        "sst": 1,
-                        "sd": "102030",
-                    },
-                    "plmnId": {
-                        "mcc": "001",
-                        "mnc": "01",
-                    },
-                },
-                {
-                    "profileType": "pdusessest",
-                    "profileName": "profile2",
-                    "enable": True,
-                    "gnbName": "gnb1",
-                    "dataPktCount": 5,
-                    "defaultAs": "192.168.250.1",
-                    "opc": subscriber.opc,
-                    "key": subscriber.key,
-                    "perUserTimeout": 100,
-                    "dnn": "internet",
-                    "sNssai": {
-                        "sst": 1,
-                        "sd": "102030",
-                    },
-                    "plmnId": {
-                        "mcc": "001",
-                        "mnc": "01",
-                    },
-                    "sequenceNumber": subscriber.sequence_number,
-                    "startImsi": subscriber.imsi,
-                    "ueCount": 1,
-                },
-                {
-                    "profileType": "anrelease",
-                    "profileName": "profile3",
-                    "enable": True,
-                    "gnbName": "gnb1",
-                    "startImsi": subscriber.imsi,
-                    "ueCount": 1,
-                    "defaultAs": "192.168.250.1",
-                    "opc": subscriber.opc,
-                    "key": subscriber.key,
-                    "sequenceNumber": subscriber.sequence_number,
-                    "dnn": "internet",
-                    "sNssai": {
-                        "sst": 1,
-                        "sd": "102030",
-                    },
-                    "execInParallel": False,
-                    "plmnId": {
-                        "mcc": "001",
-                        "mnc": "01",
-                    },
-                },
-                {
-                    "profileType": "uetriggservicereq",
-                    "profileName": "profile4",
-                    "enable": True,
-                    "gnbName": "gnb1",
-                    "startImsi": subscriber.imsi,
-                    "ueCount": 1,
-                    "defaultAs": "192.168.250.1",
-                    "opc": subscriber.opc,
-                    "key": subscriber.key,
-                    "sequenceNumber": subscriber.sequence_number,
-                    "dnn": "internet",
-                    "retransMsg": False,
-                    "sNssai": {
-                        "sst": 1,
-                        "sd": "102030",
-                    },
-                    "execInParallel": False,
-                    "plmnId": {
-                        "mcc": "001",
-                        "mnc": "01",
-                    },
-                },
-                {
-                    "profileType": "deregister",
-                    "profileName": "profile5",
-                    "enable": True,
-                    "gnbName": "gnb1",
-                    "startImsi": subscriber.imsi,
-                    "ueCount": 1,
-                    "defaultAs": "192.168.250.1",
-                    "opc": subscriber.opc,
-                    "key": subscriber.key,
-                    "sequenceNumber": subscriber.sequence_number,
-                    "dnn": "internet",
-                    "sNssai": {
-                        "sst": 1,
-                        "sd": "102030",
-                    },
-                    "execInParallel": False,
-                    "plmnId": {
-                        "mcc": "001",
-                        "mnc": "01",
-                    },
-                },
-            ],
-            "runConfigProfilesAtStart": True,
-        },
-        "info": {
-            "description": "gNodeB sim initial configuration",
-            "version": "1.0.0",
-        },
-        "logger": {
-            "logLevel": "trace",
-        },
-    }
-
-    config_yaml = yaml.dump(config, default_flow_style=False)
-
-    patch_payload = json.dumps(
-        [
-            {
-                "op": "replace",
-                "path": "/data/configuration.yaml",
-                "value": config_yaml,
-            }
-        ]
-    )
-
-    try:
-        subprocess.check_call(
-            [
-                "kubectl",
-                "patch",
-                "configmap",
-                "gnbsim-config",
-                "-n",
-                NAMESPACE,
-                "--type=json",
-                "-p",
-                patch_payload,
-            ],
-            stderr=subprocess.STDOUT,
-        )
-        logger.info("ConfigMap updated successfully.")
     except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to update ConfigMap: {e}")
-        raise RuntimeError("Failed to update ConfigMap for GNBSim") from e
-
-def restart_pod(app_name: str):
-    subprocess.check_call(
-        [
-            "kubectl",
-            "rollout",
-            "restart",
-            f"deployment/{app_name}",
-            "-n",
-            NAMESPACE,
-        ]
-    )
-    logger.info(f"Restarted deployment {app_name} in namespace {NAMESPACE}")
-
-
-def print_configmap():
-    config_data = subprocess.check_output(
-        [
-            "kubectl",
-            "get",
-            "configmap",
-            "gnbsim-config",
-            "-n",
-            NAMESPACE,
-            "-o",
-            "jsonpath={.data.configuration\\.yaml}",
-        ],
-        text=True,
-    )
-    config = yaml.safe_load(config_data)
-    print(json.dumps(config, indent=2))
+        logger.error(f"GNBSim simulation failed: {e}")
+        raise

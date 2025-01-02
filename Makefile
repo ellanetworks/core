@@ -5,19 +5,6 @@ ROCK_FILE := ella-core_0.0.4_amd64.rock
 TAR_FILE := ella.tar
 K8S_NAMESPACE := dev2
 OCI_IMAGE_NAME := ella-core:0.0.4
-GNBSIM_GNB_NAD := k8s/gnbsim-gnb-nad.yaml
-GNBSIM_DEPLOYMENT := k8s/gnbsim-deployment.yaml
-GNBSIM_SERVICE := k8s/gnbsim-service.yaml
-GNBSIM_CONFIGMAP := k8s/gnbsim-configmap.yaml
-ROUTER_RAN_NAD := k8s/router-ran-nad.yaml
-ROUTER_CORE_NAD := k8s/router-core-nad.yaml
-ROUTER_ACCESS_NAD := k8s/router-access-nad.yaml
-ROUTER_DEPLOYMENT := k8s/router-deployment.yaml
-CORE_N3_NAD := k8s/core-n3-nad.yaml
-CORE_N6_NAD := k8s/core-n6-nad.yaml
-CORE_DEPLOYMENT := k8s/core-deployment.yaml
-CORE_CONFIGMAP := k8s/core-configmap.yaml
-CORE_SERVICE := k8s/core-service.yaml
 
 .PHONY: all clean build ui-build go-build oci-build deploy nad-create rebuild
 
@@ -43,46 +30,6 @@ oci-build:
 	@echo "Pushing image to local registry..."
 	docker tag ella-core:0.0.4 localhost:5000/ella-core:0.0.4
 	docker push localhost:5000/ella-core:0.0.4
-
-gnbsim-deploy:
-	@echo "Deploying gnbsim..."
-	kubectl apply -f $(GNBSIM_GNB_NAD)
-	kubectl apply -f $(GNBSIM_CONFIGMAP)
-	kubectl apply -f $(GNBSIM_DEPLOYMENT)
-	kubectl apply -f $(GNBSIM_SERVICE)
-
-router-deploy:
-	@echo "Deploying router..."
-	kubectl apply -f $(ROUTER_RAN_NAD)
-	kubectl apply -f $(ROUTER_CORE_NAD)
-	kubectl apply -f $(ROUTER_ACCESS_NAD)
-	kubectl apply -f $(ROUTER_DEPLOYMENT)
-
-core-deploy: 
-	@echo "Deploying Ella..."
-	kubectl apply -f $(CORE_N3_NAD)
-	kubectl apply -f $(CORE_N6_NAD)
-	kubectl apply -f $(CORE_CONFIGMAP)
-	kubectl apply -f $(CORE_DEPLOYMENT)
-	kubectl apply -f $(CORE_SERVICE)
-	@echo "Ella deployment completed successfully."
-
-wait-for-ella-core:
-	@echo "Waiting for Ella to be ready..."
-	while ! kubectl wait --namespace $(K8S_NAMESPACE) --for=condition=ready pod -l app=ella-core --timeout=30s; do \
-		echo "Ella is not ready yet. Retrying..."; \
-		sleep 2; \
-	done
-	@echo "Ella is ready."
-
-core-start: wait-for-ella-core
-	@echo "Starting Ella Core..."
-	@POD_NAME=$$(kubectl get pods -n $(K8S_NAMESPACE) -l app=ella-core -o jsonpath="{.items[0].metadata.name}"); \
-    kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -- pebble add ella-core /config/pebble.yaml; \
-	kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -- pebble start ella-core
-
-deploy: gnbsim-deploy router-deploy core-deploy core-start
-	@echo "Deployment completed successfully."
 
 hotswap: go-build
 	@echo "Copying the binary to the running container..."

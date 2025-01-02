@@ -107,6 +107,9 @@ class EllaCore:
         """
         data = {"username": username, "password": password}
         response = self._make_request("POST", "/api/v1/login", data=data)
+        if not response:
+            logger.error("Failed to login to Ella Core.")
+            return None
         result = response.get("result")
         if not result:
             logger.error("Failed to login to Ella Core.")
@@ -141,6 +144,8 @@ class EllaCore:
     def get_subscriber(self, imsi: str) -> Subscriber:
         """Get a subscriber."""
         response = self._make_request("GET", f"{SUBSCRIBERS_CONFIG_URL}/{imsi}")
+        if response is None:
+            raise ValueError(f"Subscriber with IMSI {imsi} not found.")
         result = response.get("result", None)
         if result is None:
             raise ValueError(f"Subscriber with IMSI {imsi} not found.")
