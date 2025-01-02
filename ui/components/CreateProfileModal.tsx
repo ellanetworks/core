@@ -7,6 +7,7 @@ import {
     Typography,
     Alert,
     Collapse,
+    MenuItem,
 } from "@mui/material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
@@ -238,7 +239,78 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({ open, onClose, 
                     helperText={touched.mtu ? errors.mtu : ""}
                     margin="normal"
                 />
-                {/* Similar changes for other fields */}
+                <Box display="flex" gap={2}>
+                    <TextField
+                        label="Bitrate Up Value"
+                        type="number"
+                        value={formValues.bitrateUpValue}
+                        onChange={(e) => handleChange("bitrateUpValue", Number(e.target.value))}
+                        onBlur={() => handleBlur("bitrateUpValue")}
+                        error={!!errors.bitrateUpValue && touched.bitrateUpValue}
+                        helperText={touched.bitrateUpValue ? errors.bitrateUpValue : ""}
+                        margin="normal"
+                    />
+                    <TextField
+                        select
+                        label="Unit"
+                        value={formValues.bitrateUpUnit}
+                        onChange={(e) => handleChange("bitrateUpUnit", e.target.value)}
+                        onBlur={() => handleBlur("bitrateUpUnit")}
+                        error={!!errors.bitrateUpUnit && touched.bitrateUpUnit}
+                        helperText={touched.bitrateUpUnit ? errors.bitrateUpUnit : ""}
+                        margin="normal"
+                    >
+                        <MenuItem value="Mbps">Mbps</MenuItem>
+                        <MenuItem value="Gbps">Gbps</MenuItem>
+                    </TextField>
+                </Box>
+                <Box display="flex" gap={2}>
+                    <TextField
+                        label="Bitrate Down Value"
+                        type="number"
+                        value={formValues.bitrateDownValue}
+                        onChange={(e) => handleChange("bitrateDownValue", Number(e.target.value))}
+                        onBlur={() => handleBlur("bitrateDownValue")}
+                        error={!!errors.bitrateDownValue && touched.bitrateDownValue}
+                        helperText={touched.bitrateDownValue ? errors.bitrateDownValue : ""}
+                        margin="normal"
+                    />
+                    <TextField
+                        select
+                        label="Unit"
+                        value={formValues.bitrateDownUnit}
+                        onChange={(e) => handleChange("bitrateDownUnit", e.target.value)}
+                        onBlur={() => handleBlur("bitrateDownUnit")}
+                        error={!!errors.bitrateDownUnit && touched.bitrateDownUnit}
+                        helperText={touched.bitrateDownUnit ? errors.bitrateDownUnit : ""}
+                        margin="normal"
+                    >
+                        <MenuItem value="Mbps">Mbps</MenuItem>
+                        <MenuItem value="Gbps">Gbps</MenuItem>
+                    </TextField>
+                </Box>
+                <TextField
+                    fullWidth
+                    label="5QI"
+                    type="number"
+                    value={formValues.fiveQi}
+                    onChange={(e) => handleChange("fiveQi", Number(e.target.value))}
+                    onBlur={() => handleBlur("fiveQi")}
+                    error={!!errors.fiveQi && touched.fiveQi}
+                    helperText={touched.fiveQi ? errors.fiveQi : ""}
+                    margin="normal"
+                />
+                <TextField
+                    fullWidth
+                    label="Priority Level"
+                    type="number"
+                    value={formValues.priorityLevel}
+                    onChange={(e) => handleChange("priorityLevel", Number(e.target.value))}
+                    onBlur={() => handleBlur("priorityLevel")}
+                    error={!!errors.priorityLevel && touched.priorityLevel}
+                    helperText={touched.priorityLevel ? errors.priorityLevel : ""}
+                    margin="normal"
+                />
                 <Box sx={{ textAlign: "right", marginTop: 2 }}>
                     <Button onClick={onClose} sx={{ marginRight: 2 }}>
                         Cancel

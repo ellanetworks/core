@@ -278,7 +278,7 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Missing imsi parameter")
 			return
 		}
-		var updateSubscriberParams CreateSubscriberParams
+		var updateSubscriberParams UpdateSubscriberParams
 		err := c.ShouldBindJSON(&updateSubscriberParams)
 		if err != nil {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
@@ -288,28 +288,12 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Missing imsi parameter")
 			return
 		}
-		if updateSubscriberParams.SequenceNumber == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing sequenceNumber parameter")
-			return
-		}
-		if updateSubscriberParams.Key == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing key parameter")
-			return
-		}
 		if updateSubscriberParams.ProfileName == "" {
 			writeError(c.Writer, http.StatusBadRequest, "Missing profileName parameter")
 			return
 		}
 		if !isImsiValid(updateSubscriberParams.Imsi, dbInstance) {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.")
-			return
-		}
-		if !isSequenceNumberValid(updateSubscriberParams.SequenceNumber) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid sequenceNumber. Must be a 6-byte hexadecimal string.")
-			return
-		}
-		if !isHexString(updateSubscriberParams.Key) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid key format. Must be a 32-character hexadecimal string.")
 			return
 		}
 

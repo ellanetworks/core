@@ -47,7 +47,7 @@ data:
         defaultAs: 192.168.250.1
         opc: 981d464c7c52eb6e5036234984ad0bcf
         key: 5122250214c33e723a5dd523fc145fc0
-        sequenceNumber: 16f3b3f70fc2
+        sequenceNumber: 000000000001
         dnn: internet
         sNssai:
           sst: 1
@@ -73,7 +73,7 @@ data:
         plmnId:
           mcc: 001
           mnc: 01
-        sequenceNumber: 16f3b3f70fc2
+        sequenceNumber: 000000000001
         startImsi: 001010100007487
         ueCount: 1
       - profileType: anrelease
@@ -85,7 +85,7 @@ data:
         defaultAs: 192.168.250.1
         opc: 981d464c7c52eb6e5036234984ad0bcf
         key: 5122250214c33e723a5dd523fc145fc0
-        sequenceNumber: 16f3b3f70fc2
+        sequenceNumber: 000000000001
         dnn: internet
         sNssai:
           sst: 1
@@ -103,7 +103,7 @@ data:
         defaultAs: 192.168.250.1
         opc: 981d464c7c52eb6e5036234984ad0bcf
         key: 5122250214c33e723a5dd523fc145fc0
-        sequenceNumber: 16f3b3f70fc2
+        sequenceNumber: 000000000001
         dnn: internet
         retransMsg: false
         sNssai:
@@ -122,7 +122,7 @@ data:
         defaultAs: 192.168.250.1
         opc: 981d464c7c52eb6e5036234984ad0bcf
         key: 5122250214c33e723a5dd523fc145fc0
-        sequenceNumber: 16f3b3f70fc2
+        sequenceNumber: 000000000001
         dnn: internet
         sNssai:
           sst: 1

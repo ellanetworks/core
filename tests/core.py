@@ -22,7 +22,7 @@ JSON_HEADER = {"Content-Type": "application/json"}
 SUBSCRIBER_CONFIG = {
     "imsi": "PLACEHOLDER",
     "key": "5122250214c33e723a5dd523fc145fc0",
-    "sequenceNumber": "16f3b3f70fc2",
+    "sequenceNumber": "000000000001",
     "profileName": "PLACEHOLDER",
 }
 

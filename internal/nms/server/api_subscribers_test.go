@@ -11,7 +11,7 @@ import (
 
 const (
 	Imsi           = "001010100007487"
-	Opc            = "981d464c7c52eb6e5036234984ad0bcf"
+	Opc            = "b9f9d006cbe505a0b79f1ad0b3e44d95"
 	Key            = "5122250214c33e723a5dd523fc145fc0"
 	SequenceNumber = "16f3b3f70fc2"
 )
@@ -35,7 +35,6 @@ type GetSubscriberResponse struct {
 
 type CreateSubscriberParams struct {
 	Imsi           string `json:"imsi"`
-	OPc            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequenceNumber"`
 	ProfileName    string `json:"profileName"`
@@ -173,7 +172,6 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	t.Run("2. Create subscriber", func(t *testing.T) {
 		createSubscriberParams := &CreateSubscriberParams{
 			Imsi:           Imsi,
-			OPc:            Opc,
 			Key:            Key,
 			SequenceNumber: SequenceNumber,
 			ProfileName:    ProfileName,
@@ -295,77 +293,54 @@ func TestCreateSubscriberInvalidInput(t *testing.T) {
 
 	tests := []struct {
 		imsi           string
-		opc            string
 		key            string
 		sequenceNumber string
 		error          string
 	}{
 		{
 			imsi:           "12345",
-			opc:            Opc,
 			key:            Key,
 			sequenceNumber: SequenceNumber,
 			error:          "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.",
 		},
 		{
 			imsi:           "00101010000748812",
-			opc:            Opc,
 			key:            Key,
 			sequenceNumber: SequenceNumber,
 			error:          "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.",
 		},
 		{
 			imsi:           "002010100007488",
-			opc:            Opc,
 			key:            Key,
 			sequenceNumber: SequenceNumber,
 			error:          "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.",
 		},
 		{
 			imsi:           "00101",
-			opc:            Opc,
 			key:            Key,
 			sequenceNumber: SequenceNumber,
 			error:          "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.",
 		},
 		{
 			imsi:           Imsi,
-			opc:            "12345",
-			key:            Key,
-			sequenceNumber: SequenceNumber,
-			error:          "Invalid OPc format. Must be a 32-character hexadecimal string.",
-		},
-		{
-			imsi:           Imsi,
-			opc:            "12345678901234567890123456789012345678901234567890123456789012345",
-			key:            Key,
-			sequenceNumber: SequenceNumber,
-			error:          "Invalid OPc format. Must be a 32-character hexadecimal string.",
-		},
-		{
-			imsi:           Imsi,
-			opc:            Opc,
 			key:            "12345",
 			sequenceNumber: SequenceNumber,
 			error:          "Invalid key format. Must be a 32-character hexadecimal string.",
 		},
 		{
 			imsi:           Imsi,
-			opc:            Opc,
 			key:            "12345678901234567890123456789012345678901234567890123456789012345",
 			sequenceNumber: SequenceNumber,
 			error:          "Invalid key format. Must be a 32-character hexadecimal string.",
 		},
 		{
 			imsi:           Imsi,
-			opc:            Opc,
 			key:            Key,
 			sequenceNumber: "12345",
 			error:          "Invalid sequenceNumber. Must be a 6-byte hexadecimal string.",
 		},
 		{
 			imsi:           Imsi,
-			opc:            Opc,
 			key:            Key,
 			sequenceNumber: "1234567890123",
 			error:          "Invalid sequenceNumber. Must be a 6-byte hexadecimal string.",
@@ -375,7 +350,6 @@ func TestCreateSubscriberInvalidInput(t *testing.T) {
 		t.Run(tt.imsi, func(t *testing.T) {
 			createSubscriberParams := &CreateSubscriberParams{
 				Imsi:           tt.imsi,
-				OPc:            tt.opc,
 				Key:            tt.key,
 				SequenceNumber: tt.sequenceNumber,
 				ProfileName:    ProfileName,

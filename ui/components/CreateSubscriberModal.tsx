@@ -57,7 +57,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
     const [formValues, setFormValues] = useState({
         msin: "",
         key: "",
-        sequenceNumber: "",
+        sequenceNumber: "000000000001", // Default value
         profileName: "",
     });
 

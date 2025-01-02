@@ -114,7 +114,7 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	// Subscribers (Authenticated)
 	apiGroup.GET("/subscribers", User(ListSubscribers(dbInstance), jwtSecret))
 	apiGroup.POST("/subscribers", User(CreateSubscriber(dbInstance), jwtSecret))
-	// apiGroup.PUT("/subscribers/:imsi", User(UpdateSubscriber(dbInstance), jwtSecret))
+	apiGroup.PUT("/subscribers/:imsi", User(UpdateSubscriber(dbInstance), jwtSecret))
 	apiGroup.GET("/subscribers/:imsi", User(GetSubscriber(dbInstance), jwtSecret))
 	apiGroup.DELETE("/subscribers/:imsi", User(DeleteSubscriber(dbInstance), jwtSecret))
 

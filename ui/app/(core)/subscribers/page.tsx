@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useState, useEffect } from "react";
 import {
     Box,
@@ -20,37 +19,37 @@ import {
 import {
     Delete as DeleteIcon,
     Edit as EditIcon,
+    Visibility as VisibilityIcon,
 } from "@mui/icons-material";
 import { listSubscribers, deleteSubscriber } from "@/queries/subscribers";
 import CreateSubscriberModal from "@/components/CreateSubscriberModal";
+import ViewSubscriberModal from "@/components/ViewSubscriberModal";
 import EditSubscriberModal from "@/components/EditSubscriberModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-import { useRouter } from "next/navigation"
-import { useCookies } from "react-cookie"
-
+import { useRouter } from "next/navigation";
+import { useCookies } from "react-cookie";
 
 interface SubscriberData {
     imsi: string;
     ipAddress: string;
-    opc: string;
-    key: string;
-    sequenceNumber: string;
     profileName: string;
 }
 
 const Subscriber = () => {
     const router = useRouter();
-    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+    const [cookies, setCookie, removeCookie] = useCookies(["user_token"]);
 
     if (!cookies.user_token) {
-        router.push("/login")
+        router.push("/login");
     }
+
     const [subscribers, setSubscribers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [isCreateModalOpen, setCreateModalOpen] = useState(false);
     const [isConfirmationOpen, setConfirmationOpen] = useState(false);
     const [isEditModalOpen, setEditModalOpen] = useState(false);
+    const [isViewModalOpen, setViewModalOpen] = useState(false);
     const [editData, setEditData] = useState<SubscriberData | null>(null);
     const [selectedSubscriber, setSelectedSubscriber] = useState<string | null>(null);
     const [alert, setAlert] = useState<{ message: string }>({ message: "" });
@@ -73,8 +72,13 @@ const Subscriber = () => {
 
     const handleOpenCreateModal = () => setCreateModalOpen(true);
     const handleCloseCreateModal = () => setCreateModalOpen(false);
+    const handleOpenViewModal = () => setViewModalOpen(true);
+    const handleCloseViewModal = () => {
+        setSelectedSubscriber(null);
+        setViewModalOpen(false);
+    };
 
-    const handleModalSuccess = () => {
+    const handleCreateModalSuccess = () => {
         fetchSubscribers();
         setAlert({ message: "Subscriber created successfully!" });
     };
@@ -91,6 +95,11 @@ const Subscriber = () => {
 
         setEditData(mappedSubscriber);
         setEditModalOpen(true);
+    };
+
+    const handleViewClick = (subscriber: any) => {
+        setSelectedSubscriber(subscriber.imsi); // Set selected IMSI
+        setViewModalOpen(true); // Open the modal
     };
 
     const handleEditModalClose = () => {
@@ -209,10 +218,7 @@ const Subscriber = () => {
                                 <TableRow>
                                     <TableCell>IMSI</TableCell>
                                     <TableCell align="right">IP Address</TableCell>
-                                    <TableCell align="right">OPC</TableCell>
-                                    <TableCell align="right">Key</TableCell>
-                                    <TableCell align="right">Sequence Number</TableCell>
-                                    <TableCell align="right">Profile Name</TableCell>
+                                    <TableCell align="right">Profile</TableCell>
                                     <TableCell align="right">Actions</TableCell>
                                 </TableRow>
                             </TableHead>
@@ -226,11 +232,14 @@ const Subscriber = () => {
                                             {subscriber.imsi}
                                         </TableCell>
                                         <TableCell align="right">{subscriber.ipAddress}</TableCell>
-                                        <TableCell align="right">{subscriber.opc}</TableCell>
-                                        <TableCell align="right">{subscriber.key}</TableCell>
-                                        <TableCell align="right">{subscriber.sequenceNumber}</TableCell>
                                         <TableCell align="right">{subscriber.profileName}</TableCell>
                                         <TableCell align="right">
+                                            <IconButton
+                                                aria-label="view"
+                                                onClick={() => handleViewClick(subscriber)}
+                                            >
+                                                <VisibilityIcon />
+                                            </IconButton>
                                             <IconButton
                                                 aria-label="edit"
                                                 onClick={() => handleEditClick(subscriber)}
@@ -251,10 +260,15 @@ const Subscriber = () => {
                     </TableContainer>
                 </Box>
             )}
+            <ViewSubscriberModal
+                open={isViewModalOpen}
+                onClose={handleCloseViewModal}
+                imsi={selectedSubscriber || ""} // Pass the selected IMSI
+            />
             <CreateSubscriberModal
                 open={isCreateModalOpen}
                 onClose={handleCloseCreateModal}
-                onSuccess={handleModalSuccess}
+                onSuccess={handleCreateModalSuccess}
             />
             <EditSubscriberModal
                 open={isEditModalOpen}
