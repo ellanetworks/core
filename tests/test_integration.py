@@ -2,11 +2,14 @@
 # Copyright 2024 Guillaume Belanger
 # See LICENSE file for licensing details.
 
+import json
 import logging
 import subprocess
 import time
 
-from tests.core import EllaCore
+import yaml
+
+from tests.core import EllaCore, Subscriber
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +25,9 @@ class TestELLA:
     ):
         core_port = get_core_node_port()
         core_address = f"https://127.0.0.1:{core_port}"
-        configure_ella_core(core_address=core_address)
+        subscriber = configure_ella_core(core_address=core_address)
+        push_config_file(subscriber)
+        time.sleep(10)
         success_runs = run_gnbsim_simulation(
             namespace=NAMESPACE,
             application_name="gnbsim",
@@ -65,7 +70,7 @@ def get_core_node_port() -> int:
         raise RuntimeError("Invalid NodePort value retrieved") from e
 
 
-def configure_ella_core(core_address: str) -> None:
+def configure_ella_core(core_address: str) -> Subscriber:
     """Configure Ella Core.
 
     Configuration includes:
@@ -83,8 +88,8 @@ def configure_ella_core(core_address: str) -> None:
     ella_client.create_profile(name=TEST_PROFILE_NAME)
     ella_client.create_subscriber(imsi=TEST_IMSI, profile_name=TEST_PROFILE_NAME)
     ella_client.update_operator_id()
-    logger.info("Sleeping for 10 seconds to allow configuration to propagate.")
-    time.sleep(10)
+    subscriber = ella_client.get_subscriber(imsi=TEST_IMSI)
+    return subscriber
 
 
 def run_gnbsim_simulation(
@@ -146,3 +151,210 @@ def run_gnbsim_simulation(
         return result.count("Profile Status: PASS")
     except subprocess.CalledProcessError:
         return 0
+
+
+def push_config_file(subscriber: Subscriber) -> None:
+    """Generate the configuration file for GNBSim and push it to the container.
+
+    Args:
+        subscriber (Subscriber): The subscriber information.
+    """
+    config = {
+        "configuration": {
+            "execInParallel": False,
+            "gnbs": {
+                "gnb1": {
+                    "defaultAmf": {
+                        "hostName": "ella-core.dev2.svc.cluster.local",
+                        "port": 38412,
+                    },
+                    "globalRanId": {
+                        "gNbId": {
+                            "bitLength": 24,
+                            "gNBValue": "000102",
+                        },
+                        "plmnId": {
+                            "mcc": "001",
+                            "mnc": "01",
+                        },
+                    },
+                    "n2Port": 9487,
+                    "n3IpAddr": "192.168.251.5",
+                    "n3Port": 2152,
+                    "name": "gnb1",
+                    "supportedTaList": [
+                        {
+                            "broadcastPlmnList": [
+                                {
+                                    "plmnId": {
+                                        "mcc": "001",
+                                        "mnc": "01",
+                                    },
+                                    "taiSliceSupportList": [
+                                        {
+                                            "sd": "102030",
+                                            "sst": 1,
+                                        }
+                                    ],
+                                }
+                            ],
+                            "tac": "000001",
+                        }
+                    ],
+                },
+            },
+            "profiles": [
+                {
+                    "profileType": "register",
+                    "profileName": "profile1",
+                    "enable": True,
+                    "gnbName": "gnb1",
+                    "startImsi": subscriber.imsi,
+                    "ueCount": 1,
+                    "defaultAs": "192.168.250.1",
+                    "opc": subscriber.opc,
+                    "key": subscriber.key,
+                    "sequenceNumber": subscriber.sequence_number,
+                    "dnn": "internet",
+                    "sNssai": {
+                        "sst": 1,
+                        "sd": "102030",
+                    },
+                    "plmnId": {
+                        "mcc": "001",
+                        "mnc": "01",
+                    },
+                },
+                {
+                    "profileType": "pdusessest",
+                    "profileName": "profile2",
+                    "enable": True,
+                    "gnbName": "gnb1",
+                    "dataPktCount": 5,
+                    "defaultAs": "192.168.250.1",
+                    "opc": subscriber.opc,
+                    "key": subscriber.key,
+                    "perUserTimeout": 100,
+                    "dnn": "internet",
+                    "sNssai": {
+                        "sst": 1,
+                        "sd": "102030",
+                    },
+                    "plmnId": {
+                        "mcc": "001",
+                        "mnc": "01",
+                    },
+                    "sequenceNumber": subscriber.sequence_number,
+                    "startImsi": subscriber.imsi,
+                    "ueCount": 1,
+                },
+                {
+                    "profileType": "anrelease",
+                    "profileName": "profile3",
+                    "enable": True,
+                    "gnbName": "gnb1",
+                    "startImsi": subscriber.imsi,
+                    "ueCount": 1,
+                    "defaultAs": "192.168.250.1",
+                    "opc": subscriber.opc,
+                    "key": subscriber.key,
+                    "sequenceNumber": subscriber.sequence_number,
+                    "dnn": "internet",
+                    "sNssai": {
+                        "sst": 1,
+                        "sd": "102030",
+                    },
+                    "execInParallel": False,
+                    "plmnId": {
+                        "mcc": "001",
+                        "mnc": "01",
+                    },
+                },
+                {
+                    "profileType": "uetriggservicereq",
+                    "profileName": "profile4",
+                    "enable": True,
+                    "gnbName": "gnb1",
+                    "startImsi": subscriber.imsi,
+                    "ueCount": 1,
+                    "defaultAs": "192.168.250.1",
+                    "opc": subscriber.opc,
+                    "key": subscriber.key,
+                    "sequenceNumber": subscriber.sequence_number,
+                    "dnn": "internet",
+                    "retransMsg": False,
+                    "sNssai": {
+                        "sst": 1,
+                        "sd": "102030",
+                    },
+                    "execInParallel": False,
+                    "plmnId": {
+                        "mcc": "001",
+                        "mnc": "01",
+                    },
+                },
+                {
+                    "profileType": "deregister",
+                    "profileName": "profile5",
+                    "enable": True,
+                    "gnbName": "gnb1",
+                    "startImsi": subscriber.imsi,
+                    "ueCount": 1,
+                    "defaultAs": "192.168.250.1",
+                    "opc": subscriber.opc,
+                    "key": subscriber.key,
+                    "sequenceNumber": subscriber.sequence_number,
+                    "dnn": "internet",
+                    "sNssai": {
+                        "sst": 1,
+                        "sd": "102030",
+                    },
+                    "execInParallel": False,
+                    "plmnId": {
+                        "mcc": "001",
+                        "mnc": "01",
+                    },
+                },
+            ],
+            "runConfigProfilesAtStart": True,
+        },
+        "info": {
+            "description": "gNodeB sim initial configuration",
+            "version": "1.0.0",
+        },
+        "logger": {
+            "logLevel": "trace",
+        },
+    }
+
+    config_yaml = yaml.dump(config, default_flow_style=False)
+
+    patch_payload = json.dumps(
+        [
+            {
+                "op": "replace",
+                "path": "/data/configuration.yaml",
+                "value": config_yaml,
+            }
+        ]
+    )
+
+    try:
+        subprocess.check_call(
+            [
+                "kubectl",
+                "patch",
+                "configmap",
+                "gnbsim-config",
+                "-n",
+                NAMESPACE,
+                "--type=json",
+                "-p",
+                patch_payload,
+            ],
+            stderr=subprocess.STDOUT,
+        )
+        logger.info("ConfigMap updated successfully.")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to update ConfigMap: {e}")
+        raise RuntimeError("Failed to update ConfigMap for GNBSim") from e

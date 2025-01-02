@@ -54,6 +54,7 @@ nav:
     - Metrics: reference/metrics.md
     - Configuration File: reference/config_file.md
     - Connectivity: reference/connectivity.md
+    - Subscriber Authentication: reference/subscriber_authentication.md
     - Audit Logs: reference/audit_logs.md
 plugins:
   - social:

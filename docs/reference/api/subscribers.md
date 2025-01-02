@@ -28,7 +28,7 @@ None
             "opc": "981d464c7c52eb6e5036234984ad0bcf",
             "sequenceNumber": "16f3b3f70fc7",
             "key": "5122250214c33e723a5dd523fc145fc0",
-            "profileName": "default-default"
+            "profileName": "default"
         }
     ]
 }
@@ -106,7 +106,7 @@ None
         "opc": "981d464c7c52eb6e5036234984ad0bcf",
         "sequenceNumber": "16f3b3f70fc7",
         "key": "5122250214c33e723a5dd523fc145fc0",
-        "profileName": "default-default"
+        "profileName": "default"
     }
 }
 ```

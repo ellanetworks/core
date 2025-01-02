@@ -22,7 +22,7 @@ JSON_HEADER = {"Content-Type": "application/json"}
 SUBSCRIBER_CONFIG = {
     "imsi": "PLACEHOLDER",
     "key": "5122250214c33e723a5dd523fc145fc0",
-    "sequenceNumber": "000000000001",
+    "sequenceNumber": "16f3b3f70fc7",
     "profileName": "PLACEHOLDER",
 }
 
@@ -50,6 +50,17 @@ class CreateRadioParams:
 
     name: str
     tac: str
+
+
+@dataclass
+class Subscriber:
+    """Subscriber information."""
+
+    imsi: str
+    key: str
+    opc: str
+    sequence_number: str
+    profile_name: str
 
 
 class EllaCore:
@@ -126,6 +137,20 @@ class EllaCore:
         data["profileName"] = profile_name
         self._make_request(method="POST", endpoint=SUBSCRIBERS_CONFIG_URL, data=data)
         logger.info(f"Created subscriber with IMSI {imsi}.")
+
+    def get_subscriber(self, imsi: str) -> Subscriber:
+        """Get a subscriber."""
+        response = self._make_request("GET", f"{SUBSCRIBERS_CONFIG_URL}/{imsi}")
+        result = response.get("result", None)
+        if result is None:
+            raise ValueError(f"Subscriber with IMSI {imsi} not found.")
+        return Subscriber(
+            imsi=result["imsi"],
+            key=result["key"],
+            opc=result["opc"],
+            sequence_number=result["sequenceNumber"],
+            profile_name=result["profileName"],
+        )
 
     def create_profile(self, name: str) -> None:
         """Create a profile."""

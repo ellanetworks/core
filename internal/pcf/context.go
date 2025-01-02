@@ -92,7 +92,6 @@ func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 	newUeContext.AMPolicyData = make(map[string]*UeAMPolicyData)
 	newUeContext.PolAssociationIDGenerator = 1
 	newUeContext.Supi = Supi
-	logger.PcfLog.Warnf("Storing new UeContext with Supi[%s]", Supi)
 	c.UePool.Store(Supi, newUeContext)
 	return newUeContext, nil
 }

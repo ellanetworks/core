@@ -133,7 +133,6 @@ func (context *AMFContext) TmsiAllocate() int32 {
 		logger.AmfLog.Errorf("Allocate TMSI error: %+v", err)
 		return -1
 	}
-	logger.AmfLog.Infof("Allocate TMSI : %v", val)
 	return val
 }
 
