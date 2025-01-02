@@ -11,10 +11,14 @@ import (
 
 type CreateSubscriberParams struct {
 	Imsi           string `json:"imsi"`
-	OPc            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequenceNumber"`
 	ProfileName    string `json:"profileName"`
+}
+
+type UpdateSubscriberParams struct {
+	Imsi        string `json:"imsi"`
+	ProfileName string `json:"profileName"`
 }
 
 type GetSubscriberResponse struct {
@@ -88,8 +92,8 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 			subscribers = append(subscribers, GetSubscriberResponse{
 				Imsi:           dbSubscriber.Imsi,
 				IpAddress:      dbSubscriber.IpAddress,
-				Opc:            dbSubscriber.OpcValue,
-				Key:            dbSubscriber.PermanentKeyValue,
+				Opc:            dbSubscriber.Opc,
+				Key:            dbSubscriber.PermanentKey,
 				SequenceNumber: dbSubscriber.SequenceNumber,
 				ProfileName:    profile.Name,
 			})
@@ -135,9 +139,9 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		subscriber := GetSubscriberResponse{
 			Imsi:           dbSubscriber.Imsi,
 			IpAddress:      dbSubscriber.IpAddress,
-			Opc:            dbSubscriber.OpcValue,
+			Opc:            dbSubscriber.Opc,
 			SequenceNumber: dbSubscriber.SequenceNumber,
-			Key:            dbSubscriber.PermanentKeyValue,
+			Key:            dbSubscriber.PermanentKey,
 			ProfileName:    profile.Name,
 		}
 		err = writeResponse(c.Writer, subscriber, http.StatusOK)
@@ -179,10 +183,6 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Missing key parameter")
 			return
 		}
-		if createSubscriberParams.OPc == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing opc parameter")
-			return
-		}
 		if createSubscriberParams.ProfileName == "" {
 			writeError(c.Writer, http.StatusBadRequest, "Missing profileName parameter")
 			return
@@ -199,10 +199,33 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid key format. Must be a 32-character hexadecimal string.")
 			return
 		}
-		if !isHexString(createSubscriberParams.OPc) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid OPc format. Must be a 32-character hexadecimal string.")
+
+		K, err := hex.DecodeString(createSubscriberParams.Key)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			writeError(c.Writer, http.StatusBadRequest, "Invalid key format")
 			return
 		}
+		opCodeHex, err := dbInstance.GetOperatorCode()
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to retrieve operator code")
+			return
+		}
+		OP, err := hex.DecodeString(opCodeHex)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to decode OP")
+			return
+		}
+
+		opc, err := deriveOPc(K, OP)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to generate OPc")
+			return
+		}
+		opcHex := hex.EncodeToString(opc)
 
 		_, err = dbInstance.GetSubscriber(createSubscriberParams.Imsi)
 		if err == nil {
@@ -215,11 +238,11 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		newSubscriber := &db.Subscriber{
-			Imsi:              createSubscriberParams.Imsi,
-			SequenceNumber:    createSubscriberParams.SequenceNumber,
-			PermanentKeyValue: createSubscriberParams.Key,
-			OpcValue:          createSubscriberParams.OPc,
-			ProfileID:         profile.ID,
+			Imsi:           createSubscriberParams.Imsi,
+			SequenceNumber: createSubscriberParams.SequenceNumber,
+			PermanentKey:   createSubscriberParams.Key,
+			Opc:            opcHex,
+			ProfileID:      profile.ID,
 		}
 
 		if err := dbInstance.CreateSubscriber(newSubscriber); err != nil {
@@ -273,10 +296,6 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Missing key parameter")
 			return
 		}
-		if updateSubscriberParams.OPc == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing opc parameter")
-			return
-		}
 		if updateSubscriberParams.ProfileName == "" {
 			writeError(c.Writer, http.StatusBadRequest, "Missing profileName parameter")
 			return
@@ -293,12 +312,8 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid key format. Must be a 32-character hexadecimal string.")
 			return
 		}
-		if !isHexString(updateSubscriberParams.OPc) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid OPc format. Must be a 32-character hexadecimal string.")
-			return
-		}
 
-		_, err = dbInstance.GetSubscriber(imsi)
+		existingSubscriber, err := dbInstance.GetSubscriber(imsi)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "Subscriber not found")
 			return
@@ -308,15 +323,15 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusNotFound, "Profile not found")
 			return
 		}
-		newSubscriber := &db.Subscriber{
-			Imsi:              updateSubscriberParams.Imsi,
-			SequenceNumber:    updateSubscriberParams.SequenceNumber,
-			PermanentKeyValue: updateSubscriberParams.Key,
-			OpcValue:          updateSubscriberParams.OPc,
-			ProfileID:         profile.ID,
+		updatedSubscriber := &db.Subscriber{
+			Imsi:           existingSubscriber.Imsi,
+			SequenceNumber: existingSubscriber.SequenceNumber,
+			PermanentKey:   existingSubscriber.PermanentKey,
+			Opc:            existingSubscriber.Opc,
+			ProfileID:      profile.ID,
 		}
 
-		if err := dbInstance.UpdateSubscriber(newSubscriber); err != nil {
+		if err := dbInstance.UpdateSubscriber(updatedSubscriber); err != nil {
 			logger.NmsLog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update subscriber")
 			return

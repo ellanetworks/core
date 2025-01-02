@@ -263,9 +263,6 @@ const Subscriber = () => {
                 initialData={
                     editData || {
                         imsi: "",
-                        opc: "",
-                        key: "",
-                        sequenceNumber: "",
                         profileName: "",
                     }
                 }

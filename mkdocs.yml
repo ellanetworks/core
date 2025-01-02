@@ -44,7 +44,7 @@ nav:
       - Backup: reference/api/backup.md
       - Login: reference/api/login.md
       - Metrics: reference/api/metrics.md
-      - Network: reference/api/network.md
+      - Operator: reference/api/operator.md
       - Profiles: reference/api/profiles.md
       - Radios: reference/api/radios.md
       - Restore: reference/api/restore.md

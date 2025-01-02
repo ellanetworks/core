@@ -34,10 +34,6 @@ const schema = yup.object().shape({
         .length(10, "MSIN must be exactly 10 digits long.")
         .matches(/^\d+$/, "MSIN must be numeric.")
         .required("MSIN is required."),
-    opc: yup
-        .string()
-        .matches(/^[0-9a-fA-F]{32}$/, "OPC must be a 32-character hexadecimal string.")
-        .required("OPC is required."),
     key: yup
         .string()
         .matches(/^[0-9a-fA-F]{32}$/, "Key must be a 32-character hexadecimal string.")
@@ -60,7 +56,6 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
     }
     const [formValues, setFormValues] = useState({
         msin: "",
-        opc: "",
         key: "",
         sequenceNumber: "",
         profileName: "",
@@ -156,7 +151,6 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
             await createSubscriber(
                 cookies.user_token,
                 imsi,
-                formValues.opc,
                 formValues.key,
                 formValues.sequenceNumber,
                 formValues.profileName
@@ -252,26 +246,31 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                         </Button>
                     </Box>
                 </FormGroup>
-                <TextField
-                    fullWidth
-                    label="OPC"
-                    value={formValues.opc}
-                    onChange={(e) => handleChange("opc", e.target.value)}
-                    onBlur={() => handleBlur("opc")}
-                    error={!!errors.opc && touched.opc}
-                    helperText={touched.opc ? errors.opc : ""}
-                    margin="normal"
-                />
-                <TextField
-                    fullWidth
-                    label="Key"
-                    value={formValues.key}
-                    onChange={(e) => handleChange("key", e.target.value)}
-                    onBlur={() => handleBlur("key")}
-                    error={!!errors.key && touched.key}
-                    helperText={touched.key ? errors.key : ""}
-                    margin="normal"
-                />
+                <Box display="flex" gap={2} alignItems="center">
+                    <TextField
+                        fullWidth
+                        label="Key"
+                        value={formValues.key}
+                        onChange={(e) => handleChange("key", e.target.value)}
+                        onBlur={() => handleBlur("key")}
+                        error={!!errors.key && touched.key}
+                        helperText={touched.key ? errors.key : ""}
+                        margin="normal"
+                        sx={{ flex: 1 }}
+                    />
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={() => {
+                            const randomKey = [...Array(32)]
+                                .map(() => Math.floor(Math.random() * 16).toString(16))
+                                .join('');
+                            handleChange('key', randomKey);
+                        }}
+                    >
+                        Generate
+                    </Button>
+                </Box>
                 <TextField
                     fullWidth
                     label="Sequence Number"

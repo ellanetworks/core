@@ -21,8 +21,8 @@ const QueryCreateSubscribersTable = `
 		ipAddress TEXT,
 
 		sequenceNumber TEXT NOT NULL,
-		permanentKeyValue TEXT NOT NULL,
-		opcValue TEXT NOT NULL,
+		permanentKey TEXT NOT NULL,
+		opc TEXT NOT NULL,
 
 		profileID INTEGER NOT NULL,
     	FOREIGN KEY (profileID) REFERENCES profiles (id)
@@ -31,8 +31,8 @@ const QueryCreateSubscribersTable = `
 const (
 	listSubscribersStmt  = "SELECT &Subscriber.* from %s"
 	getSubscriberStmt    = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
-	createSubscriberStmt = "INSERT INTO %s (imsi, ipAddress, sequenceNumber, permanentKeyValue, opcValue, profileID) VALUES ($Subscriber.imsi, $Subscriber.ipAddress, $Subscriber.sequenceNumber, $Subscriber.permanentKeyValue, $Subscriber.opcValue, $Subscriber.profileID)"
-	editSubscriberStmt   = "UPDATE %s SET ipAddress=$Subscriber.ipAddress, sequenceNumber=$Subscriber.sequenceNumber, permanentKeyValue=$Subscriber.permanentKeyValue, opcValue=$Subscriber.opcValue, profileID=$Subscriber.profileID WHERE imsi==$Subscriber.imsi"
+	createSubscriberStmt = "INSERT INTO %s (imsi, ipAddress, sequenceNumber, permanentKey, opc, profileID) VALUES ($Subscriber.imsi, $Subscriber.ipAddress, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID)"
+	editSubscriberStmt   = "UPDATE %s SET ipAddress=$Subscriber.ipAddress, sequenceNumber=$Subscriber.sequenceNumber, permanentKey=$Subscriber.permanentKey, opc=$Subscriber.opc, profileID=$Subscriber.profileID WHERE imsi==$Subscriber.imsi"
 	deleteSubscriberStmt = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
 	checkIPStmt          = "SELECT &Subscriber.* FROM %s WHERE ipAddress=$Subscriber.ipAddress"
 	allocateIPStmt       = "UPDATE %s SET ipAddress=$Subscriber.ipAddress WHERE imsi=$Subscriber.imsi"
@@ -40,17 +40,13 @@ const (
 )
 
 type Subscriber struct {
-	ID int `db:"id"`
-
-	Imsi string `db:"imsi"`
-
-	IpAddress string `db:"ipAddress"`
-
-	SequenceNumber    string `db:"sequenceNumber"`
-	PermanentKeyValue string `db:"permanentKeyValue"`
-	OpcValue          string `db:"opcValue"`
-
-	ProfileID int `db:"profileID"`
+	ID             int    `db:"id"`
+	Imsi           string `db:"imsi"`
+	IpAddress      string `db:"ipAddress"`
+	SequenceNumber string `db:"sequenceNumber"`
+	PermanentKey   string `db:"permanentKey"`
+	Opc            string `db:"opc"`
+	ProfileID      int    `db:"profileID"`
 }
 
 // ListSubscribers returns all of the subscribers and their fields available in the database.

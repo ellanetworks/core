@@ -13,7 +13,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 GNB_CONFIG_URL = "/api/v1/radios"
-NETWORK_CONFIG_URL = "/api/v1/network"
+OPERATOR_ID_CONFIG_URL = "/api/v1/operator/id"
 PROFILE_CONFIG_URL = "/api/v1/profiles"
 SUBSCRIBERS_CONFIG_URL = "/api/v1/subscribers"
 
@@ -21,7 +21,6 @@ JSON_HEADER = {"Content-Type": "application/json"}
 
 SUBSCRIBER_CONFIG = {
     "imsi": "PLACEHOLDER",
-    "opc": "981d464c7c52eb6e5036234984ad0bcf",
     "key": "5122250214c33e723a5dd523fc145fc0",
     "sequenceNumber": "16f3b3f70fc2",
     "profileName": "PLACEHOLDER",
@@ -39,8 +38,7 @@ PROFILE_CONFIG = {
     "var5qi": 8,
 }
 
-
-NETWORK_CONFIG = {
+OPERATOR_ID_CONFIG = {
     "mcc": "001",
     "mnc": "01",
 }
@@ -135,7 +133,7 @@ class EllaCore:
         self._make_request("POST", PROFILE_CONFIG_URL, data=PROFILE_CONFIG)
         logger.info(f"Created profile {name}.")
 
-    def update_network(self) -> None:
-        """Create a network slice."""
-        self._make_request("PUT", NETWORK_CONFIG_URL, data=NETWORK_CONFIG)
+    def update_operator_id(self) -> None:
+        """Update operator ID information."""
+        self._make_request("PUT", OPERATOR_ID_CONFIG_URL, data=OPERATOR_ID_CONFIG)
         logger.info("Updated network configuration.")

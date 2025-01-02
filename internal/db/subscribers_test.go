@@ -31,10 +31,10 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 	}
 
 	subscriber := &db.Subscriber{
-		Imsi:              "001010100007487",
-		SequenceNumber:    "123456",
-		PermanentKeyValue: "123456",
-		OpcValue:          "123456",
+		Imsi:           "001010100007487",
+		SequenceNumber: "123456",
+		PermanentKey:   "123456",
+		Opc:            "123456",
 	}
 	err = database.CreateSubscriber(subscriber)
 	if err != nil {
@@ -59,10 +59,10 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 	if retrievedSubscriber.SequenceNumber != subscriber.SequenceNumber {
 		t.Fatalf("The sequence number from the database doesn't match the sequence number that was given")
 	}
-	if retrievedSubscriber.PermanentKeyValue != subscriber.PermanentKeyValue {
+	if retrievedSubscriber.PermanentKey != subscriber.PermanentKey {
 		t.Fatalf("The permanent key value from the database doesn't match the permanent key value that was given")
 	}
-	if retrievedSubscriber.OpcValue != subscriber.OpcValue {
+	if retrievedSubscriber.Opc != subscriber.Opc {
 		t.Fatalf("The OPC value from the database doesn't match the OPC value that was given")
 	}
 
@@ -125,11 +125,11 @@ func TestIPAllocationAndRelease(t *testing.T) {
 	}
 
 	subscriber := &db.Subscriber{
-		Imsi:              "001010123456789",
-		SequenceNumber:    "123456",
-		PermanentKeyValue: "abcdef",
-		OpcValue:          "123456",
-		ProfileID:         createdProfile.ID,
+		Imsi:           "001010123456789",
+		SequenceNumber: "123456",
+		PermanentKey:   "abcdef",
+		Opc:            "123456",
+		ProfileID:      createdProfile.ID,
 	}
 	err = database.CreateSubscriber(subscriber)
 	if err != nil {
@@ -219,11 +219,11 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 
 	for i := 1; i < totalIPs-1; i++ { // Skip network and broadcast addresses
 		subscriber := &db.Subscriber{
-			Imsi:              fmt.Sprintf("IMSI%012d", i),
-			SequenceNumber:    fmt.Sprintf("%d", i),
-			PermanentKeyValue: fmt.Sprintf("%d", i),
-			OpcValue:          fmt.Sprintf("%d", i),
-			ProfileID:         createdProfile.ID,
+			Imsi:           fmt.Sprintf("IMSI%012d", i),
+			SequenceNumber: fmt.Sprintf("%d", i),
+			PermanentKey:   fmt.Sprintf("%d", i),
+			Opc:            fmt.Sprintf("%d", i),
+			ProfileID:      createdProfile.ID,
 		}
 
 		err := database.CreateSubscriber(subscriber)
@@ -253,11 +253,11 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 
 	// Attempt to allocate one more IP, which should fail
 	extraSubscriber := &db.Subscriber{
-		Imsi:              "IMSI_OVERFLOW",
-		SequenceNumber:    "123456",
-		PermanentKeyValue: "abcdef",
-		OpcValue:          "123456",
-		ProfileID:         createdProfile.ID,
+		Imsi:           "IMSI_OVERFLOW",
+		SequenceNumber: "123456",
+		PermanentKey:   "abcdef",
+		Opc:            "123456",
+		ProfileID:      createdProfile.ID,
 	}
 	err = database.CreateSubscriber(extraSubscriber)
 	if err != nil {

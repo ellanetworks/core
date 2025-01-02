@@ -25,9 +25,6 @@ interface EditSubscriberModalProps {
     onSuccess: () => void;
     initialData: {
         imsi: string;
-        opc: string;
-        key: string;
-        sequenceNumber: string;
         profileName: string;
     };
 }
@@ -82,9 +79,6 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
             await updateSubscriber(
                 cookies.user_token,
                 formValues.imsi,
-                formValues.opc,
-                formValues.key,
-                formValues.sequenceNumber,
                 formValues.profileName
             );
             onClose();
@@ -135,33 +129,6 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
                     value={formValues.imsi}
                     margin="normal"
                     disabled
-                />
-                <TextField
-                    fullWidth
-                    label="OPC"
-                    value={formValues.opc}
-                    onChange={(e) => handleChange("opc", e.target.value)}
-                    error={!!errors.opc}
-                    helperText={errors.opc}
-                    margin="normal"
-                />
-                <TextField
-                    fullWidth
-                    label="Key"
-                    value={formValues.key}
-                    onChange={(e) => handleChange("key", e.target.value)}
-                    error={!!errors.key}
-                    helperText={errors.key}
-                    margin="normal"
-                />
-                <TextField
-                    fullWidth
-                    label="Sequence Number"
-                    value={formValues.sequenceNumber}
-                    onChange={(e) => handleChange("sequenceNumber", e.target.value)}
-                    error={!!errors.sequenceNumber}
-                    helperText={errors.sequenceNumber}
-                    margin="normal"
                 />
                 <FormControl fullWidth margin="normal">
                     <InputLabel id="profile-name-label">Profile Name</InputLabel>

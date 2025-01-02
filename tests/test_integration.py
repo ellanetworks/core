@@ -71,7 +71,7 @@ def configure_ella_core(core_address: str) -> None:
     Configuration includes:
     - subscriber creation
     - profile creation
-    - network config update
+    - operator configuration update
     """
     ella_client = EllaCore(url=core_address)
     ella_client.create_user(username="admin", password="admin")
@@ -82,7 +82,7 @@ def configure_ella_core(core_address: str) -> None:
     ella_client.create_radio(name=f"{NAMESPACE}-gnbsim", tac="001")
     ella_client.create_profile(name=TEST_PROFILE_NAME)
     ella_client.create_subscriber(imsi=TEST_IMSI, profile_name=TEST_PROFILE_NAME)
-    ella_client.update_network()
+    ella_client.update_operator_id()
     logger.info("Sleeping for 10 seconds to allow configuration to propagate.")
     time.sleep(10)
 

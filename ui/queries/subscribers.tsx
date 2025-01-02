@@ -22,10 +22,9 @@ export const listSubscribers = async (authToken: string) => {
   return respData.result;
 };
 
-export const createSubscriber = async (authToken: string, imsi: string, opc: string, key: string, sequenceNumber: string, profileName: string) => {
+export const createSubscriber = async (authToken: string, imsi: string, key: string, sequenceNumber: string, profileName: string) => {
   const subscriberData = {
     imsi,
-    opc,
     key,
     sequenceNumber,
     profileName,
@@ -54,12 +53,9 @@ export const createSubscriber = async (authToken: string, imsi: string, opc: str
   return respData.result;
 };
 
-export const updateSubscriber = async (authToken: string, imsi: string, opc: string, key: string, sequenceNumber: string, profileName: string) => {
+export const updateSubscriber = async (authToken: string, imsi: string, profileName: string) => {
   const subscriberData = {
     "imsi": imsi,
-    "opc": opc,
-    "key": key,
-    "sequenceNumber": sequenceNumber,
     "profileName": profileName
   }
 

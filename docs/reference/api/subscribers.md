@@ -45,10 +45,12 @@ This path creates a new network subscriber.
 ### Parameters
 
 - `imsi` (string): The IMSI of the subscriber. Must be a 15-digit string starting with `<mcc><mnc>`.
-- `opc` (string): The OPC of the subscriber.  Must be a 32-character hexadecimal string.
 - `key` (string): The key of the subscriber. Must be a 32-character hexadecimal string.
 - `sequenceNumber` (string): The sequence number of the subscriber. Must be a 6-byte hexadecimal string.
 - `ProfileName` (string): The profile name of the subscriber. Must be the name of an existing profile.
+
+!!! note
+    The `opc` parameter is generated automatically using the Operator Code (OP) and the `key` parameter.
 
 ### Sample Response
 
@@ -70,9 +72,6 @@ This path updates an existing network subscriber.
 
 ### Parameters
 
-- `opc` (string): The OPC of the subscriber.
-- `key` (string): The key of the subscriber.
-- `sequenceNumber` (string): The sequence number of the subscriber.
 - `ProfileName` (string): The profile name of the subscriber.
 
 ### Sample Response
