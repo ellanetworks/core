@@ -27,8 +27,7 @@ class TestELLA:
         core_address = f"https://127.0.0.1:{core_port}"
         subscriber = configure_ella_core(core_address=core_address)
         push_config_file(subscriber)
-        print_configmap()
-        time.sleep(10)
+        time.sleep(20)
         success_runs = run_gnbsim_simulation(
             namespace=NAMESPACE,
             application_name="gnbsim",
@@ -366,6 +365,19 @@ def push_config_file(subscriber: Subscriber) -> None:
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to update ConfigMap: {e}")
         raise RuntimeError("Failed to update ConfigMap for GNBSim") from e
+
+def restart_pod(app_name: str):
+    subprocess.check_call(
+        [
+            "kubectl",
+            "rollout",
+            "restart",
+            f"deployment/{app_name}",
+            "-n",
+            NAMESPACE,
+        ]
+    )
+    logger.info(f"Restarted deployment {app_name} in namespace {NAMESPACE}")
 
 
 def print_configmap():
