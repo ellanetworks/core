@@ -83,8 +83,7 @@ Navigate to the `Subscribers` page and click on the `Create` button.
 
 Create a subscriber with the following parameters:
 
-- IMSI: `001010100007488`
-- OPC: `981d464c7c52eb6e5036234984ad0bcf`
-- Key: `5122250214c33e723a5dd523fc145fc0`
-- Sequence Number: `16f3b3f70fc7`
+- IMSI: Click on "Generate" to automatically generate an IMSI.
+- Key: Click on "Generate" to automatically generate a key.
+- Sequence Number: Keep the default value.
 - Profile: `default`
