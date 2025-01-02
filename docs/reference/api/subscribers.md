@@ -1,8 +1,12 @@
+---
+description: RESTful API reference for managing network subscribers.
+---
+
 # Subscribers
 
 ## List Subscribers
 
-This path returns the list of subscribers configured in Ella Core.
+This path returns the list of network subscribers configured in Ella Core.
 
 
 | Method | Path                  |

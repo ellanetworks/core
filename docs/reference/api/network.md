@@ -1,3 +1,7 @@
+---
+description: RESTful API reference for managing network configuration.
+---
+
 # Network
 
 ## Update the network configuration

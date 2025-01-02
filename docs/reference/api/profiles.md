@@ -1,3 +1,7 @@
+---
+description: RESTful API reference for managing profiles.
+---
+
 # Profiles
 
 ## List Profiles

@@ -1,5 +1,5 @@
 site_name: Ella Core Documentation
-site_url: https://mydomain.org/mysite
+site_url: https://ellanetworks.github.io/core/
 theme:
   name: material
   logo: images/logo.png
@@ -55,3 +55,7 @@ nav:
     - Configuration File: reference/config_file.md
     - Connectivity: reference/connectivity.md
     - Audit Logs: reference/audit_logs.md
+plugins:
+  - social:
+      cards_layout_options:
+        background_color: "#26374a"

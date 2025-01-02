@@ -1,3 +1,7 @@
+---
+description: RESTful API reference for getting the system status.
+---
+
 # Status
 
 ## Get the status

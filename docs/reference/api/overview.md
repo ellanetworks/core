@@ -1,3 +1,6 @@
+---
+description: RESTful API reference for managing Ella Core.
+---
 
 # API Overview
 

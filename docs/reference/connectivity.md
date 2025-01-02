@@ -1,3 +1,6 @@
+---
+description: Reference of the networking interfaces.
+---
 
 # Connectivity
 

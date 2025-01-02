@@ -1,3 +1,7 @@
+---
+description: Reference of the metrics exposed in Prometheus format.
+---
+
 # Metrics
 
 Ella Core exposes a set of metrics that can be used to monitor the health of the system and the performance of the network.

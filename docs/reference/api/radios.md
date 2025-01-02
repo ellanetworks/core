@@ -1,3 +1,7 @@
+---
+description: RESTful API reference for managing the radio inventory.
+---
+
 # Radios
 
 ## List Radios

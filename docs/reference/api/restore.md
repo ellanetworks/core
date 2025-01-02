@@ -1,3 +1,7 @@
+---
+description: RESTful API reference for managing database restores.
+---
+
 # Restore
 
 This path restores the database from a provided backup file. The backup file must be uploaded as part of the request.

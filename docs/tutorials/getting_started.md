@@ -1,3 +1,7 @@
+---
+description: A hands-on introduction to Ella Core for new users.
+---
+
 # Getting Started
 
 ## Install Ella Core

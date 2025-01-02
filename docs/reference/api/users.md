@@ -1,8 +1,13 @@
+---
+description: RESTful API reference for managing system users.
+---
+
+
 # Users
 
 ## List Users
 
-This path returns the list of users configured in Ella Core.
+This path returns the list of system users configured in Ella Core.
 
 
 | Method | Path            |
