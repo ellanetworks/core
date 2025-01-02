@@ -5,4 +5,5 @@ metadata:
   namespace: dev2
 data:
   configuration.yaml: |
-    PLACEHOLDER
+    placeholder:
+      key: value
