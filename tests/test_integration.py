@@ -27,6 +27,7 @@ class TestELLA:
         core_address = f"https://127.0.0.1:{core_port}"
         subscriber = configure_ella_core(core_address=core_address)
         push_config_file(subscriber)
+        print_configmap()
         time.sleep(10)
         success_runs = run_gnbsim_simulation(
             namespace=NAMESPACE,
@@ -203,6 +204,13 @@ def push_config_file(subscriber: Subscriber) -> None:
                     ],
                 },
             },
+            "goProfile": {
+                "enable": False,
+                "port": 5000,
+            },
+            "httpServer": {
+                "enable": False,
+            },
             "profiles": [
                 {
                     "profileType": "register",
@@ -358,3 +366,21 @@ def push_config_file(subscriber: Subscriber) -> None:
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to update ConfigMap: {e}")
         raise RuntimeError("Failed to update ConfigMap for GNBSim") from e
+
+
+def print_configmap():
+    config_data = subprocess.check_output(
+        [
+            "kubectl",
+            "get",
+            "configmap",
+            "gnbsim-config",
+            "-n",
+            NAMESPACE,
+            "-o",
+            "jsonpath={.data.configuration\\.yaml}",
+        ],
+        text=True,
+    )
+    config = yaml.safe_load(config_data)
+    print(json.dumps(config, indent=2))
