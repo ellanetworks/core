@@ -38,7 +38,7 @@ func isImsiValid(imsi string, dbInstance *db.Database) bool {
 	if len(imsi) != 15 {
 		return false
 	}
-	network, err := dbInstance.GetNetwork()
+	network, err := dbInstance.GetOperatorId()
 	if err != nil {
 		logger.NmsLog.Warnf("Failed to retrieve network: %v", err)
 		return false

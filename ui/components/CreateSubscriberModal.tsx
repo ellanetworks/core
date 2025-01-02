@@ -17,7 +17,7 @@ import * as yup from "yup";
 import { ValidationError } from "yup";
 import { createSubscriber } from "@/queries/subscribers";
 import { listProfiles } from "@/queries/profiles";
-import { getNetwork } from "@/queries/network";
+import { getOperatorId } from "@/queries/operator";
 import { useRouter } from "next/navigation"
 import { useCookies } from "react-cookie"
 
@@ -76,11 +76,11 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
     const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
     useEffect(() => {
-        const fetchNetworkAndProfiles = async () => {
+        const fetchOperatorIdAndProfiles = async () => {
             try {
-                const network = await getNetwork(cookies.user_token);
-                setMcc(network.mcc);
-                setMnc(network.mnc);
+                const operatorId = await getOperatorId(cookies.user_token);
+                setMcc(operatorId.mcc);
+                setMnc(operatorId.mnc);
 
                 const profileData = await listProfiles(cookies.user_token);
                 setProfiles(profileData.map((profile: any) => profile.name));
@@ -90,7 +90,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
         };
 
         if (open) {
-            fetchNetworkAndProfiles();
+            fetchOperatorIdAndProfiles();
         }
     }, [open]);
 
@@ -174,6 +174,11 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
         }
     };
 
+    const generateRandomMSIN = () => {
+        const randomMSIN = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+        handleChange("msin", randomMSIN);
+    };
+
     return (
         <Modal
             open={open}
@@ -213,7 +218,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                     >
                         IMSI
                     </Typography>
-                    <Box display="flex" gap={2}>
+                    <Box display="flex" gap={2} alignItems="center">
                         <TextField
                             label="MCC"
                             value={mcc}
@@ -238,6 +243,13 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                             margin="normal"
                             sx={{ flex: 2 }}
                         />
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={generateRandomMSIN}
+                        >
+                            Generate
+                        </Button>
                     </Box>
                 </FormGroup>
                 <TextField

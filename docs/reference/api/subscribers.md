@@ -6,7 +6,7 @@ description: RESTful API reference for managing network subscribers.
 
 ## List Subscribers
 
-This path returns the list of network subscribers configured in Ella Core.
+This path returns the list of network subscribers.
 
 
 | Method | Path                  |
@@ -36,7 +36,7 @@ None
 
 ## Create a Subscriber
 
-This path creates a new subscriber in Ella Core.
+This path creates a new network subscriber.
 
 | Method | Path                  |
 | ------ | --------------------- |
@@ -62,7 +62,7 @@ This path creates a new subscriber in Ella Core.
 
 ## Update a Subscriber
 
-This path updates an existing subscriber in Ella Core.
+This path updates an existing network subscriber.
 
 | Method | Path                         |
 | ------ | ---------------------------- |
@@ -87,7 +87,7 @@ This path updates an existing subscriber in Ella Core.
 
 ## Get a Subscriber
 
-This path returns the details of a specific subscriber in Ella Core.
+This path returns the details of a specific network subscriber.
 
 | Method | Path                         |
 | ------ | ---------------------------- |

@@ -6,7 +6,7 @@ description: RESTful API reference for managing profiles.
 
 ## List Profiles
 
-This path returns the list of profiles configured in Ella Core.
+This path returns the list of profiles.
 
 
 | Method | Path               |
@@ -37,7 +37,7 @@ None
 
 ## Create a Profile
 
-This path creates a new profile in Ella Core.
+This path creates a new profile.
 
 | Method | Path               |
 | ------ | ------------------ |
@@ -66,7 +66,7 @@ This path creates a new profile in Ella Core.
 
 ## Update a Profile
 
-This path updates an existing profile in Ella Core.
+This path updates an existing profile.
 
 | Method | Path                      |
 | ------ | ------------------------- |
@@ -95,7 +95,7 @@ This path updates an existing profile in Ella Core.
 
 ## Get a Profile
 
-This path returns the details of a specific profile in Ella Core.
+This path returns the details of a specific profile.
 
 | Method | Path                      |
 | ------ | ------------------------- |

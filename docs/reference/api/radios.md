@@ -6,7 +6,7 @@ description: RESTful API reference for managing the radio inventory.
 
 ## List Radios
 
-This path returns the list of radios configured in Ella Core.
+This path returns the list of radios in the inventory.
 
 
 | Method | Path             |
@@ -32,7 +32,7 @@ None
 
 ## Create a Radio
 
-This path creates a new radio in Ella Core.
+This path creates a new radio in the inventory.
 
 | Method | Path             |
 | ------ | ---------------- |
@@ -55,7 +55,7 @@ This path creates a new radio in Ella Core.
 
 ## Update a Radio
 
-This path updates an existing radio in Ella Core.
+This path updates an existing radio in the inventory.
 
 | Method | Path                    |
 | ------ | ----------------------- |
@@ -77,7 +77,7 @@ This path updates an existing radio in Ella Core.
 
 ## Get a Radio
 
-This path returns the details of a specific radio in Ella Core.
+This path returns the details of a specific radio in the inventory.
 
 | Method | Path                    |
 | ------ | ----------------------- |
