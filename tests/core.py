@@ -99,13 +99,13 @@ class EllaCore:
         """Set the authentication token."""
         self.token = token
 
-    def login(self, username: str, password: str) -> str | None:
+    def login(self, email: str, password: str) -> str | None:
         """Login to Ella Core.
 
         Returns:
             str: The authentication token.
         """
-        data = {"username": username, "password": password}
+        data = {"email": email, "password": password}
         response = self._make_request("POST", "/api/v1/login", data=data)
         if not response:
             logger.error("Failed to login to Ella Core.")
@@ -121,11 +121,11 @@ class EllaCore:
         logger.info("Logged in to Ella Core.")
         return token
 
-    def create_user(self, username: str, password: str) -> None:
+    def create_user(self, email: str, password: str) -> None:
         """Create a user in Ella Core."""
-        data = {"username": username, "password": password}
+        data = {"email": email, "password": password}
         self._make_request("POST", "/api/v1/users", data=data)
-        logger.info("User %s created in Ella Core", username)
+        logger.info("User %s created in Ella Core", email)
 
     def create_radio(self, name: str, tac: str) -> None:
         """Create a radio in Ella Core."""

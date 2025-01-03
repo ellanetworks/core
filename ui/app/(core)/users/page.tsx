@@ -88,8 +88,8 @@ const User = () => {
     setAlert({ message: "User updated successfully!" });
   };
 
-  const handleDeleteClick = (userName: string) => {
-    setSelectedUser(userName);
+  const handleDeleteClick = (email: string) => {
+    setSelectedUser(email);
     setConfirmationOpen(true);
   };
 

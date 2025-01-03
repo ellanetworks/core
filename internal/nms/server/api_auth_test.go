@@ -96,7 +96,7 @@ func TestLoginEndToEnd(t *testing.T) {
 
 	t.Run("Create user", func(t *testing.T) {
 		user := &CreateUserParams{
-			Email:    "my.user123@gmail.com",
+			Email:    "my.user123@ellanetworks.com",
 			Password: "password123",
 		}
 		statusCode, _, err := createUser(ts.URL, client, "", user)
@@ -110,7 +110,7 @@ func TestLoginEndToEnd(t *testing.T) {
 
 	t.Run("Login success", func(t *testing.T) {
 		user := &LoginParams{
-			Email:    "my.user123@gmail.com",
+			Email:    "my.user123@ellanetworks.com",
 			Password: "password123",
 		}
 		statusCode, loginResponse, err := login(ts.URL, client, user)
@@ -133,7 +133,7 @@ func TestLoginEndToEnd(t *testing.T) {
 			t.Fatalf("couldn't parse token: %s", err)
 		}
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-			if claims["email"] != "my.user123@gmail.com" {
+			if claims["email"] != "my.user123@ellanetworks.com" {
 				t.Fatalf("expected email %q, got %q", "testuser", claims["email"])
 			}
 		} else {
@@ -160,7 +160,7 @@ func TestLoginEndToEnd(t *testing.T) {
 
 	t.Run("Login failure missing password", func(t *testing.T) {
 		invalidUser := &LoginParams{
-			Email:    "my.user123@gmail.com",
+			Email:    "my.user123@ellanetworks.com",
 			Password: "",
 		}
 		statusCode, loginResponse, err := login(ts.URL, client, invalidUser)
@@ -177,7 +177,7 @@ func TestLoginEndToEnd(t *testing.T) {
 
 	t.Run("Login failure invalid password", func(t *testing.T) {
 		invalidUser := &LoginParams{
-			Email:    "my.user123@gmail.com",
+			Email:    "my.user123@ellanetworks.com",
 			Password: "a-wrong-password",
 		}
 		statusCode, loginResponse, err := login(ts.URL, client, invalidUser)
@@ -224,7 +224,7 @@ func TestLookupToken(t *testing.T) {
 
 	t.Run("Lookup valid token", func(t *testing.T) {
 		createUserParams := &CreateUserParams{
-			Email:    "my.user123@gmail.com",
+			Email:    "my.user123@ellanetworks.com",
 			Password: "password123",
 		}
 		statusCode, _, err := createUser(ts.URL, client, "", createUserParams)
@@ -235,7 +235,7 @@ func TestLookupToken(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
 		loginParams := &LoginParams{
-			Email:    "my.user123@gmail.com",
+			Email:    "my.user123@ellanetworks.com",
 			Password: "password123",
 		}
 		statusCode, loginResponse, err := login(ts.URL, client, loginParams)

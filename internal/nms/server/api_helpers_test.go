@@ -26,7 +26,7 @@ func setupServer(filepath string) (*httptest.Server, []byte, error) {
 
 func createFirstUserAndLogin(url string, client *http.Client) (string, error) {
 	user := &CreateUserParams{
-		Email:    "my.user123@gmail.com",
+		Email:    "my.user123@ellanetworks.com",
 		Password: "password123",
 	}
 	statusCode, _, err := createUser(url, client, "", user)
@@ -38,7 +38,7 @@ func createFirstUserAndLogin(url string, client *http.Client) (string, error) {
 	}
 
 	loginParams := &LoginParams{
-		Email:    "my.user123@gmail.com",
+		Email:    "my.user123@ellanetworks.com",
 		Password: "password123",
 	}
 

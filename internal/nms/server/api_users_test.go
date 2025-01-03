@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	Email    = "gruyaume@gmail.com"
+	Email    = "gruyaume@ellanetworks.com"
 	Password = "password123"
 )
 
@@ -198,7 +198,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Get user - email not found", func(t *testing.T) {
-		statusCode, response, err := getUser(ts.URL, client, token, "gruyaume2@gmail.com")
+		statusCode, response, err := getUser(ts.URL, client, token, "gruyaume2@ellanetworks.com")
 		if err != nil {
 			t.Fatalf("couldn't get user: %s", err)
 		}
@@ -321,7 +321,7 @@ func TestCreateUserInvalidInput(t *testing.T) {
 			error:    "Invalid email format",
 		},
 		{
-			email:    "abcd@ef@gmail.com",
+			email:    "abcd@ef@ellanetworks.com",
 			password: Password,
 			error:    "Invalid email format",
 		},

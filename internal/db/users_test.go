@@ -29,7 +29,7 @@ func TestDBUsersEndToEnd(t *testing.T) {
 	}
 
 	user := &db.User{
-		Email:          "my.user123@gmail.com",
+		Email:          "my.user123@ellanetworks.com",
 		HashedPassword: "my-hashed-password",
 	}
 	err = database.CreateUser(user)

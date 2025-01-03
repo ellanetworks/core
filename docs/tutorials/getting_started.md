@@ -48,7 +48,7 @@ You should be prompted to initialize Ella Core and to create the first user.
 
 Create the first user with the following credentials:
 
-- Username: `admin`
+- Email: `admin@ellanetworks.com`
 - Password: `admin`
 
 After creating the user, you will be redirected to the login page. Use the credentials you just created to log in.
