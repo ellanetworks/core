@@ -9,10 +9,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/openapi/Namf_Communication"
-	"github.com/omec-project/openapi/Npcf_AMPolicy"
-	"github.com/omec-project/openapi/Npcf_PolicyAuthorization"
-	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -49,57 +45,6 @@ var (
 		PDU_SESSION_NOT_AVAILABLE:                    http.StatusInternalServerError,
 	}
 )
-
-func GetNpcfAMPolicyCallbackClient() *Npcf_AMPolicy.APIClient {
-	configuration := Npcf_AMPolicy.NewConfiguration()
-	client := Npcf_AMPolicy.NewAPIClient(configuration)
-	return client
-}
-
-func GetNpcfSMPolicyCallbackClient() *Npcf_SMPolicyControl.APIClient {
-	configuration := Npcf_SMPolicyControl.NewConfiguration()
-	client := Npcf_SMPolicyControl.NewAPIClient(configuration)
-	return client
-}
-
-func GetNpcfPolicyAuthorizationCallbackClient() *Npcf_PolicyAuthorization.APIClient {
-	configuration := Npcf_PolicyAuthorization.NewConfiguration()
-	client := Npcf_PolicyAuthorization.NewAPIClient(configuration)
-	return client
-}
-
-func GetNamfClient(uri string) *Namf_Communication.APIClient {
-	configuration := Namf_Communication.NewConfiguration()
-	configuration.SetBasePath(uri)
-	client := Namf_Communication.NewAPIClient(configuration)
-	return client
-}
-
-func GetDefaultDataRate() models.UsageThreshold {
-	var usageThreshold models.UsageThreshold
-	usageThreshold.DownlinkVolume = 1024 * 1024 / 8 // 1 Mbps
-	usageThreshold.UplinkVolume = 1024 * 1024 / 8   // 1 Mbps
-	return usageThreshold
-}
-
-func GetDefaultTime() models.TimeWindow {
-	var timeWindow models.TimeWindow
-	timeWindow.StartTime = time.Now().Format(time.RFC3339)
-	lease, err := time.ParseDuration("720h")
-	if err != nil {
-		logger.PcfLog.Errorf("ParseDuration error: %+v", err)
-	}
-	timeWindow.StopTime = time.Now().Add(lease).Format(time.RFC3339)
-	return timeWindow
-}
-
-func CheckStopTime(StopTime time.Time) bool {
-	if StopTime.Before(time.Now()) {
-		return false
-	} else {
-		return true
-	}
-}
 
 // Convert int data rate bytes to string data rate bits
 func Convert(bytes int64) (DateRate string) {
