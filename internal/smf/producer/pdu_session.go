@@ -10,13 +10,13 @@ import (
 	smf_context "github.com/ellanetworks/core/internal/smf/context"
 	pfcp_message "github.com/ellanetworks/core/internal/smf/pfcp/message"
 	"github.com/ellanetworks/core/internal/smf/qos"
+	"github.com/ellanetworks/core/internal/smf/smferrors"
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/Nsmf_PDUSession"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -72,7 +72,7 @@ func HandlePDUSessionSMContextCreate(eventData interface{}) error {
 		m.GsmHeader.GetMessageType() != nas.MsgTypePDUSessionEstablishmentRequest {
 		logger.SmfLog.Errorln("PDUSessionSMContextCreate, GsmMessageDecode Error: ", err)
 
-		txn.Rsp = formContextCreateErrRsp(http.StatusForbidden, &Nsmf_PDUSession.N1SmError, nil)
+		txn.Rsp = formContextCreateErrRsp(http.StatusForbidden, &smferrors.N1SmError, nil)
 		return fmt.Errorf("GsmMsgDecodeError")
 	}
 
@@ -638,7 +638,7 @@ func HandlePFCPResponse(smContext *smf_context.SMContext,
 			Status: http.StatusForbidden,
 			Body: models.UpdateSmContextErrorResponse{
 				JsonData: &models.SmContextUpdateError{
-					Error: &Nsmf_PDUSession.N1SmError,
+					Error: &smferrors.N1SmError,
 				},
 			}, // Depends on the reason why N4 fail
 		}
