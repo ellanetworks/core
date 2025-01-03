@@ -4,8 +4,8 @@ import (
 	"net"
 	"reflect"
 
-	"git.cs.nctu.edu.tw/calee/sctp"
 	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap"
 	"github.com/omec-project/ngap/ngapType"

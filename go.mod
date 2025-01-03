@@ -5,17 +5,14 @@ go 1.23
 toolchain go1.23.3
 
 require (
-	git.cs.nctu.edu.tw/calee/sctp v1.1.0
 	github.com/RoaringBitmap/roaring v1.9.4
 	github.com/canonical/sqlair v0.0.0-20241112140325-83025f4428f6
 	github.com/cilium/ebpf v0.17.1
-	github.com/gin-contrib/cors v1.7.3
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.24
-	github.com/mitchellh/mapstructure v1.5.0
 	github.com/omec-project/aper v1.2.2
 	github.com/omec-project/nas v1.4.3
 	github.com/omec-project/ngap v1.3.1
@@ -52,6 +49,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect

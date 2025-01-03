@@ -3,11 +3,10 @@ package message
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nas_security"
-	"github.com/ellanetworks/core/internal/logger"
-	"github.com/mitchellh/mapstructure"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
@@ -117,11 +116,9 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 	switch ue.AuthenticationCtx.AuthType {
 	case models.AuthType__5_G_AKA:
 		var tmpArray [16]byte
-		var av5gAka models.Av5gAka
-
-		if err := mapstructure.Decode(ue.AuthenticationCtx.Var5gAuthData, &av5gAka); err != nil {
-			logger.AmfLog.Error("Var5gAuthData Convert Type Error")
-			return nil, err
+		av5gAka, ok := ue.AuthenticationCtx.Var5gAuthData.(models.Av5gAka)
+		if !ok {
+			return nil, fmt.Errorf("Var5gAuthData type assertion failed: got %T", ue.AuthenticationCtx.Var5gAuthData)
 		}
 
 		rand, err := hex.DecodeString(av5gAka.Rand)
