@@ -7,7 +7,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pcf"
 	smf_context "github.com/ellanetworks/core/internal/smf/context"
-	"github.com/omec-project/nas/nasConvert"
+	"github.com/ellanetworks/core/internal/util/nas/nasConvert"
 	"github.com/omec-project/openapi/models"
 )
 

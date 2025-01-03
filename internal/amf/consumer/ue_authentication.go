@@ -8,7 +8,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/nas/nasType"
+	nasType "github.com/ellanetworks/core/internal/util/nas/type"
 	"github.com/omec-project/openapi/models"
 )
 

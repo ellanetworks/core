@@ -7,7 +7,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf/smferrors"
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
-	"github.com/omec-project/nas"
+	"github.com/ellanetworks/core/internal/util/nas"
 	"github.com/omec-project/openapi/models"
 )
 

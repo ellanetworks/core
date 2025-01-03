@@ -7,7 +7,7 @@ import (
 	amf_context "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
-	"github.com/omec-project/nas/nasMessage"
+	nasMessage "github.com/ellanetworks/core/internal/util/nas/message"
 	"github.com/omec-project/openapi/models"
 )
 

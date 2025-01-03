@@ -14,8 +14,8 @@ import (
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
-	"github.com/omec-project/nas"
-	"github.com/omec-project/nas/nasMessage"
+	"github.com/ellanetworks/core/internal/util/nas"
+	nasMessage "github.com/ellanetworks/core/internal/util/nas/message"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 )

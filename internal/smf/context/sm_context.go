@@ -11,9 +11,9 @@ import (
 	"github.com/ellanetworks/core/internal/smf/smferrors"
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
+	nasMessage "github.com/ellanetworks/core/internal/util/nas/message"
+	"github.com/ellanetworks/core/internal/util/nas/nasConvert"
 	"github.com/google/uuid"
-	"github.com/omec-project/nas/nasConvert"
-	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
 	"go.uber.org/zap"
 )

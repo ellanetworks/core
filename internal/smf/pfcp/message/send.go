@@ -15,7 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	smf_context "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp/udp"
-	"github.com/omec-project/nas/nasMessage"
+	nasMessage "github.com/ellanetworks/core/internal/util/nas/message"
 	"github.com/omec-project/openapi/models"
 	"github.com/wmnsk/go-pfcp/message"
 )
