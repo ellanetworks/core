@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import {
-    Box,
-    Modal,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
     TextField,
     Button,
-    Typography,
     Alert,
     Collapse,
 } from "@mui/material";
@@ -107,28 +108,14 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
     };
 
     return (
-        <Modal
+        <Dialog
             open={open}
             onClose={onClose}
             aria-labelledby="edit-operator-code-modal-title"
             aria-describedby="edit-operator-code-modal-description"
         >
-            <Box
-                sx={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    width: 600,
-                    bgcolor: "background.paper",
-                    border: "2px solid #000",
-                    boxShadow: 24,
-                    p: 4,
-                }}
-            >
-                <Typography id="edit-operator-code-modal-title" variant="h6" gutterBottom>
-                    Edit Operator Code
-                </Typography>
+            <DialogTitle>Edit Operator Code</DialogTitle>
+            <DialogContent dividers>
                 <Collapse in={!!alert.message}>
                     <Alert
                         onClose={() => setAlert({ message: "" })}
@@ -147,21 +134,21 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
                     helperText={errors.operatorCode}
                     margin="normal"
                 />
-                <Box sx={{ textAlign: "right", marginTop: 2 }}>
-                    <Button onClick={onClose} sx={{ marginRight: 2 }}>
-                        Cancel
-                    </Button>
-                    <Button
-                        variant="contained"
-                        color="success"
-                        onClick={handleSubmit}
-                        disabled={loading || !formValues.operatorCode}
-                    >
-                        {loading ? "Updating..." : "Update"}
-                    </Button>
-                </Box>
-            </Box>
-        </Modal>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={onClose} >
+                    Cancel
+                </Button>
+                <Button
+                    variant="contained"
+                    color="success"
+                    onClick={handleSubmit}
+                    disabled={loading || !formValues.operatorCode}
+                >
+                    {loading ? "Updating..." : "Update"}
+                </Button>
+            </DialogActions>
+        </Dialog>
     );
 };
 
