@@ -1,5 +1,3 @@
-git.cs.nctu.edu.tw/calee/sctp v1.1.0 h1:caiPJ0g2sH1QmDkC7x2yklKrc01Fuo1rqYW68Tq4mU0=
-git.cs.nctu.edu.tw/calee/sctp v1.1.0/go.mod h1:NeOuBXO1iJBtldmNhkfSH8yFbnxlhI8eEJdUd7DZvws=
 github.com/RoaringBitmap/roaring v1.9.4 h1:yhEIoH4YezLYT04s1nHehNO64EKFTop/wBhxv2QzDdQ=
 github.com/RoaringBitmap/roaring v1.9.4/go.mod h1:6AXUsoIEzDTFFQCe1RbGA6uFONMhvejWj5rqITANK90=
 github.com/aead/cmac v0.0.0-20160719120800-7af84192f0b1 h1:+JkXLHME8vLJafGhOH4aoV2Iu8bR55nU6iKMVfYVLjY=

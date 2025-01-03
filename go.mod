@@ -5,7 +5,6 @@ go 1.23
 toolchain go1.23.3
 
 require (
-	git.cs.nctu.edu.tw/calee/sctp v1.1.0
 	github.com/RoaringBitmap/roaring v1.9.4
 	github.com/canonical/sqlair v0.0.0-20241112140325-83025f4428f6
 	github.com/cilium/ebpf v0.17.1
