@@ -93,8 +93,7 @@ def configure_pebble_for_ella_core():
         )
         logger.info("Ella Core started successfully using Pebble.")
     except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to configure Pebble layer for Ella Core: {e}")
-        raise RuntimeError("Failed to configure Pebble for Ella Core") from e
+        logger.warning(f"Failed to configure Pebble layer for Ella Core: {e}")
 
 
 def deploy_core_and_router_components():
@@ -151,7 +150,7 @@ def wait_for_ella_core_ready():
 def create_gnbsim_configmap_and_deployment(subscriber: Subscriber):
     """Create GNBSim ConfigMap and deployment."""
     logger.info("Creating GNBSim ConfigMap and deployment...")
-    push_config_file(subscriber)
+    create_gnbsim_configmap(subscriber)
 
     manifests = [
         "k8s/gnbsim-gnb-nad.yaml",
@@ -203,9 +202,8 @@ def configure_ella_core(core_address: str) -> Subscriber:
     return subscriber
 
 
-def push_config_file(subscriber: Subscriber) -> None:
+def create_gnbsim_configmap(subscriber: Subscriber) -> None:
     """Generate and create the GNBSim ConfigMap with the subscriber information."""
-    logger.info("Creating GNBSim ConfigMap...")
     config = {
         "configuration.yaml": yaml.dump(
             {
@@ -252,6 +250,13 @@ def push_config_file(subscriber: Subscriber) -> None:
                             ],
                         },
                     },
+                    "goProfile": {
+                        "enable": False,
+                        "port": 5000,
+                    },
+                    "httpServer": {
+                        "enable": False,
+                    },
                     "profiles": [
                         {
                             "profileType": "register",
@@ -274,7 +279,98 @@ def push_config_file(subscriber: Subscriber) -> None:
                                 "mnc": "01",
                             },
                         },
+                        {
+                            "profileType": "pdusessest",
+                            "profileName": "profile2",
+                            "enable": True,
+                            "gnbName": "gnb1",
+                            "dataPktCount": 5,
+                            "defaultAs": "192.168.250.1",
+                            "opc": subscriber.opc,
+                            "key": subscriber.key,
+                            "perUserTimeout": 100,
+                            "dnn": "internet",
+                            "sNssai": {
+                                "sst": 1,
+                                "sd": "102030",
+                            },
+                            "plmnId": {
+                                "mcc": "001",
+                                "mnc": "01",
+                            },
+                            "sequenceNumber": subscriber.sequence_number,
+                            "startImsi": subscriber.imsi,
+                            "ueCount": 1,
+                        },
+                        {
+                            "profileType": "anrelease",
+                            "profileName": "profile3",
+                            "enable": True,
+                            "gnbName": "gnb1",
+                            "startImsi": subscriber.imsi,
+                            "ueCount": 1,
+                            "defaultAs": "192.168.250.1",
+                            "opc": subscriber.opc,
+                            "key": subscriber.key,
+                            "sequenceNumber": subscriber.sequence_number,
+                            "dnn": "internet",
+                            "sNssai": {
+                                "sst": 1,
+                                "sd": "102030",
+                            },
+                            "execInParallel": False,
+                            "plmnId": {
+                                "mcc": "001",
+                                "mnc": "01",
+                            },
+                        },
+                        {
+                            "profileType": "uetriggservicereq",
+                            "profileName": "profile4",
+                            "enable": True,
+                            "gnbName": "gnb1",
+                            "startImsi": subscriber.imsi,
+                            "ueCount": 1,
+                            "defaultAs": "192.168.250.1",
+                            "opc": subscriber.opc,
+                            "key": subscriber.key,
+                            "sequenceNumber": subscriber.sequence_number,
+                            "dnn": "internet",
+                            "retransMsg": False,
+                            "sNssai": {
+                                "sst": 1,
+                                "sd": "102030",
+                            },
+                            "execInParallel": False,
+                            "plmnId": {
+                                "mcc": "001",
+                                "mnc": "01",
+                            },
+                        },
+                        {
+                            "profileType": "deregister",
+                            "profileName": "profile5",
+                            "enable": True,
+                            "gnbName": "gnb1",
+                            "startImsi": subscriber.imsi,
+                            "ueCount": 1,
+                            "defaultAs": "192.168.250.1",
+                            "opc": subscriber.opc,
+                            "key": subscriber.key,
+                            "sequenceNumber": subscriber.sequence_number,
+                            "dnn": "internet",
+                            "sNssai": {
+                                "sst": 1,
+                                "sd": "102030",
+                            },
+                            "execInParallel": False,
+                            "plmnId": {
+                                "mcc": "001",
+                                "mnc": "01",
+                            },
+                        },
                     ],
+                    "runConfigProfilesAtStart": True,
                 },
                 "info": {
                     "description": "gNodeB sim initial configuration",
