@@ -38,6 +38,9 @@ spec:
       containers:
       - name: gnbsim
         image: ghcr.io/canonical/sdcore-gnbsim:1.4.5
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/gnbsim
         securityContext:
           privileged: true
         ports:
@@ -58,3 +61,7 @@ spec:
           limits:
             memory: "64Mi"
             cpu: "100m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: gnbsim-config
