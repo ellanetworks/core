@@ -140,13 +140,14 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	// Users (Authenticated except for first user creation)
 	apiGroup.GET("/users", User(ListUsers(dbInstance), jwtSecret))
 	apiGroup.POST("/users", UserOrFirstUser(CreateUser(dbInstance), dbInstance, jwtSecret))
-	apiGroup.PUT("/users/:username", User(UpdateUser(dbInstance), jwtSecret))
-	apiGroup.GET("/users/:username", User(GetUser(dbInstance), jwtSecret))
-	apiGroup.DELETE("/users/:username", User(DeleteUser(dbInstance), jwtSecret))
+	apiGroup.PUT("/users/:email", User(UpdateUser(dbInstance), jwtSecret))
+	apiGroup.GET("/users/:email", User(GetUser(dbInstance), jwtSecret))
+	apiGroup.DELETE("/users/:email", User(DeleteUser(dbInstance), jwtSecret))
 	apiGroup.GET("/users/me", User(GetLoggedInUser(dbInstance), jwtSecret))
 
 	// Authentication
-	apiGroup.POST("/login", Any(Login(dbInstance, jwtSecret)))
+	apiGroup.POST("/auth/login", Any(Login(dbInstance, jwtSecret)))
+	apiGroup.POST("/auth/lookup-token", Any(LookupToken(dbInstance, jwtSecret)))
 
 	// Backup and Restore
 	apiGroup.POST("/backup", User(Backup(dbInstance), jwtSecret))

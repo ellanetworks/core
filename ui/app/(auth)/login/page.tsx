@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation"
 import {
     Box,
@@ -10,17 +10,36 @@ import {
     Alert,
     CircularProgress,
 } from "@mui/material";
-import { login } from "@/queries/login";
+import { login } from "@/queries/auth";
 import { useCookies } from "react-cookie"
-
+import { getStatus } from "@/queries/status";
 
 const LoginPage = () => {
     const router = useRouter()
     const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
-    const [username, setUsername] = useState("");
+    const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [checkingInitialization, setCheckingInitialization] = useState(true);
+
+    useEffect(() => {
+        const checkInitialization = async () => {
+            try {
+                const status = await getStatus();
+                if (!status?.initialized) {
+                    router.push("/initialize");
+                } else {
+                    setCheckingInitialization(false);
+                }
+            } catch (err) {
+                console.error("Failed to fetch system status:", err);
+                setError("Failed to check system initialization.");
+            }
+        };
+
+        checkInitialization();
+    }, [router]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -28,7 +47,7 @@ const LoginPage = () => {
         setError(null);
 
         try {
-            const result = await login(username, password);
+            const result = await login(email, password);
 
             if (result?.token) {
                 setCookie("user_token", result.token, {
@@ -47,6 +66,21 @@ const LoginPage = () => {
             setLoading(false);
         }
     };
+
+    if (checkingInitialization) {
+        return (
+            <Box
+                sx={{
+                    height: "100vh",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                }}
+            >
+                <CircularProgress />
+            </Box>
+        );
+    }
 
     return (
         <Box
@@ -80,10 +114,10 @@ const LoginPage = () => {
                 {error && <Alert severity="error">{error}</Alert>}
 
                 <TextField
-                    label="Username"
+                    label="Email"
                     variant="outlined"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     fullWidth
                     required
                 />

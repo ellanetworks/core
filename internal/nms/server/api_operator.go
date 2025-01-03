@@ -72,10 +72,10 @@ func isValidOperatorCode(operatorCode string) bool {
 
 func GetOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		dbOperatorId, err := dbInstance.GetOperatorId()
@@ -96,7 +96,7 @@ func GetOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			GetOperatorIdAction,
-			username,
+			email,
 			"User retrieved operator ID",
 		)
 	}
@@ -104,10 +104,10 @@ func GetOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 
 func UpdateOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		var updateOperatorIdParams UpdateOperatorIdParams
@@ -153,7 +153,7 @@ func UpdateOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			UpdateOperatorIdAction,
-			username,
+			email,
 			"User updated operator ID with mcc: "+updateOperatorIdParams.Mcc+" and mnc: "+updateOperatorIdParams.Mnc,
 		)
 	}
@@ -161,10 +161,10 @@ func UpdateOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 
 func UpdateOperatorCode(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		var updateOperatorCodeParams UpdateOperatorCodeParams
@@ -197,7 +197,7 @@ func UpdateOperatorCode(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			UpdateOperatorCodeAction,
-			username,
+			email,
 			"User updated operator Code",
 		)
 	}

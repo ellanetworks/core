@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { Box, IconButton, Alert, Typography } from "@mui/material";
 import { getOperatorId } from "@/queries/operator";
-import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
 import { Edit as EditIcon } from "@mui/icons-material";
 import EditOperatorIdModal from "@/components/EditOperatorIdModal";
@@ -16,12 +15,7 @@ interface OperatorIdData {
 }
 
 const Operator = () => {
-  const router = useRouter();
   const [cookies] = useCookies(["user_token"]);
-
-  if (!cookies.user_token) {
-    router.push("/login");
-  }
 
   const [operatorId, setOperatorId] = useState<OperatorIdData | null>(null);
   const [isEditOperatorIdModalOpen, setEditOperatorIdModalOpen] = useState(false);

@@ -15,7 +15,7 @@ func expireAfter() int64 {
 }
 
 type LoginParams struct {
-	Username string `json:"username"`
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
@@ -23,7 +23,14 @@ type LoginResponse struct {
 	Token string `json:"token"`
 }
 
-const LoginAction = "login"
+type LookupTokenResponse struct {
+	Valid bool `json:"valid"`
+}
+
+const (
+	LoginAction       = "auth_login"
+	LookupTokenAction = "auth_lookup_token"
+)
 
 func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -33,22 +40,22 @@ func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid JSON format")
 			return
 		}
-		if loginParams.Username == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Username is required")
+		if loginParams.Email == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Email is required")
 			return
 		}
 		if loginParams.Password == "" {
 			writeError(c.Writer, http.StatusBadRequest, "Password is required")
 			return
 		}
-		user, err := dbInstance.GetUser(loginParams.Username)
+		user, err := dbInstance.GetUser(loginParams.Email)
 		if err != nil {
 			logger.LogAuditEvent(
 				LoginAction,
-				loginParams.Username,
+				loginParams.Email,
 				"User failed to log in",
 			)
-			writeError(c.Writer, http.StatusUnauthorized, "The username or password is incorrect. Try again.")
+			writeError(c.Writer, http.StatusUnauthorized, "The email or password is incorrect. Try again.")
 			return
 		}
 
@@ -56,14 +63,14 @@ func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
 		if err != nil {
 			logger.LogAuditEvent(
 				LoginAction,
-				user.Username,
+				user.Email,
 				"User failed to log in",
 			)
-			writeError(c.Writer, http.StatusUnauthorized, "The username or password is incorrect. Try again.")
+			writeError(c.Writer, http.StatusUnauthorized, "The email or password is incorrect. Try again.")
 			return
 		}
 
-		token, err := generateJWT(user.ID, user.Username, jwtSecret)
+		token, err := generateJWT(user.ID, user.Email, jwtSecret)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Internal Error")
 			return
@@ -79,8 +86,38 @@ func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			LoginAction,
-			user.Username,
+			user.Email,
 			"User logged in",
+		)
+	}
+}
+
+func LookupToken(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Authorization header is required")
+			return
+		}
+		_, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
+		var valid bool
+		if err != nil {
+			valid = false
+		} else {
+			valid = true
+		}
+		lookupTokenResponse := LookupTokenResponse{
+			Valid: valid,
+		}
+		err = writeResponse(c.Writer, lookupTokenResponse, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "Internal Error")
+			return
+		}
+		logger.LogAuditEvent(
+			LookupTokenAction,
+			"",
+			"User looked up token",
 		)
 	}
 }

@@ -26,21 +26,16 @@ import CreateUserModal from "@/components/CreateUserModal";
 import EditUserModal from "@/components/EditUserModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-import { useRouter } from "next/navigation"
 import { useCookies } from "react-cookie"
 
 
 interface UserData {
-  username: string;
+  email: string;
 }
 
 const User = () => {
-  const router = useRouter();
   const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
 
-  if (!cookies.user_token) {
-    router.push("/login")
-  }
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
@@ -76,7 +71,7 @@ const User = () => {
 
   const handleEditClick = (user: any) => {
     const mappedUser = {
-      username: user.username,
+      email: user.email,
     };
 
     setEditData(mappedUser);
@@ -93,8 +88,8 @@ const User = () => {
     setAlert({ message: "User updated successfully!" });
   };
 
-  const handleDeleteClick = (userName: string) => {
-    setSelectedUser(userName);
+  const handleDeleteClick = (email: string) => {
+    setSelectedUser(email);
     setConfirmationOpen(true);
   };
 
@@ -197,18 +192,18 @@ const User = () => {
             <Table sx={{ minWidth: 900 }} aria-label="user table">
               <TableHead>
                 <TableRow>
-                  <TableCell>Username</TableCell>
+                  <TableCell>Email</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {users.map((user) => (
                   <TableRow
-                    key={user.username}
+                    key={user.email}
                     sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
                   >
                     <TableCell component="th" scope="row">
-                      {user.username}
+                      {user.email}
                     </TableCell>
                     <TableCell align="right">
                       <IconButton
@@ -219,7 +214,7 @@ const User = () => {
                       </IconButton>
                       <IconButton
                         aria-label="delete"
-                        onClick={() => handleDeleteClick(user.username)}
+                        onClick={() => handleDeleteClick(user.email)}
                       >
                         <DeleteIcon />
                       </IconButton>
@@ -242,7 +237,7 @@ const User = () => {
         onSuccess={handleEditSuccess}
         initialData={
           editData || {
-            username: "",
+            email: "",
           }
         }
       />

@@ -26,7 +26,6 @@ import CreateRadioModal from "@/components/CreateRadioModal";
 import EditRadioModal from "@/components/EditRadioModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-import { useRouter } from "next/navigation"
 import { useCookies } from "react-cookie"
 
 
@@ -36,12 +35,8 @@ interface RadioData {
 }
 
 const Radio = () => {
-  const router = useRouter();
   const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
 
-  if (!cookies.user_token) {
-    router.push("/login")
-  }
   const [radios, setRadios] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);

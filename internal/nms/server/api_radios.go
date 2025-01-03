@@ -42,10 +42,10 @@ func isValidRadioName(name string) bool {
 
 func ListRadios(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		dbRadios, err := dbInstance.ListRadios()
@@ -69,7 +69,7 @@ func ListRadios(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			ListRadiosAction,
-			username,
+			email,
 			"User listed radios",
 		)
 	}
@@ -77,10 +77,10 @@ func ListRadios(dbInstance *db.Database) gin.HandlerFunc {
 
 func GetRadio(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		radioName := c.Param("name")
@@ -106,7 +106,7 @@ func GetRadio(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			GetRadioAction,
-			username,
+			email,
 			"User retrieved radio: "+radioName,
 		)
 	}
@@ -114,10 +114,10 @@ func GetRadio(dbInstance *db.Database) gin.HandlerFunc {
 
 func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		var newRadio CreateRadioParams
@@ -166,7 +166,7 @@ func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			CreateRadioAction,
-			username,
+			email,
 			"User created radio: "+newRadio.Name,
 		)
 	}
@@ -174,10 +174,10 @@ func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
 
 func UpdateRadio(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		radioName := c.Param("name")
@@ -231,7 +231,7 @@ func UpdateRadio(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			UpdateRadioAction,
-			username,
+			email,
 			"User updated radio: "+radioName,
 		)
 	}
@@ -239,10 +239,10 @@ func UpdateRadio(dbInstance *db.Database) gin.HandlerFunc {
 
 func DeleteRadio(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		radioName := c.Param("name")
@@ -270,7 +270,7 @@ func DeleteRadio(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			DeleteRadioAction,
-			username,
+			email,
 			"User deleted radio: "+radioName,
 		)
 	}

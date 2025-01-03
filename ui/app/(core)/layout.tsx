@@ -6,10 +6,13 @@ import { ThemeProvider } from "@mui/material/styles";
 import { CssBaseline } from "@mui/material";
 import theme from "@/utils/theme";
 import DrawerLayout from "@/components/DrawerLayout";
+import useTokenValidation from "@/utils/token_validation";
 
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
+
+  useTokenValidation();
 
   return (
     <html lang="en">

@@ -14,10 +14,10 @@ const RestoreAction = "restore_database"
 
 func Restore(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		file, err := c.FormFile("backup")
@@ -57,7 +57,7 @@ func Restore(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			RestoreAction,
-			username,
+			email,
 			"User restored database",
 		)
 	}

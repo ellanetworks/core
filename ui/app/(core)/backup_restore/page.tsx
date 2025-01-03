@@ -2,17 +2,11 @@
 import React, { useState } from "react";
 import { Box, Typography, Button, Alert } from "@mui/material";
 import { backup, restore } from "@/queries/backup";
-import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
 import Grid from "@mui/material/Grid2";
 
 const BackupRestore = () => {
-  const router = useRouter();
   const [cookies, setCookie, removeCookie] = useCookies(["user_token"]);
-
-  if (!cookies.user_token) {
-    router.push("/login");
-  }
 
   const [alert, setAlert] = useState<{
     message: string;

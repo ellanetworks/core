@@ -166,8 +166,8 @@ class TestELLA:
 def configure_ella_core(core_address: str) -> Subscriber:
     """Configure Ella Core."""
     ella_client = EllaCore(url=core_address)
-    ella_client.create_user(username="admin", password="admin")
-    token = ella_client.login(username="admin", password="admin")
+    ella_client.create_user(email="admin@ellanetworks.com", password="admin")
+    token = ella_client.login(email="admin@ellanetworks.com", password="admin")
     if not token:
         raise RuntimeError("Failed to login to Ella Core")
     ella_client.set_token(token)

@@ -10,12 +10,12 @@ import (
 )
 
 const (
-	Username = "gruyaume"
+	Email    = "gruyaume@ellanetworks.com"
 	Password = "password123"
 )
 
 type GetUserResponseResult struct {
-	Username string `json:"username"`
+	Email string `json:"email"`
 }
 
 type GetUserResponse struct {
@@ -24,7 +24,7 @@ type GetUserResponse struct {
 }
 
 type CreateUserParams struct {
-	Username string `json:"username"`
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
@@ -163,7 +163,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 
 	t.Run("1. Create user", func(t *testing.T) {
 		createUserParams := &CreateUserParams{
-			Username: Username,
+			Email:    Email,
 			Password: Password,
 		}
 		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
@@ -182,23 +182,23 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	})
 
 	t.Run("2. Get user", func(t *testing.T) {
-		statusCode, response, err := getUser(ts.URL, client, token, Username)
+		statusCode, response, err := getUser(ts.URL, client, token, Email)
 		if err != nil {
 			t.Fatalf("couldn't get user: %s", err)
 		}
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if response.Result.Username != Username {
-			t.Fatalf("expected username %s, got %s", Username, response.Result.Username)
+		if response.Result.Email != Email {
+			t.Fatalf("expected email %s, got %s", Email, response.Result.Email)
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
 	})
 
-	t.Run("3. Get user - id not found", func(t *testing.T) {
-		statusCode, response, err := getUser(ts.URL, client, token, "gruyaume2")
+	t.Run("3. Get user - email not found", func(t *testing.T) {
+		statusCode, response, err := getUser(ts.URL, client, token, "gruyaume2@ellanetworks.com")
 		if err != nil {
 			t.Fatalf("couldn't get user: %s", err)
 		}
@@ -210,7 +210,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("4. Create user - no username", func(t *testing.T) {
+	t.Run("4. Create user - no email", func(t *testing.T) {
 		createUserParams := &CreateUserParams{
 			Password: Password,
 		}
@@ -221,17 +221,17 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		if statusCode != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
-		if response.Error != "username is missing" {
-			t.Fatalf("expected error %q, got %q", "username is missing", response.Error)
+		if response.Error != "email is missing" {
+			t.Fatalf("expected error %q, got %q", "email is missing", response.Error)
 		}
 	})
 
 	t.Run("5. Edit user", func(t *testing.T) {
 		createUserParams := &CreateUserParams{
-			Username: Username,
+			Email:    Email,
 			Password: "password1234",
 		}
-		statusCode, response, err := editUser(ts.URL, client, token, Username, createUserParams)
+		statusCode, response, err := editUser(ts.URL, client, token, Email, createUserParams)
 		if err != nil {
 			t.Fatalf("couldn't edit user: %s", err)
 		}
@@ -247,7 +247,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	})
 
 	t.Run("6. Delete user - success", func(t *testing.T) {
-		statusCode, response, err := deleteUser(ts.URL, client, token, Username)
+		statusCode, response, err := deleteUser(ts.URL, client, token, Email)
 		if err != nil {
 			t.Fatalf("couldn't delete user: %s", err)
 		}
@@ -262,7 +262,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		}
 	})
 	t.Run("7. Delete user - no user", func(t *testing.T) {
-		statusCode, response, err := deleteUser(ts.URL, client, token, Username)
+		statusCode, response, err := deleteUser(ts.URL, client, token, Email)
 		if err != nil {
 			t.Fatalf("couldn't delete user: %s", err)
 		}
@@ -291,21 +291,46 @@ func TestCreateUserInvalidInput(t *testing.T) {
 	}
 
 	tests := []struct {
-		username string
+		email    string
 		password string
 		error    string
 	}{
 		{
-			username: strings.Repeat("a", 257),
+			email:    strings.Repeat("a", 257),
 			password: Password,
-			error:    "Invalid username format. Must be less than 256 characters",
+			error:    "Invalid email format",
+		},
+		{
+			email:    "abcdef",
+			password: Password,
+			error:    "Invalid email format",
+		},
+		{
+			email:    "abcdef@",
+			password: Password,
+			error:    "Invalid email format",
+		},
+		{
+			email:    "abcdef@gmail",
+			password: Password,
+			error:    "Invalid email format",
+		},
+		{
+			email:    "abcdef@gmail.",
+			password: Password,
+			error:    "Invalid email format",
+		},
+		{
+			email:    "abcd@ef@ellanetworks.com",
+			password: Password,
+			error:    "Invalid email format",
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.username, func(t *testing.T) {
+		t.Run(tt.email, func(t *testing.T) {
 			createUserParams := &CreateUserParams{
-				Username: tt.username,
+				Email:    tt.email,
 				Password: tt.password,
 			}
 			statusCode, response, err := createUser(ts.URL, client, token, createUserParams)

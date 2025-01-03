@@ -45,7 +45,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
     if (!cookies.user_token) {
         router.push("/login")
     }
-    const [username, setUsername] = useState("");
+    const [email, setEmail] = useState("");
 
     // State for the account menu
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -67,7 +67,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
     const fetchUser = async () => {
         try {
             const data = await getLoggedInUser(cookies.user_token);
-            setUsername(data.username);
+            setEmail(data.email);
         } catch (error) {
             console.error("Error fetching user:", error);
         } finally {
@@ -173,7 +173,23 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                         <ListItemIcon>
                             <AccountCircleIcon />
                         </ListItemIcon>
-                        <ListItemText primary={username} />
+                        <ListItemText
+                            primary={
+                                <Typography
+                                    variant="body2"
+                                    noWrap
+                                    title={email}
+                                    sx={{
+                                        textOverflow: "ellipsis",
+                                        overflow: "hidden",
+                                        whiteSpace: "nowrap",
+                                        maxWidth: "200px",
+                                    }}
+                                >
+                                    {email}
+                                </Typography>
+                            }
+                        />
                     </ListItemButton>
                     <Menu
                         anchorEl={anchorEl}

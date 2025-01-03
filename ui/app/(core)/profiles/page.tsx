@@ -25,7 +25,6 @@ import CreateProfileModal from "@/components/CreateProfileModal";
 import EditProfileModal from "@/components/EditProfileModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-import { useRouter } from "next/navigation"
 import { useCookies } from "react-cookie"
 
 
@@ -43,12 +42,7 @@ interface ProfileData {
 }
 
 const Profile = () => {
-  const router = useRouter();
   const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
-
-  if (!cookies.user_token) {
-    router.push("/login")
-  }
 
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
