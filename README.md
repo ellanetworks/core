@@ -1,6 +1,7 @@
 # Ella Core
 
-> :warning:	 **This project is available in beta.** Please report any issues you encounter.
+> :warning:	 **Warning**
+> Ella Core is currently in beta. Please report any issues to you encounter here.
 
 <img src="docs/images/logo.png" alt="alt text" width="200"/>
 
