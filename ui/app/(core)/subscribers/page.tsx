@@ -27,7 +27,6 @@ import ViewSubscriberModal from "@/components/ViewSubscriberModal";
 import EditSubscriberModal from "@/components/EditSubscriberModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
 
 interface SubscriberData {
@@ -37,12 +36,7 @@ interface SubscriberData {
 }
 
 const Subscriber = () => {
-    const router = useRouter();
     const [cookies, setCookie, removeCookie] = useCookies(["user_token"]);
-
-    if (!cookies.user_token) {
-        router.push("/login");
-    }
 
     const [subscribers, setSubscribers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);

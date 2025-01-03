@@ -7,12 +7,10 @@ import { listSubscribers } from "@/queries/subscribers";
 import { listRadios } from "@/queries/radios";
 import { PieChart } from "@mui/x-charts/PieChart";
 import Grid from "@mui/material/Grid2";
-import { useRouter } from "next/navigation"
 import { useCookies } from "react-cookie"
 
 
 const Dashboard = () => {
-  const router = useRouter();
   const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
 
   const [version, setVersion] = useState<string | null>(null);
@@ -25,10 +23,6 @@ const Dashboard = () => {
   const [totalIPs, setTotalIPs] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  if (!cookies.user_token) {
-    router.push("/login")
-  }
 
   const parseMetrics = (metrics: string) => {
     const lines = metrics.split("\n");

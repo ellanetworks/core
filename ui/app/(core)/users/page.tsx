@@ -26,7 +26,6 @@ import CreateUserModal from "@/components/CreateUserModal";
 import EditUserModal from "@/components/EditUserModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-import { useRouter } from "next/navigation"
 import { useCookies } from "react-cookie"
 
 
@@ -35,12 +34,8 @@ interface UserData {
 }
 
 const User = () => {
-  const router = useRouter();
   const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
 
-  if (!cookies.user_token) {
-    router.push("/login")
-  }
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);

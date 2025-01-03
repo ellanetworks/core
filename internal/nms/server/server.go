@@ -147,6 +147,7 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 
 	// Authentication
 	apiGroup.POST("/login", Any(Login(dbInstance, jwtSecret)))
+	apiGroup.POST("/lookup-token", Any(LookupToken(dbInstance, jwtSecret)))
 
 	// Backup and Restore
 	apiGroup.POST("/backup", User(Backup(dbInstance), jwtSecret))
