@@ -10,7 +10,7 @@ import {
     Alert,
     CircularProgress,
 } from "@mui/material";
-import { login } from "@/queries/login";
+import { login } from "@/queries/auth";
 import { useCookies } from "react-cookie"
 
 
