@@ -6,7 +6,7 @@ import (
 	"sync"
 	"syscall"
 
-	"git.cs.nctu.edu.tw/calee/sctp"
+	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap"
 )

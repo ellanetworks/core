@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/util/fsm"
-	"github.com/mitchellh/mapstructure"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
@@ -1816,14 +1815,14 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 	}
 
 	if ue.AuthenticationCtx == nil {
-		return fmt.Errorf("Ue Authentication Context is nil")
+		return fmt.Errorf("ue Authentication Context is nil")
 	}
 
 	switch ue.AuthenticationCtx.AuthType {
 	case models.AuthType__5_G_AKA:
-		var av5gAka models.Av5gAka
-		if err := mapstructure.Decode(ue.AuthenticationCtx.Var5gAuthData, &av5gAka); err != nil {
-			return fmt.Errorf("Var5gAuthData Convert Type Error")
+		av5gAka, ok := ue.AuthenticationCtx.Var5gAuthData.(models.Av5gAka)
+		if !ok {
+			return fmt.Errorf("Var5gAuthData type assertion failed: got %T", ue.AuthenticationCtx.Var5gAuthData)
 		}
 		resStar := authenticationResponse.AuthenticationResponseParameter.GetRES()
 

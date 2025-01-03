@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ui"
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -152,18 +151,6 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	// Backup and Restore
 	apiGroup.POST("/backup", User(Backup(dbInstance), jwtSecret))
 	apiGroup.POST("/restore", User(Restore(dbInstance), jwtSecret))
-
-	router.Use(cors.New(cors.Config{
-		AllowMethods: []string{"GET", "POST", "PUT", "DELETE"},
-		AllowHeaders: []string{
-			"Origin", "Content-Length", "Content-Type", "User-Agent",
-			"Referrer", "Host", "Token", "X-Requested-With",
-		},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-		AllowAllOrigins:  true,
-		MaxAge:           86400,
-	}))
 
 	return router
 }
