@@ -173,7 +173,23 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                         <ListItemIcon>
                             <AccountCircleIcon />
                         </ListItemIcon>
-                        <ListItemText primary={email} />
+                        <ListItemText
+                            primary={
+                                <Typography
+                                    variant="body2"
+                                    noWrap
+                                    title={email}
+                                    sx={{
+                                        textOverflow: "ellipsis",
+                                        overflow: "hidden",
+                                        whiteSpace: "nowrap",
+                                        maxWidth: "200px",
+                                    }}
+                                >
+                                    {email}
+                                </Typography>
+                            }
+                        />
                     </ListItemButton>
                     <Menu
                         anchorEl={anchorEl}
