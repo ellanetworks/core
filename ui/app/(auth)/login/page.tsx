@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation"
 import {
     Box,
@@ -12,7 +12,7 @@ import {
 } from "@mui/material";
 import { login } from "@/queries/auth";
 import { useCookies } from "react-cookie"
-
+import { getStatus } from "@/queries/status";
 
 const LoginPage = () => {
     const router = useRouter()
@@ -21,6 +21,25 @@ const LoginPage = () => {
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [checkingInitialization, setCheckingInitialization] = useState(true);
+
+    useEffect(() => {
+        const checkInitialization = async () => {
+            try {
+                const status = await getStatus();
+                if (!status?.initialized) {
+                    router.push("/initialize");
+                } else {
+                    setCheckingInitialization(false);
+                }
+            } catch (err) {
+                console.error("Failed to fetch system status:", err);
+                setError("Failed to check system initialization.");
+            }
+        };
+
+        checkInitialization();
+    }, [router]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -47,6 +66,21 @@ const LoginPage = () => {
             setLoading(false);
         }
     };
+
+    if (checkingInitialization) {
+        return (
+            <Box
+                sx={{
+                    height: "100vh",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                }}
+            >
+                <CircularProgress />
+            </Box>
+        );
+    }
 
     return (
         <Box
