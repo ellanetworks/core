@@ -17,7 +17,7 @@ import * as yup from "yup";
 import { ValidationError } from "yup";
 import { createSubscriber } from "@/queries/subscribers";
 import { listProfiles } from "@/queries/profiles";
-import { getNetwork } from "@/queries/network";
+import { getOperatorId } from "@/queries/operator";
 import { useRouter } from "next/navigation"
 import { useCookies } from "react-cookie"
 
@@ -34,10 +34,6 @@ const schema = yup.object().shape({
         .length(10, "MSIN must be exactly 10 digits long.")
         .matches(/^\d+$/, "MSIN must be numeric.")
         .required("MSIN is required."),
-    opc: yup
-        .string()
-        .matches(/^[0-9a-fA-F]{32}$/, "OPC must be a 32-character hexadecimal string.")
-        .required("OPC is required."),
     key: yup
         .string()
         .matches(/^[0-9a-fA-F]{32}$/, "Key must be a 32-character hexadecimal string.")
@@ -60,9 +56,8 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
     }
     const [formValues, setFormValues] = useState({
         msin: "",
-        opc: "",
         key: "",
-        sequenceNumber: "",
+        sequenceNumber: "000000000001", // Default value
         profileName: "",
     });
 
@@ -76,11 +71,11 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
     const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
     useEffect(() => {
-        const fetchNetworkAndProfiles = async () => {
+        const fetchOperatorIdAndProfiles = async () => {
             try {
-                const network = await getNetwork(cookies.user_token);
-                setMcc(network.mcc);
-                setMnc(network.mnc);
+                const operatorId = await getOperatorId(cookies.user_token);
+                setMcc(operatorId.mcc);
+                setMnc(operatorId.mnc);
 
                 const profileData = await listProfiles(cookies.user_token);
                 setProfiles(profileData.map((profile: any) => profile.name));
@@ -90,7 +85,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
         };
 
         if (open) {
-            fetchNetworkAndProfiles();
+            fetchOperatorIdAndProfiles();
         }
     }, [open]);
 
@@ -156,7 +151,6 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
             await createSubscriber(
                 cookies.user_token,
                 imsi,
-                formValues.opc,
                 formValues.key,
                 formValues.sequenceNumber,
                 formValues.profileName
@@ -172,6 +166,11 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
         } finally {
             setLoading(false);
         }
+    };
+
+    const generateRandomMSIN = () => {
+        const randomMSIN = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+        handleChange("msin", randomMSIN);
     };
 
     return (
@@ -213,7 +212,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                     >
                         IMSI
                     </Typography>
-                    <Box display="flex" gap={2}>
+                    <Box display="flex" gap={2} alignItems="center">
                         <TextField
                             label="MCC"
                             value={mcc}
@@ -238,28 +237,40 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                             margin="normal"
                             sx={{ flex: 2 }}
                         />
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={generateRandomMSIN}
+                        >
+                            Generate
+                        </Button>
                     </Box>
                 </FormGroup>
-                <TextField
-                    fullWidth
-                    label="OPC"
-                    value={formValues.opc}
-                    onChange={(e) => handleChange("opc", e.target.value)}
-                    onBlur={() => handleBlur("opc")}
-                    error={!!errors.opc && touched.opc}
-                    helperText={touched.opc ? errors.opc : ""}
-                    margin="normal"
-                />
-                <TextField
-                    fullWidth
-                    label="Key"
-                    value={formValues.key}
-                    onChange={(e) => handleChange("key", e.target.value)}
-                    onBlur={() => handleBlur("key")}
-                    error={!!errors.key && touched.key}
-                    helperText={touched.key ? errors.key : ""}
-                    margin="normal"
-                />
+                <Box display="flex" gap={2} alignItems="center">
+                    <TextField
+                        fullWidth
+                        label="Key"
+                        value={formValues.key}
+                        onChange={(e) => handleChange("key", e.target.value)}
+                        onBlur={() => handleBlur("key")}
+                        error={!!errors.key && touched.key}
+                        helperText={touched.key ? errors.key : ""}
+                        margin="normal"
+                        sx={{ flex: 1 }}
+                    />
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={() => {
+                            const randomKey = [...Array(32)]
+                                .map(() => Math.floor(Math.random() * 16).toString(16))
+                                .join('');
+                            handleChange('key', randomKey);
+                        }}
+                    >
+                        Generate
+                    </Button>
+                </Box>
                 <TextField
                     fullWidth
                     label="Sequence Number"

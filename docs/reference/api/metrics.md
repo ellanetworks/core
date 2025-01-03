@@ -1,3 +1,7 @@
+---
+description: RESTful API reference for getting metrics in Prometheus format.
+---
+
 # Metrics
 
 ## Get metrics

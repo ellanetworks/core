@@ -115,13 +115,13 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                         <ListItem disablePadding>
                             <ListItemButton
                                 component="a"
-                                href="/network-configuration"
-                                selected={pathname === "/network-configuration"}
+                                href="/operator"
+                                selected={pathname === "/operator"}
                             >
                                 <ListItemIcon>
                                     <SensorsIcon />
                                 </ListItemIcon>
-                                <ListItemText primary="Network Configuration" />
+                                <ListItemText primary="Operator" />
                             </ListItemButton>
                         </ListItem>
                         <ListItem disablePadding>

@@ -1,3 +1,7 @@
+---
+description: Reference outlining configuration options.
+---
+
 # Configuration File
 
 Ella is configured using a yaml formatted file. 

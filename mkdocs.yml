@@ -1,5 +1,5 @@
 site_name: Ella Core Documentation
-site_url: https://mydomain.org/mysite
+site_url: https://ellanetworks.github.io/core/
 theme:
   name: material
   logo: images/logo.png
@@ -44,7 +44,7 @@ nav:
       - Backup: reference/api/backup.md
       - Login: reference/api/login.md
       - Metrics: reference/api/metrics.md
-      - Network: reference/api/network.md
+      - Operator: reference/api/operator.md
       - Profiles: reference/api/profiles.md
       - Radios: reference/api/radios.md
       - Restore: reference/api/restore.md
@@ -54,4 +54,9 @@ nav:
     - Metrics: reference/metrics.md
     - Configuration File: reference/config_file.md
     - Connectivity: reference/connectivity.md
+    - Subscriber Authentication: reference/subscriber_authentication.md
     - Audit Logs: reference/audit_logs.md
+plugins:
+  - social:
+      cards_layout_options:
+        background_color: "#26374a"

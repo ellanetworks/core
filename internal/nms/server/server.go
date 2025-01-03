@@ -125,9 +125,10 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	apiGroup.GET("/profiles/:name", User(GetProfile(dbInstance), jwtSecret))
 	apiGroup.DELETE("/profiles/:name", User(DeleteProfile(dbInstance), jwtSecret))
 
-	// Network Configuration (Authenticated)
-	apiGroup.PUT("/network", User(UpdateNetwork(dbInstance), jwtSecret))
-	apiGroup.GET("/network", User(GetNetwork(dbInstance), jwtSecret))
+	// Operator (Authenticated)
+	apiGroup.PUT("/operator/id", User(UpdateOperatorId(dbInstance), jwtSecret))
+	apiGroup.GET("/operator/id", User(GetOperatorId(dbInstance), jwtSecret))
+	apiGroup.PUT("/operator/code", User(UpdateOperatorCode(dbInstance), jwtSecret))
 
 	// Radios (Authenticated)
 	apiGroup.GET("/radios", User(ListRadios(dbInstance), jwtSecret))

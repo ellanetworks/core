@@ -70,14 +70,9 @@ jobs:
           docker tag ella-core:0.0.4 localhost:5000/ella-core:0.0.4
           docker push localhost:5000/ella-core:0.0.4
 
-      - name: Deploy to K8s
-        run: |
-          kubectl create ns dev2
-          make deploy
-          kubectl get pods -n dev2
-
       - name: Run integration tests
         run: |
+          kubectl create ns dev2
           pip install tox
           make test
 

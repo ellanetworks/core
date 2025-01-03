@@ -1,3 +1,7 @@
+---
+description: RESTful API reference for logging in with username and password.
+---
+
 # Login
 
 ## Login to Ella Core

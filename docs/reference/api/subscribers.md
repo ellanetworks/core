@@ -1,8 +1,12 @@
+---
+description: RESTful API reference for managing network subscribers.
+---
+
 # Subscribers
 
 ## List Subscribers
 
-This path returns the list of subscribers configured in Ella Core.
+This path returns the list of network subscribers.
 
 
 | Method | Path                  |
@@ -24,7 +28,7 @@ None
             "opc": "981d464c7c52eb6e5036234984ad0bcf",
             "sequenceNumber": "16f3b3f70fc7",
             "key": "5122250214c33e723a5dd523fc145fc0",
-            "profileName": "default-default"
+            "profileName": "default"
         }
     ]
 }
@@ -32,7 +36,7 @@ None
 
 ## Create a Subscriber
 
-This path creates a new subscriber in Ella Core.
+This path creates a new network subscriber.
 
 | Method | Path                  |
 | ------ | --------------------- |
@@ -41,10 +45,12 @@ This path creates a new subscriber in Ella Core.
 ### Parameters
 
 - `imsi` (string): The IMSI of the subscriber. Must be a 15-digit string starting with `<mcc><mnc>`.
-- `opc` (string): The OPC of the subscriber.  Must be a 32-character hexadecimal string.
 - `key` (string): The key of the subscriber. Must be a 32-character hexadecimal string.
 - `sequenceNumber` (string): The sequence number of the subscriber. Must be a 6-byte hexadecimal string.
 - `ProfileName` (string): The profile name of the subscriber. Must be the name of an existing profile.
+
+!!! note
+    The `opc` parameter is generated automatically using the Operator Code (OP) and the `key` parameter.
 
 ### Sample Response
 
@@ -58,7 +64,7 @@ This path creates a new subscriber in Ella Core.
 
 ## Update a Subscriber
 
-This path updates an existing subscriber in Ella Core.
+This path updates an existing network subscriber.
 
 | Method | Path                         |
 | ------ | ---------------------------- |
@@ -66,9 +72,6 @@ This path updates an existing subscriber in Ella Core.
 
 ### Parameters
 
-- `opc` (string): The OPC of the subscriber.
-- `key` (string): The key of the subscriber.
-- `sequenceNumber` (string): The sequence number of the subscriber.
 - `ProfileName` (string): The profile name of the subscriber.
 
 ### Sample Response
@@ -83,7 +86,7 @@ This path updates an existing subscriber in Ella Core.
 
 ## Get a Subscriber
 
-This path returns the details of a specific subscriber in Ella Core.
+This path returns the details of a specific network subscriber.
 
 | Method | Path                         |
 | ------ | ---------------------------- |
@@ -103,7 +106,7 @@ None
         "opc": "981d464c7c52eb6e5036234984ad0bcf",
         "sequenceNumber": "16f3b3f70fc7",
         "key": "5122250214c33e723a5dd523fc145fc0",
-        "profileName": "default-default"
+        "profileName": "default"
     }
 }
 ```

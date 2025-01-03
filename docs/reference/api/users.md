@@ -1,8 +1,13 @@
+---
+description: RESTful API reference for managing system users.
+---
+
+
 # Users
 
 ## List Users
 
-This path returns the list of users configured in Ella Core.
+This path returns the list of system users.
 
 
 | Method | Path            |
@@ -27,7 +32,7 @@ None
 
 ## Create a User
 
-This path creates a new user in Ella Core. The first user can be created without authentication.
+This path creates a new system user. The first user can be created without authentication.
 
 | Method | Path            |
 | ------ | --------------- |
@@ -50,7 +55,7 @@ This path creates a new user in Ella Core. The first user can be created without
 
 ## Update a User
 
-This path updates an existing user in Ella Core.
+This path updates an existing system user.
 
 | Method | Path                       |
 | ------ | -------------------------- |
@@ -72,7 +77,7 @@ This path updates an existing user in Ella Core.
 
 ## Get a User
 
-This path returns the details of a specific user in Ella Core.
+This path returns the details of a specific system user.
 
 | Method | Path                       |
 | ------ | -------------------------- |

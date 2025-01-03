@@ -1,3 +1,7 @@
+---
+description: Reference for viewing user activity logs.
+---
+
 # Audit Logs
 
 Ella Core automatically logs all actions performed by users. This includes login attempts, API calls, and changes to the system configuration.

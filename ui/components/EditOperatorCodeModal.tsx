@@ -7,85 +7,100 @@ import {
     Typography,
     Alert,
     Collapse,
-    Select,
-    MenuItem,
-    InputLabel,
-    FormControl,
 } from "@mui/material";
 import * as yup from "yup";
-import { updateSubscriber } from "@/queries/subscribers";
-import { listProfiles } from "@/queries/profiles";
-import { useRouter } from "next/navigation"
-import { useCookies } from "react-cookie"
+import { updateOperatorCode } from "@/queries/operator";
+import { useRouter } from "next/navigation";
+import { useCookies } from "react-cookie";
 
-
-interface EditSubscriberModalProps {
+interface EditOperatorCodeModalProps {
     open: boolean;
     onClose: () => void;
     onSuccess: () => void;
-    initialData: {
-        imsi: string;
-        profileName: string;
-    };
 }
 
-const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
+const schema = yup.object().shape({
+    operatorCode: yup
+        .string()
+        .required("Operator Code is required.")
+        .matches(
+            /^[0-9A-Fa-f]{32}$/,
+            "Operator Code must be a 32-character hexadecimal string."
+        ),
+});
+
+const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
     open,
     onClose,
     onSuccess,
-    initialData,
 }) => {
     const router = useRouter();
-    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+    const [cookies, setCookie, removeCookie] = useCookies(["user_token"]);
 
     if (!cookies.user_token) {
-        router.push("/login")
+        router.push("/login");
     }
-    const [formValues, setFormValues] = useState(initialData);
-    const [profiles, setProfiles] = useState<string[]>([]);
+
+    const [formValues, setFormValues] = useState<{ operatorCode: string }>({
+        operatorCode: "",
+    });
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
     const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
     useEffect(() => {
-        const fetchProfiles = async () => {
-            try {
-                const profileData = await listProfiles(cookies.user_token);
-                setProfiles(profileData.map((profile: any) => profile.name));
-            } catch (error) {
-                console.error("Failed to fetch profiles:", error);
-            }
-        };
-
         if (open) {
-            fetchProfiles();
-            setFormValues(initialData);
+            setFormValues({ operatorCode: "" });
             setErrors({});
         }
-    }, [open, initialData]);
+    }, [open]);
 
-    const handleChange = (field: string, value: string | number) => {
+    const handleChange = (field: string, value: string) => {
         setFormValues((prev) => ({
             ...prev,
             [field]: value,
         }));
+
+        // Reset error when the user types
+        setErrors((prev) => ({
+            ...prev,
+            [field]: "",
+        }));
+    };
+
+    const validate = async (): Promise<boolean> => {
+        try {
+            await schema.validate(formValues, { abortEarly: false });
+            setErrors({});
+            return true;
+        } catch (err: any) {
+            const validationErrors: Record<string, string> = {};
+            err.inner.forEach((error: yup.ValidationError) => {
+                if (error.path) {
+                    validationErrors[error.path] = error.message;
+                }
+            });
+            setErrors(validationErrors);
+            return false;
+        }
     };
 
     const handleSubmit = async () => {
+        const isValid = await validate();
+        if (!isValid) {
+            return;
+        }
+
         setLoading(true);
         setAlert({ message: "" });
 
         try {
-            await updateSubscriber(
-                cookies.user_token,
-                formValues.imsi,
-                formValues.profileName
-            );
+            await updateOperatorCode(cookies.user_token, formValues.operatorCode);
             onClose();
             onSuccess();
         } catch (error: any) {
             const errorMessage = error?.message || "Unknown error occurred.";
-            setAlert({ message: `Failed to update subscriber: ${errorMessage}` });
+            setAlert({ message: `Failed to update operator code: ${errorMessage}` });
         } finally {
             setLoading(false);
         }
@@ -95,8 +110,8 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
         <Modal
             open={open}
             onClose={onClose}
-            aria-labelledby="edit-subscriber-modal-title"
-            aria-describedby="edit-subscriber-modal-description"
+            aria-labelledby="edit-operator-code-modal-title"
+            aria-describedby="edit-operator-code-modal-description"
         >
             <Box
                 sx={{
@@ -111,8 +126,8 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
                     p: 4,
                 }}
             >
-                <Typography id="edit-subscriber-modal-title" variant="h6" gutterBottom>
-                    Edit Subscriber
+                <Typography id="edit-operator-code-modal-title" variant="h6" gutterBottom>
+                    Edit Operator Code
                 </Typography>
                 <Collapse in={!!alert.message}>
                     <Alert
@@ -125,26 +140,13 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
                 </Collapse>
                 <TextField
                     fullWidth
-                    label="IMSI"
-                    value={formValues.imsi}
+                    label="Operator Code"
+                    value={formValues.operatorCode}
+                    onChange={(e) => handleChange("operatorCode", e.target.value)}
+                    error={!!errors.operatorCode}
+                    helperText={errors.operatorCode}
                     margin="normal"
-                    disabled
                 />
-                <FormControl fullWidth margin="normal">
-                    <InputLabel id="profile-name-label">Profile Name</InputLabel>
-                    <Select
-                        labelId="profile-name-label"
-                        value={formValues.profileName}
-                        onChange={(e) => handleChange("profileName", e.target.value)}
-                        error={!!errors.profileName}
-                    >
-                        {profiles.map((profile) => (
-                            <MenuItem key={profile} value={profile}>
-                                {profile}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
                 <Box sx={{ textAlign: "right", marginTop: 2 }}>
                     <Button onClick={onClose} sx={{ marginRight: 2 }}>
                         Cancel
@@ -153,7 +155,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
                         variant="contained"
                         color="success"
                         onClick={handleSubmit}
-                        disabled={loading}
+                        disabled={loading || !formValues.operatorCode}
                     >
                         {loading ? "Updating..." : "Update"}
                     </Button>
@@ -163,4 +165,4 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
     );
 };
 
-export default EditSubscriberModal;
+export default EditOperatorCodeModal;

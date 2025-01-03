@@ -1,4 +1,12 @@
+---
+description: A 5G mobile core network for private deployments - easy to operate, reliable, and secure.
+---
+
 # Ella Core
+
+!!! warning
+
+    Ella Core is currently in beta. Please report any issues to you encounter [here](https://github.com/ellanetworks/core/issues).
 
 <img src="images/logo.png" alt="alt text" width="200"/>
 

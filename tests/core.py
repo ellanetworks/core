@@ -13,7 +13,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 GNB_CONFIG_URL = "/api/v1/radios"
-NETWORK_CONFIG_URL = "/api/v1/network"
+OPERATOR_ID_CONFIG_URL = "/api/v1/operator/id"
 PROFILE_CONFIG_URL = "/api/v1/profiles"
 SUBSCRIBERS_CONFIG_URL = "/api/v1/subscribers"
 
@@ -21,9 +21,8 @@ JSON_HEADER = {"Content-Type": "application/json"}
 
 SUBSCRIBER_CONFIG = {
     "imsi": "PLACEHOLDER",
-    "opc": "981d464c7c52eb6e5036234984ad0bcf",
     "key": "5122250214c33e723a5dd523fc145fc0",
-    "sequenceNumber": "16f3b3f70fc2",
+    "sequenceNumber": "000000000001",
     "profileName": "PLACEHOLDER",
 }
 
@@ -39,8 +38,7 @@ PROFILE_CONFIG = {
     "var5qi": 8,
 }
 
-
-NETWORK_CONFIG = {
+OPERATOR_ID_CONFIG = {
     "mcc": "001",
     "mnc": "01",
 }
@@ -52,6 +50,17 @@ class CreateRadioParams:
 
     name: str
     tac: str
+
+
+@dataclass
+class Subscriber:
+    """Subscriber information."""
+
+    imsi: str
+    key: str
+    opc: str
+    sequence_number: str
+    profile_name: str
 
 
 class EllaCore:
@@ -98,6 +107,9 @@ class EllaCore:
         """
         data = {"username": username, "password": password}
         response = self._make_request("POST", "/api/v1/login", data=data)
+        if not response:
+            logger.error("Failed to login to Ella Core.")
+            return None
         result = response.get("result")
         if not result:
             logger.error("Failed to login to Ella Core.")
@@ -129,13 +141,29 @@ class EllaCore:
         self._make_request(method="POST", endpoint=SUBSCRIBERS_CONFIG_URL, data=data)
         logger.info(f"Created subscriber with IMSI {imsi}.")
 
+    def get_subscriber(self, imsi: str) -> Subscriber:
+        """Get a subscriber."""
+        response = self._make_request("GET", f"{SUBSCRIBERS_CONFIG_URL}/{imsi}")
+        if response is None:
+            raise ValueError(f"Subscriber with IMSI {imsi} not found.")
+        result = response.get("result", None)
+        if result is None:
+            raise ValueError(f"Subscriber with IMSI {imsi} not found.")
+        return Subscriber(
+            imsi=result["imsi"],
+            key=result["key"],
+            opc=result["opc"],
+            sequence_number=result["sequenceNumber"],
+            profile_name=result["profileName"],
+        )
+
     def create_profile(self, name: str) -> None:
         """Create a profile."""
         PROFILE_CONFIG["name"] = name
         self._make_request("POST", PROFILE_CONFIG_URL, data=PROFILE_CONFIG)
         logger.info(f"Created profile {name}.")
 
-    def update_network(self) -> None:
-        """Create a network slice."""
-        self._make_request("PUT", NETWORK_CONFIG_URL, data=NETWORK_CONFIG)
+    def update_operator_id(self) -> None:
+        """Update operator ID information."""
+        self._make_request("PUT", OPERATOR_ID_CONFIG_URL, data=OPERATOR_ID_CONFIG)
         logger.info("Updated network configuration.")

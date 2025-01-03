@@ -1,7 +1,7 @@
 import { HTTPStatus } from "@/queries/utils";
 
-export const getNetwork = async (authToken: string) => {
-  const response = await fetch(`/api/v1/network`, {
+export const getOperatorId = async (authToken: string) => {
+  const response = await fetch(`/api/v1/operator/id`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -22,8 +22,8 @@ export const getNetwork = async (authToken: string) => {
   return respData.result;
 };
 
-export const updateNetwork = async (authToken: string, mcc: string, mnc: string) => {
-  const getResponse = await fetch(`/api/v1/network`, {
+export const updateOperatorId = async (authToken: string, mcc: string, mnc: string) => {
+  const getResponse = await fetch(`/api/v1/operator/id`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -34,16 +34,42 @@ export const updateNetwork = async (authToken: string, mcc: string, mnc: string)
   if (!getResponse.ok) {
     throw new Error(`${getResponse.status}: ${HTTPStatus(getResponse.status)}. ${getRespData.error}`)
   }
-  const networkData = getRespData.result
-  networkData.mcc = mcc
-  networkData.mnc = mnc
-  const response = await fetch(`/api/v1/network`, {
+  const operatorIdData = getRespData.result
+  operatorIdData.mcc = mcc
+  operatorIdData.mnc = mnc
+  const response = await fetch(`/api/v1/operator/id`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
       "Authorization": "Bearer " + authToken
     },
-    body: JSON.stringify(networkData),
+    body: JSON.stringify(operatorIdData),
+  });
+  let respData;
+  try {
+    respData = await response.json();
+  } catch {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+  }
+
+  return respData.result;
+};
+
+export const updateOperatorCode = async (authToken: string, operatorCode: string) => {
+  const operatorCodeData = {
+    operatorCode: operatorCode,
+  };
+  const response = await fetch(`/api/v1/operator/code`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + authToken
+    },
+    body: JSON.stringify(operatorCodeData),
   });
   let respData;
   try {

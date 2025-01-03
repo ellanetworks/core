@@ -1,3 +1,7 @@
+---
+description: RESTful API reference for managing database backups.
+---
+
 # Backup
 
 This path creates a backup of the Ella Core database.

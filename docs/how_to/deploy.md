@@ -1,3 +1,7 @@
+---
+description: Step-by-step instructions to deploy Ella Core.
+---
+
 # Deploy
 
 Ella Core is available as a Snap, a OCI container image, and a Juju Kubernetes charm.

@@ -1,5 +1,7 @@
 # Ella Core
 
+> :warning:	 **This project is available in beta.** Please report any issues you encounter.
+
 <img src="docs/images/logo.png" alt="alt text" width="200"/>
 
 Ella Core is a 5G mobile core network for private deployments. It is designed to be easy to operate, reliable, and secure.

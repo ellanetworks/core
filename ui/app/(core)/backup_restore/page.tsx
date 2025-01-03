@@ -93,7 +93,7 @@ const BackupRestore = () => {
       )}
 
       <Grid container spacing={4} justifyContent="flex-start">
-        <Grid size={12}>
+        <Grid size={4}>
           <Box
             sx={{
               border: "1px solid #ccc",
@@ -118,7 +118,7 @@ const BackupRestore = () => {
             </Button>
           </Box>
         </Grid>
-        <Grid size={12}>
+        <Grid size={4}>
           <Box
             sx={{
               border: "1px solid #ccc",

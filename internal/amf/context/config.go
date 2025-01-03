@@ -11,9 +11,9 @@ import (
 func GetSupportTaiList() []models.Tai {
 	amfSelf := AMF_Self()
 	tais := make([]models.Tai, 0)
-	dbNetwork, err := amfSelf.DbInstance.GetNetwork()
+	dbNetwork, err := amfSelf.DbInstance.GetOperatorId()
 	if err != nil {
-		logger.AmfLog.Warnf("Failed to get network slice names: %s", err)
+		logger.AmfLog.Warnf("Failed to get operator ID: %s", err)
 		return tais
 	}
 	plmnID := models.PlmnId{
@@ -36,9 +36,9 @@ func GetSupportTaiList() []models.Tai {
 func GetServedGuamiList() []models.Guami {
 	amfSelf := AMF_Self()
 	guamis := make([]models.Guami, 0)
-	dbNetwork, err := amfSelf.DbInstance.GetNetwork()
+	dbNetwork, err := amfSelf.DbInstance.GetOperatorId()
 	if err != nil {
-		logger.AmfLog.Warnf("Failed to get network slice names: %s", err)
+		logger.AmfLog.Warnf("Failed to get operator ID: %s", err)
 		return guamis
 	}
 	plmnID := models.PlmnId{
@@ -56,9 +56,9 @@ func GetServedGuamiList() []models.Guami {
 func GetPlmnSupportList() []PlmnSupportItem {
 	amfSelf := AMF_Self()
 	plmnSupportList := make([]PlmnSupportItem, 0)
-	dbNetwork, err := amfSelf.DbInstance.GetNetwork()
+	dbNetwork, err := amfSelf.DbInstance.GetOperatorId()
 	if err != nil {
-		logger.AmfLog.Warnf("Failed to get network slice names: %s", err)
+		logger.AmfLog.Warnf("Failed to get operator ID: %s", err)
 		return plmnSupportList
 	}
 	plmnSupportItem := PlmnSupportItem{

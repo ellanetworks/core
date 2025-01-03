@@ -15,7 +15,7 @@ func setupServer(filepath string) (*httptest.Server, []byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	err = testdb.InitializeNetwork()
+	err = testdb.InitializeOperator()
 	if err != nil {
 		return nil, nil, err
 	}
