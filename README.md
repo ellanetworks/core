@@ -1,11 +1,11 @@
 # Ella Core
 
-> :construction: **Beta Notice**  
-> Ella Core is currently in beta. If you encounter any issues, please [report them here](https://github.com/ellanetworks/core/issues/new/choose).
-
 <p align="center">
   <img src="docs/images/logo.png" alt="Ella Core Logo" width="200"/>
 </p>
+
+> :construction: **Beta Notice**  
+> Ella Core is currently in beta. If you encounter any issues, please [report them here](https://github.com/ellanetworks/core/issues/new/choose).
 
 Ella Core is a 5G mobile core network for private deployments. It is designed to be easy to operate, reliable, and secure.
 
@@ -34,9 +34,9 @@ Building Ella Core, we make engineering decisions based on the following tenets:
 ## Documentation
 
 Documentation is available [here](https://ellanetworks.github.io/core/). It includes:
-- A Getting Started tutorial: A hands-on introduction to Ella Core.
-- How-to guides: Step-by-step instructions to perform common tasks.
-- Reference documentation: Detailed information about the configuration options, metrics, API, connectivity, and more.
+- **Getting Started tutorial**: A hands-on introduction to Ella Core.
+- **How-to guides**: Step-by-step instructions to perform common tasks.
+- **Reference documentation**: Detailed information about the configuration options, metrics, API, connectivity, and more.
 
 ## Acknowledgements
 
