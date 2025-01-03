@@ -16,118 +16,17 @@ TEST_IMSI = "001010100007487"
 NUM_PROFILES = 5
 
 
-class TestELLA:
-    async def test_given_ella_and_gnbsim_deployed_when_start_simulation_then_simulation_success_status_is_true(  # noqa: E501
-        self,
-    ):
-        deploy_core_and_router_components()
-        wait_for_ella_core_ready()
-        configure_pebble_for_ella_core()
-        time.sleep(10)
-        core_port = get_core_node_port()
-        core_address = f"https://127.0.0.1:{core_port}"
-        subscriber = configure_ella_core(core_address=core_address)
-        create_gnbsim_configmap_and_deployment(subscriber)
-        time.sleep(10)
-        success_runs = run_gnbsim_simulation(
-            namespace=NAMESPACE,
-            application_name="gnbsim",
-            config_path="/etc/gnbsim/configuration.yaml",
-            timeout=6 * 60,
-        )
-        assert success_runs == NUM_PROFILES
+class Kubernetes:
+    def __init__(self, namespace: str):
+        self.namespace = namespace
 
+    def apply_manifest(self, manifest_path: str):
+        subprocess.check_call(["kubectl", "apply", "-f", manifest_path])
 
-def configure_pebble_for_ella_core():
-    """Add and start the Pebble layer for Ella Core."""
-    try:
-        logger.info("Configuring Pebble layer for Ella Core...")
-        # Get the name of the Ella Core pod
-        pod_name = subprocess.check_output(
-            [
-                "kubectl",
-                "get",
-                "pods",
-                "-n",
-                NAMESPACE,
-                "-l",
-                "app=ella-core",
-                "-o",
-                "jsonpath={.items[0].metadata.name}",
-            ],
-            text=True,
-        ).strip()
-
-        # Add the Pebble layer
-        subprocess.check_call(
-            [
-                "kubectl",
-                "exec",
-                "-i",
-                pod_name,
-                "-n",
-                NAMESPACE,
-                "--",
-                "pebble",
-                "add",
-                "ella-core",
-                "/config/pebble.yaml",
-            ]
-        )
-        logger.info("Pebble layer added successfully.")
-
-        # Start the Pebble service
-        subprocess.check_call(
-            [
-                "kubectl",
-                "exec",
-                "-i",
-                pod_name,
-                "-n",
-                NAMESPACE,
-                "--",
-                "pebble",
-                "start",
-                "ella-core",
-            ]
-        )
-        logger.info("Ella Core started successfully using Pebble.")
-    except subprocess.CalledProcessError as e:
-        logger.warning(f"Failed to configure Pebble layer for Ella Core: {e}")
-
-
-def deploy_core_and_router_components():
-    """Deploy core and router components."""
-    logger.info("Deploying core and router components...")
-    manifests = [
-        "k8s/router-ran-nad.yaml",
-        "k8s/router-core-nad.yaml",
-        "k8s/router-access-nad.yaml",
-        "k8s/router-deployment.yaml",
-        "k8s/core-n3-nad.yaml",
-        "k8s/core-n6-nad.yaml",
-        "k8s/core-configmap.yaml",
-        "k8s/core-deployment.yaml",
-        "k8s/core-service.yaml",
-    ]
-    for manifest in manifests:
-        logger.info(f"Applying manifest: {manifest}")
-        subprocess.check_call(["kubectl", "apply", "-f", manifest])
-    logger.info("Core and router components deployed successfully.")
-
-
-def wait_for_ella_core_ready():
-    """Wait for Ella Core and Router components to be ready."""
-    logger.info("Waiting for Ella Core and Router components to be ready...")
-
-    components = {
-        "ella-core": "app=ella-core",
-        "router": "app=router",
-    }
-
-    for component_name, label_selector in components.items():
+    def wait_for_app_ready(self, app_name: str):
+        label_selector = f"app={app_name}"
         try:
-            logger.info(f"Waiting for {component_name} pods to be ready...")
+            logger.info(f"Waiting for {app_name} pods to be ready...")
             subprocess.check_call(
                 [
                     "kubectl",
@@ -141,49 +40,127 @@ def wait_for_ella_core_ready():
                     "--timeout=120s",
                 ]
             )
-            logger.info(f"{component_name} is ready.")
+            logger.info(f"{app_name} is ready.")
         except subprocess.CalledProcessError as e:
-            logger.error(f"Timed out waiting for {component_name} to be ready: {e}")
-            raise RuntimeError(f"{component_name} is not ready") from e
+            logger.error(f"Timed out waiting for {app_name} to be ready: {e}")
+            raise RuntimeError(f"{app_name} is not ready") from e
 
+    def get_pod_name(self, app_name: str):
+        try:
+            pod_name = subprocess.check_output(
+                [
+                    "kubectl",
+                    "get",
+                    "pods",
+                    "-n",
+                    NAMESPACE,
+                    "-l",
+                    f"app={app_name}",
+                    "-o",
+                    "jsonpath={.items[0].metadata.name}",
+                ],
+                text=True,
+            ).strip()
+            return pod_name
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to get pod name: {e}")
+            raise RuntimeError("Failed to get pod name") from e
 
-def create_gnbsim_configmap_and_deployment(subscriber: Subscriber):
-    """Create GNBSim ConfigMap and deployment."""
-    logger.info("Creating GNBSim ConfigMap and deployment...")
-    create_gnbsim_configmap(subscriber)
+    def get_core_node_port(self, service_name: str) -> int:
+        """Fetch the NodePort for the Ella Core service in the Kubernetes cluster."""
+        try:
+            node_port = subprocess.check_output(
+                [
+                    "kubectl",
+                    "get",
+                    "service",
+                    service_name,
+                    "-n",
+                    self.namespace,
+                    "-o",
+                    "jsonpath={.spec.ports[0].nodePort}",
+                ],
+                text=True,
+            ).strip()
+            logger.info(f"Retrieved {service_name} NodePort: {node_port}")
+            return int(node_port)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to fetch Ella NodePort: {e.output}")
+            raise RuntimeError(f"Could not retrieve NodePort for {service_name} service") from e
 
-    manifests = [
-        "k8s/gnbsim-gnb-nad.yaml",
-        "k8s/gnbsim-deployment.yaml",
-        "k8s/gnbsim-service.yaml",
-    ]
-    for manifest in manifests:
-        logger.info(f"Applying manifest: {manifest}")
-        subprocess.check_call(["kubectl", "apply", "-f", manifest])
-    logger.info("GNBSim components deployed successfully.")
+    def exec(self, pod_name: str, command: str, timeout: int=60) -> str:
+        command_list = command.split()
+        try:
+            result = subprocess.check_output(
+                [
+                    "kubectl",
+                    "exec",
+                    "-i",
+                    pod_name,
+                    "-n",
+                    self.namespace,
+                    "--",
+                    *command_list,
+                ],
+                timeout=timeout,
+                text=True,
+                stderr=subprocess.STDOUT,
+            )
+            return result.strip()
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"Failed to execute command: {e}")
+            return ""
 
-
-def get_core_node_port() -> int:
-    """Fetch the NodePort for the Ella Core service in the Kubernetes cluster."""
-    try:
-        node_port = subprocess.check_output(
-            [
-                "kubectl",
-                "get",
-                "service",
-                "ella-core",
-                "-n",
-                NAMESPACE,
-                "-o",
-                "jsonpath={.spec.ports[0].nodePort}",
-            ],
-            text=True,
-        ).strip()
-        logger.info(f"Retrieved Ella Core NodePort: {node_port}")
-        return int(node_port)
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to fetch Ella NodePort: {e.output}")
-        raise RuntimeError("Could not retrieve NodePort for Ella service") from e
+class TestELLA:
+    async def test_given_ella_and_gnbsim_deployed_when_start_simulation_then_simulation_success_status_is_true(  # noqa: E501
+        self,
+    ):
+        k8s_client = Kubernetes(namespace=NAMESPACE)
+        manifests = [
+            "k8s/router-ran-nad.yaml",
+            "k8s/router-core-nad.yaml",
+            "k8s/router-access-nad.yaml",
+            "k8s/router-deployment.yaml",
+            "k8s/core-n3-nad.yaml",
+            "k8s/core-n6-nad.yaml",
+            "k8s/core-configmap.yaml",
+            "k8s/core-deployment.yaml",
+            "k8s/core-service.yaml",
+        ]
+        for manifest in manifests:
+            k8s_client.apply_manifest(manifest)
+            logger.info(f"Applied manifest: {manifest}")
+        logger.info("Waiting for Ella Core and Router components to be ready...")
+        k8s_client.wait_for_app_ready(app_name="ella-core")
+        k8s_client.wait_for_app_ready(app_name="router")
+        logger.info("Ella Core and Router components are ready.")
+        ella_core_pod_name = k8s_client.get_pod_name(app_name="ella-core")
+        k8s_client.exec(
+            pod_name=ella_core_pod_name, command="pebble add ella-core /config/pebble.yaml"
+        )
+        k8s_client.exec(pod_name=ella_core_pod_name, command="pebble start ella-core")
+        time.sleep(10)
+        core_port = k8s_client.get_core_node_port(service_name="ella-core")
+        core_address = f"https://127.0.0.1:{core_port}"
+        subscriber = configure_ella_core(core_address=core_address)
+        create_gnbsim_configmap(k8s_client, subscriber)
+        gnbsim_manifests = [
+            "k8s/gnbsim-gnb-nad.yaml",
+            "k8s/gnbsim-deployment.yaml",
+            "k8s/gnbsim-service.yaml",
+        ]
+        for manifest in gnbsim_manifests:
+            k8s_client.apply_manifest(manifest)
+            logger.info("Applied GNBSim manifest.")
+        time.sleep(10)
+        pod_name = k8s_client.get_pod_name(app_name="gnbsim")
+        logger.info(f"Running GNBSim simulation in pod {pod_name}")
+        result = k8s_client.exec(
+            pod_name=pod_name,
+            command="pebble exec gnbsim --cfg /etc/gnbsim/configuration.yaml",
+            timeout=6 * 60,
+        )
+        assert result.count("Profile Status: PASS") == NUM_PROFILES
 
 
 def configure_ella_core(core_address: str) -> Subscriber:
@@ -202,7 +179,7 @@ def configure_ella_core(core_address: str) -> Subscriber:
     return subscriber
 
 
-def create_gnbsim_configmap(subscriber: Subscriber) -> None:
+def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> None:
     """Generate and create the GNBSim ConfigMap with the subscriber information."""
     config = {
         "configuration.yaml": yaml.dump(
@@ -394,61 +371,9 @@ def create_gnbsim_configmap(subscriber: Subscriber) -> None:
         "data": config,
     }
 
-    # Save ConfigMap manifest to a temporary file
     configmap_path = "/tmp/gnbsim-configmap.yaml"
     with open(configmap_path, "w") as f:
         yaml.dump(configmap_manifest, f)
 
-    try:
-        # Apply the ConfigMap manifest
-        subprocess.check_call(["kubectl", "apply", "-f", configmap_path])
-        logger.info("ConfigMap created successfully.")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to create ConfigMap: {e}")
-        raise RuntimeError("Failed to create ConfigMap for GNBSim") from e
-
-
-def run_gnbsim_simulation(
-    namespace: str, application_name: str, config_path: str, timeout: int
-) -> int:
-    """Run the GNBSim simulation."""
-    try:
-        pod_name = subprocess.check_output(
-            [
-                "kubectl",
-                "get",
-                "pods",
-                "-n",
-                namespace,
-                "-l",
-                f"app={application_name}",
-                "-o",
-                "jsonpath={.items[0].metadata.name}",
-            ],
-            text=True,
-        ).strip()
-        logger.info(f"Running GNBSim simulation in pod {pod_name}")
-
-        result = subprocess.check_output(
-            [
-                "kubectl",
-                "exec",
-                "-n",
-                namespace,
-                pod_name,
-                "--",
-                "pebble",
-                "exec",
-                "gnbsim",
-                "--cfg",
-                config_path,
-            ],
-            text=True,
-            timeout=timeout,
-            stderr=subprocess.STDOUT,
-        ).strip()
-        logger.info(f"GNBSim simulation output: {result}")
-        return result.count("Profile Status: PASS")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"GNBSim simulation failed: {e}")
-        raise
+    k8s_client.apply_manifest(configmap_path)
+    logger.info("Created GNBSim ConfigMap.")
