@@ -30,7 +30,7 @@ import { useCookies } from "react-cookie"
 
 
 interface UserData {
-  username: string;
+  email: string;
 }
 
 const User = () => {
@@ -71,7 +71,7 @@ const User = () => {
 
   const handleEditClick = (user: any) => {
     const mappedUser = {
-      username: user.username,
+      email: user.email,
     };
 
     setEditData(mappedUser);
@@ -192,18 +192,18 @@ const User = () => {
             <Table sx={{ minWidth: 900 }} aria-label="user table">
               <TableHead>
                 <TableRow>
-                  <TableCell>Username</TableCell>
+                  <TableCell>Email</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {users.map((user) => (
                   <TableRow
-                    key={user.username}
+                    key={user.email}
                     sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
                   >
                     <TableCell component="th" scope="row">
-                      {user.username}
+                      {user.email}
                     </TableCell>
                     <TableCell align="right">
                       <IconButton
@@ -214,7 +214,7 @@ const User = () => {
                       </IconButton>
                       <IconButton
                         aria-label="delete"
-                        onClick={() => handleDeleteClick(user.username)}
+                        onClick={() => handleDeleteClick(user.email)}
                       >
                         <DeleteIcon />
                       </IconButton>
@@ -237,7 +237,7 @@ const User = () => {
         onSuccess={handleEditSuccess}
         initialData={
           editData || {
-            username: "",
+            email: "",
           }
         }
       />

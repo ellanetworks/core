@@ -18,12 +18,12 @@ interface EditUserModalProps {
     onClose: () => void;
     onSuccess: () => void;
     initialData: {
-        username: string;
+        email: string;
     };
 }
 
 interface FormValues {
-    username: string;
+    email: string;
     password: string;
 }
 
@@ -41,7 +41,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     }
 
     const [formValues, setFormValues] = useState<FormValues>({
-        username: initialData.username,
+        email: initialData.email,
         password: "",
     });
 
@@ -52,7 +52,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     useEffect(() => {
         if (open) {
             setFormValues({
-                username: initialData.username,
+                email: initialData.email,
                 password: "",
             });
             setErrors({});
@@ -73,7 +73,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         try {
             await updateUser(
                 cookies.user_token,
-                formValues.username,
+                formValues.email,
                 formValues.password
             );
             onClose();
@@ -106,8 +106,8 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                 </Collapse>
                 <TextField
                     fullWidth
-                    label="Username"
-                    value={formValues.username}
+                    label="Email"
+                    value={formValues.email}
                     margin="normal"
                     disabled
                 />

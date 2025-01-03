@@ -88,10 +88,10 @@ func isValidPriorityLevel(priorityLevel int32) bool {
 
 func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		dbProfiles, err := dbInstance.ListProfiles()
@@ -119,7 +119,7 @@ func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			ListProfilesAction,
-			username,
+			email,
 			"User listed profiles",
 		)
 	}
@@ -127,10 +127,10 @@ func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 
 func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		profileName, exists := c.Params.Get("name")
@@ -161,7 +161,7 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			GetProfileAction,
-			username,
+			email,
 			"User retrieved profile: "+profileName,
 		)
 	}
@@ -169,10 +169,10 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 
 func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		var createProfileParams CreateProfileParams
@@ -276,7 +276,7 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			CreateProfileAction,
-			username,
+			email,
 			"User created profile: "+createProfileParams.Name,
 		)
 	}
@@ -284,10 +284,10 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 
 func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		groupName, exists := c.Params.Get("name")
@@ -395,7 +395,7 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			UpdateProfileAction,
-			username,
+			email,
 			"User updated profile: "+updateProfileParams.Name,
 		)
 	}
@@ -403,10 +403,10 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 
 func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		profileName, exists := c.Params.Get("name")
@@ -433,7 +433,7 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			DeleteProfileAction,
-			username,
+			email,
 			"User deleted profile: "+profileName,
 		)
 	}

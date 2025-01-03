@@ -1,8 +1,8 @@
 import { HTTPStatus } from "@/queries/utils";
 
-export const login = async (username: string, password: string) => {
+export const login = async (email: string, password: string) => {
     const loginData = {
-        "username": username,
+        "email": email,
         "password": password,
     }
     const response = await fetch(`/api/v1/auth/login`, {

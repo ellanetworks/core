@@ -70,10 +70,10 @@ func isSequenceNumberValid(sequenceNumber string) bool {
 
 func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		dbSubscribers, err := dbInstance.ListSubscribers()
@@ -105,7 +105,7 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			ListSubscribersAction,
-			username,
+			email,
 			"User listed subscribers",
 		)
 	}
@@ -113,10 +113,10 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 
 func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		imsi := c.Param("imsi")
@@ -151,7 +151,7 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			GetSubscriberAction,
-			username,
+			email,
 			"User retrieved subscriber: "+imsi,
 		)
 	}
@@ -159,10 +159,10 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 
 func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		var createSubscriberParams CreateSubscriberParams
@@ -259,7 +259,7 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			CreateSubscriberAction,
-			username,
+			email,
 			"User created subscriber: "+createSubscriberParams.Imsi,
 		)
 	}
@@ -267,10 +267,10 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 
 func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		imsi := c.Param("imsi")
@@ -329,7 +329,7 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			UpdateSubscriberAction,
-			username,
+			email,
 			"User updated subscriber: "+imsi,
 		)
 	}
@@ -337,10 +337,10 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 
 func DeleteSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		imsi := c.Param("imsi")
@@ -368,7 +368,7 @@ func DeleteSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			DeleteSubscriberAction,
-			username,
+			email,
 			"User deleted subscriber: "+imsi,
 		)
 	}

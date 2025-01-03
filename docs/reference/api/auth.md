@@ -4,6 +4,8 @@ description: RESTful API reference for authentication.
 
 # Authentication
 
+This section describes the RESTful API for system user authentication.
+
 ## Login
 
 This path returns a token that can be used to authenticate with Ella Core.
@@ -14,7 +16,7 @@ This path returns a token that can be used to authenticate with Ella Core.
 
 ### Parameters
 
-- `username` (string): The username to authenticate with.
+- `email` (string): The email to authenticate with.
 - `password` (string): The password to authenticate with.
 
 ### Sample Response

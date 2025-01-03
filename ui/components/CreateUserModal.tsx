@@ -22,7 +22,7 @@ interface CreateUserModalProps {
 }
 
 const schema = yup.object().shape({
-    username: yup.string().min(1).max(256).required("Username is required"),
+    email: yup.string().email().required("Email is required"),
     password: yup.string().min(1).max(256).required("Password is required"),
 });
 
@@ -34,7 +34,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
         router.push("/login")
     }
     const [formValues, setFormValues] = useState({
-        username: "",
+        email: "",
         password: "",
     });
 
@@ -104,7 +104,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
         try {
             await createUser(
                 cookies.user_token,
-                formValues.username,
+                formValues.email,
                 formValues.password,
             );
             onClose();
@@ -140,12 +140,12 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
                 </Collapse>
                 <TextField
                     fullWidth
-                    label="Username"
-                    value={formValues.username}
-                    onChange={(e) => handleChange("username", e.target.value)}
-                    onBlur={() => handleBlur("username")}
-                    error={!!errors.username && touched.username}
-                    helperText={touched.username ? errors.username : ""}
+                    label="Email"
+                    value={formValues.email}
+                    onChange={(e) => handleChange("email", e.target.value)}
+                    onBlur={() => handleBlur("email")}
+                    error={!!errors.email && touched.email}
+                    helperText={touched.email ? errors.email : ""}
                     margin="normal"
                 />
                 <TextField

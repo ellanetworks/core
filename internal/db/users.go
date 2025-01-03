@@ -14,16 +14,16 @@ const QueryCreateUsersTable = `
 	CREATE TABLE IF NOT EXISTS %s (
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-		username TEXT NOT NULL,
+		email TEXT NOT NULL,
 		hashedPassword TEXT NOT NULL
 )`
 
 const (
 	listUsersStmt   = "SELECT &User.* from %s"
-	getUserStmt     = "SELECT &User.* from %s WHERE username==$User.username"
-	createUserStmt  = "INSERT INTO %s (username, hashedPassword) VALUES ($User.username, $User.hashedPassword)"
-	editUserStmt    = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE username==$User.username"
-	deleteUserStmt  = "DELETE FROM %s WHERE username==$User.username"
+	getUserStmt     = "SELECT &User.* from %s WHERE email==$User.email"
+	createUserStmt  = "INSERT INTO %s (email, hashedPassword) VALUES ($User.email, $User.hashedPassword)"
+	editUserStmt    = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE email==$User.email"
+	deleteUserStmt  = "DELETE FROM %s WHERE email==$User.email"
 	getNumUsersStmt = "SELECT COUNT(*) AS &NumUsers.count FROM %s"
 )
 
@@ -33,7 +33,7 @@ type NumUsers struct {
 
 type User struct {
 	ID             int    `db:"id"`
-	Username       string `db:"username"`
+	Email          string `db:"email"`
 	HashedPassword string `db:"hashedPassword"`
 }
 
@@ -53,9 +53,9 @@ func (db *Database) ListUsers() ([]User, error) {
 	return users, nil
 }
 
-func (db *Database) GetUser(username string) (*User, error) {
+func (db *Database) GetUser(email string) (*User, error) {
 	row := User{
-		Username: username,
+		Email: email,
 	}
 	stmt, err := sqlair.Prepare(fmt.Sprintf(getUserStmt, db.usersTable), User{})
 	if err != nil {
@@ -69,9 +69,9 @@ func (db *Database) GetUser(username string) (*User, error) {
 }
 
 func (db *Database) CreateUser(user *User) error {
-	_, err := db.GetUser(user.Username)
+	_, err := db.GetUser(user.Email)
 	if err == nil {
-		return fmt.Errorf("user with username %s already exists", user.Username)
+		return fmt.Errorf("user with email %s already exists", user.Email)
 	}
 	stmt, err := sqlair.Prepare(fmt.Sprintf(createUserStmt, db.usersTable), User{})
 	if err != nil {
@@ -82,7 +82,7 @@ func (db *Database) CreateUser(user *User) error {
 }
 
 func (db *Database) UpdateUser(user *User) error {
-	_, err := db.GetUser(user.Username)
+	_, err := db.GetUser(user.Email)
 	if err != nil {
 		return err
 	}
@@ -94,8 +94,8 @@ func (db *Database) UpdateUser(user *User) error {
 	return err
 }
 
-func (db *Database) DeleteUser(username string) error {
-	_, err := db.GetUser(username)
+func (db *Database) DeleteUser(email string) error {
+	_, err := db.GetUser(email)
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func (db *Database) DeleteUser(username string) error {
 		return err
 	}
 	row := User{
-		Username: username,
+		Email: email,
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
 	return err

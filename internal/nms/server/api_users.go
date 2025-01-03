@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"regexp"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -10,12 +11,12 @@ import (
 )
 
 type CreateUserParams struct {
-	Username string `json:"username"`
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
 type GetUserParams struct {
-	Username string `json:"username"`
+	Email string `json:"email"`
 }
 
 const (
@@ -27,17 +28,21 @@ const (
 	DeleteUserAction      = "delete_user"
 )
 
-func isValidUsername(username string) bool {
-	if username == "me" {
+func isValidEmail(email string) bool {
+	// Regular expression for a valid email format.
+	// This regex ensures a proper structure: local-part@domain.
+	const emailRegex = `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+
+	// Compile the regex for reuse.
+	re := regexp.MustCompile(emailRegex)
+
+	// Check email length constraints.
+	if len(email) == 0 || len(email) > 255 {
 		return false
 	}
-	if len(username) <= 0 {
-		return false
-	}
-	if len(username) > 255 {
-		return false
-	}
-	return true
+
+	// Validate the email format using the regex.
+	return re.MatchString(email)
 }
 
 func hashPassword(password string) (string, error) {
@@ -50,10 +55,10 @@ func hashPassword(password string) (string, error) {
 
 func ListUsers(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
 		dbUsers, err := dbInstance.ListUsers()
@@ -66,7 +71,7 @@ func ListUsers(dbInstance *db.Database) gin.HandlerFunc {
 		users := make([]GetUserParams, 0)
 		for _, user := range dbUsers {
 			users = append(users, GetUserParams{
-				Username: user.Username,
+				Email: user.Email,
 			})
 		}
 		err = writeResponse(c.Writer, users, http.StatusOK)
@@ -76,7 +81,7 @@ func ListUsers(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			ListUsersAction,
-			username,
+			email,
 			"Successfully retrieved list of users",
 		)
 	}
@@ -84,25 +89,25 @@ func ListUsers(dbInstance *db.Database) gin.HandlerFunc {
 
 func GetUser(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		usernameParam := c.Param("username")
-		if usernameParam == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing username parameter")
+		emailParam := c.Param("email")
+		if emailParam == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing email parameter")
 			return
 		}
-		dbUser, err := dbInstance.GetUser(usernameParam)
+		dbUser, err := dbInstance.GetUser(emailParam)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "User not found")
 			return
 		}
 
 		user := GetUserParams{
-			Username: dbUser.Username,
+			Email: dbUser.Email,
 		}
 		err = writeResponse(c.Writer, user, http.StatusOK)
 		if err != nil {
@@ -111,7 +116,7 @@ func GetUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			GetUserAction,
-			username,
+			email,
 			"Successfully retrieved user",
 		)
 	}
@@ -119,24 +124,24 @@ func GetUser(dbInstance *db.Database) gin.HandlerFunc {
 
 func GetLoggedInUser(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, exists := c.Get("username")
+		emailAny, exists := c.Get("email")
 		if !exists {
 			writeError(c.Writer, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
-		username, ok := usernameAny.(string)
+		email, ok := emailAny.(string)
 		if !ok {
 			writeError(c.Writer, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
-		dbUser, err := dbInstance.GetUser(username)
+		dbUser, err := dbInstance.GetUser(email)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "User not found")
 			return
 		}
 
 		user := GetUserParams{
-			Username: dbUser.Username,
+			Email: dbUser.Email,
 		}
 		err = writeResponse(c.Writer, user, http.StatusOK)
 		if err != nil {
@@ -145,7 +150,7 @@ func GetLoggedInUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			GetLoggedInUserAction,
-			username,
+			email,
 			"Successfully retrieved logged in user",
 		)
 	}
@@ -153,10 +158,10 @@ func GetLoggedInUser(dbInstance *db.Database) gin.HandlerFunc {
 
 func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			username = "First User"
+			email = "First User"
 		}
 		var newUser CreateUserParams
 		err := c.ShouldBindJSON(&newUser)
@@ -164,19 +169,19 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
 			return
 		}
-		if newUser.Username == "" {
-			writeError(c.Writer, http.StatusBadRequest, "username is missing")
+		if newUser.Email == "" {
+			writeError(c.Writer, http.StatusBadRequest, "email is missing")
 			return
 		}
 		if newUser.Password == "" {
 			writeError(c.Writer, http.StatusBadRequest, "password is missing")
 			return
 		}
-		if !isValidUsername(newUser.Username) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid username format. Must be less than 256 characters")
+		if !isValidEmail(newUser.Email) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid email format")
 			return
 		}
-		_, err = dbInstance.GetUser(newUser.Username)
+		_, err = dbInstance.GetUser(newUser.Email)
 		if err == nil {
 			writeError(c.Writer, http.StatusBadRequest, "user already exists")
 			return
@@ -189,7 +194,7 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 
 		dbUser := &db.User{
-			Username:       newUser.Username,
+			Email:          newUser.Email,
 			HashedPassword: hashedPassword,
 		}
 		err = dbInstance.CreateUser(dbUser)
@@ -206,23 +211,23 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			CreateUserAction,
-			username,
-			"User created user: "+newUser.Username,
+			email,
+			"User created user: "+newUser.Email,
 		)
 	}
 }
 
 func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		usernameParam := c.Param("username")
-		if usernameParam == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing username parameter")
+		emailParam := c.Param("email")
+		if emailParam == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing email parameter")
 			return
 		}
 		var updateUserParams CreateUserParams
@@ -231,20 +236,20 @@ func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
 			return
 		}
-		if updateUserParams.Username == "" {
-			writeError(c.Writer, http.StatusBadRequest, "username is missing")
+		if updateUserParams.Email == "" {
+			writeError(c.Writer, http.StatusBadRequest, "email is missing")
 			return
 		}
 		if updateUserParams.Password == "" {
 			writeError(c.Writer, http.StatusBadRequest, "password is missing")
 			return
 		}
-		if !isValidUsername(updateUserParams.Username) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid username format. Must be less than 256 characters")
+		if !isValidEmail(updateUserParams.Email) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid email format")
 			return
 		}
 
-		_, err = dbInstance.GetUser(usernameParam)
+		_, err = dbInstance.GetUser(emailParam)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "User not found")
 			return
@@ -257,7 +262,7 @@ func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 
 		dbUser := &db.User{
-			Username:       updateUserParams.Username,
+			Email:          updateUserParams.Email,
 			HashedPassword: hashedPassword,
 		}
 		err = dbInstance.UpdateUser(dbUser)
@@ -274,31 +279,31 @@ func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			UpdateUserAction,
-			username,
-			"User updated user: "+updateUserParams.Username,
+			email,
+			"User updated user: "+updateUserParams.Email,
 		)
 	}
 }
 
 func DeleteUser(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		usernameAny, _ := c.Get("username")
-		username, ok := usernameAny.(string)
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get username"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		usernameParam := c.Param("username")
-		if usernameParam == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing username parameter")
+		emailParam := c.Param("email")
+		if emailParam == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing email parameter")
 			return
 		}
-		_, err := dbInstance.GetUser(usernameParam)
+		_, err := dbInstance.GetUser(emailParam)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "User not found")
 			return
 		}
-		err = dbInstance.DeleteUser(usernameParam)
+		err = dbInstance.DeleteUser(emailParam)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete user")
@@ -313,8 +318,8 @@ func DeleteUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		logger.LogAuditEvent(
 			DeleteUserAction,
-			username,
-			"User deleted user: "+usernameParam,
+			email,
+			"User deleted user: "+emailParam,
 		)
 	}
 }

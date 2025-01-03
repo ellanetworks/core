@@ -36,7 +36,7 @@ func User(handlerFunc gin.HandlerFunc, jwtSecret []byte) gin.HandlerFunc {
 		}
 
 		c.Set("userID", claims.ID)
-		c.Set("username", claims.Username)
+		c.Set("email", claims.Email)
 
 		handlerFunc(c)
 	}
@@ -65,15 +65,15 @@ func UserOrFirstUser(handlerFunc gin.HandlerFunc, db *db.Database, jwtSecret []b
 			}
 
 			c.Set("userID", claims.ID)
-			c.Set("username", claims.Username)
+			c.Set("email", claims.Email)
 		}
 		handlerFunc(c)
 	}
 }
 
 type jwtNotaryClaims struct {
-	ID       int    `json:"id"`
-	Username string `json:"username"`
+	ID    int    `json:"id"`
+	Email string `json:"email"`
 	jwt.StandardClaims
 }
 
@@ -86,10 +86,10 @@ func GenerateJWTSecret() ([]byte, error) {
 }
 
 // Helper function to generate a JWT
-func generateJWT(id int, username string, jwtSecret []byte) (string, error) {
+func generateJWT(id int, email string, jwtSecret []byte) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwtNotaryClaims{
-		ID:       id,
-		Username: username,
+		ID:    id,
+		Email: email,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expireAfter(),
 		},

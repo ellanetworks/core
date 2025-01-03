@@ -46,9 +46,9 @@ export const listUsers = async (authToken: string) => {
   return respData.result;
 };
 
-export const createUser = async (authToken: string, username: string, password: string) => {
+export const createUser = async (authToken: string, email: string, password: string) => {
   const userData = {
-    "username": username,
+    "email": email,
     "password": password,
   }
 
@@ -74,13 +74,13 @@ export const createUser = async (authToken: string, username: string, password: 
   return respData.result;
 };
 
-export const updateUser = async (authToken: string, username: string, password: string) => {
+export const updateUser = async (authToken: string, email: string, password: string) => {
   const userData = {
-    "username": username,
+    "email": email,
     "password": password,
   }
 
-  const response = await fetch(`/api/v1/users/${username}`, {
+  const response = await fetch(`/api/v1/users/${email}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",

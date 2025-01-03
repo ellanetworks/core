@@ -24,7 +24,7 @@ None
 {
     "result": [
         {
-            "username": "admin"
+            "email": "admin"
         }
     ]
 }
@@ -40,7 +40,7 @@ This path creates a new system user. The first user can be created without authe
 
 ### Parameters
 
-- `username` (string): The username of the user. 
+- `email` (string): The email of the user. 
 - `password` (string): The password of the user.
 
 ### Sample Response
@@ -57,9 +57,9 @@ This path creates a new system user. The first user can be created without authe
 
 This path updates an existing system user.
 
-| Method | Path                       |
-| ------ | -------------------------- |
-| PUT    | `/api/v1/users/{username}` |
+| Method | Path                    |
+| ------ | ----------------------- |
+| PUT    | `/api/v1/users/{email}` |
 
 ### Parameters
 
@@ -79,9 +79,9 @@ This path updates an existing system user.
 
 This path returns the details of a specific system user.
 
-| Method | Path                       |
-| ------ | -------------------------- |
-| GET    | `/api/v1/users/{username}` |
+| Method | Path                    |
+| ------ | ----------------------- |
+| GET    | `/api/v1/users/{email}` |
 
 ### Parameters
 
@@ -92,7 +92,7 @@ None
 ```json
 {
     "result": {
-        "username": "guillaume"
+        "email": "guillaume"
     }
 }
 ```
@@ -101,9 +101,9 @@ None
 
 This path deletes a user from Ella Core.
 
-| Method | Path                       |
-| ------ | -------------------------- |
-| DELETE | `/api/v1/users/{username}` |
+| Method | Path                    |
+| ------ | ----------------------- |
+| DELETE | `/api/v1/users/{email}` |
 
 ### Parameters
 

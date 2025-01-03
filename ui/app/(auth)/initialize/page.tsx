@@ -15,7 +15,7 @@ import { getStatus } from "@/queries/status";
 
 const InitializePage = () => {
     const router = useRouter();
-    const [username, setUsername] = useState("");
+    const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -45,7 +45,7 @@ const InitializePage = () => {
         setError(null);
 
         try {
-            await createUser("", username, password);
+            await createUser("", email, password);
             router.push("/login");
         } catch (err: any) {
             setError(err.message || "User creation failed");
@@ -104,14 +104,13 @@ const InitializePage = () => {
                 {error && <Alert severity="error">{error}</Alert>}
 
                 <TextField
-                    label="Username"
+                    label="Email"
                     variant="outlined"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     fullWidth
                     required
                 />
-
                 <TextField
                     label="Password"
                     type="password"
