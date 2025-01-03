@@ -4,10 +4,10 @@ import (
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/smf/qos"
-	"github.com/ellanetworks/core/internal/util/nas"
-	nasMessage "github.com/ellanetworks/core/internal/util/nas/message"
-	"github.com/ellanetworks/core/internal/util/nas/nasConvert"
-	nasType "github.com/ellanetworks/core/internal/util/nas/type"
+	"github.com/omec-project/nas"
+	"github.com/omec-project/nas/nasConvert"
+	"github.com/omec-project/nas/nasMessage"
+	"github.com/omec-project/nas/nasType"
 )
 
 func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error) {

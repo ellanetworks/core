@@ -13,7 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/util/nas/security"
+	"github.com/omec-project/nas/security"
 	"github.com/omec-project/openapi/models"
 )
 

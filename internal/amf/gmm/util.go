@@ -1,7 +1,7 @@
 package gmm
 
 import (
-	nasMessage "github.com/ellanetworks/core/internal/util/nas/message"
+	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
 )
 

@@ -7,7 +7,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/gmm"
 	"github.com/ellanetworks/core/internal/util/fsm"
-	"github.com/ellanetworks/core/internal/util/nas"
+	"github.com/omec-project/nas"
 	"github.com/omec-project/openapi/models"
 )
 

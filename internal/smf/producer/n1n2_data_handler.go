@@ -3,11 +3,12 @@ package producer
 import (
 	"net/http"
 
+	"github.com/ellanetworks/core/internal/smf/consumer"
 	"github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/smferrors"
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
-	"github.com/ellanetworks/core/internal/util/nas"
+	"github.com/omec-project/nas"
+	"github.com/omec-project/openapi/Nsmf_PDUSession"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -37,7 +38,7 @@ func HandleUpdateN1Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 				Status: http.StatusForbidden,
 				Body: models.UpdateSmContextErrorResponse{
 					JsonData: &models.SmContextUpdateError{
-						Error: &smferrors.N1SmError,
+						Error: &Nsmf_PDUSession.N1SmError,
 					},
 				}, // Depends on the reason why N4 fail
 			}
@@ -341,6 +342,18 @@ func HandleUpdateN2Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 
 			smContext.PDUSessionRelease_DUE_TO_DUP_PDU_ID = false
 			context.RemoveSMContext(smContext.Ref)
+			problemDetails, err := consumer.SendSMContextStatusNotification(smContext.SmStatusNotifyUri)
+			if problemDetails != nil || err != nil {
+				if problemDetails != nil {
+					smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, send SMContext Status Notification Problem[%+v]", problemDetails)
+				}
+
+				if err != nil {
+					smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, send SMContext Status Notification Error[%v]", err)
+				}
+			} else {
+				smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, send SMContext Status Notification successfully")
+			}
 		} else { // normal case
 			if smContext.SMContextState != context.SmStateInActivePending {
 				smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state[%v] should be ActivePending",
