@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import {
-    Box,
-    Modal,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
     TextField,
     Button,
-    Typography,
     Alert,
     Collapse,
 } from "@mui/material";
@@ -120,28 +121,14 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
     };
 
     return (
-        <Modal
+        <Dialog
             open={open}
             onClose={onClose}
             aria-labelledby="create-user-modal-title"
             aria-describedby="create-user-modal-description"
         >
-            <Box
-                sx={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    width: 600,
-                    bgcolor: "background.paper",
-                    border: "2px solid #000",
-                    boxShadow: 24,
-                    p: 4,
-                }}
-            >
-                <Typography id="create-user-modal-title" variant="h6" gutterBottom>
-                    Create User
-                </Typography>
+            <DialogTitle>Create User</DialogTitle>
+            <DialogContent dividers>
                 <Collapse in={!!alert.message}>
                     <Alert
                         onClose={() => setAlert({ message: "" })}
@@ -172,22 +159,21 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
                     helperText={touched.password ? errors.password : ""}
                     margin="normal"
                 />
-
-                <Box sx={{ textAlign: "right", marginTop: 2 }}>
-                    <Button onClick={onClose} sx={{ marginRight: 2 }}>
-                        Cancel
-                    </Button>
-                    <Button
-                        variant="contained"
-                        color="success"
-                        onClick={handleSubmit}
-                        disabled={!isValid || loading}
-                    >
-                        {loading ? "Creating..." : "Create"}
-                    </Button>
-                </Box>
-            </Box>
-        </Modal>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={onClose} >
+                    Cancel
+                </Button>
+                <Button
+                    variant="contained"
+                    color="success"
+                    onClick={handleSubmit}
+                    disabled={!isValid || loading}
+                >
+                    {loading ? "Creating..." : "Create"}
+                </Button>
+            </DialogActions>
+        </Dialog >
     );
 };
 

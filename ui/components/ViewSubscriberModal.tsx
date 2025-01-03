@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
 import {
     Box,
-    Modal,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
     Typography,
     Button,
     Alert,
@@ -80,28 +83,14 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
     };
 
     return (
-        <Modal
+        <Dialog
             open={open}
             onClose={onClose}
             aria-labelledby="view-subscriber-modal-title"
             aria-describedby="view-subscriber-modal-description"
         >
-            <Box
-                sx={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    width: 600,
-                    bgcolor: "background.paper",
-                    border: "2px solid #000",
-                    boxShadow: 24,
-                    p: 4,
-                }}
-            >
-                <Typography id="view-subscriber-modal-title" variant="h6" gutterBottom>
-                    Subscriber Details
-                </Typography>
+            <DialogTitle>Subscriber Details</DialogTitle>
+            <DialogContent dividers>
                 <Collapse in={!!alert.message}>
                     <Alert
                         onClose={() => setAlert({ message: "" })}
@@ -158,13 +147,13 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
                         <strong>Profile Name:</strong> {subscriberData.profileName}
                     </Typography>
                 </Box>
-                <Box sx={{ textAlign: "right", marginTop: 2 }}>
-                    <Button onClick={onClose} sx={{ marginRight: 2 }}>
-                        Close
-                    </Button>
-                </Box>
-            </Box>
-        </Modal>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={onClose} sx={{ marginRight: 2 }}>
+                    Close
+                </Button>
+            </DialogActions>
+        </Dialog >
     );
 };
 

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
 import {
     Box,
-    Modal,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
     TextField,
     Button,
-    Typography,
     MenuItem,
     Alert,
     Collapse,
@@ -93,28 +95,14 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
     };
 
     return (
-        <Modal
+        <Dialog
             open={open}
             onClose={onClose}
             aria-labelledby="edit-profile-modal-title"
             aria-describedby="edit-profile-modal-description"
         >
-            <Box
-                sx={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    width: 600,
-                    bgcolor: "background.paper",
-                    border: "2px solid #000",
-                    boxShadow: 24,
-                    p: 4,
-                }}
-            >
-                <Typography id="edit-profile-modal-title" variant="h6" gutterBottom>
-                    Edit Profile
-                </Typography>
+            <DialogTitle>Edit Profile</DialogTitle>
+            <DialogContent dividers>
                 <Collapse in={!!alert.message}>
                     <Alert
                         onClose={() => setAlert({ message: "" })}
@@ -221,21 +209,21 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     helperText={errors.priorityLevel}
                     margin="normal"
                 />
-                <Box sx={{ textAlign: "right", marginTop: 2 }}>
-                    <Button onClick={onClose} sx={{ marginRight: 2 }}>
-                        Cancel
-                    </Button>
-                    <Button
-                        variant="contained"
-                        color="success"
-                        onClick={handleSubmit}
-                        disabled={loading}
-                    >
-                        {loading ? "Updating..." : "Update"}
-                    </Button>
-                </Box>
-            </Box>
-        </Modal>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={onClose}>
+                    Cancel
+                </Button>
+                <Button
+                    variant="contained"
+                    color="success"
+                    onClick={handleSubmit}
+                    disabled={loading}
+                >
+                    {loading ? "Updating..." : "Update"}
+                </Button>
+            </DialogActions>
+        </Dialog >
     );
 };
 
