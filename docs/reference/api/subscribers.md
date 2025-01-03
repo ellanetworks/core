@@ -4,6 +4,8 @@ description: RESTful API reference for managing network subscribers.
 
 # Subscribers
 
+This section describes the RESTful API for managing network subscribers. Network subscribers are the devices that connect to the private mobile network.
+
 ## List Subscribers
 
 This path returns the list of network subscribers.

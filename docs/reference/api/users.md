@@ -5,6 +5,8 @@ description: RESTful API reference for managing system users.
 
 # Users
 
+This section describes the RESTful API for managing system users. System users are used to authenticate with Ella Core and manage the system.
+
 ## List Users
 
 This path returns the list of system users.
@@ -92,7 +94,7 @@ None
 ```json
 {
     "result": {
-        "email": "guillaume"
+        "email": "guillaume@ellanetworks.com"
     }
 }
 ```
