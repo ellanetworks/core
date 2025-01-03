@@ -106,7 +106,7 @@ class EllaCore:
             str: The authentication token.
         """
         data = {"email": email, "password": password}
-        response = self._make_request("POST", "/api/v1/login", data=data)
+        response = self._make_request("POST", "/api/v1/auth/login", data=data)
         if not response:
             logger.error("Failed to login to Ella Core.")
             return None
