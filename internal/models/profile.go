@@ -1,3 +1,5 @@
+// Copyright 2024 Ella Networks
+
 package models
 
 type Profile struct {

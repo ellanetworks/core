@@ -1,3 +1,5 @@
+// Copyright 2024 Ella Networks
+
 // Package db provides a simplistic ORM to communicate with an SQL database for storage
 package db
 
