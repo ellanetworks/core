@@ -20,12 +20,16 @@ These Network Functions are typically deployed as separate microservices, levera
 
 ## The Ella Core approach
 
-Ella Core was designed with the specific needs of private mobile networks in mind. For these users, simplicity, reliability, and security are paramount. To address these requirements, we made a conscious decision to combine all 5G network functions into a single binary.
+Ella Core was designed with the specific needs of private mobile networks in mind. For these users, simplicity, reliability, and security are what counts most. To address these requirements, we made a conscious decision to combine all 5G network functions into a single binary.
 
-Ella Core is a monolithic application that integrates all the essential 5G network functions into a single executable. Ella Core still performs the same functions as traditional 5G networks, and behind the scenes, it implements the same 3GPP standards and protocols. However, HTTP communication between Network Functions is replaced with in-process function calls, simplifying the architecture, reducing operational complexity, improving performance, and enhancing security.
-
-Ella Core also includes an embedded database, eliminating the need for managing external databases. This design choice allows for a simple deployment process, backup and restore functionality, and (soon to be implemented) high availability features.
+### Network Functions are abstracted away
 
 Users only interact with Ella Core through a web-based user interface or a REST API, both of which are built into the application, and refered to as the Network Management System (NMS).
+
+Ella Core still performs the same functions as traditional 5G networks, and behind the scenes, it implements the same 3GPP standards and protocols. However, HTTP communication between Network Functions is replaced with in-process function calls.
+
+### The database is embedded
+
+Persistent data is stored in an embedded database, eliminating the need for managing external databases. This design choice allows for a simple deployment process, backup and restore functionality, and (soon to be implemented) high availability features.
 
 ![The Ella Core approach](../images/ella_nfs.png)
