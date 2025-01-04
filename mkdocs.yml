@@ -55,6 +55,8 @@ nav:
     - Connectivity: reference/connectivity.md
     - Subscriber Authentication: reference/subscriber_authentication.md
     - Audit Logs: reference/audit_logs.md
+  - Explanation:
+    - Architecture: explanation/architecture.md
 plugins:
   - glightbox
   - social:
