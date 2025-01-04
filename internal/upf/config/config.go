@@ -1,3 +1,5 @@
+// Copyright 2024 Ella Networks
+
 package config
 
 type UpfConfig struct {
