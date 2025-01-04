@@ -4,7 +4,7 @@ description: Step-by-step instructions to deploy Ella Core.
 
 # Deploy
 
-Ella Core is available as a Snap, a OCI container image, and a Juju Kubernetes charm.
+Ella Core is available as a Snap and a OCI container image.
 
 === "Snap (Recommended)"
 
@@ -30,40 +30,18 @@ Ella Core is available as a Snap, a OCI container image, and a Juju Kubernetes c
     Navigate to `https://localhost:5000` to access the Ella UI.
 
 
-=== "Kubernetes and Juju"
-        
-    Install MicroK8s:
+=== "OCI Container Image"
+
+    We provide a container image for Ella Core on GitHub Container Registry.
+
+    Pull the image from the registry:
 
     ```shell
-    sudo snap install microk8s --channel=1.31/stable --classic
+    docker pull ghcr.io/ellanetworks/ella-core:v0.0.4
     ```
 
-    Add the necessary MicroK8s addons:
+    Installation can then be done using the approach of your choice. 
 
-    ```shell
-    sudo microk8s addons repo add community https://github.com/canonical/microk8s-community-addons --reference feat/strict-fix-multus
-    sudo microk8s enable hostpath-storage
-    sudo microk8s enable multus
-    ```
-
-    Install Juju:
-
-    ```shell
-    sudo snap install juju
-    ```
-
-    Bootstrap a Juju controller:
-
-    ```shell
-    juju bootstrap microk8s
-    ```
-
-    Create a Juju model:
-
-    ```shell
-    juju add-model ella-core
-    ```
-
-    ```shell
-    juju deploy ella-core-k8s --trust
-    ```
+    !!! note
+        We are planning on publishing a Juju Kubernetes charm in the future. 
+        This charm will allow you to operate Ella Core on Kubernetes.
