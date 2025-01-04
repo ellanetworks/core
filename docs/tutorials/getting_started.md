@@ -4,9 +4,15 @@ description: A hands-on introduction to Ella Core for new users.
 
 # Getting Started
 
+In this tutorial, we will deploy, initialize, and configure Ella Core.
+
 ## Pre-requisites
 
-- A Ubuntu 24.04 machine with at least 3 network interfaces.
+- A Ubuntu 24.04 machine
+  - 8GB of RAM
+  - 4 CPU cores
+  - 30GB of disk space
+  - 4 network interfaces
 
 ## Install Ella Core
 Install the snap:
