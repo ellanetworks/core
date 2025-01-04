@@ -1,3 +1,7 @@
+// Copyright 2024 Ella Networks
+// Copyright 2019 Communication Service/Software Laboratory, National Chiao Tung University (free5gc.org)
+// SPDX-License-Identifier: Apache-2.0
+
 // idgenerator is used for generating ID from minValue to maxValue.
 // It will allocate IDs in range [minValue, maxValue]
 // It is thread-safe when allocating IDs
