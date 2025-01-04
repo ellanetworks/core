@@ -1,3 +1,7 @@
+// Copyright 2024 Ella Networks
+// Copyright 2024 Canonical Ltd.
+// SPDX-License-Identifier: Apache-2.0
+
 package udp
 
 import "github.com/wmnsk/go-pfcp/message"

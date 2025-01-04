@@ -1,3 +1,7 @@
+// Copyright 2024 Ella Networks
+// Copyright 2019 free5GC.org
+// SPDX-License-Identifier: Apache-2.0
+
 package pcf
 
 import (
@@ -26,7 +30,6 @@ func DeleteAMPolicy(polAssoId string) error {
 }
 
 func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest) (*models.PolicyUpdate, error) {
-	logger.PcfLog.Warnf("UpdateAMPolicy[%s]", polAssoId)
 	ue := pcfCtx.PCFUeFindByPolicyId(polAssoId)
 	if ue == nil || ue.AMPolicyData[polAssoId] == nil {
 		return nil, fmt.Errorf("polAssoId not found  in PCF")

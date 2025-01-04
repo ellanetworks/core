@@ -1,9 +1,13 @@
+// Copyright 2024 Ella Networks
+// SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
+// Copyright 2019 free5GC.org
+// SPDX-License-Identifier: Apache-2.0
+
 package producer
 
 import (
 	"net/http"
 
-	"github.com/ellanetworks/core/internal/smf/consumer"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
@@ -86,18 +90,6 @@ func HandleUpdateN1Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 			// Send Release Notify to AMF
 			smContext.ChangeState(context.SmStateInit)
 			response.JsonData.UpCnxState = models.UpCnxState_DEACTIVATED
-			/*problemDetails, err := consumer.SendSMContextStatusNotification(smContext.SmStatusNotifyUri)
-			if problemDetails != nil || err != nil {
-				if problemDetails != nil {
-					smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, send SMContext Status Notification Problem[%+v]", problemDetails)
-				}
-
-				if err != nil {
-					smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, send SMContext Status Notification Error[%v]", err)
-				}
-			} else {
-				smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, sent SMContext Status Notification successfully")
-			}*/
 			smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, sent SMContext Status Notification successfully")
 		}
 	} else {
@@ -342,19 +334,7 @@ func HandleUpdateN2Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 
 			smContext.PDUSessionRelease_DUE_TO_DUP_PDU_ID = false
 			context.RemoveSMContext(smContext.Ref)
-			problemDetails, err := consumer.SendSMContextStatusNotification(smContext.SmStatusNotifyUri)
-			if problemDetails != nil || err != nil {
-				if problemDetails != nil {
-					smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, send SMContext Status Notification Problem[%+v]", problemDetails)
-				}
-
-				if err != nil {
-					smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, send SMContext Status Notification Error[%v]", err)
-				}
-			} else {
-				smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, send SMContext Status Notification successfully")
-			}
-		} else { // normal case
+		} else {
 			if smContext.SMContextState != context.SmStateInActivePending {
 				smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state[%v] should be ActivePending",
 					smContext.SMContextState.String())

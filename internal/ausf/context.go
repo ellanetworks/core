@@ -1,3 +1,8 @@
+// Copyright 2024 Ella Networks
+// Copyright 2019 free5GC.org
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
+// SPDX-License-Identifier: Apache-2.0
+
 package ausf
 
 import (
