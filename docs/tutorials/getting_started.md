@@ -4,6 +4,10 @@ description: A hands-on introduction to Ella Core for new users.
 
 # Getting Started
 
+## Pre-requisites
+
+- A Ubuntu 24.04 machine with at least 3 network interfaces.
+
 ## Install Ella Core
 Install the snap:
 
