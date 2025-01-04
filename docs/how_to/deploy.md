@@ -16,10 +16,24 @@ Ella Core is available as a Snap and a OCI container image.
     sudo snap install ella-core --channel=edge --devmode
     ```
 
-    Generate (or copy) a certificate and private key to the following location:
+    Edit the configuration file at `/var/snap/ella-core/common/config.yaml` to configure the network interfaces:
 
-    ```bash
-    sudo openssl req -newkey rsa:2048 -nodes -keyout /var/snap/ella-core/common/key.pem -x509 -days 1 -out /var/snap/ella-core/common/cert.pem -subj "/CN=example.com"
+    ```yaml
+    log-level: "info"
+    db:
+    path: "core.db"
+    interfaces: 
+    n3: 
+        name: "ens4"
+        address: "127.0.0.1"
+    n6:
+        name: "ens5"
+    api:
+        name: "lo"
+        port: 5002
+        tls:
+        cert: "/var/snap/ella-core/common/cert.pem"
+        key: "/var/snap/ella-core/common/key.pem"
     ```
 
     Start the service:

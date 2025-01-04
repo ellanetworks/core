@@ -1,12 +1,12 @@
 log-level: "info"
 db:
-  path: "core.db"
+  path: "/var/snap/ella-core/common/data/core.db"
 interfaces: 
   n3: 
-    name: "lo"
+    name: "ens4"
     address: "127.0.0.1"
   n6:
-    name: "wlp131s0"
+    name: "ens5"
   api:
     name: "lo"
     port: 5002
