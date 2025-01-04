@@ -33,6 +33,7 @@ jobs:
     needs: [go-unit-test, go-vet, go-lint]
     uses: ./.github/workflows/snap-build.yaml
   snap-publish:
+    if: github.ref_name == 'main'
     needs: [snap-build]
     uses: ./.github/workflows/snap-publish.yaml
     secrets: inherit
