@@ -29,7 +29,7 @@ lxc network create n3
 lxc network create n6
 ```
 
-Create a Multipass instance with two additional network interfaces:
+Use Multipass to create a bare Ubuntu 24.04 instance with two additional network interfaces:
 ```shell
 multipass launch noble --name=ella-core --network n3 --network n6
 ```
@@ -100,27 +100,14 @@ exit
 
 ## Access the Ella Core UI
 
-From the host Ubuntu machine, retrieve the IP address of the first network interface.
-
-```shell
-multipass list
-```
-
-You should see three IP addresses. Take note of the first one. In this example, the IP address is `10.103.62.227`.
-
-```
-guillaume@courge:~$ multipass list
-Name                    State             IPv4             Image
-ella-core               Running           10.103.62.227    Ubuntu 24.04 LTS
-                                          10.243.161.26
-                                          10.117.122.101
-```
-
-Navigate to `https://10.103.62.227:5002` to access Ella Core's UI.
+Navigate to `https://<your instance IP>:5002` to access Ella Core's UI. Use the IP address you noted earlier.
 
 You should see the Initialization page.
 
 ![Initialize Ella Core](../images/initialize.png){ align=center }
+
+!!! note
+    Your browser may display a warning about the security of the connection. This is because the certificate used by Ella Core is self-signed. You can safely ignore this warning.
 
 ## Initialize Ella Core
 
