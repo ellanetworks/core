@@ -21,8 +21,10 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	smf_context "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp/udp"
+	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
+	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
 )
 
@@ -64,11 +66,11 @@ func SendPfcpSessionEstablishmentRequest(
 	barList []*smf_context.BAR,
 	qerList []*smf_context.QER,
 	upfPort uint16,
-) error {
+) (bool, error) {
 	upNodeIDStr := upNodeID.ResolveNodeIdToIp().String()
 	pfcpContext, ok := ctx.PFCPContext[upNodeIDStr]
 	if !ok {
-		return fmt.Errorf("PFCP Context not found for NodeID[%v]", upNodeID)
+		return false, fmt.Errorf("PFCP Context not found for NodeID[%v]", upNodeID)
 	}
 
 	nodeIDIPAddress := smf_context.SMF_Self().CPNodeID.ResolveNodeIdToIp()
@@ -83,27 +85,110 @@ func SendPfcpSessionEstablishmentRequest(
 		qerList,
 	)
 	if err != nil {
-		return err
+		return false, err
 	}
-	logger.SmfLog.Debugf("in SendPfcpSessionEstablishmentRequest pfcpMsg.CPFSEID.Seid %v\n", pfcpMsg.SEID())
-	ip := upNodeID.ResolveNodeIdToIp()
-
-	upaddr := &net.UDPAddr{
-		IP:   ip,
-		Port: int(upfPort),
-	}
-	ctx.SubPduSessLog.Debugln("[SMF] Send SendPfcpSessionEstablishmentRequest")
-	ctx.SubPduSessLog.Debugln("Send to addr ", upaddr.String())
-	logger.SmfLog.Infof("in SendPfcpSessionEstablishmentRequest fseid %v\n", pfcpMsg.SEID())
-
-	InsertPfcpTxn(pfcpMsg.Sequence(), &upNodeID)
-	eventData := udp.PfcpEventData{LSEID: ctx.PFCPContext[ip.String()].LocalSEID, ErrHandler: HandlePfcpSendError}
-	err = udp.SendPfcp(pfcpMsg, upaddr, eventData)
+	rsp, err := core.HandlePfcpSessionEstablishmentRequest(pfcpMsg)
 	if err != nil {
-		return err
+		return false, fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
 	}
-	ctx.SubPfcpLog.Infof("Sent PFCP Session Establish Request to NodeID[%s]", ip.String())
-	return nil
+	addPduSessionAnchor, err := HandlePfcpSessionEstablishmentRequest(rsp)
+	if err != nil {
+		return false, fmt.Errorf("failed to handle PFCP Session Establishment Response: %v", err)
+	}
+	return addPduSessionAnchor, nil
+}
+
+func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentResponse) (bool, error) {
+	var addPduSessionAnchor bool
+	SEID := msg.SEID()
+	smContext := smf_context.GetSMContextBySEID(SEID)
+	if smContext == nil {
+		return addPduSessionAnchor, fmt.Errorf("failed to find SMContext for SEID[%d]", SEID)
+	}
+	smContext.SMLock.Lock()
+
+	if msg.NodeID == nil {
+		return addPduSessionAnchor, fmt.Errorf("PFCP Session Establishment Response missing NodeID")
+	}
+	nodeID, err := msg.NodeID.NodeID()
+	if err != nil {
+		return addPduSessionAnchor, fmt.Errorf("failed to parse NodeID IE: %+v", err)
+	}
+
+	if msg.UPFSEID != nil {
+		pfcpSessionCtx := smContext.PFCPContext[nodeID]
+		rspUPFseid, err := msg.UPFSEID.FSEID()
+		if err != nil {
+			return addPduSessionAnchor, fmt.Errorf("failed to parse FSEID IE: %+v", err)
+		}
+		pfcpSessionCtx.RemoteSEID = rspUPFseid.SEID
+		smContext.SubPfcpLog.Infof("in HandlePfcpSessionEstablishmentResponse rsp.UPFSEID.Seid [%v] ", rspUPFseid.SEID)
+	}
+
+	// Get N3 interface UPF
+	ANUPF := smContext.Tunnel.DataPathPool.GetDefaultPath().FirstDPNode
+
+	// UE IP-Addr(only v4 supported)
+	if msg.CreatedPDR != nil {
+		ueIPAddress := FindUEIPAddress(msg.CreatedPDR)
+		if ueIPAddress != nil {
+			smContext.SubPfcpLog.Infof("upf provided ue ip address [%v]", ueIPAddress)
+			// Release previous locally allocated UE IP-Addr
+			err := smContext.ReleaseUeIpAddr()
+			if err != nil {
+				logger.SmfLog.Errorf("failed to release UE IP-Addr: %+v", err)
+			}
+
+			// Update with one received from UPF
+			smContext.PDUAddress.Ip = ueIPAddress
+			smContext.PDUAddress.UpfProvided = true
+		}
+
+		// Store F-TEID created by UPF
+		fteid, err := FindFTEID(msg.CreatedPDR)
+		if err != nil {
+			return addPduSessionAnchor, fmt.Errorf("failed to parse TEID IE: %+v", err)
+		}
+		logger.SmfLog.Infof("created PDR FTEID: %+v", fteid)
+		ANUPF.UpLinkTunnel.TEID = fteid.TEID
+		upf := smf_context.GetUserPlaneInformation().UPF.UPF
+		if upf == nil {
+			return addPduSessionAnchor, fmt.Errorf("can't find UPF[%s]", nodeID)
+		}
+		upf.N3Interfaces = make([]smf_context.UPFInterfaceInfo, 0)
+		n3Interface := smf_context.UPFInterfaceInfo{}
+		n3Interface.IPv4EndPointAddresses = append(n3Interface.IPv4EndPointAddresses, fteid.IPv4Address)
+		upf.N3Interfaces = append(upf.N3Interfaces, n3Interface)
+	}
+	smContext.SMLock.Unlock()
+
+	if msg.NodeID == nil {
+		return addPduSessionAnchor, fmt.Errorf("PFCP Session Establishment Response missing NodeID")
+	}
+
+	if msg.Cause == nil {
+		return addPduSessionAnchor, fmt.Errorf("PFCP Session Establishment Response missing Cause")
+	}
+	causeValue, err := msg.Cause.Cause()
+	if err != nil {
+		return addPduSessionAnchor, fmt.Errorf("failed to parse Cause IE: %+v", err)
+	}
+	if causeValue == ie.CauseRequestAccepted {
+		smContext.SBIPFCPCommunicationChan <- smf_context.SessionEstablishSuccess
+		smContext.SubPfcpLog.Infof("PFCP Session Establishment accepted")
+	} else {
+		smContext.SBIPFCPCommunicationChan <- smf_context.SessionEstablishFailed
+		smContext.SubPfcpLog.Errorf("PFCP Session Establishment rejected with cause [%v]", causeValue)
+	}
+
+	if smf_context.SMF_Self().ULCLSupport && smContext.BPManager != nil {
+		if smContext.BPManager.BPStatus == smf_context.AddingPSA {
+			smContext.SubPfcpLog.Infoln("keep Adding PSAndULCL")
+			addPduSessionAnchor = true
+			smContext.BPManager.BPStatus = smf_context.AddingPSA
+		}
+	}
+	return addPduSessionAnchor, nil
 }
 
 func SendPfcpSessionModificationRequest(

@@ -18,32 +18,35 @@ var (
 	errNoEstablishedAssociation = fmt.Errorf("no established association")
 )
 
-func HandlePfcpSessionEstablishmentRequest(conn *PfcpConnection, msg message.Message, addr string) (message.Message, error) {
-	req := msg.(*message.SessionEstablishmentRequest)
-	logger.UpfLog.Infof("Got Session Establishment Request from: %s.", addr)
-	remoteSEID, err := validateRequest(req.NodeID, req.CPFSEID)
+func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequest) (*message.SessionEstablishmentResponse, error) {
+	conn := GetConnection()
+	if conn == nil {
+		return nil, fmt.Errorf("no connection")
+	}
+	addr := "0.0.0.0"
+	remoteSEID, err := validateRequest(msg.NodeID, msg.CPFSEID)
 	if err != nil {
 		logger.UpfLog.Infof("Rejecting Session Establishment Request from: %s (missing NodeID or F-SEID)", addr)
-		return message.NewSessionEstablishmentResponse(0, 0, 0, req.Sequence(), 0, newIeNodeID(conn.nodeId), convertErrorToIeCause(err)), nil
+		return message.NewSessionEstablishmentResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeId), convertErrorToIeCause(err)), nil
 	}
 
 	association, ok := conn.NodeAssociations[addr]
 	if !ok {
 		logger.UpfLog.Infof("Rejecting Session Establishment Request from: %s (no association)", addr)
-		return message.NewSessionEstablishmentResponse(0, 0, 0, req.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseNoEstablishedPFCPAssociation)), nil
+		return message.NewSessionEstablishmentResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseNoEstablishedPFCPAssociation)), nil
 	}
 
 	localSEID := association.NewLocalSEID()
 
 	session := NewSession(localSEID, remoteSEID.SEID)
 
-	printSessionEstablishmentRequest(req)
+	printSessionEstablishmentRequest(msg)
 	createdPDRs := []SPDRInfo{}
 	pdrContext := NewPDRCreationContext(session, conn.ResourceManager)
 
 	err = func() error {
 		mapOperations := conn.mapOperations
-		for _, far := range req.CreateFAR {
+		for _, far := range msg.CreateFAR {
 			farInfo, err := composeFarInfo(far, conn.n3Address.To4(), ebpf.FarInfo{})
 			if err != nil {
 				logger.UpfLog.Infof("Error extracting FAR info: %s", err.Error())
@@ -60,7 +63,7 @@ func HandlePfcpSessionEstablishmentRequest(conn *PfcpConnection, msg message.Mes
 			}
 		}
 
-		for _, qer := range req.CreateQER {
+		for _, qer := range msg.CreateQER {
 			qerInfo := ebpf.QerInfo{}
 			qerId, err := qer.QERID()
 			if err != nil {
@@ -76,7 +79,7 @@ func HandlePfcpSessionEstablishmentRequest(conn *PfcpConnection, msg message.Mes
 			}
 		}
 
-		for _, pdr := range req.CreatePDR {
+		for _, pdr := range msg.CreatePDR {
 			// PDR should be created last, because we need to reference FARs and QERs global id
 			pdrId, err := pdr.PDRID()
 			if err != nil {
@@ -97,7 +100,7 @@ func HandlePfcpSessionEstablishmentRequest(conn *PfcpConnection, msg message.Mes
 	}()
 	if err != nil {
 		logger.UpfLog.Infof("Rejecting Session Establishment Request from: %s (error in applying IEs)", err)
-		return message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, req.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseRuleCreationModificationFailure)), nil
+		return message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseRuleCreationModificationFailure)), nil
 	}
 
 	// Reassigning is the best I can think of for now
@@ -114,7 +117,7 @@ func HandlePfcpSessionEstablishmentRequest(conn *PfcpConnection, msg message.Mes
 	additionalIEs = append(additionalIEs, pdrIEs...)
 
 	// Send SessionEstablishmentResponse
-	estResp := message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, req.Sequence(), 0, additionalIEs...)
+	estResp := message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, additionalIEs...)
 	logger.UpfLog.Infof("Session Establishment Request from %s accepted.", addr)
 	return estResp, nil
 }

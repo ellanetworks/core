@@ -23,60 +23,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// When the User Plane Node exists in the stored context, then the PFCP Session Establishment Request is sent
-func TestSendPfcpSessionEstablishmentRequestUpNodeExists(t *testing.T) {
-	const upNodeIDStr = "127.0.0.1"
-	upNodeID := context.NodeID{
-		NodeIdType:  context.NodeIdTypeIpv4Address,
-		NodeIdValue: net.ParseIP(upNodeIDStr).To4(),
-	}
-	config := zap.NewProductionConfig()
-	log, err := config.Build()
-	if err != nil {
-		panic(err)
-	}
-	mockLog := log.Sugar()
-	smContext := &context.SMContext{
-		PFCPContext: map[string]*context.PFCPSessionContext{
-			upNodeIDStr: {
-				NodeID: upNodeID,
-			},
-		},
-		SubPduSessLog: mockLog,
-		SubPfcpLog:    mockLog,
-	}
-
-	pdrList := []*context.PDR{}
-	farList := []*context.FAR{}
-	barList := []*context.BAR{}
-	qerList := []*context.QER{}
-
-	localAddress := &net.UDPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
-		Port: 8803,
-	}
-
-	conn, err := net.ListenUDP("udp", localAddress)
-	if err != nil {
-		t.Fatalf("error listening on UDP: %v", err)
-	}
-
-	defer func() {
-		if err = conn.Close(); err != nil {
-			t.Logf("error closing connection: %v", err)
-		}
-	}()
-
-	udp.Server = &udp.PfcpServer{
-		Conn: conn,
-	}
-
-	err = message.SendPfcpSessionEstablishmentRequest(upNodeID, smContext, pdrList, farList, barList, qerList, 8803)
-	if err != nil {
-		t.Errorf("error sending PFCP Session Establishment Request: %v", err)
-	}
-}
-
 // Given the User Plane Node does not exist in the stored context, then the PFCP Session Establishment Request is not sent
 func TestSendPfcpSessionEstablishmentRequestUpNodeDoesNotExist(t *testing.T) {
 	const upNodeIDStr = "127.0.0.1"
@@ -111,7 +57,7 @@ func TestSendPfcpSessionEstablishmentRequestUpNodeDoesNotExist(t *testing.T) {
 		Conn: conn,
 	}
 
-	err = message.SendPfcpSessionEstablishmentRequest(upNodeID, smContext, pdrList, farList, barList, qerList, 8804)
+	_, err = message.SendPfcpSessionEstablishmentRequest(upNodeID, smContext, pdrList, farList, barList, qerList, 8804)
 	if err == nil {
 		t.Errorf("expected error sending PFCP Session Establishment Request")
 	}

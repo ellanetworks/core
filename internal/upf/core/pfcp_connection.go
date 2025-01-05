@@ -14,6 +14,8 @@ import (
 	"github.com/wmnsk/go-pfcp/message"
 )
 
+var connection *PfcpConnection
+
 type PfcpConnection struct {
 	udpConn           *net.UDPConn
 	pfcpHandlerMap    PfcpHandlerMap
@@ -51,7 +53,7 @@ func CreatePfcpConnection(addr string, pfcpHandlerMap PfcpHandlerMap, nodeId str
 	}
 	logger.UpfLog.Infof("PFCP server started on %v", udpAddr)
 
-	return &PfcpConnection{
+	connection = &PfcpConnection{
 		udpConn:           udpConn,
 		pfcpHandlerMap:    pfcpHandlerMap,
 		NodeAssociations:  map[string]*NodeAssociation{},
@@ -61,7 +63,13 @@ func CreatePfcpConnection(addr string, pfcpHandlerMap PfcpHandlerMap, nodeId str
 		mapOperations:     mapOperations,
 		RecoveryTimestamp: time.Now(),
 		ResourceManager:   resourceManager,
-	}, nil
+	}
+
+	return connection, nil
+}
+
+func GetConnection() *PfcpConnection {
+	return connection
 }
 
 func (connection *PfcpConnection) Run() {

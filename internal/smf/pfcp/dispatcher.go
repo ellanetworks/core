@@ -15,26 +15,10 @@ import (
 func Dispatch(msg *udp.Message) {
 	msgType := msg.PfcpMessage.MessageType()
 	switch msgType {
-	case message.MsgTypeVersionNotSupportedResponse:
-		handler.HandlePfcpVersionNotSupportedResponse(msg)
-	case message.MsgTypeNodeReportRequest:
-		handler.HandlePfcpNodeReportRequest(msg)
-	case message.MsgTypeNodeReportResponse:
-		handler.HandlePfcpNodeReportResponse(msg)
-	case message.MsgTypeSessionSetDeletionRequest:
-		handler.HandlePfcpSessionSetDeletionRequest(msg)
-	case message.MsgTypeSessionSetDeletionResponse:
-		handler.HandlePfcpSessionSetDeletionResponse(msg)
-	case message.MsgTypeSessionEstablishmentResponse:
-		handler.HandlePfcpSessionEstablishmentResponse(msg)
 	case message.MsgTypeSessionModificationResponse:
 		handler.HandlePfcpSessionModificationResponse(msg)
 	case message.MsgTypeSessionDeletionResponse:
 		handler.HandlePfcpSessionDeletionResponse(msg)
-	case message.MsgTypeSessionReportRequest:
-		handler.HandlePfcpSessionReportRequest(msg)
-	case message.MsgTypeSessionReportResponse:
-		handler.HandlePfcpSessionReportResponse(msg)
 	default:
 		logger.SmfLog.Errorf("Unknown PFCP message type: %d", msgType)
 		return

@@ -103,9 +103,8 @@ func Start(n3_address string, n3Interface string, n6Interface string) error {
 
 	// Create PFCP connection
 	pfcpHandlers := core.PfcpHandlerMap{
-		message.MsgTypeSessionEstablishmentRequest: core.HandlePfcpSessionEstablishmentRequest,
-		message.MsgTypeSessionDeletionRequest:      core.HandlePfcpSessionDeletionRequest,
-		message.MsgTypeSessionModificationRequest:  core.HandlePfcpSessionModificationRequest,
+		message.MsgTypeSessionDeletionRequest:     core.HandlePfcpSessionDeletionRequest,
+		message.MsgTypeSessionModificationRequest: core.HandlePfcpSessionModificationRequest,
 	}
 
 	pfcpConn, err := core.CreatePfcpConnection(config.Conf.PfcpAddress, pfcpHandlers, config.Conf.PfcpNodeId, config.Conf.N3Address, bpfObjects, resourceManager)

@@ -48,8 +48,15 @@ func SendPFCPRule(smContext *context.SMContext, dataPath *context.DataPath) {
 
 		sessionContext, exist := smContext.PFCPContext[curDataPathNode.GetNodeIP()]
 		if !exist || sessionContext.RemoteSEID == 0 {
-			err := message.SendPfcpSessionEstablishmentRequest(
+			addPduSessionAnchor, err := message.SendPfcpSessionEstablishmentRequest(
 				curDataPathNode.UPF.NodeID, smContext, pdrList, farList, nil, qerList, curDataPathNode.UPF.Port)
+			if err != nil {
+				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
+			}
+			if addPduSessionAnchor {
+				rspNodeID := context.NewNodeID("0.0.0.0")
+				AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
+			}
 			if err != nil {
 				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
 			}
@@ -114,10 +121,14 @@ func SendPFCPRules(smContext *context.SMContext) {
 	for ip, pfcp := range pfcpPool {
 		sessionContext, exist := smContext.PFCPContext[ip]
 		if !exist || sessionContext.RemoteSEID == 0 {
-			err := message.SendPfcpSessionEstablishmentRequest(
+			addPduSessionAnchor, err := message.SendPfcpSessionEstablishmentRequest(
 				pfcp.nodeID, smContext, pfcp.pdrList, pfcp.farList, nil, pfcp.qerList, pfcp.port)
 			if err != nil {
 				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, pfcp.nodeID, pfcp.nodeID.ResolveNodeIdToIp())
+			}
+			if addPduSessionAnchor {
+				rspNodeID := context.NewNodeID("0.0.0.0")
+				AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
 			}
 		} else {
 			err := message.SendPfcpSessionModificationRequest(
