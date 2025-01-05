@@ -88,31 +88,8 @@ func TestSessionOverwrite(t *testing.T) {
 		mapOperations:    &mapOps,
 		n3Address:        net.ParseIP(RemoteIP),
 	}
-	asReq := message.NewAssociationSetupRequest(0,
-		ie.NewNodeID("", "", "test"),
-	)
-	response, err := HandlePfcpAssociationSetupRequest(&pfcpConn, asReq, RemoteIP)
-	if err != nil {
-		t.Errorf("Error handling association setup request: %s", err)
-	}
-	cause, err := response.(*message.AssociationSetupResponse).Cause.Cause()
-	if err != nil {
-		t.Errorf("Error getting cause from association setup response: %s", err)
-	}
-	if cause != ie.CauseRequestAccepted {
-		t.Errorf("Unexpected cause in association setup response: %d", cause)
-	}
-	// Check nodeId in response
-	nodeId, err := response.(*message.AssociationSetupResponse).NodeID.NodeID()
-	if err != nil {
-		t.Errorf("Error getting node ID from association setup response: %s", err)
-	}
-	if nodeId != NodeId {
-		t.Errorf("Unexpected node ID in association setup response: %s", nodeId)
-	}
-	if _, ok := pfcpConn.NodeAssociations[RemoteIP]; !ok {
-		t.Errorf("Association not created")
-	}
+
+	pfcpConn.NodeAssociations[RemoteIP] = NewNodeAssociation("0.0.0.0", "0.0.0.0")
 
 	// Create two send two Session Establishment Requests with downlink PDRs
 	// and check that the first session is not overwritten
@@ -145,7 +122,7 @@ func TestSessionOverwrite(t *testing.T) {
 	)
 
 	// Send first request
-	_, err = HandlePfcpSessionEstablishmentRequest(&pfcpConn, seReq1, RemoteIP)
+	_, err := HandlePfcpSessionEstablishmentRequest(&pfcpConn, seReq1, RemoteIP)
 	if err != nil {
 		t.Errorf("Error handling session establishment request: %s", err)
 	}

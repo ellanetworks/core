@@ -23,69 +23,6 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestSendPfcpAssociationSetupRequest(t *testing.T) {
-	upNodeID := context.NodeID{
-		NodeIdType:  context.NodeIdTypeIpv4Address,
-		NodeIdValue: net.ParseIP("127.0.0.1").To4(),
-	}
-	localAddress := &net.UDPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
-		Port: 8801,
-	}
-
-	conn, err := net.ListenUDP("udp", localAddress)
-	if err != nil {
-		t.Fatalf("error listening on UDP: %v", err)
-	}
-
-	defer func() {
-		if err = conn.Close(); err != nil {
-			log.Printf("error closing connection: %v", err)
-		}
-	}()
-
-	udp.Server = &udp.PfcpServer{
-		Conn: conn,
-	}
-
-	err = message.SendPfcpAssociationSetupRequest(upNodeID, 8801)
-	if err != nil {
-		t.Errorf("error sending PFCP Association Setup Request: %v", err)
-	}
-}
-
-func TestSendPfcpAssociationSetupResponse(t *testing.T) {
-	localAddress := &net.UDPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
-		Port: 8802,
-	}
-
-	conn, err := net.ListenUDP("udp", localAddress)
-	if err != nil {
-		t.Fatalf("error listening on UDP: %v", err)
-	}
-
-	defer func() {
-		if err = conn.Close(); err != nil {
-			log.Printf("error closing connection: %v", err)
-		}
-	}()
-
-	udp.Server = &udp.PfcpServer{
-		Conn: conn,
-	}
-
-	upNodeID := context.NodeID{
-		NodeIdType:  context.NodeIdTypeIpv4Address,
-		NodeIdValue: net.ParseIP("127.0.0.1").To4(),
-	}
-
-	err = message.SendPfcpAssociationSetupResponse(upNodeID, ie.CauseRequestAccepted, 8802)
-	if err != nil {
-		t.Errorf("error sending PFCP Association Setup Response: %v", err)
-	}
-}
-
 // When the User Plane Node exists in the stored context, then the PFCP Session Establishment Request is sent
 func TestSendPfcpSessionEstablishmentRequestUpNodeExists(t *testing.T) {
 	const upNodeIDStr = "127.0.0.1"

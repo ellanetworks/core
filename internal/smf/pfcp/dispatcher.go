@@ -15,16 +15,6 @@ import (
 func Dispatch(msg *udp.Message) {
 	msgType := msg.PfcpMessage.MessageType()
 	switch msgType {
-	case message.MsgTypeAssociationSetupResponse:
-		handler.HandlePfcpAssociationSetupResponse(msg)
-	case message.MsgTypeAssociationUpdateRequest:
-		handler.HandlePfcpAssociationUpdateRequest(msg)
-	case message.MsgTypeAssociationUpdateResponse:
-		handler.HandlePfcpAssociationUpdateResponse(msg)
-	case message.MsgTypeAssociationReleaseRequest:
-		handler.HandlePfcpAssociationReleaseRequest(msg)
-	case message.MsgTypeAssociationReleaseResponse:
-		handler.HandlePfcpAssociationReleaseResponse(msg)
 	case message.MsgTypeVersionNotSupportedResponse:
 		handler.HandlePfcpVersionNotSupportedResponse(msg)
 	case message.MsgTypeNodeReportRequest:

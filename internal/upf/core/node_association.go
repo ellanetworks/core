@@ -30,14 +30,3 @@ func (association *NodeAssociation) NewLocalSEID() uint64 {
 	association.NextSessionID += 1
 	return association.NextSessionID
 }
-
-func (association *NodeAssociation) NewSequenceID() uint32 {
-	association.NextSequenceID += 1
-	return association.NextSequenceID
-}
-
-func (association *NodeAssociation) ResetFailedHeartbeats() {
-	association.Lock()
-	association.FailedHeartbeats = 0
-	association.Unlock()
-}

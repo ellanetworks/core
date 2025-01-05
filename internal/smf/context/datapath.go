@@ -432,12 +432,8 @@ func (dpNode *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error
 // ActivateUpLinkPdr
 func (dpNode *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER, defPrecedence uint32) error {
 	ueIpAddr := UEIPAddress{}
-	if dpNode.UPF.IsUpfSupportUeIpAddrAlloc() {
-		ueIpAddr.CHV4 = true
-	} else {
-		ueIpAddr.V4 = true
-		ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
-	}
+	ueIpAddr.V4 = true
+	ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
 
 	curULTunnel := dpNode.UpLinkTunnel
 	for _, ULPDR := range curULTunnel.PDR {
@@ -503,12 +499,8 @@ func (dpNode *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER,
 
 	// UPF provided UE ip-addr
 	ueIpAddr := UEIPAddress{}
-	if dpNode.UPF.IsUpfSupportUeIpAddrAlloc() {
-		ueIpAddr.CHV4 = true
-	} else {
-		ueIpAddr.V4 = true
-		ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
-	}
+	ueIpAddr.V4 = true
+	ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
 
 	for _, DLPDR := range curDLTunnel.PDR {
 		DLPDR.QER = append(DLPDR.QER, defQER)
@@ -604,12 +596,8 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence 
 		}
 
 		ueIpAddr := UEIPAddress{}
-		if curDataPathNode.UPF.IsUpfSupportUeIpAddrAlloc() {
-			ueIpAddr.CHV4 = true
-		} else {
-			ueIpAddr.V4 = true
-			ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
-		}
+		ueIpAddr.V4 = true
+		ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
 
 		if curDataPathNode.DownLinkTunnel != nil {
 			if curDataPathNode.DownLinkTunnel.SrcEndPoint == nil {

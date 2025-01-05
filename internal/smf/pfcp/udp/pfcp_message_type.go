@@ -9,9 +9,6 @@ import "github.com/wmnsk/go-pfcp/message"
 func IsRequest(msg message.Message) bool {
 	switch msg.MessageType() {
 	case message.MsgTypePFDManagementRequest,
-		message.MsgTypeAssociationSetupRequest,
-		message.MsgTypeAssociationUpdateRequest,
-		message.MsgTypeAssociationReleaseRequest,
 		message.MsgTypeNodeReportRequest,
 		message.MsgTypeSessionSetDeletionRequest,
 		message.MsgTypeSessionEstablishmentRequest,
@@ -27,9 +24,6 @@ func IsRequest(msg message.Message) bool {
 func IsResponse(msg message.Message) bool {
 	switch msg.MessageType() {
 	case message.MsgTypePFDManagementResponse,
-		message.MsgTypeAssociationSetupResponse,
-		message.MsgTypeAssociationUpdateResponse,
-		message.MsgTypeAssociationReleaseResponse,
 		message.MsgTypeNodeReportResponse,
 		message.MsgTypeSessionSetDeletionResponse,
 		message.MsgTypeSessionEstablishmentResponse,

@@ -38,25 +38,23 @@ type RecoveryTimeStamp struct {
 }
 
 type UPF struct {
-	SNssaiInfos        []SnssaiUPFInfo
-	N3Interfaces       []UPFInterfaceInfo
-	N9Interfaces       []UPFInterfaceInfo
-	UPFunctionFeatures *UPFunctionFeatures
+	SNssaiInfos  []SnssaiUPFInfo
+	N3Interfaces []UPFInterfaceInfo
+	N9Interfaces []UPFInterfaceInfo
 
 	pdrPool sync.Map
 	farPool sync.Map
 	barPool sync.Map
 	qerPool sync.Map
-	// urrPool        sync.Map
+
 	pdrIDGenerator *idgenerator.IDGenerator
 	farIDGenerator *idgenerator.IDGenerator
 	barIDGenerator *idgenerator.IDGenerator
 	qerIDGenerator *idgenerator.IDGenerator
 
-	RecoveryTimeStamp RecoveryTimeStamp
-	NodeID            NodeID
-	uuid              uuid.UUID
-	Port              uint16
+	NodeID NodeID
+	uuid   uuid.UUID
+	Port   uint16
 
 	// lock
 	UpfLock sync.RWMutex
@@ -209,7 +207,6 @@ func NewUPF(nodeID *NodeID, ifaces []InterfaceUpfInfoItem) (upf *UPF) {
 	return upf
 }
 
-// *** add unit test ***//
 // GetInterface return the UPFInterfaceInfo that match input cond
 func (upf *UPF) GetInterface(interfaceType models.UpInterfaceType, dnn string) *UPFInterfaceInfo {
 	switch interfaceType {
@@ -388,21 +385,18 @@ func (upf *UPF) RemovePDR(pdr *PDR) (err error) {
 	return nil
 }
 
-// *** add unit test ***//
 func (upf *UPF) RemoveFAR(far *FAR) (err error) {
 	upf.farIDGenerator.FreeID(int64(far.FARID))
 	upf.farPool.Delete(far.FARID)
 	return nil
 }
 
-// *** add unit test ***//
 func (upf *UPF) RemoveBAR(bar *BAR) (err error) {
 	upf.barIDGenerator.FreeID(int64(bar.BARID))
 	upf.barPool.Delete(bar.BARID)
 	return nil
 }
 
-// *** add unit test ***//
 func (upf *UPF) RemoveQER(qer *QER) (err error) {
 	upf.qerIDGenerator.FreeID(int64(qer.QERID))
 	upf.qerPool.Delete(qer.QERID)
@@ -415,15 +409,5 @@ func (upf *UPF) isSupportSnssai(snssai *SNssai) bool {
 			return true
 		}
 	}
-	return false
-}
-
-// IsUpfSupportUeIpAddrAlloc UE IP addr alloc by UPF supported
-func (upf *UPF) IsUpfSupportUeIpAddrAlloc() bool {
-	if upf.UPFunctionFeatures != nil &&
-		(upf.UPFunctionFeatures.SupportedFeatures1&UpFunctionFeatures1Ueip) == UpFunctionFeatures1Ueip {
-		return true
-	}
-
 	return false
 }

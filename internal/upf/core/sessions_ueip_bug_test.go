@@ -14,7 +14,6 @@ func TestSessionUEIpOverwrite(t *testing.T) {
 	mapOps := MapOperationsMock{}
 
 	pfcpHandlers := PfcpHandlerMap{
-		message.MsgTypeAssociationSetupRequest:     HandlePfcpAssociationSetupRequest,
 		message.MsgTypeSessionEstablishmentRequest: HandlePfcpSessionEstablishmentRequest,
 		message.MsgTypeSessionDeletionRequest:      HandlePfcpSessionDeletionRequest,
 		message.MsgTypeSessionModificationRequest:  HandlePfcpSessionModificationRequest,
@@ -26,31 +25,8 @@ func TestSessionUEIpOverwrite(t *testing.T) {
 		mapOperations:    &mapOps,
 		pfcpHandlerMap:   pfcpHandlers,
 	}
-	asReq := message.NewAssociationSetupRequest(0,
-		ie.NewNodeID("", "", "test"),
-	)
-	response, err := HandlePfcpAssociationSetupRequest(&pfcpConn, asReq, smfIP)
-	if err != nil {
-		t.Errorf("Error handling association setup request: %s", err)
-	}
-	cause, err := response.(*message.AssociationSetupResponse).Cause.Cause()
-	if err != nil {
-		t.Errorf("Error getting cause from association setup response: %s", err)
-	}
-	if cause != ie.CauseRequestAccepted {
-		t.Errorf("Unexpected cause in association setup response: %d", cause)
-	}
-	// Check nodeId in response
-	nodeId, err := response.(*message.AssociationSetupResponse).NodeID.NodeID()
-	if err != nil {
-		t.Errorf("Error getting node ID from association setup response: %s", err)
-	}
-	if nodeId != "test-node" {
-		t.Errorf("Unexpected node ID in association setup response: %s", nodeId)
-	}
-	if _, ok := pfcpConn.NodeAssociations[smfIP]; !ok {
-		t.Errorf("Association not created")
-	}
+
+	pfcpConn.NodeAssociations[smfIP] = NewNodeAssociation("0.0.0.0", "0.0.0.0")
 
 	ip1, _ := net.ResolveIPAddr("ip", "1.1.1.1")
 	ip2, _ := net.ResolveIPAddr("ip", "2.2.2.2")
@@ -89,7 +65,7 @@ func TestSessionUEIpOverwrite(t *testing.T) {
 	)
 
 	// Send first request
-	_, err = HandlePfcpSessionEstablishmentRequest(&pfcpConn, seReq1, smfIP)
+	_, err := HandlePfcpSessionEstablishmentRequest(&pfcpConn, seReq1, smfIP)
 	if err != nil {
 		t.Errorf("Error handling session establishment request: %s", err)
 	}

@@ -200,6 +200,10 @@ func UpdateUserPlaneInformation(radios []nmsModels.Radio) {
 		logger.SmfLog.Debugf("Config user plane info is nil")
 		return
 	}
+	if smfSelf.UserPlaneInformation == nil {
+		logger.SmfLog.Warnf("Context user plane info is nil")
+		return
+	}
 	smfSelf.UserPlaneInformation.UPNodes = configUserPlaneInfo.UPNodes
 	smfSelf.UserPlaneInformation.UPF = configUserPlaneInfo.UPF
 	smfSelf.UserPlaneInformation.AccessNetwork = configUserPlaneInfo.AccessNetwork

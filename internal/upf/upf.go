@@ -20,6 +20,11 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
+const (
+	smfAddr   = "0.0.0.0"
+	smfNodeId = "0.0.0.0"
+)
+
 func Start(n3_address string, n3Interface string, n6Interface string) error {
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
@@ -98,7 +103,6 @@ func Start(n3_address string, n3Interface string, n6Interface string) error {
 
 	// Create PFCP connection
 	pfcpHandlers := core.PfcpHandlerMap{
-		message.MsgTypeAssociationSetupRequest:     core.HandlePfcpAssociationSetupRequest,
 		message.MsgTypeSessionEstablishmentRequest: core.HandlePfcpSessionEstablishmentRequest,
 		message.MsgTypeSessionDeletionRequest:      core.HandlePfcpSessionDeletionRequest,
 		message.MsgTypeSessionModificationRequest:  core.HandlePfcpSessionModificationRequest,
@@ -110,6 +114,9 @@ func Start(n3_address string, n3Interface string, n6Interface string) error {
 	}
 	go pfcpConn.Run()
 	defer pfcpConn.Close()
+
+	remoteNode := core.NewNodeAssociation(smfNodeId, smfAddr)
+	pfcpConn.NodeAssociations[smfAddr] = remoteNode
 
 	ForwardPlaneStats := ebpf.UpfXdpActionStatistic{
 		BpfObjects: bpfObjects,

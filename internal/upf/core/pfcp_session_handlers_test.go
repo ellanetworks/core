@@ -13,45 +13,10 @@ import (
 	"github.com/wmnsk/go-pfcp/message"
 )
 
-func TestAssociationSetup(t *testing.T) {
-	// Create pfcp connection struct
-	pfcpConn := PfcpConnection{
-		NodeAssociations: make(map[string]*NodeAssociation),
-		nodeId:           "NodeId",
-	}
-	asReq := message.NewAssociationSetupRequest(0,
-		ie.NewNodeID("", "", "test"),
-	)
-
-	response, err := HandlePfcpAssociationSetupRequest(&pfcpConn, asReq, RemoteIP)
-	if err != nil {
-		t.Errorf("Error handling association setup request: %s", err)
-	}
-	cause, err := response.(*message.AssociationSetupResponse).Cause.Cause()
-	if err != nil {
-		t.Errorf("Error getting cause from association setup response: %s", err)
-	}
-	if cause != ie.CauseRequestAccepted {
-		t.Errorf("Unexpected cause in association setup response: %d", cause)
-	}
-	// Check nodeId in response
-	nodeId, err := response.(*message.AssociationSetupResponse).NodeID.NodeID()
-	if err != nil {
-		t.Errorf("Error getting node ID from association setup response: %s", err)
-	}
-	if nodeId != "NodeId" {
-		t.Errorf("Unexpected node ID in association setup response: %s", nodeId)
-	}
-	if _, ok := pfcpConn.NodeAssociations[RemoteIP]; !ok {
-		t.Errorf("Association not created")
-	}
-}
-
 func PreparePfcpConnection(t *testing.T) (PfcpConnection, string) {
 	mapOps := MapOperationsMock{}
 
 	pfcpHandlers := PfcpHandlerMap{
-		message.MsgTypeAssociationSetupRequest:     HandlePfcpAssociationSetupRequest,
 		message.MsgTypeSessionEstablishmentRequest: HandlePfcpSessionEstablishmentRequest,
 		message.MsgTypeSessionDeletionRequest:      HandlePfcpSessionDeletionRequest,
 		message.MsgTypeSessionModificationRequest:  HandlePfcpSessionModificationRequest,
@@ -65,31 +30,8 @@ func PreparePfcpConnection(t *testing.T) (PfcpConnection, string) {
 		pfcpHandlerMap:   pfcpHandlers,
 		n3Address:        net.ParseIP("1.2.3.4"),
 	}
-	asReq := message.NewAssociationSetupRequest(0,
-		ie.NewNodeID("", "", "test"),
-	)
-	response, err := HandlePfcpAssociationSetupRequest(&pfcpConn, asReq, smfIP)
-	if err != nil {
-		t.Errorf("Error handling association setup request: %s", err)
-	}
-	cause, err := response.(*message.AssociationSetupResponse).Cause.Cause()
-	if err != nil {
-		t.Errorf("Error getting cause from association setup response: %s", err)
-	}
-	if cause != ie.CauseRequestAccepted {
-		t.Errorf("Unexpected cause in association setup response: %d", cause)
-	}
-	// Check nodeId in response
-	nodeId, err := response.(*message.AssociationSetupResponse).NodeID.NodeID()
-	if err != nil {
-		t.Errorf("Error getting node ID from association setup response: %s", err)
-	}
-	if nodeId != "NodeId" {
-		t.Errorf("Unexpected node ID in association setup response: %s", nodeId)
-	}
-	if _, ok := pfcpConn.NodeAssociations[smfIP]; !ok {
-		t.Errorf("Association not created")
-	}
+
+	pfcpConn.NodeAssociations[smfIP] = NewNodeAssociation("0.0.0.0", "0.0.0.0")
 
 	return pfcpConn, smfIP
 }
@@ -274,37 +216,6 @@ func TestSdfFilterStoreInvalid(t *testing.T) {
 	}
 }
 
-func TestFTUPInAssociationSetupResponse(t *testing.T) {
-	config.Conf = config.UpfConfig{
-		FTEIDPool:   65536,
-		FeatureFTUP: true,
-	}
-
-	pfcpConn, smfIP := PreparePfcpConnection(t)
-
-	// Creating an Association Setup Request
-	asReq := message.NewAssociationSetupRequest(1,
-		ie.NewNodeID("", "", "test"),
-	)
-
-	// Processing Association Setup Request
-	response, err := HandlePfcpAssociationSetupRequest(&pfcpConn, asReq, smfIP)
-	if err != nil {
-		t.Errorf("Error handling Association Setup Request: %s", err)
-	}
-
-	// Checking if FTUP is enabled in UP Function Features in response
-	asRes, ok := response.(*message.AssociationSetupResponse)
-	if !ok {
-		t.Error("Unexpected response type")
-	}
-
-	ftupEnabled := asRes.UPFunctionFeatures.HasFTUP()
-	if !ftupEnabled {
-		t.Error("FTUP is not enabled in Association Setup Response")
-	}
-}
-
 func TestTEIDAllocationInSessionEstablishmentResponse(t *testing.T) {
 	pfcpConn, smfIP := PreparePfcpConnection(t)
 
@@ -460,38 +371,5 @@ func TestIPAllocationInSessionEstablishmentResponse(t *testing.T) {
 				}
 			}
 		}
-	}
-}
-
-func TestUEIPInAssociationSetupResponse(t *testing.T) {
-	config.Conf = config.UpfConfig{
-		FTEIDPool:   65536,
-		FeatureUEIP: true,
-		FeatureFTUP: false,
-	}
-
-	pfcpConn, smfIP := PreparePfcpConnection(t)
-
-	// Creating an Association Setup Request
-	asReq := message.NewAssociationSetupRequest(1,
-		ie.NewNodeID("", "", "test"),
-	)
-
-	// Processing Association Setup Request
-	response, err := HandlePfcpAssociationSetupRequest(&pfcpConn, asReq, smfIP)
-	if err != nil {
-		t.Errorf("Error handling Association Setup Request: %s", err)
-	}
-
-	// Checking if UEIP is enabled in UP Function Features in response
-	asRes, ok := response.(*message.AssociationSetupResponse)
-	if !ok {
-		t.Error("Unexpected response type")
-	}
-
-	// Verify if UEIP is enabled in UP Function Features in response
-	ueipEnabled := asRes.UPFunctionFeatures.HasUEIP()
-	if !ueipEnabled {
-		t.Error("UEIP is not enabled in Association Setup Response")
 	}
 }

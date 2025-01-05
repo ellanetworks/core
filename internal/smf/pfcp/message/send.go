@@ -56,49 +56,6 @@ func InsertPfcpTxn(seqNo uint32, upNodeID *smf_context.NodeID) {
 	PfcpTxns[seqNo] = upNodeID
 }
 
-func SendPfcpAssociationSetupRequest(upNodeID smf_context.NodeID, upfPort uint16) error {
-	pfcpMsg := BuildPfcpAssociationSetupRequest(getSeqNumber(), udp.ServerStartTime, smf_context.SMF_Self().CPNodeID.ResolveNodeIdToIp().String())
-	addr := &net.UDPAddr{
-		IP:   upNodeID.ResolveNodeIdToIp(),
-		Port: int(upfPort),
-	}
-	InsertPfcpTxn(pfcpMsg.Sequence(), &upNodeID)
-	err := udp.SendPfcp(pfcpMsg, addr, nil)
-	if err != nil {
-		return err
-	}
-	logger.SmfLog.Infof("sent PFCP Association Request to UPF: %s", addr.String())
-	return nil
-}
-
-func SendPfcpAssociationSetupResponse(upNodeID smf_context.NodeID, cause uint8, upfPort uint16) error {
-	pfcpMsg := BuildPfcpAssociationSetupResponse(cause, udp.ServerStartTime, smf_context.SMF_Self().CPNodeID.ResolveNodeIdToIp().String())
-	addr := &net.UDPAddr{
-		IP:   upNodeID.ResolveNodeIdToIp(),
-		Port: int(upfPort),
-	}
-	err := udp.SendPfcp(pfcpMsg, addr, nil)
-	if err != nil {
-		return err
-	}
-	logger.SmfLog.Infof("sent PFCP Association Response to NodeID[%s]", upNodeID.ResolveNodeIdToIp().String())
-	return nil
-}
-
-func SendPfcpAssociationReleaseResponse(upNodeID smf_context.NodeID, cause uint8, upfPort uint16) error {
-	pfcpMsg := BuildPfcpAssociationReleaseResponse(cause, smf_context.SMF_Self().CPNodeID.ResolveNodeIdToIp().String())
-	addr := &net.UDPAddr{
-		IP:   upNodeID.ResolveNodeIdToIp(),
-		Port: int(upfPort),
-	}
-	err := udp.SendPfcp(pfcpMsg, addr, nil)
-	if err != nil {
-		return err
-	}
-	logger.SmfLog.Infof("sent PFCP Association Release Response to NodeID[%s]", upNodeID.ResolveNodeIdToIp().String())
-	return nil
-}
-
 func SendPfcpSessionEstablishmentRequest(
 	upNodeID smf_context.NodeID,
 	ctx *smf_context.SMContext,
