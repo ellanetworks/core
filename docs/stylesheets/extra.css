@@ -1,3 +1,16 @@
+/* Override the primary button color */
+.md-button.md-button--primary {
+    background-color: #1b6c1c;
+    color: #ffffff;
+    border: none;
+}
+
+/* Optional: Add hover effect for the button */
+.md-button.md-button--primary:hover {
+    background-color: #134514;
+    color: #ffffff;
+}
+
 .md-typeset a {
     color: #0033ff;
 }
