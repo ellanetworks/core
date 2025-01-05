@@ -11,4 +11,7 @@ Ella Core uses 4 different interfaces:
 - **N3**: The user plane interface between Ella Core and the 5G Radio (SCTP:2152)
 - **N6**: The user plane interface between Ella Core and the internet
 
-![Connectivity](../../images/connectivity.png){ align=left }
+<figure markdown="span">
+  ![Connectivity](../../images/connectivity.svg){ width="800" }
+  <figcaption>Connectivity in Ella Core</figcaption>
+</figure>

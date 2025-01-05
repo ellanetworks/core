@@ -16,20 +16,26 @@ In a typical 5G network, the architecture is designed around a set of specialize
 
 These Network Functions are typically deployed as separate microservices, leveraging a distributed architecture for flexibility, scalability, and fault tolerance. However, this approach comes with significant complexity and overhead, including the need for extensive orchestration, inter-service communication, and resource management. This complexity results in high operational costs, that can be prohibitive for private deployments.
 
-![Traditional 5G Networks](../images/traditional_5g.png)
+<figure markdown="span">
+  ![Typical 5G Core](../images/traditional_5g.svg){ width="700" }
+  <figcaption>A Typical 5G core architecture</figcaption>
+</figure>
 
 ## The Ella Core approach
 
 Ella Core was designed with the specific needs of private mobile networks in mind. For these users, simplicity, reliability, and security are what counts most. To address these requirements, we made a conscious decision to combine all 5G network functions into a single binary.
 
-### Network Functions are abstracted away
+Users only interact with Ella Core through a web-based user interface or a REST API, both of which are built into the application.
 
-Users only interact with Ella Core through a web-based user interface or a REST API, both of which are built into the application, and refered to as the Network Management System (NMS).
+<figure markdown="span">
+  ![The Ella Core approach](../images/ella_nfs.svg){ width="700" }
+  <figcaption>The Ella Core approach</figcaption>
+</figure>
+
+### Network Functions are abstracted away
 
 Ella Core still performs the same functions as traditional 5G networks, and behind the scenes, it implements the same 3GPP standards and protocols. However, HTTP communication between Network Functions is replaced with in-process function calls.
 
 ### The database is embedded
 
 Persistent data is stored in an embedded database, eliminating the need for managing external databases. This design choice allows for a simple deployment process, backup and restore functionality, and (soon to be implemented) high availability features.
-
-![The Ella Core approach](../images/ella_nfs.png)

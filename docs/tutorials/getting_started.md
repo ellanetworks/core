@@ -159,7 +159,7 @@ Create a subscriber with the following parameters:
 
     You have successfully deployed, initialized, and configured Ella Core. You can now use Ella Core to manage your private 5G network.
 
-## Destroy the Multipass instance
+## Destroy the Tutorial Environment
 
 When you are done with the tutorial, you can destroy the Multipass instance:
 
