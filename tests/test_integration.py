@@ -152,7 +152,7 @@ class TestELLA:
         for manifest in gnbsim_manifests:
             k8s_client.apply_manifest(manifest)
             logger.info("Applied GNBSim manifest.")
-        time.sleep(10)
+        k8s_client.wait_for_app_ready(app_name="gnbsim")
         pod_name = k8s_client.get_pod_name(app_name="gnbsim")
         logger.info(f"Running GNBSim simulation in pod {pod_name}")
         result = k8s_client.exec(
@@ -229,7 +229,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                     },
                     "goProfile": {
                         "enable": False,
-                        "port": 5000,
+                        "port": 5005,
                     },
                     "httpServer": {
                         "enable": False,
