@@ -30,7 +30,7 @@ Ella Core is available as a Snap and a OCI container image.
         name: "ens5"
     api:
         name: "lo"
-        port: 5002
+        port: 5000
         tls:
         cert: "/var/snap/ella-core/common/cert.pem"
         key: "/var/snap/ella-core/common/key.pem"
