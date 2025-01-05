@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/core/service"
 
-	"github.com/ellanetworks/core/internal/upf/config"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 
 	"github.com/wmnsk/go-pfcp/message"
@@ -66,12 +65,6 @@ func CreatePfcpConnection(addr string, pfcpHandlerMap PfcpHandlerMap, nodeId str
 }
 
 func (connection *PfcpConnection) Run() {
-	go func() {
-		for {
-			connection.RefreshAssociations()
-			time.Sleep(time.Duration(config.Conf.HeartbeatInterval) * time.Second)
-		}
-	}()
 	buf := make([]byte, 1500)
 	for {
 		n, addr, err := connection.Receive(buf)
@@ -118,14 +111,6 @@ func (connection *PfcpConnection) SendMessage(msg message.Message, addr *net.UDP
 		return err
 	}
 	return nil
-}
-
-func (connection *PfcpConnection) RefreshAssociations() {
-	for _, assoc := range connection.NodeAssociations {
-		if !assoc.HeartbeatsActive {
-			go assoc.ScheduleHeartbeat(connection)
-		}
-	}
 }
 
 // DeleteAssociation deletes an association and all sessions associated with it.

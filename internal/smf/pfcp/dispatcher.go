@@ -15,10 +15,6 @@ import (
 func Dispatch(msg *udp.Message) {
 	msgType := msg.PfcpMessage.MessageType()
 	switch msgType {
-	case message.MsgTypeHeartbeatRequest:
-		handler.HandlePfcpHeartbeatRequest(msg)
-	case message.MsgTypeHeartbeatResponse:
-		handler.HandlePfcpHeartbeatResponse(msg)
 	case message.MsgTypeAssociationSetupResponse:
 		handler.HandlePfcpAssociationSetupResponse(msg)
 	case message.MsgTypeAssociationUpdateRequest:

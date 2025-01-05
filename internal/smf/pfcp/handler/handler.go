@@ -42,83 +42,6 @@ func FindUEIPAddress(createdPDRIEs []*ie.IE) net.IP {
 	return nil
 }
 
-func HandlePfcpHeartbeatRequest(msg *udp.Message) {
-	_, ok := msg.PfcpMessage.(*message.HeartbeatRequest)
-	if !ok {
-		logger.SmfLog.Errorf("invalid message type for heartbeat request")
-		return
-	}
-	logger.SmfLog.Infof("handle PFCP Heartbeat Request")
-	err := pfcp_message.SendHeartbeatResponse(msg.RemoteAddr, msg.PfcpMessage.Sequence())
-	if err != nil {
-		logger.SmfLog.Errorf("failed to send PFCP Heartbeat Response: %+v", err)
-	}
-}
-
-func HandlePfcpHeartbeatResponse(msg *udp.Message) {
-	rsp, ok := msg.PfcpMessage.(*message.HeartbeatResponse)
-	if !ok {
-		logger.SmfLog.Errorf("invalid message type for heartbeat response")
-		return
-	}
-	logger.SmfLog.Infof("handle PFCP Heartbeat Response")
-
-	// Get NodeId from Seq:NodeId Map
-	seq := rsp.Sequence()
-	nodeID := pfcp_message.FetchPfcpTxn(seq)
-
-	if nodeID == nil {
-		logger.SmfLog.Errorf("No pending pfcp heartbeat response for sequence no: %v", seq)
-		return
-	}
-
-	logger.SmfLog.Debugf("handle pfcp heartbeat response seq[%d] with NodeID[%v, %s]", seq, nodeID, nodeID.ResolveNodeIdToIp().String())
-
-	userPlaneInfo := smf_context.GetUserPlaneInformation()
-	if userPlaneInfo == nil {
-		logger.SmfLog.Errorf("can't find UPF[%s]", nodeID.ResolveNodeIdToIp().String())
-		return
-	}
-	upf := userPlaneInfo.UPF.UPF
-	if upf == nil {
-		logger.SmfLog.Errorf("can't find UPF[%s]", nodeID.ResolveNodeIdToIp().String())
-		return
-	}
-	// logger.SmfLog.Warnf("S")
-	upf.UpfLock.Lock()
-	defer upf.UpfLock.Unlock()
-
-	rspRecoveryTimeStamp, err := rsp.RecoveryTimeStamp.RecoveryTimeStamp()
-	if err != nil {
-		logger.SmfLog.Errorf("failed to parse RecoveryTimeStamp: %+v", err)
-		return
-	}
-
-	if rspRecoveryTimeStamp != upf.RecoveryTimeStamp.RecoveryTimeStamp {
-		// change UPF state to not associated so that
-		// PFCP Association can be initiated again
-		upf.UPFStatus = smf_context.NotAssociated
-		logger.SmfLog.Warnf("upf [%v] recovery timestamp changed, previous [%v], new [%v] ", upf.NodeID, upf.RecoveryTimeStamp, *rsp.RecoveryTimeStamp)
-		logger.SmfLog.Warnf("set UPF[%s] to NotAssociated due to RecoveryTimeStamp mismatch", nodeID.ResolveNodeIdToIp().String())
-	}
-
-	upf.NHeartBeat = 0 // reset Heartbeat attempt to 0
-}
-
-func SetUpfInactive(nodeID smf_context.NodeID, msgTypeName string) {
-	upf := smf_context.GetUserPlaneInformation().UPF.UPF
-	if upf == nil {
-		logger.SmfLog.Errorf("can't find UPF[%s]", nodeID.ResolveNodeIdToIp().String())
-		return
-	}
-
-	upf.UpfLock.Lock()
-	defer upf.UpfLock.Unlock()
-	upf.UPFStatus = smf_context.NotAssociated
-	upf.NHeartBeat = 0 // reset Heartbeat attempt to 0
-	logger.SmfLog.Warnf("set UPF[%s] to NotAssociated due to [%s] response", nodeID.ResolveNodeIdToIp().String(), msgTypeName)
-}
-
 func HandlePfcpAssociationSetupResponse(msg *udp.Message) {
 	rsp, ok := msg.PfcpMessage.(*message.AssociationSetupResponse)
 	if !ok {
@@ -165,7 +88,6 @@ func HandlePfcpAssociationSetupResponse(msg *udp.Message) {
 
 		upf.UpfLock.Lock()
 		defer upf.UpfLock.Unlock()
-		upf.UPFStatus = smf_context.AssociatedSetUpSuccess
 		recoveryTimestamp, err := rsp.RecoveryTimeStamp.RecoveryTimeStamp()
 		if err != nil {
 			logger.SmfLog.Errorf("failed to parse RecoveryTimeStamp: %+v", err)
@@ -174,7 +96,6 @@ func HandlePfcpAssociationSetupResponse(msg *udp.Message) {
 		upf.RecoveryTimeStamp = smf_context.RecoveryTimeStamp{
 			RecoveryTimeStamp: recoveryTimestamp,
 		}
-		upf.NHeartBeat = 0 // reset Heartbeat attempt to 0
 
 		// Supported Features of UPF
 		if rsp.UPFunctionFeatures != nil {
@@ -388,9 +309,6 @@ func HandlePfcpSessionEstablishmentResponse(msg *udp.Message) {
 		} else {
 			smContext.SBIPFCPCommunicationChan <- smf_context.SessionEstablishFailed
 			smContext.SubPfcpLog.Errorf("PFCP Session Establishment rejected with cause [%v]", causeValue)
-			if causeValue == ie.CauseNoEstablishedPFCPAssociation {
-				SetUpfInactive(*rspNodeID, msg.PfcpMessage.MessageTypeName())
-			}
 		}
 	}
 

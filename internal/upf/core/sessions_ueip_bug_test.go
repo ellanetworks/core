@@ -14,7 +14,6 @@ func TestSessionUEIpOverwrite(t *testing.T) {
 	mapOps := MapOperationsMock{}
 
 	pfcpHandlers := PfcpHandlerMap{
-		message.MsgTypeHeartbeatRequest:            HandlePfcpHeartbeatRequest,
 		message.MsgTypeAssociationSetupRequest:     HandlePfcpAssociationSetupRequest,
 		message.MsgTypeSessionEstablishmentRequest: HandlePfcpSessionEstablishmentRequest,
 		message.MsgTypeSessionDeletionRequest:      HandlePfcpSessionDeletionRequest,

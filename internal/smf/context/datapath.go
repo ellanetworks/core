@@ -347,16 +347,6 @@ func (dataPath *DataPath) String() string {
 	return str
 }
 
-func (dataPath *DataPath) validateDataPathUpfStatus() error {
-	firstDPNode := dataPath.FirstDPNode
-	for curDataPathNode := firstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
-		if curDataPathNode.UPF.UPFStatus != AssociatedSetUpSuccess {
-			return fmt.Errorf("UPF [%v] is not in AssociatedSetUpSuccess status", curDataPathNode.UPF.NodeID.String())
-		}
-	}
-	return nil
-}
-
 func (dataPath *DataPath) ActivateUlDlTunnel(smContext *SMContext) error {
 	firstDPNode := dataPath.FirstDPNode
 	for curDataPathNode := firstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
@@ -580,14 +570,8 @@ func (dpNode *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER,
 	return nil
 }
 
-// ActivateTunnelAndPDR
 func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence uint32) error {
-	err := dataPath.validateDataPathUpfStatus()
-	if err != nil {
-		return fmt.Errorf("one or more UPF in DataPath not associated: %s", err)
-	}
-
-	err = smContext.AllocateLocalSEIDForDataPath(dataPath)
+	err := smContext.AllocateLocalSEIDForDataPath(dataPath)
 	if err != nil {
 		return fmt.Errorf("could not allocate local SEID for DataPath: %s", err)
 	}

@@ -22,8 +22,6 @@ import (
 	"github.com/omec-project/openapi/models"
 )
 
-// var upfPool sync.Map
-
 type UPTunnel struct {
 	PathIDGenerator *idgenerator.IDGenerator
 	DataPathPool    DataPathPool
@@ -34,25 +32,6 @@ type UPTunnel struct {
 }
 
 type UPFStatus int
-
-const (
-	NotAssociated          UPFStatus = 0
-	AssociatedSettingUp    UPFStatus = 1
-	AssociatedSetUpSuccess UPFStatus = 2
-)
-
-func (s UPFStatus) String() string {
-	switch s {
-	case NotAssociated:
-		return "NotAssociated"
-	case AssociatedSettingUp:
-		return "AssociatedSettingUp"
-	case AssociatedSetUpSuccess:
-		return "AssociatedSetUpSuccess"
-	default:
-		return "invalid"
-	}
-}
 
 type RecoveryTimeStamp struct {
 	RecoveryTimeStamp time.Time
@@ -76,10 +55,8 @@ type UPF struct {
 
 	RecoveryTimeStamp RecoveryTimeStamp
 	NodeID            NodeID
-	UPFStatus         UPFStatus
 	uuid              uuid.UUID
 	Port              uint16
-	NHeartBeat        uint8
 
 	// lock
 	UpfLock sync.RWMutex
@@ -123,7 +100,6 @@ func NewUPFInterfaceInfo(i *InterfaceUpfInfoItem) *UPFInterfaceInfo {
 	return interfaceInfo
 }
 
-// *** add unit test ***//
 // IP returns the IP of the user plane IP information of the pduSessType
 func (i *UPFInterfaceInfo) IP(pduSessType uint8) (net.IP, error) {
 	if (pduSessType == nasMessage.PDUSessionTypeIPv4 || pduSessType == nasMessage.PDUSessionTypeIPv4IPv6) && len(i.IPv4EndPointAddresses) != 0 {
@@ -210,7 +186,6 @@ func NewUPF(nodeID *NodeID, ifaces []InterfaceUpfInfoItem) (upf *UPF) {
 	upf.uuid = uuid.New()
 
 	// Initialize context
-	upf.UPFStatus = NotAssociated
 	upf.NodeID = *nodeID
 	upf.pdrIDGenerator = idgenerator.NewGenerator(1, math.MaxUint16)
 	upf.farIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
@@ -255,11 +230,6 @@ func (upf *UPF) GetInterface(interfaceType models.UpInterfaceType, dnn string) *
 }
 
 func (upf *UPF) pdrID() (uint16, error) {
-	if upf.UPFStatus != AssociatedSetUpSuccess {
-		err := fmt.Errorf("this upf not associate with smf")
-		return 0, err
-	}
-
 	var pdrID uint16
 	if tmpID, err := upf.pdrIDGenerator.Allocate(); err != nil {
 		return 0, err
@@ -271,11 +241,6 @@ func (upf *UPF) pdrID() (uint16, error) {
 }
 
 func (upf *UPF) farID() (uint32, error) {
-	if upf.UPFStatus != AssociatedSetUpSuccess {
-		err := fmt.Errorf("this upf not associate with smf")
-		return 0, err
-	}
-
 	var farID uint32
 	if tmpID, err := upf.farIDGenerator.Allocate(); err != nil {
 		return 0, err
@@ -287,11 +252,6 @@ func (upf *UPF) farID() (uint32, error) {
 }
 
 func (upf *UPF) barID() (uint8, error) {
-	if upf.UPFStatus != AssociatedSetUpSuccess {
-		err := fmt.Errorf("this upf not associate with smf")
-		return 0, err
-	}
-
 	var barID uint8
 	if tmpID, err := upf.barIDGenerator.Allocate(); err != nil {
 		return 0, err
@@ -303,11 +263,6 @@ func (upf *UPF) barID() (uint8, error) {
 }
 
 func (upf *UPF) qerID() (uint32, error) {
-	if upf.UPFStatus != AssociatedSetUpSuccess {
-		err := fmt.Errorf("this upf not associate with smf")
-		return 0, err
-	}
-
 	var qerID uint32
 	if tmpID, err := upf.qerIDGenerator.Allocate(); err != nil {
 		return 0, err
@@ -374,11 +329,6 @@ func (upf *UPF) BuildCreatePdrFromPccRule(rule *models.PccRule) (*PDR, error) {
 }
 
 func (upf *UPF) AddPDR() (*PDR, error) {
-	if upf.UPFStatus != AssociatedSetUpSuccess {
-		err := fmt.Errorf("this upf do not associate with smf")
-		return nil, err
-	}
-
 	pdr := new(PDR)
 	if PDRID, err := upf.pdrID(); err != nil {
 		return nil, err
@@ -397,11 +347,6 @@ func (upf *UPF) AddPDR() (*PDR, error) {
 }
 
 func (upf *UPF) AddFAR() (*FAR, error) {
-	if upf.UPFStatus != AssociatedSetUpSuccess {
-		err := fmt.Errorf("this upf do not associate with smf")
-		return nil, err
-	}
-
 	far := new(FAR)
 	// set default FAR action to drop
 	far.ApplyAction.Drop = true
@@ -416,11 +361,6 @@ func (upf *UPF) AddFAR() (*FAR, error) {
 }
 
 func (upf *UPF) AddBAR() (*BAR, error) {
-	if upf.UPFStatus != AssociatedSetUpSuccess {
-		err := fmt.Errorf("this upf do not associate with smf")
-		return nil, err
-	}
-
 	bar := new(BAR)
 	if BARID, err := upf.barID(); err != nil {
 	} else {
@@ -432,11 +372,6 @@ func (upf *UPF) AddBAR() (*BAR, error) {
 }
 
 func (upf *UPF) AddQER() (*QER, error) {
-	if upf.UPFStatus != AssociatedSetUpSuccess {
-		err := fmt.Errorf("this upf do not associate with smf")
-		return nil, err
-	}
-
 	qer := new(QER)
 	if QERID, err := upf.qerID(); err != nil {
 	} else {
@@ -447,13 +382,7 @@ func (upf *UPF) AddQER() (*QER, error) {
 	return qer, nil
 }
 
-// *** add unit test ***//
 func (upf *UPF) RemovePDR(pdr *PDR) (err error) {
-	if upf.UPFStatus != AssociatedSetUpSuccess {
-		err = fmt.Errorf("this upf not associate with smf")
-		return err
-	}
-
 	upf.pdrIDGenerator.FreeID(int64(pdr.PDRID))
 	upf.pdrPool.Delete(pdr.PDRID)
 	return nil
@@ -461,11 +390,6 @@ func (upf *UPF) RemovePDR(pdr *PDR) (err error) {
 
 // *** add unit test ***//
 func (upf *UPF) RemoveFAR(far *FAR) (err error) {
-	if upf.UPFStatus != AssociatedSetUpSuccess {
-		err = fmt.Errorf("this upf not associate with smf")
-		return err
-	}
-
 	upf.farIDGenerator.FreeID(int64(far.FARID))
 	upf.farPool.Delete(far.FARID)
 	return nil
@@ -473,11 +397,6 @@ func (upf *UPF) RemoveFAR(far *FAR) (err error) {
 
 // *** add unit test ***//
 func (upf *UPF) RemoveBAR(bar *BAR) (err error) {
-	if upf.UPFStatus != AssociatedSetUpSuccess {
-		err = fmt.Errorf("this upf not associate with smf")
-		return err
-	}
-
 	upf.barIDGenerator.FreeID(int64(bar.BARID))
 	upf.barPool.Delete(bar.BARID)
 	return nil
@@ -485,11 +404,6 @@ func (upf *UPF) RemoveBAR(bar *BAR) (err error) {
 
 // *** add unit test ***//
 func (upf *UPF) RemoveQER(qer *QER) (err error) {
-	if upf.UPFStatus != AssociatedSetUpSuccess {
-		err = fmt.Errorf("this upf not associate with smf")
-		return err
-	}
-
 	upf.qerIDGenerator.FreeID(int64(qer.QERID))
 	upf.qerPool.Delete(qer.QERID)
 	return nil

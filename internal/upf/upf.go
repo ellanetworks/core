@@ -25,23 +25,20 @@ func Start(n3_address string, n3Interface string, n6Interface string) error {
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 	interfaces := []string{n3Interface, n6Interface}
 	c := config.UpfConfig{
-		InterfaceName:     interfaces,
-		XDPAttachMode:     "generic",
-		ApiAddress:        ":8080",
-		PfcpAddress:       "0.0.0.0:8806",
-		PfcpNodeId:        "0.0.0.0",
-		N3Address:         n3_address,
-		EchoInterval:      10,
-		QerMapSize:        1024,
-		FarMapSize:        1024,
-		PdrMapSize:        1024,
-		EbpfMapResize:     false,
-		HeartbeatRetries:  3,
-		HeartbeatInterval: 5,
-		HeartbeatTimeout:  5,
-		LoggingLevel:      "debug",
-		FeatureFTUP:       true,
-		FTEIDPool:         65535,
+		InterfaceName: interfaces,
+		XDPAttachMode: "generic",
+		ApiAddress:    ":8080",
+		PfcpAddress:   "0.0.0.0:8806",
+		PfcpNodeId:    "0.0.0.0",
+		N3Address:     n3_address,
+		EchoInterval:  10,
+		QerMapSize:    1024,
+		FarMapSize:    1024,
+		PdrMapSize:    1024,
+		EbpfMapResize: false,
+		LoggingLevel:  "debug",
+		FeatureFTUP:   true,
+		FTEIDPool:     65535,
 	}
 	config.Init(c)
 
@@ -101,8 +98,6 @@ func Start(n3_address string, n3Interface string, n6Interface string) error {
 
 	// Create PFCP connection
 	pfcpHandlers := core.PfcpHandlerMap{
-		message.MsgTypeHeartbeatRequest:            core.HandlePfcpHeartbeatRequest,
-		message.MsgTypeHeartbeatResponse:           core.HandlePfcpHeartbeatResponse,
 		message.MsgTypeAssociationSetupRequest:     core.HandlePfcpAssociationSetupRequest,
 		message.MsgTypeSessionEstablishmentRequest: core.HandlePfcpSessionEstablishmentRequest,
 		message.MsgTypeSessionDeletionRequest:      core.HandlePfcpSessionDeletionRequest,

@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/ellanetworks/core/internal/smf/pfcp/message"
 	"github.com/ellanetworks/core/internal/smf/pfcp/udp"
-	"github.com/ellanetworks/core/internal/smf/pfcp/upf"
 )
 
 const (
@@ -55,6 +54,8 @@ func Start(dbInstance *db.Database) error {
 	smfContext.PodIp = os.Getenv("POD_IP")
 	smfContext.DbInstance = dbInstance
 	StartPfcpServer()
+	context.UpdateUserPlaneInformation(nil)
+	InitiatePfcpAssociationSetup()
 	metrics.RegisterSmfMetrics()
 	return nil
 }
@@ -67,14 +68,16 @@ func StartPfcpServer() {
 		os.Exit(0)
 	}()
 	udp.Run(pfcp.Dispatch)
+}
+
+func InitiatePfcpAssociationSetup() {
 	userPlaneInformation := context.GetUserPlaneInformation()
-	if userPlaneInformation.UPF != nil {
-		err := message.SendPfcpAssociationSetupRequest(userPlaneInformation.UPF.NodeID, userPlaneInformation.UPF.Port)
-		if err != nil {
-			logger.SmfLog.Warnf("Failed to send PFCP Association Setup Request to UPF: %+v", err)
-			return
-		}
+	logger.SmfLog.Warnf("UPF Information: %+v", userPlaneInformation.UPF)
+	logger.SmfLog.Warnf("Node ID: %+v", userPlaneInformation.UPF.NodeID)
+	logger.SmfLog.Warnf("Port: %+v", userPlaneInformation.UPF.Port)
+	err := message.SendPfcpAssociationSetupRequest(userPlaneInformation.UPF.NodeID, userPlaneInformation.UPF.Port)
+	if err != nil {
+		logger.SmfLog.Warnf("Failed to send PFCP Association Setup Request to UPF: %+v", err)
+		return
 	}
-	go upf.InitPfcpHeartbeatRequest(userPlaneInformation)
-	go upf.ProbeInactiveUpfs(userPlaneInformation)
 }

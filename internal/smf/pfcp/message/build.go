@@ -17,21 +17,6 @@ import (
 
 type Flag uint8
 
-func BuildPfcpHeartbeatRequest(sequenceNumber uint32, recoveryTimeStamp time.Time) *message.HeartbeatRequest {
-	return message.NewHeartbeatRequest(
-		sequenceNumber,
-		ie.NewRecoveryTimeStamp(recoveryTimeStamp),
-		nil,
-	)
-}
-
-func BuildPfcpHeartbeatResponse(sequenceNumber uint32, recoveryTimeStamp time.Time) *message.HeartbeatResponse {
-	return message.NewHeartbeatResponse(
-		sequenceNumber,
-		ie.NewRecoveryTimeStamp(recoveryTimeStamp),
-	)
-}
-
 func BuildPfcpAssociationSetupRequest(sequenceNumber uint32, recoveryTimeStamp time.Time, nodeID string) *message.AssociationSetupRequest {
 	return message.NewAssociationSetupRequest(
 		sequenceNumber,

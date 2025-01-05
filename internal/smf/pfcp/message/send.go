@@ -56,21 +56,6 @@ func InsertPfcpTxn(seqNo uint32, upNodeID *smf_context.NodeID) {
 	PfcpTxns[seqNo] = upNodeID
 }
 
-func SendHeartbeatRequest(upNodeID smf_context.NodeID, upfPort uint16) error {
-	msg := BuildPfcpHeartbeatRequest(getSeqNumber(), udp.ServerStartTime)
-	addr := &net.UDPAddr{
-		IP:   upNodeID.ResolveNodeIdToIp(),
-		Port: int(upfPort),
-	}
-	InsertPfcpTxn(msg.Sequence(), &upNodeID)
-	if err := udp.SendPfcp(msg, addr, nil); err != nil {
-		FetchPfcpTxn(msg.Sequence())
-		return err
-	}
-	logger.SmfLog.Infof("sent pfcp heartbeat request to UPF: [%s] (sequence: %d )", upNodeID.ResolveNodeIdToIp().String(), msg.Sequence())
-	return nil
-}
-
 func SendPfcpAssociationSetupRequest(upNodeID smf_context.NodeID, upfPort uint16) error {
 	pfcpMsg := BuildPfcpAssociationSetupRequest(getSeqNumber(), udp.ServerStartTime, smf_context.SMF_Self().CPNodeID.ResolveNodeIdToIp().String())
 	addr := &net.UDPAddr{
@@ -231,16 +216,6 @@ func SendPfcpSessionReportResponse(addr *net.UDPAddr, cause uint8, pfcpSRflag sm
 		return err
 	}
 	logger.SmfLog.Infof("Sent PFCP Session Report Response Seq[%d] to NodeID[%s]", seqFromUPF, addr.IP.String())
-	return nil
-}
-
-func SendHeartbeatResponse(addr *net.UDPAddr, sequenceNumber uint32) error {
-	pfcpMsg := BuildPfcpHeartbeatResponse(sequenceNumber, udp.ServerStartTime)
-	err := udp.SendPfcp(pfcpMsg, addr, nil)
-	if err != nil {
-		return err
-	}
-	logger.SmfLog.Infof("Sent PFCP Heartbeat Response Seq[%d] to NodeID[%s]", sequenceNumber, addr.IP.String())
 	return nil
 }
 

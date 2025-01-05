@@ -4,7 +4,6 @@ package core
 import (
 	"net"
 	"testing"
-	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/config"
@@ -13,27 +12,6 @@ import (
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
 )
-
-func TestHeartbeat(t *testing.T) {
-	// Create pfcp connection struct
-	pfcpConn := PfcpConnection{}
-	hbReq := message.NewHeartbeatRequest(0,
-		ie.NewRecoveryTimeStamp(time.Now()),
-		nil,
-	)
-	response, err := HandlePfcpHeartbeatRequest(&pfcpConn, hbReq, "127.0.0.1")
-	if err != nil {
-		t.Errorf("Error handling heartbeat request: %s", err)
-	}
-	if response == nil {
-		t.Errorf("No response from heartbeat request")
-	}
-	ts, err := response.(*message.HeartbeatResponse).RecoveryTimeStamp.RecoveryTimeStamp()
-	if err != nil {
-		t.Errorf("Error getting timestamp from heartbeat response: %s", err)
-	}
-	t.Logf("Received response from heartbeat request with timestamp: %s", ts)
-}
 
 func TestAssociationSetup(t *testing.T) {
 	// Create pfcp connection struct
@@ -73,7 +51,6 @@ func PreparePfcpConnection(t *testing.T) (PfcpConnection, string) {
 	mapOps := MapOperationsMock{}
 
 	pfcpHandlers := PfcpHandlerMap{
-		message.MsgTypeHeartbeatRequest:            HandlePfcpHeartbeatRequest,
 		message.MsgTypeAssociationSetupRequest:     HandlePfcpAssociationSetupRequest,
 		message.MsgTypeSessionEstablishmentRequest: HandlePfcpSessionEstablishmentRequest,
 		message.MsgTypeSessionDeletionRequest:      HandlePfcpSessionDeletionRequest,
