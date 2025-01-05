@@ -31,12 +31,16 @@ markdown_extensions:
       alternate_style: true
   - admonition
   - pymdownx.details
+  - toc:
+      permalink: true
 nav:
   - Home: index.md
   - Tutorials:
     - Getting Started: tutorials/getting_started.md
   - How-to Guides:
     - Deploy: how_to/deploy.md
+    - Integrate with a Radio: how_to/integrate_with_radio.md
+    - Backup and Restore: how_to/backup_and_restore.md
   - Reference:
     - API:
       - Overview: reference/api/overview.md

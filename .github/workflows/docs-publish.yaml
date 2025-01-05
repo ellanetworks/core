@@ -25,7 +25,5 @@ jobs:
           restore-keys: |
             mkdocs-material-
       - run: |
-          pip install mkdocs-material
-          pip install "mkdocs-material[imaging]"
-          pip install mkdocs-glightbox
+          pip install -r requirements-docs.txt
       - run: mkdocs gh-deploy --force

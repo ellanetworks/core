@@ -36,12 +36,16 @@ Ella Core is available as a Snap and a OCI container image.
         key: "/var/snap/ella-core/common/key.pem"
     ```
 
+    !!! note
+        
+        For more information on the configuration options, see the [configuration file reference](../reference/config_file.md).
+
     Start the service:
     ```bash
     sudo snap start ella-core.cored
     ```
 
-    Navigate to `https://localhost:5000` to access the Ella UI.
+    Navigate to `https://localhost:5002` to access the Ella UI.
 
 
 === "OCI Container Image"

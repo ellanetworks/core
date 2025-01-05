@@ -50,7 +50,7 @@ spec:
         - name: data-volume
           mountPath: /core/data
         ports:
-        - containerPort: 5000
+        - containerPort: 5002
         - containerPort: 38412
       - name: network-tools
         image: busybox:latest
