@@ -96,7 +96,7 @@ func TestGoodConfigSuccess(t *testing.T) {
 		t.Fatalf("API interface was not configured correctly")
 	}
 
-	if conf.Interfaces.API.Port != 5000 {
+	if conf.Interfaces.API.Port != 5002 {
 		t.Fatalf("API port was not configured correctly")
 	}
 

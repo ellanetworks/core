@@ -16,7 +16,7 @@ data:
         name: "n6"
       api:
         name: "enp0s8"
-        port: 5000
+        port: 5002
         tls:
           cert: "/config/cert.pem"
           key: "/config/key.pem"

@@ -116,7 +116,7 @@ ella-core               Running           10.103.62.227    Ubuntu 24.04 LTS
                                           10.117.122.101
 ```
 
-Navigate to `https://10.103.62.227:5000` to access Ella Core's UI.
+Navigate to `https://10.103.62.227:5002` to access Ella Core's UI.
 
 You should see the Initialization page.
 

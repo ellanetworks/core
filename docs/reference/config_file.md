@@ -40,7 +40,7 @@ interfaces:
     name: "enp6s0"
   api:
     name: "enp0s8"
-    port: 5000
+    port: 5002
     tls:
       cert: "/etc/ssl/certs/core.crt"
       key: "/etc/ssl/private/core.key"

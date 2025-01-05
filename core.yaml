@@ -9,7 +9,7 @@ interfaces:
     name: "lo"
   api:
     name: "lo"
-    port: 5001
+    port: 5002
     tls:
       cert: "cert.pem"
       key: "key.pem"
