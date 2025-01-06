@@ -1,5 +1,8 @@
 name: Lint report
 
+permissions:
+  contents: read
+
 on:
   workflow_call:
 

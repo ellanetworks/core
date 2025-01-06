@@ -1,5 +1,8 @@
 name: Snap Build
 
+permissions:
+  contents: read
+
 on:
   workflow_call:
 
