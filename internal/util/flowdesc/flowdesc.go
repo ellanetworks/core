@@ -345,7 +345,7 @@ func Decode(s string) (*IPFilterRule, error) {
 	if parts[ptr] == "ip" {
 		r.proto = ProtocolNumberAny
 	} else {
-		if proto, err := strconv.Atoi(parts[ptr]); err != nil {
+		if proto, err := strconv.ParseUint(parts[ptr], 10, 8); err != nil {
 			return nil, flowDescErrorf("parse proto failed: %s", err)
 		} else {
 			protoNumber = uint8(proto)
