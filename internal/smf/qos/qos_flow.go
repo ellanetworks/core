@@ -86,9 +86,12 @@ func GetQosFlowIdFromQosId(qosId string) uint8 {
 	if err != nil {
 		logger.SmfLog.Errorf("String can not be converted to integer: %+v", err)
 		return 0
-	} else {
-		return uint8(id)
 	}
+	if id < 0 || id > 255 {
+		logger.SmfLog.Errorf("Integer value out of uint8 range: %d", id)
+		return 0
+	}
+	return uint8(id)
 }
 
 // Build Qos Flow Description to be sent to UE
