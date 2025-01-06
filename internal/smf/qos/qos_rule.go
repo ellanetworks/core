@@ -492,7 +492,7 @@ func BuildPFCompProtocolId(val string) (*PacketFilterComponent, uint8) {
 		ComponentValue: make([]byte, 1),
 	}
 
-	if pfcVal, err := strconv.Atoi(val); err == nil {
+	if pfcVal, err := strconv.ParseUint(val, 10, 32); err == nil {
 		bs := make([]byte, 4)
 		binary.BigEndian.PutUint32(bs, uint32(pfcVal))
 		pfc.ComponentValue = []byte{bs[3]}

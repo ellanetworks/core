@@ -174,7 +174,7 @@ func GetBitRate(sBitRate string) (val uint16, unit uint8) {
 	sl := strings.Fields(sBitRate)
 
 	// rate
-	if rate, err := strconv.Atoi(sl[0]); err != nil {
+	if rate, err := strconv.ParseUint(sl[0], 10, 16); err != nil {
 		log.Printf("invalid bit rate [%v]", sBitRate)
 	} else {
 		val = uint16(rate)
