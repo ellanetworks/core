@@ -180,7 +180,7 @@ func btou(b bool) uint8 {
 }
 
 func GetQosRuleIdFromPccRuleId(pccRuleId string) uint8 {
-	if id, err := strconv.Atoi(pccRuleId); err != nil {
+	if id, err := strconv.ParseUint(pccRuleId, 10, 8); err != nil {
 		return 0
 	} else {
 		return uint8(id)
@@ -211,7 +211,7 @@ func GetPacketFilterFromFlowInfo(flowInfo *models.FlowInformation) PacketFilter 
 }
 
 func GetPfId(ids string) uint8 {
-	if id, err := strconv.Atoi(ids); err != nil {
+	if id, err := strconv.ParseUint(ids, 10, 8); err != nil {
 		return 0
 	} else {
 		return (uint8(id) & PacketFilterIdBitmask)
