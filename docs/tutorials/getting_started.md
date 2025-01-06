@@ -142,7 +142,7 @@ Navigate to the `Profiles` page and click on the `Create` button.
 Create a profile with the name `default`. You can keep the default values for the other parameters:
 
 - Name: `default`
-- UE IP Pool: `172.250.0.0/16`
+- UE IP Pool: `172.250.0.0/24`
 - DNS: `8.8.8.8`
 - MTU: `1500`
 - Bitrate Uplink: `200 Mbps`

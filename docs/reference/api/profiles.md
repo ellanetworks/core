@@ -24,7 +24,7 @@ None
     "result": [
         {
             "name": "default-default",
-            "ue-ip-pool": "172.250.0.0/16",
+            "ue-ip-pool": "172.250.0.0/24",
             "dns": "8.8.8.8",
             "bitrate-uplink": "200 Mbps",
             "bitrate-downlink": "100 Mbps",
@@ -46,7 +46,7 @@ This path creates a new profile.
 ### Parameters
 
 - `name` (string): The Name of the profile.
-- `ue-ip-pool` (string): The IP pool of the profile in CIDR notation. Example: `172.250.0.0/16`.
+- `ue-ip-pool` (string): The IP pool of the profile in CIDR notation. Example: `172.250.0.0/24`.
 - `dns` (string): The IP address of the DNS server of the profile. Example: `8.8.8.8`.
 - `mtu` (integer): The MTU of the profile. Must be an integer between 0 and 65535.
 - `bitrate-uplink` (string): The uplink bitrate of the profile. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
@@ -74,7 +74,7 @@ This path updates an existing profile.
 
 ### Parameters
 
-- `ue-ip-pool` (string): The IP pool of the profile in CIDR notation. Example: `172.250.0.0/16`.
+- `ue-ip-pool` (string): The IP pool of the profile in CIDR notation. Example: `172.250.0.0/24`.
 - `dns` (string): The IP address of the DNS server of the profile. Example: `8.8.8.8`.
 - `mtu` (integer): The MTU of the profile. Must be an integer between 0 and 65535.
 - `bitrate-uplink` (string): The uplink bitrate of the profile. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.

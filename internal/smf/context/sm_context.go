@@ -260,7 +260,6 @@ func RemoveSMContext(ref string) {
 	smContext.SubCtxLog.Infof("SM Context removed")
 }
 
-// *** add unit test ***//
 func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
 	if value, ok := seidSMContextMap.Load(SEID); ok {
 		smContext = value.(*SMContext)
