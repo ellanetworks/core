@@ -7,7 +7,7 @@ package producer
 import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/pfcp/message"
+	"github.com/ellanetworks/core/internal/smf/pfcp"
 )
 
 type PFCPState struct {
@@ -48,16 +48,27 @@ func SendPFCPRule(smContext *context.SMContext, dataPath *context.DataPath) {
 
 		sessionContext, exist := smContext.PFCPContext[curDataPathNode.GetNodeIP()]
 		if !exist || sessionContext.RemoteSEID == 0 {
-			err := message.SendPfcpSessionEstablishmentRequest(
+			addPduSessionAnchor, err := pfcp.SendPfcpSessionEstablishmentRequest(
 				curDataPathNode.UPF.NodeID, smContext, pdrList, farList, nil, qerList, curDataPathNode.UPF.Port)
 			if err != nil {
 				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
 			}
+			if addPduSessionAnchor {
+				rspNodeID := context.NewNodeID("0.0.0.0")
+				AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
+			}
+			if err != nil {
+				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
+			}
 		} else {
-			err := message.SendPfcpSessionModificationRequest(
+			addPduSessionAnchor, err := pfcp.SendPfcpSessionModificationRequest(
 				curDataPathNode.UPF.NodeID, smContext, pdrList, farList, nil, qerList, curDataPathNode.UPF.Port)
 			if err != nil {
 				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
+			}
+			if addPduSessionAnchor {
+				rspNodeID := context.NewNodeID("0.0.0.0")
+				AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
 			}
 		}
 	}
@@ -111,19 +122,27 @@ func SendPFCPRules(smContext *context.SMContext) {
 			}
 		}
 	}
-	for ip, pfcp := range pfcpPool {
+	for ip, pfcpState := range pfcpPool {
 		sessionContext, exist := smContext.PFCPContext[ip]
 		if !exist || sessionContext.RemoteSEID == 0 {
-			err := message.SendPfcpSessionEstablishmentRequest(
-				pfcp.nodeID, smContext, pfcp.pdrList, pfcp.farList, nil, pfcp.qerList, pfcp.port)
+			addPduSessionAnchor, err := pfcp.SendPfcpSessionEstablishmentRequest(
+				pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList, pfcpState.port)
 			if err != nil {
-				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, pfcp.nodeID, pfcp.nodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, pfcpState.nodeID, pfcpState.nodeID.ResolveNodeIdToIp())
+			}
+			if addPduSessionAnchor {
+				rspNodeID := context.NewNodeID("0.0.0.0")
+				AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
 			}
 		} else {
-			err := message.SendPfcpSessionModificationRequest(
-				pfcp.nodeID, smContext, pfcp.pdrList, pfcp.farList, nil, pfcp.qerList, pfcp.port)
+			addPduSessionAnchor, err := pfcp.SendPfcpSessionModificationRequest(
+				pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList, pfcpState.port)
 			if err != nil {
-				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, pfcp.nodeID, pfcp.nodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, pfcpState.nodeID, pfcpState.nodeID.ResolveNodeIdToIp())
+			}
+			if addPduSessionAnchor {
+				rspNodeID := context.NewNodeID("0.0.0.0")
+				AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
 			}
 		}
 	}

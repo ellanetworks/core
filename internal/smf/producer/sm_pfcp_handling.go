@@ -11,16 +11,20 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	smf_context "github.com/ellanetworks/core/internal/smf/context"
-	pfcp_message "github.com/ellanetworks/core/internal/smf/pfcp/message"
+	pfcp_message "github.com/ellanetworks/core/internal/smf/pfcp"
 )
 
 func SendPfcpSessionModifyReq(smContext *smf_context.SMContext, pfcpParam *pfcpParam) error {
 	defaultPath := smContext.Tunnel.DataPathPool.GetDefaultPath()
 	ANUPF := defaultPath.FirstDPNode
-	err := pfcp_message.SendPfcpSessionModificationRequest(ANUPF.UPF.NodeID, smContext,
+	addPduSessionAnchor, err := pfcp_message.SendPfcpSessionModificationRequest(ANUPF.UPF.NodeID, smContext,
 		pfcpParam.pdrList, pfcpParam.farList, pfcpParam.barList, pfcpParam.qerList, ANUPF.UPF.Port)
 	if err != nil {
 		logger.SmfLog.Warnf("Failed to send PFCP session modification request: %+v", err)
+	}
+	if addPduSessionAnchor {
+		rspNodeID := smf_context.NewNodeID("0.0.0.0")
+		AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
 	}
 	PFCPResponseStatus := <-smContext.SBIPFCPCommunicationChan
 

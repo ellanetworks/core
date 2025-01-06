@@ -4,11 +4,10 @@
 // Copyright 2019 free5GC.org
 // SPDX-License-Identifier: Apache-2.0
 
-package message
+package pfcp
 
 import (
 	"net"
-	"time"
 
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/wmnsk/go-pfcp/ie"
@@ -16,48 +15,6 @@ import (
 )
 
 type Flag uint8
-
-func BuildPfcpHeartbeatRequest(sequenceNumber uint32, recoveryTimeStamp time.Time) *message.HeartbeatRequest {
-	return message.NewHeartbeatRequest(
-		sequenceNumber,
-		ie.NewRecoveryTimeStamp(recoveryTimeStamp),
-		nil,
-	)
-}
-
-func BuildPfcpHeartbeatResponse(sequenceNumber uint32, recoveryTimeStamp time.Time) *message.HeartbeatResponse {
-	return message.NewHeartbeatResponse(
-		sequenceNumber,
-		ie.NewRecoveryTimeStamp(recoveryTimeStamp),
-	)
-}
-
-func BuildPfcpAssociationSetupRequest(sequenceNumber uint32, recoveryTimeStamp time.Time, nodeID string) *message.AssociationSetupRequest {
-	return message.NewAssociationSetupRequest(
-		sequenceNumber,
-		ie.NewNodeIDHeuristic(nodeID),
-		ie.NewRecoveryTimeStamp(recoveryTimeStamp),
-		ie.NewCPFunctionFeatures(0),
-	)
-}
-
-func BuildPfcpAssociationSetupResponse(cause uint8, recoveryTimeStamp time.Time, nodeID string) *message.AssociationSetupResponse {
-	return message.NewAssociationSetupResponse(
-		1,
-		ie.NewNodeIDHeuristic(nodeID),
-		ie.NewCause(cause),
-		ie.NewRecoveryTimeStamp(recoveryTimeStamp),
-		ie.NewCPFunctionFeatures(0),
-	)
-}
-
-func BuildPfcpAssociationReleaseResponse(cause uint8, nodeID string) *message.AssociationReleaseResponse {
-	return message.NewAssociationReleaseResponse(
-		1,
-		ie.NewNodeIDHeuristic(nodeID),
-		ie.NewCause(cause),
-	)
-}
 
 // setBit sets the bit at the given position to the specified value (true or false)
 // Positions go from 1 to 8

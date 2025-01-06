@@ -55,8 +55,6 @@ type SMFContext struct {
 
 	StaticIpInfo   *[]StaticIpInfo
 	CPNodeID       NodeID
-	PFCPPort       int
-	UpfPfcpPort    int
 	UDMProfile     models.NfProfile
 	LocalSEIDCount uint64
 
@@ -90,7 +88,7 @@ func SMF_Self() *SMFContext {
 
 func UpdateSMFContext(network *nmsModels.Network, profiles []nmsModels.Profile, radios []nmsModels.Radio) {
 	UpdateSnssaiInfo(network, profiles)
-	UpdateUserPlaneInformation(profiles, radios)
+	UpdateUserPlaneInformation(radios)
 	logger.SmfLog.Infof("Updated SMF context")
 }
 
@@ -125,15 +123,7 @@ func UpdateSnssaiInfo(network *nmsModels.Network, profiles []nmsModels.Profile) 
 	smfSelf.SnssaiInfos = snssaiInfoList
 }
 
-func BuildUserPlaneInformationFromConfig(profiles []nmsModels.Profile, radios []nmsModels.Radio) *UserPlaneInformation {
-	if len(profiles) == 0 {
-		logger.SmfLog.Warn("Profiles not found")
-		return nil
-	}
-	if len(radios) == 0 {
-		logger.SmfLog.Debugf("Radios not found")
-		return nil
-	}
+func BuildUserPlaneInformationFromConfig(radios []nmsModels.Radio) *UserPlaneInformation {
 	intfUpfInfoItem := InterfaceUpfInfoItem{
 		InterfaceType:   models.UpInterfaceType_N3,
 		Endpoints:       make([]string, 0),
@@ -168,14 +158,6 @@ func BuildUserPlaneInformationFromConfig(profiles []nmsModels.Profile, radios []
 		Port:   config.UpfPort,
 		Dnn:    config.DNN,
 	}
-	gnbNode := &UPNode{
-		Type:   UPNODE_AN,
-		NodeID: *NewNodeID("1.1.1.1"),
-		Links:  make([]*UPNode, 0),
-		Dnn:    config.DNN,
-	}
-	gnbNode.Links = append(gnbNode.Links, upfNode)
-	upfNode.Links = append(upfNode.Links, gnbNode)
 
 	userPlaneInformation := &UserPlaneInformation{
 		UPNodes:              make(map[string]*UPNode),
@@ -184,18 +166,29 @@ func BuildUserPlaneInformationFromConfig(profiles []nmsModels.Profile, radios []
 		DefaultUserPlanePath: make(map[string][]*UPNode),
 	}
 
-	gnbName := radios[0].Name
-	userPlaneInformation.AccessNetwork[gnbName] = gnbNode
-	userPlaneInformation.UPNodes[gnbName] = gnbNode
+	if len(radios) > 0 {
+		gnbNode := &UPNode{
+			Type:   UPNODE_AN,
+			NodeID: *NewNodeID("1.1.1.1"),
+			Links:  make([]*UPNode, 0),
+			Dnn:    config.DNN,
+		}
+		gnbNode.Links = append(gnbNode.Links, upfNode)
+		upfNode.Links = append(upfNode.Links, gnbNode)
+		gnbName := radios[0].Name
+		userPlaneInformation.AccessNetwork[gnbName] = gnbNode
+		userPlaneInformation.UPNodes[gnbName] = gnbNode
+	}
+
 	userPlaneInformation.UPNodes[config.UpfName] = upfNode
 	return userPlaneInformation
 }
 
 // Right now we only support 1 UPF
 // This function should be edited when we decide to support multiple UPFs
-func UpdateUserPlaneInformation(profiles []nmsModels.Profile, radios []nmsModels.Radio) {
+func UpdateUserPlaneInformation(radios []nmsModels.Radio) {
 	smfSelf := SMF_Self()
-	configUserPlaneInfo := BuildUserPlaneInformationFromConfig(profiles, radios)
+	configUserPlaneInfo := BuildUserPlaneInformationFromConfig(radios)
 	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)
 	if same {
 		logger.SmfLog.Info("Context user plane info matches config")
@@ -203,6 +196,10 @@ func UpdateUserPlaneInformation(profiles []nmsModels.Profile, radios []nmsModels
 	}
 	if configUserPlaneInfo == nil {
 		logger.SmfLog.Debugf("Config user plane info is nil")
+		return
+	}
+	if smfSelf.UserPlaneInformation == nil {
+		logger.SmfLog.Warnf("Context user plane info is nil")
 		return
 	}
 	smfSelf.UserPlaneInformation.UPNodes = configUserPlaneInfo.UPNodes

@@ -1,14 +1,12 @@
 // Copyright 2024 Ella Networks
-// Copyright 2019 free5GC.org
-// SPDX-License-Identifier: Apache-2.0
 
-package handler_test
+package pfcp_test
 
 import (
 	"net"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/smf/pfcp/handler"
+	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
 )
@@ -38,7 +36,7 @@ func TestFindUEIPAddressNoAddressInCreatedPDR(t *testing.T) {
 
 	createdPDRIEs := sessionEstablishmentResponse.CreatedPDR
 
-	ipAddress := handler.FindUEIPAddress(createdPDRIEs)
+	ipAddress := pfcp.FindUEIPAddress(createdPDRIEs)
 
 	if ipAddress != nil {
 		t.Errorf("Expected nil, got %v", ipAddress)
@@ -62,7 +60,7 @@ func TestFindUEIPAddressNoUEIPAddressInCreatedPDR(t *testing.T) {
 
 	createdPDRIEs := sessionEstablishmentResponse.CreatedPDR
 
-	ipAddress := handler.FindUEIPAddress(createdPDRIEs)
+	ipAddress := pfcp.FindUEIPAddress(createdPDRIEs)
 
 	if !ipAddress.Equal(net.IPv4(1, 2, 3, 4)) {
 		t.Errorf("Expected %v, got %v", "1.2.3.4", ipAddress)

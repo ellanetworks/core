@@ -3,11 +3,8 @@ package core
 
 import (
 	"net"
-	"testing"
 
 	"github.com/ellanetworks/core/internal/upf/ebpf"
-	"github.com/wmnsk/go-pfcp/ie"
-	"github.com/wmnsk/go-pfcp/message"
 )
 
 const (
@@ -77,119 +74,4 @@ func (mapOps *MapOperationsMock) UpdateQer(internalId uint32, qerInfo ebpf.QerIn
 
 func (mapOps *MapOperationsMock) DeleteQer(internalId uint32) error {
 	return nil
-}
-
-func TestSessionOverwrite(t *testing.T) {
-	mapOps := MapOperationsMock{}
-	// Create pfcp connection struct
-	pfcpConn := PfcpConnection{
-		NodeAssociations: make(map[string]*NodeAssociation),
-		nodeId:           NodeId,
-		mapOperations:    &mapOps,
-		n3Address:        net.ParseIP(RemoteIP),
-	}
-	asReq := message.NewAssociationSetupRequest(0,
-		ie.NewNodeID("", "", "test"),
-	)
-	response, err := HandlePfcpAssociationSetupRequest(&pfcpConn, asReq, RemoteIP)
-	if err != nil {
-		t.Errorf("Error handling association setup request: %s", err)
-	}
-	cause, err := response.(*message.AssociationSetupResponse).Cause.Cause()
-	if err != nil {
-		t.Errorf("Error getting cause from association setup response: %s", err)
-	}
-	if cause != ie.CauseRequestAccepted {
-		t.Errorf("Unexpected cause in association setup response: %d", cause)
-	}
-	// Check nodeId in response
-	nodeId, err := response.(*message.AssociationSetupResponse).NodeID.NodeID()
-	if err != nil {
-		t.Errorf("Error getting node ID from association setup response: %s", err)
-	}
-	if nodeId != NodeId {
-		t.Errorf("Unexpected node ID in association setup response: %s", nodeId)
-	}
-	if _, ok := pfcpConn.NodeAssociations[RemoteIP]; !ok {
-		t.Errorf("Association not created")
-	}
-
-	// Create two send two Session Establishment Requests with downlink PDRs
-	// and check that the first session is not overwritten
-	seReq1 := message.NewSessionEstablishmentRequest(0, 0,
-		1, 1, 0,
-		ie.NewNodeID("", "", "test"),
-		ie.NewFSEID(1, net.ParseIP(RemoteIP), nil),
-		ie.NewCreatePDR(
-			ie.NewPDRID(1),
-			ie.NewPDI(
-				ie.NewSourceInterface(ie.SrcInterfaceCore),
-				// ie.NewFTEID(0, 0, ip1.IP, nil, 0),
-				ie.NewUEIPAddress(2, UeAddress1, "", 0, 0),
-			),
-		),
-	)
-
-	seReq2 := message.NewSessionEstablishmentRequest(0, 0,
-		2, 1, 0,
-		ie.NewNodeID("", "", "test"),
-		ie.NewFSEID(2, net.ParseIP(RemoteIP), nil),
-		ie.NewCreatePDR(
-			ie.NewPDRID(1),
-			ie.NewPDI(
-				ie.NewSourceInterface(ie.SrcInterfaceCore),
-				// ie.NewFTEID(0, 0, ip2.IP, nil, 0),
-				ie.NewUEIPAddress(2, UeAddress2, "", 0, 0),
-			),
-		),
-	)
-
-	// Send first request
-	_, err = HandlePfcpSessionEstablishmentRequest(&pfcpConn, seReq1, RemoteIP)
-	if err != nil {
-		t.Errorf("Error handling session establishment request: %s", err)
-	}
-
-	// Send second request
-	_, err = HandlePfcpSessionEstablishmentRequest(&pfcpConn, seReq2, RemoteIP)
-	if err != nil {
-		t.Errorf("Error handling session establishment request: %s", err)
-	}
-
-	// Check that session PDRs are correct
-	if pfcpConn.NodeAssociations[RemoteIP].Sessions[2].PDRs[1].Ipv4.String() != UeAddress1 {
-		t.Errorf("Session 1, got broken")
-	}
-	if pfcpConn.NodeAssociations[RemoteIP].Sessions[3].PDRs[1].Ipv4.String() != UeAddress2 {
-		t.Errorf("Session 2, got broken")
-	}
-
-	// Send Session Modification Request, create FAR
-	smReq := message.NewSessionModificationRequest(0, 0,
-		2, 1, 0,
-		ie.NewNodeID("", "", "test"),
-		ie.NewFSEID(2, net.ParseIP(RemoteIP), nil),
-		ie.NewCreateFAR(
-			ie.NewFARID(1),
-			ie.NewApplyAction(2),
-			ie.NewForwardingParameters(
-				ie.NewDestinationInterface(ie.DstInterfaceAccess),
-				ie.NewNetworkInstance(""),
-			),
-		),
-	)
-
-	// Send modification request
-	_, err = HandlePfcpSessionModificationRequest(&pfcpConn, smReq, RemoteIP)
-	if err != nil {
-		t.Errorf("Error handling session modification request: %s", err)
-	}
-
-	// Check that session PDRs are correct
-	if pfcpConn.NodeAssociations[RemoteIP].Sessions[2].PDRs[1].Ipv4.String() != UeAddress1 {
-		t.Errorf("Session 1, got broken")
-	}
-	if pfcpConn.NodeAssociations[RemoteIP].Sessions[3].PDRs[1].Ipv4.String() != UeAddress2 {
-		t.Errorf("Session 2, got broken")
-	}
 }

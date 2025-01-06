@@ -6,12 +6,11 @@
 package producer
 
 import (
-	"net"
 	"reflect"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/pfcp/message"
+	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/ellanetworks/core/internal/util/flowdesc"
 )
 
@@ -117,22 +116,13 @@ func AddPDUSessionAnchorAndULCL(smContext *context.SMContext, nodeID context.Nod
 }
 
 func EstablishPSA2(smContext *context.SMContext) {
-	self := context.SMF_Self()
 	bpMGR := smContext.BPManager
 	bpMGR.PendingUPF = make(context.PendingUPF)
 	activatingPath := bpMGR.ActivatingPath
 	ulcl := bpMGR.ULCL
-	logger.SmfLog.Infoln("In EstablishPSA2")
 	nodeAfterULCL := false
 	for curDataPathNode := activatingPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
 		if nodeAfterULCL {
-			addr := net.UDPAddr{
-				IP:   curDataPathNode.UPF.NodeID.NodeIdValue,
-				Port: self.UpfPfcpPort,
-			}
-
-			logger.SmfLog.Debugln("Send to upf addr: ", addr.String())
-
 			upLinkPDR := curDataPathNode.UpLinkTunnel.PDR["default"]
 
 			pdrList := []*context.PDR{upLinkPDR}
@@ -150,10 +140,14 @@ func EstablishPSA2(smContext *context.SMContext) {
 
 			curDPNodeIP := curDataPathNode.UPF.NodeID.ResolveNodeIdToIp().String()
 			bpMGR.PendingUPF[curDPNodeIP] = true
-			err := message.SendPfcpSessionEstablishmentRequest(
+			addPduSessionAnchor, err := pfcp.SendPfcpSessionEstablishmentRequest(
 				curDataPathNode.UPF.NodeID, smContext, pdrList, farList, barList, qerList, curDataPathNode.UPF.Port)
 			if err != nil {
 				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
+			}
+			if addPduSessionAnchor {
+				rspNodeID := context.NewNodeID("0.0.0.0")
+				AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
 			}
 		} else {
 			if reflect.DeepEqual(curDataPathNode.UPF.NodeID, ulcl.NodeID) {
@@ -167,8 +161,6 @@ func EstablishPSA2(smContext *context.SMContext) {
 }
 
 func EstablishULCL(smContext *context.SMContext) {
-	logger.SmfLog.Infoln("In EstablishULCL")
-
 	bpMGR := smContext.BPManager
 	bpMGR.PendingUPF = make(context.PendingUPF)
 	activatingPath := bpMGR.ActivatingPath
@@ -228,9 +220,13 @@ func EstablishULCL(smContext *context.SMContext) {
 
 			curDPNodeIP := ulcl.NodeID.ResolveNodeIdToIp().String()
 			bpMGR.PendingUPF[curDPNodeIP] = true
-			err = message.SendPfcpSessionModificationRequest(ulcl.NodeID, smContext, pdrList, farList, barList, qerList, ulcl.Port)
+			addPduSessionAnchor, err := pfcp.SendPfcpSessionModificationRequest(ulcl.NodeID, smContext, pdrList, farList, barList, qerList, ulcl.Port)
 			if err != nil {
 				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, ulcl.NodeID, ulcl.NodeID.ResolveNodeIdToIp())
+			}
+			if addPduSessionAnchor {
+				rspNodeID := context.NewNodeID("0.0.0.0")
+				AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
 			}
 			break
 		}
@@ -268,10 +264,14 @@ func UpdatePSA2DownLink(smContext *context.SMContext) {
 
 				curDPNodeIP := curDataPathNode.UPF.NodeID.ResolveNodeIdToIp().String()
 				bpMGR.PendingUPF[curDPNodeIP] = true
-				err := message.SendPfcpSessionModificationRequest(
+				addPduSessionAnchor, err := pfcp.SendPfcpSessionModificationRequest(
 					curDataPathNode.UPF.NodeID, smContext, pdrList, farList, barList, qerList, curDataPathNode.UPF.Port)
 				if err != nil {
 					logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
+				}
+				if addPduSessionAnchor {
+					rspNodeID := context.NewNodeID("0.0.0.0")
+					AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
 				}
 				logger.SmfLog.Info("[SMF] Update PSA2 downlink msg has been send")
 				break
@@ -387,9 +387,13 @@ func UpdateRANAndIUPFUpLink(smContext *context.SMContext) {
 
 			curDPNodeIP := curDPNode.UPF.NodeID.ResolveNodeIdToIp().String()
 			bpMGR.PendingUPF[curDPNodeIP] = true
-			err := message.SendPfcpSessionModificationRequest(curDPNode.UPF.NodeID, smContext, pdrList, farList, barList, qerList, curDPNode.UPF.Port)
+			addPduSessionAnchor, err := pfcp.SendPfcpSessionModificationRequest(curDPNode.UPF.NodeID, smContext, pdrList, farList, barList, qerList, curDPNode.UPF.Port)
 			if err != nil {
 				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, curDPNode.UPF.NodeID, curDPNode.UPF.NodeID.ResolveNodeIdToIp())
+			}
+			if addPduSessionAnchor {
+				rspNodeID := context.NewNodeID("0.0.0.0")
+				AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
 			}
 		}
 	}

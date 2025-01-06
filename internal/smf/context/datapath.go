@@ -347,16 +347,6 @@ func (dataPath *DataPath) String() string {
 	return str
 }
 
-func (dataPath *DataPath) validateDataPathUpfStatus() error {
-	firstDPNode := dataPath.FirstDPNode
-	for curDataPathNode := firstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
-		if curDataPathNode.UPF.UPFStatus != AssociatedSetUpSuccess {
-			return fmt.Errorf("UPF [%v] is not in AssociatedSetUpSuccess status", curDataPathNode.UPF.NodeID.String())
-		}
-	}
-	return nil
-}
-
 func (dataPath *DataPath) ActivateUlDlTunnel(smContext *SMContext) error {
 	firstDPNode := dataPath.FirstDPNode
 	for curDataPathNode := firstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
@@ -442,12 +432,8 @@ func (dpNode *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error
 // ActivateUpLinkPdr
 func (dpNode *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER, defPrecedence uint32) error {
 	ueIpAddr := UEIPAddress{}
-	if dpNode.UPF.IsUpfSupportUeIpAddrAlloc() {
-		ueIpAddr.CHV4 = true
-	} else {
-		ueIpAddr.V4 = true
-		ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
-	}
+	ueIpAddr.V4 = true
+	ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
 
 	curULTunnel := dpNode.UpLinkTunnel
 	for _, ULPDR := range curULTunnel.PDR {
@@ -513,12 +499,8 @@ func (dpNode *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER,
 
 	// UPF provided UE ip-addr
 	ueIpAddr := UEIPAddress{}
-	if dpNode.UPF.IsUpfSupportUeIpAddrAlloc() {
-		ueIpAddr.CHV4 = true
-	} else {
-		ueIpAddr.V4 = true
-		ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
-	}
+	ueIpAddr.V4 = true
+	ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
 
 	for _, DLPDR := range curDLTunnel.PDR {
 		DLPDR.QER = append(DLPDR.QER, defQER)
@@ -580,14 +562,8 @@ func (dpNode *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER,
 	return nil
 }
 
-// ActivateTunnelAndPDR
 func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence uint32) error {
-	err := dataPath.validateDataPathUpfStatus()
-	if err != nil {
-		return fmt.Errorf("one or more UPF in DataPath not associated: %s", err)
-	}
-
-	err = smContext.AllocateLocalSEIDForDataPath(dataPath)
+	err := smContext.AllocateLocalSEIDForDataPath(dataPath)
 	if err != nil {
 		return fmt.Errorf("could not allocate local SEID for DataPath: %s", err)
 	}
@@ -620,12 +596,8 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence 
 		}
 
 		ueIpAddr := UEIPAddress{}
-		if curDataPathNode.UPF.IsUpfSupportUeIpAddrAlloc() {
-			ueIpAddr.CHV4 = true
-		} else {
-			ueIpAddr.V4 = true
-			ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
-		}
+		ueIpAddr.V4 = true
+		ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
 
 		if curDataPathNode.DownLinkTunnel != nil {
 			if curDataPathNode.DownLinkTunnel.SrcEndPoint == nil {

@@ -153,7 +153,7 @@ class TestELLA:
             k8s_client.apply_manifest(manifest)
             logger.info("Applied GNBSim manifest.")
         k8s_client.wait_for_app_ready(app_name="gnbsim")
-        time.sleep(10)
+        time.sleep(5)
         pod_name = k8s_client.get_pod_name(app_name="gnbsim")
         logger.info(f"Running GNBSim simulation in pod {pod_name}")
         result = k8s_client.exec(
