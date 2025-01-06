@@ -1,12 +1,12 @@
 // Copyright 2024 Ella Networks
 
-package message_test
+package pfcp_test
 
 import (
 	"net"
 	"testing"
 
-	smf_message "github.com/ellanetworks/core/internal/smf/pfcp/message"
+	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
 )
@@ -36,7 +36,7 @@ func TestFindUEIPAddressNoAddressInCreatedPDR(t *testing.T) {
 
 	createdPDRIEs := sessionEstablishmentResponse.CreatedPDR
 
-	ipAddress := smf_message.FindUEIPAddress(createdPDRIEs)
+	ipAddress := pfcp.FindUEIPAddress(createdPDRIEs)
 
 	if ipAddress != nil {
 		t.Errorf("Expected nil, got %v", ipAddress)
@@ -60,7 +60,7 @@ func TestFindUEIPAddressNoUEIPAddressInCreatedPDR(t *testing.T) {
 
 	createdPDRIEs := sessionEstablishmentResponse.CreatedPDR
 
-	ipAddress := smf_message.FindUEIPAddress(createdPDRIEs)
+	ipAddress := pfcp.FindUEIPAddress(createdPDRIEs)
 
 	if !ipAddress.Equal(net.IPv4(1, 2, 3, 4)) {
 		t.Errorf("Expected %v, got %v", "1.2.3.4", ipAddress)

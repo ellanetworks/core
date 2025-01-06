@@ -15,14 +15,8 @@ import (
 	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/core/service"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
-	"github.com/wmnsk/go-pfcp/message"
 
 	"github.com/cilium/ebpf/link"
-)
-
-const (
-	smfAddr   = "0.0.0.0"
-	smfNodeId = "0.0.0.0"
 )
 
 func Start(n3_address string, n3Interface string, n6Interface string) error {
@@ -33,7 +27,9 @@ func Start(n3_address string, n3Interface string, n6Interface string) error {
 		InterfaceName: interfaces,
 		XDPAttachMode: "generic",
 		ApiAddress:    ":8080",
-		PfcpAddress:   "0.0.0.0:8806",
+		PfcpAddress:   "0.0.0.0",
+		SmfAddress:    "0.0.0.0",
+		SmfNodeId:     "0.0.0.0",
 		PfcpNodeId:    "0.0.0.0",
 		N3Address:     n3_address,
 		EchoInterval:  10,
@@ -101,21 +97,13 @@ func Start(n3_address string, n3Interface string, n6Interface string) error {
 		logger.UpfLog.Errorf("failed to create ResourceManager - err: %v", err)
 	}
 
-	// Create PFCP connection
-	pfcpHandlers := core.PfcpHandlerMap{
-		message.MsgTypeSessionDeletionRequest:     core.HandlePfcpSessionDeletionRequest,
-		message.MsgTypeSessionModificationRequest: core.HandlePfcpSessionModificationRequest,
-	}
-
-	pfcpConn, err := core.CreatePfcpConnection(config.Conf.PfcpAddress, pfcpHandlers, config.Conf.PfcpNodeId, config.Conf.N3Address, bpfObjects, resourceManager)
+	pfcpConn, err := core.CreatePfcpConnection(config.Conf.PfcpAddress, config.Conf.PfcpNodeId, config.Conf.N3Address, bpfObjects, resourceManager)
 	if err != nil {
 		logger.UpfLog.Fatalf("Could not create PFCP connection: %s", err.Error())
 	}
-	go pfcpConn.Run()
-	defer pfcpConn.Close()
 
-	remoteNode := core.NewNodeAssociation(smfNodeId, smfAddr)
-	pfcpConn.NodeAssociations[smfAddr] = remoteNode
+	remoteNode := core.NewNodeAssociation(config.Conf.SmfNodeId, config.Conf.SmfAddress)
+	pfcpConn.NodeAssociations[config.Conf.SmfAddress] = remoteNode
 
 	ForwardPlaneStats := ebpf.UpfXdpActionStatistic{
 		BpfObjects: bpfObjects,

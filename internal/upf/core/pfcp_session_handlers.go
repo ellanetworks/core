@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/upf/config"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 
 	"github.com/wmnsk/go-pfcp/ie"
@@ -23,16 +24,15 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 	if conn == nil {
 		return nil, fmt.Errorf("no connection")
 	}
-	addr := "0.0.0.0"
 	remoteSEID, err := validateRequest(msg.NodeID, msg.CPFSEID)
 	if err != nil {
-		logger.UpfLog.Infof("Rejecting Session Establishment Request from: %s (missing NodeID or F-SEID)", addr)
+		logger.UpfLog.Infof("Rejecting Session Establishment Request from: %s (error in IEs)", err)
 		return message.NewSessionEstablishmentResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeId), convertErrorToIeCause(err)), nil
 	}
 
-	association, ok := conn.NodeAssociations[addr]
+	association, ok := conn.NodeAssociations[config.Conf.SmfAddress]
 	if !ok {
-		logger.UpfLog.Infof("Rejecting Session Establishment Request from: %s (no association)", addr)
+		logger.UpfLog.Infof("Rejecting Session Establishment Request from: %s (no association)", config.Conf.SmfAddress)
 		return message.NewSessionEstablishmentResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseNoEstablishedPFCPAssociation)), nil
 	}
 
@@ -105,7 +105,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 
 	// Reassigning is the best I can think of for now
 	association.Sessions[localSEID] = session
-	conn.NodeAssociations[addr] = association
+	conn.NodeAssociations[config.Conf.SmfAddress] = association
 
 	additionalIEs := []*ie.IE{
 		newIeNodeID(conn.nodeId),
@@ -118,81 +118,83 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 
 	// Send SessionEstablishmentResponse
 	estResp := message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, additionalIEs...)
-	logger.UpfLog.Infof("Session Establishment Request from %s accepted.", addr)
+	logger.UpfLog.Infof("Session Establishment Request from accepted.")
 	return estResp, nil
 }
 
-func HandlePfcpSessionDeletionRequest(conn *PfcpConnection, msg message.Message, addr string) (message.Message, error) {
-	req := msg.(*message.SessionDeletionRequest)
-	logger.UpfLog.Infof("Got Session Deletion Request from: %s. \n", addr)
-	association, ok := conn.NodeAssociations[addr]
-	if !ok {
-		logger.UpfLog.Infof("Rejecting Session Deletion Request from: %s (no association)", addr)
-		return message.NewSessionDeletionResponse(0, 0, 0, req.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseNoEstablishedPFCPAssociation)), nil
+func HandlePfcpSessionDeletionRequest(msg *message.SessionDeletionRequest) (*message.SessionDeletionResponse, error) {
+	conn := GetConnection()
+	if conn == nil {
+		return nil, fmt.Errorf("no connection")
 	}
-	printSessionDeleteRequest(req)
-
-	session, ok := association.Sessions[req.SEID()]
+	association, ok := conn.NodeAssociations[config.Conf.SmfAddress]
 	if !ok {
-		logger.UpfLog.Infof("Rejecting Session Deletion Request from: %s (unknown SEID)", addr)
-		return message.NewSessionDeletionResponse(0, 0, 0, req.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseSessionContextNotFound)), nil
+		logger.UpfLog.Infof("Rejecting Session Deletion Request from: %s (no association)", config.Conf.SmfAddress)
+		return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseNoEstablishedPFCPAssociation)), nil
+	}
+	printSessionDeleteRequest(msg)
+
+	session, ok := association.Sessions[msg.SEID()]
+	if !ok {
+		logger.UpfLog.Infof("Rejecting Session Deletion Request from: %s (unknown SEID)", config.Conf.SmfAddress)
+		return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseSessionContextNotFound)), nil
 	}
 	mapOperations := conn.mapOperations
 	pdrContext := NewPDRCreationContext(session, conn.ResourceManager)
 	for _, pdrInfo := range session.PDRs {
 		if err := pdrContext.deletePDR(pdrInfo, mapOperations); err != nil {
-			return message.NewSessionDeletionResponse(0, 0, 0, req.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
+			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
 		}
 	}
 	for id := range session.FARs {
 		if err := mapOperations.DeleteFar(id); err != nil {
-			return message.NewSessionDeletionResponse(0, 0, 0, req.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
+			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
 		}
 	}
 	for id := range session.QERs {
 		if err := mapOperations.DeleteQer(id); err != nil {
-			return message.NewSessionDeletionResponse(0, 0, 0, req.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
+			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
 		}
 	}
-	logger.UpfLog.Infof("Deleting session: %d", req.SEID())
-	delete(association.Sessions, req.SEID())
+	logger.UpfLog.Infof("Deleting session: %d", msg.SEID())
+	delete(association.Sessions, msg.SEID())
 
-	conn.ReleaseResources(req.SEID())
+	conn.ReleaseResources(msg.SEID())
 
-	return message.NewSessionDeletionResponse(0, 0, session.RemoteSEID, req.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseRequestAccepted)), nil
+	return message.NewSessionDeletionResponse(0, 0, session.RemoteSEID, msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseRequestAccepted)), nil
 }
 
-func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Message, addr string) (message.Message, error) {
-	req := msg.(*message.SessionModificationRequest)
-	logger.UpfLog.Infof("Got Session Modification Request from: %s. \n", addr)
-
-	logger.UpfLog.Infof("Finding association for %s", addr)
-	association, ok := conn.NodeAssociations[addr]
+func HandlePfcpSessionModificationRequest(msg *message.SessionModificationRequest) (*message.SessionModificationResponse, error) {
+	conn := GetConnection()
+	if conn == nil {
+		return nil, fmt.Errorf("no connection")
+	}
+	association, ok := conn.NodeAssociations[config.Conf.SmfAddress]
 	if !ok {
-		logger.UpfLog.Infof("Rejecting Session Modification Request from: %s (no association)", addr)
-		return message.NewSessionModificationResponse(0, 0, req.SEID(), req.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseNoEstablishedPFCPAssociation)), nil
+		logger.UpfLog.Infof("Rejecting Session Modification Request from: %s (no association)", config.Conf.SmfAddress)
+		return message.NewSessionModificationResponse(0, 0, msg.SEID(), msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseNoEstablishedPFCPAssociation)), nil
 	}
 
-	logger.UpfLog.Infof("Finding session %d", req.SEID())
-	session, ok := association.Sessions[req.SEID()]
+	logger.UpfLog.Infof("Finding session %d", msg.SEID())
+	session, ok := association.Sessions[msg.SEID()]
 	if !ok {
-		logger.UpfLog.Infof("Rejecting Session Modification Request from: %s (unknown SEID)", addr)
-		return message.NewSessionModificationResponse(0, 0, 0, req.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseSessionContextNotFound)), nil
+		logger.UpfLog.Infof("Rejecting Session Modification Request from: %s (unknown SEID)", config.Conf.SmfAddress)
+		return message.NewSessionModificationResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseSessionContextNotFound)), nil
 	}
 
 	// This IE shall be present if the CP function decides to change its F-SEID for the PFCP session. The UP function
 	// shall use the new CP F-SEID for subsequent PFCP Session related messages for this PFCP Session
-	if req.CPFSEID != nil {
-		remoteSEID, err := req.CPFSEID.FSEID()
+	if msg.CPFSEID != nil {
+		remoteSEID, err := msg.CPFSEID.FSEID()
 		if err == nil {
 			session.RemoteSEID = remoteSEID.SEID
 
-			association.Sessions[req.SEID()] = session
-			conn.NodeAssociations[addr] = association
+			association.Sessions[msg.SEID()] = session
+			conn.NodeAssociations[config.Conf.SmfAddress] = association
 		}
 	}
 
-	printSessionModificationRequest(req)
+	printSessionModificationRequest(msg)
 
 	createdPDRs := []SPDRInfo{}
 	pdrContext := NewPDRCreationContext(session, conn.ResourceManager)
@@ -200,7 +202,7 @@ func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Mess
 	err := func() error {
 		mapOperations := conn.mapOperations
 
-		for _, far := range req.CreateFAR {
+		for _, far := range msg.CreateFAR {
 			farInfo, err := composeFarInfo(far, conn.n3Address.To4(), ebpf.FarInfo{})
 			if err != nil {
 				logger.UpfLog.Infof("Error extracting FAR info: %s", err.Error())
@@ -217,7 +219,7 @@ func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Mess
 			}
 		}
 
-		for _, far := range req.UpdateFAR {
+		for _, far := range msg.UpdateFAR {
 			farid, err := far.FARID()
 			if err != nil {
 				return err
@@ -235,7 +237,7 @@ func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Mess
 			}
 		}
 
-		for _, far := range req.RemoveFAR {
+		for _, far := range msg.RemoveFAR {
 			farid, _ := far.FARID()
 			logger.UpfLog.Infof("Removing FAR: %d", farid)
 			sFarInfo := session.RemoveFar(farid)
@@ -244,7 +246,7 @@ func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Mess
 			}
 		}
 
-		for _, qer := range req.CreateQER {
+		for _, qer := range msg.CreateQER {
 			qerInfo := ebpf.QerInfo{}
 			qerId, err := qer.QERID()
 			if err != nil {
@@ -260,7 +262,7 @@ func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Mess
 			}
 		}
 
-		for _, qer := range req.UpdateQER {
+		for _, qer := range msg.UpdateQER {
 			qerId, err := qer.QERID() // Probably will be used as ebpf map key
 			if err != nil {
 				return fmt.Errorf("QER ID missing")
@@ -275,7 +277,7 @@ func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Mess
 			}
 		}
 
-		for _, qer := range req.RemoveQER {
+		for _, qer := range msg.RemoveQER {
 			qerId, err := qer.QERID()
 			if err != nil {
 				return fmt.Errorf("QER ID missing")
@@ -288,7 +290,7 @@ func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Mess
 			}
 		}
 
-		for _, pdr := range req.CreatePDR {
+		for _, pdr := range msg.CreatePDR {
 			// PDR should be created last, because we need to reference FARs and QERs global id
 			pdrId, err := pdr.PDRID()
 			if err != nil {
@@ -307,7 +309,7 @@ func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Mess
 			}
 		}
 
-		for _, pdr := range req.UpdatePDR {
+		for _, pdr := range msg.UpdatePDR {
 			pdrId, err := pdr.PDRID()
 			if err != nil {
 				return fmt.Errorf("PDR ID missing")
@@ -322,7 +324,7 @@ func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Mess
 			}
 		}
 
-		for _, pdr := range req.RemovePDR {
+		for _, pdr := range msg.RemovePDR {
 			pdrId, _ := pdr.PDRID()
 			if _, ok := session.PDRs[uint32(pdrId)]; ok {
 				logger.UpfLog.Infof("Removing uplink PDR: %d", pdrId)
@@ -338,10 +340,10 @@ func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Mess
 	}()
 	if err != nil {
 		logger.UpfLog.Infof("Rejecting Session Modification Request from: %s (failed to apply rules)", err)
-		return message.NewSessionModificationResponse(0, 0, session.RemoteSEID, req.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseRuleCreationModificationFailure)), nil
+		return message.NewSessionModificationResponse(0, 0, session.RemoteSEID, msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseRuleCreationModificationFailure)), nil
 	}
 
-	association.Sessions[req.SEID()] = session
+	association.Sessions[msg.SEID()] = session
 
 	additionalIEs := []*ie.IE{
 		ie.NewCause(ie.CauseRequestAccepted),
@@ -352,7 +354,7 @@ func HandlePfcpSessionModificationRequest(conn *PfcpConnection, msg message.Mess
 	additionalIEs = append(additionalIEs, pdrIEs...)
 
 	// Send SessionEstablishmentResponse
-	modResp := message.NewSessionModificationResponse(0, 0, session.RemoteSEID, req.Sequence(), 0, additionalIEs...)
+	modResp := message.NewSessionModificationResponse(0, 0, session.RemoteSEID, msg.Sequence(), 0, additionalIEs...)
 	return modResp, nil
 }
 

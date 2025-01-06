@@ -55,8 +55,6 @@ type SMFContext struct {
 
 	StaticIpInfo   *[]StaticIpInfo
 	CPNodeID       NodeID
-	PFCPPort       int
-	UpfPfcpPort    int
 	UDMProfile     models.NfProfile
 	LocalSEIDCount uint64
 

@@ -1,6 +1,6 @@
 // Copyright 2024 Ella Networks
 
-package message
+package pfcp
 
 import (
 	"fmt"

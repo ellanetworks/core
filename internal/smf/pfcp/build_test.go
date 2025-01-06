@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2024 Canonical Ltd.
 
-package message_test
+package pfcp_test
 
 import (
 	"net"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/pfcp/message"
+	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/ellanetworks/core/internal/util/dnn"
 	"github.com/wmnsk/go-pfcp/ie"
 	pfcp_message "github.com/wmnsk/go-pfcp/message"
@@ -79,7 +79,7 @@ func TestBuildPfcpSessionEstablishmentRequest(t *testing.T) {
 	}
 	farList := []*context.FAR{}
 	qerList := []*context.QER{}
-	msg, err := message.BuildPfcpSessionEstablishmentRequest(43, cpNodeID, net.ParseIP(cpNodeID), 1, pdrList, farList, qerList)
+	msg, err := pfcp.BuildPfcpSessionEstablishmentRequest(43, cpNodeID, net.ParseIP(cpNodeID), 1, pdrList, farList, qerList)
 	if err != nil {
 		t.Fatalf("error building PFCP session establishment request: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestBuildPfcpSessionModificationRequest(t *testing.T) {
 	}
 	qerList := []*context.QER{}
 
-	msg, err := message.BuildPfcpSessionModificationRequest(64, 1, 2, net.ParseIP("2.3.4.5"), pdrList, farList, qerList)
+	msg, err := pfcp.BuildPfcpSessionModificationRequest(64, 1, 2, net.ParseIP("2.3.4.5"), pdrList, farList, qerList)
 	if err != nil {
 		t.Fatalf("error building PFCP session modification request: %v", err)
 	}
@@ -224,7 +224,7 @@ func TestBuildPfcpSessionModificationRequestNoOuterHeader(t *testing.T) {
 	}
 	qerList := []*context.QER{}
 
-	msg, err := message.BuildPfcpSessionModificationRequest(64, 1, 2, net.ParseIP("2.3.4.5"), pdrList, farList, qerList)
+	msg, err := pfcp.BuildPfcpSessionModificationRequest(64, 1, 2, net.ParseIP("2.3.4.5"), pdrList, farList, qerList)
 	if err != nil {
 		t.Fatalf("error building PFCP session modification request: %v", err)
 	}
@@ -260,7 +260,7 @@ func TestBuildPfcpSessionModificationRequestNoOuterHeader(t *testing.T) {
 }
 
 func TestBuildPfcpSessionDeletionRequest(t *testing.T) {
-	msg := message.BuildPfcpSessionDeletionRequest(12, 2, 3, net.ParseIP("2.2.2.2"))
+	msg := pfcp.BuildPfcpSessionDeletionRequest(12, 2, 3, net.ParseIP("2.2.2.2"))
 
 	if msg.MessageTypeName() != "Session Deletion Request" {
 		t.Errorf("expected message type to be 'Session Deletion Request', got %v", msg.MessageTypeName())
@@ -284,7 +284,7 @@ func TestBuildPfcpSessionDeletionRequest(t *testing.T) {
 }
 
 func TestBuildPfcpSessionReportResponse(t *testing.T) {
-	msg := message.BuildPfcpSessionReportResponse(ie.CauseRequestAccepted, true, 1, 22)
+	msg := pfcp.BuildPfcpSessionReportResponse(ie.CauseRequestAccepted, true, 1, 22)
 
 	if msg.MessageTypeName() != "Session Report Response" {
 		t.Errorf("expected message type to be 'Session Report Response', got %v", msg.MessageTypeName())

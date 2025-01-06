@@ -6,19 +6,14 @@ import (
 	"net"
 	"time"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/core/service"
 
 	"github.com/ellanetworks/core/internal/upf/ebpf"
-
-	"github.com/wmnsk/go-pfcp/message"
 )
 
 var connection *PfcpConnection
 
 type PfcpConnection struct {
-	udpConn           *net.UDPConn
-	pfcpHandlerMap    PfcpHandlerMap
 	NodeAssociations  map[string]*NodeAssociation
 	nodeId            string
 	nodeAddrV4        net.IP
@@ -35,30 +30,20 @@ func (connection *PfcpConnection) GetAssociation(assocAddr string) *NodeAssociat
 	return nil
 }
 
-func CreatePfcpConnection(addr string, pfcpHandlerMap PfcpHandlerMap, nodeId string, n3Ip string, mapOperations ebpf.ForwardingPlaneController, resourceManager *service.ResourceManager) (*PfcpConnection, error) {
-	udpAddr, err := net.ResolveUDPAddr("udp", addr)
-	if err != nil {
-		logger.UpfLog.Warnf("Can't resolve UDP address: %s", err.Error())
-		return nil, err
+func CreatePfcpConnection(addr string, nodeId string, n3Ip string, mapOperations ebpf.ForwardingPlaneController, resourceManager *service.ResourceManager) (*PfcpConnection, error) {
+	addrV4 := net.ParseIP(addr)
+	if addrV4 == nil {
+		return nil, fmt.Errorf("failed to parse IP address ID: %s", addr)
 	}
-	udpConn, err := net.ListenUDP("udp", udpAddr)
-	if err != nil {
-		logger.UpfLog.Warnf("Can't listen UDP address: %s", err.Error())
-		return nil, err
-	}
-
 	n3Addr := net.ParseIP(n3Ip)
 	if n3Addr == nil {
 		return nil, fmt.Errorf("failed to parse N3 IP address ID: %s", n3Ip)
 	}
-	logger.UpfLog.Infof("PFCP server started on %v", udpAddr)
 
 	connection = &PfcpConnection{
-		udpConn:           udpConn,
-		pfcpHandlerMap:    pfcpHandlerMap,
 		NodeAssociations:  map[string]*NodeAssociation{},
 		nodeId:            nodeId,
-		nodeAddrV4:        udpAddr.IP,
+		nodeAddrV4:        addrV4,
 		n3Address:         n3Addr,
 		mapOperations:     mapOperations,
 		RecoveryTimestamp: time.Now(),
@@ -70,92 +55,6 @@ func CreatePfcpConnection(addr string, pfcpHandlerMap PfcpHandlerMap, nodeId str
 
 func GetConnection() *PfcpConnection {
 	return connection
-}
-
-func (connection *PfcpConnection) Run() {
-	buf := make([]byte, 1500)
-	for {
-		n, addr, err := connection.Receive(buf)
-		if err != nil {
-			logger.UpfLog.Warnf("Error reading from UDP socket: %s", err.Error())
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		logger.UpfLog.Debugf("Received %d bytes from %s", n, addr)
-		connection.Handle(buf[:n], addr)
-	}
-}
-
-func (connection *PfcpConnection) Close() {
-	err := connection.udpConn.Close()
-	if err != nil {
-		logger.UpfLog.Warnf("Error closing UDP connection: %s", err.Error())
-	}
-}
-
-func (connection *PfcpConnection) Receive(b []byte) (n int, addr *net.UDPAddr, err error) {
-	return connection.udpConn.ReadFromUDP(b)
-}
-
-func (connection *PfcpConnection) Handle(b []byte, addr *net.UDPAddr) {
-	err := connection.pfcpHandlerMap.Handle(connection, b, addr)
-	if err != nil {
-		logger.UpfLog.Warnf("Error handling PFCP message: %s", err.Error())
-	}
-}
-
-func (connection *PfcpConnection) Send(b []byte, addr *net.UDPAddr) (int, error) {
-	return connection.udpConn.WriteTo(b, addr)
-}
-
-func (connection *PfcpConnection) SendMessage(msg message.Message, addr *net.UDPAddr) error {
-	responseBytes := make([]byte, msg.MarshalLen())
-	if err := msg.MarshalTo(responseBytes); err != nil {
-		logger.UpfLog.Warnf(err.Error())
-		return err
-	}
-	if _, err := connection.Send(responseBytes, addr); err != nil {
-		logger.UpfLog.Warnf(err.Error())
-		return err
-	}
-	return nil
-}
-
-// DeleteAssociation deletes an association and all sessions associated with it.
-func (connection *PfcpConnection) DeleteAssociation(assocAddr string) {
-	assoc := connection.GetAssociation(assocAddr)
-	logger.UpfLog.Infof("Pruning expired node association: %s", assocAddr)
-	for sessionId, session := range assoc.Sessions {
-		logger.UpfLog.Infof("Deleting session: %d", sessionId)
-		connection.DeleteSession(session)
-	}
-	delete(connection.NodeAssociations, assocAddr)
-}
-
-// DeleteSession deletes a session and all PDRs, FARs and QERs associated with it.
-func (connection *PfcpConnection) DeleteSession(session *Session) {
-	for _, far := range session.FARs {
-		_ = connection.mapOperations.DeleteFar(far.GlobalId)
-	}
-	for _, qer := range session.QERs {
-		_ = connection.mapOperations.DeleteQer(qer.GlobalId)
-	}
-	pdrContext := NewPDRCreationContext(session, connection.ResourceManager)
-	for _, PDR := range session.PDRs {
-		_ = pdrContext.deletePDR(PDR, connection.mapOperations)
-	}
-}
-
-func (connection *PfcpConnection) GetSessionCount() int {
-	count := 0
-	for _, assoc := range connection.NodeAssociations {
-		count += len(assoc.Sessions)
-	}
-	return count
-}
-
-func (connection *PfcpConnection) GetAssociationCount() int {
-	return len(connection.NodeAssociations)
 }
 
 func (connection *PfcpConnection) ReleaseResources(seID uint64) {

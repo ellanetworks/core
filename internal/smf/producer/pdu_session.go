@@ -14,7 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/consumer"
 	smf_context "github.com/ellanetworks/core/internal/smf/context"
-	pfcp_message "github.com/ellanetworks/core/internal/smf/pfcp/message"
+	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/udm"
@@ -482,7 +482,7 @@ func releaseTunnel(smContext *smf_context.SMContext) bool {
 		for curDataPathNode := dataPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
 			curUPFID := curDataPathNode.UPF.UUID()
 			if _, exist := deletedPFCPNode[curUPFID]; !exist {
-				err := pfcp_message.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext, curDataPathNode.UPF.Port)
+				err := pfcp.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext, curDataPathNode.UPF.Port)
 				if err != nil {
 					smContext.SubPduSessLog.Errorf("releaseTunnel, send PFCP session deletion request failed: %v", err)
 				}
@@ -610,9 +610,13 @@ func HandlePduSessN1N2TransFailInd(eventData interface{}) error {
 		ANUPF := defaultPath.FirstDPNode
 
 		// Sending PFCP modification with flag set to DROP the packets.
-		err := pfcp_message.SendPfcpSessionModificationRequest(ANUPF.UPF.NodeID, smContext, pdrList, farList, barList, qerList, ANUPF.UPF.Port)
+		addPduSessionAnchor, err := pfcp.SendPfcpSessionModificationRequest(ANUPF.UPF.NodeID, smContext, pdrList, farList, barList, qerList, ANUPF.UPF.Port)
 		if err != nil {
 			smContext.SubPduSessLog.Errorf("pfcp Session Modification Request failed: %v", err)
+		}
+		if addPduSessionAnchor {
+			rspNodeID := smf_context.NewNodeID("0.0.0.0")
+			AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
 		}
 	}
 

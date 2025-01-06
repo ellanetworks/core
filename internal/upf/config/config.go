@@ -8,6 +8,8 @@ type UpfConfig struct {
 	ApiAddress    string   `mapstructure:"api_address" validate:"hostname_port" json:"api_address"`
 	PfcpAddress   string   `mapstructure:"pfcp_address" validate:"hostname_port" json:"pfcp_address"`
 	PfcpNodeId    string   `mapstructure:"pfcp_node_id" validate:"hostname|ip" json:"pfcp_node_id"`
+	SmfAddress    string
+	SmfNodeId     string
 	N3Address     string   `mapstructure:"n3_address" validate:"ipv4" json:"n3_address"`
 	GtpPeer       []string `mapstructure:"gtp_peer" validate:"omitempty,dive,hostname_port" json:"gtp_peer"`
 	EchoInterval  uint32   `mapstructure:"echo_interval" validate:"min=1" json:"echo_interval"`
