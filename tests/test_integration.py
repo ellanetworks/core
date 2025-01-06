@@ -12,7 +12,11 @@ logger = logging.getLogger(__name__)
 
 NAMESPACE = "dev2"
 TEST_PROFILE_NAME = "default-default"
-TEST_IMSI = "001010100007487"
+TEST_START_IMSI = "001010100000001"
+NUM_IMSIS = 3
+TEST_SUBSCRIBER_KEY = "5122250214c33e723a5dd523fc145fc0"
+TEST_SUBSCRIBER_SEQUENCE_NUMBER = "000000000001"
+
 NUM_PROFILES = 5
 
 
@@ -88,7 +92,7 @@ class Kubernetes:
             logger.error(f"Failed to fetch Ella NodePort: {e.output}")
             raise RuntimeError(f"Could not retrieve NodePort for {service_name} service") from e
 
-    def exec(self, pod_name: str, command: str, timeout: int=60) -> str:
+    def exec(self, pod_name: str, command: str, timeout: int = 60) -> str:
         command_list = command.split()
         try:
             result = subprocess.check_output(
@@ -161,11 +165,30 @@ class TestELLA:
             command="pebble exec gnbsim --cfg /etc/gnbsim/configuration.yaml",
             timeout=6 * 60,
         )
+        logger.info(result)
         assert result.count("Profile Status: PASS") == NUM_PROFILES
 
 
+def compute_imsi(base_imsi: str, increment: int) -> str:
+    """Compute a new IMSI by incrementing the base IMSI.
+
+    Args:
+        base_imsi (str): The base IMSI as a string.
+        increment (int): The number to increment the IMSI by.
+
+    Returns:
+        str: The new IMSI as a zero-padded string.
+    """
+    new_imsi = int(base_imsi) + increment
+    return f"{new_imsi:015}"
+
+
 def configure_ella_core(core_address: str) -> Subscriber:
-    """Configure Ella Core."""
+    """Configure Ella Core.
+
+    Returns:
+        Subscriber: The first subscriber created in Ella Core.
+    """
     ella_client = EllaCore(url=core_address)
     ella_client.create_user(email="admin@ellanetworks.com", password="admin")
     token = ella_client.login(email="admin@ellanetworks.com", password="admin")
@@ -173,11 +196,28 @@ def configure_ella_core(core_address: str) -> Subscriber:
         raise RuntimeError("Failed to login to Ella Core")
     ella_client.set_token(token)
     ella_client.create_radio(name=f"{NAMESPACE}-gnbsim", tac="001")
-    ella_client.create_profile(name=TEST_PROFILE_NAME)
-    ella_client.create_subscriber(imsi=TEST_IMSI, profile_name=TEST_PROFILE_NAME)
-    ella_client.update_operator_id()
-    subscriber = ella_client.get_subscriber(imsi=TEST_IMSI)
-    return subscriber
+    ella_client.create_profile(
+        name=TEST_PROFILE_NAME,
+        dnn="internet",
+        ue_ip_pool="172.250.0.0/24",
+        dns="8.8.8.8",
+        mtu=1460,
+        bitrate_uplink="200 Mbps",
+        bitrate_downlink="100 Mbps",
+        priority_level=1,
+        var5qi=8,
+    )
+    ella_client.update_operator_id(mcc="001", mnc="01")
+    for i in range(NUM_IMSIS):
+        imsi = compute_imsi(TEST_START_IMSI, i)
+        ella_client.create_subscriber(
+            imsi=imsi,
+            key=TEST_SUBSCRIBER_KEY,
+            sequence_number=TEST_SUBSCRIBER_SEQUENCE_NUMBER,
+            profile_name=TEST_PROFILE_NAME,
+        )
+    subscriber_0 = ella_client.get_subscriber(imsi=TEST_START_IMSI)
+    return subscriber_0
 
 
 def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> None:
@@ -242,7 +282,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                             "enable": True,
                             "gnbName": "gnb1",
                             "startImsi": subscriber.imsi,
-                            "ueCount": 1,
+                            "ueCount": NUM_IMSIS,
                             "defaultAs": "192.168.250.1",
                             "opc": subscriber.opc,
                             "key": subscriber.key,
@@ -278,7 +318,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                             },
                             "sequenceNumber": subscriber.sequence_number,
                             "startImsi": subscriber.imsi,
-                            "ueCount": 1,
+                            "ueCount": NUM_IMSIS,
                         },
                         {
                             "profileType": "anrelease",
@@ -286,7 +326,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                             "enable": True,
                             "gnbName": "gnb1",
                             "startImsi": subscriber.imsi,
-                            "ueCount": 1,
+                            "ueCount": NUM_IMSIS,
                             "defaultAs": "192.168.250.1",
                             "opc": subscriber.opc,
                             "key": subscriber.key,
@@ -308,7 +348,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                             "enable": True,
                             "gnbName": "gnb1",
                             "startImsi": subscriber.imsi,
-                            "ueCount": 1,
+                            "ueCount": NUM_IMSIS,
                             "defaultAs": "192.168.250.1",
                             "opc": subscriber.opc,
                             "key": subscriber.key,
@@ -331,7 +371,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                             "enable": True,
                             "gnbName": "gnb1",
                             "startImsi": subscriber.imsi,
-                            "ueCount": 1,
+                            "ueCount": NUM_IMSIS,
                             "defaultAs": "192.168.250.1",
                             "opc": subscriber.opc,
                             "key": subscriber.key,

@@ -19,30 +19,6 @@ SUBSCRIBERS_CONFIG_URL = "/api/v1/subscribers"
 
 JSON_HEADER = {"Content-Type": "application/json"}
 
-SUBSCRIBER_CONFIG = {
-    "imsi": "PLACEHOLDER",
-    "key": "5122250214c33e723a5dd523fc145fc0",
-    "sequenceNumber": "000000000001",
-    "profileName": "PLACEHOLDER",
-}
-
-PROFILE_CONFIG = {
-    "name": "PLACEHOLDER",
-    "dnn": "internet",
-    "ue-ip-pool": "172.250.0.0/16",
-    "dns": "8.8.8.8",
-    "mtu": 1460,
-    "bitrate-uplink": "200 Mbps",
-    "bitrate-downlink": "100 Mbps",
-    "priority-level": 1,
-    "var5qi": 8,
-}
-
-OPERATOR_ID_CONFIG = {
-    "mcc": "001",
-    "mnc": "01",
-}
-
 
 @dataclass
 class CreateRadioParams:
@@ -133,11 +109,16 @@ class EllaCore:
         self._make_request("POST", GNB_CONFIG_URL, data=asdict(create_radio_params))
         logger.info("Radio %s created in Ella Core", name)
 
-    def create_subscriber(self, imsi: str, profile_name: str) -> None:
+    def create_subscriber(
+        self, imsi: str, key: str, sequence_number: str, profile_name: str
+    ) -> None:
         """Create a subscriber."""
-        data = SUBSCRIBER_CONFIG.copy()
-        data["imsi"] = imsi
-        data["profileName"] = profile_name
+        data = {
+            "imsi": imsi,
+            "key": key,
+            "sequenceNumber": sequence_number,
+            "profileName": profile_name,
+        }
         self._make_request(method="POST", endpoint=SUBSCRIBERS_CONFIG_URL, data=data)
         logger.info(f"Created subscriber with IMSI {imsi}.")
 
@@ -157,13 +138,38 @@ class EllaCore:
             profile_name=result["profileName"],
         )
 
-    def create_profile(self, name: str) -> None:
+    def create_profile(
+        self,
+        name: str,
+        dnn: str,
+        ue_ip_pool: str,
+        dns: str,
+        mtu: int,
+        bitrate_uplink: str,
+        bitrate_downlink: str,
+        priority_level: int,
+        var5qi: int,
+    ) -> None:
         """Create a profile."""
-        PROFILE_CONFIG["name"] = name
-        self._make_request("POST", PROFILE_CONFIG_URL, data=PROFILE_CONFIG)
+        profile_config = {
+            "name": name,
+            "dnn": dnn,
+            "ue-ip-pool": ue_ip_pool,
+            "dns": dns,
+            "mtu": mtu,
+            "bitrate-uplink": bitrate_uplink,
+            "bitrate-downlink": bitrate_downlink,
+            "priority-level": priority_level,
+            "var5qi": var5qi,
+        }
+        self._make_request("POST", PROFILE_CONFIG_URL, data=profile_config)
         logger.info(f"Created profile {name}.")
 
-    def update_operator_id(self) -> None:
+    def update_operator_id(self, mcc: str, mnc: str) -> None:
         """Update operator ID information."""
-        self._make_request("PUT", OPERATOR_ID_CONFIG_URL, data=OPERATOR_ID_CONFIG)
+        operator_id_config = {
+            "mcc": mcc,
+            "mnc": mnc,
+        }
+        self._make_request("PUT", OPERATOR_ID_CONFIG_URL, data=operator_id_config)
         logger.info("Updated network configuration.")
