@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"log"
+	"math"
 	"net"
 	"strconv"
 	"strings"
@@ -470,14 +471,22 @@ func buildPFCompPortRange(local bool, val IPFilterRulePortRange) (*PacketFilterC
 
 	// low port value
 	if port, err := strconv.Atoi(val.lowLimit); err == nil {
-		port16 := uint16(port)
-		pfc.ComponentValue = []byte{byte(port16 >> 8), byte(port16 & 0xff)}
+		if port >= 0 && port <= math.MaxUint16 {
+			port16 := uint16(port)
+			pfc.ComponentValue = []byte{byte(port16 >> 8), byte(port16 & 0xff)}
+		} else {
+			return nil, 0
+		}
 	}
 
 	// high port value
 	if port, err := strconv.Atoi(val.highLimit); err == nil {
-		port16 := uint16(port)
-		pfc.ComponentValue = append(pfc.ComponentValue, byte(port16>>8), byte(port16&0xff))
+		if port >= 0 && port <= math.MaxUint16 {
+			port16 := uint16(port)
+			pfc.ComponentValue = append(pfc.ComponentValue, byte(port16>>8), byte(port16&0xff))
+		} else {
+			return nil, 0
+		}
 	}
 	return pfc, 5
 }
