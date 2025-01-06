@@ -1,11 +1,11 @@
 name: "Dependabot Auto Approve and Merge"
 
-on:
-  pull_request:
-
 permissions:
   pull-requests: write
   contents: write
+
+on:
+  pull_request:
 
 jobs:
   auto-merge:
