@@ -1,5 +1,8 @@
 name: Go Lint
 
+permissions:
+  contents: read
+
 on:
   workflow_call:
 
