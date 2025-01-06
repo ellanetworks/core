@@ -448,8 +448,12 @@ func buildPFCompPort(local bool, val string) (*PacketFilterComponent, uint8) {
 	}
 
 	if port, err := strconv.Atoi(val); err == nil {
-		port16 := uint16(port)
-		pfc.ComponentValue = []byte{byte(port16 >> 8), byte(port16 & 0xff)}
+		if port >= 0 && port <= math.MaxUint16 {
+			port16 := uint16(port)
+			pfc.ComponentValue = []byte{byte(port16 >> 8), byte(port16 & 0xff)}
+		} else {
+			return nil, 0
+		}
 	}
 	return pfc, 3
 }
