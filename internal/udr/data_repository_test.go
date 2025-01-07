@@ -30,15 +30,6 @@ func (m *MockDatabaseInstance) UpdateSubscriber(subscriber *db.Subscriber) error
 	return nil
 }
 
-func (m *MockDatabaseInstance) AssertExpectations(t *testing.T) {
-	if len(m.assertedSubscribers) == 0 {
-		t.Error("GetSubscriber was not called")
-	}
-	if len(m.assertedProfiles) == 0 {
-		t.Error("GetProfileByID was not called")
-	}
-}
-
 func NewMockDatabaseInstance() *MockDatabaseInstance {
 	return &MockDatabaseInstance{
 		assertedSubscribers: make(map[string]struct{}),
@@ -86,5 +77,11 @@ func TestGetAmData_Success(t *testing.T) {
 		t.Errorf("expected AMBR %v, got %v", expectedData.SubscribedUeAmbr, amData.SubscribedUeAmbr)
 	}
 
-	mockDb.AssertExpectations(t)
+	if len(mockDb.assertedSubscribers) == 0 {
+		t.Error("GetSubscriber was not called")
+	}
+
+	if len(mockDb.assertedProfiles) == 0 {
+		t.Error("GetProfileByID was not called")
+	}
 }
