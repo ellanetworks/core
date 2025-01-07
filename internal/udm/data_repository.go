@@ -3,11 +3,10 @@
 // Copyright 2019 free5GC.org
 // SPDX-License-Identifier: Apache-2.0
 
-package udr
+package udm
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/omec-project/openapi/models"
@@ -27,7 +26,6 @@ var AllowedSscModes = []string{
 
 var AllowedSessionTypes = []models.PduSessionType{models.PduSessionType_IPV4}
 
-// This function is defined twice, here and in the NMS. We should move it to a common place.
 func convertDbAmDataToModel(bitrateDownlink string, bitrateUplink string) *models.AccessAndMobilitySubscriptionData {
 	amData := &models.AccessAndMobilitySubscriptionData{
 		Nssai: &models.Nssai{
@@ -51,11 +49,11 @@ func convertDbAmDataToModel(bitrateDownlink string, bitrateUplink string) *model
 }
 
 func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
-	subscriber, err := udrContext.DbInstance.GetSubscriber(ueId)
+	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	profile, err := udrContext.DbInstance.GetProfileByID(subscriber.ProfileID)
+	profile, err := udmContext.DbInstance.GetProfileByID(subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
@@ -63,13 +61,13 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	return amData, nil
 }
 
-func EditAuthenticationSubscription(ueId string, sequenceNumber string) error {
-	subscriber, err := udrContext.DbInstance.GetSubscriber(ueId)
+func EditAuthenticationSubscription2(ueId string, sequenceNumber string) error {
+	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
 	subscriber.SequenceNumber = sequenceNumber
-	err = udrContext.DbInstance.UpdateSubscriber(subscriber)
+	err = udmContext.DbInstance.UpdateSubscriber(subscriber)
 	if err != nil {
 		return fmt.Errorf("couldn't update subscriber %s: %v", ueId, err)
 	}
@@ -102,8 +100,8 @@ func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 	return authSubsData
 }
 
-func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
-	subscriber, err := udrContext.DbInstance.GetSubscriber(ueId)
+func GetAuthSubsData2(ueId string) (*models.AuthenticationSubscription, error) {
+	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
@@ -111,8 +109,8 @@ func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 	return authSubsData, nil
 }
 
-func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
-	_, err := udrContext.DbInstance.GetSubscriber(ueId)
+func GetAmPolicyData2(ueId string) (*models.AmPolicyData, error) {
+	_, err := udmContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
@@ -120,7 +118,7 @@ func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
 	return amPolicyData, nil
 }
 
-func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
+func GetSmPolicyData2(ueId string) (*models.SmPolicyData, error) {
 	smPolicyData := &models.SmPolicyData{
 		SmPolicySnssaiData: make(map[string]models.SmPolicySnssaiData),
 	}
@@ -143,27 +141,8 @@ func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
 // I'm not sure whether we need this function or not. It's used but
 // the fact that it returns an empty list and the e2e tests
 // still pass makes me think that it's not used.
-func GetSMFRegistrations(supi string) ([]*models.SmfRegistration, error) {
+func GetSMFRegistrations2(supi string) ([]*models.SmfRegistration, error) {
 	return []*models.SmfRegistration{}, nil
-}
-
-func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string) models.SdmSubscription {
-	value, ok := udrContext.UESubsCollection.Load(ueId)
-	if !ok {
-		udrContext.UESubsCollection.Store(ueId, new(UESubsData))
-		value, _ = udrContext.UESubsCollection.Load(ueId)
-	}
-	UESubsData := value.(*UESubsData)
-	if UESubsData.SdmSubscriptions == nil {
-		UESubsData.SdmSubscriptions = make(map[string]*models.SdmSubscription)
-	}
-
-	newSubscriptionID := strconv.Itoa(udrContext.SdmSubscriptionIDGenerator)
-	SdmSubscription.SubscriptionId = newSubscriptionID
-	UESubsData.SdmSubscriptions[newSubscriptionID] = &SdmSubscription
-	udrContext.SdmSubscriptionIDGenerator++
-
-	return SdmSubscription
 }
 
 func convertDbSessionManagementDataToModel(
@@ -209,12 +188,12 @@ func convertDbSessionManagementDataToModel(
 	return smData
 }
 
-func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) {
-	subscriber, err := udrContext.DbInstance.GetSubscriber(ueId)
+func GetSmData2(ueId string) ([]models.SessionManagementSubscriptionData, error) {
+	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	profile, err := udrContext.DbInstance.GetProfileByID(subscriber.ProfileID)
+	profile, err := udmContext.DbInstance.GetProfileByID(subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
@@ -222,7 +201,7 @@ func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) 
 	return sessionManagementData, nil
 }
 
-func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
+func GetSmfSelectData2(ueId string) (*models.SmfSelectionSubscriptionData, error) {
 	snssai := fmt.Sprintf("%d%s", config.Sst, config.Sd)
 	smfSelectionData := &models.SmfSelectionSubscriptionData{
 		SubscribedSnssaiInfos: make(map[string]models.SnssaiInfo),

@@ -9,22 +9,11 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/udr"
 	"github.com/omec-project/openapi/models"
 )
 
-func GetAmData(supi string) (
-	*models.AccessAndMobilitySubscriptionData, error,
-) {
-	amData, err := udr.GetAmData(supi)
-	if err != nil {
-		return nil, fmt.Errorf("GetAmData error: %+v", err)
-	}
-	return amData, nil
-}
-
 func GetSmData(supi string, Dnn string, Snssai string) ([]models.SessionManagementSubscriptionData, error) {
-	sessionManagementSubscriptionDataResp, err := udr.GetSmData(supi)
+	sessionManagementSubscriptionDataResp, err := GetSmData2(supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetSmData error: %+v", err)
 	}
@@ -44,7 +33,7 @@ func GetSmData(supi string, Dnn string, Snssai string) ([]models.SessionManageme
 }
 
 func GetNssai(supi string) (*models.Nssai, error) {
-	accessAndMobilitySubscriptionDataResp, err := udr.GetAmData(supi)
+	accessAndMobilitySubscriptionDataResp, err := GetAmData(supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
@@ -59,7 +48,7 @@ func GetSmfSelectData(supi string) (
 ) {
 	var body models.SmfSelectionSubscriptionData
 	udmContext.CreateSmfSelectionSubsDataforUe(supi, body)
-	smfSelectionSubscriptionDataResp, err := udr.GetSmfSelectData(supi)
+	smfSelectionSubscriptionDataResp, err := GetSmfSelectData2(supi)
 	if err != nil {
 		logger.UdmLog.Errorf("GetSmfSelectData error: %+v", err)
 		return nil, fmt.Errorf("GetSmfSelectData error: %+v", err)
@@ -72,7 +61,7 @@ func GetSmfSelectData(supi string) (
 func GetUeContextInSmfData(supi string) (*models.UeContextInSmfData, error) {
 	var body models.UeContextInSmfData
 	udmContext.CreateUeContextInSmfDataforUe(supi, body)
-	pdusess, err := udr.GetSMFRegistrations(supi)
+	pdusess, err := GetSMFRegistrations2(supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetSMFRegistrations error: %+v", err)
 	}

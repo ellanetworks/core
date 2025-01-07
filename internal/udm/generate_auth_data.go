@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/udr"
 	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/ellanetworks/core/internal/util/ueauth"
@@ -82,7 +81,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		return nil, fmt.Errorf("suciToSupi error: %w", err)
 	}
 
-	authSubs, err := udr.GetAuthSubsData(supi)
+	authSubs, err := GetAuthSubsData2(supi)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get authentication subscriber data: %w", err)
 	}
@@ -244,7 +243,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	SQNheStr := fmt.Sprintf("%x", bigSQN)
 	SQNheStr = strictHex(SQNheStr, 12)
 
-	err = udr.EditAuthenticationSubscription(supi, SQNheStr)
+	err = EditAuthenticationSubscription2(supi, SQNheStr)
 	if err != nil {
 		return nil, fmt.Errorf("update sqn error: %w", err)
 	}

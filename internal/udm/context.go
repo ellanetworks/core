@@ -9,6 +9,7 @@ package udm
 import (
 	"sync"
 
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/omec-project/openapi"
@@ -17,31 +18,13 @@ import (
 
 var udmContext UDMContext
 
-const (
-	LocationUriAmf3GppAccessRegistration int = iota
-	LocationUriAmfNon3GppAccessRegistration
-	LocationUriSmfRegistration
-	LocationUriSdmSubscription
-	LocationUriSharedDataSubscription
-)
-
 type UDMContext struct {
-	NfId                           string
-	GroupId                        string
-	UriScheme                      models.UriScheme
-	NfService                      map[models.ServiceName]models.NfService
-	UdmUePool                      sync.Map // map[supi]*UdmUeContext
-	GpsiSupiList                   models.IdentityData
-	SharedSubsDataMap              map[string]models.SharedData // sharedDataIds as key
-	SubscriptionOfSharedDataChange sync.Map                     // subscriptionID as key
-	SuciProfiles                   []suci.SuciProfile
-	EeSubscriptionIDGenerator      *idgenerator.IDGenerator
-}
-
-type UdmNFContext struct {
-	SubscribeToNotifChange           *models.SdmSubscription // SubscriptionID as key
-	SubscribeToNotifSharedDataChange *models.SdmSubscription // SubscriptionID as key
-	SubscriptionID                   string
+	DbInstance                *db.Database
+	UriScheme                 models.UriScheme
+	UdmUePool                 sync.Map // map[supi]*UdmUeContext
+	GpsiSupiList              models.IdentityData
+	SuciProfiles              []suci.SuciProfile
+	EeSubscriptionIDGenerator *idgenerator.IDGenerator
 }
 
 func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData, snssaiFromReq string,
@@ -90,14 +73,6 @@ func (context *UDMContext) UdmUeFindBySupi(supi string) (*UdmUeContext, bool) {
 		return value.(*UdmUeContext), ok
 	} else {
 		return nil, false
-	}
-}
-
-func (context *UDMContext) UdmAmf3gppRegContextExists(supi string) bool {
-	if ue, ok := context.UdmUeFindBySupi(supi); ok {
-		return ue.Amf3GppAccessRegistration != nil
-	} else {
-		return false
 	}
 }
 
