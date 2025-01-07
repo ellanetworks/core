@@ -152,7 +152,7 @@ const User = () => {
           }}
         >
           <Typography variant="h4" component="h1" gutterBottom>
-            Users
+            Users ({users.length})
           </Typography>
           <Button
             variant="contained"

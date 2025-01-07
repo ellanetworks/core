@@ -66,7 +66,6 @@ const Subscriber = () => {
 
     const handleOpenCreateModal = () => setCreateModalOpen(true);
     const handleCloseCreateModal = () => setCreateModalOpen(false);
-    const handleOpenViewModal = () => setViewModalOpen(true);
     const handleCloseViewModal = () => {
         setSelectedSubscriber(null);
         setViewModalOpen(false);
@@ -170,7 +169,7 @@ const Subscriber = () => {
                     }}
                 >
                     <Typography variant="h4" component="h1" gutterBottom>
-                        Subscribers
+                        Subscribers ({subscribers.length})
                     </Typography>
                     <Button
                         variant="contained"

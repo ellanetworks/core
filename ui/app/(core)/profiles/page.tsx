@@ -169,7 +169,7 @@ const Profile = () => {
           }}
         >
           <Typography variant="h4" component="h1" gutterBottom>
-            Profiles
+            Profiles ({profiles.length})
           </Typography>
           <Button
             variant="contained"
