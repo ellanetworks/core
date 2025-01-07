@@ -37,7 +37,7 @@ func NewMockDatabaseInstance() *MockDatabaseInstance {
 	}
 }
 
-func TestGetAmData_Success(t *testing.T) {
+func TestGetAmData_success(t *testing.T) {
 	mockDb := NewMockDatabaseInstance()
 	mockDb.GetSubscriberFunc = func(ueId string) (*db.Subscriber, error) {
 		if ueId == "test-ue" {
@@ -55,10 +55,6 @@ func TestGetAmData_Success(t *testing.T) {
 	udr.NewUdrContext(1, mockDb)
 
 	expectedData := &models.AccessAndMobilitySubscriptionData{
-		Nssai: &models.Nssai{
-			DefaultSingleNssais: []models.Snssai{{Sd: "1", Sst: 1}},
-			SingleNssais:        []models.Snssai{{Sd: "1", Sst: 1}},
-		},
 		SubscribedUeAmbr: &models.AmbrRm{
 			Downlink: "100Mbps",
 			Uplink:   "50Mbps",
@@ -83,5 +79,53 @@ func TestGetAmData_Success(t *testing.T) {
 
 	if len(mockDb.assertedProfiles) == 0 {
 		t.Error("GetProfileByID was not called")
+	}
+}
+
+func TestGetAmData_profile_doesnt_exist(t *testing.T) {
+	mockDb := NewMockDatabaseInstance()
+	mockDb.GetSubscriberFunc = func(ueId string) (*db.Subscriber, error) {
+		if ueId == "test-ue" {
+			return &db.Subscriber{ProfileID: 1}, nil
+		}
+		return nil, errors.New("subscriber not found")
+	}
+	mockDb.GetProfileByIDFunc = func(profileID int) (*db.Profile, error) {
+		return nil, errors.New("profile not found")
+	}
+
+	udr.NewUdrContext(1, mockDb)
+
+	amData, err := udr.GetAmData("test-ue")
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+
+	if amData != nil {
+		t.Fatalf("expected amData to be nil, got %v", amData)
+	}
+}
+
+func TestGetAmData_subscriber_doesnt_exist(t *testing.T) {
+	mockDb := NewMockDatabaseInstance()
+	mockDb.GetSubscriberFunc = func(ueId string) (*db.Subscriber, error) {
+		return nil, errors.New("subscriber not found")
+	}
+	mockDb.GetProfileByIDFunc = func(profileID int) (*db.Profile, error) {
+		if profileID == 1 {
+			return &db.Profile{BitrateDownlink: "100Mbps", BitrateUplink: "50Mbps"}, nil
+		}
+		return nil, errors.New("profile not found")
+	}
+
+	udr.NewUdrContext(1, mockDb)
+
+	amData, err := udr.GetAmData("test-ue")
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+
+	if amData != nil {
+		t.Fatalf("expected amData to be nil, got %v", amData)
 	}
 }

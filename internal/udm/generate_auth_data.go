@@ -82,8 +82,6 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		return nil, fmt.Errorf("suciToSupi error: %w", err)
 	}
 
-	logger.UdmLog.Debugf("supi conversion => %s\n", supi)
-
 	authSubs, err := udr.GetAuthSubsData(supi)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get authentication subscriber data: %w", err)
@@ -116,7 +114,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 			return nil, fmt.Errorf("kStr length is %d", len(kStr))
 		}
 	} else {
-		return nil, fmt.Errorf("Nil PermanentKey")
+		return nil, fmt.Errorf("nil PermanentKey")
 	}
 
 	if authSubs.Milenage != nil {
@@ -136,7 +134,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 			logger.UdmLog.Infoln("milenage Op is nil")
 		}
 	} else {
-		return nil, fmt.Errorf("Nil Milenage")
+		return nil, fmt.Errorf("nil Milenage")
 	}
 
 	if authSubs.Opc != nil && authSubs.Opc.OpcValue != "" {
@@ -156,7 +154,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	}
 
 	if !hasOPC && !hasOP {
-		return nil, fmt.Errorf("Unable to derive OP")
+		return nil, fmt.Errorf("unable to derive OP")
 	}
 
 	if !hasOPC {
@@ -166,7 +164,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 				logger.UdmLog.Errorln("milenage GenerateOPC err ", err)
 			}
 		} else {
-			return nil, fmt.Errorf("Unable to derive OPC")
+			return nil, fmt.Errorf("unable to derive OPC")
 		}
 	}
 
@@ -191,18 +189,11 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		return nil, fmt.Errorf("AMF decode error: %w", err)
 	}
 
-	// fmt.Printf("RAND=%x\nAMF=%x\n", RAND, AMF)
-
-	// for test
-	// RAND, _ = hex.DecodeString(TestGenAuthData.MilenageTestSet19.RAND)
-	// AMF, _ = hex.DecodeString(TestGenAuthData.MilenageTestSet19.AMF)
-	// fmt.Printf("For test: RAND=%x, AMF=%x\n", RAND, AMF)
-
 	// re-synchroniztion
 	if authInfoRequest.ResynchronizationInfo != nil {
 		Auts, deCodeErr := hex.DecodeString(authInfoRequest.ResynchronizationInfo.Auts)
 		if deCodeErr != nil {
-			return nil, fmt.Errorf("Auts decode error: %w", deCodeErr)
+			return nil, fmt.Errorf("auts decode error: %w", deCodeErr)
 		}
 
 		randHex, deCodeErr := hex.DecodeString(authInfoRequest.ResynchronizationInfo.Rand)

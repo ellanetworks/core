@@ -20,8 +20,6 @@ func GetAmData(supi string) (
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
-	udmUe := udmContext.NewUdmUe(supi)
-	udmUe.SetAMSubsriptionData(amData)
 	return amData, nil
 }
 
@@ -69,16 +67,6 @@ func GetSmfSelectData(supi string) (
 	udmUe := udmContext.NewUdmUe(supi)
 	udmUe.SetSmfSelectionSubsData(smfSelectionSubscriptionDataResp)
 	return udmUe.SmfSelSubsData, nil
-}
-
-func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string) error {
-	sdmSubscriptionResp := udr.CreateSdmSubscriptions(*sdmSubscription, supi)
-	udmUe, _ := udmContext.UdmUeFindBySupi(supi)
-	if udmUe == nil {
-		udmUe = udmContext.NewUdmUe(supi)
-	}
-	udmUe.CreateSubscriptiontoNotifChange(sdmSubscriptionResp.SubscriptionId, &sdmSubscriptionResp)
-	return nil
 }
 
 func GetUeContextInSmfData(supi string) (*models.UeContextInSmfData, error) {

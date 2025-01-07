@@ -39,25 +39,6 @@ func SDMGetUeContextInSmfData(ue *context.AmfUe) (problemDetails *models.Problem
 	return nil, nil
 }
 
-func SDMSubscribe(ue *context.AmfUe) (*models.ProblemDetails, error) {
-	amfSelf := context.AMF_Self()
-	sdmSubscription := &models.SdmSubscription{
-		NfInstanceId: amfSelf.NfId,
-		PlmnId:       &ue.PlmnId,
-	}
-
-	err := udm.CreateSubscription(sdmSubscription, ue.Supi)
-	if err != nil {
-		problemDetails := &models.ProblemDetails{
-			Status: 500,
-			Cause:  "SYSTEM_FAILURE",
-			Detail: err.Error(),
-		}
-		return problemDetails, nil
-	}
-	return nil, nil
-}
-
 func SDMGetSliceSelectionSubscriptionData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err error) {
 	nssai, err := udm.GetNssai(ue.Supi)
 	if err != nil {
