@@ -126,7 +126,9 @@ const Profile = () => {
     {
       field: "actions",
       headerName: "Actions",
+      type: "actions",
       flex: 1,
+
       renderCell: (params: GridRenderCellParams) => (
         <>
           <IconButton
@@ -220,7 +222,6 @@ const Profile = () => {
               rows={profiles}
               columns={columns}
               disableRowSelectionOnClick
-              autoHeight
             />
           </Box>
         </>
