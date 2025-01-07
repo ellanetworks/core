@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 NAMESPACE = "dev2"
 TEST_PROFILE_NAME = "default-default"
 TEST_START_IMSI = "001010100000001"
-NUM_IMSIS = 3
+NUM_IMSIS = 5
 TEST_SUBSCRIBER_KEY = "5122250214c33e723a5dd523fc145fc0"
 TEST_SUBSCRIBER_SEQUENCE_NUMBER = "000000000001"
 
@@ -114,6 +114,7 @@ class Kubernetes:
         except subprocess.CalledProcessError as e:
             logger.warning(f"Failed to execute command: {e}")
             return ""
+
 
 class TestELLA:
     async def test_given_ella_and_gnbsim_deployed_when_start_simulation_then_simulation_success_status_is_true(  # noqa: E501
