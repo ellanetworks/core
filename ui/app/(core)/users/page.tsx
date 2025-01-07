@@ -4,43 +4,32 @@ import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
-  TableContainer,
-  Table,
-  TableCell,
-  TableRow,
-  TableHead,
-  TableBody,
-  Paper,
-  CircularProgress,
   Button,
+  CircularProgress,
   Alert,
-  IconButton,
   Collapse,
+  IconButton,
 } from "@mui/material";
-import {
-  Delete as DeleteIcon,
-  Edit as EditIcon,
-} from "@mui/icons-material";
+import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
+import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { listUsers, deleteUser } from "@/queries/users";
 import CreateUserModal from "@/components/CreateUserModal";
 import EditUserModal from "@/components/EditUserModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-import { useCookies } from "react-cookie"
-
+import { useCookies } from "react-cookie";
 
 interface UserData {
   email: string;
 }
 
 const User = () => {
-  const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
-
+  const [cookies] = useCookies(["user_token"]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
-  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [editData, setEditData] = useState<UserData | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
@@ -64,28 +53,14 @@ const User = () => {
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
 
-  const handleModalSuccess = () => {
-    fetchUsers();
-    setAlert({ message: "User created successfully!" });
-  };
-
   const handleEditClick = (user: any) => {
-    const mappedUser = {
-      email: user.email,
-    };
-
-    setEditData(mappedUser);
+    setEditData({ email: user.email });
     setEditModalOpen(true);
   };
 
   const handleEditModalClose = () => {
     setEditModalOpen(false);
     setEditData(null);
-  };
-
-  const handleEditSuccess = () => {
-    fetchUsers();
-    setAlert({ message: "User updated successfully!" });
   };
 
   const handleDeleteClick = (email: string) => {
@@ -98,25 +73,42 @@ const User = () => {
     if (selectedUser) {
       try {
         await deleteUser(cookies.user_token, selectedUser);
-        setAlert({
-          message: `User "${selectedUser}" deleted successfully!`,
-        });
+        setAlert({ message: `User "${selectedUser}" deleted successfully!` });
         fetchUsers();
       } catch (error) {
         console.error("Error deleting user:", error);
-        setAlert({
-          message: `Failed to delete user "${selectedUser}".`,
-        });
+        setAlert({ message: `Failed to delete user "${selectedUser}".` });
       } finally {
         setSelectedUser(null);
       }
     }
   };
 
-  const handleConfirmationClose = () => {
-    setConfirmationOpen(false);
-    setSelectedUser(null);
-  };
+  const columns: GridColDef[] = [
+    { field: "email", headerName: "Email", flex: 1 },
+    {
+      field: "actions",
+      headerName: "Actions",
+      type: "actions",
+      flex: 0.5,
+      renderCell: (params: GridRenderCellParams) => (
+        <>
+          <IconButton
+            aria-label="edit"
+            onClick={() => handleEditClick(params.row)}
+          >
+            <EditIcon />
+          </IconButton>
+          <IconButton
+            aria-label="delete"
+            onClick={() => handleDeleteClick(params.row.email)}
+          >
+            <DeleteIcon />
+          </IconButton>
+        </>
+      ),
+    },
+  ];
 
   return (
     <Box
@@ -133,7 +125,7 @@ const User = () => {
       <Box sx={{ width: "60%" }}>
         <Collapse in={!!alert.message}>
           <Alert
-            severity={"success"}
+            severity="success"
             onClose={() => setAlert({ message: "" })}
             sx={{ marginBottom: 2 }}
           >
@@ -141,37 +133,8 @@ const User = () => {
           </Alert>
         </Collapse>
       </Box>
-      {!loading && users.length > 0 && (
-        <Box
-          sx={{
-            marginBottom: 4,
-            width: "60%",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Typography variant="h4" component="h1" gutterBottom>
-            Users ({users.length})
-          </Typography>
-          <Button
-            variant="contained"
-            color="success"
-            onClick={handleOpenCreateModal}
-          >
-            Create
-          </Button>
-        </Box>
-      )}
       {loading ? (
-        <Box
-          sx={{
-            height: "100vh",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
+        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
           <CircularProgress />
         </Box>
       ) : users.length === 0 ? (
@@ -182,68 +145,64 @@ const User = () => {
           onCreate={handleOpenCreateModal}
         />
       ) : (
-        <Box
-          sx={{
-            width: "60%",
-            overflowX: "auto",
-          }}
-        >
-          <TableContainer component={Paper}>
-            <Table sx={{ minWidth: 900 }} aria-label="user table">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Email</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {users.map((user) => (
-                  <TableRow
-                    key={user.email}
-                    sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
-                  >
-                    <TableCell component="th" scope="row">
-                      {user.email}
-                    </TableCell>
-                    <TableCell align="right">
-                      <IconButton
-                        aria-label="edit"
-                        onClick={() => handleEditClick(user)}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        aria-label="delete"
-                        onClick={() => handleDeleteClick(user.email)}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Box>
+        <>
+          <Box
+            sx={{
+              marginBottom: 4,
+              width: "60%",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Typography variant="h4" component="h1" gutterBottom>
+              Users ({users.length})
+            </Typography>
+            <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
+              Create
+            </Button>
+          </Box>
+          <Box
+            sx={{
+              height: "80vh",
+              width: "60%",
+              "& .MuiDataGrid-root": {
+                border: "none",
+              },
+              "& .MuiDataGrid-cell": {
+                borderBottom: "none",
+              },
+              "& .MuiDataGrid-columnHeaders": {
+                borderBottom: "none",
+              },
+              "& .MuiDataGrid-footerContainer": {
+                borderTop: "none",
+              },
+            }}
+          >
+            <DataGrid
+              rows={users}
+              columns={columns}
+              getRowId={(row) => row.email}
+              disableRowSelectionOnClick
+            />
+          </Box>
+        </>
       )}
       <CreateUserModal
         open={isCreateModalOpen}
         onClose={handleCloseCreateModal}
-        onSuccess={handleModalSuccess}
+        onSuccess={fetchUsers}
       />
       <EditUserModal
         open={isEditModalOpen}
         onClose={handleEditModalClose}
-        onSuccess={handleEditSuccess}
-        initialData={
-          editData || {
-            email: "",
-          }
-        }
+        onSuccess={fetchUsers}
+        initialData={editData || { email: "" }}
       />
       <DeleteConfirmationModal
         open={isConfirmationOpen}
-        onClose={handleConfirmationClose}
+        onClose={() => setConfirmationOpen(false)}
         onConfirm={handleDeleteConfirm}
         title="Confirm Deletion"
         description={`Are you sure you want to delete the user "${selectedUser}"? This action cannot be undone.`}

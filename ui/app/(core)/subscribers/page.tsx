@@ -3,19 +3,17 @@ import React, { useState, useEffect } from "react";
 import {
     Box,
     Typography,
-    TableContainer,
-    Table,
-    TableCell,
-    TableRow,
-    TableHead,
-    TableBody,
-    Paper,
-    CircularProgress,
     Button,
+    CircularProgress,
     Alert,
-    IconButton,
     Collapse,
+    IconButton,
 } from "@mui/material";
+import {
+    DataGrid,
+    GridColDef,
+    GridRenderCellParams,
+} from "@mui/x-data-grid";
 import {
     Delete as DeleteIcon,
     Edit as EditIcon,
@@ -36,14 +34,13 @@ interface SubscriberData {
 }
 
 const Subscriber = () => {
-    const [cookies, setCookie, removeCookie] = useCookies(["user_token"]);
-
+    const [cookies] = useCookies(["user_token"]);
     const [subscribers, setSubscribers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [isCreateModalOpen, setCreateModalOpen] = useState(false);
-    const [isConfirmationOpen, setConfirmationOpen] = useState(false);
     const [isEditModalOpen, setEditModalOpen] = useState(false);
     const [isViewModalOpen, setViewModalOpen] = useState(false);
+    const [isConfirmationOpen, setConfirmationOpen] = useState(false);
     const [editData, setEditData] = useState<SubscriberData | null>(null);
     const [selectedSubscriber, setSelectedSubscriber] = useState<string | null>(null);
     const [alert, setAlert] = useState<{ message: string }>({ message: "" });
@@ -71,38 +68,19 @@ const Subscriber = () => {
         setViewModalOpen(false);
     };
 
-    const handleCreateModalSuccess = () => {
-        fetchSubscribers();
-        setAlert({ message: "Subscriber created successfully!" });
-    };
-
     const handleEditClick = (subscriber: any) => {
         const mappedSubscriber = {
             imsi: subscriber.imsi,
             ipAddress: subscriber.ipAddress,
-            opc: subscriber.opc,
-            key: subscriber.key,
-            sequenceNumber: subscriber.sequenceNumber,
             profileName: subscriber.profileName,
         };
-
         setEditData(mappedSubscriber);
         setEditModalOpen(true);
     };
 
     const handleViewClick = (subscriber: any) => {
-        setSelectedSubscriber(subscriber.imsi); // Set selected IMSI
-        setViewModalOpen(true); // Open the modal
-    };
-
-    const handleEditModalClose = () => {
-        setEditModalOpen(false);
-        setEditData(null);
-    };
-
-    const handleEditSuccess = () => {
-        fetchSubscribers();
-        setAlert({ message: "Subscribers updated successfully!" });
+        setSelectedSubscriber(subscriber.imsi);
+        setViewModalOpen(true);
     };
 
     const handleDeleteClick = (subscriberName: string) => {
@@ -130,10 +108,39 @@ const Subscriber = () => {
         }
     };
 
-    const handleConfirmationClose = () => {
-        setConfirmationOpen(false);
-        setSelectedSubscriber(null);
-    };
+    const columns: GridColDef[] = [
+        { field: "imsi", headerName: "IMSI", flex: 1 },
+        { field: "ipAddress", headerName: "IP Address", flex: 1 },
+        { field: "profileName", headerName: "Profile", flex: 1 },
+        {
+            field: "actions",
+            headerName: "Actions",
+            type: "actions",
+            flex: 0.5,
+            renderCell: (params: GridRenderCellParams) => (
+                <>
+                    <IconButton
+                        aria-label="view"
+                        onClick={() => handleViewClick(params.row)}
+                    >
+                        <VisibilityIcon />
+                    </IconButton>
+                    <IconButton
+                        aria-label="edit"
+                        onClick={() => handleEditClick(params.row)}
+                    >
+                        <EditIcon />
+                    </IconButton>
+                    <IconButton
+                        aria-label="delete"
+                        onClick={() => handleDeleteClick(params.row.imsi)}
+                    >
+                        <DeleteIcon />
+                    </IconButton>
+                </>
+            ),
+        },
+    ];
 
     return (
         <Box
@@ -150,7 +157,7 @@ const Subscriber = () => {
             <Box sx={{ width: "60%" }}>
                 <Collapse in={!!alert.message}>
                     <Alert
-                        severity={"success"}
+                        severity="success"
                         onClose={() => setAlert({ message: "" })}
                         sx={{ marginBottom: 2 }}
                     >
@@ -158,37 +165,8 @@ const Subscriber = () => {
                     </Alert>
                 </Collapse>
             </Box>
-            {!loading && subscribers.length > 0 && (
-                <Box
-                    sx={{
-                        marginBottom: 4,
-                        width: "60%",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                    }}
-                >
-                    <Typography variant="h4" component="h1" gutterBottom>
-                        Subscribers ({subscribers.length})
-                    </Typography>
-                    <Button
-                        variant="contained"
-                        color="success"
-                        onClick={handleOpenCreateModal}
-                    >
-                        Create
-                    </Button>
-                </Box>
-            )}
             {loading ? (
-                <Box
-                    sx={{
-                        height: "100vh",
-                        display: "flex",
-                        justifyContent: "center",
-                        alignItems: "center",
-                    }}
-                >
+                <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
                     <CircularProgress />
                 </Box>
             ) : subscribers.length === 0 ? (
@@ -199,74 +177,64 @@ const Subscriber = () => {
                     onCreate={handleOpenCreateModal}
                 />
             ) : (
-                <Box
-                    sx={{
-                        width: "60%",
-                        overflowX: "auto",
-                    }}
-                >
-                    <TableContainer component={Paper}>
-                        <Table sx={{ minWidth: 900 }} aria-label="subscriber table">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>IMSI</TableCell>
-                                    <TableCell align="right">IP Address</TableCell>
-                                    <TableCell align="right">Profile</TableCell>
-                                    <TableCell align="right">Actions</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {subscribers.map((subscriber) => (
-                                    <TableRow
-                                        key={subscriber.imsi}
-                                        sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
-                                    >
-                                        <TableCell component="th" scope="row">
-                                            {subscriber.imsi}
-                                        </TableCell>
-                                        <TableCell align="right">{subscriber.ipAddress}</TableCell>
-                                        <TableCell align="right">{subscriber.profileName}</TableCell>
-                                        <TableCell align="right">
-                                            <IconButton
-                                                aria-label="view"
-                                                onClick={() => handleViewClick(subscriber)}
-                                            >
-                                                <VisibilityIcon />
-                                            </IconButton>
-                                            <IconButton
-                                                aria-label="edit"
-                                                onClick={() => handleEditClick(subscriber)}
-                                            >
-                                                <EditIcon />
-                                            </IconButton>
-                                            <IconButton
-                                                aria-label="delete"
-                                                onClick={() => handleDeleteClick(subscriber.imsi)}
-                                            >
-                                                <DeleteIcon />
-                                            </IconButton>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                </Box>
+                <>
+                    <Box
+                        sx={{
+                            marginBottom: 4,
+                            width: "60%",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                        }}
+                    >
+                        <Typography variant="h4" component="h1" gutterBottom>
+                            Subscribers ({subscribers.length})
+                        </Typography>
+                        <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
+                            Create
+                        </Button>
+                    </Box>
+                    <Box
+                        sx={{
+                            height: "80vh",
+                            width: "60%",
+                            "& .MuiDataGrid-root": {
+                                border: "none",
+                            },
+                            "& .MuiDataGrid-cell": {
+                                borderBottom: "none",
+                            },
+                            "& .MuiDataGrid-columnHeaders": {
+                                borderBottom: "none",
+                            },
+                            "& .MuiDataGrid-footerContainer": {
+                                borderTop: "none",
+                            },
+                        }}
+                    >
+                        <DataGrid
+                            rows={subscribers}
+                            columns={columns}
+                            getRowId={(row) => row.imsi}
+                            disableRowSelectionOnClick
+                        />
+                    </Box>
+                </>
             )}
             <ViewSubscriberModal
                 open={isViewModalOpen}
                 onClose={handleCloseViewModal}
-                imsi={selectedSubscriber || ""} // Pass the selected IMSI
+                imsi={selectedSubscriber || ""}
             />
             <CreateSubscriberModal
                 open={isCreateModalOpen}
                 onClose={handleCloseCreateModal}
-                onSuccess={handleCreateModalSuccess}
+                onSuccess={fetchSubscribers}
             />
             <EditSubscriberModal
                 open={isEditModalOpen}
-                onClose={handleEditModalClose}
-                onSuccess={handleEditSuccess}
+                onClose={() => setEditModalOpen(false)}
+                onSuccess={fetchSubscribers}
                 initialData={
                     editData || {
                         imsi: "",
@@ -276,7 +244,7 @@ const Subscriber = () => {
             />
             <DeleteConfirmationModal
                 open={isConfirmationOpen}
-                onClose={handleConfirmationClose}
+                onClose={() => setConfirmationOpen(false)}
                 onConfirm={handleDeleteConfirm}
                 title="Confirm Deletion"
                 description={`Are you sure you want to delete the subscriber "${selectedSubscriber}"? This action cannot be undone.`}

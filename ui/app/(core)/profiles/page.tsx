@@ -1,32 +1,23 @@
 "use client";
+
 import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
-  TableContainer,
-  Table,
-  TableCell,
-  TableRow,
-  TableHead,
-  TableBody,
-  Paper,
-  CircularProgress,
   Button,
+  CircularProgress,
   Alert,
-  IconButton,
   Collapse,
+  IconButton,
 } from "@mui/material";
-import {
-  Delete as DeleteIcon,
-  Edit as EditIcon,
-} from "@mui/icons-material";
+import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
+import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { listProfiles, deleteProfile } from "@/queries/profiles";
 import CreateProfileModal from "@/components/CreateProfileModal";
 import EditProfileModal from "@/components/EditProfileModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-import { useCookies } from "react-cookie"
-
+import { useCookies } from "react-cookie";
 
 interface ProfileData {
   name: string;
@@ -42,13 +33,12 @@ interface ProfileData {
 }
 
 const Profile = () => {
-  const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
-
+  const [cookies] = useCookies(["user_token"]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
-  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [editData, setEditData] = useState<ProfileData | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
@@ -57,7 +47,19 @@ const Profile = () => {
     setLoading(true);
     try {
       const data = await listProfiles(cookies.user_token);
-      setProfiles(data);
+
+      const mappedData = data.map((profile: any) => ({
+        id: profile.name,
+        name: profile.name,
+        ipPool: profile["ue-ip-pool"] || "N/A",
+        dns: profile.dns || "N/A",
+        bitrateUp: profile["bitrate-uplink"] || "0 Mbps",
+        bitrateDown: profile["bitrate-downlink"] || "0 Mbps",
+        fiveQi: profile["var5qi"] || 0,
+        priorityLevel: profile["priority-level"] || 0,
+      }));
+
+      setProfiles(mappedData);
     } catch (error) {
       console.error("Error fetching profiles:", error);
     } finally {
@@ -72,37 +74,20 @@ const Profile = () => {
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
 
-  const handleModalSuccess = () => {
-    fetchProfiles();
-    setAlert({ message: "Profile created successfully!" });
-  };
-
   const handleEditClick = (profile: any) => {
-    const mappedProfile = {
+    setEditData({
       name: profile.name,
-      ipPool: profile["ue-ip-pool"],
+      ipPool: profile.ipPool,
       dns: profile.dns,
-      mtu: profile.mtu || 1500,
-      bitrateUpValue: parseInt(profile["bitrate-uplink"]) || 100,
-      bitrateUpUnit: profile["bitrate-uplink"].includes("Gbps") ? "Gbps" : "Mbps",
-      bitrateDownValue: parseInt(profile["bitrate-downlink"]) || 100,
-      bitrateDownUnit: profile["bitrate-downlink"].includes("Gbps") ? "Gbps" : "Mbps",
-      fiveQi: profile["var5qi"] || 1,
-      priorityLevel: profile["priority-level"] || 1,
-    };
-
-    setEditData(mappedProfile);
+      mtu: 1500,
+      bitrateUpValue: parseInt(profile.bitrateUp),
+      bitrateUpUnit: profile.bitrateUp.includes("Gbps") ? "Gbps" : "Mbps",
+      bitrateDownValue: parseInt(profile.bitrateDown),
+      bitrateDownUnit: profile.bitrateDown.includes("Gbps") ? "Gbps" : "Mbps",
+      fiveQi: profile.fiveQi,
+      priorityLevel: profile.priorityLevel,
+    });
     setEditModalOpen(true);
-  };
-
-  const handleEditModalClose = () => {
-    setEditModalOpen(false);
-    setEditData(null);
-  };
-
-  const handleEditSuccess = () => {
-    fetchProfiles();
-    setAlert({ message: "Profile updated successfully!" });
   };
 
   const handleDeleteClick = (profileName: string) => {
@@ -130,10 +115,36 @@ const Profile = () => {
     }
   };
 
-  const handleConfirmationClose = () => {
-    setConfirmationOpen(false);
-    setSelectedProfile(null);
-  };
+  const columns: GridColDef[] = [
+    { field: "name", headerName: "Name", flex: 1 },
+    { field: "ipPool", headerName: "IP Pool", flex: 1 },
+    { field: "dns", headerName: "DNS", flex: 1 },
+    { field: "bitrateUp", headerName: "Bitrate (Up)", flex: 1 },
+    { field: "bitrateDown", headerName: "Bitrate (Down)", flex: 1 },
+    { field: "fiveQi", headerName: "5QI", flex: 0.5 },
+    { field: "priorityLevel", headerName: "Priority", flex: 0.5 },
+    {
+      field: "actions",
+      headerName: "Actions",
+      flex: 1,
+      renderCell: (params: GridRenderCellParams) => (
+        <>
+          <IconButton
+            aria-label="edit"
+            onClick={() => handleEditClick(params.row)}
+          >
+            <EditIcon />
+          </IconButton>
+          <IconButton
+            aria-label="delete"
+            onClick={() => handleDeleteClick(params.row.name)}
+          >
+            <DeleteIcon />
+          </IconButton>
+        </>
+      ),
+    },
+  ];
 
   return (
     <Box
@@ -150,7 +161,7 @@ const Profile = () => {
       <Box sx={{ width: "60%" }}>
         <Collapse in={!!alert.message}>
           <Alert
-            severity={"success"}
+            severity="success"
             onClose={() => setAlert({ message: "" })}
             sx={{ marginBottom: 2 }}
           >
@@ -158,37 +169,8 @@ const Profile = () => {
           </Alert>
         </Collapse>
       </Box>
-      {!loading && profiles.length > 0 && (
-        <Box
-          sx={{
-            marginBottom: 4,
-            width: "60%",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Typography variant="h4" component="h1" gutterBottom>
-            Profiles ({profiles.length})
-          </Typography>
-          <Button
-            variant="contained"
-            color="success"
-            onClick={handleOpenCreateModal}
-          >
-            Create
-          </Button>
-        </Box>
-      )}
       {loading ? (
-        <Box
-          sx={{
-            height: "100vh",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
+        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
           <CircularProgress />
         </Box>
       ) : profiles.length === 0 ? (
@@ -199,71 +181,59 @@ const Profile = () => {
           onCreate={handleOpenCreateModal}
         />
       ) : (
-        <Box
-          sx={{
-            width: "60%",
-            overflowX: "auto",
-          }}
-        >
-          <TableContainer component={Paper}>
-            <Table sx={{ minWidth: 900 }} aria-label="profile table">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell align="right">IP Pool</TableCell>
-                  <TableCell align="right">DNS</TableCell>
-                  <TableCell align="right">Bitrate (up)</TableCell>
-                  <TableCell align="right">Bitrate (down)</TableCell>
-                  <TableCell align="right">5QI</TableCell>
-                  <TableCell align="right">Priority Level</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {profiles.map((profile) => (
-                  <TableRow
-                    key={profile.name}
-                    sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
-                  >
-                    <TableCell component="th" scope="row">
-                      {profile.name}
-                    </TableCell>
-                    <TableCell align="right">{profile?.["ue-ip-pool"]}</TableCell>
-                    <TableCell align="right">{profile?.["dns"]}</TableCell>
-                    <TableCell align="right">{profile?.["bitrate-uplink"]}</TableCell>
-                    <TableCell align="right">{profile?.["bitrate-downlink"]}</TableCell>
-                    <TableCell align="right">{profile?.["var5qi"]}</TableCell>
-                    <TableCell align="right">{profile?.["priority-level"]}</TableCell>
-                    <TableCell align="right">
-                      <IconButton
-                        aria-label="edit"
-                        onClick={() => handleEditClick(profile)}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        aria-label="delete"
-                        onClick={() => handleDeleteClick(profile.name)}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Box>
+        <>
+          <Box
+            sx={{
+              marginBottom: 4,
+              width: "60%",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Typography variant="h4" component="h1" gutterBottom>
+              Profiles ({profiles.length})
+            </Typography>
+            <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
+              Create
+            </Button>
+          </Box>
+          <Box
+            sx={{
+              height: "80vh",
+              width: "60%",
+              "& .MuiDataGrid-root": {
+                border: "none",
+              },
+              "& .MuiDataGrid-cell": {
+                borderBottom: "none",
+              },
+              "& .MuiDataGrid-columnHeaders": {
+                borderBottom: "none",
+              },
+              "& .MuiDataGrid-footerContainer": {
+                borderTop: "none",
+              },
+            }}
+          >
+            <DataGrid
+              rows={profiles}
+              columns={columns}
+              disableRowSelectionOnClick
+              autoHeight
+            />
+          </Box>
+        </>
       )}
       <CreateProfileModal
         open={isCreateModalOpen}
         onClose={handleCloseCreateModal}
-        onSuccess={handleModalSuccess}
+        onSuccess={fetchProfiles}
       />
       <EditProfileModal
         open={isEditModalOpen}
-        onClose={handleEditModalClose}
-        onSuccess={handleEditSuccess}
+        onClose={() => setEditModalOpen(false)}
+        onSuccess={fetchProfiles}
         initialData={
           editData || {
             name: "",
@@ -281,7 +251,7 @@ const Profile = () => {
       />
       <DeleteConfirmationModal
         open={isConfirmationOpen}
-        onClose={handleConfirmationClose}
+        onClose={() => setConfirmationOpen(false)}
         onConfirm={handleDeleteConfirm}
         title="Confirm Deletion"
         description={`Are you sure you want to delete the profile "${selectedProfile}"? This action cannot be undone.`}

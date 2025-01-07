@@ -4,30 +4,20 @@ import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
-  TableContainer,
-  Table,
-  TableCell,
-  TableRow,
-  TableHead,
-  TableBody,
-  Paper,
-  CircularProgress,
   Button,
+  CircularProgress,
   Alert,
-  IconButton,
   Collapse,
+  IconButton,
 } from "@mui/material";
-import {
-  Delete as DeleteIcon,
-  Edit as EditIcon,
-} from "@mui/icons-material";
+import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
+import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { listRadios, deleteRadio } from "@/queries/radios";
 import CreateRadioModal from "@/components/CreateRadioModal";
 import EditRadioModal from "@/components/EditRadioModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-import { useCookies } from "react-cookie"
-
+import { useCookies } from "react-cookie";
 
 interface RadioData {
   name: string;
@@ -35,13 +25,12 @@ interface RadioData {
 }
 
 const Radio = () => {
-  const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
-
+  const [cookies] = useCookies(["user_token"]);
   const [radios, setRadios] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
-  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [editData, setEditData] = useState<RadioData | null>(null);
   const [selectedRadio, setSelectedRadio] = useState<string | null>(null);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
@@ -65,17 +54,11 @@ const Radio = () => {
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
 
-  const handleModalSuccess = () => {
-    fetchRadios();
-    setAlert({ message: "Radio created successfully!" });
-  };
-
   const handleEditClick = (radio: any) => {
     const mappedRadio = {
       name: radio.name,
       tac: radio.tac,
     };
-
     setEditData(mappedRadio);
     setEditModalOpen(true);
   };
@@ -83,11 +66,6 @@ const Radio = () => {
   const handleEditModalClose = () => {
     setEditModalOpen(false);
     setEditData(null);
-  };
-
-  const handleEditSuccess = () => {
-    fetchRadios();
-    setAlert({ message: "Radio updated successfully!" });
   };
 
   const handleDeleteClick = (radioName: string) => {
@@ -115,10 +93,32 @@ const Radio = () => {
     }
   };
 
-  const handleConfirmationClose = () => {
-    setConfirmationOpen(false);
-    setSelectedRadio(null);
-  };
+  const columns: GridColDef[] = [
+    { field: "name", headerName: "Name", flex: 1 },
+    { field: "tac", headerName: "TAC", flex: 1 },
+    {
+      field: "actions",
+      headerName: "Actions",
+      type: "actions",
+      flex: 0.5,
+      renderCell: (params: GridRenderCellParams) => (
+        <>
+          <IconButton
+            aria-label="edit"
+            onClick={() => handleEditClick(params.row)}
+          >
+            <EditIcon />
+          </IconButton>
+          <IconButton
+            aria-label="delete"
+            onClick={() => handleDeleteClick(params.row.name)}
+          >
+            <DeleteIcon />
+          </IconButton>
+        </>
+      ),
+    },
+  ];
 
   return (
     <Box
@@ -135,7 +135,7 @@ const Radio = () => {
       <Box sx={{ width: "60%" }}>
         <Collapse in={!!alert.message}>
           <Alert
-            severity={"success"}
+            severity="success"
             onClose={() => setAlert({ message: "" })}
             sx={{ marginBottom: 2 }}
           >
@@ -143,37 +143,8 @@ const Radio = () => {
           </Alert>
         </Collapse>
       </Box>
-      {!loading && radios.length > 0 && (
-        <Box
-          sx={{
-            marginBottom: 4,
-            width: "60%",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Typography variant="h4" component="h1" gutterBottom>
-            Radios ({radios.length})
-          </Typography>
-          <Button
-            variant="contained"
-            color="success"
-            onClick={handleOpenCreateModal}
-          >
-            Create
-          </Button>
-        </Box>
-      )}
       {loading ? (
-        <Box
-          sx={{
-            height: "100vh",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
+        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
           <CircularProgress />
         </Box>
       ) : radios.length === 0 ? (
@@ -184,61 +155,59 @@ const Radio = () => {
           onCreate={handleOpenCreateModal}
         />
       ) : (
-        <Box
-          sx={{
-            width: "60%",
-            overflowX: "auto",
-          }}
-        >
-          <TableContainer component={Paper}>
-            <Table sx={{ minWidth: 900 }} aria-label="radio table">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell align="right">TAC</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {radios.map((radio) => (
-                  <TableRow
-                    key={radio.name}
-                    sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
-                  >
-                    <TableCell component="th" scope="row">
-                      {radio.name}
-                    </TableCell>
-                    <TableCell align="right">{radio.tac}</TableCell>
-                    <TableCell align="right">
-                      <IconButton
-                        aria-label="edit"
-                        onClick={() => handleEditClick(radio)}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        aria-label="delete"
-                        onClick={() => handleDeleteClick(radio.name)}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Box>
+        <>
+          <Box
+            sx={{
+              marginBottom: 4,
+              width: "60%",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Typography variant="h4" component="h1" gutterBottom>
+              Radios ({radios.length})
+            </Typography>
+            <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
+              Create
+            </Button>
+          </Box>
+          <Box
+            sx={{
+              height: "80vh",
+              width: "60%",
+              "& .MuiDataGrid-root": {
+                border: "none",
+              },
+              "& .MuiDataGrid-cell": {
+                borderBottom: "none",
+              },
+              "& .MuiDataGrid-columnHeaders": {
+                borderBottom: "none",
+              },
+              "& .MuiDataGrid-footerContainer": {
+                borderTop: "none",
+              },
+            }}
+          >
+            <DataGrid
+              rows={radios}
+              columns={columns}
+              getRowId={(row) => row.name}
+              disableRowSelectionOnClick
+            />
+          </Box>
+        </>
       )}
       <CreateRadioModal
         open={isCreateModalOpen}
         onClose={handleCloseCreateModal}
-        onSuccess={handleModalSuccess}
+        onSuccess={fetchRadios}
       />
       <EditRadioModal
         open={isEditModalOpen}
         onClose={handleEditModalClose}
-        onSuccess={handleEditSuccess}
+        onSuccess={fetchRadios}
         initialData={
           editData || {
             name: "",
@@ -248,7 +217,7 @@ const Radio = () => {
       />
       <DeleteConfirmationModal
         open={isConfirmationOpen}
-        onClose={handleConfirmationClose}
+        onClose={() => setConfirmationOpen(false)}
         onConfirm={handleDeleteConfirm}
         title="Confirm Deletion"
         description={`Are you sure you want to delete the radio "${selectedRadio}"? This action cannot be undone.`}
