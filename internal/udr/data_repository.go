@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/config"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -106,7 +105,6 @@ func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 	subscriber, err := udrContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
-		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
 	authSubsData := convertDbAuthSubsDataToModel(subscriber.Opc, subscriber.PermanentKey, subscriber.SequenceNumber)
@@ -116,7 +114,6 @@ func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
 	_, err := udrContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
-		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("USER_NOT_FOUND")
 	}
 	amPolicyData := &models.AmPolicyData{}
@@ -147,7 +144,6 @@ func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
 // the fact that it returns an empty list and the e2e tests
 // still pass makes me think that it's not used.
 func GetSMFRegistrations(supi string) ([]*models.SmfRegistration, error) {
-	// return empty list
 	return []*models.SmfRegistration{}, nil
 }
 
