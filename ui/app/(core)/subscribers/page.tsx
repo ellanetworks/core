@@ -117,28 +117,26 @@ const Subscriber = () => {
             headerName: "Actions",
             type: "actions",
             flex: 0.5,
-            renderCell: (params: GridRenderCellParams) => (
-                <>
-                    <IconButton
-                        aria-label="view"
-                        onClick={() => handleViewClick(params.row)}
-                    >
-                        <VisibilityIcon />
-                    </IconButton>
-                    <IconButton
-                        aria-label="edit"
-                        onClick={() => handleEditClick(params.row)}
-                    >
-                        <EditIcon />
-                    </IconButton>
-                    <IconButton
-                        aria-label="delete"
-                        onClick={() => handleDeleteClick(params.row.imsi)}
-                    >
-                        <DeleteIcon />
-                    </IconButton>
-                </>
-            ),
+            getActions: (params) => [
+                <IconButton
+                    aria-label="view"
+                    onClick={() => handleViewClick(params.row)}
+                >
+                    <VisibilityIcon />
+                </IconButton>,
+                <IconButton
+                    aria-label="edit"
+                    onClick={() => handleEditClick(params.row)}
+                >
+                    <EditIcon />
+                </IconButton>,
+                <IconButton
+                    aria-label="delete"
+                    onClick={() => handleDeleteClick(params.row.name)}
+                >
+                    <DeleteIcon />
+                </IconButton>
+            ],
         },
     ];
 
