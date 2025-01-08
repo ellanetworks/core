@@ -7,9 +7,11 @@ package fsm
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/smf/context"
 	smf_context "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
 	"github.com/ellanetworks/core/internal/smf/transaction"
+	"github.com/omec-project/openapi/models"
 )
 
 // Define SM Context level Events
@@ -87,12 +89,15 @@ func EmptyEventHandler(event SmEvent, eventData *SmEventData) (smf_context.SMCon
 }
 
 func HandleStateInitEventPduSessCreate(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
-	if err := producer.HandlePDUSessionSMContextCreate(eventData.Txn); err != nil {
-		txn := eventData.Txn.(*transaction.Transaction)
+	txn := eventData.Txn.(*transaction.Transaction)
+	request := txn.Req.(models.PostSmContextsRequest)
+	smContext := txn.Ctxt.(*context.SMContext)
+	rsp, err := producer.HandlePDUSessionSMContextCreate(request, smContext)
+	txn.Rsp = rsp
+	if err != nil {
 		txn.Err = err
 		return smf_context.SmStateInit, fmt.Errorf("error creating pdu session: %v ", err.Error())
 	}
-
 	return smf_context.SmStatePfcpCreatePending, nil
 }
 
@@ -145,10 +150,12 @@ func HandleStateActiveEventPduSessCreate(event SmEvent, eventData *SmEventData) 
 func HandleStateActiveEventPduSessModify(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
 	txn := eventData.Txn.(*transaction.Transaction)
 	smCtxt := txn.Ctxt.(*smf_context.SMContext)
-
-	if err := producer.HandlePDUSessionSMContextUpdate(eventData.Txn); err != nil {
-		smCtxt.SubFsmLog.Errorf("sm context update error, %v ", err.Error())
-		return smf_context.SmStateActive, err
+	request := txn.Req.(models.UpdateSmContextRequest)
+	rsp, err := producer.HandlePDUSessionSMContextUpdate(request, smCtxt)
+	txn.Rsp = rsp
+	if err != nil {
+		txn.Err = err
+		return smf_context.SmStateActive, fmt.Errorf("error updating pdu session: %v ", err.Error())
 	}
 	return smf_context.SmStateActive, nil
 }
@@ -156,28 +163,37 @@ func HandleStateActiveEventPduSessModify(event SmEvent, eventData *SmEventData) 
 func HandleStateActiveEventPduSessRelease(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
 	txn := eventData.Txn.(*transaction.Transaction)
 	smCtxt := txn.Ctxt.(*smf_context.SMContext)
+	request := txn.Req.(models.ReleaseSmContextRequest)
 
-	if err := producer.HandlePDUSessionSMContextRelease(eventData.Txn); err != nil {
-		smCtxt.SubFsmLog.Errorf("sm context release error, %v ", err.Error())
-		return smf_context.SmStateInit, err
+	rsp, err := producer.HandlePDUSessionSMContextRelease(request, smCtxt)
+	txn.Rsp = rsp
+	if err != nil {
+		txn.Err = err
+		return smf_context.SmStateInit, fmt.Errorf("error releasing pdu session: %v ", err.Error())
 	}
+
 	return smf_context.SmStateInit, nil
 }
 
 func HandleStateActiveEventPduSessN1N2TransFailInd(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
 	txn := eventData.Txn.(*transaction.Transaction)
 	smCtxt := txn.Ctxt.(*smf_context.SMContext)
-
-	if err := producer.HandlePduSessN1N2TransFailInd(eventData.Txn); err != nil {
-		smCtxt.SubFsmLog.Errorf("Error while processing HandlePduSessN1N2TransferFailureIndication, %v ", err.Error())
-		return smf_context.SmStateInit, err
+	rsp, err := producer.HandlePduSessN1N2TransFailInd(smCtxt)
+	txn.Rsp = rsp
+	if err != nil {
+		txn.Err = err
+		return smf_context.SmStateInit, fmt.Errorf("error handling pdu session n1n2 transfer failure: %v ", err.Error())
 	}
 	return smf_context.SmStateInit, nil
 }
 
 func HandleStateActiveEventPolicyUpdateNotify(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
 	txn := eventData.Txn.(*transaction.Transaction)
-	if err := producer.HandleSMPolicyUpdateNotify(eventData.Txn); err != nil {
+	request := txn.Req.(models.SmPolicyNotification)
+	smContext := txn.Ctxt.(*context.SMContext)
+	rsp, err := producer.HandleSMPolicyUpdateNotify(request, smContext)
+	txn.Rsp = rsp
+	if err != nil {
 		txn.Err = err
 		return smf_context.SmStateActive, fmt.Errorf("coultn't process policy update: %v ", err.Error())
 	}

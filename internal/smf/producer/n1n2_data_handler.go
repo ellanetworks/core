@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/openapi/Nsmf_PDUSession"
@@ -27,10 +26,7 @@ type pfcpParam struct {
 	qerList []*context.QER
 }
 
-func HandleUpdateN1Msg(txn *transaction.Transaction, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) error {
-	body := txn.Req.(models.UpdateSmContextRequest)
-	smContext := txn.Ctxt.(*context.SMContext)
-
+func HandleUpdateN1Msg(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) (*httpwrapper.Response, error) {
 	if body.BinaryDataN1SmMessage != nil {
 		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, Binary Data N1 SmMessage isn't nil!")
 		m := nas.NewMessage()
@@ -38,7 +34,7 @@ func HandleUpdateN1Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, Update SM Context Request N1SmMessage: ", m)
 		if err != nil {
 			smContext.SubPduSessLog.Error(err)
-			txn.Rsp = &httpwrapper.Response{
+			rsp := &httpwrapper.Response{
 				Status: http.StatusForbidden,
 				Body: models.UpdateSmContextErrorResponse{
 					JsonData: &models.SmContextUpdateError{
@@ -46,7 +42,7 @@ func HandleUpdateN1Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 					},
 				}, // Depends on the reason why N4 fail
 			}
-			return err
+			return rsp, err
 		}
 		switch m.GsmHeader.GetMessageType() {
 		case nas.MsgTypePDUSessionReleaseRequest:
@@ -96,12 +92,10 @@ func HandleUpdateN1Msg(txn *transaction.Transaction, response *models.UpdateSmCo
 		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, Binary Data N1 SmMessage is nil!")
 	}
 
-	return nil
+	return nil, nil
 }
 
-func HandleUpCnxState(txn *transaction.Transaction, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction, pfcpParam *pfcpParam) error {
-	body := txn.Req.(models.UpdateSmContextRequest)
-	smContext := txn.Ctxt.(*context.SMContext)
+func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction, pfcpParam *pfcpParam) error {
 	smContextUpdateData := body.JsonData
 
 	switch smContextUpdateData.UpCnxState {
@@ -159,9 +153,7 @@ func HandleUpCnxState(txn *transaction.Transaction, response *models.UpdateSmCon
 	return nil
 }
 
-func HandleUpdateHoState(txn *transaction.Transaction, response *models.UpdateSmContextResponse) error {
-	body := txn.Req.(models.UpdateSmContextRequest)
-	smContext := txn.Ctxt.(*context.SMContext)
+func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse) error {
 	smContextUpdateData := body.JsonData
 
 	switch smContextUpdateData.HoState {
@@ -224,9 +216,7 @@ func HandleUpdateHoState(txn *transaction.Transaction, response *models.UpdateSm
 	return nil
 }
 
-func HandleUpdateCause(txn *transaction.Transaction, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) error {
-	body := txn.Req.(models.UpdateSmContextRequest)
-	smContext := txn.Ctxt.(*context.SMContext)
+func HandleUpdateCause(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) error {
 	smContextUpdateData := body.JsonData
 
 	switch smContextUpdateData.Cause {
@@ -259,9 +249,7 @@ func HandleUpdateCause(txn *transaction.Transaction, response *models.UpdateSmCo
 	return nil
 }
 
-func HandleUpdateN2Msg(txn *transaction.Transaction, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction, pfcpParam *pfcpParam) error {
-	body := txn.Req.(models.UpdateSmContextRequest)
-	smContext := txn.Ctxt.(*context.SMContext)
+func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction, pfcpParam *pfcpParam) error {
 	smContextUpdateData := body.JsonData
 	tunnel := smContext.Tunnel
 

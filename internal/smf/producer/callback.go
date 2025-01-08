@@ -10,22 +10,16 @@ import (
 
 	amf_producer "github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/logger"
-	smf_context "github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/qos"
-	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
 	"github.com/omec-project/openapi/models"
 )
 
-func HandleSMPolicyUpdateNotify(eventData interface{}) error {
-	txn := eventData.(*transaction.Transaction)
-	request := txn.Req.(models.SmPolicyNotification)
-	smContext := txn.Ctxt.(*smf_context.SMContext)
-
-	logger.SmfLog.Infoln("In HandleSMPolicyUpdateNotify")
+func HandleSMPolicyUpdateNotify(request models.SmPolicyNotification, smContext *context.SMContext) (*httpwrapper.Response, error) {
 	pcfPolicyDecision := request.SmPolicyDecision
 
-	if smContext.SMContextState != smf_context.SmStateActive {
+	if smContext.SMContextState != context.SmStateActive {
 		logger.SmfLog.Warnf("SMContext[%s-%02d] should be SmStateActive, but actual %s",
 			smContext.Supi, smContext.PDUSessionID, smContext.SMContextState.String())
 	}
@@ -35,21 +29,19 @@ func HandleSMPolicyUpdateNotify(eventData interface{}) error {
 	smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
 
 	httpResponse := httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
-	txn.Rsp = httpResponse
 
 	// Form N1/N2 Msg based on QoS Change and Trigger N1/N2 Msg
 	if err := BuildAndSendQosN1N2TransferMsg(smContext); err != nil {
 		// smContext.CommitSmPolicyDecision(false)
 		// Send error rsp to PCF
 		httpResponse.Status = http.StatusBadRequest
-		txn.Err = err
-		return err
+		return httpResponse, err
 	}
 
-	return nil
+	return httpResponse, nil
 }
 
-func BuildAndSendQosN1N2TransferMsg(smContext *smf_context.SMContext) error {
+func BuildAndSendQosN1N2TransferMsg(smContext *context.SMContext) error {
 	// N1N2 Request towards AMF
 	n1n2Request := models.N1N2MessageTransferRequest{}
 
@@ -78,7 +70,7 @@ func BuildAndSendQosN1N2TransferMsg(smContext *smf_context.SMContext) error {
 	n1n2Request.JsonData = &models.N1N2MessageTransferReqData{PduSessionId: smContext.PDUSessionID}
 
 	// N1 Msg
-	if smNasBuf, err := smf_context.BuildGSMPDUSessionModificationCommand(smContext); err != nil {
+	if smNasBuf, err := context.BuildGSMPDUSessionModificationCommand(smContext); err != nil {
 		logger.SmfLog.Errorf("Build GSM BuildGSMPDUSessionModificationCommand failed: %s", err)
 	} else {
 		n1n2Request.BinaryDataN1Message = smNasBuf
@@ -86,7 +78,7 @@ func BuildAndSendQosN1N2TransferMsg(smContext *smf_context.SMContext) error {
 	}
 
 	// N2 Msg
-	n2Pdu, err := smf_context.BuildPDUSessionResourceModifyRequestTransfer(smContext)
+	n2Pdu, err := context.BuildPDUSessionResourceModifyRequestTransfer(smContext)
 	if err != nil {
 		smContext.SubPduSessLog.Errorf("SMPolicyUpdate, build PDUSession Resource Modify Request Transfer Error(%s)", err.Error())
 	} else {
