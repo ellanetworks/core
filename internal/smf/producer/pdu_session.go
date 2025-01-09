@@ -371,20 +371,18 @@ func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smCon
 	var httpResponse *httpwrapper.Response
 
 	// Release User-plane
-	if ok := releaseTunnel(smContext); !ok {
+	status, ok := releaseTunnel(smContext)
+	if !ok {
 		// already released
 		httpResponse = &httpwrapper.Response{
 			Status: http.StatusNoContent,
 			Body:   nil,
 		}
-
 		context.RemoveSMContext(smContext.Ref)
 		return httpResponse, nil
 	}
 
-	PFCPResponseStatus := <-smContext.SBIPFCPCommunicationChan
-
-	switch PFCPResponseStatus {
+	switch *status {
 	case context.SessionReleaseSuccess:
 		smContext.ChangeState(context.SmStatePfcpRelease)
 		httpResponse = &httpwrapper.Response{
@@ -423,7 +421,7 @@ func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smCon
 		errResponse.JsonData.N1SmMsg = &models.RefToBinaryData{ContentId: "PDUSessionReleaseReject"}
 		httpResponse.Body = errResponse
 	default:
-		smContext.SubCtxLog.Warnf("PDUSessionSMContextRelease, The state shouldn't be [%s]\n", PFCPResponseStatus)
+		smContext.SubCtxLog.Warnf("PDUSessionSMContextRelease, The state shouldn't be [%s]\n", status)
 
 		problemDetail := models.ProblemDetails{
 			Status: http.StatusInternalServerError,
@@ -453,11 +451,12 @@ func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smCon
 	return httpResponse, nil
 }
 
-func releaseTunnel(smContext *context.SMContext) bool {
+func releaseTunnel(smContext *context.SMContext) (*context.PFCPSessionResponseStatus, bool) {
 	if smContext.Tunnel == nil {
 		smContext.SubPduSessLog.Errorf("releaseTunnel, pfcp tunnel already released")
-		return false
+		return nil, false
 	}
+	var responseStatus *context.PFCPSessionResponseStatus
 	deletedPFCPNode := make(map[string]bool)
 	smContext.PendingUPF = make(context.PendingUPF)
 	for _, dataPath := range smContext.Tunnel.DataPathPool {
@@ -465,7 +464,8 @@ func releaseTunnel(smContext *context.SMContext) bool {
 		for curDataPathNode := dataPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
 			curUPFID := curDataPathNode.UPF.UUID()
 			if _, exist := deletedPFCPNode[curUPFID]; !exist {
-				err := pfcp.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext, curDataPathNode.UPF.Port)
+				status, err := pfcp.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext, curDataPathNode.UPF.Port)
+				responseStatus = status
 				if err != nil {
 					smContext.SubPduSessLog.Errorf("releaseTunnel, send PFCP session deletion request failed: %v", err)
 				}
@@ -475,7 +475,7 @@ func releaseTunnel(smContext *context.SMContext) bool {
 		}
 	}
 	smContext.Tunnel = nil
-	return true
+	return responseStatus, true
 }
 
 func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
@@ -563,6 +563,7 @@ func HandlePduSessN1N2TransFailInd(smContext *context.SMContext) (*httpwrapper.R
 	smContext.SubPduSessLog.Infof("In HandlePduSessN1N2TransFailInd, N1N2 Transfer Failure Notification received")
 
 	var httpResponse *httpwrapper.Response
+	var responseStatus context.PFCPSessionResponseStatus
 
 	pdrList := []*context.PDR{}
 	farList := []*context.FAR{}
@@ -589,20 +590,20 @@ func HandlePduSessN1N2TransFailInd(smContext *context.SMContext) (*httpwrapper.R
 		ANUPF := defaultPath.FirstDPNode
 
 		// Sending PFCP modification with flag set to DROP the packets.
-		addPduSessionAnchor, err := pfcp.SendPfcpSessionModificationRequest(ANUPF.UPF.NodeID, smContext, pdrList, farList, barList, qerList, ANUPF.UPF.Port)
+		addPduSessionAnchor, status, err := pfcp.SendPfcpSessionModificationRequest(ANUPF.UPF.NodeID, smContext, pdrList, farList, barList, qerList, ANUPF.UPF.Port)
+		responseStatus = *status
 		if err != nil {
 			smContext.SubPduSessLog.Errorf("pfcp Session Modification Request failed: %v", err)
 		}
 		if addPduSessionAnchor {
 			rspNodeID := context.NewNodeID("0.0.0.0")
-			AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
+			responseStatus = AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
 		}
 	}
 
 	// Listening PFCP modification response.
-	PFCPResponseStatus := <-smContext.SBIPFCPCommunicationChan
 
-	httpResponse = HandlePFCPResponse(smContext, PFCPResponseStatus)
+	httpResponse = HandlePFCPResponse(smContext, responseStatus)
 	return httpResponse, nil
 }
 

@@ -10,32 +10,32 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
-	smf_context "github.com/ellanetworks/core/internal/smf/context"
-	pfcp_message "github.com/ellanetworks/core/internal/smf/pfcp"
+	"github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf/pfcp"
 )
 
-func SendPfcpSessionModifyReq(smContext *smf_context.SMContext, pfcpParam *pfcpParam) error {
+func SendPfcpSessionModifyReq(smContext *context.SMContext, pfcpParam *pfcpParam) error {
 	defaultPath := smContext.Tunnel.DataPathPool.GetDefaultPath()
 	ANUPF := defaultPath.FirstDPNode
-	addPduSessionAnchor, err := pfcp_message.SendPfcpSessionModificationRequest(ANUPF.UPF.NodeID, smContext,
+	addPduSessionAnchor, status, err := pfcp.SendPfcpSessionModificationRequest(ANUPF.UPF.NodeID, smContext,
 		pfcpParam.pdrList, pfcpParam.farList, pfcpParam.barList, pfcpParam.qerList, ANUPF.UPF.Port)
 	if err != nil {
 		logger.SmfLog.Warnf("Failed to send PFCP session modification request: %+v", err)
 	}
 	if addPduSessionAnchor {
-		rspNodeID := smf_context.NewNodeID("0.0.0.0")
-		AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
+		rspNodeID := context.NewNodeID("0.0.0.0")
+		status2 := AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
+		status = &status2
 	}
-	PFCPResponseStatus := <-smContext.SBIPFCPCommunicationChan
 
-	switch PFCPResponseStatus {
-	case smf_context.SessionUpdateSuccess:
+	switch *status {
+	case context.SessionUpdateSuccess:
 		smContext.SubCtxLog.Debugln("PDUSessionSMContextUpdate, PFCP Session Update Success")
 
-	case smf_context.SessionUpdateFailed:
+	case context.SessionUpdateFailed:
 		smContext.SubCtxLog.Debugln("PDUSessionSMContextUpdate, PFCP Session Update Failed")
 		fallthrough
-	case smf_context.SessionUpdateTimeout:
+	case context.SessionUpdateTimeout:
 		smContext.SubCtxLog.Debugln("PDUSessionSMContextUpdate, PFCP Session Modification Timeout")
 
 		err := fmt.Errorf("pfcp modification failure")
@@ -45,19 +45,21 @@ func SendPfcpSessionModifyReq(smContext *smf_context.SMContext, pfcpParam *pfcpP
 	return nil
 }
 
-func SendPfcpSessionReleaseReq(smContext *smf_context.SMContext) error {
+func SendPfcpSessionReleaseReq(smContext *context.SMContext) error {
 	// release UPF data tunnel
-	releaseTunnel(smContext)
+	status, ok := releaseTunnel(smContext)
+	if !ok {
+		logger.SmfLog.Warnf("Failed to release UPF data tunnel")
+	}
 
-	PFCPResponseStatus := <-smContext.SBIPFCPCommunicationChan
-	switch PFCPResponseStatus {
-	case smf_context.SessionReleaseSuccess:
+	switch *status {
+	case context.SessionReleaseSuccess:
 		smContext.SubCtxLog.Debugln("PDUSessionSMContextUpdate, PFCP Session Release Success")
 		return nil
-	case smf_context.SessionReleaseTimeout:
+	case context.SessionReleaseTimeout:
 		smContext.SubCtxLog.Error("PDUSessionSMContextUpdate, PFCP Session Release Failed")
 		return fmt.Errorf("pfcp session release timeout")
-	case smf_context.SessionReleaseFailed:
+	case context.SessionReleaseFailed:
 		smContext.SubCtxLog.Error("PDUSessionSMContextUpdate, PFCP Session Release Failed")
 		return fmt.Errorf("pfcp session release failed")
 	}

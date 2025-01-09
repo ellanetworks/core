@@ -36,11 +36,10 @@ func HandleStateInitEventPduSessCreate(request models.PostSmContextsRequest, smC
 }
 
 func HandleStatePfcpCreatePendingEventPfcpSessCreate(smCtxt *context.SMContext) (context.SMContextState, error) {
-	producer.SendPFCPRules(smCtxt)
-	smCtxt.SubFsmLog.Debug("waiting for pfcp session establish response")
-	switch <-smCtxt.SBIPFCPCommunicationChan {
+	responseStatus := producer.SendPFCPRules(smCtxt)
+	switch responseStatus {
 	case context.SessionEstablishSuccess:
-		smCtxt.SubFsmLog.Debug("pfcp session establish response success")
+		smCtxt.SubFsmLog.Infof("pfcp session establish response success")
 		return context.SmStateN1N2TransferPending, nil
 	case context.SessionEstablishFailed:
 		fallthrough
