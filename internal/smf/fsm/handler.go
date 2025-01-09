@@ -20,12 +20,9 @@ type SmEvent uint
 const (
 	SmEventInvalid SmEvent = iota
 	SmEventPduSessCreate
-	SmEventPduSessModify
 	SmEventPduSessRelease
 	SmEventPfcpSessCreate
 	SmEventPfcpSessCreateFailure
-	SmEventPfcpSessModify
-	SmEventPfcpSessRelease
 	SmEventPduSessN1N2Transfer
 	SmEventPduSessN1N2TransferFailureIndication
 	SmEventPolicyUpdateNotify
@@ -59,7 +56,6 @@ func InitFsm() {
 	SmfFsmHandler[smf_context.SmStatePfcpCreatePending][SmEventPfcpSessCreate] = HandleStatePfcpCreatePendingEventPfcpSessCreate
 	SmfFsmHandler[smf_context.SmStatePfcpCreatePending][SmEventPfcpSessCreateFailure] = HandleStatePfcpCreatePendingEventPfcpSessCreateFailure
 	SmfFsmHandler[smf_context.SmStateN1N2TransferPending][SmEventPduSessN1N2Transfer] = HandleStateN1N2TransferPendingEventN1N2Transfer
-	SmfFsmHandler[smf_context.SmStateActive][SmEventPduSessModify] = HandleStateActiveEventPduSessModify
 	SmfFsmHandler[smf_context.SmStateActive][SmEventPduSessRelease] = HandleStateActiveEventPduSessRelease
 	SmfFsmHandler[smf_context.SmStateActive][SmEventPduSessN1N2TransferFailureIndication] = HandleStateActiveEventPduSessN1N2TransFailInd
 	SmfFsmHandler[smf_context.SmStateActive][SmEventPolicyUpdateNotify] = HandleStateActiveEventPolicyUpdateNotify
@@ -140,24 +136,6 @@ func HandleStatePfcpCreatePendingEventPfcpSessCreateFailure(event SmEvent, event
 		return smf_context.SmStateN1N2TransferPending, fmt.Errorf("N1N2 Transfer failure error, %v ", err.Error())
 	}
 	return smf_context.SmStateInit, nil
-}
-
-func HandleStateActiveEventPduSessCreate(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
-	// Context Replacement
-	return smf_context.SmStateActive, nil
-}
-
-func HandleStateActiveEventPduSessModify(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
-	txn := eventData.Txn.(*transaction.Transaction)
-	smCtxt := txn.Ctxt.(*smf_context.SMContext)
-	request := txn.Req.(models.UpdateSmContextRequest)
-	rsp, err := producer.HandlePDUSessionSMContextUpdate(request, smCtxt)
-	txn.Rsp = rsp
-	if err != nil {
-		txn.Err = err
-		return smf_context.SmStateActive, fmt.Errorf("error updating pdu session: %v ", err.Error())
-	}
-	return smf_context.SmStateActive, nil
 }
 
 func HandleStateActiveEventPduSessRelease(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {

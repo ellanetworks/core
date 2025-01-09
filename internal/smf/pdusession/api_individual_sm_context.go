@@ -6,11 +6,14 @@ package pdusession
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/fsm"
 	"github.com/ellanetworks/core/internal/smf/msgtypes/svcmsgtypes"
+	"github.com/ellanetworks/core/internal/smf/producer"
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
 	"github.com/omec-project/openapi/models"
@@ -54,6 +57,28 @@ func ReleaseSmContext(smContextRef string, releaseSmContextRequest models.Releas
 	}
 }
 
+func HandlePduSessModify(request models.UpdateSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *httpwrapper.Response, error) {
+	rsp, err := producer.HandlePDUSessionSMContextUpdate(request, smCtxt)
+	if err != nil {
+		rsp = &httpwrapper.Response{
+			Header: nil,
+			Status: http.StatusNotFound,
+			Body: models.UpdateSmContextErrorResponse{
+				JsonData: &models.SmContextUpdateError{
+					UpCnxState: models.UpCnxState_DEACTIVATED,
+					Error: &models.ProblemDetails{
+						Type:   "Resource Not Found",
+						Title:  "SMContext Ref is not found",
+						Status: http.StatusNotFound,
+					},
+				},
+			},
+		}
+		return context.SmStateActive, rsp, fmt.Errorf("error updating pdu session: %v ", err.Error())
+	}
+	return context.SmStateActive, rsp, nil
+}
+
 func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSmContextRequest) (*models.UpdateSmContextResponse, error) {
 	logger.SmfLog.Info("Processing Update SM Context Request")
 
@@ -65,27 +90,24 @@ func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSm
 		return nil, errors.New("update request is missing JsonData")
 	}
 
-	txn := transaction.NewTransaction(updateSmContextRequest, nil, svcmsgtypes.UpdateSmContext)
-	txn.CtxtKey = smContextRef
+	smContext := context.GetSMContext(smContextRef)
 
-	go txn.StartTxnLifeCycle(fsm.SmfTxnFsmHandle)
-	<-txn.Status // Wait for transaction to complete
-
-	HTTPResponse, ok := txn.Rsp.(*httpwrapper.Response)
-	if !ok {
-		return nil, errors.New("unexpected transaction response type")
+	nextState, rsp, err := HandlePduSessModify(updateSmContextRequest, smContext)
+	if err != nil {
+		logger.SmfLog.Errorf("error processing state machine transaction")
 	}
+	smContext.ChangeState(nextState)
 
-	switch HTTPResponse.Status {
+	switch rsp.Status {
 	case http.StatusOK, http.StatusNoContent:
-		response, ok := HTTPResponse.Body.(models.UpdateSmContextResponse)
+		response, ok := rsp.Body.(models.UpdateSmContextResponse)
 		if !ok {
 			return nil, errors.New("unexpected response body type for successful update")
 		}
 		return &response, nil
 
 	default:
-		errResponse, ok := HTTPResponse.Body.(*models.ProblemDetails)
+		errResponse, ok := rsp.Body.(*models.ProblemDetails)
 		if ok {
 			logger.SmfLog.Errorf("SM Context update failed: %s", errResponse.Detail)
 			return nil, errors.New(errResponse.Detail)

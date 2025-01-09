@@ -11,7 +11,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
-	smf_context "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/msgtypes/svcmsgtypes"
 	"github.com/ellanetworks/core/internal/smf/producer"
 	"github.com/ellanetworks/core/internal/smf/transaction"
@@ -33,7 +32,7 @@ func (SmfTxnFsm) TxnLoadCtxt(txn *transaction.Transaction) (transaction.TxnEvent
 	case svcmsgtypes.CreateSmContext:
 		req := txn.Req.(models.PostSmContextsRequest)
 		createData := req.JsonData
-		if smCtxtRef, err := smf_context.ResolveRef(createData.Supi, createData.PduSessionId); err == nil {
+		if smCtxtRef, err := context.ResolveRef(createData.Supi, createData.PduSessionId); err == nil {
 			// Previous context exist
 			err := producer.HandlePduSessionContextReplacement(smCtxtRef)
 			if err != nil {
@@ -41,31 +40,31 @@ func (SmfTxnFsm) TxnLoadCtxt(txn *transaction.Transaction) (transaction.TxnEvent
 			}
 		}
 		// Create fresh context
-		txn.Ctxt = smf_context.NewSMContext(createData.Supi, createData.PduSessionId)
-		txn.CtxtKey, _ = smf_context.ResolveRef(createData.Supi, createData.PduSessionId)
-	case svcmsgtypes.UpdateSmContext:
-		fallthrough
+		txn.Ctxt = context.NewSMContext(createData.Supi, createData.PduSessionId)
+		txn.CtxtKey, _ = context.ResolveRef(createData.Supi, createData.PduSessionId)
+	// case svcmsgtypes.UpdateSmContext:
+	// 	fallthrough
 	case svcmsgtypes.ReleaseSmContext:
 		fallthrough
 	case svcmsgtypes.SmPolicyUpdateNotification:
-		txn.Ctxt = smf_context.GetSMContext(txn.CtxtKey)
+		txn.Ctxt = context.GetSMContext(txn.CtxtKey)
 
 	case svcmsgtypes.PfcpSessCreate:
 		fallthrough
-		// txn.Ctxt = smf_context.GetSMContext(txn.CtxtKey)
+		// txn.Ctxt = context.GetSMContext(txn.CtxtKey)
 	case svcmsgtypes.N1N2MessageTransfer:
 		// Pre-loaded- No action
 	case svcmsgtypes.PfcpSessCreateFailure:
 		// Pre-loaded- No action
 	case svcmsgtypes.N1N2MessageTransferFailureNotification:
-		txn.Ctxt = smf_context.GetSMContext(txn.CtxtKey)
+		txn.Ctxt = context.GetSMContext(txn.CtxtKey)
 	default:
 		txn.TxnFsmLog.Errorf("handle event[%v], next-event[%v], unknown msgtype [%v] ",
 			transaction.TxnEventLoadCtxt.String(), transaction.TxnEventFailure.String(), txn.MsgType)
 		return transaction.TxnEventFailure, fmt.Errorf("invalid Msg to load Txn")
 	}
 
-	if txn.Ctxt.(*smf_context.SMContext) == nil {
+	if txn.Ctxt.(*context.SMContext) == nil {
 		txn.TxnFsmLog.Errorf("handle event[%v], ctxt [%v] not found", transaction.TxnEventLoadCtxt.String(), txn.CtxtKey)
 		return transaction.TxnEventFailure, fmt.Errorf("ctxt not found")
 	}
@@ -74,7 +73,7 @@ func (SmfTxnFsm) TxnLoadCtxt(txn *transaction.Transaction) (transaction.TxnEvent
 }
 
 func (SmfTxnFsm) TxnCtxtPost(txn *transaction.Transaction) (transaction.TxnEvent, error) {
-	smContext := txn.Ctxt.(*smf_context.SMContext)
+	smContext := txn.Ctxt.(*context.SMContext)
 
 	// Lock the bus before modifying
 	smContext.SMTxnBusLock.Lock()
@@ -95,7 +94,7 @@ func (SmfTxnFsm) TxnCtxtPost(txn *transaction.Transaction) (transaction.TxnEvent
 }
 
 func (SmfTxnFsm) TxnCtxtRun(txn *transaction.Transaction) (transaction.TxnEvent, error) {
-	smContext := txn.Ctxt.(*smf_context.SMContext)
+	smContext := txn.Ctxt.(*context.SMContext)
 
 	// There shouldn't be any active Txn if current Txn has reached to Run state
 	// Probably, abort it
@@ -112,7 +111,7 @@ func (SmfTxnFsm) TxnCtxtRun(txn *transaction.Transaction) (transaction.TxnEvent,
 }
 
 func (SmfTxnFsm) TxnProcess(txn *transaction.Transaction) (transaction.TxnEvent, error) {
-	smContext := txn.Ctxt.(*smf_context.SMContext)
+	smContext := txn.Ctxt.(*context.SMContext)
 	if smContext == nil {
 		txn.TxnFsmLog.Errorf("event[%v], next-event[%v], SM context invalid ", transaction.TxnEventProcess.String(), transaction.TxnEventFailure.String())
 		return transaction.TxnEventFailure, fmt.Errorf("TxnProcess, invalid SM Ctxt")
@@ -123,9 +122,9 @@ func (SmfTxnFsm) TxnProcess(txn *transaction.Transaction) (transaction.TxnEvent,
 	switch txn.MsgType {
 	case svcmsgtypes.CreateSmContext:
 		event = SmEventPduSessCreate
-	case svcmsgtypes.UpdateSmContext:
-		event = SmEventPduSessModify
-		// req := txn.Req.(models.UpdateSmContextRequest)
+	// case svcmsgtypes.UpdateSmContext:
+	// 	event = SmEventPduSessModify
+	// req := txn.Req.(models.UpdateSmContextRequest)
 	case svcmsgtypes.ReleaseSmContext:
 		event = SmEventPduSessRelease
 	case svcmsgtypes.PfcpSessCreate:
@@ -156,7 +155,7 @@ func (SmfTxnFsm) TxnSuccess(txn *transaction.Transaction) (transaction.TxnEvent,
 
 		nextTxn := transaction.NewTransaction(nil, nil, svcmsgtypes.N1N2MessageTransfer)
 		nextTxn.Ctxt = txn.Ctxt
-		smContext := txn.Ctxt.(*smf_context.SMContext)
+		smContext := txn.Ctxt.(*context.SMContext)
 		smContext.SMTxnBusLock.Lock()
 		smContext.TxnBus = smContext.TxnBus.AddTxn(nextTxn)
 		smContext.SMTxnBusLock.Unlock()
@@ -177,10 +176,10 @@ func (SmfTxnFsm) TxnFailure(txn *transaction.Transaction) (transaction.TxnEvent,
 	// Put Failure Rsp
 	switch txn.MsgType {
 	case svcmsgtypes.PfcpSessCreate:
-		if txn.Ctxt != nil && txn.Ctxt.(*smf_context.SMContext).SMContextState == context.SmStatePfcpCreatePending {
+		if txn.Ctxt != nil && txn.Ctxt.(*context.SMContext).SMContextState == context.SmStatePfcpCreatePending {
 			nextTxn := transaction.NewTransaction(nil, nil, svcmsgtypes.PfcpSessCreateFailure)
 			nextTxn.Ctxt = txn.Ctxt
-			smContext := txn.Ctxt.(*smf_context.SMContext)
+			smContext := txn.Ctxt.(*context.SMContext)
 			smContext.SMTxnBusLock.Lock()
 			smContext.TxnBus = smContext.TxnBus.AddTxn(nextTxn)
 			smContext.SMTxnBusLock.Unlock()
@@ -190,27 +189,6 @@ func (SmfTxnFsm) TxnFailure(txn *transaction.Transaction) (transaction.TxnEvent,
 				// nextTxn.StartTxnLifeCycle(SmfTxnFsmHandle)
 				<-nextTxn.Status
 			}(nextTxn)
-		}
-
-	case svcmsgtypes.UpdateSmContext:
-		if txn.Ctxt == nil {
-			logger.SmfLog.Warnf("PDUSessionSMContextUpdate, SMContext[%s] is not found", txn.CtxtKey)
-
-			httpResponse := &httpwrapper.Response{
-				Header: nil,
-				Status: http.StatusNotFound,
-				Body: models.UpdateSmContextErrorResponse{
-					JsonData: &models.SmContextUpdateError{
-						UpCnxState: models.UpCnxState_DEACTIVATED,
-						Error: &models.ProblemDetails{
-							Type:   "Resource Not Found",
-							Title:  "SMContext Ref is not found",
-							Status: http.StatusNotFound,
-						},
-					},
-				},
-			}
-			txn.Rsp = httpResponse
 		}
 
 	case svcmsgtypes.ReleaseSmContext:
@@ -255,7 +233,7 @@ func (SmfTxnFsm) TxnCollision(txn *transaction.Transaction) (transaction.TxnEven
 func (SmfTxnFsm) TxnEnd(txn *transaction.Transaction) (transaction.TxnEvent, error) {
 	txn.TransactionEnd()
 
-	smContext := txn.Ctxt.(*smf_context.SMContext)
+	smContext := txn.Ctxt.(*context.SMContext)
 	if smContext == nil {
 		return transaction.TxnEventExit, nil
 	}
@@ -277,7 +255,3 @@ func (SmfTxnFsm) TxnEnd(txn *transaction.Transaction) (transaction.TxnEvent, err
 
 	return transaction.TxnEventExit, nil
 }
-
-/// Suggestions
-//1. Global pipeline for txns
-//2. Memory alloc pool for txns
