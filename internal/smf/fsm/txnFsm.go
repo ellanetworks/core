@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/msgtypes/svcmsgtypes"
+	"github.com/ellanetworks/core/internal/smf/producer"
 	"github.com/ellanetworks/core/internal/smf/transaction"
 )
 
@@ -27,8 +28,6 @@ func (SmfTxnFsm) TxnLoadCtxt(txn *transaction.Transaction) (transaction.TxnEvent
 	switch txn.MsgType {
 	case svcmsgtypes.PfcpSessCreate:
 		fallthrough
-	case svcmsgtypes.N1N2MessageTransfer:
-		// Pre-loaded- No action
 	case svcmsgtypes.PfcpSessCreateFailure:
 		// Pre-loaded- No action
 	case svcmsgtypes.N1N2MessageTransferFailureNotification:
@@ -99,8 +98,6 @@ func (SmfTxnFsm) TxnProcess(txn *transaction.Transaction) (transaction.TxnEvent,
 		event = SmEventPfcpSessCreate
 	case svcmsgtypes.PfcpSessCreateFailure:
 		event = SmEventPfcpSessCreateFailure
-	case svcmsgtypes.N1N2MessageTransfer:
-		event = SmEventPduSessN1N2Transfer
 	case svcmsgtypes.N1N2MessageTransferFailureNotification:
 		event = SmEventPduSessN1N2TransferFailureIndication
 	default:
@@ -115,22 +112,26 @@ func (SmfTxnFsm) TxnProcess(txn *transaction.Transaction) (transaction.TxnEvent,
 	return transaction.TxnEventSuccess, nil
 }
 
+func HandleStateN1N2TransferPendingEventN1N2Transfer(smCtxt *context.SMContext) (context.SMContextState, error) {
+	if err := producer.SendPduSessN1N2Transfer(smCtxt, true); err != nil {
+		smCtxt.SubFsmLog.Errorf("N1N2 transfer failure error, %v ", err.Error())
+		return context.SmStateN1N2TransferPending, fmt.Errorf("N1N2 Transfer failure error, %v ", err.Error())
+	}
+	return context.SmStateActive, nil
+}
+
 func (SmfTxnFsm) TxnSuccess(txn *transaction.Transaction) (transaction.TxnEvent, error) {
 	switch txn.MsgType {
 	case svcmsgtypes.PfcpSessCreate:
 
-		nextTxn := transaction.NewTransaction(nil, nil, svcmsgtypes.N1N2MessageTransfer)
-		nextTxn.Ctxt = txn.Ctxt
-		smContext := txn.Ctxt.(*context.SMContext)
-		smContext.SMTxnBusLock.Lock()
-		smContext.TxnBus = smContext.TxnBus.AddTxn(nextTxn)
-		smContext.SMTxnBusLock.Unlock()
-		go func(nextTxn *transaction.Transaction) {
-			// Initiate N1N2 Transfer
-
-			// nextTxn.StartTxnLifeCycle(SmfTxnFsmHandle)
-			<-nextTxn.Status
-		}(nextTxn)
+		go func() {
+			smContext := txn.Ctxt.(*context.SMContext)
+			nextState, err := HandleStateN1N2TransferPendingEventN1N2Transfer(smContext)
+			smContext.ChangeState(nextState)
+			if err != nil {
+				logger.SmfLog.Errorf("error processing state machine transaction")
+			}
+		}()
 	}
 
 	// put Success Rsp

@@ -20,7 +20,6 @@ const (
 	SmEventInvalid SmEvent = iota
 	SmEventPfcpSessCreate
 	SmEventPfcpSessCreateFailure
-	SmEventPduSessN1N2Transfer
 	SmEventPduSessN1N2TransferFailureIndication
 	SmEventMax
 )
@@ -48,10 +47,8 @@ func init() {
 
 // Override with specific handler
 func InitFsm() {
-	// SmfFsmHandler[context.SmStateInit][SmEventPduSessCreate] = HandleStateInitEventPduSessCreate
 	SmfFsmHandler[context.SmStatePfcpCreatePending][SmEventPfcpSessCreate] = HandleStatePfcpCreatePendingEventPfcpSessCreate
 	SmfFsmHandler[context.SmStatePfcpCreatePending][SmEventPfcpSessCreateFailure] = HandleStatePfcpCreatePendingEventPfcpSessCreateFailure
-	SmfFsmHandler[context.SmStateN1N2TransferPending][SmEventPduSessN1N2Transfer] = HandleStateN1N2TransferPendingEventN1N2Transfer
 	SmfFsmHandler[context.SmStateActive][SmEventPduSessN1N2TransferFailureIndication] = HandleStateActiveEventPduSessN1N2TransFailInd
 }
 
@@ -94,17 +91,6 @@ func HandleStatePfcpCreatePendingEventPfcpSessCreate(event SmEvent, eventData *S
 		smCtxt.SubFsmLog.Errorf("pfcp session establish response failure")
 		return context.SmStatePfcpCreatePending, fmt.Errorf("pfcp establishment failure")
 	}
-}
-
-func HandleStateN1N2TransferPendingEventN1N2Transfer(event SmEvent, eventData *SmEventData) (context.SMContextState, error) {
-	txn := eventData.Txn.(*transaction.Transaction)
-	smCtxt := txn.Ctxt.(*context.SMContext)
-
-	if err := producer.SendPduSessN1N2Transfer(smCtxt, true); err != nil {
-		smCtxt.SubFsmLog.Errorf("N1N2 transfer failure error, %v ", err.Error())
-		return context.SmStateN1N2TransferPending, fmt.Errorf("N1N2 Transfer failure error, %v ", err.Error())
-	}
-	return context.SmStateActive, nil
 }
 
 func HandleStatePfcpCreatePendingEventPfcpSessCreateFailure(event SmEvent, eventData *SmEventData) (context.SMContextState, error) {

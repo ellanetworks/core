@@ -8,8 +8,6 @@ func (e SmEvent) String() string {
 	switch e {
 	case SmEventPfcpSessCreate:
 		return "SmEventPfcpSessCreate"
-	case SmEventPduSessN1N2Transfer:
-		return "SmEventPduSessN1N2Transfer"
 	case SmEventPfcpSessCreateFailure:
 		return "SmEventPfcpSessCreateFailure"
 	case SmEventPduSessN1N2TransferFailureIndication:
