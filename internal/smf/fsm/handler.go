@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/smf/context"
-	smf_context "github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/omec-project/openapi/models"
@@ -19,7 +18,7 @@ type SmEvent uint
 
 const (
 	SmEventInvalid SmEvent = iota
-	SmEventPduSessCreate
+	// SmEventPduSessCreate
 	SmEventPduSessRelease
 	SmEventPfcpSessCreate
 	SmEventPfcpSessCreateFailure
@@ -34,13 +33,13 @@ type SmEventData struct {
 }
 
 // Define FSM Func Point Struct here
-type eventHandler func(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error)
+type eventHandler func(event SmEvent, eventData *SmEventData) (context.SMContextState, error)
 
-var SmfFsmHandler [smf_context.SmStateMax][SmEventMax]eventHandler
+var SmfFsmHandler [context.SmStateMax][SmEventMax]eventHandler
 
 func init() {
 	// Initilise with default invalid handler
-	for state := smf_context.SmStateInit; state < smf_context.SmStateMax; state++ {
+	for state := context.SmStateInit; state < context.SmStateMax; state++ {
 		for event := SmEventInvalid; event < SmEventMax; event++ {
 			SmfFsmHandler[state][event] = EmptyEventHandler
 		}
@@ -52,16 +51,16 @@ func init() {
 
 // Override with specific handler
 func InitFsm() {
-	SmfFsmHandler[smf_context.SmStateInit][SmEventPduSessCreate] = HandleStateInitEventPduSessCreate
-	SmfFsmHandler[smf_context.SmStatePfcpCreatePending][SmEventPfcpSessCreate] = HandleStatePfcpCreatePendingEventPfcpSessCreate
-	SmfFsmHandler[smf_context.SmStatePfcpCreatePending][SmEventPfcpSessCreateFailure] = HandleStatePfcpCreatePendingEventPfcpSessCreateFailure
-	SmfFsmHandler[smf_context.SmStateN1N2TransferPending][SmEventPduSessN1N2Transfer] = HandleStateN1N2TransferPendingEventN1N2Transfer
-	SmfFsmHandler[smf_context.SmStateActive][SmEventPduSessRelease] = HandleStateActiveEventPduSessRelease
-	SmfFsmHandler[smf_context.SmStateActive][SmEventPduSessN1N2TransferFailureIndication] = HandleStateActiveEventPduSessN1N2TransFailInd
-	SmfFsmHandler[smf_context.SmStateActive][SmEventPolicyUpdateNotify] = HandleStateActiveEventPolicyUpdateNotify
+	// SmfFsmHandler[context.SmStateInit][SmEventPduSessCreate] = HandleStateInitEventPduSessCreate
+	SmfFsmHandler[context.SmStatePfcpCreatePending][SmEventPfcpSessCreate] = HandleStatePfcpCreatePendingEventPfcpSessCreate
+	SmfFsmHandler[context.SmStatePfcpCreatePending][SmEventPfcpSessCreateFailure] = HandleStatePfcpCreatePendingEventPfcpSessCreateFailure
+	SmfFsmHandler[context.SmStateN1N2TransferPending][SmEventPduSessN1N2Transfer] = HandleStateN1N2TransferPendingEventN1N2Transfer
+	SmfFsmHandler[context.SmStateActive][SmEventPduSessRelease] = HandleStateActiveEventPduSessRelease
+	SmfFsmHandler[context.SmStateActive][SmEventPduSessN1N2TransferFailureIndication] = HandleStateActiveEventPduSessN1N2TransFailInd
+	SmfFsmHandler[context.SmStateActive][SmEventPolicyUpdateNotify] = HandleStateActiveEventPolicyUpdateNotify
 }
 
-func HandleEvent(smContext *smf_context.SMContext, event SmEvent, eventData SmEventData) error {
+func HandleEvent(smContext *context.SMContext, event SmEvent, eventData SmEventData) error {
 	ctxtState := smContext.SMContextState
 	smContext.SubFsmLog.Debugf("handle fsm event[%v], state[%v] ", event.String(), ctxtState.String())
 	if nextState, err := SmfFsmHandler[smContext.SMContextState][event](event, &eventData); err != nil {
@@ -77,95 +76,82 @@ type SmfTxnFsm struct{}
 
 var SmfTxnFsmHandle SmfTxnFsm
 
-func EmptyEventHandler(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
+func EmptyEventHandler(event SmEvent, eventData *SmEventData) (context.SMContextState, error) {
 	txn := eventData.Txn.(*transaction.Transaction)
-	smCtxt := txn.Ctxt.(*smf_context.SMContext)
+	smCtxt := txn.Ctxt.(*context.SMContext)
 	smCtxt.SubFsmLog.Errorf("unhandled event[%s] ", event.String())
 	return smCtxt.SMContextState, fmt.Errorf("fsm error, unhandled event[%s] and event data[%s] ", event.String(), eventData.String())
 }
 
-func HandleStateInitEventPduSessCreate(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
+func HandleStatePfcpCreatePendingEventPfcpSessCreate(event SmEvent, eventData *SmEventData) (context.SMContextState, error) {
 	txn := eventData.Txn.(*transaction.Transaction)
-	request := txn.Req.(models.PostSmContextsRequest)
-	smContext := txn.Ctxt.(*context.SMContext)
-	rsp, err := producer.HandlePDUSessionSMContextCreate(request, smContext)
-	txn.Rsp = rsp
-	if err != nil {
-		txn.Err = err
-		return smf_context.SmStateInit, fmt.Errorf("error creating pdu session: %v ", err.Error())
-	}
-	return smf_context.SmStatePfcpCreatePending, nil
-}
-
-func HandleStatePfcpCreatePendingEventPfcpSessCreate(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
-	txn := eventData.Txn.(*transaction.Transaction)
-	smCtxt := txn.Ctxt.(*smf_context.SMContext)
+	smCtxt := txn.Ctxt.(*context.SMContext)
 
 	producer.SendPFCPRules(smCtxt)
 	smCtxt.SubFsmLog.Debug("waiting for pfcp session establish response")
 	switch <-smCtxt.SBIPFCPCommunicationChan {
-	case smf_context.SessionEstablishSuccess:
+	case context.SessionEstablishSuccess:
 		smCtxt.SubFsmLog.Debug("pfcp session establish response success")
-		return smf_context.SmStateN1N2TransferPending, nil
-	case smf_context.SessionEstablishFailed:
+		return context.SmStateN1N2TransferPending, nil
+	case context.SessionEstablishFailed:
 		fallthrough
 	default:
 		smCtxt.SubFsmLog.Errorf("pfcp session establish response failure")
-		return smf_context.SmStatePfcpCreatePending, fmt.Errorf("pfcp establishment failure")
+		return context.SmStatePfcpCreatePending, fmt.Errorf("pfcp establishment failure")
 	}
 }
 
-func HandleStateN1N2TransferPendingEventN1N2Transfer(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
+func HandleStateN1N2TransferPendingEventN1N2Transfer(event SmEvent, eventData *SmEventData) (context.SMContextState, error) {
 	txn := eventData.Txn.(*transaction.Transaction)
-	smCtxt := txn.Ctxt.(*smf_context.SMContext)
+	smCtxt := txn.Ctxt.(*context.SMContext)
 
 	if err := producer.SendPduSessN1N2Transfer(smCtxt, true); err != nil {
 		smCtxt.SubFsmLog.Errorf("N1N2 transfer failure error, %v ", err.Error())
-		return smf_context.SmStateN1N2TransferPending, fmt.Errorf("N1N2 Transfer failure error, %v ", err.Error())
+		return context.SmStateN1N2TransferPending, fmt.Errorf("N1N2 Transfer failure error, %v ", err.Error())
 	}
-	return smf_context.SmStateActive, nil
+	return context.SmStateActive, nil
 }
 
-func HandleStatePfcpCreatePendingEventPfcpSessCreateFailure(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
+func HandleStatePfcpCreatePendingEventPfcpSessCreateFailure(event SmEvent, eventData *SmEventData) (context.SMContextState, error) {
 	txn := eventData.Txn.(*transaction.Transaction)
-	smCtxt := txn.Ctxt.(*smf_context.SMContext)
+	smCtxt := txn.Ctxt.(*context.SMContext)
 
 	// sending n1n2 transfer failure to amf
 	if err := producer.SendPduSessN1N2Transfer(smCtxt, false); err != nil {
 		smCtxt.SubFsmLog.Errorf("N1N2 transfer failure error, %v ", err.Error())
-		return smf_context.SmStateN1N2TransferPending, fmt.Errorf("N1N2 Transfer failure error, %v ", err.Error())
+		return context.SmStateN1N2TransferPending, fmt.Errorf("N1N2 Transfer failure error, %v ", err.Error())
 	}
-	return smf_context.SmStateInit, nil
+	return context.SmStateInit, nil
 }
 
-func HandleStateActiveEventPduSessRelease(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
+func HandleStateActiveEventPduSessRelease(event SmEvent, eventData *SmEventData) (context.SMContextState, error) {
 	txn := eventData.Txn.(*transaction.Transaction)
-	smCtxt := txn.Ctxt.(*smf_context.SMContext)
+	smCtxt := txn.Ctxt.(*context.SMContext)
 	request := txn.Req.(models.ReleaseSmContextRequest)
 
 	rsp, err := producer.HandlePDUSessionSMContextRelease(request, smCtxt)
 	txn.Rsp = rsp
 	if err != nil {
 		txn.Err = err
-		return smf_context.SmStateInit, fmt.Errorf("error releasing pdu session: %v ", err.Error())
+		return context.SmStateInit, fmt.Errorf("error releasing pdu session: %v ", err.Error())
 	}
 
-	return smf_context.SmStateInit, nil
+	return context.SmStateInit, nil
 }
 
-func HandleStateActiveEventPduSessN1N2TransFailInd(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
+func HandleStateActiveEventPduSessN1N2TransFailInd(event SmEvent, eventData *SmEventData) (context.SMContextState, error) {
 	txn := eventData.Txn.(*transaction.Transaction)
-	smCtxt := txn.Ctxt.(*smf_context.SMContext)
+	smCtxt := txn.Ctxt.(*context.SMContext)
 	rsp, err := producer.HandlePduSessN1N2TransFailInd(smCtxt)
 	txn.Rsp = rsp
 	if err != nil {
 		txn.Err = err
-		return smf_context.SmStateInit, fmt.Errorf("error handling pdu session n1n2 transfer failure: %v ", err.Error())
+		return context.SmStateInit, fmt.Errorf("error handling pdu session n1n2 transfer failure: %v ", err.Error())
 	}
-	return smf_context.SmStateInit, nil
+	return context.SmStateInit, nil
 }
 
-func HandleStateActiveEventPolicyUpdateNotify(event SmEvent, eventData *SmEventData) (smf_context.SMContextState, error) {
+func HandleStateActiveEventPolicyUpdateNotify(event SmEvent, eventData *SmEventData) (context.SMContextState, error) {
 	txn := eventData.Txn.(*transaction.Transaction)
 	request := txn.Req.(models.SmPolicyNotification)
 	smContext := txn.Ctxt.(*context.SMContext)
@@ -173,8 +159,8 @@ func HandleStateActiveEventPolicyUpdateNotify(event SmEvent, eventData *SmEventD
 	txn.Rsp = rsp
 	if err != nil {
 		txn.Err = err
-		return smf_context.SmStateActive, fmt.Errorf("coultn't process policy update: %v ", err.Error())
+		return context.SmStateActive, fmt.Errorf("coultn't process policy update: %v ", err.Error())
 	}
 
-	return smf_context.SmStateActive, nil
+	return context.SmStateActive, nil
 }

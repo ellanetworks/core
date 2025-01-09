@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/msgtypes/svcmsgtypes"
-	"github.com/ellanetworks/core/internal/smf/producer"
 	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
 	"github.com/omec-project/openapi/models"
@@ -29,21 +28,6 @@ func (SmfTxnFsm) TxnDecode(txn *transaction.Transaction) (transaction.TxnEvent, 
 
 func (SmfTxnFsm) TxnLoadCtxt(txn *transaction.Transaction) (transaction.TxnEvent, error) {
 	switch txn.MsgType {
-	case svcmsgtypes.CreateSmContext:
-		req := txn.Req.(models.PostSmContextsRequest)
-		createData := req.JsonData
-		if smCtxtRef, err := context.ResolveRef(createData.Supi, createData.PduSessionId); err == nil {
-			// Previous context exist
-			err := producer.HandlePduSessionContextReplacement(smCtxtRef)
-			if err != nil {
-				logger.SmfLog.Warnf("Failed to replace existing context[%s] with new context[%s]", smCtxtRef, txn.CtxtKey)
-			}
-		}
-		// Create fresh context
-		txn.Ctxt = context.NewSMContext(createData.Supi, createData.PduSessionId)
-		txn.CtxtKey, _ = context.ResolveRef(createData.Supi, createData.PduSessionId)
-	// case svcmsgtypes.UpdateSmContext:
-	// 	fallthrough
 	case svcmsgtypes.ReleaseSmContext:
 		fallthrough
 	case svcmsgtypes.SmPolicyUpdateNotification:
@@ -51,7 +35,6 @@ func (SmfTxnFsm) TxnLoadCtxt(txn *transaction.Transaction) (transaction.TxnEvent
 
 	case svcmsgtypes.PfcpSessCreate:
 		fallthrough
-		// txn.Ctxt = context.GetSMContext(txn.CtxtKey)
 	case svcmsgtypes.N1N2MessageTransfer:
 		// Pre-loaded- No action
 	case svcmsgtypes.PfcpSessCreateFailure:
@@ -120,11 +103,6 @@ func (SmfTxnFsm) TxnProcess(txn *transaction.Transaction) (transaction.TxnEvent,
 	var event SmEvent
 
 	switch txn.MsgType {
-	case svcmsgtypes.CreateSmContext:
-		event = SmEventPduSessCreate
-	// case svcmsgtypes.UpdateSmContext:
-	// 	event = SmEventPduSessModify
-	// req := txn.Req.(models.UpdateSmContextRequest)
 	case svcmsgtypes.ReleaseSmContext:
 		event = SmEventPduSessRelease
 	case svcmsgtypes.PfcpSessCreate:

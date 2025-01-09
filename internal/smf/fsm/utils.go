@@ -6,8 +6,6 @@ package fsm
 
 func (e SmEvent) String() string {
 	switch e {
-	case SmEventPduSessCreate:
-		return "SmEventPduSessCreate"
 	case SmEventPduSessRelease:
 		return "SmEventPduSessRelease"
 	case SmEventPfcpSessCreate:
