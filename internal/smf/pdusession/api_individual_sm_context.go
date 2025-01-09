@@ -11,13 +11,19 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/fsm"
-	"github.com/ellanetworks/core/internal/smf/msgtypes/svcmsgtypes"
 	"github.com/ellanetworks/core/internal/smf/producer"
-	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
 	"github.com/omec-project/openapi/models"
 )
+
+func HandleStateActiveEventPduSessRelease(request models.ReleaseSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *httpwrapper.Response, error) {
+	rsp, err := producer.HandlePDUSessionSMContextRelease(request, smCtxt)
+	if err != nil {
+		return context.SmStateInit, rsp, err
+	}
+
+	return context.SmStateInit, rsp, nil
+}
 
 func ReleaseSmContext(smContextRef string, releaseSmContextRequest models.ReleaseSmContextRequest) error {
 	logger.SmfLog.Info("Processing Release SM Context Request")
@@ -28,27 +34,37 @@ func ReleaseSmContext(smContextRef string, releaseSmContextRequest models.Releas
 	}
 
 	// Start transaction
-	txn := transaction.NewTransaction(releaseSmContextRequest, nil, svcmsgtypes.ReleaseSmContext)
-	txn.CtxtKey = smContextRef
+	ctxt := context.GetSMContext(smContextRef)
+	nextState, rsp, err := HandleStateActiveEventPduSessRelease(releaseSmContextRequest, ctxt)
+	ctxt.ChangeState(nextState)
+	if err != nil {
+		logger.SmfLog.Errorf("error processing state machine transaction")
+		if ctxt == nil {
+			logger.SmfLog.Warnf("PDUSessionSMContextRelease [%s] is not found", smContextRef)
+			// 4xx/5xx Error not defined in spec 29502 for Release SM ctxt error
+			// Send Not Found
+			httpResponse := &httpwrapper.Response{
+				Header: nil,
+				Status: http.StatusNotFound,
 
-	// Execute FSM lifecycle
-	go txn.StartTxnLifeCycle(fsm.SmfTxnFsmHandle)
-	<-txn.Status // Wait for transaction to complete
-
-	// Handle transaction response
-	HTTPResponse, ok := txn.Rsp.(*httpwrapper.Response)
-	if !ok {
-		return errors.New("unexpected transaction response type")
+				Body: &models.ProblemDetails{
+					Type:   "Resource Not Found",
+					Title:  "SMContext Ref is not found",
+					Status: http.StatusNotFound,
+				},
+			}
+			rsp = httpResponse
+		}
 	}
 
 	// Process response based on HTTP status
-	switch HTTPResponse.Status {
+	switch rsp.Status {
 	case http.StatusNoContent:
 		// Successful release
 		return nil
 	default:
 		// Handle errors
-		errResponse, ok := HTTPResponse.Body.(*models.ProblemDetails)
+		errResponse, ok := rsp.Body.(*models.ProblemDetails)
 		if ok {
 			logger.SmfLog.Errorf("SM Context release failed: %s", errResponse.Detail)
 			return errors.New(errResponse.Detail)

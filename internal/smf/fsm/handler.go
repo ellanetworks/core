@@ -18,13 +18,10 @@ type SmEvent uint
 
 const (
 	SmEventInvalid SmEvent = iota
-	// SmEventPduSessCreate
-	SmEventPduSessRelease
 	SmEventPfcpSessCreate
 	SmEventPfcpSessCreateFailure
 	SmEventPduSessN1N2Transfer
 	SmEventPduSessN1N2TransferFailureIndication
-	SmEventPolicyUpdateNotify
 	SmEventMax
 )
 
@@ -55,9 +52,7 @@ func InitFsm() {
 	SmfFsmHandler[context.SmStatePfcpCreatePending][SmEventPfcpSessCreate] = HandleStatePfcpCreatePendingEventPfcpSessCreate
 	SmfFsmHandler[context.SmStatePfcpCreatePending][SmEventPfcpSessCreateFailure] = HandleStatePfcpCreatePendingEventPfcpSessCreateFailure
 	SmfFsmHandler[context.SmStateN1N2TransferPending][SmEventPduSessN1N2Transfer] = HandleStateN1N2TransferPendingEventN1N2Transfer
-	SmfFsmHandler[context.SmStateActive][SmEventPduSessRelease] = HandleStateActiveEventPduSessRelease
 	SmfFsmHandler[context.SmStateActive][SmEventPduSessN1N2TransferFailureIndication] = HandleStateActiveEventPduSessN1N2TransFailInd
-	SmfFsmHandler[context.SmStateActive][SmEventPolicyUpdateNotify] = HandleStateActiveEventPolicyUpdateNotify
 }
 
 func HandleEvent(smContext *context.SMContext, event SmEvent, eventData SmEventData) error {
@@ -149,18 +144,4 @@ func HandleStateActiveEventPduSessN1N2TransFailInd(event SmEvent, eventData *SmE
 		return context.SmStateInit, fmt.Errorf("error handling pdu session n1n2 transfer failure: %v ", err.Error())
 	}
 	return context.SmStateInit, nil
-}
-
-func HandleStateActiveEventPolicyUpdateNotify(event SmEvent, eventData *SmEventData) (context.SMContextState, error) {
-	txn := eventData.Txn.(*transaction.Transaction)
-	request := txn.Req.(models.SmPolicyNotification)
-	smContext := txn.Ctxt.(*context.SMContext)
-	rsp, err := producer.HandleSMPolicyUpdateNotify(request, smContext)
-	txn.Rsp = rsp
-	if err != nil {
-		txn.Err = err
-		return context.SmStateActive, fmt.Errorf("coultn't process policy update: %v ", err.Error())
-	}
-
-	return context.SmStateActive, nil
 }

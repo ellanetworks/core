@@ -7,14 +7,11 @@ package fsm
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/msgtypes/svcmsgtypes"
 	"github.com/ellanetworks/core/internal/smf/transaction"
-	"github.com/ellanetworks/core/internal/util/httpwrapper"
-	"github.com/omec-project/openapi/models"
 )
 
 func (SmfTxnFsm) TxnInit(txn *transaction.Transaction) (transaction.TxnEvent, error) {
@@ -28,11 +25,6 @@ func (SmfTxnFsm) TxnDecode(txn *transaction.Transaction) (transaction.TxnEvent, 
 
 func (SmfTxnFsm) TxnLoadCtxt(txn *transaction.Transaction) (transaction.TxnEvent, error) {
 	switch txn.MsgType {
-	case svcmsgtypes.ReleaseSmContext:
-		fallthrough
-	case svcmsgtypes.SmPolicyUpdateNotification:
-		txn.Ctxt = context.GetSMContext(txn.CtxtKey)
-
 	case svcmsgtypes.PfcpSessCreate:
 		fallthrough
 	case svcmsgtypes.N1N2MessageTransfer:
@@ -103,8 +95,6 @@ func (SmfTxnFsm) TxnProcess(txn *transaction.Transaction) (transaction.TxnEvent,
 	var event SmEvent
 
 	switch txn.MsgType {
-	case svcmsgtypes.ReleaseSmContext:
-		event = SmEventPduSessRelease
 	case svcmsgtypes.PfcpSessCreate:
 		event = SmEventPfcpSessCreate
 	case svcmsgtypes.PfcpSessCreateFailure:
@@ -113,8 +103,6 @@ func (SmfTxnFsm) TxnProcess(txn *transaction.Transaction) (transaction.TxnEvent,
 		event = SmEventPduSessN1N2Transfer
 	case svcmsgtypes.N1N2MessageTransferFailureNotification:
 		event = SmEventPduSessN1N2TransferFailureIndication
-	case svcmsgtypes.SmPolicyUpdateNotification:
-		event = SmEventPolicyUpdateNotify
 	default:
 		event = SmEventInvalid
 	}
@@ -167,25 +155,6 @@ func (SmfTxnFsm) TxnFailure(txn *transaction.Transaction) (transaction.TxnEvent,
 				// nextTxn.StartTxnLifeCycle(SmfTxnFsmHandle)
 				<-nextTxn.Status
 			}(nextTxn)
-		}
-
-	case svcmsgtypes.ReleaseSmContext:
-		if txn.Ctxt == nil {
-			logger.SmfLog.Warnf("PDUSessionSMContextRelease [%s] is not found", txn.CtxtKey)
-
-			// 4xx/5xx Error not defined in spec 29502 for Release SM ctxt error
-			// Send Not Found
-			httpResponse := &httpwrapper.Response{
-				Header: nil,
-				Status: http.StatusNotFound,
-
-				Body: &models.ProblemDetails{
-					Type:   "Resource Not Found",
-					Title:  "SMContext Ref is not found",
-					Status: http.StatusNotFound,
-				},
-			}
-			txn.Rsp = httpResponse
 		}
 	}
 	txn.Status <- false
