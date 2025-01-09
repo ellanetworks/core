@@ -20,7 +20,6 @@ const (
 	SmEventInvalid SmEvent = iota
 	SmEventPfcpSessCreate
 	SmEventPfcpSessCreateFailure
-	SmEventPduSessN1N2TransferFailureIndication
 	SmEventMax
 )
 
@@ -49,7 +48,6 @@ func init() {
 func InitFsm() {
 	SmfFsmHandler[context.SmStatePfcpCreatePending][SmEventPfcpSessCreate] = HandleStatePfcpCreatePendingEventPfcpSessCreate
 	SmfFsmHandler[context.SmStatePfcpCreatePending][SmEventPfcpSessCreateFailure] = HandleStatePfcpCreatePendingEventPfcpSessCreateFailure
-	SmfFsmHandler[context.SmStateActive][SmEventPduSessN1N2TransferFailureIndication] = HandleStateActiveEventPduSessN1N2TransFailInd
 }
 
 func HandleEvent(smContext *context.SMContext, event SmEvent, eventData SmEventData) error {
@@ -120,14 +118,14 @@ func HandleStateActiveEventPduSessRelease(event SmEvent, eventData *SmEventData)
 	return context.SmStateInit, nil
 }
 
-func HandleStateActiveEventPduSessN1N2TransFailInd(event SmEvent, eventData *SmEventData) (context.SMContextState, error) {
-	txn := eventData.Txn.(*transaction.Transaction)
-	smCtxt := txn.Ctxt.(*context.SMContext)
-	rsp, err := producer.HandlePduSessN1N2TransFailInd(smCtxt)
-	txn.Rsp = rsp
-	if err != nil {
-		txn.Err = err
-		return context.SmStateInit, fmt.Errorf("error handling pdu session n1n2 transfer failure: %v ", err.Error())
-	}
-	return context.SmStateInit, nil
-}
+// func HandleStateActiveEventPduSessN1N2TransFailInd(event SmEvent, eventData *SmEventData) (context.SMContextState, error) {
+// 	txn := eventData.Txn.(*transaction.Transaction)
+// 	smCtxt := txn.Ctxt.(*context.SMContext)
+// 	rsp, err := producer.HandlePduSessN1N2TransFailInd(smCtxt)
+// 	txn.Rsp = rsp
+// 	if err != nil {
+// 		txn.Err = err
+// 		return context.SmStateInit, fmt.Errorf("error handling pdu session n1n2 transfer failure: %v ", err.Error())
+// 	}
+// 	return context.SmStateInit, nil
+// }

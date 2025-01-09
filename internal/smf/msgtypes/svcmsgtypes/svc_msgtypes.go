@@ -7,7 +7,6 @@ package svcmsgtypes
 type SmfMsgType string
 
 const (
-	PfcpSessCreateFailure                  SmfMsgType = "PfcpSessCreateFailure"
-	N1N2MessageTransferFailureNotification SmfMsgType = "N1N2MessageTransferFailureNotification"
-	PfcpSessCreate                         SmfMsgType = "PfcpSessCreate"
+	PfcpSessCreateFailure SmfMsgType = "PfcpSessCreateFailure"
+	PfcpSessCreate        SmfMsgType = "PfcpSessCreate"
 )

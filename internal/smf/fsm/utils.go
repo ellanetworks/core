@@ -10,8 +10,6 @@ func (e SmEvent) String() string {
 		return "SmEventPfcpSessCreate"
 	case SmEventPfcpSessCreateFailure:
 		return "SmEventPfcpSessCreateFailure"
-	case SmEventPduSessN1N2TransferFailureIndication:
-		return "SmEventPduSessN1N2TransferFailureIndication"
 	default:
 		return "invalid SM event"
 	}
