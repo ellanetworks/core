@@ -10,12 +10,61 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/fsm"
-	"github.com/ellanetworks/core/internal/smf/msgtypes/svcmsgtypes"
-	"github.com/ellanetworks/core/internal/smf/transaction"
+	"github.com/ellanetworks/core/internal/smf/producer"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
 	"github.com/omec-project/openapi/models"
 )
+
+func SessionCreateInit(req models.PostSmContextsRequest) *context.SMContext {
+	createData := req.JsonData
+	if smCtxtRef, err := context.ResolveRef(createData.Supi, createData.PduSessionId); err == nil {
+		err := producer.HandlePduSessionContextReplacement(smCtxtRef)
+		if err != nil {
+			logger.SmfLog.Warnf("Failed to replace existing context")
+		}
+	}
+	ctxt := context.NewSMContext(createData.Supi, createData.PduSessionId)
+	return ctxt
+}
+
+func HandleStateInitEventPduSessCreate(request models.PostSmContextsRequest, smContext *context.SMContext) (context.SMContextState, *httpwrapper.Response, error) {
+	rsp, err := producer.HandlePDUSessionSMContextCreate(request, smContext)
+	if err != nil {
+		return context.SmStateInit, rsp, err
+	}
+	return context.SmStatePfcpCreatePending, rsp, nil
+}
+
+func HandleStatePfcpCreatePendingEventPfcpSessCreate(smCtxt *context.SMContext) (context.SMContextState, error) {
+	producer.SendPFCPRules(smCtxt)
+	smCtxt.SubFsmLog.Debug("waiting for pfcp session establish response")
+	switch <-smCtxt.SBIPFCPCommunicationChan {
+	case context.SessionEstablishSuccess:
+		smCtxt.SubFsmLog.Debug("pfcp session establish response success")
+		return context.SmStateN1N2TransferPending, nil
+	case context.SessionEstablishFailed:
+		fallthrough
+	default:
+		smCtxt.SubFsmLog.Errorf("pfcp session establish response failure")
+		return context.SmStatePfcpCreatePending, fmt.Errorf("pfcp establishment failure")
+	}
+}
+
+func HandleStateN1N2TransferPendingEventN1N2Transfer(smCtxt *context.SMContext) (context.SMContextState, error) {
+	if err := producer.SendPduSessN1N2Transfer(smCtxt, true); err != nil {
+		smCtxt.SubFsmLog.Errorf("N1N2 transfer failure error, %v ", err.Error())
+		return context.SmStateN1N2TransferPending, fmt.Errorf("N1N2 Transfer failure error, %v ", err.Error())
+	}
+	return context.SmStateActive, nil
+}
+
+func HandleStatePfcpCreatePendingEventPfcpSessCreateFailure(smCtxt *context.SMContext) (context.SMContextState, error) {
+	if err := producer.SendPduSessN1N2Transfer(smCtxt, false); err != nil {
+		smCtxt.SubFsmLog.Errorf("N1N2 transfer failure error, %v ", err.Error())
+		return context.SmStateN1N2TransferPending, fmt.Errorf("N1N2 Transfer failure error, %v ", err.Error())
+	}
+	return context.SmStateInit, nil
+}
 
 func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse, error) {
 	logger.SmfLog.Info("Processing Create SM Context Request")
@@ -28,40 +77,45 @@ func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContex
 		return nil, "", errResponse, fmt.Errorf("missing JsonData in request")
 	}
 
-	// Create transaction
-	txn := transaction.NewTransaction(request, nil, svcmsgtypes.CreateSmContext)
-
-	// Start FSM lifecycle
-	go txn.StartTxnLifeCycle(fsm.SmfTxnFsmHandle)
-	<-txn.Status // Wait for transaction to complete
-
-	// Handle transaction response
-	HTTPResponse, ok := txn.Rsp.(*httpwrapper.Response)
-	if !ok {
-		return nil, "", nil, fmt.Errorf("unexpected transaction response type")
+	smContext := SessionCreateInit(request)
+	nextState, rsp, err := HandleStateInitEventPduSessCreate(request, smContext)
+	if err != nil {
+		logger.SmfLog.Errorf("Failed to create SM Context: %v", err)
+		return nil, "", nil, err
 	}
-
-	// Check for SM Context in transaction context
-	smContext, ok := txn.Ctxt.(*context.SMContext)
-	if !ok && HTTPResponse.Status == http.StatusCreated {
-		return nil, "", nil, fmt.Errorf("failed to retrieve SMContext from transaction context")
-	}
+	smContext.ChangeState(nextState)
 
 	// Process response based on HTTP status
-	switch HTTPResponse.Status {
+	switch rsp.Status {
 	case http.StatusCreated:
 		// Successful creation
-		response, ok := HTTPResponse.Body.(models.PostSmContextsResponse)
+		response, ok := rsp.Body.(models.PostSmContextsResponse)
 		if !ok {
 			return nil, "", nil, fmt.Errorf("unexpected response body type for successful creation")
 		}
+		smContextRef := rsp.Header.Get("Location")
 
-		// Start PfcpSessCreate transaction
-		pfcpTxn := transaction.NewTransaction(nil, nil, svcmsgtypes.PfcpSessCreate)
-		pfcpTxn.Ctxt = smContext
-		go pfcpTxn.StartTxnLifeCycle(fsm.SmfTxnFsmHandle)
-		<-pfcpTxn.Status // Wait for the PFCP session transaction to complete
-		smContextRef := HTTPResponse.Header.Get("Location")
+		nextState, err := HandleStatePfcpCreatePendingEventPfcpSessCreate(smContext)
+		smContext.ChangeState(nextState)
+		if err != nil {
+			if smContext != nil && smContext.SMContextState == context.SmStatePfcpCreatePending {
+				go func() {
+					nextState, err := HandleStatePfcpCreatePendingEventPfcpSessCreateFailure(smContext)
+					if err != nil {
+						logger.SmfLog.Errorf("error processing state machine transaction")
+					}
+					smContext.ChangeState(nextState)
+				}()
+			}
+		} else {
+			go func() {
+				nextState, err := HandleStateN1N2TransferPendingEventN1N2Transfer(smContext)
+				smContext.ChangeState(nextState)
+				if err != nil {
+					logger.SmfLog.Errorf("error processing state machine transaction")
+				}
+			}()
+		}
 
 		return &response, smContextRef, nil, nil
 
@@ -72,7 +126,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContex
 		http.StatusServiceUnavailable,
 		http.StatusGatewayTimeout:
 		// Handle errors
-		errResponse, ok := HTTPResponse.Body.(*models.PostSmContextsErrorResponse)
+		errResponse, ok := rsp.Body.(*models.PostSmContextsErrorResponse)
 		if !ok {
 			return nil, "", nil, fmt.Errorf("unexpected response body type for error")
 		}

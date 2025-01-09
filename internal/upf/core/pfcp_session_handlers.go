@@ -118,7 +118,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 
 	// Send SessionEstablishmentResponse
 	estResp := message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, additionalIEs...)
-	logger.UpfLog.Infof("Session Establishment Request from accepted.")
+	logger.UpfLog.Infof("Accepted Session Establishment Request from: %s", config.Conf.SmfAddress)
 	return estResp, nil
 }
 

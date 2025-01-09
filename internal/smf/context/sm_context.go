@@ -15,7 +15,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/smf/smferrors"
-	"github.com/ellanetworks/core/internal/smf/transaction"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
 	"github.com/google/uuid"
 	"github.com/omec-project/nas/nasConvert"
@@ -123,7 +122,6 @@ type SMContext struct {
 	SubQosLog      *zap.SugaredLogger `json:"-" yaml:"subQosLog" bson:"-"`      // ignore
 
 	// encountered a cycle via *context.SMContext
-	ActiveTxn *transaction.Transaction `json:"-" yaml:"activeTxn" bson:"-,"` // ignore
 	// SM Policy related
 	// Updates in policy from PCF
 	SmPolicyUpdates []*qos.PolicyUpdate `json:"smPolicyUpdates" yaml:"smPolicyUpdates" bson:"smPolicyUpdates"` // ignore
@@ -135,10 +133,6 @@ type SMContext struct {
 	PendingUPF PendingUPF `json:"pendingUPF,omitempty" yaml:"pendingUPF" bson:"pendingUPF,omitempty"` // ignore
 	// NodeID(string form) to PFCP Session Context
 	PFCPContext map[string]*PFCPSessionContext `json:"-" yaml:"pfcpContext" bson:"-"`
-	// TxnBus per subscriber
-	TxnBus transaction.TxnBus `json:"-" yaml:"txnBus" bson:"-"` // ignore
-	// SMTxnBusLock sync.Mutex         `json:"smTxnBusLock,omitempty" yaml:"smTxnBusLock" bson:"smTxnBusLock,omitempty"` // ignore
-	SMTxnBusLock sync.Mutex `json:"-" yaml:"smTxnBusLock" bson:"-"` // ignore
 	// lock
 	// SMLock sync.Mutex `json:"smLock,omitempty" yaml:"smLock" bson:"smLock,omitempty"` // ignore
 	SMLock sync.Mutex `json:"-" yaml:"smLock" bson:"-"` // ignore
