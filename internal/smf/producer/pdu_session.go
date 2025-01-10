@@ -42,12 +42,10 @@ func HandlePduSessionContextReplacement(smCtxtRef string) error {
 	smCtxt := context.GetSMContext(smCtxtRef)
 
 	if smCtxt != nil {
-		smCtxt.SubPduSessLog.Warn("PDUSessionSMContextCreate, old context exist, purging")
 		smCtxt.SMLock.Lock()
 
 		smCtxt.LocalPurged = true
 
-		// Disassociate ctxt from any look-ups(Report-Req from UPF shouldn't get this context)
 		context.RemoveSMContext(smCtxt.Ref)
 
 		// Check if UPF session set, send release
@@ -350,19 +348,17 @@ func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smCon
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
-	smContext.SubPduSessLog.Infof("PDUSessionSMContextRelease, PDU Session SMContext Release received")
-
 	// Send Policy delete
 	if httpStatus, err := consumer.SendSMPolicyAssociationDelete(smContext, &body); err != nil {
-		smContext.SubCtxLog.Errorf("PDUSessionSMContextRelease, SM policy delete error [%v] ", err.Error())
+		smContext.SubCtxLog.Errorf("SM policy delete error [%v] ", err.Error())
 	} else {
-		smContext.SubCtxLog.Infof("PDUSessionSMContextRelease, SM policy delete success with http status [%v] ", httpStatus)
+		smContext.SubCtxLog.Infof("SM policy delete success with http status [%v] ", httpStatus)
 	}
 
 	// Release UE IP-Address
 	err := smContext.ReleaseUeIpAddr()
 	if err != nil {
-		smContext.SubPduSessLog.Errorf("PDUSessionSMContextRelease, release UE IP address failed: %v", err)
+		smContext.SubPduSessLog.Errorf("release UE IP address failed: %v", err)
 	}
 
 	// Initiate PFCP release
@@ -379,6 +375,7 @@ func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smCon
 			Body:   nil,
 		}
 		context.RemoveSMContext(smContext.Ref)
+		logger.SmfLog.Warnf("Removed SM Context due to release: %s", smContext.Ref)
 		return httpResponse, nil
 	}
 
@@ -447,6 +444,7 @@ func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smCon
 	}
 
 	context.RemoveSMContext(smContext.Ref)
+	logger.SmfLog.Warnf("Removed SM Context due to release: %s", smContext.Ref)
 
 	return httpResponse, nil
 }

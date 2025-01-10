@@ -66,8 +66,6 @@ func HandleStatePfcpCreatePendingEventPfcpSessCreateFailure(smCtxt *context.SMCo
 }
 
 func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse, error) {
-	logger.SmfLog.Info("Processing Create SM Context Request")
-
 	// Ensure request data is present
 	if request.JsonData == nil {
 		errResponse := &models.PostSmContextsErrorResponse{
@@ -77,6 +75,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContex
 	}
 
 	smContext := SessionCreateInit(request)
+	logger.SmfLog.Infof("Created SM Context: %v", smContext)
 	nextState, rsp, err := HandleStateInitEventPduSessCreate(request, smContext)
 	if err != nil {
 		logger.SmfLog.Errorf("Failed to create SM Context: %v", err)

@@ -7,6 +7,7 @@
 package context
 
 import (
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 )
@@ -135,10 +136,11 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 }
 
 func (smContext *SMContext) HandlePDUSessionReleaseRequest(req *nasMessage.PDUSessionReleaseRequest) {
-	smContext.SubGsmLog.Infof("Handle Pdu Session Release Request")
 	smContext.Pti = req.GetPTI()
 	err := smContext.ReleaseUeIpAddr()
 	if err != nil {
 		smContext.SubGsmLog.Errorf("Error in releasing UE IP Addr: %s", err)
+		return
 	}
+	logger.SmfLog.Infof("Successfully completed PDU Session Release Request for PDU Session ID: %d", smContext.PDUSessionID)
 }

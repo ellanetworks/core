@@ -146,14 +146,12 @@ func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDAMFUENGAPID:
 					aMFUENGAPID = ie.Value.AMFUENGAPID
-					ran.Log.Debugln("Decode IE AmfUeNgapID")
 					if aMFUENGAPID == nil {
 						ran.Log.Error("AMFUENGAPID is nil")
 						return nil, nil
 					}
 				case ngapType.ProtocolIEIDRANUENGAPID:
 					rANUENGAPID = ie.Value.RANUENGAPID
-					ran.Log.Debugln("Decode IE RanUeNgapID")
 					if rANUENGAPID == nil {
 						ran.Log.Error("RANUENGAPID is nil")
 						return nil, nil
@@ -262,7 +260,6 @@ func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDSourceAMFUENGAPID:
 					aMFUENGAPID = ie.Value.SourceAMFUENGAPID
-					ran.Log.Debugln("Decode IE AmfUeNgapID")
 					if aMFUENGAPID == nil {
 						ran.Log.Error("AMFUENGAPID is nil")
 						return nil, nil
@@ -280,7 +277,6 @@ func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDAMFUENGAPID:
 					aMFUENGAPID = ie.Value.AMFUENGAPID
-					ran.Log.Debugln("Decode IE AmfUeNgapID")
 					if aMFUENGAPID == nil {
 						ran.Log.Error("AMFUENGAPID is nil")
 						return nil, nil
@@ -309,7 +305,6 @@ func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDAMFUENGAPID:
 					aMFUENGAPID = ie.Value.AMFUENGAPID
-					ran.Log.Debugln("Decode IE AmfUeNgapID")
 					if aMFUENGAPID == nil {
 						ran.Log.Error("AMFUENGAPID is nil")
 						return nil, nil
@@ -417,7 +412,6 @@ func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDAMFUENGAPID:
 					aMFUENGAPID = ie.Value.AMFUENGAPID
-					ran.Log.Debugln("Decode IE AmfUeNgapID")
 					if aMFUENGAPID == nil {
 						ran.Log.Error("AMFUENGAPID is nil")
 						return nil, nil
@@ -477,7 +471,6 @@ func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context
 				switch ie.Id.Value {
 				case ngapType.ProtocolIEIDAMFUENGAPID:
 					aMFUENGAPID = ie.Value.AMFUENGAPID
-					ran.Log.Debugln("Decode IE AmfUeNgapID")
 					if aMFUENGAPID == nil {
 						ran.Log.Error("AMFUENGAPID is nil")
 						return nil, nil
@@ -665,7 +658,6 @@ func HandleUplinkNasTransport(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
 			aMFUENGAPID = ie.Value.AMFUENGAPID
-			ran.Log.Debugln("Decode IE AmfUeNgapID")
 			if aMFUENGAPID == nil {
 				ran.Log.Error("AmfUeNgapID is nil")
 				return

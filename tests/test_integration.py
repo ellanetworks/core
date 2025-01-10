@@ -144,7 +144,7 @@ class TestELLA:
             pod_name=ella_core_pod_name, command="pebble add ella-core /config/pebble.yaml"
         )
         k8s_client.exec(pod_name=ella_core_pod_name, command="pebble start ella-core")
-        time.sleep(5)
+        time.sleep(2)
         core_port = k8s_client.get_core_node_port(service_name="ella-core")
         core_address = f"https://127.0.0.1:{core_port}"
         subscriber = configure_ella_core(core_address=core_address)
@@ -158,7 +158,7 @@ class TestELLA:
             k8s_client.apply_manifest(manifest)
             logger.info("Applied GNBSim manifest.")
         k8s_client.wait_for_app_ready(app_name="gnbsim")
-        time.sleep(5)
+        time.sleep(2)
         pod_name = k8s_client.get_pod_name(app_name="gnbsim")
         logger.info(f"Running GNBSim simulation in pod {pod_name}")
         result = k8s_client.exec(

@@ -271,13 +271,6 @@ func SendPfcpSessionModificationRequest(
 }
 
 func HandlePfcpSessionDeletionResponse(msg *message.SessionDeletionResponse) (*context.PFCPSessionResponseStatus, error) {
-	SEID := msg.SEID()
-	smContext := context.GetSMContextBySEID(SEID)
-
-	if smContext == nil {
-		return nil, fmt.Errorf("SMContext not found for SEID[%d]", SEID)
-	}
-
 	if msg.Cause == nil {
 		return nil, fmt.Errorf("PFCP Session Deletion Response missing Cause")
 	}
@@ -289,22 +282,9 @@ func HandlePfcpSessionDeletionResponse(msg *message.SessionDeletionResponse) (*c
 
 	var status context.PFCPSessionResponseStatus
 	if causeValue == ie.CauseRequestAccepted {
-		if smContext.SMContextState == context.SmStatePfcpRelease {
-			upfNodeID := smContext.GetNodeIDByLocalSEID(SEID)
-			upfIP := upfNodeID.ResolveNodeIdToIp().String()
-			delete(smContext.PendingUPF, upfIP)
-			smContext.SubPduSessLog.Debugf("Delete pending pfcp response: UPF IP [%s]\n", upfIP)
-
-			if smContext.PendingUPF.IsEmpty() && !smContext.LocalPurged {
-				status = context.SessionReleaseSuccess
-			}
-		}
-		smContext.SubPfcpLog.Infof("PFCP Session Deletion Success[%d]\n", SEID)
+		status = context.SessionReleaseSuccess
 	} else {
-		if smContext.SMContextState == context.SmStatePfcpRelease && !smContext.LocalPurged {
-			status = context.SessionReleaseSuccess
-		}
-		smContext.SubPfcpLog.Infof("PFCP Session Deletion Failed[%d]\n", SEID)
+		status = context.SessionReleaseFailed
 	}
 
 	return &status, nil
