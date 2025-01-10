@@ -4,6 +4,8 @@
   <img src="docs/images/logo.png" alt="Ella Core Logo" width="200"/>
 </p>
 
+[![ella-core](https://snapcraft.io/ella-core/badge.svg)](https://snapcraft.io/ella-core)
+
 > :construction: **Beta Notice**  
 > Ella Core is currently in beta. If you encounter any issues, please [report them here](https://github.com/ellanetworks/core/issues/new/choose).
 
@@ -34,9 +36,10 @@ Building Ella Core, we make engineering decisions based on the following tenets:
 ## Documentation
 
 Documentation is available [here](https://ellanetworks.github.io/core/). It includes:
-- **Getting Started tutorial**: A hands-on introduction to Ella Core.
+- **Tutorials**: A hands-on introduction.
 - **How-to guides**: Step-by-step instructions to perform common tasks.
-- **Reference documentation**: Detailed information about the configuration options, metrics, API, connectivity, and more.
+- **Reference**: Technical information about configuration options, metrics, API, connectivity, and more.
+- **Explanation**: Discussion and clarification of key topics
 
 ## Acknowledgements
 
