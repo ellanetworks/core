@@ -1,5 +1,5 @@
 ---
-description: Reference for subscriber authentication - IMSI, Ki, OP, OPc, and SQN.
+description: Explanation of subscriber authentication - IMSI, Ki, OP, OPc, and SQN.
 ---
 
 # Subscriber Authentication

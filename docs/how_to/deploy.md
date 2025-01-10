@@ -10,6 +10,9 @@ Ella Core is available as a Snap and a OCI container image.
 
     Ella Core is available as a strictly confined Snap.
 
+    !!! note
+        The Snap package is currently under review from the Snap store team. In the meantime, you can install it using the `--devmode` flag.
+
     ## Pre-requisites
 
     - A machine with:

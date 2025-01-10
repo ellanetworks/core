@@ -29,4 +29,4 @@ Ella Core stores all persistent data in an embedded database. You can create bac
     4. Select the backup file you want to restore.
     
     !!! note
-        This operation can also be done using the API. Please see the [backup API documentation](../reference/api/restore.md) for more information.
+        This operation can also be done using the API. Please see the [restore API documentation](../reference/api/restore.md) for more information.
