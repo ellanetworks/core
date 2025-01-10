@@ -8,7 +8,18 @@ Ella Core is available as a Snap and a OCI container image.
 
 === "Snap (Recommended)"
 
-    [![Get it from the Snap Store](https://snapcraft.io/en/light/install.svg)](https://snapcraft.io/ella-core)
+    Ella Core is available as a strictly confined Snap.
+
+    ## Pre-requisites
+
+    - A machine with:
+      - 2 CPU cores
+      - 4 GB of RAM
+      - 10 GB of disk space
+      - 2 network interfaces
+    - A Linux distribution that supports Snap packages.
+  
+    ## Steps
 
     Ella Core is available as a snap package.
 
@@ -18,7 +29,7 @@ Ella Core is available as a Snap and a OCI container image.
     sudo snap install ella-core --channel=edge --devmode
     ```
 
-    Connect the interfaces:
+    Connect the snap to the required interfaces:
 
     ```bash
     sudo snap connect ella-core:network-control
