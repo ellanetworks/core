@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        <title>Ella</title>
+        <title>Ella Core</title>
         <link
           rel="shortcut icon"
           href="https://assets.ubuntu.com/v1/49a1a858-favicon-32x32.png"

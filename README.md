@@ -4,6 +4,8 @@
   <img src="docs/images/logo.png" alt="Ella Core Logo" width="200"/>
 </p>
 
+[![ella-core](https://snapcraft.io/ella-core/badge.svg)](https://snapcraft.io/ella-core)
+
 > :construction: **Beta Notice**  
 > Ella Core is currently in beta. If you encounter any issues, please [report them here](https://github.com/ellanetworks/core/issues/new/choose).
 

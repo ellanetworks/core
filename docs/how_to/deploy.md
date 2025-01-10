@@ -8,7 +8,9 @@ Ella Core is available as a Snap and a OCI container image.
 
 === "Snap (Recommended)"
 
-    Ella Core is available as a snap package [here](https://snapcraft.io/ella-core).
+    [![Get it from the Snap Store](https://snapcraft.io/en/light/install.svg)](https://snapcraft.io/ella-core)
+
+    Ella Core is available as a snap package.
 
     Install the snap:
 
