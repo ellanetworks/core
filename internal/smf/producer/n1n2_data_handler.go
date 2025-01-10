@@ -309,12 +309,12 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, handle PDUSessionResourceSetupResponseTransfer failed: %+v", err)
 		}
 	case models.N2SmInfoType_PDU_RES_REL_RSP:
-		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received",
+		smContext.SubPduSessLog.Infof("N2 SM info type %v received",
 			smContextUpdateData.N2SmInfoType)
-		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 PDUSession Release Complete ")
+		smContext.SubPduSessLog.Infof("N2 PDUSession Release Complete ")
 		if smContext.PDUSessionRelease_DUE_TO_DUP_PDU_ID {
 			if smContext.SMContextState != context.SmStateInActivePending {
-				smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state[%v] should be ActivePending",
+				smContext.SubPduSessLog.Warnf("SMContext state[%v] should be ActivePending",
 					smContext.SMContextState.String())
 			}
 			smContext.ChangeState(context.SmStateInit)
@@ -324,10 +324,10 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 			context.RemoveSMContext(smContext.Ref)
 		} else {
 			if smContext.SMContextState != context.SmStateInActivePending {
-				smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state[%v] should be ActivePending",
+				smContext.SubPduSessLog.Warnf("SMContext state[%v] should be ActivePending",
 					smContext.SMContextState.String())
 			}
-			smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, send Update SmContext Response")
+			smContext.SubPduSessLog.Infof("send Update SmContext Response")
 			smContext.ChangeState(context.SmStateInActivePending)
 		}
 	case models.N2SmInfoType_PATH_SWITCH_REQ:

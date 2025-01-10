@@ -12,13 +12,13 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pcf"
-	smf_context "github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/openapi/models"
 )
 
 // SendSMPolicyAssociationCreate creates the SM Policy Decision
-func SendSMPolicyAssociationCreate(smContext *smf_context.SMContext) (*models.SmPolicyDecision, int, error) {
+func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPolicyDecision, int, error) {
 	httpRspStatusCode := http.StatusInternalServerError
 	smPolicyData := models.SmPolicyContextData{}
 	smPolicyData.Supi = smContext.Supi
@@ -51,9 +51,9 @@ func SendSMPolicyAssociationCreate(smContext *smf_context.SMContext) (*models.Sm
 	return smPolicyDecision, http.StatusCreated, nil
 }
 
-func SendSMPolicyAssociationModify(smContext *smf_context.SMContext) {}
+func SendSMPolicyAssociationModify(smContext *context.SMContext) {}
 
-func SendSMPolicyAssociationDelete(smContext *smf_context.SMContext, smDelReq *models.ReleaseSmContextRequest) (int, error) {
+func SendSMPolicyAssociationDelete(smContext *context.SMContext, smDelReq *models.ReleaseSmContextRequest) (int, error) {
 	smPolicyID := fmt.Sprintf("%s-%d", smContext.Supi, smContext.PDUSessionID)
 	err := pcf.DeleteSMPolicy(smPolicyID)
 	if err != nil {

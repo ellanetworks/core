@@ -128,7 +128,6 @@ type SMContext struct {
 	// Holds Session/PCC Rules and Qos/Cond/Charging Data
 	SmPolicyData qos.SmCtxtPolicyData `json:"smPolicyData" yaml:"smPolicyData" bson:"smPolicyData"`
 	// unsupported structure - madatory!
-	SBIPFCPCommunicationChan chan PFCPSessionResponseStatus `json:"-" yaml:"sbiPFCPCommunicationChan" bson:"-"` // ignore
 
 	PendingUPF PendingUPF `json:"pendingUPF,omitempty" yaml:"pendingUPF" bson:"pendingUPF,omitempty"` // ignore
 	// NodeID(string form) to PFCP Session Context
@@ -186,7 +185,6 @@ func NewSMContext(identifier string, pduSessID int32) (smContext *SMContext) {
 	smContext.PFCPContext = make(map[string]*PFCPSessionContext)
 
 	// initialize SM Policy Data
-	smContext.SBIPFCPCommunicationChan = make(chan PFCPSessionResponseStatus, 1)
 	smContext.SmPolicyUpdates = make([]*qos.PolicyUpdate, 0)
 	smContext.SmPolicyData.Initialize()
 
@@ -251,7 +249,7 @@ func RemoveSMContext(ref string) {
 
 	canonicalRef.Delete(canonicalName(smContext.Supi, smContext.PDUSessionID))
 	decSMContextActive()
-	smContext.SubCtxLog.Infof("SM Context removed")
+	smContext.SubCtxLog.Infof("SM Context removed: %s", ref)
 }
 
 func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
@@ -277,7 +275,6 @@ func (smContext *SMContext) ReleaseUeIpAddr() error {
 	return nil
 }
 
-// *** add unit test ***//
 func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData) {
 	smContext.Gpsi = createData.Gpsi
 	smContext.Supi = createData.Supi

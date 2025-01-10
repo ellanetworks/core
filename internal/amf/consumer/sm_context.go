@@ -347,8 +347,6 @@ func SendUpdateSmContextRequest(smContext *amf_context.SmContext,
 	updateSmContextRequest.BinaryDataN1SmMessage = n1Msg
 	updateSmContextRequest.BinaryDataN2SmInformation = n2Info
 
-	// updateSmContextReponse, httpResponse, err := client.IndividualSMContextApi.UpdateSmContext(ctx, smContext.SmContextRef(),
-	// 	updateSmContextRequest)
 	updateSmContextReponse, err := pdusession.UpdateSmContext(smContext.SmContextRef(), updateSmContextRequest)
 	if err != nil {
 		problemDetail := &models.ProblemDetails{
