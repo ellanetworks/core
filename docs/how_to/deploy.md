@@ -16,6 +16,15 @@ Ella Core is available as a Snap and a OCI container image.
     sudo snap install ella-core --channel=edge --devmode
     ```
 
+    Connect the interfaces:
+
+    ```bash
+    sudo snap connect ella-core:network-control
+    sudo snap connect ella-core:process-control
+    sudo snap connect ella-core:bpf
+    sudo snap connect ella-core:system-observe
+    ```
+
     Edit the configuration file at `/var/snap/ella-core/common/config.yaml` to configure the network interfaces:
 
     ```yaml
