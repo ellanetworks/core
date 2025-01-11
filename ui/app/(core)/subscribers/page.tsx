@@ -12,7 +12,6 @@ import {
 import {
     DataGrid,
     GridColDef,
-    GridRenderCellParams,
 } from "@mui/x-data-grid";
 import {
     Delete as DeleteIcon,
@@ -171,6 +170,7 @@ const Subscriber = () => {
                 <EmptyState
                     primaryText="No subscriber found."
                     secondaryText="Create a new subscriber."
+                    button={true}
                     buttonText="Create"
                     onCreate={handleOpenCreateModal}
                 />

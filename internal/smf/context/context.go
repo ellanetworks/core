@@ -86,9 +86,9 @@ func SMF_Self() *SMFContext {
 	return &smfContext
 }
 
-func UpdateSMFContext(network *nmsModels.Network, profiles []nmsModels.Profile, radios []nmsModels.Radio) {
+func UpdateSMFContext(network *nmsModels.Network, profiles []nmsModels.Profile) {
 	UpdateSnssaiInfo(network, profiles)
-	UpdateUserPlaneInformation(radios)
+	UpdateUserPlaneInformation()
 	logger.SmfLog.Infof("Updated SMF context")
 }
 
@@ -123,7 +123,7 @@ func UpdateSnssaiInfo(network *nmsModels.Network, profiles []nmsModels.Profile) 
 	smfSelf.SnssaiInfos = snssaiInfoList
 }
 
-func BuildUserPlaneInformationFromConfig(radios []nmsModels.Radio) *UserPlaneInformation {
+func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 	intfUpfInfoItem := InterfaceUpfInfoItem{
 		InterfaceType:   models.UpInterfaceType_N3,
 		Endpoints:       make([]string, 0),
@@ -166,19 +166,17 @@ func BuildUserPlaneInformationFromConfig(radios []nmsModels.Radio) *UserPlaneInf
 		DefaultUserPlanePath: make(map[string][]*UPNode),
 	}
 
-	if len(radios) > 0 {
-		gnbNode := &UPNode{
-			Type:   UPNODE_AN,
-			NodeID: *NewNodeID("1.1.1.1"),
-			Links:  make([]*UPNode, 0),
-			Dnn:    config.DNN,
-		}
-		gnbNode.Links = append(gnbNode.Links, upfNode)
-		upfNode.Links = append(upfNode.Links, gnbNode)
-		gnbName := radios[0].Name
-		userPlaneInformation.AccessNetwork[gnbName] = gnbNode
-		userPlaneInformation.UPNodes[gnbName] = gnbNode
+	gnbNode := &UPNode{
+		Type:   UPNODE_AN,
+		NodeID: *NewNodeID("1.1.1.1"),
+		Links:  make([]*UPNode, 0),
+		Dnn:    config.DNN,
 	}
+	gnbNode.Links = append(gnbNode.Links, upfNode)
+	upfNode.Links = append(upfNode.Links, gnbNode)
+	gnbName := "gnb"
+	userPlaneInformation.AccessNetwork[gnbName] = gnbNode
+	userPlaneInformation.UPNodes[gnbName] = gnbNode
 
 	userPlaneInformation.UPNodes[config.UpfName] = upfNode
 	return userPlaneInformation
@@ -186,9 +184,9 @@ func BuildUserPlaneInformationFromConfig(radios []nmsModels.Radio) *UserPlaneInf
 
 // Right now we only support 1 UPF
 // This function should be edited when we decide to support multiple UPFs
-func UpdateUserPlaneInformation(radios []nmsModels.Radio) {
+func UpdateUserPlaneInformation() {
 	smfSelf := SMF_Self()
-	configUserPlaneInfo := BuildUserPlaneInformationFromConfig(radios)
+	configUserPlaneInfo := BuildUserPlaneInformationFromConfig()
 	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)
 	if same {
 		logger.SmfLog.Info("Context user plane info matches config")

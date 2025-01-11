@@ -16,22 +16,19 @@ const QueryCreateRadiosTable = `
 	CREATE TABLE IF NOT EXISTS %s (
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-		name TEXT NOT NULL,
-		tac TEXT NOT NULL
+		name TEXT NOT NULL
 )`
 
 const (
 	listRadiosStmt  = "SELECT &Radio.* from %s"
 	getRadioStmt    = "SELECT &Radio.* from %s WHERE name==$Radio.name"
-	createRadioStmt = "INSERT INTO %s (name, tac) VALUES ($Radio.name, $Radio.tac)"
-	editRadioStmt   = "UPDATE %s SET tac=$Radio.tac WHERE name==$Radio.name"
+	createRadioStmt = "INSERT INTO %s (name) VALUES ($Radio.name)"
 	deleteRadioStmt = "DELETE FROM %s WHERE name==$Radio.name"
 )
 
 type Radio struct {
 	ID   int    `db:"id"`
 	Name string `db:"name"`
-	Tac  string `db:"tac"`
 }
 
 func (db *Database) ListRadios() ([]Radio, error) {
@@ -71,19 +68,6 @@ func (db *Database) CreateRadio(radio *Radio) error {
 		return fmt.Errorf("radio with name %s already exists", radio.Name)
 	}
 	stmt, err := sqlair.Prepare(fmt.Sprintf(createRadioStmt, db.radiosTable), Radio{})
-	if err != nil {
-		return err
-	}
-	err = db.conn.Query(context.Background(), stmt, radio).Run()
-	return err
-}
-
-func (db *Database) UpdateRadio(radio *Radio) error {
-	_, err := db.GetRadio(radio.Name)
-	if err != nil {
-		return err
-	}
-	stmt, err := sqlair.Prepare(fmt.Sprintf(editRadioStmt, db.radiosTable), Radio{})
 	if err != nil {
 		return err
 	}

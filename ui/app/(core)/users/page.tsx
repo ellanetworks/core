@@ -140,6 +140,7 @@ const User = () => {
           primaryText="No user found."
           secondaryText="Create a new user."
           buttonText="Create"
+          button={true}
           onCreate={handleOpenCreateModal}
         />
       ) : (

@@ -4,36 +4,37 @@ description: RESTful API reference for managing the Operator ID and Operator Cod
 
 # Operator
 
-## Update the Operator ID
+## Update the Operator Information
 
-This path updates the operator ID. The operator ID is a 5 or 6 digit string that identifies the operator.
+This path updates the operator information. The Mobile Country Code (MCC) and Mobile Network Code (MNC) are used to identify the operator.
 
-| Method | Path                  |
-| ------ | --------------------- |
-| PUT    | `/api/v1/operator/id` |
+| Method | Path               |
+| ------ | ------------------ |
+| PUT    | `/api/v1/operator` |
 
 ### Parameters
 
 - `mcc` (string): The Mobile Country Code (MCC) of the network. Must be a 3-digit string.
 - `mnc` (string): The Mobile Network Code (MNC) of the network. Must be a 2 or 3-digit string.
+- `supportedTACs` (array): An array of supported TACs (Tracking Area Codes). Each TAC must be a 3-digit string.
 
 ### Sample Response
 
 ```json
 {
     "result": {
-        "message": "Operator ID updated successfully"
+        "message": "Operator updated successfully"
     }
 }
 ```
 
-## Get Operator ID
+## Get Operator Information
 
-This path returns the operator ID.
+This path returns the operator Information.
 
-| Method | Path                  |
-| ------ | --------------------- |
-| GET    | `/api/v1/operator/id` |
+| Method | Path               |
+| ------ | ------------------ |
+| GET    | `/api/v1/operator` |
 
 ### Parameters
 
@@ -45,7 +46,12 @@ None
 {
     "result": {
         "mcc": "001",
-        "mnc": "01"
+        "mnc": "01",
+        "supportedTACs": [
+            "001",
+            "002",
+            "003"
+        ]
     }
 }
 ```

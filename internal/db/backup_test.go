@@ -24,11 +24,11 @@ func TestDatabaseBackup(t *testing.T) {
 		}
 	}()
 
-	operatorId := &db.OperatorId{
+	operator := &db.Operator{
 		Mcc: "123",
 		Mnc: "456",
 	}
-	err = database.UpdateOperatorId(operatorId)
+	err = database.UpdateOperator(operator)
 	if err != nil {
 		t.Fatalf("Couldn't update operator id: %s", err)
 	}

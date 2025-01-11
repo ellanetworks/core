@@ -117,12 +117,13 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
                     disabled
                 />
                 <FormControl fullWidth margin="normal">
-                    <InputLabel id="profile-name-label">Profile Name</InputLabel>
+                    <InputLabel id="demo-simple-select-label">Profile Name</InputLabel>
                     <Select
-                        labelId="profile-name-label"
                         value={formValues.profileName}
                         onChange={(e) => handleChange("profileName", e.target.value)}
                         error={!!errors.profileName}
+                        label={"Profile Name"}
+                        labelId="demo-simple-select-label"
                     >
                         {profiles.map((profile) => (
                             <MenuItem key={profile} value={profile}>

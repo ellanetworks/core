@@ -196,7 +196,6 @@ def configure_ella_core(core_address: str) -> Subscriber:
     if not token:
         raise RuntimeError("Failed to login to Ella Core")
     ella_client.set_token(token)
-    ella_client.create_radio(name=f"{NAMESPACE}-gnbsim", tac="001")
     ella_client.create_profile(
         name=TEST_PROFILE_NAME,
         dnn="internet",
@@ -208,7 +207,7 @@ def configure_ella_core(core_address: str) -> Subscriber:
         priority_level=1,
         var5qi=8,
     )
-    ella_client.update_operator_id(mcc="001", mnc="01")
+    ella_client.update_operator(mcc="001", mnc="01", supported_tacs=["001"])
     for i in range(NUM_IMSIS):
         imsi = compute_imsi(TEST_START_IMSI, i)
         ella_client.create_subscriber(
@@ -265,6 +264,23 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                                         }
                                     ],
                                     "tac": "000001",
+                                },
+                                {
+                                    "broadcastPlmnList": [
+                                        {
+                                            "plmnId": {
+                                                "mcc": "123",
+                                                "mnc": "12",
+                                            },
+                                            "taiSliceSupportList": [
+                                                {
+                                                    "sd": "102031",
+                                                    "sst": 1,
+                                                }
+                                            ],
+                                        }
+                                    ],
+                                    "tac": "000002",
                                 }
                             ],
                         },

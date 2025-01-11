@@ -20,7 +20,7 @@ import * as yup from "yup";
 import { ValidationError } from "yup";
 import { createSubscriber } from "@/queries/subscribers";
 import { listProfiles } from "@/queries/profiles";
-import { getOperatorId } from "@/queries/operator";
+import { getOperator } from "@/queries/operator";
 import { useRouter } from "next/navigation"
 import { useCookies } from "react-cookie"
 
@@ -74,11 +74,11 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
     const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
     useEffect(() => {
-        const fetchOperatorIdAndProfiles = async () => {
+        const fetchOperatorAndProfiles = async () => {
             try {
-                const operatorId = await getOperatorId(cookies.user_token);
-                setMcc(operatorId.mcc);
-                setMnc(operatorId.mnc);
+                const operator = await getOperator(cookies.user_token);
+                setMcc(operator.mcc);
+                setMnc(operator.mnc);
 
                 const profileData = await listProfiles(cookies.user_token);
                 setProfiles(profileData.map((profile: any) => profile.name));
@@ -88,7 +88,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
         };
 
         if (open) {
-            fetchOperatorIdAndProfiles();
+            fetchOperatorAndProfiles();
         }
     }, [open]);
 
@@ -271,13 +271,14 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                     margin="normal"
                 />
                 <FormControl fullWidth margin="normal">
-                    <InputLabel id="profile-name-label">Profile Name</InputLabel>
+                    <InputLabel id="demo-simple-select-label">Profile Name</InputLabel>
                     <Select
-                        labelId="profile-name-label"
                         value={formValues.profileName}
                         onChange={(e) => handleChange("profileName", e.target.value)}
                         onBlur={() => handleBlur("profileName")}
                         error={!!errors.profileName && touched.profileName}
+                        labelId="demo-simple-select-label"
+                        label={"ProfileName"}
                     >
                         {profiles.map((profile) => (
                             <MenuItem key={profile} value={profile}>

@@ -37,12 +37,14 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
     const [subscriberData, setSubscriberData] = useState({
         imsi: "",
         key: "",
+        opc: "",
         sequenceNumber: "",
         profileName: "",
     });
     const [loading, setLoading] = useState(false);
     const [alert, setAlert] = useState<{ message: string }>({ message: "" });
     const [keyObfuscated, setKeyObfuscated] = useState(true);
+    const [opcObfuscated, setOPcObfuscated] = useState(true);
 
     useEffect(() => {
         const fetchSubscriberData = async () => {
@@ -56,6 +58,7 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
                 setSubscriberData({
                     imsi: data.imsi,
                     key: data.key,
+                    opc: data.opc,
                     sequenceNumber: data.sequenceNumber,
                     profileName: data.profileName,
                 });
@@ -125,6 +128,24 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
                     <IconButton
                         onClick={() => handleCopy(subscriberData.key, "Key")}
                         aria-label="Copy Key"
+                    >
+                        <CopyIcon />
+                    </IconButton>
+                </Box>
+                <Box sx={{ mb: 2, display: "flex", alignItems: "center" }}>
+                    <Typography sx={{ flex: 1 }}>
+                        <strong>OPc:</strong>{" "}
+                        {opcObfuscated ? "••••••••••••••••••••••••••••••••" : subscriberData.opc}
+                    </Typography>
+                    <Button
+                        variant="text"
+                        onClick={() => setOPcObfuscated(!opcObfuscated)}
+                    >
+                        {opcObfuscated ? "Show" : "Hide"}
+                    </Button>
+                    <IconButton
+                        onClick={() => handleCopy(subscriberData.opc, "OPc")}
+                        aria-label="Copy OPc"
                     >
                         <CopyIcon />
                     </IconButton>

@@ -245,13 +245,6 @@ type SbiMsg struct {
 	Result chan SbiResponseMsg
 }
 
-type ConfigMsg struct {
-	Msg  interface{}
-	Supi string
-	Sst  string
-	Sd   string
-}
-
 type AmfUeEventSubscription struct {
 	Timestamp         time.Time
 	AnyUe             bool

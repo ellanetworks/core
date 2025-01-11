@@ -4,21 +4,21 @@ description: Step-by-step instructions to integrate Ella Core with a radio.
 
 # Integrate with a Radio
 
-Follow this guide to integrate Ella Core with a 5G radio. This guide assumes you have already deployed Ella Core and the radio.
+Radios are automatically added to Ella Core as they connect to the network as long as they are configured to use the same Tracking Area Code (TAC), Mobile Country Code (MCC), and Mobile Network Code (MNC) as Ella Core.
 
-## Add a radio to the Ella Core Inventory
+Follow this guide to integrate Ella Core with a 5G radio. This guide assumes you have already deployed Ella Core.
+
+## 1. Configure the Operator information
 
 1. Open Ella Core in your web browser.
-2. Click on the **Radios** tab in the left-hand menu.
-3. Click on the **Create** button.
-4. Fill in the radio details:
-    - **Name**: A unique name for the radio.
-    - **TAC**: The Tracking Area Code for the radio.
+2. Click on the **Operator** tab in the left-hand menu.
+3. Click on the **Edit** button.
+4. Fill in the operator details:
+    - **MCC**: The Mobile Country Code for the operator.
+    - **MNC**: The Mobile Network Code for the operator.
+    - **Supported TACs**: A list of supported Tracking Area Codes (TACs).
 
-!!! note
-    Those steps can also be done using the API, please see the [radios API documentation](../reference/api/radios.md) for more information.
-
-## Configure the radio
+## 2. Configure the radio
 
 In your radio's configuration, you will likely need to specify the following information to connect it with a 5G core network:
 
