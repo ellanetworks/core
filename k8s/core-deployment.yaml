@@ -36,7 +36,7 @@ spec:
               - NET_ADMIN
       containers:
       - name: core
-        image: localhost:5000/ella-core:0.0.4
+        image: localhost:5000/ella-core:latest
         imagePullPolicy: Always
         command: ["pebble"]
         args: ["run", "--hold", "--http", ":38813", "--verbose"]

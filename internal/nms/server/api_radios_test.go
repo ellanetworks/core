@@ -39,7 +39,7 @@ type SupportedTAI struct {
 type GetRadioResponseResult struct {
 	Name          string         `json:"name"`
 	Id            string         `json:"id"`
-	IPAddress     string         `json:"ip_address"`
+	Address       string         `json:"address"`
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 
@@ -159,8 +159,8 @@ func TestListRadios(t *testing.T) {
 		t.Fatalf("expected radio name %q, got %q", "gnb-001", response.Result[0].Name)
 	}
 
-	if response.Result[0].IPAddress != "1.2.3.4" {
-		t.Fatalf("expected radio IP address %q, got %q", "1.2.3.4", response.Result[0].IPAddress)
+	if response.Result[0].Address != "1.2.3.4" {
+		t.Fatalf("expected radio address %q, got %q", "1.2.3.4", response.Result[0].Address)
 	}
 
 	if response.Result[0].Id != "mcc:001:mnc:01:gnb-001" {
@@ -199,8 +199,8 @@ func TestListRadios(t *testing.T) {
 		t.Fatalf("expected radio name %q, got %q", "gnb-002", response.Result[1].Name)
 	}
 
-	if response.Result[1].IPAddress != "2.3.4.5" {
-		t.Fatalf("expected radio IP address %q, got %q", "2.3.4.5", response.Result[1].IPAddress)
+	if response.Result[1].Address != "2.3.4.5" {
+		t.Fatalf("expected radio address %q, got %q", "2.3.4.5", response.Result[1].Address)
 	}
 
 	if response.Result[1].Id != "mcc:001:mnc:01:gnb-002" {

@@ -4,7 +4,7 @@ OUTPUT := core
 ROCK_FILE := ella-core_0.0.4_amd64.rock
 TAR_FILE := ella.tar
 K8S_NAMESPACE := dev2
-OCI_IMAGE_NAME := ella-core:0.0.4
+OCI_IMAGE_NAME := ella-core:latest
 
 .PHONY: all clean build ui-build go-build oci-build deploy nad-create rebuild
 
@@ -28,8 +28,8 @@ oci-build:
 	@echo "Copying OCI image to Docker daemon with skopeo..."
 	sudo rockcraft.skopeo --insecure-policy copy oci-archive:$(ROCK_FILE) docker-daemon:$(OCI_IMAGE_NAME)
 	@echo "Pushing image to local registry..."
-	docker tag ella-core:0.0.4 localhost:5000/ella-core:0.0.4
-	docker push localhost:5000/ella-core:0.0.4
+	docker tag ella-core:latest localhost:5000/ella-core:latest
+	docker push localhost:5000/ella-core:latest
 
 hotswap: go-build
 	@echo "Copying the binary to the running container..."

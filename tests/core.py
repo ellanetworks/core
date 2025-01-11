@@ -12,7 +12,6 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-GNB_CONFIG_URL = "/api/v1/radios"
 OPERATOR_CONFIG_URL = "/api/v1/operator"
 PROFILE_CONFIG_URL = "/api/v1/profiles"
 SUBSCRIBERS_CONFIG_URL = "/api/v1/subscribers"

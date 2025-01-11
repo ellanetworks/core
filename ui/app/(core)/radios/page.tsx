@@ -16,8 +16,7 @@ import { useCookies } from "react-cookie";
 interface RadioData {
   id: string;
   name: string;
-  ip_address: string;
-  supported_tais: any;
+  address: string;
 }
 
 const Radio = () => {
@@ -45,17 +44,7 @@ const Radio = () => {
   const columns: GridColDef[] = [
     { field: "id", headerName: "ID", flex: 1 },
     { field: "name", headerName: "Name", flex: 1 },
-    { field: "ip_address", headerName: "IP Address", flex: 1 },
-    {
-      field: "supported_tais",
-      headerName: "Supported TAI",
-      flex: 2,
-      renderCell: (params) => (
-        <pre style={{ whiteSpace: "pre-wrap" }}>
-          {JSON.stringify(params.row.supported_tais, null, 2)}
-        </pre>
-      ),
-    },
+    { field: "address", headerName: "Address", flex: 1 },
   ];
 
   return (

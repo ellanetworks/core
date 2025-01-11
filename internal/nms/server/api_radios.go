@@ -31,7 +31,7 @@ type SupportedTAI struct {
 type GetRadioParams struct {
 	Name          string         `json:"name"`
 	Id            string         `json:"id"`
-	IPAddress     string         `json:"ip_address"`
+	Address       string         `json:"address"`
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 
@@ -82,7 +82,7 @@ func ListRadios() gin.HandlerFunc {
 			newRadio := GetRadioParams{
 				Name:          radio.Name,
 				Id:            radio.GnbId,
-				IPAddress:     radio.GnbIp,
+				Address:       radio.GnbIp,
 				SupportedTAIs: supportedTais,
 			}
 			radios = append(radios, newRadio)
@@ -122,7 +122,7 @@ func GetRadio() gin.HandlerFunc {
 				returnRadio = GetRadioParams{
 					Name:          radio.Name,
 					Id:            radio.GnbId,
-					IPAddress:     radio.GnbIp,
+					Address:       radio.GnbIp,
 					SupportedTAIs: supportedTais,
 				}
 				break

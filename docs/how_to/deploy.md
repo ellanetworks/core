@@ -80,7 +80,7 @@ Ella Core is available as a Snap and a OCI container image.
     Pull the image from the registry:
 
     ```shell
-    docker pull ghcr.io/ellanetworks/ella-core:v0.0.4
+    docker pull ghcr.io/ellanetworks/ella-core:0.0.4
     ```
 
     Installation can then be done using the approach of your choice. 
