@@ -1,5 +1,17 @@
 package server_test
 
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"path/filepath"
+	"testing"
+
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/omec-project/openapi/models"
+)
+
 const (
 	RadioName = "gnb-001"
 )
@@ -36,249 +48,182 @@ type GetRadioResponse struct {
 	Error  string                 `json:"error,omitempty"`
 }
 
-type CreateRadioParams struct {
-	Name string `json:"name"`
+type ListRadiosResponse struct {
+	Result []GetRadioResponseResult `json:"result"`
+	Error  string                   `json:"error,omitempty"`
 }
 
-type CreateRadioResponseResult struct {
-	Message string `json:"message"`
+func listRadios(url string, client *http.Client, token string) (int, *ListRadiosResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/radios", nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+	var response ListRadiosResponse
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+		return 0, nil, err
+	}
+	return res.StatusCode, &response, nil
 }
 
-type CreateRadioResponse struct {
-	Result CreateRadioResponseResult `json:"result"`
-	Error  string                    `json:"error,omitempty"`
+func TestListRadios(t *testing.T) {
+	tempDir := t.TempDir()
+	db_path := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(db_path)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	amf := amfContext.AMF_Self()
+	ran1 := amfContext.AmfRan{}
+	ran1.Name = "gnb-001"
+	ran1.SupportedTAList = []amfContext.SupportedTAI{
+		{
+			Tai: models.Tai{
+				PlmnId: &models.PlmnId{
+					Mcc: "123",
+					Mnc: "12",
+				},
+				Tac: "0002",
+			},
+			SNssaiList: []models.Snssai{
+				{
+					Sst: 2,
+					Sd:  "010204",
+				},
+			},
+		},
+	}
+	ran1.GnbIp = "1.2.3.4"
+	ran1.GnbId = "mcc:001:mnc:01:gnb-001"
+	amf.AmfRanPool.Store("id1", &ran1)
+	ran2 := amfContext.AmfRan{}
+	ran2.Name = "gnb-002"
+	ran2.SupportedTAList = []amfContext.SupportedTAI{
+		{
+			Tai: models.Tai{
+				PlmnId: &models.PlmnId{
+					Mcc: "001",
+					Mnc: "01",
+				},
+				Tac: "0001",
+			},
+			SNssaiList: []models.Snssai{
+				{
+					Sst: 1,
+					Sd:  "010203",
+				},
+			},
+		},
+	}
+	ran2.GnbIp = "2.3.4.5"
+	ran2.GnbId = "mcc:001:mnc:01:gnb-002"
+	amf.AmfRanPool.Store("id2", &ran2)
+
+	// Set up the Gin router
+	statusCode, response, err := listRadios(ts.URL, client, token)
+	if err != nil {
+		t.Fatalf("couldn't list profile: %s", err)
+	}
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if response.Error != "" {
+		t.Fatalf("unexpected error :%q", response.Error)
+	}
+
+	if len(response.Result) != 2 {
+		t.Fatalf("expected 2 radios, got %d", len(response.Result))
+	}
+
+	fmt.Println("Result: ", response.Result)
+
+	if response.Result[0].Name != "gnb-001" {
+		t.Fatalf("expected radio name %q, got %q", "gnb-001", response.Result[0].Name)
+	}
+
+	if response.Result[0].IPAddress != "1.2.3.4" {
+		t.Fatalf("expected radio IP address %q, got %q", "1.2.3.4", response.Result[0].IPAddress)
+	}
+
+	if response.Result[0].Id != "mcc:001:mnc:01:gnb-001" {
+		t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-001", response.Result[0].Id)
+	}
+
+	if len(response.Result[0].SupportedTAIs) != 1 {
+		t.Fatalf("expected 1 supported TAI, got %d", len(response.Result[0].SupportedTAIs))
+	}
+
+	if response.Result[0].SupportedTAIs[0].Tai.PlmnId.Mcc != "123" {
+		t.Fatalf("expected mcc %q, got %q", "123", response.Result[0].SupportedTAIs[0].Tai.PlmnId.Mcc)
+	}
+
+	if response.Result[0].SupportedTAIs[0].Tai.PlmnId.Mnc != "12" {
+		t.Fatalf("expected mnc %q, got %q", "12", response.Result[0].SupportedTAIs[0].Tai.PlmnId.Mnc)
+	}
+
+	if response.Result[0].SupportedTAIs[0].Tai.Tac != "0002" {
+		t.Fatalf("expected tac %q, got %q", "0002", response.Result[0].SupportedTAIs[0].Tai.Tac)
+	}
+
+	if len(response.Result[0].SupportedTAIs[0].SNssais) != 1 {
+		t.Fatalf("expected 1 supported SNssai, got %d", len(response.Result[0].SupportedTAIs[0].SNssais))
+	}
+
+	if response.Result[0].SupportedTAIs[0].SNssais[0].Sst != 2 {
+		t.Fatalf("expected sst %d, got %d", 2, response.Result[0].SupportedTAIs[0].SNssais[0].Sst)
+	}
+
+	if response.Result[0].SupportedTAIs[0].SNssais[0].Sd != "010204" {
+		t.Fatalf("expected sd %q, got %q", "010204", response.Result[0].SupportedTAIs[0].SNssais[0].Sd)
+	}
+
+	if response.Result[1].Name != "gnb-002" {
+		t.Fatalf("expected radio name %q, got %q", "gnb-002", response.Result[1].Name)
+	}
+
+	if response.Result[1].IPAddress != "2.3.4.5" {
+		t.Fatalf("expected radio IP address %q, got %q", "2.3.4.5", response.Result[1].IPAddress)
+	}
+
+	if response.Result[1].Id != "mcc:001:mnc:01:gnb-002" {
+		t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-002", response.Result[1].Id)
+	}
+
+	if len(response.Result[1].SupportedTAIs) != 1 {
+		t.Fatalf("expected 1 supported TAI, got %d", len(response.Result[1].SupportedTAIs))
+	}
+
+	if response.Result[1].SupportedTAIs[0].Tai.PlmnId.Mcc != "001" {
+		t.Fatalf("expected mcc %q, got %q", "001", response.Result[1].SupportedTAIs[0].Tai.PlmnId.Mcc)
+	}
+
+	if response.Result[1].SupportedTAIs[0].Tai.PlmnId.Mnc != "01" {
+		t.Fatalf("expected mnc %q, got %q", "01", response.Result[1].SupportedTAIs[0].Tai.PlmnId.Mnc)
+	}
+
+	if response.Result[1].SupportedTAIs[0].Tai.Tac != "0001" {
+		t.Fatalf("expected tac %q, got %q", "0001", response.Result[1].SupportedTAIs[0].Tai.Tac)
+	}
+
+	if len(response.Result[1].SupportedTAIs[0].SNssais) != 1 {
+		t.Fatalf("expected 1 supported SNssai, got %d", len(response.Result[1].SupportedTAIs[0].SNssais))
+	}
 }
-
-type DeleteRadioResponseResult struct {
-	Message string `json:"message"`
-}
-
-type DeleteRadioResponse struct {
-	Result DeleteRadioResponseResult `json:"result"`
-	Error  string                    `json:"error,omitempty"`
-}
-
-// func getRadio(url string, client *http.Client, token string, name string) (int, *GetRadioResponse, error) {
-// 	req, err := http.NewRequest("GET", url+"/api/v1/radios/"+name, nil)
-// 	if err != nil {
-// 		return 0, nil, err
-// 	}
-// 	req.Header.Set("Authorization", "Bearer "+token)
-// 	res, err := client.Do(req)
-// 	if err != nil {
-// 		return 0, nil, err
-// 	}
-// 	defer func() {
-// 		if err := res.Body.Close(); err != nil {
-// 			panic(err)
-// 		}
-// 	}()
-// 	var radioResponse GetRadioResponse
-// 	if err := json.NewDecoder(res.Body).Decode(&radioResponse); err != nil {
-// 		return 0, nil, err
-// 	}
-// 	return res.StatusCode, &radioResponse, nil
-// }
-
-// func createRadio(url string, client *http.Client, token string, data *CreateRadioParams) (int, *CreateRadioResponse, error) {
-// 	body, err := json.Marshal(data)
-// 	if err != nil {
-// 		return 0, nil, err
-// 	}
-// 	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/radios", strings.NewReader(string(body)))
-// 	if err != nil {
-// 		return 0, nil, err
-// 	}
-// 	req.Header.Set("Authorization", "Bearer "+token)
-// 	res, err := client.Do(req)
-// 	if err != nil {
-// 		return 0, nil, err
-// 	}
-// 	defer func() {
-// 		if err := res.Body.Close(); err != nil {
-// 			panic(err)
-// 		}
-// 	}()
-// 	var createResponse CreateRadioResponse
-// 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
-// 		return 0, nil, err
-// 	}
-// 	return res.StatusCode, &createResponse, nil
-// }
-
-// func deleteRadio(url string, client *http.Client, token string, name string) (int, *DeleteRadioResponse, error) {
-// 	req, err := http.NewRequest("DELETE", url+"/api/v1/radios/"+name, nil)
-// 	if err != nil {
-// 		return 0, nil, err
-// 	}
-// 	req.Header.Set("Authorization", "Bearer "+token)
-// 	res, err := client.Do(req)
-// 	if err != nil {
-// 		return 0, nil, err
-// 	}
-// 	defer func() {
-// 		if err := res.Body.Close(); err != nil {
-// 			panic(err)
-// 		}
-// 	}()
-// 	var deleteResponse DeleteRadioResponse
-// 	if err := json.NewDecoder(res.Body).Decode(&deleteResponse); err != nil {
-// 		return 0, nil, err
-// 	}
-
-// 	return res.StatusCode, &deleteResponse, nil
-// }
-
-// This is an end-to-end test for the radios handlers.
-// The order of the tests is important, as some tests depend on
-// the state of the server after previous tests.
-// func TestAPIRadiosEndToEnd(t *testing.T) {
-// 	tempDir := t.TempDir()
-// 	db_path := filepath.Join(tempDir, "db.sqlite3")
-// 	ts, _, err := setupServer(db_path)
-// 	if err != nil {
-// 		t.Fatalf("couldn't create test server: %s", err)
-// 	}
-// 	defer ts.Close()
-// 	client := ts.Client()
-
-// 	token, err := createFirstUserAndLogin(ts.URL, client)
-// 	if err != nil {
-// 		t.Fatalf("couldn't create first user and login: %s", err)
-// 	}
-
-// 	t.Run("1. Create radio", func(t *testing.T) {
-// 		createRadioParams := &CreateRadioParams{
-// 			Name: RadioName,
-// 		}
-// 		statusCode, response, err := createRadio(ts.URL, client, token, createRadioParams)
-// 		if err != nil {
-// 			t.Fatalf("couldn't create radio: %s", err)
-// 		}
-// 		if statusCode != http.StatusCreated {
-// 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
-// 		}
-// 		if response.Error != "" {
-// 			t.Fatalf("unexpected error :%q", response.Error)
-// 		}
-// 		if response.Result.Message != "Radio created successfully" {
-// 			t.Fatalf("expected message %q, got %q", "Radio created successfully", response.Result.Message)
-// 		}
-// 	})
-
-// 	t.Run("2. Get radio", func(t *testing.T) {
-// 		statusCode, response, err := getRadio(ts.URL, client, token, RadioName)
-// 		if err != nil {
-// 			t.Fatalf("couldn't get radio: %s", err)
-// 		}
-// 		if statusCode != http.StatusOK {
-// 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
-// 		}
-// 		if response.Result.Name != RadioName {
-// 			t.Fatalf("expected name %s, got %s", RadioName, response.Result.Name)
-// 		}
-
-// 		if response.Error != "" {
-// 			t.Fatalf("unexpected error :%q", response.Error)
-// 		}
-// 	})
-
-// 	t.Run("3. Get radio - id not found", func(t *testing.T) {
-// 		statusCode, response, err := getRadio(ts.URL, client, token, "gnb-002")
-// 		if err != nil {
-// 			t.Fatalf("couldn't get radio: %s", err)
-// 		}
-// 		if statusCode != http.StatusNotFound {
-// 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
-// 		}
-// 		if response.Error != "Radio not found" {
-// 			t.Fatalf("expected error %q, got %q", "Radio not found", response.Error)
-// 		}
-// 	})
-
-// 	t.Run("4. Create radio - no name", func(t *testing.T) {
-// 		createRadioParams := &CreateRadioParams{}
-// 		statusCode, response, err := createRadio(ts.URL, client, token, createRadioParams)
-// 		if err != nil {
-// 			t.Fatalf("couldn't create radio: %s", err)
-// 		}
-// 		if statusCode != http.StatusBadRequest {
-// 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
-// 		}
-// 		if response.Error != "name is missing" {
-// 			t.Fatalf("expected error %q, got %q", "name is missing", response.Error)
-// 		}
-// 	})
-
-// 	t.Run("5. Delete radio - success", func(t *testing.T) {
-// 		statusCode, response, err := deleteRadio(ts.URL, client, token, RadioName)
-// 		if err != nil {
-// 			t.Fatalf("couldn't delete radio: %s", err)
-// 		}
-// 		if statusCode != http.StatusOK {
-// 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
-// 		}
-// 		if response.Error != "" {
-// 			t.Fatalf("unexpected error :%q", response.Error)
-// 		}
-// 		if response.Result.Message != "Radio deleted successfully" {
-// 			t.Fatalf("expected message %q, got %q", "Radio deleted successfully", response.Result.Message)
-// 		}
-// 	})
-
-// 	t.Run("6. Delete radio - no radio", func(t *testing.T) {
-// 		statusCode, response, err := deleteRadio(ts.URL, client, token, RadioName)
-// 		if err != nil {
-// 			t.Fatalf("couldn't delete radio: %s", err)
-// 		}
-// 		if statusCode != http.StatusNotFound {
-// 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
-// 		}
-// 		if response.Error != "Radio not found" {
-// 			t.Fatalf("expected error %q, got %q", "Radio not found", response.Error)
-// 		}
-// 	})
-// }
-
-// func TestCreateRadioInvalidInput(t *testing.T) {
-// 	tempDir := t.TempDir()
-// 	db_path := filepath.Join(tempDir, "db.sqlite3")
-// 	ts, _, err := setupServer(db_path)
-// 	if err != nil {
-// 		t.Fatalf("couldn't create test server: %s", err)
-// 	}
-// 	defer ts.Close()
-// 	client := ts.Client()
-
-// 	token, err := createFirstUserAndLogin(ts.URL, client)
-// 	if err != nil {
-// 		t.Fatalf("couldn't create first user and login: %s", err)
-// 	}
-
-// 	tests := []struct {
-// 		name  string
-// 		error string
-// 	}{
-// 		{
-// 			name:  strings.Repeat("a", 257),
-// 			error: "Invalid name format. Must be less than 256 characters",
-// 		},
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			createRadioParams := &CreateRadioParams{
-// 				Name: tt.name,
-// 			}
-// 			statusCode, response, err := createRadio(ts.URL, client, token, createRadioParams)
-// 			if err != nil {
-// 				t.Fatalf("couldn't create radio: %s", err)
-// 			}
-// 			if statusCode != http.StatusBadRequest {
-// 				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
-// 			}
-// 			if response.Error != tt.error {
-// 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
-// 			}
-// 		})
-// 	}
-// }

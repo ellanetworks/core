@@ -1,7 +1,7 @@
 import { HTTPStatus } from "@/queries/utils";
 
-export const getOperatorId = async (authToken: string) => {
-  const response = await fetch(`/api/v1/operator/id`, {
+export const getOperator = async (authToken: string) => {
+  const response = await fetch(`/api/v1/operator`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -23,7 +23,7 @@ export const getOperatorId = async (authToken: string) => {
 };
 
 export const updateOperatorId = async (authToken: string, mcc: string, mnc: string) => {
-  const getResponse = await fetch(`/api/v1/operator/id`, {
+  const getResponse = await fetch(`/api/v1/operator`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -37,7 +37,43 @@ export const updateOperatorId = async (authToken: string, mcc: string, mnc: stri
   const operatorIdData = getRespData.result
   operatorIdData.mcc = mcc
   operatorIdData.mnc = mnc
-  const response = await fetch(`/api/v1/operator/id`, {
+  const response = await fetch(`/api/v1/operator`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + authToken
+    },
+    body: JSON.stringify(operatorIdData),
+  });
+  let respData;
+  try {
+    respData = await response.json();
+  } catch {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+  }
+
+  return respData.result;
+};
+
+export const updateSupportedTacs = async (authToken: string, supportedTacs: string[]) => {
+  const getResponse = await fetch(`/api/v1/operator`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + authToken
+    },
+  });
+  const getRespData = await getResponse.json();
+  if (!getResponse.ok) {
+    throw new Error(`${getResponse.status}: ${HTTPStatus(getResponse.status)}. ${getRespData.error}`)
+  }
+  const operatorIdData = getRespData.result
+  operatorIdData.supportedTacs = supportedTacs
+  const response = await fetch(`/api/v1/operator`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",

@@ -4,35 +4,26 @@ import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
-  Button,
   CircularProgress,
   Alert,
   Collapse,
-  IconButton,
 } from "@mui/material";
-import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
-import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
-import { listRadios, deleteRadio } from "@/queries/radios";
-import CreateRadioModal from "@/components/CreateRadioModal";
-import EditRadioModal from "@/components/EditRadioModal";
-import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
+import { DataGrid, GridColDef } from "@mui/x-data-grid";
+import { listRadios } from "@/queries/radios";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 
 interface RadioData {
+  id: string;
   name: string;
-  tac: string;
+  ip_address: string;
+  supported_tais: any;
 }
 
 const Radio = () => {
   const [cookies] = useCookies(["user_token"]);
-  const [radios, setRadios] = useState<any[]>([]);
+  const [radios, setRadios] = useState<RadioData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isCreateModalOpen, setCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setEditModalOpen] = useState(false);
-  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-  const [editData, setEditData] = useState<RadioData | null>(null);
-  const [selectedRadio, setSelectedRadio] = useState<string | null>(null);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
   const fetchRadios = async () => {
@@ -51,70 +42,19 @@ const Radio = () => {
     fetchRadios();
   }, []);
 
-  const handleOpenCreateModal = () => setCreateModalOpen(true);
-  const handleCloseCreateModal = () => setCreateModalOpen(false);
-
-  const handleEditClick = (radio: any) => {
-    const mappedRadio = {
-      name: radio.name,
-      tac: radio.tac,
-    };
-    setEditData(mappedRadio);
-    setEditModalOpen(true);
-  };
-
-  const handleEditModalClose = () => {
-    setEditModalOpen(false);
-    setEditData(null);
-  };
-
-  const handleDeleteClick = (radioName: string) => {
-    setSelectedRadio(radioName);
-    setConfirmationOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    setConfirmationOpen(false);
-    if (selectedRadio) {
-      try {
-        await deleteRadio(cookies.user_token, selectedRadio);
-        setAlert({
-          message: `Radio "${selectedRadio}" deleted successfully!`,
-        });
-        fetchRadios();
-      } catch (error) {
-        console.error("Error deleting radio:", error);
-        setAlert({
-          message: `Failed to delete radio "${selectedRadio}".`,
-        });
-      } finally {
-        setSelectedRadio(null);
-      }
-    }
-  };
-
   const columns: GridColDef[] = [
+    { field: "id", headerName: "ID", flex: 1 },
     { field: "name", headerName: "Name", flex: 1 },
-    { field: "tac", headerName: "TAC", flex: 1 },
+    { field: "ip_address", headerName: "IP Address", flex: 1 },
     {
-      field: "actions",
-      headerName: "Actions",
-      type: "actions",
-      flex: 0.5,
-      getActions: (params) => [
-        <IconButton
-          aria-label="edit"
-          onClick={() => handleEditClick(params.row)}
-        >
-          <EditIcon />
-        </IconButton>,
-        <IconButton
-          aria-label="delete"
-          onClick={() => handleDeleteClick(params.row.name)}
-        >
-          <DeleteIcon />
-        </IconButton>
-      ],
+      field: "supported_tais",
+      headerName: "Supported TAI",
+      flex: 2,
+      renderCell: (params) => (
+        <pre style={{ whiteSpace: "pre-wrap" }}>
+          {JSON.stringify(params.row.supported_tais, null, 2)}
+        </pre>
+      ),
     },
   ];
 
@@ -148,9 +88,10 @@ const Radio = () => {
       ) : radios.length === 0 ? (
         <EmptyState
           primaryText="No radio found."
-          secondaryText="Create a new radio."
+          secondaryText="Connected radios will automatically appear here."
+          button={false}
           buttonText="Create"
-          onCreate={handleOpenCreateModal}
+          onCreate={() => console.log("Create radio")}
         />
       ) : (
         <>
@@ -166,9 +107,6 @@ const Radio = () => {
             <Typography variant="h4" component="h1" gutterBottom>
               Radios ({radios.length})
             </Typography>
-            <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
-              Create
-            </Button>
           </Box>
           <Box
             sx={{
@@ -191,35 +129,12 @@ const Radio = () => {
             <DataGrid
               rows={radios}
               columns={columns}
-              getRowId={(row) => row.name}
+              getRowId={(row) => row.id}
               disableRowSelectionOnClick
             />
           </Box>
         </>
       )}
-      <CreateRadioModal
-        open={isCreateModalOpen}
-        onClose={handleCloseCreateModal}
-        onSuccess={fetchRadios}
-      />
-      <EditRadioModal
-        open={isEditModalOpen}
-        onClose={handleEditModalClose}
-        onSuccess={fetchRadios}
-        initialData={
-          editData || {
-            name: "",
-            tac: "",
-          }
-        }
-      />
-      <DeleteConfirmationModal
-        open={isConfirmationOpen}
-        onClose={() => setConfirmationOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Confirm Deletion"
-        description={`Are you sure you want to delete the radio "${selectedRadio}"? This action cannot be undone.`}
-      />
     </Box>
   );
 };

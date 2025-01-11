@@ -130,9 +130,8 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	apiGroup.PUT("/operator/code", User(UpdateOperatorCode(dbInstance), jwtSecret))
 
 	// Radios (Authenticated)
-	apiGroup.GET("/radios", User(ListRadios(dbInstance), jwtSecret))
-	apiGroup.POST("/radios", User(CreateRadio(dbInstance), jwtSecret))
-	apiGroup.DELETE("/radios/:name", User(DeleteRadio(dbInstance), jwtSecret))
+	apiGroup.GET("/radios", User(ListRadios(), jwtSecret))
+	apiGroup.GET("/radios/:name", User(GetRadio(), jwtSecret))
 
 	// Users (Authenticated except for first user creation)
 	apiGroup.GET("/users", User(ListUsers(dbInstance), jwtSecret))

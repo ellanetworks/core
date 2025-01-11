@@ -176,6 +176,7 @@ const Profile = () => {
         <EmptyState
           primaryText="No profile found."
           secondaryText="Create a new profile in order to add subscribers to the network."
+          button={true}
           buttonText="Create"
           onCreate={handleOpenCreateModal}
         />

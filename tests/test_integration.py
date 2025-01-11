@@ -196,7 +196,6 @@ def configure_ella_core(core_address: str) -> Subscriber:
     if not token:
         raise RuntimeError("Failed to login to Ella Core")
     ella_client.set_token(token)
-    ella_client.create_radio(name=f"{NAMESPACE}-gnbsim")
     ella_client.create_profile(
         name=TEST_PROFILE_NAME,
         dnn="internet",

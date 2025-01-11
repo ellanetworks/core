@@ -1,8 +1,12 @@
 ---
-description: RESTful API reference for managing the radio inventory.
+description: RESTful API reference for viewing connected radio information.
 ---
 
 # Radios
+
+Radios are automatically added to Ella Core as they connect to the network as long as they are configured to use the same Tracking Area Code (TAC), Mobile Country Code (MCC), and Mobile Network Code (MNC) as Ella Core.
+
+The Radio API provides endpoints to view information about connected radios.
 
 ## List Radios
 
@@ -23,55 +27,43 @@ None
 {
     "result": [
         {
-            "name": "dev2-gnbsim",
-            "tac": "001"
+            "name": "gnb1",
+            "id": "001:01:000102",
+            "ip_address": "10.1.107.203/192.168.251.5:9487",
+            "supported_tais": [
+                {
+                    "tai": {
+                        "plmnId": {
+                            "mcc": "001",
+                            "mnc": "01"
+                        },
+                        "tac": "000001"
+                    },
+                    "snssais": [
+                        {
+                            "sst": 1,
+                            "sd": "102030"
+                        }
+                    ]
+                },
+                {
+                    "tai": {
+                        "plmnId": {
+                            "mcc": "123",
+                            "mnc": "12"
+                        },
+                        "tac": "000002"
+                    },
+                    "snssais": [
+                        {
+                            "sst": 1,
+                            "sd": "102031"
+                        }
+                    ]
+                }
+            ]
         }
     ]
-}
-```
-
-## Create a Radio
-
-This path creates a new radio in the inventory.
-
-| Method | Path             |
-| ------ | ---------------- |
-| POST   | `/api/v1/radios` |
-
-### Parameters
-
-- `name` (string): The Name of the radio.
-- `tac` (string): The tracking area code (TAC) of the radio.
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "message": "Radio created successfully"
-    }
-}
-```
-
-## Update a Radio
-
-This path updates an existing radio in the inventory.
-
-| Method | Path                    |
-| ------ | ----------------------- |
-| PUT    | `/api/v1/radios/{name}` |
-
-### Parameters
-
-- `tac` (string): The tracking area code (TAC) of the radio.
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "message": "Radio updated successfully"
-    }
 }
 ```
 
@@ -92,30 +84,41 @@ None
 ```json
 {
     "result": {
-        "name": "dev2-gnbsim",
-        "tac": "001"
-    }
-}
-```
-
-## Delete a Radio
-
-This path deletes a radio from Ella Core.
-
-| Method | Path                    |
-| ------ | ----------------------- |
-| DELETE | `/api/v1/radios/{name}` |
-
-### Parameters
-
-None
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "message": "Radio deleted successfully"
+        "name": "gnb1",
+        "id": "001:01:000102",
+        "ip_address": "10.1.107.203/192.168.251.5:9487",
+        "supported_tais": [
+            {
+                "tai": {
+                    "plmnId": {
+                        "mcc": "001",
+                        "mnc": "01"
+                    },
+                    "tac": "000001"
+                },
+                "snssais": [
+                    {
+                        "sst": 1,
+                        "sd": "102030"
+                    }
+                ]
+            },
+            {
+                "tai": {
+                    "plmnId": {
+                        "mcc": "123",
+                        "mnc": "12"
+                    },
+                    "tac": "000002"
+                },
+                "snssais": [
+                    {
+                        "sst": 1,
+                        "sd": "102031"
+                    }
+                ]
+            }
+        ]
     }
 }
 ```

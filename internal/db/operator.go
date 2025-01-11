@@ -27,14 +27,14 @@ const (
 	DefaultMcc           = "001"
 	DefaultMnc           = "01"
 	DefaultOperatorCode  = "0123456789ABCDEF0123456789ABCDEF"
-	DefaultSupportedTACs = "['001']"
+	DefaultSupportedTACs = `["001"]`
 )
 
 const (
 	getOperatorStmt        = "SELECT &Operator.* FROM %s WHERE id=1"
 	updateOperatorCodeStmt = "UPDATE %s SET operatorCode=$Operator.operatorCode WHERE id=1"
 	editOperatorStmt       = "UPDATE %s SET mcc=$Operator.mcc, mnc=$Operator.mnc, supportedTACs=$Operator.supportedTACs WHERE id=1"
-	initializeOperatorStmt = "INSERT INTO %s (mcc, mnc, operatorCode) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode)"
+	initializeOperatorStmt = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs)"
 )
 
 type Operator struct {

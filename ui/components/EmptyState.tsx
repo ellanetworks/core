@@ -6,11 +6,12 @@ import { Box, Typography, Button } from "@mui/material";
 interface EmptyStateProps {
     primaryText: string;
     secondaryText: string;
+    button: boolean;
     buttonText: string;
     onCreate: () => void;
 }
 
-const EmptyState: React.FC<EmptyStateProps> = ({ primaryText, secondaryText, buttonText, onCreate }) => {
+const EmptyState: React.FC<EmptyStateProps> = ({ primaryText, secondaryText, button, buttonText, onCreate }) => {
     return (
         <Box
             sx={{
@@ -24,19 +25,21 @@ const EmptyState: React.FC<EmptyStateProps> = ({ primaryText, secondaryText, but
                 marginTop: 4,
             }}
         >
-            <Typography variant="h4" gutterBottom>
+            <Typography variant="h4" gutterBottom align="left">
                 {primaryText}
             </Typography>
-            <Typography variant="h6" gutterBottom>
+            <Typography variant="h6" gutterBottom align="left">
                 {secondaryText}
             </Typography>
-            <Button
-                variant="contained"
-                color="success"
-                onClick={onCreate}
-            >
-                {buttonText}
-            </Button>
+            {button && (
+                <Button
+                    variant="contained"
+                    color="success"
+                    onClick={onCreate}
+                >
+                    {buttonText}
+                </Button>
+            )}
         </Box>
     );
 };

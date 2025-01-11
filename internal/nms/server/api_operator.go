@@ -256,17 +256,6 @@ func updateSMF(dbInstance *db.Database) {
 		}
 		profiles = append(profiles, profile)
 	}
-	dbRadios, err := dbInstance.ListRadios()
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-		return
-	}
-	radios := make([]models.Radio, 0)
-	for _, dbRadio := range dbRadios {
-		radio := models.Radio{
-			Name: dbRadio.Name,
-		}
-		radios = append(radios, radio)
-	}
-	context.UpdateSMFContext(operator, profiles, radios)
+
+	context.UpdateSMFContext(operator, profiles)
 }

@@ -4,14 +4,9 @@ import (
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
 )
-
-type CreateRadioParams struct {
-	Name string `json:"name"`
-}
 
 type PlmnId struct {
 	Mcc string `json:"mcc"`
@@ -41,16 +36,9 @@ type GetRadioParams struct {
 }
 
 const (
-	ListRadiosAction  = "list_radios"
-	GetRadioAction    = "get_radio"
-	CreateRadioAction = "create_radio"
-	UpdateRadioAction = "update_radio"
-	DeleteRadioAction = "delete_radio"
+	ListRadiosAction = "list_radios"
+	GetRadioAction   = "get_radio"
 )
-
-func isValidRadioName(name string) bool {
-	return len(name) > 0 && len(name) < 256
-}
 
 func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
 	returnedTais := make([]SupportedTAI, 0)
@@ -78,7 +66,7 @@ func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
 	return returnedTais
 }
 
-func ListRadios(dbInstance *db.Database) gin.HandlerFunc {
+func ListRadios() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		emailAny, _ := c.Get("email")
 		email, ok := emailAny.(string)
@@ -113,46 +101,7 @@ func ListRadios(dbInstance *db.Database) gin.HandlerFunc {
 	}
 }
 
-// func GetRadio(dbInstance *db.Database) gin.HandlerFunc {
-// 	return func(c *gin.Context) {
-// 		emailAny, _ := c.Get("email")
-// 		email, ok := emailAny.(string)
-// 		if !ok {
-// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
-// 			return
-// 		}
-// 		radioName := c.Param("name")
-// 		if radioName == "" {
-// 			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
-// 			return
-// 		}
-// 		// dbRadio, err := dbInstance.GetRadio(radioName)
-// 		// if err != nil {
-// 		// 	writeError(c.Writer, http.StatusNotFound, "Radio not found")
-// 		// 	return
-// 		// }
-
-// 		// radio := GetRadioParams{
-// 		// 	Name: dbRadio.Name,
-// 		// }
-// 		ranList := context.ListAmfRan()
-// 		for _, radio := range ranList {
-
-// 		}
-// 		err = writeResponse(c.Writer, radio, http.StatusOK)
-// 		if err != nil {
-// 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-// 			return
-// 		}
-// 		logger.LogAuditEvent(
-// 			GetRadioAction,
-// 			email,
-// 			"User retrieved radio: "+radioName,
-// 		)
-// 	}
-// }
-
-func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
+func GetRadio() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		emailAny, _ := c.Get("email")
 		email, ok := emailAny.(string)
@@ -160,84 +109,35 @@ func CreateRadio(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		var newRadio CreateRadioParams
-		err := c.ShouldBindJSON(&newRadio)
-		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
-			return
-		}
-		if newRadio.Name == "" {
-			writeError(c.Writer, http.StatusBadRequest, "name is missing")
-			return
-		}
-		if !isValidRadioName(newRadio.Name) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid name format. Must be less than 256 characters")
-			return
-		}
-		_, err = dbInstance.GetRadio(newRadio.Name)
-		if err == nil {
-			writeError(c.Writer, http.StatusBadRequest, "radio already exists")
-			return
-		}
-
-		dbRadio := &db.Radio{
-			Name: newRadio.Name,
-		}
-		err = dbInstance.CreateRadio(dbRadio)
-		if err != nil {
-			logger.NmsLog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to create radio")
-			return
-		}
-		successResponse := SuccessResponse{Message: "Radio created successfully"}
-		err = writeResponse(c.Writer, successResponse, http.StatusCreated)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
-		logger.LogAuditEvent(
-			CreateRadioAction,
-			email,
-			"User created radio: "+newRadio.Name,
-		)
-	}
-}
-
-func DeleteRadio(dbInstance *db.Database) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		emailAny, _ := c.Get("email")
-		email, ok := emailAny.(string)
-		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
-			return
-		}
-		radioName := c.Param("name")
-		if radioName == "" {
+		radioName, exists := c.Params.Get("name")
+		if !exists {
 			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
 			return
 		}
-		_, err := dbInstance.GetRadio(radioName)
-		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "Radio not found")
-			return
-		}
-		err = dbInstance.DeleteRadio(radioName)
-		if err != nil {
-			logger.NmsLog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete radio")
-			return
+		ranList := context.ListAmfRan()
+		var returnRadio GetRadioParams
+		for _, radio := range ranList {
+			if radio.Name == radioName {
+				supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAList)
+				returnRadio = GetRadioParams{
+					Name:          radio.Name,
+					Id:            radio.GnbId,
+					IPAddress:     radio.GnbIp,
+					SupportedTAIs: supportedTais,
+				}
+				break
+			}
 		}
 
-		successResponse := SuccessResponse{Message: "Radio deleted successfully"}
-		err = writeResponse(c.Writer, successResponse, http.StatusOK)
+		err := writeResponse(c.Writer, returnRadio, http.StatusOK)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
 		logger.LogAuditEvent(
-			DeleteRadioAction,
+			GetRadioAction,
 			email,
-			"User deleted radio: "+radioName,
+			"User retrieved radio: "+radioName,
 		)
 	}
 }

@@ -34,7 +34,7 @@ func Start(dbInstance *db.Database) error {
 
 	smfContext.PodIp = os.Getenv("POD_IP")
 	smfContext.DbInstance = dbInstance
-	context.UpdateUserPlaneInformation(nil)
+	context.UpdateUserPlaneInformation()
 	metrics.RegisterSmfMetrics()
 	return nil
 }

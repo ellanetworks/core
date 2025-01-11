@@ -3,6 +3,7 @@ import {
     Dialog,
     DialogTitle,
     DialogContent,
+    DialogContentText,
     DialogActions,
     TextField,
     Button,
@@ -125,6 +126,9 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
                         {alert.message}
                     </Alert>
                 </Collapse>
+                <DialogContentText id="alert-dialog-slide-description">
+                    The Operator Code (OP) is a secret identifier used to authenticate the operator and provision SIM cards. Keep this code secure as it can't be retrieved once set.
+                </DialogContentText>
                 <TextField
                     fullWidth
                     label="Operator Code"

@@ -3,6 +3,7 @@ import {
     Dialog,
     DialogTitle,
     DialogContent,
+    DialogContentText,
     DialogActions,
     TextField,
     Button,
@@ -66,7 +67,6 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
             [field]: value,
         }));
 
-        // Reset the field's error when the user types
         setErrors((prev) => ({
             ...prev,
             [field]: "",
@@ -127,6 +127,9 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
                         {alert.message}
                     </Alert>
                 </Collapse>
+                <DialogContentText id="alert-dialog-slide-description">
+                    The Operator ID is a combination of Mobile Country Code (MCC) and Mobile Network Code (MNC). The Operator ID is used to uniquely identify the operator in the network.
+                </DialogContentText>
                 <TextField
                     fullWidth
                     label="MCC"

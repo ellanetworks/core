@@ -5,7 +5,7 @@
 """Module use to handle Ella API calls."""
 
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any, List
 
 import requests
@@ -18,13 +18,6 @@ PROFILE_CONFIG_URL = "/api/v1/profiles"
 SUBSCRIBERS_CONFIG_URL = "/api/v1/subscribers"
 
 JSON_HEADER = {"Content-Type": "application/json"}
-
-
-@dataclass
-class CreateRadioParams:
-    """Parameters to create a radio."""
-
-    name: str
 
 
 @dataclass
@@ -101,12 +94,6 @@ class EllaCore:
         data = {"email": email, "password": password}
         self._make_request("POST", "/api/v1/users", data=data)
         logger.info("User %s created in Ella Core", email)
-
-    def create_radio(self, name: str) -> None:
-        """Create a radio in Ella Core."""
-        create_radio_params = CreateRadioParams(name=name)
-        self._make_request("POST", GNB_CONFIG_URL, data=asdict(create_radio_params))
-        logger.info("Radio %s created in Ella Core", name)
 
     def create_subscriber(
         self, imsi: str, key: str, sequence_number: str, profile_name: str
