@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/hex"
 	"net/http"
+	"strconv"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -11,23 +12,25 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type UpdateOperatorIdParams struct {
-	Mcc string `json:"mcc,omitempty"`
-	Mnc string `json:"mnc,omitempty"`
+type UpdateOperatorParams struct {
+	Mcc           string   `json:"mcc,omitempty"`
+	Mnc           string   `json:"mnc,omitempty"`
+	SupportedTacs []string `json:"supportedTacs,omitempty"`
 }
 
 type UpdateOperatorCodeParams struct {
 	OperatorCode string `json:"operatorCode,omitempty"`
 }
 
-type GetOperatorIdResponse struct {
-	Mcc string `json:"mcc,omitempty"`
-	Mnc string `json:"mnc,omitempty"`
+type GetOperatorResponse struct {
+	Mcc           string   `json:"mcc,omitempty"`
+	Mnc           string   `json:"mnc,omitempty"`
+	SupportedTacs []string `json:"supportedTacs,omitempty"`
 }
 
 const (
-	GetOperatorIdAction      = "get_operator_id"
-	UpdateOperatorIdAction   = "update_operator_id"
+	GetOperatorAction        = "get_operator"
+	UpdateOperatorAction     = "update_operator"
 	UpdateOperatorCodeAction = "update_operator_code"
 )
 
@@ -70,7 +73,16 @@ func isValidOperatorCode(operatorCode string) bool {
 	return err == nil
 }
 
-func GetOperatorId(dbInstance *db.Database) gin.HandlerFunc {
+// TAC is a 24-bit identifier
+func isValidTac(tac string) bool {
+	if len(tac) != 3 {
+		return false
+	}
+	_, err := strconv.Atoi(tac)
+	return err == nil
+}
+
+func GetOperator(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		emailAny, _ := c.Get("email")
 		email, ok := emailAny.(string)
@@ -78,15 +90,16 @@ func GetOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		dbOperatorId, err := dbInstance.GetOperatorId()
+		dbOperator, err := dbInstance.GetOperator()
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "Operator not found")
 			return
 		}
 
-		operatorId := &GetOperatorIdResponse{
-			Mcc: dbOperatorId.Mcc,
-			Mnc: dbOperatorId.Mnc,
+		operatorId := &GetOperatorResponse{
+			Mcc:           dbOperator.Mcc,
+			Mnc:           dbOperator.Mnc,
+			SupportedTacs: dbOperator.GetSupportedTacs(),
 		}
 
 		err = writeResponse(c.Writer, operatorId, http.StatusOK)
@@ -95,14 +108,14 @@ func GetOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		logger.LogAuditEvent(
-			GetOperatorIdAction,
+			GetOperatorAction,
 			email,
-			"User retrieved operator ID",
+			"User retrieved operator",
 		)
 	}
 }
 
-func UpdateOperatorId(dbInstance *db.Database) gin.HandlerFunc {
+func UpdateOperator(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		emailAny, _ := c.Get("email")
 		email, ok := emailAny.(string)
@@ -110,51 +123,62 @@ func UpdateOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		var updateOperatorIdParams UpdateOperatorIdParams
-		err := c.ShouldBindJSON(&updateOperatorIdParams)
+		var updateOperatorParams UpdateOperatorParams
+		err := c.ShouldBindJSON(&updateOperatorParams)
 		if err != nil {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
 			return
 		}
-		if updateOperatorIdParams.Mcc == "" {
+		if updateOperatorParams.Mcc == "" {
 			writeError(c.Writer, http.StatusBadRequest, "mcc is missing")
 			return
 		}
-		if updateOperatorIdParams.Mnc == "" {
+		if updateOperatorParams.Mnc == "" {
 			writeError(c.Writer, http.StatusBadRequest, "mnc is missing")
 			return
 		}
-		if !isValidMcc(updateOperatorIdParams.Mcc) {
+		if len(updateOperatorParams.SupportedTacs) == 0 {
+			writeError(c.Writer, http.StatusBadRequest, "supportedTacs is missing")
+			return
+		}
+		if !isValidMcc(updateOperatorParams.Mcc) {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid mcc format. Must be a 3-decimal digit.")
 			return
 		}
-		if !isValidMnc(updateOperatorIdParams.Mnc) {
+		if !isValidMnc(updateOperatorParams.Mnc) {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid mnc format. Must be a 2 or 3-decimal digit.")
 			return
 		}
-
-		dbOperatorId := &db.OperatorId{
-			Mcc: updateOperatorIdParams.Mcc,
-			Mnc: updateOperatorIdParams.Mnc,
+		for _, tac := range updateOperatorParams.SupportedTacs {
+			if !isValidTac(tac) {
+				writeError(c.Writer, http.StatusBadRequest, "Invalid TAC format. Must be a 3-digit number")
+				return
+			}
 		}
 
-		err = dbInstance.UpdateOperatorId(dbOperatorId)
+		dbOperator := &db.Operator{
+			Mcc: updateOperatorParams.Mcc,
+			Mnc: updateOperatorParams.Mnc,
+		}
+		dbOperator.SetSupportedTacs(updateOperatorParams.SupportedTacs)
+
+		err = dbInstance.UpdateOperator(dbOperator)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update operatorId")
 			return
 		}
 		updateSMF(dbInstance)
-		message := SuccessResponse{Message: "Operator ID updated successfully"}
+		message := SuccessResponse{Message: "Operator updated successfully"}
 		err = writeResponse(c.Writer, message, http.StatusCreated)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
 		logger.LogAuditEvent(
-			UpdateOperatorIdAction,
+			UpdateOperatorAction,
 			email,
-			"User updated operator ID with mcc: "+updateOperatorIdParams.Mcc+" and mnc: "+updateOperatorIdParams.Mnc,
+			"User updated operator with Id: "+updateOperatorParams.Mcc+""+updateOperatorParams.Mnc,
 		)
 	}
 }
@@ -204,12 +228,12 @@ func UpdateOperatorCode(dbInstance *db.Database) gin.HandlerFunc {
 }
 
 func updateSMF(dbInstance *db.Database) {
-	dbOperator, err := dbInstance.GetOperatorId()
+	dbOperator, err := dbInstance.GetOperator()
 	if err != nil {
 		logger.NmsLog.Warnln(err)
 		return
 	}
-	operatorId := &models.Network{
+	operator := &models.Network{
 		Mcc: dbOperator.Mcc,
 		Mnc: dbOperator.Mnc,
 	}
@@ -241,9 +265,8 @@ func updateSMF(dbInstance *db.Database) {
 	for _, dbRadio := range dbRadios {
 		radio := models.Radio{
 			Name: dbRadio.Name,
-			Tac:  dbRadio.Tac,
 		}
 		radios = append(radios, radio)
 	}
-	context.UpdateSMFContext(operatorId, profiles, radios)
+	context.UpdateSMFContext(operator, profiles, radios)
 }

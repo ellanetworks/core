@@ -6,14 +6,14 @@
 
 import logging
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, List
 
 import requests
 
 logger = logging.getLogger(__name__)
 
 GNB_CONFIG_URL = "/api/v1/radios"
-OPERATOR_ID_CONFIG_URL = "/api/v1/operator/id"
+OPERATOR_CONFIG_URL = "/api/v1/operator"
 PROFILE_CONFIG_URL = "/api/v1/profiles"
 SUBSCRIBERS_CONFIG_URL = "/api/v1/subscribers"
 
@@ -25,7 +25,6 @@ class CreateRadioParams:
     """Parameters to create a radio."""
 
     name: str
-    tac: str
 
 
 @dataclass
@@ -103,9 +102,9 @@ class EllaCore:
         self._make_request("POST", "/api/v1/users", data=data)
         logger.info("User %s created in Ella Core", email)
 
-    def create_radio(self, name: str, tac: str) -> None:
+    def create_radio(self, name: str) -> None:
         """Create a radio in Ella Core."""
-        create_radio_params = CreateRadioParams(name=name, tac=str(tac))
+        create_radio_params = CreateRadioParams(name=name)
         self._make_request("POST", GNB_CONFIG_URL, data=asdict(create_radio_params))
         logger.info("Radio %s created in Ella Core", name)
 
@@ -165,11 +164,12 @@ class EllaCore:
         self._make_request("POST", PROFILE_CONFIG_URL, data=profile_config)
         logger.info(f"Created profile {name}.")
 
-    def update_operator_id(self, mcc: str, mnc: str) -> None:
+    def update_operator(self, mcc: str, mnc: str, supported_tacs: List[str]) -> None:
         """Update operator ID information."""
-        operator_id_config = {
+        operator_config = {
             "mcc": mcc,
             "mnc": mnc,
+            "supportedTacs": supported_tacs,
         }
-        self._make_request("PUT", OPERATOR_ID_CONFIG_URL, data=operator_id_config)
+        self._make_request("PUT", OPERATOR_CONFIG_URL, data=operator_config)
         logger.info("Updated network configuration.")

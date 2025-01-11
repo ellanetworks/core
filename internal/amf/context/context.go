@@ -23,11 +23,10 @@ import (
 )
 
 var (
-	amfContext                                                = AMFContext{}
-	tmsiGenerator                    *idgenerator.IDGenerator = nil
-	amfUeNGAPIDGenerator             *idgenerator.IDGenerator = nil
-	amfStatusSubscriptionIDGenerator *idgenerator.IDGenerator = nil
-	mutex                            sync.Mutex
+	amfContext                                    = AMFContext{}
+	tmsiGenerator        *idgenerator.IDGenerator = nil
+	amfUeNGAPIDGenerator *idgenerator.IDGenerator = nil
+	mutex                sync.Mutex
 )
 
 func init() {
@@ -36,10 +35,8 @@ func init() {
 	AMF_Self().Name = "amf"
 	AMF_Self().UriScheme = models.UriScheme_HTTP
 	AMF_Self().RelativeCapacity = 0xff
-	AMF_Self().NfService = make(map[models.ServiceName]models.NfService)
 	AMF_Self().NetworkName.Full = "free5GC"
 	tmsiGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
-	amfStatusSubscriptionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
 	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapId)
 }
 
@@ -91,7 +88,6 @@ type AMFContext struct {
 	RelativeCapacity                int64
 	NfId                            string
 	Name                            string
-	NfService                       map[models.ServiceName]models.NfService // nfservice that amf support
 	UriScheme                       models.UriScheme
 	NgapPort                        int
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
@@ -99,8 +95,6 @@ type AMFContext struct {
 	HttpIPv6Address                 string
 	TNLWeightFactor                 int64
 	SupportDnnLists                 []string
-	AMFStatusSubscriptions          sync.Map // map[subscriptionID]models.SubscriptionData
-	NfStatusSubscriptions           sync.Map // map[NfInstanceID]models.NrfSubscriptionData.SubscriptionId
 	SecurityAlgorithm               SecurityAlgorithm
 	NetworkName                     NetworkName
 	NgapIpList                      []string // NGAP Server IP
@@ -196,59 +190,6 @@ func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.Acc
 	}
 }
 
-func (context *AMFContext) NewAMFStatusSubscription(subscriptionData models.SubscriptionData) (subscriptionID string) {
-	tmp, err := amfStatusSubscriptionIDGenerator.Allocate()
-	if err != nil {
-		logger.AmfLog.Errorf("Allocate subscriptionID error: %+v", err)
-		return ""
-	}
-	id := int32(tmp)
-	subscriptionID = strconv.Itoa(int(id))
-	context.AMFStatusSubscriptions.Store(subscriptionID, subscriptionData)
-	return
-}
-
-// Return Value: (subscriptionData *models.SubScriptionData, ok bool)
-func (context *AMFContext) FindAMFStatusSubscription(subscriptionID string) (*models.SubscriptionData, bool) {
-	if value, ok := context.AMFStatusSubscriptions.Load(subscriptionID); ok {
-		subscriptionData := value.(models.SubscriptionData)
-		return &subscriptionData, ok
-	} else {
-		return nil, false
-	}
-}
-
-func (context *AMFContext) DeleteAMFStatusSubscription(subscriptionID string) {
-	context.AMFStatusSubscriptions.Delete(subscriptionID)
-	id, err := strconv.ParseInt(subscriptionID, 10, 64)
-	if err != nil {
-		logger.AmfLog.Error(err)
-		return
-	}
-	amfStatusSubscriptionIDGenerator.FreeID(id)
-}
-
-func (context *AMFContext) NewEventSubscription(subscriptionID string, subscription *AMFContextEventSubscription) {
-	context.EventSubscriptions.Store(subscriptionID, subscription)
-}
-
-func (context *AMFContext) FindEventSubscription(subscriptionID string) (*AMFContextEventSubscription, bool) {
-	if value, ok := context.EventSubscriptions.Load(subscriptionID); ok {
-		return value.(*AMFContextEventSubscription), ok
-	} else {
-		return nil, false
-	}
-}
-
-func (context *AMFContext) DeleteEventSubscription(subscriptionID string) {
-	context.EventSubscriptions.Delete(subscriptionID)
-	if id, err := strconv.ParseInt(subscriptionID, 10, 32); err != nil {
-		logger.AmfLog.Error(err)
-	} else {
-		context.EventSubscriptionIDGenerator.FreeID(id)
-	}
-}
-
 func (context *AMFContext) AddAmfUeToUePool(ue *AmfUe, supi string) {
 	if len(supi) == 0 {
 		logger.AmfLog.Errorf("Supi is nil")
@@ -331,15 +272,6 @@ func (context *AMFContext) AmfRanFindByConn(conn net.Conn) (*AmfRan, bool) {
 	return nil, false
 }
 
-func (context *AMFContext) NewAmfRanAddr(remoteAddr string) *AmfRan {
-	ran := AmfRan{}
-	ran.SupportedTAList = NewSupportedTAIList()
-	ran.GnbIp = remoteAddr
-	ran.Log = logger.AmfLog.With(logger.FieldRanAddr, remoteAddr)
-	context.AmfRanPool.Store(remoteAddr, &ran)
-	return &ran
-}
-
 func (context *AMFContext) NewAmfRanId(GnbId string) *AmfRan {
 	ran := AmfRan{}
 	ran.SupportedTAList = NewSupportedTAIList()
@@ -385,6 +317,16 @@ func (context *AMFContext) AmfRanFindByRanID(ranNodeID models.GlobalRanNodeId) (
 		return true
 	})
 	return ran, ok
+}
+
+func (context *AMFContext) ListAmfRan() []AmfRan {
+	ranList := make([]AmfRan, 0)
+	context.AmfRanPool.Range(func(key, value interface{}) bool {
+		ran := value.(*AmfRan)
+		ranList = append(ranList, *ran)
+		return true
+	})
+	return ranList
 }
 
 func (context *AMFContext) DeleteAmfRan(conn net.Conn) {

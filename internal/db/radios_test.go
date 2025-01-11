@@ -32,7 +32,6 @@ func TestDBRadiosEndToEnd(t *testing.T) {
 
 	radio := &db.Radio{
 		Name: "my-radio",
-		Tac:  "001",
 	}
 	err = database.CreateRadio(radio)
 	if err != nil {

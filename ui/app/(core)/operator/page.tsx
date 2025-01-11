@@ -46,7 +46,7 @@ const Operator = () => {
 
   const handleEditOperatorIdSuccess = () => {
     fetchOperatorId();
-    setAlert({ message: "Operator ID updated successfully!", severity: "success" });
+    setAlert({ message: "Operator updated successfully!", severity: "success" });
   };
 
   const handleEditOperatorCodeSuccess = () => {

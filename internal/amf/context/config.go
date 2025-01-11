@@ -9,37 +9,40 @@ import (
 
 // This file contains calls to db to get configuration data
 
+func ListAmfRan() []AmfRan {
+	amfSelf := AMF_Self()
+	return amfSelf.ListAmfRan()
+}
+
 func GetSupportTaiList() []models.Tai {
 	amfSelf := AMF_Self()
 	tais := make([]models.Tai, 0)
-	dbNetwork, err := amfSelf.DbInstance.GetOperatorId()
+	dbNetwork, err := amfSelf.DbInstance.GetOperator()
 	if err != nil {
-		logger.AmfLog.Warnf("Failed to get operator ID: %s", err)
+		logger.AmfLog.Warnf("Failed to get operator: %s", err)
 		return tais
 	}
 	plmnID := models.PlmnId{
 		Mcc: dbNetwork.Mcc,
 		Mnc: dbNetwork.Mnc,
 	}
-	radios, err := amfSelf.DbInstance.ListRadios()
-	if err != nil {
-		logger.AmfLog.Warnf("Failed to get radios: %s", err)
-		return tais
+	supportedTacs := dbNetwork.GetSupportedTacs()
+	for _, tac := range supportedTacs {
+		tai := models.Tai{
+			PlmnId: &plmnID,
+			Tac:    tac,
+		}
+		tais = append(tais, tai)
 	}
-	tai := models.Tai{
-		PlmnId: &plmnID,
-		Tac:    radios[0].Tac,
-	}
-	tais = append(tais, tai)
 	return tais
 }
 
 func GetServedGuamiList() []models.Guami {
 	amfSelf := AMF_Self()
 	guamis := make([]models.Guami, 0)
-	dbNetwork, err := amfSelf.DbInstance.GetOperatorId()
+	dbNetwork, err := amfSelf.DbInstance.GetOperator()
 	if err != nil {
-		logger.AmfLog.Warnf("Failed to get operator ID: %s", err)
+		logger.AmfLog.Warnf("Failed to get operator: %s", err)
 		return guamis
 	}
 	plmnID := models.PlmnId{
@@ -57,9 +60,9 @@ func GetServedGuamiList() []models.Guami {
 func GetPlmnSupportList() []PlmnSupportItem {
 	amfSelf := AMF_Self()
 	plmnSupportList := make([]PlmnSupportItem, 0)
-	dbNetwork, err := amfSelf.DbInstance.GetOperatorId()
+	dbNetwork, err := amfSelf.DbInstance.GetOperator()
 	if err != nil {
-		logger.AmfLog.Warnf("Failed to get operator ID: %s", err)
+		logger.AmfLog.Warnf("Failed to get operator: %s", err)
 		return plmnSupportList
 	}
 	plmnSupportItem := PlmnSupportItem{

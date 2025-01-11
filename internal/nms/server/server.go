@@ -125,15 +125,13 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	apiGroup.DELETE("/profiles/:name", User(DeleteProfile(dbInstance), jwtSecret))
 
 	// Operator (Authenticated)
-	apiGroup.PUT("/operator/id", User(UpdateOperatorId(dbInstance), jwtSecret))
-	apiGroup.GET("/operator/id", User(GetOperatorId(dbInstance), jwtSecret))
+	apiGroup.PUT("/operator", User(UpdateOperator(dbInstance), jwtSecret))
+	apiGroup.GET("/operator", User(GetOperator(dbInstance), jwtSecret))
 	apiGroup.PUT("/operator/code", User(UpdateOperatorCode(dbInstance), jwtSecret))
 
 	// Radios (Authenticated)
 	apiGroup.GET("/radios", User(ListRadios(dbInstance), jwtSecret))
 	apiGroup.POST("/radios", User(CreateRadio(dbInstance), jwtSecret))
-	apiGroup.PUT("/radios/:name", User(UpdateRadio(dbInstance), jwtSecret))
-	apiGroup.GET("/radios/:name", User(GetRadio(dbInstance), jwtSecret))
 	apiGroup.DELETE("/radios/:name", User(DeleteRadio(dbInstance), jwtSecret))
 
 	// Users (Authenticated except for first user creation)
@@ -144,13 +142,13 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	apiGroup.DELETE("/users/:email", User(DeleteUser(dbInstance), jwtSecret))
 	apiGroup.GET("/users/me", User(GetLoggedInUser(dbInstance), jwtSecret))
 
+	// Backup and Restore (Authenticated)
+	apiGroup.POST("/backup", User(Backup(dbInstance), jwtSecret))
+	apiGroup.POST("/restore", User(Restore(dbInstance), jwtSecret))
+
 	// Authentication
 	apiGroup.POST("/auth/login", Any(Login(dbInstance, jwtSecret)))
 	apiGroup.POST("/auth/lookup-token", Any(LookupToken(dbInstance, jwtSecret)))
-
-	// Backup and Restore
-	apiGroup.POST("/backup", User(Backup(dbInstance), jwtSecret))
-	apiGroup.POST("/restore", User(Restore(dbInstance), jwtSecret))
 
 	return router
 }

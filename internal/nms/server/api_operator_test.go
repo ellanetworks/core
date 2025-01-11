@@ -14,32 +14,34 @@ const (
 	Mnc = "456"
 )
 
-type GetOperatorIdResponseResult struct {
-	Mcc string `json:"mcc,omitempty"`
-	Mnc string `json:"mnc,omitempty"`
+type GetOperatorResponseResult struct {
+	Mcc           string   `json:"mcc,omitempty"`
+	Mnc           string   `json:"mnc,omitempty"`
+	SupportedTacs []string `json:"supportedTacs,omitempty"`
 }
 
-type GetOperatorIdResponse struct {
-	Result GetOperatorIdResponseResult `json:"result"`
-	Error  string                      `json:"error,omitempty"`
+type GetOperatorResponse struct {
+	Result GetOperatorResponseResult `json:"result"`
+	Error  string                    `json:"error,omitempty"`
 }
 
-type UpdateOperatorIdParams struct {
-	Mcc string `json:"mcc,omitempty"`
-	Mnc string `json:"mnc,omitempty"`
+type UpdateOperatorParams struct {
+	Mcc           string   `json:"mcc,omitempty"`
+	Mnc           string   `json:"mnc,omitempty"`
+	SupportedTacs []string `json:"supportedTacs,omitempty"`
 }
 
 type UpdateOperatorCodeParams struct {
 	OperatorCode string `json:"operatorCode,omitempty"`
 }
 
-type UpdateOperatorIdResponseResult struct {
+type UpdateOperatorResponseResult struct {
 	Message string `json:"message"`
 }
 
-type UpdateOperatorIdResponse struct {
-	Result UpdateOperatorIdResponseResult `json:"result"`
-	Error  string                         `json:"error,omitempty"`
+type UpdateOperatorResponse struct {
+	Result UpdateOperatorResponseResult `json:"result"`
+	Error  string                       `json:"error,omitempty"`
 }
 
 type UpdateOperatorCodeResponseResult struct {
@@ -51,8 +53,8 @@ type UpdateOperatorCodeResponse struct {
 	Error  string                           `json:"error,omitempty"`
 }
 
-func getOperatorId(url string, client *http.Client, token string) (int, *GetOperatorIdResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/operator/id", nil)
+func getOperator(url string, client *http.Client, token string) (int, *GetOperatorResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/operator", nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -66,19 +68,19 @@ func getOperatorId(url string, client *http.Client, token string) (int, *GetOper
 			panic(err)
 		}
 	}()
-	var operatorSliceResponse GetOperatorIdResponse
+	var operatorSliceResponse GetOperatorResponse
 	if err := json.NewDecoder(res.Body).Decode(&operatorSliceResponse); err != nil {
 		return 0, nil, err
 	}
 	return res.StatusCode, &operatorSliceResponse, nil
 }
 
-func updateOperatorId(url string, client *http.Client, token string, data *UpdateOperatorIdParams) (int, *UpdateOperatorIdResponse, error) {
+func updateOperator(url string, client *http.Client, token string, data *UpdateOperatorParams) (int, *UpdateOperatorResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/operator/id", strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/operator", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -92,7 +94,7 @@ func updateOperatorId(url string, client *http.Client, token string, data *Updat
 			panic(err)
 		}
 	}()
-	var updateResponse UpdateOperatorIdResponse
+	var updateResponse UpdateOperatorResponse
 	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
@@ -128,7 +130,7 @@ func updateOperatorCode(url string, client *http.Client, token string, data *Upd
 // This is an end-to-end test for the operators handlers.
 // The order of the tests is important, as some tests depend on
 // the state of the server after previous tests.
-func TestApiOperatorIdsEndToEnd(t *testing.T) {
+func TestApiOperatorEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
 	ts, _, err := setupServer(db_path)
@@ -144,11 +146,15 @@ func TestApiOperatorIdsEndToEnd(t *testing.T) {
 	}
 
 	t.Run("1. Update operator id", func(t *testing.T) {
-		updateOperatorIdParams := &UpdateOperatorIdParams{
+		updateOperatorParams := &UpdateOperatorParams{
 			Mcc: "123",
 			Mnc: "456",
+			SupportedTacs: []string{
+				"001",
+				"123",
+			},
 		}
-		statusCode, response, err := updateOperatorId(ts.URL, client, token, updateOperatorIdParams)
+		statusCode, response, err := updateOperator(ts.URL, client, token, updateOperatorParams)
 		if err != nil {
 			t.Fatalf("couldn't create operator: %s", err)
 		}
@@ -158,13 +164,13 @@ func TestApiOperatorIdsEndToEnd(t *testing.T) {
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
-		if response.Result.Message != "Operator ID updated successfully" {
-			t.Fatalf("expected message %q, got %q", "Operator ID updated successfully", response.Result.Message)
+		if response.Result.Message != "Operator updated successfully" {
+			t.Fatalf("expected message %q, got %q", "Operator updated successfully", response.Result.Message)
 		}
 	})
 
-	t.Run("2. Get operator id", func(t *testing.T) {
-		statusCode, response, err := getOperatorId(ts.URL, client, token)
+	t.Run("2. Get operator", func(t *testing.T) {
+		statusCode, response, err := getOperator(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
 		}
@@ -177,16 +183,25 @@ func TestApiOperatorIdsEndToEnd(t *testing.T) {
 		if response.Result.Mnc != "456" {
 			t.Fatalf("expected mnc %s, got %s", "456", response.Result.Mnc)
 		}
+		if len(response.Result.SupportedTacs) != 2 {
+			t.Fatalf("expected supported TACs of length 2")
+		}
+		if response.Result.SupportedTacs[0] != "001" {
+			t.Fatalf("expected supported TACs first item to be 001, got %s", response.Result.SupportedTacs[0])
+		}
+		if response.Result.SupportedTacs[1] != "123" {
+			t.Fatalf("expected supported TACs first item to be 123, got %s", response.Result.SupportedTacs[1])
+		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
 	})
 
-	t.Run("4. Update operator id - no mnc", func(t *testing.T) {
-		updateOperatorIdParams := &UpdateOperatorIdParams{
+	t.Run("4. Update operator - no mnc", func(t *testing.T) {
+		updateOperatorParams := &UpdateOperatorParams{
 			Mcc: "123",
 		}
-		statusCode, response, err := updateOperatorId(ts.URL, client, token, updateOperatorIdParams)
+		statusCode, response, err := updateOperator(ts.URL, client, token, updateOperatorParams)
 		if err != nil {
 			t.Fatalf("couldn't create operator: %s", err)
 		}
@@ -234,55 +249,77 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 	}
 
 	tests := []struct {
-		testName string
-		mcc      string
-		mnc      string
-		error    string
+		testName      string
+		mcc           string
+		mnc           string
+		supportedTacs []string
+		error         string
 	}{
 		{
-			testName: "Invalid mcc - strings instead of numbers",
-			mcc:      "abc",
-			mnc:      Mnc,
-			error:    "Invalid mcc format. Must be a 3-decimal digit.",
+			testName:      "Invalid mcc - strings instead of numbers",
+			mcc:           "abc",
+			mnc:           Mnc,
+			supportedTacs: []string{"001"},
+			error:         "Invalid mcc format. Must be a 3-decimal digit.",
 		},
 		{
-			testName: "Invalid mcc - too long",
-			mcc:      "1234",
-			mnc:      Mnc,
-			error:    "Invalid mcc format. Must be a 3-decimal digit.",
+			testName:      "Invalid mcc - too long",
+			mcc:           "1234",
+			mnc:           Mnc,
+			supportedTacs: []string{"001"},
+			error:         "Invalid mcc format. Must be a 3-decimal digit.",
 		},
 		{
-			testName: "Invalid mcc - too short",
-			mcc:      "12",
-			mnc:      Mnc,
-			error:    "Invalid mcc format. Must be a 3-decimal digit.",
+			testName:      "Invalid mcc - too short",
+			mcc:           "12",
+			mnc:           Mnc,
+			supportedTacs: []string{"001"},
+			error:         "Invalid mcc format. Must be a 3-decimal digit.",
 		},
 		{
-			testName: "Invalid mnc - strings instead of numbers",
-			mcc:      Mcc,
-			mnc:      "abc",
-			error:    "Invalid mnc format. Must be a 2 or 3-decimal digit.",
+			testName:      "Invalid mnc - strings instead of numbers",
+			mcc:           Mcc,
+			mnc:           "abc",
+			supportedTacs: []string{"001"},
+			error:         "Invalid mnc format. Must be a 2 or 3-decimal digit.",
 		},
 		{
-			testName: "Invalid mnc - too long",
-			mcc:      Mcc,
-			mnc:      "1234",
-			error:    "Invalid mnc format. Must be a 2 or 3-decimal digit.",
+			testName:      "Invalid mnc - too long",
+			mcc:           Mcc,
+			mnc:           "1234",
+			supportedTacs: []string{"001"},
+			error:         "Invalid mnc format. Must be a 2 or 3-decimal digit.",
 		},
 		{
-			testName: "Invalid mnc - too short",
-			mcc:      Mcc,
-			mnc:      "1",
-			error:    "Invalid mnc format. Must be a 2 or 3-decimal digit.",
+			testName:      "Invalid mnc - too short",
+			mcc:           Mcc,
+			mnc:           "1",
+			supportedTacs: []string{"001"},
+			error:         "Invalid mnc format. Must be a 2 or 3-decimal digit.",
+		},
+		{
+			testName:      "Invalid tac - too short",
+			mcc:           Mcc,
+			mnc:           Mnc,
+			supportedTacs: []string{"001123"},
+			error:         "Invalid TAC format. Must be a 3-digit number",
+		},
+		{
+			testName:      "Invalid tac - too short",
+			mcc:           Mcc,
+			mnc:           Mnc,
+			supportedTacs: []string{"00"},
+			error:         "Invalid TAC format. Must be a 3-digit number",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
-			updateOperatorIdParams := &UpdateOperatorIdParams{
-				Mcc: tt.mcc,
-				Mnc: tt.mnc,
+			updateOperatorParams := &UpdateOperatorParams{
+				Mcc:           tt.mcc,
+				Mnc:           tt.mnc,
+				SupportedTacs: tt.supportedTacs,
 			}
-			statusCode, response, err := updateOperatorId(ts.URL, client, token, updateOperatorIdParams)
+			statusCode, response, err := updateOperator(ts.URL, client, token, updateOperatorParams)
 			if err != nil {
 				t.Fatalf("couldn't update operator: %s", err)
 			}
