@@ -21,7 +21,7 @@ license: Apache-2.0
 icon: docs/images/logo.png
 
 plugs:
-  bpf: 
+  sys-fs-bpf-upf-pipeline: 
     interface: system-files
     read:
     - /sys/fs/bpf/upf_pipeline
@@ -36,7 +36,7 @@ apps:
     refresh-mode: endure
     restart-condition: on-failure
     plugs:
-      - bpf
+      - sys-fs-bpf-upf-pipeline
       - network
       - network-bind
       - network-control
