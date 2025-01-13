@@ -1,0 +1,48 @@
+name: Rock Scan
+
+on:
+  workflow_call:
+
+jobs:
+  scan:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install rockcraft
+        run: |
+          sudo snap install rockcraft --classic --channel edge
+
+      - name: Install yq
+        run: |
+          sudo snap install yq
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: rock
+
+      - name: Import
+        run: |
+          image_name="$(yq '.name' rockcraft.yaml)"
+          echo "image_name=${image_name}" >> $GITHUB_ENV
+          version="$(cat version/VERSION)"
+          echo "version=${version}" >> $GITHUB_ENV
+          rock_file=$(ls *.rock | tail -n 1)
+          sudo rockcraft.skopeo \
+            --insecure-policy \
+            copy \
+            oci-archive:"${rock_file}" \
+            docker-daemon:"ghcr.io/gruyaume/${image_name}:${version}"
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "ghcr.io/gruyaume/${{env.image_name}}:${{env.version}}"
+          format: "sarif"
+          output: "trivy-results.sarif"
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "trivy-results.sarif"
