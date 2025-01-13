@@ -20,8 +20,8 @@ require (
 	github.com/prometheus/client_golang v1.20.5
 	github.com/wmnsk/go-pfcp v0.0.24
 	go.uber.org/zap v1.27.0
-	golang.org/x/crypto v0.31.0
-	golang.org/x/net v0.33.0
+	golang.org/x/crypto v0.32.0
+	golang.org/x/net v0.34.0
 	golang.org/x/sys v0.29.0
 	gopkg.in/yaml.v2 v2.4.0
 )
