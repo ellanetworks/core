@@ -29,7 +29,7 @@ type LookupTokenResponse struct {
 
 const (
 	LoginAction       = "auth_login"
-	LookupTokenAction = "auth_lookup_token" // nosec: G101
+	LookupTokenAction = "auth_lookup_token" // #nosec G101
 )
 
 func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
