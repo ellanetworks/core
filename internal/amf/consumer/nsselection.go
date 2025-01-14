@@ -8,58 +8,27 @@ package consumer
 
 import (
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/nssf"
 	"github.com/omec-project/openapi/models"
 )
 
 func NSSelectionGetForRegistration(ue *context.AmfUe, requestedNssai []models.MappingOfSnssai) (
 	*models.ProblemDetails, error,
 ) {
-	sliceInfo := models.SliceInfoForRegistration{
-		SubscribedNssai: ue.SubscribedNssai,
-	}
-
-	for _, snssai := range requestedNssai {
-		sliceInfo.RequestedNssai = append(sliceInfo.RequestedNssai, *snssai.ServingSnssai)
-		if snssai.HomeSnssai != nil {
-			sliceInfo.MappingOfNssai = append(sliceInfo.MappingOfNssai, snssai)
-		}
-	}
-
-	params := nssf.NsselectionQueryParameter{
-		SliceInfoRequestForRegistration: &sliceInfo,
-	}
-
-	res, err := nssf.GetNSSelection(params)
-	if err != nil {
-		logger.AmfLog.Warnf("GetNSSelection failed: %+v", err)
-		return nil, err
+	res := &models.AuthorizedNetworkSliceInfo{
+		AllowedNssaiList: []models.AllowedNssai{
+			{
+				AllowedSnssaiList: []models.AllowedSnssai{
+					{
+						AllowedSnssai: ue.SubscribedNssai[0].SubscribedSnssai,
+					},
+				},
+				AccessType: models.AccessType__3_GPP_ACCESS,
+			},
+		},
 	}
 	ue.NetworkSliceInfo = res
 	for _, allowedNssai := range res.AllowedNssaiList {
 		ue.AllowedNssai[allowedNssai.AccessType] = allowedNssai.AllowedSnssaiList
 	}
-	ue.ConfiguredNssai = res.ConfiguredNssai
 	return nil, nil
-}
-
-func NSSelectionGetForPduSession(ue *context.AmfUe, snssai models.Snssai) (
-	*models.AuthorizedNetworkSliceInfo, *models.ProblemDetails, error,
-) {
-	sliceInfoForPduSession := models.SliceInfoForPduSession{
-		SNssai:            &snssai,
-		RoamingIndication: models.RoamingIndication_NON_ROAMING,
-	}
-
-	params := nssf.NsselectionQueryParameter{
-		SliceInfoRequestForPduSession: &sliceInfoForPduSession,
-	}
-
-	res, err := nssf.GetNSSelection(params)
-	if err != nil {
-		logger.AmfLog.Warnf("GetNSSelection failed: %+v", err)
-		return nil, nil, err
-	}
-	return res, nil, nil
 }
