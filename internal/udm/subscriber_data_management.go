@@ -20,8 +20,7 @@ func GetAmData(supi string) (
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
-	udmUe := udmContext.NewUdmUe(supi)
-	udmUe.SetAMSubsriptionData(amData)
+	udmContext.NewUdmUe(supi)
 	return amData, nil
 }
 

@@ -41,7 +41,7 @@ func NewBpfObjects() *BpfObjects {
 
 func (bpfObjects *BpfObjects) Load() error {
 	pinPath := "/sys/fs/bpf/upf_pipeline"
-	if err := os.MkdirAll(pinPath, os.ModePerm); err != nil {
+	if err := os.MkdirAll(pinPath, 0o750); err != nil {
 		logger.UpfLog.Infof("failed to create bpf fs subpath: %+v", err)
 		return err
 	}

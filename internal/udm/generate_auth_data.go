@@ -14,8 +14,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/udr"
-	"github.com/ellanetworks/core/internal/util/milenage"
-	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/omec-project/openapi/models"
 )
@@ -39,7 +37,7 @@ func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte) {
 
 	logger.UdmLog.Debugln("ConcSQNms", ConcSQNms)
 
-	err = milenage.F2345(opc, k, rand, nil, nil, nil, nil, AK)
+	err = F2345(opc, k, rand, nil, nil, nil, nil, AK)
 	if err != nil {
 		logger.UdmLog.Errorln("milenage F2345 err ", err)
 	}
@@ -53,7 +51,7 @@ func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte) {
 	// fmt.Printf("rand=%x\n", rand)
 	// fmt.Printf("AMF %x\n", AMF)
 	// fmt.Printf("SQNms %x\n", SQNms)
-	err = milenage.F1(opc, k, rand, SQNms, AMF, nil, macS)
+	err = F1(opc, k, rand, SQNms, AMF, nil, macS)
 	if err != nil {
 		logger.UdmLog.Errorln("milenage F1 err ", err)
 	}
@@ -77,7 +75,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	*models.AuthenticationInfoResult, error,
 ) {
 	response := &models.AuthenticationInfoResult{}
-	supi, err := suci.ToSupi(supiOrSuci, udmContext.SuciProfiles)
+	supi, err := ToSupi(supiOrSuci, udmContext.SuciProfiles)
 	if err != nil {
 		return nil, fmt.Errorf("suciToSupi error: %w", err)
 	}
@@ -161,7 +159,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 
 	if !hasOPC {
 		if hasK && hasOP {
-			opc, err = milenage.GenerateOPC(k, op)
+			opc, err = GenerateOPC(k, op)
 			if err != nil {
 				logger.UdmLog.Errorln("milenage GenerateOPC err ", err)
 			}
@@ -265,14 +263,14 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	AK, AKstar := make([]byte, 6), make([]byte, 6)
 
 	// Generate macA, macS
-	err = milenage.F1(opc, k, RAND, sqn, AMF, macA, macS)
+	err = F1(opc, k, RAND, sqn, AMF, macA, macS)
 	if err != nil {
 		logger.UdmLog.Errorln("milenage F1 err ", err)
 	}
 
 	// Generate RES, CK, IK, AK, AKstar
 	// RES == XRES (expected RES) for server
-	err = milenage.F2345(opc, k, RAND, RES, CK, IK, AK, AKstar)
+	err = F2345(opc, k, RAND, RES, CK, IK, AK, AKstar)
 	if err != nil {
 		logger.UdmLog.Errorln("milenage F2345 err ", err)
 	}

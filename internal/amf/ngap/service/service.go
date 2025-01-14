@@ -38,7 +38,7 @@ var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 	AssocInfo: &sctp.AssocInfo{AsocMaxRxt: 4},
 }
 
-func Run(addresses []string, port int, handler NGAPHandler) {
+func Run(addresses []string, port uint16, handler NGAPHandler) {
 	ips := []net.IPAddr{}
 
 	for _, addr := range addresses {

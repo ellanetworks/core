@@ -43,22 +43,6 @@ func (s *SCTPAssocChangeEvent) State() SCTPState {
 	return s.sacState
 }
 
-func (s *SCTPAssocChangeEvent) OutboundStreams() uint16 {
-	return s.sacOutboundStreams
-}
-
-func (s *SCTPAssocChangeEvent) InboundStreams() uint16 {
-	return s.sacInboundStreams
-}
-
-func (s *SCTPAssocChangeEvent) AssocID() SCTPAssocID {
-	return s.sacAssocID
-}
-
-func (s *SCTPAssocChangeEvent) Info() []uint8 {
-	return s.sacInfo
-}
-
 // SCTPShutdownEvent is an implementation of Notification interface
 type SCTPShutdownEvent struct {
 	sseType    uint16
@@ -77,8 +61,4 @@ func (s *SCTPShutdownEvent) Flags() uint16 {
 
 func (s *SCTPShutdownEvent) Length() uint32 {
 	return s.sseLength
-}
-
-func (s *SCTPShutdownEvent) AssocID() SCTPAssocID {
-	return s.sseAssocID
 }

@@ -2,13 +2,12 @@
 // Copyright 2019 Communication Service/Software Laboratory, National Chiao Tung University (free5gc.org)
 // SPDX-License-Identifier: Apache-2.0
 
-package suci
+package udm
 
 import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/elliptic"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/binary"
@@ -25,9 +24,9 @@ import (
 )
 
 type SuciProfile struct {
-	ProtectionScheme string `yaml:"ProtectionScheme,omitempty"`
-	PrivateKey       string `yaml:"PrivateKey,omitempty"`
-	PublicKey        string `yaml:"PublicKey,omitempty"`
+	ProtectionScheme string
+	PrivateKey       string
+	PublicKey        string
 }
 
 // profile A.
@@ -57,49 +56,6 @@ func CompressKey(uncompressed []byte, y *big.Int) []byte {
 	}
 	// logger.UtilLog.Debugf("compressed: %x", compressed)
 	return compressed
-}
-
-// modified from https://stackoverflow.com/questions/46283760/
-// how-to-uncompress-a-single-x9-62-compressed-point-on-an-ecdh-p256-curve-in-go.
-func uncompressKey(compressedBytes []byte) (*big.Int, *big.Int) {
-	// Split the sign byte from the rest
-	signByte := uint(compressedBytes[0])
-	xBytes := compressedBytes[1:]
-
-	x := new(big.Int).SetBytes(xBytes)
-	three := big.NewInt(3)
-
-	// The params for P256
-	c := elliptic.P256().Params()
-
-	// The equation is y^2 = x^3 - 3x + b
-	// x^3, mod P
-	xCubed := new(big.Int).Exp(x, three, c.P)
-
-	// 3x, mod P
-	threeX := new(big.Int).Mul(x, three)
-	threeX.Mod(threeX, c.P)
-
-	// x^3 - 3x + b mod P
-	ySquared := new(big.Int).Sub(xCubed, threeX)
-	ySquared.Add(ySquared, c.B)
-	ySquared.Mod(ySquared, c.P)
-
-	// find the square root mod P
-	y := new(big.Int).ModSqrt(ySquared, c.P)
-	if y == nil {
-		// If this happens then you're dealing with an invalid point.
-		logger.UtilLog.Errorln("uncompressed key with invalid point")
-		return nil, nil
-	}
-
-	// Finally, check if you have the correct root. If not you want -y mod P
-	if y.Bit(0) != signByte&1 {
-		y.Neg(y)
-		y.Mod(y, c.P)
-	}
-	// logger.UtilLog.Debugf("xUncom: %x\nyUncon: %x", x, y)
-	return x, y
 }
 
 func HmacSha256(input, macKey []byte, macLen int) []byte {
@@ -220,90 +176,6 @@ func profileA(input, supiType, privateKey string) (string, error) {
 	return calcSchemeResult(decryptPlainText, supiType), nil
 }
 
-func profileB(input, supiType, privateKey string) (string, error) {
-	logger.UtilLog.Infoln("suciToSupi Profile B")
-	s, hexDecodeErr := hex.DecodeString(input)
-	if hexDecodeErr != nil {
-		logger.UtilLog.Errorln("hex DecodeString error")
-		return "", hexDecodeErr
-	}
-
-	var ProfileBPubKeyLen int // p256, module q = 2^256 - 2^224 + 2^192 + 2^96 - 1
-	var uncompressed bool
-	if s[0] == 0x02 || s[0] == 0x03 {
-		ProfileBPubKeyLen = 33 // ceil(log(2, q)/8) + 1 = 33
-		uncompressed = false
-	} else if s[0] == 0x04 {
-		ProfileBPubKeyLen = 65 // 2*ceil(log(2, q)/8) + 1 = 65
-		uncompressed = true
-	} else {
-		logger.UtilLog.Errorln("input error")
-		return "", fmt.Errorf("suci input error")
-	}
-
-	// logger.UtilLog.Debugf("len:%d %d", len(s), ProfileBPubKeyLen + ProfileBMacLen)
-	if len(s) < ProfileBPubKeyLen+ProfileBMacLen {
-		logger.UtilLog.Errorln("len of input data is too short")
-		return "", fmt.Errorf("suci input too short")
-	}
-	decryptPublicKey := s[:ProfileBPubKeyLen]
-	decryptMac := s[len(s)-ProfileBMacLen:]
-	decryptCipherText := s[ProfileBPubKeyLen : len(s)-ProfileBMacLen]
-	// logger.UtilLog.Debugf("dePub: %x deCiph: %x deMac: %x", decryptPublicKey, decryptCipherText, decryptMac)
-
-	// test data from TS33.501 Annex C.4
-	// bHNPriv, _ := hex.DecodeString("F1AB1074477EBCC7F554EA1C5FC368B1616730155E0041AC447D6301975FECDA")
-	var bHNPriv []byte
-	if bHNPrivTmp, err := hex.DecodeString(privateKey); err != nil {
-		logger.UtilLog.Errorf("decode error: %+v", err)
-	} else {
-		bHNPriv = bHNPrivTmp
-	}
-
-	var xUncompressed, yUncompressed *big.Int
-	if uncompressed {
-		xUncompressed = new(big.Int).SetBytes(decryptPublicKey[1:(ProfileBPubKeyLen/2 + 1)])
-		yUncompressed = new(big.Int).SetBytes(decryptPublicKey[(ProfileBPubKeyLen/2 + 1):])
-	} else {
-		xUncompressed, yUncompressed = uncompressKey(decryptPublicKey)
-		if xUncompressed == nil || yUncompressed == nil {
-			logger.UtilLog.Errorln("uncompressed key has invalid point")
-			return "", fmt.Errorf("key uncompression error")
-		}
-	}
-	// logger.UtilLog.Debugf("xUncom: %x yUncom: %x", xUncompressed, yUncompressed)
-
-	// x-coordinate is the shared key
-	decryptSharedKey, _ := elliptic.P256().ScalarMult(xUncompressed, yUncompressed, bHNPriv)
-	// logger.UtilLog.Debugf("deShared: %x", decryptSharedKey.Bytes())
-
-	decryptPublicKeyForKDF := decryptPublicKey
-	if uncompressed {
-		decryptPublicKeyForKDF = CompressKey(decryptPublicKey, yUncompressed)
-	}
-
-	kdfKey := AnsiX963KDF(decryptSharedKey.Bytes(), decryptPublicKeyForKDF, ProfileBEncKeyLen, ProfileBMacKeyLen,
-		ProfileBHashLen)
-	// logger.UtilLog.Debugf("kdfKey: %x", kdfKey)
-	decryptEncKey := kdfKey[:ProfileBEncKeyLen]
-	decryptIcb := kdfKey[ProfileBEncKeyLen : ProfileBEncKeyLen+ProfileBIcbLen]
-	decryptMacKey := kdfKey[len(kdfKey)-ProfileBMacKeyLen:]
-	// logger.UtilLog.Debugf("deEncKey(size%d): %x deMacKey: %x deIcb: %x", len(decryptEncKey), decryptEncKey, decryptMacKey,
-	// decryptIcb)
-
-	decryptMacTag := HmacSha256(decryptCipherText, decryptMacKey, ProfileBMacLen)
-	if bytes.Equal(decryptMacTag, decryptMac) {
-		logger.UtilLog.Infoln("decryption MAC match")
-	} else {
-		logger.UtilLog.Errorln("decryption MAC failed")
-		return "", fmt.Errorf("decryption MAC failed")
-	}
-
-	decryptPlainText := Aes128ctr(decryptCipherText, decryptEncKey, decryptIcb)
-
-	return calcSchemeResult(decryptPlainText, supiType), nil
-}
-
 // suci-0(SUPI type)-mcc-mnc-routingIndentifier-protectionScheme-homeNetworkPublicKeyIdentifier-schemeOutput.
 const (
 	supiTypePlace      = 1
@@ -317,7 +189,6 @@ const (
 	typeIMSI       = "0"
 	nullScheme     = "0"
 	profileAScheme = "1"
-	profileBScheme = "2"
 )
 
 func ToSupi(suci string, suciProfiles []SuciProfile) (string, error) {
@@ -369,12 +240,6 @@ func ToSupi(suci string, suciProfiles []SuciProfile) (string, error) {
 			return "", err
 		} else {
 			return mccMnc + profileAResult, nil
-		}
-	} else if scheme == profileBScheme {
-		if profileBResult, err := profileB(suciPart[len(suciPart)-1], suciPart[supiTypePlace], privateKey); err != nil {
-			return "", err
-		} else {
-			return mccMnc + profileBResult, nil
 		}
 	} else {
 		return "", fmt.Errorf("protect Scheme (%s) is not supported", scheme)

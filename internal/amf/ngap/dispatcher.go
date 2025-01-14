@@ -218,26 +218,3 @@ func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
 		ran.Log.Warnf("Non handled notification type: 0x%x", notification.Type())
 	}
 }
-
-func HandleSCTPNotificationLb(gnbId string) {
-	amfSelf := context.AMF_Self()
-	ran, ok := amfSelf.AmfRanFindByGnbId(gnbId)
-	if !ok {
-		logger.AmfLog.Warnf("couldn't find RAN context for gnbId: %v", gnbId)
-		return
-	}
-
-	// Removing Stale Connections in AmfRanPool
-	amfSelf.AmfRanPool.Range(func(key, value interface{}) bool {
-		amfRan := value.(*context.AmfRan)
-
-		if amfRan.GnbId == gnbId {
-			amfRan.Remove()
-			ran.Log.Infof("removed stale entry in AmfRan pool")
-		}
-		return true
-	})
-
-	ran.Log.Infof("SCTP state is SCTP_SHUTDOWN_COMP, close the connection")
-	ran.Remove()
-}

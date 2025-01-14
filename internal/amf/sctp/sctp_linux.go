@@ -29,8 +29,8 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 )
 
-func setsockopt(fd int, optname, optval, optlen uintptr) (uintptr, error) {
-	r0, _, errno := syscall.Syscall6(syscall.SYS_SETSOCKOPT,
+func setsockopt(fd int, optname, optval, optlen uintptr) error {
+	_, _, errno := syscall.Syscall6(syscall.SYS_SETSOCKOPT,
 		uintptr(fd),
 		SOL_SCTP,
 		optname,
@@ -38,9 +38,9 @@ func setsockopt(fd int, optname, optval, optlen uintptr) (uintptr, error) {
 		optlen,
 		0)
 	if errno != 0 {
-		return r0, errno
+		return errno
 	}
-	return r0, nil
+	return nil
 }
 
 func getsockopt(fd int, optname, optval, optlen uintptr) error {
@@ -182,48 +182,12 @@ func (c *SCTPConn) Close() error {
 	return syscall.EBADF
 }
 
-func (c *SCTPConn) SetWriteBuffer(bytes int) error {
-	return syscall.SetsockoptInt(c.fd(), syscall.SOL_SOCKET, syscall.SO_SNDBUF, bytes)
-}
-
-func (c *SCTPConn) GetWriteBuffer() (int, error) {
-	return syscall.GetsockoptInt(c.fd(), syscall.SOL_SOCKET, syscall.SO_SNDBUF)
-}
-
 func (c *SCTPConn) SetReadBuffer(bytes int) error {
 	return syscall.SetsockoptInt(c.fd(), syscall.SOL_SOCKET, syscall.SO_RCVBUF, bytes)
 }
 
-func (c *SCTPConn) GetReadBuffer() (int, error) {
-	return syscall.GetsockoptInt(c.fd(), syscall.SOL_SOCKET, syscall.SO_RCVBUF)
-}
-
-func (c *SCTPConn) SetWriteTimeout(tv syscall.Timeval) error {
-	return syscall.SetsockoptTimeval(c.fd(), syscall.SOL_SOCKET, syscall.SO_SNDTIMEO, &tv)
-}
-
 func (c *SCTPConn) SetReadTimeout(tv syscall.Timeval) error {
 	return syscall.SetsockoptTimeval(c.fd(), syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &tv)
-}
-
-func (c *SCTPConn) SetNonBlock(nonBlock bool) error {
-	return syscall.SetNonblock(c.fd(), nonBlock)
-}
-
-func (c *SCTPConn) GetRtoInfo() (*RtoInfo, error) {
-	return getRtoInfo(c.fd())
-}
-
-func (c *SCTPConn) SetRtoInfo(rtoInfo RtoInfo) error {
-	return setRtoInfo(c.fd(), rtoInfo)
-}
-
-func (c *SCTPConn) GetAssocInfo() (*AssocInfo, error) {
-	return getAssocInfo(c.fd())
-}
-
-func (c *SCTPConn) SetAssocInfo(info AssocInfo) error {
-	return setAssocInfo(c.fd(), info)
 }
 
 // listenSCTPExtConfig - start listener on specified address/port with given SCTP options and socket configuration
@@ -364,11 +328,6 @@ func (ln *SCTPListener) AcceptSCTP() (*SCTPConn, error) {
 	}
 }
 
-// Accept waits for and returns the next connection connection to the listener.
-func (ln *SCTPListener) Accept() (net.Conn, error) {
-	return ln.AcceptSCTP()
-}
-
 func (ln *SCTPListener) Close() error {
 	err := syscall.Shutdown(ln.fd, syscall.SHUT_RDWR)
 	if err != nil {
@@ -379,86 +338,4 @@ func (ln *SCTPListener) Close() error {
 		return err
 	}
 	return syscall.Close(ln.fd)
-}
-
-// DialSCTP - bind socket to laddr (if given) and connect to raddr
-func DialSCTP(net string, laddr, raddr *SCTPAddr) (*SCTPConn, error) {
-	return DialSCTPExt(net, laddr, raddr, InitMsg{NumOstreams: SCTP_MAX_STREAM}, nil, nil)
-}
-
-// DialSCTPExt - same as DialSCTP but with given SCTP options
-func DialSCTPExt(network string, laddr, raddr *SCTPAddr, options InitMsg, rtoInfo *RtoInfo, assocInfo *AssocInfo) (*SCTPConn, error) {
-	return dialSCTPExtConfig(network, laddr, raddr, options, rtoInfo, assocInfo, nil)
-}
-
-// dialSCTPExtConfig - same as DialSCTP but with given SCTP options and socket configuration
-func dialSCTPExtConfig(network string, laddr, raddr *SCTPAddr, options InitMsg, rtoInfo *RtoInfo, assocInfo *AssocInfo, control func(network, address string, c syscall.RawConn) error) (*SCTPConn, error) {
-	af, ipv6only := favoriteAddrFamily(network, laddr, raddr, "dial")
-	sock, err := syscall.Socket(
-		af,
-		syscall.SOCK_STREAM,
-		syscall.IPPROTO_SCTP,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// close socket on error
-	defer func() {
-		if err != nil {
-			err := syscall.Close(sock)
-			if err != nil {
-				logger.AmfLog.Warnf("failed to close socket: %+v", err)
-			}
-		}
-	}()
-	if err = setDefaultSockopts(sock, af, ipv6only); err != nil {
-		return nil, err
-	}
-	if control != nil {
-		rc := rawConn{sockfd: sock}
-		if err = control(network, laddr.String(), rc); err != nil {
-			return nil, err
-		}
-	}
-
-	// RTO
-	if rtoInfo != nil {
-		err = setRtoInfo(sock, *rtoInfo)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// AssocInfo
-	if assocInfo != nil {
-		err = setAssocInfo(sock, *assocInfo)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	err = setInitOpts(sock, options)
-	if err != nil {
-		return nil, err
-	}
-	if laddr != nil {
-		// If IP address and/or port was not provided so far, let's use the unspecified IPv4 or IPv6 address
-		if len(laddr.IPAddrs) == 0 {
-			if af == syscall.AF_INET {
-				laddr.IPAddrs = append(laddr.IPAddrs, net.IPAddr{IP: net.IPv4zero})
-			} else if af == syscall.AF_INET6 {
-				laddr.IPAddrs = append(laddr.IPAddrs, net.IPAddr{IP: net.IPv6zero})
-			}
-		}
-		err := SCTPBind(sock, laddr, SCTP_BINDX_ADD_ADDR)
-		if err != nil {
-			return nil, err
-		}
-	}
-	_, err = SCTPConnect(sock, raddr)
-	if err != nil {
-		return nil, err
-	}
-	return NewSCTPConn(sock, nil), nil
 }

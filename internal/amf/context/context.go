@@ -74,7 +74,7 @@ type NetworkName struct {
 type TimerValue struct {
 	Enable        bool
 	ExpireTime    time.Duration
-	MaxRetryTimes int
+	MaxRetryTimes int32
 }
 
 type AMFContext struct {
@@ -89,7 +89,7 @@ type AMFContext struct {
 	NfId                            string
 	Name                            string
 	UriScheme                       models.UriScheme
-	NgapPort                        int
+	NgapPort                        uint16
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
 	SctpGrpcPort                    int
 	HttpIPv6Address                 string
