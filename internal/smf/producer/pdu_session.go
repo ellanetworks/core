@@ -109,7 +109,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 
 	snssai := openapi.MarshToJsonString(createData.SNssai)[0]
 
-	sessSubData, err := udm.GetSmData(smContext.Supi, createData.Dnn, snssai)
+	sessSubData, err := udm.GetAndSetSmData(smContext.Supi, createData.Dnn, snssai)
 	if err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, get SessionManagementSubscriptionData error: ", err)
 		response := smContext.GeneratePDUSessionEstablishmentReject("SubscriptionDataFetchError")

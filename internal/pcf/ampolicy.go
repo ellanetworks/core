@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/udr"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 )
@@ -83,6 +82,16 @@ func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.Poli
 	return &response, nil
 }
 
+func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
+	_, err := pcfCtx.DbInstance.GetSubscriber(ueId)
+	if err != nil {
+		logger.UdrLog.Warnln(err)
+		return nil, fmt.Errorf("USER_NOT_FOUND")
+	}
+	amPolicyData := &models.AmPolicyData{}
+	return amPolicyData, nil
+}
+
 func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*models.PolicyAssociation, string, error) {
 	var response models.PolicyAssociation
 	var ue *UeContext
@@ -101,7 +110,7 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 	amPolicy := ue.AMPolicyData[assolId]
 
 	if amPolicy == nil || amPolicy.AmPolicyData == nil {
-		amData, err := udr.GetAmPolicyData(ue.Supi)
+		amData, err := GetAmPolicyData(ue.Supi)
 		if err != nil {
 			return nil, "", fmt.Errorf("can't find UE[%s] AM Policy Data in UDR", ue.Supi)
 		}
@@ -126,7 +135,7 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 	response.SuppFeat = amPolicy.SuppFeat
 	ue.PolAssociationIDGenerator++
 	// Create location header for update, delete, get
-	locationHeader := GetResourceUri(models.ServiceName_NPCF_AM_POLICY_CONTROL, assolId)
+	locationHeader := fmt.Sprintf("%s/%s", serviceUriMap[models.ServiceName_NPCF_AM_POLICY_CONTROL], assolId)
 	logger.PcfLog.Debugf("AMPolicy association Id[%s] Create", assolId)
 	return &response, locationHeader, nil
 }

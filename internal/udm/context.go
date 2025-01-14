@@ -9,7 +9,7 @@ package udm
 import (
 	"sync"
 
-	"github.com/ellanetworks/core/internal/util/idgenerator"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
@@ -26,6 +26,7 @@ const (
 )
 
 type UDMContext struct {
+	DbInstance                     *db.Database
 	NfId                           string
 	GroupId                        string
 	UriScheme                      models.UriScheme
@@ -35,7 +36,8 @@ type UDMContext struct {
 	SharedSubsDataMap              map[string]models.SharedData // sharedDataIds as key
 	SubscriptionOfSharedDataChange sync.Map                     // subscriptionID as key
 	SuciProfiles                   []suci.SuciProfile
-	EeSubscriptionIDGenerator      *idgenerator.IDGenerator
+	SdmSubscriptionIDGenerator     int
+	UESubsCollection               sync.Map // map[ueId]*UESubsData
 }
 
 type UdmNFContext struct {

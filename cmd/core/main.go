@@ -14,11 +14,9 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/nms"
-	"github.com/ellanetworks/core/internal/nssf"
 	"github.com/ellanetworks/core/internal/pcf"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/udm"
-	"github.com/ellanetworks/core/internal/udr"
 	"github.com/ellanetworks/core/internal/upf"
 	"go.uber.org/zap/zapcore"
 )
@@ -44,18 +42,11 @@ func startNetwork(dbInstance *db.Database, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = udr.Start(dbInstance)
+	err = udm.Start(dbInstance)
 	if err != nil {
 		return err
 	}
-	err = udm.Start()
-	if err != nil {
-		return err
-	}
-	err = nssf.Start()
-	if err != nil {
-		return err
-	}
+
 	err = upf.Start(cfg.Interfaces.N3.Address, cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name)
 	if err != nil {
 		return err

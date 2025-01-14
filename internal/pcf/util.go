@@ -5,8 +5,6 @@
 package pcf
 
 import (
-	"fmt"
-
 	"github.com/omec-project/openapi/models"
 )
 
@@ -33,9 +31,4 @@ func GetSMPolicyDnnData(data models.SmPolicyData, snssai *models.Snssai, dnn str
 		}
 	}
 	return
-}
-
-// Get Resource Uri (location Header) with param id string
-func GetResourceUri(name models.ServiceName, id string) string {
-	return fmt.Sprintf("%s/%s", serviceUriMap[name], id)
 }

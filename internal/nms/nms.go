@@ -13,7 +13,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 )
 
-func Start(dbInstance *db.Database, port int, cert_file string, key_file string) error {
+func Start(dbInstance *db.Database, port int, certFile string, keyFile string) error {
 	jwtSecret, err := server.GenerateJWTSecret()
 	if err != nil {
 		return fmt.Errorf("couldn't generate jwt secret: %v", err)
@@ -26,10 +26,11 @@ func Start(dbInstance *db.Database, port int, cert_file string, key_file string)
 			IdleTimeout: 1 * time.Millisecond,
 		}
 		server := &http.Server{
-			Addr:    httpAddr,
-			Handler: h2c.NewHandler(router, h2Server),
+			Addr:              httpAddr,
+			ReadHeaderTimeout: 5 * time.Second,
+			Handler:           h2c.NewHandler(router, h2Server),
 		}
-		err := server.ListenAndServeTLS(cert_file, key_file)
+		err := server.ListenAndServeTLS(certFile, keyFile)
 		if err != nil {
 			logger.NmsLog.Errorln("couldn't start API server:", err)
 		}

@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/udr"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 )
@@ -47,6 +47,26 @@ func deepCopyTrafficControlData(src *models.TrafficControlData) *models.TrafficC
 	return &copiedTrafficControlData
 }
 
+func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
+	smPolicyData := &models.SmPolicyData{
+		SmPolicySnssaiData: make(map[string]models.SmPolicySnssaiData),
+	}
+	snssai := fmt.Sprintf("%d%s", config.Sst, config.Sd)
+	smPolicyData.SmPolicySnssaiData[snssai] = models.SmPolicySnssaiData{
+		Snssai: &models.Snssai{
+			Sd:  config.Sd,
+			Sst: config.Sst,
+		},
+		SmPolicyDnnData: make(map[string]models.SmPolicyDnnData),
+	}
+	smPolicySnssaiData := smPolicyData.SmPolicySnssaiData[snssai]
+	smPolicySnssaiData.SmPolicyDnnData[config.DNN] = models.SmPolicyDnnData{
+		Dnn: config.DNN,
+	}
+	smPolicyData.SmPolicySnssaiData[snssai] = smPolicySnssaiData
+	return smPolicyData, nil
+}
+
 func CreateSMPolicy(request models.SmPolicyContextData) (
 	response *models.SmPolicyDecision, err1 error,
 ) {
@@ -69,16 +89,16 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
-		smData, err = udr.GetSmPolicyData(ue.Supi)
+		smData, err = GetSmPolicyData(ue.Supi)
 		if err != nil {
-			return nil, fmt.Errorf("Can't find UE SM Policy Data in UDR: %s", ue.Supi)
+			return nil, fmt.Errorf("can't find UE SM Policy Data in UDR: %s", ue.Supi)
 		}
 	} else {
 		smData = smPolicyData.SmPolicyData
 	}
 	amPolicy := ue.FindAMPolicy(request.AccessType, request.ServingNetwork)
 	if amPolicy == nil {
-		return nil, fmt.Errorf("Can't find corresponding AM Policy")
+		return nil, fmt.Errorf("can't find corresponding AM Policy")
 	}
 	if ue.Gpsi == "" {
 		ue.Gpsi = request.Gpsi
@@ -169,9 +189,6 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 	decision.SuppFeat = pcfCtx.PcfSuppFeats[models.ServiceName_NPCF_SMPOLICYCONTROL].NegotiateWith(requestSuppFeat).String()
 	decision.QosFlowUsage = request.QosFlowUsage
 	decision.PolicyCtrlReqTriggers = PolicyControlReqTrigToArray(0x40780f)
-	smPolicyData.PolicyDecision = &decision
-	locationHeader := GetResourceUri(models.ServiceName_NPCF_SMPOLICYCONTROL, smPolicyID)
-	logger.PcfLog.Infof("Location Header: %s", locationHeader)
 	return &decision, nil
 }
 

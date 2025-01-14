@@ -12,24 +12,9 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"hash"
-	"strconv"
 
 	"github.com/ellanetworks/core/internal/logger"
 )
-
-func KDF5gAka(param ...string) hash.Hash {
-	s := param[0]
-	s += param[1]
-	if p0len, err := strconv.Atoi(param[2]); err != nil {
-		logger.AusfLog.Warnf("atoi failed: %+v", err)
-	} else {
-		s += strconv.FormatInt(int64(p0len), 16)
-	}
-	h := hmac.New(sha256.New, []byte(s))
-
-	return h
-}
 
 func intToByteArray(i int) []byte {
 	r := make([]byte, 2)

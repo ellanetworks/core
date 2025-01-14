@@ -27,7 +27,7 @@ func Restore(dbInstance *db.Database) gin.HandlerFunc {
 		}
 
 		tempFilePath := fmt.Sprintf("./uploads/%s", file.Filename)
-		if err := os.MkdirAll("./uploads", os.ModePerm); err != nil {
+		if err := os.MkdirAll("./uploads", 0o750); err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "failed to create temporary directory")
 			return
 		}
