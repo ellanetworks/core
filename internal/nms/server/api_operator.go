@@ -7,7 +7,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/gin-gonic/gin"
 )
@@ -168,7 +167,7 @@ func UpdateOperator(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update operatorId")
 			return
 		}
-		updateSMF(dbInstance)
+		context.UpdateUserPlaneInformation()
 		message := SuccessResponse{Message: "Operator updated successfully"}
 		err = writeResponse(c.Writer, message, http.StatusCreated)
 		if err != nil {
@@ -225,37 +224,4 @@ func UpdateOperatorCode(dbInstance *db.Database) gin.HandlerFunc {
 			"User updated operator Code",
 		)
 	}
-}
-
-func updateSMF(dbInstance *db.Database) {
-	dbOperator, err := dbInstance.GetOperator()
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-		return
-	}
-	operator := &models.Network{
-		Mcc: dbOperator.Mcc,
-		Mnc: dbOperator.Mnc,
-	}
-
-	profiles := make([]models.Profile, 0)
-	dbProfiles, err := dbInstance.ListProfiles()
-	if err != nil {
-		logger.NmsLog.Warnln(err)
-		return
-	}
-	for _, dbProfile := range dbProfiles {
-		profile := models.Profile{
-			Name:            dbProfile.Name,
-			UeIpPool:        dbProfile.UeIpPool,
-			Dns:             dbProfile.Dns,
-			BitrateDownlink: dbProfile.BitrateDownlink,
-			BitrateUplink:   dbProfile.BitrateUplink,
-			Var5qi:          dbProfile.Var5qi,
-			PriorityLevel:   dbProfile.PriorityLevel,
-		}
-		profiles = append(profiles, profile)
-	}
-
-	context.UpdateSMFContext(operator, profiles)
 }

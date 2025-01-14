@@ -27,19 +27,7 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 			return
 		}
 	} else {
-		// Set to default supported PDU Session Type
-		switch SMF_Self().SupportedPDUSessionType {
-		case "IPv4":
-			smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv4
-		case "IPv6":
-			smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv6
-		case "IPv4v6":
-			smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv4IPv6
-		case "Ethernet":
-			smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeEthernet
-		default:
-			smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv4
-		}
+		smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv4
 	}
 
 	if req.ExtendedProtocolConfigurationOptions != nil {
