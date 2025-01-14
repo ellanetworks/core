@@ -16,10 +16,10 @@ type BPManager struct {
 	UpdatedBranchingPoint map[*UPF]int
 	PendingUPF            PendingUPF
 	ActivatedPaths        []*DataPath
-
-	BPStatus       BPStatus
-	AddingPSAState AddingPSAState
+	BPStatus              BPStatus
+	AddingPSAState        AddingPSAState
 }
+
 type BPStatus int
 
 const (
@@ -42,18 +42,6 @@ const (
 )
 
 type PendingUPF map[string]bool
-
-func NewBPManager(supi string) (bpManager *BPManager) {
-	bpManager = &BPManager{
-		BPStatus:              UnInitialized,
-		AddingPSAState:        ActivatingDataPath,
-		ActivatedPaths:        make([]*DataPath, 0),
-		UpdatedBranchingPoint: make(map[*UPF]int),
-		PendingUPF:            make(PendingUPF),
-	}
-
-	return
-}
 
 func (bpMGR *BPManager) SelectPSA2(smContext *SMContext) {
 	hasSelectPSA2 := false

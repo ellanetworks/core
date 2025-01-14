@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/gin-gonic/gin"
 )
 
@@ -267,7 +268,7 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to create profile")
 			return
 		}
-		updateSMF(dbInstance)
+		context.UpdateUserPlaneInformation()
 		response := SuccessResponse{Message: "Profile created successfully"}
 		err = writeResponse(c.Writer, response, http.StatusCreated)
 		if err != nil {
@@ -386,7 +387,7 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		updateSMF(dbInstance)
+		context.UpdateUserPlaneInformation()
 		response := SuccessResponse{Message: "Profile updated successfully"}
 		err = writeResponse(c.Writer, response, http.StatusOK)
 		if err != nil {
@@ -424,7 +425,7 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete profile")
 			return
 		}
-		updateSMF(dbInstance)
+		context.UpdateUserPlaneInformation()
 		response := SuccessResponse{Message: "Profile deleted successfully"}
 		err = writeResponse(c.Writer, response, http.StatusOK)
 		if err != nil {

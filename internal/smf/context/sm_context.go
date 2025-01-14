@@ -382,24 +382,8 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 		}
 	}
 
-	supportedPDUSessionType := SMF_Self().SupportedPDUSessionType
-	switch supportedPDUSessionType {
-	case "IPv4":
-		if !allowIPv4 {
-			return fmt.Errorf("no SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
-		}
-	case "IPv6":
-		if !allowIPv6 {
-			return fmt.Errorf("no SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
-		}
-	case "IPv4v6":
-		if !allowIPv4 && !allowIPv6 {
-			return fmt.Errorf("no SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
-		}
-	case "Ethernet":
-		if !allowEthernet {
-			return fmt.Errorf("no SupportedPDUSessionType[%q] in DNN[%s] configuration", supportedPDUSessionType, smContext.Dnn)
-		}
+	if !allowIPv4 {
+		return fmt.Errorf("PduSessionType_IPV4 is not allowed in DNN[%s] configuration", smContext.Dnn)
 	}
 
 	smContext.EstAcceptCause5gSMValue = 0

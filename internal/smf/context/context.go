@@ -14,18 +14,10 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	nmsModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/openapi/models"
 )
 
-const IPV4 = "IPv4"
-
 var smfContext SMFContext
-
-type StaticIpInfo struct {
-	ImsiIpInfo map[string]string
-	Dnn        string
-}
 
 type InterfaceUpfInfoItem struct {
 	NetworkInstance string
@@ -34,32 +26,11 @@ type InterfaceUpfInfoItem struct {
 }
 
 type SMFContext struct {
-	Name string
-
-	DbInstance *db.Database
-
-	UPNodeIDs []NodeID
-	Key       string
-	PEM       string
-	KeyLog    string
-
-	SnssaiInfos []SnssaiSmfInfo
-
+	DbInstance           *db.Database
 	UserPlaneInformation *UserPlaneInformation
-
-	SupportedPDUSessionType string
-
-	EnterpriseList *map[string]string // map to contain slice-name:enterprise-name
-
-	PodIp string
-
-	StaticIpInfo   *[]StaticIpInfo
-	CPNodeID       NodeID
-	UDMProfile     models.NfProfile
-	LocalSEIDCount uint64
-
-	// For ULCL
-	ULCLSupport bool
+	CPNodeID             NodeID
+	LocalSEIDCount       uint64
+	ULCLSupport          bool
 }
 
 // RetrieveDnnInformation gets the corresponding dnn info from S-NSSAI and DNN
@@ -78,49 +49,8 @@ func AllocateLocalSEID() (uint64, error) {
 	return smfContext.LocalSEIDCount, nil
 }
 
-func ReleaseLocalSEID(seid uint64) error {
-	return nil
-}
-
 func SMF_Self() *SMFContext {
 	return &smfContext
-}
-
-func UpdateSMFContext(network *nmsModels.Network, profiles []nmsModels.Profile) {
-	UpdateSnssaiInfo(network, profiles)
-	UpdateUserPlaneInformation()
-	logger.SmfLog.Infof("Updated SMF context")
-}
-
-func UpdateSnssaiInfo(network *nmsModels.Network, profiles []nmsModels.Profile) {
-	smfSelf := SMF_Self()
-	snssaiInfoList := make([]SnssaiSmfInfo, 0)
-	snssaiInfo := SnssaiSmfInfo{
-		Snssai: SNssai{
-			Sst: config.Sst,
-			Sd:  config.Sd,
-		},
-		PlmnId: models.PlmnId{
-			Mcc: network.Mcc,
-			Mnc: network.Mnc,
-		},
-		DnnInfos: make(map[string]*SnssaiSmfDnnInfo),
-	}
-
-	for _, profile := range profiles {
-		dnn := config.DNN
-		dnsPrimary := profile.Dns
-		mtu := profile.Mtu
-		dnnInfo := SnssaiSmfDnnInfo{
-			DNS: DNS{
-				IPv4Addr: net.ParseIP(dnsPrimary).To4(),
-			},
-			MTU: uint16(mtu),
-		}
-		snssaiInfo.DnnInfos[dnn] = &dnnInfo
-	}
-	snssaiInfoList = append(snssaiInfoList, snssaiInfo)
-	smfSelf.SnssaiInfos = snssaiInfoList
 }
 
 func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
@@ -253,5 +183,42 @@ func GetUserPlaneInformation() *UserPlaneInformation {
 }
 
 func GetSnssaiInfo() []SnssaiSmfInfo {
-	return SMF_Self().SnssaiInfos
+	self := SMF_Self()
+	operator, err := self.DbInstance.GetOperator()
+	if err != nil {
+		logger.SmfLog.Warnf("failed to get operator information from db: %v", err)
+		return nil
+	}
+	profiles, err := self.DbInstance.ListProfiles()
+	if err != nil {
+		logger.SmfLog.Warnf("failed to get profiles from db: %v", err)
+		return nil
+	}
+	snssaiInfoList := make([]SnssaiSmfInfo, 0)
+	snssaiInfo := SnssaiSmfInfo{
+		Snssai: SNssai{
+			Sst: config.Sst,
+			Sd:  config.Sd,
+		},
+		PlmnId: models.PlmnId{
+			Mcc: operator.Mcc,
+			Mnc: operator.Mnc,
+		},
+		DnnInfos: make(map[string]*SnssaiSmfDnnInfo),
+	}
+
+	for _, profile := range profiles {
+		dnn := config.DNN
+		dnsPrimary := profile.Dns
+		mtu := profile.Mtu
+		dnnInfo := SnssaiSmfDnnInfo{
+			DNS: DNS{
+				IPv4Addr: net.ParseIP(dnsPrimary).To4(),
+			},
+			MTU: uint16(mtu),
+		}
+		snssaiInfo.DnnInfos[dnn] = &dnnInfo
+	}
+	snssaiInfoList = append(snssaiInfoList, snssaiInfo)
+	return snssaiInfoList
 }
