@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/udr"
 	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/ellanetworks/core/internal/util/ueauth"
@@ -26,6 +25,13 @@ const (
 	keyStrLen int   = 32
 	opStrLen  int   = 32
 	opcStrLen int   = 32
+)
+
+const (
+	AuthenticationManagementField = "8000"
+	EncryptionAlgorithm           = 0
+	EncryptionKey                 = 0
+	OpValue                       = ""
 )
 
 func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte) {
@@ -73,6 +79,55 @@ func strictHex(s string, n int) string {
 	}
 }
 
+func EditAuthenticationSubscription(ueId string, sequenceNumber string) error {
+	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
+	if err != nil {
+		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
+	}
+	subscriber.SequenceNumber = sequenceNumber
+	err = udmContext.DbInstance.UpdateSubscriber(subscriber)
+	if err != nil {
+		return fmt.Errorf("couldn't update subscriber %s: %v", ueId, err)
+	}
+	return nil
+}
+
+func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string) *models.AuthenticationSubscription {
+	authSubsData := &models.AuthenticationSubscription{}
+	authSubsData.AuthenticationManagementField = AuthenticationManagementField
+	authSubsData.AuthenticationMethod = models.AuthMethod__5_G_AKA
+	authSubsData.Milenage = &models.Milenage{
+		Op: &models.Op{
+			EncryptionAlgorithm: EncryptionAlgorithm,
+			EncryptionKey:       EncryptionKey,
+			OpValue:             OpValue,
+		},
+	}
+	authSubsData.Opc = &models.Opc{
+		EncryptionAlgorithm: EncryptionAlgorithm,
+		EncryptionKey:       EncryptionKey,
+		OpcValue:            opc,
+	}
+	authSubsData.PermanentKey = &models.PermanentKey{
+		EncryptionAlgorithm: EncryptionAlgorithm,
+		EncryptionKey:       EncryptionKey,
+		PermanentKeyValue:   key,
+	}
+	authSubsData.SequenceNumber = sequenceNumber
+
+	return authSubsData
+}
+
+func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
+	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
+	if err != nil {
+		logger.UdrLog.Warnln(err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
+	}
+	authSubsData := convertDbAuthSubsDataToModel(subscriber.Opc, subscriber.PermanentKey, subscriber.SequenceNumber)
+	return authSubsData, nil
+}
+
 func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (
 	*models.AuthenticationInfoResult, error,
 ) {
@@ -84,7 +139,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 
 	logger.UdmLog.Debugf("supi conversion => %s\n", supi)
 
-	authSubs, err := udr.GetAuthSubsData(supi)
+	authSubs, err := GetAuthSubsData(supi)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get authentication subscriber data: %w", err)
 	}
@@ -253,7 +308,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	SQNheStr := fmt.Sprintf("%x", bigSQN)
 	SQNheStr = strictHex(SQNheStr, 12)
 
-	err = udr.EditAuthenticationSubscription(supi, SQNheStr)
+	err = EditAuthenticationSubscription(supi, SQNheStr)
 	if err != nil {
 		return nil, fmt.Errorf("update sqn error: %w", err)
 	}

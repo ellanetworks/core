@@ -272,15 +272,6 @@ func (context *AMFContext) AmfRanFindByConn(conn net.Conn) (*AmfRan, bool) {
 	return nil, false
 }
 
-func (context *AMFContext) NewAmfRanId(GnbId string) *AmfRan {
-	ran := AmfRan{}
-	ran.SupportedTAList = NewSupportedTAIList()
-	ran.GnbId = GnbId
-	ran.Log = logger.AmfLog.With(logger.FieldRanId, GnbId)
-	context.AmfRanPool.Store(GnbId, &ran)
-	return &ran
-}
-
 func (context *AMFContext) AmfRanFindByGnbId(gnbId string) (*AmfRan, bool) {
 	if value, ok := context.AmfRanPool.Load(gnbId); ok {
 		return value.(*AmfRan), ok
@@ -331,10 +322,6 @@ func (context *AMFContext) ListAmfRan() []AmfRan {
 
 func (context *AMFContext) DeleteAmfRan(conn net.Conn) {
 	context.AmfRanPool.Delete(conn)
-}
-
-func (context *AMFContext) DeleteAmfRanId(gnbId string) {
-	context.AmfRanPool.Delete(gnbId)
 }
 
 func (context *AMFContext) InSupportDnnList(targetDnn string) bool {

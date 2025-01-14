@@ -18,7 +18,6 @@ import (
 	"github.com/ellanetworks/core/internal/pcf"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/udm"
-	"github.com/ellanetworks/core/internal/udr"
 	"github.com/ellanetworks/core/internal/upf"
 	"go.uber.org/zap/zapcore"
 )
@@ -44,11 +43,7 @@ func startNetwork(dbInstance *db.Database, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = udr.Start(dbInstance)
-	if err != nil {
-		return err
-	}
-	err = udm.Start()
+	err = udm.Start(dbInstance)
 	if err != nil {
 		return err
 	}

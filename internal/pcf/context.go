@@ -27,12 +27,9 @@ type PlmnSupportItem struct {
 }
 
 type PCFContext struct {
-	TimeFormat             string
 	PcfSuppFeats           map[models.ServiceName]openapi.SupportedFeature
 	UePool                 sync.Map
 	AppSessionPool         sync.Map
-	AMFStatusSubsData      sync.Map // map[string]AMFStatusSubscriptionData; subscriptionID as key
-	DefaultUdrURILock      sync.RWMutex
 	SessionRuleIDGenerator *idgenerator.IDGenerator
 	QoSDataIDGenerator     *idgenerator.IDGenerator
 	DbInstance             *db.Database
@@ -53,43 +50,6 @@ type PcfSubscriberPolicyData struct {
 	PccPolicy map[string]*PccPolicy // sst+sd is key
 	Supi      string
 }
-
-type AMFStatusSubscriptionData struct {
-	AmfUri       string
-	AmfStatusUri string
-	GuamiList    []models.Guami
-}
-
-type AppSessionData struct {
-	AppSessionContext *models.AppSessionContext
-	// (compN/compN-subCompN/appId-%s) map to PccRule
-	RelatedPccRuleIds    map[string]string
-	PccRuleIdMapToCompId map[string]string
-	// related Session
-	SmPolicyData *UeSmPolicyData
-	// EventSubscription
-	Events   map[models.AfEvent]models.AfNotifMethod
-	EventUri string
-
-	AppSessionId string
-}
-
-func GetTimeformat() string {
-	return pcfCtx.TimeFormat
-}
-
-var (
-	PolicyAuthorizationUri = "/npcf-policyauthorization/v1/app-sessions/"
-	SmUri                  = "/npcf-smpolicycontrol/v1"
-	IPv4Address            = "192.168."
-	IPv6Address            = "ffab::"
-	CheckNotifiUri         = "/npcf-callback/v1/nudr-notify/"
-	Ipv4_pool              = make(map[string]string)
-	Ipv6_pool              = make(map[string]string)
-)
-
-// BdtPolicy default value
-const DefaultBdtRefId = "BdtPolicyId-"
 
 // Allocate PCF Ue with supi and add to pcf Context and returns allocated ue
 func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
@@ -130,50 +90,6 @@ func (c *PCFContext) PCFUeFindByAppSessionId(appSessionId string) *UeContext {
 		}
 	}
 	return nil
-}
-
-func Ipv4Pool(ipindex int32) string {
-	ipv4address := IPv4Address + fmt.Sprint((int(ipindex)/255)+1) + "." + fmt.Sprint(int(ipindex)%255)
-	return ipv4address
-}
-
-func Ipv4Index() int32 {
-	if len(Ipv4_pool) == 0 {
-		Ipv4_pool["1"] = Ipv4Pool(1)
-	} else {
-		for i := 1; i <= len(Ipv4_pool); i++ {
-			if Ipv4_pool[fmt.Sprint(i)] == "" {
-				Ipv4_pool[fmt.Sprint(i)] = Ipv4Pool(int32(i))
-				return int32(i)
-			}
-		}
-
-		Ipv4_pool[fmt.Sprint(int32(len(Ipv4_pool)+1))] = Ipv4Pool(int32(len(Ipv4_pool) + 1))
-		return int32(len(Ipv4_pool))
-	}
-	return 1
-}
-
-func Ipv6Pool(ipindex int32) string {
-	ipv6address := IPv6Address + fmt.Sprintf("%x\n", ipindex)
-	return ipv6address
-}
-
-func Ipv6Index() int32 {
-	if len(Ipv6_pool) == 0 {
-		Ipv6_pool["1"] = Ipv6Pool(1)
-	} else {
-		for i := 1; i <= len(Ipv6_pool); i++ {
-			if Ipv6_pool[fmt.Sprint(i)] == "" {
-				Ipv6_pool[fmt.Sprint(i)] = Ipv6Pool(int32(i))
-				return int32(i)
-			}
-		}
-
-		Ipv6_pool[fmt.Sprint(int32(len(Ipv6_pool)+1))] = Ipv6Pool(int32(len(Ipv6_pool) + 1))
-		return int32(len(Ipv6_pool))
-	}
-	return 1
 }
 
 func (subs PcfSubscriberPolicyData) String() string {

@@ -13,7 +13,7 @@ import (
 )
 
 func SDMGetAmData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err error) {
-	data, err := udm.GetAmData(ue.Supi)
+	data, err := udm.GetAmDataAndSetAMSubscription(ue.Supi)
 	if err != nil {
 		return nil, err
 	}
@@ -22,7 +22,7 @@ func SDMGetAmData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err
 }
 
 func SDMGetSmfSelectData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err error) {
-	data, err := udm.GetSmfSelectData(ue.Supi)
+	data, err := udm.GetAndSetSmfSelectData(ue.Supi)
 	if err != nil {
 		return nil, err
 	}
