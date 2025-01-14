@@ -7,7 +7,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/gin-gonic/gin"
 )
 
@@ -167,7 +166,6 @@ func UpdateOperator(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update operatorId")
 			return
 		}
-		context.UpdateUserPlaneInformation()
 		message := SuccessResponse{Message: "Operator updated successfully"}
 		err = writeResponse(c.Writer, message, http.StatusCreated)
 		if err != nil {

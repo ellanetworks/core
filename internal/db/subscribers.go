@@ -126,6 +126,27 @@ func (db *Database) DeleteSubscriber(imsi string) error {
 	return err
 }
 
+func (db *Database) SubscribersInProfile(name string) (bool, error) {
+	// Get the profile by its name
+	profile, err := db.GetProfile(name)
+	if err != nil {
+		return false, fmt.Errorf("failed to get profile with name %s: %v", name, err)
+	}
+
+	allSubscribers, err := db.ListSubscribers()
+	if err != nil {
+		return false, fmt.Errorf("failed to list subscribers: %v", err)
+	}
+
+	for _, subscriber := range allSubscribers {
+		if subscriber.ProfileID == profile.ID {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func (db *Database) AllocateIP(imsi string) (net.IP, error) {
 	subscriber, err := db.GetSubscriber(imsi)
 	if err != nil {
