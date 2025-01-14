@@ -31,7 +31,7 @@ func NSSelectionGetForRegistration(ue *context.AmfUe, requestedNssai []models.Ma
 	amfType := models.NfType_AMF
 	params := nssf.NsselectionQueryParameter{
 		NfType:                          &amfType,
-		NfId:                            amfSelf.NfId,
+		NfId:                            amfSelf.NfID,
 		SliceInfoRequestForRegistration: &sliceInfo,
 	}
 
@@ -60,7 +60,7 @@ func NSSelectionGetForPduSession(ue *context.AmfUe, snssai models.Snssai) (
 	amfType := models.NfType_AMF
 	params := nssf.NsselectionQueryParameter{
 		NfType:                        &amfType,
-		NfId:                          amfSelf.NfId,
+		NfId:                          amfSelf.NfID,
 		SliceInfoRequestForPduSession: &sliceInfoForPduSession,
 	}
 

@@ -21,7 +21,7 @@ import (
 )
 
 func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu []byte,
-	pduSessionId uint8, cause *uint8, backoffTimerUint *uint8, backoffTimer uint8,
+	pduSessionID uint8, cause *uint8, backoffTimerUint *uint8, backoffTimer uint8,
 ) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
@@ -40,10 +40,10 @@ func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu [
 	dLNASTransport.PayloadContainer.SetLen(uint16(len(nasPdu)))
 	dLNASTransport.PayloadContainer.SetPayloadContainerContents(nasPdu)
 
-	if pduSessionId != 0 {
+	if pduSessionID != 0 {
 		dLNASTransport.PduSessionID2Value = new(nasType.PduSessionID2Value)
 		dLNASTransport.PduSessionID2Value.SetIei(nasMessage.DLNASTransportPduSessionID2ValueType)
-		dLNASTransport.PduSessionID2Value.SetPduSessionID2Value(pduSessionId)
+		dLNASTransport.PduSessionID2Value.SetPduSessionID2Value(pduSessionID)
 	}
 	if cause != nil {
 		dLNASTransport.Cause5GMM = new(nasType.Cause5GMM)
@@ -160,7 +160,7 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 }
 
 func BuildServiceAccept(ue *context.AmfUe, pDUSessionStatus *[16]bool,
-	reactivationResult *[16]bool, errPduSessionId, errCause []uint8,
+	reactivationResult *[16]bool, errPduSessionID, errCause []uint8,
 ) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
@@ -187,11 +187,11 @@ func BuildServiceAccept(ue *context.AmfUe, pDUSessionStatus *[16]bool,
 		serviceAccept.PDUSessionReactivationResult.SetLen(2)
 		serviceAccept.PDUSessionReactivationResult.Buffer = nasConvert.PSIToBuf(*reactivationResult)
 	}
-	if errPduSessionId != nil {
+	if errPduSessionID != nil {
 		serviceAccept.PDUSessionReactivationResultErrorCause = new(nasType.PDUSessionReactivationResultErrorCause)
 		serviceAccept.PDUSessionReactivationResultErrorCause.SetIei(
 			nasMessage.ServiceAcceptPDUSessionReactivationResultErrorCauseType)
-		buf := nasConvert.PDUSessionReactivationResultErrorCauseToBuf(errPduSessionId, errCause)
+		buf := nasConvert.PDUSessionReactivationResultErrorCauseToBuf(errPduSessionID, errCause)
 		serviceAccept.PDUSessionReactivationResultErrorCause.SetLen(uint16(len(buf)))
 		serviceAccept.PDUSessionReactivationResultErrorCause.Buffer = buf
 	}
@@ -448,7 +448,7 @@ func BuildRegistrationAccept(
 	anType models.AccessType,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
-	errPduSessionId, errCause []uint8,
+	errPduSessionID, errCause []uint8,
 ) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
@@ -491,7 +491,7 @@ func BuildRegistrationAccept(
 		registrationAccept.EquivalentPlmns = nasType.NewEquivalentPlmns(nasMessage.RegistrationAcceptEquivalentPlmnsType)
 		var buf []uint8
 		for _, plmnSupportItem := range plmnSupportList {
-			buf = append(buf, nasConvert.PlmnIDToNas(plmnSupportItem.PlmnId)...)
+			buf = append(buf, nasConvert.PlmnIDToNas(plmnSupportItem.PlmnID)...)
 		}
 		registrationAccept.EquivalentPlmns.SetLen(uint8(len(buf)))
 		copy(registrationAccept.EquivalentPlmns.Octet[:], buf)
@@ -544,10 +544,10 @@ func BuildRegistrationAccept(
 		registrationAccept.PDUSessionReactivationResult.Buffer = nasConvert.PSIToBuf(*reactivationResult)
 	}
 
-	if errPduSessionId != nil {
+	if errPduSessionID != nil {
 		registrationAccept.PDUSessionReactivationResultErrorCause = nasType.NewPDUSessionReactivationResultErrorCause(
 			nasMessage.RegistrationAcceptPDUSessionReactivationResultErrorCauseType)
-		buf := nasConvert.PDUSessionReactivationResultErrorCauseToBuf(errPduSessionId, errCause)
+		buf := nasConvert.PDUSessionReactivationResultErrorCauseToBuf(errPduSessionID, errCause)
 		registrationAccept.PDUSessionReactivationResultErrorCause.SetLen(uint16(len(buf)))
 		registrationAccept.PDUSessionReactivationResultErrorCause.Buffer = buf
 	}

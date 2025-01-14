@@ -39,7 +39,7 @@ var (
 		Cause:         "INSUFFICIENT_RESOURCES_SLICE_DNN",
 		InvalidParams: nil,
 	}
-	IpAllocError = models.ProblemDetails{
+	IPAllocError = models.ProblemDetails{
 		Title:         "IP Allocation Error",
 		Status:        http.StatusInternalServerError,
 		Detail:        "The request cannot be provided due to insufficient resources for the IP allocation.",
@@ -108,7 +108,7 @@ var ErrorType = map[string]*models.ProblemDetails{
 	"DnnDeniedError":               &DnnDeniedError,
 	"DnnNotSupported":              &DnnNotSupported,
 	"InsufficientResourceSliceDnn": &InsufficientResourceSliceDnn,
-	"IpAllocError":                 &IpAllocError,
+	"IPAllocError":                 &IPAllocError,
 	"SubscriptionDataFetchError":   &SubscriptionDataFetchError,
 	"SubscriptionDataLenError":     &SubscriptionDataLenError,
 	"UDMDiscoveryFailure":          &UDMDiscoveryFailure,
@@ -123,7 +123,7 @@ var ErrorCause = map[string]uint8{
 	"DnnDeniedError":               nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice,
 	"DnnNotSupported":              nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice,
 	"InsufficientResourceSliceDnn": nasMessage.Cause5GSMInsufficientResourcesForSpecificSliceAndDNN,
-	"IpAllocError":                 nasMessage.Cause5GSMInsufficientResources,
+	"IPAllocError":                 nasMessage.Cause5GSMInsufficientResources,
 	"SubscriptionDataFetchError":   nasMessage.Cause5GSMRequestRejectedUnspecified,
 	"SubscriptionDataLenError":     nasMessage.Cause5GSMRequestRejectedUnspecified,
 	"UDMDiscoveryFailure":          nasMessage.Cause5GSMRequestRejectedUnspecified,

@@ -108,7 +108,7 @@ func SendNGSetupFailure(ran *context.AmfRan, cause ngapType.Cause) {
 	SendToRan(ran, pkt)
 }
 
-// partOfNGInterface: if reset type is "reset all", set it to nil TS 38.413 9.2.6.11
+// SendNGReset: partOfNGInterface: if reset type is "reset all", set it to nil TS 38.413 9.2.6.11
 func SendNGReset(ran *context.AmfRan, cause ngapType.Cause,
 	partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList,
 ) {
@@ -205,7 +205,7 @@ func SendUEContextReleaseCommand(ue *context.RanUe, action context.RelAction, ca
 	SendToRanUe(ue, pkt)
 }
 
-func SendErrorIndication(ran *context.AmfRan, amfUeNgapId, ranUeNgapId *int64, cause *ngapType.Cause,
+func SendErrorIndication(ran *context.AmfRan, amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) {
 	if ran == nil {
@@ -215,7 +215,7 @@ func SendErrorIndication(ran *context.AmfRan, amfUeNgapId, ranUeNgapId *int64, c
 
 	ran.Log.Info("Send Error Indication")
 
-	pkt, err := BuildErrorIndication(amfUeNgapId, ranUeNgapId, cause, criticalityDiagnostics)
+	pkt, err := BuildErrorIndication(amfUeNgapID, ranUeNgapID, cause, criticalityDiagnostics)
 	if err != nil {
 		ran.Log.Errorf("Build ErrorIndication failed : %s", err.Error())
 		return
@@ -523,6 +523,7 @@ func SendHandoverRequest(sourceUe *context.RanUe, targetRan *context.AmfRan, cau
 	SendToRanUe(targetUe, pkt)
 }
 
+// SendPathSwitchRequestAcknowledge
 // pduSessionResourceSwitchedList: provided by AMF, and the transfer data is from SMF
 // pduSessionResourceReleasedList: provided by AMF, and the transfer data is from SMF
 // newSecurityContextIndicator: if AMF has activated a new 5G NAS security context, set it to true,
@@ -568,12 +569,13 @@ func SendPathSwitchRequestAcknowledge(
 	SendToRanUe(ue, pkt)
 }
 
+// SendPathSwitchRequestFailure:
 // pduSessionResourceReleasedList: provided by AMF, and the transfer data is from SMF
 // criticalityDiagnostics: from received node when received not comprehended IE or missing IE
 func SendPathSwitchRequestFailure(
 	ran *context.AmfRan,
-	amfUeNgapId,
-	ranUeNgapId int64,
+	amfUeNgapID,
+	ranUeNgapID int64,
 	pduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) {
@@ -584,7 +586,7 @@ func SendPathSwitchRequestFailure(
 		return
 	}
 
-	pkt, err := BuildPathSwitchRequestFailure(amfUeNgapId, ranUeNgapId, pduSessionResourceReleasedList,
+	pkt, err := BuildPathSwitchRequestFailure(amfUeNgapID, ranUeNgapID, pduSessionResourceReleasedList,
 		criticalityDiagnostics)
 	if err != nil {
 		ran.Log.Errorf("Build PathSwitchRequestFailure failed : %s", err.Error())
@@ -593,7 +595,6 @@ func SendPathSwitchRequestFailure(
 	SendToRan(ran, pkt)
 }
 
-// RanStatusTransferTransparentContainer from Uplink Ran Configuration Transfer
 func SendDownlinkRanStatusTransfer(ue *context.RanUe, container ngapType.RANStatusTransferTransparentContainer) {
 	if ue == nil {
 		logger.AmfLog.Error("RanUe is nil")
@@ -615,6 +616,7 @@ func SendDownlinkRanStatusTransfer(ue *context.RanUe, container ngapType.RANStat
 	SendToRanUe(ue, pkt)
 }
 
+// SendPaging
 // anType indicate amfUe send this msg for which accessType
 // Paging Priority: is included only if the AMF receives an Namf_Communication_N1N2MessageTransfer message
 // with an ARP value associated with
@@ -673,34 +675,6 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) {
 			ue.T3513 = nil // clear the timer
 		})
 	}
-}
-
-// TS 23.502 4.2.2.2.3
-// anType: indicate amfUe send this msg for which accessType
-// amfUeNgapID: initial AMF get it from target AMF
-// ngapMessage: initial UE Message to reroute
-// allowedNSSAI: provided by AMF, and AMF get it from NSSF (4.2.2.2.3 step 4b)
-func SendRerouteNasRequest(ue *context.AmfUe, anType models.AccessType, amfUeNgapID *int64, ngapMessage []byte,
-	allowedNSSAI *ngapType.AllowedNSSAI,
-) {
-	if ue == nil {
-		logger.AmfLog.Error("AmfUe is nil")
-		return
-	}
-
-	ue.RanUe[anType].Log.Info("Send Reroute Nas Request")
-
-	if len(ngapMessage) == 0 {
-		ue.RanUe[anType].Log.Error("Ngap Message is nil")
-		return
-	}
-
-	pkt, err := BuildRerouteNasRequest(ue, anType, amfUeNgapID, ngapMessage, allowedNSSAI)
-	if err != nil {
-		ue.RanUe[anType].Log.Errorf("Build RerouteNasRequest failed : %s", err.Error())
-		return
-	}
-	NasSendToRan(ue, anType, pkt)
 }
 
 // criticality ->from received node when received node can't comprehend the IE or missing IE
@@ -840,6 +814,7 @@ func SendDownlinkRanConfigurationTransfer(ran *context.AmfRan, transfer *ngapTyp
 	SendToRan(ran, pkt)
 }
 
+// SendDownlinkNonUEAssociatedNRPPATransport
 // NRPPa PDU is by pass
 // NRPPa PDU is from LMF define in 4.13.5.6
 func SendDownlinkNonUEAssociatedNRPPATransport(ue *context.RanUe, nRPPaPDU ngapType.NRPPaPDU) {
@@ -885,6 +860,7 @@ func SendDeactivateTrace(amfUe *context.AmfUe, anType models.AccessType) {
 	SendToRanUe(ranUe, pkt)
 }
 
+// SendLocationReportingControl
 // AOI List is from SMF
 // The SMF may subscribe to the UE mobility event notification from the AMF
 // (e.g. location reporting, UE moving into or out of Area Of Interest) TS 23.502 4.3.2.2.1 Step.17
@@ -944,6 +920,7 @@ func SendUETNLABindingReleaseRequest(ue *context.RanUe) {
 	SendToRanUe(ue, pkt)
 }
 
+// SendDownlinkUEAssociatedNRPPaTransport
 // NRPPa PDU is a pdu from LMF to RAN defined in TS 23.502 4.13.5.5 step 3
 // NRPPa PDU is by pass
 func SendDownlinkUEAssociatedNRPPaTransport(ue *context.RanUe, nRPPaPDU ngapType.NRPPaPDU) {

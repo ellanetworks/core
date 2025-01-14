@@ -1,4 +1,5 @@
 // Copyright 2024 Ella Networks
+
 package core
 
 import (
@@ -17,7 +18,7 @@ func applyPDR(spdrInfo SPDRInfo, mapOperations ebpf.ForwardingPlaneController) {
 			logger.UpfLog.Infof("Can't apply IPv4 PDR: %s", err.Error())
 		}
 	} else if spdrInfo.Ipv6 != nil {
-		if err := mapOperations.PutDownlinkPdrIp6(spdrInfo.Ipv6, spdrInfo.PdrInfo); err != nil {
+		if err := mapOperations.PutDownlinkPdrIP6(spdrInfo.Ipv6, spdrInfo.PdrInfo); err != nil {
 			logger.UpfLog.Infof("Can't apply IPv6 PDR: %s", err.Error())
 		}
 	} else {

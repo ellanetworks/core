@@ -28,7 +28,7 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 		}
 	} else {
 		// Set to default supported PDU Session Type
-		switch SMF_Self().SupportedPDUSessionType {
+		switch SMFSelf().SupportedPDUSessionType {
 		case "IPv4":
 			smContext.SelectedPDUSessionType = nasMessage.PDUSessionTypeIPv4
 		case "IPv6":

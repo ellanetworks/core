@@ -33,11 +33,11 @@ func init() {
 	AMF_Self().LadnPool = make(map[string]*LADN)
 	AMF_Self().EventSubscriptionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
 	AMF_Self().Name = "amf"
-	AMF_Self().UriScheme = models.UriScheme_HTTP
+	AMF_Self().URIScheme = models.UriScheme_HTTP
 	AMF_Self().RelativeCapacity = 0xff
 	AMF_Self().NetworkName.Full = "free5GC"
 	tmsiGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
-	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapId)
+	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID)
 }
 
 type NetworkFeatureSupport5GS struct {
@@ -62,7 +62,7 @@ type Security struct {
 }
 
 type PlmnSupportItem struct {
-	PlmnId     models.PlmnId
+	PlmnID     models.PlmnId
 	SNssaiList []models.Snssai
 }
 
@@ -78,7 +78,7 @@ type TimerValue struct {
 }
 
 type AMFContext struct {
-	DbInstance                      *db.Database
+	DBInstance                      *db.Database
 	EventSubscriptionIDGenerator    *idgenerator.IDGenerator
 	EventSubscriptions              sync.Map
 	UePool                          sync.Map         // map[supi]*AmfUe
@@ -86,35 +86,26 @@ type AMFContext struct {
 	AmfRanPool                      sync.Map         // map[net.Conn]*AmfRan
 	LadnPool                        map[string]*LADN // dnn as key
 	RelativeCapacity                int64
-	NfId                            string
+	NfID                            string
 	Name                            string
-	UriScheme                       models.UriScheme
+	URIScheme                       models.UriScheme
 	NgapPort                        uint16
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
 	SctpGrpcPort                    int
-	HttpIPv6Address                 string
 	TNLWeightFactor                 int64
 	SupportDnnLists                 []string
 	SecurityAlgorithm               SecurityAlgorithm
 	NetworkName                     NetworkName
-	NgapIpList                      []string // NGAP Server IP
-	T3502Value                      int      // unit is second
-	T3512Value                      int      // unit is second
-	Non3gppDeregistrationTimerValue int      // unit is second
+	NgapIP                          string
+	T3502Value                      int // unit is second
+	T3512Value                      int // unit is second
+	Non3gppDeregistrationTimerValue int // unit is second
 	// read-only fields
 	T3513Cfg TimerValue
 	T3522Cfg TimerValue
 	T3550Cfg TimerValue
 	T3560Cfg TimerValue
 	T3565Cfg TimerValue
-}
-
-type AMFContextEventSubscription struct {
-	IsAnyUe           bool
-	IsGroupUe         bool
-	UeSupiList        []string
-	Expiry            *time.Time
-	EventSubscription models.AmfEventSubscription
 }
 
 type SecurityAlgorithm struct {
@@ -272,15 +263,6 @@ func (context *AMFContext) AmfRanFindByConn(conn net.Conn) (*AmfRan, bool) {
 	return nil, false
 }
 
-func (context *AMFContext) NewAmfRanId(GnbId string) *AmfRan {
-	ran := AmfRan{}
-	ran.SupportedTAList = NewSupportedTAIList()
-	ran.GnbId = GnbId
-	ran.Log = logger.AmfLog.With(logger.FieldRanId, GnbId)
-	context.AmfRanPool.Store(GnbId, &ran)
-	return &ran
-}
-
 func (context *AMFContext) AmfRanFindByGnbId(gnbId string) (*AmfRan, bool) {
 	if value, ok := context.AmfRanPool.Load(gnbId); ok {
 		return value.(*AmfRan), ok
@@ -425,7 +407,7 @@ func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 }
 
 func (context *AMFContext) GetIPv4Uri() string {
-	return fmt.Sprintf("%s://", context.UriScheme)
+	return fmt.Sprintf("%s://", context.URIScheme)
 }
 
 func (context *AMFContext) Get5gsNwFeatSuppImsVoPS() uint8 {

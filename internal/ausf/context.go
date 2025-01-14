@@ -17,7 +17,6 @@ type AUSFContext struct {
 	UePool      sync.Map
 	snRegex     *regexp.Regexp
 	NfId        string
-	UdmUeauUrl  string
 	PlmnList    []models.PlmnId
 }
 
@@ -27,15 +26,14 @@ type AusfUeContext struct {
 	Kseaf              string
 	ServingNetworkName string
 	AuthStatus         models.AuthResult
-	// UdmUeauUrl         string
 
 	// for 5G AKA
 	XresStar string
 
 	// for EAP-AKA'
-	K_aut string
-	XRES  string
-	Rand  string
+	KAut string
+	XRES string
+	Rand string
 }
 
 type SuciSupiMap struct {
@@ -49,14 +47,12 @@ const (
 
 // Attribute Types for EAP-AKA'
 const (
-	AT_RAND_ATTRIBUTE         = 1
-	AT_AUTN_ATTRIBUTE         = 2
-	AT_RES_ATTRIBUTE          = 3
-	AT_MAC_ATTRIBUTE          = 11
-	AT_NOTIFICATION_ATTRIBUTE = 12
-	AT_IDENTITY_ATTRIBUTE     = 14
-	AT_KDF_INPUT_ATTRIBUTE    = 23
-	AT_KDF_ATTRIBUTE          = 24
+	AtRandAttribute         = 1
+	AtAutnAttribute         = 2
+	AtResAttribute          = 3
+	AtMacAttribute          = 11
+	AtNotificationAttribute = 12
+	AtKdfAttribute          = 24
 )
 
 var ausfContext AUSFContext
@@ -116,10 +112,3 @@ func GetSelf() *AUSFContext {
 func (a *AUSFContext) GetSelfID() string {
 	return a.NfId
 }
-
-// func InitAusfContext(context *AUSFContext) {
-// 	config := factory.AusfConfig
-
-// 	context.NfId = uuid.New().String()
-// 	context.GroupID = config.GroupId
-// }

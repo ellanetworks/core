@@ -10,7 +10,7 @@ import (
 	"github.com/omec-project/openapi/models"
 )
 
-var serviceUriMap = map[models.ServiceName]string{
+var serviceURIMap = map[models.ServiceName]string{
 	models.ServiceName_NPCF_AM_POLICY_CONTROL:   "policies",
 	models.ServiceName_NPCF_SMPOLICYCONTROL:     "sm-policies",
 	models.ServiceName_NPCF_BDTPOLICYCONTROL:    "bdtpolicies",
@@ -37,5 +37,5 @@ func GetSMPolicyDnnData(data models.SmPolicyData, snssai *models.Snssai, dnn str
 
 // Get Resource Uri (location Header) with param id string
 func GetResourceUri(name models.ServiceName, id string) string {
-	return fmt.Sprintf("%s/%s", serviceUriMap[name], id)
+	return fmt.Sprintf("%s/%s", serviceURIMap[name], id)
 }

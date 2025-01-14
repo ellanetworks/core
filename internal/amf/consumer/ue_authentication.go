@@ -23,20 +23,20 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 ) (*models.UeAuthenticationCtx, *models.ProblemDetails, error) {
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
-	var plmnId *models.PlmnId
+	var plmnID *models.PlmnId
 	if ue.Tai.PlmnId != nil {
-		plmnId = ue.Tai.PlmnId
+		plmnID = ue.Tai.PlmnId
 	} else {
 		ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc: %v Mnc: %v] is taken from Guami List", servedGuami.PlmnId.Mcc, servedGuami.PlmnId.Mnc)
-		plmnId = servedGuami.PlmnId
+		plmnID = servedGuami.PlmnId
 	}
 
 	var authInfo models.AuthenticationInfo
 	authInfo.SupiOrSuci = ue.Suci
-	if mnc, err := strconv.Atoi(plmnId.Mnc); err != nil {
+	if mnc, err := strconv.Atoi(plmnID.Mnc); err != nil {
 		return nil, nil, err
 	} else {
-		authInfo.ServingNetworkName = fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, plmnId.Mcc)
+		authInfo.ServingNetworkName = fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, plmnID.Mcc)
 	}
 	if resynchronizationInfo != nil {
 		authInfo.ResynchronizationInfo = resynchronizationInfo

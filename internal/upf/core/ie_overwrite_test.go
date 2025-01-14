@@ -11,7 +11,7 @@ const (
 	RemoteIP   = "127.0.0.1"
 	UeAddress1 = "1.1.1.1"
 	UeAddress2 = "2.2.2.2"
-	NodeId     = "test-node"
+	NodeID     = "test-node"
 )
 
 type MapOperationsMock struct{}
@@ -40,15 +40,15 @@ func (mapOps *MapOperationsMock) DeletePdrDownlink(ipv4 net.IP) error {
 	return nil
 }
 
-func (mapOps *MapOperationsMock) PutDownlinkPdrIp6(ipv6 net.IP, pdrInfo ebpf.PdrInfo) error {
+func (mapOps *MapOperationsMock) PutDownlinkPdrIP6(ipv6 net.IP, pdrInfo ebpf.PdrInfo) error {
 	return nil
 }
 
-func (mapOps *MapOperationsMock) UpdateDownlinkPdrIp6(ipv6 net.IP, pdrInfo ebpf.PdrInfo) error {
+func (mapOps *MapOperationsMock) UpdateDownlinkPdrIP6(ipv6 net.IP, pdrInfo ebpf.PdrInfo) error {
 	return nil
 }
 
-func (mapOps *MapOperationsMock) DeleteDownlinkPdrIp6(ipv6 net.IP) error {
+func (mapOps *MapOperationsMock) DeleteDownlinkPdrIP6(ipv6 net.IP) error {
 	return nil
 }
 
@@ -56,11 +56,11 @@ func (mapOps *MapOperationsMock) NewFar(farInfo ebpf.FarInfo) (uint32, error) {
 	return 0, nil
 }
 
-func (mapOps *MapOperationsMock) UpdateFar(internalId uint32, farInfo ebpf.FarInfo) error {
+func (mapOps *MapOperationsMock) UpdateFar(internalID uint32, farInfo ebpf.FarInfo) error {
 	return nil
 }
 
-func (mapOps *MapOperationsMock) DeleteFar(internalId uint32) error {
+func (mapOps *MapOperationsMock) DeleteFar(internalID uint32) error {
 	return nil
 }
 
@@ -68,10 +68,10 @@ func (mapOps *MapOperationsMock) NewQer(qerInfo ebpf.QerInfo) (uint32, error) {
 	return 0, nil
 }
 
-func (mapOps *MapOperationsMock) UpdateQer(internalId uint32, qerInfo ebpf.QerInfo) error {
+func (mapOps *MapOperationsMock) UpdateQer(internalID uint32, qerInfo ebpf.QerInfo) error {
 	return nil
 }
 
-func (mapOps *MapOperationsMock) DeleteQer(internalId uint32) error {
+func (mapOps *MapOperationsMock) DeleteQer(internalID uint32) error {
 	return nil
 }

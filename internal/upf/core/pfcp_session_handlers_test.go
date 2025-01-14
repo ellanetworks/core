@@ -15,7 +15,7 @@ func PreparePfcpConnection(t *testing.T) (PfcpConnection, string) {
 	smfIP := "127.0.0.1"
 	pfcpConn := PfcpConnection{
 		NodeAssociations: make(map[string]*NodeAssociation),
-		nodeId:           "NodeId",
+		nodeID:           "NodeId",
 		mapOperations:    &mapOps,
 		n3Address:        net.ParseIP("1.2.3.4"),
 	}

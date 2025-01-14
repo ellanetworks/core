@@ -96,13 +96,13 @@ func GetOperator(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		operatorId := &GetOperatorResponse{
+		OperatorID := &GetOperatorResponse{
 			Mcc:           dbOperator.Mcc,
 			Mnc:           dbOperator.Mnc,
 			SupportedTacs: dbOperator.GetSupportedTacs(),
 		}
 
-		err = writeResponse(c.Writer, operatorId, http.StatusOK)
+		err = writeResponse(c.Writer, OperatorID, http.StatusOK)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
@@ -165,7 +165,7 @@ func UpdateOperator(dbInstance *db.Database) gin.HandlerFunc {
 		err = dbInstance.UpdateOperator(dbOperator)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to update operatorId")
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to update OperatorID")
 			return
 		}
 		updateSMF(dbInstance)
@@ -210,7 +210,7 @@ func UpdateOperatorCode(dbInstance *db.Database) gin.HandlerFunc {
 		err = dbInstance.UpdateOperatorCode(updateOperatorCodeParams.OperatorCode)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to update operatorId")
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to update OperatorID")
 			return
 		}
 		message := SuccessResponse{Message: "Operator Code updated successfully"}
@@ -247,8 +247,8 @@ func updateSMF(dbInstance *db.Database) {
 	for _, dbProfile := range dbProfiles {
 		profile := models.Profile{
 			Name:            dbProfile.Name,
-			UeIpPool:        dbProfile.UeIpPool,
-			Dns:             dbProfile.Dns,
+			IPPool:          dbProfile.IPPool,
+			Dns:             dbProfile.DNS,
 			BitrateDownlink: dbProfile.BitrateDownlink,
 			BitrateUplink:   dbProfile.BitrateUplink,
 			Var5qi:          dbProfile.Var5qi,

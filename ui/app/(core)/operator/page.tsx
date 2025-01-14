@@ -5,7 +5,7 @@ import { Box, IconButton, Alert, Typography, Chip } from "@mui/material";
 import { getOperator } from "@/queries/operator";
 import { useCookies } from "react-cookie";
 import { Edit as EditIcon } from "@mui/icons-material";
-import EditOperatorIdModal from "@/components/EditOperatorIdModal";
+import EditOperatorIDModal from "@/components/EditOperatorIDModal";
 import EditOperatorCodeModal from "@/components/EditOperatorCodeModal";
 import EditSupportedTACsModal from "@/components/EditSupportedTacsModal";
 import Grid from "@mui/material/Grid2";
@@ -124,7 +124,7 @@ const Operator = () => {
         </Grid>
       </Grid>
 
-      <EditOperatorIdModal
+      <EditOperatorIDModal
         open={isEditOperatorModalOpen}
         onClose={handleEditOperatorModalClose}
         onSuccess={handleEditOperatorSuccess}

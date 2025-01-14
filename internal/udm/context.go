@@ -35,7 +35,6 @@ func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagement
 	return smDataMap
 }
 
-// functions related UecontextInSmfData
 func (context *UDMContext) CreateUeContextInSmfDataforUe(supi string, body models.UeContextInSmfData) {
 	ue, ok := context.UdmUeFindBySupi(supi)
 	if !ok {
@@ -44,7 +43,6 @@ func (context *UDMContext) CreateUeContextInSmfDataforUe(supi string, body model
 	ue.UeCtxtInSmfData = &body
 }
 
-// functions for SmfSelectionSubscriptionData
 func (context *UDMContext) CreateSmfSelectionSubsDataforUe(supi string, body models.SmfSelectionSubscriptionData) {
 	ue, ok := context.UdmUeFindBySupi(supi)
 	if !ok {

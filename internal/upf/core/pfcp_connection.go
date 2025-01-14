@@ -15,7 +15,7 @@ var connection *PfcpConnection
 
 type PfcpConnection struct {
 	NodeAssociations  map[string]*NodeAssociation
-	nodeId            string
+	nodeID            string
 	nodeAddrV4        net.IP
 	n3Address         net.IP
 	mapOperations     ebpf.ForwardingPlaneController
@@ -30,7 +30,7 @@ func (connection *PfcpConnection) GetAssociation(assocAddr string) *NodeAssociat
 	return nil
 }
 
-func CreatePfcpConnection(addr string, nodeId string, n3Ip string, mapOperations ebpf.ForwardingPlaneController, resourceManager *service.ResourceManager) (*PfcpConnection, error) {
+func CreatePfcpConnection(addr string, nodeID string, n3Ip string, mapOperations ebpf.ForwardingPlaneController, resourceManager *service.ResourceManager) (*PfcpConnection, error) {
 	addrV4 := net.ParseIP(addr)
 	if addrV4 == nil {
 		return nil, fmt.Errorf("failed to parse IP address ID: %s", addr)
@@ -42,7 +42,7 @@ func CreatePfcpConnection(addr string, nodeId string, n3Ip string, mapOperations
 
 	connection = &PfcpConnection{
 		NodeAssociations:  map[string]*NodeAssociation{},
-		nodeId:            nodeId,
+		nodeID:            nodeID,
 		nodeAddrV4:        addrV4,
 		n3Address:         n3Addr,
 		mapOperations:     mapOperations,

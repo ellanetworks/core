@@ -42,22 +42,10 @@ func GetTcId(id int32) string {
 	return fmt.Sprintf("TcId-%d", id)
 }
 
-// Get Charging Identity(ChgId-%d)
-func GetChgId(id int32) string {
-	return fmt.Sprintf("ChgId-%d", id)
-}
-
-// Get Charging Identity(ChgId-%d)
-func GetUmId(sponId, aspId string) string {
-	return fmt.Sprintf("umId-%s-%s", sponId, aspId)
-}
-
-// Get Packet Filter Identity(PackFiltId-%d)
 func GetPackFiltId(id int32) string {
 	return fmt.Sprintf("PackFiltId-%d", id)
 }
 
-// Create Pcc Rule with param id, precedence, flow information, appID
 func CreatePccRule(id, precedence int32, flowInfo []models.FlowInformation, appID string) *models.PccRule {
 	rule := models.PccRule{
 		AppId:      appID,
@@ -109,7 +97,8 @@ func CreateUmData(umId string, thresh models.UsageThreshold) models.UsageMonitor
 	}
 }
 
-// Convert Packet Filter information list to Flow Information List(Packet Filter Usage always true),
+// ConvertPacketInfoToFlowInformation Convert Packet Filter information list to Flow Information List
+// (Packet Filter Usage always true),
 // EthDescription is Not Supported
 func ConvertPacketInfoToFlowInformation(infos []models.PacketFilterInfo) (flowInfos []models.FlowInformation) {
 	for _, info := range infos {

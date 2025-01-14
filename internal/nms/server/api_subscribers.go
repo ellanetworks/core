@@ -91,7 +91,7 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 			}
 			subscribers = append(subscribers, GetSubscriberResponse{
 				Imsi:           dbSubscriber.Imsi,
-				IpAddress:      dbSubscriber.IpAddress,
+				IpAddress:      dbSubscriber.IPAddress,
 				Opc:            dbSubscriber.Opc,
 				Key:            dbSubscriber.PermanentKey,
 				SequenceNumber: dbSubscriber.SequenceNumber,
@@ -138,7 +138,7 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 
 		subscriber := GetSubscriberResponse{
 			Imsi:           dbSubscriber.Imsi,
-			IpAddress:      dbSubscriber.IpAddress,
+			IpAddress:      dbSubscriber.IPAddress,
 			Opc:            dbSubscriber.Opc,
 			SequenceNumber: dbSubscriber.SequenceNumber,
 			Key:            dbSubscriber.PermanentKey,

@@ -26,7 +26,7 @@ const (
 func Start(dbInstance *db.Database) error {
 	self := context.AMF_Self()
 	self.Name = "AMF"
-	self.NgapIpList = []string{"0.0.0.0"}
+	self.NgapIP = "0.0.0.0"
 	self.NgapPort = NGAPP_PORT
 	self.SctpGrpcPort = 9000
 	self.NetworkFeatureSupport5GS = &context.NetworkFeatureSupport5GS{
@@ -39,7 +39,7 @@ func Start(dbInstance *db.Database) error {
 		Mcsi:    0,
 		Mpsi:    0,
 	}
-	self.UriScheme = models.UriScheme_HTTP
+	self.URIScheme = models.UriScheme_HTTP
 	self.SupportDnnLists = []string{config.DNN}
 	security := &context.Security{
 		IntegrityOrder: []string{"NIA1", "NIA2"},
@@ -78,9 +78,21 @@ func Start(dbInstance *db.Database) error {
 		ExpireTime:    6 * time.Second,
 		MaxRetryTimes: 4,
 	}
-	self.DbInstance = dbInstance
+	self.DBInstance = dbInstance
 
-	StartNGAPService()
+	ngapHandler := service.NGAPHandler{
+		HandleMessage:      ngap.Dispatch,
+		HandleNotification: ngap.HandleSCTPNotification,
+	}
+	service.Run(self.NgapIP, self.NgapPort, ngapHandler)
+
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-signalChannel
+		Terminate()
+		os.Exit(0)
+	}()
 	return nil
 }
 
@@ -118,24 +130,6 @@ func getEncAlgOrder(cipheringOrder []string) (encOrder []uint8) {
 		}
 	}
 	return
-}
-
-func StartNGAPService() {
-	self := context.AMF_Self()
-
-	ngapHandler := service.NGAPHandler{
-		HandleMessage:      ngap.Dispatch,
-		HandleNotification: ngap.HandleSCTPNotification,
-	}
-	service.Run(self.NgapIpList, self.NgapPort, ngapHandler)
-
-	signalChannel := make(chan os.Signal, 1)
-	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-signalChannel
-		Terminate()
-		os.Exit(0)
-	}()
 }
 
 // Used in AMF planned removal procedure

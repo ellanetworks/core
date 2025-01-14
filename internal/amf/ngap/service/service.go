@@ -38,23 +38,24 @@ var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 	AssocInfo: &sctp.AssocInfo{AsocMaxRxt: 4},
 }
 
-func Run(addresses []string, port uint16, handler NGAPHandler) {
-	ips := []net.IPAddr{}
-
-	for _, addr := range addresses {
-		if netAddr, err := net.ResolveIPAddr("ip", addr); err != nil {
-			logger.AmfLog.Errorf("Error resolving address '%s': %v\n", addr, err)
-		} else {
-			ips = append(ips, *netAddr)
-		}
+func Run(addr string, port uint16, handler NGAPHandler) {
+	netAddr, err := net.ResolveIPAddr("ip", addr)
+	if err != nil {
+		logger.AmfLog.Errorf("Error resolving address '%s': %v\n", addr, err)
 	}
 
-	addr := &sctp.SCTPAddr{
+	ips := []net.IPAddr{
+		{
+			IP: netAddr.IP,
+		},
+	}
+
+	sctpAddr := &sctp.SCTPAddr{
 		IPAddrs: ips,
 		Port:    port,
 	}
 
-	go listenAndServe(addr, handler)
+	go listenAndServe(sctpAddr, handler)
 }
 
 func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {

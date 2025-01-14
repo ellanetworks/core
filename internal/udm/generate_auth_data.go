@@ -134,7 +134,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 			logger.UdmLog.Infoln("milenage Op is nil")
 		}
 	} else {
-		return nil, fmt.Errorf("Nil Milenage")
+		return nil, fmt.Errorf("milenage is nil")
 	}
 
 	if authSubs.Opc != nil && authSubs.Opc.OpcValue != "" {

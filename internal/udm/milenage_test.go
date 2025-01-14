@@ -376,16 +376,16 @@ func TestF4F5StarTest35207(t *testing.T) {
 }
 
 func TestGenerateOPC(t *testing.T) {
-	// K_str := "3016ebeae2c45bd0060923dbbb402be6"
-	K_str := "000102030405060708090a0b0c0d0e0f" // CHT
-	K, err := hex.DecodeString(K_str)
+	// Kstr := "3016ebeae2c45bd0060923dbbb402be6"
+	Kstr := "000102030405060708090a0b0c0d0e0f" // CHT
+	K, err := hex.DecodeString(Kstr)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
 
-	// OP_str := "00000000000000000000000000000000"
-	OP_str := "00112233445566778899aabbccddeeff" // CHT
-	OP, err := hex.DecodeString(OP_str)
+	// OPStr := "00000000000000000000000000000000"
+	OPStr := "00112233445566778899aabbccddeeff" // CHT
+	OP, err := hex.DecodeString(OPStr)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
@@ -408,19 +408,19 @@ func TestRAND(t *testing.T) {
 		AMF: 16 bits (2 bytes) (hex len = 4) TS33.102 - Annex H
 	*/
 
-	K_str := "5122250214c33e723a5dd523fc145fc0"
-	OP_str := "c9e8763286b5b9ffbdf56e1297d0887b"
-	SQN_str := "16f3b3f70fc2"
+	Kstr := "5122250214c33e723a5dd523fc145fc0"
+	OPStr := "c9e8763286b5b9ffbdf56e1297d0887b"
+	SQNStr := "16f3b3f70fc2"
 
-	K, err := hex.DecodeString(K_str)
+	K, err := hex.DecodeString(Kstr)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
-	OP, err := hex.DecodeString(OP_str)
+	OP, err := hex.DecodeString(OPStr)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
-	SQN, err := hex.DecodeString(SQN_str)
+	SQN, err := hex.DecodeString(SQNStr)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}

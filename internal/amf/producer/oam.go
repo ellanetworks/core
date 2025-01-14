@@ -52,9 +52,6 @@ type ActiveUeContext struct {
 	RanUeNgapId int64
 	AmfUeNgapId int64
 
-	/* Ran Details */
-	GnbId string
-
 	AmfInstanceName string
 	AmfInstanceIp   string
 

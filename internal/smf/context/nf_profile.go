@@ -29,7 +29,7 @@ func SmfPlmnConfig() *[]models.PlmnId {
 	}
 
 	if len(plmns) > 0 {
-		logger.SmfLog.Debugf("plmnId configured [%v] ", plmns)
+		logger.SmfLog.Debugf("plmnID configured [%v] ", plmns)
 		return &plmns
 	}
 	return nil

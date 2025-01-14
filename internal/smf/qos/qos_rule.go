@@ -48,15 +48,15 @@ const (
 	PFComponentTypeFlowLabel                      uint8 = 0x80
 	PFComponentTypeDestinationMACAddress          uint8 = 0x81
 	PFComponentTypeSourceMACAddress               uint8 = 0x82
-	PFComponentType8021Q_CTAG_VID                 uint8 = 0x83
-	PFComponentType8021Q_STAG_VID                 uint8 = 0x84
-	PFComponentType8021Q_CTAG_PCPOrDEI            uint8 = 0x85
-	PFComponentType8021Q_STAG_PCPOrDEI            uint8 = 0x86
+	PFComponentType8021QCTAGVID                   uint8 = 0x83
+	PFComponentType8021QSTAGVID                   uint8 = 0x84
+	PFComponentType8021QCTAGPCPOrDEI              uint8 = 0x85
+	PFComponentType8021QSTAGPCPOrDEI              uint8 = 0x86
 	PFComponentTypeEthertype                      uint8 = 0x87
 )
 
 const (
-	PacketFilterIdBitmask uint8 = 0x0f
+	PacketFilterIDBitmask uint8 = 0x0f
 )
 
 type IPFilterRulePortRange struct {
@@ -64,16 +64,16 @@ type IPFilterRulePortRange struct {
 	highLimit string
 }
 
-type IPFilterRuleIpAddrV4 struct {
+type IPFilterRuleIPAddrV4 struct {
 	addr string
 	mask string
 }
 
 type IPFilterRule struct {
-	protoId                string
+	protoID                string
 	sPort, dPort           string
 	sPortRange, dPortRange IPFilterRulePortRange
-	sAddrv4, dAddrv4       IPFilterRuleIpAddrV4
+	sAddrv4, dAddrv4       IPFilterRuleIPAddrV4
 }
 
 type PacketFilterComponent struct {
@@ -156,7 +156,7 @@ func BuildAddQoSRuleFromPccRule(pccRule *models.PccRule, qosData *models.QosData
 		DQR:           btou(qosData.DefQosFlowIndication),
 		OperationCode: pccRuleOpCode,
 		Precedence:    uint8(pccRule.Precedence),
-		QFI:           GetQosFlowIdFromQosId(qosData.QosId),
+		QFI:           GetQosFlowIDFromQosID(qosData.QosId),
 	}
 
 	qRule.BuildPacketFilterListFromPccRule(pccRule)
@@ -214,7 +214,7 @@ func GetPfId(ids string) uint8 {
 	if id, err := strconv.ParseUint(ids, 10, 8); err != nil {
 		return 0
 	} else {
-		return (uint8(id) & PacketFilterIdBitmask)
+		return (uint8(id) & PacketFilterIDBitmask)
 	}
 }
 
@@ -245,7 +245,7 @@ func DecodeFlowDescToIPFilters(flowDesc string) *IPFilterRule {
 	ipfRule := &IPFilterRule{}
 
 	// Protocol Id/Next Header
-	ipfRule.protoId = pfcTags[2]
+	ipfRule.protoID = pfcTags[2]
 
 	// decode source IP/mask
 	ipfRule.decodeIpFilterAddrv4(true, pfcTags[4])
@@ -275,8 +275,8 @@ func DecodeFlowDescToIPFilters(flowDesc string) *IPFilterRule {
 	return ipfRule
 }
 
-func (ipf *IPFilterRule) IsMatchAllIPFilter() bool {
-	if ipf.sAddrv4.addr == "any" && ipf.dAddrv4.addr == "assigned" {
+func (ipfRule *IPFilterRule) IsMatchAllIPFilter() bool {
+	if ipfRule.sAddrv4.addr == "any" && ipfRule.dAddrv4.addr == "assigned" {
 		return true
 	}
 	return false
@@ -341,9 +341,9 @@ func (pf *PacketFilter) GetPfContent(flowDesc string) {
 	}
 
 	// Protocol identifier/Next header type
-	if pfc, protocolIdLen := BuildPFCompProtocolId(ipf.protoId); pfc != nil {
+	if pfc, protocolIDLen := BuildPFCompProtocolID(ipf.protoID); pfc != nil {
 		pfcList = append(pfcList, *pfc)
-		pf.ContentLength += protocolIdLen
+		pf.ContentLength += protocolIDLen
 	}
 
 	// Remote Addr
@@ -385,7 +385,7 @@ func (pf *PacketFilter) GetPfContent(flowDesc string) {
 	pf.Content = pfcList
 }
 
-func buildPFCompAddr(local bool, val IPFilterRuleIpAddrV4) (*PacketFilterComponent, uint8) {
+func buildPFCompAddr(local bool, val IPFilterRuleIPAddrV4) (*PacketFilterComponent, uint8) {
 	component := PFComponentTypeIPv4RemoteAddress
 
 	if local {
@@ -495,7 +495,7 @@ func buildPFCompPortRange(local bool, val IPFilterRulePortRange) (*PacketFilterC
 	return pfc, 5
 }
 
-func BuildPFCompProtocolId(val string) (*PacketFilterComponent, uint8) {
+func BuildPFCompProtocolID(val string) (*PacketFilterComponent, uint8) {
 	if val == "ip" {
 		return nil, 0
 	}
@@ -556,15 +556,15 @@ func (pf *PacketFilter) MarshalBinary() (data []byte, err error) {
 	return packetFilterBuffer.Bytes(), nil
 }
 
-func (r *QosRule) MarshalBinary() ([]byte, error) {
+func (q *QosRule) MarshalBinary() ([]byte, error) {
 	ruleContentBuffer := bytes.NewBuffer(nil)
 
 	// write rule content Header
-	ruleContentHeader := r.OperationCode<<5 | r.DQR<<4 | uint8(len(r.PacketFilterList))
+	ruleContentHeader := q.OperationCode<<5 | q.DQR<<4 | uint8(len(q.PacketFilterList))
 	ruleContentBuffer.WriteByte(ruleContentHeader)
 
 	packetFilterListBuffer := &bytes.Buffer{}
-	for _, pf := range r.PacketFilterList {
+	for _, pf := range q.PacketFilterList {
 		var packetFilterBytes []byte
 		if retPacketFilterByte, err := pf.MarshalBinary(); err != nil {
 			return nil, err
@@ -583,19 +583,19 @@ func (r *QosRule) MarshalBinary() ([]byte, error) {
 	}
 
 	// write precedence
-	if err := ruleContentBuffer.WriteByte(r.Precedence); err != nil {
+	if err := ruleContentBuffer.WriteByte(q.Precedence); err != nil {
 		return nil, err
 	}
 
 	// write Segregation and QFI
-	segregationAndQFIByte := r.Segregation<<6 | r.QFI
+	segregationAndQFIByte := q.Segregation<<6 | q.QFI
 	if err := ruleContentBuffer.WriteByte(segregationAndQFIByte); err != nil {
 		return nil, err
 	}
 
 	ruleBuffer := bytes.NewBuffer(nil)
 	// write QoS rule identifier
-	if err := ruleBuffer.WriteByte(r.Identifier); err != nil {
+	if err := ruleBuffer.WriteByte(q.Identifier); err != nil {
 		return nil, err
 	}
 

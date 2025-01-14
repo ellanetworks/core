@@ -102,7 +102,7 @@ type PFCPSMReqFlags struct {
 	Drobu bool
 }
 
-// Forwarding Parameters. 7.5.2.3-2
+// ForwardingParameters. 7.5.2.3-2
 type ForwardingParameters struct {
 	OuterHeaderCreation  *OuterHeaderCreation
 	PFCPSMReqFlags       *PFCPSMReqFlags
@@ -119,7 +119,7 @@ type DownlinkDataNotificationDelay struct {
 	DelayValue time.Duration
 }
 
-// Buffering Action Rule 7.5.2.6-1
+// BAR represents Buffering Action Rule 7.5.2.6-1
 type BAR struct {
 	BARID uint8
 
@@ -129,7 +129,7 @@ type BAR struct {
 	State RuleState
 }
 
-// QoS Enhancement Rule
+// QER represents QoS Enhancement Rule
 type QER struct {
 	GateStatus *GateStatus
 	MBR        *MBR
@@ -140,7 +140,7 @@ type QER struct {
 	QERID uint32
 }
 
-// Usage Report Rule
+// URR represents Usage Report Rule
 type URR struct{}
 
 func (pdr PDR) String() string {

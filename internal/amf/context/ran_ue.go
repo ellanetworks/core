@@ -35,8 +35,8 @@ const (
 
 type RanUe struct {
 	/* UE identity*/
-	RanUeNgapId int64 `json:"ranUeNgapId,omitempty"`
-	AmfUeNgapId int64 `json:"amfUeNgapId,omitempty"`
+	RanUeNgapId int64 `json:"ranUeNgapID,omitempty"`
+	AmfUeNgapId int64 `json:"amfUeNgapID,omitempty"`
 
 	/* HandOver Info*/
 	HandOverType        ngapType.HandoverType
@@ -107,7 +107,7 @@ func (ranUe *RanUe) DetachAmfUe() {
 	ranUe.AmfUe = nil
 }
 
-func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapId int64) error {
+func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {
 	if ranUe == nil {
 		return fmt.Errorf("ranUe is nil")
 	}
@@ -131,7 +131,7 @@ func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapId int64) error {
 
 	// switch to newRan
 	ranUe.Ran = newRan
-	ranUe.RanUeNgapId = ranUeNgapId
+	ranUe.RanUeNgapId = ranUeNgapID
 
 	logger.AmfLog.Infof("RanUe[RanUeNgapID: %d] Switch to new Ran[Name: %s]", ranUe.RanUeNgapId, ranUe.Ran.Name)
 	return nil

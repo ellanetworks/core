@@ -93,10 +93,10 @@ type IpEntrypointUpfStatistic struct {
 		RxArp      uint64
 		RxIcmp     uint64
 		RxIcmp6    uint64
-		RxIp4      uint64
-		RxIp6      uint64
-		RxTcp      uint64
-		RxUdp      uint64
+		RxIP4      uint64
+		RxIP6      uint64
+		RxTCP      uint64
+		RxUDP      uint64
 		RxOther    uint64
 		RxGtpEcho  uint64
 		RxGtpPdu   uint64

@@ -64,7 +64,7 @@ func (operator *Operator) SetSupportedTacs(supportedTACs []string) {
 	operator.SupportedTACs = string(supportedTACsBytes)
 }
 
-type OperatorId struct {
+type OperatorID struct {
 	Mcc string
 	Mnc string
 }

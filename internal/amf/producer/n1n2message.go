@@ -50,8 +50,8 @@ func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest mo
 		return nil, fmt.Errorf("UE context not found")
 	}
 	sbiMsg := context.SbiMsg{
-		UeContextId: ueContextId,
-		ReqUri:      reqUri,
+		UeContextID: ueContextId,
+		ReqURI:      reqUri,
 		Msg:         n1n2MessageTransferRequest,
 		Result:      make(chan context.SbiResponseMsg, 10),
 	}
@@ -335,7 +335,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			message := context.N1N2Message{
 				Request:     n1n2MessageTransferRequest,
 				Status:      n1n2MessageTransferRspData.Cause,
-				ResourceUri: locationHeader,
+				ResourceURI: locationHeader,
 			}
 			ue.N1N2Message = &message
 			ue.SetOnGoing(anType, &context.OnGoingProcedureWithPrio{
@@ -368,7 +368,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 				message := context.N1N2Message{
 					Request:     n1n2MessageTransferRequest,
 					Status:      n1n2MessageTransferRspData.Cause,
-					ResourceUri: locationHeader,
+					ResourceURI: locationHeader,
 				}
 				ue.N1N2Message = &message
 				nasMsg, err := gmm_message.BuildNotification(ue, models.AccessType_NON_3_GPP_ACCESS)
@@ -386,7 +386,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			message := context.N1N2Message{
 				Request:     n1n2MessageTransferRequest,
 				Status:      n1n2MessageTransferRspData.Cause,
-				ResourceUri: locationHeader,
+				ResourceURI: locationHeader,
 			}
 			ue.N1N2Message = &message
 
@@ -424,7 +424,7 @@ func N1N2MessageTransferStatusProcedure(ueContextID string, reqUri string) (mode
 
 	resourceUri := amfSelf.GetIPv4Uri() + reqUri
 	n1n2Message := ue.N1N2Message
-	if n1n2Message == nil || n1n2Message.ResourceUri != resourceUri {
+	if n1n2Message == nil || n1n2Message.ResourceURI != resourceUri {
 		problemDetails := &models.ProblemDetails{
 			Status: http.StatusNotFound,
 			Cause:  "CONTEXT_NOT_FOUND",

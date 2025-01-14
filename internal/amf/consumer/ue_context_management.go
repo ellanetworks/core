@@ -22,7 +22,7 @@ func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRe
 	switch accessType {
 	case models.AccessType__3_GPP_ACCESS:
 		registrationData := models.Amf3GppAccessRegistration{
-			AmfInstanceId:          amfSelf.NfId,
+			AmfInstanceId:          amfSelf.NfID,
 			InitialRegistrationInd: initialRegistrationInd,
 			Guami:                  &guamiList[0],
 			RatType:                ue.RatType,

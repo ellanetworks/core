@@ -18,7 +18,7 @@ const QueryCreateProfilesTable = `
 
 		name TEXT NOT NULL,
 
-		ueIpPool TEXT NOT NULL,
+		ipPool TEXT NOT NULL,
 		dns TEXT NOT NULL,
 		mtu INTEGER NOT NULL,
 		bitrateUplink TEXT NOT NULL,
@@ -31,16 +31,16 @@ const (
 	listProfilesStmt   = "SELECT &Profile.* from %s"
 	getProfileStmt     = "SELECT &Profile.* from %s WHERE name==$Profile.name"
 	getProfileByIDStmt = "SELECT &Profile.* FROM %s WHERE id==$Profile.id"
-	createProfileStmt  = "INSERT INTO %s (name, ueIpPool, dns, mtu, bitrateUplink, bitrateDownlink, var5qi, priorityLevel) VALUES ($Profile.name, $Profile.ueIpPool, $Profile.dns, $Profile.mtu, $Profile.bitrateUplink, $Profile.bitrateDownlink, $Profile.var5qi, $Profile.priorityLevel)"
-	editProfileStmt    = "UPDATE %s SET ueIpPool=$Profile.ueIpPool, dns=$Profile.dns, mtu=$Profile.mtu, bitrateUplink=$Profile.bitrateUplink, bitrateDownlink=$Profile.bitrateDownlink, var5qi=$Profile.var5qi, priorityLevel=$Profile.priorityLevel WHERE name==$Profile.name"
+	createProfileStmt  = "INSERT INTO %s (name, ipPool, dns, mtu, bitrateUplink, bitrateDownlink, var5qi, priorityLevel) VALUES ($Profile.name, $Profile.ipPool, $Profile.dns, $Profile.mtu, $Profile.bitrateUplink, $Profile.bitrateDownlink, $Profile.var5qi, $Profile.priorityLevel)"
+	editProfileStmt    = "UPDATE %s SET ipPool=$Profile.ipPool, dns=$Profile.dns, mtu=$Profile.mtu, bitrateUplink=$Profile.bitrateUplink, bitrateDownlink=$Profile.bitrateDownlink, var5qi=$Profile.var5qi, priorityLevel=$Profile.priorityLevel WHERE name==$Profile.name"
 	deleteProfileStmt  = "DELETE FROM %s WHERE name==$Profile.name"
 )
 
 type Profile struct {
 	ID              int    `db:"id"`
 	Name            string `db:"name"`
-	UeIpPool        string `db:"ueIpPool"`
-	Dns             string `db:"dns"`
+	IPPool          string `db:"ipPool"`
+	DNS             string `db:"dns"`
 	Mtu             int32  `db:"mtu"`
 	BitrateUplink   string `db:"bitrateUplink"`
 	BitrateDownlink string `db:"bitrateDownlink"`

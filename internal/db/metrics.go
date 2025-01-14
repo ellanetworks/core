@@ -24,7 +24,7 @@ func (db *Database) GetIPAddressesTotal() (int, error) {
 
 	var total int
 	for _, profile := range profiles {
-		ipPool := profile.UeIpPool
+		ipPool := profile.IPPool
 		_, ipNet, err := net.ParseCIDR(ipPool)
 		if err != nil {
 			return 0, fmt.Errorf("invalid IP pool format '%s': %v", ipPool, err)
@@ -50,7 +50,7 @@ func (db *Database) GetIPAddressesAllocated() (int, error) {
 
 	var allocatedCount int
 	for _, subscriber := range subscribers {
-		if subscriber.IpAddress != "" {
+		if subscriber.IPAddress != "" {
 			allocatedCount++
 		}
 	}

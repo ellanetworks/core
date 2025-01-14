@@ -14,7 +14,7 @@ import (
 // Network slice selection for PDU session
 // The function is executed when the IE, `slice-info-for-pdu-session`, is provided in query parameters
 func nsselectionForPduSession(param NsselectionQueryParameter, authorizedNetworkSliceInfo *models.AuthorizedNetworkSliceInfo, problemDetails *models.ProblemDetails) error {
-	if param.HomePlmnId != nil {
+	if param.HomePlmnID != nil {
 		// Check whether UE's Home PLMN is supported when UE is a roamer
 		authorizedNetworkSliceInfo.RejectedNssaiInPlmn = append(authorizedNetworkSliceInfo.RejectedNssaiInPlmn, *param.SliceInfoRequestForPduSession.SNssai)
 		return nil
@@ -26,7 +26,7 @@ func nsselectionForPduSession(param NsselectionQueryParameter, authorizedNetwork
 		return nil
 	}
 
-	if param.HomePlmnId != nil {
+	if param.HomePlmnID != nil {
 		if param.SliceInfoRequestForPduSession.RoamingIndication == models.RoamingIndication_NON_ROAMING {
 			problemDetail := "`home-plmn-id` is provided, which contradicts `roamingIndication`:'NON_ROAMING'"
 			*problemDetails = models.ProblemDetails{

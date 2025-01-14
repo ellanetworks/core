@@ -79,7 +79,7 @@ type AmfUe struct {
 	/* Used for AMF relocation */
 	TargetAmfUri string `json:"targetAmfUri,omitempty"`
 	/* Ue Identity*/
-	PlmnId              models.PlmnId `json:"plmnId,omitempty"`
+	PlmnId              models.PlmnId `json:"plmnID,omitempty"`
 	Suci                string        `json:"suci,omitempty"`
 	Supi                string        `json:"supi,omitempty"`
 	UnauthenticatedSupi bool          `json:"unauthenticatedSupi,omitempty"`
@@ -111,7 +111,6 @@ type AmfUe struct {
 	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData `json:"accessAndMobilitySubscriptionData,omitempty"`
 	/* contex abut ausf */
 	AusfGroupId                       string                      `json:"ausfGroupId,omitempty"`
-	AusfId                            string                      `json:"ausfId,omitempty"`
 	RoutingIndicator                  string                      `json:"routingIndicator,omitempty"`
 	AuthenticationCtx                 *models.UeAuthenticationCtx `json:"authenticationCtx,omitempty"`
 	AuthFailureCauseSynchFailureTimes int                         `json:"authFailureCauseSynchFailureTimes,omitempty"`
@@ -124,8 +123,6 @@ type AmfUe struct {
 	AmPolicyAssociation          *models.PolicyAssociation `json:"amPolicyAssociation,omitempty"`
 	RequestTriggerLocationChange bool                      `json:"requestTriggerLocationChange,omitempty"` // true if AmPolicyAssociation.Trigger contains RequestTrigger_LOC_CH
 	ConfigurationUpdateMessage   []byte                    `json:"configurationUpdateMessage,omitempty"`
-	/* UeContextForHandover*/
-	HandoverNotifyUri string `json:"handoverNotifyUri,omitempty"`
 	/* N1N2Message */
 	N1N2MessageIDGenerator          *idgenerator.IDGenerator `json:"n1n2MessageIDGenerator,omitempty"`
 	N1N2Message                     *N1N2Message             `json:"-"`
@@ -189,9 +186,9 @@ type AmfUe struct {
 	Non3gppDeregistrationTimerValue int `json:"non3gppDeregistrationTimerValue,omitempty"` // default 54 min
 
 	// AmfInstanceName and Ip
-	AmfInstanceName string        `json:"amfInstanceName,omitempty"`
-	AmfInstanceIp   string        `json:"amfInstanceIp,omitempty"`
-	EventChannel    *EventChannel `json:"-"`
+	AmfInstanceName string `json:"amfInstanceName,omitempty"`
+	// AmfInstanceIp   string        `json:"amfInstanceIp,omitempty"`
+	EventChannel *EventChannel `json:"-"`
 
 	NASLog      *zap.SugaredLogger `json:"-"`
 	GmmLog      *zap.SugaredLogger `json:"-"`
@@ -239,8 +236,8 @@ type SbiResponseMsg struct {
 
 type SbiMsg struct {
 	Msg         interface{}
-	UeContextId string
-	ReqUri      string
+	UeContextID string
+	ReqURI      string
 
 	Result chan SbiResponseMsg
 }
@@ -255,7 +252,7 @@ type AmfUeEventSubscription struct {
 type N1N2Message struct {
 	Request     models.N1N2MessageTransferRequest
 	Status      models.N1N2MessageTransferCause
-	ResourceUri string
+	ResourceURI string
 }
 
 type OnGoingProcedureWithPrio struct {
@@ -268,22 +265,22 @@ type UERadioCapabilityForPaging struct {
 	EUTRA string // OCTET string
 }
 
-// TS 38.413 9.3.1.100
+// InfoOnRecommendedCellsAndRanNodesForPaging TS 38.413 9.3.1.100
 type InfoOnRecommendedCellsAndRanNodesForPaging struct {
 	RecommendedCells    []RecommendedCell  // RecommendedCellsForPaging
 	RecommendedRanNodes []RecommendRanNode // RecommendedRanNodesForPaging
 }
 
-// TS 38.413 9.3.1.71
+// RecommendedCell TS 38.413 9.3.1.71
 type RecommendedCell struct {
 	NgRanCGI         NGRANCGI
 	TimeStayedInCell *int64
 }
 
-// TS 38.413 9.3.1.101
+// RecommendRanNode TS 38.413 9.3.1.101
 type RecommendRanNode struct {
 	Present         int32
-	GlobalRanNodeId *models.GlobalRanNodeId
+	GlobalRanNodeID *models.GlobalRanNodeId
 	Tai             *models.Tai
 }
 
@@ -312,7 +309,6 @@ func (ue *AmfUe) init() {
 	ue.OnGoing[models.AccessType__3_GPP_ACCESS].Procedure = OnGoingProcedureNothing
 	ue.ReleaseCause = make(map[models.AccessType]*CauseAll)
 	ue.AmfInstanceName = os.Getenv("HOSTNAME")
-	ue.AmfInstanceIp = os.Getenv("POD_IP")
 	// ue.TransientInfo = make(chan AmfUeTransientInfo, 10)
 }
 

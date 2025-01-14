@@ -57,7 +57,7 @@ func (bpfObjects *BpfObjects) PutPdrUplink(teid uint32, pdrInfo PdrInfo) error {
 			return err
 		}
 	} else {
-		pdrToStore = ToIpEntrypointPdrInfo(pdrInfo)
+		pdrToStore = ToIPEntrypointPdrInfo(pdrInfo)
 	}
 	return bpfObjects.PdrMapUplinkIp4.Put(teid, unsafe.Pointer(&pdrToStore))
 }
@@ -71,7 +71,7 @@ func (bpfObjects *BpfObjects) PutPdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) error
 			return err
 		}
 	} else {
-		pdrToStore = ToIpEntrypointPdrInfo(pdrInfo)
+		pdrToStore = ToIPEntrypointPdrInfo(pdrInfo)
 	}
 	return bpfObjects.PdrMapDownlinkIp4.Put(ipv4, unsafe.Pointer(&pdrToStore))
 }
@@ -85,7 +85,7 @@ func (bpfObjects *BpfObjects) UpdatePdrUplink(teid uint32, pdrInfo PdrInfo) erro
 			return err
 		}
 	} else {
-		pdrToStore = ToIpEntrypointPdrInfo(pdrInfo)
+		pdrToStore = ToIPEntrypointPdrInfo(pdrInfo)
 	}
 	return bpfObjects.PdrMapUplinkIp4.Update(teid, unsafe.Pointer(&pdrToStore), ebpf.UpdateExist)
 }
@@ -99,7 +99,7 @@ func (bpfObjects *BpfObjects) UpdatePdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) er
 			return err
 		}
 	} else {
-		pdrToStore = ToIpEntrypointPdrInfo(pdrInfo)
+		pdrToStore = ToIPEntrypointPdrInfo(pdrInfo)
 	}
 	return bpfObjects.PdrMapDownlinkIp4.Update(ipv4, unsafe.Pointer(&pdrToStore), ebpf.UpdateExist)
 }
@@ -114,7 +114,7 @@ func (bpfObjects *BpfObjects) DeletePdrDownlink(ipv4 net.IP) error {
 	return bpfObjects.PdrMapDownlinkIp4.Delete(ipv4)
 }
 
-func (bpfObjects *BpfObjects) PutDownlinkPdrIp6(ipv6 net.IP, pdrInfo PdrInfo) error {
+func (bpfObjects *BpfObjects) PutDownlinkPdrIP6(ipv6 net.IP, pdrInfo PdrInfo) error {
 	logger.UpfLog.Debugf("EBPF: Put PDR Ipv6 Downlink: ipv6=%s, pdrInfo=%+v", ipv6, pdrInfo)
 	var pdrToStore IpEntrypointPdrInfo
 	var err error
@@ -123,12 +123,12 @@ func (bpfObjects *BpfObjects) PutDownlinkPdrIp6(ipv6 net.IP, pdrInfo PdrInfo) er
 			return err
 		}
 	} else {
-		pdrToStore = ToIpEntrypointPdrInfo(pdrInfo)
+		pdrToStore = ToIPEntrypointPdrInfo(pdrInfo)
 	}
 	return bpfObjects.PdrMapDownlinkIp6.Put(ipv6, unsafe.Pointer(&pdrToStore))
 }
 
-func (bpfObjects *BpfObjects) UpdateDownlinkPdrIp6(ipv6 net.IP, pdrInfo PdrInfo) error {
+func (bpfObjects *BpfObjects) UpdateDownlinkPdrIP6(ipv6 net.IP, pdrInfo PdrInfo) error {
 	logger.UpfLog.Debugf("EBPF: Update PDR Ipv6 Downlink: ipv6=%s, pdrInfo=%+v", ipv6, pdrInfo)
 	var pdrToStore IpEntrypointPdrInfo
 	var err error
@@ -137,12 +137,12 @@ func (bpfObjects *BpfObjects) UpdateDownlinkPdrIp6(ipv6 net.IP, pdrInfo PdrInfo)
 			return err
 		}
 	} else {
-		pdrToStore = ToIpEntrypointPdrInfo(pdrInfo)
+		pdrToStore = ToIPEntrypointPdrInfo(pdrInfo)
 	}
 	return bpfObjects.PdrMapDownlinkIp6.Update(ipv6, unsafe.Pointer(&pdrToStore), ebpf.UpdateExist)
 }
 
-func (bpfObjects *BpfObjects) DeleteDownlinkPdrIp6(ipv6 net.IP) error {
+func (bpfObjects *BpfObjects) DeleteDownlinkPdrIP6(ipv6 net.IP) error {
 	logger.UpfLog.Debugf("EBPF: Delete PDR Ipv6 Downlink: ipv6=%s", ipv6)
 	return bpfObjects.PdrMapDownlinkIp6.Delete(ipv6)
 }
@@ -173,17 +173,17 @@ func (f FarInfo) MarshalJSON() ([]byte, error) {
 }
 
 func (bpfObjects *BpfObjects) NewFar(farInfo FarInfo) (uint32, error) {
-	internalId, err := bpfObjects.FarIdTracker.GetNext()
+	internalID, err := bpfObjects.FarIdTracker.GetNext()
 	if err != nil {
 		return 0, err
 	}
-	logger.UpfLog.Debugf("EBPF: Put FAR: internalId=%d, qerInfo=%+v", internalId, farInfo)
-	return internalId, bpfObjects.FarMap.Put(internalId, unsafe.Pointer(&farInfo))
+	logger.UpfLog.Debugf("EBPF: Put FAR: internalID=%d, qerInfo=%+v", internalID, farInfo)
+	return internalID, bpfObjects.FarMap.Put(internalID, unsafe.Pointer(&farInfo))
 }
 
-func (bpfObjects *BpfObjects) UpdateFar(internalId uint32, farInfo FarInfo) error {
-	logger.UpfLog.Debugf("EBPF: Update FAR: internalId=%d, farInfo=%+v", internalId, farInfo)
-	return bpfObjects.FarMap.Update(internalId, unsafe.Pointer(&farInfo), ebpf.UpdateExist)
+func (bpfObjects *BpfObjects) UpdateFar(internalID uint32, farInfo FarInfo) error {
+	logger.UpfLog.Debugf("EBPF: Update FAR: internalID=%d, farInfo=%+v", internalID, farInfo)
+	return bpfObjects.FarMap.Update(internalID, unsafe.Pointer(&farInfo), ebpf.UpdateExist)
 }
 
 func (bpfObjects *BpfObjects) DeleteFar(intenalId uint32) error {
@@ -203,23 +203,23 @@ type QerInfo struct {
 }
 
 func (bpfObjects *BpfObjects) NewQer(qerInfo QerInfo) (uint32, error) {
-	internalId, err := bpfObjects.QerIdTracker.GetNext()
+	internalID, err := bpfObjects.QerIdTracker.GetNext()
 	if err != nil {
 		return 0, err
 	}
-	logger.UpfLog.Debugf("EBPF: Put QER: internalId=%d, qerInfo=%+v", internalId, qerInfo)
-	return internalId, bpfObjects.QerMap.Put(internalId, unsafe.Pointer(&qerInfo))
+	logger.UpfLog.Debugf("EBPF: Put QER: internalID=%d, qerInfo=%+v", internalID, qerInfo)
+	return internalID, bpfObjects.QerMap.Put(internalID, unsafe.Pointer(&qerInfo))
 }
 
-func (bpfObjects *BpfObjects) UpdateQer(internalId uint32, qerInfo QerInfo) error {
-	logger.UpfLog.Debugf("EBPF: Update QER: internalId=%d, qerInfo=%+v", internalId, qerInfo)
-	return bpfObjects.QerMap.Update(internalId, unsafe.Pointer(&qerInfo), ebpf.UpdateExist)
+func (bpfObjects *BpfObjects) UpdateQer(internalID uint32, qerInfo QerInfo) error {
+	logger.UpfLog.Debugf("EBPF: Update QER: internalID=%d, qerInfo=%+v", internalID, qerInfo)
+	return bpfObjects.QerMap.Update(internalID, unsafe.Pointer(&qerInfo), ebpf.UpdateExist)
 }
 
-func (bpfObjects *BpfObjects) DeleteQer(internalId uint32) error {
-	logger.UpfLog.Debugf("EBPF: Delete QER: internalId=%d", internalId)
-	bpfObjects.QerIdTracker.Release(internalId)
-	return bpfObjects.QerMap.Update(internalId, unsafe.Pointer(&QerInfo{}), ebpf.UpdateExist)
+func (bpfObjects *BpfObjects) DeleteQer(internalID uint32) error {
+	logger.UpfLog.Debugf("EBPF: Delete QER: internalID=%d", internalID)
+	bpfObjects.QerIdTracker.Release(internalID)
+	return bpfObjects.QerMap.Update(internalID, unsafe.Pointer(&QerInfo{}), ebpf.UpdateExist)
 }
 
 type ForwardingPlaneController interface {
@@ -229,15 +229,15 @@ type ForwardingPlaneController interface {
 	UpdatePdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) error
 	DeletePdrUplink(teid uint32) error
 	DeletePdrDownlink(ipv4 net.IP) error
-	PutDownlinkPdrIp6(ipv6 net.IP, pdrInfo PdrInfo) error
-	UpdateDownlinkPdrIp6(ipv6 net.IP, pdrInfo PdrInfo) error
-	DeleteDownlinkPdrIp6(ipv6 net.IP) error
+	PutDownlinkPdrIP6(ipv6 net.IP, pdrInfo PdrInfo) error
+	UpdateDownlinkPdrIP6(ipv6 net.IP, pdrInfo PdrInfo) error
+	DeleteDownlinkPdrIP6(ipv6 net.IP) error
 	NewFar(farInfo FarInfo) (uint32, error)
-	UpdateFar(internalId uint32, farInfo FarInfo) error
-	DeleteFar(internalId uint32) error
+	UpdateFar(internalID uint32, farInfo FarInfo) error
+	DeleteFar(internalID uint32) error
 	NewQer(qerInfo QerInfo) (uint32, error)
-	UpdateQer(internalId uint32, qerInfo QerInfo) error
-	DeleteQer(internalId uint32) error
+	UpdateQer(internalID uint32, qerInfo QerInfo) error
+	DeleteQer(internalID uint32) error
 }
 
 func CombinePdrWithSdf(defaultPdr *IpEntrypointPdrInfo, sdfPdr PdrInfo) IpEntrypointPdrInfo {
@@ -270,7 +270,7 @@ func CombinePdrWithSdf(defaultPdr *IpEntrypointPdrInfo, sdfPdr PdrInfo) IpEntryp
 	return pdrToStore
 }
 
-func ToIpEntrypointPdrInfo(defaultPdr PdrInfo) IpEntrypointPdrInfo {
+func ToIPEntrypointPdrInfo(defaultPdr PdrInfo) IpEntrypointPdrInfo {
 	var pdrToStore IpEntrypointPdrInfo
 	pdrToStore.OuterHeaderRemoval = defaultPdr.OuterHeaderRemoval
 	pdrToStore.FarId = defaultPdr.FarId

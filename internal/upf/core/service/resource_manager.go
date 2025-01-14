@@ -64,19 +64,19 @@ func (ipam *IPAM) AllocateIP(key uint64) (net.IP, error) {
 	}
 }
 
-func (ipam *FTEIDM) AllocateTEID(seID uint64, pdrID uint32) (uint32, error) {
-	ipam.Lock()
-	defer ipam.Unlock()
+func (fteidm *FTEIDM) AllocateTEID(seID uint64, pdrID uint32) (uint32, error) {
+	fteidm.Lock()
+	defer fteidm.Unlock()
 
-	if len(ipam.freeTEIDs) > 0 {
-		teid := ipam.freeTEIDs[0]
-		ipam.freeTEIDs = ipam.freeTEIDs[1:]
-		if _, ok := ipam.busyTEIDs[seID]; !ok {
+	if len(fteidm.freeTEIDs) > 0 {
+		teid := fteidm.freeTEIDs[0]
+		fteidm.freeTEIDs = fteidm.freeTEIDs[1:]
+		if _, ok := fteidm.busyTEIDs[seID]; !ok {
 			pdr := make(map[uint32]uint32)
 			pdr[pdrID] = teid
-			ipam.busyTEIDs[seID] = pdr
+			fteidm.busyTEIDs[seID] = pdr
 		} else {
-			ipam.busyTEIDs[seID][pdrID] = teid
+			fteidm.busyTEIDs[seID][pdrID] = teid
 		}
 		return teid, nil
 	} else {

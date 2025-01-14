@@ -44,7 +44,7 @@ const (
 type Subscriber struct {
 	ID             int    `db:"id"`
 	Imsi           string `db:"imsi"`
-	IpAddress      string `db:"ipAddress"`
+	IPAddress      string `db:"ipAddress"`
 	SequenceNumber string `db:"sequenceNumber"`
 	PermanentKey   string `db:"permanentKey"`
 	Opc            string `db:"opc"`
@@ -137,7 +137,7 @@ func (db *Database) AllocateIP(imsi string) (net.IP, error) {
 		return nil, fmt.Errorf("failed to get profile for subscriber %s: %v", imsi, err)
 	}
 
-	_, ipNet, err := net.ParseCIDR(profile.UeIpPool)
+	_, ipNet, err := net.ParseCIDR(profile.IPPool)
 	if err != nil {
 		return nil, fmt.Errorf("invalid IP pool in profile %s: %v", profile.Name, err)
 	}
@@ -155,10 +155,10 @@ func (db *Database) AllocateIP(imsi string) (net.IP, error) {
 			return nil, fmt.Errorf("failed to prepare IP check statement: %v", err)
 		}
 		var existing Subscriber
-		err = db.conn.Query(context.Background(), stmt, Subscriber{IpAddress: ipStr}).Get(&existing)
+		err = db.conn.Query(context.Background(), stmt, Subscriber{IPAddress: ipStr}).Get(&existing)
 		if err == sql.ErrNoRows {
 			// IP is not allocated, assign it to the subscriber
-			subscriber.IpAddress = ipStr
+			subscriber.IPAddress = ipStr
 			stmt, err := sqlair.Prepare(fmt.Sprintf(allocateIPStmt, SubscribersTableName), Subscriber{})
 			if err != nil {
 				return nil, fmt.Errorf("failed to prepare IP allocation statement: %v", err)
@@ -182,7 +182,7 @@ func (db *Database) ReleaseIP(imsi string) error {
 		return fmt.Errorf("failed to get subscriber: %v", err)
 	}
 
-	if subscriber.IpAddress == "" {
+	if subscriber.IPAddress == "" {
 		return nil
 	}
 

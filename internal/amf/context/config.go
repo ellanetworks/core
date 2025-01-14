@@ -17,7 +17,7 @@ func ListAmfRan() []AmfRan {
 func GetSupportTaiList() []models.Tai {
 	amfSelf := AMF_Self()
 	tais := make([]models.Tai, 0)
-	dbNetwork, err := amfSelf.DbInstance.GetOperator()
+	dbNetwork, err := amfSelf.DBInstance.GetOperator()
 	if err != nil {
 		logger.AmfLog.Warnf("Failed to get operator: %s", err)
 		return tais
@@ -40,7 +40,7 @@ func GetSupportTaiList() []models.Tai {
 func GetServedGuamiList() []models.Guami {
 	amfSelf := AMF_Self()
 	guamis := make([]models.Guami, 0)
-	dbNetwork, err := amfSelf.DbInstance.GetOperator()
+	dbNetwork, err := amfSelf.DBInstance.GetOperator()
 	if err != nil {
 		logger.AmfLog.Warnf("Failed to get operator: %s", err)
 		return guamis
@@ -60,13 +60,13 @@ func GetServedGuamiList() []models.Guami {
 func GetPlmnSupportList() []PlmnSupportItem {
 	amfSelf := AMF_Self()
 	plmnSupportList := make([]PlmnSupportItem, 0)
-	dbNetwork, err := amfSelf.DbInstance.GetOperator()
+	dbNetwork, err := amfSelf.DBInstance.GetOperator()
 	if err != nil {
 		logger.AmfLog.Warnf("Failed to get operator: %s", err)
 		return plmnSupportList
 	}
 	plmnSupportItem := PlmnSupportItem{
-		PlmnId: models.PlmnId{
+		PlmnID: models.PlmnId{
 			Mcc: dbNetwork.Mcc,
 			Mnc: dbNetwork.Mnc,
 		},

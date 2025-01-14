@@ -15,30 +15,24 @@ import (
 )
 
 type UeContext struct {
-	SmPolicyData                map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionId) as key
-	AfRoutReq                   *models.AfRoutingRequirement
-	AspId                       string
-	PolicyDataSubscriptionStore *models.PolicyDataSubscription
-	PolicyDataChangeStore       *models.PolicyDataChangeNotification
-	Supi                        string
-	Gpsi                        string
-	Pei                         string
-	AMPolicyData                map[string]*UeAMPolicyData // use PolAssoId(ue.Supi-numPolId) as key
-	GroupIds                    []string
-	PolAssociationIDGenerator   uint32
+	SmPolicyData              map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionID) as key
+	Supi                      string
+	Gpsi                      string
+	Pei                       string
+	AMPolicyData              map[string]*UeAMPolicyData // use PolAssoID(ue.Supi-numPolId) as key
+	GroupIds                  []string
+	PolAssociationIDGenerator uint32
 }
 
 type UeAMPolicyData struct {
-	PolAssoId         string
+	PolAssoID         string
 	AccessType        models.AccessType
 	NotificationUri   string
 	ServingPlmn       *models.NetworkId
 	AltNotifIpv4Addrs []string
 	AltNotifIpv6Addrs []string
-	AmfStatusUri      string
 	Guami             *models.Guami
 	ServiveName       string
-	// TraceReq *TraceData
 	// about AF request
 	Pras map[string]models.PresenceInfo
 	// related to UDR Subscription Data
@@ -55,17 +49,13 @@ type UeAMPolicyData struct {
 }
 
 type UeSmPolicyData struct {
-	PackFiltMapToPccRuleId map[string]string // use PackFiltId as Key
-	RemainGbrUL            *float64
-	RemainGbrDL            *float64
-	SmPolicyData           *models.SmPolicyData // Svbscription Data
-	PolicyContext          *models.SmPolicyContextData
-	PolicyDecision         *models.SmPolicyDecision
-	AppSessions            map[string]bool // related appSessionId
-	PcfUe                  *UeContext
-	PackFiltIdGenarator    int32
-	PccRuleIdGenarator     int32
-	ChargingIdGenarator    int32
+	RemainGbrUL    *float64
+	RemainGbrDL    *float64
+	SmPolicyData   *models.SmPolicyData // Svbscription Data
+	PolicyContext  *models.SmPolicyContextData
+	PolicyDecision *models.SmPolicyDecision
+	AppSessions    map[string]bool // related appSessionId
+	PcfUe          *UeContext
 }
 
 func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociationRequest) *UeAMPolicyData {
@@ -73,7 +63,7 @@ func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociat
 	ue.Pei = req.Pei
 	ue.GroupIds = req.GroupIds
 	ue.AMPolicyData[assolId] = &UeAMPolicyData{
-		PolAssoId:         assolId,
+		PolAssoID:         assolId,
 		ServAreaRes:       req.ServAreaRes,
 		AltNotifIpv4Addrs: req.AltNotifIpv4Addrs,
 		AltNotifIpv6Addrs: req.AltNotifIpv6Addrs,
@@ -101,23 +91,19 @@ func (ue *UeContext) NewUeSmPolicyData(
 	data := UeSmPolicyData{}
 	data.PolicyContext = &request
 	data.SmPolicyData = smData
-	data.PackFiltIdGenarator = 1
-	data.PackFiltMapToPccRuleId = make(map[string]string)
 	data.AppSessions = make(map[string]bool)
-	data.PccRuleIdGenarator = 1
-	data.ChargingIdGenarator = 1
 	data.PcfUe = ue
 	ue.SmPolicyData[key] = &data
 	return &data
 }
 
-// returns AM Policy which AccessType and plmnId match
-func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
-	if ue == nil || plmnId == nil {
+// returns AM Policy which AccessType and plmnID match
+func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnID *models.NetworkId) *UeAMPolicyData {
+	if ue == nil || plmnID == nil {
 		return nil
 	}
 	for _, amPolicy := range ue.AMPolicyData {
-		if amPolicy.AccessType == anType && reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnId) {
+		if amPolicy.AccessType == anType && reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnID) {
 			return amPolicy
 		}
 	}

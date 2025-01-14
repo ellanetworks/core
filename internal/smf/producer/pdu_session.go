@@ -96,11 +96,11 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	}
 
 	// IP Allocation
-	smfSelf := context.SMF_Self()
-	if ip, err := smfSelf.DbInstance.AllocateIP(smContext.Supi); err != nil {
+	smfSelf := context.SMFSelf()
+	if ip, err := smfSelf.DBInstance.AllocateIP(smContext.Supi); err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, failed allocate IP address: ", err)
-		response := smContext.GeneratePDUSessionEstablishmentReject("IpAllocError")
-		return response, fmt.Errorf("IpAllocError")
+		response := smContext.GeneratePDUSessionEstablishmentReject("IPAllocError")
+		return response, fmt.Errorf("IPAllocError")
 	} else {
 		smContext.PDUAddress = &context.UeIpAddr{Ip: ip, UpfProvided: false}
 		smContext.SubPduSessLog.Infof("Successful IP Allocation: %s",

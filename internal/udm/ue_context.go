@@ -25,18 +25,16 @@ type UdmUeContext struct {
 	SmSubsDataLock            sync.RWMutex
 }
 
-func (ue *UdmUeContext) init() {
-	ue.SubscribeToNotifChange = make(map[string]*models.SdmSubscription)
+func (udmUeContext *UdmUeContext) init() {
+	udmUeContext.SubscribeToNotifChange = make(map[string]*models.SdmSubscription)
 }
 
-// functions related to sdmSubscription (subscribe to notification of data change)
 func (udmUeContext *UdmUeContext) CreateSubscriptiontoNotifChange(subscriptionID string, body *models.SdmSubscription) {
 	if _, exist := udmUeContext.SubscribeToNotifChange[subscriptionID]; !exist {
 		udmUeContext.SubscribeToNotifChange[subscriptionID] = body
 	}
 }
 
-// SetSmfSelectionSubsData ... functions to set SmfSelectionSubscriptionData
 func (udmUeContext *UdmUeContext) SetSmfSelectionSubsData(smfSelSubsData *models.SmfSelectionSubscriptionData) {
 	udmUeContext.smfSelSubsDataLock.Lock()
 	defer udmUeContext.smfSelSubsDataLock.Unlock()

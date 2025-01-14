@@ -4,7 +4,6 @@ package smf
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/metrics"
@@ -15,12 +14,11 @@ func Start(dbInstance *db.Database) error {
 	if dbInstance == nil {
 		return fmt.Errorf("dbInstance is nil")
 	}
-	smfContext := context.SMF_Self()
-	smfContext.Name = "SMF"
+	smfContext := context.SMFSelf()
 
-	nodeId := context.NewNodeID("0.0.0.0")
+	nodeID := context.NewNodeID("0.0.0.0")
 
-	smfContext.CPNodeID = *nodeId
+	smfContext.CPNodeID = *nodeID
 
 	smfContext.SupportedPDUSessionType = context.IPV4
 
@@ -32,8 +30,7 @@ func Start(dbInstance *db.Database) error {
 		DefaultUserPlanePath: make(map[string][]*context.UPNode),
 	}
 
-	smfContext.PodIp = os.Getenv("POD_IP")
-	smfContext.DbInstance = dbInstance
+	smfContext.DBInstance = dbInstance
 	context.UpdateUserPlaneInformation()
 	metrics.RegisterSmfMetrics()
 	return nil

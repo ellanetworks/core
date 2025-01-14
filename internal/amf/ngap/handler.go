@@ -567,8 +567,8 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			supportedTAI := context.NewSupportedTAI()
 			supportedTAI.Tai.Tac = tac
 			broadcastPLMNItem := supportedTAItem.BroadcastPLMNList.List[j]
-			plmnId := ngapConvert.PlmnIdToModels(broadcastPLMNItem.PLMNIdentity)
-			supportedTAI.Tai.PlmnId = &plmnId
+			plmnID := ngapConvert.PlmnIdToModels(broadcastPLMNItem.PLMNIdentity)
+			supportedTAI.Tai.PlmnId = &plmnID
 			capOfSNssaiList := cap(supportedTAI.SNssaiList)
 			for k := 0; k < len(broadcastPLMNItem.TAISliceSupportList.List); k++ {
 				tAISliceSupportItem := broadcastPLMNItem.TAISliceSupportList.List[k]
@@ -578,7 +578,7 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 					break
 				}
 			}
-			ran.Log.Debugf("PLMN_ID[MCC:%s MNC:%s] TAC[%s]", plmnId.Mcc, plmnId.Mnc, tac)
+			ran.Log.Debugf("PLMN_ID[MCC:%s MNC:%s] TAC[%s]", plmnID.Mcc, plmnID.Mnc, tac)
 			if len(ran.SupportedTAList) < capOfSupportTai {
 				ran.SupportedTAList = append(ran.SupportedTAList, supportedTAI)
 			} else {
@@ -994,7 +994,7 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 			switch item.AMFPagingTarget.Present {
 			case ngapType.AMFPagingTargetPresentGlobalRANNodeID:
 				recommendedRanNode.Present = context.RecommendRanNodePresentRanNode
-				recommendedRanNode.GlobalRanNodeId = new(models.GlobalRanNodeId)
+				recommendedRanNode.GlobalRanNodeID = new(models.GlobalRanNodeId)
 			case ngapType.AMFPagingTargetPresentTAI:
 				recommendedRanNode.Present = context.RecommendRanNodePresentTAI
 				tai := ngapConvert.TaiToModels(*item.AMFPagingTarget.TAI)
@@ -1641,10 +1641,10 @@ func BuildAndSendN1N2Msg(ranUe *context.RanUe, n1Msg, n2Info []byte, N2SmInfoTyp
 			ranUe.Log.Debugln("AMF Transfer NGAP PDU Session Resource Rel Co from SMF")
 			var nasPdu []byte
 			if n1Msg != nil {
-				pduSessionId := uint8(pduSessId)
+				pduSessionID := uint8(pduSessId)
 				var err error
 				nasPdu, err = gmm_message.BuildDLNASTransport(
-					amfUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionId, nil, nil, 0)
+					amfUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil, nil, 0)
 				if err != nil {
 					ranUe.Log.Warnf("GMM Message build DL NAS Transport filaed: %v", err)
 				}
@@ -1886,8 +1886,8 @@ func HandlePDUSessionResourceNotify(ran *context.AmfRan, message *ngapType.NGAPP
 					ranUe.Log.Debugln("AMF Transfer NGAP PDU Resource Modify Req from SMF")
 					var nasPdu []byte
 					if n1Msg != nil {
-						pduSessionId := uint8(pduSessionID)
-						nasPdu, err = gmm_message.BuildDLNASTransport(amfUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionId, nil, nil, 0)
+						pduSessionID := uint8(pduSessionID)
+						nasPdu, err = gmm_message.BuildDLNASTransport(amfUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil, nil, 0)
 						if err != nil {
 							ranUe.Log.Warnf("GMM Message build DL NAS Transport filaed: %v", err)
 						}
@@ -1900,7 +1900,7 @@ func HandlePDUSessionResourceNotify(ran *context.AmfRan, message *ngapType.NGAPP
 		} else if errResponse != nil {
 			errJSON := errResponse.JsonData
 			n1Msg := errResponse.BinaryDataN2SmInformation
-			ranUe.Log.Warnf("PDU Session Modification is rejected by SMF[pduSessionId:%d], Error[%s]\n",
+			ranUe.Log.Warnf("PDU Session Modification is rejected by SMF[pduSessionID:%d], Error[%s]\n",
 				pduSessionID, errJSON.Error.Cause)
 			if n1Msg != nil {
 				gmm_message.SendDLNASTransport(
@@ -1936,7 +1936,7 @@ func HandlePDUSessionResourceNotify(ran *context.AmfRan, message *ngapType.NGAPP
 			} else if errResponse != nil {
 				errJSON := errResponse.JsonData
 				n1Msg := errResponse.BinaryDataN2SmInformation
-				ranUe.Log.Warnf("PDU Session Release is rejected by SMF[pduSessionId:%d], Error[%s]\n",
+				ranUe.Log.Warnf("PDU Session Release is rejected by SMF[pduSessionID:%d], Error[%s]\n",
 					pduSessionID, errJSON.Error.Cause)
 				if n1Msg != nil {
 					gmm_message.SendDLNASTransport(
@@ -3118,8 +3118,8 @@ func HandleHandoverRequestAcknowledge(ran *context.AmfRan, message *ngapType.NGA
 		for _, item := range pDUSessionResourceAdmittedList.List {
 			pduSessionID := item.PDUSessionID.Value
 			transfer := item.HandoverRequestAcknowledgeTransfer
-			pduSessionId := int32(pduSessionID)
-			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionId); exist {
+			pduSessionIDInt32 := int32(pduSessionID)
+			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDInt32); exist {
 				response, errResponse, problemDetails, err := consumer.SendUpdateSmContextN2HandoverPrepared(amfUe,
 					smContext, models.N2SmInfoType_HANDOVER_REQ_ACK, transfer)
 				if err != nil {
@@ -3133,7 +3133,7 @@ func HandleHandoverRequestAcknowledge(ran *context.AmfRan, message *ngapType.NGA
 					handoverItem.PDUSessionID = item.PDUSessionID
 					handoverItem.HandoverCommandTransfer = response.BinaryDataN2SmInformation
 					pduSessionResourceHandoverList.List = append(pduSessionResourceHandoverList.List, handoverItem)
-					targetUe.SuccessPduSessionId = append(targetUe.SuccessPduSessionId, pduSessionId)
+					targetUe.SuccessPduSessionId = append(targetUe.SuccessPduSessionId, pduSessionIDInt32)
 				}
 				if errResponse != nil && errResponse.BinaryDataN2SmInformation != nil {
 					releaseItem := ngapType.PDUSessionResourceToReleaseItemHOCmd{}
@@ -3149,8 +3149,8 @@ func HandleHandoverRequestAcknowledge(ran *context.AmfRan, message *ngapType.NGA
 		for _, item := range pDUSessionResourceFailedToSetupListHOAck.List {
 			pduSessionID := item.PDUSessionID.Value
 			transfer := item.HandoverResourceAllocationUnsuccessfulTransfer
-			pduSessionId := int32(pduSessionID)
-			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionId); exist {
+			pduSessionIDInt32 := int32(pduSessionID)
+			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDInt32); exist {
 				_, _, problemDetails, err := consumer.SendUpdateSmContextN2HandoverPrepared(amfUe, smContext,
 					models.N2SmInfoType_HANDOVER_RES_ALLOC_FAIL, transfer)
 				if err != nil {
@@ -3434,18 +3434,18 @@ func HandleHandoverRequired(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		}
 		var pduSessionReqList ngapType.PDUSessionResourceSetupListHOReq
 		for _, pDUSessionResourceHoItem := range pDUSessionResourceListHORqd.List {
-			pduSessionId := int32(pDUSessionResourceHoItem.PDUSessionID.Value)
-			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionId); exist {
+			pduSessionID := int32(pDUSessionResourceHoItem.PDUSessionID.Value)
+			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionID); exist {
 				response, _, _, err := consumer.SendUpdateSmContextN2HandoverPreparing(amfUe, smContext,
 					models.N2SmInfoType_HANDOVER_REQUIRED, pDUSessionResourceHoItem.HandoverRequiredTransfer, "", &targetId)
 				if err != nil {
 					sourceUe.Log.Errorf("consumer.SendUpdateSmContextN2HandoverPreparing Error: %+v", err)
 				}
 				if response == nil {
-					sourceUe.Log.Errorf("SendUpdateSmContextN2HandoverPreparing Error for PduSessionId[%d]", pduSessionId)
+					sourceUe.Log.Errorf("SendUpdateSmContextN2HandoverPreparing Error for PduSessionId[%d]", pduSessionID)
 					continue
 				} else if response.BinaryDataN2SmInformation != nil {
-					ngap_message.AppendPDUSessionResourceSetupListHOReq(&pduSessionReqList, pduSessionId,
+					ngap_message.AppendPDUSessionResourceSetupListHOReq(&pduSessionReqList, pduSessionID,
 						smContext.Snssai(), response.BinaryDataN2SmInformation)
 				}
 			}
@@ -3770,8 +3770,8 @@ func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU
 			supportedTAI := context.NewSupportedTAI()
 			supportedTAI.Tai.Tac = tac
 			broadcastPLMNItem := supportedTAItem.BroadcastPLMNList.List[j]
-			plmnId := ngapConvert.PlmnIdToModels(broadcastPLMNItem.PLMNIdentity)
-			supportedTAI.Tai.PlmnId = &plmnId
+			plmnID := ngapConvert.PlmnIdToModels(broadcastPLMNItem.PLMNIdentity)
+			supportedTAI.Tai.PlmnId = &plmnID
 			capOfSNssaiList := cap(supportedTAI.SNssaiList)
 			for k := 0; k < len(broadcastPLMNItem.TAISliceSupportList.List); k++ {
 				tAISliceSupportItem := broadcastPLMNItem.TAISliceSupportList.List[k]
@@ -3781,7 +3781,7 @@ func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU
 					break
 				}
 			}
-			ran.Log.Debugf("PLMN_ID[MCC:%s MNC:%s] TAC[%s]", plmnId.Mcc, plmnId.Mnc, tac)
+			ran.Log.Debugf("PLMN_ID[MCC:%s MNC:%s] TAC[%s]", plmnID.Mcc, plmnID.Mnc, tac)
 			if len(ran.SupportedTAList) < capOfSupportTai {
 				ran.SupportedTAList = append(ran.SupportedTAList, supportedTAI)
 			} else {

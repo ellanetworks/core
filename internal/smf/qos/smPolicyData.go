@@ -28,7 +28,7 @@ type SmCtxtPolicyData struct {
 	SmCtxtSessionRules SmCtxtSessionRulesInfo
 }
 
-// maintain all session rule-info and current active sess rule
+// SmCtxtSessionRulesInfo maintains all session rule-info and current active sess rule
 type SmCtxtSessionRulesInfo struct {
 	ActiveRule     *models.SessionRule
 	SessionRules   map[string]*models.SessionRule

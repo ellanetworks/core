@@ -149,7 +149,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	t.Run("1. Create profile", func(t *testing.T) {
 		createProfileParams := &CreateProfileParams{
 			Name:            ProfileName,
-			UeIpPool:        "0.0.0.0/24",
+			IPPool:          "0.0.0.0/24",
 			Dns:             "8.8.8.8",
 			Mtu:             1500,
 			BitrateUplink:   "100 Mbps",

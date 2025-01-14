@@ -39,7 +39,7 @@ func (tx *EventChannel) Start() {
 			case NgapMsg:
 				tx.NgapHandler(tx.AmfUe, msg)
 			case SbiMsg:
-				p_1, p_2, p_3, p_4 := tx.SbiHandler(msg.UeContextId, msg.ReqUri, msg.Msg)
+				p_1, p_2, p_3, p_4 := tx.SbiHandler(msg.UeContextID, msg.ReqURI, msg.Msg)
 				res := SbiResponseMsg{
 					RespData:       p_1,
 					LocationHeader: p_2,

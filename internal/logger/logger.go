@@ -30,7 +30,7 @@ var (
 
 const (
 	FieldRanAddr     string = "ran_addr"
-	FieldRanId       string = "ran_id"
+	FieldRanID       string = "ran_id"
 	FieldAmfUeNgapID string = "amf_ue_ngap_id"
 	FieldSupi        string = "supi"
 	FieldSuci        string = "suci"
@@ -86,7 +86,6 @@ func GetLogger() *zap.Logger {
 	return log
 }
 
-// SetLogLevel: set the log level (panic|fatal|error|warn|info|debug)
 func SetLogLevel(level zapcore.Level) {
 	EllaLog.Infoln("set log level:", level)
 	atomicLevel.SetLevel(level)

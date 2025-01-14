@@ -22,7 +22,7 @@ export const getOperator = async (authToken: string) => {
   return respData.result;
 };
 
-export const updateOperatorId = async (authToken: string, mcc: string, mnc: string) => {
+export const updateOperatorID = async (authToken: string, mcc: string, mnc: string) => {
   const getResponse = await fetch(`/api/v1/operator`, {
     method: "GET",
     headers: {
@@ -34,16 +34,16 @@ export const updateOperatorId = async (authToken: string, mcc: string, mnc: stri
   if (!getResponse.ok) {
     throw new Error(`${getResponse.status}: ${HTTPStatus(getResponse.status)}. ${getRespData.error}`)
   }
-  const operatorIdData = getRespData.result
-  operatorIdData.mcc = mcc
-  operatorIdData.mnc = mnc
+  const OperatorIDData = getRespData.result
+  OperatorIDData.mcc = mcc
+  OperatorIDData.mnc = mnc
   const response = await fetch(`/api/v1/operator`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
       "Authorization": "Bearer " + authToken
     },
-    body: JSON.stringify(operatorIdData),
+    body: JSON.stringify(OperatorIDData),
   });
   let respData;
   try {
@@ -71,15 +71,15 @@ export const updateSupportedTacs = async (authToken: string, supportedTacs: stri
   if (!getResponse.ok) {
     throw new Error(`${getResponse.status}: ${HTTPStatus(getResponse.status)}. ${getRespData.error}`)
   }
-  const operatorIdData = getRespData.result
-  operatorIdData.supportedTacs = supportedTacs
+  const OperatorIDData = getRespData.result
+  OperatorIDData.supportedTacs = supportedTacs
   const response = await fetch(`/api/v1/operator`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
       "Authorization": "Bearer " + authToken
     },
-    body: JSON.stringify(operatorIdData),
+    body: JSON.stringify(OperatorIDData),
   });
   let respData;
   try {

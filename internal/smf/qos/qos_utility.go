@@ -14,7 +14,7 @@ import (
 
 func (obj *IPFilterRule) String() string {
 	return fmt.Sprintf("IPFilter content: ProtocolId:[%v], Source:[Ip:[%v], Mask:[%v], Port:[%v] Port-range [%v-%v]],Destination [Ip [%v], Mask [%v], Port [%v], Port-range [%v-%v]]",
-		obj.protoId, obj.sAddrv4.addr, obj.sAddrv4.mask, obj.sPort, obj.sPortRange.lowLimit, obj.sPortRange.highLimit, obj.dAddrv4.addr, obj.sAddrv4.mask, obj.dPort, obj.dPortRange.lowLimit, obj.dPortRange.highLimit)
+		obj.protoID, obj.sAddrv4.addr, obj.sAddrv4.mask, obj.sPort, obj.sPortRange.lowLimit, obj.sPortRange.highLimit, obj.dAddrv4.addr, obj.sAddrv4.mask, obj.dPort, obj.dPortRange.lowLimit, obj.dPortRange.highLimit)
 }
 
 func (obj QosRule) String() string {
@@ -107,13 +107,13 @@ func PfcString(pfcType uint8) string {
 		return "DestinationMACAddress"
 	case PFComponentTypeSourceMACAddress:
 		return "SourceMACAddress"
-	case PFComponentType8021Q_CTAG_VID:
+	case PFComponentType8021QCTAGVID:
 		return "8021Q_CTAG_VID"
-	case PFComponentType8021Q_STAG_VID:
+	case PFComponentType8021QSTAGVID:
 		return "8021Q_STAG_VID"
-	case PFComponentType8021Q_CTAG_PCPOrDEI:
+	case PFComponentType8021QCTAGPCPOrDEI:
 		return "8021Q_CTAG_PCPOrDEI"
-	case PFComponentType8021Q_STAG_PCPOrDEI:
+	case PFComponentType8021QSTAGPCPOrDEI:
 		return "8021Q_STAG_PCPOrDEI"
 	case PFComponentTypeEthertype:
 		return "Ethertype"
@@ -161,7 +161,8 @@ func SessRuleString(s *models.SessionRule) string {
 	if s == nil {
 		return ""
 	}
-	return fmt.Sprintf("SessRule:[RuleId:[%v], Ambr:[Dl:[%v], Ul:[%v]], AuthDefQos:[Var5QI:[%v], PriorityLevel:[%v], ARP:[%v]]]",
+	return fmt.Sprintf(
+		"SessRule:[RuleId:[%v], Ambr:[Dl:[%v], Ul:[%v]], AuthDefQos:[Var5QI:[%v], PriorityLevel:[%v], ARP:[%v]]]",
 		s.SessRuleId, s.AuthSessAmbr.Downlink, s.AuthSessAmbr.Uplink, s.AuthDefQos.Var5qi, s.AuthDefQos.PriorityLevel, s.AuthDefQos.Arp)
 }
 
@@ -196,7 +197,7 @@ func (obj QoSFlowDescription) String() string {
 }
 
 func (obj QosFlowParameter) String() string {
-	return fmt.Sprintf("QFParam:[Id:[%v], Len:[%v], content:[%v]]", obj.ParamId, obj.ParamLen, obj.ParamContent)
+	return fmt.Sprintf("QFParam:[Id:[%v], Len:[%v], content:[%v]]", obj.ParamID, obj.ParamLen, obj.ParamContent)
 }
 
 func (obj PolicyUpdate) String() string {

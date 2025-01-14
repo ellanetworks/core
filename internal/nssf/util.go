@@ -17,7 +17,7 @@ const (
 	UNSUPPORTED_RESOURCE  = "Unsupported request resources"
 )
 
-// Check whether S-NSSAI is standard or non-standard value
+// CheckStandardSnssai checks whether S-NSSAI is standard or non-standard value
 // A standard S-NSSAI is only comprised of a standardized SST value and no SD
 func CheckStandardSnssai(snssai models.Snssai) bool {
 	if snssai.Sst >= 1 && snssai.Sst <= 3 && snssai.Sd == "" {
@@ -26,7 +26,7 @@ func CheckStandardSnssai(snssai models.Snssai) bool {
 	return false
 }
 
-// Find target S-NSSAI mapping with serving S-NSSAIs from mapping of S-NSSAI(s)
+// FindMappingWithServingSnssai finds target S-NSSAI mapping with serving S-NSSAIs from mapping of S-NSSAI(s)
 func FindMappingWithServingSnssai(
 	snssai models.Snssai, mappings []models.MappingOfSnssai,
 ) (models.MappingOfSnssai, bool) {
@@ -38,7 +38,7 @@ func FindMappingWithServingSnssai(
 	return models.MappingOfSnssai{}, false
 }
 
-// Find target S-NSSAI mapping with home S-NSSAIs from mapping of S-NSSAI(s)
+// AddAllowedSnssai finds target S-NSSAI mapping with home S-NSSAIs from mapping of S-NSSAI(s)
 func FindMappingWithHomeSnssai(snssai models.Snssai, mappings []models.MappingOfSnssai) (models.MappingOfSnssai, bool) {
 	for _, mapping := range mappings {
 		if *mapping.HomeSnssai == snssai {
@@ -48,7 +48,7 @@ func FindMappingWithHomeSnssai(snssai models.Snssai, mappings []models.MappingOf
 	return models.MappingOfSnssai{}, false
 }
 
-// Add Allowed S-NSSAI to Authorized Network Slice Info
+// AddAllowedSnssai: Add Allowed S-NSSAI to Authorized Network Slice Info
 func AddAllowedSnssai(allowedSnssai models.AllowedSnssai, accessType models.AccessType,
 	authorizedNetworkSliceInfo *models.AuthorizedNetworkSliceInfo,
 ) {

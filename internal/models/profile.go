@@ -5,7 +5,7 @@ package models
 type Profile struct {
 	Name string
 
-	UeIpPool        string
+	IPPool          string
 	Dns             string
 	Mtu             int32
 	BitrateUplink   string

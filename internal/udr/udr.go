@@ -18,7 +18,7 @@ type UDRServiceType int
 type UDRContext struct {
 	UESubsCollection           sync.Map // map[ueId]*UESubsData
 	SdmSubscriptionIDGenerator int
-	DbInstance                 *db.Database
+	DBInstance                 *db.Database
 }
 
 type UESubsData struct {
@@ -33,6 +33,6 @@ type EeSubscriptionCollection struct {
 
 func Start(dbInstance *db.Database) error {
 	udrContext.SdmSubscriptionIDGenerator = 1
-	udrContext.DbInstance = dbInstance
+	udrContext.DBInstance = dbInstance
 	return nil
 }

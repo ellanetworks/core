@@ -2,7 +2,7 @@
 // Copyright 2019 Communication Service/Software Laboratory, National Chiao Tung University (free5gc.org)
 // SPDX-License-Identifier: Apache-2.0
 
-package ueauth
+package udm
 
 import (
 	"crypto/hmac"
@@ -29,7 +29,7 @@ func KDFLen(input []byte) []byte {
 	return r
 }
 
-// GetKDFValue implements the KDF defined in TS.33220 cluase B.2.0.
+// This function implements the KDF defined in TS.33220 cluase B.2.0.
 //
 // For P0-Pn, the ones that will be used directly as a string (e.g. "WLAN") should be type-casted by []byte(),
 // and the ones originally in hex (e.g. "bb52e91c747a") should be converted by using hex.DecodeString().

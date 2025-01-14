@@ -260,12 +260,12 @@ func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
 }
 
 func (smContext *SMContext) ReleaseUeIpAddr() error {
-	smfSelf := SMF_Self()
+	smfSelf := SMFSelf()
 	if smContext.PDUAddress == nil {
 		return nil
 	}
 	if ip := smContext.PDUAddress.Ip; ip != nil && !smContext.PDUAddress.UpfProvided {
-		err := smfSelf.DbInstance.ReleaseIP(smContext.Supi)
+		err := smfSelf.DBInstance.ReleaseIP(smContext.Supi)
 		if err != nil {
 			return fmt.Errorf("failed to release IP Address, %v", err)
 		}
@@ -382,7 +382,7 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 		}
 	}
 
-	supportedPDUSessionType := SMF_Self().SupportedPDUSessionType
+	supportedPDUSessionType := SMFSelf().SupportedPDUSessionType
 	switch supportedPDUSessionType {
 	case "IPv4":
 		if !allowIPv4 {

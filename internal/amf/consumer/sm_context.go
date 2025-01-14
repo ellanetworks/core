@@ -87,7 +87,7 @@ func buildCreateSmContextRequest(ue *amf_context.AmfUe, smContext *amf_context.S
 	snssai := smContext.Snssai()
 	smContextCreateData.SNssai = &snssai
 	smContextCreateData.Dnn = smContext.Dnn()
-	smContextCreateData.ServingNfId = context.NfId
+	smContextCreateData.ServingNfId = context.NfID
 	guamiList := amf_context.GetServedGuamiList()
 	smContextCreateData.Guami = &guamiList[0]
 	// take seving networking plmn from userlocation.Tai

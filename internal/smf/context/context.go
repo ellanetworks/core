@@ -34,32 +34,13 @@ type InterfaceUpfInfoItem struct {
 }
 
 type SMFContext struct {
-	Name string
-
-	DbInstance *db.Database
-
-	UPNodeIDs []NodeID
-	Key       string
-	PEM       string
-	KeyLog    string
-
-	SnssaiInfos []SnssaiSmfInfo
-
-	UserPlaneInformation *UserPlaneInformation
-
+	DBInstance              *db.Database
+	SnssaiInfos             []SnssaiSmfInfo
+	UserPlaneInformation    *UserPlaneInformation
 	SupportedPDUSessionType string
-
-	EnterpriseList *map[string]string // map to contain slice-name:enterprise-name
-
-	PodIp string
-
-	StaticIpInfo   *[]StaticIpInfo
-	CPNodeID       NodeID
-	UDMProfile     models.NfProfile
-	LocalSEIDCount uint64
-
-	// For ULCL
-	ULCLSupport bool
+	CPNodeID                NodeID
+	LocalSEIDCount          uint64
+	ULCLSupport             bool
 }
 
 // RetrieveDnnInformation gets the corresponding dnn info from S-NSSAI and DNN
@@ -82,7 +63,7 @@ func ReleaseLocalSEID(seid uint64) error {
 	return nil
 }
 
-func SMF_Self() *SMFContext {
+func SMFSelf() *SMFContext {
 	return &smfContext
 }
 
@@ -93,7 +74,7 @@ func UpdateSMFContext(network *nmsModels.Network, profiles []nmsModels.Profile) 
 }
 
 func UpdateSnssaiInfo(network *nmsModels.Network, profiles []nmsModels.Profile) {
-	smfSelf := SMF_Self()
+	smfSelf := SMFSelf()
 	snssaiInfoList := make([]SnssaiSmfInfo, 0)
 	snssaiInfo := SnssaiSmfInfo{
 		Snssai: SNssai{
@@ -182,10 +163,8 @@ func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 	return userPlaneInformation
 }
 
-// Right now we only support 1 UPF
-// This function should be edited when we decide to support multiple UPFs
 func UpdateUserPlaneInformation() {
-	smfSelf := SMF_Self()
+	smfSelf := SMFSelf()
 	configUserPlaneInfo := BuildUserPlaneInformationFromConfig()
 	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)
 	if same {
@@ -249,9 +228,9 @@ func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInfo
 }
 
 func GetUserPlaneInformation() *UserPlaneInformation {
-	return SMF_Self().UserPlaneInformation
+	return SMFSelf().UserPlaneInformation
 }
 
 func GetSnssaiInfo() []SnssaiSmfInfo {
-	return SMF_Self().SnssaiInfos
+	return SMFSelf().SnssaiInfos
 }

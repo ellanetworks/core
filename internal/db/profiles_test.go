@@ -32,8 +32,8 @@ func TestProfilesEndToEnd(t *testing.T) {
 
 	profile := &db.Profile{
 		Name:            "my-profile",
-		UeIpPool:        "0.0.0.0/24",
-		Dns:             "8.8.8.8",
+		IPPool:          "0.0.0.0/24",
+		DNS:             "8.8.8.8",
 		Mtu:             1500,
 		BitrateUplink:   "100 Mbps",
 		BitrateDownlink: "200 Mbps",
@@ -60,10 +60,10 @@ func TestProfilesEndToEnd(t *testing.T) {
 	if retrievedProfile.Name != profile.Name {
 		t.Fatalf("The profile name from the database doesn't match the profile name that was given")
 	}
-	if retrievedProfile.UeIpPool != profile.UeIpPool {
+	if retrievedProfile.IPPool != profile.IPPool {
 		t.Fatalf("The ue ip pool from the database doesn't match the ue ip pool that was given")
 	}
-	if retrievedProfile.Dns != profile.Dns {
+	if retrievedProfile.DNS != profile.DNS {
 		t.Fatalf("The dns from the database doesn't match the dns that was given")
 	}
 	if retrievedProfile.Mtu != profile.Mtu {
@@ -83,8 +83,8 @@ func TestProfilesEndToEnd(t *testing.T) {
 	}
 
 	// Edit the profile
-	profile.UeIpPool = "1.1.1.0/24"
-	profile.Dns = "2.2.2.2"
+	profile.IPPool = "1.1.1.0/24"
+	profile.DNS = "2.2.2.2"
 
 	if err = database.UpdateProfile(profile); err != nil {
 		t.Fatalf("Couldn't complete Update: %s", err)
@@ -100,10 +100,10 @@ func TestProfilesEndToEnd(t *testing.T) {
 	if retrievedProfile.Mtu != profile.Mtu {
 		t.Fatalf("The mtu from the database doesn't match the mtu that was given")
 	}
-	if retrievedProfile.UeIpPool != profile.UeIpPool {
+	if retrievedProfile.IPPool != profile.IPPool {
 		t.Fatalf("The ue ip pool from the database doesn't match the ue ip pool that was given")
 	}
-	if retrievedProfile.Dns != profile.Dns {
+	if retrievedProfile.DNS != profile.DNS {
 		t.Fatalf("The dns from the database doesn't match the dns that was given")
 	}
 

@@ -16,13 +16,13 @@ const (
 	RadioName = "gnb-001"
 )
 
-type PlmnId struct {
+type PlmnID struct {
 	Mcc string `json:"mcc"`
 	Mnc string `json:"mnc"`
 }
 
 type Tai struct {
-	PlmnId PlmnId `json:"plmnId"`
+	PlmnID PlmnID `json:"plmnID"`
 	Tac    string `json:"tac"`
 }
 
@@ -171,12 +171,12 @@ func TestListRadios(t *testing.T) {
 		t.Fatalf("expected 1 supported TAI, got %d", len(response.Result[0].SupportedTAIs))
 	}
 
-	if response.Result[0].SupportedTAIs[0].Tai.PlmnId.Mcc != "123" {
-		t.Fatalf("expected mcc %q, got %q", "123", response.Result[0].SupportedTAIs[0].Tai.PlmnId.Mcc)
+	if response.Result[0].SupportedTAIs[0].Tai.PlmnID.Mcc != "123" {
+		t.Fatalf("expected mcc %q, got %q", "123", response.Result[0].SupportedTAIs[0].Tai.PlmnID.Mcc)
 	}
 
-	if response.Result[0].SupportedTAIs[0].Tai.PlmnId.Mnc != "12" {
-		t.Fatalf("expected mnc %q, got %q", "12", response.Result[0].SupportedTAIs[0].Tai.PlmnId.Mnc)
+	if response.Result[0].SupportedTAIs[0].Tai.PlmnID.Mnc != "12" {
+		t.Fatalf("expected mnc %q, got %q", "12", response.Result[0].SupportedTAIs[0].Tai.PlmnID.Mnc)
 	}
 
 	if response.Result[0].SupportedTAIs[0].Tai.Tac != "0002" {
@@ -211,12 +211,12 @@ func TestListRadios(t *testing.T) {
 		t.Fatalf("expected 1 supported TAI, got %d", len(response.Result[1].SupportedTAIs))
 	}
 
-	if response.Result[1].SupportedTAIs[0].Tai.PlmnId.Mcc != "001" {
-		t.Fatalf("expected mcc %q, got %q", "001", response.Result[1].SupportedTAIs[0].Tai.PlmnId.Mcc)
+	if response.Result[1].SupportedTAIs[0].Tai.PlmnID.Mcc != "001" {
+		t.Fatalf("expected mcc %q, got %q", "001", response.Result[1].SupportedTAIs[0].Tai.PlmnID.Mcc)
 	}
 
-	if response.Result[1].SupportedTAIs[0].Tai.PlmnId.Mnc != "01" {
-		t.Fatalf("expected mnc %q, got %q", "01", response.Result[1].SupportedTAIs[0].Tai.PlmnId.Mnc)
+	if response.Result[1].SupportedTAIs[0].Tai.PlmnID.Mnc != "01" {
+		t.Fatalf("expected mnc %q, got %q", "01", response.Result[1].SupportedTAIs[0].Tai.PlmnID.Mnc)
 	}
 
 	if response.Result[1].SupportedTAIs[0].Tai.Tac != "0001" {

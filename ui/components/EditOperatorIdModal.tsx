@@ -11,11 +11,11 @@ import {
     Collapse,
 } from "@mui/material";
 import * as yup from "yup";
-import { updateOperatorId } from "@/queries/operator";
+import { updateOperatorID } from "@/queries/operator";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
 
-interface EditOperatorIdModalProps {
+interface EditOperatorIDModalProps {
     open: boolean;
     onClose: () => void;
     onSuccess: () => void;
@@ -36,7 +36,7 @@ const schema = yup.object().shape({
         .required("MNC is required"),
 });
 
-const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
+const EditOperatorIDModal: React.FC<EditOperatorIDModalProps> = ({
     open,
     onClose,
     onSuccess,
@@ -98,7 +98,7 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
         setAlert({ message: "" });
 
         try {
-            await updateOperatorId(cookies.user_token, formValues.mcc, formValues.mnc);
+            await updateOperatorID(cookies.user_token, formValues.mcc, formValues.mnc);
             onClose();
             onSuccess();
         } catch (error: any) {
@@ -166,4 +166,4 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
     );
 };
 
-export default EditOperatorIdModal;
+export default EditOperatorIDModal;

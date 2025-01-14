@@ -52,11 +52,11 @@ func convertDbAmDataToModel(bitrateDownlink string, bitrateUplink string) *model
 }
 
 func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
-	subscriber, err := udrContext.DbInstance.GetSubscriber(ueId)
+	subscriber, err := udrContext.DBInstance.GetSubscriber(ueId)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	profile, err := udrContext.DbInstance.GetProfileByID(subscriber.ProfileID)
+	profile, err := udrContext.DBInstance.GetProfileByID(subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
@@ -65,12 +65,12 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 }
 
 func EditAuthenticationSubscription(ueId string, sequenceNumber string) error {
-	subscriber, err := udrContext.DbInstance.GetSubscriber(ueId)
+	subscriber, err := udrContext.DBInstance.GetSubscriber(ueId)
 	if err != nil {
 		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
 	subscriber.SequenceNumber = sequenceNumber
-	err = udrContext.DbInstance.UpdateSubscriber(subscriber)
+	err = udrContext.DBInstance.UpdateSubscriber(subscriber)
 	if err != nil {
 		return fmt.Errorf("couldn't update subscriber %s: %v", ueId, err)
 	}
@@ -104,7 +104,7 @@ func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 }
 
 func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
-	subscriber, err := udrContext.DbInstance.GetSubscriber(ueId)
+	subscriber, err := udrContext.DBInstance.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
@@ -114,7 +114,7 @@ func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 }
 
 func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
-	_, err := udrContext.DbInstance.GetSubscriber(ueId)
+	_, err := udrContext.DBInstance.GetSubscriber(ueId)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("USER_NOT_FOUND")
@@ -143,6 +143,7 @@ func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
 	return smPolicyData, nil
 }
 
+// GetSMFRegistrations
 // I'm not sure whether we need this function or not. It's used but
 // the fact that it returns an empty list and the e2e tests
 // still pass makes me think that it's not used.
@@ -212,11 +213,11 @@ func convertDbSessionManagementDataToModel(
 }
 
 func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) {
-	subscriber, err := udrContext.DbInstance.GetSubscriber(ueId)
+	subscriber, err := udrContext.DBInstance.GetSubscriber(ueId)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
-	profile, err := udrContext.DbInstance.GetProfileByID(subscriber.ProfileID)
+	profile, err := udrContext.DBInstance.GetProfileByID(subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}

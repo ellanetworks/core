@@ -73,7 +73,7 @@ type QoSFlowDescription struct {
 // Qos Flow Description Parameter
 type QosFlowParameter struct {
 	ParamContent []byte
-	ParamId      uint8
+	ParamID      uint8
 	ParamLen     uint8
 }
 
@@ -81,7 +81,7 @@ type QosFlowsUpdate struct {
 	add, mod, del map[string]*models.QosData
 }
 
-func GetQosFlowIdFromQosId(qosId string) uint8 {
+func GetQosFlowIDFromQosID(qosId string) uint8 {
 	id, err := strconv.Atoi(qosId)
 	if err != nil {
 		logger.SmfLog.Errorf("String can not be converted to integer: %+v", err)
@@ -118,7 +118,7 @@ func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *
 	qfd := QoSFlowDescription{QFDLen: QFDFixLen}
 
 	// Set QFI
-	qfd.SetQoSFlowDescQfi(GetQosFlowIdFromQosId(qosData.QosId))
+	qfd.SetQoSFlowDescQfi(GetQosFlowIDFromQosID(qosData.QosId))
 
 	// Operation Code
 	qfd.SetQoSFlowDescOpCode(QFDOpCreate)
@@ -233,7 +233,7 @@ func (f *QoSFlowDescription) SetQFDEBitModReplaceAllParamQFD() {
 }
 
 func (p *QosFlowParameter) SetQosFlowParamBitRate(rateType, rateUnit uint8, rateVal uint16) {
-	p.ParamId = rateType //(i.e. QosFlowDescriptionParameterIdGfbrUl)
+	p.ParamID = rateType //(i.e. QosFlowDescriptionParameterIdGfbrUl)
 	p.ParamLen = 0x03    //(Length is rate unit(1 byte) + rate value(2 bytes))
 	p.ParamContent = []byte{rateUnit}
 	p.ParamContent = append(p.ParamContent, byte(rateVal>>8), byte(rateVal&0xff))
@@ -253,7 +253,7 @@ func (d *QosFlowDescriptionsAuthorized) AddQFD(qfd *QoSFlowDescription) {
 	// Iterate through Qos Flow Description's parameters
 	for _, param := range qfd.ParamList {
 		// Add Param Id
-		d.Content = append(d.Content, param.ParamId)
+		d.Content = append(d.Content, param.ParamID)
 
 		// Add Param Length
 		d.Content = append(d.Content, param.ParamLen)
@@ -268,7 +268,7 @@ func (d *QosFlowDescriptionsAuthorized) AddQFD(qfd *QoSFlowDescription) {
 
 func (q *QoSFlowDescription) AddQosFlowParam5Qi(val uint8) {
 	qfp := QosFlowParameter{}
-	qfp.ParamId = QFDParameterId5Qi
+	qfp.ParamID = QFDParameterId5Qi
 	qfp.ParamLen = 1 // 1 Octet
 	qfp.ParamContent = []byte{val}
 
@@ -366,8 +366,8 @@ func (d *QosFlowDescriptionsAuthorized) AddDefaultQosFlowDescription(sessRule *m
 	d.AddQFD(&qfd)
 }
 
-func (upd *QosFlowsUpdate) GetAddQosFlowUpdate() map[string]*models.QosData {
-	return upd.add
+func (obj *QosFlowsUpdate) GetAddQosFlowUpdate() map[string]*models.QosData {
+	return obj.add
 }
 
 func GetDefaultQoSDataFromPolicyDecision(smPolicyDecision *models.SmPolicyDecision) *models.QosData {

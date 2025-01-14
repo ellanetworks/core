@@ -21,7 +21,7 @@ type SnssaiUPFInfo struct {
 	DnnList []DnnUPFInfoItem
 }
 
-// DnnUpfInfoItem presents UPF dnn information
+// DnnUPFInfoItem presents UPF dnn information
 type DnnUPFInfoItem struct {
 	Dnn             string
 	DnaiList        []string

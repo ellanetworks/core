@@ -27,8 +27,8 @@ func TestBuildAuthorizedQosFlowDescriptions(t *testing.T) {
 	authorizedQosFlow := qos.BuildAuthorizedQosFlowDescriptions(smPolicyUpdates)
 
 	fmt.Printf("Authorized QosFlow: %v\n", authorizedQosFlow.Content)
-	firstQosDataId := authorizedQosFlow.Content[0]
-	if firstQosDataId == 1 {
+	firstQosDataID := authorizedQosFlow.Content[0]
+	if firstQosDataID == 1 {
 		expectedBytes := []byte{
 			0x1, 0x20, 0x45, 0x1, 0x1, 0x5, 0x4, 0x3, 0x6, 0x0,
 			0x65, 0x5, 0x3, 0x6, 0x0, 0xc9, 0x2, 0x3, 0x6, 0x0, 0xb, 0x3, 0x3, 0x6,
@@ -38,7 +38,7 @@ func TestBuildAuthorizedQosFlowDescriptions(t *testing.T) {
 		if string(expectedBytes) != string(authorizedQosFlow.Content) {
 			t.Errorf("Expected: %v, got: %v", expectedBytes, authorizedQosFlow.Content)
 		}
-	} else if firstQosDataId == 2 {
+	} else if firstQosDataID == 2 {
 		expectedBytes := []byte{
 			0x2, 0x20, 0x45, 0x1, 0x1, 0x3, 0x4, 0x3, 0x6, 0x1,
 			0x2d, 0x5, 0x3, 0x6, 0x1, 0x91, 0x2, 0x3, 0x6, 0x0, 0x1f, 0x3, 0x3, 0x6,

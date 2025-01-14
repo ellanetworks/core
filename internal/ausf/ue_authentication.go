@@ -28,7 +28,7 @@ const (
 	AV_GENERATION_PROBLEM_ERROR          = "AV_GENERATION_PROBLEM"
 )
 
-// Generates a random int between 0 and 255
+// GenerateRandomNumber Generates a random int between 0 and 255
 func GenerateRandomNumber() (uint8, error) {
 	maxN := big.NewInt(256)
 	randomNumber, err := rand.Int(rand.Reader, maxN)
@@ -132,9 +132,9 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 
 		ausfUeContext.Rand = authInfoResult.AuthenticationVector.Rand
 
-		K_encr, K_aut, K_re, MSK, EMSK := eapAkaPrimePrf(ikPrime, ckPrime, identity)
-		_, _, _, _, _ = K_encr, K_aut, K_re, MSK, EMSK
-		ausfUeContext.K_aut = K_aut
+		KEncr, KAut, KRe, MSK, EMSK := eapAkaPrimePrf(ikPrime, ckPrime, identity)
+		_, _, _, _, _ = KEncr, KAut, KRe, MSK, EMSK
+		ausfUeContext.KAut = KAut
 		Kausf := EMSK[0:32]
 		ausfUeContext.Kausf = Kausf
 		var KausfDecode []byte
@@ -189,8 +189,8 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		eapPkt.Data = []byte(dataArrayBeforeMAC)
 		encodedPktBeforeMAC := eapPkt.Encode()
 
-		MACvalue := CalculateAtMAC([]byte(K_aut), encodedPktBeforeMAC)
-		atMacNum := fmt.Sprintf("%02x", AT_MAC_ATTRIBUTE)
+		MACvalue := CalculateAtMAC([]byte(KAut), encodedPktBeforeMAC)
+		atMacNum := fmt.Sprintf("%02x", AtMacAttribute)
 		var atMACfirstRow []byte
 		if atMACfirstRowTmp, err := hex.DecodeString(atMacNum + "05" + "0000"); err != nil {
 			logger.AusfLog.Warnf("MAC decode failed: %+v", err)
@@ -248,7 +248,6 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 	return &responseBody, nil
 }
 
-// return response, problemDetails
 func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessionID string) (*models.EapSession,
 	error,
 ) {
@@ -289,7 +288,7 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 	case models.AuthResult_ONGOING:
 		responseBody.KSeaf = ausfCurrentContext.Kseaf
 		responseBody.Supi = currentSupi
-		Kautn := ausfCurrentContext.K_aut
+		Kautn := ausfCurrentContext.KAut
 		XRES := ausfCurrentContext.XRES
 		RES, decodeOK := decodeResMac(eapContent.TypeData, eapContent.Contents, Kautn)
 		if !decodeOK {

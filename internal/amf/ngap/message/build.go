@@ -123,8 +123,8 @@ func BuildNGSetupResponse() ([]byte, error) {
 	for _, guami := range guamiList {
 		servedGUAMIItem := ngapType.ServedGUAMIItem{}
 		servedGUAMIItem.GUAMI.PLMNIdentity = ngapConvert.PlmnIdToNgap(*guami.PlmnId)
-		regionId, setId, prtId := ngapConvert.AmfIdToNgap(guami.AmfId)
-		servedGUAMIItem.GUAMI.AMFRegionID.Value = regionId
+		regionID, setId, prtId := ngapConvert.AmfIdToNgap(guami.AmfId)
+		servedGUAMIItem.GUAMI.AMFRegionID.Value = regionID
 		servedGUAMIItem.GUAMI.AMFSetID.Value = setId
 		servedGUAMIItem.GUAMI.AMFPointer.Value = prtId
 		servedGUAMIList.List = append(servedGUAMIList.List, servedGUAMIItem)
@@ -154,7 +154,7 @@ func BuildNGSetupResponse() ([]byte, error) {
 	plmnSupportConfigList := context.GetPlmnSupportList()
 	for _, plmnItem := range plmnSupportConfigList {
 		pLMNSupportItem := ngapType.PLMNSupportItem{}
-		pLMNSupportItem.PLMNIdentity = ngapConvert.PlmnIdToNgap(plmnItem.PlmnId)
+		pLMNSupportItem.PLMNIdentity = ngapConvert.PlmnIdToNgap(plmnItem.PlmnID)
 		for _, snssai := range plmnItem.SNssaiList {
 			sliceSupportItem := ngapType.SliceSupportItem{}
 			sliceSupportItem.SNSSAI = ngapConvert.SNssaiToNgap(snssai)
@@ -479,7 +479,7 @@ func BuildUEContextReleaseCommand(
 	return ngap.Encoder(pdu)
 }
 
-func BuildErrorIndication(amfUeNgapId, ranUeNgapId *int64, cause *ngapType.Cause,
+func BuildErrorIndication(amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
@@ -502,7 +502,7 @@ func BuildErrorIndication(amfUeNgapId, ranUeNgapId *int64, cause *ngapType.Cause
 			"[Build Error Indication] shall contain at least either the Cause or the Criticality Diagnostics")
 	}
 
-	if amfUeNgapId != nil {
+	if amfUeNgapID != nil {
 		ie := ngapType.ErrorIndicationIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
 		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -510,12 +510,12 @@ func BuildErrorIndication(amfUeNgapId, ranUeNgapId *int64, cause *ngapType.Cause
 		ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 		aMFUENGAPID := ie.Value.AMFUENGAPID
-		aMFUENGAPID.Value = *amfUeNgapId
+		aMFUENGAPID.Value = *amfUeNgapID
 
 		errorIndicationIEs.List = append(errorIndicationIEs.List, ie)
 	}
 
-	if ranUeNgapId != nil {
+	if ranUeNgapID != nil {
 		ie := ngapType.ErrorIndicationIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
 		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -523,7 +523,7 @@ func BuildErrorIndication(amfUeNgapId, ranUeNgapId *int64, cause *ngapType.Cause
 		ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 		rANUENGAPID := ie.Value.RANUENGAPID
-		rANUENGAPID.Value = *ranUeNgapId
+		rANUENGAPID.Value = *ranUeNgapID
 
 		errorIndicationIEs.List = append(errorIndicationIEs.List, ie)
 	}
@@ -1955,8 +1955,8 @@ func BuildPathSwitchRequestAcknowledge(
 // pduSessionResourceReleasedList: provided by AMF, and the transfer data is from SMF
 // criticalityDiagnostics: from received node when received not comprehended IE or missing IE
 func BuildPathSwitchRequestFailure(
-	amfUeNgapId,
-	ranUeNgapId int64,
+	amfUeNgapID,
+	ranUeNgapID int64,
 	pduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) ([]byte, error) {
@@ -1982,7 +1982,7 @@ func BuildPathSwitchRequestFailure(
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = amfUeNgapId
+	aMFUENGAPID.Value = amfUeNgapID
 
 	pathSwitchRequestFailureIEs.List = append(pathSwitchRequestFailureIEs.List, ie)
 
@@ -1994,7 +1994,7 @@ func BuildPathSwitchRequestFailure(
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ranUeNgapId
+	rANUENGAPID.Value = ranUeNgapID
 
 	pathSwitchRequestFailureIEs.List = append(pathSwitchRequestFailureIEs.List, ie)
 
@@ -2851,7 +2851,7 @@ func BuildUETNLABindingReleaseRequest(ue *context.RanUe) ([]byte, error) {
 	return ngap.Encoder(pdu)
 }
 
-// NRPPa PDU is a pdu from LMF to RAN defined in TS 23.502 4.13.5.5 step 3
+// BuildDownlinkUEAssociatedNRPPaTransport. NRPPa PDU is a pdu from LMF to RAN defined in TS 23.502 4.13.5.5 step 3
 // NRPPa PDU is by pass
 func BuildDownlinkUEAssociatedNRPPaTransport(ue *context.RanUe, nRPPaPDU ngapType.NRPPaPDU) ([]byte, error) {
 	var pdu ngapType.NGAPPDU

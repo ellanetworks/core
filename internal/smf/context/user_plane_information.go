@@ -79,7 +79,7 @@ func GenerateDataPath(upPath UPPath, smContext *SMContext) (*DataPath, error) {
 		Destination: Destination{
 			DestinationIP:   "",
 			DestinationPort: "",
-			Url:             "",
+			URL:             "",
 		},
 		FirstDPNode: root,
 	}
