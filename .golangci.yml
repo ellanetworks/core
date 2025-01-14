@@ -5,7 +5,7 @@ linters:
     - errcheck
     - staticcheck
     - unused
-    # - gosimple
+    - gosimple
     - typecheck
     # - lll
     - godox
