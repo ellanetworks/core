@@ -19,7 +19,7 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
-func Start(n3_address string, n3Interface string, n6Interface string) error {
+func Start(n3Address string, n3Interface string, n6Interface string) error {
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 	interfaces := []string{n3Interface, n6Interface}
@@ -31,13 +31,12 @@ func Start(n3_address string, n3Interface string, n6Interface string) error {
 		SmfAddress:    "0.0.0.0",
 		SmfNodeId:     "0.0.0.0",
 		PfcpNodeId:    "0.0.0.0",
-		N3Address:     n3_address,
+		N3Address:     n3Address,
 		EchoInterval:  10,
 		QerMapSize:    1024,
 		FarMapSize:    1024,
 		PdrMapSize:    1024,
 		EbpfMapResize: false,
-		LoggingLevel:  "debug",
 		FeatureFTUP:   true,
 		FTEIDPool:     65535,
 	}

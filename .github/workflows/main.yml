@@ -22,6 +22,8 @@ jobs:
     uses: ./.github/workflows/go-vet.yaml
   go-lint:
     uses: ./.github/workflows/go-lint.yaml
+  go-sec:
+    uses: ./.github/workflows/go-sec.yaml
   rock-build:
     needs: [go-unit-test, go-vet, go-lint]
     uses: ./.github/workflows/rock-build.yaml
