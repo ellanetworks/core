@@ -17,14 +17,7 @@ import (
 	"github.com/omec-project/openapi/models"
 )
 
-const IPV4 = "IPv4"
-
 var smfContext SMFContext
-
-type StaticIpInfo struct {
-	ImsiIpInfo map[string]string
-	Dnn        string
-}
 
 type InterfaceUpfInfoItem struct {
 	NetworkInstance string
@@ -54,10 +47,6 @@ func RetrieveDnnInformation(Snssai models.Snssai, dnn string) *SnssaiSmfDnnInfo 
 func AllocateLocalSEID() (uint64, error) {
 	atomic.AddUint64(&smfContext.LocalSEIDCount, 1)
 	return smfContext.LocalSEIDCount, nil
-}
-
-func ReleaseLocalSEID(seid uint64) error {
-	return nil
 }
 
 func SMF_Self() *SMFContext {
