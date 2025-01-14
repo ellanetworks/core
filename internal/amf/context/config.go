@@ -10,12 +10,12 @@ import (
 // This file contains calls to db to get configuration data
 
 func ListAmfRan() []AmfRan {
-	amfSelf := AMF_Self()
+	amfSelf := AMFSelf()
 	return amfSelf.ListAmfRan()
 }
 
 func GetSupportTaiList() []models.Tai {
-	amfSelf := AMF_Self()
+	amfSelf := AMFSelf()
 	tais := make([]models.Tai, 0)
 	dbNetwork, err := amfSelf.DBInstance.GetOperator()
 	if err != nil {
@@ -38,7 +38,7 @@ func GetSupportTaiList() []models.Tai {
 }
 
 func GetServedGuamiList() []models.Guami {
-	amfSelf := AMF_Self()
+	amfSelf := AMFSelf()
 	guamis := make([]models.Guami, 0)
 	dbNetwork, err := amfSelf.DBInstance.GetOperator()
 	if err != nil {
@@ -58,7 +58,7 @@ func GetServedGuamiList() []models.Guami {
 }
 
 func GetPlmnSupportList() []PlmnSupportItem {
-	amfSelf := AMF_Self()
+	amfSelf := AMFSelf()
 	plmnSupportList := make([]PlmnSupportItem, 0)
 	dbNetwork, err := amfSelf.DBInstance.GetOperator()
 	if err != nil {

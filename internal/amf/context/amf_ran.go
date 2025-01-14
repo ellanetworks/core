@@ -10,7 +10,6 @@ package context
 import (
 	"fmt"
 	"net"
-	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap/ngapConvert"
@@ -20,9 +19,9 @@ import (
 )
 
 const (
-	RanPresentGNbId   = 1
-	RanPresentNgeNbId = 2
-	RanPresentN3IwfId = 3
+	RanPresentGNbID   = 1
+	RanPresentNgeNbID = 2
+	RanPresentN3IwfID = 3
 	RanConnected      = "Connected"
 	RanDisconnected   = "Disconnected"
 )
@@ -32,15 +31,15 @@ type AmfRan struct {
 	RanId      *models.GlobalRanNodeId
 	Name       string
 	AnType     models.AccessType
-	GnbIp      string `json:"-"`
-	GnbId      string // RanId in string format, i.e.,mcc:mnc:gnbid
+	GnbIP      string `json:"-"`
+	GnbID      string // RanId in string format, i.e.,mcc:mnc:gnbid
 	/* socket Connect*/
 	Conn net.Conn `json:"-"`
 	/* Supported TA List */
 	SupportedTAList []SupportedTAI
 
 	/* RAN UE List */
-	RanUeList []*RanUe `json:"-"` // RanUeNgapId as key
+	RanUeList []*RanUe `json:"-"` // RanUeNgapID as key
 
 	/* logger */
 	Log *zap.SugaredLogger `json:"-"`
@@ -62,24 +61,24 @@ func NewSupportedTAIList() []SupportedTAI {
 
 func (ran *AmfRan) Remove() {
 	ran.RemoveAllUeInRan()
-	AMF_Self().DeleteAmfRan(ran.Conn)
+	AMFSelf().DeleteAmfRan(ran.Conn)
 	ran.Log.Infof("removed RAN Context [ID: %+v]", ran.RanID())
 }
 
 func (ran *AmfRan) NewRanUe(ranUeNgapID int64) (*RanUe, error) {
 	ranUe := RanUe{}
-	self := AMF_Self()
+	self := AMFSelf()
 	amfUeNgapID, err := self.AllocateAmfUeNgapID()
 	if err != nil {
 		ran.Log.Errorln("Alloc Amf ue ngap id failed", err)
-		return nil, fmt.Errorf("Allocate AMF UE NGAP ID error: %+v", err)
+		return nil, fmt.Errorf("could not allocate AMF UE NGAP ID")
 	}
-	ranUe.AmfUeNgapId = amfUeNgapID
-	ranUe.RanUeNgapId = ranUeNgapID
+	ranUe.AmfUeNgapID = amfUeNgapID
+	ranUe.RanUeNgapID = ranUeNgapID
 	ranUe.Ran = ran
-	ranUe.Log = ran.Log.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
+	ranUe.Log = ran.Log.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID))
 	ran.RanUeList = append(ran.RanUeList, &ranUe)
-	self.RanUePool.Store(ranUe.AmfUeNgapId, &ranUe)
+	self.RanUePool.Store(ranUe.AmfUeNgapID, &ranUe)
 	return &ranUe, nil
 }
 
@@ -93,7 +92,7 @@ func (ran *AmfRan) RemoveAllUeInRan() {
 
 func (ran *AmfRan) RanUeFindByRanUeNgapIDLocal(ranUeNgapID int64) *RanUe {
 	for _, ranUe := range ran.RanUeList {
-		if ranUe.RanUeNgapId == ranUeNgapID {
+		if ranUe.RanUeNgapID == ranUeNgapID {
 			return ranUe
 		}
 	}
@@ -111,44 +110,32 @@ func (ran *AmfRan) RanUeFindByRanUeNgapID(ranUeNgapID int64) *RanUe {
 	return nil
 }
 
-func (ran *AmfRan) SetRanId(ranNodeId *ngapType.GlobalRANNodeID) {
-	ranId := ngapConvert.RanIdToModels(*ranNodeId)
-	ran.RanPresent = ranNodeId.Present
-	ran.RanId = &ranId
-	if ranNodeId.Present == ngapType.GlobalRANNodeIDPresentGlobalN3IWFID {
+func (ran *AmfRan) SetRanID(ranNodeID *ngapType.GlobalRANNodeID) {
+	ranID := ngapConvert.RanIdToModels(*ranNodeID)
+	ran.RanPresent = ranNodeID.Present
+	ran.RanId = &ranID
+	if ranNodeID.Present == ngapType.GlobalRANNodeIDPresentGlobalN3IWFID {
 		ran.AnType = models.AccessType_NON_3_GPP_ACCESS
 	} else {
 		ran.AnType = models.AccessType__3_GPP_ACCESS
 	}
 
 	// Setting RanId in String format with ":" separation of each field
-	if ranId.PlmnId != nil {
-		ran.GnbId = ranId.PlmnId.Mcc + ":" + ranId.PlmnId.Mnc + ":"
+	if ranID.PlmnId != nil {
+		ran.GnbID = ranID.PlmnId.Mcc + ":" + ranID.PlmnId.Mnc + ":"
 	}
-	if ranId.GNbId != nil {
-		ran.GnbId += ranId.GNbId.GNBValue
+	if ranID.GNbId != nil {
+		ran.GnbID += ranID.GNbId.GNBValue
 	}
-}
-
-func (ran *AmfRan) ConvertGnbIdToRanId(gnbId string) (ranNodeId *models.GlobalRanNodeId) {
-	var ranId *models.GlobalRanNodeId = &models.GlobalRanNodeId{}
-	val := strings.Split(gnbId, ":")
-	if len(val) != 3 {
-		return nil
-	}
-	ranId.PlmnId = &models.PlmnId{Mcc: val[0], Mnc: val[1]}
-	ranId.GNbId = &models.GNbId{GNBValue: val[2]}
-	ran.RanPresent = RanPresentGNbId
-	return ranId
 }
 
 func (ran *AmfRan) RanID() string {
 	switch ran.RanPresent {
-	case RanPresentGNbId:
+	case RanPresentGNbID:
 		return fmt.Sprintf("<PlmnID: %+v, GNbID: %s>", *ran.RanId.PlmnId, ran.RanId.GNbId.GNBValue)
-	case RanPresentN3IwfId:
+	case RanPresentN3IwfID:
 		return fmt.Sprintf("<PlmnID: %+v, N3IwfID: %s>", *ran.RanId.PlmnId, ran.RanId.N3IwfId)
-	case RanPresentNgeNbId:
+	case RanPresentNgeNbID:
 		return fmt.Sprintf("<PlmnID: %+v, NgeNbID: %s>", *ran.RanId.PlmnId, ran.RanId.NgeNbId)
 	default:
 		return ""

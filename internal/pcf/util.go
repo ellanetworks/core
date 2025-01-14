@@ -36,6 +36,6 @@ func GetSMPolicyDnnData(data models.SmPolicyData, snssai *models.Snssai, dnn str
 }
 
 // Get Resource Uri (location Header) with param id string
-func GetResourceUri(name models.ServiceName, id string) string {
+func GetResourceURI(name models.ServiceName, id string) string {
 	return fmt.Sprintf("%s/%s", serviceURIMap[name], id)
 }

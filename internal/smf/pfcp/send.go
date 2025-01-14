@@ -8,7 +8,6 @@ package pfcp
 
 import (
 	"fmt"
-	"net"
 	"sync"
 	"sync/atomic"
 
@@ -58,13 +57,13 @@ func SendPfcpSessionEstablishmentRequest(
 	qerList []*context.QER,
 	upfPort uint16,
 ) (bool, *context.PFCPSessionResponseStatus, error) {
-	upNodeIDStr := upNodeID.ResolveNodeIdToIp().String()
+	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
 	pfcpContext, ok := ctx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return false, nil, fmt.Errorf("PFCP Context not found for NodeID[%v]", upNodeID)
 	}
 
-	nodeIDIPAddress := context.SMFSelf().CPNodeID.ResolveNodeIdToIp()
+	nodeIDIPAddress := context.SMFSelf().CPNodeID.ResolveNodeIDToIP()
 
 	pfcpMsg, err := BuildPfcpSessionEstablishmentRequest(
 		getSeqNumber(),
@@ -125,13 +124,13 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentResp
 		if ueIPAddress != nil {
 			smContext.SubPfcpLog.Infof("upf provided ue ip address [%v]", ueIPAddress)
 			// Release previous locally allocated UE IP-Addr
-			err := smContext.ReleaseUeIpAddr()
+			err := smContext.ReleaseUeIPAddr()
 			if err != nil {
 				logger.SmfLog.Errorf("failed to release UE IP-Addr: %+v", err)
 			}
 
 			// Update with one received from UPF
-			smContext.PDUAddress.Ip = ueIPAddress
+			smContext.PDUAddress.IP = ueIPAddress
 			smContext.PDUAddress.UpfProvided = true
 		}
 
@@ -209,7 +208,7 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 		smContext.SubPduSessLog.Infoln("PFCP Modification Response Accept")
 		if smContext.SMContextState == context.SmStatePfcpModify {
 			upfNodeID := smContext.GetNodeIDByLocalSEID(SEID)
-			upfIP := upfNodeID.ResolveNodeIdToIp().String()
+			upfIP := upfNodeID.ResolveNodeIDToIP().String()
 			delete(smContext.PendingUPF, upfIP)
 			smContext.SubPduSessLog.Debugf("Delete pending pfcp response: UPF IP [%s]\n", upfIP)
 
@@ -250,12 +249,12 @@ func SendPfcpSessionModificationRequest(
 	upfPort uint16,
 ) (bool, *context.PFCPSessionResponseStatus, error) {
 	seqNum := getSeqNumber()
-	upNodeIDStr := upNodeID.ResolveNodeIdToIp().String()
+	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
 	pfcpContext, ok := ctx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return false, nil, fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
 	}
-	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID.ResolveNodeIdToIp(), pdrList, farList, qerList)
+	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID.ResolveNodeIDToIP(), pdrList, farList, qerList)
 	if err != nil {
 		return false, nil, fmt.Errorf("failed to build PFCP Session Modification Request: %v", err)
 	}
@@ -292,12 +291,12 @@ func HandlePfcpSessionDeletionResponse(msg *message.SessionDeletionResponse) (*c
 
 func SendPfcpSessionDeletionRequest(upNodeID context.NodeID, ctx *context.SMContext, upfPort uint16) (*context.PFCPSessionResponseStatus, error) {
 	seqNum := getSeqNumber()
-	upNodeIDStr := upNodeID.ResolveNodeIdToIp().String()
+	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
 	pfcpContext, ok := ctx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return nil, fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
 	}
-	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID.ResolveNodeIdToIp())
+	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID.ResolveNodeIDToIP())
 
 	rsp, err := upf.HandlePfcpSessionDeletionRequest(pfcpMsg)
 	if err != nil {
@@ -308,32 +307,4 @@ func SendPfcpSessionDeletionRequest(upNodeID context.NodeID, ctx *context.SMCont
 		return status, fmt.Errorf("failed to handle PFCP Session Establishment Response: %v", err)
 	}
 	return status, nil
-}
-
-type adapterMessage struct {
-	Body []byte `json:"body"`
-}
-
-type UdpPodPfcpMsg struct {
-	// message type contains in Msg.Header
-	Msg      adapterMessage `json:"pfcpMsg"`
-	Addr     *net.UDPAddr   `json:"addr"`
-	SmfIp    string         `json:"smfIp"`
-	UpNodeID context.NodeID `json:"upNodeID"`
-}
-
-func GetLocalIP() string {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return ""
-	}
-	for _, address := range addrs {
-		// check the address type and if it is not a loopback the display it
-		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				return ipnet.IP.String()
-			}
-		}
-	}
-	return ""
 }

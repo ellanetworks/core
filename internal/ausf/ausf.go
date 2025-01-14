@@ -6,7 +6,6 @@ import (
 	"regexp"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/google/uuid"
 )
 
 func Start() error {
@@ -15,7 +14,5 @@ func Start() error {
 		logger.AusfLog.Warnf("SN compile error: %+v", err)
 	}
 	ausfContext.snRegex = snRegex
-
-	ausfContext.NfId = uuid.New().String()
 	return nil
 }

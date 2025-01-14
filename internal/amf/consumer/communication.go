@@ -30,12 +30,12 @@ func BuildUeContextModel(ue *amf_context.AmfUe) (ueContext models.UeContext) {
 		ueContext.Pei = ue.Pei
 	}
 
-	if ue.UdmGroupId != "" {
-		ueContext.UdmGroupId = ue.UdmGroupId
+	if ue.UdmGroupID != "" {
+		ueContext.UdmGroupId = ue.UdmGroupID
 	}
 
-	if ue.AusfGroupId != "" {
-		ueContext.AusfGroupId = ue.AusfGroupId
+	if ue.AusfGroupID != "" {
+		ueContext.AusfGroupId = ue.AusfGroupID
 	}
 
 	if ue.RoutingIndicator != "" {
@@ -54,8 +54,8 @@ func BuildUeContextModel(ue *amf_context.AmfUe) (ueContext models.UeContext) {
 		}
 	}
 
-	if ue.AmPolicyUri != "" {
-		ueContext.PcfAmPolicyUri = ue.AmPolicyUri
+	if ue.AmPolicyURI != "" {
+		ueContext.PcfAmPolicyUri = ue.AmPolicyURI
 	}
 
 	if ue.AmPolicyAssociation != nil {
@@ -97,7 +97,7 @@ func UEContextTransferRequest(
 	ueContextTransferRspData *models.UeContextTransferRspData, problemDetails *models.ProblemDetails, err error,
 ) {
 	configuration := Namf_Communication.NewConfiguration()
-	configuration.SetBasePath(ue.TargetAmfUri)
+	configuration.SetBasePath(ue.TargetAmfURI)
 	client := Namf_Communication.NewAPIClient(configuration)
 
 	ueContextTransferReqData := models.UeContextTransferReqData{
@@ -121,11 +121,11 @@ func UEContextTransferRequest(
 	}
 
 	// guti format is defined at TS 29.518 Table 6.1.3.2.2-1 5g-guti-[0-9]{5,6}[0-9a-fA-F]{14}
-	ueContextId := fmt.Sprintf("5g-guti-%s", ue.Guti)
+	ueContextID := fmt.Sprintf("5g-guti-%s", ue.Guti)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, httpResp, localErr := client.IndividualUeContextDocumentApi.UEContextTransfer(ctx, ueContextId, req)
+	res, httpResp, localErr := client.IndividualUeContextDocumentApi.UEContextTransfer(ctx, ueContextID, req)
 	if localErr == nil {
 		ueContextTransferRspData = res.JsonData
 		logger.AmfLog.Debugf("UeContextTransferRspData: %+v", *ueContextTransferRspData)
@@ -137,7 +137,7 @@ func UEContextTransferRequest(
 		problem := localErr.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
 		problemDetails = &problem
 	} else {
-		err = openapi.ReportError("%s: server no response", ue.TargetAmfUri)
+		err = openapi.ReportError("%s: server no response", ue.TargetAmfURI)
 	}
 	return ueContextTransferRspData, problemDetails, err
 }
@@ -147,13 +147,13 @@ func RegistrationStatusUpdate(ue *amf_context.AmfUe, request models.UeRegStatusU
 	regStatusTransferComplete bool, problemDetails *models.ProblemDetails, err error,
 ) {
 	configuration := Namf_Communication.NewConfiguration()
-	configuration.SetBasePath(ue.TargetAmfUri)
+	configuration.SetBasePath(ue.TargetAmfURI)
 	client := Namf_Communication.NewAPIClient(configuration)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	ueContextId := fmt.Sprintf("5g-guti-%s", ue.Guti)
-	res, httpResp, localErr := client.IndividualUeContextDocumentApi.RegistrationStatusUpdate(ctx, ueContextId, request)
+	ueContextID := fmt.Sprintf("5g-guti-%s", ue.Guti)
+	res, httpResp, localErr := client.IndividualUeContextDocumentApi.RegistrationStatusUpdate(ctx, ueContextID, request)
 	if localErr == nil {
 		regStatusTransferComplete = res.RegStatusTransferComplete
 	} else if httpResp != nil {
@@ -164,7 +164,7 @@ func RegistrationStatusUpdate(ue *amf_context.AmfUe, request models.UeRegStatusU
 		problem := localErr.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
 		problemDetails = &problem
 	} else {
-		err = openapi.ReportError("%s: server no response", ue.TargetAmfUri)
+		err = openapi.ReportError("%s: server no response", ue.TargetAmfURI)
 	}
 	return
 }

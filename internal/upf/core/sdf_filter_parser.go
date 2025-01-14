@@ -30,7 +30,7 @@ func ParseSdfFilter(flowDescription string) (ebpf.SdfFilter, error) {
 		if match[3] != "" {
 			return ebpf.SdfFilter{}, fmt.Errorf("<any> keyword should not be used with </mask>")
 		}
-		sdfInfo.SrcAddress = ebpf.IpWMask{Type: 0}
+		sdfInfo.SrcAddress = ebpf.IPWMask{Type: 0}
 	} else {
 		if sdfInfo.SrcAddress, err = ParseCidrIP(match[2], match[3]); err != nil {
 			return ebpf.SdfFilter{}, err
@@ -43,7 +43,7 @@ func ParseSdfFilter(flowDescription string) (ebpf.SdfFilter, error) {
 		}
 	}
 	if match[5] == "assigned" || match[5] == "any" {
-		sdfInfo.DstAddress = ebpf.IpWMask{Type: 0}
+		sdfInfo.DstAddress = ebpf.IPWMask{Type: 0}
 	} else {
 		if sdfInfo.DstAddress, err = ParseCidrIP(match[5], match[6]); err != nil {
 			return ebpf.SdfFilter{}, err
@@ -78,7 +78,7 @@ func ParseProtocol(protocol string) (uint8, error) {
 	}
 }
 
-func ParseCidrIP(ipStr, maskStr string) (ebpf.IpWMask, error) {
+func ParseCidrIP(ipStr, maskStr string) (ebpf.IPWMask, error) {
 	var ipType uint8
 	if ip := net.ParseIP(ipStr); ip != nil {
 		if ip.To4() != nil {
@@ -93,16 +93,16 @@ func ParseCidrIP(ipStr, maskStr string) (ebpf.IpWMask, error) {
 				mask = net.CIDRMask(int(maskInt), 8*len(ip))
 				ip = ip.Mask(mask)
 			} else {
-				return ebpf.IpWMask{}, fmt.Errorf("bad IP mask formatting")
+				return ebpf.IPWMask{}, fmt.Errorf("bad IP mask formatting")
 			}
 		}
-		return ebpf.IpWMask{
+		return ebpf.IPWMask{
 			Type: ipType,
-			Ip:   ip,
+			IP:   ip,
 			Mask: mask,
 		}, nil
 	} else {
-		return ebpf.IpWMask{}, fmt.Errorf("bad IP formatting")
+		return ebpf.IPWMask{}, fmt.Errorf("bad IP formatting")
 	}
 }
 

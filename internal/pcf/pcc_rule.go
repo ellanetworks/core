@@ -22,35 +22,27 @@ var MediaTypeTo5qiMap = map[models.MediaType]int32{
 	models.MediaType_OTHER:       9,
 }
 
-// Get pcc rule Identity(PccRuleId-%d)
-func GetPccRuleId(id int32) string {
+func GetPccRuleID(id int32) string {
 	return fmt.Sprintf("PccRuleId-%d", id)
 }
 
-// Get qos Identity(QosId-%d)
-func GetQosId(id int32) string {
+func GetQosID(id int32) string {
 	return fmt.Sprintf("QosId-%d", id)
 }
 
-// Get Cond Identity(CondId-%d)
-func GetCondId(id int32) string {
+func GetCondID(id int32) string {
 	return fmt.Sprintf("CondId-%d", id)
 }
 
-// Get Traffic Control Identity(TcId-%d)
-func GetTcId(id int32) string {
+func GetTcID(id int32) string {
 	return fmt.Sprintf("TcId-%d", id)
-}
-
-func GetPackFiltId(id int32) string {
-	return fmt.Sprintf("PackFiltId-%d", id)
 }
 
 func CreatePccRule(id, precedence int32, flowInfo []models.FlowInformation, appID string) *models.PccRule {
 	rule := models.PccRule{
 		AppId:      appID,
 		FlowInfos:  flowInfo,
-		PccRuleId:  GetPccRuleId(id),
+		PccRuleId:  GetPccRuleID(id),
 		Precedence: precedence,
 	}
 	return &rule
@@ -59,14 +51,14 @@ func CreatePccRule(id, precedence int32, flowInfo []models.FlowInformation, appI
 func CreateCondData(id int32) models.ConditionData {
 	activationTime := time.Now()
 	return models.ConditionData{
-		CondId:         GetCondId(id),
+		CondId:         GetCondID(id),
 		ActivationTime: &activationTime,
 	}
 }
 
 func CreateQosData(id, var5qi, arp int32) models.QosData {
 	return models.QosData{
-		QosId:  GetQosId(id),
+		QosId:  GetQosID(id),
 		Var5qi: var5qi,
 		Arp: &models.Arp{
 			PriorityLevel: arp,
@@ -79,7 +71,7 @@ func CreateTcData(id int32, fullID string, flowStatus models.FlowStatus) *models
 		flowStatus = models.FlowStatus_ENABLED
 	}
 	if fullID == "" {
-		fullID = GetTcId(id)
+		fullID = GetTcID(id)
 	}
 	return &models.TrafficControlData{
 		TcId:       fullID,
@@ -87,9 +79,9 @@ func CreateTcData(id int32, fullID string, flowStatus models.FlowStatus) *models
 	}
 }
 
-func CreateUmData(umId string, thresh models.UsageThreshold) models.UsageMonitoringData {
+func CreateUmData(umID string, thresh models.UsageThreshold) models.UsageMonitoringData {
 	return models.UsageMonitoringData{
-		UmId:                    umId,
+		UmId:                    umID,
 		VolumeThreshold:         thresh.TotalVolume,
 		VolumeThresholdUplink:   thresh.UplinkVolume,
 		VolumeThresholdDownlink: thresh.DownlinkVolume,
@@ -114,15 +106,6 @@ func ConvertPacketInfoToFlowInformation(infos []models.PacketFilterInfo) (flowIn
 		flowInfos = append(flowInfos, flowInfo)
 	}
 	return
-}
-
-func GetPccRuleByAfAppId(pccRules map[string]*models.PccRule, afAppId string) *models.PccRule {
-	for _, pccRule := range pccRules {
-		if pccRule.AppId == afAppId {
-			return pccRule
-		}
-	}
-	return nil
 }
 
 func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []models.FlowInformation) *models.PccRule {

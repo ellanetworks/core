@@ -6,7 +6,7 @@ type Profile struct {
 	Name string
 
 	IPPool          string
-	Dns             string
+	DNS             string
 	Mtu             int32
 	BitrateUplink   string
 	BitrateDownlink string

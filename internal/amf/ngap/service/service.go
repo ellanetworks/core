@@ -43,18 +43,15 @@ func Run(addr string, port uint16, handler NGAPHandler) {
 	if err != nil {
 		logger.AmfLog.Errorf("Error resolving address '%s': %v\n", addr, err)
 	}
-
 	ips := []net.IPAddr{
 		{
 			IP: netAddr.IP,
 		},
 	}
-
 	sctpAddr := &sctp.SCTPAddr{
 		IPAddrs: ips,
 		Port:    port,
 	}
-
 	go listenAndServe(sctpAddr, handler)
 }
 

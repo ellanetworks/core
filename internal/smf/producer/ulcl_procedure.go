@@ -46,7 +46,7 @@ func AddPDUSessionAnchorAndULCL(smContext *context.SMContext, nodeID context.Nod
 		status = EstablishPSA2(smContext)
 	case context.EstablishingNewPSA:
 
-		trggierUPFIP := nodeID.ResolveNodeIdToIp().String()
+		trggierUPFIP := nodeID.ResolveNodeIDToIP().String()
 		_, exist := pendingUPF[trggierUPFIP]
 
 		if exist {
@@ -65,7 +65,7 @@ func AddPDUSessionAnchorAndULCL(smContext *context.SMContext, nodeID context.Nod
 
 	case context.EstablishingULCL:
 
-		trggierUPFIP := nodeID.ResolveNodeIdToIp().String()
+		trggierUPFIP := nodeID.ResolveNodeIDToIP().String()
 		_, exist := pendingUPF[trggierUPFIP]
 
 		if exist {
@@ -82,7 +82,7 @@ func AddPDUSessionAnchorAndULCL(smContext *context.SMContext, nodeID context.Nod
 
 	case context.UpdatingPSA2DownLink:
 
-		trggierUPFIP := nodeID.ResolveNodeIdToIp().String()
+		trggierUPFIP := nodeID.ResolveNodeIDToIP().String()
 		_, exist := pendingUPF[trggierUPFIP]
 
 		if exist {
@@ -97,7 +97,7 @@ func AddPDUSessionAnchorAndULCL(smContext *context.SMContext, nodeID context.Nod
 			status = UpdateRANAndIUPFUpLink(smContext)
 		}
 	case context.UpdatingRANAndIUPFUpLink:
-		trggierUPFIP := nodeID.ResolveNodeIdToIp().String()
+		trggierUPFIP := nodeID.ResolveNodeIDToIP().String()
 		_, exist := pendingUPF[trggierUPFIP]
 
 		if exist {
@@ -141,13 +141,13 @@ func EstablishPSA2(smContext *context.SMContext) context.PFCPSessionResponseStat
 				farList = append(farList, downLinkPDR.FAR)
 			}
 
-			curDPNodeIP := curDataPathNode.UPF.NodeID.ResolveNodeIdToIp().String()
+			curDPNodeIP := curDataPathNode.UPF.NodeID.ResolveNodeIDToIP().String()
 			bpMGR.PendingUPF[curDPNodeIP] = true
 			addPduSessionAnchor, status, err := pfcp.SendPfcpSessionEstablishmentRequest(
 				curDataPathNode.UPF.NodeID, smContext, pdrList, farList, barList, qerList, curDataPathNode.UPF.Port)
 			responseStatus = *status
 			if err != nil {
-				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIDToIP())
 			}
 			if addPduSessionAnchor {
 				rspNodeID := context.NewNodeID("0.0.0.0")
@@ -197,7 +197,7 @@ func EstablishULCL(smContext *context.SMContext) context.PFCPSessionResponseStat
 			if err != nil {
 				logger.SmfLog.Errorf("Error occurs when setting flow despcription: %s\n", err)
 			}
-			err = FlowDespcription.SetSourceIP(smContext.PDUAddress.Ip.To4().String())
+			err = FlowDespcription.SetSourceIP(smContext.PDUAddress.IP.To4().String())
 			if err != nil {
 				logger.SmfLog.Errorf("Error occurs when setting flow despcription: %s\n", err)
 			}
@@ -224,12 +224,12 @@ func EstablishULCL(smContext *context.SMContext) context.PFCPSessionResponseStat
 			barList := []*context.BAR{}
 			qerList := UPLinkPDR.QER
 
-			curDPNodeIP := ulcl.NodeID.ResolveNodeIdToIp().String()
+			curDPNodeIP := ulcl.NodeID.ResolveNodeIDToIP().String()
 			bpMGR.PendingUPF[curDPNodeIP] = true
 			addPduSessionAnchor, status, err := pfcp.SendPfcpSessionModificationRequest(ulcl.NodeID, smContext, pdrList, farList, barList, qerList, ulcl.Port)
 			responseStatus = *status
 			if err != nil {
-				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, ulcl.NodeID, ulcl.NodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, ulcl.NodeID, ulcl.NodeID.ResolveNodeIDToIP())
 			}
 			if addPduSessionAnchor {
 				rspNodeID := context.NewNodeID("0.0.0.0")
@@ -271,13 +271,13 @@ func UpdatePSA2DownLink(smContext *context.SMContext) context.PFCPSessionRespons
 				farList = append(farList, downLinkPDR.FAR)
 				qerList = append(qerList, downLinkPDR.QER...)
 
-				curDPNodeIP := curDataPathNode.UPF.NodeID.ResolveNodeIdToIp().String()
+				curDPNodeIP := curDataPathNode.UPF.NodeID.ResolveNodeIDToIP().String()
 				bpMGR.PendingUPF[curDPNodeIP] = true
 				addPduSessionAnchor, status, err := pfcp.SendPfcpSessionModificationRequest(
 					curDataPathNode.UPF.NodeID, smContext, pdrList, farList, barList, qerList, curDataPathNode.UPF.Port)
 				responseStatus = *status
 				if err != nil {
-					logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
+					logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIDToIP())
 				}
 				if addPduSessionAnchor {
 					rspNodeID := context.NewNodeID("0.0.0.0")
@@ -371,7 +371,7 @@ func UpdateRANAndIUPFUpLink(smContext *context.SMContext) context.PFCPSessionRes
 				if err != nil {
 					logger.SmfLog.Errorf("Error occurs when setting flow despcription: %s\n", err)
 				}
-				err = FlowDespcription.SetSourceIP(smContext.PDUAddress.Ip.To4().String())
+				err = FlowDespcription.SetSourceIP(smContext.PDUAddress.IP.To4().String())
 				if err != nil {
 					logger.SmfLog.Errorf("Error occurs when setting flow despcription: %s\n", err)
 				}
@@ -397,12 +397,12 @@ func UpdateRANAndIUPFUpLink(smContext *context.SMContext) context.PFCPSessionRes
 			barList := []*context.BAR{}
 			qerList := UPLinkPDR.QER
 
-			curDPNodeIP := curDPNode.UPF.NodeID.ResolveNodeIdToIp().String()
+			curDPNodeIP := curDPNode.UPF.NodeID.ResolveNodeIDToIP().String()
 			bpMGR.PendingUPF[curDPNodeIP] = true
 			addPduSessionAnchor, status, err := pfcp.SendPfcpSessionModificationRequest(curDPNode.UPF.NodeID, smContext, pdrList, farList, barList, qerList, curDPNode.UPF.Port)
 			responseStatus = *status
 			if err != nil {
-				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, curDPNode.UPF.NodeID, curDPNode.UPF.NodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, curDPNode.UPF.NodeID, curDPNode.UPF.NodeID.ResolveNodeIDToIP())
 			}
 			if addPduSessionAnchor {
 				rspNodeID := context.NewNodeID("0.0.0.0")

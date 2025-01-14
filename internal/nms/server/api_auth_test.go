@@ -86,8 +86,8 @@ func lookupToken(url string, client *http.Client, token string) (int, *LoookupTo
 
 func TestLoginEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, jwtSecret, err := setupServer(db_path)
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, jwtSecret, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

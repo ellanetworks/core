@@ -24,7 +24,7 @@ const (
 )
 
 func Start(dbInstance *db.Database) error {
-	self := context.AMF_Self()
+	self := context.AMFSelf()
 	self.Name = "AMF"
 	self.NgapIP = "0.0.0.0"
 	self.NgapPort = NGAPP_PORT
@@ -135,7 +135,7 @@ func getEncAlgOrder(cipheringOrder []string) (encOrder []uint8) {
 // Used in AMF planned removal procedure
 func Terminate() {
 	logger.AmfLog.Infof("Terminating AMF...")
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	// send AMF status indication to ran to notify ran that this AMF will be unavailable
 	logger.AmfLog.Infof("Send AMF Status Indication to Notify RANs due to AMF terminating")

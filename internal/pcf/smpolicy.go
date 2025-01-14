@@ -69,16 +69,16 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
-		smData, err = udr.GetSmPolicyData(ue.Supi)
+		smData, err = udr.GetSmPolicyData()
 		if err != nil {
-			return nil, fmt.Errorf("Can't find UE SM Policy Data in UDR: %s", ue.Supi)
+			return nil, fmt.Errorf("can't find UE SM Policy Data in UDR: %s", ue.Supi)
 		}
 	} else {
 		smData = smPolicyData.SmPolicyData
 	}
 	amPolicy := ue.FindAMPolicy(request.AccessType, request.ServingNetwork)
 	if amPolicy == nil {
-		return nil, fmt.Errorf("Can't find corresponding AM Policy")
+		return nil, fmt.Errorf("can't find corresponding AM Policy")
 	}
 	if ue.Gpsi == "" {
 		ue.Gpsi = request.Gpsi
@@ -170,13 +170,13 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 	decision.QosFlowUsage = request.QosFlowUsage
 	decision.PolicyCtrlReqTriggers = PolicyControlReqTrigToArray(0x40780f)
 	smPolicyData.PolicyDecision = &decision
-	locationHeader := GetResourceUri(models.ServiceName_NPCF_SMPOLICYCONTROL, smPolicyID)
+	locationHeader := GetResourceURI(models.ServiceName_NPCF_SMPOLICYCONTROL, smPolicyID)
 	logger.PcfLog.Infof("Location Header: %s", locationHeader)
 	return &decision, nil
 }
 
 func DeleteSMPolicy(smPolicyID string) error {
-	ue := pcfCtx.PCFUeFindByPolicyId(smPolicyID)
+	ue := pcfCtx.PCFUeFindByPolicyID(smPolicyID)
 	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
 		return fmt.Errorf("smPolicyID not found in PCF")
 	}

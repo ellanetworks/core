@@ -4,7 +4,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package nas_security
+package nas
 
 import (
 	"encoding/hex"
@@ -143,7 +143,7 @@ func FetchUeContextWithMobileIdentity(payload []byte) *context.AmfUe {
 			/* UeContext found based on SUCI which means context is exist in Network(AMF) but not
 			   present in UE. Hence, AMF clear the existing context
 			*/
-			ue, _ = context.AMF_Self().AmfUeFindBySuci(suci)
+			ue, _ = context.AMFSelf().AmfUeFindBySuci(suci)
 			if ue != nil {
 				ue.NASLog.Infof("UE Context derived from Suci: %v", suci)
 				ue.SecurityContextAvailable = false
@@ -164,7 +164,7 @@ func FetchUeContextWithMobileIdentity(payload []byte) *context.AmfUe {
 		}
 	}
 	if guti != "" {
-		ue, _ = context.AMF_Self().AmfUeFindByGuti(guti)
+		ue, _ = context.AMFSelf().AmfUeFindByGuti(guti)
 		if ue != nil {
 			if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
 				ue.NASLog.Infof("UE Context derived from Guti but received in plain nas: %v", guti)

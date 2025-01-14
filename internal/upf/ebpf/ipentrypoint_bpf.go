@@ -25,8 +25,8 @@ type IpEntrypointFarInfo struct {
 type IpEntrypointIn6Addr struct{ In6U struct{ U6Addr8 [16]uint8 } }
 
 type IpEntrypointPdrInfo struct {
-	FarId              uint32
-	QerId              uint32
+	FarID              uint32
+	QerID              uint32
 	OuterHeaderRemoval uint8
 	SdfMode            uint8
 	_                  [6]byte
@@ -59,8 +59,8 @@ type IpEntrypointPdrInfo struct {
 		}
 		OuterHeaderRemoval uint8
 		_                  [3]byte
-		FarId              uint32
-		QerId              uint32
+		FarID              uint32
+		QerID              uint32
 		_                  [4]byte
 	}
 }

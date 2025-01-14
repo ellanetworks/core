@@ -41,7 +41,7 @@ type SDFFilter struct {
 	TosTrafficClass         []byte
 	SecurityParameterIndex  []byte
 	FlowLabel               []byte
-	SdfFilterId             uint32
+	SdfFilterID             uint32
 	LengthOfFlowDescription uint16
 	Bid                     bool
 	Fl                      bool
@@ -58,7 +58,7 @@ type FTEID struct {
 	V6          bool
 	V4          bool
 	Teid        uint32
-	ChooseId    uint8
+	ChooseID    uint8
 }
 
 type UEIPAddress struct {

@@ -232,7 +232,7 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 			}
 			logger.UpfLog.Infof("Updating FAR info: %d, %+v", farid, sFarInfo)
 			session.UpdateFar(farid, sFarInfo.FarInfo)
-			if err := mapOperations.UpdateFar(sFarInfo.GlobalId, sFarInfo.FarInfo); err != nil {
+			if err := mapOperations.UpdateFar(sFarInfo.GlobalID, sFarInfo.FarInfo); err != nil {
 				logger.UpfLog.Infof("Can't update FAR: %s", err.Error())
 			}
 		}
@@ -241,7 +241,7 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 			farid, _ := far.FARID()
 			logger.UpfLog.Infof("Removing FAR: %d", farid)
 			sFarInfo := session.RemoveFar(farid)
-			if err := mapOperations.DeleteFar(sFarInfo.GlobalId); err != nil {
+			if err := mapOperations.DeleteFar(sFarInfo.GlobalID); err != nil {
 				logger.UpfLog.Infof("Can't remove FAR: %s", err.Error())
 			}
 		}

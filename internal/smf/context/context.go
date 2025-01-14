@@ -22,11 +22,6 @@ const IPV4 = "IPv4"
 
 var smfContext SMFContext
 
-type StaticIpInfo struct {
-	ImsiIpInfo map[string]string
-	Dnn        string
-}
-
 type InterfaceUpfInfoItem struct {
 	NetworkInstance string
 	InterfaceType   models.UpInterfaceType
@@ -81,7 +76,7 @@ func UpdateSnssaiInfo(network *nmsModels.Network, profiles []nmsModels.Profile) 
 			Sst: config.Sst,
 			Sd:  config.Sd,
 		},
-		PlmnId: models.PlmnId{
+		PlmnID: models.PlmnId{
 			Mcc: network.Mcc,
 			Mnc: network.Mnc,
 		},
@@ -90,7 +85,7 @@ func UpdateSnssaiInfo(network *nmsModels.Network, profiles []nmsModels.Profile) 
 
 	for _, profile := range profiles {
 		dnn := config.DNN
-		dnsPrimary := profile.Dns
+		dnsPrimary := profile.DNS
 		mtu := profile.Mtu
 		dnnInfo := SnssaiSmfDnnInfo{
 			DNS: DNS{
@@ -202,7 +197,7 @@ func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInfo
 			return false
 		}
 
-		if !bytes.Equal(node.NodeID.NodeIdValue, contextUserPlaneInfo.UPNodes[nodeName].NodeID.NodeIdValue) {
+		if !bytes.Equal(node.NodeID.NodeIDValue, contextUserPlaneInfo.UPNodes[nodeName].NodeID.NodeIDValue) {
 			logger.SmfLog.Warnf("Node ID mismatch for node %s", nodeName)
 			return false
 		}

@@ -25,13 +25,11 @@ import (
 -	07H (EPS bearer identity).
 */
 const (
-	QFDParameterId5Qi     uint8 = 0x01
-	QFDParameterIdGfbrUl  uint8 = 0x02
-	QFDParameterIdGfbrDl  uint8 = 0x03
-	QFDParameterIdMfbrUl  uint8 = 0x04
-	QFDParameterIdMfbrDl  uint8 = 0x05
-	QFDParameterIdAvgWind uint8 = 0x06
-	QFDParameterIdEpsBId  uint8 = 0x07
+	QFDParameterID5Qi    uint8 = 0x01
+	QFDParameterIDGfbrUl uint8 = 0x02
+	QFDParameterIDGfbrDl uint8 = 0x03
+	QFDParameterIDMfbrUl uint8 = 0x04
+	QFDParameterIDMfbrDl uint8 = 0x05
 )
 
 const (
@@ -81,8 +79,8 @@ type QosFlowsUpdate struct {
 	add, mod, del map[string]*models.QosData
 }
 
-func GetQosFlowIDFromQosID(qosId string) uint8 {
-	id, err := strconv.Atoi(qosId)
+func GetQosFlowIDFromQosID(qosID string) uint8 {
+	id, err := strconv.Atoi(qosID)
 	if err != nil {
 		logger.SmfLog.Errorf("String can not be converted to integer: %+v", err)
 		return 0
@@ -129,22 +127,22 @@ func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *
 
 	// MFBR uplink
 	if qosData.MaxbrUl != "" {
-		qfd.addQosFlowRateParam(qosData.MaxbrUl, QFDParameterIdMfbrUl)
+		qfd.addQosFlowRateParam(qosData.MaxbrUl, QFDParameterIDMfbrUl)
 	}
 
 	// MFBR downlink
 	if qosData.MaxbrDl != "" {
-		qfd.addQosFlowRateParam(qosData.MaxbrDl, QFDParameterIdMfbrDl)
+		qfd.addQosFlowRateParam(qosData.MaxbrDl, QFDParameterIDMfbrDl)
 	}
 
 	// GFBR uplink
 	if qosData.GbrUl != "" {
-		qfd.addQosFlowRateParam(qosData.GbrUl, QFDParameterIdGfbrUl)
+		qfd.addQosFlowRateParam(qosData.GbrUl, QFDParameterIDGfbrUl)
 	}
 
 	// GFBR downlink
 	if qosData.GbrDl != "" {
-		qfd.addQosFlowRateParam(qosData.GbrDl, QFDParameterIdGfbrDl)
+		qfd.addQosFlowRateParam(qosData.GbrDl, QFDParameterIDGfbrDl)
 	}
 
 	// Set E-Bit of QFD for the "create new QoS flow description" operation
@@ -266,28 +264,28 @@ func (d *QosFlowDescriptionsAuthorized) AddQFD(qfd *QoSFlowDescription) {
 	d.IeLen += uint16(qfd.QFDLen)
 }
 
-func (q *QoSFlowDescription) AddQosFlowParam5Qi(val uint8) {
+func (f *QoSFlowDescription) AddQosFlowParam5Qi(val uint8) {
 	qfp := QosFlowParameter{}
-	qfp.ParamID = QFDParameterId5Qi
+	qfp.ParamID = QFDParameterID5Qi
 	qfp.ParamLen = 1 // 1 Octet
 	qfp.ParamContent = []byte{val}
 
 	// Add to QosFlowDescription
-	q.NumOfParam += 1
-	q.ParamList = append(q.ParamList, qfp)
+	f.NumOfParam += 1
+	f.ParamList = append(f.ParamList, qfp)
 
-	q.QFDLen += 3 //(Id + Len + content)
+	f.QFDLen += 3 //(Id + Len + content)
 }
 
-func (qfd *QoSFlowDescription) addQosFlowRateParam(rate string, rateType uint8) {
+func (f *QoSFlowDescription) addQosFlowRateParam(rate string, rateType uint8) {
 	flowParam := QosFlowParameter{}
 	bitRate, unit := GetBitRate(rate)
 	flowParam.SetQosFlowParamBitRate(rateType, unit, bitRate)
 	// Add to QosFlowDescription
-	qfd.NumOfParam += 1
-	qfd.ParamList = append(qfd.ParamList, flowParam)
+	f.NumOfParam += 1
+	f.ParamList = append(f.ParamList, flowParam)
 
-	qfd.QFDLen += 5 //(Id-1 + len-1 + Content-3)
+	f.QFDLen += 5 //(Id-1 + len-1 + Content-3)
 }
 
 func GetQosFlowDescUpdate(pcfQosData, ctxtQosData map[string]*models.QosData) *QosFlowsUpdate {

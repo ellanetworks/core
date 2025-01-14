@@ -13,14 +13,14 @@ import (
 )
 
 const (
-	FC_FOR_CK_PRIME_IK_PRIME_DERIVATION  = "20"
-	FC_FOR_KSEAF_DERIVATION              = "6C"
-	FC_FOR_RES_STAR_XRES_STAR_DERIVATION = "6B"
-	FC_FOR_KAUSF_DERIVATION              = "6A"
-	FC_FOR_KAMF_DERIVATION               = "6D"
-	FC_FOR_KGNB_KN3IWF_DERIVATION        = "6E"
-	FC_FOR_NH_DERIVATION                 = "6F"
-	FC_FOR_ALGORITHM_KEY_DERIVATION      = "69"
+	FcForCkPrimeIkPrimeDerivation  = "20"
+	FcForKseafDerivation           = "6C"
+	FcForResStarXresStarDerivation = "6B"
+	FcForKausfDerivation           = "6A"
+	FcForKamfDerivation            = "6D"
+	FcForKgnbKn3iwfDerivation      = "6E"
+	FcForNhDerivation              = "6F"
+	FcForAlgorithmKeyDerivation    = "69"
 )
 
 func KDFLen(input []byte) []byte {

@@ -469,12 +469,12 @@ func resolveFromRawAddr(ptr unsafe.Pointer, n int) (*SCTPAddr, error) {
 
 func sctpGetAddrs(fd, id, optname int) (*SCTPAddr, error) {
 	type getaddrs struct {
-		assocId int32
+		assocID int32
 		addrNum uint32
 		addrs   [4096]byte
 	}
 	param := getaddrs{
-		assocId: int32(id),
+		assocID: int32(id),
 	}
 	optlen := unsafe.Sizeof(param)
 	err := getsockopt(fd, uintptr(optname), uintptr(unsafe.Pointer(&param)), uintptr(unsafe.Pointer(&optlen)))

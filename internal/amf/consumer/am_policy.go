@@ -14,7 +14,7 @@ import (
 )
 
 func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) (*models.ProblemDetails, error) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 	guamiList := context.GetServedGuamiList()
 
 	policyAssociationRequest := models.PolicyAssociationRequest{
@@ -24,8 +24,8 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) (*models
 		Gpsi:            ue.Gpsi,
 		AccessType:      anType,
 		ServingPlmn: &models.NetworkId{
-			Mcc: ue.PlmnId.Mcc,
-			Mnc: ue.PlmnId.Mnc,
+			Mcc: ue.PlmnID.Mcc,
+			Mnc: ue.PlmnID.Mnc,
 		},
 		Guami: &guamiList[0],
 	}
@@ -44,10 +44,10 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) (*models
 		}
 		return problem, err
 	}
-	ue.AmPolicyUri = locationHeader
+	ue.AmPolicyURI = locationHeader
 	// re := regexp.MustCompile("/policies/.*")
 	// match := re.FindStringSubmatch(locationHeader)
-	ue.PolicyAssociationId = locationHeader
+	ue.PolicyAssociationID = locationHeader
 	ue.AmPolicyAssociation = res
 	if res.Triggers != nil {
 		for _, trigger := range res.Triggers {
@@ -62,7 +62,7 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) (*models
 func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssociationUpdateRequest) (
 	*models.ProblemDetails, error,
 ) {
-	res, err := pcf.UpdateAMPolicy(ue.PolicyAssociationId, updateRequest)
+	res, err := pcf.UpdateAMPolicy(ue.PolicyAssociationID, updateRequest)
 	if err != nil {
 		problemDetails := &models.ProblemDetails{
 			Status: 500,
@@ -88,7 +88,7 @@ func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssocia
 }
 
 func AMPolicyControlDelete(ue *context.AmfUe) (*models.ProblemDetails, error) {
-	err := pcf.DeleteAMPolicy(ue.PolicyAssociationId)
+	err := pcf.DeleteAMPolicy(ue.PolicyAssociationID)
 	if err != nil {
 		problemDetails := &models.ProblemDetails{
 			Status: 500,

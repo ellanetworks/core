@@ -19,19 +19,19 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
-func Start(n3_address string, n3Interface string, n6Interface string) error {
+func Start(n3Address string, n3Interface string, n6Interface string) error {
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 	interfaces := []string{n3Interface, n6Interface}
 	c := config.UpfConfig{
 		InterfaceName: interfaces,
 		XDPAttachMode: "generic",
-		ApiAddress:    ":8080",
+		APIAddress:    ":8080",
 		PfcpAddress:   "0.0.0.0",
 		SmfAddress:    "0.0.0.0",
-		SmfNodeId:     "0.0.0.0",
-		PfcpNodeId:    "0.0.0.0",
-		N3Address:     n3_address,
+		SmfNodeID:     "0.0.0.0",
+		PfcpNodeID:    "0.0.0.0",
+		N3Address:     n3Address,
 		EchoInterval:  10,
 		QerMapSize:    1024,
 		FarMapSize:    1024,
@@ -97,12 +97,12 @@ func Start(n3_address string, n3Interface string, n6Interface string) error {
 		logger.UpfLog.Errorf("failed to create ResourceManager - err: %v", err)
 	}
 
-	pfcpConn, err := core.CreatePfcpConnection(config.Conf.PfcpAddress, config.Conf.PfcpNodeId, config.Conf.N3Address, bpfObjects, resourceManager)
+	pfcpConn, err := core.CreatePfcpConnection(config.Conf.PfcpAddress, config.Conf.PfcpNodeID, config.Conf.N3Address, bpfObjects, resourceManager)
 	if err != nil {
 		logger.UpfLog.Fatalf("Could not create PFCP connection: %s", err.Error())
 	}
 
-	remoteNode := core.NewNodeAssociation(config.Conf.SmfNodeId, config.Conf.SmfAddress)
+	remoteNode := core.NewNodeAssociation(config.Conf.SmfNodeID, config.Conf.SmfAddress)
 	pfcpConn.NodeAssociations[config.Conf.SmfAddress] = remoteNode
 
 	ForwardPlaneStats := ebpf.UpfXdpActionStatistic{

@@ -248,7 +248,7 @@ func updateSMF(dbInstance *db.Database) {
 		profile := models.Profile{
 			Name:            dbProfile.Name,
 			IPPool:          dbProfile.IPPool,
-			Dns:             dbProfile.DNS,
+			DNS:             dbProfile.DNS,
 			BitrateDownlink: dbProfile.BitrateDownlink,
 			BitrateUplink:   dbProfile.BitrateUplink,
 			Var5qi:          dbProfile.Var5qi,

@@ -12,7 +12,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/nas/nas_security"
+	"github.com/ellanetworks/core/internal/amf/nas/security"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
@@ -60,7 +60,7 @@ func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu [
 
 	m.GmmMessage.DLNASTransport = dLNASTransport
 
-	return nas_security.Encode(ue, m)
+	return security.Encode(ue, m)
 }
 
 func BuildNotification(ue *context.AmfUe, accessType models.AccessType) ([]byte, error) {
@@ -85,7 +85,7 @@ func BuildNotification(ue *context.AmfUe, accessType models.AccessType) ([]byte,
 
 	m.GmmMessage.Notification = notification
 
-	return nas_security.Encode(ue, m)
+	return security.Encode(ue, m)
 }
 
 func BuildIdentityRequest(typeOfIdentity uint8) ([]byte, error) {
@@ -197,7 +197,7 @@ func BuildServiceAccept(ue *context.AmfUe, pDUSessionStatus *[16]bool,
 	}
 	m.GmmMessage.ServiceAccept = serviceAccept
 
-	return nas_security.Encode(ue, m)
+	return security.Encode(ue, m)
 }
 
 func BuildAuthenticationReject(ue *context.AmfUe, eapMsg string) ([]byte, error) {
@@ -379,7 +379,7 @@ func BuildSecurityModeCommand(ue *context.AmfUe, eapSuccess bool, eapMessage str
 
 	ue.SecurityContextAvailable = true
 	m.GmmMessage.SecurityModeCommand = securityModeCommand
-	payload, err := nas_security.Encode(ue, m)
+	payload, err := security.Encode(ue, m)
 	if err != nil {
 		ue.SecurityContextAvailable = false
 		return nil, err
@@ -422,7 +422,7 @@ func BuildDeregistrationRequest(ue *context.RanUe, accessType uint8, reRegistrat
 			ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
 			SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
 		}
-		return nas_security.Encode(ue.AmfUe, m)
+		return security.Encode(ue.AmfUe, m)
 	}
 	return m.PlainNasEncode()
 }
@@ -515,7 +515,7 @@ func BuildRegistrationAccept(
 	}
 
 	// 5gs network feature support
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 	if amfSelf.Get5gsNwFeatSuppEnable() {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
 		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)
@@ -573,7 +573,7 @@ func BuildRegistrationAccept(
 	if anType == models.AccessType__3_GPP_ACCESS && ue.AmPolicyAssociation != nil &&
 		ue.AmPolicyAssociation.ServAreaRes != nil {
 		registrationAccept.ServiceAreaList = nasType.NewServiceAreaList(nasMessage.RegistrationAcceptServiceAreaListType)
-		partialServiceAreaList := nasConvert.PartialServiceAreaListToNas(ue.PlmnId, *ue.AmPolicyAssociation.ServAreaRes)
+		partialServiceAreaList := nasConvert.PartialServiceAreaListToNas(ue.PlmnID, *ue.AmPolicyAssociation.ServAreaRes)
 		registrationAccept.ServiceAreaList.SetLen(uint8(len(partialServiceAreaList)))
 		registrationAccept.ServiceAreaList.SetPartialServiceAreaList(partialServiceAreaList)
 	}
@@ -609,7 +609,7 @@ func BuildRegistrationAccept(
 
 	m.GmmMessage.RegistrationAccept = registrationAccept
 
-	return nas_security.Encode(ue, m)
+	return security.Encode(ue, m)
 }
 
 func BuildStatus5GMM(cause uint8) ([]byte, error) {
@@ -696,12 +696,12 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType
 	if anType == models.AccessType__3_GPP_ACCESS && ue.AmPolicyAssociation != nil &&
 		ue.AmPolicyAssociation.ServAreaRes != nil {
 		configurationUpdateCommand.ServiceAreaList = nasType.NewServiceAreaList(nasMessage.ConfigurationUpdateCommandServiceAreaListType)
-		partialServiceAreaList := nasConvert.PartialServiceAreaListToNas(ue.PlmnId, *ue.AmPolicyAssociation.ServAreaRes)
+		partialServiceAreaList := nasConvert.PartialServiceAreaListToNas(ue.PlmnID, *ue.AmPolicyAssociation.ServAreaRes)
 		configurationUpdateCommand.ServiceAreaList.SetLen(uint8(len(partialServiceAreaList)))
 		configurationUpdateCommand.ServiceAreaList.SetPartialServiceAreaList(partialServiceAreaList)
 	}
 
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 	if amfSelf.NetworkName.Full != "" {
 		fullNetworkName := nasConvert.FullNetworkNameToNas(amfSelf.NetworkName.Full)
 		configurationUpdateCommand.FullNameForNetwork = &fullNetworkName

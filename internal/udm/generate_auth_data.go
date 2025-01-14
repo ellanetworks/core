@@ -114,7 +114,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 			return nil, fmt.Errorf("kStr length is %d", len(kStr))
 		}
 	} else {
-		return nil, fmt.Errorf("Nil PermanentKey")
+		return nil, fmt.Errorf("permanent key is nil")
 	}
 
 	if authSubs.Milenage != nil {
@@ -154,7 +154,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	}
 
 	if !hasOPC && !hasOP {
-		return nil, fmt.Errorf("Unable to derive OP")
+		return nil, fmt.Errorf("unable to derive OP")
 	}
 
 	if !hasOPC {
@@ -164,7 +164,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 				logger.UdmLog.Errorln("milenage GenerateOPC err ", err)
 			}
 		} else {
-			return nil, fmt.Errorf("Unable to derive OPC")
+			return nil, fmt.Errorf("unable to derive OPC")
 		}
 	}
 
@@ -200,7 +200,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	if authInfoRequest.ResynchronizationInfo != nil {
 		Auts, deCodeErr := hex.DecodeString(authInfoRequest.ResynchronizationInfo.Auts)
 		if deCodeErr != nil {
-			return nil, fmt.Errorf("Auts decode error: %w", deCodeErr)
+			return nil, fmt.Errorf("auts decode error: %w", deCodeErr)
 		}
 
 		randHex, deCodeErr := hex.DecodeString(authInfoRequest.ResynchronizationInfo.Rand)
@@ -293,7 +293,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 
 		// derive XRES*
 		key := append(CK, IK...)
-		FC := ueauth.FC_FOR_RES_STAR_XRES_STAR_DERIVATION
+		FC := ueauth.FcForResStarXresStarDerivation
 		P0 := []byte(authInfoRequest.ServingNetworkName)
 		P1 := RAND
 		P2 := RES
@@ -306,7 +306,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		xresStar := kdfValForXresStar[len(kdfValForXresStar)/2:]
 
 		// derive Kausf
-		FC = ueauth.FC_FOR_KAUSF_DERIVATION
+		FC = ueauth.FcForKausfDerivation
 		P0 = []byte(authInfoRequest.ServingNetworkName)
 		P1 = SQNxorAK
 		kdfValForKausf, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))
@@ -325,7 +325,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 
 		// derive CK' and IK'
 		key := append(CK, IK...)
-		FC := ueauth.FC_FOR_CK_PRIME_IK_PRIME_DERIVATION
+		FC := ueauth.FcForCkPrimeIkPrimeDerivation
 		P0 := []byte(authInfoRequest.ServingNetworkName)
 		P1 := SQNxorAK
 		kdfVal, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))

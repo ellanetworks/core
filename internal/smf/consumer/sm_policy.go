@@ -30,7 +30,7 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 	smPolicyData.PduSessionType = nasConvert.PDUSessionTypeToModels(smContext.SelectedPDUSessionType)
 	smPolicyData.AccessType = smContext.AnType
 	smPolicyData.RatType = smContext.RatType
-	smPolicyData.Ipv4Address = smContext.PDUAddress.Ip.To4().String()
+	smPolicyData.Ipv4Address = smContext.PDUAddress.IP.To4().String()
 	smPolicyData.SubsSessAmbr = smContext.DnnConfiguration.SessionAmbr
 	smPolicyData.SubsDefQos = smContext.DnnConfiguration.Var5gQosProfile
 	smPolicyData.SliceInfo = smContext.Snssai

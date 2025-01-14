@@ -14,31 +14,31 @@ import (
 	"github.com/omec-project/openapi/models"
 )
 
-func DeleteAMPolicy(polAssoId string) error {
+func DeleteAMPolicy(polAssoID string) error {
 	const prefix = "policies/"
-	polAssoId = strings.TrimPrefix(polAssoId, prefix)
-	ue := pcfCtx.PCFUeFindByPolicyId(polAssoId)
+	polAssoID = strings.TrimPrefix(polAssoID, prefix)
+	ue := pcfCtx.PCFUeFindByPolicyID(polAssoID)
 	if ue == nil {
-		return fmt.Errorf("polAssoId[%s] not found in UePool", polAssoId)
+		return fmt.Errorf("polAssoID[%s] not found in UePool", polAssoID)
 	}
-	_, exists := ue.AMPolicyData[polAssoId]
+	_, exists := ue.AMPolicyData[polAssoID]
 	if !exists {
-		return fmt.Errorf("polAssoId[%s] not found in AMPolicyData", polAssoId)
+		return fmt.Errorf("polAssoID[%s] not found in AMPolicyData", polAssoID)
 	}
-	delete(ue.AMPolicyData, polAssoId)
+	delete(ue.AMPolicyData, polAssoID)
 	return nil
 }
 
-func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest) (*models.PolicyUpdate, error) {
-	ue := pcfCtx.PCFUeFindByPolicyId(polAssoId)
-	if ue == nil || ue.AMPolicyData[polAssoId] == nil {
-		return nil, fmt.Errorf("polAssoId not found  in PCF")
+func UpdateAMPolicy(polAssoID string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest) (*models.PolicyUpdate, error) {
+	ue := pcfCtx.PCFUeFindByPolicyID(polAssoID)
+	if ue == nil || ue.AMPolicyData[polAssoID] == nil {
+		return nil, fmt.Errorf("polAssoID not found  in PCF")
 	}
 
-	amPolicyData := ue.AMPolicyData[polAssoId]
+	amPolicyData := ue.AMPolicyData[polAssoID]
 	var response models.PolicyUpdate
 	if policyAssociationUpdateRequest.NotificationUri != "" {
-		amPolicyData.NotificationUri = policyAssociationUpdateRequest.NotificationUri
+		amPolicyData.NotificationURI = policyAssociationUpdateRequest.NotificationUri
 	}
 	if policyAssociationUpdateRequest.AltNotifIpv4Addrs != nil {
 		amPolicyData.AltNotifIpv4Addrs = policyAssociationUpdateRequest.AltNotifIpv4Addrs
@@ -58,8 +58,8 @@ func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.Poli
 			if policyAssociationUpdateRequest.PraStatuses == nil {
 				return nil, fmt.Errorf("PraStatuses doesn't exist in Policy Association")
 			}
-			for praId, praInfo := range policyAssociationUpdateRequest.PraStatuses {
-				logger.PcfLog.Infof("Policy Association Presence Id[%s] change state to %s", praId, praInfo.PresenceState)
+			for praID, praInfo := range policyAssociationUpdateRequest.PraStatuses {
+				logger.PcfLog.Infof("Policy Association Presence Id[%s] change state to %s", praID, praInfo.PresenceState)
 			}
 		case models.RequestTrigger_SERV_AREA_CH:
 			if policyAssociationUpdateRequest.ServAreaRes == nil {
@@ -97,8 +97,8 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 		}
 	}
 	response.Request = &policyAssociationRequest
-	assolId := fmt.Sprintf("%s-%d", ue.Supi, ue.PolAssociationIDGenerator)
-	amPolicy := ue.AMPolicyData[assolId]
+	assolID := fmt.Sprintf("%s-%d", ue.Supi, ue.PolAssociationIDGenerator)
+	amPolicy := ue.AMPolicyData[assolID]
 
 	if amPolicy == nil || amPolicy.AmPolicyData == nil {
 		amData, err := udr.GetAmPolicyData(ue.Supi)
@@ -106,7 +106,7 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 			return nil, "", fmt.Errorf("can't find UE[%s] AM Policy Data in UDR", ue.Supi)
 		}
 		if amPolicy == nil {
-			amPolicy = ue.NewUeAMPolicyData(assolId, policyAssociationRequest)
+			amPolicy = ue.NewUeAMPolicyData(assolID, policyAssociationRequest)
 		}
 		amPolicy.AmPolicyData = amData
 	}
@@ -126,7 +126,7 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 	response.SuppFeat = amPolicy.SuppFeat
 	ue.PolAssociationIDGenerator++
 	// Create location header for update, delete, get
-	locationHeader := GetResourceUri(models.ServiceName_NPCF_AM_POLICY_CONTROL, assolId)
-	logger.PcfLog.Debugf("AMPolicy association Id[%s] Create", assolId)
+	locationHeader := GetResourceURI(models.ServiceName_NPCF_AM_POLICY_CONTROL, assolID)
+	logger.PcfLog.Debugf("AMPolicy association Id[%s] Create", assolID)
 	return &response, locationHeader, nil
 }

@@ -15,22 +15,22 @@ import (
 
 type PdrInfo struct {
 	OuterHeaderRemoval uint8
-	FarId              uint32
-	QerId              uint32
+	FarID              uint32
+	QerID              uint32
 	SdfFilter          *SdfFilter
 }
 
 type SdfFilter struct {
 	Protocol     uint8 // 0: icmp, 1: ip, 2: tcp, 3: udp, 4: icmp6
-	SrcAddress   IpWMask
+	SrcAddress   IPWMask
 	SrcPortRange PortRange
-	DstAddress   IpWMask
+	DstAddress   IPWMask
 	DstPortRange PortRange
 }
 
-type IpWMask struct {
+type IPWMask struct {
 	Type uint8 // 0: any, 1: ip4, 2: ip6
-	Ip   net.IP
+	IP   net.IP
 	Mask net.IPMask
 }
 
@@ -173,7 +173,7 @@ func (f FarInfo) MarshalJSON() ([]byte, error) {
 }
 
 func (bpfObjects *BpfObjects) NewFar(farInfo FarInfo) (uint32, error) {
-	internalID, err := bpfObjects.FarIdTracker.GetNext()
+	internalID, err := bpfObjects.FarIDTracker.GetNext()
 	if err != nil {
 		return 0, err
 	}
@@ -186,10 +186,10 @@ func (bpfObjects *BpfObjects) UpdateFar(internalID uint32, farInfo FarInfo) erro
 	return bpfObjects.FarMap.Update(internalID, unsafe.Pointer(&farInfo), ebpf.UpdateExist)
 }
 
-func (bpfObjects *BpfObjects) DeleteFar(intenalId uint32) error {
-	logger.UpfLog.Debugf("EBPF: Delete FAR: intenalId=%d", intenalId)
-	bpfObjects.FarIdTracker.Release(intenalId)
-	return bpfObjects.FarMap.Update(intenalId, unsafe.Pointer(&FarInfo{}), ebpf.UpdateExist)
+func (bpfObjects *BpfObjects) DeleteFar(internalID uint32) error {
+	logger.UpfLog.Debugf("EBPF: Delete FAR: internalID=%d", internalID)
+	bpfObjects.FarIDTracker.Release(internalID)
+	return bpfObjects.FarMap.Update(internalID, unsafe.Pointer(&FarInfo{}), ebpf.UpdateExist)
 }
 
 type QerInfo struct {
@@ -203,7 +203,7 @@ type QerInfo struct {
 }
 
 func (bpfObjects *BpfObjects) NewQer(qerInfo QerInfo) (uint32, error) {
-	internalID, err := bpfObjects.QerIdTracker.GetNext()
+	internalID, err := bpfObjects.QerIDTracker.GetNext()
 	if err != nil {
 		return 0, err
 	}
@@ -218,7 +218,7 @@ func (bpfObjects *BpfObjects) UpdateQer(internalID uint32, qerInfo QerInfo) erro
 
 func (bpfObjects *BpfObjects) DeleteQer(internalID uint32) error {
 	logger.UpfLog.Debugf("EBPF: Delete QER: internalID=%d", internalID)
-	bpfObjects.QerIdTracker.Release(internalID)
+	bpfObjects.QerIDTracker.Release(internalID)
 	return bpfObjects.QerMap.Update(internalID, unsafe.Pointer(&QerInfo{}), ebpf.UpdateExist)
 }
 
@@ -245,8 +245,8 @@ func CombinePdrWithSdf(defaultPdr *IpEntrypointPdrInfo, sdfPdr PdrInfo) IpEntryp
 	// Default mapping options.
 	if defaultPdr != nil {
 		pdrToStore.OuterHeaderRemoval = defaultPdr.OuterHeaderRemoval
-		pdrToStore.FarId = defaultPdr.FarId
-		pdrToStore.QerId = defaultPdr.QerId
+		pdrToStore.FarID = defaultPdr.FarID
+		pdrToStore.QerID = defaultPdr.QerID
 		pdrToStore.SdfMode = 2
 	} else {
 		pdrToStore.SdfMode = 1
@@ -255,26 +255,26 @@ func CombinePdrWithSdf(defaultPdr *IpEntrypointPdrInfo, sdfPdr PdrInfo) IpEntryp
 	// SDF mapping options.
 	pdrToStore.SdfRules.SdfFilter.Protocol = sdfPdr.SdfFilter.Protocol
 	pdrToStore.SdfRules.SdfFilter.SrcAddr.Type = sdfPdr.SdfFilter.SrcAddress.Type
-	pdrToStore.SdfRules.SdfFilter.SrcAddr.Ip = Copy16Ip(sdfPdr.SdfFilter.SrcAddress.Ip)
+	pdrToStore.SdfRules.SdfFilter.SrcAddr.Ip = Copy16Ip(sdfPdr.SdfFilter.SrcAddress.IP)
 	pdrToStore.SdfRules.SdfFilter.SrcAddr.Mask = Copy16Ip(sdfPdr.SdfFilter.SrcAddress.Mask)
 	pdrToStore.SdfRules.SdfFilter.SrcPort.LowerBound = sdfPdr.SdfFilter.SrcPortRange.LowerBound
 	pdrToStore.SdfRules.SdfFilter.SrcPort.UpperBound = sdfPdr.SdfFilter.SrcPortRange.UpperBound
 	pdrToStore.SdfRules.SdfFilter.DstAddr.Type = sdfPdr.SdfFilter.DstAddress.Type
-	pdrToStore.SdfRules.SdfFilter.DstAddr.Ip = Copy16Ip(sdfPdr.SdfFilter.DstAddress.Ip)
+	pdrToStore.SdfRules.SdfFilter.DstAddr.Ip = Copy16Ip(sdfPdr.SdfFilter.DstAddress.IP)
 	pdrToStore.SdfRules.SdfFilter.DstAddr.Mask = Copy16Ip(sdfPdr.SdfFilter.DstAddress.Mask)
 	pdrToStore.SdfRules.SdfFilter.DstPort.LowerBound = sdfPdr.SdfFilter.DstPortRange.LowerBound
 	pdrToStore.SdfRules.SdfFilter.DstPort.UpperBound = sdfPdr.SdfFilter.DstPortRange.UpperBound
 	pdrToStore.SdfRules.OuterHeaderRemoval = sdfPdr.OuterHeaderRemoval
-	pdrToStore.SdfRules.FarId = sdfPdr.FarId
-	pdrToStore.SdfRules.QerId = sdfPdr.QerId
+	pdrToStore.SdfRules.FarID = sdfPdr.FarID
+	pdrToStore.SdfRules.QerID = sdfPdr.QerID
 	return pdrToStore
 }
 
 func ToIPEntrypointPdrInfo(defaultPdr PdrInfo) IpEntrypointPdrInfo {
 	var pdrToStore IpEntrypointPdrInfo
 	pdrToStore.OuterHeaderRemoval = defaultPdr.OuterHeaderRemoval
-	pdrToStore.FarId = defaultPdr.FarId
-	pdrToStore.QerId = defaultPdr.QerId
+	pdrToStore.FarID = defaultPdr.FarID
+	pdrToStore.QerID = defaultPdr.QerID
 	return pdrToStore
 }
 

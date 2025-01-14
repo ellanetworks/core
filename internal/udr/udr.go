@@ -11,7 +11,7 @@ import (
 
 var udrContext = UDRContext{}
 
-type subsId = string
+type subsID = string
 
 type UDRServiceType int
 
@@ -22,8 +22,8 @@ type UDRContext struct {
 }
 
 type UESubsData struct {
-	EeSubscriptionCollection map[subsId]*EeSubscriptionCollection
-	SdmSubscriptions         map[subsId]*models.SdmSubscription
+	EeSubscriptionCollection map[subsID]*EeSubscriptionCollection
+	SdmSubscriptions         map[subsID]*models.SdmSubscription
 }
 
 type EeSubscriptionCollection struct {

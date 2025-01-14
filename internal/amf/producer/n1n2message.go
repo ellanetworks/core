@@ -38,20 +38,20 @@ func ProducerHandler(s1, s2 string, msg interface{}) (interface{}, string, inter
 	return nil, "", nil, nil
 }
 
-func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, reqUri string) (*models.N1N2MessageTransferRspData, error) {
+func CreateN1N2MessageTransfer(ueContextID string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, reqURI string) (*models.N1N2MessageTransferRspData, error) {
 	var ue *context.AmfUe
 	var ok bool
 	var problemDetails *models.ProblemDetails
 	logger.AmfLog.Infof("Handle N1N2 Message Transfer Request")
 
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
-	if ue, ok = amfSelf.AmfUeFindByUeContextID(ueContextId); !ok {
+	if ue, ok = amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
 		return nil, fmt.Errorf("UE context not found")
 	}
 	sbiMsg := context.SbiMsg{
-		UeContextID: ueContextId,
-		ReqURI:      reqUri,
+		UeContextID: ueContextID,
+		ReqURI:      reqURI,
 		Msg:         n1n2MessageTransferRequest,
 		Result:      make(chan context.SbiResponseMsg, 10),
 	}
@@ -70,7 +70,7 @@ func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest mo
 		transferErr = msg.TransferErr.(*models.N1N2MessageTransferError)
 	}
 	//		n1n2MessageTransferRspData, locationHeader, problemDetails, transferErr := N1N2MessageTransferProcedure(
-	//			ueContextID, reqUri, n1n2MessageTransferRequest)
+	//			ueContextID, reqURI, n1n2MessageTransferRequest)
 
 	if problemDetails != nil {
 		return nil, fmt.Errorf("Problem Details: %v", problemDetails)
@@ -105,25 +105,25 @@ func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest mo
 //   - TransferErr: if AMF reject the request due to procedure error, e.g. UE has an ongoing procedure.
 
 // see TS 29.518 6.1.3.5.3.1 for more details.
-func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
+func N1N2MessageTransferProcedure(ueContextID string, reqURI string,
 	n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (
 	n1n2MessageTransferRspData *models.N1N2MessageTransferRspData,
 	locationHeader string, problemDetails *models.ProblemDetails,
 	transferErr *models.N1N2MessageTransferError,
 ) {
 	var (
-		requestData *models.N1N2MessageTransferReqData = n1n2MessageTransferRequest.JsonData
-		n2Info      []byte                             = n1n2MessageTransferRequest.BinaryDataN2Information
-		n1Msg       []byte                             = n1n2MessageTransferRequest.BinaryDataN1Message
+		requestData = n1n2MessageTransferRequest.JsonData
+		n2Info      = n1n2MessageTransferRequest.BinaryDataN2Information
+		n1Msg       = n1n2MessageTransferRequest.BinaryDataN1Message
 
 		ue        *context.AmfUe
 		ok        bool
 		smContext *context.SmContext
 		n1MsgType uint8
-		anType    models.AccessType = models.AccessType__3_GPP_ACCESS
+		anType    = models.AccessType__3_GPP_ACCESS
 	)
 
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	if ue, ok = amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
 		problemDetails = &models.ProblemDetails{
@@ -323,7 +323,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 	} else {
 		n1n2MessageID = n1n2MessageIDTmp
 	}
-	locationHeader = context.AMF_Self().GetIPv4Uri() + reqUri + "/" + strconv.Itoa(int(n1n2MessageID))
+	locationHeader = context.AMFSelf().GetIPv4Uri() + reqURI + "/" + strconv.Itoa(int(n1n2MessageID))
 
 	// Case A (UE is CM-IDLE in 3GPP access and the associated access type is 3GPP access)
 	// in subclause 5.2.2.3.1.2 of TS29518
@@ -408,10 +408,10 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 	}
 }
 
-func N1N2MessageTransferStatusProcedure(ueContextID string, reqUri string) (models.N1N2MessageTransferCause,
+func N1N2MessageTransferStatusProcedure(ueContextID string, reqURI string) (models.N1N2MessageTransferCause,
 	*models.ProblemDetails,
 ) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	ue, ok := amfSelf.AmfUeFindByUeContextID(ueContextID)
 	if !ok {
@@ -422,9 +422,9 @@ func N1N2MessageTransferStatusProcedure(ueContextID string, reqUri string) (mode
 		return "", problemDetails
 	}
 
-	resourceUri := amfSelf.GetIPv4Uri() + reqUri
+	resourceURI := amfSelf.GetIPv4Uri() + reqURI
 	n1n2Message := ue.N1N2Message
-	if n1n2Message == nil || n1n2Message.ResourceURI != resourceUri {
+	if n1n2Message == nil || n1n2Message.ResourceURI != resourceURI {
 		problemDetails := &models.ProblemDetails{
 			Status: http.StatusNotFound,
 			Cause:  "CONTEXT_NOT_FOUND",
@@ -439,7 +439,7 @@ func N1N2MessageSubscribeProcedure(ueContextID string,
 	ueN1N2InfoSubscriptionCreateData models.UeN1N2InfoSubscriptionCreateData) (
 	*models.UeN1N2InfoSubscriptionCreatedData, *models.ProblemDetails,
 ) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	ue, ok := amfSelf.AmfUeFindByUeContextID(ueContextID)
 	if !ok {
@@ -467,7 +467,7 @@ func N1N2MessageSubscribeProcedure(ueContextID string,
 }
 
 func N1N2MessageUnSubscribeProcedure(ueContextID string, subscriptionID string) *models.ProblemDetails {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	ue, ok := amfSelf.AmfUeFindByUeContextID(ueContextID)
 	if !ok {

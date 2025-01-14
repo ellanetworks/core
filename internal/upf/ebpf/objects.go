@@ -28,14 +28,14 @@ import (
 type BpfObjects struct {
 	IpEntrypointObjects
 
-	FarIdTracker *IdTracker
-	QerIdTracker *IdTracker
+	FarIDTracker *IDTracker
+	QerIDTracker *IDTracker
 }
 
 func NewBpfObjects() *BpfObjects {
 	return &BpfObjects{
-		FarIdTracker: NewIdTracker(config.Conf.FarMapSize),
-		QerIdTracker: NewIdTracker(config.Conf.QerMapSize),
+		FarIDTracker: NewIDTracker(config.Conf.FarMapSize),
+		QerIDTracker: NewIDTracker(config.Conf.QerMapSize),
 	}
 }
 
@@ -172,22 +172,22 @@ func (bpfObjects *BpfObjects) ResizeAllMaps(qerMapSize uint32, farMapSize uint32
 	return nil
 }
 
-type IdTracker struct {
+type IDTracker struct {
 	bitmap  *roaring.Bitmap
 	maxSize uint32
 }
 
-func NewIdTracker(size uint32) *IdTracker {
+func NewIDTracker(size uint32) *IDTracker {
 	newBitmap := roaring.NewBitmap()
 	newBitmap.Flip(0, uint64(size))
 
-	return &IdTracker{
+	return &IDTracker{
 		bitmap:  newBitmap,
 		maxSize: size,
 	}
 }
 
-func (t *IdTracker) GetNext() (next uint32, err error) {
+func (t *IDTracker) GetNext() (next uint32, err error) {
 	i := t.bitmap.Iterator()
 	if i.HasNext() {
 		next := i.Next()
@@ -198,7 +198,7 @@ func (t *IdTracker) GetNext() (next uint32, err error) {
 	return 0, errors.New("pool is empty")
 }
 
-func (t *IdTracker) Release(id uint32) {
+func (t *IDTracker) Release(id uint32) {
 	if id >= t.maxSize {
 		return
 	}

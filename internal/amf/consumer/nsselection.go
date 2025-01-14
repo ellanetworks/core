@@ -16,7 +16,7 @@ import (
 func NSSelectionGetForRegistration(ue *context.AmfUe, requestedNssai []models.MappingOfSnssai) (
 	*models.ProblemDetails, error,
 ) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 	sliceInfo := models.SliceInfoForRegistration{
 		SubscribedNssai: ue.SubscribedNssai,
 	}
@@ -31,7 +31,7 @@ func NSSelectionGetForRegistration(ue *context.AmfUe, requestedNssai []models.Ma
 	amfType := models.NfType_AMF
 	params := nssf.NsselectionQueryParameter{
 		NfType:                          &amfType,
-		NfId:                            amfSelf.NfID,
+		NfID:                            amfSelf.NfID,
 		SliceInfoRequestForRegistration: &sliceInfo,
 	}
 
@@ -51,7 +51,7 @@ func NSSelectionGetForRegistration(ue *context.AmfUe, requestedNssai []models.Ma
 func NSSelectionGetForPduSession(ue *context.AmfUe, snssai models.Snssai) (
 	*models.AuthorizedNetworkSliceInfo, *models.ProblemDetails, error,
 ) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 	sliceInfoForPduSession := models.SliceInfoForPduSession{
 		SNssai:            &snssai,
 		RoamingIndication: models.RoamingIndication_NON_ROAMING,
@@ -60,7 +60,7 @@ func NSSelectionGetForPduSession(ue *context.AmfUe, snssai models.Snssai) (
 	amfType := models.NfType_AMF
 	params := nssf.NsselectionQueryParameter{
 		NfType:                        &amfType,
-		NfId:                          amfSelf.NfID,
+		NfID:                          amfSelf.NfID,
 		SliceInfoRequestForPduSession: &sliceInfoForPduSession,
 	}
 

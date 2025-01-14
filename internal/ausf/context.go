@@ -16,7 +16,6 @@ type AUSFContext struct {
 	suciSupiMap sync.Map
 	UePool      sync.Map
 	snRegex     *regexp.Regexp
-	NfId        string
 	PlmnList    []models.PlmnId
 }
 
@@ -107,8 +106,4 @@ func IsServingNetworkAuthorized(lookup string) bool {
 
 func GetSelf() *AUSFContext {
 	return &ausfContext
-}
-
-func (a *AUSFContext) GetSelfID() string {
-	return a.NfId
 }

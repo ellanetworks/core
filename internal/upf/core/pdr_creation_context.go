@@ -32,10 +32,10 @@ func (pdrContext *PDRCreationContext) extractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 		spdrInfo.PdrInfo.OuterHeaderRemoval = outerHeaderRemoval
 	}
 	if farid, err := pdr.FARID(); err == nil {
-		spdrInfo.PdrInfo.FarId = pdrContext.getFARID(farid)
+		spdrInfo.PdrInfo.FarID = pdrContext.getFARID(farid)
 	}
 	if qerid, err := pdr.QERID(); err == nil {
-		spdrInfo.PdrInfo.QerId = pdrContext.getQERID(qerid)
+		spdrInfo.PdrInfo.QerID = pdrContext.getQERID(qerid)
 	}
 
 	pdi, err := pdr.PDI()
@@ -132,7 +132,7 @@ func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, mapOperations
 }
 
 func (pdrContext *PDRCreationContext) getFARID(farid uint32) uint32 {
-	return pdrContext.Session.GetFar(farid).GlobalId
+	return pdrContext.Session.GetFar(farid).GlobalID
 }
 
 func (pdrContext *PDRCreationContext) getQERID(qerid uint32) uint32 {
@@ -141,13 +141,13 @@ func (pdrContext *PDRCreationContext) getQERID(qerid uint32) uint32 {
 
 func (pdrContext *PDRCreationContext) getFTEID(seID uint64, pdrID uint32) (uint32, error) {
 	if pdrContext.ResourceManager == nil || pdrContext.ResourceManager.FTEIDM == nil {
-		return 0, errors.New("FTEID manager is nil")
+		return 0, errors.New("f-teid manager is nil")
 	}
 
 	allocatedTeid, err := pdrContext.ResourceManager.FTEIDM.AllocateTEID(seID, pdrID)
 	if err != nil {
 		logger.UpfLog.Errorf("AllocateTEID err: %v", err)
-		return 0, fmt.Errorf("Can't allocate TEID: %s", causeToString(ie.CauseNoResourcesAvailable))
+		return 0, fmt.Errorf("can't allocate TEID: %s", causeToString(ie.CauseNoResourcesAvailable))
 	}
 	return allocatedTeid, nil
 }

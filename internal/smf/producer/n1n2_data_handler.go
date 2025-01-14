@@ -230,7 +230,7 @@ func HandleUpdateCause(body models.UpdateSmContextRequest, smContext *context.SM
 
 		response.JsonData.N2SmInfo = &models.RefToBinaryData{ContentId: "PDUResourceReleaseCommand"}
 		response.JsonData.N2SmInfoType = models.N2SmInfoType_PDU_RES_REL_CMD
-		smContext.PDUSessionRelease_DUE_TO_DUP_PDU_ID = true
+		smContext.PDUSessionReleaseDueToDupPduID = true
 
 		buf, err := context.BuildPDUSessionResourceReleaseCommandTransfer(smContext)
 		response.BinaryDataN2SmInformation = buf
@@ -312,7 +312,7 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 		smContext.SubPduSessLog.Infof("N2 SM info type %v received",
 			smContextUpdateData.N2SmInfoType)
 		smContext.SubPduSessLog.Infof("N2 PDUSession Release Complete ")
-		if smContext.PDUSessionRelease_DUE_TO_DUP_PDU_ID {
+		if smContext.PDUSessionReleaseDueToDupPduID {
 			if smContext.SMContextState != context.SmStateInActivePending {
 				smContext.SubPduSessLog.Warnf("SMContext state[%v] should be ActivePending",
 					smContext.SMContextState.String())
@@ -320,7 +320,7 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 			smContext.ChangeState(context.SmStateInit)
 			response.JsonData.UpCnxState = models.UpCnxState_DEACTIVATED
 
-			smContext.PDUSessionRelease_DUE_TO_DUP_PDU_ID = false
+			smContext.PDUSessionReleaseDueToDupPduID = false
 			context.RemoveSMContext(smContext.Ref)
 		} else {
 			if smContext.SMContextState != context.SmStateInActivePending {

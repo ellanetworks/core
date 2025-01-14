@@ -5,12 +5,12 @@ package config
 type UpfConfig struct {
 	InterfaceName []string `mapstructure:"interface_name" json:"interface_name"`
 	XDPAttachMode string   `mapstructure:"xdp_attach_mode" validate:"oneof=generic native offload" json:"xdp_attach_mode"`
-	ApiAddress    string   `mapstructure:"api_address" validate:"hostname_port" json:"api_address"`
+	APIAddress    string   `mapstructure:"api_address" validate:"hostname_port" json:"api_address"`
 	PfcpAddress   string   `mapstructure:"pfcp_address" validate:"hostname_port" json:"pfcp_address"`
-	PfcpNodeId    string   `mapstructure:"pfcp_node_id" validate:"hostname|ip" json:"pfcp_node_id"`
+	PfcpNodeID    string   `mapstructure:"pfcp_node_id" validate:"hostname|ip" json:"pfcp_node_id"`
 	SmfAddress    string
-	SmfNodeId     string
-	N3Address     string   `mapstructure:"n3_address" validate:"ipv4" json:"n3_address"`
+	SmfNodeID     string
+	N3Address     string   `mapstructure:"n3Address" validate:"ipv4" json:"n3Address"`
 	GtpPeer       []string `mapstructure:"gtp_peer" validate:"omitempty,dive,hostname_port" json:"gtp_peer"`
 	EchoInterval  uint32   `mapstructure:"echo_interval" validate:"min=1" json:"echo_interval"`
 	QerMapSize    uint32   `mapstructure:"qer_map_size" validate:"min=1" json:"qer_map_size"`

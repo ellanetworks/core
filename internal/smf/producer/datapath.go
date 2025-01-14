@@ -51,21 +51,21 @@ func SendPFCPRule(smContext *context.SMContext, dataPath *context.DataPath) cont
 				curDataPathNode.UPF.NodeID, smContext, pdrList, farList, nil, qerList, curDataPathNode.UPF.Port)
 			responseStatus = *status
 			if err != nil {
-				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIDToIP())
 			}
 			if addPduSessionAnchor {
 				rspNodeID := context.NewNodeID("0.0.0.0")
 				responseStatus = AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
 			}
 			if err != nil {
-				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIDToIP())
 			}
 		} else {
 			addPduSessionAnchor, status, err := pfcp.SendPfcpSessionModificationRequest(
 				curDataPathNode.UPF.NodeID, smContext, pdrList, farList, nil, qerList, curDataPathNode.UPF.Port)
 			responseStatus = *status
 			if err != nil {
-				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIDToIP())
 			}
 			if addPduSessionAnchor {
 				rspNodeID := context.NewNodeID("0.0.0.0")
@@ -132,7 +132,7 @@ func SendPFCPRules(smContext *context.SMContext) context.PFCPSessionResponseStat
 				pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList, pfcpState.port)
 			responseStatus = *status
 			if err != nil {
-				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, pfcpState.nodeID, pfcpState.nodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, pfcpState.nodeID, pfcpState.nodeID.ResolveNodeIDToIP())
 			}
 			if addPduSessionAnchor {
 				rspNodeID := context.NewNodeID("0.0.0.0")
@@ -143,7 +143,7 @@ func SendPFCPRules(smContext *context.SMContext) context.PFCPSessionResponseStat
 				pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList, pfcpState.port)
 			responseStatus = *status
 			if err != nil {
-				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, pfcpState.nodeID, pfcpState.nodeID.ResolveNodeIdToIp())
+				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, pfcpState.nodeID, pfcpState.nodeID.ResolveNodeIDToIP())
 			}
 			if addPduSessionAnchor {
 				rspNodeID := context.NewNodeID("0.0.0.0")

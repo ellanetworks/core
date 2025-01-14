@@ -506,7 +506,7 @@ func SendHandoverRequest(sourceUe *context.RanUe, targetRan *context.AmfRan, cau
 	}
 
 	var targetUe *context.RanUe
-	if targetUeTmp, err := targetRan.NewRanUe(context.RanUeNgapIdUnspecified); err != nil {
+	if targetUeTmp, err := targetRan.NewRanUe(context.RanUeNgapIDUnspecified); err != nil {
 		sourceUe.Log.Errorf("Create target UE error: %+v", err)
 	} else {
 		targetUe = targetUeTmp
@@ -643,7 +643,7 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) {
 	// 	ngaplog.Errorf("Build Paging failed : %s", err.Error())
 	// }
 	taiList := ue.RegistrationArea[models.AccessType__3_GPP_ACCESS]
-	context.AMF_Self().AmfRanPool.Range(func(key, value interface{}) bool {
+	context.AMFSelf().AmfRanPool.Range(func(key, value interface{}) bool {
 		ran := value.(*context.AmfRan)
 		for _, item := range ran.SupportedTAList {
 			if context.InTaiList(item.Tai, taiList) {
@@ -656,11 +656,11 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) {
 		return true
 	})
 
-	if context.AMF_Self().T3513Cfg.Enable {
-		cfg := context.AMF_Self().T3513Cfg
+	if context.AMFSelf().T3513Cfg.Enable {
+		cfg := context.AMFSelf().T3513Cfg
 		ue.T3513 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			ue.GmmLog.Warnf("T3513 expires, retransmit Paging (retry: %d)", expireTimes)
-			context.AMF_Self().AmfRanPool.Range(func(key, value interface{}) bool {
+			context.AMFSelf().AmfRanPool.Range(func(key, value interface{}) bool {
 				ran := value.(*context.AmfRan)
 				for _, item := range ran.SupportedTAList {
 					if context.InTaiList(item.Tai, taiList) {

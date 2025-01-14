@@ -132,8 +132,8 @@ func updateOperatorCode(url string, client *http.Client, token string, data *Upd
 // the state of the server after previous tests.
 func TestApiOperatorEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path)
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -233,10 +233,10 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	})
 }
 
-func TestUpdateOperatorIdInvalidInput(t *testing.T) {
+func TestUpdateOperatorIDInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
-	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path)
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -335,8 +335,8 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 
 func TestUpdateOperatorCodeInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
-	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path)
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

@@ -15,7 +15,7 @@ import (
 )
 
 type UeContext struct {
-	SmPolicyData              map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionID) as key
+	SmPolicyData              map[string]*UeSmPolicyData // use smPolicyID(ue.Supi-pduSessionID) as key
 	Supi                      string
 	Gpsi                      string
 	Pei                       string
@@ -27,7 +27,7 @@ type UeContext struct {
 type UeAMPolicyData struct {
 	PolAssoID         string
 	AccessType        models.AccessType
-	NotificationUri   string
+	NotificationURI   string
 	ServingPlmn       *models.NetworkId
 	AltNotifIpv4Addrs []string
 	AltNotifIpv6Addrs []string
@@ -58,17 +58,17 @@ type UeSmPolicyData struct {
 	PcfUe          *UeContext
 }
 
-func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociationRequest) *UeAMPolicyData {
+func (ue *UeContext) NewUeAMPolicyData(assolID string, req models.PolicyAssociationRequest) *UeAMPolicyData {
 	ue.Gpsi = req.Gpsi
 	ue.Pei = req.Pei
 	ue.GroupIds = req.GroupIds
-	ue.AMPolicyData[assolId] = &UeAMPolicyData{
-		PolAssoID:         assolId,
+	ue.AMPolicyData[assolID] = &UeAMPolicyData{
+		PolAssoID:         assolID,
 		ServAreaRes:       req.ServAreaRes,
 		AltNotifIpv4Addrs: req.AltNotifIpv4Addrs,
 		AltNotifIpv6Addrs: req.AltNotifIpv6Addrs,
 		AccessType:        req.AccessType,
-		NotificationUri:   req.NotificationUri,
+		NotificationURI:   req.NotificationUri,
 		ServingPlmn:       req.ServingPlmn,
 		TimeZone:          req.TimeZone,
 		Rfsp:              req.Rfsp,
@@ -77,8 +77,8 @@ func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociat
 		ServiveName:       req.ServiveName,
 		PcfUe:             ue,
 	}
-	ue.AMPolicyData[assolId].Pras = make(map[string]models.PresenceInfo)
-	return ue.AMPolicyData[assolId]
+	ue.AMPolicyData[assolID].Pras = make(map[string]models.PresenceInfo)
+	return ue.AMPolicyData[assolID]
 }
 
 // returns UeSmPolicyData and insert related info to Ue with smPolId

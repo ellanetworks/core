@@ -78,7 +78,7 @@ func SendCreateSmContextRequest(ue *amf_context.AmfUe, smContext *amf_context.Sm
 func buildCreateSmContextRequest(ue *amf_context.AmfUe, smContext *amf_context.SmContext,
 	requestType *models.RequestType,
 ) (smContextCreateData models.SmContextCreateData) {
-	context := amf_context.AMF_Self()
+	context := amf_context.AMFSelf()
 	smContextCreateData.Supi = ue.Supi
 	smContextCreateData.UnauthenticatedSupi = ue.UnauthenticatedSupi
 	smContextCreateData.Pei = ue.Pei
@@ -124,7 +124,7 @@ func buildCreateSmContextRequest(ue *amf_context.AmfUe, smContext *amf_context.S
 // hoState -> the preparation, execution or cancellation of a handover of the PDU session
 // toBeSwitch -> Xn Handover to request to switch the PDU session to a new downlink N3 tunnel endpoint
 // failedToBeSwitch -> indicate that the PDU session failed to be setup in the target RAN
-// targetId, targetServingNfId(preparation with AMF change) -> N2 handover
+// targetID, targetServingNfID(preparation with AMF change) -> N2 handover
 // release -> duplicated PDU Session Id in subclause 5.2.2.3.11, slice not available in subclause 5.2.2.3.12
 // ngApCause -> e.g. the NGAP cause for requesting to deactivate the user plane connection of the PDU session.
 // 5gMmCauseValue -> AMF received a 5GMM cause code from the UE e.g 5GMM Status message in response to
@@ -231,7 +231,7 @@ func SendUpdateSmContextN2HandoverPreparing(
 	ue *amf_context.AmfUe,
 	smContext *amf_context.SmContext,
 	n2SmType models.N2SmInfoType,
-	N2SmInfo []byte, amfid string, targetId *models.NgRanTargetId) (
+	N2SmInfo []byte, amfid string, targetID *models.NgRanTargetId) (
 	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, *models.ProblemDetails, error,
 ) {
 	updateData := models.SmContextUpdateData{}
@@ -241,7 +241,7 @@ func SendUpdateSmContextN2HandoverPreparing(
 		updateData.N2SmInfo.ContentId = N2SMINFO_ID
 	}
 	updateData.HoState = models.HoState_PREPARING
-	updateData.TargetId = targetId
+	updateData.TargetId = targetID
 	// amf changed in same plmn
 	if amfid != "" {
 		updateData.TargetServingNfId = amfid

@@ -47,7 +47,7 @@ func createPDIIE(pdi *context.PDI) *ie.IE {
 				pdi.LocalFTeid.Teid,
 				pdi.LocalFTeid.Ipv4Address,
 				pdi.LocalFTeid.Ipv6Address,
-				pdi.LocalFTeid.ChooseId,
+				pdi.LocalFTeid.ChooseID,
 			),
 		)
 	}

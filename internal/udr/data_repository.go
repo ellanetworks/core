@@ -29,7 +29,7 @@ var AllowedSscModes = []string{
 var AllowedSessionTypes = []models.PduSessionType{models.PduSessionType_IPV4}
 
 // This function is defined twice, here and in the NMS. We should move it to a common place.
-func convertDbAmDataToModel(bitrateDownlink string, bitrateUplink string) *models.AccessAndMobilitySubscriptionData {
+func convertDBAmDataToModel(bitrateDownlink string, bitrateUplink string) *models.AccessAndMobilitySubscriptionData {
 	amData := &models.AccessAndMobilitySubscriptionData{
 		Nssai: &models.Nssai{
 			DefaultSingleNssais: make([]models.Snssai, 0),
@@ -51,33 +51,33 @@ func convertDbAmDataToModel(bitrateDownlink string, bitrateUplink string) *model
 	return amData
 }
 
-func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
-	subscriber, err := udrContext.DBInstance.GetSubscriber(ueId)
+func GetAmData(ueID string) (*models.AccessAndMobilitySubscriptionData, error) {
+	subscriber, err := udrContext.DBInstance.GetSubscriber(ueID)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
 	profile, err := udrContext.DBInstance.GetProfileByID(subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
-	amData := convertDbAmDataToModel(profile.BitrateDownlink, profile.BitrateUplink)
+	amData := convertDBAmDataToModel(profile.BitrateDownlink, profile.BitrateUplink)
 	return amData, nil
 }
 
-func EditAuthenticationSubscription(ueId string, sequenceNumber string) error {
-	subscriber, err := udrContext.DBInstance.GetSubscriber(ueId)
+func EditAuthenticationSubscription(ueID string, sequenceNumber string) error {
+	subscriber, err := udrContext.DBInstance.GetSubscriber(ueID)
 	if err != nil {
-		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
+		return fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
 	subscriber.SequenceNumber = sequenceNumber
 	err = udrContext.DBInstance.UpdateSubscriber(subscriber)
 	if err != nil {
-		return fmt.Errorf("couldn't update subscriber %s: %v", ueId, err)
+		return fmt.Errorf("couldn't update subscriber %s: %v", ueID, err)
 	}
 	return nil
 }
 
-func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string) *models.AuthenticationSubscription {
+func convertDBAuthSubsDataToModel(opc string, key string, sequenceNumber string) *models.AuthenticationSubscription {
 	authSubsData := &models.AuthenticationSubscription{}
 	authSubsData.AuthenticationManagementField = AuthenticationManagementField
 	authSubsData.AuthenticationMethod = models.AuthMethod__5_G_AKA
@@ -103,18 +103,18 @@ func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 	return authSubsData
 }
 
-func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
-	subscriber, err := udrContext.DBInstance.GetSubscriber(ueId)
+func GetAuthSubsData(ueID string) (*models.AuthenticationSubscription, error) {
+	subscriber, err := udrContext.DBInstance.GetSubscriber(ueID)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
-	authSubsData := convertDbAuthSubsDataToModel(subscriber.Opc, subscriber.PermanentKey, subscriber.SequenceNumber)
+	authSubsData := convertDBAuthSubsDataToModel(subscriber.Opc, subscriber.PermanentKey, subscriber.SequenceNumber)
 	return authSubsData, nil
 }
 
-func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
-	_, err := udrContext.DBInstance.GetSubscriber(ueId)
+func GetAmPolicyData(ueID string) (*models.AmPolicyData, error) {
+	_, err := udrContext.DBInstance.GetSubscriber(ueID)
 	if err != nil {
 		logger.UdrLog.Warnln(err)
 		return nil, fmt.Errorf("USER_NOT_FOUND")
@@ -123,7 +123,7 @@ func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
 	return amPolicyData, nil
 }
 
-func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
+func GetSmPolicyData() (*models.SmPolicyData, error) {
 	smPolicyData := &models.SmPolicyData{
 		SmPolicySnssaiData: make(map[string]models.SmPolicySnssaiData),
 	}
@@ -152,11 +152,11 @@ func GetSMFRegistrations(supi string) ([]*models.SmfRegistration, error) {
 	return []*models.SmfRegistration{}, nil
 }
 
-func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string) models.SdmSubscription {
-	value, ok := udrContext.UESubsCollection.Load(ueId)
+func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueID string) models.SdmSubscription {
+	value, ok := udrContext.UESubsCollection.Load(ueID)
 	if !ok {
-		udrContext.UESubsCollection.Store(ueId, new(UESubsData))
-		value, _ = udrContext.UESubsCollection.Load(ueId)
+		udrContext.UESubsCollection.Store(ueID, new(UESubsData))
+		value, _ = udrContext.UESubsCollection.Load(ueID)
 	}
 	UESubsData := value.(*UESubsData)
 	if UESubsData.SdmSubscriptions == nil {
@@ -171,7 +171,7 @@ func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string)
 	return SdmSubscription
 }
 
-func convertDbSessionManagementDataToModel(
+func convertDBSessionManagementDataToModel(
 	bitrateDownlink string,
 	bitrateUplink string,
 	var5qi int32,
@@ -212,20 +212,20 @@ func convertDbSessionManagementDataToModel(
 	return smData
 }
 
-func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) {
-	subscriber, err := udrContext.DBInstance.GetSubscriber(ueId)
+func GetSmData(ueID string) ([]models.SessionManagementSubscriptionData, error) {
+	subscriber, err := udrContext.DBInstance.GetSubscriber(ueID)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
 	profile, err := udrContext.DBInstance.GetProfileByID(subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
-	sessionManagementData := convertDbSessionManagementDataToModel(profile.BitrateDownlink, profile.BitrateUplink, profile.Var5qi, profile.PriorityLevel)
+	sessionManagementData := convertDBSessionManagementDataToModel(profile.BitrateDownlink, profile.BitrateUplink, profile.Var5qi, profile.PriorityLevel)
 	return sessionManagementData, nil
 }
 
-func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
+func GetSmfSelectData(ueID string) (*models.SmfSelectionSubscriptionData, error) {
 	snssai := fmt.Sprintf("%d%s", config.Sst, config.Sd)
 	smfSelectionData := &models.SmfSelectionSubscriptionData{
 		SubscribedSnssaiInfos: make(map[string]models.SnssaiInfo),

@@ -152,7 +152,7 @@ func BuildQosRules(smPolicyUpdates *PolicyUpdate) QoSRules {
 
 func BuildAddQoSRuleFromPccRule(pccRule *models.PccRule, qosData *models.QosData, pccRuleOpCode uint8) *QosRule {
 	qRule := QosRule{
-		Identifier:    GetQosRuleIdFromPccRuleId(pccRule.PccRuleId),
+		Identifier:    GetQosRuleIDFromPccRuleID(pccRule.PccRuleId),
 		DQR:           btou(qosData.DefQosFlowIndication),
 		OperationCode: pccRuleOpCode,
 		Precedence:    uint8(pccRule.Precedence),
@@ -179,8 +179,8 @@ func btou(b bool) uint8 {
 	return 0
 }
 
-func GetQosRuleIdFromPccRuleId(pccRuleId string) uint8 {
-	if id, err := strconv.ParseUint(pccRuleId, 10, 8); err != nil {
+func GetQosRuleIDFromPccRuleID(pccRuleID string) uint8 {
+	if id, err := strconv.ParseUint(pccRuleID, 10, 8); err != nil {
 		return 0
 	} else {
 		return uint8(id)
@@ -200,7 +200,7 @@ func (q *QosRule) BuildPacketFilterListFromPccRule(pccRule *models.PccRule) {
 
 func GetPacketFilterFromFlowInfo(flowInfo *models.FlowInformation) PacketFilter {
 	pf := &PacketFilter{
-		Identifier: GetPfId(flowInfo.PackFiltId),
+		Identifier: GetPfID(flowInfo.PackFiltId),
 		Direction:  GetPfDirectionFromPccFlowInfo(flowInfo.FlowDirection),
 	}
 
@@ -210,7 +210,7 @@ func GetPacketFilterFromFlowInfo(flowInfo *models.FlowInformation) PacketFilter 
 	return *pf
 }
 
-func GetPfId(ids string) uint8 {
+func GetPfID(ids string) uint8 {
 	if id, err := strconv.ParseUint(ids, 10, 8); err != nil {
 		return 0
 	} else {
@@ -248,27 +248,27 @@ func DecodeFlowDescToIPFilters(flowDesc string) *IPFilterRule {
 	ipfRule.protoID = pfcTags[2]
 
 	// decode source IP/mask
-	ipfRule.decodeIpFilterAddrv4(true, pfcTags[4])
+	ipfRule.decodeIPFilterAddrv4(true, pfcTags[4])
 
 	// decode source port/port-range (optional)
 	if pfcTags[6] == "to" {
 		// decode source port/port-range
-		ipfRule.decodeIpFilterPortInfo(true, pfcTags[5])
+		ipfRule.decodeIPFilterPortInfo(true, pfcTags[5])
 
 		// decode destination IP/mask
-		ipfRule.decodeIpFilterAddrv4(false, pfcTags[7])
+		ipfRule.decodeIPFilterAddrv4(false, pfcTags[7])
 
 		// decode destination port/port-range(optional), if any
 		if len(pfcTags) == 9 {
-			ipfRule.decodeIpFilterPortInfo(false, pfcTags[8])
+			ipfRule.decodeIPFilterPortInfo(false, pfcTags[8])
 		}
 	} else {
 		// decode destination IP/mask
-		ipfRule.decodeIpFilterAddrv4(false, pfcTags[6])
+		ipfRule.decodeIPFilterAddrv4(false, pfcTags[6])
 
 		// decode destination port/port-range(optional), if any
 		if len(pfcTags) == 8 {
-			ipfRule.decodeIpFilterPortInfo(false, pfcTags[7])
+			ipfRule.decodeIPFilterPortInfo(false, pfcTags[7])
 		}
 	}
 
@@ -282,7 +282,7 @@ func (ipfRule *IPFilterRule) IsMatchAllIPFilter() bool {
 	return false
 }
 
-func (ipfRule *IPFilterRule) decodeIpFilterPortInfo(source bool, tag string) {
+func (ipfRule *IPFilterRule) decodeIPFilterPortInfo(source bool, tag string) {
 	// check if it is single port or range
 	ports := strings.Split(tag, "-")
 
@@ -303,7 +303,7 @@ func (ipfRule *IPFilterRule) decodeIpFilterPortInfo(source bool, tag string) {
 	}
 }
 
-func (ipfRule *IPFilterRule) decodeIpFilterAddrv4(source bool, tag string) {
+func (ipfRule *IPFilterRule) decodeIPFilterAddrv4(source bool, tag string) {
 	ipAndMask := strings.Split(tag, "/")
 	if source {
 		ipfRule.sAddrv4.addr = ipAndMask[0] // can be x.x.x.x or "any"

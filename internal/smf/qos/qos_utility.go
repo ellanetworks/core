@@ -12,18 +12,18 @@ import (
 	"github.com/omec-project/openapi/models"
 )
 
-func (obj *IPFilterRule) String() string {
+func (ipfRule *IPFilterRule) String() string {
 	return fmt.Sprintf("IPFilter content: ProtocolId:[%v], Source:[Ip:[%v], Mask:[%v], Port:[%v] Port-range [%v-%v]],Destination [Ip [%v], Mask [%v], Port [%v], Port-range [%v-%v]]",
-		obj.protoID, obj.sAddrv4.addr, obj.sAddrv4.mask, obj.sPort, obj.sPortRange.lowLimit, obj.sPortRange.highLimit, obj.dAddrv4.addr, obj.sAddrv4.mask, obj.dPort, obj.dPortRange.lowLimit, obj.dPortRange.highLimit)
+		ipfRule.protoID, ipfRule.sAddrv4.addr, ipfRule.sAddrv4.mask, ipfRule.sPort, ipfRule.sPortRange.lowLimit, ipfRule.sPortRange.highLimit, ipfRule.dAddrv4.addr, ipfRule.sAddrv4.mask, ipfRule.dPort, ipfRule.dPortRange.lowLimit, ipfRule.dPortRange.highLimit)
 }
 
-func (obj QosRule) String() string {
+func (q *QosRule) String() string {
 	return fmt.Sprintf("QosRule:[Id:[%v], Precedence:[%v], OpCode:[%v]], DQR:[%v], QFI:[%v], PacketFilters:[%v]",
-		obj.Identifier, obj.Precedence, RuleOperation(obj.OperationCode), obj.DQR, obj.QFI, obj.PacketFilterList)
+		q.Identifier, q.Precedence, RuleOperation(q.OperationCode), q.DQR, q.QFI, q.PacketFilterList)
 }
 
-func (obj PacketFilter) String() string {
-	return fmt.Sprintf("\nPacketFilter:[Id:[%v], direction:[%v], content:[\n%v]]", obj.Identifier, PfDirectionString(obj.Direction), obj.Content)
+func (pf *PacketFilter) String() string {
+	return fmt.Sprintf("\nPacketFilter:[Id:[%v], direction:[%v], content:[\n%v]]", pf.Identifier, PfDirectionString(pf.Direction), pf.Content)
 }
 
 func (obj PacketFilterComponent) String() string {
@@ -192,12 +192,12 @@ func PccFlowInfosString(flows []models.FlowInformation) []string {
 	return flowStrs
 }
 
-func (obj QoSFlowDescription) String() string {
-	return fmt.Sprintf("QosFlowDesc:[QFI:[%v], OpCode:[%v], FlowParam:[%v]], ", obj.Qfi, obj.OpCode, obj.ParamList)
+func (f QoSFlowDescription) String() string {
+	return fmt.Sprintf("QosFlowDesc:[QFI:[%v], OpCode:[%v], FlowParam:[%v]], ", f.Qfi, f.OpCode, f.ParamList)
 }
 
-func (obj QosFlowParameter) String() string {
-	return fmt.Sprintf("QFParam:[Id:[%v], Len:[%v], content:[%v]]", obj.ParamID, obj.ParamLen, obj.ParamContent)
+func (p QosFlowParameter) String() string {
+	return fmt.Sprintf("QFParam:[Id:[%v], Len:[%v], content:[%v]]", p.ParamID, p.ParamLen, p.ParamContent)
 }
 
 func (obj PolicyUpdate) String() string {
@@ -205,26 +205,26 @@ func (obj PolicyUpdate) String() string {
 		obj.PccRuleUpdate, obj.SessRuleUpdate, obj.QosFlowUpdate, obj.TCUpdate)
 }
 
-func (obj PccRulesUpdate) String() string {
+func (upd PccRulesUpdate) String() string {
 	str := "\nPCC Rule Changes:"
 
 	// To be added
 	strAdd := ""
-	for name, rule := range obj.add {
+	for name, rule := range upd.add {
 		strAdd += fmt.Sprintf("\n[name:[%v], %v", name, PccRuleString(rule))
 	}
 	str += fmt.Sprintf("\n[to add:[%v]]", strAdd)
 
 	// To be modified
 	strMod := ""
-	for name, rule := range obj.mod {
+	for name, rule := range upd.mod {
 		strMod += fmt.Sprintf("\n[name:[%v], %v", name, PccRuleString(rule))
 	}
 	str += fmt.Sprintf("\n[to mod:[%v]]", strMod)
 
 	// To be deleted
 	strDel := ""
-	for name, rule := range obj.del {
+	for name, rule := range upd.del {
 		strDel += fmt.Sprintf("\n[name:[%v], %v", name, PccRuleString(rule))
 	}
 	str += fmt.Sprintf("\n[to del:[%v]]", strDel)

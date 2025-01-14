@@ -23,7 +23,7 @@ import (
 type RelAction int
 
 const (
-	RanUeNgapIdUnspecified int64 = 0xffffffff
+	RanUeNgapIDUnspecified int64 = 0xffffffff
 )
 
 const (
@@ -35,12 +35,12 @@ const (
 
 type RanUe struct {
 	/* UE identity*/
-	RanUeNgapId int64 `json:"ranUeNgapID,omitempty"`
-	AmfUeNgapId int64 `json:"amfUeNgapID,omitempty"`
+	RanUeNgapID int64 `json:"ranUeNgapID,omitempty"`
+	AmfUeNgapID int64 `json:"amfUeNgapID,omitempty"`
 
 	/* HandOver Info*/
 	HandOverType        ngapType.HandoverType
-	SuccessPduSessionId []int32 `json:"successPduSessionId,omitempty"`
+	SuccessPduSessionID []int32 `json:"successPduSessionId,omitempty"`
 	SourceUe            *RanUe  `json:"-"`
 	TargetUe            *RanUe  `json:"-"`
 
@@ -99,7 +99,7 @@ func (ranUe *RanUe) Remove() error {
 			break
 		}
 	}
-	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapId)
+	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapID)
 	return nil
 }
 
@@ -131,9 +131,9 @@ func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {
 
 	// switch to newRan
 	ranUe.Ran = newRan
-	ranUe.RanUeNgapId = ranUeNgapID
+	ranUe.RanUeNgapID = ranUeNgapID
 
-	logger.AmfLog.Infof("RanUe[RanUeNgapID: %d] Switch to new Ran[Name: %s]", ranUe.RanUeNgapId, ranUe.Ran.Name)
+	logger.AmfLog.Infof("RanUe[RanUeNgapID: %d] Switch to new Ran[Name: %s]", ranUe.RanUeNgapID, ranUe.Ran.Name)
 	return nil
 }
 

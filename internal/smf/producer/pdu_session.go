@@ -81,7 +81,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	smContext.SubPduSessLog.Infof("SM context created")
 	// smContext.ChangeState(context.SmStateActivePending)
 	smContext.SetCreateData(createData)
-	smContext.SmStatusNotifyUri = createData.SmContextStatusUri
+	smContext.SmStatusNotifyURI = createData.SmContextStatusUri
 
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
@@ -102,9 +102,9 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 		response := smContext.GeneratePDUSessionEstablishmentReject("IPAllocError")
 		return response, fmt.Errorf("IPAllocError")
 	} else {
-		smContext.PDUAddress = &context.UeIpAddr{Ip: ip, UpfProvided: false}
+		smContext.PDUAddress = &context.UeIPAddr{IP: ip, UpfProvided: false}
 		smContext.SubPduSessLog.Infof("Successful IP Allocation: %s",
-			smContext.PDUAddress.Ip.String())
+			smContext.PDUAddress.IP.String())
 	}
 
 	snssai := openapi.MarshToJsonString(createData.SNssai)[0]
@@ -356,7 +356,7 @@ func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smCon
 	}
 
 	// Release UE IP-Address
-	err := smContext.ReleaseUeIpAddr()
+	err := smContext.ReleaseUeIPAddr()
 	if err != nil {
 		smContext.SubPduSessLog.Errorf("release UE IP address failed: %v", err)
 	}

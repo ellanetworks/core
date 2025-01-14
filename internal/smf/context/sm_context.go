@@ -65,8 +65,8 @@ func GetSMContextCount() uint64 {
 	return smContextCount
 }
 
-type UeIpAddr struct {
-	Ip          net.IP
+type UeIPAddr struct {
+	IP          net.IP
 	UpfProvided bool
 }
 
@@ -80,8 +80,8 @@ type SMContext struct {
 	Gpsi              string `json:"gpsi,omitempty" yaml:"gpsi" bson:"gpsi,omitempty"`
 	Dnn               string `json:"dnn" yaml:"dnn" bson:"dnn"`
 	UeTimeZone        string `json:"ueTimeZone,omitempty" yaml:"ueTimeZone" bson:"ueTimeZone,omitempty"` // ignore
-	ServingNfId       string `json:"servingNfId,omitempty" yaml:"servingNfId" bson:"servingNfId,omitempty"`
-	SmStatusNotifyUri string `json:"smStatusNotifyUri,omitempty" yaml:"smStatusNotifyUri" bson:"smStatusNotifyUri,omitempty"`
+	ServingNfID       string `json:"servingNfId,omitempty" yaml:"servingNfId" bson:"servingNfId,omitempty"`
+	SmStatusNotifyURI string `json:"smStatusNotifyUri,omitempty" yaml:"smStatusNotifyUri" bson:"smStatusNotifyUri,omitempty"`
 
 	UpCnxState models.UpCnxState `json:"upCnxState,omitempty" yaml:"upCnxState" bson:"upCnxState,omitempty"`
 	// SelectedPCFProfile models.NfProfile        `json:"selectedPCFProfile,omitempty" yaml:"selectedPCFProfile" bson:"selectedPCFProfile,omitempty"`
@@ -98,7 +98,7 @@ type SMContext struct {
 	AddUeLocation  *models.UserLocation `json:"addUeLocation,omitempty" yaml:"addUeLocation" bson:"addUeLocation,omitempty"` // ignore
 
 	// PDUAddress             net.IP `json:"pduAddress,omitempty" yaml:"pduAddress" bson:"pduAddress,omitempty"`
-	PDUAddress *UeIpAddr `json:"pduAddress,omitempty" yaml:"pduAddress" bson:"pduAddress,omitempty"`
+	PDUAddress *UeIPAddr `json:"pduAddress,omitempty" yaml:"pduAddress" bson:"pduAddress,omitempty"`
 
 	// Client
 	// CommunicationClient *Namf_Communication.APIClient `json:"communicationClient,omitempty" yaml:"communicationClient" bson:"communicationClient,omitempty"` // ?
@@ -136,13 +136,13 @@ type SMContext struct {
 	// SMLock sync.Mutex `json:"smLock,omitempty" yaml:"smLock" bson:"smLock,omitempty"` // ignore
 	SMLock sync.Mutex `json:"-" yaml:"smLock" bson:"-"` // ignore
 
-	SMContextState                      SMContextState `json:"smContextState" yaml:"smContextState" bson:"smContextState"`
-	PDUSessionID                        int32          `json:"pduSessionID" yaml:"pduSessionID" bson:"pduSessionID"`
-	OldPduSessionId                     int32          `json:"oldPduSessionId,omitempty" yaml:"oldPduSessionId" bson:"oldPduSessionId,omitempty"`
-	SelectedPDUSessionType              uint8          `json:"selectedPDUSessionType,omitempty" yaml:"selectedPDUSessionType" bson:"selectedPDUSessionType,omitempty"`
-	UnauthenticatedSupi                 bool           `json:"unauthenticatedSupi,omitempty" yaml:"unauthenticatedSupi" bson:"unauthenticatedSupi,omitempty"`                                                 // ignore
-	PDUSessionRelease_DUE_TO_DUP_PDU_ID bool           `json:"pduSessionRelease_DUE_TO_DUP_PDU_ID,omitempty" yaml:"pduSessionRelease_DUE_TO_DUP_PDU_ID" bson:"pduSessionRelease_DUE_TO_DUP_PDU_ID,omitempty"` // ignore
-	LocalPurged                         bool           `json:"localPurged,omitempty" yaml:"localPurged" bson:"localPurged,omitempty"`                                                                         // ignore
+	SMContextState                 SMContextState `json:"smContextState" yaml:"smContextState" bson:"smContextState"`
+	PDUSessionID                   int32          `json:"pduSessionID" yaml:"pduSessionID" bson:"pduSessionID"`
+	OldPduSessionID                int32          `json:"oldPduSessionId,omitempty" yaml:"oldPduSessionId" bson:"oldPduSessionId,omitempty"`
+	SelectedPDUSessionType         uint8          `json:"selectedPDUSessionType,omitempty" yaml:"selectedPDUSessionType" bson:"selectedPDUSessionType,omitempty"`
+	UnauthenticatedSupi            bool           `json:"unauthenticatedSupi,omitempty" yaml:"unauthenticatedSupi" bson:"unauthenticatedSupi,omitempty"`                                                 // ignore
+	PDUSessionReleaseDueToDupPduID bool           `json:"pduSessionRelease_DUE_TO_DUP_PDU_ID,omitempty" yaml:"pduSessionRelease_DUE_TO_DUP_PDU_ID" bson:"pduSessionRelease_DUE_TO_DUP_PDU_ID,omitempty"` // ignore
+	LocalPurged                    bool           `json:"localPurged,omitempty" yaml:"localPurged" bson:"localPurged,omitempty"`                                                                         // ignore
 	// NAS
 	Pti                     uint8 `json:"pti,omitempty" yaml:"pti" bson:"pti,omitempty"` // ignore
 	EstAcceptCause5gSMValue uint8 `json:"estAcceptCause5gSMValue,omitempty" yaml:"estAcceptCause5gSMValue" bson:"estAcceptCause5gSMValue,omitempty"`
@@ -240,7 +240,7 @@ func RemoveSMContext(ref string) {
 	}
 
 	// Release UE IP-Address
-	err := smContext.ReleaseUeIpAddr()
+	err := smContext.ReleaseUeIPAddr()
 	if err != nil {
 		smContext.SubCtxLog.Errorf("release UE IP-Address failed, %v", err)
 	}
@@ -259,18 +259,18 @@ func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
 	return
 }
 
-func (smContext *SMContext) ReleaseUeIpAddr() error {
+func (smContext *SMContext) ReleaseUeIPAddr() error {
 	smfSelf := SMFSelf()
 	if smContext.PDUAddress == nil {
 		return nil
 	}
-	if ip := smContext.PDUAddress.Ip; ip != nil && !smContext.PDUAddress.UpfProvided {
+	if ip := smContext.PDUAddress.IP; ip != nil && !smContext.PDUAddress.UpfProvided {
 		err := smfSelf.DBInstance.ReleaseIP(smContext.Supi)
 		if err != nil {
 			return fmt.Errorf("failed to release IP Address, %v", err)
 		}
-		smContext.SubPduSessLog.Infof("Released IP Address: %s", smContext.PDUAddress.Ip.String())
-		smContext.PDUAddress.Ip = net.IPv4(0, 0, 0, 0)
+		smContext.SubPduSessLog.Infof("Released IP Address: %s", smContext.PDUAddress.IP.String())
+		smContext.PDUAddress.IP = net.IPv4(0, 0, 0, 0)
 	}
 	return nil
 }
@@ -288,8 +288,8 @@ func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData
 	smContext.UeLocation = createData.UeLocation
 	smContext.UeTimeZone = createData.UeTimeZone
 	smContext.AddUeLocation = createData.AddUeLocation
-	smContext.OldPduSessionId = createData.OldPduSessionId
-	smContext.ServingNfId = createData.ServingNfId
+	smContext.OldPduSessionID = createData.OldPduSessionId
+	smContext.ServingNfID = createData.ServingNfId
 }
 
 func (smContext *SMContext) BuildCreatedData() (createdData *models.SmContextCreatedData) {
@@ -299,7 +299,7 @@ func (smContext *SMContext) BuildCreatedData() (createdData *models.SmContextCre
 }
 
 func (smContext *SMContext) PDUAddressToNAS() (addr [12]byte, addrLen uint8) {
-	copy(addr[:], smContext.PDUAddress.Ip)
+	copy(addr[:], smContext.PDUAddress.IP)
 	switch smContext.SelectedPDUSessionType {
 	case nasMessage.PDUSessionTypeIPv4:
 		addrLen = 4 + 1
@@ -322,7 +322,7 @@ func (smContext *SMContext) GetNodeIDByLocalSEID(seid uint64) (nodeID NodeID) {
 
 func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) error {
 	for curDataPathNode := dataPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
-		NodeIDtoIP := curDataPathNode.UPF.NodeID.ResolveNodeIdToIp().String()
+		NodeIDtoIP := curDataPathNode.UPF.NodeID.ResolveNodeIDToIP().String()
 		if _, exist := smContext.PFCPContext[NodeIDtoIP]; !exist {
 			allocatedSEID, err := AllocateLocalSEID()
 			if err != nil {
@@ -341,7 +341,7 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) err
 }
 
 func (smContext *SMContext) PutPDRtoPFCPSession(nodeID NodeID, pdrList map[string]*PDR) error {
-	NodeIDtoIP := nodeID.ResolveNodeIdToIp().String()
+	NodeIDtoIP := nodeID.ResolveNodeIDToIP().String()
 	if pfcpSessCtx, exist := smContext.PFCPContext[NodeIDtoIP]; exist {
 		for name, pdr := range pdrList {
 			pfcpSessCtx.PDRs[pdrList[name].PDRID] = pdr
@@ -353,7 +353,7 @@ func (smContext *SMContext) PutPDRtoPFCPSession(nodeID NodeID, pdrList map[strin
 }
 
 func (smContext *SMContext) RemovePDRfromPFCPSession(nodeID NodeID, pdr *PDR) {
-	NodeIDtoIP := nodeID.ResolveNodeIdToIp().String()
+	NodeIDtoIP := nodeID.ResolveNodeIDToIP().String()
 	pfcpSessCtx := smContext.PFCPContext[NodeIDtoIP]
 	delete(pfcpSessCtx.PDRs, pdr.PDRID)
 }

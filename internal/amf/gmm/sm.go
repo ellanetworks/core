@@ -264,7 +264,7 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 			eapSuccess := args[ArgEAPSuccess].(bool)
 			eapMessage := args[ArgEAPMessage].(string)
 			// Select enc/int algorithm based on ue security capability & amf's policy,
-			amfSelf := context.AMF_Self()
+			amfSelf := context.AMFSelf()
 			amfUe.SelectSecurityAlg(amfSelf.SecurityAlgorithm.IntegrityOrder, amfSelf.SecurityAlgorithm.CipheringOrder)
 			// Generate KnasEnc, KnasInt
 			amfUe.DerivateAlgKey()

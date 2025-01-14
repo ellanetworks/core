@@ -22,10 +22,6 @@ import (
 
 var pcfCtx *PCFContext
 
-type PlmnSupportItem struct {
-	PlmnId models.PlmnId
-}
-
 type PCFContext struct {
 	PcfSuppFeats           map[models.ServiceName]openapi.SupportedFeature
 	UePool                 sync.Map
@@ -51,19 +47,6 @@ type PcfSubscriberPolicyData struct {
 	Supi      string
 }
 
-var (
-	PolicyAuthorizationUri = "/npcf-policyauthorization/v1/app-sessions/"
-	SmUri                  = "/npcf-smpolicycontrol/v1"
-	IPv4Address            = "192.168."
-	IPv6Address            = "ffab::"
-	CheckNotifiUri         = "/npcf-callback/v1/nudr-notify/"
-	Ipv4_pool              = make(map[string]string)
-	Ipv6_pool              = make(map[string]string)
-)
-
-// BdtPolicy default value
-const DefaultBdtRefId = "BdtPolicyId-"
-
 // Allocate PCF Ue with supi and add to pcf Context and returns allocated ue
 func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 	newUeContext := &UeContext{}
@@ -75,14 +58,13 @@ func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 	return newUeContext, nil
 }
 
-// Find PcfUe which the policyId belongs to
-func (c *PCFContext) PCFUeFindByPolicyId(PolicyId string) *UeContext {
-	index := strings.LastIndex(PolicyId, "-")
+func (c *PCFContext) PCFUeFindByPolicyID(PolicyID string) *UeContext {
+	index := strings.LastIndex(PolicyID, "-")
 	if index == -1 {
-		logger.PcfLog.Errorf("Invalid PolicyId format: %s", PolicyId)
+		logger.PcfLog.Errorf("Invalid PolicyID format: %s", PolicyID)
 		return nil
 	}
-	supi := PolicyId[:index]
+	supi := PolicyID[:index]
 	if value, ok := c.UePool.Load(supi); ok {
 		return value.(*UeContext)
 	}
@@ -104,9 +86,9 @@ func GetSubscriberPolicy(imsi string) *PcfSubscriberPolicyData {
 		Supi:      imsi,
 		PccPolicy: make(map[string]*PccPolicy),
 	}
-	pccPolicyId := fmt.Sprintf("%d%s", config.Sst, config.Sd)
-	if _, exists := subscriberPolicies.PccPolicy[pccPolicyId]; !exists {
-		subscriberPolicies.PccPolicy[pccPolicyId] = &PccPolicy{
+	pccPolicyID := fmt.Sprintf("%d%s", config.Sst, config.Sd)
+	if _, exists := subscriberPolicies.PccPolicy[pccPolicyID]; !exists {
+		subscriberPolicies.PccPolicy[pccPolicyID] = &PccPolicy{
 			SessionPolicy: make(map[string]*SessionPolicy),
 			PccRules:      make(map[string]*models.PccRule),
 			QosDecs:       make(map[string]*models.QosData),
@@ -114,30 +96,30 @@ func GetSubscriberPolicy(imsi string) *PcfSubscriberPolicyData {
 		}
 	}
 
-	if _, exists := subscriberPolicies.PccPolicy[pccPolicyId].SessionPolicy[config.DNN]; !exists {
-		subscriberPolicies.PccPolicy[pccPolicyId].SessionPolicy[config.DNN] = &SessionPolicy{
+	if _, exists := subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[config.DNN]; !exists {
+		subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[config.DNN] = &SessionPolicy{
 			SessionRules: make(map[string]*models.SessionRule),
 		}
 	}
 
 	// Generate IDs using ID generators
-	qosId, _ := pcfCtx.QoSDataIDGenerator.Allocate()
-	sessionRuleId, _ := pcfCtx.SessionRuleIDGenerator.Allocate()
+	qosID, _ := pcfCtx.QoSDataIDGenerator.Allocate()
+	sessionRuleID, _ := pcfCtx.SessionRuleIDGenerator.Allocate()
 
 	// Create QoS data
 	qosData := &models.QosData{
-		QosId:                strconv.FormatInt(qosId, 10),
+		QosId:                strconv.FormatInt(qosID, 10),
 		Var5qi:               profile.Var5qi,
 		MaxbrUl:              profile.BitrateUplink,
 		MaxbrDl:              profile.BitrateDownlink,
 		Arp:                  &models.Arp{PriorityLevel: profile.PriorityLevel},
 		DefQosFlowIndication: true,
 	}
-	subscriberPolicies.PccPolicy[pccPolicyId].QosDecs[qosData.QosId] = qosData
+	subscriberPolicies.PccPolicy[pccPolicyID].QosDecs[qosData.QosId] = qosData
 
 	// Add session rule
-	subscriberPolicies.PccPolicy[pccPolicyId].SessionPolicy[config.DNN].SessionRules[strconv.FormatInt(sessionRuleId, 10)] = &models.SessionRule{
-		SessRuleId: strconv.FormatInt(sessionRuleId, 10),
+	subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[config.DNN].SessionRules[strconv.FormatInt(sessionRuleID, 10)] = &models.SessionRule{
+		SessRuleId: strconv.FormatInt(sessionRuleID, 10),
 		AuthDefQos: &models.AuthorizedDefaultQos{
 			Var5qi: qosData.Var5qi,
 			Arp:    qosData.Arp,

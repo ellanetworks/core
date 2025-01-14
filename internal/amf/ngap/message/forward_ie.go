@@ -95,14 +95,14 @@ func AppendPDUSessionResourceToReleaseListRelCmd(list *ngapType.PDUSessionResour
 
 func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrictionList {
 	mobilityRestrictionList := ngapType.MobilityRestrictionList{}
-	mobilityRestrictionList.ServingPLMN = ngapConvert.PlmnIdToNgap(ue.PlmnId)
+	mobilityRestrictionList.ServingPLMN = ngapConvert.PlmnIdToNgap(ue.PlmnID)
 
 	if ue.AccessAndMobilitySubscriptionData != nil && len(ue.AccessAndMobilitySubscriptionData.RatRestrictions) > 0 {
 		mobilityRestrictionList.RATRestrictions = new(ngapType.RATRestrictions)
 		ratRestrictions := mobilityRestrictionList.RATRestrictions
 		for _, ratType := range ue.AccessAndMobilitySubscriptionData.RatRestrictions {
 			item := ngapType.RATRestrictionsItem{}
-			item.PLMNIdentity = ngapConvert.PlmnIdToNgap(ue.PlmnId)
+			item.PLMNIdentity = ngapConvert.PlmnIdToNgap(ue.PlmnID)
 			item.RATRestrictionInformation = ngapConvert.RATRestrictionInformationToNgap(ratType)
 			ratRestrictions.List = append(ratRestrictions.List, item)
 		}
@@ -113,7 +113,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 		forbiddenAreaInformation := mobilityRestrictionList.ForbiddenAreaInformation
 		for _, info := range ue.AccessAndMobilitySubscriptionData.ForbiddenAreas {
 			item := ngapType.ForbiddenAreaInformationItem{}
-			item.PLMNIdentity = ngapConvert.PlmnIdToNgap(ue.PlmnId)
+			item.PLMNIdentity = ngapConvert.PlmnIdToNgap(ue.PlmnID)
 			for _, tac := range info.Tacs {
 				tacBytes, err := hex.DecodeString(tac)
 				if err != nil {
@@ -133,7 +133,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 		serviceAreaInformation := mobilityRestrictionList.ServiceAreaInformation
 
 		item := ngapType.ServiceAreaInformationItem{}
-		item.PLMNIdentity = ngapConvert.PlmnIdToNgap(ue.PlmnId)
+		item.PLMNIdentity = ngapConvert.PlmnIdToNgap(ue.PlmnID)
 		var tacList []ngapType.TAC
 		for _, area := range ue.AmPolicyAssociation.ServAreaRes.Areas {
 			for _, tac := range area.Tacs {
@@ -163,10 +163,10 @@ func BuildUnavailableGUAMIList(guamiList []models.Guami) (unavailableGUAMIList n
 	for _, guami := range guamiList {
 		item := ngapType.UnavailableGUAMIItem{}
 		item.GUAMI.PLMNIdentity = ngapConvert.PlmnIdToNgap(*guami.PlmnId)
-		regionID, setId, ptrId := ngapConvert.AmfIdToNgap(guami.AmfId)
+		regionID, setID, ptrID := ngapConvert.AmfIdToNgap(guami.AmfId)
 		item.GUAMI.AMFRegionID.Value = regionID
-		item.GUAMI.AMFSetID.Value = setId
-		item.GUAMI.AMFPointer.Value = ptrId
+		item.GUAMI.AMFSetID.Value = setID
+		item.GUAMI.AMFPointer.Value = ptrID
 		unavailableGUAMIList.List = append(unavailableGUAMIList.List, item)
 	}
 	return

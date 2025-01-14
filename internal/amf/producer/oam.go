@@ -16,7 +16,7 @@ import (
 )
 
 type PduSession struct {
-	PduSessionId string
+	PduSessionID string
 	SmContextRef string
 	Sst          string
 	Sd           string
@@ -49,11 +49,8 @@ type ActiveUeContext struct {
 	Tac        string
 
 	/* RanUe Details */
-	RanUeNgapId int64
-	AmfUeNgapId int64
-
-	AmfInstanceName string
-	AmfInstanceIp   string
+	RanUeNgapID int64
+	AmfUeNgapID int64
 
 	PduSessions []PduSession
 }
@@ -75,7 +72,7 @@ func HandleOAMRegisteredUEContext(request *httpwrapper.Request) *httpwrapper.Res
 
 func OAMRegisteredUEContextProcedure(supi string) (UEContexts, *models.ProblemDetails) {
 	var ueContexts UEContexts
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	if supi != "" {
 		if ue, ok := amfSelf.AmfUeFindBySupi(supi); ok {
@@ -127,7 +124,7 @@ func buildUEContext(ue *context.AmfUe, accessType models.AccessType) *UEContext 
 			smContext := value.(*context.SmContext)
 			if smContext.AccessType() == accessType {
 				pduSession := PduSession{
-					PduSessionId: strconv.Itoa(int(smContext.PduSessionID())),
+					PduSessionID: strconv.Itoa(int(smContext.PduSessionID())),
 					SmContextRef: smContext.SmContextRef(),
 					Sst:          strconv.Itoa(int(smContext.Snssai().Sst)),
 					Sd:           smContext.Snssai().Sd,

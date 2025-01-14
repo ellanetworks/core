@@ -167,13 +167,13 @@ func getPathBetween(cur *UPNode, dest *UPNode, visited map[*UPNode]bool,
 				continue
 			}
 
-			path_tail, path_exist := getPathBetween(nodes, dest, visited, selection)
+			pathTail, pathExists := getPathBetween(nodes, dest, visited, selection)
 
-			if path_exist {
+			if pathExists {
 				path = make([]*UPNode, 0)
 				path = append(path, cur)
 
-				path = append(path, path_tail...)
+				path = append(path, pathTail...)
 				pathExist = true
 
 				return path, pathExist

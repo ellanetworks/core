@@ -55,13 +55,13 @@ func (tc *TestConn) SetReadDeadline(t time.Time) (e error)  { return }
 func (tc *TestConn) SetWriteDeadline(t time.Time) (e error) { return }
 
 // GetNGSetupRequest returns an encoded NGSetupRequest based on the input parameters
-func GetNGSetupRequest(gnbId []byte, bitlength uint64, name, tac string) ([]byte, error) {
+func GetNGSetupRequest(gnbID []byte, bitlength uint64, name, tac string) ([]byte, error) {
 	message := BuildNGSetupRequest()
 	// GlobalRANNodeID
 	ie := message.InitiatingMessage.Value.NGSetupRequest.ProtocolIEs.List[0]
-	gnbID := ie.Value.GlobalRANNodeID.GlobalGNBID.GNBID.GNBID
-	gnbID.Bytes = gnbId
-	gnbID.BitLength = bitlength
+	gnbIDBitString := ie.Value.GlobalRANNodeID.GlobalGNBID.GNBID.GNBID
+	gnbIDBitString.Bytes = gnbID
+	gnbIDBitString.BitLength = bitlength
 	// RANNodeName
 	ie = message.InitiatingMessage.Value.NGSetupRequest.ProtocolIEs.List[1]
 	ie.Value.RANNodeName.Value = name

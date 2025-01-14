@@ -16,7 +16,7 @@ import (
 func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRegistrationInd bool) (
 	*models.ProblemDetails, error,
 ) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 	guamiList := context.GetServedGuamiList()
 
 	switch accessType {

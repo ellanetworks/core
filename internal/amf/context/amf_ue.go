@@ -77,9 +77,9 @@ type AmfUe struct {
 	RegistrationAcceptForNon3GPPAccess []byte                          `json:"registrationAcceptForNon3GPPAccess,omitempty"`
 	RetransmissionOfInitialNASMsg      bool                            `json:"retransmissionOfInitialNASMsg,omitempty"`
 	/* Used for AMF relocation */
-	TargetAmfUri string `json:"targetAmfUri,omitempty"`
+	TargetAmfURI string `json:"targetAmfUri,omitempty"`
 	/* Ue Identity*/
-	PlmnId              models.PlmnId `json:"plmnID,omitempty"`
+	PlmnID              models.PlmnId `json:"plmnID,omitempty"`
 	Suci                string        `json:"suci,omitempty"`
 	Supi                string        `json:"supi,omitempty"`
 	UnauthenticatedSupi bool          `json:"unauthenticatedSupi,omitempty"`
@@ -106,11 +106,11 @@ type AmfUe struct {
 	SmfSelectionData                  *models.SmfSelectionSubscriptionData      `json:"smfSelectionData,omitempty"`
 	UeContextInSmfData                *models.UeContextInSmfData                `json:"ueContextInSmfData,omitempty"`
 	TraceData                         *models.TraceData                         `json:"traceData,omitempty"`
-	UdmGroupId                        string                                    `json:"udmGroupId,omitempty"`
+	UdmGroupID                        string                                    `json:"udmGroupId,omitempty"`
 	SubscribedNssai                   []models.SubscribedSnssai                 `json:"subscribeNssai,omitempty"`
 	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData `json:"accessAndMobilitySubscriptionData,omitempty"`
 	/* contex abut ausf */
-	AusfGroupId                       string                      `json:"ausfGroupId,omitempty"`
+	AusfGroupID                       string                      `json:"ausfGroupId,omitempty"`
 	RoutingIndicator                  string                      `json:"routingIndicator,omitempty"`
 	AuthenticationCtx                 *models.UeAuthenticationCtx `json:"authenticationCtx,omitempty"`
 	AuthFailureCauseSynchFailureTimes int                         `json:"authFailureCauseSynchFailureTimes,omitempty"`
@@ -118,8 +118,8 @@ type AmfUe struct {
 	Kseaf                             string                      `json:"kseaf,omitempty"`
 	Kamf                              string                      `json:"kamf,omitempty"`
 	/* context about PCF */
-	PolicyAssociationId          string                    `json:"policyAssociationId,omitempty"`
-	AmPolicyUri                  string                    `json:"amPolicyUri,omitempty"`
+	PolicyAssociationID          string                    `json:"policyAssociationId,omitempty"`
+	AmPolicyURI                  string                    `json:"amPolicyUri,omitempty"`
 	AmPolicyAssociation          *models.PolicyAssociation `json:"amPolicyAssociation,omitempty"`
 	RequestTriggerLocationChange bool                      `json:"requestTriggerLocationChange,omitempty"` // true if AmPolicyAssociation.Trigger contains RequestTrigger_LOC_CH
 	ConfigurationUpdateMessage   []byte                    `json:"configurationUpdateMessage,omitempty"`
@@ -291,7 +291,7 @@ type NGRANCGI struct {
 }
 
 func (ue *AmfUe) init() {
-	ue.ServingAMF = AMF_Self()
+	ue.ServingAMF = AMFSelf()
 	ue.State = make(map[models.AccessType]*fsm.State)
 	ue.State[models.AccessType__3_GPP_ACCESS] = fsm.NewState(Deregistered)
 	ue.State[models.AccessType_NON_3_GPP_ACCESS] = fsm.NewState(Deregistered)
@@ -333,7 +333,7 @@ func (ue *AmfUe) Remove() {
 	tmsiGenerator.FreeID(int64(ue.Tmsi))
 
 	if len(ue.Supi) > 0 {
-		AMF_Self().UePool.Delete(ue.Supi)
+		AMFSelf().UePool.Delete(ue.Supi)
 	}
 	if ue.EventChannel != nil {
 		ue.EventChannel.Event <- "quit"
@@ -359,9 +359,9 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	}()
 
 	// set log information
-	ue.NASLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
-	ue.GmmLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
-	ue.TxLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
+	ue.NASLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID))
+	ue.GmmLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID))
+	ue.TxLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID))
 }
 
 func (ue *AmfUe) GetAnType() models.AccessType {
@@ -468,7 +468,7 @@ func (ue *AmfUe) DerivateKamf() {
 		logger.AmfLog.Error(err)
 		return
 	}
-	KamfBytes, err := ueauth.GetKDFValue(KseafDecode, ueauth.FC_FOR_KAMF_DERIVATION, P0, L0, P1, L1)
+	KamfBytes, err := ueauth.GetKDFValue(KseafDecode, ueauth.FcForKamfDerivation, P0, L0, P1, L1)
 	if err != nil {
 		logger.AmfLog.Error(err)
 		return
@@ -489,7 +489,7 @@ func (ue *AmfUe) DerivateAlgKey() {
 		logger.AmfLog.Error(err)
 		return
 	}
-	kenc, err := ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_ALGORITHM_KEY_DERIVATION, P0, L0, P1, L1)
+	kenc, err := ueauth.GetKDFValue(KamfBytes, ueauth.FcForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
 		logger.AmfLog.Error(err)
 		return
@@ -502,7 +502,7 @@ func (ue *AmfUe) DerivateAlgKey() {
 	P1 = []byte{ue.IntegrityAlg}
 	L1 = ueauth.KDFLen(P1)
 
-	kint, err := ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_ALGORITHM_KEY_DERIVATION, P0, L0, P1, L1)
+	kint, err := ueauth.GetKDFValue(KamfBytes, ueauth.FcForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
 		logger.AmfLog.Error(err)
 		return
@@ -527,7 +527,7 @@ func (ue *AmfUe) DerivateAnKey(anType models.AccessType) {
 		logger.AmfLog.Error(err)
 		return
 	}
-	key, err := ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_KGNB_KN3IWF_DERIVATION, P0, L0, P1, L1)
+	key, err := ueauth.GetKDFValue(KamfBytes, ueauth.FcForKgnbKn3iwfDerivation, P0, L0, P1, L1)
 	if err != nil {
 		logger.AmfLog.Error(err)
 		return
@@ -550,7 +550,7 @@ func (ue *AmfUe) DerivateNH(syncInput []byte) {
 		logger.AmfLog.Error(err)
 		return
 	}
-	ue.NH, err = ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_NH_DERIVATION, P0, L0)
+	ue.NH, err = ueauth.GetKDFValue(KamfBytes, ueauth.FcForNhDerivation, P0, L0)
 	if err != nil {
 		logger.AmfLog.Error(err)
 		return
@@ -656,7 +656,7 @@ func (ue *AmfUe) GetOnGoing(anType models.AccessType) OnGoingProcedureWithPrio {
 
 func (ue *AmfUe) RemoveAmPolicyAssociation() {
 	ue.AmPolicyAssociation = nil
-	ue.PolicyAssociationId = ""
+	ue.PolicyAssociationID = ""
 }
 
 func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
@@ -670,11 +670,11 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 	}
 
 	if ueContext.UdmGroupId != "" {
-		ue.UdmGroupId = ueContext.UdmGroupId
+		ue.UdmGroupID = ueContext.UdmGroupId
 	}
 
 	if ueContext.AusfGroupId != "" {
-		ue.AusfGroupId = ueContext.AusfGroupId
+		ue.AusfGroupID = ueContext.AusfGroupId
 	}
 
 	if ueContext.RoutingIndicator != "" {
@@ -741,7 +741,7 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 	}
 
 	if ueContext.PcfAmPolicyUri != "" {
-		ue.AmPolicyUri = ueContext.PcfAmPolicyUri
+		ue.AmPolicyURI = ueContext.PcfAmPolicyUri
 	}
 
 	if len(ueContext.AmPolicyReqTriggerList) > 0 {

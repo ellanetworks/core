@@ -100,7 +100,7 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(ginToZap(logger.NmsLog), ginRecover(logger.NmsLog))
-	AddUiService(router)
+	AddUIService(router)
 
 	apiGroup := router.Group("/api/v1")
 
@@ -152,14 +152,14 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	return router
 }
 
-func AddUiService(engine *gin.Engine) {
+func AddUIService(engine *gin.Engine) {
 	staticFilesSystem, err := fs.Sub(ui.FrontendFS, "out")
 	if err != nil {
 		logger.NmsLog.Fatal(err)
 	}
 
 	engine.Use(func(c *gin.Context) {
-		if !isApiUrlPath(c.Request.URL.Path) {
+		if !isAPIURLPath(c.Request.URL.Path) {
 			htmlPath := strings.TrimPrefix(c.Request.URL.Path, "/") + ".html"
 			if _, err := staticFilesSystem.Open(htmlPath); err == nil {
 				c.Request.URL.Path = htmlPath
@@ -171,6 +171,6 @@ func AddUiService(engine *gin.Engine) {
 	})
 }
 
-func isApiUrlPath(path string) bool {
+func isAPIURLPath(path string) bool {
 	return strings.HasPrefix(path, "/api/v1/")
 }

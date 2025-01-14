@@ -53,8 +53,6 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 
 	responseBody.ServingNetworkName = snName
 	authInfoReq.ServingNetworkName = snName
-	self := GetSelf()
-	authInfoReq.AusfInstanceId = self.GetSelfID()
 
 	if updateAuthenticationInfo.ResynchronizationInfo != nil {
 		logger.AusfLog.Warnln("Auts: ", updateAuthenticationInfo.ResynchronizationInfo.Auts)
@@ -104,7 +102,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 			KausfDecode = ausfDecode
 		}
 		P0 := []byte(snName)
-		Kseaf, err := ueauth.GetKDFValue(KausfDecode, ueauth.FC_FOR_KSEAF_DERIVATION, P0, ueauth.KDFLen(P0))
+		Kseaf, err := ueauth.GetKDFValue(KausfDecode, ueauth.FcForKseafDerivation, P0, ueauth.KDFLen(P0))
 		if err != nil {
 			logger.AusfLog.Error(err)
 		}
@@ -144,7 +142,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 			KausfDecode = ausfDecode
 		}
 		P0 := []byte(snName)
-		Kseaf, err := ueauth.GetKDFValue(KausfDecode, ueauth.FC_FOR_KSEAF_DERIVATION, P0, ueauth.KDFLen(P0))
+		Kseaf, err := ueauth.GetKDFValue(KausfDecode, ueauth.FcForKseafDerivation, P0, ueauth.KDFLen(P0))
 		if err != nil {
 			logger.AusfLog.Error(err)
 		}

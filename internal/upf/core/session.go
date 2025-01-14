@@ -36,7 +36,7 @@ type SPDRInfo struct {
 
 type SFarInfo struct {
 	FarInfo  ebpf.FarInfo
-	GlobalId uint32
+	GlobalID uint32
 }
 
 type SQerInfo struct {
@@ -47,7 +47,7 @@ type SQerInfo struct {
 func (s *Session) NewFar(id uint32, internalID uint32, farInfo ebpf.FarInfo) {
 	s.FARs[id] = SFarInfo{
 		FarInfo:  farInfo,
-		GlobalId: internalID,
+		GlobalID: internalID,
 	}
 }
 

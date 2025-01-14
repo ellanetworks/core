@@ -18,9 +18,9 @@ var NfServiceVersion *[]models.NfServiceVersion
 
 var SmfInfo *models.SmfInfo
 
-type SmfSnssaiPlmnIdInfo map[string]models.PlmnId
+type SmfSnssaiPlmnIDInfo map[string]models.PlmnId
 
-var SmfPlmnInfo SmfSnssaiPlmnIdInfo
+var SmfPlmnInfo SmfSnssaiPlmnIDInfo
 
 func SmfPlmnConfig() *[]models.PlmnId {
 	plmns := make([]models.PlmnId, 0)
@@ -37,7 +37,7 @@ func SmfPlmnConfig() *[]models.PlmnId {
 
 func SNssaiSmfInfo() *[]models.SnssaiSmfInfoItem {
 	snssaiInfo := make([]models.SnssaiSmfInfoItem, 0)
-	SmfPlmnInfo = make(SmfSnssaiPlmnIdInfo)
+	SmfPlmnInfo = make(SmfSnssaiPlmnIDInfo)
 	smfSnssaiInfo := GetSnssaiInfo()
 	for _, snssai := range smfSnssaiInfo {
 		var snssaiInfoModel models.SnssaiSmfInfoItem
@@ -47,8 +47,8 @@ func SNssaiSmfInfo() *[]models.SnssaiSmfInfoItem {
 		}
 
 		// Plmn Info
-		if snssai.PlmnId.Mcc != "" && snssai.PlmnId.Mnc != "" {
-			SmfPlmnInfo[strconv.Itoa(int(snssai.Snssai.Sst))+snssai.Snssai.Sd] = snssai.PlmnId
+		if snssai.PlmnID.Mcc != "" && snssai.PlmnID.Mnc != "" {
+			SmfPlmnInfo[strconv.Itoa(int(snssai.Snssai.Sst))+snssai.Snssai.Sd] = snssai.PlmnID
 		}
 
 		dnnModelList := make([]models.DnnSmfInfoItem, 0)

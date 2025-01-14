@@ -37,7 +37,7 @@ func SnssaiModelsToHex(snssai models.Snssai) string {
 	return sst + snssai.Sd
 }
 
-func PlmnIdStringToModels(plmnID string) models.PlmnId {
+func PlmnIDStringToModels(plmnID string) models.PlmnId {
 	return models.PlmnId{
 		Mcc: plmnID[:3],
 		Mnc: plmnID[3:],
@@ -368,7 +368,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	registrationRequest *nasMessage.RegistrationRequest,
 ) error {
 	var guamiFromUeGuti models.Guami
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
@@ -434,13 +434,13 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
 	switch ue.RegistrationType5GS {
 	case nasMessage.RegistrationType5GSInitialRegistration:
-		ue.GmmLog.Debugf("RegistrationType: Initial Registration")
+		ue.GmmLog.Errorf("registrationType: Initial Registration")
 	case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
-		ue.GmmLog.Debugf("RegistrationType: Mobility Registration Updating")
+		ue.GmmLog.Errorf("registrationType: Mobility Registration Updating")
 	case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
-		ue.GmmLog.Debugf("RegistrationType: Periodic Registration Updating")
+		ue.GmmLog.Errorf("periodic registration Updating is not supported")
 	case nasMessage.RegistrationType5GSEmergencyRegistration:
-		return fmt.Errorf("Not Supportted RegistrationType: Emergency Registration")
+		return fmt.Errorf("emergency registration is not supported")
 	case nasMessage.RegistrationType5GSReserved:
 		ue.RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 		ue.GmmLog.Debugf("RegistrationType: Reserved")
@@ -457,7 +457,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		var plmnID string
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
-		ue.PlmnId = PlmnIdStringToModels(plmnID)
+		ue.PlmnID = PlmnIDStringToModels(plmnID)
 		ue.GmmLog.Debugf("SUCI: %s", ue.Suci)
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		guamiFromUeGutiTmp, guti := nasConvert.GutiToString(mobileIdentity5GSContents)
@@ -530,7 +530,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 			transferReason = models.TransferReason_MOBI_REG
 		}
 
-		ue.TargetAmfUri = amfSelf.GetIPv4Uri()
+		ue.TargetAmfURI = amfSelf.GetIPv4Uri()
 
 		ueContextTransferRspData, problemDetails, err := consumer.UEContextTransferRequest(ue, anType, transferReason)
 		if problemDetails != nil {
@@ -556,7 +556,7 @@ func IdentityVerification(ue *context.AmfUe) bool {
 func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) error {
 	ue.GmmLog.Infoln("Handle InitialRegistration")
 
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	ue.ClearRegistrationData()
 
@@ -674,7 +674,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType models.AccessType) error {
 	ue.GmmLog.Infoln("Handle MobilityAndPeriodicRegistrationUpdating")
 
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	if ue.RegistrationRequest.UpdateType5GS != nil {
 		if ue.RegistrationRequest.UpdateType5GS.GetNGRanRcu() == nasMessage.NGRanRadioCapabilityUpdateNeeded {
@@ -1054,7 +1054,7 @@ func getSubscribedNssai(ue *context.AmfUe) {
 
 // TS 23.502 4.2.2.2.3 Registration with AMF Re-allocation
 func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	if ue.RegistrationRequest.RequestedNSSAI != nil {
 		requestedNssai, err := nasConvert.RequestedNssaiToModels(ue.RegistrationRequest.RequestedNSSAI)
@@ -1111,18 +1111,18 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 			// It's possible we need to change this whole block to the following:
 			//  allowedNssaiNgap := ngapConvert.AllowedNssaiToNgap(ue.AllowedNssai[anType])
 			//	ngap_message.SendRerouteNasRequest(ue, anType, nil, ue.RanUe[anType].InitialUEMessage, &allowedNssaiNgap)
-			ue.TargetAmfUri = amfSelf.GetIPv4Uri()
+			ue.TargetAmfURI = amfSelf.GetIPv4Uri()
 			ueContext := consumer.BuildUeContextModel(ue)
 			registerContext := models.RegistrationContextContainer{
 				UeContext:        &ueContext,
 				AnType:           anType,
-				AnN2ApId:         int32(ue.RanUe[anType].RanUeNgapId),
+				AnN2ApId:         int32(ue.RanUe[anType].RanUeNgapID),
 				RanNodeId:        ue.RanUe[anType].Ran.RanId,
 				InitialAmfName:   amfSelf.Name,
 				UserLocation:     &ue.Location,
 				RrcEstCause:      ue.RanUe[anType].RRCEstablishmentCause,
 				UeContextRequest: ue.RanUe[anType].UeContextRequest,
-				AnN2IPv4Addr:     ue.RanUe[anType].Ran.GnbIp,
+				AnN2IPv4Addr:     ue.RanUe[anType].Ran.GnbIP,
 				AllowedNssai: &models.AllowedNssai{
 					AllowedSnssaiList: ue.AllowedNssai[anType],
 					AccessType:        anType,
@@ -1159,7 +1159,7 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 }
 
 func assignLadnInfo(ue *context.AmfUe, accessType models.AccessType) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	ue.LadnInfo = nil
 	if ue.RegistrationRequest.LADNIndication != nil {
@@ -1220,7 +1220,7 @@ func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.Iden
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		var plmnID string
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentityContents)
-		ue.PlmnId = PlmnIdStringToModels(plmnID)
+		ue.PlmnID = PlmnIDStringToModels(plmnID)
 		ue.GmmLog.Debugf("get SUCI: %s", ue.Suci)
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		if ue.MacFailed {
@@ -1471,7 +1471,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 	serviceType := serviceRequest.GetServiceTypeValue()
 	var reactivationResult, acceptPduSessionPsi *[16]bool
 	var errPduSessionID, errCause []uint8
-	var targetPduSessionId int32
+	var targetPduSessionID int32
 	suList := ngapType.PDUSessionResourceSetupListSUReq{}
 	ctxList := ngapType.PDUSessionResourceSetupListCxtReq{}
 
@@ -1498,7 +1498,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 		requestData := ue.N1N2Message.Request.JsonData
 		if ue.N1N2Message.Request.BinaryDataN2Information != nil {
 			if requestData.N2InfoContainer.N2InformationClass == models.N2InformationClass_SM {
-				targetPduSessionId = requestData.N2InfoContainer.SmInfo.PduSessionId
+				targetPduSessionID = requestData.N2InfoContainer.SmInfo.PduSessionId
 			} else {
 				ue.N1N2Message = nil
 				return fmt.Errorf("Service Request triggered by Network has not implemented about non SM N2Info")
@@ -1513,7 +1513,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 			pduSessionID := key.(int32)
 			smContext := value.(*context.SmContext)
 
-			if pduSessionID != targetPduSessionId {
+			if pduSessionID != targetPduSessionID {
 				if uplinkDataPsi[pduSessionID] && smContext.AccessType() == models.AccessType__3_GPP_ACCESS {
 					response, errRes, _, err := consumer.SendUpdateSmContextActivateUpCnxState(
 						ue, smContext, models.AccessType__3_GPP_ACCESS)
