@@ -20,28 +20,6 @@ func CheckStandardSnssai(snssai models.Snssai) bool {
 	return false
 }
 
-// Find target S-NSSAI mapping with serving S-NSSAIs from mapping of S-NSSAI(s)
-func FindMappingWithServingSnssai(
-	snssai models.Snssai, mappings []models.MappingOfSnssai,
-) (models.MappingOfSnssai, bool) {
-	for _, mapping := range mappings {
-		if *mapping.ServingSnssai == snssai {
-			return mapping, true
-		}
-	}
-	return models.MappingOfSnssai{}, false
-}
-
-// Find target S-NSSAI mapping with home S-NSSAIs from mapping of S-NSSAI(s)
-func FindMappingWithHomeSnssai(snssai models.Snssai, mappings []models.MappingOfSnssai) (models.MappingOfSnssai, bool) {
-	for _, mapping := range mappings {
-		if *mapping.HomeSnssai == snssai {
-			return mapping, true
-		}
-	}
-	return models.MappingOfSnssai{}, false
-}
-
 // Add Allowed S-NSSAI to Authorized Network Slice Info
 func AddAllowedSnssai(allowedSnssai models.AllowedSnssai, accessType models.AccessType,
 	authorizedNetworkSliceInfo *models.AuthorizedNetworkSliceInfo,
