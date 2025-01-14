@@ -26,8 +26,9 @@ func Start(dbInstance *db.Database, port int, certFile string, key_file string) 
 			IdleTimeout: 1 * time.Millisecond,
 		}
 		server := &http.Server{
-			Addr:    httpAddr,
-			Handler: h2c.NewHandler(router, h2Server),
+			Addr:              httpAddr,
+			ReadHeaderTimeout: 5 * time.Second,
+			Handler:           h2c.NewHandler(router, h2Server),
 		}
 		err := server.ListenAndServeTLS(certFile, key_file)
 		if err != nil {

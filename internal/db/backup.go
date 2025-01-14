@@ -23,7 +23,7 @@ func (db *Database) Backup() (string, error) {
 	backupFileName := fmt.Sprintf("backup_%s.db", time.Now().Format("20060102_150405"))
 	backupFilePath := fmt.Sprintf("./backups/%s", backupFileName)
 
-	if err := os.MkdirAll("./backups", os.ModePerm); err != nil {
+	if err := os.MkdirAll("./backups", 0o750); err != nil {
 		return "", fmt.Errorf("failed to create backups directory: %v", err)
 	}
 
