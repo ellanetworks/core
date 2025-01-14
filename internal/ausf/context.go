@@ -17,8 +17,6 @@ type AUSFContext struct {
 	UePool      sync.Map
 	snRegex     *regexp.Regexp
 	NfId        string
-	UdmUeauUrl  string
-	PlmnList    []models.PlmnId
 }
 
 type AusfUeContext struct {
@@ -27,7 +25,6 @@ type AusfUeContext struct {
 	Kseaf              string
 	ServingNetworkName string
 	AuthStatus         models.AuthResult
-	// UdmUeauUrl         string
 
 	// for 5G AKA
 	XresStar string
@@ -116,10 +113,3 @@ func GetSelf() *AUSFContext {
 func (a *AUSFContext) GetSelfID() string {
 	return a.NfId
 }
-
-// func InitAusfContext(context *AUSFContext) {
-// 	config := factory.AusfConfig
-
-// 	context.NfId = uuid.New().String()
-// 	context.GroupID = config.GroupId
-// }

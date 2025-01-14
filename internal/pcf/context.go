@@ -22,10 +22,6 @@ import (
 
 var pcfCtx *PCFContext
 
-type PlmnSupportItem struct {
-	PlmnId models.PlmnId
-}
-
 type PCFContext struct {
 	PcfSuppFeats           map[models.ServiceName]openapi.SupportedFeature
 	UePool                 sync.Map

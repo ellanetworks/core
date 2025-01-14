@@ -135,7 +135,7 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 	response.SuppFeat = amPolicy.SuppFeat
 	ue.PolAssociationIDGenerator++
 	// Create location header for update, delete, get
-	locationHeader := GetResourceUri(models.ServiceName_NPCF_AM_POLICY_CONTROL, assolId)
+	locationHeader := fmt.Sprintf("%s/%s", serviceUriMap[models.ServiceName_NPCF_AM_POLICY_CONTROL], assolId)
 	logger.PcfLog.Debugf("AMPolicy association Id[%s] Create", assolId)
 	return &response, locationHeader, nil
 }

@@ -9,13 +9,7 @@ import (
 	"github.com/omec-project/openapi/models"
 )
 
-// Title in Problem Details for NSSF HTTP APIs
-const (
-	INVALID_REQUEST       = "Invalid request message framing"
-	MALFORMED_REQUEST     = "Malformed request syntax"
-	UNAUTHORIZED_CONSUMER = "Unauthorized NF service consumer"
-	UNSUPPORTED_RESOURCE  = "Unsupported request resources"
-)
+const INVALID_REQUEST = "Invalid request message framing"
 
 // Check whether S-NSSAI is standard or non-standard value
 // A standard S-NSSAI is only comprised of a standardized SST value and no SD

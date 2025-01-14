@@ -8,7 +8,6 @@ package pfcp
 
 import (
 	"fmt"
-	"net"
 	"sync"
 	"sync/atomic"
 
@@ -308,32 +307,4 @@ func SendPfcpSessionDeletionRequest(upNodeID context.NodeID, ctx *context.SMCont
 		return status, fmt.Errorf("failed to handle PFCP Session Establishment Response: %v", err)
 	}
 	return status, nil
-}
-
-type adapterMessage struct {
-	Body []byte `json:"body"`
-}
-
-type UdpPodPfcpMsg struct {
-	// message type contains in Msg.Header
-	Msg      adapterMessage `json:"pfcpMsg"`
-	Addr     *net.UDPAddr   `json:"addr"`
-	SmfIp    string         `json:"smfIp"`
-	UpNodeID context.NodeID `json:"upNodeID"`
-}
-
-func GetLocalIP() string {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return ""
-	}
-	for _, address := range addrs {
-		// check the address type and if it is not a loopback the display it
-		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				return ipnet.IP.String()
-			}
-		}
-	}
-	return ""
 }

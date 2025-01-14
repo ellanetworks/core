@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
@@ -37,7 +36,6 @@ type UDMContext struct {
 	SharedSubsDataMap              map[string]models.SharedData // sharedDataIds as key
 	SubscriptionOfSharedDataChange sync.Map                     // subscriptionID as key
 	SuciProfiles                   []suci.SuciProfile
-	EeSubscriptionIDGenerator      *idgenerator.IDGenerator
 	SdmSubscriptionIDGenerator     int
 	UESubsCollection               sync.Map // map[ueId]*UESubsData
 }

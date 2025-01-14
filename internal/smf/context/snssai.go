@@ -31,7 +31,7 @@ type DnnUPFInfoItem struct {
 // ContainsDNAI return true if the this dnn Info contains the specify DNAI
 func (d *DnnUPFInfoItem) ContainsDNAI(targetDnai string) bool {
 	if targetDnai == "" {
-		return d.DnaiList == nil || len(d.DnaiList) == 0
+		return len(d.DnaiList) == 0
 	}
 	for _, dnai := range d.DnaiList {
 		if dnai == targetDnai {

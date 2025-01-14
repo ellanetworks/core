@@ -60,12 +60,8 @@ type UeSmPolicyData struct {
 	RemainGbrDL            *float64
 	SmPolicyData           *models.SmPolicyData // Svbscription Data
 	PolicyContext          *models.SmPolicyContextData
-	PolicyDecision         *models.SmPolicyDecision
 	AppSessions            map[string]bool // related appSessionId
 	PcfUe                  *UeContext
-	PackFiltIdGenarator    int32
-	PccRuleIdGenarator     int32
-	ChargingIdGenarator    int32
 }
 
 func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociationRequest) *UeAMPolicyData {
@@ -101,11 +97,8 @@ func (ue *UeContext) NewUeSmPolicyData(
 	data := UeSmPolicyData{}
 	data.PolicyContext = &request
 	data.SmPolicyData = smData
-	data.PackFiltIdGenarator = 1
 	data.PackFiltMapToPccRuleId = make(map[string]string)
 	data.AppSessions = make(map[string]bool)
-	data.PccRuleIdGenarator = 1
-	data.ChargingIdGenarator = 1
 	data.PcfUe = ue
 	ue.SmPolicyData[key] = &data
 	return &data

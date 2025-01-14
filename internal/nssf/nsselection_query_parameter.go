@@ -13,5 +13,4 @@ type NsselectionQueryParameter struct {
 	SliceInfoRequestForPduSession   *models.SliceInfoForPduSession   `json:"slice-info-request-for-pdu-session,omitempty"`
 	HomePlmnId                      *models.PlmnId                   `json:"home-plmn-id,omitempty"`
 	Tai                             *models.Tai                      `json:"tai,omitempty"`
-	SupportedFeatures               string                           `json:"supported-features,omitempty"`
 }

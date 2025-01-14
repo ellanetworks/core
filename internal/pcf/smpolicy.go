@@ -98,7 +98,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 	}
 	amPolicy := ue.FindAMPolicy(request.AccessType, request.ServingNetwork)
 	if amPolicy == nil {
-		return nil, fmt.Errorf("Can't find corresponding AM Policy")
+		return nil, fmt.Errorf("can't find corresponding AM Policy")
 	}
 	if ue.Gpsi == "" {
 		ue.Gpsi = request.Gpsi
@@ -189,9 +189,6 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 	decision.SuppFeat = pcfCtx.PcfSuppFeats[models.ServiceName_NPCF_SMPOLICYCONTROL].NegotiateWith(requestSuppFeat).String()
 	decision.QosFlowUsage = request.QosFlowUsage
 	decision.PolicyCtrlReqTriggers = PolicyControlReqTrigToArray(0x40780f)
-	smPolicyData.PolicyDecision = &decision
-	locationHeader := GetResourceUri(models.ServiceName_NPCF_SMPOLICYCONTROL, smPolicyID)
-	logger.PcfLog.Infof("Location Header: %s", locationHeader)
 	return &decision, nil
 }
 

@@ -3,10 +3,7 @@
 package udm
 
 import (
-	"math"
-
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/omec-project/openapi/models"
 )
@@ -24,7 +21,6 @@ func Start(dbInstance *db.Database) error {
 		},
 	}
 	udmContext.NfService = make(map[models.ServiceName]models.NfService)
-	udmContext.EeSubscriptionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
 	udmContext.SdmSubscriptionIDGenerator = 1
 	udmContext.DbInstance = dbInstance
 	return nil

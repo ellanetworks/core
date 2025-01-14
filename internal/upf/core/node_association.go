@@ -7,22 +7,17 @@ import (
 )
 
 type NodeAssociation struct {
-	ID               string
-	Addr             string
-	NextSessionID    uint64
-	NextSequenceID   uint32
-	Sessions         map[uint64]*Session
-	FailedHeartbeats uint32
+	ID            string
+	NextSessionID uint64
+	Sessions      map[uint64]*Session
 	sync.Mutex
 }
 
 func NewNodeAssociation(remoteNodeID string, addr string) *NodeAssociation {
 	return &NodeAssociation{
-		ID:             remoteNodeID,
-		Addr:           addr,
-		NextSessionID:  1,
-		NextSequenceID: 1,
-		Sessions:       make(map[uint64]*Session),
+		ID:            remoteNodeID,
+		NextSessionID: 1,
+		Sessions:      make(map[uint64]*Session),
 	}
 }
 

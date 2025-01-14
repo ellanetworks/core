@@ -5,16 +5,12 @@ linters:
     - errcheck
     - staticcheck
     - unused
-    # - gosimple
+    - gosimple
     - typecheck
-    # - lll
     - godox
     - goconst
-    # - gocognit
-    # - nestif
     - gomodguard
     - nakedret
-    # - gci
     - misspell
     - gofumpt
     - whitespace
@@ -24,67 +20,25 @@ linters:
     - dogsled
     - bodyclose
     - asciicheck
-    # - stylecheck
     - unparam
+    # - stylecheck
+    # - gci
+    # - lll
+    # - gocognit
+    # - nestif
     # - wsl
 
-  #disable-all: false
   fast: true
 issues:
-  # List of regexps of issue texts to exclude, empty list by default.
-  # But independently from this option we use default exclude patterns,
-  # it can be disabled by `exclude-use-default: false`. To list all
-  # excluded by default patterns execute `golangci-lint run --help`
   exclude:
-  # Excluding configuration per-path, per-linter, per-text and per-source
-  exclude-files:
-    - "model_.*\\.go$"
   exclude-rules:
-    # Exclude some linters from running on tests files.
-  # Independently from option `exclude` we use default exclude patterns,
-  # it can be disabled by this option. To list all
-  # excluded by default patterns execute `golangci-lint run --help`.
-  # Default value for this option is true.
-  exclude-use-default: false
-  # The default value is false. If set to true exclude and exclude-rules
-  # regular expressions become case sensitive.
   exclude-case-sensitive: false
-  # The list of ids of default excludes to include or disable. By default it's empty.
   include:
-    #- EXC0002 # disable excluding of issues about comments from golint
-  # Maximum issues count per one linter. Set to 0 to disable. Default is 50.
-  #max-issues-per-linter: 0
-  # Maximum count of issues with the same text. Set to 0 to disable. Default is 3.
-  #max-same-issues: 0
-  # Show only new issues: if there are unstaged changes or untracked files,
-  # only those changes are analyzed, else only changes in HEAD~ are analyzed.
-  # It's a super-useful option for integration of golangci-lint into existing
-  # large codebase. It's not practical to fix all existing issues at the moment
-  # of integration: much better don't allow issues in new code.
-  # Default is false.
   new: false
-  # Show only new issues created after git revision `REV`
   new-from-rev: ""
-  # Show only new issues created in git patch with set file path.
-  #new-from-patch: path/to/patch/file
 severity:
-  # Default value is empty string.
-  # Set the default severity for issues. If severity rules are defined and the issues
-  # do not match or no severity is provided to the rule this will be the default
-  # severity applied. Severities should match the supported severity names of the
-  # selected out format.
-  # - Code climate: https://docs.codeclimate.com/docs/issues#issue-severity
-  # -   Checkstyle: https://checkstyle.sourceforge.io/property_types.html#severity
-  # -       Github: https://help.github.com/en/actions/reference/workflow-commands-for-github-actions#setting-an-error-message
   default-severity: error
-  # The default value is false.
-  # If set to true severity-rules regular expressions become case sensitive.
   case-sensitive: false
-  # Default value is empty list.
-  # When a list of severity rules are provided, severity information will be added to lint
-  # issues. Severity rules have the same filtering capability as exclude rules except you
-  # are allowed to specify one matcher per severity rule.
-  # Only affects out formats that support setting severity information.
   rules:
     - linters:
         - gomnd
