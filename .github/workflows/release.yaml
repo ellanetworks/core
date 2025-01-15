@@ -1,0 +1,30 @@
+name: Release workflow
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+on:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+
+jobs: 
+  rock-build:
+    uses: ./.github/workflows/rock-build.yaml
+  rock-scan:
+    needs: [rock-build]
+    uses: ./.github/workflows/rock-scan.yaml
+  rock-publish:
+    needs: [rock-build]
+    uses: ./.github/workflows/rock-publish.yaml
+    secrets: inherit
+  snap-build:
+    uses: ./.github/workflows/snap-build.yaml
+  snap-publish:
+    needs: [snap-build]
+    uses: ./.github/workflows/snap-publish.yaml
+    secrets: inherit
