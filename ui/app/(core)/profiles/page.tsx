@@ -41,7 +41,10 @@ const Profile = () => {
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [editData, setEditData] = useState<ProfileData | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
+  const [alert, setAlert] = useState<{ message: string; severity: "success" | "error" | null }>({
+    message: "",
+    severity: null,
+  });
 
   const fetchProfiles = async () => {
     setLoading(true);
@@ -102,12 +105,14 @@ const Profile = () => {
         await deleteProfile(cookies.user_token, selectedProfile);
         setAlert({
           message: `Profile "${selectedProfile}" deleted successfully!`,
+          severity: "success"
         });
         fetchProfiles();
       } catch (error) {
-        console.error("Error deleting profile:", error);
+        console.log("Error deleting profile:", error);
         setAlert({
-          message: `Failed to delete profile "${selectedProfile}".`,
+          message: `Failed to delete profile "${selectedProfile}": ${error}`,
+          severity: "error",
         });
       } finally {
         setSelectedProfile(null);
@@ -160,8 +165,8 @@ const Profile = () => {
       <Box sx={{ width: "60%" }}>
         <Collapse in={!!alert.message}>
           <Alert
-            severity="success"
-            onClose={() => setAlert({ message: "" })}
+            severity={alert.severity || "success"}
+            onClose={() => setAlert({ message: "", severity: null })}
             sx={{ marginBottom: 2 }}
           >
             {alert.message}
