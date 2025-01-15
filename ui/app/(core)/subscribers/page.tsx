@@ -42,7 +42,10 @@ const Subscriber = () => {
     const [isConfirmationOpen, setConfirmationOpen] = useState(false);
     const [editData, setEditData] = useState<SubscriberData | null>(null);
     const [selectedSubscriber, setSelectedSubscriber] = useState<string | null>(null);
-    const [alert, setAlert] = useState<{ message: string }>({ message: "" });
+    const [alert, setAlert] = useState<{ message: string; severity: "success" | "error" | null }>({
+        message: "",
+        severity: null,
+    });
 
     const fetchSubscribers = async () => {
         setLoading(true);
@@ -94,12 +97,13 @@ const Subscriber = () => {
                 await deleteSubscriber(cookies.user_token, selectedSubscriber);
                 setAlert({
                     message: `Subscriber "${selectedSubscriber}" deleted successfully!`,
+                    severity: "success",
                 });
                 fetchSubscribers();
             } catch (error) {
-                console.error("Error deleting subscriber:", error);
                 setAlert({
                     message: `Failed to delete subscriber "${selectedSubscriber}".`,
+                    severity: "error",
                 });
             } finally {
                 setSelectedSubscriber(null);
@@ -131,7 +135,7 @@ const Subscriber = () => {
                 </IconButton>,
                 <IconButton
                     aria-label="delete"
-                    onClick={() => handleDeleteClick(params.row.name)}
+                    onClick={() => handleDeleteClick(params.row.imsi)}
                 >
                     <DeleteIcon />
                 </IconButton>
@@ -154,8 +158,8 @@ const Subscriber = () => {
             <Box sx={{ width: "60%" }}>
                 <Collapse in={!!alert.message}>
                     <Alert
-                        severity="success"
-                        onClose={() => setAlert({ message: "" })}
+                        severity={alert.severity || "success"}
+                        onClose={() => setAlert({ message: "", severity: null })}
                         sx={{ marginBottom: 2 }}
                     >
                         {alert.message}
