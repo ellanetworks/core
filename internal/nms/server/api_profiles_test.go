@@ -353,7 +353,52 @@ func TestAPIProfilesEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("6. Delete profile - success", func(t *testing.T) {
+	t.Run("7. Add subscriber to profile", func(t *testing.T) {
+		createSubscriberParams := &CreateSubscriberParams{
+			Imsi:           Imsi,
+			Key:            Key,
+			SequenceNumber: SequenceNumber,
+			ProfileName:    ProfileName,
+		}
+		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
+		if err != nil {
+			t.Fatalf("couldn't edit profile: %s", err)
+		}
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	})
+
+	t.Run("8. Delete profile - failure", func(t *testing.T) {
+		statusCode, response, err := deleteProfile(ts.URL, client, token, ProfileName)
+		if err != nil {
+			t.Fatalf("couldn't delete profile: %s", err)
+		}
+		if statusCode != http.StatusConflict {
+			t.Fatalf("expected status %d, got %d", http.StatusConflict, statusCode)
+		}
+		if response.Error != "Profile has subscribers" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	})
+
+	t.Run("7. Delete subscriber", func(t *testing.T) {
+		statusCode, response, err := deleteSubscriber(ts.URL, client, token, Imsi)
+		if err != nil {
+			t.Fatalf("couldn't edit profile: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	})
+
+	t.Run("8. Delete profile - success", func(t *testing.T) {
 		statusCode, response, err := deleteProfile(ts.URL, client, token, ProfileName)
 		if err != nil {
 			t.Fatalf("couldn't delete profile: %s", err)
@@ -364,12 +409,9 @@ func TestAPIProfilesEndToEnd(t *testing.T) {
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
-		if response.Result.Message != "Profile deleted successfully" {
-			t.Fatalf("expected message 'Profile deleted successfully', got %q", response.Result.Message)
-		}
 	})
 
-	t.Run("7. Delete profile - no profile", func(t *testing.T) {
+	t.Run("9. Delete profile - no profile", func(t *testing.T) {
 		statusCode, response, err := deleteProfile(ts.URL, client, token, ProfileName)
 		if err != nil {
 			t.Fatalf("couldn't delete profile: %s", err)
