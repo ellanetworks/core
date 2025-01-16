@@ -30,7 +30,6 @@ type UPNode struct {
 	NodeID NodeID
 	Dnn    string
 	Links  []*UPNode
-	Port   uint16
 }
 
 type UPPath []*UPNode

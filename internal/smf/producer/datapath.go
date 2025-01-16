@@ -15,7 +15,6 @@ type PFCPState struct {
 	pdrList []*context.PDR
 	farList []*context.FAR
 	qerList []*context.QER
-	port    uint16
 }
 
 // SendPFCPRules send all datapaths to UPFs
@@ -54,7 +53,6 @@ func SendPFCPRules(smContext *context.SMContext) context.PFCPSessionResponseStat
 				if pfcpState == nil {
 					pfcpPool[curDataPathNode.GetNodeIP()] = &PFCPState{
 						nodeID:  curDataPathNode.UPF.NodeID,
-						port:    curDataPathNode.UPF.Port,
 						pdrList: pdrList,
 						farList: farList,
 						qerList: qerList,
@@ -71,7 +69,7 @@ func SendPFCPRules(smContext *context.SMContext) context.PFCPSessionResponseStat
 		sessionContext, exist := smContext.PFCPContext[ip]
 		if !exist || sessionContext.RemoteSEID == 0 {
 			addPduSessionAnchor, status, err := pfcp.SendPfcpSessionEstablishmentRequest(
-				pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList, pfcpState.port)
+				pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList)
 			responseStatus = *status
 			if err != nil {
 				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, pfcpState.nodeID, pfcpState.nodeID.ResolveNodeIdToIp())
@@ -82,7 +80,7 @@ func SendPFCPRules(smContext *context.SMContext) context.PFCPSessionResponseStat
 			}
 		} else {
 			addPduSessionAnchor, status, err := pfcp.SendPfcpSessionModificationRequest(
-				pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList, pfcpState.port)
+				pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList)
 			responseStatus = *status
 			if err != nil {
 				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, pfcpState.nodeID, pfcpState.nodeID.ResolveNodeIdToIp())

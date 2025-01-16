@@ -3,7 +3,6 @@ package server_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"path/filepath"
 	"testing"
@@ -153,77 +152,59 @@ func TestListRadios(t *testing.T) {
 		t.Fatalf("expected 2 radios, got %d", len(response.Result))
 	}
 
-	fmt.Println("Result: ", response.Result)
-
-	if response.Result[0].Name != "gnb-001" {
-		t.Fatalf("expected radio name %q, got %q", "gnb-001", response.Result[0].Name)
-	}
-
-	if response.Result[0].Address != "1.2.3.4" {
-		t.Fatalf("expected radio address %q, got %q", "1.2.3.4", response.Result[0].Address)
-	}
-
-	if response.Result[0].Id != "mcc:001:mnc:01:gnb-001" {
-		t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-001", response.Result[0].Id)
-	}
-
-	if len(response.Result[0].SupportedTAIs) != 1 {
-		t.Fatalf("expected 1 supported TAI, got %d", len(response.Result[0].SupportedTAIs))
-	}
-
-	if response.Result[0].SupportedTAIs[0].Tai.PlmnId.Mcc != "123" {
-		t.Fatalf("expected mcc %q, got %q", "123", response.Result[0].SupportedTAIs[0].Tai.PlmnId.Mcc)
-	}
-
-	if response.Result[0].SupportedTAIs[0].Tai.PlmnId.Mnc != "12" {
-		t.Fatalf("expected mnc %q, got %q", "12", response.Result[0].SupportedTAIs[0].Tai.PlmnId.Mnc)
-	}
-
-	if response.Result[0].SupportedTAIs[0].Tai.Tac != "0002" {
-		t.Fatalf("expected tac %q, got %q", "0002", response.Result[0].SupportedTAIs[0].Tai.Tac)
-	}
-
-	if len(response.Result[0].SupportedTAIs[0].SNssais) != 1 {
-		t.Fatalf("expected 1 supported SNssai, got %d", len(response.Result[0].SupportedTAIs[0].SNssais))
-	}
-
-	if response.Result[0].SupportedTAIs[0].SNssais[0].Sst != 2 {
-		t.Fatalf("expected sst %d, got %d", 2, response.Result[0].SupportedTAIs[0].SNssais[0].Sst)
-	}
-
-	if response.Result[0].SupportedTAIs[0].SNssais[0].Sd != "010204" {
-		t.Fatalf("expected sd %q, got %q", "010204", response.Result[0].SupportedTAIs[0].SNssais[0].Sd)
-	}
-
-	if response.Result[1].Name != "gnb-002" {
-		t.Fatalf("expected radio name %q, got %q", "gnb-002", response.Result[1].Name)
-	}
-
-	if response.Result[1].Address != "2.3.4.5" {
-		t.Fatalf("expected radio address %q, got %q", "2.3.4.5", response.Result[1].Address)
-	}
-
-	if response.Result[1].Id != "mcc:001:mnc:01:gnb-002" {
-		t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-002", response.Result[1].Id)
-	}
-
-	if len(response.Result[1].SupportedTAIs) != 1 {
-		t.Fatalf("expected 1 supported TAI, got %d", len(response.Result[1].SupportedTAIs))
-	}
-
-	if response.Result[1].SupportedTAIs[0].Tai.PlmnId.Mcc != "001" {
-		t.Fatalf("expected mcc %q, got %q", "001", response.Result[1].SupportedTAIs[0].Tai.PlmnId.Mcc)
-	}
-
-	if response.Result[1].SupportedTAIs[0].Tai.PlmnId.Mnc != "01" {
-		t.Fatalf("expected mnc %q, got %q", "01", response.Result[1].SupportedTAIs[0].Tai.PlmnId.Mnc)
-	}
-
-	if response.Result[1].SupportedTAIs[0].Tai.Tac != "0001" {
-		t.Fatalf("expected tac %q, got %q", "0001", response.Result[1].SupportedTAIs[0].Tai.Tac)
-	}
-
-	if len(response.Result[1].SupportedTAIs[0].SNssais) != 1 {
-		t.Fatalf("expected 1 supported SNssai, got %d", len(response.Result[1].SupportedTAIs[0].SNssais))
+	for _, radio := range response.Result {
+		if radio.Name == "gnb-001" {
+			if radio.Address != "1.2.3.4" {
+				t.Fatalf("expected radio address %q, got %q", "1.2.3.4", radio.Address)
+			}
+			if radio.Id != "mcc:001:mnc:01:gnb-001" {
+				t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-001", radio.Id)
+			}
+			if len(radio.SupportedTAIs) != 1 {
+				t.Fatalf("expected 1 supported TAI, got %d", len(radio.SupportedTAIs))
+			}
+			if radio.SupportedTAIs[0].Tai.PlmnId.Mcc != "123" {
+				t.Fatalf("expected mcc %q, got %q", "123", radio.SupportedTAIs[0].Tai.PlmnId.Mcc)
+			}
+			if radio.SupportedTAIs[0].Tai.PlmnId.Mnc != "12" {
+				t.Fatalf("expected mnc %q, got %q", "12", radio.SupportedTAIs[0].Tai.PlmnId.Mnc)
+			}
+			if radio.SupportedTAIs[0].Tai.Tac != "0002" {
+				t.Fatalf("expected tac %q, got %q", "0002", radio.SupportedTAIs[0].Tai.Tac)
+			}
+			if len(radio.SupportedTAIs[0].SNssais) != 1 {
+				t.Fatalf("expected 1 supported SNssai, got %d", len(radio.SupportedTAIs[0].SNssais))
+			}
+			if radio.SupportedTAIs[0].SNssais[0].Sst != 2 {
+				t.Fatalf("expected sst %d, got %d", 2, radio.SupportedTAIs[0].SNssais[0].Sst)
+			}
+			if radio.SupportedTAIs[0].SNssais[0].Sd != "010204" {
+				t.Fatalf("expected sd %q, got %q", "010204", radio.SupportedTAIs[0].SNssais[0].Sd)
+			}
+		} else if radio.Name == "gnb-002" {
+			if radio.Address != "2.3.4.5" {
+				t.Fatalf("expected radio address %q, got %q", "2.3.4.5", radio.Address)
+			}
+			if radio.Id != "mcc:001:mnc:01:gnb-002" {
+				t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-002", radio.Id)
+			}
+			if len(radio.SupportedTAIs) != 1 {
+				t.Fatalf("expected 1 supported TAI, got %d", len(radio.SupportedTAIs))
+			}
+			if radio.SupportedTAIs[0].Tai.PlmnId.Mcc != "001" {
+				t.Fatalf("expected mcc %q, got %q", "001", radio.SupportedTAIs[0].Tai.PlmnId.Mcc)
+			}
+			if radio.SupportedTAIs[0].Tai.PlmnId.Mnc != "01" {
+				t.Fatalf("expected mnc %q, got %q", "01", radio.SupportedTAIs[0].Tai.PlmnId.Mnc)
+			}
+			if radio.SupportedTAIs[0].Tai.Tac != "0001" {
+				t.Fatalf("expected tac %q, got %q", "0001", radio.SupportedTAIs[0].Tai.Tac)
+			}
+			if len(radio.SupportedTAIs[0].SNssais) != 1 {
+				t.Fatalf("expected 1 supported SNssai, got %d", len(radio.SupportedTAIs[0].SNssais))
+			}
+		} else {
+			t.Fatalf("unexpected radio name %q", radio.Name)
+		}
 	}
 }

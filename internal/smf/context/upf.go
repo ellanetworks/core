@@ -54,7 +54,6 @@ type UPF struct {
 
 	NodeID NodeID
 	uuid   uuid.UUID
-	Port   uint16
 
 	// lock
 	UpfLock sync.RWMutex

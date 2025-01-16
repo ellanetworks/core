@@ -20,7 +20,9 @@ const QueryCreateOperatorTable = `
 		mcc TEXT NOT NULL,
 		mnc TEXT NOT NULL,
 		operatorCode TEXT NOT NULL,
-		supportedTACs TEXT DEFAULT '[]'
+		supportedTACs TEXT DEFAULT '[]',
+		sst INTEGER NOT NULL,
+		sd INTEGER NOT NULL
 )`
 
 const (
@@ -28,13 +30,15 @@ const (
 	DefaultMnc           = "01"
 	DefaultOperatorCode  = "0123456789ABCDEF0123456789ABCDEF"
 	DefaultSupportedTACs = `["001"]`
+	DefaultOperatorSst   = 1
+	DefaultOperatorSd    = 1056816
 )
 
 const (
 	getOperatorStmt        = "SELECT &Operator.* FROM %s WHERE id=1"
 	updateOperatorCodeStmt = "UPDATE %s SET operatorCode=$Operator.operatorCode WHERE id=1"
-	editOperatorStmt       = "UPDATE %s SET mcc=$Operator.mcc, mnc=$Operator.mnc, supportedTACs=$Operator.supportedTACs WHERE id=1"
-	initializeOperatorStmt = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs)"
+	editOperatorStmt       = "UPDATE %s SET mcc=$Operator.mcc, mnc=$Operator.mnc, supportedTACs=$Operator.supportedTACs, sst=$Operator.sst, sd=$Operator.sd WHERE id=1"
+	initializeOperatorStmt = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs, sst, sd) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs, $Operator.sst, $Operator.sd)"
 )
 
 type Operator struct {
@@ -43,6 +47,8 @@ type Operator struct {
 	Mnc           string `db:"mnc"`
 	OperatorCode  string `db:"operatorCode"`
 	SupportedTACs string `db:"supportedTACs"` // JSON-encoded list of strings
+	Sst           int32  `db:"sst"`
+	Sd            int    `db:"sd"`
 }
 
 func (operator *Operator) GetSupportedTacs() []string {
@@ -55,6 +61,10 @@ func (operator *Operator) GetSupportedTacs() []string {
 	return supportedTACs
 }
 
+func (operator *Operator) GetHexSd() string {
+	return fmt.Sprintf("%X", operator.Sd)
+}
+
 func (operator *Operator) SetSupportedTacs(supportedTACs []string) {
 	supportedTACsBytes, err := json.Marshal(supportedTACs)
 	if err != nil {
@@ -62,11 +72,6 @@ func (operator *Operator) SetSupportedTacs(supportedTACs []string) {
 		return
 	}
 	operator.SupportedTACs = string(supportedTACsBytes)
-}
-
-type OperatorId struct {
-	Mcc string
-	Mnc string
 }
 
 func (db *Database) InitializeOperator() error {
@@ -79,6 +84,8 @@ func (db *Database) InitializeOperator() error {
 		Mnc:           DefaultMnc,
 		OperatorCode:  DefaultOperatorCode,
 		SupportedTACs: DefaultSupportedTACs,
+		Sst:           DefaultOperatorSst,
+		Sd:            DefaultOperatorSd,
 	}
 	err = db.conn.Query(context.Background(), stmt, operator).Run()
 	if err != nil {

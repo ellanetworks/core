@@ -6,7 +6,11 @@ description: Explanation of subscriber authentication - IMSI, Ki, OP, OPc, and S
 
 ## Overview
 
-Subscriber authentication in 5G networks is based on the 5G AKA (Authentication and Key Agreement) mechanism. This protocol ensures secure and mutual authentication between the subscriber's device and the network, establishing a secure channel for communication.
+Subscriber authentication in 5G networks can be based on one of the following mechanisms:
+- 5G-AKA
+- EAP-AKA
+
+These protocol ensure secure and mutual authentication between the subscriber's device and the network, establishing a secure channel for communication.
 
 The subscriber's Universal Subscriber Identity Module (USIM) stores critical information required for authentication, including:
 
@@ -18,7 +22,7 @@ The subscriber's Universal Subscriber Identity Module (USIM) stores critical inf
 
 ## Subscriber Authentication in Ella Core
 
-Ella Core implements the 5G AKA mechanism as part of its subscriber authentication process. It ensures secure communication between subscribers and the network by leveraging the Ki, OP, and SQN for cryptographic validation.
+Ella Core implements both the 5G-AKA and EAP-AKA mechanisms as part of its subscriber authentication process. 
 
 Users can update the Operator Key (OP) via the [Operator API](../api/operator) or the UI.
 

@@ -83,11 +83,16 @@ func GetSubscriberPolicy(imsi string) *PcfSubscriberPolicyData {
 		logger.PcfLog.Warnf("Failed to get profile %d: %+v", subscriber.ProfileID, err)
 		return nil
 	}
+	operator, err := pcfCtx.DbInstance.GetOperator()
+	if err != nil {
+		logger.PcfLog.Warnf("Failed to get operator: %+v", err)
+		return nil
+	}
 	subscriberPolicies := &PcfSubscriberPolicyData{
 		Supi:      imsi,
 		PccPolicy: make(map[string]*PccPolicy),
 	}
-	pccPolicyId := fmt.Sprintf("%d%s", config.Sst, config.Sd)
+	pccPolicyId := fmt.Sprintf("%d%s", operator.Sst, operator.GetHexSd())
 	if _, exists := subscriberPolicies.PccPolicy[pccPolicyId]; !exists {
 		subscriberPolicies.PccPolicy[pccPolicyId] = &PccPolicy{
 			SessionPolicy: make(map[string]*SessionPolicy),

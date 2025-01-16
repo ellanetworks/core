@@ -49,6 +49,8 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 	operator := &db.Operator{
 		Mcc: "123",
 		Mnc: "456",
+		Sst: 1,
+		Sd:  1056816,
 	}
 	err = database.UpdateOperator(operator)
 	if err != nil {
@@ -64,6 +66,15 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 	}
 	if retrievedOperator.Mnc != "456" {
 		t.Fatalf("The mnc from the database doesn't match the expected value")
+	}
+	if retrievedOperator.Sst != 1 {
+		t.Fatalf("The sst from the database doesn't match the expected value")
+	}
+	if retrievedOperator.Sd != 1056816 {
+		t.Fatalf("The sd from the database doesn't match the expected value")
+	}
+	if retrievedOperator.GetHexSd() != "102030" {
+		t.Fatalf("The hex sd from the database doesn't match the expected value")
 	}
 	retrievedOperatorCode, err = database.GetOperatorCode()
 	if err != nil {

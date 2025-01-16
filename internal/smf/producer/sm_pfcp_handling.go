@@ -18,7 +18,7 @@ func SendPfcpSessionModifyReq(smContext *context.SMContext, pfcpParam *pfcpParam
 	defaultPath := smContext.Tunnel.DataPathPool.GetDefaultPath()
 	ANUPF := defaultPath.FirstDPNode
 	addPduSessionAnchor, status, err := pfcp.SendPfcpSessionModificationRequest(ANUPF.UPF.NodeID, smContext,
-		pfcpParam.pdrList, pfcpParam.farList, pfcpParam.barList, pfcpParam.qerList, ANUPF.UPF.Port)
+		pfcpParam.pdrList, pfcpParam.farList, pfcpParam.barList, pfcpParam.qerList)
 	if err != nil {
 		logger.SmfLog.Warnf("Failed to send PFCP session modification request: %+v", err)
 	}

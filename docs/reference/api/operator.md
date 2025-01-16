@@ -17,6 +17,8 @@ This path updates the operator information. The Mobile Country Code (MCC) and Mo
 - `mcc` (string): The Mobile Country Code (MCC) of the network. Must be a 3-digit string.
 - `mnc` (string): The Mobile Network Code (MNC) of the network. Must be a 2 or 3-digit string.
 - `supportedTACs` (array): An array of supported TACs (Tracking Area Codes). Each TAC must be a 3-digit string.
+- `sst` (integer): The Slice Service Type (SST) of the network. Must be an 8-bit integer
+- `sd` (integer): The Service Differentiator (SD) of the network. Must be a 24-bit integer.
 
 ### Sample Response
 
@@ -51,7 +53,9 @@ None
             "001",
             "002",
             "003"
-        ]
+        ],
+        "sst": 1,
+        "sd": 1056816
     }
 }
 ```

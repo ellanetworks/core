@@ -11,11 +11,8 @@ import (
 )
 
 const (
-	DNN     = "internet"
-	Sst     = 1
-	Sd      = "102030"
-	UpfName = "0.0.0.0"
-	UpfPort = 8806
+	DNN       = "internet"
+	UpfNodeId = "0.0.0.0"
 )
 
 type DB struct {
