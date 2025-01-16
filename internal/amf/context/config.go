@@ -2,7 +2,6 @@
 package context
 
 import (
-	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/openapi/models"
 )
@@ -60,20 +59,20 @@ func GetServedGuamiList() []models.Guami {
 func GetPlmnSupportList() []PlmnSupportItem {
 	amfSelf := AMF_Self()
 	plmnSupportList := make([]PlmnSupportItem, 0)
-	dbNetwork, err := amfSelf.DbInstance.GetOperator()
+	operator, err := amfSelf.DbInstance.GetOperator()
 	if err != nil {
 		logger.AmfLog.Warnf("Failed to get operator: %s", err)
 		return plmnSupportList
 	}
 	plmnSupportItem := PlmnSupportItem{
 		PlmnId: models.PlmnId{
-			Mcc: dbNetwork.Mcc,
-			Mnc: dbNetwork.Mnc,
+			Mcc: operator.Mcc,
+			Mnc: operator.Mnc,
 		},
 		SNssaiList: []models.Snssai{
 			{
-				Sst: config.Sst,
-				Sd:  config.Sd,
+				Sst: operator.Sst,
+				Sd:  operator.GetHexSd(),
 			},
 		},
 	}

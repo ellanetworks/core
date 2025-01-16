@@ -150,12 +150,16 @@ class EllaCore:
         self._make_request("POST", PROFILE_CONFIG_URL, data=profile_config)
         logger.info(f"Created profile {name}.")
 
-    def update_operator(self, mcc: str, mnc: str, supported_tacs: List[str]) -> None:
-        """Update operator ID information."""
+    def update_operator(
+        self, mcc: str, mnc: str, supported_tacs: List[str], sst: int, sd: int
+    ) -> None:
+        """Update operator information."""
         operator_config = {
             "mcc": mcc,
             "mnc": mnc,
             "supportedTacs": supported_tacs,
+            "sst": sst,
+            "sd": sd,
         }
         self._make_request("PUT", OPERATOR_CONFIG_URL, data=operator_config)
-        logger.info("Updated network configuration.")
+        logger.info("Updated operator configuration.")

@@ -11,7 +11,7 @@ from tests.core import EllaCore, Subscriber
 logger = logging.getLogger(__name__)
 
 NAMESPACE = "dev2"
-TEST_PROFILE_NAME = "default-default"
+TEST_PROFILE_NAME = "default"
 TEST_START_IMSI = "001010100000001"
 NUM_IMSIS = 5
 TEST_SUBSCRIBER_KEY = "5122250214c33e723a5dd523fc145fc0"
@@ -207,7 +207,13 @@ def configure_ella_core(core_address: str) -> Subscriber:
         priority_level=1,
         var5qi=8,
     )
-    ella_client.update_operator(mcc="001", mnc="01", supported_tacs=["001"])
+    ella_client.update_operator(
+        mcc="001",
+        mnc="01",
+        supported_tacs=["001"],
+        sst=1,
+        sd=1056816,
+    )
     for i in range(NUM_IMSIS):
         imsi = compute_imsi(TEST_START_IMSI, i)
         ella_client.create_subscriber(
@@ -281,7 +287,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                                         }
                                     ],
                                     "tac": "000002",
-                                }
+                                },
                             ],
                         },
                     },

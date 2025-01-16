@@ -462,7 +462,7 @@ func releaseTunnel(smContext *context.SMContext) (*context.PFCPSessionResponseSt
 		for curDataPathNode := dataPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
 			curUPFID := curDataPathNode.UPF.UUID()
 			if _, exist := deletedPFCPNode[curUPFID]; !exist {
-				status, err := pfcp.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext, curDataPathNode.UPF.Port)
+				status, err := pfcp.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext)
 				responseStatus = status
 				if err != nil {
 					smContext.SubPduSessLog.Errorf("releaseTunnel, send PFCP session deletion request failed: %v", err)

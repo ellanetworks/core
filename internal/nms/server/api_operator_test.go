@@ -12,12 +12,16 @@ import (
 const (
 	Mcc = "123"
 	Mnc = "456"
+	Sst = 1
+	Sd  = 12345
 )
 
 type GetOperatorResponseResult struct {
 	Mcc           string   `json:"mcc,omitempty"`
 	Mnc           string   `json:"mnc,omitempty"`
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
+	Sst           int      `json:"sst,omitempty"`
+	Sd            int      `json:"sd,omitempty"`
 }
 
 type GetOperatorResponse struct {
@@ -29,6 +33,8 @@ type UpdateOperatorParams struct {
 	Mcc           string   `json:"mcc,omitempty"`
 	Mnc           string   `json:"mnc,omitempty"`
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
+	Sst           int      `json:"sst,omitempty"`
+	Sd            int      `json:"sd,omitempty"`
 }
 
 type UpdateOperatorCodeParams struct {
@@ -153,6 +159,8 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 				"001",
 				"123",
 			},
+			Sst: 1,
+			Sd:  12345,
 		}
 		statusCode, response, err := updateOperator(ts.URL, client, token, updateOperatorParams)
 		if err != nil {
@@ -191,6 +199,12 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		}
 		if response.Result.SupportedTacs[1] != "123" {
 			t.Fatalf("expected supported TACs first item to be 123, got %s", response.Result.SupportedTacs[1])
+		}
+		if response.Result.Sst != 1 {
+			t.Fatalf("expected sst %d, got %d", 1, response.Result.Sst)
+		}
+		if response.Result.Sd != 12345 {
+			t.Fatalf("expected sd %d, got %d", 12345, response.Result.Sd)
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -253,6 +267,8 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 		mcc           string
 		mnc           string
 		supportedTacs []string
+		sst           int
+		sd            int
 		error         string
 	}{
 		{
@@ -260,6 +276,8 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 			mcc:           "abc",
 			mnc:           Mnc,
 			supportedTacs: []string{"001"},
+			sst:           Sst,
+			sd:            Sd,
 			error:         "Invalid mcc format. Must be a 3-decimal digit.",
 		},
 		{
@@ -267,6 +285,8 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 			mcc:           "1234",
 			mnc:           Mnc,
 			supportedTacs: []string{"001"},
+			sst:           Sst,
+			sd:            Sd,
 			error:         "Invalid mcc format. Must be a 3-decimal digit.",
 		},
 		{
@@ -274,6 +294,8 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 			mcc:           "12",
 			mnc:           Mnc,
 			supportedTacs: []string{"001"},
+			sst:           Sst,
+			sd:            Sd,
 			error:         "Invalid mcc format. Must be a 3-decimal digit.",
 		},
 		{
@@ -281,6 +303,8 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 			mcc:           Mcc,
 			mnc:           "abc",
 			supportedTacs: []string{"001"},
+			sst:           Sst,
+			sd:            Sd,
 			error:         "Invalid mnc format. Must be a 2 or 3-decimal digit.",
 		},
 		{
@@ -288,6 +312,8 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 			mcc:           Mcc,
 			mnc:           "1234",
 			supportedTacs: []string{"001"},
+			sst:           Sst,
+			sd:            Sd,
 			error:         "Invalid mnc format. Must be a 2 or 3-decimal digit.",
 		},
 		{
@@ -295,6 +321,8 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 			mcc:           Mcc,
 			mnc:           "1",
 			supportedTacs: []string{"001"},
+			sst:           Sst,
+			sd:            Sd,
 			error:         "Invalid mnc format. Must be a 2 or 3-decimal digit.",
 		},
 		{
@@ -302,6 +330,8 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 			mcc:           Mcc,
 			mnc:           Mnc,
 			supportedTacs: []string{"001123"},
+			sst:           Sst,
+			sd:            Sd,
 			error:         "Invalid TAC format. Must be a 3-digit number",
 		},
 		{
@@ -309,6 +339,8 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 			mcc:           Mcc,
 			mnc:           Mnc,
 			supportedTacs: []string{"00"},
+			sst:           Sst,
+			sd:            Sd,
 			error:         "Invalid TAC format. Must be a 3-digit number",
 		},
 	}
@@ -318,6 +350,8 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 				Mcc:           tt.mcc,
 				Mnc:           tt.mnc,
 				SupportedTacs: tt.supportedTacs,
+				Sst:           tt.sst,
+				Sd:            tt.sd,
 			}
 			statusCode, response, err := updateOperator(ts.URL, client, token, updateOperatorParams)
 			if err != nil {

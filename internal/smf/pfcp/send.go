@@ -30,7 +30,6 @@ func SendPfcpSessionEstablishmentRequest(
 	farList []*context.FAR,
 	barList []*context.BAR,
 	qerList []*context.QER,
-	upfPort uint16,
 ) (bool, *context.PFCPSessionResponseStatus, error) {
 	upNodeIDStr := upNodeID.ResolveNodeIdToIp().String()
 	pfcpContext, ok := ctx.PFCPContext[upNodeIDStr]
@@ -221,7 +220,6 @@ func SendPfcpSessionModificationRequest(
 	farList []*context.FAR,
 	barList []*context.BAR,
 	qerList []*context.QER,
-	upfPort uint16,
 ) (bool, *context.PFCPSessionResponseStatus, error) {
 	seqNum := getSeqNumber()
 	upNodeIDStr := upNodeID.ResolveNodeIdToIp().String()
@@ -264,7 +262,7 @@ func HandlePfcpSessionDeletionResponse(msg *message.SessionDeletionResponse) (*c
 	return &status, nil
 }
 
-func SendPfcpSessionDeletionRequest(upNodeID context.NodeID, ctx *context.SMContext, upfPort uint16) (*context.PFCPSessionResponseStatus, error) {
+func SendPfcpSessionDeletionRequest(upNodeID context.NodeID, ctx *context.SMContext) (*context.PFCPSessionResponseStatus, error) {
 	seqNum := getSeqNumber()
 	upNodeIDStr := upNodeID.ResolveNodeIdToIp().String()
 	pfcpContext, ok := ctx.PFCPContext[upNodeIDStr]

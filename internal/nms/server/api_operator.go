@@ -14,6 +14,8 @@ type UpdateOperatorParams struct {
 	Mcc           string   `json:"mcc,omitempty"`
 	Mnc           string   `json:"mnc,omitempty"`
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
+	Sst           int      `json:"sst,omitempty"`
+	Sd            int      `json:"sd,omitempty"`
 }
 
 type UpdateOperatorCodeParams struct {
@@ -24,6 +26,8 @@ type GetOperatorResponse struct {
 	Mcc           string   `json:"mcc,omitempty"`
 	Mnc           string   `json:"mnc,omitempty"`
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
+	Sst           int      `json:"sst,omitempty"`
+	Sd            int      `json:"sd,omitempty"`
 }
 
 const (
@@ -80,6 +84,16 @@ func isValidTac(tac string) bool {
 	return err == nil
 }
 
+// SST is an 8-bit integer
+func isValidSst(sst int) bool {
+	return sst >= 0 && sst <= 0xFF
+}
+
+// SD is a 24-bit integer
+func isValidSd(sd int) bool {
+	return sd >= 0 && sd <= 0xFFFFFF
+}
+
 func GetOperator(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		emailAny, _ := c.Get("email")
@@ -98,6 +112,8 @@ func GetOperator(dbInstance *db.Database) gin.HandlerFunc {
 			Mcc:           dbOperator.Mcc,
 			Mnc:           dbOperator.Mnc,
 			SupportedTacs: dbOperator.GetSupportedTacs(),
+			Sst:           int(dbOperator.Sst),
+			Sd:            dbOperator.Sd,
 		}
 
 		err = writeResponse(c.Writer, operatorId, http.StatusOK)
@@ -139,6 +155,14 @@ func UpdateOperator(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "supportedTacs is missing")
 			return
 		}
+		if updateOperatorParams.Sst == 0 {
+			writeError(c.Writer, http.StatusBadRequest, "sst is missing")
+			return
+		}
+		if updateOperatorParams.Sd == 0 {
+			writeError(c.Writer, http.StatusBadRequest, "sd is missing")
+			return
+		}
 		if !isValidMcc(updateOperatorParams.Mcc) {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid mcc format. Must be a 3-decimal digit.")
 			return
@@ -153,10 +177,20 @@ func UpdateOperator(dbInstance *db.Database) gin.HandlerFunc {
 				return
 			}
 		}
+		if !isValidSst(updateOperatorParams.Sst) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid SST format. Must be an 8-bit integer")
+			return
+		}
+		if !isValidSd(updateOperatorParams.Sd) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid SD format. Must be a 24-bit integer")
+			return
+		}
 
 		dbOperator := &db.Operator{
 			Mcc: updateOperatorParams.Mcc,
 			Mnc: updateOperatorParams.Mnc,
+			Sst: int32(updateOperatorParams.Sst),
+			Sd:  updateOperatorParams.Sd,
 		}
 		dbOperator.SetSupportedTacs(updateOperatorParams.SupportedTacs)
 

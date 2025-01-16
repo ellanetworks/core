@@ -54,6 +54,12 @@ func SMF_Self() *SMFContext {
 }
 
 func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
+	smfSelf := SMF_Self()
+	operator, err := smfSelf.DbInstance.GetOperator()
+	if err != nil {
+		logger.SmfLog.Errorf("failed to get operator information from db: %v", err)
+		return nil
+	}
 	intfUpfInfoItem := InterfaceUpfInfoItem{
 		InterfaceType:   models.UpInterfaceType_N3,
 		Endpoints:       make([]string, 0),
@@ -62,13 +68,13 @@ func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 	ifaces := []InterfaceUpfInfoItem{}
 	ifaces = append(ifaces, intfUpfInfoItem)
 
-	upfNodeID := NewNodeID(config.UpfName)
+	upfNodeID := NewNodeID(config.UpfNodeId)
 	upf := NewUPF(upfNodeID, ifaces)
 	upf.SNssaiInfos = []SnssaiUPFInfo{
 		{
 			SNssai: SNssai{
-				Sst: config.Sst,
-				Sd:  config.Sd,
+				Sst: operator.Sst,
+				Sd:  operator.GetHexSd(),
 			},
 			DnnList: []DnnUPFInfoItem{
 				{
@@ -78,14 +84,11 @@ func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 		},
 	}
 
-	upf.Port = config.UpfPort
-
 	upfNode := &UPNode{
 		Type:   UPNODE_UPF,
 		UPF:    upf,
 		NodeID: *upfNodeID,
 		Links:  make([]*UPNode, 0),
-		Port:   config.UpfPort,
 		Dnn:    config.DNN,
 	}
 
@@ -108,7 +111,7 @@ func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 	userPlaneInformation.AccessNetwork[gnbName] = gnbNode
 	userPlaneInformation.UPNodes[gnbName] = gnbNode
 
-	userPlaneInformation.UPNodes[config.UpfName] = upfNode
+	userPlaneInformation.UPNodes[config.UpfNodeId] = upfNode
 	return userPlaneInformation
 }
 
@@ -158,11 +161,6 @@ func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInfo
 			return false
 		}
 
-		if node.Port != contextUserPlaneInfo.UPNodes[nodeName].Port {
-			logger.SmfLog.Warnf("Port mismatch for node %s", nodeName)
-			return false
-		}
-
 		if node.Dnn != contextUserPlaneInfo.UPNodes[nodeName].Dnn {
 			logger.SmfLog.Warnf("DNN mismatch for node %s", nodeName)
 			return false
@@ -197,8 +195,8 @@ func GetSnssaiInfo() []SnssaiSmfInfo {
 	snssaiInfoList := make([]SnssaiSmfInfo, 0)
 	snssaiInfo := SnssaiSmfInfo{
 		Snssai: SNssai{
-			Sst: config.Sst,
-			Sd:  config.Sd,
+			Sst: operator.Sst,
+			Sd:  operator.GetHexSd(),
 		},
 		PlmnId: models.PlmnId{
 			Mcc: operator.Mcc,

@@ -48,14 +48,19 @@ func deepCopyTrafficControlData(src *models.TrafficControlData) *models.TrafficC
 }
 
 func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
+	operator, err := pcfCtx.DbInstance.GetOperator()
+	if err != nil {
+		logger.PcfLog.Warnf("Failed to get operator: %+v", err)
+		return nil, err
+	}
 	smPolicyData := &models.SmPolicyData{
 		SmPolicySnssaiData: make(map[string]models.SmPolicySnssaiData),
 	}
-	snssai := fmt.Sprintf("%d%s", config.Sst, config.Sd)
+	snssai := fmt.Sprintf("%d%s", operator.Sst, operator.GetHexSd())
 	smPolicyData.SmPolicySnssaiData[snssai] = models.SmPolicySnssaiData{
 		Snssai: &models.Snssai{
-			Sd:  config.Sd,
-			Sst: config.Sst,
+			Sd:  operator.GetHexSd(),
+			Sst: operator.Sst,
 		},
 		SmPolicyDnnData: make(map[string]models.SmPolicyDnnData),
 	}

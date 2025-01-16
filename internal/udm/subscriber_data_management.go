@@ -26,30 +26,7 @@ type UESubsData struct {
 	SdmSubscriptions map[subsID]*models.SdmSubscription
 }
 
-// This function is defined twice, here and in the NMS. We should move it to a common place.
-func convertDbAmDataToModel(bitrateDownlink string, bitrateUplink string) *models.AccessAndMobilitySubscriptionData {
-	amData := &models.AccessAndMobilitySubscriptionData{
-		Nssai: &models.Nssai{
-			DefaultSingleNssais: make([]models.Snssai, 0),
-			SingleNssais:        make([]models.Snssai, 0),
-		},
-		SubscribedUeAmbr: &models.AmbrRm{
-			Downlink: bitrateDownlink,
-			Uplink:   bitrateUplink,
-		},
-	}
-	amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
-		Sd:  config.Sd,
-		Sst: config.Sst,
-	})
-	amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
-		Sd:  config.Sd,
-		Sst: config.Sst,
-	})
-	return amData
-}
-
-func GetAmData2(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
+func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
@@ -58,14 +35,35 @@ func GetAmData2(ueId string) (*models.AccessAndMobilitySubscriptionData, error) 
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
-	amData := convertDbAmDataToModel(profile.BitrateDownlink, profile.BitrateUplink)
+	operator, err := udmContext.DbInstance.GetOperator()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get operator: %v", err)
+	}
+	amData := &models.AccessAndMobilitySubscriptionData{
+		Nssai: &models.Nssai{
+			DefaultSingleNssais: make([]models.Snssai, 0),
+			SingleNssais:        make([]models.Snssai, 0),
+		},
+		SubscribedUeAmbr: &models.AmbrRm{
+			Downlink: profile.BitrateDownlink,
+			Uplink:   profile.BitrateUplink,
+		},
+	}
+	amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
+		Sd:  operator.GetHexSd(),
+		Sst: operator.Sst,
+	})
+	amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
+		Sd:  operator.GetHexSd(),
+		Sst: operator.Sst,
+	})
 	return amData, nil
 }
 
 func GetAmDataAndSetAMSubscription(supi string) (
 	*models.AccessAndMobilitySubscriptionData, error,
 ) {
-	amData, err := GetAmData2(supi)
+	amData, err := GetAmData(supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
@@ -74,17 +72,24 @@ func GetAmDataAndSetAMSubscription(supi string) (
 	return amData, nil
 }
 
-func convertDbSessionManagementDataToModel(
-	bitrateDownlink string,
-	bitrateUplink string,
-	var5qi int32,
-	priorityLevel int32,
-) []models.SessionManagementSubscriptionData {
+func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) {
+	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
+	}
+	profile, err := udmContext.DbInstance.GetProfileByID(subscriber.ProfileID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
+	}
+	operator, err := udmContext.DbInstance.GetOperator()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get operator: %v", err)
+	}
 	smData := make([]models.SessionManagementSubscriptionData, 0)
 	smDataObjModel := models.SessionManagementSubscriptionData{
 		SingleNssai: &models.Snssai{
-			Sst: config.Sst,
-			Sd:  config.Sd,
+			Sst: operator.Sst,
+			Sd:  operator.GetHexSd(),
 		},
 		DnnConfigurations: make(map[string]models.DnnConfiguration),
 	}
@@ -98,13 +103,13 @@ func convertDbSessionManagementDataToModel(
 			AllowedSscModes: make([]models.SscMode, 0),
 		},
 		SessionAmbr: &models.Ambr{
-			Downlink: bitrateDownlink,
-			Uplink:   bitrateUplink,
+			Downlink: profile.BitrateDownlink,
+			Uplink:   profile.BitrateUplink,
 		},
 		Var5gQosProfile: &models.SubscribedDefaultQos{
-			Var5qi:        var5qi,
-			Arp:           &models.Arp{PriorityLevel: priorityLevel},
-			PriorityLevel: priorityLevel,
+			Var5qi:        profile.Var5qi,
+			Arp:           &models.Arp{PriorityLevel: profile.PriorityLevel},
+			PriorityLevel: profile.PriorityLevel,
 		},
 	}
 	smDataObjModel.DnnConfigurations[config.DNN].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[config.DNN].PduSessionTypes.AllowedSessionTypes, AllowedSessionTypes...)
@@ -112,20 +117,7 @@ func convertDbSessionManagementDataToModel(
 		smDataObjModel.DnnConfigurations[config.DNN].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[config.DNN].SscModes.AllowedSscModes, models.SscMode(sscMode))
 	}
 	smData = append(smData, smDataObjModel)
-	return smData
-}
-
-func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) {
-	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
-	}
-	profile, err := udmContext.DbInstance.GetProfileByID(subscriber.ProfileID)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
-	}
-	sessionManagementData := convertDbSessionManagementDataToModel(profile.BitrateDownlink, profile.BitrateUplink, profile.Var5qi, profile.PriorityLevel)
-	return sessionManagementData, nil
+	return smData, nil
 }
 
 func GetAndSetSmData(supi string, Dnn string, Snssai string) ([]models.SessionManagementSubscriptionData, error) {
@@ -149,7 +141,7 @@ func GetAndSetSmData(supi string, Dnn string, Snssai string) ([]models.SessionMa
 }
 
 func GetNssai(supi string) (*models.Nssai, error) {
-	accessAndMobilitySubscriptionDataResp, err := GetAmData2(supi)
+	accessAndMobilitySubscriptionDataResp, err := GetAmData(supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
@@ -160,7 +152,11 @@ func GetNssai(supi string) (*models.Nssai, error) {
 }
 
 func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
-	snssai := fmt.Sprintf("%d%s", config.Sst, config.Sd)
+	operator, err := udmContext.DbInstance.GetOperator()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get operator: %v", err)
+	}
+	snssai := fmt.Sprintf("%d%s", operator.Sst, operator.GetHexSd())
 	smfSelectionData := &models.SmfSelectionSubscriptionData{
 		SubscribedSnssaiInfos: make(map[string]models.SnssaiInfo),
 	}
