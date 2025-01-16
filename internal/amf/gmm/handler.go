@@ -15,7 +15,6 @@ import (
 	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
@@ -216,7 +215,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 				} else {
 					// if user's subscription context obtained from UDM does not contain the default DNN for the,
 					// S-NSSAI, the AMF shall use a locally configured DNN as the DNN
-					dnn = ue.ServingAMF.SupportDnnLists[0]
+					dnn = ue.ServingAMF.SupportedDnns[0]
 
 					if ue.SmfSelectionData != nil {
 						snssaiStr := SnssaiModelsToHex(snssai)
@@ -1394,53 +1393,6 @@ func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType model
 			ue.Remove()
 		}
 	}
-	return err
-}
-
-func HandleUeSliceInfoDelete(ue *context.AmfUe, accessType models.AccessType, nssai models.Snssai) (err error) {
-	var problemDetails *models.ProblemDetails
-	ue.SmContextList.Range(func(key, value interface{}) bool {
-		smContext := value.(*context.SmContext)
-		if smContext.Snssai().Sst == nssai.Sst && smContext.Snssai().Sd == nssai.Sd {
-			logger.AmfLog.Infof("Deleted Slice [sst: %v, sd: %v]matched with smcontext, sending Release SMContext Request to SMF",
-				smContext.Snssai().Sst, smContext.Snssai().Sd)
-			// send smcontext release request
-			problemDetails, err = consumer.SendReleaseSmContextRequest(ue, smContext, nil, "", nil)
-			if problemDetails != nil {
-				ue.GmmLog.Errorf("Release SmContext Failed Problem[%+v]", problemDetails)
-			} else if err != nil {
-				ue.GmmLog.Errorf("Release SmContext Error[%v]", err.Error())
-			}
-		}
-		return true
-	})
-
-	var allowedList []models.AllowedSnssai
-	// update Allowed Nssai List
-	for _, slice := range ue.AllowedNssai[accessType] {
-		if slice.AllowedSnssai.Sst != nssai.Sst && slice.AllowedSnssai.Sd != nssai.Sd {
-			allowedList = append(allowedList, slice)
-		}
-	}
-	ue.AllowedNssai[accessType] = allowedList
-
-	return err
-}
-
-func HandleUeSliceInfoAdd(ue *context.AmfUe, accessType models.AccessType, nssai models.Snssai) (err error) {
-	var allowedList []models.AllowedSnssai
-	// update Allowed Nssai List
-	for _, slice := range ue.AllowedNssai[accessType] {
-		if slice.AllowedSnssai.Sst != nssai.Sst && slice.AllowedSnssai.Sd != nssai.Sd {
-			allowedList = append(allowedList, slice)
-		}
-	}
-	var allowedNssai models.AllowedSnssai
-	allowedNssai.AllowedSnssai = &nssai
-	allowedList = append(allowedList, allowedNssai)
-
-	ue.AllowedNssai[accessType] = allowedList
-
 	return err
 }
 

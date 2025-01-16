@@ -69,23 +69,6 @@ func NewDataPathNode() *DataPathNode {
 	return node
 }
 
-func NewDataPath() *DataPath {
-	dataPath := &DataPath{
-		Destination: Destination{
-			DestinationIP:   "",
-			DestinationPort: "",
-			Url:             "",
-		},
-	}
-
-	return dataPath
-}
-
-func NewDataPathPool() DataPathPool {
-	pool := make(map[int64]*DataPath)
-	return pool
-}
-
 func (node *DataPathNode) AddNext(next *DataPathNode) {
 	node.DownLinkTunnel.SrcEndPoint = next
 }

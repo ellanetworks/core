@@ -12,31 +12,6 @@ import (
 	"github.com/omec-project/openapi/models"
 )
 
-var flowDesc = []string{
-	"permit out ip from 1.1.1.1 1000 to 2.2.2.2 2000",
-	"permit out ip from 1.1.1.1/24 1000 to 2.2.2.2/24 2000",
-	"permit out ip from any 1000 to 2.2.2.2/24 2000",
-	"permit out ip from any 1000 to assigned 2000",
-	"permit out 17 from 1.1.1.1/24 1000-1200 to 2.2.2.2/24 2000-2500",
-}
-
-func TestDecodeFlowDescToIPFilters(t *testing.T) {
-	for i, flow := range flowDesc {
-		ipf := qos.DecodeFlowDescToIPFilters(flow)
-		fmt.Printf("Flow: %v %v\n", i, ipf.String())
-	}
-}
-
-func TestGetPfContent(t *testing.T) {
-	pf := &qos.PacketFilter{}
-	for _, flow := range flowDesc {
-		pf.GetPfContent(flow)
-		for _, pfc := range pf.Content {
-			fmt.Printf("%v", pfc.String())
-		}
-	}
-}
-
 func TestBuildQosRules(t *testing.T) {
 	// make SM Policy Decision
 	smPolicyDecision := &models.SmPolicyDecision{}

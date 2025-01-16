@@ -154,25 +154,6 @@ func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *
 	d.AddQFD(&qfd)
 }
 
-func BuildModQosFlowDescFromQoSDesc(qosData *models.QosData) {
-}
-
-func BuildDelQosFlowDescFromQoSDesc(qosData *models.QosData) {
-	qfd := QoSFlowDescription{QFDLen: QFDFixLen}
-
-	// Set QFI
-	qfd.SetQoSFlowDescQfi(uint8(qosData.Var5qi))
-
-	// Operation Code
-	qfd.SetQoSFlowDescOpCode(QFDOpDelete)
-
-	// Delete Params
-	// No Params need to be added
-
-	// Set E-Bit of QFD for the "Delete existing QoS flow description" operation
-	qfd.SetQFDEBitDeleteExistingQFD()
-}
-
 func GetBitRate(sBitRate string) (val uint16, unit uint8) {
 	sl := strings.Fields(sBitRate)
 
@@ -211,24 +192,6 @@ func (f *QoSFlowDescription) SetQoSFlowDescOpCode(val uint8) {
 // For the "create new QoS flow description" operation,
 // 1:	parameters list is included
 func (f *QoSFlowDescription) SetQFDEBitCreateNewQFD() {
-	f.NumOfParam |= QFDEbit
-}
-
-// For the "Delete existing QoS flow description" operation
-// 0:	parameters list is not included
-func (f *QoSFlowDescription) SetQFDEBitDeleteExistingQFD() {
-	f.NumOfParam &= ^QFDEbit
-}
-
-// For the "modify existing QoS flow description" operation
-// 0:	extension of previously provided parameters
-func (f *QoSFlowDescription) SetQFDEBitModExtendParamQFD() {
-	f.NumOfParam &= ^QFDEbit
-}
-
-// For the "modify existing QoS flow description" operation
-// 1:	replacement of all previously provided parameters
-func (f *QoSFlowDescription) SetQFDEBitModReplaceAllParamQFD() {
 	f.NumOfParam |= QFDEbit
 }
 
@@ -345,25 +308,6 @@ func GetQosDataChanges(qf1, qf2 *models.QosData) bool {
 
 func GetQoSDataFromPolicyDecision(smPolicyDecision *models.SmPolicyDecision, refQosData string) *models.QosData {
 	return smPolicyDecision.QosDecs[refQosData]
-}
-
-func (d *QosFlowDescriptionsAuthorized) AddDefaultQosFlowDescription(sessRule *models.SessionRule) {
-	qfd := QoSFlowDescription{QFDLen: QFDFixLen}
-
-	// Set QFI
-	qfd.SetQoSFlowDescQfi(uint8(sessRule.AuthDefQos.Var5qi))
-
-	// Operation Code
-	qfd.SetQoSFlowDescOpCode(QFDOpCreate)
-
-	// Create Params
-	// 5QI
-	qfd.AddQosFlowParam5Qi(uint8(sessRule.AuthDefQos.Var5qi))
-
-	// Set E-Bit of QFD for the "create new QoS flow description" operation
-	qfd.SetQFDEBitCreateNewQFD()
-
-	d.AddQFD(&qfd)
 }
 
 func (upd *QosFlowsUpdate) GetAddQosFlowUpdate() map[string]*models.QosData {

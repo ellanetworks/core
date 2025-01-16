@@ -11,7 +11,6 @@ import (
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/nas/nasType"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
 )
@@ -111,20 +110,6 @@ func SendServiceAccept(ue *context.RanUe, pDUSessionStatus *[16]bool, reactivati
 		return
 	}
 	ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
-}
-
-func SendConfigurationUpdateCommand(amfUe *context.AmfUe, accessType models.AccessType,
-	networkSlicingIndication *nasType.NetworkSlicingIndication,
-) {
-	amfUe.GmmLog.Info("Configuration Update Command")
-
-	nasMsg, err := BuildConfigurationUpdateCommand(amfUe, accessType, networkSlicingIndication)
-	if err != nil {
-		amfUe.GmmLog.Error(err.Error())
-		return
-	}
-	mobilityRestrictionList := ngap_message.BuildIEMobilityRestrictionList(amfUe)
-	ngap_message.SendDownlinkNasTransport(amfUe.RanUe[accessType], nasMsg, &mobilityRestrictionList)
 }
 
 func SendAuthenticationReject(ue *context.RanUe, eapMsg string) {
@@ -299,15 +284,4 @@ func SendRegistrationAccept(
 			ue.ClearRegistrationRequestData(anType)
 		})
 	}
-}
-
-func SendStatus5GMM(ue *context.RanUe, cause uint8) {
-	ue.AmfUe.GmmLog.Info("Send Status 5GMM")
-
-	nasMsg, err := BuildStatus5GMM(cause)
-	if err != nil {
-		ue.AmfUe.GmmLog.Error(err.Error())
-		return
-	}
-	ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
 }

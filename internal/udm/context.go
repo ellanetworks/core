@@ -95,14 +95,6 @@ func (context *UDMContext) UdmUeFindBySupi(supi string) (*UdmUeContext, bool) {
 	}
 }
 
-func (context *UDMContext) UdmAmf3gppRegContextExists(supi string) bool {
-	if ue, ok := context.UdmUeFindBySupi(supi); ok {
-		return ue.Amf3GppAccessRegistration != nil
-	} else {
-		return false
-	}
-}
-
 func (context *UDMContext) CreateAmf3gppRegContext(supi string, body models.Amf3GppAccessRegistration) {
 	ue, ok := context.UdmUeFindBySupi(supi)
 	if !ok {

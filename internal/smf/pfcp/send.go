@@ -8,7 +8,6 @@ package pfcp
 
 import (
 	"fmt"
-	"sync"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -22,30 +21,6 @@ var seq uint32
 
 func getSeqNumber() uint32 {
 	return atomic.AddUint32(&seq, 1)
-}
-
-func init() {
-	PfcpTxns = make(map[uint32]*context.NodeID)
-}
-
-var (
-	PfcpTxns    map[uint32]*context.NodeID
-	PfcpTxnLock sync.Mutex
-)
-
-func FetchPfcpTxn(seqNo uint32) (upNodeID *context.NodeID) {
-	PfcpTxnLock.Lock()
-	defer PfcpTxnLock.Unlock()
-	if upNodeID = PfcpTxns[seqNo]; upNodeID != nil {
-		delete(PfcpTxns, seqNo)
-	}
-	return upNodeID
-}
-
-func InsertPfcpTxn(seqNo uint32, upNodeID *context.NodeID) {
-	PfcpTxnLock.Lock()
-	defer PfcpTxnLock.Unlock()
-	PfcpTxns[seqNo] = upNodeID
 }
 
 func SendPfcpSessionEstablishmentRequest(

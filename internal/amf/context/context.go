@@ -30,12 +30,6 @@ var (
 )
 
 func init() {
-	AMF_Self().LadnPool = make(map[string]*LADN)
-	AMF_Self().EventSubscriptionIDGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
-	AMF_Self().Name = "amf"
-	AMF_Self().UriScheme = models.UriScheme_HTTP
-	AMF_Self().RelativeCapacity = 0xff
-	AMF_Self().NetworkName.Full = "free5GC"
 	tmsiGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
 	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapId)
 }
@@ -49,11 +43,6 @@ type NetworkFeatureSupport5GS struct {
 	Mpsi    uint8
 	EmcN3   uint8
 	Mcsi    uint8
-}
-
-type Sbi struct {
-	BindingIPv4 string
-	Port        int
 }
 
 type Security struct {
@@ -79,8 +68,6 @@ type TimerValue struct {
 
 type AMFContext struct {
 	DbInstance                      *db.Database
-	EventSubscriptionIDGenerator    *idgenerator.IDGenerator
-	EventSubscriptions              sync.Map
 	UePool                          sync.Map         // map[supi]*AmfUe
 	RanUePool                       sync.Map         // map[AmfUeNgapID]*RanUe
 	AmfRanPool                      sync.Map         // map[net.Conn]*AmfRan
@@ -91,10 +78,7 @@ type AMFContext struct {
 	UriScheme                       models.UriScheme
 	NgapPort                        int
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
-	SctpGrpcPort                    int
-	HttpIPv6Address                 string
-	TNLWeightFactor                 int64
-	SupportDnnLists                 []string
+	SupportedDnns                   []string
 	SecurityAlgorithm               SecurityAlgorithm
 	NetworkName                     NetworkName
 	NgapIpList                      []string // NGAP Server IP
@@ -109,41 +93,25 @@ type AMFContext struct {
 	T3565Cfg TimerValue
 }
 
-type AMFContextEventSubscription struct {
-	IsAnyUe           bool
-	IsGroupUe         bool
-	UeSupiList        []string
-	Expiry            *time.Time
-	EventSubscription models.AmfEventSubscription
-}
-
 type SecurityAlgorithm struct {
 	IntegrityOrder []uint8 // slice of security.AlgIntegrityXXX
 	CipheringOrder []uint8 // slice of security.AlgCipheringXXX
 }
 
-func NewPlmnSupportItem() (item PlmnSupportItem) {
-	item.SNssaiList = make([]models.Snssai, 0, MaxNumOfSlice)
-	return
-}
-
 func (context *AMFContext) TmsiAllocate() int32 {
-	tmp, err := AllocateUniqueID(&tmsiGenerator, "tmsi")
-	val := int32(tmp)
+	val, err := tmsiGenerator.Allocate()
 	if err != nil {
-		logger.AmfLog.Errorf("Allocate TMSI error: %+v", err)
+		logger.AmfLog.Warnf("could not allocate TMSI: %v", err)
 		return -1
 	}
-	return val
+	return int32(val)
 }
 
 func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
-	val, err := AllocateUniqueID(&amfUeNGAPIDGenerator, "amfUeNgapID")
+	val, err := amfUeNGAPIDGenerator.Allocate()
 	if err != nil {
-		logger.AmfLog.Errorf("Allocate NgapID error: %+v", err)
-		return -1, err
+		return -1, fmt.Errorf("could not allocate AmfUeNgapID: %v", err)
 	}
-	logger.AmfLog.Infof("allocated AmfUeNgapID: %v", val)
 	return val, nil
 }
 
@@ -325,7 +293,7 @@ func (context *AMFContext) DeleteAmfRan(conn net.Conn) {
 }
 
 func (context *AMFContext) InSupportDnnList(targetDnn string) bool {
-	for _, dnn := range context.SupportDnnLists {
+	for _, dnn := range context.SupportedDnns {
 		if dnn == targetDnn {
 			return true
 		}

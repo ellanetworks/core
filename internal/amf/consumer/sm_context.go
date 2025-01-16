@@ -288,41 +288,6 @@ func SendUpdateSmContextN2HandoverCanceled(ue *context.AmfUe,
 	return SendUpdateSmContextRequest(smContext, updateData, nil, nil)
 }
 
-func SendUpdateSmContextHandoverBetweenAccessType(
-	ue *context.AmfUe, smContext *context.SmContext, targetAccessType models.AccessType, N1SmMsg []byte) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, *models.ProblemDetails, error,
-) {
-	updateData := models.SmContextUpdateData{}
-	updateData.AnType = targetAccessType
-	if N1SmMsg != nil {
-		updateData.N1SmMsg = new(models.RefToBinaryData)
-		updateData.N1SmMsg.ContentId = "N1Msg"
-	}
-	return SendUpdateSmContextRequest(smContext, updateData, N1SmMsg, nil)
-}
-
-func SendUpdateSmContextHandoverBetweenAMF(
-	ue *context.AmfUe, smContext *context.SmContext, amfid string, guami *models.Guami, activate bool) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, *models.ProblemDetails, error,
-) {
-	updateData := models.SmContextUpdateData{}
-	updateData.ServingNfId = amfid
-	updateData.ServingNetwork = guami.PlmnId
-	updateData.Guami = guami
-	if activate {
-		updateData.UpCnxState = models.UpCnxState_ACTIVATING
-		if !context.CompareUserLocation(ue.Location, smContext.UserLocation()) {
-			updateData.UeLocation = &ue.Location
-		}
-		if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
-			if context.InTaiList(ue.Tai, ladn.TaiLists) {
-				updateData.PresenceInLadn = models.PresenceState_IN_AREA
-			}
-		}
-	}
-	return SendUpdateSmContextRequest(smContext, updateData, nil, nil)
-}
-
 func SendUpdateSmContextRequest(smContext *context.SmContext,
 	updateData models.SmContextUpdateData, n1Msg []byte, n2Info []byte) (
 	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse,
