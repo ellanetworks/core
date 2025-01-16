@@ -62,6 +62,7 @@ nav:
     - Architecture: explanation/architecture.md
     - Subscriber Authentication: explanation/subscriber_authentication.md
 plugins:
+  - search
   - glightbox
   - social:
       cards_layout_options:
