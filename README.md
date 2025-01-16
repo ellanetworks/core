@@ -15,7 +15,7 @@ Typical mobile networks are expensive, complex, and inadequate for private deplo
 
 Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm, a stadium, a ship, a military base, or a remote location.
 
-[Get Started Now!](https://ellanetworks.github.io/core/tutorials/getting_started/)
+[Get Started Now!](https://docs.ellanetworks.com/tutorials/getting_started/)
 
 ## Key features
 
@@ -35,7 +35,7 @@ Building Ella Core, we make engineering decisions based on the following tenets:
 
 ## Documentation
 
-Documentation is available [here](https://ellanetworks.github.io/core/). It includes:
+Documentation is available at [docs.ellanetworks.com](https://docs.ellanetworks.com). It includes:
 - **Tutorials**: A hands-on introduction.
 - **How-to guides**: Step-by-step instructions to perform common tasks.
 - **Reference**: Technical information about configuration options, metrics, API, connectivity, and more.
