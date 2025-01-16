@@ -349,19 +349,3 @@ func BuildPfcpSessionDeletionRequest(
 		ie.NewFSEID(localSEID, fseidIPv4Address, nil),
 	)
 }
-
-func BuildPfcpSessionReportResponse(cause uint8, drobu bool, seqFromUPF uint32, seid uint64) *message.SessionReportResponse {
-	flag := new(Flag)
-	if drobu {
-		flag.setBit(1, true)
-	}
-	return message.NewSessionReportResponse(
-		0,
-		0,
-		seid,
-		seqFromUPF,
-		0,
-		ie.NewCause(cause),
-		ie.NewPFCPSRRspFlags(uint8(*flag)),
-	)
-}

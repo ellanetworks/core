@@ -51,8 +51,6 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 	return smPolicyDecision, http.StatusCreated, nil
 }
 
-func SendSMPolicyAssociationModify(smContext *context.SMContext) {}
-
 func SendSMPolicyAssociationDelete(smContext *context.SMContext, smDelReq *models.ReleaseSmContextRequest) (int, error) {
 	smPolicyID := fmt.Sprintf("%s-%d", smContext.Supi, smContext.PDUSessionID)
 	err := pcf.DeleteSMPolicy(smPolicyID)

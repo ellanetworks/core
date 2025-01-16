@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -244,7 +243,7 @@ var ntohs = htons
 // see https://tools.ietf.org/html/rfc4960#page-25
 func setInitOpts(fd int, options InitMsg) error {
 	optlen := unsafe.Sizeof(options)
-	_, err := setsockopt(fd, SCTP_INITMSG, uintptr(unsafe.Pointer(&options)), optlen)
+	err := setsockopt(fd, SCTP_INITMSG, uintptr(unsafe.Pointer(&options)), optlen)
 	return err
 }
 
@@ -261,7 +260,7 @@ func getRtoInfo(fd int) (*RtoInfo, error) {
 
 func setRtoInfo(fd int, rtoInfo RtoInfo) error {
 	rtolen := unsafe.Sizeof(rtoInfo)
-	_, err := setsockopt(fd, SCTP_RTOINFO, uintptr(unsafe.Pointer(&rtoInfo)), rtolen)
+	err := setsockopt(fd, SCTP_RTOINFO, uintptr(unsafe.Pointer(&rtoInfo)), rtolen)
 	return err
 }
 
@@ -277,7 +276,7 @@ func getAssocInfo(fd int) (*AssocInfo, error) {
 
 func setAssocInfo(fd int, info AssocInfo) error {
 	optlen := unsafe.Sizeof(info)
-	_, err := setsockopt(fd, SCTP_ASSOCINFO, uintptr(unsafe.Pointer(&info)), optlen)
+	err := setsockopt(fd, SCTP_ASSOCINFO, uintptr(unsafe.Pointer(&info)), optlen)
 	return err
 }
 
@@ -349,62 +348,6 @@ func (a *SCTPAddr) String() string {
 
 func (a *SCTPAddr) Network() string { return "sctp" }
 
-func ResolveSCTPAddr(network, addrs string) (*SCTPAddr, error) {
-	tcpnet := ""
-	switch network {
-	case "", "sctp":
-		tcpnet = "tcp"
-	case "sctp4":
-		tcpnet = "tcp4"
-	case "sctp6":
-		tcpnet = "tcp6"
-	default:
-		return nil, fmt.Errorf("invalid net: %s", network)
-	}
-	elems := strings.Split(addrs, "/")
-	if len(elems) == 0 {
-		return nil, fmt.Errorf("invalid input: %s", addrs)
-	}
-	ipaddrs := make([]net.IPAddr, 0, len(elems))
-	for _, e := range elems[:len(elems)-1] {
-		tcpa, err := net.ResolveTCPAddr(tcpnet, e+":")
-		if err != nil {
-			return nil, err
-		}
-		ipaddrs = append(ipaddrs, net.IPAddr{IP: tcpa.IP, Zone: tcpa.Zone})
-	}
-	tcpa, err := net.ResolveTCPAddr(tcpnet, elems[len(elems)-1])
-	if err != nil {
-		return nil, err
-	}
-	if tcpa.IP != nil {
-		ipaddrs = append(ipaddrs, net.IPAddr{IP: tcpa.IP, Zone: tcpa.Zone})
-	} else {
-		ipaddrs = nil
-	}
-	return &SCTPAddr{
-		IPAddrs: ipaddrs,
-		Port:    tcpa.Port,
-	}, nil
-}
-
-func SCTPConnect(fd int, addr *SCTPAddr) (int, error) {
-	buf := addr.ToRawSockAddrBuf()
-	param := GetAddrsOld{
-		AddrNum: int32(len(buf)),
-		Addrs:   uintptr(unsafe.Pointer(&buf[0])),
-	}
-	optlen := unsafe.Sizeof(param)
-	err := getsockopt(fd, SCTP_SOCKOPT_CONNECTX3, uintptr(unsafe.Pointer(&param)), uintptr(unsafe.Pointer(&optlen)))
-	if err == nil {
-		return int(param.AssocID), nil
-	} else if err != syscall.ENOPROTOOPT {
-		return 0, err
-	}
-	r0, err := setsockopt(fd, SCTP_SOCKOPT_CONNECTX, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
-	return int(r0), err
-}
-
 func SCTPBind(fd int, addr *SCTPAddr, flags int) error {
 	var option uintptr
 	switch flags {
@@ -417,7 +360,7 @@ func SCTPBind(fd int, addr *SCTPAddr, flags int) error {
 	}
 
 	buf := addr.ToRawSockAddrBuf()
-	_, err := setsockopt(fd, option, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+	err := setsockopt(fd, option, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
 	return err
 }
 
@@ -504,7 +447,7 @@ func (c *SCTPConn) SubscribeEvents(flags int) error {
 		SenderDry:       se,
 	}
 	optlen := unsafe.Sizeof(param)
-	_, err := setsockopt(c.fd(), SCTP_EVENTS, uintptr(unsafe.Pointer(&param)), optlen)
+	err := setsockopt(c.fd(), SCTP_EVENTS, uintptr(unsafe.Pointer(&param)), optlen)
 	return err
 }
 
@@ -551,7 +494,7 @@ func (c *SCTPConn) SubscribedEvents() (int, error) {
 
 func (c *SCTPConn) SetDefaultSentParam(info *SndRcvInfo) error {
 	optlen := unsafe.Sizeof(*info)
-	_, err := setsockopt(c.fd(), SCTP_DEFAULT_SENT_PARAM, uintptr(unsafe.Pointer(info)), optlen)
+	err := setsockopt(c.fd(), SCTP_DEFAULT_SENT_PARAM, uintptr(unsafe.Pointer(info)), optlen)
 	return err
 }
 
@@ -663,8 +606,4 @@ type SocketConfig struct {
 
 func (cfg *SocketConfig) Listen(net string, laddr *SCTPAddr) (*SCTPListener, error) {
 	return listenSCTPExtConfig(net, laddr, cfg.InitMsg, cfg.RtoInfo, cfg.AssocInfo, cfg.Control)
-}
-
-func (cfg *SocketConfig) Dial(net string, laddr, raddr *SCTPAddr) (*SCTPConn, error) {
-	return dialSCTPExtConfig(net, laddr, raddr, cfg.InitMsg, cfg.RtoInfo, cfg.AssocInfo, cfg.Control)
 }

@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
@@ -52,40 +51,6 @@ func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) (er
 	}
 
 	ctx.UpCnxState = models.UpCnxState_ACTIVATED
-	return nil
-}
-
-func HandlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte, ctx *SMContext) (err error) {
-	resourceSetupUnsuccessfulTransfer := ngapType.PDUSessionResourceSetupUnsuccessfulTransfer{}
-
-	err = aper.UnmarshalWithParams(b, &resourceSetupUnsuccessfulTransfer, "valueExt")
-	if err != nil {
-		return err
-	}
-
-	switch resourceSetupUnsuccessfulTransfer.Cause.Present {
-	case ngapType.CausePresentRadioNetwork:
-		logger.SmfLog.Warnf("PDU Session Resource Setup Unsuccessful by RadioNetwork[%d]",
-			resourceSetupUnsuccessfulTransfer.Cause.RadioNetwork.Value)
-	case ngapType.CausePresentTransport:
-		logger.SmfLog.Warnf("PDU Session Resource Setup Unsuccessful by Transport[%d]",
-			resourceSetupUnsuccessfulTransfer.Cause.Transport.Value)
-	case ngapType.CausePresentNas:
-		logger.SmfLog.Warnf("PDU Session Resource Setup Unsuccessful by NAS[%d]",
-			resourceSetupUnsuccessfulTransfer.Cause.Nas.Value)
-	case ngapType.CausePresentProtocol:
-		logger.SmfLog.Warnf("PDU Session Resource Setup Unsuccessful by Protocol[%d]",
-			resourceSetupUnsuccessfulTransfer.Cause.Protocol.Value)
-	case ngapType.CausePresentMisc:
-		logger.SmfLog.Warnf("PDU Session Resource Setup Unsuccessful by Protocol[%d]",
-			resourceSetupUnsuccessfulTransfer.Cause.Misc.Value)
-	case ngapType.CausePresentChoiceExtensions:
-		logger.SmfLog.Warnf("PDU Session Resource Setup Unsuccessful by Protocol[%v]",
-			resourceSetupUnsuccessfulTransfer.Cause.ChoiceExtensions)
-	}
-
-	ctx.UpCnxState = models.UpCnxState_ACTIVATING
-
 	return nil
 }
 

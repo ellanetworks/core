@@ -28,7 +28,6 @@ func Start(dbInstance *db.Database) error {
 	self.Name = "AMF"
 	self.NgapIpList = []string{"0.0.0.0"}
 	self.NgapPort = NGAPP_PORT
-	self.SctpGrpcPort = 9000
 	self.NetworkFeatureSupport5GS = &context.NetworkFeatureSupport5GS{
 		Emc:     0,
 		EmcN3:   0,
@@ -40,7 +39,7 @@ func Start(dbInstance *db.Database) error {
 		Mpsi:    0,
 	}
 	self.UriScheme = models.UriScheme_HTTP
-	self.SupportDnnLists = []string{config.DNN}
+	self.SupportedDnns = []string{config.DNN}
 	security := &context.Security{
 		IntegrityOrder: []string{"NIA1", "NIA2"},
 		CipheringOrder: []string{"NEA0"},
@@ -79,6 +78,9 @@ func Start(dbInstance *db.Database) error {
 		MaxRetryTimes: 4,
 	}
 	self.DbInstance = dbInstance
+	self.LadnPool = make(map[string]*context.LADN)
+	self.Name = "amf"
+	self.RelativeCapacity = 0xff
 
 	StartNGAPService()
 	return nil

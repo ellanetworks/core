@@ -99,31 +99,6 @@ type QosRule struct {
 	Length           uint8
 }
 
-func BuildAddDefaultQosRule(defQFI uint8) *QosRule {
-	defQosRule := &QosRule{
-		Identifier:    255,
-		DQR:           0x01,
-		OperationCode: OperationCodeCreateNewQoSRule,
-		Precedence:    255,
-		QFI:           defQFI,
-		PacketFilterList: []PacketFilter{
-			{
-				Identifier: 255,
-				Direction:  PacketFilterDirectionBidirectional,
-			},
-		},
-	}
-
-	defPfc := PacketFilterComponent{
-		ComponentType: PFComponentTypeMatchAll,
-		// ComponentValue: NA for Match All
-	}
-	defQosRule.PacketFilterList[0].Content = []PacketFilterComponent{defPfc}
-	defQosRule.PacketFilterList[0].ContentLength = 0x01
-
-	return defQosRule
-}
-
 func BuildQosRules(smPolicyUpdates *PolicyUpdate) QoSRules {
 	qosRules := QoSRules{}
 
@@ -162,14 +137,6 @@ func BuildAddQoSRuleFromPccRule(pccRule *models.PccRule, qosData *models.QosData
 	qRule.BuildPacketFilterListFromPccRule(pccRule)
 
 	return &qRule
-}
-
-func BuildModifyQosRuleFromPccRule(pccRule *models.PccRule) *QosRule {
-	return nil
-}
-
-func BuildDeleteQosRuleFromPccRule(pccRule *models.PccRule) *QosRule {
-	return nil
 }
 
 func btou(b bool) uint8 {

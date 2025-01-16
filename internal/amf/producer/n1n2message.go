@@ -465,19 +465,3 @@ func N1N2MessageSubscribeProcedure(ueContextID string,
 	}
 	return ueN1N2InfoSubscriptionCreatedData, nil
 }
-
-func N1N2MessageUnSubscribeProcedure(ueContextID string, subscriptionID string) *models.ProblemDetails {
-	amfSelf := context.AMF_Self()
-
-	ue, ok := amfSelf.AmfUeFindByUeContextID(ueContextID)
-	if !ok {
-		problemDetails := &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "CONTEXT_NOT_FOUND",
-		}
-		return problemDetails
-	}
-
-	ue.N1N2MessageSubscription.Delete(subscriptionID)
-	return nil
-}

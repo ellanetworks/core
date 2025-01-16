@@ -18,64 +18,6 @@ type PFCPState struct {
 	port    uint16
 }
 
-// SendPFCPRule sends the datapath to the UPF
-func SendPFCPRule(smContext *context.SMContext, dataPath *context.DataPath) context.PFCPSessionResponseStatus {
-	var responseStatus context.PFCPSessionResponseStatus
-	for curDataPathNode := dataPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
-		pdrList := make([]*context.PDR, 0, 2)
-		farList := make([]*context.FAR, 0, 2)
-		qerList := make([]*context.QER, 0, 2)
-
-		if curDataPathNode.UpLinkTunnel != nil && curDataPathNode.UpLinkTunnel.PDR != nil {
-			for _, pdr := range curDataPathNode.UpLinkTunnel.PDR {
-				pdrList = append(pdrList, pdr)
-				farList = append(farList, pdr.FAR)
-				if pdr.QER != nil {
-					qerList = append(qerList, pdr.QER...)
-				}
-			}
-		}
-		if curDataPathNode.DownLinkTunnel != nil && curDataPathNode.DownLinkTunnel.PDR != nil {
-			for _, pdr := range curDataPathNode.DownLinkTunnel.PDR {
-				pdrList = append(pdrList, pdr)
-				farList = append(farList, pdr.FAR)
-				if pdr.QER != nil {
-					qerList = append(qerList, pdr.QER...)
-				}
-			}
-		}
-
-		sessionContext, exist := smContext.PFCPContext[curDataPathNode.GetNodeIP()]
-		if !exist || sessionContext.RemoteSEID == 0 {
-			addPduSessionAnchor, status, err := pfcp.SendPfcpSessionEstablishmentRequest(
-				curDataPathNode.UPF.NodeID, smContext, pdrList, farList, nil, qerList, curDataPathNode.UPF.Port)
-			responseStatus = *status
-			if err != nil {
-				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
-			}
-			if addPduSessionAnchor {
-				rspNodeID := context.NewNodeID("0.0.0.0")
-				responseStatus = AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
-			}
-			if err != nil {
-				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
-			}
-		} else {
-			addPduSessionAnchor, status, err := pfcp.SendPfcpSessionModificationRequest(
-				curDataPathNode.UPF.NodeID, smContext, pdrList, farList, nil, qerList, curDataPathNode.UPF.Port)
-			responseStatus = *status
-			if err != nil {
-				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, curDataPathNode.UPF.NodeID, curDataPathNode.UPF.NodeID.ResolveNodeIdToIp())
-			}
-			if addPduSessionAnchor {
-				rspNodeID := context.NewNodeID("0.0.0.0")
-				responseStatus = AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
-			}
-		}
-	}
-	return responseStatus
-}
-
 // SendPFCPRules send all datapaths to UPFs
 func SendPFCPRules(smContext *context.SMContext) context.PFCPSessionResponseStatus {
 	pfcpPool := make(map[string]*PFCPState)
@@ -152,32 +94,4 @@ func SendPFCPRules(smContext *context.SMContext) context.PFCPSessionResponseStat
 		}
 	}
 	return responseStatus
-}
-
-func removeDataPath(datapath *context.DataPath) {
-	for curDPNode := datapath.FirstDPNode; curDPNode != nil; curDPNode = curDPNode.Next() {
-		if curDPNode.DownLinkTunnel != nil && curDPNode.DownLinkTunnel.PDR != nil {
-			for _, pdr := range curDPNode.DownLinkTunnel.PDR {
-				pdr.State = context.RULE_REMOVE
-				pdr.FAR.State = context.RULE_REMOVE
-			}
-		}
-		if curDPNode.UpLinkTunnel != nil && curDPNode.UpLinkTunnel.PDR != nil {
-			for _, pdr := range curDPNode.UpLinkTunnel.PDR {
-				pdr.State = context.RULE_REMOVE
-				pdr.FAR.State = context.RULE_REMOVE
-			}
-		}
-	}
-}
-
-// UpdateDataPathToUPF update the datapath of the UPF
-func UpdateDataPathToUPF(smContext *context.SMContext, oldDataPath, updateDataPath *context.DataPath) {
-	if oldDataPath == nil {
-		SendPFCPRule(smContext, updateDataPath)
-		return
-	} else {
-		removeDataPath(oldDataPath)
-		SendPFCPRule(smContext, updateDataPath)
-	}
 }

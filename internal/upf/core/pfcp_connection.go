@@ -23,13 +23,6 @@ type PfcpConnection struct {
 	ResourceManager   *service.ResourceManager
 }
 
-func (connection *PfcpConnection) GetAssociation(assocAddr string) *NodeAssociation {
-	if assoc, ok := connection.NodeAssociations[assocAddr]; ok {
-		return assoc
-	}
-	return nil
-}
-
 func CreatePfcpConnection(addr string, nodeId string, n3Ip string, mapOperations ebpf.ForwardingPlaneController, resourceManager *service.ResourceManager) (*PfcpConnection, error) {
 	addrV4 := net.ParseIP(addr)
 	if addrV4 == nil {

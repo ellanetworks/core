@@ -36,10 +36,7 @@ var (
 	seidSMContextMap sync.Map
 )
 
-var (
-	smContextCount  uint64
-	smContextActive uint64
-)
+var smContextActive uint64
 
 type SMContextState uint
 
@@ -56,14 +53,6 @@ const (
 	SmStateN1N2TransferPending
 	SmStateMax
 )
-
-func init() {
-}
-
-func GetSMContextCount() uint64 {
-	atomic.AddUint64(&smContextCount, 1)
-	return smContextCount
-}
 
 type UeIpAddr struct {
 	Ip          net.IP
