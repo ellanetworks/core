@@ -343,6 +343,42 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 			sd:            Sd,
 			error:         "Invalid TAC format. Must be a 3-digit number",
 		},
+		{
+			testName:      "Invalid sst - negative",
+			mcc:           Mcc,
+			mnc:           Mnc,
+			supportedTacs: []string{"001"},
+			sst:           -1,
+			sd:            Sd,
+			error:         "Invalid SST format. Must be an 8-bit integer",
+		},
+		{
+			testName:      "Invalid sst - too big",
+			mcc:           Mcc,
+			mnc:           Mnc,
+			supportedTacs: []string{"001"},
+			sst:           256,
+			sd:            Sd,
+			error:         "Invalid SST format. Must be an 8-bit integer",
+		},
+		{
+			testName:      "Invalid sd - negative",
+			mcc:           Mcc,
+			mnc:           Mnc,
+			supportedTacs: []string{"001"},
+			sst:           Sst,
+			sd:            -1,
+			error:         "Invalid SD format. Must be a 24-bit integer",
+		},
+		{
+			testName:      "Invalid sd - too big",
+			mcc:           Mcc,
+			mnc:           Mnc,
+			supportedTacs: []string{"001"},
+			sst:           Sst,
+			sd:            16777216,
+			error:         "Invalid SD format. Must be a 24-bit integer",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
