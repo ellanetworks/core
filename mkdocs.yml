@@ -1,5 +1,5 @@
 site_name: Ella Core Documentation
-site_url: https://ellanetworks.github.io/core/
+site_url: https://docs.ellanetworks.com/
 theme:
   name: material
   logo: images/logo.png
@@ -62,6 +62,7 @@ nav:
     - Architecture: explanation/architecture.md
     - Subscriber Authentication: explanation/subscriber_authentication.md
 plugins:
+  - search
   - glightbox
   - social:
       cards_layout_options:

@@ -14,7 +14,7 @@ source-code: https://github.com/ellanetworks/core
 issues:
   - https://github.com/ellanetworks/core/issues
 website:
-  - https://ellanetworks.github.io/core/
+  - https://docs.ellanetworks.com
 grade: stable
 confinement: strict
 license: Apache-2.0

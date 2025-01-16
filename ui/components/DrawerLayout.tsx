@@ -212,7 +212,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                         <ListItem disablePadding>
                             <ListItemButton
                                 component="a"
-                                href="https://ellanetworks.github.io/core/"
+                                href="https://docs.ellanetworks.com"
                                 target="_blank"
                                 rel="noreferrer"
                             >
