@@ -11,9 +11,7 @@ import (
 )
 
 const (
-	DNN = "internet"
-	// Sst       = 1
-	// Sd        = "102030"
+	DNN       = "internet"
 	UpfNodeId = "0.0.0.0"
 )
 
