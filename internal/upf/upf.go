@@ -26,7 +26,6 @@ func Start(n3Address string, n3Interface string, n6Interface string) error {
 	c := config.UpfConfig{
 		InterfaceName: interfaces,
 		XDPAttachMode: "generic",
-		ApiAddress:    ":8080",
 		PfcpAddress:   "0.0.0.0",
 		SmfAddress:    "0.0.0.0",
 		SmfNodeId:     "0.0.0.0",

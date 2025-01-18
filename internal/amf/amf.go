@@ -19,15 +19,11 @@ import (
 	"github.com/omec-project/openapi/models"
 )
 
-const (
-	NGAPP_PORT = 38412
-)
-
-func Start(dbInstance *db.Database) error {
+func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 	self := context.AMF_Self()
 	self.Name = "AMF"
-	self.NgapIpList = []string{"0.0.0.0"}
-	self.NgapPort = NGAPP_PORT
+	self.NgapIpList = []string{n2Address}
+	self.NgapPort = n2Port
 	self.NetworkFeatureSupport5GS = &context.NetworkFeatureSupport5GS{
 		Emc:     0,
 		EmcN3:   0,

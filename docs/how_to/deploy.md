@@ -48,6 +48,10 @@ Ella Core is available as a Snap and a OCI container image.
     db:
     path: "core.db"
     interfaces: 
+    n2:
+        name: "ens3"
+        address: "1.2.3.4"
+        port: 38412
     n3: 
         name: "ens4"
         address: "127.0.0.1"

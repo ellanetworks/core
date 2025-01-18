@@ -5,7 +5,6 @@ package config
 type UpfConfig struct {
 	InterfaceName []string `mapstructure:"interface_name" json:"interface_name"`
 	XDPAttachMode string   `mapstructure:"xdp_attach_mode" validate:"oneof=generic native offload" json:"xdp_attach_mode"`
-	ApiAddress    string   `mapstructure:"api_address" validate:"hostname_port" json:"api_address"`
 	PfcpAddress   string   `mapstructure:"pfcp_address" validate:"hostname_port" json:"pfcp_address"`
 	PfcpNodeId    string   `mapstructure:"pfcp_node_id" validate:"hostname|ip" json:"pfcp_node_id"`
 	SmfAddress    string

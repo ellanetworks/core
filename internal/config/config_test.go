@@ -52,6 +52,10 @@ func TestGoodConfigSuccess(t *testing.T) {
 		}
 	}()
 
+	config.CheckInterfaceExistsWithAddress = func(name string, address string) (bool, error) {
+		return true, nil
+	}
+
 	// Update the config file to use the temporary cert and key paths
 	confFilePath := "testdata/valid.yaml"
 	originalContent, err := os.ReadFile(confFilePath)

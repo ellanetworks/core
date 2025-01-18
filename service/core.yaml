@@ -2,7 +2,11 @@ log-level: "info"
 db:
   path: "/var/snap/ella-core/common/data/core.db"
 interfaces: 
-  n3: 
+  n2:
+    name: "ens3"
+    address: "127.0.0.1"
+    port: 38412
+  n3:
     name: "ens4"
     address: "127.0.0.1"
   n6:

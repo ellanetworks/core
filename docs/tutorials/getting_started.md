@@ -4,17 +4,17 @@ description: A hands-on introduction to Ella Core for new users.
 
 # Getting Started
 
-In this tutorial, we will deploy, initialize, and configure Ella Core. We will use [Multipass](https://canonical.com/multipass/docs) to create a virtual machine with multiple network interfaces, install Ella Core inside the virtual machine, access the Ella Core UI, initialize Ella Core, and configure it.
+In this tutorial, we will deploy, initialize, and configure Ella Core. First, we will use [Multipass](https://canonical.com/multipass/docs) to create a virtual machine, install Ella Core, access the the UI, initialize Ella Core, and configure it. Then, we will create another virtual machine and install a 5G radio simulator, connect it to Ella Core, and run a simulation.
 
 ## Pre-requisites
 
 To complete this tutorial, you will need a Ubuntu 24.04 machine with the following specifications:
 
-- 8GB of RAM
-- 4 CPU cores
-- 30GB of disk space
+- 16GB of RAM
+- 6 CPU cores
+- 50GB of disk space
 
-## Setup a Virtual Machine with multiple network interfaces
+## Setup the Virtual Machine where Ella Core will be installed
 
 From the Ubuntu machine, install Multipass:
 
@@ -124,16 +124,7 @@ Ella Core is now initialized and ready to be used.
 
 ## Configure Ella Core
 
-Here, we will navigate through the Ella Core UI to create a radio, a profile, and a subscriber.
-
-### Create a Radio
-
-Navigate to the `Radios` page and click on the `Create` button.
-
-Create a radio with the following parameters:
-
-- Name: `test`
-- TAC: `001`
+Here, we will navigate through the Ella Core UI to create a profile, and a subscriber.
 
 ### Create a Profile
 
@@ -159,9 +150,38 @@ Create a subscriber with the following parameters:
 - Sequence Number: Keep the default value.
 - Profile: `default`
 
-!!! success
+Exit the Multipass instance:
 
-    You have successfully deployed, initialized, and configured Ella Core. You can now use Ella Core to manage your private 5G network.
+```shell
+exit
+```
+
+## Setup the Virtual Machine where a radio simulator will be installed
+
+Use Multipass to create a bare Ubuntu 24.04 instance with two additional network interfaces:
+```shell
+multipass launch noble --name=radio --network n3
+```
+
+Connect to the instance:
+```shell
+multipass shell radio
+```
+
+Install the SRSRAN snap:
+```shell
+sudo snap install srsran5g --channel=edge
+```
+
+Connect the snap interfaces:
+
+```shell
+sudo snap install srsran5g
+sudo snap connect srsran5g:kernel-module-observe
+sudo snap connect srsran5g:network-control
+sudo snap connect srsran5g:process-control
+sudo snap connect srsran5g:system-observe
+```
 
 ## Destroy the Tutorial Environment
 

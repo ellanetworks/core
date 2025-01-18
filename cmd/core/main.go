@@ -30,7 +30,7 @@ func startNetwork(dbInstance *db.Database, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	err = amf.Start(dbInstance)
+	err = amf.Start(dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port)
 	if err != nil {
 		return err
 	}
