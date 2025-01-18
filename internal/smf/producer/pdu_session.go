@@ -92,7 +92,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, S-NSSAI[sst: %d, sd: %s] DNN[%s] does not match DNN Config",
 			createData.SNssai.Sst, createData.SNssai.Sd, createData.Dnn)
 		response := smContext.GeneratePDUSessionEstablishmentReject("DnnNotSupported")
-		return response, fmt.Errorf("SnssaiError")
+		return response, fmt.Errorf("dnn %s not supported", createData.Dnn)
 	}
 
 	// IP Allocation

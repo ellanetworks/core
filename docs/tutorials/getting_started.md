@@ -4,7 +4,7 @@ description: A hands-on introduction to Ella Core for new users.
 
 # Getting Started
 
-In this tutorial, we will deploy, initialize, and configure Ella Core. First, we will use [Multipass](https://canonical.com/multipass/docs) to create a virtual machine, install Ella Core, access the the UI, initialize Ella Core, and configure it. Then, we will create another virtual machine and install a 5G radio simulator, connect it to Ella Core, and validate that it is automatically detected.
+In this tutorial, we will deploy, initialize, and configure Ella Core. First, we will use [Multipass](https://canonical.com/multipass/docs) to create a virtual machine, install Ella Core, access the the UI, initialize Ella Core, and configure it. Then, we will create another virtual machine and install a 5G radio and User Equipment simulator, connect it to Ella Core, and validate that the radio is automatically detected. Finally, we will use the User Equipment simulator to validate that the subscriber can communicate with the network.
 
 ## Pre-requisites
 
@@ -190,121 +190,77 @@ exit
 
 ## Install a 5G Radio Simulator
 
-In this section, we will create another Multipass instance and install srsRAN, a 5G radio simulator. We will then connect the radio simulator to Ella Core.
+In this section, we will create another Multipass instance and install UERANSIM, a 5G radio simulator. We will then connect the radio simulator to Ella Core.
 
 ### Setup the Virtual Machine where a radio simulator will be installed
 
 Use Multipass to create a bare Ubuntu 24.04 instance:
 ```shell
-multipass launch noble --name=radio --memory=4G --cpus 2
+multipass launch noble --name=radio --memory=6G --cpus 2 --disk=10G  --network n3
 ```
 
-### Install and start srsRAN
+### Install and start the UERANSIM 5G radio
 
 Connect to the instance:
 ```shell
 multipass shell radio
 ```
 
-Install the srsRAN snap:
-```shell
-sudo snap install srsran5g --channel=edge
-```
-
-Connect the snap interfaces:
+Install the UERANSIM snap:
 
 ```shell
-sudo snap connect srsran5g:kernel-module-observe
-sudo snap connect srsran5g:network-control
-sudo snap connect srsran5g:process-control
-sudo snap connect srsran5g:system-observe
+sudo snap install ueransim --channel=edge
+sudo snap connect ueransim:network-control
 ```
 
-Create a configuration file for the radio and save it under `/var/snap/srsran5g/common/gnb2.yaml`:
+Edit the configuration file at `/var/snap/ueransim/common/gnb.yaml`:
 
-```yaml hl_lines="3 5"
-cu_cp:
-  amf:
-    addr: 10.103.62.227                 # The N2 interface address of Ella Core.
+```yaml hl_lines="9 10 13"
+mcc: '001'
+mnc: '01'
+
+nci: '0x000000010'
+idLength: 32
+tac: 1
+
+linkIp: 127.0.0.1
+ngapIp: 10.103.62.78       # The `ens3` IP address of the `radio` Multipass instance.
+gtpIp:  10.243.161.33      # The `ens4` IP address of the `radio` Multipass instance.
+
+amfConfigs:
+  - address: 10.103.62.49  # The `ens3` IP address of the `ella-core` Multipass instance.
     port: 38412
-    bind_addr: 10.103.62.196            # The local address to bind to (ens3).
-    supported_tracking_areas:
-      - tac: 1
-        plmn_list:
-          - plmn: "00101"
-            tai_slice_support_list:
-              - sst: 1
-                sd: 1056816
-  inactivity_timer: 7200
 
-ru_sdr:
-  device_driver: zmq
-  device_args: tx_port=tcp://127.0.0.1:2000,rx_port=tcp://127.0.0.1:2001,base_srate=23.04e6
-  srate: 23.04
-  tx_gain: 75
-  rx_gain: 75
+slices:
+  - sst: 0x1
+    sd: 0x102030
 
-cell_cfg:
-  dl_arfcn: 368500
-  band: 3
-  channel_bandwidth_MHz: 20
-  common_scs: 15
-  plmn: "00101"
-  tac: 1
-  pdcch:
-    common:
-      ss0_index: 0
-      coreset0_index: 12
-    dedicated:
-      ss2_type: common
-      dci_format_0_1_and_1_1: false
-  prach:
-    prach_config_index: 1
-  pdsch:
-    mcs_table: qam64
-  pusch:
-    mcs_table: qam64
-
-log:
-  filename: /tmp/gnb.log
-  all_level: info
-  hex_max_size: 0
-
-pcap:
-  mac_enable: false
-  mac_filename: /tmp/gnb_mac.pcap
-  ngap_enable: false
-  ngap_filename: /tmp/gnb_ngap.pcap
+ignoreStreamIds: true
 ```
 
 Modify the highlighted values:
 
-- `cu_cp.amf.addr`: The `ens3` IP addresses the `ella-core` Multipass instance.
-- `cu_cp.amf.bind_addr`: The `ens3` IP address of the `radio` Multipass instance.
+- `ngapIp`: The `ens3` IP address of the `radio` Multipass instance.
+- `gtpIp`: The `ens4` IP address of the `radio` Multipass instance.
+- `amfConfigs.address`: The `ens3` IP address of the `ella-core` Multipass instance.
 
 Start the 5G radio:
 
 ```shell
-srsran5g.gnb -c /var/snap/srsran5g/common/gnb.yaml
+ueransim.nr-gnb --config /var/snap/ueransim/common/gnb.yaml
 ```
 
 You should see the following output:
 
 ```shell
-ubuntu@radio2:~$ srsran5g.gnb -c /var/snap/srsran5g/common/gnb.yaml 
-
---== srsRAN gNB (commit 9d5dd742a) ==--
-
-
-The PRACH detector will not meet the performance requirements with the configuration {Format 0, ZCZ 0, SCS 1.25kHz, Rx ports 1}.
-Lower PHY in executor blocking mode.
-Available radio types: zmq.
-Cell pci=1, bw=20 MHz, 1T1R, dl_arfcn=368500 (n3), dl_freq=1842.5 MHz, dl_ssb_arfcn=368410, ul_freq=1747.5 MHz
-
-N2: Connection to AMF on 10.103.62.49:38412 completed
-==== gNB started ===
-Type <h> to view help
-
+ubuntu@radio:~$ ueransim.nr-gnb --config /var/snap/ueransim/common/gnb.yaml 
+UERANSIM v3.2.6
+[2025-01-18 16:38:41.616] [sctp] [info] Trying to establish SCTP connection... (10.103.62.49:38412)
+[2025-01-18 16:38:41.631] [sctp] [info] SCTP connection established (10.103.62.49:38412)
+[2025-01-18 16:38:41.631] [sctp] [debug] SCTP association setup ascId[3]
+[2025-01-18 16:38:41.631] [ngap] [debug] Sending NG Setup Request
+[2025-01-18 16:38:41.635] [ngap] [debug] NG Setup Response received
+[2025-01-18 16:38:41.635] [ngap] [info] NG Setup procedure is successful
 ```
 
 Leave the radio running.
@@ -312,6 +268,184 @@ Leave the radio running.
 On your browser, navigate to the Ella Core UI and click on the `Radios` tab. You should see the radio connected.
 
 ![Connected Radio](../images/connected_radio.png){ align=center }
+
+### Install and start the srsRAN User Equipment (UE) simulator
+
+Open a new terminal window and connect to the `radio` Multipass instance:
+
+```shell
+multipass shell radio
+```
+
+Edit the configuration file at `/var/snap/ueransim/common/gnb.yaml`:
+
+```yaml hl_lines="1 9 10"
+supi: 'imsi-001010100007487' # The IMSI of the subscriber you created
+mcc: '001'
+mnc: '01'
+protectionScheme: 0
+homeNetworkPublicKey: '75d1dde9519b390b172104ae3397557a114acbd39d3c39b2bcc3ce282abc4c3e'
+homeNetworkPublicKeyId: 1
+routingIndicator: '0000'
+
+key: '5122250214c33e723a5dd523fc145fc0'  # The key of the subscriber you created
+op: '981d464c7c52eb6e5036234984ad0bcf'   # The opc of the subscriber you created
+opType: 'OPC'
+amf: '8000'
+imei: '356938035643803'
+imeiSv: '4370816125816151'
+
+gnbSearchList:
+  - 127.0.0.1
+
+uacAic:
+  mps: false
+  mcs: false
+
+uacAcc:
+  normalClass: 0
+  class11: false
+  class12: false
+  class13: false
+  class14: false
+  class15: false
+
+sessions:
+  - type: 'IPv4'
+    apn: 'internet'
+    slice:
+      sst: 0x01
+      sd: 0x102030
+
+configured-nssai:
+  - sst: 0x01
+    sd: 0x102030
+
+default-nssai:
+  - sst: 1
+    sd: 1
+
+integrity:
+  IA1: true
+  IA2: true
+  IA3: true
+
+ciphering:
+  EA1: true
+  EA2: true
+  EA3: true
+
+integrityMaxRate:
+  uplink: 'full'
+  downlink: 'full'
+```
+
+Modify the highlighted values:
+- `supi`: The `imsi` value used by the UE with the prefix `imsi-`.
+- `key`: The `key` value used by the UE.
+- `op`: The `opc` value used by the UE.
+
+Those values can be found in the Ella Core UI under the `Subscribers` tab. Click on the View button of the subscriber you created earlier.
+
+Start the UE:
+
+```shell
+sudo ueransim.nr-ue --config /var/snap/ueransim/common/ue.yaml
+```
+ 
+You should see the following output:
+
+```shell
+^Cubuntu@radio:~sudo ueransim.nr-ue --config /var/snap/ueransim/common/ue.yamlml
+UERANSIM v3.2.6
+[2025-01-18 16:45:36.427] [nas] [info] UE switches to state [MM-DEREGISTERED/PLMN-SEARCH]
+[2025-01-18 16:45:36.428] [rrc] [debug] New signal detected for cell[1], total [1] cells in coverage
+[2025-01-18 16:45:36.428] [nas] [info] Selected plmn[001/01]
+[2025-01-18 16:45:36.428] [rrc] [info] Selected cell plmn[001/01] tac[1] category[SUITABLE]
+[2025-01-18 16:45:36.428] [nas] [info] UE switches to state [MM-DEREGISTERED/PS]
+[2025-01-18 16:45:36.428] [nas] [info] UE switches to state [MM-DEREGISTERED/NORMAL-SERVICE]
+[2025-01-18 16:45:36.428] [nas] [debug] Initial registration required due to [MM-DEREG-NORMAL-SERVICE]
+[2025-01-18 16:45:36.428] [nas] [debug] UAC access attempt is allowed for identity[0], category[MO_sig]
+[2025-01-18 16:45:36.428] [nas] [debug] Sending Initial Registration
+[2025-01-18 16:45:36.428] [nas] [info] UE switches to state [MM-REGISTER-INITIATED]
+[2025-01-18 16:45:36.429] [rrc] [debug] Sending RRC Setup Request
+[2025-01-18 16:45:36.429] [rrc] [info] RRC connection established
+[2025-01-18 16:45:36.429] [rrc] [info] UE switches to state [RRC-CONNECTED]
+[2025-01-18 16:45:36.429] [nas] [info] UE switches to state [CM-CONNECTED]
+[2025-01-18 16:45:36.452] [nas] [debug] Authentication Request received
+[2025-01-18 16:45:36.452] [nas] [debug] Received SQN [000000000025]
+[2025-01-18 16:45:36.452] [nas] [debug] SQN-MS [000000000000]
+[2025-01-18 16:45:36.454] [nas] [debug] Security Mode Command received
+[2025-01-18 16:45:36.454] [nas] [debug] Selected integrity[1] ciphering[0]
+[2025-01-18 16:45:36.457] [nas] [debug] Registration accept received
+[2025-01-18 16:45:36.457] [nas] [info] UE switches to state [MM-REGISTERED/NORMAL-SERVICE]
+[2025-01-18 16:45:36.457] [nas] [debug] Sending Registration Complete
+[2025-01-18 16:45:36.457] [nas] [info] Initial Registration is successful
+[2025-01-18 16:45:36.457] [nas] [debug] Sending PDU Session Establishment Request
+[2025-01-18 16:45:36.457] [nas] [debug] UAC access attempt is allowed for identity[0], category[MO_sig]
+[2025-01-18 16:45:36.694] [nas] [debug] PDU Session Establishment Accept received
+[2025-01-18 16:45:36.694] [nas] [info] PDU Session establishment is successful PSI[1]
+[2025-01-18 16:45:36.736] [app] [info] Connection setup for PDU session[1] is successful, TUN interface[uesimtun0, 10.45.0.1] is up.
+```
+
+Leave the UE running.
+
+### Validate the connection
+
+Open a new terminal window and connect to the `radio` Multipass instance:
+
+```shell
+multipass shell radio
+```
+
+Validate that a new interface has been created:
+
+```shell
+ubuntu@radio:~$ ip a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host noprefixroute 
+       valid_lft forever preferred_lft forever
+2: ens3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether 52:54:00:9d:1f:b1 brd ff:ff:ff:ff:ff:ff
+    altname enp0s3
+    inet 10.103.62.78/24 metric 100 brd 10.103.62.255 scope global ens3
+       valid_lft forever preferred_lft forever
+    inet6 fe80::5054:ff:fe9d:1fb1/64 scope link 
+       valid_lft forever preferred_lft forever
+3: ens4: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether 52:54:00:97:9f:1d brd ff:ff:ff:ff:ff:ff
+    altname enp0s4
+    inet 10.243.161.33/24 metric 200 brd 10.243.161.255 scope global dynamic ens4
+       valid_lft 2978sec preferred_lft 2978sec
+    inet6 fd42:2ccb:7e5b:6a97:5054:ff:fe97:9f1d/64 scope global mngtmpaddr noprefixroute 
+       valid_lft forever preferred_lft forever
+    inet6 fe80::5054:ff:fe97:9f1d/64 scope link 
+       valid_lft forever preferred_lft forever
+4: uesimtun0: <POINTOPOINT,PROMISC,NOTRAILERS,UP,LOWER_UP> mtu 1400 qdisc fq_codel state UNKNOWN group default qlen 500
+    link/none 
+    inet 10.45.0.1/32 scope global uesimtun0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::44dd:c457:46da:c04f/64 scope link stable-privacy 
+       valid_lft forever preferred_lft forever
+```
+
+You should see a new interface `uesimtun0` with an IP address from the subnet configured in the profile.
+
+This IP address is your Subscriber's IP address, and it is the IP address that the UE will use to communicate with the network, browse the internet, etc.
+
+For instance, you can use the `ping` command to validate that the UE can communicate with the network:
+
+```shell
+ping -I uesimtun0 8.8.8.8
+```
+
+!!! success
+    
+    You have successfully connected a 5G radio simulator and a UE simulator to Ella Core. You can now use the UE to browse the internet, make calls, etc.
+
 
 ## Destroy the Tutorial Environment
 
