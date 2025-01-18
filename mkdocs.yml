@@ -11,6 +11,7 @@ theme:
   features:
     - navigation.sections
     - navigation.footer
+    - content.code.copy
   icon:
     repo: fontawesome/brands/github
 extra_css:

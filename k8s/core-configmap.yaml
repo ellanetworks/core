@@ -9,6 +9,10 @@ data:
     db:
       path: /core/data/core.db
     interfaces:
+      n2:
+        name: "eth0"
+        address: "127.0.0.1"
+        port: 38412
       n3:
         name: "n3"
         address: "192.168.252.3"
