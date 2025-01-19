@@ -122,9 +122,7 @@ class TestELLA:
     ):
         k8s_client = Kubernetes(namespace=NAMESPACE)
         manifests = [
-            "k8s/router-ran-nad.yaml",
-            "k8s/router-core-nad.yaml",
-            "k8s/router-access-nad.yaml",
+            "k8s/router-n6-nad.yaml",
             "k8s/router-deployment.yaml",
             "k8s/core-n3-nad.yaml",
             "k8s/core-n6-nad.yaml",
@@ -150,7 +148,7 @@ class TestELLA:
         subscriber = configure_ella_core(core_address=core_address)
         create_gnbsim_configmap(k8s_client, subscriber)
         gnbsim_manifests = [
-            "k8s/gnbsim-gnb-nad.yaml",
+            "k8s/gnbsim-n3-nad.yaml",
             "k8s/gnbsim-deployment.yaml",
             "k8s/gnbsim-service.yaml",
         ]
@@ -250,7 +248,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                                 },
                             },
                             "n2Port": 9487,
-                            "n3IpAddr": "192.168.251.5",
+                            "n3IpAddr": "192.168.252.5",
                             "n3Port": 2152,
                             "name": "gnb1",
                             "supportedTaList": [
