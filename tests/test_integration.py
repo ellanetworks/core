@@ -122,9 +122,7 @@ class TestELLA:
     ):
         k8s_client = Kubernetes(namespace=NAMESPACE)
         manifests = [
-            "k8s/router-ran-nad.yaml",
-            "k8s/router-core-nad.yaml",
-            "k8s/router-access-nad.yaml",
+            "k8s/router-n6-nad.yaml",
             "k8s/router-deployment.yaml",
             "k8s/core-n3-nad.yaml",
             "k8s/core-n6-nad.yaml",
