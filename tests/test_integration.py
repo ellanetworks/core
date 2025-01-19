@@ -148,7 +148,7 @@ class TestELLA:
         subscriber = configure_ella_core(core_address=core_address)
         create_gnbsim_configmap(k8s_client, subscriber)
         gnbsim_manifests = [
-            "k8s/gnbsim-gnb-nad.yaml",
+            "k8s/gnbsim-n3-nad.yaml",
             "k8s/gnbsim-deployment.yaml",
             "k8s/gnbsim-service.yaml",
         ]
