@@ -3,4 +3,4 @@
 cp "$SNAP/core.yaml" "$SNAP_COMMON/core.yaml"
 mkdir "$SNAP_COMMON/data"
 
-openssl req -newkey rsa:2048 -nodes -keyout $SNAP_COMMON/key.pem -x509 -days 365 -out $SNAP_COMMON/cert.pem -subj "/CN=core.ella.com"
+openssl req -newkey rsa:2048 -nodes -keyout $SNAP_COMMON/key.pem -x509 -days 365 -out $SNAP_COMMON/cert.pem -subj "/CN=core.ellanetworks.com"

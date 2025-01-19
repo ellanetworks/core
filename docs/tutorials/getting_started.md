@@ -4,7 +4,11 @@ description: A hands-on introduction to Ella Core for new users.
 
 # Getting Started
 
-In this tutorial, we will deploy, initialize, and configure Ella Core. First, we will use [Multipass](https://canonical.com/multipass/docs) to create a virtual machine, install Ella Core, access the the UI, initialize Ella Core, and configure it. Then, we will create another virtual machine and install a 5G radio and User Equipment simulator, connect it to Ella Core, and validate that the radio is automatically detected. Finally, we will use the User Equipment simulator to validate that the subscriber can communicate with the network.
+In this tutorial, we will deploy, initialize, and configure Ella Core. First, we will use [Multipass](https://canonical.com/multipass/docs) to create a virtual machine, install Ella Core, access the the UI, initialize Ella Core, and configure it. Then, we will create another virtual machine and install a 5G radio and User Equipment simulator, connect it to Ella Core, and validate that the radio is automatically detected. Then, we will create another virtual machine and set it up as a router. Finally, we will use the User Equipment simulator to validate that the subscriber can communicate with the network.
+
+You can expect to spend about 30 minutes completing this tutorial. Follow the steps in sequence to ensure a successful deployment.
+
+![Tutorial](../images/tutorial.png){ align=center }
 
 ## Pre-requisites
 
@@ -14,9 +18,8 @@ To complete this tutorial, you will need a Ubuntu 24.04 machine with the followi
 - 6 CPU cores
 - 50GB of disk space
 
-## Install Ella Core
 
-### Setup the Virtual Machine where Ella Core will be installed
+## 1. Create the Virtual Machines
 
 From the Ubuntu machine, install Multipass:
 
@@ -31,43 +34,56 @@ lxc network create n3
 lxc network create n6
 ```
 
-Use Multipass to create a bare Ubuntu 24.04 instance with two additional network interfaces:
+Create three Multipass instances:
+
 ```shell
 multipass launch noble --name=ella-core --disk=10G --network n3 --network n6
+multipass launch noble --name=router --disk=10G --network n6
+multipass launch noble --name=radio --memory=6G --cpus 2 --disk=10G  --network n3
 ```
 
-Validate that the instance has been created with the two additional network interfaces:
+Validate that the 3 instances have been created:
 
 ```shell
 multipass list
 ```
 
 You should see the following output:
+
 ```shell
 guillaume@courge:~$ multipass list
 Name                    State             IPv4             Image
-ella-core               Running           10.103.62.227    Ubuntu 24.04 LTS
-                                          10.243.161.26
-                                          10.117.122.101
+ella-core               Running           10.103.62.82     Ubuntu 24.04 LTS
+                                          10.243.161.86
+                                          10.117.122.61
+radio                   Running           10.103.62.28     Ubuntu 24.04 LTS
+                                          10.243.161.22
+router                  Running           10.103.62.238    Ubuntu 24.04 LTS
+                                          10.117.122.224
 ```
 
-You should see three IP addresses. Take note of the first one. In this example, the IP address is `10.103.62.227`. You will use this IP address later to access the Ella Core UI.
+## 2. Install Ella Core
 
-Connect to the instance:
+### 2.1 Setup the Virtual Machine where Ella Core will be installed
+
+Connect to the `ella-core` Multipass instance:
+
 ```shell
 multipass shell ella-core
 ```
 
 Validate that the instance has the two additional network interfaces:
+
 ```shell
 ip a
 ```
 
-You should see that the instance has four network interfaces: `lo`, `ens3`, `ens4`, and `ens5`.
+You should see that the instance has four network interfaces: `lo`, `ens3`, `ens4`, and `ens5`. Note the IP address of the `ens3` and `ens4` interfaces. 
 
-### Install and start Ella Core
+### 2.2 Install and start Ella Core
 
 Inside of the `ella-core` Multipass instance, install the Ella Core snap:
+
 ```shell
 sudo snap install ella-core --channel=edge --devmode
 ```
@@ -81,11 +97,11 @@ db:
 interfaces: 
   n2:
     name: "ens3"
-    address: "10.103.62.227"    # The IP address of the ella-core Multipass instance.
+    address: "10.103.62.227"    # The `ens3` IP address of the ella-core Multipass instance.
     port: 38412
   n3:
     name: "ens4"
-    address: "10.243.161.26"    # The IP address of the radio Multipass instance.
+    address: "10.243.161.26"    # The `ens4` IP address of the ella-core Multipass instance.
   n6:
     name: "ens5"
   api:
@@ -121,14 +137,36 @@ Service          Startup   Current  Notes
 ella-core.cored  disabled  active   -
 ```
 
+### 2.3 Configure routing
+
+Enable IP forwarding:
+
+```shell
+sudo sysctl -w net.ipv4.ip_forward=1
+```
+
+Create a default route to the router:
+```shell
+sudo ip route add default via 10.117.122.224 dev ens5
+```
+
+<!-- 
+test:
+```shell
+ip route replace default via 192.168.250.1 metric 110
+ip route replace 192.168.251.0/24 via 192.168.252.1
+``` -->
+
+Here, replace the IP address with the IP address of the `ens4` interface of the `router` Multipass instance.
+
 Exit the Multipass instance:
 ```shell
 exit
 ```
 
-### Access the UI
+### 2.4 Access the UI
 
-Navigate to `https://<your instance IP>:5002` to access Ella Core's UI. Use the IP address you noted earlier.
+Navigate to `https://<your instance IP>:5002` to access Ella Core's UI. Use the IP address you noted at step 1.1.
 
 You should see the Initialization page.
 
@@ -137,7 +175,7 @@ You should see the Initialization page.
 !!! note
     Your browser may display a warning about the security of the connection. This is because the certificate used by Ella Core is self-signed. You can safely ignore this warning.
 
-### Initialize Ella Core
+### 2.5 Initialize Ella Core
 
 In the Initialization page, create the first user with the following credentials:
 
@@ -150,11 +188,11 @@ You will be redirected to the dashboard.
 
 Ella Core is now initialized and ready to be used.
 
-### Create a Profile and a Subscriber
+### 2.6 Create a Profile and a Subscriber
 
 Here, we will navigate through the Ella Core UI to create a profile, and a subscriber.
 
-#### Create a Profile
+#### 2.6.1 Create a Profile
 
 Navigate to the `Profiles` page and click on the `Create` button.
 
@@ -167,7 +205,7 @@ Create a profile with the name `default`. You can keep the default values for th
 - Bitrate Uplink: `200 Mbps`
 - Bitrate Downlink: `100 Mbps`
 
-#### Create a subscriber
+#### 2.6.2 Create a subscriber
 
 Navigate to the `Subscribers` page and click on the `Create` button.
 
@@ -178,30 +216,20 @@ Create a subscriber with the following parameters:
 - Sequence Number: Keep the default value.
 - Profile: `default`
 
-#### Validate that no radio is connected
+After creating the subscriber, click on the `View` button to see the subscriber's details. Note the IMSI, Key, and OPC values. You will use these values later to configure the UE simulator.
+
+#### 2.6.3 Validate that no radio is connected
 
 Navigate to the `Radios` page. You should see that no radio is connected.
 
-Exit the Multipass instance:
+## 3. Install a 5G Radio Simulator
 
-```shell
-exit
-```
+In this section, we will install UERANSIM, a 5G radio simulator and connect it to Ella Core.
 
-## Install a 5G Radio Simulator
+### 3.1 Install and start the UERANSIM 5G radio simulator
 
-In this section, we will create another Multipass instance and install UERANSIM, a 5G radio simulator. We will then connect the radio simulator to Ella Core.
+Connect to the `radio` Multipass instance:
 
-### Setup the Virtual Machine where a radio simulator will be installed
-
-Use Multipass to create a bare Ubuntu 24.04 instance:
-```shell
-multipass launch noble --name=radio --memory=6G --cpus 2 --disk=10G  --network n3
-```
-
-### Install and start the UERANSIM 5G radio
-
-Connect to the instance:
 ```shell
 multipass shell radio
 ```
@@ -211,6 +239,12 @@ Install the UERANSIM snap:
 ```shell
 sudo snap install ueransim --channel=edge
 sudo snap connect ueransim:network-control
+```
+
+Note the IP address of the `ens3` and `ens4` interfaces.
+
+```shell
+ip a
 ```
 
 Edit the configuration file at `/var/snap/ueransim/common/gnb.yaml`:
@@ -265,11 +299,11 @@ UERANSIM v3.2.6
 
 Leave the radio running.
 
-On your browser, navigate to the Ella Core UI and click on the `Radios` tab. You should see the radio connected.
+In your browser, navigate to the Ella Core UI and click on the `Radios` tab. You should see a radio connected with the name `UERANSIM-gnb-1-1-1`.
 
 ![Connected Radio](../images/connected_radio.png){ align=center }
 
-### Install and start the srsRAN User Equipment (UE) simulator
+### 3.3 Install and start the UERANSIM 5G User Equipment (UE) simulator
 
 Open a new terminal window and connect to the `radio` Multipass instance:
 
@@ -277,7 +311,7 @@ Open a new terminal window and connect to the `radio` Multipass instance:
 multipass shell radio
 ```
 
-Edit the configuration file at `/var/snap/ueransim/common/gnb.yaml`:
+Edit the configuration file at `/var/snap/ueransim/common/ue.yaml`:
 
 ```yaml hl_lines="1 9 10"
 supi: 'imsi-001010100007487' # The IMSI of the subscriber you created
@@ -341,56 +375,91 @@ integrityMaxRate:
 ```
 
 Modify the highlighted values:
+
 - `supi`: The `imsi` value used by the UE with the prefix `imsi-`.
 - `key`: The `key` value used by the UE.
 - `op`: The `opc` value used by the UE.
 
-Those values can be found in the Ella Core UI under the `Subscribers` tab. Click on the View button of the subscriber you created earlier.
+Those values were noted when you created the subscriber at step 1.5.2.
 
 Start the UE:
 
 ```shell
 sudo ueransim.nr-ue --config /var/snap/ueransim/common/ue.yaml
 ```
- 
+
 You should see the following output:
 
 ```shell
-^Cubuntu@radio:~sudo ueransim.nr-ue --config /var/snap/ueransim/common/ue.yamlml
+ubuntu@radio:~$ sudo ueransim.nr-ue --config /var/snap/ueransim/common/ue.yaml
 UERANSIM v3.2.6
-[2025-01-18 16:45:36.427] [nas] [info] UE switches to state [MM-DEREGISTERED/PLMN-SEARCH]
-[2025-01-18 16:45:36.428] [rrc] [debug] New signal detected for cell[1], total [1] cells in coverage
-[2025-01-18 16:45:36.428] [nas] [info] Selected plmn[001/01]
-[2025-01-18 16:45:36.428] [rrc] [info] Selected cell plmn[001/01] tac[1] category[SUITABLE]
-[2025-01-18 16:45:36.428] [nas] [info] UE switches to state [MM-DEREGISTERED/PS]
-[2025-01-18 16:45:36.428] [nas] [info] UE switches to state [MM-DEREGISTERED/NORMAL-SERVICE]
-[2025-01-18 16:45:36.428] [nas] [debug] Initial registration required due to [MM-DEREG-NORMAL-SERVICE]
-[2025-01-18 16:45:36.428] [nas] [debug] UAC access attempt is allowed for identity[0], category[MO_sig]
-[2025-01-18 16:45:36.428] [nas] [debug] Sending Initial Registration
-[2025-01-18 16:45:36.428] [nas] [info] UE switches to state [MM-REGISTER-INITIATED]
-[2025-01-18 16:45:36.429] [rrc] [debug] Sending RRC Setup Request
-[2025-01-18 16:45:36.429] [rrc] [info] RRC connection established
-[2025-01-18 16:45:36.429] [rrc] [info] UE switches to state [RRC-CONNECTED]
-[2025-01-18 16:45:36.429] [nas] [info] UE switches to state [CM-CONNECTED]
-[2025-01-18 16:45:36.452] [nas] [debug] Authentication Request received
-[2025-01-18 16:45:36.452] [nas] [debug] Received SQN [000000000025]
-[2025-01-18 16:45:36.452] [nas] [debug] SQN-MS [000000000000]
-[2025-01-18 16:45:36.454] [nas] [debug] Security Mode Command received
-[2025-01-18 16:45:36.454] [nas] [debug] Selected integrity[1] ciphering[0]
-[2025-01-18 16:45:36.457] [nas] [debug] Registration accept received
-[2025-01-18 16:45:36.457] [nas] [info] UE switches to state [MM-REGISTERED/NORMAL-SERVICE]
-[2025-01-18 16:45:36.457] [nas] [debug] Sending Registration Complete
-[2025-01-18 16:45:36.457] [nas] [info] Initial Registration is successful
-[2025-01-18 16:45:36.457] [nas] [debug] Sending PDU Session Establishment Request
-[2025-01-18 16:45:36.457] [nas] [debug] UAC access attempt is allowed for identity[0], category[MO_sig]
-[2025-01-18 16:45:36.694] [nas] [debug] PDU Session Establishment Accept received
-[2025-01-18 16:45:36.694] [nas] [info] PDU Session establishment is successful PSI[1]
-[2025-01-18 16:45:36.736] [app] [info] Connection setup for PDU session[1] is successful, TUN interface[uesimtun0, 10.45.0.1] is up.
+[2025-01-19 12:56:18.097] [nas] [info] UE switches to state [MM-DEREGISTERED/PLMN-SEARCH]
+[2025-01-19 12:56:18.099] [rrc] [debug] New signal detected for cell[1], total [1] cells in coverage
+[2025-01-19 12:56:18.099] [nas] [info] Selected plmn[001/01]
+[2025-01-19 12:56:18.099] [rrc] [info] Selected cell plmn[001/01] tac[1] category[SUITABLE]
+[2025-01-19 12:56:18.099] [nas] [info] UE switches to state [MM-DEREGISTERED/PS]
+[2025-01-19 12:56:18.099] [nas] [info] UE switches to state [MM-DEREGISTERED/NORMAL-SERVICE]
+[2025-01-19 12:56:18.099] [nas] [debug] Initial registration required due to [MM-DEREG-NORMAL-SERVICE]
+[2025-01-19 12:56:18.099] [nas] [debug] UAC access attempt is allowed for identity[0], category[MO_sig]
+[2025-01-19 12:56:18.099] [nas] [debug] Sending Initial Registration
+[2025-01-19 12:56:18.101] [nas] [info] UE switches to state [MM-REGISTER-INITIATED]
+[2025-01-19 12:56:18.101] [rrc] [debug] Sending RRC Setup Request
+[2025-01-19 12:56:18.102] [rrc] [info] RRC connection established
+[2025-01-19 12:56:18.102] [rrc] [info] UE switches to state [RRC-CONNECTED]
+[2025-01-19 12:56:18.102] [nas] [info] UE switches to state [CM-CONNECTED]
+[2025-01-19 12:56:18.124] [nas] [debug] Authentication Request received
+[2025-01-19 12:56:18.124] [nas] [debug] Received SQN [000000000001]
+[2025-01-19 12:56:18.124] [nas] [debug] SQN-MS [000000000000]
+[2025-01-19 12:56:18.124] [nas] [debug] Sending Authentication Failure due to SQN out of range
+[2025-01-19 12:56:18.136] [nas] [debug] Authentication Request received
+[2025-01-19 12:56:18.136] [nas] [debug] Received SQN [000000000021]
+[2025-01-19 12:56:18.136] [nas] [debug] SQN-MS [000000000000]
+[2025-01-19 12:56:18.138] [nas] [debug] Security Mode Command received
+[2025-01-19 12:56:18.139] [nas] [debug] Selected integrity[1] ciphering[0]
+[2025-01-19 12:56:18.141] [nas] [debug] Registration accept received
+[2025-01-19 12:56:18.141] [nas] [info] UE switches to state [MM-REGISTERED/NORMAL-SERVICE]
+[2025-01-19 12:56:18.141] [nas] [debug] Sending Registration Complete
+[2025-01-19 12:56:18.141] [nas] [info] Initial Registration is successful
+[2025-01-19 12:56:18.141] [nas] [debug] Sending PDU Session Establishment Request
+[2025-01-19 12:56:18.141] [nas] [debug] UAC access attempt is allowed for identity[0], category[MO_sig]
+[2025-01-19 12:56:18.367] [nas] [debug] PDU Session Establishment Accept received
+[2025-01-19 12:56:18.368] [nas] [info] PDU Session establishment is successful PSI[1]
+[2025-01-19 12:56:18.411] [app] [info] Connection setup for PDU session[1] is successful, TUN interface[uesimtun0, 192.168.0.1] is up.
 ```
+
+Here, note the last line of the output. It indicates that the UE has successfully connected to the network and has been assigned an IP address. In this case, the IP address is `192.168.0.1`.
 
 Leave the UE running.
 
-### Validate the connection
+## 4. Setup the Router
+
+Open a new terminal window and connect to the `router` Multipass instance:
+
+```shell
+multipass shell router
+```
+
+Enable IP forwarding:
+
+```shell
+sudo sysctl -w net.ipv4.ip_forward=1
+```
+
+```shell
+sudo iptables -t nat -A POSTROUTING -s 192.168.0.0/24 -j MASQUERADE
+```
+
+Exit the Multipass instance:
+
+```shell
+exit
+```
+
+## 5. Validate the connection
+
+In your browser, navigate to the Ella Core UI and click on the `Subscribers` tab. You should see that the subscriber you created has been assigned an IP address. This IP address is the IP address of the UE and should match with the IP address you noted at step 2.3.
+
+![Connected Subscriber](../images/connected_subscriber.png){ align=center }
 
 Open a new terminal window and connect to the `radio` Multipass instance:
 
@@ -432,9 +501,7 @@ ubuntu@radio:~$ ip a
        valid_lft forever preferred_lft forever
 ```
 
-You should see a new interface `uesimtun0` with an IP address from the subnet configured in the profile.
-
-This IP address is your Subscriber's IP address, and it is the IP address that the UE will use to communicate with the network, browse the internet, etc.
+You should see a new interface `uesimtun0` with your UE's IP address. This interface allows the UE to communicate with the network. 
 
 For instance, you can use the `ping` command to validate that the UE can communicate with the network:
 
@@ -446,14 +513,13 @@ ping -I uesimtun0 8.8.8.8
     
     You have successfully connected a 5G radio simulator and a UE simulator to Ella Core. You can now use the UE to browse the internet, make calls, etc.
 
-
-## Destroy the Tutorial Environment
+## 6. Destroy the Tutorial Environment
 
 When you are done with the tutorial, you can destroy the Multipass instances:
 
 ```shell
-multipass delete ella-core
-multipass delete radio
+multipass delete ella-core --purge
+multipass delete radio --purge
 ```
 
 You can also delete the two lxc networks:

@@ -28,7 +28,7 @@ const Dashboard = () => {
     const lines = metrics.split("\n");
 
     const pduSessionMetric = lines.find((line) =>
-      line.startsWith("pdu_sessions ")
+      line.startsWith("app_pdu_sessions ")
     );
     const memoryMetric = lines.find((line) =>
       line.startsWith("go_memstats_alloc_bytes ")
