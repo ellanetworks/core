@@ -250,7 +250,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                                 },
                             },
                             "n2Port": 9487,
-                            "n3IpAddr": "192.168.251.5",
+                            "n3IpAddr": "192.168.252.5",
                             "n3Port": 2152,
                             "name": "gnb1",
                             "supportedTaList": [

@@ -16,16 +16,8 @@ spec:
         k8s.v1.cni.cncf.io/networks: |
           [
             {
-              "name": "core-gw",
+              "name": "router-n6",
               "interface": "core"
-            },
-            {
-              "name": "access-gw",
-              "interface": "access"
-            },
-            {
-              "name": "ran-gw",
-              "interface": "ran"
             }
           ]
     spec:
