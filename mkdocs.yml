@@ -11,6 +11,7 @@ theme:
   features:
     - navigation.sections
     - navigation.footer
+    - content.code.copy
   icon:
     repo: fontawesome/brands/github
 extra_css:
@@ -58,6 +59,7 @@ nav:
     - Configuration File: reference/config_file.md
     - Connectivity: reference/connectivity.md
     - Audit Logs: reference/audit_logs.md
+    - TLS: reference/tls.md
   - Explanation:
     - Architecture: explanation/architecture.md
     - Subscriber Authentication: explanation/subscriber_authentication.md

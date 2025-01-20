@@ -31,7 +31,7 @@ Building Ella Core, we make engineering decisions based on the following tenets:
 
 1. **Simplicity**: We are committed to developing the simplest possible mobile core network user experience. We thrive on having a very short Getting Started tutorial, a simple configuration file, a single binary, an embedded database, and a simple UI.
 2. **Reliability**: We are commited to developing a reliable mobile network you can trust to work 24/7. We are committed to delivering high-quality code, tests, and documentation. We are committed to exposing dashboards, metrics, and logs to help users monitor their networks.
-3. **Security**: We are committed to minimizing the private network's attack surface and using secure encryption protocols to protect our users' data. We are committed to identifying and fixing security vulnerabilities in a timely manner.
+3. **Security**: We are committed to minimizing the private network's attack surface, using secure encryption protocols to protect our users' data, to provide audit mechanisms, to identify and fix vulnerabilities, and to provide a secure-by-default configuration.
 
 ## Documentation
 
