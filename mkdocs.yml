@@ -1,5 +1,6 @@
 site_name: Ella Core Documentation
 site_url: https://docs.ellanetworks.com/
+docs_dir: docs
 theme:
   name: material
   logo: images/logo.png
