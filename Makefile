@@ -1,17 +1,7 @@
 UI_DIR := ui
 GO_CMD := cmd/core/main.go
 OUTPUT := core
-ROCK_FILE := ella-core_v0.0.4_amd64.rock
-TAR_FILE := ella.tar
 K8S_NAMESPACE := dev2
-OCI_IMAGE_NAME := ella-core:latest
-
-.PHONY: all clean build ui-build go-build oci-build deploy nad-create rebuild
-
-all: build
-
-build: ui-build go-build oci-build
-	@echo "Build completed successfully."
 
 ui-build:
 	@echo "Installing and building UI..."
@@ -29,20 +19,3 @@ hotswap: go-build
 	kubectl cp $(OUTPUT) $$POD_NAME:/bin/core -c $$CONTAINER_NAME -n $(K8S_NAMESPACE); \
 	kubectl exec -i $$POD_NAME -n $(K8S_NAMESPACE) -c $$CONTAINER_NAME -- pebble restart ella-core
 	@echo "Hotswap completed successfully."
-
-test:
-	@echo "Running end-to-end tests..."
-	tox -e integration
-	@echo "End-to-end tests completed successfully."
-
-hotswap-test: hotswap test
-
-clean:
-	@echo "Cleaning build artifacts..."
-	rm -rf $(OUTPUT)
-	rm -rf $(UI_DIR)/node_modules
-	rm -rf $(UI_DIR)/dist
-	rm -f $(ROCK_FILE) $(TAR_FILE)
-
-rebuild: clean build
-	@echo "Rebuild completed."

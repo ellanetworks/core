@@ -51,7 +51,7 @@ Run End-to-End tests
 ```shell
 kubectl create ns dev2
 pip install tox
-make test
+tox -e integration
 ```
 
 ## How-to Guides
