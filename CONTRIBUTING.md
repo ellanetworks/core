@@ -40,13 +40,18 @@ sudo snap install rockcraft --classic
 Build the image and push it to the local registry
 
 ```shell
-make oci-build
+rockcraft pack
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:$(ROCK_FILE) docker-daemon:$(OCI_IMAGE_NAME)
+docker tag ella-core:latest localhost:5000/ella-core:latest
+docker push localhost:5000/ella-core:latest
 ```
 
-Deploy Ella and its dependencies
+Run End-to-End tests
 
 ```shell
-make deploy
+kubectl create ns dev2
+pip install tox
+make test
 ```
 
 ## How-to Guides

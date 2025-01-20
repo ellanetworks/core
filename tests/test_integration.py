@@ -124,6 +124,7 @@ class TestELLA:
         manifests = [
             "k8s/router-n6-nad.yaml",
             "k8s/router-deployment.yaml",
+            "k8s/core-n2-nad.yaml",
             "k8s/core-n3-nad.yaml",
             "k8s/core-n6-nad.yaml",
             "k8s/core-configmap.yaml",
@@ -148,6 +149,7 @@ class TestELLA:
         subscriber = configure_ella_core(core_address=core_address)
         create_gnbsim_configmap(k8s_client, subscriber)
         gnbsim_manifests = [
+            "k8s/gnbsim-n2-nad.yaml",
             "k8s/gnbsim-n3-nad.yaml",
             "k8s/gnbsim-deployment.yaml",
             "k8s/gnbsim-service.yaml",
@@ -234,7 +236,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                     "gnbs": {
                         "gnb1": {
                             "defaultAmf": {
-                                "hostName": "ella-core.dev2.svc.cluster.local",
+                                "hostName": "192.168.253.3",
                                 "port": 38412,
                             },
                             "globalRanId": {

@@ -7,13 +7,14 @@
 package consumer
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pcf"
 	"github.com/omec-project/openapi/models"
 )
 
-func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) (*models.ProblemDetails, error) {
+func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) error {
 	amfSelf := context.AMF_Self()
 	guamiList := context.GetServedGuamiList()
 
@@ -36,17 +37,9 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) (*models
 
 	res, locationHeader, err := pcf.CreateAMPolicy(policyAssociationRequest)
 	if err != nil {
-		logger.AmfLog.Warnf("Failed to create policy: %+v", err)
-		problem := &models.ProblemDetails{
-			Status: 500,
-			Cause:  "SYSTEM_FAILURE",
-			Detail: err.Error(),
-		}
-		return problem, err
+		return fmt.Errorf("failed to create policy: %+v", err)
 	}
 	ue.AmPolicyUri = locationHeader
-	// re := regexp.MustCompile("/policies/.*")
-	// match := re.FindStringSubmatch(locationHeader)
 	ue.PolicyAssociationId = locationHeader
 	ue.AmPolicyAssociation = res
 	if res.Triggers != nil {
@@ -56,20 +49,13 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) (*models
 			}
 		}
 	}
-	return nil, nil
+	return nil
 }
 
-func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssociationUpdateRequest) (
-	*models.ProblemDetails, error,
-) {
+func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssociationUpdateRequest) error {
 	res, err := pcf.UpdateAMPolicy(ue.PolicyAssociationId, updateRequest)
 	if err != nil {
-		problemDetails := &models.ProblemDetails{
-			Status: 500,
-			Cause:  "SYSTEM_FAILURE",
-			Detail: err.Error(),
-		}
-		return problemDetails, err
+		return fmt.Errorf("failed to update policy: %+v", err)
 	}
 	if res.ServAreaRes != nil {
 		ue.AmPolicyAssociation.ServAreaRes = res.ServAreaRes
@@ -84,19 +70,14 @@ func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssocia
 			ue.RequestTriggerLocationChange = true
 		}
 	}
-	return nil, nil
+	return nil
 }
 
-func AMPolicyControlDelete(ue *context.AmfUe) (*models.ProblemDetails, error) {
+func AMPolicyControlDelete(ue *context.AmfUe) error {
 	err := pcf.DeleteAMPolicy(ue.PolicyAssociationId)
 	if err != nil {
-		problemDetails := &models.ProblemDetails{
-			Status: 500,
-			Cause:  "SYSTEM_FAILURE",
-			Detail: err.Error(),
-		}
-		return problemDetails, err
+		return fmt.Errorf("could not delete policy: %+v", err)
 	}
 	ue.RemoveAmPolicyAssociation()
-	return nil, nil
+	return nil
 }

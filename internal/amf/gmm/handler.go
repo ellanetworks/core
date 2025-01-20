@@ -616,12 +616,8 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 		}
 	}
 
-	problemDetails, err := consumer.AMPolicyControlCreate(ue, anType)
-	if problemDetails != nil {
-		ue.GmmLog.Errorf("AM Policy Control Create Failed Problem[%+v]", problemDetails)
-		gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMM5GSServicesNotAllowed, "")
-		return fmt.Errorf("AMPolicy Control Create failed at PCF")
-	} else if err != nil {
+	err := consumer.AMPolicyControlCreate(ue, anType)
+	if err != nil {
 		ue.GmmLog.Errorf("AM Policy Control Create Error[%+v]", err)
 		gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMM5GSServicesNotAllowed, "")
 		return err
@@ -920,10 +916,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		updateReq := models.PolicyAssociationUpdateRequest{}
 		updateReq.Triggers = append(updateReq.Triggers, models.RequestTrigger_LOC_CH)
 		updateReq.UserLoc = &ue.Location
-		problemDetails, err := consumer.AMPolicyControlUpdate(ue, updateReq)
-		if problemDetails != nil {
-			ue.GmmLog.Errorf("AM Policy Control Update Failed Problem[%+v]", problemDetails)
-		} else if err != nil {
+		err := consumer.AMPolicyControlUpdate(ue, updateReq)
+		if err != nil {
 			ue.GmmLog.Errorf("AM Policy Control Update Error[%v]", err)
 		}
 		ue.LocationChanged = false
@@ -1058,7 +1052,7 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 	if ue.RegistrationRequest.RequestedNSSAI != nil {
 		requestedNssai, err := nasConvert.RequestedNssaiToModels(ue.RegistrationRequest.RequestedNSSAI)
 		if err != nil {
-			return fmt.Errorf("Decode failed at RequestedNSSAI[%s]", err)
+			return fmt.Errorf("failed to decode requested NSSAI[%s]", err)
 		}
 
 		ue.GmmLog.Infof("RequestedNssai: %+v", requestedNssai)
@@ -1082,22 +1076,17 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 
 		if needSliceSelection {
 			// Step 4
-			problemDetails, err := consumer.NSSelectionGetForRegistration(ue, requestedNssai)
-			if problemDetails != nil {
-				ue.GmmLog.Errorf("NSSelection Get Failed Problem[%+v]", problemDetails)
+			err := consumer.NSSelectionGetForRegistration(ue, requestedNssai)
+			if err != nil {
 				gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMMProtocolErrorUnspecified, "")
-				return fmt.Errorf("Handle Requested Nssai of UE failed")
-			} else if err != nil {
-				ue.GmmLog.Errorf("NSSelection Get Error[%+v]", err)
-				gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMMProtocolErrorUnspecified, "")
-				return fmt.Errorf("Handle Requested Nssai of UE failed")
+				return fmt.Errorf("failed to get network slice selection: %s", err)
 			}
 
 			// Step 5: Initial AMF send Namf_Communication_RegistrationCompleteNotify to old AMF
 			req := models.UeRegStatusUpdateReqData{
 				TransferStatus: models.UeContextTransferStatus_NOT_TRANSFERRED,
 			}
-			_, problemDetails, err = consumer.RegistrationStatusUpdate(ue, req)
+			_, problemDetails, err := consumer.RegistrationStatusUpdate(ue, req)
 			if problemDetails != nil {
 				ue.GmmLog.Errorf("Registration Status Update Failed Problem[%+v]", problemDetails)
 			} else if err != nil {
@@ -1371,16 +1360,11 @@ func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType model
 		}
 
 		if terminateAmPolicyAssocaition {
-			ue.GmmLog.Infof("Sending AmPolicyControlDelete to AMF")
-			problemDetails, err = consumer.AMPolicyControlDelete(ue)
-			if problemDetails != nil {
-				err = fmt.Errorf("AM Policy Control Delete Failed Problem[%+v]", problemDetails)
-				// Should error be logged here ?
-				ue.GmmLog.Errorln(err)
-			} else if err != nil {
-				err = fmt.Errorf("AM Policy Control Delete Error[%v]", err.Error())
-				ue.GmmLog.Errorln(err)
+			err = consumer.AMPolicyControlDelete(ue)
+			if err != nil {
+				ue.GmmLog.Errorf("AM Policy Control Delete Error[%v]", err.Error())
 			}
+			ue.GmmLog.Infof("deleted AM Policy Association")
 		}
 	}
 	// if ue is not connected mode, removing UE Context
@@ -2086,10 +2070,8 @@ func HandleDeregistrationRequest(ue *context.AmfUe, anType models.AccessType,
 		}
 
 		if terminateAmPolicyAssocaition {
-			problemDetails, err := consumer.AMPolicyControlDelete(ue)
-			if problemDetails != nil {
-				ue.GmmLog.Errorf("AM Policy Control Delete Failed Problem[%+v]", problemDetails)
-			} else if err != nil {
+			err := consumer.AMPolicyControlDelete(ue)
+			if err != nil {
 				ue.GmmLog.Errorf("AM Policy Control Delete Error[%v]", err.Error())
 			}
 		}
