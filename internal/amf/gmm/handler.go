@@ -148,7 +148,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 				}
 				ue.GmmLog.Warnf("Duplicated PDU session ID[%d]", pduSessionID)
 				smContext.SetDuplicatedPduSessionID(true)
-				response, _, _, err := consumer.SendUpdateSmContextRequest(smContext, updateData, nil, nil)
+				response, _, err := consumer.SendUpdateSmContextRequest(smContext, updateData, nil, nil)
 				if err != nil {
 					return err
 				}
@@ -305,14 +305,9 @@ func forward5GSMMessageToSMF(
 		smContextUpdateData.AnType = accessType
 	}
 
-	response, errResponse, problemDetail, err := consumer.SendUpdateSmContextRequest(smContext,
-		smContextUpdateData, smMessage, nil)
-
+	response, errResponse, err := consumer.SendUpdateSmContextRequest(smContext, smContextUpdateData, smMessage, nil)
 	if err != nil {
 		ue.GmmLog.Errorf("Update SMContext error [pduSessionID: %d], Error[%v]", pduSessionID, err)
-		return nil
-	} else if problemDetail != nil {
-		ue.GmmLog.Errorf("Update SMContext failed [pduSessionID: %d], problem[%v]", pduSessionID, problemDetail)
 		return nil
 	} else if errResponse != nil {
 		errJSON := errResponse.JsonData
@@ -750,8 +745,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 				if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionId); ok {
 					// uplink data are pending for the corresponding PDU session identity
 					if hasUplinkData && smContext.AccessType() == models.AccessType__3_GPP_ACCESS {
-						response, errResponse, problemDetail, err := consumer.SendUpdateSmContextActivateUpCnxState(
-							ue, smContext, anType)
+						response, errResponse, err := consumer.SendUpdateSmContextActivateUpCnxState(ue, smContext, anType)
 						if response == nil {
 							reactivationResult[pduSessionId] = true
 							errPduSessionId = append(errPduSessionId, uint8(pduSessionId))
@@ -768,9 +762,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 							}
 							errCause = append(errCause, cause)
 
-							if problemDetail != nil {
-								ue.GmmLog.Errorf("Update SmContext Failed Problem[%+v]", problemDetail)
-							} else if err != nil {
+							if err != nil {
 								ue.GmmLog.Errorf("Update SmContext Error[%v]", err.Error())
 							}
 						} else {
@@ -864,7 +856,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 					reactivationResult = new([16]bool)
 				}
 				if allowedPsis[requestData.PduSessionId] {
-					response, errRes, _, err := consumer.SendUpdateSmContextChangeAccessType(ue, smContext, true)
+					response, errRes, err := consumer.SendUpdateSmContextChangeAccessType(ue, smContext, true)
 					if err != nil {
 						return err
 					} else if response == nil {
@@ -1498,7 +1490,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 
 			if pduSessionID != targetPduSessionId {
 				if uplinkDataPsi[pduSessionID] && smContext.AccessType() == models.AccessType__3_GPP_ACCESS {
-					response, errRes, _, err := consumer.SendUpdateSmContextActivateUpCnxState(
+					response, errRes, err := consumer.SendUpdateSmContextActivateUpCnxState(
 						ue, smContext, models.AccessType__3_GPP_ACCESS)
 					if err != nil {
 						ue.GmmLog.Errorf("SendUpdateSmContextActivateUpCnxState[pduSessionID:%d] Error: %+v",
@@ -1597,7 +1589,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 						reactivationResult = new([16]bool)
 					}
 					if allowPduSessionPsi[requestData.PduSessionId] {
-						response, errRes, _, err := consumer.SendUpdateSmContextChangeAccessType(
+						response, errRes, err := consumer.SendUpdateSmContextChangeAccessType(
 							ue, smContext, true)
 						if err != nil {
 							return err
