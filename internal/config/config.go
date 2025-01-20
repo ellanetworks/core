@@ -5,6 +5,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 
 	"gopkg.in/yaml.v2"
@@ -42,6 +43,12 @@ type TLSYaml struct {
 	Key  string `yaml:"key"`
 }
 
+type N2InterfaceYaml struct {
+	Name    string `yaml:"name"`
+	Address string `yaml:"address"`
+	Port    int    `yaml:"port"`
+}
+
 type N3InterfaceYaml struct {
 	Name    string `yaml:"name"`
 	Address string `yaml:"address"`
@@ -58,6 +65,7 @@ type APIInterfaceYaml struct {
 }
 
 type InterfacesYaml struct {
+	N2  N2InterfaceYaml  `yaml:"n2"`
 	N3  N3InterfaceYaml  `yaml:"n3"`
 	N6  N6InterfaceYaml  `yaml:"n6"`
 	API APIInterfaceYaml `yaml:"api"`
@@ -72,6 +80,12 @@ type ConfigYAML struct {
 type API struct {
 	Port int
 	TLS  TLS
+}
+
+type N2Interface struct {
+	Name    string
+	Address string
+	Port    int
 }
 
 type N3Interface struct {
@@ -90,6 +104,7 @@ type APIInterface struct {
 }
 
 type Interfaces struct {
+	N2  N2Interface
 	N3  N3Interface
 	N6  N6Interface
 	API APIInterface
@@ -123,14 +138,34 @@ func Validate(filePath string) (Config, error) {
 	if c.Interfaces == (InterfacesYaml{}) {
 		return Config{}, errors.New("interfaces is empty")
 	}
+	if c.Interfaces.N2 == (N2InterfaceYaml{}) {
+		return Config{}, errors.New("interfaces.n2 is empty")
+	}
+	if c.Interfaces.N2.Name == "" {
+		return Config{}, errors.New("interfaces.n2.name is empty")
+	}
+	if c.Interfaces.N2.Address == "" {
+		return Config{}, errors.New("interfaces.n2.address is empty")
+	}
+	if c.Interfaces.N2.Port == 0 {
+		return Config{}, errors.New("interfaces.n2.port is empty")
+	}
+	n2ExistsWithAddress, err := InterfaceExistsWithAddress(c.Interfaces.N2.Name, c.Interfaces.N2.Address)
+	if !n2ExistsWithAddress {
+		return Config{}, fmt.Errorf("interfaces.n2.address %s is not assigned to interface %s on the host: %w", c.Interfaces.N2.Address, c.Interfaces.N2.Name, err)
+	}
 	if c.Interfaces.N3 == (N3InterfaceYaml{}) {
 		return Config{}, errors.New("interfaces.n3 is empty")
+	}
+	if c.Interfaces.N3.Name == "" {
+		return Config{}, errors.New("interfaces.n3.name is empty")
 	}
 	if c.Interfaces.N3.Address == "" {
 		return Config{}, errors.New("interfaces.n3.address is empty")
 	}
-	if c.Interfaces.N3.Name == "" {
-		return Config{}, errors.New("interfaces.n3.name is empty")
+	n3ExistsWithAddress, err := InterfaceExistsWithAddress(c.Interfaces.N3.Name, c.Interfaces.N3.Address)
+	if !n3ExistsWithAddress {
+		return Config{}, fmt.Errorf("interfaces.n3.address %s is not assigned to interface %s on the host: %w", c.Interfaces.N3.Address, c.Interfaces.N3.Name, err)
 	}
 	if c.Interfaces.N6 == (N6InterfaceYaml{}) {
 		return Config{}, errors.New("interfaces.n6 is empty")
@@ -164,6 +199,8 @@ func Validate(filePath string) (Config, error) {
 
 	config.LogLevel = c.LogLevel
 	config.DB.Path = c.DB.Path
+	config.Interfaces.N2.Address = c.Interfaces.N2.Address
+	config.Interfaces.N2.Port = c.Interfaces.N2.Port
 	config.Interfaces.N3.Name = c.Interfaces.N3.Name
 	config.Interfaces.N3.Address = c.Interfaces.N3.Address
 	config.Interfaces.N6.Name = c.Interfaces.N6.Name
@@ -172,4 +209,28 @@ func Validate(filePath string) (Config, error) {
 	config.Interfaces.API.TLS.Cert = c.Interfaces.API.TLS.Cert
 	config.Interfaces.API.TLS.Key = c.Interfaces.API.TLS.Key
 	return config, nil
+}
+
+var CheckInterfaceExistsWithAddress = func(name string, address string) (bool, error) {
+	networkInterface, err := net.InterfaceByName(name)
+	if err != nil {
+		return false, err
+	}
+
+	addresses, err := networkInterface.Addrs()
+	if err != nil {
+		return false, err
+	}
+
+	for _, addr := range addresses {
+		if ip, _, err := net.ParseCIDR(addr.String()); err == nil && ip.String() == address {
+			return true, nil
+		}
+	}
+
+	return false, errors.New("address is not assigned to the network interface")
+}
+
+func InterfaceExistsWithAddress(name string, address string) (bool, error) {
+	return CheckInterfaceExistsWithAddress(name, address)
 }

@@ -14,6 +14,10 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
 - `db` (object): The database configuration.
   - `path` (string): The path to the database file.
 - `interfaces` (object): The network interfaces configuration.
+  - `n2` (object): The configuration for the n2 interface. This interface should be connected to the radios.
+    - `name` (string): The name of the network interface. 
+    - `address` (string): The IP address of the network interface. 
+    - `port` (int): The port to listen on.
   - `n3` (object): The configuration for the n3 interface. This interface should be connected to the radios.
     - `name` (string): The name of the network interface.
     - `address` (string): The IP address of the network interface.
@@ -32,7 +36,11 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
 log-level: "debug"
 db:
   path: "core.db"
-interfaces: 
+interfaces:
+  n2:
+    name: "enp2s0"
+    address: "127.0.0.1"
+    port: 38412
   n3: 
     name: "enp3s0"
     address: "127.0.0.1"

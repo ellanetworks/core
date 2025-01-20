@@ -5,17 +5,12 @@
 ### Set up MicroK8s
 
 ```shell
-sudo snap install microk8s --channel=1.31/stable --classic
+sudo snap install microk8s --channel=1.32/stable --classic
 ```
 
-Add the community repository MicroK8s addon:
+Enable the required addons:
 ```shell
 sudo microk8s addons repo add community https://github.com/canonical/microk8s-community-addons --reference feat/strict-fix-multus
-```
-
-Enable the following MicroK8s addons.
-
-```shell
 sudo microk8s enable hostpath-storage
 sudo microk8s enable multus
 ```
