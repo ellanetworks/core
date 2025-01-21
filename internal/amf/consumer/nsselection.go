@@ -11,9 +11,7 @@ import (
 	"github.com/omec-project/openapi/models"
 )
 
-func NSSelectionGetForRegistration(ue *context.AmfUe, requestedNssai []models.MappingOfSnssai) (
-	*models.ProblemDetails, error,
-) {
+func NSSelectionGetForRegistration(ue *context.AmfUe, requestedNssai []models.MappingOfSnssai) error {
 	res := &models.AuthorizedNetworkSliceInfo{
 		AllowedNssaiList: []models.AllowedNssai{
 			{
@@ -30,5 +28,5 @@ func NSSelectionGetForRegistration(ue *context.AmfUe, requestedNssai []models.Ma
 	for _, allowedNssai := range res.AllowedNssaiList {
 		ue.AllowedNssai[allowedNssai.AccessType] = allowedNssai.AllowedSnssaiList
 	}
-	return nil, nil
+	return nil
 }

@@ -5,17 +5,12 @@
 ### Set up MicroK8s
 
 ```shell
-sudo snap install microk8s --channel=1.31/stable --classic
+sudo snap install microk8s --channel=1.32/stable --classic
 ```
 
-Add the community repository MicroK8s addon:
+Enable the required addons:
 ```shell
 sudo microk8s addons repo add community https://github.com/canonical/microk8s-community-addons --reference feat/strict-fix-multus
-```
-
-Enable the following MicroK8s addons.
-
-```shell
 sudo microk8s enable hostpath-storage
 sudo microk8s enable multus
 ```
@@ -45,13 +40,18 @@ sudo snap install rockcraft --classic
 Build the image and push it to the local registry
 
 ```shell
-make oci-build
+rockcraft pack
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:$(ROCK_FILE) docker-daemon:$(OCI_IMAGE_NAME)
+docker tag ella-core:latest localhost:5000/ella-core:latest
+docker push localhost:5000/ella-core:latest
 ```
 
-Deploy Ella and its dependencies
+Run End-to-End tests
 
 ```shell
-make deploy
+kubectl create ns dev2
+pip install tox
+tox -e integration
 ```
 
 ## How-to Guides

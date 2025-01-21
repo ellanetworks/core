@@ -77,7 +77,7 @@ jobs:
         run: |
           kubectl create ns dev2
           pip install tox
-          make test
+          tox -e integration
 
       - name: Show logs
         if: always()

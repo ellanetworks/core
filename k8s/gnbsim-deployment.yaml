@@ -15,10 +15,8 @@ spec:
       annotations:
         k8s.v1.cni.cncf.io/networks: |
           [
-            {
-              "name": "gnb-n3",
-              "interface": "gnb"
-            }
+            {"name": "gnb-n2", "interface": "n2"},
+            {"name": "gnb-n3", "interface": "n3"}
           ]
     spec:
       containers:

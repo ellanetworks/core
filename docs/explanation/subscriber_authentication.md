@@ -24,8 +24,8 @@ The subscriber's Universal Subscriber Identity Module (USIM) stores critical inf
 
 Ella Core implements both the 5G-AKA and EAP-AKA mechanisms as part of its subscriber authentication process. 
 
-Users can update the Operator Key (OP) via the [Operator API](../api/operator) or the UI.
+Users can update the Operator Key (OP) via the [Operator API](../reference/api/operator.md) or the UI.
 
-When creating a new subscriber via the [Subscribers API](../api/subscribers) or the UI, Ella Core automatically computes the OPc using the provided Ki (subscriber key) and the current OP value.
+When creating a new subscriber via the [Subscribers API](../reference/api/subscribers.md) or the UI, Ella Core automatically computes the OPc using the provided Ki (subscriber key) and the current OP value.
 
 The UI provides a user-friendly interface for automatically generating IMSI's, Ki's, and SQN's for new subscribers.

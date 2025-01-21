@@ -14,7 +14,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/qos"
-	"github.com/ellanetworks/core/internal/smf/smferrors"
 	"github.com/ellanetworks/core/internal/util/httpwrapper"
 	"github.com/google/uuid"
 	"github.com/omec-project/nas/nasConvert"
@@ -451,18 +450,16 @@ func (smContextState SMContextState) String() string {
 	}
 }
 
-func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(cause string) *httpwrapper.Response {
+func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(status int, problemDetails *models.ProblemDetails, cause uint8) *httpwrapper.Response {
 	var httpResponse *httpwrapper.Response
 
-	if buf, err := BuildGSMPDUSessionEstablishmentReject(
-		smContext,
-		smferrors.ErrorCause[cause]); err != nil {
+	if buf, err := BuildGSMPDUSessionEstablishmentReject(smContext, cause); err != nil {
 		httpResponse = &httpwrapper.Response{
 			Header: nil,
-			Status: int(smferrors.ErrorType[cause].Status),
+			Status: status,
 			Body: models.PostSmContextsErrorResponse{
 				JsonData: &models.SmContextCreateError{
-					Error:   smferrors.ErrorType[cause],
+					Error:   problemDetails,
 					N1SmMsg: &models.RefToBinaryData{ContentId: "n1SmMsg"},
 				},
 			},
@@ -470,10 +467,10 @@ func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(cause string) 
 	} else {
 		httpResponse = &httpwrapper.Response{
 			Header: nil,
-			Status: int(smferrors.ErrorType[cause].Status),
+			Status: status,
 			Body: models.PostSmContextsErrorResponse{
 				JsonData: &models.SmContextCreateError{
-					Error:   smferrors.ErrorType[cause],
+					Error:   problemDetails,
 					N1SmMsg: &models.RefToBinaryData{ContentId: "n1SmMsg"},
 				},
 				BinaryDataN1SmMessage: buf,

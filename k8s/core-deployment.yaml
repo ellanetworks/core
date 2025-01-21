@@ -15,6 +15,7 @@ spec:
       annotations:
         k8s.v1.cni.cncf.io/networks: |
           [
+            {"name": "core-n2", "interface": "n2"},
             {"name": "core-n3", "interface": "n3"},
             {"name": "core-n6", "interface": "n6"}
           ]
