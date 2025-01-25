@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: gnbsim
-  namespace: dev2
 spec:
   replicas: 1
   selector:

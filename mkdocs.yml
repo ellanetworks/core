@@ -39,6 +39,7 @@ nav:
   - Home: index.md
   - Tutorials:
     - Getting Started: tutorials/getting_started.md
+    - Running an End-to-End 5G Network: tutorials/end_to_end_network.md
   - How-to Guides:
     - Deploy: how_to/deploy.md
     - Integrate with a Radio: how_to/integrate_with_radio.md
@@ -61,6 +62,7 @@ nav:
     - Connectivity: reference/connectivity.md
     - Audit Logs: reference/audit_logs.md
     - TLS: reference/tls.md
+    - Supported Radios: reference/supported_radios.md
   - Explanation:
     - Architecture: explanation/architecture.md
     - Subscriber Authentication: explanation/subscriber_authentication.md

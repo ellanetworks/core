@@ -3,6 +3,7 @@
 package upf
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"os/signal"
@@ -19,25 +20,21 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
-func Start(n3Address string, n3Interface string, n6Interface string) error {
+func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMode string) error {
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 	interfaces := []string{n3Interface, n6Interface}
 	c := config.UpfConfig{
 		InterfaceName: interfaces,
-		XDPAttachMode: "generic",
-		ApiAddress:    ":8080",
+		XDPAttachMode: xdpAttachMode,
 		PfcpAddress:   "0.0.0.0",
 		SmfAddress:    "0.0.0.0",
 		SmfNodeId:     "0.0.0.0",
 		PfcpNodeId:    "0.0.0.0",
 		N3Address:     n3Address,
-		EchoInterval:  10,
 		QerMapSize:    1024,
 		FarMapSize:    1024,
 		PdrMapSize:    1024,
-		EbpfMapResize: false,
-		FeatureFTUP:   true,
 		FTEIDPool:     65535,
 	}
 	config.Init(c)
@@ -50,13 +47,6 @@ func Start(n3Address string, n3Interface string, n6Interface string) error {
 	if err := bpfObjects.Load(); err != nil {
 		logger.UpfLog.Fatalf("Loading bpf objects failed: %s", err.Error())
 		return err
-	}
-
-	if config.Conf.EbpfMapResize {
-		if err := bpfObjects.ResizeAllMaps(config.Conf.QerMapSize, config.Conf.FarMapSize, config.Conf.PdrMapSize); err != nil {
-			logger.UpfLog.Fatalf("Failed to set ebpf map sizes: %s", err)
-			return err
-		}
 	}
 
 	defer func() {
@@ -72,14 +62,13 @@ func Start(n3Address string, n3Interface string, n6Interface string) error {
 			return err
 		}
 
-		// Attach the program.
 		l, err := link.AttachXDP(link.XDPOptions{
 			Program:   bpfObjects.UpfIpEntrypointFunc,
 			Interface: iface.Index,
 			Flags:     StringToXDPAttachMode(config.Conf.XDPAttachMode),
 		})
 		if err != nil {
-			logger.UpfLog.Fatalf("Could not attach XDP program: %s", err.Error())
+			return fmt.Errorf("failed to attach XDP program on iface %q: %s", ifaceName, err)
 		}
 		defer func() {
 			if err := l.Close(); err != nil {
@@ -87,7 +76,7 @@ func Start(n3Address string, n3Interface string, n6Interface string) error {
 			}
 		}()
 
-		logger.UpfLog.Infof("Attached XDP program to iface %q", iface.Name)
+		logger.UpfLog.Debugf("Attached XDP program to iface %q in mode %q", ifaceName, config.Conf.XDPAttachMode)
 	}
 
 	var err error
@@ -110,15 +99,6 @@ func Start(n3Address string, n3Interface string, n6Interface string) error {
 
 	metrics.RegisterUPFMetrics(ForwardPlaneStats, pfcpConn)
 
-	gtpPathManager := core.NewGtpPathManager(config.Conf.N3Address+":2152", time.Duration(config.Conf.EchoInterval)*time.Second)
-	for _, peer := range config.Conf.GtpPeer {
-		gtpPathManager.AddGtpPath(peer)
-	}
-	gtpPathManager.Run()
-
-	defer gtpPathManager.Stop()
-	logger.UpfLog.Infof("GTP server started on %s", config.Conf.N3Address+":2152")
-
 	// Print the contents of the BPF hash map (source IP address -> packet count).
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -126,12 +106,6 @@ func Start(n3Address string, n3Interface string, n6Interface string) error {
 	for {
 		select {
 		case <-ticker.C:
-			// s, err := FormatMapContents(bpfObjects.UpfXdpObjects.UpfPipeline)
-			// if err != nil {
-			// 	logger.UpfLog.Printf("Error reading map: %s", err)
-			// 	continue
-			// }
-			// logger.UpfLog.Printf("Pipeline map contents:\n%s", s)
 		case <-stopper:
 			logger.UpfLog.Infof("Received signal, exiting program..")
 			return nil

@@ -29,6 +29,8 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `tls` (object): The TLS configuration.
       - `cert` (string): The path to the TLS certificate file.
       - `key` (string): The path to the TLS key file.
+- `xdp` (object): The XDP configuration.
+  - `attach-mode` (string): The XDP attach mode. Options are `native` and `generic`. `native` is the most performant option and only works on supported drivers.
 
 ## Example
 
@@ -52,4 +54,6 @@ interfaces:
     tls:
       cert: "/etc/ssl/certs/core.crt"
       key: "/etc/ssl/private/core.key"
+xdp:
+  attach-mode: "native"
 ```

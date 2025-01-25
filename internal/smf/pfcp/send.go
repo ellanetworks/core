@@ -206,10 +206,6 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 		}
 	}
 
-	smContext.SubCtxLog.Debugln("PFCP Session Context")
-	for _, ctx := range smContext.PFCPContext {
-		smContext.SubCtxLog.Debugln(ctx.String())
-	}
 	return addPduSessionAnchor, &status, nil
 }
 

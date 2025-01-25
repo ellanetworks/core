@@ -1,4 +1,4 @@
-log-level: "debug"
+log-level: "info"
 db:
   path: "core.db"
 interfaces:
@@ -17,3 +17,5 @@ interfaces:
     tls:
       cert: "cert.pem"
       key: "key.pem"
+xdp:
+  attach-mode: "native"

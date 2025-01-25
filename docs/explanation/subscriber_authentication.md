@@ -7,6 +7,7 @@ description: Explanation of subscriber authentication - IMSI, Ki, OP, OPc, and S
 ## Overview
 
 Subscriber authentication in 5G networks can be based on one of the following mechanisms:
+
 - 5G-AKA
 - EAP-AKA
 

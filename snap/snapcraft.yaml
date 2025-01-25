@@ -23,8 +23,6 @@ icon: docs/images/logo.png
 plugs:
   sys-fs-bpf-upf-pipeline: 
     interface: system-files
-    read:
-    - /sys/fs/bpf/upf_pipeline
     write:
     - /sys/fs/bpf/upf_pipeline
 

@@ -17,3 +17,5 @@ interfaces:
     tls:
       cert: "/etc/ssl/certs/ella.crt"
       key: "/etc/ssl/private/ella.key"
+xdp:
+  attach-mode: "native"
