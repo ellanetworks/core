@@ -12,6 +12,6 @@ Ella Core uses 4 different interfaces:
 - **N6**: The user plane interface between Ella Core and the internet
 
 <figure markdown="span">
-  ![Connectivity](../../images/connectivity.svg){ width="800" }
+  ![Connectivity](../images/connectivity.svg){ width="800" }
   <figcaption>Connectivity in Ella Core</figcaption>
 </figure>

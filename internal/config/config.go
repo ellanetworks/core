@@ -71,10 +71,15 @@ type InterfacesYaml struct {
 	API APIInterfaceYaml `yaml:"api"`
 }
 
+type XDPYaml struct {
+	AttachMode string `yaml:"attach-mode"`
+}
+
 type ConfigYAML struct {
 	DB         DBYaml         `yaml:"db"`
 	LogLevel   string         `yaml:"log-level"`
 	Interfaces InterfacesYaml `yaml:"interfaces"`
+	XDP        XDPYaml        `yaml:"xdp"`
 }
 
 type API struct {
@@ -110,10 +115,15 @@ type Interfaces struct {
 	API APIInterface
 }
 
+type XDP struct {
+	AttachMode string
+}
+
 type Config struct {
 	DB         DB
 	LogLevel   string
 	Interfaces Interfaces
+	XDP        XDP
 }
 
 func Validate(filePath string) (Config, error) {
@@ -197,6 +207,14 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, fmt.Errorf("key file %s does not exist", c.Interfaces.API.TLS.Key)
 	}
 
+	if c.XDP == (XDPYaml{}) {
+		return Config{}, errors.New("xdp is empty")
+	}
+
+	if c.XDP.AttachMode != "native" && c.XDP.AttachMode != "generic" {
+		return Config{}, errors.New("xdp.attach-mode is invalid. Allowed values are: native, generic")
+	}
+
 	config.LogLevel = c.LogLevel
 	config.DB.Path = c.DB.Path
 	config.Interfaces.N2.Address = c.Interfaces.N2.Address
@@ -208,6 +226,7 @@ func Validate(filePath string) (Config, error) {
 	config.Interfaces.API.Port = c.Interfaces.API.Port
 	config.Interfaces.API.TLS.Cert = c.Interfaces.API.TLS.Cert
 	config.Interfaces.API.TLS.Key = c.Interfaces.API.TLS.Key
+	config.XDP.AttachMode = c.XDP.AttachMode
 	return config, nil
 }
 

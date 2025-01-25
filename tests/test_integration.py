@@ -24,8 +24,15 @@ class Kubernetes:
     def __init__(self, namespace: str):
         self.namespace = namespace
 
+    def create_namespace(self):
+        try:
+            subprocess.check_call(["kubectl", "create", "namespace", self.namespace])
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to create namespace: {e}")
+            raise RuntimeError("Failed to create namespace") from e
+
     def apply_manifest(self, manifest_path: str):
-        subprocess.check_call(["kubectl", "apply", "-f", manifest_path])
+        subprocess.check_call(["kubectl", "apply", "-f", manifest_path, "-n", self.namespace])
 
     def wait_for_app_ready(self, app_name: str):
         label_selector = f"app={app_name}"
@@ -112,7 +119,7 @@ class Kubernetes:
             )
             return result.strip()
         except subprocess.CalledProcessError as e:
-            logger.warning(f"Failed to execute command: {e}")
+            logger.error(f"Command failed with exit code {e.returncode}: {e.output}")
             return ""
 
 
@@ -121,6 +128,7 @@ class TestELLA:
         self,
     ):
         k8s_client = Kubernetes(namespace=NAMESPACE)
+        k8s_client.create_namespace()
         manifests = [
             "k8s/router-n6-nad.yaml",
             "k8s/router-deployment.yaml",

@@ -30,7 +30,7 @@ const schema = yup.object().shape({
         .string()
         .matches(
             /^(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\/\d{1,2}$/,
-            "Must be a valid IP pool (e.g., 192.168.0.0/24)"
+            "Must be a valid IP pool (e.g., 10.45.0.0/16)"
         )
         .required("IP Pool is required"),
     dns: yup
@@ -67,7 +67,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({ open, onClose, 
 
     const [formValues, setFormValues] = useState({
         name: "",
-        ipPool: "192.168.0.0/24",
+        ipPool: "10.45.0.0/16",
         dns: "8.8.8.8",
         mtu: 1500,
         bitrateUpValue: 100,

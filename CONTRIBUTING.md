@@ -41,7 +41,7 @@ Build the image and push it to the local registry
 
 ```shell
 rockcraft pack
-sudo rockcraft.skopeo --insecure-policy copy oci-archive:$(ROCK_FILE) docker-daemon:$(OCI_IMAGE_NAME)
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v0.0.5_amd64.rock docker-daemon:ella-core:latest
 docker tag ella-core:latest localhost:5000/ella-core:latest
 docker push localhost:5000/ella-core:latest
 ```
@@ -49,25 +49,44 @@ docker push localhost:5000/ella-core:latest
 Run End-to-End tests
 
 ```shell
-kubectl create ns dev2
 pip install tox
 tox -e integration
 ```
 
 ## How-to Guides
 
-### Build Backend
+### Build the Frontend
+
+Install pre-requisites:
+
+```shell
+sudo snap install node --channel=20/stable --classic
+```
+
+```shell
+npm install --prefix ui
+npm run build --prefix ui
+```
+
+### Build the Backend
+
+Install pre-requisites:
+
+```shell
+sudo apt install clang llvm gcc-multilib libbpf-dev
+sudo snap install go --channel=1.23/stable --classic
+```
+
+Generate the eBPF Go bindings:
+
+```shell
+go generate ./...
+```
+
+Build the backend:
 
 ```shell
 go build cmd/core/main.go
-```
-
-### Build Frontend
-
-```shell
-cd ui
-npm install
-npm run build --prefix ui
 ```
 
 ### Build documentation

@@ -4,6 +4,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 
@@ -47,9 +48,9 @@ func startNetwork(dbInstance *db.Database, cfg config.Config) error {
 		return err
 	}
 
-	err = upf.Start(cfg.Interfaces.N3.Address, cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name)
+	err = upf.Start(cfg.Interfaces.N3.Address, cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name, cfg.XDP.AttachMode)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to start UPF: %v", err)
 	}
 	return nil
 }

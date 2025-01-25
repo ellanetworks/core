@@ -4,14 +4,11 @@ description: Step-by-step instructions to deploy Ella Core.
 
 # Deploy
 
-Ella Core is available as a Snap and a OCI container image.
+Ella Core is available as a Snap and a container image.
 
 === "Snap (Recommended)"
 
     Ella Core is available as a strictly confined Snap.
-
-    !!! note
-        The Snap package is currently under review from the Snap store team. In the meantime, you can install it using the `--devmode` flag.
 
     ## Pre-requisites
 
@@ -29,7 +26,7 @@ Ella Core is available as a Snap and a OCI container image.
     Install the snap:
 
     ```bash
-    sudo snap install ella-core --channel=edge --devmode
+    sudo snap install ella-core --channel=beta
     ```
 
     Connect the snap to the required interfaces:
@@ -37,7 +34,7 @@ Ella Core is available as a Snap and a OCI container image.
     ```bash
     sudo snap connect ella-core:network-control
     sudo snap connect ella-core:process-control
-    sudo snap connect ella-core:bpf
+    sudo snap connect ella-core:sys-fs-bpf-upf-pipeline
     sudo snap connect ella-core:system-observe
     ```
 
@@ -73,7 +70,7 @@ Ella Core is available as a Snap and a OCI container image.
     Navigate to `https://localhost:5002` to access the Ella UI.
 
 
-=== "OCI Container Image"
+=== "Container"
 
     We provide a container image for Ella Core on GitHub Container Registry.
 
@@ -88,3 +85,56 @@ Ella Core is available as a Snap and a OCI container image.
     !!! note
         We are planning on publishing a Juju Kubernetes charm in the future. 
         This charm will allow you to operate Ella Core on Kubernetes.
+
+=== "Source"
+
+    You can build Ella Core from source.
+
+    !!! warning
+        Building from source is unsupported and may not work as expected.
+
+    ## Pre-requisites
+
+    Install the pre-requisites:
+
+    ```shell
+    sudo snap install go --channel=1.23/stable --classic
+    sudo snap install node --channel=20/stable --classic
+    sudo apt install build-essential
+    ```
+
+    Clone the Ella Core repository:
+
+    ```shell
+    git clone https://github.com/ellanetworks/core.git
+    ```
+
+    Move to the repository directory:
+
+    ```shell
+    cd core
+    ```
+
+    !!! note
+        If you want to build a specific version, checkout the tag after cloning the repository.
+        For example, to build version 0.0.4, run `git checkout v0.0.4`.
+
+    Build the frontend:
+    ```shell
+    npm install --prefix ui
+    npm run build --prefix ui
+    ```
+
+    Build the backend:
+    ```shell
+    go build cmd/core/main.go
+    ```
+
+    Edit the configuration file at `core.yaml` to configure the network interfaces.
+
+    Start the service:
+    ```shell
+    ./main --config core.yaml
+    ```
+
+    Navigate to `https://localhost:5002` to access the Ella UI.
