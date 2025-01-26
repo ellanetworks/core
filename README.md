@@ -20,6 +20,7 @@ Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm,
 ## Key features
 
 - **5G compliant**: Deploy Ella Core with 5G radios and devices. Ella Core's interfaces follow 3GPP standards.
+- **Performant data plane**: Achieve high throughput and low latency with an eBPF-based data plane.
 - **Intuitive UI**: Manage subscribers, radios, profiles, and operator information through a user-friendly web interface.
 - **Extensive HTTP API**: Automate network operations with a complete REST API.
 - **Real-Time  Observability**: Access detailed metrics and dashboards to monitor network health through the UI and the Prometheus-compliant API.
@@ -33,19 +34,12 @@ Building Ella Core, we make engineering decisions based on the following tenets:
 2. **Reliability**: We are commited to developing a reliable mobile network you can trust to work 24/7. We are committed to delivering high-quality code, tests, and documentation. We are committed to exposing dashboards, metrics, and logs to help users monitor their networks.
 3. **Security**: We are committed to minimizing the private network's attack surface, using secure encryption protocols to protect our users' data, to provide audit mechanisms, to identify and fix vulnerabilities, and to provide a secure-by-default configuration.
 
-## Documentation
-
-Documentation is available at [docs.ellanetworks.com](https://docs.ellanetworks.com). It includes:
-- **Tutorials**: A hands-on introduction.
-- **How-to guides**: Step-by-step instructions to perform common tasks.
-- **Reference**: Technical information about configuration options, metrics, API, connectivity, and more.
-- **Explanation**: Discussion and clarification of key topics
-
 ## Acknowledgements
 
-Ella is built on top of the following open source projects:
+Ella Core could not have been built without the following open-source projects:
 - [Aether](https://aetherproject.org/)
 - [eUPF](https://github.com/edgecomllc/eupf)
+- [free5GC](https://free5gc.org/)
 
 ## Contributing
 
