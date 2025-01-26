@@ -15,7 +15,7 @@ description: A 5G mobile core network for private deployments - easy to operate,
 
 Ella Core is a 5G mobile core network designed for private deployments. It consolidates the complexity of traditional 5G networks into a single application, offering simplicity, reliability, and security. 
 
-Typical mobile networks are expensive, complex, and inadequate for private deployments. They require a team of experts to deploy, maintain, and operate. Open source alternatives are often incomplete, difficult to use, and geared towards research and development. Ella Core is an open-source, production-geared solution that simplifies the deployment and operation of private mobile networks.
+Ella Core is an open-source, production-geared solution that simplifies the deployment and operation of private mobile networks.
 
 Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm, a stadium, a ship, a military base, or a remote location.
 

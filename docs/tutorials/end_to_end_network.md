@@ -187,7 +187,7 @@ exit
 
 ### 2.3 Access the UI
 
-Navigate to `https://<your instance IP>:5002` to access Ella Core's UI. Use the IP address you noted at step 1.1.
+From the host, open your browser and navigate to `https://10.1.100.4:5002` to access Ella Core's UI. Replace the IP address with the ens3 IP address of the `ella-core` Multipass instance.
 
 You should see the Initialization page.
 
@@ -270,6 +270,12 @@ sudo ip route add 10.45.0.0/16 via 10.206.109.113 dev ens4
 ```
 
 Here, replace the IP address with the IP address of the `ens5` interface of the `ella-core` Multipass instance.
+
+Exit the Multipass instance:
+
+```shell
+exit
+```
 
 ## 4. Install a 5G Radio Simulator
 
@@ -474,13 +480,13 @@ UERANSIM v3.2.6
 [2025-01-25 16:29:03.020] [app] [info] Connection setup for PDU session[1] is successful, TUN interface[uesimtun0, 10.45.0.1] is up.
 ```
 
-Here, note the last line of the output. It indicates that the UE has successfully connected to the network and has been assigned an IP address. In this case, the IP address is `10.45.0.1`.
+This output indicates that the User Equipment has successfully connected to the network and has been assigned an IP address. In this case, the IP address is `10.45.0.1`.
 
 Leave the UE running.
 
 ## 5. Validate the connection
 
-In your browser, navigate to the Ella Core UI and click on the `Subscribers` tab. You should see that the subscriber you created has been assigned an IP address. This IP address is the IP address of the UE and should match with the IP address you noted at step 2.3.
+In your browser, navigate to the Ella Core UI and click on the `Subscribers` tab. You should see that the subscriber you created has been assigned an IP address. The IP address should match the IP address assigned to the UE.
 
 ![Connected Subscriber](../images/connected_subscriber.png){ align=center }
 
