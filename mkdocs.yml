@@ -33,6 +33,7 @@ markdown_extensions:
       alternate_style: true
   - admonition
   - pymdownx.details
+  - tables
   - toc:
       permalink: true
 nav:
@@ -62,10 +63,12 @@ nav:
     - Connectivity: reference/connectivity.md
     - Audit Logs: reference/audit_logs.md
     - TLS: reference/tls.md
+    - Data Plane Performance: reference/data_plane_performance.md
     - Supported Radios: reference/supported_radios.md
   - Explanation:
     - Architecture: explanation/architecture.md
     - Subscriber Authentication: explanation/subscriber_authentication.md
+    - User Plane Packet processing with eBPF: explanation/user_plane_packet_processing_with_ebpf.md
 plugins:
   - search
   - glightbox

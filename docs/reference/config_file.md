@@ -12,25 +12,25 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
 
 - `log-level` (string): The log level for the application. Options are `debug`, `info`, `warning`, `error`, and `critical`.
 - `db` (object): The database configuration.
-  - `path` (string): The path to the database file.
+    - `path` (string): The path to the database file.
 - `interfaces` (object): The network interfaces configuration.
-  - `n2` (object): The configuration for the n2 interface. This interface should be connected to the radios.
-    - `name` (string): The name of the network interface. 
-    - `address` (string): The IP address of the network interface. 
-    - `port` (int): The port to listen on.
-  - `n3` (object): The configuration for the n3 interface. This interface should be connected to the radios.
-    - `name` (string): The name of the network interface.
-    - `address` (string): The IP address of the network interface.
-  - `n6` (object): The configuration for the n6 interface. This interface should be connected to the internet.
-    - `name` (string): The name of the network interface.
-  - `api` (object): The configuration for the api interface.
-    - `name` (string): The name of the network interface.
-    - `port` (int): The port to listen on.
-    - `tls` (object): The TLS configuration.
-      - `cert` (string): The path to the TLS certificate file.
-      - `key` (string): The path to the TLS key file.
+    - `n2` (object): The configuration for the n2 interface. This interface should be connected to the radios.
+        - `name` (string): The name of the network interface. 
+        - `address` (string): The IP address of the network interface. 
+        - `port` (int): The port to listen on.
+    - `n3` (object): The configuration for the n3 interface. This interface should be connected to the radios.
+        - `name` (string): The name of the network interface.
+        - `address` (string): The IP address of the network interface.
+    - `n6` (object): The configuration for the n6 interface. This interface should be connected to the internet.
+        - `name` (string): The name of the network interface.
+    - `api` (object): The configuration for the api interface.
+        - `name` (string): The name of the network interface.
+        - `port` (int): The port to listen on.
+        - `tls` (object): The TLS configuration.
+            - `cert` (string): The path to the TLS certificate file.
+            - `key` (string): The path to the TLS key file.
 - `xdp` (object): The XDP configuration.
-  - `attach-mode` (string): The XDP attach mode. Options are `native` and `generic`. `native` is the most performant option and only works on supported drivers.
+    - `attach-mode` (string): The XDP attach mode. Options are `native` and `generic`. `native` is the most performant option and only works on supported drivers.
 
 ## Example
 
