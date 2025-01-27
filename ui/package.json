@@ -13,8 +13,8 @@
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^6.4.1",
     "@mui/material": "^6.2.1",
-    "@mui/x-charts": "^7.24.0",
-    "@mui/x-data-grid": "^7.24.0",
+    "@mui/x-charts": "^7.24.1",
+    "@mui/x-data-grid": "^7.24.1",
     "@tanstack/react-query": "^5.64.2",
     "@types/react": "18.3.12",
     "autoprefixer": "^10.4.20",
@@ -23,11 +23,11 @@
     "react-cookie": "^7.2.2",
     "react-dom": "18.3.1",
     "sass": "^1.83.4",
-    "tailwindcss": "^3.4.17",
+    "tailwindcss": "^4.0.0",
     "typescript": "^5.7.3",
     "yup": "1.6.1"
   },
   "devDependencies": {
-    "@types/node": "22.10.7"
+    "@types/node": "22.10.10"
   }
 }
