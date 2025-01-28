@@ -7,29 +7,31 @@ import { useCookies } from "react-cookie";
 import { Edit as EditIcon } from "@mui/icons-material";
 import EditOperatorIdModal from "@/components/EditOperatorIdModal";
 import EditOperatorCodeModal from "@/components/EditOperatorCodeModal";
-import EditSupportedTACsModal from "@/components/EditSupportedTacsModal";
-import EditOperatorSstModal from "@/components/EditOperatorSstModal";
-import EditOperatorSdModal from "@/components/EditOperatorSdModal";
-
+import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
+import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
 import Grid from "@mui/material/Grid2";
 
 interface OperatorData {
-  mcc: string;
-  mnc: string;
-  supportedTacs: string[];
-  sst: number;
-  sd: number;
+  id: {
+    mcc: string;
+    mnc: string;
+  };
+  slice: {
+    sst: number;
+    sd: number;
+  };
+  tracking: {
+    supportedTacs: string[];
+  }
 }
 
 const Operator = () => {
   const [cookies] = useCookies(["user_token"]);
-
   const [operator, setOperator] = useState<OperatorData | null>(null);
   const [isEditOperatorIdModalOpen, setEditOperatorIdModalOpen] = useState(false);
   const [isEditOperatorCodeModalOpen, setEditOperatorCodeModalOpen] = useState(false);
-  const [isEditSupportedTACsModalOpen, setEditSupportedTACsModalOpen] = useState(false);
-  const [isEditOperatorSstModalOpen, setEditOperatorSstModalOpen] = useState(false);
-  const [isEditOperatorSdModalOpen, setEditOperatorSdModalOpen] = useState(false);
+  const [isEditOperatorTrackingModalOpen, setEditOperatorTrackingModalOpen] = useState(false);
+  const [isEditOperatorSliceModalOpen, setEditOperatorSliceModalOpen] = useState(false);
   const [alert, setAlert] = useState<{ message: string; severity: "success" | "error" | null }>({
     message: "",
     severity: null,
@@ -40,7 +42,7 @@ const Operator = () => {
       const data = await getOperator(cookies.user_token);
       setOperator(data);
     } catch (error) {
-      console.error("Error fetching operator ID:", error);
+      console.error("Error fetching operator information:", error);
     }
   };
 
@@ -50,15 +52,13 @@ const Operator = () => {
 
   const handleEditOperatorIdClick = () => setEditOperatorIdModalOpen(true);
   const handleEditOperatorCodeClick = () => setEditOperatorCodeModalOpen(true);
-  const handleEditSupportedTACsClick = () => setEditSupportedTACsModalOpen(true);
-  const handleEditOperatorSstClick = () => setEditOperatorSstModalOpen(true);
-  const handleEditOperatorSdClick = () => setEditOperatorSdModalOpen(true);
+  const handleEditOperatorTrackingClick = () => setEditOperatorTrackingModalOpen(true);
+  const handleEditOperatorSliceClick = () => setEditOperatorSliceModalOpen(true);
 
   const handleEditOperatorIdModalClose = () => setEditOperatorIdModalOpen(false);
   const handleEditOperatorCodeModalClose = () => setEditOperatorCodeModalOpen(false);
-  const handleEditSupportedTACsModalClose = () => setEditSupportedTACsModalOpen(false);
-  const handleEditOperatorSstModalClose = () => setEditOperatorSstModalOpen(false);
-  const handleEditOperatorSdModalClose = () => setEditOperatorSdModalOpen(false);
+  const handleEditOperatorTrackingModalClose = () => setEditOperatorTrackingModalOpen(false);
+  const handleEditOperatorSliceModalClose = () => setEditOperatorSliceModalOpen(false);
 
   const handleEditOperatorIdSuccess = () => {
     fetchOperator();
@@ -69,19 +69,14 @@ const Operator = () => {
     setAlert({ message: "Operator Code updated successfully!", severity: "success" });
   };
 
-  const handleEditSupportedTACsSuccess = () => {
+  const handleEditOperatorTrackingSuccess = () => {
     fetchOperator();
-    setAlert({ message: "Supported TACs updated successfully!", severity: "success" });
+    setAlert({ message: "Operator Tracking information updated successfully!", severity: "success" });
   }
 
-  const handleEditOperatorSstSuccess = () => {
+  const handleEditOperatorSliceSuccess = () => {
     fetchOperator();
-    setAlert({ message: "Operator SST updated successfully!", severity: "success" });
-  };
-
-  const handleEditOperatorSdSuccess = () => {
-    fetchOperator();
-    setAlert({ message: "Operator SD updated successfully!", severity: "success" });
+    setAlert({ message: "Operator Slice updated successfully!", severity: "success" });
   };
 
   return (
@@ -98,37 +93,59 @@ const Operator = () => {
       )}
 
       <Grid container spacing={3}>
-        <Grid size={4}>
-          <Typography variant="h6">Operator ID</Typography>
+        <Grid size={12}>
+          <Typography variant="h6">
+            Operator ID
+            <IconButton aria-label="edit" onClick={handleEditOperatorIdClick}>
+              <EditIcon />
+            </IconButton>
+          </Typography>
         </Grid>
-        <Grid size={4}>
-          <Typography variant="body1">{operator ? `${operator.mcc}${operator.mnc}` : "N/A"}</Typography>
+        <Grid size={6}>
+          <Typography variant="body1">Mobile Country Code (MCC)</Typography>
         </Grid>
-        <Grid size={4}>
-          <IconButton aria-label="edit" onClick={handleEditOperatorIdClick}>
-            <EditIcon />
-          </IconButton>
+        <Grid size={6}>
+          <Typography variant="body1">{operator ? `${operator.id.mcc}` : "N/A"}</Typography>
         </Grid>
+        <Grid size={6}>
+          <Typography variant="body1">Mobile Network Code (MNC)</Typography>
+        </Grid>
+        <Grid size={6}>
+          <Typography variant="body1">{operator ? `${operator.id.mnc}` : "N/A"}</Typography>
+        </Grid>
+      </Grid>
 
-        <Grid size={4}>
-          <Typography variant="h6">Operator Code</Typography>
-        </Grid>
-        <Grid size={4}>
-          <Typography variant="body1">******</Typography>
-        </Grid>
-        <Grid size={4}>
-          <IconButton aria-label="edit" onClick={handleEditOperatorCodeClick}>
-            <EditIcon />
-          </IconButton>
-        </Grid>
+      <Box sx={{ marginBottom: 4 }} />
 
-        <Grid size={4}>
-          <Typography variant="h6">Supported Tracking Area Codes (TAC's)</Typography>
+      <Grid container spacing={3}>
+        <Grid size={12}>
+          <Typography variant="h6">
+            Operator Code
+            <IconButton aria-label="edit" onClick={handleEditOperatorCodeClick}>
+              <EditIcon />
+            </IconButton>
+          </Typography>
         </Grid>
-        <Grid size={4}>
+      </Grid>
+
+      <Box sx={{ marginBottom: 4 }} />
+
+      <Grid container spacing={3}>
+        <Grid size={12}>
+          <Typography variant="h6">
+            Tracking Information
+            <IconButton aria-label="edit" onClick={handleEditOperatorTrackingClick}>
+              <EditIcon />
+            </IconButton>
+          </Typography>
+        </Grid>
+        <Grid size={6}>
+          <Typography variant="body1">Supported Tracking Area Codes (TAC's)</Typography>
+        </Grid>
+        <Grid size={6}>
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-            {operator?.supportedTacs?.length ? (
-              operator.supportedTacs.map((tac, index) => (
+            {operator?.tracking.supportedTacs?.length ? (
+              operator.tracking.supportedTacs.map((tac, index) => (
                 <Chip key={index} label={tac} variant="outlined" />
               ))
             ) : (
@@ -136,32 +153,31 @@ const Operator = () => {
             )}
           </Box>
         </Grid>
-        <Grid size={4}>
-          <IconButton aria-label="edit" onClick={handleEditSupportedTACsClick}>
-            <EditIcon />
-          </IconButton>
+
+      </Grid>
+
+      <Box sx={{ marginBottom: 4 }} />
+
+      <Grid container spacing={3}>
+        <Grid size={12}>
+          <Typography variant="h5">
+            Slice Information
+            <IconButton aria-label="edit" onClick={handleEditOperatorSliceClick}>
+              <EditIcon />
+            </IconButton>
+          </Typography>
         </Grid>
-        <Grid size={4}>
-          <Typography variant="h6">Slice Service Type (SST)</Typography>
+        <Grid size={6}>
+          <Typography variant="body1">Slice Service Type (SST)</Typography>
         </Grid>
-        <Grid size={4}>
-          <Typography variant="body1">{operator ? `${operator.sst}` : "N/A"}</Typography>
+        <Grid size={6}>
+          <Typography variant="body1">{operator ? `${operator.slice.sst}` : "N/A"}</Typography>
         </Grid>
-        <Grid size={4}>
-          <IconButton aria-label="edit" onClick={handleEditOperatorSstClick}>
-            <EditIcon />
-          </IconButton>
+        <Grid size={6}>
+          <Typography variant="body1">Service Differentiator (SD)</Typography>
         </Grid>
-        <Grid size={4}>
-          <Typography variant="h6">Service Differentiator (SD)</Typography>
-        </Grid>
-        <Grid size={4}>
-          <Typography variant="body1">{operator ? `${operator.sd}` : "N/A"}</Typography>
-        </Grid>
-        <Grid size={4}>
-          <IconButton aria-label="edit" onClick={handleEditOperatorSdClick}>
-            <EditIcon />
-          </IconButton>
+        <Grid size={6}>
+          <Typography variant="body1">{operator ? `${operator.slice.sd}` : "N/A"}</Typography>
         </Grid>
       </Grid>
 
@@ -170,44 +186,34 @@ const Operator = () => {
         onClose={handleEditOperatorIdModalClose}
         onSuccess={handleEditOperatorIdSuccess}
         initialData={
-          operator || {
+          operator?.id || {
             mcc: "",
             mnc: "",
           }
         }
       />
-
       <EditOperatorCodeModal
         open={isEditOperatorCodeModalOpen}
         onClose={handleEditOperatorCodeModalClose}
         onSuccess={handleEditOperatorCodeSuccess}
       />
-      <EditSupportedTACsModal
-        open={isEditSupportedTACsModalOpen}
-        onClose={handleEditSupportedTACsModalClose}
-        onSuccess={handleEditSupportedTACsSuccess}
+      <EditOperatorTrackingModal
+        open={isEditOperatorTrackingModalOpen}
+        onClose={handleEditOperatorTrackingModalClose}
+        onSuccess={handleEditOperatorTrackingSuccess}
         initialData={
-          operator || {
+          operator?.tracking || {
             supportedTacs: [""],
           }
         }
       />
-      <EditOperatorSstModal
-        open={isEditOperatorSstModalOpen}
-        onClose={handleEditOperatorSstModalClose}
-        onSuccess={handleEditOperatorSstSuccess}
+      <EditOperatorSliceModal
+        open={isEditOperatorSliceModalOpen}
+        onClose={handleEditOperatorSliceModalClose}
+        onSuccess={handleEditOperatorSliceSuccess}
         initialData={
-          operator || {
+          operator?.slice || {
             sst: 0,
-          }
-        }
-      />
-      <EditOperatorSdModal
-        open={isEditOperatorSdModalOpen}
-        onClose={handleEditOperatorSdModalClose}
-        onSuccess={handleEditOperatorSdSuccess}
-        initialData={
-          operator || {
             sd: 0,
           }
         }

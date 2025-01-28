@@ -46,13 +46,7 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 		t.Fatalf("The operator code from the database doesn't match the expected default")
 	}
 
-	operator := &db.Operator{
-		Mcc: "123",
-		Mnc: "456",
-		Sst: 1,
-		Sd:  1056816,
-	}
-	err = database.UpdateOperator(operator)
+	err = database.UpdateOperatorSlice(1, 1056816)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
@@ -60,12 +54,6 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 	retrievedOperator, err = database.GetOperator()
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
-	}
-	if retrievedOperator.Mcc != "123" {
-		t.Fatalf("The mcc from the database doesn't match the expected value")
-	}
-	if retrievedOperator.Mnc != "456" {
-		t.Fatalf("The mnc from the database doesn't match the expected value")
 	}
 	if retrievedOperator.Sst != 1 {
 		t.Fatalf("The sst from the database doesn't match the expected value")
@@ -82,5 +70,29 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 	}
 	if retrievedOperatorCode != "0123456789ABCDEF0123456789ABCDEF" {
 		t.Fatalf("The operator code from the database doesn't match the expected default")
+	}
+
+	mcc := "002"
+	mnc := "02"
+	err = database.UpdateOperatorId(mcc, mnc)
+	if err != nil {
+		t.Fatalf("Couldn't complete Create: %s", err)
+	}
+
+	operator, err := database.GetOperator()
+	if err != nil {
+		t.Fatalf("Couldn't complete Retrieve: %s", err)
+	}
+	if operator.Mcc != mcc {
+		t.Fatalf("The mcc from the database doesn't match the expected value")
+	}
+	if operator.Mnc != mnc {
+		t.Fatalf("The mnc from the database doesn't match the expected value")
+	}
+	if operator.Sst != 1 {
+		t.Fatalf("The sst from the database doesn't match the expected value")
+	}
+	if operator.Sd != 1056816 {
+		t.Fatalf("The sd from the database doesn't match the expected value")
 	}
 }

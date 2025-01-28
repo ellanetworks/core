@@ -23,20 +23,10 @@ export const getOperator = async (authToken: string) => {
 };
 
 export const updateOperatorId = async (authToken: string, mcc: string, mnc: string) => {
-  const getResponse = await fetch(`/api/v1/operator`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + authToken
-    },
-  });
-  const getRespData = await getResponse.json();
-  if (!getResponse.ok) {
-    throw new Error(`${getResponse.status}: ${HTTPStatus(getResponse.status)}. ${getRespData.error}`)
-  }
-  const operatorIdData = getRespData.result
-  operatorIdData.mcc = mcc
-  operatorIdData.mnc = mnc
+  const operatorIdData = {
+    mcc: mcc,
+    mnc: mnc,
+  };
   const response = await fetch(`/api/v1/operator`, {
     method: "PUT",
     headers: {
@@ -59,27 +49,17 @@ export const updateOperatorId = async (authToken: string, mcc: string, mnc: stri
   return respData.result;
 };
 
-export const updateSupportedTacs = async (authToken: string, supportedTacs: string[]) => {
-  const getResponse = await fetch(`/api/v1/operator`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + authToken
-    },
-  });
-  const getRespData = await getResponse.json();
-  if (!getResponse.ok) {
-    throw new Error(`${getResponse.status}: ${HTTPStatus(getResponse.status)}. ${getRespData.error}`)
-  }
-  const operatorIdData = getRespData.result
-  operatorIdData.supportedTacs = supportedTacs
-  const response = await fetch(`/api/v1/operator`, {
+export const updateOperatorTracking = async (authToken: string, supportedTacs: string[]) => {
+  const operatorTrackingData = {
+    supportedTacs: supportedTacs,
+  };
+  const response = await fetch(`/api/v1/operator/tracking`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
       "Authorization": "Bearer " + authToken
     },
-    body: JSON.stringify(operatorIdData),
+    body: JSON.stringify(operatorTrackingData),
   });
   let respData;
   try {
@@ -95,64 +75,24 @@ export const updateSupportedTacs = async (authToken: string, supportedTacs: stri
   return respData.result;
 };
 
-export const updateOperatorSst = async (authToken: string, sst: number) => {
-  const getResponse = await fetch(`/api/v1/operator`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + authToken
-    },
-  });
-  const getRespData = await getResponse.json();
-  if (!getResponse.ok) {
-    throw new Error(`${getResponse.status}: ${HTTPStatus(getResponse.status)}. ${getRespData.error}`)
+export const updateOperatorSlice = async (authToken: string, sd: number, sst: number) => {
+  if (typeof sd !== "number" || typeof sst !== "number") {
+    throw new Error("Both sd and sst must be numbers.");
   }
-  const operatorData = getRespData.result
-  operatorData.sst = parseInt(sst.toString(), 10);
-  const response = await fetch(`/api/v1/operator`, {
+  const operatorSliceData = {
+    sd: sd,
+    sst: sst,
+  };
+
+  const data = JSON.stringify(operatorSliceData)
+  console.log(data)
+  const response = await fetch(`/api/v1/operator/slice`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
       "Authorization": "Bearer " + authToken
     },
-    body: JSON.stringify(operatorData),
-  });
-  let respData;
-  try {
-    respData = await response.json();
-  } catch {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
-  }
-
-  if (!response.ok) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
-  }
-
-  return respData.result;
-};
-
-
-export const updateOperatorSd = async (authToken: string, sd: number) => {
-  const getResponse = await fetch(`/api/v1/operator`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + authToken
-    },
-  });
-  const getRespData = await getResponse.json();
-  if (!getResponse.ok) {
-    throw new Error(`${getResponse.status}: ${HTTPStatus(getResponse.status)}. ${getRespData.error}`)
-  }
-  const operatorData = getRespData.result
-  operatorData.sd = parseInt(sd.toString(), 10);
-  const response = await fetch(`/api/v1/operator`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + authToken
-    },
-    body: JSON.stringify(operatorData),
+    body: JSON.stringify(operatorSliceData),
   });
   let respData;
   try {

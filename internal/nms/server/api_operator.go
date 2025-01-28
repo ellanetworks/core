@@ -10,30 +10,53 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type UpdateOperatorParams struct {
-	Mcc           string   `json:"mcc,omitempty"`
-	Mnc           string   `json:"mnc,omitempty"`
+type UpdateOperatorSliceParams struct {
+	Sst int `json:"sst,omitempty"`
+	Sd  int `json:"sd,omitempty"`
+}
+
+type UpdateOperatorTrackingParams struct {
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
-	Sst           int      `json:"sst,omitempty"`
-	Sd            int      `json:"sd,omitempty"`
+}
+
+type UpdateOperatorIdParams struct {
+	Mcc string `json:"mcc,omitempty"`
+	Mnc string `json:"mnc,omitempty"`
 }
 
 type UpdateOperatorCodeParams struct {
 	OperatorCode string `json:"operatorCode,omitempty"`
 }
 
-type GetOperatorResponse struct {
-	Mcc           string   `json:"mcc,omitempty"`
-	Mnc           string   `json:"mnc,omitempty"`
+type GetOperatorTrackingResponse struct {
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
-	Sst           int      `json:"sst,omitempty"`
-	Sd            int      `json:"sd,omitempty"`
+}
+
+type GetOperatorResponse struct {
+	Id       GetOperatorIdResponse       `json:"id,omitempty"`
+	Slice    GetOperatorSliceResponse    `json:"slice,omitempty"`
+	Tracking GetOperatorTrackingResponse `json:"tracking,omitempty"`
+}
+
+type GetOperatorSliceResponse struct {
+	Sst int `json:"sst,omitempty"`
+	Sd  int `json:"sd,omitempty"`
+}
+
+type GetOperatorIdResponse struct {
+	Mcc string `json:"mcc,omitempty"`
+	Mnc string `json:"mnc,omitempty"`
 }
 
 const (
-	GetOperatorAction        = "get_operator"
-	UpdateOperatorAction     = "update_operator"
-	UpdateOperatorCodeAction = "update_operator_code"
+	GetOperatorAction            = "get_operator"
+	GetOperatorSliceAction       = "get_operator_slice"
+	GetOperatorTrackingAction    = "get_operator_tracking"
+	GetOperatorIdAction          = "get_operator_id"
+	UpdateOperatorSliceAction    = "update_operator_slice"
+	UpdateOperatorTrackingAction = "update_operator_tracking"
+	UpdateOperatorIdAction       = "update_operator_id"
+	UpdateOperatorCodeAction     = "update_operator_code"
 )
 
 // Mcc is a 3-decimal digit
@@ -80,7 +103,7 @@ func isValidTac(tac string) bool {
 	if len(tac) != 3 {
 		return false
 	}
-	_, err := strconv.Atoi(tac)
+	_, err := strconv.ParseInt(tac, 10, 32)
 	return err == nil
 }
 
@@ -108,12 +131,115 @@ func GetOperator(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		operatorId := &GetOperatorResponse{
-			Mcc:           dbOperator.Mcc,
-			Mnc:           dbOperator.Mnc,
+		operatorSlice := &GetOperatorResponse{
+			Id: GetOperatorIdResponse{
+				Mcc: dbOperator.Mcc,
+				Mnc: dbOperator.Mnc,
+			},
+			Slice: GetOperatorSliceResponse{
+				Sst: int(dbOperator.Sst),
+				Sd:  dbOperator.Sd,
+			},
+			Tracking: GetOperatorTrackingResponse{
+				SupportedTacs: dbOperator.GetSupportedTacs(),
+			},
+		}
+
+		logger.NmsLog.Warnf("SST: %d, SD: %d", operatorSlice.Slice.Sst, operatorSlice.Slice.Sd)
+
+		err = writeResponse(c.Writer, operatorSlice, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
+		logger.LogAuditEvent(
+			GetOperatorAction,
+			email,
+			"User retrieved operator information",
+		)
+	}
+}
+
+func GetOperatorSlice(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			return
+		}
+		dbOperator, err := dbInstance.GetOperator()
+		if err != nil {
+			writeError(c.Writer, http.StatusNotFound, "Operator not found")
+			return
+		}
+
+		operatorSlice := &GetOperatorSliceResponse{
+			Sst: int(dbOperator.Sst),
+			Sd:  dbOperator.Sd,
+		}
+
+		err = writeResponse(c.Writer, operatorSlice, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
+		logger.LogAuditEvent(
+			GetOperatorSliceAction,
+			email,
+			"User retrieved operator slice",
+		)
+	}
+}
+
+func GetOperatorTracking(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			return
+		}
+		dbOperator, err := dbInstance.GetOperator()
+		if err != nil {
+			writeError(c.Writer, http.StatusNotFound, "Operator not found")
+			return
+		}
+
+		operatorTracking := &GetOperatorTrackingResponse{
 			SupportedTacs: dbOperator.GetSupportedTacs(),
-			Sst:           int(dbOperator.Sst),
-			Sd:            dbOperator.Sd,
+		}
+
+		err = writeResponse(c.Writer, operatorTracking, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
+		logger.LogAuditEvent(
+			GetOperatorTrackingAction,
+			email,
+			"User retrieved operator tracking information",
+		)
+	}
+}
+
+func GetOperatorId(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			return
+		}
+		dbOperator, err := dbInstance.GetOperator()
+		if err != nil {
+			writeError(c.Writer, http.StatusNotFound, "Operator not found")
+			return
+		}
+
+		operatorId := &GetOperatorIdResponse{
+			Mcc: dbOperator.Mcc,
+			Mnc: dbOperator.Mnc,
 		}
 
 		err = writeResponse(c.Writer, operatorId, http.StatusOK)
@@ -122,14 +248,14 @@ func GetOperator(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		logger.LogAuditEvent(
-			GetOperatorAction,
+			GetOperatorIdAction,
 			email,
-			"User retrieved operator",
+			"User retrieved operator Id",
 		)
 	}
 }
 
-func UpdateOperator(dbInstance *db.Database) gin.HandlerFunc {
+func UpdateOperatorSlice(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		emailAny, _ := c.Get("email")
 		email, ok := emailAny.(string)
@@ -137,79 +263,144 @@ func UpdateOperator(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		var updateOperatorParams UpdateOperatorParams
-		err := c.ShouldBindJSON(&updateOperatorParams)
+		var updateOperatorSliceParams UpdateOperatorSliceParams
+		err := c.ShouldBindJSON(&updateOperatorSliceParams)
 		if err != nil {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
 			return
 		}
-		if updateOperatorParams.Mcc == "" {
-			writeError(c.Writer, http.StatusBadRequest, "mcc is missing")
-			return
-		}
-		if updateOperatorParams.Mnc == "" {
-			writeError(c.Writer, http.StatusBadRequest, "mnc is missing")
-			return
-		}
-		if len(updateOperatorParams.SupportedTacs) == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "supportedTacs is missing")
-			return
-		}
-		if updateOperatorParams.Sst == 0 {
+
+		if updateOperatorSliceParams.Sst == 0 {
 			writeError(c.Writer, http.StatusBadRequest, "sst is missing")
 			return
 		}
-		if updateOperatorParams.Sd == 0 {
+		if updateOperatorSliceParams.Sd == 0 {
 			writeError(c.Writer, http.StatusBadRequest, "sd is missing")
 			return
 		}
-		if !isValidMcc(updateOperatorParams.Mcc) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid mcc format. Must be a 3-decimal digit.")
-			return
-		}
-		if !isValidMnc(updateOperatorParams.Mnc) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid mnc format. Must be a 2 or 3-decimal digit.")
-			return
-		}
-		for _, tac := range updateOperatorParams.SupportedTacs {
-			if !isValidTac(tac) {
-				writeError(c.Writer, http.StatusBadRequest, "Invalid TAC format. Must be a 3-digit number")
-				return
-			}
-		}
-		if !isValidSst(updateOperatorParams.Sst) {
+
+		if !isValidSst(updateOperatorSliceParams.Sst) {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid SST format. Must be an 8-bit integer")
 			return
 		}
-		if !isValidSd(updateOperatorParams.Sd) {
+		if !isValidSd(updateOperatorSliceParams.Sd) {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid SD format. Must be a 24-bit integer")
 			return
 		}
 
-		dbOperator := &db.Operator{
-			Mcc: updateOperatorParams.Mcc,
-			Mnc: updateOperatorParams.Mnc,
-			Sst: int32(updateOperatorParams.Sst),
-			Sd:  updateOperatorParams.Sd,
-		}
-		dbOperator.SetSupportedTacs(updateOperatorParams.SupportedTacs)
-
-		err = dbInstance.UpdateOperator(dbOperator)
+		err = dbInstance.UpdateOperatorSlice(int32(updateOperatorSliceParams.Sst), updateOperatorSliceParams.Sd)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to update operatorId")
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to update operator slice information")
 			return
 		}
-		message := SuccessResponse{Message: "Operator updated successfully"}
+		message := SuccessResponse{Message: "Operator slice information updated successfully"}
 		err = writeResponse(c.Writer, message, http.StatusCreated)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
 		logger.LogAuditEvent(
-			UpdateOperatorAction,
+			UpdateOperatorSliceAction,
 			email,
-			"User updated operator with Id: "+updateOperatorParams.Mcc+""+updateOperatorParams.Mnc,
+			"User updated operator slice information",
+		)
+	}
+}
+
+func UpdateOperatorTracking(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			return
+		}
+		var updateOperatorTrackingParams UpdateOperatorTrackingParams
+		err := c.ShouldBindJSON(&updateOperatorTrackingParams)
+		if err != nil {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			return
+		}
+		if len(updateOperatorTrackingParams.SupportedTacs) == 0 {
+			writeError(c.Writer, http.StatusBadRequest, "supportedTacs is missing")
+			return
+		}
+
+		for _, tac := range updateOperatorTrackingParams.SupportedTacs {
+			if !isValidTac(tac) {
+				writeError(c.Writer, http.StatusBadRequest, "Invalid TAC format. Must be a 3-digit number")
+				return
+			}
+		}
+
+		err = dbInstance.UpdateOperatorTracking(updateOperatorTrackingParams.SupportedTacs)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to update operator tracking information")
+			return
+		}
+		message := SuccessResponse{Message: "Operator tracking information updated successfully"}
+		err = writeResponse(c.Writer, message, http.StatusCreated)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
+		logger.LogAuditEvent(
+			UpdateOperatorTrackingAction,
+			email,
+			"User updated operator tracking information",
+		)
+	}
+}
+
+func UpdateOperatorId(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			return
+		}
+		var updateOperatorIdParams UpdateOperatorIdParams
+		err := c.ShouldBindJSON(&updateOperatorIdParams)
+		if err != nil {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			return
+		}
+		if updateOperatorIdParams.Mcc == "" {
+			writeError(c.Writer, http.StatusBadRequest, "mcc is missing")
+			return
+		}
+		if updateOperatorIdParams.Mnc == "" {
+			writeError(c.Writer, http.StatusBadRequest, "mnc is missing")
+			return
+		}
+		if !isValidMcc(updateOperatorIdParams.Mcc) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid mcc format. Must be a 3-decimal digit.")
+			return
+		}
+		if !isValidMnc(updateOperatorIdParams.Mnc) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid mnc format. Must be a 2 or 3-decimal digit.")
+			return
+		}
+
+		err = dbInstance.UpdateOperatorId(updateOperatorIdParams.Mcc, updateOperatorIdParams.Mnc)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to update operatorId")
+			return
+		}
+		message := SuccessResponse{Message: "Operator ID updated successfully"}
+		err = writeResponse(c.Writer, message, http.StatusCreated)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
+		logger.LogAuditEvent(
+			UpdateOperatorIdAction,
+			email,
+			"User updated operator with Id: "+updateOperatorIdParams.Mcc+""+updateOperatorIdParams.Mnc,
 		)
 	}
 }

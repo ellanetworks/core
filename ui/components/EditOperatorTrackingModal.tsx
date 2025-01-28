@@ -15,11 +15,11 @@ import {
     Chip,
 } from "@mui/material";
 import * as yup from "yup";
-import { updateSupportedTacs } from "@/queries/operator";
+import { updateOperatorTracking } from "@/queries/operator";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
 
-interface EditOperatorTACsModalProps {
+interface EditOperatorTrackingModalProps {
     open: boolean;
     onClose: () => void;
     onSuccess: () => void;
@@ -30,7 +30,7 @@ interface EditOperatorTACsModalProps {
 
 const schema = yup.string().matches(/^\d{3}$/, "Each TAC must be a 3-digit number");
 
-const EditSupportedTacsModal: React.FC<EditOperatorTACsModalProps> = ({
+const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
     open,
     onClose,
     onSuccess,
@@ -77,7 +77,7 @@ const EditSupportedTacsModal: React.FC<EditOperatorTACsModalProps> = ({
         setAlert({ message: "" });
 
         try {
-            await updateSupportedTacs(cookies.user_token, formValues.supportedTacs);
+            await updateOperatorTracking(cookies.user_token, formValues.supportedTacs);
             onClose();
             onSuccess();
         } catch (error: any) {
@@ -92,10 +92,10 @@ const EditSupportedTacsModal: React.FC<EditOperatorTACsModalProps> = ({
         <Dialog
             open={open}
             onClose={onClose}
-            aria-labelledby="edit-operator-supportedtacs-modal-title"
-            aria-describedby="edit-operator-supportedtacs-modal-description"
+            aria-labelledby="edit-operator-tracking-modal-title"
+            aria-describedby="edit-operator-tracking-modal-description"
         >
-            <DialogTitle>Edit Supported TACs</DialogTitle>
+            <DialogTitle>Edit Operator Tracking Information</DialogTitle>
             <DialogContent dividers>
                 <Collapse in={!!alert.message}>
                     <Alert
@@ -154,4 +154,4 @@ const EditSupportedTacsModal: React.FC<EditOperatorTACsModalProps> = ({
     );
 };
 
-export default EditSupportedTacsModal;
+export default EditOperatorTrackingModal;
