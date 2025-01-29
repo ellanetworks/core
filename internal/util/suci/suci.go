@@ -10,6 +10,7 @@ import (
 	"crypto/cipher"
 	"crypto/elliptic"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -102,6 +103,16 @@ func uncompressKey(compressedBytes []byte) (*big.Int, *big.Int) {
 	return x, y
 }
 
+// Generate a random IV of the required length
+func GenerateRandomIV(ivSize int) ([]byte, error) {
+	iv := make([]byte, ivSize)
+	_, err := rand.Read(iv)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate random IV: %w", err)
+	}
+	return iv, nil
+}
+
 func HmacSha256(input, macKey []byte, macLen int) []byte {
 	h := hmac.New(sha256.New, macKey)
 	if _, err := h.Write(input); err != nil {
@@ -113,16 +124,23 @@ func HmacSha256(input, macKey []byte, macLen int) []byte {
 	return macTag
 }
 
-func Aes128ctr(input, encKey, icb []byte) []byte {
+func Aes128ctr(input, encKey, iv []byte) ([]byte, []byte, error) {
 	output := make([]byte, len(input))
 	block, err := aes.NewCipher(encKey)
 	if err != nil {
-		logger.UtilLog.Errorf("AES128 CTR error %+v", err)
+		return nil, nil, fmt.Errorf("AES128 CTR error: %w", err)
 	}
-	stream := cipher.NewCTR(block, icb)
+	if iv == nil {
+		iv, err = GenerateRandomIV(aes.BlockSize)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	stream := cipher.NewCTR(block, iv)
 	stream.XORKeyStream(output, input)
-	// logger.UtilLog.Debugf("aes input: %x %x %x\naes output: %x", input, encKey, icb, output)
-	return output
+
+	return output, iv, nil
 }
 
 func AnsiX963KDF(sharedKey, publicKey []byte, profileEncKeyLen, profileMacKeyLen, profileHashLen int) []byte {
@@ -164,7 +182,6 @@ func calcSchemeResult(decryptPlainText []byte, supiType string) string {
 }
 
 func profileA(input, supiType, privateKey string) (string, error) {
-	logger.UtilLog.Infoln("suciToSupi Profile A")
 	s, hexDecodeErr := hex.DecodeString(input)
 	if hexDecodeErr != nil {
 		logger.UtilLog.Errorln("hex DecodeString error")
@@ -182,10 +199,8 @@ func profileA(input, supiType, privateKey string) (string, error) {
 	decryptMac := s[len(s)-ProfileAMacLen:]
 	decryptPublicKey := s[:ProfileAPubKeyLen]
 	decryptCipherText := s[ProfileAPubKeyLen : len(s)-ProfileAMacLen]
-	// logger.UtilLog.Debugf("dePub: %x deCiph: %x deMac: %x", decryptPublicKey, decryptCipherText, decryptMac)
 
 	// test data from TS33.501 Annex C.4
-	// aHNPriv, _ := hex.DecodeString("c53c2208b61860b06c62e5406a7b330c2b577aa5558981510d128247d38bd1d")
 	var aHNPriv []byte
 	if aHNPrivTmp, err := hex.DecodeString(privateKey); err != nil {
 		logger.UtilLog.Errorf("decode error: %+v", err)
@@ -198,14 +213,10 @@ func profileA(input, supiType, privateKey string) (string, error) {
 	} else {
 		decryptSharedKey = decryptSharedKeyTmp
 	}
-	// logger.UtilLog.Debugf("deShared: %x", decryptSharedKey)
 
 	kdfKey := AnsiX963KDF(decryptSharedKey, decryptPublicKey, ProfileAEncKeyLen, ProfileAMacKeyLen, ProfileAHashLen)
 	decryptEncKey := kdfKey[:ProfileAEncKeyLen]
-	decryptIcb := kdfKey[ProfileAEncKeyLen : ProfileAEncKeyLen+ProfileAIcbLen]
 	decryptMacKey := kdfKey[len(kdfKey)-ProfileAMacKeyLen:]
-	// logger.UtilLog.Debugf("deEncKey(size%d): %x deMacKey: %x deIcb: %x", len(decryptEncKey), decryptEncKey, decryptMacKey,
-	// decryptIcb)
 
 	decryptMacTag := HmacSha256(decryptCipherText, decryptMacKey, ProfileAMacLen)
 	if bytes.Equal(decryptMacTag, decryptMac) {
@@ -215,13 +226,16 @@ func profileA(input, supiType, privateKey string) (string, error) {
 		return "", fmt.Errorf("decryption MAC failed")
 	}
 
-	decryptPlainText := Aes128ctr(decryptCipherText, decryptEncKey, decryptIcb)
+	decryptPlainText, _, err := Aes128ctr(decryptCipherText, decryptEncKey, nil)
+	if err != nil {
+		logger.UtilLog.Errorf("AES decryption error: %+v", err)
+		return "", err
+	}
 
 	return calcSchemeResult(decryptPlainText, supiType), nil
 }
 
 func profileB(input, supiType, privateKey string) (string, error) {
-	logger.UtilLog.Infoln("suciToSupi Profile B")
 	s, hexDecodeErr := hex.DecodeString(input)
 	if hexDecodeErr != nil {
 		logger.UtilLog.Errorln("hex DecodeString error")
@@ -275,7 +289,6 @@ func profileB(input, supiType, privateKey string) (string, error) {
 
 	// x-coordinate is the shared key
 	decryptSharedKey, _ := elliptic.P256().ScalarMult(xUncompressed, yUncompressed, bHNPriv)
-	// logger.UtilLog.Debugf("deShared: %x", decryptSharedKey.Bytes())
 
 	decryptPublicKeyForKDF := decryptPublicKey
 	if uncompressed {
@@ -284,12 +297,9 @@ func profileB(input, supiType, privateKey string) (string, error) {
 
 	kdfKey := AnsiX963KDF(decryptSharedKey.Bytes(), decryptPublicKeyForKDF, ProfileBEncKeyLen, ProfileBMacKeyLen,
 		ProfileBHashLen)
-	// logger.UtilLog.Debugf("kdfKey: %x", kdfKey)
 	decryptEncKey := kdfKey[:ProfileBEncKeyLen]
 	decryptIcb := kdfKey[ProfileBEncKeyLen : ProfileBEncKeyLen+ProfileBIcbLen]
 	decryptMacKey := kdfKey[len(kdfKey)-ProfileBMacKeyLen:]
-	// logger.UtilLog.Debugf("deEncKey(size%d): %x deMacKey: %x deIcb: %x", len(decryptEncKey), decryptEncKey, decryptMacKey,
-	// decryptIcb)
 
 	decryptMacTag := HmacSha256(decryptCipherText, decryptMacKey, ProfileBMacLen)
 	if bytes.Equal(decryptMacTag, decryptMac) {
@@ -299,8 +309,11 @@ func profileB(input, supiType, privateKey string) (string, error) {
 		return "", fmt.Errorf("decryption MAC failed")
 	}
 
-	decryptPlainText := Aes128ctr(decryptCipherText, decryptEncKey, decryptIcb)
-
+	decryptPlainText, _, err := Aes128ctr(decryptCipherText, decryptEncKey, decryptIcb)
+	if err != nil {
+		logger.UtilLog.Errorf("AES decryption error: %+v", err)
+		return "", err
+	}
 	return calcSchemeResult(decryptPlainText, supiType), nil
 }
 
