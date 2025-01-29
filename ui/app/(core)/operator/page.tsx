@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Box, IconButton, Alert, Typography, Chip } from "@mui/material";
+import { Box, IconButton, Alert, Typography, Chip, Card, CardHeader, Button, CardContent, CardActions } from "@mui/material";
 import { getOperator } from "@/queries/operator";
 import { useCookies } from "react-cookie";
 import { Edit as EditIcon } from "@mui/icons-material";
@@ -92,94 +92,107 @@ const Operator = () => {
         </Alert>
       )}
 
-      <Grid container spacing={3}>
-        <Grid size={12}>
-          <Typography variant="h5">
-            Operator ID
-            <IconButton aria-label="edit" onClick={handleEditOperatorIdClick}>
-              <EditIcon />
-            </IconButton>
-          </Typography>
-        </Grid>
-        <Grid size={6}>
-          <Typography variant="body1">Mobile Country Code (MCC)</Typography>
-        </Grid>
-        <Grid size={6}>
-          <Typography variant="body1">{operator ? `${operator.id.mcc}` : "N/A"}</Typography>
-        </Grid>
-        <Grid size={6}>
-          <Typography variant="body1">Mobile Network Code (MNC)</Typography>
-        </Grid>
-        <Grid size={6}>
-          <Typography variant="body1">{operator ? `${operator.id.mnc}` : "N/A"}</Typography>
-        </Grid>
-      </Grid>
+      <Card variant="outlined" sx={{ marginBottom: 3 }}>
+        <CardHeader title="Operator ID" />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid size={6}>
+              <Typography variant="body1">Mobile Country Code (MCC)</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="body1">{operator?.id.mcc || "N/A"}</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="body1">Mobile Network Code (MNC)</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="body1">{operator?.id.mnc || "N/A"}</Typography>
+            </Grid>
+          </Grid>
+        </CardContent>
+        <CardActions>
+          <IconButton aria-label="edit" onClick={handleEditOperatorIdClick}>
+            <EditIcon />
+          </IconButton>
+        </CardActions>
+      </Card>
 
       <Box sx={{ marginBottom: 4 }} />
 
-      <Grid container spacing={3}>
-        <Grid size={12}>
-          <Typography variant="h5">
-            Operator Code
-            <IconButton aria-label="edit" onClick={handleEditOperatorCodeClick}>
-              <EditIcon />
-            </IconButton>
-          </Typography>
-        </Grid>
-      </Grid>
+      <Card variant="outlined" sx={{ marginBottom: 3 }}>
+        <CardHeader title="Operator Code" />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid size={6}>
+              <Typography variant="body1">Operator Code (OP)</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="body1">{"***************"}</Typography>
+            </Grid>
+          </Grid>
+        </CardContent>
+        <CardActions>
+          <IconButton aria-label="edit" onClick={handleEditOperatorCodeClick}>
+            <EditIcon />
+          </IconButton>
+        </CardActions>
+      </Card>
 
       <Box sx={{ marginBottom: 4 }} />
 
-      <Grid container spacing={3}>
-        <Grid size={12}>
-          <Typography variant="h5">
-            Tracking Information
-            <IconButton aria-label="edit" onClick={handleEditOperatorTrackingClick}>
-              <EditIcon />
-            </IconButton>
-          </Typography>
-        </Grid>
-        <Grid size={6}>
-          <Typography variant="body1">Supported Tracking Area Codes (TAC's)</Typography>
-        </Grid>
-        <Grid size={6}>
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-            {operator?.tracking.supportedTacs?.length ? (
-              operator.tracking.supportedTacs.map((tac, index) => (
-                <Chip key={index} label={tac} variant="outlined" />
-              ))
-            ) : (
-              <Typography variant="body1">No TACs available.</Typography>
-            )}
-          </Box>
-        </Grid>
-
-      </Grid>
+      <Card variant="outlined" sx={{ marginBottom: 3 }}>
+        <CardHeader title="Tracking Information" />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid size={6}>
+              <Typography variant="body1">Supported Tracking Area Codes (TAC's)</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                {operator?.tracking.supportedTacs?.length ? (
+                  operator.tracking.supportedTacs.map((tac, index) => (
+                    <Chip key={index} label={tac} variant="outlined" />
+                  ))
+                ) : (
+                  <Typography variant="body1">No TACs available.</Typography>
+                )}
+              </Box>
+            </Grid>
+          </Grid>
+        </CardContent>
+        <CardActions>
+          <IconButton aria-label="edit" onClick={handleEditOperatorTrackingClick}>
+            <EditIcon />
+          </IconButton>
+        </CardActions>
+      </Card>
 
       <Box sx={{ marginBottom: 4 }} />
 
-      <Grid container spacing={3}>
-        <Grid size={12}>
-          <Typography variant="h5">
-            Slice Information
-            <IconButton aria-label="edit" onClick={handleEditOperatorSliceClick}>
-              <EditIcon />
-            </IconButton>
-          </Typography>
-        </Grid>
-        <Grid size={6}>
-          <Typography variant="body1">Slice Service Type (SST)</Typography>
-        </Grid>
-        <Grid size={6}>
-          <Typography variant="body1">{operator ? `${operator.slice.sst}` : "N/A"}</Typography>
-        </Grid>
-        <Grid size={6}>
-          <Typography variant="body1">Service Differentiator (SD)</Typography>
-        </Grid>
-        <Grid size={6}>
-          <Typography variant="body1">{operator ? `${operator.slice.sd}` : "N/A"}</Typography>
-        </Grid>
-      </Grid>
+      <Card variant="outlined" sx={{ marginBottom: 3 }}>
+        <CardHeader title="Slice Information" />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid size={6}>
+              <Typography variant="body1">Slice Service Type (SST)</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="body1">{operator ? `${operator.slice.sst}` : "N/A"}</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="body1">Service Differentiator (SD)</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="body1">{operator ? `${operator.slice.sd}` : "N/A"}</Typography>
+            </Grid>
+          </Grid>
+        </CardContent>
+        <CardActions>
+          <IconButton aria-label="edit" onClick={handleEditOperatorSliceClick}>
+            <EditIcon />
+          </IconButton>
+        </CardActions>
+      </Card>
 
       <EditOperatorIdModal
         open={isEditOperatorIdModalOpen}
