@@ -24,7 +24,7 @@ charset-normalizer==3.4.1
     # via requests
 click==8.1.8
     # via mkdocs
-codespell==2.4.0
+codespell==2.4.1
     # via -r requirements.in
 colorama==0.4.6
     # via mkdocs-material
@@ -148,7 +148,7 @@ pyrfc3339==1.1
     # via
     #   juju
     #   macaroonbakery
-pyright==1.1.392.post0
+pyright==1.1.393
     # via -r requirements.in
 pytest==8.3.4
     # via
