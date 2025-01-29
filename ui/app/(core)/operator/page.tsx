@@ -94,7 +94,7 @@ const Operator = () => {
 
       <Grid container spacing={3}>
         <Grid size={12}>
-          <Typography variant="h6">
+          <Typography variant="h5">
             Operator ID
             <IconButton aria-label="edit" onClick={handleEditOperatorIdClick}>
               <EditIcon />
@@ -119,7 +119,7 @@ const Operator = () => {
 
       <Grid container spacing={3}>
         <Grid size={12}>
-          <Typography variant="h6">
+          <Typography variant="h5">
             Operator Code
             <IconButton aria-label="edit" onClick={handleEditOperatorCodeClick}>
               <EditIcon />
@@ -132,7 +132,7 @@ const Operator = () => {
 
       <Grid container spacing={3}>
         <Grid size={12}>
-          <Typography variant="h6">
+          <Typography variant="h5">
             Tracking Information
             <IconButton aria-label="edit" onClick={handleEditOperatorTrackingClick}>
               <EditIcon />

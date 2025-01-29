@@ -94,8 +94,9 @@ func isValidOperatorCode(operatorCode string) bool {
 	_, err := hex.DecodeString(operatorCode)
 	if err != nil {
 		logger.NmsLog.Warnf("Invalid operator code: %s. Error: %v", operatorCode, err)
+		return false
 	}
-	return err == nil
+	return true
 }
 
 // TAC is a 24-bit identifier
@@ -144,8 +145,6 @@ func GetOperator(dbInstance *db.Database) gin.HandlerFunc {
 				SupportedTacs: dbOperator.GetSupportedTacs(),
 			},
 		}
-
-		logger.NmsLog.Warnf("SST: %d, SD: %d", operatorSlice.Slice.Sst, operatorSlice.Slice.Sd)
 
 		err = writeResponse(c.Writer, operatorSlice, http.StatusOK)
 		if err != nil {
@@ -384,6 +383,15 @@ func UpdateOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid mnc format. Must be a 2 or 3-decimal digit.")
 			return
 		}
+		numSubs, err := dbInstance.NumSubscribers()
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to get number of subscribers")
+			return
+		}
+		if numSubs > 0 {
+			writeError(c.Writer, http.StatusBadRequest, "Cannot update operator ID when there are subscribers")
+			return
+		}
 
 		err = dbInstance.UpdateOperatorId(updateOperatorIdParams.Mcc, updateOperatorIdParams.Mnc)
 		if err != nil {
@@ -426,6 +434,16 @@ func UpdateOperatorCode(dbInstance *db.Database) gin.HandlerFunc {
 
 		if !isValidOperatorCode(updateOperatorCodeParams.OperatorCode) {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid operator code format. Must be a 32-character hexadecimal string.")
+			return
+		}
+
+		numSubs, err := dbInstance.NumSubscribers()
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to get number of subscribers")
+			return
+		}
+		if numSubs > 0 {
+			writeError(c.Writer, http.StatusBadRequest, "Cannot update operator code when there are subscribers")
 			return
 		}
 

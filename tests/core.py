@@ -176,7 +176,7 @@ class EllaCore:
             "sd": sd,
         }
         self._make_request("PUT", OPERATOR_SLICE_CONFIG_URL, data=operator_config)
-        logger.info("Updated operator Slice Information.")
+        logger.info("Updated operator slice Information.")
 
     def update_operator_tracking(self, supported_tacs: List[str]) -> None:
         """Update operator slice information."""
@@ -184,4 +184,4 @@ class EllaCore:
             "supportedTacs": supported_tacs,
         }
         self._make_request("PUT", OPERATOR_TRACKING_CONFIG_URL, data=operator_config)
-        logger.info("Updated operator Tracking Information.")
+        logger.info("Updated operator tracking Information.")

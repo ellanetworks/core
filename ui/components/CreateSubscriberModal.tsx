@@ -77,8 +77,8 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
         const fetchOperatorAndProfiles = async () => {
             try {
                 const operator = await getOperator(cookies.user_token);
-                setMcc(operator.mcc);
-                setMnc(operator.mnc);
+                setMcc(operator.id.mcc);
+                setMnc(operator.id.mnc);
 
                 const profileData = await listProfiles(cookies.user_token);
                 setProfiles(profileData.map((profile: any) => profile.name));

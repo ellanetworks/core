@@ -10,12 +10,17 @@ import (
 	"github.com/ellanetworks/core/internal/nms/server"
 )
 
+var initialOperator = db.Operator{
+	Mcc:           "001",
+	Mnc:           "01",
+	OperatorCode:  "0123456789ABCDEF0123456789ABCDEF",
+	Sst:           1,
+	Sd:            1056816,
+	SupportedTACs: `["001"]`,
+}
+
 func setupServer(filepath string) (*httptest.Server, []byte, error) {
-	testdb, err := db.NewDatabase(filepath)
-	if err != nil {
-		return nil, nil, err
-	}
-	err = testdb.InitializeOperator()
+	testdb, err := db.NewDatabase(filepath, initialOperator)
 	if err != nil {
 		return nil, nil, err
 	}

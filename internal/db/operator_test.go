@@ -11,7 +11,7 @@ import (
 
 func TestDbOperatorsEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"), initialOperator)
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -21,10 +21,10 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 		}
 	}()
 
-	err = database.InitializeOperator()
-	if err != nil {
-		t.Fatalf("Couldn't complete InitializeOperator: %s", err)
-	}
+	// err = database.InitializeOperator(initialOperator)
+	// if err != nil {
+	// 	t.Fatalf("Couldn't complete InitializeOperator: %s", err)
+	// }
 
 	retrievedOperator, err := database.GetOperator()
 	if err != nil {

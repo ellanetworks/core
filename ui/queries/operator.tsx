@@ -27,7 +27,7 @@ export const updateOperatorId = async (authToken: string, mcc: string, mnc: stri
     mcc: mcc,
     mnc: mnc,
   };
-  const response = await fetch(`/api/v1/operator`, {
+  const response = await fetch(`/api/v1/operator/id`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",

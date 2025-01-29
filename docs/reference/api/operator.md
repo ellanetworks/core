@@ -44,7 +44,7 @@ None
 
 ## Update the Operator ID
 
-This path updates the operator ID. The Mobile Country Code (MCC) and Mobile Network Code (MNC) are used to identify the operator.
+This path updates the operator ID. The Mobile Country Code (MCC) and Mobile Network Code (MNC) are used to identify the operator. The operator ID can't be changed when there are subscribers created in the system.
 
 | Method | Path                  |
 | ------ | --------------------- |
@@ -184,7 +184,7 @@ None
 
 ## Update the Operator Code (OP)
 
-This path updates the Operator Code (OP). The OP is a 32-character hexadecimal string that identifies the operator. This value is secret and should be kept confidential. The OP is used to create the derived Operator Code (OPc).
+This path updates the Operator Code (OP). The OP is a 32-character hexadecimal string that identifies the operator. This value is secret and should be kept confidential. The OP is used to create the derived Operator Code (OPc). The OP can't be changed when there are subscribers created in the system.
 
 | Method | Path                    |
 | ------ | ----------------------- |

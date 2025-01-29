@@ -26,15 +26,6 @@ const QueryCreateOperatorTable = `
 )`
 
 const (
-	DefaultMcc           = "001"
-	DefaultMnc           = "01"
-	DefaultOperatorCode  = "0123456789ABCDEF0123456789ABCDEF"
-	DefaultSupportedTACs = `["001"]`
-	DefaultOperatorSst   = 1
-	DefaultOperatorSd    = 1056816
-)
-
-const (
 	getOperatorStmt            = "SELECT &Operator.* FROM %s WHERE id=1"
 	updateOperatorCodeStmt     = "UPDATE %s SET operatorCode=$Operator.operatorCode WHERE id=1"
 	updateOperatorIdStmt       = "UPDATE %s SET mcc=$Operator.mcc, mnc=$Operator.mnc WHERE id=1"
@@ -76,20 +67,12 @@ func (operator *Operator) SetSupportedTacs(supportedTACs []string) {
 	operator.SupportedTACs = string(supportedTACsBytes)
 }
 
-func (db *Database) InitializeOperator() error {
+func (db *Database) InitializeOperator(initialOperator Operator) error {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(initializeOperatorStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare initialize operator configuration statement: %v", err)
 	}
-	operator := Operator{
-		Mcc:           DefaultMcc,
-		Mnc:           DefaultMnc,
-		OperatorCode:  DefaultOperatorCode,
-		SupportedTACs: DefaultSupportedTACs,
-		Sst:           DefaultOperatorSst,
-		Sd:            DefaultOperatorSd,
-	}
-	err = db.conn.Query(context.Background(), stmt, operator).Run()
+	err = db.conn.Query(context.Background(), stmt, initialOperator).Run()
 	if err != nil {
 		return fmt.Errorf("failed to initialize operator configuration: %v", err)
 	}
