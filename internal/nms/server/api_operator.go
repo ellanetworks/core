@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/hex"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -28,14 +29,19 @@ type UpdateOperatorCodeParams struct {
 	OperatorCode string `json:"operatorCode,omitempty"`
 }
 
+type UpdateOperatorHomeNetworkParams struct {
+	PrivateKey string `json:"privateKey,omitempty"`
+}
+
 type GetOperatorTrackingResponse struct {
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
 }
 
 type GetOperatorResponse struct {
-	Id       GetOperatorIdResponse       `json:"id,omitempty"`
-	Slice    GetOperatorSliceResponse    `json:"slice,omitempty"`
-	Tracking GetOperatorTrackingResponse `json:"tracking,omitempty"`
+	Id          GetOperatorIdResponse          `json:"id,omitempty"`
+	Slice       GetOperatorSliceResponse       `json:"slice,omitempty"`
+	Tracking    GetOperatorTrackingResponse    `json:"tracking,omitempty"`
+	HomeNetwork GetOperatorHomeNetworkResponse `json:"homeNetwork,omitempty"`
 }
 
 type GetOperatorSliceResponse struct {
@@ -48,15 +54,21 @@ type GetOperatorIdResponse struct {
 	Mnc string `json:"mnc,omitempty"`
 }
 
+type GetOperatorHomeNetworkResponse struct {
+	PublicKey string `json:"publicKey,omitempty"`
+}
+
 const (
-	GetOperatorAction            = "get_operator"
-	GetOperatorSliceAction       = "get_operator_slice"
-	GetOperatorTrackingAction    = "get_operator_tracking"
-	GetOperatorIdAction          = "get_operator_id"
-	UpdateOperatorSliceAction    = "update_operator_slice"
-	UpdateOperatorTrackingAction = "update_operator_tracking"
-	UpdateOperatorIdAction       = "update_operator_id"
-	UpdateOperatorCodeAction     = "update_operator_code"
+	GetOperatorAction               = "get_operator"
+	GetOperatorSliceAction          = "get_operator_slice"
+	GetOperatorTrackingAction       = "get_operator_tracking"
+	GetOperatorIdAction             = "get_operator_id"
+	GetOperatorHomeNetworkAction    = "get_operator_home_network"
+	UpdateOperatorSliceAction       = "update_operator_slice"
+	UpdateOperatorTrackingAction    = "update_operator_tracking"
+	UpdateOperatorIdAction          = "update_operator_id"
+	UpdateOperatorCodeAction        = "update_operator_code"
+	UpdateOperatorHomeNetworkAction = "update_operator_home_network"
 )
 
 // Mcc is a 3-decimal digit
@@ -99,6 +111,38 @@ func isValidOperatorCode(operatorCode string) bool {
 	return true
 }
 
+// isValidPrivateKey validates whether the provided private key is a valid 32-byte Curve25519 private key.
+func isValidPrivateKey(privateKey string) bool {
+	// Ensure it is exactly 64 hex characters (32 bytes)
+	if len(privateKey) != 64 {
+		log.Println("Invalid private key length:", len(privateKey))
+		return false
+	}
+
+	// Decode from hex string to bytes
+	privateKeyBytes, err := hex.DecodeString(privateKey)
+	if err != nil {
+		log.Println("Invalid private key format:", err)
+		return false
+	}
+
+	// Ensure it is exactly 32 bytes long
+	if len(privateKeyBytes) != 32 {
+		log.Println("Invalid private key byte length:", len(privateKeyBytes))
+		return false
+	}
+
+	// Check if it is correctly clamped for Curve25519 (X25519)
+	// - First byte: Bits 0-2 must be cleared
+	// - Last byte: Bit 7 must be cleared, and bit 6 must be set
+	if privateKeyBytes[0]&7 != 0 || privateKeyBytes[31]&0x80 != 0 || privateKeyBytes[31]&0x40 == 0 {
+		log.Println("Invalid Curve25519 key clamping")
+		return false
+	}
+
+	return true
+}
+
 // TAC is a 24-bit identifier
 func isValidTac(tac string) bool {
 	if len(tac) != 3 {
@@ -132,6 +176,13 @@ func GetOperator(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
+		hnPublicKey, err := dbOperator.GetHomeNetworkPublicKey()
+		if err != nil {
+			logger.NmsLog.Warnf("Failed to get home network public key: %v", err)
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to get home network public key")
+			return
+		}
+
 		operatorSlice := &GetOperatorResponse{
 			Id: GetOperatorIdResponse{
 				Mcc: dbOperator.Mcc,
@@ -143,6 +194,9 @@ func GetOperator(dbInstance *db.Database) gin.HandlerFunc {
 			},
 			Tracking: GetOperatorTrackingResponse{
 				SupportedTacs: dbOperator.GetSupportedTacs(),
+			},
+			HomeNetwork: GetOperatorHomeNetworkResponse{
+				PublicKey: hnPublicKey,
 			},
 		}
 
@@ -463,6 +517,50 @@ func UpdateOperatorCode(dbInstance *db.Database) gin.HandlerFunc {
 			UpdateOperatorCodeAction,
 			email,
 			"User updated operator Code",
+		)
+	}
+}
+
+func UpdateOperatorHomeNetwork(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			return
+		}
+		var updateOperatorHomeNetworkParams UpdateOperatorHomeNetworkParams
+		err := c.ShouldBindJSON(&updateOperatorHomeNetworkParams)
+		if err != nil {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			return
+		}
+		if updateOperatorHomeNetworkParams.PrivateKey == "" {
+			writeError(c.Writer, http.StatusBadRequest, "privateKey is missing")
+			return
+		}
+
+		if !isValidPrivateKey(updateOperatorHomeNetworkParams.PrivateKey) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid private key format. Must be a 32-byte hexadecimal string.")
+			return
+		}
+
+		err = dbInstance.UpdateHomeNetworkPrivateKey(updateOperatorHomeNetworkParams.PrivateKey)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to update home network private key")
+			return
+		}
+		message := SuccessResponse{Message: "Home Network private key updated successfully"}
+		err = writeResponse(c.Writer, message, http.StatusCreated)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
+		logger.LogAuditEvent(
+			UpdateOperatorHomeNetworkAction,
+			email,
+			"User updated home network private key",
 		)
 	}
 }

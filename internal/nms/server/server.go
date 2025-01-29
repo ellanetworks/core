@@ -133,6 +133,7 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	apiGroup.PUT("/operator/id", User(UpdateOperatorId(dbInstance), jwtSecret))
 	apiGroup.GET("/operator/id", User(GetOperatorId(dbInstance), jwtSecret))
 	apiGroup.PUT("/operator/code", User(UpdateOperatorCode(dbInstance), jwtSecret))
+	apiGroup.PUT("/operator/home-network", User(UpdateOperatorHomeNetwork(dbInstance), jwtSecret))
 
 	// Radios (Authenticated)
 	apiGroup.GET("/radios", User(ListRadios(), jwtSecret))

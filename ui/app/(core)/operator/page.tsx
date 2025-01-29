@@ -9,6 +9,8 @@ import EditOperatorIdModal from "@/components/EditOperatorIdModal";
 import EditOperatorCodeModal from "@/components/EditOperatorCodeModal";
 import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
 import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
+import EditOperatorHomeNetworkModal from "@/components/EditOperatorHomeNetworkModal";
+
 import Grid from "@mui/material/Grid2";
 
 interface OperatorData {
@@ -22,7 +24,10 @@ interface OperatorData {
   };
   tracking: {
     supportedTacs: string[];
-  }
+  };
+  homeNetwork: {
+    publicKey: string;
+  };
 }
 
 const Operator = () => {
@@ -32,6 +37,7 @@ const Operator = () => {
   const [isEditOperatorCodeModalOpen, setEditOperatorCodeModalOpen] = useState(false);
   const [isEditOperatorTrackingModalOpen, setEditOperatorTrackingModalOpen] = useState(false);
   const [isEditOperatorSliceModalOpen, setEditOperatorSliceModalOpen] = useState(false);
+  const [isEditOperatorHomeNetworkModalOpen, setEditOperatorHomeNetworkModalOpen] = useState(false);
   const [alert, setAlert] = useState<{ message: string; severity: "success" | "error" | null }>({
     message: "",
     severity: null,
@@ -54,11 +60,13 @@ const Operator = () => {
   const handleEditOperatorCodeClick = () => setEditOperatorCodeModalOpen(true);
   const handleEditOperatorTrackingClick = () => setEditOperatorTrackingModalOpen(true);
   const handleEditOperatorSliceClick = () => setEditOperatorSliceModalOpen(true);
+  const handleEditOperatorHomeNetworkClick = () => setEditOperatorHomeNetworkModalOpen(true);
 
   const handleEditOperatorIdModalClose = () => setEditOperatorIdModalOpen(false);
   const handleEditOperatorCodeModalClose = () => setEditOperatorCodeModalOpen(false);
   const handleEditOperatorTrackingModalClose = () => setEditOperatorTrackingModalOpen(false);
   const handleEditOperatorSliceModalClose = () => setEditOperatorSliceModalOpen(false);
+  const handleEditOperatorHomeNetworkModalClose = () => setEditOperatorHomeNetworkModalOpen(false);
 
   const handleEditOperatorIdSuccess = () => {
     fetchOperator();
@@ -76,7 +84,12 @@ const Operator = () => {
 
   const handleEditOperatorSliceSuccess = () => {
     fetchOperator();
-    setAlert({ message: "Operator Slice updated successfully!", severity: "success" });
+    setAlert({ message: "Operator Slice information updated successfully!", severity: "success" });
+  };
+
+  const handleEditOperatorHomeNetworkSuccess = () => {
+    fetchOperator();
+    setAlert({ message: "Operator Home Network information updated successfully!", severity: "success" });
   };
 
   return (
@@ -226,6 +239,41 @@ const Operator = () => {
         </CardActions>
       </Card>
 
+      <Box sx={{ marginBottom: 4 }} />
+
+      <Card
+        variant="outlined"
+        sx={{
+          marginBottom: 3,
+          borderRadius: 2,
+          boxShadow: 1,
+          borderColor: "rgba(0, 0, 0, 0.12)"
+        }}
+      >
+        <CardHeader title="Home Network Information" />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid size={6}>
+              <Typography variant="body1">Public Key</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="body1">{operator ? `${operator.homeNetwork.publicKey}` : "N/A"}</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="body1">Private Key</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="body1">{"***************"}</Typography>
+            </Grid>
+          </Grid>
+        </CardContent>
+        <CardActions>
+          <IconButton aria-label="edit" onClick={handleEditOperatorHomeNetworkClick}>
+            <EditIcon />
+          </IconButton>
+        </CardActions>
+      </Card>
+
       <EditOperatorIdModal
         open={isEditOperatorIdModalOpen}
         onClose={handleEditOperatorIdModalClose}
@@ -262,6 +310,11 @@ const Operator = () => {
             sd: 0,
           }
         }
+      />
+      <EditOperatorHomeNetworkModal
+        open={isEditOperatorHomeNetworkModalOpen}
+        onClose={handleEditOperatorHomeNetworkModalClose}
+        onSuccess={handleEditOperatorHomeNetworkSuccess}
       />
     </Box>
   );

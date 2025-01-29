@@ -131,8 +131,12 @@ func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (
 	*models.AuthenticationInfoResult, error,
 ) {
-	response := &models.AuthenticationInfoResult{}
-	supi, err := suci.ToSupi(supiOrSuci, udmContext.HomeNetworkPrivateKey)
+	hnPrivateKey, err := udmContext.DbInstance.GetHomeNetworkPrivateKey()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get home network private key: %w", err)
+	}
+
+	supi, err := suci.ToSupi(supiOrSuci, hnPrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't convert suci to supi: %w", err)
 	}
@@ -152,9 +156,9 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 
 	var kStr, opStr, opcStr string
 
-	k, op, opc := make([]byte, 16), make([]byte, 16), make([]byte, 16)
-
-	logger.UdmLog.Debugln("K", k)
+	var k []byte
+	op := make([]byte, 16)
+	opc := make([]byte, 16)
 
 	if authSubs.PermanentKey != nil {
 		kStr = authSubs.PermanentKey.PermanentKeyValue
@@ -341,7 +345,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	// fmt.Printf("SQN xor AK = %x\n", SQNxorAK)
 	AUTN := append(append(SQNxorAK, AMF...), macA...)
 	fmt.Printf("AUTN = %x\n", AUTN)
-
+	response := &models.AuthenticationInfoResult{}
 	var av models.AuthenticationVector
 	if authSubs.AuthenticationMethod == models.AuthMethod__5_G_AKA {
 		response.AuthType = models.AuthType__5_G_AKA

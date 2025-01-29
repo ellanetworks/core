@@ -84,12 +84,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to generate operator code: %v", err)
 	}
+	initialHNPrivateKey, err := generateHomeNetworkPrivateKey()
+	if err != nil {
+		log.Fatalf("Failed to generate home network private key: %v", err)
+	}
 	initialOperatorValues := db.Operator{
-		Mcc:          InitialMcc,
-		Mnc:          InitialMnc,
-		OperatorCode: initialOp,
-		Sst:          InitialOperatorSst,
-		Sd:           InitialOperatorSd,
+		Mcc:                   InitialMcc,
+		Mnc:                   InitialMnc,
+		OperatorCode:          initialOp,
+		Sst:                   InitialOperatorSst,
+		Sd:                    InitialOperatorSd,
+		HomeNetworkPrivateKey: initialHNPrivateKey,
 	}
 	initialOperatorValues.SetSupportedTacs(
 		[]string{
@@ -121,4 +126,19 @@ func generateOperatorCode() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(op[:]), nil
+}
+
+func generateHomeNetworkPrivateKey() (string, error) {
+	var privateKey [32]byte
+	_, err := rand.Read(privateKey[:])
+	if err != nil {
+		return "", fmt.Errorf("failed to generate home network private key: %w", err)
+	}
+
+	// Ensure the private key conforms to Curve25519 requirements:
+	privateKey[0] &= 248 // Clamp first byte
+	privateKey[31] &= 127
+	privateKey[31] |= 64 // Set highest bit
+
+	return hex.EncodeToString(privateKey[:]), nil
 }

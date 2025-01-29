@@ -34,7 +34,6 @@ type UDMContext struct {
 	GpsiSupiList                   models.IdentityData
 	SharedSubsDataMap              map[string]models.SharedData // sharedDataIds as key
 	SubscriptionOfSharedDataChange sync.Map                     // subscriptionID as key
-	HomeNetworkPrivateKey          string
 	SdmSubscriptionIDGenerator     int
 	UESubsCollection               sync.Map // map[ueId]*UESubsData
 }
