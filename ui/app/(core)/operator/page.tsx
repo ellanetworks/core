@@ -92,7 +92,15 @@ const Operator = () => {
         </Alert>
       )}
 
-      <Card variant="outlined" sx={{ marginBottom: 3 }}>
+      <Card
+        variant="outlined"
+        sx={{
+          marginBottom: 3,
+          borderRadius: 2,
+          boxShadow: 1,
+          borderColor: "rgba(0, 0, 0, 0.12)"
+        }}
+      >
         <CardHeader title="Operator ID" />
         <CardContent>
           <Grid container spacing={2}>
@@ -119,7 +127,15 @@ const Operator = () => {
 
       <Box sx={{ marginBottom: 4 }} />
 
-      <Card variant="outlined" sx={{ marginBottom: 3 }}>
+      <Card
+        variant="outlined"
+        sx={{
+          marginBottom: 3,
+          borderRadius: 2,
+          boxShadow: 1,
+          borderColor: "rgba(0, 0, 0, 0.12)"
+        }}
+      >
         <CardHeader title="Operator Code" />
         <CardContent>
           <Grid container spacing={2}>
@@ -140,7 +156,15 @@ const Operator = () => {
 
       <Box sx={{ marginBottom: 4 }} />
 
-      <Card variant="outlined" sx={{ marginBottom: 3 }}>
+      <Card
+        variant="outlined"
+        sx={{
+          marginBottom: 3,
+          borderRadius: 2,
+          boxShadow: 1,
+          borderColor: "rgba(0, 0, 0, 0.12)"
+        }}
+      >
         <CardHeader title="Tracking Information" />
         <CardContent>
           <Grid container spacing={2}>
@@ -169,7 +193,15 @@ const Operator = () => {
 
       <Box sx={{ marginBottom: 4 }} />
 
-      <Card variant="outlined" sx={{ marginBottom: 3 }}>
+      <Card
+        variant="outlined"
+        sx={{
+          marginBottom: 3,
+          borderRadius: 2,
+          boxShadow: 1,
+          borderColor: "rgba(0, 0, 0, 0.12)"
+        }}
+      >
         <CardHeader title="Slice Information" />
         <CardContent>
           <Grid container spacing={2}>
