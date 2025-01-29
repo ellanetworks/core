@@ -31,15 +31,20 @@ const QueryCreateSubscribersTable = `
 )`
 
 const (
-	listSubscribersStmt  = "SELECT &Subscriber.* from %s"
-	getSubscriberStmt    = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
-	createSubscriberStmt = "INSERT INTO %s (imsi, ipAddress, sequenceNumber, permanentKey, opc, profileID) VALUES ($Subscriber.imsi, $Subscriber.ipAddress, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID)"
-	editSubscriberStmt   = "UPDATE %s SET ipAddress=$Subscriber.ipAddress, sequenceNumber=$Subscriber.sequenceNumber, permanentKey=$Subscriber.permanentKey, opc=$Subscriber.opc, profileID=$Subscriber.profileID WHERE imsi==$Subscriber.imsi"
-	deleteSubscriberStmt = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
-	checkIPStmt          = "SELECT &Subscriber.* FROM %s WHERE ipAddress=$Subscriber.ipAddress"
-	allocateIPStmt       = "UPDATE %s SET ipAddress=$Subscriber.ipAddress WHERE imsi=$Subscriber.imsi"
-	releaseIPStmt        = "UPDATE %s SET ipAddress=NULL WHERE imsi=$Subscriber.imsi"
+	listSubscribersStmt   = "SELECT &Subscriber.* from %s"
+	getSubscriberStmt     = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
+	createSubscriberStmt  = "INSERT INTO %s (imsi, ipAddress, sequenceNumber, permanentKey, opc, profileID) VALUES ($Subscriber.imsi, $Subscriber.ipAddress, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID)"
+	editSubscriberStmt    = "UPDATE %s SET ipAddress=$Subscriber.ipAddress, sequenceNumber=$Subscriber.sequenceNumber, permanentKey=$Subscriber.permanentKey, opc=$Subscriber.opc, profileID=$Subscriber.profileID WHERE imsi==$Subscriber.imsi"
+	deleteSubscriberStmt  = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
+	getNumSubscribersStmt = "SELECT COUNT(*) AS &NumSubscribers.count FROM %s"
+	checkIPStmt           = "SELECT &Subscriber.* FROM %s WHERE ipAddress=$Subscriber.ipAddress"
+	allocateIPStmt        = "UPDATE %s SET ipAddress=$Subscriber.ipAddress WHERE imsi=$Subscriber.imsi"
+	releaseIPStmt         = "UPDATE %s SET ipAddress=NULL WHERE imsi=$Subscriber.imsi"
 )
+
+type NumSubscribers struct {
+	Count int `db:"count"`
+}
 
 type Subscriber struct {
 	ID             int    `db:"id"`
@@ -127,7 +132,6 @@ func (db *Database) DeleteSubscriber(imsi string) error {
 }
 
 func (db *Database) SubscribersInProfile(name string) (bool, error) {
-	// Get the profile by its name
 	profile, err := db.GetProfile(name)
 	if err != nil {
 		return false, fmt.Errorf("failed to get profile with name %s: %v", name, err)
@@ -231,4 +235,17 @@ func addOffsetToIP(baseIP net.IP, offset int) net.IP {
 	}
 
 	return resultIP
+}
+
+func (db *Database) NumSubscribers() (int, error) {
+	stmt, err := sqlair.Prepare(fmt.Sprintf(getNumSubscribersStmt, db.subscribersTable), NumSubscribers{})
+	if err != nil {
+		return 0, fmt.Errorf("failed to prepare statement: %v", err)
+	}
+	result := NumSubscribers{}
+	err = db.conn.Query(context.Background(), stmt).Get(&result)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get number of subscribers: %v", err)
+	}
+	return result.Count, nil
 }

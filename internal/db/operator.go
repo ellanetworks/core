@@ -26,19 +26,12 @@ const QueryCreateOperatorTable = `
 )`
 
 const (
-	DefaultMcc           = "001"
-	DefaultMnc           = "01"
-	DefaultOperatorCode  = "0123456789ABCDEF0123456789ABCDEF"
-	DefaultSupportedTACs = `["001"]`
-	DefaultOperatorSst   = 1
-	DefaultOperatorSd    = 1056816
-)
-
-const (
-	getOperatorStmt        = "SELECT &Operator.* FROM %s WHERE id=1"
-	updateOperatorCodeStmt = "UPDATE %s SET operatorCode=$Operator.operatorCode WHERE id=1"
-	editOperatorStmt       = "UPDATE %s SET mcc=$Operator.mcc, mnc=$Operator.mnc, supportedTACs=$Operator.supportedTACs, sst=$Operator.sst, sd=$Operator.sd WHERE id=1"
-	initializeOperatorStmt = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs, sst, sd) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs, $Operator.sst, $Operator.sd)"
+	getOperatorStmt            = "SELECT &Operator.* FROM %s WHERE id=1"
+	updateOperatorCodeStmt     = "UPDATE %s SET operatorCode=$Operator.operatorCode WHERE id=1"
+	updateOperatorIdStmt       = "UPDATE %s SET mcc=$Operator.mcc, mnc=$Operator.mnc WHERE id=1"
+	updateOperatorSliceStmt    = "UPDATE %s SET sst=$Operator.sst, sd=$Operator.sd WHERE id=1"
+	updateOperatorTrackingStmt = "UPDATE %s SET supportedTACs=$Operator.supportedTACs WHERE id=1"
+	initializeOperatorStmt     = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs, sst, sd) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs, $Operator.sst, $Operator.sd)"
 )
 
 type Operator struct {
@@ -74,20 +67,12 @@ func (operator *Operator) SetSupportedTacs(supportedTACs []string) {
 	operator.SupportedTACs = string(supportedTACsBytes)
 }
 
-func (db *Database) InitializeOperator() error {
+func (db *Database) InitializeOperator(initialOperator Operator) error {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(initializeOperatorStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare initialize operator configuration statement: %v", err)
 	}
-	operator := Operator{
-		Mcc:           DefaultMcc,
-		Mnc:           DefaultMnc,
-		OperatorCode:  DefaultOperatorCode,
-		SupportedTACs: DefaultSupportedTACs,
-		Sst:           DefaultOperatorSst,
-		Sd:            DefaultOperatorSd,
-	}
-	err = db.conn.Query(context.Background(), stmt, operator).Run()
+	err = db.conn.Query(context.Background(), stmt, initialOperator).Run()
 	if err != nil {
 		return fmt.Errorf("failed to initialize operator configuration: %v", err)
 	}
@@ -108,17 +93,53 @@ func (db *Database) GetOperator() (*Operator, error) {
 	return &operator, nil
 }
 
-func (db *Database) UpdateOperator(operator *Operator) error {
-	_, err := db.GetOperator()
+func (db *Database) UpdateOperatorSlice(sst int32, sd int) error {
+	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorSliceStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return err
 	}
-	stmt, err := sqlair.Prepare(fmt.Sprintf(editOperatorStmt, db.operatorTable), Operator{})
-	if err != nil {
-		return err
+	operator := Operator{
+		Sst: sst,
+		Sd:  sd,
 	}
 	err = db.conn.Query(context.Background(), stmt, operator).Run()
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to update operator ID: %v", err)
+	}
+	logger.DBLog.Infof("Updated operator slice information")
+	return nil
+}
+
+func (db *Database) UpdateOperatorTracking(supportedTACs []string) error {
+	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorTrackingStmt, db.operatorTable), Operator{})
+	if err != nil {
+		return err
+	}
+	operator := Operator{}
+	operator.SetSupportedTacs(supportedTACs)
+	err = db.conn.Query(context.Background(), stmt, operator).Run()
+	if err != nil {
+		return fmt.Errorf("failed to update operator tracking area code: %v", err)
+	}
+	logger.DBLog.Infof("Updated operator tracking area code")
+	return nil
+}
+
+func (db *Database) UpdateOperatorId(mcc, mnc string) error {
+	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorIdStmt, db.operatorTable), Operator{})
+	if err != nil {
+		return err
+	}
+	operator := Operator{
+		Mcc: mcc,
+		Mnc: mnc,
+	}
+	err = db.conn.Query(context.Background(), stmt, operator).Run()
+	if err != nil {
+		return fmt.Errorf("failed to update operator ID: %v", err)
+	}
+	logger.DBLog.Infof("Updated operator ID")
+	return nil
 }
 
 func (db *Database) GetOperatorCode() (string, error) {

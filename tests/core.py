@@ -12,7 +12,9 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-OPERATOR_CONFIG_URL = "/api/v1/operator"
+OPERATOR_ID_CONFIG_URL = "/api/v1/operator/id"
+OPERATOR_SLICE_CONFIG_URL = "/api/v1/operator/slice"
+OPERATOR_TRACKING_CONFIG_URL = "/api/v1/operator/tracking"
 PROFILE_CONFIG_URL = "/api/v1/profiles"
 SUBSCRIBERS_CONFIG_URL = "/api/v1/subscribers"
 
@@ -150,16 +152,36 @@ class EllaCore:
         self._make_request("POST", PROFILE_CONFIG_URL, data=profile_config)
         logger.info(f"Created profile {name}.")
 
-    def update_operator(
-        self, mcc: str, mnc: str, supported_tacs: List[str], sst: int, sd: int
+    def update_operator_id(
+        self,
+        mcc: str,
+        mnc: str,
     ) -> None:
-        """Update operator information."""
+        """Update operator ID."""
         operator_config = {
             "mcc": mcc,
             "mnc": mnc,
-            "supportedTacs": supported_tacs,
+        }
+        self._make_request("PUT", OPERATOR_ID_CONFIG_URL, data=operator_config)
+        logger.info("Updated operator ID.")
+
+    def update_operator_slice(
+        self,
+        sst: int,
+        sd: int,
+    ) -> None:
+        """Update operator slice information."""
+        operator_config = {
             "sst": sst,
             "sd": sd,
         }
-        self._make_request("PUT", OPERATOR_CONFIG_URL, data=operator_config)
-        logger.info("Updated operator configuration.")
+        self._make_request("PUT", OPERATOR_SLICE_CONFIG_URL, data=operator_config)
+        logger.info("Updated operator slice Information.")
+
+    def update_operator_tracking(self, supported_tacs: List[str]) -> None:
+        """Update operator slice information."""
+        operator_config = {
+            "supportedTacs": supported_tacs,
+        }
+        self._make_request("PUT", OPERATOR_TRACKING_CONFIG_URL, data=operator_config)
+        logger.info("Updated operator tracking Information.")

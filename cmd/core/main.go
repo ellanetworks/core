@@ -3,6 +3,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -20,6 +22,13 @@ import (
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/upf"
 	"go.uber.org/zap/zapcore"
+)
+
+const (
+	InitialMcc         = "001"
+	InitialMnc         = "01"
+	InitialOperatorSst = 1
+	InitialOperatorSd  = 1056816
 )
 
 func startNetwork(dbInstance *db.Database, cfg config.Config) error {
@@ -71,7 +80,23 @@ func main() {
 		log.Fatalf("failed to parse log level: %v", err)
 	}
 	logger.SetLogLevel(level)
-	dbInstance, err := db.NewDatabase(cfg.DB.Path)
+	initialOp, err := generateOperatorCode()
+	if err != nil {
+		log.Fatalf("Failed to generate operator code: %v", err)
+	}
+	initialOperatorValues := db.Operator{
+		Mcc:          InitialMcc,
+		Mnc:          InitialMnc,
+		OperatorCode: initialOp,
+		Sst:          InitialOperatorSst,
+		Sd:           InitialOperatorSd,
+	}
+	initialOperatorValues.SetSupportedTacs(
+		[]string{
+			"001",
+		},
+	)
+	dbInstance, err := db.NewDatabase(cfg.DB.Path, initialOperatorValues)
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
@@ -87,4 +112,13 @@ func main() {
 	}
 	logger.EllaLog.Infof("Ella is running")
 	select {}
+}
+
+func generateOperatorCode() (string, error) {
+	var op [16]byte
+	_, err := rand.Read(op[:])
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(op[:]), nil
 }

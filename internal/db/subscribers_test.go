@@ -13,7 +13,7 @@ import (
 
 func TestSubscribersDbEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"), initialOperator)
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -102,7 +102,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 
 func TestIPAllocationAndRelease(t *testing.T) {
 	tempDir := t.TempDir()
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"), initialOperator)
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -188,7 +188,7 @@ func TestIPAllocationAndRelease(t *testing.T) {
 
 func TestAllocateAllIPsInPool(t *testing.T) {
 	tempDir := t.TempDir()
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"), initialOperator)
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}

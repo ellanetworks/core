@@ -125,8 +125,13 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	apiGroup.DELETE("/profiles/:name", User(DeleteProfile(dbInstance), jwtSecret))
 
 	// Operator (Authenticated)
-	apiGroup.PUT("/operator", User(UpdateOperator(dbInstance), jwtSecret))
 	apiGroup.GET("/operator", User(GetOperator(dbInstance), jwtSecret))
+	apiGroup.PUT("/operator/slice", User(UpdateOperatorSlice(dbInstance), jwtSecret))
+	apiGroup.GET("/operator/slice", User(GetOperatorSlice(dbInstance), jwtSecret))
+	apiGroup.PUT("/operator/tracking", User(UpdateOperatorTracking(dbInstance), jwtSecret))
+	apiGroup.GET("/operator/tracking", User(GetOperatorTracking(dbInstance), jwtSecret))
+	apiGroup.PUT("/operator/id", User(UpdateOperatorId(dbInstance), jwtSecret))
+	apiGroup.GET("/operator/id", User(GetOperatorId(dbInstance), jwtSecret))
 	apiGroup.PUT("/operator/code", User(UpdateOperatorCode(dbInstance), jwtSecret))
 
 	// Radios (Authenticated)

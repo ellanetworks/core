@@ -38,7 +38,7 @@ func (db *Database) Close() error {
 // stores the connection information and returns an object containing the information.
 // The database path must be a valid file path or ":memory:".
 // The table will be created if it doesn't exist in the format expected by the package.
-func NewDatabase(databasePath string) (*Database, error) {
+func NewDatabase(databasePath string, initialOperator Operator) (*Database, error) {
 	sqlConnection, err := sql.Open("sqlite3", databasePath)
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.operatorTable = OperatorTableName
 	db.radiosTable = RadiosTableName
 	db.usersTable = UsersTableName
-	err = db.InitializeOperator()
+	err = db.InitializeOperator(initialOperator)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize network configuration: %v", err)
 	}

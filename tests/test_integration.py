@@ -215,12 +215,16 @@ def configure_ella_core(core_address: str) -> Subscriber:
         priority_level=1,
         var5qi=8,
     )
-    ella_client.update_operator(
+    ella_client.update_operator_id(
         mcc="001",
         mnc="01",
-        supported_tacs=["001"],
+    )
+    ella_client.update_operator_slice(
         sst=1,
         sd=1056816,
+    )
+    ella_client.update_operator_tracking(
+        supported_tacs=["001"],
     )
     for i in range(NUM_IMSIS):
         imsi = compute_imsi(TEST_START_IMSI, i)

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Box, Typography, CircularProgress, Alert } from "@mui/material";
+import { Box, Typography, CircularProgress, Alert, Card } from "@mui/material";
 import { getStatus } from "@/queries/status";
 import { getMetrics } from "@/queries/metrics";
 import { listSubscribers } from "@/queries/subscribers";
@@ -124,7 +124,7 @@ const Dashboard = () => {
       </Typography>
       <Grid container spacing={4} justifyContent="flex-start">
         <Grid size={3}>
-          <Box
+          <Card
             sx={{
               width: "100%",
               aspectRatio: "1 / 1",
@@ -132,9 +132,10 @@ const Dashboard = () => {
               flexDirection: "column",
               justifyContent: "center",
               alignItems: "center",
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 2,
+              borderRadius: 3,
+              boxShadow: 2,
+              padding: 2,
+              backgroundColor: "background.paper",
               textAlign: "center",
             }}
           >
@@ -144,10 +145,10 @@ const Dashboard = () => {
             ) : (
               <Typography variant="h4">{radioCount ?? 0}</Typography>
             )}
-          </Box>
+          </Card>
         </Grid>
         <Grid size={3}>
-          <Box
+          <Card
             sx={{
               width: "100%",
               aspectRatio: "1 / 1",
@@ -155,9 +156,10 @@ const Dashboard = () => {
               flexDirection: "column",
               justifyContent: "center",
               alignItems: "center",
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 2,
+              borderRadius: 3,
+              boxShadow: 2,
+              padding: 2,
+              backgroundColor: "background.paper",
               textAlign: "center",
             }}
           >
@@ -167,10 +169,10 @@ const Dashboard = () => {
             ) : (
               <Typography variant="h4">{subscriberCount ?? 0}</Typography>
             )}
-          </Box>
+          </Card>
         </Grid>
         <Grid size={3}>
-          <Box
+          <Card
             sx={{
               width: "100%",
               aspectRatio: "1 / 1",
@@ -178,9 +180,10 @@ const Dashboard = () => {
               flexDirection: "column",
               justifyContent: "center",
               alignItems: "center",
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 2,
+              borderRadius: 3,
+              boxShadow: 2,
+              padding: 2,
+              backgroundColor: "background.paper",
               textAlign: "center",
             }}
           >
@@ -190,20 +193,20 @@ const Dashboard = () => {
             ) : (
               <Typography variant="h4">{activeSessions ?? 0}</Typography>
             )}
-          </Box>
+          </Card>
         </Grid>
         <Grid size={6}>
-          <Box
+          <Card
             sx={{
               display: "flex",
               flexDirection: "column",
               justifyContent: "center",
               alignItems: "center",
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 2,
-              textAlign: "center",
+              borderRadius: 3,
+              boxShadow: 2,
               padding: 2,
+              backgroundColor: "background.paper",
+              textAlign: "center",
             }}
           >
             <Typography variant="h6">IP Allocation</Typography>
@@ -223,7 +226,7 @@ const Dashboard = () => {
                 height={200}
               />
             )}
-          </Box>
+          </Card>
         </Grid>
       </Grid>
 
@@ -237,7 +240,7 @@ const Dashboard = () => {
       </Typography>
       <Grid container spacing={2} justifyContent="flex-start">
         <Grid size={3}>
-          <Box
+          <Card
             sx={{
               width: "100%",
               aspectRatio: "1 / 1",
@@ -245,9 +248,10 @@ const Dashboard = () => {
               flexDirection: "column",
               justifyContent: "center",
               alignItems: "center",
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 2,
+              borderRadius: 3,
+              boxShadow: 2,
+              padding: 2,
+              backgroundColor: "background.paper",
               textAlign: "center",
             }}
           >
@@ -259,10 +263,10 @@ const Dashboard = () => {
                 {memoryUsage !== null ? `${memoryUsage} MB` : "N/A"}
               </Typography>
             )}
-          </Box>
+          </Card>
         </Grid>
         <Grid size={3}>
-          <Box
+          <Card
             sx={{
               width: "100%",
               aspectRatio: "1 / 1",
@@ -270,9 +274,10 @@ const Dashboard = () => {
               flexDirection: "column",
               justifyContent: "center",
               alignItems: "center",
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 2,
+              borderRadius: 3,
+              boxShadow: 2,
+              padding: 2,
+              backgroundColor: "background.paper",
               textAlign: "center",
             }}
           >
@@ -284,7 +289,7 @@ const Dashboard = () => {
                 {databaseSize !== null ? `${databaseSize} KB` : "N/A"}
               </Typography>
             )}
-          </Box>
+          </Card>
         </Grid>
       </Grid>
     </Box>
