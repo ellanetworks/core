@@ -132,12 +132,10 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	*models.AuthenticationInfoResult, error,
 ) {
 	response := &models.AuthenticationInfoResult{}
-	supi, err := suci.ToSupi(supiOrSuci, udmContext.SuciProfiles)
+	supi, err := suci.ToSupi(supiOrSuci, udmContext.HomeNetworkPrivateKey)
 	if err != nil {
-		return nil, fmt.Errorf("suciToSupi error: %w", err)
+		return nil, fmt.Errorf("couldn't convert suci to supi: %w", err)
 	}
-
-	logger.UdmLog.Debugf("supi conversion => %s\n", supi)
 
 	authSubs, err := GetAuthSubsData(supi)
 	if err != nil {

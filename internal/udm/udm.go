@@ -4,7 +4,6 @@ package udm
 
 import (
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -14,12 +13,7 @@ const (
 
 func Start(dbInstance *db.Database) error {
 	udmContext.UriScheme = models.UriScheme_HTTP
-	udmContext.SuciProfiles = []suci.SuciProfile{
-		{
-			ProtectionScheme: "1", // Standard defined value for Protection Scheme A (TS 33.501 Annex C)
-			PrivateKey:       UDM_HNP_PRIVATE_KEY,
-		},
-	}
+	udmContext.HomeNetworkPrivateKey = UDM_HNP_PRIVATE_KEY
 	udmContext.NfService = make(map[models.ServiceName]models.NfService)
 	udmContext.SdmSubscriptionIDGenerator = 1
 	udmContext.DbInstance = dbInstance
