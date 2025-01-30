@@ -171,7 +171,7 @@ func (a *SCTPAddr) isWildcard() bool {
 	if a == nil {
 		return true
 	}
-	if 0 == len(a.IPAddrs) {
+	if len(a.IPAddrs) == 0 {
 		return true
 	}
 
