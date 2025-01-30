@@ -1,14 +1,16 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Box, IconButton, Alert, Typography, Chip, Card, CardHeader, Button, CardContent, CardActions } from "@mui/material";
+import { Box, IconButton, Alert, Typography, Chip, Card, CardHeader, Button, CardContent, CardActions, Tooltip } from "@mui/material";
+import { ContentCopy as CopyIcon, Edit as EditIcon } from "@mui/icons-material";
 import { getOperator } from "@/queries/operator";
 import { useCookies } from "react-cookie";
-import { Edit as EditIcon } from "@mui/icons-material";
 import EditOperatorIdModal from "@/components/EditOperatorIdModal";
 import EditOperatorCodeModal from "@/components/EditOperatorCodeModal";
 import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
 import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
+import EditOperatorHomeNetworkModal from "@/components/EditOperatorHomeNetworkModal";
+
 import Grid from "@mui/material/Grid2";
 
 interface OperatorData {
@@ -22,7 +24,10 @@ interface OperatorData {
   };
   tracking: {
     supportedTacs: string[];
-  }
+  };
+  homeNetwork: {
+    publicKey: string;
+  };
 }
 
 const Operator = () => {
@@ -32,6 +37,7 @@ const Operator = () => {
   const [isEditOperatorCodeModalOpen, setEditOperatorCodeModalOpen] = useState(false);
   const [isEditOperatorTrackingModalOpen, setEditOperatorTrackingModalOpen] = useState(false);
   const [isEditOperatorSliceModalOpen, setEditOperatorSliceModalOpen] = useState(false);
+  const [isEditOperatorHomeNetworkModalOpen, setEditOperatorHomeNetworkModalOpen] = useState(false);
   const [alert, setAlert] = useState<{ message: string; severity: "success" | "error" | null }>({
     message: "",
     severity: null,
@@ -54,11 +60,13 @@ const Operator = () => {
   const handleEditOperatorCodeClick = () => setEditOperatorCodeModalOpen(true);
   const handleEditOperatorTrackingClick = () => setEditOperatorTrackingModalOpen(true);
   const handleEditOperatorSliceClick = () => setEditOperatorSliceModalOpen(true);
+  const handleEditOperatorHomeNetworkClick = () => setEditOperatorHomeNetworkModalOpen(true);
 
   const handleEditOperatorIdModalClose = () => setEditOperatorIdModalOpen(false);
   const handleEditOperatorCodeModalClose = () => setEditOperatorCodeModalOpen(false);
   const handleEditOperatorTrackingModalClose = () => setEditOperatorTrackingModalOpen(false);
   const handleEditOperatorSliceModalClose = () => setEditOperatorSliceModalOpen(false);
+  const handleEditOperatorHomeNetworkModalClose = () => setEditOperatorHomeNetworkModalOpen(false);
 
   const handleEditOperatorIdSuccess = () => {
     fetchOperator();
@@ -76,7 +84,19 @@ const Operator = () => {
 
   const handleEditOperatorSliceSuccess = () => {
     fetchOperator();
-    setAlert({ message: "Operator Slice updated successfully!", severity: "success" });
+    setAlert({ message: "Operator Slice information updated successfully!", severity: "success" });
+  };
+
+  const handleEditOperatorHomeNetworkSuccess = () => {
+    fetchOperator();
+    setAlert({ message: "Operator Home Network information updated successfully!", severity: "success" });
+  };
+
+  const handleCopyPublicKey = () => {
+    if (operator?.homeNetwork.publicKey) {
+      navigator.clipboard.writeText(operator.homeNetwork.publicKey);
+      setAlert({ message: "Public Key copied to clipboard!", severity: "success" });
+    }
   };
 
   return (
@@ -125,8 +145,6 @@ const Operator = () => {
         </CardActions>
       </Card>
 
-      <Box sx={{ marginBottom: 4 }} />
-
       <Card
         variant="outlined"
         sx={{
@@ -153,8 +171,6 @@ const Operator = () => {
           </IconButton>
         </CardActions>
       </Card>
-
-      <Box sx={{ marginBottom: 4 }} />
 
       <Card
         variant="outlined"
@@ -191,8 +207,6 @@ const Operator = () => {
         </CardActions>
       </Card>
 
-      <Box sx={{ marginBottom: 4 }} />
-
       <Card
         variant="outlined"
         sx={{
@@ -221,6 +235,60 @@ const Operator = () => {
         </CardContent>
         <CardActions>
           <IconButton aria-label="edit" onClick={handleEditOperatorSliceClick}>
+            <EditIcon />
+          </IconButton>
+        </CardActions>
+      </Card>
+
+      <Card
+        variant="outlined"
+        sx={{
+          marginBottom: 3,
+          borderRadius: 2,
+          boxShadow: 1,
+          borderColor: "rgba(0, 0, 0, 0.12)"
+        }}
+      >
+        <CardHeader title="Home Network Information" />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid size={6}>
+              <Typography variant="body1">Encryption</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="body1">{"ECIES - Profile A"}</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="body1">Public Key</Typography>
+            </Grid>
+            <Grid size={6} sx={{ display: "flex", alignItems: "center" }}>
+              <Tooltip title={operator?.homeNetwork.publicKey || "N/A"} arrow>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    maxWidth: "250px",
+                  }}
+                >
+                  {operator?.homeNetwork.publicKey || "N/A"}
+                </Typography>
+              </Tooltip>
+              <IconButton onClick={handleCopyPublicKey} sx={{ marginLeft: 1 }}>
+                <CopyIcon fontSize="small" />
+              </IconButton>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="body1">Private Key</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="body1">{"***************"}</Typography>
+            </Grid>
+          </Grid>
+        </CardContent>
+        <CardActions>
+          <IconButton aria-label="edit" onClick={handleEditOperatorHomeNetworkClick}>
             <EditIcon />
           </IconButton>
         </CardActions>
@@ -262,6 +330,11 @@ const Operator = () => {
             sd: 0,
           }
         }
+      />
+      <EditOperatorHomeNetworkModal
+        open={isEditOperatorHomeNetworkModalOpen}
+        onClose={handleEditOperatorHomeNetworkModalClose}
+        onSuccess={handleEditOperatorHomeNetworkSuccess}
       />
     </Box>
   );

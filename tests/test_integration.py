@@ -138,6 +138,10 @@ class TestELLA:
             "k8s/core-configmap.yaml",
             "k8s/core-deployment.yaml",
             "k8s/core-service.yaml",
+            "k8s/ueransim-configmap.yaml",
+            "k8s/ueransim-deployment.yaml",
+            "k8s/ueransim-n2-nad.yaml",
+            "k8s/ueransim-n3-nad.yaml",
         ]
         for manifest in manifests:
             k8s_client.apply_manifest(manifest)

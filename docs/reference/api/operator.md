@@ -37,6 +37,9 @@ None
                 "002",
                 "003"
             ]
+        },
+        "homeNetwork": {
+            "publicKey": "021bd3c0ba857e6f45b6ecb76ad826fd27fecef441f23d0e418b645829261e16",
         }
     }
 }
@@ -200,6 +203,28 @@ This path updates the Operator Code (OP). The OP is a 32-character hexadecimal s
 {
     "result": {
         "message": "Operator Code updated successfully"
+    }
+}
+```
+
+## Update the Home Network Information
+
+This path updates the Home Network Information. The Home Network Private Key ensures IMSI privacy. User Equipment (UE) devices will use the public key to encrypt the IMSI before sending it to the network. The network will then use the private key to decrypt the IMSI.
+
+| Method | Path                            |
+| ------ | ------------------------------- |
+| PUT    | `/api/v1/operator/home-network` |
+
+### Parameters
+
+- `privateKey` (string): The Home Network Private Key. Must be a 64-character hexadecimal string.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Home Network private key updated successfully"
     }
 }
 ```

@@ -21,11 +21,6 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 		}
 	}()
 
-	// err = database.InitializeOperator(initialOperator)
-	// if err != nil {
-	// 	t.Fatalf("Couldn't complete InitializeOperator: %s", err)
-	// }
-
 	retrievedOperator, err := database.GetOperator()
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)

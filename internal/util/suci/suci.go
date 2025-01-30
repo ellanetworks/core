@@ -17,7 +17,6 @@ import (
 	"math"
 	"math/big"
 	"math/bits"
-	"strconv"
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -320,10 +319,8 @@ const (
 	profileBScheme = "2"
 )
 
-func ToSupi(suci string, suciProfiles []SuciProfile) (string, error) {
+func ToSupi(suci string, privateKey string) (string, error) {
 	suciPart := strings.Split(suci, "-")
-	logger.UtilLog.Infof("suciPart: %+v", suciPart)
-
 	suciPrefix := suciPart[0]
 	if suciPrefix == "imsi" || suciPrefix == "nai" {
 		logger.UtilLog.Infoln("got supi")
@@ -336,7 +333,6 @@ func ToSupi(suci string, suciProfiles []SuciProfile) (string, error) {
 		return "", fmt.Errorf("unknown suciPrefix [%s]", suciPrefix)
 	}
 
-	logger.UtilLog.Infof("scheme %s", suciPart[schemePlace])
 	scheme := suciPart[schemePlace]
 	mccMnc := suciPart[mccPlace] + suciPart[mncPlace]
 
@@ -344,21 +340,11 @@ func ToSupi(suci string, suciProfiles []SuciProfile) (string, error) {
 		logger.UtilLog.Infoln("supi type is IMSI")
 	}
 
-	if scheme == nullScheme { // NULL scheme
+	if scheme == nullScheme {
 		return mccMnc + suciPart[len(suciPart)-1], nil
 	}
 
-	// (HNPublicKeyID-1) is the index of "suciProfiles" slices
-	keyIndex, err := strconv.Atoi(suciPart[HNPublicKeyIDPlace])
-	if err != nil {
-		return "", fmt.Errorf("parse HNPublicKeyID error: %+v", err)
-	}
-	if keyIndex > len(suciProfiles) {
-		return "", fmt.Errorf("keyIndex(%d) out of range(%d)", keyIndex, len(suciProfiles))
-	}
-
-	protectScheme := suciProfiles[keyIndex-1].ProtectionScheme
-	privateKey := suciProfiles[keyIndex-1].PrivateKey
+	protectScheme := profileAScheme
 
 	if scheme != protectScheme {
 		return "", fmt.Errorf("protect Scheme mismatch [%s:%s]", scheme, protectScheme)
