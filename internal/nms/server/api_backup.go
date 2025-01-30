@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -20,19 +21,35 @@ func Backup(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		backupFilePath, err := dbInstance.Backup()
+		tempFile, err := os.CreateTemp("", "backup_*.db")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create temp backup file"})
+			return
+		}
+		defer func() {
+			err := tempFile.Close()
+			if err != nil {
+				logger.NmsLog.Warnf("Failed to close temp backup file: %v", err)
+			}
+			err = os.Remove(tempFile.Name())
+			if err != nil {
+				logger.NmsLog.Warnf("Failed to remove temp backup file: %v", err)
+			}
+		}()
+
+		err = dbInstance.Backup(tempFile)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
-		defer func() {
-			if err := os.Remove(backupFilePath); err != nil {
-				logger.NmsLog.Errorf("Failed to remove backup file: %v", err)
-			}
-		}()
+		if _, err := tempFile.Seek(0, 0); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reset file pointer"})
+			return
+		}
 
-		c.File(backupFilePath)
+		c.FileAttachment(tempFile.Name(), "database_backup_"+time.Now().Format("20060102_150405")+".db")
+
 		logger.LogAuditEvent(
 			BackupAction,
 			email,

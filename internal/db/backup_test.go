@@ -1,5 +1,3 @@
-// Copyright 2024 Ella Networks
-
 package db_test
 
 import (
@@ -29,28 +27,35 @@ func TestDatabaseBackup(t *testing.T) {
 		t.Fatalf("Couldn't update operator id: %s", err)
 	}
 
-	backupFilePath, err := database.Backup()
+	tmpFile, err := os.CreateTemp("", "backup_*.db")
+	if err != nil {
+		t.Fatalf("Couldn't create temp file for backup: %s", err)
+	}
+	defer func() {
+		tmpFile.Close()
+		os.Remove(tmpFile.Name()) // Ensure cleanup
+	}()
+
+	err = database.Backup(tmpFile)
 	if err != nil {
 		t.Fatalf("Couldn't create backup: %s", err)
 	}
 
-	if _, err := os.Stat(backupFilePath); os.IsNotExist(err) {
-		t.Fatalf("Backup file does not exist: %s", backupFilePath)
+	tmpFileInfo, err := tmpFile.Stat()
+	if err != nil {
+		t.Fatalf("Couldn't stat backup file: %s", err)
+	}
+
+	if tmpFileInfo.Size() == 0 {
+		t.Fatalf("Backup file is empty")
 	}
 
 	originalFileInfo, err := os.Stat(dbPath)
 	if err != nil {
 		t.Fatalf("Couldn't stat original database file: %s", err)
 	}
-	backupFileInfo, err := os.Stat(backupFilePath)
-	if err != nil {
-		t.Fatalf("Couldn't stat backup file: %s", err)
-	}
-	if originalFileInfo.Size() != backupFileInfo.Size() {
-		t.Fatalf("Backup file size mismatch: expected %d, got %d", originalFileInfo.Size(), backupFileInfo.Size())
-	}
 
-	if err := os.Remove(backupFilePath); err != nil {
-		t.Fatalf("Couldn't delete backup file: %s", err)
+	if originalFileInfo.Size() != tmpFileInfo.Size() {
+		t.Fatalf("Backup file size mismatch: expected %d, got %d", originalFileInfo.Size(), tmpFileInfo.Size())
 	}
 }
