@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Box, IconButton, Alert, Typography, Chip, Card, CardHeader, Button, CardContent, CardActions } from "@mui/material";
+import { Box, IconButton, Alert, Typography, Chip, Card, CardHeader, Button, CardContent, CardActions, Tooltip } from "@mui/material";
+import { ContentCopy as CopyIcon, Edit as EditIcon } from "@mui/icons-material";
 import { getOperator } from "@/queries/operator";
 import { useCookies } from "react-cookie";
-import { Edit as EditIcon } from "@mui/icons-material";
 import EditOperatorIdModal from "@/components/EditOperatorIdModal";
 import EditOperatorCodeModal from "@/components/EditOperatorCodeModal";
 import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
@@ -92,6 +92,13 @@ const Operator = () => {
     setAlert({ message: "Operator Home Network information updated successfully!", severity: "success" });
   };
 
+  const handleCopyPublicKey = () => {
+    if (operator?.homeNetwork.publicKey) {
+      navigator.clipboard.writeText(operator.homeNetwork.publicKey);
+      setAlert({ message: "Public Key copied to clipboard!", severity: "success" });
+    }
+  };
+
   return (
     <Box sx={{ padding: 4, maxWidth: "1200px", margin: "0 auto" }}>
       <Typography variant="h4" component="h1" sx={{ marginBottom: 4 }}>
@@ -138,8 +145,6 @@ const Operator = () => {
         </CardActions>
       </Card>
 
-      <Box sx={{ marginBottom: 4 }} />
-
       <Card
         variant="outlined"
         sx={{
@@ -166,8 +171,6 @@ const Operator = () => {
           </IconButton>
         </CardActions>
       </Card>
-
-      <Box sx={{ marginBottom: 4 }} />
 
       <Card
         variant="outlined"
@@ -204,8 +207,6 @@ const Operator = () => {
         </CardActions>
       </Card>
 
-      <Box sx={{ marginBottom: 4 }} />
-
       <Card
         variant="outlined"
         sx={{
@@ -239,8 +240,6 @@ const Operator = () => {
         </CardActions>
       </Card>
 
-      <Box sx={{ marginBottom: 4 }} />
-
       <Card
         variant="outlined"
         sx={{
@@ -254,10 +253,31 @@ const Operator = () => {
         <CardContent>
           <Grid container spacing={2}>
             <Grid size={6}>
-              <Typography variant="body1">Public Key</Typography>
+              <Typography variant="body1">Encryption</Typography>
             </Grid>
             <Grid size={6}>
-              <Typography variant="body1">{operator ? `${operator.homeNetwork.publicKey}` : "N/A"}</Typography>
+              <Typography variant="body1">{"ECIES - Profile A"}</Typography>
+            </Grid>
+            <Grid size={6}>
+              <Typography variant="body1">Public Key</Typography>
+            </Grid>
+            <Grid size={6} sx={{ display: "flex", alignItems: "center" }}>
+              <Tooltip title={operator?.homeNetwork.publicKey || "N/A"} arrow>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    maxWidth: "250px",
+                  }}
+                >
+                  {operator?.homeNetwork.publicKey || "N/A"}
+                </Typography>
+              </Tooltip>
+              <IconButton onClick={handleCopyPublicKey} sx={{ marginLeft: 1 }}>
+                <CopyIcon fontSize="small" />
+              </IconButton>
             </Grid>
             <Grid size={6}>
               <Typography variant="body1">Private Key</Typography>
