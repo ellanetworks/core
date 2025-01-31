@@ -21,6 +21,8 @@ const Dashboard = () => {
   const [databaseSize, setDatabaseSize] = useState<number | null>(null);
   const [allocatedIPs, setAllocatedIPs] = useState<number | null>(null);
   const [totalIPs, setTotalIPs] = useState<number | null>(null);
+  const [uplinkThroughput, setUplinkThroughput] = useState<number | null>(null);
+  const [downlinkThroughput, setDownlinkThroughput] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +45,12 @@ const Dashboard = () => {
     const totalIPsMetric = lines.find((line) =>
       line.startsWith("app_ip_addresses_total ")
     );
+    const uplinkMetric = lines.find((line) =>
+      line.startsWith("app_upf_uplink_bytes_total ")
+    );
+    const downlinkMetric = lines.find((line) =>
+      line.startsWith("app_upf_downlink_bytes_total ")
+    );
 
 
     return {
@@ -61,10 +69,20 @@ const Dashboard = () => {
       totalIPs: totalIPsMetric
         ? parseInt(totalIPsMetric.split(" ")[1], 10)
         : 0,
+      uplinkBytes: uplinkMetric
+        ? parseInt(uplinkMetric.split(" ")[1], 10)
+        : 0,
+      downlinkBytes: downlinkMetric
+        ? parseInt(downlinkMetric.split(" ")[1], 10)
+        : 0,
     };
   };
 
   useEffect(() => {
+    let prevUplinkBytes = 0;
+    let prevDownlinkBytes = 0;
+    let lastTimestamp = Date.now();
+
     const fetchData = async () => {
       try {
         const [status, subscribers, radios, metrics] = await Promise.all([
@@ -78,14 +96,38 @@ const Dashboard = () => {
         setSubscriberCount(subscribers.length);
         setRadioCount(radios.length);
 
-        const { pduSessions, memoryUsage, databaseSize, allocatedIPs, totalIPs } = parseMetrics(metrics);
+        const {
+          pduSessions,
+          memoryUsage,
+          databaseSize,
+          allocatedIPs,
+          totalIPs,
+          uplinkBytes,
+          downlinkBytes,
+        } = parseMetrics(metrics);
+
         setActiveSessions(pduSessions);
         setMemoryUsage(memoryUsage);
         setDatabaseSize(databaseSize);
         setAllocatedIPs(allocatedIPs);
         setTotalIPs(totalIPs);
-        console.log("Allocated IPs: ", allocatedIPs);
-        console.log("Total IPs: ", totalIPs);
+
+        // Compute throughput
+        const currentTime = Date.now();
+        const elapsedTime = (currentTime - lastTimestamp) / 1000; // seconds
+
+        if (elapsedTime > 0) {
+          const uplinkRate = (uplinkBytes - prevUplinkBytes) / elapsedTime;
+          const downlinkRate = (downlinkBytes - prevDownlinkBytes) / elapsedTime;
+
+          setUplinkThroughput(uplinkRate);
+          setDownlinkThroughput(downlinkRate);
+        }
+
+        // Update previous values
+        prevUplinkBytes = uplinkBytes;
+        prevDownlinkBytes = downlinkBytes;
+        lastTimestamp = currentTime;
       } catch (err: any) {
         console.error("Failed to fetch data:", err);
         setError("Failed to fetch data.");
@@ -95,6 +137,9 @@ const Dashboard = () => {
     };
 
     fetchData();
+    const interval = setInterval(fetchData, 5000); // Refresh every 5 seconds
+
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -225,6 +270,65 @@ const Dashboard = () => {
                 width={400}
                 height={200}
               />
+            )}
+          </Card>
+        </Grid>
+      </Grid>
+
+      <Grid container spacing={4} justifyContent="flex-start" marginTop={4}>
+        <Grid size={3}>
+          <Card
+            sx={{
+              width: "100%",
+              aspectRatio: "1 / 1",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              borderRadius: 3,
+              boxShadow: 2,
+              padding: 2,
+              backgroundColor: "background.paper",
+              textAlign: "center",
+            }}
+          >
+            <Typography variant="h6">Uplink Throughput</Typography>
+            {loading ? (
+              <CircularProgress />
+            ) : (
+              <Typography variant="h4">
+                {uplinkThroughput !== null
+                  ? `${(uplinkThroughput * 8 / 1_000_000).toFixed(2)} Mbps`
+                  : "N/A"}
+              </Typography>
+            )}
+          </Card>
+        </Grid>
+        <Grid size={3}>
+          <Card
+            sx={{
+              width: "100%",
+              aspectRatio: "1 / 1",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              borderRadius: 3,
+              boxShadow: 2,
+              padding: 2,
+              backgroundColor: "background.paper",
+              textAlign: "center",
+            }}
+          >
+            <Typography variant="h6">Downlink Throughput</Typography>
+            {loading ? (
+              <CircularProgress />
+            ) : (
+              <Typography variant="h4">
+                {downlinkThroughput !== null
+                  ? `${(downlinkThroughput * 8 / 1_000_000).toFixed(2)} Mbps`
+                  : "N/A"}
+              </Typography>
             )}
           </Card>
         </Grid>

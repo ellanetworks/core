@@ -142,16 +142,16 @@ func RegisterUPFMetrics(stats ebpf.UpfXdpActionStatistic, conn *core.PfcpConnect
 	})
 
 	UpfUplinkBytes = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_upf_uplink_bytes",
-		Help: "The total number of uplink bytes (N3 -> N6)",
+		Name: "app_uplink_bytes",
+		Help: "The total number of uplink bytes going through the data plane (N3 -> N6). This value includes the Ethernet header.",
 	}, func() float64 {
 		uplinkBytes, _ := stats.GetThroughputStats()
 		return float64(uplinkBytes)
 	})
 
 	UpfDownlinkBytes = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_upf_downlink_bytes",
-		Help: "The total number of downlink bytes (N6 -> N3)",
+		Name: "app_downlink_bytes",
+		Help: "The total number of downlink bytes going through the data plane (N6 -> N3). This value includes the Ethernet header.",
 	}, func() float64 {
 		_, downlinkBytes := stats.GetThroughputStats()
 		return float64(downlinkBytes)
