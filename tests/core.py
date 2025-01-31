@@ -90,6 +90,33 @@ class EllaCore:
         logger.info("Logged in to Ella Core.")
         return token
 
+    def get_metrics(self) -> Any:
+        """Get metrics from Ella Core.
+
+        Metrics are returned in Prometheus format.
+        """
+        return self._make_request("GET", "/api/v1/metrics")
+
+    def get_uplink_bytes_metric(self) -> int:
+        """Get uplink bytes metric from Ella Core."""
+        metrics = self.get_metrics()
+        uplink_bytes = 0
+        for metric in metrics.split("\n"):
+            if "app_uplink_bytes" in metric:
+                uplink_bytes = int(float(metric.split(" ")[1]))
+                break
+        return uplink_bytes
+
+    def get_downlink_bytes_metric(self) -> int:
+        """Get downlink bytes metric from Ella Core."""
+        metrics = self.get_metrics()
+        downlink_bytes = 0
+        for metric in metrics.split("\n"):
+            if "app_downlink_bytes" in metric:
+                downlink_bytes = int(float(metric.split(" ")[1]))
+                break
+        return downlink_bytes
+
     def create_user(self, email: str, password: str) -> None:
         """Create a user in Ella Core."""
         data = {"email": email, "password": password}
