@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Box, Typography, CircularProgress, Alert, Card } from "@mui/material";
 import { getStatus } from "@/queries/status";
 import { getMetrics } from "@/queries/metrics";
@@ -8,7 +8,6 @@ import { listRadios } from "@/queries/radios";
 import { PieChart } from "@mui/x-charts/PieChart";
 import Grid from "@mui/material/Grid2";
 import { useCookies } from "react-cookie"
-
 
 const Dashboard = () => {
   const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
@@ -21,8 +20,14 @@ const Dashboard = () => {
   const [databaseSize, setDatabaseSize] = useState<number | null>(null);
   const [allocatedIPs, setAllocatedIPs] = useState<number | null>(null);
   const [totalIPs, setTotalIPs] = useState<number | null>(null);
+  const [uplinkThroughput, setUplinkThroughput] = useState<number>(0);
+  const [downlinkThroughput, setDownlinkThroughput] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const uplinkHistory = useRef<number[]>([]);
+  const downlinkHistory = useRef<number[]>([]);
+  const timestamps = useRef<number[]>([]);
 
   const parseMetrics = (metrics: string) => {
     const lines = metrics.split("\n");
@@ -43,7 +48,12 @@ const Dashboard = () => {
     const totalIPsMetric = lines.find((line) =>
       line.startsWith("app_ip_addresses_total ")
     );
-
+    const uplinkMetric = lines.find((line) =>
+      line.startsWith("app_uplink_bytes ")
+    );
+    const downlinkMetric = lines.find((line) =>
+      line.startsWith("app_downlink_bytes ")
+    );
 
     return {
       pduSessions: pduSessionMetric
@@ -60,6 +70,12 @@ const Dashboard = () => {
         : 0,
       totalIPs: totalIPsMetric
         ? parseInt(totalIPsMetric.split(" ")[1], 10)
+        : 0,
+      uplinkBytes: uplinkMetric
+        ? parseFloat(uplinkMetric.split(" ")[1])
+        : 0,
+      downlinkBytes: downlinkMetric
+        ? parseFloat(downlinkMetric.split(" ")[1])
         : 0,
     };
   };
@@ -78,14 +94,54 @@ const Dashboard = () => {
         setSubscriberCount(subscribers.length);
         setRadioCount(radios.length);
 
-        const { pduSessions, memoryUsage, databaseSize, allocatedIPs, totalIPs } = parseMetrics(metrics);
+        const {
+          pduSessions,
+          memoryUsage,
+          databaseSize,
+          allocatedIPs,
+          totalIPs,
+          uplinkBytes,
+          downlinkBytes,
+        } = parseMetrics(metrics);
+
         setActiveSessions(pduSessions);
         setMemoryUsage(memoryUsage);
         setDatabaseSize(databaseSize);
         setAllocatedIPs(allocatedIPs);
         setTotalIPs(totalIPs);
-        console.log("Allocated IPs: ", allocatedIPs);
-        console.log("Total IPs: ", totalIPs);
+
+        // Compute throughput
+        const currentTime = Date.now();
+        uplinkHistory.current.push(uplinkBytes);
+        downlinkHistory.current.push(downlinkBytes);
+        timestamps.current.push(currentTime);
+
+        if (uplinkHistory.current.length > 5) {
+          uplinkHistory.current.shift();
+          downlinkHistory.current.shift();
+          timestamps.current.shift();
+        }
+        if (uplinkHistory.current.length === 5) {
+          const timeDelta =
+            (timestamps.current[timestamps.current.length - 1] -
+              timestamps.current[0]) /
+            1000; // Convert to seconds
+
+          if (timeDelta > 0) {
+            const uplinkRate =
+              (uplinkHistory.current[uplinkHistory.current.length - 1] -
+                uplinkHistory.current[0]) /
+              timeDelta;
+            const downlinkRate =
+              (downlinkHistory.current[downlinkHistory.current.length - 1] -
+                downlinkHistory.current[0]) /
+              timeDelta;
+
+            setUplinkThroughput(uplinkRate);
+            setDownlinkThroughput(downlinkRate);
+          }
+        }
+
       } catch (err: any) {
         console.error("Failed to fetch data:", err);
         setError("Failed to fetch data.");
@@ -95,6 +151,9 @@ const Dashboard = () => {
     };
 
     fetchData();
+    const interval = setInterval(fetchData, 1000); // Scrape every 1 second
+
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -225,6 +284,65 @@ const Dashboard = () => {
                 width={400}
                 height={200}
               />
+            )}
+          </Card>
+        </Grid>
+      </Grid>
+
+      <Grid container spacing={4} justifyContent="flex-start" marginTop={4}>
+        <Grid size={3}>
+          <Card
+            sx={{
+              width: "100%",
+              aspectRatio: "1 / 1",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              borderRadius: 3,
+              boxShadow: 2,
+              padding: 2,
+              backgroundColor: "background.paper",
+              textAlign: "center",
+            }}
+          >
+            <Typography variant="h6">Uplink Throughput</Typography>
+            {loading ? (
+              <CircularProgress />
+            ) : (
+              <Typography variant="h4">
+                {uplinkThroughput !== null
+                  ? `${(uplinkThroughput * 8 / 1_000_000).toFixed(2)} Mbps`
+                  : "N/A"}
+              </Typography>
+            )}
+          </Card>
+        </Grid>
+        <Grid size={3}>
+          <Card
+            sx={{
+              width: "100%",
+              aspectRatio: "1 / 1",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              borderRadius: 3,
+              boxShadow: 2,
+              padding: 2,
+              backgroundColor: "background.paper",
+              textAlign: "center",
+            }}
+          >
+            <Typography variant="h6">Downlink Throughput</Typography>
+            {loading ? (
+              <CircularProgress />
+            ) : (
+              <Typography variant="h4">
+                {downlinkThroughput !== null
+                  ? `${(downlinkThroughput * 8 / 1_000_000).toFixed(2)} Mbps`
+                  : "N/A"}
+              </Typography>
             )}
           </Card>
         </Grid>

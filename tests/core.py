@@ -46,6 +46,7 @@ class EllaCore:
         method: str,
         endpoint: str,
         data: any = None,  # type: ignore[reportGeneralTypeIssues]
+        expect_json_response: bool = True,
     ) -> Any | None:
         """Make an HTTP request and handle common error patterns."""
         headers = JSON_HEADER
@@ -61,8 +62,11 @@ class EllaCore:
             verify=False,
         )
         response.raise_for_status()
-        json_response = response.json()
-        return json_response
+        if expect_json_response:
+            json_response = response.json()
+            return json_response
+        else:
+            return response.text
 
     def set_token(self, token: str) -> None:
         """Set the authentication token."""
@@ -89,6 +93,33 @@ class EllaCore:
             return None
         logger.info("Logged in to Ella Core.")
         return token
+
+    def get_metrics(self) -> Any:
+        """Get metrics from Ella Core.
+
+        Metrics are returned in Prometheus format.
+        """
+        return self._make_request("GET", "/api/v1/metrics", expect_json_response=False)
+
+    def get_uplink_bytes_metric(self) -> int:
+        """Get uplink bytes metric from Ella Core."""
+        metrics = self.get_metrics()
+        uplink_bytes = 0
+        for metric in metrics.split("\n"):
+            if metric.startswith("app_uplink_bytes "):
+                uplink_bytes = int(float(metric.split(" ")[1]))
+                break
+        return uplink_bytes
+
+    def get_downlink_bytes_metric(self) -> int:
+        """Get downlink bytes metric from Ella Core."""
+        metrics = self.get_metrics()
+        downlink_bytes = 0
+        for metric in metrics.split("\n"):
+            if metric.startswith("app_downlink_bytes "):
+                downlink_bytes = int(float(metric.split(" ")[1]))
+                break
+        return downlink_bytes
 
     def create_user(self, email: str, password: str) -> None:
         """Create a user in Ella Core."""

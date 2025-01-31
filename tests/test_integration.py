@@ -3,6 +3,7 @@
 import logging
 import subprocess
 import time
+from typing import Tuple
 
 import yaml
 
@@ -180,6 +181,9 @@ class TestELLA:
         )
         logger.info(result)
         assert result.count("Profile Status: PASS") == NUM_PROFILES
+        uplink_bytes, downlink_bytes = get_byte_count(core_address)
+        assert uplink_bytes == 9000
+        assert downlink_bytes == 9000
 
 
 def compute_imsi(base_imsi: str, increment: int) -> str:
@@ -240,6 +244,18 @@ def configure_ella_core(core_address: str) -> Subscriber:
         )
     subscriber_0 = ella_client.get_subscriber(imsi=TEST_START_IMSI)
     return subscriber_0
+
+
+def get_byte_count(core_address: str) -> Tuple[int, int]:
+    """Get the uplink and downlink byte counts from Ella Core."""
+    ella_client = EllaCore(url=core_address)
+    token = ella_client.login(email="admin@ellanetworks.com", password="admin")
+    if not token:
+        raise RuntimeError("Failed to login to Ella Core")
+    ella_client.set_token(token)
+    uplink_bytes = ella_client.get_uplink_bytes_metric()
+    downlink_bytes = ella_client.get_downlink_bytes_metric()
+    return uplink_bytes, downlink_bytes
 
 
 def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> None:

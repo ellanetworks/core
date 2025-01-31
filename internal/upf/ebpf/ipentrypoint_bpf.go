@@ -102,6 +102,8 @@ type IpEntrypointUpfStatistic struct {
 		RxGtpPdu   uint64
 		RxGtpOther uint64
 		RxGtpUnexp uint64
+		UlBytes    uint64
+		DlBytes    uint64
 	}
 	UpfN3N6Counter struct {
 		RxN3 uint64
@@ -147,9 +149,10 @@ func LoadIpEntrypointObjects(obj interface{}, opts *ebpf.CollectionOptions) erro
 type IpEntrypointSpecs struct {
 	IpEntrypointProgramSpecs
 	IpEntrypointMapSpecs
+	IpEntrypointVariableSpecs
 }
 
-// IpEntrypointSpecs contains programs before they are loaded into the kernel.
+// IpEntrypointProgramSpecs contains programs before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type IpEntrypointProgramSpecs struct {
@@ -170,12 +173,19 @@ type IpEntrypointMapSpecs struct {
 	UpfRouteStat      *ebpf.MapSpec `ebpf:"upf_route_stat"`
 }
 
+// IpEntrypointVariableSpecs contains global variables before they are loaded into the kernel.
+//
+// It can be passed ebpf.CollectionSpec.Assign.
+type IpEntrypointVariableSpecs struct {
+}
+
 // IpEntrypointObjects contains all objects after they have been loaded into the kernel.
 //
 // It can be passed to LoadIpEntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type IpEntrypointObjects struct {
 	IpEntrypointPrograms
 	IpEntrypointMaps
+	IpEntrypointVariables
 }
 
 func (o *IpEntrypointObjects) Close() error {
@@ -210,6 +220,12 @@ func (m *IpEntrypointMaps) Close() error {
 		m.UpfPipeline,
 		m.UpfRouteStat,
 	)
+}
+
+// IpEntrypointVariables contains all global variables after they have been loaded into the kernel.
+//
+// It can be passed to LoadIpEntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
+type IpEntrypointVariables struct {
 }
 
 // IpEntrypointPrograms contains all programs after they have been loaded into the kernel.
