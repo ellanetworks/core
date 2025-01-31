@@ -106,7 +106,7 @@ class EllaCore:
         metrics = self.get_metrics()
         uplink_bytes = 0
         for metric in metrics.split("\n"):
-            if "app_uplink_bytes" in metric:
+            if metric.startswith("app_uplink_bytes "):
                 uplink_bytes = int(float(metric.split(" ")[1]))
                 break
         return uplink_bytes
@@ -116,7 +116,7 @@ class EllaCore:
         metrics = self.get_metrics()
         downlink_bytes = 0
         for metric in metrics.split("\n"):
-            if "app_downlink_bytes" in metric:
+            if metric.startswith("app_downlink_bytes "):
                 downlink_bytes = int(float(metric.split(" ")[1]))
                 break
         return downlink_bytes
