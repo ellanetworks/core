@@ -46,10 +46,10 @@ const Dashboard = () => {
       line.startsWith("app_ip_addresses_total ")
     );
     const uplinkMetric = lines.find((line) =>
-      line.startsWith("app_upf_uplink_bytes_total ")
+      line.startsWith("app_uplink_bytes ")
     );
     const downlinkMetric = lines.find((line) =>
-      line.startsWith("app_upf_downlink_bytes_total ")
+      line.startsWith("app_downlink_bytes ")
     );
 
 
