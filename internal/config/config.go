@@ -231,7 +231,7 @@ func Validate(filePath string) (Config, error) {
 	return config, nil
 }
 
-var CheckInterfaceExists = func(name string) (bool, error) {
+var CheckInterfaceExistsFunc = func(name string) (bool, error) {
 	networkInterface, err := net.InterfaceByName(name)
 	if err != nil {
 		return false, err
@@ -242,7 +242,7 @@ var CheckInterfaceExists = func(name string) (bool, error) {
 	return true, nil
 }
 
-func GetInterfaceIP(name string) (string, error) {
+var GetInterfaceIPFunc = func(name string) (string, error) {
 	iface, err := net.InterfaceByName(name)
 	if err != nil {
 		return "", err
@@ -264,6 +264,10 @@ func GetInterfaceIP(name string) (string, error) {
 	return "", errors.New("no valid IPv4 address found")
 }
 
+func GetInterfaceIP(name string) (string, error) {
+	return GetInterfaceIPFunc(name)
+}
+
 func InterfaceExists(name string) (bool, error) {
-	return CheckInterfaceExists(name)
+	return CheckInterfaceExistsFunc(name)
 }
