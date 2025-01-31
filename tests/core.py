@@ -46,6 +46,7 @@ class EllaCore:
         method: str,
         endpoint: str,
         data: any = None,  # type: ignore[reportGeneralTypeIssues]
+        expect_json_response: bool = True,
     ) -> Any | None:
         """Make an HTTP request and handle common error patterns."""
         headers = JSON_HEADER
@@ -61,8 +62,11 @@ class EllaCore:
             verify=False,
         )
         response.raise_for_status()
-        json_response = response.json()
-        return json_response
+        if expect_json_response:
+            json_response = response.json()
+            return json_response
+        else:
+            return response.text
 
     def set_token(self, token: str) -> None:
         """Set the authentication token."""
@@ -95,7 +99,7 @@ class EllaCore:
 
         Metrics are returned in Prometheus format.
         """
-        return self._make_request("GET", "/api/v1/metrics")
+        return self._make_request("GET", "/api/v1/metrics", expect_json_response=False)
 
     def get_uplink_bytes_metric(self) -> int:
         """Get uplink bytes metric from Ella Core."""
