@@ -20,15 +20,14 @@ const Dashboard = () => {
   const [databaseSize, setDatabaseSize] = useState<number | null>(null);
   const [allocatedIPs, setAllocatedIPs] = useState<number | null>(null);
   const [totalIPs, setTotalIPs] = useState<number | null>(null);
-  const [uplinkThroughput, setUplinkThroughput] = useState<number | null>(null);
-  const [downlinkThroughput, setDownlinkThroughput] = useState<number | null>(null);
+  const [uplinkThroughput, setUplinkThroughput] = useState<number>(0);
+  const [downlinkThroughput, setDownlinkThroughput] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const prevUplinkBytes = useRef<number>(0);
-  const prevDownlinkBytes = useRef<number>(0);
-  const lastTimestamp = useRef<number>(Date.now());
-
+  const uplinkHistory = useRef<number[]>([]);
+  const downlinkHistory = useRef<number[]>([]);
+  const timestamps = useRef<number[]>([]);
 
   const parseMetrics = (metrics: string) => {
     const lines = metrics.split("\n");
@@ -55,7 +54,6 @@ const Dashboard = () => {
     const downlinkMetric = lines.find((line) =>
       line.startsWith("app_downlink_bytes ")
     );
-
 
     return {
       pduSessions: pduSessionMetric
@@ -114,20 +112,36 @@ const Dashboard = () => {
 
         // Compute throughput
         const currentTime = Date.now();
-        const elapsedTime = (currentTime - lastTimestamp.current) / 1000; // seconds
+        uplinkHistory.current.push(uplinkBytes);
+        downlinkHistory.current.push(downlinkBytes);
+        timestamps.current.push(currentTime);
 
-        if (elapsedTime > 0) {
-          const uplinkRate = (uplinkBytes - prevUplinkBytes.current) / elapsedTime;
-          const downlinkRate = (downlinkBytes - prevDownlinkBytes.current) / elapsedTime;
+        if (uplinkHistory.current.length > 5) {
+          uplinkHistory.current.shift();
+          downlinkHistory.current.shift();
+          timestamps.current.shift();
+        }
+        if (uplinkHistory.current.length === 5) {
+          const timeDelta =
+            (timestamps.current[timestamps.current.length - 1] -
+              timestamps.current[0]) /
+            1000; // Convert to seconds
 
-          setUplinkThroughput(uplinkRate);
-          setDownlinkThroughput(downlinkRate);
+          if (timeDelta > 0) {
+            const uplinkRate =
+              (uplinkHistory.current[uplinkHistory.current.length - 1] -
+                uplinkHistory.current[0]) /
+              timeDelta;
+            const downlinkRate =
+              (downlinkHistory.current[downlinkHistory.current.length - 1] -
+                downlinkHistory.current[0]) /
+              timeDelta;
+
+            setUplinkThroughput(uplinkRate);
+            setDownlinkThroughput(downlinkRate);
+          }
         }
 
-        // Update previous values
-        prevUplinkBytes.current = uplinkBytes;
-        prevDownlinkBytes.current = downlinkBytes;
-        lastTimestamp.current = currentTime;
       } catch (err: any) {
         console.error("Failed to fetch data:", err);
         setError("Failed to fetch data.");
@@ -137,7 +151,7 @@ const Dashboard = () => {
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 5000); // Refresh every 5 seconds
+    const interval = setInterval(fetchData, 1000); // Scrape every 1 second
 
     return () => clearInterval(interval);
   }, []);
