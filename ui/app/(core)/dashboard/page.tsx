@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Box, Typography, CircularProgress, Alert, Card } from "@mui/material";
 import { getStatus } from "@/queries/status";
 import { getMetrics } from "@/queries/metrics";
@@ -8,7 +8,6 @@ import { listRadios } from "@/queries/radios";
 import { PieChart } from "@mui/x-charts/PieChart";
 import Grid from "@mui/material/Grid2";
 import { useCookies } from "react-cookie"
-
 
 const Dashboard = () => {
   const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
@@ -25,6 +24,11 @@ const Dashboard = () => {
   const [downlinkThroughput, setDownlinkThroughput] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const prevUplinkBytes = useRef<number>(0);
+  const prevDownlinkBytes = useRef<number>(0);
+  const lastTimestamp = useRef<number>(Date.now());
+
 
   const parseMetrics = (metrics: string) => {
     const lines = metrics.split("\n");
@@ -79,10 +83,6 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    let prevUplinkBytes = 0;
-    let prevDownlinkBytes = 0;
-    let lastTimestamp = Date.now();
-
     const fetchData = async () => {
       try {
         const [status, subscribers, radios, metrics] = await Promise.all([
@@ -114,20 +114,20 @@ const Dashboard = () => {
 
         // Compute throughput
         const currentTime = Date.now();
-        const elapsedTime = (currentTime - lastTimestamp) / 1000; // seconds
+        const elapsedTime = (currentTime - lastTimestamp.current) / 1000; // seconds
 
         if (elapsedTime > 0) {
-          const uplinkRate = (uplinkBytes - prevUplinkBytes) / elapsedTime;
-          const downlinkRate = (downlinkBytes - prevDownlinkBytes) / elapsedTime;
+          const uplinkRate = (uplinkBytes - prevUplinkBytes.current) / elapsedTime;
+          const downlinkRate = (downlinkBytes - prevDownlinkBytes.current) / elapsedTime;
 
           setUplinkThroughput(uplinkRate);
           setDownlinkThroughput(downlinkRate);
         }
 
         // Update previous values
-        prevUplinkBytes = uplinkBytes;
-        prevDownlinkBytes = downlinkBytes;
-        lastTimestamp = currentTime;
+        prevUplinkBytes.current = uplinkBytes;
+        prevDownlinkBytes.current = downlinkBytes;
+        lastTimestamp.current = currentTime;
       } catch (err: any) {
         console.error("Failed to fetch data:", err);
         setError("Failed to fetch data.");
