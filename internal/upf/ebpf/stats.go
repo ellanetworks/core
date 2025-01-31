@@ -19,6 +19,8 @@ type UpfCounters struct {
 	RxGtpPdu   uint64
 	RxGtpOther uint64
 	RxGtpUnexp uint64
+	UlBytes    uint64
+	DlBytes    uint64
 }
 
 type UpfStatistic struct {
@@ -38,6 +40,8 @@ func (current *UpfCounters) Add(nnew UpfCounters) {
 	current.RxGtpEcho += nnew.RxGtpEcho
 	current.RxGtpPdu += nnew.RxGtpPdu
 	current.RxGtpOther += nnew.RxGtpOther
+	current.UlBytes += nnew.UlBytes
+	current.DlBytes += nnew.DlBytes
 }
 
 // Getters for the upf_xdp_statistic (xdp_action)
@@ -93,4 +97,20 @@ func (stat *UpfXdpActionStatistic) GetUpfExtStatField() UpfCounters {
 	}
 
 	return counters
+}
+
+func (stat *UpfXdpActionStatistic) GetThroughputStats() (uplinkBytes, downlinkBytes uint64) {
+	var statistics []IpEntrypointUpfStatistic
+	err := stat.BpfObjects.UpfExtStat.Lookup(uint32(0), &statistics)
+	if err != nil {
+		logger.UpfLog.Infof("Failed to fetch UPF stats: %v", err)
+		return 0, 0
+	}
+
+	for _, statistic := range statistics {
+		uplinkBytes += statistic.UpfCounters.UlBytes
+		downlinkBytes += statistic.UpfCounters.DlBytes
+	}
+
+	return uplinkBytes, downlinkBytes
 }

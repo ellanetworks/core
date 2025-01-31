@@ -42,6 +42,9 @@ var (
 		Help: "The total number of received packets",
 	}, []string{"packet_type"})
 
+	UpfUplinkBytes   prometheus.CounterFunc
+	UpfDownlinkBytes prometheus.CounterFunc
+
 	// Database metrics
 	DatabaseStorageUsed  prometheus.GaugeFunc
 	IPAddressesTotal     prometheus.GaugeFunc
@@ -138,12 +141,30 @@ func RegisterUPFMetrics(stats ebpf.UpfXdpActionStatistic, conn *core.PfcpConnect
 		return float64(stats.GetRedirect())
 	})
 
+	UpfUplinkBytes = prometheus.NewCounterFunc(prometheus.CounterOpts{
+		Name: "app_upf_uplink_bytes",
+		Help: "The total number of uplink bytes (N3 -> N6)",
+	}, func() float64 {
+		uplinkBytes, _ := stats.GetThroughputStats()
+		return float64(uplinkBytes)
+	})
+
+	UpfDownlinkBytes = prometheus.NewCounterFunc(prometheus.CounterOpts{
+		Name: "app_upf_downlink_bytes",
+		Help: "The total number of downlink bytes (N6 -> N3)",
+	}, func() float64 {
+		_, downlinkBytes := stats.GetThroughputStats()
+		return float64(downlinkBytes)
+	})
+
 	// Register metrics
 	prometheus.MustRegister(UpfXdpAborted)
 	prometheus.MustRegister(UpfXdpDrop)
 	prometheus.MustRegister(UpfXdpPass)
 	prometheus.MustRegister(UpfXdpTx)
 	prometheus.MustRegister(UpfXdpRedirect)
+	prometheus.MustRegister(UpfUplinkBytes)
+	prometheus.MustRegister(UpfDownlinkBytes)
 
 	// Used for getting difference between two counters to increment the prometheus counter (counters cannot be written only incremented)
 	var prevUpfCounters ebpf.UpfCounters

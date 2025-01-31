@@ -46,9 +46,10 @@ func LoadN6EntrypointObjects(obj interface{}, opts *ebpf.CollectionOptions) erro
 type N6EntrypointSpecs struct {
 	N6EntrypointProgramSpecs
 	N6EntrypointMapSpecs
+	N6EntrypointVariableSpecs
 }
 
-// N6EntrypointSpecs contains programs before they are loaded into the kernel.
+// N6EntrypointProgramSpecs contains programs before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N6EntrypointProgramSpecs struct {
@@ -62,12 +63,19 @@ type N6EntrypointMapSpecs struct {
 	UpfPipeline *ebpf.MapSpec `ebpf:"upf_pipeline"`
 }
 
+// N6EntrypointVariableSpecs contains global variables before they are loaded into the kernel.
+//
+// It can be passed ebpf.CollectionSpec.Assign.
+type N6EntrypointVariableSpecs struct {
+}
+
 // N6EntrypointObjects contains all objects after they have been loaded into the kernel.
 //
 // It can be passed to LoadN6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N6EntrypointObjects struct {
 	N6EntrypointPrograms
 	N6EntrypointMaps
+	N6EntrypointVariables
 }
 
 func (o *N6EntrypointObjects) Close() error {
@@ -88,6 +96,12 @@ func (m *N6EntrypointMaps) Close() error {
 	return _N6EntrypointClose(
 		m.UpfPipeline,
 	)
+}
+
+// N6EntrypointVariables contains all global variables after they have been loaded into the kernel.
+//
+// It can be passed to LoadN6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
+type N6EntrypointVariables struct {
 }
 
 // N6EntrypointPrograms contains all programs after they have been loaded into the kernel.

@@ -46,9 +46,10 @@ func LoadZeroEntrypointObjects(obj interface{}, opts *ebpf.CollectionOptions) er
 type ZeroEntrypointSpecs struct {
 	ZeroEntrypointProgramSpecs
 	ZeroEntrypointMapSpecs
+	ZeroEntrypointVariableSpecs
 }
 
-// ZeroEntrypointSpecs contains programs before they are loaded into the kernel.
+// ZeroEntrypointProgramSpecs contains programs before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type ZeroEntrypointProgramSpecs struct {
@@ -61,12 +62,19 @@ type ZeroEntrypointProgramSpecs struct {
 type ZeroEntrypointMapSpecs struct {
 }
 
+// ZeroEntrypointVariableSpecs contains global variables before they are loaded into the kernel.
+//
+// It can be passed ebpf.CollectionSpec.Assign.
+type ZeroEntrypointVariableSpecs struct {
+}
+
 // ZeroEntrypointObjects contains all objects after they have been loaded into the kernel.
 //
 // It can be passed to LoadZeroEntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type ZeroEntrypointObjects struct {
 	ZeroEntrypointPrograms
 	ZeroEntrypointMaps
+	ZeroEntrypointVariables
 }
 
 func (o *ZeroEntrypointObjects) Close() error {
@@ -84,6 +92,12 @@ type ZeroEntrypointMaps struct {
 
 func (m *ZeroEntrypointMaps) Close() error {
 	return _ZeroEntrypointClose()
+}
+
+// ZeroEntrypointVariables contains all global variables after they have been loaded into the kernel.
+//
+// It can be passed to LoadZeroEntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
+type ZeroEntrypointVariables struct {
 }
 
 // ZeroEntrypointPrograms contains all programs after they have been loaded into the kernel.
