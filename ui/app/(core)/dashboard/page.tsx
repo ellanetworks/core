@@ -72,10 +72,10 @@ const Dashboard = () => {
         ? parseInt(totalIPsMetric.split(" ")[1], 10)
         : 0,
       uplinkBytes: uplinkMetric
-        ? parseInt(uplinkMetric.split(" ")[1], 10)
+        ? parseFloat(uplinkMetric.split(" ")[1])
         : 0,
       downlinkBytes: downlinkMetric
-        ? parseInt(downlinkMetric.split(" ")[1], 10)
+        ? parseFloat(downlinkMetric.split(" ")[1])
         : 0,
     };
   };
