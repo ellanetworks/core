@@ -108,37 +108,6 @@ sudo snap connect ella-core:sys-fs-bpf-upf-pipeline
 sudo snap connect ella-core:system-observe
 ```
 
-Edit the configuration file at `/var/snap/ella-core/common/core.yaml` to configure the network interfaces:
-
-```yaml hl_lines="7 11"
-log-level: "info"
-db:
-  path: "/var/snap/ella-core/common/data/core.db"
-interfaces: 
-  n2:
-    name: "ens3"
-    address: "10.1.100.4"     # The `ens3` IP address of the ella-core Multipass instance.
-    port: 38412
-  n3:
-    name: "ens4"
-    address: "10.53.137.23"    # The `ens4` IP address of the ella-core Multipass instance.
-  n6:
-    name: "ens5"
-  api:
-    name: "lo"
-    port: 5002
-    tls:
-      cert: "/var/snap/ella-core/common/cert.pem"
-      key: "/var/snap/ella-core/common/key.pem"
-xdp:
-  attach-mode: "native"
-```
-
-Modify the highlighted values:
-
-- `interfaces.n2.address`: The `ens3` IP address of the `ella-core` Multipass instance.
-- `interfaces.n3.address`: The `ens4` IP address of the `ella-core` Multipass instance.
-
 Start Ella Core:
 
 ```shell

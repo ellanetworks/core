@@ -44,14 +44,12 @@ type TLSYaml struct {
 }
 
 type N2InterfaceYaml struct {
-	Name    string `yaml:"name"`
-	Address string `yaml:"address"`
-	Port    int    `yaml:"port"`
+	Name string `yaml:"name"`
+	Port int    `yaml:"port"`
 }
 
 type N3InterfaceYaml struct {
-	Name    string `yaml:"name"`
-	Address string `yaml:"address"`
+	Name string `yaml:"name"`
 }
 
 type N6InterfaceYaml struct {
@@ -154,15 +152,12 @@ func Validate(filePath string) (Config, error) {
 	if c.Interfaces.N2.Name == "" {
 		return Config{}, errors.New("interfaces.n2.name is empty")
 	}
-	if c.Interfaces.N2.Address == "" {
-		return Config{}, errors.New("interfaces.n2.address is empty")
-	}
 	if c.Interfaces.N2.Port == 0 {
 		return Config{}, errors.New("interfaces.n2.port is empty")
 	}
-	n2ExistsWithAddress, err := InterfaceExistsWithAddress(c.Interfaces.N2.Name, c.Interfaces.N2.Address)
-	if !n2ExistsWithAddress {
-		return Config{}, fmt.Errorf("interfaces.n2.address %s is not assigned to interface %s on the host: %w", c.Interfaces.N2.Address, c.Interfaces.N2.Name, err)
+	n2Exists, err := InterfaceExists(c.Interfaces.N2.Name)
+	if !n2Exists {
+		return Config{}, fmt.Errorf("interfaces.n2.name %s does not exist on the host: %w", c.Interfaces.N2.Name, err)
 	}
 	if c.Interfaces.N3 == (N3InterfaceYaml{}) {
 		return Config{}, errors.New("interfaces.n3 is empty")
@@ -170,12 +165,10 @@ func Validate(filePath string) (Config, error) {
 	if c.Interfaces.N3.Name == "" {
 		return Config{}, errors.New("interfaces.n3.name is empty")
 	}
-	if c.Interfaces.N3.Address == "" {
-		return Config{}, errors.New("interfaces.n3.address is empty")
-	}
-	n3ExistsWithAddress, err := InterfaceExistsWithAddress(c.Interfaces.N3.Name, c.Interfaces.N3.Address)
-	if !n3ExistsWithAddress {
-		return Config{}, fmt.Errorf("interfaces.n3.address %s is not assigned to interface %s on the host: %w", c.Interfaces.N3.Address, c.Interfaces.N3.Name, err)
+
+	n3Exists, err := InterfaceExists(c.Interfaces.N3.Name)
+	if !n3Exists {
+		return Config{}, fmt.Errorf("interfaces.n3.name %s does not exist on the host: %w", c.Interfaces.N3.Name, err)
 	}
 	if c.Interfaces.N6 == (N6InterfaceYaml{}) {
 		return Config{}, errors.New("interfaces.n6 is empty")
@@ -214,13 +207,21 @@ func Validate(filePath string) (Config, error) {
 	if c.XDP.AttachMode != "native" && c.XDP.AttachMode != "generic" {
 		return Config{}, errors.New("xdp.attach-mode is invalid. Allowed values are: native, generic")
 	}
+	n2Address, err := GetInterfaceIP(c.Interfaces.N2.Name)
+	if err != nil {
+		return Config{}, fmt.Errorf("cannot get IPv4 address for interface %s: %w", c.Interfaces.N2.Name, err)
+	}
+	n3Address, err := GetInterfaceIP(c.Interfaces.N3.Name)
+	if err != nil {
+		return Config{}, fmt.Errorf("cannot get IPv4 address for interface %s: %w", c.Interfaces.N3.Name, err)
+	}
 
 	config.LogLevel = c.LogLevel
 	config.DB.Path = c.DB.Path
-	config.Interfaces.N2.Address = c.Interfaces.N2.Address
+	config.Interfaces.N2.Address = n2Address
 	config.Interfaces.N2.Port = c.Interfaces.N2.Port
 	config.Interfaces.N3.Name = c.Interfaces.N3.Name
-	config.Interfaces.N3.Address = c.Interfaces.N3.Address
+	config.Interfaces.N3.Address = n3Address
 	config.Interfaces.N6.Name = c.Interfaces.N6.Name
 	config.Interfaces.API.Name = c.Interfaces.API.Name
 	config.Interfaces.API.Port = c.Interfaces.API.Port
@@ -230,26 +231,39 @@ func Validate(filePath string) (Config, error) {
 	return config, nil
 }
 
-var CheckInterfaceExistsWithAddress = func(name string, address string) (bool, error) {
+var CheckInterfaceExists = func(name string) (bool, error) {
 	networkInterface, err := net.InterfaceByName(name)
 	if err != nil {
 		return false, err
 	}
+	if networkInterface == nil {
+		return false, nil
+	}
+	return true, nil
+}
 
-	addresses, err := networkInterface.Addrs()
+func GetInterfaceIP(name string) (string, error) {
+	iface, err := net.InterfaceByName(name)
 	if err != nil {
-		return false, err
+		return "", err
+	}
+
+	addresses, err := iface.Addrs()
+	if err != nil {
+		return "", err
 	}
 
 	for _, addr := range addresses {
-		if ip, _, err := net.ParseCIDR(addr.String()); err == nil && ip.String() == address {
-			return true, nil
+		if ip, _, err := net.ParseCIDR(addr.String()); err == nil {
+			if ip.To4() != nil {
+				return ip.String(), nil
+			}
 		}
 	}
 
-	return false, errors.New("address is not assigned to the network interface")
+	return "", errors.New("no valid IPv4 address found")
 }
 
-func InterfaceExistsWithAddress(name string, address string) (bool, error) {
-	return CheckInterfaceExistsWithAddress(name, address)
+func InterfaceExists(name string) (bool, error) {
+	return CheckInterfaceExists(name)
 }

@@ -10,11 +10,9 @@ data:
     interfaces:
       n2:
         name: "n2"
-        address: "192.168.253.3"
         port: 38412
       n3:
         name: "n3"
-        address: "192.168.252.3"
       n6:
         name: "n6"
       api:

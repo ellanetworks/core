@@ -52,7 +52,7 @@ func TestGoodConfigSuccess(t *testing.T) {
 		}
 	}()
 
-	config.CheckInterfaceExistsWithAddress = func(name string, address string) (bool, error) {
+	config.CheckInterfaceExists = func(name string) (bool, error) {
 		return true, nil
 	}
 

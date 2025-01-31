@@ -4,11 +4,9 @@ db:
 interfaces:
   n2:
     name: "ens3"
-    address: "127.0.0.1"
     port: 38412
   n3:
     name: "ens4"
-    address: "127.0.0.1"
   n6:
     name: "ens5"
   api:
