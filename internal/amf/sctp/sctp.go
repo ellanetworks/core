@@ -393,15 +393,6 @@ func (c *SCTPConn) Read(b []byte) (int, error) {
 	return n, err
 }
 
-func (c *SCTPConn) SetInitMsg(numOstreams, maxInstreams, maxAttempts, maxInitTimeout int) error {
-	return setInitOpts(c.fd(), InitMsg{
-		NumOstreams:    uint16(numOstreams),
-		MaxInstreams:   uint16(maxInstreams),
-		MaxAttempts:    uint16(maxAttempts),
-		MaxInitTimeout: uint16(maxInitTimeout),
-	})
-}
-
 func (c *SCTPConn) SubscribeEvents(flags int) error {
 	var d, a, ad, sf, p, sh, pa, ada, au, se uint8
 	if flags&SCTP_EVENT_DATA_IO > 0 {

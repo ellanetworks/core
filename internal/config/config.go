@@ -128,7 +128,7 @@ type Config struct {
 
 func Validate(filePath string) (Config, error) {
 	config := Config{}
-	configYaml, err := os.ReadFile(filePath)
+	configYaml, err := os.ReadFile(filePath) // #nosec: G304
 	if err != nil {
 		return Config{}, fmt.Errorf("cannot read config file: %w", err)
 	}

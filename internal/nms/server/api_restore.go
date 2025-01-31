@@ -1,7 +1,7 @@
 package server
 
 import (
-	"fmt"
+	"io"
 	"net/http"
 	"os"
 
@@ -20,30 +20,48 @@ func Restore(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
+
 		file, err := c.FormFile("backup")
 		if err != nil {
 			writeError(c.Writer, http.StatusBadRequest, "No backup file provided")
 			return
 		}
 
-		tempFilePath := fmt.Sprintf("./uploads/%s", file.Filename)
-		if err := os.MkdirAll("./uploads", 0o750); err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "failed to create temporary directory")
+		tempFile, err := os.CreateTemp("", "restore_*.db")
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "failed to create temporary file")
+			return
+		}
+		defer func() {
+			err := tempFile.Close()
+			if err != nil {
+				logger.NmsLog.Warnf("Failed to close temp restore file: %v", err)
+			}
+			err = os.Remove(tempFile.Name())
+			if err != nil {
+				logger.NmsLog.Warnf("Failed to remove temp restore file: %v", err)
+			}
+		}()
+
+		uploadedFile, err := file.Open()
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "failed to open uploaded file")
+			return
+		}
+		defer uploadedFile.Close()
+
+		if _, err := io.Copy(tempFile, uploadedFile); err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "failed to copy uploaded file")
 			return
 		}
 
-		if err := c.SaveUploadedFile(file, tempFilePath); err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "failed to save uploaded file")
+		if _, err := tempFile.Seek(0, 0); err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "failed to reset file pointer")
 			return
 		}
 
-		if err := dbInstance.Restore(tempFilePath); err != nil {
+		if err := dbInstance.Restore(tempFile); err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "failed to restore database")
-			return
-		}
-
-		if err := os.Remove(tempFilePath); err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "failed to remove temporary file")
 			return
 		}
 
@@ -55,6 +73,7 @@ func Restore(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
+
 		logger.LogAuditEvent(
 			RestoreAction,
 			email,
