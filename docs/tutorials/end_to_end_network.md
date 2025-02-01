@@ -138,10 +138,10 @@ sudo sysctl -w net.ipv4.ip_forward=1
 Add a default route to the `router` Multipass instance:
 
 ```shell
-sudo ip route add default via 66.66.66.173 dev ens6
+sudo ip route add default via <router-ens4-ip> dev ens6
 ```
 
-Here, replace the IP address with the IP address of the `ens4` interface of the `router` Multipass instance.
+Replace the placeholder with the appropriate value.
 
 Exit the Multipass instance:
 
@@ -151,7 +151,7 @@ exit
 
 ### 2.3 Access the UI
 
-From the host, open your browser and navigate to `https://10.194.229.47:5002/` to access Ella Core's UI. Replace the IP address with the ens3 IP address of the `ella-core` Multipass instance.
+From the host, open your browser and navigate to `https://<ella-core-ens3-ip>:5002/` to access Ella Core's UI. Replace the placeholder with the appropriate value.
 
 You should see the Initialization page.
 
@@ -230,10 +230,10 @@ sudo iptables -t nat -A POSTROUTING -s 10.45.0.0/16 -j MASQUERADE
 Add a route to the `ella-core` Multipass instance:
 
 ```shell
-sudo ip route add 10.45.0.0/16 via 66.66.66.200 dev ens4
+sudo ip route add 10.45.0.0/16 via <ella-core-ens6-ip> dev ens4
 ```
 
-Here, replace the IP address with the IP address of the `ens6` interface of the `ella-core` Multipass instance.
+Replace the placeholder with the appropriate value.
 
 Exit the Multipass instance:
 
@@ -277,11 +277,11 @@ idLength: 32
 tac: 1
 
 linkIp: 127.0.0.1
-ngapIp: 22.22.22.129       # The `ens3` IP address of the `radio` Multipass instance.
-gtpIp:  33.33.33.129      # The `ens4` IP address of the `radio` Multipass instance.
+ngapIp: <radio-ens4-ip>
+gtpIp:  <radio-ens5-ip>
 
 amfConfigs:
-  - address: 10.1.100.4    # The `ens3` IP address of the `ella-core` Multipass instance.
+  - address: <ella-core-ens4-ip>
     port: 38412
 
 slices:
@@ -291,11 +291,7 @@ slices:
 ignoreStreamIds: true
 ```
 
-Modify the highlighted values:
-
-- `ngapIp`: The `ens4` IP address of the `radio` Multipass instance.
-- `gtpIp`: The `ens5` IP address of the `radio` Multipass instance.
-- `amfConfigs.address`: The `ens4` IP address of the `ella-core` Multipass instance.
+Make sure to modify the highlighted placeholder values.
 
 Start the 5G radio:
 
@@ -511,17 +507,37 @@ You should see a new interface `uesimtun0` with the UE's IP address:
 You should see a new interface `uesimtun0` with your UE's IP address. This interface allows the UE to communicate with the network. 
 
 
-Ping the Ella Core documentation website from the UE:
+Ping the Ella Core documentation website from the subscriber's interface:
 
 ```shell
 ping -I uesimtun0 docs.ellanetworks.com -c4
 ```
 
-!!! success
-    
-    You have successfully connected a 5G radio simulator and a UE simulator to Ella Core. You can now use the UE to browse the internet, make calls, etc.
+You should see a successful ping:
 
-## 6. Destroy the Tutorial Environment
+```shell
+PING ellanetworks.github.io (185.199.108.153) from 10.45.0.1 uesimtun0: 56(84) bytes of data.
+64 bytes from cdn-185-199-108-153.github.com (185.199.108.153): icmp_seq=1 ttl=55 time=44.7 ms
+64 bytes from cdn-185-199-108-153.github.com (185.199.108.153): icmp_seq=2 ttl=55 time=43.6 ms
+64 bytes from cdn-185-199-108-153.github.com (185.199.108.153): icmp_seq=3 ttl=55 time=44.3 ms
+64 bytes from cdn-185-199-108-153.github.com (185.199.108.153): icmp_seq=4 ttl=55 time=52.5 ms
+
+--- ellanetworks.github.io ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3005ms
+rtt min/avg/max/mdev = 43.565/46.274/52.539/3.639 ms
+```
+
+Now, use curl to fetch the Ella Core documentation website:
+
+```shell
+curl --interface uesimtun0 https://docs.ellanetworks.com
+```
+
+You should see the HTML content of the Ella Core documentation website.
+
+You have successfully validated that the subscriber can communicate with the internet.
+
+## 6. Destroy the Tutorial Environment (Optional)
 
 When you are done with the tutorial, you can destroy the Multipass instances:
 
@@ -536,3 +552,9 @@ lxc network delete n2
 lxc network delete n3
 lxc network delete n6
 ```
+
+## Summary
+
+Congratulations! You have successfully deployed an end-to-end 5G network with Ella Core.
+
+In this tutorial, you learned how to deploy, initialize, and configure Ella Core. You also learned how to run a 5G radio and User Equipment simulator, connect a radio to Ella Core, register a subscriber, and validate that it can use the network.
