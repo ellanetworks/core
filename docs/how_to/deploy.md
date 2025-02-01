@@ -43,23 +43,23 @@ Ella Core is available as a Snap and a container image.
     ```yaml
     log-level: "info"
     db:
-    path: "core.db"
+      path: "/var/snap/ella-core/common/data/core.db"
     interfaces:
-        n2:
-            name: "lo"
-            port: 38412
-        n3: 
-            name: "wlp9s0"
-        n6:
-            name: "lo"
-        api:
-            name: "lo"
-            port: 5002
-            tls:
-            cert: "cert.pem"
-            key: "key.pem"
+      n2:
+        name: "ens4"
+        port: 38412
+      n3: 
+        name: "ens5"
+      n6:
+        name: "ens6"
+      api:
+        name: "ens3"
+        port: 5002
+        tls:
+          cert: "/var/snap/ella-core/common/cert.pem"
+          key: "/var/snap/ella-core/common/key.pem"
     xdp:
-        attach-mode: "generic"
+        attach-mode: "native"
     ```
 
     !!! note
