@@ -3,12 +3,10 @@ db:
   path: "core.db"
 interfaces:
   n2:
-    name: "wlp131s0"
-    address: "172.16.6.100"
+    name: "lo"
     port: 38412
   n3: 
-    name: "eno1"
-    address: "10.42.0.1"
+    name: "wlp9s0"
   n6:
     name: "lo"
   api:
@@ -18,4 +16,4 @@ interfaces:
       cert: "cert.pem"
       key: "key.pem"
 xdp:
-  attach-mode: "native"
+  attach-mode: "generic"

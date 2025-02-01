@@ -13,7 +13,6 @@ import (
 )
 
 func TestGoodConfigSuccess(t *testing.T) {
-	// Create temporary cert and key files
 	tempCertFile, err := os.CreateTemp("", "ella_cert_*.crt")
 	if err != nil {
 		t.Fatalf("Failed to create temp cert file: %s", err)
@@ -52,8 +51,11 @@ func TestGoodConfigSuccess(t *testing.T) {
 		}
 	}()
 
-	config.CheckInterfaceExistsWithAddress = func(name string, address string) (bool, error) {
+	config.CheckInterfaceExistsFunc = func(name string) (bool, error) {
 		return true, nil
+	}
+	config.GetInterfaceIPFunc = func(name string) (string, error) {
+		return "1.2.3.4", nil
 	}
 
 	// Update the config file to use the temporary cert and key paths
@@ -88,7 +90,7 @@ func TestGoodConfigSuccess(t *testing.T) {
 		t.Fatalf("N3 interface was not configured correctly")
 	}
 
-	if conf.Interfaces.N3.Address != "127.0.0.1" {
+	if conf.Interfaces.N3.Address != "1.2.3.4" {
 		t.Fatalf("N3 interface address was not configured correctly")
 	}
 

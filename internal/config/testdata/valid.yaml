@@ -4,11 +4,9 @@ db:
 interfaces:
   n2:
     name: "enp2s0"
-    address: "1.2.3.4"
     port: 38412
   n3: 
     name: "enp3s0"
-    address: "127.0.0.1"
   n6:
     name: "enp6s0"
   api:

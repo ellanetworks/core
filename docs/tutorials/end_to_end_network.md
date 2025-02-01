@@ -38,19 +38,20 @@ Install Multipass:
 sudo snap install multipass
 ```
 
-Create two lxc networks:
+Create three LXD networks:
 
 ```shell
-lxc network create n3
-lxc network create n6
+lxc network create n2 ipv4.address=22.22.22.1/24
+lxc network create n3 ipv4.address=33.33.33.1/24
+lxc network create n6 ipv4.address=66.66.66.1/24
 ```
 
 Create three Multipass instances:
 
 ```shell
-multipass launch noble --name=ella-core --disk=10G --network n3 --network n6
+multipass launch noble --name=ella-core --disk=10G --network n2 --network n3 --network n6
 multipass launch noble --name=router --disk=10G --network n6
-multipass launch noble --name=radio --memory=6G --cpus 2 --disk=10G  --network n3
+multipass launch noble --name=radio --memory=6G --cpus 2 --disk=10G --network n2 --network n3
 ```
 
 Validate that the 3 instances have been created:
@@ -63,13 +64,15 @@ You should see the following output:
 
 ```shell
 Name                    State             IPv4             Image
-ella-core               Running           10.1.100.4       Ubuntu 24.04 LTS
-                                          10.53.137.23
-                                          10.206.109.189
-radio                   Running           10.1.100.170     Ubuntu 24.04 LTS
-                                          10.53.137.234
-router                  Running           10.1.100.135     Ubuntu 24.04 LTS
-                                          10.206.109.8
+ella-core               Running           10.194.229.47    Ubuntu 24.04 LTS
+                                          22.22.22.71
+                                          33.33.33.188
+                                          66.66.66.200
+radio                   Running           10.194.229.171   Ubuntu 24.04 LTS
+                                          22.22.22.129
+                                          33.33.33.129
+router                  Running           10.194.229.222   Ubuntu 24.04 LTS
+                                          66.66.66.173
 ```
 
 !!! note
@@ -84,14 +87,6 @@ Connect to the `ella-core` Multipass instance:
 ```shell
 multipass shell ella-core
 ```
-
-List the network interfaces:
-
-```shell
-ip a
-```
-
-Note the IP address of the `ens3` and `ens4` interfaces. 
 
 Install the Ella Core snap:
 
@@ -108,37 +103,6 @@ sudo snap connect ella-core:sys-fs-bpf-upf-pipeline
 sudo snap connect ella-core:system-observe
 ```
 
-Edit the configuration file at `/var/snap/ella-core/common/core.yaml` to configure the network interfaces:
-
-```yaml hl_lines="7 11"
-log-level: "info"
-db:
-  path: "/var/snap/ella-core/common/data/core.db"
-interfaces: 
-  n2:
-    name: "ens3"
-    address: "10.1.100.4"     # The `ens3` IP address of the ella-core Multipass instance.
-    port: 38412
-  n3:
-    name: "ens4"
-    address: "10.53.137.23"    # The `ens4` IP address of the ella-core Multipass instance.
-  n6:
-    name: "ens5"
-  api:
-    name: "lo"
-    port: 5002
-    tls:
-      cert: "/var/snap/ella-core/common/cert.pem"
-      key: "/var/snap/ella-core/common/key.pem"
-xdp:
-  attach-mode: "native"
-```
-
-Modify the highlighted values:
-
-- `interfaces.n2.address`: The `ens3` IP address of the `ella-core` Multipass instance.
-- `interfaces.n3.address`: The `ens4` IP address of the `ella-core` Multipass instance.
-
 Start Ella Core:
 
 ```shell
@@ -154,13 +118,13 @@ sudo snap logs ella-core.cored
 You should see that Ella Core has started:
 
 ```shell
-2025-01-25T16:18:55-05:00 systemd[1]: Started snap.ella-core.cored.service - Service for snap application ella-core.cored.
-2025-01-25T16:18:55-05:00 ella-core.cored[2620]: + /snap/ella-core/x1/bin/core -config /var/snap/ella-core/common/core.yaml
-2025-01-25T16:18:55-05:00 ella-core.cored[2639]: 2025-01-25T16:18:55.363-0500	INFO	logger/logger.go:87	set log level: info	{"component": "Ella"}
-2025-01-25T16:18:55-05:00 ella-core.cored[2639]: 2025-01-25T16:18:55.546-0500	INFO	db/operator.go:94	Initialized operator configuration	{"component": "DB"}
-2025-01-25T16:18:55-05:00 ella-core.cored[2639]: 2025-01-25T16:18:55.548-0500	INFO	db/db.go:73	Database Initialized	{"component": "DB"}
-2025-01-25T16:18:55-05:00 ella-core.cored[2639]: 2025-01-25T16:18:55.548-0500	INFO	nms/nms.go:38	API server started on https://localhost:5002	{"component": "NMS"}
-2025-01-25T16:18:55-05:00 ella-core.cored[2639]: 2025-01-25T16:18:55.578-0500	INFO	service/service.go:68	NGAP server started on 10.1.100.4:38412	{"component": "AMF"}
+2025-02-01T10:00:07-05:00 systemd[1]: Started snap.ella-core.cored.service - Service for snap application ella-core.cored.
+2025-02-01T10:00:08-05:00 ella-core.cored[2669]: + /snap/ella-core/x1/bin/core -config /var/snap/ella-core/common/core.yaml
+2025-02-01T10:00:08-05:00 ella-core.cored[2692]: 2025-02-01T10:00:08.374-0500	INFO	logger/logger.go:87	set log level: info	{"component": "Ella"}
+2025-02-01T10:00:08-05:00 ella-core.cored[2692]: 2025-02-01T10:00:08.521-0500	INFO	db/operator.go:108	Initialized operator configuration	{"component": "DB"}
+2025-02-01T10:00:08-05:00 ella-core.cored[2692]: 2025-02-01T10:00:08.521-0500	INFO	db/db.go:73	Database Initialized	{"component": "DB"}
+2025-02-01T10:00:08-05:00 ella-core.cored[2692]: 2025-02-01T10:00:08.522-0500	INFO	nms/nms.go:38	API server started on https://localhost:5002	{"component": "NMS"}
+2025-02-01T10:00:08-05:00 ella-core.cored[2692]: 2025-02-01T10:00:08.554-0500	INFO	service/service.go:68	NGAP server started on 22.22.22.71:38412	{"component": "AMF"}
 ```
 
 ### 2.2 Configure routing
@@ -174,10 +138,10 @@ sudo sysctl -w net.ipv4.ip_forward=1
 Add a default route to the `router` Multipass instance:
 
 ```shell
-sudo ip route add default via 10.206.109.8 dev ens5
+sudo ip route add default via <router-ens4-ip> dev ens6
 ```
 
-Here, replace the IP address with the IP address of the `ens4` interface of the `router` Multipass instance.
+Replace the placeholder with the appropriate value.
 
 Exit the Multipass instance:
 
@@ -187,7 +151,7 @@ exit
 
 ### 2.3 Access the UI
 
-From the host, open your browser and navigate to `https://10.1.100.4:5002` to access Ella Core's UI. Replace the IP address with the ens3 IP address of the `ella-core` Multipass instance.
+From the host, open your browser and navigate to `https://<ella-core-ens3-ip>:5002/` to access Ella Core's UI. Replace the placeholder with the appropriate value.
 
 You should see the Initialization page.
 
@@ -220,7 +184,7 @@ Navigate to the `Profiles` page and click on the `Create` button.
 Create a profile with the name `default`. You can keep the default values for the other parameters:
 
 - Name: `default`
-- UE IP Pool: `10.45.0.0/16`
+- IP Pool: `10.45.0.0/16`
 - DNS: `8.8.8.8`
 - MTU: `1500`
 - Bitrate Uplink: `200 Mbps`
@@ -237,7 +201,7 @@ Create a subscriber with the following parameters:
 - Sequence Number: Keep the default value.
 - Profile: `default`
 
-After creating the subscriber, click on the `View` button to see the subscriber's details. Note the IMSI, Key, and OPC values. You will use these values later to configure the UE simulator.
+After creating the subscriber, click on the `View` button to see the subscriber's details. Note the IMSI, Key, and OPC values. You will use these values later to configure the 5G radio simulator.
 
 #### 2.5.3 Validate that no radio is connected
 
@@ -257,7 +221,7 @@ Enable IP forwarding:
 sudo sysctl -w net.ipv4.ip_forward=1
 ```
 
-Enable NAT for the 10.45.0.0/16 subnet, which is the UE subnet, by rewriting the source IP address of packets leaving the system to the IP address of the router's outgoing interface
+Enable NAT for the 10.45.0.0/16 subnet by rewriting the source IP address of packets leaving the system to the IP address of the router's outgoing interface
 
 ```shell
 sudo iptables -t nat -A POSTROUTING -s 10.45.0.0/16 -j MASQUERADE
@@ -266,10 +230,10 @@ sudo iptables -t nat -A POSTROUTING -s 10.45.0.0/16 -j MASQUERADE
 Add a route to the `ella-core` Multipass instance:
 
 ```shell
-sudo ip route add 10.45.0.0/16 via 10.206.109.113 dev ens4
+sudo ip route add 10.45.0.0/16 via <ella-core-ens6-ip> dev ens4
 ```
 
-Here, replace the IP address with the IP address of the `ens5` interface of the `ella-core` Multipass instance.
+Replace the placeholder with the appropriate value.
 
 Exit the Multipass instance:
 
@@ -279,7 +243,7 @@ exit
 
 ## 4. Install a 5G Radio Simulator
 
-In this section, we will install UERANSIM, a 5G radio and User Equipment simulator, and connect it to Ella Core.
+In this section, we will install UERANSIM, a 5G radio and User Equipment (UE) simulator, and connect it to Ella Core.
 
 ### 4.1 Install and start the UERANSIM 5G radio simulator
 
@@ -296,7 +260,7 @@ sudo snap install ueransim --channel=edge
 sudo snap connect ueransim:network-control
 ```
 
-Note the IP address of the `ens3` and `ens4` interfaces.
+Note the IP address of the `ens4` and `ens5` interfaces.
 
 ```shell
 ip a
@@ -313,11 +277,11 @@ idLength: 32
 tac: 1
 
 linkIp: 127.0.0.1
-ngapIp: 10.1.100.170       # The `ens3` IP address of the `radio` Multipass instance.
-gtpIp:  10.53.137.234      # The `ens4` IP address of the `radio` Multipass instance.
+ngapIp: <radio-ens4-ip>
+gtpIp:  <radio-ens5-ip>
 
 amfConfigs:
-  - address: 10.1.100.4    # The `ens3` IP address of the `ella-core` Multipass instance.
+  - address: <ella-core-ens4-ip>
     port: 38412
 
 slices:
@@ -327,11 +291,7 @@ slices:
 ignoreStreamIds: true
 ```
 
-Modify the highlighted values:
-
-- `ngapIp`: The `ens3` IP address of the `radio` Multipass instance.
-- `gtpIp`: The `ens4` IP address of the `radio` Multipass instance.
-- `amfConfigs.address`: The `ens3` IP address of the `ella-core` Multipass instance.
+Make sure to modify the highlighted placeholder values.
 
 Start the 5G radio:
 
@@ -343,12 +303,12 @@ You should see the following output:
 
 ```shell
 UERANSIM v3.2.6
-[2025-01-25 16:26:07.564] [sctp] [info] Trying to establish SCTP connection... (10.1.100.4:38412)
-[2025-01-25 16:26:07.579] [sctp] [info] SCTP connection established (10.1.100.4:38412)
-[2025-01-25 16:26:07.579] [sctp] [debug] SCTP association setup ascId[3]
-[2025-01-25 16:26:07.579] [ngap] [debug] Sending NG Setup Request
-[2025-01-25 16:26:07.583] [ngap] [debug] NG Setup Response received
-[2025-01-25 16:26:07.583] [ngap] [info] NG Setup procedure is successful
+[2025-02-01 10:07:38.223] [sctp] [info] Trying to establish SCTP connection... (22.22.22.71:38412)
+[2025-02-01 10:07:38.240] [sctp] [info] SCTP connection established (22.22.22.71:38412)
+[2025-02-01 10:07:38.240] [sctp] [debug] SCTP association setup ascId[3]
+[2025-02-01 10:07:38.240] [ngap] [debug] Sending NG Setup Request
+[2025-02-01 10:07:38.247] [ngap] [debug] NG Setup Response received
+[2025-02-01 10:07:38.247] [ngap] [info] NG Setup procedure is successful
 ```
 
 Leave the radio running.
@@ -430,13 +390,13 @@ integrityMaxRate:
 
 Modify the highlighted values:
 
-- `supi`: The `imsi` value used by the UE with the prefix `imsi-`.
-- `key`: The `key` value used by the UE.
-- `op`: The `opc` value used by the UE.
+- `supi`: The `imsi` value used by the subscriber with the prefix `imsi-`.
+- `key`: The `key` value used by the subscriber.
+- `op`: The `opc` value used by the subscriber.
 
-Those values were noted when you created the subscriber at step 1.5.2.
+Those values were noted when you created the subscriber at step 2.5.2.
 
-Start the UE:
+Start the User Equipment (UE) simulator:
 
 ```shell
 sudo ueransim.nr-ue --config /var/snap/ueransim/common/ue.yaml
@@ -512,43 +472,72 @@ You should see a new interface `uesimtun0` with the UE's IP address:
     inet6 ::1/128 scope host noprefixroute 
        valid_lft forever preferred_lft forever
 2: ens3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
-    link/ether 52:54:00:e1:d4:fc brd ff:ff:ff:ff:ff:ff
+    link/ether 52:54:00:85:ac:05 brd ff:ff:ff:ff:ff:ff
     altname enp0s3
-    inet 10.1.100.170/24 metric 100 brd 10.1.100.255 scope global ens3
+    inet 10.194.229.171/24 metric 100 brd 10.194.229.255 scope global ens3
        valid_lft forever preferred_lft forever
-    inet6 fe80::5054:ff:fee1:d4fc/64 scope link 
+    inet6 fe80::5054:ff:fe85:ac05/64 scope link 
        valid_lft forever preferred_lft forever
 3: ens4: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
-    link/ether 52:54:00:dc:c9:3a brd ff:ff:ff:ff:ff:ff
+    link/ether 52:54:00:7b:7a:c6 brd ff:ff:ff:ff:ff:ff
     altname enp0s4
-    inet 10.53.137.234/24 metric 200 brd 10.53.137.255 scope global dynamic ens4
-       valid_lft 1872sec preferred_lft 1872sec
-    inet6 fd42:7eca:e1d1:6e6d:5054:ff:fedc:c93a/64 scope global mngtmpaddr noprefixroute 
+    inet 22.22.22.129/24 metric 200 brd 22.22.22.255 scope global dynamic ens4
+       valid_lft 3153sec preferred_lft 3153sec
+    inet6 fd42:6302:4a59:7ee5:5054:ff:fe7b:7ac6/64 scope global mngtmpaddr noprefixroute 
        valid_lft forever preferred_lft forever
-    inet6 fe80::5054:ff:fedc:c93a/64 scope link 
+    inet6 fe80::5054:ff:fe7b:7ac6/64 scope link 
        valid_lft forever preferred_lft forever
-4: uesimtun0: <POINTOPOINT,PROMISC,NOTRAILERS,UP,LOWER_UP> mtu 1400 qdisc fq_codel state UNKNOWN group default qlen 500
+4: ens5: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether 52:54:00:84:4b:9f brd ff:ff:ff:ff:ff:ff
+    altname enp0s5
+    inet 33.33.33.129/24 metric 200 brd 33.33.33.255 scope global dynamic ens5
+       valid_lft 3153sec preferred_lft 3153sec
+    inet6 fd42:ae6c:c837:fbc0:5054:ff:fe84:4b9f/64 scope global mngtmpaddr noprefixroute 
+       valid_lft forever preferred_lft forever
+    inet6 fe80::5054:ff:fe84:4b9f/64 scope link 
+       valid_lft forever preferred_lft forever
+5: uesimtun0: <POINTOPOINT,PROMISC,NOTRAILERS,UP,LOWER_UP> mtu 1400 qdisc fq_codel state UNKNOWN group default qlen 500
     link/none 
     inet 10.45.0.1/32 scope global uesimtun0
        valid_lft forever preferred_lft forever
-    inet6 fe80::7762:b91f:1847:1ce1/64 scope link stable-privacy 
+    inet6 fe80::26e6:470b:dc9d:9f95/64 scope link stable-privacy 
        valid_lft forever preferred_lft forever
 ```
 
 You should see a new interface `uesimtun0` with your UE's IP address. This interface allows the UE to communicate with the network. 
 
 
-Ping the Ella Core documentation website from the UE:
+Ping the Ella Core documentation website from the subscriber's interface:
 
 ```shell
 ping -I uesimtun0 docs.ellanetworks.com -c4
 ```
 
-!!! success
-    
-    You have successfully connected a 5G radio simulator and a UE simulator to Ella Core. You can now use the UE to browse the internet, make calls, etc.
+You should see a successful ping:
 
-## 6. Destroy the Tutorial Environment
+```shell
+PING ellanetworks.github.io (185.199.108.153) from 10.45.0.1 uesimtun0: 56(84) bytes of data.
+64 bytes from cdn-185-199-108-153.github.com (185.199.108.153): icmp_seq=1 ttl=55 time=44.7 ms
+64 bytes from cdn-185-199-108-153.github.com (185.199.108.153): icmp_seq=2 ttl=55 time=43.6 ms
+64 bytes from cdn-185-199-108-153.github.com (185.199.108.153): icmp_seq=3 ttl=55 time=44.3 ms
+64 bytes from cdn-185-199-108-153.github.com (185.199.108.153): icmp_seq=4 ttl=55 time=52.5 ms
+
+--- ellanetworks.github.io ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3005ms
+rtt min/avg/max/mdev = 43.565/46.274/52.539/3.639 ms
+```
+
+Now, use curl to fetch the Ella Core documentation website:
+
+```shell
+curl --interface uesimtun0 https://docs.ellanetworks.com
+```
+
+You should see the HTML content of the Ella Core documentation website.
+
+You have successfully validated that the subscriber can communicate with the internet.
+
+## 6. Destroy the Tutorial Environment (Optional)
 
 When you are done with the tutorial, you can destroy the Multipass instances:
 
@@ -556,9 +545,16 @@ When you are done with the tutorial, you can destroy the Multipass instances:
 multipass delete ella-core radio router --purge
 ```
 
-You can also delete the two lxc networks:
+You can also delete the networks created with LXD:
 
 ```shell
+lxc network delete n2
 lxc network delete n3
 lxc network delete n6
 ```
+
+## Summary
+
+Congratulations! You have successfully deployed an end-to-end 5G network with Ella Core.
+
+In this tutorial, you learned how to deploy, initialize, and configure Ella Core. You also learned how to run a 5G radio and User Equipment simulator, connect a radio to Ella Core, register a subscriber, and validate that it can use the network.
