@@ -39,39 +39,39 @@ func ProducerHandler(s1, s2 string, msg interface{}) (interface{}, string, inter
 }
 
 func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, reqUri string) (*models.N1N2MessageTransferRspData, error) {
-	var ue *context.AmfUe
-	var ok bool
 	var problemDetails *models.ProblemDetails
 	logger.AmfLog.Infof("Handle N1N2 Message Transfer Request")
 
 	amfSelf := context.AMF_Self()
 
-	if ue, ok = amfSelf.AmfUeFindByUeContextID(ueContextId); !ok {
+	if _, ok := amfSelf.AmfUeFindByUeContextID(ueContextId); !ok {
 		return nil, fmt.Errorf("UE context not found")
 	}
 	sbiMsg := context.SbiMsg{
 		UeContextId: ueContextId,
 		ReqUri:      reqUri,
 		Msg:         n1n2MessageTransferRequest,
-		Result:      make(chan context.SbiResponseMsg, 10),
 	}
 	var n1n2MessageTransferRspData *models.N1N2MessageTransferRspData
 	var transferErr *models.N1N2MessageTransferError
-	ue.EventChannel.UpdateSbiHandler(ProducerHandler)
-	ue.EventChannel.SubmitMessage(sbiMsg)
-	msg := <-sbiMsg.Result
-	if msg.RespData != nil {
-		n1n2MessageTransferRspData = msg.RespData.(*models.N1N2MessageTransferRspData)
-	}
-	if msg.ProblemDetails != nil {
-		problemDetails = msg.ProblemDetails.(*models.ProblemDetails)
-	}
-	if msg.TransferErr != nil {
-		transferErr = msg.TransferErr.(*models.N1N2MessageTransferError)
-	}
-	//		n1n2MessageTransferRspData, locationHeader, problemDetails, transferErr := N1N2MessageTransferProcedure(
-	//			ueContextID, reqUri, n1n2MessageTransferRequest)
 
+	p_1, p_2, p_3, p_4 := ProducerHandler(sbiMsg.UeContextId, sbiMsg.ReqUri, sbiMsg.Msg)
+	res := context.SbiResponseMsg{
+		RespData:       p_1,
+		LocationHeader: p_2,
+		ProblemDetails: p_3,
+		TransferErr:    p_4,
+	}
+
+	if res.RespData != nil {
+		n1n2MessageTransferRspData = res.RespData.(*models.N1N2MessageTransferRspData)
+	}
+	if res.ProblemDetails != nil {
+		problemDetails = res.ProblemDetails.(*models.ProblemDetails)
+	}
+	if res.TransferErr != nil {
+		transferErr = res.TransferErr.(*models.N1N2MessageTransferError)
+	}
 	if problemDetails != nil {
 		return nil, fmt.Errorf("Problem Details: %v", problemDetails)
 	} else if transferErr != nil {
@@ -83,9 +83,6 @@ func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest mo
 		case models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED:
 			return n1n2MessageTransferRspData, nil
 		case models.N1N2MessageTransferCause_ATTEMPTING_TO_REACH_UE:
-			// headers := http.Header{
-			// 	"Location": {locationHeader},
-			// }
 			return n1n2MessageTransferRspData, nil
 		}
 	}
