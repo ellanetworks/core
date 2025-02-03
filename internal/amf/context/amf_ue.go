@@ -189,9 +189,8 @@ type AmfUe struct {
 	Non3gppDeregistrationTimerValue int `json:"non3gppDeregistrationTimerValue,omitempty"` // default 54 min
 
 	// AmfInstanceName and Ip
-	AmfInstanceName string        `json:"amfInstanceName,omitempty"`
-	AmfInstanceIp   string        `json:"amfInstanceIp,omitempty"`
-	EventChannel    *EventChannel `json:"-"`
+	AmfInstanceName string `json:"amfInstanceName,omitempty"`
+	AmfInstanceIp   string `json:"amfInstanceIp,omitempty"`
 
 	NASLog      *zap.SugaredLogger `json:"-"`
 	GmmLog      *zap.SugaredLogger `json:"-"`
@@ -338,9 +337,6 @@ func (ue *AmfUe) Remove() {
 
 	if len(ue.Supi) > 0 {
 		AMF_Self().UePool.Delete(ue.Supi)
-	}
-	if ue.EventChannel != nil {
-		ue.EventChannel.Event <- "quit"
 	}
 }
 
