@@ -208,20 +208,6 @@ func (context *AMFContext) AmfUeFindBySuci(suci string) (ue *AmfUe, ok bool) {
 	return
 }
 
-func (context *AMFContext) AmfUeDeleteBySuci(suci string) (ue *AmfUe, ok bool) {
-	context.UePool.Range(func(key, value interface{}) bool {
-		candidate := value.(*AmfUe)
-		if ok = (candidate.Suci == suci); ok {
-			context.UePool.Delete(candidate.Supi)
-			candidate.TxLog.Infof("uecontext removed based on suci")
-			candidate.Remove()
-			return false
-		}
-		return true
-	})
-	return
-}
-
 func (context *AMFContext) NewAmfRan(conn net.Conn) *AmfRan {
 	ran := AmfRan{}
 	ran.SupportedTAList = NewSupportedTAIList()

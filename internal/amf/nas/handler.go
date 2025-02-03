@@ -38,19 +38,12 @@ func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {
 
 		ue.AmfUe.AttachRanUe(ue)
 
-		if ue.AmfUe.EventChannel == nil {
-			ue.AmfUe.EventChannel = ue.AmfUe.NewEventChannel()
-			ue.AmfUe.EventChannel.UpdateNasHandler(DispatchMsg)
-			go ue.AmfUe.EventChannel.Start()
-		}
-		ue.AmfUe.EventChannel.UpdateNasHandler(DispatchMsg)
-
 		nasMsg := context.NasMsg{
 			AnType:        ue.Ran.AnType,
 			NasMsg:        nasPdu,
 			ProcedureCode: procedureCode,
 		}
-		ue.AmfUe.EventChannel.SubmitMessage(nasMsg)
+		DispatchMsg(ue.AmfUe, nasMsg)
 
 		return
 	}
