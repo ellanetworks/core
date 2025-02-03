@@ -7,16 +7,10 @@
 package context
 
 type EventChannel struct {
-	Message     chan interface{}
-	Event       chan string
-	AmfUe       *AmfUe
-	NgapHandler func(*AmfUe, NgapMsg)
-	SbiHandler  func(s1, s2 string, msg interface{}) (interface{}, string, interface{}, interface{})
-}
-
-func (tx *EventChannel) UpdateNgapHandler(handler func(*AmfUe, NgapMsg)) {
-	tx.AmfUe.TxLog.Infof("updated ngaphandler")
-	tx.NgapHandler = handler
+	Message    chan interface{}
+	Event      chan string
+	AmfUe      *AmfUe
+	SbiHandler func(s1, s2 string, msg interface{}) (interface{}, string, interface{}, interface{})
 }
 
 func (tx *EventChannel) UpdateSbiHandler(handler func(s1, s2 string, msg interface{}) (interface{}, string, interface{}, interface{})) {
@@ -29,8 +23,6 @@ func (tx *EventChannel) Start() {
 		select {
 		case msg := <-tx.Message:
 			switch msg := msg.(type) {
-			case NgapMsg:
-				tx.NgapHandler(tx.AmfUe, msg)
 			case SbiMsg:
 				p_1, p_2, p_3, p_4 := tx.SbiHandler(msg.UeContextId, msg.ReqUri, msg.Msg)
 				res := SbiResponseMsg{
