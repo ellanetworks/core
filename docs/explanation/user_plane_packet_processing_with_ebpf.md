@@ -28,4 +28,4 @@ Ella Core supports the following XDP attach modes:
 - **Native**: The most performant option, only supported on [compatible drivers](https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md#xdp).
 - **Generic**: A fallback option that works on most drivers, but with lower performance.
 
-For more information on configuring XDP, refer to the [Configuration File](../reference/config_file.md) documentation.
+For more information on configuring XDP attach modes, refer to the [Configuration File](../reference/config_file.md) documentation.

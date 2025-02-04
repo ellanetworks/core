@@ -68,7 +68,7 @@ nav:
     - Supported Radios: reference/supported_radios.md
   - Explanation:
     - Architecture: explanation/architecture.md
-    - Operator Information: explanation/operator_information.md
+    - Obtaining a PLMN ID for a Private Network: explanation/obtaining_plmn_id.md
     - Subscriber Authentication: explanation/subscriber_authentication.md
     - User Plane Packet processing with eBPF: explanation/user_plane_packet_processing_with_ebpf.md
 plugins:
