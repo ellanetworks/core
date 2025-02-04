@@ -15,6 +15,7 @@ theme:
     - content.code.copy
   icon:
     repo: fontawesome/brands/github
+  custom_dir: docs/overrides
 extra_css:
   - stylesheets/extra.css
 repo_url: https://github.com/ellanetworks/core
@@ -67,6 +68,7 @@ nav:
     - Supported Radios: reference/supported_radios.md
   - Explanation:
     - Architecture: explanation/architecture.md
+    - Operator Information: explanation/operator_information.md
     - Subscriber Authentication: explanation/subscriber_authentication.md
     - User Plane Packet processing with eBPF: explanation/user_plane_packet_processing_with_ebpf.md
 plugins:
