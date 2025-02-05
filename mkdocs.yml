@@ -12,6 +12,7 @@ theme:
   features:
     - navigation.sections
     - navigation.footer
+    - navigation.indexes
     - content.code.copy
   icon:
     repo: fontawesome/brands/github
@@ -40,13 +41,16 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Tutorials:
+    - tutorials/index.md 
     - Getting Started: tutorials/getting_started.md
     - Running an End-to-End 5G Network: tutorials/end_to_end_network.md
   - How-to Guides:
+    - how_to/index.md
     - Deploy: how_to/deploy.md
     - Integrate with a Radio: how_to/integrate_with_radio.md
     - Backup and Restore: how_to/backup_and_restore.md
   - Reference:
+    - reference/index.md
     - API:
       - Overview: reference/api/overview.md
       - Backup: reference/api/backup.md
@@ -67,10 +71,11 @@ nav:
     - Data Plane Performance: reference/data_plane_performance.md
     - Supported Radios: reference/supported_radios.md
   - Explanation:
+    - explanation/index.md
     - Architecture: explanation/architecture.md
-    - Obtaining a PLMN ID for a Private Network: explanation/obtaining_plmn_id.md
     - Subscriber Authentication: explanation/subscriber_authentication.md
     - User Plane Packet processing with eBPF: explanation/user_plane_packet_processing_with_ebpf.md
+    - Obtaining a PLMN ID for a Private Network: explanation/obtaining_plmn_id.md
 plugins:
   - search
   - glightbox

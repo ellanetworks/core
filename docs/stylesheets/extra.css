@@ -22,3 +22,7 @@
 :root {
     --md-primary-fg-color: #26374a;
 }
+
+.alert-link {
+    color: #fff !important;
+}
