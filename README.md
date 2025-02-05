@@ -1,7 +1,7 @@
 # Ella Core
 
 <p align="center">
-  <img src="docs/images/logo.png" alt="Ella Core Logo" width="200"/>
+  <img src="docs/images/logo.png" alt="Ella Core Logo" width="150"/>
 </p>
 
 [![ella-core](https://snapcraft.io/ella-core/badge.svg)](https://snapcraft.io/ella-core)
@@ -26,6 +26,13 @@ Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm,
 - **Real-Time  Observability**: Access detailed metrics and dashboards to monitor network health through the UI and the Prometheus-compliant API.
 - **Backup and restore**: Backup and restore the network configuration and data.
 
+## Quick Links
+
+- [Documentation](https://docs.ellanetworks.com/)
+- [Whitepaper](https://medium.com/@gruyaume/ella-core-simplifying-private-mobile-networks-a82de955c92c)
+- [Snap Store](https://snapcraft.io/ella-core)
+- [Contributing](CONTRIBUTING.md)
+
 ## Tenets
 
 Building Ella Core, we make engineering decisions based on the following tenets:
@@ -40,7 +47,3 @@ Ella Core could not have been built without the following open-source projects:
 - [Aether](https://aetherproject.org/)
 - [eUPF](https://github.com/edgecomllc/eupf)
 - [free5GC](https://free5gc.org/)
-
-## Contributing
-
-We welcome contributions to Ella. Please read our [Contributing Guide](CONTRIBUTING.md) to get started.
