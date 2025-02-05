@@ -8,15 +8,15 @@ Ella Core is available as a Snap and a container image.
 
 === "Snap (Recommended)"
 
-    Ella Core is available as a strictly confined Snap.
+    Ella Core is available as a strictly confined Snap. View it on the [Snap Store](https://snapcraft.io/ella-core).
 
     ## Pre-requisites
 
     - A machine with:
-      - 2 CPU cores
-      - 4 GB of RAM
-      - 10 GB of disk space
-      - 2 network interfaces
+        - 2 CPU cores
+        - 4 GB of RAM
+        - 10 GB of disk space
+        - 2 network interfaces
     - A Linux distribution that supports Snap packages.
   
     ## Steps

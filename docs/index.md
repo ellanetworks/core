@@ -14,13 +14,41 @@ Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm,
 
 ## Key features
 
-- **5G compliant**: Deploy Ella Core with 5G radios and devices. Ella Core's interfaces follow 3GPP standards.
-- **Performant data plane**: Achieve high throughput and low latency with an eBPF-based data plane.
+- **5G Compliant**: Deploy Ella Core with 5G radios and devices. Ella Core's interfaces follow 3GPP standards.
+- **Performant Data Plane**: Achieve high throughput and low latency with an eBPF-based data plane.
 - **Intuitive UI**: Manage subscribers, radios, profiles, and operator information through a user-friendly web interface.
-- **Extensive HTTP API**: Automate network operations with a complete REST API.
+- **Extensive HTTPs API**: Automate network operations with a complete REST API.
 - **Real-Time  Observability**: Access detailed metrics and dashboards to monitor network health through the UI and the Prometheus-compliant API.
-- **Backup and restore**: Backup and restore the network configuration and data.
+- **Backup and Restore**: Backup and restore the network configuration and data.
+- **Audit Logs**: Keep track of all operations performed on the network.
 
----
+## In this documentation
 
-[Get Started Now](tutorials/getting_started.md){ .md-button .md-button--primary }
+<div class="grid cards" markdown>
+
+-   [__Tutorials__](tutorials/index.md)
+
+    ---
+
+    **Start here**: a hands-on introduction to Ella Core for new users. Install, configure, and initialize Ella Core in minutes.
+
+-   [__How-to Guides__](how_to/index.md)
+
+    ---
+
+    **Step-by-step guides** covering key operation and common tasks.
+
+-   [__Reference__](reference/index.md)
+
+    ---
+
+    **Technical information** - API, configuration, performance, metrics, and more.
+
+-   [__Explanation__](explanation/index.md)
+
+    ---
+
+    **Discussion and clarification** of key topics.
+
+
+</div>
