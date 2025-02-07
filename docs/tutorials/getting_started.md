@@ -42,7 +42,7 @@ lxc network create n6 ipv4.address=66.66.66.1/24
 Use Multipass to create a bare Ubuntu 24.04 instance with two additional network interfaces:
 
 ```shell
-multipass launch noble --name=ella-core --network n2 --network n3 --network n6
+multipass launch noble --name=ella-core --disk=10G --cpus 2 --network n2 --network n3 --network n6
 ```
 
 Validate that the instance has been created with the two additional network interfaces:

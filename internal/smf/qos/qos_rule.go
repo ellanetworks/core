@@ -7,12 +7,12 @@ package qos
 import (
 	"bytes"
 	"encoding/binary"
-	"log"
 	"math"
 	"net"
 	"strconv"
 	"strings"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -108,7 +108,7 @@ func BuildQosRules(smPolicyUpdates *PolicyUpdate) QoSRules {
 	// New Rules to be added
 	if pccRulesUpdate != nil {
 		for pccRuleName, pccRuleVal := range pccRulesUpdate.add {
-			log.Printf("Building QoS Rule from PCC rule [%s]", pccRuleName)
+			logger.SmfLog.Infof("Building QoS Rule from PCC rule [%s]", pccRuleName)
 			refQosData := GetQoSDataFromPolicyDecision(smPolicyDecision, pccRuleVal.RefQosData[0])
 			qosRule := BuildAddQoSRuleFromPccRule(pccRuleVal, refQosData, OperationCodeCreateNewQoSRule)
 			qosRules = append(qosRules, *qosRule)

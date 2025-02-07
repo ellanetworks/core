@@ -49,7 +49,7 @@ lxc network create n6 ipv4.address=66.66.66.1/24
 Create three Multipass instances:
 
 ```shell
-multipass launch noble --name=ella-core --disk=10G --network n2 --network n3 --network n6
+multipass launch noble --name=ella-core --disk=10G --cpus 2 --network n2 --network n3 --network n6
 multipass launch noble --name=router --disk=10G --network n6
 multipass launch noble --name=radio --memory=6G --cpus 2 --disk=10G --network n2 --network n3
 ```
@@ -88,15 +88,10 @@ Connect to the `ella-core` Multipass instance:
 multipass shell ella-core
 ```
 
-Install the Ella Core snap:
+Install the Ella Core snap and connect it to the required interfaces:
 
 ```shell
 sudo snap install ella-core
-```
-
-Connect the snap to the required interfaces:
-
-```bash
 sudo snap connect ella-core:network-control
 sudo snap connect ella-core:process-control
 sudo snap connect ella-core:sys-fs-bpf-upf-pipeline
@@ -107,24 +102,6 @@ Start Ella Core:
 
 ```shell
 sudo snap start ella-core.cored
-```
-
-Validate that Ella Core is running:
-
-```shell
-sudo snap logs ella-core.cored
-```
-
-You should see that Ella Core has started:
-
-```shell
-2025-02-01T10:00:07-05:00 systemd[1]: Started snap.ella-core.cored.service - Service for snap application ella-core.cored.
-2025-02-01T10:00:08-05:00 ella-core.cored[2669]: + /snap/ella-core/x1/bin/core -config /var/snap/ella-core/common/core.yaml
-2025-02-01T10:00:08-05:00 ella-core.cored[2692]: 2025-02-01T10:00:08.374-0500	INFO	logger/logger.go:87	set log level: info	{"component": "Ella"}
-2025-02-01T10:00:08-05:00 ella-core.cored[2692]: 2025-02-01T10:00:08.521-0500	INFO	db/operator.go:108	Initialized operator configuration	{"component": "DB"}
-2025-02-01T10:00:08-05:00 ella-core.cored[2692]: 2025-02-01T10:00:08.521-0500	INFO	db/db.go:73	Database Initialized	{"component": "DB"}
-2025-02-01T10:00:08-05:00 ella-core.cored[2692]: 2025-02-01T10:00:08.522-0500	INFO	nms/nms.go:38	API server started on https://localhost:5002	{"component": "NMS"}
-2025-02-01T10:00:08-05:00 ella-core.cored[2692]: 2025-02-01T10:00:08.554-0500	INFO	service/service.go:68	NGAP server started on 22.22.22.71:38412	{"component": "AMF"}
 ```
 
 ### 2.2 Configure routing

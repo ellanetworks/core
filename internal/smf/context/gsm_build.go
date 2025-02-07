@@ -9,6 +9,7 @@ package context
 import (
 	"encoding/hex"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
@@ -42,6 +43,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	pDUSessionEstablishmentAccept.SessionAMBR.SetLen(uint8(len(pDUSessionEstablishmentAccept.SessionAMBR.Octet)))
 
 	qoSRules := qos.BuildQosRules(smContext.SmPolicyUpdates[0])
+	logger.SmfLog.Infof("QoS Rules: %+v", qoSRules)
 
 	qosRulesBytes, err := qoSRules.MarshalBinary()
 	if err != nil {
