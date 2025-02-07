@@ -6,6 +6,7 @@ package pcf
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/omec-project/openapi/models"
 )
@@ -42,8 +43,18 @@ var policyTriggerArray = []models.PolicyControlRequestTrigger{
 
 // Convert Snssai form models to hexString(sst(2)+sd(6))
 func SnssaiModelsToHex(snssai models.Snssai) string {
+	// Format sst as a two-digit hex number.
 	sst := fmt.Sprintf("%02x", snssai.Sst)
-	return sst + snssai.Sd
+	combined := sst + snssai.Sd
+
+	// Remove all leading '0' characters.
+	result := strings.TrimLeft(combined, "0")
+
+	// In case the string was all zeros, return "0" instead of an empty string.
+	if result == "" {
+		return "0"
+	}
+	return result
 }
 
 // Use BitMap to generate requested policy control triggers,
