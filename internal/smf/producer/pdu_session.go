@@ -548,7 +548,6 @@ func releaseTunnel(smContext *context.SMContext) (*context.PFCPSessionResponseSt
 
 func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 	// N1N2 Request towards AMF
-	logger.SmfLog.Infof("SendPduSessN1N2Transfer. Success: %v", success)
 	n1n2Request := models.N1N2MessageTransferRequest{}
 
 	// N2 Container Info
