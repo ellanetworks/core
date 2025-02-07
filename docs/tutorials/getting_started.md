@@ -77,7 +77,7 @@ Validate that the instance has the two additional network interfaces:
 Inside of the `ella-core` Multipass instance, install the Ella Core snap:
 
 ```shell
-sudo snap install ella-core --channel=beta
+sudo snap install ella-core
 ```
 
 Connect the snap to the required interfaces:

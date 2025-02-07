@@ -86,10 +86,6 @@ Ella Core is available as a Snap and a container image.
 
     Installation can then be done using the approach of your choice. 
 
-    !!! note
-        We are planning on publishing a Juju Kubernetes charm in the future. 
-        This charm will allow you to operate Ella Core on Kubernetes.
-
 === "Source"
 
     You can build Ella Core from source.

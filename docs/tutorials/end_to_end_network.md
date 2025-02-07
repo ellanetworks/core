@@ -91,7 +91,7 @@ multipass shell ella-core
 Install the Ella Core snap:
 
 ```shell
-sudo snap install ella-core --channel=beta
+sudo snap install ella-core
 ```
 
 Connect the snap to the required interfaces:

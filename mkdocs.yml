@@ -63,8 +63,8 @@ nav:
       - Status: reference/api/status.md
       - Subscribers: reference/api/subscribers.md
       - Users: reference/api/users.md
-    - Metrics: reference/metrics.md
     - Configuration File: reference/config_file.md
+    - Metrics: reference/metrics.md
     - Connectivity: reference/connectivity.md
     - Audit Logs: reference/audit_logs.md
     - TLS: reference/tls.md

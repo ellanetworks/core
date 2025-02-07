@@ -1,8 +1,5 @@
 codespell
-Jinja2
 pyright
 pytest
-pytest-operator
 requests
 ruff
-mkdocs-material
