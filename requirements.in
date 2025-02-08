@@ -3,3 +3,4 @@ pyright
 pytest
 requests
 ruff
+PyYAML

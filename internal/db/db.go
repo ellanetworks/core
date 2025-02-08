@@ -18,7 +18,6 @@ type Database struct {
 	subscribersTable string
 	profilesTable    string
 	operatorTable    string
-	radiosTable      string
 	usersTable       string
 	conn             *sqlair.DB
 }
@@ -52,9 +51,6 @@ func NewDatabase(databasePath string, initialOperator Operator) (*Database, erro
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateOperatorTable, OperatorTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateRadiosTable, RadiosTableName)); err != nil {
-		return nil, err
-	}
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateUsersTable, UsersTableName)); err != nil {
 		return nil, err
 	}
@@ -64,7 +60,6 @@ func NewDatabase(databasePath string, initialOperator Operator) (*Database, erro
 	db.subscribersTable = SubscribersTableName
 	db.profilesTable = ProfilesTableName
 	db.operatorTable = OperatorTableName
-	db.radiosTable = RadiosTableName
 	db.usersTable = UsersTableName
 	err = db.InitializeOperator(initialOperator)
 	if err != nil {

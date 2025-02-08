@@ -68,7 +68,7 @@ nav:
     - Connectivity: reference/connectivity.md
     - Audit Logs: reference/audit_logs.md
     - TLS: reference/tls.md
-    - Data Plane Performance: reference/data_plane_performance.md
+    - Performance: reference/performance.md
     - Supported Radios: reference/supported_radios.md
   - Explanation:
     - explanation/index.md

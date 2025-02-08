@@ -32,7 +32,7 @@ At the moment, Ella Core relies on kernel routing when making routing decisions 
 
 ### Performance
 
-Detailed performance results are available [here](../reference/data_plane_performance.md).
+Detailed performance results are available [here](../reference/performance.md).
 
 ### Configuration
 
