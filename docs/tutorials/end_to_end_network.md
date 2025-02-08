@@ -529,9 +529,3 @@ lxc network delete n2
 lxc network delete n3
 lxc network delete n6
 ```
-
-## Summary
-
-Congratulations! You have successfully deployed an end-to-end 5G network with Ella Core.
-
-In this tutorial, you learned how to deploy, initialize, and configure Ella Core. You also learned how to run a 5G radio and User Equipment simulator, connect a radio to Ella Core, register a subscriber, and validate that it can use the network.

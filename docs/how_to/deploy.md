@@ -8,7 +8,7 @@ Ella Core is available as a Snap and a container image.
 
 === "Snap (Recommended)"
 
-    Ella Core is available as a strictly confined Snap. View it on the [Snap Store](https://snapcraft.io/ella-core).
+    Ella Core is available as a Snap. View it on the [Snap Store](https://snapcraft.io/ella-core).
 
     ## Pre-requisites
 
@@ -16,7 +16,7 @@ Ella Core is available as a Snap and a container image.
         - 2 CPU cores
         - 4 GB of RAM
         - 10 GB of disk space
-        - 2 network interfaces
+        - 3 network interfaces
     - A Linux distribution that supports Snap packages.
   
     ## Steps
@@ -91,7 +91,7 @@ Ella Core is available as a Snap and a container image.
     You can build Ella Core from source.
 
     !!! warning
-        Building from source is unsupported and may not work as expected.
+        Building from source is recommended for development purposes only.
 
     ## Pre-requisites
 
@@ -100,7 +100,7 @@ Ella Core is available as a Snap and a container image.
     ```shell
     sudo snap install go --channel=1.23/stable --classic
     sudo snap install node --channel=20/stable --classic
-    sudo apt install build-essential
+    sudo apt install clang llvm gcc-multilib libbpf-dev
     ```
 
     Clone the Ella Core repository:

@@ -33,10 +33,6 @@ func GetSMPolicyDnnData(data models.SmPolicyData, snssai *models.Snssai, dnn str
 			return
 		}
 	}
-	// Display all values inside of data.SmPolicySnssaiData
-	for key, value := range data.SmPolicySnssaiData {
-		logger.PcfLog.Warnf("Snssai %s has DnnInfos: %v", key, value)
-	}
 	logger.PcfLog.Warnf("No matching SmPolicyDnnData for snssai %s and dnn %s", snssaiString, dnn)
 	return
 }
