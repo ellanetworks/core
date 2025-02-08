@@ -8,5 +8,5 @@ This section provides detailed reference material for Ella Core, from configurat
 - [Connectivity](connectivity.md)
 - [Audit Logs](audit_logs.md)
 - [TLS](tls.md)
-- [Data Plane Performance](data_plane_performance.md)
+- [Performance](performance.md)
 - [Supported Radios](supported_radios.md)

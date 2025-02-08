@@ -2,9 +2,9 @@
 
 from tests.core import EllaCore
 
-TEST_PROFILE_NAME = "default-default"
+TEST_PROFILE_NAME = "default"
 TEST_START_IMSI = "001010100000001"
-NUM_IMSIS = 200
+NUM_IMSIS = 1000
 TEST_SUBSCRIBER_KEY = "5122250214c33e723a5dd523fc145fc0"
 TEST_SUBSCRIBER_SEQUENCE_NUMBER = "000000000001"
 
@@ -24,7 +24,7 @@ def compute_imsi(base_imsi: str, increment: int) -> str:
 
 
 def main():
-    core_address = "https://127.0.0.1:5002"
+    core_address = "https://10.1.100.16:5002"
     ella_client = EllaCore(url=core_address)
     token = ella_client.login(email="admin@ellanetworks.com", password="admin")
     if not token:

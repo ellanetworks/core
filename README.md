@@ -25,12 +25,13 @@ Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm,
 - **Extensive HTTP API**: Automate network operations with a complete REST API.
 - **Real-Time  Observability**: Access detailed metrics and dashboards to monitor network health through the UI and the Prometheus-compliant API.
 - **Backup and restore**: Backup and restore the network configuration and data.
+- **Audit Logs**: Keep track of all operations performed on the network.
 
 ## Quick Links
 
 - [Documentation](https://docs.ellanetworks.com/)
 - [Whitepaper](https://medium.com/@gruyaume/ella-core-simplifying-private-mobile-networks-a82de955c92c)
-- [Snap Store](https://snapcraft.io/ella-core)
+- [Snap Store Listing](https://snapcraft.io/ella-core)
 - [Contributing](CONTRIBUTING.md)
 
 ## Tenets

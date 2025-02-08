@@ -12,8 +12,7 @@ Follow this guide to integrate Ella Core with a 5G radio. This guide assumes you
 
 1. Open Ella Core in your web browser.
 2. Click on the **Operator** tab in the left-hand menu.
-3. Click on the **Edit** button.
-4. Fill in the operator details:
+3. Edit the Operator information:
     - **MCC**: The Mobile Country Code for the operator.
     - **MNC**: The Mobile Network Code for the operator.
     - **Supported TACs**: A list of supported Tracking Area Codes (TACs).
@@ -25,10 +24,8 @@ Follow this guide to integrate Ella Core with a 5G radio. This guide assumes you
 In your radio's configuration, you will likely need to specify the following information to connect it with a 5G core network:
 
 - **AMF Address**: The address of the N2 interface on Ella Core.
-- **AMF Port**: The port number of the N2 interface on Ella Core.
 - **PLMN ID**: The Public Land Mobile Network Identifier. This is a combination of the Mobile Country Code (MCC) and the Mobile Network Code (MNC). You can find this information in Ella Core under **Operator** and **Operator ID**.
 - **TAC**: The Tracking Area Code. You can find this information in Ella Core under **Operator** and **Supported TACs**.
-- **UPF Subnet**: IP Subnet of the N3 interface on Ella Core. For example, the default N3 IP address on Ella Core is `192.168.252.3` and the subnet is `192.168.252.0/24`.
 - **SST**: The Slice/Service Type. This is a unique identifier for a network slice. You can find this information in Ella Core under **Operator** and **SST**.
 - **SD**: The Service Differentiator. This is a unique identifier for a network slice. You can find this information in Ella Core under **Operator** and **SD**.
 

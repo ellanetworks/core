@@ -5,6 +5,7 @@
 package pcf
 
 import (
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -18,11 +19,13 @@ var serviceUriMap = map[models.ServiceName]string{
 // GetSMPolicyDnnData returns SMPolicyDnnData derived from SmPolicy data which snssai and dnn match
 func GetSMPolicyDnnData(data models.SmPolicyData, snssai *models.Snssai, dnn string) (result *models.SmPolicyDnnData) {
 	if snssai == nil || dnn == "" || data.SmPolicySnssaiData == nil {
+		logger.PcfLog.Warnf("Invalid input for GetSMPolicyDnnData")
 		return
 	}
 	snssaiString := SnssaiModelsToHex(*snssai)
 	if snssaiData, exist := data.SmPolicySnssaiData[snssaiString]; exist {
 		if snssaiData.SmPolicyDnnData == nil {
+			logger.PcfLog.Warnf("Invalid SmPolicyDnnData for snssai %s", snssaiString)
 			return
 		}
 		if dnnInfo, exist := snssaiData.SmPolicyDnnData[dnn]; exist {
@@ -30,5 +33,6 @@ func GetSMPolicyDnnData(data models.SmPolicyData, snssai *models.Snssai, dnn str
 			return
 		}
 	}
+	logger.PcfLog.Warnf("No matching SmPolicyDnnData for snssai %s and dnn %s", snssaiString, dnn)
 	return
 }
