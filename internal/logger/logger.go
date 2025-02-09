@@ -4,13 +4,13 @@ package logger
 
 import (
 	"fmt"
+	"os"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 var (
-	log         *zap.Logger
 	EllaLog     *zap.SugaredLogger
 	AuditLog    *zap.SugaredLogger
 	UtilLog     *zap.SugaredLogger
@@ -36,7 +36,12 @@ const (
 	FieldSuci        string = "suci"
 )
 
-func init() {
+func ConfigureLogging(systemLevel string, systemOutput string, systemFilePath string, auditOutput string, auditFilePath string) error {
+	zapLevel, err := zapcore.ParseLevel(systemLevel)
+	if err != nil {
+		return fmt.Errorf("failed to parse log level: %v", err)
+	}
+	atomicLevel.SetLevel(zapLevel)
 	atomicLevel = zap.NewAtomicLevelAt(zap.InfoLevel)
 
 	encoderConfig := zap.NewProductionEncoderConfig()
@@ -50,42 +55,87 @@ func init() {
 	encoderConfig.StacktraceKey = ""
 	encoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
 
-	config := zap.Config{
+	sysOutputPaths, err := resolveOutputPaths(systemOutput, systemFilePath)
+	if err != nil {
+		return fmt.Errorf("system logger configuration error: %v", err)
+	}
+
+	sysConfig := zap.Config{
+		Level:            atomicLevel,
+		Development:      false,
+		Encoding:         "console", // change to "json" if desired
+		DisableCaller:    false,
+		EncoderConfig:    encoderConfig,
+		OutputPaths:      sysOutputPaths,
+		ErrorOutputPaths: []string{"stderr"},
+	}
+
+	systemLogger, err := sysConfig.Build()
+	if err != nil {
+		return fmt.Errorf("failed to build system logger: %v", err)
+	}
+
+	auditOutputPaths, err := resolveOutputPaths(auditOutput, auditFilePath)
+	if err != nil {
+		return fmt.Errorf("audit logger configuration error: %v", err)
+	}
+
+	auditConfig := zap.Config{
 		Level:            atomicLevel,
 		Development:      false,
 		Encoding:         "console",
 		DisableCaller:    false,
 		EncoderConfig:    encoderConfig,
-		OutputPaths:      []string{"stdout"},
+		OutputPaths:      auditOutputPaths,
 		ErrorOutputPaths: []string{"stderr"},
 	}
 
-	var err error
-	log, err = config.Build()
+	auditLogger, err := auditConfig.Build()
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to build audit logger: %v", err)
 	}
 
-	EllaLog = log.Sugar().With("component", "Ella")
-	MetricsLog = log.Sugar().With("component", "Metrics")
-	UtilLog = log.Sugar().With("component", "Util")
-	DBLog = log.Sugar().With("component", "DB")
-	AmfLog = log.Sugar().With("component", "AMF")
-	AusfLog = log.Sugar().With("component", "AUSF")
-	NmsLog = log.Sugar().With("component", "NMS")
-	NssfLog = log.Sugar().With("component", "NSSF")
-	PcfLog = log.Sugar().With("component", "PCF")
-	SmfLog = log.Sugar().With("component", "SMF")
-	UdmLog = log.Sugar().With("component", "UDM")
-	UdrLog = log.Sugar().With("component", "UDR")
-	UpfLog = log.Sugar().With("component", "UPF")
-	AuditLog = log.Sugar().With("component", "Audit")
+	EllaLog = systemLogger.Sugar().With("component", "Ella")
+	MetricsLog = systemLogger.Sugar().With("component", "Metrics")
+	UtilLog = systemLogger.Sugar().With("component", "Util")
+	DBLog = systemLogger.Sugar().With("component", "DB")
+	AmfLog = systemLogger.Sugar().With("component", "AMF")
+	AusfLog = systemLogger.Sugar().With("component", "AUSF")
+	NmsLog = systemLogger.Sugar().With("component", "NMS")
+	NssfLog = systemLogger.Sugar().With("component", "NSSF")
+	PcfLog = systemLogger.Sugar().With("component", "PCF")
+	SmfLog = systemLogger.Sugar().With("component", "SMF")
+	UdmLog = systemLogger.Sugar().With("component", "UDM")
+	UdrLog = systemLogger.Sugar().With("component", "UDR")
+	UpfLog = systemLogger.Sugar().With("component", "UPF")
+
+	AuditLog = auditLogger.Sugar().With("component", "Audit")
+	return nil
 }
 
-// SetLogLevel: set the log level (panic|fatal|error|warn|info|debug)
-func SetLogLevel(level zapcore.Level) {
-	EllaLog.Infoln("set log level:", level)
-	atomicLevel.SetLevel(level)
+func resolveOutputPaths(output string, filePath string) ([]string, error) {
+	switch output {
+	case "stdout":
+		return []string{"stdout"}, nil
+	case "file":
+		if filePath == "" {
+			return nil, fmt.Errorf("file output specified but file path is empty")
+		}
+		if err := ensureFileWritable(filePath); err != nil {
+			return nil, err
+		}
+		return []string{filePath}, nil
+	default:
+		return nil, fmt.Errorf("unknown output type: %s", output)
+	}
+}
+
+func ensureFileWritable(filePath string) error {
+	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("unable to open file %s: %v", filePath, err)
+	}
+	return f.Close()
 }
 
 func CapitalColorLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {

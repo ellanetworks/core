@@ -21,7 +21,6 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/upf"
-	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -75,11 +74,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("Couldn't validate config file: %s", err)
 	}
-	level, err := zapcore.ParseLevel(cfg.LogLevel)
+	// level, err := zapcore.ParseLevel(cfg.LogLevel)
+	// if err != nil {
+	// 	log.Fatalf("failed to parse log level: %v", err)
+	// }
+	err = logger.ConfigureLogging(cfg.Logging.SystemLogging.Level, cfg.Logging.SystemLogging.Output, cfg.Logging.SystemLogging.Path, cfg.Logging.AuditLogging.Output, cfg.Logging.AuditLogging.Path)
 	if err != nil {
-		log.Fatalf("failed to parse log level: %v", err)
+		log.Fatalf("Failed to configure logging: %v", err)
 	}
-	logger.SetLogLevel(level)
 	initialOp, err := generateOperatorCode()
 	if err != nil {
 		log.Fatalf("Failed to generate operator code: %v", err)
