@@ -16,6 +16,16 @@ const (
 	UpfNodeId = "0.0.0.0"
 )
 
+const (
+	AttachModeNative  = "native"
+	AttachModeGeneric = "generic"
+)
+
+const (
+	LoggingSystemOutputStdout = "stdout"
+	LoggingSystemOutputFile   = "file"
+)
+
 type DB struct {
 	Path string
 }
@@ -166,9 +176,6 @@ func Validate(filePath string) (Config, error) {
 	if err := yaml.Unmarshal(configYaml, &c); err != nil {
 		return Config{}, fmt.Errorf("cannot unmarshal config file")
 	}
-	// if c.LogLevel == "" {
-	// 	return Config{}, errors.New("log-level is empty. Allowed values are: debug, info, warn, error, panic, fatal")
-	// }
 	if c.Logging == (LoggingYaml{}) {
 		return Config{}, errors.New("logging is empty")
 	}
@@ -181,10 +188,10 @@ func Validate(filePath string) (Config, error) {
 	if c.Logging.SystemLogging.Output == "" {
 		return Config{}, errors.New("logging.system.output is empty")
 	}
-	if c.Logging.SystemLogging.Output != "stdout" && c.Logging.SystemLogging.Output != "file" {
+	if c.Logging.SystemLogging.Output != LoggingSystemOutputStdout && c.Logging.SystemLogging.Output != LoggingSystemOutputFile {
 		return Config{}, errors.New("logging.system.output is invalid. Allowed values are: stdout, file")
 	}
-	if c.Logging.SystemLogging.Output == "file" && c.Logging.SystemLogging.Path == "" {
+	if c.Logging.SystemLogging.Output == LoggingSystemOutputFile && c.Logging.SystemLogging.Path == "" {
 		return Config{}, errors.New("logging.system.path is empty")
 	}
 	if c.Logging.AuditLogging == (AuditLoggingYaml{}) {
@@ -193,10 +200,10 @@ func Validate(filePath string) (Config, error) {
 	if c.Logging.AuditLogging.Output == "" {
 		return Config{}, errors.New("logging.audit.output is empty")
 	}
-	if c.Logging.AuditLogging.Output != "stdout" && c.Logging.AuditLogging.Output != "file" {
+	if c.Logging.AuditLogging.Output != LoggingSystemOutputStdout && c.Logging.AuditLogging.Output != LoggingSystemOutputFile {
 		return Config{}, errors.New("logging.audit.output is invalid. Allowed values are: stdout, file")
 	}
-	if c.Logging.AuditLogging.Output == "file" && c.Logging.AuditLogging.Path == "" {
+	if c.Logging.AuditLogging.Output == LoggingSystemOutputFile && c.Logging.AuditLogging.Path == "" {
 		return Config{}, errors.New("logging.audit.path is empty")
 	}
 	if c.DB == (DBYaml{}) {
@@ -266,7 +273,7 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("xdp is empty")
 	}
 
-	if c.XDP.AttachMode != "native" && c.XDP.AttachMode != "generic" {
+	if c.XDP.AttachMode != AttachModeNative && c.XDP.AttachMode != AttachModeGeneric {
 		return Config{}, errors.New("xdp.attach-mode is invalid. Allowed values are: native, generic")
 	}
 	n2Address, err := GetInterfaceIP(c.Interfaces.N2.Name)

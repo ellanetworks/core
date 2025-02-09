@@ -4,7 +4,12 @@ metadata:
   name: core-config
 data:
   config.yaml: |
-    log-level: "debug"
+    logging:
+      system:
+        level: "debug"
+        output: "stdout"
+      audit:
+        output: "stdout"
     db:
       path: /core/data/core.db
     interfaces:

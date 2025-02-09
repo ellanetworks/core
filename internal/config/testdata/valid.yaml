@@ -19,7 +19,7 @@ interfaces:
     name: "enp0s8"
     port: 5002
     tls:
-      cert: "/etc/ssl/certs/ella.crt"
-      key: "/etc/ssl/private/ella.key"
+      cert: "/etc/ella/cert.pem"
+      key: "/etc/ella/key.pem"
 xdp:
   attach-mode: "native"

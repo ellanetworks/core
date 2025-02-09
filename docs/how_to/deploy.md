@@ -41,7 +41,12 @@ Ella Core is available as a Snap and a container image.
     Edit the configuration file at `/var/snap/ella-core/common/config.yaml` to configure the network interfaces:
 
     ```yaml
-    log-level: "info"
+    logging:
+      system:
+        level: "info"
+        output: "stdout"
+      audit:
+        output: "stdout"
     db:
       path: "/var/snap/ella-core/common/data/core.db"
     interfaces:
