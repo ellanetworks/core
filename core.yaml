@@ -2,7 +2,7 @@ logging:
   system:
     level: "info"
     output: "file"
-    path: "ella.log"
+    path: "anouck.log"
   audit:
     output: "stdout"
 db:

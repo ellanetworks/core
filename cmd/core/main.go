@@ -74,10 +74,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Couldn't validate config file: %s", err)
 	}
-	// level, err := zapcore.ParseLevel(cfg.LogLevel)
-	// if err != nil {
-	// 	log.Fatalf("failed to parse log level: %v", err)
-	// }
 	err = logger.ConfigureLogging(cfg.Logging.SystemLogging.Level, cfg.Logging.SystemLogging.Output, cfg.Logging.SystemLogging.Path, cfg.Logging.AuditLogging.Output, cfg.Logging.AuditLogging.Path)
 	if err != nil {
 		log.Fatalf("Failed to configure logging: %v", err)
