@@ -10,7 +10,14 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
 
 ## Parameters
 
-- `log-level` (string): The log level for the application. Options are `debug`, `info`, `warning`, `error`, and `critical`.
+- `logging` (object): The logging configuration.
+    - `system` (object): The system logging configuration.
+        - `level` (string): The log level. Options are `trace`, `debug`, `info`, `warn`, `error`, and `fatal`.
+        - `output` (string): The output for the logs. Options are `stdout` and `file`.
+        - `path` (string): The path to the log file. This is only used if the output is set to `file`.
+    - `audit` (object): The audit logging configuration.
+        - `output` (string): The output for the logs. Options are `stdout` and `file`.
+        - `path` (string): The path to the log file. This is only used if the output is set to `file`.
 - `db` (object): The database configuration.
     - `path` (string): The path to the database file.
 - `interfaces` (object): The network interfaces configuration.
@@ -33,23 +40,29 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
 ## Example
 
 ```yaml
-log-level: "debug"
+logging:
+  system:
+    level: "info"
+    output: "stdout"
+  audit:
+    output: "file"
+    path: "/var/log/ella_system.log"
 db:
   path: "core.db"
 interfaces:
   n2:
-    name: "enp2s0"
+    name: "ens4"
     port: 38412
   n3: 
-    name: "enp3s0"
+    name: "ens5"
   n6:
-    name: "enp6s0"
+    name: "ens6"
   api:
-    name: "enp0s8"
+    name: "ens3"
     port: 5002
     tls:
-      cert: "/etc/ssl/certs/core.crt"
-      key: "/etc/ssl/private/core.key"
+      cert: "/etc/ella/cert.pem"
+      key: "/etc/ella/key.pem"
 xdp:
   attach-mode: "native"
 ```

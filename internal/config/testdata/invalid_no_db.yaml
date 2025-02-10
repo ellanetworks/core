@@ -1,4 +1,10 @@
-log-level: "info"
+logging:
+  system:
+    level: "info"
+    output: "file"
+    path: "/var/log/ella_system.log"
+  audit:
+    output: "stdout"
 interfaces:
   n2:
     name: "enp2s0"

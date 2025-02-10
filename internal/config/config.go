@@ -16,6 +16,16 @@ const (
 	UpfNodeId = "0.0.0.0"
 )
 
+const (
+	AttachModeNative  = "native"
+	AttachModeGeneric = "generic"
+)
+
+const (
+	LoggingSystemOutputStdout = "stdout"
+	LoggingSystemOutputFile   = "file"
+)
+
 type DB struct {
 	Path string
 }
@@ -73,9 +83,25 @@ type XDPYaml struct {
 	AttachMode string `yaml:"attach-mode"`
 }
 
+type SystemLoggingYaml struct {
+	Level  string `yaml:"level"`
+	Output string `yaml:"output"`
+	Path   string `yaml:"path"`
+}
+
+type AuditLoggingYaml struct {
+	Output string `yaml:"output"`
+	Path   string `yaml:"path"`
+}
+
+type LoggingYaml struct {
+	SystemLogging SystemLoggingYaml `yaml:"system"`
+	AuditLogging  AuditLoggingYaml  `yaml:"audit"`
+}
+
 type ConfigYAML struct {
+	Logging    LoggingYaml    `yaml:"logging"`
 	DB         DBYaml         `yaml:"db"`
-	LogLevel   string         `yaml:"log-level"`
 	Interfaces InterfacesYaml `yaml:"interfaces"`
 	XDP        XDPYaml        `yaml:"xdp"`
 }
@@ -117,9 +143,25 @@ type XDP struct {
 	AttachMode string
 }
 
+type AuditLogging struct {
+	Output string
+	Path   string
+}
+
+type SystemLogging struct {
+	Level  string
+	Output string
+	Path   string
+}
+
+type Logging struct {
+	SystemLogging SystemLogging
+	AuditLogging  AuditLogging
+}
+
 type Config struct {
+	Logging    Logging
 	DB         DB
-	LogLevel   string
 	Interfaces Interfaces
 	XDP        XDP
 }
@@ -134,8 +176,35 @@ func Validate(filePath string) (Config, error) {
 	if err := yaml.Unmarshal(configYaml, &c); err != nil {
 		return Config{}, fmt.Errorf("cannot unmarshal config file")
 	}
-	if c.LogLevel == "" {
-		return Config{}, errors.New("log-level is empty. Allowed values are: debug, info, warn, error, panic, fatal")
+	if c.Logging == (LoggingYaml{}) {
+		return Config{}, errors.New("logging is empty")
+	}
+	if c.Logging.SystemLogging == (SystemLoggingYaml{}) {
+		return Config{}, errors.New("logging.system is empty")
+	}
+	if c.Logging.SystemLogging.Level == "" {
+		return Config{}, errors.New("logging.system.level is empty")
+	}
+	if c.Logging.SystemLogging.Output == "" {
+		return Config{}, errors.New("logging.system.output is empty")
+	}
+	if c.Logging.SystemLogging.Output != LoggingSystemOutputStdout && c.Logging.SystemLogging.Output != LoggingSystemOutputFile {
+		return Config{}, errors.New("logging.system.output is invalid. Allowed values are: stdout, file")
+	}
+	if c.Logging.SystemLogging.Output == LoggingSystemOutputFile && c.Logging.SystemLogging.Path == "" {
+		return Config{}, errors.New("logging.system.path is empty")
+	}
+	if c.Logging.AuditLogging == (AuditLoggingYaml{}) {
+		return Config{}, errors.New("logging.audit is empty")
+	}
+	if c.Logging.AuditLogging.Output == "" {
+		return Config{}, errors.New("logging.audit.output is empty")
+	}
+	if c.Logging.AuditLogging.Output != LoggingSystemOutputStdout && c.Logging.AuditLogging.Output != LoggingSystemOutputFile {
+		return Config{}, errors.New("logging.audit.output is invalid. Allowed values are: stdout, file")
+	}
+	if c.Logging.AuditLogging.Output == LoggingSystemOutputFile && c.Logging.AuditLogging.Path == "" {
+		return Config{}, errors.New("logging.audit.path is empty")
 	}
 	if c.DB == (DBYaml{}) {
 		return Config{}, errors.New("db is empty")
@@ -204,7 +273,7 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("xdp is empty")
 	}
 
-	if c.XDP.AttachMode != "native" && c.XDP.AttachMode != "generic" {
+	if c.XDP.AttachMode != AttachModeNative && c.XDP.AttachMode != AttachModeGeneric {
 		return Config{}, errors.New("xdp.attach-mode is invalid. Allowed values are: native, generic")
 	}
 	n2Address, err := GetInterfaceIP(c.Interfaces.N2.Name)
@@ -216,7 +285,11 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, fmt.Errorf("cannot get IPv4 address for interface %s: %w", c.Interfaces.N3.Name, err)
 	}
 
-	config.LogLevel = c.LogLevel
+	config.Logging.SystemLogging.Level = c.Logging.SystemLogging.Level
+	config.Logging.SystemLogging.Output = c.Logging.SystemLogging.Output
+	config.Logging.SystemLogging.Path = c.Logging.SystemLogging.Path
+	config.Logging.AuditLogging.Output = c.Logging.AuditLogging.Output
+	config.Logging.AuditLogging.Path = c.Logging.AuditLogging.Path
 	config.DB.Path = c.DB.Path
 	config.Interfaces.N2.Address = n2Address
 	config.Interfaces.N2.Port = c.Interfaces.N2.Port

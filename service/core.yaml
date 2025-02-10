@@ -1,4 +1,9 @@
-log-level: "info"
+logging:
+  system:
+    level: "info"
+    output: "stdout"
+  audit:
+    output: "stdout"
 db:
   path: "/var/snap/ella-core/common/data/core.db"
 interfaces:

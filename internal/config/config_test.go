@@ -3,7 +3,6 @@
 package config_test
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -13,7 +12,7 @@ import (
 )
 
 func TestGoodConfigSuccess(t *testing.T) {
-	tempCertFile, err := os.CreateTemp("", "ella_cert_*.crt")
+	tempCertFile, err := os.CreateTemp("", "ella_cert_*.pem")
 	if err != nil {
 		t.Fatalf("Failed to create temp cert file: %s", err)
 	}
@@ -23,7 +22,7 @@ func TestGoodConfigSuccess(t *testing.T) {
 		}
 	}()
 
-	tempKeyFile, err := os.CreateTemp("", "ella_key_*.key")
+	tempKeyFile, err := os.CreateTemp("", "ella_key_*.pem")
 	if err != nil {
 		t.Fatalf("Failed to create temp key file: %s", err)
 	}
@@ -65,10 +64,8 @@ func TestGoodConfigSuccess(t *testing.T) {
 		t.Fatalf("Failed to read config file: %s", err)
 	}
 
-	fmt.Println("Temp file name: ", tempCertFile.Name())
-
-	updatedContent := strings.ReplaceAll(string(originalContent), "/etc/ssl/certs/ella.crt", tempCertFile.Name())
-	updatedContent = strings.ReplaceAll(updatedContent, "/etc/ssl/private/ella.key", tempKeyFile.Name())
+	updatedContent := strings.ReplaceAll(string(originalContent), "/etc/ella/cert.pem", tempCertFile.Name())
+	updatedContent = strings.ReplaceAll(updatedContent, "/etc/ella/key.pem", tempKeyFile.Name())
 
 	err = os.WriteFile(confFilePath, []byte(updatedContent), os.FileMode(0o644))
 	if err != nil {
