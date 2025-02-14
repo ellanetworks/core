@@ -20,7 +20,7 @@ packaging==24.2
     # via pytest
 pluggy==1.5.0
     # via pytest
-pyright==1.1.393
+pyright==1.1.394
     # via -r requirements.in
 pytest==8.3.4
     # via -r requirements.in
@@ -28,7 +28,7 @@ pyyaml==6.0.2
     # via -r requirements.in
 requests==2.32.3
     # via -r requirements.in
-ruff==0.9.5
+ruff==0.9.6
     # via -r requirements.in
 typing-extensions==4.12.2
     # via pyright
