@@ -65,6 +65,11 @@ type IpEntrypointPdrInfo struct {
 	}
 }
 
+type IpEntrypointProfileInfo struct {
+	Count   uint64
+	TotalNs uint64
+}
+
 type IpEntrypointQerInfo struct {
 	UlGateStatus     uint8
 	DlGateStatus     uint8
@@ -167,6 +172,7 @@ type IpEntrypointMapSpecs struct {
 	PdrMapDownlinkIp4 *ebpf.MapSpec `ebpf:"pdr_map_downlink_ip4"`
 	PdrMapDownlinkIp6 *ebpf.MapSpec `ebpf:"pdr_map_downlink_ip6"`
 	PdrMapUplinkIp4   *ebpf.MapSpec `ebpf:"pdr_map_uplink_ip4"`
+	ProfileMap        *ebpf.MapSpec `ebpf:"profile_map"`
 	QerMap            *ebpf.MapSpec `ebpf:"qer_map"`
 	UpfExtStat        *ebpf.MapSpec `ebpf:"upf_ext_stat"`
 	UpfPipeline       *ebpf.MapSpec `ebpf:"upf_pipeline"`
@@ -203,6 +209,7 @@ type IpEntrypointMaps struct {
 	PdrMapDownlinkIp4 *ebpf.Map `ebpf:"pdr_map_downlink_ip4"`
 	PdrMapDownlinkIp6 *ebpf.Map `ebpf:"pdr_map_downlink_ip6"`
 	PdrMapUplinkIp4   *ebpf.Map `ebpf:"pdr_map_uplink_ip4"`
+	ProfileMap        *ebpf.Map `ebpf:"profile_map"`
 	QerMap            *ebpf.Map `ebpf:"qer_map"`
 	UpfExtStat        *ebpf.Map `ebpf:"upf_ext_stat"`
 	UpfPipeline       *ebpf.Map `ebpf:"upf_pipeline"`
@@ -215,6 +222,7 @@ func (m *IpEntrypointMaps) Close() error {
 		m.PdrMapDownlinkIp4,
 		m.PdrMapDownlinkIp6,
 		m.PdrMapUplinkIp4,
+		m.ProfileMap,
 		m.QerMap,
 		m.UpfExtStat,
 		m.UpfPipeline,
