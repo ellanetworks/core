@@ -18,12 +18,12 @@ type PfcpConnection struct {
 	nodeId            string
 	nodeAddrV4        net.IP
 	n3Address         net.IP
-	mapOperations     ebpf.ForwardingPlaneController
+	bpfObjects        ebpf.BpfObjects
 	RecoveryTimestamp time.Time
 	ResourceManager   *service.ResourceManager
 }
 
-func CreatePfcpConnection(addr string, nodeId string, n3Ip string, mapOperations ebpf.ForwardingPlaneController, resourceManager *service.ResourceManager) (*PfcpConnection, error) {
+func CreatePfcpConnection(addr string, nodeId string, n3Ip string, bpfObjects ebpf.BpfObjects, resourceManager *service.ResourceManager) (*PfcpConnection, error) {
 	addrV4 := net.ParseIP(addr)
 	if addrV4 == nil {
 		return nil, fmt.Errorf("failed to parse IP address ID: %s", addr)
@@ -38,7 +38,7 @@ func CreatePfcpConnection(addr string, nodeId string, n3Ip string, mapOperations
 		nodeId:            nodeId,
 		nodeAddrV4:        addrV4,
 		n3Address:         n3Addr,
-		mapOperations:     mapOperations,
+		bpfObjects:        bpfObjects,
 		RecoveryTimestamp: time.Now(),
 		ResourceManager:   resourceManager,
 	}

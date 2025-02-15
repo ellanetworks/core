@@ -222,24 +222,6 @@ func (bpfObjects *BpfObjects) DeleteQer(internalId uint32) error {
 	return bpfObjects.QerMap.Update(internalId, unsafe.Pointer(&QerInfo{}), ebpf.UpdateExist)
 }
 
-type ForwardingPlaneController interface {
-	PutPdrUplink(teid uint32, pdrInfo PdrInfo) error
-	PutPdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) error
-	UpdatePdrUplink(teid uint32, pdrInfo PdrInfo) error
-	UpdatePdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) error
-	DeletePdrUplink(teid uint32) error
-	DeletePdrDownlink(ipv4 net.IP) error
-	PutDownlinkPdrIp6(ipv6 net.IP, pdrInfo PdrInfo) error
-	UpdateDownlinkPdrIp6(ipv6 net.IP, pdrInfo PdrInfo) error
-	DeleteDownlinkPdrIp6(ipv6 net.IP) error
-	NewFar(farInfo FarInfo) (uint32, error)
-	UpdateFar(internalId uint32, farInfo FarInfo) error
-	DeleteFar(internalId uint32) error
-	NewQer(qerInfo QerInfo) (uint32, error)
-	UpdateQer(internalId uint32, qerInfo QerInfo) error
-	DeleteQer(internalId uint32) error
-}
-
 func CombinePdrWithSdf(defaultPdr *IpEntrypointPdrInfo, sdfPdr PdrInfo) IpEntrypointPdrInfo {
 	var pdrToStore IpEntrypointPdrInfo
 	// Default mapping options.

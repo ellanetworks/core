@@ -11,17 +11,17 @@ import (
 
 const flagPresentIPv4 = 2
 
-func applyPDR(spdrInfo SPDRInfo, mapOperations ebpf.ForwardingPlaneController) {
+func applyPDR(spdrInfo SPDRInfo, bpfObjects ebpf.BpfObjects) {
 	if spdrInfo.Ipv4 != nil {
-		if err := mapOperations.PutPdrDownlink(spdrInfo.Ipv4, spdrInfo.PdrInfo); err != nil {
+		if err := bpfObjects.PutPdrDownlink(spdrInfo.Ipv4, spdrInfo.PdrInfo); err != nil {
 			logger.UpfLog.Infof("Can't apply IPv4 PDR: %s", err.Error())
 		}
 	} else if spdrInfo.Ipv6 != nil {
-		if err := mapOperations.PutDownlinkPdrIp6(spdrInfo.Ipv6, spdrInfo.PdrInfo); err != nil {
+		if err := bpfObjects.PutDownlinkPdrIp6(spdrInfo.Ipv6, spdrInfo.PdrInfo); err != nil {
 			logger.UpfLog.Infof("Can't apply IPv6 PDR: %s", err.Error())
 		}
 	} else {
-		if err := mapOperations.PutPdrUplink(spdrInfo.Teid, spdrInfo.PdrInfo); err != nil {
+		if err := bpfObjects.PutPdrUplink(spdrInfo.Teid, spdrInfo.PdrInfo); err != nil {
 			logger.UpfLog.Infof("Can't apply GTP PDR: %s", err.Error())
 		}
 	}

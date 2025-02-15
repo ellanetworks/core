@@ -45,7 +45,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 	pdrContext := NewPDRCreationContext(session, conn.ResourceManager)
 
 	err = func() error {
-		mapOperations := conn.mapOperations
+		bpfObjects := conn.bpfObjects
 		for _, far := range msg.CreateFAR {
 			farInfo, err := composeFarInfo(far, conn.n3Address.To4(), ebpf.FarInfo{})
 			if err != nil {
@@ -55,7 +55,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 
 			farid, _ := far.FARID()
 			logger.UpfLog.Infof("Saving FAR info to session: %d, %+v", farid, farInfo)
-			if internalId, err := mapOperations.NewFar(farInfo); err == nil {
+			if internalId, err := bpfObjects.NewFar(farInfo); err == nil {
 				session.NewFar(farid, internalId, farInfo)
 			} else {
 				logger.UpfLog.Infof("Can't put FAR: %s", err.Error())
@@ -71,7 +71,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 			}
 			updateQer(&qerInfo, qer)
 			logger.UpfLog.Infof("Saving QER info to session: %d, %+v", qerId, qerInfo)
-			if internalId, err := mapOperations.NewQer(qerInfo); err == nil {
+			if internalId, err := bpfObjects.NewQer(qerInfo); err == nil {
 				session.NewQer(qerId, internalId, qerInfo)
 			} else {
 				logger.UpfLog.Infof("Can't put QER: %s", err.Error())
@@ -90,7 +90,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 
 			if err := pdrContext.extractPDR(pdr, &spdrInfo); err == nil {
 				session.PutPDR(spdrInfo.PdrID, spdrInfo)
-				applyPDR(spdrInfo, mapOperations)
+				applyPDR(spdrInfo, bpfObjects)
 				createdPDRs = append(createdPDRs, spdrInfo)
 			} else {
 				logger.UpfLog.Errorf("couldn't extract PDR info: %s", err.Error())
@@ -139,20 +139,20 @@ func HandlePfcpSessionDeletionRequest(msg *message.SessionDeletionRequest) (*mes
 		logger.UpfLog.Infof("Rejecting Session Deletion Request from: %s (unknown SEID)", config.Conf.SmfAddress)
 		return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseSessionContextNotFound)), nil
 	}
-	mapOperations := conn.mapOperations
+	bpfObjects := conn.bpfObjects
 	pdrContext := NewPDRCreationContext(session, conn.ResourceManager)
 	for _, pdrInfo := range session.PDRs {
-		if err := pdrContext.deletePDR(pdrInfo, mapOperations); err != nil {
+		if err := pdrContext.deletePDR(pdrInfo, bpfObjects); err != nil {
 			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
 		}
 	}
 	for id := range session.FARs {
-		if err := mapOperations.DeleteFar(id); err != nil {
+		if err := bpfObjects.DeleteFar(id); err != nil {
 			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
 		}
 	}
 	for id := range session.QERs {
-		if err := mapOperations.DeleteQer(id); err != nil {
+		if err := bpfObjects.DeleteQer(id); err != nil {
 			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeId), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
 		}
 	}
@@ -200,7 +200,7 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 	pdrContext := NewPDRCreationContext(session, conn.ResourceManager)
 
 	err := func() error {
-		mapOperations := conn.mapOperations
+		bpfObjects := conn.bpfObjects
 
 		for _, far := range msg.CreateFAR {
 			farInfo, err := composeFarInfo(far, conn.n3Address.To4(), ebpf.FarInfo{})
@@ -211,7 +211,7 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 
 			farid, _ := far.FARID()
 			logger.UpfLog.Infof("Saving FAR info to session: %d, %+v", farid, farInfo)
-			if internalId, err := mapOperations.NewFar(farInfo); err == nil {
+			if internalId, err := bpfObjects.NewFar(farInfo); err == nil {
 				session.NewFar(farid, internalId, farInfo)
 			} else {
 				logger.UpfLog.Infof("Can't put FAR: %s", err.Error())
@@ -232,7 +232,7 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 			}
 			logger.UpfLog.Infof("Updating FAR info: %d, %+v", farid, sFarInfo)
 			session.UpdateFar(farid, sFarInfo.FarInfo)
-			if err := mapOperations.UpdateFar(sFarInfo.GlobalId, sFarInfo.FarInfo); err != nil {
+			if err := bpfObjects.UpdateFar(sFarInfo.GlobalId, sFarInfo.FarInfo); err != nil {
 				logger.UpfLog.Infof("Can't update FAR: %s", err.Error())
 			}
 		}
@@ -241,7 +241,7 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 			farid, _ := far.FARID()
 			logger.UpfLog.Infof("Removing FAR: %d", farid)
 			sFarInfo := session.RemoveFar(farid)
-			if err := mapOperations.DeleteFar(sFarInfo.GlobalId); err != nil {
+			if err := bpfObjects.DeleteFar(sFarInfo.GlobalId); err != nil {
 				logger.UpfLog.Infof("Can't remove FAR: %s", err.Error())
 			}
 		}
@@ -254,7 +254,7 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 			}
 			updateQer(&qerInfo, qer)
 			logger.UpfLog.Infof("Saving QER info to session: %d, %+v", qerId, qerInfo)
-			if internalId, err := mapOperations.NewQer(qerInfo); err == nil {
+			if internalId, err := bpfObjects.NewQer(qerInfo); err == nil {
 				session.NewQer(qerId, internalId, qerInfo)
 			} else {
 				logger.UpfLog.Infof("Can't put QER: %s", err.Error())
@@ -271,7 +271,7 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 			updateQer(&sQerInfo.QerInfo, qer)
 			logger.UpfLog.Infof("Updating QER ID: %d, QER Info: %+v", qerId, sQerInfo)
 			session.UpdateQer(qerId, sQerInfo.QerInfo)
-			if err := mapOperations.UpdateQer(sQerInfo.GlobalId, sQerInfo.QerInfo); err != nil {
+			if err := bpfObjects.UpdateQer(sQerInfo.GlobalId, sQerInfo.QerInfo); err != nil {
 				logger.UpfLog.Infof("Can't update QER: %s", err.Error())
 				return err
 			}
@@ -284,7 +284,7 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 			}
 			logger.UpfLog.Infof("Removing QER ID: %d", qerId)
 			sQerInfo := session.RemoveQer(qerId)
-			if err := mapOperations.DeleteQer(sQerInfo.GlobalId); err != nil {
+			if err := bpfObjects.DeleteQer(sQerInfo.GlobalId); err != nil {
 				logger.UpfLog.Infof("Can't remove QER: %s", err.Error())
 				return err
 			}
@@ -302,7 +302,7 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 
 			if err := pdrContext.extractPDR(pdr, &spdrInfo); err == nil {
 				session.PutPDR(spdrInfo.PdrID, spdrInfo)
-				applyPDR(spdrInfo, mapOperations)
+				applyPDR(spdrInfo, bpfObjects)
 				createdPDRs = append(createdPDRs, spdrInfo)
 			} else {
 				logger.UpfLog.Errorf("couldn't extract pdr info: %s", err.Error())
@@ -318,7 +318,7 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 			spdrInfo := session.GetPDR(pdrId)
 			if err := pdrContext.extractPDR(pdr, &spdrInfo); err == nil {
 				session.PutPDR(uint32(pdrId), spdrInfo)
-				applyPDR(spdrInfo, mapOperations)
+				applyPDR(spdrInfo, bpfObjects)
 			} else {
 				logger.UpfLog.Infof("couldn't extract PDR info: %s", err.Error())
 			}
@@ -330,7 +330,7 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 				logger.UpfLog.Infof("Removing uplink PDR: %d", pdrId)
 				sPDRInfo := session.RemovePDR(uint32(pdrId))
 
-				if err := pdrContext.deletePDR(sPDRInfo, mapOperations); err != nil {
+				if err := pdrContext.deletePDR(sPDRInfo, bpfObjects); err != nil {
 					logger.UpfLog.Infof("Failed to remove uplink PDR: %v", err)
 				}
 			}
