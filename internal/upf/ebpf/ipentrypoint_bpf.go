@@ -77,6 +77,12 @@ type IpEntrypointQerInfo struct {
 	DlStart          uint64
 }
 
+type IpEntrypointRouteRecord struct {
+	Ifindex int32
+	Smac    [6]uint8
+	Dmac    [6]uint8
+}
+
 type IpEntrypointRouteStat struct {
 	FibLookupIp4Cache     uint64
 	FibLookupIp4Ok        uint64
@@ -170,6 +176,8 @@ type IpEntrypointMapSpecs struct {
 	QerMap            *ebpf.MapSpec `ebpf:"qer_map"`
 	UpfExtStat        *ebpf.MapSpec `ebpf:"upf_ext_stat"`
 	UpfPipeline       *ebpf.MapSpec `ebpf:"upf_pipeline"`
+	UpfRouteCacheIp4  *ebpf.MapSpec `ebpf:"upf_route_cache_ip4"`
+	UpfRouteCacheIp6  *ebpf.MapSpec `ebpf:"upf_route_cache_ip6"`
 	UpfRouteStat      *ebpf.MapSpec `ebpf:"upf_route_stat"`
 }
 
@@ -206,6 +214,8 @@ type IpEntrypointMaps struct {
 	QerMap            *ebpf.Map `ebpf:"qer_map"`
 	UpfExtStat        *ebpf.Map `ebpf:"upf_ext_stat"`
 	UpfPipeline       *ebpf.Map `ebpf:"upf_pipeline"`
+	UpfRouteCacheIp4  *ebpf.Map `ebpf:"upf_route_cache_ip4"`
+	UpfRouteCacheIp6  *ebpf.Map `ebpf:"upf_route_cache_ip6"`
 	UpfRouteStat      *ebpf.Map `ebpf:"upf_route_stat"`
 }
 
@@ -218,6 +228,8 @@ func (m *IpEntrypointMaps) Close() error {
 		m.QerMap,
 		m.UpfExtStat,
 		m.UpfPipeline,
+		m.UpfRouteCacheIp4,
+		m.UpfRouteCacheIp6,
 		m.UpfRouteStat,
 	)
 }
