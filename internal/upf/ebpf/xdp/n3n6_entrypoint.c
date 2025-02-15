@@ -283,13 +283,13 @@ static __always_inline enum xdp_action handle_n6_packet_ipv6(struct packet_conte
         return XDP_DROP;
     }
 
-    const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-    if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start, qer->dl_maximum_bitrate))
-    {
-        __u64 end = bpf_ktime_get_ns();
-        update_profile(STEP_HANDLE_N6_PACKET_IP6, end - start);
-        return XDP_DROP;
-    }
+    // const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+    // if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start, qer->dl_maximum_bitrate))
+    // {
+    //     __u64 end = bpf_ktime_get_ns();
+    //     update_profile(STEP_HANDLE_N6_PACKET_IP6, end - start);
+    //     return XDP_DROP;
+    // }
 
     __u8 tos = far->transport_level_marking >> 8;
     upf_printk("upf: use mapping %pI6c -> TEID:%d", &ip6->daddr, far->teid);
@@ -468,13 +468,13 @@ static __always_inline enum xdp_action handle_gtp_packet(struct packet_context *
         return XDP_DROP;
     }
 
-    const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-    if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->ul_start, qer->ul_maximum_bitrate))
-    {
-        __u64 end = bpf_ktime_get_ns();
-        update_profile(STEP_HANDLE_GTP_PACKET, end - start);
-        return XDP_DROP;
-    }
+    // const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+    // if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->ul_start, qer->ul_maximum_bitrate))
+    // {
+    //     __u64 end = bpf_ktime_get_ns();
+    //     update_profile(STEP_HANDLE_GTP_PACKET, end - start);
+    //     return XDP_DROP;
+    // }
 
     upf_printk("upf: session for teid:%d far:%d outer_header_removal:%d", teid, pdr->far_id, outer_header_removal);
     if (far->outer_header_creation & OHC_GTP_U_UDP_IPv4)
