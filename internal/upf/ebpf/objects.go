@@ -129,31 +129,59 @@ func (t *IdTracker) Release(id uint32) {
 	t.bitmap.Add(id)
 }
 
-// printProfileData reads the per-CPU values for each key from the profile map,
-// aggregates them across all CPUs, and prints the results.
-// Adjust numSteps to match your NUM_PROFILE_STEPS constant in C.
+// Define the descriptive names for each profile step.
+// The order must match the order defined in the C enum.
+var stepNames = []string{
+	"UPF IP Entrypoint",     // key 0: STEP_UPF_IP_ENTRYPOINT
+	"Process Packet",        // key 1: STEP_PROCESS_PACKET
+	"Parse Ethernet",        // key 2: STEP_PARSE_ETHERNET
+	"Handle IPv4",           // key 3: STEP_HANDLE_IP4
+	"Handle IPv6",           // key 4: STEP_HANDLE_IP6
+	"Handle GTPU",           // key 5: STEP_HANDLE_GTPU
+	"Handle GTP Packet",     // key 6: STEP_HANDLE_GTP_PACKET
+	"Handle N6 Packet IPv4", // key 7: STEP_HANDLE_N6_PACKET_IP4
+	"Handle N6 Packet IPv6", // key 8: STEP_HANDLE_N6_PACKET_IP6
+	"Send to GTP Tunnel",    // key 9: STEP_SEND_TO_GTP_TUNNEL
+}
+
 func PrintProfileData(m *ebpf.Map) {
-	const numSteps = 10 // Change this value to match NUM_PROFILE_STEPS in your C code.
-	fmt.Println("=== Profile Metrics ===")
+	stepNames := []string{
+		"UPF IP Entrypoint",     // key 0: STEP_UPF_IP_ENTRYPOINT
+		"Process Packet",        // key 1: STEP_PROCESS_PACKET
+		"Parse Ethernet",        // key 2: STEP_PARSE_ETHERNET
+		"Handle IPv4",           // key 3: STEP_HANDLE_IP4
+		"Handle IPv6",           // key 4: STEP_HANDLE_IP6
+		"Handle GTPU",           // key 5: STEP_HANDLE_GTPU
+		"Handle GTP Packet",     // key 6: STEP_HANDLE_GTP_PACKET
+		"Handle N6 Packet IPv4", // key 7: STEP_HANDLE_N6_PACKET_IP4
+		"Handle N6 Packet IPv6", // key 8: STEP_HANDLE_N6_PACKET_IP6
+		"Send to GTP Tunnel",    // key 9: STEP_SEND_TO_GTP_TUNNEL
+	}
+	numSteps := uint32(len(stepNames))
+
+	// Print table header.
+	fmt.Println("--------------------------------------------------------------------------------")
+	fmt.Printf("| %-24s | %-10s | %-10s | %-10s |\n", "Step", "Count", "TotalNs", "AvgNs")
+	fmt.Println("--------------------------------------------------------------------------------")
+
+	// Iterate over each step and aggregate per-CPU values.
 	for key := uint32(0); key < numSteps; key++ {
 		var perCPU []ProfileInfo
-		// Lookup returns a slice with one value per CPU.
 		if err := m.Lookup(key, &perCPU); err != nil {
-			fmt.Printf("key %d: error reading: %v\n", key, err)
+			fmt.Printf("| %-24s | %-10s | %-10s | %-10s |\n", stepNames[key], "N/A", "N/A", "N/A")
 			continue
 		}
 
-		// Aggregate values from all CPUs.
 		var agg ProfileInfo
 		for _, v := range perCPU {
 			agg.Count += v.Count
 			agg.TotalNs += v.TotalNs
 		}
-
 		var avg uint64
 		if agg.Count > 0 {
 			avg = agg.TotalNs / agg.Count
 		}
-		fmt.Printf("Step %d: Count = %d, TotalNs = %d, AvgNs = %d\n", key, agg.Count, agg.TotalNs, avg)
+		fmt.Printf("| %-24s | %-10d | %-10d | %-10d |\n", stepNames[key], agg.Count, agg.TotalNs, avg)
 	}
+	fmt.Println("--------------------------------------------------------------------------------")
 }
