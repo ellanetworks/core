@@ -1,5 +1,3 @@
-// Copyright 2024 Ella Networks
-
 package upf
 
 import (
@@ -20,12 +18,10 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
-func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMode string) error {
-	stopper := make(chan os.Signal, 1)
-	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
-	interfaces := []string{n3Interface, n6Interface}
+func Start(n3Interface string, n6Interface string, n3Address string, xdpAttachMode string) error {
 	c := config.UpfConfig{
-		InterfaceName: interfaces,
+		N3Interface:   n3Interface,
+		N6Interface:   n6Interface,
 		XDPAttachMode: xdpAttachMode,
 		PfcpAddress:   "0.0.0.0",
 		SmfAddress:    "0.0.0.0",
@@ -39,6 +35,9 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 	}
 	config.Init(c)
 
+	stopper := make(chan os.Signal, 1)
+	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
+
 	if err := ebpf.IncreaseResourceLimits(); err != nil {
 		logger.UpfLog.Fatalf("Can't increase resource limits: %s", err.Error())
 	}
@@ -48,38 +47,54 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 		logger.UpfLog.Fatalf("Loading bpf objects failed: %s", err.Error())
 		return err
 	}
-
 	defer func() {
 		if err := bpfObjects.Close(); err != nil {
 			logger.UpfLog.Warnf("Failed to detach XDP program: %s", err)
 		}
 	}()
 
-	for _, ifaceName := range config.Conf.InterfaceName {
-		iface, err := net.InterfaceByName(ifaceName)
-		if err != nil {
-			logger.UpfLog.Fatalf("Lookup network iface %q: %s", ifaceName, err.Error())
-			return err
-		}
-
-		l, err := link.AttachXDP(link.XDPOptions{
-			Program:   bpfObjects.UpfIpEntrypointFunc,
-			Interface: iface.Index,
-			Flags:     StringToXDPAttachMode(config.Conf.XDPAttachMode),
-		})
-		if err != nil {
-			return fmt.Errorf("failed to attach XDP program on iface %q: %s", ifaceName, err)
-		}
-		defer func() {
-			if err := l.Close(); err != nil {
-				logger.UpfLog.Warnf("Failed to detach XDP program: %s", err)
-			}
-		}()
-
-		logger.UpfLog.Debugf("Attached XDP program to iface %q in mode %q", ifaceName, config.Conf.XDPAttachMode)
+	n3Iface, err := net.InterfaceByName(config.Conf.N3Interface)
+	if err != nil {
+		logger.UpfLog.Fatalf("Lookup network iface %q: %s", config.Conf.N3Interface, err.Error())
+		return err
+	}
+	n6Iface, err := net.InterfaceByName(config.Conf.N6Interface)
+	if err != nil {
+		logger.UpfLog.Fatalf("Lookup network iface %q: %s", config.Conf.N6Interface, err.Error())
+		return err
 	}
 
-	var err error
+	// Attach the N3 XDP program to the N3 interface.
+	n3Link, err := link.AttachXDP(link.XDPOptions{
+		Program:   bpfObjects.UpfN3EntrypointFunc,
+		Interface: n3Iface.Index,
+		Flags:     StringToXDPAttachMode(config.Conf.XDPAttachMode),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to attach N3 XDP program on iface %q: %s", config.Conf.N3Interface, err)
+	}
+	defer func() {
+		if err := n3Link.Close(); err != nil {
+			logger.UpfLog.Warnf("Failed to detach N3 XDP program: %s", err)
+		}
+	}()
+	logger.UpfLog.Debugf("Attached N3 XDP program to iface %q", config.Conf.N3Interface)
+
+	n6Link, err := link.AttachXDP(link.XDPOptions{
+		Program:   bpfObjects.UpfN6EntrypointFunc,
+		Interface: n6Iface.Index,
+		Flags:     StringToXDPAttachMode(config.Conf.XDPAttachMode),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to attach N6 XDP program on iface %q: %s", config.Conf.N6Interface, err)
+	}
+	defer func() {
+		if err := n6Link.Close(); err != nil {
+			logger.UpfLog.Warnf("Failed to detach N6 XDP program: %s", err)
+		}
+	}()
+	logger.UpfLog.Debugf("Attached N6 XDP program to iface %q", config.Conf.N6Interface)
+
 	resourceManager, err := service.NewResourceManager(config.Conf.FTEIDPool)
 	if err != nil {
 		logger.UpfLog.Errorf("failed to create ResourceManager - err: %v", err)
@@ -96,10 +111,8 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 	ForwardPlaneStats := ebpf.UpfXdpActionStatistic{
 		BpfObjects: bpfObjects,
 	}
-
 	metrics.RegisterUPFMetrics(ForwardPlaneStats, pfcpConn)
 
-	// Print the contents of the BPF hash map (source IP address -> packet count).
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -107,14 +120,14 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 		select {
 		case <-ticker.C:
 		case <-stopper:
-			logger.UpfLog.Infof("Received signal, exiting program..")
+			logger.UpfLog.Infof("Received signal, exiting program...")
 			return nil
 		}
 	}
 }
 
-func StringToXDPAttachMode(Mode string) link.XDPAttachFlags {
-	switch Mode {
+func StringToXDPAttachMode(mode string) link.XDPAttachFlags {
+	switch mode {
 	case "generic":
 		return link.XDPGenericMode
 	case "native":

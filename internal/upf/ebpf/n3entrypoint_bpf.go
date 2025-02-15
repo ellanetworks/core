@@ -11,6 +11,107 @@ import (
 	"github.com/cilium/ebpf"
 )
 
+type N3EntrypointFarInfo struct {
+	Action                uint8
+	OuterHeaderCreation   uint8
+	_                     [2]byte
+	Teid                  uint32
+	Remoteip              uint32
+	Localip               uint32
+	TransportLevelMarking uint16
+	_                     [2]byte
+}
+
+type N3EntrypointPdrInfo struct {
+	FarId              uint32
+	QerId              uint32
+	OuterHeaderRemoval uint8
+	SdfMode            uint8
+	_                  [6]byte
+	SdfRules           struct {
+		SdfFilter struct {
+			Protocol uint8
+			_        [15]byte
+			SrcAddr  struct {
+				Type uint8
+				_    [15]byte
+				Ip   [16]byte /* uint128 */
+				Mask [16]byte /* uint128 */
+			}
+			SrcPort struct {
+				LowerBound uint16
+				UpperBound uint16
+			}
+			_       [12]byte
+			DstAddr struct {
+				Type uint8
+				_    [15]byte
+				Ip   [16]byte /* uint128 */
+				Mask [16]byte /* uint128 */
+			}
+			DstPort struct {
+				LowerBound uint16
+				UpperBound uint16
+			}
+			_ [12]byte
+		}
+		OuterHeaderRemoval uint8
+		_                  [3]byte
+		FarId              uint32
+		QerId              uint32
+		_                  [4]byte
+	}
+}
+
+type N3EntrypointQerInfo struct {
+	UlGateStatus     uint8
+	DlGateStatus     uint8
+	Qfi              uint8
+	_                [1]byte
+	UlMaximumBitrate uint32
+	DlMaximumBitrate uint32
+	_                [4]byte
+	UlStart          uint64
+	DlStart          uint64
+}
+
+type N3EntrypointRouteStat struct {
+	FibLookupIp4Cache     uint64
+	FibLookupIp4Ok        uint64
+	FibLookupIp4ErrorDrop uint64
+	FibLookupIp4ErrorPass uint64
+	FibLookupIp6Cache     uint64
+	FibLookupIp6Ok        uint64
+	FibLookupIp6ErrorDrop uint64
+	FibLookupIp6ErrorPass uint64
+}
+
+type N3EntrypointUpfStatistic struct {
+	UpfCounters struct {
+		RxArp      uint64
+		RxIcmp     uint64
+		RxIcmp6    uint64
+		RxIp4      uint64
+		RxIp6      uint64
+		RxTcp      uint64
+		RxUdp      uint64
+		RxOther    uint64
+		RxGtpEcho  uint64
+		RxGtpPdu   uint64
+		RxGtpOther uint64
+		RxGtpUnexp uint64
+		UlBytes    uint64
+		DlBytes    uint64
+	}
+	UpfN3N6Counter struct {
+		RxN3 uint64
+		TxN3 uint64
+		RxN6 uint64
+		TxN6 uint64
+	}
+	XdpActions [8]uint64
+}
+
 // LoadN3Entrypoint returns the embedded CollectionSpec for N3Entrypoint.
 func LoadN3Entrypoint() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_N3EntrypointBytes)
@@ -60,7 +161,11 @@ type N3EntrypointProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3EntrypointMapSpecs struct {
-	UpfPipeline *ebpf.MapSpec `ebpf:"upf_pipeline"`
+	FarMap          *ebpf.MapSpec `ebpf:"far_map"`
+	PdrMapUplinkIp4 *ebpf.MapSpec `ebpf:"pdr_map_uplink_ip4"`
+	QerMap          *ebpf.MapSpec `ebpf:"qer_map"`
+	UpfExtStat      *ebpf.MapSpec `ebpf:"upf_ext_stat"`
+	UpfRouteStat    *ebpf.MapSpec `ebpf:"upf_route_stat"`
 }
 
 // N3EntrypointVariableSpecs contains global variables before they are loaded into the kernel.
@@ -89,12 +194,20 @@ func (o *N3EntrypointObjects) Close() error {
 //
 // It can be passed to LoadN3EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3EntrypointMaps struct {
-	UpfPipeline *ebpf.Map `ebpf:"upf_pipeline"`
+	FarMap          *ebpf.Map `ebpf:"far_map"`
+	PdrMapUplinkIp4 *ebpf.Map `ebpf:"pdr_map_uplink_ip4"`
+	QerMap          *ebpf.Map `ebpf:"qer_map"`
+	UpfExtStat      *ebpf.Map `ebpf:"upf_ext_stat"`
+	UpfRouteStat    *ebpf.Map `ebpf:"upf_route_stat"`
 }
 
 func (m *N3EntrypointMaps) Close() error {
 	return _N3EntrypointClose(
-		m.UpfPipeline,
+		m.FarMap,
+		m.PdrMapUplinkIp4,
+		m.QerMap,
+		m.UpfExtStat,
+		m.UpfRouteStat,
 	)
 }
 

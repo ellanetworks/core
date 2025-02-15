@@ -20,13 +20,12 @@ import (
 //		- enable routing decision cache
 //
 
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf IpEntrypoint 	xdp/n3n6_entrypoint.c -- -I. -O2 -Wall -g
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target bpf ZeroEntrypoint 	xdp/zero_entrypoint.c -- -I. -O2 -Wall
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target bpf N3Entrypoint 	xdp/n3_entrypoint.c -- -I. -O2 -Wall
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target bpf N6Entrypoint 	xdp/n6_entrypoint.c -- -I. -O2 -Wall
 
 type BpfObjects struct {
-	IpEntrypointObjects
+	N3EntrypointObjects
+	N6EntrypointObjects
 
 	FarIdTracker *IdTracker
 	QerIdTracker *IdTracker
@@ -48,21 +47,29 @@ func (bpfObjects *BpfObjects) Load() error {
 
 	collectionOptions := ebpf.CollectionOptions{
 		Maps: ebpf.MapOptions{
-			// Pin the map to the BPF filesystem and configure the
-			// library to automatically re-write it in the BPF
-			// program, so it can be re-used if it already exists or
-			// create it if not
 			PinPath: pinPath,
 		},
 	}
 
-	return LoadAllObjects(&collectionOptions,
-		Loader{LoadIpEntrypointObjects, &bpfObjects.IpEntrypointObjects})
+	// Load N3Entrypoint objects
+	if err := LoadAllObjects(&collectionOptions,
+		Loader{LoadN3EntrypointObjects, &bpfObjects.N3EntrypointObjects}); err != nil {
+		return err
+	}
+	// Load N6Entrypoint objects
+	if err := LoadAllObjects(&collectionOptions,
+		Loader{LoadN6EntrypointObjects, &bpfObjects.N6EntrypointObjects}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
+// Close both the N3 and N6 objects.
 func (bpfObjects *BpfObjects) Close() error {
 	return CloseAllObjects(
-		&bpfObjects.IpEntrypointObjects,
+		&bpfObjects.N3EntrypointObjects,
+		&bpfObjects.N6EntrypointObjects,
 	)
 }
 
@@ -74,6 +81,7 @@ type (
 	}
 )
 
+// LoadAllObjects runs each loader function with the provided options.
 func LoadAllObjects(opts *ebpf.CollectionOptions, loaders ...Loader) error {
 	for _, loader := range loaders {
 		if err := loader.LoaderFunc(loader.object, opts); err != nil {
@@ -83,6 +91,7 @@ func LoadAllObjects(opts *ebpf.CollectionOptions, loaders ...Loader) error {
 	return nil
 }
 
+// CloseAllObjects calls Close() on each provided io.Closer.
 func CloseAllObjects(closers ...io.Closer) error {
 	for _, closer := range closers {
 		if err := closer.Close(); err != nil {
@@ -92,6 +101,7 @@ func CloseAllObjects(closers ...io.Closer) error {
 	return nil
 }
 
+// ResizeEbpfMap is unchanged.
 func ResizeEbpfMap(eMap **ebpf.Map, eProg *ebpf.Program, newSize uint32) error {
 	mapInfo, err := (*eMap).Info()
 	if err != nil {
@@ -139,36 +149,6 @@ func ResizeEbpfMap(eMap **ebpf.Map, eProg *ebpf.Program, newSize uint32) error {
 		logger.UpfLog.Infof("Failed to bind resized ebpf map: %s", err)
 		return err
 	}
-	return nil
-}
-
-func (bpfObjects *BpfObjects) ResizeAllMaps(qerMapSize uint32, farMapSize uint32, pdrMapSize uint32) error {
-	// QER
-	if err := ResizeEbpfMap(&bpfObjects.QerMap, bpfObjects.UpfIpEntrypointFunc, qerMapSize); err != nil {
-		logger.UpfLog.Infof("Failed to resize QER map: %s", err)
-		return err
-	}
-
-	// FAR
-	if err := ResizeEbpfMap(&bpfObjects.FarMap, bpfObjects.UpfIpEntrypointFunc, farMapSize); err != nil {
-		logger.UpfLog.Infof("Failed to resize FAR map: %s", err)
-		return err
-	}
-
-	// PDR
-	if err := ResizeEbpfMap(&bpfObjects.PdrMapDownlinkIp4, bpfObjects.UpfIpEntrypointFunc, pdrMapSize); err != nil {
-		logger.UpfLog.Infof("Failed to resize PDR map: %s", err)
-		return err
-	}
-	if err := ResizeEbpfMap(&bpfObjects.PdrMapDownlinkIp6, bpfObjects.UpfIpEntrypointFunc, pdrMapSize); err != nil {
-		logger.UpfLog.Infof("Failed to resize PDR map: %s", err)
-		return err
-	}
-	if err := ResizeEbpfMap(&bpfObjects.PdrMapUplinkIp4, bpfObjects.UpfIpEntrypointFunc, pdrMapSize); err != nil {
-		logger.UpfLog.Infof("Failed to resize PDR map: %s", err)
-		return err
-	}
-
 	return nil
 }
 

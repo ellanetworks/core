@@ -3,6 +3,13 @@
         "array": "c",
         "string": "c",
         "string_view": "c",
-        "span": "c"
+        "span": "c",
+        "common.h": "c",
+        "packet_context.h": "c",
+        "gtp_utils.h": "c",
+        "trace.h": "c",
+        "routing.h": "c",
+        "bpf_helpers.h": "c",
+        "pdr_n3.h": "c"
     }
 }

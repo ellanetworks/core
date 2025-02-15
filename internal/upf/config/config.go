@@ -3,7 +3,8 @@
 package config
 
 type UpfConfig struct {
-	InterfaceName []string
+	N3Interface   string
+	N6Interface   string
 	XDPAttachMode string
 	PfcpAddress   string
 	PfcpNodeId    string
