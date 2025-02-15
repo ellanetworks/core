@@ -45,8 +45,6 @@
 
 #define DEFAULT_XDP_ACTION XDP_PASS
 
-/* --- End Instrumentation definitions --- */
-
 static __always_inline enum xdp_action send_to_gtp_tunnel(struct packet_context *ctx, int srcip, int dstip, __u8 tos, __u8 qfi, int teid)
 {
     __u64 start = bpf_ktime_get_ns();
@@ -140,13 +138,13 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
         return XDP_DROP;
     }
 
-    // const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-    // if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start, qer->dl_maximum_bitrate))
-    // {
-    //     __u64 end = bpf_ktime_get_ns();
-    //     update_profile(STEP_HANDLE_N6_PACKET_IP4, end - start);
-    //     return XDP_DROP;
-    // }
+    const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+    if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start, qer->dl_maximum_bitrate))
+    {
+        __u64 end = bpf_ktime_get_ns();
+        update_profile(STEP_HANDLE_N6_PACKET_IP4, end - start);
+        return XDP_DROP;
+    }
 
     __u8 tos = far->transport_level_marking >> 8;
 
@@ -239,13 +237,13 @@ static __always_inline enum xdp_action handle_n6_packet_ipv6(struct packet_conte
         return XDP_DROP;
     }
 
-    // const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-    // if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start, qer->dl_maximum_bitrate))
-    // {
-    //     __u64 end = bpf_ktime_get_ns();
-    //     update_profile(STEP_HANDLE_N6_PACKET_IP6, end - start);
-    //     return XDP_DROP;
-    // }
+    const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+    if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start, qer->dl_maximum_bitrate))
+    {
+        __u64 end = bpf_ktime_get_ns();
+        update_profile(STEP_HANDLE_N6_PACKET_IP6, end - start);
+        return XDP_DROP;
+    }
 
     __u8 tos = far->transport_level_marking >> 8;
     upf_printk("upf: use mapping %pI6c -> TEID:%d", &ip6->daddr, far->teid);
@@ -424,13 +422,13 @@ static __always_inline enum xdp_action handle_gtp_packet(struct packet_context *
         return XDP_DROP;
     }
 
-    // const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-    // if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->ul_start, qer->ul_maximum_bitrate))
-    // {
-    //     __u64 end = bpf_ktime_get_ns();
-    //     update_profile(STEP_HANDLE_GTP_PACKET, end - start);
-    //     return XDP_DROP;
-    // }
+    const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+    if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->ul_start, qer->ul_maximum_bitrate))
+    {
+        __u64 end = bpf_ktime_get_ns();
+        update_profile(STEP_HANDLE_GTP_PACKET, end - start);
+        return XDP_DROP;
+    }
 
     upf_printk("upf: session for teid:%d far:%d outer_header_removal:%d", teid, pdr->far_id, outer_header_removal);
     if (far->outer_header_creation & OHC_GTP_U_UDP_IPv4)
@@ -532,49 +530,48 @@ static __always_inline enum xdp_action handle_gtpu(struct packet_context *ctx)
 static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
 {
     __u64 start = bpf_ktime_get_ns();
-
+    enum xdp_action action = DEFAULT_XDP_ACTION;
     int l4_protocol = parse_ip4(ctx);
-    switch (l4_protocol)
-    {
-    case IPPROTO_ICMP:
+
+    if (l4_protocol == IPPROTO_ICMP)
     {
         increment_counter(ctx->counters, rx_icmp);
-        break;
     }
-    case IPPROTO_UDP:
+    else if (l4_protocol == IPPROTO_UDP)
+    {
         increment_counter(ctx->counters, rx_udp);
-        if (GTP_UDP_PORT == parse_udp(ctx))
+        // Cache the UDP port to avoid calling parse_udp() more than once.
+        int udp_port = parse_udp(ctx);
+        if (udp_port == GTP_UDP_PORT)
         {
             upf_printk("upf: gtp-u received");
             increment_counter(ctx->n3_n6_counter, rx_n3);
-            {
-                __u64 t_start = bpf_ktime_get_ns();
-                enum xdp_action action = handle_gtpu(ctx);
-                __u64 t_end = bpf_ktime_get_ns();
-                update_profile(STEP_HANDLE_GTPU, t_end - t_start);
-                __u64 end = bpf_ktime_get_ns();
-                update_profile(STEP_HANDLE_IP4, end - start);
-                return action;
-            }
+            __u64 t_start = bpf_ktime_get_ns();
+            action = handle_gtpu(ctx);
+            __u64 t_end = bpf_ktime_get_ns();
+            update_profile(STEP_HANDLE_GTPU, t_end - t_start);
+            goto finish;
         }
-        break;
-    case IPPROTO_TCP:
+    }
+    else if (l4_protocol == IPPROTO_TCP)
+    {
         increment_counter(ctx->counters, rx_tcp);
-        break;
-    default:
+    }
+    else
+    {
         increment_counter(ctx->counters, rx_other);
-        {
-            __u64 end = bpf_ktime_get_ns();
-            update_profile(STEP_HANDLE_IP4, end - start);
-            return DEFAULT_XDP_ACTION;
-        }
+        goto finish;
     }
 
     increment_counter(ctx->n3_n6_counter, rx_n6);
-    enum xdp_action action = handle_n6_packet_ipv4(ctx);
+    action = handle_n6_packet_ipv4(ctx);
+
+finish:
+{
     __u64 end = bpf_ktime_get_ns();
     update_profile(STEP_HANDLE_IP4, end - start);
     return action;
+}
 }
 
 static __always_inline enum xdp_action handle_ip6(struct packet_context *ctx)
