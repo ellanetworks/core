@@ -531,48 +531,43 @@ static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
 {
     __u64 start = bpf_ktime_get_ns();
     enum xdp_action action = DEFAULT_XDP_ACTION;
-    int l4_protocol = parse_ip4(ctx);
 
-    /* Assume UDP is the common case. */
+    int l4_protocol = parse_ip4(ctx);
+    /* We expect UDP (and specifically GTP UDP) to be the most common case */
     if (__builtin_expect(l4_protocol == IPPROTO_UDP, 1))
     {
-        increment_counter(ctx->counters, rx_udp);
-
-        /* Cache UDP port result to avoid duplicate work */
-        int udp_port = parse_udp(ctx);
+        int udp_port = parse_udp(ctx); // Parse once and reuse.
         if (__builtin_expect(udp_port == GTP_UDP_PORT, 1))
         {
-            /* In the common (GTP) case, process accordingly */
-            // Optionally remove or disable debug logging in production.
-            // upf_printk("upf: gtp-u received");
+            increment_counter(ctx->counters, rx_udp);
             increment_counter(ctx->n3_n6_counter, rx_n3);
             action = handle_gtpu(ctx);
+            goto finish;
         }
         else
         {
-            /* Non-GTP UDP packet: pass it on for further processing */
-            increment_counter(ctx->n3_n6_counter, rx_n6);
-            action = handle_n6_packet_ipv4(ctx);
+            /* For non-GTP UDP, fall through to generic processing */
+            increment_counter(ctx->counters, rx_udp);
         }
     }
     else if (__builtin_expect(l4_protocol == IPPROTO_ICMP, 0))
     {
         increment_counter(ctx->counters, rx_icmp);
-        increment_counter(ctx->n3_n6_counter, rx_n6);
-        action = handle_n6_packet_ipv4(ctx);
     }
     else if (__builtin_expect(l4_protocol == IPPROTO_TCP, 0))
     {
         increment_counter(ctx->counters, rx_tcp);
-        increment_counter(ctx->n3_n6_counter, rx_n6);
-        action = handle_n6_packet_ipv4(ctx);
     }
     else
     {
         increment_counter(ctx->counters, rx_other);
-        action = DEFAULT_XDP_ACTION;
     }
 
+    /* For non-GTP UDP and other protocols, continue with N6 processing */
+    increment_counter(ctx->n3_n6_counter, rx_n6);
+    action = handle_n6_packet_ipv4(ctx);
+
+finish:
     __u64 end = bpf_ktime_get_ns();
     update_profile(STEP_HANDLE_IP4, end - start);
     return action;
