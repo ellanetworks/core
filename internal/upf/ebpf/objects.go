@@ -142,6 +142,12 @@ var stepNames = []string{
 	"Handle N6 Packet IPv4", // key 7: STEP_HANDLE_N6_PACKET_IP4
 	"Handle N6 Packet IPv6", // key 8: STEP_HANDLE_N6_PACKET_IP6
 	"Send to GTP Tunnel",    // key 9: STEP_SEND_TO_GTP_TUNNEL
+	"Route IPv4 Lookup",     // key 10: STEP_ROUTE_IPV4_LOOKUP
+	"Route IPv4 Process",    // key 11: STEP_ROUTE_IPV4_PROCESS
+	"Route IPv4",            // key 12: STEP_ROUTE_IPV4
+	"Route IPv6 Lookup",     // key 13: STEP_ROUTE_IPV6_LOOKUP
+	"Route IPv6 Process",    // key 14: STEP_ROUTE_IPV6_PROCESS
+	"Route IPv6",            // key 15: STEP_ROUTE_IPV6
 }
 
 func PrintProfileData(m *ebpf.Map) {
@@ -156,6 +162,12 @@ func PrintProfileData(m *ebpf.Map) {
 		"Handle N6 Packet IPv4", // key 7: STEP_HANDLE_N6_PACKET_IP4
 		"Handle N6 Packet IPv6", // key 8: STEP_HANDLE_N6_PACKET_IP6
 		"Send to GTP Tunnel",    // key 9: STEP_SEND_TO_GTP_TUNNEL
+		"Route IPv4 Lookup",     // key 10: STEP_ROUTE_IPV4_LOOKUP
+		"Route IPv4 Process",    // key 11: STEP_ROUTE_IPV4_PROCESS
+		"Route IPv4",            // key 12: STEP_ROUTE_IPV4
+		"Route IPv6 Lookup",     // key 13: STEP_ROUTE_IPV6_LOOKUP
+		"Route IPv6 Process",    // key 14: STEP_ROUTE_IPV6_PROCESS
+		"Route IPv6",            // key 15: STEP_ROUTE_IPV6
 	}
 	numSteps := uint32(len(stepNames))
 
