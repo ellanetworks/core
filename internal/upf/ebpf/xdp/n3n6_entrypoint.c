@@ -65,99 +65,107 @@ static __always_inline enum xdp_action send_to_gtp_tunnel(struct packet_context 
 static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
     __u64 start = bpf_ktime_get_ns();
-
     const struct iphdr *ip4 = ctx->ip4;
+
+    /* Lookup PDR */
     struct pdr_info *pdr = bpf_map_lookup_elem(&pdr_map_downlink_ip4, &ip4->daddr);
     if (!pdr)
     {
+#ifdef DEBUG
         upf_printk("upf: no downlink session for ip:%pI4", &ip4->daddr);
-        __u64 end = bpf_ktime_get_ns();
-        update_profile(STEP_HANDLE_N6_PACKET_IP4, end - start);
+#endif
+        update_profile(STEP_HANDLE_N6_PACKET_IP4, bpf_ktime_get_ns() - start);
         return DEFAULT_XDP_ACTION;
     }
 
     __u32 far_id = pdr->far_id;
     __u32 qer_id = pdr->qer_id;
+
+    /* If SDF filtering is enabled, adjust FAR and QER IDs accordingly */
     if (pdr->sdf_mode)
     {
         struct sdf_filter *sdf = &pdr->sdf_rules.sdf_filter;
         if (match_sdf_filter_ipv4(ctx, sdf))
         {
-            upf_printk("Packet with source ip:%pI4 and destination ip:%pI4 matches SDF filter", &ip4->saddr, &ip4->daddr);
+#ifdef DEBUG
+            upf_printk("Packet with source ip:%pI4 and destination ip:%pI4 matches SDF filter",
+                       &ip4->saddr, &ip4->daddr);
+#endif
             far_id = pdr->sdf_rules.far_id;
             qer_id = pdr->sdf_rules.qer_id;
         }
         else if (pdr->sdf_mode & 1)
         {
-            __u64 end = bpf_ktime_get_ns();
-            update_profile(STEP_HANDLE_N6_PACKET_IP4, end - start);
+            update_profile(STEP_HANDLE_N6_PACKET_IP4, bpf_ktime_get_ns() - start);
             return DEFAULT_XDP_ACTION;
         }
     }
 
+    /* Lookup FAR */
     struct far_info *far = bpf_map_lookup_elem(&far_map, &far_id);
     if (!far)
     {
+#ifdef DEBUG
         upf_printk("upf: no downlink session far for ip:%pI4 far:%d", &ip4->daddr, far_id);
-        __u64 end = bpf_ktime_get_ns();
-        update_profile(STEP_HANDLE_N6_PACKET_IP4, end - start);
+#endif
+        update_profile(STEP_HANDLE_N6_PACKET_IP4, bpf_ktime_get_ns() - start);
         return XDP_DROP;
     }
 
+#ifdef DEBUG
     upf_printk("upf: downlink session for ip:%pI4  far:%d action:%d", &ip4->daddr, far_id, far->action);
+#endif
 
-    if (!(far->action & FAR_FORW))
+    /* Check if FAR instructs forwarding and supports outer header creation */
+    if (!(far->action & FAR_FORW) || !(far->outer_header_creation & OHC_GTP_U_UDP_IPv4))
     {
-        __u64 end = bpf_ktime_get_ns();
-        update_profile(STEP_HANDLE_N6_PACKET_IP4, end - start);
+        update_profile(STEP_HANDLE_N6_PACKET_IP4, bpf_ktime_get_ns() - start);
         return XDP_DROP;
     }
 
-    if (!(far->outer_header_creation & OHC_GTP_U_UDP_IPv4))
-    {
-        __u64 end = bpf_ktime_get_ns();
-        update_profile(STEP_HANDLE_N6_PACKET_IP4, end - start);
-        return XDP_DROP;
-    }
-
+    /* Lookup QER */
     struct qer_info *qer = bpf_map_lookup_elem(&qer_map, &qer_id);
     if (!qer)
     {
+#ifdef DEBUG
         upf_printk("upf: no downlink session qer for ip:%pI4 qer:%d", &ip4->daddr, qer_id);
-        __u64 end = bpf_ktime_get_ns();
-        update_profile(STEP_HANDLE_N6_PACKET_IP4, end - start);
+#endif
+        update_profile(STEP_HANDLE_N6_PACKET_IP4, bpf_ktime_get_ns() - start);
         return XDP_DROP;
     }
 
+#ifdef DEBUG
     upf_printk("upf: qer:%d gate_status:%d mbr:%d", qer_id, qer->dl_gate_status, qer->dl_maximum_bitrate);
+#endif
 
     if (qer->dl_gate_status != GATE_STATUS_OPEN)
     {
-        __u64 end = bpf_ktime_get_ns();
-        update_profile(STEP_HANDLE_N6_PACKET_IP4, end - start);
+        update_profile(STEP_HANDLE_N6_PACKET_IP4, bpf_ktime_get_ns() - start);
         return XDP_DROP;
     }
 
-    const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-    if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start, qer->dl_maximum_bitrate))
+    /* Compute packet size once */
+    __u64 pkt_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+    if (XDP_DROP == limit_rate_sliding_window(pkt_size, &qer->dl_start, qer->dl_maximum_bitrate))
     {
-        __u64 end = bpf_ktime_get_ns();
-        update_profile(STEP_HANDLE_N6_PACKET_IP4, end - start);
+        update_profile(STEP_HANDLE_N6_PACKET_IP4, bpf_ktime_get_ns() - start);
         return XDP_DROP;
     }
 
     __u8 tos = far->transport_level_marking >> 8;
-
+#ifdef DEBUG
     upf_printk("upf: use mapping %pI4 -> TEID:%d", &ip4->daddr, far->teid);
+#endif
+
+    /* Update downlink traffic statistics */
     struct upf_statistic *statistic = bpf_map_lookup_elem(&upf_ext_stat, &(__u32){0});
     if (statistic)
     {
-        __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-        statistic->upf_counters.dl_bytes += packet_size; // Count Downlink Traffic
+        statistic->upf_counters.dl_bytes += pkt_size;
     }
+
     __u16 ret = send_to_gtp_tunnel(ctx, far->localip, far->remoteip, tos, qer->qfi, far->teid);
-    __u64 end = bpf_ktime_get_ns();
-    update_profile(STEP_HANDLE_N6_PACKET_IP4, end - start);
+    update_profile(STEP_HANDLE_N6_PACKET_IP4, bpf_ktime_get_ns() - start);
     return ret;
 }
 
@@ -531,43 +539,48 @@ static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
 {
     __u64 start = bpf_ktime_get_ns();
     enum xdp_action action = DEFAULT_XDP_ACTION;
-
     int l4_protocol = parse_ip4(ctx);
-    /* We expect UDP (and specifically GTP UDP) to be the most common case */
+
+    /* Assume UDP is the common case. */
     if (__builtin_expect(l4_protocol == IPPROTO_UDP, 1))
     {
-        int udp_port = parse_udp(ctx); // Parse once and reuse.
+        increment_counter(ctx->counters, rx_udp);
+
+        /* Cache UDP port result to avoid duplicate work */
+        int udp_port = parse_udp(ctx);
         if (__builtin_expect(udp_port == GTP_UDP_PORT, 1))
         {
-            increment_counter(ctx->counters, rx_udp);
+            /* In the common (GTP) case, process accordingly */
+            // Optionally remove or disable debug logging in production.
+            // upf_printk("upf: gtp-u received");
             increment_counter(ctx->n3_n6_counter, rx_n3);
             action = handle_gtpu(ctx);
-            goto finish;
         }
         else
         {
-            /* For non-GTP UDP, fall through to generic processing */
-            increment_counter(ctx->counters, rx_udp);
+            /* Non-GTP UDP packet: pass it on for further processing */
+            increment_counter(ctx->n3_n6_counter, rx_n6);
+            action = handle_n6_packet_ipv4(ctx);
         }
     }
     else if (__builtin_expect(l4_protocol == IPPROTO_ICMP, 0))
     {
         increment_counter(ctx->counters, rx_icmp);
+        increment_counter(ctx->n3_n6_counter, rx_n6);
+        action = handle_n6_packet_ipv4(ctx);
     }
     else if (__builtin_expect(l4_protocol == IPPROTO_TCP, 0))
     {
         increment_counter(ctx->counters, rx_tcp);
+        increment_counter(ctx->n3_n6_counter, rx_n6);
+        action = handle_n6_packet_ipv4(ctx);
     }
     else
     {
         increment_counter(ctx->counters, rx_other);
+        action = DEFAULT_XDP_ACTION;
     }
 
-    /* For non-GTP UDP and other protocols, continue with N6 processing */
-    increment_counter(ctx->n3_n6_counter, rx_n6);
-    action = handle_n6_packet_ipv4(ctx);
-
-finish:
     __u64 end = bpf_ktime_get_ns();
     update_profile(STEP_HANDLE_IP4, end - start);
     return action;
