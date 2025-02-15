@@ -26,11 +26,10 @@
 #include <linux/udp.h>
 #include <sys/socket.h>
 
-#include "xdp/program_array.h"
-#include "xdp/statistics.h"
-#include "xdp/qer.h"
-#include "xdp/pdr.h"
-#include "xdp/sdf_filter.h"
+#include "xdp/utils/statistics.h"
+#include "xdp/utils/qer.h"
+#include "xdp/utils/pdr.h"
+#include "xdp/utils/sdf_filter.h"
 
 #include "xdp/utils/common.h"
 #include "xdp/utils/trace.h"

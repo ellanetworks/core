@@ -169,7 +169,6 @@ type IpEntrypointMapSpecs struct {
 	PdrMapUplinkIp4   *ebpf.MapSpec `ebpf:"pdr_map_uplink_ip4"`
 	QerMap            *ebpf.MapSpec `ebpf:"qer_map"`
 	UpfExtStat        *ebpf.MapSpec `ebpf:"upf_ext_stat"`
-	UpfPipeline       *ebpf.MapSpec `ebpf:"upf_pipeline"`
 	UpfRouteStat      *ebpf.MapSpec `ebpf:"upf_route_stat"`
 }
 
@@ -205,7 +204,6 @@ type IpEntrypointMaps struct {
 	PdrMapUplinkIp4   *ebpf.Map `ebpf:"pdr_map_uplink_ip4"`
 	QerMap            *ebpf.Map `ebpf:"qer_map"`
 	UpfExtStat        *ebpf.Map `ebpf:"upf_ext_stat"`
-	UpfPipeline       *ebpf.Map `ebpf:"upf_pipeline"`
 	UpfRouteStat      *ebpf.Map `ebpf:"upf_route_stat"`
 }
 
@@ -217,7 +215,6 @@ func (m *IpEntrypointMaps) Close() error {
 		m.PdrMapUplinkIp4,
 		m.QerMap,
 		m.UpfExtStat,
-		m.UpfPipeline,
 		m.UpfRouteStat,
 	)
 }
