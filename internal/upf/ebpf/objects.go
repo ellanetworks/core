@@ -16,14 +16,14 @@ import (
 // Supported BPF_CFLAGS:
 // 	- ENABLE_LOG:
 //		- enables debug output to tracepipe (`bpftool prog tracelog`)
-// 	- ENABLE_ROUTE_CACHE
-//		- enable routing decision cache
 //
 
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf IpEntrypoint 	xdp/n3n6_entrypoint.c -- -I. -O2 -Wall -g
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3Entrypoint 	xdp/n3_entrypoint.c -- -I. -O2 -Wall -g
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N6Entrypoint 	xdp/n6_entrypoint.c -- -I. -O2 -Wall -g
 
 type BpfObjects struct {
-	IpEntrypointObjects
+	N3EntrypointObjects
+	N6EntrypointObjects
 
 	FarIdTracker *IdTracker
 	QerIdTracker *IdTracker
@@ -54,12 +54,15 @@ func (bpfObjects *BpfObjects) Load() error {
 	}
 
 	return LoadAllObjects(&collectionOptions,
-		Loader{LoadIpEntrypointObjects, &bpfObjects.IpEntrypointObjects})
+		Loader{LoadN3EntrypointObjects, &bpfObjects.N3EntrypointObjects},
+		Loader{LoadN6EntrypointObjects, &bpfObjects.N6EntrypointObjects},
+	)
 }
 
 func (bpfObjects *BpfObjects) Close() error {
 	return CloseAllObjects(
-		&bpfObjects.IpEntrypointObjects,
+		&bpfObjects.N3EntrypointObjects,
+		&bpfObjects.N6EntrypointObjects,
 	)
 }
 

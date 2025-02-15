@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/upf/config"
 	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/core/service"
@@ -23,9 +22,9 @@ import (
 func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMode string) error {
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
-	interfaces := []string{n3Interface, n6Interface}
 	c := config.UpfConfig{
-		InterfaceName: interfaces,
+		N3Interface:   n3Interface,
+		N6Interface:   n6Interface,
 		XDPAttachMode: xdpAttachMode,
 		PfcpAddress:   "0.0.0.0",
 		SmfAddress:    "0.0.0.0",
@@ -55,37 +54,53 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 		}
 	}()
 
-	for _, ifaceName := range config.Conf.InterfaceName {
-		iface, err := net.InterfaceByName(ifaceName)
-		if err != nil {
-			logger.UpfLog.Fatalf("Lookup network iface %q: %s", ifaceName, err.Error())
-			return err
-		}
-
-		l, err := link.AttachXDP(link.XDPOptions{
-			Program:   bpfObjects.UpfIpEntrypointFunc,
-			Interface: iface.Index,
-			Flags:     StringToXDPAttachMode(config.Conf.XDPAttachMode),
-		})
-		if err != nil {
-			return fmt.Errorf("failed to attach XDP program on iface %q: %s", ifaceName, err)
-		}
-		defer func() {
-			if err := l.Close(); err != nil {
-				logger.UpfLog.Warnf("Failed to detach XDP program: %s", err)
-			}
-		}()
-
-		logger.UpfLog.Debugf("Attached XDP program to iface %q in mode %q", ifaceName, config.Conf.XDPAttachMode)
+	n3Iface, err := net.InterfaceByName(config.Conf.N3Interface)
+	if err != nil {
+		logger.UpfLog.Fatalf("Lookup network iface %q: %s", config.Conf.N3Interface, err.Error())
+		return err
 	}
+	n3Link, err := link.AttachXDP(link.XDPOptions{
+		Program:   bpfObjects.N3EntrypointObjects.UpfN3EntrypointFunc,
+		Interface: n3Iface.Index,
+		Flags:     StringToXDPAttachMode(config.Conf.XDPAttachMode),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to attach XDP program on iface %q: %s", config.Conf.N3Interface, err)
+	}
+	defer func() {
+		if err := n3Link.Close(); err != nil {
+			logger.UpfLog.Warnf("Failed to detach XDP program from iface %q: %s", config.Conf.N3Interface, err)
+		}
+	}()
+	logger.UpfLog.Debugf("Attached N3 XDP program to iface %q in mode %q", config.Conf.N3Interface, config.Conf.XDPAttachMode)
 
-	var err error
+	// Attach N6 program to the N6 interface.
+	n6Iface, err := net.InterfaceByName(config.Conf.N6Interface)
+	if err != nil {
+		logger.UpfLog.Fatalf("Lookup network iface %q: %s", config.Conf.N6Interface, err.Error())
+		return err
+	}
+	n6Link, err := link.AttachXDP(link.XDPOptions{
+		Program:   bpfObjects.N6EntrypointObjects.UpfN6EntrypointFunc,
+		Interface: n6Iface.Index,
+		Flags:     StringToXDPAttachMode(config.Conf.XDPAttachMode),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to attach XDP program on iface %q: %s", config.Conf.N6Interface, err)
+	}
+	defer func() {
+		if err := n6Link.Close(); err != nil {
+			logger.UpfLog.Warnf("Failed to detach XDP program from iface %q: %s", config.Conf.N6Interface, err)
+		}
+	}()
+	logger.UpfLog.Debugf("Attached N6 XDP program to iface %q in mode %q", config.Conf.N6Interface, config.Conf.XDPAttachMode)
+
 	resourceManager, err := service.NewResourceManager(config.Conf.FTEIDPool)
 	if err != nil {
 		logger.UpfLog.Errorf("failed to create ResourceManager - err: %v", err)
 	}
 
-	pfcpConn, err := core.CreatePfcpConnection(config.Conf.PfcpAddress, config.Conf.PfcpNodeId, config.Conf.N3Address, bpfObjects, resourceManager)
+	pfcpConn, err := core.CreatePfcpConnection(config.Conf.PfcpAddress, config.Conf.PfcpNodeId, config.Conf.N3Address, *bpfObjects, resourceManager)
 	if err != nil {
 		logger.UpfLog.Fatalf("Could not create PFCP connection: %s", err.Error())
 	}
@@ -93,11 +108,11 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 	remoteNode := core.NewNodeAssociation(config.Conf.SmfNodeId, config.Conf.SmfAddress)
 	pfcpConn.NodeAssociations[config.Conf.SmfAddress] = remoteNode
 
-	ForwardPlaneStats := ebpf.UpfXdpActionStatistic{
-		BpfObjects: bpfObjects,
-	}
+	// ForwardPlaneStats := ebpf.UpfXdpActionStatistic{
+	// 	BpfObjects: bpfObjects,
+	// }
 
-	metrics.RegisterUPFMetrics(ForwardPlaneStats, pfcpConn)
+	// metrics.RegisterUPFMetrics(ForwardPlaneStats, pfcpConn)
 
 	// Print the contents of the BPF hash map (source IP address -> packet count).
 	ticker := time.NewTicker(5 * time.Second)

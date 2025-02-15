@@ -11,7 +11,7 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-type IpEntrypointFarInfo struct {
+type N6EntrypointFarInfo struct {
 	Action                uint8
 	OuterHeaderCreation   uint8
 	_                     [2]byte
@@ -22,9 +22,9 @@ type IpEntrypointFarInfo struct {
 	_                     [2]byte
 }
 
-type IpEntrypointIn6Addr struct{ In6U struct{ U6Addr8 [16]uint8 } }
+type N6EntrypointIn6Addr struct{ In6U struct{ U6Addr8 [16]uint8 } }
 
-type IpEntrypointPdrInfo struct {
+type N6EntrypointPdrInfo struct {
 	FarId              uint32
 	QerId              uint32
 	OuterHeaderRemoval uint8
@@ -65,7 +65,7 @@ type IpEntrypointPdrInfo struct {
 	}
 }
 
-type IpEntrypointQerInfo struct {
+type N6EntrypointQerInfo struct {
 	UlGateStatus     uint8
 	DlGateStatus     uint8
 	Qfi              uint8
@@ -77,13 +77,7 @@ type IpEntrypointQerInfo struct {
 	DlStart          uint64
 }
 
-type IpEntrypointRouteRecord struct {
-	Ifindex int32
-	Smac    [6]uint8
-	Dmac    [6]uint8
-}
-
-type IpEntrypointRouteStat struct {
+type N6EntrypointRouteStat struct {
 	FibLookupIp4Cache     uint64
 	FibLookupIp4Ok        uint64
 	FibLookupIp4ErrorDrop uint64
@@ -94,7 +88,7 @@ type IpEntrypointRouteStat struct {
 	FibLookupIp6ErrorPass uint64
 }
 
-type IpEntrypointUpfStatistic struct {
+type N6EntrypointUpfStatistic struct {
 	UpfCounters struct {
 		RxArp      uint64
 		RxIcmp     uint64
@@ -120,28 +114,28 @@ type IpEntrypointUpfStatistic struct {
 	XdpActions [8]uint64
 }
 
-// LoadIpEntrypoint returns the embedded CollectionSpec for IpEntrypoint.
-func LoadIpEntrypoint() (*ebpf.CollectionSpec, error) {
-	reader := bytes.NewReader(_IpEntrypointBytes)
+// LoadN6Entrypoint returns the embedded CollectionSpec for N6Entrypoint.
+func LoadN6Entrypoint() (*ebpf.CollectionSpec, error) {
+	reader := bytes.NewReader(_N6EntrypointBytes)
 	spec, err := ebpf.LoadCollectionSpecFromReader(reader)
 	if err != nil {
-		return nil, fmt.Errorf("can't load IpEntrypoint: %w", err)
+		return nil, fmt.Errorf("can't load N6Entrypoint: %w", err)
 	}
 
 	return spec, err
 }
 
-// LoadIpEntrypointObjects loads IpEntrypoint and converts it into a struct.
+// LoadN6EntrypointObjects loads N6Entrypoint and converts it into a struct.
 //
 // The following types are suitable as obj argument:
 //
-//	*IpEntrypointObjects
-//	*IpEntrypointPrograms
-//	*IpEntrypointMaps
+//	*N6EntrypointObjects
+//	*N6EntrypointPrograms
+//	*N6EntrypointMaps
 //
 // See ebpf.CollectionSpec.LoadAndAssign documentation for details.
-func LoadIpEntrypointObjects(obj interface{}, opts *ebpf.CollectionOptions) error {
-	spec, err := LoadIpEntrypoint()
+func LoadN6EntrypointObjects(obj interface{}, opts *ebpf.CollectionOptions) error {
+	spec, err := LoadN6Entrypoint()
 	if err != nil {
 		return err
 	}
@@ -149,26 +143,26 @@ func LoadIpEntrypointObjects(obj interface{}, opts *ebpf.CollectionOptions) erro
 	return spec.LoadAndAssign(obj, opts)
 }
 
-// IpEntrypointSpecs contains maps and programs before they are loaded into the kernel.
+// N6EntrypointSpecs contains maps and programs before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
-type IpEntrypointSpecs struct {
-	IpEntrypointProgramSpecs
-	IpEntrypointMapSpecs
-	IpEntrypointVariableSpecs
+type N6EntrypointSpecs struct {
+	N6EntrypointProgramSpecs
+	N6EntrypointMapSpecs
+	N6EntrypointVariableSpecs
 }
 
-// IpEntrypointProgramSpecs contains programs before they are loaded into the kernel.
+// N6EntrypointProgramSpecs contains programs before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
-type IpEntrypointProgramSpecs struct {
-	UpfIpEntrypointFunc *ebpf.ProgramSpec `ebpf:"upf_ip_entrypoint_func"`
+type N6EntrypointProgramSpecs struct {
+	UpfN6EntrypointFunc *ebpf.ProgramSpec `ebpf:"upf_n6_entrypoint_func"`
 }
 
-// IpEntrypointMapSpecs contains maps before they are loaded into the kernel.
+// N6EntrypointMapSpecs contains maps before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
-type IpEntrypointMapSpecs struct {
+type N6EntrypointMapSpecs struct {
 	FarMap            *ebpf.MapSpec `ebpf:"far_map"`
 	PdrMapDownlinkIp4 *ebpf.MapSpec `ebpf:"pdr_map_downlink_ip4"`
 	PdrMapDownlinkIp6 *ebpf.MapSpec `ebpf:"pdr_map_downlink_ip6"`
@@ -176,37 +170,35 @@ type IpEntrypointMapSpecs struct {
 	QerMap            *ebpf.MapSpec `ebpf:"qer_map"`
 	UpfExtStat        *ebpf.MapSpec `ebpf:"upf_ext_stat"`
 	UpfPipeline       *ebpf.MapSpec `ebpf:"upf_pipeline"`
-	UpfRouteCacheIp4  *ebpf.MapSpec `ebpf:"upf_route_cache_ip4"`
-	UpfRouteCacheIp6  *ebpf.MapSpec `ebpf:"upf_route_cache_ip6"`
 	UpfRouteStat      *ebpf.MapSpec `ebpf:"upf_route_stat"`
 }
 
-// IpEntrypointVariableSpecs contains global variables before they are loaded into the kernel.
+// N6EntrypointVariableSpecs contains global variables before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
-type IpEntrypointVariableSpecs struct {
+type N6EntrypointVariableSpecs struct {
 }
 
-// IpEntrypointObjects contains all objects after they have been loaded into the kernel.
+// N6EntrypointObjects contains all objects after they have been loaded into the kernel.
 //
-// It can be passed to LoadIpEntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
-type IpEntrypointObjects struct {
-	IpEntrypointPrograms
-	IpEntrypointMaps
-	IpEntrypointVariables
+// It can be passed to LoadN6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
+type N6EntrypointObjects struct {
+	N6EntrypointPrograms
+	N6EntrypointMaps
+	N6EntrypointVariables
 }
 
-func (o *IpEntrypointObjects) Close() error {
-	return _IpEntrypointClose(
-		&o.IpEntrypointPrograms,
-		&o.IpEntrypointMaps,
+func (o *N6EntrypointObjects) Close() error {
+	return _N6EntrypointClose(
+		&o.N6EntrypointPrograms,
+		&o.N6EntrypointMaps,
 	)
 }
 
-// IpEntrypointMaps contains all maps after they have been loaded into the kernel.
+// N6EntrypointMaps contains all maps after they have been loaded into the kernel.
 //
-// It can be passed to LoadIpEntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
-type IpEntrypointMaps struct {
+// It can be passed to LoadN6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
+type N6EntrypointMaps struct {
 	FarMap            *ebpf.Map `ebpf:"far_map"`
 	PdrMapDownlinkIp4 *ebpf.Map `ebpf:"pdr_map_downlink_ip4"`
 	PdrMapDownlinkIp6 *ebpf.Map `ebpf:"pdr_map_downlink_ip6"`
@@ -214,13 +206,11 @@ type IpEntrypointMaps struct {
 	QerMap            *ebpf.Map `ebpf:"qer_map"`
 	UpfExtStat        *ebpf.Map `ebpf:"upf_ext_stat"`
 	UpfPipeline       *ebpf.Map `ebpf:"upf_pipeline"`
-	UpfRouteCacheIp4  *ebpf.Map `ebpf:"upf_route_cache_ip4"`
-	UpfRouteCacheIp6  *ebpf.Map `ebpf:"upf_route_cache_ip6"`
 	UpfRouteStat      *ebpf.Map `ebpf:"upf_route_stat"`
 }
 
-func (m *IpEntrypointMaps) Close() error {
-	return _IpEntrypointClose(
+func (m *N6EntrypointMaps) Close() error {
+	return _N6EntrypointClose(
 		m.FarMap,
 		m.PdrMapDownlinkIp4,
 		m.PdrMapDownlinkIp6,
@@ -228,32 +218,30 @@ func (m *IpEntrypointMaps) Close() error {
 		m.QerMap,
 		m.UpfExtStat,
 		m.UpfPipeline,
-		m.UpfRouteCacheIp4,
-		m.UpfRouteCacheIp6,
 		m.UpfRouteStat,
 	)
 }
 
-// IpEntrypointVariables contains all global variables after they have been loaded into the kernel.
+// N6EntrypointVariables contains all global variables after they have been loaded into the kernel.
 //
-// It can be passed to LoadIpEntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
-type IpEntrypointVariables struct {
+// It can be passed to LoadN6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
+type N6EntrypointVariables struct {
 }
 
-// IpEntrypointPrograms contains all programs after they have been loaded into the kernel.
+// N6EntrypointPrograms contains all programs after they have been loaded into the kernel.
 //
-// It can be passed to LoadIpEntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
-type IpEntrypointPrograms struct {
-	UpfIpEntrypointFunc *ebpf.Program `ebpf:"upf_ip_entrypoint_func"`
+// It can be passed to LoadN6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
+type N6EntrypointPrograms struct {
+	UpfN6EntrypointFunc *ebpf.Program `ebpf:"upf_n6_entrypoint_func"`
 }
 
-func (p *IpEntrypointPrograms) Close() error {
-	return _IpEntrypointClose(
-		p.UpfIpEntrypointFunc,
+func (p *N6EntrypointPrograms) Close() error {
+	return _N6EntrypointClose(
+		p.UpfN6EntrypointFunc,
 	)
 }
 
-func _IpEntrypointClose(closers ...io.Closer) error {
+func _N6EntrypointClose(closers ...io.Closer) error {
 	for _, closer := range closers {
 		if err := closer.Close(); err != nil {
 			return err
@@ -264,5 +252,5 @@ func _IpEntrypointClose(closers ...io.Closer) error {
 
 // Do not access this directly.
 //
-//go:embed ipentrypoint_bpf.o
-var _IpEntrypointBytes []byte
+//go:embed n6entrypoint_bpf.o
+var _N6EntrypointBytes []byte

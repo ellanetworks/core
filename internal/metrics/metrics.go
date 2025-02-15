@@ -3,13 +3,9 @@
 package metrics
 
 import (
-	"time"
-
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	smfStats "github.com/ellanetworks/core/internal/smf/stats"
-	"github.com/ellanetworks/core/internal/upf/core"
-	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -104,86 +100,86 @@ func RegisterSmfMetrics() {
 	prometheus.MustRegister(PduSessions)
 }
 
-func RegisterUPFMetrics(stats ebpf.UpfXdpActionStatistic, conn *core.PfcpConnection) {
-	// Metrics for the app_xdp_statistic (xdp_action)
-	UpfXdpAborted = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_xdp_aborted",
-		Help: "The total number of aborted packets",
-	}, func() float64 {
-		return float64(stats.GetAborted())
-	})
+// func RegisterUPFMetrics(stats ebpf.UpfXdpActionStatistic, conn *core.PfcpConnection) {
+// 	// Metrics for the app_xdp_statistic (xdp_action)
+// 	UpfXdpAborted = prometheus.NewCounterFunc(prometheus.CounterOpts{
+// 		Name: "app_xdp_aborted",
+// 		Help: "The total number of aborted packets",
+// 	}, func() float64 {
+// 		return float64(stats.GetAborted())
+// 	})
 
-	UpfXdpDrop = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_xdp_drop",
-		Help: "The total number of dropped packets",
-	}, func() float64 {
-		return float64(stats.GetDrop())
-	})
+// 	UpfXdpDrop = prometheus.NewCounterFunc(prometheus.CounterOpts{
+// 		Name: "app_xdp_drop",
+// 		Help: "The total number of dropped packets",
+// 	}, func() float64 {
+// 		return float64(stats.GetDrop())
+// 	})
 
-	UpfXdpPass = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_xdp_pass",
-		Help: "The total number of passed packets",
-	}, func() float64 {
-		return float64(stats.GetPass())
-	})
+// 	UpfXdpPass = prometheus.NewCounterFunc(prometheus.CounterOpts{
+// 		Name: "app_xdp_pass",
+// 		Help: "The total number of passed packets",
+// 	}, func() float64 {
+// 		return float64(stats.GetPass())
+// 	})
 
-	UpfXdpTx = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_xdp_tx",
-		Help: "The total number of transmitted packets",
-	}, func() float64 {
-		return float64(stats.GetTx())
-	})
+// 	UpfXdpTx = prometheus.NewCounterFunc(prometheus.CounterOpts{
+// 		Name: "app_xdp_tx",
+// 		Help: "The total number of transmitted packets",
+// 	}, func() float64 {
+// 		return float64(stats.GetTx())
+// 	})
 
-	UpfXdpRedirect = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_xdp_redirect",
-		Help: "The total number of redirected packets",
-	}, func() float64 {
-		return float64(stats.GetRedirect())
-	})
+// 	UpfXdpRedirect = prometheus.NewCounterFunc(prometheus.CounterOpts{
+// 		Name: "app_xdp_redirect",
+// 		Help: "The total number of redirected packets",
+// 	}, func() float64 {
+// 		return float64(stats.GetRedirect())
+// 	})
 
-	UpfUplinkBytes = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_uplink_bytes",
-		Help: "The total number of uplink bytes going through the data plane (N3 -> N6). This value includes the Ethernet header.",
-	}, func() float64 {
-		uplinkBytes, _ := stats.GetThroughputStats()
-		return float64(uplinkBytes)
-	})
+// 	UpfUplinkBytes = prometheus.NewCounterFunc(prometheus.CounterOpts{
+// 		Name: "app_uplink_bytes",
+// 		Help: "The total number of uplink bytes going through the data plane (N3 -> N6). This value includes the Ethernet header.",
+// 	}, func() float64 {
+// 		uplinkBytes, _ := stats.GetThroughputStats()
+// 		return float64(uplinkBytes)
+// 	})
 
-	UpfDownlinkBytes = prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Name: "app_downlink_bytes",
-		Help: "The total number of downlink bytes going through the data plane (N6 -> N3). This value includes the Ethernet header.",
-	}, func() float64 {
-		_, downlinkBytes := stats.GetThroughputStats()
-		return float64(downlinkBytes)
-	})
+// 	UpfDownlinkBytes = prometheus.NewCounterFunc(prometheus.CounterOpts{
+// 		Name: "app_downlink_bytes",
+// 		Help: "The total number of downlink bytes going through the data plane (N6 -> N3). This value includes the Ethernet header.",
+// 	}, func() float64 {
+// 		_, downlinkBytes := stats.GetThroughputStats()
+// 		return float64(downlinkBytes)
+// 	})
 
-	// Register metrics
-	prometheus.MustRegister(UpfXdpAborted)
-	prometheus.MustRegister(UpfXdpDrop)
-	prometheus.MustRegister(UpfXdpPass)
-	prometheus.MustRegister(UpfXdpTx)
-	prometheus.MustRegister(UpfXdpRedirect)
-	prometheus.MustRegister(UpfUplinkBytes)
-	prometheus.MustRegister(UpfDownlinkBytes)
+// 	// Register metrics
+// 	prometheus.MustRegister(UpfXdpAborted)
+// 	prometheus.MustRegister(UpfXdpDrop)
+// 	prometheus.MustRegister(UpfXdpPass)
+// 	prometheus.MustRegister(UpfXdpTx)
+// 	prometheus.MustRegister(UpfXdpRedirect)
+// 	prometheus.MustRegister(UpfUplinkBytes)
+// 	prometheus.MustRegister(UpfDownlinkBytes)
 
-	// Used for getting difference between two counters to increment the prometheus counter (counters cannot be written only incremented)
-	var prevUpfCounters ebpf.UpfCounters
-	go func() {
-		time.Sleep(2 * time.Second)
-		RxPacketCounters := stats.GetUpfExtStatField()
-		UpfRx.WithLabelValues("Arp").Add(float64(RxPacketCounters.RxArp - prevUpfCounters.RxArp))
-		UpfRx.WithLabelValues("Icmp").Add(float64(RxPacketCounters.RxIcmp - prevUpfCounters.RxIcmp))
-		UpfRx.WithLabelValues("Icmp6").Add(float64(RxPacketCounters.RxIcmp6 - prevUpfCounters.RxIcmp6))
-		UpfRx.WithLabelValues("Ip4").Add(float64(RxPacketCounters.RxIp4 - prevUpfCounters.RxIp4))
-		UpfRx.WithLabelValues("Ip6").Add(float64(RxPacketCounters.RxIp6 - prevUpfCounters.RxIp6))
-		UpfRx.WithLabelValues("Tcp").Add(float64(RxPacketCounters.RxTcp - prevUpfCounters.RxTcp))
-		UpfRx.WithLabelValues("Udp").Add(float64(RxPacketCounters.RxUdp - prevUpfCounters.RxUdp))
-		UpfRx.WithLabelValues("Other").Add(float64(RxPacketCounters.RxOther - prevUpfCounters.RxOther))
-		UpfRx.WithLabelValues("GtpEcho").Add(float64(RxPacketCounters.RxGtpEcho - prevUpfCounters.RxGtpEcho))
-		UpfRx.WithLabelValues("GtpPdu").Add(float64(RxPacketCounters.RxGtpPdu - prevUpfCounters.RxGtpPdu))
-		UpfRx.WithLabelValues("GtpOther").Add(float64(RxPacketCounters.RxGtpOther - prevUpfCounters.RxGtpOther))
-		UpfRx.WithLabelValues("GtpUnexp").Add(float64(RxPacketCounters.RxGtpUnexp - prevUpfCounters.RxGtpUnexp))
+// 	// Used for getting difference between two counters to increment the prometheus counter (counters cannot be written only incremented)
+// 	var prevUpfCounters ebpf.UpfCounters
+// 	go func() {
+// 		time.Sleep(2 * time.Second)
+// 		RxPacketCounters := stats.GetUpfExtStatField()
+// 		UpfRx.WithLabelValues("Arp").Add(float64(RxPacketCounters.RxArp - prevUpfCounters.RxArp))
+// 		UpfRx.WithLabelValues("Icmp").Add(float64(RxPacketCounters.RxIcmp - prevUpfCounters.RxIcmp))
+// 		UpfRx.WithLabelValues("Icmp6").Add(float64(RxPacketCounters.RxIcmp6 - prevUpfCounters.RxIcmp6))
+// 		UpfRx.WithLabelValues("Ip4").Add(float64(RxPacketCounters.RxIp4 - prevUpfCounters.RxIp4))
+// 		UpfRx.WithLabelValues("Ip6").Add(float64(RxPacketCounters.RxIp6 - prevUpfCounters.RxIp6))
+// 		UpfRx.WithLabelValues("Tcp").Add(float64(RxPacketCounters.RxTcp - prevUpfCounters.RxTcp))
+// 		UpfRx.WithLabelValues("Udp").Add(float64(RxPacketCounters.RxUdp - prevUpfCounters.RxUdp))
+// 		UpfRx.WithLabelValues("Other").Add(float64(RxPacketCounters.RxOther - prevUpfCounters.RxOther))
+// 		UpfRx.WithLabelValues("GtpEcho").Add(float64(RxPacketCounters.RxGtpEcho - prevUpfCounters.RxGtpEcho))
+// 		UpfRx.WithLabelValues("GtpPdu").Add(float64(RxPacketCounters.RxGtpPdu - prevUpfCounters.RxGtpPdu))
+// 		UpfRx.WithLabelValues("GtpOther").Add(float64(RxPacketCounters.RxGtpOther - prevUpfCounters.RxGtpOther))
+// 		UpfRx.WithLabelValues("GtpUnexp").Add(float64(RxPacketCounters.RxGtpUnexp - prevUpfCounters.RxGtpUnexp))
 
-		prevUpfCounters = RxPacketCounters
-	}()
-}
+// 		prevUpfCounters = RxPacketCounters
+// 	}()
+// }
