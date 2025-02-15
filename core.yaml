@@ -1,8 +1,7 @@
 logging:
   system:
-    level: "info"
-    output: "file"
-    path: "anouck.log"
+    level: "debug"
+    output: "stdout"
   audit:
     output: "stdout"
 db:

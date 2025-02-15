@@ -51,7 +51,7 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 
 	defer func() {
 		if err := bpfObjects.Close(); err != nil {
-			logger.UpfLog.Warnf("Failed to detach XDP program: %s", err)
+			logger.UpfLog.Warnf("Failed to detach eBPF program: %s", err)
 		}
 	}()
 
@@ -67,19 +67,19 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 		Flags:     StringToXDPAttachMode(config.Conf.XDPAttachMode),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to attach XDP program on n3 interface %q: %s", n3Interface, err)
+		return fmt.Errorf("failed to attach eBPF program on n3 interface %q: %s", n3Interface, err)
 	}
 	defer func() {
 		if err := n3Link.Close(); err != nil {
-			logger.UpfLog.Warnf("Failed to detach XDP program from n3 interface: %s", err)
+			logger.UpfLog.Warnf("Failed to detach eBPF program from n3 interface: %s", err)
 		}
 	}()
 
-	logger.UpfLog.Debugf("Attached XDP program to n3 interface %q in mode %q", n3Interface, config.Conf.XDPAttachMode)
+	logger.UpfLog.Infof("Attached eBPF program to n3 interface %q in mode %q", n3Interface, config.Conf.XDPAttachMode)
 
-	n6Iface, err := net.InterfaceByName(n3Interface)
+	n6Iface, err := net.InterfaceByName(n6Interface)
 	if err != nil {
-		logger.UpfLog.Fatalf("Lookup network iface %q: %s", n3Interface, err.Error())
+		logger.UpfLog.Fatalf("Lookup network iface %q: %s", n6Interface, err.Error())
 		return err
 	}
 
@@ -89,15 +89,15 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 		Flags:     StringToXDPAttachMode(config.Conf.XDPAttachMode),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to attach XDP program on n3 interface %q: %s", n3Interface, err)
+		return fmt.Errorf("failed to attach eBPF program on n6 interface %q: %s", n6Interface, err)
 	}
 	defer func() {
 		if err := n6Link.Close(); err != nil {
-			logger.UpfLog.Warnf("Failed to detach XDP program from n3 interface: %s", err)
+			logger.UpfLog.Warnf("Failed to detach eBPF program from n6 interface: %s", err)
 		}
 	}()
 
-	logger.UpfLog.Debugf("Attached XDP program to n3 interface %q in mode %q", n3Interface, config.Conf.XDPAttachMode)
+	logger.UpfLog.Infof("Attached eBPF program to n6 interface %q in mode %q", n6Interface, config.Conf.XDPAttachMode)
 
 	resourceManager, err := service.NewResourceManager(config.Conf.FTEIDPool)
 	if err != nil {
