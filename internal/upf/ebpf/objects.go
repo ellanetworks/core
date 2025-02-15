@@ -2,6 +2,7 @@ package ebpf
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 
@@ -21,6 +22,11 @@ import (
 //
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf IpEntrypoint 	xdp/n3n6_entrypoint.c -- -I. -O2 -Wall -g
+
+type ProfileInfo struct {
+	Count   uint64
+	TotalNs uint64
+}
 
 type BpfObjects struct {
 	IpEntrypointObjects
@@ -89,86 +95,6 @@ func CloseAllObjects(closers ...io.Closer) error {
 	return nil
 }
 
-func ResizeEbpfMap(eMap **ebpf.Map, eProg *ebpf.Program, newSize uint32) error {
-	mapInfo, err := (*eMap).Info()
-	if err != nil {
-		logger.UpfLog.Infof("Failed get ebpf map info: %s", err)
-		return err
-	}
-	mapInfo.MaxEntries = newSize
-	// Create a new MapSpec using the information from MapInfo
-	mapSpec := &ebpf.MapSpec{
-		Name:       mapInfo.Name,
-		Type:       mapInfo.Type,
-		KeySize:    mapInfo.KeySize,
-		ValueSize:  mapInfo.ValueSize,
-		MaxEntries: mapInfo.MaxEntries,
-		Flags:      mapInfo.Flags,
-	}
-	if err != nil {
-		logger.UpfLog.Infof("Failed to close old ebpf map: %s, %+v", err, *eMap)
-		return err
-	}
-
-	// Unpin the old map
-	err = (*eMap).Unpin()
-	if err != nil {
-		logger.UpfLog.Infof("Failed to unpin old ebpf map: %s, %+v", err, *eMap)
-		return err
-	}
-
-	// Close the old map
-	err = (*eMap).Close()
-	if err != nil {
-		logger.UpfLog.Infof("Failed to close old ebpf map: %s, %+v", err, *eMap)
-		return err
-	}
-
-	// Old map will be garbage collected sometime after this point
-
-	*eMap, err = ebpf.NewMapWithOptions(mapSpec, ebpf.MapOptions{})
-	if err != nil {
-		logger.UpfLog.Infof("Failed to create resized ebpf map: %s", err)
-		return err
-	}
-	err = eProg.BindMap(*eMap)
-	if err != nil {
-		logger.UpfLog.Infof("Failed to bind resized ebpf map: %s", err)
-		return err
-	}
-	return nil
-}
-
-func (bpfObjects *BpfObjects) ResizeAllMaps(qerMapSize uint32, farMapSize uint32, pdrMapSize uint32) error {
-	// QER
-	if err := ResizeEbpfMap(&bpfObjects.QerMap, bpfObjects.UpfIpEntrypointFunc, qerMapSize); err != nil {
-		logger.UpfLog.Infof("Failed to resize QER map: %s", err)
-		return err
-	}
-
-	// FAR
-	if err := ResizeEbpfMap(&bpfObjects.FarMap, bpfObjects.UpfIpEntrypointFunc, farMapSize); err != nil {
-		logger.UpfLog.Infof("Failed to resize FAR map: %s", err)
-		return err
-	}
-
-	// PDR
-	if err := ResizeEbpfMap(&bpfObjects.PdrMapDownlinkIp4, bpfObjects.UpfIpEntrypointFunc, pdrMapSize); err != nil {
-		logger.UpfLog.Infof("Failed to resize PDR map: %s", err)
-		return err
-	}
-	if err := ResizeEbpfMap(&bpfObjects.PdrMapDownlinkIp6, bpfObjects.UpfIpEntrypointFunc, pdrMapSize); err != nil {
-		logger.UpfLog.Infof("Failed to resize PDR map: %s", err)
-		return err
-	}
-	if err := ResizeEbpfMap(&bpfObjects.PdrMapUplinkIp4, bpfObjects.UpfIpEntrypointFunc, pdrMapSize); err != nil {
-		logger.UpfLog.Infof("Failed to resize PDR map: %s", err)
-		return err
-	}
-
-	return nil
-}
-
 type IdTracker struct {
 	bitmap  *roaring.Bitmap
 	maxSize uint32
@@ -201,4 +127,33 @@ func (t *IdTracker) Release(id uint32) {
 	}
 
 	t.bitmap.Add(id)
+}
+
+// printProfileData reads the per-CPU values for each key from the profile map,
+// aggregates them across all CPUs, and prints the results.
+// Adjust numSteps to match your NUM_PROFILE_STEPS constant in C.
+func PrintProfileData(m *ebpf.Map) {
+	const numSteps = 10 // Change this value to match NUM_PROFILE_STEPS in your C code.
+	fmt.Println("=== Profile Metrics ===")
+	for key := uint32(0); key < numSteps; key++ {
+		var perCPU []ProfileInfo
+		// Lookup returns a slice with one value per CPU.
+		if err := m.Lookup(key, &perCPU); err != nil {
+			fmt.Printf("key %d: error reading: %v\n", key, err)
+			continue
+		}
+
+		// Aggregate values from all CPUs.
+		var agg ProfileInfo
+		for _, v := range perCPU {
+			agg.Count += v.Count
+			agg.TotalNs += v.TotalNs
+		}
+
+		var avg uint64
+		if agg.Count > 0 {
+			avg = agg.TotalNs / agg.Count
+		}
+		fmt.Printf("Step %d: Count = %d, TotalNs = %d, AvgNs = %d\n", key, agg.Count, agg.TotalNs, avg)
+	}
 }

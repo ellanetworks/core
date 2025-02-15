@@ -99,6 +99,13 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 
 	metrics.RegisterUPFMetrics(ForwardPlaneStats, pfcpConn)
 
+	go func() {
+		ticker1 := time.NewTicker(5 * time.Second)
+		for range ticker1.C {
+			ebpf.PrintProfileData(bpfObjects.ProfileMap)
+		}
+	}()
+
 	// Print the contents of the BPF hash map (source IP address -> packet count).
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
