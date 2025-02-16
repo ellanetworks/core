@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/upf/config"
 	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/core/service"
@@ -111,11 +112,11 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 	remoteNode := core.NewNodeAssociation(config.Conf.SmfNodeId, config.Conf.SmfAddress)
 	pfcpConn.NodeAssociations[config.Conf.SmfAddress] = remoteNode
 
-	// ForwardPlaneStats := ebpf.UpfXdpActionStatistic{
-	// 	BpfObjects: bpfObjects,
-	// }
+	ForwardPlaneStats := ebpf.UpfXdpActionStatistic{
+		BpfObjects: bpfObjects,
+	}
 
-	// metrics.RegisterUPFMetrics(ForwardPlaneStats, pfcpConn)
+	metrics.RegisterUPFMetrics(ForwardPlaneStats, pfcpConn)
 
 	// Print the contents of the BPF hash map (source IP address -> packet count).
 	ticker := time.NewTicker(5 * time.Second)
