@@ -3,6 +3,15 @@
         "array": "c",
         "string": "c",
         "string_view": "c",
-        "span": "c"
+        "span": "c",
+        "parsers.h": "c",
+        "trace.h": "c",
+        "pdr.h": "c",
+        "gtp_utils.h": "c",
+        "routing.h": "c",
+        "qer.h": "c",
+        "sdf_filter.h": "c",
+        "packet_context.h": "c",
+        "icmp.h": "c"
     }
 }

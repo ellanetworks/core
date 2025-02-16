@@ -108,18 +108,18 @@ func (pdrContext *PDRCreationContext) extractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 	}
 }
 
-func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, mapOperations ebpf.ForwardingPlaneController) error {
+func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects ebpf.BpfObjects) error {
 	if spdrInfo.Ipv4 != nil {
-		if err := mapOperations.DeletePdrDownlink(spdrInfo.Ipv4); err != nil {
+		if err := bpfObjects.DeletePdrDownlink(spdrInfo.Ipv4); err != nil {
 			return fmt.Errorf("Can't delete IPv4 PDR: %s", err.Error())
 		}
 	} else if spdrInfo.Ipv6 != nil {
-		if err := mapOperations.DeleteDownlinkPdrIp6(spdrInfo.Ipv6); err != nil {
+		if err := bpfObjects.DeleteDownlinkPdrIp6(spdrInfo.Ipv6); err != nil {
 			return fmt.Errorf("Can't delete IPv6 PDR: %s", err.Error())
 		}
 	} else {
 		if _, ok := pdrContext.TEIDCache[uint8(spdrInfo.Teid)]; !ok {
-			if err := mapOperations.DeletePdrUplink(spdrInfo.Teid); err != nil {
+			if err := bpfObjects.DeletePdrUplink(spdrInfo.Teid); err != nil {
 				return fmt.Errorf("Can't delete GTP PDR: %s", err.Error())
 			}
 			pdrContext.TEIDCache[uint8(spdrInfo.Teid)] = 0

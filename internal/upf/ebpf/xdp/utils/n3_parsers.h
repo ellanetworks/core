@@ -24,13 +24,13 @@
 #include <linux/udp.h>
 #include <linux/tcp.h>
 
-#include "xdp/utils/packet_context.h"
+#include "xdp/utils/n3_packet_context.h"
 #include "xdp/utils/trace.h"
 
 #define ETH_P_IPV6_BE 0xDD86
 #define ETH_P_IP_BE 0x0008
 
-static __always_inline int parse_ethernet(struct packet_context *ctx)
+static __always_inline int parse_ethernet(struct n3_packet_context *ctx)
 {
     struct ethhdr *eth = (struct ethhdr *)ctx->data;
     if ((const char *)(eth + 1) > ctx->data_end)
@@ -44,7 +44,7 @@ static __always_inline int parse_ethernet(struct packet_context *ctx)
 /* 0x3FFF mask to check for fragment offset field */
 #define IP_FRAGMENTED 65343
 
-static __always_inline int parse_ip4(struct packet_context *ctx)
+static __always_inline int n3_parse_ip4(struct n3_packet_context *ctx)
 {
     struct iphdr *ip4 = (struct iphdr *)ctx->data;
     if ((const char *)(ip4 + 1) > ctx->data_end)
@@ -59,7 +59,7 @@ static __always_inline int parse_ip4(struct packet_context *ctx)
     return ip4->protocol;
 }
 
-static __always_inline int parse_ip6(struct packet_context *ctx)
+static __always_inline int parse_ip6(struct n3_packet_context *ctx)
 {
     struct ipv6hdr *ip6 = (struct ipv6hdr *)ctx->data;
     if ((const char *)(ip6 + 1) > ctx->data_end)
@@ -72,7 +72,7 @@ static __always_inline int parse_ip6(struct packet_context *ctx)
     return ip6->nexthdr;
 }
 
-static __always_inline int parse_udp(struct packet_context *ctx)
+static __always_inline int parse_udp(struct n3_packet_context *ctx)
 {
     struct udphdr *udp = (struct udphdr *)ctx->data;
     if ((const char *)(udp + 1) > ctx->data_end)
@@ -83,7 +83,7 @@ static __always_inline int parse_udp(struct packet_context *ctx)
     return bpf_ntohs(udp->dest);
 }
 
-static __always_inline int parse_tcp(struct packet_context *ctx)
+static __always_inline int parse_tcp(struct n3_packet_context *ctx)
 {
     struct tcphdr *tcp = (struct tcphdr *)ctx->data;
     if ((const char *)(tcp + 1) > ctx->data_end)
@@ -96,7 +96,7 @@ static __always_inline int parse_tcp(struct packet_context *ctx)
     return bpf_ntohs(tcp->dest);
 }
 
-static __always_inline int parse_l4(int ip_protocol, struct packet_context *ctx)
+static __always_inline int n3_parse_l4(int ip_protocol, struct n3_packet_context *ctx)
 {
     switch (ip_protocol)
     {
@@ -109,7 +109,7 @@ static __always_inline int parse_l4(int ip_protocol, struct packet_context *ctx)
     }
 }
 
-static __always_inline void swap_mac(struct ethhdr *eth)
+static __always_inline void n3_swap_mac(struct ethhdr *eth)
 {
     __u8 mac[6];
     __builtin_memcpy(mac, eth->h_source, sizeof(mac));
@@ -117,7 +117,7 @@ static __always_inline void swap_mac(struct ethhdr *eth)
     __builtin_memcpy(eth->h_dest, mac, sizeof(eth->h_dest));
 }
 
-static __always_inline void swap_port(struct udphdr *udp)
+static __always_inline void n3_swap_port(struct udphdr *udp)
 {
     __u16 tmp = udp->dest;
     udp->dest = udp->source;
@@ -129,7 +129,7 @@ static __always_inline void swap_port(struct udphdr *udp)
     // udp->check = cs;
 }
 
-static __always_inline void swap_ip(struct iphdr *iph)
+static __always_inline void n3_swap_ip(struct iphdr *iph)
 {
     __u32 tmp_ip = iph->daddr;
     iph->daddr = iph->saddr;
@@ -139,7 +139,7 @@ static __always_inline void swap_ip(struct iphdr *iph)
     // ip->check = ipv4_csum(ip, sizeof(*ip));
 }
 
-static __always_inline void context_set_ip4(struct packet_context *ctx, char *data, const char *data_end, struct ethhdr *eth, struct iphdr *ip4, struct udphdr *udp, struct gtpuhdr *gtp)
+static __always_inline void n3_context_set_ip4(struct n3_packet_context *ctx, char *data, const char *data_end, struct ethhdr *eth, struct iphdr *ip4, struct udphdr *udp, struct gtpuhdr *gtp)
 {
     ctx->data = data;
     ctx->data_end = data_end;
@@ -150,7 +150,7 @@ static __always_inline void context_set_ip4(struct packet_context *ctx, char *da
     ctx->gtp = gtp;
 }
 
-static __always_inline void context_reset(struct packet_context *ctx, char *data, const char *data_end)
+static __always_inline void n3_context_reset(struct n3_packet_context *ctx, char *data, const char *data_end)
 {
     ctx->data = data;
     ctx->data_end = data_end;
@@ -161,9 +161,9 @@ static __always_inline void context_reset(struct packet_context *ctx, char *data
     ctx->gtp = 0;
 }
 
-static __always_inline long context_reinit(struct packet_context *ctx, char *data, const char *data_end)
+static __always_inline long n3_context_reinit(struct n3_packet_context *ctx, char *data, const char *data_end)
 {
-    context_reset(ctx, data, data_end);
+    n3_context_reset(ctx, data, data_end);
 
     int ethertype = parse_ethernet(ctx);
     switch (ethertype)
@@ -179,7 +179,7 @@ static __always_inline long context_reinit(struct packet_context *ctx, char *dat
     }
     case ETH_P_IP:
     {
-        if (-1 == parse_ip4(ctx))
+        if (-1 == n3_parse_ip4(ctx))
         {
             upf_printk("upf: can't parse ip4");
             return -1;

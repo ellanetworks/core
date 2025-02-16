@@ -23,9 +23,9 @@ import (
 func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMode string) error {
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
-	interfaces := []string{n3Interface, n6Interface}
 	c := config.UpfConfig{
-		InterfaceName: interfaces,
+		N3Interface:   n3Interface,
+		N6Interface:   n6Interface,
 		XDPAttachMode: xdpAttachMode,
 		PfcpAddress:   "0.0.0.0",
 		SmfAddress:    "0.0.0.0",
@@ -51,41 +51,60 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 
 	defer func() {
 		if err := bpfObjects.Close(); err != nil {
-			logger.UpfLog.Warnf("Failed to detach XDP program: %s", err)
+			logger.UpfLog.Warnf("Failed to detach eBPF program: %s", err)
 		}
 	}()
 
-	for _, ifaceName := range config.Conf.InterfaceName {
-		iface, err := net.InterfaceByName(ifaceName)
-		if err != nil {
-			logger.UpfLog.Fatalf("Lookup network iface %q: %s", ifaceName, err.Error())
-			return err
-		}
-
-		l, err := link.AttachXDP(link.XDPOptions{
-			Program:   bpfObjects.UpfIpEntrypointFunc,
-			Interface: iface.Index,
-			Flags:     StringToXDPAttachMode(config.Conf.XDPAttachMode),
-		})
-		if err != nil {
-			return fmt.Errorf("failed to attach XDP program on iface %q: %s", ifaceName, err)
-		}
-		defer func() {
-			if err := l.Close(); err != nil {
-				logger.UpfLog.Warnf("Failed to detach XDP program: %s", err)
-			}
-		}()
-
-		logger.UpfLog.Debugf("Attached XDP program to iface %q in mode %q", ifaceName, config.Conf.XDPAttachMode)
+	n3Iface, err := net.InterfaceByName(n3Interface)
+	if err != nil {
+		logger.UpfLog.Fatalf("Lookup network iface %q: %s", n3Interface, err.Error())
+		return err
 	}
 
-	var err error
+	n3Link, err := link.AttachXDP(link.XDPOptions{
+		Program:   bpfObjects.UpfN3EntrypointFunc,
+		Interface: n3Iface.Index,
+		Flags:     StringToXDPAttachMode(config.Conf.XDPAttachMode),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to attach eBPF program on n3 interface %q: %s", n3Interface, err)
+	}
+	defer func() {
+		if err := n3Link.Close(); err != nil {
+			logger.UpfLog.Warnf("Failed to detach eBPF program from n3 interface: %s", err)
+		}
+	}()
+
+	logger.UpfLog.Infof("Attached eBPF program to n3 interface %q in mode %q", n3Interface, config.Conf.XDPAttachMode)
+
+	n6Iface, err := net.InterfaceByName(n6Interface)
+	if err != nil {
+		logger.UpfLog.Fatalf("Lookup network iface %q: %s", n6Interface, err.Error())
+		return err
+	}
+
+	n6Link, err := link.AttachXDP(link.XDPOptions{
+		Program:   bpfObjects.UpfN6EntrypointFunc,
+		Interface: n6Iface.Index,
+		Flags:     StringToXDPAttachMode(config.Conf.XDPAttachMode),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to attach eBPF program on n6 interface %q: %s", n6Interface, err)
+	}
+	defer func() {
+		if err := n6Link.Close(); err != nil {
+			logger.UpfLog.Warnf("Failed to detach eBPF program from n6 interface: %s", err)
+		}
+	}()
+
+	logger.UpfLog.Infof("Attached eBPF program to n6 interface %q in mode %q", n6Interface, config.Conf.XDPAttachMode)
+
 	resourceManager, err := service.NewResourceManager(config.Conf.FTEIDPool)
 	if err != nil {
 		logger.UpfLog.Errorf("failed to create ResourceManager - err: %v", err)
 	}
 
-	pfcpConn, err := core.CreatePfcpConnection(config.Conf.PfcpAddress, config.Conf.PfcpNodeId, config.Conf.N3Address, bpfObjects, resourceManager)
+	pfcpConn, err := core.CreatePfcpConnection(config.Conf.PfcpAddress, config.Conf.PfcpNodeId, config.Conf.N3Address, *bpfObjects, resourceManager)
 	if err != nil {
 		logger.UpfLog.Fatalf("Could not create PFCP connection: %s", err.Error())
 	}

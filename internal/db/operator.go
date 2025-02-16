@@ -105,7 +105,6 @@ func (db *Database) InitializeOperator(initialOperator Operator) error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize operator configuration: %v", err)
 	}
-	logger.DBLog.Infof("Initialized operator configuration")
 	return nil
 }
 
