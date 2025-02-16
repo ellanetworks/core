@@ -20,7 +20,11 @@ These metrics are used to monitor the health of the system and the performance o
 - `app_pdu_sessions`: Number of PDU sessions currently in Ella Core.
 - `app_uplink_bytes`: The total number of bytes transmitted in the uplink direction (N3 -> N6). This value includes the Ethernet header. 
 - `app_downlink_bytes`: The total number of bytes transmitted in the downlink direction (N6 -> N3). This value includes the Ethernet header.
-- `app_xdp_drop`: The total number of dropped packets.
-- `app_xdp_pass`: The total number of passed packets.
-- `app_xdp_tx`: The total number of transmitted packets.
-- `app_xdp_redirect`: The total number of redirected packets.
+- `app_n3_xdp_drop`: The total number of dropped packets (n3).
+- `app_n3_xdp_pass`: The total number of passed packets (n3).
+- `app_n3_xdp_tx`: The total number of transmitted packets (n3).
+- `app_n3_xdp_redirect`: The total number of redirected packets (n3).
+- `app_n6_xdp_drop`: The total number of dropped packets (n6).
+- `app_n6_xdp_pass`: The total number of passed packets (n6).
+- `app_n6_xdp_tx`: The total number of transmitted packets (n6).
+- `app_n6_xdp_redirect`: The total number of redirected packets (n6).

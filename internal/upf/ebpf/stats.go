@@ -60,6 +60,22 @@ func (stat *UpfXdpActionStatistic) getUpfN3XdpStatisticField(field uint32) uint6
 	return totalValue
 }
 
+func (stat *UpfXdpActionStatistic) getUpfN6XdpStatisticField(field uint32) uint64 {
+	var statistics []N6EntrypointUpfN6Statistic
+	err := stat.BpfObjects.N6EntrypointObjects.UpfN6Stat.Lookup(uint32(0), &statistics)
+	if err != nil {
+		logger.UpfLog.Infof(err.Error())
+		return 0
+	}
+
+	var totalValue uint64 = 0
+	for _, statistic := range statistics {
+		totalValue += statistic.XdpActions[field]
+	}
+
+	return totalValue
+}
+
 func (stat *UpfXdpActionStatistic) GetN3Aborted() uint64 {
 	return stat.getUpfN3XdpStatisticField(uint32(0))
 }
@@ -78,6 +94,26 @@ func (stat *UpfXdpActionStatistic) GetN3Tx() uint64 {
 
 func (stat *UpfXdpActionStatistic) GetN3Redirect() uint64 {
 	return stat.getUpfN3XdpStatisticField(uint32(4))
+}
+
+func (stat *UpfXdpActionStatistic) GetN6Aborted() uint64 {
+	return stat.getUpfN6XdpStatisticField(uint32(0))
+}
+
+func (stat *UpfXdpActionStatistic) GetN6Drop() uint64 {
+	return stat.getUpfN6XdpStatisticField(uint32(1))
+}
+
+func (stat *UpfXdpActionStatistic) GetN6Pass() uint64 {
+	return stat.getUpfN6XdpStatisticField(uint32(2))
+}
+
+func (stat *UpfXdpActionStatistic) GetN6Tx() uint64 {
+	return stat.getUpfN3XdpStatisticField(uint32(3))
+}
+
+func (stat *UpfXdpActionStatistic) GetN6Redirect() uint64 {
+	return stat.getUpfN6XdpStatisticField(uint32(4))
 }
 
 func (stat *UpfXdpActionStatistic) GetN3UplinkThroughputStats() uint64 {
