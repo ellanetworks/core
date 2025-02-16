@@ -42,7 +42,14 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	pDUSessionEstablishmentAccept.SessionAMBR = nasConvert.ModelsToSessionAMBR(sessRule.AuthSessAmbr)
 	pDUSessionEstablishmentAccept.SessionAMBR.SetLen(uint8(len(pDUSessionEstablishmentAccept.SessionAMBR.Octet)))
 
-	qoSRules := qos.BuildQosRules(smContext.SmPolicyUpdates[0])
+	// qoSRules := qos.BuildQosRules(smContext.SmPolicyUpdates[0])
+	qoSRules := qos.QoSRules{
+		{
+			Identifier: 0x01,
+			Precedence: 255,
+			QFI:        1,
+		},
+	}
 	logger.SmfLog.Infof("QoS Rules: %+v", qoSRules)
 
 	qosRulesBytes, err := qoSRules.MarshalBinary()
