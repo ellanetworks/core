@@ -80,23 +80,6 @@ func (stat *UpfXdpActionStatistic) GetN3Redirect() uint64 {
 	return stat.getUpfN3XdpStatisticField(uint32(4))
 }
 
-// Getters for the upf_ext_stat (upf_counters)
-func (stat *UpfXdpActionStatistic) GetUpfN3ExtStatField() UpfN3Counters {
-	var statistics []N3EntrypointUpfN3Statistic
-	var counters UpfN3Counters
-	err := stat.BpfObjects.N3EntrypointObjects.UpfExtStat.Lookup(uint32(0), &statistics)
-	if err != nil {
-		logger.UpfLog.Infof(err.Error())
-		return counters
-	}
-
-	for _, statistic := range statistics {
-		counters.Add(statistic.UpfN3Counters)
-	}
-
-	return counters
-}
-
 func (stat *UpfXdpActionStatistic) GetN3UplinkThroughputStats() uint64 {
 	var n3Statistics []N3EntrypointUpfN3Statistic
 	err := stat.BpfObjects.N3EntrypointMaps.UpfExtStat.Lookup(uint32(0), &n3Statistics)

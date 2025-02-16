@@ -141,22 +141,8 @@ type N3EntrypointRouteStat struct {
 }
 
 type N3EntrypointUpfN3Statistic struct {
-	UpfN3Counters struct {
-		RxArp      uint64
-		RxIcmp     uint64
-		RxIcmp6    uint64
-		RxIp4      uint64
-		RxIp6      uint64
-		RxTcp      uint64
-		RxUdp      uint64
-		RxOther    uint64
-		RxGtpEcho  uint64
-		RxGtpPdu   uint64
-		RxGtpOther uint64
-		RxGtpUnexp uint64
-		UlBytes    uint64
-	}
-	UpfN3Counter struct {
+	UpfN3Counters struct{ UlBytes uint64 }
+	UpfN3Counter  struct {
 		RxN3 uint64
 		TxN3 uint64
 	}

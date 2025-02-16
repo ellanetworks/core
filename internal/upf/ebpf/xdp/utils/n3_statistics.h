@@ -22,19 +22,6 @@
 
 struct upf_n3_counters
 {
-    __u64 rx_arp;
-    __u64 rx_icmp;
-    __u64 rx_icmp6;
-    __u64 rx_ip4;
-    __u64 rx_ip6;
-    __u64 rx_tcp;
-    __u64 rx_udp;
-    __u64 rx_other;
-    __u64 rx_gtp_echo;
-    __u64 rx_gtp_pdu;
-    __u64 rx_gtp_other;
-    __u64 rx_gtp_unexp;
-
     __u64 ul_bytes; // Uplink throughput (N3 -> N6)
 };
 

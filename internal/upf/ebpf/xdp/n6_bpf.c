@@ -42,15 +42,29 @@
 
 #define DEFAULT_XDP_ACTION XDP_PASS
 
-static __always_inline enum xdp_action send_to_gtp_tunnel(struct packet_context *ctx, int srcip, int dstip, __u8 tos, __u8 qfi, int teid)
+/*
+ * This function adds the necessary outer headers for downlink encapsulation
+ * and then routes the packet. Note that the transmit counter is now updated
+ * using the downlink counter (tx_n6).
+ */
+static __always_inline enum xdp_action send_to_gtp_tunnel(struct packet_context *ctx,
+                                                          int srcip,
+                                                          int dstip,
+                                                          __u8 tos,
+                                                          __u8 qfi,
+                                                          int teid)
 {
     if (-1 == add_gtp_over_ip4_headers(ctx, srcip, dstip, tos, qfi, teid))
         return XDP_ABORTED;
     upf_printk("upf: send gtp pdu %pI4 -> %pI4", &ctx->ip4->saddr, &ctx->ip4->daddr);
-    increment_counter(ctx->n3_n6_counter, tx_n3);
+    increment_counter(ctx->n3_n6_counter, tx_n6);
     return route_ipv4(ctx->xdp_ctx, ctx->eth, ctx->ip4);
 }
 
+/*
+ * Downlink processing for IPv4 packets.
+ * Looks up the downlink session using the destination IP address.
+ */
 static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
     const struct iphdr *ip4 = ctx->ip4;
@@ -63,16 +77,15 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 
     __u32 far_id = pdr->far_id;
     __u32 qer_id = pdr->qer_id;
-    //__u8 outer_header_removal = pdr->outer_header_removal;
     if (pdr->sdf_mode)
     {
         struct sdf_filter *sdf = &pdr->sdf_rules.sdf_filter;
         if (match_sdf_filter_ipv4(ctx, sdf))
         {
-            upf_printk("Packet with source ip:%pI4 and destination ip:%pI4 matches SDF filter", &ip4->saddr, &ip4->daddr);
+            upf_printk("Packet with source ip:%pI4 and destination ip:%pI4 matches SDF filter",
+                       &ip4->saddr, &ip4->daddr);
             far_id = pdr->sdf_rules.far_id;
             qer_id = pdr->sdf_rules.qer_id;
-            // outer_header_removal = pdr->sdf_rules.outer_header_removal;
         }
         else if (pdr->sdf_mode & 1)
         {
@@ -87,13 +100,9 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
         return XDP_DROP;
     }
 
-    upf_printk("upf: downlink session for ip:%pI4  far:%d action:%d", &ip4->daddr, far_id, far->action);
-
-    // Only forwarding action is supported at the moment
+    upf_printk("upf: downlink session for ip:%pI4 far:%d action:%d", &ip4->daddr, far_id, far->action);
     if (!(far->action & FAR_FORW))
         return XDP_DROP;
-
-    // Only outer header GTP/UDP/IPv4 is supported at the moment
     if (!(far->outer_header_creation & OHC_GTP_U_UDP_IPv4))
         return XDP_DROP;
 
@@ -105,7 +114,6 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
     }
 
     upf_printk("upf: qer:%d gate_status:%d mbr:%d", qer_id, qer->dl_gate_status, qer->dl_maximum_bitrate);
-
     if (qer->dl_gate_status != GATE_STATUS_OPEN)
         return XDP_DROP;
 
@@ -114,17 +122,23 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
         return XDP_DROP;
 
     __u8 tos = far->transport_level_marking >> 8;
-
     upf_printk("upf: use mapping %pI4 -> TEID:%d", &ip4->daddr, far->teid);
-    struct upf_statistic *statistic = bpf_map_lookup_elem(&upf_ext_stat, &(__u32){0});
-    if (statistic)
+
+    /* Update downlink traffic counter */
     {
-        __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-        statistic->upf_counters.dl_bytes += packet_size; // Count Downlink Traffic
+        struct upf_statistic *statistic = bpf_map_lookup_elem(&upf_ext_stat, &(__u32){0});
+        if (statistic)
+        {
+            __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+            statistic->upf_counters.dl_bytes += packet_size; // Count downlink traffic
+        }
     }
     return send_to_gtp_tunnel(ctx, far->localip, far->remoteip, tos, qer->qfi, far->teid);
 }
 
+/*
+ * Downlink processing for IPv6 packets.
+ */
 static __always_inline enum xdp_action handle_n6_packet_ipv6(struct packet_context *ctx)
 {
     const struct ipv6hdr *ip6 = ctx->ip6;
@@ -137,16 +151,15 @@ static __always_inline enum xdp_action handle_n6_packet_ipv6(struct packet_conte
 
     __u32 far_id = pdr->far_id;
     __u32 qer_id = pdr->qer_id;
-    //__u8 outer_header_removal = pdr->outer_header_removal;
     if (pdr->sdf_mode)
     {
         struct sdf_filter *sdf = &pdr->sdf_rules.sdf_filter;
         if (match_sdf_filter_ipv6(ctx, sdf))
         {
-            upf_printk("Packet with source ip:%pI6c and destination ip:%pI6c matches SDF filter", &ip6->saddr, &ip6->daddr);
+            upf_printk("Packet with source ip:%pI6c and destination ip:%pI6c matches SDF filter",
+                       &ip6->saddr, &ip6->daddr);
             far_id = pdr->sdf_rules.far_id;
             qer_id = pdr->sdf_rules.qer_id;
-            // outer_header_removal = pdr->sdf_rules.outer_header_removal;
         }
         else if (pdr->sdf_mode & 1)
         {
@@ -162,12 +175,8 @@ static __always_inline enum xdp_action handle_n6_packet_ipv6(struct packet_conte
     }
 
     upf_printk("upf: downlink session for ip:%pI6c far:%d action:%d", &ip6->daddr, far_id, far->action);
-
-    // Only forwarding action supported at the moment
     if (!(far->action & FAR_FORW))
         return XDP_DROP;
-
-    // Only outer header GTP/UDP/IPv4 is supported at the moment
     if (!(far->outer_header_creation & OHC_GTP_U_UDP_IPv4))
         return XDP_DROP;
 
@@ -179,7 +188,6 @@ static __always_inline enum xdp_action handle_n6_packet_ipv6(struct packet_conte
     }
 
     upf_printk("upf: qer:%d gate_status:%d mbr:%d", qer_id, qer->dl_gate_status, qer->dl_maximum_bitrate);
-
     if (qer->dl_gate_status != GATE_STATUS_OPEN)
         return XDP_DROP;
 
@@ -188,265 +196,24 @@ static __always_inline enum xdp_action handle_n6_packet_ipv6(struct packet_conte
         return XDP_DROP;
 
     __u8 tos = far->transport_level_marking >> 8;
-
     upf_printk("upf: use mapping %pI6c -> TEID:%d", &ip6->daddr, far->teid);
     return send_to_gtp_tunnel(ctx, far->localip, far->remoteip, tos, qer->qfi, far->teid);
 }
 
-static __always_inline enum xdp_action handle_gtp_packet(struct packet_context *ctx)
-{
-    if (!ctx->gtp)
-    {
-        upf_printk("upf: unexpected packet context. no gtp header");
-        return DEFAULT_XDP_ACTION;
-    }
-
-    /*
-     *   Step 1: search for PDR and apply PDR instructions
-     */
-    __u32 teid = bpf_htonl(ctx->gtp->teid);
-    struct pdr_info *pdr = bpf_map_lookup_elem(&pdr_map_uplink_ip4, &teid);
-    if (!pdr)
-    {
-        upf_printk("upf: no session for teid:%d", teid);
-        return DEFAULT_XDP_ACTION;
-    }
-
-    __u32 far_id = pdr->far_id;
-    __u32 qer_id = pdr->qer_id;
-    __u8 outer_header_removal = pdr->outer_header_removal;
-
-    if (pdr->sdf_mode)
-    {
-        struct packet_context inner_context = {
-            .data = (char *)(long)ctx->data,
-            .data_end = (const char *)(long)ctx->data_end,
-        };
-
-        if (inner_context.data + 1 > inner_context.data_end)
-            return DEFAULT_XDP_ACTION;
-        int eth_protocol = guess_eth_protocol(inner_context.data);
-        switch (eth_protocol)
-        {
-        case ETH_P_IP_BE:
-        {
-            int ip_protocol = parse_ip4(&inner_context);
-            if (-1 == ip_protocol)
-            {
-                upf_printk("upf: unable to parse IPv4 header");
-                return DEFAULT_XDP_ACTION;
-            }
-
-            if (-1 == parse_l4(ip_protocol, &inner_context))
-            {
-                upf_printk("upf: unable to parse L4 header");
-                return DEFAULT_XDP_ACTION;
-            }
-
-            const struct sdf_filter *sdf = &pdr->sdf_rules.sdf_filter;
-            if (match_sdf_filter_ipv4(&inner_context, sdf))
-            {
-                upf_printk("upf: sdf filter matches teid:%d", teid);
-                far_id = pdr->sdf_rules.far_id;
-                qer_id = pdr->sdf_rules.qer_id;
-                outer_header_removal = pdr->sdf_rules.outer_header_removal;
-            }
-            else
-            {
-                upf_printk("upf: sdf filter doesn't match teid:%d", teid);
-                if (pdr->sdf_mode & 1)
-                    return DEFAULT_XDP_ACTION;
-            }
-            break;
-        }
-        case ETH_P_IPV6_BE:
-        {
-            int ip_protocol = parse_ip6(&inner_context);
-            if (ip_protocol == -1)
-            {
-                upf_printk("upf: unable to parse IPv6 header");
-                return DEFAULT_XDP_ACTION;
-            }
-
-            if (-1 == parse_l4(ip_protocol, &inner_context))
-            {
-                upf_printk("upf: unable to parse L4 header");
-                return DEFAULT_XDP_ACTION;
-            }
-
-            const struct sdf_filter *sdf = &pdr->sdf_rules.sdf_filter;
-            if (match_sdf_filter_ipv6(&inner_context, sdf))
-            {
-                upf_printk("upf: sdf filter matches teid:%d", teid);
-                far_id = pdr->sdf_rules.far_id;
-                qer_id = pdr->sdf_rules.qer_id;
-                outer_header_removal = pdr->sdf_rules.outer_header_removal;
-            }
-            else
-            {
-                upf_printk("upf: sdf filter doesn't match teid:%d", teid);
-                if (pdr->sdf_mode & 1)
-                    return DEFAULT_XDP_ACTION;
-            }
-            break;
-        }
-        default:
-            upf_printk("upf: unsupported inner ethernet protocol: %d", eth_protocol);
-            if (pdr->sdf_mode & 1)
-                return DEFAULT_XDP_ACTION;
-            break;
-        }
-    }
-
-    /*
-     *   Step 2: search for FAR and apply FAR instructions
-     */
-    struct far_info *far = bpf_map_lookup_elem(&far_map, &far_id);
-    if (!far)
-    {
-        upf_printk("upf: no session far for teid:%d far:%d", teid, far_id);
-        return XDP_DROP;
-    }
-
-    upf_printk("upf: far:%d action:%d outer_header_creation:%d", far_id, far->action, far->outer_header_creation);
-
-    // Only forwarding action supported at the moment
-    if (!(far->action & FAR_FORW))
-        return XDP_DROP;
-
-    /*
-     *   Step 3: search for QER and apply QER instructions
-     */
-    struct qer_info *qer = bpf_map_lookup_elem(&qer_map, &qer_id);
-    if (!qer)
-    {
-        upf_printk("upf: no session qer for teid:%d qer:%d", teid, qer_id);
-        return XDP_DROP;
-    }
-
-    upf_printk("upf: qer:%d gate_status:%d mbr:%d", qer_id, qer->ul_gate_status, qer->ul_maximum_bitrate);
-
-    if (qer->ul_gate_status != GATE_STATUS_OPEN)
-        return XDP_DROP;
-
-    const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-    if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->ul_start, qer->ul_maximum_bitrate))
-        return XDP_DROP;
-
-    upf_printk("upf: session for teid:%d far:%d outer_header_removal:%d", teid, pdr->far_id, outer_header_removal);
-
-    // N9: Only outer header GTP/UDP/IPv4 is supported at the moment
-    if (far->outer_header_creation & OHC_GTP_U_UDP_IPv4)
-    {
-        upf_printk("upf: session for teid:%d -> %d remote:%pI4", teid, far->teid, &far->remoteip);
-        update_gtp_tunnel(ctx, far->localip, far->remoteip, 0, far->teid);
-    }
-    else if (outer_header_removal == OHR_GTP_U_UDP_IPv4)
-    {
-        long result = remove_gtp_header(ctx);
-        if (result)
-        {
-            upf_printk("upf: handle_gtp_packet: can't remove gtp header: %d", result);
-            return XDP_ABORTED;
-        }
-    }
-
-    /*
-     * Decrement IP TTL and reply TTL exeeded message (debug purspose only)
-     */
-    // if(ctx->ip4 && ctx->ip4->ttl < 2)
-    // {
-    //     if (-1 == add_icmp_over_ip4_headers(ctx, far->localip, ctx->ip4->saddr))
-    //         return XDP_ABORTED;
-
-    //     upf_printk("upf: send icmp ttl exeeded %pI4 -> %pI4", &ctx->ip4->saddr, &ctx->ip4->daddr);
-    //     return handle_n6_packet_ipv4(ctx);
-    // }
-
-    /*
-     * Reply to ping requests (debug purspose only)
-     */
-    if (ctx->ip4 && ctx->ip4->daddr == far->localip && ctx->ip4->protocol == IPPROTO_ICMP)
-    {
-        upf_printk("upf: prepare icmp ping reply to request %pI4 -> %pI4", &ctx->ip4->saddr, &ctx->ip4->daddr);
-        if (-1 == prepare_icmp_echo_reply(ctx, far->localip, ctx->ip4->saddr))
-            return XDP_ABORTED;
-
-        upf_printk("upf: send icmp ping reply %pI4 -> %pI4", &ctx->ip4->saddr, &ctx->ip4->daddr);
-        return handle_n6_packet_ipv4(ctx);
-    }
-
-    /*
-     *   Step 4: Route packet finally
-     */
-    struct upf_statistic *statistic = bpf_map_lookup_elem(&upf_ext_stat, &(__u32){0});
-    if (statistic)
-    {
-        __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-        statistic->upf_counters.ul_bytes += packet_size; // Count Uplink Traffic
-    }
-    if (ctx->ip4)
-    {
-        increment_counter(ctx->n3_n6_counter, tx_n6);
-        return route_ipv4(ctx->xdp_ctx, ctx->eth, ctx->ip4);
-    }
-    else if (ctx->ip6)
-    {
-        increment_counter(ctx->n3_n6_counter, tx_n6);
-        return route_ipv6(ctx->xdp_ctx, ctx->eth, ctx->ip6);
-    }
-    else
-    {
-        return XDP_ABORTED;
-    }
-}
-
-static __always_inline enum xdp_action handle_gtpu(struct packet_context *ctx)
-{
-    int pdu_type = parse_gtp(ctx);
-    switch (pdu_type)
-    {
-    case GTPU_G_PDU:
-        increment_counter(ctx->counters, rx_gtp_pdu);
-        return handle_gtp_packet(ctx);
-    case GTPU_ECHO_REQUEST:
-        increment_counter(ctx->counters, rx_gtp_echo);
-        // upf_printk("upf: gtp header [ version=%d, pt=%d, e=%d]", gtp->version, gtp->pt, gtp->e);
-        // upf_printk("upf: gtp echo request [ type=%d ]", pdu_type);
-        upf_printk("upf: gtp echo request [ %pI4 -> %pI4 ]", &ctx->ip4->saddr, &ctx->ip4->daddr);
-        return handle_echo_request(ctx);
-    case GTPU_ECHO_RESPONSE:
-        return XDP_PASS; // Pass echo response to userspace program
-    case GTPU_ERROR_INDICATION:
-    case GTPU_SUPPORTED_EXTENSION_HEADERS_NOTIFICATION:
-    case GTPU_END_MARKER:
-        increment_counter(ctx->counters, rx_gtp_other);
-        return DEFAULT_XDP_ACTION;
-    default:
-        increment_counter(ctx->counters, rx_gtp_unexp);
-        upf_printk("upf: unexpected gtp message: type=%d", pdu_type);
-        return DEFAULT_XDP_ACTION;
-    }
-}
-
+/*
+ * IPv4 handler: process L4 protocol, update counters,
+ * then forward the packet to the downlink IPv4 processing function.
+ */
 static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
 {
     int l4_protocol = parse_ip4(ctx);
     switch (l4_protocol)
     {
     case IPPROTO_ICMP:
-    {
         increment_counter(ctx->counters, rx_icmp);
         break;
-    }
     case IPPROTO_UDP:
         increment_counter(ctx->counters, rx_udp);
-        if (GTP_UDP_PORT == parse_udp(ctx))
-        {
-            upf_printk("upf: gtp-u received");
-            increment_counter(ctx->n3_n6_counter, rx_n3);
-            return handle_gtpu(ctx);
-        }
         break;
     case IPPROTO_TCP:
         increment_counter(ctx->counters, rx_tcp);
@@ -460,23 +227,20 @@ static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
     return handle_n6_packet_ipv4(ctx);
 }
 
+/*
+ * IPv6 handler.
+ */
 static __always_inline enum xdp_action handle_ip6(struct packet_context *ctx)
 {
     int l4_protocol = parse_ip6(ctx);
     switch (l4_protocol)
     {
-    case IPPROTO_ICMPV6: // Let kernel stack take care
+    case IPPROTO_ICMPV6:
         upf_printk("upf: icmp received. passing to kernel");
         increment_counter(ctx->counters, rx_icmp6);
         return XDP_PASS;
     case IPPROTO_UDP:
         increment_counter(ctx->counters, rx_udp);
-        // Don't expect GTP over IPv6 at the moment
-        // if (GTP_UDP_PORT == parse_udp(ctx))
-        // {
-        //     upf_printk("upf: gtp-u received");
-        //     return handle_gtpu(ctx);
-        // }
         break;
     case IPPROTO_TCP:
         increment_counter(ctx->counters, rx_tcp);
@@ -489,6 +253,9 @@ static __always_inline enum xdp_action handle_ip6(struct packet_context *ctx)
     return handle_n6_packet_ipv6(ctx);
 }
 
+/*
+ * Process the Ethernet header and dispatch to the appropriate handler.
+ */
 static __always_inline enum xdp_action process_packet(struct packet_context *ctx)
 {
     __u16 l3_protocol = parse_ethernet(ctx);
@@ -500,22 +267,17 @@ static __always_inline enum xdp_action process_packet(struct packet_context *ctx
     case ETH_P_IP:
         increment_counter(ctx->counters, rx_ip4);
         return handle_ip4(ctx);
-    case ETH_P_ARP: // Let kernel stack takes care
-    {
-        increment_counter(ctx->counters, rx_arp);
+    case ETH_P_ARP:
         upf_printk("upf: arp received. passing to kernel");
+        increment_counter(ctx->counters, rx_arp);
         return XDP_PASS;
     }
-    }
-
     return DEFAULT_XDP_ACTION;
 }
 
-// Combined N3 & N6 entrypoint. Use for "on-a-stick" interfaces
 SEC("xdp/upf_n6_entrypoint")
 int upf_n6_entrypoint_func(struct xdp_md *ctx)
 {
-    // upf_printk("upf n3 & n6 combined entrypoint start");
     const __u32 key = 0;
     struct upf_statistic *statistic = bpf_map_lookup_elem(&upf_ext_stat, &key);
     if (!statistic)
@@ -527,13 +289,13 @@ int upf_n6_entrypoint_func(struct xdp_md *ctx)
             return XDP_ABORTED;
     }
 
-    /* These keep track of the packet pointers and statistic */
     struct packet_context context = {
         .data = (char *)(long)ctx->data,
         .data_end = (const char *)(long)ctx->data_end,
         .xdp_ctx = ctx,
         .counters = &statistic->upf_counters,
-        .n3_n6_counter = &statistic->upf_n3_n6_counter};
+        .n3_n6_counter = &statistic->upf_n3_n6_counter,
+    };
 
     enum xdp_action action = process_packet(&context);
     statistic->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;

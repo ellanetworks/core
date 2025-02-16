@@ -3,15 +3,12 @@
 package metrics
 
 import (
-	"time"
-
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	smfStats "github.com/ellanetworks/core/internal/smf/stats"
 	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 var (
@@ -21,11 +18,6 @@ var (
 	UpfXdpPass     prometheus.CounterFunc
 	UpfXdpTx       prometheus.CounterFunc
 	UpfXdpRedirect prometheus.CounterFunc
-
-	UpfRx = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "app_n3_rx",
-		Help: "The total number of received packets (n3)",
-	}, []string{"packet_type"})
 
 	UpfUplinkBytes prometheus.CounterFunc
 	// UpfDownlinkBytes prometheus.CounterFunc
@@ -151,24 +143,4 @@ func RegisterUPFMetrics(stats ebpf.UpfXdpActionStatistic, conn *core.PfcpConnect
 	prometheus.MustRegister(UpfUplinkBytes)
 	// prometheus.MustRegister(UpfDownlinkBytes)
 
-	// Used for getting difference between two counters to increment the prometheus counter (counters cannot be written only incremented)
-	var prevUpfN3Counters ebpf.UpfN3Counters
-	go func() {
-		time.Sleep(2 * time.Second)
-		RxN3PacketCounters := stats.GetUpfN3ExtStatField()
-		UpfRx.WithLabelValues("Arp").Add(float64(RxN3PacketCounters.RxArp - prevUpfN3Counters.RxArp))
-		UpfRx.WithLabelValues("Icmp").Add(float64(RxN3PacketCounters.RxIcmp - prevUpfN3Counters.RxIcmp))
-		UpfRx.WithLabelValues("Icmp6").Add(float64(RxN3PacketCounters.RxIcmp6 - prevUpfN3Counters.RxIcmp6))
-		UpfRx.WithLabelValues("Ip4").Add(float64(RxN3PacketCounters.RxIp4 - prevUpfN3Counters.RxIp4))
-		UpfRx.WithLabelValues("Ip6").Add(float64(RxN3PacketCounters.RxIp6 - prevUpfN3Counters.RxIp6))
-		UpfRx.WithLabelValues("Tcp").Add(float64(RxN3PacketCounters.RxTcp - prevUpfN3Counters.RxTcp))
-		UpfRx.WithLabelValues("Udp").Add(float64(RxN3PacketCounters.RxUdp - prevUpfN3Counters.RxUdp))
-		UpfRx.WithLabelValues("Other").Add(float64(RxN3PacketCounters.RxOther - prevUpfN3Counters.RxOther))
-		UpfRx.WithLabelValues("GtpEcho").Add(float64(RxN3PacketCounters.RxGtpEcho - prevUpfN3Counters.RxGtpEcho))
-		UpfRx.WithLabelValues("GtpPdu").Add(float64(RxN3PacketCounters.RxGtpPdu - prevUpfN3Counters.RxGtpPdu))
-		UpfRx.WithLabelValues("GtpOther").Add(float64(RxN3PacketCounters.RxGtpOther - prevUpfN3Counters.RxGtpOther))
-		UpfRx.WithLabelValues("GtpUnexp").Add(float64(RxN3PacketCounters.RxGtpUnexp - prevUpfN3Counters.RxGtpUnexp))
-
-		prevUpfN3Counters = RxN3PacketCounters
-	}()
 }
