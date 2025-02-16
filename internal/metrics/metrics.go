@@ -27,8 +27,8 @@ var (
 		Help: "The total number of received packets (n3)",
 	}, []string{"packet_type"})
 
-	UpfUplinkBytes   prometheus.CounterFunc
-	UpfDownlinkBytes prometheus.CounterFunc
+	UpfUplinkBytes prometheus.CounterFunc
+	// UpfDownlinkBytes prometheus.CounterFunc
 
 	// Database metrics
 	DatabaseStorageUsed  prometheus.GaugeFunc
@@ -149,7 +149,7 @@ func RegisterUPFMetrics(stats ebpf.UpfXdpActionStatistic, conn *core.PfcpConnect
 	prometheus.MustRegister(UpfXdpTx)
 	prometheus.MustRegister(UpfXdpRedirect)
 	prometheus.MustRegister(UpfUplinkBytes)
-	prometheus.MustRegister(UpfDownlinkBytes)
+	// prometheus.MustRegister(UpfDownlinkBytes)
 
 	// Used for getting difference between two counters to increment the prometheus counter (counters cannot be written only incremented)
 	var prevUpfN3Counters ebpf.UpfN3Counters
