@@ -44,11 +44,23 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 
 	// qoSRules := qos.BuildQosRules(smContext.SmPolicyUpdates[0])
 	qoSRules := qos.QoSRules{
-		{
-			Identifier: 0x01,
-			Precedence: 255,
-			QFI:        1,
-		},
+		// {
+		// 	Identifier: 0x01,
+		// 	Precedence: 255,
+		// 	QFI:        1,
+		// 	PacketFilterList: []qos.PacketFilter{
+		// 		{
+		// 			Identifier: 0x01,
+		// 			Direction:  0x01,
+		// 			Content: []qos.PacketFilterComponent{
+		// 				{
+		// 					ComponentValue: []byte{0x01, 0x01, 0x01, 0x01},
+		// 					ComponentType:  0x01,
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// },
 	}
 	logger.SmfLog.Infof("QoS Rules: %+v", qoSRules)
 
