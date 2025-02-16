@@ -88,26 +88,9 @@ type N6EntrypointRouteStat struct {
 	FibLookupIp6ErrorPass uint64
 }
 
-type N6EntrypointUpfStatistic struct {
-	UpfCounters struct {
-		RxArp      uint64
-		RxIcmp     uint64
-		RxIcmp6    uint64
-		RxIp4      uint64
-		RxIp6      uint64
-		RxTcp      uint64
-		RxUdp      uint64
-		RxOther    uint64
-		RxGtpEcho  uint64
-		RxGtpPdu   uint64
-		RxGtpOther uint64
-		RxGtpUnexp uint64
-		UlBytes    uint64
-		DlBytes    uint64
-	}
-	UpfN3N6Counter struct {
-		RxN3 uint64
-		TxN3 uint64
+type N6EntrypointUpfN6Statistic struct {
+	UpfN6Counters struct{ DlBytes uint64 }
+	UpfN6Counter  struct {
 		RxN6 uint64
 		TxN6 uint64
 	}
@@ -168,7 +151,7 @@ type N6EntrypointMapSpecs struct {
 	PdrMapDownlinkIp6 *ebpf.MapSpec `ebpf:"pdr_map_downlink_ip6"`
 	PdrMapUplinkIp4   *ebpf.MapSpec `ebpf:"pdr_map_uplink_ip4"`
 	QerMap            *ebpf.MapSpec `ebpf:"qer_map"`
-	UpfExtStat        *ebpf.MapSpec `ebpf:"upf_ext_stat"`
+	UpfN6Stat         *ebpf.MapSpec `ebpf:"upf_n6_stat"`
 	UpfRouteStat      *ebpf.MapSpec `ebpf:"upf_route_stat"`
 }
 
@@ -203,7 +186,7 @@ type N6EntrypointMaps struct {
 	PdrMapDownlinkIp6 *ebpf.Map `ebpf:"pdr_map_downlink_ip6"`
 	PdrMapUplinkIp4   *ebpf.Map `ebpf:"pdr_map_uplink_ip4"`
 	QerMap            *ebpf.Map `ebpf:"qer_map"`
-	UpfExtStat        *ebpf.Map `ebpf:"upf_ext_stat"`
+	UpfN6Stat         *ebpf.Map `ebpf:"upf_n6_stat"`
 	UpfRouteStat      *ebpf.Map `ebpf:"upf_route_stat"`
 }
 
@@ -214,7 +197,7 @@ func (m *N6EntrypointMaps) Close() error {
 		m.PdrMapDownlinkIp6,
 		m.PdrMapUplinkIp4,
 		m.QerMap,
-		m.UpfExtStat,
+		m.UpfN6Stat,
 		m.UpfRouteStat,
 	)
 }

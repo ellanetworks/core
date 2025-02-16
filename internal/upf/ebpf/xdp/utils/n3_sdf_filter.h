@@ -28,7 +28,7 @@
 #include "xdp/utils/trace.h"
 #include "xdp/utils/n3_packet_context.h"
 #include "xdp/utils/types.h"
-#include "xdp/utils/pdr.h"
+#include "xdp/utils/n3_pdr.h"
 
 struct n3_ip_subnet
 {

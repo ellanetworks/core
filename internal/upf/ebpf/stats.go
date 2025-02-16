@@ -46,7 +46,7 @@ func (current *UpfN3Counters) Add(nnew UpfN3Counters) {
 
 func (stat *UpfXdpActionStatistic) getUpfN3XdpStatisticField(field uint32) uint64 {
 	var statistics []N3EntrypointUpfN3Statistic
-	err := stat.BpfObjects.N3EntrypointObjects.UpfExtStat.Lookup(uint32(0), &statistics)
+	err := stat.BpfObjects.N3EntrypointObjects.UpfN3Stat.Lookup(uint32(0), &statistics)
 	if err != nil {
 		logger.UpfLog.Infof(err.Error())
 		return 0
@@ -82,7 +82,7 @@ func (stat *UpfXdpActionStatistic) GetN3Redirect() uint64 {
 
 func (stat *UpfXdpActionStatistic) GetN3UplinkThroughputStats() uint64 {
 	var n3Statistics []N3EntrypointUpfN3Statistic
-	err := stat.BpfObjects.N3EntrypointMaps.UpfExtStat.Lookup(uint32(0), &n3Statistics)
+	err := stat.BpfObjects.N3EntrypointMaps.UpfN3Stat.Lookup(uint32(0), &n3Statistics)
 	if err != nil {
 		logger.UpfLog.Infof("Failed to fetch UPF stats: %v", err)
 		return 0

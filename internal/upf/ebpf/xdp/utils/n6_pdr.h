@@ -20,7 +20,7 @@
 #include <linux/bpf.h>
 #include <linux/ipv6.h>
 
-#include "xdp/utils/sdf_filter.h"
+#include "xdp/utils/n6_sdf_filter.h"
 
 #define PDR_MAP_UPLINK_SIZE 1024
 #define PDR_MAP_DOWNLINK_IPV4_SIZE 1024

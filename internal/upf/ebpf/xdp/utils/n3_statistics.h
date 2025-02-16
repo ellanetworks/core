@@ -47,4 +47,4 @@ struct
     __type(key, __u32);
     __type(value, struct upf_n3_statistic);
     __uint(max_entries, 1);
-} upf_ext_stat SEC(".maps");
+} upf_n3_stat SEC(".maps");

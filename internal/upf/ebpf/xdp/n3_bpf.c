@@ -184,7 +184,7 @@ static __always_inline enum xdp_action handle_gtp_packet(struct n3_packet_contex
 
     /* Account uplink traffic */
     {
-        struct upf_n3_statistic *statistic = bpf_map_lookup_elem(&upf_ext_stat, &(__u32){0});
+        struct upf_n3_statistic *statistic = bpf_map_lookup_elem(&upf_n3_stat, &(__u32){0});
         if (statistic)
         {
             __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
@@ -259,12 +259,12 @@ SEC("xdp/upf_n3_entrypoint")
 int upf_n3_entrypoint_func(struct xdp_md *ctx)
 {
     const __u32 key = 0;
-    struct upf_n3_statistic *statistic = bpf_map_lookup_elem(&upf_ext_stat, &key);
+    struct upf_n3_statistic *statistic = bpf_map_lookup_elem(&upf_n3_stat, &key);
     if (!statistic)
     {
         const struct upf_n3_statistic initval = {};
-        bpf_map_update_elem(&upf_ext_stat, &key, &initval, BPF_ANY);
-        statistic = bpf_map_lookup_elem(&upf_ext_stat, &key);
+        bpf_map_update_elem(&upf_n3_stat, &key, &initval, BPF_ANY);
+        statistic = bpf_map_lookup_elem(&upf_n3_stat, &key);
         if (!statistic)
             return XDP_ABORTED;
     }

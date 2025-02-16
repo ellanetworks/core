@@ -27,6 +27,19 @@
 #define PDR_MAP_DOWNLINK_IPV6_SIZE 1024
 #define FAR_MAP_SIZE 1024
 
+enum outer_header_removal_values
+{
+    OHR_GTP_U_UDP_IPv4 = 0,
+    OHR_GTP_U_UDP_IPv6 = 1,
+    OHR_UDP_IPv4 = 2,
+    OHR_UDP_IPv6 = 3,
+    OHR_IPv4 = 4,
+    OHR_IPv6 = 5,
+    OHR_GTP_U_UDP_IP = 6,
+    OHR_VLAN_S_TAG = 7,
+    OHR_S_TAG_C_TAG = 8,
+};
+
 // Possible optimizations:
 // 0. Store SDFs in a separate map. PDR will have only id of corresponding SDF.
 // 1. Combine SrcAddress.Type and DstAddress.Type into one __u8 field. Then to retrieve and put data will be used operators & and | .
@@ -76,7 +89,27 @@ struct
     __uint(max_entries, PDR_MAP_UPLINK_SIZE);
 } n3_pdr_map_uplink_ip4 SEC(".maps");
 
-struct n3_far_info
+enum far_action_mask
+{
+    FAR_DROP = 0x01,
+    FAR_FORW = 0x02,
+    FAR_BUFF = 0x04,
+    FAR_NOCP = 0x08,
+    FAR_DUPL = 0x10,
+    FAR_IPMA = 0x20,
+    FAR_IPMD = 0x40,
+    FAR_DFRT = 0x80,
+};
+
+enum outer_header_creation_values
+{
+    OHC_GTP_U_UDP_IPv4 = 0x01,
+    OHC_GTP_U_UDP_IPv6 = 0x02,
+    OHC_UDP_IPv4 = 0x04,
+    OHC_UDP_IPv6 = 0x08,
+};
+
+struct far_info
 {
     __u8 action;
     __u8 outer_header_creation;
@@ -92,6 +125,6 @@ struct
 {
     __uint(type, BPF_MAP_TYPE_ARRAY);
     __type(key, __u32);
-    __type(value, struct n3_far_info);
+    __type(value, struct far_info);
     __uint(max_entries, FAR_MAP_SIZE);
-} n3_far_map SEC(".maps");
+} far_map SEC(".maps");

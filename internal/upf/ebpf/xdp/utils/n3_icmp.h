@@ -33,7 +33,7 @@ static __always_inline void fill_icmp_header(struct icmphdr *icmp)
     icmp->checksum = 0;
 }
 
-static __always_inline __u32 prepare_icmp_echo_reply(struct packet_context *ctx, int saddr, int daddr)
+static __always_inline __u32 prepare_icmp_echo_reply(struct n3_packet_context *ctx, int saddr, int daddr)
 {
     if (!ctx->ip4)
         return -1;

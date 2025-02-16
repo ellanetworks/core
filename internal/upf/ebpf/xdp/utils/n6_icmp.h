@@ -1,11 +1,11 @@
 // Copyright 2023 Edgecom LLC
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,17 +22,18 @@
 #include <linux/icmp.h>
 
 #include "xdp/utils/csum.h"
-#include "xdp/utils/parsers.h"
-#include "xdp/utils/packet_context.h"
+#include "xdp/utils/n6_parsers.h"
+#include "xdp/utils/n6_packet_context.h"
 
-static __always_inline void fill_icmp_header(struct icmphdr *icmp) {
+static __always_inline void fill_icmp_header(struct icmphdr *icmp)
+{
     icmp->type = ICMP_TIME_EXCEEDED;
     icmp->code = ICMP_EXC_TTL;
     icmp->un.gateway = 0;
     icmp->checksum = 0;
 }
 
-// static __always_inline __u32 add_icmp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr) {
+// static __always_inline __u32 add_icmp_over_ip4_headers(struct n6_packet_context *ctx, int saddr, int daddr) {
 //     static const size_t icmp_encap_size = sizeof(struct iphdr) + sizeof(struct icmphdr);
 
 //     if (!ctx->ip4)
@@ -78,7 +79,8 @@ static __always_inline void fill_icmp_header(struct icmphdr *icmp) {
 //     return 0;
 // }
 
-static __always_inline __u32 prepare_icmp_echo_reply(struct packet_context *ctx, int saddr, int daddr) {
+static __always_inline __u32 prepare_icmp_echo_reply(struct n6_packet_context *ctx, int saddr, int daddr)
+{
     if (!ctx->ip4)
         return -1;
 
@@ -96,14 +98,14 @@ static __always_inline __u32 prepare_icmp_echo_reply(struct packet_context *ctx,
     if ((const char *)(icmp + 1) > data_end)
         return -1;
 
-    if(icmp->type != ICMP_ECHO)
+    if (icmp->type != ICMP_ECHO)
         return -1;
 
-    __u16 old = *(__u16*)&icmp->type;
+    __u16 old = *(__u16 *)&icmp->type;
     icmp->type = ICMP_ECHOREPLY;
     icmp->code = 0;
-    
-    ipv4_csum_replace(&icmp->checksum, old, *(__u16*)&icmp->type);
+
+    ipv4_csum_replace(&icmp->checksum, old, *(__u16 *)&icmp->type);
 
     return 0;
 }

@@ -26,19 +26,19 @@
 #include <linux/udp.h>
 #include <sys/socket.h>
 
-#include "xdp/utils/statistics.h"
+#include "xdp/utils/n6_statistics.h"
 #include "xdp/utils/qer.h"
-#include "xdp/utils/pdr.h"
-#include "xdp/utils/sdf_filter.h"
+#include "xdp/utils/n6_pdr.h"
+#include "xdp/utils/n6_sdf_filter.h"
 
 #include "xdp/utils/common.h"
 #include "xdp/utils/trace.h"
-#include "xdp/utils/packet_context.h"
-#include "xdp/utils/parsers.h"
+#include "xdp/utils/n6_packet_context.h"
+#include "xdp/utils/n6_parsers.h"
 #include "xdp/utils/csum.h"
-#include "xdp/utils/gtp_utils.h"
+#include "xdp/utils/n6_gtp_utils.h"
 #include "xdp/utils/routing.h"
-#include "xdp/utils/icmp.h"
+#include "xdp/utils/n6_icmp.h"
 
 #define DEFAULT_XDP_ACTION XDP_PASS
 
@@ -47,7 +47,7 @@
  * and then routes the packet. Note that the transmit counter is now updated
  * using the downlink counter (tx_n6).
  */
-static __always_inline enum xdp_action send_to_gtp_tunnel(struct packet_context *ctx,
+static __always_inline enum xdp_action send_to_gtp_tunnel(struct n6_packet_context *ctx,
                                                           int srcip,
                                                           int dstip,
                                                           __u8 tos,
@@ -57,7 +57,7 @@ static __always_inline enum xdp_action send_to_gtp_tunnel(struct packet_context 
     if (-1 == add_gtp_over_ip4_headers(ctx, srcip, dstip, tos, qfi, teid))
         return XDP_ABORTED;
     upf_printk("upf: send gtp pdu %pI4 -> %pI4", &ctx->ip4->saddr, &ctx->ip4->daddr);
-    increment_counter(ctx->n3_n6_counter, tx_n6);
+    increment_counter(ctx->n6_counter, tx_n6);
     return route_ipv4(ctx->xdp_ctx, ctx->eth, ctx->ip4);
 }
 
@@ -65,7 +65,7 @@ static __always_inline enum xdp_action send_to_gtp_tunnel(struct packet_context 
  * Downlink processing for IPv4 packets.
  * Looks up the downlink session using the destination IP address.
  */
-static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
+static __always_inline __u16 handle_n6_packet_ipv4(struct n6_packet_context *ctx)
 {
     const struct iphdr *ip4 = ctx->ip4;
     struct pdr_info *pdr = bpf_map_lookup_elem(&pdr_map_downlink_ip4, &ip4->daddr);
@@ -126,11 +126,11 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 
     /* Update downlink traffic counter */
     {
-        struct upf_statistic *statistic = bpf_map_lookup_elem(&upf_ext_stat, &(__u32){0});
+        struct upf_n6_statistic *statistic = bpf_map_lookup_elem(&upf_n6_stat, &(__u32){0});
         if (statistic)
         {
             __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-            statistic->upf_counters.dl_bytes += packet_size; // Count downlink traffic
+            statistic->upf_n6_counters.dl_bytes += packet_size; // Count downlink traffic
         }
     }
     return send_to_gtp_tunnel(ctx, far->localip, far->remoteip, tos, qer->qfi, far->teid);
@@ -139,7 +139,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 /*
  * Downlink processing for IPv6 packets.
  */
-static __always_inline enum xdp_action handle_n6_packet_ipv6(struct packet_context *ctx)
+static __always_inline enum xdp_action handle_n6_packet_ipv6(struct n6_packet_context *ctx)
 {
     const struct ipv6hdr *ip6 = ctx->ip6;
     struct pdr_info *pdr = bpf_map_lookup_elem(&pdr_map_downlink_ip6, &ip6->daddr);
@@ -204,72 +204,60 @@ static __always_inline enum xdp_action handle_n6_packet_ipv6(struct packet_conte
  * IPv4 handler: process L4 protocol, update counters,
  * then forward the packet to the downlink IPv4 processing function.
  */
-static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
+static __always_inline enum xdp_action handle_ip4(struct n6_packet_context *ctx)
 {
     int l4_protocol = parse_ip4(ctx);
     switch (l4_protocol)
     {
     case IPPROTO_ICMP:
-        increment_counter(ctx->counters, rx_icmp);
         break;
     case IPPROTO_UDP:
-        increment_counter(ctx->counters, rx_udp);
         break;
     case IPPROTO_TCP:
-        increment_counter(ctx->counters, rx_tcp);
         break;
     default:
-        increment_counter(ctx->counters, rx_other);
         return DEFAULT_XDP_ACTION;
     }
 
-    increment_counter(ctx->n3_n6_counter, rx_n6);
+    increment_counter(ctx->n6_counter, rx_n6);
     return handle_n6_packet_ipv4(ctx);
 }
 
 /*
  * IPv6 handler.
  */
-static __always_inline enum xdp_action handle_ip6(struct packet_context *ctx)
+static __always_inline enum xdp_action handle_ip6(struct n6_packet_context *ctx)
 {
     int l4_protocol = parse_ip6(ctx);
     switch (l4_protocol)
     {
     case IPPROTO_ICMPV6:
         upf_printk("upf: icmp received. passing to kernel");
-        increment_counter(ctx->counters, rx_icmp6);
         return XDP_PASS;
     case IPPROTO_UDP:
-        increment_counter(ctx->counters, rx_udp);
         break;
     case IPPROTO_TCP:
-        increment_counter(ctx->counters, rx_tcp);
         break;
     default:
-        increment_counter(ctx->counters, rx_other);
         return DEFAULT_XDP_ACTION;
     }
-    increment_counter(ctx->n3_n6_counter, rx_n6);
     return handle_n6_packet_ipv6(ctx);
 }
 
 /*
  * Process the Ethernet header and dispatch to the appropriate handler.
  */
-static __always_inline enum xdp_action process_packet(struct packet_context *ctx)
+static __always_inline enum xdp_action process_packet(struct n6_packet_context *ctx)
 {
     __u16 l3_protocol = parse_ethernet(ctx);
     switch (l3_protocol)
     {
     case ETH_P_IPV6:
-        increment_counter(ctx->counters, rx_ip6);
         return handle_ip6(ctx);
     case ETH_P_IP:
-        increment_counter(ctx->counters, rx_ip4);
         return handle_ip4(ctx);
     case ETH_P_ARP:
         upf_printk("upf: arp received. passing to kernel");
-        increment_counter(ctx->counters, rx_arp);
         return XDP_PASS;
     }
     return DEFAULT_XDP_ACTION;
@@ -279,22 +267,22 @@ SEC("xdp/upf_n6_entrypoint")
 int upf_n6_entrypoint_func(struct xdp_md *ctx)
 {
     const __u32 key = 0;
-    struct upf_statistic *statistic = bpf_map_lookup_elem(&upf_ext_stat, &key);
+    struct upf_n6_statistic *statistic = bpf_map_lookup_elem(&upf_n6_stat, &key);
     if (!statistic)
     {
-        const struct upf_statistic initval = {};
-        bpf_map_update_elem(&upf_ext_stat, &key, &initval, BPF_ANY);
-        statistic = bpf_map_lookup_elem(&upf_ext_stat, &key);
+        const struct upf_n6_statistic initval = {};
+        bpf_map_update_elem(&upf_n6_stat, &key, &initval, BPF_ANY);
+        statistic = bpf_map_lookup_elem(&upf_n6_stat, &key);
         if (!statistic)
             return XDP_ABORTED;
     }
 
-    struct packet_context context = {
+    struct n6_packet_context context = {
         .data = (char *)(long)ctx->data,
         .data_end = (const char *)(long)ctx->data_end,
         .xdp_ctx = ctx,
-        .counters = &statistic->upf_counters,
-        .n3_n6_counter = &statistic->upf_n3_n6_counter,
+        .counters = &statistic->upf_n6_counters,
+        .n6_counter = &statistic->upf_n6_counter,
     };
 
     enum xdp_action action = process_packet(&context);
