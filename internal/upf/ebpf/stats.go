@@ -1,10 +1,12 @@
 package ebpf
 
+import "github.com/ellanetworks/core/internal/logger"
+
 type UpfXdpActionStatistic struct {
 	BpfObjects *BpfObjects
 }
 
-type UpfCounters struct {
+type UpfN3Counters struct {
 	RxArp      uint64
 	RxIcmp     uint64
 	RxIcmp6    uint64
@@ -18,15 +20,14 @@ type UpfCounters struct {
 	RxGtpOther uint64
 	RxGtpUnexp uint64
 	UlBytes    uint64
-	DlBytes    uint64
 }
 
 type UpfStatistic struct {
-	Counters UpfCounters
-	XdpStats [5]uint64
+	N3Counters UpfN3Counters
+	XdpStats   [5]uint64
 }
 
-func (current *UpfCounters) Add(nnew UpfCounters) {
+func (current *UpfN3Counters) Add(nnew UpfN3Counters) {
 	current.RxArp += nnew.RxArp
 	current.RxIcmp += nnew.RxIcmp
 	current.RxIcmp6 += nnew.RxIcmp6
@@ -39,76 +40,75 @@ func (current *UpfCounters) Add(nnew UpfCounters) {
 	current.RxGtpPdu += nnew.RxGtpPdu
 	current.RxGtpOther += nnew.RxGtpOther
 	current.UlBytes += nnew.UlBytes
-	current.DlBytes += nnew.DlBytes
 }
 
 // Getters for the upf_xdp_statistic (xdp_action)
 
-// func (stat *UpfXdpActionStatistic) getUpfXdpStatisticField(field uint32) uint64 {
-// 	var statistics []IpEntrypointUpfStatistic
-// 	err := stat.BpfObjects.UpfExtStat.Lookup(uint32(0), &statistics)
-// 	if err != nil {
-// 		logger.UpfLog.Infof(err.Error())
-// 		return 0
-// 	}
+func (stat *UpfXdpActionStatistic) getUpfN3XdpStatisticField(field uint32) uint64 {
+	var statistics []N3EntrypointUpfN3Statistic
+	err := stat.BpfObjects.N3EntrypointObjects.UpfExtStat.Lookup(uint32(0), &statistics)
+	if err != nil {
+		logger.UpfLog.Infof(err.Error())
+		return 0
+	}
 
-// 	var totalValue uint64 = 0
-// 	for _, statistic := range statistics {
-// 		totalValue += statistic.XdpActions[field]
-// 	}
+	var totalValue uint64 = 0
+	for _, statistic := range statistics {
+		totalValue += statistic.XdpActions[field]
+	}
 
-// 	return totalValue
-// }
+	return totalValue
+}
 
-// func (stat *UpfXdpActionStatistic) GetAborted() uint64 {
-// 	return stat.getUpfXdpStatisticField(uint32(0))
-// }
+func (stat *UpfXdpActionStatistic) GetN3Aborted() uint64 {
+	return stat.getUpfN3XdpStatisticField(uint32(0))
+}
 
-// func (stat *UpfXdpActionStatistic) GetDrop() uint64 {
-// 	return stat.getUpfXdpStatisticField(uint32(1))
-// }
+func (stat *UpfXdpActionStatistic) GetN3Drop() uint64 {
+	return stat.getUpfN3XdpStatisticField(uint32(1))
+}
 
-// func (stat *UpfXdpActionStatistic) GetPass() uint64 {
-// 	return stat.getUpfXdpStatisticField(uint32(2))
-// }
+func (stat *UpfXdpActionStatistic) GetN3Pass() uint64 {
+	return stat.getUpfN3XdpStatisticField(uint32(2))
+}
 
-// func (stat *UpfXdpActionStatistic) GetTx() uint64 {
-// 	return stat.getUpfXdpStatisticField(uint32(3))
-// }
+func (stat *UpfXdpActionStatistic) GetN3Tx() uint64 {
+	return stat.getUpfN3XdpStatisticField(uint32(3))
+}
 
-// func (stat *UpfXdpActionStatistic) GetRedirect() uint64 {
-// 	return stat.getUpfXdpStatisticField(uint32(4))
-// }
+func (stat *UpfXdpActionStatistic) GetN3Redirect() uint64 {
+	return stat.getUpfN3XdpStatisticField(uint32(4))
+}
 
-// // Getters for the upf_ext_stat (upf_counters)
-// func (stat *UpfXdpActionStatistic) GetUpfExtStatField() UpfCounters {
-// 	var statistics []IpEntrypointUpfStatistic
-// 	var counters UpfCounters
-// 	err := stat.BpfObjects.UpfExtStat.Lookup(uint32(0), &statistics)
-// 	if err != nil {
-// 		logger.UpfLog.Infof(err.Error())
-// 		return counters
-// 	}
+// Getters for the upf_ext_stat (upf_counters)
+func (stat *UpfXdpActionStatistic) GetUpfN3ExtStatField() UpfN3Counters {
+	var statistics []N3EntrypointUpfN3Statistic
+	var counters UpfN3Counters
+	err := stat.BpfObjects.N3EntrypointObjects.UpfExtStat.Lookup(uint32(0), &statistics)
+	if err != nil {
+		logger.UpfLog.Infof(err.Error())
+		return counters
+	}
 
-// 	for _, statistic := range statistics {
-// 		counters.Add(statistic.UpfCounters)
-// 	}
+	for _, statistic := range statistics {
+		counters.Add(statistic.UpfN3Counters)
+	}
 
-// 	return counters
-// }
+	return counters
+}
 
-// func (stat *UpfXdpActionStatistic) GetThroughputStats() (uplinkBytes, downlinkBytes uint64) {
-// 	var statistics []IpEntrypointUpfStatistic
-// 	err := stat.BpfObjects.UpfExtStat.Lookup(uint32(0), &statistics)
-// 	if err != nil {
-// 		logger.UpfLog.Infof("Failed to fetch UPF stats: %v", err)
-// 		return 0, 0
-// 	}
+func (stat *UpfXdpActionStatistic) GetN3UplinkThroughputStats() uint64 {
+	var n3Statistics []N3EntrypointUpfN3Statistic
+	err := stat.BpfObjects.N3EntrypointMaps.UpfExtStat.Lookup(uint32(0), &n3Statistics)
+	if err != nil {
+		logger.UpfLog.Infof("Failed to fetch UPF stats: %v", err)
+		return 0
+	}
 
-// 	for _, statistic := range statistics {
-// 		uplinkBytes += statistic.UpfCounters.UlBytes
-// 		downlinkBytes += statistic.UpfCounters.DlBytes
-// 	}
+	var totalValue uint64 = 0
+	for _, statistic := range n3Statistics {
+		totalValue += statistic.UpfN3Counters.UlBytes
+	}
 
-// 	return uplinkBytes, downlinkBytes
-// }
+	return totalValue
+}
