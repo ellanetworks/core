@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/nms/server"
 )
 
 var initialOperator = db.Operator{
