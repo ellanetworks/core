@@ -95,3 +95,19 @@ func (stat *UpfXdpActionStatistic) GetN3UplinkThroughputStats() uint64 {
 
 	return totalValue
 }
+
+func (stat *UpfXdpActionStatistic) GetN6DownlinkThroughputStats() uint64 {
+	var n6Statistics []N6EntrypointUpfN6Statistic
+	err := stat.BpfObjects.N6EntrypointMaps.UpfN6Stat.Lookup(uint32(0), &n6Statistics)
+	if err != nil {
+		logger.UpfLog.Infof("Failed to fetch UPF stats: %v", err)
+		return 0
+	}
+
+	var totalValue uint64 = 0
+	for _, statistic := range n6Statistics {
+		totalValue += statistic.UpfN6Counters.DlBytes
+	}
+
+	return totalValue
+}

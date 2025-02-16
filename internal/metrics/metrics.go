@@ -19,8 +19,8 @@ var (
 	UpfXdpTx       prometheus.CounterFunc
 	UpfXdpRedirect prometheus.CounterFunc
 
-	UpfUplinkBytes prometheus.CounterFunc
-	// UpfDownlinkBytes prometheus.CounterFunc
+	UpfUplinkBytes   prometheus.CounterFunc
+	UpfDownlinkBytes prometheus.CounterFunc
 
 	// Database metrics
 	DatabaseStorageUsed  prometheus.GaugeFunc
@@ -126,13 +126,13 @@ func RegisterUPFMetrics(stats ebpf.UpfXdpActionStatistic, conn *core.PfcpConnect
 		return float64(uplinkBytes)
 	})
 
-	// UpfDownlinkBytes = prometheus.NewCounterFunc(prometheus.CounterOpts{
-	// 	Name: "app_downlink_bytes",
-	// 	Help: "The total number of downlink bytes going through the data plane (N6 -> N3). This value includes the Ethernet header.",
-	// }, func() float64 {
-	// 	_, downlinkBytes := stats.GetThroughputStats()
-	// 	return float64(downlinkBytes)
-	// })
+	UpfDownlinkBytes = prometheus.NewCounterFunc(prometheus.CounterOpts{
+		Name: "app_downlink_bytes",
+		Help: "The total number of downlink bytes going through the data plane (N6 -> N3). This value includes the Ethernet header.",
+	}, func() float64 {
+		downlinkBytes := stats.GetN6DownlinkThroughputStats()
+		return float64(downlinkBytes)
+	})
 
 	// Register metrics
 	prometheus.MustRegister(UpfXdpAborted)
@@ -141,6 +141,5 @@ func RegisterUPFMetrics(stats ebpf.UpfXdpActionStatistic, conn *core.PfcpConnect
 	prometheus.MustRegister(UpfXdpTx)
 	prometheus.MustRegister(UpfXdpRedirect)
 	prometheus.MustRegister(UpfUplinkBytes)
-	// prometheus.MustRegister(UpfDownlinkBytes)
-
+	prometheus.MustRegister(UpfDownlinkBytes)
 }
