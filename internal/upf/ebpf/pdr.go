@@ -62,13 +62,13 @@ func (bpfObjects *BpfObjects) PutPdrUplink(teid uint32, pdrInfo PdrInfo) error {
 	var pdrToStore N3EntrypointPdrInfo
 	var err error
 	if pdrInfo.SdfFilter != nil {
-		if pdrToStore, err = PreprocessN3PdrWithSdf(bpfObjects.N3EntrypointMaps.PdrMapUplinkIp4.Lookup, teid, pdrInfo); err != nil {
+		if pdrToStore, err = PreprocessN3PdrWithSdf(bpfObjects.N3EntrypointMaps.N3PdrMapUplinkIp4.Lookup, teid, pdrInfo); err != nil {
 			return err
 		}
 	} else {
 		pdrToStore = ToN3EntrypointPdrInfo(pdrInfo)
 	}
-	return bpfObjects.N3EntrypointMaps.PdrMapUplinkIp4.Put(teid, unsafe.Pointer(&pdrToStore))
+	return bpfObjects.N3EntrypointMaps.N3PdrMapUplinkIp4.Put(teid, unsafe.Pointer(&pdrToStore))
 }
 
 func (bpfObjects *BpfObjects) PutPdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) error {
@@ -90,13 +90,13 @@ func (bpfObjects *BpfObjects) UpdatePdrUplink(teid uint32, pdrInfo PdrInfo) erro
 	var pdrToStore N3EntrypointPdrInfo
 	var err error
 	if pdrInfo.SdfFilter != nil {
-		if pdrToStore, err = PreprocessN3PdrWithSdf(bpfObjects.N3EntrypointMaps.PdrMapUplinkIp4.Lookup, teid, pdrInfo); err != nil {
+		if pdrToStore, err = PreprocessN3PdrWithSdf(bpfObjects.N3EntrypointMaps.N3PdrMapUplinkIp4.Lookup, teid, pdrInfo); err != nil {
 			return err
 		}
 	} else {
 		pdrToStore = ToN3EntrypointPdrInfo(pdrInfo)
 	}
-	return bpfObjects.N3EntrypointMaps.PdrMapUplinkIp4.Update(teid, unsafe.Pointer(&pdrToStore), ebpf.UpdateExist)
+	return bpfObjects.N3EntrypointMaps.N3PdrMapUplinkIp4.Update(teid, unsafe.Pointer(&pdrToStore), ebpf.UpdateExist)
 }
 
 func (bpfObjects *BpfObjects) UpdatePdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) error {
@@ -115,7 +115,7 @@ func (bpfObjects *BpfObjects) UpdatePdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) er
 
 func (bpfObjects *BpfObjects) DeletePdrUplink(teid uint32) error {
 	logger.UpfLog.Debugf("EBPF: Delete PDR Uplink: teid=%d", teid)
-	return bpfObjects.N3EntrypointMaps.PdrMapUplinkIp4.Delete(teid)
+	return bpfObjects.N3EntrypointMaps.N3PdrMapUplinkIp4.Delete(teid)
 }
 
 func (bpfObjects *BpfObjects) DeletePdrDownlink(ipv4 net.IP) error {
