@@ -512,8 +512,8 @@ static __always_inline enum xdp_action process_packet(struct packet_context *ctx
 }
 
 // Combined N3 & N6 entrypoint. Use for "on-a-stick" interfaces
-SEC("xdp/upf_ip_entrypoint")
-int upf_ip_entrypoint_func(struct xdp_md *ctx)
+SEC("xdp/upf_n3_entrypoint")
+int upf_n3_entrypoint_func(struct xdp_md *ctx)
 {
     // upf_printk("upf n3 & n6 combined entrypoint start");
     const __u32 key = 0;
