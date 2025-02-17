@@ -143,6 +143,7 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	apiGroup.GET("/users", Authenticate(jwtSecret), ListUsers(dbInstance))
 	apiGroup.POST("/users", UserOrFirstUser(CreateUser(dbInstance), dbInstance, jwtSecret))
 	apiGroup.PUT("/users/:email", Authenticate(jwtSecret), RequireAdmin(), UpdateUser(dbInstance))
+	apiGroup.PUT("/users/:email/password", Authenticate(jwtSecret), RequireAdmin(), UpdateUserPassword(dbInstance))
 	apiGroup.GET("/users/:email", Authenticate(jwtSecret), GetUser(dbInstance))
 	apiGroup.DELETE("/users/:email", Authenticate(jwtSecret), RequireAdmin(), DeleteUser(dbInstance))
 	apiGroup.GET("/users/me", Authenticate(jwtSecret), GetLoggedInUser(dbInstance))

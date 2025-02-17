@@ -17,6 +17,11 @@ type CreateUserParams struct {
 	Role     int    `json:"role"`
 }
 
+type UpdateUserPasswordParams struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
 type GetUserParams struct {
 	Email string `json:"email"`
 	Role  int    `json:"role"`
@@ -242,6 +247,77 @@ func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		var updateUserParams CreateUserParams
+		err := c.ShouldBindJSON(&updateUserParams)
+		if err != nil {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			return
+		}
+		if updateUserParams.Email == "" {
+			writeError(c.Writer, http.StatusBadRequest, "email is missing")
+			return
+		}
+		if updateUserParams.Password == "" {
+			writeError(c.Writer, http.StatusBadRequest, "password is missing")
+			return
+		}
+		if !isValidEmail(updateUserParams.Email) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid email format")
+			return
+		}
+		if updateUserParams.Role < 0 || updateUserParams.Role > 2 {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid role")
+			return
+		}
+		_, err = dbInstance.GetUser(emailParam)
+		if err != nil {
+			writeError(c.Writer, http.StatusNotFound, "User not found")
+			return
+		}
+		hashedPassword, err := hashPassword(updateUserParams.Password)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to hash password")
+			return
+		}
+		dbUser := &db.User{
+			Email:          updateUserParams.Email,
+			HashedPassword: hashedPassword,
+			Role:           updateUserParams.Role,
+		}
+		err = dbInstance.UpdateUser(dbUser)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to update user")
+			return
+		}
+		successResponse := SuccessResponse{Message: "User updated successfully"}
+		err = writeResponse(c.Writer, successResponse, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
+		logger.LogAuditEvent(
+			UpdateUserAction,
+			email,
+			"User updated user: "+updateUserParams.Email,
+		)
+	}
+}
+
+func UpdateUserPassword(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			return
+		}
+		emailParam := c.Param("email")
+		if emailParam == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing email parameter")
+			return
+		}
+		var updateUserParams UpdateUserPasswordParams
 		err := c.ShouldBindJSON(&updateUserParams)
 		if err != nil {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")

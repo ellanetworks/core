@@ -26,6 +26,12 @@ type GetUserResponse struct {
 type CreateUserParams struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	Role     int    `json:"role"`
+}
+
+type UpdateUserPasswordParams struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type CreateUserResponseResult struct {
@@ -35,6 +41,15 @@ type CreateUserResponseResult struct {
 type CreateUserResponse struct {
 	Result CreateUserResponseResult `json:"result"`
 	Error  string                   `json:"error,omitempty"`
+}
+
+type UpdateUserPasswordResponseResult struct {
+	Message string `json:"message"`
+}
+
+type UpdateUserPasswordResponse struct {
+	Result UpdateUserPasswordResponseResult `json:"result"`
+	Error  string                           `json:"error,omitempty"`
 }
 
 type DeleteUserResponseResult struct {
@@ -94,12 +109,12 @@ func createUser(url string, client *http.Client, token string, data *CreateUserP
 	return res.StatusCode, &createResponse, nil
 }
 
-func editUser(url string, client *http.Client, token string, name string, data *CreateUserParams) (int, *CreateUserResponse, error) {
+func editUserPassword(url string, client *http.Client, token string, name string, data *UpdateUserPasswordParams) (int, *UpdateUserPasswordResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/users/"+name, strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/users/"+name+"/password", strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -113,11 +128,11 @@ func editUser(url string, client *http.Client, token string, name string, data *
 			panic(err)
 		}
 	}()
-	var createResponse CreateUserResponse
-	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
+	var updateResponse UpdateUserPasswordResponse
+	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
-	return res.StatusCode, &createResponse, nil
+	return res.StatusCode, &updateResponse, nil
 }
 
 func deleteUser(url string, client *http.Client, token string, name string) (int, *DeleteUserResponse, error) {
@@ -227,11 +242,11 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	})
 
 	t.Run("5. Edit user", func(t *testing.T) {
-		createUserParams := &CreateUserParams{
+		updateUserPasswordParams := &UpdateUserPasswordParams{
 			Email:    Email,
 			Password: "password1234",
 		}
-		statusCode, response, err := editUser(ts.URL, client, token, Email, createUserParams)
+		statusCode, response, err := editUserPassword(ts.URL, client, token, Email, updateUserPasswordParams)
 		if err != nil {
 			t.Fatalf("couldn't edit user: %s", err)
 		}
