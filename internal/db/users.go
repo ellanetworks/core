@@ -26,7 +26,7 @@ const (
 	getUserStmt          = "SELECT &User.* from %s WHERE email==$User.email"
 	createUserStmt       = "INSERT INTO %s (email, role, hashedPassword) VALUES ($User.email, $User.role, $User.hashedPassword)"
 	editUserStmt         = "UPDATE %s SET role=$User.role WHERE email==$User.email"
-	editUserPasswordStmt = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE email==$User.email"
+	editUserPasswordStmt = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE email==$User.email" // #nosec: G101
 	deleteUserStmt       = "DELETE FROM %s WHERE email==$User.email"
 	getNumUsersStmt      = "SELECT COUNT(*) AS &NumUsers.count FROM %s"
 )
