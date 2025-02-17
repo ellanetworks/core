@@ -13,6 +13,7 @@ import (
 type CreateUserParams struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	Role     int    `json:"role"`
 }
 
 type GetUserParams struct {
@@ -181,6 +182,10 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid email format")
 			return
 		}
+		if newUser.Role < 0 || newUser.Role > 2 {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid role")
+			return
+		}
 		_, err = dbInstance.GetUser(newUser.Email)
 		if err == nil {
 			writeError(c.Writer, http.StatusBadRequest, "user already exists")
@@ -196,6 +201,7 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		dbUser := &db.User{
 			Email:          newUser.Email,
 			HashedPassword: hashedPassword,
+			Role:           newUser.Role,
 		}
 		err = dbInstance.CreateUser(dbUser)
 		if err != nil {
@@ -212,7 +218,7 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			CreateUserAction,
 			email,
-			"User created user: "+newUser.Email,
+			"User created user: "+newUser.Email+" with role: "+string(newUser.Role),
 		)
 	}
 }

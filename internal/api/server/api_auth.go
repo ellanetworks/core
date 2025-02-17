@@ -32,6 +32,12 @@ const (
 	LookupTokenAction = "auth_lookup_token" // #nosec G101
 )
 
+// Map between db role and jwt role
+var roleMap = map[db.Role]Role{
+	db.AdminRole:    AdminRole,
+	db.ReadOnlyRole: ReadOnlyRole,
+}
+
 func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var loginParams LoginParams
@@ -70,7 +76,13 @@ func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
 			return
 		}
 
-		token, err := generateJWT(user.ID, user.Email, jwtSecret)
+		role, ok := roleMap[db.Role(user.Role)]
+		if !ok {
+			writeError(c.Writer, http.StatusInternalServerError, "Internal Error")
+			return
+		}
+
+		token, err := generateJWT(user.ID, user.Email, role, jwtSecret)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Internal Error")
 			return

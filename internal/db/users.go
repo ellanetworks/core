@@ -17,16 +17,24 @@ const QueryCreateUsersTable = `
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
 		email TEXT NOT NULL,
+		role INTEGER NOT NULL,
 		hashedPassword TEXT NOT NULL
 )`
 
 const (
 	listUsersStmt   = "SELECT &User.* from %s"
 	getUserStmt     = "SELECT &User.* from %s WHERE email==$User.email"
-	createUserStmt  = "INSERT INTO %s (email, hashedPassword) VALUES ($User.email, $User.hashedPassword)"
+	createUserStmt  = "INSERT INTO %s (email, role, hashedPassword) VALUES ($User.email, $User.role, $User.hashedPassword)"
 	editUserStmt    = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE email==$User.email"
 	deleteUserStmt  = "DELETE FROM %s WHERE email==$User.email"
 	getNumUsersStmt = "SELECT COUNT(*) AS &NumUsers.count FROM %s"
+)
+
+type Role int
+
+const (
+	AdminRole    Role = 0
+	ReadOnlyRole Role = 1
 )
 
 type NumUsers struct {
@@ -36,6 +44,7 @@ type NumUsers struct {
 type User struct {
 	ID             int    `db:"id"`
 	Email          string `db:"email"`
+	Role           int    `db:"role"`
 	HashedPassword string `db:"hashedPassword"`
 }
 

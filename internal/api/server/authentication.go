@@ -13,17 +13,31 @@ import (
 	"github.com/golang-jwt/jwt"
 )
 
+type Role int
+
+const (
+	AdminRole    Role = 0
+	ReadOnlyRole Role = 1
+)
+
 const AuthenticationAction = "user_authentication"
 
-func Any(handlerFunc gin.HandlerFunc) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		handlerFunc(c)
-	}
+type claims struct {
+	ID    int    `json:"id"`
+	Email string `json:"email"`
+	Role  Role   `json:"role"`
+	jwt.StandardClaims
 }
 
-func User(handlerFunc gin.HandlerFunc, jwtSecret []byte) gin.HandlerFunc {
+// Authenticate is a middleware that validates the JWT and populates the context
+func Authenticate(jwtSecret []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header not found"})
+			return
+		}
+
 		claims, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
 		if err != nil {
 			logger.LogAuditEvent(
@@ -31,14 +45,36 @@ func User(handlerFunc gin.HandlerFunc, jwtSecret []byte) gin.HandlerFunc {
 				"",
 				"Unauthorized access attempt",
 			)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
 
+		// Set the necessary values in the context
 		c.Set("userID", claims.ID)
 		c.Set("email", claims.Email)
+		c.Set("role", claims.Role)
 
-		handlerFunc(c)
+		c.Next()
+	}
+}
+
+func RequireAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roleIfc, exists := c.Get("role")
+		if !exists {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
+		role, ok := roleIfc.(Role)
+		if !ok {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
+		if role != AdminRole {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
+		c.Next()
 	}
 }
 
@@ -66,15 +102,33 @@ func UserOrFirstUser(handlerFunc gin.HandlerFunc, db *db.Database, jwtSecret []b
 
 			c.Set("userID", claims.ID)
 			c.Set("email", claims.Email)
+			c.Set("role", claims.Role)
 		}
 		handlerFunc(c)
 	}
 }
 
-type jwtNotaryClaims struct {
-	ID    int    `json:"id"`
-	Email string `json:"email"`
-	jwt.StandardClaims
+func RequirePermission(requiredPermission string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Assume permissions have been set by a prior auth middleware
+		permissionsIfc, exists := c.Get("permissions")
+		if !exists {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
+		permissions, ok := permissionsIfc.([]string)
+		if !ok {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
+		for _, perm := range permissions {
+			if perm == requiredPermission {
+				c.Next()
+				return
+			}
+		}
+		c.AbortWithStatus(http.StatusForbidden)
+	}
 }
 
 func GenerateJWTSecret() ([]byte, error) {
@@ -86,10 +140,11 @@ func GenerateJWTSecret() ([]byte, error) {
 }
 
 // Helper function to generate a JWT
-func generateJWT(id int, email string, jwtSecret []byte) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwtNotaryClaims{
+func generateJWT(id int, email string, role Role, jwtSecret []byte) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
 		ID:    id,
 		Email: email,
+		Role:  role,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expireAfter(),
 		},
@@ -102,7 +157,7 @@ func generateJWT(id int, email string, jwtSecret []byte) (string, error) {
 	return tokenString, nil
 }
 
-func getClaimsFromAuthorizationHeader(header string, jwtSecret []byte) (*jwtNotaryClaims, error) {
+func getClaimsFromAuthorizationHeader(header string, jwtSecret []byte) (*claims, error) {
 	if header == "" {
 		return nil, fmt.Errorf("authorization header not found")
 	}
@@ -117,8 +172,8 @@ func getClaimsFromAuthorizationHeader(header string, jwtSecret []byte) (*jwtNota
 	return claims, nil
 }
 
-func getClaimsFromJWT(bearerToken string, jwtSecret []byte) (*jwtNotaryClaims, error) {
-	claims := jwtNotaryClaims{}
+func getClaimsFromJWT(bearerToken string, jwtSecret []byte) (*claims, error) {
+	claims := claims{}
 	token, err := jwt.ParseWithClaims(bearerToken, &claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
