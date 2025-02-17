@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"regexp"
 
@@ -18,6 +19,7 @@ type CreateUserParams struct {
 
 type GetUserParams struct {
 	Email string `json:"email"`
+	Role  int    `json:"role"`
 }
 
 const (
@@ -73,6 +75,7 @@ func ListUsers(dbInstance *db.Database) gin.HandlerFunc {
 		for _, user := range dbUsers {
 			users = append(users, GetUserParams{
 				Email: user.Email,
+				Role:  user.Role,
 			})
 		}
 		err = writeResponse(c.Writer, users, http.StatusOK)
@@ -109,6 +112,7 @@ func GetUser(dbInstance *db.Database) gin.HandlerFunc {
 
 		user := GetUserParams{
 			Email: dbUser.Email,
+			Role:  dbUser.Role,
 		}
 		err = writeResponse(c.Writer, user, http.StatusOK)
 		if err != nil {
@@ -143,6 +147,7 @@ func GetLoggedInUser(dbInstance *db.Database) gin.HandlerFunc {
 
 		user := GetUserParams{
 			Email: dbUser.Email,
+			Role:  dbUser.Role,
 		}
 		err = writeResponse(c.Writer, user, http.StatusOK)
 		if err != nil {
@@ -218,7 +223,7 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			CreateUserAction,
 			email,
-			"User created user: "+newUser.Email+" with role: "+string(newUser.Role),
+			"User created user: "+newUser.Email+" with role: "+fmt.Sprint(newUser.Role),
 		)
 	}
 }

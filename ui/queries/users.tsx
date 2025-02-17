@@ -46,10 +46,11 @@ export const listUsers = async (authToken: string) => {
   return respData.result;
 };
 
-export const createUser = async (authToken: string, email: string, password: string) => {
+export const createUser = async (authToken: string, email: string, role: number, password: string) => {
   const userData = {
     "email": email,
     "password": password,
+    "role": role,
   }
 
   const response = await fetch(`/api/v1/users`, {
