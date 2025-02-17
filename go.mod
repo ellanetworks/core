@@ -7,7 +7,7 @@ toolchain go1.23.3
 require (
 	github.com/RoaringBitmap/roaring v1.9.4
 	github.com/canonical/sqlair v0.0.0-20241112140325-83025f4428f6
-	github.com/cilium/ebpf v0.17.2
+	github.com/cilium/ebpf v0.17.3
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/gopacket v1.1.19
@@ -21,7 +21,7 @@ require (
 	github.com/wmnsk/go-pfcp v0.0.24
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.33.0
-	golang.org/x/net v0.34.0
+	golang.org/x/net v0.35.0
 	golang.org/x/sys v0.30.0
 	gopkg.in/yaml.v2 v2.4.0
 )
