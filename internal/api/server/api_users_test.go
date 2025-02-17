@@ -256,8 +256,8 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
-		if response.Result.Message != "User updated successfully" {
-			t.Fatalf("expected message %q, got %q", "User updated successfully", response.Result.Message)
+		if response.Result.Message != "User password updated successfully" {
+			t.Fatalf("expected message %q, got %q", "User password updated successfully", response.Result.Message)
 		}
 	})
 

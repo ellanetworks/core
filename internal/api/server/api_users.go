@@ -28,12 +28,13 @@ type GetUserParams struct {
 }
 
 const (
-	ListUsersAction       = "list_users"
-	GetUserAction         = "get_user"
-	GetLoggedInUserAction = "get_logged_in_user"
-	CreateUserAction      = "create_user"
-	UpdateUserAction      = "update_user"
-	DeleteUserAction      = "delete_user"
+	ListUsersAction          = "list_users"
+	GetUserAction            = "get_user"
+	GetLoggedInUserAction    = "get_logged_in_user"
+	CreateUserAction         = "create_user"
+	UpdateUserAction         = "update_user"
+	DeleteUserAction         = "delete_user"
+	UpdateUserPasswordAction = "update_user_password"
 )
 
 func isValidEmail(email string) bool {
@@ -358,16 +359,16 @@ func UpdateUserPassword(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update user")
 			return
 		}
-		successResponse := SuccessResponse{Message: "User updated successfully"}
+		successResponse := SuccessResponse{Message: "User password updated successfully"}
 		err = writeResponse(c.Writer, successResponse, http.StatusOK)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
 		logger.LogAuditEvent(
-			UpdateUserAction,
+			UpdateUserPasswordAction,
 			email,
-			"User updated user: "+updateUserParams.Email,
+			"User updated password for user: "+updateUserParams.Email,
 		)
 	}
 }

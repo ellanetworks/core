@@ -2,7 +2,6 @@
 description: RESTful API reference for managing system users.
 ---
 
-
 # Users
 
 This section describes the RESTful API for managing system users. System users are used to authenticate with Ella Core and manage the system.
@@ -10,7 +9,6 @@ This section describes the RESTful API for managing system users. System users a
 ## List Users
 
 This path returns the list of system users.
-
 
 | Method | Path            |
 | ------ | --------------- |
@@ -44,6 +42,9 @@ This path creates a new system user. The first user can be created without authe
 
 - `email` (string): The email of the user. 
 - `password` (string): The password of the user.
+- `role` (int): The role of the user. Allowed values:
+    - `0`: Admin
+    - `1`: Read Only
 
 ### Sample Response
 
@@ -65,7 +66,9 @@ This path updates an existing system user.
 
 ### Parameters
 
-- `password` (string): The password of the user.
+- `role` (int): The role of the user. Allowed values:
+    - `0`: Admin
+    - `1`: Read Only
 
 ### Sample Response
 
@@ -117,6 +120,28 @@ None
 {
     "result": {
         "message": "User deleted successfully"
+    }
+}
+```
+
+## Update a User Password
+
+This path updates the password of a specific system user.
+
+| Method | Path                             |
+| ------ | -------------------------------- |
+| PUT    | `/api/v1/users/{email}/password` |
+
+### Parameters
+
+- `password` (string): The password of the user.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "User password updated successfully"
     }
 }
 ```
