@@ -15,7 +15,7 @@ Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm,
 ## Key features
 
 - **5G Compliant**: Deploy Ella Core with 5G radios and devices. Ella Core's interfaces follow 3GPP standards.
-- **Performant Data Plane**: Achieve high throughput and low latency with an eBPF-based data plane.
+- **Performant data plane**: Achieve high throughput and low latency with an eBPF-based data plane. Ella Core delivers over 2.5 Gbps of throughput and less than 1 ms of latency.
 - **Intuitive UI**: Manage subscribers, radios, profiles, and operator information through a user-friendly web interface.
 - **Extensive HTTPs API**: Automate network operations with a complete REST API.
 - **Real-Time  Observability**: Access detailed metrics and dashboards to monitor network health through the UI and the Prometheus-compliant API.
