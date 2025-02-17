@@ -8,31 +8,26 @@ import {
     Button,
     Alert,
     Collapse,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
 } from "@mui/material";
-import { updateUser } from "@/queries/users";
+import { updateUserPassword } from "@/queries/users";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
 
-interface EditUserModalProps {
+interface EditUserPasswordModalProps {
     open: boolean;
     onClose: () => void;
     onSuccess: () => void;
     initialData: {
         email: string;
-        role: string; // expected to be "Admin" or "Read Only"
     };
 }
 
 interface FormValues {
     email: string;
-    role: string; // stored as "0" or "1" for the Select component
+    password: string;
 }
 
-const EditUserModal: React.FC<EditUserModalProps> = ({
+const EditUserPasswordModal: React.FC<EditUserPasswordModalProps> = ({
     open,
     onClose,
     onSuccess,
@@ -46,8 +41,8 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     }
 
     const [formValues, setFormValues] = useState<FormValues>({
-        email: "",
-        role: "",
+        email: initialData.email,
+        password: "",
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -56,15 +51,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
     useEffect(() => {
         if (open) {
-            const convertedRole =
-                initialData.role === "Admin"
-                    ? "0"
-                    : initialData.role === "Read Only"
-                        ? "1"
-                        : "";
             setFormValues({
                 email: initialData.email,
-                role: convertedRole,
+                password: "",
             });
             setErrors({});
         }
@@ -82,11 +71,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         setAlert({ message: "" });
 
         try {
-            // Convert formValues.role from string ("0" or "1") back to a number.
-            await updateUser(
+            await updateUserPassword(
                 cookies.user_token,
                 formValues.email,
-                parseInt(formValues.role, 10)
+                formValues.password
             );
             onClose();
             onSuccess();
@@ -105,7 +93,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             aria-labelledby="edit-user-modal-title"
             aria-describedby="edit-user-modal-description"
         >
-            <DialogTitle>Edit User</DialogTitle>
+            <DialogTitle>Edit User Password</DialogTitle>
             <DialogContent dividers>
                 <Collapse in={!!alert.message}>
                     <Alert
@@ -123,22 +111,21 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                     margin="normal"
                     disabled
                 />
-                <FormControl fullWidth margin="normal">
-                    <InputLabel id="role-select-label">Role</InputLabel>
-                    <Select
-                        labelId="role-select-label"
-                        id="role-select"
-                        value={formValues.role}
-                        label="Role"
-                        onChange={(e) => handleChange("role", e.target.value as string)}
-                    >
-                        <MenuItem value={"0"}>Admin</MenuItem>
-                        <MenuItem value={"1"}>Read Only</MenuItem>
-                    </Select>
-                </FormControl>
+                <TextField
+                    fullWidth
+                    label="New Password"
+                    type="password"
+                    value={formValues.password}
+                    onChange={(e) => handleChange("password", e.target.value)}
+                    error={!!errors.password}
+                    helperText={errors.password}
+                    margin="normal"
+                />
             </DialogContent>
             <DialogActions>
-                <Button onClick={onClose}>Cancel</Button>
+                <Button onClick={onClose} >
+                    Cancel
+                </Button>
                 <Button
                     variant="contained"
                     color="success"
@@ -148,8 +135,8 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                     {loading ? "Updating..." : "Update"}
                 </Button>
             </DialogActions>
-        </Dialog>
+        </Dialog >
     );
 };
 
-export default EditUserModal;
+export default EditUserPasswordModal;

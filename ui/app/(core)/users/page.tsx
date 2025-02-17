@@ -10,10 +10,11 @@ import {
   Collapse,
   IconButton,
 } from "@mui/material";
-import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
+import { Delete as DeleteIcon, Edit as EditIcon, Password as PasswordIcon } from "@mui/icons-material";
 import { listUsers, deleteUser } from "@/queries/users";
 import CreateUserModal from "@/components/CreateUserModal";
 import EditUserModal from "@/components/EditUserModal";
+import EditUserPasswordModal from "@/components/EditUserPasswordModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
@@ -24,16 +25,16 @@ interface UserData {
   role: string; // "Admin" for 0 and "Read Only" for 1
 }
 
-
-
 const User = () => {
   const [cookies] = useCookies(["user_token"]);
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [editData, setEditData] = useState<UserData | null>(null);
+  const [editPasswordData, setEditPasswordData] = useState<UserData | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
@@ -60,6 +61,16 @@ const User = () => {
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
+
+  const handleEditPasswordClick = (user: any) => {
+    setEditPasswordData({ email: user.email, role: user.role });
+    setEditPasswordModalOpen(true);
+  };
+
+  const handleEditPasswordModalClose = () => {
+    setEditPasswordModalOpen(false);
+    setEditPasswordData(null);
+  };
 
   const handleEditClick = (user: any) => {
     setEditData({ email: user.email, role: user.role });
@@ -109,6 +120,13 @@ const User = () => {
           onClick={() => handleEditClick(params.row)}
         >
           <EditIcon />
+        </IconButton>,
+        <IconButton
+          key="edit"
+          aria-label="edit"
+          onClick={() => handleEditPasswordClick(params.row)}
+        >
+          <PasswordIcon />
         </IconButton>,
         <IconButton
           key="delete"
@@ -217,6 +235,12 @@ const User = () => {
         onClose={handleEditModalClose}
         onSuccess={fetchUsers}
         initialData={editData || { email: "", role: "" }}
+      />
+      <EditUserPasswordModal
+        open={isEditPasswordModalOpen}
+        onClose={handleEditPasswordModalClose}
+        onSuccess={fetchUsers}
+        initialData={editPasswordData || { email: "" }}
       />
       <DeleteConfirmationModal
         open={isConfirmationOpen}
