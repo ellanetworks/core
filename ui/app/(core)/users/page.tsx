@@ -42,7 +42,6 @@ const User = () => {
     setLoading(true);
     try {
       const data = await listUsers(cookies.user_token);
-      // Transform each user so that the role number becomes a string.
       const transformedUsers = data.map((user: any) => ({
         ...user,
         role: user.role === 0 ? "Admin" : user.role === 1 ? "Read Only" : user.role,

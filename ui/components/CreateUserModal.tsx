@@ -28,8 +28,6 @@ interface CreateUserModalProps {
 const schema = yup.object().shape({
     email: yup.string().email().required("Email is required"),
     password: yup.string().min(1).max(256).required("Password is required"),
-    // Optionally, you can add role validation:
-    // role: yup.number().oneOf([0, 1]).required("Role is required"),
 });
 
 const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSuccess }) => {

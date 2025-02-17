@@ -29,7 +29,6 @@ type claims struct {
 	jwt.StandardClaims
 }
 
-// Authenticate is a middleware that validates the JWT and populates the context
 func Authenticate(jwtSecret []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
@@ -49,7 +48,6 @@ func Authenticate(jwtSecret []byte) gin.HandlerFunc {
 			return
 		}
 
-		// Set the necessary values in the context
 		c.Set("userID", claims.ID)
 		c.Set("email", claims.Email)
 		c.Set("role", claims.Role)
@@ -105,29 +103,6 @@ func UserOrFirstUser(handlerFunc gin.HandlerFunc, db *db.Database, jwtSecret []b
 			c.Set("role", claims.Role)
 		}
 		handlerFunc(c)
-	}
-}
-
-func RequirePermission(requiredPermission string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Assume permissions have been set by a prior auth middleware
-		permissionsIfc, exists := c.Get("permissions")
-		if !exists {
-			c.AbortWithStatus(http.StatusForbidden)
-			return
-		}
-		permissions, ok := permissionsIfc.([]string)
-		if !ok {
-			c.AbortWithStatus(http.StatusForbidden)
-			return
-		}
-		for _, perm := range permissions {
-			if perm == requiredPermission {
-				c.Next()
-				return
-			}
-		}
-		c.AbortWithStatus(http.StatusForbidden)
 	}
 }
 

@@ -32,7 +32,6 @@ const (
 	LookupTokenAction = "auth_lookup_token" // #nosec G101
 )
 
-// Map between db role and jwt role
 var roleMap = map[db.Role]Role{
 	db.AdminRole:    AdminRole,
 	db.ReadOnlyRole: ReadOnlyRole,
