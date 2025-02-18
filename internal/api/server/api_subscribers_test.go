@@ -16,6 +16,11 @@ const (
 	SequenceNumber = "16f3b3f70fc2"
 )
 
+type ListSubscriberResponse struct {
+	Result []GetSubscriberResponseResult `json:"result"`
+	Error  string                        `json:"error,omitempty"`
+}
+
 type CreateSubscriberSuccessResponse struct {
 	Message string `json:"message"`
 }
@@ -56,6 +61,28 @@ type DeleteSubscriberResponseResult struct {
 type DeleteSubscriberResponse struct {
 	Result DeleteSubscriberResponseResult `json:"result"`
 	Error  string                         `json:"error,omitempty"`
+}
+
+func listSubscribers(url string, client *http.Client, token string) (int, *ListSubscriberResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/subscribers", nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+	var subscriberResponse ListSubscriberResponse
+	if err := json.NewDecoder(res.Body).Decode(&subscriberResponse); err != nil {
+		return 0, nil, err
+	}
+	return res.StatusCode, &subscriberResponse, nil
 }
 
 func getSubscriber(url string, client *http.Client, token string, imsi string) (int, *GetSubscriberResponse, error) {

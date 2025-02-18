@@ -60,29 +60,31 @@ func RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roleIfc, exists := c.Get("role")
 		if !exists {
-			c.AbortWithStatus(http.StatusForbidden)
+			writeError(c.Writer, http.StatusForbidden, "Role not found")
+			c.Abort()
 			return
 		}
 		role, ok := roleIfc.(Role)
 		if !ok {
-			c.AbortWithStatus(http.StatusForbidden)
+			writeError(c.Writer, http.StatusForbidden, "Role not found")
+			c.Abort()
 			return
 		}
 		if role != AdminRole {
-			c.AbortWithStatus(http.StatusForbidden)
+			writeError(c.Writer, http.StatusForbidden, "Admin role required")
+			c.Abort()
 			return
 		}
 		c.Next()
 	}
 }
 
-func UserOrFirstUser(handlerFunc gin.HandlerFunc, db *db.Database, jwtSecret []byte) gin.HandlerFunc {
+func RequireAdminOrFirstUser(db *db.Database, jwtSecret []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Replace this with actual logic to determine if this is the first user
 		numUsers, err := db.NumUsers()
 		if err != nil {
-			logger.NmsLog.Warnf("Failed to retrieve number of users: %v", err)
-			writeError(c.Writer, http.StatusInternalServerError, "Unable to retrieve users")
+			writeError(c.Writer, http.StatusInternalServerError, "Internal Error")
+			c.Abort()
 			return
 		}
 
@@ -94,15 +96,22 @@ func UserOrFirstUser(handlerFunc gin.HandlerFunc, db *db.Database, jwtSecret []b
 					"",
 					"Unauthorized access attempt",
 				)
-				writeError(c.Writer, http.StatusUnauthorized, "Unauthorized")
+				writeError(c.Writer, http.StatusUnauthorized, "Unauthorized access attempt")
+				c.Abort()
 				return
 			}
 
 			c.Set("userID", claims.ID)
 			c.Set("email", claims.Email)
 			c.Set("role", claims.Role)
+
+			if claims.Role != AdminRole {
+				writeError(c.Writer, http.StatusForbidden, "Admin role required")
+				c.Abort()
+				return
+			}
 		}
-		handlerFunc(c)
+		c.Next()
 	}
 }
 
