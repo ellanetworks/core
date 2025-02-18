@@ -10,13 +10,21 @@ This reference document contains performance test results of Ella Core, covering
 
 ### Throughput
 
-The following table outlines the performance test results of Ella Core's data plane throughput:
+The following chart illustrates the data plane throughput performance of Ella Core:
 
-| Streams | Uplink (Gbps) | Downlink (Gbps) |
-| ------- | ------------- | --------------- |
-| 1       | 1.20          | 1.00            |
-| 10      | 1.48          | 1.22            |
-| 100     | 1.54          | 1.25            |
+``` mermaid
+xychart-beta
+    title "Data Plane Throughput"
+    x-axis "MTU (bytes)" [200, 400, 600, 800, 1000, 1200, 1400]
+    y-axis "Throughput (in Mbps)"
+    line "Uplink" [442, 891, 1290, 1720, 2170, 2550, 2940]
+    line "Downlink" [373, 767, 1210, 1600, 2000, 2330, 2690]
+```
+
+Legend:
+
+- ![Uplink](https://placehold.co/15/ececff/ececff) Uplink
+- ![Downlink](https://placehold.co/15/8493a6/8493a6) Downlink
 
 ### Latency
 
@@ -24,7 +32,7 @@ The following table outlines the performance test results of Ella Core's data pl
 
 | Average (ms) | Best (ms) | Worst (ms) | Standard Deviation (ms) |
 | ------------ | --------- | ---------- | ----------------------- |
-| 1.4          | 0.8       | 4.0        | 0.6                     |
+| 0.7          | 0.4       | 2.1        | 0.3                     |
 
 The value represents the round-trip-response times.
 
@@ -44,7 +52,7 @@ We performed performance tests on a system with the following specifications:
 - **RAM**: 64GB
 - **Disk**: 1TB NVMe SSD
 
-We used the same virtualized environment outlined in the [Running an End-to-End 5G Network with Ella Core](../tutorials/end_to_end_network.md) tutorial, with the iPerf3 server running on the router virtual machine, and the iPerf3 client running on the radio virtual machine.
+We used the same virtualized environment outlined in the [Running an End-to-End 5G Network with Ella Core](../tutorials/end_to_end_network.md) tutorial, with the iPerf3 server running on the router virtual machine, and the iPerf3 client running on the radio virtual machine. We replaced UERANSIM as the UE and gNB simulator with [PacketRusher](https://github.com/HewlettPackard/PacketRusher).
 
 !!! note
     We performed the performance tests in a virtualized environment. The results will likely improve in a bare-metal environment.
