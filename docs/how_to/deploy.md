@@ -21,12 +21,10 @@ Ella Core is available as a Snap and a container image.
   
     ## Steps
 
-    Ella Core is available as a snap package.
-
     Install the snap:
 
     ```bash
-    sudo snap install ella-core --channel=beta
+    sudo snap install ella-core
     ```
 
     Connect the snap to the required interfaces:
