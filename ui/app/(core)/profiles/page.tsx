@@ -10,7 +10,7 @@ import {
   Collapse,
   IconButton,
 } from "@mui/material";
-import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
+import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { listProfiles, deleteProfile } from "@/queries/profiles";
 import CreateProfileModal from "@/components/CreateProfileModal";
@@ -18,6 +18,7 @@ import EditProfileModal from "@/components/EditProfileModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ProfileData {
   name: string;
@@ -33,8 +34,9 @@ interface ProfileData {
 }
 
 const Profile = () => {
+  const { role } = useAuth(); // "Admin" or "Read Only"
   const [cookies] = useCookies(["user_token"]);
-  const [profiles, setProfiles] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<ProfileData[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
@@ -52,7 +54,6 @@ const Profile = () => {
       const data = await listProfiles(cookies.user_token);
 
       const mappedData = data.map((profile: any) => ({
-        id: profile.name,
         name: profile.name,
         ipPool: profile["ue-ip-pool"] || "N/A",
         dns: profile.dns || "N/A",
@@ -105,7 +106,7 @@ const Profile = () => {
         await deleteProfile(cookies.user_token, selectedProfile);
         setAlert({
           message: `Profile "${selectedProfile}" deleted successfully!`,
-          severity: "success"
+          severity: "success",
         });
         fetchProfiles();
       } catch (error) {
@@ -120,7 +121,7 @@ const Profile = () => {
     }
   };
 
-  const columns: GridColDef[] = [
+  const baseColumns: GridColDef[] = [
     { field: "name", headerName: "Name", flex: 1 },
     { field: "ipPool", headerName: "IP Pool", flex: 1 },
     { field: "dns", headerName: "DNS", flex: 1 },
@@ -128,27 +129,32 @@ const Profile = () => {
     { field: "bitrateDown", headerName: "Bitrate (Down)", flex: 1 },
     { field: "fiveQi", headerName: "5QI", flex: 0.5 },
     { field: "priorityLevel", headerName: "Priority", flex: 0.5 },
-    {
+  ];
+
+  if (role === "Admin") {
+    baseColumns.push({
       field: "actions",
       headerName: "Actions",
       type: "actions",
       flex: 1,
       getActions: (params) => [
         <IconButton
+          key="edit"
           aria-label="edit"
           onClick={() => handleEditClick(params.row)}
         >
           <EditIcon />
         </IconButton>,
         <IconButton
+          key="delete"
           aria-label="delete"
           onClick={() => handleDeleteClick(params.row.name)}
         >
           <DeleteIcon />
-        </IconButton>
+        </IconButton>,
       ],
-    },
-  ];
+    });
+  }
 
   return (
     <Box
@@ -181,7 +187,7 @@ const Profile = () => {
         <EmptyState
           primaryText="No profile found."
           secondaryText="Create a new profile in order to add subscribers to the network."
-          button={true}
+          button={role === "Admin"}
           buttonText="Create"
           onCreate={handleOpenCreateModal}
         />
@@ -199,32 +205,27 @@ const Profile = () => {
             <Typography variant="h4" component="h1" gutterBottom>
               Profiles ({profiles.length})
             </Typography>
-            <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
-              Create
-            </Button>
+            {role === "Admin" && (
+              <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
+                Create
+              </Button>
+            )}
           </Box>
           <Box
             sx={{
               height: "80vh",
               width: "60%",
-              "& .MuiDataGrid-root": {
-                border: "none",
-              },
-              "& .MuiDataGrid-cell": {
-                borderBottom: "none",
-              },
-              "& .MuiDataGrid-columnHeaders": {
-                borderBottom: "none",
-              },
-              "& .MuiDataGrid-footerContainer": {
-                borderTop: "none",
-              },
+              "& .MuiDataGrid-root": { border: "none" },
+              "& .MuiDataGrid-cell": { borderBottom: "none" },
+              "& .MuiDataGrid-columnHeaders": { borderBottom: "none" },
+              "& .MuiDataGrid-footerContainer": { borderTop: "none" },
             }}
           >
             <DataGrid
               rows={profiles}
-              columns={columns}
+              columns={baseColumns}
               disableRowSelectionOnClick
+              getRowId={(row) => row.name}
             />
           </Box>
         </>

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"regexp"
 
@@ -13,19 +14,32 @@ import (
 type CreateUserParams struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	Role     int    `json:"role"`
+}
+
+type UpdateUserParams struct {
+	Email string `json:"email"`
+	Role  int    `json:"role"`
+}
+
+type UpdateUserPasswordParams struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type GetUserParams struct {
 	Email string `json:"email"`
+	Role  int    `json:"role"`
 }
 
 const (
-	ListUsersAction       = "list_users"
-	GetUserAction         = "get_user"
-	GetLoggedInUserAction = "get_logged_in_user"
-	CreateUserAction      = "create_user"
-	UpdateUserAction      = "update_user"
-	DeleteUserAction      = "delete_user"
+	ListUsersAction          = "list_users"
+	GetUserAction            = "get_user"
+	GetLoggedInUserAction    = "get_logged_in_user"
+	CreateUserAction         = "create_user"
+	UpdateUserAction         = "update_user"
+	DeleteUserAction         = "delete_user"
+	UpdateUserPasswordAction = "update_user_password"
 )
 
 func isValidEmail(email string) bool {
@@ -72,6 +86,7 @@ func ListUsers(dbInstance *db.Database) gin.HandlerFunc {
 		for _, user := range dbUsers {
 			users = append(users, GetUserParams{
 				Email: user.Email,
+				Role:  user.Role,
 			})
 		}
 		err = writeResponse(c.Writer, users, http.StatusOK)
@@ -108,6 +123,7 @@ func GetUser(dbInstance *db.Database) gin.HandlerFunc {
 
 		user := GetUserParams{
 			Email: dbUser.Email,
+			Role:  dbUser.Role,
 		}
 		err = writeResponse(c.Writer, user, http.StatusOK)
 		if err != nil {
@@ -142,6 +158,7 @@ func GetLoggedInUser(dbInstance *db.Database) gin.HandlerFunc {
 
 		user := GetUserParams{
 			Email: dbUser.Email,
+			Role:  dbUser.Role,
 		}
 		err = writeResponse(c.Writer, user, http.StatusOK)
 		if err != nil {
@@ -181,6 +198,10 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid email format")
 			return
 		}
+		if newUser.Role < 0 || newUser.Role > 2 {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid role")
+			return
+		}
 		_, err = dbInstance.GetUser(newUser.Email)
 		if err == nil {
 			writeError(c.Writer, http.StatusBadRequest, "user already exists")
@@ -196,6 +217,7 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		dbUser := &db.User{
 			Email:          newUser.Email,
 			HashedPassword: hashedPassword,
+			Role:           newUser.Role,
 		}
 		err = dbInstance.CreateUser(dbUser)
 		if err != nil {
@@ -212,7 +234,7 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			CreateUserAction,
 			email,
-			"User created user: "+newUser.Email,
+			"User created user: "+newUser.Email+" with role: "+fmt.Sprint(newUser.Role),
 		)
 	}
 }
@@ -230,7 +252,64 @@ func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Missing email parameter")
 			return
 		}
-		var updateUserParams CreateUserParams
+		var updateUserParams UpdateUserParams
+		err := c.ShouldBindJSON(&updateUserParams)
+		if err != nil {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			return
+		}
+		if updateUserParams.Email == "" {
+			writeError(c.Writer, http.StatusBadRequest, "email is missing")
+			return
+		}
+		if !isValidEmail(updateUserParams.Email) {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid email format")
+			return
+		}
+		if updateUserParams.Role < 0 || updateUserParams.Role > 2 {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid role")
+			return
+		}
+		_, err = dbInstance.GetUser(emailParam)
+		if err != nil {
+			writeError(c.Writer, http.StatusNotFound, "User not found")
+			return
+		}
+		role := db.Role(updateUserParams.Role)
+		err = dbInstance.UpdateUser(updateUserParams.Email, role)
+		if err != nil {
+			logger.NmsLog.Warnln(err)
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to update user")
+			return
+		}
+		successResponse := SuccessResponse{Message: "User updated successfully"}
+		err = writeResponse(c.Writer, successResponse, http.StatusOK)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "internal error")
+			return
+		}
+		logger.LogAuditEvent(
+			UpdateUserAction,
+			email,
+			"User updated user: "+updateUserParams.Email,
+		)
+	}
+}
+
+func UpdateUserPassword(dbInstance *db.Database) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		emailAny, _ := c.Get("email")
+		email, ok := emailAny.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			return
+		}
+		emailParam := c.Param("email")
+		if emailParam == "" {
+			writeError(c.Writer, http.StatusBadRequest, "Missing email parameter")
+			return
+		}
+		var updateUserParams UpdateUserPasswordParams
 		err := c.ShouldBindJSON(&updateUserParams)
 		if err != nil {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
@@ -260,27 +339,22 @@ func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to hash password")
 			return
 		}
-
-		dbUser := &db.User{
-			Email:          updateUserParams.Email,
-			HashedPassword: hashedPassword,
-		}
-		err = dbInstance.UpdateUser(dbUser)
+		err = dbInstance.UpdateUserPassword(updateUserParams.Email, hashedPassword)
 		if err != nil {
 			logger.NmsLog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update user")
 			return
 		}
-		successResponse := SuccessResponse{Message: "User updated successfully"}
+		successResponse := SuccessResponse{Message: "User password updated successfully"}
 		err = writeResponse(c.Writer, successResponse, http.StatusOK)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "internal error")
 			return
 		}
 		logger.LogAuditEvent(
-			UpdateUserAction,
+			UpdateUserPasswordAction,
 			email,
-			"User updated user: "+updateUserParams.Email,
+			"User updated password for user: "+updateUserParams.Email,
 		)
 	}
 }

@@ -14,8 +14,14 @@ const (
 	Password = "password123"
 )
 
+type ListUsersResponse struct {
+	Result []GetUserResponseResult `json:"result"`
+	Error  string                  `json:"error,omitempty"`
+}
+
 type GetUserResponseResult struct {
 	Email string `json:"email"`
+	Role  int    `json:"role"`
 }
 
 type GetUserResponse struct {
@@ -26,6 +32,17 @@ type GetUserResponse struct {
 type CreateUserParams struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	Role     int    `json:"role"`
+}
+
+type UpdateUserPasswordParams struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type UpdateUserParams struct {
+	Email string `json:"email"`
+	Role  int    `json:"role"`
 }
 
 type CreateUserResponseResult struct {
@@ -37,6 +54,24 @@ type CreateUserResponse struct {
 	Error  string                   `json:"error,omitempty"`
 }
 
+type UpdateUserPasswordResponseResult struct {
+	Message string `json:"message"`
+}
+
+type UpdateUserPasswordResponse struct {
+	Result UpdateUserPasswordResponseResult `json:"result"`
+	Error  string                           `json:"error,omitempty"`
+}
+
+type UpdateUserResponseResult struct {
+	Message string `json:"message"`
+}
+
+type UpdateUserResponse struct {
+	Result UpdateUserResponseResult `json:"result"`
+	Error  string                   `json:"error,omitempty"`
+}
+
 type DeleteUserResponseResult struct {
 	Message string `json:"message"`
 }
@@ -44,6 +79,28 @@ type DeleteUserResponseResult struct {
 type DeleteUserResponse struct {
 	Result DeleteUserResponseResult `json:"result"`
 	Error  string                   `json:"error,omitempty"`
+}
+
+func listUsers(url string, client *http.Client, token string) (int, *ListUsersResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/users", nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+	var userResponse ListUsersResponse
+	if err := json.NewDecoder(res.Body).Decode(&userResponse); err != nil {
+		return 0, nil, err
+	}
+	return res.StatusCode, &userResponse, nil
 }
 
 func getUser(url string, client *http.Client, token string, name string) (int, *GetUserResponse, error) {
@@ -80,7 +137,7 @@ func createUser(url string, client *http.Client, token string, data *CreateUserP
 	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := client.Do(req)
 	if err != nil {
-		return 0, nil, err
+		return res.StatusCode, nil, err
 	}
 	defer func() {
 		if err := res.Body.Close(); err != nil {
@@ -89,12 +146,38 @@ func createUser(url string, client *http.Client, token string, data *CreateUserP
 	}()
 	var createResponse CreateUserResponse
 	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
-		return 0, nil, err
+		return res.StatusCode, nil, err
 	}
 	return res.StatusCode, &createResponse, nil
 }
 
-func editUser(url string, client *http.Client, token string, name string, data *CreateUserParams) (int, *CreateUserResponse, error) {
+func editUserPassword(url string, client *http.Client, token string, name string, data *UpdateUserPasswordParams) (int, *UpdateUserPasswordResponse, error) {
+	body, err := json.Marshal(data)
+	if err != nil {
+		return 0, nil, err
+	}
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", url+"/api/v1/users/"+name+"/password", strings.NewReader(string(body)))
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+	var updateResponse UpdateUserPasswordResponse
+	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
+		return 0, nil, err
+	}
+	return res.StatusCode, &updateResponse, nil
+}
+
+func editUser(url string, client *http.Client, token string, name string, data *UpdateUserParams) (int, *UpdateUserResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
@@ -113,11 +196,11 @@ func editUser(url string, client *http.Client, token string, name string, data *
 			panic(err)
 		}
 	}()
-	var createResponse CreateUserResponse
-	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
+	var updateResponse UpdateUserResponse
+	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
-	return res.StatusCode, &createResponse, nil
+	return res.StatusCode, &updateResponse, nil
 }
 
 func deleteUser(url string, client *http.Client, token string, name string) (int, *DeleteUserResponse, error) {
@@ -161,10 +244,11 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	t.Run("1. Create user", func(t *testing.T) {
+	t.Run("1. Create admin user", func(t *testing.T) {
 		createUserParams := &CreateUserParams{
 			Email:    Email,
 			Password: Password,
+			Role:     0,
 		}
 		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
 		if err != nil {
@@ -210,9 +294,10 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("4. Create user - no email", func(t *testing.T) {
+	t.Run("4. Create admin user - no email", func(t *testing.T) {
 		createUserParams := &CreateUserParams{
 			Password: Password,
+			Role:     0,
 		}
 		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
 		if err != nil {
@@ -226,12 +311,32 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("5. Edit user", func(t *testing.T) {
-		createUserParams := &CreateUserParams{
+	t.Run("5. Edit user password", func(t *testing.T) {
+		updateUserPasswordParams := &UpdateUserPasswordParams{
 			Email:    Email,
 			Password: "password1234",
 		}
-		statusCode, response, err := editUser(ts.URL, client, token, Email, createUserParams)
+		statusCode, response, err := editUserPassword(ts.URL, client, token, Email, updateUserPasswordParams)
+		if err != nil {
+			t.Fatalf("couldn't edit user: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+		if response.Result.Message != "User password updated successfully" {
+			t.Fatalf("expected message %q, got %q", "User password updated successfully", response.Result.Message)
+		}
+	})
+
+	t.Run("6. Edit user", func(t *testing.T) {
+		updateUserParams := &UpdateUserParams{
+			Email: Email,
+			Role:  1,
+		}
+		statusCode, response, err := editUser(ts.URL, client, token, Email, updateUserParams)
 		if err != nil {
 			t.Fatalf("couldn't edit user: %s", err)
 		}
@@ -246,7 +351,26 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("6. Delete user - success", func(t *testing.T) {
+	t.Run("7. Get user", func(t *testing.T) {
+		statusCode, response, err := getUser(ts.URL, client, token, Email)
+		if err != nil {
+			t.Fatalf("couldn't get user: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+		if response.Result.Email != Email {
+			t.Fatalf("expected email %s, got %s", Email, response.Result.Email)
+		}
+		if response.Result.Role != 1 {
+			t.Fatalf("expected role %v, got %v", 1, response.Result.Role)
+		}
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	})
+
+	t.Run("8. Delete user - success", func(t *testing.T) {
 		statusCode, response, err := deleteUser(ts.URL, client, token, Email)
 		if err != nil {
 			t.Fatalf("couldn't delete user: %s", err)
@@ -261,7 +385,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 			t.Fatalf("expected message %q, got %q", "User deleted successfully", response.Result.Message)
 		}
 	})
-	t.Run("7. Delete user - no user", func(t *testing.T) {
+	t.Run("9. Delete user - no user", func(t *testing.T) {
 		statusCode, response, err := deleteUser(ts.URL, client, token, Email)
 		if err != nil {
 			t.Fatalf("couldn't delete user: %s", err)

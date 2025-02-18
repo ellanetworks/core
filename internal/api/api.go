@@ -1,4 +1,4 @@
-package nms
+package api
 
 import (
 	"fmt"
@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/nms/server"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )

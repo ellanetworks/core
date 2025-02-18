@@ -94,10 +94,11 @@ func TestLoginEndToEnd(t *testing.T) {
 	defer ts.Close()
 	client := ts.Client()
 
-	t.Run("Create user", func(t *testing.T) {
+	t.Run("1. Create Admin user", func(t *testing.T) {
 		user := &CreateUserParams{
 			Email:    "my.user123@ellanetworks.com",
 			Password: "password123",
+			Role:     0,
 		}
 		statusCode, _, err := createUser(ts.URL, client, "", user)
 		if err != nil {
@@ -108,14 +109,14 @@ func TestLoginEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("Login success", func(t *testing.T) {
+	t.Run("2. Login success", func(t *testing.T) {
 		user := &LoginParams{
 			Email:    "my.user123@ellanetworks.com",
 			Password: "password123",
 		}
 		statusCode, loginResponse, err := login(ts.URL, client, user)
 		if err != nil {
-			t.Fatalf("couldn't login user: %s", err)
+			t.Fatalf("couldn't login admin user: %s", err)
 		}
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
@@ -141,7 +142,7 @@ func TestLoginEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("Login failure missing email", func(t *testing.T) {
+	t.Run("3. Login failure missing email", func(t *testing.T) {
 		invalidUser := &LoginParams{
 			Email:    "",
 			Password: "Admin123",
@@ -158,7 +159,7 @@ func TestLoginEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("Login failure missing password", func(t *testing.T) {
+	t.Run("4. Login failure missing password", func(t *testing.T) {
 		invalidUser := &LoginParams{
 			Email:    "my.user123@ellanetworks.com",
 			Password: "",
@@ -175,7 +176,7 @@ func TestLoginEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("Login failure invalid password", func(t *testing.T) {
+	t.Run("5. Login failure invalid password", func(t *testing.T) {
 		invalidUser := &LoginParams{
 			Email:    "my.user123@ellanetworks.com",
 			Password: "a-wrong-password",
@@ -193,7 +194,7 @@ func TestLoginEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("Login failure invalid email", func(t *testing.T) {
+	t.Run("6. Login failure invalid email", func(t *testing.T) {
 		invalidUser := &LoginParams{
 			Email:    "not-existing-user",
 			Password: "Admin123",
@@ -208,6 +209,89 @@ func TestLoginEndToEnd(t *testing.T) {
 
 		if loginResponse.Error != "The email or password is incorrect. Try again." {
 			t.Fatalf("expected error %q, got %q", "The email or password is incorrect. Try again.", loginResponse.Error)
+		}
+	})
+}
+
+func TestRolesEndToEnd(t *testing.T) {
+	tempDir := t.TempDir()
+	db_path := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(db_path)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	adminToken, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	token, err := createUserAndLogin(ts.URL, adminToken, 1, client)
+	if err != nil {
+		t.Fatalf("couldn't create user and login: %s", err)
+	}
+
+	t.Run("1. Use ReadOnly user to create a new user - should fail", func(t *testing.T) {
+		user := &CreateUserParams{
+			Email:    "whatever@ellanetworks.com",
+			Password: "password123",
+			Role:     1,
+		}
+		statusCode, response, _ := createUser(ts.URL, client, token, user)
+		if err != nil {
+			t.Fatalf("couldn't create user: %s", err)
+		}
+		if statusCode != http.StatusForbidden {
+			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
+		}
+		if response.Error != "Admin role required" {
+			t.Fatalf("expected error %s, got %q", "Admin role required", response.Error)
+		}
+	})
+
+	t.Run("2. Use Admin user to create a new user - should succeed", func(t *testing.T) {
+		user := &CreateUserParams{
+			Email:    "whatever@ellanetworks.com",
+			Password: "password123",
+			Role:     1,
+		}
+		statusCode, response, err := createUser(ts.URL, client, adminToken, user)
+		if err != nil {
+			t.Fatalf("couldn't create user: %s", err)
+		}
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+		if response.Error != "" {
+			t.Fatalf("expected empty error, got %q", response.Error)
+		}
+	})
+
+	t.Run("3. Use ReadOnly user to list subscribers - should succeed", func(t *testing.T) {
+		statusCode, response, err := listSubscribers(ts.URL, client, token)
+		if err != nil {
+			t.Fatalf("couldn't list subscribers: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+		if len(response.Result) != 0 {
+			t.Fatalf("expected 0 subscriber, got %d", len(response.Result))
+		}
+	})
+
+	t.Run("4. Use ReadOnly user to list users - should fail", func(t *testing.T) {
+		statusCode, response, err := listUsers(ts.URL, client, token)
+		if err != nil {
+			t.Fatalf("couldn't list users: %s", err)
+		}
+		if statusCode != http.StatusForbidden {
+			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
+		}
+		if response.Error != "Admin role required" {
+			t.Fatalf("expected error %q, got %q", "Admin role required", response.Error)
 		}
 	})
 }

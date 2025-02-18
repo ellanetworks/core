@@ -17,16 +17,25 @@ const QueryCreateUsersTable = `
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
 		email TEXT NOT NULL,
+		role INTEGER NOT NULL,
 		hashedPassword TEXT NOT NULL
 )`
 
 const (
-	listUsersStmt   = "SELECT &User.* from %s"
-	getUserStmt     = "SELECT &User.* from %s WHERE email==$User.email"
-	createUserStmt  = "INSERT INTO %s (email, hashedPassword) VALUES ($User.email, $User.hashedPassword)"
-	editUserStmt    = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE email==$User.email"
-	deleteUserStmt  = "DELETE FROM %s WHERE email==$User.email"
-	getNumUsersStmt = "SELECT COUNT(*) AS &NumUsers.count FROM %s"
+	listUsersStmt        = "SELECT &User.* from %s"
+	getUserStmt          = "SELECT &User.* from %s WHERE email==$User.email"
+	createUserStmt       = "INSERT INTO %s (email, role, hashedPassword) VALUES ($User.email, $User.role, $User.hashedPassword)"
+	editUserStmt         = "UPDATE %s SET role=$User.role WHERE email==$User.email"
+	editUserPasswordStmt = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE email==$User.email" // #nosec: G101
+	deleteUserStmt       = "DELETE FROM %s WHERE email==$User.email"
+	getNumUsersStmt      = "SELECT COUNT(*) AS &NumUsers.count FROM %s"
+)
+
+type Role int
+
+const (
+	AdminRole    Role = 0
+	ReadOnlyRole Role = 1
 )
 
 type NumUsers struct {
@@ -36,6 +45,7 @@ type NumUsers struct {
 type User struct {
 	ID             int    `db:"id"`
 	Email          string `db:"email"`
+	Role           int    `db:"role"`
 	HashedPassword string `db:"hashedPassword"`
 }
 
@@ -83,8 +93,8 @@ func (db *Database) CreateUser(user *User) error {
 	return err
 }
 
-func (db *Database) UpdateUser(user *User) error {
-	_, err := db.GetUser(user.Email)
+func (db *Database) UpdateUser(email string, role Role) error {
+	user, err := db.GetUser(email)
 	if err != nil {
 		return err
 	}
@@ -92,6 +102,21 @@ func (db *Database) UpdateUser(user *User) error {
 	if err != nil {
 		return err
 	}
+	user.Role = int(role)
+	err = db.conn.Query(context.Background(), stmt, user).Run()
+	return err
+}
+
+func (db *Database) UpdateUserPassword(email string, hashedPassword string) error {
+	user, err := db.GetUser(email)
+	if err != nil {
+		return err
+	}
+	stmt, err := sqlair.Prepare(fmt.Sprintf(editUserPasswordStmt, db.usersTable), User{})
+	if err != nil {
+		return err
+	}
+	user.HashedPassword = hashedPassword
 	err = db.conn.Query(context.Background(), stmt, user).Run()
 	return err
 }

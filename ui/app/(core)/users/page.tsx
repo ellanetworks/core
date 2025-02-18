@@ -10,35 +10,44 @@ import {
   Collapse,
   IconButton,
 } from "@mui/material";
-import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
-import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
+import { Delete as DeleteIcon, Edit as EditIcon, Password as PasswordIcon } from "@mui/icons-material";
 import { listUsers, deleteUser } from "@/queries/users";
 import CreateUserModal from "@/components/CreateUserModal";
 import EditUserModal from "@/components/EditUserModal";
+import EditUserPasswordModal from "@/components/EditUserPasswordModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
+import { GridColDef, DataGrid, GridCellParams } from '@mui/x-data-grid';
 
 interface UserData {
   email: string;
+  role: string; // "Admin" for 0 and "Read Only" for 1
 }
 
 const User = () => {
   const [cookies] = useCookies(["user_token"]);
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [editData, setEditData] = useState<UserData | null>(null);
+  const [editPasswordData, setEditPasswordData] = useState<UserData | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
+
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
       const data = await listUsers(cookies.user_token);
-      setUsers(data);
+      const transformedUsers = data.map((user: any) => ({
+        ...user,
+        role: user.role === 0 ? "Admin" : user.role === 1 ? "Read Only" : user.role,
+      }));
+      setUsers(transformedUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
     } finally {
@@ -53,8 +62,18 @@ const User = () => {
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
 
+  const handleEditPasswordClick = (user: any) => {
+    setEditPasswordData({ email: user.email, role: user.role });
+    setEditPasswordModalOpen(true);
+  };
+
+  const handleEditPasswordModalClose = () => {
+    setEditPasswordModalOpen(false);
+    setEditPasswordData(null);
+  };
+
   const handleEditClick = (user: any) => {
-    setEditData({ email: user.email });
+    setEditData({ email: user.email, role: user.role });
     setEditModalOpen(true);
   };
 
@@ -87,23 +106,35 @@ const User = () => {
   const columns: GridColDef[] = [
     { field: "email", headerName: "Email", flex: 1 },
     {
+      field: "role", headerName: "Role", flex: 1,
+    },
+    {
       field: "actions",
       headerName: "Actions",
       type: "actions",
       flex: 0.5,
       getActions: (params) => [
         <IconButton
+          key="edit"
           aria-label="edit"
           onClick={() => handleEditClick(params.row)}
         >
           <EditIcon />
         </IconButton>,
         <IconButton
+          key="edit"
+          aria-label="edit"
+          onClick={() => handleEditPasswordClick(params.row)}
+        >
+          <PasswordIcon />
+        </IconButton>,
+        <IconButton
+          key="delete"
           aria-label="delete"
-          onClick={() => handleDeleteClick(params.row.name)}
+          onClick={() => handleDeleteClick(params.row.email)}
         >
           <DeleteIcon />
-        </IconButton>
+        </IconButton>,
       ],
     },
   ];
@@ -132,7 +163,13 @@ const User = () => {
         </Collapse>
       </Box>
       {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
           <CircularProgress />
         </Box>
       ) : users.length === 0 ? (
@@ -197,7 +234,13 @@ const User = () => {
         open={isEditModalOpen}
         onClose={handleEditModalClose}
         onSuccess={fetchUsers}
-        initialData={editData || { email: "" }}
+        initialData={editData || { email: "", role: "" }}
+      />
+      <EditUserPasswordModal
+        open={isEditPasswordModalOpen}
+        onClose={handleEditPasswordModalClose}
+        onSuccess={fetchUsers}
+        initialData={editPasswordData || { email: "" }}
       />
       <DeleteConfirmationModal
         open={isConfirmationOpen}

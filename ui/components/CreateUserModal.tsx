@@ -8,12 +8,16 @@ import {
     Button,
     Alert,
     Collapse,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
 } from "@mui/material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
 import { createUser } from "@/queries/users";
-import { useRouter } from "next/navigation"
-import { useCookies } from "react-cookie"
+import { useRouter } from "next/navigation";
+import { useCookies } from "react-cookie";
 
 interface CreateUserModalProps {
     open: boolean;
@@ -28,13 +32,15 @@ const schema = yup.object().shape({
 
 const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSuccess }) => {
     const router = useRouter();
-    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+    const [cookies] = useCookies(['user_token']);
 
     if (!cookies.user_token) {
-        router.push("/login")
+        router.push("/login");
     }
+
     const [formValues, setFormValues] = useState({
         email: "",
+        role: 0, // 0 => Admin, 1 => Read Only
         password: "",
     });
 
@@ -105,6 +111,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
             await createUser(
                 cookies.user_token,
                 formValues.email,
+                formValues.role,
                 formValues.password,
             );
             onClose();
@@ -127,7 +134,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
             aria-labelledby="create-user-modal-title"
             aria-describedby="create-user-modal-description"
         >
-            <DialogTitle>Create User</DialogTitle>
+            <DialogTitle id="create-user-modal-title">Create User</DialogTitle>
             <DialogContent dividers>
                 <Collapse in={!!alert.message}>
                     <Alert
@@ -159,9 +166,22 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
                     helperText={touched.password ? errors.password : ""}
                     margin="normal"
                 />
+                <FormControl fullWidth margin="normal">
+                    <InputLabel id="role-select-label">Role</InputLabel>
+                    <Select
+                        labelId="role-select-label"
+                        id="role-select"
+                        value={formValues.role}
+                        label="Role"
+                        onChange={(e) => handleChange("role", e.target.value as number)}
+                    >
+                        <MenuItem value={0}>Admin</MenuItem>
+                        <MenuItem value={1}>Read Only</MenuItem>
+                    </Select>
+                </FormControl>
             </DialogContent>
             <DialogActions>
-                <Button onClick={onClose} >
+                <Button onClick={onClose}>
                     Cancel
                 </Button>
                 <Button
@@ -173,7 +193,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
                     {loading ? "Creating..." : "Create"}
                 </Button>
             </DialogActions>
-        </Dialog >
+        </Dialog>
     );
 };
 

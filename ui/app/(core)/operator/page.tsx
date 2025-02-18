@@ -1,7 +1,19 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Box, IconButton, Alert, Typography, Chip, Card, CardHeader, Button, CardContent, CardActions, Tooltip } from "@mui/material";
+import {
+  Box,
+  IconButton,
+  Alert,
+  Typography,
+  Chip,
+  Card,
+  CardHeader,
+  Button,
+  CardContent,
+  CardActions,
+  Tooltip
+} from "@mui/material";
 import { ContentCopy as CopyIcon, Edit as EditIcon } from "@mui/icons-material";
 import { getOperator } from "@/queries/operator";
 import { useCookies } from "react-cookie";
@@ -10,8 +22,8 @@ import EditOperatorCodeModal from "@/components/EditOperatorCodeModal";
 import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
 import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
 import EditOperatorHomeNetworkModal from "@/components/EditOperatorHomeNetworkModal";
-
 import Grid from "@mui/material/Grid2";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface OperatorData {
   id: {
@@ -31,6 +43,7 @@ interface OperatorData {
 }
 
 const Operator = () => {
+  const { role } = useAuth(); // "Admin" or "Read Only"
   const [cookies] = useCookies(["user_token"]);
   const [operator, setOperator] = useState<OperatorData | null>(null);
   const [isEditOperatorIdModalOpen, setEditOperatorIdModalOpen] = useState(false);
@@ -80,7 +93,7 @@ const Operator = () => {
   const handleEditOperatorTrackingSuccess = () => {
     fetchOperator();
     setAlert({ message: "Operator Tracking information updated successfully!", severity: "success" });
-  }
+  };
 
   const handleEditOperatorSliceSuccess = () => {
     fetchOperator();
@@ -105,22 +118,14 @@ const Operator = () => {
         Operator
       </Typography>
 
-
       {alert.severity && (
         <Alert severity={alert.severity} onClose={() => setAlert({ message: "", severity: null })}>
           {alert.message}
         </Alert>
       )}
 
-      <Card
-        variant="outlined"
-        sx={{
-          marginBottom: 3,
-          borderRadius: 2,
-          boxShadow: 1,
-          borderColor: "rgba(0, 0, 0, 0.12)"
-        }}
-      >
+      {/* Operator ID Card */}
+      <Card variant="outlined" sx={{ marginBottom: 3, borderRadius: 2, boxShadow: 1, borderColor: "rgba(0, 0, 0, 0.12)" }}>
         <CardHeader title="Operator ID" />
         <CardContent>
           <Grid container spacing={2}>
@@ -138,22 +143,17 @@ const Operator = () => {
             </Grid>
           </Grid>
         </CardContent>
-        <CardActions>
-          <IconButton aria-label="edit" onClick={handleEditOperatorIdClick}>
-            <EditIcon />
-          </IconButton>
-        </CardActions>
+        {role === "Admin" && (
+          <CardActions>
+            <IconButton aria-label="edit" onClick={handleEditOperatorIdClick}>
+              <EditIcon />
+            </IconButton>
+          </CardActions>
+        )}
       </Card>
 
-      <Card
-        variant="outlined"
-        sx={{
-          marginBottom: 3,
-          borderRadius: 2,
-          boxShadow: 1,
-          borderColor: "rgba(0, 0, 0, 0.12)"
-        }}
-      >
+      {/* Operator Code Card */}
+      <Card variant="outlined" sx={{ marginBottom: 3, borderRadius: 2, boxShadow: 1, borderColor: "rgba(0, 0, 0, 0.12)" }}>
         <CardHeader title="Operator Code" />
         <CardContent>
           <Grid container spacing={2}>
@@ -165,22 +165,17 @@ const Operator = () => {
             </Grid>
           </Grid>
         </CardContent>
-        <CardActions>
-          <IconButton aria-label="edit" onClick={handleEditOperatorCodeClick}>
-            <EditIcon />
-          </IconButton>
-        </CardActions>
+        {role === "Admin" && (
+          <CardActions>
+            <IconButton aria-label="edit" onClick={handleEditOperatorCodeClick}>
+              <EditIcon />
+            </IconButton>
+          </CardActions>
+        )}
       </Card>
 
-      <Card
-        variant="outlined"
-        sx={{
-          marginBottom: 3,
-          borderRadius: 2,
-          boxShadow: 1,
-          borderColor: "rgba(0, 0, 0, 0.12)"
-        }}
-      >
+      {/* Tracking Information Card */}
+      <Card variant="outlined" sx={{ marginBottom: 3, borderRadius: 2, boxShadow: 1, borderColor: "rgba(0, 0, 0, 0.12)" }}>
         <CardHeader title="Tracking Information" />
         <CardContent>
           <Grid container spacing={2}>
@@ -200,22 +195,17 @@ const Operator = () => {
             </Grid>
           </Grid>
         </CardContent>
-        <CardActions>
-          <IconButton aria-label="edit" onClick={handleEditOperatorTrackingClick}>
-            <EditIcon />
-          </IconButton>
-        </CardActions>
+        {role === "Admin" && (
+          <CardActions>
+            <IconButton aria-label="edit" onClick={handleEditOperatorTrackingClick}>
+              <EditIcon />
+            </IconButton>
+          </CardActions>
+        )}
       </Card>
 
-      <Card
-        variant="outlined"
-        sx={{
-          marginBottom: 3,
-          borderRadius: 2,
-          boxShadow: 1,
-          borderColor: "rgba(0, 0, 0, 0.12)"
-        }}
-      >
+      {/* Slice Information Card */}
+      <Card variant="outlined" sx={{ marginBottom: 3, borderRadius: 2, boxShadow: 1, borderColor: "rgba(0, 0, 0, 0.12)" }}>
         <CardHeader title="Slice Information" />
         <CardContent>
           <Grid container spacing={2}>
@@ -233,22 +223,17 @@ const Operator = () => {
             </Grid>
           </Grid>
         </CardContent>
-        <CardActions>
-          <IconButton aria-label="edit" onClick={handleEditOperatorSliceClick}>
-            <EditIcon />
-          </IconButton>
-        </CardActions>
+        {role === "Admin" && (
+          <CardActions>
+            <IconButton aria-label="edit" onClick={handleEditOperatorSliceClick}>
+              <EditIcon />
+            </IconButton>
+          </CardActions>
+        )}
       </Card>
 
-      <Card
-        variant="outlined"
-        sx={{
-          marginBottom: 3,
-          borderRadius: 2,
-          boxShadow: 1,
-          borderColor: "rgba(0, 0, 0, 0.12)"
-        }}
-      >
+      {/* Home Network Information Card */}
+      <Card variant="outlined" sx={{ marginBottom: 3, borderRadius: 2, boxShadow: 1, borderColor: "rgba(0, 0, 0, 0.12)" }}>
         <CardHeader title="Home Network Information" />
         <CardContent>
           <Grid container spacing={2}>
@@ -287,11 +272,13 @@ const Operator = () => {
             </Grid>
           </Grid>
         </CardContent>
-        <CardActions>
-          <IconButton aria-label="edit" onClick={handleEditOperatorHomeNetworkClick}>
-            <EditIcon />
-          </IconButton>
-        </CardActions>
+        {role === "Admin" && (
+          <CardActions>
+            <IconButton aria-label="edit" onClick={handleEditOperatorHomeNetworkClick}>
+              <EditIcon />
+            </IconButton>
+          </CardActions>
+        )}
       </Card>
 
       <EditOperatorIdModal

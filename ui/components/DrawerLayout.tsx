@@ -16,6 +16,7 @@ import {
     Typography,
     Menu,
     MenuItem,
+    Chip,
 } from "@mui/material";
 import {
     Info as InfoIcon,
@@ -30,24 +31,27 @@ import {
     AccountCircle as AccountCircleIcon,
     Storage as StorageIcon,
 } from "@mui/icons-material";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
 import { getLoggedInUser } from "@/queries/users";
-import { useCookies } from "react-cookie"
+import { useCookies } from "react-cookie";
+import { useAuth } from "@/contexts/AuthContext";
 
 const drawerWidth = 250;
 
-export default function DrawerLayout({ children }: { children: React.ReactNode; }) {
+export default function DrawerLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
-    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+    const [cookies] = useCookies(["user_token"]);
+    const { email, role } = useAuth();
 
     if (!cookies.user_token) {
-        router.push("/login")
+        router.push("/login");
     }
-    const [email, setEmail] = useState("");
 
-    // State for the account menu
+    // We still fetch email if needed, but you can also get it from the AuthContext.
+    const [localEmail, setLocalEmail] = useState("");
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
 
@@ -67,10 +71,9 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
     const fetchUser = async () => {
         try {
             const data = await getLoggedInUser(cookies.user_token);
-            setEmail(data.email);
+            setLocalEmail(data.email);
         } catch (error) {
             console.error("Error fetching user:", error);
-        } finally {
         }
     };
 
@@ -86,6 +89,12 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                     <Typography variant="h6" noWrap component="div" sx={{ ml: 2 }}>
                         Ella Core
                     </Typography>
+                    <Chip
+                        label={role}
+                        color={"warning"}
+                        variant="outlined"
+                        sx={{ ml: 2 }}
+                    />
                 </Toolbar>
             </AppBar>
             <Drawer
@@ -105,7 +114,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                 <Box sx={{ flexGrow: 1, overflow: "auto" }}>
                     <List>
                         <ListItem disablePadding>
-                            <ListItemButton component="a" href="/dashboard" selected={pathname === "/dashboard"}>
+                            <ListItemButton component={Link} href="/dashboard" selected={pathname === "/dashboard"}>
                                 <ListItemIcon>
                                     <DashboardIcon />
                                 </ListItemIcon>
@@ -113,11 +122,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                             </ListItemButton>
                         </ListItem>
                         <ListItem disablePadding>
-                            <ListItemButton
-                                component="a"
-                                href="/operator"
-                                selected={pathname === "/operator"}
-                            >
+                            <ListItemButton component={Link} href="/operator" selected={pathname === "/operator"}>
                                 <ListItemIcon>
                                     <SensorsIcon />
                                 </ListItemIcon>
@@ -125,7 +130,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                             </ListItemButton>
                         </ListItem>
                         <ListItem disablePadding>
-                            <ListItemButton component="a" href="/radios" selected={pathname === "/radios"}>
+                            <ListItemButton component={Link} href="/radios" selected={pathname === "/radios"}>
                                 <ListItemIcon>
                                     <RouterIcon />
                                 </ListItemIcon>
@@ -133,7 +138,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                             </ListItemButton>
                         </ListItem>
                         <ListItem disablePadding>
-                            <ListItemButton component="a" href="/profiles" selected={pathname === "/profiles"}>
+                            <ListItemButton component={Link} href="/profiles" selected={pathname === "/profiles"}>
                                 <ListItemIcon>
                                     <TuneIcon />
                                 </ListItemIcon>
@@ -141,34 +146,38 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                             </ListItemButton>
                         </ListItem>
                         <ListItem disablePadding>
-                            <ListItemButton component="a" href="/subscribers" selected={pathname === "/subscribers"}>
+                            <ListItemButton component={Link} href="/subscribers" selected={pathname === "/subscribers"}>
                                 <ListItemIcon>
                                     <GroupsIcon />
                                 </ListItemIcon>
                                 <ListItemText primary="Subscribers" />
                             </ListItemButton>
                         </ListItem>
-                        <Divider />
-                        <ListSubheader>System</ListSubheader>
-                        <ListItem disablePadding>
-                            <ListItemButton component="a" href="/users" selected={pathname === "/users"}>
-                                <ListItemIcon>
-                                    <AdminPanelSettingsIcon />
-                                </ListItemIcon>
-                                <ListItemText primary="Users" />
-                            </ListItemButton>
-                        </ListItem>
-                        <ListItem disablePadding>
-                            <ListItemButton component="a" href="/backup_restore" selected={pathname === "/backup_restore"}>
-                                <ListItemIcon>
-                                    <StorageIcon />
-                                </ListItemIcon>
-                                <ListItemText primary="Backup and Restore" />
-                            </ListItemButton>
-                        </ListItem>
+                        {role === "Admin" && (
+                            <>
+                                <Divider />
+                                <ListSubheader>System</ListSubheader>
+                                <ListItem disablePadding>
+                                    <ListItemButton component={Link} href="/users" selected={pathname === "/users"}>
+                                        <ListItemIcon>
+                                            <AdminPanelSettingsIcon />
+                                        </ListItemIcon>
+                                        <ListItemText primary="Users" />
+                                    </ListItemButton>
+                                </ListItem>
+                                <ListItem disablePadding>
+                                    <ListItemButton component={Link} href="/backup_restore" selected={pathname === "/backup_restore"}>
+                                        <ListItemIcon>
+                                            <StorageIcon />
+                                        </ListItemIcon>
+                                        <ListItemText primary="Backup and Restore" />
+                                    </ListItemButton>
+                                </ListItem>
+                            </>
+                        )}
                     </List>
                 </Box>
-                <Box >
+                <Box>
                     <ListItemButton onClick={handleMenuClick}>
                         <ListItemIcon>
                             <AccountCircleIcon />
@@ -178,7 +187,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                                 <Typography
                                     variant="body2"
                                     noWrap
-                                    title={email}
+                                    title={localEmail}
                                     sx={{
                                         textOverflow: "ellipsis",
                                         overflow: "hidden",
@@ -186,7 +195,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                                         maxWidth: "200px",
                                     }}
                                 >
-                                    {email}
+                                    {localEmail}
                                 </Typography>
                             }
                         />
@@ -237,7 +246,6 @@ export default function DrawerLayout({ children }: { children: React.ReactNode; 
                         </ListItem>
                     </List>
                 </Box>
-
             </Drawer>
             <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
                 <Toolbar />

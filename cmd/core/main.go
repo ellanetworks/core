@@ -11,12 +11,12 @@ import (
 	"os"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/api"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
-	"github.com/ellanetworks/core/internal/nms"
 	"github.com/ellanetworks/core/internal/pcf"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/udm"
@@ -31,7 +31,7 @@ const (
 )
 
 func startNetwork(dbInstance *db.Database, cfg config.Config) error {
-	err := nms.Start(dbInstance, cfg.Interfaces.API.Port, cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
+	err := api.Start(dbInstance, cfg.Interfaces.API.Port, cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
 	if err != nil {
 		return err
 	}
