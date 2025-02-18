@@ -12,11 +12,11 @@ Ella Core is available as a Snap and a container image.
 
     ## Pre-requisites
 
-    - A machine with:
+    - A machine with at least:
         - 2 CPU cores
-        - 4 GB of RAM
+        - 2 GB of RAM
         - 10 GB of disk space
-        - 3 network interfaces
+        - 4 network interfaces
     - A Linux distribution that supports Snap packages.
   
     ## Steps
