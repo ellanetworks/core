@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useState, useEffect } from "react";
 import {
     Box,
@@ -25,6 +26,7 @@ import EditSubscriberModal from "@/components/EditSubscriberModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface SubscriberData {
     imsi: string;
@@ -33,8 +35,9 @@ interface SubscriberData {
 }
 
 const Subscriber = () => {
+    const { role } = useAuth(); // "Admin" or "Read Only"
     const [cookies] = useCookies(["user_token"]);
-    const [subscribers, setSubscribers] = useState<any[]>([]);
+    const [subscribers, setSubscribers] = useState<SubscriberData[]>([]);
     const [loading, setLoading] = useState(true);
     const [isCreateModalOpen, setCreateModalOpen] = useState(false);
     const [isEditModalOpen, setEditModalOpen] = useState(false);
@@ -111,37 +114,46 @@ const Subscriber = () => {
         }
     };
 
-    const columns: GridColDef[] = [
+    // Define base columns (common for all roles)
+    const baseColumns: GridColDef[] = [
         { field: "imsi", headerName: "IMSI", flex: 1 },
         { field: "ipAddress", headerName: "IP Address", flex: 1 },
         { field: "profileName", headerName: "Profile", flex: 1 },
-        {
+    ];
+    console.log("Role:", role);
+
+    // Only if the user is an admin, add the Actions column.
+    if (role === "Admin") {
+        baseColumns.push({
             field: "actions",
             headerName: "Actions",
             type: "actions",
             flex: 0.5,
             getActions: (params) => [
                 <IconButton
+                    key="view"
                     aria-label="view"
                     onClick={() => handleViewClick(params.row)}
                 >
                     <VisibilityIcon />
                 </IconButton>,
                 <IconButton
+                    key="edit"
                     aria-label="edit"
                     onClick={() => handleEditClick(params.row)}
                 >
                     <EditIcon />
                 </IconButton>,
                 <IconButton
+                    key="delete"
                     aria-label="delete"
                     onClick={() => handleDeleteClick(params.row.imsi)}
                 >
                     <DeleteIcon />
-                </IconButton>
+                </IconButton>,
             ],
-        },
-    ];
+        });
+    }
 
     return (
         <Box
@@ -174,7 +186,7 @@ const Subscriber = () => {
                 <EmptyState
                     primaryText="No subscriber found."
                     secondaryText="Create a new subscriber."
-                    button={true}
+                    button={role === "Admin"} // Only show the create button for admins
                     buttonText="Create"
                     onCreate={handleOpenCreateModal}
                 />
@@ -192,31 +204,25 @@ const Subscriber = () => {
                         <Typography variant="h4" component="h1" gutterBottom>
                             Subscribers ({subscribers.length})
                         </Typography>
-                        <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
-                            Create
-                        </Button>
+                        {role === "Admin" && (
+                            <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
+                                Create
+                            </Button>
+                        )}
                     </Box>
                     <Box
                         sx={{
                             height: "80vh",
                             width: "60%",
-                            "& .MuiDataGrid-root": {
-                                border: "none",
-                            },
-                            "& .MuiDataGrid-cell": {
-                                borderBottom: "none",
-                            },
-                            "& .MuiDataGrid-columnHeaders": {
-                                borderBottom: "none",
-                            },
-                            "& .MuiDataGrid-footerContainer": {
-                                borderTop: "none",
-                            },
+                            "& .MuiDataGrid-root": { border: "none" },
+                            "& .MuiDataGrid-cell": { borderBottom: "none" },
+                            "& .MuiDataGrid-columnHeaders": { borderBottom: "none" },
+                            "& .MuiDataGrid-footerContainer": { borderTop: "none" },
                         }}
                     >
                         <DataGrid
                             rows={subscribers}
-                            columns={columns}
+                            columns={baseColumns}
                             getRowId={(row) => row.imsi}
                             disableRowSelectionOnClick
                         />
