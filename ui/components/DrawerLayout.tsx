@@ -31,6 +31,7 @@ import {
     AccountCircle as AccountCircleIcon,
     Storage as StorageIcon,
 } from "@mui/icons-material";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
 import { getLoggedInUser } from "@/queries/users";
@@ -88,14 +89,12 @@ export default function DrawerLayout({ children }: { children: React.ReactNode }
                     <Typography variant="h6" noWrap component="div" sx={{ ml: 2 }}>
                         Ella Core
                     </Typography>
-                    {role && (
-                        <Chip
-                            label={role}
-                            color={"warning"}
-                            variant="outlined"
-                            sx={{ ml: 2 }}
-                        />
-                    )}
+                    <Chip
+                        label={role}
+                        color={"warning"}
+                        variant="outlined"
+                        sx={{ ml: 2 }}
+                    />
                 </Toolbar>
             </AppBar>
             <Drawer
@@ -115,7 +114,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode }
                 <Box sx={{ flexGrow: 1, overflow: "auto" }}>
                     <List>
                         <ListItem disablePadding>
-                            <ListItemButton component="a" href="/dashboard" selected={pathname === "/dashboard"}>
+                            <ListItemButton component={Link} href="/dashboard" selected={pathname === "/dashboard"}>
                                 <ListItemIcon>
                                     <DashboardIcon />
                                 </ListItemIcon>
@@ -123,7 +122,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode }
                             </ListItemButton>
                         </ListItem>
                         <ListItem disablePadding>
-                            <ListItemButton component="a" href="/operator" selected={pathname === "/operator"}>
+                            <ListItemButton component={Link} href="/operator" selected={pathname === "/operator"}>
                                 <ListItemIcon>
                                     <SensorsIcon />
                                 </ListItemIcon>
@@ -131,7 +130,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode }
                             </ListItemButton>
                         </ListItem>
                         <ListItem disablePadding>
-                            <ListItemButton component="a" href="/radios" selected={pathname === "/radios"}>
+                            <ListItemButton component={Link} href="/radios" selected={pathname === "/radios"}>
                                 <ListItemIcon>
                                     <RouterIcon />
                                 </ListItemIcon>
@@ -139,7 +138,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode }
                             </ListItemButton>
                         </ListItem>
                         <ListItem disablePadding>
-                            <ListItemButton component="a" href="/profiles" selected={pathname === "/profiles"}>
+                            <ListItemButton component={Link} href="/profiles" selected={pathname === "/profiles"}>
                                 <ListItemIcon>
                                     <TuneIcon />
                                 </ListItemIcon>
@@ -147,7 +146,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode }
                             </ListItemButton>
                         </ListItem>
                         <ListItem disablePadding>
-                            <ListItemButton component="a" href="/subscribers" selected={pathname === "/subscribers"}>
+                            <ListItemButton component={Link} href="/subscribers" selected={pathname === "/subscribers"}>
                                 <ListItemIcon>
                                     <GroupsIcon />
                                 </ListItemIcon>
@@ -159,7 +158,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode }
                                 <Divider />
                                 <ListSubheader>System</ListSubheader>
                                 <ListItem disablePadding>
-                                    <ListItemButton component="a" href="/users" selected={pathname === "/users"}>
+                                    <ListItemButton component={Link} href="/users" selected={pathname === "/users"}>
                                         <ListItemIcon>
                                             <AdminPanelSettingsIcon />
                                         </ListItemIcon>
@@ -167,7 +166,7 @@ export default function DrawerLayout({ children }: { children: React.ReactNode }
                                     </ListItemButton>
                                 </ListItem>
                                 <ListItem disablePadding>
-                                    <ListItemButton component="a" href="/backup_restore" selected={pathname === "/backup_restore"}>
+                                    <ListItemButton component={Link} href="/backup_restore" selected={pathname === "/backup_restore"}>
                                         <ListItemIcon>
                                             <StorageIcon />
                                         </ListItemIcon>
@@ -220,7 +219,12 @@ export default function DrawerLayout({ children }: { children: React.ReactNode }
                 <Box>
                     <List>
                         <ListItem disablePadding>
-                            <ListItemButton component="a" href="https://docs.ellanetworks.com" target="_blank" rel="noreferrer">
+                            <ListItemButton
+                                component="a"
+                                href="https://docs.ellanetworks.com"
+                                target="_blank"
+                                rel="noreferrer"
+                            >
                                 <ListItemIcon>
                                     <InfoIcon />
                                 </ListItemIcon>
@@ -228,7 +232,12 @@ export default function DrawerLayout({ children }: { children: React.ReactNode }
                             </ListItemButton>
                         </ListItem>
                         <ListItem disablePadding>
-                            <ListItemButton component="a" href="https://github.com/ellanetworks/core/issues/new/choose" target="_blank" rel="noreferrer">
+                            <ListItemButton
+                                component="a"
+                                href="https://github.com/ellanetworks/core/issues/new/choose"
+                                target="_blank"
+                                rel="noreferrer"
+                            >
                                 <ListItemIcon>
                                     <BugReportIcon />
                                 </ListItemIcon>
