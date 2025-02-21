@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -38,5 +39,53 @@ func Start(dbInstance *db.Database, port int, certFile string, keyFile string) e
 		}
 	}()
 	logger.APILog.Infof("API server started on https://localhost:%d", port)
+
+	// Reconcile routes on startup and every 5 minutes
+	go func() {
+		for {
+			err := ReconcileRoutes(dbInstance, kernelInt)
+			if err != nil {
+				logger.APILog.Errorf("couldn't reconcile routes: %v", err)
+			}
+			time.Sleep(5 * time.Minute)
+		}
+	}()
+	return nil
+}
+
+func ReconcileRoutes(dbInstance *db.Database, kernelInt kernel.Kernel) error {
+	expectedRoutes, err := dbInstance.ListRoutes()
+	if err != nil {
+		return fmt.Errorf("couldn't list routes: %v", err)
+	}
+	for _, route := range expectedRoutes {
+		_, ipNetwork, err := net.ParseCIDR(route.Destination)
+		if err != nil {
+			return fmt.Errorf("couldn't parse destination: %v", err)
+		}
+		ipGateway := net.ParseIP(route.Gateway)
+		if ipGateway == nil || ipGateway.To4() == nil {
+			return fmt.Errorf("invalid gateway: %v", route.Gateway)
+		}
+		ipGateway = ipGateway.To4()
+		interfaceExists, err := kernelInt.InterfaceExists(route.Interface)
+		if err != nil {
+			return fmt.Errorf("couldn't check if interface exists: %v", err)
+		}
+		if !interfaceExists {
+			return fmt.Errorf("interface %s doesn't exist", route.Interface)
+		}
+		routeExists, err := kernelInt.RouteExists(ipNetwork, ipGateway, route.Metric, route.Interface)
+		if err != nil {
+			return fmt.Errorf("couldn't check if route exists: %v", err)
+		}
+		if !routeExists {
+			err := kernelInt.CreateRoute(ipNetwork, ipGateway, route.Metric, route.Interface)
+			if err != nil {
+				return fmt.Errorf("couldn't create route: %v", err)
+			}
+		}
+	}
+	logger.APILog.Infoln("routes reconciled")
 	return nil
 }
