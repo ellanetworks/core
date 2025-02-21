@@ -100,12 +100,12 @@ func isValidMnc(mnc string) bool {
 // Operator code is a 32-character hexadecimal string
 func isValidOperatorCode(operatorCode string) bool {
 	if len(operatorCode) != 32 {
-		logger.NmsLog.Warnln("Invalid operator code length: ", len(operatorCode))
+		logger.APILog.Warnln("Invalid operator code length: ", len(operatorCode))
 		return false
 	}
 	_, err := hex.DecodeString(operatorCode)
 	if err != nil {
-		logger.NmsLog.Warnf("Invalid operator code: %s. Error: %v", operatorCode, err)
+		logger.APILog.Warnf("Invalid operator code: %s. Error: %v", operatorCode, err)
 		return false
 	}
 	return true
@@ -178,7 +178,7 @@ func GetOperator(dbInstance *db.Database) gin.HandlerFunc {
 
 		hnPublicKey, err := dbOperator.GetHomeNetworkPublicKey()
 		if err != nil {
-			logger.NmsLog.Warnf("Failed to get home network public key: %v", err)
+			logger.APILog.Warnf("Failed to get home network public key: %v", err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to get home network public key")
 			return
 		}
@@ -343,7 +343,7 @@ func UpdateOperatorSlice(dbInstance *db.Database) gin.HandlerFunc {
 
 		err = dbInstance.UpdateOperatorSlice(int32(updateOperatorSliceParams.Sst), updateOperatorSliceParams.Sd)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update operator slice information")
 			return
 		}
@@ -389,7 +389,7 @@ func UpdateOperatorTracking(dbInstance *db.Database) gin.HandlerFunc {
 
 		err = dbInstance.UpdateOperatorTracking(updateOperatorTrackingParams.SupportedTacs)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update operator tracking information")
 			return
 		}
@@ -449,7 +449,7 @@ func UpdateOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 
 		err = dbInstance.UpdateOperatorId(updateOperatorIdParams.Mcc, updateOperatorIdParams.Mnc)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update operatorId")
 			return
 		}
@@ -503,7 +503,7 @@ func UpdateOperatorCode(dbInstance *db.Database) gin.HandlerFunc {
 
 		err = dbInstance.UpdateOperatorCode(updateOperatorCodeParams.OperatorCode)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update operatorId")
 			return
 		}
@@ -547,7 +547,7 @@ func UpdateOperatorHomeNetwork(dbInstance *db.Database) gin.HandlerFunc {
 
 		err = dbInstance.UpdateHomeNetworkPrivateKey(updateOperatorHomeNetworkParams.PrivateKey)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update home network private key")
 			return
 		}

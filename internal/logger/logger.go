@@ -18,7 +18,7 @@ var (
 	DBLog       *zap.SugaredLogger
 	AmfLog      *zap.SugaredLogger
 	AusfLog     *zap.SugaredLogger
-	NmsLog      *zap.SugaredLogger
+	APILog      *zap.SugaredLogger
 	NssfLog     *zap.SugaredLogger
 	PcfLog      *zap.SugaredLogger
 	SmfLog      *zap.SugaredLogger
@@ -74,7 +74,7 @@ func init() {
 	DBLog = log.Sugar().With("component", "DB")
 	AmfLog = log.Sugar().With("component", "AMF")
 	AusfLog = log.Sugar().With("component", "AUSF")
-	NmsLog = log.Sugar().With("component", "NMS")
+	APILog = log.Sugar().With("component", "API")
 	NssfLog = log.Sugar().With("component", "NSSF")
 	PcfLog = log.Sugar().With("component", "PCF")
 	SmfLog = log.Sugar().With("component", "SMF")
@@ -134,7 +134,7 @@ func ConfigureLogging(systemLevel string, systemOutput string, systemFilePath st
 	DBLog = log.Sugar().With("component", "DB")
 	AmfLog = log.Sugar().With("component", "AMF")
 	AusfLog = log.Sugar().With("component", "AUSF")
-	NmsLog = log.Sugar().With("component", "NMS")
+	APILog = log.Sugar().With("component", "API")
 	NssfLog = log.Sugar().With("component", "NSSF")
 	PcfLog = log.Sugar().With("component", "PCF")
 	SmfLog = log.Sugar().With("component", "SMF")

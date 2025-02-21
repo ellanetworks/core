@@ -44,7 +44,7 @@ func isImsiValid(imsi string, dbInstance *db.Database) bool {
 	}
 	network, err := dbInstance.GetOperator()
 	if err != nil {
-		logger.NmsLog.Warnf("Failed to retrieve network: %v", err)
+		logger.APILog.Warnf("Failed to retrieve network: %v", err)
 		return false
 	}
 	Mcc := network.Mcc
@@ -202,26 +202,26 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 
 		K, err := hex.DecodeString(createSubscriberParams.Key)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusBadRequest, "Invalid key format")
 			return
 		}
 		opCodeHex, err := dbInstance.GetOperatorCode()
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to retrieve operator code")
 			return
 		}
 		OP, err := hex.DecodeString(opCodeHex)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to decode OP")
 			return
 		}
 
 		opc, err := deriveOPc(K, OP)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to generate OPc")
 			return
 		}
@@ -246,7 +246,7 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		}
 
 		if err := dbInstance.CreateSubscriber(newSubscriber); err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to create subscriber")
 			return
 		}
@@ -316,7 +316,7 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		}
 
 		if err := dbInstance.UpdateSubscriber(updatedSubscriber); err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update subscriber")
 			return
 		}
@@ -355,7 +355,7 @@ func DeleteSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		err = dbInstance.DeleteSubscriber(imsi)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete subscriber")
 			return
 		}

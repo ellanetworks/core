@@ -20,7 +20,7 @@ func GetStatus(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		numUsers, err := dbInstance.NumUsers()
 		if err != nil {
-			logger.NmsLog.Warnf("Failed to query number of users: %v", err)
+			logger.APILog.Warnf("Failed to query number of users: %v", err)
 			writeError(c.Writer, http.StatusInternalServerError, "Unable to retrieve number of users")
 			return
 		}

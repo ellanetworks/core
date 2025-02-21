@@ -99,7 +99,7 @@ func ginRecover(logger *zap.SugaredLogger) gin.HandlerFunc {
 func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
-	router.Use(ginToZap(logger.NmsLog), ginRecover(logger.NmsLog))
+	router.Use(ginToZap(logger.APILog), ginRecover(logger.APILog))
 	AddUiService(router)
 
 	apiGroup := router.Group("/api/v1")
@@ -123,6 +123,12 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	apiGroup.PUT("/profiles/:name", Authenticate(jwtSecret), RequireAdmin(), UpdateProfile(dbInstance))
 	apiGroup.GET("/profiles/:name", Authenticate(jwtSecret), GetProfile(dbInstance))
 	apiGroup.DELETE("/profiles/:name", Authenticate(jwtSecret), RequireAdmin(), DeleteProfile(dbInstance))
+
+	// Routes (Authenticated)
+	apiGroup.GET("/routes", Authenticate(jwtSecret), ListRoutes(dbInstance))
+	apiGroup.POST("/routes", Authenticate(jwtSecret), RequireAdmin(), CreateRoute(dbInstance))
+	apiGroup.GET("/routes/:name", Authenticate(jwtSecret), GetRoute(dbInstance))
+	apiGroup.DELETE("/routes/:name", Authenticate(jwtSecret), RequireAdmin(), DeleteRoute(dbInstance))
 
 	// Operator (Authenticated)
 	apiGroup.GET("/operator", Authenticate(jwtSecret), GetOperator(dbInstance))
@@ -162,7 +168,7 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 func AddUiService(engine *gin.Engine) {
 	staticFilesSystem, err := fs.Sub(ui.FrontendFS, "out")
 	if err != nil {
-		logger.NmsLog.Fatal(err)
+		logger.APILog.Fatal(err)
 	}
 
 	engine.Use(func(c *gin.Context) {

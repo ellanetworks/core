@@ -18,6 +18,7 @@ require (
 	github.com/omec-project/ngap v1.3.1
 	github.com/omec-project/openapi v1.3.2
 	github.com/prometheus/client_golang v1.20.5
+	github.com/vishvananda/netlink v1.3.0
 	github.com/wmnsk/go-pfcp v0.0.24
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.33.0
@@ -62,6 +63,7 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
+	github.com/vishvananda/netns v0.0.4 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/arch v0.12.0 // indirect
 	golang.org/x/oauth2 v0.24.0 // indirect

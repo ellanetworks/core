@@ -77,7 +77,7 @@ func ListUsers(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		dbUsers, err := dbInstance.ListUsers()
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Unable to retrieve users")
 			return
 		}
@@ -209,7 +209,7 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		hashedPassword, err := hashPassword(newUser.Password)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to hash password")
 			return
 		}
@@ -221,7 +221,7 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		err = dbInstance.CreateUser(dbUser)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to create user")
 			return
 		}
@@ -278,7 +278,7 @@ func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 		role := db.Role(updateUserParams.Role)
 		err = dbInstance.UpdateUser(updateUserParams.Email, role)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update user")
 			return
 		}
@@ -335,13 +335,13 @@ func UpdateUserPassword(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		hashedPassword, err := hashPassword(updateUserParams.Password)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to hash password")
 			return
 		}
 		err = dbInstance.UpdateUserPassword(updateUserParams.Email, hashedPassword)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to update user")
 			return
 		}
@@ -379,7 +379,7 @@ func DeleteUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		err = dbInstance.DeleteUser(emailParam)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete user")
 			return
 		}
