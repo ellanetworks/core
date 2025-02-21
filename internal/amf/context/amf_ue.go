@@ -403,11 +403,7 @@ func (ue *AmfUe) InAllowedNssai(targetSNssai models.Snssai, anType models.Access
 
 func (ue *AmfUe) InSubscribedNssai(targetSNssai *models.Snssai) bool {
 	for _, sNssai := range ue.SubscribedNssai {
-		if reflect.DeepEqual(*sNssai.SubscribedSnssai, targetSNssai) {
-			return true
-		} else if sNssai.SubscribedSnssai.Sst == targetSNssai.Sst {
-			logger.AmfLog.Infof("SST values match, SD values differ")
-			targetSNssai.Sd = sNssai.SubscribedSnssai.Sd
+		if sNssai.SubscribedSnssai.Sst == targetSNssai.Sst && sNssai.SubscribedSnssai.Sd == targetSNssai.Sd {
 			return true
 		}
 	}
