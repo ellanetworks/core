@@ -1051,7 +1051,7 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 
 		needSliceSelection := false
 		for _, requestedSnssai := range requestedNssai {
-			if ue.InSubscribedNssai(*requestedSnssai.ServingSnssai) {
+			if ue.InSubscribedNssai(requestedSnssai.ServingSnssai) {
 				allowedSnssai := models.AllowedSnssai{
 					AllowedSnssai: &models.Snssai{
 						Sst: requestedSnssai.ServingSnssai.Sst,
