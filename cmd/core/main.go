@@ -80,11 +80,11 @@ func main() {
 	}
 	initialOp, err := generateOperatorCode()
 	if err != nil {
-		log.Fatalf("Failed to generate operator code: %v", err)
+		logger.EllaLog.Panicf("Failed to generate operator code: %v", err)
 	}
 	initialHNPrivateKey, err := generateHomeNetworkPrivateKey()
 	if err != nil {
-		log.Fatalf("Failed to generate home network private key: %v", err)
+		logger.EllaLog.Panicf("Failed to generate home network private key: %v", err)
 	}
 	initialOperatorValues := db.Operator{
 		Mcc:                   InitialMcc,
@@ -101,11 +101,11 @@ func main() {
 	)
 	dbInstance, err := db.NewDatabase(cfg.DB.Path, initialOperatorValues)
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		logger.EllaLog.Panicf("Failed to initialize database: %v", err)
 	}
 	defer func() {
 		if err := dbInstance.Close(); err != nil {
-			log.Fatalf("Failed to close database: %v", err)
+			logger.EllaLog.Panicf("Failed to close database: %v", err)
 		}
 	}()
 	metrics.RegisterDatabaseMetrics(dbInstance)

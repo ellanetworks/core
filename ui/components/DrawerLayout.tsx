@@ -30,6 +30,7 @@ import {
     Logout as LogoutIcon,
     AccountCircle as AccountCircleIcon,
     Storage as StorageIcon,
+    Cable as CableIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -151,6 +152,14 @@ export default function DrawerLayout({ children }: { children: React.ReactNode }
                                     <GroupsIcon />
                                 </ListItemIcon>
                                 <ListItemText primary="Subscribers" />
+                            </ListItemButton>
+                        </ListItem>
+                        <ListItem disablePadding>
+                            <ListItemButton component={Link} href="/routes" selected={pathname === "/routes"}>
+                                <ListItemIcon>
+                                    <CableIcon />
+                                </ListItemIcon>
+                                <ListItemText primary="Routes" />
                             </ListItemButton>
                         </ListItem>
                         {role === "Admin" && (
