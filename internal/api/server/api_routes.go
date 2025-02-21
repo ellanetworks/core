@@ -4,10 +4,11 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strconv"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/routes"
 	"github.com/gin-gonic/gin"
 )
 
@@ -19,6 +20,7 @@ type CreateRouteParams struct {
 }
 
 type GetRouteResponse struct {
+	ID          int64  `json:"id"`
 	Destination string `json:"destination"`
 	Gateway     string `json:"gateway"`
 	Interface   string `json:"interface"`
@@ -68,6 +70,7 @@ func ListRoutes(dbInstance *db.Database) gin.HandlerFunc {
 		routeList := make([]GetRouteResponse, 0)
 		for _, dbRoute := range dbRoutes {
 			routeResponse := GetRouteResponse{
+				ID:          dbRoute.ID,
 				Destination: dbRoute.Destination,
 				Gateway:     dbRoute.Gateway,
 				Interface:   dbRoute.Interface,
@@ -91,18 +94,24 @@ func GetRoute(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		routeDestination, exists := c.Params.Get("destination")
+		routeID, exists := c.Params.Get("id")
 		if !exists {
-			writeError(c.Writer, http.StatusBadRequest, "Missing destination parameter")
+			writeError(c.Writer, http.StatusBadRequest, "Missing id parameter")
 			return
 		}
-		dbRoute, err := dbInstance.GetRoute(routeDestination)
+		idNum, err := strconv.ParseInt(routeID, 10, 64)
+		if err != nil {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid id format")
+			return
+		}
+		dbRoute, err := dbInstance.GetRoute(idNum)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "Route not found")
 			return
 		}
 
 		routeResponse := GetRouteResponse{
+			ID:          dbRoute.ID,
 			Destination: dbRoute.Destination,
 			Gateway:     dbRoute.Gateway,
 			Interface:   dbRoute.Interface,
@@ -112,11 +121,11 @@ func GetRoute(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Internal error")
 			return
 		}
-		logger.LogAuditEvent(GetRouteAction, email, "User retrieved route: "+routeDestination)
+		logger.LogAuditEvent(GetRouteAction, email, "User retrieved route: "+routeID)
 	}
 }
 
-func CreateRoute(dbInstance *db.Database) gin.HandlerFunc {
+func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		emailAny, _ := c.Get("email")
 		email, ok := emailAny.(string)
@@ -158,11 +167,6 @@ func CreateRoute(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		// Ensure the route doesn't already exist.
-		if _, err := dbInstance.GetRoute(createRouteParams.Destination); err == nil {
-			writeError(c.Writer, http.StatusBadRequest, "Route already exists")
-			return
-		}
 		_, ipNetwork, err := net.ParseCIDR(createRouteParams.Destination)
 		if err != nil {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid destination format")
@@ -174,6 +178,25 @@ func CreateRoute(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 		ipGateway = ipGateway.To4()
+		interfaceExists, err := kernelInt.InterfaceExists(createRouteParams.Interface)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to check if interface exists")
+			return
+		}
+		if !interfaceExists {
+			writeError(c.Writer, http.StatusBadRequest, "Interface does not exist")
+			return
+		}
+
+		routeExists, err := kernelInt.RouteExists(ipNetwork, ipGateway, createRouteParams.Metric, createRouteParams.Interface)
+		if err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to check if route exists")
+			return
+		}
+		if routeExists {
+			writeError(c.Writer, http.StatusBadRequest, "Route already exists")
+			return
+		}
 
 		dbRoute := &db.Route{
 			Destination: createRouteParams.Destination,
@@ -195,14 +218,14 @@ func CreateRoute(dbInstance *db.Database) gin.HandlerFunc {
 			}
 		}()
 
-		if err := tx.CreateRoute(dbRoute); err != nil {
+		routeId, err := tx.CreateRoute(dbRoute)
+		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to create route in DB")
 			return
 		}
 
-		if err := routes.CreateKernelRoute(ipNetwork, ipGateway, createRouteParams.Metric, createRouteParams.Interface); err != nil {
-			logger.APILog.Errorf("Kernel route creation failed: %v", err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to create kernel route")
+		if err := kernelInt.CreateRoute(ipNetwork, ipGateway, createRouteParams.Metric, createRouteParams.Interface); err != nil {
+			writeError(c.Writer, http.StatusInternalServerError, "Failed to create kernel route: "+err.Error())
 			return
 		}
 
@@ -212,7 +235,7 @@ func CreateRoute(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		committed = true
 
-		response := SuccessResponse{Message: "Route created successfully"}
+		response := CreateSuccessResponse{Message: "Route created successfully", ID: routeId}
 		if err := writeResponse(c.Writer, response, http.StatusCreated); err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Internal error")
 			return
@@ -221,7 +244,7 @@ func CreateRoute(dbInstance *db.Database) gin.HandlerFunc {
 	}
 }
 
-func DeleteRoute(dbInstance *db.Database) gin.HandlerFunc {
+func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		emailAny, _ := c.Get("email")
 		email, ok := emailAny.(string)
@@ -229,12 +252,17 @@ func DeleteRoute(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		routeDestination, exists := c.Params.Get("destination")
+		routeID, exists := c.Params.Get("id")
 		if !exists {
-			writeError(c.Writer, http.StatusBadRequest, "Missing destination parameter")
+			writeError(c.Writer, http.StatusBadRequest, "Missing id parameter")
 			return
 		}
-		route, err := dbInstance.GetRoute(routeDestination)
+		routeIDNum, err := strconv.ParseInt(routeID, 10, 64)
+		if err != nil {
+			writeError(c.Writer, http.StatusBadRequest, "Invalid id format")
+			return
+		}
+		route, err := dbInstance.GetRoute(routeIDNum)
 		if err != nil {
 			writeError(c.Writer, http.StatusNotFound, "Route not found")
 			return
@@ -267,15 +295,13 @@ func DeleteRoute(dbInstance *db.Database) gin.HandlerFunc {
 		}()
 
 		// Delete the DB record within the transaction.
-		if err := tx.DeleteRoute(routeDestination); err != nil {
-			logger.APILog.Errorf("DB route deletion failed: %v", err)
+		if err := tx.DeleteRoute(routeIDNum); err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete route from DB")
 			return
 		}
 
 		// Delete the kernel route.
-		if err := routes.DeleteKernelRoute(ipNetwork, gateway, route.Metric, route.Interface); err != nil {
-			logger.APILog.Errorf("Kernel route deletion failed: %v", err)
+		if err := kernelInt.DeleteRoute(ipNetwork, gateway, route.Metric, route.Interface); err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete kernel route")
 			return
 		}
@@ -291,6 +317,6 @@ func DeleteRoute(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusInternalServerError, "Internal error")
 			return
 		}
-		logger.LogAuditEvent(DeleteRouteAction, email, "User deleted route: "+routeDestination)
+		logger.LogAuditEvent(DeleteRouteAction, email, "User deleted route: "+routeID)
 	}
 }

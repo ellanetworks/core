@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -18,7 +19,8 @@ func Start(dbInstance *db.Database, port int, certFile string, keyFile string) e
 	if err != nil {
 		return fmt.Errorf("couldn't generate jwt secret: %v", err)
 	}
-	router := server.NewHandler(dbInstance, jwtSecret)
+	kernelInt := &kernel.RealKernel{}
+	router := server.NewHandler(dbInstance, kernelInt, jwtSecret)
 
 	go func() {
 		httpAddr := ":" + strconv.Itoa(port)

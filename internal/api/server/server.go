@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ui"
 	"github.com/gin-gonic/gin"
@@ -96,7 +97,7 @@ func ginRecover(logger *zap.SugaredLogger) gin.HandlerFunc {
 	}
 }
 
-func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
+func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(ginToZap(logger.APILog), ginRecover(logger.APILog))
@@ -126,9 +127,9 @@ func NewHandler(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 
 	// Routes (Authenticated)
 	apiGroup.GET("/routes", Authenticate(jwtSecret), ListRoutes(dbInstance))
-	apiGroup.POST("/routes", Authenticate(jwtSecret), RequireAdmin(), CreateRoute(dbInstance))
-	apiGroup.GET("/routes/:name", Authenticate(jwtSecret), GetRoute(dbInstance))
-	apiGroup.DELETE("/routes/:name", Authenticate(jwtSecret), RequireAdmin(), DeleteRoute(dbInstance))
+	apiGroup.POST("/routes", Authenticate(jwtSecret), RequireAdmin(), CreateRoute(dbInstance, kernel))
+	apiGroup.GET("/routes/:id", Authenticate(jwtSecret), GetRoute(dbInstance))
+	apiGroup.DELETE("/routes/:id", Authenticate(jwtSecret), RequireAdmin(), DeleteRoute(dbInstance, kernel))
 
 	// Operator (Authenticated)
 	apiGroup.GET("/operator", Authenticate(jwtSecret), GetOperator(dbInstance))
