@@ -210,6 +210,16 @@ func Authentication(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		default:
 			logger.AmfLog.Errorf("UE state mismatch: receieve gmm message[message type 0x%0x] at %s state",
 				gmmMessage.GetMessageType(), state.Current())
+			// called SendEvent() to move to deregistered state if state mismatch occurs
+			err := GmmFSM.SendEvent(state, AuthFailEvent, fsm.ArgsType{
+				ArgAmfUe:      amfUe,
+				ArgAccessType: accessType,
+			})
+			if err != nil {
+				logger.AmfLog.Errorln(err)
+			} else {
+				amfUe.GmmLog.Info("state reset to Deregistered")
+			}
 		}
 	case AuthSuccessEvent:
 		logger.AmfLog.Debugln(event)
@@ -330,6 +340,16 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		default:
 			amfUe.GmmLog.Errorf("state mismatch: receieve gmm message[message type 0x%0x] at %s state",
 				gmmMessage.GetMessageType(), state.Current())
+			// called SendEvent() to move to deregistered state if state mismatch occurs
+			err := GmmFSM.SendEvent(state, SecurityModeFailEvent, fsm.ArgsType{
+				ArgAmfUe:      amfUe,
+				ArgAccessType: accessType,
+			})
+			if err != nil {
+				logger.AmfLog.Errorln(err)
+			} else {
+				amfUe.GmmLog.Info("state reset to Deregistered")
+			}
 		}
 	case SecurityModeAbortEvent:
 		logger.AmfLog.Debugln(event)
@@ -435,6 +455,19 @@ func ContextSetup(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		default:
 			amfUe.GmmLog.Errorf("state mismatch: receieve gmm message[message type 0x%0x] at %s state",
 				gmmMessage.GetMessageType(), state.Current())
+			msgType := gmmMessage.GetMessageType()
+			if msgType == nas.MsgTypeRegistrationRequest {
+				// called SendEvent() to move to deregistered state if state mismatch occurs
+				err := GmmFSM.SendEvent(state, ContextSetupFailEvent, fsm.ArgsType{
+					ArgAmfUe:      amfUe,
+					ArgAccessType: accessType,
+				})
+				if err != nil {
+					logger.AmfLog.Errorln(err)
+				} else {
+					amfUe.GmmLog.Info("state reset to Deregistered")
+				}
+			}
 		}
 	case ContextSetupSuccessEvent:
 		logger.AmfLog.Debugln(event)
