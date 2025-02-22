@@ -120,12 +120,6 @@ def configure_ella_core(core_address: str) -> Subscriber:
         priority_level=1,
         var5qi=8,
     )
-    ella_client.create_route(
-        destination="0.0.0.0/0",
-        gateway="192.168.250.1",
-        interface="n6",
-        metric=0,
-    )
     ella_client.update_operator_id(
         mcc="001",
         mnc="01",
