@@ -34,7 +34,7 @@ interface ProfileData {
 }
 
 const Profile = () => {
-  const { role } = useAuth(); // "Admin" or "Read Only"
+  const { role } = useAuth();
   const [cookies] = useCookies(["user_token"]);
   const [profiles, setProfiles] = useState<ProfileData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,7 +131,7 @@ const Profile = () => {
     { field: "priorityLevel", headerName: "Priority", flex: 0.5 },
   ];
 
-  if (role === "Admin") {
+  if (role === "Admin" || role === "Network Manager") {
     baseColumns.push({
       field: "actions",
       headerName: "Actions",
@@ -187,7 +187,7 @@ const Profile = () => {
         <EmptyState
           primaryText="No profile found."
           secondaryText="Create a new profile in order to add subscribers to the network."
-          button={role === "Admin"}
+          button={role === "Admin" || role === "Network Manager"}
           buttonText="Create"
           onCreate={handleOpenCreateModal}
         />
@@ -205,7 +205,7 @@ const Profile = () => {
             <Typography variant="h4" component="h1" gutterBottom>
               Profiles ({profiles.length})
             </Typography>
-            {role === "Admin" && (
+            {role === "Admin" || role === "Network Manager" && (
               <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
                 Create
               </Button>

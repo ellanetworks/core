@@ -8,7 +8,7 @@ import { CircularProgress, Box } from "@mui/material";
 
 interface AuthContextType {
     email: string | null;
-    role: string | null; // "Admin" or "Read Only"
+    role: string | null;
     setAuthData: (authData: { email: string; role: string } | null) => void;
 }
 
@@ -43,22 +43,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             const decoded = jwtDecode(token) as DecodedToken;
 
             let roleString = "";
-            if (decoded.role === 0 || decoded.role === "0") {
+            console.log("decoded.role", decoded.role);
+            if (decoded.role === "admin") {
                 roleString = "Admin";
-            } else if (decoded.role === 1 || decoded.role === "1") {
+            } else if (decoded.role === "readonly") {
                 roleString = "Read Only";
+            } else if (decoded.role === "network-manager") {
+                roleString = "Network Manager";
             } else {
                 roleString = String(decoded.role);
             }
             setAuthData({ email: decoded.email, role: roleString });
-            console.log("Auth Data set:", decoded.email, roleString);
         } catch (error) {
             console.error("Error decoding token", error);
             router.push("/login");
         }
     }, [cookies.user_token, router]);
 
-    // While authData is not set, show a spinner.
     if (!authData) {
         return (
             <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>

@@ -13,12 +13,12 @@ import (
 	"github.com/golang-jwt/jwt"
 )
 
-type Role int
+type Role string
 
 const (
-	AdminRole Role = iota
-	ReadOnlyRole
-	NetworkManagerRole
+	AdminRole          Role = "admin"
+	ReadOnlyRole       Role = "readonly"
+	NetworkManagerRole Role = "network-manager"
 )
 
 const AuthenticationAction = "user_authentication"

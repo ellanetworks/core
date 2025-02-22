@@ -35,7 +35,7 @@ interface SubscriberData {
 }
 
 const Subscriber = () => {
-    const { role } = useAuth(); // "Admin" or "Read Only"
+    const { role } = useAuth();
     const [cookies] = useCookies(["user_token"]);
     const [subscribers, setSubscribers] = useState<SubscriberData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -122,8 +122,7 @@ const Subscriber = () => {
     ];
     console.log("Role:", role);
 
-    // Only if the user is an admin, add the Actions column.
-    if (role === "Admin") {
+    if (role === "Admin" || role === "Network Manager") {
         baseColumns.push({
             field: "actions",
             headerName: "Actions",
@@ -186,7 +185,7 @@ const Subscriber = () => {
                 <EmptyState
                     primaryText="No subscriber found."
                     secondaryText="Create a new subscriber."
-                    button={role === "Admin"} // Only show the create button for admins
+                    button={role === "Admin" || role === "Network Manager"}
                     buttonText="Create"
                     onCreate={handleOpenCreateModal}
                 />
@@ -204,7 +203,7 @@ const Subscriber = () => {
                         <Typography variant="h4" component="h1" gutterBottom>
                             Subscribers ({subscribers.length})
                         </Typography>
-                        {role === "Admin" && (
+                        {role === "Admin" || role === "Network Manager" && (
                             <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
                                 Create
                             </Button>

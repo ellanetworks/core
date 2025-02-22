@@ -122,9 +122,9 @@ class EllaCore:
                 break
         return downlink_bytes
 
-    def create_user(self, email: str, password: str) -> None:
+    def create_user(self, email: str, password: str, role: str) -> None:
         """Create a user in Ella Core."""
-        data = {"email": email, "password": password}
+        data = {"email": email, "password": password, "role": role}
         self._make_request("POST", "/api/v1/users", data=data)
         logger.info("User %s created in Ella Core", email)
 
