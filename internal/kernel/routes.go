@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -63,6 +64,7 @@ func (rk *RealKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priori
 	if err := netlink.RouteAdd(&nlRoute); err != nil {
 		return fmt.Errorf("failed to add route: %v", err)
 	}
+	logger.EllaLog.Infof("Added route: %v", nlRoute)
 	return nil
 }
 

@@ -151,7 +151,7 @@ const Route = () => {
       ) : routes.length === 0 ? (
         <EmptyState
           primaryText="No route found."
-          secondaryText="Create a new route in order to add subscribers to the network."
+          secondaryText="Create a new route in order for subscribers to access the network."
           button={role === "Admin"}
           buttonText="Create"
           onCreate={handleOpenCreateModal}

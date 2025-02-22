@@ -1,6 +1,6 @@
+"use client";
 import React, { useState, useEffect } from "react";
 import {
-    Box,
     Dialog,
     DialogTitle,
     DialogContent,
@@ -10,12 +10,39 @@ import {
     Alert,
     Collapse,
     MenuItem,
+    FormControlLabel,
+    Checkbox,
 } from "@mui/material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
 import { createRoute } from "@/queries/routes";
-import { useRouter } from "next/navigation"
-import { useCookies } from "react-cookie"
+import { useRouter } from "next/navigation";
+import { useCookies } from "react-cookie";
+
+
+const cidrRegex = /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\/([1-9]|[1-2]\d|3[0-2])$/;
+const ipv4Regex = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+
+const schema = yup.object().shape({
+    defaultRoute: yup.boolean(),
+    destination: yup.string().when(["defaultRoute"], (values: any[], schema: yup.StringSchema) => {
+        const defaultRoute = values[0];
+        if (defaultRoute === true) {
+            return schema.oneOf(["0.0.0.0/0"], "For a default route, destination must be 0.0.0.0/0");
+        } else {
+            return schema.required("Destination is required").matches(cidrRegex, "Destination must be a valid CIDR (IPv4)");
+        }
+    }),
+    gateway: yup
+        .string()
+        .required("Gateway is required")
+        .matches(ipv4Regex, "Gateway must be a valid IPv4 address"),
+    interface: yup
+        .string()
+        .oneOf(["n3", "n6"], "Interface must be either n3 or n6")
+        .required("Interface is required"),
+    metric: yup.number().required("Metric is required"),
+});
 
 
 interface CreateRouteModalProps {
@@ -24,26 +51,21 @@ interface CreateRouteModalProps {
     onSuccess: () => void;
 }
 
-const schema = yup.object().shape({
-    destination: yup.string().min(1).max(256).required("Destination is required"),
-    gateway: yup.string().min(1).max(256).required("Gateway is required"),
-    interface: yup.string().min(1).max(256).required("Interface is required"),
-    metric: yup.number().required("Metric is required"),
-});
-
 const CreateRouteModal: React.FC<CreateRouteModalProps> = ({ open, onClose, onSuccess }) => {
     const router = useRouter();
-    const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+    const [cookies] = useCookies(["user_token"]);
 
     if (!cookies.user_token) {
-        router.push("/login")
+        router.push("/login");
     }
 
+    // Set default interface to "n6" and defaultRoute to false.
     const [formValues, setFormValues] = useState({
         destination: "",
         gateway: "",
-        interface: "",
+        interface: "n6",
         metric: 0,
+        defaultRoute: false,
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -52,12 +74,22 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({ open, onClose, onSu
     const [loading, setLoading] = useState(false);
     const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
-    const handleChange = (field: string, value: string | number) => {
-        setFormValues((prev) => ({
-            ...prev,
-            [field]: value,
-        }));
-        validateField(field, value);
+    const handleChange = (field: string, value: string | number | boolean) => {
+        // When toggling defaultRoute, update the destination accordingly.
+        if (field === "defaultRoute" && typeof value === "boolean") {
+            setFormValues((prev) => ({
+                ...prev,
+                defaultRoute: value,
+                destination: value ? "0.0.0.0/0" : "",
+            }));
+            validateField("destination", value ? "0.0.0.0/0" : "");
+        } else {
+            setFormValues((prev) => ({
+                ...prev,
+                [field]: value,
+            }));
+            validateField(field, value);
+        }
     };
 
     const handleBlur = (field: string) => {
@@ -67,9 +99,9 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({ open, onClose, onSu
         }));
     };
 
-    const validateField = async (field: string, value: string | number) => {
+    const validateField = async (field: string, value: string | number | boolean) => {
         try {
-            const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
+            const fieldSchema = yup.reach(schema, field) as yup.Schema<any>;
             await fieldSchema.validate(value);
             setErrors((prev) => ({
                 ...prev,
@@ -115,7 +147,7 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({ open, onClose, onSu
                 formValues.destination,
                 formValues.gateway,
                 formValues.interface,
-                formValues.metric,
+                formValues.metric
             );
             onClose();
             onSuccess();
@@ -137,17 +169,22 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({ open, onClose, onSu
             aria-labelledby="create-route-modal-title"
             aria-describedby="create-route-modal-description"
         >
-            <DialogTitle>Create Route</DialogTitle>
+            <DialogTitle id="create-route-modal-title">Create Route</DialogTitle>
             <DialogContent dividers>
                 <Collapse in={!!alert.message}>
-                    <Alert
-                        onClose={() => setAlert({ message: "" })}
-                        sx={{ mb: 2 }}
-                        severity="error"
-                    >
+                    <Alert onClose={() => setAlert({ message: "" })} sx={{ mb: 2 }} severity="error">
                         {alert.message}
                     </Alert>
                 </Collapse>
+                <FormControlLabel
+                    control={
+                        <Checkbox
+                            checked={formValues.defaultRoute}
+                            onChange={(e) => handleChange("defaultRoute", e.target.checked)}
+                        />
+                    }
+                    label="Default Route (0.0.0.0/0)"
+                />
                 <TextField
                     fullWidth
                     label="Destination"
@@ -157,6 +194,7 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({ open, onClose, onSu
                     error={!!errors.destination && touched.destination}
                     helperText={touched.destination ? errors.destination : ""}
                     margin="normal"
+                    disabled={formValues.defaultRoute}
                 />
                 <TextField
                     fullWidth
@@ -170,6 +208,7 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({ open, onClose, onSu
                 />
                 <TextField
                     fullWidth
+                    select
                     label="Interface"
                     value={formValues.interface}
                     onChange={(e) => handleChange("interface", e.target.value)}
@@ -177,7 +216,10 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({ open, onClose, onSu
                     error={!!errors.interface && touched.interface}
                     helperText={touched.interface ? errors.interface : ""}
                     margin="normal"
-                />
+                >
+                    <MenuItem value="n3">n3</MenuItem>
+                    <MenuItem value="n6">n6</MenuItem>
+                </TextField>
                 <TextField
                     fullWidth
                     label="Metric"
@@ -191,15 +233,8 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({ open, onClose, onSu
                 />
             </DialogContent>
             <DialogActions>
-                <Button onClick={onClose}>
-                    Cancel
-                </Button>
-                <Button
-                    variant="contained"
-                    color="success"
-                    onClick={handleSubmit}
-                    disabled={!isValid || loading}
-                >
+                <Button onClick={onClose}>Cancel</Button>
+                <Button variant="contained" color="success" onClick={handleSubmit} disabled={!isValid || loading}>
                     {loading ? "Creating..." : "Create"}
                 </Button>
             </DialogActions>
