@@ -25,7 +25,7 @@ Data plane processing in Ella Core occurs between the **n3** and **n6** interfac
 
 ### Routing
 
-Ella Core currently relies on kernel routing to make routing decisions for incoming network packets. Kernel routes can be configured using the [Routes API](../reference/API/routes.md) or the user interface.
+Ella Core currently relies on the kernel to make routing decisions for incoming network packets. Kernel routes can be configured using the [Routes API](../reference/api/routes.md) or the user interface.
 
 ### NATing
 
