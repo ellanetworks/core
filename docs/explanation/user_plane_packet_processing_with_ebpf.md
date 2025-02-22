@@ -14,7 +14,7 @@ This document explains the key concepts behind packet Ella Core's packet process
 
 ## Data Plane Packet processing in Ella Core
 
-Ella Core's data plane is implemented using XDP to achieve high throughput and low latency. Key features include:
+Ella Core's data plane uses XDP to achieve high throughput and low latency. Key features include:
 
 - **Packet filtering**: Applying rules to determine whether packets should be dropped, forwarded, or passed.
 - **Encapsulation and decapsulation**: Managing GTP-U (GPRS Tunneling Protocol-User Plane) headers for data transmission.
@@ -25,10 +25,11 @@ Data plane processing in Ella Core occurs between the **n3** and **n6** interfac
 
 ### Routing
 
-At the moment, Ella Core relies on kernel routing when making routing decisions for incoming network packets. Kernel routes can be configured using the [Routes API](../reference/api/routes.md) or the user interface.
+Ella Core currently relies on kernel routing to make routing decisions for incoming network packets. Kernel routes can be configured using the [Routes API](../reference/API/routes.md) or the user interface.
 
-!!! note
-    Future versions of Ella Core will replace kernel routing with an eBPF program in order to increase performance. For more information, follow [this issue](https://github.com/ellanetworks/core/issues/440).
+### NATing
+
+Ella Core currently does not support Network Address Translation (NAT). If a subscriber is assigned a private IP address, the subscriber's packets will not be translated to a public IP address when sent to the Internet. In the [End-to-End Network tutorial](../tutorials/end_to_end_network.md), we use an external router to enable NATting using the `iptables` command so that subscribers can use publicly routable addresses.
 
 ### Performance
 
@@ -38,7 +39,7 @@ Detailed performance results are available [here](../reference/performance.md).
 
 Ella Core supports the following XDP attach modes:
 
-- **Native**: The most performant option, only supported on [compatible drivers](https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md#xdp).
+- **Native**: This is the most performant option, but it is only supported on [compatible drivers](https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md#xdp).
 - **Generic**: A fallback option that works on most drivers but with lower performance.
 
 For more information on configuring XDP attach modes, refer to the [Configuration File](../reference/config_file.md) documentation.
