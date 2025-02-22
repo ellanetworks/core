@@ -98,7 +98,7 @@ func TestLoginEndToEnd(t *testing.T) {
 		user := &CreateUserParams{
 			Email:    "my.user123@ellanetworks.com",
 			Password: "password123",
-			Role:     0,
+			Role:     "admin",
 		}
 		statusCode, _, err := createUser(ts.URL, client, "", user)
 		if err != nil {
@@ -228,18 +228,23 @@ func TestRolesEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	token, err := createUserAndLogin(ts.URL, adminToken, 1, client)
+	readOnlyToken, err := createUserAndLogin(ts.URL, adminToken, "readonly@ellanetworks.com", "readonly", client)
 	if err != nil {
-		t.Fatalf("couldn't create user and login: %s", err)
+		t.Fatalf("couldn't create readonly user and login: %s", err)
+	}
+
+	networkManagerToken, err := createUserAndLogin(ts.URL, adminToken, "networkmanager@ellanetworks.com", "network-manager", client)
+	if err != nil {
+		t.Fatalf("couldn't create network manager user and login: %s", err)
 	}
 
 	t.Run("1. Use ReadOnly user to create a new user - should fail", func(t *testing.T) {
 		user := &CreateUserParams{
 			Email:    "whatever@ellanetworks.com",
 			Password: "password123",
-			Role:     1,
+			Role:     "readonly",
 		}
-		statusCode, response, _ := createUser(ts.URL, client, token, user)
+		statusCode, response, _ := createUser(ts.URL, client, readOnlyToken, user)
 		if err != nil {
 			t.Fatalf("couldn't create user: %s", err)
 		}
@@ -251,11 +256,29 @@ func TestRolesEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("2. Use Admin user to create a new user - should succeed", func(t *testing.T) {
+	t.Run("2. Use Network Manager user to create a new user - should fail", func(t *testing.T) {
 		user := &CreateUserParams{
 			Email:    "whatever@ellanetworks.com",
 			Password: "password123",
-			Role:     1,
+			Role:     "readonly",
+		}
+		statusCode, response, _ := createUser(ts.URL, client, networkManagerToken, user)
+		if err != nil {
+			t.Fatalf("couldn't create user: %s", err)
+		}
+		if statusCode != http.StatusForbidden {
+			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
+		}
+		if response.Error != "Admin role required" {
+			t.Fatalf("expected error %s, got %q", "Admin role required", response.Error)
+		}
+	})
+
+	t.Run("3. Use Admin user to create a new user - should succeed", func(t *testing.T) {
+		user := &CreateUserParams{
+			Email:    "whatever@ellanetworks.com",
+			Password: "password123",
+			Role:     "readonly",
 		}
 		statusCode, response, err := createUser(ts.URL, client, adminToken, user)
 		if err != nil {
@@ -269,8 +292,8 @@ func TestRolesEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("3. Use ReadOnly user to list subscribers - should succeed", func(t *testing.T) {
-		statusCode, response, err := listSubscribers(ts.URL, client, token)
+	t.Run("4. Use ReadOnly user to list subscribers - should succeed", func(t *testing.T) {
+		statusCode, response, err := listSubscribers(ts.URL, client, readOnlyToken)
 		if err != nil {
 			t.Fatalf("couldn't list subscribers: %s", err)
 		}
@@ -282,16 +305,65 @@ func TestRolesEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("4. Use ReadOnly user to list users - should fail", func(t *testing.T) {
-		statusCode, response, err := listUsers(ts.URL, client, token)
+	t.Run("5. Use Network Manager user to list subscribers - should succeed", func(t *testing.T) {
+		statusCode, response, err := listSubscribers(ts.URL, client, networkManagerToken)
+		if err != nil {
+			t.Fatalf("couldn't list subscribers: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+		if len(response.Result) != 0 {
+			t.Fatalf("expected 0 subscriber, got %d", len(response.Result))
+		}
+	})
+
+	t.Run("6. Use ReadOnly user to list users - should fail", func(t *testing.T) {
+		statusCode, response, err := listUsers(ts.URL, client, readOnlyToken)
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
 		if statusCode != http.StatusForbidden {
 			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
 		}
-		if response.Error != "Admin role required" {
-			t.Fatalf("expected error %q, got %q", "Admin role required", response.Error)
+		if response.Error != "Insufficient permissions" {
+			t.Fatalf("expected error %q, got %q", "Insufficient permissions", response.Error)
+		}
+	})
+
+	t.Run("7. Use Network Manager user to list users - should fail", func(t *testing.T) {
+		statusCode, response, err := listUsers(ts.URL, client, networkManagerToken)
+		if err != nil {
+			t.Fatalf("couldn't list users: %s", err)
+		}
+		if statusCode != http.StatusForbidden {
+			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
+		}
+		if response.Error != "Insufficient permissions" {
+			t.Fatalf("expected error %q, got %q", "Insufficient permissions", response.Error)
+		}
+	})
+
+	t.Run("8. Use Network Manager user to create profile - should succeed", func(t *testing.T) {
+		createProfileParams := &CreateProfileParams{
+			Name:            ProfileName,
+			UeIpPool:        "0.0.0.0/24",
+			Dns:             "8.8.8.8",
+			Mtu:             1500,
+			BitrateUplink:   "100 Mbps",
+			BitrateDownlink: "200 Mbps",
+			Var5qi:          9,
+			PriorityLevel:   1,
+		}
+		statusCode, response, err := createProfile(ts.URL, client, networkManagerToken, createProfileParams)
+		if err != nil {
+			t.Fatalf("couldn't create profile: %s", err)
+		}
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+		if response.Error != "" {
+			t.Fatalf("expected empty error, got %q", response.Error)
 		}
 	})
 }
@@ -310,6 +382,7 @@ func TestLookupToken(t *testing.T) {
 		createUserParams := &CreateUserParams{
 			Email:    "my.user123@ellanetworks.com",
 			Password: "password123",
+			Role:     "admin",
 		}
 		statusCode, _, err := createUser(ts.URL, client, "", createUserParams)
 		if err != nil {

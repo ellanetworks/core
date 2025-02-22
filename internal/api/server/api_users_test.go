@@ -21,7 +21,7 @@ type ListUsersResponse struct {
 
 type GetUserResponseResult struct {
 	Email string `json:"email"`
-	Role  int    `json:"role"`
+	Role  string `json:"role"`
 }
 
 type GetUserResponse struct {
@@ -32,7 +32,7 @@ type GetUserResponse struct {
 type CreateUserParams struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
-	Role     int    `json:"role"`
+	Role     string `json:"role"`
 }
 
 type UpdateUserPasswordParams struct {
@@ -42,7 +42,7 @@ type UpdateUserPasswordParams struct {
 
 type UpdateUserParams struct {
 	Email string `json:"email"`
-	Role  int    `json:"role"`
+	Role  string `json:"role"`
 }
 
 type CreateUserResponseResult struct {
@@ -248,7 +248,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		createUserParams := &CreateUserParams{
 			Email:    Email,
 			Password: Password,
-			Role:     0,
+			Role:     "admin",
 		}
 		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
 		if err != nil {
@@ -297,7 +297,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	t.Run("4. Create admin user - no email", func(t *testing.T) {
 		createUserParams := &CreateUserParams{
 			Password: Password,
-			Role:     0,
+			Role:     "admin",
 		}
 		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
 		if err != nil {
@@ -334,7 +334,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	t.Run("6. Edit user", func(t *testing.T) {
 		updateUserParams := &UpdateUserParams{
 			Email: Email,
-			Role:  1,
+			Role:  "readonly",
 		}
 		statusCode, response, err := editUser(ts.URL, client, token, Email, updateUserParams)
 		if err != nil {
@@ -362,8 +362,8 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		if response.Result.Email != Email {
 			t.Fatalf("expected email %s, got %s", Email, response.Result.Email)
 		}
-		if response.Result.Role != 1 {
-			t.Fatalf("expected role %v, got %v", 1, response.Result.Role)
+		if response.Result.Role != "readonly" {
+			t.Fatalf("expected role %v, got %v", "readonly", response.Result.Role)
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)

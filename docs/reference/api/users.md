@@ -43,8 +43,9 @@ This path creates a new system user. The first user can be created without authe
 - `email` (string): The email of the user. 
 - `password` (string): The password of the user.
 - `role` (int): The role of the user. Allowed values:
-    - `0`: Admin
-    - `1`: Read Only
+    - `admin`: Administrator user with full access to network and system resources.
+    - `network-manager`: Network manager user with full access to network resources.
+    - `readonly`: Read-only user with only read access to network resources.
 
 ### Sample Response
 
@@ -67,8 +68,9 @@ This path updates an existing system user.
 ### Parameters
 
 - `role` (int): The role of the user. Allowed values:
-    - `0`: Admin
-    - `1`: Read Only
+    - `admin`: Administrator user with full access to network and system resources.
+    - `network-manager`: Network manager user with full access to network resources.
+    - `readonly`: Read-only user with only read access to network resources.
 
 ### Sample Response
 

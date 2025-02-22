@@ -45,11 +45,6 @@ func isRouteGatewayValid(gateway string) bool {
 	return ip != nil
 }
 
-// isRouteInterfaceValid checks if the interface is valid.
-func isRouteInterfaceValid(iface string) bool {
-	return iface == "n3" || iface == "n6"
-}
-
 // interfaceDbMap maps the interface string to the db.NetworkInterface enum.
 var interfaceDbMap = map[string]db.NetworkInterface{
 	"n3": db.N3,
@@ -166,12 +161,13 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 			writeError(c.Writer, http.StatusBadRequest, "invalid gateway format: expecting an IPv4 address")
 			return
 		}
-		if !isRouteInterfaceValid(createRouteParams.Interface) {
-			writeError(c.Writer, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed")
-			return
-		}
 		if createRouteParams.Metric < 0 {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid metric value")
+			return
+		}
+		kernelNetworkInterface, ok := interfaceKernelMap[createRouteParams.Interface]
+		if !ok {
+			writeError(c.Writer, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed")
 			return
 		}
 
@@ -187,11 +183,6 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 		}
 		ipGateway = ipGateway.To4()
 
-		kernelNetworkInterface, ok := interfaceKernelMap[createRouteParams.Interface]
-		if !ok {
-			writeError(c.Writer, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed")
-			return
-		}
 		routeExists, err := kernelInt.RouteExists(ipNetwork, ipGateway, createRouteParams.Metric, kernelNetworkInterface)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to check if route exists")

@@ -16,8 +16,9 @@ import (
 type Role int
 
 const (
-	AdminRole    Role = 0
-	ReadOnlyRole Role = 1
+	AdminRole Role = iota
+	ReadOnlyRole
+	NetworkManagerRole
 )
 
 const AuthenticationAction = "user_authentication"
@@ -56,7 +57,9 @@ func Authenticate(jwtSecret []byte) gin.HandlerFunc {
 	}
 }
 
-func RequireAdmin() gin.HandlerFunc {
+// Require checks if the user has the required role to access the resource
+// The user will be allowed to access the resource if their role is in the allowedRoles list
+func Require(allowedRoles ...Role) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roleIfc, exists := c.Get("role")
 		if !exists {
@@ -70,11 +73,21 @@ func RequireAdmin() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		if role != AdminRole {
-			writeError(c.Writer, http.StatusForbidden, "Admin role required")
+
+		allowed := false
+		for _, allowedRole := range allowedRoles {
+			if role == allowedRole {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			writeError(c.Writer, http.StatusForbidden, "Insufficient permissions")
 			c.Abort()
 			return
 		}
+
 		c.Next()
 	}
 }

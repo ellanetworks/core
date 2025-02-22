@@ -36,7 +36,21 @@ type Role int
 const (
 	AdminRole Role = iota
 	ReadOnlyRole
+	NetworkManagerRole
 )
+
+func (r Role) String() string {
+	switch r {
+	case AdminRole:
+		return "admin"
+	case ReadOnlyRole:
+		return "readonly"
+	case NetworkManagerRole:
+		return "network-manager"
+	default:
+		return "unknown"
+	}
+}
 
 type NumUsers struct {
 	Count int `db:"count"`
@@ -45,7 +59,7 @@ type NumUsers struct {
 type User struct {
 	ID             int    `db:"id"`
 	Email          string `db:"email"`
-	Role           int    `db:"role"`
+	Role           Role   `db:"role"`
 	HashedPassword string `db:"hashedPassword"`
 }
 
@@ -102,7 +116,7 @@ func (db *Database) UpdateUser(email string, role Role) error {
 	if err != nil {
 		return err
 	}
-	user.Role = int(role)
+	user.Role = role
 	err = db.conn.Query(context.Background(), stmt, user).Run()
 	return err
 }

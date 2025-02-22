@@ -32,9 +32,11 @@ const (
 	LookupTokenAction = "auth_lookup_token" // #nosec G101
 )
 
-var roleMap = map[db.Role]Role{
-	db.AdminRole:    AdminRole,
-	db.ReadOnlyRole: ReadOnlyRole,
+// roleDBMap maps the Role enum to the db.Role enum.
+var roleAuthMap = map[db.Role]Role{
+	db.AdminRole:          AdminRole,
+	db.ReadOnlyRole:       ReadOnlyRole,
+	db.NetworkManagerRole: NetworkManagerRole,
 }
 
 func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
@@ -75,7 +77,7 @@ func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
 			return
 		}
 
-		role, ok := roleMap[db.Role(user.Role)]
+		role, ok := roleAuthMap[user.Role]
 		if !ok {
 			writeError(c.Writer, http.StatusInternalServerError, "Internal Error")
 			return
