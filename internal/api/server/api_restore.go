@@ -35,11 +35,11 @@ func Restore(dbInstance *db.Database) gin.HandlerFunc {
 		defer func() {
 			err := tempFile.Close()
 			if err != nil {
-				logger.NmsLog.Warnf("Failed to close temp restore file: %v", err)
+				logger.APILog.Warnf("Failed to close temp restore file: %v", err)
 			}
 			err = os.Remove(tempFile.Name())
 			if err != nil {
-				logger.NmsLog.Warnf("Failed to remove temp restore file: %v", err)
+				logger.APILog.Warnf("Failed to remove temp restore file: %v", err)
 			}
 		}()
 

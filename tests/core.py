@@ -16,6 +16,7 @@ OPERATOR_ID_CONFIG_URL = "/api/v1/operator/id"
 OPERATOR_SLICE_CONFIG_URL = "/api/v1/operator/slice"
 OPERATOR_TRACKING_CONFIG_URL = "/api/v1/operator/tracking"
 PROFILE_CONFIG_URL = "/api/v1/profiles"
+ROUTE_CONFIG_URL = "/api/v1/routes"
 SUBSCRIBERS_CONFIG_URL = "/api/v1/subscribers"
 
 JSON_HEADER = {"Content-Type": "application/json"}
@@ -182,6 +183,16 @@ class EllaCore:
         }
         self._make_request("POST", PROFILE_CONFIG_URL, data=profile_config)
         logger.info(f"Created profile {name}.")
+
+    def create_route(self, destination: str, gateway: str, interface: str, metric: int):
+        route_config = {
+            "destination": destination,
+            "gateway": gateway,
+            "interface": interface,
+            "metric": metric,
+        }
+        self._make_request("POST", ROUTE_CONFIG_URL, data=route_config)
+        logger.info(f"Created route {destination}.")
 
     def update_operator_id(
         self,

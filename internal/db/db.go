@@ -4,6 +4,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -17,6 +18,7 @@ type Database struct {
 	filepath         string
 	subscribersTable string
 	profilesTable    string
+	routesTable      string
 	operatorTable    string
 	usersTable       string
 	conn             *sqlair.DB
@@ -48,6 +50,9 @@ func NewDatabase(databasePath string, initialOperator Operator) (*Database, erro
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateProfilesTable, ProfilesTableName)); err != nil {
 		return nil, err
 	}
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateRoutesTable, RoutesTableName)); err != nil {
+		return nil, err
+	}
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateOperatorTable, OperatorTableName)); err != nil {
 		return nil, err
 	}
@@ -59,6 +64,7 @@ func NewDatabase(databasePath string, initialOperator Operator) (*Database, erro
 	db.filepath = databasePath
 	db.subscribersTable = SubscribersTableName
 	db.profilesTable = ProfilesTableName
+	db.routesTable = RoutesTableName
 	db.operatorTable = OperatorTableName
 	db.usersTable = UsersTableName
 	err = db.InitializeOperator(initialOperator)
@@ -67,4 +73,29 @@ func NewDatabase(databasePath string, initialOperator Operator) (*Database, erro
 	}
 	logger.DBLog.Infof("Database Initialized")
 	return db, nil
+}
+
+func (db *Database) BeginTransaction() (*Transaction, error) {
+	tx, err := db.conn.Begin(context.Background(), nil)
+	if err != nil {
+		return nil, err
+	}
+	return &Transaction{
+		tx: tx,
+		db: db,
+	}, nil
+}
+
+// Transaction wraps a SQLair transaction.
+type Transaction struct {
+	tx *sqlair.TX
+	db *Database
+}
+
+func (t *Transaction) Commit() error {
+	return t.tx.Commit()
+}
+
+func (t *Transaction) Rollback() error {
+	return t.tx.Rollback()
 }

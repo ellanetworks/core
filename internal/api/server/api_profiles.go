@@ -419,7 +419,7 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		subsInProfile, err := dbInstance.SubscribersInProfile(profileName)
 		if err != nil {
-			logger.NmsLog.Warnln(err)
+			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to count subscribers")
 			return
 		}

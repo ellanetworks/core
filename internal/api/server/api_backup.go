@@ -29,11 +29,11 @@ func Backup(dbInstance *db.Database) gin.HandlerFunc {
 		defer func() {
 			err := tempFile.Close()
 			if err != nil {
-				logger.NmsLog.Warnf("Failed to close temp backup file: %v", err)
+				logger.APILog.Warnf("Failed to close temp backup file: %v", err)
 			}
 			err = os.Remove(tempFile.Name())
 			if err != nil {
-				logger.NmsLog.Warnf("Failed to remove temp backup file: %v", err)
+				logger.APILog.Warnf("Failed to remove temp backup file: %v", err)
 			}
 		}()
 

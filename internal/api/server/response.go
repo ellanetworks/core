@@ -11,6 +11,11 @@ type SuccessResponse struct {
 	Message string `json:"message"`
 }
 
+type CreateSuccessResponse struct {
+	Message string `json:"message"`
+	ID      int64  `json:"id"`
+}
+
 // writeResponse is a helper function that writes a JSON response to the http.ResponseWriter
 func writeResponse(w http.ResponseWriter, v any, status int) error {
 	type response struct {
@@ -34,11 +39,11 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	type errorResponse struct {
 		Error string `json:"error"`
 	}
-	logger.NmsLog.Infof("API Error: %s", message)
+	logger.APILog.Infof("API Error: %s", message)
 	resp := errorResponse{Error: message}
 	respBytes, err := json.Marshal(&resp)
 	if err != nil {
-		logger.NmsLog.Warnf("Error marshalling error response: %v", err)
+		logger.APILog.Warnf("Error marshalling error response: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -46,6 +51,6 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	w.WriteHeader(status)
 	_, err = w.Write(respBytes)
 	if err != nil {
-		logger.NmsLog.Warnf("Error writing error response: %v", err)
+		logger.APILog.Warnf("Error writing error response: %v", err)
 	}
 }

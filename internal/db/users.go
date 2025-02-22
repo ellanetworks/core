@@ -34,8 +34,8 @@ const (
 type Role int
 
 const (
-	AdminRole    Role = 0
-	ReadOnlyRole Role = 1
+	AdminRole Role = iota
+	ReadOnlyRole
 )
 
 type NumUsers struct {

@@ -3,11 +3,13 @@ package server_test
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/kernel"
 )
 
 var initialOperator = db.Operator{
@@ -20,13 +22,40 @@ var initialOperator = db.Operator{
 	HomeNetworkPrivateKey: "c09c17bddf23357f614f492075b970d825767718114f59554ce2f345cf8c4b6a",
 }
 
+type FakeKernel struct{}
+
+func (fk FakeKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priority int, networkInterface kernel.NetworkInterface) error {
+	return nil
+}
+
+func (fk FakeKernel) DeleteRoute(destination *net.IPNet, gateway net.IP, priority int, networkInterface kernel.NetworkInterface) error {
+	return nil
+}
+
+func (fk FakeKernel) InterfaceExists(networkInterface kernel.NetworkInterface) (bool, error) {
+	return true, nil
+}
+
+func (fk FakeKernel) RouteExists(destination *net.IPNet, gateway net.IP, priority int, networkInterface kernel.NetworkInterface) (bool, error) {
+	return false, nil
+}
+
+func (fk FakeKernel) EnableIPForwarding() error {
+	return nil
+}
+
+func (fk FakeKernel) IsIPForwardingEnabled() (bool, error) {
+	return true, nil
+}
+
 func setupServer(filepath string) (*httptest.Server, []byte, error) {
 	testdb, err := db.NewDatabase(filepath, initialOperator)
 	if err != nil {
 		return nil, nil, err
 	}
 	jwtSecret := []byte("testsecret")
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, jwtSecret))
+	fakeKernel := FakeKernel{}
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret))
 	return ts, jwtSecret, nil
 }
 

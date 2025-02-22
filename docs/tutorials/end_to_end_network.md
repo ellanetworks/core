@@ -104,29 +104,7 @@ Start Ella Core:
 sudo snap start ella-core.cored
 ```
 
-### 2.2 Configure routing
-
-Still in the `ella-core` Multipass instance, enable IP forwarding:
-
-```shell
-sudo sysctl -w net.ipv4.ip_forward=1
-```
-
-Add a default route to the `router` Multipass instance:
-
-```shell
-sudo ip route add default via <router-ens4-ip> dev ens6
-```
-
-Replace the placeholder with the appropriate value.
-
-Exit the Multipass instance:
-
-```shell
-exit
-```
-
-### 2.3 Access the UI
+### 2.2 Access the UI
 
 From the host, open your browser and navigate to `https://<ella-core-ens3-ip>:5002/` to access Ella Core's UI. Replace the placeholder with the appropriate value.
 
@@ -137,7 +115,7 @@ You should see the Initialization page.
 !!! note
     Your browser may display a warning about the security of the connection. This is because the certificate used by Ella Core is self-signed. You can safely ignore this warning.
 
-### 2.4 Initialize Ella Core
+### 2.3 Initialize Ella Core
 
 In the Initialization page, create the first user with the following credentials:
 
@@ -150,9 +128,9 @@ You will be redirected to the dashboard.
 
 Ella Core is now initialized and ready to be used.
 
-### 2.5 Create a Profile and a Subscriber
+### 2.5 Configure your private network
 
-Here, we will navigate through the Ella Core UI to create a profile, and a subscriber.
+Here, we will navigate through the Ella Core UI to create a profile, a subscriber, and a route.
 
 #### 2.5.1 Create a Profile
 
@@ -180,7 +158,17 @@ Create a subscriber with the following parameters:
 
 After creating the subscriber, click on the `View` button to see the subscriber's details. Note the IMSI, Key, and OPC values. You will use these values later to configure the 5G radio simulator.
 
-#### 2.5.3 Validate that no radio is connected
+#### 2.5.3 Create a route
+
+Navigate to the `Routes` page and click on the `Create` button.
+
+Create a route with the following parameters:
+- Destination: default
+- Gateway: <router-ens4-ip>
+- Interface: n6
+- Metric: 0
+
+#### 2.5.4 Validate that no radio is connected
 
 Navigate to the `Radios` page. You should see that no radio is connected.
 

@@ -25,7 +25,7 @@ func TestRestore(t *testing.T) {
 	}()
 
 	dummyData := []byte("dummy data")
-	if err := os.WriteFile(databasePath, dummyData, 0o644); err != nil {
+	if err := os.WriteFile(databasePath, dummyData, 0o600); err != nil {
 		t.Fatalf("failed to write dummy data to database: %v", err)
 	}
 

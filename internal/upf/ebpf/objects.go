@@ -16,9 +16,8 @@ import (
 // Supported BPF_CFLAGS:
 // 	- ENABLE_LOG:
 //		- enables debug output to tracepipe (`bpftool prog tracelog`)
-// 	- ENABLE_ROUTE_CACHE
-//		- enable routing decision cache
 //
+// Usage: export BPF_CFLAGS="-DENABLE_LOG"
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3Entrypoint 	xdp/n3_bpf.c -- -I. -O2 -Wall -g
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N6Entrypoint 	xdp/n6_bpf.c -- -I. -O2 -Wall -g
