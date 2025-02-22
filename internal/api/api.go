@@ -64,16 +64,16 @@ func ReconcileKernelRouting(dbInstance *db.Database, kernelInt kernel.Kernel) er
 	if err != nil {
 		return fmt.Errorf("couldn't list routes: %v", err)
 	}
-	_, err = kernelInt.IsIPForwardingEnabled()
+	ipForwardingEnabled, err := kernelInt.IsIPForwardingEnabled()
 	if err != nil {
 		return fmt.Errorf("couldn't check if IP forwarding is enabled: %v", err)
 	}
-	// if !ipForwardingEnabled {
-	// 	err := kernelInt.EnableIPForwarding()
-	// 	if err != nil {
-	// 		return fmt.Errorf("couldn't enable IP forwarding: %v", err)
-	// 	}
-	// }
+	if !ipForwardingEnabled {
+		err := kernelInt.EnableIPForwarding()
+		if err != nil {
+			return fmt.Errorf("couldn't enable IP forwarding: %v", err)
+		}
+	}
 	for _, route := range expectedRoutes {
 		_, ipNetwork, err := net.ParseCIDR(route.Destination)
 		if err != nil {
