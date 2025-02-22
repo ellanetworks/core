@@ -23,13 +23,13 @@ interface EditUserModalProps {
     onSuccess: () => void;
     initialData: {
         email: string;
-        role: string; // expected to be "Admin" or "Read Only"
+        role: string;
     };
 }
 
 interface FormValues {
     email: string;
-    role: string; // stored as "0" or "1" for the Select component
+    role: string;
 }
 
 const EditUserModal: React.FC<EditUserModalProps> = ({
@@ -57,11 +57,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     useEffect(() => {
         if (open) {
             const convertedRole =
-                initialData.role === "Admin"
-                    ? "0"
-                    : initialData.role === "Read Only"
-                        ? "1"
-                        : "";
+                initialData.role === "Admin" ? "admin"
+                    : initialData.role === "Read Only" ? "readonly"
+                        : initialData.role === "Network Manager" ? "network-manager"
+                            : "";
             setFormValues({
                 email: initialData.email,
                 role: convertedRole,
@@ -82,11 +81,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         setAlert({ message: "" });
 
         try {
-            // Convert formValues.role from string ("0" or "1") back to a number.
             await updateUser(
                 cookies.user_token,
                 formValues.email,
-                parseInt(formValues.role, 10)
+                formValues.role
             );
             onClose();
             onSuccess();
@@ -132,8 +130,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                         label="Role"
                         onChange={(e) => handleChange("role", e.target.value as string)}
                     >
-                        <MenuItem value={"0"}>Admin</MenuItem>
-                        <MenuItem value={"1"}>Read Only</MenuItem>
+                        <MenuItem value={"admin"}>Admin</MenuItem>
+                        <MenuItem value={"network-manager"}>Network Manager</MenuItem>
+                        <MenuItem value={"readonly"}>Read Only</MenuItem>
                     </Select>
                 </FormControl>
             </DialogContent>

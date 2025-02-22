@@ -43,7 +43,7 @@ interface OperatorData {
 }
 
 const Operator = () => {
-  const { role } = useAuth(); // "Admin" or "Read Only"
+  const { role } = useAuth();
   const [cookies] = useCookies(["user_token"]);
   const [operator, setOperator] = useState<OperatorData | null>(null);
   const [isEditOperatorIdModalOpen, setEditOperatorIdModalOpen] = useState(false);
@@ -143,7 +143,7 @@ const Operator = () => {
             </Grid>
           </Grid>
         </CardContent>
-        {role === "Admin" && (
+        {role === "Admin" || role === "Network Manager" && (
           <CardActions>
             <IconButton aria-label="edit" onClick={handleEditOperatorIdClick}>
               <EditIcon />
@@ -165,7 +165,7 @@ const Operator = () => {
             </Grid>
           </Grid>
         </CardContent>
-        {role === "Admin" && (
+        {role === "Admin" || role === "Network Manager" && (
           <CardActions>
             <IconButton aria-label="edit" onClick={handleEditOperatorCodeClick}>
               <EditIcon />
@@ -195,7 +195,7 @@ const Operator = () => {
             </Grid>
           </Grid>
         </CardContent>
-        {role === "Admin" && (
+        {role === "Admin" || role === "Network Manager" && (
           <CardActions>
             <IconButton aria-label="edit" onClick={handleEditOperatorTrackingClick}>
               <EditIcon />
@@ -204,7 +204,6 @@ const Operator = () => {
         )}
       </Card>
 
-      {/* Slice Information Card */}
       <Card variant="outlined" sx={{ marginBottom: 3, borderRadius: 2, boxShadow: 1, borderColor: "rgba(0, 0, 0, 0.12)" }}>
         <CardHeader title="Slice Information" />
         <CardContent>
@@ -223,7 +222,7 @@ const Operator = () => {
             </Grid>
           </Grid>
         </CardContent>
-        {role === "Admin" && (
+        {role === "Admin" || role === "Network Manager" && (
           <CardActions>
             <IconButton aria-label="edit" onClick={handleEditOperatorSliceClick}>
               <EditIcon />
@@ -272,7 +271,7 @@ const Operator = () => {
             </Grid>
           </Grid>
         </CardContent>
-        {role === "Admin" && (
+        {role === "Admin" || role === "Network Manager" && (
           <CardActions>
             <IconButton aria-label="edit" onClick={handleEditOperatorHomeNetworkClick}>
               <EditIcon />

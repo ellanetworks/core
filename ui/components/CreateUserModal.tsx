@@ -40,7 +40,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
 
     const [formValues, setFormValues] = useState({
         email: "",
-        role: 0, // 0 => Admin, 1 => Read Only
+        role: "admin",
         password: "",
     });
 
@@ -173,10 +173,11 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
                         id="role-select"
                         value={formValues.role}
                         label="Role"
-                        onChange={(e) => handleChange("role", e.target.value as number)}
+                        onChange={(e) => handleChange("role", e.target.value)}
                     >
-                        <MenuItem value={0}>Admin</MenuItem>
-                        <MenuItem value={1}>Read Only</MenuItem>
+                        <MenuItem value={"admin"}>Admin</MenuItem>
+                        <MenuItem value={"network-manager"}>Network Manager</MenuItem>
+                        <MenuItem value={"readonly"}>Read Only</MenuItem>
                     </Select>
                 </FormControl>
             </DialogContent>

@@ -46,7 +46,7 @@ export const listUsers = async (authToken: string) => {
   return respData.result;
 };
 
-export const createUser = async (authToken: string, email: string, role: number, password: string) => {
+export const createUser = async (authToken: string, email: string, role: string, password: string) => {
   const userData = {
     "email": email,
     "password": password,
@@ -103,7 +103,7 @@ export const updateUserPassword = async (authToken: string, email: string, passw
   return respData.result;
 }
 
-export const updateUser = async (authToken: string, email: string, role: number) => {
+export const updateUser = async (authToken: string, email: string, role: string) => {
   const userData = {
     "email": email,
     "role": role,

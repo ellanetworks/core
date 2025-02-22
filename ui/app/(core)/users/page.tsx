@@ -22,7 +22,7 @@ import { GridColDef, DataGrid, GridCellParams } from '@mui/x-data-grid';
 
 interface UserData {
   email: string;
-  role: string; // "Admin" for 0 and "Read Only" for 1
+  role: string;
 }
 
 const User = () => {
@@ -45,7 +45,7 @@ const User = () => {
       const data = await listUsers(cookies.user_token);
       const transformedUsers = data.map((user: any) => ({
         ...user,
-        role: user.role === 0 ? "Admin" : user.role === 1 ? "Read Only" : user.role,
+        role: user.role === "admin" ? "Admin" : user.role === "network-manager" ? "Network Manager" : user.role === "readonly" ? "Read Only" : user.role,
       }));
       setUsers(transformedUsers);
     } catch (error) {

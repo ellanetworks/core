@@ -63,6 +63,7 @@ func createFirstUserAndLogin(url string, client *http.Client) (string, error) {
 	user := &CreateUserParams{
 		Email:    "my.user123@ellanetworks.com",
 		Password: "password123",
+		Role:     "admin",
 	}
 	statusCode, _, err := createUser(url, client, "", user)
 	if err != nil {
@@ -89,9 +90,9 @@ func createFirstUserAndLogin(url string, client *http.Client) (string, error) {
 	return response.Result.Token, nil
 }
 
-func createUserAndLogin(url string, token string, role int, client *http.Client) (string, error) {
+func createUserAndLogin(url string, token string, email string, role string, client *http.Client) (string, error) {
 	user := &CreateUserParams{
-		Email:    "newuser@ellanetworks.com",
+		Email:    email,
 		Password: "password123",
 		Role:     role,
 	}
@@ -104,7 +105,7 @@ func createUserAndLogin(url string, token string, role int, client *http.Client)
 	}
 
 	loginParams := &LoginParams{
-		Email:    "newuser@ellanetworks.com",
+		Email:    email,
 		Password: "password123",
 	}
 

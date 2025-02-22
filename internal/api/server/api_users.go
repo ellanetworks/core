@@ -14,12 +14,12 @@ import (
 type CreateUserParams struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
-	Role     int    `json:"role"`
+	Role     string `json:"role"`
 }
 
 type UpdateUserParams struct {
 	Email string `json:"email"`
-	Role  int    `json:"role"`
+	Role  string `json:"role"`
 }
 
 type UpdateUserPasswordParams struct {
@@ -29,7 +29,7 @@ type UpdateUserPasswordParams struct {
 
 type GetUserParams struct {
 	Email string `json:"email"`
-	Role  int    `json:"role"`
+	Role  string `json:"role"`
 }
 
 const (
@@ -41,6 +41,13 @@ const (
 	DeleteUserAction         = "delete_user"
 	UpdateUserPasswordAction = "update_user_password"
 )
+
+// roleDBMap maps the role string to the db.Role enum.
+var roleDBMap = map[string]db.Role{
+	"admin":           db.AdminRole,
+	"readonly":        db.ReadOnlyRole,
+	"network-manager": db.NetworkManagerRole,
+}
 
 func isValidEmail(email string) bool {
 	// Regular expression for a valid email format.
@@ -86,7 +93,7 @@ func ListUsers(dbInstance *db.Database) gin.HandlerFunc {
 		for _, user := range dbUsers {
 			users = append(users, GetUserParams{
 				Email: user.Email,
-				Role:  user.Role,
+				Role:  user.Role.String(),
 			})
 		}
 		err = writeResponse(c.Writer, users, http.StatusOK)
@@ -123,7 +130,7 @@ func GetUser(dbInstance *db.Database) gin.HandlerFunc {
 
 		user := GetUserParams{
 			Email: dbUser.Email,
-			Role:  dbUser.Role,
+			Role:  dbUser.Role.String(),
 		}
 		err = writeResponse(c.Writer, user, http.StatusOK)
 		if err != nil {
@@ -158,7 +165,7 @@ func GetLoggedInUser(dbInstance *db.Database) gin.HandlerFunc {
 
 		user := GetUserParams{
 			Email: dbUser.Email,
-			Role:  dbUser.Role,
+			Role:  dbUser.Role.String(),
 		}
 		err = writeResponse(c.Writer, user, http.StatusOK)
 		if err != nil {
@@ -198,7 +205,8 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid email format")
 			return
 		}
-		if newUser.Role < 0 || newUser.Role > 2 {
+		role, ok := roleDBMap[newUser.Role]
+		if !ok {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid role")
 			return
 		}
@@ -209,7 +217,6 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		hashedPassword, err := hashPassword(newUser.Password)
 		if err != nil {
-			logger.APILog.Warnln(err)
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to hash password")
 			return
 		}
@@ -217,7 +224,7 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		dbUser := &db.User{
 			Email:          newUser.Email,
 			HashedPassword: hashedPassword,
-			Role:           newUser.Role,
+			Role:           role,
 		}
 		err = dbInstance.CreateUser(dbUser)
 		if err != nil {
@@ -266,7 +273,8 @@ func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid email format")
 			return
 		}
-		if updateUserParams.Role < 0 || updateUserParams.Role > 2 {
+		role, ok := roleDBMap[updateUserParams.Role]
+		if !ok {
 			writeError(c.Writer, http.StatusBadRequest, "Invalid role")
 			return
 		}
@@ -275,7 +283,6 @@ func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c.Writer, http.StatusNotFound, "User not found")
 			return
 		}
-		role := db.Role(updateUserParams.Role)
 		err = dbInstance.UpdateUser(updateUserParams.Email, role)
 		if err != nil {
 			logger.APILog.Warnln(err)

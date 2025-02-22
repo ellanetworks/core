@@ -45,7 +45,7 @@ const InitializePage = () => {
         setError(null);
 
         try {
-            await createUser("", email, 0, password);
+            await createUser("", email, "admin", password);
             router.push("/login");
         } catch (err: any) {
             setError(err.message || "User creation failed");

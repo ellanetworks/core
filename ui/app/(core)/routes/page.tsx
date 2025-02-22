@@ -28,7 +28,7 @@ interface RouteData {
 }
 
 const Route = () => {
-  const { role } = useAuth(); // "Admin" or "Read Only"
+  const { role } = useAuth();
   const [cookies] = useCookies(["user_token"]);
   const [routes, setRoutes] = useState<RouteData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,7 +103,7 @@ const Route = () => {
     { field: "metric", headerName: "Metric", flex: 1 },
   ];
 
-  if (role === "Admin") {
+  if (role === "Admin" || role === "Network Manager") {
     baseColumns.push({
       field: "actions",
       headerName: "Actions",
@@ -152,7 +152,7 @@ const Route = () => {
         <EmptyState
           primaryText="No route found."
           secondaryText="Create a new route in order for subscribers to access the network."
-          button={role === "Admin"}
+          button={role === "Admin" || role === "Network Manager"}
           buttonText="Create"
           onCreate={handleOpenCreateModal}
         />
@@ -170,7 +170,7 @@ const Route = () => {
             <Typography variant="h4" component="h1" gutterBottom>
               Routes ({routes.length})
             </Typography>
-            {role === "Admin" && (
+            {role === "Admin" || role === "Network Manager" && (
               <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
                 Create
               </Button>
