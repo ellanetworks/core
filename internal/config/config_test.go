@@ -67,12 +67,12 @@ func TestGoodConfigSuccess(t *testing.T) {
 	updatedContent := strings.ReplaceAll(string(originalContent), "/etc/ella/cert.pem", tempCertFile.Name())
 	updatedContent = strings.ReplaceAll(updatedContent, "/etc/ella/key.pem", tempKeyFile.Name())
 
-	err = os.WriteFile(confFilePath, []byte(updatedContent), os.FileMode(0o644))
+	err = os.WriteFile(confFilePath, []byte(updatedContent), os.FileMode(0o600))
 	if err != nil {
 		t.Fatalf("Failed to update config file: %s", err)
 	}
 	defer func() {
-		if err := os.WriteFile(confFilePath, originalContent, os.FileMode(0o644)); err != nil {
+		if err := os.WriteFile(confFilePath, originalContent, os.FileMode(0o600)); err != nil {
 			log.Fatalf("Failed to close database: %v", err)
 		}
 	}()

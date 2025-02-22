@@ -144,7 +144,7 @@ func (rk *RealKernel) RouteExists(destination *net.IPNet, gateway net.IP, priori
 
 // EnableIPForwarding enables IP forwarding on the host.
 func (rk *RealKernel) EnableIPForwarding() error {
-	err := os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1"), 0o644)
+	err := os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1"), 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to enable ip_forward: %v", err)
 	}

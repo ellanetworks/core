@@ -76,7 +76,7 @@ func TestRestoreEndpoint(t *testing.T) {
 	restoreFilePath := filepath.Join(tempDir, "restore_test.db")
 
 	// Create a dummy backup file
-	if err := os.WriteFile(restoreFilePath, []byte("dummy backup data"), 0o644); err != nil {
+	if err := os.WriteFile(restoreFilePath, []byte("dummy backup data"), 0o600); err != nil {
 		t.Fatalf("failed to create dummy backup file: %s", err)
 	}
 

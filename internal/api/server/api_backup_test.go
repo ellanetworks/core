@@ -57,7 +57,7 @@ func TestBackupEndpoint(t *testing.T) {
 
 		// Check that the backup file was created and returned
 		backupFilePath := filepath.Join(tempDir, "backup_test.db")
-		err = os.WriteFile(backupFilePath, body, 0o644)
+		err = os.WriteFile(backupFilePath, body, 0o600)
 		if err != nil {
 			t.Fatalf("couldn't write backup file: %s", err)
 		}
