@@ -19,20 +19,6 @@ spec:
             {"name": "core-n6", "interface": "n6"}
           ]
     spec:
-      initContainers:
-      - name: setup-route
-        image: busybox:1.35
-        command:
-        - sh
-        - -c
-        - |
-          ip route replace default via 192.168.250.1 metric 110
-          sysctl -w net.ipv4.ip_forward=1
-        securityContext:
-          privileged: true
-          capabilities:
-            add:
-              - NET_ADMIN
       containers:
       - name: core
         image: localhost:5000/ella-core:latest
@@ -41,6 +27,10 @@ spec:
         args: ["run", "--hold", "--http", ":38813", "--verbose"]
         securityContext:
           privileged: true
+          capabilities:
+            add:
+              - NET_ADMIN
+              - SYS_ADMIN
         volumeMounts:
         - name: config-volume
           mountPath: /config
