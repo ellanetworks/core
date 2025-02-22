@@ -49,7 +49,7 @@ func Start(dbInstance *db.Database, port int, certFile string, keyFile string, n
 	// Reconcile routes on startup and every 5 minutes
 	go func() {
 		for {
-			err := ReconcileRoutes(dbInstance, kernelInt)
+			err := ReconcileKernelRouting(dbInstance, kernelInt)
 			if err != nil {
 				logger.APILog.Errorf("couldn't reconcile routes: %v", err)
 			}
@@ -59,10 +59,20 @@ func Start(dbInstance *db.Database, port int, certFile string, keyFile string, n
 	return nil
 }
 
-func ReconcileRoutes(dbInstance *db.Database, kernelInt kernel.Kernel) error {
+func ReconcileKernelRouting(dbInstance *db.Database, kernelInt kernel.Kernel) error {
 	expectedRoutes, err := dbInstance.ListRoutes()
 	if err != nil {
 		return fmt.Errorf("couldn't list routes: %v", err)
+	}
+	ipForwardingEnabled, err := kernelInt.IsIPForwardingEnabled()
+	if err != nil {
+		return fmt.Errorf("couldn't check if IP forwarding is enabled: %v", err)
+	}
+	if !ipForwardingEnabled {
+		err := kernelInt.EnableIPForwarding()
+		if err != nil {
+			return fmt.Errorf("couldn't enable IP forwarding: %v", err)
+		}
 	}
 	for _, route := range expectedRoutes {
 		_, ipNetwork, err := net.ParseCIDR(route.Destination)

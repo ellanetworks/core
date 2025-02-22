@@ -3,6 +3,7 @@ package kernel
 import (
 	"fmt"
 	"net"
+	"os"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/vishvananda/netlink"
@@ -19,6 +20,8 @@ const (
 
 // Kernel defines the interface for kernel route management.
 type Kernel interface {
+	EnableIPForwarding() error
+	IsIPForwardingEnabled() (bool, error)
 	CreateRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error
 	DeleteRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error
 	InterfaceExists(ifKey NetworkInterface) (bool, error)
@@ -137,4 +140,18 @@ func (rk *RealKernel) RouteExists(destination *net.IPNet, gateway net.IP, priori
 	}
 
 	return len(routes) > 0, nil
+}
+
+// EnableIPForwarding enables IP forwarding on the host.
+func (rk *RealKernel) EnableIPForwarding() error {
+	return os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1"), 0o644)
+}
+
+// IsIPForwardingEnabled checks if IP forwarding is enabled on the host.
+func (rk *RealKernel) IsIPForwardingEnabled() (bool, error) {
+	data, err := os.ReadFile("/proc/sys/net/ipv4/ip_forward")
+	if err != nil {
+		return false, fmt.Errorf("failed to read ip_forward: %v", err)
+	}
+	return string(data) == "1", nil
 }

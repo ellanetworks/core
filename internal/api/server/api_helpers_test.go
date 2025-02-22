@@ -40,6 +40,14 @@ func (fk FakeKernel) RouteExists(destination *net.IPNet, gateway net.IP, priorit
 	return false, nil
 }
 
+func (fk FakeKernel) EnableIPForwarding() error {
+	return nil
+}
+
+func (fk FakeKernel) IsIPForwardingEnabled() (bool, error) {
+	return true, nil
+}
+
 func setupServer(filepath string) (*httptest.Server, []byte, error) {
 	testdb, err := db.NewDatabase(filepath, initialOperator)
 	if err != nil {
