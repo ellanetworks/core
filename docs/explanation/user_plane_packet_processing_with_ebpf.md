@@ -25,10 +25,10 @@ Data plane processing in Ella Core occurs between the **n3** and **n6** interfac
 
 ### Routing
 
-At the moment, Ella Core relies on kernel routing when making routing decisions for incoming network packets. Therefore, users must configure the routing table on the host machine to ensure that Ella Core routes packets correctly.
+At the moment, Ella Core relies on kernel routing when making routing decisions for incoming network packets. Kernel routes can be configured using the [Routes API](../reference/api/routes.md) or the user interface.
 
 !!! note
-    Future versions of Ella Core will include a routing component allowing users to configure routing within the application. Integrated routing will simplify the configuration process and increase performance. For more information, follow [this issue](https://github.com/ellanetworks/core/issues/407).
+    Future versions of Ella Core will replace kernel routing with an eBPF program in order to increase performance. For more information, follow [this issue](https://github.com/ellanetworks/core/issues/440).
 
 ### Performance
 
