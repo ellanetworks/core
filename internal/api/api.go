@@ -15,12 +15,18 @@ import (
 	"golang.org/x/net/http2/h2c"
 )
 
-func Start(dbInstance *db.Database, port int, certFile string, keyFile string) error {
+// interfaceKernelMap maps the interface string to the kernel.NetworkInterface enum.
+var interfaceDBKernelMap = map[db.NetworkInterface]kernel.NetworkInterface{
+	db.N3: kernel.N3,
+	db.N6: kernel.N6,
+}
+
+func Start(dbInstance *db.Database, port int, certFile string, keyFile string, n3Interface string, n6Interface string) error {
 	jwtSecret, err := server.GenerateJWTSecret()
 	if err != nil {
 		return fmt.Errorf("couldn't generate jwt secret: %v", err)
 	}
-	kernelInt := &kernel.RealKernel{}
+	kernelInt := kernel.NewRealKernel(n3Interface, n6Interface)
 	router := server.NewHandler(dbInstance, kernelInt, jwtSecret)
 
 	go func() {
@@ -68,19 +74,16 @@ func ReconcileRoutes(dbInstance *db.Database, kernelInt kernel.Kernel) error {
 			return fmt.Errorf("invalid gateway: %v", route.Gateway)
 		}
 		ipGateway = ipGateway.To4()
-		interfaceExists, err := kernelInt.InterfaceExists(route.Interface)
-		if err != nil {
-			return fmt.Errorf("couldn't check if interface exists: %v", err)
+		kernelNetworkInterface, ok := interfaceDBKernelMap[route.Interface]
+		if !ok {
+			return fmt.Errorf("invalid interface: %v", route.Interface)
 		}
-		if !interfaceExists {
-			return fmt.Errorf("interface %s doesn't exist", route.Interface)
-		}
-		routeExists, err := kernelInt.RouteExists(ipNetwork, ipGateway, route.Metric, route.Interface)
+		routeExists, err := kernelInt.RouteExists(ipNetwork, ipGateway, route.Metric, kernelNetworkInterface)
 		if err != nil {
 			return fmt.Errorf("couldn't check if route exists: %v", err)
 		}
 		if !routeExists {
-			err := kernelInt.CreateRoute(ipNetwork, ipGateway, route.Metric, route.Interface)
+			err := kernelInt.CreateRoute(ipNetwork, ipGateway, route.Metric, kernelNetworkInterface)
 			if err != nil {
 				return fmt.Errorf("couldn't create route: %v", err)
 			}

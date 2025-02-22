@@ -3,7 +3,6 @@ package server
 import (
 	"net"
 	"net/http"
-	"regexp"
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -46,12 +45,21 @@ func isRouteGatewayValid(gateway string) bool {
 	return ip != nil
 }
 
-// isRouteInterfaceValid uses a simple regex to validate interface names.
-// This regex allows alphanumeric characters, dashes, and underscores.
-var interfaceRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-
+// isRouteInterfaceValid checks if the interface is valid.
 func isRouteInterfaceValid(iface string) bool {
-	return interfaceRegex.MatchString(iface)
+	return iface == "n3" || iface == "n6"
+}
+
+// interfaceDbMap maps the interface string to the db.NetworkInterface enum.
+var interfaceDbMap = map[string]db.NetworkInterface{
+	"n3": db.N3,
+	"n6": db.N6,
+}
+
+// interfaceKernelMap maps the interface string to the kernel.NetworkInterface enum.
+var interfaceKernelMap = map[string]kernel.NetworkInterface{
+	"n3": kernel.N3,
+	"n6": kernel.N6,
 }
 
 func ListRoutes(dbInstance *db.Database) gin.HandlerFunc {
@@ -73,7 +81,7 @@ func ListRoutes(dbInstance *db.Database) gin.HandlerFunc {
 				ID:          dbRoute.ID,
 				Destination: dbRoute.Destination,
 				Gateway:     dbRoute.Gateway,
-				Interface:   dbRoute.Interface,
+				Interface:   dbRoute.Interface.String(),
 				Metric:      dbRoute.Metric,
 			}
 			routeList = append(routeList, routeResponse)
@@ -114,7 +122,7 @@ func GetRoute(dbInstance *db.Database) gin.HandlerFunc {
 			ID:          dbRoute.ID,
 			Destination: dbRoute.Destination,
 			Gateway:     dbRoute.Gateway,
-			Interface:   dbRoute.Interface,
+			Interface:   dbRoute.Interface.String(),
 			Metric:      dbRoute.Metric,
 		}
 		if err := writeResponse(c.Writer, routeResponse, http.StatusOK); err != nil {
@@ -151,15 +159,15 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 			return
 		}
 		if !isRouteDestinationValid(createRouteParams.Destination) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid destination format")
+			writeError(c.Writer, http.StatusBadRequest, "invalid destination format: expecting CIDR notation")
 			return
 		}
 		if !isRouteGatewayValid(createRouteParams.Gateway) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid gateway format")
+			writeError(c.Writer, http.StatusBadRequest, "invalid gateway format: expecting an IPv4 address")
 			return
 		}
 		if !isRouteInterfaceValid(createRouteParams.Interface) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid interface format")
+			writeError(c.Writer, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed")
 			return
 		}
 		if createRouteParams.Metric < 0 {
@@ -174,21 +182,17 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 		}
 		ipGateway := net.ParseIP(createRouteParams.Gateway)
 		if ipGateway == nil || ipGateway.To4() == nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid gateway format; expecting an IPv4 address")
+			writeError(c.Writer, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address")
 			return
 		}
 		ipGateway = ipGateway.To4()
-		interfaceExists, err := kernelInt.InterfaceExists(createRouteParams.Interface)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to check if interface exists")
-			return
-		}
-		if !interfaceExists {
-			writeError(c.Writer, http.StatusBadRequest, "Interface does not exist")
-			return
-		}
 
-		routeExists, err := kernelInt.RouteExists(ipNetwork, ipGateway, createRouteParams.Metric, createRouteParams.Interface)
+		kernelNetworkInterface, ok := interfaceKernelMap[createRouteParams.Interface]
+		if !ok {
+			writeError(c.Writer, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed")
+			return
+		}
+		routeExists, err := kernelInt.RouteExists(ipNetwork, ipGateway, createRouteParams.Metric, kernelNetworkInterface)
 		if err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to check if route exists")
 			return
@@ -198,10 +202,15 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 			return
 		}
 
+		dbNetworkInterface, ok := interfaceDbMap[createRouteParams.Interface]
+		if !ok {
+			writeError(c.Writer, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed")
+			return
+		}
 		dbRoute := &db.Route{
 			Destination: createRouteParams.Destination,
 			Gateway:     createRouteParams.Gateway,
-			Interface:   createRouteParams.Interface,
+			Interface:   dbNetworkInterface,
 			Metric:      createRouteParams.Metric,
 		}
 		tx, err := dbInstance.BeginTransaction()
@@ -224,7 +233,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 			return
 		}
 
-		if err := kernelInt.CreateRoute(ipNetwork, ipGateway, createRouteParams.Metric, createRouteParams.Interface); err != nil {
+		if err := kernelInt.CreateRoute(ipNetwork, ipGateway, createRouteParams.Metric, kernelNetworkInterface); err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to create kernel route: "+err.Error())
 			return
 		}
@@ -269,12 +278,12 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 		}
 		_, ipNetwork, err := net.ParseCIDR(route.Destination)
 		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid destination format")
+			writeError(c.Writer, http.StatusBadRequest, "Invalid destination format: expecting CIDR notation.")
 			return
 		}
 		gateway := net.ParseIP(route.Gateway)
 		if gateway == nil || gateway.To4() == nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid gateway format; expecting an IPv4 address")
+			writeError(c.Writer, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address")
 			return
 		}
 		gateway = gateway.To4()
@@ -301,7 +310,12 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 		}
 
 		// Delete the kernel route.
-		if err := kernelInt.DeleteRoute(ipNetwork, gateway, route.Metric, route.Interface); err != nil {
+		kernelNetwokrInterface, ok := interfaceKernelMap[route.Interface.String()]
+		if !ok {
+			writeError(c.Writer, http.StatusInternalServerError, "invalid interface: abcdef: only n3 and n6 are allowed")
+			return
+		}
+		if err := kernelInt.DeleteRoute(ipNetwork, gateway, route.Metric, kernelNetwokrInterface); err != nil {
 			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete kernel route")
 			return
 		}

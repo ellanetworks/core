@@ -13,7 +13,7 @@ import (
 const (
 	Destination = "1.1.1.0/24"
 	Gateway     = "1.2.3.4"
-	Interface   = "eth0"
+	Interface   = "n3"
 	Metric      = 100
 )
 
@@ -303,4 +303,92 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 			t.Fatalf("expected error %q, got %q", "Route not found", response.Error)
 		}
 	})
+}
+
+func TestCreateRouteInvalidInput(t *testing.T) {
+	tempDir := t.TempDir()
+	db_path := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(db_path)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	tests := []struct {
+		destination      string
+		gateway          string
+		networkInterface string
+		metric           int
+		error            string
+	}{
+		{
+			destination:      "",
+			gateway:          Gateway,
+			networkInterface: Interface,
+			metric:           Metric,
+			error:            "destination is missing",
+		},
+		{
+			destination:      "abcdef",
+			gateway:          Gateway,
+			networkInterface: Interface,
+			metric:           Metric,
+			error:            "invalid destination format: expecting CIDR notation",
+		},
+		{
+			destination:      Destination,
+			gateway:          "",
+			networkInterface: Interface,
+			metric:           Metric,
+			error:            "gateway is missing",
+		},
+		{
+			destination:      Destination,
+			gateway:          "abcdef",
+			networkInterface: Interface,
+			metric:           Metric,
+			error:            "invalid gateway format: expecting an IPv4 address",
+		},
+		{
+			destination:      Destination,
+			gateway:          Gateway,
+			networkInterface: "",
+			metric:           Metric,
+			error:            "interface is missing",
+		},
+		{
+			destination:      Destination,
+			gateway:          Gateway,
+			networkInterface: "abcdef",
+			metric:           Metric,
+			error:            "invalid interface: abcdef: only n3 and n6 are allowed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.destination, func(t *testing.T) {
+			createRouteParams := &CreateRouteParams{
+				Destination: tt.destination,
+				Gateway:     tt.gateway,
+				Interface:   tt.networkInterface,
+				Metric:      tt.metric,
+			}
+			statusCode, response, err := createRoute(ts.URL, client, token, createRouteParams)
+			if err != nil {
+				t.Fatalf("couldn't create route: %s", err)
+			}
+			if statusCode != http.StatusBadRequest {
+				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+			}
+			if response.Error != tt.error {
+				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
+			}
+		})
+	}
 }

@@ -28,13 +28,32 @@ const (
 	deleteRouteStmt = "DELETE FROM %s WHERE id==$Route.id"
 )
 
+// NetworkInterface is an enum for network interface keys.
+type NetworkInterface int
+
+const (
+	N3 NetworkInterface = iota
+	N6
+)
+
+func (ni NetworkInterface) String() string {
+	switch ni {
+	case N3:
+		return "n3"
+	case N6:
+		return "n6"
+	default:
+		return "Unknown"
+	}
+}
+
 // Route represents a route record.
 type Route struct {
-	ID          int64  `db:"id"`
-	Destination string `db:"destination"`
-	Gateway     string `db:"gateway"`
-	Interface   string `db:"interface"`
-	Metric      int    `db:"metric"`
+	ID          int64            `db:"id"`
+	Destination string           `db:"destination"`
+	Gateway     string           `db:"gateway"`
+	Interface   NetworkInterface `db:"interface"`
+	Metric      int              `db:"metric"`
 }
 
 func (db *Database) ListRoutes() ([]Route, error) {

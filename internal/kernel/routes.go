@@ -8,23 +8,48 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// NetworkInterface is an enum for network interface keys.
+type NetworkInterface int
+
+const (
+	N3 NetworkInterface = iota
+	N6
+)
+
 // Kernel defines the interface for kernel route management.
 type Kernel interface {
-	CreateRoute(destination *net.IPNet, gateway net.IP, priority int, interfaceName string) error
-	DeleteRoute(destination *net.IPNet, gateway net.IP, priority int, interfaceName string) error
-	InterfaceExists(interfaceName string) (bool, error)
-	RouteExists(destination *net.IPNet, gateway net.IP, priority int, interfaceName string) (bool, error)
+	CreateRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error
+	DeleteRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error
+	InterfaceExists(ifKey NetworkInterface) (bool, error)
+	RouteExists(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) (bool, error)
 }
 
-// RealKernel is the production implementation of the Kernel interface
-// that actually applies routes via the netlink library.
-type RealKernel struct{}
+// RealKernel is the production implementation of the Kernel interface.
+type RealKernel struct {
+	ifMapping map[NetworkInterface]string // maps N3 and N6 to their actual interface names.
+}
 
-// CreateRoute adds a route to the kernel.
-func (rk RealKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priority int, interfaceName string) error {
+// NewRealKernel creates a new RealKernel instance.
+// The user must supply the interface names for the n3 and n6 interfaces.
+func NewRealKernel(n3Interface, n6Interface string) *RealKernel {
+	return &RealKernel{
+		ifMapping: map[NetworkInterface]string{
+			N3: n3Interface,
+			N6: n6Interface,
+		},
+	}
+}
+
+// CreateRoute adds a route to the kernel for the interface defined by ifKey.
+func (rk *RealKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error {
+	interfaceName, ok := rk.ifMapping[ifKey]
+	if !ok {
+		return fmt.Errorf("invalid interface key: %v", ifKey)
+	}
+
 	link, err := netlink.LinkByName(interfaceName)
 	if err != nil {
-		return fmt.Errorf("failed to find network interface: %v", err)
+		return fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
 	}
 
 	nlRoute := netlink.Route{
@@ -41,11 +66,16 @@ func (rk RealKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priorit
 	return nil
 }
 
-// DeleteRoute removes a route from the kernel.
-func (rk RealKernel) DeleteRoute(destination *net.IPNet, gateway net.IP, priority int, interfaceName string) error {
+// DeleteRoute removes a route from the kernel for the interface defined by ifKey.
+func (rk *RealKernel) DeleteRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error {
+	interfaceName, ok := rk.ifMapping[ifKey]
+	if !ok {
+		return fmt.Errorf("invalid interface key: %v", ifKey)
+	}
+
 	link, err := netlink.LinkByName(interfaceName)
 	if err != nil {
-		return fmt.Errorf("failed to find network interface: %v", err)
+		return fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
 	}
 
 	nlRoute := netlink.Route{
@@ -62,23 +92,33 @@ func (rk RealKernel) DeleteRoute(destination *net.IPNet, gateway net.IP, priorit
 	return nil
 }
 
-// InterfaceExists checks if a network interface exists.
-func (rk RealKernel) InterfaceExists(interfaceName string) (bool, error) {
+// InterfaceExists checks if the interface corresponding to ifKey exists.
+func (rk *RealKernel) InterfaceExists(ifKey NetworkInterface) (bool, error) {
+	interfaceName, ok := rk.ifMapping[ifKey]
+	if !ok {
+		return false, fmt.Errorf("invalid interface key: %v", ifKey)
+	}
+
 	_, err := netlink.LinkByName(interfaceName)
 	if err != nil {
 		if _, ok := err.(netlink.LinkNotFoundError); ok {
 			return false, nil
 		}
-		return false, fmt.Errorf("failed to find network interface: %v", err)
+		return false, fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
 	}
 	return true, nil
 }
 
-// RouteExists checks if a route exists.
-func (rk RealKernel) RouteExists(destination *net.IPNet, gateway net.IP, priority int, interfaceName string) (bool, error) {
+// RouteExists checks if a route exists for the interface defined by ifKey.
+func (rk *RealKernel) RouteExists(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) (bool, error) {
+	interfaceName, ok := rk.ifMapping[ifKey]
+	if !ok {
+		return false, fmt.Errorf("invalid interface key: %v", ifKey)
+	}
+
 	link, err := netlink.LinkByName(interfaceName)
 	if err != nil {
-		return false, fmt.Errorf("failed to find network interface: %v", err)
+		return false, fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
 	}
 
 	nlRoute := netlink.Route{

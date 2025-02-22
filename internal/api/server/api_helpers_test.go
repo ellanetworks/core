@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/kernel"
 )
 
 var initialOperator = db.Operator{
@@ -23,19 +24,19 @@ var initialOperator = db.Operator{
 
 type FakeKernel struct{}
 
-func (fk FakeKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priority int, interfaceName string) error {
+func (fk FakeKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priority int, networkInterface kernel.NetworkInterface) error {
 	return nil
 }
 
-func (fk FakeKernel) DeleteRoute(destination *net.IPNet, gateway net.IP, priority int, interfaceName string) error {
+func (fk FakeKernel) DeleteRoute(destination *net.IPNet, gateway net.IP, priority int, networkInterface kernel.NetworkInterface) error {
 	return nil
 }
 
-func (fk FakeKernel) InterfaceExists(interfaceName string) (bool, error) {
+func (fk FakeKernel) InterfaceExists(networkInterface kernel.NetworkInterface) (bool, error) {
 	return true, nil
 }
 
-func (fk FakeKernel) RouteExists(destination *net.IPNet, gateway net.IP, priority int, interfaceName string) (bool, error) {
+func (fk FakeKernel) RouteExists(destination *net.IPNet, gateway net.IP, priority int, networkInterface kernel.NetworkInterface) (bool, error) {
 	return false, nil
 }
 
