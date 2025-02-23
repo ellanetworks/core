@@ -14,7 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
       - name: Run Gosec Security Scanner
-        uses: securego/gosec@43fee884f668c23601e0bec7a8c095fba226f889 # v2.22.1
+        uses: securego/gosec@a9eb1c96fae2533bee92dc08d311cd36d4ec2493
         with:
           args: -exclude=G103,G115 ./...

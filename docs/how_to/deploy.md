@@ -101,7 +101,7 @@ Ella Core is available as a Snap and a container image.
     Install the pre-requisites:
 
     ```shell
-    sudo snap install go --channel=1.23/stable --classic
+    sudo snap install go --channel=1.24/stable --classic
     sudo snap install node --channel=20/stable --classic
     sudo apt install clang llvm gcc-multilib libbpf-dev
     ```
