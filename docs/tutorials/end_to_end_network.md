@@ -4,7 +4,7 @@ description: Running an end-to-end 5G network with Ella Core.
 
 # Running an End-to-End 5G Network with Ella Core
 
-In this tutorial, we will deploy, initialize, and configure Ella Core. First, we will use [Multipass](https://canonical.com/multipass/docs) to create a virtual machine, install Ella Core, access the the UI, initialize Ella Core, and configure it. Then, we will create another virtual machine and install a 5G radio and User Equipment simulator, connect it to Ella Core, and validate that the radio is automatically detected. Then, we will create another virtual machine and set it up as a router. Finally, we will use the User Equipment simulator to validate that the subscriber can communicate with the network.
+In this tutorial, we will deploy, initialize, and configure Ella Core. First, we will use [Multipass](https://canonical.com/multipass/docs) to create a virtual machine, install Ella Core, access the the UI, initialize Ella Core, and configure it. In this tutorial, we will deploy, initialize, and configure Ella Core, an open-source 5G mobile core network. First, we will use Multipass to create a virtual machine, install Ella Core, access the the UI, initialize Ella Core, and configure it. Then, we will create another virtual machine, install a 5G radio and User Equipment simulator, connect it to Ella Core, and use the simulator to validate that the subscriber can communicate with the Internet using Ella Core.
 
 You can expect to spend about 30 minutes completing this tutorial. Follow the steps in sequence to ensure a successful deployment.
 
@@ -76,7 +76,7 @@ router                  Running           10.194.229.222   Ubuntu 24.04 LTS
 ```
 
 !!! note
-    Your instances will have different IP addresses. The tutorial will use the IP addresses from this example. Make sure to replace them with the IP addresses of your instances.
+    Your instances will have different IP addresses. The tutorial will use the IP addresses from this example. Whenever you see a placeholder value (ex. `<ella-core-ens3-ip>`), replace it with the appropriate IP address. You can always retrieve a specific interface IP address by opening a shell into an instance and running `ip a`.
 
 ## 2. Install Ella Core
 
