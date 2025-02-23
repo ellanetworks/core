@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -240,7 +241,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 			writeError(c.Writer, http.StatusInternalServerError, "Internal error")
 			return
 		}
-		logger.LogAuditEvent(CreateRouteAction, email, "User created route: "+createRouteParams.Destination)
+		logger.LogAuditEvent(CreateRouteAction, email, "User created route: "+fmt.Sprint(routeId))
 	}
 }
 

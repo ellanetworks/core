@@ -87,42 +87,6 @@ func (db *Database) GetRoute(id int64) (*Route, error) {
 	return &row, nil
 }
 
-// CreateRoute creates a new route in the DB (non-transactional).
-func (db *Database) CreateRoute(route *Route) (int64, error) {
-	_, err := db.GetRoute(route.ID)
-	if err == nil {
-		return 0, fmt.Errorf("route with id %v already exists", route.ID)
-	}
-	stmt, err := sqlair.Prepare(fmt.Sprintf(createRouteStmt, db.routesTable), Route{})
-	if err != nil {
-		return 0, err
-	}
-	var outcome sqlair.Outcome
-	err = db.conn.Query(context.Background(), stmt, route).Get(&outcome)
-	if err != nil {
-		return 0, err
-	}
-	insertedRowID, err := outcome.Result().LastInsertId()
-	if err != nil {
-		return 0, err
-	}
-	return insertedRowID, nil
-}
-
-// DeleteRoute deletes a route from the DB (non-transactional).
-func (db *Database) DeleteRoute(id int64) error {
-	_, err := db.GetRoute(id)
-	if err != nil {
-		return err
-	}
-	stmt, err := sqlair.Prepare(fmt.Sprintf(deleteRouteStmt, db.routesTable), Route{})
-	if err != nil {
-		return err
-	}
-	row := Route{ID: id}
-	return db.conn.Query(context.Background(), stmt, row).Run()
-}
-
 func (t *Transaction) CreateRoute(route *Route) (int64, error) {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(createRouteStmt, t.db.routesTable), Route{})
 	if err != nil {

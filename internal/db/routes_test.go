@@ -1,5 +1,3 @@
-// Copyright 2024 Ella Networks
-
 package db_test
 
 import (
@@ -17,7 +15,7 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 	}
 	defer func() {
 		if err := database.Close(); err != nil {
-			panic(err)
+			t.Fatalf("Couldn't complete Close: %s", err)
 		}
 	}()
 
@@ -36,9 +34,31 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 		Interface:   db.N3,
 		Metric:      1,
 	}
-	routeId, err := database.CreateRoute(route)
+
+	tx, err := database.BeginTransaction()
+	if err != nil {
+		t.Fatalf("Couldn't complete BeginTransaction: %s", err)
+	}
+	committedCreate := false
+	defer func() {
+		if !committedCreate {
+			if rbErr := tx.Rollback(); rbErr != nil {
+				t.Fatalf("Couldn't complete Rollback: %s", rbErr)
+			}
+		}
+	}()
+
+	routeId, err := tx.CreateRoute(route)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("Couldn't complete Commit: %s", err)
+	}
+	committedCreate = true
+
+	if routeId != 1 {
+		t.Fatalf("expected routeId 1, got %d", routeId)
 	}
 
 	res, err = database.ListRoutes()
@@ -56,11 +76,40 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 	if retrievedRoute.Destination != route.Destination {
 		t.Fatalf("The route from the database doesn't match the route that was given")
 	}
+	if retrievedRoute.Gateway != route.Gateway {
+		t.Fatalf("The permanent key value from the database doesn't match the permanent key value that was given")
+	}
+	if retrievedRoute.Interface != route.Interface {
+		t.Fatalf("The OPC value from the database doesn't match the OPC value that was given")
+	}
 
-	if err = database.DeleteRoute(routeId); err != nil {
+	tx, err = database.BeginTransaction()
+	if err != nil {
+		t.Fatalf("Couldn't complete BeginTransaction: %s", err)
+	}
+	committedDelete := false
+	defer func() {
+		if !committedDelete {
+			if rbErr := tx.Rollback(); rbErr != nil {
+				t.Fatalf("Couldn't complete Rollback: %s", rbErr)
+			}
+		}
+	}()
+
+	if err := tx.DeleteRoute(routeId); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
-	res, _ = database.ListRoutes()
+
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("Couldn't complete Commit: %s", err)
+	}
+
+	committedDelete = true
+
+	res, err = database.ListRoutes()
+	if err != nil {
+		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
+	}
 	if len(res) != 0 {
 		t.Fatalf("Routes weren't deleted from the DB properly")
 	}
