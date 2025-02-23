@@ -14,9 +14,9 @@ You can expect to spend about 30 minutes completing this tutorial. Follow the st
 
 To complete this tutorial, you will need a Ubuntu 24.04 machine with the following specifications:
 
-- 16GB of RAM
-- 6 CPU cores
-- 50GB of disk space
+- **Memory**: 16GB
+- **CPU**: 6 cores
+- **Disk**: 50GB
 
 ## 1. Create Virtual Machines
 
@@ -163,10 +163,13 @@ After creating the subscriber, click on the `View` button to see the subscriber'
 Navigate to the `Routes` page and click on the `Create` button.
 
 Create a route with the following parameters:
-- Destination: default
-- Gateway: <router-ens4-ip>
-- Interface: n6
-- Metric: 0
+
+- Destination: `default`
+- Gateway: `<router-ens4-ip>`
+- Interface: `n6`
+- Metric: `0`
+
+Replace the placeholder with the appropriate value.
 
 #### 2.5.4 Validate that no radio is connected
 
@@ -186,10 +189,10 @@ Enable IP forwarding:
 sudo sysctl -w net.ipv4.ip_forward=1
 ```
 
-Enable NAT for the 10.45.0.0/16 subnet by rewriting the source IP address of packets leaving the system to the IP address of the router's outgoing interface
+Enable NAT for the `10.45.0.0/16` subnet by rewriting the source IP address of packets leaving the system to the IP address of the router's outgoing interface (`ens3`):
 
 ```shell
-sudo iptables -t nat -A POSTROUTING -s 10.45.0.0/16 -j MASQUERADE
+sudo iptables -t nat -A POSTROUTING -o ens3 -s 10.45.0.0/16 -j MASQUERADE
 ```
 
 Add a route to the `ella-core` Multipass instance:
@@ -469,8 +472,7 @@ You should see a new interface `uesimtun0` with the UE's IP address:
        valid_lft forever preferred_lft forever
 ```
 
-You should see a new interface `uesimtun0` with your UE's IP address. This interface allows the UE to communicate with the network. 
-
+This interface allows the UE to communicate with the network. 
 
 Ping the Ella Core documentation website from the subscriber's interface:
 
