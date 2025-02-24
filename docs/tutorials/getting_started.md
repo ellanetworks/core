@@ -12,9 +12,9 @@ You can expect to spend about 10 minutes completing this tutorial.
 
 To complete this tutorial, you will need a Ubuntu 24.04 machine with the following specifications:
 
-- 8GB of RAM
-- 4 CPU cores
-- 30GB of disk space
+- **Memory**: 8GB
+- **CPU**: 4 cores
+- **Disk**: 30GB
 
 ## 1. Create a Virtual Machine
 
