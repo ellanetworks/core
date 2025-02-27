@@ -3,12 +3,10 @@ package core
 
 import (
 	"errors"
-	"net"
 	"sync"
 )
 
 type ResourceManager struct {
-	IPAM   *IPAM
 	FTEIDM *FTEIDM
 }
 
@@ -18,14 +16,7 @@ type FTEIDM struct {
 	sync.RWMutex
 }
 
-type IPAM struct {
-	freeIPs []net.IP
-	busyIPs map[uint64]net.IP
-	sync.RWMutex
-}
-
 func NewResourceManager(teidRange uint32) (*ResourceManager, error) {
-	var ipam IPAM
 	var fteidm FTEIDM
 
 	if teidRange != 0 {
@@ -45,23 +36,8 @@ func NewResourceManager(teidRange uint32) (*ResourceManager, error) {
 	}
 
 	return &ResourceManager{
-		IPAM:   &ipam,
 		FTEIDM: &fteidm,
 	}, nil
-}
-
-func (ipam *IPAM) AllocateIP(key uint64) (net.IP, error) {
-	ipam.Lock()
-	defer ipam.Unlock()
-
-	if len(ipam.freeIPs) > 0 {
-		ip := ipam.freeIPs[0]
-		ipam.freeIPs = ipam.freeIPs[1:]
-		ipam.busyIPs[key] = ip
-		return ip, nil
-	} else {
-		return nil, errors.New("no free ip available")
-	}
 }
 
 func (ipam *FTEIDM) AllocateTEID(seID uint64, pdrID uint32) (uint32, error) {
@@ -81,15 +57,6 @@ func (ipam *FTEIDM) AllocateTEID(seID uint64, pdrID uint32) (uint32, error) {
 		return teid, nil
 	} else {
 		return 0, errors.New("no free TEID available")
-	}
-}
-
-func (ipam *IPAM) ReleaseIP(seID uint64) {
-	ipam.Lock()
-	defer ipam.Unlock()
-	if ip, ok := ipam.busyIPs[seID]; ok {
-		ipam.freeIPs = append(ipam.freeIPs, ip)
-		delete(ipam.busyIPs, seID)
 	}
 }
 

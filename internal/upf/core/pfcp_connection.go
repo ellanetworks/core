@@ -49,10 +49,6 @@ func (connection *PfcpConnection) ReleaseResources(seID uint64) {
 		return
 	}
 
-	if connection.ResourceManager.IPAM != nil {
-		connection.ResourceManager.IPAM.ReleaseIP(seID)
-	}
-
 	if connection.ResourceManager.FTEIDM != nil {
 		connection.ResourceManager.FTEIDM.ReleaseTEID(seID)
 	}

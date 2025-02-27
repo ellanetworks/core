@@ -4,7 +4,6 @@ package core
 import (
 	"errors"
 	"fmt"
-	"net"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/config"
@@ -85,12 +84,7 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 	} else if ueipPdiId := findIEindex(pdi, 93); ueipPdiId != -1 {
 		if ueIp, _ := pdi[ueipPdiId].UEIPAddress(); ueIp != nil {
 			if config.Conf.FeatureUEIP && hasCHV4(ueIp.Flags) {
-				if ip, err := pdrContext.getIP(); err == nil {
-					ueIp.IPv4Address = cloneIP(ip)
-					spdrInfo.Allocated = true
-				} else {
-					logger.UpfLog.Errorf(err.Error())
-				}
+				return fmt.Errorf("UE IP Allocation is not supported in the UPF")
 			}
 			if ueIp.IPv4Address != nil {
 				spdrInfo.Ipv4 = cloneIP(ueIp.IPv4Address)
@@ -102,24 +96,23 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 		}
 		return nil
 	} else {
-		logger.UpfLog.Infof("Both F-TEID IE and UE IP Address IE are missing")
-		return err
+		return fmt.Errorf("both F-TEID IE and UE IP Address IE are missing: %s", err)
 	}
 }
 
 func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
 	if spdrInfo.Ipv4 != nil {
 		if err := bpfObjects.DeletePdrDownlink(spdrInfo.Ipv4); err != nil {
-			return fmt.Errorf("Can't delete IPv4 PDR: %s", err.Error())
+			return fmt.Errorf("can't delete IPv4 PDR: %s", err.Error())
 		}
 	} else if spdrInfo.Ipv6 != nil {
 		if err := bpfObjects.DeleteDownlinkPdrIp6(spdrInfo.Ipv6); err != nil {
-			return fmt.Errorf("Can't delete IPv6 PDR: %s", err.Error())
+			return fmt.Errorf("can't delete IPv6 PDR: %s", err.Error())
 		}
 	} else {
 		if _, ok := pdrContext.TEIDCache[uint8(spdrInfo.Teid)]; !ok {
 			if err := bpfObjects.DeletePdrUplink(spdrInfo.Teid); err != nil {
-				return fmt.Errorf("Can't delete GTP PDR: %s", err.Error())
+				return fmt.Errorf("can't delete GTP PDR: %s", err.Error())
 			}
 			pdrContext.TEIDCache[uint8(spdrInfo.Teid)] = 0
 		}
@@ -145,21 +138,9 @@ func (pdrContext *PDRCreationContext) getFTEID(seID uint64, pdrID uint32) (uint3
 
 	allocatedTeid, err := pdrContext.ResourceManager.FTEIDM.AllocateTEID(seID, pdrID)
 	if err != nil {
-		logger.UpfLog.Errorf("AllocateTEID err: %v", err)
-		return 0, fmt.Errorf("Can't allocate TEID: %s", causeToString(ie.CauseNoResourcesAvailable))
+		return 0, fmt.Errorf("can't allocate TEID: %s", causeToString(ie.CauseNoResourcesAvailable))
 	}
 	return allocatedTeid, nil
-}
-
-func (pdrContext PDRCreationContext) getIP() (net.IP, error) {
-	if pdrContext.ResourceManager == nil || pdrContext.ResourceManager.IPAM == nil {
-		return nil, errors.New("IP address manager is nil")
-	}
-	allocatedIP, err := pdrContext.ResourceManager.IPAM.AllocateIP(pdrContext.Session.RemoteSEID)
-	if err != nil {
-		return nil, fmt.Errorf("can't allocate IP: %s", causeToString(ie.CauseNoResourcesAvailable))
-	}
-	return allocatedIP, nil
 }
 
 func (pdrContext *PDRCreationContext) hasTEIDCache(chooseID uint8) (uint32, bool) {
