@@ -6,10 +6,9 @@ import (
 	"os"
 
 	"github.com/RoaringBitmap/roaring"
+	"github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/config"
-
-	"github.com/cilium/ebpf"
 )
 
 //

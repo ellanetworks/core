@@ -10,13 +10,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cilium/ebpf/link"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/upf/config"
 	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
-
-	"github.com/cilium/ebpf/link"
 )
 
 func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMode string) error {
