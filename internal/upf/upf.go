@@ -28,8 +28,8 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 		XDPAttachMode: xdpAttachMode,
 		PfcpAddress:   "0.0.0.0",
 		SmfAddress:    "0.0.0.0",
-		SmfNodeId:     "0.0.0.0",
-		PfcpNodeId:    "0.0.0.0",
+		SmfNodeID:     "0.0.0.0",
+		PfcpNodeID:    "0.0.0.0",
 		N3Address:     n3Address,
 		QerMapSize:    1024,
 		FarMapSize:    1024,
@@ -103,12 +103,12 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 		logger.UpfLog.Errorf("failed to create ResourceManager - err: %v", err)
 	}
 
-	pfcpConn, err := core.CreatePfcpConnection(config.Conf.PfcpAddress, config.Conf.PfcpNodeId, config.Conf.N3Address, bpfObjects, resourceManager)
+	pfcpConn, err := core.CreatePfcpConnection(config.Conf.PfcpAddress, config.Conf.PfcpNodeID, config.Conf.N3Address, bpfObjects, resourceManager)
 	if err != nil {
 		logger.UpfLog.Fatalf("Could not create PFCP connection: %s", err.Error())
 	}
 
-	remoteNode := core.NewNodeAssociation(config.Conf.SmfNodeId, config.Conf.SmfAddress)
+	remoteNode := core.NewNodeAssociation(config.Conf.SmfNodeID, config.Conf.SmfAddress)
 	pfcpConn.SmfNodeAssociation = remoteNode
 
 	ForwardPlaneStats := ebpf.UpfXdpActionStatistic{

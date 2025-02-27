@@ -30,9 +30,9 @@ func ParseSdfFilter(flowDescription string) (ebpf.SdfFilter, error) {
 		if match[3] != "" {
 			return ebpf.SdfFilter{}, fmt.Errorf("<any> keyword should not be used with </mask>")
 		}
-		sdfInfo.SrcAddress = ebpf.IpWMask{Type: 0}
+		sdfInfo.SrcAddress = ebpf.IPWMask{Type: 0}
 	} else {
-		if sdfInfo.SrcAddress, err = ParseCidrIp(match[2], match[3]); err != nil {
+		if sdfInfo.SrcAddress, err = ParseCidrIP(match[2], match[3]); err != nil {
 			return ebpf.SdfFilter{}, err
 		}
 	}
@@ -43,9 +43,9 @@ func ParseSdfFilter(flowDescription string) (ebpf.SdfFilter, error) {
 		}
 	}
 	if match[5] == "assigned" || match[5] == "any" {
-		sdfInfo.DstAddress = ebpf.IpWMask{Type: 0}
+		sdfInfo.DstAddress = ebpf.IPWMask{Type: 0}
 	} else {
-		if sdfInfo.DstAddress, err = ParseCidrIp(match[5], match[6]); err != nil {
+		if sdfInfo.DstAddress, err = ParseCidrIP(match[5], match[6]); err != nil {
 			return ebpf.SdfFilter{}, err
 		}
 	}
@@ -74,11 +74,11 @@ func ParseProtocol(protocol string) (uint8, error) {
 	if ok {
 		return number, nil
 	} else {
-		return 0, fmt.Errorf("Unsupported protocol.")
+		return 0, fmt.Errorf("bad protocol formatting")
 	}
 }
 
-func ParseCidrIp(ipStr, maskStr string) (ebpf.IpWMask, error) {
+func ParseCidrIP(ipStr, maskStr string) (ebpf.IPWMask, error) {
 	var ipType uint8
 	if ip := net.ParseIP(ipStr); ip != nil {
 		if ip.To4() != nil {
@@ -93,16 +93,16 @@ func ParseCidrIp(ipStr, maskStr string) (ebpf.IpWMask, error) {
 				mask = net.CIDRMask(int(maskInt), 8*len(ip))
 				ip = ip.Mask(mask)
 			} else {
-				return ebpf.IpWMask{}, fmt.Errorf("Bad IP mask formatting.")
+				return ebpf.IPWMask{}, fmt.Errorf("bad mask formatting")
 			}
 		}
-		return ebpf.IpWMask{
+		return ebpf.IPWMask{
 			Type: ipType,
-			Ip:   ip,
+			IP:   ip,
 			Mask: mask,
 		}, nil
 	} else {
-		return ebpf.IpWMask{}, fmt.Errorf("Bad IP formatting.")
+		return ebpf.IPWMask{}, fmt.Errorf("bad IP formatting")
 	}
 }
 
@@ -122,7 +122,7 @@ func ParsePortRange(str string) (ebpf.PortRange, error) {
 		portRange.UpperBound = portRange.LowerBound
 	}
 	if portRange.LowerBound > portRange.UpperBound {
-		return ebpf.PortRange{}, fmt.Errorf("Invalid port range. Left port should be less or equal to right port.")
+		return ebpf.PortRange{}, fmt.Errorf("invalid port range: left port should be less or equal to right port")
 	}
 	return portRange, nil
 }
@@ -130,7 +130,7 @@ func ParsePortRange(str string) (ebpf.PortRange, error) {
 func ParsePort(str string) (uint16, error) {
 	if port64, err := strconv.ParseUint(str, 10, 64); err == nil {
 		if port64 > 65535 {
-			return 0, fmt.Errorf("Invalid port. Port must be inside bounds [0, 65535].")
+			return 0, fmt.Errorf("invalid port: port must be inside bounds [0, 65535]")
 		}
 		return uint16(port64), nil
 	} else {

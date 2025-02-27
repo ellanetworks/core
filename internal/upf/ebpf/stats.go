@@ -10,10 +10,10 @@ type UpfN3Counters struct {
 	RxArp      uint64
 	RxIcmp     uint64
 	RxIcmp6    uint64
-	RxIp4      uint64
-	RxIp6      uint64
-	RxTcp      uint64
-	RxUdp      uint64
+	RxIP4      uint64
+	RxIP6      uint64
+	RxTCP      uint64
+	RxUDP      uint64
 	RxOther    uint64
 	RxGtpEcho  uint64
 	RxGtpPdu   uint64
@@ -31,10 +31,10 @@ func (current *UpfN3Counters) Add(nnew UpfN3Counters) {
 	current.RxArp += nnew.RxArp
 	current.RxIcmp += nnew.RxIcmp
 	current.RxIcmp6 += nnew.RxIcmp6
-	current.RxIp4 += nnew.RxIp4
-	current.RxIp6 += nnew.RxIp6
-	current.RxTcp += nnew.RxTcp
-	current.RxUdp += nnew.RxUdp
+	current.RxIP4 += nnew.RxIP4
+	current.RxIP6 += nnew.RxIP6
+	current.RxTCP += nnew.RxTCP
+	current.RxUDP += nnew.RxUDP
 	current.RxOther += nnew.RxOther
 	current.RxGtpEcho += nnew.RxGtpEcho
 	current.RxGtpPdu += nnew.RxGtpPdu

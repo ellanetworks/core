@@ -12,14 +12,14 @@ var connection *PfcpConnection
 
 type PfcpConnection struct {
 	SmfNodeAssociation *NodeAssociation
-	nodeId             string
+	nodeID             string
 	nodeAddrV4         net.IP
 	n3Address          net.IP
 	bpfObjects         *ebpf.BpfObjects
 	ResourceManager    *ResourceManager
 }
 
-func CreatePfcpConnection(addr string, nodeId string, n3Ip string, bpfObjects *ebpf.BpfObjects, resourceManager *ResourceManager) (*PfcpConnection, error) {
+func CreatePfcpConnection(addr string, nodeID string, n3Ip string, bpfObjects *ebpf.BpfObjects, resourceManager *ResourceManager) (*PfcpConnection, error) {
 	addrV4 := net.ParseIP(addr)
 	if addrV4 == nil {
 		return nil, fmt.Errorf("failed to parse IP address ID: %s", addr)
@@ -30,7 +30,7 @@ func CreatePfcpConnection(addr string, nodeId string, n3Ip string, bpfObjects *e
 	}
 
 	connection = &PfcpConnection{
-		nodeId:          nodeId,
+		nodeID:          nodeID,
 		nodeAddrV4:      addrV4,
 		n3Address:       n3Addr,
 		bpfObjects:      bpfObjects,

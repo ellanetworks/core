@@ -7,9 +7,9 @@ type UpfConfig struct {
 	N6Interface   string
 	XDPAttachMode string
 	PfcpAddress   string
-	PfcpNodeId    string
+	PfcpNodeID    string
 	SmfAddress    string
-	SmfNodeId     string
+	SmfNodeID     string
 	N3Address     string
 	QerMapSize    uint32
 	FarMapSize    uint32
