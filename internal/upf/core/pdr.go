@@ -11,7 +11,7 @@ import (
 
 const flagPresentIPv4 = 2
 
-func applyPDR(spdrInfo SPDRInfo, bpfObjects ebpf.BpfObjects) {
+func applyPDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) {
 	if spdrInfo.Ipv4 != nil {
 		if err := bpfObjects.PutPdrDownlink(spdrInfo.Ipv4, spdrInfo.PdrInfo); err != nil {
 			logger.UpfLog.Infof("Can't apply IPv4 PDR: %s", err.Error())

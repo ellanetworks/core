@@ -8,18 +8,17 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/config"
-	"github.com/ellanetworks/core/internal/upf/core/service"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/wmnsk/go-pfcp/ie"
 )
 
 type PDRCreationContext struct {
 	Session         *Session
-	ResourceManager *service.ResourceManager
+	ResourceManager *ResourceManager
 	TEIDCache       map[uint8]uint32
 }
 
-func NewPDRCreationContext(session *Session, resourceManager *service.ResourceManager) *PDRCreationContext {
+func NewPDRCreationContext(session *Session, resourceManager *ResourceManager) *PDRCreationContext {
 	return &PDRCreationContext{
 		Session:         session,
 		ResourceManager: resourceManager,
@@ -27,7 +26,7 @@ func NewPDRCreationContext(session *Session, resourceManager *service.ResourceMa
 	}
 }
 
-func (pdrContext *PDRCreationContext) extractPDR(pdr *ie.IE, spdrInfo *SPDRInfo) error {
+func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo) error {
 	if outerHeaderRemoval, err := pdr.OuterHeaderRemovalDescription(); err == nil {
 		spdrInfo.PdrInfo.OuterHeaderRemoval = outerHeaderRemoval
 	}
@@ -108,7 +107,7 @@ func (pdrContext *PDRCreationContext) extractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 	}
 }
 
-func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects ebpf.BpfObjects) error {
+func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
 	if spdrInfo.Ipv4 != nil {
 		if err := bpfObjects.DeletePdrDownlink(spdrInfo.Ipv4); err != nil {
 			return fmt.Errorf("Can't delete IPv4 PDR: %s", err.Error())

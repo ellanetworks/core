@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/upf/config"
 	"github.com/ellanetworks/core/internal/upf/core"
-	"github.com/ellanetworks/core/internal/upf/core/service"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 
 	"github.com/cilium/ebpf/link"
@@ -99,18 +98,18 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 
 	logger.UpfLog.Infof("Attached eBPF program to n6 interface %q in mode %q", n6Interface, config.Conf.XDPAttachMode)
 
-	resourceManager, err := service.NewResourceManager(config.Conf.FTEIDPool)
+	resourceManager, err := core.NewResourceManager(config.Conf.FTEIDPool)
 	if err != nil {
 		logger.UpfLog.Errorf("failed to create ResourceManager - err: %v", err)
 	}
 
-	pfcpConn, err := core.CreatePfcpConnection(config.Conf.PfcpAddress, config.Conf.PfcpNodeId, config.Conf.N3Address, *bpfObjects, resourceManager)
+	pfcpConn, err := core.CreatePfcpConnection(config.Conf.PfcpAddress, config.Conf.PfcpNodeId, config.Conf.N3Address, bpfObjects, resourceManager)
 	if err != nil {
 		logger.UpfLog.Fatalf("Could not create PFCP connection: %s", err.Error())
 	}
 
 	remoteNode := core.NewNodeAssociation(config.Conf.SmfNodeId, config.Conf.SmfAddress)
-	pfcpConn.NodeAssociations[config.Conf.SmfAddress] = remoteNode
+	pfcpConn.SmfNodeAssociation = remoteNode
 
 	ForwardPlaneStats := ebpf.UpfXdpActionStatistic{
 		BpfObjects: bpfObjects,

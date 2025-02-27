@@ -1,5 +1,5 @@
 // Copyright 2024 Ella Networks
-package service
+package core
 
 import (
 	"errors"

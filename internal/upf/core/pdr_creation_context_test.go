@@ -1,22 +1,22 @@
 // Copyright 2024 Ella Networks
-package core
+package core_test
 
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/internal/upf/core/service"
+	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/wmnsk/go-pfcp/ie"
 )
 
 func TestPDRCreationContext_extractPDR(t *testing.T) {
 	type fields struct {
-		Session         *Session
-		ResourceManager *service.ResourceManager
+		Session         *core.Session
+		ResourceManager *core.ResourceManager
 		TEIDCache       map[uint8]uint32
 	}
 	type args struct {
 		pdr      *ie.IE
-		spdrInfo *SPDRInfo
+		spdrInfo *core.SPDRInfo
 	}
 	tests := []struct {
 		name    string
@@ -40,7 +40,7 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 						ie.NewSDFFilter("", "ttc", "", "", 0),
 					),
 				),
-				spdrInfo: &SPDRInfo{},
+				spdrInfo: &core.SPDRInfo{},
 			},
 			wantErr: false,
 		},
@@ -60,7 +60,7 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 						ie.NewSDFFilter("", "", "", "", 4096),
 					),
 				),
-				spdrInfo: &SPDRInfo{},
+				spdrInfo: &core.SPDRInfo{},
 			},
 			wantErr: false,
 		},
@@ -80,7 +80,7 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 						ie.NewSDFFilter("123", "", "", "", 4096),
 					),
 				),
-				spdrInfo: &SPDRInfo{},
+				spdrInfo: &core.SPDRInfo{},
 			},
 			wantErr: true,
 		},
@@ -100,19 +100,19 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 						ie.NewSDFFilter("permit out ip from 10.62.0.1 to 8.8.8.8/32", "", "", "", 0),
 					),
 				),
-				spdrInfo: &SPDRInfo{},
+				spdrInfo: &core.SPDRInfo{},
 			},
 			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pdrContext := &PDRCreationContext{
+			pdrContext := &core.PDRCreationContext{
 				Session:         tt.fields.Session,
 				ResourceManager: tt.fields.ResourceManager,
 				TEIDCache:       tt.fields.TEIDCache,
 			}
-			if err := pdrContext.extractPDR(tt.args.pdr, tt.args.spdrInfo); (err != nil) != tt.wantErr {
+			if err := pdrContext.ExtractPDR(tt.args.pdr, tt.args.spdrInfo); (err != nil) != tt.wantErr {
 				t.Errorf("PDRCreationContext.extractPDR() error: %v, expected error: %v", err, tt.wantErr)
 			}
 		})
