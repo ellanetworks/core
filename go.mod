@@ -19,7 +19,7 @@ require (
 	github.com/vishvananda/netlink v1.3.0
 	github.com/wmnsk/go-pfcp v0.0.24
 	go.uber.org/zap v1.27.0
-	golang.org/x/crypto v0.34.0
+	golang.org/x/crypto v0.35.0
 	golang.org/x/net v0.35.0
 	golang.org/x/sys v0.30.0
 	gopkg.in/yaml.v2 v2.4.0
