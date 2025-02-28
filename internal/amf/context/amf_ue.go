@@ -119,7 +119,6 @@ type AmfUe struct {
 	Kamf                              string                      `json:"kamf,omitempty"`
 	/* context about PCF */
 	PolicyAssociationId          string                    `json:"policyAssociationId,omitempty"`
-	AmPolicyUri                  string                    `json:"amPolicyUri,omitempty"`
 	AmPolicyAssociation          *models.PolicyAssociation `json:"amPolicyAssociation,omitempty"`
 	RequestTriggerLocationChange bool                      `json:"requestTriggerLocationChange,omitempty"` // true if AmPolicyAssociation.Trigger contains RequestTrigger_LOC_CH
 	ConfigurationUpdateMessage   []byte                    `json:"configurationUpdateMessage,omitempty"`
@@ -712,10 +711,6 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 			ue.NH = nh
 		}
 		ue.NCC = uint8(seafData.Ncc)
-	}
-
-	if ueContext.PcfAmPolicyUri != "" {
-		ue.AmPolicyUri = ueContext.PcfAmPolicyUri
 	}
 
 	if len(ueContext.AmPolicyReqTriggerList) > 0 {
