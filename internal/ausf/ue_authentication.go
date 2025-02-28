@@ -237,7 +237,6 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 	return &responseBody, nil
 }
 
-// return response, problemDetails
 func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessionID string) (*models.EapSession,
 	error,
 ) {

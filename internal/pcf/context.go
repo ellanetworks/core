@@ -16,16 +16,13 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
-	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 )
 
 var pcfCtx *PCFContext
 
 type PCFContext struct {
-	PcfSuppFeats           map[models.ServiceName]openapi.SupportedFeature
 	UePool                 sync.Map
-	AppSessionPool         sync.Map
 	SessionRuleIDGenerator *idgenerator.IDGenerator
 	QoSDataIDGenerator     *idgenerator.IDGenerator
 	DbInstance             *db.Database
