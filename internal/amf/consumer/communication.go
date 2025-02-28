@@ -64,12 +64,6 @@ func BuildUeContextModel(ue *amf_context.AmfUe) (ueContext models.UeContext) {
 		}
 	}
 
-	for _, eventSub := range ue.EventSubscriptionsInfo {
-		if eventSub.EventSubscription != nil {
-			ueContext.EventSubscriptionList = append(ueContext.EventSubscriptionList, *eventSub.EventSubscription)
-		}
-	}
-
 	if ue.TraceData != nil {
 		ueContext.TraceData = ue.TraceData
 	}

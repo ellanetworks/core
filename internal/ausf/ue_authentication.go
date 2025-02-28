@@ -21,13 +21,6 @@ import (
 	"github.com/omec-project/openapi/models"
 )
 
-const (
-	UPSTREAM_SERVER_ERROR                = "UPSTREAM_SERVER_ERROR"
-	USER_NOT_FOUND_ERROR                 = "USER_NOT_FOUND"
-	SERVING_NETWORK_NOT_AUTHORIZED_ERROR = "SERVING_NETWORK_NOT_AUTHORIZED"
-	AV_GENERATION_PROBLEM_ERROR          = "AV_GENERATION_PROBLEM"
-)
-
 // Generates a random int between 0 and 255
 func GenerateRandomNumber() (uint8, error) {
 	maxN := big.NewInt(256)

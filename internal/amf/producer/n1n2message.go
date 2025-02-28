@@ -22,68 +22,25 @@ import (
 	"github.com/omec-project/openapi/models"
 )
 
-func ProducerHandler(s1, s2 string, msg interface{}) (interface{}, string, interface{}, interface{}) {
-	if msg == nil {
-		r1, r2 := N1N2MessageTransferStatusProcedure(s1, s2)
-		return r1, "", r2, nil
-	}
-	switch msg := msg.(type) {
-	case models.N1N2MessageTransferRequest:
-		return N1N2MessageTransferProcedure(s1, s2, msg)
-	case models.UeN1N2InfoSubscriptionCreateData:
-		r1, r2 := N1N2MessageSubscribeProcedure(s1, msg)
-		return r1, "", r2, nil
-	}
-
-	return nil, "", nil, nil
-}
-
 func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, reqUri string) (*models.N1N2MessageTransferRspData, error) {
-	var problemDetails *models.ProblemDetails
 	logger.AmfLog.Infof("Handle N1N2 Message Transfer Request")
-
 	amfSelf := context.AMF_Self()
-
 	if _, ok := amfSelf.AmfUeFindByUeContextID(ueContextId); !ok {
 		return nil, fmt.Errorf("UE context not found")
 	}
-	sbiMsg := context.SbiMsg{
-		UeContextId: ueContextId,
-		ReqUri:      reqUri,
-		Msg:         n1n2MessageTransferRequest,
-	}
-	var n1n2MessageTransferRspData *models.N1N2MessageTransferRspData
-	var transferErr *models.N1N2MessageTransferError
-
-	p_1, p_2, p_3, p_4 := ProducerHandler(sbiMsg.UeContextId, sbiMsg.ReqUri, sbiMsg.Msg)
-	res := context.SbiResponseMsg{
-		RespData:       p_1,
-		LocationHeader: p_2,
-		ProblemDetails: p_3,
-		TransferErr:    p_4,
-	}
-
-	if res.RespData != nil {
-		n1n2MessageTransferRspData = res.RespData.(*models.N1N2MessageTransferRspData)
-	}
-	if res.ProblemDetails != nil {
-		problemDetails = res.ProblemDetails.(*models.ProblemDetails)
-	}
-	if res.TransferErr != nil {
-		transferErr = res.TransferErr.(*models.N1N2MessageTransferError)
-	}
+	respData, problemDetails, transferErr := N1N2MessageTransferProcedure(ueContextId, reqUri, n1n2MessageTransferRequest)
 	if problemDetails != nil {
-		return nil, fmt.Errorf("Problem Details: %v", problemDetails)
+		return nil, fmt.Errorf("problem Details: %v", problemDetails)
 	} else if transferErr != nil {
-		return nil, fmt.Errorf("Transfer Error: %v", transferErr)
-	} else if n1n2MessageTransferRspData != nil {
-		switch n1n2MessageTransferRspData.Cause {
+		return nil, fmt.Errorf("transfer Error: %v", transferErr)
+	} else if respData != nil {
+		switch respData.Cause {
 		case models.N1N2MessageTransferCause_N1_MSG_NOT_TRANSFERRED:
 			fallthrough
 		case models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED:
-			return n1n2MessageTransferRspData, nil
+			return respData, nil
 		case models.N1N2MessageTransferCause_ATTEMPTING_TO_REACH_UE:
-			return n1n2MessageTransferRspData, nil
+			return respData, nil
 		}
 	}
 
@@ -91,13 +48,11 @@ func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest mo
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	return nil, fmt.Errorf("Problem Details: %v", problemDetails)
+	return nil, fmt.Errorf("problem Details: %v", problemDetails)
 }
 
 // There are 4 possible return value for this function:
 //   - n1n2MessageTransferRspData: if AMF handle N1N2MessageTransfer Request successfully.
-//   - locationHeader: if response status code is 202, then it will return a non-empty string location header for
-//     response
 //   - problemDetails: if AMF reject the request due to application error, e.g. UE context not found.
 //   - TransferErr: if AMF reject the request due to procedure error, e.g. UE has an ongoing procedure.
 
@@ -105,7 +60,7 @@ func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest mo
 func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 	n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (
 	n1n2MessageTransferRspData *models.N1N2MessageTransferRspData,
-	locationHeader string, problemDetails *models.ProblemDetails,
+	problemDetails *models.ProblemDetails,
 	transferErr *models.N1N2MessageTransferError,
 ) {
 	var (
@@ -127,7 +82,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			Status: http.StatusNotFound,
 			Cause:  "CONTEXT_NOT_FOUND",
 		}
-		return nil, "", problemDetails, nil
+		return nil, problemDetails, nil
 	}
 
 	if requestData.N1MessageContainer != nil {
@@ -140,7 +95,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 					Status: http.StatusNotFound,
 					Cause:  "CONTEXT_NOT_FOUND",
 				}
-				return nil, "", problemDetails, nil
+				return nil, problemDetails, nil
 			} else {
 				anType = smContext.AccessType()
 			}
@@ -164,7 +119,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 						Status: http.StatusNotFound,
 						Cause:  "CONTEXT_NOT_FOUND",
 					}
-					return nil, "", problemDetails, nil
+					return nil, problemDetails, nil
 				} else {
 					anType = smContext.AccessType()
 				}
@@ -175,7 +130,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 				Status: http.StatusNotImplemented,
 				Cause:  "NOT_IMPLEMENTED",
 			}
-			return nil, "", problemDetails, nil
+			return nil, problemDetails, nil
 		}
 	}
 
@@ -189,7 +144,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 				Status: http.StatusConflict,
 				Cause:  "HIGHER_PRIORITY_REQUEST_ONGOING",
 			}
-			return nil, "", nil, transferErr
+			return nil, nil, transferErr
 		}
 		ue.T3513.Stop()
 	case context.OnGoingProcedureRegistration:
@@ -198,14 +153,14 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			Status: http.StatusConflict,
 			Cause:  "TEMPORARY_REJECT_REGISTRATION_ONGOING",
 		}
-		return nil, "", nil, transferErr
+		return nil, nil, transferErr
 	case context.OnGoingProcedureN2Handover:
 		transferErr = new(models.N1N2MessageTransferError)
 		transferErr.Error = &models.ProblemDetails{
 			Status: http.StatusConflict,
 			Cause:  "TEMPORARY_REJECT_HANDOVER_ONGOING",
 		}
-		return nil, "", nil, transferErr
+		return nil, nil, transferErr
 	}
 
 	// UE is CM-Connected
@@ -224,14 +179,14 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 					Detail: err.Error(),
 					Cause:  "SYSTEM_FAILURE",
 				}
-				return nil, "", problemDetails, nil
+				return nil, problemDetails, nil
 			}
 			if n2Info == nil {
 				ue.ProducerLog.Debug("Forward N1 Message to UE")
 				ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasPdu, nil)
 				n1n2MessageTransferRspData = new(models.N1N2MessageTransferRspData)
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
-				return n1n2MessageTransferRspData, "", nil, nil
+				return n1n2MessageTransferRspData, nil, nil
 			}
 		}
 
@@ -253,7 +208,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 				n1n2MessageTransferRspData = new(models.N1N2MessageTransferRspData)
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
 				// context.StoreContextInDB(ue)
-				return n1n2MessageTransferRspData, "", nil, nil
+				return n1n2MessageTransferRspData, nil, nil
 			case models.NgapIeType_PDU_RES_MOD_REQ:
 				ue.ProducerLog.Debugln("AMF Transfer NGAP PDU Session Resource Modify Request from SMF")
 				list := ngapType.PDUSessionResourceModifyListModReq{}
@@ -262,7 +217,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 				n1n2MessageTransferRspData = new(models.N1N2MessageTransferRspData)
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
 				// context.StoreContextInDB(ue)
-				return n1n2MessageTransferRspData, "", nil, nil
+				return n1n2MessageTransferRspData, nil, nil
 			case models.NgapIeType_PDU_RES_REL_CMD:
 				ue.ProducerLog.Debugln("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
 				list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
@@ -271,14 +226,14 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 				n1n2MessageTransferRspData = new(models.N1N2MessageTransferRspData)
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
 				// context.StoreContextInDB(ue)
-				return n1n2MessageTransferRspData, "", nil, nil
+				return n1n2MessageTransferRspData, nil, nil
 			default:
 				ue.ProducerLog.Errorf("NGAP IE Type[%s] is not supported for SmInfo", smInfo.N2InfoContent.NgapIeType)
 				problemDetails = &models.ProblemDetails{
 					Status: http.StatusForbidden,
 					Cause:  "UNSPECIFIED",
 				}
-				return nil, "", problemDetails, nil
+				return nil, problemDetails, nil
 			}
 		}
 	}
@@ -292,7 +247,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			Status: http.StatusConflict,
 			Cause:  "UE_IN_CM_IDLE_STATE",
 		}
-		return nil, "", nil, transferErr
+		return nil, nil, transferErr
 	}
 	// 504: the UE in MICO mode or the UE is only registered over Non-3GPP access and its state is CM-IDLE
 	if !ue.State[models.AccessType__3_GPP_ACCESS].Is(context.Registered) {
@@ -301,26 +256,22 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			Status: http.StatusGatewayTimeout,
 			Cause:  "UE_NOT_REACHABLE",
 		}
-		return nil, "", nil, transferErr
+		return nil, nil, transferErr
 	}
 
 	n1n2MessageTransferRspData = new(models.N1N2MessageTransferRspData)
 
 	var pagingPriority *ngapType.PagingPriority
 
-	var n1n2MessageID int64
-	if n1n2MessageIDTmp, err := ue.N1N2MessageIDGenerator.Allocate(); err != nil {
+	if _, err := ue.N1N2MessageIDGenerator.Allocate(); err != nil {
 		ue.ProducerLog.Errorf("Allocate n1n2MessageID error: %+v", err)
 		problemDetails = &models.ProblemDetails{
 			Status: http.StatusInternalServerError,
 			Cause:  "SYSTEM_FAILURE",
 			Detail: err.Error(),
 		}
-		return n1n2MessageTransferRspData, locationHeader, problemDetails, transferErr
-	} else {
-		n1n2MessageID = n1n2MessageIDTmp
+		return n1n2MessageTransferRspData, problemDetails, transferErr
 	}
-	locationHeader = context.AMF_Self().GetIPv4Uri() + reqUri + "/" + strconv.Itoa(int(n1n2MessageID))
 
 	// Case A (UE is CM-IDLE in 3GPP access and the associated access type is 3GPP access)
 	// in subclause 5.2.2.3.1.2 of TS29518
@@ -330,9 +281,8 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 		} else {
 			n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_ATTEMPTING_TO_REACH_UE
 			message := context.N1N2Message{
-				Request:     n1n2MessageTransferRequest,
-				Status:      n1n2MessageTransferRspData.Cause,
-				ResourceUri: locationHeader,
+				Request: n1n2MessageTransferRequest,
+				Status:  n1n2MessageTransferRspData.Cause,
 			}
 			ue.N1N2Message = &message
 			ue.SetOnGoing(anType, &context.OnGoingProcedureWithPrio{
@@ -347,11 +297,11 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			pkg, err := ngap_message.BuildPaging(ue, pagingPriority, false)
 			if err != nil {
 				logger.AmfLog.Errorf("Build Paging failed : %s", err.Error())
-				return n1n2MessageTransferRspData, locationHeader, problemDetails, transferErr
+				return n1n2MessageTransferRspData, problemDetails, transferErr
 			}
 			ngap_message.SendPaging(ue, pkg)
 		}
-		return n1n2MessageTransferRspData, locationHeader, nil, nil
+		return n1n2MessageTransferRspData, nil, nil
 	} else {
 		// Case B (UE is CM-IDLE in Non-3GPP access but CM-CONNECTED in 3GPP access and the associated
 		// access type is Non-3GPP access)in subclause 5.2.2.3.1.2 of TS29518
@@ -363,27 +313,25 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			} else {
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_ATTEMPTING_TO_REACH_UE
 				message := context.N1N2Message{
-					Request:     n1n2MessageTransferRequest,
-					Status:      n1n2MessageTransferRspData.Cause,
-					ResourceUri: locationHeader,
+					Request: n1n2MessageTransferRequest,
+					Status:  n1n2MessageTransferRspData.Cause,
 				}
 				ue.N1N2Message = &message
 				nasMsg, err := gmm_message.BuildNotification(ue, models.AccessType_NON_3_GPP_ACCESS)
 				if err != nil {
 					logger.AmfLog.Errorf("Build Notification failed : %s", err.Error())
-					return n1n2MessageTransferRspData, locationHeader, problemDetails, transferErr
+					return n1n2MessageTransferRspData, problemDetails, transferErr
 				}
 				gmm_message.SendNotification(ue.RanUe[models.AccessType__3_GPP_ACCESS], nasMsg)
 			}
-			return n1n2MessageTransferRspData, locationHeader, nil, nil
+			return n1n2MessageTransferRspData, nil, nil
 		} else {
 			// Case C ( UE is CM-IDLE in both Non-3GPP access and 3GPP access and the associated access ype is Non-3GPP access)
 			// in subclause 5.2.2.3.1.2 of TS29518
 			n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_ATTEMPTING_TO_REACH_UE
 			message := context.N1N2Message{
-				Request:     n1n2MessageTransferRequest,
-				Status:      n1n2MessageTransferRspData.Cause,
-				ResourceUri: locationHeader,
+				Request: n1n2MessageTransferRequest,
+				Status:  n1n2MessageTransferRspData.Cause,
 			}
 			ue.N1N2Message = &message
 
@@ -400,7 +348,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 				logger.AmfLog.Errorf("Build Paging failed : %s", err.Error())
 			}
 			ngap_message.SendPaging(ue, pkg)
-			return n1n2MessageTransferRspData, locationHeader, nil, nil
+			return n1n2MessageTransferRspData, nil, nil
 		}
 	}
 }
@@ -419,9 +367,8 @@ func N1N2MessageTransferStatusProcedure(ueContextID string, reqUri string) (mode
 		return "", problemDetails
 	}
 
-	resourceUri := amfSelf.GetIPv4Uri() + reqUri
 	n1n2Message := ue.N1N2Message
-	if n1n2Message == nil || n1n2Message.ResourceUri != resourceUri {
+	if n1n2Message == nil {
 		problemDetails := &models.ProblemDetails{
 			Status: http.StatusNotFound,
 			Cause:  "CONTEXT_NOT_FOUND",
