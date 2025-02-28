@@ -10,9 +10,9 @@ import (
 
 func TestPDRCreationContext_extractPDR(t *testing.T) {
 	type fields struct {
-		Session         *core.Session
-		ResourceManager *core.ResourceManager
-		TEIDCache       map[uint8]uint32
+		Session              *core.Session
+		FteIDResourceManager *core.FteIDResourceManager
+		TEIDCache            map[uint8]uint32
 	}
 	type args struct {
 		pdr      *ie.IE
@@ -27,8 +27,8 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 		{
 			name: "emptyFlowDescription",
 			fields: fields{
-				Session:         nil,
-				ResourceManager: nil,
+				Session:              nil,
+				FteIDResourceManager: nil,
 				// TEEIDCache: nil,
 			},
 			args: args{
@@ -47,8 +47,8 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 		{
 			name: "emptyFlowDescriptionAndFilterID",
 			fields: fields{
-				Session:         nil,
-				ResourceManager: nil,
+				Session:              nil,
+				FteIDResourceManager: nil,
 				// TEEIDCache: nil,
 			},
 			args: args{
@@ -67,8 +67,8 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 		{
 			name: "invalidFlowDescription",
 			fields: fields{
-				Session:         nil,
-				ResourceManager: nil,
+				Session:              nil,
+				FteIDResourceManager: nil,
 				// TEEIDCache: nil,
 			},
 			args: args{
@@ -87,8 +87,8 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 		{
 			name: "validFlowDescription",
 			fields: fields{
-				Session:         nil,
-				ResourceManager: nil,
+				Session:              nil,
+				FteIDResourceManager: nil,
 				// TEEIDCache: nil,
 			},
 			args: args{
@@ -108,9 +108,9 @@ func TestPDRCreationContext_extractPDR(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pdrContext := &core.PDRCreationContext{
-				Session:         tt.fields.Session,
-				ResourceManager: tt.fields.ResourceManager,
-				TEIDCache:       tt.fields.TEIDCache,
+				Session:              tt.fields.Session,
+				FteIDResourceManager: tt.fields.FteIDResourceManager,
+				TEIDCache:            tt.fields.TEIDCache,
 			}
 			if err := pdrContext.ExtractPDR(tt.args.pdr, tt.args.spdrInfo); (err != nil) != tt.wantErr {
 				t.Errorf("PDRCreationContext.extractPDR() error: %v, expected error: %v", err, tt.wantErr)

@@ -6,41 +6,35 @@ import (
 	"sync"
 )
 
-type ResourceManager struct {
-	FTEIDM *FTEIDM
-}
-
-type FTEIDM struct {
+type FteIDResourceManager struct {
 	freeTEIDs []uint32
 	busyTEIDs map[uint64]map[uint32]uint32 // map[seID]map[pdrID]teid
 	sync.RWMutex
 }
 
-func NewResourceManager(teidRange uint32) (*ResourceManager, error) {
-	var fteidm FTEIDM
-
-	if teidRange != 0 {
-		freeTEIDs := make([]uint32, 0, 10000)
-		busyTEIDs := make(map[uint64]map[uint32]uint32)
-
-		var teid uint32
-
-		for teid = 1; teid <= teidRange; teid++ {
-			freeTEIDs = append(freeTEIDs, teid)
-		}
-
-		fteidm = FTEIDM{
-			freeTEIDs: freeTEIDs,
-			busyTEIDs: busyTEIDs,
-		}
+func NewFteIDResourceManager(teidRange uint32) (*FteIDResourceManager, error) {
+	if teidRange == 0 {
+		return nil, errors.New("TEID range should be greater than 0")
 	}
 
-	return &ResourceManager{
-		FTEIDM: &fteidm,
-	}, nil
+	freeTEIDs := make([]uint32, 0, 10000)
+	busyTEIDs := make(map[uint64]map[uint32]uint32)
+
+	var teid uint32
+
+	for teid = 1; teid <= teidRange; teid++ {
+		freeTEIDs = append(freeTEIDs, teid)
+	}
+
+	fteidm := &FteIDResourceManager{
+		freeTEIDs: freeTEIDs,
+		busyTEIDs: busyTEIDs,
+	}
+
+	return fteidm, nil
 }
 
-func (fteidm *FTEIDM) AllocateTEID(seID uint64, pdrID uint32) (uint32, error) {
+func (fteidm *FteIDResourceManager) AllocateTEID(seID uint64, pdrID uint32) (uint32, error) {
 	fteidm.Lock()
 	defer fteidm.Unlock()
 
@@ -60,7 +54,7 @@ func (fteidm *FTEIDM) AllocateTEID(seID uint64, pdrID uint32) (uint32, error) {
 	}
 }
 
-func (fteidm *FTEIDM) ReleaseTEID(seID uint64) {
+func (fteidm *FteIDResourceManager) ReleaseTEID(seID uint64) {
 	fteidm.Lock()
 	defer fteidm.Unlock()
 

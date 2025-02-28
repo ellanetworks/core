@@ -6,22 +6,21 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/upf/config"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/wmnsk/go-pfcp/ie"
 )
 
 type PDRCreationContext struct {
-	Session         *Session
-	ResourceManager *ResourceManager
-	TEIDCache       map[uint8]uint32
+	Session              *Session
+	FteIDResourceManager *FteIDResourceManager
+	TEIDCache            map[uint8]uint32
 }
 
-func NewPDRCreationContext(session *Session, resourceManager *ResourceManager) *PDRCreationContext {
+func NewPDRCreationContext(session *Session, resourceManager *FteIDResourceManager) *PDRCreationContext {
 	return &PDRCreationContext{
-		Session:         session,
-		ResourceManager: resourceManager,
-		TEIDCache:       make(map[uint8]uint32),
+		Session:              session,
+		FteIDResourceManager: resourceManager,
+		TEIDCache:            make(map[uint8]uint32),
 	}
 }
 
@@ -82,7 +81,7 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 		return fmt.Errorf("F-TEID IE is missing")
 	} else if ueipPdiID := findIEindex(pdi, 93); ueipPdiID != -1 {
 		if ueIP, _ := pdi[ueipPdiID].UEIPAddress(); ueIP != nil {
-			if config.Conf.FeatureUEIP && hasCHV4(ueIP.Flags) {
+			if hasCHV4(ueIP.Flags) {
 				return fmt.Errorf("UE IP Allocation is not supported in the UPF")
 			}
 			if ueIP.IPv4Address != nil {
@@ -117,7 +116,7 @@ func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *e
 		}
 	}
 	if spdrInfo.Teid != 0 {
-		pdrContext.ResourceManager.FTEIDM.ReleaseTEID(pdrContext.Session.RemoteSEID)
+		pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.RemoteSEID)
 	}
 	return nil
 }
@@ -131,11 +130,11 @@ func (pdrContext *PDRCreationContext) getQERID(qerid uint32) uint32 {
 }
 
 func (pdrContext *PDRCreationContext) getFTEID(seID uint64, pdrID uint32) (uint32, error) {
-	if pdrContext.ResourceManager == nil || pdrContext.ResourceManager.FTEIDM == nil {
+	if pdrContext.FteIDResourceManager == nil {
 		return 0, errors.New("FTEID manager is nil")
 	}
 
-	allocatedTeid, err := pdrContext.ResourceManager.FTEIDM.AllocateTEID(seID, pdrID)
+	allocatedTeid, err := pdrContext.FteIDResourceManager.AllocateTEID(seID, pdrID)
 	if err != nil {
 		return 0, fmt.Errorf("can't allocate TEID: %s", causeToString(ie.CauseNoResourcesAvailable))
 	}

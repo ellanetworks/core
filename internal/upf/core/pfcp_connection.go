@@ -11,15 +11,16 @@ import (
 var connection *PfcpConnection
 
 type PfcpConnection struct {
-	SmfNodeAssociation *NodeAssociation
-	nodeID             string
-	nodeAddrV4         net.IP
-	n3Address          net.IP
-	bpfObjects         *ebpf.BpfObjects
-	ResourceManager    *ResourceManager
+	SmfNodeAssociation   *NodeAssociation
+	SmfAddress           string
+	nodeID               string
+	nodeAddrV4           net.IP
+	n3Address            net.IP
+	bpfObjects           *ebpf.BpfObjects
+	FteIDResourceManager *FteIDResourceManager
 }
 
-func CreatePfcpConnection(addr string, nodeID string, n3Ip string, bpfObjects *ebpf.BpfObjects, resourceManager *ResourceManager) (*PfcpConnection, error) {
+func CreatePfcpConnection(addr string, nodeID string, n3Ip string, smfAddress string, bpfObjects *ebpf.BpfObjects, resourceManager *FteIDResourceManager) (*PfcpConnection, error) {
 	addrV4 := net.ParseIP(addr)
 	if addrV4 == nil {
 		return nil, fmt.Errorf("failed to parse IP address ID: %s", addr)
@@ -30,11 +31,12 @@ func CreatePfcpConnection(addr string, nodeID string, n3Ip string, bpfObjects *e
 	}
 
 	connection = &PfcpConnection{
-		nodeID:          nodeID,
-		nodeAddrV4:      addrV4,
-		n3Address:       n3Addr,
-		bpfObjects:      bpfObjects,
-		ResourceManager: resourceManager,
+		nodeID:               nodeID,
+		nodeAddrV4:           addrV4,
+		n3Address:            n3Addr,
+		bpfObjects:           bpfObjects,
+		FteIDResourceManager: resourceManager,
+		SmfAddress:           smfAddress,
 	}
 
 	return connection, nil
@@ -45,11 +47,11 @@ func GetConnection() *PfcpConnection {
 }
 
 func (connection *PfcpConnection) ReleaseResources(seID uint64) {
-	if connection.ResourceManager == nil {
+	if connection.FteIDResourceManager == nil {
 		return
 	}
 
-	if connection.ResourceManager.FTEIDM != nil {
-		connection.ResourceManager.FTEIDM.ReleaseTEID(seID)
+	if connection.FteIDResourceManager != nil {
+		connection.FteIDResourceManager.ReleaseTEID(seID)
 	}
 }
