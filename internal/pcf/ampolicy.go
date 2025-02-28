@@ -6,16 +6,12 @@ package pcf
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 )
 
 func DeleteAMPolicy(polAssoId string) error {
-	const prefix = "policies/"
-	polAssoId = strings.TrimPrefix(polAssoId, prefix)
 	ue := pcfCtx.PCFUeFindByPolicyId(polAssoId)
 	if ue == nil {
 		return fmt.Errorf("polAssoId[%s] not found in UePool", polAssoId)
@@ -82,16 +78,6 @@ func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.Poli
 	return &response, nil
 }
 
-func GetAmPolicyData(ueId string) (*models.AmPolicyData, error) {
-	_, err := pcfCtx.DbInstance.GetSubscriber(ueId)
-	if err != nil {
-		logger.UdrLog.Warnln(err)
-		return nil, fmt.Errorf("USER_NOT_FOUND")
-	}
-	amPolicyData := &models.AmPolicyData{}
-	return amPolicyData, nil
-}
-
 func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*models.PolicyAssociation, string, error) {
 	var response models.PolicyAssociation
 	var ue *UeContext
@@ -109,33 +95,18 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 	assolId := fmt.Sprintf("%s-%d", ue.Supi, ue.PolAssociationIDGenerator)
 	amPolicy := ue.AMPolicyData[assolId]
 
-	if amPolicy == nil || amPolicy.AmPolicyData == nil {
-		amData, err := GetAmPolicyData(ue.Supi)
+	if amPolicy == nil {
+		_, err := pcfCtx.DbInstance.GetSubscriber(ue.Supi)
 		if err != nil {
 			return nil, "", fmt.Errorf("can't find UE[%s] AM Policy Data in UDR", ue.Supi)
 		}
-		if amPolicy == nil {
-			amPolicy = ue.NewUeAMPolicyData(assolId, policyAssociationRequest)
-		}
-		amPolicy.AmPolicyData = amData
+		amPolicy = ue.NewUeAMPolicyData(assolId, policyAssociationRequest)
 	}
 
-	var requestSuppFeat openapi.SupportedFeature
-	if suppFeat, err := openapi.NewSupportedFeature(policyAssociationRequest.SuppFeat); err != nil {
-		logger.PcfLog.Warnln(err)
-	} else {
-		requestSuppFeat = suppFeat
-	}
-	amPolicy.SuppFeat = pcfCtx.PcfSuppFeats[models.
-		ServiceName_NPCF_AM_POLICY_CONTROL].NegotiateWith(
-		requestSuppFeat).String()
 	if amPolicy.Rfsp != 0 {
 		response.Rfsp = amPolicy.Rfsp
 	}
-	response.SuppFeat = amPolicy.SuppFeat
 	ue.PolAssociationIDGenerator++
-	// Create location header for update, delete, get
-	locationHeader := fmt.Sprintf("%s/%s", serviceUriMap[models.ServiceName_NPCF_AM_POLICY_CONTROL], assolId)
-	logger.PcfLog.Debugf("AMPolicy association Id[%s] Create", assolId)
-	return &response, locationHeader, nil
+	logger.PcfLog.Debugf("created AM Policy Association: %s", assolId)
+	return &response, assolId, nil
 }

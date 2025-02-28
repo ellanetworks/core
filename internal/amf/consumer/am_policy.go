@@ -39,7 +39,6 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) error {
 	if err != nil {
 		return fmt.Errorf("failed to create policy: %+v", err)
 	}
-	ue.AmPolicyUri = locationHeader
 	ue.PolicyAssociationId = locationHeader
 	ue.AmPolicyAssociation = res
 	if res.Triggers != nil {

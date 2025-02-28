@@ -11,7 +11,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -187,11 +186,6 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 		decision.Offline = request.Offline
 	}
 
-	requestSuppFeat, err := openapi.NewSupportedFeature(request.SuppFeat)
-	if err != nil {
-		logger.PcfLog.Errorf("openapi NewSupportedFeature error: %+v", err)
-	}
-	decision.SuppFeat = pcfCtx.PcfSuppFeats[models.ServiceName_NPCF_SMPOLICYCONTROL].NegotiateWith(requestSuppFeat).String()
 	decision.QosFlowUsage = request.QosFlowUsage
 	decision.PolicyCtrlReqTriggers = PolicyControlReqTrigToArray(0x40780f)
 	return &decision, nil
@@ -202,19 +196,8 @@ func DeleteSMPolicy(smPolicyID string) error {
 	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
 		return fmt.Errorf("smPolicyID not found in PCF")
 	}
-
-	smPolicy := ue.SmPolicyData[smPolicyID]
-
 	// Unsubscrice UDR
 	delete(ue.SmPolicyData, smPolicyID)
-	logger.PcfLog.Debugf("SMPolicy smPolicyID[%s] DELETE", smPolicyID)
-
-	// Release related App Session
-	for appSessionID := range smPolicy.AppSessions {
-		if _, exist := pcfCtx.AppSessionPool.Load(appSessionID); exist {
-			pcfCtx.AppSessionPool.Delete(appSessionID)
-			logger.PcfLog.Debugf("SMPolicy[%s] DELETE Related AppSession[%s]", smPolicyID, appSessionID)
-		}
-	}
+	logger.PcfLog.Debugf("Deleted SM Policy Association: %s", smPolicyID)
 	return nil
 }

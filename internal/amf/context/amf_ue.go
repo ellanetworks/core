@@ -90,7 +90,6 @@ type AmfUe struct {
 	GroupID             string        `json:"groupID,omitempty"`
 	EBI                 int32         `json:"ebi,omitempty"`
 	/* Ue Identity*/
-	EventSubscriptionsInfo map[string]*AmfUeEventSubscription `json:"eventSubscriptionInfo,omitempty"`
 	/* User Location*/
 	RatType                  models.RatType      `json:"ratType,omitempty"`
 	Location                 models.UserLocation `json:"location,omitempty"`
@@ -120,7 +119,6 @@ type AmfUe struct {
 	Kamf                              string                      `json:"kamf,omitempty"`
 	/* context about PCF */
 	PolicyAssociationId          string                    `json:"policyAssociationId,omitempty"`
-	AmPolicyUri                  string                    `json:"amPolicyUri,omitempty"`
 	AmPolicyAssociation          *models.PolicyAssociation `json:"amPolicyAssociation,omitempty"`
 	RequestTriggerLocationChange bool                      `json:"requestTriggerLocationChange,omitempty"` // true if AmPolicyAssociation.Trigger contains RequestTrigger_LOC_CH
 	ConfigurationUpdateMessage   []byte                    `json:"configurationUpdateMessage,omitempty"`
@@ -229,32 +227,9 @@ type NgapMsg struct {
 	Ran     *AmfRan
 }
 
-type SbiResponseMsg struct {
-	RespData       interface{}
-	LocationHeader string
-	ProblemDetails interface{}
-	TransferErr    interface{}
-}
-
-type SbiMsg struct {
-	Msg         interface{}
-	UeContextId string
-	ReqUri      string
-
-	Result chan SbiResponseMsg
-}
-
-type AmfUeEventSubscription struct {
-	Timestamp         time.Time
-	AnyUe             bool
-	RemainReports     *int32
-	EventSubscription *models.AmfEventSubscription
-}
-
 type N1N2Message struct {
-	Request     models.N1N2MessageTransferRequest
-	Status      models.N1N2MessageTransferCause
-	ResourceUri string
+	Request models.N1N2MessageTransferRequest
+	Status  models.N1N2MessageTransferCause
 }
 
 type OnGoingProcedureWithPrio struct {
@@ -298,7 +273,6 @@ func (ue *AmfUe) init() {
 	ue.State[models.AccessType__3_GPP_ACCESS] = fsm.NewState(Deregistered)
 	ue.State[models.AccessType_NON_3_GPP_ACCESS] = fsm.NewState(Deregistered)
 	ue.UnauthenticatedSupi = true
-	ue.EventSubscriptionsInfo = make(map[string]*AmfUeEventSubscription)
 	ue.RanUe = make(map[models.AccessType]*RanUe)
 	ue.RegistrationArea = make(map[models.AccessType][]models.Tai)
 	ue.AllowedNssai = make(map[models.AccessType][]models.AllowedSnssai)
@@ -312,7 +286,6 @@ func (ue *AmfUe) init() {
 	ue.ReleaseCause = make(map[models.AccessType]*CauseAll)
 	ue.AmfInstanceName = os.Getenv("HOSTNAME")
 	ue.AmfInstanceIp = os.Getenv("POD_IP")
-	// ue.TransientInfo = make(chan AmfUeTransientInfo, 10)
 }
 
 func (ue *AmfUe) CmConnect(anType models.AccessType) bool {
@@ -738,10 +711,6 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 			ue.NH = nh
 		}
 		ue.NCC = uint8(seafData.Ncc)
-	}
-
-	if ueContext.PcfAmPolicyUri != "" {
-		ue.AmPolicyUri = ueContext.PcfAmPolicyUri
 	}
 
 	if len(ueContext.AmPolicyReqTriggerList) > 0 {

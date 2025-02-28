@@ -54,19 +54,9 @@ func BuildUeContextModel(ue *amf_context.AmfUe) (ueContext models.UeContext) {
 		}
 	}
 
-	if ue.AmPolicyUri != "" {
-		ueContext.PcfAmPolicyUri = ue.AmPolicyUri
-	}
-
 	if ue.AmPolicyAssociation != nil {
 		if len(ue.AmPolicyAssociation.Triggers) > 0 {
 			ueContext.AmPolicyReqTriggerList = buildAmPolicyReqTriggers(ue.AmPolicyAssociation.Triggers)
-		}
-	}
-
-	for _, eventSub := range ue.EventSubscriptionsInfo {
-		if eventSub.EventSubscription != nil {
-			ueContext.EventSubscriptionList = append(ueContext.EventSubscriptionList, *eventSub.EventSubscription)
 		}
 	}
 

@@ -13,35 +13,29 @@ import (
 	"github.com/cilium/ebpf/link"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
-	"github.com/ellanetworks/core/internal/upf/config"
 	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+)
+
+const (
+	PfcpAddress = "0.0.0.0"
+	SmfAddress  = "0.0.0.0"
+	SmfNodeID   = "0.0.0.0"
+	PfcpNodeID  = "0.0.0.0"
+	QerMapSize  = 1024
+	FarMapSize  = 1024
+	FTEIDPool   = 65535
 )
 
 func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMode string) error {
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
-	c := config.UpfConfig{
-		N3Interface:   n3Interface,
-		N6Interface:   n6Interface,
-		XDPAttachMode: xdpAttachMode,
-		PfcpAddress:   "0.0.0.0",
-		SmfAddress:    "0.0.0.0",
-		SmfNodeID:     "0.0.0.0",
-		PfcpNodeID:    "0.0.0.0",
-		N3Address:     n3Address,
-		QerMapSize:    1024,
-		FarMapSize:    1024,
-		PdrMapSize:    1024,
-		FTEIDPool:     65535,
-	}
-	config.Init(c)
 
 	if err := ebpf.IncreaseResourceLimits(); err != nil {
 		logger.UpfLog.Fatalf("Can't increase resource limits: %s", err.Error())
 	}
 
-	bpfObjects := ebpf.NewBpfObjects()
+	bpfObjects := ebpf.NewBpfObjects(FarMapSize, QerMapSize)
 	if err := bpfObjects.Load(); err != nil {
 		logger.UpfLog.Fatalf("Loading bpf objects failed: %s", err.Error())
 		return err
@@ -62,7 +56,7 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 	n3Link, err := link.AttachXDP(link.XDPOptions{
 		Program:   bpfObjects.UpfN3EntrypointFunc,
 		Interface: n3Iface.Index,
-		Flags:     StringToXDPAttachMode(config.Conf.XDPAttachMode),
+		Flags:     StringToXDPAttachMode(xdpAttachMode),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to attach eBPF program on n3 interface %q: %s", n3Interface, err)
@@ -73,7 +67,7 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 		}
 	}()
 
-	logger.UpfLog.Infof("Attached eBPF program to n3 interface %q in mode %q", n3Interface, config.Conf.XDPAttachMode)
+	logger.UpfLog.Infof("Attached eBPF program to n3 interface %q in mode %q", n3Interface, xdpAttachMode)
 
 	n6Iface, err := net.InterfaceByName(n6Interface)
 	if err != nil {
@@ -84,7 +78,7 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 	n6Link, err := link.AttachXDP(link.XDPOptions{
 		Program:   bpfObjects.UpfN6EntrypointFunc,
 		Interface: n6Iface.Index,
-		Flags:     StringToXDPAttachMode(config.Conf.XDPAttachMode),
+		Flags:     StringToXDPAttachMode(xdpAttachMode),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to attach eBPF program on n6 interface %q: %s", n6Interface, err)
@@ -95,19 +89,19 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 		}
 	}()
 
-	logger.UpfLog.Infof("Attached eBPF program to n6 interface %q in mode %q", n6Interface, config.Conf.XDPAttachMode)
+	logger.UpfLog.Infof("Attached eBPF program to n6 interface %q in mode %q", n6Interface, xdpAttachMode)
 
-	resourceManager, err := core.NewResourceManager(config.Conf.FTEIDPool)
+	resourceManager, err := core.NewFteIDResourceManager(FTEIDPool)
 	if err != nil {
 		logger.UpfLog.Errorf("failed to create ResourceManager - err: %v", err)
 	}
 
-	pfcpConn, err := core.CreatePfcpConnection(config.Conf.PfcpAddress, config.Conf.PfcpNodeID, config.Conf.N3Address, bpfObjects, resourceManager)
+	pfcpConn, err := core.CreatePfcpConnection(PfcpAddress, PfcpNodeID, n3Address, SmfAddress, bpfObjects, resourceManager)
 	if err != nil {
 		logger.UpfLog.Fatalf("Could not create PFCP connection: %s", err.Error())
 	}
 
-	remoteNode := core.NewNodeAssociation(config.Conf.SmfNodeID, config.Conf.SmfAddress)
+	remoteNode := core.NewNodeAssociation(SmfNodeID, SmfAddress)
 	pfcpConn.SmfNodeAssociation = remoteNode
 
 	ForwardPlaneStats := ebpf.UpfXdpActionStatistic{

@@ -42,14 +42,12 @@ type UeAMPolicyData struct {
 	// about AF request
 	Pras map[string]models.PresenceInfo
 	// related to UDR Subscription Data
-	AmPolicyData *models.AmPolicyData // Svbscription Data
 	// Corresponding UE
 	PcfUe *UeContext
 	// Policy Association
 	ServAreaRes *models.ServiceAreaRestriction
 	UserLoc     *models.UserLocation
 	TimeZone    string
-	SuppFeat    string
 	Triggers    []models.RequestTrigger
 	Rfsp        int32
 }

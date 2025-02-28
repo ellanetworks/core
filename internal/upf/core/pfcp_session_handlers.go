@@ -7,7 +7,6 @@ import (
 	"net"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/upf/config"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
@@ -31,7 +30,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 
 	association := conn.SmfNodeAssociation
 	if association == nil {
-		logger.UpfLog.Infof("Rejecting Session Establishment Request from: %s (no association)", config.Conf.SmfAddress)
+		logger.UpfLog.Infof("Rejecting Session Establishment Request from: %s (no association)", conn.SmfAddress)
 		return message.NewSessionEstablishmentResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseNoEstablishedPFCPAssociation)), nil
 	}
 
@@ -41,7 +40,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 
 	printSessionEstablishmentRequest(msg)
 	createdPDRs := []SPDRInfo{}
-	pdrContext := NewPDRCreationContext(session, conn.ResourceManager)
+	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 
 	err = func() error {
 		bpfObjects := conn.bpfObjects
@@ -116,7 +115,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 
 	// Send SessionEstablishmentResponse
 	estResp := message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, additionalIEs...)
-	logger.UpfLog.Infof("Accepted Session Establishment Request from: %s", config.Conf.SmfAddress)
+	logger.UpfLog.Infof("Accepted Session Establishment Request from: %s", conn.SmfAddress)
 	return estResp, nil
 }
 
@@ -127,18 +126,18 @@ func HandlePfcpSessionDeletionRequest(msg *message.SessionDeletionRequest) (*mes
 	}
 	association := conn.SmfNodeAssociation
 	if association == nil {
-		logger.UpfLog.Infof("Rejecting Session Deletion Request from: %s (no association)", config.Conf.SmfAddress)
+		logger.UpfLog.Infof("Rejecting Session Deletion Request from: %s (no association)", conn.SmfAddress)
 		return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseNoEstablishedPFCPAssociation)), nil
 	}
 	printSessionDeleteRequest(msg)
 
 	session, ok := association.Sessions[msg.SEID()]
 	if !ok {
-		logger.UpfLog.Infof("Rejecting Session Deletion Request from: %s (unknown SEID)", config.Conf.SmfAddress)
+		logger.UpfLog.Infof("Rejecting Session Deletion Request from: %s (unknown SEID)", conn.SmfAddress)
 		return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseSessionContextNotFound)), nil
 	}
 	bpfObjects := conn.bpfObjects
-	pdrContext := NewPDRCreationContext(session, conn.ResourceManager)
+	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 	for _, pdrInfo := range session.PDRs {
 		if err := pdrContext.deletePDR(pdrInfo, bpfObjects); err != nil {
 			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
@@ -170,13 +169,13 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 
 	association := conn.SmfNodeAssociation
 	if association == nil {
-		logger.UpfLog.Infof("Rejecting Session Modification Request from: %s (no association)", config.Conf.SmfAddress)
+		logger.UpfLog.Infof("Rejecting Session Modification Request from: %s (no association)", conn.SmfAddress)
 		return message.NewSessionModificationResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseNoEstablishedPFCPAssociation)), nil
 	}
 
 	session, ok := association.Sessions[msg.SEID()]
 	if !ok {
-		logger.UpfLog.Infof("Rejecting Session Modification Request from: %s (unknown SEID)", config.Conf.SmfAddress)
+		logger.UpfLog.Infof("Rejecting Session Modification Request from: %s (unknown SEID)", conn.SmfAddress)
 		return message.NewSessionModificationResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseSessionContextNotFound)), nil
 	}
 
@@ -195,7 +194,7 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 	printSessionModificationRequest(msg)
 
 	createdPDRs := []SPDRInfo{}
-	pdrContext := NewPDRCreationContext(session, conn.ResourceManager)
+	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 
 	err := func() error {
 		bpfObjects := conn.bpfObjects

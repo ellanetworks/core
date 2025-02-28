@@ -8,7 +8,6 @@ import (
 	"github.com/RoaringBitmap/roaring"
 	"github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/upf/config"
 )
 
 //
@@ -29,10 +28,10 @@ type BpfObjects struct {
 	QerIDTracker *IDTracker
 }
 
-func NewBpfObjects() *BpfObjects {
+func NewBpfObjects(farMapSize uint32, qerMapSize uint32) *BpfObjects {
 	return &BpfObjects{
-		FarIDTracker: NewIDTracker(config.Conf.FarMapSize),
-		QerIDTracker: NewIDTracker(config.Conf.QerMapSize),
+		FarIDTracker: NewIDTracker(farMapSize),
+		QerIDTracker: NewIDTracker(qerMapSize),
 	}
 }
 
