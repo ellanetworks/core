@@ -36,18 +36,18 @@ type SPDRInfo struct {
 
 type SFarInfo struct {
 	FarInfo  ebpf.FarInfo
-	GlobalId uint32
+	GlobalID uint32
 }
 
 type SQerInfo struct {
 	QerInfo  ebpf.QerInfo
-	GlobalId uint32
+	GlobalID uint32
 }
 
-func (s *Session) NewFar(id uint32, internalId uint32, farInfo ebpf.FarInfo) {
+func (s *Session) NewFar(id uint32, internalID uint32, farInfo ebpf.FarInfo) {
 	s.FARs[id] = SFarInfo{
 		FarInfo:  farInfo,
-		GlobalId: internalId,
+		GlobalID: internalID,
 	}
 }
 
@@ -67,10 +67,10 @@ func (s *Session) RemoveFar(id uint32) SFarInfo {
 	return sFarInfo
 }
 
-func (s *Session) NewQer(id uint32, internalId uint32, qerInfo ebpf.QerInfo) {
+func (s *Session) NewQer(id uint32, internalID uint32, qerInfo ebpf.QerInfo) {
 	s.QERs[id] = SQerInfo{
 		QerInfo:  qerInfo,
-		GlobalId: internalId,
+		GlobalID: internalID,
 	}
 }
 

@@ -21,9 +21,8 @@ linters:
     - bodyclose
     - asciicheck
     - unparam
+    - gci
     # - stylecheck
-    # - gci
-    # - lll
     # - gocognit
     # - nestif
     # - wsl

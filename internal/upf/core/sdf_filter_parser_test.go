@@ -1,10 +1,11 @@
 // Copyright 2024 Ella Networks
-package core
+package core_test
 
 import (
 	"fmt"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
@@ -48,7 +49,7 @@ func TestSdfFilterParseValid(t *testing.T) {
 	}
 
 	for i := 0; i < len(fds); i++ {
-		if sdfFilter, err := ParseSdfFilter(fds[i].FlowDescription); err == nil {
+		if sdfFilter, err := core.ParseSdfFilter(fds[i].FlowDescription); err == nil {
 			if err := CheckSdfFilterEquality(&sdfFilter, fds[i]); err != nil {
 				t.Errorf("Iteration %d.\nFlowDescription: %s\nError: %s", i, fds[i].FlowDescription, err.Error())
 			}
@@ -84,7 +85,7 @@ func TestSdfFilterParseInvalid(t *testing.T) {
 	}
 
 	for i := 0; i < len(fds); i++ {
-		if _, err := ParseSdfFilter(fds[i]); err == nil {
+		if _, err := core.ParseSdfFilter(fds[i]); err == nil {
 			t.Errorf("Iteration %d.\nFlowDescription: %s\nAn error should appear when parsing SDF", i, fds[i])
 		}
 	}
@@ -115,8 +116,8 @@ func CheckSdfFilterEquality(sdfFilter *ebpf.SdfFilter, fd SdfFilterTestStruct) e
 	if sdfFilter.SrcAddress.Type != fd.SrcType {
 		return fmt.Errorf("Wrong SrcType, expected: %d, got: %d", fd.SrcType, sdfFilter.SrcAddress.Type)
 	}
-	if sdfFilter.SrcAddress.Ip.String() != fd.SrcAddress {
-		return fmt.Errorf("Wrong SrcAddress, expected: %s, got: %s", fd.SrcAddress, sdfFilter.SrcAddress.Ip.String())
+	if sdfFilter.SrcAddress.IP.String() != fd.SrcAddress {
+		return fmt.Errorf("Wrong SrcAddress, expected: %s, got: %s", fd.SrcAddress, sdfFilter.SrcAddress.IP.String())
 	}
 	if sdfFilter.SrcAddress.Mask.String() != fd.SrcMask {
 		return fmt.Errorf("Wrong SrcMask, expected: %s, got: %s", fd.SrcMask, sdfFilter.SrcAddress.Mask.String())
@@ -130,8 +131,8 @@ func CheckSdfFilterEquality(sdfFilter *ebpf.SdfFilter, fd SdfFilterTestStruct) e
 	if sdfFilter.DstAddress.Type != fd.DstType {
 		return fmt.Errorf("Wrong DstType, expected: %d, got: %d", fd.DstType, sdfFilter.DstAddress.Type)
 	}
-	if sdfFilter.DstAddress.Ip.String() != fd.DstAddress {
-		return fmt.Errorf("Wrong DstAddress, expected: %s, got: %s", fd.DstAddress, sdfFilter.DstAddress.Ip.String())
+	if sdfFilter.DstAddress.IP.String() != fd.DstAddress {
+		return fmt.Errorf("Wrong DstAddress, expected: %s, got: %s", fd.DstAddress, sdfFilter.DstAddress.IP.String())
 	}
 	if sdfFilter.DstAddress.Mask.String() != fd.DstMask {
 		return fmt.Errorf("Wrong DstMask, expected: %s, got: %s", fd.DstMask, sdfFilter.DstAddress.Mask.String())

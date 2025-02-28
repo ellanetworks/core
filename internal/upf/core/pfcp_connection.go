@@ -4,9 +4,6 @@ package core
 import (
 	"fmt"
 	"net"
-	"time"
-
-	"github.com/ellanetworks/core/internal/upf/core/service"
 
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
@@ -14,16 +11,15 @@ import (
 var connection *PfcpConnection
 
 type PfcpConnection struct {
-	NodeAssociations  map[string]*NodeAssociation
-	nodeId            string
-	nodeAddrV4        net.IP
-	n3Address         net.IP
-	bpfObjects        ebpf.BpfObjects
-	RecoveryTimestamp time.Time
-	ResourceManager   *service.ResourceManager
+	SmfNodeAssociation *NodeAssociation
+	nodeID             string
+	nodeAddrV4         net.IP
+	n3Address          net.IP
+	bpfObjects         *ebpf.BpfObjects
+	ResourceManager    *ResourceManager
 }
 
-func CreatePfcpConnection(addr string, nodeId string, n3Ip string, bpfObjects ebpf.BpfObjects, resourceManager *service.ResourceManager) (*PfcpConnection, error) {
+func CreatePfcpConnection(addr string, nodeID string, n3Ip string, bpfObjects *ebpf.BpfObjects, resourceManager *ResourceManager) (*PfcpConnection, error) {
 	addrV4 := net.ParseIP(addr)
 	if addrV4 == nil {
 		return nil, fmt.Errorf("failed to parse IP address ID: %s", addr)
@@ -34,13 +30,11 @@ func CreatePfcpConnection(addr string, nodeId string, n3Ip string, bpfObjects eb
 	}
 
 	connection = &PfcpConnection{
-		NodeAssociations:  map[string]*NodeAssociation{},
-		nodeId:            nodeId,
-		nodeAddrV4:        addrV4,
-		n3Address:         n3Addr,
-		bpfObjects:        bpfObjects,
-		RecoveryTimestamp: time.Now(),
-		ResourceManager:   resourceManager,
+		nodeID:          nodeID,
+		nodeAddrV4:      addrV4,
+		n3Address:       n3Addr,
+		bpfObjects:      bpfObjects,
+		ResourceManager: resourceManager,
 	}
 
 	return connection, nil
@@ -53,10 +47,6 @@ func GetConnection() *PfcpConnection {
 func (connection *PfcpConnection) ReleaseResources(seID uint64) {
 	if connection.ResourceManager == nil {
 		return
-	}
-
-	if connection.ResourceManager.IPAM != nil {
-		connection.ResourceManager.IPAM.ReleaseIP(seID)
 	}
 
 	if connection.ResourceManager.FTEIDM != nil {

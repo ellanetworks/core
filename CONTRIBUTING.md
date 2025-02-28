@@ -104,6 +104,13 @@ sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_0.0.10_amd64.
 docker run ella-core:latest
 ```
 
+### View Test Coverage
+
+```shell
+go test ./... -coverprofile coverage.out
+go tool cover -func coverage.out
+```
+
 ## References
 
 ### Embedded Database
