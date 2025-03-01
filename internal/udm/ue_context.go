@@ -16,9 +16,9 @@ import (
 type UdmUeContext struct {
 	Supi                              string
 	Gpsi                              string
-	Nssai                             *models.Nssai
+	Nssai                             *coreModels.Nssai
 	Amf3GppAccessRegistration         *coreModels.Amf3GppAccessRegistration
-	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData
+	AccessAndMobilitySubscriptionData *coreModels.AccessAndMobilitySubscriptionData
 	SmfSelSubsData                    *coreModels.SmfSelectionSubscriptionData
 	UeCtxtInSmfData                   *coreModels.UeContextInSmfData
 	SessionManagementSubsData         map[string]coreModels.SessionManagementSubscriptionData
@@ -55,7 +55,7 @@ func (udmUeContext *UdmUeContext) SetSMSubsData(smSubsData map[string]coreModels
 	udmUeContext.SessionManagementSubsData = smSubsData
 }
 
-func (udmUeContext *UdmUeContext) SetAMSubsriptionData(amData *models.AccessAndMobilitySubscriptionData) {
+func (udmUeContext *UdmUeContext) SetAMSubsriptionData(amData *coreModels.AccessAndMobilitySubscriptionData) {
 	udmUeContext.amSubsDataLock.Lock()
 	defer udmUeContext.amSubsDataLock.Unlock()
 	udmUeContext.AccessAndMobilitySubscriptionData = amData

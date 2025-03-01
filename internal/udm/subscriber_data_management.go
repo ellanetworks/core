@@ -27,7 +27,7 @@ type UESubsData struct {
 	SdmSubscriptions map[subsID]*models.SdmSubscription
 }
 
-func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
+func GetAmData(ueId string) (*coreModels.AccessAndMobilitySubscriptionData, error) {
 	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
@@ -40,21 +40,21 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
-	amData := &models.AccessAndMobilitySubscriptionData{
-		Nssai: &models.Nssai{
-			DefaultSingleNssais: make([]models.Snssai, 0),
-			SingleNssais:        make([]models.Snssai, 0),
+	amData := &coreModels.AccessAndMobilitySubscriptionData{
+		Nssai: &coreModels.Nssai{
+			DefaultSingleNssais: make([]coreModels.Snssai, 0),
+			SingleNssais:        make([]coreModels.Snssai, 0),
 		},
-		SubscribedUeAmbr: &models.AmbrRm{
+		SubscribedUeAmbr: &coreModels.AmbrRm{
 			Downlink: profile.BitrateDownlink,
 			Uplink:   profile.BitrateUplink,
 		},
 	}
-	amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
+	amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, coreModels.Snssai{
 		Sd:  operator.GetHexSd(),
 		Sst: operator.Sst,
 	})
-	amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
+	amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, coreModels.Snssai{
 		Sd:  operator.GetHexSd(),
 		Sst: operator.Sst,
 	})
@@ -62,7 +62,7 @@ func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 }
 
 func GetAmDataAndSetAMSubscription(supi string) (
-	*models.AccessAndMobilitySubscriptionData, error,
+	*coreModels.AccessAndMobilitySubscriptionData, error,
 ) {
 	amData, err := GetAmData(supi)
 	if err != nil {
@@ -141,7 +141,7 @@ func GetAndSetSmData(supi string, Dnn string, Snssai string) ([]coreModels.Sessi
 	return rspSMSubDataList, nil
 }
 
-func GetNssai(supi string) (*models.Nssai, error) {
+func GetNssai(supi string) (*coreModels.Nssai, error) {
 	accessAndMobilitySubscriptionDataResp, err := GetAmData(supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)

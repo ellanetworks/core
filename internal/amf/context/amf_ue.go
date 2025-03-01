@@ -100,15 +100,15 @@ type AmfUe struct {
 	TimeZone                 string              `json:"timezone,omitempty"`
 	/* context about udm */
 	// UdmId                             string                                    `json:"udmId,omitempty"`
-	SubscriptionDataValid             bool                                      `json:"subscriptionDataValid,omitempty"`
-	Reachability                      models.UeReachability                     `json:"reachability,omitempty"`
-	SubscribedData                    models.SubscribedData                     `json:"subscribedData,omitempty"`
-	SmfSelectionData                  *coreModels.SmfSelectionSubscriptionData  `json:"smfSelectionData,omitempty"`
-	UeContextInSmfData                *coreModels.UeContextInSmfData            `json:"ueContextInSmfData,omitempty"`
-	TraceData                         *models.TraceData                         `json:"traceData,omitempty"`
-	UdmGroupId                        string                                    `json:"udmGroupId,omitempty"`
-	SubscribedNssai                   []models.SubscribedSnssai                 `json:"subscribeNssai,omitempty"`
-	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData `json:"accessAndMobilitySubscriptionData,omitempty"`
+	SubscriptionDataValid             bool                                          `json:"subscriptionDataValid,omitempty"`
+	Reachability                      models.UeReachability                         `json:"reachability,omitempty"`
+	SubscribedData                    models.SubscribedData                         `json:"subscribedData,omitempty"`
+	SmfSelectionData                  *coreModels.SmfSelectionSubscriptionData      `json:"smfSelectionData,omitempty"`
+	UeContextInSmfData                *coreModels.UeContextInSmfData                `json:"ueContextInSmfData,omitempty"`
+	TraceData                         *models.TraceData                             `json:"traceData,omitempty"`
+	UdmGroupId                        string                                        `json:"udmGroupId,omitempty"`
+	SubscribedNssai                   []models.SubscribedSnssai                     `json:"subscribeNssai,omitempty"`
+	AccessAndMobilitySubscriptionData *coreModels.AccessAndMobilitySubscriptionData `json:"accessAndMobilitySubscriptionData,omitempty"`
 	/* contex abut ausf */
 	AusfGroupId                       string                          `json:"ausfGroupId,omitempty"`
 	AusfId                            string                          `json:"ausfId,omitempty"`
@@ -657,10 +657,10 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 
 	if ueContext.SubUeAmbr != nil {
 		if ue.AccessAndMobilitySubscriptionData == nil {
-			ue.AccessAndMobilitySubscriptionData = new(models.AccessAndMobilitySubscriptionData)
+			ue.AccessAndMobilitySubscriptionData = new(coreModels.AccessAndMobilitySubscriptionData)
 		}
 		if ue.AccessAndMobilitySubscriptionData.SubscribedUeAmbr == nil {
-			ue.AccessAndMobilitySubscriptionData.SubscribedUeAmbr = new(models.AmbrRm)
+			ue.AccessAndMobilitySubscriptionData.SubscribedUeAmbr = new(coreModels.AmbrRm)
 		}
 
 		subAmbr := ue.AccessAndMobilitySubscriptionData.SubscribedUeAmbr
@@ -670,30 +670,57 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 
 	if ueContext.SubRfsp != 0 {
 		if ue.AccessAndMobilitySubscriptionData == nil {
-			ue.AccessAndMobilitySubscriptionData = new(models.AccessAndMobilitySubscriptionData)
+			ue.AccessAndMobilitySubscriptionData = new(coreModels.AccessAndMobilitySubscriptionData)
 		}
 		ue.AccessAndMobilitySubscriptionData.RfspIndex = ueContext.SubRfsp
 	}
 
 	if len(ueContext.RestrictedRatList) > 0 {
 		if ue.AccessAndMobilitySubscriptionData == nil {
-			ue.AccessAndMobilitySubscriptionData = new(models.AccessAndMobilitySubscriptionData)
+			ue.AccessAndMobilitySubscriptionData = new(coreModels.AccessAndMobilitySubscriptionData)
 		}
-		ue.AccessAndMobilitySubscriptionData.RatRestrictions = ueContext.RestrictedRatList
+		ue.AccessAndMobilitySubscriptionData.RatRestrictions = []coreModels.RatType{}
+		for _, ratType := range ueContext.RestrictedRatList {
+			ue.AccessAndMobilitySubscriptionData.RatRestrictions = append(ue.AccessAndMobilitySubscriptionData.RatRestrictions, coreModels.RatType(ratType))
+		}
 	}
 
 	if len(ueContext.ForbiddenAreaList) > 0 {
 		if ue.AccessAndMobilitySubscriptionData == nil {
-			ue.AccessAndMobilitySubscriptionData = new(models.AccessAndMobilitySubscriptionData)
+			ue.AccessAndMobilitySubscriptionData = new(coreModels.AccessAndMobilitySubscriptionData)
 		}
-		ue.AccessAndMobilitySubscriptionData.ForbiddenAreas = ueContext.ForbiddenAreaList
+		// ue.AccessAndMobilitySubscriptionData.ForbiddenAreas = ueContext.ForbiddenAreaList
+		ue.AccessAndMobilitySubscriptionData.ForbiddenAreas = []coreModels.Area{}
+		for _, area := range ueContext.ForbiddenAreaList {
+			ue.AccessAndMobilitySubscriptionData.ForbiddenAreas = append(ue.AccessAndMobilitySubscriptionData.ForbiddenAreas, coreModels.Area{
+				Tacs:      []string{},
+				AreaCodes: area.AreaCodes,
+			})
+			for _, tac := range area.Tacs {
+				ue.AccessAndMobilitySubscriptionData.ForbiddenAreas[len(ue.AccessAndMobilitySubscriptionData.ForbiddenAreas)-1].Tacs = append(ue.AccessAndMobilitySubscriptionData.ForbiddenAreas[len(ue.AccessAndMobilitySubscriptionData.ForbiddenAreas)-1].Tacs, tac)
+			}
+
+		}
 	}
 
 	if ueContext.ServiceAreaRestriction != nil {
 		if ue.AccessAndMobilitySubscriptionData == nil {
-			ue.AccessAndMobilitySubscriptionData = new(models.AccessAndMobilitySubscriptionData)
+			ue.AccessAndMobilitySubscriptionData = new(coreModels.AccessAndMobilitySubscriptionData)
 		}
-		ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction = ueContext.ServiceAreaRestriction
+		ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction = &coreModels.ServiceAreaRestriction{
+			RestrictionType: coreModels.RestrictionType(ueContext.ServiceAreaRestriction.RestrictionType),
+			Areas:           []coreModels.Area{},
+			MaxNumOfTAs:     ueContext.ServiceAreaRestriction.MaxNumOfTAs,
+		}
+		for _, area := range ueContext.ServiceAreaRestriction.Areas {
+			ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas = append(ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas, coreModels.Area{
+				Tacs:      []string{},
+				AreaCodes: area.AreaCodes,
+			})
+			for _, tac := range area.Tacs {
+				ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas[len(ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas)-1].Tacs = append(ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas[len(ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas)-1].Tacs, tac)
+			}
+		}
 	}
 
 	if ueContext.SeafData != nil {
