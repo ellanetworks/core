@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	RequestsPerSecond = 1
-	Burst             = 5
+	NumRequests     = 100
+	RequestsPerTime = time.Minute
 )
 
 type Visitor struct {
@@ -31,7 +31,8 @@ func getVisitor(ip string) *rate.Limiter {
 
 	v, exists := visitors[ip]
 	if !exists {
-		limiter := rate.NewLimiter(RequestsPerSecond, Burst)
+		every := rate.Every(RequestsPerTime)
+		limiter := rate.NewLimiter(every, NumRequests)
 		visitors[ip] = &Visitor{limiter: limiter, lastSeen: time.Now()}
 		return limiter
 	}
