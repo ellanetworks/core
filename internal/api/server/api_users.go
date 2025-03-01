@@ -11,13 +11,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// BCRYPT_COST is used to tune the password hashing algorithm's time.
-// For better protection against brute-force attacks, this should be
-// set higher, at the cost of performance.
-// A good rule of thumb is to set this so that it takes over 250 ms
-// to hash a password on common hardware.
-const BCRYPT_COST = 13
-
 type CreateUserParams struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -74,7 +67,7 @@ func isValidEmail(email string) bool {
 }
 
 func hashPassword(password string) (string, error) {
-	pw, err := bcrypt.GenerateFromPassword([]byte(password), BCRYPT_COST)
+	pw, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return "", err
 	}
