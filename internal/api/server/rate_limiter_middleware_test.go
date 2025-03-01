@@ -30,7 +30,7 @@ func TestRateLimiterMiddleware(t *testing.T) {
 	}
 	server.ResetVisitors()
 
-	for i := 0; i < 12; i++ {
+	for i := 0; i < 5; i++ {
 		respCode, _, err := login(ts.URL, client, loginData)
 		if err != nil {
 			t.Fatalf("couldn't login: %s", err)
