@@ -16,8 +16,8 @@ import (
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/ellanetworks/core/internal/smf/qos"
+	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/ellanetworks/core/internal/udm"
-	"github.com/ellanetworks/core/internal/util/httpwrapper"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi"
@@ -25,8 +25,8 @@ import (
 	"github.com/omec-project/openapi/models"
 )
 
-func formContextCreateErrRsp(httpStatus int, problemBody *models.ProblemDetails, n1SmMsg *models.RefToBinaryData) *httpwrapper.Response {
-	return &httpwrapper.Response{
+func formContextCreateErrRsp(httpStatus int, problemBody *models.ProblemDetails, n1SmMsg *models.RefToBinaryData) *util.Response {
+	return &util.Response{
 		Header: nil,
 		Status: httpStatus,
 		Body: models.PostSmContextsErrorResponse{
@@ -59,7 +59,7 @@ func HandlePduSessionContextReplacement(smCtxtRef string) error {
 	return nil
 }
 
-func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smContext *context.SMContext) (*httpwrapper.Response, error) {
+func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smContext *context.SMContext) (*util.Response, error) {
 	// GSM State
 	// PDU Session Establishment Accept/Reject
 	var response models.PostSmContextsResponse
@@ -258,7 +258,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	}
 
 	response.JsonData = smContext.BuildCreatedData()
-	httpResponse := &httpwrapper.Response{
+	httpResponse := &util.Response{
 		Header: http.Header{
 			"Location": {smContext.Ref},
 		},
@@ -271,7 +271,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	return httpResponse, nil
 }
 
-func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smContext *context.SMContext) (*httpwrapper.Response, error) {
+func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smContext *context.SMContext) (*util.Response, error) {
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
@@ -279,7 +279,7 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 	var response models.UpdateSmContextResponse
 	response.JsonData = new(models.SmContextUpdatedData)
 
-	var httpResponse *httpwrapper.Response
+	var httpResponse *util.Response
 	httpResponse, err := HandleUpdateN1Msg(request, smContext, &response, pfcpAction)
 	if err != nil {
 		return httpResponse, err
@@ -331,7 +331,7 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 			smContext.ChangeState(context.SmStateInActivePending)
 
 			// Update response to success
-			httpResponse = &httpwrapper.Response{
+			httpResponse = &util.Response{
 				Status: http.StatusOK,
 				Body:   response,
 			}
@@ -348,7 +348,7 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 				httpResponse = makePduCtxtModifyErrRsp(smContext, err.Error())
 			} else {
 				// Modify Success
-				httpResponse = &httpwrapper.Response{
+				httpResponse = &util.Response{
 					Status: http.StatusOK,
 					Body:   response,
 				}
@@ -359,18 +359,18 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 
 	case context.SmStateModify:
 		smContext.ChangeState(context.SmStateActive)
-		httpResponse = &httpwrapper.Response{
+		httpResponse = &util.Response{
 			Status: http.StatusOK,
 			Body:   response,
 		}
 	case context.SmStateInit, context.SmStateInActivePending:
-		httpResponse = &httpwrapper.Response{
+		httpResponse = &util.Response{
 			Status: http.StatusOK,
 			Body:   response,
 		}
 	default:
 		smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SM Context State [%s] shouldn't be here\n", smContext.SMContextState)
-		httpResponse = &httpwrapper.Response{
+		httpResponse = &util.Response{
 			Status: http.StatusOK,
 			Body:   response,
 		}
@@ -379,7 +379,7 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 	return httpResponse, nil
 }
 
-func makePduCtxtModifyErrRsp(smContext *context.SMContext, errStr string) *httpwrapper.Response {
+func makePduCtxtModifyErrRsp(smContext *context.SMContext, errStr string) *util.Response {
 	problemDetail := models.ProblemDetails{
 		Title:  errStr,
 		Status: http.StatusInternalServerError,
@@ -397,7 +397,7 @@ func makePduCtxtModifyErrRsp(smContext *context.SMContext, errStr string) *httpw
 	}
 
 	// It is just a template
-	httpResponse := &httpwrapper.Response{
+	httpResponse := &util.Response{
 		Status: http.StatusServiceUnavailable,
 		Body: models.UpdateSmContextErrorResponse{
 			JsonData: &models.SmContextUpdateError{
@@ -414,7 +414,7 @@ func makePduCtxtModifyErrRsp(smContext *context.SMContext, errStr string) *httpw
 	return httpResponse
 }
 
-func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smContext *context.SMContext) (*httpwrapper.Response, error) {
+func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smContext *context.SMContext) (*util.Response, error) {
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
@@ -434,13 +434,13 @@ func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smCon
 	// Initiate PFCP release
 	smContext.ChangeState(context.SmStatePfcpRelease)
 
-	var httpResponse *httpwrapper.Response
+	var httpResponse *util.Response
 
 	// Release User-plane
 	status, ok := releaseTunnel(smContext)
 	if !ok {
 		// already released
-		httpResponse = &httpwrapper.Response{
+		httpResponse = &util.Response{
 			Status: http.StatusNoContent,
 			Body:   nil,
 		}
@@ -452,14 +452,14 @@ func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smCon
 	switch *status {
 	case context.SessionReleaseSuccess:
 		smContext.ChangeState(context.SmStatePfcpRelease)
-		httpResponse = &httpwrapper.Response{
+		httpResponse = &util.Response{
 			Status: http.StatusNoContent,
 			Body:   nil,
 		}
 
 	case context.SessionReleaseTimeout:
 		smContext.ChangeState(context.SmStateActive)
-		httpResponse = &httpwrapper.Response{
+		httpResponse = &util.Response{
 			Status: int(http.StatusInternalServerError),
 		}
 
@@ -470,7 +470,7 @@ func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smCon
 			Status: http.StatusInternalServerError,
 			Cause:  "SYSTEM_FAILULE",
 		}
-		httpResponse = &httpwrapper.Response{
+		httpResponse = &util.Response{
 			Status: int(problemDetail.Status),
 		}
 		smContext.ChangeState(context.SmStateActive)
@@ -494,7 +494,7 @@ func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smCon
 			Status: http.StatusInternalServerError,
 			Cause:  "SYSTEM_FAILULE",
 		}
-		httpResponse = &httpwrapper.Response{
+		httpResponse = &util.Response{
 			Status: int(problemDetail.Status),
 		}
 		smContext.ChangeState(context.SmStateActive)

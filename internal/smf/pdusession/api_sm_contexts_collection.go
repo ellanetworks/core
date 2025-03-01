@@ -11,7 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
-	"github.com/ellanetworks/core/internal/util/httpwrapper"
+	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -27,7 +27,7 @@ func SessionCreateInit(req models.PostSmContextsRequest) *context.SMContext {
 	return ctxt
 }
 
-func HandleStateInitEventPduSessCreate(request models.PostSmContextsRequest, smContext *context.SMContext) (context.SMContextState, *httpwrapper.Response, error) {
+func HandleStateInitEventPduSessCreate(request models.PostSmContextsRequest, smContext *context.SMContext) (context.SMContextState, *util.Response, error) {
 	rsp, err := producer.HandlePDUSessionSMContextCreate(request, smContext)
 	if err != nil {
 		return context.SmStateInit, rsp, err

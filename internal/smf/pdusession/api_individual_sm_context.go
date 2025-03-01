@@ -12,11 +12,11 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
-	"github.com/ellanetworks/core/internal/util/httpwrapper"
+	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/omec-project/openapi/models"
 )
 
-func HandleStateActiveEventPduSessRelease(request models.ReleaseSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *httpwrapper.Response, error) {
+func HandleStateActiveEventPduSessRelease(request models.ReleaseSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *util.Response, error) {
 	rsp, err := producer.HandlePDUSessionSMContextRelease(request, smCtxt)
 	if err != nil {
 		return context.SmStateInit, rsp, err
@@ -43,7 +43,7 @@ func ReleaseSmContext(smContextRef string, releaseSmContextRequest models.Releas
 			logger.SmfLog.Warnf("PDUSessionSMContextRelease [%s] is not found", smContextRef)
 			// 4xx/5xx Error not defined in spec 29502 for Release SM ctxt error
 			// Send Not Found
-			httpResponse := &httpwrapper.Response{
+			httpResponse := &util.Response{
 				Header: nil,
 				Status: http.StatusNotFound,
 
@@ -73,10 +73,10 @@ func ReleaseSmContext(smContextRef string, releaseSmContextRequest models.Releas
 	}
 }
 
-func HandlePduSessModify(request models.UpdateSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *httpwrapper.Response, error) {
+func HandlePduSessModify(request models.UpdateSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *util.Response, error) {
 	rsp, err := producer.HandlePDUSessionSMContextUpdate(request, smCtxt)
 	if err != nil {
-		rsp = &httpwrapper.Response{
+		rsp = &util.Response{
 			Header: nil,
 			Status: http.StatusNotFound,
 			Body: models.UpdateSmContextErrorResponse{

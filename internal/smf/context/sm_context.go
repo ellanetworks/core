@@ -15,7 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
-	"github.com/ellanetworks/core/internal/util/httpwrapper"
+	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/google/uuid"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
@@ -451,11 +451,11 @@ func (smContextState SMContextState) String() string {
 	}
 }
 
-func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(status int, problemDetails *models.ProblemDetails, cause uint8) *httpwrapper.Response {
-	var httpResponse *httpwrapper.Response
+func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(status int, problemDetails *models.ProblemDetails, cause uint8) *util.Response {
+	var httpResponse *util.Response
 
 	if buf, err := BuildGSMPDUSessionEstablishmentReject(smContext, cause); err != nil {
-		httpResponse = &httpwrapper.Response{
+		httpResponse = &util.Response{
 			Header: nil,
 			Status: status,
 			Body: models.PostSmContextsErrorResponse{
@@ -466,7 +466,7 @@ func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(status int, pr
 			},
 		}
 	} else {
-		httpResponse = &httpwrapper.Response{
+		httpResponse = &util.Response{
 			Header: nil,
 			Status: status,
 			Body: models.PostSmContextsErrorResponse{
