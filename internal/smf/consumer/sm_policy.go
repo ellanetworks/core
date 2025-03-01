@@ -39,8 +39,8 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*coreModels.Sm
 	smPolicyData.SubsDefQos = &coreModels.SubscribedDefaultQos{
 		Arp: &coreModels.Arp{
 			PriorityLevel: smContext.DnnConfiguration.Var5gQosProfile.Arp.PriorityLevel,
-			PreemptCap:    coreModels.PreemptionCapability(smContext.DnnConfiguration.Var5gQosProfile.Arp.PreemptCap),
-			PreemptVuln:   coreModels.PreemptionVulnerability(smContext.DnnConfiguration.Var5gQosProfile.Arp.PreemptVuln),
+			PreemptCap:    smContext.DnnConfiguration.Var5gQosProfile.Arp.PreemptCap,
+			PreemptVuln:   smContext.DnnConfiguration.Var5gQosProfile.Arp.PreemptVuln,
 		},
 	}
 	smPolicyData.SliceInfo = &coreModels.Snssai{
