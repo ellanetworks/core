@@ -13,11 +13,10 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/ellanetworks/core/internal/util/ueauth"
-	"github.com/omec-project/openapi/models"
 )
 
 const (
@@ -129,8 +128,8 @@ func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 	return authSubsData, nil
 }
 
-func CreateAuthData(authInfoRequest coreModels.AuthenticationInfoRequest, supiOrSuci string) (
-	*coreModels.AuthenticationInfoResult, error,
+func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (
+	*models.AuthenticationInfoResult, error,
 ) {
 	hnPrivateKey, err := udmContext.DbInstance.GetHomeNetworkPrivateKey()
 	if err != nil {
@@ -346,10 +345,10 @@ func CreateAuthData(authInfoRequest coreModels.AuthenticationInfoRequest, supiOr
 	// fmt.Printf("SQN xor AK = %x\n", SQNxorAK)
 	AUTN := append(append(SQNxorAK, AMF...), macA...)
 	fmt.Printf("AUTN = %x\n", AUTN)
-	response := &coreModels.AuthenticationInfoResult{}
-	var av coreModels.AuthenticationVector
+	response := &models.AuthenticationInfoResult{}
+	var av models.AuthenticationVector
 	if authSubs.AuthenticationMethod == models.AuthMethod__5_G_AKA {
-		response.AuthType = coreModels.AuthType__5_G_AKA
+		response.AuthType = models.AuthType__5_G_AKA
 
 		// derive XRES*
 		key := append(CK, IK...)
@@ -381,7 +380,7 @@ func CreateAuthData(authInfoRequest coreModels.AuthenticationInfoRequest, supiOr
 		av.Autn = hex.EncodeToString(AUTN)
 		av.Kausf = hex.EncodeToString(kdfValForKausf)
 	} else { // EAP-AKA'
-		response.AuthType = coreModels.AuthType_EAP_AKA_PRIME
+		response.AuthType = models.AuthType_EAP_AKA_PRIME
 
 		// derive CK' and IK'
 		key := append(CK, IK...)

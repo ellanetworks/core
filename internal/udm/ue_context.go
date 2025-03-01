@@ -9,6 +9,7 @@ package udm
 import (
 	"sync"
 
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -16,7 +17,7 @@ type UdmUeContext struct {
 	Supi                              string
 	Gpsi                              string
 	Nssai                             *models.Nssai
-	Amf3GppAccessRegistration         *models.Amf3GppAccessRegistration
+	Amf3GppAccessRegistration         *coreModels.Amf3GppAccessRegistration
 	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData
 	SmfSelSubsData                    *models.SmfSelectionSubscriptionData
 	UeCtxtInSmfData                   *models.UeContextInSmfData
