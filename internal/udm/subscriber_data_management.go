@@ -152,20 +152,20 @@ func GetNssai(supi string) (*models.Nssai, error) {
 	return udmUe.Nssai, nil
 }
 
-func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
+func GetSmfSelectData(ueId string) (*coreModels.SmfSelectionSubscriptionData, error) {
 	operator, err := udmContext.DbInstance.GetOperator()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
 	snssai := fmt.Sprintf("%d%s", operator.Sst, operator.GetHexSd())
-	smfSelectionData := &models.SmfSelectionSubscriptionData{
-		SubscribedSnssaiInfos: make(map[string]models.SnssaiInfo),
+	smfSelectionData := &coreModels.SmfSelectionSubscriptionData{
+		SubscribedSnssaiInfos: make(map[string]coreModels.SnssaiInfo),
 	}
-	smfSelectionData.SubscribedSnssaiInfos[snssai] = models.SnssaiInfo{
-		DnnInfos: make([]models.DnnInfo, 0),
+	smfSelectionData.SubscribedSnssaiInfos[snssai] = coreModels.SnssaiInfo{
+		DnnInfos: make([]coreModels.DnnInfo, 0),
 	}
 	snssaiInfo := smfSelectionData.SubscribedSnssaiInfos[snssai]
-	snssaiInfo.DnnInfos = append(snssaiInfo.DnnInfos, models.DnnInfo{
+	snssaiInfo.DnnInfos = append(snssaiInfo.DnnInfos, coreModels.DnnInfo{
 		Dnn: config.DNN,
 	})
 	smfSelectionData.SubscribedSnssaiInfos[snssai] = snssaiInfo
@@ -173,9 +173,9 @@ func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error)
 }
 
 func GetAndSetSmfSelectData(supi string) (
-	*models.SmfSelectionSubscriptionData, error,
+	*coreModels.SmfSelectionSubscriptionData, error,
 ) {
-	var body models.SmfSelectionSubscriptionData
+	var body coreModels.SmfSelectionSubscriptionData
 	udmContext.CreateSmfSelectionSubsDataforUe(supi, body)
 	smfSelectionSubscriptionDataResp, err := GetSmfSelectData(supi)
 	if err != nil {

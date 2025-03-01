@@ -10,9 +10,8 @@ import (
 	"sync"
 
 	"github.com/ellanetworks/core/internal/db"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/models"
 )
 
 var udmContext UDMContext
@@ -32,11 +31,11 @@ type UDMContext struct {
 	UESubsCollection           sync.Map // map[ueId]*UESubsData
 }
 
-func (context *UDMContext) ManageSmData(smDatafromUDR []coreModels.SessionManagementSubscriptionData, snssaiFromReq string,
-	dnnFromReq string) (mp map[string]coreModels.SessionManagementSubscriptionData,
+func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData, snssaiFromReq string,
+	dnnFromReq string) (mp map[string]models.SessionManagementSubscriptionData,
 ) {
-	smDataMap := make(map[string]coreModels.SessionManagementSubscriptionData)
-	AllDnns := make([]map[string]coreModels.DnnConfiguration, len(smDatafromUDR))
+	smDataMap := make(map[string]models.SessionManagementSubscriptionData)
+	AllDnns := make([]map[string]models.DnnConfiguration, len(smDatafromUDR))
 
 	for idx, smSubscriptionData := range smDatafromUDR {
 		singleNssaiStr := openapi.MarshToJsonString(smSubscriptionData.SingleNssai)[0]
@@ -48,7 +47,7 @@ func (context *UDMContext) ManageSmData(smDatafromUDR []coreModels.SessionManage
 }
 
 // functions related UecontextInSmfData
-func (context *UDMContext) CreateUeContextInSmfDataforUe(supi string, body coreModels.UeContextInSmfData) {
+func (context *UDMContext) CreateUeContextInSmfDataforUe(supi string, body models.UeContextInSmfData) {
 	ue, ok := context.UdmUeFindBySupi(supi)
 	if !ok {
 		ue = context.NewUdmUe(supi)
@@ -81,7 +80,7 @@ func (context *UDMContext) UdmUeFindBySupi(supi string) (*UdmUeContext, bool) {
 	}
 }
 
-func (context *UDMContext) CreateAmf3gppRegContext(supi string, body coreModels.Amf3GppAccessRegistration) {
+func (context *UDMContext) CreateAmf3gppRegContext(supi string, body models.Amf3GppAccessRegistration) {
 	ue, ok := context.UdmUeFindBySupi(supi)
 	if !ok {
 		ue = context.NewUdmUe(supi)

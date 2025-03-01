@@ -19,7 +19,7 @@ type UdmUeContext struct {
 	Nssai                             *models.Nssai
 	Amf3GppAccessRegistration         *coreModels.Amf3GppAccessRegistration
 	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData
-	SmfSelSubsData                    *models.SmfSelectionSubscriptionData
+	SmfSelSubsData                    *coreModels.SmfSelectionSubscriptionData
 	UeCtxtInSmfData                   *coreModels.UeContextInSmfData
 	SessionManagementSubsData         map[string]coreModels.SessionManagementSubscriptionData
 	SubscribeToNotifChange            map[string]*models.SdmSubscription
@@ -42,7 +42,7 @@ func (udmUeContext *UdmUeContext) CreateSubscriptiontoNotifChange(subscriptionID
 }
 
 // SetSmfSelectionSubsData ... functions to set SmfSelectionSubscriptionData
-func (udmUeContext *UdmUeContext) SetSmfSelectionSubsData(smfSelSubsData *models.SmfSelectionSubscriptionData) {
+func (udmUeContext *UdmUeContext) SetSmfSelectionSubsData(smfSelSubsData *coreModels.SmfSelectionSubscriptionData) {
 	udmUeContext.smfSelSubsDataLock.Lock()
 	defer udmUeContext.smfSelSubsDataLock.Unlock()
 	udmUeContext.SmfSelSubsData = smfSelSubsData

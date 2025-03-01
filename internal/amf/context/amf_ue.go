@@ -103,7 +103,7 @@ type AmfUe struct {
 	SubscriptionDataValid             bool                                      `json:"subscriptionDataValid,omitempty"`
 	Reachability                      models.UeReachability                     `json:"reachability,omitempty"`
 	SubscribedData                    models.SubscribedData                     `json:"subscribedData,omitempty"`
-	SmfSelectionData                  *models.SmfSelectionSubscriptionData      `json:"smfSelectionData,omitempty"`
+	SmfSelectionData                  *coreModels.SmfSelectionSubscriptionData  `json:"smfSelectionData,omitempty"`
 	UeContextInSmfData                *coreModels.UeContextInSmfData            `json:"ueContextInSmfData,omitempty"`
 	TraceData                         *models.TraceData                         `json:"traceData,omitempty"`
 	UdmGroupId                        string                                    `json:"udmGroupId,omitempty"`
