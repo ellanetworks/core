@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"path/filepath"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 type GetStatusResponseResult struct {
@@ -44,7 +46,7 @@ func getStatus(url string, client *http.Client) (int, *GetStatusResponse, error)
 func TestStatusEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

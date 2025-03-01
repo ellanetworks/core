@@ -97,13 +97,17 @@ func ginRecover(logger *zap.SugaredLogger) gin.HandlerFunc {
 	}
 }
 
-func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte) http.Handler {
-	gin.SetMode(gin.ReleaseMode)
+func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, mode string) http.Handler {
+	gin.SetMode(mode)
 	router := gin.New()
 	router.Use(ginToZap(logger.APILog), ginRecover(logger.APILog))
 	AddUiService(router)
 
 	apiGroup := router.Group("/api/v1")
+
+	if gin.Mode() != gin.TestMode {
+		apiGroup.Use(RateLimitMiddleware())
+	}
 
 	// Metrics (Unauthenticated)
 	apiGroup.GET("/metrics", GetMetrics())

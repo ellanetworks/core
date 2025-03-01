@@ -11,7 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
-	"github.com/ellanetworks/core/internal/util/flowdesc"
+	"github.com/ellanetworks/core/internal/smf/util"
 )
 
 func AddPDUSessionAnchorAndULCL(smContext *context.SMContext, nodeID context.NodeID) context.PFCPSessionResponseStatus {
@@ -180,12 +180,12 @@ func EstablishULCL(smContext *context.SMContext) context.PFCPSessionResponseStat
 			DownLinkPDR := curDPNode.DownLinkTunnel.PDR["default"]
 			UPLinkPDR.State = context.RULE_INITIAL
 
-			FlowDespcription := flowdesc.NewIPFilterRule()
-			err := FlowDespcription.SetAction(flowdesc.Permit) // permit
+			FlowDespcription := util.NewIPFilterRule()
+			err := FlowDespcription.SetAction(util.Permit) // permit
 			if err != nil {
 				logger.SmfLog.Errorf("Error occurs when setting flow despcription: %s\n", err)
 			}
-			err = FlowDespcription.SetDirection(flowdesc.Out) // uplink
+			err = FlowDespcription.SetDirection(util.Out) // uplink
 			if err != nil {
 				logger.SmfLog.Errorf("Error occurs when setting flow despcription: %s\n", err)
 			}
@@ -202,7 +202,7 @@ func EstablishULCL(smContext *context.SMContext) context.PFCPSessionResponseStat
 				logger.SmfLog.Errorf("Error occurs when setting flow despcription: %s\n", err)
 			}
 
-			FlowDespcriptionStr, err := flowdesc.Encode(FlowDespcription)
+			FlowDespcriptionStr, err := util.Encode(FlowDespcription)
 			if err != nil {
 				logger.SmfLog.Errorf("Error occurs when encoding flow despcription: %s\n", err)
 			}
@@ -354,12 +354,12 @@ func UpdateRANAndIUPFUpLink(smContext *context.SMContext) context.PFCPSessionRes
 
 			if _, exist := bpMGR.UpdatedBranchingPoint[curDPNode.UPF]; exist {
 				// add SDF Filter
-				FlowDespcription := flowdesc.NewIPFilterRule()
-				err := FlowDespcription.SetAction(flowdesc.Permit) // permit
+				FlowDespcription := util.NewIPFilterRule()
+				err := FlowDespcription.SetAction(util.Permit) // permit
 				if err != nil {
 					logger.SmfLog.Errorf("Error occurs when setting flow despcription: %s\n", err)
 				}
-				err = FlowDespcription.SetDirection(flowdesc.Out) // uplink
+				err = FlowDespcription.SetDirection(util.Out) // uplink
 				if err != nil {
 					logger.SmfLog.Errorf("Error occurs when setting flow despcription: %s\n", err)
 				}
@@ -376,7 +376,7 @@ func UpdateRANAndIUPFUpLink(smContext *context.SMContext) context.PFCPSessionRes
 					logger.SmfLog.Errorf("Error occurs when setting flow despcription: %s\n", err)
 				}
 
-				FlowDespcriptionStr, err := flowdesc.Encode(FlowDespcription)
+				FlowDespcriptionStr, err := util.Encode(FlowDespcription)
 				if err != nil {
 					logger.SmfLog.Errorf("Error occurs when encoding flow despcription: %s\n", err)
 				}
