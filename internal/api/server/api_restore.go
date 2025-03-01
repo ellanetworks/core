@@ -23,13 +23,13 @@ func Restore(dbInstance *db.Database) gin.HandlerFunc {
 
 		file, err := c.FormFile("backup")
 		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "No backup file provided")
+			writeError(c, http.StatusBadRequest, "No backup file provided")
 			return
 		}
 
 		tempFile, err := os.CreateTemp("", "restore_*.db")
 		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "failed to create temporary file")
+			writeError(c, http.StatusInternalServerError, "failed to create temporary file")
 			return
 		}
 		defer func() {
@@ -45,38 +45,34 @@ func Restore(dbInstance *db.Database) gin.HandlerFunc {
 
 		uploadedFile, err := file.Open()
 		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "failed to open uploaded file")
+			writeError(c, http.StatusInternalServerError, "failed to open uploaded file")
 			return
 		}
 		defer uploadedFile.Close()
 
 		if _, err := io.Copy(tempFile, uploadedFile); err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "failed to copy uploaded file")
+			writeError(c, http.StatusInternalServerError, "failed to copy uploaded file")
 			return
 		}
 
 		if _, err := tempFile.Seek(0, 0); err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "failed to reset file pointer")
+			writeError(c, http.StatusInternalServerError, "failed to reset file pointer")
 			return
 		}
 
 		if err := dbInstance.Restore(tempFile); err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "failed to restore database")
+			writeError(c, http.StatusInternalServerError, "failed to restore database")
 			return
 		}
 
 		successResponse := SuccessResponse{
 			Message: "Database restored successfully",
 		}
-		err = writeResponse(c.Writer, successResponse, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
-
+		writeResponse(c, successResponse, http.StatusOK)
 		logger.LogAuditEvent(
 			RestoreAction,
 			email,
+			c.ClientIP(),
 			"User restored database",
 		)
 	}

@@ -43,6 +43,7 @@ func Authenticate(jwtSecret []byte) gin.HandlerFunc {
 			logger.LogAuditEvent(
 				AuthenticationAction,
 				"",
+				c.ClientIP(),
 				"Unauthorized access attempt",
 			)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
@@ -63,13 +64,13 @@ func Require(allowedRoles ...Role) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roleIfc, exists := c.Get("role")
 		if !exists {
-			writeError(c.Writer, http.StatusForbidden, "Role not found")
+			writeError(c, http.StatusForbidden, "Role not found")
 			c.Abort()
 			return
 		}
 		role, ok := roleIfc.(Role)
 		if !ok {
-			writeError(c.Writer, http.StatusForbidden, "Role not found")
+			writeError(c, http.StatusForbidden, "Role not found")
 			c.Abort()
 			return
 		}
@@ -83,7 +84,7 @@ func Require(allowedRoles ...Role) gin.HandlerFunc {
 		}
 
 		if !allowed {
-			writeError(c.Writer, http.StatusForbidden, "Insufficient permissions")
+			writeError(c, http.StatusForbidden, "Insufficient permissions")
 			c.Abort()
 			return
 		}
@@ -96,7 +97,7 @@ func RequireAdminOrFirstUser(db *db.Database, jwtSecret []byte) gin.HandlerFunc 
 	return func(c *gin.Context) {
 		numUsers, err := db.NumUsers()
 		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Internal Error")
+			writeError(c, http.StatusInternalServerError, "Internal Error")
 			c.Abort()
 			return
 		}
@@ -107,9 +108,10 @@ func RequireAdminOrFirstUser(db *db.Database, jwtSecret []byte) gin.HandlerFunc 
 				logger.LogAuditEvent(
 					AuthenticationAction,
 					"",
+					c.ClientIP(),
 					"Unauthorized access attempt",
 				)
-				writeError(c.Writer, http.StatusUnauthorized, "Unauthorized access attempt")
+				writeError(c, http.StatusUnauthorized, "Unauthorized access attempt")
 				c.Abort()
 				return
 			}
@@ -119,7 +121,7 @@ func RequireAdminOrFirstUser(db *db.Database, jwtSecret []byte) gin.HandlerFunc 
 			c.Set("role", claims.Role)
 
 			if claims.Role != AdminRole {
-				writeError(c.Writer, http.StatusForbidden, "Admin role required")
+				writeError(c, http.StatusForbidden, "Admin role required")
 				c.Abort()
 				return
 			}

@@ -78,7 +78,7 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		dbSubscribers, err := dbInstance.ListSubscribers()
 		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Unable to retrieve subscribers")
+			writeError(c, http.StatusInternalServerError, "Unable to retrieve subscribers")
 			return
 		}
 
@@ -86,7 +86,7 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 		for _, dbSubscriber := range dbSubscribers {
 			profile, err := dbInstance.GetProfileByID(dbSubscriber.ProfileID)
 			if err != nil {
-				writeError(c.Writer, http.StatusInternalServerError, "Failed to retrieve profile")
+				writeError(c, http.StatusInternalServerError, "Failed to retrieve profile")
 				return
 			}
 			subscribers = append(subscribers, GetSubscriberResponse{
@@ -98,14 +98,11 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 				ProfileName:    profile.Name,
 			})
 		}
-		err = writeResponse(c.Writer, subscribers, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, subscribers, http.StatusOK)
 		logger.LogAuditEvent(
 			ListSubscribersAction,
 			email,
+			c.ClientIP(),
 			"User listed subscribers",
 		)
 	}
@@ -121,18 +118,18 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		imsi := c.Param("imsi")
 		if imsi == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing imsi parameter")
+			writeError(c, http.StatusBadRequest, "Missing imsi parameter")
 			return
 		}
 
 		dbSubscriber, err := dbInstance.GetSubscriber(imsi)
 		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "Subscriber not found")
+			writeError(c, http.StatusNotFound, "Subscriber not found")
 			return
 		}
 		profile, err := dbInstance.GetProfileByID(dbSubscriber.ProfileID)
 		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to retrieve profile")
+			writeError(c, http.StatusInternalServerError, "Failed to retrieve profile")
 			return
 		}
 
@@ -144,14 +141,11 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			Key:            dbSubscriber.PermanentKey,
 			ProfileName:    profile.Name,
 		}
-		err = writeResponse(c.Writer, subscriber, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, subscriber, http.StatusOK)
 		logger.LogAuditEvent(
 			GetSubscriberAction,
 			email,
+			c.ClientIP(),
 			"User retrieved subscriber: "+imsi,
 		)
 	}
@@ -168,73 +162,73 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		var createSubscriberParams CreateSubscriberParams
 		err := c.ShouldBindJSON(&createSubscriberParams)
 		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			writeError(c, http.StatusBadRequest, "Invalid request data")
 			return
 		}
 		if createSubscriberParams.Imsi == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing imsi parameter")
+			writeError(c, http.StatusBadRequest, "Missing imsi parameter")
 			return
 		}
 		if createSubscriberParams.SequenceNumber == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing sequenceNumber parameter")
+			writeError(c, http.StatusBadRequest, "Missing sequenceNumber parameter")
 			return
 		}
 		if createSubscriberParams.Key == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing key parameter")
+			writeError(c, http.StatusBadRequest, "Missing key parameter")
 			return
 		}
 		if createSubscriberParams.ProfileName == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing profileName parameter")
+			writeError(c, http.StatusBadRequest, "Missing profileName parameter")
 			return
 		}
 		if !isImsiValid(createSubscriberParams.Imsi, dbInstance) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.")
+			writeError(c, http.StatusBadRequest, "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.")
 			return
 		}
 		if !isSequenceNumberValid(createSubscriberParams.SequenceNumber) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid sequenceNumber. Must be a 6-byte hexadecimal string.")
+			writeError(c, http.StatusBadRequest, "Invalid sequenceNumber. Must be a 6-byte hexadecimal string.")
 			return
 		}
 		if !isHexString(createSubscriberParams.Key) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid key format. Must be a 32-character hexadecimal string.")
+			writeError(c, http.StatusBadRequest, "Invalid key format. Must be a 32-character hexadecimal string.")
 			return
 		}
 
 		K, err := hex.DecodeString(createSubscriberParams.Key)
 		if err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c.Writer, http.StatusBadRequest, "Invalid key format")
+			writeError(c, http.StatusBadRequest, "Invalid key format")
 			return
 		}
 		opCodeHex, err := dbInstance.GetOperatorCode()
 		if err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to retrieve operator code")
+			writeError(c, http.StatusInternalServerError, "Failed to retrieve operator code")
 			return
 		}
 		OP, err := hex.DecodeString(opCodeHex)
 		if err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to decode OP")
+			writeError(c, http.StatusInternalServerError, "Failed to decode OP")
 			return
 		}
 
 		opc, err := deriveOPc(K, OP)
 		if err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to generate OPc")
+			writeError(c, http.StatusInternalServerError, "Failed to generate OPc")
 			return
 		}
 		opcHex := hex.EncodeToString(opc)
 
 		_, err = dbInstance.GetSubscriber(createSubscriberParams.Imsi)
 		if err == nil {
-			writeError(c.Writer, http.StatusBadRequest, "Subscriber already exists")
+			writeError(c, http.StatusBadRequest, "Subscriber already exists")
 			return
 		}
 		profile, err := dbInstance.GetProfile(createSubscriberParams.ProfileName)
 		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "Profile not found")
+			writeError(c, http.StatusNotFound, "Profile not found")
 			return
 		}
 		newSubscriber := &db.Subscriber{
@@ -247,19 +241,16 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 
 		if err := dbInstance.CreateSubscriber(newSubscriber); err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to create subscriber")
+			writeError(c, http.StatusInternalServerError, "Failed to create subscriber")
 			return
 		}
 
 		response := SuccessResponse{Message: "Subscriber created successfully"}
-		err = writeResponse(c.Writer, response, http.StatusCreated)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, response, http.StatusCreated)
 		logger.LogAuditEvent(
 			CreateSubscriberAction,
 			email,
+			c.ClientIP(),
 			"User created subscriber: "+createSubscriberParams.Imsi,
 		)
 	}
@@ -275,36 +266,36 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		imsi := c.Param("imsi")
 		if imsi == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing imsi parameter")
+			writeError(c, http.StatusBadRequest, "Missing imsi parameter")
 			return
 		}
 		var updateSubscriberParams UpdateSubscriberParams
 		err := c.ShouldBindJSON(&updateSubscriberParams)
 		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			writeError(c, http.StatusBadRequest, "Invalid request data")
 			return
 		}
 		if updateSubscriberParams.Imsi == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing imsi parameter")
+			writeError(c, http.StatusBadRequest, "Missing imsi parameter")
 			return
 		}
 		if updateSubscriberParams.ProfileName == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing profileName parameter")
+			writeError(c, http.StatusBadRequest, "Missing profileName parameter")
 			return
 		}
 		if !isImsiValid(updateSubscriberParams.Imsi, dbInstance) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.")
+			writeError(c, http.StatusBadRequest, "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.")
 			return
 		}
 
 		existingSubscriber, err := dbInstance.GetSubscriber(imsi)
 		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "Subscriber not found")
+			writeError(c, http.StatusNotFound, "Subscriber not found")
 			return
 		}
 		profile, err := dbInstance.GetProfile(updateSubscriberParams.ProfileName)
 		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "Profile not found")
+			writeError(c, http.StatusNotFound, "Profile not found")
 			return
 		}
 		updatedSubscriber := &db.Subscriber{
@@ -317,19 +308,16 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 
 		if err := dbInstance.UpdateSubscriber(updatedSubscriber); err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to update subscriber")
+			writeError(c, http.StatusInternalServerError, "Failed to update subscriber")
 			return
 		}
 
 		response := SuccessResponse{Message: "Subscriber updated successfully"}
-		err = writeResponse(c.Writer, response, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, response, http.StatusOK)
 		logger.LogAuditEvent(
 			UpdateSubscriberAction,
 			email,
+			c.ClientIP(),
 			"User updated subscriber: "+imsi,
 		)
 	}
@@ -345,30 +333,27 @@ func DeleteSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		imsi := c.Param("imsi")
 		if imsi == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing imsi parameter")
+			writeError(c, http.StatusBadRequest, "Missing imsi parameter")
 			return
 		}
 		_, err := dbInstance.GetSubscriber(imsi)
 		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "Subscriber not found")
+			writeError(c, http.StatusNotFound, "Subscriber not found")
 			return
 		}
 		err = dbInstance.DeleteSubscriber(imsi)
 		if err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete subscriber")
+			writeError(c, http.StatusInternalServerError, "Failed to delete subscriber")
 			return
 		}
 
 		response := SuccessResponse{Message: "Subscriber deleted successfully"}
-		err = writeResponse(c.Writer, response, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, response, http.StatusOK)
 		logger.LogAuditEvent(
 			DeleteSubscriberAction,
 			email,
+			c.ClientIP(),
 			"User deleted subscriber: "+imsi,
 		)
 	}

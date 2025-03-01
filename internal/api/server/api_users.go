@@ -11,6 +11,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// BCRYPT_COST is used to tune the password hashing algorithm's time.
+// For better protection against brute-force attacks, this should be
+// set higher, at the cost of performance.
+// A good rule of thumb is to set this so that it takes over 250 ms
+// to hash a password on common hardware.
+const BCRYPT_COST = 13
+
 type CreateUserParams struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -67,7 +74,7 @@ func isValidEmail(email string) bool {
 }
 
 func hashPassword(password string) (string, error) {
-	pw, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	pw, err := bcrypt.GenerateFromPassword([]byte(password), BCRYPT_COST)
 	if err != nil {
 		return "", err
 	}
@@ -85,7 +92,7 @@ func ListUsers(dbInstance *db.Database) gin.HandlerFunc {
 		dbUsers, err := dbInstance.ListUsers()
 		if err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Unable to retrieve users")
+			writeError(c, http.StatusInternalServerError, "Unable to retrieve users")
 			return
 		}
 
@@ -96,14 +103,11 @@ func ListUsers(dbInstance *db.Database) gin.HandlerFunc {
 				Role:  user.Role.String(),
 			})
 		}
-		err = writeResponse(c.Writer, users, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, users, http.StatusOK)
 		logger.LogAuditEvent(
 			ListUsersAction,
 			email,
+			c.ClientIP(),
 			"Successfully retrieved list of users",
 		)
 	}
@@ -119,12 +123,12 @@ func GetUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		emailParam := c.Param("email")
 		if emailParam == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing email parameter")
+			writeError(c, http.StatusBadRequest, "Missing email parameter")
 			return
 		}
 		dbUser, err := dbInstance.GetUser(emailParam)
 		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "User not found")
+			writeError(c, http.StatusNotFound, "User not found")
 			return
 		}
 
@@ -132,14 +136,11 @@ func GetUser(dbInstance *db.Database) gin.HandlerFunc {
 			Email: dbUser.Email,
 			Role:  dbUser.Role.String(),
 		}
-		err = writeResponse(c.Writer, user, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, user, http.StatusOK)
 		logger.LogAuditEvent(
 			GetUserAction,
 			email,
+			c.ClientIP(),
 			"Successfully retrieved user",
 		)
 	}
@@ -149,17 +150,17 @@ func GetLoggedInUser(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		emailAny, exists := c.Get("email")
 		if !exists {
-			writeError(c.Writer, http.StatusUnauthorized, "Unauthorized")
+			writeError(c, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
 		email, ok := emailAny.(string)
 		if !ok {
-			writeError(c.Writer, http.StatusUnauthorized, "Unauthorized")
+			writeError(c, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
 		dbUser, err := dbInstance.GetUser(email)
 		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "User not found")
+			writeError(c, http.StatusNotFound, "User not found")
 			return
 		}
 
@@ -167,14 +168,11 @@ func GetLoggedInUser(dbInstance *db.Database) gin.HandlerFunc {
 			Email: dbUser.Email,
 			Role:  dbUser.Role.String(),
 		}
-		err = writeResponse(c.Writer, user, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, user, http.StatusOK)
 		logger.LogAuditEvent(
 			GetLoggedInUserAction,
 			email,
+			c.ClientIP(),
 			"Successfully retrieved logged in user",
 		)
 	}
@@ -190,34 +188,34 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		var newUser CreateUserParams
 		err := c.ShouldBindJSON(&newUser)
 		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			writeError(c, http.StatusBadRequest, "Invalid request data")
 			return
 		}
 		if newUser.Email == "" {
-			writeError(c.Writer, http.StatusBadRequest, "email is missing")
+			writeError(c, http.StatusBadRequest, "email is missing")
 			return
 		}
 		if newUser.Password == "" {
-			writeError(c.Writer, http.StatusBadRequest, "password is missing")
+			writeError(c, http.StatusBadRequest, "password is missing")
 			return
 		}
 		if !isValidEmail(newUser.Email) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid email format")
+			writeError(c, http.StatusBadRequest, "Invalid email format")
 			return
 		}
 		role, ok := roleDBMap[newUser.Role]
 		if !ok {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid role")
+			writeError(c, http.StatusBadRequest, "Invalid role")
 			return
 		}
 		_, err = dbInstance.GetUser(newUser.Email)
 		if err == nil {
-			writeError(c.Writer, http.StatusBadRequest, "user already exists")
+			writeError(c, http.StatusBadRequest, "user already exists")
 			return
 		}
 		hashedPassword, err := hashPassword(newUser.Password)
 		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to hash password")
+			writeError(c, http.StatusInternalServerError, "Failed to hash password")
 			return
 		}
 
@@ -229,18 +227,15 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		err = dbInstance.CreateUser(dbUser)
 		if err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to create user")
+			writeError(c, http.StatusInternalServerError, "Failed to create user")
 			return
 		}
 		successResponse := SuccessResponse{Message: "User created successfully"}
-		err = writeResponse(c.Writer, successResponse, http.StatusCreated)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, successResponse, http.StatusCreated)
 		logger.LogAuditEvent(
 			CreateUserAction,
 			email,
+			c.ClientIP(),
 			"User created user: "+newUser.Email+" with role: "+fmt.Sprint(newUser.Role),
 		)
 	}
@@ -256,48 +251,45 @@ func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		emailParam := c.Param("email")
 		if emailParam == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing email parameter")
+			writeError(c, http.StatusBadRequest, "Missing email parameter")
 			return
 		}
 		var updateUserParams UpdateUserParams
 		err := c.ShouldBindJSON(&updateUserParams)
 		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			writeError(c, http.StatusBadRequest, "Invalid request data")
 			return
 		}
 		if updateUserParams.Email == "" {
-			writeError(c.Writer, http.StatusBadRequest, "email is missing")
+			writeError(c, http.StatusBadRequest, "email is missing")
 			return
 		}
 		if !isValidEmail(updateUserParams.Email) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid email format")
+			writeError(c, http.StatusBadRequest, "Invalid email format")
 			return
 		}
 		role, ok := roleDBMap[updateUserParams.Role]
 		if !ok {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid role")
+			writeError(c, http.StatusBadRequest, "Invalid role")
 			return
 		}
 		_, err = dbInstance.GetUser(emailParam)
 		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "User not found")
+			writeError(c, http.StatusNotFound, "User not found")
 			return
 		}
 		err = dbInstance.UpdateUser(updateUserParams.Email, role)
 		if err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to update user")
+			writeError(c, http.StatusInternalServerError, "Failed to update user")
 			return
 		}
 		successResponse := SuccessResponse{Message: "User updated successfully"}
-		err = writeResponse(c.Writer, successResponse, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, successResponse, http.StatusOK)
 		logger.LogAuditEvent(
 			UpdateUserAction,
 			email,
+			c.ClientIP(),
 			"User updated user: "+updateUserParams.Email,
 		)
 	}
@@ -313,54 +305,51 @@ func UpdateUserPassword(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		emailParam := c.Param("email")
 		if emailParam == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing email parameter")
+			writeError(c, http.StatusBadRequest, "Missing email parameter")
 			return
 		}
 		var updateUserParams UpdateUserPasswordParams
 		err := c.ShouldBindJSON(&updateUserParams)
 		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			writeError(c, http.StatusBadRequest, "Invalid request data")
 			return
 		}
 		if updateUserParams.Email == "" {
-			writeError(c.Writer, http.StatusBadRequest, "email is missing")
+			writeError(c, http.StatusBadRequest, "email is missing")
 			return
 		}
 		if updateUserParams.Password == "" {
-			writeError(c.Writer, http.StatusBadRequest, "password is missing")
+			writeError(c, http.StatusBadRequest, "password is missing")
 			return
 		}
 		if !isValidEmail(updateUserParams.Email) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid email format")
+			writeError(c, http.StatusBadRequest, "Invalid email format")
 			return
 		}
 
 		_, err = dbInstance.GetUser(emailParam)
 		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "User not found")
+			writeError(c, http.StatusNotFound, "User not found")
 			return
 		}
 		hashedPassword, err := hashPassword(updateUserParams.Password)
 		if err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to hash password")
+			writeError(c, http.StatusInternalServerError, "Failed to hash password")
 			return
 		}
 		err = dbInstance.UpdateUserPassword(updateUserParams.Email, hashedPassword)
 		if err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to update user")
+			writeError(c, http.StatusInternalServerError, "Failed to update user")
 			return
 		}
 		successResponse := SuccessResponse{Message: "User password updated successfully"}
-		err = writeResponse(c.Writer, successResponse, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, successResponse, http.StatusOK)
 		logger.LogAuditEvent(
 			UpdateUserPasswordAction,
 			email,
+			c.ClientIP(),
 			"User updated password for user: "+updateUserParams.Email,
 		)
 	}
@@ -376,30 +365,27 @@ func DeleteUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		emailParam := c.Param("email")
 		if emailParam == "" {
-			writeError(c.Writer, http.StatusBadRequest, "Missing email parameter")
+			writeError(c, http.StatusBadRequest, "Missing email parameter")
 			return
 		}
 		_, err := dbInstance.GetUser(emailParam)
 		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "User not found")
+			writeError(c, http.StatusNotFound, "User not found")
 			return
 		}
 		err = dbInstance.DeleteUser(emailParam)
 		if err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete user")
+			writeError(c, http.StatusInternalServerError, "Failed to delete user")
 			return
 		}
 
 		successResponse := SuccessResponse{Message: "User deleted successfully"}
-		err = writeResponse(c.Writer, successResponse, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, successResponse, http.StatusOK)
 		logger.LogAuditEvent(
 			DeleteUserAction,
 			email,
+			c.ClientIP(),
 			"User deleted user: "+emailParam,
 		)
 	}

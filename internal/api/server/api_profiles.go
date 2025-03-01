@@ -96,7 +96,7 @@ func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		dbProfiles, err := dbInstance.ListProfiles()
 		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Profiles not found")
+			writeError(c, http.StatusInternalServerError, "Profiles not found")
 			return
 		}
 		profileList := make([]GetProfileResponse, 0)
@@ -112,14 +112,11 @@ func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 			}
 			profileList = append(profileList, profileResponse)
 		}
-		err = writeResponse(c.Writer, profileList, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, profileList, http.StatusOK)
 		logger.LogAuditEvent(
 			ListProfilesAction,
 			email,
+			c.ClientIP(),
 			"User listed profiles",
 		)
 	}
@@ -135,12 +132,12 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		profileName, exists := c.Params.Get("name")
 		if !exists {
-			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
+			writeError(c, http.StatusBadRequest, "Missing name parameter")
 			return
 		}
 		dbProfile, err := dbInstance.GetProfile(profileName)
 		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "Profile not found")
+			writeError(c, http.StatusNotFound, "Profile not found")
 			return
 		}
 
@@ -154,14 +151,11 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 			Var5qi:          dbProfile.Var5qi,
 			PriorityLevel:   dbProfile.PriorityLevel,
 		}
-		err = writeResponse(c.Writer, profileResponse, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, profileResponse, http.StatusOK)
 		logger.LogAuditEvent(
 			GetProfileAction,
 			email,
+			c.ClientIP(),
 			"User retrieved profile: "+profileName,
 		)
 	}
@@ -178,77 +172,77 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		var createProfileParams CreateProfileParams
 		err := c.ShouldBindJSON(&createProfileParams)
 		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			writeError(c, http.StatusBadRequest, "Invalid request data")
 			return
 		}
 		if createProfileParams.Name == "" {
-			writeError(c.Writer, http.StatusBadRequest, "name is missing")
+			writeError(c, http.StatusBadRequest, "name is missing")
 			return
 		}
 		if createProfileParams.UeIpPool == "" {
-			writeError(c.Writer, http.StatusBadRequest, "ue-ip-pool is missing")
+			writeError(c, http.StatusBadRequest, "ue-ip-pool is missing")
 			return
 		}
 		if createProfileParams.Dns == "" {
-			writeError(c.Writer, http.StatusBadRequest, "dns is missing")
+			writeError(c, http.StatusBadRequest, "dns is missing")
 			return
 		}
 		if createProfileParams.Mtu == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "mtu is missing")
+			writeError(c, http.StatusBadRequest, "mtu is missing")
 			return
 		}
 		if createProfileParams.BitrateUplink == "" {
-			writeError(c.Writer, http.StatusBadRequest, "bitrate-uplink is missing")
+			writeError(c, http.StatusBadRequest, "bitrate-uplink is missing")
 			return
 		}
 		if createProfileParams.BitrateDownlink == "" {
-			writeError(c.Writer, http.StatusBadRequest, "bitrate-downlink is missing")
+			writeError(c, http.StatusBadRequest, "bitrate-downlink is missing")
 			return
 		}
 		if createProfileParams.Var5qi == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "Var5qi is missing")
+			writeError(c, http.StatusBadRequest, "Var5qi is missing")
 			return
 		}
 		if createProfileParams.PriorityLevel == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "priority-level is missing")
+			writeError(c, http.StatusBadRequest, "priority-level is missing")
 			return
 		}
 		if !isProfileNameValid(createProfileParams.Name) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid name format. Must be less than 256 characters")
+			writeError(c, http.StatusBadRequest, "Invalid name format. Must be less than 256 characters")
 			return
 		}
 		if !isUeIpPoolValid(createProfileParams.UeIpPool) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid ue-ip-pool format. Must be in CIDR format")
+			writeError(c, http.StatusBadRequest, "Invalid ue-ip-pool format. Must be in CIDR format")
 			return
 		}
 		if !isValidDNS(createProfileParams.Dns) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid dns format. Must be a valid IP address")
+			writeError(c, http.StatusBadRequest, "Invalid dns format. Must be a valid IP address")
 			return
 		}
 		if !isValidMTU(createProfileParams.Mtu) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid mtu format. Must be an integer between 0 and 65535")
+			writeError(c, http.StatusBadRequest, "Invalid mtu format. Must be an integer between 0 and 65535")
 			return
 		}
 		if !isValidBitrate(createProfileParams.BitrateUplink) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid bitrate-uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
+			writeError(c, http.StatusBadRequest, "Invalid bitrate-uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
 			return
 		}
 		if !isValidBitrate(createProfileParams.BitrateDownlink) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid bitrate-downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
+			writeError(c, http.StatusBadRequest, "Invalid bitrate-downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
 			return
 		}
 		if !isValid5Qi(createProfileParams.Var5qi) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid Var5qi format. Must be an integer between 1 and 255")
+			writeError(c, http.StatusBadRequest, "Invalid Var5qi format. Must be an integer between 1 and 255")
 			return
 		}
 		if !isValidPriorityLevel(createProfileParams.PriorityLevel) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid priority-level format. Must be an integer between 1 and 255")
+			writeError(c, http.StatusBadRequest, "Invalid priority-level format. Must be an integer between 1 and 255")
 			return
 		}
 
 		_, err = dbInstance.GetProfile(createProfileParams.Name)
 		if err == nil {
-			writeError(c.Writer, http.StatusBadRequest, "Profile already exists")
+			writeError(c, http.StatusBadRequest, "Profile already exists")
 			return
 		}
 
@@ -264,18 +258,15 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		err = dbInstance.CreateProfile(dbProfile)
 		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to create profile")
+			writeError(c, http.StatusInternalServerError, "Failed to create profile")
 			return
 		}
 		response := SuccessResponse{Message: "Profile created successfully"}
-		err = writeResponse(c.Writer, response, http.StatusCreated)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, response, http.StatusCreated)
 		logger.LogAuditEvent(
 			CreateProfileAction,
 			email,
+			c.ClientIP(),
 			"User created profile: "+createProfileParams.Name,
 		)
 	}
@@ -291,83 +282,83 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		groupName, exists := c.Params.Get("name")
 		if !exists {
-			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
+			writeError(c, http.StatusBadRequest, "Missing name parameter")
 			return
 		}
 		var updateProfileParams CreateProfileParams
 		err := c.ShouldBindJSON(&updateProfileParams)
 		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			writeError(c, http.StatusBadRequest, "Invalid request data")
 			return
 		}
 		if updateProfileParams.Name == "" {
-			writeError(c.Writer, http.StatusBadRequest, "name is missing")
+			writeError(c, http.StatusBadRequest, "name is missing")
 			return
 		}
 		if updateProfileParams.UeIpPool == "" {
-			writeError(c.Writer, http.StatusBadRequest, "ue-ip-pool is missing")
+			writeError(c, http.StatusBadRequest, "ue-ip-pool is missing")
 			return
 		}
 		if updateProfileParams.Dns == "" {
-			writeError(c.Writer, http.StatusBadRequest, "dns is missing")
+			writeError(c, http.StatusBadRequest, "dns is missing")
 			return
 		}
 		if updateProfileParams.Mtu == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "mtu is missing")
+			writeError(c, http.StatusBadRequest, "mtu is missing")
 			return
 		}
 		if updateProfileParams.BitrateUplink == "" {
-			writeError(c.Writer, http.StatusBadRequest, "bitrate-uplink is missing")
+			writeError(c, http.StatusBadRequest, "bitrate-uplink is missing")
 			return
 		}
 		if updateProfileParams.BitrateDownlink == "" {
-			writeError(c.Writer, http.StatusBadRequest, "bitrate-downlink is missing")
+			writeError(c, http.StatusBadRequest, "bitrate-downlink is missing")
 			return
 		}
 		if updateProfileParams.Var5qi == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "Var5qi is missing")
+			writeError(c, http.StatusBadRequest, "Var5qi is missing")
 			return
 		}
 		if updateProfileParams.PriorityLevel == 0 {
-			writeError(c.Writer, http.StatusBadRequest, "priority-level is missing")
+			writeError(c, http.StatusBadRequest, "priority-level is missing")
 			return
 		}
 		if !isProfileNameValid(updateProfileParams.Name) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid name format. Must be less than 256 characters")
+			writeError(c, http.StatusBadRequest, "Invalid name format. Must be less than 256 characters")
 			return
 		}
 		if !isUeIpPoolValid(updateProfileParams.UeIpPool) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid ue-ip-pool format. Must be in CIDR format")
+			writeError(c, http.StatusBadRequest, "Invalid ue-ip-pool format. Must be in CIDR format")
 			return
 		}
 		if !isValidDNS(updateProfileParams.Dns) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid dns format. Must be a valid IP address")
+			writeError(c, http.StatusBadRequest, "Invalid dns format. Must be a valid IP address")
 			return
 		}
 		if !isValidMTU(updateProfileParams.Mtu) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid mtu format. Must be an integer between 0 and 65535")
+			writeError(c, http.StatusBadRequest, "Invalid mtu format. Must be an integer between 0 and 65535")
 			return
 		}
 		if !isValidBitrate(updateProfileParams.BitrateUplink) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid bitrate-uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
+			writeError(c, http.StatusBadRequest, "Invalid bitrate-uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
 			return
 		}
 		if !isValidBitrate(updateProfileParams.BitrateDownlink) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid bitrate-downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
+			writeError(c, http.StatusBadRequest, "Invalid bitrate-downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
 			return
 		}
 		if !isValid5Qi(updateProfileParams.Var5qi) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid Var5qi format. Must be an integer between 1 and 255")
+			writeError(c, http.StatusBadRequest, "Invalid Var5qi format. Must be an integer between 1 and 255")
 			return
 		}
 		if !isValidPriorityLevel(updateProfileParams.PriorityLevel) {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid priority-level format. Must be an integer between 1 and 255")
+			writeError(c, http.StatusBadRequest, "Invalid priority-level format. Must be an integer between 1 and 255")
 			return
 		}
 
 		profile, err := dbInstance.GetProfile(groupName)
 		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "Profile not found")
+			writeError(c, http.StatusNotFound, "Profile not found")
 			return
 		}
 
@@ -381,19 +372,16 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		profile.PriorityLevel = updateProfileParams.PriorityLevel
 		err = dbInstance.UpdateProfile(profile)
 		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to update profile")
+			writeError(c, http.StatusInternalServerError, "Failed to update profile")
 			return
 		}
 
 		response := SuccessResponse{Message: "Profile updated successfully"}
-		err = writeResponse(c.Writer, response, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, response, http.StatusOK)
 		logger.LogAuditEvent(
 			UpdateProfileAction,
 			email,
+			c.ClientIP(),
 			"User updated profile: "+updateProfileParams.Name,
 		)
 	}
@@ -409,38 +397,35 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		profileName, exists := c.Params.Get("name")
 		if !exists {
-			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
+			writeError(c, http.StatusBadRequest, "Missing name parameter")
 			return
 		}
 		_, err := dbInstance.GetProfile(profileName)
 		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "Profile not found")
+			writeError(c, http.StatusNotFound, "Profile not found")
 			return
 		}
 		subsInProfile, err := dbInstance.SubscribersInProfile(profileName)
 		if err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to count subscribers")
+			writeError(c, http.StatusInternalServerError, "Failed to count subscribers")
 			return
 		}
 		if subsInProfile {
-			writeError(c.Writer, http.StatusConflict, "Profile has subscribers")
+			writeError(c, http.StatusConflict, "Profile has subscribers")
 			return
 		}
 		err = dbInstance.DeleteProfile(profileName)
 		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete profile")
+			writeError(c, http.StatusInternalServerError, "Failed to delete profile")
 			return
 		}
 		response := SuccessResponse{Message: "Profile deleted successfully"}
-		err = writeResponse(c.Writer, response, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, response, http.StatusOK)
 		logger.LogAuditEvent(
 			DeleteProfileAction,
 			email,
+			c.ClientIP(),
 			"User deleted profile: "+profileName,
 		)
 	}

@@ -68,7 +68,7 @@ func ListRoutes(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		dbRoutes, err := dbInstance.ListRoutes()
 		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Routes not found")
+			writeError(c, http.StatusInternalServerError, "Routes not found")
 			return
 		}
 		routeList := make([]GetRouteResponse, 0)
@@ -82,11 +82,13 @@ func ListRoutes(dbInstance *db.Database) gin.HandlerFunc {
 			}
 			routeList = append(routeList, routeResponse)
 		}
-		if err := writeResponse(c.Writer, routeList, http.StatusOK); err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Internal error")
-			return
-		}
-		logger.LogAuditEvent(ListRoutesAction, email, "User listed routes")
+		writeResponse(c, routeList, http.StatusOK)
+		logger.LogAuditEvent(
+			ListRoutesAction,
+			email,
+			c.ClientIP(),
+			"User listed routes",
+		)
 	}
 }
 
@@ -100,17 +102,17 @@ func GetRoute(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		routeID, exists := c.Params.Get("id")
 		if !exists {
-			writeError(c.Writer, http.StatusBadRequest, "Missing id parameter")
+			writeError(c, http.StatusBadRequest, "Missing id parameter")
 			return
 		}
 		idNum, err := strconv.ParseInt(routeID, 10, 64)
 		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid id format")
+			writeError(c, http.StatusBadRequest, "Invalid id format")
 			return
 		}
 		dbRoute, err := dbInstance.GetRoute(idNum)
 		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "Route not found")
+			writeError(c, http.StatusNotFound, "Route not found")
 			return
 		}
 
@@ -121,11 +123,13 @@ func GetRoute(dbInstance *db.Database) gin.HandlerFunc {
 			Interface:   dbRoute.Interface.String(),
 			Metric:      dbRoute.Metric,
 		}
-		if err := writeResponse(c.Writer, routeResponse, http.StatusOK); err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Internal error")
-			return
-		}
-		logger.LogAuditEvent(GetRouteAction, email, "User retrieved route: "+routeID)
+		writeResponse(c, routeResponse, http.StatusOK)
+		logger.LogAuditEvent(
+			GetRouteAction,
+			email,
+			c.ClientIP(),
+			"User retrieved route: "+routeID,
+		)
 	}
 }
 
@@ -139,64 +143,64 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 		}
 		var createRouteParams CreateRouteParams
 		if err := c.ShouldBindJSON(&createRouteParams); err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid request data")
+			writeError(c, http.StatusBadRequest, "Invalid request data")
 			return
 		}
 		if createRouteParams.Destination == "" {
-			writeError(c.Writer, http.StatusBadRequest, "destination is missing")
+			writeError(c, http.StatusBadRequest, "destination is missing")
 			return
 		}
 		if createRouteParams.Gateway == "" {
-			writeError(c.Writer, http.StatusBadRequest, "gateway is missing")
+			writeError(c, http.StatusBadRequest, "gateway is missing")
 			return
 		}
 		if createRouteParams.Interface == "" {
-			writeError(c.Writer, http.StatusBadRequest, "interface is missing")
+			writeError(c, http.StatusBadRequest, "interface is missing")
 			return
 		}
 		if !isRouteDestinationValid(createRouteParams.Destination) {
-			writeError(c.Writer, http.StatusBadRequest, "invalid destination format: expecting CIDR notation")
+			writeError(c, http.StatusBadRequest, "invalid destination format: expecting CIDR notation")
 			return
 		}
 		if !isRouteGatewayValid(createRouteParams.Gateway) {
-			writeError(c.Writer, http.StatusBadRequest, "invalid gateway format: expecting an IPv4 address")
+			writeError(c, http.StatusBadRequest, "invalid gateway format: expecting an IPv4 address")
 			return
 		}
 		if createRouteParams.Metric < 0 {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid metric value")
+			writeError(c, http.StatusBadRequest, "Invalid metric value")
 			return
 		}
 		kernelNetworkInterface, ok := interfaceKernelMap[createRouteParams.Interface]
 		if !ok {
-			writeError(c.Writer, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed")
+			writeError(c, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed")
 			return
 		}
 
 		_, ipNetwork, err := net.ParseCIDR(createRouteParams.Destination)
 		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid destination format")
+			writeError(c, http.StatusBadRequest, "Invalid destination format")
 			return
 		}
 		ipGateway := net.ParseIP(createRouteParams.Gateway)
 		if ipGateway == nil || ipGateway.To4() == nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address")
+			writeError(c, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address")
 			return
 		}
 		ipGateway = ipGateway.To4()
 
 		routeExists, err := kernelInt.RouteExists(ipNetwork, ipGateway, createRouteParams.Metric, kernelNetworkInterface)
 		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to check if route exists")
+			writeError(c, http.StatusInternalServerError, "Failed to check if route exists")
 			return
 		}
 		if routeExists {
-			writeError(c.Writer, http.StatusBadRequest, "Route already exists")
+			writeError(c, http.StatusBadRequest, "Route already exists")
 			return
 		}
 
 		dbNetworkInterface, ok := interfaceDbMap[createRouteParams.Interface]
 		if !ok {
-			writeError(c.Writer, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed")
+			writeError(c, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed")
 			return
 		}
 		dbRoute := &db.Route{
@@ -207,7 +211,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 		}
 		tx, err := dbInstance.BeginTransaction()
 		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Internal error starting transaction")
+			writeError(c, http.StatusInternalServerError, "Internal error starting transaction")
 			return
 		}
 		committed := false
@@ -221,27 +225,29 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 
 		routeId, err := tx.CreateRoute(dbRoute)
 		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to create route in DB")
+			writeError(c, http.StatusInternalServerError, "Failed to create route in DB")
 			return
 		}
 
 		if err := kernelInt.CreateRoute(ipNetwork, ipGateway, createRouteParams.Metric, kernelNetworkInterface); err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to create kernel route: "+err.Error())
+			writeError(c, http.StatusInternalServerError, "Failed to create kernel route: "+err.Error())
 			return
 		}
 
 		if err := tx.Commit(); err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to commit transaction")
+			writeError(c, http.StatusInternalServerError, "Failed to commit transaction")
 			return
 		}
 		committed = true
 
 		response := CreateSuccessResponse{Message: "Route created successfully", ID: routeId}
-		if err := writeResponse(c.Writer, response, http.StatusCreated); err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Internal error")
-			return
-		}
-		logger.LogAuditEvent(CreateRouteAction, email, "User created route: "+fmt.Sprint(routeId))
+		writeResponse(c, response, http.StatusCreated)
+		logger.LogAuditEvent(
+			CreateRouteAction,
+			email,
+			c.ClientIP(),
+			"User created route: "+fmt.Sprint(routeId),
+		)
 	}
 }
 
@@ -255,27 +261,27 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 		}
 		routeID, exists := c.Params.Get("id")
 		if !exists {
-			writeError(c.Writer, http.StatusBadRequest, "Missing id parameter")
+			writeError(c, http.StatusBadRequest, "Missing id parameter")
 			return
 		}
 		routeIDNum, err := strconv.ParseInt(routeID, 10, 64)
 		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid id format")
+			writeError(c, http.StatusBadRequest, "Invalid id format")
 			return
 		}
 		route, err := dbInstance.GetRoute(routeIDNum)
 		if err != nil {
-			writeError(c.Writer, http.StatusNotFound, "Route not found")
+			writeError(c, http.StatusNotFound, "Route not found")
 			return
 		}
 		_, ipNetwork, err := net.ParseCIDR(route.Destination)
 		if err != nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid destination format: expecting CIDR notation.")
+			writeError(c, http.StatusBadRequest, "Invalid destination format: expecting CIDR notation.")
 			return
 		}
 		gateway := net.ParseIP(route.Gateway)
 		if gateway == nil || gateway.To4() == nil {
-			writeError(c.Writer, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address")
+			writeError(c, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address")
 			return
 		}
 		gateway = gateway.To4()
@@ -283,7 +289,7 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 		// Begin a transaction to ensure DB deletion is tied to kernel route deletion.
 		tx, err := dbInstance.BeginTransaction()
 		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Internal error starting transaction")
+			writeError(c, http.StatusInternalServerError, "Internal error starting transaction")
 			return
 		}
 		committed := false
@@ -297,32 +303,34 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 
 		// Delete the DB record within the transaction.
 		if err := tx.DeleteRoute(routeIDNum); err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete route from DB")
+			writeError(c, http.StatusInternalServerError, "Failed to delete route from DB")
 			return
 		}
 
 		// Delete the kernel route.
 		kernelNetwokrInterface, ok := interfaceKernelMap[route.Interface.String()]
 		if !ok {
-			writeError(c.Writer, http.StatusInternalServerError, "invalid interface: abcdef: only n3 and n6 are allowed")
+			writeError(c, http.StatusInternalServerError, "invalid interface: abcdef: only n3 and n6 are allowed")
 			return
 		}
 		if err := kernelInt.DeleteRoute(ipNetwork, gateway, route.Metric, kernelNetwokrInterface); err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to delete kernel route")
+			writeError(c, http.StatusInternalServerError, "Failed to delete kernel route")
 			return
 		}
 
 		if err := tx.Commit(); err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Failed to commit transaction")
+			writeError(c, http.StatusInternalServerError, "Failed to commit transaction")
 			return
 		}
 		committed = true
 
 		response := SuccessResponse{Message: "Route deleted successfully"}
-		if err := writeResponse(c.Writer, response, http.StatusOK); err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "Internal error")
-			return
-		}
-		logger.LogAuditEvent(DeleteRouteAction, email, "User deleted route: "+routeID)
+		writeResponse(c, response, http.StatusOK)
+		logger.LogAuditEvent(
+			DeleteRouteAction,
+			email,
+			c.ClientIP(),
+			"User deleted route: "+routeID,
+		)
 	}
 }

@@ -53,6 +53,7 @@ func Backup(dbInstance *db.Database) gin.HandlerFunc {
 		logger.LogAuditEvent(
 			BackupAction,
 			email,
+			c.ClientIP(),
 			"Successfully backed up database",
 		)
 	}

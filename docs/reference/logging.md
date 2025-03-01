@@ -18,12 +18,12 @@ Ella Core automatically logs all user actions, including login attempts, API cal
 
 ### Example
 
-In the following example, we see the `guillaume` user logging in, listing profiles, and creating a profile named `new-profile` with the associated timestamps.
+In the following example, we see the `admin@allanetworks.com` user logging in, listing profiles, and creating a profile named `new-profile` with the associated timestamps.
 
 ```
-2025-01-01T17:03:31.393-0500    INFO    logger/logger.go:118    audit event     {"component": "Audit", "action": "login", "actor": "guillaume", "details": "User logged in"}
-2025-01-01T17:03:33.254-0500    INFO    logger/logger.go:118    audit event     {"component": "Audit", "action": "list_profiles", "actor": "guillaume", "details": "User listed profiles"}
-2025-01-01T17:03:39.451-0500    INFO    logger/logger.go:118    audit event     {"component": "Audit", "action": "create_profile", "actor": "guillaume", "details": "User created profile: new-profile"}
+2025-03-01T09:46:31.212-0500    INFO    logger/logger.go:214    audit event     {"component": "Audit", "action": "auth_login", "actor": "admin@ellanetworks.com", "details": "User logged in", "ip": "127.0.0.1"}
+2025-03-01T09:47:28.121-0500    INFO    logger/logger.go:214    audit event     {"component": "Audit", "action": "list_profiles", "actor": "admin@ellanetworks.com", "details": "User listed profiles", "ip": "127.0.0.1"}
+2025-03-01T09:47:59.410-0500    INFO    logger/logger.go:214    audit event     {"component": "Audit", "action": "create_profile", "actor": "admin@ellanetworks.com", "details": "User created profile: new-profile", "ip": "127.0.0.1"}
 ```
 
 ## Configuration

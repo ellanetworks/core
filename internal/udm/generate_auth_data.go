@@ -121,7 +121,7 @@ func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
-		logger.UdrLog.Warnln(err)
+		logger.UdmLog.Warnln(err)
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
 	authSubsData := convertDbAuthSubsDataToModel(subscriber.Opc, subscriber.PermanentKey, subscriber.SequenceNumber)

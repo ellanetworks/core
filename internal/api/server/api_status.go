@@ -21,7 +21,7 @@ func GetStatus(dbInstance *db.Database) gin.HandlerFunc {
 		numUsers, err := dbInstance.NumUsers()
 		if err != nil {
 			logger.APILog.Warnf("Failed to query number of users: %v", err)
-			writeError(c.Writer, http.StatusInternalServerError, "Unable to retrieve number of users")
+			writeError(c, http.StatusInternalServerError, "Unable to retrieve number of users")
 			return
 		}
 		var initialized bool
@@ -34,14 +34,11 @@ func GetStatus(dbInstance *db.Database) gin.HandlerFunc {
 			Version:     version.GetVersion(),
 			Initialized: initialized,
 		}
-		err = writeResponse(c.Writer, statusResponse, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, statusResponse, http.StatusOK)
 		logger.LogAuditEvent(
 			GetStatusAction,
 			"",
+			c.ClientIP(),
 			"Successfully retrieved status",
 		)
 	}
