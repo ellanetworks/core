@@ -119,10 +119,10 @@ type AmfUe struct {
 	Kseaf                             string                          `json:"kseaf,omitempty"`
 	Kamf                              string                          `json:"kamf,omitempty"`
 	/* context about PCF */
-	PolicyAssociationId          string                    `json:"policyAssociationId,omitempty"`
-	AmPolicyAssociation          *models.PolicyAssociation `json:"amPolicyAssociation,omitempty"`
-	RequestTriggerLocationChange bool                      `json:"requestTriggerLocationChange,omitempty"` // true if AmPolicyAssociation.Trigger contains RequestTrigger_LOC_CH
-	ConfigurationUpdateMessage   []byte                    `json:"configurationUpdateMessage,omitempty"`
+	PolicyAssociationId          string                        `json:"policyAssociationId,omitempty"`
+	AmPolicyAssociation          *coreModels.PolicyAssociation `json:"amPolicyAssociation,omitempty"`
+	RequestTriggerLocationChange bool                          `json:"requestTriggerLocationChange,omitempty"` // true if AmPolicyAssociation.Trigger contains RequestTrigger_LOC_CH
+	ConfigurationUpdateMessage   []byte                        `json:"configurationUpdateMessage,omitempty"`
 	/* UeContextForHandover*/
 	HandoverNotifyUri string `json:"handoverNotifyUri,omitempty"`
 	/* N1N2Message */
@@ -738,18 +738,18 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 
 	if len(ueContext.AmPolicyReqTriggerList) > 0 {
 		if ue.AmPolicyAssociation == nil {
-			ue.AmPolicyAssociation = new(models.PolicyAssociation)
+			ue.AmPolicyAssociation = new(coreModels.PolicyAssociation)
 		}
 		for _, trigger := range ueContext.AmPolicyReqTriggerList {
 			switch trigger {
 			case models.AmPolicyReqTrigger_LOCATION_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_LOC_CH)
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, coreModels.RequestTrigger_LOC_CH)
 			case models.AmPolicyReqTrigger_PRA_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_PRA_CH)
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, coreModels.RequestTrigger_PRA_CH)
 			case models.AmPolicyReqTrigger_SARI_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_SERV_AREA_CH)
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, coreModels.RequestTrigger_SERV_AREA_CH)
 			case models.AmPolicyReqTrigger_RFSP_INDEX_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_RFSP_CH)
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, coreModels.RequestTrigger_RFSP_CH)
 			}
 		}
 	}

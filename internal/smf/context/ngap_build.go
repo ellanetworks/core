@@ -9,11 +9,11 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
-	"github.com/omec-project/openapi/models"
 )
 
 const DefaultNonGBR5QI = 9
@@ -87,7 +87,7 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
 
 	// Get Qos Flows
-	var qosAddFlows map[string]*models.QosData
+	var qosAddFlows map[string]*coreModels.QosData
 
 	// Initialise QosFlows with existing Ctxt QosFlows, if any
 	if len(ctx.SmPolicyData.SmCtxtQosData.QosData) > 0 {
@@ -111,12 +111,12 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 		var qosFlowsList []ngapType.QosFlowSetupRequestItem
 		for _, qosFlow := range qosAddFlows {
 			arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
-			if qosFlow.Arp.PreemptCap == models.PreemptionCapability_NOT_PREEMPT {
+			if qosFlow.Arp.PreemptCap == coreModels.PreemptionCapability_NOT_PREEMPT {
 				arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
 			}
 
 			arpPreemptVul := ngapType.PreEmptionVulnerabilityPresentNotPreEmptable
-			if qosFlow.Arp.PreemptVuln == models.PreemptionVulnerability_PREEMPTABLE {
+			if qosFlow.Arp.PreemptVuln == coreModels.PreemptionVulnerability_PREEMPTABLE {
 				arpPreemptVul = ngapType.PreEmptionVulnerabilityPresentPreEmptable
 			}
 

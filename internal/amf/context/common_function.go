@@ -9,6 +9,7 @@ import (
 	"reflect"
 
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -43,7 +44,7 @@ func InTaiList(servedTai models.Tai, taiList []models.Tai) bool {
 	return false
 }
 
-func TacInAreas(targetTac string, areas []models.Area) bool {
+func TacInAreas(targetTac string, areas []coreModels.Area) bool {
 	for _, area := range areas {
 		for _, tac := range area.Tacs {
 			if targetTac == tac {

@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/openapi/models"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 func DeleteAMPolicy(polAssoId string) error {

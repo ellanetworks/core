@@ -6,7 +6,7 @@ package pcf
 
 import (
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/openapi/models"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 // GetSMPolicyDnnData returns SMPolicyDnnData derived from SmPolicy data which snssai and dnn match

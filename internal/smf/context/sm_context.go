@@ -376,20 +376,20 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 	}
 
 	smContext.EstAcceptCause5gSMValue = 0
-	switch nasConvert.PDUSessionTypeToModels(requestedPDUSessionType) {
-	case models.PduSessionType_IPV4:
+	switch util.PDUSessionTypeToModels(requestedPDUSessionType) {
+	case coreModels.PduSessionType_IPV4:
 		if allowIPv4 {
 			smContext.SelectedPDUSessionType = nasConvert.ModelsToPDUSessionType(models.PduSessionType_IPV4)
 		} else {
 			return fmt.Errorf("PduSessionType_IPV4 is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
-	case models.PduSessionType_IPV6:
+	case coreModels.PduSessionType_IPV6:
 		if allowIPv6 {
 			smContext.SelectedPDUSessionType = nasConvert.ModelsToPDUSessionType(models.PduSessionType_IPV6)
 		} else {
 			return fmt.Errorf("PduSessionType_IPV6 is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
-	case models.PduSessionType_IPV4_V6:
+	case coreModels.PduSessionType_IPV4_V6:
 		if allowIPv4 && allowIPv6 {
 			smContext.SelectedPDUSessionType = nasConvert.ModelsToPDUSessionType(models.PduSessionType_IPV4_V6)
 		} else if allowIPv4 {
@@ -401,7 +401,7 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 		} else {
 			return fmt.Errorf("PduSessionType_IPV4_V6 is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
-	case models.PduSessionType_ETHERNET:
+	case coreModels.PduSessionType_ETHERNET:
 		if allowEthernet {
 			smContext.SelectedPDUSessionType = nasConvert.ModelsToPDUSessionType(models.PduSessionType_ETHERNET)
 		} else {
@@ -416,7 +416,7 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 // SM Policy related operation
 
 // SelectedSessionRule - return the SMF selected session rule for this SM Context
-func (smContext *SMContext) SelectedSessionRule() *models.SessionRule {
+func (smContext *SMContext) SelectedSessionRule() *coreModels.SessionRule {
 	// Policy update in progress
 	if len(smContext.SmPolicyUpdates) > 0 {
 		return smContext.SmPolicyUpdates[0].SessRuleUpdate.ActiveSessRule

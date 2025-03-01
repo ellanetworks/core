@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/ellanetworks/core/internal/util/dnn"
@@ -350,7 +351,7 @@ func (dpNode *DataPathNode) CreatePccRuleQer(smContext *SMContext, qosData strin
 
 	// Get Flow Status
 	gateStatus := GateOpen
-	if tc != nil && tc.FlowStatus == models.FlowStatus_DISABLED {
+	if tc != nil && tc.FlowStatus == coreModels.FlowStatus_DISABLED {
 		gateStatus = GateClose
 	}
 

@@ -12,6 +12,7 @@ import (
 
 	amf_producer "github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/consumer"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
@@ -159,7 +160,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, send NF Discovery Serving PCF success")
 
 	// PCF Policy Association
-	var smPolicyDecision *models.SmPolicyDecision
+	var smPolicyDecision *coreModels.SmPolicyDecision
 	if smPolicyDecisionRsp, httpStatus, err := consumer.SendSMPolicyAssociationCreate(smContext); err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SMPolicyAssociationCreate error: ", err)
 		problemDetails := &models.ProblemDetails{

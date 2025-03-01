@@ -5,7 +5,7 @@
 package qos
 
 import (
-	"github.com/omec-project/openapi/models"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 // Handle Session Rule related info

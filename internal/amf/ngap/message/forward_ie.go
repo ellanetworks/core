@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	localConvert "github.com/ellanetworks/core/internal/amf/ngap/convert"
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
@@ -148,7 +149,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 				tacList = append(tacList, tacNgap)
 			}
 		}
-		if ue.AmPolicyAssociation.ServAreaRes.RestrictionType == models.RestrictionType_ALLOWED_AREAS {
+		if ue.AmPolicyAssociation.ServAreaRes.RestrictionType == coreModels.RestrictionType_ALLOWED_AREAS {
 			item.AllowedTACs = new(ngapType.AllowedTACs)
 			item.AllowedTACs.List = append(item.AllowedTACs.List, tacList...)
 		} else {

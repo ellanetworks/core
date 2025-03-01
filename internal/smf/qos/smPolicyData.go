@@ -4,7 +4,10 @@
 
 package qos
 
-import "github.com/omec-project/openapi/models"
+import (
+	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/omec-project/openapi/models"
+)
 
 // Define SMF Session-Rule/PccRule/Rule-Qos-Data
 type PolicyUpdate struct {
@@ -15,7 +18,7 @@ type PolicyUpdate struct {
 	CondDataUpdate *CondDataUpdate
 
 	// relevant SM Policy Decision from PCF
-	SmPolicyDecision *models.SmPolicyDecision
+	SmPolicyDecision *coreModels.SmPolicyDecision
 }
 
 type SmCtxtPolicyData struct {
@@ -30,21 +33,21 @@ type SmCtxtPolicyData struct {
 
 // maintain all session rule-info and current active sess rule
 type SmCtxtSessionRulesInfo struct {
-	ActiveRule     *models.SessionRule
-	SessionRules   map[string]*models.SessionRule
+	ActiveRule     *coreModels.SessionRule
+	SessionRules   map[string]*coreModels.SessionRule
 	ActiveRuleName string
 }
 
 type SmCtxtPccRulesInfo struct {
-	PccRules map[string]*models.PccRule
+	PccRules map[string]*coreModels.PccRule
 }
 
 type SmCtxtQosData struct {
-	QosData map[string]*models.QosData
+	QosData map[string]*coreModels.QosData
 }
 
 type SmCtxtTrafficControlData struct {
-	TrafficControlData map[string]*models.TrafficControlData
+	TrafficControlData map[string]*coreModels.TrafficControlData
 }
 
 type SmCtxtChargingData struct {
@@ -52,19 +55,19 @@ type SmCtxtChargingData struct {
 }
 
 type SmCtxtCondData struct {
-	CondData map[string]*models.ConditionData
+	CondData map[string]*coreModels.ConditionData
 }
 
 func (obj *SmCtxtPolicyData) Initialize() {
-	obj.SmCtxtSessionRules.SessionRules = make(map[string]*models.SessionRule)
-	obj.SmCtxtPccRules.PccRules = make(map[string]*models.PccRule)
-	obj.SmCtxtQosData.QosData = make(map[string]*models.QosData)
-	obj.SmCtxtCondData.CondData = make(map[string]*models.ConditionData)
+	obj.SmCtxtSessionRules.SessionRules = make(map[string]*coreModels.SessionRule)
+	obj.SmCtxtPccRules.PccRules = make(map[string]*coreModels.PccRule)
+	obj.SmCtxtQosData.QosData = make(map[string]*coreModels.QosData)
+	obj.SmCtxtCondData.CondData = make(map[string]*coreModels.ConditionData)
 	obj.SmCtxtChargingData.ChargingData = make(map[string]*models.ChargingData)
-	obj.SmCtxtTCData.TrafficControlData = make(map[string]*models.TrafficControlData)
+	obj.SmCtxtTCData.TrafficControlData = make(map[string]*coreModels.TrafficControlData)
 }
 
-func BuildSmPolicyUpdate(smCtxtPolData *SmCtxtPolicyData, smPolicyDecision *models.SmPolicyDecision) *PolicyUpdate {
+func BuildSmPolicyUpdate(smCtxtPolData *SmCtxtPolicyData, smPolicyDecision *coreModels.SmPolicyDecision) *PolicyUpdate {
 	update := &PolicyUpdate{}
 
 	// Keep copy of SmPolicyDecision received from PCF

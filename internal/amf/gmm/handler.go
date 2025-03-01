@@ -623,7 +623,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 	if anType == models.AccessType__3_GPP_ACCESS {
 		if ue.AmPolicyAssociation != nil && ue.AmPolicyAssociation.ServAreaRes != nil {
 			servAreaRes := ue.AmPolicyAssociation.ServAreaRes
-			if servAreaRes.RestrictionType == models.RestrictionType_ALLOWED_AREAS {
+			if servAreaRes.RestrictionType == coreModels.RestrictionType_ALLOWED_AREAS {
 				numOfallowedTAs := 0
 				for _, area := range servAreaRes.Areas {
 					numOfallowedTAs += len(area.Tacs)
@@ -726,9 +726,9 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		// determines that the UE is in non-allowed area or is not in allowed area
 		if ue.AmPolicyAssociation != nil && ue.AmPolicyAssociation.ServAreaRes != nil {
 			switch ue.AmPolicyAssociation.ServAreaRes.RestrictionType {
-			case models.RestrictionType_ALLOWED_AREAS:
+			case coreModels.RestrictionType_ALLOWED_AREAS:
 				allowReEstablishPduSession = context.TacInAreas(ue.Tai.Tac, ue.AmPolicyAssociation.ServAreaRes.Areas)
-			case models.RestrictionType_NOT_ALLOWED_AREAS:
+			case coreModels.RestrictionType_NOT_ALLOWED_AREAS:
 				allowReEstablishPduSession = !context.TacInAreas(ue.Tai.Tac, ue.AmPolicyAssociation.ServAreaRes.Areas)
 			}
 		}
@@ -906,8 +906,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 	}
 
 	if ue.LocationChanged && ue.RequestTriggerLocationChange {
-		updateReq := models.PolicyAssociationUpdateRequest{}
-		updateReq.Triggers = append(updateReq.Triggers, models.RequestTrigger_LOC_CH)
+		updateReq := coreModels.PolicyAssociationUpdateRequest{}
+		updateReq.Triggers = append(updateReq.Triggers, coreModels.RequestTrigger_LOC_CH)
 		updateReq.UserLoc = &ue.Location
 		err := consumer.AMPolicyControlUpdate(ue, updateReq)
 		if err != nil {
@@ -1669,9 +1669,9 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 			if ue.AmPolicyAssociation != nil && ue.AmPolicyAssociation.ServAreaRes != nil {
 				var accept bool
 				switch ue.AmPolicyAssociation.ServAreaRes.RestrictionType {
-				case models.RestrictionType_ALLOWED_AREAS:
+				case coreModels.RestrictionType_ALLOWED_AREAS:
 					accept = context.TacInAreas(ue.Tai.Tac, ue.AmPolicyAssociation.ServAreaRes.Areas)
-				case models.RestrictionType_NOT_ALLOWED_AREAS:
+				case coreModels.RestrictionType_NOT_ALLOWED_AREAS:
 					accept = !context.TacInAreas(ue.Tai.Tac, ue.AmPolicyAssociation.ServAreaRes.Areas)
 				}
 

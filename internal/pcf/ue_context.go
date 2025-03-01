@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -30,13 +31,13 @@ type UeContext struct {
 
 type UeAMPolicyData struct {
 	PolAssoId         string
-	AccessType        models.AccessType
+	AccessType        coreModels.AccessType
 	NotificationUri   string
-	ServingPlmn       *models.NetworkId
+	ServingPlmn       *coreModels.NetworkId
 	AltNotifIpv4Addrs []string
 	AltNotifIpv6Addrs []string
 	AmfStatusUri      string
-	Guami             *models.Guami
+	Guami             *coreModels.Guami
 	ServiveName       string
 	// TraceReq *TraceData
 	// about AF request
@@ -45,10 +46,10 @@ type UeAMPolicyData struct {
 	// Corresponding UE
 	PcfUe *UeContext
 	// Policy Association
-	ServAreaRes *models.ServiceAreaRestriction
-	UserLoc     *models.UserLocation
+	ServAreaRes *coreModels.ServiceAreaRestriction
+	UserLoc     *coreModels.UserLocation
 	TimeZone    string
-	Triggers    []models.RequestTrigger
+	Triggers    []coreModels.RequestTrigger
 	Rfsp        int32
 }
 
@@ -56,13 +57,13 @@ type UeSmPolicyData struct {
 	PackFiltMapToPccRuleId map[string]string // use PackFiltId as Key
 	RemainGbrUL            *float64
 	RemainGbrDL            *float64
-	SmPolicyData           *models.SmPolicyData // Svbscription Data
-	PolicyContext          *models.SmPolicyContextData
+	SmPolicyData           *coreModels.SmPolicyData // Svbscription Data
+	PolicyContext          *coreModels.SmPolicyContextData
 	AppSessions            map[string]bool // related appSessionId
 	PcfUe                  *UeContext
 }
 
-func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociationRequest) *UeAMPolicyData {
+func (ue *UeContext) NewUeAMPolicyData(assolId string, req coreModels.PolicyAssociationRequest) *UeAMPolicyData {
 	ue.Gpsi = req.Gpsi
 	ue.Pei = req.Pei
 	ue.GroupIds = req.GroupIds
@@ -87,7 +88,7 @@ func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociat
 
 // returns UeSmPolicyData and insert related info to Ue with smPolId
 func (ue *UeContext) NewUeSmPolicyData(
-	key string, request models.SmPolicyContextData, smData *models.SmPolicyData,
+	key string, request coreModels.SmPolicyContextData, smData *coreModels.SmPolicyData,
 ) *UeSmPolicyData {
 	if smData == nil {
 		return nil
@@ -103,7 +104,7 @@ func (ue *UeContext) NewUeSmPolicyData(
 }
 
 // returns AM Policy which AccessType and plmnId match
-func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
+func (ue *UeContext) FindAMPolicy(anType coreModels.AccessType, plmnId *coreModels.NetworkId) *UeAMPolicyData {
 	if ue == nil || plmnId == nil {
 		return nil
 	}

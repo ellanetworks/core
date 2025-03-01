@@ -13,6 +13,7 @@ import (
 
 	amf_context "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/Namf_Communication"
 	"github.com/omec-project/openapi/models"
@@ -66,16 +67,16 @@ func BuildUeContextModel(ue *amf_context.AmfUe) (ueContext models.UeContext) {
 	return ueContext
 }
 
-func buildAmPolicyReqTriggers(triggers []models.RequestTrigger) (amPolicyReqTriggers []models.AmPolicyReqTrigger) {
+func buildAmPolicyReqTriggers(triggers []coreModels.RequestTrigger) (amPolicyReqTriggers []models.AmPolicyReqTrigger) {
 	for _, trigger := range triggers {
 		switch trigger {
-		case models.RequestTrigger_LOC_CH:
+		case coreModels.RequestTrigger_LOC_CH:
 			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTrigger_LOCATION_CHANGE)
-		case models.RequestTrigger_PRA_CH:
+		case coreModels.RequestTrigger_PRA_CH:
 			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTrigger_PRA_CHANGE)
-		case models.RequestTrigger_SERV_AREA_CH:
+		case coreModels.RequestTrigger_SERV_AREA_CH:
 			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTrigger_SARI_CHANGE)
-		case models.RequestTrigger_RFSP_CH:
+		case coreModels.RequestTrigger_RFSP_CH:
 			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTrigger_RFSP_INDEX_CHANGE)
 		}
 	}

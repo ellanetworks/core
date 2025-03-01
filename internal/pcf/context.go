@@ -15,8 +15,8 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
-	"github.com/omec-project/openapi/models"
 )
 
 var pcfCtx *PCFContext
@@ -29,13 +29,13 @@ type PCFContext struct {
 }
 
 type SessionPolicy struct {
-	SessionRules map[string]*models.SessionRule
+	SessionRules map[string]*coreModels.SessionRule
 }
 
 type PccPolicy struct {
-	PccRules      map[string]*models.PccRule
-	QosDecs       map[string]*models.QosData
-	TraffContDecs map[string]*models.TrafficControlData
+	PccRules      map[string]*coreModels.PccRule
+	QosDecs       map[string]*coreModels.QosData
+	TraffContDecs map[string]*coreModels.TrafficControlData
 	SessionPolicy map[string]*SessionPolicy // dnn is key
 }
 
@@ -93,15 +93,15 @@ func GetSubscriberPolicy(imsi string) *PcfSubscriberPolicyData {
 	if _, exists := subscriberPolicies.PccPolicy[pccPolicyId]; !exists {
 		subscriberPolicies.PccPolicy[pccPolicyId] = &PccPolicy{
 			SessionPolicy: make(map[string]*SessionPolicy),
-			PccRules:      make(map[string]*models.PccRule),
-			QosDecs:       make(map[string]*models.QosData),
-			TraffContDecs: make(map[string]*models.TrafficControlData),
+			PccRules:      make(map[string]*coreModels.PccRule),
+			QosDecs:       make(map[string]*coreModels.QosData),
+			TraffContDecs: make(map[string]*coreModels.TrafficControlData),
 		}
 	}
 
 	if _, exists := subscriberPolicies.PccPolicy[pccPolicyId].SessionPolicy[config.DNN]; !exists {
 		subscriberPolicies.PccPolicy[pccPolicyId].SessionPolicy[config.DNN] = &SessionPolicy{
-			SessionRules: make(map[string]*models.SessionRule),
+			SessionRules: make(map[string]*coreModels.SessionRule),
 		}
 	}
 
@@ -110,24 +110,24 @@ func GetSubscriberPolicy(imsi string) *PcfSubscriberPolicyData {
 	sessionRuleId, _ := pcfCtx.SessionRuleIDGenerator.Allocate()
 
 	// Create QoS data
-	qosData := &models.QosData{
+	qosData := &coreModels.QosData{
 		QosId:                strconv.FormatInt(qosId, 10),
 		Var5qi:               profile.Var5qi,
 		MaxbrUl:              profile.BitrateUplink,
 		MaxbrDl:              profile.BitrateDownlink,
-		Arp:                  &models.Arp{PriorityLevel: profile.PriorityLevel},
+		Arp:                  &coreModels.Arp{PriorityLevel: profile.PriorityLevel},
 		DefQosFlowIndication: true,
 	}
 	subscriberPolicies.PccPolicy[pccPolicyId].QosDecs[qosData.QosId] = qosData
 
 	// Add session rule
-	subscriberPolicies.PccPolicy[pccPolicyId].SessionPolicy[config.DNN].SessionRules[strconv.FormatInt(sessionRuleId, 10)] = &models.SessionRule{
+	subscriberPolicies.PccPolicy[pccPolicyId].SessionPolicy[config.DNN].SessionRules[strconv.FormatInt(sessionRuleId, 10)] = &coreModels.SessionRule{
 		SessRuleId: strconv.FormatInt(sessionRuleId, 10),
-		AuthDefQos: &models.AuthorizedDefaultQos{
+		AuthDefQos: &coreModels.AuthorizedDefaultQos{
 			Var5qi: qosData.Var5qi,
 			Arp:    qosData.Arp,
 		},
-		AuthSessAmbr: &models.Ambr{
+		AuthSessAmbr: &coreModels.Ambr{
 			Uplink:   profile.BitrateUplink,
 			Downlink: profile.BitrateDownlink,
 		},
