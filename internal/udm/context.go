@@ -48,7 +48,7 @@ func (context *UDMContext) ManageSmData(smDatafromUDR []coreModels.SessionManage
 }
 
 // functions related UecontextInSmfData
-func (context *UDMContext) CreateUeContextInSmfDataforUe(supi string, body models.UeContextInSmfData) {
+func (context *UDMContext) CreateUeContextInSmfDataforUe(supi string, body coreModels.UeContextInSmfData) {
 	ue, ok := context.UdmUeFindBySupi(supi)
 	if !ok {
 		ue = context.NewUdmUe(supi)

@@ -10,6 +10,7 @@ package context
 import (
 	"sync"
 
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi/models"
 )
@@ -25,7 +26,7 @@ type SmContext struct {
 	AccessTypeVal   models.AccessType
 	NsInstanceVal   string
 	UserLocationVal models.UserLocation
-	PlmnIDVal       models.PlmnId
+	PlmnIDVal       coreModels.PlmnId
 
 	// SMF information
 	SmfIDVal string
@@ -143,13 +144,7 @@ func (c *SmContext) SetUserLocation(userLocation models.UserLocation) {
 	c.UserLocationVal = userLocation
 }
 
-func (c *SmContext) PlmnID() models.PlmnId {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
-	return c.PlmnIDVal
-}
-
-func (c *SmContext) SetPlmnID(plmnID models.PlmnId) {
+func (c *SmContext) SetPlmnID(plmnID coreModels.PlmnId) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.PlmnIDVal = plmnID

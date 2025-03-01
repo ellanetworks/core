@@ -20,7 +20,7 @@ type UdmUeContext struct {
 	Amf3GppAccessRegistration         *coreModels.Amf3GppAccessRegistration
 	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData
 	SmfSelSubsData                    *models.SmfSelectionSubscriptionData
-	UeCtxtInSmfData                   *models.UeContextInSmfData
+	UeCtxtInSmfData                   *coreModels.UeContextInSmfData
 	SessionManagementSubsData         map[string]coreModels.SessionManagementSubscriptionData
 	SubscribeToNotifChange            map[string]*models.SdmSubscription
 	SubscribeToNotifSharedDataChange  *models.SdmSubscription

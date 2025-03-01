@@ -216,23 +216,23 @@ func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string) er
 	return nil
 }
 
-func GetUeContextInSmfData(supi string) (*models.UeContextInSmfData, error) {
-	var body models.UeContextInSmfData
+func GetUeContextInSmfData(supi string) (*coreModels.UeContextInSmfData, error) {
+	var body coreModels.UeContextInSmfData
 	udmContext.CreateUeContextInSmfDataforUe(supi, body)
-	pdusess := []*models.SmfRegistration{}
-	pduSessionMap := make(map[string]models.PduSession)
+	pdusess := []*coreModels.SmfRegistration{}
+	pduSessionMap := make(map[string]coreModels.PduSession)
 	for _, element := range pdusess {
-		var pduSession models.PduSession
+		var pduSession coreModels.PduSession
 		pduSession.Dnn = element.Dnn
 		pduSession.SmfInstanceId = element.SmfInstanceId
 		pduSession.PlmnId = element.PlmnId
 		pduSessionMap[strconv.Itoa(int(element.PduSessionId))] = pduSession
 	}
-	var ueContextInSmfData models.UeContextInSmfData
+	var ueContextInSmfData coreModels.UeContextInSmfData
 	ueContextInSmfData.PduSessions = pduSessionMap
-	var pgwInfoArray []models.PgwInfo
+	var pgwInfoArray []coreModels.PgwInfo
 	for _, element := range pdusess {
-		var pgwInfo models.PgwInfo
+		var pgwInfo coreModels.PgwInfo
 		pgwInfo.Dnn = element.Dnn
 		pgwInfo.PgwFqdn = element.PgwFqdn
 		pgwInfo.PlmnId = element.PlmnId

@@ -104,7 +104,7 @@ type AmfUe struct {
 	Reachability                      models.UeReachability                     `json:"reachability,omitempty"`
 	SubscribedData                    models.SubscribedData                     `json:"subscribedData,omitempty"`
 	SmfSelectionData                  *models.SmfSelectionSubscriptionData      `json:"smfSelectionData,omitempty"`
-	UeContextInSmfData                *models.UeContextInSmfData                `json:"ueContextInSmfData,omitempty"`
+	UeContextInSmfData                *coreModels.UeContextInSmfData            `json:"ueContextInSmfData,omitempty"`
 	TraceData                         *models.TraceData                         `json:"traceData,omitempty"`
 	UdmGroupId                        string                                    `json:"udmGroupId,omitempty"`
 	SubscribedNssai                   []models.SubscribedSnssai                 `json:"subscribeNssai,omitempty"`
