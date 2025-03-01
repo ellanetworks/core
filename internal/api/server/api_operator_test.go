@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -308,7 +310,7 @@ func updateOperatorCode(url string, client *http.Client, token string, data *Upd
 func TestApiOperatorEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -531,7 +533,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 func TestUpdateOperatorSliceInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -597,7 +599,7 @@ func TestUpdateOperatorSliceInvalidInput(t *testing.T) {
 func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -647,7 +649,7 @@ func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
 func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -726,7 +728,7 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 func TestUpdateOperatorCodeInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

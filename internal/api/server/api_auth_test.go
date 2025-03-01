@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
 )
 
@@ -87,7 +88,7 @@ func lookupToken(url string, client *http.Client, token string) (int, *LoookupTo
 func TestLoginEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, jwtSecret, err := setupServer(db_path)
+	ts, jwtSecret, err := setupServer(db_path, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -216,7 +217,7 @@ func TestLoginEndToEnd(t *testing.T) {
 func TestRolesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -371,7 +372,7 @@ func TestRolesEndToEnd(t *testing.T) {
 func TestLookupToken(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath)
+	ts, _, err := setupServer(dbPath, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

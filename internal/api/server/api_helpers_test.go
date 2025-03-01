@@ -48,14 +48,14 @@ func (fk FakeKernel) IsIPForwardingEnabled() (bool, error) {
 	return true, nil
 }
 
-func setupServer(filepath string) (*httptest.Server, []byte, error) {
+func setupServer(filepath string, mode string) (*httptest.Server, []byte, error) {
 	testdb, err := db.NewDatabase(filepath, initialOperator)
 	if err != nil {
 		return nil, nil, err
 	}
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret))
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret, mode))
 	return ts, jwtSecret, nil
 }
 

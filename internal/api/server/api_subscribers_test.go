@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -161,7 +163,7 @@ func deleteSubscriber(url string, client *http.Client, token string, imsi string
 func TestSubscribersApiEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -306,7 +308,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 func TestCreateSubscriberInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path)
+	ts, _, err := setupServer(db_path, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
