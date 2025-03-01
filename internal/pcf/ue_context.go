@@ -11,33 +11,29 @@ import (
 	"strconv"
 	"strings"
 
-	coreModels "github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/openapi/models"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 type UeContext struct {
-	SmPolicyData                map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionId) as key
-	AfRoutReq                   *models.AfRoutingRequirement
-	AspId                       string
-	PolicyDataSubscriptionStore *models.PolicyDataSubscription
-	PolicyDataChangeStore       *models.PolicyDataChangeNotification
-	Supi                        string
-	Gpsi                        string
-	Pei                         string
-	AMPolicyData                map[string]*UeAMPolicyData // use PolAssoId(ue.Supi-numPolId) as key
-	GroupIds                    []string
-	PolAssociationIDGenerator   uint32
+	SmPolicyData              map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionId) as key
+	AspId                     string
+	Supi                      string
+	Gpsi                      string
+	Pei                       string
+	AMPolicyData              map[string]*UeAMPolicyData // use PolAssoId(ue.Supi-numPolId) as key
+	GroupIds                  []string
+	PolAssociationIDGenerator uint32
 }
 
 type UeAMPolicyData struct {
 	PolAssoId         string
-	AccessType        coreModels.AccessType
+	AccessType        models.AccessType
 	NotificationUri   string
-	ServingPlmn       *coreModels.NetworkId
+	ServingPlmn       *models.NetworkId
 	AltNotifIpv4Addrs []string
 	AltNotifIpv6Addrs []string
 	AmfStatusUri      string
-	Guami             *coreModels.Guami
+	Guami             *models.Guami
 	ServiveName       string
 	// TraceReq *TraceData
 	// about AF request
@@ -46,10 +42,10 @@ type UeAMPolicyData struct {
 	// Corresponding UE
 	PcfUe *UeContext
 	// Policy Association
-	ServAreaRes *coreModels.ServiceAreaRestriction
-	UserLoc     *coreModels.UserLocation
+	ServAreaRes *models.ServiceAreaRestriction
+	UserLoc     *models.UserLocation
 	TimeZone    string
-	Triggers    []coreModels.RequestTrigger
+	Triggers    []models.RequestTrigger
 	Rfsp        int32
 }
 
@@ -57,13 +53,13 @@ type UeSmPolicyData struct {
 	PackFiltMapToPccRuleId map[string]string // use PackFiltId as Key
 	RemainGbrUL            *float64
 	RemainGbrDL            *float64
-	SmPolicyData           *coreModels.SmPolicyData // Svbscription Data
-	PolicyContext          *coreModels.SmPolicyContextData
+	SmPolicyData           *models.SmPolicyData // Svbscription Data
+	PolicyContext          *models.SmPolicyContextData
 	AppSessions            map[string]bool // related appSessionId
 	PcfUe                  *UeContext
 }
 
-func (ue *UeContext) NewUeAMPolicyData(assolId string, req coreModels.PolicyAssociationRequest) *UeAMPolicyData {
+func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociationRequest) *UeAMPolicyData {
 	ue.Gpsi = req.Gpsi
 	ue.Pei = req.Pei
 	ue.GroupIds = req.GroupIds
@@ -88,7 +84,7 @@ func (ue *UeContext) NewUeAMPolicyData(assolId string, req coreModels.PolicyAsso
 
 // returns UeSmPolicyData and insert related info to Ue with smPolId
 func (ue *UeContext) NewUeSmPolicyData(
-	key string, request coreModels.SmPolicyContextData, smData *coreModels.SmPolicyData,
+	key string, request models.SmPolicyContextData, smData *models.SmPolicyData,
 ) *UeSmPolicyData {
 	if smData == nil {
 		return nil
@@ -104,7 +100,7 @@ func (ue *UeContext) NewUeSmPolicyData(
 }
 
 // returns AM Policy which AccessType and plmnId match
-func (ue *UeContext) FindAMPolicy(anType coreModels.AccessType, plmnId *coreModels.NetworkId) *UeAMPolicyData {
+func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
 	if ue == nil || plmnId == nil {
 		return nil
 	}
