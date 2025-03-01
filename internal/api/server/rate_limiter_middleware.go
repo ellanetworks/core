@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	RequestsPerSecond = 5
+	RequestsPerSecond = 1
 	Burst             = 5
 )
 
