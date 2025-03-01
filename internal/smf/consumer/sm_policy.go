@@ -31,8 +31,17 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 	smPolicyData.AccessType = smContext.AnType
 	smPolicyData.RatType = smContext.RatType
 	smPolicyData.Ipv4Address = smContext.PDUAddress.Ip.To4().String()
-	smPolicyData.SubsSessAmbr = smContext.DnnConfiguration.SessionAmbr
-	smPolicyData.SubsDefQos = smContext.DnnConfiguration.Var5gQosProfile
+	smPolicyData.SubsSessAmbr = &models.Ambr{
+		Uplink:   smContext.DnnConfiguration.SessionAmbr.Uplink,
+		Downlink: smContext.DnnConfiguration.SessionAmbr.Downlink,
+	}
+	smPolicyData.SubsDefQos = &models.SubscribedDefaultQos{
+		Arp: &models.Arp{
+			PriorityLevel: smContext.DnnConfiguration.Var5gQosProfile.Arp.PriorityLevel,
+			PreemptCap:    models.PreemptionCapability(smContext.DnnConfiguration.Var5gQosProfile.Arp.PreemptCap),
+			PreemptVuln:   models.PreemptionVulnerability(smContext.DnnConfiguration.Var5gQosProfile.Arp.PreemptVuln),
+		},
+	}
 	smPolicyData.SliceInfo = smContext.Snssai
 	smPolicyData.ServingNetwork = &models.NetworkId{
 		Mcc: smContext.ServingNetwork.Mcc,

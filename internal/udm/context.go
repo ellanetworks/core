@@ -32,11 +32,11 @@ type UDMContext struct {
 	UESubsCollection           sync.Map // map[ueId]*UESubsData
 }
 
-func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData, snssaiFromReq string,
-	dnnFromReq string) (mp map[string]models.SessionManagementSubscriptionData,
+func (context *UDMContext) ManageSmData(smDatafromUDR []coreModels.SessionManagementSubscriptionData, snssaiFromReq string,
+	dnnFromReq string) (mp map[string]coreModels.SessionManagementSubscriptionData,
 ) {
-	smDataMap := make(map[string]models.SessionManagementSubscriptionData)
-	AllDnns := make([]map[string]models.DnnConfiguration, len(smDatafromUDR))
+	smDataMap := make(map[string]coreModels.SessionManagementSubscriptionData)
+	AllDnns := make([]map[string]coreModels.DnnConfiguration, len(smDatafromUDR))
 
 	for idx, smSubscriptionData := range smDatafromUDR {
 		singleNssaiStr := openapi.MarshToJsonString(smSubscriptionData.SingleNssai)[0]

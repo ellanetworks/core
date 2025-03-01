@@ -21,7 +21,7 @@ type UdmUeContext struct {
 	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData
 	SmfSelSubsData                    *models.SmfSelectionSubscriptionData
 	UeCtxtInSmfData                   *models.UeContextInSmfData
-	SessionManagementSubsData         map[string]models.SessionManagementSubscriptionData
+	SessionManagementSubsData         map[string]coreModels.SessionManagementSubscriptionData
 	SubscribeToNotifChange            map[string]*models.SdmSubscription
 	SubscribeToNotifSharedDataChange  *models.SdmSubscription
 	PduSessionID                      string
@@ -49,7 +49,7 @@ func (udmUeContext *UdmUeContext) SetSmfSelectionSubsData(smfSelSubsData *models
 }
 
 // SetSMSubsData ... functions to set SessionManagementSubsData
-func (udmUeContext *UdmUeContext) SetSMSubsData(smSubsData map[string]models.SessionManagementSubscriptionData) {
+func (udmUeContext *UdmUeContext) SetSMSubsData(smSubsData map[string]coreModels.SessionManagementSubscriptionData) {
 	udmUeContext.SmSubsDataLock.Lock()
 	defer udmUeContext.SmSubsDataLock.Unlock()
 	udmUeContext.SessionManagementSubsData = smSubsData
