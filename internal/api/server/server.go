@@ -2,12 +2,9 @@ package server
 
 import (
 	"io/fs"
-	"net"
 	"net/http"
-	"net/http/httputil"
-	"os"
-	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
@@ -19,9 +16,11 @@ import (
 
 func ginToZap(logger *zap.SugaredLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		path := c.Request.URL.Path
+		// Record start time
+		startTime := time.Now()
 
 		// Skip logging for static files and other unwanted paths
+		path := c.Request.URL.Path
 		if strings.HasPrefix(path, "/_next/static") ||
 			strings.HasPrefix(path, "/favicon.ico") ||
 			strings.HasPrefix(path, "/assets/") ||
@@ -31,76 +30,31 @@ func ginToZap(logger *zap.SugaredLogger) gin.HandlerFunc {
 		}
 
 		raw := c.Request.URL.RawQuery
-
 		c.Next()
 
-		clientIP := c.ClientIP()
+		latency := time.Since(startTime)
 		method := c.Request.Method
 		statusCode := c.Writer.Status()
-		errorMessage := c.Errors.ByType(gin.ErrorTypePrivate).String()
+		errorMessage := c.Errors.String()
 
 		if raw != "" {
 			path = path + "?" + raw
 		}
 
-		logger.Infof("| %3d | %15s | %-7s | %s | %s",
-			statusCode, clientIP, method, path, errorMessage)
-	}
-}
-
-func ginRecover(logger *zap.SugaredLogger) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		defer func() {
-			if p := recover(); p != nil {
-				var brokenPipe bool
-				if ne, ok := p.(*net.OpError); ok {
-					if se, ok := ne.Err.(*os.SyscallError); ok {
-						if strings.Contains(strings.ToLower(se.Error()), "broken pipe") ||
-							strings.Contains(strings.ToLower(se.Error()), "connection reset by peer") {
-							brokenPipe = true
-						}
-					}
-				}
-
-				if logger != nil {
-					stack := string(debug.Stack())
-					if httpRequest, err := httputil.DumpRequest(c.Request, false); err != nil {
-						logger.Errorf("dump http request error: %v", err)
-					} else {
-						headers := strings.Split(string(httpRequest), "\r\n")
-						for idx, header := range headers {
-							current := strings.Split(header, ":")
-							if current[0] == "Authorization" {
-								headers[idx] = current[0] + ": *"
-							}
-						}
-
-						if brokenPipe {
-							logger.Errorf("%v\n%s", p, string(httpRequest))
-						} else if gin.IsDebugging() {
-							logger.Errorf("[Debugging] panic:\n%s\n%v\n%s", strings.Join(headers, "\r"), p, stack)
-						} else {
-							logger.Errorf("panic: %v\n%s", p, stack)
-						}
-					}
-				}
-
-				if brokenPipe {
-					c.Error(p.(error)) // nolint: errcheck
-					c.Abort()
-				} else {
-					c.AbortWithStatus(http.StatusInternalServerError)
-				}
-			}
-		}()
-		c.Next()
+		logger.Infow("handled API request",
+			"status", statusCode,
+			"latency", latency,
+			"method", method,
+			"path", path,
+			"error", errorMessage,
+		)
 	}
 }
 
 func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, mode string) http.Handler {
 	gin.SetMode(mode)
 	router := gin.New()
-	router.Use(ginToZap(logger.APILog), ginRecover(logger.APILog))
+	router.Use(ginToZap(logger.APILog))
 	AddUiService(router)
 
 	apiGroup := router.Group("/api/v1")

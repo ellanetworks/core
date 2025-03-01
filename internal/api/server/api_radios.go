@@ -88,14 +88,11 @@ func ListRadios() gin.HandlerFunc {
 			radios = append(radios, newRadio)
 		}
 
-		err := writeResponse(c.Writer, radios, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, radios, http.StatusOK)
 		logger.LogAuditEvent(
 			ListRadiosAction,
 			email,
+			c.ClientIP(),
 			"User listed radios",
 		)
 	}
@@ -111,7 +108,7 @@ func GetRadio() gin.HandlerFunc {
 		}
 		radioName, exists := c.Params.Get("name")
 		if !exists {
-			writeError(c.Writer, http.StatusBadRequest, "Missing name parameter")
+			writeError(c, http.StatusBadRequest, "Missing name parameter")
 			return
 		}
 		ranList := context.ListAmfRan()
@@ -129,14 +126,11 @@ func GetRadio() gin.HandlerFunc {
 			}
 		}
 
-		err := writeResponse(c.Writer, returnRadio, http.StatusOK)
-		if err != nil {
-			writeError(c.Writer, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(c, returnRadio, http.StatusOK)
 		logger.LogAuditEvent(
 			GetRadioAction,
 			email,
+			c.ClientIP(),
 			"User retrieved radio: "+radioName,
 		)
 	}

@@ -19,11 +19,9 @@ var (
 	AmfLog      *zap.SugaredLogger
 	AusfLog     *zap.SugaredLogger
 	APILog      *zap.SugaredLogger
-	NssfLog     *zap.SugaredLogger
 	PcfLog      *zap.SugaredLogger
 	SmfLog      *zap.SugaredLogger
 	UdmLog      *zap.SugaredLogger
-	UdrLog      *zap.SugaredLogger
 	UpfLog      *zap.SugaredLogger
 	atomicLevel zap.AtomicLevel
 )
@@ -75,11 +73,9 @@ func init() {
 	AmfLog = log.Sugar().With("component", "AMF")
 	AusfLog = log.Sugar().With("component", "AUSF")
 	APILog = log.Sugar().With("component", "API")
-	NssfLog = log.Sugar().With("component", "NSSF")
 	PcfLog = log.Sugar().With("component", "PCF")
 	SmfLog = log.Sugar().With("component", "SMF")
 	UdmLog = log.Sugar().With("component", "UDM")
-	UdrLog = log.Sugar().With("component", "UDR")
 	UpfLog = log.Sugar().With("component", "UPF")
 	// Audit logger initially writes to stdout as well.
 	AuditLog = log.Sugar().With("component", "Audit")
@@ -135,11 +131,9 @@ func ConfigureLogging(systemLevel string, systemOutput string, systemFilePath st
 	AmfLog = log.Sugar().With("component", "AMF")
 	AusfLog = log.Sugar().With("component", "AUSF")
 	APILog = log.Sugar().With("component", "API")
-	NssfLog = log.Sugar().With("component", "NSSF")
 	PcfLog = log.Sugar().With("component", "PCF")
 	SmfLog = log.Sugar().With("component", "SMF")
 	UdmLog = log.Sugar().With("component", "UDM")
-	UdrLog = log.Sugar().With("component", "UDR")
 	UpfLog = log.Sugar().With("component", "UPF")
 
 	// Determine output paths for audit logs.
@@ -210,11 +204,12 @@ func CapitalColorLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder
 }
 
 // LogAuditEvent logs an audit event to the audit logger.
-func LogAuditEvent(action string, actor string, details string) {
+func LogAuditEvent(action string, actor string, ip string, details string) {
 	fields := []interface{}{
 		"action", action,
 		"actor", actor,
 		"details", details,
+		"ip", ip,
 	}
 	AuditLog.Infow("audit event", fields...)
 }

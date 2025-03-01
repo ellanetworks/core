@@ -60,7 +60,7 @@ func RateLimitMiddleware() gin.HandlerFunc {
 		ip := c.ClientIP()
 		limiter := getVisitor(ip)
 		if !limiter.Allow() {
-			writeError(c.Writer, http.StatusTooManyRequests, "Too many requests")
+			writeError(c, http.StatusTooManyRequests, "Too many requests")
 			c.Abort()
 			return
 		}
