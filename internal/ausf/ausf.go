@@ -5,8 +5,6 @@ package ausf
 import (
 	"fmt"
 	"regexp"
-
-	"github.com/google/uuid"
 )
 
 func Start() error {
@@ -16,6 +14,5 @@ func Start() error {
 	}
 	ausfContext.snRegex = snRegex
 
-	ausfContext.NfId = uuid.New().String()
 	return nil
 }

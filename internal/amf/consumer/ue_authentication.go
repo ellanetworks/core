@@ -14,13 +14,14 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasType"
 	"github.com/omec-project/openapi/models"
 )
 
 func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
-	resynchronizationInfo *models.ResynchronizationInfo,
-) (*models.UeAuthenticationCtx, *models.ProblemDetails, error) {
+	resynchronizationInfo *coreModels.ResynchronizationInfo,
+) (*coreModels.UeAuthenticationCtx, *models.ProblemDetails, error) {
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 	var plmnId *models.PlmnId
@@ -31,7 +32,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 		plmnId = servedGuami.PlmnId
 	}
 
-	var authInfo models.AuthenticationInfo
+	var authInfo coreModels.AuthenticationInfo
 	authInfo.SupiOrSuci = ue.Suci
 	if mnc, err := strconv.Atoi(plmnId.Mnc); err != nil {
 		return nil, nil, err
@@ -72,8 +73,6 @@ func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string) (
 func SendEapAuthConfirmRequest(ue *context.AmfUe, eapMsg nasType.EAPMessage) (
 	*models.EapSession, *models.ProblemDetails, error,
 ) {
-	logger.AmfLog.Warnf("SendEapAuthConfirmRequest")
-
 	eapSession := models.EapSession{
 		EapPayload: base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage()),
 	}

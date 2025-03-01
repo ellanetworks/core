@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/google/gopacket"
@@ -31,9 +32,9 @@ func GenerateRandomNumber() (uint8, error) {
 	return uint8(randomNumber.Int64()), nil
 }
 
-func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (*models.UeAuthenticationCtx, error) {
-	var responseBody models.UeAuthenticationCtx
-	var authInfoReq models.AuthenticationInfoRequest
+func UeAuthPostRequestProcedure(updateAuthenticationInfo coreModels.AuthenticationInfo) (*coreModels.UeAuthenticationCtx, error) {
+	var responseBody coreModels.UeAuthenticationCtx
+	var authInfoReq coreModels.AuthenticationInfoRequest
 
 	supiOrSuci := updateAuthenticationInfo.SupiOrSuci
 
@@ -46,9 +47,6 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 
 	responseBody.ServingNetworkName = snName
 	authInfoReq.ServingNetworkName = snName
-	self := GetSelf()
-	authInfoReq.AusfInstanceId = self.GetSelfID()
-
 	if updateAuthenticationInfo.ResynchronizationInfo != nil {
 		ausfCurrentSupi := GetSupiFromSuciSupiMap(supiOrSuci)
 		ausfCurrentContext := GetAusfUeContext(ausfCurrentSupi)
@@ -64,13 +62,13 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	ueid := authInfoResult.Supi
 	ausfUeContext := NewAusfUeContext(ueid)
 	ausfUeContext.ServingNetworkName = snName
-	ausfUeContext.AuthStatus = models.AuthResult_ONGOING
+	ausfUeContext.AuthStatus = coreModels.AuthResult_ONGOING
 	AddAusfUeContextToPool(ausfUeContext)
 
 	logger.AusfLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)
 	AddSuciSupiPairToMap(supiOrSuci, ueid)
 
-	if authInfoResult.AuthType == models.AuthType__5_G_AKA {
+	if authInfoResult.AuthType == coreModels.AuthType__5_G_AKA {
 		logger.AusfLog.Infoln("Use 5G AKA auth method")
 
 		// Derive HXRES* from XRES*
@@ -102,13 +100,13 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		ausfUeContext.Kseaf = hex.EncodeToString(Kseaf)
 		ausfUeContext.Rand = authInfoResult.AuthenticationVector.Rand
 
-		var av5gAka models.Av5gAka
+		var av5gAka coreModels.Av5gAka
 		av5gAka.Rand = authInfoResult.AuthenticationVector.Rand
 		av5gAka.Autn = authInfoResult.AuthenticationVector.Autn
 		av5gAka.HxresStar = hxresStar
 
 		responseBody.Var5gAuthData = av5gAka
-	} else if authInfoResult.AuthType == models.AuthType_EAP_AKA_PRIME {
+	} else if authInfoResult.AuthType == coreModels.AuthType_EAP_AKA_PRIME {
 		logger.AusfLog.Infoln("Use EAP-AKA' auth method")
 
 		identity := ueid
@@ -196,7 +194,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		responseBody.Var5gAuthData = base64.StdEncoding.EncodeToString(encodedPktAfterMAC)
 	}
 
-	responseBody.Links = make(map[string]models.LinksValueSchema)
+	responseBody.Links = make(map[string]coreModels.LinksValueSchema)
 	responseBody.AuthType = authInfoResult.AuthType
 
 	return &responseBody, nil
@@ -223,12 +221,12 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 
 	// Compare the received RES* with the stored XRES*
 	if strings.Compare(updateConfirmationData.ResStar, ausfCurrentContext.XresStar) == 0 {
-		ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
+		ausfCurrentContext.AuthStatus = coreModels.AuthResult_SUCCESS
 		responseBody.AuthResult = models.AuthResult_SUCCESS
 		logger.AusfLog.Infoln("5G AKA confirmation succeeded")
 		responseBody.Kseaf = ausfCurrentContext.Kseaf
 	} else {
-		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+		ausfCurrentContext.AuthStatus = coreModels.AuthResult_FAILURE
 		responseBody.AuthResult = models.AuthResult_FAILURE
 		logger.AusfLog.Infoln("5G AKA confirmation failed")
 	}
@@ -267,21 +265,21 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 
 	if eapContent.Code != layers.EAPCodeResponse {
 		logger.AusfLog.Infoln("eap packet code error")
-		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+		ausfCurrentContext.AuthStatus = coreModels.AuthResult_FAILURE
 		responseBody.AuthResult = models.AuthResult_ONGOING
 		failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 		responseBody.EapPayload = failEapAkaNoti
 		return &responseBody, nil
 	}
 	switch ausfCurrentContext.AuthStatus {
-	case models.AuthResult_ONGOING:
+	case coreModels.AuthResult_ONGOING:
 		responseBody.KSeaf = ausfCurrentContext.Kseaf
 		responseBody.Supi = currentSupi
 		Kautn := ausfCurrentContext.K_aut
 		XRES := ausfCurrentContext.XRES
 		RES, decodeOK := decodeResMac(eapContent.TypeData, eapContent.Contents, Kautn)
 		if !decodeOK {
-			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+			ausfCurrentContext.AuthStatus = coreModels.AuthResult_FAILURE
 			responseBody.AuthResult = models.AuthResult_ONGOING
 			logger.AusfLog.Infoln("eap packet decode error")
 			failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
@@ -291,16 +289,16 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 			responseBody.AuthResult = models.AuthResult_SUCCESS
 			eapSuccPkt := ConstructEapNoTypePkt(EapCodeSuccess, eapContent.Id)
 			responseBody.EapPayload = eapSuccPkt
-			ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
+			ausfCurrentContext.AuthStatus = coreModels.AuthResult_SUCCESS
 		} else {
-			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+			ausfCurrentContext.AuthStatus = coreModels.AuthResult_FAILURE
 			responseBody.AuthResult = models.AuthResult_ONGOING
 			logger.AusfLog.Infoln("Wrong RES value, EAP-AKA' auth failed")
 			failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 			responseBody.EapPayload = failEapAkaNoti
 		}
 
-	case models.AuthResult_FAILURE:
+	case coreModels.AuthResult_FAILURE:
 		eapFailPkt := ConstructEapNoTypePkt(EapCodeFailure, eapPayload[1])
 		responseBody.EapPayload = eapFailPkt
 		responseBody.AuthResult = models.AuthResult_FAILURE
