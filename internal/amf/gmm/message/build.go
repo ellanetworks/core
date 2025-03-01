@@ -123,7 +123,7 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 	switch ue.AuthenticationCtx.AuthType {
 	case coreModels.AuthType__5_G_AKA:
 		var tmpArray [16]byte
-		av5gAka, ok := ue.AuthenticationCtx.Var5gAuthData.(models.Av5gAka)
+		av5gAka, ok := ue.AuthenticationCtx.Var5gAuthData.(coreModels.Av5gAka)
 		if !ok {
 			return nil, fmt.Errorf("Var5gAuthData type assertion failed: got %T", ue.AuthenticationCtx.Var5gAuthData)
 		}
