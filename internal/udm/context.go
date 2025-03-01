@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/ellanetworks/core/internal/db"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 )
@@ -25,30 +26,17 @@ const (
 )
 
 type UDMContext struct {
-	DbInstance                     *db.Database
-	NfId                           string
-	GroupId                        string
-	UriScheme                      models.UriScheme
-	NfService                      map[models.ServiceName]models.NfService
-	UdmUePool                      sync.Map // map[supi]*UdmUeContext
-	GpsiSupiList                   models.IdentityData
-	SharedSubsDataMap              map[string]models.SharedData // sharedDataIds as key
-	SubscriptionOfSharedDataChange sync.Map                     // subscriptionID as key
-	SdmSubscriptionIDGenerator     int
-	UESubsCollection               sync.Map // map[ueId]*UESubsData
+	DbInstance                 *db.Database
+	UdmUePool                  sync.Map // map[supi]*UdmUeContext
+	SdmSubscriptionIDGenerator int
+	UESubsCollection           sync.Map // map[ueId]*UESubsData
 }
 
-type UdmNFContext struct {
-	SubscribeToNotifChange           *models.SdmSubscription // SubscriptionID as key
-	SubscribeToNotifSharedDataChange *models.SdmSubscription // SubscriptionID as key
-	SubscriptionID                   string
-}
-
-func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData, snssaiFromReq string,
-	dnnFromReq string) (mp map[string]models.SessionManagementSubscriptionData,
+func (context *UDMContext) ManageSmData(smDatafromUDR []coreModels.SessionManagementSubscriptionData, snssaiFromReq string,
+	dnnFromReq string) (mp map[string]coreModels.SessionManagementSubscriptionData,
 ) {
-	smDataMap := make(map[string]models.SessionManagementSubscriptionData)
-	AllDnns := make([]map[string]models.DnnConfiguration, len(smDatafromUDR))
+	smDataMap := make(map[string]coreModels.SessionManagementSubscriptionData)
+	AllDnns := make([]map[string]coreModels.DnnConfiguration, len(smDatafromUDR))
 
 	for idx, smSubscriptionData := range smDatafromUDR {
 		singleNssaiStr := openapi.MarshToJsonString(smSubscriptionData.SingleNssai)[0]
@@ -93,7 +81,7 @@ func (context *UDMContext) UdmUeFindBySupi(supi string) (*UdmUeContext, bool) {
 	}
 }
 
-func (context *UDMContext) CreateAmf3gppRegContext(supi string, body models.Amf3GppAccessRegistration) {
+func (context *UDMContext) CreateAmf3gppRegContext(supi string, body coreModels.Amf3GppAccessRegistration) {
 	ue, ok := context.UdmUeFindBySupi(supi)
 	if !ok {
 		ue = context.NewUdmUe(supi)

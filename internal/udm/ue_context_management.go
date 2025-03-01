@@ -4,9 +4,7 @@
 
 package udm
 
-import (
-	"github.com/omec-project/openapi/models"
-)
+import "github.com/ellanetworks/core/internal/models"
 
 // TS 29.503 5.3.2.2.2
 func EditRegistrationAmf3gppAccess(registerRequest models.Amf3GppAccessRegistration, ueID string) error {

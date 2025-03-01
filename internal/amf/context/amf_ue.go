@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/internal/util/ueauth"
@@ -109,14 +110,14 @@ type AmfUe struct {
 	SubscribedNssai                   []models.SubscribedSnssai                 `json:"subscribeNssai,omitempty"`
 	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData `json:"accessAndMobilitySubscriptionData,omitempty"`
 	/* contex abut ausf */
-	AusfGroupId                       string                      `json:"ausfGroupId,omitempty"`
-	AusfId                            string                      `json:"ausfId,omitempty"`
-	RoutingIndicator                  string                      `json:"routingIndicator,omitempty"`
-	AuthenticationCtx                 *models.UeAuthenticationCtx `json:"authenticationCtx,omitempty"`
-	AuthFailureCauseSynchFailureTimes int                         `json:"authFailureCauseSynchFailureTimes,omitempty"`
-	ABBA                              []uint8                     `json:"abba,omitempty"`
-	Kseaf                             string                      `json:"kseaf,omitempty"`
-	Kamf                              string                      `json:"kamf,omitempty"`
+	AusfGroupId                       string                          `json:"ausfGroupId,omitempty"`
+	AusfId                            string                          `json:"ausfId,omitempty"`
+	RoutingIndicator                  string                          `json:"routingIndicator,omitempty"`
+	AuthenticationCtx                 *coreModels.UeAuthenticationCtx `json:"authenticationCtx,omitempty"`
+	AuthFailureCauseSynchFailureTimes int                             `json:"authFailureCauseSynchFailureTimes,omitempty"`
+	ABBA                              []uint8                         `json:"abba,omitempty"`
+	Kseaf                             string                          `json:"kseaf,omitempty"`
+	Kamf                              string                          `json:"kamf,omitempty"`
 	/* context about PCF */
 	PolicyAssociationId          string                    `json:"policyAssociationId,omitempty"`
 	AmPolicyAssociation          *models.PolicyAssociation `json:"amPolicyAssociation,omitempty"`
