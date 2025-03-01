@@ -65,7 +65,6 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo coreModels.Authenticati
 	ausfUeContext.AuthStatus = coreModels.AuthResult_ONGOING
 	AddAusfUeContextToPool(ausfUeContext)
 
-	logger.AusfLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)
 	AddSuciSupiPairToMap(supiOrSuci, ueid)
 
 	if authInfoResult.AuthType == coreModels.AuthType__5_G_AKA {
@@ -199,21 +198,18 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo coreModels.Authenticati
 	return &responseBody, nil
 }
 
-func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.ConfirmationData, ConfirmationDataResponseID string,
-) (*models.ConfirmationDataResponse, error) {
-	var responseBody models.ConfirmationDataResponse
-	responseBody.AuthResult = models.AuthResult_FAILURE
+func Auth5gAkaComfirmRequestProcedure(updateConfirmationData coreModels.ConfirmationData, ConfirmationDataResponseID string,
+) (*coreModels.ConfirmationDataResponse, error) {
+	var responseBody coreModels.ConfirmationDataResponse
+	responseBody.AuthResult = coreModels.AuthResult_FAILURE
 
 	if !CheckIfSuciSupiPairExists(ConfirmationDataResponseID) {
-		logger.AusfLog.Infof("supiSuciPair does not exist, confirmation failed (queried by %s)\n",
-			ConfirmationDataResponseID)
-		return nil, fmt.Errorf("supiSuciPair does not exist")
+		return nil, fmt.Errorf("supiSuciPair does not exist, confirmation failed (queried by %s)", ConfirmationDataResponseID)
 	}
 
 	currentSupi := GetSupiFromSuciSupiMap(ConfirmationDataResponseID)
 	if !CheckIfAusfUeContextExists(currentSupi) {
-		logger.AusfLog.Infof("SUPI does not exist, confirmation failed (queried by %s)\n", currentSupi)
-		return nil, fmt.Errorf("SUPI does not exist")
+		return nil, fmt.Errorf("SUPI does not exist, confirmation failed (queried by %s)", currentSupi)
 	}
 
 	ausfCurrentContext := GetAusfUeContext(currentSupi)
@@ -221,12 +217,12 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 	// Compare the received RES* with the stored XRES*
 	if strings.Compare(updateConfirmationData.ResStar, ausfCurrentContext.XresStar) == 0 {
 		ausfCurrentContext.AuthStatus = coreModels.AuthResult_SUCCESS
-		responseBody.AuthResult = models.AuthResult_SUCCESS
+		responseBody.AuthResult = coreModels.AuthResult_SUCCESS
 		logger.AusfLog.Infoln("5G AKA confirmation succeeded")
 		responseBody.Kseaf = ausfCurrentContext.Kseaf
 	} else {
 		ausfCurrentContext.AuthStatus = coreModels.AuthResult_FAILURE
-		responseBody.AuthResult = models.AuthResult_FAILURE
+		responseBody.AuthResult = coreModels.AuthResult_FAILURE
 		logger.AusfLog.Infoln("5G AKA confirmation failed")
 	}
 

@@ -100,7 +100,7 @@ mkdocs build
 ```shell
 sudo snap install rockcraft --classic --edge
 rockcraft pack -v
-sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_0.0.10_amd64.rock docker-daemon:ella-core:latest
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v0.0.10_amd64.rock docker-daemon:ella-core:latest
 docker run ella-core:latest
 ```
 

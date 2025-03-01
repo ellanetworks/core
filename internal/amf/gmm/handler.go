@@ -1789,7 +1789,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 			return nil
 		}
 		switch response.AuthResult {
-		case models.AuthResult_SUCCESS:
+		case coreModels.AuthResult_SUCCESS:
 			ue.UnauthenticatedSupi = false
 			ue.Kseaf = response.Kseaf
 			ue.Supi = response.Supi
@@ -1800,7 +1800,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 				ArgEAPSuccess: false,
 				ArgEAPMessage: "",
 			})
-		case models.AuthResult_FAILURE:
+		case coreModels.AuthResult_FAILURE:
 			if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 				gmm_message.SendIdentityRequest(ue.RanUe[accessType], nasMessage.MobileIdentity5GSTypeSuci)
 				return nil

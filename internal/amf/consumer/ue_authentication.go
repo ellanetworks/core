@@ -52,9 +52,9 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 }
 
 func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string) (
-	*models.ConfirmationDataResponse, *models.ProblemDetails, error,
+	*coreModels.ConfirmationDataResponse, *models.ProblemDetails, error,
 ) {
-	confirmationData := models.ConfirmationData{
+	confirmationData := coreModels.ConfirmationData{
 		ResStar: resStar,
 	}
 	confirmResult, err := ausf.Auth5gAkaComfirmRequestProcedure(confirmationData, ue.Suci)
