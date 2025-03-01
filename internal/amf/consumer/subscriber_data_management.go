@@ -8,6 +8,7 @@ package consumer
 
 import (
 	"github.com/ellanetworks/core/internal/amf/context"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/omec-project/openapi/models"
 )
@@ -41,9 +42,12 @@ func SDMGetUeContextInSmfData(ue *context.AmfUe) (problemDetails *models.Problem
 
 func SDMSubscribe(ue *context.AmfUe) (*models.ProblemDetails, error) {
 	amfSelf := context.AMF_Self()
-	sdmSubscription := &models.SdmSubscription{
+	sdmSubscription := &coreModels.SdmSubscription{
 		NfInstanceId: amfSelf.NfId,
-		PlmnId:       &ue.PlmnId,
+		PlmnId: &coreModels.PlmnId{
+			Mcc: ue.PlmnId.Mcc,
+			Mnc: ue.PlmnId.Mnc,
+		},
 	}
 
 	err := udm.CreateSubscription(sdmSubscription, ue.Supi)

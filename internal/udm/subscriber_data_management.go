@@ -10,11 +10,10 @@ import (
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/openapi/models"
+	"github.com/ellanetworks/core/internal/models"
 )
 
-var AllowedSessionTypes = []coreModels.PduSessionType{coreModels.PduSessionType_IPV4}
+var AllowedSessionTypes = []models.PduSessionType{models.PduSessionType_IPV4}
 
 var AllowedSscModes = []string{
 	"SSC_MODE_2",
@@ -27,7 +26,7 @@ type UESubsData struct {
 	SdmSubscriptions map[subsID]*models.SdmSubscription
 }
 
-func GetAmData(ueId string) (*coreModels.AccessAndMobilitySubscriptionData, error) {
+func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
 	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
@@ -40,21 +39,21 @@ func GetAmData(ueId string) (*coreModels.AccessAndMobilitySubscriptionData, erro
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
-	amData := &coreModels.AccessAndMobilitySubscriptionData{
-		Nssai: &coreModels.Nssai{
-			DefaultSingleNssais: make([]coreModels.Snssai, 0),
-			SingleNssais:        make([]coreModels.Snssai, 0),
+	amData := &models.AccessAndMobilitySubscriptionData{
+		Nssai: &models.Nssai{
+			DefaultSingleNssais: make([]models.Snssai, 0),
+			SingleNssais:        make([]models.Snssai, 0),
 		},
-		SubscribedUeAmbr: &coreModels.AmbrRm{
+		SubscribedUeAmbr: &models.AmbrRm{
 			Downlink: profile.BitrateDownlink,
 			Uplink:   profile.BitrateUplink,
 		},
 	}
-	amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, coreModels.Snssai{
+	amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
 		Sd:  operator.GetHexSd(),
 		Sst: operator.Sst,
 	})
-	amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, coreModels.Snssai{
+	amData.Nssai.SingleNssais = append(amData.Nssai.SingleNssais, models.Snssai{
 		Sd:  operator.GetHexSd(),
 		Sst: operator.Sst,
 	})
@@ -62,7 +61,7 @@ func GetAmData(ueId string) (*coreModels.AccessAndMobilitySubscriptionData, erro
 }
 
 func GetAmDataAndSetAMSubscription(supi string) (
-	*coreModels.AccessAndMobilitySubscriptionData, error,
+	*models.AccessAndMobilitySubscriptionData, error,
 ) {
 	amData, err := GetAmData(supi)
 	if err != nil {
@@ -73,7 +72,7 @@ func GetAmDataAndSetAMSubscription(supi string) (
 	return amData, nil
 }
 
-func GetSmData(ueId string) ([]coreModels.SessionManagementSubscriptionData, error) {
+func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) {
 	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
@@ -86,42 +85,42 @@ func GetSmData(ueId string) ([]coreModels.SessionManagementSubscriptionData, err
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
-	smData := make([]coreModels.SessionManagementSubscriptionData, 0)
-	smDataObjModel := coreModels.SessionManagementSubscriptionData{
-		SingleNssai: &coreModels.Snssai{
+	smData := make([]models.SessionManagementSubscriptionData, 0)
+	smDataObjModel := models.SessionManagementSubscriptionData{
+		SingleNssai: &models.Snssai{
 			Sst: operator.Sst,
 			Sd:  operator.GetHexSd(),
 		},
-		DnnConfigurations: make(map[string]coreModels.DnnConfiguration),
+		DnnConfigurations: make(map[string]models.DnnConfiguration),
 	}
-	smDataObjModel.DnnConfigurations[config.DNN] = coreModels.DnnConfiguration{
-		PduSessionTypes: &coreModels.PduSessionTypes{
-			DefaultSessionType:  coreModels.PduSessionType_IPV4,
-			AllowedSessionTypes: make([]coreModels.PduSessionType, 0),
+	smDataObjModel.DnnConfigurations[config.DNN] = models.DnnConfiguration{
+		PduSessionTypes: &models.PduSessionTypes{
+			DefaultSessionType:  models.PduSessionType_IPV4,
+			AllowedSessionTypes: make([]models.PduSessionType, 0),
 		},
-		SscModes: &coreModels.SscModes{
-			DefaultSscMode:  coreModels.SscMode__1,
-			AllowedSscModes: make([]coreModels.SscMode, 0),
+		SscModes: &models.SscModes{
+			DefaultSscMode:  models.SscMode__1,
+			AllowedSscModes: make([]models.SscMode, 0),
 		},
-		SessionAmbr: &coreModels.Ambr{
+		SessionAmbr: &models.Ambr{
 			Downlink: profile.BitrateDownlink,
 			Uplink:   profile.BitrateUplink,
 		},
-		Var5gQosProfile: &coreModels.SubscribedDefaultQos{
+		Var5gQosProfile: &models.SubscribedDefaultQos{
 			Var5qi:        profile.Var5qi,
-			Arp:           &coreModels.Arp{PriorityLevel: profile.PriorityLevel},
+			Arp:           &models.Arp{PriorityLevel: profile.PriorityLevel},
 			PriorityLevel: profile.PriorityLevel,
 		},
 	}
 	smDataObjModel.DnnConfigurations[config.DNN].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[config.DNN].PduSessionTypes.AllowedSessionTypes, AllowedSessionTypes...)
 	for _, sscMode := range AllowedSscModes {
-		smDataObjModel.DnnConfigurations[config.DNN].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[config.DNN].SscModes.AllowedSscModes, coreModels.SscMode(sscMode))
+		smDataObjModel.DnnConfigurations[config.DNN].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[config.DNN].SscModes.AllowedSscModes, models.SscMode(sscMode))
 	}
 	smData = append(smData, smDataObjModel)
 	return smData, nil
 }
 
-func GetAndSetSmData(supi string, Dnn string, Snssai string) ([]coreModels.SessionManagementSubscriptionData, error) {
+func GetAndSetSmData(supi string, Dnn string, Snssai string) ([]models.SessionManagementSubscriptionData, error) {
 	sessionManagementSubscriptionDataResp, err := GetSmData(supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetSmData error: %+v", err)
@@ -131,7 +130,7 @@ func GetAndSetSmData(supi string, Dnn string, Snssai string) ([]coreModels.Sessi
 	smData := udmContext.ManageSmData(sessionManagementSubscriptionDataResp, Snssai, Dnn)
 	udmUe.SetSMSubsData(smData)
 
-	rspSMSubDataList := make([]coreModels.SessionManagementSubscriptionData, 0, 4)
+	rspSMSubDataList := make([]models.SessionManagementSubscriptionData, 0, 4)
 
 	udmUe.SmSubsDataLock.RLock()
 	for _, eachSMSubData := range udmUe.SessionManagementSubsData {
@@ -141,7 +140,7 @@ func GetAndSetSmData(supi string, Dnn string, Snssai string) ([]coreModels.Sessi
 	return rspSMSubDataList, nil
 }
 
-func GetNssai(supi string) (*coreModels.Nssai, error) {
+func GetNssai(supi string) (*models.Nssai, error) {
 	accessAndMobilitySubscriptionDataResp, err := GetAmData(supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
@@ -152,20 +151,20 @@ func GetNssai(supi string) (*coreModels.Nssai, error) {
 	return udmUe.Nssai, nil
 }
 
-func GetSmfSelectData(ueId string) (*coreModels.SmfSelectionSubscriptionData, error) {
+func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
 	operator, err := udmContext.DbInstance.GetOperator()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
 	snssai := fmt.Sprintf("%d%s", operator.Sst, operator.GetHexSd())
-	smfSelectionData := &coreModels.SmfSelectionSubscriptionData{
-		SubscribedSnssaiInfos: make(map[string]coreModels.SnssaiInfo),
+	smfSelectionData := &models.SmfSelectionSubscriptionData{
+		SubscribedSnssaiInfos: make(map[string]models.SnssaiInfo),
 	}
-	smfSelectionData.SubscribedSnssaiInfos[snssai] = coreModels.SnssaiInfo{
-		DnnInfos: make([]coreModels.DnnInfo, 0),
+	smfSelectionData.SubscribedSnssaiInfos[snssai] = models.SnssaiInfo{
+		DnnInfos: make([]models.DnnInfo, 0),
 	}
 	snssaiInfo := smfSelectionData.SubscribedSnssaiInfos[snssai]
-	snssaiInfo.DnnInfos = append(snssaiInfo.DnnInfos, coreModels.DnnInfo{
+	snssaiInfo.DnnInfos = append(snssaiInfo.DnnInfos, models.DnnInfo{
 		Dnn: config.DNN,
 	})
 	smfSelectionData.SubscribedSnssaiInfos[snssai] = snssaiInfo
@@ -173,9 +172,9 @@ func GetSmfSelectData(ueId string) (*coreModels.SmfSelectionSubscriptionData, er
 }
 
 func GetAndSetSmfSelectData(supi string) (
-	*coreModels.SmfSelectionSubscriptionData, error,
+	*models.SmfSelectionSubscriptionData, error,
 ) {
-	var body coreModels.SmfSelectionSubscriptionData
+	var body models.SmfSelectionSubscriptionData
 	udmContext.CreateSmfSelectionSubsDataforUe(supi, body)
 	smfSelectionSubscriptionDataResp, err := GetSmfSelectData(supi)
 	if err != nil {
@@ -216,23 +215,23 @@ func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string) er
 	return nil
 }
 
-func GetUeContextInSmfData(supi string) (*coreModels.UeContextInSmfData, error) {
-	var body coreModels.UeContextInSmfData
+func GetUeContextInSmfData(supi string) (*models.UeContextInSmfData, error) {
+	var body models.UeContextInSmfData
 	udmContext.CreateUeContextInSmfDataforUe(supi, body)
-	pdusess := []*coreModels.SmfRegistration{}
-	pduSessionMap := make(map[string]coreModels.PduSession)
+	pdusess := []*models.SmfRegistration{}
+	pduSessionMap := make(map[string]models.PduSession)
 	for _, element := range pdusess {
-		var pduSession coreModels.PduSession
+		var pduSession models.PduSession
 		pduSession.Dnn = element.Dnn
 		pduSession.SmfInstanceId = element.SmfInstanceId
 		pduSession.PlmnId = element.PlmnId
 		pduSessionMap[strconv.Itoa(int(element.PduSessionId))] = pduSession
 	}
-	var ueContextInSmfData coreModels.UeContextInSmfData
+	var ueContextInSmfData models.UeContextInSmfData
 	ueContextInSmfData.PduSessions = pduSessionMap
-	var pgwInfoArray []coreModels.PgwInfo
+	var pgwInfoArray []models.PgwInfo
 	for _, element := range pdusess {
-		var pgwInfo coreModels.PgwInfo
+		var pgwInfo models.PgwInfo
 		pgwInfo.Dnn = element.Dnn
 		pgwInfo.PgwFqdn = element.PgwFqdn
 		pgwInfo.PlmnId = element.PlmnId

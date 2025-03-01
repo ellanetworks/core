@@ -696,10 +696,7 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 				Tacs:      []string{},
 				AreaCodes: area.AreaCodes,
 			})
-			for _, tac := range area.Tacs {
-				ue.AccessAndMobilitySubscriptionData.ForbiddenAreas[len(ue.AccessAndMobilitySubscriptionData.ForbiddenAreas)-1].Tacs = append(ue.AccessAndMobilitySubscriptionData.ForbiddenAreas[len(ue.AccessAndMobilitySubscriptionData.ForbiddenAreas)-1].Tacs, tac)
-			}
-
+			ue.AccessAndMobilitySubscriptionData.ForbiddenAreas[len(ue.AccessAndMobilitySubscriptionData.ForbiddenAreas)-1].Tacs = append(ue.AccessAndMobilitySubscriptionData.ForbiddenAreas[len(ue.AccessAndMobilitySubscriptionData.ForbiddenAreas)-1].Tacs, area.Tacs...)
 		}
 	}
 
@@ -717,9 +714,7 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 				Tacs:      []string{},
 				AreaCodes: area.AreaCodes,
 			})
-			for _, tac := range area.Tacs {
-				ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas[len(ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas)-1].Tacs = append(ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas[len(ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas)-1].Tacs, tac)
-			}
+			ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas[len(ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas)-1].Tacs = append(ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas[len(ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas)-1].Tacs, area.Tacs...)
 		}
 	}
 

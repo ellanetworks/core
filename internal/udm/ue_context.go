@@ -9,19 +9,18 @@ package udm
 import (
 	"sync"
 
-	coreModels "github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/openapi/models"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 type UdmUeContext struct {
 	Supi                              string
 	Gpsi                              string
-	Nssai                             *coreModels.Nssai
-	Amf3GppAccessRegistration         *coreModels.Amf3GppAccessRegistration
-	AccessAndMobilitySubscriptionData *coreModels.AccessAndMobilitySubscriptionData
-	SmfSelSubsData                    *coreModels.SmfSelectionSubscriptionData
-	UeCtxtInSmfData                   *coreModels.UeContextInSmfData
-	SessionManagementSubsData         map[string]coreModels.SessionManagementSubscriptionData
+	Nssai                             *models.Nssai
+	Amf3GppAccessRegistration         *models.Amf3GppAccessRegistration
+	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData
+	SmfSelSubsData                    *models.SmfSelectionSubscriptionData
+	UeCtxtInSmfData                   *models.UeContextInSmfData
+	SessionManagementSubsData         map[string]models.SessionManagementSubscriptionData
 	SubscribeToNotifChange            map[string]*models.SdmSubscription
 	SubscribeToNotifSharedDataChange  *models.SdmSubscription
 	PduSessionID                      string
@@ -42,20 +41,20 @@ func (udmUeContext *UdmUeContext) CreateSubscriptiontoNotifChange(subscriptionID
 }
 
 // SetSmfSelectionSubsData ... functions to set SmfSelectionSubscriptionData
-func (udmUeContext *UdmUeContext) SetSmfSelectionSubsData(smfSelSubsData *coreModels.SmfSelectionSubscriptionData) {
+func (udmUeContext *UdmUeContext) SetSmfSelectionSubsData(smfSelSubsData *models.SmfSelectionSubscriptionData) {
 	udmUeContext.smfSelSubsDataLock.Lock()
 	defer udmUeContext.smfSelSubsDataLock.Unlock()
 	udmUeContext.SmfSelSubsData = smfSelSubsData
 }
 
 // SetSMSubsData ... functions to set SessionManagementSubsData
-func (udmUeContext *UdmUeContext) SetSMSubsData(smSubsData map[string]coreModels.SessionManagementSubscriptionData) {
+func (udmUeContext *UdmUeContext) SetSMSubsData(smSubsData map[string]models.SessionManagementSubscriptionData) {
 	udmUeContext.SmSubsDataLock.Lock()
 	defer udmUeContext.SmSubsDataLock.Unlock()
 	udmUeContext.SessionManagementSubsData = smSubsData
 }
 
-func (udmUeContext *UdmUeContext) SetAMSubsriptionData(amData *coreModels.AccessAndMobilitySubscriptionData) {
+func (udmUeContext *UdmUeContext) SetAMSubsriptionData(amData *models.AccessAndMobilitySubscriptionData) {
 	udmUeContext.amSubsDataLock.Lock()
 	defer udmUeContext.amSubsDataLock.Unlock()
 	udmUeContext.AccessAndMobilitySubscriptionData = amData
