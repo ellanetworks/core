@@ -71,9 +71,9 @@ func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string) (
 }
 
 func SendEapAuthConfirmRequest(ue *context.AmfUe, eapMsg nasType.EAPMessage) (
-	*models.EapSession, *models.ProblemDetails, error,
+	*coreModels.EapSession, *models.ProblemDetails, error,
 ) {
-	eapSession := models.EapSession{
+	eapSession := coreModels.EapSession{
 		EapPayload: base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage()),
 	}
 

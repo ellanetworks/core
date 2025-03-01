@@ -1823,7 +1823,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 		}
 
 		switch response.AuthResult {
-		case models.AuthResult_SUCCESS:
+		case coreModels.AuthResult_SUCCESS:
 			ue.UnauthenticatedSupi = false
 			ue.Kseaf = response.KSeaf
 			ue.Supi = response.Supi
@@ -1834,7 +1834,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 				ArgEAPSuccess: true,
 				ArgEAPMessage: response.EapPayload,
 			})
-		case models.AuthResult_FAILURE:
+		case coreModels.AuthResult_FAILURE:
 			if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 				gmm_message.SendAuthenticationResult(ue.RanUe[accessType], false, response.EapPayload)
 				gmm_message.SendIdentityRequest(ue.RanUe[accessType], nasMessage.MobileIdentity5GSTypeSuci)
@@ -1846,7 +1846,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 					ArgAccessType: accessType,
 				})
 			}
-		case models.AuthResult_ONGOING:
+		case coreModels.AuthResult_ONGOING:
 			ue.AuthenticationCtx.Var5gAuthData = response.EapPayload
 			gmm_message.SendAuthenticationRequest(ue.RanUe[accessType])
 		}

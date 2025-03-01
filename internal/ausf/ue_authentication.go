@@ -14,12 +14,11 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/omec-project/openapi/models"
 )
 
 // Generates a random int between 0 and 255
@@ -32,9 +31,9 @@ func GenerateRandomNumber() (uint8, error) {
 	return uint8(randomNumber.Int64()), nil
 }
 
-func UeAuthPostRequestProcedure(updateAuthenticationInfo coreModels.AuthenticationInfo) (*coreModels.UeAuthenticationCtx, error) {
-	var responseBody coreModels.UeAuthenticationCtx
-	var authInfoReq coreModels.AuthenticationInfoRequest
+func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (*models.UeAuthenticationCtx, error) {
+	var responseBody models.UeAuthenticationCtx
+	var authInfoReq models.AuthenticationInfoRequest
 
 	supiOrSuci := updateAuthenticationInfo.SupiOrSuci
 
@@ -62,12 +61,12 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo coreModels.Authenticati
 	ueid := authInfoResult.Supi
 	ausfUeContext := NewAusfUeContext(ueid)
 	ausfUeContext.ServingNetworkName = snName
-	ausfUeContext.AuthStatus = coreModels.AuthResult_ONGOING
+	ausfUeContext.AuthStatus = models.AuthResult_ONGOING
 	AddAusfUeContextToPool(ausfUeContext)
 
 	AddSuciSupiPairToMap(supiOrSuci, ueid)
 
-	if authInfoResult.AuthType == coreModels.AuthType__5_G_AKA {
+	if authInfoResult.AuthType == models.AuthType__5_G_AKA {
 		logger.AusfLog.Infoln("Use 5G AKA auth method")
 
 		// Derive HXRES* from XRES*
@@ -99,13 +98,13 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo coreModels.Authenticati
 		ausfUeContext.Kseaf = hex.EncodeToString(Kseaf)
 		ausfUeContext.Rand = authInfoResult.AuthenticationVector.Rand
 
-		var av5gAka coreModels.Av5gAka
+		var av5gAka models.Av5gAka
 		av5gAka.Rand = authInfoResult.AuthenticationVector.Rand
 		av5gAka.Autn = authInfoResult.AuthenticationVector.Autn
 		av5gAka.HxresStar = hxresStar
 
 		responseBody.Var5gAuthData = av5gAka
-	} else if authInfoResult.AuthType == coreModels.AuthType_EAP_AKA_PRIME {
+	} else if authInfoResult.AuthType == models.AuthType_EAP_AKA_PRIME {
 		logger.AusfLog.Infoln("Use EAP-AKA' auth method")
 
 		identity := ueid
@@ -198,10 +197,10 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo coreModels.Authenticati
 	return &responseBody, nil
 }
 
-func Auth5gAkaComfirmRequestProcedure(updateConfirmationData coreModels.ConfirmationData, ConfirmationDataResponseID string,
-) (*coreModels.ConfirmationDataResponse, error) {
-	var responseBody coreModels.ConfirmationDataResponse
-	responseBody.AuthResult = coreModels.AuthResult_FAILURE
+func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.ConfirmationData, ConfirmationDataResponseID string,
+) (*models.ConfirmationDataResponse, error) {
+	var responseBody models.ConfirmationDataResponse
+	responseBody.AuthResult = models.AuthResult_FAILURE
 
 	if !CheckIfSuciSupiPairExists(ConfirmationDataResponseID) {
 		return nil, fmt.Errorf("supiSuciPair does not exist, confirmation failed (queried by %s)", ConfirmationDataResponseID)
@@ -216,13 +215,13 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData coreModels.Confirma
 
 	// Compare the received RES* with the stored XRES*
 	if strings.Compare(updateConfirmationData.ResStar, ausfCurrentContext.XresStar) == 0 {
-		ausfCurrentContext.AuthStatus = coreModels.AuthResult_SUCCESS
-		responseBody.AuthResult = coreModels.AuthResult_SUCCESS
+		ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
+		responseBody.AuthResult = models.AuthResult_SUCCESS
 		logger.AusfLog.Infoln("5G AKA confirmation succeeded")
 		responseBody.Kseaf = ausfCurrentContext.Kseaf
 	} else {
-		ausfCurrentContext.AuthStatus = coreModels.AuthResult_FAILURE
-		responseBody.AuthResult = coreModels.AuthResult_FAILURE
+		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+		responseBody.AuthResult = models.AuthResult_FAILURE
 		logger.AusfLog.Infoln("5G AKA confirmation failed")
 	}
 
@@ -260,21 +259,21 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 
 	if eapContent.Code != layers.EAPCodeResponse {
 		logger.AusfLog.Infoln("eap packet code error")
-		ausfCurrentContext.AuthStatus = coreModels.AuthResult_FAILURE
+		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		responseBody.AuthResult = models.AuthResult_ONGOING
 		failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 		responseBody.EapPayload = failEapAkaNoti
 		return &responseBody, nil
 	}
 	switch ausfCurrentContext.AuthStatus {
-	case coreModels.AuthResult_ONGOING:
+	case models.AuthResult_ONGOING:
 		responseBody.KSeaf = ausfCurrentContext.Kseaf
 		responseBody.Supi = currentSupi
 		Kautn := ausfCurrentContext.K_aut
 		XRES := ausfCurrentContext.XRES
 		RES, decodeOK := decodeResMac(eapContent.TypeData, eapContent.Contents, Kautn)
 		if !decodeOK {
-			ausfCurrentContext.AuthStatus = coreModels.AuthResult_FAILURE
+			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 			responseBody.AuthResult = models.AuthResult_ONGOING
 			logger.AusfLog.Infoln("eap packet decode error")
 			failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
@@ -284,16 +283,16 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 			responseBody.AuthResult = models.AuthResult_SUCCESS
 			eapSuccPkt := ConstructEapNoTypePkt(EapCodeSuccess, eapContent.Id)
 			responseBody.EapPayload = eapSuccPkt
-			ausfCurrentContext.AuthStatus = coreModels.AuthResult_SUCCESS
+			ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
 		} else {
-			ausfCurrentContext.AuthStatus = coreModels.AuthResult_FAILURE
+			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 			responseBody.AuthResult = models.AuthResult_ONGOING
 			logger.AusfLog.Infoln("Wrong RES value, EAP-AKA' auth failed")
 			failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 			responseBody.EapPayload = failEapAkaNoti
 		}
 
-	case coreModels.AuthResult_FAILURE:
+	case models.AuthResult_FAILURE:
 		eapFailPkt := ConstructEapNoTypePkt(EapCodeFailure, eapPayload[1])
 		responseBody.EapPayload = eapFailPkt
 		responseBody.AuthResult = models.AuthResult_FAILURE
