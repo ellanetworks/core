@@ -13,10 +13,10 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/ellanetworks/core/internal/util/ueauth"
-	"github.com/omec-project/openapi/models"
 )
 
 const (

@@ -10,8 +10,8 @@ import (
 	"sync"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/models"
 )
 
 var udmContext UDMContext
@@ -25,23 +25,10 @@ const (
 )
 
 type UDMContext struct {
-	DbInstance                     *db.Database
-	NfId                           string
-	GroupId                        string
-	UriScheme                      models.UriScheme
-	NfService                      map[models.ServiceName]models.NfService
-	UdmUePool                      sync.Map // map[supi]*UdmUeContext
-	GpsiSupiList                   models.IdentityData
-	SharedSubsDataMap              map[string]models.SharedData // sharedDataIds as key
-	SubscriptionOfSharedDataChange sync.Map                     // subscriptionID as key
-	SdmSubscriptionIDGenerator     int
-	UESubsCollection               sync.Map // map[ueId]*UESubsData
-}
-
-type UdmNFContext struct {
-	SubscribeToNotifChange           *models.SdmSubscription // SubscriptionID as key
-	SubscribeToNotifSharedDataChange *models.SdmSubscription // SubscriptionID as key
-	SubscriptionID                   string
+	DbInstance                 *db.Database
+	UdmUePool                  sync.Map // map[supi]*UdmUeContext
+	SdmSubscriptionIDGenerator int
+	UESubsCollection           sync.Map // map[ueId]*UESubsData
 }
 
 func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData, snssaiFromReq string,

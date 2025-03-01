@@ -13,8 +13,9 @@ import (
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
-	"github.com/ellanetworks/core/internal/util/httpwrapper"
+	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/google/uuid"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
@@ -73,11 +74,11 @@ type SMContext struct {
 
 	UpCnxState models.UpCnxState `json:"upCnxState,omitempty" yaml:"upCnxState" bson:"upCnxState,omitempty"`
 	// SelectedPCFProfile models.NfProfile        `json:"selectedPCFProfile,omitempty" yaml:"selectedPCFProfile" bson:"selectedPCFProfile,omitempty"`
-	AnType           models.AccessType       `json:"anType" yaml:"anType" bson:"anType"`
-	RatType          models.RatType          `json:"ratType,omitempty" yaml:"ratType" bson:"ratType,omitempty"`
-	PresenceInLadn   models.PresenceState    `json:"presenceInLadn,omitempty" yaml:"presenceInLadn" bson:"presenceInLadn,omitempty"` // ignore
-	HoState          models.HoState          `json:"hoState,omitempty" yaml:"hoState" bson:"hoState,omitempty"`
-	DnnConfiguration models.DnnConfiguration `json:"dnnConfiguration,omitempty" yaml:"dnnConfiguration" bson:"dnnConfiguration,omitempty"` // ?
+	AnType           models.AccessType           `json:"anType" yaml:"anType" bson:"anType"`
+	RatType          models.RatType              `json:"ratType,omitempty" yaml:"ratType" bson:"ratType,omitempty"`
+	PresenceInLadn   models.PresenceState        `json:"presenceInLadn,omitempty" yaml:"presenceInLadn" bson:"presenceInLadn,omitempty"` // ignore
+	HoState          models.HoState              `json:"hoState,omitempty" yaml:"hoState" bson:"hoState,omitempty"`
+	DnnConfiguration coreModels.DnnConfiguration `json:"dnnConfiguration,omitempty" yaml:"dnnConfiguration" bson:"dnnConfiguration,omitempty"` // ?
 
 	Snssai         *models.Snssai       `json:"snssai" yaml:"snssai" bson:"snssai"`
 	HplmnSnssai    *models.Snssai       `json:"hplmnSnssai,omitempty" yaml:"hplmnSnssai" bson:"hplmnSnssai,omitempty"`
@@ -358,14 +359,14 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 
 	for _, allowedPDUSessionType := range smContext.DnnConfiguration.PduSessionTypes.AllowedSessionTypes {
 		switch allowedPDUSessionType {
-		case models.PduSessionType_IPV4:
+		case coreModels.PduSessionType_IPV4:
 			allowIPv4 = true
-		case models.PduSessionType_IPV6:
+		case coreModels.PduSessionType_IPV6:
 			allowIPv6 = true
-		case models.PduSessionType_IPV4_V6:
+		case coreModels.PduSessionType_IPV4_V6:
 			allowIPv4 = true
 			allowIPv6 = true
-		case models.PduSessionType_ETHERNET:
+		case coreModels.PduSessionType_ETHERNET:
 			allowEthernet = true
 		}
 	}
@@ -450,11 +451,11 @@ func (smContextState SMContextState) String() string {
 	}
 }
 
-func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(status int, problemDetails *models.ProblemDetails, cause uint8) *httpwrapper.Response {
-	var httpResponse *httpwrapper.Response
+func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(status int, problemDetails *models.ProblemDetails, cause uint8) *util.Response {
+	var httpResponse *util.Response
 
 	if buf, err := BuildGSMPDUSessionEstablishmentReject(smContext, cause); err != nil {
-		httpResponse = &httpwrapper.Response{
+		httpResponse = &util.Response{
 			Header: nil,
 			Status: status,
 			Body: models.PostSmContextsErrorResponse{
@@ -465,7 +466,7 @@ func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(status int, pr
 			},
 		}
 	} else {
-		httpResponse = &httpwrapper.Response{
+		httpResponse = &util.Response{
 			Header: nil,
 			Status: status,
 			Body: models.PostSmContextsErrorResponse{

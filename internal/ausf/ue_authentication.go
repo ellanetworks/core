@@ -14,11 +14,11 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/omec-project/openapi/models"
 )
 
 // Generates a random int between 0 and 255
@@ -46,9 +46,6 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 
 	responseBody.ServingNetworkName = snName
 	authInfoReq.ServingNetworkName = snName
-	self := GetSelf()
-	authInfoReq.AusfInstanceId = self.GetSelfID()
-
 	if updateAuthenticationInfo.ResynchronizationInfo != nil {
 		ausfCurrentSupi := GetSupiFromSuciSupiMap(supiOrSuci)
 		ausfCurrentContext := GetAusfUeContext(ausfCurrentSupi)
@@ -67,7 +64,6 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	ausfUeContext.AuthStatus = models.AuthResult_ONGOING
 	AddAusfUeContextToPool(ausfUeContext)
 
-	logger.AusfLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)
 	AddSuciSupiPairToMap(supiOrSuci, ueid)
 
 	if authInfoResult.AuthType == models.AuthType__5_G_AKA {
@@ -196,7 +192,6 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		responseBody.Var5gAuthData = base64.StdEncoding.EncodeToString(encodedPktAfterMAC)
 	}
 
-	responseBody.Links = make(map[string]models.LinksValueSchema)
 	responseBody.AuthType = authInfoResult.AuthType
 
 	return &responseBody, nil
@@ -208,15 +203,12 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 	responseBody.AuthResult = models.AuthResult_FAILURE
 
 	if !CheckIfSuciSupiPairExists(ConfirmationDataResponseID) {
-		logger.AusfLog.Infof("supiSuciPair does not exist, confirmation failed (queried by %s)\n",
-			ConfirmationDataResponseID)
-		return nil, fmt.Errorf("supiSuciPair does not exist")
+		return nil, fmt.Errorf("supiSuciPair does not exist, confirmation failed (queried by %s)", ConfirmationDataResponseID)
 	}
 
 	currentSupi := GetSupiFromSuciSupiMap(ConfirmationDataResponseID)
 	if !CheckIfAusfUeContextExists(currentSupi) {
-		logger.AusfLog.Infof("SUPI does not exist, confirmation failed (queried by %s)\n", currentSupi)
-		return nil, fmt.Errorf("SUPI does not exist")
+		return nil, fmt.Errorf("SUPI does not exist, confirmation failed (queried by %s)", currentSupi)
 	}
 
 	ausfCurrentContext := GetAusfUeContext(currentSupi)

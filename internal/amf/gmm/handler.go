@@ -15,6 +15,7 @@ import (
 	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
@@ -1748,8 +1749,8 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 	}
 
 	switch ue.AuthenticationCtx.AuthType {
-	case models.AuthType__5_G_AKA:
-		av5gAka, ok := ue.AuthenticationCtx.Var5gAuthData.(models.Av5gAka)
+	case coreModels.AuthType__5_G_AKA:
+		av5gAka, ok := ue.AuthenticationCtx.Var5gAuthData.(coreModels.Av5gAka)
 		if !ok {
 			return fmt.Errorf("Var5gAuthData type assertion failed: got %T", ue.AuthenticationCtx.Var5gAuthData)
 		}
@@ -1788,7 +1789,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 			return nil
 		}
 		switch response.AuthResult {
-		case models.AuthResult_SUCCESS:
+		case coreModels.AuthResult_SUCCESS:
 			ue.UnauthenticatedSupi = false
 			ue.Kseaf = response.Kseaf
 			ue.Supi = response.Supi
@@ -1799,7 +1800,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 				ArgEAPSuccess: false,
 				ArgEAPMessage: "",
 			})
-		case models.AuthResult_FAILURE:
+		case coreModels.AuthResult_FAILURE:
 			if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 				gmm_message.SendIdentityRequest(ue.RanUe[accessType], nasMessage.MobileIdentity5GSTypeSuci)
 				return nil
@@ -1811,7 +1812,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 				})
 			}
 		}
-	case models.AuthType_EAP_AKA_PRIME:
+	case coreModels.AuthType_EAP_AKA_PRIME:
 		ue.GmmLog.Warnf("In EAP-AKA-PRIME")
 		response, problemDetails, err := consumer.SendEapAuthConfirmRequest(ue, *authenticationResponse.EAPMessage)
 		if err != nil {
@@ -1822,7 +1823,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 		}
 
 		switch response.AuthResult {
-		case models.AuthResult_SUCCESS:
+		case coreModels.AuthResult_SUCCESS:
 			ue.UnauthenticatedSupi = false
 			ue.Kseaf = response.KSeaf
 			ue.Supi = response.Supi
@@ -1833,7 +1834,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 				ArgEAPSuccess: true,
 				ArgEAPMessage: response.EapPayload,
 			})
-		case models.AuthResult_FAILURE:
+		case coreModels.AuthResult_FAILURE:
 			if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 				gmm_message.SendAuthenticationResult(ue.RanUe[accessType], false, response.EapPayload)
 				gmm_message.SendIdentityRequest(ue.RanUe[accessType], nasMessage.MobileIdentity5GSTypeSuci)
@@ -1845,11 +1846,8 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 					ArgAccessType: accessType,
 				})
 			}
-		case models.AuthResult_ONGOING:
+		case coreModels.AuthResult_ONGOING:
 			ue.AuthenticationCtx.Var5gAuthData = response.EapPayload
-			if _, exists := response.Links["link"]; exists {
-				ue.AuthenticationCtx.Links = response.Links
-			}
 			gmm_message.SendAuthenticationRequest(ue.RanUe[accessType])
 		}
 	}
@@ -1869,7 +1867,7 @@ func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType,
 
 	cause5GMM := authenticationFailure.Cause5GMM.GetCauseValue()
 
-	if ue.AuthenticationCtx.AuthType == models.AuthType__5_G_AKA {
+	if ue.AuthenticationCtx.AuthType == coreModels.AuthType__5_G_AKA {
 		switch cause5GMM {
 		case nasMessage.Cause5GMMMACFailure:
 			ue.GmmLog.Warnln("Authentication Failure Cause: Mac Failure")
@@ -1901,7 +1899,7 @@ func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType,
 			}
 
 			auts := authenticationFailure.AuthenticationFailureParameter.GetAuthenticationFailureParameter()
-			resynchronizationInfo := &models.ResynchronizationInfo{
+			resynchronizationInfo := &coreModels.ResynchronizationInfo{
 				Auts: hex.EncodeToString(auts[:]),
 			}
 
@@ -1917,7 +1915,7 @@ func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType,
 
 			gmm_message.SendAuthenticationRequest(ue.RanUe[anType])
 		}
-	} else if ue.AuthenticationCtx.AuthType == models.AuthType_EAP_AKA_PRIME {
+	} else if ue.AuthenticationCtx.AuthType == coreModels.AuthType_EAP_AKA_PRIME {
 		switch cause5GMM {
 		case nasMessage.Cause5GMMngKSIAlreadyInUse:
 			ue.GmmLog.Warn("Authentication Failure 5GMM Cause: NgKSI Already In Use")

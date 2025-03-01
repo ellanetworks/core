@@ -13,6 +13,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nas_security"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
@@ -120,9 +121,9 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 	authenticationRequest.ABBA.SetABBAContents(ue.ABBA)
 
 	switch ue.AuthenticationCtx.AuthType {
-	case models.AuthType__5_G_AKA:
+	case coreModels.AuthType__5_G_AKA:
 		var tmpArray [16]byte
-		av5gAka, ok := ue.AuthenticationCtx.Var5gAuthData.(models.Av5gAka)
+		av5gAka, ok := ue.AuthenticationCtx.Var5gAuthData.(coreModels.Av5gAka)
 		if !ok {
 			return nil, fmt.Errorf("Var5gAuthData type assertion failed: got %T", ue.AuthenticationCtx.Var5gAuthData)
 		}
@@ -143,7 +144,7 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 		authenticationRequest.AuthenticationParameterAUTN.SetLen(uint8(len(autn)))
 		copy(tmpArray[:], autn[0:16])
 		authenticationRequest.AuthenticationParameterAUTN.SetAUTN(tmpArray)
-	case models.AuthType_EAP_AKA_PRIME:
+	case coreModels.AuthType_EAP_AKA_PRIME:
 		eapMsg := ue.AuthenticationCtx.Var5gAuthData.(string)
 		rawEapMsg, err := base64.StdEncoding.DecodeString(eapMsg)
 		if err != nil {

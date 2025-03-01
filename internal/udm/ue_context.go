@@ -9,7 +9,7 @@ package udm
 import (
 	"sync"
 
-	"github.com/omec-project/openapi/models"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 type UdmUeContext struct {
