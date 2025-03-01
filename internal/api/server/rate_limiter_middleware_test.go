@@ -24,14 +24,13 @@ func TestRateLimiterMiddleware(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	// Test rate limiting
 	loginData := &LoginParams{
 		Email:    "my.user123@ellanetworks.com",
 		Password: "password123",
 	}
 	server.ResetVisitors()
 
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 12; i++ {
 		respCode, _, err := login(ts.URL, client, loginData)
 		if err != nil {
 			t.Fatalf("couldn't login: %s", err)

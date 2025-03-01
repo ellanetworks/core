@@ -11,7 +11,7 @@ import (
 
 const (
 	RequestsPerSecond = 5
-	Burst             = 5
+	Burst             = 10
 )
 
 type Visitor struct {
