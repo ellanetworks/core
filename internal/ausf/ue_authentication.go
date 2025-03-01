@@ -194,7 +194,6 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo coreModels.Authenticati
 		responseBody.Var5gAuthData = base64.StdEncoding.EncodeToString(encodedPktAfterMAC)
 	}
 
-	responseBody.Links = make(map[string]coreModels.LinksValueSchema)
 	responseBody.AuthType = authInfoResult.AuthType
 
 	return &responseBody, nil
