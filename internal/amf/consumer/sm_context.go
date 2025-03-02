@@ -42,7 +42,7 @@ func SelectSmf(
 
 func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
 	requestType *models.RequestType, nasPdu []byte) (
-	*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse,
+	*coreModels.PostSmContextsResponse, string, *coreModels.PostSmContextsErrorResponse,
 	*models.ProblemDetails, error,
 ) {
 	smContextCreateData := buildCreateSmContextRequest(ue, smContext, nil)

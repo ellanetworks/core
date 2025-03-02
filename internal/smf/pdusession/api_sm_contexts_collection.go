@@ -9,14 +9,13 @@ import (
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
 	"github.com/ellanetworks/core/internal/smf/util"
-	"github.com/omec-project/openapi/models"
 )
 
-func SessionCreateInit(req coreModels.PostSmContextsRequest) *context.SMContext {
+func SessionCreateInit(req models.PostSmContextsRequest) *context.SMContext {
 	createData := req.JsonData
 	if smCtxtRef, err := context.ResolveRef(createData.Supi, createData.PduSessionId); err == nil {
 		err := producer.HandlePduSessionContextReplacement(smCtxtRef)
@@ -28,7 +27,7 @@ func SessionCreateInit(req coreModels.PostSmContextsRequest) *context.SMContext 
 	return ctxt
 }
 
-func HandleStateInitEventPduSessCreate(request coreModels.PostSmContextsRequest, smContext *context.SMContext) (context.SMContextState, *util.Response, error) {
+func HandleStateInitEventPduSessCreate(request models.PostSmContextsRequest, smContext *context.SMContext) (context.SMContextState, *util.Response, error) {
 	rsp, err := producer.HandlePDUSessionSMContextCreate(request, smContext)
 	if err != nil {
 		return context.SmStateInit, rsp, err
@@ -66,7 +65,7 @@ func HandleStatePfcpCreatePendingEventPfcpSessCreateFailure(smCtxt *context.SMCo
 	return context.SmStateInit, nil
 }
 
-func CreateSmContext(request coreModels.PostSmContextsRequest) (*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse, error) {
+func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse, error) {
 	// Ensure request data is present
 	if request.JsonData == nil {
 		errResponse := &models.PostSmContextsErrorResponse{

@@ -10,14 +10,13 @@ import (
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
 	"github.com/ellanetworks/core/internal/smf/util"
-	"github.com/omec-project/openapi/models"
 )
 
-func HandleStateActiveEventPduSessRelease(request coreModels.ReleaseSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *util.Response, error) {
+func HandleStateActiveEventPduSessRelease(request models.ReleaseSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *util.Response, error) {
 	rsp, err := producer.HandlePDUSessionSMContextRelease(request, smCtxt)
 	if err != nil {
 		return context.SmStateInit, rsp, err
@@ -26,7 +25,7 @@ func HandleStateActiveEventPduSessRelease(request coreModels.ReleaseSmContextReq
 	return context.SmStateInit, rsp, nil
 }
 
-func ReleaseSmContext(smContextRef string, releaseSmContextRequest coreModels.ReleaseSmContextRequest) error {
+func ReleaseSmContext(smContextRef string, releaseSmContextRequest models.ReleaseSmContextRequest) error {
 	logger.SmfLog.Info("Processing Release SM Context Request")
 
 	// Validate the request content
@@ -74,7 +73,7 @@ func ReleaseSmContext(smContextRef string, releaseSmContextRequest coreModels.Re
 	}
 }
 
-func HandlePduSessModify(request coreModels.UpdateSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *util.Response, error) {
+func HandlePduSessModify(request models.UpdateSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *util.Response, error) {
 	rsp, err := producer.HandlePDUSessionSMContextUpdate(request, smCtxt)
 	if err != nil {
 		rsp = &util.Response{
@@ -96,7 +95,7 @@ func HandlePduSessModify(request coreModels.UpdateSmContextRequest, smCtxt *cont
 	return context.SmStateActive, rsp, nil
 }
 
-func UpdateSmContext(smContextRef string, updateSmContextRequest coreModels.UpdateSmContextRequest) (*coreModels.UpdateSmContextResponse, error) {
+func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSmContextRequest) (*models.UpdateSmContextResponse, error) {
 	logger.SmfLog.Info("Processing Update SM Context Request")
 
 	if smContextRef == "" {
@@ -117,7 +116,7 @@ func UpdateSmContext(smContextRef string, updateSmContextRequest coreModels.Upda
 
 	switch rsp.Status {
 	case http.StatusOK, http.StatusNoContent:
-		response, ok := rsp.Body.(coreModels.UpdateSmContextResponse)
+		response, ok := rsp.Body.(models.UpdateSmContextResponse)
 		if !ok {
 			return nil, errors.New("unexpected response body type for successful update")
 		}
