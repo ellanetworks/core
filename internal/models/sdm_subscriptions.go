@@ -5,11 +5,10 @@ import (
 )
 
 type SdmSubscription struct {
-	NfInstanceId        string
-	ImplicitUnsubscribe bool
-	Expires             *time.Time
-	CallbackReference   string
-	// AmfServiceName        ServiceName `json:"amfServiceName,omitempty" yaml:"amfServiceName" bson:"amfServiceName" mapstructure:"AmfServiceName"`
+	NfInstanceId          string
+	ImplicitUnsubscribe   bool
+	Expires               *time.Time
+	CallbackReference     string
 	MonitoredResourceUris []string
 	SingleNssai           *Snssai
 	Dnn                   string
