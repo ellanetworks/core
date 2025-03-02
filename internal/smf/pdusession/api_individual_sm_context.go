@@ -10,13 +10,14 @@ import (
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
 	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/omec-project/openapi/models"
 )
 
-func HandleStateActiveEventPduSessRelease(request models.ReleaseSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *util.Response, error) {
+func HandleStateActiveEventPduSessRelease(request coreModels.ReleaseSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *util.Response, error) {
 	rsp, err := producer.HandlePDUSessionSMContextRelease(request, smCtxt)
 	if err != nil {
 		return context.SmStateInit, rsp, err
@@ -25,7 +26,7 @@ func HandleStateActiveEventPduSessRelease(request models.ReleaseSmContextRequest
 	return context.SmStateInit, rsp, nil
 }
 
-func ReleaseSmContext(smContextRef string, releaseSmContextRequest models.ReleaseSmContextRequest) error {
+func ReleaseSmContext(smContextRef string, releaseSmContextRequest coreModels.ReleaseSmContextRequest) error {
 	logger.SmfLog.Info("Processing Release SM Context Request")
 
 	// Validate the request content

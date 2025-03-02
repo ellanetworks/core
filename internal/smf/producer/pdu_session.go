@@ -415,7 +415,7 @@ func makePduCtxtModifyErrRsp(smContext *context.SMContext, errStr string) *util.
 	return httpResponse
 }
 
-func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smContext *context.SMContext) (*util.Response, error) {
+func HandlePDUSessionSMContextRelease(body coreModels.ReleaseSmContextRequest, smContext *context.SMContext) (*util.Response, error) {
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 

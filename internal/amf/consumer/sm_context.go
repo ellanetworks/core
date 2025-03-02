@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/amf/context"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/omec-project/openapi/models"
 )
@@ -310,7 +311,7 @@ func SendReleaseSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 	n2Info []byte,
 ) (detail *models.ProblemDetails, err error) {
 	releaseData := buildReleaseSmContextRequest(ue, cause, n2SmInfoType, n2Info)
-	releaseSmContextRequest := models.ReleaseSmContextRequest{
+	releaseSmContextRequest := coreModels.ReleaseSmContextRequest{
 		JsonData: &releaseData,
 	}
 	err = pdusession.ReleaseSmContext(smContext.SmContextRef(), releaseSmContextRequest)
@@ -322,14 +323,17 @@ func SendReleaseSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 
 func buildReleaseSmContextRequest(
 	ue *context.AmfUe, cause *context.CauseAll, n2SmInfoType models.N2SmInfoType, n2Info []byte) (
-	releaseData models.SmContextReleaseData,
+	releaseData coreModels.SmContextReleaseData,
 ) {
 	if cause != nil {
 		if cause.Cause != nil {
-			releaseData.Cause = *cause.Cause
+			releaseData.Cause = coreModels.Cause(*cause.Cause)
 		}
 		if cause.NgapCause != nil {
-			releaseData.NgApCause = cause.NgapCause
+			releaseData.NgApCause = &coreModels.NgApCause{
+				Group: cause.NgapCause.Group,
+				Value: cause.NgapCause.Value,
+			}
 		}
 		if cause.Var5GmmCause != nil {
 			releaseData.Var5gMmCauseValue = *cause.Var5GmmCause
@@ -339,8 +343,8 @@ func buildReleaseSmContextRequest(
 		releaseData.UeTimeZone = ue.TimeZone
 	}
 	if n2Info != nil {
-		releaseData.N2SmInfoType = n2SmInfoType
-		releaseData.N2SmInfo = &models.RefToBinaryData{
+		releaseData.N2SmInfoType = coreModels.N2SmInfoType(n2SmInfoType)
+		releaseData.N2SmInfo = &coreModels.RefToBinaryData{
 			ContentId: N2SMINFO_ID,
 		}
 	}
