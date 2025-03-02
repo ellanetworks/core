@@ -13,6 +13,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nas_security"
+	"github.com/ellanetworks/core/internal/amf/util"
 	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
@@ -574,7 +575,7 @@ func BuildRegistrationAccept(
 	if anType == models.AccessType__3_GPP_ACCESS && ue.AmPolicyAssociation != nil &&
 		ue.AmPolicyAssociation.ServAreaRes != nil {
 		registrationAccept.ServiceAreaList = nasType.NewServiceAreaList(nasMessage.RegistrationAcceptServiceAreaListType)
-		partialServiceAreaList := nasConvert.PartialServiceAreaListToNas(ue.PlmnId, *ue.AmPolicyAssociation.ServAreaRes)
+		partialServiceAreaList := util.PartialServiceAreaListToNas(ue.PlmnId, *ue.AmPolicyAssociation.ServAreaRes)
 		registrationAccept.ServiceAreaList.SetLen(uint8(len(partialServiceAreaList)))
 		registrationAccept.ServiceAreaList.SetPartialServiceAreaList(partialServiceAreaList)
 	}

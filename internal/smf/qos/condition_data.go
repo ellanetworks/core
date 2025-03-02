@@ -4,7 +4,7 @@
 
 package qos
 
-import "github.com/omec-project/openapi/models"
+import "github.com/ellanetworks/core/internal/models"
 
 type CondDataUpdate struct {
 	add, mod, del map[string]*models.ConditionData

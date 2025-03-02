@@ -11,21 +11,18 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/omec-project/openapi/models"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 type UeContext struct {
-	SmPolicyData                map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionId) as key
-	AfRoutReq                   *models.AfRoutingRequirement
-	AspId                       string
-	PolicyDataSubscriptionStore *models.PolicyDataSubscription
-	PolicyDataChangeStore       *models.PolicyDataChangeNotification
-	Supi                        string
-	Gpsi                        string
-	Pei                         string
-	AMPolicyData                map[string]*UeAMPolicyData // use PolAssoId(ue.Supi-numPolId) as key
-	GroupIds                    []string
-	PolAssociationIDGenerator   uint32
+	SmPolicyData              map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionId) as key
+	AspId                     string
+	Supi                      string
+	Gpsi                      string
+	Pei                       string
+	AMPolicyData              map[string]*UeAMPolicyData // use PolAssoId(ue.Supi-numPolId) as key
+	GroupIds                  []string
+	PolAssociationIDGenerator uint32
 }
 
 type UeAMPolicyData struct {

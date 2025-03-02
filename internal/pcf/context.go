@@ -15,8 +15,8 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
-	"github.com/omec-project/openapi/models"
 )
 
 var pcfCtx *PCFContext

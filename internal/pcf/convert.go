@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/omec-project/openapi/models"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 var policyTriggerArray = []models.PolicyControlRequestTrigger{

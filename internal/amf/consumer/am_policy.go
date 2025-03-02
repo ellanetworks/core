@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/pcf"
 	"github.com/omec-project/openapi/models"
 )
@@ -18,17 +19,23 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) error {
 	amfSelf := context.AMF_Self()
 	guamiList := context.GetServedGuamiList()
 
-	policyAssociationRequest := models.PolicyAssociationRequest{
+	policyAssociationRequest := coreModels.PolicyAssociationRequest{
 		NotificationUri: amfSelf.GetIPv4Uri() + "/namf-callback/v1/am-policy/",
 		Supi:            ue.Supi,
 		Pei:             ue.Pei,
 		Gpsi:            ue.Gpsi,
-		AccessType:      anType,
-		ServingPlmn: &models.NetworkId{
+		AccessType:      coreModels.AccessType(anType),
+		ServingPlmn: &coreModels.NetworkId{
 			Mcc: ue.PlmnId.Mcc,
 			Mnc: ue.PlmnId.Mnc,
 		},
-		Guami: &guamiList[0],
+		Guami: &coreModels.Guami{
+			PlmnId: &coreModels.PlmnId{
+				Mcc: guamiList[0].PlmnId.Mcc,
+				Mnc: guamiList[0].PlmnId.Mnc,
+			},
+			AmfId: guamiList[0].AmfId,
+		},
 	}
 
 	if ue.AccessAndMobilitySubscriptionData != nil {
@@ -43,7 +50,7 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) error {
 	ue.AmPolicyAssociation = res
 	if res.Triggers != nil {
 		for _, trigger := range res.Triggers {
-			if trigger == models.RequestTrigger_LOC_CH {
+			if trigger == coreModels.RequestTrigger_LOC_CH {
 				ue.RequestTriggerLocationChange = true
 			}
 		}
@@ -51,7 +58,7 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) error {
 	return nil
 }
 
-func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssociationUpdateRequest) error {
+func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest coreModels.PolicyAssociationUpdateRequest) error {
 	res, err := pcf.UpdateAMPolicy(ue.PolicyAssociationId, updateRequest)
 	if err != nil {
 		return fmt.Errorf("failed to update policy: %+v", err)
@@ -65,7 +72,7 @@ func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssocia
 	ue.AmPolicyAssociation.Triggers = res.Triggers
 	ue.RequestTriggerLocationChange = false
 	for _, trigger := range res.Triggers {
-		if trigger == models.RequestTrigger_LOC_CH {
+		if trigger == coreModels.RequestTrigger_LOC_CH {
 			ue.RequestTriggerLocationChange = true
 		}
 	}

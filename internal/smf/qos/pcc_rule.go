@@ -6,7 +6,8 @@
 package qos
 
 import (
-	"github.com/omec-project/openapi/models"
+	"github.com/ellanetworks/core/internal/models"
+	coreModels "github.com/ellanetworks/core/internal/models"
 )
 
 type PccRulesUpdate struct {
@@ -66,6 +67,6 @@ func GetPccRuleChanges(s, d *models.PccRule) bool {
 	return false
 }
 
-func (upd *PccRulesUpdate) GetAddPccRuleUpdate() map[string]*models.PccRule {
+func (upd *PccRulesUpdate) GetAddPccRuleUpdate() map[string]*coreModels.PccRule {
 	return upd.add
 }

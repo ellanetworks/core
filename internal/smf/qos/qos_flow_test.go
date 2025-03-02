@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
-	"github.com/omec-project/openapi/models"
 )
 
 func TestBuildAuthorizedQosFlowDescriptions(t *testing.T) {
