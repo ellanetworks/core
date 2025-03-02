@@ -21,3 +21,19 @@ func PDUSessionTypeToModels(nasPduSessType uint8) (pduSessType models.PduSession
 
 	return
 }
+
+func ModelsToPDUSessionType(pduSessType models.PduSessionType) (nasPduSessType uint8) {
+	switch pduSessType {
+	case models.PduSessionType_IPV4:
+		nasPduSessType = nasMessage.PDUSessionTypeIPv4
+	case models.PduSessionType_IPV6:
+		nasPduSessType = nasMessage.PDUSessionTypeIPv6
+	case models.PduSessionType_IPV4_V6:
+		nasPduSessType = nasMessage.PDUSessionTypeIPv4IPv6
+	case models.PduSessionType_UNSTRUCTURED:
+		nasPduSessType = nasMessage.PDUSessionTypeUnstructured
+	case models.PduSessionType_ETHERNET:
+		nasPduSessType = nasMessage.PDUSessionTypeEthernet
+	}
+	return
+}

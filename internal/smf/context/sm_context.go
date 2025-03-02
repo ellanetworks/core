@@ -13,13 +13,11 @@ import (
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/google/uuid"
-	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/openapi/models"
 	"go.uber.org/zap"
 )
 
@@ -72,19 +70,19 @@ type SMContext struct {
 	ServingNfId       string `json:"servingNfId,omitempty" yaml:"servingNfId" bson:"servingNfId,omitempty"`
 	SmStatusNotifyUri string `json:"smStatusNotifyUri,omitempty" yaml:"smStatusNotifyUri" bson:"smStatusNotifyUri,omitempty"`
 
-	UpCnxState coreModels.UpCnxState `json:"upCnxState,omitempty" yaml:"upCnxState" bson:"upCnxState,omitempty"`
+	UpCnxState models.UpCnxState `json:"upCnxState,omitempty" yaml:"upCnxState" bson:"upCnxState,omitempty"`
 	// SelectedPCFProfile models.NfProfile        `json:"selectedPCFProfile,omitempty" yaml:"selectedPCFProfile" bson:"selectedPCFProfile,omitempty"`
-	AnType           coreModels.AccessType       `json:"anType" yaml:"anType" bson:"anType"`
-	RatType          coreModels.RatType          `json:"ratType,omitempty" yaml:"ratType" bson:"ratType,omitempty"`
-	PresenceInLadn   coreModels.PresenceState    `json:"presenceInLadn,omitempty" yaml:"presenceInLadn" bson:"presenceInLadn,omitempty"` // ignore
-	HoState          models.HoState              `json:"hoState,omitempty" yaml:"hoState" bson:"hoState,omitempty"`
-	DnnConfiguration coreModels.DnnConfiguration `json:"dnnConfiguration,omitempty" yaml:"dnnConfiguration" bson:"dnnConfiguration,omitempty"` // ?
+	AnType           models.AccessType       `json:"anType" yaml:"anType" bson:"anType"`
+	RatType          models.RatType          `json:"ratType,omitempty" yaml:"ratType" bson:"ratType,omitempty"`
+	PresenceInLadn   models.PresenceState    `json:"presenceInLadn,omitempty" yaml:"presenceInLadn" bson:"presenceInLadn,omitempty"` // ignore
+	HoState          models.HoState          `json:"hoState,omitempty" yaml:"hoState" bson:"hoState,omitempty"`
+	DnnConfiguration models.DnnConfiguration `json:"dnnConfiguration,omitempty" yaml:"dnnConfiguration" bson:"dnnConfiguration,omitempty"` // ?
 
-	Snssai         *coreModels.Snssai       `json:"snssai" yaml:"snssai" bson:"snssai"`
-	HplmnSnssai    *coreModels.Snssai       `json:"hplmnSnssai,omitempty" yaml:"hplmnSnssai" bson:"hplmnSnssai,omitempty"`
-	ServingNetwork *coreModels.PlmnId       `json:"servingNetwork,omitempty" yaml:"servingNetwork" bson:"servingNetwork,omitempty"`
-	UeLocation     *coreModels.UserLocation `json:"ueLocation,omitempty" yaml:"ueLocation" bson:"ueLocation,omitempty"`
-	AddUeLocation  *coreModels.UserLocation `json:"addUeLocation,omitempty" yaml:"addUeLocation" bson:"addUeLocation,omitempty"` // ignore
+	Snssai         *models.Snssai       `json:"snssai" yaml:"snssai" bson:"snssai"`
+	HplmnSnssai    *models.Snssai       `json:"hplmnSnssai,omitempty" yaml:"hplmnSnssai" bson:"hplmnSnssai,omitempty"`
+	ServingNetwork *models.PlmnId       `json:"servingNetwork,omitempty" yaml:"servingNetwork" bson:"servingNetwork,omitempty"`
+	UeLocation     *models.UserLocation `json:"ueLocation,omitempty" yaml:"ueLocation" bson:"ueLocation,omitempty"`
+	AddUeLocation  *models.UserLocation `json:"addUeLocation,omitempty" yaml:"addUeLocation" bson:"addUeLocation,omitempty"` // ignore
 
 	// PDUAddress             net.IP `json:"pduAddress,omitempty" yaml:"pduAddress" bson:"pduAddress,omitempty"`
 	PDUAddress *UeIpAddr `json:"pduAddress,omitempty" yaml:"pduAddress" bson:"pduAddress,omitempty"`
@@ -264,7 +262,7 @@ func (smContext *SMContext) ReleaseUeIpAddr() error {
 	return nil
 }
 
-func (smContext *SMContext) SetCreateData(createData *coreModels.SmContextCreateData) {
+func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData) {
 	smContext.Gpsi = createData.Gpsi
 	smContext.Supi = createData.Supi
 	smContext.Dnn = createData.Dnn
@@ -281,8 +279,8 @@ func (smContext *SMContext) SetCreateData(createData *coreModels.SmContextCreate
 	smContext.ServingNfId = createData.ServingNfId
 }
 
-func (smContext *SMContext) BuildCreatedData() (createdData *coreModels.SmContextCreatedData) {
-	createdData = new(coreModels.SmContextCreatedData)
+func (smContext *SMContext) BuildCreatedData() (createdData *models.SmContextCreatedData) {
+	createdData = new(models.SmContextCreatedData)
 	createdData.SNssai = smContext.Snssai
 	return
 }
@@ -359,14 +357,14 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 
 	for _, allowedPDUSessionType := range smContext.DnnConfiguration.PduSessionTypes.AllowedSessionTypes {
 		switch allowedPDUSessionType {
-		case coreModels.PduSessionType_IPV4:
+		case models.PduSessionType_IPV4:
 			allowIPv4 = true
-		case coreModels.PduSessionType_IPV6:
+		case models.PduSessionType_IPV6:
 			allowIPv6 = true
-		case coreModels.PduSessionType_IPV4_V6:
+		case models.PduSessionType_IPV4_V6:
 			allowIPv4 = true
 			allowIPv6 = true
-		case coreModels.PduSessionType_ETHERNET:
+		case models.PduSessionType_ETHERNET:
 			allowEthernet = true
 		}
 	}
@@ -377,33 +375,33 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 
 	smContext.EstAcceptCause5gSMValue = 0
 	switch util.PDUSessionTypeToModels(requestedPDUSessionType) {
-	case coreModels.PduSessionType_IPV4:
+	case models.PduSessionType_IPV4:
 		if allowIPv4 {
-			smContext.SelectedPDUSessionType = nasConvert.ModelsToPDUSessionType(models.PduSessionType_IPV4)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_IPV4)
 		} else {
 			return fmt.Errorf("PduSessionType_IPV4 is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
-	case coreModels.PduSessionType_IPV6:
+	case models.PduSessionType_IPV6:
 		if allowIPv6 {
-			smContext.SelectedPDUSessionType = nasConvert.ModelsToPDUSessionType(models.PduSessionType_IPV6)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_IPV6)
 		} else {
 			return fmt.Errorf("PduSessionType_IPV6 is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
-	case coreModels.PduSessionType_IPV4_V6:
+	case models.PduSessionType_IPV4_V6:
 		if allowIPv4 && allowIPv6 {
-			smContext.SelectedPDUSessionType = nasConvert.ModelsToPDUSessionType(models.PduSessionType_IPV4_V6)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_IPV4_V6)
 		} else if allowIPv4 {
-			smContext.SelectedPDUSessionType = nasConvert.ModelsToPDUSessionType(models.PduSessionType_IPV4)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_IPV4)
 			smContext.EstAcceptCause5gSMValue = nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
 		} else if allowIPv6 {
-			smContext.SelectedPDUSessionType = nasConvert.ModelsToPDUSessionType(models.PduSessionType_IPV6)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_IPV6)
 			smContext.EstAcceptCause5gSMValue = nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
 		} else {
 			return fmt.Errorf("PduSessionType_IPV4_V6 is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
-	case coreModels.PduSessionType_ETHERNET:
+	case models.PduSessionType_ETHERNET:
 		if allowEthernet {
-			smContext.SelectedPDUSessionType = nasConvert.ModelsToPDUSessionType(models.PduSessionType_ETHERNET)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_ETHERNET)
 		} else {
 			return fmt.Errorf("PduSessionType_ETHERNET is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
@@ -416,7 +414,7 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 // SM Policy related operation
 
 // SelectedSessionRule - return the SMF selected session rule for this SM Context
-func (smContext *SMContext) SelectedSessionRule() *coreModels.SessionRule {
+func (smContext *SMContext) SelectedSessionRule() *models.SessionRule {
 	// Policy update in progress
 	if len(smContext.SmPolicyUpdates) > 0 {
 		return smContext.SmPolicyUpdates[0].SessRuleUpdate.ActiveSessRule

@@ -14,5 +14,5 @@ type ProblemDetails struct {
 	// A machine-readable application error cause specific to this occurrence of the problem. This IE should be present and provide application-related error information, if available.
 	Cause string `json:"cause,omitempty" yaml:"cause" bson:"cause" mapstructure:"Cause"`
 	// Description of invalid parameters, for a request rejected due to invalid parameters.
-	// InvalidParams []InvalidParam `json:"invalidParams,omitempty" yaml:"invalidParams" bson:"invalidParams" mapstructure:"InvalidParams"`
+	InvalidParams []InvalidParam `json:"invalidParams,omitempty" yaml:"invalidParams" bson:"invalidParams" mapstructure:"InvalidParams"`
 }

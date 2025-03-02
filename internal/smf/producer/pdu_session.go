@@ -92,7 +92,7 @@ func HandlePDUSessionSMContextCreate(request coreModels.PostSmContextsRequest, s
 	if smContext.DNNInfo == nil {
 		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, S-NSSAI[sst: %d, sd: %s] DNN[%s] does not match DNN Config",
 			createData.SNssai.Sst, createData.SNssai.Sd, createData.Dnn)
-		problemDetails := &models.ProblemDetails{
+		problemDetails := &coreModels.ProblemDetails{
 			Title:         "DNN Denied",
 			Status:        http.StatusForbidden,
 			Detail:        "The subscriber does not have the necessary subscription to access the DNN",
@@ -107,7 +107,7 @@ func HandlePDUSessionSMContextCreate(request coreModels.PostSmContextsRequest, s
 	smfSelf := context.SMF_Self()
 	if ip, err := smfSelf.DbInstance.AllocateIP(smContext.Supi); err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, failed allocate IP address: ", err)
-		problemDetails := &models.ProblemDetails{
+		problemDetails := &coreModels.ProblemDetails{
 			Title:         "IP Allocation Error",
 			Status:        http.StatusInternalServerError,
 			Detail:        "The request cannot be provided due to insufficient resources for the IP allocation.",
@@ -127,7 +127,7 @@ func HandlePDUSessionSMContextCreate(request coreModels.PostSmContextsRequest, s
 	sessSubData, err := udm.GetAndSetSmData(smContext.Supi, createData.Dnn, snssai)
 	if err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, get SessionManagementSubscriptionData error: ", err)
-		problemDetails := &models.ProblemDetails{
+		problemDetails := &coreModels.ProblemDetails{
 			Title:         "Subscription Data Fetch error",
 			Status:        http.StatusInternalServerError,
 			Detail:        "The request cannot be provided due to failure in fetching subscription data.",
@@ -142,7 +142,7 @@ func HandlePDUSessionSMContextCreate(request coreModels.PostSmContextsRequest, s
 		smContext.SubPduSessLog.Infof("subscription data retrieved from UDM")
 	} else {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SessionManagementSubscriptionData from UDM is nil")
-		problemDetails := &models.ProblemDetails{
+		problemDetails := &coreModels.ProblemDetails{
 			Title:         "Subscription Data Fetch error",
 			Status:        http.StatusInternalServerError,
 			Detail:        "The request cannot be provided due to not receiving any subscription data.  ",
@@ -163,7 +163,7 @@ func HandlePDUSessionSMContextCreate(request coreModels.PostSmContextsRequest, s
 	var smPolicyDecision *coreModels.SmPolicyDecision
 	if smPolicyDecisionRsp, httpStatus, err := consumer.SendSMPolicyAssociationCreate(smContext); err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SMPolicyAssociationCreate error: ", err)
-		problemDetails := &models.ProblemDetails{
+		problemDetails := &coreModels.ProblemDetails{
 			Title:         "PCF Discovery Failure",
 			Status:        http.StatusInternalServerError,
 			Detail:        "The request cannot be provided due to failure in creating PCF policy.",
@@ -174,7 +174,7 @@ func HandlePDUSessionSMContextCreate(request coreModels.PostSmContextsRequest, s
 		return response, fmt.Errorf("PcfAssoError")
 	} else if httpStatus != http.StatusCreated {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SMPolicyAssociationCreate http status: ", http.StatusText(httpStatus))
-		problemDetails := &models.ProblemDetails{
+		problemDetails := &coreModels.ProblemDetails{
 			Title:         "PCF Discovery Failure",
 			Status:        http.StatusInternalServerError,
 			Detail:        "The request cannot be provided due to failure in creating PCF policy.",
@@ -205,7 +205,7 @@ func HandlePDUSessionSMContextCreate(request coreModels.PostSmContextsRequest, s
 	defaultUPPath, err := context.GetUserPlaneInformation().GetDefaultUserPlanePathByDNN(upfSelectionParams)
 	if err != nil {
 		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, get default UP path error: %v", err.Error())
-		problemDetails := &models.ProblemDetails{
+		problemDetails := &coreModels.ProblemDetails{
 			Title:         "UPF Data Path Failure",
 			Status:        http.StatusInternalServerError,
 			Detail:        "The request cannot be provided due to failure in fetching UPF data path.",
@@ -218,7 +218,7 @@ func HandlePDUSessionSMContextCreate(request coreModels.PostSmContextsRequest, s
 	defaultPath, err = context.GenerateDataPath(defaultUPPath, smContext)
 	if err != nil {
 		smContext.SubPduSessLog.Errorf("couldn't generate data path: %v", err.Error())
-		problemDetails := &models.ProblemDetails{
+		problemDetails := &coreModels.ProblemDetails{
 			Title:         "UPF Data Path Failure",
 			Status:        http.StatusInternalServerError,
 			Detail:        "The request cannot be provided due to failure in fetching UPF data path.",
@@ -234,7 +234,7 @@ func HandlePDUSessionSMContextCreate(request coreModels.PostSmContextsRequest, s
 
 		if err := defaultPath.ActivateTunnelAndPDR(smContext, 255); err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, data path error: %v", err.Error())
-			problemDetails := &models.ProblemDetails{
+			problemDetails := &coreModels.ProblemDetails{
 				Title:         "UPF Data Path Failure",
 				Status:        http.StatusInternalServerError,
 				Detail:        "The request cannot be provided due to failure in fetching UPF data path.",
@@ -247,7 +247,7 @@ func HandlePDUSessionSMContextCreate(request coreModels.PostSmContextsRequest, s
 	}
 	if defaultPath == nil {
 		smContext.ChangeState(context.SmStateInit)
-		problemDetails := &models.ProblemDetails{
+		problemDetails := &coreModels.ProblemDetails{
 			Title:         "DNN Resource insufficient",
 			Status:        http.StatusInternalServerError,
 			Detail:        "The request cannot be provided due to insufficient resources for the specific slice and DNN.",
@@ -277,8 +277,8 @@ func HandlePDUSessionSMContextUpdate(request coreModels.UpdateSmContextRequest, 
 	defer smContext.SMLock.Unlock()
 
 	pfcpAction := &pfcpAction{}
-	var response models.UpdateSmContextResponse
-	response.JsonData = new(models.SmContextUpdatedData)
+	var response coreModels.UpdateSmContextResponse
+	response.JsonData = new(coreModels.SmContextUpdatedData)
 
 	var httpResponse *util.Response
 	httpResponse, err := HandleUpdateN1Msg(request, smContext, &response, pfcpAction)

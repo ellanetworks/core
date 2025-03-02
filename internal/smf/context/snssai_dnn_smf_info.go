@@ -8,7 +8,7 @@ package context
 import (
 	"net"
 
-	"github.com/omec-project/openapi/models"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 // SnssaiSmfInfo records the SMF S-NSSAI related information

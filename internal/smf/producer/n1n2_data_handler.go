@@ -27,7 +27,7 @@ type pfcpParam struct {
 	qerList []*context.QER
 }
 
-func HandleUpdateN1Msg(body coreModels.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) (*util.Response, error) {
+func HandleUpdateN1Msg(body coreModels.UpdateSmContextRequest, smContext *context.SMContext, response *coreModels.UpdateSmContextResponse, pfcpAction *pfcpAction) (*util.Response, error) {
 	if body.BinaryDataN1SmMessage != nil {
 		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, Binary Data N1 SmMessage isn't nil!")
 		m := nas.NewMessage()
@@ -59,10 +59,10 @@ func HandleUpdateN1Msg(body coreModels.UpdateSmContextRequest, smContext *contex
 				response.BinaryDataN1SmMessage = buf
 			}
 
-			response.JsonData.N1SmMsg = &models.RefToBinaryData{ContentId: "PDUSessionReleaseCommand"}
+			response.JsonData.N1SmMsg = &coreModels.RefToBinaryData{ContentId: "PDUSessionReleaseCommand"}
 
-			response.JsonData.N2SmInfo = &models.RefToBinaryData{ContentId: "PDUResourceReleaseCommand"}
-			response.JsonData.N2SmInfoType = models.N2SmInfoType_PDU_RES_REL_CMD
+			response.JsonData.N2SmInfo = &coreModels.RefToBinaryData{ContentId: "PDUResourceReleaseCommand"}
+			response.JsonData.N2SmInfoType = coreModels.N2SmInfoType_PDU_RES_REL_CMD
 
 			if buf, err := context.BuildPDUSessionResourceReleaseCommandTransfer(smContext); err != nil {
 				smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, build PDUSessionResourceReleaseCommandTransfer failed: %+v", err)
@@ -86,7 +86,7 @@ func HandleUpdateN1Msg(body coreModels.UpdateSmContextRequest, smContext *contex
 			}
 			// Send Release Notify to AMF
 			smContext.ChangeState(context.SmStateInit)
-			response.JsonData.UpCnxState = models.UpCnxState_DEACTIVATED
+			response.JsonData.UpCnxState = coreModels.UpCnxState_DEACTIVATED
 			smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, sent SMContext Status Notification successfully")
 		}
 	} else {
@@ -96,15 +96,15 @@ func HandleUpdateN1Msg(body coreModels.UpdateSmContextRequest, smContext *contex
 	return nil, nil
 }
 
-func HandleUpCnxState(body coreModels.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction, pfcpParam *pfcpParam) error {
+func HandleUpCnxState(body coreModels.UpdateSmContextRequest, smContext *context.SMContext, response *coreModels.UpdateSmContextResponse, pfcpAction *pfcpAction, pfcpParam *pfcpParam) error {
 	smContextUpdateData := body.JsonData
 
 	switch smContextUpdateData.UpCnxState {
 	case coreModels.UpCnxState_ACTIVATING:
 		smContext.ChangeState(context.SmStateModify)
-		response.JsonData.N2SmInfo = &models.RefToBinaryData{ContentId: "PDUSessionResourceSetupRequestTransfer"}
-		response.JsonData.UpCnxState = models.UpCnxState_ACTIVATING
-		response.JsonData.N2SmInfoType = models.N2SmInfoType_PDU_RES_SETUP_REQ
+		response.JsonData.N2SmInfo = &coreModels.RefToBinaryData{ContentId: "PDUSessionResourceSetupRequestTransfer"}
+		response.JsonData.UpCnxState = coreModels.UpCnxState_ACTIVATING
+		response.JsonData.N2SmInfoType = coreModels.N2SmInfoType_PDU_RES_SETUP_REQ
 
 		n2Buf, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext)
 		if err != nil {
@@ -112,7 +112,7 @@ func HandleUpCnxState(body coreModels.UpdateSmContextRequest, smContext *context
 		}
 		smContext.UpCnxState = coreModels.UpCnxState_ACTIVATING
 		response.BinaryDataN2SmInformation = n2Buf
-		response.JsonData.N2SmInfoType = models.N2SmInfoType_PDU_RES_SETUP_REQ
+		response.JsonData.N2SmInfoType = coreModels.N2SmInfoType_PDU_RES_SETUP_REQ
 	case coreModels.UpCnxState_DEACTIVATED:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, UP cnx state %v received", smContextUpdateData.UpCnxState)
 		if smContext.SMContextState != context.SmStateActive {
@@ -120,7 +120,7 @@ func HandleUpCnxState(body coreModels.UpdateSmContextRequest, smContext *context
 		}
 		if smContext.Tunnel != nil {
 			smContext.ChangeState(context.SmStateModify)
-			response.JsonData.UpCnxState = models.UpCnxState_DEACTIVATED
+			response.JsonData.UpCnxState = coreModels.UpCnxState_DEACTIVATED
 			smContext.UpCnxState = body.JsonData.UpCnxState
 			smContext.UeLocation = body.JsonData.UeLocation
 			farList := []*context.FAR{}
@@ -154,7 +154,7 @@ func HandleUpCnxState(body coreModels.UpdateSmContextRequest, smContext *context
 	return nil
 }
 
-func HandleUpdateHoState(body coreModels.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse) error {
+func HandleUpdateHoState(body coreModels.UpdateSmContextRequest, smContext *context.SMContext, response *coreModels.UpdateSmContextResponse) error {
 	smContextUpdateData := body.JsonData
 
 	switch smContextUpdateData.HoState {
@@ -164,22 +164,22 @@ func HandleUpdateHoState(body coreModels.UpdateSmContextRequest, smContext *cont
 				smContext.SMContextState.String())
 		}
 		smContext.ChangeState(context.SmStateModify)
-		smContext.HoState = models.HoState_PREPARING
+		smContext.HoState = coreModels.HoState_PREPARING
 		if err := context.HandleHandoverRequiredTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, handle HandoverRequiredTransfer failed: %+v", err)
 		}
-		response.JsonData.N2SmInfoType = models.N2SmInfoType_PDU_RES_SETUP_REQ
+		response.JsonData.N2SmInfoType = coreModels.N2SmInfoType_PDU_RES_SETUP_REQ
 
 		if n2Buf, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext); err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, build PDUSession Resource Setup Request Transfer Error(%s)", err.Error())
 		} else {
 			response.BinaryDataN2SmInformation = n2Buf
 		}
-		response.JsonData.N2SmInfoType = models.N2SmInfoType_PDU_RES_SETUP_REQ
-		response.JsonData.N2SmInfo = &models.RefToBinaryData{
+		response.JsonData.N2SmInfoType = coreModels.N2SmInfoType_PDU_RES_SETUP_REQ
+		response.JsonData.N2SmInfo = &coreModels.RefToBinaryData{
 			ContentId: "PDU_RES_SETUP_REQ",
 		}
-		response.JsonData.HoState = models.HoState_PREPARING
+		response.JsonData.HoState = coreModels.HoState_PREPARING
 	case coreModels.HoState_PREPARED:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, Ho state %v received", smContextUpdateData.HoState)
 		if smContext.SMContextState != context.SmStateActive {
@@ -187,8 +187,8 @@ func HandleUpdateHoState(body coreModels.UpdateSmContextRequest, smContext *cont
 				smContext.SMContextState.String())
 		}
 		smContext.ChangeState(context.SmStateModify)
-		smContext.HoState = models.HoState_PREPARED
-		response.JsonData.HoState = models.HoState_PREPARED
+		smContext.HoState = coreModels.HoState_PREPARED
+		response.JsonData.HoState = coreModels.HoState_PREPARED
 		if err := context.HandleHandoverRequestAcknowledgeTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, handle HandoverRequestAcknowledgeTransfer failed: %+v", err)
 		}
@@ -199,11 +199,11 @@ func HandleUpdateHoState(body coreModels.UpdateSmContextRequest, smContext *cont
 			response.BinaryDataN2SmInformation = n2Buf
 		}
 
-		response.JsonData.N2SmInfoType = models.N2SmInfoType_HANDOVER_CMD
-		response.JsonData.N2SmInfo = &models.RefToBinaryData{
+		response.JsonData.N2SmInfoType = coreModels.N2SmInfoType_HANDOVER_CMD
+		response.JsonData.N2SmInfo = &coreModels.RefToBinaryData{
 			ContentId: "HANDOVER_CMD",
 		}
-		response.JsonData.HoState = models.HoState_PREPARING
+		response.JsonData.HoState = coreModels.HoState_PREPARING
 	case coreModels.HoState_COMPLETED:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, Ho state %v received", smContextUpdateData.HoState)
 		if smContext.SMContextState != context.SmStateActive {
@@ -211,13 +211,13 @@ func HandleUpdateHoState(body coreModels.UpdateSmContextRequest, smContext *cont
 				smContext.SMContextState.String())
 		}
 		smContext.ChangeState(context.SmStateModify)
-		smContext.HoState = models.HoState_COMPLETED
-		response.JsonData.HoState = models.HoState_COMPLETED
+		smContext.HoState = coreModels.HoState_COMPLETED
+		response.JsonData.HoState = coreModels.HoState_COMPLETED
 	}
 	return nil
 }
 
-func HandleUpdateCause(body coreModels.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) error {
+func HandleUpdateCause(body coreModels.UpdateSmContextRequest, smContext *context.SMContext, response *coreModels.UpdateSmContextResponse, pfcpAction *pfcpAction) error {
 	smContextUpdateData := body.JsonData
 
 	switch smContextUpdateData.Cause {
@@ -229,8 +229,8 @@ func HandleUpdateCause(body coreModels.UpdateSmContextRequest, smContext *contex
 				smContext.SMContextState.String())
 		}
 
-		response.JsonData.N2SmInfo = &models.RefToBinaryData{ContentId: "PDUResourceReleaseCommand"}
-		response.JsonData.N2SmInfoType = models.N2SmInfoType_PDU_RES_REL_CMD
+		response.JsonData.N2SmInfo = &coreModels.RefToBinaryData{ContentId: "PDUResourceReleaseCommand"}
+		response.JsonData.N2SmInfoType = coreModels.N2SmInfoType_PDU_RES_REL_CMD
 		smContext.PDUSessionRelease_DUE_TO_DUP_PDU_ID = true
 
 		buf, err := context.BuildPDUSessionResourceReleaseCommandTransfer(smContext)
@@ -250,7 +250,7 @@ func HandleUpdateCause(body coreModels.UpdateSmContextRequest, smContext *contex
 	return nil
 }
 
-func HandleUpdateN2Msg(body coreModels.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction, pfcpParam *pfcpParam) error {
+func HandleUpdateN2Msg(body coreModels.UpdateSmContextRequest, smContext *context.SMContext, response *coreModels.UpdateSmContextResponse, pfcpAction *pfcpAction, pfcpParam *pfcpParam) error {
 	smContextUpdateData := body.JsonData
 	tunnel := smContext.Tunnel
 
@@ -319,7 +319,7 @@ func HandleUpdateN2Msg(body coreModels.UpdateSmContextRequest, smContext *contex
 					smContext.SMContextState.String())
 			}
 			smContext.ChangeState(context.SmStateInit)
-			response.JsonData.UpCnxState = models.UpCnxState_DEACTIVATED
+			response.JsonData.UpCnxState = coreModels.UpCnxState_DEACTIVATED
 
 			smContext.PDUSessionRelease_DUE_TO_DUP_PDU_ID = false
 			context.RemoveSMContext(smContext.Ref)
@@ -351,8 +351,8 @@ func HandleUpdateN2Msg(body coreModels.UpdateSmContextRequest, smContext *contex
 			response.BinaryDataN2SmInformation = n2Buf
 		}
 
-		response.JsonData.N2SmInfoType = models.N2SmInfoType_PATH_SWITCH_REQ_ACK
-		response.JsonData.N2SmInfo = &models.RefToBinaryData{
+		response.JsonData.N2SmInfoType = coreModels.N2SmInfoType_PATH_SWITCH_REQ_ACK
+		response.JsonData.N2SmInfo = &coreModels.RefToBinaryData{
 			ContentId: "PATH_SWITCH_REQ_ACK",
 		}
 
@@ -397,7 +397,7 @@ func HandleUpdateN2Msg(body coreModels.UpdateSmContextRequest, smContext *contex
 				smContext.SMContextState.String())
 		}
 		smContext.ChangeState(context.SmStateModify)
-		response.JsonData.N2SmInfo = &models.RefToBinaryData{ContentId: "Handover"}
+		response.JsonData.N2SmInfo = &coreModels.RefToBinaryData{ContentId: "Handover"}
 	}
 
 	return nil

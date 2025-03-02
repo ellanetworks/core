@@ -14,8 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/openapi/models"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 var smfContext SMFContext
@@ -35,7 +34,7 @@ type SMFContext struct {
 }
 
 // RetrieveDnnInformation gets the corresponding dnn info from S-NSSAI and DNN
-func RetrieveDnnInformation(Snssai coreModels.Snssai, dnn string) *SnssaiSmfDnnInfo {
+func RetrieveDnnInformation(Snssai models.Snssai, dnn string) *SnssaiSmfDnnInfo {
 	snssaiInfo := GetSnssaiInfo()
 	for _, snssaiInfo := range snssaiInfo {
 		if snssaiInfo.Snssai.Sst == Snssai.Sst && snssaiInfo.Snssai.Sd == Snssai.Sd {

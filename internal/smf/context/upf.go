@@ -16,11 +16,10 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/google/uuid"
 	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/openapi/models"
 )
 
 type UPTunnel struct {
@@ -270,7 +269,7 @@ func (upf *UPF) qerID() (uint32, error) {
 	return qerID, nil
 }
 
-func (upf *UPF) BuildCreatePdrFromPccRule(rule *coreModels.PccRule) (*PDR, error) {
+func (upf *UPF) BuildCreatePdrFromPccRule(rule *models.PccRule) (*PDR, error) {
 	var pdr *PDR
 	var err error
 

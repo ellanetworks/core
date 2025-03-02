@@ -11,11 +11,10 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/ellanetworks/core/internal/util/dnn"
-	"github.com/omec-project/openapi/models"
 )
 
 // GTPTunnel represents the GTP tunnel information
@@ -351,7 +350,7 @@ func (dpNode *DataPathNode) CreatePccRuleQer(smContext *SMContext, qosData strin
 
 	// Get Flow Status
 	gateStatus := GateOpen
-	if tc != nil && tc.FlowStatus == coreModels.FlowStatus_DISABLED {
+	if tc != nil && tc.FlowStatus == models.FlowStatus_DISABLED {
 		gateStatus = GateClose
 	}
 
