@@ -11,17 +11,16 @@ import (
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/pcf"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/util"
-	"github.com/omec-project/openapi/models"
 )
 
 // SendSMPolicyAssociationCreate creates the SM Policy Decision
-func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*coreModels.SmPolicyDecision, int, error) {
+func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPolicyDecision, int, error) {
 	httpRspStatusCode := http.StatusInternalServerError
-	smPolicyData := coreModels.SmPolicyContextData{}
+	smPolicyData := models.SmPolicyContextData{}
 	smPolicyData.Supi = smContext.Supi
 	smPolicyData.PduSessionId = smContext.PDUSessionID
 	smPolicyData.NotificationUri = fmt.Sprintf("nsmf-callback/sm-policies/%s",
@@ -29,25 +28,25 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*coreModels.Sm
 	)
 	smPolicyData.Dnn = smContext.Dnn
 	smPolicyData.PduSessionType = util.PDUSessionTypeToModels(smContext.SelectedPDUSessionType)
-	smPolicyData.AccessType = coreModels.AccessType(smContext.AnType)
-	smPolicyData.RatType = coreModels.RatType(smContext.RatType)
+	smPolicyData.AccessType = smContext.AnType
+	smPolicyData.RatType = smContext.RatType
 	smPolicyData.Ipv4Address = smContext.PDUAddress.Ip.To4().String()
-	smPolicyData.SubsSessAmbr = &coreModels.Ambr{
+	smPolicyData.SubsSessAmbr = &models.Ambr{
 		Uplink:   smContext.DnnConfiguration.SessionAmbr.Uplink,
 		Downlink: smContext.DnnConfiguration.SessionAmbr.Downlink,
 	}
-	smPolicyData.SubsDefQos = &coreModels.SubscribedDefaultQos{
-		Arp: &coreModels.Arp{
+	smPolicyData.SubsDefQos = &models.SubscribedDefaultQos{
+		Arp: &models.Arp{
 			PriorityLevel: smContext.DnnConfiguration.Var5gQosProfile.Arp.PriorityLevel,
 			PreemptCap:    smContext.DnnConfiguration.Var5gQosProfile.Arp.PreemptCap,
 			PreemptVuln:   smContext.DnnConfiguration.Var5gQosProfile.Arp.PreemptVuln,
 		},
 	}
-	smPolicyData.SliceInfo = &coreModels.Snssai{
+	smPolicyData.SliceInfo = &models.Snssai{
 		Sst: smContext.Snssai.Sst,
 		Sd:  smContext.Snssai.Sd,
 	}
-	smPolicyData.ServingNetwork = &coreModels.NetworkId{
+	smPolicyData.ServingNetwork = &models.NetworkId{
 		Mcc: smContext.ServingNetwork.Mcc,
 		Mnc: smContext.ServingNetwork.Mnc,
 	}
@@ -74,7 +73,7 @@ func SendSMPolicyAssociationDelete(smContext *context.SMContext, smDelReq *model
 	return http.StatusAccepted, nil
 }
 
-func validateSmPolicyDecision(smPolicy *coreModels.SmPolicyDecision) error {
+func validateSmPolicyDecision(smPolicy *models.SmPolicyDecision) error {
 	// Validate just presence of important IEs as of now
 	// Sess Rules
 	for name, rule := range smPolicy.SessRules {

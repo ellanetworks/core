@@ -10,10 +10,10 @@ import (
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
 	"github.com/ellanetworks/core/internal/smf/util"
-	"github.com/omec-project/openapi/models"
 )
 
 func HandleStateActiveEventPduSessRelease(request models.ReleaseSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *util.Response, error) {

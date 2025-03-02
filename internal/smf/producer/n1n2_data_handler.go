@@ -8,11 +8,10 @@ package producer
 import (
 	"net/http"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/omec-project/nas"
-	"github.com/omec-project/openapi/Nsmf_PDUSession"
-	"github.com/omec-project/openapi/models"
 )
 
 type pfcpAction struct {
@@ -38,7 +37,7 @@ func HandleUpdateN1Msg(body models.UpdateSmContextRequest, smContext *context.SM
 				Status: http.StatusForbidden,
 				Body: models.UpdateSmContextErrorResponse{
 					JsonData: &models.SmContextUpdateError{
-						Error: &Nsmf_PDUSession.N1SmError,
+						Error: &models.N1SmError,
 					},
 				}, // Depends on the reason why N4 fail
 			}

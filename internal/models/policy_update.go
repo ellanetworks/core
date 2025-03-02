@@ -6,6 +6,4 @@ type PolicyUpdate struct {
 	Triggers    []RequestTrigger
 	ServAreaRes *ServiceAreaRestriction
 	Rfsp        int32
-	// Map of PRA information.
-	// Pras map[string]PresenceInfoRm `json:"pras,omitempty" yaml:"pras" bson:"pras" mapstructure:"Pras"`
 }

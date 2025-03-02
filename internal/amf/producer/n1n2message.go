@@ -16,13 +16,14 @@ import (
 	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
 )
 
-func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, reqUri string) (*models.N1N2MessageTransferRspData, error) {
+func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest coreModels.N1N2MessageTransferRequest, reqUri string) (*models.N1N2MessageTransferRspData, error) {
 	logger.AmfLog.Infof("Handle N1N2 Message Transfer Request")
 	amfSelf := context.AMF_Self()
 	if _, ok := amfSelf.AmfUeFindByUeContextID(ueContextId); !ok {
@@ -58,15 +59,15 @@ func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest mo
 
 // see TS 29.518 6.1.3.5.3.1 for more details.
 func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
-	n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (
+	n1n2MessageTransferRequest coreModels.N1N2MessageTransferRequest) (
 	n1n2MessageTransferRspData *models.N1N2MessageTransferRspData,
 	problemDetails *models.ProblemDetails,
 	transferErr *models.N1N2MessageTransferError,
 ) {
 	var (
-		requestData *models.N1N2MessageTransferReqData = n1n2MessageTransferRequest.JsonData
-		n2Info      []byte                             = n1n2MessageTransferRequest.BinaryDataN2Information
-		n1Msg       []byte                             = n1n2MessageTransferRequest.BinaryDataN1Message
+		requestData *coreModels.N1N2MessageTransferReqData = n1n2MessageTransferRequest.JsonData
+		n2Info      []byte                                 = n1n2MessageTransferRequest.BinaryDataN2Information
+		n1Msg       []byte                                 = n1n2MessageTransferRequest.BinaryDataN1Message
 
 		ue        *context.AmfUe
 		ok        bool
@@ -87,7 +88,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 
 	if requestData.N1MessageContainer != nil {
 		switch requestData.N1MessageContainer.N1MessageClass {
-		case models.N1MessageClass_SM:
+		case coreModels.N1MessageClass_SM:
 			ue.ProducerLog.Debugf("Receive N1 SM Message (PDU Session ID: %d)", requestData.PduSessionId)
 			n1MsgType = nasMessage.PayloadContainerTypeN1SMInfo
 			if smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionId); !ok {
@@ -99,11 +100,11 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			} else {
 				anType = smContext.AccessType()
 			}
-		case models.N1MessageClass_SMS:
+		case coreModels.N1MessageClass_SMS:
 			n1MsgType = nasMessage.PayloadContainerTypeSMS
-		case models.N1MessageClass_LPP:
+		case coreModels.N1MessageClass_LPP:
 			n1MsgType = nasMessage.PayloadContainerTypeLPP
-		case models.N1MessageClass_UPDP:
+		case coreModels.N1MessageClass_UPDP:
 			n1MsgType = nasMessage.PayloadContainerTypeUEPolicy
 		default:
 		}
@@ -111,7 +112,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 
 	if requestData.N2InfoContainer != nil {
 		switch requestData.N2InfoContainer.N2InformationClass {
-		case models.N2InformationClass_SM:
+		case coreModels.N2InformationClass_SM:
 			ue.ProducerLog.Debugf("Receive N2 SM Message (PDU Session ID: %d)", requestData.PduSessionId)
 			if smContext == nil {
 				if smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionId); !ok {
@@ -193,15 +194,20 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 		if n2Info != nil {
 			smInfo := requestData.N2InfoContainer.SmInfo
 			switch smInfo.N2InfoContent.NgapIeType {
-			case models.NgapIeType_PDU_RES_SETUP_REQ:
+			case coreModels.NgapIeType_PDU_RES_SETUP_REQ:
 				ue.ProducerLog.Debugln("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
+				omecSnssai := models.Snssai{
+					Sst: smInfo.SNssai.Sst,
+					Sd:  smInfo.SNssai.Sd,
+				}
 				if ue.RanUe[anType].SentInitialContextSetupRequest {
 					list := ngapType.PDUSessionResourceSetupListSUReq{}
-					ngap_message.AppendPDUSessionResourceSetupListSUReq(&list, smInfo.PduSessionId, *smInfo.SNssai, nasPdu, n2Info)
+
+					ngap_message.AppendPDUSessionResourceSetupListSUReq(&list, smInfo.PduSessionId, omecSnssai, nasPdu, n2Info)
 					ngap_message.SendPDUSessionResourceSetupRequest(ue.RanUe[anType], nil, list)
 				} else {
 					list := ngapType.PDUSessionResourceSetupListCxtReq{}
-					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&list, smInfo.PduSessionId, *smInfo.SNssai, nasPdu, n2Info)
+					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&list, smInfo.PduSessionId, omecSnssai, nasPdu, n2Info)
 					ngap_message.SendInitialContextSetupRequest(ue, anType, nil, &list, nil, nil, nil)
 					ue.RanUe[anType].SentInitialContextSetupRequest = true
 				}
@@ -209,7 +215,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
 				// context.StoreContextInDB(ue)
 				return n1n2MessageTransferRspData, nil, nil
-			case models.NgapIeType_PDU_RES_MOD_REQ:
+			case coreModels.NgapIeType_PDU_RES_MOD_REQ:
 				ue.ProducerLog.Debugln("AMF Transfer NGAP PDU Session Resource Modify Request from SMF")
 				list := ngapType.PDUSessionResourceModifyListModReq{}
 				ngap_message.AppendPDUSessionResourceModifyListModReq(&list, smInfo.PduSessionId, nasPdu, n2Info)
@@ -218,7 +224,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
 				// context.StoreContextInDB(ue)
 				return n1n2MessageTransferRspData, nil, nil
-			case models.NgapIeType_PDU_RES_REL_CMD:
+			case coreModels.NgapIeType_PDU_RES_REL_CMD:
 				ue.ProducerLog.Debugln("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
 				list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 				ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, smInfo.PduSessionId, n2Info)
@@ -241,7 +247,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 	// UE is CM-IDLE
 
 	// 409: transfer a N2 PDU Session Resource Release Command to a 5G-AN and if the UE is in CM-IDLE
-	if n2Info != nil && requestData.N2InfoContainer.SmInfo.N2InfoContent.NgapIeType == models.NgapIeType_PDU_RES_REL_CMD {
+	if n2Info != nil && requestData.N2InfoContainer.SmInfo.N2InfoContent.NgapIeType == coreModels.NgapIeType_PDU_RES_REL_CMD {
 		transferErr = new(models.N1N2MessageTransferError)
 		transferErr.Error = &models.ProblemDetails{
 			Status: http.StatusConflict,

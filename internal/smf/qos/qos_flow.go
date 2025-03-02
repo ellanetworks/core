@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasMessage"
 )
 
@@ -78,7 +78,7 @@ type QosFlowParameter struct {
 }
 
 type QosFlowsUpdate struct {
-	add, mod, del map[string]*coreModels.QosData
+	add, mod, del map[string]*models.QosData
 }
 
 func GetQosFlowIdFromQosId(qosId string) uint8 {
@@ -114,7 +114,7 @@ func BuildAuthorizedQosFlowDescriptions(smPolicyUpdates *PolicyUpdate) *QosFlowD
 	return &QFDescriptions
 }
 
-func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *coreModels.QosData) {
+func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *models.QosData) {
 	qfd := QoSFlowDescription{QFDLen: QFDFixLen}
 
 	// Set QFI
@@ -253,15 +253,15 @@ func (qfd *QoSFlowDescription) addQosFlowRateParam(rate string, rateType uint8) 
 	qfd.QFDLen += 5 //(Id-1 + len-1 + Content-3)
 }
 
-func GetQosFlowDescUpdate(pcfQosData, ctxtQosData map[string]*coreModels.QosData) *QosFlowsUpdate {
+func GetQosFlowDescUpdate(pcfQosData, ctxtQosData map[string]*models.QosData) *QosFlowsUpdate {
 	if len(pcfQosData) == 0 {
 		return nil
 	}
 
 	update := QosFlowsUpdate{
-		add: make(map[string]*coreModels.QosData),
-		mod: make(map[string]*coreModels.QosData),
-		del: make(map[string]*coreModels.QosData),
+		add: make(map[string]*models.QosData),
+		mod: make(map[string]*models.QosData),
+		del: make(map[string]*models.QosData),
 	}
 
 	// Iterate through pcf qos data to identify find add/mod/del qos flows
@@ -302,19 +302,19 @@ func CommitQosFlowDescUpdate(smCtxtPolData *SmCtxtPolicyData, update *QosFlowsUp
 }
 
 // Compare if any change in QoS Data
-func GetQosDataChanges(qf1, qf2 *coreModels.QosData) bool {
+func GetQosDataChanges(qf1, qf2 *models.QosData) bool {
 	return false
 }
 
-func GetQoSDataFromPolicyDecision(smPolicyDecision *coreModels.SmPolicyDecision, refQosData string) *coreModels.QosData {
+func GetQoSDataFromPolicyDecision(smPolicyDecision *models.SmPolicyDecision, refQosData string) *models.QosData {
 	return smPolicyDecision.QosDecs[refQosData]
 }
 
-func (upd *QosFlowsUpdate) GetAddQosFlowUpdate() map[string]*coreModels.QosData {
+func (upd *QosFlowsUpdate) GetAddQosFlowUpdate() map[string]*models.QosData {
 	return upd.add
 }
 
-func GetDefaultQoSDataFromPolicyDecision(smPolicyDecision *coreModels.SmPolicyDecision) *coreModels.QosData {
+func GetDefaultQoSDataFromPolicyDecision(smPolicyDecision *models.SmPolicyDecision) *models.QosData {
 	for _, qosData := range smPolicyDecision.QosDecs {
 		if qosData.DefQosFlowIndication {
 			return qosData
