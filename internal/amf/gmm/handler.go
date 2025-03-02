@@ -164,7 +164,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 					n2Info := response.BinaryDataN2SmInformation
 					if n2Info != nil {
 						switch responseData.N2SmInfoType {
-						case models.N2SmInfoType_PDU_RES_REL_CMD:
+						case coreModels.N2SmInfoType_PDU_RES_REL_CMD:
 							ue.GmmLog.Debugln("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
 							list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 							ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2Info)
@@ -339,11 +339,11 @@ func forward5GSMMessageToSMF(
 		if response.BinaryDataN2SmInformation != nil {
 			ue.GmmLog.Debugf("Receive N2 SM Information[%s] from SMF", responseData.N2SmInfoType)
 			switch responseData.N2SmInfoType {
-			case models.N2SmInfoType_PDU_RES_MOD_REQ:
+			case coreModels.N2SmInfoType_PDU_RES_MOD_REQ:
 				list := ngapType.PDUSessionResourceModifyListModReq{}
 				ngap_message.AppendPDUSessionResourceModifyListModReq(&list, pduSessionID, n1Msg, n2SmInfo)
 				ngap_message.SendPDUSessionResourceModifyRequest(ue.RanUe[accessType], list)
-			case models.N2SmInfoType_PDU_RES_REL_CMD:
+			case coreModels.N2SmInfoType_PDU_RES_REL_CMD:
 				list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 				ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2SmInfo)
 				ngap_message.SendPDUSessionResourceReleaseCommand(ue.RanUe[accessType], n1Msg, list)
@@ -879,7 +879,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 						smContext.SetUserLocation(ue.Location)
 						smContext.SetAccessType(models.AccessType__3_GPP_ACCESS)
 						if response.BinaryDataN2SmInformation != nil &&
-							response.JsonData.N2SmInfoType == models.N2SmInfoType_PDU_RES_SETUP_REQ {
+							response.JsonData.N2SmInfoType == coreModels.N2SmInfoType_PDU_RES_SETUP_REQ {
 							ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionId,
 								smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
 						}
@@ -1617,7 +1617,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 							smContext.SetUserLocation(ue.Location)
 							smContext.SetAccessType(models.AccessType__3_GPP_ACCESS)
 							if response.BinaryDataN2SmInformation != nil &&
-								response.JsonData.N2SmInfoType == models.N2SmInfoType_PDU_RES_SETUP_REQ {
+								response.JsonData.N2SmInfoType == coreModels.N2SmInfoType_PDU_RES_SETUP_REQ {
 								if ue.RanUe[anType].UeContextRequest {
 									ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList,
 										requestData.PduSessionId, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)

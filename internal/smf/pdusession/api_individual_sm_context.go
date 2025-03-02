@@ -96,7 +96,7 @@ func HandlePduSessModify(request coreModels.UpdateSmContextRequest, smCtxt *cont
 	return context.SmStateActive, rsp, nil
 }
 
-func UpdateSmContext(smContextRef string, updateSmContextRequest coreModels.UpdateSmContextRequest) (*models.UpdateSmContextResponse, error) {
+func UpdateSmContext(smContextRef string, updateSmContextRequest coreModels.UpdateSmContextRequest) (*coreModels.UpdateSmContextResponse, error) {
 	logger.SmfLog.Info("Processing Update SM Context Request")
 
 	if smContextRef == "" {
@@ -117,7 +117,7 @@ func UpdateSmContext(smContextRef string, updateSmContextRequest coreModels.Upda
 
 	switch rsp.Status {
 	case http.StatusOK, http.StatusNoContent:
-		response, ok := rsp.Body.(models.UpdateSmContextResponse)
+		response, ok := rsp.Body.(coreModels.UpdateSmContextResponse)
 		if !ok {
 			return nil, errors.New("unexpected response body type for successful update")
 		}

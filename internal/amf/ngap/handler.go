@@ -18,6 +18,7 @@ import (
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/nas/nasMessage"
 	libngap "github.com/omec-project/ngap"
@@ -1878,7 +1879,7 @@ func HandlePDUSessionResourceNotify(ran *context.AmfRan, message *ngapType.NGAPP
 			n1Msg := response.BinaryDataN2SmInformation
 			if n2Info != nil {
 				switch responseData.N2SmInfoType {
-				case models.N2SmInfoType_PDU_RES_MOD_REQ:
+				case coreModels.N2SmInfoType_PDU_RES_MOD_REQ:
 					ranUe.Log.Debugln("AMF Transfer NGAP PDU Resource Modify Req from SMF")
 					var nasPdu []byte
 					if n1Msg != nil {
@@ -1928,7 +1929,7 @@ func HandlePDUSessionResourceNotify(ran *context.AmfRan, message *ngapType.NGAPP
 				responseData := response.JsonData
 				n2Info := response.BinaryDataN1SmMessage
 				n1Msg := response.BinaryDataN2SmInformation
-				BuildAndSendN1N2Msg(ranUe, n1Msg, n2Info, responseData.N2SmInfoType, pduSessionID)
+				BuildAndSendN1N2Msg(ranUe, n1Msg, n2Info, models.N2SmInfoType(responseData.N2SmInfoType), pduSessionID)
 			} else if errResponse != nil {
 				errJSON := errResponse.JsonData
 				n1Msg := errResponse.BinaryDataN2SmInformation

@@ -136,7 +136,7 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 
 func SendUpdateSmContextActivateUpCnxState(
 	ue *context.AmfUe, smContext *context.SmContext, accessType models.AccessType) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+	*coreModels.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
 	updateData := coreModels.SmContextUpdateData{}
 	updateData.UpCnxState = coreModels.UpCnxState_ACTIVATING
@@ -156,7 +156,7 @@ func SendUpdateSmContextActivateUpCnxState(
 
 func SendUpdateSmContextDeactivateUpCnxState(ue *context.AmfUe,
 	smContext *context.SmContext, cause context.CauseAll) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+	*coreModels.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
 	updateData := coreModels.SmContextUpdateData{}
 	updateData.UpCnxState = coreModels.UpCnxState_DEACTIVATED
@@ -178,7 +178,7 @@ func SendUpdateSmContextDeactivateUpCnxState(ue *context.AmfUe,
 
 func SendUpdateSmContextChangeAccessType(ue *context.AmfUe,
 	smContext *context.SmContext, anTypeCanBeChanged bool) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+	*coreModels.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
 	updateData := coreModels.SmContextUpdateData{}
 	updateData.AnTypeCanBeChanged = anTypeCanBeChanged
@@ -187,7 +187,7 @@ func SendUpdateSmContextChangeAccessType(ue *context.AmfUe,
 
 func SendUpdateSmContextN2Info(
 	ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+	*coreModels.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
 	updateData := coreModels.SmContextUpdateData{}
 	updateData.N2SmInfoType = coreModels.N2SmInfoType(n2SmType)
@@ -199,7 +199,7 @@ func SendUpdateSmContextN2Info(
 
 func SendUpdateSmContextXnHandover(
 	ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+	*coreModels.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
 	updateData := coreModels.SmContextUpdateData{}
 	if n2SmType != "" {
@@ -221,7 +221,7 @@ func SendUpdateSmContextXnHandover(
 
 func SendUpdateSmContextXnHandoverFailed(
 	ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+	*coreModels.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
 	updateData := coreModels.SmContextUpdateData{}
 	if n2SmType != "" {
@@ -238,7 +238,7 @@ func SendUpdateSmContextN2HandoverPreparing(
 	smContext *context.SmContext,
 	n2SmType models.N2SmInfoType,
 	N2SmInfo []byte, amfid string, targetId *models.NgRanTargetId) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+	*coreModels.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
 	updateData := coreModels.SmContextUpdateData{}
 	if n2SmType != "" {
@@ -275,7 +275,7 @@ func SendUpdateSmContextN2HandoverPreparing(
 
 func SendUpdateSmContextN2HandoverPrepared(
 	ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+	*coreModels.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
 	updateData := coreModels.SmContextUpdateData{}
 	if n2SmType != "" {
@@ -289,7 +289,7 @@ func SendUpdateSmContextN2HandoverPrepared(
 
 func SendUpdateSmContextN2HandoverComplete(
 	ue *context.AmfUe, smContext *context.SmContext, amfid string, guami *models.Guami) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+	*coreModels.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
 	updateData := coreModels.SmContextUpdateData{}
 	updateData.HoState = coreModels.HoState_COMPLETED
@@ -319,7 +319,7 @@ func SendUpdateSmContextN2HandoverComplete(
 
 func SendUpdateSmContextN2HandoverCanceled(ue *context.AmfUe,
 	smContext *context.SmContext, cause context.CauseAll) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+	*coreModels.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
 	updateData := coreModels.SmContextUpdateData{}
 	updateData.HoState = coreModels.HoState_CANCELLED
@@ -340,7 +340,7 @@ func SendUpdateSmContextN2HandoverCanceled(ue *context.AmfUe,
 
 func SendUpdateSmContextRequest(smContext *context.SmContext,
 	updateData coreModels.SmContextUpdateData, n1Msg []byte, n2Info []byte) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse,
+	*coreModels.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse,
 	error,
 ) {
 	var updateSmContextRequest coreModels.UpdateSmContextRequest
