@@ -74,7 +74,7 @@ func ReleaseSmContext(smContextRef string, releaseSmContextRequest coreModels.Re
 	}
 }
 
-func HandlePduSessModify(request models.UpdateSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *util.Response, error) {
+func HandlePduSessModify(request coreModels.UpdateSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *util.Response, error) {
 	rsp, err := producer.HandlePDUSessionSMContextUpdate(request, smCtxt)
 	if err != nil {
 		rsp = &util.Response{
@@ -96,7 +96,7 @@ func HandlePduSessModify(request models.UpdateSmContextRequest, smCtxt *context.
 	return context.SmStateActive, rsp, nil
 }
 
-func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSmContextRequest) (*models.UpdateSmContextResponse, error) {
+func UpdateSmContext(smContextRef string, updateSmContextRequest coreModels.UpdateSmContextRequest) (*models.UpdateSmContextResponse, error) {
 	logger.SmfLog.Info("Processing Update SM Context Request")
 
 	if smContextRef == "" {

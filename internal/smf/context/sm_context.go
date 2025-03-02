@@ -72,19 +72,19 @@ type SMContext struct {
 	ServingNfId       string `json:"servingNfId,omitempty" yaml:"servingNfId" bson:"servingNfId,omitempty"`
 	SmStatusNotifyUri string `json:"smStatusNotifyUri,omitempty" yaml:"smStatusNotifyUri" bson:"smStatusNotifyUri,omitempty"`
 
-	UpCnxState models.UpCnxState `json:"upCnxState,omitempty" yaml:"upCnxState" bson:"upCnxState,omitempty"`
+	UpCnxState coreModels.UpCnxState `json:"upCnxState,omitempty" yaml:"upCnxState" bson:"upCnxState,omitempty"`
 	// SelectedPCFProfile models.NfProfile        `json:"selectedPCFProfile,omitempty" yaml:"selectedPCFProfile" bson:"selectedPCFProfile,omitempty"`
-	AnType           models.AccessType           `json:"anType" yaml:"anType" bson:"anType"`
-	RatType          models.RatType              `json:"ratType,omitempty" yaml:"ratType" bson:"ratType,omitempty"`
-	PresenceInLadn   models.PresenceState        `json:"presenceInLadn,omitempty" yaml:"presenceInLadn" bson:"presenceInLadn,omitempty"` // ignore
+	AnType           coreModels.AccessType       `json:"anType" yaml:"anType" bson:"anType"`
+	RatType          coreModels.RatType          `json:"ratType,omitempty" yaml:"ratType" bson:"ratType,omitempty"`
+	PresenceInLadn   coreModels.PresenceState    `json:"presenceInLadn,omitempty" yaml:"presenceInLadn" bson:"presenceInLadn,omitempty"` // ignore
 	HoState          models.HoState              `json:"hoState,omitempty" yaml:"hoState" bson:"hoState,omitempty"`
 	DnnConfiguration coreModels.DnnConfiguration `json:"dnnConfiguration,omitempty" yaml:"dnnConfiguration" bson:"dnnConfiguration,omitempty"` // ?
 
-	Snssai         *models.Snssai       `json:"snssai" yaml:"snssai" bson:"snssai"`
-	HplmnSnssai    *models.Snssai       `json:"hplmnSnssai,omitempty" yaml:"hplmnSnssai" bson:"hplmnSnssai,omitempty"`
-	ServingNetwork *models.PlmnId       `json:"servingNetwork,omitempty" yaml:"servingNetwork" bson:"servingNetwork,omitempty"`
-	UeLocation     *models.UserLocation `json:"ueLocation,omitempty" yaml:"ueLocation" bson:"ueLocation,omitempty"`
-	AddUeLocation  *models.UserLocation `json:"addUeLocation,omitempty" yaml:"addUeLocation" bson:"addUeLocation,omitempty"` // ignore
+	Snssai         *coreModels.Snssai       `json:"snssai" yaml:"snssai" bson:"snssai"`
+	HplmnSnssai    *coreModels.Snssai       `json:"hplmnSnssai,omitempty" yaml:"hplmnSnssai" bson:"hplmnSnssai,omitempty"`
+	ServingNetwork *coreModels.PlmnId       `json:"servingNetwork,omitempty" yaml:"servingNetwork" bson:"servingNetwork,omitempty"`
+	UeLocation     *coreModels.UserLocation `json:"ueLocation,omitempty" yaml:"ueLocation" bson:"ueLocation,omitempty"`
+	AddUeLocation  *coreModels.UserLocation `json:"addUeLocation,omitempty" yaml:"addUeLocation" bson:"addUeLocation,omitempty"` // ignore
 
 	// PDUAddress             net.IP `json:"pduAddress,omitempty" yaml:"pduAddress" bson:"pduAddress,omitempty"`
 	PDUAddress *UeIpAddr `json:"pduAddress,omitempty" yaml:"pduAddress" bson:"pduAddress,omitempty"`
@@ -264,7 +264,7 @@ func (smContext *SMContext) ReleaseUeIpAddr() error {
 	return nil
 }
 
-func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData) {
+func (smContext *SMContext) SetCreateData(createData *coreModels.SmContextCreateData) {
 	smContext.Gpsi = createData.Gpsi
 	smContext.Supi = createData.Supi
 	smContext.Dnn = createData.Dnn
@@ -281,8 +281,8 @@ func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData
 	smContext.ServingNfId = createData.ServingNfId
 }
 
-func (smContext *SMContext) BuildCreatedData() (createdData *models.SmContextCreatedData) {
-	createdData = new(models.SmContextCreatedData)
+func (smContext *SMContext) BuildCreatedData() (createdData *coreModels.SmContextCreatedData) {
+	createdData = new(coreModels.SmContextCreatedData)
 	createdData.SNssai = smContext.Snssai
 	return
 }

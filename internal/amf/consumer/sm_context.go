@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf/util"
 	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/omec-project/openapi/models"
@@ -45,7 +46,7 @@ func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
 	*models.ProblemDetails, error,
 ) {
 	smContextCreateData := buildCreateSmContextRequest(ue, smContext, nil)
-	postSmContextsRequest := models.PostSmContextsRequest{
+	postSmContextsRequest := coreModels.PostSmContextsRequest{
 		JsonData:              &smContextCreateData,
 		BinaryDataN1SmMessage: nasPdu,
 	}
@@ -64,7 +65,7 @@ func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
 
 func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
 	requestType *models.RequestType,
-) (smContextCreateData models.SmContextCreateData) {
+) (smContextCreateData coreModels.SmContextCreateData) {
 	amfSelf := context.AMF_Self()
 	smContextCreateData.Supi = ue.Supi
 	smContextCreateData.UnauthenticatedSupi = ue.UnauthenticatedSupi
@@ -72,26 +73,41 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 	smContextCreateData.Gpsi = ue.Gpsi
 	smContextCreateData.PduSessionId = smContext.PduSessionID()
 	snssai := smContext.Snssai()
-	smContextCreateData.SNssai = &snssai
+	smContextCreateData.SNssai = &coreModels.Snssai{
+		Sst: snssai.Sst,
+		Sd:  snssai.Sd,
+	}
 	smContextCreateData.Dnn = smContext.Dnn()
 	smContextCreateData.ServingNfId = amfSelf.NfId
 	guamiList := context.GetServedGuamiList()
-	smContextCreateData.Guami = &guamiList[0]
+	smContextCreateData.Guami = &coreModels.Guami{
+		PlmnId: &coreModels.PlmnId{
+			Mcc: guamiList[0].PlmnId.Mcc,
+			Mnc: guamiList[0].PlmnId.Mnc,
+		},
+		AmfId: guamiList[0].AmfId,
+	}
 	// take seving networking plmn from userlocation.Tai
 	if ue.Tai.PlmnId != nil {
-		smContextCreateData.ServingNetwork = ue.Tai.PlmnId
+		smContextCreateData.ServingNetwork = &coreModels.PlmnId{
+			Mcc: ue.Tai.PlmnId.Mcc,
+			Mnc: ue.Tai.PlmnId.Mnc,
+		}
 	} else {
 		ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc %v, Mnc: %v] is taken from Guami List", guamiList[0].PlmnId.Mcc, guamiList[0].PlmnId.Mnc)
-		smContextCreateData.ServingNetwork = guamiList[0].PlmnId
+		smContextCreateData.ServingNetwork = &coreModels.PlmnId{
+			Mcc: guamiList[0].PlmnId.Mcc,
+			Mnc: guamiList[0].PlmnId.Mnc,
+		}
 	}
 	if requestType != nil {
-		smContextCreateData.RequestType = *requestType
+		smContextCreateData.RequestType = coreModels.RequestType(*requestType)
 	}
-	smContextCreateData.N1SmMsg = new(models.RefToBinaryData)
+	smContextCreateData.N1SmMsg = new(coreModels.RefToBinaryData)
 	smContextCreateData.N1SmMsg.ContentId = "n1SmMsg"
-	smContextCreateData.AnType = smContext.AccessType()
+	smContextCreateData.AnType = coreModels.AccessType(smContext.AccessType())
 	if ue.RatType != "" {
-		smContextCreateData.RatType = ue.RatType
+		smContextCreateData.RatType = coreModels.RatType(ue.RatType)
 	}
 
 	smContextCreateData.UeTimeZone = ue.TimeZone
@@ -122,17 +138,17 @@ func SendUpdateSmContextActivateUpCnxState(
 	ue *context.AmfUe, smContext *context.SmContext, accessType models.AccessType) (
 	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
-	updateData := models.SmContextUpdateData{}
-	updateData.UpCnxState = models.UpCnxState_ACTIVATING
+	updateData := coreModels.SmContextUpdateData{}
+	updateData.UpCnxState = coreModels.UpCnxState_ACTIVATING
 	if !context.CompareUserLocation(ue.Location, smContext.UserLocation()) {
-		updateData.UeLocation = &ue.Location
+		updateData.UeLocation = util.ConvertUeLocation(&ue.Location)
 	}
 	if smContext.AccessType() != accessType {
-		updateData.AnType = smContext.AccessType()
+		updateData.AnType = coreModels.AccessType(smContext.AccessType())
 	}
 	if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
 		if context.InTaiList(ue.Tai, ladn.TaiLists) {
-			updateData.PresenceInLadn = models.PresenceState_IN_AREA
+			updateData.PresenceInLadn = coreModels.PresenceState_IN_AREA
 		}
 	}
 	return SendUpdateSmContextRequest(smContext, updateData, nil, nil)
@@ -142,14 +158,17 @@ func SendUpdateSmContextDeactivateUpCnxState(ue *context.AmfUe,
 	smContext *context.SmContext, cause context.CauseAll) (
 	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
-	updateData := models.SmContextUpdateData{}
-	updateData.UpCnxState = models.UpCnxState_DEACTIVATED
-	updateData.UeLocation = &ue.Location
+	updateData := coreModels.SmContextUpdateData{}
+	updateData.UpCnxState = coreModels.UpCnxState_DEACTIVATED
+	updateData.UeLocation = util.ConvertUeLocation(&ue.Location)
 	if cause.Cause != nil {
-		updateData.Cause = *cause.Cause
+		updateData.Cause = coreModels.Cause(*cause.Cause)
 	}
 	if cause.NgapCause != nil {
-		updateData.NgApCause = cause.NgapCause
+		updateData.NgApCause = &coreModels.NgApCause{
+			Group: cause.NgapCause.Group,
+			Value: cause.NgapCause.Value,
+		}
 	}
 	if cause.Var5GmmCause != nil {
 		updateData.Var5gMmCauseValue = *cause.Var5GmmCause
@@ -161,7 +180,7 @@ func SendUpdateSmContextChangeAccessType(ue *context.AmfUe,
 	smContext *context.SmContext, anTypeCanBeChanged bool) (
 	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
-	updateData := models.SmContextUpdateData{}
+	updateData := coreModels.SmContextUpdateData{}
 	updateData.AnTypeCanBeChanged = anTypeCanBeChanged
 	return SendUpdateSmContextRequest(smContext, updateData, nil, nil)
 }
@@ -170,11 +189,11 @@ func SendUpdateSmContextN2Info(
 	ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (
 	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
-	updateData := models.SmContextUpdateData{}
-	updateData.N2SmInfoType = n2SmType
-	updateData.N2SmInfo = new(models.RefToBinaryData)
+	updateData := coreModels.SmContextUpdateData{}
+	updateData.N2SmInfoType = coreModels.N2SmInfoType(n2SmType)
+	updateData.N2SmInfo = new(coreModels.RefToBinaryData)
 	updateData.N2SmInfo.ContentId = N2SMINFO_ID
-	updateData.UeLocation = &ue.Location
+	updateData.UeLocation = util.ConvertUeLocation(&ue.Location)
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
 
@@ -182,19 +201,19 @@ func SendUpdateSmContextXnHandover(
 	ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (
 	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
-	updateData := models.SmContextUpdateData{}
+	updateData := coreModels.SmContextUpdateData{}
 	if n2SmType != "" {
-		updateData.N2SmInfoType = n2SmType
-		updateData.N2SmInfo = new(models.RefToBinaryData)
+		updateData.N2SmInfoType = coreModels.N2SmInfoType(n2SmType)
+		updateData.N2SmInfo = new(coreModels.RefToBinaryData)
 		updateData.N2SmInfo.ContentId = N2SMINFO_ID
 	}
 	updateData.ToBeSwitched = true
-	updateData.UeLocation = &ue.Location
+	updateData.UeLocation = util.ConvertUeLocation(&ue.Location)
 	if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
 		if context.InTaiList(ue.Tai, ladn.TaiLists) {
-			updateData.PresenceInLadn = models.PresenceState_IN_AREA
+			updateData.PresenceInLadn = coreModels.PresenceState_IN_AREA
 		} else {
-			updateData.PresenceInLadn = models.PresenceState_OUT_OF_AREA
+			updateData.PresenceInLadn = coreModels.PresenceState_OUT_OF_AREA
 		}
 	}
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
@@ -204,10 +223,10 @@ func SendUpdateSmContextXnHandoverFailed(
 	ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (
 	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
-	updateData := models.SmContextUpdateData{}
+	updateData := coreModels.SmContextUpdateData{}
 	if n2SmType != "" {
-		updateData.N2SmInfoType = n2SmType
-		updateData.N2SmInfo = new(models.RefToBinaryData)
+		updateData.N2SmInfoType = coreModels.N2SmInfoType(n2SmType)
+		updateData.N2SmInfo = new(coreModels.RefToBinaryData)
 		updateData.N2SmInfo.ContentId = N2SMINFO_ID
 	}
 	updateData.FailedToBeSwitched = true
@@ -221,14 +240,32 @@ func SendUpdateSmContextN2HandoverPreparing(
 	N2SmInfo []byte, amfid string, targetId *models.NgRanTargetId) (
 	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
-	updateData := models.SmContextUpdateData{}
+	updateData := coreModels.SmContextUpdateData{}
 	if n2SmType != "" {
-		updateData.N2SmInfoType = n2SmType
-		updateData.N2SmInfo = new(models.RefToBinaryData)
+		updateData.N2SmInfoType = coreModels.N2SmInfoType(n2SmType)
+		updateData.N2SmInfo = new(coreModels.RefToBinaryData)
 		updateData.N2SmInfo.ContentId = N2SMINFO_ID
 	}
-	updateData.HoState = models.HoState_PREPARING
-	updateData.TargetId = targetId
+	updateData.HoState = coreModels.HoState_PREPARING
+	updateData.TargetId = &coreModels.NgRanTargetId{
+		RanNodeId: &coreModels.GlobalRanNodeId{
+			PlmnId: &coreModels.PlmnId{
+				Mcc: targetId.RanNodeId.PlmnId.Mcc,
+				Mnc: targetId.RanNodeId.PlmnId.Mnc,
+			},
+			GNbId: &coreModels.GNbId{
+				BitLength: targetId.RanNodeId.GNbId.BitLength,
+				GNBValue:  targetId.RanNodeId.GNbId.GNBValue,
+			},
+		},
+		Tai: &coreModels.Tai{
+			PlmnId: &coreModels.PlmnId{
+				Mcc: targetId.Tai.PlmnId.Mcc,
+				Mnc: targetId.Tai.PlmnId.Mnc,
+			},
+			Tac: targetId.Tai.Tac,
+		},
+	}
 	// amf changed in same plmn
 	if amfid != "" {
 		updateData.TargetServingNfId = amfid
@@ -240,13 +277,13 @@ func SendUpdateSmContextN2HandoverPrepared(
 	ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (
 	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
-	updateData := models.SmContextUpdateData{}
+	updateData := coreModels.SmContextUpdateData{}
 	if n2SmType != "" {
-		updateData.N2SmInfoType = n2SmType
-		updateData.N2SmInfo = new(models.RefToBinaryData)
+		updateData.N2SmInfoType = coreModels.N2SmInfoType(n2SmType)
+		updateData.N2SmInfo = new(coreModels.RefToBinaryData)
 		updateData.N2SmInfo.ContentId = N2SMINFO_ID
 	}
-	updateData.HoState = models.HoState_PREPARED
+	updateData.HoState = coreModels.HoState_PREPARED
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
 
@@ -254,18 +291,27 @@ func SendUpdateSmContextN2HandoverComplete(
 	ue *context.AmfUe, smContext *context.SmContext, amfid string, guami *models.Guami) (
 	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
-	updateData := models.SmContextUpdateData{}
-	updateData.HoState = models.HoState_COMPLETED
+	updateData := coreModels.SmContextUpdateData{}
+	updateData.HoState = coreModels.HoState_COMPLETED
 	if amfid != "" {
 		updateData.ServingNfId = amfid
-		updateData.ServingNetwork = guami.PlmnId
-		updateData.Guami = guami
+		updateData.ServingNetwork = &coreModels.PlmnId{
+			Mcc: guami.PlmnId.Mcc,
+			Mnc: guami.PlmnId.Mnc,
+		}
+		updateData.Guami = &coreModels.Guami{
+			PlmnId: &coreModels.PlmnId{
+				Mcc: guami.PlmnId.Mcc,
+				Mnc: guami.PlmnId.Mnc,
+			},
+			AmfId: guami.AmfId,
+		}
 	}
 	if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
 		if context.InTaiList(ue.Tai, ladn.TaiLists) {
-			updateData.PresenceInLadn = models.PresenceState_IN_AREA
+			updateData.PresenceInLadn = coreModels.PresenceState_IN_AREA
 		} else {
-			updateData.PresenceInLadn = models.PresenceState_OUT_OF_AREA
+			updateData.PresenceInLadn = coreModels.PresenceState_OUT_OF_AREA
 		}
 	}
 	return SendUpdateSmContextRequest(smContext, updateData, nil, nil)
@@ -275,13 +321,16 @@ func SendUpdateSmContextN2HandoverCanceled(ue *context.AmfUe,
 	smContext *context.SmContext, cause context.CauseAll) (
 	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
-	updateData := models.SmContextUpdateData{}
-	updateData.HoState = models.HoState_CANCELLED
+	updateData := coreModels.SmContextUpdateData{}
+	updateData.HoState = coreModels.HoState_CANCELLED
 	if cause.Cause != nil {
-		updateData.Cause = *cause.Cause
+		updateData.Cause = coreModels.Cause(*cause.Cause)
 	}
 	if cause.NgapCause != nil {
-		updateData.NgApCause = cause.NgapCause
+		updateData.NgApCause = &coreModels.NgApCause{
+			Group: cause.NgapCause.Group,
+			Value: cause.NgapCause.Value,
+		}
 	}
 	if cause.Var5GmmCause != nil {
 		updateData.Var5gMmCauseValue = *cause.Var5GmmCause
@@ -290,11 +339,11 @@ func SendUpdateSmContextN2HandoverCanceled(ue *context.AmfUe,
 }
 
 func SendUpdateSmContextRequest(smContext *context.SmContext,
-	updateData models.SmContextUpdateData, n1Msg []byte, n2Info []byte) (
+	updateData coreModels.SmContextUpdateData, n1Msg []byte, n2Info []byte) (
 	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse,
 	error,
 ) {
-	var updateSmContextRequest models.UpdateSmContextRequest
+	var updateSmContextRequest coreModels.UpdateSmContextRequest
 	updateSmContextRequest.JsonData = &updateData
 	updateSmContextRequest.BinaryDataN1SmMessage = n1Msg
 	updateSmContextRequest.BinaryDataN2SmInformation = n2Info

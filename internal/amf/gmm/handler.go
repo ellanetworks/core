@@ -141,9 +141,9 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 				smContext.StoreULNASTransport(ulNasTransport)
 				//  perform a local release of the PDU session identified by the PDU session ID and shall request
 				// the SMF to perform a local release of the PDU session
-				updateData := models.SmContextUpdateData{
+				updateData := coreModels.SmContextUpdateData{
 					Release: true,
-					Cause:   models.Cause_REL_DUE_TO_DUPLICATE_SESSION_ID,
+					Cause:   coreModels.Cause_REL_DUE_TO_DUPLICATE_SESSION_ID,
 					SmContextStatusUri: fmt.Sprintf("%s/namf-callback/v1/smContextStatus/%s/%d",
 						ue.ServingAMF.GetIPv4Uri(), ue.Guti, pduSessionID),
 				}
@@ -291,19 +291,19 @@ func forward5GSMMessageToSMF(
 	smContext *context.SmContext,
 	smMessage []byte,
 ) error {
-	smContextUpdateData := models.SmContextUpdateData{
-		N1SmMsg: &models.RefToBinaryData{
+	smContextUpdateData := coreModels.SmContextUpdateData{
+		N1SmMsg: &coreModels.RefToBinaryData{
 			ContentId: "N1SmMsg",
 		},
 	}
 	smContextUpdateData.Pei = ue.Pei
 	smContextUpdateData.Gpsi = ue.Gpsi
 	if !context.CompareUserLocation(ue.Location, smContext.UserLocation()) {
-		smContextUpdateData.UeLocation = &ue.Location
+		smContextUpdateData.AddUeLocation = util.ConvertUeLocation(&ue.Location)
 	}
 
 	if accessType != smContext.AccessType() {
-		smContextUpdateData.AnType = accessType
+		smContextUpdateData.AnType = coreModels.AccessType(accessType)
 	}
 
 	response, errResponse, err := consumer.SendUpdateSmContextRequest(smContext, smContextUpdateData, smMessage, nil)
@@ -831,14 +831,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 						reactivationResult, errPduSessionId, errCause, &ctxList)
 				}
 				switch requestData.N1MessageContainer.N1MessageClass {
-				case models.N1MessageClass_SM:
+				case coreModels.N1MessageClass_SM:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo,
 						n1Msg, requestData.PduSessionId, 0, nil, 0)
-				case models.N1MessageClass_LPP:
+				case coreModels.N1MessageClass_LPP:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0, nil, 0)
-				case models.N1MessageClass_SMS:
+				case coreModels.N1MessageClass_SMS:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0, nil, 0)
-				case models.N1MessageClass_UPDP:
+				case coreModels.N1MessageClass_UPDP:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0, nil, 0)
 				}
 				ue.N1N2Message = nil
@@ -888,7 +888,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 					ue.GmmLog.Warnf("UE was reachable but did not accept to re-activate the PDU Session[%d]",
 						requestData.PduSessionId)
 				}
-			} else if smInfo.N2InfoContent.NgapIeType == models.NgapIeType_PDU_RES_SETUP_REQ {
+			} else if smInfo.N2InfoContent.NgapIeType == coreModels.NgapIeType_PDU_RES_SETUP_REQ {
 				var nasPdu []byte
 				var err error
 				if n1Msg != nil {
@@ -899,8 +899,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 						return err
 					}
 				}
+				omecSnssai := models.Snssai{
+					Sst: smInfo.SNssai.Sst,
+					Sd:  smInfo.SNssai.Sd,
+				}
 				ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionId,
-					*smInfo.SNssai, nasPdu, n2Info)
+					omecSnssai, nasPdu, n2Info)
 			}
 		}
 	}
@@ -908,7 +912,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 	if ue.LocationChanged && ue.RequestTriggerLocationChange {
 		updateReq := coreModels.PolicyAssociationUpdateRequest{}
 		updateReq.Triggers = append(updateReq.Triggers, coreModels.RequestTrigger_LOC_CH)
-		updateReq.UserLoc = convertUeLocation(&ue.Location)
+		updateReq.UserLoc = util.ConvertUeLocation(&ue.Location)
 		err := consumer.AMPolicyControlUpdate(ue, updateReq)
 		if err != nil {
 			ue.GmmLog.Errorf("AM Policy Control Update Error[%v]", err)
@@ -946,75 +950,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasPdu, nil)
 		}
 		return nil
-	}
-}
-
-func convertUeLocation(uL *models.UserLocation) *coreModels.UserLocation {
-	return &coreModels.UserLocation{
-		EutraLocation: &coreModels.EutraLocation{
-			Tai: &coreModels.Tai{
-				PlmnId: &coreModels.PlmnId{
-					Mcc: uL.EutraLocation.Tai.PlmnId.Mcc,
-					Mnc: uL.EutraLocation.Tai.PlmnId.Mnc,
-				},
-				Tac: uL.EutraLocation.Tai.Tac,
-			},
-			Ecgi: &coreModels.Ecgi{
-				PlmnId: &coreModels.PlmnId{
-					Mcc: uL.EutraLocation.Ecgi.PlmnId.Mcc,
-					Mnc: uL.EutraLocation.Ecgi.PlmnId.Mnc,
-				},
-				EutraCellId: uL.EutraLocation.Ecgi.EutraCellId,
-			},
-			AgeOfLocationInformation: uL.EutraLocation.AgeOfLocationInformation,
-			UeLocationTimestamp:      uL.EutraLocation.UeLocationTimestamp,
-			GeographicalInformation:  uL.EutraLocation.GeographicalInformation,
-			GeodeticInformation:      uL.EutraLocation.GeodeticInformation,
-			GlobalNgenbId: &coreModels.GlobalRanNodeId{
-				PlmnId: &coreModels.PlmnId{
-					Mcc: uL.EutraLocation.GlobalNgenbId.PlmnId.Mcc,
-					Mnc: uL.EutraLocation.GlobalNgenbId.PlmnId.Mnc,
-				},
-				N3IwfId: uL.EutraLocation.GlobalNgenbId.N3IwfId,
-				GNbId: &coreModels.GNbId{
-					BitLength: uL.EutraLocation.GlobalNgenbId.GNbId.BitLength,
-					GNBValue:  uL.EutraLocation.GlobalNgenbId.GNbId.GNBValue,
-				},
-				NgeNbId: uL.EutraLocation.GlobalNgenbId.NgeNbId,
-			},
-		},
-		NrLocation: &coreModels.NrLocation{
-			Tai: &coreModels.Tai{
-				PlmnId: &coreModels.PlmnId{
-					Mcc: uL.NrLocation.Tai.PlmnId.Mcc,
-					Mnc: uL.NrLocation.Tai.PlmnId.Mnc,
-				},
-				Tac: uL.NrLocation.Tai.Tac,
-			},
-			Ncgi: &coreModels.Ncgi{
-				PlmnId: &coreModels.PlmnId{
-					Mcc: uL.NrLocation.Ncgi.PlmnId.Mcc,
-					Mnc: uL.NrLocation.Ncgi.PlmnId.Mnc,
-				},
-				NrCellId: uL.NrLocation.Ncgi.NrCellId,
-			},
-			AgeOfLocationInformation: uL.NrLocation.AgeOfLocationInformation,
-			UeLocationTimestamp:      uL.NrLocation.UeLocationTimestamp,
-			GeographicalInformation:  uL.NrLocation.GeographicalInformation,
-			GeodeticInformation:      uL.NrLocation.GeodeticInformation,
-			GlobalGnbId: &coreModels.GlobalRanNodeId{
-				PlmnId: &coreModels.PlmnId{
-					Mcc: uL.NrLocation.GlobalGnbId.PlmnId.Mcc,
-					Mnc: uL.NrLocation.GlobalGnbId.PlmnId.Mnc,
-				},
-				N3IwfId: uL.NrLocation.GlobalGnbId.N3IwfId,
-				GNbId: &coreModels.GNbId{
-					BitLength: uL.NrLocation.GlobalGnbId.GNbId.BitLength,
-					GNBValue:  uL.NrLocation.GlobalGnbId.GNbId.GNBValue,
-				},
-				NgeNbId: uL.NrLocation.GlobalGnbId.NgeNbId,
-			},
-		},
 	}
 }
 
@@ -1542,7 +1477,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 	if ue.N1N2Message != nil {
 		requestData := ue.N1N2Message.Request.JsonData
 		if ue.N1N2Message.Request.BinaryDataN2Information != nil {
-			if requestData.N2InfoContainer.N2InformationClass == models.N2InformationClass_SM {
+			if requestData.N2InfoContainer.N2InformationClass == coreModels.N2InformationClass_SM {
 				targetPduSessionId = requestData.N2InfoContainer.SmInfo.PduSessionId
 			} else {
 				ue.N1N2Message = nil
@@ -1632,14 +1567,14 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 					return err
 				}
 				switch requestData.N1MessageContainer.N1MessageClass {
-				case models.N1MessageClass_SM:
+				case coreModels.N1MessageClass_SM:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType],
 						nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionId, 0, nil, 0)
-				case models.N1MessageClass_LPP:
+				case coreModels.N1MessageClass_LPP:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0, nil, 0)
-				case models.N1MessageClass_SMS:
+				case coreModels.N1MessageClass_SMS:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0, nil, 0)
-				case models.N1MessageClass_UPDP:
+				case coreModels.N1MessageClass_UPDP:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0, nil, 0)
 				}
 				ue.N1N2Message = nil
@@ -1697,7 +1632,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 							requestData.PduSessionId)
 					}
 				}
-			} else if smInfo.N2InfoContent.NgapIeType == models.NgapIeType_PDU_RES_SETUP_REQ {
+			} else if smInfo.N2InfoContent.NgapIeType == coreModels.NgapIeType_PDU_RES_SETUP_REQ {
 				var nasPdu []byte
 				var err error
 				if n1Msg != nil {
@@ -1708,10 +1643,14 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 						return err
 					}
 				}
+				omecSnssai := models.Snssai{
+					Sst: smInfo.SNssai.Sst,
+					Sd:  smInfo.SNssai.Sd,
+				}
 				if ue.RanUe[anType].UeContextRequest {
-					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, smInfo.PduSessionId, *smInfo.SNssai, nasPdu, n2Info)
+					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, smInfo.PduSessionId, omecSnssai, nasPdu, n2Info)
 				} else {
-					ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionId, *smInfo.SNssai,
+					ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionId, omecSnssai,
 						nasPdu, n2Info)
 				}
 			}

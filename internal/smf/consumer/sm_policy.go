@@ -28,8 +28,8 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 	)
 	smPolicyData.Dnn = smContext.Dnn
 	smPolicyData.PduSessionType = util.PDUSessionTypeToModels(smContext.SelectedPDUSessionType)
-	smPolicyData.AccessType = models.AccessType(smContext.AnType)
-	smPolicyData.RatType = models.RatType(smContext.RatType)
+	smPolicyData.AccessType = smContext.AnType
+	smPolicyData.RatType = smContext.RatType
 	smPolicyData.Ipv4Address = smContext.PDUAddress.Ip.To4().String()
 	smPolicyData.SubsSessAmbr = &models.Ambr{
 		Uplink:   smContext.DnnConfiguration.SessionAmbr.Uplink,

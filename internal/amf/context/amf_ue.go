@@ -229,7 +229,7 @@ type NgapMsg struct {
 }
 
 type N1N2Message struct {
-	Request models.N1N2MessageTransferRequest
+	Request coreModels.N1N2MessageTransferRequest
 	Status  models.N1N2MessageTransferCause
 }
 

@@ -8,6 +8,7 @@ package producer
 import (
 	"net/http"
 
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/omec-project/nas"
@@ -26,7 +27,7 @@ type pfcpParam struct {
 	qerList []*context.QER
 }
 
-func HandleUpdateN1Msg(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) (*util.Response, error) {
+func HandleUpdateN1Msg(body coreModels.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) (*util.Response, error) {
 	if body.BinaryDataN1SmMessage != nil {
 		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, Binary Data N1 SmMessage isn't nil!")
 		m := nas.NewMessage()
@@ -95,11 +96,11 @@ func HandleUpdateN1Msg(body models.UpdateSmContextRequest, smContext *context.SM
 	return nil, nil
 }
 
-func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction, pfcpParam *pfcpParam) error {
+func HandleUpCnxState(body coreModels.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction, pfcpParam *pfcpParam) error {
 	smContextUpdateData := body.JsonData
 
 	switch smContextUpdateData.UpCnxState {
-	case models.UpCnxState_ACTIVATING:
+	case coreModels.UpCnxState_ACTIVATING:
 		smContext.ChangeState(context.SmStateModify)
 		response.JsonData.N2SmInfo = &models.RefToBinaryData{ContentId: "PDUSessionResourceSetupRequestTransfer"}
 		response.JsonData.UpCnxState = models.UpCnxState_ACTIVATING
@@ -109,10 +110,10 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 		if err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, build PDUSession Resource Setup Request Transfer Error(%s)", err.Error())
 		}
-		smContext.UpCnxState = models.UpCnxState_ACTIVATING
+		smContext.UpCnxState = coreModels.UpCnxState_ACTIVATING
 		response.BinaryDataN2SmInformation = n2Buf
 		response.JsonData.N2SmInfoType = models.N2SmInfoType_PDU_RES_SETUP_REQ
-	case models.UpCnxState_DEACTIVATED:
+	case coreModels.UpCnxState_DEACTIVATED:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, UP cnx state %v received", smContextUpdateData.UpCnxState)
 		if smContext.SMContextState != context.SmStateActive {
 			smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, SMContext State[%v] should be Active State", smContext.SMContextState.String())
@@ -153,11 +154,11 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 	return nil
 }
 
-func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse) error {
+func HandleUpdateHoState(body coreModels.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse) error {
 	smContextUpdateData := body.JsonData
 
 	switch smContextUpdateData.HoState {
-	case models.HoState_PREPARING:
+	case coreModels.HoState_PREPARING:
 		if smContext.SMContextState != context.SmStateActive {
 			smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state[%v] should be SmStateActive",
 				smContext.SMContextState.String())
@@ -179,7 +180,7 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 			ContentId: "PDU_RES_SETUP_REQ",
 		}
 		response.JsonData.HoState = models.HoState_PREPARING
-	case models.HoState_PREPARED:
+	case coreModels.HoState_PREPARED:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, Ho state %v received", smContextUpdateData.HoState)
 		if smContext.SMContextState != context.SmStateActive {
 			smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state [%v] should be SmStateActive",
@@ -203,7 +204,7 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 			ContentId: "HANDOVER_CMD",
 		}
 		response.JsonData.HoState = models.HoState_PREPARING
-	case models.HoState_COMPLETED:
+	case coreModels.HoState_COMPLETED:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, Ho state %v received", smContextUpdateData.HoState)
 		if smContext.SMContextState != context.SmStateActive {
 			smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SMContext state[%v] should be SmStateActive",
@@ -216,11 +217,11 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 	return nil
 }
 
-func HandleUpdateCause(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) error {
+func HandleUpdateCause(body coreModels.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) error {
 	smContextUpdateData := body.JsonData
 
 	switch smContextUpdateData.Cause {
-	case models.Cause_REL_DUE_TO_DUPLICATE_SESSION_ID:
+	case coreModels.Cause_REL_DUE_TO_DUPLICATE_SESSION_ID:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, update cause %v received", smContextUpdateData.Cause)
 		//* release PDU Session Here
 		if smContext.SMContextState != context.SmStateActive {
@@ -249,12 +250,12 @@ func HandleUpdateCause(body models.UpdateSmContextRequest, smContext *context.SM
 	return nil
 }
 
-func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction, pfcpParam *pfcpParam) error {
+func HandleUpdateN2Msg(body coreModels.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction, pfcpParam *pfcpParam) error {
 	smContextUpdateData := body.JsonData
 	tunnel := smContext.Tunnel
 
 	switch smContextUpdateData.N2SmInfoType {
-	case models.N2SmInfoType_PDU_RES_SETUP_RSP:
+	case coreModels.N2SmInfoType_PDU_RES_SETUP_RSP:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received",
 			smContextUpdateData.N2SmInfoType)
 		if smContext.SMContextState != context.SmStateActive {
@@ -301,14 +302,14 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 
 		pfcpAction.sendPfcpModify = true
 		smContext.ChangeState(context.SmStatePfcpModify)
-	case models.N2SmInfoType_PDU_RES_SETUP_FAIL:
+	case coreModels.N2SmInfoType_PDU_RES_SETUP_FAIL:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received",
 			smContextUpdateData.N2SmInfoType)
 		if err := context.
 			HandlePDUSessionResourceSetupResponseTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, handle PDUSessionResourceSetupResponseTransfer failed: %+v", err)
 		}
-	case models.N2SmInfoType_PDU_RES_REL_RSP:
+	case coreModels.N2SmInfoType_PDU_RES_REL_RSP:
 		smContext.SubPduSessLog.Infof("N2 SM info type %v received",
 			smContextUpdateData.N2SmInfoType)
 		smContext.SubPduSessLog.Infof("N2 PDUSession Release Complete ")
@@ -330,7 +331,7 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 			smContext.SubPduSessLog.Infof("send Update SmContext Response")
 			smContext.ChangeState(context.SmStateInActivePending)
 		}
-	case models.N2SmInfoType_PATH_SWITCH_REQ:
+	case coreModels.N2SmInfoType_PATH_SWITCH_REQ:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received",
 			smContextUpdateData.N2SmInfoType)
 		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, handle Path Switch Request")
@@ -377,7 +378,7 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 
 		pfcpAction.sendPfcpModify = true
 		smContext.ChangeState(context.SmStatePfcpModify)
-	case models.N2SmInfoType_PATH_SWITCH_SETUP_FAIL:
+	case coreModels.N2SmInfoType_PATH_SWITCH_SETUP_FAIL:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received",
 			smContextUpdateData.N2SmInfoType)
 		if smContext.SMContextState != context.SmStateActive {
@@ -388,7 +389,7 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 		if err := context.HandlePathSwitchRequestSetupFailedTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
 			smContext.SubPduSessLog.Error()
 		}
-	case models.N2SmInfoType_HANDOVER_REQUIRED:
+	case coreModels.N2SmInfoType_HANDOVER_REQUIRED:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received",
 			smContextUpdateData.N2SmInfoType)
 		if smContext.SMContextState != context.SmStateActive {

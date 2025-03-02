@@ -60,11 +60,11 @@ func HandlePduSessionContextReplacement(smCtxtRef string) error {
 	return nil
 }
 
-func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smContext *context.SMContext) (*util.Response, error) {
+func HandlePDUSessionSMContextCreate(request coreModels.PostSmContextsRequest, smContext *context.SMContext) (*util.Response, error) {
 	// GSM State
 	// PDU Session Establishment Accept/Reject
-	var response models.PostSmContextsResponse
-	response.JsonData = new(models.SmContextCreatedData)
+	var response coreModels.PostSmContextsResponse
+	response.JsonData = new(coreModels.SmContextCreatedData)
 
 	// Check has PDU Session Establishment Request
 	m := nas.NewMessage()
@@ -272,7 +272,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	return httpResponse, nil
 }
 
-func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smContext *context.SMContext) (*util.Response, error) {
+func HandlePDUSessionSMContextUpdate(request coreModels.UpdateSmContextRequest, smContext *context.SMContext) (*util.Response, error) {
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
@@ -549,16 +549,16 @@ func releaseTunnel(smContext *context.SMContext) (*context.PFCPSessionResponseSt
 
 func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 	// N1N2 Request towards AMF
-	n1n2Request := models.N1N2MessageTransferRequest{}
+	n1n2Request := coreModels.N1N2MessageTransferRequest{}
 
 	// N2 Container Info
-	n2InfoContainer := models.N2InfoContainer{
-		N2InformationClass: models.N2InformationClass_SM,
-		SmInfo: &models.N2SmInformation{
+	n2InfoContainer := coreModels.N2InfoContainer{
+		N2InformationClass: coreModels.N2InformationClass_SM,
+		SmInfo: &coreModels.N2SmInformation{
 			PduSessionId: smContext.PDUSessionID,
-			N2InfoContent: &models.N2InfoContent{
-				NgapIeType: models.NgapIeType_PDU_RES_SETUP_REQ,
-				NgapData: &models.RefToBinaryData{
+			N2InfoContent: &coreModels.N2InfoContent{
+				NgapIeType: coreModels.NgapIeType_PDU_RES_SETUP_REQ,
+				NgapData: &coreModels.RefToBinaryData{
 					ContentId: "N2SmInformation",
 				},
 			},
@@ -567,13 +567,13 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 	}
 
 	// N1 Container Info
-	n1MsgContainer := models.N1MessageContainer{
+	n1MsgContainer := coreModels.N1MessageContainer{
 		N1MessageClass:   "SM",
-		N1MessageContent: &models.RefToBinaryData{ContentId: "GSM_NAS"},
+		N1MessageContent: &coreModels.RefToBinaryData{ContentId: "GSM_NAS"},
 	}
 
 	// N1N2 Json Data
-	n1n2Request.JsonData = &models.N1N2MessageTransferReqData{PduSessionId: smContext.PDUSessionID}
+	n1n2Request.JsonData = &coreModels.N1N2MessageTransferReqData{PduSessionId: smContext.PDUSessionID}
 
 	if success {
 		if smNasBuf, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext); err != nil {
