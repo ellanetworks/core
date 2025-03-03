@@ -205,7 +205,7 @@ const Profile = () => {
             <Typography variant="h4" component="h1" gutterBottom>
               Profiles ({profiles.length})
             </Typography>
-            {role === "Admin" || role === "Network Manager" && (
+            {(role === "Admin" || role === "Network Manager") && (
               <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
                 Create
               </Button>
