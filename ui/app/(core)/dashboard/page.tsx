@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useState, useEffect, useRef } from "react";
 import { Box, Typography, CircularProgress, Alert, Card } from "@mui/material";
 import { getStatus } from "@/queries/status";
@@ -7,11 +8,12 @@ import { listSubscribers } from "@/queries/subscribers";
 import { listRadios } from "@/queries/radios";
 import { PieChart } from "@mui/x-charts/PieChart";
 import Grid from "@mui/material/Grid2";
-import { useCookies } from "react-cookie"
+import { useCookies } from "react-cookie";
 
 const Dashboard = () => {
-  const [cookies, setCookie, removeCookie] = useCookies(['user_token']);
+  const [cookies] = useCookies(['user_token']);
 
+  // Static values – update these less frequently (or only on mount)
   const [version, setVersion] = useState<string | null>(null);
   const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
   const [radioCount, setRadioCount] = useState<number | null>(null);
@@ -20,15 +22,20 @@ const Dashboard = () => {
   const [databaseSize, setDatabaseSize] = useState<number | null>(null);
   const [allocatedIPs, setAllocatedIPs] = useState<number | null>(null);
   const [totalIPs, setTotalIPs] = useState<number | null>(null);
+
+  // Throughput values – these are updated every second
   const [uplinkThroughput, setUplinkThroughput] = useState<number>(0);
   const [downlinkThroughput, setDownlinkThroughput] = useState<number>(0);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Refs for throughput history calculation
   const uplinkHistory = useRef<number[]>([]);
   const downlinkHistory = useRef<number[]>([]);
   const timestamps = useRef<number[]>([]);
 
+  // Parse all metrics (both static and throughput)
   const parseMetrics = (metrics: string) => {
     const lines = metrics.split("\n");
 
@@ -41,7 +48,6 @@ const Dashboard = () => {
     const databaseSizeMetric = lines.find((line) =>
       line.startsWith("app_database_storage_bytes ")
     );
-
     const allocatedIPsMetric = lines.find((line) =>
       line.startsWith("app_ip_addresses_allocated ")
     );
@@ -60,10 +66,10 @@ const Dashboard = () => {
         ? parseInt(pduSessionMetric.split(" ")[1], 10)
         : 0,
       memoryUsage: memoryMetric
-        ? Math.round(parseFloat(memoryMetric.split(" ")[1]) / (1024 * 1024)) // Convert bytes to MB
+        ? Math.round(parseFloat(memoryMetric.split(" ")[1]) / (1024 * 1024))
         : 0,
       databaseSize: databaseSizeMetric
-        ? Math.round(parseFloat(databaseSizeMetric.split(" ")[1]) / (1024)) // Convert bytes to KB
+        ? Math.round(parseFloat(databaseSizeMetric.split(" ")[1]) / 1024)
         : 0,
       allocatedIPs: allocatedIPsMetric
         ? parseInt(allocatedIPsMetric.split(" ")[1], 10)
@@ -80,8 +86,9 @@ const Dashboard = () => {
     };
   };
 
+  // Initial (static) data fetch
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchInitialData = async () => {
       try {
         const [status, subscribers, radios, metrics] = await Promise.all([
           getStatus(),
@@ -100,8 +107,6 @@ const Dashboard = () => {
           databaseSize,
           allocatedIPs,
           totalIPs,
-          uplinkBytes,
-          downlinkBytes,
         } = parseMetrics(metrics);
 
         setActiveSessions(pduSessions);
@@ -110,23 +115,49 @@ const Dashboard = () => {
         setAllocatedIPs(allocatedIPs);
         setTotalIPs(totalIPs);
 
-        // Compute throughput
+        // Initialize throughput history with the first metrics reading.
+        const { uplinkBytes, downlinkBytes } = parseMetrics(metrics);
+        const now = Date.now();
+        uplinkHistory.current = [uplinkBytes];
+        downlinkHistory.current = [downlinkBytes];
+        timestamps.current = [now];
+      } catch (err: any) {
+        console.error("Failed to fetch initial data:", err);
+        setError("Failed to fetch initial data.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInitialData();
+  }, [cookies.user_token]);
+
+  // Throughput update (every second)
+  useEffect(() => {
+    const updateThroughput = async () => {
+      try {
+        const metrics = await getMetrics();
+        const { uplinkBytes, downlinkBytes } = parseMetrics(metrics);
         const currentTime = Date.now();
+
+        // Append current values to the history arrays
         uplinkHistory.current.push(uplinkBytes);
         downlinkHistory.current.push(downlinkBytes);
         timestamps.current.push(currentTime);
 
+        // Keep only the last 5 data points
         if (uplinkHistory.current.length > 5) {
           uplinkHistory.current.shift();
           downlinkHistory.current.shift();
           timestamps.current.shift();
         }
+
+        // When we have enough data, compute the throughput
         if (uplinkHistory.current.length === 5) {
           const timeDelta =
             (timestamps.current[timestamps.current.length - 1] -
               timestamps.current[0]) /
-            1000; // Convert to seconds
-
+            1000; // in seconds
           if (timeDelta > 0) {
             const uplinkRate =
               (uplinkHistory.current[uplinkHistory.current.length - 1] -
@@ -141,18 +172,12 @@ const Dashboard = () => {
             setDownlinkThroughput(downlinkRate);
           }
         }
-
-      } catch (err: any) {
-        console.error("Failed to fetch data:", err);
-        setError("Failed to fetch data.");
-      } finally {
-        setLoading(false);
+      } catch (err) {
+        console.error("Failed to update throughput:", err);
       }
     };
 
-    fetchData();
-    const interval = setInterval(fetchData, 1000); // Scrape every 1 second
-
+    const interval = setInterval(updateThroughput, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -173,6 +198,7 @@ const Dashboard = () => {
         </Alert>
       )}
 
+      {/* Network Section */}
       <Typography
         variant="h5"
         component="h2"
@@ -277,7 +303,11 @@ const Dashboard = () => {
                   {
                     data: [
                       { id: 0, value: allocatedIPs ?? 0, label: "Allocated" },
-                      { id: 1, value: (totalIPs ?? 0) - (allocatedIPs ?? 0), label: "Available" },
+                      {
+                        id: 1,
+                        value: (totalIPs ?? 0) - (allocatedIPs ?? 0),
+                        label: "Available",
+                      },
                     ],
                   },
                 ]}
@@ -289,6 +319,7 @@ const Dashboard = () => {
         </Grid>
       </Grid>
 
+      {/* Throughput Section */}
       <Grid container spacing={4} justifyContent="flex-start" marginTop={4}>
         <Grid size={3}>
           <Card
@@ -311,9 +342,7 @@ const Dashboard = () => {
               <CircularProgress />
             ) : (
               <Typography variant="h4">
-                {uplinkThroughput !== null
-                  ? `${(uplinkThroughput * 8 / 1_000_000).toFixed(2)} Mbps`
-                  : "N/A"}
+                {`${(uplinkThroughput * 8 / 1_000_000).toFixed(2)} Mbps`}
               </Typography>
             )}
           </Card>
@@ -339,15 +368,14 @@ const Dashboard = () => {
               <CircularProgress />
             ) : (
               <Typography variant="h4">
-                {downlinkThroughput !== null
-                  ? `${(downlinkThroughput * 8 / 1_000_000).toFixed(2)} Mbps`
-                  : "N/A"}
+                {`${(downlinkThroughput * 8 / 1_000_000).toFixed(2)} Mbps`}
               </Typography>
             )}
           </Card>
         </Grid>
       </Grid>
 
+      {/* System Section */}
       <Typography
         variant="h5"
         component="h2"
