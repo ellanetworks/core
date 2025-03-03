@@ -92,11 +92,11 @@ type AmfUe struct {
 	EBI                 int32             `json:"ebi,omitempty"`
 	/* Ue Identity*/
 	/* User Location*/
-	RatType                  models.RatType          `json:"ratType,omitempty"`
+	RatType                  coreModels.RatType      `json:"ratType,omitempty"`
 	Location                 coreModels.UserLocation `json:"location,omitempty"`
 	Tai                      coreModels.Tai          `json:"tai,omitempty"`
 	LocationChanged          bool                    `json:"locationChanged,omitempty"`
-	LastVisitedRegisteredTai models.Tai              `json:"lastVisitedRegisteredTai,omitempty"`
+	LastVisitedRegisteredTai coreModels.Tai          `json:"lastVisitedRegisteredTai,omitempty"`
 	TimeZone                 string                  `json:"timezone,omitempty"`
 	/* context about udm */
 	// UdmId                             string                                    `json:"udmId,omitempty"`
@@ -258,14 +258,14 @@ type RecommendedCell struct {
 // TS 38.413 9.3.1.101
 type RecommendRanNode struct {
 	Present         int32
-	GlobalRanNodeId *models.GlobalRanNodeId
-	Tai             *models.Tai
+	GlobalRanNodeId *coreModels.GlobalRanNodeId
+	Tai             *coreModels.Tai
 }
 
 type NGRANCGI struct {
 	Present  int32
-	NRCGI    *models.Ncgi
-	EUTRACGI *models.Ecgi
+	NRCGI    *coreModels.Ncgi
+	EUTRACGI *coreModels.Ecgi
 }
 
 func (ue *AmfUe) init() {

@@ -1921,13 +1921,13 @@ func BuildPaging(
 				recommendedCellItem.NGRANCGI.Present = ngapType.NGRANCGIPresentNRCGI
 				recommendedCellItem.NGRANCGI.NRCGI = new(ngapType.NRCGI)
 				nrCGI := recommendedCellItem.NGRANCGI.NRCGI
-				nrCGI.PLMNIdentity = ngapConvert.PlmnIdToNgap(*recommendedCell.NgRanCGI.NRCGI.PlmnId)
+				nrCGI.PLMNIdentity = util.PlmnIdToNgap(*recommendedCell.NgRanCGI.NRCGI.PlmnId)
 				nrCGI.NRCellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.NRCGI.NrCellId, 36)
 			case context.NgRanCgiPresentEUTRACGI:
 				recommendedCellItem.NGRANCGI.Present = ngapType.NGRANCGIPresentEUTRACGI
 				recommendedCellItem.NGRANCGI.EUTRACGI = new(ngapType.EUTRACGI)
 				eutraCGI := recommendedCellItem.NGRANCGI.EUTRACGI
-				eutraCGI.PLMNIdentity = ngapConvert.PlmnIdToNgap(*recommendedCell.NgRanCGI.EUTRACGI.PlmnId)
+				eutraCGI.PLMNIdentity = util.PlmnIdToNgap(*recommendedCell.NgRanCGI.EUTRACGI.PlmnId)
 				eutraCGI.EUTRACellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.EUTRACGI.EutraCellId, 28)
 			}
 

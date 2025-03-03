@@ -106,7 +106,7 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 	smContextCreateData.N1SmMsg.ContentId = "n1SmMsg"
 	smContextCreateData.AnType = smContext.AccessType()
 	if ue.RatType != "" {
-		smContextCreateData.RatType = coreModels.RatType(ue.RatType)
+		smContextCreateData.RatType = ue.RatType
 	}
 
 	smContextCreateData.UeTimeZone = ue.TimeZone
@@ -161,7 +161,7 @@ func SendUpdateSmContextDeactivateUpCnxState(ue *context.AmfUe,
 	updateData.UpCnxState = coreModels.UpCnxState_DEACTIVATED
 	updateData.UeLocation = &ue.Location
 	if cause.Cause != nil {
-		updateData.Cause = coreModels.Cause(*cause.Cause)
+		updateData.Cause = *cause.Cause
 	}
 	if cause.NgapCause != nil {
 		updateData.NgApCause = &coreModels.NgApCause{
@@ -323,7 +323,7 @@ func SendUpdateSmContextN2HandoverCanceled(ue *context.AmfUe,
 	updateData := coreModels.SmContextUpdateData{}
 	updateData.HoState = coreModels.HoState_CANCELLED
 	if cause.Cause != nil {
-		updateData.Cause = coreModels.Cause(*cause.Cause)
+		updateData.Cause = *cause.Cause
 	}
 	if cause.NgapCause != nil {
 		updateData.NgApCause = &coreModels.NgApCause{
@@ -357,7 +357,7 @@ func SendUpdateSmContextRequest(smContext *context.SmContext,
 func SendReleaseSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
 	cause *context.CauseAll, n2SmInfoType models.N2SmInfoType,
 	n2Info []byte,
-) (detail *models.ProblemDetails, err error) {
+) (detail *coreModels.ProblemDetails, err error) {
 	releaseData := buildReleaseSmContextRequest(ue, cause, n2SmInfoType, n2Info)
 	releaseSmContextRequest := coreModels.ReleaseSmContextRequest{
 		JsonData: &releaseData,
@@ -375,7 +375,7 @@ func buildReleaseSmContextRequest(
 ) {
 	if cause != nil {
 		if cause.Cause != nil {
-			releaseData.Cause = coreModels.Cause(*cause.Cause)
+			releaseData.Cause = *cause.Cause
 		}
 		if cause.NgapCause != nil {
 			releaseData.NgApCause = &coreModels.NgApCause{

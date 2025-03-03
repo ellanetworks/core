@@ -966,14 +966,14 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 			switch item.NGRANCGI.Present {
 			case ngapType.NGRANCGIPresentNRCGI:
 				recommendedCell.NgRanCGI.Present = context.NgRanCgiPresentNRCGI
-				recommendedCell.NgRanCGI.NRCGI = new(models.Ncgi)
-				plmnID := ngapConvert.PlmnIdToModels(item.NGRANCGI.NRCGI.PLMNIdentity)
+				recommendedCell.NgRanCGI.NRCGI = new(coreModels.Ncgi)
+				plmnID := util.PlmnIdToModels(item.NGRANCGI.NRCGI.PLMNIdentity)
 				recommendedCell.NgRanCGI.NRCGI.PlmnId = &plmnID
 				recommendedCell.NgRanCGI.NRCGI.NrCellId = ngapConvert.BitStringToHex(&item.NGRANCGI.NRCGI.NRCellIdentity.Value)
 			case ngapType.NGRANCGIPresentEUTRACGI:
 				recommendedCell.NgRanCGI.Present = context.NgRanCgiPresentEUTRACGI
-				recommendedCell.NgRanCGI.EUTRACGI = new(models.Ecgi)
-				plmnID := ngapConvert.PlmnIdToModels(item.NGRANCGI.EUTRACGI.PLMNIdentity)
+				recommendedCell.NgRanCGI.EUTRACGI = new(coreModels.Ecgi)
+				plmnID := util.PlmnIdToModels(item.NGRANCGI.EUTRACGI.PLMNIdentity)
 				recommendedCell.NgRanCGI.EUTRACGI.PlmnId = &plmnID
 				recommendedCell.NgRanCGI.EUTRACGI.EutraCellId = ngapConvert.BitStringToHex(
 					&item.NGRANCGI.EUTRACGI.EUTRACellIdentity.Value)
@@ -995,10 +995,10 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 			switch item.AMFPagingTarget.Present {
 			case ngapType.AMFPagingTargetPresentGlobalRANNodeID:
 				recommendedRanNode.Present = context.RecommendRanNodePresentRanNode
-				recommendedRanNode.GlobalRanNodeId = new(models.GlobalRanNodeId)
+				recommendedRanNode.GlobalRanNodeId = new(coreModels.GlobalRanNodeId)
 			case ngapType.AMFPagingTargetPresentTAI:
 				recommendedRanNode.Present = context.RecommendRanNodePresentTAI
-				tai := ngapConvert.TaiToModels(*item.AMFPagingTarget.TAI)
+				tai := util.TaiToModels(*item.AMFPagingTarget.TAI)
 				recommendedRanNode.Tai = &tai
 			}
 			*recommendedRanNodes = append(*recommendedRanNodes, recommendedRanNode)
