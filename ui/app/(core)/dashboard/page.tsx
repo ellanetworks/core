@@ -11,19 +11,19 @@ import Grid from "@mui/material/Grid2";
 import { useCookies } from "react-cookie";
 
 const Dashboard = () => {
-  const [cookies] = useCookies(['user_token']);
+  const [cookies] = useCookies(["user_token"]);
 
-  // Static values – update these less frequently (or only on mount)
+  // Static values – update these only once on mount.
   const [version, setVersion] = useState<string | null>(null);
   const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
   const [radioCount, setRadioCount] = useState<number | null>(null);
+
+  // Metrics state – refreshed every second.
   const [activeSessions, setActiveSessions] = useState<number | null>(null);
   const [memoryUsage, setMemoryUsage] = useState<number | null>(null);
   const [databaseSize, setDatabaseSize] = useState<number | null>(null);
   const [allocatedIPs, setAllocatedIPs] = useState<number | null>(null);
   const [totalIPs, setTotalIPs] = useState<number | null>(null);
-
-  // Throughput values – these are updated every second
   const [uplinkThroughput, setUplinkThroughput] = useState<number>(0);
   const [downlinkThroughput, setDownlinkThroughput] = useState<number>(0);
 
@@ -35,7 +35,7 @@ const Dashboard = () => {
   const downlinkHistory = useRef<number[]>([]);
   const timestamps = useRef<number[]>([]);
 
-  // Parse all metrics (both static and throughput)
+  // Parses the metrics string and returns all relevant values.
   const parseMetrics = (metrics: string) => {
     const lines = metrics.split("\n");
 
@@ -77,82 +77,71 @@ const Dashboard = () => {
       totalIPs: totalIPsMetric
         ? parseInt(totalIPsMetric.split(" ")[1], 10)
         : 0,
-      uplinkBytes: uplinkMetric
-        ? parseFloat(uplinkMetric.split(" ")[1])
-        : 0,
+      uplinkBytes: uplinkMetric ? parseFloat(uplinkMetric.split(" ")[1]) : 0,
       downlinkBytes: downlinkMetric
         ? parseFloat(downlinkMetric.split(" ")[1])
         : 0,
     };
   };
 
-  // Initial (static) data fetch
+  // Static fetch for status, subscribers, and radios.
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const [status, subscribers, radios, metrics] = await Promise.all([
+        const [status, subscribers, radios] = await Promise.all([
           getStatus(),
           listSubscribers(cookies.user_token),
           listRadios(cookies.user_token),
-          getMetrics(),
         ]);
 
         setVersion(status.version);
         setSubscriberCount(subscribers.length);
         setRadioCount(radios.length);
-
-        const {
-          pduSessions,
-          memoryUsage,
-          databaseSize,
-          allocatedIPs,
-          totalIPs,
-        } = parseMetrics(metrics);
-
-        setActiveSessions(pduSessions);
-        setMemoryUsage(memoryUsage);
-        setDatabaseSize(databaseSize);
-        setAllocatedIPs(allocatedIPs);
-        setTotalIPs(totalIPs);
-
-        // Initialize throughput history with the first metrics reading.
-        const { uplinkBytes, downlinkBytes } = parseMetrics(metrics);
-        const now = Date.now();
-        uplinkHistory.current = [uplinkBytes];
-        downlinkHistory.current = [downlinkBytes];
-        timestamps.current = [now];
       } catch (err: any) {
         console.error("Failed to fetch initial data:", err);
         setError("Failed to fetch initial data.");
-      } finally {
-        setLoading(false);
       }
     };
 
     fetchInitialData();
   }, [cookies.user_token]);
 
-  // Throughput update (every second)
+  // Metrics update every second: this call updates all metrics state and throughput.
   useEffect(() => {
-    const updateThroughput = async () => {
+    const updateMetrics = async () => {
       try {
         const metrics = await getMetrics();
-        const { uplinkBytes, downlinkBytes } = parseMetrics(metrics);
-        const currentTime = Date.now();
+        const {
+          pduSessions,
+          memoryUsage,
+          databaseSize,
+          allocatedIPs,
+          totalIPs,
+          uplinkBytes,
+          downlinkBytes,
+        } = parseMetrics(metrics);
 
-        // Append current values to the history arrays
+        // Update static metric states.
+        setActiveSessions(pduSessions);
+        setMemoryUsage(memoryUsage);
+        setDatabaseSize(databaseSize);
+        setAllocatedIPs(allocatedIPs);
+        setTotalIPs(totalIPs);
+
+        // Throughput history: add new data point.
+        const currentTime = Date.now();
         uplinkHistory.current.push(uplinkBytes);
         downlinkHistory.current.push(downlinkBytes);
         timestamps.current.push(currentTime);
 
-        // Keep only the last 5 data points
+        // Keep only the last 5 samples.
         if (uplinkHistory.current.length > 5) {
           uplinkHistory.current.shift();
           downlinkHistory.current.shift();
           timestamps.current.shift();
         }
 
-        // When we have enough data, compute the throughput
+        // Calculate throughput if enough samples have been collected.
         if (uplinkHistory.current.length === 5) {
           const timeDelta =
             (timestamps.current[timestamps.current.length - 1] -
@@ -173,11 +162,16 @@ const Dashboard = () => {
           }
         }
       } catch (err) {
-        console.error("Failed to update throughput:", err);
+        console.error("Failed to update metrics:", err);
+        setError("Failed to update metrics.");
+      } finally {
+        setLoading(false);
       }
     };
 
-    const interval = setInterval(updateThroughput, 1000);
+    // Call immediately then every 1 second.
+    updateMetrics();
+    const interval = setInterval(updateMetrics, 1000);
     return () => clearInterval(interval);
   }, []);
 
