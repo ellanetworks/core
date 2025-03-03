@@ -110,7 +110,6 @@ const Profile = () => {
         });
         fetchProfiles();
       } catch (error) {
-        console.log("Error deleting profile:", error);
         setAlert({
           message: `Failed to delete profile "${selectedProfile}": ${error}`,
           severity: "error",

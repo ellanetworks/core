@@ -43,7 +43,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             const decoded = jwtDecode(token) as DecodedToken;
 
             let roleString = "";
-            console.log("decoded.role", decoded.role);
             if (decoded.role === "admin") {
                 roleString = "Admin";
             } else if (decoded.role === "readonly") {

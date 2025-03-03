@@ -84,7 +84,6 @@ const Route = () => {
         });
         fetchRoutes();
       } catch (error) {
-        console.log("Error deleting route:", error);
         setAlert({
           message: `Failed to delete route "${selectedRoute}": ${error}`,
           severity: "error",

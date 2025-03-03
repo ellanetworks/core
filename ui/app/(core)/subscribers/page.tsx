@@ -120,7 +120,6 @@ const Subscriber = () => {
         { field: "ipAddress", headerName: "IP Address", flex: 1 },
         { field: "profileName", headerName: "Profile", flex: 1 },
     ];
-    console.log("Role:", role);
 
     if (role === "Admin" || role === "Network Manager") {
         baseColumns.push({
