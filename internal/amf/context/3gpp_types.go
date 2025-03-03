@@ -50,6 +50,6 @@ type LADN struct {
 
 type CauseAll struct {
 	Cause        *models.Cause
-	NgapCause    *models.NgApCause
+	NgapCause    *coreModels.NgApCause
 	Var5GmmCause *int32
 }

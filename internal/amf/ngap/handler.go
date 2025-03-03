@@ -2410,7 +2410,7 @@ func HandleUEContextReleaseRequest(ran *context.AmfRan, message *ngapType.NGAPPD
 	amfUe := ranUe.AmfUe
 	if amfUe != nil {
 		causeAll := context.CauseAll{
-			NgapCause: &models.NgApCause{
+			NgapCause: &coreModels.NgApCause{
 				Group: int32(causeGroup),
 				Value: int32(causeValue),
 			},
@@ -3252,7 +3252,7 @@ func HandleHandoverFailure(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 				pduSessionID := key.(int32)
 				smContext := value.(*context.SmContext)
 				causeAll := context.CauseAll{
-					NgapCause: &models.NgApCause{
+					NgapCause: &coreModels.NgApCause{
 						Group: int32(causePresent),
 						Value: int32(causeValue),
 					},
@@ -3546,7 +3546,7 @@ func HandleHandoverCancel(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 				pduSessionID := key.(int32)
 				smContext := value.(*context.SmContext)
 				causeAll := context.CauseAll{
-					NgapCause: &models.NgApCause{
+					NgapCause: &coreModels.NgApCause{
 						Group: int32(causePresent),
 						Value: int32(causeValue),
 					},

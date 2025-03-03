@@ -10,7 +10,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	coreModels "github.com/ellanetworks/core/internal/models"
 )
 
 func CompareUserLocation(loc1 models.UserLocation, loc2 models.UserLocation) bool {
@@ -35,7 +34,7 @@ func CompareUserLocation(loc1 models.UserLocation, loc2 models.UserLocation) boo
 	return false
 }
 
-func InTaiList(servedTai models.Tai, taiList []coreModels.Tai) bool {
+func InTaiList(servedTai models.Tai, taiList []models.Tai) bool {
 	for _, tai := range taiList {
 		if reflect.DeepEqual(tai, servedTai) {
 			return true
