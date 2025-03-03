@@ -20,6 +20,5 @@ type PolicyAssociationRequest struct {
 	Guami             *Guami
 	// If the NF service consumer is an AMF, it should provide the name of a service produced by the AMF that makes use of information received within the Npcf_AMPolicyControl_UpdateNotify service operation.
 	ServiveName string
-	// TraceReq    *TraceData `json:"traceReq,omitempty" yaml:"traceReq" bson:"traceReq" mapstructure:"TraceReq"`
-	SuppFeat string
+	SuppFeat    string
 }
