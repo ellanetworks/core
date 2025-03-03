@@ -38,7 +38,7 @@ func SnssaiModelsToHex(snssai models.Snssai) string {
 	return sst + snssai.Sd
 }
 
-func PlmnIdStringToModels(plmnId string) (plmnID models.PlmnId) {
+func PlmnIdStringToModels(plmnId string) (plmnID coreModels.PlmnId) {
 	plmnID.Mcc = plmnId[:3]
 	plmnID.Mnc = plmnId[3:]
 	return
@@ -299,7 +299,7 @@ func forward5GSMMessageToSMF(
 	smContextUpdateData.Pei = ue.Pei
 	smContextUpdateData.Gpsi = ue.Gpsi
 	if !context.CompareUserLocation(ue.Location, smContext.UserLocation()) {
-		smContextUpdateData.AddUeLocation = util.ConvertUeLocation(&ue.Location)
+		smContextUpdateData.AddUeLocation = &ue.Location
 	}
 
 	if accessType != smContext.AccessType() {
@@ -498,7 +498,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 
 	// Check TAI
 	supportTaiList := context.GetSupportTaiList()
-	taiList := make([]models.Tai, len(supportTaiList))
+	taiList := make([]coreModels.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)
 	for i := range taiList {
 		taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
@@ -912,7 +912,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 	if ue.LocationChanged && ue.RequestTriggerLocationChange {
 		updateReq := coreModels.PolicyAssociationUpdateRequest{}
 		updateReq.Triggers = append(updateReq.Triggers, coreModels.RequestTrigger_LOC_CH)
-		updateReq.UserLoc = util.ConvertUeLocation(&ue.Location)
+		updateReq.UserLoc = &ue.Location
 		err := consumer.AMPolicyControlUpdate(ue, updateReq)
 		if err != nil {
 			ue.GmmLog.Errorf("AM Policy Control Update Error[%v]", err)
@@ -1104,7 +1104,7 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 				AnN2ApId:         int32(ue.RanUe[anType].RanUeNgapId),
 				RanNodeId:        ue.RanUe[anType].Ran.RanId,
 				InitialAmfName:   amfSelf.Name,
-				UserLocation:     &ue.Location,
+				UserLocation:     util.ConvertUeLocation(&ue.Location),
 				RrcEstCause:      ue.RanUe[anType].RRCEstablishmentCause,
 				UeContextRequest: ue.RanUe[anType].UeContextRequest,
 				AnN2IPv4Addr:     ue.RanUe[anType].Ran.GnbIp,

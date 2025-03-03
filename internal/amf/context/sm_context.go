@@ -25,7 +25,7 @@ type SmContext struct {
 	DnnVal          string
 	AccessTypeVal   models.AccessType
 	NsInstanceVal   string
-	UserLocationVal models.UserLocation
+	UserLocationVal coreModels.UserLocation
 	PlmnIDVal       coreModels.PlmnId
 
 	// SMF information
@@ -132,13 +132,13 @@ func (c *SmContext) SetNsInstance(nsInstanceID string) {
 	c.NsInstanceVal = nsInstanceID
 }
 
-func (c *SmContext) UserLocation() models.UserLocation {
+func (c *SmContext) UserLocation() coreModels.UserLocation {
 	c.Mu.RLock()
 	defer c.Mu.RUnlock()
 	return c.UserLocationVal
 }
 
-func (c *SmContext) SetUserLocation(userLocation models.UserLocation) {
+func (c *SmContext) SetUserLocation(userLocation coreModels.UserLocation) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.UserLocationVal = userLocation

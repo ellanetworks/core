@@ -13,10 +13,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
-	"github.com/omec-project/openapi/models"
 	"go.uber.org/zap"
 )
 
@@ -45,8 +46,8 @@ type RanUe struct {
 	TargetUe            *RanUe  `json:"-"`
 
 	/* UserLocation*/
-	Tai      models.Tai
-	Location models.UserLocation
+	Tai      coreModels.Tai
+	Location coreModels.UserLocation
 	/* context about udm */
 	SupportVoPSn3gpp  bool       `json:"-"`
 	SupportVoPS       bool       `json:"-"`
@@ -147,26 +148,26 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 	case ngapType.UserLocationInformationPresentUserLocationInformationEUTRA:
 		locationInfoEUTRA := userLocationInformation.UserLocationInformationEUTRA
 		if ranUe.Location.EutraLocation == nil {
-			ranUe.Location.EutraLocation = new(models.EutraLocation)
+			ranUe.Location.EutraLocation = new(coreModels.EutraLocation)
 		}
 
 		tAI := locationInfoEUTRA.TAI
-		plmnID := ngapConvert.PlmnIdToModels(tAI.PLMNIdentity)
+		plmnID := util.PlmnIdToModels(tAI.PLMNIdentity)
 		tac := hex.EncodeToString(tAI.TAC.Value)
 
 		if ranUe.Location.EutraLocation.Tai == nil {
-			ranUe.Location.EutraLocation.Tai = new(models.Tai)
+			ranUe.Location.EutraLocation.Tai = new(coreModels.Tai)
 		}
 		ranUe.Location.EutraLocation.Tai.PlmnId = &plmnID
 		ranUe.Location.EutraLocation.Tai.Tac = tac
 		ranUe.Tai = *ranUe.Location.EutraLocation.Tai
 
 		eUTRACGI := locationInfoEUTRA.EUTRACGI
-		ePlmnID := ngapConvert.PlmnIdToModels(eUTRACGI.PLMNIdentity)
+		ePlmnID := util.PlmnIdToModels(eUTRACGI.PLMNIdentity)
 		eutraCellID := ngapConvert.BitStringToHex(&eUTRACGI.EUTRACellIdentity.Value)
 
 		if ranUe.Location.EutraLocation.Ecgi == nil {
-			ranUe.Location.EutraLocation.Ecgi = new(models.Ecgi)
+			ranUe.Location.EutraLocation.Ecgi = new(coreModels.Ecgi)
 		}
 		ranUe.Location.EutraLocation.Ecgi.PlmnId = &ePlmnID
 		ranUe.Location.EutraLocation.Ecgi.EutraCellId = eutraCellID
@@ -185,26 +186,26 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 	case ngapType.UserLocationInformationPresentUserLocationInformationNR:
 		locationInfoNR := userLocationInformation.UserLocationInformationNR
 		if ranUe.Location.NrLocation == nil {
-			ranUe.Location.NrLocation = new(models.NrLocation)
+			ranUe.Location.NrLocation = new(coreModels.NrLocation)
 		}
 
 		tAI := locationInfoNR.TAI
-		plmnID := ngapConvert.PlmnIdToModels(tAI.PLMNIdentity)
+		plmnID := util.PlmnIdToModels(tAI.PLMNIdentity)
 		tac := hex.EncodeToString(tAI.TAC.Value)
 
 		if ranUe.Location.NrLocation.Tai == nil {
-			ranUe.Location.NrLocation.Tai = new(models.Tai)
+			ranUe.Location.NrLocation.Tai = new(coreModels.Tai)
 		}
 		ranUe.Location.NrLocation.Tai.PlmnId = &plmnID
 		ranUe.Location.NrLocation.Tai.Tac = tac
 		ranUe.Tai = *ranUe.Location.NrLocation.Tai
 
 		nRCGI := locationInfoNR.NRCGI
-		nRPlmnID := ngapConvert.PlmnIdToModels(nRCGI.PLMNIdentity)
+		nRPlmnID := util.PlmnIdToModels(nRCGI.PLMNIdentity)
 		nRCellID := ngapConvert.BitStringToHex(&nRCGI.NRCellIdentity.Value)
 
 		if ranUe.Location.NrLocation.Ncgi == nil {
-			ranUe.Location.NrLocation.Ncgi = new(models.Ncgi)
+			ranUe.Location.NrLocation.Ncgi = new(coreModels.Ncgi)
 		}
 		ranUe.Location.NrLocation.Ncgi.PlmnId = &nRPlmnID
 		ranUe.Location.NrLocation.Ncgi.NrCellId = nRCellID
@@ -222,7 +223,7 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 	case ngapType.UserLocationInformationPresentUserLocationInformationN3IWF:
 		locationInfoN3IWF := userLocationInformation.UserLocationInformationN3IWF
 		if ranUe.Location.N3gaLocation == nil {
-			ranUe.Location.N3gaLocation = new(models.N3gaLocation)
+			ranUe.Location.N3gaLocation = new(coreModels.N3gaLocation)
 		}
 
 		ip := locationInfoN3IWF.IPAddress
@@ -240,7 +241,7 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 			logger.AmfLog.Errorf("Error parsing TAC: %v", err)
 		}
 		tac := fmt.Sprintf("%06x", tmp)
-		ranUe.Location.N3gaLocation.N3gppTai = &models.Tai{
+		ranUe.Location.N3gaLocation.N3gppTai = &coreModels.Tai{
 			PlmnId: supportTaiList[0].PlmnId,
 			Tac:    tac,
 		}

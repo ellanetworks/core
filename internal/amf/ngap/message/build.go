@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap"
@@ -121,7 +122,7 @@ func BuildNGSetupResponse() ([]byte, error) {
 	guamiList := context.GetServedGuamiList()
 	for _, guami := range guamiList {
 		servedGUAMIItem := ngapType.ServedGUAMIItem{}
-		servedGUAMIItem.GUAMI.PLMNIdentity = ngapConvert.PlmnIdToNgap(*guami.PlmnId)
+		servedGUAMIItem.GUAMI.PLMNIdentity = util.PlmnIdToNgap(*guami.PlmnId)
 		regionId, setId, prtId := ngapConvert.AmfIdToNgap(guami.AmfId)
 		servedGUAMIItem.GUAMI.AMFRegionID.Value = regionId
 		servedGUAMIItem.GUAMI.AMFSetID.Value = setId
@@ -903,7 +904,7 @@ func BuildInitialContextSetupRequest(
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 
-	*plmnID = ngapConvert.PlmnIdToNgap(*servedGuami.PlmnId)
+	*plmnID = util.PlmnIdToNgap(*servedGuami.PlmnId)
 	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfId)
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
@@ -1489,7 +1490,7 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause,
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 
-	*plmnID = ngapConvert.PlmnIdToNgap(*servedGuami.PlmnId)
+	*plmnID = util.PlmnIdToNgap(*servedGuami.PlmnId)
 	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfId)
 
 	handoverRequestIEs.List = append(handoverRequestIEs.List, ie)
@@ -1854,7 +1855,7 @@ func BuildPaging(
 		for _, tai := range ue.RegistrationArea[models.AccessType__3_GPP_ACCESS] {
 			var tac []byte
 			taiListforPagingItem := ngapType.TAIListForPagingItem{}
-			taiListforPagingItem.TAI.PLMNIdentity = ngapConvert.PlmnIdToNgap(*tai.PlmnId)
+			taiListforPagingItem.TAI.PLMNIdentity = util.PlmnIdToNgap(*tai.PlmnId)
 			tac, err = hex.DecodeString(tai.Tac)
 			if err != nil {
 				logger.AmfLog.Errorf("[Build Error] DecodeString tai.Tac error: %+v", err)

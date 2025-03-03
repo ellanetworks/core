@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/gin-gonic/gin"
-	"github.com/omec-project/openapi/models"
 )
 
 const (

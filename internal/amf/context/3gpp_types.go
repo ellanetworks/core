@@ -8,6 +8,7 @@ package context
 import (
 	"time"
 
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -44,7 +45,7 @@ const (
 
 type LADN struct {
 	Dnn      string
-	TaiLists []models.Tai
+	TaiLists []coreModels.Tai
 }
 
 type CauseAll struct {

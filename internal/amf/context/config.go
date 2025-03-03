@@ -3,6 +3,7 @@ package context
 
 import (
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/openapi/models"
 )
 
@@ -13,21 +14,21 @@ func ListAmfRan() []AmfRan {
 	return amfSelf.ListAmfRan()
 }
 
-func GetSupportTaiList() []models.Tai {
+func GetSupportTaiList() []coreModels.Tai {
 	amfSelf := AMF_Self()
-	tais := make([]models.Tai, 0)
+	tais := make([]coreModels.Tai, 0)
 	dbNetwork, err := amfSelf.DbInstance.GetOperator()
 	if err != nil {
 		logger.AmfLog.Warnf("Failed to get operator: %s", err)
 		return tais
 	}
-	plmnID := models.PlmnId{
+	plmnID := coreModels.PlmnId{
 		Mcc: dbNetwork.Mcc,
 		Mnc: dbNetwork.Mnc,
 	}
 	supportedTacs := dbNetwork.GetSupportedTacs()
 	for _, tac := range supportedTacs {
-		tai := models.Tai{
+		tai := coreModels.Tai{
 			PlmnId: &plmnID,
 			Tac:    tac,
 		}
@@ -36,19 +37,19 @@ func GetSupportTaiList() []models.Tai {
 	return tais
 }
 
-func GetServedGuamiList() []models.Guami {
+func GetServedGuamiList() []coreModels.Guami {
 	amfSelf := AMF_Self()
-	guamis := make([]models.Guami, 0)
+	guamis := make([]coreModels.Guami, 0)
 	dbNetwork, err := amfSelf.DbInstance.GetOperator()
 	if err != nil {
 		logger.AmfLog.Warnf("Failed to get operator: %s", err)
 		return guamis
 	}
-	plmnID := models.PlmnId{
+	plmnID := coreModels.PlmnId{
 		Mcc: dbNetwork.Mcc,
 		Mnc: dbNetwork.Mnc,
 	}
-	guami := models.Guami{
+	guami := coreModels.Guami{
 		PlmnId: &plmnID,
 		AmfId:  "cafe00", // To edit
 	}

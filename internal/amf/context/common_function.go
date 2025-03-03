@@ -9,8 +9,8 @@ import (
 	"reflect"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	coreModels "github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/openapi/models"
 )
 
 func CompareUserLocation(loc1 models.UserLocation, loc2 models.UserLocation) bool {
@@ -35,7 +35,7 @@ func CompareUserLocation(loc1 models.UserLocation, loc2 models.UserLocation) boo
 	return false
 }
 
-func InTaiList(servedTai models.Tai, taiList []models.Tai) bool {
+func InTaiList(servedTai models.Tai, taiList []coreModels.Tai) bool {
 	for _, tai := range taiList {
 		if reflect.DeepEqual(tai, servedTai) {
 			return true
@@ -44,7 +44,7 @@ func InTaiList(servedTai models.Tai, taiList []models.Tai) bool {
 	return false
 }
 
-func TacInAreas(targetTac string, areas []coreModels.Area) bool {
+func TacInAreas(targetTac string, areas []models.Area) bool {
 	for _, area := range areas {
 		for _, tac := range area.Tacs {
 			if targetTac == tac {

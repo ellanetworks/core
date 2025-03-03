@@ -24,7 +24,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 ) (*coreModels.UeAuthenticationCtx, *models.ProblemDetails, error) {
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
-	var plmnId *models.PlmnId
+	var plmnId *coreModels.PlmnId
 	if ue.Tai.PlmnId != nil {
 		plmnId = ue.Tai.PlmnId
 	} else {

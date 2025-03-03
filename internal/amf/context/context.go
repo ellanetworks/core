@@ -18,6 +18,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/omec-project/openapi/models"
 )
@@ -141,7 +142,7 @@ func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.Acc
 	}
 
 	supportTaiList := GetSupportTaiList()
-	taiList := make([]models.Tai, len(supportTaiList))
+	taiList := make([]coreModels.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)
 	for i := range taiList {
 		tmp, err := strconv.ParseUint(taiList[i].Tac, 10, 32)

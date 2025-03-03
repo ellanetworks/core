@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
@@ -47,12 +48,12 @@ type AmfRan struct {
 }
 
 type SupportedTAI struct {
-	Tai        models.Tai
-	SNssaiList []models.Snssai
+	Tai        coreModels.Tai
+	SNssaiList []coreModels.Snssai
 }
 
 func NewSupportedTAI() (tai SupportedTAI) {
-	tai.SNssaiList = make([]models.Snssai, 0, MaxNumOfSlice)
+	tai.SNssaiList = make([]coreModels.Snssai, 0, MaxNumOfSlice)
 	return
 }
 

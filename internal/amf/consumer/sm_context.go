@@ -11,7 +11,6 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/util"
 	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/omec-project/openapi/models"
@@ -141,7 +140,7 @@ func SendUpdateSmContextActivateUpCnxState(
 	updateData := coreModels.SmContextUpdateData{}
 	updateData.UpCnxState = coreModels.UpCnxState_ACTIVATING
 	if !context.CompareUserLocation(ue.Location, smContext.UserLocation()) {
-		updateData.UeLocation = util.ConvertUeLocation(&ue.Location)
+		updateData.UeLocation = &ue.Location
 	}
 	if smContext.AccessType() != accessType {
 		updateData.AnType = coreModels.AccessType(smContext.AccessType())
@@ -160,7 +159,7 @@ func SendUpdateSmContextDeactivateUpCnxState(ue *context.AmfUe,
 ) {
 	updateData := coreModels.SmContextUpdateData{}
 	updateData.UpCnxState = coreModels.UpCnxState_DEACTIVATED
-	updateData.UeLocation = util.ConvertUeLocation(&ue.Location)
+	updateData.UeLocation = &ue.Location
 	if cause.Cause != nil {
 		updateData.Cause = coreModels.Cause(*cause.Cause)
 	}
@@ -193,7 +192,7 @@ func SendUpdateSmContextN2Info(
 	updateData.N2SmInfoType = coreModels.N2SmInfoType(n2SmType)
 	updateData.N2SmInfo = new(coreModels.RefToBinaryData)
 	updateData.N2SmInfo.ContentId = N2SMINFO_ID
-	updateData.UeLocation = util.ConvertUeLocation(&ue.Location)
+	updateData.UeLocation = &ue.Location
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
 
@@ -208,7 +207,7 @@ func SendUpdateSmContextXnHandover(
 		updateData.N2SmInfo.ContentId = N2SMINFO_ID
 	}
 	updateData.ToBeSwitched = true
-	updateData.UeLocation = util.ConvertUeLocation(&ue.Location)
+	updateData.UeLocation = &ue.Location
 	if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
 		if context.InTaiList(ue.Tai, ladn.TaiLists) {
 			updateData.PresenceInLadn = coreModels.PresenceState_IN_AREA

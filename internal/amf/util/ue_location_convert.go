@@ -5,22 +5,22 @@ import (
 	"github.com/omec-project/openapi/models"
 )
 
-// ConvertUeLocation safely converts a UserLocation from models.UserLocation to coreModels.UserLocation.
+// ConvertUeLocation safely converts a UserLocation from models.UserLocation to models.UserLocation.
 // It returns nil if the input is nil, and performs nil-checks for each nested field.
-func ConvertUeLocation(uL *models.UserLocation) *coreModels.UserLocation {
+func ConvertUeLocation(uL *coreModels.UserLocation) *models.UserLocation {
 	if uL == nil {
 		return nil
 	}
 
-	converted := &coreModels.UserLocation{}
+	converted := &models.UserLocation{}
 
 	if uL.EutraLocation != nil {
-		converted.EutraLocation = &coreModels.EutraLocation{}
+		converted.EutraLocation = &models.EutraLocation{}
 
 		if uL.EutraLocation.Tai != nil {
-			converted.EutraLocation.Tai = &coreModels.Tai{}
+			converted.EutraLocation.Tai = &models.Tai{}
 			if uL.EutraLocation.Tai.PlmnId != nil {
-				converted.EutraLocation.Tai.PlmnId = &coreModels.PlmnId{
+				converted.EutraLocation.Tai.PlmnId = &models.PlmnId{
 					Mcc: uL.EutraLocation.Tai.PlmnId.Mcc,
 					Mnc: uL.EutraLocation.Tai.PlmnId.Mnc,
 				}
@@ -29,9 +29,9 @@ func ConvertUeLocation(uL *models.UserLocation) *coreModels.UserLocation {
 		}
 
 		if uL.EutraLocation.Ecgi != nil {
-			converted.EutraLocation.Ecgi = &coreModels.Ecgi{}
+			converted.EutraLocation.Ecgi = &models.Ecgi{}
 			if uL.EutraLocation.Ecgi.PlmnId != nil {
-				converted.EutraLocation.Ecgi.PlmnId = &coreModels.PlmnId{
+				converted.EutraLocation.Ecgi.PlmnId = &models.PlmnId{
 					Mcc: uL.EutraLocation.Ecgi.PlmnId.Mcc,
 					Mnc: uL.EutraLocation.Ecgi.PlmnId.Mnc,
 				}
@@ -45,16 +45,16 @@ func ConvertUeLocation(uL *models.UserLocation) *coreModels.UserLocation {
 		converted.EutraLocation.GeodeticInformation = uL.EutraLocation.GeodeticInformation
 
 		if uL.EutraLocation.GlobalNgenbId != nil {
-			converted.EutraLocation.GlobalNgenbId = &coreModels.GlobalRanNodeId{}
+			converted.EutraLocation.GlobalNgenbId = &models.GlobalRanNodeId{}
 			if uL.EutraLocation.GlobalNgenbId.PlmnId != nil {
-				converted.EutraLocation.GlobalNgenbId.PlmnId = &coreModels.PlmnId{
+				converted.EutraLocation.GlobalNgenbId.PlmnId = &models.PlmnId{
 					Mcc: uL.EutraLocation.GlobalNgenbId.PlmnId.Mcc,
 					Mnc: uL.EutraLocation.GlobalNgenbId.PlmnId.Mnc,
 				}
 			}
 			converted.EutraLocation.GlobalNgenbId.N3IwfId = uL.EutraLocation.GlobalNgenbId.N3IwfId
 			if uL.EutraLocation.GlobalNgenbId.GNbId != nil {
-				converted.EutraLocation.GlobalNgenbId.GNbId = &coreModels.GNbId{
+				converted.EutraLocation.GlobalNgenbId.GNbId = &models.GNbId{
 					BitLength: uL.EutraLocation.GlobalNgenbId.GNbId.BitLength,
 					GNBValue:  uL.EutraLocation.GlobalNgenbId.GNbId.GNBValue,
 				}
@@ -64,12 +64,12 @@ func ConvertUeLocation(uL *models.UserLocation) *coreModels.UserLocation {
 	}
 
 	if uL.NrLocation != nil {
-		converted.NrLocation = &coreModels.NrLocation{}
+		converted.NrLocation = &models.NrLocation{}
 
 		if uL.NrLocation.Tai != nil {
-			converted.NrLocation.Tai = &coreModels.Tai{}
+			converted.NrLocation.Tai = &models.Tai{}
 			if uL.NrLocation.Tai.PlmnId != nil {
-				converted.NrLocation.Tai.PlmnId = &coreModels.PlmnId{
+				converted.NrLocation.Tai.PlmnId = &models.PlmnId{
 					Mcc: uL.NrLocation.Tai.PlmnId.Mcc,
 					Mnc: uL.NrLocation.Tai.PlmnId.Mnc,
 				}
@@ -78,9 +78,9 @@ func ConvertUeLocation(uL *models.UserLocation) *coreModels.UserLocation {
 		}
 
 		if uL.NrLocation.Ncgi != nil {
-			converted.NrLocation.Ncgi = &coreModels.Ncgi{}
+			converted.NrLocation.Ncgi = &models.Ncgi{}
 			if uL.NrLocation.Ncgi.PlmnId != nil {
-				converted.NrLocation.Ncgi.PlmnId = &coreModels.PlmnId{
+				converted.NrLocation.Ncgi.PlmnId = &models.PlmnId{
 					Mcc: uL.NrLocation.Ncgi.PlmnId.Mcc,
 					Mnc: uL.NrLocation.Ncgi.PlmnId.Mnc,
 				}
@@ -94,16 +94,16 @@ func ConvertUeLocation(uL *models.UserLocation) *coreModels.UserLocation {
 		converted.NrLocation.GeodeticInformation = uL.NrLocation.GeodeticInformation
 
 		if uL.NrLocation.GlobalGnbId != nil {
-			converted.NrLocation.GlobalGnbId = &coreModels.GlobalRanNodeId{}
+			converted.NrLocation.GlobalGnbId = &models.GlobalRanNodeId{}
 			if uL.NrLocation.GlobalGnbId.PlmnId != nil {
-				converted.NrLocation.GlobalGnbId.PlmnId = &coreModels.PlmnId{
+				converted.NrLocation.GlobalGnbId.PlmnId = &models.PlmnId{
 					Mcc: uL.NrLocation.GlobalGnbId.PlmnId.Mcc,
 					Mnc: uL.NrLocation.GlobalGnbId.PlmnId.Mnc,
 				}
 			}
 			converted.NrLocation.GlobalGnbId.N3IwfId = uL.NrLocation.GlobalGnbId.N3IwfId
 			if uL.NrLocation.GlobalGnbId.GNbId != nil {
-				converted.NrLocation.GlobalGnbId.GNbId = &coreModels.GNbId{
+				converted.NrLocation.GlobalGnbId.GNbId = &models.GNbId{
 					BitLength: uL.NrLocation.GlobalGnbId.GNbId.BitLength,
 					GNBValue:  uL.NrLocation.GlobalGnbId.GNbId.GNBValue,
 				}

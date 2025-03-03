@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	localConvert "github.com/ellanetworks/core/internal/amf/ngap/convert"
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/ngap/ngapConvert"
@@ -97,14 +98,14 @@ func AppendPDUSessionResourceToReleaseListRelCmd(list *ngapType.PDUSessionResour
 
 func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrictionList {
 	mobilityRestrictionList := ngapType.MobilityRestrictionList{}
-	mobilityRestrictionList.ServingPLMN = ngapConvert.PlmnIdToNgap(ue.PlmnId)
+	mobilityRestrictionList.ServingPLMN = util.PlmnIdToNgap(ue.PlmnId)
 
 	if ue.AccessAndMobilitySubscriptionData != nil && len(ue.AccessAndMobilitySubscriptionData.RatRestrictions) > 0 {
 		mobilityRestrictionList.RATRestrictions = new(ngapType.RATRestrictions)
 		ratRestrictions := mobilityRestrictionList.RATRestrictions
 		for _, ratType := range ue.AccessAndMobilitySubscriptionData.RatRestrictions {
 			item := ngapType.RATRestrictionsItem{}
-			item.PLMNIdentity = ngapConvert.PlmnIdToNgap(ue.PlmnId)
+			item.PLMNIdentity = util.PlmnIdToNgap(ue.PlmnId)
 			item.RATRestrictionInformation = localConvert.RATRestrictionInformationToNgap(ratType)
 			ratRestrictions.List = append(ratRestrictions.List, item)
 		}
@@ -115,7 +116,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 		forbiddenAreaInformation := mobilityRestrictionList.ForbiddenAreaInformation
 		for _, info := range ue.AccessAndMobilitySubscriptionData.ForbiddenAreas {
 			item := ngapType.ForbiddenAreaInformationItem{}
-			item.PLMNIdentity = ngapConvert.PlmnIdToNgap(ue.PlmnId)
+			item.PLMNIdentity = util.PlmnIdToNgap(ue.PlmnId)
 			for _, tac := range info.Tacs {
 				tacBytes, err := hex.DecodeString(tac)
 				if err != nil {
@@ -135,7 +136,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 		serviceAreaInformation := mobilityRestrictionList.ServiceAreaInformation
 
 		item := ngapType.ServiceAreaInformationItem{}
-		item.PLMNIdentity = ngapConvert.PlmnIdToNgap(ue.PlmnId)
+		item.PLMNIdentity = util.PlmnIdToNgap(ue.PlmnId)
 		var tacList []ngapType.TAC
 		for _, area := range ue.AmPolicyAssociation.ServAreaRes.Areas {
 			for _, tac := range area.Tacs {
@@ -161,10 +162,10 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 	return mobilityRestrictionList
 }
 
-func BuildUnavailableGUAMIList(guamiList []models.Guami) (unavailableGUAMIList ngapType.UnavailableGUAMIList) {
+func BuildUnavailableGUAMIList(guamiList []coreModels.Guami) (unavailableGUAMIList ngapType.UnavailableGUAMIList) {
 	for _, guami := range guamiList {
 		item := ngapType.UnavailableGUAMIItem{}
-		item.GUAMI.PLMNIdentity = ngapConvert.PlmnIdToNgap(*guami.PlmnId)
+		item.GUAMI.PLMNIdentity = util.PlmnIdToNgap(*guami.PlmnId)
 		regionId, setId, ptrId := ngapConvert.AmfIdToNgap(guami.AmfId)
 		item.GUAMI.AMFRegionID.Value = regionId
 		item.GUAMI.AMFSetID.Value = setId

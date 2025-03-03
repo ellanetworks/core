@@ -568,13 +568,13 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			supportedTAI := context.NewSupportedTAI()
 			supportedTAI.Tai.Tac = tac
 			broadcastPLMNItem := supportedTAItem.BroadcastPLMNList.List[j]
-			plmnId := ngapConvert.PlmnIdToModels(broadcastPLMNItem.PLMNIdentity)
+			plmnId := util.PlmnIdToModels(broadcastPLMNItem.PLMNIdentity)
 			supportedTAI.Tai.PlmnId = &plmnId
 			capOfSNssaiList := cap(supportedTAI.SNssaiList)
 			for k := 0; k < len(broadcastPLMNItem.TAISliceSupportList.List); k++ {
 				tAISliceSupportItem := broadcastPLMNItem.TAISliceSupportList.List[k]
 				if len(supportedTAI.SNssaiList) < capOfSNssaiList {
-					supportedTAI.SNssaiList = append(supportedTAI.SNssaiList, ngapConvert.SNssaiToModels(tAISliceSupportItem.SNSSAI))
+					supportedTAI.SNssaiList = append(supportedTAI.SNssaiList, util.SNssaiToModels(tAISliceSupportItem.SNSSAI))
 				} else {
 					break
 				}
@@ -597,7 +597,7 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	} else {
 		var found bool
 		supportTaiList := context.GetSupportTaiList()
-		taiList := make([]models.Tai, len(supportTaiList))
+		taiList := make([]coreModels.Tai, len(supportTaiList))
 		copy(taiList, supportTaiList)
 		for i := range taiList {
 			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
@@ -3761,13 +3761,13 @@ func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU
 			supportedTAI := context.NewSupportedTAI()
 			supportedTAI.Tai.Tac = tac
 			broadcastPLMNItem := supportedTAItem.BroadcastPLMNList.List[j]
-			plmnId := ngapConvert.PlmnIdToModels(broadcastPLMNItem.PLMNIdentity)
+			plmnId := util.PlmnIdToModels(broadcastPLMNItem.PLMNIdentity)
 			supportedTAI.Tai.PlmnId = &plmnId
 			capOfSNssaiList := cap(supportedTAI.SNssaiList)
 			for k := 0; k < len(broadcastPLMNItem.TAISliceSupportList.List); k++ {
 				tAISliceSupportItem := broadcastPLMNItem.TAISliceSupportList.List[k]
 				if len(supportedTAI.SNssaiList) < capOfSNssaiList {
-					supportedTAI.SNssaiList = append(supportedTAI.SNssaiList, ngapConvert.SNssaiToModels(tAISliceSupportItem.SNSSAI))
+					supportedTAI.SNssaiList = append(supportedTAI.SNssaiList, util.SNssaiToModels(tAISliceSupportItem.SNSSAI))
 				} else {
 					break
 				}
@@ -3790,7 +3790,7 @@ func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU
 	} else {
 		var found bool
 		supportTaiList := context.GetSupportTaiList()
-		taiList := make([]models.Tai, len(supportTaiList))
+		taiList := make([]coreModels.Tai, len(supportTaiList))
 		copy(taiList, supportTaiList)
 		for i := range taiList {
 			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)

@@ -80,24 +80,24 @@ type AmfUe struct {
 	/* Used for AMF relocation */
 	TargetAmfUri string `json:"targetAmfUri,omitempty"`
 	/* Ue Identity*/
-	PlmnId              models.PlmnId `json:"plmnId,omitempty"`
-	Suci                string        `json:"suci,omitempty"`
-	Supi                string        `json:"supi,omitempty"`
-	UnauthenticatedSupi bool          `json:"unauthenticatedSupi,omitempty"`
-	Gpsi                string        `json:"gpsi,omitempty"`
-	Pei                 string        `json:"pei,omitempty"`
-	Tmsi                int32         `json:"tmsi,omitempty"` // 5G-Tmsi
-	Guti                string        `json:"guti,omitempty"`
-	GroupID             string        `json:"groupID,omitempty"`
-	EBI                 int32         `json:"ebi,omitempty"`
+	PlmnId              coreModels.PlmnId `json:"plmnId,omitempty"`
+	Suci                string            `json:"suci,omitempty"`
+	Supi                string            `json:"supi,omitempty"`
+	UnauthenticatedSupi bool              `json:"unauthenticatedSupi,omitempty"`
+	Gpsi                string            `json:"gpsi,omitempty"`
+	Pei                 string            `json:"pei,omitempty"`
+	Tmsi                int32             `json:"tmsi,omitempty"` // 5G-Tmsi
+	Guti                string            `json:"guti,omitempty"`
+	GroupID             string            `json:"groupID,omitempty"`
+	EBI                 int32             `json:"ebi,omitempty"`
 	/* Ue Identity*/
 	/* User Location*/
-	RatType                  models.RatType      `json:"ratType,omitempty"`
-	Location                 models.UserLocation `json:"location,omitempty"`
-	Tai                      models.Tai          `json:"tai,omitempty"`
-	LocationChanged          bool                `json:"locationChanged,omitempty"`
-	LastVisitedRegisteredTai models.Tai          `json:"lastVisitedRegisteredTai,omitempty"`
-	TimeZone                 string              `json:"timezone,omitempty"`
+	RatType                  models.RatType          `json:"ratType,omitempty"`
+	Location                 coreModels.UserLocation `json:"location,omitempty"`
+	Tai                      coreModels.Tai          `json:"tai,omitempty"`
+	LocationChanged          bool                    `json:"locationChanged,omitempty"`
+	LastVisitedRegisteredTai models.Tai              `json:"lastVisitedRegisteredTai,omitempty"`
+	TimeZone                 string                  `json:"timezone,omitempty"`
 	/* context about udm */
 	// UdmId                             string                                    `json:"udmId,omitempty"`
 	SubscriptionDataValid             bool                                          `json:"subscriptionDataValid,omitempty"`
@@ -163,8 +163,8 @@ type AmfUe struct {
 	CipheringAlg uint8          `json:"cipheringAlg,omitempty"`
 	IntegrityAlg uint8          `json:"integrityAlg,omitempty"`
 	/* Registration Area */
-	RegistrationArea map[models.AccessType][]models.Tai `json:"registrationArea,omitempty"`
-	LadnInfo         []LADN                             `json:"ladnInfo,omitempty"`
+	RegistrationArea map[models.AccessType][]coreModels.Tai `json:"registrationArea,omitempty"`
+	LadnInfo         []LADN                                 `json:"ladnInfo,omitempty"`
 	/* Network Slicing related context and Nssf */
 	NetworkSliceInfo                  *models.AuthorizedNetworkSliceInfo           `json:"networkSliceInfo,omitempty"`
 	AllowedNssai                      map[models.AccessType][]models.AllowedSnssai `json:"allowedNssai,omitempty"`
@@ -275,7 +275,7 @@ func (ue *AmfUe) init() {
 	ue.State[models.AccessType_NON_3_GPP_ACCESS] = fsm.NewState(Deregistered)
 	ue.UnauthenticatedSupi = true
 	ue.RanUe = make(map[models.AccessType]*RanUe)
-	ue.RegistrationArea = make(map[models.AccessType][]models.Tai)
+	ue.RegistrationArea = make(map[models.AccessType][]coreModels.Tai)
 	ue.AllowedNssai = make(map[models.AccessType][]models.AllowedSnssai)
 	ue.N1N2MessageIDGenerator = idgenerator.NewGenerator(1, 2147483647)
 	ue.N1N2MessageSubscribeIDGenerator = idgenerator.NewGenerator(1, 2147483647)
@@ -395,7 +395,7 @@ func (ue *AmfUe) GetNsiInformationFromSnssai(anType models.AccessType, snssai mo
 	return nil
 }
 
-func (ue *AmfUe) TaiListInRegistrationArea(taiList []models.Tai, accessType models.AccessType) bool {
+func (ue *AmfUe) TaiListInRegistrationArea(taiList []coreModels.Tai, accessType models.AccessType) bool {
 	for _, tai := range taiList {
 		if !InTaiList(tai, ue.RegistrationArea[accessType]) {
 			return false

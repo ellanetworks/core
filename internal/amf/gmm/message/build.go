@@ -501,7 +501,7 @@ func BuildRegistrationAccept(
 
 	if len(ue.RegistrationArea[anType]) > 0 {
 		registrationAccept.TAIList = nasType.NewTAIList(nasMessage.RegistrationAcceptTAIListType)
-		taiListNas := nasConvert.TaiListToNas(ue.RegistrationArea[anType])
+		taiListNas := util.TaiListToNas(ue.RegistrationArea[anType])
 		registrationAccept.TAIList.SetLen(uint8(len(taiListNas)))
 		registrationAccept.TAIList.SetPartialTrackingAreaIdentityList(taiListNas)
 	}
@@ -558,7 +558,7 @@ func BuildRegistrationAccept(
 		registrationAccept.LADNInformation = nasType.NewLADNInformation(nasMessage.RegistrationAcceptLADNInformationType)
 		buf := make([]uint8, 0)
 		for _, ladn := range ue.LadnInfo {
-			ladnNas := nasConvert.LadnToNas(ladn.Dnn, ladn.TaiLists)
+			ladnNas := util.LadnToNas(ladn.Dnn, ladn.TaiLists)
 			buf = append(buf, ladnNas...)
 		}
 		registrationAccept.LADNInformation.SetLen(uint16(len(buf)))
