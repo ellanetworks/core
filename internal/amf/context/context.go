@@ -18,9 +18,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
-	"github.com/omec-project/openapi/models"
 )
 
 var (
@@ -76,7 +75,7 @@ type AMFContext struct {
 	RelativeCapacity                int64
 	NfId                            string
 	Name                            string
-	UriScheme                       coreModels.UriScheme
+	UriScheme                       models.UriScheme
 	NgapPort                        int
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
 	SupportedDnns                   []string
@@ -135,14 +134,14 @@ func (context *AMFContext) ReAllocateGutiToUe(ue *AmfUe) {
 	ue.Guti = plmnID + servedGuami.AmfId + tmsiStr
 }
 
-func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType coreModels.AccessType) {
+func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.AccessType) {
 	// clear the previous registration area if need
 	if len(ue.RegistrationArea[anType]) > 0 {
 		ue.RegistrationArea[anType] = nil
 	}
 
 	supportTaiList := GetSupportTaiList()
-	taiList := make([]coreModels.Tai, len(supportTaiList))
+	taiList := make([]models.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)
 	for i := range taiList {
 		tmp, err := strconv.ParseUint(taiList[i].Tac, 10, 32)
@@ -288,7 +287,7 @@ func (context *AMFContext) InSupportDnnList(targetDnn string) bool {
 	return false
 }
 
-func (context *AMFContext) InPlmnSupportList(snssai coreModels.Snssai) bool {
+func (context *AMFContext) InPlmnSupportList(snssai models.Snssai) bool {
 	plmnSupportList := GetPlmnSupportList()
 	for _, plmnSupportItem := range plmnSupportList {
 		for _, supportSnssai := range plmnSupportItem.SNssaiList {

@@ -789,7 +789,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType cor
 			pduSessionId := int32(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionId); ok {
 				if !psiArray[psi] && smContext.AccessType() == anType {
-					cause := models.Cause_PDU_SESSION_STATUS_MISMATCH
+					cause := coreModels.Cause_PDU_SESSION_STATUS_MISMATCH
 					causeAll := &context.CauseAll{
 						Cause: &cause,
 					}
@@ -1262,7 +1262,7 @@ func HandleNotificationResponse(ue *context.AmfUe, notificationResponse *nasMess
 			pduSessionId := int32(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionId); ok {
 				if !psiArray[psi] {
-					cause := models.Cause_PDU_SESSION_STATUS_MISMATCH
+					cause := coreModels.Cause_PDU_SESSION_STATUS_MISMATCH
 					causeAll := &context.CauseAll{
 						Cause: &cause,
 					}
@@ -1535,7 +1535,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType coreModels.AccessType,
 			smContext := value.(*context.SmContext)
 			if smContext.AccessType() == anType {
 				if !psiArray[pduSessionID] {
-					cause := models.Cause_PDU_SESSION_STATUS_MISMATCH
+					cause := coreModels.Cause_PDU_SESSION_STATUS_MISMATCH
 					causeAll := &context.CauseAll{
 						Cause: &cause,
 					}

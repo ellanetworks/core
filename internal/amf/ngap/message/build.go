@@ -154,10 +154,10 @@ func BuildNGSetupResponse() ([]byte, error) {
 	plmnSupportConfigList := context.GetPlmnSupportList()
 	for _, plmnItem := range plmnSupportConfigList {
 		pLMNSupportItem := ngapType.PLMNSupportItem{}
-		pLMNSupportItem.PLMNIdentity = ngapConvert.PlmnIdToNgap(plmnItem.PlmnId)
+		pLMNSupportItem.PLMNIdentity = util.PlmnIdToNgap(plmnItem.PlmnId)
 		for _, snssai := range plmnItem.SNssaiList {
 			sliceSupportItem := ngapType.SliceSupportItem{}
-			sliceSupportItem.SNSSAI = ngapConvert.SNssaiToNgap(snssai)
+			sliceSupportItem.SNSSAI = util.SNssaiToNgap(snssai)
 			pLMNSupportItem.SliceSupportList.List = append(pLMNSupportItem.SliceSupportList.List, sliceSupportItem)
 		}
 		pLMNSupportList.List = append(pLMNSupportList.List, pLMNSupportItem)
@@ -1456,7 +1456,7 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause,
 	for _, snssaiItem := range plmnSupportList[0].SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 
-		ngapSnssai := ngapConvert.SNssaiToNgap(snssaiItem)
+		ngapSnssai := util.SNssaiToNgap(snssaiItem)
 		allowedNSSAIItem.SNSSAI = ngapSnssai
 		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
 	}
@@ -1672,7 +1672,7 @@ func BuildPathSwitchRequestAcknowledge(
 	for _, modelSnssai := range plmnSupportList[0].SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 
-		ngapSnssai := ngapConvert.SNssaiToNgap(modelSnssai)
+		ngapSnssai := util.SNssaiToNgap(modelSnssai)
 		allowedNSSAIItem.SNSSAI = ngapSnssai
 		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
 	}

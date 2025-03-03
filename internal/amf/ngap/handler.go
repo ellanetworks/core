@@ -3407,7 +3407,7 @@ func HandleHandoverRequired(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		return
 	}
 	aMFSelf := context.AMF_Self()
-	targetRanNodeId := ngapConvert.RanIdToModels(targetID.TargetRANNodeID.GlobalRANNodeID)
+	targetRanNodeId := util.RanIdToModels(targetID.TargetRANNodeID.GlobalRANNodeID)
 	targetRan, ok := aMFSelf.AmfRanFindByRanID(targetRanNodeId)
 	if !ok {
 		// handover between different AMF
@@ -3418,8 +3418,8 @@ func HandleHandoverRequired(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	} else {
 		// Handover in same AMF
 		sourceUe.HandOverType.Value = handoverType.Value
-		tai := ngapConvert.TaiToModels(targetID.TargetRANNodeID.SelectedTAI)
-		targetId := models.NgRanTargetId{
+		tai := util.TaiToModels(targetID.TargetRANNodeID.SelectedTAI)
+		targetId := coreModels.NgRanTargetId{
 			RanNodeId: &targetRanNodeId,
 			Tai:       &tai,
 		}
@@ -3854,7 +3854,7 @@ func HandleUplinkRanConfigurationTransfer(ran *context.AmfRan, message *ngapType
 	}
 
 	if sONConfigurationTransferUL != nil {
-		targetRanNodeID := ngapConvert.RanIdToModels(sONConfigurationTransferUL.TargetRANNodeID.GlobalRANNodeID)
+		targetRanNodeID := util.RanIdToModels(sONConfigurationTransferUL.TargetRANNodeID.GlobalRANNodeID)
 
 		if targetRanNodeID.GNbId.GNBValue != "" {
 			ran.Log.Debugf("targerRanID [%s]", targetRanNodeID.GNbId.GNBValue)

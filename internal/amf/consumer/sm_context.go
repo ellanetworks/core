@@ -236,7 +236,7 @@ func SendUpdateSmContextN2HandoverPreparing(
 	ue *context.AmfUe,
 	smContext *context.SmContext,
 	n2SmType models.N2SmInfoType,
-	N2SmInfo []byte, amfid string, targetId *models.NgRanTargetId) (
+	N2SmInfo []byte, amfid string, targetId *coreModels.NgRanTargetId) (
 	*coreModels.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
 	updateData := coreModels.SmContextUpdateData{}
