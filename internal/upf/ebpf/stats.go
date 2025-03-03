@@ -27,21 +27,6 @@ type UpfStatistic struct {
 	XdpStats   [5]uint64
 }
 
-func (current *UpfN3Counters) Add(nnew UpfN3Counters) {
-	current.RxArp += nnew.RxArp
-	current.RxIcmp += nnew.RxIcmp
-	current.RxIcmp6 += nnew.RxIcmp6
-	current.RxIP4 += nnew.RxIP4
-	current.RxIP6 += nnew.RxIP6
-	current.RxTCP += nnew.RxTCP
-	current.RxUDP += nnew.RxUDP
-	current.RxOther += nnew.RxOther
-	current.RxGtpEcho += nnew.RxGtpEcho
-	current.RxGtpPdu += nnew.RxGtpPdu
-	current.RxGtpOther += nnew.RxGtpOther
-	current.UlBytes += nnew.UlBytes
-}
-
 // Getters for the upf_xdp_statistic (xdp_action)
 
 func (stat *UpfXdpActionStatistic) getUpfN3XdpStatisticField(field uint32) uint64 {
@@ -102,10 +87,6 @@ func (stat *UpfXdpActionStatistic) GetN6Aborted() uint64 {
 
 func (stat *UpfXdpActionStatistic) GetN6Drop() uint64 {
 	return stat.getUpfN6XdpStatisticField(uint32(1))
-}
-
-func (stat *UpfXdpActionStatistic) GetN6Pass() uint64 {
-	return stat.getUpfN6XdpStatisticField(uint32(2))
 }
 
 func (stat *UpfXdpActionStatistic) GetN6Tx() uint64 {

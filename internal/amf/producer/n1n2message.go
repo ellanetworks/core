@@ -10,7 +10,6 @@ package producer
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
@@ -355,31 +354,4 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			return n1n2MessageTransferRspData, nil, nil
 		}
 	}
-}
-
-func N1N2MessageSubscribeProcedure(ueContextID string) (*models.UeN1N2InfoSubscriptionCreatedData, *models.ProblemDetails) {
-	amfSelf := context.AMF_Self()
-
-	ue, ok := amfSelf.AmfUeFindByUeContextID(ueContextID)
-	if !ok {
-		problemDetails := &models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "CONTEXT_NOT_FOUND",
-		}
-		return nil, problemDetails
-	}
-
-	ueN1N2InfoSubscriptionCreatedData := new(models.UeN1N2InfoSubscriptionCreatedData)
-
-	if newSubscriptionID, err := ue.N1N2MessageSubscribeIDGenerator.Allocate(); err != nil {
-		logger.AmfLog.Errorf("Create subscriptionID Error: %+v", err)
-		problemDetails := &models.ProblemDetails{
-			Status: http.StatusInternalServerError,
-			Cause:  "SYSTEM_FAILURE",
-		}
-		return nil, problemDetails
-	} else {
-		ueN1N2InfoSubscriptionCreatedData.N1n2NotifySubscriptionId = strconv.Itoa(int(newSubscriptionID))
-	}
-	return ueN1N2InfoSubscriptionCreatedData, nil
 }
