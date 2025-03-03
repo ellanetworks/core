@@ -119,26 +119,36 @@ func GutiToNas(guti string) nasType.GUTI5G {
 	var mcc1, mcc2, mcc3, mnc1, mnc2, mnc3 int
 	if mcc1Tmp, err := strconv.Atoi(string(guti[0])); err != nil {
 		logger.AmfLog.Warnf("atoi mcc1 error: %+v", err)
+	} else if mcc1Tmp < 0 || mcc1Tmp > 255 {
+		logger.AmfLog.Warnf("mcc1 out of bounds: %d", mcc1Tmp)
 	} else {
 		mcc1 = mcc1Tmp
 	}
 	if mcc2Tmp, err := strconv.Atoi(string(guti[1])); err != nil {
 		logger.AmfLog.Warnf("atoi mcc2 error: %+v", err)
+	} else if mcc2Tmp < 0 || mcc2Tmp > 255 {
+		logger.AmfLog.Warnf("mcc2 out of bounds: %d", mcc2Tmp)
 	} else {
 		mcc2 = mcc2Tmp
 	}
 	if mcc3Tmp, err := strconv.Atoi(string(guti[2])); err != nil {
 		logger.AmfLog.Warnf("atoi mcc3 error: %+v", err)
+	} else if mcc3Tmp < 0 || mcc3Tmp > 255 {
+		logger.AmfLog.Warnf("mcc3 out of bounds: %d", mcc3Tmp)
 	} else {
 		mcc3 = mcc3Tmp
 	}
 	if mnc1Tmp, err := strconv.Atoi(string(guti[3])); err != nil {
 		logger.AmfLog.Warnf("atoi mnc1 error: %+v", err)
+	} else if mnc1Tmp < 0 || mnc1Tmp > 255 {
+		logger.AmfLog.Warnf("mnc1 out of bounds: %d", mnc1Tmp)
 	} else {
 		mnc1 = mnc1Tmp
 	}
 	if mnc2Tmp, err := strconv.Atoi(string(guti[4])); err != nil {
 		logger.AmfLog.Warnf("atoi mnc2 error: %+v", err)
+	} else if mnc2Tmp < 0 || mnc2Tmp > 255 {
+		logger.AmfLog.Warnf("mnc2 out of bounds: %d", mnc2Tmp)
 	} else {
 		mnc2 = mnc2Tmp
 	}
@@ -148,6 +158,8 @@ func GutiToNas(guti string) nasType.GUTI5G {
 	if len(guti) == 20 {
 		if mnc3Tmp, err := strconv.Atoi(string(guti[5])); err != nil {
 			logger.AmfLog.Warnf("atoi guti error: %+v", err)
+		} else if mnc3Tmp < 0 || mnc3Tmp > 255 {
+			logger.AmfLog.Warnf("mnc3 out of bounds: %d", mnc3Tmp)
 		} else {
 			mnc3 = mnc3Tmp
 		}
