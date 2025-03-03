@@ -230,7 +230,7 @@ type NgapMsg struct {
 
 type N1N2Message struct {
 	Request coreModels.N1N2MessageTransferRequest
-	Status  models.N1N2MessageTransferCause
+	Status  coreModels.N1N2MessageTransferCause
 }
 
 type OnGoingProcedureWithPrio struct {

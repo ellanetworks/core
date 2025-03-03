@@ -22,7 +22,6 @@ import (
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/openapi"
-	openApiModels "github.com/omec-project/openapi/models"
 )
 
 func formContextCreateErrRsp(httpStatus int, problemBody *models.ProblemDetails, n1SmMsg *models.RefToBinaryData) *util.Response {
@@ -609,7 +608,7 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 		}
 		return err
 	}
-	if rspData.Cause == openApiModels.N1N2MessageTransferCause_N1_MSG_NOT_TRANSFERRED {
+	if rspData.Cause == models.N1N2MessageTransferCause_N1_MSG_NOT_TRANSFERRED {
 		smContext.SubPfcpLog.Errorf("N1N2MessageTransfer failure, %v", rspData.Cause)
 		err = smContext.CommitSmPolicyDecision(false)
 		if err != nil {
