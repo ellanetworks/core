@@ -11,12 +11,12 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/gmm"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/omec-project/nas"
-	"github.com/omec-project/openapi/models"
 )
 
-func Dispatch(ue *context.AmfUe, accessType models.AccessType, procedureCode int64, msg *nas.Message) error {
+func Dispatch(ue *context.AmfUe, accessType coreModels.AccessType, procedureCode int64, msg *nas.Message) error {
 	if msg.GmmMessage == nil {
 		return errors.New("Gmm Message is nil")
 	}

@@ -33,7 +33,7 @@ const (
 	OUT_OF_LADN_SERVICE_AREA  = "OUT_OF_LADN_SERVICE_AREA"
 )
 
-func SnssaiModelsToHex(snssai models.Snssai) string {
+func SnssaiModelsToHex(snssai coreModels.Snssai) string {
 	sst := fmt.Sprintf("%02x", snssai.Sst)
 	return sst + snssai.Sd
 }
@@ -44,7 +44,7 @@ func PlmnIdStringToModels(plmnId string) (plmnID coreModels.PlmnId) {
 	return
 }
 
-func HandleULNASTransport(ue *context.AmfUe, anType models.AccessType,
+func HandleULNASTransport(ue *context.AmfUe, anType coreModels.AccessType,
 	ulNasTransport *nasMessage.ULNASTransport,
 ) error {
 	ue.GmmLog.Infoln("Handle UL NAS Transport")
@@ -78,7 +78,7 @@ func HandleULNASTransport(ue *context.AmfUe, anType models.AccessType,
 	return nil
 }
 
-func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
+func transport5GSMMessage(ue *context.AmfUe, anType coreModels.AccessType,
 	ulNasTransport *nasMessage.ULNASTransport,
 ) error {
 	var pduSessionID int32
@@ -194,7 +194,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 			// and the Request type IE is included and is set to "initial request"
 			case nasMessage.ULNASTransportRequestTypeInitialRequest:
 				var (
-					snssai models.Snssai
+					snssai coreModels.Snssai
 					dnn    string
 				)
 				// A) AMF shall select an SMF
@@ -202,7 +202,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 				// If the S-NSSAI IE is not included and the user's subscription context obtained from UDM. AMF shall
 				// select a default snssai
 				if ulNasTransport.SNSSAI != nil {
-					snssai = nasConvert.SnssaiToModels(ulNasTransport.SNSSAI)
+					snssai = util.SnssaiToModels(ulNasTransport.SNSSAI)
 				} else {
 					if allowedNssai, ok := ue.AllowedNssai[anType]; ok {
 						snssai = *allowedNssai[0].AllowedSnssai
@@ -286,7 +286,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 
 func forward5GSMMessageToSMF(
 	ue *context.AmfUe,
-	accessType models.AccessType,
+	accessType coreModels.AccessType,
 	pduSessionID int32,
 	smContext *context.SmContext,
 	smMessage []byte,
@@ -303,7 +303,7 @@ func forward5GSMMessageToSMF(
 	}
 
 	if accessType != smContext.AccessType() {
-		smContextUpdateData.AnType = coreModels.AccessType(accessType)
+		smContextUpdateData.AnType = accessType
 	}
 
 	response, errResponse, err := consumer.SendUpdateSmContextRequest(smContext, smContextUpdateData, smMessage, nil)
@@ -359,7 +359,7 @@ func forward5GSMMessageToSMF(
 }
 
 // Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
-func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, procedureCode int64,
+func HandleRegistrationRequest(ue *context.AmfUe, anType coreModels.AccessType, procedureCode int64,
 	registrationRequest *nasMessage.RegistrationRequest,
 ) error {
 	var guamiFromUeGuti models.Guami
@@ -481,14 +481,14 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	// NgKsi: TS 24.501 9.11.3.32
 	switch registrationRequest.NgksiAndRegistrationType5GS.GetTSC() {
 	case nasMessage.TypeOfSecurityContextFlagNative:
-		ue.NgKsi.Tsc = models.ScType_NATIVE
+		ue.NgKsi.Tsc = coreModels.ScType_NATIVE
 	case nasMessage.TypeOfSecurityContextFlagMapped:
-		ue.NgKsi.Tsc = models.ScType_MAPPED
+		ue.NgKsi.Tsc = coreModels.ScType_MAPPED
 	}
 	ue.NgKsi.Ksi = int32(registrationRequest.NgksiAndRegistrationType5GS.GetNasKeySetIdentifiler())
-	if ue.NgKsi.Tsc == models.ScType_NATIVE && ue.NgKsi.Ksi != 7 {
+	if ue.NgKsi.Tsc == coreModels.ScType_NATIVE && ue.NgKsi.Ksi != 7 {
 	} else {
-		ue.NgKsi.Tsc = models.ScType_NATIVE
+		ue.NgKsi.Tsc = coreModels.ScType_NATIVE
 		ue.NgKsi.Ksi = 0
 	}
 
@@ -548,7 +548,7 @@ func IdentityVerification(ue *context.AmfUe) bool {
 	return ue.Supi != "" || len(ue.Suci) != 0
 }
 
-func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) error {
+func HandleInitialRegistration(ue *context.AmfUe, anType coreModels.AccessType) error {
 	ue.GmmLog.Infoln("Handle InitialRegistration")
 
 	amfSelf := context.AMF_Self()
@@ -605,7 +605,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 		}
 	}
 
-	if ue.ServingAmfChanged || ue.State[models.AccessType_NON_3_GPP_ACCESS].Is(context.Registered) ||
+	if ue.ServingAmfChanged || ue.State[coreModels.AccessType_NON_3_GPP_ACCESS].Is(context.Registered) ||
 		!ue.SubscriptionDataValid {
 		if err := communicateWithUDM(ue, anType); err != nil {
 			return err
@@ -620,7 +620,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 	}
 
 	// Service Area Restriction are applicable only to 3GPP access
-	if anType == models.AccessType__3_GPP_ACCESS {
+	if anType == coreModels.AccessType__3_GPP_ACCESS {
 		if ue.AmPolicyAssociation != nil && ue.AmPolicyAssociation.ServAreaRes != nil {
 			servAreaRes := ue.AmPolicyAssociation.ServAreaRes
 			if servAreaRes.RestrictionType == coreModels.RestrictionType_ALLOWED_AREAS {
@@ -639,13 +639,13 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 
 	amfSelf.AddAmfUeToUePool(ue, ue.Supi)
 	ue.T3502Value = amfSelf.T3502Value
-	if anType == models.AccessType__3_GPP_ACCESS {
+	if anType == coreModels.AccessType__3_GPP_ACCESS {
 		ue.T3512Value = amfSelf.T3512Value
 	} else {
 		ue.Non3gppDeregistrationTimerValue = amfSelf.Non3gppDeregistrationTimerValue
 	}
 
-	if anType == models.AccessType__3_GPP_ACCESS {
+	if anType == coreModels.AccessType__3_GPP_ACCESS {
 		gmm_message.SendRegistrationAccept(ue, anType, nil, nil, nil, nil, nil)
 	} else {
 		// TS 23.502 4.12.2.2 10a ~ 13: if non-3gpp, AMF should send initial context setup request to N3IWF first,
@@ -662,7 +662,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 	return nil
 }
 
-func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType models.AccessType) error {
+func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType coreModels.AccessType) error {
 	ue.GmmLog.Infoln("Handle MobilityAndPeriodicRegistrationUpdating")
 
 	amfSelf := context.AMF_Self()
@@ -706,7 +706,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		return nil
 	}
 
-	if ue.ServingAmfChanged || ue.State[models.AccessType_NON_3_GPP_ACCESS].Is(context.Registered) ||
+	if ue.ServingAmfChanged || ue.State[coreModels.AccessType_NON_3_GPP_ACCESS].Is(context.Registered) ||
 		!ue.SubscriptionDataValid {
 		if err := communicateWithUDM(ue, anType); err != nil {
 			return err
@@ -745,7 +745,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 				pduSessionId := int32(idx)
 				if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionId); ok {
 					// uplink data are pending for the corresponding PDU session identity
-					if hasUplinkData && smContext.AccessType() == models.AccessType__3_GPP_ACCESS {
+					if hasUplinkData && smContext.AccessType() == coreModels.AccessType__3_GPP_ACCESS {
 						response, errResponse, err := consumer.SendUpdateSmContextActivateUpCnxState(ue, smContext, anType)
 						if response == nil {
 							reactivationResult[pduSessionId] = true
@@ -852,7 +852,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 				return fmt.Errorf("pdu Session Id does not Exists")
 			}
 
-			if smContext.AccessType() == models.AccessType_NON_3_GPP_ACCESS {
+			if smContext.AccessType() == coreModels.AccessType_NON_3_GPP_ACCESS {
 				if reactivationResult == nil {
 					reactivationResult = new([16]bool)
 				}
@@ -877,7 +877,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 						errCause = append(errCause, cause)
 					} else {
 						smContext.SetUserLocation(ue.Location)
-						smContext.SetAccessType(models.AccessType__3_GPP_ACCESS)
+						smContext.SetAccessType(coreModels.AccessType__3_GPP_ACCESS)
 						if response.BinaryDataN2SmInformation != nil &&
 							response.JsonData.N2SmInfoType == coreModels.N2SmInfoType_PDU_RES_SETUP_REQ {
 							ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionId,
@@ -899,7 +899,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 						return err
 					}
 				}
-				omecSnssai := models.Snssai{
+				omecSnssai := coreModels.Snssai{
 					Sst: smInfo.SNssai.Sst,
 					Sd:  smInfo.SNssai.Sd,
 				}
@@ -924,7 +924,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 	assignLadnInfo(ue, anType)
 
 	if ue.RanUe[anType].UeContextRequest {
-		if anType == models.AccessType__3_GPP_ACCESS {
+		if anType == coreModels.AccessType__3_GPP_ACCESS {
 			gmm_message.SendRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult,
 				errPduSessionId, errCause, &ctxList)
 		} else {
@@ -993,7 +993,7 @@ func negotiateDRXParameters(ue *context.AmfUe, requestedDRXParameters *nasType.R
 	}
 }
 
-func communicateWithUDM(ue *context.AmfUe, accessType models.AccessType) error {
+func communicateWithUDM(ue *context.AmfUe, accessType coreModels.AccessType) error {
 	problemDetails, err := consumer.UeCmRegistration(ue, accessType, true)
 	if problemDetails != nil {
 		ue.GmmLog.Errorf("UECM_Registration Failed Problem[%+v]", problemDetails)
@@ -1043,11 +1043,11 @@ func getSubscribedNssai(ue *context.AmfUe) {
 }
 
 // TS 23.502 4.2.2.2.3 Registration with AMF Re-allocation
-func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
+func handleRequestedNssai(ue *context.AmfUe, anType coreModels.AccessType) error {
 	amfSelf := context.AMF_Self()
 
 	if ue.RegistrationRequest.RequestedNSSAI != nil {
-		requestedNssai, err := nasConvert.RequestedNssaiToModels(ue.RegistrationRequest.RequestedNSSAI)
+		requestedNssai, err := util.RequestedNssaiToModels(ue.RegistrationRequest.RequestedNSSAI)
 		if err != nil {
 			return fmt.Errorf("failed to decode requested NSSAI[%s]", err)
 		}
@@ -1057,8 +1057,8 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 		needSliceSelection := false
 		for _, requestedSnssai := range requestedNssai {
 			if ue.InSubscribedNssai(requestedSnssai.ServingSnssai) {
-				allowedSnssai := models.AllowedSnssai{
-					AllowedSnssai: &models.Snssai{
+				allowedSnssai := coreModels.AllowedSnssai{
+					AllowedSnssai: &coreModels.Snssai{
 						Sst: requestedSnssai.ServingSnssai.Sst,
 						Sd:  requestedSnssai.ServingSnssai.Sd,
 					},
@@ -1098,17 +1098,17 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 			//	ngap_message.SendRerouteNasRequest(ue, anType, nil, ue.RanUe[anType].InitialUEMessage, &allowedNssaiNgap)
 			ue.TargetAmfUri = amfSelf.GetIPv4Uri()
 			ueContext := consumer.BuildUeContextModel(ue)
-			registerContext := models.RegistrationContextContainer{
+			registerContext := coreModels.RegistrationContextContainer{
 				UeContext:        &ueContext,
 				AnType:           anType,
 				AnN2ApId:         int32(ue.RanUe[anType].RanUeNgapId),
 				RanNodeId:        ue.RanUe[anType].Ran.RanId,
 				InitialAmfName:   amfSelf.Name,
-				UserLocation:     util.ConvertUeLocation(&ue.Location),
+				UserLocation:     &ue.Location,
 				RrcEstCause:      ue.RanUe[anType].RRCEstablishmentCause,
 				UeContextRequest: ue.RanUe[anType].UeContextRequest,
 				AnN2IPv4Addr:     ue.RanUe[anType].Ran.GnbIp,
-				AllowedNssai: &models.AllowedNssai{
+				AllowedNssai: &coreModels.AllowedNssai{
 					AllowedSnssaiList: ue.AllowedNssai[anType],
 					AccessType:        anType,
 				},
@@ -1132,7 +1132,7 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 		for _, snssai := range ue.SubscribedNssai {
 			if snssai.DefaultIndication {
 				if amfSelf.InPlmnSupportList(*snssai.SubscribedSnssai) {
-					allowedSnssai := models.AllowedSnssai{
+					allowedSnssai := coreModels.AllowedSnssai{
 						AllowedSnssai: snssai.SubscribedSnssai,
 					}
 					ue.AllowedNssai[anType] = append(ue.AllowedNssai[anType], allowedSnssai)
@@ -1143,7 +1143,7 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 	return nil
 }
 
-func assignLadnInfo(ue *context.AmfUe, accessType models.AccessType) {
+func assignLadnInfo(ue *context.AmfUe, accessType coreModels.AccessType) {
 	amfSelf := context.AMF_Self()
 
 	ue.LadnInfo = nil
@@ -1291,7 +1291,7 @@ func HandleConfigurationUpdateComplete(ue *context.AmfUe,
 	return nil
 }
 
-func AuthenticationProcedure(ue *context.AmfUe, accessType models.AccessType) (bool, error) {
+func AuthenticationProcedure(ue *context.AmfUe, accessType coreModels.AccessType) (bool, error) {
 	ue.GmmLog.Info("Authentication procedure")
 
 	// Check whether UE has SUCI and SUPI
@@ -1322,7 +1322,7 @@ func AuthenticationProcedure(ue *context.AmfUe, accessType models.AccessType) (b
 	return false, nil
 }
 
-func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType models.AccessType) (err error) {
+func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType coreModels.AccessType) (err error) {
 	anType := AnTypeToNas(accessType)
 	if ue.CmConnect(accessType) && ue.State[accessType].Is(context.Registered) {
 		// setting reregistration required flag to true
@@ -1350,10 +1350,10 @@ func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType model
 	if ue.AmPolicyAssociation != nil {
 		terminateAmPolicyAssocaition := true
 		switch accessType {
-		case models.AccessType__3_GPP_ACCESS:
-			terminateAmPolicyAssocaition = ue.State[models.AccessType_NON_3_GPP_ACCESS].Is(context.Deregistered)
-		case models.AccessType_NON_3_GPP_ACCESS:
-			terminateAmPolicyAssocaition = ue.State[models.AccessType__3_GPP_ACCESS].Is(context.Deregistered)
+		case coreModels.AccessType__3_GPP_ACCESS:
+			terminateAmPolicyAssocaition = ue.State[coreModels.AccessType_NON_3_GPP_ACCESS].Is(context.Deregistered)
+		case coreModels.AccessType_NON_3_GPP_ACCESS:
+			terminateAmPolicyAssocaition = ue.State[coreModels.AccessType__3_GPP_ACCESS].Is(context.Deregistered)
 		}
 
 		if terminateAmPolicyAssocaition {
@@ -1367,7 +1367,7 @@ func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType model
 	// if ue is not connected mode, removing UE Context
 	if !ue.State[accessType].Is(context.Registered) {
 		if ue.CmConnect(accessType) {
-			ngap_message.SendUEContextReleaseCommand(ue.RanUe[models.AccessType__3_GPP_ACCESS],
+			ngap_message.SendUEContextReleaseCommand(ue.RanUe[coreModels.AccessType__3_GPP_ACCESS],
 				context.UeContextReleaseDueToNwInitiatedDeregistraion, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 		} else {
 			ue.GmmLog.Infof("Removing UE Context")
@@ -1378,7 +1378,7 @@ func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType model
 }
 
 // TS 24501 5.6.1
-func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
+func HandleServiceRequest(ue *context.AmfUe, anType coreModels.AccessType,
 	serviceRequest *nasMessage.ServiceRequest,
 ) error {
 	if ue == nil {
@@ -1494,9 +1494,9 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 			smContext := value.(*context.SmContext)
 
 			if pduSessionID != targetPduSessionId {
-				if uplinkDataPsi[pduSessionID] && smContext.AccessType() == models.AccessType__3_GPP_ACCESS {
+				if uplinkDataPsi[pduSessionID] && smContext.AccessType() == coreModels.AccessType__3_GPP_ACCESS {
 					response, errRes, err := consumer.SendUpdateSmContextActivateUpCnxState(
-						ue, smContext, models.AccessType__3_GPP_ACCESS)
+						ue, smContext, coreModels.AccessType__3_GPP_ACCESS)
 					if err != nil {
 						ue.GmmLog.Errorf("SendUpdateSmContextActivateUpCnxState[pduSessionID:%d] Error: %+v",
 							pduSessionID, err)
@@ -1587,7 +1587,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 				return fmt.Errorf("service Request triggered by Network error for pduSessionId does not exist")
 			}
 
-			if smContext.AccessType() == models.AccessType_NON_3_GPP_ACCESS {
+			if smContext.AccessType() == coreModels.AccessType_NON_3_GPP_ACCESS {
 				if serviceRequest.AllowedPDUSessionStatus != nil {
 					allowPduSessionPsi := nasConvert.PSIToBooleanArray(serviceRequest.AllowedPDUSessionStatus.Buffer)
 					if reactivationResult == nil {
@@ -1615,7 +1615,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 							errCause = append(errCause, cause)
 						} else {
 							smContext.SetUserLocation(ue.Location)
-							smContext.SetAccessType(models.AccessType__3_GPP_ACCESS)
+							smContext.SetAccessType(coreModels.AccessType__3_GPP_ACCESS)
 							if response.BinaryDataN2SmInformation != nil &&
 								response.JsonData.N2SmInfoType == coreModels.N2SmInfoType_PDU_RES_SETUP_REQ {
 								if ue.RanUe[anType].UeContextRequest {
@@ -1643,7 +1643,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 						return err
 					}
 				}
-				omecSnssai := models.Snssai{
+				omecSnssai := coreModels.Snssai{
 					Sst: smInfo.SNssai.Sst,
 					Sd:  smInfo.SNssai.Sd,
 				}
@@ -1668,12 +1668,12 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 				return err
 			}
 			mobilityRestrictionList := ngap_message.BuildIEMobilityRestrictionList(ue)
-			ngap_message.SendDownlinkNasTransport(ue.RanUe[models.AccessType__3_GPP_ACCESS],
+			ngap_message.SendDownlinkNasTransport(ue.RanUe[coreModels.AccessType__3_GPP_ACCESS],
 				ue.ConfigurationUpdateMessage, &mobilityRestrictionList)
 			ue.ConfigurationUpdateMessage = nil
 		}
 	case nasMessage.ServiceTypeData:
-		if anType == models.AccessType__3_GPP_ACCESS {
+		if anType == coreModels.AccessType__3_GPP_ACCESS {
 			if ue.AmPolicyAssociation != nil && ue.AmPolicyAssociation.ServAreaRes != nil {
 				var accept bool
 				switch ue.AmPolicyAssociation.ServAreaRes.RestrictionType {
@@ -1710,7 +1710,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 	return nil
 }
 
-func sendServiceAccept(ue *context.AmfUe, anType models.AccessType, ctxList ngapType.PDUSessionResourceSetupListCxtReq,
+func sendServiceAccept(ue *context.AmfUe, anType coreModels.AccessType, ctxList ngapType.PDUSessionResourceSetupListCxtReq,
 	suList ngapType.PDUSessionResourceSetupListSUReq, pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool, errPduSessionId, errCause []uint8,
 ) error {
@@ -1742,7 +1742,7 @@ func sendServiceAccept(ue *context.AmfUe, anType models.AccessType, ctxList ngap
 }
 
 // TS 24.501 5.4.1
-func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessType,
+func HandleAuthenticationResponse(ue *context.AmfUe, accessType coreModels.AccessType,
 	authenticationResponse *nasMessage.AuthenticationResponse,
 ) error {
 	ue.GmmLog.Info("Handle Authentication Response")
@@ -1863,7 +1863,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 	return nil
 }
 
-func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType,
+func HandleAuthenticationFailure(ue *context.AmfUe, anType coreModels.AccessType,
 	authenticationFailure *nasMessage.AuthenticationFailure,
 ) error {
 	ue.GmmLog.Info("Handle Authentication Failure")
@@ -1939,7 +1939,7 @@ func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType,
 	return nil
 }
 
-func HandleRegistrationComplete(ue *context.AmfUe, accessType models.AccessType,
+func HandleRegistrationComplete(ue *context.AmfUe, accessType coreModels.AccessType,
 	registrationComplete *nasMessage.RegistrationComplete,
 ) error {
 	ue.GmmLog.Info("Handle Registration Complete")
@@ -1962,7 +1962,7 @@ func HandleRegistrationComplete(ue *context.AmfUe, accessType models.AccessType,
 }
 
 // TS 33.501 6.7.2
-func HandleSecurityModeComplete(ue *context.AmfUe, anType models.AccessType, procedureCode int64,
+func HandleSecurityModeComplete(ue *context.AmfUe, anType coreModels.AccessType, procedureCode int64,
 	securityModeComplete *nasMessage.SecurityModeComplete,
 ) error {
 	ue.GmmLog.Info("Handle Security Mode Complete")
@@ -2014,7 +2014,7 @@ func HandleSecurityModeComplete(ue *context.AmfUe, anType models.AccessType, pro
 	})
 }
 
-func HandleSecurityModeReject(ue *context.AmfUe, anType models.AccessType,
+func HandleSecurityModeReject(ue *context.AmfUe, anType coreModels.AccessType,
 	securityModeReject *nasMessage.SecurityModeReject,
 ) error {
 	ue.GmmLog.Info("Handle Security Mode Reject")
@@ -2037,7 +2037,7 @@ func HandleSecurityModeReject(ue *context.AmfUe, anType models.AccessType,
 }
 
 // TS 23.502 4.2.2.3
-func HandleDeregistrationRequest(ue *context.AmfUe, anType models.AccessType,
+func HandleDeregistrationRequest(ue *context.AmfUe, anType coreModels.AccessType,
 	deregistrationRequest *nasMessage.DeregistrationRequestUEOriginatingDeregistration,
 ) error {
 	ue.GmmLog.Info("Handle Deregistration Request(UE Originating)")
@@ -2061,10 +2061,10 @@ func HandleDeregistrationRequest(ue *context.AmfUe, anType models.AccessType,
 	if ue.AmPolicyAssociation != nil {
 		terminateAmPolicyAssocaition := true
 		switch anType {
-		case models.AccessType__3_GPP_ACCESS:
-			terminateAmPolicyAssocaition = ue.State[models.AccessType_NON_3_GPP_ACCESS].Is(context.Deregistered)
-		case models.AccessType_NON_3_GPP_ACCESS:
-			terminateAmPolicyAssocaition = ue.State[models.AccessType__3_GPP_ACCESS].Is(context.Deregistered)
+		case coreModels.AccessType__3_GPP_ACCESS:
+			terminateAmPolicyAssocaition = ue.State[coreModels.AccessType_NON_3_GPP_ACCESS].Is(context.Deregistered)
+		case coreModels.AccessType_NON_3_GPP_ACCESS:
+			terminateAmPolicyAssocaition = ue.State[coreModels.AccessType__3_GPP_ACCESS].Is(context.Deregistered)
 		}
 
 		if terminateAmPolicyAssocaition {
@@ -2083,41 +2083,41 @@ func HandleDeregistrationRequest(ue *context.AmfUe, anType models.AccessType,
 	// TS 23.502 4.2.6, 4.12.3
 	switch targetDeregistrationAccessType {
 	case nasMessage.AccessType3GPP:
-		if ue.RanUe[models.AccessType__3_GPP_ACCESS] != nil {
-			ngap_message.SendUEContextReleaseCommand(ue.RanUe[models.AccessType__3_GPP_ACCESS],
+		if ue.RanUe[coreModels.AccessType__3_GPP_ACCESS] != nil {
+			ngap_message.SendUEContextReleaseCommand(ue.RanUe[coreModels.AccessType__3_GPP_ACCESS],
 				context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 		}
-		return GmmFSM.SendEvent(ue.State[models.AccessType__3_GPP_ACCESS], DeregistrationAcceptEvent, fsm.ArgsType{
+		return GmmFSM.SendEvent(ue.State[coreModels.AccessType__3_GPP_ACCESS], DeregistrationAcceptEvent, fsm.ArgsType{
 			ArgAmfUe:      ue,
 			ArgAccessType: anType,
 		})
 	case nasMessage.AccessTypeNon3GPP:
-		if ue.RanUe[models.AccessType_NON_3_GPP_ACCESS] != nil {
-			ngap_message.SendUEContextReleaseCommand(ue.RanUe[models.AccessType_NON_3_GPP_ACCESS],
+		if ue.RanUe[coreModels.AccessType_NON_3_GPP_ACCESS] != nil {
+			ngap_message.SendUEContextReleaseCommand(ue.RanUe[coreModels.AccessType_NON_3_GPP_ACCESS],
 				context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 		}
-		return GmmFSM.SendEvent(ue.State[models.AccessType_NON_3_GPP_ACCESS], DeregistrationAcceptEvent, fsm.ArgsType{
+		return GmmFSM.SendEvent(ue.State[coreModels.AccessType_NON_3_GPP_ACCESS], DeregistrationAcceptEvent, fsm.ArgsType{
 			ArgAmfUe:      ue,
 			ArgAccessType: anType,
 		})
 	case nasMessage.AccessTypeBoth:
-		if ue.RanUe[models.AccessType__3_GPP_ACCESS] != nil {
-			ngap_message.SendUEContextReleaseCommand(ue.RanUe[models.AccessType__3_GPP_ACCESS],
+		if ue.RanUe[coreModels.AccessType__3_GPP_ACCESS] != nil {
+			ngap_message.SendUEContextReleaseCommand(ue.RanUe[coreModels.AccessType__3_GPP_ACCESS],
 				context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 		}
-		if ue.RanUe[models.AccessType_NON_3_GPP_ACCESS] != nil {
-			ngap_message.SendUEContextReleaseCommand(ue.RanUe[models.AccessType_NON_3_GPP_ACCESS],
+		if ue.RanUe[coreModels.AccessType_NON_3_GPP_ACCESS] != nil {
+			ngap_message.SendUEContextReleaseCommand(ue.RanUe[coreModels.AccessType_NON_3_GPP_ACCESS],
 				context.UeContextReleaseUeContext, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 		}
 
-		err := GmmFSM.SendEvent(ue.State[models.AccessType__3_GPP_ACCESS], DeregistrationAcceptEvent, fsm.ArgsType{
+		err := GmmFSM.SendEvent(ue.State[coreModels.AccessType__3_GPP_ACCESS], DeregistrationAcceptEvent, fsm.ArgsType{
 			ArgAmfUe:      ue,
 			ArgAccessType: anType,
 		})
 		if err != nil {
 			ue.GmmLog.Errorln(err)
 		}
-		return GmmFSM.SendEvent(ue.State[models.AccessType_NON_3_GPP_ACCESS], DeregistrationAcceptEvent, fsm.ArgsType{
+		return GmmFSM.SendEvent(ue.State[coreModels.AccessType_NON_3_GPP_ACCESS], DeregistrationAcceptEvent, fsm.ArgsType{
 			ArgAmfUe:      ue,
 			ArgAccessType: anType,
 		})
@@ -2127,7 +2127,7 @@ func HandleDeregistrationRequest(ue *context.AmfUe, anType models.AccessType,
 }
 
 // TS 23.502 4.2.2.3
-func HandleDeregistrationAccept(ue *context.AmfUe, anType models.AccessType,
+func HandleDeregistrationAccept(ue *context.AmfUe, anType coreModels.AccessType,
 	deregistrationAccept *nasMessage.DeregistrationAcceptUETerminatedDeregistration,
 ) error {
 	ue.GmmLog.Info("Handle Deregistration Accept(UE Terminated)")
@@ -2139,35 +2139,35 @@ func HandleDeregistrationAccept(ue *context.AmfUe, anType models.AccessType,
 
 	switch ue.DeregistrationTargetAccessType {
 	case nasMessage.AccessType3GPP:
-		if ue.RanUe[models.AccessType__3_GPP_ACCESS] != nil {
-			ngap_message.SendUEContextReleaseCommand(ue.RanUe[models.AccessType__3_GPP_ACCESS],
+		if ue.RanUe[coreModels.AccessType__3_GPP_ACCESS] != nil {
+			ngap_message.SendUEContextReleaseCommand(ue.RanUe[coreModels.AccessType__3_GPP_ACCESS],
 				context.UeContextReleaseDueToNwInitiatedDeregistraion, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 		}
 	case nasMessage.AccessTypeNon3GPP:
-		if ue.RanUe[models.AccessType_NON_3_GPP_ACCESS] != nil {
-			ngap_message.SendUEContextReleaseCommand(ue.RanUe[models.AccessType_NON_3_GPP_ACCESS],
+		if ue.RanUe[coreModels.AccessType_NON_3_GPP_ACCESS] != nil {
+			ngap_message.SendUEContextReleaseCommand(ue.RanUe[coreModels.AccessType_NON_3_GPP_ACCESS],
 				context.UeContextReleaseDueToNwInitiatedDeregistraion, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 		}
 	case nasMessage.AccessTypeBoth:
-		if ue.RanUe[models.AccessType__3_GPP_ACCESS] != nil {
-			ngap_message.SendUEContextReleaseCommand(ue.RanUe[models.AccessType__3_GPP_ACCESS],
+		if ue.RanUe[coreModels.AccessType__3_GPP_ACCESS] != nil {
+			ngap_message.SendUEContextReleaseCommand(ue.RanUe[coreModels.AccessType__3_GPP_ACCESS],
 				context.UeContextReleaseDueToNwInitiatedDeregistraion, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 		}
-		if ue.RanUe[models.AccessType_NON_3_GPP_ACCESS] != nil {
-			ngap_message.SendUEContextReleaseCommand(ue.RanUe[models.AccessType_NON_3_GPP_ACCESS],
+		if ue.RanUe[coreModels.AccessType_NON_3_GPP_ACCESS] != nil {
+			ngap_message.SendUEContextReleaseCommand(ue.RanUe[coreModels.AccessType_NON_3_GPP_ACCESS],
 				context.UeContextReleaseDueToNwInitiatedDeregistraion, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 		}
 	}
 
 	ue.DeregistrationTargetAccessType = 0
 
-	return GmmFSM.SendEvent(ue.State[models.AccessType__3_GPP_ACCESS], DeregistrationAcceptEvent, fsm.ArgsType{
+	return GmmFSM.SendEvent(ue.State[coreModels.AccessType__3_GPP_ACCESS], DeregistrationAcceptEvent, fsm.ArgsType{
 		ArgAmfUe:      ue,
 		ArgAccessType: anType,
 	})
 }
 
-func HandleStatus5GMM(ue *context.AmfUe, anType models.AccessType, status5GMM *nasMessage.Status5GMM) error {
+func HandleStatus5GMM(ue *context.AmfUe, anType coreModels.AccessType, status5GMM *nasMessage.Status5GMM) error {
 	ue.GmmLog.Info("Handle Staus 5GMM")
 	if ue.MacFailed {
 		return fmt.Errorf("NAS message integrity check failed")
@@ -2178,7 +2178,7 @@ func HandleStatus5GMM(ue *context.AmfUe, anType models.AccessType, status5GMM *n
 	return nil
 }
 
-func HandleAuthenticationError(ue *context.AmfUe, anType models.AccessType) error {
+func HandleAuthenticationError(ue *context.AmfUe, anType coreModels.AccessType) error {
 	ue.GmmLog.Error("Handle Authentication Error")
 	if ue.RegistrationRequest != nil {
 		gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")

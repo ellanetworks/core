@@ -20,9 +20,9 @@ const N2SMINFO_ID = "N2SmInfo"
 
 func SelectSmf(
 	ue *context.AmfUe,
-	anType models.AccessType,
+	anType coreModels.AccessType,
 	pduSessionID int32,
-	snssai models.Snssai,
+	snssai coreModels.Snssai,
 	dnn string,
 ) (*context.SmContext, uint8, error) {
 	ue.GmmLog.Infof("Select SMF [snssai: %+v, dnn: %+v]", snssai, dnn)
@@ -104,7 +104,7 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 	}
 	smContextCreateData.N1SmMsg = new(coreModels.RefToBinaryData)
 	smContextCreateData.N1SmMsg.ContentId = "n1SmMsg"
-	smContextCreateData.AnType = coreModels.AccessType(smContext.AccessType())
+	smContextCreateData.AnType = smContext.AccessType()
 	if ue.RatType != "" {
 		smContextCreateData.RatType = coreModels.RatType(ue.RatType)
 	}
@@ -134,7 +134,7 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 // anTypeCanBeChanged
 
 func SendUpdateSmContextActivateUpCnxState(
-	ue *context.AmfUe, smContext *context.SmContext, accessType models.AccessType) (
+	ue *context.AmfUe, smContext *context.SmContext, accessType coreModels.AccessType) (
 	*coreModels.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
 	updateData := coreModels.SmContextUpdateData{}
@@ -143,7 +143,7 @@ func SendUpdateSmContextActivateUpCnxState(
 		updateData.UeLocation = &ue.Location
 	}
 	if smContext.AccessType() != accessType {
-		updateData.AnType = coreModels.AccessType(smContext.AccessType())
+		updateData.AnType = smContext.AccessType()
 	}
 	if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
 		if context.InTaiList(ue.Tai, ladn.TaiLists) {

@@ -12,9 +12,9 @@ import (
 	"net"
 	"strings"
 
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	coreModels "github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
 	"go.uber.org/zap"
@@ -30,9 +30,9 @@ const (
 
 type AmfRan struct {
 	RanPresent int
-	RanId      *models.GlobalRanNodeId
+	RanId      *coreModels.GlobalRanNodeId
 	Name       string
-	AnType     models.AccessType
+	AnType     coreModels.AccessType
 	GnbIp      string `json:"-"`
 	GnbId      string // RanId in string format, i.e.,mcc:mnc:gnbid
 	/* socket Connect*/
@@ -113,13 +113,13 @@ func (ran *AmfRan) RanUeFindByRanUeNgapID(ranUeNgapID int64) *RanUe {
 }
 
 func (ran *AmfRan) SetRanId(ranNodeId *ngapType.GlobalRANNodeID) {
-	ranId := ngapConvert.RanIdToModels(*ranNodeId)
+	ranId := util.RanIdToModels(*ranNodeId)
 	ran.RanPresent = ranNodeId.Present
 	ran.RanId = &ranId
 	if ranNodeId.Present == ngapType.GlobalRANNodeIDPresentGlobalN3IWFID {
-		ran.AnType = models.AccessType_NON_3_GPP_ACCESS
+		ran.AnType = coreModels.AccessType_NON_3_GPP_ACCESS
 	} else {
-		ran.AnType = models.AccessType__3_GPP_ACCESS
+		ran.AnType = coreModels.AccessType__3_GPP_ACCESS
 	}
 
 	// Setting RanId in String format with ":" separation of each field

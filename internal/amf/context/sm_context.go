@@ -21,9 +21,9 @@ type SmContext struct {
 	// pdu session information
 	PduSessionIDVal int32
 	SmContextRefVal string
-	SnssaiVal       models.Snssai
+	SnssaiVal       coreModels.Snssai
 	DnnVal          string
-	AccessTypeVal   models.AccessType
+	AccessTypeVal   coreModels.AccessType
 	NsInstanceVal   string
 	UserLocationVal coreModels.UserLocation
 	PlmnIDVal       coreModels.PlmnId
@@ -84,25 +84,25 @@ func (c *SmContext) SetSmContextRef(ref string) {
 	c.SmContextRefVal = ref
 }
 
-func (c *SmContext) AccessType() models.AccessType {
+func (c *SmContext) AccessType() coreModels.AccessType {
 	c.Mu.RLock()
 	defer c.Mu.RUnlock()
 	return c.AccessTypeVal
 }
 
-func (c *SmContext) SetAccessType(accessType models.AccessType) {
+func (c *SmContext) SetAccessType(accessType coreModels.AccessType) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.AccessTypeVal = accessType
 }
 
-func (c *SmContext) Snssai() models.Snssai {
+func (c *SmContext) Snssai() coreModels.Snssai {
 	c.Mu.RLock()
 	defer c.Mu.RUnlock()
 	return c.SnssaiVal
 }
 
-func (c *SmContext) SetSnssai(snssai models.Snssai) {
+func (c *SmContext) SetSnssai(snssai coreModels.Snssai) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.SnssaiVal = snssai

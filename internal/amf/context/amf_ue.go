@@ -68,7 +68,7 @@ type AmfUe struct {
 	ServingAMF *AMFContext `json:"servingAMF,omitempty"` // never nil
 
 	/* Gmm State */
-	State map[models.AccessType]*fsm.State `json:"-"`
+	State map[coreModels.AccessType]*fsm.State `json:"-"`
 	/* Registration procedure related context */
 	RegistrationType5GS                uint8                           `json:"registrationType5GS,omitempty"`
 	IdentityTypeUsedForRegistration    uint8                           `json:"identityTypeUsedForRegistration,omitempty"`
@@ -105,9 +105,9 @@ type AmfUe struct {
 	SubscribedData                    models.SubscribedData                         `json:"subscribedData,omitempty"`
 	SmfSelectionData                  *coreModels.SmfSelectionSubscriptionData      `json:"smfSelectionData,omitempty"`
 	UeContextInSmfData                *coreModels.UeContextInSmfData                `json:"ueContextInSmfData,omitempty"`
-	TraceData                         *models.TraceData                             `json:"traceData,omitempty"`
+	TraceData                         *coreModels.TraceData                         `json:"traceData,omitempty"`
 	UdmGroupId                        string                                        `json:"udmGroupId,omitempty"`
-	SubscribedNssai                   []models.SubscribedSnssai                     `json:"subscribeNssai,omitempty"`
+	SubscribedNssai                   []coreModels.SubscribedSnssai                 `json:"subscribeNssai,omitempty"`
 	AccessAndMobilitySubscriptionData *coreModels.AccessAndMobilitySubscriptionData `json:"accessAndMobilitySubscriptionData,omitempty"`
 	/* contex abut ausf */
 	AusfGroupId                       string                          `json:"ausfGroupId,omitempty"`
@@ -135,12 +135,12 @@ type AmfUe struct {
 	SmContextList sync.Map `json:"-"` // map[int32]*SmContext, pdu session id as key
 	/* Related Context*/
 	//RanUe map[models.AccessType]*RanUe `json:"ranUe,omitempty" yaml:"ranUe" bson:"ranUe,omitempty"`
-	RanUe map[models.AccessType]*RanUe `json:"ranUe,omitempty"`
+	RanUe map[coreModels.AccessType]*RanUe `json:"ranUe,omitempty"`
 	/* other */
-	OnGoing                       map[models.AccessType]*OnGoingProcedureWithPrio `json:"onGoing,omitempty"`
-	UeRadioCapability             string                                          `json:"ueRadioCapability,omitempty"` // OCTET string
-	Capability5GMM                nasType.Capability5GMM                          `json:"capability5GMM,omitempty"`
-	ConfigurationUpdateIndication nasType.ConfigurationUpdateIndication           `json:"configurationUpdateIndication,omitempty"`
+	OnGoing                       map[coreModels.AccessType]*OnGoingProcedureWithPrio `json:"onGoing,omitempty"`
+	UeRadioCapability             string                                              `json:"ueRadioCapability,omitempty"` // OCTET string
+	Capability5GMM                nasType.Capability5GMM                              `json:"capability5GMM,omitempty"`
+	ConfigurationUpdateIndication nasType.ConfigurationUpdateIndication               `json:"configurationUpdateIndication,omitempty"`
 	/* context related to Paging */
 	UeRadioCapabilityForPaging                 *UERadioCapabilityForPaging                 `json:"ueRadioCapabilityForPaging,omitempty"`
 	InfoOnRecommendedCellsAndRanNodesForPaging *InfoOnRecommendedCellsAndRanNodesForPaging `json:"infoOnRecommendedCellsAndRanNodesForPaging,omitempty"`
@@ -148,7 +148,7 @@ type AmfUe struct {
 	/* Security Context */
 	SecurityContextAvailable bool                         `json:"securityContextAvailable,omitempty"`
 	UESecurityCapability     nasType.UESecurityCapability `json:"ueSecurityCapability,omitempty"` // for security command
-	NgKsi                    models.NgKsi                 `json:"ngKsi,omitempty"`
+	NgKsi                    coreModels.NgKsi             `json:"ngKsi,omitempty"`
 	MacFailed                bool                         `json:"macFailed,omitempty"` // set to true if the integrity check of current NAS message is failed
 	KnasInt                  [16]uint8                    `json:"knasInt,omitempty"`   // 16 byte
 	KnasEnc                  [16]uint8                    `json:"knasEnc,omitempty"`   // 16 byte
@@ -163,13 +163,13 @@ type AmfUe struct {
 	CipheringAlg uint8          `json:"cipheringAlg,omitempty"`
 	IntegrityAlg uint8          `json:"integrityAlg,omitempty"`
 	/* Registration Area */
-	RegistrationArea map[models.AccessType][]coreModels.Tai `json:"registrationArea,omitempty"`
-	LadnInfo         []LADN                                 `json:"ladnInfo,omitempty"`
+	RegistrationArea map[coreModels.AccessType][]coreModels.Tai `json:"registrationArea,omitempty"`
+	LadnInfo         []LADN                                     `json:"ladnInfo,omitempty"`
 	/* Network Slicing related context and Nssf */
-	NetworkSliceInfo                  *models.AuthorizedNetworkSliceInfo           `json:"networkSliceInfo,omitempty"`
-	AllowedNssai                      map[models.AccessType][]models.AllowedSnssai `json:"allowedNssai,omitempty"`
-	ConfiguredNssai                   []models.ConfiguredSnssai                    `json:"configuredNssai,omitempty"`
-	NetworkSlicingSubscriptionChanged bool                                         `json:"networkSlicingSubscriptionChanged,omitempty"`
+	NetworkSliceInfo                  *coreModels.AuthorizedNetworkSliceInfo               `json:"networkSliceInfo,omitempty"`
+	AllowedNssai                      map[coreModels.AccessType][]coreModels.AllowedSnssai `json:"allowedNssai,omitempty"`
+	ConfiguredNssai                   []models.ConfiguredSnssai                            `json:"configuredNssai,omitempty"`
+	NetworkSlicingSubscriptionChanged bool                                                 `json:"networkSlicingSubscriptionChanged,omitempty"`
 	/* T3513(Paging) */
 	T3513 *Timer `json:"t3513Value,omitempty"` // for paging
 	/* T3565(Notification) */
@@ -181,7 +181,7 @@ type AmfUe struct {
 	/* T3522 (for deregistration request) */
 	T3522 *Timer `json:"t3522Value,omitempty"`
 	/* Ue Context Release Cause */
-	ReleaseCause map[models.AccessType]*CauseAll `json:"releaseCause,omitempty"`
+	ReleaseCause map[coreModels.AccessType]*CauseAll `json:"releaseCause,omitempty"`
 	/* T3502 (Assigned by AMF, and used by UE to initialize registration procedure) */
 	T3502Value                      int `json:"t3502Value,omitempty"`                      // Second
 	T3512Value                      int `json:"t3512Value,omitempty"`                      // default 54 min
@@ -218,7 +218,7 @@ type InterfaceMsg interface{}
 }*/
 
 type NasMsg struct {
-	AnType        models.AccessType
+	AnType        coreModels.AccessType
 	NasMsg        []byte
 	ProcedureCode int64
 }
@@ -270,33 +270,33 @@ type NGRANCGI struct {
 
 func (ue *AmfUe) init() {
 	ue.ServingAMF = AMF_Self()
-	ue.State = make(map[models.AccessType]*fsm.State)
-	ue.State[models.AccessType__3_GPP_ACCESS] = fsm.NewState(Deregistered)
-	ue.State[models.AccessType_NON_3_GPP_ACCESS] = fsm.NewState(Deregistered)
+	ue.State = make(map[coreModels.AccessType]*fsm.State)
+	ue.State[coreModels.AccessType__3_GPP_ACCESS] = fsm.NewState(Deregistered)
+	ue.State[coreModels.AccessType_NON_3_GPP_ACCESS] = fsm.NewState(Deregistered)
 	ue.UnauthenticatedSupi = true
-	ue.RanUe = make(map[models.AccessType]*RanUe)
-	ue.RegistrationArea = make(map[models.AccessType][]coreModels.Tai)
-	ue.AllowedNssai = make(map[models.AccessType][]models.AllowedSnssai)
+	ue.RanUe = make(map[coreModels.AccessType]*RanUe)
+	ue.RegistrationArea = make(map[coreModels.AccessType][]coreModels.Tai)
+	ue.AllowedNssai = make(map[coreModels.AccessType][]coreModels.AllowedSnssai)
 	ue.N1N2MessageIDGenerator = idgenerator.NewGenerator(1, 2147483647)
 	ue.N1N2MessageSubscribeIDGenerator = idgenerator.NewGenerator(1, 2147483647)
-	ue.OnGoing = make(map[models.AccessType]*OnGoingProcedureWithPrio)
-	ue.OnGoing[models.AccessType_NON_3_GPP_ACCESS] = new(OnGoingProcedureWithPrio)
-	ue.OnGoing[models.AccessType_NON_3_GPP_ACCESS].Procedure = OnGoingProcedureNothing
-	ue.OnGoing[models.AccessType__3_GPP_ACCESS] = new(OnGoingProcedureWithPrio)
-	ue.OnGoing[models.AccessType__3_GPP_ACCESS].Procedure = OnGoingProcedureNothing
-	ue.ReleaseCause = make(map[models.AccessType]*CauseAll)
+	ue.OnGoing = make(map[coreModels.AccessType]*OnGoingProcedureWithPrio)
+	ue.OnGoing[coreModels.AccessType_NON_3_GPP_ACCESS] = new(OnGoingProcedureWithPrio)
+	ue.OnGoing[coreModels.AccessType_NON_3_GPP_ACCESS].Procedure = OnGoingProcedureNothing
+	ue.OnGoing[coreModels.AccessType__3_GPP_ACCESS] = new(OnGoingProcedureWithPrio)
+	ue.OnGoing[coreModels.AccessType__3_GPP_ACCESS].Procedure = OnGoingProcedureNothing
+	ue.ReleaseCause = make(map[coreModels.AccessType]*CauseAll)
 	ue.AmfInstanceName = os.Getenv("HOSTNAME")
 	ue.AmfInstanceIp = os.Getenv("POD_IP")
 }
 
-func (ue *AmfUe) CmConnect(anType models.AccessType) bool {
+func (ue *AmfUe) CmConnect(anType coreModels.AccessType) bool {
 	if _, ok := ue.RanUe[anType]; !ok {
 		return false
 	}
 	return true
 }
 
-func (ue *AmfUe) CmIdle(anType models.AccessType) bool {
+func (ue *AmfUe) CmIdle(anType coreModels.AccessType) bool {
 	return !ue.CmConnect(anType)
 }
 
@@ -314,7 +314,7 @@ func (ue *AmfUe) Remove() {
 	}
 }
 
-func (ue *AmfUe) DetachRanUe(anType models.AccessType) {
+func (ue *AmfUe) DetachRanUe(anType coreModels.AccessType) {
 	delete(ue.RanUe, anType)
 }
 
@@ -339,9 +339,9 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 }
 
 func (ue *AmfUe) GetAnType() models.AccessType {
-	if ue.CmConnect(models.AccessType__3_GPP_ACCESS) {
+	if ue.CmConnect(coreModels.AccessType__3_GPP_ACCESS) {
 		return models.AccessType__3_GPP_ACCESS
-	} else if ue.CmConnect(models.AccessType_NON_3_GPP_ACCESS) {
+	} else if ue.CmConnect(coreModels.AccessType_NON_3_GPP_ACCESS) {
 		return models.AccessType_NON_3_GPP_ACCESS
 	}
 	return ""
@@ -350,14 +350,14 @@ func (ue *AmfUe) GetAnType() models.AccessType {
 func (ue *AmfUe) GetCmInfo() (cmInfos []models.CmInfo) {
 	var cmInfo models.CmInfo
 	cmInfo.AccessType = models.AccessType__3_GPP_ACCESS
-	if ue.CmConnect(cmInfo.AccessType) {
+	if ue.CmConnect(coreModels.AccessType(cmInfo.AccessType)) {
 		cmInfo.CmState = models.CmState_CONNECTED
 	} else {
 		cmInfo.CmState = models.CmState_IDLE
 	}
 	cmInfos = append(cmInfos, cmInfo)
 	cmInfo.AccessType = models.AccessType_NON_3_GPP_ACCESS
-	if ue.CmConnect(cmInfo.AccessType) {
+	if ue.CmConnect(coreModels.AccessType(cmInfo.AccessType)) {
 		cmInfo.CmState = models.CmState_CONNECTED
 	} else {
 		cmInfo.CmState = models.CmState_IDLE
@@ -366,7 +366,7 @@ func (ue *AmfUe) GetCmInfo() (cmInfos []models.CmInfo) {
 	return
 }
 
-func (ue *AmfUe) InAllowedNssai(targetSNssai models.Snssai, anType models.AccessType) bool {
+func (ue *AmfUe) InAllowedNssai(targetSNssai coreModels.Snssai, anType coreModels.AccessType) bool {
 	for _, allowedSnssai := range ue.AllowedNssai[anType] {
 		if reflect.DeepEqual(*allowedSnssai.AllowedSnssai, targetSNssai) {
 			return true
@@ -375,7 +375,7 @@ func (ue *AmfUe) InAllowedNssai(targetSNssai models.Snssai, anType models.Access
 	return false
 }
 
-func (ue *AmfUe) InSubscribedNssai(targetSNssai *models.Snssai) bool {
+func (ue *AmfUe) InSubscribedNssai(targetSNssai *coreModels.Snssai) bool {
 	for _, sNssai := range ue.SubscribedNssai {
 		if sNssai.SubscribedSnssai.Sst == targetSNssai.Sst && sNssai.SubscribedSnssai.Sd == targetSNssai.Sd {
 			return true
@@ -384,7 +384,7 @@ func (ue *AmfUe) InSubscribedNssai(targetSNssai *models.Snssai) bool {
 	return false
 }
 
-func (ue *AmfUe) GetNsiInformationFromSnssai(anType models.AccessType, snssai models.Snssai) *models.NsiInformation {
+func (ue *AmfUe) GetNsiInformationFromSnssai(anType coreModels.AccessType, snssai coreModels.Snssai) *coreModels.NsiInformation {
 	for _, allowedSnssai := range ue.AllowedNssai[anType] {
 		if reflect.DeepEqual(*allowedSnssai.AllowedSnssai, snssai) {
 			if len(allowedSnssai.NsiInformationList) != 0 {
@@ -395,7 +395,7 @@ func (ue *AmfUe) GetNsiInformationFromSnssai(anType models.AccessType, snssai mo
 	return nil
 }
 
-func (ue *AmfUe) TaiListInRegistrationArea(taiList []coreModels.Tai, accessType models.AccessType) bool {
+func (ue *AmfUe) TaiListInRegistrationArea(taiList []coreModels.Tai, accessType coreModels.AccessType) bool {
 	for _, tai := range taiList {
 		if !InTaiList(tai, ue.RegistrationArea[accessType]) {
 			return false
@@ -485,12 +485,12 @@ func (ue *AmfUe) DerivateAlgKey() {
 }
 
 // Access Network key Derivation function defined in TS 33.501 Annex A.9
-func (ue *AmfUe) DerivateAnKey(anType models.AccessType) {
+func (ue *AmfUe) DerivateAnKey(anType coreModels.AccessType) {
 	accessType := security.AccessType3GPP // Defalut 3gpp
 	P0 := make([]byte, 4)
 	binary.BigEndian.PutUint32(P0, ue.ULCount.Get())
 	L0 := ueauth.KDFLen(P0)
-	if anType == models.AccessType_NON_3_GPP_ACCESS {
+	if anType == coreModels.AccessType_NON_3_GPP_ACCESS {
 		accessType = security.AccessTypeNon3GPP
 	}
 	P1 := []byte{accessType}
@@ -531,12 +531,12 @@ func (ue *AmfUe) DerivateNH(syncInput []byte) {
 	}
 }
 
-func (ue *AmfUe) UpdateSecurityContext(anType models.AccessType) {
+func (ue *AmfUe) UpdateSecurityContext(anType coreModels.AccessType) {
 	ue.DerivateAnKey(anType)
 	switch anType {
-	case models.AccessType__3_GPP_ACCESS:
+	case coreModels.AccessType__3_GPP_ACCESS:
 		ue.DerivateNH(ue.Kgnb)
-	case models.AccessType_NON_3_GPP_ACCESS:
+	case coreModels.AccessType_NON_3_GPP_ACCESS:
 		ue.DerivateNH(ue.Kn3iwf)
 	}
 	ue.NCC = 1
@@ -589,7 +589,7 @@ func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) {
 }
 
 // this is clearing the transient data of registration request, this is called entrypoint of Deregistration and Registration state
-func (ue *AmfUe) ClearRegistrationRequestData(accessType models.AccessType) {
+func (ue *AmfUe) ClearRegistrationRequestData(accessType coreModels.AccessType) {
 	ue.RegistrationRequest = nil
 	ue.RegistrationType5GS = 0
 	ue.IdentityTypeUsedForRegistration = 0
@@ -608,7 +608,7 @@ func (ue *AmfUe) ClearRegistrationRequestData(accessType models.AccessType) {
 func (ue *AmfUe) ClearRegistrationData() {
 	// Allowed Nssai should be cleared first as it is a new Registration
 	ue.SubscribedNssai = nil
-	ue.AllowedNssai = make(map[models.AccessType][]models.AllowedSnssai)
+	ue.AllowedNssai = make(map[coreModels.AccessType][]coreModels.AllowedSnssai)
 	ue.SubscriptionDataValid = false
 	// Clearing SMContextList locally
 	ue.SmContextList.Range(func(key, _ interface{}) bool {
@@ -617,14 +617,14 @@ func (ue *AmfUe) ClearRegistrationData() {
 	})
 }
 
-func (ue *AmfUe) SetOnGoing(anType models.AccessType, onGoing *OnGoingProcedureWithPrio) {
+func (ue *AmfUe) SetOnGoing(anType coreModels.AccessType, onGoing *OnGoingProcedureWithPrio) {
 	prevOnGoing := ue.OnGoing[anType]
 	ue.OnGoing[anType] = onGoing
 	ue.GmmLog.Debugf("OnGoing[%s]->[%s] PPI[%d]->[%d]", prevOnGoing.Procedure, onGoing.Procedure,
 		prevOnGoing.Ppi, onGoing.Ppi)
 }
 
-func (ue *AmfUe) GetOnGoing(anType models.AccessType) OnGoingProcedureWithPrio {
+func (ue *AmfUe) GetOnGoing(anType coreModels.AccessType) OnGoingProcedureWithPrio {
 	return *ue.OnGoing[anType]
 }
 
@@ -633,7 +633,7 @@ func (ue *AmfUe) RemoveAmPolicyAssociation() {
 	ue.PolicyAssociationId = ""
 }
 
-func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
+func (ue *AmfUe) CopyDataFromUeContextModel(ueContext coreModels.UeContext) {
 	if ueContext.Supi != "" {
 		ue.Supi = ueContext.Supi
 		ue.UnauthenticatedSupi = ueContext.SupiUnauthInd
@@ -680,9 +680,7 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 			ue.AccessAndMobilitySubscriptionData = new(coreModels.AccessAndMobilitySubscriptionData)
 		}
 		ue.AccessAndMobilitySubscriptionData.RatRestrictions = []coreModels.RatType{}
-		for _, ratType := range ueContext.RestrictedRatList {
-			ue.AccessAndMobilitySubscriptionData.RatRestrictions = append(ue.AccessAndMobilitySubscriptionData.RatRestrictions, coreModels.RatType(ratType))
-		}
+		ue.AccessAndMobilitySubscriptionData.RatRestrictions = append(ue.AccessAndMobilitySubscriptionData.RatRestrictions, ueContext.RestrictedRatList...)
 	}
 
 	if len(ueContext.ForbiddenAreaList) > 0 {
@@ -705,7 +703,7 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 			ue.AccessAndMobilitySubscriptionData = new(coreModels.AccessAndMobilitySubscriptionData)
 		}
 		ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction = &coreModels.ServiceAreaRestriction{
-			RestrictionType: coreModels.RestrictionType(ueContext.ServiceAreaRestriction.RestrictionType),
+			RestrictionType: ueContext.ServiceAreaRestriction.RestrictionType,
 			Areas:           []coreModels.Area{},
 			MaxNumOfTAs:     ueContext.ServiceAreaRestriction.MaxNumOfTAs,
 		}
@@ -723,7 +721,7 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 
 		ue.NgKsi = *seafData.NgKsi
 		if seafData.KeyAmf != nil {
-			if seafData.KeyAmf.KeyType == models.KeyAmfType_KAMF {
+			if seafData.KeyAmf.KeyType == coreModels.KeyAmfType_KAMF {
 				ue.Kamf = seafData.KeyAmf.KeyVal
 			}
 		}
@@ -742,13 +740,13 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 		}
 		for _, trigger := range ueContext.AmPolicyReqTriggerList {
 			switch trigger {
-			case models.AmPolicyReqTrigger_LOCATION_CHANGE:
+			case coreModels.AmPolicyReqTrigger_LOCATION_CHANGE:
 				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, coreModels.RequestTrigger_LOC_CH)
-			case models.AmPolicyReqTrigger_PRA_CHANGE:
+			case coreModels.AmPolicyReqTrigger_PRA_CHANGE:
 				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, coreModels.RequestTrigger_PRA_CH)
-			case models.AmPolicyReqTrigger_SARI_CHANGE:
+			case coreModels.AmPolicyReqTrigger_SARI_CHANGE:
 				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, coreModels.RequestTrigger_SERV_AREA_CH)
-			case models.AmPolicyReqTrigger_RFSP_INDEX_CHANGE:
+			case coreModels.AmPolicyReqTrigger_RFSP_INDEX_CHANGE:
 				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, coreModels.RequestTrigger_RFSP_CH)
 			}
 		}
@@ -773,27 +771,27 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 
 	if len(ueContext.MmContextList) > 0 {
 		for _, mmContext := range ueContext.MmContextList {
-			if mmContext.AccessType == models.AccessType__3_GPP_ACCESS {
+			if mmContext.AccessType == coreModels.AccessType__3_GPP_ACCESS {
 				if nasSecurityMode := mmContext.NasSecurityMode; nasSecurityMode != nil {
 					switch nasSecurityMode.IntegrityAlgorithm {
-					case models.IntegrityAlgorithm_NIA0:
+					case coreModels.IntegrityAlgorithm_NIA0:
 						ue.IntegrityAlg = security.AlgIntegrity128NIA0
-					case models.IntegrityAlgorithm_NIA1:
+					case coreModels.IntegrityAlgorithm_NIA1:
 						ue.IntegrityAlg = security.AlgIntegrity128NIA1
-					case models.IntegrityAlgorithm_NIA2:
+					case coreModels.IntegrityAlgorithm_NIA2:
 						ue.IntegrityAlg = security.AlgIntegrity128NIA2
-					case models.IntegrityAlgorithm_NIA3:
+					case coreModels.IntegrityAlgorithm_NIA3:
 						ue.IntegrityAlg = security.AlgIntegrity128NIA3
 					}
 
 					switch nasSecurityMode.CipheringAlgorithm {
-					case models.CipheringAlgorithm_NEA0:
+					case coreModels.CipheringAlgorithm_NEA0:
 						ue.CipheringAlg = security.AlgCiphering128NEA0
-					case models.CipheringAlgorithm_NEA1:
+					case coreModels.CipheringAlgorithm_NEA1:
 						ue.CipheringAlg = security.AlgCiphering128NEA1
-					case models.CipheringAlgorithm_NEA2:
+					case coreModels.CipheringAlgorithm_NEA2:
 						ue.CipheringAlg = security.AlgCiphering128NEA2
-					case models.CipheringAlgorithm_NEA3:
+					case coreModels.CipheringAlgorithm_NEA3:
 						ue.CipheringAlg = security.AlgCiphering128NEA3
 					}
 
@@ -825,7 +823,7 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 
 			if mmContext.AllowedNssai != nil {
 				for _, snssai := range mmContext.AllowedNssai {
-					allowedSnssai := models.AllowedSnssai{
+					allowedSnssai := coreModels.AllowedSnssai{
 						AllowedSnssai: &snssai,
 					}
 					ue.AllowedNssai[mmContext.AccessType] = append(ue.AllowedNssai[mmContext.AccessType], allowedSnssai)

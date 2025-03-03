@@ -135,7 +135,7 @@ func (context *AMFContext) ReAllocateGutiToUe(ue *AmfUe) {
 	ue.Guti = plmnID + servedGuami.AmfId + tmsiStr
 }
 
-func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.AccessType) {
+func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType coreModels.AccessType) {
 	// clear the previous registration area if need
 	if len(ue.RegistrationArea[anType]) > 0 {
 		ue.RegistrationArea[anType] = nil
@@ -288,7 +288,7 @@ func (context *AMFContext) InSupportDnnList(targetDnn string) bool {
 	return false
 }
 
-func (context *AMFContext) InPlmnSupportList(snssai models.Snssai) bool {
+func (context *AMFContext) InPlmnSupportList(snssai coreModels.Snssai) bool {
 	plmnSupportList := GetPlmnSupportList()
 	for _, plmnSupportItem := range plmnSupportList {
 		for _, supportSnssai := range plmnSupportItem.SNssaiList {

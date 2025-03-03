@@ -72,7 +72,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 		ok        bool
 		smContext *context.SmContext
 		n1MsgType uint8
-		anType    models.AccessType = models.AccessType__3_GPP_ACCESS
+		anType    coreModels.AccessType = coreModels.AccessType__3_GPP_ACCESS
 	)
 
 	amfSelf := context.AMF_Self()
@@ -195,7 +195,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			switch smInfo.N2InfoContent.NgapIeType {
 			case coreModels.NgapIeType_PDU_RES_SETUP_REQ:
 				ue.ProducerLog.Debugln("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
-				omecSnssai := models.Snssai{
+				omecSnssai := coreModels.Snssai{
 					Sst: smInfo.SNssai.Sst,
 					Sd:  smInfo.SNssai.Sd,
 				}
@@ -255,7 +255,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 		return nil, nil, transferErr
 	}
 	// 504: the UE in MICO mode or the UE is only registered over Non-3GPP access and its state is CM-IDLE
-	if !ue.State[models.AccessType__3_GPP_ACCESS].Is(context.Registered) {
+	if !ue.State[coreModels.AccessType__3_GPP_ACCESS].Is(context.Registered) {
 		transferErr = new(models.N1N2MessageTransferError)
 		transferErr.Error = &models.ProblemDetails{
 			Status: http.StatusGatewayTimeout,
@@ -280,7 +280,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 
 	// Case A (UE is CM-IDLE in 3GPP access and the associated access type is 3GPP access)
 	// in subclause 5.2.2.3.1.2 of TS29518
-	if anType == models.AccessType__3_GPP_ACCESS {
+	if anType == coreModels.AccessType__3_GPP_ACCESS {
 		if requestData.SkipInd && n2Info == nil {
 			n1n2MessageTransferRspData.Cause = coreModels.N1N2MessageTransferCause_N1_MSG_NOT_TRANSFERRED
 		} else {
@@ -310,10 +310,10 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 	} else {
 		// Case B (UE is CM-IDLE in Non-3GPP access but CM-CONNECTED in 3GPP access and the associated
 		// access type is Non-3GPP access)in subclause 5.2.2.3.1.2 of TS29518
-		if ue.CmConnect(models.AccessType__3_GPP_ACCESS) {
+		if ue.CmConnect(coreModels.AccessType__3_GPP_ACCESS) {
 			if n2Info == nil {
 				n1n2MessageTransferRspData.Cause = coreModels.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
-				gmm_message.SendDLNASTransport(ue.RanUe[models.AccessType__3_GPP_ACCESS],
+				gmm_message.SendDLNASTransport(ue.RanUe[coreModels.AccessType__3_GPP_ACCESS],
 					nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionId, 0, nil, 0)
 			} else {
 				n1n2MessageTransferRspData.Cause = coreModels.N1N2MessageTransferCause_ATTEMPTING_TO_REACH_UE
@@ -327,7 +327,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 					logger.AmfLog.Errorf("Build Notification failed : %s", err.Error())
 					return n1n2MessageTransferRspData, problemDetails, transferErr
 				}
-				gmm_message.SendNotification(ue.RanUe[models.AccessType__3_GPP_ACCESS], nasMsg)
+				gmm_message.SendNotification(ue.RanUe[coreModels.AccessType__3_GPP_ACCESS], nasMsg)
 			}
 			return n1n2MessageTransferRspData, nil, nil
 		} else {

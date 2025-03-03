@@ -13,11 +13,11 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
-	"github.com/omec-project/openapi/models"
 )
 
 func BuildPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte,
@@ -930,7 +930,7 @@ func BuildInitialContextSetupRequest(
 
 	for _, allowedSnssai := range amfUe.AllowedNssai[anType] {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
-		ngapSnssai := ngapConvert.SNssaiToNgap(*allowedSnssai.AllowedSnssai)
+		ngapSnssai := util.SNssaiToNgap(*allowedSnssai.AllowedSnssai)
 		allowedNSSAIItem.SNSSAI = ngapSnssai
 		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
 	}
@@ -993,7 +993,7 @@ func BuildInitialContextSetupRequest(
 		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
 		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentTraceActivation
 		ie.Value.TraceActivation = new(ngapType.TraceActivation)
-		traceActivation := ngapConvert.TraceDataToNgap(*amfUe.TraceData, ranUe.Trsr)
+		traceActivation := util.TraceDataToNgap(*amfUe.TraceData, ranUe.Trsr)
 		ie.Value.TraceActivation = &traceActivation
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 	}

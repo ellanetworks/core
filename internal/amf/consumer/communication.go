@@ -6,7 +6,6 @@
 package consumer
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"time"
@@ -19,7 +18,7 @@ import (
 	"github.com/omec-project/openapi/models"
 )
 
-func BuildUeContextModel(ue *amf_context.AmfUe) (ueContext models.UeContext) {
+func BuildUeContextModel(ue *amf_context.AmfUe) (ueContext coreModels.UeContext) {
 	ueContext.Supi = ue.Supi
 	ueContext.SupiUnauthInd = ue.UnauthenticatedSupi
 
@@ -45,7 +44,7 @@ func BuildUeContextModel(ue *amf_context.AmfUe) (ueContext models.UeContext) {
 
 	if ue.AccessAndMobilitySubscriptionData != nil {
 		if ue.AccessAndMobilitySubscriptionData.SubscribedUeAmbr != nil {
-			ueContext.SubUeAmbr = &models.Ambr{
+			ueContext.SubUeAmbr = &coreModels.Ambr{
 				Uplink:   ue.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Uplink,
 				Downlink: ue.AccessAndMobilitySubscriptionData.SubscribedUeAmbr.Downlink,
 			}
@@ -67,70 +66,28 @@ func BuildUeContextModel(ue *amf_context.AmfUe) (ueContext models.UeContext) {
 	return ueContext
 }
 
-func buildAmPolicyReqTriggers(triggers []coreModels.RequestTrigger) (amPolicyReqTriggers []models.AmPolicyReqTrigger) {
+func buildAmPolicyReqTriggers(triggers []coreModels.RequestTrigger) (amPolicyReqTriggers []coreModels.AmPolicyReqTrigger) {
 	for _, trigger := range triggers {
 		switch trigger {
 		case coreModels.RequestTrigger_LOC_CH:
-			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTrigger_LOCATION_CHANGE)
+			amPolicyReqTriggers = append(amPolicyReqTriggers, coreModels.AmPolicyReqTrigger_LOCATION_CHANGE)
 		case coreModels.RequestTrigger_PRA_CH:
-			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTrigger_PRA_CHANGE)
+			amPolicyReqTriggers = append(amPolicyReqTriggers, coreModels.AmPolicyReqTrigger_PRA_CHANGE)
 		case coreModels.RequestTrigger_SERV_AREA_CH:
-			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTrigger_SARI_CHANGE)
+			amPolicyReqTriggers = append(amPolicyReqTriggers, coreModels.AmPolicyReqTrigger_SARI_CHANGE)
 		case coreModels.RequestTrigger_RFSP_CH:
-			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTrigger_RFSP_INDEX_CHANGE)
+			amPolicyReqTriggers = append(amPolicyReqTriggers, coreModels.AmPolicyReqTrigger_RFSP_INDEX_CHANGE)
 		}
 	}
 	return
 }
 
 func UEContextTransferRequest(
-	ue *amf_context.AmfUe, accessType models.AccessType, transferReason models.TransferReason) (
-	ueContextTransferRspData *models.UeContextTransferRspData, problemDetails *models.ProblemDetails, err error,
+	ue *amf_context.AmfUe, accessType coreModels.AccessType, transferReason models.TransferReason) (
+	ueContextTransferRspData *coreModels.UeContextTransferRspData, problemDetails *models.ProblemDetails, err error,
 ) {
-	configuration := Namf_Communication.NewConfiguration()
-	configuration.SetBasePath(ue.TargetAmfUri)
-	client := Namf_Communication.NewAPIClient(configuration)
-
-	ueContextTransferReqData := models.UeContextTransferReqData{
-		Reason:     transferReason,
-		AccessType: accessType,
-	}
-
-	req := models.UeContextTransferRequest{
-		JsonData: &ueContextTransferReqData,
-	}
-	if transferReason == models.TransferReason_INIT_REG || transferReason == models.TransferReason_MOBI_REG {
-		var buf bytes.Buffer
-		ue.RegistrationRequest.EncodeRegistrationRequest(&buf)
-		ueContextTransferReqData.RegRequest = &models.N1MessageContainer{
-			N1MessageClass: models.N1MessageClass__5_GMM,
-			N1MessageContent: &models.RefToBinaryData{
-				ContentId: "n1Msg",
-			},
-		}
-		req.BinaryDataN1Message = buf.Bytes()
-	}
-
-	// guti format is defined at TS 29.518 Table 6.1.3.2.2-1 5g-guti-[0-9]{5,6}[0-9a-fA-F]{14}
-	ueContextId := fmt.Sprintf("5g-guti-%s", ue.Guti)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	res, httpResp, localErr := client.IndividualUeContextDocumentApi.UEContextTransfer(ctx, ueContextId, req)
-	if localErr == nil {
-		ueContextTransferRspData = res.JsonData
-		logger.AmfLog.Debugf("UeContextTransferRspData: %+v", *ueContextTransferRspData)
-	} else if httpResp != nil {
-		if httpResp.Status != localErr.Error() {
-			err = localErr
-			return ueContextTransferRspData, problemDetails, err
-		}
-		problem := localErr.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-		problemDetails = &problem
-	} else {
-		err = openapi.ReportError("%s: server no response", ue.TargetAmfUri)
-	}
-	return ueContextTransferRspData, problemDetails, err
+	logger.AmfLog.Warnf("UE context transfer request is not implemented")
+	return nil, nil, nil
 }
 
 // This operation is called "RegistrationCompleteNotify" at TS 23.502

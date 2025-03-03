@@ -73,8 +73,8 @@ func SDMGetSliceSelectionSubscriptionData(ue *context.AmfUe) (problemDetails *mo
 		return problemDetails, nil
 	}
 	for _, defaultSnssai := range nssai.DefaultSingleNssais {
-		subscribedSnssai := models.SubscribedSnssai{
-			SubscribedSnssai: &models.Snssai{
+		subscribedSnssai := coreModels.SubscribedSnssai{
+			SubscribedSnssai: &coreModels.Snssai{
 				Sst: defaultSnssai.Sst,
 				Sd:  defaultSnssai.Sd,
 			},
@@ -83,8 +83,8 @@ func SDMGetSliceSelectionSubscriptionData(ue *context.AmfUe) (problemDetails *mo
 		ue.SubscribedNssai = append(ue.SubscribedNssai, subscribedSnssai)
 	}
 	for _, snssai := range nssai.SingleNssais {
-		subscribedSnssai := models.SubscribedSnssai{
-			SubscribedSnssai: &models.Snssai{
+		subscribedSnssai := coreModels.SubscribedSnssai{
+			SubscribedSnssai: &coreModels.Snssai{
 				Sst: snssai.Sst,
 				Sd:  snssai.Sd,
 			},

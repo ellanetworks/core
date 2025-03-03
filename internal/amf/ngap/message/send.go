@@ -8,6 +8,7 @@ package message
 import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
+	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/openapi/models"
@@ -66,7 +67,7 @@ func SendToRanUe(ue *context.RanUe, packet []byte) {
 	SendToRan(ran, packet)
 }
 
-func NasSendToRan(ue *context.AmfUe, accessType models.AccessType, packet []byte) {
+func NasSendToRan(ue *context.AmfUe, accessType coreModels.AccessType, packet []byte) {
 	if ue == nil {
 		logger.AmfLog.Error("AmfUe is nil")
 		return
@@ -310,7 +311,7 @@ func SendPDUSessionResourceModifyRequest(ue *context.RanUe,
 
 func SendInitialContextSetupRequest(
 	amfUe *context.AmfUe,
-	anType models.AccessType,
+	anType coreModels.AccessType,
 	nasPdu []byte,
 	pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq,
 	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
@@ -563,7 +564,7 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) {
 	// if err != nil {
 	// 	ngaplog.Errorf("Build Paging failed : %s", err.Error())
 	// }
-	taiList := ue.RegistrationArea[models.AccessType__3_GPP_ACCESS]
+	taiList := ue.RegistrationArea[coreModels.AccessType__3_GPP_ACCESS]
 	context.AMF_Self().AmfRanPool.Range(func(key, value interface{}) bool {
 		ran := value.(*context.AmfRan)
 		for _, item := range ran.SupportedTAList {

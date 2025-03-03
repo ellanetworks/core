@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/omec-project/openapi/models"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 func TestNotInSubscribedNssai(t *testing.T) {

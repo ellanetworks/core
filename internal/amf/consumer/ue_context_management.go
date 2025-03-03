@@ -14,14 +14,14 @@ import (
 	"github.com/omec-project/openapi/models"
 )
 
-func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRegistrationInd bool) (
+func UeCmRegistration(ue *context.AmfUe, accessType coreModels.AccessType, initialRegistrationInd bool) (
 	*models.ProblemDetails, error,
 ) {
 	amfSelf := context.AMF_Self()
 	guamiList := context.GetServedGuamiList()
 
 	switch accessType {
-	case models.AccessType__3_GPP_ACCESS:
+	case coreModels.AccessType__3_GPP_ACCESS:
 		registrationData := coreModels.Amf3GppAccessRegistration{
 			AmfInstanceId:          amfSelf.NfId,
 			InitialRegistrationInd: initialRegistrationInd,
@@ -39,7 +39,7 @@ func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRe
 		if err != nil {
 			return nil, err
 		}
-	case models.AccessType_NON_3_GPP_ACCESS:
+	case coreModels.AccessType_NON_3_GPP_ACCESS:
 		// log an error
 		return nil, openapi.ReportError("Non-3GPP access is not supported")
 	}

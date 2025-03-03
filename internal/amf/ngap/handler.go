@@ -2212,7 +2212,7 @@ func HandleInitialContextSetupResponse(ran *context.AmfRan, message *ngapType.NG
 		}
 	}
 
-	if ranUe.Ran.AnType == models.AccessType_NON_3_GPP_ACCESS {
+	if ranUe.Ran.AnType == coreModels.AccessType_NON_3_GPP_ACCESS {
 		ngap_message.SendDownlinkNasTransport(ranUe, amfUe.RegistrationAcceptForNon3GPPAccess, nil)
 	}
 

@@ -12,10 +12,9 @@ import (
 	localConvert "github.com/ellanetworks/core/internal/amf/ngap/convert"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
-	"github.com/omec-project/openapi/models"
 )
 
 func AppendPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetupListSUReq,
@@ -23,7 +22,7 @@ func AppendPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSet
 ) {
 	var item ngapType.PDUSessionResourceSetupItemSUReq
 	item.PDUSessionID.Value = int64(pduSessionId)
-	item.SNSSAI = ngapConvert.SNssaiToNgap(snssai)
+	item.SNSSAI = util.SNssaiToNgap(snssai)
 	item.PDUSessionResourceSetupRequestTransfer = transfer
 	if nasPDU != nil {
 		item.PDUSessionNASPDU = new(ngapType.NASPDU)
@@ -37,7 +36,7 @@ func AppendPDUSessionResourceSetupListHOReq(list *ngapType.PDUSessionResourceSet
 ) {
 	var item ngapType.PDUSessionResourceSetupItemHOReq
 	item.PDUSessionID.Value = int64(pduSessionId)
-	item.SNSSAI = ngapConvert.SNssaiToNgap(snssai)
+	item.SNSSAI = util.SNssaiToNgap(snssai)
 	item.HandoverRequestTransfer = transfer
 	list.List = append(list.List, item)
 }
@@ -47,7 +46,7 @@ func AppendPDUSessionResourceSetupListCxtReq(list *ngapType.PDUSessionResourceSe
 ) {
 	var item ngapType.PDUSessionResourceSetupItemCxtReq
 	item.PDUSessionID.Value = int64(pduSessionId)
-	item.SNSSAI = ngapConvert.SNssaiToNgap(snssai)
+	item.SNSSAI = util.SNssaiToNgap(snssai)
 	if nasPDU != nil {
 		item.NASPDU = new(ngapType.NASPDU)
 		item.NASPDU.Value = nasPDU
@@ -150,7 +149,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 				tacList = append(tacList, tacNgap)
 			}
 		}
-		if ue.AmPolicyAssociation.ServAreaRes.RestrictionType == coreModels.RestrictionType_ALLOWED_AREAS {
+		if ue.AmPolicyAssociation.ServAreaRes.RestrictionType == models.RestrictionType_ALLOWED_AREAS {
 			item.AllowedTACs = new(ngapType.AllowedTACs)
 			item.AllowedTACs.List = append(item.AllowedTACs.List, tacList...)
 		} else {
@@ -162,7 +161,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 	return mobilityRestrictionList
 }
 
-func BuildUnavailableGUAMIList(guamiList []coreModels.Guami) (unavailableGUAMIList ngapType.UnavailableGUAMIList) {
+func BuildUnavailableGUAMIList(guamiList []models.Guami) (unavailableGUAMIList ngapType.UnavailableGUAMIList) {
 	for _, guami := range guamiList {
 		item := ngapType.UnavailableGUAMIItem{}
 		item.GUAMI.PLMNIdentity = util.PlmnIdToNgap(*guami.PlmnId)
