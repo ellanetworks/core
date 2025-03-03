@@ -99,7 +99,7 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 		}
 	}
 	if requestType != nil {
-		smContextCreateData.RequestType = models.RequestType(*requestType)
+		smContextCreateData.RequestType = *requestType
 	}
 	smContextCreateData.N1SmMsg = new(models.RefToBinaryData)
 	smContextCreateData.N1SmMsg.ContentId = "n1SmMsg"
@@ -188,7 +188,7 @@ func SendUpdateSmContextN2Info(
 	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
 ) {
 	updateData := models.SmContextUpdateData{}
-	updateData.N2SmInfoType = models.N2SmInfoType(n2SmType)
+	updateData.N2SmInfoType = n2SmType
 	updateData.N2SmInfo = new(models.RefToBinaryData)
 	updateData.N2SmInfo.ContentId = N2SMINFO_ID
 	updateData.UeLocation = &ue.Location
@@ -201,7 +201,7 @@ func SendUpdateSmContextXnHandover(
 ) {
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
-		updateData.N2SmInfoType = models.N2SmInfoType(n2SmType)
+		updateData.N2SmInfoType = n2SmType
 		updateData.N2SmInfo = new(models.RefToBinaryData)
 		updateData.N2SmInfo.ContentId = N2SMINFO_ID
 	}
@@ -223,7 +223,7 @@ func SendUpdateSmContextXnHandoverFailed(
 ) {
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
-		updateData.N2SmInfoType = models.N2SmInfoType(n2SmType)
+		updateData.N2SmInfoType = n2SmType
 		updateData.N2SmInfo = new(models.RefToBinaryData)
 		updateData.N2SmInfo.ContentId = N2SMINFO_ID
 	}
@@ -240,7 +240,7 @@ func SendUpdateSmContextN2HandoverPreparing(
 ) {
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
-		updateData.N2SmInfoType = models.N2SmInfoType(n2SmType)
+		updateData.N2SmInfoType = n2SmType
 		updateData.N2SmInfo = new(models.RefToBinaryData)
 		updateData.N2SmInfo.ContentId = N2SMINFO_ID
 	}
@@ -277,7 +277,7 @@ func SendUpdateSmContextN2HandoverPrepared(
 ) {
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
-		updateData.N2SmInfoType = models.N2SmInfoType(n2SmType)
+		updateData.N2SmInfoType = n2SmType
 		updateData.N2SmInfo = new(models.RefToBinaryData)
 		updateData.N2SmInfo.ContentId = N2SMINFO_ID
 	}
@@ -390,7 +390,7 @@ func buildReleaseSmContextRequest(
 		releaseData.UeTimeZone = ue.TimeZone
 	}
 	if n2Info != nil {
-		releaseData.N2SmInfoType = models.N2SmInfoType(n2SmInfoType)
+		releaseData.N2SmInfoType = n2SmInfoType
 		releaseData.N2SmInfo = &models.RefToBinaryData{
 			ContentId: N2SMINFO_ID,
 		}

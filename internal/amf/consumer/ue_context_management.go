@@ -7,10 +7,11 @@
 package consumer
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
-	"github.com/omec-project/openapi"
 )
 
 func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRegistrationInd bool) (
@@ -40,7 +41,7 @@ func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRe
 		}
 	case models.AccessType_NON_3_GPP_ACCESS:
 		// log an error
-		return nil, openapi.ReportError("Non-3GPP access is not supported")
+		return nil, fmt.Errorf("Non-3GPP access is not supported")
 	}
 
 	return nil, nil

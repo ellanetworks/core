@@ -19,9 +19,9 @@ import (
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/internal/util/marshtojsonstring"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/openapi"
 )
 
 func formContextCreateErrRsp(httpStatus int, problemBody *models.ProblemDetails, n1SmMsg *models.RefToBinaryData) *util.Response {
@@ -120,7 +120,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 			smContext.PDUAddress.Ip.String())
 	}
 
-	snssai := openapi.MarshToJsonString(createData.SNssai)[0]
+	snssai := marshtojsonstring.MarshToJsonString(createData.SNssai)[0]
 
 	sessSubData, err := udm.GetAndSetSmData(smContext.Supi, createData.Dnn, snssai)
 	if err != nil {

@@ -11,7 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/openapi"
+	"github.com/ellanetworks/core/internal/util/marshtojsonstring"
 )
 
 var udmContext UDMContext
@@ -38,7 +38,7 @@ func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagement
 	AllDnns := make([]map[string]models.DnnConfiguration, len(smDatafromUDR))
 
 	for idx, smSubscriptionData := range smDatafromUDR {
-		singleNssaiStr := openapi.MarshToJsonString(smSubscriptionData.SingleNssai)[0]
+		singleNssaiStr := marshtojsonstring.MarshToJsonString(smSubscriptionData.SingleNssai)[0]
 		smDataMap[singleNssaiStr] = smSubscriptionData
 		AllDnns[idx] = smSubscriptionData.DnnConfigurations
 	}

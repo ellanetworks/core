@@ -1928,7 +1928,7 @@ func HandlePDUSessionResourceNotify(ran *context.AmfRan, message *ngapType.NGAPP
 				responseData := response.JsonData
 				n2Info := response.BinaryDataN1SmMessage
 				n1Msg := response.BinaryDataN2SmInformation
-				BuildAndSendN1N2Msg(ranUe, n1Msg, n2Info, models.N2SmInfoType(responseData.N2SmInfoType), pduSessionID)
+				BuildAndSendN1N2Msg(ranUe, n1Msg, n2Info, responseData.N2SmInfoType, pduSessionID)
 			} else if errResponse != nil {
 				errJSON := errResponse.JsonData
 				n1Msg := errResponse.BinaryDataN2SmInformation
