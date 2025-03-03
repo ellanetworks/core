@@ -44,7 +44,7 @@ func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest co
 		}
 	}
 
-	problemDetails = &models.ProblemDetails{
+	problemDetails = &coreModels.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
@@ -60,7 +60,7 @@ func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest co
 func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 	n1n2MessageTransferRequest coreModels.N1N2MessageTransferRequest) (
 	n1n2MessageTransferRspData *coreModels.N1N2MessageTransferRspData,
-	problemDetails *models.ProblemDetails,
+	problemDetails *coreModels.ProblemDetails,
 	transferErr *models.N1N2MessageTransferError,
 ) {
 	var (
@@ -78,7 +78,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 	amfSelf := context.AMF_Self()
 
 	if ue, ok = amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
-		problemDetails = &models.ProblemDetails{
+		problemDetails = &coreModels.ProblemDetails{
 			Status: http.StatusNotFound,
 			Cause:  "CONTEXT_NOT_FOUND",
 		}
@@ -91,7 +91,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			ue.ProducerLog.Debugf("Receive N1 SM Message (PDU Session ID: %d)", requestData.PduSessionId)
 			n1MsgType = nasMessage.PayloadContainerTypeN1SMInfo
 			if smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionId); !ok {
-				problemDetails = &models.ProblemDetails{
+				problemDetails = &coreModels.ProblemDetails{
 					Status: http.StatusNotFound,
 					Cause:  "CONTEXT_NOT_FOUND",
 				}
@@ -115,7 +115,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			ue.ProducerLog.Debugf("Receive N2 SM Message (PDU Session ID: %d)", requestData.PduSessionId)
 			if smContext == nil {
 				if smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionId); !ok {
-					problemDetails = &models.ProblemDetails{
+					problemDetails = &coreModels.ProblemDetails{
 						Status: http.StatusNotFound,
 						Cause:  "CONTEXT_NOT_FOUND",
 					}
@@ -126,7 +126,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			}
 		default:
 			ue.ProducerLog.Warnf("N2 Information type [%s] is not supported", requestData.N2InfoContainer.N2InformationClass)
-			problemDetails = &models.ProblemDetails{
+			problemDetails = &coreModels.ProblemDetails{
 				Status: http.StatusNotImplemented,
 				Cause:  "NOT_IMPLEMENTED",
 			}
@@ -173,7 +173,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 			nasPdu, err = gmm_message.BuildDLNASTransport(ue, n1MsgType, n1Msg, uint8(requestData.PduSessionId), nil, nil, 0)
 			if err != nil {
 				ue.ProducerLog.Errorf("Build DL NAS Transport error: %+v", err)
-				problemDetails = &models.ProblemDetails{
+				problemDetails = &coreModels.ProblemDetails{
 					Title:  "System failure",
 					Status: http.StatusInternalServerError,
 					Detail: err.Error(),
@@ -234,7 +234,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 				return n1n2MessageTransferRspData, nil, nil
 			default:
 				ue.ProducerLog.Errorf("NGAP IE Type[%s] is not supported for SmInfo", smInfo.N2InfoContent.NgapIeType)
-				problemDetails = &models.ProblemDetails{
+				problemDetails = &coreModels.ProblemDetails{
 					Status: http.StatusForbidden,
 					Cause:  "UNSPECIFIED",
 				}
@@ -270,7 +270,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 
 	if _, err := ue.N1N2MessageIDGenerator.Allocate(); err != nil {
 		ue.ProducerLog.Errorf("Allocate n1n2MessageID error: %+v", err)
-		problemDetails = &models.ProblemDetails{
+		problemDetails = &coreModels.ProblemDetails{
 			Status: http.StatusInternalServerError,
 			Cause:  "SYSTEM_FAILURE",
 			Detail: err.Error(),

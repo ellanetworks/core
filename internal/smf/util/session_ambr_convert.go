@@ -5,18 +5,18 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/nas/logger"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
 )
 
 func ModelsToSessionAMBR(ambr *models.Ambr) (sessAmbr nasType.SessionAMBR) {
-	logger.ConvertLog.Infof("%v", ambr)
+	logger.SmfLog.Infof("%v", ambr)
 
 	uplink := strings.Split(ambr.Uplink, " ")
 	if bitRate, err := strconv.ParseUint(uplink[0], 10, 16); err != nil {
-		logger.ConvertLog.Warnf("uplink AMBR parse failed: %+v", err)
+		logger.SmfLog.Warnf("uplink AMBR parse failed: %+v", err)
 	} else {
 		var bitRateBytes [2]byte
 		binary.BigEndian.PutUint16(bitRateBytes[:], uint16(bitRate))
@@ -26,7 +26,7 @@ func ModelsToSessionAMBR(ambr *models.Ambr) (sessAmbr nasType.SessionAMBR) {
 
 	downlink := strings.Split(ambr.Downlink, " ")
 	if bitRate, err := strconv.ParseUint(downlink[0], 10, 16); err != nil {
-		logger.ConvertLog.Warnf("downlink AMBR parse failed: %+v", err)
+		logger.SmfLog.Warnf("downlink AMBR parse failed: %+v", err)
 	} else {
 		var bitRateBytes [2]byte
 		binary.BigEndian.PutUint16(bitRateBytes[:], uint16(bitRate))

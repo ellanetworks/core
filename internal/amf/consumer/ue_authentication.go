@@ -14,17 +14,16 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasType"
-	"github.com/omec-project/openapi/models"
 )
 
 func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
-	resynchronizationInfo *coreModels.ResynchronizationInfo,
-) (*coreModels.UeAuthenticationCtx, *models.ProblemDetails, error) {
+	resynchronizationInfo *models.ResynchronizationInfo,
+) (*models.UeAuthenticationCtx, *models.ProblemDetails, error) {
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
-	var plmnId *coreModels.PlmnId
+	var plmnId *models.PlmnId
 	if ue.Tai.PlmnId != nil {
 		plmnId = ue.Tai.PlmnId
 	} else {
@@ -32,7 +31,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 		plmnId = servedGuami.PlmnId
 	}
 
-	var authInfo coreModels.AuthenticationInfo
+	var authInfo models.AuthenticationInfo
 	authInfo.SupiOrSuci = ue.Suci
 	if mnc, err := strconv.Atoi(plmnId.Mnc); err != nil {
 		return nil, nil, err
@@ -52,9 +51,9 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 }
 
 func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string) (
-	*coreModels.ConfirmationDataResponse, *models.ProblemDetails, error,
+	*models.ConfirmationDataResponse, *models.ProblemDetails, error,
 ) {
-	confirmationData := coreModels.ConfirmationData{
+	confirmationData := models.ConfirmationData{
 		ResStar: resStar,
 	}
 	confirmResult, err := ausf.Auth5gAkaComfirmRequestProcedure(confirmationData, ue.Suci)
@@ -71,9 +70,9 @@ func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string) (
 }
 
 func SendEapAuthConfirmRequest(ue *context.AmfUe, eapMsg nasType.EAPMessage) (
-	*coreModels.EapSession, *models.ProblemDetails, error,
+	*models.EapSession, *models.ProblemDetails, error,
 ) {
-	eapSession := coreModels.EapSession{
+	eapSession := models.EapSession{
 		EapPayload: base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage()),
 	}
 

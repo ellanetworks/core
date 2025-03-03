@@ -362,7 +362,7 @@ func forward5GSMMessageToSMF(
 func HandleRegistrationRequest(ue *context.AmfUe, anType coreModels.AccessType, procedureCode int64,
 	registrationRequest *nasMessage.RegistrationRequest,
 ) error {
-	var guamiFromUeGuti models.Guami
+	var guamiFromUeGuti coreModels.Guami
 	amfSelf := context.AMF_Self()
 
 	if ue == nil {
@@ -455,7 +455,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType coreModels.AccessType, 
 		ue.PlmnId = PlmnIdStringToModels(plmnId)
 		ue.GmmLog.Debugf("SUCI: %s", ue.Suci)
 	case nasMessage.MobileIdentity5GSType5gGuti:
-		guamiFromUeGutiTmp, guti := nasConvert.GutiToString(mobileIdentity5GSContents)
+		guamiFromUeGutiTmp, guti := util.GutiToString(mobileIdentity5GSContents)
 		guamiFromUeGuti = guamiFromUeGutiTmp
 		ue.Guti = guti
 		ue.GmmLog.Debugf("GUTI: %s", guti)
@@ -515,14 +515,14 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType coreModels.AccessType, 
 		return fmt.Errorf("UESecurityCapability is nil")
 	}
 	if ue.ServingAmfChanged {
-		var transferReason models.TransferReason
+		var transferReason coreModels.TransferReason
 		switch ue.RegistrationType5GS {
 		case nasMessage.RegistrationType5GSInitialRegistration:
-			transferReason = models.TransferReason_INIT_REG
+			transferReason = coreModels.TransferReason_INIT_REG
 		case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
 			fallthrough
 		case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
-			transferReason = models.TransferReason_MOBI_REG
+			transferReason = coreModels.TransferReason_MOBI_REG
 		}
 
 		ue.TargetAmfUri = amfSelf.GetIPv4Uri()
@@ -590,8 +590,8 @@ func HandleInitialRegistration(ue *context.AmfUe, anType coreModels.AccessType) 
 
 	if ue.ServingAmfChanged {
 		// If the AMF has changed the new AMF notifies the old AMF that the registration of the UE in the new AMF is completed
-		req := models.UeRegStatusUpdateReqData{
-			TransferStatus: models.UeContextTransferStatus_TRANSFERRED,
+		req := coreModels.UeRegStatusUpdateReqData{
+			TransferStatus: coreModels.UeContextTransferStatus_TRANSFERRED,
 		}
 		regStatusTransferComplete, problemDetails, err := consumer.RegistrationStatusUpdate(ue, req)
 		if problemDetails != nil {
@@ -1080,8 +1080,8 @@ func handleRequestedNssai(ue *context.AmfUe, anType coreModels.AccessType) error
 			}
 
 			// Step 5: Initial AMF send Namf_Communication_RegistrationCompleteNotify to old AMF
-			req := models.UeRegStatusUpdateReqData{
-				TransferStatus: models.UeContextTransferStatus_NOT_TRANSFERRED,
+			req := coreModels.UeRegStatusUpdateReqData{
+				TransferStatus: coreModels.UeContextTransferStatus_NOT_TRANSFERRED,
 			}
 			_, problemDetails, err := consumer.RegistrationStatusUpdate(ue, req)
 			if problemDetails != nil {
