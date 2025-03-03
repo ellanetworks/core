@@ -8,9 +8,8 @@ package consumer
 
 import (
 	"github.com/ellanetworks/core/internal/amf/context"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
-	"github.com/omec-project/openapi/models"
 )
 
 func SDMGetAmData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err error) {
@@ -42,9 +41,9 @@ func SDMGetUeContextInSmfData(ue *context.AmfUe) (problemDetails *models.Problem
 
 func SDMSubscribe(ue *context.AmfUe) (*models.ProblemDetails, error) {
 	amfSelf := context.AMF_Self()
-	sdmSubscription := &coreModels.SdmSubscription{
+	sdmSubscription := &models.SdmSubscription{
 		NfInstanceId: amfSelf.NfId,
-		PlmnId: &coreModels.PlmnId{
+		PlmnId: &models.PlmnId{
 			Mcc: ue.PlmnId.Mcc,
 			Mnc: ue.PlmnId.Mnc,
 		},
@@ -73,8 +72,8 @@ func SDMGetSliceSelectionSubscriptionData(ue *context.AmfUe) (problemDetails *mo
 		return problemDetails, nil
 	}
 	for _, defaultSnssai := range nssai.DefaultSingleNssais {
-		subscribedSnssai := coreModels.SubscribedSnssai{
-			SubscribedSnssai: &coreModels.Snssai{
+		subscribedSnssai := models.SubscribedSnssai{
+			SubscribedSnssai: &models.Snssai{
 				Sst: defaultSnssai.Sst,
 				Sd:  defaultSnssai.Sd,
 			},
@@ -83,8 +82,8 @@ func SDMGetSliceSelectionSubscriptionData(ue *context.AmfUe) (problemDetails *mo
 		ue.SubscribedNssai = append(ue.SubscribedNssai, subscribedSnssai)
 	}
 	for _, snssai := range nssai.SingleNssais {
-		subscribedSnssai := coreModels.SubscribedSnssai{
-			SubscribedSnssai: &coreModels.Snssai{
+		subscribedSnssai := models.SubscribedSnssai{
+			SubscribedSnssai: &models.Snssai{
 				Sst: snssai.Sst,
 				Sd:  snssai.Sd,
 			},

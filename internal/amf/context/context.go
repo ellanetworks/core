@@ -76,7 +76,7 @@ type AMFContext struct {
 	RelativeCapacity                int64
 	NfId                            string
 	Name                            string
-	UriScheme                       models.UriScheme
+	UriScheme                       coreModels.UriScheme
 	NgapPort                        int
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
 	SupportedDnns                   []string

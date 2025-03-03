@@ -14,12 +14,11 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nas_security"
 	"github.com/ellanetworks/core/internal/amf/util"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
-	"github.com/omec-project/openapi/models"
 )
 
 func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu []byte,
@@ -122,9 +121,9 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 	authenticationRequest.ABBA.SetABBAContents(ue.ABBA)
 
 	switch ue.AuthenticationCtx.AuthType {
-	case coreModels.AuthType__5_G_AKA:
+	case models.AuthType__5_G_AKA:
 		var tmpArray [16]byte
-		av5gAka, ok := ue.AuthenticationCtx.Var5gAuthData.(coreModels.Av5gAka)
+		av5gAka, ok := ue.AuthenticationCtx.Var5gAuthData.(models.Av5gAka)
 		if !ok {
 			return nil, fmt.Errorf("Var5gAuthData type assertion failed: got %T", ue.AuthenticationCtx.Var5gAuthData)
 		}
@@ -145,7 +144,7 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 		authenticationRequest.AuthenticationParameterAUTN.SetLen(uint8(len(autn)))
 		copy(tmpArray[:], autn[0:16])
 		authenticationRequest.AuthenticationParameterAUTN.SetAUTN(tmpArray)
-	case coreModels.AuthType_EAP_AKA_PRIME:
+	case models.AuthType_EAP_AKA_PRIME:
 		eapMsg := ue.AuthenticationCtx.Var5gAuthData.(string)
 		rawEapMsg, err := base64.StdEncoding.DecodeString(eapMsg)
 		if err != nil {
@@ -447,7 +446,7 @@ func BuildDeregistrationAccept() ([]byte, error) {
 
 func BuildRegistrationAccept(
 	ue *context.AmfUe,
-	anType coreModels.AccessType,
+	anType models.AccessType,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionId, errCause []uint8,
@@ -469,14 +468,14 @@ func BuildRegistrationAccept(
 
 	registrationAccept.RegistrationResult5GS.SetLen(1)
 	registrationResult := uint8(0)
-	if anType == coreModels.AccessType__3_GPP_ACCESS {
+	if anType == models.AccessType__3_GPP_ACCESS {
 		registrationResult |= nasMessage.AccessType3GPP
-		if ue.State[coreModels.AccessType_NON_3_GPP_ACCESS].Is(context.Registered) {
+		if ue.State[models.AccessType_NON_3_GPP_ACCESS].Is(context.Registered) {
 			registrationResult |= nasMessage.AccessTypeNon3GPP
 		}
 	} else {
 		registrationResult |= nasMessage.AccessTypeNon3GPP
-		if ue.State[coreModels.AccessType__3_GPP_ACCESS].Is(context.Registered) {
+		if ue.State[models.AccessType__3_GPP_ACCESS].Is(context.Registered) {
 			registrationResult |= nasMessage.AccessType3GPP
 		}
 	}
@@ -521,7 +520,7 @@ func BuildRegistrationAccept(
 	if amfSelf.Get5gsNwFeatSuppEnable() {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
 		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)
-		if anType == coreModels.AccessType__3_GPP_ACCESS {
+		if anType == models.AccessType__3_GPP_ACCESS {
 			registrationAccept.SetIMSVoPS3GPP(amfSelf.Get5gsNwFeatSuppImsVoPS())
 		} else {
 			registrationAccept.SetIMSVoPSN3GPP(amfSelf.Get5gsNwFeatSuppImsVoPS())
@@ -572,7 +571,7 @@ func BuildRegistrationAccept(
 		ue.NetworkSlicingSubscriptionChanged = false // reset the value
 	}
 
-	if anType == coreModels.AccessType__3_GPP_ACCESS && ue.AmPolicyAssociation != nil &&
+	if anType == models.AccessType__3_GPP_ACCESS && ue.AmPolicyAssociation != nil &&
 		ue.AmPolicyAssociation.ServAreaRes != nil {
 		registrationAccept.ServiceAreaList = nasType.NewServiceAreaList(nasMessage.RegistrationAcceptServiceAreaListType)
 		partialServiceAreaList := util.PartialServiceAreaListToNas(ue.PlmnId, *ue.AmPolicyAssociation.ServAreaRes)
@@ -588,7 +587,7 @@ func BuildRegistrationAccept(
 		registrationAccept.T3512Value.Octet = t3512
 	}*/
 
-	if anType == coreModels.AccessType_NON_3_GPP_ACCESS {
+	if anType == models.AccessType_NON_3_GPP_ACCESS {
 		registrationAccept.Non3GppDeregistrationTimerValue = nasType.NewNon3GppDeregistrationTimerValue(nasMessage.RegistrationAcceptNon3GppDeregistrationTimerValueType)
 		registrationAccept.Non3GppDeregistrationTimerValue.SetLen(1)
 		timerValue := nasConvert.GPRSTimer2ToNas(ue.Non3gppDeregistrationTimerValue)

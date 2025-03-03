@@ -12,7 +12,6 @@ import (
 
 	coreModels "github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/openapi/models"
 )
 
 type SmContext struct {
@@ -40,8 +39,6 @@ type SmContext struct {
 	// for duplicate pdu session id handling
 	UlNASTransportVal *nasMessage.ULNASTransport
 	DuplicatedVal     bool
-
-	SmfProfiles []models.NfProfile
 }
 
 func NewSmContext(pduSessionID int32) *SmContext {

@@ -322,7 +322,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string,
 					Status:  n1n2MessageTransferRspData.Cause,
 				}
 				ue.N1N2Message = &message
-				nasMsg, err := gmm_message.BuildNotification(ue, models.AccessType_NON_3_GPP_ACCESS)
+				nasMsg, err := gmm_message.BuildNotification(ue, coreModels.AccessType_NON_3_GPP_ACCESS)
 				if err != nil {
 					logger.AmfLog.Errorf("Build Notification failed : %s", err.Error())
 					return n1n2MessageTransferRspData, problemDetails, transferErr
