@@ -11,12 +11,13 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
-	"github.com/omec-project/openapi/models"
 )
 
 func BuildPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte,
@@ -121,7 +122,7 @@ func BuildNGSetupResponse() ([]byte, error) {
 	guamiList := context.GetServedGuamiList()
 	for _, guami := range guamiList {
 		servedGUAMIItem := ngapType.ServedGUAMIItem{}
-		servedGUAMIItem.GUAMI.PLMNIdentity = ngapConvert.PlmnIdToNgap(*guami.PlmnId)
+		servedGUAMIItem.GUAMI.PLMNIdentity = util.PlmnIdToNgap(*guami.PlmnId)
 		regionId, setId, prtId := ngapConvert.AmfIdToNgap(guami.AmfId)
 		servedGUAMIItem.GUAMI.AMFRegionID.Value = regionId
 		servedGUAMIItem.GUAMI.AMFSetID.Value = setId
@@ -153,10 +154,10 @@ func BuildNGSetupResponse() ([]byte, error) {
 	plmnSupportConfigList := context.GetPlmnSupportList()
 	for _, plmnItem := range plmnSupportConfigList {
 		pLMNSupportItem := ngapType.PLMNSupportItem{}
-		pLMNSupportItem.PLMNIdentity = ngapConvert.PlmnIdToNgap(plmnItem.PlmnId)
+		pLMNSupportItem.PLMNIdentity = util.PlmnIdToNgap(plmnItem.PlmnId)
 		for _, snssai := range plmnItem.SNssaiList {
 			sliceSupportItem := ngapType.SliceSupportItem{}
-			sliceSupportItem.SNSSAI = ngapConvert.SNssaiToNgap(snssai)
+			sliceSupportItem.SNSSAI = util.SNssaiToNgap(snssai)
 			pLMNSupportItem.SliceSupportList.List = append(pLMNSupportItem.SliceSupportList.List, sliceSupportItem)
 		}
 		pLMNSupportList.List = append(pLMNSupportList.List, pLMNSupportItem)
@@ -903,7 +904,7 @@ func BuildInitialContextSetupRequest(
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 
-	*plmnID = ngapConvert.PlmnIdToNgap(*servedGuami.PlmnId)
+	*plmnID = util.PlmnIdToNgap(*servedGuami.PlmnId)
 	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfId)
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
@@ -929,7 +930,7 @@ func BuildInitialContextSetupRequest(
 
 	for _, allowedSnssai := range amfUe.AllowedNssai[anType] {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
-		ngapSnssai := ngapConvert.SNssaiToNgap(*allowedSnssai.AllowedSnssai)
+		ngapSnssai := util.SNssaiToNgap(*allowedSnssai.AllowedSnssai)
 		allowedNSSAIItem.SNSSAI = ngapSnssai
 		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
 	}
@@ -992,7 +993,7 @@ func BuildInitialContextSetupRequest(
 		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
 		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentTraceActivation
 		ie.Value.TraceActivation = new(ngapType.TraceActivation)
-		traceActivation := ngapConvert.TraceDataToNgap(*amfUe.TraceData, ranUe.Trsr)
+		traceActivation := util.TraceDataToNgap(*amfUe.TraceData, ranUe.Trsr)
 		ie.Value.TraceActivation = &traceActivation
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 	}
@@ -1455,7 +1456,7 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause,
 	for _, snssaiItem := range plmnSupportList[0].SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 
-		ngapSnssai := ngapConvert.SNssaiToNgap(snssaiItem)
+		ngapSnssai := util.SNssaiToNgap(snssaiItem)
 		allowedNSSAIItem.SNSSAI = ngapSnssai
 		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
 	}
@@ -1489,7 +1490,7 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause,
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 
-	*plmnID = ngapConvert.PlmnIdToNgap(*servedGuami.PlmnId)
+	*plmnID = util.PlmnIdToNgap(*servedGuami.PlmnId)
 	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfId)
 
 	handoverRequestIEs.List = append(handoverRequestIEs.List, ie)
@@ -1671,7 +1672,7 @@ func BuildPathSwitchRequestAcknowledge(
 	for _, modelSnssai := range plmnSupportList[0].SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 
-		ngapSnssai := ngapConvert.SNssaiToNgap(modelSnssai)
+		ngapSnssai := util.SNssaiToNgap(modelSnssai)
 		allowedNSSAIItem.SNSSAI = ngapSnssai
 		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
 	}
@@ -1854,7 +1855,7 @@ func BuildPaging(
 		for _, tai := range ue.RegistrationArea[models.AccessType__3_GPP_ACCESS] {
 			var tac []byte
 			taiListforPagingItem := ngapType.TAIListForPagingItem{}
-			taiListforPagingItem.TAI.PLMNIdentity = ngapConvert.PlmnIdToNgap(*tai.PlmnId)
+			taiListforPagingItem.TAI.PLMNIdentity = util.PlmnIdToNgap(*tai.PlmnId)
 			tac, err = hex.DecodeString(tai.Tac)
 			if err != nil {
 				logger.AmfLog.Errorf("[Build Error] DecodeString tai.Tac error: %+v", err)
@@ -1920,13 +1921,13 @@ func BuildPaging(
 				recommendedCellItem.NGRANCGI.Present = ngapType.NGRANCGIPresentNRCGI
 				recommendedCellItem.NGRANCGI.NRCGI = new(ngapType.NRCGI)
 				nrCGI := recommendedCellItem.NGRANCGI.NRCGI
-				nrCGI.PLMNIdentity = ngapConvert.PlmnIdToNgap(*recommendedCell.NgRanCGI.NRCGI.PlmnId)
+				nrCGI.PLMNIdentity = util.PlmnIdToNgap(*recommendedCell.NgRanCGI.NRCGI.PlmnId)
 				nrCGI.NRCellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.NRCGI.NrCellId, 36)
 			case context.NgRanCgiPresentEUTRACGI:
 				recommendedCellItem.NGRANCGI.Present = ngapType.NGRANCGIPresentEUTRACGI
 				recommendedCellItem.NGRANCGI.EUTRACGI = new(ngapType.EUTRACGI)
 				eutraCGI := recommendedCellItem.NGRANCGI.EUTRACGI
-				eutraCGI.PLMNIdentity = ngapConvert.PlmnIdToNgap(*recommendedCell.NgRanCGI.EUTRACGI.PlmnId)
+				eutraCGI.PLMNIdentity = util.PlmnIdToNgap(*recommendedCell.NgRanCGI.EUTRACGI.PlmnId)
 				eutraCGI.EUTRACellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.EUTRACGI.EutraCellId, 28)
 			}
 

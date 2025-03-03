@@ -8,7 +8,7 @@ package context
 import (
 	"time"
 
-	"github.com/omec-project/openapi/models"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 const (

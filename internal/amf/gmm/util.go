@@ -2,8 +2,8 @@
 package gmm
 
 import (
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/openapi/models"
 )
 
 func AnTypeToNas(anType models.AccessType) uint8 {

@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/internal/util/ueauth"
@@ -27,7 +27,6 @@ import (
 	"github.com/omec-project/nas/nasType"
 	"github.com/omec-project/nas/security"
 	"github.com/omec-project/ngap/ngapType"
-	"github.com/omec-project/openapi/models"
 	"go.uber.org/zap"
 )
 
@@ -100,29 +99,27 @@ type AmfUe struct {
 	TimeZone                 string              `json:"timezone,omitempty"`
 	/* context about udm */
 	// UdmId                             string                                    `json:"udmId,omitempty"`
-	SubscriptionDataValid             bool                                          `json:"subscriptionDataValid,omitempty"`
-	Reachability                      models.UeReachability                         `json:"reachability,omitempty"`
-	SubscribedData                    models.SubscribedData                         `json:"subscribedData,omitempty"`
-	SmfSelectionData                  *coreModels.SmfSelectionSubscriptionData      `json:"smfSelectionData,omitempty"`
-	UeContextInSmfData                *coreModels.UeContextInSmfData                `json:"ueContextInSmfData,omitempty"`
-	TraceData                         *models.TraceData                             `json:"traceData,omitempty"`
-	UdmGroupId                        string                                        `json:"udmGroupId,omitempty"`
-	SubscribedNssai                   []models.SubscribedSnssai                     `json:"subscribeNssai,omitempty"`
-	AccessAndMobilitySubscriptionData *coreModels.AccessAndMobilitySubscriptionData `json:"accessAndMobilitySubscriptionData,omitempty"`
+	SubscriptionDataValid             bool                                      `json:"subscriptionDataValid,omitempty"`
+	SmfSelectionData                  *models.SmfSelectionSubscriptionData      `json:"smfSelectionData,omitempty"`
+	UeContextInSmfData                *models.UeContextInSmfData                `json:"ueContextInSmfData,omitempty"`
+	TraceData                         *models.TraceData                         `json:"traceData,omitempty"`
+	UdmGroupId                        string                                    `json:"udmGroupId,omitempty"`
+	SubscribedNssai                   []models.SubscribedSnssai                 `json:"subscribeNssai,omitempty"`
+	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData `json:"accessAndMobilitySubscriptionData,omitempty"`
 	/* contex abut ausf */
-	AusfGroupId                       string                          `json:"ausfGroupId,omitempty"`
-	AusfId                            string                          `json:"ausfId,omitempty"`
-	RoutingIndicator                  string                          `json:"routingIndicator,omitempty"`
-	AuthenticationCtx                 *coreModels.UeAuthenticationCtx `json:"authenticationCtx,omitempty"`
-	AuthFailureCauseSynchFailureTimes int                             `json:"authFailureCauseSynchFailureTimes,omitempty"`
-	ABBA                              []uint8                         `json:"abba,omitempty"`
-	Kseaf                             string                          `json:"kseaf,omitempty"`
-	Kamf                              string                          `json:"kamf,omitempty"`
+	AusfGroupId                       string                      `json:"ausfGroupId,omitempty"`
+	AusfId                            string                      `json:"ausfId,omitempty"`
+	RoutingIndicator                  string                      `json:"routingIndicator,omitempty"`
+	AuthenticationCtx                 *models.UeAuthenticationCtx `json:"authenticationCtx,omitempty"`
+	AuthFailureCauseSynchFailureTimes int                         `json:"authFailureCauseSynchFailureTimes,omitempty"`
+	ABBA                              []uint8                     `json:"abba,omitempty"`
+	Kseaf                             string                      `json:"kseaf,omitempty"`
+	Kamf                              string                      `json:"kamf,omitempty"`
 	/* context about PCF */
-	PolicyAssociationId          string                        `json:"policyAssociationId,omitempty"`
-	AmPolicyAssociation          *coreModels.PolicyAssociation `json:"amPolicyAssociation,omitempty"`
-	RequestTriggerLocationChange bool                          `json:"requestTriggerLocationChange,omitempty"` // true if AmPolicyAssociation.Trigger contains RequestTrigger_LOC_CH
-	ConfigurationUpdateMessage   []byte                        `json:"configurationUpdateMessage,omitempty"`
+	PolicyAssociationId          string                    `json:"policyAssociationId,omitempty"`
+	AmPolicyAssociation          *models.PolicyAssociation `json:"amPolicyAssociation,omitempty"`
+	RequestTriggerLocationChange bool                      `json:"requestTriggerLocationChange,omitempty"` // true if AmPolicyAssociation.Trigger contains RequestTrigger_LOC_CH
+	ConfigurationUpdateMessage   []byte                    `json:"configurationUpdateMessage,omitempty"`
 	/* UeContextForHandover*/
 	HandoverNotifyUri string `json:"handoverNotifyUri,omitempty"`
 	/* N1N2Message */
@@ -229,7 +226,7 @@ type NgapMsg struct {
 }
 
 type N1N2Message struct {
-	Request coreModels.N1N2MessageTransferRequest
+	Request models.N1N2MessageTransferRequest
 	Status  models.N1N2MessageTransferCause
 }
 
@@ -345,25 +342,6 @@ func (ue *AmfUe) GetAnType() models.AccessType {
 		return models.AccessType_NON_3_GPP_ACCESS
 	}
 	return ""
-}
-
-func (ue *AmfUe) GetCmInfo() (cmInfos []models.CmInfo) {
-	var cmInfo models.CmInfo
-	cmInfo.AccessType = models.AccessType__3_GPP_ACCESS
-	if ue.CmConnect(cmInfo.AccessType) {
-		cmInfo.CmState = models.CmState_CONNECTED
-	} else {
-		cmInfo.CmState = models.CmState_IDLE
-	}
-	cmInfos = append(cmInfos, cmInfo)
-	cmInfo.AccessType = models.AccessType_NON_3_GPP_ACCESS
-	if ue.CmConnect(cmInfo.AccessType) {
-		cmInfo.CmState = models.CmState_CONNECTED
-	} else {
-		cmInfo.CmState = models.CmState_IDLE
-	}
-	cmInfos = append(cmInfos, cmInfo)
-	return
 }
 
 func (ue *AmfUe) InAllowedNssai(targetSNssai models.Snssai, anType models.AccessType) bool {
@@ -657,10 +635,10 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 
 	if ueContext.SubUeAmbr != nil {
 		if ue.AccessAndMobilitySubscriptionData == nil {
-			ue.AccessAndMobilitySubscriptionData = new(coreModels.AccessAndMobilitySubscriptionData)
+			ue.AccessAndMobilitySubscriptionData = new(models.AccessAndMobilitySubscriptionData)
 		}
 		if ue.AccessAndMobilitySubscriptionData.SubscribedUeAmbr == nil {
-			ue.AccessAndMobilitySubscriptionData.SubscribedUeAmbr = new(coreModels.AmbrRm)
+			ue.AccessAndMobilitySubscriptionData.SubscribedUeAmbr = new(models.AmbrRm)
 		}
 
 		subAmbr := ue.AccessAndMobilitySubscriptionData.SubscribedUeAmbr
@@ -670,29 +648,27 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 
 	if ueContext.SubRfsp != 0 {
 		if ue.AccessAndMobilitySubscriptionData == nil {
-			ue.AccessAndMobilitySubscriptionData = new(coreModels.AccessAndMobilitySubscriptionData)
+			ue.AccessAndMobilitySubscriptionData = new(models.AccessAndMobilitySubscriptionData)
 		}
 		ue.AccessAndMobilitySubscriptionData.RfspIndex = ueContext.SubRfsp
 	}
 
 	if len(ueContext.RestrictedRatList) > 0 {
 		if ue.AccessAndMobilitySubscriptionData == nil {
-			ue.AccessAndMobilitySubscriptionData = new(coreModels.AccessAndMobilitySubscriptionData)
+			ue.AccessAndMobilitySubscriptionData = new(models.AccessAndMobilitySubscriptionData)
 		}
-		ue.AccessAndMobilitySubscriptionData.RatRestrictions = []coreModels.RatType{}
-		for _, ratType := range ueContext.RestrictedRatList {
-			ue.AccessAndMobilitySubscriptionData.RatRestrictions = append(ue.AccessAndMobilitySubscriptionData.RatRestrictions, coreModels.RatType(ratType))
-		}
+		ue.AccessAndMobilitySubscriptionData.RatRestrictions = []models.RatType{}
+		ue.AccessAndMobilitySubscriptionData.RatRestrictions = append(ue.AccessAndMobilitySubscriptionData.RatRestrictions, ueContext.RestrictedRatList...)
 	}
 
 	if len(ueContext.ForbiddenAreaList) > 0 {
 		if ue.AccessAndMobilitySubscriptionData == nil {
-			ue.AccessAndMobilitySubscriptionData = new(coreModels.AccessAndMobilitySubscriptionData)
+			ue.AccessAndMobilitySubscriptionData = new(models.AccessAndMobilitySubscriptionData)
 		}
 		// ue.AccessAndMobilitySubscriptionData.ForbiddenAreas = ueContext.ForbiddenAreaList
-		ue.AccessAndMobilitySubscriptionData.ForbiddenAreas = []coreModels.Area{}
+		ue.AccessAndMobilitySubscriptionData.ForbiddenAreas = []models.Area{}
 		for _, area := range ueContext.ForbiddenAreaList {
-			ue.AccessAndMobilitySubscriptionData.ForbiddenAreas = append(ue.AccessAndMobilitySubscriptionData.ForbiddenAreas, coreModels.Area{
+			ue.AccessAndMobilitySubscriptionData.ForbiddenAreas = append(ue.AccessAndMobilitySubscriptionData.ForbiddenAreas, models.Area{
 				Tacs:      []string{},
 				AreaCodes: area.AreaCodes,
 			})
@@ -702,15 +678,15 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 
 	if ueContext.ServiceAreaRestriction != nil {
 		if ue.AccessAndMobilitySubscriptionData == nil {
-			ue.AccessAndMobilitySubscriptionData = new(coreModels.AccessAndMobilitySubscriptionData)
+			ue.AccessAndMobilitySubscriptionData = new(models.AccessAndMobilitySubscriptionData)
 		}
-		ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction = &coreModels.ServiceAreaRestriction{
-			RestrictionType: coreModels.RestrictionType(ueContext.ServiceAreaRestriction.RestrictionType),
-			Areas:           []coreModels.Area{},
+		ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction = &models.ServiceAreaRestriction{
+			RestrictionType: ueContext.ServiceAreaRestriction.RestrictionType,
+			Areas:           []models.Area{},
 			MaxNumOfTAs:     ueContext.ServiceAreaRestriction.MaxNumOfTAs,
 		}
 		for _, area := range ueContext.ServiceAreaRestriction.Areas {
-			ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas = append(ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas, coreModels.Area{
+			ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas = append(ue.AccessAndMobilitySubscriptionData.ServiceAreaRestriction.Areas, models.Area{
 				Tacs:      []string{},
 				AreaCodes: area.AreaCodes,
 			})
@@ -738,18 +714,18 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 
 	if len(ueContext.AmPolicyReqTriggerList) > 0 {
 		if ue.AmPolicyAssociation == nil {
-			ue.AmPolicyAssociation = new(coreModels.PolicyAssociation)
+			ue.AmPolicyAssociation = new(models.PolicyAssociation)
 		}
 		for _, trigger := range ueContext.AmPolicyReqTriggerList {
 			switch trigger {
 			case models.AmPolicyReqTrigger_LOCATION_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, coreModels.RequestTrigger_LOC_CH)
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_LOC_CH)
 			case models.AmPolicyReqTrigger_PRA_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, coreModels.RequestTrigger_PRA_CH)
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_PRA_CH)
 			case models.AmPolicyReqTrigger_SARI_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, coreModels.RequestTrigger_SERV_AREA_CH)
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_SERV_AREA_CH)
 			case models.AmPolicyReqTrigger_RFSP_INDEX_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, coreModels.RequestTrigger_RFSP_CH)
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_RFSP_CH)
 			}
 		}
 	}

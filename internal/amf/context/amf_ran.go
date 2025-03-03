@@ -12,10 +12,10 @@ import (
 	"net"
 	"strings"
 
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/ngap/ngapConvert"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/ngap/ngapType"
-	"github.com/omec-project/openapi/models"
 	"go.uber.org/zap"
 )
 
@@ -112,7 +112,7 @@ func (ran *AmfRan) RanUeFindByRanUeNgapID(ranUeNgapID int64) *RanUe {
 }
 
 func (ran *AmfRan) SetRanId(ranNodeId *ngapType.GlobalRANNodeID) {
-	ranId := ngapConvert.RanIdToModels(*ranNodeId)
+	ranId := util.RanIdToModels(*ranNodeId)
 	ran.RanPresent = ranNodeId.Present
 	ran.RanId = &ranId
 	if ranNodeId.Present == ngapType.GlobalRANNodeIDPresentGlobalN3IWFID {

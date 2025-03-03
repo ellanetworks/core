@@ -19,10 +19,9 @@ import (
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/internal/util/marshtojsonstring"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/openapi"
-	openApiModels "github.com/omec-project/openapi/models"
 )
 
 func formContextCreateErrRsp(httpStatus int, problemBody *models.ProblemDetails, n1SmMsg *models.RefToBinaryData) *util.Response {
@@ -121,7 +120,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 			smContext.PDUAddress.Ip.String())
 	}
 
-	snssai := openapi.MarshToJsonString(createData.SNssai)[0]
+	snssai := marshtojsonstring.MarshToJsonString(createData.SNssai)[0]
 
 	sessSubData, err := udm.GetAndSetSmData(smContext.Supi, createData.Dnn, snssai)
 	if err != nil {
@@ -609,7 +608,7 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 		}
 		return err
 	}
-	if rspData.Cause == openApiModels.N1N2MessageTransferCause_N1_MSG_NOT_TRANSFERRED {
+	if rspData.Cause == models.N1N2MessageTransferCause_N1_MSG_NOT_TRANSFERRED {
 		smContext.SubPfcpLog.Errorf("N1N2MessageTransfer failure, %v", rspData.Cause)
 		err = smContext.CommitSmPolicyDecision(false)
 		if err != nil {

@@ -15,8 +15,8 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/security"
-	"github.com/omec-project/openapi/models"
 )
 
 func Start(dbInstance *db.Database, n2Address string, n2Port int) error {

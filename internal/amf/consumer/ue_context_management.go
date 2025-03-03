@@ -7,11 +7,11 @@
 package consumer
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/internal/amf/context"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
-	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/models"
 )
 
 func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRegistrationInd bool) (
@@ -22,18 +22,18 @@ func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRe
 
 	switch accessType {
 	case models.AccessType__3_GPP_ACCESS:
-		registrationData := coreModels.Amf3GppAccessRegistration{
+		registrationData := models.Amf3GppAccessRegistration{
 			AmfInstanceId:          amfSelf.NfId,
 			InitialRegistrationInd: initialRegistrationInd,
-			Guami: &coreModels.Guami{
-				PlmnId: &coreModels.PlmnId{
+			Guami: &models.Guami{
+				PlmnId: &models.PlmnId{
 					Mcc: guamiList[0].PlmnId.Mcc,
 					Mnc: guamiList[0].PlmnId.Mnc,
 				},
 				AmfId: guamiList[0].AmfId,
 			},
-			RatType: coreModels.RatType(ue.RatType),
-			ImsVoPs: coreModels.ImsVoPs_HOMOGENEOUS_NON_SUPPORT,
+			RatType: ue.RatType,
+			ImsVoPs: models.ImsVoPs_HOMOGENEOUS_NON_SUPPORT,
 		}
 		err := udm.EditRegistrationAmf3gppAccess(registrationData, ue.Supi)
 		if err != nil {
@@ -41,7 +41,7 @@ func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRe
 		}
 	case models.AccessType_NON_3_GPP_ACCESS:
 		// log an error
-		return nil, openapi.ReportError("Non-3GPP access is not supported")
+		return nil, fmt.Errorf("Non-3GPP access is not supported")
 	}
 
 	return nil, nil

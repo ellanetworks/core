@@ -3,7 +3,7 @@ package context
 
 import (
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/omec-project/openapi/models"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 // This file contains calls to db to get configuration data

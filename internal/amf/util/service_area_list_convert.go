@@ -4,17 +4,16 @@ import (
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/openapi/models"
 )
 
 // TS 24.501 9.11.3.49
-func PartialServiceAreaListToNas(plmnID models.PlmnId, serviceAreaRestriction coreModels.ServiceAreaRestriction) []byte {
+func PartialServiceAreaListToNas(plmnID models.PlmnId, serviceAreaRestriction models.ServiceAreaRestriction) []byte {
 	var partialServiceAreaList []byte
 	var allowedType uint8
 
-	if serviceAreaRestriction.RestrictionType == coreModels.RestrictionType_ALLOWED_AREAS {
+	if serviceAreaRestriction.RestrictionType == models.RestrictionType_ALLOWED_AREAS {
 		allowedType = nasMessage.AllowedTypeAllowedArea
 	} else {
 		allowedType = nasMessage.AllowedTypeNonAllowedArea

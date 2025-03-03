@@ -10,9 +10,8 @@ package context
 import (
 	"sync"
 
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasMessage"
-	"github.com/omec-project/openapi/models"
 )
 
 type SmContext struct {
@@ -26,7 +25,7 @@ type SmContext struct {
 	AccessTypeVal   models.AccessType
 	NsInstanceVal   string
 	UserLocationVal models.UserLocation
-	PlmnIDVal       coreModels.PlmnId
+	PlmnIDVal       models.PlmnId
 
 	// SMF information
 	SmfIDVal string
@@ -40,8 +39,6 @@ type SmContext struct {
 	// for duplicate pdu session id handling
 	UlNASTransportVal *nasMessage.ULNASTransport
 	DuplicatedVal     bool
-
-	SmfProfiles []models.NfProfile
 }
 
 func NewSmContext(pduSessionID int32) *SmContext {
@@ -144,7 +141,7 @@ func (c *SmContext) SetUserLocation(userLocation models.UserLocation) {
 	c.UserLocationVal = userLocation
 }
 
-func (c *SmContext) SetPlmnID(plmnID coreModels.PlmnId) {
+func (c *SmContext) SetPlmnID(plmnID models.PlmnId) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.PlmnIDVal = plmnID

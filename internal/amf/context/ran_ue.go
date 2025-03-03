@@ -13,10 +13,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
-	"github.com/omec-project/openapi/models"
 	"go.uber.org/zap"
 )
 
@@ -151,7 +152,7 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 		}
 
 		tAI := locationInfoEUTRA.TAI
-		plmnID := ngapConvert.PlmnIdToModels(tAI.PLMNIdentity)
+		plmnID := util.PlmnIdToModels(tAI.PLMNIdentity)
 		tac := hex.EncodeToString(tAI.TAC.Value)
 
 		if ranUe.Location.EutraLocation.Tai == nil {
@@ -162,7 +163,7 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 		ranUe.Tai = *ranUe.Location.EutraLocation.Tai
 
 		eUTRACGI := locationInfoEUTRA.EUTRACGI
-		ePlmnID := ngapConvert.PlmnIdToModels(eUTRACGI.PLMNIdentity)
+		ePlmnID := util.PlmnIdToModels(eUTRACGI.PLMNIdentity)
 		eutraCellID := ngapConvert.BitStringToHex(&eUTRACGI.EUTRACellIdentity.Value)
 
 		if ranUe.Location.EutraLocation.Ecgi == nil {
@@ -189,7 +190,7 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 		}
 
 		tAI := locationInfoNR.TAI
-		plmnID := ngapConvert.PlmnIdToModels(tAI.PLMNIdentity)
+		plmnID := util.PlmnIdToModels(tAI.PLMNIdentity)
 		tac := hex.EncodeToString(tAI.TAC.Value)
 
 		if ranUe.Location.NrLocation.Tai == nil {
@@ -200,7 +201,7 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 		ranUe.Tai = *ranUe.Location.NrLocation.Tai
 
 		nRCGI := locationInfoNR.NRCGI
-		nRPlmnID := ngapConvert.PlmnIdToModels(nRCGI.PLMNIdentity)
+		nRPlmnID := util.PlmnIdToModels(nRCGI.PLMNIdentity)
 		nRCellID := ngapConvert.BitStringToHex(&nRCGI.NRCellIdentity.Value)
 
 		if ranUe.Location.NrLocation.Ncgi == nil {
