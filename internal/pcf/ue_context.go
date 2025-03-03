@@ -29,12 +29,11 @@ type UeAMPolicyData struct {
 	PolAssoId         string
 	AccessType        models.AccessType
 	NotificationUri   string
-	ServingPlmn       *models.NetworkId
+	ServingPlmn       *models.PlmnId
 	AltNotifIpv4Addrs []string
 	AltNotifIpv6Addrs []string
 	AmfStatusUri      string
 	Guami             *models.Guami
-	ServiveName       string
 	// TraceReq *TraceData
 	// about AF request
 	Pras map[string]models.PresenceInfo
@@ -75,7 +74,6 @@ func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociat
 		Rfsp:              req.Rfsp,
 		Guami:             req.Guami,
 		UserLoc:           req.UserLoc,
-		ServiveName:       req.ServiveName,
 		PcfUe:             ue,
 	}
 	ue.AMPolicyData[assolId].Pras = make(map[string]models.PresenceInfo)
@@ -100,7 +98,7 @@ func (ue *UeContext) NewUeSmPolicyData(
 }
 
 // returns AM Policy which AccessType and plmnId match
-func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
+func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.PlmnId) *UeAMPolicyData {
 	if ue == nil || plmnId == nil {
 		return nil
 	}

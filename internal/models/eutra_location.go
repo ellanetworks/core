@@ -9,7 +9,4 @@ type EutraLocation struct {
 	Ecgi                     *Ecgi
 	AgeOfLocationInformation int32
 	UeLocationTimestamp      *time.Time
-	GeographicalInformation  string
-	GeodeticInformation      string
-	GlobalNgenbId            *GlobalRanNodeId
 }

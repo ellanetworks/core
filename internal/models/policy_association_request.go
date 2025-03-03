@@ -12,13 +12,9 @@ type PolicyAssociationRequest struct {
 	Pei               string
 	UserLoc           *UserLocation
 	TimeZone          string
-	ServingPlmn       *NetworkId
-	RatType           RatType
+	ServingPlmn       *PlmnId
 	GroupIds          []string
 	ServAreaRes       *ServiceAreaRestriction
 	Rfsp              int32
 	Guami             *Guami
-	// If the NF service consumer is an AMF, it should provide the name of a service produced by the AMF that makes use of information received within the Npcf_AMPolicyControl_UpdateNotify service operation.
-	ServiveName string
-	SuppFeat    string
 }

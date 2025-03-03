@@ -2,7 +2,6 @@ package models
 
 type TraceDepth string
 
-// List of TraceDepth
 const (
 	TraceDepth_MINIMUM                     TraceDepth = "MINIMUM"
 	TraceDepth_MEDIUM                      TraceDepth = "MEDIUM"

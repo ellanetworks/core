@@ -24,7 +24,7 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) error {
 		Pei:             ue.Pei,
 		Gpsi:            ue.Gpsi,
 		AccessType:      anType,
-		ServingPlmn: &models.NetworkId{
+		ServingPlmn: &models.PlmnId{
 			Mcc: ue.PlmnId.Mcc,
 			Mnc: ue.PlmnId.Mnc,
 		},

@@ -9,7 +9,4 @@ type NrLocation struct {
 	Ncgi                     *Ncgi
 	AgeOfLocationInformation int32
 	UeLocationTimestamp      *time.Time
-	GeographicalInformation  string
-	GeodeticInformation      string
-	GlobalGnbId              *GlobalRanNodeId
 }

@@ -126,8 +126,6 @@ type AmfUe struct {
 	N1N2MessageIDGenerator          *idgenerator.IDGenerator `json:"n1n2MessageIDGenerator,omitempty"`
 	N1N2Message                     *N1N2Message             `json:"-"`
 	N1N2MessageSubscribeIDGenerator *idgenerator.IDGenerator `json:"n1n2MessageSubscribeIDGenerator,omitempty"`
-	// map[int64]models.UeN1N2InfoSubscriptionCreateData; use n1n2MessageSubscriptionID as key
-	N1N2MessageSubscription sync.Map `json:"n1n2MessageSubscription,omitempty"`
 	/* Pdu Sesseion context */
 	SmContextList sync.Map `json:"-"` // map[int32]*SmContext, pdu session id as key
 	/* Related Context*/
@@ -165,7 +163,6 @@ type AmfUe struct {
 	/* Network Slicing related context and Nssf */
 	NetworkSliceInfo                  *models.AuthorizedNetworkSliceInfo           `json:"networkSliceInfo,omitempty"`
 	AllowedNssai                      map[models.AccessType][]models.AllowedSnssai `json:"allowedNssai,omitempty"`
-	ConfiguredNssai                   []models.ConfiguredSnssai                    `json:"configuredNssai,omitempty"`
 	NetworkSlicingSubscriptionChanged bool                                         `json:"networkSlicingSubscriptionChanged,omitempty"`
 	/* T3513(Paging) */
 	T3513 *Timer `json:"t3513Value,omitempty"` // for paging

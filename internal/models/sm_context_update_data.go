@@ -10,7 +10,6 @@ type SmContextUpdateData struct {
 	RatType            RatType
 	PresenceInLadn     PresenceState
 	UeLocation         *UserLocation
-	UeTimeZone         string
 	AddUeLocation      *UserLocation
 	UpCnxState         UpCnxState
 	HoState            HoState
@@ -22,13 +21,9 @@ type SmContextUpdateData struct {
 	TargetId           *NgRanTargetId
 	TargetServingNfId  string
 	SmContextStatusUri string
-	DataForwarding     bool
-	EpsBearerSetup     []string
-	RevokeEbiList      []int32
 	Release            bool
 	Cause              Cause
 	NgApCause          *NgApCause
 	Var5gMmCauseValue  int32
-	SNssai             *Snssai
 	AnTypeCanBeChanged bool
 }

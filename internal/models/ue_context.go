@@ -8,10 +8,7 @@ type UeContext struct {
 	UdmGroupId             string
 	AusfGroupId            string
 	RoutingIndicator       string
-	GroupList              []string
-	DrxParameter           string
 	SubRfsp                int32
-	UsedRfsp               int32
 	SubUeAmbr              *Ambr
 	SeafData               *SeafData
 	AmPolicyReqTriggerList []AmPolicyReqTrigger
