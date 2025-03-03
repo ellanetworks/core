@@ -110,7 +110,6 @@ const Profile = () => {
         });
         fetchProfiles();
       } catch (error) {
-        console.log("Error deleting profile:", error);
         setAlert({
           message: `Failed to delete profile "${selectedProfile}": ${error}`,
           severity: "error",
@@ -205,7 +204,7 @@ const Profile = () => {
             <Typography variant="h4" component="h1" gutterBottom>
               Profiles ({profiles.length})
             </Typography>
-            {role === "Admin" || role === "Network Manager" && (
+            {(role === "Admin" || role === "Network Manager") && (
               <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
                 Create
               </Button>

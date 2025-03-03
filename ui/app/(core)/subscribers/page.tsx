@@ -120,7 +120,6 @@ const Subscriber = () => {
         { field: "ipAddress", headerName: "IP Address", flex: 1 },
         { field: "profileName", headerName: "Profile", flex: 1 },
     ];
-    console.log("Role:", role);
 
     if (role === "Admin" || role === "Network Manager") {
         baseColumns.push({
@@ -203,7 +202,7 @@ const Subscriber = () => {
                         <Typography variant="h4" component="h1" gutterBottom>
                             Subscribers ({subscribers.length})
                         </Typography>
-                        {role === "Admin" || role === "Network Manager" && (
+                        {(role === "Admin" || role === "Network Manager") && (
                             <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
                                 Create
                             </Button>

@@ -143,7 +143,7 @@ const Operator = () => {
             </Grid>
           </Grid>
         </CardContent>
-        {role === "Admin" || role === "Network Manager" && (
+        {(role === "Admin" || role === "Network Manager") && (
           <CardActions>
             <IconButton aria-label="edit" onClick={handleEditOperatorIdClick}>
               <EditIcon />
@@ -165,7 +165,7 @@ const Operator = () => {
             </Grid>
           </Grid>
         </CardContent>
-        {role === "Admin" || role === "Network Manager" && (
+        {(role === "Admin" || role === "Network Manager") && (
           <CardActions>
             <IconButton aria-label="edit" onClick={handleEditOperatorCodeClick}>
               <EditIcon />
@@ -195,7 +195,7 @@ const Operator = () => {
             </Grid>
           </Grid>
         </CardContent>
-        {role === "Admin" || role === "Network Manager" && (
+        {(role === "Admin" || role === "Network Manager") && (
           <CardActions>
             <IconButton aria-label="edit" onClick={handleEditOperatorTrackingClick}>
               <EditIcon />
@@ -222,7 +222,7 @@ const Operator = () => {
             </Grid>
           </Grid>
         </CardContent>
-        {role === "Admin" || role === "Network Manager" && (
+        {(role === "Admin" || role === "Network Manager") && (
           <CardActions>
             <IconButton aria-label="edit" onClick={handleEditOperatorSliceClick}>
               <EditIcon />
@@ -271,7 +271,7 @@ const Operator = () => {
             </Grid>
           </Grid>
         </CardContent>
-        {role === "Admin" || role === "Network Manager" && (
+        {(role === "Admin" || role === "Network Manager") && (
           <CardActions>
             <IconButton aria-label="edit" onClick={handleEditOperatorHomeNetworkClick}>
               <EditIcon />

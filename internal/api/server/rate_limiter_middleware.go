@@ -11,7 +11,7 @@ import (
 
 const (
 	NumRequests     = 100
-	RequestsPerTime = time.Minute
+	RequestsPerTime = time.Second
 )
 
 type Visitor struct {
@@ -46,7 +46,7 @@ func cleanupVisitors() {
 		time.Sleep(time.Minute)
 		mu.Lock()
 		for ip, v := range visitors {
-			if time.Since(v.lastSeen) > 3*time.Minute {
+			if time.Since(v.lastSeen) > 1*time.Minute {
 				delete(visitors, ip)
 			}
 		}

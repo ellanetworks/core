@@ -85,7 +85,6 @@ export const updateOperatorSlice = async (authToken: string, sd: number, sst: nu
   };
 
   const data = JSON.stringify(operatorSliceData)
-  console.log(data)
   const response = await fetch(`/api/v1/operator/slice`, {
     method: "PUT",
     headers: {

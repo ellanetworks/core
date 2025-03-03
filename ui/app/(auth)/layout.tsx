@@ -22,11 +22,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <title>Ella Core</title>
-        <link
-          rel="shortcut icon"
-          href="https://assets.ubuntu.com/v1/49a1a858-favicon-32x32.png"
-          type="image/x-icon"
-        />
       </head>
       <body>
         <QueryClientProvider client={queryClient}>

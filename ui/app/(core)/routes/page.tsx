@@ -84,7 +84,6 @@ const Route = () => {
         });
         fetchRoutes();
       } catch (error) {
-        console.log("Error deleting route:", error);
         setAlert({
           message: `Failed to delete route "${selectedRoute}": ${error}`,
           severity: "error",
@@ -170,7 +169,7 @@ const Route = () => {
             <Typography variant="h4" component="h1" gutterBottom>
               Routes ({routes.length})
             </Typography>
-            {role === "Admin" || role === "Network Manager" && (
+            {(role === "Admin" || role === "Network Manager") && (
               <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
                 Create
               </Button>
