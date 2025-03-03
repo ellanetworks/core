@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
 )
 
@@ -76,22 +75,4 @@ func snssaiToModels(lengthOfSnssaiContents uint8, buf []byte) (models.MappingOfS
 	default:
 		return snssai, fmt.Errorf("invalid length of S-NSSAI contents: %d", lengthOfSnssaiContents)
 	}
-}
-
-func RejectedNssaiToNas(rejectedNssaiInPlmn []models.Snssai, rejectedNssaiInTa []models.Snssai) nasType.RejectedNSSAI {
-	var rejectedNssaiNas nasType.RejectedNSSAI
-
-	var byteArray []uint8
-	for _, rejectedSnssai := range rejectedNssaiInPlmn {
-		byteArray = append(byteArray, RejectedSnssaiToNas(rejectedSnssai,
-			nasMessage.RejectedSnssaiCauseNotAvailableInCurrentPlmn)...)
-	}
-	for _, rejectedSnssai := range rejectedNssaiInTa {
-		byteArray = append(byteArray, RejectedSnssaiToNas(rejectedSnssai,
-			nasMessage.RejectedSnssaiCauseNotAvailableInCurrentRegistrationArea)...)
-	}
-
-	rejectedNssaiNas.SetLen(uint8(len(byteArray)))
-	rejectedNssaiNas.SetRejectedNSSAIContents(byteArray)
-	return rejectedNssaiNas
 }

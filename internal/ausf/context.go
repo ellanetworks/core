@@ -104,7 +104,3 @@ func IsServingNetworkAuthorized(lookup string) bool {
 		return false
 	}
 }
-
-func GetSelf() *AUSFContext {
-	return &ausfContext
-}
