@@ -234,7 +234,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo,
 						smMessage, pduSessionID, cause, nil, 0)
 				} else {
-					_, smContextRef, errResponse, problemDetail, err := consumer.SendCreateSmContextRequest(ue, newSmContext, nil, smMessage)
+					_, smContextRef, errResponse, problemDetail, err := consumer.SendCreateSmContextRequest(ue, newSmContext, smMessage)
 					if err != nil {
 						ue.GmmLog.Errorf("CreateSmContextRequest Error: %+v", err)
 						return nil

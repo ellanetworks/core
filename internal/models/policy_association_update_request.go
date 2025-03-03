@@ -13,5 +13,4 @@ type PolicyAssociationUpdateRequest struct {
 	// Map of PRA status information.
 	PraStatuses map[string]PresenceInfo
 	UserLoc     *UserLocation
-	// TraceReq    *TraceData              `json:"traceReq,omitempty" yaml:"traceReq" bson:"traceReq" mapstructure:"TraceReq"`
 }

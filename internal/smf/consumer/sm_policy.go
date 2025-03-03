@@ -46,7 +46,7 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 		Sst: smContext.Snssai.Sst,
 		Sd:  smContext.Snssai.Sd,
 	}
-	smPolicyData.ServingNetwork = &models.NetworkId{
+	smPolicyData.ServingNetwork = &models.PlmnId{
 		Mcc: smContext.ServingNetwork.Mcc,
 		Mnc: smContext.ServingNetwork.Mnc,
 	}

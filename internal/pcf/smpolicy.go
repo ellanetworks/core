@@ -186,7 +186,6 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 		decision.Offline = request.Offline
 	}
 
-	decision.QosFlowUsage = request.QosFlowUsage
 	decision.PolicyCtrlReqTriggers = PolicyControlReqTrigToArray(0x40780f)
 	return &decision, nil
 }

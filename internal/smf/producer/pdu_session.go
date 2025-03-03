@@ -91,11 +91,10 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, S-NSSAI[sst: %d, sd: %s] DNN[%s] does not match DNN Config",
 			createData.SNssai.Sst, createData.SNssai.Sd, createData.Dnn)
 		problemDetails := &models.ProblemDetails{
-			Title:         "DNN Denied",
-			Status:        http.StatusForbidden,
-			Detail:        "The subscriber does not have the necessary subscription to access the DNN",
-			Cause:         "DNN_DENIED",
-			InvalidParams: nil,
+			Title:  "DNN Denied",
+			Status: http.StatusForbidden,
+			Detail: "The subscriber does not have the necessary subscription to access the DNN",
+			Cause:  "DNN_DENIED",
 		}
 		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusForbidden, problemDetails, nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
 		return response, fmt.Errorf("SnssaiError")
@@ -106,11 +105,10 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	if ip, err := smfSelf.DbInstance.AllocateIP(smContext.Supi); err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, failed allocate IP address: ", err)
 		problemDetails := &models.ProblemDetails{
-			Title:         "IP Allocation Error",
-			Status:        http.StatusInternalServerError,
-			Detail:        "The request cannot be provided due to insufficient resources for the IP allocation.",
-			Cause:         "INSUFFICIENT_RESOURCES",
-			InvalidParams: nil,
+			Title:  "IP Allocation Error",
+			Status: http.StatusInternalServerError,
+			Detail: "The request cannot be provided due to insufficient resources for the IP allocation.",
+			Cause:  "INSUFFICIENT_RESOURCES",
 		}
 		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMInsufficientResources)
 		return response, fmt.Errorf("failed allocate IP address: %v", err)
@@ -126,11 +124,10 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	if err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, get SessionManagementSubscriptionData error: ", err)
 		problemDetails := &models.ProblemDetails{
-			Title:         "Subscription Data Fetch error",
-			Status:        http.StatusInternalServerError,
-			Detail:        "The request cannot be provided due to failure in fetching subscription data.",
-			Cause:         "REQUEST_REJECTED",
-			InvalidParams: nil,
+			Title:  "Subscription Data Fetch error",
+			Status: http.StatusInternalServerError,
+			Detail: "The request cannot be provided due to failure in fetching subscription data.",
+			Cause:  "REQUEST_REJECTED",
 		}
 		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return response, fmt.Errorf("SubscriptionError")
@@ -141,11 +138,10 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	} else {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SessionManagementSubscriptionData from UDM is nil")
 		problemDetails := &models.ProblemDetails{
-			Title:         "Subscription Data Fetch error",
-			Status:        http.StatusInternalServerError,
-			Detail:        "The request cannot be provided due to not receiving any subscription data.  ",
-			Cause:         "REQUEST_REJECTED",
-			InvalidParams: nil,
+			Title:  "Subscription Data Fetch error",
+			Status: http.StatusInternalServerError,
+			Detail: "The request cannot be provided due to not receiving any subscription data.  ",
+			Cause:  "REQUEST_REJECTED",
 		}
 		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return response, fmt.Errorf("NoSubscriptionError")
@@ -162,22 +158,20 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	if smPolicyDecisionRsp, httpStatus, err := consumer.SendSMPolicyAssociationCreate(smContext); err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SMPolicyAssociationCreate error: ", err)
 		problemDetails := &models.ProblemDetails{
-			Title:         "PCF Discovery Failure",
-			Status:        http.StatusInternalServerError,
-			Detail:        "The request cannot be provided due to failure in creating PCF policy.",
-			Cause:         "REQUEST_REJECTED",
-			InvalidParams: nil,
+			Title:  "PCF Discovery Failure",
+			Status: http.StatusInternalServerError,
+			Detail: "The request cannot be provided due to failure in creating PCF policy.",
+			Cause:  "REQUEST_REJECTED",
 		}
 		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return response, fmt.Errorf("PcfAssoError")
 	} else if httpStatus != http.StatusCreated {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SMPolicyAssociationCreate http status: ", http.StatusText(httpStatus))
 		problemDetails := &models.ProblemDetails{
-			Title:         "PCF Discovery Failure",
-			Status:        http.StatusInternalServerError,
-			Detail:        "The request cannot be provided due to failure in creating PCF policy.",
-			Cause:         "REQUEST_REJECTED",
-			InvalidParams: nil,
+			Title:  "PCF Discovery Failure",
+			Status: http.StatusInternalServerError,
+			Detail: "The request cannot be provided due to failure in creating PCF policy.",
+			Cause:  "REQUEST_REJECTED",
 		}
 		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return response, fmt.Errorf("PcfAssoError")
@@ -204,11 +198,10 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	if err != nil {
 		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, get default UP path error: %v", err.Error())
 		problemDetails := &models.ProblemDetails{
-			Title:         "UPF Data Path Failure",
-			Status:        http.StatusInternalServerError,
-			Detail:        "The request cannot be provided due to failure in fetching UPF data path.",
-			Cause:         "REQUEST_REJECTED",
-			InvalidParams: nil,
+			Title:  "UPF Data Path Failure",
+			Status: http.StatusInternalServerError,
+			Detail: "The request cannot be provided due to failure in fetching UPF data path.",
+			Cause:  "REQUEST_REJECTED",
 		}
 		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return response, fmt.Errorf("DataPathError")
@@ -217,11 +210,10 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	if err != nil {
 		smContext.SubPduSessLog.Errorf("couldn't generate data path: %v", err.Error())
 		problemDetails := &models.ProblemDetails{
-			Title:         "UPF Data Path Failure",
-			Status:        http.StatusInternalServerError,
-			Detail:        "The request cannot be provided due to failure in fetching UPF data path.",
-			Cause:         "REQUEST_REJECTED",
-			InvalidParams: nil,
+			Title:  "UPF Data Path Failure",
+			Status: http.StatusInternalServerError,
+			Detail: "The request cannot be provided due to failure in fetching UPF data path.",
+			Cause:  "REQUEST_REJECTED",
 		}
 		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return response, fmt.Errorf("DataPathError")
@@ -233,11 +225,10 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 		if err := defaultPath.ActivateTunnelAndPDR(smContext, 255); err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, data path error: %v", err.Error())
 			problemDetails := &models.ProblemDetails{
-				Title:         "UPF Data Path Failure",
-				Status:        http.StatusInternalServerError,
-				Detail:        "The request cannot be provided due to failure in fetching UPF data path.",
-				Cause:         "REQUEST_REJECTED",
-				InvalidParams: nil,
+				Title:  "UPF Data Path Failure",
+				Status: http.StatusInternalServerError,
+				Detail: "The request cannot be provided due to failure in fetching UPF data path.",
+				Cause:  "REQUEST_REJECTED",
 			}
 			response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMRequestRejectedUnspecified)
 			return response, fmt.Errorf("DataPathError")
@@ -246,11 +237,10 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	if defaultPath == nil {
 		smContext.ChangeState(context.SmStateInit)
 		problemDetails := &models.ProblemDetails{
-			Title:         "DNN Resource insufficient",
-			Status:        http.StatusInternalServerError,
-			Detail:        "The request cannot be provided due to insufficient resources for the specific slice and DNN.",
-			Cause:         "INSUFFICIENT_RESOURCES_SLICE_DNN",
-			InvalidParams: nil,
+			Title:  "DNN Resource insufficient",
+			Status: http.StatusInternalServerError,
+			Detail: "The request cannot be provided due to insufficient resources for the specific slice and DNN.",
+			Cause:  "INSUFFICIENT_RESOURCES_SLICE_DNN",
 		}
 		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMInsufficientResourcesForSpecificSliceAndDNN)
 		return response, fmt.Errorf("default data path not found")

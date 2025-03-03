@@ -14,7 +14,6 @@ type PolicyUpdate struct {
 	PccRuleUpdate  *PccRulesUpdate
 	QosFlowUpdate  *QosFlowsUpdate
 	TCUpdate       *TrafficControlUpdate
-	CondDataUpdate *CondDataUpdate
 
 	// relevant SM Policy Decision from PCF
 	SmPolicyDecision *models.SmPolicyDecision
@@ -25,7 +24,6 @@ type SmCtxtPolicyData struct {
 	SmCtxtPccRules     SmCtxtPccRulesInfo
 	SmCtxtQosData      SmCtxtQosData
 	SmCtxtTCData       SmCtxtTrafficControlData
-	SmCtxtCondData     SmCtxtCondData
 	SmCtxtSessionRules SmCtxtSessionRulesInfo
 }
 
@@ -48,15 +46,10 @@ type SmCtxtTrafficControlData struct {
 	TrafficControlData map[string]*models.TrafficControlData
 }
 
-type SmCtxtCondData struct {
-	CondData map[string]*models.ConditionData
-}
-
 func (obj *SmCtxtPolicyData) Initialize() {
 	obj.SmCtxtSessionRules.SessionRules = make(map[string]*models.SessionRule)
 	obj.SmCtxtPccRules.PccRules = make(map[string]*models.PccRule)
 	obj.SmCtxtQosData.QosData = make(map[string]*models.QosData)
-	obj.SmCtxtCondData.CondData = make(map[string]*models.ConditionData)
 	obj.SmCtxtTCData.TrafficControlData = make(map[string]*models.TrafficControlData)
 }
 
@@ -77,9 +70,6 @@ func BuildSmPolicyUpdate(smCtxtPolData *SmCtxtPolicyData, smPolicyDecision *mode
 
 	// Traffic Control Data update
 	update.TCUpdate = GetTrafficControlUpdate(smPolicyDecision.TraffContDecs, smCtxtPolData.SmCtxtTCData.TrafficControlData)
-
-	// Condition Data update
-	update.CondDataUpdate = GetConditionDataUpdate(smPolicyDecision.Conds, smCtxtPolData.SmCtxtCondData.CondData)
 
 	return update
 }
@@ -103,11 +93,6 @@ func CommitSmPolicyDecision(smCtxtPolData *SmCtxtPolicyData, smPolicyUpdate *Pol
 	// Update Traffic Control data
 	if smPolicyUpdate.TCUpdate != nil {
 		CommitTrafficControlUpdate(smCtxtPolData, smPolicyUpdate.TCUpdate)
-	}
-
-	// Update Condition Data
-	if smPolicyUpdate.CondDataUpdate != nil {
-		CommitConditionDataUpdate(smCtxtPolData, smPolicyUpdate.CondDataUpdate)
 	}
 
 	return nil

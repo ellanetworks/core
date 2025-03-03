@@ -6,6 +6,4 @@ type PolicyAssociation struct {
 	Triggers    []RequestTrigger
 	ServAreaRes *ServiceAreaRestriction
 	Rfsp        int32
-	Pras        map[string]PresenceInfo
-	SuppFeat    string
 }

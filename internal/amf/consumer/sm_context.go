@@ -38,12 +38,11 @@ func SelectSmf(
 	return smContext, 0, nil
 }
 
-func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
-	requestType *models.RequestType, nasPdu []byte) (
+func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte) (
 	*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse,
 	*models.ProblemDetails, error,
 ) {
-	smContextCreateData := buildCreateSmContextRequest(ue, smContext, nil)
+	smContextCreateData := buildCreateSmContextRequest(ue, smContext)
 	postSmContextsRequest := models.PostSmContextsRequest{
 		JsonData:              &smContextCreateData,
 		BinaryDataN1SmMessage: nasPdu,
@@ -61,9 +60,7 @@ func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
 	return postSmContextReponse, smContextRef, nil, nil, nil
 }
 
-func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
-	requestType *models.RequestType,
-) (smContextCreateData models.SmContextCreateData) {
+func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext) (smContextCreateData models.SmContextCreateData) {
 	amfSelf := context.AMF_Self()
 	smContextCreateData.Supi = ue.Supi
 	smContextCreateData.UnauthenticatedSupi = ue.UnauthenticatedSupi
@@ -97,9 +94,6 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 			Mcc: guamiList[0].PlmnId.Mcc,
 			Mnc: guamiList[0].PlmnId.Mnc,
 		}
-	}
-	if requestType != nil {
-		smContextCreateData.RequestType = *requestType
 	}
 	smContextCreateData.N1SmMsg = new(models.RefToBinaryData)
 	smContextCreateData.N1SmMsg.ContentId = "n1SmMsg"

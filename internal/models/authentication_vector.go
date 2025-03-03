@@ -1,7 +1,6 @@
 package models
 
 type AuthenticationVector struct {
-	AvType   AvType
 	Rand     string
 	Xres     string
 	Autn     string
