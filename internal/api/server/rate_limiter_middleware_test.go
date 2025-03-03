@@ -3,6 +3,8 @@ package server_test
 import (
 	"net/http"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/api/server"
@@ -11,8 +13,8 @@ import (
 
 func TestRateLimiterMiddleware(t *testing.T) {
 	tempDir := t.TempDir()
-	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path, gin.ReleaseMode)
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath, gin.ReleaseMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -30,21 +32,34 @@ func TestRateLimiterMiddleware(t *testing.T) {
 	}
 	server.ResetVisitors()
 
-	for i := 0; i < 10; i++ {
-		respCode, _, err := login(ts.URL, client, loginData)
-		if err != nil {
-			t.Fatalf("couldn't login: %s", err)
-		}
-		if respCode != http.StatusOK {
-			t.Fatalf("expected status %d, got %d", http.StatusOK, respCode)
-		}
-	}
+	var wg sync.WaitGroup
+	var successCount int32
+	var rateLimitCount int32
 
-	respCode, _, err := login(ts.URL, client, loginData)
-	if err != nil {
-		t.Fatalf("couldn't login: %s", err)
+	// Fire 101 concurrent requests.
+	totalRequests := 101
+	wg.Add(totalRequests)
+	for i := 0; i < totalRequests; i++ {
+		go func() {
+			defer wg.Done()
+			respCode, _, err := login(ts.URL, client, loginData)
+			if err != nil {
+				t.Errorf("login error: %s", err)
+				return
+			}
+			if respCode == http.StatusOK {
+				atomic.AddInt32(&successCount, 1)
+			} else if respCode == http.StatusTooManyRequests {
+				atomic.AddInt32(&rateLimitCount, 1)
+			}
+		}()
 	}
-	if respCode != http.StatusTooManyRequests {
-		t.Fatalf("expected status %d, got %d", http.StatusTooManyRequests, respCode)
+	wg.Wait()
+
+	if successCount != 100 {
+		t.Fatalf("expected 100 successful logins, got %d", successCount)
+	}
+	if rateLimitCount != 1 {
+		t.Fatalf("expected 1 rate limited response, got %d", rateLimitCount)
 	}
 }

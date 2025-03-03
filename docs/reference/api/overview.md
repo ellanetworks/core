@@ -27,7 +27,7 @@ Ella Core's API responses are JSON objects with the following structure:
 
 ## Rate limiting
 
-Ella Core uses rate limiting to prevent abuse of the API. The rate limit is set to 10 requests per second per client.
+Ella Core uses rate limiting to prevent abuse of the API. The rate limit is set to 100 requests per second per client.
 
 ## Status codes
 

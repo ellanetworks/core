@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	NumRequests     = 10
+	NumRequests     = 100
 	RequestsPerTime = time.Second
 )
 
