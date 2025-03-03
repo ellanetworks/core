@@ -10,7 +10,7 @@ package context
 import (
 	"sync"
 
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasMessage"
 )
 
@@ -20,12 +20,12 @@ type SmContext struct {
 	// pdu session information
 	PduSessionIDVal int32
 	SmContextRefVal string
-	SnssaiVal       coreModels.Snssai
+	SnssaiVal       models.Snssai
 	DnnVal          string
-	AccessTypeVal   coreModels.AccessType
+	AccessTypeVal   models.AccessType
 	NsInstanceVal   string
-	UserLocationVal coreModels.UserLocation
-	PlmnIDVal       coreModels.PlmnId
+	UserLocationVal models.UserLocation
+	PlmnIDVal       models.PlmnId
 
 	// SMF information
 	SmfIDVal string
@@ -81,25 +81,25 @@ func (c *SmContext) SetSmContextRef(ref string) {
 	c.SmContextRefVal = ref
 }
 
-func (c *SmContext) AccessType() coreModels.AccessType {
+func (c *SmContext) AccessType() models.AccessType {
 	c.Mu.RLock()
 	defer c.Mu.RUnlock()
 	return c.AccessTypeVal
 }
 
-func (c *SmContext) SetAccessType(accessType coreModels.AccessType) {
+func (c *SmContext) SetAccessType(accessType models.AccessType) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.AccessTypeVal = accessType
 }
 
-func (c *SmContext) Snssai() coreModels.Snssai {
+func (c *SmContext) Snssai() models.Snssai {
 	c.Mu.RLock()
 	defer c.Mu.RUnlock()
 	return c.SnssaiVal
 }
 
-func (c *SmContext) SetSnssai(snssai coreModels.Snssai) {
+func (c *SmContext) SetSnssai(snssai models.Snssai) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.SnssaiVal = snssai
@@ -129,19 +129,19 @@ func (c *SmContext) SetNsInstance(nsInstanceID string) {
 	c.NsInstanceVal = nsInstanceID
 }
 
-func (c *SmContext) UserLocation() coreModels.UserLocation {
+func (c *SmContext) UserLocation() models.UserLocation {
 	c.Mu.RLock()
 	defer c.Mu.RUnlock()
 	return c.UserLocationVal
 }
 
-func (c *SmContext) SetUserLocation(userLocation coreModels.UserLocation) {
+func (c *SmContext) SetUserLocation(userLocation models.UserLocation) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.UserLocationVal = userLocation
 }
 
-func (c *SmContext) SetPlmnID(plmnID coreModels.PlmnId) {
+func (c *SmContext) SetPlmnID(plmnID models.PlmnId) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.PlmnIDVal = plmnID

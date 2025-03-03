@@ -18,13 +18,12 @@ import (
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
-	coreModels "github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/nas/nasMessage"
 	libngap "github.com/omec-project/ngap"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
-	"github.com/omec-project/openapi/models"
 )
 
 func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context.RanUe, *ngapType.AMFUENGAPID) {
@@ -597,7 +596,7 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	} else {
 		var found bool
 		supportTaiList := context.GetSupportTaiList()
-		taiList := make([]coreModels.Tai, len(supportTaiList))
+		taiList := make([]models.Tai, len(supportTaiList))
 		copy(taiList, supportTaiList)
 		for i := range taiList {
 			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
@@ -966,13 +965,13 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 			switch item.NGRANCGI.Present {
 			case ngapType.NGRANCGIPresentNRCGI:
 				recommendedCell.NgRanCGI.Present = context.NgRanCgiPresentNRCGI
-				recommendedCell.NgRanCGI.NRCGI = new(coreModels.Ncgi)
+				recommendedCell.NgRanCGI.NRCGI = new(models.Ncgi)
 				plmnID := util.PlmnIdToModels(item.NGRANCGI.NRCGI.PLMNIdentity)
 				recommendedCell.NgRanCGI.NRCGI.PlmnId = &plmnID
 				recommendedCell.NgRanCGI.NRCGI.NrCellId = ngapConvert.BitStringToHex(&item.NGRANCGI.NRCGI.NRCellIdentity.Value)
 			case ngapType.NGRANCGIPresentEUTRACGI:
 				recommendedCell.NgRanCGI.Present = context.NgRanCgiPresentEUTRACGI
-				recommendedCell.NgRanCGI.EUTRACGI = new(coreModels.Ecgi)
+				recommendedCell.NgRanCGI.EUTRACGI = new(models.Ecgi)
 				plmnID := util.PlmnIdToModels(item.NGRANCGI.EUTRACGI.PLMNIdentity)
 				recommendedCell.NgRanCGI.EUTRACGI.PlmnId = &plmnID
 				recommendedCell.NgRanCGI.EUTRACGI.EutraCellId = ngapConvert.BitStringToHex(
@@ -995,7 +994,7 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 			switch item.AMFPagingTarget.Present {
 			case ngapType.AMFPagingTargetPresentGlobalRANNodeID:
 				recommendedRanNode.Present = context.RecommendRanNodePresentRanNode
-				recommendedRanNode.GlobalRanNodeId = new(coreModels.GlobalRanNodeId)
+				recommendedRanNode.GlobalRanNodeId = new(models.GlobalRanNodeId)
 			case ngapType.AMFPagingTargetPresentTAI:
 				recommendedRanNode.Present = context.RecommendRanNodePresentTAI
 				tai := util.TaiToModels(*item.AMFPagingTarget.TAI)
@@ -1879,7 +1878,7 @@ func HandlePDUSessionResourceNotify(ran *context.AmfRan, message *ngapType.NGAPP
 			n1Msg := response.BinaryDataN2SmInformation
 			if n2Info != nil {
 				switch responseData.N2SmInfoType {
-				case coreModels.N2SmInfoType_PDU_RES_MOD_REQ:
+				case models.N2SmInfoType_PDU_RES_MOD_REQ:
 					ranUe.Log.Debugln("AMF Transfer NGAP PDU Resource Modify Req from SMF")
 					var nasPdu []byte
 					if n1Msg != nil {
@@ -2212,7 +2211,7 @@ func HandleInitialContextSetupResponse(ran *context.AmfRan, message *ngapType.NG
 		}
 	}
 
-	if ranUe.Ran.AnType == coreModels.AccessType_NON_3_GPP_ACCESS {
+	if ranUe.Ran.AnType == models.AccessType_NON_3_GPP_ACCESS {
 		ngap_message.SendDownlinkNasTransport(ranUe, amfUe.RegistrationAcceptForNon3GPPAccess, nil)
 	}
 
@@ -2410,7 +2409,7 @@ func HandleUEContextReleaseRequest(ran *context.AmfRan, message *ngapType.NGAPPD
 	amfUe := ranUe.AmfUe
 	if amfUe != nil {
 		causeAll := context.CauseAll{
-			NgapCause: &coreModels.NgApCause{
+			NgapCause: &models.NgApCause{
 				Group: int32(causeGroup),
 				Value: int32(causeValue),
 			},
@@ -3252,7 +3251,7 @@ func HandleHandoverFailure(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 				pduSessionID := key.(int32)
 				smContext := value.(*context.SmContext)
 				causeAll := context.CauseAll{
-					NgapCause: &coreModels.NgApCause{
+					NgapCause: &models.NgApCause{
 						Group: int32(causePresent),
 						Value: int32(causeValue),
 					},
@@ -3419,7 +3418,7 @@ func HandleHandoverRequired(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		// Handover in same AMF
 		sourceUe.HandOverType.Value = handoverType.Value
 		tai := util.TaiToModels(targetID.TargetRANNodeID.SelectedTAI)
-		targetId := coreModels.NgRanTargetId{
+		targetId := models.NgRanTargetId{
 			RanNodeId: &targetRanNodeId,
 			Tai:       &tai,
 		}
@@ -3546,7 +3545,7 @@ func HandleHandoverCancel(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 				pduSessionID := key.(int32)
 				smContext := value.(*context.SmContext)
 				causeAll := context.CauseAll{
-					NgapCause: &coreModels.NgApCause{
+					NgapCause: &models.NgApCause{
 						Group: int32(causePresent),
 						Value: int32(causeValue),
 					},
@@ -3790,7 +3789,7 @@ func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU
 	} else {
 		var found bool
 		supportTaiList := context.GetSupportTaiList()
-		taiList := make([]coreModels.Tai, len(supportTaiList))
+		taiList := make([]models.Tai, len(supportTaiList))
 		copy(taiList, supportTaiList)
 		for i := range taiList {
 			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
