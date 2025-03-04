@@ -264,7 +264,7 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 						DestinationInterface: context.DestinationInterface{
 							InterfaceValue: context.DestinationInterfaceAccess,
 						},
-						NetworkInstance: []byte(smContext.Dnn),
+						NetworkInstance: smContext.Dnn,
 					}
 
 					DLPDR.State = context.RULE_UPDATE

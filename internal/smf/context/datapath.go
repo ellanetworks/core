@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/smf/util"
-	"github.com/ellanetworks/core/internal/util/dnn"
 )
 
 // GTPTunnel represents the GTP tunnel information
@@ -432,7 +431,7 @@ func (dpNode *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER,
 			Ch: true,
 		}
 		ULPDR.PDI.UEIPAddress = &ueIpAddr
-		ULPDR.PDI.NetworkInstance = dnn.Dnn(smContext.Dnn)
+		ULPDR.PDI.NetworkInstance = smContext.Dnn
 
 		ULPDR.OuterHeaderRemoval = &OuterHeaderRemoval{
 			OuterHeaderRemovalDescription: OuterHeaderRemovalGtpUUdpIpv4,
@@ -450,7 +449,7 @@ func (dpNode *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER,
 			DestinationInterface: DestinationInterface{
 				InterfaceValue: DestinationInterfaceCore,
 			},
-			NetworkInstance: []byte(smContext.Dnn),
+			NetworkInstance: smContext.Dnn,
 		}
 
 		if dpNode.IsAnchorUPF() {
@@ -532,7 +531,7 @@ func (dpNode *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER,
 				DLFAR := DefaultDLPDR.FAR
 				DLFAR.ForwardingParameters = new(ForwardingParameters)
 				DLFAR.ForwardingParameters.DestinationInterface.InterfaceValue = DestinationInterfaceAccess
-				DLFAR.ForwardingParameters.NetworkInstance = []byte(smContext.Dnn)
+				DLFAR.ForwardingParameters.NetworkInstance = smContext.Dnn
 				DLFAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
 
 				dlOuterHeaderCreation := DLFAR.ForwardingParameters.OuterHeaderCreation
@@ -586,7 +585,7 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence 
 			if curDataPathNode.DownLinkTunnel.SrcEndPoint == nil {
 				for _, DNDLPDR := range curDataPathNode.DownLinkTunnel.PDR {
 					DNDLPDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceCore}
-					DNDLPDR.PDI.NetworkInstance = dnn.Dnn(smContext.Dnn)
+					DNDLPDR.PDI.NetworkInstance = smContext.Dnn
 					DNDLPDR.PDI.UEIPAddress = &ueIpAddr
 				}
 			}

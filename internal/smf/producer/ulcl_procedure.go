@@ -324,7 +324,7 @@ func EstablishRANTunnelInfo(smContext *context.SMContext) {
 		DestinationInterface: context.DestinationInterface{
 			InterfaceValue: context.DestinationInterfaceAccess,
 		},
-		NetworkInstance: []byte(smContext.Dnn),
+		NetworkInstance: smContext.Dnn,
 	}
 
 	activatingANUPFDLFAR.State = context.RULE_INITIAL
