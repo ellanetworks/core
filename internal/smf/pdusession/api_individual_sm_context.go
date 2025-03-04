@@ -7,70 +7,32 @@ package pdusession
 import (
 	"errors"
 	"fmt"
-	"net/http"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
-	"github.com/ellanetworks/core/internal/smf/util"
 )
 
-func HandleStateActiveEventPduSessRelease(request models.ReleaseSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *util.Response, error) {
-	rsp, err := producer.HandlePDUSessionSMContextRelease(request, smCtxt)
+func HandleStateActiveEventPduSessRelease(smCtxt *context.SMContext) (context.SMContextState, error) {
+	err := producer.HandlePDUSessionSMContextRelease(smCtxt)
 	if err != nil {
-		return context.SmStateInit, rsp, err
+		return context.SmStateInit, err
 	}
-
-	return context.SmStateInit, rsp, nil
+	return context.SmStateInit, nil
 }
 
-func ReleaseSmContext(smContextRef string, releaseSmContextRequest models.ReleaseSmContextRequest) error {
-	logger.SmfLog.Info("Processing Release SM Context Request")
-
-	// Validate the request content
-	if releaseSmContextRequest.JsonData == nil {
-		return errors.New("release request is missing JsonData")
-	}
-
-	// Start transaction
+func ReleaseSmContext(smContextRef string) error {
 	ctxt := context.GetSMContext(smContextRef)
-	nextState, rsp, err := HandleStateActiveEventPduSessRelease(releaseSmContextRequest, ctxt)
+	nextState, err := HandleStateActiveEventPduSessRelease(ctxt)
 	ctxt.ChangeState(nextState)
 	if err != nil {
-		logger.SmfLog.Errorf("error processing state machine transaction")
 		if ctxt == nil {
 			logger.SmfLog.Warnf("PDUSessionSMContextRelease [%s] is not found", smContextRef)
-			// 4xx/5xx Error not defined in spec 29502 for Release SM ctxt error
-			// Send Not Found
-			httpResponse := &util.Response{
-				Header: nil,
-				Status: http.StatusNotFound,
-
-				Body: &models.ProblemDetails{
-					Type:   "Resource Not Found",
-					Title:  "SMContext Ref is not found",
-					Status: http.StatusNotFound,
-				},
-			}
-			rsp = httpResponse
+			return fmt.Errorf("SM Context release failed: %s", err.Error())
 		}
 	}
-
-	// Process response based on HTTP status
-	switch rsp.Status {
-	case http.StatusNoContent:
-		// Successful release
-		return nil
-	default:
-		// Handle errors
-		errResponse, ok := rsp.Body.(*models.ProblemDetails)
-		if ok {
-			logger.SmfLog.Errorf("SM Context release failed: %s", errResponse.Detail)
-			return errors.New(errResponse.Detail)
-		}
-		return errors.New("unexpected error during SM Context release")
-	}
+	return nil
 }
 
 func HandlePduSessModify(request models.UpdateSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *models.UpdateSmContextResponse, error) {
@@ -83,7 +45,6 @@ func HandlePduSessModify(request models.UpdateSmContextRequest, smCtxt *context.
 
 func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSmContextRequest) (*models.UpdateSmContextResponse, error) {
 	logger.SmfLog.Info("Processing Update SM Context Request")
-
 	if smContextRef == "" {
 		return nil, errors.New("SM Context reference is missing")
 	}

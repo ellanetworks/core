@@ -17,7 +17,6 @@ import (
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/ellanetworks/core/internal/smf/qos"
-	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/marshtojsonstring"
 	"github.com/omec-project/nas"
@@ -235,12 +234,12 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 	return response, nil
 }
 
-func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smContext *context.SMContext) (*util.Response, error) {
+func HandlePDUSessionSMContextRelease(smContext *context.SMContext) error {
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
 	// Send Policy delete
-	if httpStatus, err := consumer.SendSMPolicyAssociationDelete(smContext, &body); err != nil {
+	if httpStatus, err := consumer.SendSMPolicyAssociationDelete(smContext); err != nil {
 		smContext.SubCtxLog.Errorf("SM policy delete error [%v] ", err.Error())
 	} else {
 		smContext.SubCtxLog.Infof("SM policy delete success with http status [%v] ", httpStatus)
@@ -255,89 +254,32 @@ func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smCon
 	// Initiate PFCP release
 	smContext.ChangeState(context.SmStatePfcpRelease)
 
-	var httpResponse *util.Response
-
 	// Release User-plane
 	status, ok := releaseTunnel(smContext)
 	if !ok {
-		// already released
-		httpResponse = &util.Response{
-			Status: http.StatusNoContent,
-			Body:   nil,
-		}
 		context.RemoveSMContext(smContext.Ref)
-		logger.SmfLog.Warnf("Removed SM Context due to release: %s", smContext.Ref)
-		return httpResponse, nil
+		return fmt.Errorf("tunnel already released")
 	}
 
 	switch *status {
 	case context.SessionReleaseSuccess:
 		smContext.ChangeState(context.SmStatePfcpRelease)
-		httpResponse = &util.Response{
-			Status: http.StatusNoContent,
-			Body:   nil,
-		}
-
 	case context.SessionReleaseTimeout:
 		smContext.ChangeState(context.SmStateActive)
-		httpResponse = &util.Response{
-			Status: int(http.StatusInternalServerError),
-		}
-
+		err = fmt.Errorf("PFCP session release timeout")
 	case context.SessionReleaseFailed:
-		// Update SmContext Request(N1 PDU Session Release Request)
-		// Send PDU Session Release Reject
-		problemDetail := models.ProblemDetails{
-			Status: http.StatusInternalServerError,
-			Cause:  "SYSTEM_FAILULE",
-		}
-		httpResponse = &util.Response{
-			Status: int(problemDetail.Status),
-		}
+		err = fmt.Errorf("PFCP session release failed")
 		smContext.ChangeState(context.SmStateActive)
-		errResponse := models.UpdateSmContextErrorResponse{
-			JsonData: &models.SmContextUpdateError{
-				Error: &problemDetail,
-			},
-		}
-		if buf, err := context.BuildGSMPDUSessionReleaseReject(smContext); err != nil {
-			smContext.SubPduSessLog.Errorf("PDUSessionSMContextRelease, build GSM PDUSessionReleaseReject failed: %+v", err)
-		} else {
-			errResponse.BinaryDataN1SmMessage = buf
-		}
-
-		errResponse.JsonData.N1SmMsg = &models.RefToBinaryData{ContentId: "PDUSessionReleaseReject"}
-		httpResponse.Body = errResponse
 	default:
 		smContext.SubCtxLog.Warnf("PDUSessionSMContextRelease, The state shouldn't be [%s]\n", status)
-
-		problemDetail := models.ProblemDetails{
-			Status: http.StatusInternalServerError,
-			Cause:  "SYSTEM_FAILULE",
-		}
-		httpResponse = &util.Response{
-			Status: int(problemDetail.Status),
-		}
 		smContext.ChangeState(context.SmStateActive)
-		errResponse := models.UpdateSmContextErrorResponse{
-			JsonData: &models.SmContextUpdateError{
-				Error: &problemDetail,
-			},
-		}
-		if buf, err := context.BuildGSMPDUSessionReleaseReject(smContext); err != nil {
-			smContext.SubPduSessLog.Errorf("PDUSessionSMContextRelease, build GSM PDUSessionReleaseReject failed: %+v", err)
-		} else {
-			errResponse.BinaryDataN1SmMessage = buf
-		}
-
-		errResponse.JsonData.N1SmMsg = &models.RefToBinaryData{ContentId: "PDUSessionReleaseReject"}
-		httpResponse.Body = errResponse
+		err = fmt.Errorf("unexpected error during SM Context release")
 	}
 
 	context.RemoveSMContext(smContext.Ref)
 	logger.SmfLog.Warnf("Removed SM Context due to release: %s", smContext.Ref)
 
-	return httpResponse, nil
+	return err
 }
 
 func releaseTunnel(smContext *context.SMContext) (*context.PFCPSessionResponseStatus, bool) {
