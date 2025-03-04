@@ -38,18 +38,17 @@ func SelectSmf(
 	return smContext, 0, nil
 }
 
-func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte) (*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse, error) {
+func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte) (*models.PostSmContextsResponse, *models.PostSmContextsErrorResponse, error) {
 	smContextCreateData := buildCreateSmContextRequest(ue, smContext)
 	postSmContextsRequest := models.PostSmContextsRequest{
 		JsonData:              &smContextCreateData,
 		BinaryDataN1SmMessage: nasPdu,
 	}
-	postSmContextReponse, smContextRef, postSmContextErrorReponse, err := pdusession.CreateSmContext(postSmContextsRequest)
+	postSmContextReponse, postSmContextErrorReponse, err := pdusession.CreateSmContext(postSmContextsRequest)
 	if err != nil {
-		return nil, smContextRef, postSmContextErrorReponse, fmt.Errorf("failed to create sm context: %s", err)
+		return nil, postSmContextErrorReponse, fmt.Errorf("failed to create sm context: %s", err)
 	}
-
-	return postSmContextReponse, smContextRef, nil, nil
+	return postSmContextReponse, nil, nil
 }
 
 func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext) (smContextCreateData models.SmContextCreateData) {

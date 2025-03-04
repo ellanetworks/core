@@ -449,37 +449,6 @@ func (smContextState SMContextState) String() string {
 	}
 }
 
-func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(status int, problemDetails *models.ProblemDetails, cause uint8) *util.Response {
-	var httpResponse *util.Response
-
-	if buf, err := BuildGSMPDUSessionEstablishmentReject(smContext, cause); err != nil {
-		httpResponse = &util.Response{
-			Header: nil,
-			Status: status,
-			Body: models.PostSmContextsErrorResponse{
-				JsonData: &models.SmContextCreateError{
-					Error:   problemDetails,
-					N1SmMsg: &models.RefToBinaryData{ContentId: "n1SmMsg"},
-				},
-			},
-		}
-	} else {
-		httpResponse = &util.Response{
-			Header: nil,
-			Status: status,
-			Body: models.PostSmContextsErrorResponse{
-				JsonData: &models.SmContextCreateError{
-					Error:   problemDetails,
-					N1SmMsg: &models.RefToBinaryData{ContentId: "n1SmMsg"},
-				},
-				BinaryDataN1SmMessage: buf,
-			},
-		}
-	}
-
-	return httpResponse
-}
-
 func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 	// Lock SM context
 	smContext.SMLock.Lock()

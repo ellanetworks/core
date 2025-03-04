@@ -24,19 +24,6 @@ import (
 	"github.com/omec-project/nas/nasMessage"
 )
 
-func formContextCreateErrRsp(httpStatus int, problemBody *models.ProblemDetails, n1SmMsg *models.RefToBinaryData) *util.Response {
-	return &util.Response{
-		Header: nil,
-		Status: httpStatus,
-		Body: models.PostSmContextsErrorResponse{
-			JsonData: &models.SmContextCreateError{
-				Error:   problemBody,
-				N1SmMsg: n1SmMsg,
-			},
-		},
-	}
-}
-
 func HandlePduSessionContextReplacement(smCtxtRef string) error {
 	smCtxt := context.GetSMContext(smCtxtRef)
 
@@ -58,19 +45,15 @@ func HandlePduSessionContextReplacement(smCtxtRef string) error {
 	return nil
 }
 
-func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smContext *context.SMContext) (*util.Response, error) {
+func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smContext *context.SMContext) (*models.PostSmContextsResponse, error) {
 	// GSM State
 	// PDU Session Establishment Accept/Reject
-	var response models.PostSmContextsResponse
-	response.JsonData = new(models.SmContextCreatedData)
 
 	// Check has PDU Session Establishment Request
 	m := nas.NewMessage()
 	if err := m.GsmMessageDecode(&request.BinaryDataN1SmMessage); err != nil ||
 		m.GsmHeader.GetMessageType() != nas.MsgTypePDUSessionEstablishmentRequest {
-		logger.SmfLog.Errorln("PDUSessionSMContextCreate, GsmMessageDecode Error: ", err)
-		response := formContextCreateErrRsp(http.StatusForbidden, &models.N1SmError, nil)
-		return response, fmt.Errorf("GsmMsgDecodeError")
+		return nil, fmt.Errorf("invalid N1 Message: %v", err)
 	}
 
 	createData := request.JsonData
@@ -88,30 +71,14 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	// DNN Information from config
 	smContext.DNNInfo = context.RetrieveDnnInformation(*createData.SNssai, createData.Dnn)
 	if smContext.DNNInfo == nil {
-		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, S-NSSAI[sst: %d, sd: %s] DNN[%s] does not match DNN Config",
+		return nil, fmt.Errorf("dnn does not match DNN Config, S-NSSAI[sst: %d, sd: %s] DNN[%s]",
 			createData.SNssai.Sst, createData.SNssai.Sd, createData.Dnn)
-		problemDetails := &models.ProblemDetails{
-			Title:  "DNN Denied",
-			Status: http.StatusForbidden,
-			Detail: "The subscriber does not have the necessary subscription to access the DNN",
-			Cause:  "DNN_DENIED",
-		}
-		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusForbidden, problemDetails, nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
-		return response, fmt.Errorf("SnssaiError")
 	}
 
 	// IP Allocation
 	smfSelf := context.SMF_Self()
 	if ip, err := smfSelf.DbInstance.AllocateIP(smContext.Supi); err != nil {
-		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, failed allocate IP address: ", err)
-		problemDetails := &models.ProblemDetails{
-			Title:  "IP Allocation Error",
-			Status: http.StatusInternalServerError,
-			Detail: "The request cannot be provided due to insufficient resources for the IP allocation.",
-			Cause:  "INSUFFICIENT_RESOURCES",
-		}
-		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMInsufficientResources)
-		return response, fmt.Errorf("failed allocate IP address: %v", err)
+		return nil, fmt.Errorf("failed to allocate IP address: %v", err)
 	} else {
 		smContext.PDUAddress = &context.UeIpAddr{Ip: ip, UpfProvided: false}
 		smContext.SubPduSessLog.Infof("Successful IP Allocation: %s",
@@ -122,29 +89,13 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 
 	sessSubData, err := udm.GetAndSetSmData(smContext.Supi, createData.Dnn, snssai)
 	if err != nil {
-		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, get SessionManagementSubscriptionData error: ", err)
-		problemDetails := &models.ProblemDetails{
-			Title:  "Subscription Data Fetch error",
-			Status: http.StatusInternalServerError,
-			Detail: "The request cannot be provided due to failure in fetching subscription data.",
-			Cause:  "REQUEST_REJECTED",
-		}
-		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return response, fmt.Errorf("SubscriptionError")
+		return nil, fmt.Errorf("could not get subscription data from UDM: %v", err)
 	}
 	if len(sessSubData) > 0 {
 		smContext.DnnConfiguration = sessSubData[0].DnnConfigurations[createData.Dnn]
 		smContext.SubPduSessLog.Infof("subscription data retrieved from UDM")
 	} else {
-		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SessionManagementSubscriptionData from UDM is nil")
-		problemDetails := &models.ProblemDetails{
-			Title:  "Subscription Data Fetch error",
-			Status: http.StatusInternalServerError,
-			Detail: "The request cannot be provided due to not receiving any subscription data.  ",
-			Cause:  "REQUEST_REJECTED",
-		}
-		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return response, fmt.Errorf("NoSubscriptionError")
+		return nil, fmt.Errorf("no subscription data in UDM")
 	}
 
 	// Decode UE content(PCO)
@@ -156,29 +107,12 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	// PCF Policy Association
 	var smPolicyDecision *models.SmPolicyDecision
 	if smPolicyDecisionRsp, httpStatus, err := consumer.SendSMPolicyAssociationCreate(smContext); err != nil {
-		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SMPolicyAssociationCreate error: ", err)
-		problemDetails := &models.ProblemDetails{
-			Title:  "PCF Discovery Failure",
-			Status: http.StatusInternalServerError,
-			Detail: "The request cannot be provided due to failure in creating PCF policy.",
-			Cause:  "REQUEST_REJECTED",
-		}
-		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return response, fmt.Errorf("PcfAssoError")
+		return nil, fmt.Errorf("create policy association failed: %v", err)
 	} else if httpStatus != http.StatusCreated {
-		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SMPolicyAssociationCreate http status: ", http.StatusText(httpStatus))
-		problemDetails := &models.ProblemDetails{
-			Title:  "PCF Discovery Failure",
-			Status: http.StatusInternalServerError,
-			Detail: "The request cannot be provided due to failure in creating PCF policy.",
-			Cause:  "REQUEST_REJECTED",
-		}
-		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return response, fmt.Errorf("PcfAssoError")
+		return nil, fmt.Errorf("create policy association failed")
 	} else {
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, Policy association create success")
 		smPolicyDecision = smPolicyDecisionRsp
-
 		policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, smPolicyDecision)
 		smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
 	}
@@ -196,82 +130,43 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 
 	defaultUPPath, err := context.GetUserPlaneInformation().GetDefaultUserPlanePathByDNN(upfSelectionParams)
 	if err != nil {
-		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, get default UP path error: %v", err.Error())
-		problemDetails := &models.ProblemDetails{
-			Title:  "UPF Data Path Failure",
-			Status: http.StatusInternalServerError,
-			Detail: "The request cannot be provided due to failure in fetching UPF data path.",
-			Cause:  "REQUEST_REJECTED",
-		}
-		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return response, fmt.Errorf("DataPathError")
+		return nil, fmt.Errorf("no default UP path found")
 	}
 	defaultPath, err = context.GenerateDataPath(defaultUPPath, smContext)
 	if err != nil {
-		smContext.SubPduSessLog.Errorf("couldn't generate data path: %v", err.Error())
-		problemDetails := &models.ProblemDetails{
-			Title:  "UPF Data Path Failure",
-			Status: http.StatusInternalServerError,
-			Detail: "The request cannot be provided due to failure in fetching UPF data path.",
-			Cause:  "REQUEST_REJECTED",
-		}
-		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return response, fmt.Errorf("DataPathError")
+		return nil, fmt.Errorf("couldn't generate data path: %v", err)
 	}
 	if defaultPath != nil {
 		defaultPath.IsDefaultPath = true
 		smContext.Tunnel.AddDataPath(defaultPath)
-
 		if err := defaultPath.ActivateTunnelAndPDR(smContext, 255); err != nil {
-			smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, data path error: %v", err.Error())
-			problemDetails := &models.ProblemDetails{
-				Title:  "UPF Data Path Failure",
-				Status: http.StatusInternalServerError,
-				Detail: "The request cannot be provided due to failure in fetching UPF data path.",
-				Cause:  "REQUEST_REJECTED",
-			}
-			response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMRequestRejectedUnspecified)
-			return response, fmt.Errorf("DataPathError")
+			return nil, fmt.Errorf("couldn't activate data path: %v", err)
 		}
 	}
 	if defaultPath == nil {
 		smContext.ChangeState(context.SmStateInit)
-		problemDetails := &models.ProblemDetails{
-			Title:  "DNN Resource insufficient",
-			Status: http.StatusInternalServerError,
-			Detail: "The request cannot be provided due to insufficient resources for the specific slice and DNN.",
-			Cause:  "INSUFFICIENT_RESOURCES_SLICE_DNN",
-		}
-		response := smContext.GeneratePDUSessionEstablishmentReject(http.StatusInternalServerError, problemDetails, nasMessage.Cause5GSMInsufficientResourcesForSpecificSliceAndDNN)
-		return response, fmt.Errorf("default data path not found")
+		return nil, fmt.Errorf("default data path not found")
 	}
 
-	response.JsonData = smContext.BuildCreatedData()
-	httpResponse := &util.Response{
-		Header: http.Header{
-			"Location": {smContext.Ref},
-		},
-		Status: http.StatusCreated,
-		Body:   response,
+	// var response &models.PostSmContextsResponse{}
+	response := &models.PostSmContextsResponse{
+		JsonData: smContext.BuildCreatedData(),
+		Location: smContext.Ref,
 	}
-
 	smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, PDU session context create success ")
-
-	return httpResponse, nil
+	return response, nil
 }
 
-func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smContext *context.SMContext) (*util.Response, error) {
+func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smContext *context.SMContext) (*models.UpdateSmContextResponse, error) {
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
 	pfcpAction := &pfcpAction{}
-	var response models.UpdateSmContextResponse
-	response.JsonData = new(models.SmContextUpdatedData)
+	var response *models.UpdateSmContextResponse
 
-	var httpResponse *util.Response
-	httpResponse, err := HandleUpdateN1Msg(request, smContext, &response, pfcpAction)
+	err := HandleUpdateN1Msg(request, smContext, response, pfcpAction)
 	if err != nil {
-		return httpResponse, err
+		return response, err
 	}
 
 	pfcpParam := &pfcpParam{
@@ -282,23 +177,23 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 	}
 
 	// UP Cnx State handling
-	if err := HandleUpCnxState(request, smContext, &response, pfcpAction, pfcpParam); err != nil {
-		return httpResponse, err
+	if err := HandleUpCnxState(request, smContext, response, pfcpAction, pfcpParam); err != nil {
+		return response, err
 	}
 
 	// N2 Msg Handling
-	if err := HandleUpdateN2Msg(request, smContext, &response, pfcpAction, pfcpParam); err != nil {
-		return httpResponse, err
+	if err := HandleUpdateN2Msg(request, smContext, response, pfcpAction, pfcpParam); err != nil {
+		return response, err
 	}
 
 	// Ho state handling
-	if err := HandleUpdateHoState(request, smContext, &response); err != nil {
-		return httpResponse, err
+	if err := HandleUpdateHoState(request, smContext, response); err != nil {
+		return response, err
 	}
 
 	// Cause handling
-	if err := HandleUpdateCause(request, smContext, &response, pfcpAction); err != nil {
-		return httpResponse, err
+	if err := HandleUpdateCause(request, smContext, response, pfcpAction); err != nil {
+		return response, err
 	}
 
 	switch smContext.SMContextState {
@@ -318,89 +213,26 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 
 			// Change state to InactivePending
 			smContext.ChangeState(context.SmStateInActivePending)
-
-			// Update response to success
-			httpResponse = &util.Response{
-				Status: http.StatusOK,
-				Body:   response,
-			}
 		} else if pfcpAction.sendPfcpModify {
 			smContext.ChangeState(context.SmStatePfcpModify)
 			smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, send PFCP Modification")
 
 			// Initiate PFCP Modify
 			if err = SendPfcpSessionModifyReq(smContext, pfcpParam); err != nil {
-				// Modify failure
-				smContext.SubCtxLog.Errorf("pfcp session modify error: %v ", err.Error())
-
-				// Form Modify err rsp
-				httpResponse = makePduCtxtModifyErrRsp(smContext, err.Error())
+				return response, fmt.Errorf("could not send PFCP modify request: %v", err)
 			} else {
-				// Modify Success
-				httpResponse = &util.Response{
-					Status: http.StatusOK,
-					Body:   response,
-				}
-
 				smContext.ChangeState(context.SmStateActive)
 			}
 		}
 
 	case context.SmStateModify:
 		smContext.ChangeState(context.SmStateActive)
-		httpResponse = &util.Response{
-			Status: http.StatusOK,
-			Body:   response,
-		}
 	case context.SmStateInit, context.SmStateInActivePending:
-		httpResponse = &util.Response{
-			Status: http.StatusOK,
-			Body:   response,
-		}
 	default:
 		smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SM Context State [%s] shouldn't be here\n", smContext.SMContextState)
-		httpResponse = &util.Response{
-			Status: http.StatusOK,
-			Body:   response,
-		}
 	}
 
-	return httpResponse, nil
-}
-
-func makePduCtxtModifyErrRsp(smContext *context.SMContext, errStr string) *util.Response {
-	problemDetail := models.ProblemDetails{
-		Title:  errStr,
-		Status: http.StatusInternalServerError,
-		Detail: errStr,
-		Cause:  "UPF_NOT_RESPONDING",
-	}
-	var n1buf, n2buf []byte
-	var err error
-	if n1buf, err = context.BuildGSMPDUSessionReleaseCommand(smContext); err != nil {
-		smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, build GSM PDUSessionReleaseCommand failed: %+v", err)
-	}
-
-	if n2buf, err = context.BuildPDUSessionResourceReleaseCommandTransfer(smContext); err != nil {
-		smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, build PDUSessionResourceReleaseCommandTransfer failed: %+v", err)
-	}
-
-	// It is just a template
-	httpResponse := &util.Response{
-		Status: http.StatusServiceUnavailable,
-		Body: models.UpdateSmContextErrorResponse{
-			JsonData: &models.SmContextUpdateError{
-				Error:        &problemDetail,
-				N1SmMsg:      &models.RefToBinaryData{ContentId: context.PDU_SESS_REL_CMD},
-				N2SmInfo:     &models.RefToBinaryData{ContentId: context.PDU_SESS_REL_CMD},
-				N2SmInfoType: models.N2SmInfoType_PDU_RES_REL_CMD,
-			},
-			BinaryDataN1SmMessage:     n1buf,
-			BinaryDataN2SmInformation: n2buf,
-		}, // Depends on the reason why N4 fail
-	}
-
-	return httpResponse
+	return response, nil
 }
 
 func HandlePDUSessionSMContextRelease(body models.ReleaseSmContextRequest, smContext *context.SMContext) (*util.Response, error) {
