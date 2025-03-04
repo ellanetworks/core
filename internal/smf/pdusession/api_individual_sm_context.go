@@ -7,13 +7,11 @@ package pdusession
 import (
 	"errors"
 	"fmt"
-	"net/http"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
-	"github.com/ellanetworks/core/internal/smf/util"
 )
 
 func HandleStateActiveEventPduSessRelease(smCtxt *context.SMContext) (context.SMContextState, error) {
@@ -35,23 +33,9 @@ func ReleaseSmContext(smContextRef string) error {
 	return nil
 }
 
-func HandlePduSessModify(request models.UpdateSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *util.Response, error) {
+func HandlePduSessModify(request models.UpdateSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *models.UpdateSmContextResponse, error) {
 	rsp, err := producer.HandlePDUSessionSMContextUpdate(request, smCtxt)
 	if err != nil {
-		rsp = &util.Response{
-			Header: nil,
-			Status: http.StatusNotFound,
-			Body: models.UpdateSmContextErrorResponse{
-				JsonData: &models.SmContextUpdateError{
-					UpCnxState: models.UpCnxState_DEACTIVATED,
-					Error: &models.ProblemDetails{
-						Type:   "Resource Not Found",
-						Title:  "SMContext Ref is not found",
-						Status: http.StatusNotFound,
-					},
-				},
-			},
-		}
 		return context.SmStateActive, rsp, fmt.Errorf("error updating pdu session: %v ", err.Error())
 	}
 	return context.SmStateActive, rsp, nil
@@ -75,21 +59,8 @@ func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSm
 		logger.SmfLog.Errorf("error processing state machine transaction")
 	}
 	smContext.ChangeState(nextState)
-
-	switch rsp.Status {
-	case http.StatusOK, http.StatusNoContent:
-		response, ok := rsp.Body.(models.UpdateSmContextResponse)
-		if !ok {
-			return nil, errors.New("unexpected response body type for successful update")
-		}
-		return &response, nil
-
-	default:
-		errResponse, ok := rsp.Body.(*models.ProblemDetails)
-		if ok {
-			logger.SmfLog.Errorf("SM Context update failed: %s", errResponse.Detail)
-			return nil, errors.New(errResponse.Detail)
-		}
+	if rsp == nil {
 		return nil, errors.New("unexpected error during SM Context update")
 	}
+	return rsp, nil
 }

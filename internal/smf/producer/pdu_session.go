@@ -250,7 +250,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	return httpResponse, nil
 }
 
-func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smContext *context.SMContext) (*util.Response, error) {
+func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smContext *context.SMContext) (*models.UpdateSmContextResponse, error) {
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
@@ -258,10 +258,9 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 	var response models.UpdateSmContextResponse
 	response.JsonData = new(models.SmContextUpdatedData)
 
-	var httpResponse *util.Response
-	httpResponse, err := HandleUpdateN1Msg(request, smContext, &response, pfcpAction)
+	err := HandleUpdateN1Msg(request, smContext, &response, pfcpAction)
 	if err != nil {
-		return httpResponse, err
+		return nil, err
 	}
 
 	pfcpParam := &pfcpParam{
@@ -273,24 +272,25 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 
 	// UP Cnx State handling
 	if err := HandleUpCnxState(request, smContext, &response, pfcpAction, pfcpParam); err != nil {
-		return httpResponse, err
+		return nil, err
 	}
 
 	// N2 Msg Handling
 	if err := HandleUpdateN2Msg(request, smContext, &response, pfcpAction, pfcpParam); err != nil {
-		return httpResponse, err
+		return nil, err
 	}
 
 	// Ho state handling
 	if err := HandleUpdateHoState(request, smContext, &response); err != nil {
-		return httpResponse, err
+		return nil, err
 	}
 
 	// Cause handling
 	if err := HandleUpdateCause(request, smContext, &response, pfcpAction); err != nil {
-		return httpResponse, err
+		return nil, err
 	}
 
+	var returnErr error
 	switch smContext.SMContextState {
 	case context.SmStatePfcpModify:
 
@@ -308,12 +308,6 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 
 			// Change state to InactivePending
 			smContext.ChangeState(context.SmStateInActivePending)
-
-			// Update response to success
-			httpResponse = &util.Response{
-				Status: http.StatusOK,
-				Body:   response,
-			}
 		} else if pfcpAction.sendPfcpModify {
 			smContext.ChangeState(context.SmStatePfcpModify)
 			smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, send PFCP Modification")
@@ -324,73 +318,22 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 				smContext.SubCtxLog.Errorf("pfcp session modify error: %v ", err.Error())
 
 				// Form Modify err rsp
-				httpResponse = makePduCtxtModifyErrRsp(smContext, err.Error())
+				returnErr = fmt.Errorf("pfcp session modify error: %v ", err.Error())
 			} else {
-				// Modify Success
-				httpResponse = &util.Response{
-					Status: http.StatusOK,
-					Body:   response,
-				}
-
 				smContext.ChangeState(context.SmStateActive)
 			}
 		}
 
 	case context.SmStateModify:
 		smContext.ChangeState(context.SmStateActive)
-		httpResponse = &util.Response{
-			Status: http.StatusOK,
-			Body:   response,
-		}
+
 	case context.SmStateInit, context.SmStateInActivePending:
-		httpResponse = &util.Response{
-			Status: http.StatusOK,
-			Body:   response,
-		}
+
 	default:
 		smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SM Context State [%s] shouldn't be here\n", smContext.SMContextState)
-		httpResponse = &util.Response{
-			Status: http.StatusOK,
-			Body:   response,
-		}
 	}
 
-	return httpResponse, nil
-}
-
-func makePduCtxtModifyErrRsp(smContext *context.SMContext, errStr string) *util.Response {
-	problemDetail := models.ProblemDetails{
-		Title:  errStr,
-		Status: http.StatusInternalServerError,
-		Detail: errStr,
-		Cause:  "UPF_NOT_RESPONDING",
-	}
-	var n1buf, n2buf []byte
-	var err error
-	if n1buf, err = context.BuildGSMPDUSessionReleaseCommand(smContext); err != nil {
-		smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, build GSM PDUSessionReleaseCommand failed: %+v", err)
-	}
-
-	if n2buf, err = context.BuildPDUSessionResourceReleaseCommandTransfer(smContext); err != nil {
-		smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, build PDUSessionResourceReleaseCommandTransfer failed: %+v", err)
-	}
-
-	// It is just a template
-	httpResponse := &util.Response{
-		Status: http.StatusServiceUnavailable,
-		Body: models.UpdateSmContextErrorResponse{
-			JsonData: &models.SmContextUpdateError{
-				Error:        &problemDetail,
-				N1SmMsg:      &models.RefToBinaryData{ContentId: context.PDU_SESS_REL_CMD},
-				N2SmInfo:     &models.RefToBinaryData{ContentId: context.PDU_SESS_REL_CMD},
-				N2SmInfoType: models.N2SmInfoType_PDU_RES_REL_CMD,
-			},
-			BinaryDataN1SmMessage:     n1buf,
-			BinaryDataN2SmInformation: n2buf,
-		}, // Depends on the reason why N4 fail
-	}
-
-	return httpResponse
+	return &response, returnErr
 }
 
 func HandlePDUSessionSMContextRelease(smContext *context.SMContext) error {
