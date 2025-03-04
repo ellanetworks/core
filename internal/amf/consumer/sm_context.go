@@ -121,7 +121,7 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 
 func SendUpdateSmContextActivateUpCnxState(
 	ue *context.AmfUe, smContext *context.SmContext, accessType models.AccessType) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+	*models.UpdateSmContextResponse, error,
 ) {
 	updateData := models.SmContextUpdateData{}
 	updateData.UpCnxState = models.UpCnxState_ACTIVATING
@@ -141,7 +141,7 @@ func SendUpdateSmContextActivateUpCnxState(
 
 func SendUpdateSmContextDeactivateUpCnxState(ue *context.AmfUe,
 	smContext *context.SmContext, cause context.CauseAll) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+	*models.UpdateSmContextResponse, error,
 ) {
 	updateData := models.SmContextUpdateData{}
 	updateData.UpCnxState = models.UpCnxState_DEACTIVATED
@@ -163,7 +163,7 @@ func SendUpdateSmContextDeactivateUpCnxState(ue *context.AmfUe,
 
 func SendUpdateSmContextChangeAccessType(ue *context.AmfUe,
 	smContext *context.SmContext, anTypeCanBeChanged bool) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+	*models.UpdateSmContextResponse, error,
 ) {
 	updateData := models.SmContextUpdateData{}
 	updateData.AnTypeCanBeChanged = anTypeCanBeChanged
@@ -172,7 +172,7 @@ func SendUpdateSmContextChangeAccessType(ue *context.AmfUe,
 
 func SendUpdateSmContextN2Info(
 	ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+	*models.UpdateSmContextResponse, error,
 ) {
 	updateData := models.SmContextUpdateData{}
 	updateData.N2SmInfoType = n2SmType
@@ -184,7 +184,7 @@ func SendUpdateSmContextN2Info(
 
 func SendUpdateSmContextXnHandover(
 	ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+	*models.UpdateSmContextResponse, error,
 ) {
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
@@ -204,10 +204,7 @@ func SendUpdateSmContextXnHandover(
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
 
-func SendUpdateSmContextXnHandoverFailed(
-	ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
-) {
+func SendUpdateSmContextXnHandoverFailed(ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (*models.UpdateSmContextResponse, error) {
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
@@ -218,13 +215,7 @@ func SendUpdateSmContextXnHandoverFailed(
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
 
-func SendUpdateSmContextN2HandoverPreparing(
-	ue *context.AmfUe,
-	smContext *context.SmContext,
-	n2SmType models.N2SmInfoType,
-	N2SmInfo []byte, amfid string, targetId *models.NgRanTargetId) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
-) {
+func SendUpdateSmContextN2HandoverPreparing(ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte, amfid string, targetId *models.NgRanTargetId) (*models.UpdateSmContextResponse, error) {
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
@@ -258,9 +249,7 @@ func SendUpdateSmContextN2HandoverPreparing(
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
 
-func SendUpdateSmContextN2HandoverPrepared(
-	ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+func SendUpdateSmContextN2HandoverPrepared(ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (*models.UpdateSmContextResponse, error,
 ) {
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
@@ -272,9 +261,7 @@ func SendUpdateSmContextN2HandoverPrepared(
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
 
-func SendUpdateSmContextN2HandoverComplete(
-	ue *context.AmfUe, smContext *context.SmContext, amfid string, guami *models.Guami) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
+func SendUpdateSmContextN2HandoverComplete(ue *context.AmfUe, smContext *context.SmContext, amfid string, guami *models.Guami) (*models.UpdateSmContextResponse, error,
 ) {
 	updateData := models.SmContextUpdateData{}
 	updateData.HoState = models.HoState_COMPLETED
@@ -302,10 +289,7 @@ func SendUpdateSmContextN2HandoverComplete(
 	return SendUpdateSmContextRequest(smContext, updateData, nil, nil)
 }
 
-func SendUpdateSmContextN2HandoverCanceled(ue *context.AmfUe,
-	smContext *context.SmContext, cause context.CauseAll) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse, error,
-) {
+func SendUpdateSmContextN2HandoverCanceled(ue *context.AmfUe, smContext *context.SmContext, cause context.CauseAll) (*models.UpdateSmContextResponse, error) {
 	updateData := models.SmContextUpdateData{}
 	updateData.HoState = models.HoState_CANCELLED
 	if cause.Cause != nil {
@@ -323,11 +307,7 @@ func SendUpdateSmContextN2HandoverCanceled(ue *context.AmfUe,
 	return SendUpdateSmContextRequest(smContext, updateData, nil, nil)
 }
 
-func SendUpdateSmContextRequest(smContext *context.SmContext,
-	updateData models.SmContextUpdateData, n1Msg []byte, n2Info []byte) (
-	*models.UpdateSmContextResponse, *models.UpdateSmContextErrorResponse,
-	error,
-) {
+func SendUpdateSmContextRequest(smContext *context.SmContext, updateData models.SmContextUpdateData, n1Msg []byte, n2Info []byte) (*models.UpdateSmContextResponse, error) {
 	var updateSmContextRequest models.UpdateSmContextRequest
 	updateSmContextRequest.JsonData = &updateData
 	updateSmContextRequest.BinaryDataN1SmMessage = n1Msg
@@ -335,9 +315,9 @@ func SendUpdateSmContextRequest(smContext *context.SmContext,
 
 	updateSmContextReponse, err := pdusession.UpdateSmContext(smContext.SmContextRef(), updateSmContextRequest)
 	if err != nil {
-		return updateSmContextReponse, nil, fmt.Errorf("failed to update sm context: %s", err)
+		return updateSmContextReponse, fmt.Errorf("failed to update sm context: %s", err)
 	}
-	return updateSmContextReponse, nil, nil
+	return updateSmContextReponse, nil
 }
 
 func SendReleaseSmContextRequest(smContext *context.SmContext) error {

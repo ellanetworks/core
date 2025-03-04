@@ -449,26 +449,17 @@ func (smContextState SMContextState) String() string {
 	}
 }
 
-func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(status int, problemDetails *models.ProblemDetails, cause uint8) *util.Response {
-	var httpResponse *util.Response
+func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(cause uint8) *models.PostSmContextsErrorResponse {
+	var rsp *models.PostSmContextsErrorResponse
 
 	if buf, err := BuildGSMPDUSessionEstablishmentReject(smContext, cause); err != nil {
-		httpResponse = &util.Response{
-			Header: nil,
-			Status: status,
-			Body:   models.PostSmContextsErrorResponse{},
-		}
+		rsp = &models.PostSmContextsErrorResponse{}
 	} else {
-		httpResponse = &util.Response{
-			Header: nil,
-			Status: status,
-			Body: models.PostSmContextsErrorResponse{
-				BinaryDataN1SmMessage: buf,
-			},
+		rsp = &models.PostSmContextsErrorResponse{
+			BinaryDataN1SmMessage: buf,
 		}
 	}
-
-	return httpResponse
+	return rsp
 }
 
 func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {

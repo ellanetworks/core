@@ -148,7 +148,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 				}
 				ue.GmmLog.Warnf("Duplicated PDU session ID[%d]", pduSessionID)
 				smContext.SetDuplicatedPduSessionID(true)
-				response, _, err := consumer.SendUpdateSmContextRequest(smContext, updateData, nil, nil)
+				response, err := consumer.SendUpdateSmContextRequest(smContext, updateData, nil, nil)
 				if err != nil {
 					return err
 				}
@@ -301,19 +301,10 @@ func forward5GSMMessageToSMF(
 		smContextUpdateData.AnType = accessType
 	}
 
-	response, errResponse, err := consumer.SendUpdateSmContextRequest(smContext, smContextUpdateData, smMessage, nil)
+	response, err := consumer.SendUpdateSmContextRequest(smContext, smContextUpdateData, smMessage, nil)
 	if err != nil {
 		ue.GmmLog.Errorf("Update SMContext error [pduSessionID: %d], Error[%v]", pduSessionID, err)
 		return nil
-	} else if errResponse != nil {
-		errJSON := errResponse.JsonData
-		n1Msg := errResponse.BinaryDataN1SmMessage
-		ue.GmmLog.Warnf("PDU Session Modification Procedure is rejected by SMF[pduSessionId:%d], Error[%s]",
-			pduSessionID, errJSON.Error.Cause)
-		if n1Msg != nil {
-			gmm_message.SendDLNASTransport(ue.RanUe[accessType], nasMessage.PayloadContainerTypeN1SMInfo,
-				errResponse.BinaryDataN1SmMessage, pduSessionID, 0, nil, 0)
-		}
 	} else if response != nil {
 		// update SmContext in AMF
 		smContext.SetAccessType(accessType)
@@ -732,21 +723,11 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 				if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionId); ok {
 					// uplink data are pending for the corresponding PDU session identity
 					if hasUplinkData && smContext.AccessType() == models.AccessType__3_GPP_ACCESS {
-						response, errResponse, err := consumer.SendUpdateSmContextActivateUpCnxState(ue, smContext, anType)
+						response, err := consumer.SendUpdateSmContextActivateUpCnxState(ue, smContext, anType)
 						if response == nil {
 							reactivationResult[pduSessionId] = true
 							errPduSessionId = append(errPduSessionId, uint8(pduSessionId))
 							cause := nasMessage.Cause5GMMProtocolErrorUnspecified
-							if errResponse != nil {
-								switch errResponse.JsonData.Error.Cause {
-								case OUT_OF_LADN_SERVICE_AREA:
-									cause = nasMessage.Cause5GMMLADNNotAvailable
-								case PRIORITIZED_SERVICES_ONLY:
-									cause = nasMessage.Cause5GMMRestrictedServiceArea
-								case DNN_CONGESTION, S_NSSAI_CONGESTION:
-									cause = nasMessage.Cause5GMMInsufficientUserPlaneResourcesForThePDUSession
-								}
-							}
 							errCause = append(errCause, cause)
 
 							if err != nil {
@@ -836,23 +817,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 					reactivationResult = new([16]bool)
 				}
 				if allowedPsis[requestData.PduSessionId] {
-					response, errRes, err := consumer.SendUpdateSmContextChangeAccessType(ue, smContext, true)
+					response, err := consumer.SendUpdateSmContextChangeAccessType(ue, smContext, true)
 					if err != nil {
 						return err
 					} else if response == nil {
 						reactivationResult[requestData.PduSessionId] = true
 						errPduSessionId = append(errPduSessionId, uint8(requestData.PduSessionId))
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
-						if errRes != nil {
-							switch errRes.JsonData.Error.Cause {
-							case OUT_OF_LADN_SERVICE_AREA:
-								cause = nasMessage.Cause5GMMLADNNotAvailable
-							case PRIORITIZED_SERVICES_ONLY:
-								cause = nasMessage.Cause5GMMRestrictedServiceArea
-							case DNN_CONGESTION, S_NSSAI_CONGESTION:
-								cause = nasMessage.Cause5GMMInsufficientUserPlaneResourcesForThePDUSession
-							}
-						}
 						errCause = append(errCause, cause)
 					} else {
 						smContext.SetUserLocation(ue.Location)
@@ -1446,7 +1417,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 
 			if pduSessionID != targetPduSessionId {
 				if uplinkDataPsi[pduSessionID] && smContext.AccessType() == models.AccessType__3_GPP_ACCESS {
-					response, errRes, err := consumer.SendUpdateSmContextActivateUpCnxState(
+					response, err := consumer.SendUpdateSmContextActivateUpCnxState(
 						ue, smContext, models.AccessType__3_GPP_ACCESS)
 					if err != nil {
 						ue.GmmLog.Errorf("SendUpdateSmContextActivateUpCnxState[pduSessionID:%d] Error: %+v",
@@ -1455,16 +1426,6 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 						reactivationResult[pduSessionID] = true
 						errPduSessionId = append(errPduSessionId, uint8(pduSessionID))
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
-						if errRes != nil {
-							switch errRes.JsonData.Error.Cause {
-							case OUT_OF_LADN_SERVICE_AREA:
-								cause = nasMessage.Cause5GMMLADNNotAvailable
-							case PRIORITIZED_SERVICES_ONLY:
-								cause = nasMessage.Cause5GMMRestrictedServiceArea
-							case DNN_CONGESTION, S_NSSAI_CONGESTION:
-								cause = nasMessage.Cause5GMMInsufficientUserPlaneResourcesForThePDUSession
-							}
-						}
 						errCause = append(errCause, cause)
 					} else if ue.RanUe[anType].UeContextRequest {
 						ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList,
@@ -1539,7 +1500,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 						reactivationResult = new([16]bool)
 					}
 					if allowPduSessionPsi[requestData.PduSessionId] {
-						response, errRes, err := consumer.SendUpdateSmContextChangeAccessType(
+						response, err := consumer.SendUpdateSmContextChangeAccessType(
 							ue, smContext, true)
 						if err != nil {
 							return err
@@ -1547,16 +1508,6 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 							reactivationResult[requestData.PduSessionId] = true
 							errPduSessionId = append(errPduSessionId, uint8(requestData.PduSessionId))
 							cause := nasMessage.Cause5GMMProtocolErrorUnspecified
-							if errRes != nil {
-								switch errRes.JsonData.Error.Cause {
-								case OUT_OF_LADN_SERVICE_AREA:
-									cause = nasMessage.Cause5GMMLADNNotAvailable
-								case PRIORITIZED_SERVICES_ONLY:
-									cause = nasMessage.Cause5GMMRestrictedServiceArea
-								case DNN_CONGESTION, S_NSSAI_CONGESTION:
-									cause = nasMessage.Cause5GMMInsufficientUserPlaneResourcesForThePDUSession
-								}
-							}
 							errCause = append(errCause, cause)
 						} else {
 							smContext.SetUserLocation(ue.Location)
