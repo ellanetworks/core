@@ -14,9 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/udm"
 )
 
-func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRegistrationInd bool) (
-	*models.ProblemDetails, error,
-) {
+func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRegistrationInd bool) error {
 	amfSelf := context.AMF_Self()
 	guamiList := context.GetServedGuamiList()
 
@@ -37,12 +35,11 @@ func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRe
 		}
 		err := udm.EditRegistrationAmf3gppAccess(registrationData, ue.Supi)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	case models.AccessType_NON_3_GPP_ACCESS:
-		// log an error
-		return nil, fmt.Errorf("Non-3GPP access is not supported")
+		return fmt.Errorf("Non-3GPP access is not supported")
 	}
 
-	return nil, nil
+	return nil
 }

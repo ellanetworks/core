@@ -7,39 +7,41 @@
 package consumer
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
 )
 
-func SDMGetAmData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err error) {
+func SDMGetAmData(ue *context.AmfUe) error {
 	data, err := udm.GetAmDataAndSetAMSubscription(ue.Supi)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	ue.AccessAndMobilitySubscriptionData = data
-	return nil, nil
+	return nil
 }
 
-func SDMGetSmfSelectData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err error) {
+func SDMGetSmfSelectData(ue *context.AmfUe) error {
 	data, err := udm.GetAndSetSmfSelectData(ue.Supi)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	ue.SmfSelectionData = data
-	return nil, nil
+	return nil
 }
 
-func SDMGetUeContextInSmfData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err error) {
+func SDMGetUeContextInSmfData(ue *context.AmfUe) error {
 	data, err := udm.GetUeContextInSmfData(ue.Supi)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	ue.UeContextInSmfData = data
-	return nil, nil
+	return nil
 }
 
-func SDMSubscribe(ue *context.AmfUe) (*models.ProblemDetails, error) {
+func SDMSubscribe(ue *context.AmfUe) error {
 	amfSelf := context.AMF_Self()
 	sdmSubscription := &models.SdmSubscription{
 		NfInstanceId: amfSelf.NfId,
@@ -48,28 +50,17 @@ func SDMSubscribe(ue *context.AmfUe) (*models.ProblemDetails, error) {
 			Mnc: ue.PlmnId.Mnc,
 		},
 	}
-
 	err := udm.CreateSubscription(sdmSubscription, ue.Supi)
 	if err != nil {
-		problemDetails := &models.ProblemDetails{
-			Status: 500,
-			Cause:  "SYSTEM_FAILURE",
-			Detail: err.Error(),
-		}
-		return problemDetails, nil
+		return fmt.Errorf("couldn't create subscription in udm: %s", err)
 	}
-	return nil, nil
+	return nil
 }
 
-func SDMGetSliceSelectionSubscriptionData(ue *context.AmfUe) (problemDetails *models.ProblemDetails, err error) {
+func SDMGetSliceSelectionSubscriptionData(ue *context.AmfUe) error {
 	nssai, err := udm.GetNssai(ue.Supi)
 	if err != nil {
-		problemDetails := &models.ProblemDetails{
-			Status: 500,
-			Cause:  "SYSTEM_FAILURE",
-			Detail: err.Error(),
-		}
-		return problemDetails, nil
+		return fmt.Errorf("couldn't get nssai from udm: %s", err)
 	}
 	for _, defaultSnssai := range nssai.DefaultSingleNssais {
 		subscribedSnssai := models.SubscribedSnssai{
@@ -91,5 +82,5 @@ func SDMGetSliceSelectionSubscriptionData(ue *context.AmfUe) (problemDetails *mo
 		}
 		ue.SubscribedNssai = append(ue.SubscribedNssai, subscribedSnssai)
 	}
-	return nil, nil
+	return nil
 }

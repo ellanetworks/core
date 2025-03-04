@@ -1,5 +1,5 @@
 package models
 
-type ConfirmationData struct {
-	ResStar string
-}
+// type ConfirmationData struct {
+// 	ResStar string
+// }

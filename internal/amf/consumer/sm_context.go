@@ -38,10 +38,7 @@ func SelectSmf(
 	return smContext, 0, nil
 }
 
-func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte) (
-	*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse,
-	*models.ProblemDetails, error,
-) {
+func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte) (*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse, error) {
 	smContextCreateData := buildCreateSmContextRequest(ue, smContext)
 	postSmContextsRequest := models.PostSmContextsRequest{
 		JsonData:              &smContextCreateData,
@@ -49,15 +46,10 @@ func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
 	}
 	postSmContextReponse, smContextRef, postSmContextErrorReponse, err := pdusession.CreateSmContext(postSmContextsRequest)
 	if err != nil {
-		problemDetail := &models.ProblemDetails{
-			Title:  "Create SmContext Request Error",
-			Status: 500,
-			Detail: err.Error(),
-		}
-		return nil, smContextRef, postSmContextErrorReponse, problemDetail, err
+		return nil, smContextRef, postSmContextErrorReponse, fmt.Errorf("failed to create sm context: %s", err)
 	}
 
-	return postSmContextReponse, smContextRef, nil, nil, nil
+	return postSmContextReponse, smContextRef, nil, nil
 }
 
 func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext) (smContextCreateData models.SmContextCreateData) {
@@ -347,19 +339,16 @@ func SendUpdateSmContextRequest(smContext *context.SmContext,
 	return updateSmContextReponse, nil, nil
 }
 
-func SendReleaseSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
-	cause *context.CauseAll, n2SmInfoType models.N2SmInfoType,
-	n2Info []byte,
-) (detail *models.ProblemDetails, err error) {
+func SendReleaseSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, cause *context.CauseAll, n2SmInfoType models.N2SmInfoType, n2Info []byte) error {
 	releaseData := buildReleaseSmContextRequest(ue, cause, n2SmInfoType, n2Info)
 	releaseSmContextRequest := models.ReleaseSmContextRequest{
 		JsonData: &releaseData,
 	}
-	err = pdusession.ReleaseSmContext(smContext.SmContextRef(), releaseSmContextRequest)
+	err := pdusession.ReleaseSmContext(smContext.SmContextRef(), releaseSmContextRequest)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return nil, nil
+	return nil
 }
 
 func buildReleaseSmContextRequest(

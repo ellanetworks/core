@@ -13,14 +13,11 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/ausf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasType"
 )
 
-func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
-	resynchronizationInfo *models.ResynchronizationInfo,
-) (*models.UeAuthenticationCtx, *models.ProblemDetails, error) {
+func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe, resynchronizationInfo *models.ResynchronizationInfo) (*models.UeAuthenticationCtx, error) {
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 	var plmnId *models.PlmnId
@@ -34,7 +31,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 	var authInfo models.AuthenticationInfo
 	authInfo.SupiOrSuci = ue.Suci
 	if mnc, err := strconv.Atoi(plmnId.Mnc); err != nil {
-		return nil, nil, err
+		return nil, fmt.Errorf("couldn't convert MNC to integer: %s", err)
 	} else {
 		authInfo.ServingNetworkName = fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, plmnId.Mcc)
 	}
@@ -44,47 +41,24 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 
 	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(authInfo)
 	if err != nil {
-		logger.AmfLog.Errorf("UE Authentication Authenticate Request failed: %+v", err)
-		return nil, nil, err
+		return nil, fmt.Errorf("UE Authentication Authenticate Request failed: %s", err)
 	}
-	return ueAuthenticationCtx, nil, nil
+	return ueAuthenticationCtx, nil
 }
 
-func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string) (
-	*models.ConfirmationDataResponse, *models.ProblemDetails, error,
-) {
-	confirmationData := models.ConfirmationData{
-		ResStar: resStar,
-	}
-	confirmResult, err := ausf.Auth5gAkaComfirmRequestProcedure(confirmationData, ue.Suci)
+func SendAuth5gAkaConfirmRequest(ueSuci string, resStar string) (*models.ConfirmationDataResponse, error) {
+	confirmResult, err := ausf.Auth5gAkaComfirmRequestProcedure(resStar, ueSuci)
 	if err != nil {
-		logger.AmfLog.Errorf("Auth5gAkaComfirmRequestProcedure failed: %+v", err)
-		problemDetails := &models.ProblemDetails{
-			Status: 500,
-			Cause:  "SYSTEM_FAILURE",
-			Detail: err.Error(),
-		}
-		return nil, problemDetails, err
+		return nil, fmt.Errorf("couldn't receive AKA authentication confirmation from ausf: %s", err)
 	}
-	return confirmResult, nil, nil
+	return confirmResult, nil
 }
 
-func SendEapAuthConfirmRequest(ue *context.AmfUe, eapMsg nasType.EAPMessage) (
-	*models.EapSession, *models.ProblemDetails, error,
-) {
-	eapSession := models.EapSession{
-		EapPayload: base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage()),
-	}
-
-	response, err := ausf.EapAuthComfirmRequestProcedure(eapSession, ue.Suci)
+func SendEapAuthConfirmRequest(ueSuci string, eapMsg nasType.EAPMessage) (*models.EapSession, error) {
+	eapPayload := base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage())
+	response, err := ausf.EapAuthComfirmRequestProcedure(eapPayload, ueSuci)
 	if err != nil {
-		logger.AmfLog.Errorf("EapAuthComfirmRequestProcedure failed: %+v", err)
-		problemDetails := &models.ProblemDetails{
-			Status: 500,
-			Cause:  "SYSTEM_FAILURE",
-			Detail: err.Error(),
-		}
-		return nil, problemDetails, err
+		return nil, fmt.Errorf("couldn't receive EAP authentication confirmation from ausf: %s", err)
 	}
-	return response, nil, nil
+	return response, nil
 }

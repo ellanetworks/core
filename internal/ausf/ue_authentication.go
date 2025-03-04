@@ -197,8 +197,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	return &responseBody, nil
 }
 
-func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.ConfirmationData, ConfirmationDataResponseID string,
-) (*models.ConfirmationDataResponse, error) {
+func Auth5gAkaComfirmRequestProcedure(resStar string, ConfirmationDataResponseID string) (*models.ConfirmationDataResponse, error) {
 	var responseBody models.ConfirmationDataResponse
 	responseBody.AuthResult = models.AuthResult_FAILURE
 
@@ -214,7 +213,7 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 	ausfCurrentContext := GetAusfUeContext(currentSupi)
 
 	// Compare the received RES* with the stored XRES*
-	if strings.Compare(updateConfirmationData.ResStar, ausfCurrentContext.XresStar) == 0 {
+	if strings.Compare(resStar, ausfCurrentContext.XresStar) == 0 {
 		ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
 		responseBody.AuthResult = models.AuthResult_SUCCESS
 		logger.AusfLog.Infoln("5G AKA confirmation succeeded")
@@ -229,36 +228,30 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 	return &responseBody, nil
 }
 
-func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessionID string) (*models.EapSession,
-	error,
-) {
-	var responseBody models.EapSession
-
+func EapAuthComfirmRequestProcedure(eapPayload string, eapSessionID string) (*models.EapSession, error) {
 	if !CheckIfSuciSupiPairExists(eapSessionID) {
-		logger.AusfLog.Infoln("supiSuciPair does not exist, confirmation failed")
 		return nil, fmt.Errorf("supiSuciPair does not exist")
 	}
 
 	currentSupi := GetSupiFromSuciSupiMap(eapSessionID)
 	if !CheckIfAusfUeContextExists(currentSupi) {
-		logger.AusfLog.Infoln("SUPI does not exist, confirmation failed")
 		return nil, fmt.Errorf("SUPI does not exist")
 	}
 
 	ausfCurrentContext := GetAusfUeContext(currentSupi)
-	var eapPayload []byte
-	if eapPayloadTmp, err := base64.StdEncoding.DecodeString(updateEapSession.EapPayload); err != nil {
+	var eapPayloadBytes []byte
+	if eapPayloadTmp, err := base64.StdEncoding.DecodeString(eapPayload); err != nil {
 		logger.AusfLog.Warnf("EAP Payload decode failed: %+v", err)
 	} else {
-		eapPayload = eapPayloadTmp
+		eapPayloadBytes = eapPayloadTmp
 	}
 
-	eapGoPkt := gopacket.NewPacket(eapPayload, layers.LayerTypeEAP, gopacket.Default)
+	eapGoPkt := gopacket.NewPacket(eapPayloadBytes, layers.LayerTypeEAP, gopacket.Default)
 	eapLayer := eapGoPkt.Layer(layers.LayerTypeEAP)
 	eapContent, _ := eapLayer.(*layers.EAP)
-
+	var responseBody models.EapSession
 	if eapContent.Code != layers.EAPCodeResponse {
-		logger.AusfLog.Infoln("eap packet code error")
+		logger.AusfLog.Warnf("eap packet code error")
 		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		responseBody.AuthResult = models.AuthResult_ONGOING
 		failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)

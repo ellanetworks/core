@@ -2452,11 +2452,9 @@ func HandleUEContextReleaseRequest(ran *context.AmfRan, message *ngapType.NGAPPD
 			ranUe.Log.Info("Ue Context in Non GMM-Registered")
 			amfUe.SmContextList.Range(func(key, value interface{}) bool {
 				smContext := value.(*context.SmContext)
-				detail, err := consumer.SendReleaseSmContextRequest(amfUe, smContext, &causeAll, "", nil)
+				err := consumer.SendReleaseSmContextRequest(amfUe, smContext, &causeAll, "", nil)
 				if err != nil {
 					ranUe.Log.Errorf("Send ReleaseSmContextRequest Error[%s]", err.Error())
-				} else if detail != nil {
-					ranUe.Log.Errorf("Send ReleaseSmContextRequeste Error[%s]", detail.Cause)
 				}
 				return true
 			})
