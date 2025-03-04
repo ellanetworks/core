@@ -386,8 +386,6 @@ func HandlePDUSessionSMContextRelease(smContext *context.SMContext) error {
 		context.RemoveSMContext(smContext.Ref)
 		return fmt.Errorf("PFCP session release failed: unknown status")
 	}
-
-	return nil
 }
 
 func releaseTunnel(smContext *context.SMContext) (*context.PFCPSessionResponseStatus, bool) {
