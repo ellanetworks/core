@@ -65,13 +65,11 @@ func HandleStatePfcpCreatePendingEventPfcpSessCreateFailure(smCtxt *context.SMCo
 	return context.SmStateInit, nil
 }
 
-func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse, error) {
+func CreateSmContext(request models.PostSmContextsRequest) (string, *models.PostSmContextsErrorResponse, error) {
 	// Ensure request data is present
 	if request.JsonData == nil {
-		errResponse := &models.PostSmContextsErrorResponse{
-			JsonData: &models.SmContextCreateError{},
-		}
-		return nil, "", errResponse, fmt.Errorf("missing JsonData in request")
+		errResponse := &models.PostSmContextsErrorResponse{}
+		return "", errResponse, fmt.Errorf("missing JsonData in request")
 	}
 
 	smContext := SessionCreateInit(request)
@@ -79,7 +77,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContex
 	nextState, rsp, err := HandleStateInitEventPduSessCreate(request, smContext)
 	if err != nil {
 		logger.SmfLog.Errorf("Failed to create SM Context: %v", err)
-		return nil, "", nil, err
+		return "", nil, err
 	}
 	smContext.ChangeState(nextState)
 
@@ -87,9 +85,9 @@ func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContex
 	switch rsp.Status {
 	case http.StatusCreated:
 		// Successful creation
-		response, ok := rsp.Body.(models.PostSmContextsResponse)
+		_, ok := rsp.Body.(models.PostSmContextsResponse)
 		if !ok {
-			return nil, "", nil, fmt.Errorf("unexpected response body type for successful creation")
+			return "", nil, fmt.Errorf("unexpected response body type for successful creation")
 		}
 		smContextRef := rsp.Header.Get("Location")
 
@@ -115,7 +113,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContex
 			}()
 		}
 
-		return &response, smContextRef, nil, nil
+		return smContextRef, nil, nil
 
 	case http.StatusBadRequest,
 		http.StatusForbidden,
@@ -126,12 +124,11 @@ func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContex
 		// Handle errors
 		errResponse, ok := rsp.Body.(*models.PostSmContextsErrorResponse)
 		if !ok {
-			return nil, "", nil, fmt.Errorf("unexpected response body type for error")
+			return "", nil, fmt.Errorf("unexpected response body type for error")
 		}
-		return nil, "", errResponse, nil
+		return "", errResponse, nil
 
 	default:
-		// Unexpected status
-		return nil, "", nil, fmt.Errorf("unexpected HTTP status code")
+		return "", nil, fmt.Errorf("unexpected HTTP status code")
 	}
 }

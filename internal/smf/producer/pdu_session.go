@@ -24,19 +24,6 @@ import (
 	"github.com/omec-project/nas/nasMessage"
 )
 
-func formContextCreateErrRsp(httpStatus int, problemBody *models.ProblemDetails, n1SmMsg *models.RefToBinaryData) *util.Response {
-	return &util.Response{
-		Header: nil,
-		Status: httpStatus,
-		Body: models.PostSmContextsErrorResponse{
-			JsonData: &models.SmContextCreateError{
-				Error:   problemBody,
-				N1SmMsg: n1SmMsg,
-			},
-		},
-	}
-}
-
 func HandlePduSessionContextReplacement(smCtxtRef string) error {
 	smCtxt := context.GetSMContext(smCtxtRef)
 
@@ -68,9 +55,12 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	m := nas.NewMessage()
 	if err := m.GsmMessageDecode(&request.BinaryDataN1SmMessage); err != nil ||
 		m.GsmHeader.GetMessageType() != nas.MsgTypePDUSessionEstablishmentRequest {
-		logger.SmfLog.Errorln("PDUSessionSMContextCreate, GsmMessageDecode Error: ", err)
-		response := formContextCreateErrRsp(http.StatusForbidden, &models.N1SmError, nil)
-		return response, fmt.Errorf("GsmMsgDecodeError")
+		response := &util.Response{
+			Header: nil,
+			Status: http.StatusForbidden,
+			Body:   models.PostSmContextsErrorResponse{},
+		}
+		return response, fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
 	createData := request.JsonData

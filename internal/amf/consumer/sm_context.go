@@ -39,18 +39,18 @@ func SelectSmf(
 }
 
 func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte) (
-	*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse, error,
+	string, *models.PostSmContextsErrorResponse, error,
 ) {
 	smContextCreateData := buildCreateSmContextRequest(ue, smContext)
 	postSmContextsRequest := models.PostSmContextsRequest{
 		JsonData:              &smContextCreateData,
 		BinaryDataN1SmMessage: nasPdu,
 	}
-	postSmContextReponse, smContextRef, postSmContextErrorReponse, err := pdusession.CreateSmContext(postSmContextsRequest)
+	smContextRef, postSmContextErrorReponse, err := pdusession.CreateSmContext(postSmContextsRequest)
 	if err != nil {
-		return nil, smContextRef, postSmContextErrorReponse, fmt.Errorf("create sm context request error: %s", err)
+		return smContextRef, postSmContextErrorReponse, fmt.Errorf("create sm context request error: %s", err)
 	}
-	return postSmContextReponse, smContextRef, nil, nil
+	return smContextRef, nil, nil
 }
 
 func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext) (smContextCreateData models.SmContextCreateData) {

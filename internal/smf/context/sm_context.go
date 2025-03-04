@@ -456,22 +456,13 @@ func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(status int, pr
 		httpResponse = &util.Response{
 			Header: nil,
 			Status: status,
-			Body: models.PostSmContextsErrorResponse{
-				JsonData: &models.SmContextCreateError{
-					Error:   problemDetails,
-					N1SmMsg: &models.RefToBinaryData{ContentId: "n1SmMsg"},
-				},
-			},
+			Body:   models.PostSmContextsErrorResponse{},
 		}
 	} else {
 		httpResponse = &util.Response{
 			Header: nil,
 			Status: status,
 			Body: models.PostSmContextsErrorResponse{
-				JsonData: &models.SmContextCreateError{
-					Error:   problemDetails,
-					N1SmMsg: &models.RefToBinaryData{ContentId: "n1SmMsg"},
-				},
 				BinaryDataN1SmMessage: buf,
 			},
 		}
