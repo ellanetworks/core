@@ -6,12 +6,12 @@
 package consumer
 
 import (
-	amf_context "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
-func BuildUeContextModel(ue *amf_context.AmfUe) (ueContext models.UeContext) {
+func BuildUeContextModel(ue *context.AmfUe) (ueContext models.UeContext) {
 	ueContext.Supi = ue.Supi
 	ueContext.SupiUnauthInd = ue.UnauthenticatedSupi
 
@@ -76,17 +76,17 @@ func buildAmPolicyReqTriggers(triggers []models.RequestTrigger) (amPolicyReqTrig
 }
 
 func UEContextTransferRequest(
-	ue *amf_context.AmfUe, accessType models.AccessType, transferReason models.TransferReason) (
-	*models.UeContextTransferRspData, *models.ProblemDetails, error,
+	ue *context.AmfUe, accessType models.AccessType, transferReason models.TransferReason) (
+	*models.UeContextTransferRspData, error,
 ) {
 	logger.AmfLog.Warnf("UE context transfer request is not implemented")
-	return nil, nil, nil
+	return nil, nil
 }
 
 // This operation is called "RegistrationCompleteNotify" at TS 23.502
-func RegistrationStatusUpdate(ue *amf_context.AmfUe, request models.UeRegStatusUpdateReqData) (
-	bool, *models.ProblemDetails, error,
+func RegistrationStatusUpdate(ue *context.AmfUe, request models.UeRegStatusUpdateReqData) (
+	bool, error,
 ) {
 	logger.AmfLog.Warnf("UE registration status update is not implemented")
-	return false, nil, nil
+	return false, nil
 }

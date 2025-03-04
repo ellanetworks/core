@@ -20,7 +20,7 @@ import (
 
 func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 	resynchronizationInfo *models.ResynchronizationInfo,
-) (*models.UeAuthenticationCtx, *models.ProblemDetails, error) {
+) (*models.UeAuthenticationCtx, error) {
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 	var plmnId *models.PlmnId
@@ -34,7 +34,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 	var authInfo models.AuthenticationInfo
 	authInfo.SupiOrSuci = ue.Suci
 	if mnc, err := strconv.Atoi(plmnId.Mnc); err != nil {
-		return nil, nil, err
+		return nil, err
 	} else {
 		authInfo.ServingNetworkName = fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, plmnId.Mcc)
 	}
@@ -45,32 +45,26 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(authInfo)
 	if err != nil {
 		logger.AmfLog.Errorf("UE Authentication Authenticate Request failed: %+v", err)
-		return nil, nil, err
+		return nil, err
 	}
-	return ueAuthenticationCtx, nil, nil
+	return ueAuthenticationCtx, nil
 }
 
 func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string) (
-	*models.ConfirmationDataResponse, *models.ProblemDetails, error,
+	*models.ConfirmationDataResponse, error,
 ) {
 	confirmationData := models.ConfirmationData{
 		ResStar: resStar,
 	}
 	confirmResult, err := ausf.Auth5gAkaComfirmRequestProcedure(confirmationData, ue.Suci)
 	if err != nil {
-		logger.AmfLog.Errorf("Auth5gAkaComfirmRequestProcedure failed: %+v", err)
-		problemDetails := &models.ProblemDetails{
-			Status: 500,
-			Cause:  "SYSTEM_FAILURE",
-			Detail: err.Error(),
-		}
-		return nil, problemDetails, err
+		return nil, fmt.Errorf("ausf 5G-AKA Confirm Request failed: %s", err.Error())
 	}
-	return confirmResult, nil, nil
+	return confirmResult, nil
 }
 
 func SendEapAuthConfirmRequest(ue *context.AmfUe, eapMsg nasType.EAPMessage) (
-	*models.EapSession, *models.ProblemDetails, error,
+	*models.EapSession, error,
 ) {
 	eapSession := models.EapSession{
 		EapPayload: base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage()),
@@ -78,13 +72,7 @@ func SendEapAuthConfirmRequest(ue *context.AmfUe, eapMsg nasType.EAPMessage) (
 
 	response, err := ausf.EapAuthComfirmRequestProcedure(eapSession, ue.Suci)
 	if err != nil {
-		logger.AmfLog.Errorf("EapAuthComfirmRequestProcedure failed: %+v", err)
-		problemDetails := &models.ProblemDetails{
-			Status: 500,
-			Cause:  "SYSTEM_FAILURE",
-			Detail: err.Error(),
-		}
-		return nil, problemDetails, err
+		return nil, fmt.Errorf("ausf EAP Confirm Request failed: %s", err.Error())
 	}
-	return response, nil, nil
+	return response, nil
 }
