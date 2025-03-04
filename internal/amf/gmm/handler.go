@@ -775,14 +775,10 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			pduSessionId := int32(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionId); ok {
 				if !psiArray[psi] && smContext.AccessType() == anType {
-					cause := models.Cause_PDU_SESSION_STATUS_MISMATCH
-					causeAll := &context.CauseAll{
-						Cause: &cause,
-					}
-					err := consumer.SendReleaseSmContextRequest(ue, smContext, causeAll, "", nil)
+					err := consumer.SendReleaseSmContextRequest(smContext)
 					if err != nil {
 						pduSessionStatus[psi] = true
-						ue.GmmLog.Errorf("Release SmContext Error[%v]", err.Error())
+						ue.GmmLog.Errorf("error sending release sm context request: %v", err)
 					} else {
 						pduSessionStatus[psi] = false
 					}
@@ -1230,11 +1226,7 @@ func HandleNotificationResponse(ue *context.AmfUe, notificationResponse *nasMess
 			pduSessionId := int32(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionId); ok {
 				if !psiArray[psi] {
-					cause := models.Cause_PDU_SESSION_STATUS_MISMATCH
-					causeAll := &context.CauseAll{
-						Cause: &cause,
-					}
-					err := consumer.SendReleaseSmContextRequest(ue, smContext, causeAll, "", nil)
+					err := consumer.SendReleaseSmContextRequest(smContext)
 					if err != nil {
 						ue.GmmLog.Errorf("Release SmContext Error[%v]", err.Error())
 					}
@@ -1298,7 +1290,7 @@ func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType model
 
 		if smContext.AccessType() == accessType {
 			ue.GmmLog.Infof("Sending SmContext [slice: %v, dnn: %v] Release Request to SMF", smContext.Snssai(), smContext.Dnn())
-			err = consumer.SendReleaseSmContextRequest(ue, smContext, nil, "", nil)
+			err = consumer.SendReleaseSmContextRequest(smContext)
 			if err != nil {
 				ue.GmmLog.Errorf("Release SmContext Error[%v]", err.Error())
 			}
@@ -1494,11 +1486,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 			smContext := value.(*context.SmContext)
 			if smContext.AccessType() == anType {
 				if !psiArray[pduSessionID] {
-					cause := models.Cause_PDU_SESSION_STATUS_MISMATCH
-					causeAll := &context.CauseAll{
-						Cause: &cause,
-					}
-					err := consumer.SendReleaseSmContextRequest(ue, smContext, causeAll, "", nil)
+					err := consumer.SendReleaseSmContextRequest(smContext)
 					if err != nil {
 						ue.GmmLog.Errorf("Release SmContext Error[%v]", err.Error())
 					}
@@ -1996,7 +1984,7 @@ func HandleDeregistrationRequest(ue *context.AmfUe, anType models.AccessType,
 
 		if smContext.AccessType() == anType ||
 			targetDeregistrationAccessType == nasMessage.AccessTypeBoth {
-			err := consumer.SendReleaseSmContextRequest(ue, smContext, nil, "", nil)
+			err := consumer.SendReleaseSmContextRequest(smContext)
 			if err != nil {
 				ue.GmmLog.Errorf("Release SmContext Error[%v]", err.Error())
 			}

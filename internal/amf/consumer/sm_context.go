@@ -340,47 +340,10 @@ func SendUpdateSmContextRequest(smContext *context.SmContext,
 	return updateSmContextReponse, nil, nil
 }
 
-func SendReleaseSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
-	cause *context.CauseAll, n2SmInfoType models.N2SmInfoType,
-	n2Info []byte,
-) error {
-	releaseData := buildReleaseSmContextRequest(ue, cause, n2SmInfoType, n2Info)
-	releaseSmContextRequest := models.ReleaseSmContextRequest{
-		JsonData: &releaseData,
-	}
-	err := pdusession.ReleaseSmContext(smContext.SmContextRef(), releaseSmContextRequest)
+func SendReleaseSmContextRequest(smContext *context.SmContext) error {
+	err := pdusession.ReleaseSmContext(smContext.SmContextRef())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to release sm context: %s", err)
 	}
 	return nil
-}
-
-func buildReleaseSmContextRequest(
-	ue *context.AmfUe, cause *context.CauseAll, n2SmInfoType models.N2SmInfoType, n2Info []byte) (
-	releaseData models.SmContextReleaseData,
-) {
-	if cause != nil {
-		if cause.Cause != nil {
-			releaseData.Cause = *cause.Cause
-		}
-		if cause.NgapCause != nil {
-			releaseData.NgApCause = &models.NgApCause{
-				Group: cause.NgapCause.Group,
-				Value: cause.NgapCause.Value,
-			}
-		}
-		if cause.Var5GmmCause != nil {
-			releaseData.Var5gMmCauseValue = *cause.Var5GmmCause
-		}
-	}
-	if ue.TimeZone != "" {
-		releaseData.UeTimeZone = ue.TimeZone
-	}
-	if n2Info != nil {
-		releaseData.N2SmInfoType = n2SmInfoType
-		releaseData.N2SmInfo = &models.RefToBinaryData{
-			ContentId: N2SMINFO_ID,
-		}
-	}
-	return
 }
