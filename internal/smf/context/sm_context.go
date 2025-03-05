@@ -36,103 +36,53 @@ var (
 
 var smContextActive uint64
 
-type SMContextState uint
-
-const (
-	SmStateInit SMContextState = iota
-	SmStateActivePending
-	SmStateActive
-	SmStateInActivePending
-	SmStateModify
-	SmStatePfcpCreatePending
-	SmStatePfcpModify
-	SmStatePfcpRelease
-	SmStateRelease
-	SmStateN1N2TransferPending
-	SmStateMax
-)
-
 type UeIpAddr struct {
 	Ip          net.IP
 	UpfProvided bool
 }
 
 type SMContext struct {
-	Ref string `json:"ref" yaml:"ref" bson:"ref"`
-
-	// SUPI or PEI
-	Supi              string `json:"supi,omitempty" yaml:"supi" bson:"supi,omitempty"`
-	Pei               string `json:"pei,omitempty" yaml:"pei" bson:"pei,omitempty"`
-	Identifier        string `json:"identifier" yaml:"identifier" bson:"identifier"`
-	Gpsi              string `json:"gpsi,omitempty" yaml:"gpsi" bson:"gpsi,omitempty"`
-	Dnn               string `json:"dnn" yaml:"dnn" bson:"dnn"`
-	UeTimeZone        string `json:"ueTimeZone,omitempty" yaml:"ueTimeZone" bson:"ueTimeZone,omitempty"` // ignore
-	ServingNfId       string `json:"servingNfId,omitempty" yaml:"servingNfId" bson:"servingNfId,omitempty"`
-	SmStatusNotifyUri string `json:"smStatusNotifyUri,omitempty" yaml:"smStatusNotifyUri" bson:"smStatusNotifyUri,omitempty"`
-
-	UpCnxState models.UpCnxState `json:"upCnxState,omitempty" yaml:"upCnxState" bson:"upCnxState,omitempty"`
-	// SelectedPCFProfile models.NfProfile        `json:"selectedPCFProfile,omitempty" yaml:"selectedPCFProfile" bson:"selectedPCFProfile,omitempty"`
-	AnType           models.AccessType       `json:"anType" yaml:"anType" bson:"anType"`
-	RatType          models.RatType          `json:"ratType,omitempty" yaml:"ratType" bson:"ratType,omitempty"`
-	PresenceInLadn   models.PresenceState    `json:"presenceInLadn,omitempty" yaml:"presenceInLadn" bson:"presenceInLadn,omitempty"` // ignore
-	HoState          models.HoState          `json:"hoState,omitempty" yaml:"hoState" bson:"hoState,omitempty"`
-	DnnConfiguration models.DnnConfiguration `json:"dnnConfiguration,omitempty" yaml:"dnnConfiguration" bson:"dnnConfiguration,omitempty"` // ?
-
-	Snssai         *models.Snssai       `json:"snssai" yaml:"snssai" bson:"snssai"`
-	HplmnSnssai    *models.Snssai       `json:"hplmnSnssai,omitempty" yaml:"hplmnSnssai" bson:"hplmnSnssai,omitempty"`
-	ServingNetwork *models.PlmnId       `json:"servingNetwork,omitempty" yaml:"servingNetwork" bson:"servingNetwork,omitempty"`
-	UeLocation     *models.UserLocation `json:"ueLocation,omitempty" yaml:"ueLocation" bson:"ueLocation,omitempty"`
-	AddUeLocation  *models.UserLocation `json:"addUeLocation,omitempty" yaml:"addUeLocation" bson:"addUeLocation,omitempty"` // ignore
-
-	// PDUAddress             net.IP `json:"pduAddress,omitempty" yaml:"pduAddress" bson:"pduAddress,omitempty"`
-	PDUAddress *UeIpAddr `json:"pduAddress,omitempty" yaml:"pduAddress" bson:"pduAddress,omitempty"`
-
-	// Client
-	// CommunicationClient *Namf_Communication.APIClient `json:"communicationClient,omitempty" yaml:"communicationClient" bson:"communicationClient,omitempty"` // ?
-
-	// encountered a cycle via *context.GTPTunnel
-	Tunnel *UPTunnel `json:"-" yaml:"tunnel" bson:"-"`
-
-	BPManager *BPManager `json:"bpManager,omitempty" yaml:"bpManager" bson:"bpManager,omitempty"` // ignore
-
-	DNNInfo *SnssaiSmfDnnInfo `json:"dnnInfo,omitempty" yaml:"dnnInfo" bson:"dnnInfo,omitempty"`
-
-	// PCO Related
-	ProtocolConfigurationOptions *ProtocolConfigurationOptions `json:"protocolConfigurationOptions" yaml:"protocolConfigurationOptions" bson:"protocolConfigurationOptions"` // ignore
-
-	SubGsmLog      *zap.SugaredLogger `json:"-" yaml:"subGsmLog" bson:"-,"`     // ignore
-	SubPfcpLog     *zap.SugaredLogger `json:"-" yaml:"subPfcpLog" bson:"-"`     // ignore
-	SubPduSessLog  *zap.SugaredLogger `json:"-" yaml:"subPduSessLog" bson:"-"`  // ignore
-	SubCtxLog      *zap.SugaredLogger `json:"-" yaml:"subCtxLog" bson:"-"`      // ignore
-	SubConsumerLog *zap.SugaredLogger `json:"-" yaml:"subConsumerLog" bson:"-"` // ignore
-	SubFsmLog      *zap.SugaredLogger `json:"-" yaml:"subFsmLog" bson:"-"`      // ignore
-	SubQosLog      *zap.SugaredLogger `json:"-" yaml:"subQosLog" bson:"-"`      // ignore
-
-	// encountered a cycle via *context.SMContext
-	// SM Policy related
-	// Updates in policy from PCF
-	SmPolicyUpdates []*qos.PolicyUpdate `json:"smPolicyUpdates" yaml:"smPolicyUpdates" bson:"smPolicyUpdates"` // ignore
-	// Holds Session/PCC Rules and Qos/Cond/Charging Data
-	SmPolicyData qos.SmCtxtPolicyData `json:"smPolicyData" yaml:"smPolicyData" bson:"smPolicyData"`
-	// unsupported structure - madatory!
-
-	PendingUPF PendingUPF `json:"pendingUPF,omitempty" yaml:"pendingUPF" bson:"pendingUPF,omitempty"` // ignore
-	// NodeID(string form) to PFCP Session Context
-	PFCPContext map[string]*PFCPSessionContext `json:"-" yaml:"pfcpContext" bson:"-"`
-	// lock
-	// SMLock sync.Mutex `json:"smLock,omitempty" yaml:"smLock" bson:"smLock,omitempty"` // ignore
-	SMLock sync.Mutex `json:"-" yaml:"smLock" bson:"-"` // ignore
-
-	SMContextState                      SMContextState `json:"smContextState" yaml:"smContextState" bson:"smContextState"`
-	PDUSessionID                        int32          `json:"pduSessionID" yaml:"pduSessionID" bson:"pduSessionID"`
-	OldPduSessionId                     int32          `json:"oldPduSessionId,omitempty" yaml:"oldPduSessionId" bson:"oldPduSessionId,omitempty"`
-	SelectedPDUSessionType              uint8          `json:"selectedPDUSessionType,omitempty" yaml:"selectedPDUSessionType" bson:"selectedPDUSessionType,omitempty"`
-	UnauthenticatedSupi                 bool           `json:"unauthenticatedSupi,omitempty" yaml:"unauthenticatedSupi" bson:"unauthenticatedSupi,omitempty"`                                                 // ignore
-	PDUSessionRelease_DUE_TO_DUP_PDU_ID bool           `json:"pduSessionRelease_DUE_TO_DUP_PDU_ID,omitempty" yaml:"pduSessionRelease_DUE_TO_DUP_PDU_ID" bson:"pduSessionRelease_DUE_TO_DUP_PDU_ID,omitempty"` // ignore
-	LocalPurged                         bool           `json:"localPurged,omitempty" yaml:"localPurged" bson:"localPurged,omitempty"`                                                                         // ignore
-	// NAS
-	Pti                     uint8 `json:"pti,omitempty" yaml:"pti" bson:"pti,omitempty"` // ignore
-	EstAcceptCause5gSMValue uint8 `json:"estAcceptCause5gSMValue,omitempty" yaml:"estAcceptCause5gSMValue" bson:"estAcceptCause5gSMValue,omitempty"`
+	Ref                          string
+	Supi                         string
+	Pei                          string
+	Identifier                   string
+	Gpsi                         string
+	Dnn                          string
+	UeTimeZone                   string
+	ServingNfId                  string
+	SmStatusNotifyUri            string
+	UpCnxState                   models.UpCnxState
+	AnType                       models.AccessType
+	RatType                      models.RatType
+	PresenceInLadn               models.PresenceState
+	HoState                      models.HoState
+	DnnConfiguration             models.DnnConfiguration
+	Snssai                       *models.Snssai
+	ServingNetwork               *models.PlmnId
+	UeLocation                   *models.UserLocation
+	PDUAddress                   *UeIpAddr
+	Tunnel                       *UPTunnel
+	BPManager                    *BPManager
+	DNNInfo                      *SnssaiSmfDnnInfo
+	ProtocolConfigurationOptions *ProtocolConfigurationOptions
+	SubGsmLog                    *zap.SugaredLogger
+	SubPfcpLog                   *zap.SugaredLogger
+	SubPduSessLog                *zap.SugaredLogger
+	SubCtxLog                    *zap.SugaredLogger
+	SubFsmLog                    *zap.SugaredLogger
+	SmPolicyUpdates              []*qos.PolicyUpdate
+	SmPolicyData                 qos.SmCtxtPolicyData
+	PendingUPF                   PendingUPF
+	PFCPContext                  map[string]*PFCPSessionContext
+	SMLock                       sync.Mutex
+	// SMContextState                      SMContextState
+	PDUSessionID                        int32
+	OldPduSessionId                     int32
+	SelectedPDUSessionType              uint8
+	PDUSessionRelease_DUE_TO_DUP_PDU_ID bool
+	LocalPurged                         bool
+	Pti                                 uint8
+	EstAcceptCause5gSMValue             uint8
 }
 
 func canonicalName(identifier string, pduSessID int32) (canonical string) {
@@ -166,7 +116,6 @@ func NewSMContext(identifier string, pduSessID int32) (smContext *SMContext) {
 	smContextPool.Store(smContext.Ref, smContext)
 	canonicalRef.Store(canonicalName(identifier, pduSessID), smContext.Ref)
 
-	smContext.SMContextState = SmStateInit
 	smContext.Identifier = identifier
 	smContext.PDUSessionID = pduSessID
 	smContext.PFCPContext = make(map[string]*PFCPSessionContext)
@@ -194,13 +143,7 @@ func (smContext *SMContext) initLogTags() {
 	smContext.SubCtxLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
 	smContext.SubPduSessLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
 	smContext.SubGsmLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
-	smContext.SubConsumerLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
 	smContext.SubFsmLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
-	smContext.SubQosLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
-}
-
-func (smContext *SMContext) ChangeState(nextState SMContextState) {
-	smContext.SMContextState = nextState
 }
 
 func GetSMContext(ref string) (smContext *SMContext) {
@@ -219,8 +162,6 @@ func RemoveSMContext(ref string) {
 	if value, ok := smContextPool.Load(ref); ok {
 		smContext = value.(*SMContext)
 	}
-
-	smContext.ChangeState(SmStateRelease)
 
 	for _, pfcpSessionContext := range smContext.PFCPContext {
 		seidSMContextMap.Delete(pfcpSessionContext.LocalSEID)
@@ -267,14 +208,12 @@ func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData
 	smContext.Supi = createData.Supi
 	smContext.Dnn = createData.Dnn
 	smContext.Snssai = createData.SNssai
-	smContext.HplmnSnssai = createData.HplmnSnssai
 	smContext.ServingNetwork = createData.ServingNetwork
 	smContext.AnType = createData.AnType
 	smContext.RatType = createData.RatType
 	smContext.PresenceInLadn = createData.PresenceInLadn
 	smContext.UeLocation = createData.UeLocation
 	smContext.UeTimeZone = createData.UeTimeZone
-	smContext.AddUeLocation = createData.AddUeLocation
 	smContext.OldPduSessionId = createData.OldPduSessionId
 	smContext.ServingNfId = createData.ServingNfId
 }
@@ -420,32 +359,6 @@ func (smContext *SMContext) SelectedSessionRule() *models.SessionRule {
 		return smContext.SmPolicyUpdates[0].SessRuleUpdate.ActiveSessRule
 	} else {
 		return smContext.SmPolicyData.SmCtxtSessionRules.ActiveRule
-	}
-}
-
-func (smContextState SMContextState) String() string {
-	switch smContextState {
-	case SmStateInit:
-		return "SmStateInit"
-	case SmStateActivePending:
-		return "SmStateActivePending"
-	case SmStateActive:
-		return "SmStateActive"
-	case SmStateInActivePending:
-		return "SmStateInActivePending"
-	case SmStateModify:
-		return "SmStateModify"
-	case SmStatePfcpCreatePending:
-		return "SmStatePfcpCreatePending"
-	case SmStatePfcpModify:
-		return "SmStatePfcpModify"
-	case SmStatePfcpRelease:
-		return "SmStatePfcpRelease"
-	case SmStateN1N2TransferPending:
-		return "SmStateN1N2TransferPending"
-
-	default:
-		return "Unknown State"
 	}
 }
 

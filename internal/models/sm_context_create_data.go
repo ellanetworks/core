@@ -8,7 +8,6 @@ type SmContextCreateData struct {
 	PduSessionId        int32
 	Dnn                 string
 	SNssai              *Snssai
-	HplmnSnssai         *Snssai
 	ServingNfId         string
 	Guami               *Guami
 	ServingNetwork      *PlmnId
@@ -18,7 +17,6 @@ type SmContextCreateData struct {
 	PresenceInLadn      PresenceState
 	UeLocation          *UserLocation
 	UeTimeZone          string
-	AddUeLocation       *UserLocation
 	SmContextStatusUri  string
 	OldPduSessionId     int32
 }

@@ -77,15 +77,6 @@ func AppendPDUSessionResourceModifyListModCfm(list *ngapType.PDUSessionResourceM
 	list.List = append(list.List, item)
 }
 
-func AppendPDUSessionResourceFailedToModifyListModCfm(list *ngapType.PDUSessionResourceFailedToModifyListModCfm,
-	pduSessionId int64, transfer []byte,
-) {
-	var item ngapType.PDUSessionResourceFailedToModifyItemModCfm
-	item.PDUSessionID.Value = pduSessionId
-	item.PDUSessionResourceModifyIndicationUnsuccessfulTransfer = transfer
-	list.List = append(list.List, item)
-}
-
 func AppendPDUSessionResourceToReleaseListRelCmd(list *ngapType.PDUSessionResourceToReleaseListRelCmd,
 	pduSessionId int32, transfer []byte,
 ) {

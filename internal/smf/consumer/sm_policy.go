@@ -23,9 +23,6 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 	smPolicyData := models.SmPolicyContextData{}
 	smPolicyData.Supi = smContext.Supi
 	smPolicyData.PduSessionId = smContext.PDUSessionID
-	smPolicyData.NotificationUri = fmt.Sprintf("nsmf-callback/sm-policies/%s",
-		smContext.Ref,
-	)
 	smPolicyData.Dnn = smContext.Dnn
 	smPolicyData.PduSessionType = util.PDUSessionTypeToModels(smContext.SelectedPDUSessionType)
 	smPolicyData.AccessType = smContext.AnType
@@ -50,7 +47,6 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 		Mcc: smContext.ServingNetwork.Mcc,
 		Mnc: smContext.ServingNetwork.Mnc,
 	}
-	smPolicyData.SuppFeat = "F"
 
 	smPolicyDecision, err := pcf.CreateSMPolicy(smPolicyData)
 	if err != nil {
