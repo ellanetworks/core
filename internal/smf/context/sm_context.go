@@ -385,32 +385,6 @@ func (smContext *SMContext) SelectedSessionRule() *models.SessionRule {
 	}
 }
 
-func (smContextState SMContextState) String() string {
-	switch smContextState {
-	case SmStateInit:
-		return "SmStateInit"
-	case SmStateActivePending:
-		return "SmStateActivePending"
-	case SmStateActive:
-		return "SmStateActive"
-	case SmStateInActivePending:
-		return "SmStateInActivePending"
-	case SmStateModify:
-		return "SmStateModify"
-	case SmStatePfcpCreatePending:
-		return "SmStatePfcpCreatePending"
-	case SmStatePfcpModify:
-		return "SmStatePfcpModify"
-	case SmStatePfcpRelease:
-		return "SmStatePfcpRelease"
-	case SmStateN1N2TransferPending:
-		return "SmStateN1N2TransferPending"
-
-	default:
-		return "Unknown State"
-	}
-}
-
 func (smContext *SMContext) GeneratePDUSessionEstablishmentReject(cause uint8) *models.PostSmContextsErrorResponse {
 	var rsp *models.PostSmContextsErrorResponse
 
