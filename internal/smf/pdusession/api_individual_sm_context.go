@@ -14,18 +14,13 @@ import (
 	"github.com/ellanetworks/core/internal/smf/producer"
 )
 
-func HandleStateActiveEventPduSessRelease(smCtxt *context.SMContext) (context.SMContextState, error) {
-	err := producer.HandlePDUSessionSMContextRelease(smCtxt)
-	if err != nil {
-		return context.SmStateInit, err
-	}
-	return context.SmStateInit, nil
-}
-
 func ReleaseSmContext(smContextRef string) error {
 	ctxt := context.GetSMContext(smContextRef)
-	nextState, err := HandleStateActiveEventPduSessRelease(ctxt)
-	ctxt.ChangeState(nextState)
+	if ctxt == nil {
+		return fmt.Errorf("sm context not found: %s", smContextRef)
+	}
+	err := producer.HandlePDUSessionSMContextRelease(ctxt)
+	ctxt.ChangeState(context.SmStateInit)
 	if err != nil {
 		return fmt.Errorf("error releasing pdu session: %v ", err.Error())
 	}
@@ -33,17 +28,7 @@ func ReleaseSmContext(smContextRef string) error {
 	return nil
 }
 
-func HandlePduSessModify(request models.UpdateSmContextRequest, smCtxt *context.SMContext) (context.SMContextState, *models.UpdateSmContextResponse, error) {
-	rsp, err := producer.HandlePDUSessionSMContextUpdate(request, smCtxt)
-	if err != nil {
-		return context.SmStateActive, rsp, fmt.Errorf("error updating pdu session: %v ", err.Error())
-	}
-	return context.SmStateActive, rsp, nil
-}
-
 func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSmContextRequest) (*models.UpdateSmContextResponse, error) {
-	logger.SmfLog.Info("Processing Update SM Context Request")
-
 	if smContextRef == "" {
 		return nil, errors.New("SM Context reference is missing")
 	}
@@ -54,11 +39,14 @@ func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSm
 
 	smContext := context.GetSMContext(smContextRef)
 
-	nextState, rsp, err := HandlePduSessModify(updateSmContextRequest, smContext)
+	rsp, err := producer.HandlePDUSessionSMContextUpdate(updateSmContextRequest, smContext)
+	if err != nil {
+		return rsp, fmt.Errorf("error updating pdu session: %v ", err.Error())
+	}
 	if err != nil {
 		logger.SmfLog.Errorf("error processing state machine transaction")
 	}
-	smContext.ChangeState(nextState)
+	smContext.ChangeState(context.SmStateActive)
 	if rsp == nil {
 		return nil, errors.New("unexpected error during SM Context update")
 	}
