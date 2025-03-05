@@ -10,7 +10,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
-	"github.com/ellanetworks/core/internal/util/dnn"
 	"github.com/wmnsk/go-pfcp/ie"
 	pfcp_message "github.com/wmnsk/go-pfcp/message"
 )
@@ -70,7 +69,7 @@ func TestBuildPfcpSessionEstablishmentRequest(t *testing.T) {
 				UEIPAddress:     &context.UEIPAddress{},
 				SDFFilter:       &context.SDFFilter{},
 				ApplicationID:   "app",
-				NetworkInstance: dnn.Dnn{},
+				NetworkInstance: "internet",
 				SourceInterface: context.SourceInterface{
 					InterfaceValue: 0x11,
 				},
@@ -135,7 +134,7 @@ func TestBuildPfcpSessionModificationRequest(t *testing.T) {
 				UEIPAddress:     &context.UEIPAddress{},
 				SDFFilter:       &context.SDFFilter{},
 				ApplicationID:   "app",
-				NetworkInstance: dnn.Dnn{},
+				NetworkInstance: "internet",
 				SourceInterface: context.SourceInterface{
 					InterfaceValue: 0x11,
 				},
@@ -207,7 +206,7 @@ func TestBuildPfcpSessionModificationRequestNoOuterHeader(t *testing.T) {
 				UEIPAddress:     &context.UEIPAddress{},
 				SDFFilter:       &context.SDFFilter{},
 				ApplicationID:   "app",
-				NetworkInstance: dnn.Dnn{},
+				NetworkInstance: "internet",
 				SourceInterface: context.SourceInterface{
 					InterfaceValue: 0x11,
 				},

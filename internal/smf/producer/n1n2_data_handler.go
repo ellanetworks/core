@@ -6,11 +6,10 @@
 package producer
 
 import (
-	"net/http"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/util"
 	"github.com/omec-project/nas"
 )
 
@@ -25,23 +24,14 @@ type pfcpParam struct {
 	qerList []*context.QER
 }
 
-func HandleUpdateN1Msg(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) (*util.Response, error) {
+func HandleUpdateN1Msg(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) error {
 	if body.BinaryDataN1SmMessage != nil {
 		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, Binary Data N1 SmMessage isn't nil!")
 		m := nas.NewMessage()
 		err := m.GsmMessageDecode(&body.BinaryDataN1SmMessage)
 		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, Update SM Context Request N1SmMessage: ", m)
 		if err != nil {
-			smContext.SubPduSessLog.Error(err)
-			rsp := &util.Response{
-				Status: http.StatusForbidden,
-				Body: models.UpdateSmContextErrorResponse{
-					JsonData: &models.SmContextUpdateError{
-						Error: &models.N1SmError,
-					},
-				}, // Depends on the reason why N4 fail
-			}
-			return rsp, err
+			return fmt.Errorf("error decoding N1SmMessage: %v", err)
 		}
 		switch m.GsmHeader.GetMessageType() {
 		case nas.MsgTypePDUSessionReleaseRequest:
@@ -91,7 +81,7 @@ func HandleUpdateN1Msg(body models.UpdateSmContextRequest, smContext *context.SM
 		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, Binary Data N1 SmMessage is nil!")
 	}
 
-	return nil, nil
+	return nil
 }
 
 func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction, pfcpParam *pfcpParam) error {
@@ -274,7 +264,7 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 						DestinationInterface: context.DestinationInterface{
 							InterfaceValue: context.DestinationInterfaceAccess,
 						},
-						NetworkInstance: []byte(smContext.Dnn),
+						NetworkInstance: smContext.Dnn,
 					}
 
 					DLPDR.State = context.RULE_UPDATE

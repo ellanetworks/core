@@ -6,13 +6,11 @@ package pdusession
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
-	"github.com/ellanetworks/core/internal/smf/util"
 )
 
 func SessionCreateInit(req models.PostSmContextsRequest) *context.SMContext {
@@ -27,12 +25,12 @@ func SessionCreateInit(req models.PostSmContextsRequest) *context.SMContext {
 	return ctxt
 }
 
-func HandleStateInitEventPduSessCreate(request models.PostSmContextsRequest, smContext *context.SMContext) (context.SMContextState, *util.Response, error) {
-	rsp, err := producer.HandlePDUSessionSMContextCreate(request, smContext)
+func HandleStateInitEventPduSessCreate(request models.PostSmContextsRequest, smContext *context.SMContext) (context.SMContextState, string, *models.PostSmContextsErrorResponse, error) {
+	location, errRsp, err := producer.HandlePDUSessionSMContextCreate(request, smContext)
 	if err != nil {
-		return context.SmStateInit, rsp, err
+		return context.SmStateInit, location, errRsp, err
 	}
-	return context.SmStatePfcpCreatePending, rsp, nil
+	return context.SmStatePfcpCreatePending, location, errRsp, nil
 }
 
 func HandleStatePfcpCreatePendingEventPfcpSessCreate(smCtxt *context.SMContext) (context.SMContextState, error) {
@@ -65,73 +63,53 @@ func HandleStatePfcpCreatePendingEventPfcpSessCreateFailure(smCtxt *context.SMCo
 	return context.SmStateInit, nil
 }
 
-func CreateSmContext(request models.PostSmContextsRequest) (*models.PostSmContextsResponse, string, *models.PostSmContextsErrorResponse, error) {
+func CreateSmContext(request models.PostSmContextsRequest) (string, *models.PostSmContextsErrorResponse, error) {
 	// Ensure request data is present
 	if request.JsonData == nil {
-		errResponse := &models.PostSmContextsErrorResponse{
-			JsonData: &models.SmContextCreateError{},
-		}
-		return nil, "", errResponse, fmt.Errorf("missing JsonData in request")
+		errResponse := &models.PostSmContextsErrorResponse{}
+		return "", errResponse, fmt.Errorf("missing JsonData in request")
 	}
 
 	smContext := SessionCreateInit(request)
-	logger.SmfLog.Infof("Created SM Context: %v", smContext)
-	nextState, rsp, err := HandleStateInitEventPduSessCreate(request, smContext)
+	logger.SmfLog.Infof("created SM Context: %v", smContext)
+	nextState, location, smContextErr, err := HandleStateInitEventPduSessCreate(request, smContext)
 	if err != nil {
-		logger.SmfLog.Errorf("Failed to create SM Context: %v", err)
-		return nil, "", nil, err
+		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
 	}
 	smContext.ChangeState(nextState)
 
-	// Process response based on HTTP status
-	switch rsp.Status {
-	case http.StatusCreated:
-		// Successful creation
-		response, ok := rsp.Body.(models.PostSmContextsResponse)
-		if !ok {
-			return nil, "", nil, fmt.Errorf("unexpected response body type for successful creation")
-		}
-		smContextRef := rsp.Header.Get("Location")
+	if smContextErr != nil {
+		return "", smContextErr, nil
+	}
 
-		nextState, err := HandleStatePfcpCreatePendingEventPfcpSessCreate(smContext)
-		smContext.ChangeState(nextState)
-		if err != nil {
-			if smContext != nil && smContext.SMContextState == context.SmStatePfcpCreatePending {
-				go func() {
-					nextState, err := HandleStatePfcpCreatePendingEventPfcpSessCreateFailure(smContext)
-					if err != nil {
-						logger.SmfLog.Errorf("error processing state machine transaction")
-					}
-					smContext.ChangeState(nextState)
-				}()
-			}
-		} else {
+	// Successful creation
+	// _, ok := rsp.Body.(models.PostSmContextsResponse)
+	// if !ok {
+	// 	return "", nil, fmt.Errorf("unexpected response body type for successful creation")
+	// }
+	// smContextRef := rsp.Header.Get("Location")
+
+	nextState, err = HandleStatePfcpCreatePendingEventPfcpSessCreate(smContext)
+	smContext.ChangeState(nextState)
+	if err != nil {
+		if smContext != nil && smContext.SMContextState == context.SmStatePfcpCreatePending {
 			go func() {
-				nextState, err := HandleStateN1N2TransferPendingEventN1N2Transfer(smContext)
-				smContext.ChangeState(nextState)
+				nextState, err := HandleStatePfcpCreatePendingEventPfcpSessCreateFailure(smContext)
 				if err != nil {
 					logger.SmfLog.Errorf("error processing state machine transaction")
 				}
+				smContext.ChangeState(nextState)
 			}()
 		}
-
-		return &response, smContextRef, nil, nil
-
-	case http.StatusBadRequest,
-		http.StatusForbidden,
-		http.StatusNotFound,
-		http.StatusInternalServerError,
-		http.StatusServiceUnavailable,
-		http.StatusGatewayTimeout:
-		// Handle errors
-		errResponse, ok := rsp.Body.(*models.PostSmContextsErrorResponse)
-		if !ok {
-			return nil, "", nil, fmt.Errorf("unexpected response body type for error")
-		}
-		return nil, "", errResponse, nil
-
-	default:
-		// Unexpected status
-		return nil, "", nil, fmt.Errorf("unexpected HTTP status code")
+	} else {
+		go func() {
+			nextState, err := HandleStateN1N2TransferPendingEventN1N2Transfer(smContext)
+			smContext.ChangeState(nextState)
+			if err != nil {
+				logger.SmfLog.Errorf("error processing state machine transaction")
+			}
+		}()
 	}
+
+	return location, nil, nil
 }

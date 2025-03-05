@@ -53,7 +53,7 @@ func createPDIIE(pdi *context.PDI) *ie.IE {
 	}
 
 	createPDIIes = append(createPDIIes,
-		ie.NewNetworkInstance(string(pdi.NetworkInstance)),
+		ie.NewNetworkInstance(pdi.NetworkInstance),
 	)
 	if pdi.UEIPAddress != nil {
 		ueIPAddressflags := new(Flag)
@@ -127,7 +127,7 @@ func farToCreateFAR(far *context.FAR) *ie.IE {
 	if far.ForwardingParameters != nil {
 		forwardingParametersIEs := make([]*ie.IE, 0)
 		forwardingParametersIEs = append(forwardingParametersIEs, ie.NewDestinationInterface(far.ForwardingParameters.DestinationInterface.InterfaceValue))
-		forwardingParametersIEs = append(forwardingParametersIEs, ie.NewNetworkInstance(string(far.ForwardingParameters.NetworkInstance)))
+		forwardingParametersIEs = append(forwardingParametersIEs, ie.NewNetworkInstance(far.ForwardingParameters.NetworkInstance))
 		if far.ForwardingParameters.OuterHeaderCreation != nil {
 			forwardingParametersIEs = append(forwardingParametersIEs, ie.NewOuterHeaderCreation(
 				far.ForwardingParameters.OuterHeaderCreation.OuterHeaderCreationDescription,
@@ -202,7 +202,7 @@ func farToUpdateFAR(far *context.FAR) *ie.IE {
 	if far.ForwardingParameters != nil {
 		forwardingParametersIEs := make([]*ie.IE, 0)
 		forwardingParametersIEs = append(forwardingParametersIEs, ie.NewDestinationInterface(far.ForwardingParameters.DestinationInterface.InterfaceValue))
-		forwardingParametersIEs = append(forwardingParametersIEs, ie.NewNetworkInstance(string(far.ForwardingParameters.NetworkInstance)))
+		forwardingParametersIEs = append(forwardingParametersIEs, ie.NewNetworkInstance(far.ForwardingParameters.NetworkInstance))
 		if far.ForwardingParameters.OuterHeaderCreation != nil {
 			forwardingParametersIEs = append(forwardingParametersIEs, ie.NewOuterHeaderCreation(
 				far.ForwardingParameters.OuterHeaderCreation.OuterHeaderCreationDescription,

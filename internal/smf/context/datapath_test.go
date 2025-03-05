@@ -61,8 +61,8 @@ func TestActivateUpLinkPdr(t *testing.T) {
 	if !pdr.PDI.UEIPAddress.Ipv4Address.Equal(net.IP{192, 168, 1, 1}) {
 		t.Errorf("expected pdr.PDI.UEIPAddress.Ipv4Address to be %v, got %v", net.IP{192, 168, 1, 1}, pdr.PDI.UEIPAddress.Ipv4Address)
 	}
-	if string(pdr.PDI.NetworkInstance) != "internet" {
-		t.Errorf("expected pdr.PDI.NetworkInstance to be 'internet', got %v", string(pdr.PDI.NetworkInstance))
+	if pdr.PDI.NetworkInstance != "internet" {
+		t.Errorf("expected pdr.PDI.NetworkInstance to be 'internet', got %v", pdr.PDI.NetworkInstance)
 	}
 }
 

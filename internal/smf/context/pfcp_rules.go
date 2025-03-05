@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"net"
 	"time"
-
-	"github.com/ellanetworks/core/internal/util/dnn"
 )
 
 const (
@@ -81,7 +79,7 @@ type PDI struct {
 	UEIPAddress     *UEIPAddress
 	SDFFilter       *SDFFilter
 	ApplicationID   string
-	NetworkInstance dnn.Dnn
+	NetworkInstance string
 	SourceInterface SourceInterface
 }
 
@@ -107,7 +105,7 @@ type ForwardingParameters struct {
 	OuterHeaderCreation  *OuterHeaderCreation
 	PFCPSMReqFlags       *PFCPSMReqFlags
 	ForwardingPolicyID   string
-	NetworkInstance      dnn.Dnn
+	NetworkInstance      string
 	DestinationInterface DestinationInterface
 }
 
