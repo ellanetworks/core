@@ -20,7 +20,6 @@ func ReleaseSmContext(smContextRef string) error {
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 	err := producer.HandlePDUSessionSMContextRelease(ctxt)
-	ctxt.ChangeState(context.SmStateInit)
 	if err != nil {
 		return fmt.Errorf("error releasing pdu session: %v ", err.Error())
 	}
@@ -43,7 +42,6 @@ func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSm
 	if err != nil {
 		return rsp, fmt.Errorf("error updating pdu session: %v ", err.Error())
 	}
-	smContext.ChangeState(context.SmStateActive)
 	if rsp == nil {
 		return nil, errors.New("unexpected error during SM Context update")
 	}

@@ -36,60 +36,46 @@ var (
 
 var smContextActive uint64
 
-type SMContextState uint
-
-const (
-	SmStateInit SMContextState = iota
-	SmStateActive
-	SmStateInActivePending
-	SmStateModify
-	SmStatePfcpCreatePending
-	SmStatePfcpModify
-	SmStatePfcpRelease
-	SmStateRelease
-	SmStateN1N2TransferPending
-)
-
 type UeIpAddr struct {
 	Ip          net.IP
 	UpfProvided bool
 }
 
 type SMContext struct {
-	Ref                                 string
-	Supi                                string
-	Pei                                 string
-	Identifier                          string
-	Gpsi                                string
-	Dnn                                 string
-	UeTimeZone                          string
-	ServingNfId                         string
-	SmStatusNotifyUri                   string
-	UpCnxState                          models.UpCnxState
-	AnType                              models.AccessType
-	RatType                             models.RatType
-	PresenceInLadn                      models.PresenceState
-	HoState                             models.HoState
-	DnnConfiguration                    models.DnnConfiguration
-	Snssai                              *models.Snssai
-	ServingNetwork                      *models.PlmnId
-	UeLocation                          *models.UserLocation
-	PDUAddress                          *UeIpAddr
-	Tunnel                              *UPTunnel
-	BPManager                           *BPManager
-	DNNInfo                             *SnssaiSmfDnnInfo
-	ProtocolConfigurationOptions        *ProtocolConfigurationOptions
-	SubGsmLog                           *zap.SugaredLogger
-	SubPfcpLog                          *zap.SugaredLogger
-	SubPduSessLog                       *zap.SugaredLogger
-	SubCtxLog                           *zap.SugaredLogger
-	SubFsmLog                           *zap.SugaredLogger
-	SmPolicyUpdates                     []*qos.PolicyUpdate
-	SmPolicyData                        qos.SmCtxtPolicyData
-	PendingUPF                          PendingUPF
-	PFCPContext                         map[string]*PFCPSessionContext
-	SMLock                              sync.Mutex
-	SMContextState                      SMContextState
+	Ref                          string
+	Supi                         string
+	Pei                          string
+	Identifier                   string
+	Gpsi                         string
+	Dnn                          string
+	UeTimeZone                   string
+	ServingNfId                  string
+	SmStatusNotifyUri            string
+	UpCnxState                   models.UpCnxState
+	AnType                       models.AccessType
+	RatType                      models.RatType
+	PresenceInLadn               models.PresenceState
+	HoState                      models.HoState
+	DnnConfiguration             models.DnnConfiguration
+	Snssai                       *models.Snssai
+	ServingNetwork               *models.PlmnId
+	UeLocation                   *models.UserLocation
+	PDUAddress                   *UeIpAddr
+	Tunnel                       *UPTunnel
+	BPManager                    *BPManager
+	DNNInfo                      *SnssaiSmfDnnInfo
+	ProtocolConfigurationOptions *ProtocolConfigurationOptions
+	SubGsmLog                    *zap.SugaredLogger
+	SubPfcpLog                   *zap.SugaredLogger
+	SubPduSessLog                *zap.SugaredLogger
+	SubCtxLog                    *zap.SugaredLogger
+	SubFsmLog                    *zap.SugaredLogger
+	SmPolicyUpdates              []*qos.PolicyUpdate
+	SmPolicyData                 qos.SmCtxtPolicyData
+	PendingUPF                   PendingUPF
+	PFCPContext                  map[string]*PFCPSessionContext
+	SMLock                       sync.Mutex
+	// SMContextState                      SMContextState
 	PDUSessionID                        int32
 	OldPduSessionId                     int32
 	SelectedPDUSessionType              uint8
@@ -130,7 +116,6 @@ func NewSMContext(identifier string, pduSessID int32) (smContext *SMContext) {
 	smContextPool.Store(smContext.Ref, smContext)
 	canonicalRef.Store(canonicalName(identifier, pduSessID), smContext.Ref)
 
-	smContext.SMContextState = SmStateInit
 	smContext.Identifier = identifier
 	smContext.PDUSessionID = pduSessID
 	smContext.PFCPContext = make(map[string]*PFCPSessionContext)
@@ -161,10 +146,6 @@ func (smContext *SMContext) initLogTags() {
 	smContext.SubFsmLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
 }
 
-func (smContext *SMContext) ChangeState(nextState SMContextState) {
-	smContext.SMContextState = nextState
-}
-
 func GetSMContext(ref string) (smContext *SMContext) {
 	if value, ok := smContextPool.Load(ref); ok {
 		smContext = value.(*SMContext)
@@ -181,8 +162,6 @@ func RemoveSMContext(ref string) {
 	if value, ok := smContextPool.Load(ref); ok {
 		smContext = value.(*SMContext)
 	}
-
-	smContext.ChangeState(SmStateRelease)
 
 	for _, pfcpSessionContext := range smContext.PFCPContext {
 		seidSMContextMap.Delete(pfcpSessionContext.LocalSEID)

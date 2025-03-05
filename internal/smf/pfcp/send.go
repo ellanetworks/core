@@ -180,30 +180,26 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 	var status context.PFCPSessionResponseStatus
 	if causeValue == ie.CauseRequestAccepted {
 		smContext.SubPduSessLog.Infoln("PFCP Modification Response Accept")
-		if smContext.SMContextState == context.SmStatePfcpModify {
-			upfNodeID := smContext.GetNodeIDByLocalSEID(SEID)
-			upfIP := upfNodeID.ResolveNodeIdToIp().String()
-			delete(smContext.PendingUPF, upfIP)
-			smContext.SubPduSessLog.Debugf("Delete pending pfcp response: UPF IP [%s]\n", upfIP)
+		upfNodeID := smContext.GetNodeIDByLocalSEID(SEID)
+		upfIP := upfNodeID.ResolveNodeIdToIp().String()
+		delete(smContext.PendingUPF, upfIP)
+		smContext.SubPduSessLog.Debugf("Delete pending pfcp response: UPF IP [%s]\n", upfIP)
 
-			if smContext.PendingUPF.IsEmpty() {
-				status = context.SessionUpdateSuccess
-			}
+		if smContext.PendingUPF.IsEmpty() {
+			status = context.SessionUpdateSuccess
+		}
 
-			if context.SMF_Self().ULCLSupport && smContext.BPManager != nil {
-				if smContext.BPManager.BPStatus == context.UnInitialized {
-					smContext.BPManager.BPStatus = context.AddingPSA
-					addPduSessionAnchor = true
-				}
+		if context.SMF_Self().ULCLSupport && smContext.BPManager != nil {
+			if smContext.BPManager.BPStatus == context.UnInitialized {
+				smContext.BPManager.BPStatus = context.AddingPSA
+				addPduSessionAnchor = true
 			}
 		}
 
 		smContext.SubPfcpLog.Infof("PFCP Session Modification Success[%d]\n", SEID)
 	} else {
 		smContext.SubPfcpLog.Infof("PFCP Session Modification Failed[%d]\n", SEID)
-		if smContext.SMContextState == context.SmStatePfcpModify {
-			status = context.SessionUpdateFailed
-		}
+		status = context.SessionUpdateFailed
 	}
 
 	return addPduSessionAnchor, &status, nil

@@ -32,10 +32,8 @@ func CreateSmContext(request models.PostSmContextsRequest) (string, *models.Post
 
 	location, errRsp, err := producer.HandlePDUSessionSMContextCreate(request, smContext)
 	if err != nil {
-		smContext.ChangeState(context.SmStateInit)
 		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
 	}
-	smContext.ChangeState(context.SmStatePfcpCreatePending)
 
 	if errRsp != nil {
 		return "", errRsp, nil
@@ -43,28 +41,20 @@ func CreateSmContext(request models.PostSmContextsRequest) (string, *models.Post
 
 	responseStatus := producer.SendPFCPRules(smContext)
 	if responseStatus != context.SessionEstablishSuccess {
-		smContext.ChangeState(context.SmStatePfcpCreatePending)
 		if smContext != nil {
 			go func() {
 				err := producer.SendPduSessN1N2Transfer(smContext, false)
 				if err != nil {
-					smContext.ChangeState(context.SmStateN1N2TransferPending)
 					logger.SmfLog.Errorf("error transferring N1N2: %v", err)
-				} else {
-					smContext.ChangeState(context.SmStateInit)
 				}
 			}()
 		}
 		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
 	}
 	go func() {
-		smContext.ChangeState(context.SmStateN1N2TransferPending)
 		err := producer.SendPduSessN1N2Transfer(smContext, true)
 		if err != nil {
-			smContext.ChangeState(context.SmStateN1N2TransferPending)
 			logger.SmfLog.Errorf("error transferring N1N2: %v", err)
-		} else {
-			smContext.ChangeState(context.SmStateActive)
 		}
 	}()
 	return location, nil, nil

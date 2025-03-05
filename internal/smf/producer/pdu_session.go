@@ -163,7 +163,6 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 		}
 	}
 	if defaultPath == nil {
-		smContext.ChangeState(context.SmStateInit)
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMInsufficientResourcesForSpecificSliceAndDNN)
 		return "", response, fmt.Errorf("default data path not found")
 	}
@@ -215,50 +214,22 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 		return nil, err
 	}
 
-	var returnErr error
-	switch smContext.SMContextState {
-	case context.SmStatePfcpModify:
-
-		var err error
-
-		// Initiate PFCP Delete
-		if pfcpAction.sendPfcpDelete {
-			smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, send PFCP Deletion")
-			smContext.ChangeState(context.SmStatePfcpRelease)
-
-			// Initiate PFCP Release
-			if err = SendPfcpSessionReleaseReq(smContext); err != nil {
-				smContext.SubCtxLog.Errorf("pfcp session release error: %v ", err.Error())
-			}
-
-			// Change state to InactivePending
-			smContext.ChangeState(context.SmStateInActivePending)
-		} else if pfcpAction.sendPfcpModify {
-			smContext.ChangeState(context.SmStatePfcpModify)
-			smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, send PFCP Modification")
-
-			// Initiate PFCP Modify
-			if err = SendPfcpSessionModifyReq(smContext, pfcpParam); err != nil {
-				// Modify failure
-				smContext.SubCtxLog.Errorf("pfcp session modify error: %v ", err.Error())
-
-				// Form Modify err rsp
-				returnErr = fmt.Errorf("pfcp session modify error: %v ", err.Error())
-			} else {
-				smContext.ChangeState(context.SmStateActive)
-			}
+	// Initiate PFCP Release
+	if pfcpAction.sendPfcpDelete {
+		if err = SendPfcpSessionReleaseReq(smContext); err != nil {
+			return nil, fmt.Errorf("pfcp session release error: %v ", err.Error())
 		}
+	} else if pfcpAction.sendPfcpModify {
+		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, send PFCP Modification")
 
-	case context.SmStateModify:
-		smContext.ChangeState(context.SmStateActive)
-
-	case context.SmStateInit, context.SmStateInActivePending:
-
-	default:
-		smContext.SubPduSessLog.Warnf("PDUSessionSMContextUpdate, SM Context State [%s] shouldn't be here\n", smContext.SMContextState)
+		// Initiate PFCP Modify
+		err := SendPfcpSessionModifyReq(smContext, pfcpParam)
+		if err != nil {
+			return nil, fmt.Errorf("pfcp session modify error: %v ", err.Error())
+		}
 	}
 
-	return &response, returnErr
+	return &response, nil
 }
 
 func HandlePDUSessionSMContextRelease(smContext *context.SMContext) error {
@@ -277,9 +248,6 @@ func HandlePDUSessionSMContextRelease(smContext *context.SMContext) error {
 		smContext.SubPduSessLog.Errorf("release UE IP address failed: %v", err)
 	}
 
-	// Initiate PFCP release
-	smContext.ChangeState(context.SmStatePfcpRelease)
-
 	// Release User-plane
 	status, ok := releaseTunnel(smContext)
 	if !ok {
@@ -290,23 +258,19 @@ func HandlePDUSessionSMContextRelease(smContext *context.SMContext) error {
 	// var releaseErr error
 	switch *status {
 	case context.SessionReleaseSuccess:
-		smContext.ChangeState(context.SmStatePfcpRelease)
 		context.RemoveSMContext(smContext.Ref)
 		return nil
 
 	case context.SessionReleaseTimeout:
-		smContext.ChangeState(context.SmStateActive)
 		context.RemoveSMContext(smContext.Ref)
 		return fmt.Errorf("PFCP session release timeout")
 
 	case context.SessionReleaseFailed:
-		smContext.ChangeState(context.SmStateActive)
 		context.RemoveSMContext(smContext.Ref)
 		return fmt.Errorf("PFCP session release failed")
 
 	default:
 		smContext.SubCtxLog.Warnf("PDUSessionSMContextRelease, The state shouldn't be [%s]\n", status)
-		smContext.ChangeState(context.SmStateActive)
 		context.RemoveSMContext(smContext.Ref)
 		return fmt.Errorf("PFCP session release failed: unknown status")
 	}
