@@ -15,15 +15,13 @@ import (
 )
 
 func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) error {
-	amfSelf := context.AMF_Self()
 	guamiList := context.GetServedGuamiList()
 
 	policyAssociationRequest := models.PolicyAssociationRequest{
-		NotificationUri: amfSelf.GetIPv4Uri() + "/namf-callback/v1/am-policy/",
-		Supi:            ue.Supi,
-		Pei:             ue.Pei,
-		Gpsi:            ue.Gpsi,
-		AccessType:      anType,
+		Supi:       ue.Supi,
+		Pei:        ue.Pei,
+		Gpsi:       ue.Gpsi,
+		AccessType: anType,
 		ServingPlmn: &models.PlmnId{
 			Mcc: ue.PlmnId.Mcc,
 			Mnc: ue.PlmnId.Mnc,

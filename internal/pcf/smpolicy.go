@@ -71,12 +71,7 @@ func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
 	return smPolicyData, nil
 }
 
-func CreateSMPolicy(request models.SmPolicyContextData) (
-	response *models.SmPolicyDecision, err1 error,
-) {
-	var err error
-	logger.PcfLog.Debugf("Handle Create SM Policy Request")
-
+func CreateSMPolicy(request models.SmPolicyContextData) (*models.SmPolicyDecision, error) {
 	if request.Supi == "" || request.SliceInfo == nil || len(request.SliceInfo.Sd) != 6 {
 		return nil, fmt.Errorf("Errorneous/Missing Mandotory IE")
 	}
@@ -90,6 +85,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 		return nil, fmt.Errorf("supi is not supported in PCF")
 	}
 	var smData *models.SmPolicyData
+	var err error
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
@@ -113,9 +109,8 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 	if smPolicyData != nil {
 		delete(ue.SmPolicyData, smPolicyID)
 	}
-	smPolicyData = ue.NewUeSmPolicyData(smPolicyID, request, smData)
-	// Policy Decision
-	decision := models.SmPolicyDecision{
+	_ = ue.NewUeSmPolicyData(smPolicyID, request, smData)
+	decision := &models.SmPolicyDecision{
 		SessRules:     make(map[string]*models.SessionRule),
 		PccRules:      make(map[string]*models.PccRule),
 		QosDecs:       make(map[string]*models.QosData),
@@ -124,79 +119,66 @@ func CreateSMPolicy(request models.SmPolicyContextData) (
 
 	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
 	sliceid := sstStr + request.SliceInfo.Sd
-	subscriberPolicy := GetSubscriberPolicy(ue.Supi)
+	subscriberPolicy, err := GetSubscriberPolicy(ue.Supi)
+	if err != nil {
+		return nil, fmt.Errorf("can't find subscriber policy for subscriber %s: %s", ue.Supi, err)
+	}
 	if subscriberPolicy == nil {
-		return nil, fmt.Errorf("can't find subscriber policy")
+		return nil, fmt.Errorf("subscriber policy is nil for subscriber %s", ue.Supi)
 	}
-	logger.PcfLog.Infof("Found an existing policy for subscriber [%s]", ue.Supi)
-	if PccPolicy, ok1 := subscriberPolicy.PccPolicy[sliceid]; ok1 {
-		if sessPolicy, exist := PccPolicy.SessionPolicy[request.Dnn]; exist {
-			for _, sessRule := range sessPolicy.SessionRules {
-				decision.SessRules[sessRule.SessRuleId] = deepCopySessionRule(sessRule)
-			}
-		} else {
-			return nil, fmt.Errorf("can't find local policy")
-		}
-
-		for key, pccRule := range PccPolicy.PccRules {
-			decision.PccRules[key] = deepCopyPccRule(pccRule)
-		}
-
-		for key, qosData := range PccPolicy.QosDecs {
-			decision.QosDecs[key] = deepCopyQosData(qosData)
-		}
-		for key, trafficData := range PccPolicy.TraffContDecs {
-			decision.TraffContDecs[key] = deepCopyTrafficControlData(trafficData)
-		}
-	} else {
-		return nil, fmt.Errorf("can't find local policy")
+	PccPolicy, ok := subscriberPolicy.PccPolicy[sliceid]
+	if !ok {
+		return nil, fmt.Errorf("can't find PCC policy for slice %s", sliceid)
+	}
+	sessPolicy, exist := PccPolicy.SessionPolicy[request.Dnn]
+	if !exist {
+		return nil, fmt.Errorf("can't find session policy for dnn %s", request.Dnn)
+	}
+	for _, sessRule := range sessPolicy.SessionRules {
+		decision.SessRules[sessRule.SessRuleId] = deepCopySessionRule(sessRule)
 	}
 
-	dnnData := GetSMPolicyDnnData(*smData, request.SliceInfo, request.Dnn)
-	if dnnData != nil {
-		decision.Online = dnnData.Online
-		decision.Offline = dnnData.Offline
-		decision.Ipv4Index = dnnData.Ipv4Index
-		decision.Ipv6Index = dnnData.Ipv6Index
-		// Set Aggregate GBR if exist
-		if dnnData.GbrDl != "" {
-			var gbrDL float64
-			gbrDL, err = ConvertBitRateToKbps(dnnData.GbrDl)
-			if err != nil {
-				logger.PcfLog.Warnf(err.Error())
-			} else {
-				smPolicyData.RemainGbrDL = &gbrDL
-				logger.PcfLog.Debugf("SM Policy Dnn[%s] Data Aggregate DL GBR[%.2f Kbps]", request.Dnn, gbrDL)
-			}
-		}
-		if dnnData.GbrUl != "" {
-			var gbrUL float64
-			gbrUL, err = ConvertBitRateToKbps(dnnData.GbrUl)
-			if err != nil {
-				logger.PcfLog.Warnf(err.Error())
-			} else {
-				smPolicyData.RemainGbrUL = &gbrUL
-				logger.PcfLog.Debugf("SM Policy Dnn[%s] Data Aggregate UL GBR[%.2f Kbps]", request.Dnn, gbrUL)
-			}
-		}
-	} else {
-		logger.PcfLog.Warnf(
-			"Policy Subscription Info: SMPolicyDnnData is null for dnn[%s] in UE[%s]", request.Dnn, ue.Supi)
-		decision.Online = request.Online
-		decision.Offline = request.Offline
+	for key, pccRule := range PccPolicy.PccRules {
+		decision.PccRules[key] = deepCopyPccRule(pccRule)
 	}
 
-	decision.PolicyCtrlReqTriggers = PolicyControlReqTrigToArray(0x40780f)
-	return &decision, nil
+	for key, qosData := range PccPolicy.QosDecs {
+		decision.QosDecs[key] = deepCopyQosData(qosData)
+	}
+	for key, trafficData := range PccPolicy.TraffContDecs {
+		decision.TraffContDecs[key] = deepCopyTrafficControlData(trafficData)
+	}
+
+	dnnData, err := GetSMPolicyDnnData(*smData, request.SliceInfo, request.Dnn)
+	if err != nil {
+		return nil, fmt.Errorf("error finding SM Policy DNN Data for dnn %s", request.Dnn)
+	}
+	if dnnData == nil {
+		return nil, fmt.Errorf("SM Policy DNN Data is empty for dnn %s", request.Dnn)
+	}
+	if dnnData.GbrDl != "" {
+		_, err := ConvertBitRateToKbps(dnnData.GbrDl)
+		if err != nil {
+			return nil, fmt.Errorf("can't convert GBR DL to Kbps: %s", err)
+		}
+	}
+	if dnnData.GbrUl != "" {
+		_, err := ConvertBitRateToKbps(dnnData.GbrUl)
+		if err != nil {
+			return nil, fmt.Errorf("can't convert GBR UL to Kbps: %s", err)
+		}
+	}
+	return decision, nil
 }
 
 func DeleteSMPolicy(smPolicyID string) error {
 	ue := pcfCtx.PCFUeFindByPolicyId(smPolicyID)
-	if ue == nil || ue.SmPolicyData[smPolicyID] == nil {
-		return fmt.Errorf("smPolicyID not found in PCF")
+	if ue == nil {
+		return fmt.Errorf("ue not found in PCF for smPolicyID: %s", smPolicyID)
 	}
-	// Unsubscrice UDR
+	if ue.SmPolicyData[smPolicyID] == nil {
+		return fmt.Errorf("smPolicyID not found in PCF for smPolicyID: %s", smPolicyID)
+	}
 	delete(ue.SmPolicyData, smPolicyID)
-	logger.PcfLog.Debugf("Deleted SM Policy Association: %s", smPolicyID)
 	return nil
 }

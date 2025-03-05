@@ -56,6 +56,7 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 	if err != nil {
 		return nil, httpRspStatusCode, fmt.Errorf("setup sm policy association failed: %s", err.Error())
 	}
+	logger.SmfLog.Infof("created sm policy decision: %v", smPolicyDecision)
 	err = validateSmPolicyDecision(smPolicyDecision)
 	if err != nil {
 		return nil, httpRspStatusCode, fmt.Errorf("setup sm policy association failed: %s", err.Error())
@@ -63,14 +64,14 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 	return smPolicyDecision, http.StatusCreated, nil
 }
 
-func SendSMPolicyAssociationDelete(smContext *context.SMContext) (int, error) {
-	smPolicyID := fmt.Sprintf("%s-%d", smContext.Supi, smContext.PDUSessionID)
+func SendSMPolicyAssociationDelete(supi string, pduSessionId int32) error {
+	smPolicyID := fmt.Sprintf("%s-%d", supi, pduSessionId)
 	err := pcf.DeleteSMPolicy(smPolicyID)
 	if err != nil {
-		logger.SmfLog.Warnf("smf policy delete failed, [%v] ", err.Error())
-		return http.StatusInternalServerError, err
+		return fmt.Errorf("smf policy delete failed, [%v] ", err.Error())
 	}
-	return http.StatusAccepted, nil
+	logger.SmfLog.Infof("smf policy deleted successfully, supi: %s, pduSessionId: %d", supi, pduSessionId)
+	return nil
 }
 
 func validateSmPolicyDecision(smPolicy *models.SmPolicyDecision) error {

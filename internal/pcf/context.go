@@ -69,21 +69,18 @@ func (c *PCFContext) PCFUeFindByPolicyId(PolicyId string) *UeContext {
 	return nil
 }
 
-func GetSubscriberPolicy(imsi string) *PcfSubscriberPolicyData {
+func GetSubscriberPolicy(imsi string) (*PcfSubscriberPolicyData, error) {
 	subscriber, err := pcfCtx.DbInstance.GetSubscriber(imsi)
 	if err != nil {
-		logger.PcfLog.Warnf("Failed to get subscriber %s: %+v", imsi, err)
-		return nil
+		return nil, fmt.Errorf("failed to get subscriber %s: %w", imsi, err)
 	}
 	profile, err := pcfCtx.DbInstance.GetProfileByID(subscriber.ProfileID)
 	if err != nil {
-		logger.PcfLog.Warnf("Failed to get profile %d: %+v", subscriber.ProfileID, err)
-		return nil
+		return nil, fmt.Errorf("failed to get profile %d: %w", subscriber.ProfileID, err)
 	}
 	operator, err := pcfCtx.DbInstance.GetOperator()
 	if err != nil {
-		logger.PcfLog.Warnf("Failed to get operator: %+v", err)
-		return nil
+		return nil, fmt.Errorf("failed to get operator: %w", err)
 	}
 	subscriberPolicies := &PcfSubscriberPolicyData{
 		Supi:      imsi,
@@ -132,5 +129,5 @@ func GetSubscriberPolicy(imsi string) *PcfSubscriberPolicyData {
 			Downlink: profile.BitrateDownlink,
 		},
 	}
-	return subscriberPolicies
+	return subscriberPolicies, nil
 }

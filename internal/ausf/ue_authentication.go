@@ -67,29 +67,23 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	AddSuciSupiPairToMap(supiOrSuci, ueid)
 
 	if authInfoResult.AuthType == models.AuthType__5_G_AKA {
-		logger.AusfLog.Infoln("Use 5G AKA auth method")
-
 		// Derive HXRES* from XRES*
 		concat := authInfoResult.AuthenticationVector.Rand + authInfoResult.AuthenticationVector.XresStar
-		var hxresStarBytes []byte
-		if bytes, err := hex.DecodeString(concat); err != nil {
-			logger.AusfLog.Warnf("decode error: %+v", err)
-		} else {
-			hxresStarBytes = bytes
+		hxresStarBytes, err := hex.DecodeString(concat)
+		if err != nil {
+			return nil, fmt.Errorf("decode error: %s", err)
 		}
 		hxresStarAll := sha256.Sum256(hxresStarBytes)
 		hxresStar := hex.EncodeToString(hxresStarAll[16:]) // last 128 bits
 
 		// Derive Kseaf from Kausf
 		Kausf := authInfoResult.AuthenticationVector.Kausf
-		var KausfDecode []byte
-		if ausfDecode, err := hex.DecodeString(Kausf); err != nil {
-			logger.AusfLog.Warnf("AUSF decode failed: %+v", err)
-		} else {
-			KausfDecode = ausfDecode
+		ausfDecode, err := hex.DecodeString(Kausf)
+		if err != nil {
+			return nil, fmt.Errorf("AUSF decode failed: %s", err)
 		}
 		P0 := []byte(snName)
-		Kseaf, err := ueauth.GetKDFValue(KausfDecode, ueauth.FC_FOR_KSEAF_DERIVATION, P0, ueauth.KDFLen(P0))
+		Kseaf, err := ueauth.GetKDFValue(ausfDecode, ueauth.FC_FOR_KSEAF_DERIVATION, P0, ueauth.KDFLen(P0))
 		if err != nil {
 			logger.AusfLog.Error(err)
 		}
@@ -122,22 +116,20 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		ausfUeContext.K_aut = K_aut
 		Kausf := EMSK[0:32]
 		ausfUeContext.Kausf = Kausf
-		var KausfDecode []byte
-		if ausfDecode, err := hex.DecodeString(Kausf); err != nil {
-			logger.AusfLog.Warnf("AUSF decode failed: %+v", err)
-		} else {
-			KausfDecode = ausfDecode
+		KausfDecode, err := hex.DecodeString(Kausf)
+		if err != nil {
+			return nil, fmt.Errorf("AUSF decode failed: %s", err)
 		}
 		P0 := []byte(snName)
 		Kseaf, err := ueauth.GetKDFValue(KausfDecode, ueauth.FC_FOR_KSEAF_DERIVATION, P0, ueauth.KDFLen(P0))
 		if err != nil {
-			logger.AusfLog.Error(err)
+			return nil, fmt.Errorf("failed to get KDF value: %s", err)
 		}
 		ausfUeContext.Kseaf = hex.EncodeToString(Kseaf)
 
 		randIdentifier, err := GenerateRandomNumber()
 		if err != nil {
-			logger.AusfLog.Warnf("Generate random number failed: %+v", err)
+			return nil, fmt.Errorf("failed to generate random number: %s", err)
 		}
 		var eapPkt EapPacket
 		eapPkt.Identifier = randIdentifier
@@ -228,22 +220,20 @@ func Auth5gAkaComfirmRequestProcedure(resStar string, confirmationDataResponseID
 	return &responseBody, nil
 }
 
-func EapAuthComfirmRequestProcedure(eapPayload, eapSessionID string) (*models.EapSession, error) {
+func EapAuthComfirmRequestProcedure(eapPayload string, eapSessionID string) (*models.EapSession, error) {
 	if !CheckIfSuciSupiPairExists(eapSessionID) {
-		return nil, fmt.Errorf("supiSuciPair does not exist")
+		return nil, fmt.Errorf("supi-suci pair does not exist")
 	}
 
 	currentSupi := GetSupiFromSuciSupiMap(eapSessionID)
 	if !CheckIfAusfUeContextExists(currentSupi) {
-		return nil, fmt.Errorf("SUPI does not exist")
+		return nil, fmt.Errorf("supi does not exist")
 	}
 
 	ausfCurrentContext := GetAusfUeContext(currentSupi)
-	var eapPayloadBytes []byte
-	if eapPayloadTmp, err := base64.StdEncoding.DecodeString(eapPayload); err != nil {
-		logger.AusfLog.Warnf("EAP Payload decode failed: %+v", err)
-	} else {
-		eapPayloadBytes = eapPayloadTmp
+	eapPayloadBytes, err := base64.StdEncoding.DecodeString(eapPayload)
+	if err != nil {
+		return nil, fmt.Errorf("EAP Payload decode failed: %s", err)
 	}
 
 	eapGoPkt := gopacket.NewPacket(eapPayloadBytes, layers.LayerTypeEAP, gopacket.Default)

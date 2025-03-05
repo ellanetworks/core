@@ -37,8 +37,8 @@ type EapPacket struct {
 	Data       []byte
 }
 
-func (a *EapPacket) Encode() (b []byte) {
-	b = make([]byte, len(a.Data)+5)
+func (a *EapPacket) Encode() []byte {
+	b := make([]byte, len(a.Data)+5)
 	b[0] = byte(a.Code)
 	b[1] = a.Identifier
 	binary.BigEndian.PutUint16(b[2:4], uint16(len(a.Data)+5))
@@ -47,15 +47,15 @@ func (a *EapPacket) Encode() (b []byte) {
 	return b
 }
 
-func EapDecode(b []byte) (eap *EapPacket, err error) {
+func EapDecode(b []byte) (*EapPacket, error) {
 	if len(b) < 5 {
-		return nil, fmt.Errorf("[EapDecode] protocol error input too small 1")
+		return nil, fmt.Errorf("input too small")
 	}
 	length := binary.BigEndian.Uint16(b[2:4])
 	if len(b) < int(length) {
-		return nil, fmt.Errorf("[EapDecode] protocol error input too small 2")
+		return nil, fmt.Errorf("input too small")
 	}
-	eap = &EapPacket{
+	eap := &EapPacket{
 		Code:       EapCode(b[0]),
 		Identifier: b[1],
 		Type:       EapType(b[4]),
