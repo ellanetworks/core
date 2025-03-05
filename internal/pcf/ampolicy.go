@@ -14,11 +14,11 @@ import (
 func DeleteAMPolicy(polAssoId string) error {
 	ue := pcfCtx.PCFUeFindByPolicyId(polAssoId)
 	if ue == nil {
-		return fmt.Errorf("polAssoId[%s] not found in UePool", polAssoId)
+		return fmt.Errorf("ue not found in PCF for policy association ID: %s", polAssoId)
 	}
 	_, exists := ue.AMPolicyData[polAssoId]
 	if !exists {
-		return fmt.Errorf("polAssoId[%s] not found in AMPolicyData", polAssoId)
+		return fmt.Errorf("policy association ID not found in PCF: %s", polAssoId)
 	}
 	delete(ue.AMPolicyData, polAssoId)
 	return nil
@@ -32,15 +32,6 @@ func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.Poli
 
 	amPolicyData := ue.AMPolicyData[polAssoId]
 	var response models.PolicyUpdate
-	if policyAssociationUpdateRequest.NotificationUri != "" {
-		amPolicyData.NotificationUri = policyAssociationUpdateRequest.NotificationUri
-	}
-	if policyAssociationUpdateRequest.AltNotifIpv4Addrs != nil {
-		amPolicyData.AltNotifIpv4Addrs = policyAssociationUpdateRequest.AltNotifIpv4Addrs
-	}
-	if policyAssociationUpdateRequest.AltNotifIpv6Addrs != nil {
-		amPolicyData.AltNotifIpv6Addrs = policyAssociationUpdateRequest.AltNotifIpv6Addrs
-	}
 	for _, trigger := range policyAssociationUpdateRequest.Triggers {
 		switch trigger {
 		case models.RequestTrigger_LOC_CH:
@@ -85,11 +76,11 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 		ue = val.(*UeContext)
 	}
 	if ue == nil {
-		if newUe, err := pcfCtx.NewPCFUe(policyAssociationRequest.Supi); err != nil {
+		newUe, err := pcfCtx.NewPCFUe(policyAssociationRequest.Supi)
+		if err != nil {
 			return nil, "", fmt.Errorf("supi Format Error: %s", err.Error())
-		} else {
-			ue = newUe
 		}
+		ue = newUe
 	}
 	response.Request = &policyAssociationRequest
 	assolId := fmt.Sprintf("%s-%d", ue.Supi, ue.PolAssociationIDGenerator)
@@ -98,7 +89,7 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 	if amPolicy == nil {
 		_, err := pcfCtx.DbInstance.GetSubscriber(ue.Supi)
 		if err != nil {
-			return nil, "", fmt.Errorf("can't find UE[%s] AM Policy Data in UDR", ue.Supi)
+			return nil, "", fmt.Errorf("ue not found in database: %s", ue.Supi)
 		}
 		amPolicy = ue.NewUeAMPolicyData(assolId, policyAssociationRequest)
 	}

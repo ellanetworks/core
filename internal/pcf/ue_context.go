@@ -16,31 +16,19 @@ import (
 
 type UeContext struct {
 	SmPolicyData              map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionId) as key
-	AspId                     string
 	Supi                      string
 	Gpsi                      string
 	Pei                       string
 	AMPolicyData              map[string]*UeAMPolicyData // use PolAssoId(ue.Supi-numPolId) as key
-	GroupIds                  []string
 	PolAssociationIDGenerator uint32
 }
 
 type UeAMPolicyData struct {
-	PolAssoId         string
-	AccessType        models.AccessType
-	NotificationUri   string
-	ServingPlmn       *models.PlmnId
-	AltNotifIpv4Addrs []string
-	AltNotifIpv6Addrs []string
-	AmfStatusUri      string
-	Guami             *models.Guami
-	// TraceReq *TraceData
-	// about AF request
-	Pras map[string]models.PresenceInfo
-	// related to UDR Subscription Data
-	// Corresponding UE
-	PcfUe *UeContext
-	// Policy Association
+	AccessType  models.AccessType
+	ServingPlmn *models.PlmnId
+	Guami       *models.Guami
+	Pras        map[string]models.PresenceInfo
+	PcfUe       *UeContext
 	ServAreaRes *models.ServiceAreaRestriction
 	UserLoc     *models.UserLocation
 	TimeZone    string
@@ -49,9 +37,7 @@ type UeAMPolicyData struct {
 }
 
 type UeSmPolicyData struct {
-	PackFiltMapToPccRuleId map[string]string // use PackFiltId as Key
-	RemainGbrUL            *float64
-	RemainGbrDL            *float64
+	PackFiltMapToPccRuleId map[string]string    // use PackFiltId as Key
 	SmPolicyData           *models.SmPolicyData // Svbscription Data
 	PolicyContext          *models.SmPolicyContextData
 	AppSessions            map[string]bool // related appSessionId
@@ -61,29 +47,22 @@ type UeSmPolicyData struct {
 func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociationRequest) *UeAMPolicyData {
 	ue.Gpsi = req.Gpsi
 	ue.Pei = req.Pei
-	ue.GroupIds = req.GroupIds
 	ue.AMPolicyData[assolId] = &UeAMPolicyData{
-		PolAssoId:         assolId,
-		ServAreaRes:       req.ServAreaRes,
-		AltNotifIpv4Addrs: req.AltNotifIpv4Addrs,
-		AltNotifIpv6Addrs: req.AltNotifIpv6Addrs,
-		AccessType:        req.AccessType,
-		NotificationUri:   req.NotificationUri,
-		ServingPlmn:       req.ServingPlmn,
-		TimeZone:          req.TimeZone,
-		Rfsp:              req.Rfsp,
-		Guami:             req.Guami,
-		UserLoc:           req.UserLoc,
-		PcfUe:             ue,
+		ServAreaRes: req.ServAreaRes,
+		AccessType:  req.AccessType,
+		ServingPlmn: req.ServingPlmn,
+		TimeZone:    req.TimeZone,
+		Rfsp:        req.Rfsp,
+		Guami:       req.Guami,
+		UserLoc:     req.UserLoc,
+		PcfUe:       ue,
 	}
 	ue.AMPolicyData[assolId].Pras = make(map[string]models.PresenceInfo)
 	return ue.AMPolicyData[assolId]
 }
 
 // returns UeSmPolicyData and insert related info to Ue with smPolId
-func (ue *UeContext) NewUeSmPolicyData(
-	key string, request models.SmPolicyContextData, smData *models.SmPolicyData,
-) *UeSmPolicyData {
+func (ue *UeContext) NewUeSmPolicyData(key string, request models.SmPolicyContextData, smData *models.SmPolicyData) *UeSmPolicyData {
 	if smData == nil {
 		return nil
 	}

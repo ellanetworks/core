@@ -266,14 +266,13 @@ func HandlePDUSessionSMContextRelease(smContext *context.SMContext) error {
 	defer smContext.SMLock.Unlock()
 
 	// Send Policy delete
-	if httpStatus, err := consumer.SendSMPolicyAssociationDelete(smContext); err != nil {
-		smContext.SubCtxLog.Errorf("SM policy delete error [%v] ", err.Error())
-	} else {
-		smContext.SubCtxLog.Infof("SM policy delete success with http status [%v] ", httpStatus)
+	err := consumer.SendSMPolicyAssociationDelete(smContext.Supi, smContext.PDUSessionID)
+	if err != nil {
+		smContext.SubCtxLog.Errorf("error deleting policy association: %v", err)
 	}
 
 	// Release UE IP-Address
-	err := smContext.ReleaseUeIpAddr()
+	err = smContext.ReleaseUeIpAddr()
 	if err != nil {
 		smContext.SubPduSessLog.Errorf("release UE IP address failed: %v", err)
 	}

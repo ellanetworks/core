@@ -14,10 +14,6 @@ type SmPolicyContextData struct {
 	Ipv4Address     string
 	SubsSessAmbr    *Ambr
 	SubsDefQos      *SubscribedDefaultQos
-	// If it is included and set to true, the online charging is applied to the PDU session.
-	Online bool
-	// If it is included and set to true, the offline charging is applied to the PDU session.
-	Offline   bool
-	SliceInfo *Snssai
-	SuppFeat  string
+	SliceInfo       *Snssai
+	SuppFeat        string
 }

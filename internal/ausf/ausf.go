@@ -13,6 +13,5 @@ func Start() error {
 		return fmt.Errorf("could not compile SN regex: %v", err)
 	}
 	ausfContext.snRegex = snRegex
-
 	return nil
 }

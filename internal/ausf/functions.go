@@ -162,7 +162,8 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 func checkMACintegrity(offset int, expectedMacValue []byte, packet []byte, Kautn string) bool {
 	eapDecode, decodeErr := EapDecode(packet)
 	if decodeErr != nil {
-		logger.AusfLog.Infoln(decodeErr.Error())
+		logger.AusfLog.Warnf("error decoding eap packet: %+v", decodeErr)
+		return false
 	}
 	if zeroBytes, err := hex.DecodeString("00000000000000000000000000000000"); err != nil {
 		logger.AusfLog.Warnf("Decode error: %+v", err)

@@ -1687,7 +1687,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 
 		response, err := consumer.SendAuth5gAkaConfirmRequest(ue, hex.EncodeToString(resStar[:]))
 		if err != nil {
-			return err
+			return fmt.Errorf("Authentication procedure failed: %s", err)
 		}
 		switch response.AuthResult {
 		case models.AuthResult_SUCCESS:
@@ -1714,8 +1714,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 			}
 		}
 	case models.AuthType_EAP_AKA_PRIME:
-		ue.GmmLog.Warnf("In EAP-AKA-PRIME")
-		response, err := consumer.SendEapAuthConfirmRequest(ue, *authenticationResponse.EAPMessage)
+		response, err := consumer.SendEapAuthConfirmRequest(ue.Suci, *authenticationResponse.EAPMessage)
 		if err != nil {
 			return err
 		}

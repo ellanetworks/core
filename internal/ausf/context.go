@@ -90,10 +90,10 @@ func CheckIfSuciSupiPairExists(ref string) bool {
 	return ok
 }
 
-func GetSupiFromSuciSupiMap(ref string) (supi string) {
+func GetSupiFromSuciSupiMap(ref string) string {
 	val, _ := ausfContext.suciSupiMap.Load(ref)
 	suciSupiMap := val.(*SuciSupiMap)
-	supi = suciSupiMap.Supi
+	supi := suciSupiMap.Supi
 	return supi
 }
 

@@ -50,27 +50,17 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 	return ueAuthenticationCtx, nil
 }
 
-func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string) (
-	*models.ConfirmationDataResponse, error,
-) {
-	confirmationData := models.ConfirmationData{
-		ResStar: resStar,
-	}
-	confirmResult, err := ausf.Auth5gAkaComfirmRequestProcedure(confirmationData, ue.Suci)
+func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string) (*models.ConfirmationDataResponse, error) {
+	confirmResult, err := ausf.Auth5gAkaComfirmRequestProcedure(resStar, ue.Suci)
 	if err != nil {
 		return nil, fmt.Errorf("ausf 5G-AKA Confirm Request failed: %s", err.Error())
 	}
 	return confirmResult, nil
 }
 
-func SendEapAuthConfirmRequest(ue *context.AmfUe, eapMsg nasType.EAPMessage) (
-	*models.EapSession, error,
-) {
-	eapSession := models.EapSession{
-		EapPayload: base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage()),
-	}
-
-	response, err := ausf.EapAuthComfirmRequestProcedure(eapSession, ue.Suci)
+func SendEapAuthConfirmRequest(suci string, eapMsg nasType.EAPMessage) (*models.EapSession, error) {
+	eapPayload := base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage())
+	response, err := ausf.EapAuthComfirmRequestProcedure(eapPayload, suci)
 	if err != nil {
 		return nil, fmt.Errorf("ausf EAP Confirm Request failed: %s", err.Error())
 	}
