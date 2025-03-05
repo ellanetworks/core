@@ -40,7 +40,6 @@ type SMContextState uint
 
 const (
 	SmStateInit SMContextState = iota
-	SmStateActivePending
 	SmStateActive
 	SmStateInActivePending
 	SmStateModify
@@ -49,7 +48,6 @@ const (
 	SmStatePfcpRelease
 	SmStateRelease
 	SmStateN1N2TransferPending
-	SmStateMax
 )
 
 type UeIpAddr struct {

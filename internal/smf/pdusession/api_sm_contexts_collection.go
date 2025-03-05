@@ -44,7 +44,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (string, *models.Post
 	responseStatus := producer.SendPFCPRules(smContext)
 	if responseStatus != context.SessionEstablishSuccess {
 		smContext.ChangeState(context.SmStatePfcpCreatePending)
-		if smContext != nil && smContext.SMContextState == context.SmStatePfcpCreatePending {
+		if smContext != nil {
 			go func() {
 				err := producer.SendPduSessN1N2Transfer(smContext, false)
 				if err != nil {

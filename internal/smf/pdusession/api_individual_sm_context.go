@@ -43,9 +43,6 @@ func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSm
 	if err != nil {
 		return rsp, fmt.Errorf("error updating pdu session: %v ", err.Error())
 	}
-	if err != nil {
-		logger.SmfLog.Errorf("error processing state machine transaction")
-	}
 	smContext.ChangeState(context.SmStateActive)
 	if rsp == nil {
 		return nil, errors.New("unexpected error during SM Context update")
