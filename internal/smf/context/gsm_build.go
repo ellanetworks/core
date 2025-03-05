@@ -150,22 +150,6 @@ func BuildGSMPDUSessionEstablishmentReject(smContext *SMContext, cause uint8) ([
 	return m.PlainNasEncode()
 }
 
-/*func BuildGSMPDUSessionModificationReject(smContext *SMContext, cause uint8) ([]byte, error) {
-	m := nas.NewMessage()
-	m.GsmMessage = nas.NewGsmMessage()
-	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionModificationReject)
-	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionModificationReject = nasMessage.NewPDUSessionModificationReject(0x0)
-	pDUSessionModificationReject := m.PDUSessionModificationReject
-
-	pDUSessionModificationReject.SetMessageType(nas.MsgTypePDUSessionModificationReject)
-	pDUSessionModificationReject.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	pDUSessionModificationReject.SetPDUSessionID(uint8(smContext.PDUSessionID))
-	pDUSessionModificationReject.SetCauseValue(cause)
-
-	return m.PlainNasEncode()
-}*/
-
 func BuildGSMPDUSessionReleaseCommand(smContext *SMContext) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GsmMessage = nas.NewGsmMessage()
@@ -179,25 +163,6 @@ func BuildGSMPDUSessionReleaseCommand(smContext *SMContext) ([]byte, error) {
 	pDUSessionReleaseCommand.SetPDUSessionID(uint8(smContext.PDUSessionID))
 	pDUSessionReleaseCommand.SetPTI(smContext.Pti)
 	pDUSessionReleaseCommand.SetCauseValue(0x0)
-
-	return m.PlainNasEncode()
-}
-
-func BuildGSMPDUSessionReleaseReject(smContext *SMContext) ([]byte, error) {
-	m := nas.NewMessage()
-	m.GsmMessage = nas.NewGsmMessage()
-	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionReleaseReject)
-	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-	m.PDUSessionReleaseReject = nasMessage.NewPDUSessionReleaseReject(0x0)
-	pDUSessionReleaseReject := m.PDUSessionReleaseReject
-
-	pDUSessionReleaseReject.SetMessageType(nas.MsgTypePDUSessionReleaseReject)
-	pDUSessionReleaseReject.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
-
-	pDUSessionReleaseReject.SetPDUSessionID(uint8(smContext.PDUSessionID))
-
-	pDUSessionReleaseReject.SetPTI(smContext.Pti)
-	pDUSessionReleaseReject.SetCauseValue(nasMessage.Cause5GSMRequestRejectedUnspecified)
 
 	return m.PlainNasEncode()
 }
