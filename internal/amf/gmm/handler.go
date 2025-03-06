@@ -959,10 +959,6 @@ func communicateWithUDM(ue *context.AmfUe) error {
 		return fmt.Errorf("SDM_Get UeContextInSmfData Error[%+v]", err)
 	}
 
-	err = consumer.SDMSubscribe(ue)
-	if err != nil {
-		return fmt.Errorf("SDM Subscribe Error[%+v]", err)
-	}
 	ue.SubscriptionDataValid = true
 	return nil
 }

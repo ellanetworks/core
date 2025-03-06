@@ -18,7 +18,6 @@ type UdmUeContext struct {
 	SmfSelSubsData            *models.SmfSelectionSubscriptionData
 	UeCtxtInSmfData           *models.UeContextInSmfData
 	SessionManagementSubsData map[string]models.SessionManagementSubscriptionData
-	SubscribeToNotifChange    map[string]*models.SdmSubscription
 	smfSelSubsDataLock        sync.Mutex
 	SmSubsDataLock            sync.RWMutex
 }
