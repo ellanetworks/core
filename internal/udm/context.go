@@ -31,6 +31,10 @@ type UDMContext struct {
 	UESubsCollection           sync.Map // map[ueId]*UESubsData
 }
 
+func SetDbInstance(dbInstance *db.Database) {
+	udmContext.DbInstance = dbInstance
+}
+
 func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData, snssaiFromReq string,
 	dnnFromReq string) (mp map[string]models.SessionManagementSubscriptionData,
 ) {
