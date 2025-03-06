@@ -165,7 +165,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 
 	hasOP, hasOPC := false, false
 
-	if authSubs.Milenage.Op != nil {
+	if authSubs.Milenage.Op != nil && authSubs.Milenage.Op.OpValue != "" {
 		opStr = authSubs.Milenage.Op.OpValue
 		if len(opStr) != opStrLen {
 			return nil, fmt.Errorf("opStr length is %d, expected %d", len(opStr), opStrLen)
