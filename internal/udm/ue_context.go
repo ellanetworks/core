@@ -13,20 +13,16 @@ import (
 )
 
 type UdmUeContext struct {
-	Supi                              string
-	Gpsi                              string
-	Nssai                             *models.Nssai
-	Amf3GppAccessRegistration         *models.Amf3GppAccessRegistration
-	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData
-	SmfSelSubsData                    *models.SmfSelectionSubscriptionData
-	UeCtxtInSmfData                   *models.UeContextInSmfData
-	SessionManagementSubsData         map[string]models.SessionManagementSubscriptionData
-	SubscribeToNotifChange            map[string]*models.SdmSubscription
-	SubscribeToNotifSharedDataChange  *models.SdmSubscription
-	PduSessionID                      string
-	amSubsDataLock                    sync.Mutex
-	smfSelSubsDataLock                sync.Mutex
-	SmSubsDataLock                    sync.RWMutex
+	Gpsi                             string
+	Nssai                            *models.Nssai
+	Amf3GppAccessRegistration        *models.Amf3GppAccessRegistration
+	SmfSelSubsData                   *models.SmfSelectionSubscriptionData
+	UeCtxtInSmfData                  *models.UeContextInSmfData
+	SessionManagementSubsData        map[string]models.SessionManagementSubscriptionData
+	SubscribeToNotifChange           map[string]*models.SdmSubscription
+	SubscribeToNotifSharedDataChange *models.SdmSubscription
+	smfSelSubsDataLock               sync.Mutex
+	SmSubsDataLock                   sync.RWMutex
 }
 
 func (ue *UdmUeContext) init() {
@@ -52,10 +48,4 @@ func (udmUeContext *UdmUeContext) SetSMSubsData(smSubsData map[string]models.Ses
 	udmUeContext.SmSubsDataLock.Lock()
 	defer udmUeContext.SmSubsDataLock.Unlock()
 	udmUeContext.SessionManagementSubsData = smSubsData
-}
-
-func (udmUeContext *UdmUeContext) SetAMSubsriptionData(amData *models.AccessAndMobilitySubscriptionData) {
-	udmUeContext.amSubsDataLock.Lock()
-	defer udmUeContext.amSubsDataLock.Unlock()
-	udmUeContext.AccessAndMobilitySubscriptionData = amData
 }

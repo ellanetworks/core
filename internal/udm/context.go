@@ -67,7 +67,6 @@ func (context *UDMContext) CreateSmfSelectionSubsDataforUe(supi string, body mod
 func (context *UDMContext) NewUdmUe(supi string) *UdmUeContext {
 	ue := new(UdmUeContext)
 	ue.init()
-	ue.Supi = supi
 	context.UdmUePool.Store(supi, ue)
 	return ue
 }
@@ -78,12 +77,4 @@ func (context *UDMContext) UdmUeFindBySupi(supi string) (*UdmUeContext, bool) {
 	} else {
 		return nil, false
 	}
-}
-
-func (context *UDMContext) CreateAmf3gppRegContext(supi string, body models.Amf3GppAccessRegistration) {
-	ue, ok := context.UdmUeFindBySupi(supi)
-	if !ok {
-		ue = context.NewUdmUe(supi)
-	}
-	ue.Amf3GppAccessRegistration = &body
 }
