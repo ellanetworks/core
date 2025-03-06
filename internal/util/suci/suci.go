@@ -153,8 +153,7 @@ func ToSupi(suci string, privateKey string) (string, error) {
 	suciPart := strings.Split(suci, "-")
 	suciPrefix := suciPart[0]
 	if suciPrefix == "imsi" || suciPrefix == "nai" {
-		logger.UtilLog.Infoln("got supi")
-		return suci, nil
+		return "", fmt.Errorf("suci with wrong format")
 	} else if suciPrefix == "suci" {
 		if len(suciPart) < 6 {
 			return "", fmt.Errorf("suci with wrong format")

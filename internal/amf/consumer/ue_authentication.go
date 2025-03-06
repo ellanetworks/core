@@ -13,7 +13,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/ausf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasType"
 )
@@ -44,8 +43,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 
 	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(authInfo)
 	if err != nil {
-		logger.AmfLog.Errorf("UE Authentication Authenticate Request failed: %+v", err)
-		return nil, err
+		return nil, fmt.Errorf("ue authentication authenticate request failed: %s", err.Error())
 	}
 	return ueAuthenticationCtx, nil
 }

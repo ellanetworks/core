@@ -21,6 +21,10 @@ type UDMContext struct {
 	UdmUePool  sync.Map // map[supi]*UdmUeContext
 }
 
+func SetDbInstance(dbInstance *db.Database) {
+	udmContext.DbInstance = dbInstance
+}
+
 func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData) (mp map[string]models.SessionManagementSubscriptionData) {
 	smDataMap := make(map[string]models.SessionManagementSubscriptionData)
 	AllDnns := make([]map[string]models.DnnConfiguration, len(smDatafromUDR))

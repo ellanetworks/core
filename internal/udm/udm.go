@@ -7,6 +7,6 @@ import (
 )
 
 func Start(dbInstance *db.Database) error {
-	udmContext.DbInstance = dbInstance
+	SetDbInstance(dbInstance)
 	return nil
 }
