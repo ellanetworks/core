@@ -119,14 +119,14 @@ func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) 
 	return smData, nil
 }
 
-func GetAndSetSmData(supi string, Dnn string, Snssai string) ([]models.SessionManagementSubscriptionData, error) {
+func GetAndSetSmData(supi string) ([]models.SessionManagementSubscriptionData, error) {
 	sessionManagementSubscriptionDataResp, err := GetSmData(supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetSmData error: %+v", err)
 	}
 
 	udmUe := udmContext.NewUdmUe(supi)
-	smData := udmContext.ManageSmData(sessionManagementSubscriptionDataResp, Snssai, Dnn)
+	smData := udmContext.ManageSmData(sessionManagementSubscriptionDataResp)
 	udmUe.SetSMSubsData(smData)
 
 	rspSMSubDataList := make([]models.SessionManagementSubscriptionData, 0, 4)
@@ -170,9 +170,7 @@ func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error)
 	return smfSelectionData, nil
 }
 
-func GetAndSetSmfSelectData(supi string) (
-	*models.SmfSelectionSubscriptionData, error,
-) {
+func GetAndSetSmfSelectData(supi string) (*models.SmfSelectionSubscriptionData, error) {
 	var body models.SmfSelectionSubscriptionData
 	udmContext.CreateSmfSelectionSubsDataforUe(supi, body)
 	smfSelectionSubscriptionDataResp, err := GetSmfSelectData(supi)
@@ -183,35 +181,6 @@ func GetAndSetSmfSelectData(supi string) (
 	udmUe := udmContext.NewUdmUe(supi)
 	udmUe.SetSmfSelectionSubsData(smfSelectionSubscriptionDataResp)
 	return udmUe.SmfSelSubsData, nil
-}
-
-func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string) models.SdmSubscription {
-	value, ok := udmContext.UESubsCollection.Load(ueId)
-	if !ok {
-		udmContext.UESubsCollection.Store(ueId, new(UESubsData))
-		value, _ = udmContext.UESubsCollection.Load(ueId)
-	}
-	UESubsData := value.(*UESubsData)
-	if UESubsData.SdmSubscriptions == nil {
-		UESubsData.SdmSubscriptions = make(map[string]*models.SdmSubscription)
-	}
-
-	newSubscriptionID := strconv.Itoa(udmContext.SdmSubscriptionIDGenerator)
-	SdmSubscription.SubscriptionId = newSubscriptionID
-	UESubsData.SdmSubscriptions[newSubscriptionID] = &SdmSubscription
-	udmContext.SdmSubscriptionIDGenerator++
-
-	return SdmSubscription
-}
-
-func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string) error {
-	sdmSubscriptionResp := CreateSdmSubscriptions(*sdmSubscription, supi)
-	udmUe, _ := udmContext.UdmUeFindBySupi(supi)
-	if udmUe == nil {
-		udmUe = udmContext.NewUdmUe(supi)
-	}
-	udmUe.CreateSubscriptiontoNotifChange(sdmSubscriptionResp.SubscriptionId, &sdmSubscriptionResp)
-	return nil
 }
 
 func GetUeContextInSmfData(supi string) (*models.UeContextInSmfData, error) {

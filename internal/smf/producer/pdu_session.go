@@ -18,7 +18,6 @@ import (
 	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/udm"
-	"github.com/ellanetworks/core/internal/util/marshtojsonstring"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
 )
@@ -88,9 +87,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 		smContext.SubPduSessLog.Infof("Successful IP Allocation: %s", smContext.PDUAddress.Ip.String())
 	}
 
-	snssai := marshtojsonstring.MarshToJsonString(createData.SNssai)[0]
-
-	sessSubData, err := udm.GetAndSetSmData(smContext.Supi, createData.Dnn, snssai)
+	sessSubData, err := udm.GetAndSetSmData(smContext.Supi)
 	if err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, get SessionManagementSubscriptionData error: ", err)
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)

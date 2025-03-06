@@ -13,27 +13,14 @@ import (
 )
 
 type UdmUeContext struct {
-	Gpsi                             string
-	Nssai                            *models.Nssai
-	Amf3GppAccessRegistration        *models.Amf3GppAccessRegistration
-	SmfSelSubsData                   *models.SmfSelectionSubscriptionData
-	UeCtxtInSmfData                  *models.UeContextInSmfData
-	SessionManagementSubsData        map[string]models.SessionManagementSubscriptionData
-	SubscribeToNotifChange           map[string]*models.SdmSubscription
-	SubscribeToNotifSharedDataChange *models.SdmSubscription
-	smfSelSubsDataLock               sync.Mutex
-	SmSubsDataLock                   sync.RWMutex
-}
-
-func (ue *UdmUeContext) init() {
-	ue.SubscribeToNotifChange = make(map[string]*models.SdmSubscription)
-}
-
-// functions related to sdmSubscription (subscribe to notification of data change)
-func (udmUeContext *UdmUeContext) CreateSubscriptiontoNotifChange(subscriptionID string, body *models.SdmSubscription) {
-	if _, exist := udmUeContext.SubscribeToNotifChange[subscriptionID]; !exist {
-		udmUeContext.SubscribeToNotifChange[subscriptionID] = body
-	}
+	Gpsi                      string
+	Nssai                     *models.Nssai
+	SmfSelSubsData            *models.SmfSelectionSubscriptionData
+	UeCtxtInSmfData           *models.UeContextInSmfData
+	SessionManagementSubsData map[string]models.SessionManagementSubscriptionData
+	SubscribeToNotifChange    map[string]*models.SdmSubscription
+	smfSelSubsDataLock        sync.Mutex
+	SmSubsDataLock            sync.RWMutex
 }
 
 // SetSmfSelectionSubsData ... functions to set SmfSelectionSubscriptionData

@@ -16,24 +16,12 @@ import (
 
 var udmContext UDMContext
 
-const (
-	LocationUriAmf3GppAccessRegistration int = iota
-	LocationUriAmfNon3GppAccessRegistration
-	LocationUriSmfRegistration
-	LocationUriSdmSubscription
-	LocationUriSharedDataSubscription
-)
-
 type UDMContext struct {
-	DbInstance                 *db.Database
-	UdmUePool                  sync.Map // map[supi]*UdmUeContext
-	SdmSubscriptionIDGenerator int
-	UESubsCollection           sync.Map // map[ueId]*UESubsData
+	DbInstance *db.Database
+	UdmUePool  sync.Map // map[supi]*UdmUeContext
 }
 
-func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData, snssaiFromReq string,
-	dnnFromReq string) (mp map[string]models.SessionManagementSubscriptionData,
-) {
+func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData) (mp map[string]models.SessionManagementSubscriptionData) {
 	smDataMap := make(map[string]models.SessionManagementSubscriptionData)
 	AllDnns := make([]map[string]models.DnnConfiguration, len(smDatafromUDR))
 
@@ -66,7 +54,6 @@ func (context *UDMContext) CreateSmfSelectionSubsDataforUe(supi string, body mod
 
 func (context *UDMContext) NewUdmUe(supi string) *UdmUeContext {
 	ue := new(UdmUeContext)
-	ue.init()
 	context.UdmUePool.Store(supi, ue)
 	return ue
 }
