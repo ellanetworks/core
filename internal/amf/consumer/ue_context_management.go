@@ -33,10 +33,7 @@ func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRe
 			RatType: ue.RatType,
 			ImsVoPs: models.ImsVoPs_HOMOGENEOUS_NON_SUPPORT,
 		}
-		err := udm.EditRegistrationAmf3gppAccess(registrationData, ue.Supi)
-		if err != nil {
-			return err
-		}
+		udm.EditRegistrationAmf3gppAccess(registrationData, ue.Supi)
 	case models.AccessType_NON_3_GPP_ACCESS:
 		return fmt.Errorf("Non-3GPP access is not supported")
 	}

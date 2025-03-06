@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/config"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -18,12 +17,6 @@ var AllowedSessionTypes = []models.PduSessionType{models.PduSessionType_IPV4}
 var AllowedSscModes = []string{
 	"SSC_MODE_2",
 	"SSC_MODE_3",
-}
-
-type subsID = string
-
-type UESubsData struct {
-	SdmSubscriptions map[subsID]*models.SdmSubscription
 }
 
 func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
@@ -67,8 +60,7 @@ func GetAmDataAndSetAMSubscription(supi string) (
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
-	udmUe := udmContext.NewUdmUe(supi)
-	udmUe.SetAMSubsriptionData(amData)
+	_ = udmContext.NewUdmUe(supi)
 	return amData, nil
 }
 
@@ -175,49 +167,28 @@ func GetAndSetSmfSelectData(supi string) (
 	*models.SmfSelectionSubscriptionData, error,
 ) {
 	var body models.SmfSelectionSubscriptionData
-	udmContext.CreateSmfSelectionSubsDataforUe(supi, body)
+	udmUe, found := udmContext.UdmUeFindBySupi(supi)
+	if !found {
+		udmUe = udmContext.NewUdmUe(supi)
+	}
+	err := udmContext.CreateSmfSelectionSubsDataforUe(supi, body)
+	if err != nil {
+		return nil, fmt.Errorf("CreateSmfSelectionSubsDataforUe error: %+v", err)
+	}
 	smfSelectionSubscriptionDataResp, err := GetSmfSelectData(supi)
 	if err != nil {
-		logger.UdmLog.Errorf("GetSmfSelectData error: %+v", err)
 		return nil, fmt.Errorf("GetSmfSelectData error: %+v", err)
 	}
-	udmUe := udmContext.NewUdmUe(supi)
 	udmUe.SetSmfSelectionSubsData(smfSelectionSubscriptionDataResp)
 	return udmUe.SmfSelSubsData, nil
 }
 
-func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string) models.SdmSubscription {
-	value, ok := udmContext.UESubsCollection.Load(ueId)
-	if !ok {
-		udmContext.UESubsCollection.Store(ueId, new(UESubsData))
-		value, _ = udmContext.UESubsCollection.Load(ueId)
-	}
-	UESubsData := value.(*UESubsData)
-	if UESubsData.SdmSubscriptions == nil {
-		UESubsData.SdmSubscriptions = make(map[string]*models.SdmSubscription)
-	}
-
-	newSubscriptionID := strconv.Itoa(udmContext.SdmSubscriptionIDGenerator)
-	SdmSubscription.SubscriptionId = newSubscriptionID
-	UESubsData.SdmSubscriptions[newSubscriptionID] = &SdmSubscription
-	udmContext.SdmSubscriptionIDGenerator++
-
-	return SdmSubscription
-}
-
-func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string) error {
-	sdmSubscriptionResp := CreateSdmSubscriptions(*sdmSubscription, supi)
-	udmUe, _ := udmContext.UdmUeFindBySupi(supi)
-	if udmUe == nil {
-		udmUe = udmContext.NewUdmUe(supi)
-	}
-	udmUe.CreateSubscriptiontoNotifChange(sdmSubscriptionResp.SubscriptionId, &sdmSubscriptionResp)
-	return nil
-}
-
 func GetUeContextInSmfData(supi string) (*models.UeContextInSmfData, error) {
 	var body models.UeContextInSmfData
-	udmContext.CreateUeContextInSmfDataforUe(supi, body)
+	err := udmContext.CreateUeContextInSmfDataforUe(supi, body)
+	if err != nil {
+		return nil, fmt.Errorf("error creating ue context: %v", err)
+	}
 	pdusess := []*models.SmfRegistration{}
 	pduSessionMap := make(map[string]models.PduSession)
 	for _, element := range pdusess {

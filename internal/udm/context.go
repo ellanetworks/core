@@ -7,6 +7,7 @@
 package udm
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -25,10 +26,8 @@ const (
 )
 
 type UDMContext struct {
-	DbInstance                 *db.Database
-	UdmUePool                  sync.Map // map[supi]*UdmUeContext
-	SdmSubscriptionIDGenerator int
-	UESubsCollection           sync.Map // map[ueId]*UESubsData
+	DbInstance *db.Database
+	UdmUePool  sync.Map // map[supi]*UdmUeContext
 }
 
 func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData, snssaiFromReq string,
@@ -47,27 +46,27 @@ func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagement
 }
 
 // functions related UecontextInSmfData
-func (context *UDMContext) CreateUeContextInSmfDataforUe(supi string, body models.UeContextInSmfData) {
+func (context *UDMContext) CreateUeContextInSmfDataforUe(supi string, body models.UeContextInSmfData) error {
 	ue, ok := context.UdmUeFindBySupi(supi)
 	if !ok {
-		ue = context.NewUdmUe(supi)
+		return fmt.Errorf("ue not found")
 	}
 	ue.UeCtxtInSmfData = &body
+	return nil
 }
 
 // functions for SmfSelectionSubscriptionData
-func (context *UDMContext) CreateSmfSelectionSubsDataforUe(supi string, body models.SmfSelectionSubscriptionData) {
+func (context *UDMContext) CreateSmfSelectionSubsDataforUe(supi string, body models.SmfSelectionSubscriptionData) error {
 	ue, ok := context.UdmUeFindBySupi(supi)
 	if !ok {
-		ue = context.NewUdmUe(supi)
+		return fmt.Errorf("ue not found")
 	}
 	ue.SmfSelSubsData = &body
+	return nil
 }
 
 func (context *UDMContext) NewUdmUe(supi string) *UdmUeContext {
 	ue := new(UdmUeContext)
-	ue.init()
-	ue.Supi = supi
 	context.UdmUePool.Store(supi, ue)
 	return ue
 }
@@ -81,9 +80,8 @@ func (context *UDMContext) UdmUeFindBySupi(supi string) (*UdmUeContext, bool) {
 }
 
 func (context *UDMContext) CreateAmf3gppRegContext(supi string, body models.Amf3GppAccessRegistration) {
-	ue, ok := context.UdmUeFindBySupi(supi)
+	_, ok := context.UdmUeFindBySupi(supi)
 	if !ok {
-		ue = context.NewUdmUe(supi)
+		_ = context.NewUdmUe(supi)
 	}
-	ue.Amf3GppAccessRegistration = &body
 }

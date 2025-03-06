@@ -7,7 +7,6 @@ import (
 )
 
 func Start(dbInstance *db.Database) error {
-	udmContext.SdmSubscriptionIDGenerator = 1
 	udmContext.DbInstance = dbInstance
 	return nil
 }

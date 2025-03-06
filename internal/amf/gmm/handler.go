@@ -582,8 +582,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 		}
 	}
 
-	if ue.ServingAmfChanged || ue.State[models.AccessType_NON_3_GPP_ACCESS].Is(context.Registered) ||
-		!ue.SubscriptionDataValid {
+	if ue.ServingAmfChanged || ue.State[models.AccessType_NON_3_GPP_ACCESS].Is(context.Registered) {
 		if err := communicateWithUDM(ue, anType); err != nil {
 			return err
 		}
@@ -683,8 +682,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		return nil
 	}
 
-	if ue.ServingAmfChanged || ue.State[models.AccessType_NON_3_GPP_ACCESS].Is(context.Registered) ||
-		!ue.SubscriptionDataValid {
+	if ue.ServingAmfChanged || ue.State[models.AccessType_NON_3_GPP_ACCESS].Is(context.Registered) {
 		if err := communicateWithUDM(ue, anType); err != nil {
 			return err
 		}
@@ -964,11 +962,6 @@ func communicateWithUDM(ue *context.AmfUe, accessType models.AccessType) error {
 		return fmt.Errorf("SDM_Get UeContextInSmfData Error[%+v]", err)
 	}
 
-	err = consumer.SDMSubscribe(ue)
-	if err != nil {
-		return fmt.Errorf("SDM Subscribe Error[%+v]", err)
-	}
-	ue.SubscriptionDataValid = true
 	return nil
 }
 

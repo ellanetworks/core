@@ -99,7 +99,6 @@ type AmfUe struct {
 	TimeZone                 string              `json:"timezone,omitempty"`
 	/* context about udm */
 	// UdmId                             string                                    `json:"udmId,omitempty"`
-	SubscriptionDataValid             bool                                      `json:"subscriptionDataValid,omitempty"`
 	SmfSelectionData                  *models.SmfSelectionSubscriptionData      `json:"smfSelectionData,omitempty"`
 	UeContextInSmfData                *models.UeContextInSmfData                `json:"ueContextInSmfData,omitempty"`
 	TraceData                         *models.TraceData                         `json:"traceData,omitempty"`
@@ -584,7 +583,6 @@ func (ue *AmfUe) ClearRegistrationData() {
 	// Allowed Nssai should be cleared first as it is a new Registration
 	ue.SubscribedNssai = nil
 	ue.AllowedNssai = make(map[models.AccessType][]models.AllowedSnssai)
-	ue.SubscriptionDataValid = false
 	// Clearing SMContextList locally
 	ue.SmContextList.Range(func(key, _ interface{}) bool {
 		ue.SmContextList.Delete(key)
