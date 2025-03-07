@@ -22,7 +22,7 @@ linters:
     - asciicheck
     - unparam
     - gci
-    # - stylecheck
+    - stylecheck
     # - gocognit
     # - nestif
     # - wsl
