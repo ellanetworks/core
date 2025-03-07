@@ -84,7 +84,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (*models.SmPolicyDecisio
 	}
 	var smData *models.SmPolicyData
 	var err error
-	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
+	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionID)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
 		smData, err = GetSmPolicyData()

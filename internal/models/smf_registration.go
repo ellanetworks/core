@@ -1,9 +1,8 @@
 package models
 
 type SmfRegistration struct {
-	SmfInstanceId string
-	PduSessionId  int32
-	Dnn           string
-	PlmnId        *PlmnId
-	PgwFqdn       string
+	PduSessionID int32
+	Dnn          string
+	PlmnID       *PlmnID
+	PgwFqdn      string
 }

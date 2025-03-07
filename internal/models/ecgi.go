@@ -1,6 +1,6 @@
 package models
 
 type Ecgi struct {
-	PlmnId      *PlmnId
+	PlmnID      *PlmnID
 	EutraCellId string
 }

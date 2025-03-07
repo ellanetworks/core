@@ -22,12 +22,12 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) error {
 		Pei:        ue.Pei,
 		Gpsi:       ue.Gpsi,
 		AccessType: anType,
-		ServingPlmn: &models.PlmnId{
-			Mcc: ue.PlmnId.Mcc,
-			Mnc: ue.PlmnId.Mnc,
+		ServingPlmn: &models.PlmnID{
+			Mcc: ue.PlmnID.Mcc,
+			Mnc: ue.PlmnID.Mnc,
 		},
 		Guami: &models.Guami{
-			PlmnID: &models.PlmnId{
+			PlmnID: &models.PlmnID{
 				Mcc: guamiList[0].PlmnID.Mcc,
 				Mnc: guamiList[0].PlmnID.Mnc,
 			},

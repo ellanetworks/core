@@ -56,10 +56,10 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 		return "", errRsp, fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
-	createData := request.JsonData
+	createData := request.JSONData
 
 	// Create SM context
-	// smContext := context.NewSMContext(createData.Supi, createData.PduSessionId)
+	// smContext := context.NewSMContext(createData.Supi, createData.PduSessionID)
 	smContext.SubPduSessLog.Infof("SM context created")
 	// smContext.ChangeState(context.SmStateActivePending)
 	smContext.SetCreateData(createData)
@@ -88,7 +88,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 		smContext.SubPduSessLog.Infof("Successful IP Allocation: %s", smContext.PDUAddress.Ip.String())
 	}
 
-	snssai := marshtojsonstring.MarshToJsonString(createData.SNssai)[0]
+	snssai := marshtojsonstring.MarshToJSONString(createData.SNssai)[0]
 
 	sessSubData, err := udm.GetAndSetSmData(smContext.Supi, createData.Dnn, snssai)
 	if err != nil {
@@ -356,8 +356,7 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 	}
 
 	smContext.SubPduSessLog.Infof("N1N2 transfer initiated")
-	// communicationClient := Namf_Communication.NewAPIClient(communicationConf)
-	rspData, err := amf_producer.CreateN1N2MessageTransfer(smContext.Supi, n1n2Request, "")
+	rspData, err := amf_producer.CreateN1N2MessageTransfer(smContext.Supi, n1n2Request)
 	if err != nil {
 		smContext.SubPfcpLog.Warnf("Send N1N2Transfer failed, %v ", err.Error())
 		err = smContext.CommitSmPolicyDecision(false)
@@ -379,7 +378,5 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 	if err != nil {
 		smContext.SubPfcpLog.Errorf("CommitSmPolicyDecision failed, %v", err)
 	}
-	smContext.SubPduSessLog.Infof("Message content: %v", rspData)
-	smContext.SubPduSessLog.Infof("N1N2 Transfer completed")
 	return nil
 }

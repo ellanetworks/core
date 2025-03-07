@@ -14,13 +14,13 @@ import (
 )
 
 func CreateSmContext(request models.PostSmContextsRequest) (string, *models.PostSmContextsErrorResponse, error) {
-	if request.JsonData == nil {
+	if request.JSONData == nil {
 		errResponse := &models.PostSmContextsErrorResponse{}
 		return "", errResponse, fmt.Errorf("missing JsonData in request")
 	}
 
-	createData := request.JsonData
-	smCtxtRef, err := context.ResolveRef(createData.Supi, createData.PduSessionId)
+	createData := request.JSONData
+	smCtxtRef, err := context.ResolveRef(createData.Supi, createData.PduSessionID)
 	if err == nil {
 		err := producer.HandlePduSessionContextReplacement(smCtxtRef)
 		if err != nil {
@@ -28,7 +28,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (string, *models.Post
 		}
 	}
 
-	smContext := context.NewSMContext(createData.Supi, createData.PduSessionId)
+	smContext := context.NewSMContext(createData.Supi, createData.PduSessionID)
 
 	location, errRsp, err := producer.HandlePDUSessionSMContextCreate(request, smContext)
 	if err != nil {

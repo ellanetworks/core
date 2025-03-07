@@ -569,7 +569,7 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) {
 		for _, item := range ran.SupportedTAList {
 			if context.InTaiList(item.Tai, taiList) {
 				ue.GmmLog.Infof("Send Paging to TAI(%+v, Tac:%+v)",
-					item.Tai.PlmnId, item.Tai.Tac)
+					item.Tai.PlmnID, item.Tai.Tac)
 				SendToRan(ran, ngapBuf)
 				break
 			}

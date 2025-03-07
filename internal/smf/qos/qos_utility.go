@@ -35,7 +35,7 @@ func PccRuleString(pcc *models.PccRule) string {
 	logger.SmfLog.Warnf("PccRuleString RefQosData: %v", pcc.RefQosData)
 
 	return fmt.Sprintf("PccRule:[RuleId:[%v], Precdence:[%v], RefQosData:[%v], flow:[%v]]",
-		pcc.PccRuleId, pcc.Precedence, pcc.RefQosData[0], PccFlowInfosString(pcc.FlowInfos))
+		pcc.PccRuleID, pcc.Precedence, pcc.RefQosData[0], PccFlowInfosString(pcc.FlowInfos))
 }
 
 func TCDataString(tcData *models.TrafficControlData) string {

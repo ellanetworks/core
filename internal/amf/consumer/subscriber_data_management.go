@@ -45,9 +45,9 @@ func SDMSubscribe(ue *context.AmfUe) error {
 	amfSelf := context.AMF_Self()
 	sdmSubscription := &models.SdmSubscription{
 		NfInstanceId: amfSelf.NfId,
-		PlmnId: &models.PlmnId{
-			Mcc: ue.PlmnId.Mcc,
-			Mnc: ue.PlmnId.Mnc,
+		PlmnID: &models.PlmnID{
+			Mcc: ue.PlmnID.Mcc,
+			Mnc: ue.PlmnID.Mnc,
 		},
 	}
 	err := udm.CreateSubscription(sdmSubscription, ue.Supi)

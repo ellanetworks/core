@@ -21,10 +21,10 @@ func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRe
 	switch accessType {
 	case models.AccessType__3_GPP_ACCESS:
 		registrationData := models.Amf3GppAccessRegistration{
-			AmfInstanceId:          amfSelf.NfId,
+			AmfInstanceID:          amfSelf.NfId,
 			InitialRegistrationInd: initialRegistrationInd,
 			Guami: &models.Guami{
-				PlmnID: &models.PlmnId{
+				PlmnID: &models.PlmnID{
 					Mcc: guamiList[0].PlmnID.Mcc,
 					Mnc: guamiList[0].PlmnID.Mnc,
 				},

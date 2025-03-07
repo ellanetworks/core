@@ -9,7 +9,7 @@ import (
 )
 
 // TS 24.501 9.11.3.49
-func PartialServiceAreaListToNas(plmnID models.PlmnId, serviceAreaRestriction models.ServiceAreaRestriction) []byte {
+func PartialServiceAreaListToNas(plmnID models.PlmnID, serviceAreaRestriction models.ServiceAreaRestriction) []byte {
 	var partialServiceAreaList []byte
 	var allowedType uint8
 

@@ -5,12 +5,12 @@ type SmContextCreateData struct {
 	UnauthenticatedSupi bool
 	Pei                 string
 	Gpsi                string
-	PduSessionId        int32
+	PduSessionID        int32
 	Dnn                 string
 	SNssai              *Snssai
 	ServingNfId         string
 	Guami               *Guami
-	ServingNetwork      *PlmnId
+	ServingNetwork      *PlmnID
 	N1SmMsg             *RefToBinaryData
 	AnType              AccessType
 	RatType             RatType
@@ -18,5 +18,5 @@ type SmContextCreateData struct {
 	UeLocation          *UserLocation
 	UeTimeZone          string
 	SmContextStatusUri  string
-	OldPduSessionId     int32
+	OldPduSessionID     int32
 }

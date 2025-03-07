@@ -37,7 +37,7 @@ func SnssaiModelsToHex(snssai models.Snssai) string {
 	return sst + snssai.Sd
 }
 
-func PlmnIdStringToModels(plmnId string) (plmnID models.PlmnId) {
+func PlmnIDStringToModels(plmnId string) (plmnID models.PlmnID) {
 	plmnID.Mcc = plmnId[:3]
 	plmnID.Mnc = plmnId[3:]
 	return
@@ -163,7 +163,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 					n2Info := response.BinaryDataN2SmInformation
 					if n2Info != nil {
 						switch responseData.N2SmInfoType {
-						case models.N2SmInfoType_PDU_RES_REL_CMD:
+						case models.N2SmInfoTypePDUResRelCmd:
 							ue.GmmLog.Debugln("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
 							list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 							ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2Info)
@@ -262,7 +262,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 						smContext = context.NewSmContext(pduSessionID)
 						smContext.SetAccessType(anType)
 						smContext.SetDnn(ueContextInSmf.Dnn)
-						smContext.SetPlmnID(*ueContextInSmf.PlmnId)
+						smContext.SetPlmnID(*ueContextInSmf.PlmnID)
 						ue.StoreSmContext(pduSessionID, smContext)
 						return forward5GSMMessageToSMF(ue, anType, pduSessionID, smContext, smMessage)
 					}
@@ -325,11 +325,11 @@ func forward5GSMMessageToSMF(
 		if response.BinaryDataN2SmInformation != nil {
 			ue.GmmLog.Debugf("Receive N2 SM Information[%s] from SMF", responseData.N2SmInfoType)
 			switch responseData.N2SmInfoType {
-			case models.N2SmInfoType_PDU_RES_MOD_REQ:
+			case models.N2SmInfoTypePDUResModReq:
 				list := ngapType.PDUSessionResourceModifyListModReq{}
 				ngap_message.AppendPDUSessionResourceModifyListModReq(&list, pduSessionID, n1Msg, n2SmInfo)
 				ngap_message.SendPDUSessionResourceModifyRequest(ue.RanUe[accessType], list)
-			case models.N2SmInfoType_PDU_RES_REL_CMD:
+			case models.N2SmInfoTypePDUResRelCmd:
 				list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 				ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2SmInfo)
 				ngap_message.SendPDUSessionResourceReleaseCommand(ue.RanUe[accessType], n1Msg, list)
@@ -438,7 +438,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		var plmnId string
 		ue.Suci, plmnId = nasConvert.SuciToString(mobileIdentity5GSContents)
-		ue.PlmnId = PlmnIdStringToModels(plmnId)
+		ue.PlmnID = PlmnIDStringToModels(plmnId)
 		ue.GmmLog.Debugf("SUCI: %s", ue.Suci)
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		guamiFromUeGutiTmp, guti := util.GutiToString(mobileIdentity5GSContents)
@@ -691,7 +691,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 	}
 
 	var reactivationResult *[16]bool
-	var errPduSessionId, errCause []uint8
+	var errPduSessionID, errCause []uint8
 	ctxList := ngapType.PDUSessionResourceSetupListCxtReq{}
 	suList := ngapType.PDUSessionResourceSetupListSUReq{}
 
@@ -713,7 +713,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		if !allowReEstablishPduSession {
 			for pduSessionId, hasUplinkData := range uplinkDataPsi {
 				if hasUplinkData {
-					errPduSessionId = append(errPduSessionId, uint8(pduSessionId))
+					errPduSessionID = append(errPduSessionID, uint8(pduSessionId))
 					errCause = append(errCause, nasMessage.Cause5GMMRestrictedServiceArea)
 				}
 			}
@@ -726,7 +726,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 						response, err := consumer.SendUpdateSmContextActivateUpCnxState(ue, smContext, anType)
 						if response == nil {
 							reactivationResult[pduSessionId] = true
-							errPduSessionId = append(errPduSessionId, uint8(pduSessionId))
+							errPduSessionID = append(errPduSessionID, uint8(pduSessionId))
 							cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 							errCause = append(errCause, cause)
 
@@ -781,14 +781,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			if n2Info == nil {
 				if len(suList.List) != 0 {
 					nasPdu, err := gmm_message.BuildRegistrationAccept(ue, anType, pduSessionStatus,
-						reactivationResult, errPduSessionId, errCause)
+						reactivationResult, errPduSessionID, errCause)
 					if err != nil {
 						return err
 					}
 					ngap_message.SendPDUSessionResourceSetupRequest(ue.RanUe[anType], nasPdu, suList)
 				} else {
 					gmm_message.SendRegistrationAccept(ue, anType, pduSessionStatus,
-						reactivationResult, errPduSessionId, errCause, &ctxList)
+						reactivationResult, errPduSessionID, errCause, &ctxList)
 				}
 				switch requestData.N1MessageContainer.N1MessageClass {
 				case models.N1MessageClassSM:
@@ -822,14 +822,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 						return err
 					} else if response == nil {
 						reactivationResult[requestData.PduSessionID] = true
-						errPduSessionId = append(errPduSessionId, uint8(requestData.PduSessionID))
+						errPduSessionID = append(errPduSessionID, uint8(requestData.PduSessionID))
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 						errCause = append(errCause, cause)
 					} else {
 						smContext.SetUserLocation(ue.Location)
 						smContext.SetAccessType(models.AccessType__3_GPP_ACCESS)
 						if response.BinaryDataN2SmInformation != nil &&
-							response.JsonData.N2SmInfoType == models.N2SmInfoType_PDU_RES_SETUP_REQ {
+							response.JsonData.N2SmInfoType == models.N2SmInfoTypePDUResSetupReq {
 							ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID,
 								smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
 						}
@@ -875,11 +875,11 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 	if ue.RanUe[anType].UeContextRequest {
 		if anType == models.AccessType__3_GPP_ACCESS {
 			gmm_message.SendRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult,
-				errPduSessionId, errCause, &ctxList)
+				errPduSessionID, errCause, &ctxList)
 		} else {
 			ngap_message.SendInitialContextSetupRequest(ue, anType, nil, &ctxList, nil, nil, nil)
 			registrationAccept, err := gmm_message.BuildRegistrationAccept(ue, anType,
-				pduSessionStatus, reactivationResult, errPduSessionId, errCause)
+				pduSessionStatus, reactivationResult, errPduSessionID, errCause)
 			if err != nil {
 				ue.GmmLog.Errorf("Build Registration Accept: %+v", err)
 				return nil
@@ -889,7 +889,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		return nil
 	} else {
 		nasPdu, err := gmm_message.BuildRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult,
-			errPduSessionId, errCause)
+			errPduSessionID, errCause)
 		if err != nil {
 			ue.GmmLog.Error(err.Error())
 		}
@@ -911,7 +911,7 @@ func storeLastVisitedRegisteredTAI(ue *context.AmfUe, lastVisitedRegisteredTAI *
 		tac := hex.EncodeToString(nasTac[:])
 
 		tai := models.Tai{
-			PlmnId: &models.PlmnId{
+			PlmnID: &models.PlmnID{
 				Mcc: plmnID[:3],
 				Mnc: plmnID[3:],
 			},
@@ -1139,7 +1139,7 @@ func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.Iden
 	case nasMessage.MobileIdentity5GSTypeSuci:
 		var plmnId string
 		ue.Suci, plmnId = nasConvert.SuciToString(mobileIdentityContents)
-		ue.PlmnId = PlmnIdStringToModels(plmnId)
+		ue.PlmnID = PlmnIDStringToModels(plmnId)
 		ue.GmmLog.Debugf("get SUCI: %s", ue.Suci)
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		if ue.MacFailed {
@@ -1371,8 +1371,8 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 
 	serviceType := serviceRequest.GetServiceTypeValue()
 	var reactivationResult, acceptPduSessionPsi *[16]bool
-	var errPduSessionId, errCause []uint8
-	var targetPduSessionId int32
+	var errPduSessionID, errCause []uint8
+	var targetPduSessionID int32
 	suList := ngapType.PDUSessionResourceSetupListSUReq{}
 	ctxList := ngapType.PDUSessionResourceSetupListCxtReq{}
 
@@ -1399,7 +1399,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 		requestData := ue.N1N2Message.Request.JSONData
 		if ue.N1N2Message.Request.BinaryDataN2Information != nil {
 			if requestData.N2InfoContainer.N2InformationClass == models.N2InformationClassSM {
-				targetPduSessionId = requestData.N2InfoContainer.SmInfo.PduSessionID
+				targetPduSessionID = requestData.N2InfoContainer.SmInfo.PduSessionID
 			} else {
 				ue.N1N2Message = nil
 				return fmt.Errorf("Service Request triggered by Network has not implemented about non SM N2Info")
@@ -1414,7 +1414,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 			pduSessionID := key.(int32)
 			smContext := value.(*context.SmContext)
 
-			if pduSessionID != targetPduSessionId {
+			if pduSessionID != targetPduSessionID {
 				if uplinkDataPsi[pduSessionID] && smContext.AccessType() == models.AccessType__3_GPP_ACCESS {
 					response, err := consumer.SendUpdateSmContextActivateUpCnxState(
 						ue, smContext, models.AccessType__3_GPP_ACCESS)
@@ -1423,7 +1423,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 							pduSessionID, err)
 					} else if response == nil {
 						reactivationResult[pduSessionID] = true
-						errPduSessionId = append(errPduSessionId, uint8(pduSessionID))
+						errPduSessionID = append(errPduSessionID, uint8(pduSessionID))
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 						errCause = append(errCause, cause)
 					} else if ue.RanUe[anType].UeContextRequest {
@@ -1467,7 +1467,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 			// downlink signalling
 			if n2Info == nil {
 				err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi,
-					reactivationResult, errPduSessionId, errCause)
+					reactivationResult, errPduSessionID, errCause)
 				if err != nil {
 					return err
 				}
@@ -1505,14 +1505,14 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 							return err
 						} else if response == nil {
 							reactivationResult[requestData.PduSessionID] = true
-							errPduSessionId = append(errPduSessionId, uint8(requestData.PduSessionID))
+							errPduSessionID = append(errPduSessionID, uint8(requestData.PduSessionID))
 							cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 							errCause = append(errCause, cause)
 						} else {
 							smContext.SetUserLocation(ue.Location)
 							smContext.SetAccessType(models.AccessType__3_GPP_ACCESS)
 							if response.BinaryDataN2SmInformation != nil &&
-								response.JsonData.N2SmInfoType == models.N2SmInfoType_PDU_RES_SETUP_REQ {
+								response.JsonData.N2SmInfoType == models.N2SmInfoTypePDUResSetupReq {
 								if ue.RanUe[anType].UeContextRequest {
 									ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList,
 										requestData.PduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
@@ -1550,7 +1550,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 				}
 			}
 			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi,
-				reactivationResult, errPduSessionId, errCause)
+				reactivationResult, errPduSessionID, errCause)
 			if err != nil {
 				return err
 			}
@@ -1558,7 +1558,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 		// downlink signaling
 		if ue.ConfigurationUpdateMessage != nil {
 			err := sendServiceAccept(ue, anType, ctxList, suList,
-				acceptPduSessionPsi, reactivationResult, errPduSessionId, errCause)
+				acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause)
 			if err != nil {
 				return err
 			}
@@ -1584,13 +1584,13 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 				}
 			}
 			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi,
-				reactivationResult, errPduSessionId, errCause)
+				reactivationResult, errPduSessionID, errCause)
 			if err != nil {
 				return err
 			}
 		} else {
 			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi,
-				reactivationResult, errPduSessionId, errCause)
+				reactivationResult, errPduSessionID, errCause)
 			if err != nil {
 				return err
 			}
@@ -1598,8 +1598,8 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 	default:
 		return fmt.Errorf("Service Type[%d] is not supported", serviceType)
 	}
-	if len(errPduSessionId) != 0 {
-		ue.GmmLog.Info(errPduSessionId, errCause)
+	if len(errPduSessionID) != 0 {
+		ue.GmmLog.Info(errPduSessionID, errCause)
 	}
 	ue.N1N2Message = nil
 	return nil
@@ -1607,14 +1607,14 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 
 func sendServiceAccept(ue *context.AmfUe, anType models.AccessType, ctxList ngapType.PDUSessionResourceSetupListCxtReq,
 	suList ngapType.PDUSessionResourceSetupListSUReq, pDUSessionStatus *[16]bool,
-	reactivationResult *[16]bool, errPduSessionId, errCause []uint8,
+	reactivationResult *[16]bool, errPduSessionID, errCause []uint8,
 ) error {
 	if ue.RanUe[anType].UeContextRequest {
 		// update Kgnb/Kn3iwf
 		ue.UpdateSecurityContext(anType)
 
 		nasPdu, err := gmm_message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult,
-			errPduSessionId, errCause)
+			errPduSessionID, errCause)
 		if err != nil {
 			return err
 		}
@@ -1625,13 +1625,13 @@ func sendServiceAccept(ue *context.AmfUe, anType models.AccessType, ctxList ngap
 		}
 	} else if len(suList.List) != 0 {
 		nasPdu, err := gmm_message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult,
-			errPduSessionId, errCause)
+			errPduSessionID, errCause)
 		if err != nil {
 			return err
 		}
 		ngap_message.SendPDUSessionResourceSetupRequest(ue.RanUe[anType], nasPdu, suList)
 	} else {
-		gmm_message.SendServiceAccept(ue.RanUe[anType], pDUSessionStatus, reactivationResult, errPduSessionId, errCause)
+		gmm_message.SendServiceAccept(ue.RanUe[anType], pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 	}
 	return nil
 }

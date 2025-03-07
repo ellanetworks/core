@@ -1,6 +1,6 @@
 package models
 
 type Tai struct {
-	PlmnId *PlmnId
+	PlmnID *PlmnID
 	Tac    string
 }

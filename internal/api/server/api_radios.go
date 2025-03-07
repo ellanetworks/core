@@ -8,13 +8,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type PlmnId struct {
+type PlmnID struct {
 	Mcc string `json:"mcc"`
 	Mnc string `json:"mnc"`
 }
 
 type Tai struct {
-	PlmnId PlmnId `json:"plmnId"`
+	PlmnID PlmnID `json:"plmnId"`
 	Tac    string `json:"tac"`
 }
 
@@ -53,9 +53,9 @@ func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
 		}
 		newTai := SupportedTAI{
 			Tai: Tai{
-				PlmnId: PlmnId{
-					Mcc: tai.Tai.PlmnId.Mcc,
-					Mnc: tai.Tai.PlmnId.Mnc,
+				PlmnID: PlmnID{
+					Mcc: tai.Tai.PlmnID.Mcc,
+					Mnc: tai.Tai.PlmnID.Mnc,
 				},
 				Tac: tai.Tai.Tac,
 			},
@@ -81,7 +81,7 @@ func ListRadios() gin.HandlerFunc {
 			supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAList)
 			newRadio := GetRadioParams{
 				Name:          radio.Name,
-				Id:            radio.GnbId,
+				Id:            radio.GnbID,
 				Address:       radio.GnbIp,
 				SupportedTAIs: supportedTais,
 			}
@@ -118,7 +118,7 @@ func GetRadio() gin.HandlerFunc {
 				supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAList)
 				returnRadio = GetRadioParams{
 					Name:          radio.Name,
-					Id:            radio.GnbId,
+					Id:            radio.GnbID,
 					Address:       radio.GnbIp,
 					SupportedTAIs: supportedTais,
 				}

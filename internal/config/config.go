@@ -13,7 +13,7 @@ import (
 
 const (
 	DNN       = "internet"
-	UpfNodeId = "0.0.0.0"
+	UpfNodeID = "0.0.0.0"
 )
 
 const (

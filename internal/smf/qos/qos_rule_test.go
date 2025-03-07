@@ -47,7 +47,7 @@ func TestBuildQosRules(t *testing.T) {
 
 func makeSamplePccRules() map[string]*models.PccRule {
 	pccRule1 := models.PccRule{
-		PccRuleId:  "1",
+		PccRuleID:  "1",
 		Precedence: 200,
 		RefQosData: []string{"QosData1"},
 		FlowInfos:  make([]models.FlowInformation, 0),

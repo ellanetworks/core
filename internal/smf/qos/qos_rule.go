@@ -115,19 +115,12 @@ func BuildQosRules(smPolicyUpdates *PolicyUpdate) QoSRules {
 		}
 	}
 
-	//Add default Matchall QosRule as well
-	/*
-		if smPolicyUpdates.SessRuleUpdate != nil {
-			defQosRule := BuildAddDefaultQosRule(uint8(smPolicyUpdates.SessRuleUpdate.ActiveSessRule.AuthDefQos.Var5qi))
-			qosRules = append(qosRules, *defQosRule)
-		}
-	*/
 	return qosRules
 }
 
 func BuildAddQoSRuleFromPccRule(pccRule *models.PccRule, qosData *models.QosData, pccRuleOpCode uint8) *QosRule {
 	qRule := QosRule{
-		Identifier:    GetQosRuleIdFromPccRuleId(pccRule.PccRuleId),
+		Identifier:    GetQosRuleIdFromPccRuleId(pccRule.PccRuleID),
 		DQR:           btou(qosData.DefQosFlowIndication),
 		OperationCode: pccRuleOpCode,
 		Precedence:    uint8(pccRule.Precedence),

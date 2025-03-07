@@ -34,7 +34,7 @@ func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagement
 	AllDnns := make([]map[string]models.DnnConfiguration, len(smDatafromUDR))
 
 	for idx, smSubscriptionData := range smDatafromUDR {
-		singleNssaiStr := marshtojsonstring.MarshToJsonString(smSubscriptionData.SingleNssai)[0]
+		singleNssaiStr := marshtojsonstring.MarshToJSONString(smSubscriptionData.SingleNssai)[0]
 		smDataMap[singleNssaiStr] = smSubscriptionData
 		AllDnns[idx] = smSubscriptionData.DnnConfigurations
 	}

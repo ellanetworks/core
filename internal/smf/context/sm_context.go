@@ -58,7 +58,7 @@ type SMContext struct {
 	HoState                      models.HoState
 	DnnConfiguration             models.DnnConfiguration
 	Snssai                       *models.Snssai
-	ServingNetwork               *models.PlmnId
+	ServingNetwork               *models.PlmnID
 	UeLocation                   *models.UserLocation
 	PDUAddress                   *UeIpAddr
 	Tunnel                       *UPTunnel
@@ -77,7 +77,7 @@ type SMContext struct {
 	SMLock                       sync.Mutex
 	// SMContextState                      SMContextState
 	PDUSessionID                        int32
-	OldPduSessionId                     int32
+	OldPduSessionID                     int32
 	SelectedPDUSessionType              uint8
 	PDUSessionRelease_DUE_TO_DUP_PDU_ID bool
 	LocalPurged                         bool
@@ -214,7 +214,7 @@ func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData
 	smContext.PresenceInLadn = createData.PresenceInLadn
 	smContext.UeLocation = createData.UeLocation
 	smContext.UeTimeZone = createData.UeTimeZone
-	smContext.OldPduSessionId = createData.OldPduSessionId
+	smContext.OldPduSessionID = createData.OldPduSessionID
 	smContext.ServingNfId = createData.ServingNfId
 }
 
@@ -296,53 +296,53 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 
 	for _, allowedPDUSessionType := range smContext.DnnConfiguration.PduSessionTypes.AllowedSessionTypes {
 		switch allowedPDUSessionType {
-		case models.PduSessionType_IPV4:
+		case models.PduSessionTypeIPv4:
 			allowIPv4 = true
-		case models.PduSessionType_IPV6:
+		case models.PduSessionTypeIPv6:
 			allowIPv6 = true
-		case models.PduSessionType_IPV4_V6:
+		case models.PduSessionTypeIPv4v6:
 			allowIPv4 = true
 			allowIPv6 = true
-		case models.PduSessionType_ETHERNET:
+		case models.PduSessionTypeEthernet:
 			allowEthernet = true
 		}
 	}
 
 	if !allowIPv4 {
-		return fmt.Errorf("PduSessionType_IPV4 is not allowed in DNN[%s] configuration", smContext.Dnn)
+		return fmt.Errorf("PduSessionTypeIPv4 is not allowed in DNN[%s] configuration", smContext.Dnn)
 	}
 
 	smContext.EstAcceptCause5gSMValue = 0
 	switch util.PDUSessionTypeToModels(requestedPDUSessionType) {
-	case models.PduSessionType_IPV4:
+	case models.PduSessionTypeIPv4:
 		if allowIPv4 {
-			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_IPV4)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionTypeIPv4)
 		} else {
-			return fmt.Errorf("PduSessionType_IPV4 is not allowed in DNN[%s] configuration", smContext.Dnn)
+			return fmt.Errorf("PduSessionTypeIPv4 is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
-	case models.PduSessionType_IPV6:
+	case models.PduSessionTypeIPv6:
 		if allowIPv6 {
-			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_IPV6)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionTypeIPv6)
 		} else {
-			return fmt.Errorf("PduSessionType_IPV6 is not allowed in DNN[%s] configuration", smContext.Dnn)
+			return fmt.Errorf("PduSessionTypeIPv6 is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
-	case models.PduSessionType_IPV4_V6:
+	case models.PduSessionTypeIPv4v6:
 		if allowIPv4 && allowIPv6 {
-			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_IPV4_V6)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionTypeIPv4v6)
 		} else if allowIPv4 {
-			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_IPV4)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionTypeIPv4)
 			smContext.EstAcceptCause5gSMValue = nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
 		} else if allowIPv6 {
-			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_IPV6)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionTypeIPv6)
 			smContext.EstAcceptCause5gSMValue = nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
 		} else {
-			return fmt.Errorf("PduSessionType_IPV4_V6 is not allowed in DNN[%s] configuration", smContext.Dnn)
+			return fmt.Errorf("PduSessionTypeIPv4v6 is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
-	case models.PduSessionType_ETHERNET:
+	case models.PduSessionTypeEthernet:
 		if allowEthernet {
-			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_ETHERNET)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionTypeEthernet)
 		} else {
-			return fmt.Errorf("PduSessionType_ETHERNET is not allowed in DNN[%s] configuration", smContext.Dnn)
+			return fmt.Errorf("PduSessionTypeEthernet is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
 	default:
 		return fmt.Errorf("requested PDU Sesstion type[%d] is not supported", requestedPDUSessionType)

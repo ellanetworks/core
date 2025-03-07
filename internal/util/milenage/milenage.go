@@ -15,13 +15,12 @@ import (
  * @_rand: RAND = 128-bit random challenge
  * @sqn: SQN = 48-bit sequence number
  * @amf: AMF = 16-bit authentication management field
- * @mac_a: Buffer for MAC-A = 64-bit network authentication code, or %NULL
- * @mac_s: Buffer for MAC-S = 64-bit resync authentication code, or %NULL
+ * @macA: Buffer for MAC-A = 64-bit network authentication code, or %NULL
+ * @macS: Buffer for MAC-S = 64-bit resync authentication code, or %NULL
  * Returns: 0 on success, -1 on failure
  */
-func milenageF1(opc, k, _rand, sqn, amf, mac_a, mac_s []uint8) error {
+func milenageF1(opc, k, _rand, sqn, amf, macA, macS []uint8) error {
 	tmp2, tmp3 := make([]uint8, 16), make([]uint8, 16)
-	// var tmp1, tmp2, tmp3 [16]uint8
 
 	rijndaelInput := make([]uint8, 16)
 
@@ -78,12 +77,12 @@ func milenageF1(opc, k, _rand, sqn, amf, mac_a, mac_s []uint8) error {
 		tmp1[i] ^= opc[i]
 	}
 	// fmt.Printf("tmp1[i] ^= opc[i] %x\n", tmp1)
-	if mac_a != nil {
-		copy(mac_a[0:], tmp1[0:8])
+	if macA != nil {
+		copy(macA[0:], tmp1[0:8])
 	}
 
-	if mac_s != nil {
-		copy(mac_s[0:], tmp1[8:16])
+	if macS != nil {
+		copy(macS[0:], tmp1[8:16])
 	}
 
 	return nil
@@ -244,8 +243,8 @@ func milenageF2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {
 	return nil
 }
 
-func F1(opc, k, _rand, sqn, amf, mac_a, mac_s []uint8) error {
-	return milenageF1(opc, k, _rand, sqn, amf, mac_a, mac_s)
+func F1(opc, k, _rand, sqn, amf, macA, macS []uint8) error {
+	return milenageF1(opc, k, _rand, sqn, amf, macA, macS)
 }
 
 func F2345(opc, k, _rand, res, ck, ik, ak, akstar []uint8) error {

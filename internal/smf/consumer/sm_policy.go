@@ -22,7 +22,7 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 	httpRspStatusCode := http.StatusInternalServerError
 	smPolicyData := models.SmPolicyContextData{}
 	smPolicyData.Supi = smContext.Supi
-	smPolicyData.PduSessionId = smContext.PDUSessionID
+	smPolicyData.PduSessionID = smContext.PDUSessionID
 	smPolicyData.Dnn = smContext.Dnn
 	smPolicyData.PduSessionType = util.PDUSessionTypeToModels(smContext.SelectedPDUSessionType)
 	smPolicyData.AccessType = smContext.AnType
@@ -43,7 +43,7 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 		Sst: smContext.Snssai.Sst,
 		Sd:  smContext.Snssai.Sd,
 	}
-	smPolicyData.ServingNetwork = &models.PlmnId{
+	smPolicyData.ServingNetwork = &models.PlmnID{
 		Mcc: smContext.ServingNetwork.Mcc,
 		Mnc: smContext.ServingNetwork.Mnc,
 	}
@@ -52,7 +52,6 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 	if err != nil {
 		return nil, httpRspStatusCode, fmt.Errorf("setup sm policy association failed: %s", err.Error())
 	}
-	logger.SmfLog.Infof("created sm policy decision: %v", smPolicyDecision)
 	err = validateSmPolicyDecision(smPolicyDecision)
 	if err != nil {
 		return nil, httpRspStatusCode, fmt.Errorf("setup sm policy association failed: %s", err.Error())

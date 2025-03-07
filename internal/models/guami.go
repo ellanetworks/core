@@ -1,6 +1,6 @@
 package models
 
 type Guami struct {
-	PlmnID *PlmnId
+	PlmnID *PlmnID
 	AmfID  string
 }

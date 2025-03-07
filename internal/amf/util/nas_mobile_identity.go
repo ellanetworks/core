@@ -12,7 +12,7 @@ func GutiToString(buf []byte) (guami models.Guami, guti string) {
 	amfID := hex.EncodeToString(buf[4:7])
 	tmsi5G := hex.EncodeToString(buf[7:])
 
-	guami.PlmnID = new(models.PlmnId)
+	guami.PlmnID = new(models.PlmnID)
 	guami.PlmnID.Mcc = plmnID[:3]
 	guami.PlmnID.Mnc = plmnID[3:]
 	guami.AmfID = amfID

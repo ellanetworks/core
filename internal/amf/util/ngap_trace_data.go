@@ -26,7 +26,7 @@ func TraceDataToNgap(traceData models.TraceData, trsr string) ngapType.TraceActi
 		return traceActivation
 	}
 
-	plmnID := models.PlmnId{}
+	plmnID := models.PlmnID{}
 	plmnID.Mcc = subStringSlice[0][:3]
 	plmnID.Mnc = subStringSlice[0][3:]
 	var traceID []byte
@@ -36,7 +36,7 @@ func TraceDataToNgap(traceData models.TraceData, trsr string) ngapType.TraceActi
 		traceID = traceIDTmp
 	}
 
-	tmp := PlmnIdToNgap(plmnID)
+	tmp := PlmnIDToNgap(plmnID)
 	traceReference := append(tmp.Value, traceID...)
 	var trsrNgap []byte
 	if trsrNgapTmp, err := hex.DecodeString(trsr); err != nil {

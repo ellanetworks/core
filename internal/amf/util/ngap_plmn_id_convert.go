@@ -9,8 +9,8 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-func PlmnIdToModels(ngapPlmnId ngapType.PLMNIdentity) (modelsPlmnid models.PlmnId) {
-	value := ngapPlmnId.Value
+func PlmnIDToModels(ngapPlmnID ngapType.PLMNIdentity) (modelsPlmnid models.PlmnID) {
+	value := ngapPlmnID.Value
 	hexString := strings.Split(hex.EncodeToString(value), "")
 	modelsPlmnid.Mcc = hexString[1] + hexString[0] + hexString[3]
 	if hexString[2] == "f" {
@@ -21,7 +21,7 @@ func PlmnIdToModels(ngapPlmnId ngapType.PLMNIdentity) (modelsPlmnid models.PlmnI
 	return
 }
 
-func PlmnIdToNgap(modelsPlmnid models.PlmnId) ngapType.PLMNIdentity {
+func PlmnIDToNgap(modelsPlmnid models.PlmnID) ngapType.PLMNIdentity {
 	var hexString string
 	mcc := strings.Split(modelsPlmnid.Mcc, "")
 	mnc := strings.Split(modelsPlmnid.Mnc, "")
@@ -31,11 +31,11 @@ func PlmnIdToNgap(modelsPlmnid models.PlmnId) ngapType.PLMNIdentity {
 		hexString = mcc[1] + mcc[0] + mnc[0] + mcc[2] + mnc[2] + mnc[1]
 	}
 
-	var ngapPlmnId ngapType.PLMNIdentity
-	if plmnId, err := hex.DecodeString(hexString); err != nil {
+	var ngapPlmnID ngapType.PLMNIdentity
+	if plmnID, err := hex.DecodeString(hexString); err != nil {
 		logger.AmfLog.Warnf("decode plmn failed: %+v", err)
 	} else {
-		ngapPlmnId.Value = plmnId
+		ngapPlmnID.Value = plmnID
 	}
-	return ngapPlmnId
+	return ngapPlmnID
 }

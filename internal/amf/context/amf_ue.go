@@ -79,7 +79,7 @@ type AmfUe struct {
 	/* Used for AMF relocation */
 	TargetAmfUri string `json:"targetAmfUri,omitempty"`
 	/* Ue Identity*/
-	PlmnId              models.PlmnId `json:"plmnId,omitempty"`
+	PlmnID              models.PlmnID `json:"plmnId,omitempty"`
 	Suci                string        `json:"suci,omitempty"`
 	Supi                string        `json:"supi,omitempty"`
 	UnauthenticatedSupi bool          `json:"unauthenticatedSupi,omitempty"`
@@ -731,16 +731,16 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 		for _, pduSessionContext := range ueContext.SessionContextList {
 			smContext := SmContext{
 				Mu:              new(sync.RWMutex),
-				PduSessionIDVal: pduSessionContext.PduSessionId,
+				PduSessionIDVal: pduSessionContext.PduSessionID,
 				SmContextRefVal: pduSessionContext.SmContextRef,
 				SnssaiVal:       *pduSessionContext.SNssai,
 				DnnVal:          pduSessionContext.Dnn,
 				AccessTypeVal:   pduSessionContext.AccessType,
-				HSmfIDVal:       pduSessionContext.HsmfId,
-				VSmfIDVal:       pduSessionContext.VsmfId,
+				HSmfIDVal:       pduSessionContext.HsmfID,
+				VSmfIDVal:       pduSessionContext.VsmfID,
 				NsInstanceVal:   pduSessionContext.NsInstance,
 			}
-			ue.StoreSmContext(pduSessionContext.PduSessionId, &smContext)
+			ue.StoreSmContext(pduSessionContext.PduSessionID, &smContext)
 		}
 	}
 
@@ -810,8 +810,6 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 		ue.TraceData = ueContext.TraceData
 	}
 }
-
-// SM Context realted function
 
 func (ue *AmfUe) StoreSmContext(pduSessionID int32, smContext *SmContext) {
 	ue.SmContextList.Store(pduSessionID, smContext)

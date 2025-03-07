@@ -10,8 +10,8 @@ import (
 func TaiToModels(tai ngapType.TAI) models.Tai {
 	var modelsTai models.Tai
 
-	plmnID := PlmnIdToModels(tai.PLMNIdentity)
-	modelsTai.PlmnId = &plmnID
+	plmnID := PlmnIDToModels(tai.PLMNIdentity)
+	modelsTai.PlmnID = &plmnID
 	modelsTai.Tac = hex.EncodeToString(tai.TAC.Value)
 
 	return modelsTai

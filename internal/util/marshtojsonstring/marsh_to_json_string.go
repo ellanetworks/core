@@ -7,7 +7,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 )
 
-func MarshToJsonString(v interface{}) (result []string) {
+func MarshToJSONString(v interface{}) (result []string) {
 	types := reflect.TypeOf(v)
 	val := reflect.ValueOf(v)
 	if types.Kind() == reflect.Slice {

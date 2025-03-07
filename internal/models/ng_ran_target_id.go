@@ -1,6 +1,6 @@
 package models
 
-type NgRanTargetId struct {
+type NgRanTargetID struct {
 	RanNodeId *GlobalRanNodeId
 	Tai       *Tai
 }

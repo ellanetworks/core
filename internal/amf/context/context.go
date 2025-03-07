@@ -51,7 +51,7 @@ type Security struct {
 }
 
 type PlmnSupportItem struct {
-	PlmnId     models.PlmnId
+	PlmnID     models.PlmnID
 	SNssaiList []models.Snssai
 }
 

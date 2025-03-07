@@ -5,24 +5,24 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-func RanIdToModels(ranNodeId ngapType.GlobalRANNodeID) (ranId models.GlobalRanNodeId) {
-	present := ranNodeId.Present
+func RanIDToModels(ranNodeID ngapType.GlobalRANNodeID) (ranId models.GlobalRanNodeId) {
+	present := ranNodeID.Present
 	switch present {
 	case ngapType.GlobalRANNodeIDPresentGlobalGNBID:
 		ranId.GnbID = new(models.GnbID)
-		gnbId := ranId.GnbID
-		ngapGnbId := ranNodeId.GlobalGNBID
-		plmnid := PlmnIdToModels(ngapGnbId.PLMNIdentity)
-		ranId.PlmnId = &plmnid
-		if ngapGnbId.GNBID.Present == ngapType.GNBIDPresentGNBID {
-			choiceGnbId := ngapGnbId.GNBID.GNBID
-			gnbId.BitLength = int32(choiceGnbId.BitLength)
-			gnbId.GNBValue = BitStringToHex(choiceGnbId)
+		gnbID := ranId.GnbID
+		ngapGnbID := ranNodeID.GlobalGNBID
+		plmnid := PlmnIDToModels(ngapGnbID.PLMNIdentity)
+		ranId.PlmnID = &plmnid
+		if ngapGnbID.GNBID.Present == ngapType.GNBIDPresentGNBID {
+			choiceGnbID := ngapGnbID.GNBID.GNBID
+			gnbID.BitLength = int32(choiceGnbID.BitLength)
+			gnbID.GNBValue = BitStringToHex(choiceGnbID)
 		}
 	case ngapType.GlobalRANNodeIDPresentGlobalNgENBID:
-		ngapNgENBID := ranNodeId.GlobalNgENBID
-		plmnid := PlmnIdToModels(ngapNgENBID.PLMNIdentity)
-		ranId.PlmnId = &plmnid
+		ngapNgENBID := ranNodeID.GlobalNgENBID
+		plmnid := PlmnIDToModels(ngapNgENBID.PLMNIdentity)
+		ranId.PlmnID = &plmnid
 		if ngapNgENBID.NgENBID.Present == ngapType.NgENBIDPresentMacroNgENBID {
 			macroNgENBID := ngapNgENBID.NgENBID.MacroNgENBID
 			ranId.NgeNbId = "MacroNGeNB-" + BitStringToHex(macroNgENBID)
@@ -34,9 +34,9 @@ func RanIdToModels(ranNodeId ngapType.GlobalRANNodeID) (ranId models.GlobalRanNo
 			ranId.NgeNbId = "LMacroNGeNB-" + BitStringToHex(longMacroNgENBID)
 		}
 	case ngapType.GlobalRANNodeIDPresentGlobalN3IWFID:
-		ngapN3IWFID := ranNodeId.GlobalN3IWFID
-		plmnid := PlmnIdToModels(ngapN3IWFID.PLMNIdentity)
-		ranId.PlmnId = &plmnid
+		ngapN3IWFID := ranNodeID.GlobalN3IWFID
+		plmnid := PlmnIDToModels(ngapN3IWFID.PLMNIdentity)
+		ranId.PlmnID = &plmnid
 		if ngapN3IWFID.N3IWFID.Present == ngapType.N3IWFIDPresentN3IWFID {
 			choiceN3IWFID := ngapN3IWFID.N3IWFID.N3IWFID
 			ranId.N3IwfId = BitStringToHex(choiceN3IWFID)

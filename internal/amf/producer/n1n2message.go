@@ -20,12 +20,12 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, reqUri string) (*models.N1N2MessageTransferRspData, error) {
+func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (*models.N1N2MessageTransferRspData, error) {
 	amfSelf := context.AMF_Self()
 	if _, ok := amfSelf.AmfUeFindByUeContextID(ueContextId); !ok {
 		return nil, fmt.Errorf("UE context not found")
 	}
-	respData, err := N1N2MessageTransferProcedure(ueContextId, reqUri, n1n2MessageTransferRequest)
+	respData, err := N1N2MessageTransferProcedure(ueContextId, n1n2MessageTransferRequest)
 	if err != nil {
 		return nil, fmt.Errorf("n1 n2 message transfer error: %v", err)
 	}
@@ -51,7 +51,7 @@ func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest mo
 //   - error: if AMF reject the request due to application error, e.g. UE context not found.
 
 // see TS 29.518 6.1.3.5.3.1 for more details.
-func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (*models.N1N2MessageTransferRspData, error) {
+func N1N2MessageTransferProcedure(ueContextID string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (*models.N1N2MessageTransferRspData, error) {
 	var (
 		requestData *models.N1N2MessageTransferReqData = n1n2MessageTransferRequest.JSONData
 		n2Info      []byte                             = n1n2MessageTransferRequest.BinaryDataN2Information

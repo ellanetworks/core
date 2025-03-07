@@ -8,15 +8,15 @@ import (
 func PDUSessionTypeToModels(nasPduSessType uint8) (pduSessType models.PduSessionType) {
 	switch nasPduSessType {
 	case nasMessage.PDUSessionTypeIPv4:
-		pduSessType = models.PduSessionType_IPV4
+		pduSessType = models.PduSessionTypeIPv4
 	case nasMessage.PDUSessionTypeIPv6:
-		pduSessType = models.PduSessionType_IPV6
+		pduSessType = models.PduSessionTypeIPv6
 	case nasMessage.PDUSessionTypeIPv4IPv6:
-		pduSessType = models.PduSessionType_IPV4_V6
+		pduSessType = models.PduSessionTypeIPv4v6
 	case nasMessage.PDUSessionTypeUnstructured:
-		pduSessType = models.PduSessionType_UNSTRUCTURED
+		pduSessType = models.PduSessionTypeUnstructured
 	case nasMessage.PDUSessionTypeEthernet:
-		pduSessType = models.PduSessionType_ETHERNET
+		pduSessType = models.PduSessionTypeEthernet
 	}
 
 	return
@@ -24,15 +24,15 @@ func PDUSessionTypeToModels(nasPduSessType uint8) (pduSessType models.PduSession
 
 func ModelsToPDUSessionType(pduSessType models.PduSessionType) (nasPduSessType uint8) {
 	switch pduSessType {
-	case models.PduSessionType_IPV4:
+	case models.PduSessionTypeIPv4:
 		nasPduSessType = nasMessage.PDUSessionTypeIPv4
-	case models.PduSessionType_IPV6:
+	case models.PduSessionTypeIPv6:
 		nasPduSessType = nasMessage.PDUSessionTypeIPv6
-	case models.PduSessionType_IPV4_V6:
+	case models.PduSessionTypeIPv4v6:
 		nasPduSessType = nasMessage.PDUSessionTypeIPv4IPv6
-	case models.PduSessionType_UNSTRUCTURED:
+	case models.PduSessionTypeUnstructured:
 		nasPduSessType = nasMessage.PDUSessionTypeUnstructured
-	case models.PduSessionType_ETHERNET:
+	case models.PduSessionTypeEthernet:
 		nasPduSessType = nasMessage.PDUSessionTypeEthernet
 	}
 	return

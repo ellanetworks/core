@@ -13,9 +13,9 @@ func TaiListToNas(taiList []models.Tai) []uint8 {
 	var taiListNas []uint8
 	typeOfList := 0x00
 
-	plmnId := taiList[0].PlmnId
+	plmnID := taiList[0].PlmnID
 	for _, tai := range taiList {
-		if !reflect.DeepEqual(plmnId, tai.PlmnId) {
+		if !reflect.DeepEqual(plmnID, tai.PlmnID) {
 			typeOfList = 0x02
 		}
 	}
@@ -26,7 +26,7 @@ func TaiListToNas(taiList []models.Tai) []uint8 {
 
 	switch typeOfList {
 	case 0x00:
-		plmnNas := PlmnIDToNas(*plmnId)
+		plmnNas := PlmnIDToNas(*plmnID)
 		taiListNas = append(taiListNas, plmnNas...)
 
 		for _, tai := range taiList {
@@ -38,7 +38,7 @@ func TaiListToNas(taiList []models.Tai) []uint8 {
 		}
 	case 0x02:
 		for _, tai := range taiList {
-			plmnNas := PlmnIDToNas(*tai.PlmnId)
+			plmnNas := PlmnIDToNas(*tai.PlmnID)
 			if tacBytes, err := hex.DecodeString(tai.Tac); err != nil {
 				logger.AmfLog.Warnf("decode tac failed: %+v", err)
 			} else {

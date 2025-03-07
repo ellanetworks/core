@@ -24,7 +24,6 @@ func SelectSmf(
 	snssai models.Snssai,
 	dnn string,
 ) (*context.SmContext, uint8, error) {
-	ue.GmmLog.Infof("Select SMF [snssai: %+v, dnn: %+v]", snssai, dnn)
 	nsiInformation := ue.GetNsiInformationFromSnssai(anType, snssai)
 	smContext := context.NewSmContext(pduSessionID)
 	smContext.SetSnssai(snssai)
@@ -32,7 +31,7 @@ func SelectSmf(
 	smContext.SetAccessType(anType)
 
 	if nsiInformation != nil {
-		smContext.SetNsInstance(nsiInformation.NsiId)
+		smContext.SetNsInstance(nsiInformation.NsiID)
 	}
 
 	return smContext, 0, nil
@@ -43,7 +42,7 @@ func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
 ) {
 	smContextCreateData := buildCreateSmContextRequest(ue, smContext)
 	postSmContextsRequest := models.PostSmContextsRequest{
-		JsonData:              &smContextCreateData,
+		JSONData:              &smContextCreateData,
 		BinaryDataN1SmMessage: nasPdu,
 	}
 	smContextRef, postSmContextErrorReponse, err := pdusession.CreateSmContext(postSmContextsRequest)
@@ -59,7 +58,7 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 	smContextCreateData.UnauthenticatedSupi = ue.UnauthenticatedSupi
 	smContextCreateData.Pei = ue.Pei
 	smContextCreateData.Gpsi = ue.Gpsi
-	smContextCreateData.PduSessionId = smContext.PduSessionID()
+	smContextCreateData.PduSessionID = smContext.PduSessionID()
 	snssai := smContext.Snssai()
 	smContextCreateData.SNssai = &models.Snssai{
 		Sst: snssai.Sst,
@@ -69,21 +68,21 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 	smContextCreateData.ServingNfId = amfSelf.NfId
 	guamiList := context.GetServedGuamiList()
 	smContextCreateData.Guami = &models.Guami{
-		PlmnID: &models.PlmnId{
+		PlmnID: &models.PlmnID{
 			Mcc: guamiList[0].PlmnID.Mcc,
 			Mnc: guamiList[0].PlmnID.Mnc,
 		},
 		AmfID: guamiList[0].AmfID,
 	}
 	// take seving networking plmn from userlocation.Tai
-	if ue.Tai.PlmnId != nil {
-		smContextCreateData.ServingNetwork = &models.PlmnId{
-			Mcc: ue.Tai.PlmnId.Mcc,
-			Mnc: ue.Tai.PlmnId.Mnc,
+	if ue.Tai.PlmnID != nil {
+		smContextCreateData.ServingNetwork = &models.PlmnID{
+			Mcc: ue.Tai.PlmnID.Mcc,
+			Mnc: ue.Tai.PlmnID.Mnc,
 		}
 	} else {
 		ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc %v, Mnc: %v] is taken from Guami List", guamiList[0].PlmnID.Mcc, guamiList[0].PlmnID.Mnc)
-		smContextCreateData.ServingNetwork = &models.PlmnId{
+		smContextCreateData.ServingNetwork = &models.PlmnID{
 			Mcc: guamiList[0].PlmnID.Mcc,
 			Mnc: guamiList[0].PlmnID.Mnc,
 		}
@@ -225,9 +224,9 @@ func SendUpdateSmContextN2HandoverPreparing(ue *context.AmfUe, smContext *contex
 	updateData.HoState = models.HoStatePreparing
 	updateData.TargetId = &models.NgRanTargetId{
 		RanNodeId: &models.GlobalRanNodeId{
-			PlmnId: &models.PlmnId{
-				Mcc: targetId.RanNodeId.PlmnId.Mcc,
-				Mnc: targetId.RanNodeId.PlmnId.Mnc,
+			PlmnID: &models.PlmnID{
+				Mcc: targetId.RanNodeId.PlmnID.Mcc,
+				Mnc: targetId.RanNodeId.PlmnID.Mnc,
 			},
 			GnbID: &models.GnbID{
 				BitLength: targetId.RanNodeId.GnbID.BitLength,
@@ -235,9 +234,9 @@ func SendUpdateSmContextN2HandoverPreparing(ue *context.AmfUe, smContext *contex
 			},
 		},
 		Tai: &models.Tai{
-			PlmnId: &models.PlmnId{
-				Mcc: targetId.Tai.PlmnId.Mcc,
-				Mnc: targetId.Tai.PlmnId.Mnc,
+			PlmnID: &models.PlmnID{
+				Mcc: targetId.Tai.PlmnID.Mcc,
+				Mnc: targetId.Tai.PlmnID.Mnc,
 			},
 			Tac: targetId.Tai.Tac,
 		},
@@ -267,12 +266,12 @@ func SendUpdateSmContextN2HandoverComplete(ue *context.AmfUe, smContext *context
 	updateData.HoState = models.HoStateCompleted
 	if amfid != "" {
 		updateData.ServingNfId = amfid
-		updateData.ServingNetwork = &models.PlmnId{
+		updateData.ServingNetwork = &models.PlmnID{
 			Mcc: guami.PlmnID.Mcc,
 			Mnc: guami.PlmnID.Mnc,
 		}
 		updateData.Guami = &models.Guami{
-			PlmnID: &models.PlmnId{
+			PlmnID: &models.PlmnID{
 				Mcc: guami.PlmnID.Mcc,
 				Mnc: guami.PlmnID.Mnc,
 			},

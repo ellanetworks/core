@@ -28,7 +28,6 @@ var (
 
 const (
 	FieldRanAddr     string = "ran_addr"
-	FieldRanId       string = "ran_id"
 	FieldAmfUeNgapID string = "amf_ue_ngap_id"
 	FieldSupi        string = "supi"
 	FieldSuci        string = "suci"

@@ -100,11 +100,11 @@ func SendAuthenticationRequest(ue *context.RanUe) {
 }
 
 func SendServiceAccept(ue *context.RanUe, pDUSessionStatus *[16]bool, reactivationResult *[16]bool,
-	errPduSessionId, errCause []uint8,
+	errPduSessionID, errCause []uint8,
 ) {
 	ue.AmfUe.GmmLog.Info("Send Service Accept")
 
-	nasMsg, err := BuildServiceAccept(ue.AmfUe, pDUSessionStatus, reactivationResult, errPduSessionId, errCause)
+	nasMsg, err := BuildServiceAccept(ue.AmfUe, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 	if err != nil {
 		ue.AmfUe.GmmLog.Error(err.Error())
 		return
@@ -247,10 +247,10 @@ func SendRegistrationAccept(
 	anType models.AccessType,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
-	errPduSessionId, errCause []uint8,
+	errPduSessionID, errCause []uint8,
 	pduSessionResourceSetupList *ngapType.PDUSessionResourceSetupListCxtReq,
 ) {
-	nasMsg, err := BuildRegistrationAccept(ue, anType, pDUSessionStatus, reactivationResult, errPduSessionId, errCause)
+	nasMsg, err := BuildRegistrationAccept(ue, anType, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 	if err != nil {
 		ue.GmmLog.Error(err.Error())
 		return
