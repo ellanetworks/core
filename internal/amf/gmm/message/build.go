@@ -487,13 +487,11 @@ func BuildRegistrationAccept(
 		registrationAccept.GUTI5G.SetIei(nasMessage.RegistrationAcceptGUTI5GType)
 	}
 
-	plmnSupportList := context.GetPlmnSupportList()
-	if len(plmnSupportList) > 1 {
+	plmnSupported := context.GetSupportedPlmn()
+	if plmnSupported != nil {
 		registrationAccept.EquivalentPlmns = nasType.NewEquivalentPlmns(nasMessage.RegistrationAcceptEquivalentPlmnsType)
 		var buf []uint8
-		for _, plmnSupportItem := range plmnSupportList {
-			buf = append(buf, util.PlmnIDToNas(plmnSupportItem.PlmnId)...)
-		}
+		buf = append(buf, util.PlmnIDToNas(plmnSupported.PlmnId)...)
 		registrationAccept.EquivalentPlmns.SetLen(uint8(len(buf)))
 		copy(registrationAccept.EquivalentPlmns.Octet[:], buf)
 	}
@@ -516,7 +514,7 @@ func BuildRegistrationAccept(
 	}
 
 	// 5gs network feature support
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 	if amfSelf.Get5gsNwFeatSuppEnable() {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
 		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)

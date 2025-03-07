@@ -21,7 +21,7 @@ import (
 )
 
 func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, reqUri string) (*models.N1N2MessageTransferRspData, error) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 	if _, ok := amfSelf.AmfUeFindByUeContextID(ueContextId); !ok {
 		return nil, fmt.Errorf("UE context not found")
 	}
@@ -64,7 +64,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 		anType    models.AccessType = models.AccessType__3_GPP_ACCESS
 	)
 
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	if ue, ok = amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
 		return nil, fmt.Errorf("ue context not found")

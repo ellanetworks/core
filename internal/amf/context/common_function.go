@@ -6,6 +6,7 @@
 package context
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -54,23 +55,21 @@ func TacInAreas(targetTac string, areas []models.Area) bool {
 	return false
 }
 
-func AttachSourceUeTargetUe(sourceUe, targetUe *RanUe) {
+func AttachSourceUeTargetUe(sourceUe, targetUe *RanUe) error {
 	if sourceUe == nil {
-		logger.AmfLog.Error("Source Ue is Nil")
-		return
+		return fmt.Errorf("source ue is nil")
 	}
 	if targetUe == nil {
-		logger.AmfLog.Error("Target Ue is Nil")
-		return
+		return fmt.Errorf("target ue is nil")
 	}
 	amfUe := sourceUe.AmfUe
 	if amfUe == nil {
-		logger.AmfLog.Error("AmfUe is Nil")
-		return
+		return fmt.Errorf("amf ue is nil")
 	}
 	targetUe.AmfUe = amfUe
 	targetUe.SourceUe = sourceUe
 	sourceUe.TargetUe = targetUe
+	return nil
 }
 
 func DetachSourceUeTargetUe(ranUe *RanUe) {

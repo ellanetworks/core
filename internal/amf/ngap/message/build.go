@@ -85,7 +85,7 @@ func BuildPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte,
 }
 
 func BuildNGSetupResponse() ([]byte, error) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
 	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
@@ -99,7 +99,6 @@ func BuildNGSetupResponse() ([]byte, error) {
 	nGSetupResponse := successfulOutcome.Value.NGSetupResponse
 	nGSetupResponseIEs := &nGSetupResponse.ProtocolIEs
 
-	// AMFName
 	ie := ngapType.NGSetupResponseIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDAMFName
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -151,18 +150,15 @@ func BuildNGSetupResponse() ([]byte, error) {
 	ie.Value.PLMNSupportList = new(ngapType.PLMNSupportList)
 
 	pLMNSupportList := ie.Value.PLMNSupportList
-	plmnSupportConfigList := context.GetPlmnSupportList()
-	for _, plmnItem := range plmnSupportConfigList {
-		pLMNSupportItem := ngapType.PLMNSupportItem{}
-		pLMNSupportItem.PLMNIdentity = util.PlmnIdToNgap(plmnItem.PlmnId)
-		for _, snssai := range plmnItem.SNssaiList {
-			sliceSupportItem := ngapType.SliceSupportItem{}
-			sliceSupportItem.SNSSAI = util.SNssaiToNgap(snssai)
-			pLMNSupportItem.SliceSupportList.List = append(pLMNSupportItem.SliceSupportList.List, sliceSupportItem)
-		}
-		pLMNSupportList.List = append(pLMNSupportList.List, pLMNSupportItem)
+	plmnSupported := context.GetSupportedPlmn()
+	pLMNSupportItem := ngapType.PLMNSupportItem{}
+	pLMNSupportItem.PLMNIdentity = util.PlmnIdToNgap(plmnSupported.PlmnId)
+	for _, snssai := range plmnSupported.SNssaiList {
+		sliceSupportItem := ngapType.SliceSupportItem{}
+		sliceSupportItem.SNSSAI = util.SNssaiToNgap(snssai)
+		pLMNSupportItem.SliceSupportList.List = append(pLMNSupportItem.SliceSupportList.List, sliceSupportItem)
 	}
-
+	pLMNSupportList.List = append(pLMNSupportList.List, pLMNSupportItem)
 	nGSetupResponseIEs.List = append(nGSetupResponseIEs.List, ie)
 
 	return ngap.Encoder(pdu)
@@ -1322,10 +1318,7 @@ a Nsmf_PDUSession_CreateSMContext Response(N2 SM Information (PDU Session ID, ca
 // sourceToTargetTransparentContainer is received from S-RAN
 // nsci: new security context indicator, if amfUe has updated security context,
 // set nsci to true, otherwise set to false
-func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause,
-	pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq,
-	sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer, nsci bool,
-) ([]byte, error) {
+func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause, pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq, sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer) ([]byte, error) {
 	amfUe := ue.AmfUe
 	if amfUe == nil {
 		return nil, fmt.Errorf("AmfUe is nil")
@@ -1452,8 +1445,8 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause,
 	ie.Value.AllowedNSSAI = new(ngapType.AllowedNSSAI)
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
-	plmnSupportList := context.GetPlmnSupportList()
-	for _, snssaiItem := range plmnSupportList[0].SNssaiList {
+	plmnSupport := context.GetSupportedPlmn()
+	for _, snssaiItem := range plmnSupport.SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 
 		ngapSnssai := util.SNssaiToNgap(snssaiItem)
@@ -1494,40 +1487,6 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause,
 	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfId)
 
 	handoverRequestIEs.List = append(handoverRequestIEs.List, ie)
-
-	// //Core Network Assistance Information(optional)
-	// ie = ngapType.HandoverRequestIEs{}
-	// ie.Id.Value = ngapType.ProtocolIEIDCoreNetworkAssistanceInformation
-	// ie.Criticality.Value = ngapType.CriticalityPresentReject
-	// ie.Value.Present = ngapType.HandoverRequestIEsPresentCoreNetworkAssistanceInformation
-	// ie.Value.CoreNetworkAssistanceInformation = new(ngapType.CoreNetworkAssistanceInformation)
-	// handoverRequestIEs.List = append(handoverRequestIEs.List, ie)
-
-	// New Security ContextInd(optional)
-	if nsci {
-		ie = ngapType.HandoverRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDNewSecurityContextInd
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.HandoverRequestIEsPresentNewSecurityContextInd
-		ie.Value.NewSecurityContextInd = new(ngapType.NewSecurityContextInd)
-		ie.Value.NewSecurityContextInd.Value = ngapType.NewSecurityContextIndPresentTrue
-		handoverRequestIEs.List = append(handoverRequestIEs.List, ie)
-	}
-
-	// NASC(optional)
-	// ie.Criticality.Value = ngapType.CriticalityPresentReject
-	// ie.Value.Present = ngapType.HandoverRequestIEsPresentNASC
-	// ie.Id.Value = ngapType.ProtocolIEIDNASC
-	// ie.Criticality.Value = ngapType.CriticalityPresentReject
-	// ie.Value.Present = ngapType.HandoverRequestIEsPresentNASC
-	// ie.Value.NASC = new(ngapType.)
-	// handoverRequestIEs.List = append(handoverRequestIEs.List, ie)
-
-	// Trace Activation(optional)
-	// Masked IMEISV(optional)
-	// Mobility Restriction List(optional)
-	// Location Reporting Request Type(optional)
-	// RRC Inactive Transition Report Reques(optional)
 
 	return ngap.Encoder(pdu)
 }
@@ -1667,9 +1626,8 @@ func BuildPathSwitchRequestAcknowledge(
 	ie.Value.AllowedNSSAI = new(ngapType.AllowedNSSAI)
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
-	// plmnSupportList[0] is serving plmn
-	plmnSupportList := context.GetPlmnSupportList()
-	for _, modelSnssai := range plmnSupportList[0].SNssaiList {
+	plmnSupport := context.GetSupportedPlmn()
+	for _, modelSnssai := range plmnSupport.SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 
 		ngapSnssai := util.SNssaiToNgap(modelSnssai)

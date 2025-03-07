@@ -54,7 +54,7 @@ func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
 }
 
 func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext) (smContextCreateData models.SmContextCreateData) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 	smContextCreateData.Supi = ue.Supi
 	smContextCreateData.UnauthenticatedSupi = ue.UnauthenticatedSupi
 	smContextCreateData.Pei = ue.Pei

@@ -13,7 +13,7 @@ import (
 )
 
 func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	if ue == nil {
 		logger.AmfLog.Error("RanUe is nil")

@@ -103,12 +103,10 @@ type AmfUe struct {
 	SmfSelectionData                  *models.SmfSelectionSubscriptionData      `json:"smfSelectionData,omitempty"`
 	UeContextInSmfData                *models.UeContextInSmfData                `json:"ueContextInSmfData,omitempty"`
 	TraceData                         *models.TraceData                         `json:"traceData,omitempty"`
-	UdmGroupId                        string                                    `json:"udmGroupId,omitempty"`
 	SubscribedNssai                   []models.SubscribedSnssai                 `json:"subscribeNssai,omitempty"`
 	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData `json:"accessAndMobilitySubscriptionData,omitempty"`
 	/* contex abut ausf */
-	AusfGroupId                       string                      `json:"ausfGroupId,omitempty"`
-	AusfId                            string                      `json:"ausfId,omitempty"`
+	AusfId                            string
 	RoutingIndicator                  string                      `json:"routingIndicator,omitempty"`
 	AuthenticationCtx                 *models.UeAuthenticationCtx `json:"authenticationCtx,omitempty"`
 	AuthFailureCauseSynchFailureTimes int                         `json:"authFailureCauseSynchFailureTimes,omitempty"`
@@ -263,7 +261,7 @@ type NGRANCGI struct {
 }
 
 func (ue *AmfUe) init() {
-	ue.ServingAMF = AMF_Self()
+	ue.ServingAMF = AMFSelf()
 	ue.State = make(map[models.AccessType]*fsm.State)
 	ue.State[models.AccessType__3_GPP_ACCESS] = fsm.NewState(Deregistered)
 	ue.State[models.AccessType_NON_3_GPP_ACCESS] = fsm.NewState(Deregistered)
@@ -304,7 +302,7 @@ func (ue *AmfUe) Remove() {
 	tmsiGenerator.FreeID(int64(ue.Tmsi))
 
 	if len(ue.Supi) > 0 {
-		AMF_Self().UePool.Delete(ue.Supi)
+		AMFSelf().UePool.Delete(ue.Supi)
 	}
 }
 
@@ -616,14 +614,6 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 
 	if ueContext.Pei != "" {
 		ue.Pei = ueContext.Pei
-	}
-
-	if ueContext.UdmGroupId != "" {
-		ue.UdmGroupId = ueContext.UdmGroupId
-	}
-
-	if ueContext.AusfGroupId != "" {
-		ue.AusfGroupId = ueContext.AusfGroupId
 	}
 
 	if ueContext.RoutingIndicator != "" {

@@ -17,7 +17,6 @@ import (
 type SmContext struct {
 	Mu *sync.RWMutex // protect the following fields
 
-	// pdu session information
 	PduSessionIDVal int32
 	SmContextRefVal string
 	SnssaiVal       models.Snssai
@@ -27,16 +26,11 @@ type SmContext struct {
 	UserLocationVal models.UserLocation
 	PlmnIDVal       models.PlmnId
 
-	// SMF information
-	SmfIDVal string
-	// SmfUriVal string
-	HSmfIDVal string
-	VSmfIDVal string
-
-	// status of pdusession
+	SmfIDVal              string
+	HSmfIDVal             string
+	VSmfIDVal             string
 	PduSessionInactiveVal bool
 
-	// for duplicate pdu session id handling
 	UlNASTransportVal *nasMessage.ULNASTransport
 	DuplicatedVal     bool
 }

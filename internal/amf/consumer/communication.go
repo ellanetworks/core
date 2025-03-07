@@ -23,14 +23,6 @@ func BuildUeContextModel(ue *context.AmfUe) (ueContext models.UeContext) {
 		ueContext.Pei = ue.Pei
 	}
 
-	if ue.UdmGroupId != "" {
-		ueContext.UdmGroupId = ue.UdmGroupId
-	}
-
-	if ue.AusfGroupId != "" {
-		ueContext.AusfGroupId = ue.AusfGroupId
-	}
-
 	if ue.RoutingIndicator != "" {
 		ueContext.RoutingIndicator = ue.RoutingIndicator
 	}
