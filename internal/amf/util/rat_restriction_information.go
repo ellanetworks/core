@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package convert
+package util
 
 import (
 	"github.com/ellanetworks/core/internal/models"
@@ -11,8 +11,8 @@ import (
 )
 
 // TS 38.413 9.3.1.85
-func RATRestrictionInformationToNgap(ratType models.RatType) (ratResInfo ngapType.RATRestrictionInformation) {
-	// Only support EUTRA & NR in version15.2.0
+func RATRestrictionInformationToNgap(ratType models.RatType) ngapType.RATRestrictionInformation {
+	var ratResInfo ngapType.RATRestrictionInformation
 	switch ratType {
 	case models.RatType_EUTRA:
 		ratResInfo.Value = aper.BitString{
@@ -25,5 +25,5 @@ func RATRestrictionInformationToNgap(ratType models.RatType) (ratResInfo ngapTyp
 			BitLength: 8,
 		}
 	}
-	return
+	return ratResInfo
 }

@@ -7,22 +7,21 @@
 package nas
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nas_security"
-	"github.com/ellanetworks/core/internal/logger"
 )
 
-func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {
+func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) error {
 	amfSelf := context.AMFSelf()
 
 	if ue == nil {
-		logger.AmfLog.Error("RanUe is nil")
-		return
+		return fmt.Errorf("ue is nil")
 	}
 
 	if nasPdu == nil {
-		ue.Log.Error("nasPdu is nil")
-		return
+		return fmt.Errorf("nas pdu is nil")
 	}
 
 	if ue.AmfUe == nil {
@@ -34,8 +33,6 @@ func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {
 		ue.AmfUe.Mutex.Lock()
 		defer ue.AmfUe.Mutex.Unlock()
 
-		ue.Log.Info("Antype from new RanUe : ", ue.Ran.AnType)
-
 		ue.AmfUe.AttachRanUe(ue)
 
 		nasMsg := context.NasMsg{
@@ -43,30 +40,34 @@ func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {
 			NasMsg:        nasPdu,
 			ProcedureCode: procedureCode,
 		}
-		DispatchMsg(ue.AmfUe, nasMsg)
+		err := DispatchMsg(ue.AmfUe, nasMsg)
+		if err != nil {
+			return fmt.Errorf("error dispatching NAS message: %v", err)
+		}
 
-		return
+		return nil
 	}
 
 	msg, err := nas_security.Decode(ue.AmfUe, ue.Ran.AnType, nasPdu)
 	if err != nil {
-		ue.AmfUe.NASLog.Errorln(err)
-		return
+		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
 	if err := Dispatch(ue.AmfUe, ue.Ran.AnType, procedureCode, msg); err != nil {
 		ue.AmfUe.NASLog.Errorf("Handle NAS Error: %v", err)
+		return fmt.Errorf("error handling NAS message: %v", err)
 	}
+
+	return nil
 }
 
-func DispatchMsg(amfUe *context.AmfUe, transInfo context.NasMsg) {
-	amfUe.NASLog.Infof("Handle Nas Message")
+func DispatchMsg(amfUe *context.AmfUe, transInfo context.NasMsg) error {
 	msg, err := nas_security.Decode(amfUe, transInfo.AnType, transInfo.NasMsg)
 	if err != nil {
-		amfUe.NASLog.Errorln(err)
-		return
+		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
-
-	if err := Dispatch(amfUe, transInfo.AnType, transInfo.ProcedureCode, msg); err != nil {
-		amfUe.NASLog.Errorf("Handle NAS Error: %v", err)
+	err = Dispatch(amfUe, transInfo.AnType, transInfo.ProcedureCode, msg)
+	if err != nil {
+		return fmt.Errorf("error handling NAS message: %v", err)
 	}
+	return nil
 }

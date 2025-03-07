@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	localConvert "github.com/ellanetworks/core/internal/amf/ngap/convert"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -119,7 +118,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 				continue
 			}
 			item.PLMNIdentity = *plmnId
-			item.RATRestrictionInformation = localConvert.RATRestrictionInformationToNgap(ratType)
+			item.RATRestrictionInformation = util.RATRestrictionInformationToNgap(ratType)
 			ratRestrictions.List = append(ratRestrictions.List, item)
 		}
 	}

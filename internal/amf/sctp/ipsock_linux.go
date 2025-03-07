@@ -224,7 +224,6 @@ func setDefaultSockopts(s int, family int, ipv6only bool) error {
 		// never admit this option.
 		err := syscall.SetsockoptInt(s, syscall.IPPROTO_IPV6, syscall.IPV6_V6ONLY, boolint(ipv6only))
 		if err != nil {
-			logger.AmfLog.Warnf("failed to set IPV6_V6ONLY: %+v", err)
 			return err
 		}
 	}

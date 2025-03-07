@@ -715,7 +715,10 @@ func HandleUplinkNasTransport(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		ranUe.UpdateLocation(userLocationInformation)
 	}
 
-	nas.HandleNAS(ranUe, ngapType.ProcedureCodeUplinkNASTransport, nASPDU.Value)
+	err := nas.HandleNAS(ranUe, ngapType.ProcedureCodeUplinkNASTransport, nASPDU.Value)
+	if err != nil {
+		ranUe.Log.Error("error handling NAS message: %+v", err)
+	}
 }
 
 func HandleNGReset(ran *context.AmfRan, message *ngapType.NGAPPDU) {
@@ -1500,7 +1503,10 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		ran.Log.Errorf("libngap Encoder Error: %+v", err)
 	}
 	ranUe.InitialUEMessage = pdu
-	nas.HandleNAS(ranUe, ngapType.ProcedureCodeInitialUEMessage, nASPDU.Value)
+	err = nas.HandleNAS(ranUe, ngapType.ProcedureCodeInitialUEMessage, nASPDU.Value)
+	if err != nil {
+		ran.Log.Errorf("error handling NAS: %+v", err)
+	}
 }
 
 func HandlePDUSessionResourceSetupResponse(ran *context.AmfRan, message *ngapType.NGAPPDU) {
@@ -3639,7 +3645,10 @@ func HandleNasNonDeliveryIndication(ran *context.AmfRan, message *ngapType.NGAPP
 
 	printAndGetCause(ran, cause)
 
-	nas.HandleNAS(ranUe, ngapType.ProcedureCodeNASNonDeliveryIndication, nASPDU.Value)
+	err := nas.HandleNAS(ranUe, ngapType.ProcedureCodeNASNonDeliveryIndication, nASPDU.Value)
+	if err != nil {
+		ran.Log.Errorf("error handling NAS: %+v", err)
+	}
 }
 
 func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU) {

@@ -1262,9 +1262,7 @@ func BuildHandoverCommand(
 	return ngap.Encoder(pdu)
 }
 
-func BuildHandoverPreparationFailure(sourceUe *context.RanUe, cause ngapType.Cause,
-	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
-) ([]byte, error) {
+func BuildHandoverPreparationFailure(sourceUe *context.RanUe, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) ([]byte, error) {
 	// cause = initiate the Handover Cancel procedure with the appropriate value for the Cause IE.
 
 	// criticalityDiagnostics = criticalityDiagonstics IE in receiver node's error indication
