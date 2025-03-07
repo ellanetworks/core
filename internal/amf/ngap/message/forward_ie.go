@@ -155,8 +155,8 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 func BuildUnavailableGUAMIList(guamiList []models.Guami) (unavailableGUAMIList ngapType.UnavailableGUAMIList) {
 	for _, guami := range guamiList {
 		item := ngapType.UnavailableGUAMIItem{}
-		item.GUAMI.PLMNIdentity = util.PlmnIdToNgap(*guami.PlmnId)
-		regionId, setId, ptrId := ngapConvert.AmfIdToNgap(guami.AmfId)
+		item.GUAMI.PLMNIdentity = util.PlmnIdToNgap(*guami.PlmnID)
+		regionId, setId, ptrId := ngapConvert.AmfIdToNgap(guami.AmfID)
 		item.GUAMI.AMFRegionID.Value = regionId
 		item.GUAMI.AMFSetID.Value = setId
 		item.GUAMI.AMFPointer.Value = ptrId

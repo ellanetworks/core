@@ -69,11 +69,11 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 	smContextCreateData.ServingNfId = amfSelf.NfId
 	guamiList := context.GetServedGuamiList()
 	smContextCreateData.Guami = &models.Guami{
-		PlmnId: &models.PlmnId{
-			Mcc: guamiList[0].PlmnId.Mcc,
-			Mnc: guamiList[0].PlmnId.Mnc,
+		PlmnID: &models.PlmnId{
+			Mcc: guamiList[0].PlmnID.Mcc,
+			Mnc: guamiList[0].PlmnID.Mnc,
 		},
-		AmfId: guamiList[0].AmfId,
+		AmfID: guamiList[0].AmfID,
 	}
 	// take seving networking plmn from userlocation.Tai
 	if ue.Tai.PlmnId != nil {
@@ -82,10 +82,10 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 			Mnc: ue.Tai.PlmnId.Mnc,
 		}
 	} else {
-		ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc %v, Mnc: %v] is taken from Guami List", guamiList[0].PlmnId.Mcc, guamiList[0].PlmnId.Mnc)
+		ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc %v, Mnc: %v] is taken from Guami List", guamiList[0].PlmnID.Mcc, guamiList[0].PlmnID.Mnc)
 		smContextCreateData.ServingNetwork = &models.PlmnId{
-			Mcc: guamiList[0].PlmnId.Mcc,
-			Mnc: guamiList[0].PlmnId.Mnc,
+			Mcc: guamiList[0].PlmnID.Mcc,
+			Mnc: guamiList[0].PlmnID.Mnc,
 		}
 	}
 	smContextCreateData.N1SmMsg = new(models.RefToBinaryData)
@@ -222,16 +222,16 @@ func SendUpdateSmContextN2HandoverPreparing(ue *context.AmfUe, smContext *contex
 		updateData.N2SmInfo = new(models.RefToBinaryData)
 		updateData.N2SmInfo.ContentId = N2SMINFO_ID
 	}
-	updateData.HoState = models.HoState_PREPARING
+	updateData.HoState = models.HoStatePreparing
 	updateData.TargetId = &models.NgRanTargetId{
 		RanNodeId: &models.GlobalRanNodeId{
 			PlmnId: &models.PlmnId{
 				Mcc: targetId.RanNodeId.PlmnId.Mcc,
 				Mnc: targetId.RanNodeId.PlmnId.Mnc,
 			},
-			GNbId: &models.GNbId{
-				BitLength: targetId.RanNodeId.GNbId.BitLength,
-				GNBValue:  targetId.RanNodeId.GNbId.GNBValue,
+			GnbID: &models.GnbID{
+				BitLength: targetId.RanNodeId.GnbID.BitLength,
+				GNBValue:  targetId.RanNodeId.GnbID.GNBValue,
 			},
 		},
 		Tai: &models.Tai{
@@ -257,26 +257,26 @@ func SendUpdateSmContextN2HandoverPrepared(ue *context.AmfUe, smContext *context
 		updateData.N2SmInfo = new(models.RefToBinaryData)
 		updateData.N2SmInfo.ContentId = N2SMINFO_ID
 	}
-	updateData.HoState = models.HoState_PREPARED
+	updateData.HoState = models.HoStatePrepared
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
 
 func SendUpdateSmContextN2HandoverComplete(ue *context.AmfUe, smContext *context.SmContext, amfid string, guami *models.Guami) (*models.UpdateSmContextResponse, error,
 ) {
 	updateData := models.SmContextUpdateData{}
-	updateData.HoState = models.HoState_COMPLETED
+	updateData.HoState = models.HoStateCompleted
 	if amfid != "" {
 		updateData.ServingNfId = amfid
 		updateData.ServingNetwork = &models.PlmnId{
-			Mcc: guami.PlmnId.Mcc,
-			Mnc: guami.PlmnId.Mnc,
+			Mcc: guami.PlmnID.Mcc,
+			Mnc: guami.PlmnID.Mnc,
 		}
 		updateData.Guami = &models.Guami{
-			PlmnId: &models.PlmnId{
-				Mcc: guami.PlmnId.Mcc,
-				Mnc: guami.PlmnId.Mnc,
+			PlmnID: &models.PlmnId{
+				Mcc: guami.PlmnID.Mcc,
+				Mnc: guami.PlmnID.Mnc,
 			},
-			AmfId: guami.AmfId,
+			AmfID: guami.AmfID,
 		}
 	}
 	if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
@@ -291,7 +291,7 @@ func SendUpdateSmContextN2HandoverComplete(ue *context.AmfUe, smContext *context
 
 func SendUpdateSmContextN2HandoverCanceled(ue *context.AmfUe, smContext *context.SmContext, cause context.CauseAll) (*models.UpdateSmContextResponse, error) {
 	updateData := models.SmContextUpdateData{}
-	updateData.HoState = models.HoState_CANCELLED
+	updateData.HoState = models.HoStateCancelled
 	if cause.Cause != nil {
 		updateData.Cause = *cause.Cause
 	}

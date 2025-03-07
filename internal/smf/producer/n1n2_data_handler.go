@@ -131,9 +131,9 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 	smContextUpdateData := body.JsonData
 
 	switch smContextUpdateData.HoState {
-	case models.HoState_PREPARING:
+	case models.HoStatePreparing:
 
-		smContext.HoState = models.HoState_PREPARING
+		smContext.HoState = models.HoStatePreparing
 		if err := context.HandleHandoverRequiredTransfer(body.BinaryDataN2SmInformation); err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, handle HandoverRequiredTransfer failed: %+v", err)
 		}
@@ -148,12 +148,12 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 		response.JsonData.N2SmInfo = &models.RefToBinaryData{
 			ContentId: "PDU_RES_SETUP_REQ",
 		}
-		response.JsonData.HoState = models.HoState_PREPARING
-	case models.HoState_PREPARED:
+		response.JsonData.HoState = models.HoStatePreparing
+	case models.HoStatePrepared:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, Ho state %v received", smContextUpdateData.HoState)
 
-		smContext.HoState = models.HoState_PREPARED
-		response.JsonData.HoState = models.HoState_PREPARED
+		smContext.HoState = models.HoStatePrepared
+		response.JsonData.HoState = models.HoStatePrepared
 		if err := context.HandleHandoverRequestAcknowledgeTransfer(body.BinaryDataN2SmInformation, smContext.Tunnel.DataPathPool); err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, handle HandoverRequestAcknowledgeTransfer failed: %+v", err)
 		}
@@ -168,12 +168,12 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 		response.JsonData.N2SmInfo = &models.RefToBinaryData{
 			ContentId: "HANDOVER_CMD",
 		}
-		response.JsonData.HoState = models.HoState_PREPARING
-	case models.HoState_COMPLETED:
+		response.JsonData.HoState = models.HoStatePreparing
+	case models.HoStateCompleted:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, Ho state %v received", smContextUpdateData.HoState)
 
-		smContext.HoState = models.HoState_COMPLETED
-		response.JsonData.HoState = models.HoState_COMPLETED
+		smContext.HoState = models.HoStateCompleted
+		response.JsonData.HoState = models.HoStateCompleted
 	}
 	return nil
 }

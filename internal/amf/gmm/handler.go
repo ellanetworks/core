@@ -791,14 +791,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 						reactivationResult, errPduSessionId, errCause, &ctxList)
 				}
 				switch requestData.N1MessageContainer.N1MessageClass {
-				case models.N1MessageClass_SM:
+				case models.N1MessageClassSM:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo,
 						n1Msg, requestData.PduSessionID, 0, nil, 0)
-				case models.N1MessageClass_LPP:
+				case models.N1MessageClassLPP:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0, nil, 0)
-				case models.N1MessageClass_SMS:
+				case models.N1MessageClassSMS:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0, nil, 0)
-				case models.N1MessageClass_UPDP:
+				case models.N1MessageClassUPDP:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0, nil, 0)
 				}
 				ue.N1N2Message = nil
@@ -1472,14 +1472,14 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 					return err
 				}
 				switch requestData.N1MessageContainer.N1MessageClass {
-				case models.N1MessageClass_SM:
+				case models.N1MessageClassSM:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType],
 						nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0, nil, 0)
-				case models.N1MessageClass_LPP:
+				case models.N1MessageClassLPP:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0, nil, 0)
-				case models.N1MessageClass_SMS:
+				case models.N1MessageClassSMS:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0, nil, 0)
-				case models.N1MessageClass_UPDP:
+				case models.N1MessageClassUPDP:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0, nil, 0)
 				}
 				ue.N1N2Message = nil

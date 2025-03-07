@@ -9,8 +9,8 @@ func RanIdToModels(ranNodeId ngapType.GlobalRANNodeID) (ranId models.GlobalRanNo
 	present := ranNodeId.Present
 	switch present {
 	case ngapType.GlobalRANNodeIDPresentGlobalGNBID:
-		ranId.GNbId = new(models.GNbId)
-		gnbId := ranId.GNbId
+		ranId.GnbID = new(models.GnbID)
+		gnbId := ranId.GnbID
 		ngapGnbId := ranNodeId.GlobalGNBID
 		plmnid := PlmnIdToModels(ngapGnbId.PLMNIdentity)
 		ranId.PlmnId = &plmnid

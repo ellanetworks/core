@@ -83,12 +83,12 @@ func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context
 					// <5G-S-TMSI> := <AMF Set ID><AMF Pointer><5G-TMSI>
 					// GUAMI := <MCC><MNC><AMF Region ID><AMF Set ID><AMF Pointer>
 					// 5G-GUTI := <GUAMI><5G-TMSI>
-					tmpReginID, _, _ := ngapConvert.AmfIdToNgap(servedGuami.AmfId)
+					tmpReginID, _, _ := ngapConvert.AmfIdToNgap(servedGuami.AmfID)
 					amfID := ngapConvert.AmfIdToModels(tmpReginID, fiveGSTMSI.AMFSetID.Value, fiveGSTMSI.AMFPointer.Value)
 
 					tmsi := hex.EncodeToString(fiveGSTMSI.FiveGTMSI.Value)
 
-					guti := servedGuami.PlmnId.Mcc + servedGuami.PlmnId.Mnc + amfID + tmsi
+					guti := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc + amfID + tmsi
 
 					if amfUe, ok := amfSelf.AmfUeFindByGuti(guti); ok {
 						ranUe, err = ran.NewRanUe(rANUENGAPID.Value)
@@ -1447,12 +1447,12 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			// <5G-S-TMSI> := <AMF Set ID><AMF Pointer><5G-TMSI>
 			// GUAMI := <MCC><MNC><AMF Region ID><AMF Set ID><AMF Pointer>
 			// 5G-GUTI := <GUAMI><5G-TMSI>
-			tmpReginID, _, _ := ngapConvert.AmfIdToNgap(servedGuami.AmfId)
+			tmpReginID, _, _ := ngapConvert.AmfIdToNgap(servedGuami.AmfID)
 			amfID := ngapConvert.AmfIdToModels(tmpReginID, fiveGSTMSI.AMFSetID.Value, fiveGSTMSI.AMFPointer.Value)
 
 			tmsi := hex.EncodeToString(fiveGSTMSI.FiveGTMSI.Value)
 
-			guti := servedGuami.PlmnId.Mcc + servedGuami.PlmnId.Mnc + amfID + tmsi
+			guti := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc + amfID + tmsi
 
 			if amfUe, ok := amfSelf.AmfUeFindByGuti(guti); !ok {
 				ranUe.Log.Warnf("Unknown UE [GUTI: %s]", guti)
@@ -3796,8 +3796,8 @@ func HandleUplinkRanConfigurationTransfer(ran *context.AmfRan, message *ngapType
 	if sONConfigurationTransferUL != nil {
 		targetRanNodeID := util.RanIdToModels(sONConfigurationTransferUL.TargetRANNodeID.GlobalRANNodeID)
 
-		if targetRanNodeID.GNbId.GNBValue != "" {
-			ran.Log.Debugf("targerRanID [%s]", targetRanNodeID.GNbId.GNBValue)
+		if targetRanNodeID.GnbID.GNBValue != "" {
+			ran.Log.Debugf("targerRanID [%s]", targetRanNodeID.GnbID.GNBValue)
 		}
 
 		aMFSelf := context.AMF_Self()

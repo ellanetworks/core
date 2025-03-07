@@ -95,11 +95,11 @@ func StmsiToGuti(buf [7]byte) (guti string) {
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 
-	tmpReginID := servedGuami.AmfId[:2]
+	tmpReginID := servedGuami.AmfID[:2]
 	amfID := hex.EncodeToString(buf[1:3])
 	tmsi5G := hex.EncodeToString(buf[3:])
 
-	guti = servedGuami.PlmnId.Mcc + servedGuami.PlmnId.Mnc + tmpReginID + amfID + tmsi5G
+	guti = servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc + tmpReginID + amfID + tmsi5G
 
 	return
 }

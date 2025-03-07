@@ -72,7 +72,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 
 	if requestData.N1MessageContainer != nil {
 		switch requestData.N1MessageContainer.N1MessageClass {
-		case models.N1MessageClass_SM:
+		case models.N1MessageClassSM:
 			ue.ProducerLog.Debugf("Receive N1 SM Message (PDU Session ID: %d)", requestData.PduSessionID)
 			n1MsgType = nasMessage.PayloadContainerTypeN1SMInfo
 			if smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionID); !ok {
@@ -80,11 +80,11 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 			} else {
 				anType = smContext.AccessType()
 			}
-		case models.N1MessageClass_SMS:
+		case models.N1MessageClassSMS:
 			n1MsgType = nasMessage.PayloadContainerTypeSMS
-		case models.N1MessageClass_LPP:
+		case models.N1MessageClassLPP:
 			n1MsgType = nasMessage.PayloadContainerTypeLPP
-		case models.N1MessageClass_UPDP:
+		case models.N1MessageClassUPDP:
 			n1MsgType = nasMessage.PayloadContainerTypeUEPolicy
 		default:
 		}

@@ -119,9 +119,9 @@ func (context *AMFContext) AllocateGutiToUe(ue *AmfUe) {
 	guamis := GetServedGuamiList()
 	servedGuami := guamis[0]
 	ue.Tmsi = context.TmsiAllocate()
-	plmnID := servedGuami.PlmnId.Mcc + servedGuami.PlmnId.Mnc
+	plmnID := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc
 	tmsiStr := fmt.Sprintf("%08x", ue.Tmsi)
-	ue.Guti = plmnID + servedGuami.AmfId + tmsiStr
+	ue.Guti = plmnID + servedGuami.AmfID + tmsiStr
 }
 
 func (context *AMFContext) ReAllocateGutiToUe(ue *AmfUe) {
@@ -129,9 +129,9 @@ func (context *AMFContext) ReAllocateGutiToUe(ue *AmfUe) {
 	servedGuami := guamis[0]
 	tmsiGenerator.FreeID(int64(ue.Tmsi))
 	ue.Tmsi = context.TmsiAllocate()
-	plmnID := servedGuami.PlmnId.Mcc + servedGuami.PlmnId.Mnc
+	plmnID := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc
 	tmsiStr := fmt.Sprintf("%08x", ue.Tmsi)
-	ue.Guti = plmnID + servedGuami.AmfId + tmsiStr
+	ue.Guti = plmnID + servedGuami.AmfID + tmsiStr
 }
 
 func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.AccessType) {
@@ -241,7 +241,7 @@ func (context *AMFContext) AmfRanFindByRanID(ranNodeID models.GlobalRanNodeId) (
 		amfRan := value.(*AmfRan)
 		switch amfRan.RanPresent {
 		case RanPresentGNbId:
-			if amfRan.RanId.GNbId.GNBValue == ranNodeID.GNbId.GNBValue {
+			if amfRan.RanId.GnbID.GNBValue == ranNodeID.GnbID.GNBValue {
 				ran = amfRan
 				ok = true
 				return false

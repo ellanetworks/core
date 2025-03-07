@@ -25,7 +25,7 @@ type PCFContext struct {
 	UePool                 sync.Map
 	SessionRuleIDGenerator *idgenerator.IDGenerator
 	QoSDataIDGenerator     *idgenerator.IDGenerator
-	DbInstance             *db.Database
+	DBInstance             *db.Database
 }
 
 type SessionPolicy struct {
@@ -56,13 +56,13 @@ func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 }
 
 // Find PcfUe which the policyId belongs to
-func (c *PCFContext) PCFUeFindByPolicyID(PolicyId string) *UeContext {
-	index := strings.LastIndex(PolicyId, "-")
+func (c *PCFContext) PCFUeFindByPolicyID(PolicyID string) *UeContext {
+	index := strings.LastIndex(PolicyID, "-")
 	if index == -1 {
-		logger.PcfLog.Errorf("Invalid PolicyId format: %s", PolicyId)
+		logger.PcfLog.Errorf("Invalid PolicyID format: %s", PolicyID)
 		return nil
 	}
-	supi := PolicyId[:index]
+	supi := PolicyID[:index]
 	if value, ok := c.UePool.Load(supi); ok {
 		return value.(*UeContext)
 	}
@@ -70,15 +70,15 @@ func (c *PCFContext) PCFUeFindByPolicyID(PolicyId string) *UeContext {
 }
 
 func GetSubscriberPolicy(imsi string) (*PcfSubscriberPolicyData, error) {
-	subscriber, err := pcfCtx.DbInstance.GetSubscriber(imsi)
+	subscriber, err := pcfCtx.DBInstance.GetSubscriber(imsi)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subscriber %s: %w", imsi, err)
 	}
-	profile, err := pcfCtx.DbInstance.GetProfileByID(subscriber.ProfileID)
+	profile, err := pcfCtx.DBInstance.GetProfileByID(subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get profile %d: %w", subscriber.ProfileID, err)
 	}
-	operator, err := pcfCtx.DbInstance.GetOperator()
+	operator, err := pcfCtx.DBInstance.GetOperator()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator: %w", err)
 	}

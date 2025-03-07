@@ -24,11 +24,11 @@ func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRe
 			AmfInstanceId:          amfSelf.NfId,
 			InitialRegistrationInd: initialRegistrationInd,
 			Guami: &models.Guami{
-				PlmnId: &models.PlmnId{
-					Mcc: guamiList[0].PlmnId.Mcc,
-					Mnc: guamiList[0].PlmnId.Mnc,
+				PlmnID: &models.PlmnId{
+					Mcc: guamiList[0].PlmnID.Mcc,
+					Mnc: guamiList[0].PlmnID.Mnc,
 				},
-				AmfId: guamiList[0].AmfId,
+				AmfID: guamiList[0].AmfID,
 			},
 			RatType: ue.RatType,
 			ImsVoPs: models.ImsVoPs_HOMOGENEOUS_NON_SUPPORT,

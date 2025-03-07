@@ -125,8 +125,8 @@ func (ran *AmfRan) SetRanId(ranNodeId *ngapType.GlobalRANNodeID) {
 	if ranId.PlmnId != nil {
 		ran.GnbId = ranId.PlmnId.Mcc + ":" + ranId.PlmnId.Mnc + ":"
 	}
-	if ranId.GNbId != nil {
-		ran.GnbId += ranId.GNbId.GNBValue
+	if ranId.GnbID != nil {
+		ran.GnbId += ranId.GnbID.GNBValue
 	}
 }
 
@@ -137,7 +137,7 @@ func (ran *AmfRan) ConvertGnbIdToRanId(gnbId string) (ranNodeId *models.GlobalRa
 		return nil
 	}
 	ranId.PlmnId = &models.PlmnId{Mcc: val[0], Mnc: val[1]}
-	ranId.GNbId = &models.GNbId{GNBValue: val[2]}
+	ranId.GnbID = &models.GnbID{GNBValue: val[2]}
 	ran.RanPresent = RanPresentGNbId
 	return ranId
 }
@@ -145,7 +145,7 @@ func (ran *AmfRan) ConvertGnbIdToRanId(gnbId string) (ranNodeId *models.GlobalRa
 func (ran *AmfRan) RanID() string {
 	switch ran.RanPresent {
 	case RanPresentGNbId:
-		return fmt.Sprintf("<PlmnID: %+v, GNbID: %s>", *ran.RanId.PlmnId, ran.RanId.GNbId.GNBValue)
+		return fmt.Sprintf("<PlmnID: %+v, GNbID: %s>", *ran.RanId.PlmnId, ran.RanId.GnbID.GNBValue)
 	case RanPresentN3IwfId:
 		return fmt.Sprintf("<PlmnID: %+v, N3IwfID: %s>", *ran.RanId.PlmnId, ran.RanId.N3IwfId)
 	case RanPresentNgeNbId:

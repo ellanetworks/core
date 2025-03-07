@@ -749,13 +749,13 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 			if mmContext.AccessType == models.AccessType__3_GPP_ACCESS {
 				if nasSecurityMode := mmContext.NasSecurityMode; nasSecurityMode != nil {
 					switch nasSecurityMode.IntegrityAlgorithm {
-					case models.IntegrityAlgorithm_NIA0:
+					case models.IntegrityAlgorithmNIA0:
 						ue.IntegrityAlg = security.AlgIntegrity128NIA0
-					case models.IntegrityAlgorithm_NIA1:
+					case models.IntegrityAlgorithmNIA1:
 						ue.IntegrityAlg = security.AlgIntegrity128NIA1
-					case models.IntegrityAlgorithm_NIA2:
+					case models.IntegrityAlgorithmNIA2:
 						ue.IntegrityAlg = security.AlgIntegrity128NIA2
-					case models.IntegrityAlgorithm_NIA3:
+					case models.IntegrityAlgorithmNIA3:
 						ue.IntegrityAlg = security.AlgIntegrity128NIA3
 					}
 

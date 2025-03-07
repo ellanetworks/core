@@ -122,8 +122,8 @@ func BuildNGSetupResponse() ([]byte, error) {
 	guamiList := context.GetServedGuamiList()
 	for _, guami := range guamiList {
 		servedGUAMIItem := ngapType.ServedGUAMIItem{}
-		servedGUAMIItem.GUAMI.PLMNIdentity = util.PlmnIdToNgap(*guami.PlmnId)
-		regionId, setId, prtId := ngapConvert.AmfIdToNgap(guami.AmfId)
+		servedGUAMIItem.GUAMI.PLMNIdentity = util.PlmnIdToNgap(*guami.PlmnID)
+		regionId, setId, prtId := ngapConvert.AmfIdToNgap(guami.AmfID)
 		servedGUAMIItem.GUAMI.AMFRegionID.Value = regionId
 		servedGUAMIItem.GUAMI.AMFSetID.Value = setId
 		servedGUAMIItem.GUAMI.AMFPointer.Value = prtId
@@ -904,8 +904,8 @@ func BuildInitialContextSetupRequest(
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 
-	*plmnID = util.PlmnIdToNgap(*servedGuami.PlmnId)
-	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfId)
+	*plmnID = util.PlmnIdToNgap(*servedGuami.PlmnID)
+	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfID)
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
@@ -1490,8 +1490,8 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause,
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 
-	*plmnID = util.PlmnIdToNgap(*servedGuami.PlmnId)
-	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfId)
+	*plmnID = util.PlmnIdToNgap(*servedGuami.PlmnID)
+	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfID)
 
 	handoverRequestIEs.List = append(handoverRequestIEs.List, ie)
 

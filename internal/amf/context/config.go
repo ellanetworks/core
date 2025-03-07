@@ -49,8 +49,8 @@ func GetServedGuamiList() []models.Guami {
 		Mnc: dbNetwork.Mnc,
 	}
 	guami := models.Guami{
-		PlmnId: &plmnID,
-		AmfId:  "cafe00", // To edit
+		PlmnID: &plmnID,
+		AmfID:  "cafe00", // To edit
 	}
 	guamis = append(guamis, guami)
 	return guamis

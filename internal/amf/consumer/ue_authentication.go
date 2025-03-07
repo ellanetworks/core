@@ -27,8 +27,8 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 	if ue.Tai.PlmnId != nil {
 		plmnId = ue.Tai.PlmnId
 	} else {
-		ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc: %v Mnc: %v] is taken from Guami List", servedGuami.PlmnId.Mcc, servedGuami.PlmnId.Mnc)
-		plmnId = servedGuami.PlmnId
+		ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc: %v Mnc: %v] is taken from Guami List", servedGuami.PlmnID.Mcc, servedGuami.PlmnID.Mnc)
+		plmnId = servedGuami.PlmnID
 	}
 
 	var authInfo models.AuthenticationInfo

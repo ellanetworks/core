@@ -46,7 +46,7 @@ func deepCopyTrafficControlData(src *models.TrafficControlData) *models.TrafficC
 }
 
 func GetSmPolicyData() (*models.SmPolicyData, error) {
-	operator, err := pcfCtx.DbInstance.GetOperator()
+	operator, err := pcfCtx.DBInstance.GetOperator()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator: %s", err)
 	}
