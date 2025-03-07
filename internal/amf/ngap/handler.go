@@ -599,7 +599,12 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		taiList := make([]models.Tai, len(supportTaiList))
 		copy(taiList, supportTaiList)
 		for i := range taiList {
-			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
+			tac, err := util.TACConfigToModels(taiList[i].Tac)
+			if err != nil {
+				ran.Log.Warnf("tac is invalid: %s", taiList[i].Tac)
+				continue
+			}
+			taiList[i].Tac = tac
 		}
 
 		for i, tai := range ran.SupportedTAList {
@@ -3732,7 +3737,12 @@ func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU
 		taiList := make([]models.Tai, len(supportTaiList))
 		copy(taiList, supportTaiList)
 		for i := range taiList {
-			taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
+			tac, err := util.TACConfigToModels(taiList[i].Tac)
+			if err != nil {
+				ran.Log.Warnf("tac is invalid: %s", taiList[i].Tac)
+				continue
+			}
+			taiList[i].Tac = tac
 		}
 		for i, tai := range ran.SupportedTAList {
 			if context.InTaiList(tai.Tai, taiList) {

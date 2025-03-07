@@ -491,14 +491,21 @@ func BuildRegistrationAccept(
 	if plmnSupported != nil {
 		registrationAccept.EquivalentPlmns = nasType.NewEquivalentPlmns(nasMessage.RegistrationAcceptEquivalentPlmnsType)
 		var buf []uint8
-		buf = append(buf, util.PlmnIDToNas(plmnSupported.PlmnId)...)
+		plmnId, err := util.PlmnIDToNas(plmnSupported.PlmnId)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert PLMN ID to NAS: %s", err)
+		}
+		buf = append(buf, plmnId...)
 		registrationAccept.EquivalentPlmns.SetLen(uint8(len(buf)))
 		copy(registrationAccept.EquivalentPlmns.Octet[:], buf)
 	}
 
 	if len(ue.RegistrationArea[anType]) > 0 {
 		registrationAccept.TAIList = nasType.NewTAIList(nasMessage.RegistrationAcceptTAIListType)
-		taiListNas := util.TaiListToNas(ue.RegistrationArea[anType])
+		taiListNas, err := util.TaiListToNas(ue.RegistrationArea[anType])
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert TAI list to NAS: %s", err)
+		}
 		registrationAccept.TAIList.SetLen(uint8(len(taiListNas)))
 		registrationAccept.TAIList.SetPartialTrackingAreaIdentityList(taiListNas)
 	}
@@ -507,7 +514,11 @@ func BuildRegistrationAccept(
 		registrationAccept.AllowedNSSAI = nasType.NewAllowedNSSAI(nasMessage.RegistrationAcceptAllowedNSSAIType)
 		var buf []uint8
 		for _, allowedSnssai := range ue.AllowedNssai[anType] {
-			buf = append(buf, util.SnssaiToNas(*allowedSnssai.AllowedSnssai)...)
+			snssai, err := util.SnssaiToNas(*allowedSnssai.AllowedSnssai)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert SNSSAI to NAS: %s", err)
+			}
+			buf = append(buf, snssai...)
 		}
 		registrationAccept.AllowedNSSAI.SetLen(uint8(len(buf)))
 		registrationAccept.AllowedNSSAI.SetSNSSAIValue(buf)
@@ -555,7 +566,10 @@ func BuildRegistrationAccept(
 		registrationAccept.LADNInformation = nasType.NewLADNInformation(nasMessage.RegistrationAcceptLADNInformationType)
 		buf := make([]uint8, 0)
 		for _, ladn := range ue.LadnInfo {
-			ladnNas := util.LadnToNas(ladn.Dnn, ladn.TaiLists)
+			ladnNas, err := util.LadnToNas(ladn.Dnn, ladn.TaiLists)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert LADN to NAS: %s", err)
+			}
 			buf = append(buf, ladnNas...)
 		}
 		registrationAccept.LADNInformation.SetLen(uint16(len(buf)))
@@ -572,7 +586,10 @@ func BuildRegistrationAccept(
 	if anType == models.AccessType__3_GPP_ACCESS && ue.AmPolicyAssociation != nil &&
 		ue.AmPolicyAssociation.ServAreaRes != nil {
 		registrationAccept.ServiceAreaList = nasType.NewServiceAreaList(nasMessage.RegistrationAcceptServiceAreaListType)
-		partialServiceAreaList := util.PartialServiceAreaListToNas(ue.PlmnId, *ue.AmPolicyAssociation.ServAreaRes)
+		partialServiceAreaList, err := util.PartialServiceAreaListToNas(ue.PlmnId, *ue.AmPolicyAssociation.ServAreaRes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert PartialServiceAreaList to NAS: %s", err)
+		}
 		registrationAccept.ServiceAreaList.SetLen(uint8(len(partialServiceAreaList)))
 		registrationAccept.ServiceAreaList.SetPartialServiceAreaList(partialServiceAreaList)
 	}

@@ -1,21 +1,18 @@
 package util
 
 import (
+	"fmt"
 	"net"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap/ngapType"
 )
 
-func IPAddressToNgap(ipv4Addr, ipv6Addr string) ngapType.TransportLayerAddress {
-	var ipAddr ngapType.TransportLayerAddress
-
+func IPAddressToNgap(ipv4Addr, ipv6Addr string) (*ngapType.TransportLayerAddress, error) {
 	if ipv4Addr == "" && ipv6Addr == "" {
-		logger.AmfLog.Warnln("IPAddressToNgap: Both ipv4 and ipv6 are nil string")
-		return ipAddr
+		return nil, fmt.Errorf("both ipv4 and ipv6 are nil string")
 	}
-
+	var ipAddr *ngapType.TransportLayerAddress
 	if ipv4Addr != "" && ipv6Addr != "" { // Both ipv4 & ipv6
 		ipv4NetIP := net.ParseIP(ipv4Addr).To4()
 		ipv6NetIP := net.ParseIP(ipv6Addr).To16()
@@ -52,5 +49,5 @@ func IPAddressToNgap(ipv4Addr, ipv6Addr string) ngapType.TransportLayerAddress {
 		}
 	}
 
-	return ipAddr
+	return ipAddr, nil
 }

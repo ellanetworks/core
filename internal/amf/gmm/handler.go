@@ -15,6 +15,7 @@ import (
 	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/omec-project/nas"
@@ -487,7 +488,12 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	taiList := make([]models.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)
 	for i := range taiList {
-		taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
+		tac, err := util.TACConfigToModels(taiList[i].Tac)
+		if err != nil {
+			logger.AmfLog.Warnf("failed to convert TAC[%s] to models.Tac", taiList[i].Tac)
+			continue
+		}
+		taiList[i].Tac = tac
 	}
 	if !context.InTaiList(ue.Tai, taiList) {
 		gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMMTrackingAreaNotAllowed, "")
