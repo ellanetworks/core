@@ -37,17 +37,16 @@ type UeAMPolicyData struct {
 }
 
 type UeSmPolicyData struct {
-	PackFiltMapToPccRuleId map[string]string    // use PackFiltId as Key
-	SmPolicyData           *models.SmPolicyData // Svbscription Data
-	PolicyContext          *models.SmPolicyContextData
-	AppSessions            map[string]bool // related appSessionId
-	PcfUe                  *UeContext
+	SmPolicyData  *models.SmPolicyData // Svbscription Data
+	PolicyContext *models.SmPolicyContextData
+	AppSessions   map[string]bool // related appSessionId
+	PcfUe         *UeContext
 }
 
-func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociationRequest) *UeAMPolicyData {
+func (ue *UeContext) NewUeAMPolicyData(assolID string, req models.PolicyAssociationRequest) *UeAMPolicyData {
 	ue.Gpsi = req.Gpsi
 	ue.Pei = req.Pei
-	ue.AMPolicyData[assolId] = &UeAMPolicyData{
+	ue.AMPolicyData[assolID] = &UeAMPolicyData{
 		ServAreaRes: req.ServAreaRes,
 		AccessType:  req.AccessType,
 		ServingPlmn: req.ServingPlmn,
@@ -57,8 +56,8 @@ func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociat
 		UserLoc:     req.UserLoc,
 		PcfUe:       ue,
 	}
-	ue.AMPolicyData[assolId].Pras = make(map[string]models.PresenceInfo)
-	return ue.AMPolicyData[assolId]
+	ue.AMPolicyData[assolID].Pras = make(map[string]models.PresenceInfo)
+	return ue.AMPolicyData[assolID]
 }
 
 // returns UeSmPolicyData and insert related info to Ue with smPolId
@@ -69,7 +68,6 @@ func (ue *UeContext) NewUeSmPolicyData(key string, request models.SmPolicyContex
 	data := UeSmPolicyData{}
 	data.PolicyContext = &request
 	data.SmPolicyData = smData
-	data.PackFiltMapToPccRuleId = make(map[string]string)
 	data.AppSessions = make(map[string]bool)
 	data.PcfUe = ue
 	ue.SmPolicyData[key] = &data

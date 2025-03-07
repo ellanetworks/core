@@ -12,7 +12,7 @@ import (
 )
 
 func DeleteAMPolicy(polAssoId string) error {
-	ue := pcfCtx.PCFUeFindByPolicyId(polAssoId)
+	ue := pcfCtx.PCFUeFindByPolicyID(polAssoId)
 	if ue == nil {
 		return fmt.Errorf("ue not found in PCF for policy association ID: %s", polAssoId)
 	}
@@ -25,7 +25,7 @@ func DeleteAMPolicy(polAssoId string) error {
 }
 
 func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest) (*models.PolicyUpdate, error) {
-	ue := pcfCtx.PCFUeFindByPolicyId(polAssoId)
+	ue := pcfCtx.PCFUeFindByPolicyID(polAssoId)
 	if ue == nil || ue.AMPolicyData[polAssoId] == nil {
 		return nil, fmt.Errorf("polAssoId not found  in PCF")
 	}

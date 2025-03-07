@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/config"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -46,11 +45,10 @@ func deepCopyTrafficControlData(src *models.TrafficControlData) *models.TrafficC
 	return &copiedTrafficControlData
 }
 
-func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
+func GetSmPolicyData() (*models.SmPolicyData, error) {
 	operator, err := pcfCtx.DbInstance.GetOperator()
 	if err != nil {
-		logger.PcfLog.Warnf("Failed to get operator: %+v", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to get operator: %s", err)
 	}
 	smPolicyData := &models.SmPolicyData{
 		SmPolicySnssaiData: make(map[string]models.SmPolicySnssaiData),
@@ -89,7 +87,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (*models.SmPolicyDecisio
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
-		smData, err = GetSmPolicyData(ue.Supi)
+		smData, err = GetSmPolicyData()
 		if err != nil {
 			return nil, fmt.Errorf("can't find UE SM Policy Data in UDR: %s", ue.Supi)
 		}
@@ -172,7 +170,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (*models.SmPolicyDecisio
 }
 
 func DeleteSMPolicy(smPolicyID string) error {
-	ue := pcfCtx.PCFUeFindByPolicyId(smPolicyID)
+	ue := pcfCtx.PCFUeFindByPolicyID(smPolicyID)
 	if ue == nil {
 		return fmt.Errorf("ue not found in PCF for smPolicyID: %s", smPolicyID)
 	}
