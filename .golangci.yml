@@ -26,3 +26,11 @@ linters:
     # - gocognit
     # - nestif
     # - wsl
+
+issues:
+  exclude-case-sensitive: false
+  new: false
+  new-from-rev: ""
+severity:
+  default-severity: error
+  case-sensitive: false
