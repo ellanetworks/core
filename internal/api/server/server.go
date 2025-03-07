@@ -55,7 +55,7 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	gin.SetMode(mode)
 	router := gin.New()
 	router.Use(ginToZap(logger.APILog))
-	AddUiService(router)
+	AddUIService(router)
 
 	apiGroup := router.Group("/api/v1")
 
@@ -124,7 +124,7 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	return router
 }
 
-func AddUiService(engine *gin.Engine) {
+func AddUIService(engine *gin.Engine) {
 	staticFilesSystem, err := fs.Sub(ui.FrontendFS, "out")
 	if err != nil {
 		logger.APILog.Fatal(err)

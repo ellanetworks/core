@@ -14,12 +14,12 @@ import (
 func RATRestrictionInformationToNgap(ratType models.RatType) (ratResInfo ngapType.RATRestrictionInformation) {
 	// Only support EUTRA & NR in version15.2.0
 	switch ratType {
-	case models.RatType_EUTRA:
+	case models.RatTypeEutra:
 		ratResInfo.Value = aper.BitString{
 			Bytes:     []byte{0x80},
 			BitLength: 8,
 		}
-	case models.RatType_NR:
+	case models.RatTypeNR:
 		ratResInfo.Value = aper.BitString{
 			Bytes:     []byte{0x40},
 			BitLength: 8,

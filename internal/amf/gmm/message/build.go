@@ -78,7 +78,7 @@ func BuildNotification(ue *context.AmfUe, accessType models.AccessType) ([]byte,
 	notification.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
 	notification.ExtendedProtocolDiscriminator.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
 	notification.SetMessageType(nas.MsgTypeNotification)
-	if accessType == models.AccessType__3_GPP_ACCESS {
+	if accessType == models.AccessType3GPPAccess {
 		notification.SetAccessType(nasMessage.AccessType3GPP)
 	} else {
 		notification.SetAccessType(nasMessage.AccessTypeNon3GPP)
@@ -121,7 +121,7 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 	authenticationRequest.ABBA.SetABBAContents(ue.ABBA)
 
 	switch ue.AuthenticationCtx.AuthType {
-	case models.AuthType__5_G_AKA:
+	case models.AuthType5GAka:
 		var tmpArray [16]byte
 		av5gAka, ok := ue.AuthenticationCtx.Var5gAuthData.(models.Av5gAka)
 		if !ok {
@@ -144,7 +144,7 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 		authenticationRequest.AuthenticationParameterAUTN.SetLen(uint8(len(autn)))
 		copy(tmpArray[:], autn[0:16])
 		authenticationRequest.AuthenticationParameterAUTN.SetAUTN(tmpArray)
-	case models.AuthType_EAP_AKA_PRIME:
+	case models.AuthTypeEapAkaPrime:
 		eapMsg := ue.AuthenticationCtx.Var5gAuthData.(string)
 		rawEapMsg, err := base64.StdEncoding.DecodeString(eapMsg)
 		if err != nil {
@@ -468,14 +468,14 @@ func BuildRegistrationAccept(
 
 	registrationAccept.RegistrationResult5GS.SetLen(1)
 	registrationResult := uint8(0)
-	if anType == models.AccessType__3_GPP_ACCESS {
+	if anType == models.AccessType3GPPAccess {
 		registrationResult |= nasMessage.AccessType3GPP
-		if ue.State[models.AccessType_NON_3_GPP_ACCESS].Is(context.Registered) {
+		if ue.State[models.AccessTypeNon3GPPAccess].Is(context.Registered) {
 			registrationResult |= nasMessage.AccessTypeNon3GPP
 		}
 	} else {
 		registrationResult |= nasMessage.AccessTypeNon3GPP
-		if ue.State[models.AccessType__3_GPP_ACCESS].Is(context.Registered) {
+		if ue.State[models.AccessType3GPPAccess].Is(context.Registered) {
 			registrationResult |= nasMessage.AccessType3GPP
 		}
 	}
@@ -520,7 +520,7 @@ func BuildRegistrationAccept(
 	if amfSelf.Get5gsNwFeatSuppEnable() {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
 		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)
-		if anType == models.AccessType__3_GPP_ACCESS {
+		if anType == models.AccessType3GPPAccess {
 			registrationAccept.SetIMSVoPS3GPP(amfSelf.Get5gsNwFeatSuppImsVoPS())
 		} else {
 			registrationAccept.SetIMSVoPSN3GPP(amfSelf.Get5gsNwFeatSuppImsVoPS())
@@ -571,7 +571,7 @@ func BuildRegistrationAccept(
 		ue.NetworkSlicingSubscriptionChanged = false // reset the value
 	}
 
-	if anType == models.AccessType__3_GPP_ACCESS && ue.AmPolicyAssociation != nil &&
+	if anType == models.AccessType3GPPAccess && ue.AmPolicyAssociation != nil &&
 		ue.AmPolicyAssociation.ServAreaRes != nil {
 		registrationAccept.ServiceAreaList = nasType.NewServiceAreaList(nasMessage.RegistrationAcceptServiceAreaListType)
 		partialServiceAreaList := util.PartialServiceAreaListToNas(ue.PlmnID, *ue.AmPolicyAssociation.ServAreaRes)
@@ -579,7 +579,7 @@ func BuildRegistrationAccept(
 		registrationAccept.ServiceAreaList.SetPartialServiceAreaList(partialServiceAreaList)
 	}
 
-	if anType == models.AccessType_NON_3_GPP_ACCESS {
+	if anType == models.AccessTypeNon3GPPAccess {
 		registrationAccept.Non3GppDeregistrationTimerValue = nasType.NewNon3GppDeregistrationTimerValue(nasMessage.RegistrationAcceptNon3GppDeregistrationTimerValueType)
 		registrationAccept.Non3GppDeregistrationTimerValue.SetLen(1)
 		timerValue := nasConvert.GPRSTimer2ToNas(ue.Non3gppDeregistrationTimerValue)

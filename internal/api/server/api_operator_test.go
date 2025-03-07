@@ -53,7 +53,7 @@ type GetOperatorTrackingResponse struct {
 	Error  string                            `json:"error,omitempty"`
 }
 
-type GetOperatorIdResponse struct {
+type GetOperatorIDResponse struct {
 	Result GetOperatorIdResponseResult `json:"result"`
 	Error  string                      `json:"error,omitempty"`
 }
@@ -178,7 +178,7 @@ func getOperatorTracking(url string, client *http.Client, token string) (int, *G
 	return res.StatusCode, &operatorTrackingResponse, nil
 }
 
-func getOperatorId(url string, client *http.Client, token string) (int, *GetOperatorIdResponse, error) {
+func getOperatorId(url string, client *http.Client, token string) (int, *GetOperatorIDResponse, error) {
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/operator/id", nil)
 	if err != nil {
 		return 0, nil, err
@@ -193,7 +193,7 @@ func getOperatorId(url string, client *http.Client, token string) (int, *GetOper
 			panic(err)
 		}
 	}()
-	var operatorIdResponse GetOperatorIdResponse
+	var operatorIdResponse GetOperatorIDResponse
 	if err := json.NewDecoder(res.Body).Decode(&operatorIdResponse); err != nil {
 		return 0, nil, err
 	}
@@ -309,8 +309,8 @@ func updateOperatorCode(url string, client *http.Client, token string, data *Upd
 // the state of the server after previous tests.
 func TestApiOperatorEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path, gin.TestMode)
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -532,8 +532,8 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 
 func TestUpdateOperatorSliceInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
-	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path, gin.TestMode)
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -598,8 +598,8 @@ func TestUpdateOperatorSliceInvalidInput(t *testing.T) {
 
 func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
-	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path, gin.TestMode)
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -648,8 +648,8 @@ func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
 
 func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
-	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path, gin.TestMode)
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -727,8 +727,8 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 
 func TestUpdateOperatorCodeInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
-	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path, gin.TestMode)
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

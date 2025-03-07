@@ -15,7 +15,6 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/security"
 )
 
@@ -34,7 +33,6 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 		Mcsi:    0,
 		Mpsi:    0,
 	}
-	self.UriScheme = models.UriScheme_HTTP
 	self.SupportedDnns = []string{config.DNN}
 	security := &context.Security{
 		IntegrityOrder: []string{"NIA1", "NIA2"},

@@ -43,11 +43,11 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) error {
 	if err != nil {
 		return fmt.Errorf("failed to create policy: %+v", err)
 	}
-	ue.PolicyAssociationId = locationHeader
+	ue.PolicyAssociationID = locationHeader
 	ue.AmPolicyAssociation = res
 	if res.Triggers != nil {
 		for _, trigger := range res.Triggers {
-			if trigger == models.RequestTrigger_LOC_CH {
+			if trigger == models.RequestTriggerLocCh {
 				ue.RequestTriggerLocationChange = true
 			}
 		}
@@ -56,7 +56,7 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) error {
 }
 
 func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssociationUpdateRequest) error {
-	res, err := pcf.UpdateAMPolicy(ue.PolicyAssociationId, updateRequest)
+	res, err := pcf.UpdateAMPolicy(ue.PolicyAssociationID, updateRequest)
 	if err != nil {
 		return fmt.Errorf("failed to update policy: %+v", err)
 	}
@@ -69,7 +69,7 @@ func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssocia
 	ue.AmPolicyAssociation.Triggers = res.Triggers
 	ue.RequestTriggerLocationChange = false
 	for _, trigger := range res.Triggers {
-		if trigger == models.RequestTrigger_LOC_CH {
+		if trigger == models.RequestTriggerLocCh {
 			ue.RequestTriggerLocationChange = true
 		}
 	}
@@ -77,7 +77,7 @@ func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssocia
 }
 
 func AMPolicyControlDelete(ue *context.AmfUe) error {
-	err := pcf.DeleteAMPolicy(ue.PolicyAssociationId)
+	err := pcf.DeleteAMPolicy(ue.PolicyAssociationID)
 	if err != nil {
 		return fmt.Errorf("could not delete policy: %+v", err)
 	}

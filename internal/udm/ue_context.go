@@ -34,9 +34,9 @@ func (udmUeContext *UdmUeContext) init() {
 }
 
 // functions related to sdmSubscription (subscribe to notification of data change)
-func (udmUeContext *UdmUeContext) CreateSubscriptiontoNotifChange(subscriptionID string, body *models.SdmSubscription) {
-	if _, exist := udmUeContext.SubscribeToNotifChange[subscriptionID]; !exist {
-		udmUeContext.SubscribeToNotifChange[subscriptionID] = body
+func (udmUeContext *UdmUeContext) CreateSubscriptiontoNotifChange(SubscriptionID string, body *models.SdmSubscription) {
+	if _, exist := udmUeContext.SubscribeToNotifChange[SubscriptionID]; !exist {
+		udmUeContext.SubscribeToNotifChange[SubscriptionID] = body
 	}
 }
 

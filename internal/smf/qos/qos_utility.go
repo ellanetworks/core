@@ -15,8 +15,8 @@ func QosDataString(q *models.QosData) string {
 	if q == nil {
 		return ""
 	}
-	return fmt.Sprintf("QosData:[QosId:[%v], Var5QI:[%v], MaxBrUl:[%v], MaxBrDl:[%v], GBrUl:[%v], GBrDl:[%v], PriorityLevel:[%v], ARP:[%v], DQFI:[%v]]",
-		q.QosId, q.Var5qi, q.MaxbrUl, q.MaxbrDl, q.GbrUl, q.GbrDl, q.PriorityLevel, q.Arp, q.DefQosFlowIndication)
+	return fmt.Sprintf("QosData:[QosID:[%v], Var5QI:[%v], MaxBrUl:[%v], MaxBrDl:[%v], GBrUl:[%v], GBrDl:[%v], PriorityLevel:[%v], ARP:[%v], DQFI:[%v]]",
+		q.QosID, q.Var5qi, q.MaxbrUl, q.MaxbrDl, q.GbrUl, q.GbrDl, q.PriorityLevel, q.Arp, q.DefQosFlowIndication)
 }
 
 func SessRuleString(s *models.SessionRule) string {
@@ -24,7 +24,7 @@ func SessRuleString(s *models.SessionRule) string {
 		return ""
 	}
 	return fmt.Sprintf("SessRule:[RuleId:[%v], Ambr:[Dl:[%v], Ul:[%v]], AuthDefQos:[Var5QI:[%v], PriorityLevel:[%v], ARP:[%v]]]",
-		s.SessRuleId, s.AuthSessAmbr.Downlink, s.AuthSessAmbr.Uplink, s.AuthDefQos.Var5qi, s.AuthDefQos.PriorityLevel, s.AuthDefQos.Arp)
+		s.SessRuleID, s.AuthSessAmbr.Downlink, s.AuthSessAmbr.Uplink, s.AuthDefQos.Var5qi, s.AuthDefQos.PriorityLevel, s.AuthDefQos.Arp)
 }
 
 func PccRuleString(pcc *models.PccRule) string {
@@ -39,7 +39,7 @@ func PccRuleString(pcc *models.PccRule) string {
 }
 
 func TCDataString(tcData *models.TrafficControlData) string {
-	return fmt.Sprintf("TC Data:[Id:[%v], FlowStatus:[%v]]", tcData.TcId, tcData.FlowStatus)
+	return fmt.Sprintf("TC Data:[Id:[%v], FlowStatus:[%v]]", tcData.TcID, tcData.FlowStatus)
 }
 
 func PccFlowInfosString(flows []models.FlowInformation) []string {

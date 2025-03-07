@@ -66,7 +66,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 
 	AddSuciSupiPairToMap(supiOrSuci, ueid)
 
-	if authInfoResult.AuthType == models.AuthType__5_G_AKA {
+	if authInfoResult.AuthType == models.AuthType5GAka {
 		// Derive HXRES* from XRES*
 		concat := authInfoResult.AuthenticationVector.Rand + authInfoResult.AuthenticationVector.XresStar
 		hxresStarBytes, err := hex.DecodeString(concat)
@@ -83,7 +83,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 			return nil, fmt.Errorf("AUSF decode failed: %s", err)
 		}
 		P0 := []byte(snName)
-		Kseaf, err := ueauth.GetKDFValue(ausfDecode, ueauth.FC_FOR_KSEAF_DERIVATION, P0, ueauth.KDFLen(P0))
+		Kseaf, err := ueauth.GetKDFValue(ausfDecode, ueauth.FcForKseafDerivation, P0, ueauth.KDFLen(P0))
 		if err != nil {
 			logger.AusfLog.Error(err)
 		}
@@ -98,7 +98,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		av5gAka.HxresStar = hxresStar
 
 		responseBody.Var5gAuthData = av5gAka
-	} else if authInfoResult.AuthType == models.AuthType_EAP_AKA_PRIME {
+	} else if authInfoResult.AuthType == models.AuthTypeEapAkaPrime {
 		identity := ueid
 		ikPrime := authInfoResult.AuthenticationVector.IkPrime
 		ckPrime := authInfoResult.AuthenticationVector.CkPrime
@@ -119,7 +119,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 			return nil, fmt.Errorf("AUSF decode failed: %s", err)
 		}
 		P0 := []byte(snName)
-		Kseaf, err := ueauth.GetKDFValue(KausfDecode, ueauth.FC_FOR_KSEAF_DERIVATION, P0, ueauth.KDFLen(P0))
+		Kseaf, err := ueauth.GetKDFValue(KausfDecode, ueauth.FcForKseafDerivation, P0, ueauth.KDFLen(P0))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get KDF value: %s", err)
 		}

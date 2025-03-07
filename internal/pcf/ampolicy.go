@@ -34,27 +34,27 @@ func UpdateAMPolicy(polAssoID string, policyAssociationUpdateRequest models.Poli
 	var response models.PolicyUpdate
 	for _, trigger := range policyAssociationUpdateRequest.Triggers {
 		switch trigger {
-		case models.RequestTrigger_LOC_CH:
+		case models.RequestTriggerLocCh:
 			if policyAssociationUpdateRequest.UserLoc == nil {
 				return nil, fmt.Errorf("UserLoc doesn't exist in Policy Association Requset Update while Triggers include LOC_CH")
 			}
 			amPolicyData.UserLoc = policyAssociationUpdateRequest.UserLoc
 			logger.PcfLog.Infof("Ue[%s] UserLocation %+v", ue.Supi, amPolicyData.UserLoc)
-		case models.RequestTrigger_PRA_CH:
+		case models.RequestTriggerPraCh:
 			if policyAssociationUpdateRequest.PraStatuses == nil {
 				return nil, fmt.Errorf("PraStatuses doesn't exist in Policy Association")
 			}
 			for praID, praInfo := range policyAssociationUpdateRequest.PraStatuses {
 				logger.PcfLog.Infof("Policy Association Presence Id[%s] change state to %s", praID, praInfo.PresenceState)
 			}
-		case models.RequestTrigger_SERV_AREA_CH:
+		case models.RequestTriggerServAreaCh:
 			if policyAssociationUpdateRequest.ServAreaRes == nil {
 				return nil, fmt.Errorf("ServAreaRes doesn't exist in Policy Association Requset Update while Triggers include SERV_AREA_CH")
 			} else {
 				amPolicyData.ServAreaRes = policyAssociationUpdateRequest.ServAreaRes
 				response.ServAreaRes = policyAssociationUpdateRequest.ServAreaRes
 			}
-		case models.RequestTrigger_RFSP_CH:
+		case models.RequestTriggerRfspCh:
 			if policyAssociationUpdateRequest.Rfsp == 0 {
 				return nil, fmt.Errorf("rfsp doesn't exist in Policy Association Requset Update while Triggers include RFSP_CH")
 			} else {

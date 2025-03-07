@@ -26,7 +26,7 @@ type InterfaceUpfInfoItem struct {
 }
 
 type SMFContext struct {
-	DbInstance           *db.Database
+	DBInstance           *db.Database
 	UserPlaneInformation *UserPlaneInformation
 	CPNodeID             NodeID
 	LocalSEIDCount       uint64
@@ -49,19 +49,19 @@ func AllocateLocalSEID() (uint64, error) {
 	return smfContext.LocalSEIDCount, nil
 }
 
-func SMF_Self() *SMFContext {
+func SmfSelf() *SMFContext {
 	return &smfContext
 }
 
 func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
-	smfSelf := SMF_Self()
-	operator, err := smfSelf.DbInstance.GetOperator()
+	smfSelf := SmfSelf()
+	operator, err := smfSelf.DBInstance.GetOperator()
 	if err != nil {
 		logger.SmfLog.Errorf("failed to get operator information from db: %v", err)
 		return nil
 	}
 	intfUpfInfoItem := InterfaceUpfInfoItem{
-		InterfaceType:   models.UpInterfaceType_N3,
+		InterfaceType:   models.UpInterfaceTypeN3,
 		Endpoints:       make([]string, 0),
 		NetworkInstance: config.DNN,
 	}
@@ -118,7 +118,7 @@ func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 // Right now we only support 1 UPF
 // This function should be edited when we decide to support multiple UPFs
 func UpdateUserPlaneInformation() {
-	smfSelf := SMF_Self()
+	smfSelf := SmfSelf()
 	configUserPlaneInfo := BuildUserPlaneInformationFromConfig()
 	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)
 	if same {
@@ -156,7 +156,7 @@ func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInfo
 			return false
 		}
 
-		if !bytes.Equal(node.NodeID.NodeIdValue, contextUserPlaneInfo.UPNodes[nodeName].NodeID.NodeIdValue) {
+		if !bytes.Equal(node.NodeID.Value, contextUserPlaneInfo.UPNodes[nodeName].NodeID.Value) {
 			logger.SmfLog.Warnf("Node ID mismatch for node %s", nodeName)
 			return false
 		}
@@ -177,17 +177,17 @@ func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInfo
 }
 
 func GetUserPlaneInformation() *UserPlaneInformation {
-	return SMF_Self().UserPlaneInformation
+	return SmfSelf().UserPlaneInformation
 }
 
 func GetSnssaiInfo() []SnssaiSmfInfo {
-	self := SMF_Self()
-	operator, err := self.DbInstance.GetOperator()
+	self := SmfSelf()
+	operator, err := self.DBInstance.GetOperator()
 	if err != nil {
 		logger.SmfLog.Warnf("failed to get operator information from db: %v", err)
 		return nil
 	}
-	profiles, err := self.DbInstance.ListProfiles()
+	profiles, err := self.DBInstance.ListProfiles()
 	if err != nil {
 		logger.SmfLog.Warnf("failed to get profiles from db: %v", err)
 		return nil

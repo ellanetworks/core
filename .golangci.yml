@@ -35,7 +35,3 @@ issues:
 severity:
   default-severity: error
   case-sensitive: false
-  rules:
-    - linters:
-        - gomnd
-      severity: ignore

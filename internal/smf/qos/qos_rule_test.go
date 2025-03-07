@@ -75,7 +75,7 @@ func makeSamplePccRules() map[string]*models.PccRule {
 
 func makeSampleQosData() map[string]*models.QosData {
 	qosData1 := models.QosData{
-		QosId:                "5",
+		QosID:                "5",
 		Var5qi:               5,
 		MaxbrUl:              "101 Mbps",
 		MaxbrDl:              "201 Mbps",
@@ -87,7 +87,7 @@ func makeSampleQosData() map[string]*models.QosData {
 
 	/*
 		qosData2 := models.QosData{
-			QosId:                "QosData2",
+			QosID:                "QosData2",
 			Var5qi:               3,
 			MaxbrUl:              "301 Mbps",
 			MaxbrDl:              "401 Mbps",
@@ -115,7 +115,7 @@ func makeSampleSessionRule() map[string]*models.SessionRule {
 			Arp: &models.Arp{
 				PriorityLevel: 8,
 				PreemptCap:    models.PreemptionCapability_MAY_PREEMPT,
-				PreemptVuln:   models.PreemptionVulnerability_NOT_PREEMPTABLE,
+				PreemptVuln:   models.PreemptionVulnerabilityNotPreemptable,
 			},
 			PriorityLevel: 8,
 		},
@@ -130,7 +130,7 @@ func makeSampleSessionRule() map[string]*models.SessionRule {
 			Arp: &models.Arp{
 				PriorityLevel: 7,
 				PreemptCap:    models.PreemptionCapability_MAY_PREEMPT,
-				PreemptVuln:   models.PreemptionVulnerability_NOT_PREEMPTABLE,
+				PreemptVuln:   models.PreemptionVulnerabilityNotPreemptable,
 			},
 			PriorityLevel: 7,
 		},

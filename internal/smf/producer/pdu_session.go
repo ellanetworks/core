@@ -78,8 +78,8 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	}
 
 	// IP Allocation
-	smfSelf := context.SMF_Self()
-	if ip, err := smfSelf.DbInstance.AllocateIP(smContext.Supi); err != nil {
+	smfSelf := context.SmfSelf()
+	if ip, err := smfSelf.DBInstance.AllocateIP(smContext.Supi); err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, failed allocate IP address: ", err)
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMInsufficientResources)
 		return "", response, fmt.Errorf("failed allocate IP address: %v", err)
@@ -180,7 +180,7 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 
 	pfcpAction := &pfcpAction{}
 	var response models.UpdateSmContextResponse
-	response.JsonData = new(models.SmContextUpdatedData)
+	response.JSONData = new(models.SmContextUpdatedData)
 
 	err := HandleUpdateN1Msg(request, smContext, &response, pfcpAction)
 	if err != nil {
@@ -315,7 +315,7 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 			N2InfoContent: &models.N2InfoContent{
 				NgapIeType: models.NgapIeType_PDU_RES_SETUP_REQ,
 				NgapData: &models.RefToBinaryData{
-					ContentId: "N2SmInformation",
+					ContentID: "N2SmInformation",
 				},
 			},
 			SNssai: smContext.Snssai,
@@ -325,7 +325,7 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 	// N1 Container Info
 	n1MsgContainer := models.N1MessageContainer{
 		N1MessageClass:   "SM",
-		N1MessageContent: &models.RefToBinaryData{ContentId: "GSM_NAS"},
+		N1MessageContent: &models.RefToBinaryData{ContentID: "GSM_NAS"},
 	}
 
 	// N1N2 Json Data

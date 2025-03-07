@@ -77,8 +77,8 @@ func listRadios(url string, client *http.Client, token string) (int, *ListRadios
 
 func TestListRadios(t *testing.T) {
 	tempDir := t.TempDir()
-	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path, gin.TestMode)
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -110,7 +110,7 @@ func TestListRadios(t *testing.T) {
 			},
 		},
 	}
-	ran1.GnbIp = "1.2.3.4"
+	ran1.GnbIP = "1.2.3.4"
 	ran1.GnbID = "mcc:001:mnc:01:gnb-001"
 	amf.AmfRanPool.Store("id1", &ran1)
 	ran2 := amfContext.AmfRan{}
@@ -132,7 +132,7 @@ func TestListRadios(t *testing.T) {
 			},
 		},
 	}
-	ran2.GnbIp = "2.3.4.5"
+	ran2.GnbIP = "2.3.4.5"
 	ran2.GnbID = "mcc:001:mnc:01:gnb-002"
 	amf.AmfRanPool.Store("id2", &ran2)
 

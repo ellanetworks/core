@@ -484,7 +484,7 @@ func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context
 }
 
 func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
-	var globalRANNodeID *ngapType.GlobalRANNodeID
+	var globalRanNodeID *ngapType.GlobalRANNodeID
 	var rANNodeName *ngapType.RANNodeName
 	var supportedTAList *ngapType.SupportedTAList
 	var pagingDRX *ngapType.PagingDRX
@@ -514,10 +514,10 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		ie := nGSetupRequest.ProtocolIEs.List[i]
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDGlobalRANNodeID:
-			globalRANNodeID = ie.Value.GlobalRANNodeID
-			ran.Log.Debugln("Decode IE GlobalRANNodeID")
-			if globalRANNodeID == nil {
-				ran.Log.Error("GlobalRANNodeID is nil")
+			globalRanNodeID = ie.Value.GlobalRANNodeID
+			ran.Log.Debugln("Decode IE GlobalRanNodeID")
+			if globalRanNodeID == nil {
+				ran.Log.Error("GlobalRanNodeID is nil")
 				return
 			}
 		case ngapType.ProtocolIEIDSupportedTAList:
@@ -543,8 +543,8 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			}
 		}
 	}
-	if globalRANNodeID != nil {
-		ran.SetRanId(globalRANNodeID)
+	if globalRanNodeID != nil {
+		ran.SetRanID(globalRanNodeID)
 	}
 
 	if rANNodeName != nil {
@@ -968,13 +968,13 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 				recommendedCell.NgRanCGI.NRCGI = new(models.Ncgi)
 				plmnID := util.PlmnIDToModels(item.NGRANCGI.NRCGI.PLMNIdentity)
 				recommendedCell.NgRanCGI.NRCGI.PlmnID = &plmnID
-				recommendedCell.NgRanCGI.NRCGI.NrCellId = ngapConvert.BitStringToHex(&item.NGRANCGI.NRCGI.NRCellIdentity.Value)
+				recommendedCell.NgRanCGI.NRCGI.NrCellID = ngapConvert.BitStringToHex(&item.NGRANCGI.NRCGI.NRCellIdentity.Value)
 			case ngapType.NGRANCGIPresentEUTRACGI:
 				recommendedCell.NgRanCGI.Present = context.NgRanCgiPresentEUTRACGI
 				recommendedCell.NgRanCGI.EUTRACGI = new(models.Ecgi)
 				plmnID := util.PlmnIDToModels(item.NGRANCGI.EUTRACGI.PLMNIdentity)
 				recommendedCell.NgRanCGI.EUTRACGI.PlmnID = &plmnID
-				recommendedCell.NgRanCGI.EUTRACGI.EutraCellId = ngapConvert.BitStringToHex(
+				recommendedCell.NgRanCGI.EUTRACGI.EutraCellID = ngapConvert.BitStringToHex(
 					&item.NGRANCGI.EUTRACGI.EUTRACellIdentity.Value)
 			}
 
@@ -994,7 +994,7 @@ func HandleUEContextReleaseComplete(ran *context.AmfRan, message *ngapType.NGAPP
 			switch item.AMFPagingTarget.Present {
 			case ngapType.AMFPagingTargetPresentGlobalRANNodeID:
 				recommendedRanNode.Present = context.RecommendRanNodePresentRanNode
-				recommendedRanNode.GlobalRanNodeId = new(models.GlobalRanNodeId)
+				recommendedRanNode.GlobalRanNodeID = new(models.GlobalRanNodeID)
 			case ngapType.AMFPagingTargetPresentTAI:
 				recommendedRanNode.Present = context.RecommendRanNodePresentTAI
 				tai := util.TaiToModels(*item.AMFPagingTarget.TAI)
@@ -1864,7 +1864,7 @@ func HandlePDUSessionResourceNotify(ran *context.AmfRan, message *ngapType.NGAPP
 		}
 
 		if response != nil {
-			responseData := response.JsonData
+			responseData := response.JSONData
 			n2Info := response.BinaryDataN1SmMessage
 			n1Msg := response.BinaryDataN2SmInformation
 			if n2Info != nil {
@@ -1907,7 +1907,7 @@ func HandlePDUSessionResourceNotify(ran *context.AmfRan, message *ngapType.NGAPP
 				ranUe.Log.Errorf("SendUpdateSmContextN2Info[PDUSessionResourceNotifyReleasedTransfer] Error: %+v", err)
 			}
 			if response != nil {
-				responseData := response.JsonData
+				responseData := response.JSONData
 				n2Info := response.BinaryDataN1SmMessage
 				n1Msg := response.BinaryDataN2SmInformation
 				BuildAndSendN1N2Msg(ranUe, n1Msg, n2Info, responseData.N2SmInfoType, pduSessionID)
@@ -2174,7 +2174,7 @@ func HandleInitialContextSetupResponse(ran *context.AmfRan, message *ngapType.NG
 		}
 	}
 
-	if ranUe.Ran.AnType == models.AccessType_NON_3_GPP_ACCESS {
+	if ranUe.Ran.AnType == models.AccessTypeNon3GPPAccess {
 		ngap_message.SendDownlinkNasTransport(ranUe, amfUe.RegistrationAcceptForNon3GPPAccess, nil)
 	}
 
@@ -2771,7 +2771,7 @@ func HandleHandoverNotify(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			if !ok {
 				sourceUe.Log.Errorf("SmContext[PDU Session ID:%d] not found", pduSessionid)
 			}
-			_, err := consumer.SendUpdateSmContextN2HandoverComplete(amfUe, smContext, "", nil)
+			_, err := consumer.SendUpdateSmContextN2HandoverComplete(amfUe, smContext, nil)
 			if err != nil {
 				ran.Log.Errorf("Send UpdateSmContextN2HandoverComplete Error[%s]", err.Error())
 			}
@@ -2928,8 +2928,7 @@ func HandlePathSwitchRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			if !ok {
 				ranUe.Log.Errorf("SmContext[PDU Session ID:%d] not found", pduSessionID)
 			}
-			response, err := consumer.SendUpdateSmContextXnHandoverFailed(amfUe, smContext,
-				models.N2SmInfoTypePathSwitchSetupFail, transfer)
+			response, err := consumer.SendUpdateSmContextXnHandoverFailed(smContext, models.N2SmInfoTypePathSwitchSetupFail, transfer)
 			if err != nil {
 				ranUe.Log.Errorf("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error: %+v", err)
 			}
@@ -3347,11 +3346,11 @@ func HandleHandoverRequired(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		return
 	}
 	aMFSelf := context.AMF_Self()
-	targetRanNodeId := util.RanIDToModels(targetID.TargetRANNodeID.GlobalRANNodeID)
-	targetRan, ok := aMFSelf.AmfRanFindByRanID(targetRanNodeId)
+	targetRanNodeID := util.RanIDToModels(targetID.TargetRANNodeID.GlobalRANNodeID)
+	targetRan, ok := aMFSelf.AmfRanFindByRanID(targetRanNodeID)
 	if !ok {
 		// handover between different AMF
-		sourceUe.Log.Warnf("Handover required : cannot find target Ran Node Id[%+v] in this AMF", targetRanNodeId)
+		sourceUe.Log.Warnf("Handover required : cannot find target Ran Node Id[%+v] in this AMF", targetRanNodeID)
 		sourceUe.Log.Errorln("Handover between different AMF has not been implemented yet")
 		return
 		// Described in (23.502 4.9.1.3.2) step 3.Namf_Communication_CreateUEContext Request
@@ -3360,15 +3359,14 @@ func HandleHandoverRequired(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		sourceUe.HandOverType.Value = handoverType.Value
 		tai := util.TaiToModels(targetID.TargetRANNodeID.SelectedTAI)
 		targetId := models.NgRanTargetID{
-			RanNodeId: &targetRanNodeId,
+			RanNodeID: &targetRanNodeID,
 			Tai:       &tai,
 		}
 		var pduSessionReqList ngapType.PDUSessionResourceSetupListHOReq
 		for _, pDUSessionResourceHoItem := range pDUSessionResourceListHORqd.List {
 			pduSessionID := int32(pDUSessionResourceHoItem.PDUSessionID.Value)
 			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionID); exist {
-				response, err := consumer.SendUpdateSmContextN2HandoverPreparing(amfUe, smContext,
-					models.N2SmInfoTypeHandoverRequired, pDUSessionResourceHoItem.HandoverRequiredTransfer, "", &targetId)
+				response, err := consumer.SendUpdateSmContextN2HandoverPreparing(smContext, models.N2SmInfoTypeHandoverRequired, pDUSessionResourceHoItem.HandoverRequiredTransfer, &targetId)
 				if err != nil {
 					sourceUe.Log.Errorf("consumer.SendUpdateSmContextN2HandoverPreparing Error: %+v", err)
 				}

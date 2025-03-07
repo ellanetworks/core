@@ -22,10 +22,9 @@ import (
 )
 
 const (
-	CONNECTED               = "Connected"
-	DISCONNECTED            = "Disconnected"
-	IDLE                    = "Idle"
-	PDU_SESS_REL_CMD string = "PDUSessionReleaseCommand"
+	CONNECTED    = "Connected"
+	DISCONNECTED = "Disconnected"
+	IDLE         = "Idle"
 )
 
 var (
@@ -49,7 +48,7 @@ type SMContext struct {
 	Gpsi                         string
 	Dnn                          string
 	UeTimeZone                   string
-	ServingNfId                  string
+	ServingNfID                  string
 	SmStatusNotifyUri            string
 	UpCnxState                   models.UpCnxState
 	AnType                       models.AccessType
@@ -188,12 +187,12 @@ func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
 }
 
 func (smContext *SMContext) ReleaseUeIpAddr() error {
-	smfSelf := SMF_Self()
+	smfSelf := SmfSelf()
 	if smContext.PDUAddress == nil {
 		return nil
 	}
 	if ip := smContext.PDUAddress.Ip; ip != nil && !smContext.PDUAddress.UpfProvided {
-		err := smfSelf.DbInstance.ReleaseIP(smContext.Supi)
+		err := smfSelf.DBInstance.ReleaseIP(smContext.Supi)
 		if err != nil {
 			return fmt.Errorf("failed to release IP Address, %v", err)
 		}
@@ -215,7 +214,7 @@ func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData
 	smContext.UeLocation = createData.UeLocation
 	smContext.UeTimeZone = createData.UeTimeZone
 	smContext.OldPduSessionID = createData.OldPduSessionID
-	smContext.ServingNfId = createData.ServingNfId
+	smContext.ServingNfID = createData.ServingNfID
 }
 
 func (smContext *SMContext) BuildCreatedData() (createdData *models.SmContextCreatedData) {

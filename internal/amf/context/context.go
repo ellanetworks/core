@@ -73,9 +73,8 @@ type AMFContext struct {
 	AmfRanPool                      sync.Map         // map[net.Conn]*AmfRan
 	LadnPool                        map[string]*LADN // dnn as key
 	RelativeCapacity                int64
-	NfId                            string
+	NfID                            string
 	Name                            string
-	UriScheme                       models.UriScheme
 	NgapPort                        int
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
 	SupportedDnns                   []string
@@ -212,7 +211,7 @@ func (context *AMFContext) NewAmfRan(conn net.Conn) *AmfRan {
 	ran := AmfRan{}
 	ran.SupportedTAList = NewSupportedTAIList()
 	ran.Conn = conn
-	ran.GnbIp = conn.RemoteAddr().String()
+	ran.GnbIP = conn.RemoteAddr().String()
 	ran.Log = logger.AmfLog.With(logger.FieldRanAddr, conn.RemoteAddr().String())
 	context.AmfRanPool.Store(conn, &ran)
 	return &ran
@@ -226,34 +225,27 @@ func (context *AMFContext) AmfRanFindByConn(conn net.Conn) (*AmfRan, bool) {
 	return nil, false
 }
 
-func (context *AMFContext) AmfRanFindByGnbId(gnbId string) (*AmfRan, bool) {
-	if value, ok := context.AmfRanPool.Load(gnbId); ok {
-		return value.(*AmfRan), ok
-	}
-	return nil, false
-}
-
-// use ranNodeID to find RAN context, return *AmfRan and ok bit
-func (context *AMFContext) AmfRanFindByRanID(ranNodeID models.GlobalRanNodeId) (*AmfRan, bool) {
+// use RanNodeID to find RAN context, return *AmfRan and ok bit
+func (context *AMFContext) AmfRanFindByRanID(RanNodeID models.GlobalRanNodeID) (*AmfRan, bool) {
 	var ran *AmfRan
 	var ok bool
 	context.AmfRanPool.Range(func(key, value interface{}) bool {
 		amfRan := value.(*AmfRan)
 		switch amfRan.RanPresent {
-		case RanPresentGNbId:
-			if amfRan.RanId.GnbID.GNBValue == ranNodeID.GnbID.GNBValue {
+		case RanPresentGNbID:
+			if amfRan.RanId.GnbID.GNBValue == RanNodeID.GnbID.GNBValue {
 				ran = amfRan
 				ok = true
 				return false
 			}
-		case RanPresentNgeNbId:
-			if amfRan.RanId.NgeNbId == ranNodeID.NgeNbId {
+		case RanPresentNgeNbID:
+			if amfRan.RanId.NgeNbID == RanNodeID.NgeNbID {
 				ran = amfRan
 				ok = true
 				return false
 			}
-		case RanPresentN3IwfId:
-			if amfRan.RanId.N3IwfId == ranNodeID.N3IwfId {
+		case RanPresentN3IwfID:
+			if amfRan.RanId.N3IwfID == RanNodeID.N3IwfID {
 				ran = amfRan
 				ok = true
 				return false
@@ -338,7 +330,7 @@ func (context *AMFContext) AmfUeFindByGuti(guti string) (ue *AmfUe, ok bool) {
 func (context *AMFContext) AmfUeFindByPolicyAssociationID(polAssoId string) (ue *AmfUe, ok bool) {
 	context.UePool.Range(func(key, value interface{}) bool {
 		candidate := value.(*AmfUe)
-		if ok = (candidate.PolicyAssociationId == polAssoId); ok {
+		if ok = (candidate.PolicyAssociationID == polAssoId); ok {
 			ue = candidate
 			return false
 		}
@@ -366,7 +358,7 @@ func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 }
 
 func (context *AMFContext) GetIPv4Uri() string {
-	return fmt.Sprintf("%s://", context.UriScheme)
+	return "://"
 }
 
 func (context *AMFContext) Get5gsNwFeatSuppImsVoPS() uint8 {

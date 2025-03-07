@@ -48,7 +48,7 @@ func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) err
 		}
 	}
 
-	ctx.UpCnxState = models.UpCnxState_ACTIVATED
+	ctx.UpCnxState = models.UpCnxStateActivated
 	return nil
 }
 
@@ -80,7 +80,7 @@ func HandlePathSwitchRequestTransfer(b []byte, ctx *SMContext) error {
 				dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
 				dlOuterHeaderCreation.Teid = teid
 				dlOuterHeaderCreation.Ipv4Address = gtpTunnel.TransportLayerAddress.Value.Bytes
-				DLPDR.FAR.State = RULE_UPDATE
+				DLPDR.FAR.State = RuleUpdate
 				DLPDR.FAR.ForwardingParameters.PFCPSMReqFlags = new(PFCPSMReqFlags)
 				DLPDR.FAR.ForwardingParameters.PFCPSMReqFlags.Sndem = true
 			}
@@ -134,7 +134,7 @@ func HandleHandoverRequestAcknowledgeTransfer(b []byte, datapathPool DataPathPoo
 				dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
 				dlOuterHeaderCreation.Teid = uint32(teid)
 				dlOuterHeaderCreation.Ipv4Address = GTPTunnel.TransportLayerAddress.Value.Bytes
-				DLPDR.FAR.State = RULE_UPDATE
+				DLPDR.FAR.State = RuleUpdate
 			}
 		}
 	}

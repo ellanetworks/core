@@ -20,19 +20,19 @@ import (
 )
 
 const (
-	RanPresentGNbId   = 1
-	RanPresentNgeNbId = 2
-	RanPresentN3IwfId = 3
+	RanPresentGNbID   = 1
+	RanPresentNgeNbID = 2
+	RanPresentN3IwfID = 3
 	RanConnected      = "Connected"
 	RanDisconnected   = "Disconnected"
 )
 
 type AmfRan struct {
 	RanPresent      int
-	RanId           *models.GlobalRanNodeId
+	RanId           *models.GlobalRanNodeID
 	Name            string
 	AnType          models.AccessType
-	GnbIp           string
+	GnbIP           string
 	GnbID           string
 	Conn            net.Conn
 	SupportedTAList []SupportedTAI
@@ -105,45 +105,45 @@ func (ran *AmfRan) RanUeFindByRanUeNgapID(ranUeNgapID int64) *RanUe {
 	return nil
 }
 
-func (ran *AmfRan) SetRanId(ranNodeId *ngapType.GlobalRANNodeID) {
-	ranId := util.RanIDToModels(*ranNodeId)
-	ran.RanPresent = ranNodeId.Present
-	ran.RanId = &ranId
-	if ranNodeId.Present == ngapType.GlobalRANNodeIDPresentGlobalN3IWFID {
-		ran.AnType = models.AccessType_NON_3_GPP_ACCESS
+func (ran *AmfRan) SetRanID(RanNodeID *ngapType.GlobalRANNodeID) {
+	ranID := util.RanIDToModels(*RanNodeID)
+	ran.RanPresent = RanNodeID.Present
+	ran.RanId = &ranID
+	if RanNodeID.Present == ngapType.GlobalRANNodeIDPresentGlobalN3IWFID {
+		ran.AnType = models.AccessTypeNon3GPPAccess
 	} else {
-		ran.AnType = models.AccessType__3_GPP_ACCESS
+		ran.AnType = models.AccessType3GPPAccess
 	}
 
 	// Setting RanId in String format with ":" separation of each field
-	if ranId.PlmnID != nil {
-		ran.GnbID = ranId.PlmnID.Mcc + ":" + ranId.PlmnID.Mnc + ":"
+	if ranID.PlmnID != nil {
+		ran.GnbID = ranID.PlmnID.Mcc + ":" + ranID.PlmnID.Mnc + ":"
 	}
-	if ranId.GnbID != nil {
-		ran.GnbID += ranId.GnbID.GNBValue
+	if ranID.GnbID != nil {
+		ran.GnbID += ranID.GnbID.GNBValue
 	}
 }
 
-func (ran *AmfRan) ConvertGnbIDToRanId(gnbId string) (ranNodeId *models.GlobalRanNodeId) {
-	var ranId *models.GlobalRanNodeId = &models.GlobalRanNodeId{}
+func (ran *AmfRan) ConvertGnbIDToRanId(gnbId string) (RanNodeID *models.GlobalRanNodeID) {
+	var ranID *models.GlobalRanNodeID = &models.GlobalRanNodeID{}
 	val := strings.Split(gnbId, ":")
 	if len(val) != 3 {
 		return nil
 	}
-	ranId.PlmnID = &models.PlmnID{Mcc: val[0], Mnc: val[1]}
-	ranId.GnbID = &models.GnbID{GNBValue: val[2]}
-	ran.RanPresent = RanPresentGNbId
-	return ranId
+	ranID.PlmnID = &models.PlmnID{Mcc: val[0], Mnc: val[1]}
+	ranID.GnbID = &models.GnbID{GNBValue: val[2]}
+	ran.RanPresent = RanPresentGNbID
+	return ranID
 }
 
 func (ran *AmfRan) RanID() string {
 	switch ran.RanPresent {
-	case RanPresentGNbId:
+	case RanPresentGNbID:
 		return fmt.Sprintf("<PlmnID: %+v, GNbID: %s>", *ran.RanId.PlmnID, ran.RanId.GnbID.GNBValue)
-	case RanPresentN3IwfId:
-		return fmt.Sprintf("<PlmnID: %+v, N3IwfID: %s>", *ran.RanId.PlmnID, ran.RanId.N3IwfId)
-	case RanPresentNgeNbId:
-		return fmt.Sprintf("<PlmnID: %+v, NgeNbID: %s>", *ran.RanId.PlmnID, ran.RanId.NgeNbId)
+	case RanPresentN3IwfID:
+		return fmt.Sprintf("<PlmnID: %+v, N3IwfID: %s>", *ran.RanId.PlmnID, ran.RanId.N3IwfID)
+	case RanPresentNgeNbID:
+		return fmt.Sprintf("<PlmnID: %+v, NgeNbID: %s>", *ran.RanId.PlmnID, ran.RanId.NgeNbID)
 	default:
 		return ""
 	}

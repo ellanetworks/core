@@ -102,7 +102,7 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 			logger.AmfLog.Debugf("Set default sent param[value: %+v]", info)
 		}
 
-		events := sctp.SCTP_EVENT_DATA_IO | sctp.SCTP_EVENT_SHUTDOWN | sctp.SCTP_EVENT_ASSOCIATION
+		events := sctp.SCTPEventDataIO | sctp.SCTPEventShutdown | sctp.SCTPEventAssociation
 		if err := newConn.SubscribeEvents(events); err != nil {
 			logger.AmfLog.Errorf("Failed to accept: %+v", err)
 			if err = newConn.Close(); err != nil {

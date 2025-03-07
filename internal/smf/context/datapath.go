@@ -57,7 +57,7 @@ type DataPathPool map[int64]*DataPath
 type Destination struct {
 	DestinationIP   string
 	DestinationPort string
-	Url             string
+	URL             string
 }
 
 func NewDataPathNode() *DataPathNode {
@@ -356,10 +356,9 @@ func (dpNode *DataPathNode) CreatePccRuleQer(smContext *SMContext, qosData strin
 	var flowQER *QER
 
 	if newQER, err := dpNode.UPF.AddQER(); err != nil {
-		logger.SmfLog.Errorln("new QER failed")
-		return nil, err
+		return nil, fmt.Errorf("error adding QER: %s", err)
 	} else {
-		newQER.QFI.QFI = qos.GetQosFlowIdFromQosId(refQos.QosId)
+		newQER.QFI.QFI = qos.GetQosFlowIDFromQosID(refQos.QosID)
 
 		// Flow Status
 		newQER.GateStatus = &GateStatus{
@@ -395,7 +394,7 @@ func (dpNode *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error
 		logger.SmfLog.Errorln("new QER failed")
 		return nil, err
 	} else {
-		newQER.QFI.QFI = qos.GetQosFlowIdFromQosId(defQosData.QosId)
+		newQER.QFI.QFI = qos.GetQosFlowIDFromQosID(defQosData.QosID)
 		newQER.GateStatus = &GateStatus{
 			ULGate: GateOpen,
 			DLGate: GateOpen,
@@ -413,9 +412,9 @@ func (dpNode *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error
 
 // ActivateUpLinkPdr
 func (dpNode *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER, defPrecedence uint32) error {
-	ueIpAddr := UEIPAddress{}
-	ueIpAddr.V4 = true
-	ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
+	ueIPAddr := UEIPAddress{}
+	ueIPAddr.V4 = true
+	ueIPAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
 
 	curULTunnel := dpNode.UpLinkTunnel
 	for _, ULPDR := range curULTunnel.PDR {
@@ -430,7 +429,7 @@ func (dpNode *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER,
 		ULPDR.PDI.LocalFTeid = &FTEID{
 			Ch: true,
 		}
-		ULPDR.PDI.UEIPAddress = &ueIpAddr
+		ULPDR.PDI.UEIPAddress = &ueIPAddr
 		ULPDR.PDI.NetworkInstance = smContext.Dnn
 
 		ULPDR.OuterHeaderRemoval = &OuterHeaderRemoval{
@@ -459,7 +458,7 @@ func (dpNode *DataPathNode) ActivateUpLinkPdr(smContext *SMContext, defQER *QER,
 
 		if nextULDest := dpNode.Next(); nextULDest != nil {
 			nextULTunnel := nextULDest.UpLinkTunnel
-			iface := nextULTunnel.DestEndPoint.UPF.GetInterface(models.UpInterfaceType_N9, smContext.Dnn)
+			iface := nextULTunnel.DestEndPoint.UPF.GetInterface(models.UpInterfaceTypeN9, smContext.Dnn)
 
 			if upIP, err := iface.IP(smContext.SelectedPDUSessionType); err != nil {
 				return fmt.Errorf("could not get IP address for Uplink PDR: %s", err)
@@ -480,9 +479,9 @@ func (dpNode *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER,
 	curDLTunnel := dpNode.DownLinkTunnel
 
 	// UPF provided UE ip-addr
-	ueIpAddr := UEIPAddress{}
-	ueIpAddr.V4 = true
-	ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
+	ueIPAddr := UEIPAddress{}
+	ueIPAddr.V4 = true
+	ueIPAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
 
 	for _, DLPDR := range curDLTunnel.PDR {
 		DLPDR.QER = append(DLPDR.QER, defQER)
@@ -498,7 +497,7 @@ func (dpNode *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER,
 		}
 
 		DLPDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceCore}
-		DLPDR.PDI.UEIPAddress = &ueIpAddr
+		DLPDR.PDI.UEIPAddress = &ueIPAddr
 		DLFAR := DLPDR.FAR
 		if nextDLDest := dpNode.Prev(); nextDLDest != nil {
 			nextDLTunnel := nextDLDest.DownLinkTunnel
@@ -510,7 +509,7 @@ func (dpNode *DataPathNode) ActivateDlLinkPdr(smContext *SMContext, defQER *QER,
 				Nocp: true,
 			}
 
-			iface = nextDLDest.UPF.GetInterface(models.UpInterfaceType_N9, smContext.Dnn)
+			iface = nextDLDest.UPF.GetInterface(models.UpInterfaceTypeN9, smContext.Dnn)
 
 			if upIP, err := iface.IP(smContext.SelectedPDUSessionType); err != nil {
 				return fmt.Errorf("could not get IP address for Downlink PDR: %s", err)
@@ -577,16 +576,16 @@ func (dataPath *DataPath) ActivateTunnelAndPDR(smContext *SMContext, precedence 
 			}
 		}
 
-		ueIpAddr := UEIPAddress{}
-		ueIpAddr.V4 = true
-		ueIpAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
+		ueIPAddr := UEIPAddress{}
+		ueIPAddr.V4 = true
+		ueIPAddr.Ipv4Address = smContext.PDUAddress.Ip.To4()
 
 		if curDataPathNode.DownLinkTunnel != nil {
 			if curDataPathNode.DownLinkTunnel.SrcEndPoint == nil {
 				for _, DNDLPDR := range curDataPathNode.DownLinkTunnel.PDR {
 					DNDLPDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceCore}
 					DNDLPDR.PDI.NetworkInstance = smContext.Dnn
-					DNDLPDR.PDI.UEIPAddress = &ueIpAddr
+					DNDLPDR.PDI.UEIPAddress = &ueIPAddr
 				}
 			}
 		}

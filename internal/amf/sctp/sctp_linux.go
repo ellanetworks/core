@@ -32,7 +32,7 @@ import (
 func setsockopt(fd int, optname, optval, optlen uintptr) error {
 	_, _, errno := syscall.Syscall6(syscall.SYS_SETSOCKOPT,
 		uintptr(fd),
-		SOL_SCTP,
+		SolSCTP,
 		optname,
 		optval,
 		optlen,
@@ -46,7 +46,7 @@ func setsockopt(fd int, optname, optval, optlen uintptr) error {
 func getsockopt(fd int, optname, optval, optlen uintptr) error {
 	_, _, errno := syscall.Syscall6(syscall.SYS_GETSOCKOPT,
 		uintptr(fd),
-		SOL_SCTP,
+		SolSCTP,
 		optname,
 		optval,
 		optlen,
@@ -80,7 +80,7 @@ func (c *SCTPConn) SCTPWrite(b []byte, info *SndRcvInfo) (int, error) {
 		cmsgBuf := toBuf(info)
 		hdr := &syscall.Cmsghdr{
 			Level: syscall.IPPROTO_SCTP,
-			Type:  SCTP_CMSG_SNDRCV,
+			Type:  SCTPCmsgSndRcv,
 		}
 
 		// bitwidth of hdr.Len is platform-specific,
@@ -99,7 +99,7 @@ func parseSndRcvInfo(b []byte) (*SndRcvInfo, error) {
 	for _, m := range msgs {
 		if m.Header.Level == syscall.IPPROTO_SCTP {
 			switch m.Header.Type {
-			case SCTP_CMSG_SNDRCV:
+			case SCTPCmsgSndRcv:
 				return (*SndRcvInfo)(unsafe.Pointer(&m.Data[0])), nil
 			}
 		}
@@ -111,7 +111,7 @@ func parseNotification(b []byte) Notification {
 	snType := SCTPNotificationType(nativeEndian.Uint16(b[:2]))
 
 	switch snType {
-	case SCTP_SHUTDOWN_EVENT:
+	case SCTPShutdownEvent1:
 		notification := SCTPShutdownEvent{
 			sseType:    nativeEndian.Uint16(b[:2]),
 			sseFlags:   nativeEndian.Uint16(b[2:4]),
@@ -119,7 +119,7 @@ func parseNotification(b []byte) Notification {
 			sseAssocID: SCTPAssocID(nativeEndian.Uint32(b[8:])),
 		}
 		return &notification
-	case SCTP_ASSOC_CHANGE:
+	case SCTPAssocChange:
 		notification := SCTPAssocChangeEvent{
 			sacType:            nativeEndian.Uint16(b[:2]),
 			sacFlags:           nativeEndian.Uint16(b[2:4]),
@@ -149,7 +149,7 @@ func (c *SCTPConn) SCTPRead(b []byte) (int, *SndRcvInfo, Notification, error) {
 		return 0, nil, nil, io.EOF
 	}
 
-	if recvflags&MSG_NOTIFICATION > 0 {
+	if recvflags&MsgNotification > 0 {
 		notification := parseNotification(b[:n])
 		return n, nil, notification, nil
 	} else {
@@ -166,7 +166,7 @@ func (c *SCTPConn) Close() error {
 		fd := atomic.SwapInt32(&c._fd, -1)
 		if fd > 0 {
 			info := &SndRcvInfo{
-				Flags: SCTP_EOF,
+				Flags: SCTPEof,
 			}
 			_, err := c.SCTPWrite(nil, info)
 			if err != nil {
@@ -293,7 +293,7 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 				laddr.IPAddrs = append(laddr.IPAddrs, net.IPAddr{IP: net.IPv6zero})
 			}
 		}
-		err := SCTPBind(sock, laddr, SCTP_BINDX_ADD_ADDR)
+		err := SCTPBind(sock, laddr, SCTPBindXAddAddr)
 		if err != nil {
 			return nil, err
 		}

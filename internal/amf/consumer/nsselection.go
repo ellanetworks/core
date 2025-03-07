@@ -20,7 +20,7 @@ func NSSelectionGetForRegistration(ue *context.AmfUe, requestedNssai []models.Ma
 						AllowedSnssai: ue.SubscribedNssai[0].SubscribedSnssai,
 					},
 				},
-				AccessType: models.AccessType__3_GPP_ACCESS,
+				AccessType: models.AccessType3GPPAccess,
 			},
 		},
 	}

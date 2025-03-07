@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	RULE_INITIAL RuleState = 0
-	RULE_CREATE  RuleState = 1
-	RULE_UPDATE  RuleState = 2
-	RULE_REMOVE  RuleState = 3
+	RuleInitial RuleState = 0
+	RuleCreate  RuleState = 1
+	RuleUpdate  RuleState = 2
+	RuleRemove  RuleState = 3
 )
 
 type RuleState uint8
@@ -39,7 +39,7 @@ type SDFFilter struct {
 	TosTrafficClass         []byte
 	SecurityParameterIndex  []byte
 	FlowLabel               []byte
-	SdfFilterId             uint32
+	SdfFilterID             uint32
 	LengthOfFlowDescription uint16
 	Bid                     bool
 	Fl                      bool
@@ -56,7 +56,7 @@ type FTEID struct {
 	V6          bool
 	V4          bool
 	Teid        uint32
-	ChooseId    uint8
+	ChooseID    uint8
 }
 
 type UEIPAddress struct {

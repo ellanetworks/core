@@ -3,8 +3,8 @@ package models
 type RequestTrigger string
 
 const (
-	RequestTrigger_LOC_CH       RequestTrigger = "LOC_CH"
-	RequestTrigger_PRA_CH       RequestTrigger = "PRA_CH"
-	RequestTrigger_SERV_AREA_CH RequestTrigger = "SERV_AREA_CH"
-	RequestTrigger_RFSP_CH      RequestTrigger = "RFSP_CH"
+	RequestTriggerLocCh      RequestTrigger = "LOC_CH"
+	RequestTriggerPraCh      RequestTrigger = "PRA_CH"
+	RequestTriggerServAreaCh RequestTrigger = "SERV_AREA_CH"
+	RequestTriggerRfspCh     RequestTrigger = "RFSP_CH"
 )

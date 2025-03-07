@@ -140,7 +140,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 				tacList = append(tacList, tacNgap)
 			}
 		}
-		if ue.AmPolicyAssociation.ServAreaRes.RestrictionType == models.RestrictionType_ALLOWED_AREAS {
+		if ue.AmPolicyAssociation.ServAreaRes.RestrictionType == models.RestrictionTypeAllowedAreas {
 			item.AllowedTACs = new(ngapType.AllowedTACs)
 			item.AllowedTACs.List = append(item.AllowedTACs.List, tacList...)
 		} else {

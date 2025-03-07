@@ -20,12 +20,12 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (*models.N1N2MessageTransferRspData, error) {
+func CreateN1N2MessageTransfer(ueContextID string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (*models.N1N2MessageTransferRspData, error) {
 	amfSelf := context.AMF_Self()
-	if _, ok := amfSelf.AmfUeFindByUeContextID(ueContextId); !ok {
+	if _, ok := amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
 		return nil, fmt.Errorf("UE context not found")
 	}
-	respData, err := N1N2MessageTransferProcedure(ueContextId, n1n2MessageTransferRequest)
+	respData, err := N1N2MessageTransferProcedure(ueContextID, n1n2MessageTransferRequest)
 	if err != nil {
 		return nil, fmt.Errorf("n1 n2 message transfer error: %v", err)
 	}
@@ -61,7 +61,7 @@ func N1N2MessageTransferProcedure(ueContextID string, n1n2MessageTransferRequest
 		ok        bool
 		smContext *context.SmContext
 		n1MsgType uint8
-		anType    models.AccessType = models.AccessType__3_GPP_ACCESS
+		anType    models.AccessType = models.AccessType3GPPAccess
 	)
 
 	amfSelf := context.AMF_Self()
@@ -195,7 +195,7 @@ func N1N2MessageTransferProcedure(ueContextID string, n1n2MessageTransferRequest
 		return nil, fmt.Errorf("ue in cm idle state")
 	}
 	// 504: the UE in MICO mode or the UE is only registered over Non-3GPP access and its state is CM-IDLE
-	if !ue.State[models.AccessType__3_GPP_ACCESS].Is(context.Registered) {
+	if !ue.State[models.AccessType3GPPAccess].Is(context.Registered) {
 		return nil, fmt.Errorf("ue not reachable")
 	}
 
@@ -209,7 +209,7 @@ func N1N2MessageTransferProcedure(ueContextID string, n1n2MessageTransferRequest
 
 	// Case A (UE is CM-IDLE in 3GPP access and the associated access type is 3GPP access)
 	// in subclause 5.2.2.3.1.2 of TS29518
-	if anType == models.AccessType__3_GPP_ACCESS {
+	if anType == models.AccessType3GPPAccess {
 		if requestData.SkipInd && n2Info == nil {
 			n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseN1MsgNotTransferred
 		} else {
@@ -238,10 +238,10 @@ func N1N2MessageTransferProcedure(ueContextID string, n1n2MessageTransferRequest
 	} else {
 		// Case B (UE is CM-IDLE in Non-3GPP access but CM-CONNECTED in 3GPP access and the associated
 		// access type is Non-3GPP access)in subclause 5.2.2.3.1.2 of TS29518
-		if ue.CmConnect(models.AccessType__3_GPP_ACCESS) {
+		if ue.CmConnect(models.AccessType3GPPAccess) {
 			if n2Info == nil {
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseN1N2TransferInitiated
-				gmm_message.SendDLNASTransport(ue.RanUe[models.AccessType__3_GPP_ACCESS],
+				gmm_message.SendDLNASTransport(ue.RanUe[models.AccessType3GPPAccess],
 					nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0, nil, 0)
 			} else {
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseAttemptingToReachUE
@@ -250,11 +250,11 @@ func N1N2MessageTransferProcedure(ueContextID string, n1n2MessageTransferRequest
 					Status:  n1n2MessageTransferRspData.Cause,
 				}
 				ue.N1N2Message = &message
-				nasMsg, err := gmm_message.BuildNotification(ue, models.AccessType_NON_3_GPP_ACCESS)
+				nasMsg, err := gmm_message.BuildNotification(ue, models.AccessTypeNon3GPPAccess)
 				if err != nil {
 					return n1n2MessageTransferRspData, fmt.Errorf("build notification error: %v", err)
 				}
-				gmm_message.SendNotification(ue.RanUe[models.AccessType__3_GPP_ACCESS], nasMsg)
+				gmm_message.SendNotification(ue.RanUe[models.AccessType3GPPAccess], nasMsg)
 			}
 			return n1n2MessageTransferRspData, nil
 		} else {

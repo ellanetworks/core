@@ -98,7 +98,7 @@ func GetSmData(ueID string) ([]models.SessionManagementSubscriptionData, error) 
 			AllowedSessionTypes: make([]models.PduSessionType, 0),
 		},
 		SscModes: &models.SscModes{
-			DefaultSscMode:  models.SscMode__1,
+			DefaultSscMode:  models.SscMode1,
 			AllowedSscModes: make([]models.SscMode, 0),
 		},
 		SessionAmbr: &models.Ambr{
@@ -194,7 +194,7 @@ func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueID string)
 	}
 
 	newSubscriptionID := strconv.Itoa(udmContext.SdmSubscriptionIDGenerator)
-	SdmSubscription.SubscriptionId = newSubscriptionID
+	SdmSubscription.SubscriptionID = newSubscriptionID
 	UESubsData.SdmSubscriptions[newSubscriptionID] = &SdmSubscription
 	udmContext.SdmSubscriptionIDGenerator++
 
@@ -207,7 +207,7 @@ func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string) er
 	if udmUe == nil {
 		udmUe = udmContext.NewUdmUe(supi)
 	}
-	udmUe.CreateSubscriptiontoNotifChange(sdmSubscriptionResp.SubscriptionId, &sdmSubscriptionResp)
+	udmUe.CreateSubscriptiontoNotifChange(sdmSubscriptionResp.SubscriptionID, &sdmSubscriptionResp)
 	return nil
 }
 

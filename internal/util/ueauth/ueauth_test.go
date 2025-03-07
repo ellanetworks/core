@@ -31,7 +31,7 @@ func TestGetKDFValue(t *testing.T) {
 			SQNxorAK:    "bb52e91c747a",
 			CK:          "5349fbe098649f948f5d2e973a81c00f",
 			IK:          "9744871ad32bf9bbd1dd5ce54e3e2e5a",
-			FC:          ueauth.FC_FOR_CK_PRIME_IK_PRIME_DERIVATION,
+			FC:          ueauth.FcForCkPrimeIkPrimeDerication,
 			DerivedKey:  "0093962d0dd84aa5684b045c9edffa04ccfc230ca74fcc96c0a5d61164f5a76c",
 		},
 		// FAILURE case
@@ -40,7 +40,7 @@ func TestGetKDFValue(t *testing.T) {
 			SQNxorAK:    "bb52e91c747a",
 			CK:          "5349fbe098649f948f5d2e973a81c00f",
 			IK:          "9744871ad32bf9bbd1dd5ce54e3e2e5a",
-			FC:          ueauth.FC_FOR_CK_PRIME_IK_PRIME_DERIVATION,
+			FC:          ueauth.FcForCkPrimeIkPrimeDerication,
 			DerivedKey:  "0093962d0dd84aa5684b045c9edffa04ccfc230ca74fcc96c0a5d61164f5a76c",
 		},
 	}

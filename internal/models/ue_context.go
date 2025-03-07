@@ -5,8 +5,8 @@ type UeContext struct {
 	SupiUnauthInd          bool
 	GpsiList               []string
 	Pei                    string
-	UdmGroupId             string
-	AusfGroupId            string
+	UdmGroupID             string
+	AusfGroupID            string
 	RoutingIndicator       string
 	SubRfsp                int32
 	SubUeAmbr              *Ambr

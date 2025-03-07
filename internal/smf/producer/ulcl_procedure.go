@@ -178,7 +178,7 @@ func EstablishULCL(smContext *context.SMContext) context.PFCPSessionResponseStat
 		if reflect.DeepEqual(ulcl.NodeID, curDPNode.UPF.NodeID) {
 			UPLinkPDR := curDPNode.UpLinkTunnel.PDR["default"]
 			DownLinkPDR := curDPNode.DownLinkTunnel.PDR["default"]
-			UPLinkPDR.State = context.RULE_INITIAL
+			UPLinkPDR.State = context.RuleInitial
 
 			FlowDespcription := util.NewIPFilterRule()
 			err := FlowDespcription.SetAction(util.Permit) // permit
@@ -264,8 +264,8 @@ func UpdatePSA2DownLink(smContext *context.SMContext) context.PFCPSessionRespons
 		if lastNode != nil {
 			if reflect.DeepEqual(lastNode.UPF.NodeID, ulcl.NodeID) {
 				downLinkPDR := curDataPathNode.DownLinkTunnel.PDR["default"]
-				downLinkPDR.State = context.RULE_INITIAL
-				downLinkPDR.FAR.State = context.RULE_INITIAL
+				downLinkPDR.State = context.RuleInitial
+				downLinkPDR.FAR.State = context.RuleInitial
 
 				pdrList = append(pdrList, downLinkPDR)
 				farList = append(farList, downLinkPDR.FAR)
@@ -327,7 +327,7 @@ func EstablishRANTunnelInfo(smContext *context.SMContext) {
 		NetworkInstance: smContext.Dnn,
 	}
 
-	activatingANUPFDLFAR.State = context.RULE_INITIAL
+	activatingANUPFDLFAR.State = context.RuleInitial
 	activatingANUPFDLFAR.ForwardingParameters.OuterHeaderCreation = new(context.OuterHeaderCreation)
 	anOuterHeaderCreation := activatingANUPFDLFAR.ForwardingParameters.OuterHeaderCreation
 	anOuterHeaderCreation.OuterHeaderCreationDescription = context.OuterHeaderCreationGtpUUdpIpv4
@@ -349,8 +349,8 @@ func UpdateRANAndIUPFUpLink(smContext *context.SMContext) context.PFCPSessionRes
 		} else {
 			UPLinkPDR := curDPNode.UpLinkTunnel.PDR["default"]
 			DownLinkPDR := curDPNode.DownLinkTunnel.PDR["default"]
-			UPLinkPDR.State = context.RULE_INITIAL
-			DownLinkPDR.State = context.RULE_INITIAL
+			UPLinkPDR.State = context.RuleInitial
+			DownLinkPDR.State = context.RuleInitial
 
 			if _, exist := bpMGR.UpdatedBranchingPoint[curDPNode.UPF]; exist {
 				// add SDF Filter

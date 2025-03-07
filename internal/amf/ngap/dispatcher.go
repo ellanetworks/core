@@ -195,8 +195,8 @@ func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
 	})
 
 	switch notification.Type() {
-	case sctp.SCTP_ASSOC_CHANGE:
-		ran.Log.Infof("SCTP_ASSOC_CHANGE notification")
+	case sctp.SCTPAssocChange:
+		ran.Log.Infof("SCTPAssocChange notification")
 		event := notification.(*sctp.SCTPAssocChangeEvent)
 		switch event.State() {
 		case sctp.SCTP_COMM_LOST:
@@ -208,8 +208,8 @@ func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
 		default:
 			ran.Log.Warnf("SCTP state[%+v] is not handled", event.State())
 		}
-	case sctp.SCTP_SHUTDOWN_EVENT:
-		ran.Log.Infof("SCTP_SHUTDOWN_EVENT notification, close the connection")
+	case sctp.SCTPShutdownEvent1:
+		ran.Log.Infof("SCTPShutdownEvent notification, close the connection")
 		ran.Remove()
 	default:
 		ran.Log.Warnf("Non handled notification type: 0x%x", notification.Type())

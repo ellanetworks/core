@@ -330,7 +330,7 @@ func BuildDownlinkNasTransport(ue *context.RanUe, nasPdu []byte,
 
 	// RAN Paging Priority (optional)
 	// Mobility Restriction List (optional)
-	if ue.Ran.AnType == models.AccessType__3_GPP_ACCESS && mobilityRestrictionList != nil {
+	if ue.Ran.AnType == models.AccessType3GPPAccess && mobilityRestrictionList != nil {
 		amfUe := ue.AmfUe
 		if amfUe == nil {
 			return nil, fmt.Errorf("amfUe is nil")
@@ -419,7 +419,7 @@ func BuildUEContextReleaseCommand(
 		ngapCause.Misc = new(ngapType.CauseMisc)
 		ngapCause.Misc.Value = cause
 	default:
-		return nil, fmt.Errorf("Cause Present is Unknown")
+		return nil, fmt.Errorf("cause present is invalid")
 	}
 	ie.Value.Cause = &ngapCause
 
@@ -978,9 +978,9 @@ func BuildInitialContextSetupRequest(
 
 	securityKey := ie.Value.SecurityKey
 	switch ranUe.Ran.AnType {
-	case models.AccessType__3_GPP_ACCESS:
+	case models.AccessType3GPPAccess:
 		securityKey.Value = ngapConvert.ByteToBitString(amfUe.Kgnb, 256)
-	case models.AccessType_NON_3_GPP_ACCESS:
+	case models.AccessTypeNon3GPPAccess:
 		securityKey.Value = ngapConvert.ByteToBitString(amfUe.Kn3iwf, 256)
 	}
 
@@ -999,7 +999,7 @@ func BuildInitialContextSetupRequest(
 	}
 
 	// Mobility Restriction List (optional)
-	if anType == models.AccessType__3_GPP_ACCESS {
+	if anType == models.AccessType3GPPAccess {
 		ie = ngapType.InitialContextSetupRequestIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDMobilityRestrictionList
 		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -1848,11 +1848,11 @@ func BuildPaging(
 	ie.Value.TAIListForPaging = new(ngapType.TAIListForPaging)
 
 	taiListForPaging := ie.Value.TAIListForPaging
-	if ue.RegistrationArea[models.AccessType__3_GPP_ACCESS] == nil {
+	if ue.RegistrationArea[models.AccessType3GPPAccess] == nil {
 		err = fmt.Errorf("Registration Area of Ue[%s] is empty", ue.Supi)
 		return nil, err
 	} else {
-		for _, tai := range ue.RegistrationArea[models.AccessType__3_GPP_ACCESS] {
+		for _, tai := range ue.RegistrationArea[models.AccessType3GPPAccess] {
 			var tac []byte
 			taiListforPagingItem := ngapType.TAIListForPagingItem{}
 			taiListforPagingItem.TAI.PLMNIdentity = util.PlmnIDToNgap(*tai.PlmnID)
@@ -1922,13 +1922,13 @@ func BuildPaging(
 				recommendedCellItem.NGRANCGI.NRCGI = new(ngapType.NRCGI)
 				nrCGI := recommendedCellItem.NGRANCGI.NRCGI
 				nrCGI.PLMNIdentity = util.PlmnIDToNgap(*recommendedCell.NgRanCGI.NRCGI.PlmnID)
-				nrCGI.NRCellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.NRCGI.NrCellId, 36)
+				nrCGI.NRCellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.NRCGI.NrCellID, 36)
 			case context.NgRanCgiPresentEUTRACGI:
 				recommendedCellItem.NGRANCGI.Present = ngapType.NGRANCGIPresentEUTRACGI
 				recommendedCellItem.NGRANCGI.EUTRACGI = new(ngapType.EUTRACGI)
 				eutraCGI := recommendedCellItem.NGRANCGI.EUTRACGI
 				eutraCGI.PLMNIdentity = util.PlmnIDToNgap(*recommendedCell.NgRanCGI.EUTRACGI.PlmnID)
-				eutraCGI.EUTRACellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.EUTRACGI.EutraCellId, 28)
+				eutraCGI.EUTRACellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.EUTRACGI.EutraCellID, 28)
 			}
 
 			if recommendedCell.TimeStayedInCell != nil {

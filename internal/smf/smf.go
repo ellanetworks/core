@@ -14,7 +14,7 @@ func Start(dbInstance *db.Database) error {
 	if dbInstance == nil {
 		return fmt.Errorf("dbInstance is nil")
 	}
-	smfContext := context.SMF_Self()
+	smfContext := context.SmfSelf()
 
 	nodeID := context.NewNodeID("0.0.0.0")
 
@@ -27,7 +27,7 @@ func Start(dbInstance *db.Database) error {
 		DefaultUserPlanePath: make(map[string][]*context.UPNode),
 	}
 
-	smfContext.DbInstance = dbInstance
+	smfContext.DBInstance = dbInstance
 	context.UpdateUserPlaneInformation()
 	metrics.RegisterSmfMetrics()
 	return nil

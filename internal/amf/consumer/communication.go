@@ -24,11 +24,11 @@ func BuildUeContextModel(ue *context.AmfUe) (ueContext models.UeContext) {
 	}
 
 	if ue.UdmGroupId != "" {
-		ueContext.UdmGroupId = ue.UdmGroupId
+		ueContext.UdmGroupID = ue.UdmGroupId
 	}
 
 	if ue.AusfGroupId != "" {
-		ueContext.AusfGroupId = ue.AusfGroupId
+		ueContext.AusfGroupID = ue.AusfGroupId
 	}
 
 	if ue.RoutingIndicator != "" {
@@ -62,14 +62,14 @@ func BuildUeContextModel(ue *context.AmfUe) (ueContext models.UeContext) {
 func buildAmPolicyReqTriggers(triggers []models.RequestTrigger) (amPolicyReqTriggers []models.AmPolicyReqTrigger) {
 	for _, trigger := range triggers {
 		switch trigger {
-		case models.RequestTrigger_LOC_CH:
-			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTrigger_LOCATION_CHANGE)
-		case models.RequestTrigger_PRA_CH:
-			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTrigger_PRA_CHANGE)
-		case models.RequestTrigger_SERV_AREA_CH:
-			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTrigger_SARI_CHANGE)
-		case models.RequestTrigger_RFSP_CH:
-			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTrigger_RFSP_INDEX_CHANGE)
+		case models.RequestTriggerLocCh:
+			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTriggerLocationChange)
+		case models.RequestTriggerPraCh:
+			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTriggerPraChange)
+		case models.RequestTriggerServAreaCh:
+			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTriggerSariChange)
+		case models.RequestTriggerRfspCh:
+			amPolicyReqTriggers = append(amPolicyReqTriggers, models.AmPolicyReqTriggerRfspIndexChange)
 		}
 	}
 	return

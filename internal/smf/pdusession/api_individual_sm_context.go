@@ -32,8 +32,8 @@ func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSm
 		return nil, errors.New("SM Context reference is missing")
 	}
 
-	if updateSmContextRequest.JsonData == nil {
-		return nil, errors.New("update request is missing JsonData")
+	if updateSmContextRequest.JSONData == nil {
+		return nil, errors.New("update request is missing JSONData")
 	}
 
 	smContext := context.GetSMContext(smContextRef)

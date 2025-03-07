@@ -563,7 +563,7 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) {
 	// if err != nil {
 	// 	ngaplog.Errorf("Build Paging failed : %s", err.Error())
 	// }
-	taiList := ue.RegistrationArea[models.AccessType__3_GPP_ACCESS]
+	taiList := ue.RegistrationArea[models.AccessType3GPPAccess]
 	context.AMF_Self().AmfRanPool.Range(func(key, value interface{}) bool {
 		ran := value.(*context.AmfRan)
 		for _, item := range ran.SupportedTAList {

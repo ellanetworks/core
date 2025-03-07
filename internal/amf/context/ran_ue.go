@@ -170,7 +170,7 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 			ranUe.Location.EutraLocation.Ecgi = new(models.Ecgi)
 		}
 		ranUe.Location.EutraLocation.Ecgi.PlmnID = &ePlmnID
-		ranUe.Location.EutraLocation.Ecgi.EutraCellId = eutraCellID
+		ranUe.Location.EutraLocation.Ecgi.EutraCellID = eutraCellID
 		ranUe.Location.EutraLocation.UeLocationTimestamp = &curTime
 		if locationInfoEUTRA.TimeStamp != nil {
 			ranUe.Location.EutraLocation.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(
@@ -208,7 +208,7 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 			ranUe.Location.NrLocation.Ncgi = new(models.Ncgi)
 		}
 		ranUe.Location.NrLocation.Ncgi.PlmnID = &nRPlmnID
-		ranUe.Location.NrLocation.Ncgi.NrCellId = nRCellID
+		ranUe.Location.NrLocation.Ncgi.NrCellID = nRCellID
 		ranUe.Location.NrLocation.UeLocationTimestamp = &curTime
 		if locationInfoNR.TimeStamp != nil {
 			ranUe.Location.NrLocation.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(locationInfoNR.TimeStamp.Value)

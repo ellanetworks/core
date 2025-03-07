@@ -65,7 +65,7 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 		Sd:  snssai.Sd,
 	}
 	smContextCreateData.Dnn = smContext.Dnn()
-	smContextCreateData.ServingNfId = amfSelf.NfId
+	smContextCreateData.ServingNfID = amfSelf.NfID
 	guamiList := context.GetServedGuamiList()
 	smContextCreateData.Guami = &models.Guami{
 		PlmnID: &models.PlmnID{
@@ -88,7 +88,7 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 		}
 	}
 	smContextCreateData.N1SmMsg = new(models.RefToBinaryData)
-	smContextCreateData.N1SmMsg.ContentId = "n1SmMsg"
+	smContextCreateData.N1SmMsg.ContentID = "n1SmMsg"
 	smContextCreateData.AnType = smContext.AccessType()
 	if ue.RatType != "" {
 		smContextCreateData.RatType = ue.RatType
@@ -123,7 +123,7 @@ func SendUpdateSmContextActivateUpCnxState(
 	*models.UpdateSmContextResponse, error,
 ) {
 	updateData := models.SmContextUpdateData{}
-	updateData.UpCnxState = models.UpCnxState_ACTIVATING
+	updateData.UpCnxState = models.UpCnxStateActivating
 	if !context.CompareUserLocation(ue.Location, smContext.UserLocation()) {
 		updateData.UeLocation = &ue.Location
 	}
@@ -132,7 +132,7 @@ func SendUpdateSmContextActivateUpCnxState(
 	}
 	if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
 		if context.InTaiList(ue.Tai, ladn.TaiLists) {
-			updateData.PresenceInLadn = models.PresenceState_IN_AREA
+			updateData.PresenceInLadn = models.PresenceStateInArea
 		}
 	}
 	return SendUpdateSmContextRequest(smContext, updateData, nil, nil)
@@ -143,7 +143,7 @@ func SendUpdateSmContextDeactivateUpCnxState(ue *context.AmfUe,
 	*models.UpdateSmContextResponse, error,
 ) {
 	updateData := models.SmContextUpdateData{}
-	updateData.UpCnxState = models.UpCnxState_DEACTIVATED
+	updateData.UpCnxState = models.UpCnxStateDeactivated
 	updateData.UeLocation = &ue.Location
 	if cause.Cause != nil {
 		updateData.Cause = *cause.Cause
@@ -176,7 +176,7 @@ func SendUpdateSmContextN2Info(
 	updateData := models.SmContextUpdateData{}
 	updateData.N2SmInfoType = n2SmType
 	updateData.N2SmInfo = new(models.RefToBinaryData)
-	updateData.N2SmInfo.ContentId = N2SMINFO_ID
+	updateData.N2SmInfo.ContentID = N2SMINFO_ID
 	updateData.UeLocation = &ue.Location
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
@@ -189,48 +189,48 @@ func SendUpdateSmContextXnHandover(
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
 		updateData.N2SmInfo = new(models.RefToBinaryData)
-		updateData.N2SmInfo.ContentId = N2SMINFO_ID
+		updateData.N2SmInfo.ContentID = N2SMINFO_ID
 	}
 	updateData.ToBeSwitched = true
 	updateData.UeLocation = &ue.Location
 	if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
 		if context.InTaiList(ue.Tai, ladn.TaiLists) {
-			updateData.PresenceInLadn = models.PresenceState_IN_AREA
+			updateData.PresenceInLadn = models.PresenceStateInArea
 		} else {
-			updateData.PresenceInLadn = models.PresenceState_OUT_OF_AREA
+			updateData.PresenceInLadn = models.PresenceStateOutOfArea
 		}
 	}
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
 
-func SendUpdateSmContextXnHandoverFailed(ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (*models.UpdateSmContextResponse, error) {
+func SendUpdateSmContextXnHandoverFailed(smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte) (*models.UpdateSmContextResponse, error) {
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
 		updateData.N2SmInfo = new(models.RefToBinaryData)
-		updateData.N2SmInfo.ContentId = N2SMINFO_ID
+		updateData.N2SmInfo.ContentID = N2SMINFO_ID
 	}
 	updateData.FailedToBeSwitched = true
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
 
-func SendUpdateSmContextN2HandoverPreparing(ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte, amfid string, targetId *models.NgRanTargetID) (*models.UpdateSmContextResponse, error) {
+func SendUpdateSmContextN2HandoverPreparing(smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte, targetId *models.NgRanTargetID) (*models.UpdateSmContextResponse, error) {
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
 		updateData.N2SmInfo = new(models.RefToBinaryData)
-		updateData.N2SmInfo.ContentId = N2SMINFO_ID
+		updateData.N2SmInfo.ContentID = N2SMINFO_ID
 	}
 	updateData.HoState = models.HoStatePreparing
-	updateData.TargetId = &models.NgRanTargetID{
-		RanNodeId: &models.GlobalRanNodeId{
+	updateData.TargetID = &models.NgRanTargetID{
+		RanNodeID: &models.GlobalRanNodeID{
 			PlmnID: &models.PlmnID{
-				Mcc: targetId.RanNodeId.PlmnID.Mcc,
-				Mnc: targetId.RanNodeId.PlmnID.Mnc,
+				Mcc: targetId.RanNodeID.PlmnID.Mcc,
+				Mnc: targetId.RanNodeID.PlmnID.Mnc,
 			},
 			GnbID: &models.GnbID{
-				BitLength: targetId.RanNodeId.GnbID.BitLength,
-				GNBValue:  targetId.RanNodeId.GnbID.GNBValue,
+				BitLength: targetId.RanNodeID.GnbID.BitLength,
+				GNBValue:  targetId.RanNodeID.GnbID.GNBValue,
 			},
 		},
 		Tai: &models.Tai{
@@ -241,10 +241,7 @@ func SendUpdateSmContextN2HandoverPreparing(ue *context.AmfUe, smContext *contex
 			Tac: targetId.Tai.Tac,
 		},
 	}
-	// amf changed in same plmn
-	if amfid != "" {
-		updateData.TargetServingNfId = amfid
-	}
+
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
 
@@ -254,35 +251,21 @@ func SendUpdateSmContextN2HandoverPrepared(ue *context.AmfUe, smContext *context
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
 		updateData.N2SmInfo = new(models.RefToBinaryData)
-		updateData.N2SmInfo.ContentId = N2SMINFO_ID
+		updateData.N2SmInfo.ContentID = N2SMINFO_ID
 	}
 	updateData.HoState = models.HoStatePrepared
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
 
-func SendUpdateSmContextN2HandoverComplete(ue *context.AmfUe, smContext *context.SmContext, amfid string, guami *models.Guami) (*models.UpdateSmContextResponse, error,
+func SendUpdateSmContextN2HandoverComplete(ue *context.AmfUe, smContext *context.SmContext, guami *models.Guami) (*models.UpdateSmContextResponse, error,
 ) {
 	updateData := models.SmContextUpdateData{}
 	updateData.HoState = models.HoStateCompleted
-	if amfid != "" {
-		updateData.ServingNfId = amfid
-		updateData.ServingNetwork = &models.PlmnID{
-			Mcc: guami.PlmnID.Mcc,
-			Mnc: guami.PlmnID.Mnc,
-		}
-		updateData.Guami = &models.Guami{
-			PlmnID: &models.PlmnID{
-				Mcc: guami.PlmnID.Mcc,
-				Mnc: guami.PlmnID.Mnc,
-			},
-			AmfID: guami.AmfID,
-		}
-	}
 	if ladn, ok := ue.ServingAMF.LadnPool[smContext.Dnn()]; ok {
 		if context.InTaiList(ue.Tai, ladn.TaiLists) {
-			updateData.PresenceInLadn = models.PresenceState_IN_AREA
+			updateData.PresenceInLadn = models.PresenceStateInArea
 		} else {
-			updateData.PresenceInLadn = models.PresenceState_OUT_OF_AREA
+			updateData.PresenceInLadn = models.PresenceStateOutOfArea
 		}
 	}
 	return SendUpdateSmContextRequest(smContext, updateData, nil, nil)
@@ -308,7 +291,7 @@ func SendUpdateSmContextN2HandoverCanceled(ue *context.AmfUe, smContext *context
 
 func SendUpdateSmContextRequest(smContext *context.SmContext, updateData models.SmContextUpdateData, n1Msg []byte, n2Info []byte) (*models.UpdateSmContextResponse, error) {
 	var updateSmContextRequest models.UpdateSmContextRequest
-	updateSmContextRequest.JsonData = &updateData
+	updateSmContextRequest.JSONData = &updateData
 	updateSmContextRequest.BinaryDataN1SmMessage = n1Msg
 	updateSmContextRequest.BinaryDataN2SmInformation = n2Info
 

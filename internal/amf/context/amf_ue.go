@@ -61,155 +61,122 @@ const (
 )
 
 type AmfUe struct {
-	// Mutex sync.Mutex `json:"mutex,omitempty" yaml:"mutex" bson:"mutex,omitempty"`
-	Mutex sync.Mutex `json:"-"`
-	/* the AMF which serving this AmfUe now */
-	ServingAMF *AMFContext `json:"servingAMF,omitempty"` // never nil
+	Mutex      sync.Mutex
+	ServingAMF *AMFContext // never nil
 
 	/* Gmm State */
-	State map[models.AccessType]*fsm.State `json:"-"`
-	/* Registration procedure related context */
-	RegistrationType5GS                uint8                           `json:"registrationType5GS,omitempty"`
-	IdentityTypeUsedForRegistration    uint8                           `json:"identityTypeUsedForRegistration,omitempty"`
-	RegistrationRequest                *nasMessage.RegistrationRequest `json:"registrationRequest,omitempty"`
-	ServingAmfChanged                  bool                            `json:"servingAmfChanged,omitempty"`
-	DeregistrationTargetAccessType     uint8                           `json:"deregistrationTargetAccessType,omitempty"` // only used when deregistration procedure is initialized by the network
-	RegistrationAcceptForNon3GPPAccess []byte                          `json:"registrationAcceptForNon3GPPAccess,omitempty"`
-	RetransmissionOfInitialNASMsg      bool                            `json:"retransmissionOfInitialNASMsg,omitempty"`
-	/* Used for AMF relocation */
-	TargetAmfUri string `json:"targetAmfUri,omitempty"`
-	/* Ue Identity*/
-	PlmnID              models.PlmnID `json:"plmnId,omitempty"`
-	Suci                string        `json:"suci,omitempty"`
-	Supi                string        `json:"supi,omitempty"`
-	UnauthenticatedSupi bool          `json:"unauthenticatedSupi,omitempty"`
-	Gpsi                string        `json:"gpsi,omitempty"`
-	Pei                 string        `json:"pei,omitempty"`
-	Tmsi                int32         `json:"tmsi,omitempty"` // 5G-Tmsi
-	Guti                string        `json:"guti,omitempty"`
-	GroupID             string        `json:"groupID,omitempty"`
-	EBI                 int32         `json:"ebi,omitempty"`
-	/* Ue Identity*/
+	State map[models.AccessType]*fsm.State
+
+	RegistrationType5GS                uint8
+	IdentityTypeUsedForRegistration    uint8
+	RegistrationRequest                *nasMessage.RegistrationRequest
+	ServingAmfChanged                  bool
+	DeregistrationTargetAccessType     uint8 // only used when deregistration procedure is initialized by the network
+	RegistrationAcceptForNon3GPPAccess []byte
+	RetransmissionOfInitialNASMsg      bool
+
+	TargetAmfUri string /* Used for AMF relocation */
+
+	PlmnID              models.PlmnID
+	Suci                string
+	Supi                string
+	UnauthenticatedSupi bool
+	Gpsi                string
+	Pei                 string
+	Tmsi                int32
+	Guti                string
+
 	/* User Location*/
-	RatType                  models.RatType      `json:"ratType,omitempty"`
-	Location                 models.UserLocation `json:"location,omitempty"`
-	Tai                      models.Tai          `json:"tai,omitempty"`
-	LocationChanged          bool                `json:"locationChanged,omitempty"`
-	LastVisitedRegisteredTai models.Tai          `json:"lastVisitedRegisteredTai,omitempty"`
-	TimeZone                 string              `json:"timezone,omitempty"`
+	RatType                  models.RatType
+	Location                 models.UserLocation
+	Tai                      models.Tai
+	LocationChanged          bool
+	LastVisitedRegisteredTai models.Tai
+	TimeZone                 string
 	/* context about udm */
-	// UdmId                             string                                    `json:"udmId,omitempty"`
-	SubscriptionDataValid             bool                                      `json:"subscriptionDataValid,omitempty"`
-	SmfSelectionData                  *models.SmfSelectionSubscriptionData      `json:"smfSelectionData,omitempty"`
-	UeContextInSmfData                *models.UeContextInSmfData                `json:"ueContextInSmfData,omitempty"`
-	TraceData                         *models.TraceData                         `json:"traceData,omitempty"`
-	UdmGroupId                        string                                    `json:"udmGroupId,omitempty"`
-	SubscribedNssai                   []models.SubscribedSnssai                 `json:"subscribeNssai,omitempty"`
-	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData `json:"accessAndMobilitySubscriptionData,omitempty"`
-	/* contex abut ausf */
-	AusfGroupId                       string                      `json:"ausfGroupId,omitempty"`
-	AusfId                            string                      `json:"ausfId,omitempty"`
-	RoutingIndicator                  string                      `json:"routingIndicator,omitempty"`
-	AuthenticationCtx                 *models.UeAuthenticationCtx `json:"authenticationCtx,omitempty"`
-	AuthFailureCauseSynchFailureTimes int                         `json:"authFailureCauseSynchFailureTimes,omitempty"`
-	ABBA                              []uint8                     `json:"abba,omitempty"`
-	Kseaf                             string                      `json:"kseaf,omitempty"`
-	Kamf                              string                      `json:"kamf,omitempty"`
-	/* context about PCF */
-	PolicyAssociationId          string                    `json:"policyAssociationId,omitempty"`
-	AmPolicyAssociation          *models.PolicyAssociation `json:"amPolicyAssociation,omitempty"`
-	RequestTriggerLocationChange bool                      `json:"requestTriggerLocationChange,omitempty"` // true if AmPolicyAssociation.Trigger contains RequestTrigger_LOC_CH
-	ConfigurationUpdateMessage   []byte                    `json:"configurationUpdateMessage,omitempty"`
-	/* UeContextForHandover*/
-	HandoverNotifyUri string `json:"handoverNotifyUri,omitempty"`
+	SubscriptionDataValid             bool
+	SmfSelectionData                  *models.SmfSelectionSubscriptionData
+	UeContextInSmfData                *models.UeContextInSmfData
+	TraceData                         *models.TraceData
+	UdmGroupId                        string
+	SubscribedNssai                   []models.SubscribedSnssai
+	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData
+
+	AusfGroupId                       string
+	AusfId                            string
+	RoutingIndicator                  string
+	AuthenticationCtx                 *models.UeAuthenticationCtx
+	AuthFailureCauseSynchFailureTimes int
+	ABBA                              []uint8
+	Kseaf                             string
+	Kamf                              string
+	PolicyAssociationID               string
+	AmPolicyAssociation               *models.PolicyAssociation
+	RequestTriggerLocationChange      bool // true if AmPolicyAssociation.Trigger contains RequestTriggerLocCh
+	ConfigurationUpdateMessage        []byte
 	/* N1N2Message */
-	N1N2MessageIDGenerator          *idgenerator.IDGenerator `json:"n1n2MessageIDGenerator,omitempty"`
-	N1N2Message                     *N1N2Message             `json:"-"`
-	N1N2MessageSubscribeIDGenerator *idgenerator.IDGenerator `json:"n1n2MessageSubscribeIDGenerator,omitempty"`
+	N1N2MessageIDGenerator          *idgenerator.IDGenerator
+	N1N2Message                     *N1N2Message
+	N1N2MessageSubscribeIDGenerator *idgenerator.IDGenerator
 	/* Pdu Sesseion context */
-	SmContextList sync.Map `json:"-"` // map[int32]*SmContext, pdu session id as key
+	SmContextList sync.Map // map[int32]*SmContext, pdu session id as key
 	/* Related Context*/
-	//RanUe map[models.AccessType]*RanUe `json:"ranUe,omitempty" yaml:"ranUe" bson:"ranUe,omitempty"`
-	RanUe map[models.AccessType]*RanUe `json:"ranUe,omitempty"`
+	RanUe map[models.AccessType]*RanUe
 	/* other */
-	OnGoing                       map[models.AccessType]*OnGoingProcedureWithPrio `json:"onGoing,omitempty"`
-	UeRadioCapability             string                                          `json:"ueRadioCapability,omitempty"` // OCTET string
-	Capability5GMM                nasType.Capability5GMM                          `json:"capability5GMM,omitempty"`
-	ConfigurationUpdateIndication nasType.ConfigurationUpdateIndication           `json:"configurationUpdateIndication,omitempty"`
+	OnGoing           map[models.AccessType]*OnGoingProcedureWithPrio
+	UeRadioCapability string // OCTET string
+	Capability5GMM    nasType.Capability5GMM
 	/* context related to Paging */
-	UeRadioCapabilityForPaging                 *UERadioCapabilityForPaging                 `json:"ueRadioCapabilityForPaging,omitempty"`
-	InfoOnRecommendedCellsAndRanNodesForPaging *InfoOnRecommendedCellsAndRanNodesForPaging `json:"infoOnRecommendedCellsAndRanNodesForPaging,omitempty"`
-	UESpecificDRX                              uint8                                       `json:"ueSpecificDRX,omitempty"`
+	UeRadioCapabilityForPaging                 *UERadioCapabilityForPaging
+	InfoOnRecommendedCellsAndRanNodesForPaging *InfoOnRecommendedCellsAndRanNodesForPaging
+	UESpecificDRX                              uint8
 	/* Security Context */
-	SecurityContextAvailable bool                         `json:"securityContextAvailable,omitempty"`
-	UESecurityCapability     nasType.UESecurityCapability `json:"ueSecurityCapability,omitempty"` // for security command
-	NgKsi                    models.NgKsi                 `json:"ngKsi,omitempty"`
-	MacFailed                bool                         `json:"macFailed,omitempty"` // set to true if the integrity check of current NAS message is failed
-	KnasInt                  [16]uint8                    `json:"knasInt,omitempty"`   // 16 byte
-	KnasEnc                  [16]uint8                    `json:"knasEnc,omitempty"`   // 16 byte
-	Kgnb                     []uint8                      `json:"kgnb,omitempty"`      // 32 byte
-	Kn3iwf                   []uint8                      `json:"kn3iwf,omitempty"`    // 32 byte
-	NH                       []uint8                      `json:"nh,omitempty"`        // 32 byte
-	NCC                      uint8                        `json:"ncc,omitempty"`       // 0..7
-	// ULCount                  security.Count               `json:"ulCount,omitempty" yaml:"ulCount" bson:"ulCount,omitempty"`
-	// DLCount                  security.Count               `json:"dlCount,omitempty" yaml:"dlCount" bson:"dlCount,omitempty"`
-	ULCount      security.Count `json:"-"`
-	DLCount      security.Count `json:"-"`
-	CipheringAlg uint8          `json:"cipheringAlg,omitempty"`
-	IntegrityAlg uint8          `json:"integrityAlg,omitempty"`
+	SecurityContextAvailable bool
+	UESecurityCapability     nasType.UESecurityCapability // for security command
+	NgKsi                    models.NgKsi
+	MacFailed                bool      // set to true if the integrity check of current NAS message is failed
+	KnasInt                  [16]uint8 // 16 byte
+	KnasEnc                  [16]uint8 // 16 byte
+	Kgnb                     []uint8   // 32 byte
+	Kn3iwf                   []uint8   // 32 byte
+	NH                       []uint8   // 32 byte
+	NCC                      uint8     // 0..7
+	ULCount                  security.Count
+	DLCount                  security.Count
+	CipheringAlg             uint8
+	IntegrityAlg             uint8
 	/* Registration Area */
 	RegistrationArea map[models.AccessType][]models.Tai `json:"registrationArea,omitempty"`
 	LadnInfo         []LADN                             `json:"ladnInfo,omitempty"`
 	/* Network Slicing related context and Nssf */
-	NetworkSliceInfo                  *models.AuthorizedNetworkSliceInfo           `json:"networkSliceInfo,omitempty"`
-	AllowedNssai                      map[models.AccessType][]models.AllowedSnssai `json:"allowedNssai,omitempty"`
-	NetworkSlicingSubscriptionChanged bool                                         `json:"networkSlicingSubscriptionChanged,omitempty"`
+	NetworkSliceInfo                  *models.AuthorizedNetworkSliceInfo
+	AllowedNssai                      map[models.AccessType][]models.AllowedSnssai
+	NetworkSlicingSubscriptionChanged bool
 	/* T3513(Paging) */
-	T3513 *Timer `json:"t3513Value,omitempty"` // for paging
+	T3513 *Timer // for paging
 	/* T3565(Notification) */
-	T3565 *Timer `json:"t3565Value,omitempty"` // for NAS Notification
+	T3565 *Timer // for NAS Notification
 	/* T3560 (for authentication request/security mode command retransmission) */
-	T3560 *Timer `json:"t3560Value,omitempty"`
+	T3560 *Timer
 	/* T3550 (for registration accept retransmission) */
-	T3550 *Timer `json:"t3550Value,omitempty"`
+	T3550 *Timer
 	/* T3522 (for deregistration request) */
-	T3522 *Timer `json:"t3522Value,omitempty"`
+	T3522 *Timer
 	/* Ue Context Release Cause */
-	ReleaseCause map[models.AccessType]*CauseAll `json:"releaseCause,omitempty"`
+	ReleaseCause map[models.AccessType]*CauseAll
 	/* T3502 (Assigned by AMF, and used by UE to initialize registration procedure) */
-	T3502Value                      int `json:"t3502Value,omitempty"`                      // Second
-	T3512Value                      int `json:"t3512Value,omitempty"`                      // default 54 min
-	Non3gppDeregistrationTimerValue int `json:"non3gppDeregistrationTimerValue,omitempty"` // default 54 min
+	T3502Value                      int // Second
+	T3512Value                      int // default 54 min
+	Non3gppDeregistrationTimerValue int // default 54 min
 
-	// AmfInstanceName and Ip
-	AmfInstanceName string `json:"amfInstanceName,omitempty"`
-	AmfInstanceIp   string `json:"amfInstanceIp,omitempty"`
+	AmfInstanceName string
+	AmfInstanceIp   string
 
-	NASLog      *zap.SugaredLogger `json:"-"`
-	GmmLog      *zap.SugaredLogger `json:"-"`
-	TxLog       *zap.SugaredLogger `json:"-"`
-	ProducerLog *zap.SugaredLogger `json:"-"`
+	NASLog      *zap.SugaredLogger
+	GmmLog      *zap.SugaredLogger
+	TxLog       *zap.SugaredLogger
+	ProducerLog *zap.SugaredLogger
 }
-
-type InterfaceType uint8
-
-const (
-	NgapMessage InterfaceType = iota
-	SbiMessage
-	NasMessage
-)
-
-type InterfaceMsg interface{}
-
-/*type InterfaceMsg struct {
-	AnType        models.AccessType
-	NasMsg        []byte
-	ProcedureCode int64
-	NgapMsg       *ngapType.NGAPPDU
-	Ran           *AmfRan
-	//MsgType is Nas or Sbi interface msg
-	IntfType InterfaceType
-}*/
 
 type NasMsg struct {
 	AnType        models.AccessType
@@ -252,7 +219,7 @@ type RecommendedCell struct {
 // TS 38.413 9.3.1.101
 type RecommendRanNode struct {
 	Present         int32
-	GlobalRanNodeId *models.GlobalRanNodeId
+	GlobalRanNodeID *models.GlobalRanNodeID
 	Tai             *models.Tai
 }
 
@@ -265,8 +232,8 @@ type NGRANCGI struct {
 func (ue *AmfUe) init() {
 	ue.ServingAMF = AMF_Self()
 	ue.State = make(map[models.AccessType]*fsm.State)
-	ue.State[models.AccessType__3_GPP_ACCESS] = fsm.NewState(Deregistered)
-	ue.State[models.AccessType_NON_3_GPP_ACCESS] = fsm.NewState(Deregistered)
+	ue.State[models.AccessType3GPPAccess] = fsm.NewState(Deregistered)
+	ue.State[models.AccessTypeNon3GPPAccess] = fsm.NewState(Deregistered)
 	ue.UnauthenticatedSupi = true
 	ue.RanUe = make(map[models.AccessType]*RanUe)
 	ue.RegistrationArea = make(map[models.AccessType][]models.Tai)
@@ -274,10 +241,10 @@ func (ue *AmfUe) init() {
 	ue.N1N2MessageIDGenerator = idgenerator.NewGenerator(1, 2147483647)
 	ue.N1N2MessageSubscribeIDGenerator = idgenerator.NewGenerator(1, 2147483647)
 	ue.OnGoing = make(map[models.AccessType]*OnGoingProcedureWithPrio)
-	ue.OnGoing[models.AccessType_NON_3_GPP_ACCESS] = new(OnGoingProcedureWithPrio)
-	ue.OnGoing[models.AccessType_NON_3_GPP_ACCESS].Procedure = OnGoingProcedureNothing
-	ue.OnGoing[models.AccessType__3_GPP_ACCESS] = new(OnGoingProcedureWithPrio)
-	ue.OnGoing[models.AccessType__3_GPP_ACCESS].Procedure = OnGoingProcedureNothing
+	ue.OnGoing[models.AccessTypeNon3GPPAccess] = new(OnGoingProcedureWithPrio)
+	ue.OnGoing[models.AccessTypeNon3GPPAccess].Procedure = OnGoingProcedureNothing
+	ue.OnGoing[models.AccessType3GPPAccess] = new(OnGoingProcedureWithPrio)
+	ue.OnGoing[models.AccessType3GPPAccess].Procedure = OnGoingProcedureNothing
 	ue.ReleaseCause = make(map[models.AccessType]*CauseAll)
 	ue.AmfInstanceName = os.Getenv("HOSTNAME")
 	ue.AmfInstanceIp = os.Getenv("POD_IP")
@@ -333,10 +300,10 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 }
 
 func (ue *AmfUe) GetAnType() models.AccessType {
-	if ue.CmConnect(models.AccessType__3_GPP_ACCESS) {
-		return models.AccessType__3_GPP_ACCESS
-	} else if ue.CmConnect(models.AccessType_NON_3_GPP_ACCESS) {
-		return models.AccessType_NON_3_GPP_ACCESS
+	if ue.CmConnect(models.AccessType3GPPAccess) {
+		return models.AccessType3GPPAccess
+	} else if ue.CmConnect(models.AccessTypeNon3GPPAccess) {
+		return models.AccessTypeNon3GPPAccess
 	}
 	return ""
 }
@@ -417,7 +384,7 @@ func (ue *AmfUe) DerivateKamf() {
 		logger.AmfLog.Error(err)
 		return
 	}
-	KamfBytes, err := ueauth.GetKDFValue(KseafDecode, ueauth.FC_FOR_KAMF_DERIVATION, P0, L0, P1, L1)
+	KamfBytes, err := ueauth.GetKDFValue(KseafDecode, ueauth.FcForKamfDerivation, P0, L0, P1, L1)
 	if err != nil {
 		logger.AmfLog.Error(err)
 		return
@@ -438,7 +405,7 @@ func (ue *AmfUe) DerivateAlgKey() {
 		logger.AmfLog.Error(err)
 		return
 	}
-	kenc, err := ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_ALGORITHM_KEY_DERIVATION, P0, L0, P1, L1)
+	kenc, err := ueauth.GetKDFValue(KamfBytes, ueauth.FcForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
 		logger.AmfLog.Error(err)
 		return
@@ -451,7 +418,7 @@ func (ue *AmfUe) DerivateAlgKey() {
 	P1 = []byte{ue.IntegrityAlg}
 	L1 = ueauth.KDFLen(P1)
 
-	kint, err := ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_ALGORITHM_KEY_DERIVATION, P0, L0, P1, L1)
+	kint, err := ueauth.GetKDFValue(KamfBytes, ueauth.FcForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
 		logger.AmfLog.Error(err)
 		return
@@ -465,7 +432,7 @@ func (ue *AmfUe) DerivateAnKey(anType models.AccessType) {
 	P0 := make([]byte, 4)
 	binary.BigEndian.PutUint32(P0, ue.ULCount.Get())
 	L0 := ueauth.KDFLen(P0)
-	if anType == models.AccessType_NON_3_GPP_ACCESS {
+	if anType == models.AccessTypeNon3GPPAccess {
 		accessType = security.AccessTypeNon3GPP
 	}
 	P1 := []byte{accessType}
@@ -476,7 +443,7 @@ func (ue *AmfUe) DerivateAnKey(anType models.AccessType) {
 		logger.AmfLog.Error(err)
 		return
 	}
-	key, err := ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_KGNB_KN3IWF_DERIVATION, P0, L0, P1, L1)
+	key, err := ueauth.GetKDFValue(KamfBytes, ueauth.FcForKgnbKn3iwfDerivation, P0, L0, P1, L1)
 	if err != nil {
 		logger.AmfLog.Error(err)
 		return
@@ -499,7 +466,7 @@ func (ue *AmfUe) DerivateNH(syncInput []byte) {
 		logger.AmfLog.Error(err)
 		return
 	}
-	ue.NH, err = ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_NH_DERIVATION, P0, L0)
+	ue.NH, err = ueauth.GetKDFValue(KamfBytes, ueauth.FcForNhDerivation, P0, L0)
 	if err != nil {
 		logger.AmfLog.Error(err)
 		return
@@ -509,9 +476,9 @@ func (ue *AmfUe) DerivateNH(syncInput []byte) {
 func (ue *AmfUe) UpdateSecurityContext(anType models.AccessType) {
 	ue.DerivateAnKey(anType)
 	switch anType {
-	case models.AccessType__3_GPP_ACCESS:
+	case models.AccessType3GPPAccess:
 		ue.DerivateNH(ue.Kgnb)
-	case models.AccessType_NON_3_GPP_ACCESS:
+	case models.AccessTypeNon3GPPAccess:
 		ue.DerivateNH(ue.Kn3iwf)
 	}
 	ue.NCC = 1
@@ -605,7 +572,7 @@ func (ue *AmfUe) GetOnGoing(anType models.AccessType) OnGoingProcedureWithPrio {
 
 func (ue *AmfUe) RemoveAmPolicyAssociation() {
 	ue.AmPolicyAssociation = nil
-	ue.PolicyAssociationId = ""
+	ue.PolicyAssociationID = ""
 }
 
 func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
@@ -618,12 +585,12 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 		ue.Pei = ueContext.Pei
 	}
 
-	if ueContext.UdmGroupId != "" {
-		ue.UdmGroupId = ueContext.UdmGroupId
+	if ueContext.UdmGroupID != "" {
+		ue.UdmGroupId = ueContext.UdmGroupID
 	}
 
-	if ueContext.AusfGroupId != "" {
-		ue.AusfGroupId = ueContext.AusfGroupId
+	if ueContext.AusfGroupID != "" {
+		ue.AusfGroupId = ueContext.AusfGroupID
 	}
 
 	if ueContext.RoutingIndicator != "" {
@@ -715,14 +682,14 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 		}
 		for _, trigger := range ueContext.AmPolicyReqTriggerList {
 			switch trigger {
-			case models.AmPolicyReqTrigger_LOCATION_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_LOC_CH)
-			case models.AmPolicyReqTrigger_PRA_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_PRA_CH)
-			case models.AmPolicyReqTrigger_SARI_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_SERV_AREA_CH)
-			case models.AmPolicyReqTrigger_RFSP_INDEX_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_RFSP_CH)
+			case models.AmPolicyReqTriggerLocationChange:
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTriggerLocCh)
+			case models.AmPolicyReqTriggerPraChange:
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTriggerPraCh)
+			case models.AmPolicyReqTriggerSariChange:
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTriggerServAreaCh)
+			case models.AmPolicyReqTriggerRfspIndexChange:
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTriggerRfspCh)
 			}
 		}
 	}
@@ -746,7 +713,7 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 
 	if len(ueContext.MmContextList) > 0 {
 		for _, mmContext := range ueContext.MmContextList {
-			if mmContext.AccessType == models.AccessType__3_GPP_ACCESS {
+			if mmContext.AccessType == models.AccessType3GPPAccess {
 				if nasSecurityMode := mmContext.NasSecurityMode; nasSecurityMode != nil {
 					switch nasSecurityMode.IntegrityAlgorithm {
 					case models.IntegrityAlgorithmNIA0:

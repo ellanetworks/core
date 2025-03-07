@@ -152,7 +152,7 @@ func TestBuildPfcpSessionModificationRequest(t *testing.T) {
 					OuterHeaderCreationDescription: 256,
 				},
 			},
-			State:       context.RULE_UPDATE,
+			State:       context.RuleUpdate,
 			FARID:       1,
 			ApplyAction: context.ApplyAction{},
 		},
@@ -216,7 +216,7 @@ func TestBuildPfcpSessionModificationRequestNoOuterHeader(t *testing.T) {
 	farList := []*context.FAR{
 		{
 			ForwardingParameters: &context.ForwardingParameters{},
-			State:                context.RULE_UPDATE,
+			State:                context.RuleUpdate,
 			FARID:                1,
 			ApplyAction:          context.ApplyAction{},
 		},

@@ -37,22 +37,11 @@ const (
 	PFComponentTypeIPv4RemoteAddress              uint8 = 0x10
 	PFComponentTypeIPv4LocalAddress               uint8 = 0x11
 	PFComponentTypeIPv6RemoteAddress              uint8 = 0x21
-	PFComponentTypeIPv6LocalAddress               uint8 = 0x23
 	PFComponentTypeProtocolIdentifierOrNextHeader uint8 = 0x30
 	PFComponentTypeSingleLocalPort                uint8 = 0x40
 	PFComponentTypeLocalPortRange                 uint8 = 0x41
 	PFComponentTypeSingleRemotePort               uint8 = 0x50
 	PFComponentTypeRemotePortRange                uint8 = 0x51
-	PFComponentTypeSecurityParameterIndex         uint8 = 0x60
-	PFComponentTypeTypeOfServiceOrTrafficClass    uint8 = 0x70
-	PFComponentTypeFlowLabel                      uint8 = 0x80
-	PFComponentTypeDestinationMACAddress          uint8 = 0x81
-	PFComponentTypeSourceMACAddress               uint8 = 0x82
-	PFComponentType8021Q_CTAG_VID                 uint8 = 0x83
-	PFComponentType8021Q_STAG_VID                 uint8 = 0x84
-	PFComponentType8021Q_CTAG_PCPOrDEI            uint8 = 0x85
-	PFComponentType8021Q_STAG_PCPOrDEI            uint8 = 0x86
-	PFComponentTypeEthertype                      uint8 = 0x87
 )
 
 const (
@@ -124,7 +113,7 @@ func BuildAddQoSRuleFromPccRule(pccRule *models.PccRule, qosData *models.QosData
 		DQR:           btou(qosData.DefQosFlowIndication),
 		OperationCode: pccRuleOpCode,
 		Precedence:    uint8(pccRule.Precedence),
-		QFI:           GetQosFlowIdFromQosId(qosData.QosId),
+		QFI:           GetQosFlowIDFromQosID(qosData.QosID),
 	}
 
 	qRule.BuildPacketFilterListFromPccRule(pccRule)
@@ -235,8 +224,8 @@ func DecodeFlowDescToIPFilters(flowDesc string) *IPFilterRule {
 	return ipfRule
 }
 
-func (ipf *IPFilterRule) IsMatchAllIPFilter() bool {
-	if ipf.sAddrv4.addr == "any" && ipf.dAddrv4.addr == "assigned" {
+func (ipfRule *IPFilterRule) IsMatchAllIPFilter() bool {
+	if ipfRule.sAddrv4.addr == "any" && ipfRule.dAddrv4.addr == "assigned" {
 		return true
 	}
 	return false
@@ -301,9 +290,9 @@ func (pf *PacketFilter) GetPfContent(flowDesc string) {
 	}
 
 	// Protocol identifier/Next header type
-	if pfc, protocolIdLen := BuildPFCompProtocolId(ipf.protoId); pfc != nil {
+	if pfc, protocolIDLen := BuildPFCompProtocolId(ipf.protoId); pfc != nil {
 		pfcList = append(pfcList, *pfc)
-		pf.ContentLength += protocolIdLen
+		pf.ContentLength += protocolIDLen
 	}
 
 	// Remote Addr

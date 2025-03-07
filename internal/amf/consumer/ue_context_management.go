@@ -19,9 +19,9 @@ func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRe
 	guamiList := context.GetServedGuamiList()
 
 	switch accessType {
-	case models.AccessType__3_GPP_ACCESS:
+	case models.AccessType3GPPAccess:
 		registrationData := models.Amf3GppAccessRegistration{
-			AmfInstanceID:          amfSelf.NfId,
+			AmfInstanceID:          amfSelf.NfID,
 			InitialRegistrationInd: initialRegistrationInd,
 			Guami: &models.Guami{
 				PlmnID: &models.PlmnID{
@@ -37,7 +37,7 @@ func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRe
 		if err != nil {
 			return err
 		}
-	case models.AccessType_NON_3_GPP_ACCESS:
+	case models.AccessTypeNon3GPPAccess:
 		return fmt.Errorf("Non-3GPP access is not supported")
 	}
 	return nil

@@ -13,7 +13,7 @@ func PartialServiceAreaListToNas(plmnID models.PlmnID, serviceAreaRestriction mo
 	var partialServiceAreaList []byte
 	var allowedType uint8
 
-	if serviceAreaRestriction.RestrictionType == models.RestrictionType_ALLOWED_AREAS {
+	if serviceAreaRestriction.RestrictionType == models.RestrictionTypeAllowedAreas {
 		allowedType = nasMessage.AllowedTypeAllowedArea
 	} else {
 		allowedType = nasMessage.AllowedTypeNonAllowedArea

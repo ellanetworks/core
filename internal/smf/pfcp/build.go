@@ -47,7 +47,7 @@ func createPDIIE(pdi *context.PDI) *ie.IE {
 				pdi.LocalFTeid.Teid,
 				pdi.LocalFTeid.Ipv4Address,
 				pdi.LocalFTeid.Ipv6Address,
-				pdi.LocalFTeid.ChooseId,
+				pdi.LocalFTeid.ChooseID,
 			),
 		)
 	}
@@ -246,16 +246,16 @@ func BuildPfcpSessionEstablishmentRequest(
 	ies = append(ies, ie.NewFSEID(localSeid, fseidIpv4Address, nil))
 
 	for _, pdr := range pdrList {
-		if pdr.State == context.RULE_INITIAL {
+		if pdr.State == context.RuleInitial {
 			ies = append(ies, pdrToCreatePDR(pdr))
 		}
 	}
 
 	for _, far := range farList {
-		if far.State == context.RULE_INITIAL {
+		if far.State == context.RuleInitial {
 			ies = append(ies, farToCreateFAR(far))
 		}
-		far.State = context.RULE_CREATE
+		far.State = context.RuleCreate
 	}
 
 	qerMap := make(map[uint32]*context.QER)
@@ -263,10 +263,10 @@ func BuildPfcpSessionEstablishmentRequest(
 		qerMap[qer.QERID] = qer
 	}
 	for _, filteredQER := range qerMap {
-		if filteredQER.State == context.RULE_INITIAL {
+		if filteredQER.State == context.RuleInitial {
 			ies = append(ies, qerToCreateQER(filteredQER))
 		}
-		filteredQER.State = context.RULE_CREATE
+		filteredQER.State = context.RuleCreate
 	}
 
 	ies = append(ies, ie.NewPDNType(ie.PDNTypeIPv4))
@@ -295,34 +295,34 @@ func BuildPfcpSessionModificationRequest(
 
 	for _, pdr := range pdrList {
 		switch pdr.State {
-		case context.RULE_INITIAL:
+		case context.RuleInitial:
 			ies = append(ies, pdrToCreatePDR(pdr))
-		case context.RULE_UPDATE:
+		case context.RuleUpdate:
 			ies = append(ies, pdrToUpdatePDR(pdr))
-		case context.RULE_REMOVE:
+		case context.RuleRemove:
 			ies = append(ies, ie.NewRemovePDR(ie.NewPDRID(pdr.PDRID)))
 		}
-		pdr.State = context.RULE_CREATE
+		pdr.State = context.RuleCreate
 	}
 
 	for _, far := range farList {
 		switch far.State {
-		case context.RULE_INITIAL:
+		case context.RuleInitial:
 			ies = append(ies, farToCreateFAR(far))
-		case context.RULE_UPDATE:
+		case context.RuleUpdate:
 			ies = append(ies, farToUpdateFAR(far))
-		case context.RULE_REMOVE:
+		case context.RuleRemove:
 			ies = append(ies, ie.NewRemoveFAR(ie.NewFARID(far.FARID)))
 		}
-		far.State = context.RULE_CREATE
+		far.State = context.RuleCreate
 	}
 
 	for _, qer := range qerList {
 		switch qer.State {
-		case context.RULE_INITIAL:
+		case context.RuleInitial:
 			ies = append(ies, qerToCreateQER(qer))
 		}
-		qer.State = context.RULE_CREATE
+		qer.State = context.RuleCreate
 	}
 	return message.NewSessionModificationRequest(
 		0,
