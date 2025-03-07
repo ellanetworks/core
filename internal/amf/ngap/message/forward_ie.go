@@ -22,7 +22,12 @@ func AppendPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSet
 ) {
 	var item ngapType.PDUSessionResourceSetupItemSUReq
 	item.PDUSessionID.Value = int64(pduSessionId)
-	item.SNSSAI = util.SNssaiToNgap(snssai)
+	snssaiNgap, err := util.SNssaiToNgap(snssai)
+	if err != nil {
+		logger.AmfLog.Errorf("Convert SNssai to NGAP failed: %+v", err)
+		return
+	}
+	item.SNSSAI = snssaiNgap
 	item.PDUSessionResourceSetupRequestTransfer = transfer
 	if nasPDU != nil {
 		item.PDUSessionNASPDU = new(ngapType.NASPDU)
@@ -36,17 +41,25 @@ func AppendPDUSessionResourceSetupListHOReq(list *ngapType.PDUSessionResourceSet
 ) {
 	var item ngapType.PDUSessionResourceSetupItemHOReq
 	item.PDUSessionID.Value = int64(pduSessionId)
-	item.SNSSAI = util.SNssaiToNgap(snssai)
+	snssaiNgap, err := util.SNssaiToNgap(snssai)
+	if err != nil {
+		logger.AmfLog.Errorf("Convert SNssai to NGAP failed: %+v", err)
+		return
+	}
+	item.SNSSAI = snssaiNgap
 	item.HandoverRequestTransfer = transfer
 	list.List = append(list.List, item)
 }
 
-func AppendPDUSessionResourceSetupListCxtReq(list *ngapType.PDUSessionResourceSetupListCxtReq,
-	pduSessionId int32, snssai models.Snssai, nasPDU []byte, transfer []byte,
-) {
+func AppendPDUSessionResourceSetupListCxtReq(list *ngapType.PDUSessionResourceSetupListCxtReq, pduSessionId int32, snssai models.Snssai, nasPDU []byte, transfer []byte) {
 	var item ngapType.PDUSessionResourceSetupItemCxtReq
 	item.PDUSessionID.Value = int64(pduSessionId)
-	item.SNSSAI = util.SNssaiToNgap(snssai)
+	snssaiNgap, err := util.SNssaiToNgap(snssai)
+	if err != nil {
+		logger.AmfLog.Errorf("Convert SNssai to NGAP failed: %+v", err)
+		return
+	}
+	item.SNSSAI = snssaiNgap
 	if nasPDU != nil {
 		item.NASPDU = new(ngapType.NASPDU)
 		item.NASPDU.Value = nasPDU

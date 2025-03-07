@@ -8,11 +8,12 @@ import (
 	"github.com/omec-project/nas/nasType"
 )
 
-func SnssaiToModels(nasSnssai *nasType.SNSSAI) (snssai models.Snssai) {
+func SnssaiToModels(nasSnssai *nasType.SNSSAI) models.Snssai {
+	var snssai models.Snssai
 	sD := nasSnssai.GetSD()
 	snssai.Sd = hex.EncodeToString(sD[:])
 	snssai.Sst = int32(nasSnssai.GetSST())
-	return
+	return snssai
 }
 
 func SnssaiToNas(snssai models.Snssai) ([]uint8, error) {

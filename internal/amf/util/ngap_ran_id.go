@@ -5,7 +5,8 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-func RanIdToModels(ranNodeID ngapType.GlobalRANNodeID) (ranId models.GlobalRanNodeId) {
+func RanIdToModels(ranNodeID ngapType.GlobalRANNodeID) models.GlobalRanNodeId {
+	var ranId models.GlobalRanNodeId
 	present := ranNodeID.Present
 	switch present {
 	case ngapType.GlobalRANNodeIDPresentGlobalGNBID:

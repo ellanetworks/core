@@ -164,7 +164,11 @@ func BuildNGSetupResponse() ([]byte, error) {
 	pLMNSupportItem.PLMNIdentity = *plmnId
 	for _, snssai := range plmnSupported.SNssaiList {
 		sliceSupportItem := ngapType.SliceSupportItem{}
-		sliceSupportItem.SNSSAI = util.SNssaiToNgap(snssai)
+		snssaiNgap, err := util.SNssaiToNgap(snssai)
+		if err != nil {
+			return nil, fmt.Errorf("error converting SNssai to NGAP: %+v", err)
+		}
+		sliceSupportItem.SNSSAI = snssaiNgap
 		pLMNSupportItem.SliceSupportList.List = append(pLMNSupportItem.SliceSupportList.List, sliceSupportItem)
 	}
 	pLMNSupportList.List = append(pLMNSupportList.List, pLMNSupportItem)
@@ -939,8 +943,11 @@ func BuildInitialContextSetupRequest(
 
 	for _, allowedSnssai := range amfUe.AllowedNssai[anType] {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
-		ngapSnssai := util.SNssaiToNgap(*allowedSnssai.AllowedSnssai)
-		allowedNSSAIItem.SNSSAI = ngapSnssai
+		snssaiNgap, err := util.SNssaiToNgap(*allowedSnssai.AllowedSnssai)
+		if err != nil {
+			return nil, fmt.Errorf("error converting SNssai to NGAP: %+v", err)
+		}
+		allowedNSSAIItem.SNSSAI = snssaiNgap
 		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
 	}
 
@@ -1006,7 +1013,7 @@ func BuildInitialContextSetupRequest(
 		if err != nil {
 			return nil, fmt.Errorf("error converting trace data to ngap: %s", err)
 		}
-		ie.Value.TraceActivation = traceActivation
+		ie.Value.TraceActivation = &traceActivation
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 	}
 
@@ -1465,7 +1472,10 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause, pduSessionRes
 	for _, snssaiItem := range plmnSupport.SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 
-		ngapSnssai := util.SNssaiToNgap(snssaiItem)
+		ngapSnssai, err := util.SNssaiToNgap(snssaiItem)
+		if err != nil {
+			return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
+		}
 		allowedNSSAIItem.SNSSAI = ngapSnssai
 		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
 	}
@@ -1649,8 +1659,10 @@ func BuildPathSwitchRequestAcknowledge(
 	plmnSupport := context.GetSupportedPlmn()
 	for _, modelSnssai := range plmnSupport.SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
-
-		ngapSnssai := util.SNssaiToNgap(modelSnssai)
+		ngapSnssai, err := util.SNssaiToNgap(modelSnssai)
+		if err != nil {
+			return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
+		}
 		allowedNSSAIItem.SNSSAI = ngapSnssai
 		allowedNSSAI.List = append(allowedNSSAI.List, allowedNSSAIItem)
 	}
