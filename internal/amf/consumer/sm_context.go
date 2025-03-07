@@ -214,7 +214,7 @@ func SendUpdateSmContextXnHandoverFailed(ue *context.AmfUe, smContext *context.S
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
 
-func SendUpdateSmContextN2HandoverPreparing(ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte, amfid string, targetId *models.NgRanTargetId) (*models.UpdateSmContextResponse, error) {
+func SendUpdateSmContextN2HandoverPreparing(ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte, amfid string, targetId *models.NgRanTargetID) (*models.UpdateSmContextResponse, error) {
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
@@ -222,7 +222,7 @@ func SendUpdateSmContextN2HandoverPreparing(ue *context.AmfUe, smContext *contex
 		updateData.N2SmInfo.ContentId = N2SMINFO_ID
 	}
 	updateData.HoState = models.HoStatePreparing
-	updateData.TargetId = &models.NgRanTargetId{
+	updateData.TargetId = &models.NgRanTargetID{
 		RanNodeId: &models.GlobalRanNodeId{
 			PlmnID: &models.PlmnID{
 				Mcc: targetId.RanNodeId.PlmnID.Mcc,
