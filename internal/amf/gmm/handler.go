@@ -773,7 +773,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 	if ue.RegistrationRequest.AllowedPDUSessionStatus != nil {
 		allowedPsis := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.AllowedPDUSessionStatus.Buffer)
 		if ue.N1N2Message != nil {
-			requestData := ue.N1N2Message.Request.JsonData
+			requestData := ue.N1N2Message.Request.JSONData
 			n1Msg := ue.N1N2Message.Request.BinaryDataN1Message
 			n2Info := ue.N1N2Message.Request.BinaryDataN2Information
 
@@ -793,7 +793,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 				switch requestData.N1MessageContainer.N1MessageClass {
 				case models.N1MessageClass_SM:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo,
-						n1Msg, requestData.PduSessionId, 0, nil, 0)
+						n1Msg, requestData.PduSessionID, 0, nil, 0)
 				case models.N1MessageClass_LPP:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0, nil, 0)
 				case models.N1MessageClass_SMS:
@@ -806,7 +806,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			}
 
 			smInfo := requestData.N2InfoContainer.SmInfo
-			smContext, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionId)
+			smContext, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 			if !exist {
 				ue.N1N2Message = nil
 				return fmt.Errorf("pdu Session Id does not Exists")
@@ -816,13 +816,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 				if reactivationResult == nil {
 					reactivationResult = new([16]bool)
 				}
-				if allowedPsis[requestData.PduSessionId] {
+				if allowedPsis[requestData.PduSessionID] {
 					response, err := consumer.SendUpdateSmContextChangeAccessType(ue, smContext, true)
 					if err != nil {
 						return err
 					} else if response == nil {
-						reactivationResult[requestData.PduSessionId] = true
-						errPduSessionId = append(errPduSessionId, uint8(requestData.PduSessionId))
+						reactivationResult[requestData.PduSessionID] = true
+						errPduSessionId = append(errPduSessionId, uint8(requestData.PduSessionID))
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 						errCause = append(errCause, cause)
 					} else {
@@ -830,19 +830,18 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 						smContext.SetAccessType(models.AccessType__3_GPP_ACCESS)
 						if response.BinaryDataN2SmInformation != nil &&
 							response.JsonData.N2SmInfoType == models.N2SmInfoType_PDU_RES_SETUP_REQ {
-							ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionId,
+							ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID,
 								smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
 						}
 					}
 				} else {
-					ue.GmmLog.Warnf("UE was reachable but did not accept to re-activate the PDU Session[%d]",
-						requestData.PduSessionId)
+					ue.GmmLog.Warnf("UE was reachable but did not accept to re-activate the PDU Session[%d]", requestData.PduSessionID)
 				}
 			} else if smInfo.N2InfoContent.NgapIeType == models.NgapIeType_PDU_RES_SETUP_REQ {
 				var nasPdu []byte
 				var err error
 				if n1Msg != nil {
-					pduSessionId := uint8(smInfo.PduSessionId)
+					pduSessionId := uint8(smInfo.PduSessionID)
 					nasPdu, err = gmm_message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo,
 						n1Msg, pduSessionId, nil, nil, 0)
 					if err != nil {
@@ -853,7 +852,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 					Sst: smInfo.SNssai.Sst,
 					Sd:  smInfo.SNssai.Sd,
 				}
-				ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionId,
+				ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionID,
 					omecSnssai, nasPdu, n2Info)
 			}
 		}
@@ -1397,10 +1396,10 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 		return err
 	}
 	if ue.N1N2Message != nil {
-		requestData := ue.N1N2Message.Request.JsonData
+		requestData := ue.N1N2Message.Request.JSONData
 		if ue.N1N2Message.Request.BinaryDataN2Information != nil {
-			if requestData.N2InfoContainer.N2InformationClass == models.N2InformationClass_SM {
-				targetPduSessionId = requestData.N2InfoContainer.SmInfo.PduSessionId
+			if requestData.N2InfoContainer.N2InformationClass == models.N2InformationClassSM {
+				targetPduSessionId = requestData.N2InfoContainer.SmInfo.PduSessionID
 			} else {
 				ue.N1N2Message = nil
 				return fmt.Errorf("Service Request triggered by Network has not implemented about non SM N2Info")
@@ -1461,7 +1460,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 	switch serviceType {
 	case nasMessage.ServiceTypeMobileTerminatedServices: // Trigger by Network
 		if ue.N1N2Message != nil {
-			requestData := ue.N1N2Message.Request.JsonData
+			requestData := ue.N1N2Message.Request.JSONData
 			n1Msg := ue.N1N2Message.Request.BinaryDataN1Message
 			n2Info := ue.N1N2Message.Request.BinaryDataN2Information
 
@@ -1475,7 +1474,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 				switch requestData.N1MessageContainer.N1MessageClass {
 				case models.N1MessageClass_SM:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType],
-						nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionId, 0, nil, 0)
+						nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0, nil, 0)
 				case models.N1MessageClass_LPP:
 					gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0, nil, 0)
 				case models.N1MessageClass_SMS:
@@ -1487,7 +1486,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 				return nil
 			}
 			smInfo := requestData.N2InfoContainer.SmInfo
-			smContext, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionId)
+			smContext, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 			if !exist {
 				ue.N1N2Message = nil
 				return fmt.Errorf("service Request triggered by Network error for pduSessionId does not exist")
@@ -1499,14 +1498,14 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 					if reactivationResult == nil {
 						reactivationResult = new([16]bool)
 					}
-					if allowPduSessionPsi[requestData.PduSessionId] {
+					if allowPduSessionPsi[requestData.PduSessionID] {
 						response, err := consumer.SendUpdateSmContextChangeAccessType(
 							ue, smContext, true)
 						if err != nil {
 							return err
 						} else if response == nil {
-							reactivationResult[requestData.PduSessionId] = true
-							errPduSessionId = append(errPduSessionId, uint8(requestData.PduSessionId))
+							reactivationResult[requestData.PduSessionID] = true
+							errPduSessionId = append(errPduSessionId, uint8(requestData.PduSessionID))
 							cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 							errCause = append(errCause, cause)
 						} else {
@@ -1516,23 +1515,23 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 								response.JsonData.N2SmInfoType == models.N2SmInfoType_PDU_RES_SETUP_REQ {
 								if ue.RanUe[anType].UeContextRequest {
 									ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList,
-										requestData.PduSessionId, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
+										requestData.PduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
 								} else {
 									ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList,
-										requestData.PduSessionId, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
+										requestData.PduSessionID, smContext.Snssai(), nil, response.BinaryDataN2SmInformation)
 								}
 							}
 						}
 					} else {
 						ue.GmmLog.Warnf("UE was reachable but did not accept to re-activate the PDU Session[%d]",
-							requestData.PduSessionId)
+							requestData.PduSessionID)
 					}
 				}
 			} else if smInfo.N2InfoContent.NgapIeType == models.NgapIeType_PDU_RES_SETUP_REQ {
 				var nasPdu []byte
 				var err error
 				if n1Msg != nil {
-					pduSessionId := uint8(smInfo.PduSessionId)
+					pduSessionId := uint8(smInfo.PduSessionID)
 					nasPdu, err = gmm_message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo,
 						n1Msg, pduSessionId, nil, nil, 0)
 					if err != nil {
@@ -1544,9 +1543,9 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 					Sd:  smInfo.SNssai.Sd,
 				}
 				if ue.RanUe[anType].UeContextRequest {
-					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, smInfo.PduSessionId, omecSnssai, nasPdu, n2Info)
+					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
 				} else {
-					ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionId, omecSnssai,
+					ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionID, omecSnssai,
 						nasPdu, n2Info)
 				}
 			}

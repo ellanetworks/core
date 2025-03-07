@@ -309,9 +309,9 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 
 	// N2 Container Info
 	n2InfoContainer := models.N2InfoContainer{
-		N2InformationClass: models.N2InformationClass_SM,
+		N2InformationClass: models.N2InformationClassSM,
 		SmInfo: &models.N2SmInformation{
-			PduSessionId: smContext.PDUSessionID,
+			PduSessionID: smContext.PDUSessionID,
 			N2InfoContent: &models.N2InfoContent{
 				NgapIeType: models.NgapIeType_PDU_RES_SETUP_REQ,
 				NgapData: &models.RefToBinaryData{
@@ -329,21 +329,21 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 	}
 
 	// N1N2 Json Data
-	n1n2Request.JsonData = &models.N1N2MessageTransferReqData{PduSessionId: smContext.PDUSessionID}
+	n1n2Request.JSONData = &models.N1N2MessageTransferReqData{PduSessionID: smContext.PDUSessionID}
 
 	if success {
 		if smNasBuf, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext); err != nil {
 			logger.SmfLog.Errorf("Build GSM PDUSessionEstablishmentAccept failed: %s", err)
 		} else {
 			n1n2Request.BinaryDataN1Message = smNasBuf
-			n1n2Request.JsonData.N1MessageContainer = &n1MsgContainer
+			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
 		}
 
 		if n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext); err != nil {
 			logger.SmfLog.Errorf("Build PDUSessionResourceSetupRequestTransfer failed: %s", err)
 		} else {
 			n1n2Request.BinaryDataN2Information = n2Pdu
-			n1n2Request.JsonData.N2InfoContainer = &n2InfoContainer
+			n1n2Request.JSONData.N2InfoContainer = &n2InfoContainer
 		}
 	} else {
 		if smNasBuf, err := context.BuildGSMPDUSessionEstablishmentReject(smContext,
@@ -351,7 +351,7 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 			logger.SmfLog.Errorf("Build GSM PDUSessionEstablishmentReject failed: %s", err)
 		} else {
 			n1n2Request.BinaryDataN1Message = smNasBuf
-			n1n2Request.JsonData.N1MessageContainer = &n1MsgContainer
+			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
 		}
 	}
 
@@ -366,7 +366,7 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 		}
 		return err
 	}
-	if rspData.Cause == models.N1N2MessageTransferCause_N1_MSG_NOT_TRANSFERRED {
+	if rspData.Cause == models.N1N2MessageTransferCauseN1MsgNotTransferred {
 		smContext.SubPfcpLog.Errorf("N1N2MessageTransfer failure, %v", rspData.Cause)
 		err = smContext.CommitSmPolicyDecision(false)
 		if err != nil {

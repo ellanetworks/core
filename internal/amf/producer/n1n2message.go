@@ -34,11 +34,11 @@ func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest mo
 	}
 
 	switch respData.Cause {
-	case models.N1N2MessageTransferCause_N1_MSG_NOT_TRANSFERRED:
+	case models.N1N2MessageTransferCauseN1MsgNotTransferred:
 		fallthrough
-	case models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED:
+	case models.N1N2MessageTransferCauseN1N2TransferInitiated:
 		return respData, nil
-	case models.N1N2MessageTransferCause_ATTEMPTING_TO_REACH_UE:
+	case models.N1N2MessageTransferCauseAttemptingToReachUE:
 		return respData, nil
 	default:
 		return nil, fmt.Errorf("unsupported cause: %v", respData.Cause)
@@ -53,7 +53,7 @@ func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest mo
 // see TS 29.518 6.1.3.5.3.1 for more details.
 func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (*models.N1N2MessageTransferRspData, error) {
 	var (
-		requestData *models.N1N2MessageTransferReqData = n1n2MessageTransferRequest.JsonData
+		requestData *models.N1N2MessageTransferReqData = n1n2MessageTransferRequest.JSONData
 		n2Info      []byte                             = n1n2MessageTransferRequest.BinaryDataN2Information
 		n1Msg       []byte                             = n1n2MessageTransferRequest.BinaryDataN1Message
 
@@ -73,9 +73,9 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 	if requestData.N1MessageContainer != nil {
 		switch requestData.N1MessageContainer.N1MessageClass {
 		case models.N1MessageClass_SM:
-			ue.ProducerLog.Debugf("Receive N1 SM Message (PDU Session ID: %d)", requestData.PduSessionId)
+			ue.ProducerLog.Debugf("Receive N1 SM Message (PDU Session ID: %d)", requestData.PduSessionID)
 			n1MsgType = nasMessage.PayloadContainerTypeN1SMInfo
-			if smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionId); !ok {
+			if smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionID); !ok {
 				return nil, fmt.Errorf("sm context not found")
 			} else {
 				anType = smContext.AccessType()
@@ -92,10 +92,10 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 
 	if requestData.N2InfoContainer != nil {
 		switch requestData.N2InfoContainer.N2InformationClass {
-		case models.N2InformationClass_SM:
-			ue.ProducerLog.Debugf("Receive N2 SM Message (PDU Session ID: %d)", requestData.PduSessionId)
+		case models.N2InformationClassSM:
+			ue.ProducerLog.Debugf("Receive N2 SM Message (PDU Session ID: %d)", requestData.PduSessionID)
 			if smContext == nil {
-				if smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionId); !ok {
+				if smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionID); !ok {
 					return nil, fmt.Errorf("sm context not found")
 				} else {
 					anType = smContext.AccessType()
@@ -128,15 +128,14 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 			err    error
 		)
 		if n1Msg != nil {
-			nasPdu, err = gmm_message.BuildDLNASTransport(ue, n1MsgType, n1Msg, uint8(requestData.PduSessionId), nil, nil, 0)
+			nasPdu, err = gmm_message.BuildDLNASTransport(ue, n1MsgType, n1Msg, uint8(requestData.PduSessionID), nil, nil, 0)
 			if err != nil {
 				return nil, fmt.Errorf("build DL NAS Transport error: %v", err)
 			}
 			if n2Info == nil {
-				ue.ProducerLog.Debug("Forward N1 Message to UE")
 				ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasPdu, nil)
 				n1n2MessageTransferRspData = new(models.N1N2MessageTransferRspData)
-				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
+				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseN1N2TransferInitiated
 				return n1n2MessageTransferRspData, nil
 			}
 		}
@@ -153,34 +152,34 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 				if ue.RanUe[anType].SentInitialContextSetupRequest {
 					list := ngapType.PDUSessionResourceSetupListSUReq{}
 
-					ngap_message.AppendPDUSessionResourceSetupListSUReq(&list, smInfo.PduSessionId, omecSnssai, nasPdu, n2Info)
+					ngap_message.AppendPDUSessionResourceSetupListSUReq(&list, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
 					ngap_message.SendPDUSessionResourceSetupRequest(ue.RanUe[anType], nil, list)
 				} else {
 					list := ngapType.PDUSessionResourceSetupListCxtReq{}
-					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&list, smInfo.PduSessionId, omecSnssai, nasPdu, n2Info)
+					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&list, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
 					ngap_message.SendInitialContextSetupRequest(ue, anType, nil, &list, nil, nil, nil)
 					ue.RanUe[anType].SentInitialContextSetupRequest = true
 				}
 				n1n2MessageTransferRspData = new(models.N1N2MessageTransferRspData)
-				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
+				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseN1N2TransferInitiated
 				// context.StoreContextInDB(ue)
 				return n1n2MessageTransferRspData, nil
 			case models.NgapIeType_PDU_RES_MOD_REQ:
 				ue.ProducerLog.Debugln("AMF Transfer NGAP PDU Session Resource Modify Request from SMF")
 				list := ngapType.PDUSessionResourceModifyListModReq{}
-				ngap_message.AppendPDUSessionResourceModifyListModReq(&list, smInfo.PduSessionId, nasPdu, n2Info)
+				ngap_message.AppendPDUSessionResourceModifyListModReq(&list, smInfo.PduSessionID, nasPdu, n2Info)
 				ngap_message.SendPDUSessionResourceModifyRequest(ue.RanUe[anType], list)
 				n1n2MessageTransferRspData = new(models.N1N2MessageTransferRspData)
-				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
+				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseN1N2TransferInitiated
 				// context.StoreContextInDB(ue)
 				return n1n2MessageTransferRspData, nil
 			case models.NgapIeType_PDU_RES_REL_CMD:
 				ue.ProducerLog.Debugln("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
 				list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
-				ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, smInfo.PduSessionId, n2Info)
+				ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, smInfo.PduSessionID, n2Info)
 				ngap_message.SendPDUSessionResourceReleaseCommand(ue.RanUe[anType], nasPdu, list)
 				n1n2MessageTransferRspData = new(models.N1N2MessageTransferRspData)
-				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
+				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseN1N2TransferInitiated
 				// context.StoreContextInDB(ue)
 				return n1n2MessageTransferRspData, nil
 			default:
@@ -212,9 +211,9 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 	// in subclause 5.2.2.3.1.2 of TS29518
 	if anType == models.AccessType__3_GPP_ACCESS {
 		if requestData.SkipInd && n2Info == nil {
-			n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_MSG_NOT_TRANSFERRED
+			n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseN1MsgNotTransferred
 		} else {
-			n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_ATTEMPTING_TO_REACH_UE
+			n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseAttemptingToReachUE
 			message := context.N1N2Message{
 				Request: n1n2MessageTransferRequest,
 				Status:  n1n2MessageTransferRspData.Cause,
@@ -241,11 +240,11 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 		// access type is Non-3GPP access)in subclause 5.2.2.3.1.2 of TS29518
 		if ue.CmConnect(models.AccessType__3_GPP_ACCESS) {
 			if n2Info == nil {
-				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
+				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseN1N2TransferInitiated
 				gmm_message.SendDLNASTransport(ue.RanUe[models.AccessType__3_GPP_ACCESS],
-					nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionId, 0, nil, 0)
+					nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0, nil, 0)
 			} else {
-				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_ATTEMPTING_TO_REACH_UE
+				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseAttemptingToReachUE
 				message := context.N1N2Message{
 					Request: n1n2MessageTransferRequest,
 					Status:  n1n2MessageTransferRspData.Cause,
@@ -261,7 +260,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 		} else {
 			// Case C ( UE is CM-IDLE in both Non-3GPP access and 3GPP access and the associated access ype is Non-3GPP access)
 			// in subclause 5.2.2.3.1.2 of TS29518
-			n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_ATTEMPTING_TO_REACH_UE
+			n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseAttemptingToReachUE
 			message := context.N1N2Message{
 				Request: n1n2MessageTransferRequest,
 				Status:  n1n2MessageTransferRspData.Cause,

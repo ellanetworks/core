@@ -29,8 +29,8 @@ type UdmUeContext struct {
 	SmSubsDataLock                    sync.RWMutex
 }
 
-func (ue *UdmUeContext) init() {
-	ue.SubscribeToNotifChange = make(map[string]*models.SdmSubscription)
+func (udmUeContext *UdmUeContext) init() {
+	udmUeContext.SubscribeToNotifChange = make(map[string]*models.SdmSubscription)
 }
 
 // functions related to sdmSubscription (subscribe to notification of data change)

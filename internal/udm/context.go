@@ -16,23 +16,15 @@ import (
 
 var udmContext UDMContext
 
-const (
-	LocationUriAmf3GppAccessRegistration int = iota
-	LocationUriAmfNon3GppAccessRegistration
-	LocationUriSmfRegistration
-	LocationUriSdmSubscription
-	LocationUriSharedDataSubscription
-)
-
 type UDMContext struct {
-	DbInstance                 *db.Database
+	DBInstance                 *db.Database
 	UdmUePool                  sync.Map // map[supi]*UdmUeContext
 	SdmSubscriptionIDGenerator int
 	UESubsCollection           sync.Map // map[ueId]*UESubsData
 }
 
-func SetDbInstance(dbInstance *db.Database) {
-	udmContext.DbInstance = dbInstance
+func SetDBInstance(dbInstance *db.Database) {
+	udmContext.DBInstance = dbInstance
 }
 
 func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData, snssaiFromReq string,

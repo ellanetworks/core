@@ -7,7 +7,6 @@ package context
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -15,19 +14,18 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) (err error) {
+func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) error {
 	resourceSetupResponseTransfer := ngapType.PDUSessionResourceSetupResponseTransfer{}
-
-	err = aper.UnmarshalWithParams(b, &resourceSetupResponseTransfer, "valueExt")
+	err := aper.UnmarshalWithParams(b, &resourceSetupResponseTransfer, "valueExt")
 	if err != nil {
-		return err
+		return fmt.Errorf("error unmarshaling PDUSessionResourceSetupResponseTransfer: %s", err.Error())
 	}
 
 	QosFlowPerTNLInformation := resourceSetupResponseTransfer.DLQosFlowPerTNLInformation
 
 	if QosFlowPerTNLInformation.UPTransportLayerInformation.Present !=
 		ngapType.UPTransportLayerInformationPresentGTPTunnel {
-		return errors.New("resourceSetupResponseTransfer.QosFlowPerTNLInformation.UPTransportLayerInformation.Present")
+		return fmt.Errorf("qos flow per TNL information UP transport layer information present")
 	}
 
 	gtpTunnel := QosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel
@@ -57,12 +55,13 @@ func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) (er
 func HandlePathSwitchRequestTransfer(b []byte, ctx *SMContext) error {
 	pathSwitchRequestTransfer := ngapType.PathSwitchRequestTransfer{}
 
-	if err := aper.UnmarshalWithParams(b, &pathSwitchRequestTransfer, "valueExt"); err != nil {
-		return err
+	err := aper.UnmarshalWithParams(b, &pathSwitchRequestTransfer, "valueExt")
+	if err != nil {
+		return fmt.Errorf("error unmarshaling PathSwitchRequestTransfer: %s", err.Error())
 	}
 
 	if pathSwitchRequestTransfer.DLNGUUPTNLInformation.Present != ngapType.UPTransportLayerInformationPresentGTPTunnel {
-		return errors.New("pathSwitchRequestTransfer.DLNGUUPTNLInformation.Present")
+		return fmt.Errorf("DL NGU UP TNL Information present")
 	}
 
 	gtpTunnel := pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel
@@ -91,34 +90,31 @@ func HandlePathSwitchRequestTransfer(b []byte, ctx *SMContext) error {
 	return nil
 }
 
-func HandlePathSwitchRequestSetupFailedTransfer(b []byte, ctx *SMContext) (err error) {
+func HandlePathSwitchRequestSetupFailedTransfer(b []byte) error {
 	pathSwitchRequestSetupFailedTransfer := ngapType.PathSwitchRequestSetupFailedTransfer{}
-
-	err = aper.UnmarshalWithParams(b, &pathSwitchRequestSetupFailedTransfer, "valueExt")
+	err := aper.UnmarshalWithParams(b, &pathSwitchRequestSetupFailedTransfer, "valueExt")
 	if err != nil {
-		return err
+		return fmt.Errorf("error unmarshaling PathSwitchRequestSetupFailedTransfer: %s", err.Error())
 	}
 
 	return nil
 }
 
-func HandleHandoverRequiredTransfer(b []byte, ctx *SMContext) (err error) {
+func HandleHandoverRequiredTransfer(b []byte) error {
 	handoverRequiredTransfer := ngapType.HandoverRequiredTransfer{}
-
-	err = aper.UnmarshalWithParams(b, &handoverRequiredTransfer, "valueExt")
+	err := aper.UnmarshalWithParams(b, &handoverRequiredTransfer, "valueExt")
 	if err != nil {
-		return err
+		return fmt.Errorf("error unmarshaling HandoverRequiredTransfer: %s", err.Error())
 	}
 
 	return nil
 }
 
-func HandleHandoverRequestAcknowledgeTransfer(b []byte, ctx *SMContext) (err error) {
+func HandleHandoverRequestAcknowledgeTransfer(b []byte, datapathPool DataPathPool) error {
 	handoverRequestAcknowledgeTransfer := ngapType.HandoverRequestAcknowledgeTransfer{}
-
-	err = aper.UnmarshalWithParams(b, &handoverRequestAcknowledgeTransfer, "valueExt")
+	err := aper.UnmarshalWithParams(b, &handoverRequestAcknowledgeTransfer, "valueExt")
 	if err != nil {
-		return err
+		return fmt.Errorf("error unmarshaling HandoverRequestAcknowledgeTransfer: %s", err.Error())
 	}
 	DLNGUUPTNLInformation := handoverRequestAcknowledgeTransfer.DLNGUUPTNLInformation
 	GTPTunnel := DLNGUUPTNLInformation.GTPTunnel
@@ -126,10 +122,10 @@ func HandleHandoverRequestAcknowledgeTransfer(b []byte, ctx *SMContext) (err err
 
 	teid, err := binary.ReadUvarint(TEIDReader)
 	if err != nil {
-		return fmt.Errorf("parse TEID error %s", err.Error())
+		return fmt.Errorf("could not read TEID: %s", err.Error())
 	}
 
-	for _, dataPath := range ctx.Tunnel.DataPathPool {
+	for _, dataPath := range datapathPool {
 		if dataPath.Activated {
 			ANUPF := dataPath.FirstDPNode
 			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {

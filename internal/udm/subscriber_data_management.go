@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/config"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -26,16 +25,16 @@ type UESubsData struct {
 	SdmSubscriptions map[subsID]*models.SdmSubscription
 }
 
-func GetAmData(ueId string) (*models.AccessAndMobilitySubscriptionData, error) {
-	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
+func GetAmData(ueID string) (*models.AccessAndMobilitySubscriptionData, error) {
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
-	profile, err := udmContext.DbInstance.GetProfileByID(subscriber.ProfileID)
+	profile, err := udmContext.DBInstance.GetProfileByID(subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
-	operator, err := udmContext.DbInstance.GetOperator()
+	operator, err := udmContext.DBInstance.GetOperator()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
@@ -72,16 +71,16 @@ func GetAmDataAndSetAMSubscription(supi string) (
 	return amData, nil
 }
 
-func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) {
-	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
+func GetSmData(ueID string) ([]models.SessionManagementSubscriptionData, error) {
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
-	profile, err := udmContext.DbInstance.GetProfileByID(subscriber.ProfileID)
+	profile, err := udmContext.DBInstance.GetProfileByID(subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
-	operator, err := udmContext.DbInstance.GetOperator()
+	operator, err := udmContext.DBInstance.GetOperator()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
@@ -151,8 +150,8 @@ func GetNssai(supi string) (*models.Nssai, error) {
 	return udmUe.Nssai, nil
 }
 
-func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error) {
-	operator, err := udmContext.DbInstance.GetOperator()
+func GetSmfSelectData() (*models.SmfSelectionSubscriptionData, error) {
+	operator, err := udmContext.DBInstance.GetOperator()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
@@ -171,14 +170,11 @@ func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error)
 	return smfSelectionData, nil
 }
 
-func GetAndSetSmfSelectData(supi string) (
-	*models.SmfSelectionSubscriptionData, error,
-) {
+func GetAndSetSmfSelectData(supi string) (*models.SmfSelectionSubscriptionData, error) {
 	var body models.SmfSelectionSubscriptionData
 	udmContext.CreateSmfSelectionSubsDataforUe(supi, body)
-	smfSelectionSubscriptionDataResp, err := GetSmfSelectData(supi)
+	smfSelectionSubscriptionDataResp, err := GetSmfSelectData()
 	if err != nil {
-		logger.UdmLog.Errorf("GetSmfSelectData error: %+v", err)
 		return nil, fmt.Errorf("GetSmfSelectData error: %+v", err)
 	}
 	udmUe := udmContext.NewUdmUe(supi)
@@ -186,11 +182,11 @@ func GetAndSetSmfSelectData(supi string) (
 	return udmUe.SmfSelSubsData, nil
 }
 
-func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueId string) models.SdmSubscription {
-	value, ok := udmContext.UESubsCollection.Load(ueId)
+func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueID string) models.SdmSubscription {
+	value, ok := udmContext.UESubsCollection.Load(ueID)
 	if !ok {
-		udmContext.UESubsCollection.Store(ueId, new(UESubsData))
-		value, _ = udmContext.UESubsCollection.Load(ueId)
+		udmContext.UESubsCollection.Store(ueID, new(UESubsData))
+		value, _ = udmContext.UESubsCollection.Load(ueID)
 	}
 	UESubsData := value.(*UESubsData)
 	if UESubsData.SdmSubscriptions == nil {

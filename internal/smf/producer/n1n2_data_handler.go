@@ -134,7 +134,7 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 	case models.HoState_PREPARING:
 
 		smContext.HoState = models.HoState_PREPARING
-		if err := context.HandleHandoverRequiredTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
+		if err := context.HandleHandoverRequiredTransfer(body.BinaryDataN2SmInformation); err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, handle HandoverRequiredTransfer failed: %+v", err)
 		}
 		response.JsonData.N2SmInfoType = models.N2SmInfoType_PDU_RES_SETUP_REQ
@@ -154,7 +154,7 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 
 		smContext.HoState = models.HoState_PREPARED
 		response.JsonData.HoState = models.HoState_PREPARED
-		if err := context.HandleHandoverRequestAcknowledgeTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
+		if err := context.HandleHandoverRequestAcknowledgeTransfer(body.BinaryDataN2SmInformation, smContext.Tunnel.DataPathPool); err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, handle HandoverRequestAcknowledgeTransfer failed: %+v", err)
 		}
 
@@ -211,8 +211,7 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 
 	switch smContextUpdateData.N2SmInfoType {
 	case models.N2SmInfoType_PDU_RES_SETUP_RSP:
-		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received",
-			smContextUpdateData.N2SmInfoType)
+		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received", smContextUpdateData.N2SmInfoType)
 
 		pdrList := []*context.PDR{}
 		farList := []*context.FAR{}
@@ -312,15 +311,12 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 
 		pfcpAction.sendPfcpModify = true
 	case models.N2SmInfoType_PATH_SWITCH_SETUP_FAIL:
-		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received",
-			smContextUpdateData.N2SmInfoType)
-
-		if err := context.HandlePathSwitchRequestSetupFailedTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
+		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received", smContextUpdateData.N2SmInfoType)
+		if err := context.HandlePathSwitchRequestSetupFailedTransfer(body.BinaryDataN2SmInformation); err != nil {
 			smContext.SubPduSessLog.Error()
 		}
 	case models.N2SmInfoType_HANDOVER_REQUIRED:
-		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received",
-			smContextUpdateData.N2SmInfoType)
+		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N2 SM info type %v received", smContextUpdateData.N2SmInfoType)
 
 		response.JsonData.N2SmInfo = &models.RefToBinaryData{ContentId: "Handover"}
 	}

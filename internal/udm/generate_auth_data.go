@@ -68,20 +68,20 @@ func strictHex(s string, n int) string {
 	}
 }
 
-func EditAuthenticationSubscription(ueId string, sequenceNumber string) error {
-	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
+func EditAuthenticationSubscription(ueID string, sequenceNumber string) error {
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID)
 	if err != nil {
-		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
+		return fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
 	subscriber.SequenceNumber = sequenceNumber
-	err = udmContext.DbInstance.UpdateSubscriber(subscriber)
+	err = udmContext.DBInstance.UpdateSubscriber(subscriber)
 	if err != nil {
-		return fmt.Errorf("couldn't update subscriber %s: %v", ueId, err)
+		return fmt.Errorf("couldn't update subscriber %s: %v", ueID, err)
 	}
 	return nil
 }
 
-func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string) *models.AuthenticationSubscription {
+func convertDBAuthSubsDataToModel(opc string, key string, sequenceNumber string) *models.AuthenticationSubscription {
 	authSubsData := &models.AuthenticationSubscription{}
 	authSubsData.AuthenticationManagementField = AuthenticationManagementField
 	authSubsData.AuthenticationMethod = models.AuthMethod__5_G_AKA
@@ -107,21 +107,20 @@ func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 	return authSubsData
 }
 
-func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
-	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
+func GetAuthSubsData(ueID string) (*models.AuthenticationSubscription, error) {
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID)
 	if err != nil {
-		logger.UdmLog.Warnln(err)
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
-	authSubsData := convertDbAuthSubsDataToModel(subscriber.Opc, subscriber.PermanentKey, subscriber.SequenceNumber)
+	authSubsData := convertDBAuthSubsDataToModel(subscriber.Opc, subscriber.PermanentKey, subscriber.SequenceNumber)
 	return authSubsData, nil
 }
 
 func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (*models.AuthenticationInfoResult, error) {
-	if udmContext.DbInstance == nil {
+	if udmContext.DBInstance == nil {
 		return nil, fmt.Errorf("db instance is nil")
 	}
-	hnPrivateKey, err := udmContext.DbInstance.GetHomeNetworkPrivateKey()
+	hnPrivateKey, err := udmContext.DBInstance.GetHomeNetworkPrivateKey()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get home network private key: %w", err)
 	}
