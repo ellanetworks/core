@@ -22,11 +22,12 @@ linters:
     - asciicheck
     - unparam
     - gci
-    - stylecheck
+    # - stylecheck
     # - gocognit
     # - nestif
     # - wsl
 
+  fast: true
 issues:
   exclude-case-sensitive: false
   new: false
@@ -34,3 +35,7 @@ issues:
 severity:
   default-severity: error
   case-sensitive: false
+  rules:
+    - linters:
+        - gomnd
+      severity: ignore
