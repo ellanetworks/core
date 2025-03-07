@@ -8,12 +8,12 @@ package nas
 
 import (
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/nas/nas_security"
+	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
 	"github.com/ellanetworks/core/internal/logger"
 )
 
 func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AmfSelf()
 
 	if ue == nil {
 		logger.AmfLog.Error("RanUe is nil")
@@ -26,7 +26,7 @@ func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {
 	}
 
 	if ue.AmfUe == nil {
-		ue.AmfUe = nas_security.FetchUeContextWithMobileIdentity(nasPdu)
+		ue.AmfUe = nassecurity.FetchUeContextWithMobileIdentity(nasPdu)
 		if ue.AmfUe == nil {
 			ue.AmfUe = amfSelf.NewAmfUe("")
 		}
@@ -48,7 +48,7 @@ func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {
 		return
 	}
 
-	msg, err := nas_security.Decode(ue.AmfUe, ue.Ran.AnType, nasPdu)
+	msg, err := nassecurity.Decode(ue.AmfUe, ue.Ran.AnType, nasPdu)
 	if err != nil {
 		ue.AmfUe.NASLog.Errorln(err)
 		return
@@ -60,7 +60,7 @@ func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) {
 
 func DispatchMsg(amfUe *context.AmfUe, transInfo context.NasMsg) {
 	amfUe.NASLog.Infof("Handle Nas Message")
-	msg, err := nas_security.Decode(amfUe, transInfo.AnType, transInfo.NasMsg)
+	msg, err := nassecurity.Decode(amfUe, transInfo.AnType, transInfo.NasMsg)
 	if err != nil {
 		amfUe.NASLog.Errorln(err)
 		return

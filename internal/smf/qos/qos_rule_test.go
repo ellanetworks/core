@@ -56,15 +56,15 @@ func makeSamplePccRules() map[string]*models.PccRule {
 	flowInfos := []models.FlowInformation{
 		{
 			FlowDescription:   "permit out ip from 1.1.1.1 1000 to 2.2.2.2 2000",
-			PackFiltId:        "1",
+			PackFiltID:        "1",
 			PacketFilterUsage: true,
-			FlowDirection:     models.FlowDirectionRm_BIDIRECTIONAL,
+			FlowDirection:     models.FlowDirectionRmBidirectional,
 		},
 		{
 			FlowDescription:   "permit out ip from 3.3.3.3 3000 to 4.4.4.4 4000",
-			PackFiltId:        "2",
+			PackFiltID:        "2",
 			PacketFilterUsage: true,
-			FlowDirection:     models.FlowDirectionRm_BIDIRECTIONAL,
+			FlowDirection:     models.FlowDirectionRmBidirectional,
 		},
 	}
 
@@ -114,7 +114,7 @@ func makeSampleSessionRule() map[string]*models.SessionRule {
 			Var5qi: 9,
 			Arp: &models.Arp{
 				PriorityLevel: 8,
-				PreemptCap:    models.PreemptionCapability_MAY_PREEMPT,
+				PreemptCap:    models.PreemptionCapabilityMayPreempt,
 				PreemptVuln:   models.PreemptionVulnerabilityNotPreemptable,
 			},
 			PriorityLevel: 8,
@@ -129,7 +129,7 @@ func makeSampleSessionRule() map[string]*models.SessionRule {
 			Var5qi: 8,
 			Arp: &models.Arp{
 				PriorityLevel: 7,
-				PreemptCap:    models.PreemptionCapability_MAY_PREEMPT,
+				PreemptCap:    models.PreemptionCapabilityMayPreempt,
 				PreemptVuln:   models.PreemptionVulnerabilityNotPreemptable,
 			},
 			PriorityLevel: 7,

@@ -190,11 +190,11 @@ type NotificationHeader struct {
 type SCTPState uint16
 
 const (
-	SCTP_COMM_UP = SCTPState(iota)
-	SCTP_COMM_LOST
-	SCTP_RESTART
-	SCTP_SHUTDOWN_COMP
-	SCTP_CANT_STR_ASSOC
+	SCTPCommUp = SCTPState(iota)
+	SCTPCommLost
+	SCTPRestart
+	SCTPShutdownComp
+	SCTPCantStrAssoc
 )
 
 var nativeEndian binary.ByteOrder

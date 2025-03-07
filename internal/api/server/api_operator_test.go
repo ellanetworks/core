@@ -19,7 +19,7 @@ const (
 )
 
 type GetOperatorResponseResult struct {
-	Id       GetOperatorIdResponseResult       `json:"id,omitempty"`
+	ID       GetOperatorIDResponseResult       `json:"id,omitempty"`
 	Slice    GetOperatorSliceResponseResult    `json:"slice,omitempty"`
 	Tracking GetOperatorTrackingResponseResult `json:"tracking,omitempty"`
 }
@@ -38,7 +38,7 @@ type GetOperatorTrackingResponseResult struct {
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
 }
 
-type GetOperatorIdResponseResult struct {
+type GetOperatorIDResponseResult struct {
 	Mcc string `json:"mcc,omitempty"`
 	Mnc string `json:"mnc,omitempty"`
 }
@@ -54,7 +54,7 @@ type GetOperatorTrackingResponse struct {
 }
 
 type GetOperatorIDResponse struct {
-	Result GetOperatorIdResponseResult `json:"result"`
+	Result GetOperatorIDResponseResult `json:"result"`
 	Error  string                      `json:"error,omitempty"`
 }
 
@@ -67,7 +67,7 @@ type UpdateOperatorTrackingParams struct {
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
 }
 
-type UpdateOperatorIdParams struct {
+type UpdateOperatorIDParams struct {
 	Mcc string `json:"mcc,omitempty"`
 	Mnc string `json:"mnc,omitempty"`
 }
@@ -84,7 +84,7 @@ type UpdateOperatorTrackingResponseResult struct {
 	Message string `json:"message"`
 }
 
-type UpdateOperatorIdResponseResult struct {
+type UpdateOperatorIDResponseResult struct {
 	Message string `json:"message"`
 }
 
@@ -98,8 +98,8 @@ type UpdateOperatorTrackingResponse struct {
 	Error  string                               `json:"error,omitempty"`
 }
 
-type UpdateOperatorIdResponse struct {
-	Result UpdateOperatorIdResponseResult `json:"result"`
+type UpdateOperatorIDResponse struct {
+	Result UpdateOperatorIDResponseResult `json:"result"`
 	Error  string                         `json:"error,omitempty"`
 }
 
@@ -178,7 +178,7 @@ func getOperatorTracking(url string, client *http.Client, token string) (int, *G
 	return res.StatusCode, &operatorTrackingResponse, nil
 }
 
-func getOperatorId(url string, client *http.Client, token string) (int, *GetOperatorIDResponse, error) {
+func getOperatorID(url string, client *http.Client, token string) (int, *GetOperatorIDResponse, error) {
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/operator/id", nil)
 	if err != nil {
 		return 0, nil, err
@@ -193,11 +193,11 @@ func getOperatorId(url string, client *http.Client, token string) (int, *GetOper
 			panic(err)
 		}
 	}()
-	var operatorIdResponse GetOperatorIDResponse
-	if err := json.NewDecoder(res.Body).Decode(&operatorIdResponse); err != nil {
+	var operatorIDResponse GetOperatorIDResponse
+	if err := json.NewDecoder(res.Body).Decode(&operatorIDResponse); err != nil {
 		return 0, nil, err
 	}
-	return res.StatusCode, &operatorIdResponse, nil
+	return res.StatusCode, &operatorIDResponse, nil
 }
 
 func updateOperatorSlice(url string, client *http.Client, token string, data *UpdateOperatorSliceParams) (int, *UpdateOperatorSliceResponse, error) {
@@ -252,7 +252,7 @@ func updateOperatorTracking(url string, client *http.Client, token string, data 
 	return res.StatusCode, &updateResponse, nil
 }
 
-func updateOperatorId(url string, client *http.Client, token string, data *UpdateOperatorIdParams) (int, *UpdateOperatorIdResponse, error) {
+func updateOperatorID(url string, client *http.Client, token string, data *UpdateOperatorIDParams) (int, *UpdateOperatorIDResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
@@ -271,7 +271,7 @@ func updateOperatorId(url string, client *http.Client, token string, data *Updat
 			panic(err)
 		}
 	}()
-	var updateResponse UpdateOperatorIdResponse
+	var updateResponse UpdateOperatorIDResponse
 	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
@@ -438,11 +438,11 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	})
 
 	t.Run("8. Update operator Id", func(t *testing.T) {
-		updateOperatorIdParams := &UpdateOperatorIdParams{
+		updateOperatorIDParams := &UpdateOperatorIDParams{
 			Mcc: Mcc,
 			Mnc: Mnc,
 		}
-		statusCode, response, err := updateOperatorId(ts.URL, client, token, updateOperatorIdParams)
+		statusCode, response, err := updateOperatorID(ts.URL, client, token, updateOperatorIDParams)
 		if err != nil {
 			t.Fatalf("couldn't update operator: %s", err)
 		}
@@ -458,7 +458,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	})
 
 	t.Run("9. Get operator Id", func(t *testing.T) {
-		statusCode, response, err := getOperatorId(ts.URL, client, token)
+		statusCode, response, err := getOperatorID(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator Id: %s", err)
 		}
@@ -503,11 +503,11 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if response.Result.Id.Mcc != Mcc {
-			t.Fatalf("expected mcc %q, got %q", Mcc, response.Result.Id.Mcc)
+		if response.Result.ID.Mcc != Mcc {
+			t.Fatalf("expected mcc %q, got %q", Mcc, response.Result.ID.Mcc)
 		}
-		if response.Result.Id.Mnc != Mnc {
-			t.Fatalf("expected mnc %q, got %q", Mnc, response.Result.Id.Mnc)
+		if response.Result.ID.Mnc != Mnc {
+			t.Fatalf("expected mnc %q, got %q", Mnc, response.Result.ID.Mnc)
 		}
 		if response.Result.Slice.Sst != 1 {
 			t.Fatalf("expected sst %d, got %d", 1, response.Result.Slice.Sst)
@@ -646,7 +646,7 @@ func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
 	}
 }
 
-func TestUpdateOperatorIdInvalidInput(t *testing.T) {
+func TestUpdateOperatorIDInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 	ts, _, err := setupServer(dbPath, gin.TestMode)
@@ -707,11 +707,11 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
-			updateOperatorParams := &UpdateOperatorIdParams{
+			updateOperatorParams := &UpdateOperatorIDParams{
 				Mcc: tt.mcc,
 				Mnc: tt.mnc,
 			}
-			statusCode, response, err := updateOperatorId(ts.URL, client, token, updateOperatorParams)
+			statusCode, response, err := updateOperatorID(ts.URL, client, token, updateOperatorParams)
 			if err != nil {
 				t.Fatalf("couldn't update operator ID: %s", err)
 			}

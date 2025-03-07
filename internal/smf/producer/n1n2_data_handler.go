@@ -182,13 +182,13 @@ func HandleUpdateCause(body models.UpdateSmContextRequest, smContext *context.SM
 	smContextUpdateData := body.JSONData
 
 	switch smContextUpdateData.Cause {
-	case models.Cause_REL_DUE_TO_DUPLICATE_SESSION_ID:
+	case models.CauseRelDueToDuplicateSessionID:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, update cause %v received", smContextUpdateData.Cause)
 		//* release PDU Session Here
 
 		response.JSONData.N2SmInfo = &models.RefToBinaryData{ContentID: "PDUResourceReleaseCommand"}
 		response.JSONData.N2SmInfoType = models.N2SmInfoTypePDUResRelCmd
-		smContext.PDUSessionRelease_DUE_TO_DUP_PDU_ID = true
+		smContext.PDUSessionReleaseDueToDupPduID = true
 
 		buf, err := context.BuildPDUSessionResourceReleaseCommandTransfer(smContext)
 		response.BinaryDataN2SmInformation = buf
@@ -196,7 +196,7 @@ func HandleUpdateCause(body models.UpdateSmContextRequest, smContext *context.SM
 			smContext.SubPduSessLog.Error(err)
 		}
 
-		smContext.SubCtxLog.Infof("PDUSessionSMContextUpdate, Cause_REL_DUE_TO_DUPLICATE_SESSION_ID")
+		smContext.SubCtxLog.Infof("PDUSessionSMContextUpdate, CauseRelDueToDuplicateSessionID")
 
 		// releaseTunnel(smContext)
 		pfcpAction.sendPfcpDelete = true
@@ -262,9 +262,9 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 		smContext.SubPduSessLog.Infof("N2 SM info type %v received",
 			smContextUpdateData.N2SmInfoType)
 		smContext.SubPduSessLog.Infof("N2 PDUSession Release Complete ")
-		if smContext.PDUSessionRelease_DUE_TO_DUP_PDU_ID {
+		if smContext.PDUSessionReleaseDueToDupPduID {
 			response.JSONData.UpCnxState = models.UpCnxStateDeactivated
-			smContext.PDUSessionRelease_DUE_TO_DUP_PDU_ID = false
+			smContext.PDUSessionReleaseDueToDupPduID = false
 			context.RemoveSMContext(smContext.Ref)
 		} else {
 			smContext.SubPduSessLog.Infof("send Update SmContext Response")

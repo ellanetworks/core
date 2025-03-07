@@ -17,6 +17,6 @@ type SmContextCreateData struct {
 	PresenceInLadn      PresenceState
 	UeLocation          *UserLocation
 	UeTimeZone          string
-	SmContextStatusUri  string
+	SmContextStatusURI  string
 	OldPduSessionID     int32
 }

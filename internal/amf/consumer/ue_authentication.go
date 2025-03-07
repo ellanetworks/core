@@ -13,30 +13,27 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/ausf"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasType"
 )
 
-func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
-	resynchronizationInfo *models.ResynchronizationInfo,
-) (*models.UeAuthenticationCtx, error) {
+func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe, resynchronizationInfo *models.ResynchronizationInfo) (*models.UeAuthenticationCtx, error) {
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
-	var plmnId *models.PlmnID
+	var plmnID *models.PlmnID
 	if ue.Tai.PlmnID != nil {
-		plmnId = ue.Tai.PlmnID
+		plmnID = ue.Tai.PlmnID
 	} else {
 		ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc: %v Mnc: %v] is taken from Guami List", servedGuami.PlmnID.Mcc, servedGuami.PlmnID.Mnc)
-		plmnId = servedGuami.PlmnID
+		plmnID = servedGuami.PlmnID
 	}
 
 	var authInfo models.AuthenticationInfo
 	authInfo.SupiOrSuci = ue.Suci
-	if mnc, err := strconv.Atoi(plmnId.Mnc); err != nil {
+	if mnc, err := strconv.Atoi(plmnID.Mnc); err != nil {
 		return nil, err
 	} else {
-		authInfo.ServingNetworkName = fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, plmnId.Mcc)
+		authInfo.ServingNetworkName = fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, plmnID.Mcc)
 	}
 	if resynchronizationInfo != nil {
 		authInfo.ResynchronizationInfo = resynchronizationInfo
@@ -44,8 +41,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 
 	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(authInfo)
 	if err != nil {
-		logger.AmfLog.Errorf("UE Authentication Authenticate Request failed: %+v", err)
-		return nil, err
+		return nil, fmt.Errorf("ue authentication authenticate request failed: %s", err.Error())
 	}
 	return ueAuthenticationCtx, nil
 }

@@ -15,7 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf/pdusession"
 )
 
-const N2SMINFO_ID = "N2SmInfo"
+const N2SmInfoID = "N2SmInfo"
 
 func SelectSmf(
 	ue *context.AmfUe,
@@ -53,7 +53,7 @@ func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
 }
 
 func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext) (smContextCreateData models.SmContextCreateData) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AmfSelf()
 	smContextCreateData.Supi = ue.Supi
 	smContextCreateData.UnauthenticatedSupi = ue.UnauthenticatedSupi
 	smContextCreateData.Pei = ue.Pei
@@ -95,7 +95,7 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 	}
 
 	smContextCreateData.UeTimeZone = ue.TimeZone
-	smContextCreateData.SmContextStatusUri = amfSelf.GetIPv4Uri() + "/namf-callback/v1/smContextStatus/" +
+	smContextCreateData.SmContextStatusURI = amfSelf.GetIPv4Uri() + "/namf-callback/v1/smContextStatus/" +
 		ue.Guti + "/" + strconv.Itoa(int(smContext.PduSessionID()))
 
 	return smContextCreateData
@@ -111,7 +111,7 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 // hoState -> the preparation, execution or cancellation of a handover of the PDU session
 // toBeSwitch -> Xn Handover to request to switch the PDU session to a new downlink N3 tunnel endpoint
 // failedToBeSwitch -> indicate that the PDU session failed to be setup in the target RAN
-// targetId, targetServingNfId(preparation with AMF change) -> N2 handover
+// targetID, targetServingNfId(preparation with AMF change) -> N2 handover
 // release -> duplicated PDU Session Id in subclause 5.2.2.3.11, slice not available in subclause 5.2.2.3.12
 // ngApCause -> e.g. the NGAP cause for requesting to deactivate the user plane connection of the PDU session.
 // 5gMmCauseValue -> AMF received a 5GMM cause code from the UE e.g 5GMM Status message in response to
@@ -176,7 +176,7 @@ func SendUpdateSmContextN2Info(
 	updateData := models.SmContextUpdateData{}
 	updateData.N2SmInfoType = n2SmType
 	updateData.N2SmInfo = new(models.RefToBinaryData)
-	updateData.N2SmInfo.ContentID = N2SMINFO_ID
+	updateData.N2SmInfo.ContentID = N2SmInfoID
 	updateData.UeLocation = &ue.Location
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
@@ -189,7 +189,7 @@ func SendUpdateSmContextXnHandover(
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
 		updateData.N2SmInfo = new(models.RefToBinaryData)
-		updateData.N2SmInfo.ContentID = N2SMINFO_ID
+		updateData.N2SmInfo.ContentID = N2SmInfoID
 	}
 	updateData.ToBeSwitched = true
 	updateData.UeLocation = &ue.Location
@@ -208,37 +208,37 @@ func SendUpdateSmContextXnHandoverFailed(smContext *context.SmContext, n2SmType 
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
 		updateData.N2SmInfo = new(models.RefToBinaryData)
-		updateData.N2SmInfo.ContentID = N2SMINFO_ID
+		updateData.N2SmInfo.ContentID = N2SmInfoID
 	}
 	updateData.FailedToBeSwitched = true
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)
 }
 
-func SendUpdateSmContextN2HandoverPreparing(smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte, targetId *models.NgRanTargetID) (*models.UpdateSmContextResponse, error) {
+func SendUpdateSmContextN2HandoverPreparing(smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte, targetID *models.NgRanTargetID) (*models.UpdateSmContextResponse, error) {
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
 		updateData.N2SmInfo = new(models.RefToBinaryData)
-		updateData.N2SmInfo.ContentID = N2SMINFO_ID
+		updateData.N2SmInfo.ContentID = N2SmInfoID
 	}
 	updateData.HoState = models.HoStatePreparing
 	updateData.TargetID = &models.NgRanTargetID{
 		RanNodeID: &models.GlobalRanNodeID{
 			PlmnID: &models.PlmnID{
-				Mcc: targetId.RanNodeID.PlmnID.Mcc,
-				Mnc: targetId.RanNodeID.PlmnID.Mnc,
+				Mcc: targetID.RanNodeID.PlmnID.Mcc,
+				Mnc: targetID.RanNodeID.PlmnID.Mnc,
 			},
 			GnbID: &models.GnbID{
-				BitLength: targetId.RanNodeID.GnbID.BitLength,
-				GNBValue:  targetId.RanNodeID.GnbID.GNBValue,
+				BitLength: targetID.RanNodeID.GnbID.BitLength,
+				GNBValue:  targetID.RanNodeID.GnbID.GNBValue,
 			},
 		},
 		Tai: &models.Tai{
 			PlmnID: &models.PlmnID{
-				Mcc: targetId.Tai.PlmnID.Mcc,
-				Mnc: targetId.Tai.PlmnID.Mnc,
+				Mcc: targetID.Tai.PlmnID.Mcc,
+				Mnc: targetID.Tai.PlmnID.Mnc,
 			},
-			Tac: targetId.Tai.Tac,
+			Tac: targetID.Tai.Tac,
 		},
 	}
 
@@ -251,7 +251,7 @@ func SendUpdateSmContextN2HandoverPrepared(ue *context.AmfUe, smContext *context
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
 		updateData.N2SmInfo = new(models.RefToBinaryData)
-		updateData.N2SmInfo.ContentID = N2SMINFO_ID
+		updateData.N2SmInfo.ContentID = N2SmInfoID
 	}
 	updateData.HoState = models.HoStatePrepared
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo)

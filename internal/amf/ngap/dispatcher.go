@@ -20,7 +20,7 @@ import (
 
 func Dispatch(conn net.Conn, msg []byte) {
 	var ran *context.AmfRan
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AmfSelf()
 
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
@@ -173,7 +173,7 @@ func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 }
 
 func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AmfSelf()
 
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
@@ -199,11 +199,11 @@ func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
 		ran.Log.Infof("SCTPAssocChange notification")
 		event := notification.(*sctp.SCTPAssocChangeEvent)
 		switch event.State() {
-		case sctp.SCTP_COMM_LOST:
-			ran.Log.Infof("SCTP state is SCTP_COMM_LOST, close the connection")
+		case sctp.SCTPCommLost:
+			ran.Log.Infof("SCTP state is SCTPCommLost, close the connection")
 			ran.Remove()
-		case sctp.SCTP_SHUTDOWN_COMP:
-			ran.Log.Infof("SCTP state is SCTP_SHUTDOWN_COMP, close the connection")
+		case sctp.SCTPShutdownComp:
+			ran.Log.Infof("SCTP state is SCTPShutdownComp, close the connection")
 			ran.Remove()
 		default:
 			ran.Log.Warnf("SCTP state[%+v] is not handled", event.State())

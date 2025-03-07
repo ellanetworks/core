@@ -14,7 +14,7 @@ type PlmnID struct {
 }
 
 type Tai struct {
-	PlmnID PlmnID `json:"plmnId"`
+	PlmnID PlmnID `json:"plmnID"`
 	Tac    string `json:"tac"`
 }
 

@@ -84,7 +84,7 @@ func EditAuthenticationSubscription(ueID string, sequenceNumber string) error {
 func convertDBAuthSubsDataToModel(opc string, key string, sequenceNumber string) *models.AuthenticationSubscription {
 	authSubsData := &models.AuthenticationSubscription{}
 	authSubsData.AuthenticationManagementField = AuthenticationManagementField
-	authSubsData.AuthenticationMethod = models.AuthMethod__5_G_AKA
+	authSubsData.AuthenticationMethod = models.AuthType5GAka
 	authSubsData.Milenage = &models.Milenage{
 		Op: &models.Op{
 			EncryptionAlgorithm: EncryptionAlgorithm,
@@ -302,7 +302,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	fmt.Printf("AUTN = %x\n", AUTN)
 	response := &models.AuthenticationInfoResult{}
 	var av models.AuthenticationVector
-	if authSubs.AuthenticationMethod == models.AuthMethod__5_G_AKA {
+	if authSubs.AuthenticationMethod == models.AuthType5GAka {
 		response.AuthType = models.AuthType5GAka
 
 		// derive XRES*

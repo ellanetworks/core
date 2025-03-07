@@ -95,8 +95,8 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	apiGroup.GET("/operator/slice", Authenticate(jwtSecret), GetOperatorSlice(dbInstance))
 	apiGroup.PUT("/operator/tracking", Authenticate(jwtSecret), Require(AdminRole, NetworkManagerRole), UpdateOperatorTracking(dbInstance))
 	apiGroup.GET("/operator/tracking", Authenticate(jwtSecret), GetOperatorTracking(dbInstance))
-	apiGroup.PUT("/operator/id", Authenticate(jwtSecret), Require(AdminRole, NetworkManagerRole), UpdateOperatorId(dbInstance))
-	apiGroup.GET("/operator/id", Authenticate(jwtSecret), GetOperatorId(dbInstance))
+	apiGroup.PUT("/operator/id", Authenticate(jwtSecret), Require(AdminRole, NetworkManagerRole), UpdateOperatorID(dbInstance))
+	apiGroup.GET("/operator/id", Authenticate(jwtSecret), GetOperatorID(dbInstance))
 	apiGroup.PUT("/operator/code", Authenticate(jwtSecret), Require(AdminRole, NetworkManagerRole), UpdateOperatorCode(dbInstance))
 	apiGroup.PUT("/operator/home-network", Authenticate(jwtSecret), Require(AdminRole, NetworkManagerRole), UpdateOperatorHomeNetwork(dbInstance))
 
@@ -131,7 +131,7 @@ func AddUIService(engine *gin.Engine) {
 	}
 
 	engine.Use(func(c *gin.Context) {
-		if !isApiUrlPath(c.Request.URL.Path) {
+		if !isAPIURLPath(c.Request.URL.Path) {
 			htmlPath := strings.TrimPrefix(c.Request.URL.Path, "/") + ".html"
 			if _, err := staticFilesSystem.Open(htmlPath); err == nil {
 				c.Request.URL.Path = htmlPath
@@ -143,6 +143,6 @@ func AddUIService(engine *gin.Engine) {
 	})
 }
 
-func isApiUrlPath(path string) bool {
+func isAPIURLPath(path string) bool {
 	return strings.HasPrefix(path, "/api/v1/")
 }

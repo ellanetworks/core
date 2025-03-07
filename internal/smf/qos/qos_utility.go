@@ -46,7 +46,7 @@ func PccFlowInfosString(flows []models.FlowInformation) []string {
 	var flowStrs []string
 	for _, flow := range flows {
 		str := fmt.Sprintf("\nFlowInfo:[flowDesc:[%v], PFId:[%v], direction:[%v]]",
-			flow.FlowDescription, flow.PackFiltId, flow.FlowDirection)
+			flow.FlowDescription, flow.PackFiltID, flow.FlowDirection)
 
 		flowStrs = append(flowStrs, str)
 	}
@@ -58,26 +58,26 @@ func (obj PolicyUpdate) String() string {
 		obj.PccRuleUpdate, obj.SessRuleUpdate, obj.QosFlowUpdate, obj.TCUpdate)
 }
 
-func (obj PccRulesUpdate) String() string {
+func (upd *PccRulesUpdate) String() string {
 	str := "\nPCC Rule Changes:"
 
 	// To be added
 	strAdd := ""
-	for name, rule := range obj.add {
+	for name, rule := range upd.add {
 		strAdd += fmt.Sprintf("\n[name:[%v], %v", name, PccRuleString(rule))
 	}
 	str += fmt.Sprintf("\n[to add:[%v]]", strAdd)
 
 	// To be modified
 	strMod := ""
-	for name, rule := range obj.mod {
+	for name, rule := range upd.mod {
 		strMod += fmt.Sprintf("\n[name:[%v], %v", name, PccRuleString(rule))
 	}
 	str += fmt.Sprintf("\n[to mod:[%v]]", strMod)
 
 	// To be deleted
 	strDel := ""
-	for name, rule := range obj.del {
+	for name, rule := range upd.del {
 		strDel += fmt.Sprintf("\n[name:[%v], %v", name, PccRuleString(rule))
 	}
 	str += fmt.Sprintf("\n[to del:[%v]]", strDel)
@@ -112,26 +112,26 @@ func (obj SessRulesUpdate) String() string {
 	return str
 }
 
-func (obj QosFlowsUpdate) String() string {
+func (upd *QosFlowsUpdate) String() string {
 	str := "\nQos Data Changes:"
 
 	// To be added
 	strAdd := ""
-	for name, val := range obj.add {
+	for name, val := range upd.add {
 		strAdd += fmt.Sprintf("\n[name:[%v], %v", name, QosDataString(val))
 	}
 	str += fmt.Sprintf("\n[to add:[%v]]", strAdd)
 
 	// To be modified
 	strMod := ""
-	for name, val := range obj.mod {
+	for name, val := range upd.mod {
 		strMod += fmt.Sprintf("\n[name:[%v], %v", name, QosDataString(val))
 	}
 	str += fmt.Sprintf("\n[to mod:[%v]]", strMod)
 
 	// To be deleted
 	strDel := ""
-	for name, val := range obj.del {
+	for name, val := range upd.del {
 		strDel += fmt.Sprintf("\n[name:[%v], %v", name, QosDataString(val))
 	}
 	str += fmt.Sprintf("\n[to del:[%v]]", strDel)

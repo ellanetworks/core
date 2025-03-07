@@ -27,7 +27,7 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 	smPolicyData.PduSessionType = util.PDUSessionTypeToModels(smContext.SelectedPDUSessionType)
 	smPolicyData.AccessType = smContext.AnType
 	smPolicyData.RatType = smContext.RatType
-	smPolicyData.Ipv4Address = smContext.PDUAddress.Ip.To4().String()
+	smPolicyData.Ipv4Address = smContext.PDUAddress.IP.To4().String()
 	smPolicyData.SubsSessAmbr = &models.Ambr{
 		Uplink:   smContext.DnnConfiguration.SessionAmbr.Uplink,
 		Downlink: smContext.DnnConfiguration.SessionAmbr.Downlink,
@@ -59,13 +59,13 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 	return smPolicyDecision, http.StatusCreated, nil
 }
 
-func SendSMPolicyAssociationDelete(supi string, pduSessionId int32) error {
-	smPolicyID := fmt.Sprintf("%s-%d", supi, pduSessionId)
+func SendSMPolicyAssociationDelete(supi string, pduSessionID int32) error {
+	smPolicyID := fmt.Sprintf("%s-%d", supi, pduSessionID)
 	err := pcf.DeleteSMPolicy(smPolicyID)
 	if err != nil {
 		return fmt.Errorf("smf policy delete failed, [%v] ", err.Error())
 	}
-	logger.SmfLog.Infof("smf policy deleted successfully, supi: %s, pduSessionId: %d", supi, pduSessionId)
+	logger.SmfLog.Infof("smf policy deleted successfully, supi: %s, pduSessionID: %d", supi, pduSessionID)
 	return nil
 }
 

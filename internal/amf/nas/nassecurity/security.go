@@ -4,7 +4,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package nas_security
+package nassecurity
 
 import (
 	"encoding/hex"
@@ -25,10 +25,10 @@ var mutex sync.Mutex
 
 func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 	if ue == nil {
-		return nil, fmt.Errorf("amfUe is nil")
+		return nil, fmt.Errorf("amf ue is nil")
 	}
 	if msg == nil {
-		return nil, fmt.Errorf("Nas Message is empty")
+		return nil, fmt.Errorf("nas message is empty")
 	}
 
 	// Plain NAS message
@@ -49,20 +49,20 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 			ue.ULCount.Set(0, 0)
 			ue.DLCount.Set(0, 0)
 		default:
-			return nil, fmt.Errorf("Wrong security header type: 0x%0x", msg.SecurityHeader.SecurityHeaderType)
+			return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeader.SecurityHeaderType)
 		}
 
 		// encode plain nas first
 		payload, err := msg.PlainNasEncode()
 		if err != nil {
-			return nil, fmt.Errorf("Plain NAS encode error: %+v", err)
+			return nil, fmt.Errorf("plain NAS encode error: %+v", err)
 		}
 
 		if needCiphering {
 			ue.NASLog.Debugf("Encrypt NAS message (algorithm: %+v, DLCount: 0x%0x)", ue.CipheringAlg, ue.DLCount.Get())
 			if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.DLCount.Get(), security.Bearer3GPP,
 				security.DirectionDownlink, payload); err != nil {
-				return nil, fmt.Errorf("Encrypt error: %+v", err)
+				return nil, fmt.Errorf("encrypt error: %+v", err)
 			}
 		}
 
@@ -143,7 +143,7 @@ func FetchUeContextWithMobileIdentity(payload []byte) *context.AmfUe {
 			/* UeContext found based on SUCI which means context is exist in Network(AMF) but not
 			   present in UE. Hence, AMF clear the existing context
 			*/
-			ue, _ = context.AMF_Self().AmfUeFindBySuci(suci)
+			ue, _ = context.AmfSelf().AmfUeFindBySuci(suci)
 			if ue != nil {
 				ue.NASLog.Infof("UE Context derived from Suci: %v", suci)
 				ue.SecurityContextAvailable = false
@@ -164,7 +164,7 @@ func FetchUeContextWithMobileIdentity(payload []byte) *context.AmfUe {
 		}
 	}
 	if guti != "" {
-		ue, _ = context.AMF_Self().AmfUeFindByGuti(guti)
+		ue, _ = context.AmfSelf().AmfUeFindByGuti(guti)
 		if ue != nil {
 			if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
 				ue.NASLog.Infof("UE Context derived from Guti but received in plain nas: %v", guti)
@@ -186,10 +186,10 @@ format is followed TS 24.501 9.1.1
 */
 func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*nas.Message, error) {
 	if ue == nil {
-		return nil, fmt.Errorf("amfUe is nil")
+		return nil, fmt.Errorf("amf ue is nil")
 	}
 	if payload == nil {
-		return nil, fmt.Errorf("Nas payload is empty")
+		return nil, fmt.Errorf("nas payload is empty")
 	}
 
 	msg := new(nas.Message)
@@ -197,7 +197,7 @@ func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*n
 	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
 		// RRCEstablishmentCause 0 is for emergency service
 		if ue.SecurityContextAvailable && ue.RanUe[accessType].RRCEstablishmentCause != "0" {
-			ue.NASLog.Warnln("Received Plain NAS message")
+			ue.NASLog.Warnln("received plain nas message")
 			ue.MacFailed = false
 			ue.SecurityContextAvailable = false
 			if err := msg.PlainNasDecode(&payload); err != nil {
@@ -205,7 +205,7 @@ func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*n
 			}
 
 			if msg.GmmMessage == nil {
-				return nil, fmt.Errorf("Gmm Message is nil")
+				return nil, fmt.Errorf("gmm message is nil")
 			}
 
 			// TS 24.501 4.4.4.3: Except the messages listed below, no NAS signalling messages shall be processed
@@ -259,7 +259,7 @@ func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*n
 			ciphered = true
 			ue.ULCount.Set(0, 0)
 		default:
-			return nil, fmt.Errorf("Wrong security header type: 0x%0x", msg.SecurityHeader.SecurityHeaderType)
+			return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeader.SecurityHeaderType)
 		}
 
 		if ue.ULCount.SQN() > sequenceNumber {
@@ -284,11 +284,11 @@ func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*n
 		}
 
 		if ciphered {
-			ue.NASLog.Debugf("Decrypt NAS message (algorithm: %+v, ULCount: 0x%0x)", ue.CipheringAlg, ue.ULCount.Get())
+			ue.NASLog.Debugf("decrypt NAS message (algorithm: %+v, ULCount: 0x%0x)", ue.CipheringAlg, ue.ULCount.Get())
 			// decrypt payload without sequence number (payload[1])
 			if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP,
 				security.DirectionUplink, payload[1:]); err != nil {
-				return nil, fmt.Errorf("Encrypt error: %+v", err)
+				return nil, fmt.Errorf("encrypt error: %+v", err)
 			}
 		}
 
@@ -319,7 +319,7 @@ func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*n
 			case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
 				return msg, nil
 			default:
-				return nil, fmt.Errorf("Mac Verification for the nas message [%v] failed", msg.GmmHeader.GetMessageType())
+				return nil, fmt.Errorf("mac Verification for the nas message [%v] failed", msg.GmmHeader.GetMessageType())
 			}
 		}
 

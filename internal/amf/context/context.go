@@ -31,7 +31,7 @@ var (
 
 func init() {
 	tmsiGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
-	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapId)
+	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID)
 }
 
 type NetworkFeatureSupport5GS struct {
@@ -67,7 +67,7 @@ type TimerValue struct {
 }
 
 type AMFContext struct {
-	DbInstance                      *db.Database
+	DBInstance                      *db.Database
 	UePool                          sync.Map         // map[supi]*AmfUe
 	RanUePool                       sync.Map         // map[AmfUeNgapID]*RanUe
 	AmfRanPool                      sync.Map         // map[net.Conn]*AmfRan
@@ -80,7 +80,7 @@ type AMFContext struct {
 	SupportedDnns                   []string
 	SecurityAlgorithm               SecurityAlgorithm
 	NetworkName                     NetworkName
-	NgapIpList                      []string // NGAP Server IP
+	NgapIPList                      []string // NGAP Server IP
 	T3502Value                      int      // unit is second
 	T3512Value                      int      // unit is second
 	Non3gppDeregistrationTimerValue int      // unit is second
@@ -109,7 +109,7 @@ func (context *AMFContext) TmsiAllocate() int32 {
 func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 	val, err := amfUeNGAPIDGenerator.Allocate()
 	if err != nil {
-		return -1, fmt.Errorf("could not allocate AmfUeNgapID: %v", err)
+		return -1, fmt.Errorf("could not allocate id: %v", err)
 	}
 	return val, nil
 }
@@ -233,19 +233,19 @@ func (context *AMFContext) AmfRanFindByRanID(RanNodeID models.GlobalRanNodeID) (
 		amfRan := value.(*AmfRan)
 		switch amfRan.RanPresent {
 		case RanPresentGNbID:
-			if amfRan.RanId.GnbID.GNBValue == RanNodeID.GnbID.GNBValue {
+			if amfRan.GlobalRanID.GnbID.GNBValue == RanNodeID.GnbID.GNBValue {
 				ran = amfRan
 				ok = true
 				return false
 			}
 		case RanPresentNgeNbID:
-			if amfRan.RanId.NgeNbID == RanNodeID.NgeNbID {
+			if amfRan.GlobalRanID.NgeNbID == RanNodeID.NgeNbID {
 				ran = amfRan
 				ok = true
 				return false
 			}
 		case RanPresentN3IwfID:
-			if amfRan.RanId.N3IwfID == RanNodeID.N3IwfID {
+			if amfRan.GlobalRanID.N3IwfID == RanNodeID.N3IwfID {
 				ran = amfRan
 				ok = true
 				return false
@@ -327,10 +327,10 @@ func (context *AMFContext) AmfUeFindByGuti(guti string) (ue *AmfUe, ok bool) {
 	return
 }
 
-func (context *AMFContext) AmfUeFindByPolicyAssociationID(polAssoId string) (ue *AmfUe, ok bool) {
+func (context *AMFContext) AmfUeFindByPolicyAssociationID(polAssoID string) (ue *AmfUe, ok bool) {
 	context.UePool.Range(func(key, value interface{}) bool {
 		candidate := value.(*AmfUe)
-		if ok = (candidate.PolicyAssociationID == polAssoId); ok {
+		if ok = (candidate.PolicyAssociationID == polAssoID); ok {
 			ue = candidate
 			return false
 		}
@@ -417,7 +417,6 @@ func (context *AMFContext) Get5gsNwFeatSuppMcsi() uint8 {
 	return 0
 }
 
-// Create new AMF context
-func AMF_Self() *AMFContext {
+func AmfSelf() *AMFContext {
 	return &amfContext
 }

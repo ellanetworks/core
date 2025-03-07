@@ -12,7 +12,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/nas/nas_security"
+	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas"
@@ -22,7 +22,7 @@ import (
 )
 
 func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu []byte,
-	pduSessionId uint8, cause *uint8, backoffTimerUint *uint8, backoffTimer uint8,
+	pduSessionID uint8, cause *uint8, backoffTimerUint *uint8, backoffTimer uint8,
 ) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
@@ -41,10 +41,10 @@ func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu [
 	dLNASTransport.PayloadContainer.SetLen(uint16(len(nasPdu)))
 	dLNASTransport.PayloadContainer.SetPayloadContainerContents(nasPdu)
 
-	if pduSessionId != 0 {
+	if pduSessionID != 0 {
 		dLNASTransport.PduSessionID2Value = new(nasType.PduSessionID2Value)
 		dLNASTransport.PduSessionID2Value.SetIei(nasMessage.DLNASTransportPduSessionID2ValueType)
-		dLNASTransport.PduSessionID2Value.SetPduSessionID2Value(pduSessionId)
+		dLNASTransport.PduSessionID2Value.SetPduSessionID2Value(pduSessionID)
 	}
 	if cause != nil {
 		dLNASTransport.Cause5GMM = new(nasType.Cause5GMM)
@@ -61,7 +61,7 @@ func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu [
 
 	m.GmmMessage.DLNASTransport = dLNASTransport
 
-	return nas_security.Encode(ue, m)
+	return nassecurity.Encode(ue, m)
 }
 
 func BuildNotification(ue *context.AmfUe, accessType models.AccessType) ([]byte, error) {
@@ -86,7 +86,7 @@ func BuildNotification(ue *context.AmfUe, accessType models.AccessType) ([]byte,
 
 	m.GmmMessage.Notification = notification
 
-	return nas_security.Encode(ue, m)
+	return nassecurity.Encode(ue, m)
 }
 
 func BuildIdentityRequest(typeOfIdentity uint8) ([]byte, error) {
@@ -198,7 +198,7 @@ func BuildServiceAccept(ue *context.AmfUe, pDUSessionStatus *[16]bool,
 	}
 	m.GmmMessage.ServiceAccept = serviceAccept
 
-	return nas_security.Encode(ue, m)
+	return nassecurity.Encode(ue, m)
 }
 
 func BuildAuthenticationReject(ue *context.AmfUe, eapMsg string) ([]byte, error) {
@@ -380,7 +380,7 @@ func BuildSecurityModeCommand(ue *context.AmfUe, eapSuccess bool, eapMessage str
 
 	ue.SecurityContextAvailable = true
 	m.GmmMessage.SecurityModeCommand = securityModeCommand
-	payload, err := nas_security.Encode(ue, m)
+	payload, err := nassecurity.Encode(ue, m)
 	if err != nil {
 		ue.SecurityContextAvailable = false
 		return nil, err
@@ -423,7 +423,7 @@ func BuildDeregistrationRequest(ue *context.RanUe, accessType uint8, reRegistrat
 			ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
 			SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
 		}
-		return nas_security.Encode(ue.AmfUe, m)
+		return nassecurity.Encode(ue.AmfUe, m)
 	}
 	return m.PlainNasEncode()
 }
@@ -516,7 +516,7 @@ func BuildRegistrationAccept(
 	}
 
 	// 5gs network feature support
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AmfSelf()
 	if amfSelf.Get5gsNwFeatSuppEnable() {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
 		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)
@@ -594,5 +594,5 @@ func BuildRegistrationAccept(
 
 	m.GmmMessage.RegistrationAccept = registrationAccept
 
-	return nas_security.Encode(ue, m)
+	return nassecurity.Encode(ue, m)
 }

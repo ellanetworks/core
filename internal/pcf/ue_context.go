@@ -15,7 +15,7 @@ import (
 )
 
 type UeContext struct {
-	SmPolicyData              map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionId) as key
+	SmPolicyData              map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionID) as key
 	Supi                      string
 	Gpsi                      string
 	Pei                       string

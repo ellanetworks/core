@@ -75,7 +75,7 @@ type AmfUe struct {
 	RegistrationAcceptForNon3GPPAccess []byte
 	RetransmissionOfInitialNASMsg      bool
 
-	TargetAmfUri string /* Used for AMF relocation */
+	TargetAmfURI string /* Used for AMF relocation */
 
 	PlmnID              models.PlmnID
 	Suci                string
@@ -98,12 +98,10 @@ type AmfUe struct {
 	SmfSelectionData                  *models.SmfSelectionSubscriptionData
 	UeContextInSmfData                *models.UeContextInSmfData
 	TraceData                         *models.TraceData
-	UdmGroupId                        string
+	UdmGroupID                        string
 	SubscribedNssai                   []models.SubscribedSnssai
 	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData
 
-	AusfGroupId                       string
-	AusfId                            string
 	RoutingIndicator                  string
 	AuthenticationCtx                 *models.UeAuthenticationCtx
 	AuthFailureCauseSynchFailureTimes int
@@ -170,7 +168,6 @@ type AmfUe struct {
 	Non3gppDeregistrationTimerValue int // default 54 min
 
 	AmfInstanceName string
-	AmfInstanceIp   string
 
 	NASLog      *zap.SugaredLogger
 	GmmLog      *zap.SugaredLogger
@@ -230,7 +227,7 @@ type NGRANCGI struct {
 }
 
 func (ue *AmfUe) init() {
-	ue.ServingAMF = AMF_Self()
+	ue.ServingAMF = AmfSelf()
 	ue.State = make(map[models.AccessType]*fsm.State)
 	ue.State[models.AccessType3GPPAccess] = fsm.NewState(Deregistered)
 	ue.State[models.AccessTypeNon3GPPAccess] = fsm.NewState(Deregistered)
@@ -247,7 +244,6 @@ func (ue *AmfUe) init() {
 	ue.OnGoing[models.AccessType3GPPAccess].Procedure = OnGoingProcedureNothing
 	ue.ReleaseCause = make(map[models.AccessType]*CauseAll)
 	ue.AmfInstanceName = os.Getenv("HOSTNAME")
-	ue.AmfInstanceIp = os.Getenv("POD_IP")
 }
 
 func (ue *AmfUe) CmConnect(anType models.AccessType) bool {
@@ -271,7 +267,7 @@ func (ue *AmfUe) Remove() {
 	tmsiGenerator.FreeID(int64(ue.Tmsi))
 
 	if len(ue.Supi) > 0 {
-		AMF_Self().UePool.Delete(ue.Supi)
+		AmfSelf().UePool.Delete(ue.Supi)
 	}
 }
 
@@ -294,9 +290,9 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	}()
 
 	// set log information
-	ue.NASLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
-	ue.GmmLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
-	ue.TxLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
+	ue.NASLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID))
+	ue.GmmLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID))
+	ue.TxLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID))
 }
 
 func (ue *AmfUe) GetAnType() models.AccessType {
@@ -585,14 +581,6 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 		ue.Pei = ueContext.Pei
 	}
 
-	if ueContext.UdmGroupID != "" {
-		ue.UdmGroupId = ueContext.UdmGroupID
-	}
-
-	if ueContext.AusfGroupID != "" {
-		ue.AusfGroupId = ueContext.AusfGroupID
-	}
-
 	if ueContext.RoutingIndicator != "" {
 		ue.RoutingIndicator = ueContext.RoutingIndicator
 	}
@@ -663,7 +651,7 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 
 		ue.NgKsi = *seafData.NgKsi
 		if seafData.KeyAmf != nil {
-			if seafData.KeyAmf.KeyType == models.KeyAmfType_KAMF {
+			if seafData.KeyAmf.KeyType == models.KeyAmfTypeKAMF {
 				ue.Kamf = seafData.KeyAmf.KeyVal
 			}
 		}
@@ -714,8 +702,8 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 	if len(ueContext.MmContextList) > 0 {
 		for _, mmContext := range ueContext.MmContextList {
 			if mmContext.AccessType == models.AccessType3GPPAccess {
-				if nasSecurityMode := mmContext.NasSecurityMode; nasSecurityMode != nil {
-					switch nasSecurityMode.IntegrityAlgorithm {
+				if nassecurityMode := mmContext.NasSecurityMode; nassecurityMode != nil {
+					switch nassecurityMode.IntegrityAlgorithm {
 					case models.IntegrityAlgorithmNIA0:
 						ue.IntegrityAlg = security.AlgIntegrity128NIA0
 					case models.IntegrityAlgorithmNIA1:
@@ -726,14 +714,14 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 						ue.IntegrityAlg = security.AlgIntegrity128NIA3
 					}
 
-					switch nasSecurityMode.CipheringAlgorithm {
-					case models.CipheringAlgorithm_NEA0:
+					switch nassecurityMode.CipheringAlgorithm {
+					case models.CipheringAlgorithmNEA0:
 						ue.CipheringAlg = security.AlgCiphering128NEA0
-					case models.CipheringAlgorithm_NEA1:
+					case models.CipheringAlgorithmNEA1:
 						ue.CipheringAlg = security.AlgCiphering128NEA1
-					case models.CipheringAlgorithm_NEA2:
+					case models.CipheringAlgorithmNEA2:
 						ue.CipheringAlg = security.AlgCiphering128NEA2
-					case models.CipheringAlgorithm_NEA3:
+					case models.CipheringAlgorithmNEA3:
 						ue.CipheringAlg = security.AlgCiphering128NEA3
 					}
 

@@ -15,7 +15,7 @@ type SmContextUpdateData struct {
 	N2SmInfo           *RefToBinaryData
 	N2SmInfoType       N2SmInfoType
 	TargetID           *NgRanTargetID
-	SmContextStatusUri string
+	SmContextStatusURI string
 	Release            bool
 	Cause              Cause
 	NgApCause          *NgApCause

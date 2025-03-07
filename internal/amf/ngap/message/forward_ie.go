@@ -17,11 +17,9 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-func AppendPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetupListSUReq,
-	pduSessionId int32, snssai models.Snssai, nasPDU []byte, transfer []byte,
-) {
+func AppendPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetupListSUReq, pduSessionID int32, snssai models.Snssai, nasPDU []byte, transfer []byte) {
 	var item ngapType.PDUSessionResourceSetupItemSUReq
-	item.PDUSessionID.Value = int64(pduSessionId)
+	item.PDUSessionID.Value = int64(pduSessionID)
 	item.SNSSAI = util.SNssaiToNgap(snssai)
 	item.PDUSessionResourceSetupRequestTransfer = transfer
 	if nasPDU != nil {
@@ -32,20 +30,20 @@ func AppendPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSet
 }
 
 func AppendPDUSessionResourceSetupListHOReq(list *ngapType.PDUSessionResourceSetupListHOReq,
-	pduSessionId int32, snssai models.Snssai, transfer []byte,
+	pduSessionID int32, snssai models.Snssai, transfer []byte,
 ) {
 	var item ngapType.PDUSessionResourceSetupItemHOReq
-	item.PDUSessionID.Value = int64(pduSessionId)
+	item.PDUSessionID.Value = int64(pduSessionID)
 	item.SNSSAI = util.SNssaiToNgap(snssai)
 	item.HandoverRequestTransfer = transfer
 	list.List = append(list.List, item)
 }
 
 func AppendPDUSessionResourceSetupListCxtReq(list *ngapType.PDUSessionResourceSetupListCxtReq,
-	pduSessionId int32, snssai models.Snssai, nasPDU []byte, transfer []byte,
+	pduSessionID int32, snssai models.Snssai, nasPDU []byte, transfer []byte,
 ) {
 	var item ngapType.PDUSessionResourceSetupItemCxtReq
-	item.PDUSessionID.Value = int64(pduSessionId)
+	item.PDUSessionID.Value = int64(pduSessionID)
 	item.SNSSAI = util.SNssaiToNgap(snssai)
 	if nasPDU != nil {
 		item.NASPDU = new(ngapType.NASPDU)
@@ -56,10 +54,10 @@ func AppendPDUSessionResourceSetupListCxtReq(list *ngapType.PDUSessionResourceSe
 }
 
 func AppendPDUSessionResourceModifyListModReq(list *ngapType.PDUSessionResourceModifyListModReq,
-	pduSessionId int32, nasPDU []byte, transfer []byte,
+	pduSessionID int32, nasPDU []byte, transfer []byte,
 ) {
 	var item ngapType.PDUSessionResourceModifyItemModReq
-	item.PDUSessionID.Value = int64(pduSessionId)
+	item.PDUSessionID.Value = int64(pduSessionID)
 	item.PDUSessionResourceModifyRequestTransfer = transfer
 	if nasPDU != nil {
 		item.NASPDU = new(ngapType.NASPDU)
@@ -69,19 +67,19 @@ func AppendPDUSessionResourceModifyListModReq(list *ngapType.PDUSessionResourceM
 }
 
 func AppendPDUSessionResourceModifyListModCfm(list *ngapType.PDUSessionResourceModifyListModCfm,
-	pduSessionId int64, transfer []byte,
+	pduSessionID int64, transfer []byte,
 ) {
 	var item ngapType.PDUSessionResourceModifyItemModCfm
-	item.PDUSessionID.Value = pduSessionId
+	item.PDUSessionID.Value = pduSessionID
 	item.PDUSessionResourceModifyConfirmTransfer = transfer
 	list.List = append(list.List, item)
 }
 
 func AppendPDUSessionResourceToReleaseListRelCmd(list *ngapType.PDUSessionResourceToReleaseListRelCmd,
-	pduSessionId int32, transfer []byte,
+	pduSessionID int32, transfer []byte,
 ) {
 	var item ngapType.PDUSessionResourceToReleaseItemRelCmd
-	item.PDUSessionID.Value = int64(pduSessionId)
+	item.PDUSessionID.Value = int64(pduSessionID)
 	item.PDUSessionResourceReleaseCommandTransfer = transfer
 	list.List = append(list.List, item)
 }
@@ -156,10 +154,10 @@ func BuildUnavailableGUAMIList(guamiList []models.Guami) (unavailableGUAMIList n
 	for _, guami := range guamiList {
 		item := ngapType.UnavailableGUAMIItem{}
 		item.GUAMI.PLMNIdentity = util.PlmnIDToNgap(*guami.PlmnID)
-		regionId, setId, ptrId := ngapConvert.AmfIdToNgap(guami.AmfID)
-		item.GUAMI.AMFRegionID.Value = regionId
-		item.GUAMI.AMFSetID.Value = setId
-		item.GUAMI.AMFPointer.Value = ptrId
+		regionID, setID, ptrID := ngapConvert.AmfIdToNgap(guami.AmfID)
+		item.GUAMI.AMFRegionID.Value = regionID
+		item.GUAMI.AMFSetID.Value = setID
+		item.GUAMI.AMFPointer.Value = ptrID
 		unavailableGUAMIList.List = append(unavailableGUAMIList.List, item)
 	}
 	return

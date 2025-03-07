@@ -21,7 +21,7 @@ import (
 )
 
 func CreateN1N2MessageTransfer(ueContextID string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (*models.N1N2MessageTransferRspData, error) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AmfSelf()
 	if _, ok := amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
 		return nil, fmt.Errorf("UE context not found")
 	}
@@ -53,18 +53,18 @@ func CreateN1N2MessageTransfer(ueContextID string, n1n2MessageTransferRequest mo
 // see TS 29.518 6.1.3.5.3.1 for more details.
 func N1N2MessageTransferProcedure(ueContextID string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (*models.N1N2MessageTransferRspData, error) {
 	var (
-		requestData *models.N1N2MessageTransferReqData = n1n2MessageTransferRequest.JSONData
-		n2Info      []byte                             = n1n2MessageTransferRequest.BinaryDataN2Information
-		n1Msg       []byte                             = n1n2MessageTransferRequest.BinaryDataN1Message
+		requestData = n1n2MessageTransferRequest.JSONData
+		n2Info      = n1n2MessageTransferRequest.BinaryDataN2Information
+		n1Msg       = n1n2MessageTransferRequest.BinaryDataN1Message
 
 		ue        *context.AmfUe
 		ok        bool
 		smContext *context.SmContext
 		n1MsgType uint8
-		anType    models.AccessType = models.AccessType3GPPAccess
+		anType    = models.AccessType3GPPAccess
 	)
 
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AmfSelf()
 
 	if ue, ok = amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
 		return nil, fmt.Errorf("ue context not found")
@@ -143,7 +143,7 @@ func N1N2MessageTransferProcedure(ueContextID string, n1n2MessageTransferRequest
 		if n2Info != nil {
 			smInfo := requestData.N2InfoContainer.SmInfo
 			switch smInfo.N2InfoContent.NgapIeType {
-			case models.NgapIeType_PDU_RES_SETUP_REQ:
+			case models.NgapIeTypePDUResSetupReq:
 				ue.ProducerLog.Debugln("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 				omecSnssai := models.Snssai{
 					Sst: smInfo.SNssai.Sst,
@@ -164,7 +164,7 @@ func N1N2MessageTransferProcedure(ueContextID string, n1n2MessageTransferRequest
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseN1N2TransferInitiated
 				// context.StoreContextInDB(ue)
 				return n1n2MessageTransferRspData, nil
-			case models.NgapIeType_PDU_RES_MOD_REQ:
+			case models.NgapIeTypePduResModReq:
 				ue.ProducerLog.Debugln("AMF Transfer NGAP PDU Session Resource Modify Request from SMF")
 				list := ngapType.PDUSessionResourceModifyListModReq{}
 				ngap_message.AppendPDUSessionResourceModifyListModReq(&list, smInfo.PduSessionID, nasPdu, n2Info)
@@ -173,7 +173,7 @@ func N1N2MessageTransferProcedure(ueContextID string, n1n2MessageTransferRequest
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseN1N2TransferInitiated
 				// context.StoreContextInDB(ue)
 				return n1n2MessageTransferRspData, nil
-			case models.NgapIeType_PDU_RES_REL_CMD:
+			case models.NgapIeTypePDUResRelCmd:
 				ue.ProducerLog.Debugln("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
 				list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 				ngap_message.AppendPDUSessionResourceToReleaseListRelCmd(&list, smInfo.PduSessionID, n2Info)
@@ -191,7 +191,7 @@ func N1N2MessageTransferProcedure(ueContextID string, n1n2MessageTransferRequest
 	// UE is CM-IDLE
 
 	// 409: transfer a N2 PDU Session Resource Release Command to a 5G-AN and if the UE is in CM-IDLE
-	if n2Info != nil && requestData.N2InfoContainer.SmInfo.N2InfoContent.NgapIeType == models.NgapIeType_PDU_RES_REL_CMD {
+	if n2Info != nil && requestData.N2InfoContainer.SmInfo.N2InfoContent.NgapIeType == models.NgapIeTypePDUResRelCmd {
 		return nil, fmt.Errorf("ue in cm idle state")
 	}
 	// 504: the UE in MICO mode or the UE is only registered over Non-3GPP access and its state is CM-IDLE

@@ -42,7 +42,7 @@ func SDMGetUeContextInSmfData(ue *context.AmfUe) (err error) {
 }
 
 func SDMSubscribe(ue *context.AmfUe) error {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AmfSelf()
 	sdmSubscription := &models.SdmSubscription{
 		NfInstanceID: amfSelf.NfID,
 		PlmnID: &models.PlmnID{

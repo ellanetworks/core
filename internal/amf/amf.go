@@ -19,9 +19,9 @@ import (
 )
 
 func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
-	self := context.AMF_Self()
+	self := context.AmfSelf()
 	self.Name = "AMF"
-	self.NgapIpList = []string{n2Address}
+	self.NgapIPList = []string{n2Address}
 	self.NgapPort = n2Port
 	self.NetworkFeatureSupport5GS = &context.NetworkFeatureSupport5GS{
 		Emc:     0,
@@ -71,7 +71,7 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 		ExpireTime:    6 * time.Second,
 		MaxRetryTimes: 4,
 	}
-	self.DbInstance = dbInstance
+	self.DBInstance = dbInstance
 	self.LadnPool = make(map[string]*context.LADN)
 	self.Name = "amf"
 	self.RelativeCapacity = 0xff
@@ -117,13 +117,13 @@ func getEncAlgOrder(cipheringOrder []string) (encOrder []uint8) {
 }
 
 func StartNGAPService() {
-	self := context.AMF_Self()
+	self := context.AmfSelf()
 
 	ngapHandler := service.NGAPHandler{
 		HandleMessage:      ngap.Dispatch,
 		HandleNotification: ngap.HandleSCTPNotification,
 	}
-	service.Run(self.NgapIpList, self.NgapPort, ngapHandler)
+	service.Run(self.NgapIPList, self.NgapPort, ngapHandler)
 
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
@@ -137,7 +137,7 @@ func StartNGAPService() {
 // Used in AMF planned removal procedure
 func Terminate() {
 	logger.AmfLog.Infof("Terminating AMF...")
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AmfSelf()
 
 	// send AMF status indication to ran to notify ran that this AMF will be unavailable
 	logger.AmfLog.Infof("Send AMF Status Indication to Notify RANs due to AMF terminating")

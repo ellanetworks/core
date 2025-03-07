@@ -17,7 +17,7 @@ const (
 	MaxNumOfPLMNs                     int   = 12
 	MaxNumOfSlice                     int   = 1024
 	MaxNumOfAllowedSnssais            int   = 8
-	MaxValueOfAmfUeNgapId             int64 = 1099511627775
+	MaxValueOfAmfUeNgapID             int64 = 1099511627775
 	MaxNumOfServedGuamiList           int   = 256
 	MaxNumOfPDUSessions               int   = 256
 	MaxNumOfDRBs                      int   = 32

@@ -1,7 +1,7 @@
 package models
 
 type AuthenticationSubscription struct {
-	AuthenticationMethod          AuthMethod
+	AuthenticationMethod          AuthType
 	PermanentKey                  *PermanentKey
 	SequenceNumber                string
 	AuthenticationManagementField string

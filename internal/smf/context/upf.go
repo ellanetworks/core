@@ -289,7 +289,7 @@ func (upf *UPF) BuildCreatePdrFromPccRule(rule *models.PccRule) (*PDR, error) {
 		sdfFilter.Fd = true
 		sdfFilter.FlowDescription = []byte(flow.FlowDescription)
 		sdfFilter.LengthOfFlowDescription = uint16(len(sdfFilter.FlowDescription))
-		if id, err := strconv.ParseUint(flow.PackFiltId, 10, 32); err != nil {
+		if id, err := strconv.ParseUint(flow.PackFiltID, 10, 32); err != nil {
 			return nil, err
 		} else {
 			sdfFilter.SdfFilterID = uint32(id)

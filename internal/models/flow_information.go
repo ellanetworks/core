@@ -3,9 +3,8 @@ package models
 type FlowInformation struct {
 	// Defines a packet filter for an IP flow.Refer to subclause 5.4.2 of 3GPP TS 29.212 [23] for encoding.
 	FlowDescription string
-	// EthFlowDescription *EthFlowDescription `json:"ethFlowDescription,omitempty" yaml:"ethFlowDescription" bson:"ethFlowDescription" mapstructure:"EthFlowDescription"`
 	// An identifier of packet filter.
-	PackFiltId string
+	PackFiltID string
 	// The packet shall be sent to the UE.
 	PacketFilterUsage bool
 	// Contains the Ipv4 Type-of-Service and mask field or the Ipv6 Traffic-Class field and mask field.

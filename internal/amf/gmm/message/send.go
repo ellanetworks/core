@@ -17,15 +17,14 @@ import (
 
 // backOffTimerUint = 7 means backoffTimer is null
 func SendDLNASTransport(ue *context.RanUe, payloadContainerType uint8, nasPdu []byte,
-	pduSessionId int32, cause uint8, backOffTimerUint *uint8, backOffTimer uint8,
+	pduSessionID int32, cause uint8, backOffTimerUint *uint8, backOffTimer uint8,
 ) {
-	ue.AmfUe.GmmLog.Info("Send DL NAS Transport")
 	var causePtr *uint8
 	if cause != 0 {
 		causePtr = &cause
 	}
 	nasMsg, err := BuildDLNASTransport(ue.AmfUe, payloadContainerType, nasPdu,
-		uint8(pduSessionId), causePtr, backOffTimerUint, backOffTimer)
+		uint8(pduSessionID), causePtr, backOffTimerUint, backOffTimer)
 	if err != nil {
 		ue.AmfUe.GmmLog.Error(err.Error())
 		return
@@ -42,8 +41,8 @@ func SendNotification(ue *context.RanUe, nasMsg []byte) {
 		return
 	}
 
-	if context.AMF_Self().T3565Cfg.Enable {
-		cfg := context.AMF_Self().T3565Cfg
+	if context.AmfSelf().T3565Cfg.Enable {
+		cfg := context.AmfSelf().T3565Cfg
 		amfUe.T3565 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.GmmLog.Warnf("T3565 expires, retransmit Notification (retry: %d)", expireTimes)
 			ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
@@ -86,8 +85,8 @@ func SendAuthenticationRequest(ue *context.RanUe) {
 	}
 	ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
 
-	if context.AMF_Self().T3560Cfg.Enable {
-		cfg := context.AMF_Self().T3560Cfg
+	if context.AmfSelf().T3560Cfg.Enable {
+		cfg := context.AmfSelf().T3560Cfg
 		amfUe.T3560 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.GmmLog.Warnf("T3560 expires, retransmit Authentication Request (retry: %d)", expireTimes)
 			ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
@@ -177,8 +176,8 @@ func SendSecurityModeCommand(ue *context.RanUe, eapSuccess bool, eapMessage stri
 
 	amfUe := ue.AmfUe
 
-	if context.AMF_Self().T3560Cfg.Enable {
-		cfg := context.AMF_Self().T3560Cfg
+	if context.AmfSelf().T3560Cfg.Enable {
+		cfg := context.AmfSelf().T3560Cfg
 		amfUe.T3560 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.GmmLog.Warnf("T3560 expires, retransmit Security Mode Command (retry: %d)", expireTimes)
 			ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
@@ -204,8 +203,8 @@ func SendDeregistrationRequest(ue *context.RanUe, accessType uint8, reRegistrati
 
 	amfUe := ue.AmfUe
 
-	if context.AMF_Self().T3522Cfg.Enable {
-		cfg := context.AMF_Self().T3522Cfg
+	if context.AmfSelf().T3522Cfg.Enable {
+		cfg := context.AmfSelf().T3522Cfg
 		amfUe.T3522 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.GmmLog.Warnf("T3522 expires, retransmit Deregistration Request (retry: %d)", expireTimes)
 			ngap_message.SendDownlinkNasTransport(ue, nasMsg, nil)
@@ -262,8 +261,8 @@ func SendRegistrationAccept(
 		ngap_message.SendDownlinkNasTransport(ue.RanUe[models.AccessType3GPPAccess], nasMsg, nil)
 	}
 
-	if context.AMF_Self().T3550Cfg.Enable {
-		cfg := context.AMF_Self().T3550Cfg
+	if context.AmfSelf().T3550Cfg.Enable {
+		cfg := context.AmfSelf().T3550Cfg
 		ue.T3550 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			if ue.RanUe[anType] == nil {
 				ue.GmmLog.Warnf("[NAS] UE Context released, abort retransmission of Registration Accept")

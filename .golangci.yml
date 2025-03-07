@@ -22,16 +22,7 @@ linters:
     - asciicheck
     - unparam
     - gci
-    # - stylecheck
+    - stylecheck
     # - gocognit
     # - nestif
     # - wsl
-
-  fast: true
-issues:
-  exclude-case-sensitive: false
-  new: false
-  new-from-rev: ""
-severity:
-  default-severity: error
-  case-sensitive: false

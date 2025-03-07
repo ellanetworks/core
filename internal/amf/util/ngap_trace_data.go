@@ -67,17 +67,17 @@ func TraceDataToNgap(traceData models.TraceData, trsr string) ngapType.TraceActi
 
 	// Trace Depth
 	switch traceData.TraceDepth {
-	case models.TraceDepth_MINIMUM:
+	case models.TraceDepthMinimum:
 		traceActivation.TraceDepth.Value = ngapType.TraceDepthPresentMinimum
-	case models.TraceDepth_MEDIUM:
+	case models.TraceDepthMedium:
 		traceActivation.TraceDepth.Value = ngapType.TraceDepthPresentMedium
-	case models.TraceDepth_MAXIMUM:
+	case models.TraceDepthMaximum:
 		traceActivation.TraceDepth.Value = ngapType.TraceDepthPresentMaximum
-	case models.TraceDepth_MINIMUM_WO_VENDOR_EXTENSION:
+	case models.TraceDepthMinimumWoVendorExtension:
 		traceActivation.TraceDepth.Value = ngapType.TraceDepthPresentMinimumWithoutVendorSpecificExtension
-	case models.TraceDepth_MEDIUM_WO_VENDOR_EXTENSION:
+	case models.TraceDepthMediumWoVendorExtension:
 		traceActivation.TraceDepth.Value = ngapType.TraceDepthPresentMediumWithoutVendorSpecificExtension
-	case models.TraceDepth_MAXIMUM_WO_VENDOR_EXTENSION:
+	case models.TraceDepthMaximumWoVendorExtension:
 		traceActivation.TraceDepth.Value = ngapType.TraceDepthPresentMaximumWithoutVendorSpecificExtension
 	}
 

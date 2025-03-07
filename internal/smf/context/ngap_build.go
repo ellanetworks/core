@@ -111,7 +111,7 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 		var qosFlowsList []ngapType.QosFlowSetupRequestItem
 		for _, qosFlow := range qosAddFlows {
 			arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
-			if qosFlow.Arp.PreemptCap == models.PreemptionCapability_NOT_PREEMPT {
+			if qosFlow.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
 				arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
 			}
 
@@ -166,7 +166,7 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 		ie.Criticality.Value = ngapType.CriticalityPresentReject
 
 		arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
-		if sessRule.AuthDefQos.Arp.PreemptCap == models.PreemptionCapability_NOT_PREEMPT {
+		if sessRule.AuthDefQos.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
 			arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
 		}
 

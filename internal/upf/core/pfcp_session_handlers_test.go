@@ -59,6 +59,9 @@ func TestHandlePfcpSessionModificationRequestCauseNoEstablishedPFCPAssociation(t
 	if response == nil {
 		t.Fatalf("Response is nil")
 	}
+	if response.Cause == nil {
+		t.Fatalf("Cause IE is nil")
+	}
 	CauseIE, err := response.Cause.Cause()
 	if err != nil {
 		t.Fatalf("Error getting Cause IE: %v", err)

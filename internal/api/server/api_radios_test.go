@@ -22,7 +22,7 @@ type PlmnID struct {
 }
 
 type Tai struct {
-	PlmnID PlmnID `json:"plmnId"`
+	PlmnID PlmnID `json:"plmnID"`
 	Tac    string `json:"tac"`
 }
 
@@ -38,7 +38,7 @@ type SupportedTAI struct {
 
 type GetRadioResponseResult struct {
 	Name          string         `json:"name"`
-	Id            string         `json:"id"`
+	ID            string         `json:"id"`
 	Address       string         `json:"address"`
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
@@ -90,7 +90,7 @@ func TestListRadios(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	amf := amfContext.AMF_Self()
+	amf := amfContext.AmfSelf()
 	ran1 := amfContext.AmfRan{}
 	ran1.Name = "gnb-001"
 	ran1.SupportedTAList = []amfContext.SupportedTAI{
@@ -158,8 +158,8 @@ func TestListRadios(t *testing.T) {
 			if radio.Address != "1.2.3.4" {
 				t.Fatalf("expected radio address %q, got %q", "1.2.3.4", radio.Address)
 			}
-			if radio.Id != "mcc:001:mnc:01:gnb-001" {
-				t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-001", radio.Id)
+			if radio.ID != "mcc:001:mnc:01:gnb-001" {
+				t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-001", radio.ID)
 			}
 			if len(radio.SupportedTAIs) != 1 {
 				t.Fatalf("expected 1 supported TAI, got %d", len(radio.SupportedTAIs))
@@ -186,8 +186,8 @@ func TestListRadios(t *testing.T) {
 			if radio.Address != "2.3.4.5" {
 				t.Fatalf("expected radio address %q, got %q", "2.3.4.5", radio.Address)
 			}
-			if radio.Id != "mcc:001:mnc:01:gnb-002" {
-				t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-002", radio.Id)
+			if radio.ID != "mcc:001:mnc:01:gnb-002" {
+				t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-002", radio.ID)
 			}
 			if len(radio.SupportedTAIs) != 1 {
 				t.Fatalf("expected 1 supported TAI, got %d", len(radio.SupportedTAIs))

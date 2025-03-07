@@ -85,7 +85,7 @@ func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 	}
 
 	upfNode := &UPNode{
-		Type:   UPNODE_UPF,
+		Type:   UpNodeUPF,
 		UPF:    upf,
 		NodeID: *upfNodeID,
 		Links:  make([]*UPNode, 0),
@@ -100,7 +100,7 @@ func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 	}
 
 	gnbNode := &UPNode{
-		Type:   UPNODE_AN,
+		Type:   UpNodeAN,
 		NodeID: *NewNodeID("1.1.1.1"),
 		Links:  make([]*UPNode, 0),
 		Dnn:    config.DNN,
@@ -166,7 +166,7 @@ func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInfo
 			return false
 		}
 
-		if node.Type == UPNODE_UPF {
+		if node.Type == UpNodeUPF {
 			if !node.UPF.SNssaiInfos[0].SNssai.Equal(&contextUserPlaneInfo.UPNodes[nodeName].UPF.SNssaiInfos[0].SNssai) {
 				logger.SmfLog.Warnf("SNssai mismatch for node %s", nodeName)
 				return false

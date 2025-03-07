@@ -173,7 +173,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                                     "bitLength": 24,
                                     "gNBValue": "000102",
                                 },
-                                "plmnId": {
+                                "plmnID": {
                                     "mcc": "001",
                                     "mnc": "01",
                                 },
@@ -186,7 +186,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                                 {
                                     "broadcastPlmnList": [
                                         {
-                                            "plmnId": {
+                                            "plmnID": {
                                                 "mcc": "001",
                                                 "mnc": "01",
                                             },
@@ -203,7 +203,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                                 {
                                     "broadcastPlmnList": [
                                         {
-                                            "plmnId": {
+                                            "plmnID": {
                                                 "mcc": "123",
                                                 "mnc": "12",
                                             },
@@ -244,7 +244,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                                 "sst": 1,
                                 "sd": "102030",
                             },
-                            "plmnId": {
+                            "plmnID": {
                                 "mcc": "001",
                                 "mnc": "01",
                             },
@@ -264,7 +264,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                                 "sst": 1,
                                 "sd": "102030",
                             },
-                            "plmnId": {
+                            "plmnID": {
                                 "mcc": "001",
                                 "mnc": "01",
                             },
@@ -289,7 +289,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                                 "sd": "102030",
                             },
                             "execInParallel": False,
-                            "plmnId": {
+                            "plmnID": {
                                 "mcc": "001",
                                 "mnc": "01",
                             },
@@ -312,7 +312,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                                 "sd": "102030",
                             },
                             "execInParallel": False,
-                            "plmnId": {
+                            "plmnID": {
                                 "mcc": "001",
                                 "mnc": "01",
                             },
@@ -334,7 +334,7 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
                                 "sd": "102030",
                             },
                             "execInParallel": False,
-                            "plmnId": {
+                            "plmnID": {
                                 "mcc": "001",
                                 "mnc": "01",
                             },

@@ -24,7 +24,7 @@ import (
 type RelAction int
 
 const (
-	RanUeNgapIdUnspecified int64 = 0xffffffff
+	RanUeNgapIDUnspecified int64 = 0xffffffff
 )
 
 const (
@@ -36,34 +36,30 @@ const (
 
 type RanUe struct {
 	/* UE identity*/
-	RanUeNgapId int64 `json:"ranUeNgapId,omitempty"`
-	AmfUeNgapId int64 `json:"amfUeNgapId,omitempty"`
+	RanUeNgapID int64
+	AmfUeNgapID int64
 
 	/* HandOver Info*/
 	HandOverType        ngapType.HandoverType
-	SuccessPduSessionID []int32 `json:"successPduSessionID,omitempty"`
-	SourceUe            *RanUe  `json:"-"`
-	TargetUe            *RanUe  `json:"-"`
+	SuccessPduSessionID []int32
+	SourceUe            *RanUe
+	TargetUe            *RanUe
 
 	/* UserLocation*/
 	Tai      models.Tai
 	Location models.UserLocation
 	/* context about udm */
-	SupportVoPSn3gpp  bool       `json:"-"`
-	SupportVoPS       bool       `json:"-"`
-	SupportedFeatures string     `json:"-"`
-	LastActTime       *time.Time `json:"-"`
+	SupportVoPSn3gpp  bool
+	SupportVoPS       bool
+	SupportedFeatures string
 
 	/* Related Context*/
-	AmfUe *AmfUe `json:"-"`
+	AmfUe *AmfUe
 	Ran   *AmfRan
 
-	/* Routing ID */
-	RoutingID string
-	/* Trace Recording Session Reference */
-	Trsr string
-	/* Ue Context Release Action */
-	ReleaseAction RelAction
+	RoutingID     string
+	Trsr          string    /* Trace Recording Session Reference */
+	ReleaseAction RelAction /* Ue Context Release Action */
 	/* context used for AMF Re-allocation procedure */
 	OldAmfName            string
 	InitialUEMessage      []byte
@@ -76,8 +72,7 @@ type RanUe struct {
 	/*Received Initial context setup response or not */
 	RecvdInitialContextSetupResponse bool
 
-	/* logger */
-	Log *zap.SugaredLogger `json:"-"`
+	Log *zap.SugaredLogger
 }
 
 func (ranUe *RanUe) Remove() error {
@@ -100,7 +95,7 @@ func (ranUe *RanUe) Remove() error {
 			break
 		}
 	}
-	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapId)
+	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapID)
 	return nil
 }
 
@@ -108,7 +103,7 @@ func (ranUe *RanUe) DetachAmfUe() {
 	ranUe.AmfUe = nil
 }
 
-func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapId int64) error {
+func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {
 	if ranUe == nil {
 		return fmt.Errorf("ranUe is nil")
 	}
@@ -132,9 +127,9 @@ func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapId int64) error {
 
 	// switch to newRan
 	ranUe.Ran = newRan
-	ranUe.RanUeNgapId = ranUeNgapId
+	ranUe.RanUeNgapID = ranUeNgapID
 
-	logger.AmfLog.Infof("RanUe[RanUeNgapID: %d] Switch to new Ran[Name: %s]", ranUe.RanUeNgapId, ranUe.Ran.Name)
+	logger.AmfLog.Infof("RanUe[RanUeNgapID: %d] Switch to new Ran[Name: %s]", ranUe.RanUeNgapID, ranUe.Ran.Name)
 	return nil
 }
 

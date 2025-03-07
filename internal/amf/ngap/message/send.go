@@ -191,7 +191,7 @@ func SendUEContextReleaseCommand(ue *context.RanUe, action context.RelAction, ca
 	SendToRanUe(ue, pkt)
 }
 
-func SendErrorIndication(ran *context.AmfRan, amfUeNgapId, ranUeNgapId *int64, cause *ngapType.Cause,
+func SendErrorIndication(ran *context.AmfRan, amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) {
 	if ran == nil {
@@ -201,7 +201,7 @@ func SendErrorIndication(ran *context.AmfRan, amfUeNgapId, ranUeNgapId *int64, c
 
 	ran.Log.Info("Send Error Indication")
 
-	pkt, err := BuildErrorIndication(amfUeNgapId, ranUeNgapId, cause, criticalityDiagnostics)
+	pkt, err := BuildErrorIndication(amfUeNgapID, ranUeNgapID, cause, criticalityDiagnostics)
 	if err != nil {
 		ran.Log.Errorf("Build ErrorIndication failed : %s", err.Error())
 		return
@@ -451,7 +451,7 @@ func SendHandoverRequest(sourceUe *context.RanUe, targetRan *context.AmfRan, cau
 	}
 
 	var targetUe *context.RanUe
-	if targetUeTmp, err := targetRan.NewRanUe(context.RanUeNgapIdUnspecified); err != nil {
+	if targetUeTmp, err := targetRan.NewRanUe(context.RanUeNgapIDUnspecified); err != nil {
 		sourceUe.Log.Errorf("Create target UE error: %+v", err)
 	} else {
 		targetUe = targetUeTmp
@@ -517,20 +517,17 @@ func SendPathSwitchRequestAcknowledge(
 // criticalityDiagnostics: from received node when received not comprehended IE or missing IE
 func SendPathSwitchRequestFailure(
 	ran *context.AmfRan,
-	amfUeNgapId,
-	ranUeNgapId int64,
+	amfUeNgapID,
+	ranUeNgapID int64,
 	pduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) {
-	ran.Log.Info("Send Path Switch Request Failure")
-
 	if pduSessionResourceReleasedList != nil && len(pduSessionResourceReleasedList.List) > context.MaxNumOfPDUSessions {
 		ran.Log.Error("Pdu List out of range")
 		return
 	}
 
-	pkt, err := BuildPathSwitchRequestFailure(amfUeNgapId, ranUeNgapId, pduSessionResourceReleasedList,
-		criticalityDiagnostics)
+	pkt, err := BuildPathSwitchRequestFailure(amfUeNgapID, ranUeNgapID, pduSessionResourceReleasedList, criticalityDiagnostics)
 	if err != nil {
 		ran.Log.Errorf("Build PathSwitchRequestFailure failed : %s", err.Error())
 		return
@@ -564,7 +561,7 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) {
 	// 	ngaplog.Errorf("Build Paging failed : %s", err.Error())
 	// }
 	taiList := ue.RegistrationArea[models.AccessType3GPPAccess]
-	context.AMF_Self().AmfRanPool.Range(func(key, value interface{}) bool {
+	context.AmfSelf().AmfRanPool.Range(func(key, value interface{}) bool {
 		ran := value.(*context.AmfRan)
 		for _, item := range ran.SupportedTAList {
 			if context.InTaiList(item.Tai, taiList) {
@@ -577,11 +574,11 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) {
 		return true
 	})
 
-	if context.AMF_Self().T3513Cfg.Enable {
-		cfg := context.AMF_Self().T3513Cfg
+	if context.AmfSelf().T3513Cfg.Enable {
+		cfg := context.AmfSelf().T3513Cfg
 		ue.T3513 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			ue.GmmLog.Warnf("T3513 expires, retransmit Paging (retry: %d)", expireTimes)
-			context.AMF_Self().AmfRanPool.Range(func(key, value interface{}) bool {
+			context.AmfSelf().AmfRanPool.Range(func(key, value interface{}) bool {
 				ran := value.(*context.AmfRan)
 				for _, item := range ran.SupportedTAList {
 					if context.InTaiList(item.Tai, taiList) {

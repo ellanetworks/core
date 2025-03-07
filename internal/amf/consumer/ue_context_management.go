@@ -15,7 +15,7 @@ import (
 )
 
 func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRegistrationInd bool) error {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AmfSelf()
 	guamiList := context.GetServedGuamiList()
 
 	switch accessType {
@@ -31,7 +31,7 @@ func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRe
 				AmfID: guamiList[0].AmfID,
 			},
 			RatType: ue.RatType,
-			ImsVoPs: models.ImsVoPs_HOMOGENEOUS_NON_SUPPORT,
+			ImsVoPs: models.ImsVoPsHomogeneousNonSupport,
 		}
 		err := udm.EditRegistrationAmf3gppAccess(registrationData, ue.Supi)
 		if err != nil {

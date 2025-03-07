@@ -63,7 +63,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	smContext.SubPduSessLog.Infof("SM context created")
 	// smContext.ChangeState(context.SmStateActivePending)
 	smContext.SetCreateData(createData)
-	smContext.SmStatusNotifyUri = createData.SmContextStatusUri
+	smContext.SmStatusNotifyURI = createData.SmContextStatusURI
 
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
@@ -84,8 +84,8 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMInsufficientResources)
 		return "", response, fmt.Errorf("failed allocate IP address: %v", err)
 	} else {
-		smContext.PDUAddress = &context.UeIpAddr{Ip: ip, UpfProvided: false}
-		smContext.SubPduSessLog.Infof("Successful IP Allocation: %s", smContext.PDUAddress.Ip.String())
+		smContext.PDUAddress = &context.UeIPAddr{IP: ip, UpfProvided: false}
+		smContext.SubPduSessLog.Infof("Successful IP Allocation: %s", smContext.PDUAddress.IP.String())
 	}
 
 	snssai := marshtojsonstring.MarshToJSONString(createData.SNssai)[0]
@@ -242,8 +242,7 @@ func HandlePDUSessionSMContextRelease(smContext *context.SMContext) error {
 		smContext.SubCtxLog.Errorf("error deleting policy association: %v", err)
 	}
 
-	// Release UE IP-Address
-	err = smContext.ReleaseUeIpAddr()
+	err = smContext.ReleaseUeIPAddr()
 	if err != nil {
 		smContext.SubPduSessLog.Errorf("release UE IP address failed: %v", err)
 	}
@@ -313,7 +312,7 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 		SmInfo: &models.N2SmInformation{
 			PduSessionID: smContext.PDUSessionID,
 			N2InfoContent: &models.N2InfoContent{
-				NgapIeType: models.NgapIeType_PDU_RES_SETUP_REQ,
+				NgapIeType: models.NgapIeTypePDUResSetupReq,
 				NgapData: &models.RefToBinaryData{
 					ContentID: "N2SmInformation",
 				},
