@@ -433,7 +433,7 @@ func UpdateOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		err = dbInstance.UpdateOperatorId(updateOperatorIdParams.Mcc, updateOperatorIdParams.Mnc)
+		err = dbInstance.UpdateOperatorID(updateOperatorIdParams.Mcc, updateOperatorIdParams.Mnc)
 		if err != nil {
 			logger.APILog.Warnln(err)
 			writeError(c, http.StatusInternalServerError, "Failed to update operatorId")

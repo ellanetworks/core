@@ -53,7 +53,7 @@ func EapEncodeAttribute(attributeType string, data string) (string, error) {
 		if length != 5 {
 			return "", fmt.Errorf("[eapEncodeAttribute] AT_RAND Length Error")
 		}
-		attrNum := fmt.Sprintf("%02x", AT_RAND_ATTRIBUTE)
+		attrNum := fmt.Sprintf("%02x", AtRandAttribute)
 		attribute = attrNum + "05" + "0000" + data
 
 	case "AT_AUTN":
@@ -61,7 +61,7 @@ func EapEncodeAttribute(attributeType string, data string) (string, error) {
 		if length != 5 {
 			return "", fmt.Errorf("[eapEncodeAttribute] AT_AUTN Length Error")
 		}
-		attrNum := fmt.Sprintf("%02x", AT_AUTN_ATTRIBUTE)
+		attrNum := fmt.Sprintf("%02x", AtAutnAttribute)
 		attribute = attrNum + "05" + "0000" + data
 
 	case "AT_KDF_INPUT":
@@ -80,12 +80,12 @@ func EapEncodeAttribute(attributeType string, data string) (string, error) {
 
 	case "AT_KDF":
 		// Value 1 default key derivation function for EAP-AKA'
-		attrNum := fmt.Sprintf("%02x", AT_KDF_ATTRIBUTE)
+		attrNum := fmt.Sprintf("%02x", AtKdfAttribute)
 		attribute = attrNum + "01" + "0001"
 
 	case "AT_MAC":
 		// Pad MAC value with 16 bytes of 0 since this is just for the calculation of MAC
-		attrNum := fmt.Sprintf("%02x", AT_MAC_ATTRIBUTE)
+		attrNum := fmt.Sprintf("%02x", AtMacAttribute)
 		attribute = attrNum + "05" + "0000" + "00000000000000000000000000000000"
 
 	case "AT_RES":
@@ -151,12 +151,12 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 		prev = []byte(sha)
 	}
 
-	K_encr := MK[0:16]  // 0..127
-	K_aut := MK[16:48]  // 128..383
-	K_re := MK[48:80]   // 384..639
+	KEncr := MK[0:16]   // 0..127
+	KAut := MK[16:48]   // 128..383
+	KRe := MK[48:80]    // 384..639
 	MSK := MK[80:144]   // 640..1151
 	EMSK := MK[144:208] // 1152..1663
-	return K_encr, K_aut, K_re, MSK, EMSK
+	return KEncr, KAut, KRe, MSK, EMSK
 }
 
 func checkMACintegrity(offset int, expectedMacValue []byte, packet []byte, Kautn string) bool {
@@ -194,14 +194,14 @@ func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) ([]byte, 
 		attributeLength = int(uint(dataArray[1+i])) * 4
 		attributeType = int(uint(dataArray[0+i]))
 
-		if attributeType == AT_RES_ATTRIBUTE {
+		if attributeType == AtResAttribute {
 			logger.AusfLog.Infoln("Detect AT_RES attribute")
 			detectRes = true
 			resLength := int(uint(dataArray[3+i]) | uint(dataArray[2+i])<<8)
 			RES = dataArray[4+i : 4+i+attributeLength-4]
 			byteRes := padZeros(RES, resLength)
 			RES = byteRes
-		} else if attributeType == AT_MAC_ATTRIBUTE {
+		} else if attributeType == AtMacAttribute {
 			logger.AusfLog.Infoln("Detect AT_MAC attribute")
 			detectMac = true
 			macStr := string(dataArray[4+i : 20+i])
@@ -221,12 +221,12 @@ func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) ([]byte, 
 	return nil, false
 }
 
-func ConstructFailEapAkaNotification(oldPktId uint8) string {
+func ConstructFailEapAkaNotification(oldPktID uint8) string {
 	var eapPkt EapPacket
 	eapPkt.Code = EapCodeRequest
-	eapPkt.Identifier = oldPktId + 1
-	eapPkt.Type = EAP_AKA_PRIME_TYPENUM
-	attrNum := fmt.Sprintf("%02x", AT_NOTIFICATION_ATTRIBUTE)
+	eapPkt.Identifier = oldPktID + 1
+	eapPkt.Type = EapAkaPrimeTypeNum
+	attrNum := fmt.Sprintf("%02x", AtNotificationAttribute)
 	attribute := attrNum + "01" + "4000"
 	var attrHex []byte
 	if attrHexTmp, err := hex.DecodeString(attribute); err != nil {

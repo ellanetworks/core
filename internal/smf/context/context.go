@@ -207,7 +207,7 @@ func GetSnssaiInfo() []SnssaiSmfInfo {
 
 	for _, profile := range profiles {
 		dnn := config.DNN
-		dnsPrimary := profile.Dns
+		dnsPrimary := profile.DNS
 		mtu := profile.Mtu
 		dnnInfo := SnssaiSmfDnnInfo{
 			DNS: DNS{

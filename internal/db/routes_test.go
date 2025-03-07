@@ -48,7 +48,7 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 		}
 	}()
 
-	routeId, err := tx.CreateRoute(route)
+	routeID, err := tx.CreateRoute(route)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
@@ -57,8 +57,8 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 	}
 	committedCreate = true
 
-	if routeId != 1 {
-		t.Fatalf("expected routeId 1, got %d", routeId)
+	if routeID != 1 {
+		t.Fatalf("expected routeID 1, got %d", routeID)
 	}
 
 	res, err = database.ListRoutes()
@@ -69,7 +69,7 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 		t.Fatalf("One or more routes weren't found in DB")
 	}
 
-	retrievedRoute, err := database.GetRoute(routeId)
+	retrievedRoute, err := database.GetRoute(routeID)
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -96,7 +96,7 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 		}
 	}()
 
-	if err := tx.DeleteRoute(routeId); err != nil {
+	if err := tx.DeleteRoute(routeID); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
 

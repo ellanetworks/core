@@ -76,13 +76,13 @@ func (ue *UeContext) NewUeSmPolicyData(key string, request models.SmPolicyContex
 	return &data
 }
 
-// returns AM Policy which AccessType and plmnId match
-func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.PlmnId) *UeAMPolicyData {
-	if ue == nil || plmnId == nil {
+// returns AM Policy which AccessType and plmnID match
+func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnID *models.PlmnId) *UeAMPolicyData {
+	if ue == nil || plmnID == nil {
 		return nil
 	}
 	for _, amPolicy := range ue.AMPolicyData {
-		if amPolicy.AccessType == anType && reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnId) {
+		if amPolicy.AccessType == anType && reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnID) {
 			return amPolicy
 		}
 	}
