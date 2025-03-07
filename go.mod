@@ -14,14 +14,14 @@ require (
 	github.com/omec-project/aper v1.2.2
 	github.com/omec-project/nas v1.4.4
 	github.com/omec-project/ngap v1.3.1
-	github.com/prometheus/client_golang v1.21.0
+	github.com/prometheus/client_golang v1.21.1
 	github.com/vishvananda/netlink v1.3.0
 	github.com/wmnsk/go-pfcp v0.0.24
 	go.uber.org/zap v1.27.0
-	golang.org/x/crypto v0.35.0
-	golang.org/x/net v0.35.0
-	golang.org/x/sys v0.30.0
-	golang.org/x/time v0.10.0
+	golang.org/x/crypto v0.36.0
+	golang.org/x/net v0.37.0
+	golang.org/x/sys v0.31.0
+	golang.org/x/time v0.11.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -62,7 +62,7 @@ require (
 	github.com/vishvananda/netns v0.0.4 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/arch v0.12.0 // indirect
-	golang.org/x/text v0.22.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 	google.golang.org/protobuf v1.36.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
