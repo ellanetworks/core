@@ -119,7 +119,7 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 
 	var key []byte
 	if keyTmp, err := hex.DecodeString(keyAp); err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", "", "", fmt.Errorf("error decoding key: %+v", err)
 	} else {
 		key = keyTmp
 	}
@@ -139,7 +139,7 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 
 		// Write Data to it
 		if _, err := h.Write(s); err != nil {
-			return "", "", "", "", "", err
+			return "", "", "", "", "", fmt.Errorf("error writing data to hmac: %+v", err)
 		}
 
 		// Get result and encode as hexadecimal string
