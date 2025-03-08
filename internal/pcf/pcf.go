@@ -13,7 +13,7 @@ func Start(dbInstance *db.Database) error {
 	pcfCtx = &PCFContext{
 		SessionRuleIDGenerator: idgenerator.NewGenerator(1, math.MaxInt64),
 		QoSDataIDGenerator:     idgenerator.NewGenerator(1, math.MaxInt64),
-		DbInstance:             dbInstance,
+		DBInstance:             dbInstance,
 	}
 	return nil
 }

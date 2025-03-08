@@ -95,7 +95,7 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	apiGroup.GET("/operator/slice", Authenticate(jwtSecret), GetOperatorSlice(dbInstance))
 	apiGroup.PUT("/operator/tracking", Authenticate(jwtSecret), Require(AdminRole, NetworkManagerRole), UpdateOperatorTracking(dbInstance))
 	apiGroup.GET("/operator/tracking", Authenticate(jwtSecret), GetOperatorTracking(dbInstance))
-	apiGroup.PUT("/operator/id", Authenticate(jwtSecret), Require(AdminRole, NetworkManagerRole), UpdateOperatorId(dbInstance))
+	apiGroup.PUT("/operator/id", Authenticate(jwtSecret), Require(AdminRole, NetworkManagerRole), UpdateOperatorID(dbInstance))
 	apiGroup.GET("/operator/id", Authenticate(jwtSecret), GetOperatorId(dbInstance))
 	apiGroup.PUT("/operator/code", Authenticate(jwtSecret), Require(AdminRole, NetworkManagerRole), UpdateOperatorCode(dbInstance))
 	apiGroup.PUT("/operator/home-network", Authenticate(jwtSecret), Require(AdminRole, NetworkManagerRole), UpdateOperatorHomeNetwork(dbInstance))

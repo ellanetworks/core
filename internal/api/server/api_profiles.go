@@ -14,8 +14,8 @@ import (
 type CreateProfileParams struct {
 	Name string `json:"name"`
 
-	UeIpPool        string `json:"ue-ip-pool,omitempty"`
-	Dns             string `json:"dns,omitempty"`
+	UeIPPool        string `json:"ue-ip-pool,omitempty"`
+	DNS             string `json:"dns,omitempty"`
 	Mtu             int32  `json:"mtu,omitempty"`
 	BitrateUplink   string `json:"bitrate-uplink,omitempty"`
 	BitrateDownlink string `json:"bitrate-downlink,omitempty"`
@@ -26,8 +26,8 @@ type CreateProfileParams struct {
 type GetProfileResponse struct {
 	Name string `json:"name"`
 
-	UeIpPool        string `json:"ue-ip-pool,omitempty"`
-	Dns             string `json:"dns,omitempty"`
+	UeIPPool        string `json:"ue-ip-pool,omitempty"`
+	DNS             string `json:"dns,omitempty"`
 	Mtu             int32  `json:"mtu,omitempty"`
 	BitrateUplink   string `json:"bitrate-uplink,omitempty"`
 	BitrateDownlink string `json:"bitrate-downlink,omitempty"`
@@ -47,7 +47,7 @@ func isProfileNameValid(name string) bool {
 	return len(name) > 0 && len(name) < 256
 }
 
-func isUeIpPoolValid(ueIpPool string) bool {
+func isUeIPPoolValid(ueIpPool string) bool {
 	_, _, err := net.ParseCIDR(ueIpPool)
 	return err == nil
 }
@@ -103,8 +103,8 @@ func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 		for _, dbProfile := range dbProfiles {
 			profileResponse := GetProfileResponse{
 				Name:            dbProfile.Name,
-				UeIpPool:        dbProfile.UeIpPool,
-				Dns:             dbProfile.Dns,
+				UeIPPool:        dbProfile.UeIPPool,
+				DNS:             dbProfile.DNS,
 				BitrateDownlink: dbProfile.BitrateDownlink,
 				BitrateUplink:   dbProfile.BitrateUplink,
 				Var5qi:          dbProfile.Var5qi,
@@ -143,8 +143,8 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 
 		profileResponse := GetProfileResponse{
 			Name:            dbProfile.Name,
-			UeIpPool:        dbProfile.UeIpPool,
-			Dns:             dbProfile.Dns,
+			UeIPPool:        dbProfile.UeIPPool,
+			DNS:             dbProfile.DNS,
 			Mtu:             dbProfile.Mtu,
 			BitrateDownlink: dbProfile.BitrateDownlink,
 			BitrateUplink:   dbProfile.BitrateUplink,
@@ -179,11 +179,11 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "name is missing")
 			return
 		}
-		if createProfileParams.UeIpPool == "" {
+		if createProfileParams.UeIPPool == "" {
 			writeError(c, http.StatusBadRequest, "ue-ip-pool is missing")
 			return
 		}
-		if createProfileParams.Dns == "" {
+		if createProfileParams.DNS == "" {
 			writeError(c, http.StatusBadRequest, "dns is missing")
 			return
 		}
@@ -211,11 +211,11 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Invalid name format. Must be less than 256 characters")
 			return
 		}
-		if !isUeIpPoolValid(createProfileParams.UeIpPool) {
+		if !isUeIPPoolValid(createProfileParams.UeIPPool) {
 			writeError(c, http.StatusBadRequest, "Invalid ue-ip-pool format. Must be in CIDR format")
 			return
 		}
-		if !isValidDNS(createProfileParams.Dns) {
+		if !isValidDNS(createProfileParams.DNS) {
 			writeError(c, http.StatusBadRequest, "Invalid dns format. Must be a valid IP address")
 			return
 		}
@@ -248,8 +248,8 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 
 		dbProfile := &db.Profile{
 			Name:            createProfileParams.Name,
-			UeIpPool:        createProfileParams.UeIpPool,
-			Dns:             createProfileParams.Dns,
+			UeIPPool:        createProfileParams.UeIPPool,
+			DNS:             createProfileParams.DNS,
 			Mtu:             createProfileParams.Mtu,
 			BitrateDownlink: createProfileParams.BitrateDownlink,
 			BitrateUplink:   createProfileParams.BitrateUplink,
@@ -295,11 +295,11 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "name is missing")
 			return
 		}
-		if updateProfileParams.UeIpPool == "" {
+		if updateProfileParams.UeIPPool == "" {
 			writeError(c, http.StatusBadRequest, "ue-ip-pool is missing")
 			return
 		}
-		if updateProfileParams.Dns == "" {
+		if updateProfileParams.DNS == "" {
 			writeError(c, http.StatusBadRequest, "dns is missing")
 			return
 		}
@@ -327,11 +327,11 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Invalid name format. Must be less than 256 characters")
 			return
 		}
-		if !isUeIpPoolValid(updateProfileParams.UeIpPool) {
+		if !isUeIPPoolValid(updateProfileParams.UeIPPool) {
 			writeError(c, http.StatusBadRequest, "Invalid ue-ip-pool format. Must be in CIDR format")
 			return
 		}
-		if !isValidDNS(updateProfileParams.Dns) {
+		if !isValidDNS(updateProfileParams.DNS) {
 			writeError(c, http.StatusBadRequest, "Invalid dns format. Must be a valid IP address")
 			return
 		}
@@ -363,8 +363,8 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		}
 
 		profile.Name = updateProfileParams.Name
-		profile.UeIpPool = updateProfileParams.UeIpPool
-		profile.Dns = updateProfileParams.Dns
+		profile.UeIPPool = updateProfileParams.UeIPPool
+		profile.DNS = updateProfileParams.DNS
 		profile.Mtu = updateProfileParams.Mtu
 		profile.BitrateDownlink = updateProfileParams.BitrateDownlink
 		profile.BitrateUplink = updateProfileParams.BitrateUplink

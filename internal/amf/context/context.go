@@ -67,7 +67,7 @@ type TimerValue struct {
 }
 
 type AMFContext struct {
-	DbInstance                      *db.Database
+	DBInstance                      *db.Database
 	UePool                          sync.Map         // map[supi]*AmfUe
 	RanUePool                       sync.Map         // map[AmfUeNgapID]*RanUe
 	AmfRanPool                      sync.Map         // map[net.Conn]*AmfRan

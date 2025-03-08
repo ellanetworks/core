@@ -45,8 +45,8 @@ func deepCopyTrafficControlData(src *models.TrafficControlData) *models.TrafficC
 	return &copiedTrafficControlData
 }
 
-func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
-	operator, err := pcfCtx.DbInstance.GetOperator()
+func GetSmPolicyData() (*models.SmPolicyData, error) {
+	operator, err := pcfCtx.DBInstance.GetOperator()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator: %s", err)
 	}
@@ -87,7 +87,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (*models.SmPolicyDecisio
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
-		smData, err = GetSmPolicyData(ue.Supi)
+		smData, err = GetSmPolicyData()
 		if err != nil {
 			return nil, fmt.Errorf("can't find UE SM Policy Data in UDR: %s", ue.Supi)
 		}
@@ -170,7 +170,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (*models.SmPolicyDecisio
 }
 
 func DeleteSMPolicy(smPolicyID string) error {
-	ue, err := pcfCtx.PCFUeFindByPolicyId(smPolicyID)
+	ue, err := pcfCtx.PCFUeFindByPolicyID(smPolicyID)
 	if err != nil {
 		return fmt.Errorf("ue not found in PCF for smPolicyID: %s", smPolicyID)
 	}

@@ -67,7 +67,7 @@ type UpdateOperatorTrackingParams struct {
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
 }
 
-type UpdateOperatorIdParams struct {
+type UpdateOperatorIDParams struct {
 	Mcc string `json:"mcc,omitempty"`
 	Mnc string `json:"mnc,omitempty"`
 }
@@ -84,7 +84,7 @@ type UpdateOperatorTrackingResponseResult struct {
 	Message string `json:"message"`
 }
 
-type UpdateOperatorIdResponseResult struct {
+type UpdateOperatorIDResponseResult struct {
 	Message string `json:"message"`
 }
 
@@ -98,8 +98,8 @@ type UpdateOperatorTrackingResponse struct {
 	Error  string                               `json:"error,omitempty"`
 }
 
-type UpdateOperatorIdResponse struct {
-	Result UpdateOperatorIdResponseResult `json:"result"`
+type UpdateOperatorIDResponse struct {
+	Result UpdateOperatorIDResponseResult `json:"result"`
 	Error  string                         `json:"error,omitempty"`
 }
 
@@ -252,7 +252,7 @@ func updateOperatorTracking(url string, client *http.Client, token string, data 
 	return res.StatusCode, &updateResponse, nil
 }
 
-func updateOperatorId(url string, client *http.Client, token string, data *UpdateOperatorIdParams) (int, *UpdateOperatorIdResponse, error) {
+func updateOperatorId(url string, client *http.Client, token string, data *UpdateOperatorIDParams) (int, *UpdateOperatorIDResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
@@ -271,7 +271,7 @@ func updateOperatorId(url string, client *http.Client, token string, data *Updat
 			panic(err)
 		}
 	}()
-	var updateResponse UpdateOperatorIdResponse
+	var updateResponse UpdateOperatorIDResponse
 	if err := json.NewDecoder(res.Body).Decode(&updateResponse); err != nil {
 		return 0, nil, err
 	}
@@ -438,7 +438,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	})
 
 	t.Run("8. Update operator Id", func(t *testing.T) {
-		updateOperatorIdParams := &UpdateOperatorIdParams{
+		updateOperatorIdParams := &UpdateOperatorIDParams{
 			Mcc: Mcc,
 			Mnc: Mnc,
 		}
@@ -646,7 +646,7 @@ func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
 	}
 }
 
-func TestUpdateOperatorIdInvalidInput(t *testing.T) {
+func TestUpdateOperatorIDInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	db_path := filepath.Join(tempDir, "db.sqlite3")
 	ts, _, err := setupServer(db_path, gin.TestMode)
@@ -707,7 +707,7 @@ func TestUpdateOperatorIdInvalidInput(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
-			updateOperatorParams := &UpdateOperatorIdParams{
+			updateOperatorParams := &UpdateOperatorIDParams{
 				Mcc: tt.mcc,
 				Mnc: tt.mnc,
 			}

@@ -69,7 +69,7 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 
 	mcc := "002"
 	mnc := "02"
-	err = database.UpdateOperatorId(mcc, mnc)
+	err = database.UpdateOperatorID(mcc, mnc)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}

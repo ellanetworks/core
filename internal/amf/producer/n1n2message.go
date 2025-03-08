@@ -124,7 +124,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 			err    error
 		)
 		if n1Msg != nil {
-			nasPdu, err = gmm_message.BuildDLNASTransport(ue, n1MsgType, n1Msg, uint8(requestData.PduSessionId), nil, nil, 0)
+			nasPdu, err = gmm_message.BuildDLNASTransport(ue, n1MsgType, n1Msg, uint8(requestData.PduSessionId), nil)
 			if err != nil {
 				return nil, fmt.Errorf("build DL NAS Transport error: %v", err)
 			}
@@ -260,8 +260,11 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 		if ue.CmConnect(models.AccessType__3_GPP_ACCESS) {
 			if n2Info == nil {
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_N1_N2_TRANSFER_INITIATED
-				gmm_message.SendDLNASTransport(ue.RanUe[models.AccessType__3_GPP_ACCESS],
-					nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionId, 0, nil, 0)
+				err := gmm_message.SendDLNASTransport(ue.RanUe[models.AccessType__3_GPP_ACCESS], nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionId, 0)
+				if err != nil {
+					return n1n2MessageTransferRspData, fmt.Errorf("error sending downlink nas transport: %v", err)
+				}
+				ue.GmmLog.Infof("sent downlink nas transport message to UE")
 			} else {
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCause_ATTEMPTING_TO_REACH_UE
 				message := context.N1N2Message{
@@ -273,7 +276,11 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 				if err != nil {
 					return n1n2MessageTransferRspData, fmt.Errorf("build notification error: %v", err)
 				}
-				gmm_message.SendNotification(ue.RanUe[models.AccessType__3_GPP_ACCESS], nasMsg)
+				err = gmm_message.SendNotification(ue.RanUe[models.AccessType__3_GPP_ACCESS], nasMsg)
+				if err != nil {
+					return n1n2MessageTransferRspData, fmt.Errorf("send notification error: %v", err)
+				}
+				ue.GmmLog.Infof("sent notification message to UE")
 			}
 			return n1n2MessageTransferRspData, nil
 		} else {

@@ -31,7 +31,7 @@ const QueryCreateOperatorTable = `
 const (
 	getOperatorStmt                         = "SELECT &Operator.* FROM %s WHERE id=1"
 	updateOperatorCodeStmt                  = "UPDATE %s SET operatorCode=$Operator.operatorCode WHERE id=1"
-	updateOperatorIdStmt                    = "UPDATE %s SET mcc=$Operator.mcc, mnc=$Operator.mnc WHERE id=1"
+	updateOperatorIDStmt                    = "UPDATE %s SET mcc=$Operator.mcc, mnc=$Operator.mnc WHERE id=1"
 	updateOperatorSliceStmt                 = "UPDATE %s SET sst=$Operator.sst, sd=$Operator.sd WHERE id=1"
 	updateOperatorTrackingStmt              = "UPDATE %s SET supportedTACs=$Operator.supportedTACs WHERE id=1"
 	updateOperatorHomeNetworkPrivateKeyStmt = "UPDATE %s SET homeNetworkPrivateKey=$Operator.homeNetworkPrivateKey WHERE id=1"
@@ -153,8 +153,8 @@ func (db *Database) UpdateOperatorTracking(supportedTACs []string) error {
 	return nil
 }
 
-func (db *Database) UpdateOperatorId(mcc, mnc string) error {
-	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorIdStmt, db.operatorTable), Operator{})
+func (db *Database) UpdateOperatorID(mcc, mnc string) error {
+	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorIDStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return err
 	}

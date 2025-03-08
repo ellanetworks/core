@@ -24,7 +24,7 @@ type PCFContext struct {
 	UePool                 sync.Map
 	SessionRuleIDGenerator *idgenerator.IDGenerator
 	QoSDataIDGenerator     *idgenerator.IDGenerator
-	DbInstance             *db.Database
+	DBInstance             *db.Database
 }
 
 type SessionPolicy struct {
@@ -55,28 +55,28 @@ func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 }
 
 // Find PcfUe which the policyId belongs to
-func (c *PCFContext) PCFUeFindByPolicyId(PolicyId string) (*UeContext, error) {
-	index := strings.LastIndex(PolicyId, "-")
+func (c *PCFContext) PCFUeFindByPolicyID(PolicyID string) (*UeContext, error) {
+	index := strings.LastIndex(PolicyID, "-")
 	if index == -1 {
-		return nil, fmt.Errorf("invalid policy ID format: %s", PolicyId)
+		return nil, fmt.Errorf("invalid policy ID format: %s", PolicyID)
 	}
-	supi := PolicyId[:index]
+	supi := PolicyID[:index]
 	if value, ok := c.UePool.Load(supi); ok {
 		return value.(*UeContext), nil
 	}
-	return nil, fmt.Errorf("ue not found in PCF for policy association ID: %s", PolicyId)
+	return nil, fmt.Errorf("ue not found in PCF for policy association ID: %s", PolicyID)
 }
 
 func GetSubscriberPolicy(imsi string) (*PcfSubscriberPolicyData, error) {
-	subscriber, err := pcfCtx.DbInstance.GetSubscriber(imsi)
+	subscriber, err := pcfCtx.DBInstance.GetSubscriber(imsi)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subscriber %s: %w", imsi, err)
 	}
-	profile, err := pcfCtx.DbInstance.GetProfileByID(subscriber.ProfileID)
+	profile, err := pcfCtx.DBInstance.GetProfileByID(subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get profile %d: %w", subscriber.ProfileID, err)
 	}
-	operator, err := pcfCtx.DbInstance.GetOperator()
+	operator, err := pcfCtx.DBInstance.GetOperator()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator: %w", err)
 	}
@@ -84,9 +84,9 @@ func GetSubscriberPolicy(imsi string) (*PcfSubscriberPolicyData, error) {
 		Supi:      imsi,
 		PccPolicy: make(map[string]*PccPolicy),
 	}
-	pccPolicyId := fmt.Sprintf("%d%s", operator.Sst, operator.GetHexSd())
-	if _, exists := subscriberPolicies.PccPolicy[pccPolicyId]; !exists {
-		subscriberPolicies.PccPolicy[pccPolicyId] = &PccPolicy{
+	pccPolicyID := fmt.Sprintf("%d%s", operator.Sst, operator.GetHexSd())
+	if _, exists := subscriberPolicies.PccPolicy[pccPolicyID]; !exists {
+		subscriberPolicies.PccPolicy[pccPolicyID] = &PccPolicy{
 			SessionPolicy: make(map[string]*SessionPolicy),
 			PccRules:      make(map[string]*models.PccRule),
 			QosDecs:       make(map[string]*models.QosData),
@@ -94,30 +94,30 @@ func GetSubscriberPolicy(imsi string) (*PcfSubscriberPolicyData, error) {
 		}
 	}
 
-	if _, exists := subscriberPolicies.PccPolicy[pccPolicyId].SessionPolicy[config.DNN]; !exists {
-		subscriberPolicies.PccPolicy[pccPolicyId].SessionPolicy[config.DNN] = &SessionPolicy{
+	if _, exists := subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[config.DNN]; !exists {
+		subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[config.DNN] = &SessionPolicy{
 			SessionRules: make(map[string]*models.SessionRule),
 		}
 	}
 
 	// Generate IDs using ID generators
-	qosId, _ := pcfCtx.QoSDataIDGenerator.Allocate()
-	sessionRuleId, _ := pcfCtx.SessionRuleIDGenerator.Allocate()
+	qosID, _ := pcfCtx.QoSDataIDGenerator.Allocate()
+	sessionRuleID, _ := pcfCtx.SessionRuleIDGenerator.Allocate()
 
 	// Create QoS data
 	qosData := &models.QosData{
-		QosId:                strconv.FormatInt(qosId, 10),
+		QosId:                strconv.FormatInt(qosID, 10),
 		Var5qi:               profile.Var5qi,
 		MaxbrUl:              profile.BitrateUplink,
 		MaxbrDl:              profile.BitrateDownlink,
 		Arp:                  &models.Arp{PriorityLevel: profile.PriorityLevel},
 		DefQosFlowIndication: true,
 	}
-	subscriberPolicies.PccPolicy[pccPolicyId].QosDecs[qosData.QosId] = qosData
+	subscriberPolicies.PccPolicy[pccPolicyID].QosDecs[qosData.QosId] = qosData
 
 	// Add session rule
-	subscriberPolicies.PccPolicy[pccPolicyId].SessionPolicy[config.DNN].SessionRules[strconv.FormatInt(sessionRuleId, 10)] = &models.SessionRule{
-		SessRuleId: strconv.FormatInt(sessionRuleId, 10),
+	subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[config.DNN].SessionRules[strconv.FormatInt(sessionRuleID, 10)] = &models.SessionRule{
+		SessRuleId: strconv.FormatInt(sessionRuleID, 10),
 		AuthDefQos: &models.AuthorizedDefaultQos{
 			Var5qi: qosData.Var5qi,
 			Arp:    qosData.Arp,

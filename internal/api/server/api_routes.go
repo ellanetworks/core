@@ -223,7 +223,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 			}
 		}()
 
-		routeId, err := tx.CreateRoute(dbRoute)
+		routeID, err := tx.CreateRoute(dbRoute)
 		if err != nil {
 			writeError(c, http.StatusInternalServerError, "Failed to create route in DB")
 			return
@@ -240,13 +240,13 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 		}
 		committed = true
 
-		response := CreateSuccessResponse{Message: "Route created successfully", ID: routeId}
+		response := CreateSuccessResponse{Message: "Route created successfully", ID: routeID}
 		writeResponse(c, response, http.StatusCreated)
 		logger.LogAuditEvent(
 			CreateRouteAction,
 			email,
 			c.ClientIP(),
-			"User created route: "+fmt.Sprint(routeId),
+			"User created route: "+fmt.Sprint(routeID),
 		)
 	}
 }

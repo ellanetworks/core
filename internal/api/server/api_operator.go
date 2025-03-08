@@ -20,7 +20,7 @@ type UpdateOperatorTrackingParams struct {
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
 }
 
-type UpdateOperatorIdParams struct {
+type UpdateOperatorIDParams struct {
 	Mcc string `json:"mcc,omitempty"`
 	Mnc string `json:"mnc,omitempty"`
 }
@@ -66,7 +66,7 @@ const (
 	GetOperatorHomeNetworkAction    = "get_operator_home_network"
 	UpdateOperatorSliceAction       = "update_operator_slice"
 	UpdateOperatorTrackingAction    = "update_operator_tracking"
-	UpdateOperatorIdAction          = "update_operator_id"
+	UpdateOperatorIDAction          = "update_operator_id"
 	UpdateOperatorCodeAction        = "update_operator_code"
 	UpdateOperatorHomeNetworkAction = "update_operator_home_network"
 )
@@ -393,7 +393,7 @@ func UpdateOperatorTracking(dbInstance *db.Database) gin.HandlerFunc {
 	}
 }
 
-func UpdateOperatorId(dbInstance *db.Database) gin.HandlerFunc {
+func UpdateOperatorID(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		emailAny, _ := c.Get("email")
 		email, ok := emailAny.(string)
@@ -401,7 +401,7 @@ func UpdateOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		var updateOperatorIdParams UpdateOperatorIdParams
+		var updateOperatorIdParams UpdateOperatorIDParams
 		err := c.ShouldBindJSON(&updateOperatorIdParams)
 		if err != nil {
 			writeError(c, http.StatusBadRequest, "Invalid request data")
@@ -433,7 +433,7 @@ func UpdateOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		err = dbInstance.UpdateOperatorId(updateOperatorIdParams.Mcc, updateOperatorIdParams.Mnc)
+		err = dbInstance.UpdateOperatorID(updateOperatorIdParams.Mcc, updateOperatorIdParams.Mnc)
 		if err != nil {
 			logger.APILog.Warnln(err)
 			writeError(c, http.StatusInternalServerError, "Failed to update operatorId")
@@ -442,7 +442,7 @@ func UpdateOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 		message := SuccessResponse{Message: "Operator ID updated successfully"}
 		writeResponse(c, message, http.StatusCreated)
 		logger.LogAuditEvent(
-			UpdateOperatorIdAction,
+			UpdateOperatorIDAction,
 			email,
 			c.ClientIP(),
 			"User updated operator with Id: "+updateOperatorIdParams.Mcc+""+updateOperatorIdParams.Mnc,

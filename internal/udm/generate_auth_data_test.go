@@ -17,7 +17,7 @@ func TestCreateAuthDataBadSuci(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
-	udm.SetDbInstance(testdb)
+	udm.SetDBInstance(testdb)
 	authInfoRequest := models.AuthenticationInfoRequest{}
 	ueSuci := "123"
 	authInfoResult, err := udm.CreateAuthData(authInfoRequest, ueSuci)

@@ -16,9 +16,9 @@ func Start(dbInstance *db.Database) error {
 	}
 	smfContext := context.SMF_Self()
 
-	nodeId := context.NewNodeID("0.0.0.0")
+	nodeID := context.NewNodeID("0.0.0.0")
 
-	smfContext.CPNodeID = *nodeId
+	smfContext.CPNodeID = *nodeID
 
 	smfContext.UserPlaneInformation = &context.UserPlaneInformation{
 		UPNodes:              make(map[string]*context.UPNode),
@@ -27,7 +27,7 @@ func Start(dbInstance *db.Database) error {
 		DefaultUserPlanePath: make(map[string][]*context.UPNode),
 	}
 
-	smfContext.DbInstance = dbInstance
+	smfContext.DBInstance = dbInstance
 	context.UpdateUserPlaneInformation()
 	metrics.RegisterSmfMetrics()
 	return nil

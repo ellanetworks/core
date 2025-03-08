@@ -29,9 +29,9 @@ type AusfUeContext struct {
 	XresStar string
 
 	// for EAP-AKA'
-	K_aut string
-	XRES  string
-	Rand  string
+	kAut string
+	XRES string
+	Rand string
 }
 
 type SuciSupiMap struct {
@@ -40,19 +40,19 @@ type SuciSupiMap struct {
 }
 
 const (
-	EAP_AKA_PRIME_TYPENUM = 50
+	EapAkaPrimeTypeNum = 50
 )
 
 // Attribute Types for EAP-AKA'
 const (
-	AT_RAND_ATTRIBUTE         = 1
-	AT_AUTN_ATTRIBUTE         = 2
-	AT_RES_ATTRIBUTE          = 3
-	AT_MAC_ATTRIBUTE          = 11
-	AT_NOTIFICATION_ATTRIBUTE = 12
-	AT_IDENTITY_ATTRIBUTE     = 14
-	AT_KDF_INPUT_ATTRIBUTE    = 23
-	AT_KDF_ATTRIBUTE          = 24
+	AtRandAttribute         = 1
+	AtAutnAttribute         = 2
+	AtResAttribute          = 3
+	AtMacAttribute          = 11
+	AtNotificationAttribute = 12
+	AtIdentityAttribute     = 14
+	AtKdfInputAttribute     = 23
+	AtKdfAttribute          = 24
 )
 
 var ausfContext AUSFContext

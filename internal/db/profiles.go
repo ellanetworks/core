@@ -39,8 +39,8 @@ const (
 type Profile struct {
 	ID              int    `db:"id"`
 	Name            string `db:"name"`
-	UeIpPool        string `db:"ueIpPool"`
-	Dns             string `db:"dns"`
+	UeIPPool        string `db:"ueIpPool"`
+	DNS             string `db:"dns"`
 	Mtu             int32  `db:"mtu"`
 	BitrateUplink   string `db:"bitrateUplink"`
 	BitrateDownlink string `db:"bitrateDownlink"`
