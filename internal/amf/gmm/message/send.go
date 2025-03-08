@@ -79,8 +79,6 @@ func SendAuthenticationRequest(ue *context.RanUe) {
 		return
 	}
 
-	amfUe.GmmLog.Infof("Send Authentication Request")
-
 	if amfUe.AuthenticationCtx == nil {
 		amfUe.GmmLog.Error("Authentication Context of UE is nil")
 		return
@@ -95,7 +93,7 @@ func SendAuthenticationRequest(ue *context.RanUe) {
 	if err != nil {
 		amfUe.GmmLog.Errorf("could not send downlink NAS transport message: %s", err.Error())
 	}
-	amfUe.GmmLog.Infof("sent authentication request")
+	amfUe.GmmLog.Infof("sent authentication request to UE")
 
 	if context.AMFSelf().T3560Cfg.Enable {
 		cfg := context.AMFSelf().T3560Cfg
@@ -106,7 +104,7 @@ func SendAuthenticationRequest(ue *context.RanUe) {
 				amfUe.GmmLog.Errorf("could not send downlink NAS transport message: %s", err.Error())
 				return
 			}
-			amfUe.GmmLog.Infof("sent authentication request")
+			amfUe.GmmLog.Infof("sent authentication request to UE")
 		}, func() {
 			amfUe.GmmLog.Warnf("T3560 Expires %d times, abort authentication procedure & ongoing 5GMM procedure",
 				cfg.MaxRetryTimes)

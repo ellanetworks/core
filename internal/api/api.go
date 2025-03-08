@@ -100,6 +100,6 @@ func ReconcileKernelRouting(dbInstance *db.Database, kernelInt kernel.Kernel) er
 			}
 		}
 	}
-	logger.APILog.Infoln("routes reconciled")
+	logger.APILog.Debugln("routes reconciled")
 	return nil
 }

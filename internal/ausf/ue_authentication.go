@@ -53,7 +53,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 
 	authInfoResult, err := udm.CreateAuthData(authInfoReq, supiOrSuci)
 	if err != nil {
-		return nil, fmt.Errorf("CreateAuthData failed: %s", err.Error())
+		return nil, fmt.Errorf("failed to create auth data: %s", err)
 	}
 
 	ueid := authInfoResult.Supi
