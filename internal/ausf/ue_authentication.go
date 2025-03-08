@@ -107,12 +107,12 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 
 		ausfUeContext.Rand = authInfoResult.AuthenticationVector.Rand
 
-		K_encr, K_aut, K_re, MSK, EMSK, err := eapAkaPrimePrf(ikPrime, ckPrime, identity)
+		kEncr, kAut, kRe, MSK, EMSK, err := eapAkaPrimePrf(ikPrime, ckPrime, identity)
 		if err != nil {
 			return nil, fmt.Errorf("EAP-AKA' PRF failed: %s", err)
 		}
-		_, _, _, _, _ = K_encr, K_aut, K_re, MSK, EMSK
-		ausfUeContext.K_aut = K_aut
+		_, _, _, _, _ = kEncr, kAut, kRe, MSK, EMSK
+		ausfUeContext.kAut = kAut
 		Kausf := EMSK[0:32]
 		ausfUeContext.Kausf = Kausf
 		KausfDecode, err := hex.DecodeString(Kausf)
@@ -165,11 +165,11 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		eapPkt.Data = []byte(dataArrayBeforeMAC)
 		encodedPktBeforeMAC := eapPkt.Encode()
 
-		MACvalue, err := CalculateAtMAC([]byte(K_aut), encodedPktBeforeMAC)
+		MACvalue, err := CalculateAtMAC([]byte(kAut), encodedPktBeforeMAC)
 		if err != nil {
 			return nil, fmt.Errorf("calculate MAC failed: %s", err)
 		}
-		atMacNum := fmt.Sprintf("%02x", AT_MAC_ATTRIBUTE)
+		atMacNum := fmt.Sprintf("%02x", AtMacAttribute)
 		var atMACfirstRow []byte
 		if atMACfirstRowTmp, err := hex.DecodeString(atMacNum + "05" + "0000"); err != nil {
 			return nil, fmt.Errorf("MAC decode failed: %s", err)
@@ -254,7 +254,7 @@ func EapAuthComfirmRequestProcedure(eapPayload string, eapSessionID string) (*mo
 	case models.AuthResult_ONGOING:
 		responseBody.KSeaf = ausfCurrentContext.Kseaf
 		responseBody.Supi = currentSupi
-		Kautn := ausfCurrentContext.K_aut
+		Kautn := ausfCurrentContext.kAut
 		XRES := ausfCurrentContext.XRES
 		RES, decodeOK, err := decodeResMac(eapContent.TypeData, eapContent.Contents, Kautn)
 		if err != nil {
