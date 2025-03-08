@@ -27,7 +27,7 @@ func Start(dbInstance *db.Database) error {
 		DefaultUserPlanePath: make(map[string][]*context.UPNode),
 	}
 
-	smfContext.DbInstance = dbInstance
+	smfContext.DBInstance = dbInstance
 	context.UpdateUserPlaneInformation()
 	metrics.RegisterSmfMetrics()
 	return nil

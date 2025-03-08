@@ -26,7 +26,7 @@ type InterfaceUpfInfoItem struct {
 }
 
 type SMFContext struct {
-	DbInstance           *db.Database
+	DBInstance           *db.Database
 	UserPlaneInformation *UserPlaneInformation
 	CPNodeID             NodeID
 	LocalSEIDCount       uint64
@@ -55,7 +55,7 @@ func SMF_Self() *SMFContext {
 
 func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 	smfSelf := SMF_Self()
-	operator, err := smfSelf.DbInstance.GetOperator()
+	operator, err := smfSelf.DBInstance.GetOperator()
 	if err != nil {
 		logger.SmfLog.Errorf("failed to get operator information from db: %v", err)
 		return nil
@@ -182,12 +182,12 @@ func GetUserPlaneInformation() *UserPlaneInformation {
 
 func GetSnssaiInfo() []SnssaiSmfInfo {
 	self := SMF_Self()
-	operator, err := self.DbInstance.GetOperator()
+	operator, err := self.DBInstance.GetOperator()
 	if err != nil {
 		logger.SmfLog.Warnf("failed to get operator information from db: %v", err)
 		return nil
 	}
-	profiles, err := self.DbInstance.ListProfiles()
+	profiles, err := self.DBInstance.ListProfiles()
 	if err != nil {
 		logger.SmfLog.Warnf("failed to get profiles from db: %v", err)
 		return nil

@@ -193,7 +193,7 @@ func (smContext *SMContext) ReleaseUeIpAddr() error {
 		return nil
 	}
 	if ip := smContext.PDUAddress.Ip; ip != nil && !smContext.PDUAddress.UpfProvided {
-		err := smfSelf.DbInstance.ReleaseIP(smContext.Supi)
+		err := smfSelf.DBInstance.ReleaseIP(smContext.Supi)
 		if err != nil {
 			return fmt.Errorf("failed to release IP Address, %v", err)
 		}

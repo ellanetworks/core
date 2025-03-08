@@ -79,7 +79,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 
 	// IP Allocation
 	smfSelf := context.SMF_Self()
-	if ip, err := smfSelf.DbInstance.AllocateIP(smContext.Supi); err != nil {
+	if ip, err := smfSelf.DBInstance.AllocateIP(smContext.Supi); err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, failed allocate IP address: ", err)
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMInsufficientResources)
 		return "", response, fmt.Errorf("failed allocate IP address: %v", err)
