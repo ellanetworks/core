@@ -203,9 +203,7 @@ func BuildNGSetupFailure(cause ngapType.Cause) ([]byte, error) {
 	return ngap.Encoder(pdu)
 }
 
-func BuildNGResetAcknowledge(partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList,
-	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
-) ([]byte, error) {
+func BuildNGResetAcknowledge(partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
@@ -250,19 +248,6 @@ func BuildNGResetAcknowledge(partOfNGInterface *ngapType.UEAssociatedLogicalNGCo
 
 			uEAssociatedLogicalNGConnectionList.List = append(uEAssociatedLogicalNGConnectionList.List, uEAssociatedLogicalNGConnectionItem)
 		}
-
-		nGResetAcknowledgeIEs.List = append(nGResetAcknowledgeIEs.List, ie)
-	}
-
-	// Criticality Diagnostics (optional)
-	if criticalityDiagnostics != nil {
-		ie := ngapType.NGResetAcknowledgeIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDCriticalityDiagnostics
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.NGResetAcknowledgeIEsPresentCriticalityDiagnostics
-		ie.Value.CriticalityDiagnostics = new(ngapType.CriticalityDiagnostics)
-
-		ie.Value.CriticalityDiagnostics = criticalityDiagnostics
 
 		nGResetAcknowledgeIEs.List = append(nGResetAcknowledgeIEs.List, ie)
 	}
