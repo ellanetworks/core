@@ -25,8 +25,8 @@ func TestDatabaseMetrics(t *testing.T) {
 	}()
 
 	profiles := []db.Profile{
-		{Name: "Profile1", UeIpPool: "192.168.1.0/24"},
-		{Name: "Profile2", UeIpPool: "10.0.0.0/16"},
+		{Name: "Profile1", UeIPPool: "192.168.1.0/24"},
+		{Name: "Profile2", UeIPPool: "10.0.0.0/16"},
 	}
 	for _, profile := range profiles {
 		err := database.CreateProfile(&profile)
@@ -36,9 +36,9 @@ func TestDatabaseMetrics(t *testing.T) {
 	}
 
 	subscribers := []db.Subscriber{
-		{Imsi: "001", IpAddress: "192.168.1.2", ProfileID: 1},
-		{Imsi: "002", IpAddress: "10.0.0.3", ProfileID: 2},
-		{Imsi: "003", IpAddress: "", ProfileID: 1},
+		{Imsi: "001", IPAddress: "192.168.1.2", ProfileID: 1},
+		{Imsi: "002", IPAddress: "10.0.0.3", ProfileID: 2},
+		{Imsi: "003", IPAddress: "", ProfileID: 1},
 	}
 	for _, subscriber := range subscribers {
 		err := database.CreateSubscriber(&subscriber)

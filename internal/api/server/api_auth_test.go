@@ -348,7 +348,7 @@ func TestRolesEndToEnd(t *testing.T) {
 	t.Run("8. Use Network Manager user to create profile - should succeed", func(t *testing.T) {
 		createProfileParams := &CreateProfileParams{
 			Name:            ProfileName,
-			UeIpPool:        "0.0.0.0/24",
+			UeIPPool:        "0.0.0.0/24",
 			Dns:             "8.8.8.8",
 			Mtu:             1500,
 			BitrateUplink:   "100 Mbps",

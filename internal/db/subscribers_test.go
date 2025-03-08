@@ -70,7 +70,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 
 	profileData := &db.Profile{
 		Name:     "myprofilename",
-		UeIpPool: "0.0.0.0/24",
+		UeIPPool: "0.0.0.0/24",
 	}
 	err = database.CreateProfile(profileData)
 	if err != nil {
@@ -114,7 +114,7 @@ func TestIPAllocationAndRelease(t *testing.T) {
 
 	profile := &db.Profile{
 		Name:     "test-profile",
-		UeIpPool: "192.168.1.0/24",
+		UeIPPool: "192.168.1.0/24",
 	}
 	err = database.CreateProfile(profile)
 	if err != nil {
@@ -148,17 +148,17 @@ func TestIPAllocationAndRelease(t *testing.T) {
 	}
 
 	// Verify that the allocated IP is within the profile's IP pool
-	_, ipNet, _ := net.ParseCIDR(profile.UeIpPool)
+	_, ipNet, _ := net.ParseCIDR(profile.UeIPPool)
 	if !ipNet.Contains(allocatedIP) {
-		t.Fatalf("Allocated IP %s is not within the profile's IP pool %s", allocatedIP.String(), profile.UeIpPool)
+		t.Fatalf("Allocated IP %s is not within the profile's IP pool %s", allocatedIP.String(), profile.UeIPPool)
 	}
 
 	retrievedSubscriber, err := database.GetSubscriber(subscriber.Imsi)
 	if err != nil {
 		t.Fatalf("Couldn't retrieve subscriber: %s", err)
 	}
-	if retrievedSubscriber.IpAddress != allocatedIP.String() {
-		t.Fatalf("IP address in database %s does not match allocated IP %s", retrievedSubscriber.IpAddress, allocatedIP.String())
+	if retrievedSubscriber.IPAddress != allocatedIP.String() {
+		t.Fatalf("IP address in database %s does not match allocated IP %s", retrievedSubscriber.IPAddress, allocatedIP.String())
 	}
 
 	// Step 5: Release the IP
@@ -172,7 +172,7 @@ func TestIPAllocationAndRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't retrieve subscriber after release: %s", err)
 	}
-	if retrievedSubscriber.IpAddress != "" {
+	if retrievedSubscriber.IPAddress != "" {
 		t.Fatalf("IP address was not cleared from the database after release")
 	}
 
@@ -201,7 +201,7 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 	// Create a profile with an IP pool
 	profile := &db.Profile{
 		Name:     "test-pool",
-		UeIpPool: "192.168.1.0/29", // Small pool for testing (6 usable addresses)
+		UeIPPool: "192.168.1.0/29", // Small pool for testing (6 usable addresses)
 	}
 	err = database.CreateProfile(profile)
 	if err != nil {
@@ -215,7 +215,7 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 
 	// Allocate all IPs in the pool
 	allocatedIPs := make(map[string]struct{})
-	_, ipNet, _ := net.ParseCIDR(profile.UeIpPool)
+	_, ipNet, _ := net.ParseCIDR(profile.UeIPPool)
 	maskBits, totalBits := ipNet.Mask.Size()
 	totalIPs := 1 << (totalBits - maskBits)
 
@@ -249,7 +249,7 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 
 		// Verify that the allocated IP is within the pool
 		if !ipNet.Contains(allocatedIP) {
-			t.Fatalf("Allocated IP %s is not within the profile's IP pool %s", ipStr, profile.UeIpPool)
+			t.Fatalf("Allocated IP %s is not within the profile's IP pool %s", ipStr, profile.UeIPPool)
 		}
 	}
 
