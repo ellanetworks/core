@@ -12,8 +12,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-
-	"github.com/ellanetworks/core/internal/logger"
 )
 
 func intToByteArray(i int) []byte {
@@ -32,14 +30,14 @@ func padZeros(byteArray []byte, size int) []byte {
 	return r
 }
 
-func CalculateAtMAC(key []byte, input []byte) []byte {
+func CalculateAtMAC(key []byte, input []byte) ([]byte, error) {
 	// keyed with K_aut
 	h := hmac.New(sha256.New, key)
 	if _, err := h.Write(input); err != nil {
-		logger.AusfLog.Errorln(err.Error())
+		return nil, err
 	}
 	sha := string(h.Sum(nil))
-	return []byte(sha[:16])
+	return []byte(sha[:16]), nil
 }
 
 // func EapEncodeAttribute(attributeType string, data string) (returnStr string, err error) {
@@ -103,8 +101,7 @@ func EapEncodeAttribute(attributeType string, data string) (string, error) {
 		return string(b[:]), nil
 
 	default:
-		logger.AusfLog.Errorf("UNKNOWN attributeType %s\n", attributeType)
-		return "", nil
+		return "", fmt.Errorf("unknown attribute type: %s", attributeType)
 	}
 
 	if r, err := hex.DecodeString(attribute); err != nil {
@@ -117,12 +114,12 @@ func EapEncodeAttribute(attributeType string, data string) (string, error) {
 // func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (K_encr string, K_aut string, K_re string,
 
 // MSK string, EMSK string) {
-func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, string, string, string, string) {
+func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, string, string, string, string, error) {
 	keyAp := ikPrime + ckPrime
 
 	var key []byte
 	if keyTmp, err := hex.DecodeString(keyAp); err != nil {
-		logger.AusfLog.Warnf("Decode key AP failed: %+v", err)
+		return "", "", "", "", "", fmt.Errorf("error decoding key: %+v", err)
 	} else {
 		key = keyTmp
 	}
@@ -142,7 +139,7 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 
 		// Write Data to it
 		if _, err := h.Write(s); err != nil {
-			logger.AusfLog.Errorln(err.Error())
+			return "", "", "", "", "", fmt.Errorf("error writing data to hmac: %+v", err)
 		}
 
 		// Get result and encode as hexadecimal string
@@ -156,32 +153,33 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 	K_re := MK[48:80]   // 384..639
 	MSK := MK[80:144]   // 640..1151
 	EMSK := MK[144:208] // 1152..1663
-	return K_encr, K_aut, K_re, MSK, EMSK
+	return K_encr, K_aut, K_re, MSK, EMSK, nil
 }
 
-func checkMACintegrity(offset int, expectedMacValue []byte, packet []byte, Kautn string) bool {
+func checkMACintegrity(offset int, expectedMacValue []byte, packet []byte, Kautn string) (bool, error) {
 	eapDecode, decodeErr := EapDecode(packet)
 	if decodeErr != nil {
-		logger.AusfLog.Warnf("error decoding eap packet: %+v", decodeErr)
-		return false
+		return false, fmt.Errorf("error decoding eap packet: %+v", decodeErr)
 	}
 	if zeroBytes, err := hex.DecodeString("00000000000000000000000000000000"); err != nil {
-		logger.AusfLog.Warnf("Decode error: %+v", err)
+		return false, fmt.Errorf("error decoding zero bytes: %+v", err)
 	} else {
 		copy(eapDecode.Data[offset+4:offset+20], zeroBytes)
 	}
 	encodeAfter := eapDecode.Encode()
-	MACvalue := CalculateAtMAC([]byte(Kautn), encodeAfter)
+	MACvalue, err := CalculateAtMAC([]byte(Kautn), encodeAfter)
+	if err != nil {
+		return false, fmt.Errorf("calculate MAC failed: %+v", err)
+	}
 
 	if bytes.Equal(MACvalue, expectedMacValue) {
-		return true
+		return true, nil
 	} else {
-		return false
+		return false, nil
 	}
 }
 
-// func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) (RES []byte, success bool) {
-func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) ([]byte, bool) {
+func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) ([]byte, bool, error) {
 	detectRes := false
 	detectMac := false
 	macCorrect := false
@@ -195,33 +193,30 @@ func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) ([]byte, 
 		attributeType = int(uint(dataArray[0+i]))
 
 		if attributeType == AT_RES_ATTRIBUTE {
-			logger.AusfLog.Infoln("Detect AT_RES attribute")
 			detectRes = true
 			resLength := int(uint(dataArray[3+i]) | uint(dataArray[2+i])<<8)
 			RES = dataArray[4+i : 4+i+attributeLength-4]
 			byteRes := padZeros(RES, resLength)
 			RES = byteRes
 		} else if attributeType == AT_MAC_ATTRIBUTE {
-			logger.AusfLog.Infoln("Detect AT_MAC attribute")
 			detectMac = true
 			macStr := string(dataArray[4+i : 20+i])
-			if checkMACintegrity(i, []byte(macStr), wholePacket, Kautn) {
-				logger.AusfLog.Infoln("check MAC integrity succeed")
-				macCorrect = true
-			} else {
-				logger.AusfLog.Infoln("check MAC integrity failed")
+			checkOk, err := checkMACintegrity(i, []byte(macStr), wholePacket, Kautn)
+			if err != nil {
+				return nil, false, err
 			}
-		} else {
-			logger.AusfLog.Infof("Detect unknown attribute with type %d\n", attributeType)
+			if checkOk {
+				macCorrect = true
+			}
 		}
 	}
 	if detectRes && detectMac && macCorrect {
-		return RES, true
+		return RES, true, nil
 	}
-	return nil, false
+	return nil, false, nil
 }
 
-func ConstructFailEapAkaNotification(oldPktId uint8) string {
+func ConstructFailEapAkaNotification(oldPktId uint8) (string, error) {
 	var eapPkt EapPacket
 	eapPkt.Code = EapCodeRequest
 	eapPkt.Identifier = oldPktId + 1
@@ -230,13 +225,13 @@ func ConstructFailEapAkaNotification(oldPktId uint8) string {
 	attribute := attrNum + "01" + "4000"
 	var attrHex []byte
 	if attrHexTmp, err := hex.DecodeString(attribute); err != nil {
-		logger.AusfLog.Warnf("Decode attribute failed: %+v", err)
+		return "", fmt.Errorf("decode attribute failed: %+v", err)
 	} else {
 		attrHex = attrHexTmp
 	}
 	eapPkt.Data = attrHex
 	eapPktEncode := eapPkt.Encode()
-	return base64.StdEncoding.EncodeToString(eapPktEncode)
+	return base64.StdEncoding.EncodeToString(eapPktEncode), nil
 }
 
 func ConstructEapNoTypePkt(code EapCode, pktID uint8) string {

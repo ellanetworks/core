@@ -14,7 +14,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 )
@@ -56,17 +55,16 @@ func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 }
 
 // Find PcfUe which the policyId belongs to
-func (c *PCFContext) PCFUeFindByPolicyId(PolicyId string) *UeContext {
+func (c *PCFContext) PCFUeFindByPolicyId(PolicyId string) (*UeContext, error) {
 	index := strings.LastIndex(PolicyId, "-")
 	if index == -1 {
-		logger.PcfLog.Errorf("Invalid PolicyId format: %s", PolicyId)
-		return nil
+		return nil, fmt.Errorf("invalid policy ID format: %s", PolicyId)
 	}
 	supi := PolicyId[:index]
 	if value, ok := c.UePool.Load(supi); ok {
-		return value.(*UeContext)
+		return value.(*UeContext), nil
 	}
-	return nil
+	return nil, fmt.Errorf("ue not found in PCF for policy association ID: %s", PolicyId)
 }
 
 func GetSubscriberPolicy(imsi string) (*PcfSubscriberPolicyData, error) {

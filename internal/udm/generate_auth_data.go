@@ -12,7 +12,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/suci"
@@ -110,7 +109,6 @@ func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
 	subscriber, err := udmContext.DbInstance.GetSubscriber(ueId)
 	if err != nil {
-		logger.UdmLog.Warnln(err)
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
 	}
 	authSubsData := convertDbAuthSubsDataToModel(subscriber.Opc, subscriber.PermanentKey, subscriber.SequenceNumber)
@@ -313,10 +311,9 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		P1 := RAND
 		P2 := RES
 
-		kdfValForXresStar, err := ueauth.GetKDFValue(
-			key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1), P2, ueauth.KDFLen(P2))
+		kdfValForXresStar, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1), P2, ueauth.KDFLen(P2))
 		if err != nil {
-			logger.UdmLog.Error(err)
+			return nil, fmt.Errorf("error deriving XRES*: %w", err)
 		}
 		xresStar := kdfValForXresStar[len(kdfValForXresStar)/2:]
 
@@ -326,7 +323,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		P1 = SQNxorAK
 		kdfValForKausf, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))
 		if err != nil {
-			logger.UdmLog.Error(err)
+			return nil, fmt.Errorf("error deriving Kausf: %w", err)
 		}
 
 		// Fill in rand, xresStar, autn, kausf
@@ -344,9 +341,8 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		P1 := SQNxorAK
 		kdfVal, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))
 		if err != nil {
-			logger.UdmLog.Error(err)
+			return nil, fmt.Errorf("error deriving CK' and IK': %w", err)
 		}
-		// fmt.Printf("kdfVal = %x (len = %d)\n", kdfVal, len(kdfVal))
 
 		// For TS 35.208 test set 19 & RFC 5448 test vector 1
 		// CK': 0093 962d 0dd8 4aa5 684b 045c 9edf fa04
@@ -354,7 +350,6 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 
 		ckPrime := kdfVal[:len(kdfVal)/2]
 		ikPrime := kdfVal[len(kdfVal)/2:]
-		// fmt.Printf("ckPrime: %x\nikPrime: %x\n", ckPrime, ikPrime)
 
 		// Fill in rand, xres, autn, ckPrime, ikPrime
 		av.Rand = hex.EncodeToString(RAND)

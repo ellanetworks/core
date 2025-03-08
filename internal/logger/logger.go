@@ -13,15 +13,11 @@ var (
 	log         *zap.Logger
 	EllaLog     *zap.SugaredLogger
 	AuditLog    *zap.SugaredLogger
-	UtilLog     *zap.SugaredLogger
 	MetricsLog  *zap.SugaredLogger
 	DBLog       *zap.SugaredLogger
 	AmfLog      *zap.SugaredLogger
-	AusfLog     *zap.SugaredLogger
 	APILog      *zap.SugaredLogger
-	PcfLog      *zap.SugaredLogger
 	SmfLog      *zap.SugaredLogger
-	UdmLog      *zap.SugaredLogger
 	UpfLog      *zap.SugaredLogger
 	atomicLevel zap.AtomicLevel
 )
@@ -68,14 +64,10 @@ func init() {
 	// System logs for various components
 	EllaLog = log.Sugar().With("component", "Ella")
 	MetricsLog = log.Sugar().With("component", "Metrics")
-	UtilLog = log.Sugar().With("component", "Util")
 	DBLog = log.Sugar().With("component", "DB")
 	AmfLog = log.Sugar().With("component", "AMF")
-	AusfLog = log.Sugar().With("component", "AUSF")
 	APILog = log.Sugar().With("component", "API")
-	PcfLog = log.Sugar().With("component", "PCF")
 	SmfLog = log.Sugar().With("component", "SMF")
-	UdmLog = log.Sugar().With("component", "UDM")
 	UpfLog = log.Sugar().With("component", "UPF")
 	// Audit logger initially writes to stdout as well.
 	AuditLog = log.Sugar().With("component", "Audit")
@@ -126,14 +118,10 @@ func ConfigureLogging(systemLevel string, systemOutput string, systemFilePath st
 	log = newSysLogger
 	EllaLog = log.Sugar().With("component", "Ella")
 	MetricsLog = log.Sugar().With("component", "Metrics")
-	UtilLog = log.Sugar().With("component", "Util")
 	DBLog = log.Sugar().With("component", "DB")
 	AmfLog = log.Sugar().With("component", "AMF")
-	AusfLog = log.Sugar().With("component", "AUSF")
 	APILog = log.Sugar().With("component", "API")
-	PcfLog = log.Sugar().With("component", "PCF")
 	SmfLog = log.Sugar().With("component", "SMF")
-	UdmLog = log.Sugar().With("component", "UDM")
 	UpfLog = log.Sugar().With("component", "UPF")
 
 	// Determine output paths for audit logs.

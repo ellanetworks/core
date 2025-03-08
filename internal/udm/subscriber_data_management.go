@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/config"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -123,11 +122,14 @@ func GetSmData(ueId string) ([]models.SessionManagementSubscriptionData, error) 
 func GetAndSetSmData(supi string, Dnn string, Snssai string) ([]models.SessionManagementSubscriptionData, error) {
 	sessionManagementSubscriptionDataResp, err := GetSmData(supi)
 	if err != nil {
-		return nil, fmt.Errorf("GetSmData error: %+v", err)
+		return nil, fmt.Errorf("error getting sm data: %+v", err)
 	}
 
 	udmUe := udmContext.NewUdmUe(supi)
-	smData := udmContext.ManageSmData(sessionManagementSubscriptionDataResp, Snssai, Dnn)
+	smData, err := udmContext.ManageSmData(sessionManagementSubscriptionDataResp, Snssai, Dnn)
+	if err != nil {
+		return nil, fmt.Errorf("error managing sm data: %+v", err)
+	}
 	udmUe.SetSMSubsData(smData)
 
 	rspSMSubDataList := make([]models.SessionManagementSubscriptionData, 0, 4)
@@ -171,15 +173,12 @@ func GetSmfSelectData(ueId string) (*models.SmfSelectionSubscriptionData, error)
 	return smfSelectionData, nil
 }
 
-func GetAndSetSmfSelectData(supi string) (
-	*models.SmfSelectionSubscriptionData, error,
-) {
+func GetAndSetSmfSelectData(supi string) (*models.SmfSelectionSubscriptionData, error) {
 	var body models.SmfSelectionSubscriptionData
 	udmContext.CreateSmfSelectionSubsDataforUe(supi, body)
 	smfSelectionSubscriptionDataResp, err := GetSmfSelectData(supi)
 	if err != nil {
-		logger.UdmLog.Errorf("GetSmfSelectData error: %+v", err)
-		return nil, fmt.Errorf("GetSmfSelectData error: %+v", err)
+		return nil, fmt.Errorf("error getting smf selection data: %+v", err)
 	}
 	udmUe := udmContext.NewUdmUe(supi)
 	udmUe.SetSmfSelectionSubsData(smfSelectionSubscriptionDataResp)

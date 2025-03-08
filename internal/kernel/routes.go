@@ -67,7 +67,7 @@ func (rk *RealKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priori
 	if err := netlink.RouteAdd(&nlRoute); err != nil {
 		return fmt.Errorf("failed to add route: %v", err)
 	}
-	logger.EllaLog.Infof("Added route: %v", nlRoute)
+	logger.EllaLog.Debugf("Added route: %v", nlRoute)
 	return nil
 }
 
@@ -148,7 +148,7 @@ func (rk *RealKernel) EnableIPForwarding() error {
 	if err != nil {
 		return fmt.Errorf("failed to enable ip_forward: %v", err)
 	}
-	logger.EllaLog.Info("Enabled IP forwarding")
+	logger.EllaLog.Debugf("Enabled IP forwarding")
 	return nil
 }
 

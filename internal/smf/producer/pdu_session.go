@@ -88,8 +88,12 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 		smContext.SubPduSessLog.Infof("Successful IP Allocation: %s", smContext.PDUAddress.Ip.String())
 	}
 
-	snssai := marshtojsonstring.MarshToJsonString(createData.SNssai)[0]
+	snssaiStr, err := marshtojsonstring.MarshToJsonString(createData.SNssai)
+	if err != nil {
+		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, marshalling SNssai error: ", err)
+	}
 
+	snssai := snssaiStr[0]
 	sessSubData, err := udm.GetAndSetSmData(smContext.Supi, createData.Dnn, snssai)
 	if err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, get SessionManagementSubscriptionData error: ", err)

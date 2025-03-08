@@ -6,8 +6,6 @@ package fsm
 
 import (
 	"fmt"
-
-	"github.com/ellanetworks/core/internal/logger"
 )
 
 type (
@@ -94,8 +92,6 @@ func (fsm *FSM) SendEvent(state *State, event EventType, args ArgsType) error {
 	}
 
 	if trans, ok := fsm.transitions[key]; ok {
-		logger.UtilLog.Infof("handle event[%s], transition from [%s] to [%s]", event, trans.From, trans.To)
-
 		// event callback
 		fsm.callbacks[trans.From](state, event, args)
 

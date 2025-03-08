@@ -7,6 +7,7 @@
 package udm
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -15,14 +16,6 @@ import (
 )
 
 var udmContext UDMContext
-
-const (
-	LocationUriAmf3GppAccessRegistration int = iota
-	LocationUriAmfNon3GppAccessRegistration
-	LocationUriSmfRegistration
-	LocationUriSdmSubscription
-	LocationUriSharedDataSubscription
-)
 
 type UDMContext struct {
 	DbInstance                 *db.Database
@@ -35,19 +28,21 @@ func SetDbInstance(dbInstance *db.Database) {
 	udmContext.DbInstance = dbInstance
 }
 
-func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData, snssaiFromReq string,
-	dnnFromReq string) (mp map[string]models.SessionManagementSubscriptionData,
-) {
+func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData, snssaiFromReq string, dnnFromReq string) (map[string]models.SessionManagementSubscriptionData, error) {
 	smDataMap := make(map[string]models.SessionManagementSubscriptionData)
 	AllDnns := make([]map[string]models.DnnConfiguration, len(smDatafromUDR))
 
 	for idx, smSubscriptionData := range smDatafromUDR {
-		singleNssaiStr := marshtojsonstring.MarshToJsonString(smSubscriptionData.SingleNssai)[0]
+		singleNssai, err := marshtojsonstring.MarshToJsonString(smSubscriptionData.SingleNssai)
+		if err != nil {
+			return nil, fmt.Errorf("error in marshalling singleNssai")
+		}
+		singleNssaiStr := singleNssai[0]
 		smDataMap[singleNssaiStr] = smSubscriptionData
 		AllDnns[idx] = smSubscriptionData.DnnConfigurations
 	}
 
-	return smDataMap
+	return smDataMap, nil
 }
 
 // functions related UecontextInSmfData
