@@ -21,9 +21,7 @@ import (
 	"github.com/omec-project/nas/nasType"
 )
 
-func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu []byte,
-	pduSessionId uint8, cause *uint8, backoffTimerUint *uint8, backoffTimer uint8,
-) ([]byte, error) {
+func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu []byte, pduSessionId uint8, cause *uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeDLNASTransport)
@@ -50,13 +48,6 @@ func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu [
 		dLNASTransport.Cause5GMM = new(nasType.Cause5GMM)
 		dLNASTransport.Cause5GMM.SetIei(nasMessage.DLNASTransportCause5GMMType)
 		dLNASTransport.Cause5GMM.SetCauseValue(*cause)
-	}
-	if backoffTimerUint != nil {
-		dLNASTransport.BackoffTimerValue = new(nasType.BackoffTimerValue)
-		dLNASTransport.BackoffTimerValue.SetIei(nasMessage.DLNASTransportBackoffTimerValueType)
-		dLNASTransport.BackoffTimerValue.SetLen(1)
-		dLNASTransport.BackoffTimerValue.SetUnitTimerValue(*backoffTimerUint)
-		dLNASTransport.BackoffTimerValue.SetTimerValue(backoffTimer)
 	}
 
 	m.GmmMessage.DLNASTransport = dLNASTransport

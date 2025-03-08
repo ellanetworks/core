@@ -1679,7 +1679,7 @@ func BuildAndSendN1N2Msg(ranUe *context.RanUe, n1Msg, n2Info []byte, N2SmInfoTyp
 				pduSessionId := uint8(pduSessId)
 				var err error
 				nasPdu, err = gmm_message.BuildDLNASTransport(
-					amfUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionId, nil, nil, 0)
+					amfUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionId, nil)
 				if err != nil {
 					ranUe.Log.Warnf("GMM Message build DL NAS Transport filaed: %v", err)
 				}
@@ -1926,7 +1926,7 @@ func HandlePDUSessionResourceNotify(ran *context.AmfRan, message *ngapType.NGAPP
 					var nasPdu []byte
 					if n1Msg != nil {
 						pduSessionId := uint8(pduSessionID)
-						nasPdu, err = gmm_message.BuildDLNASTransport(amfUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionId, nil, nil, 0)
+						nasPdu, err = gmm_message.BuildDLNASTransport(amfUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionId, nil)
 						if err != nil {
 							ranUe.Log.Warnf("GMM Message build DL NAS Transport filaed: %v", err)
 						}
