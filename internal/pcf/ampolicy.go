@@ -10,32 +10,32 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-func DeleteAMPolicy(polAssoId string) error {
-	ue, err := pcfCtx.PCFUeFindByPolicyId(polAssoId)
+func DeleteAMPolicy(polAssoID string) error {
+	ue, err := pcfCtx.PCFUeFindByPolicyID(polAssoID)
 	if err != nil {
-		return fmt.Errorf("ue not found in PCF for policy association ID: %s", polAssoId)
+		return fmt.Errorf("ue not found in PCF for policy association ID: %s", polAssoID)
 	}
 	if ue == nil {
-		return fmt.Errorf("ue not found in PCF for policy association ID: %s", polAssoId)
+		return fmt.Errorf("ue not found in PCF for policy association ID: %s", polAssoID)
 	}
-	_, exists := ue.AMPolicyData[polAssoId]
+	_, exists := ue.AMPolicyData[polAssoID]
 	if !exists {
-		return fmt.Errorf("policy association ID not found in PCF: %s", polAssoId)
+		return fmt.Errorf("policy association ID not found in PCF: %s", polAssoID)
 	}
-	delete(ue.AMPolicyData, polAssoId)
+	delete(ue.AMPolicyData, polAssoID)
 	return nil
 }
 
-func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest) (*models.PolicyUpdate, error) {
-	ue, err := pcfCtx.PCFUeFindByPolicyId(polAssoId)
+func UpdateAMPolicy(polAssoID string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest) (*models.PolicyUpdate, error) {
+	ue, err := pcfCtx.PCFUeFindByPolicyID(polAssoID)
 	if err != nil {
-		return nil, fmt.Errorf("ue not found in PCF for policy association ID: %s", polAssoId)
+		return nil, fmt.Errorf("ue not found in PCF for policy association ID: %s", polAssoID)
 	}
-	if ue == nil || ue.AMPolicyData[polAssoId] == nil {
-		return nil, fmt.Errorf("polAssoId not found  in PCF")
+	if ue == nil || ue.AMPolicyData[polAssoID] == nil {
+		return nil, fmt.Errorf("polAssoID not found  in PCF")
 	}
 
-	amPolicyData := ue.AMPolicyData[polAssoId]
+	amPolicyData := ue.AMPolicyData[polAssoID]
 	var response models.PolicyUpdate
 	for _, trigger := range policyAssociationUpdateRequest.Triggers {
 		switch trigger {
@@ -84,20 +84,20 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 		ue = newUe
 	}
 	response.Request = &policyAssociationRequest
-	assolId := fmt.Sprintf("%s-%d", ue.Supi, ue.PolAssociationIDGenerator)
-	amPolicy := ue.AMPolicyData[assolId]
+	assolID := fmt.Sprintf("%s-%d", ue.Supi, ue.PolAssociationIDGenerator)
+	amPolicy := ue.AMPolicyData[assolID]
 
 	if amPolicy == nil {
-		_, err := pcfCtx.DbInstance.GetSubscriber(ue.Supi)
+		_, err := pcfCtx.DBInstance.GetSubscriber(ue.Supi)
 		if err != nil {
 			return nil, "", fmt.Errorf("ue not found in database: %s", ue.Supi)
 		}
-		amPolicy = ue.NewUeAMPolicyData(assolId, policyAssociationRequest)
+		amPolicy = ue.NewUeAMPolicyData(assolID, policyAssociationRequest)
 	}
 
 	if amPolicy.Rfsp != 0 {
 		response.Rfsp = amPolicy.Rfsp
 	}
 	ue.PolAssociationIDGenerator++
-	return &response, assolId, nil
+	return &response, assolID, nil
 }

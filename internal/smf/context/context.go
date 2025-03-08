@@ -68,7 +68,7 @@ func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 	ifaces := []InterfaceUpfInfoItem{}
 	ifaces = append(ifaces, intfUpfInfoItem)
 
-	upfNodeID := NewNodeID(config.UpfNodeId)
+	upfNodeID := NewNodeID(config.UpfNodeID)
 	upf := NewUPF(upfNodeID, ifaces)
 	upf.SNssaiInfos = []SnssaiUPFInfo{
 		{
@@ -111,7 +111,7 @@ func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 	userPlaneInformation.AccessNetwork[gnbName] = gnbNode
 	userPlaneInformation.UPNodes[gnbName] = gnbNode
 
-	userPlaneInformation.UPNodes[config.UpfNodeId] = upfNode
+	userPlaneInformation.UPNodes[config.UpfNodeID] = upfNode
 	return userPlaneInformation
 }
 
@@ -207,7 +207,7 @@ func GetSnssaiInfo() []SnssaiSmfInfo {
 
 	for _, profile := range profiles {
 		dnn := config.DNN
-		dnsPrimary := profile.Dns
+		dnsPrimary := profile.DNS
 		mtu := profile.Mtu
 		dnnInfo := SnssaiSmfDnnInfo{
 			DNS: DNS{
