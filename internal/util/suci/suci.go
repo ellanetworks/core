@@ -17,7 +17,6 @@ import (
 	"math/bits"
 	"strings"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"golang.org/x/crypto/curve25519"
 )
 
@@ -46,26 +45,25 @@ const (
 	profileBScheme = "2"
 )
 
-func hmacSha256(input, macKey []byte, macLen int) []byte {
+func hmacSha256(input, macKey []byte, macLen int) ([]byte, error) {
 	h := hmac.New(sha256.New, macKey)
 	if _, err := h.Write(input); err != nil {
-		logger.UtilLog.Errorf("HMAC SHA256 error %+v", err)
+		return nil, err
 	}
 	macVal := h.Sum(nil)
 	macTag := macVal[:macLen]
-	return macTag
+	return macTag, nil
 }
 
-func aes128ctr(input, encKey, icb []byte) []byte {
+func aes128ctr(input, encKey, icb []byte) ([]byte, error) {
 	output := make([]byte, len(input))
 	block, err := aes.NewCipher(encKey)
 	if err != nil {
-		logger.UtilLog.Errorf("AES128 CTR error %+v", err)
+		return nil, fmt.Errorf("error creating AES cipher: %w", err)
 	}
 	stream := cipher.NewCTR(block, icb)
 	stream.XORKeyStream(output, input)
-	// logger.UtilLog.Debugf("aes input: %x %x %x\naes output: %x", input, encKey, icb, output)
-	return output
+	return output, nil
 }
 
 func ansiX963KDF(sharedKey, publicKey []byte, profileEncKeyLen, profileMacKeyLen, profileHashLen int) []byte {
@@ -109,8 +107,7 @@ func calcSchemeResult(decryptPlainText []byte, supiType string) string {
 func profileA(input, supiType, privateKey string) (string, error) {
 	s, hexDecodeErr := hex.DecodeString(input)
 	if hexDecodeErr != nil {
-		logger.UtilLog.Errorln("hex DecodeString error")
-		return "", hexDecodeErr
+		return "", fmt.Errorf("error decoding hex string: %w", hexDecodeErr)
 	}
 
 	// for X25519(profile A), q (The number of elements in the field Fq) = 2^255 - 19
@@ -140,12 +137,17 @@ func profileA(input, supiType, privateKey string) (string, error) {
 	decryptEncKey := kdfKey[:ProfileAEncKeyLen]
 	decryptIcb := kdfKey[ProfileAEncKeyLen : ProfileAEncKeyLen+ProfileAIcbLen]
 	decryptMacKey := kdfKey[len(kdfKey)-ProfileAMacKeyLen:]
-	decryptMacTag := hmacSha256(decryptCipherText, decryptMacKey, ProfileAMacLen)
+	decryptMacTag, err := hmacSha256(decryptCipherText, decryptMacKey, ProfileAMacLen)
+	if err != nil {
+		return "", fmt.Errorf("error calculating MAC: %w", err)
+	}
 	if !bytes.Equal(decryptMacTag, decryptMac) {
 		return "", fmt.Errorf("decryption MAC failed")
 	}
-	logger.UtilLog.Infoln("decryption MAC match")
-	decryptPlainText := aes128ctr(decryptCipherText, decryptEncKey, decryptIcb) // #nosec G407
+	decryptPlainText, err := aes128ctr(decryptCipherText, decryptEncKey, decryptIcb) // #nosec G407
+	if err != nil {
+		return "", fmt.Errorf("error decrypting: %w", err)
+	}
 	return calcSchemeResult(decryptPlainText, supiType), nil
 }
 
@@ -153,7 +155,6 @@ func ToSupi(suci string, privateKey string) (string, error) {
 	suciPart := strings.Split(suci, "-")
 	suciPrefix := suciPart[0]
 	if suciPrefix == "imsi" || suciPrefix == "nai" {
-		logger.UtilLog.Infoln("got supi")
 		return suci, nil
 	} else if suciPrefix == "suci" {
 		if len(suciPart) < 6 {
@@ -165,10 +166,6 @@ func ToSupi(suci string, privateKey string) (string, error) {
 
 	scheme := suciPart[schemePlace]
 	mccMnc := suciPart[mccPlace] + suciPart[mncPlace]
-
-	if suciPrefix == "suci" && suciPart[supiTypePlace] == typeIMSI {
-		logger.UtilLog.Infoln("supi type is IMSI")
-	}
 
 	if scheme == nullScheme {
 		return mccMnc + suciPart[len(suciPart)-1], nil
