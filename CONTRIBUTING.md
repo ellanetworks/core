@@ -1,5 +1,7 @@
 # Contributing
 
+Ella Core is an open-source project and we welcome contributions from the community. This document provides guidelines for contributing to the project. Contributions to Ella Core can be made in the form of code, documentation, bug reports, feature requests, and feedback. We will judge contributions based on their quality, relevance, and alignment with the project's tenets.
+
 ## Getting Started
 
 ### Set up MicroK8s
@@ -115,5 +117,4 @@ go tool cover -func coverage.out
 
 ### Embedded Database
 
-Ella uses an embedded [SQLite](https://www.sqlite.org/) database to store its data. Type mappings between Go and SQLite are managed 
-using [sqlair](https://github.com/canonical/sqlair).
+Ella uses an embedded [SQLite](https://www.sqlite.org/) database to store its data. Type mappings between Go and SQLite are managed using [sqlair](https://github.com/canonical/sqlair).
