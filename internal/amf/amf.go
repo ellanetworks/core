@@ -151,7 +151,10 @@ func Terminate() {
 	unavailableGuamiList := message.BuildUnavailableGUAMIList(guamiList)
 	amfSelf.AmfRanPool.Range(func(key, value interface{}) bool {
 		ran := value.(*context.AmfRan)
-		message.SendAMFStatusIndication(ran, unavailableGuamiList)
+		err := message.SendAMFStatusIndication(ran, unavailableGuamiList)
+		if err != nil {
+			logger.AmfLog.Errorf("failed to send AMF Status Indication to RAN: %+v", err)
+		}
 		return true
 	})
 

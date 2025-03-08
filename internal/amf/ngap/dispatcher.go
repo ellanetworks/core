@@ -24,8 +24,8 @@ func Dispatch(conn net.Conn, msg []byte) {
 
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
-		logger.AmfLog.Infof("Create a new NG connection for: %s", conn.RemoteAddr().String())
 		ran = amfSelf.NewAmfRan(conn)
+		logger.AmfLog.Infof("added a new radio: %s", conn.RemoteAddr().String())
 	}
 
 	if len(msg) == 0 {
