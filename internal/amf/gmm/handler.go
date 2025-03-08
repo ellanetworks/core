@@ -26,22 +26,16 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-const (
-	S_NSSAI_CONGESTION        = "S-NSSAI_CONGESTION"
-	DNN_CONGESTION            = "DNN_CONGESTION"
-	PRIORITIZED_SERVICES_ONLY = "PRIORITIZED_SERVICES_ONLY"
-	OUT_OF_LADN_SERVICE_AREA  = "OUT_OF_LADN_SERVICE_AREA"
-)
-
 func SnssaiModelsToHex(snssai models.Snssai) string {
 	sst := fmt.Sprintf("%02x", snssai.Sst)
 	return sst + snssai.Sd
 }
 
-func PlmnIdStringToModels(plmnId string) (plmnID models.PlmnId) {
-	plmnID.Mcc = plmnId[:3]
-	plmnID.Mnc = plmnId[3:]
-	return
+func PlmnIDStringToModels(plmnIDStr string) models.PlmnId {
+	var plmnID models.PlmnId
+	plmnID.Mcc = plmnIDStr[:3]
+	plmnID.Mnc = plmnIDStr[3:]
+	return plmnID
 }
 
 func HandleULNASTransport(ue *context.AmfUe, anType models.AccessType,
@@ -218,7 +212,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 					if allowedNssai, ok := ue.AllowedNssai[anType]; ok {
 						snssai = *allowedNssai[0].AllowedSnssai
 					} else {
-						return errors.New("Ue doesn't have allowedNssai")
+						return fmt.Errorf("allowed nssai is not found for access type: %s in UE context", anType)
 					}
 				}
 
@@ -254,7 +248,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType,
 						ue.GmmLog.Errorf("error sending sm context request: %v", err)
 						return nil
 					} else if errResponse != nil {
-						ue.GmmLog.Warnf("pdu Session Establishment Request was rejected by SMF [pduSessionId: %d]", pduSessionID)
+						ue.GmmLog.Warnf("pdu Session Establishment Request was rejected by SMF [pduSessionID: %d]", pduSessionID)
 						err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, errResponse.BinaryDataN1SmMessage, pduSessionID, 0)
 						if err != nil {
 							return fmt.Errorf("error sending downlink nas transport: %s", err)
@@ -437,7 +431,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 
 			messageType := m.GmmMessage.GmmHeader.GetMessageType()
 			if messageType != nas.MsgTypeRegistrationRequest {
-				return errors.New("The payload of NAS Message Container is not Registration Request")
+				return fmt.Errorf("expected registration request, got %d", messageType)
 			}
 			// TS 24.501 4.4.6: The AMF shall consider the NAS message that is obtained from the NAS message container
 			// IE as the initial NAS message that triggered the procedure
@@ -451,18 +445,18 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	ue.RegistrationType5GS = registrationRequest.NgksiAndRegistrationType5GS.GetRegistrationType5GS()
 	switch ue.RegistrationType5GS {
 	case nasMessage.RegistrationType5GSInitialRegistration:
-		ue.GmmLog.Debugf("RegistrationType: Initial Registration")
+		ue.GmmLog.Debugf("registration type: Initial Registration")
 	case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
-		ue.GmmLog.Debugf("RegistrationType: Mobility Registration Updating")
+		ue.GmmLog.Debugf("registration type: Mobility Registration Updating")
 	case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
-		ue.GmmLog.Debugf("RegistrationType: Periodic Registration Updating")
+		ue.GmmLog.Debugf("registration type: Periodic Registration Updating")
 	case nasMessage.RegistrationType5GSEmergencyRegistration:
-		return fmt.Errorf("Not Supportted RegistrationType: Emergency Registration")
+		return fmt.Errorf("not supported registration type: Emergency Registration")
 	case nasMessage.RegistrationType5GSReserved:
 		ue.RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
-		ue.GmmLog.Debugf("RegistrationType: Reserved")
+		ue.GmmLog.Debugf("registration type: Reserved")
 	default:
-		ue.GmmLog.Debugf("RegistrationType: %v, chage state to InitialRegistration", ue.RegistrationType5GS)
+		ue.GmmLog.Debugf("registration type: %v, chage state to InitialRegistration", ue.RegistrationType5GS)
 		ue.RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 	}
 
@@ -472,9 +466,9 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	case nasMessage.MobileIdentity5GSTypeNoIdentity:
 		ue.GmmLog.Debugf("No Identity")
 	case nasMessage.MobileIdentity5GSTypeSuci:
-		var plmnId string
-		ue.Suci, plmnId = nasConvert.SuciToString(mobileIdentity5GSContents)
-		ue.PlmnId = PlmnIdStringToModels(plmnId)
+		var plmnID string
+		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentity5GSContents)
+		ue.PlmnId = PlmnIDStringToModels(plmnID)
 		ue.GmmLog.Debugf("SUCI: %s", ue.Suci)
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		guamiFromUeGutiTmp, guti := util.GutiToString(mobileIdentity5GSContents)
@@ -764,7 +758,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 	}
 
 	var reactivationResult *[16]bool
-	var errPduSessionId, errCause []uint8
+	var errPduSessionID, errCause []uint8
 	ctxList := ngapType.PDUSessionResourceSetupListCxtReq{}
 	suList := ngapType.PDUSessionResourceSetupListSUReq{}
 
@@ -784,22 +778,22 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		}
 
 		if !allowReEstablishPduSession {
-			for pduSessionId, hasUplinkData := range uplinkDataPsi {
+			for pduSessionID, hasUplinkData := range uplinkDataPsi {
 				if hasUplinkData {
-					errPduSessionId = append(errPduSessionId, uint8(pduSessionId))
+					errPduSessionID = append(errPduSessionID, uint8(pduSessionID))
 					errCause = append(errCause, nasMessage.Cause5GMMRestrictedServiceArea)
 				}
 			}
 		} else {
 			for idx, hasUplinkData := range uplinkDataPsi {
-				pduSessionId := int32(idx)
-				if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionId); ok {
+				pduSessionID := int32(idx)
+				if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 					// uplink data are pending for the corresponding PDU session identity
 					if hasUplinkData && smContext.AccessType() == models.AccessType__3_GPP_ACCESS {
 						response, err := consumer.SendUpdateSmContextActivateUpCnxState(ue, smContext, anType)
 						if response == nil {
-							reactivationResult[pduSessionId] = true
-							errPduSessionId = append(errPduSessionId, uint8(pduSessionId))
+							reactivationResult[pduSessionID] = true
+							errPduSessionID = append(errPduSessionID, uint8(pduSessionID))
 							cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 							errCause = append(errCause, cause)
 
@@ -808,10 +802,10 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 							}
 						} else {
 							if ue.RanUe[anType].UeContextRequest {
-								ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionId,
+								ngap_message.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID,
 									smContext.Snssai(), response.BinaryDataN1SmMessage, response.BinaryDataN2SmInformation)
 							} else {
-								ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionId,
+								ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID,
 									smContext.Snssai(), response.BinaryDataN1SmMessage, response.BinaryDataN2SmInformation)
 							}
 						}
@@ -826,8 +820,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		pduSessionStatus = new([16]bool)
 		psiArray := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.PDUSessionStatus.Buffer)
 		for psi := 1; psi <= 15; psi++ {
-			pduSessionId := int32(psi)
-			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionId); ok {
+			pduSessionID := int32(psi)
+			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 				if !psiArray[psi] && smContext.AccessType() == anType {
 					err := consumer.SendReleaseSmContextRequest(smContext)
 					if err != nil {
@@ -854,7 +848,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			if n2Info == nil {
 				if len(suList.List) != 0 {
 					nasPdu, err := gmm_message.BuildRegistrationAccept(ue, anType, pduSessionStatus,
-						reactivationResult, errPduSessionId, errCause)
+						reactivationResult, errPduSessionID, errCause)
 					if err != nil {
 						return err
 					}
@@ -864,7 +858,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 					}
 					ue.GmmLog.Infof("sent pdu session resource setup request")
 				} else {
-					err := gmm_message.SendRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult, errPduSessionId, errCause, &ctxList)
+					err := gmm_message.SendRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList)
 					if err != nil {
 						return fmt.Errorf("error sending registration accept: %v", err)
 					}
@@ -917,7 +911,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 						return err
 					} else if response == nil {
 						reactivationResult[requestData.PduSessionId] = true
-						errPduSessionId = append(errPduSessionId, uint8(requestData.PduSessionId))
+						errPduSessionID = append(errPduSessionID, uint8(requestData.PduSessionId))
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 						errCause = append(errCause, cause)
 					} else {
@@ -937,8 +931,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 				var nasPdu []byte
 				var err error
 				if n1Msg != nil {
-					pduSessionId := uint8(smInfo.PduSessionId)
-					nasPdu, err = gmm_message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionId, nil)
+					pduSessionID := uint8(smInfo.PduSessionId)
+					nasPdu, err = gmm_message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
 					if err != nil {
 						return err
 					}
@@ -969,7 +963,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 
 	if ue.RanUe[anType].UeContextRequest {
 		if anType == models.AccessType__3_GPP_ACCESS {
-			err := gmm_message.SendRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult, errPduSessionId, errCause, &ctxList)
+			err := gmm_message.SendRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList)
 			if err != nil {
 				return fmt.Errorf("error sending registration accept: %v", err)
 			}
@@ -981,7 +975,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			}
 			ue.GmmLog.Infof("sent initial context setup request")
 			registrationAccept, err := gmm_message.BuildRegistrationAccept(ue, anType,
-				pduSessionStatus, reactivationResult, errPduSessionId, errCause)
+				pduSessionStatus, reactivationResult, errPduSessionID, errCause)
 			if err != nil {
 				ue.GmmLog.Errorf("Build Registration Accept: %+v", err)
 				return nil
@@ -990,7 +984,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		}
 		return nil
 	} else {
-		nasPdu, err := gmm_message.BuildRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult, errPduSessionId, errCause)
+		nasPdu, err := gmm_message.BuildRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
 			return fmt.Errorf("error building registration accept: %v", err)
 		}
@@ -1250,9 +1244,9 @@ func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.Iden
 	mobileIdentityContents := identityResponse.MobileIdentity.GetMobileIdentityContents()
 	switch nasConvert.GetTypeOfIdentity(mobileIdentityContents[0]) { // get type of identity
 	case nasMessage.MobileIdentity5GSTypeSuci:
-		var plmnId string
-		ue.Suci, plmnId = nasConvert.SuciToString(mobileIdentityContents)
-		ue.PlmnId = PlmnIdStringToModels(plmnId)
+		var plmnID string
+		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentityContents)
+		ue.PlmnId = PlmnIDStringToModels(plmnID)
 		ue.GmmLog.Debugf("get SUCI: %s", ue.Suci)
 	case nasMessage.MobileIdentity5GSType5gGuti:
 		if ue.MacFailed {
@@ -1306,8 +1300,8 @@ func HandleNotificationResponse(ue *context.AmfUe, notificationResponse *nasMess
 	if notificationResponse != nil && notificationResponse.PDUSessionStatus != nil {
 		psiArray := nasConvert.PSIToBooleanArray(notificationResponse.PDUSessionStatus.Buffer)
 		for psi := 1; psi <= 15; psi++ {
-			pduSessionId := int32(psi)
-			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionId); ok {
+			pduSessionID := int32(psi)
+			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 				if !psiArray[psi] {
 					err := consumer.SendReleaseSmContextRequest(smContext)
 					if err != nil {
@@ -1491,7 +1485,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 
 			messageType := m.GmmMessage.GmmHeader.GetMessageType()
 			if messageType != nas.MsgTypeServiceRequest {
-				return errors.New("The payload of NAS message Container is not service request")
+				return fmt.Errorf("expected service request message, got %d", messageType)
 			}
 			// TS 24.501 4.4.6: The AMF shall consider the NAS message that is obtained from the NAS message container
 			// IE as the initial NAS message that triggered the procedure
@@ -1503,8 +1497,8 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 
 	serviceType := serviceRequest.GetServiceTypeValue()
 	var reactivationResult, acceptPduSessionPsi *[16]bool
-	var errPduSessionId, errCause []uint8
-	var targetPduSessionId int32
+	var errPduSessionID, errCause []uint8
+	var targetPduSessionID int32
 	suList := ngapType.PDUSessionResourceSetupListSUReq{}
 	ctxList := ngapType.PDUSessionResourceSetupListCxtReq{}
 
@@ -1538,10 +1532,10 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 		requestData := ue.N1N2Message.Request.JsonData
 		if ue.N1N2Message.Request.BinaryDataN2Information != nil {
 			if requestData.N2InfoContainer.N2InformationClass == models.N2InformationClass_SM {
-				targetPduSessionId = requestData.N2InfoContainer.SmInfo.PduSessionId
+				targetPduSessionID = requestData.N2InfoContainer.SmInfo.PduSessionId
 			} else {
 				ue.N1N2Message = nil
-				return fmt.Errorf("Service Request triggered by Network has not implemented about non SM N2Info")
+				return fmt.Errorf("n2 information class not supported: %v", requestData.N2InfoContainer.N2InformationClass)
 			}
 		}
 	}
@@ -1553,7 +1547,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 			pduSessionID := key.(int32)
 			smContext := value.(*context.SmContext)
 
-			if pduSessionID != targetPduSessionId {
+			if pduSessionID != targetPduSessionID {
 				if uplinkDataPsi[pduSessionID] && smContext.AccessType() == models.AccessType__3_GPP_ACCESS {
 					response, err := consumer.SendUpdateSmContextActivateUpCnxState(
 						ue, smContext, models.AccessType__3_GPP_ACCESS)
@@ -1562,7 +1556,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 							pduSessionID, err)
 					} else if response == nil {
 						reactivationResult[pduSessionID] = true
-						errPduSessionId = append(errPduSessionId, uint8(pduSessionID))
+						errPduSessionID = append(errPduSessionID, uint8(pduSessionID))
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 						errCause = append(errCause, cause)
 					} else if ue.RanUe[anType].UeContextRequest {
@@ -1606,7 +1600,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 			// downlink signalling
 			if n2Info == nil {
 				err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi,
-					reactivationResult, errPduSessionId, errCause)
+					reactivationResult, errPduSessionID, errCause)
 				if err != nil {
 					return err
 				}
@@ -1643,7 +1637,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 			smContext, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionId)
 			if !exist {
 				ue.N1N2Message = nil
-				return fmt.Errorf("service Request triggered by Network error for pduSessionId does not exist")
+				return fmt.Errorf("service Request triggered by Network error for pduSessionID does not exist")
 			}
 
 			if smContext.AccessType() == models.AccessType_NON_3_GPP_ACCESS {
@@ -1659,7 +1653,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 							return err
 						} else if response == nil {
 							reactivationResult[requestData.PduSessionId] = true
-							errPduSessionId = append(errPduSessionId, uint8(requestData.PduSessionId))
+							errPduSessionID = append(errPduSessionID, uint8(requestData.PduSessionId))
 							cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 							errCause = append(errCause, cause)
 						} else {
@@ -1685,8 +1679,8 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 				var nasPdu []byte
 				var err error
 				if n1Msg != nil {
-					pduSessionId := uint8(smInfo.PduSessionId)
-					nasPdu, err = gmm_message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionId, nil)
+					pduSessionID := uint8(smInfo.PduSessionId)
+					nasPdu, err = gmm_message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, pduSessionID, nil)
 					if err != nil {
 						return err
 					}
@@ -1701,14 +1695,14 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 					ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionId, omecSnssai, nasPdu, n2Info)
 				}
 			}
-			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionId, errCause)
+			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause)
 			if err != nil {
 				return err
 			}
 		}
 		// downlink signaling
 		if ue.ConfigurationUpdateMessage != nil {
-			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionId, errCause)
+			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause)
 			if err != nil {
 				return err
 			}
@@ -1740,13 +1734,13 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 					return nil
 				}
 			}
-			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionId, errCause)
+			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause)
 			if err != nil {
 				return err
 			}
 		} else {
 			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi,
-				reactivationResult, errPduSessionId, errCause)
+				reactivationResult, errPduSessionID, errCause)
 			if err != nil {
 				return err
 			}
@@ -1754,8 +1748,8 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 	default:
 		return fmt.Errorf("service type is not supported: %d", serviceType)
 	}
-	if len(errPduSessionId) != 0 {
-		ue.GmmLog.Info(errPduSessionId, errCause)
+	if len(errPduSessionID) != 0 {
+		ue.GmmLog.Info(errPduSessionID, errCause)
 	}
 	ue.N1N2Message = nil
 	return nil
@@ -1763,14 +1757,14 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 
 func sendServiceAccept(ue *context.AmfUe, anType models.AccessType, ctxList ngapType.PDUSessionResourceSetupListCxtReq,
 	suList ngapType.PDUSessionResourceSetupListSUReq, pDUSessionStatus *[16]bool,
-	reactivationResult *[16]bool, errPduSessionId, errCause []uint8,
+	reactivationResult *[16]bool, errPduSessionID, errCause []uint8,
 ) error {
 	if ue.RanUe[anType].UeContextRequest {
 		// update Kgnb/Kn3iwf
 		ue.UpdateSecurityContext(anType)
 
 		nasPdu, err := gmm_message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult,
-			errPduSessionId, errCause)
+			errPduSessionID, errCause)
 		if err != nil {
 			return err
 		}
@@ -1789,7 +1783,7 @@ func sendServiceAccept(ue *context.AmfUe, anType models.AccessType, ctxList ngap
 		}
 	} else if len(suList.List) != 0 {
 		nasPdu, err := gmm_message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult,
-			errPduSessionId, errCause)
+			errPduSessionID, errCause)
 		if err != nil {
 			return err
 		}
@@ -1799,7 +1793,7 @@ func sendServiceAccept(ue *context.AmfUe, anType models.AccessType, ctxList ngap
 		}
 		ue.GmmLog.Infof("sent pdu session resource setup request")
 	} else {
-		err := gmm_message.SendServiceAccept(ue.RanUe[anType], pDUSessionStatus, reactivationResult, errPduSessionId, errCause)
+		err := gmm_message.SendServiceAccept(ue.RanUe[anType], pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
 			return fmt.Errorf("error sending service accept: %v", err)
 		}
