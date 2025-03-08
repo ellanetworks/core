@@ -90,7 +90,7 @@ func TestListRadios(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	amf := amfContext.AMF_Self()
+	amf := amfContext.AMFSelf()
 	ran1 := amfContext.AmfRan{}
 	ran1.Name = "gnb-001"
 	ran1.SupportedTAList = []amfContext.SupportedTAI{

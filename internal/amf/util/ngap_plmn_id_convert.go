@@ -2,26 +2,27 @@ package util
 
 import (
 	"encoding/hex"
+	"fmt"
 	"strings"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/ngap/ngapType"
 )
 
-func PlmnIdToModels(ngapPlmnId ngapType.PLMNIdentity) (modelsPlmnid models.PlmnId) {
+func PlmnIdToModels(ngapPlmnId ngapType.PLMNIdentity) models.PlmnId {
 	value := ngapPlmnId.Value
 	hexString := strings.Split(hex.EncodeToString(value), "")
+	var modelsPlmnid models.PlmnId
 	modelsPlmnid.Mcc = hexString[1] + hexString[0] + hexString[3]
 	if hexString[2] == "f" {
 		modelsPlmnid.Mnc = hexString[5] + hexString[4]
 	} else {
 		modelsPlmnid.Mnc = hexString[2] + hexString[5] + hexString[4]
 	}
-	return
+	return modelsPlmnid
 }
 
-func PlmnIdToNgap(modelsPlmnid models.PlmnId) ngapType.PLMNIdentity {
+func PlmnIdToNgap(modelsPlmnid models.PlmnId) (*ngapType.PLMNIdentity, error) {
 	var hexString string
 	mcc := strings.Split(modelsPlmnid.Mcc, "")
 	mnc := strings.Split(modelsPlmnid.Mnc, "")
@@ -32,10 +33,10 @@ func PlmnIdToNgap(modelsPlmnid models.PlmnId) ngapType.PLMNIdentity {
 	}
 
 	var ngapPlmnId ngapType.PLMNIdentity
-	if plmnId, err := hex.DecodeString(hexString); err != nil {
-		logger.AmfLog.Warnf("decode plmn failed: %+v", err)
-	} else {
-		ngapPlmnId.Value = plmnId
+	plmnId, err := hex.DecodeString(hexString)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding hex string: %s", err)
 	}
-	return ngapPlmnId
+	ngapPlmnId.Value = plmnId
+	return &ngapPlmnId, nil
 }

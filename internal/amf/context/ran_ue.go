@@ -35,59 +35,38 @@ const (
 )
 
 type RanUe struct {
-	/* UE identity*/
-	RanUeNgapId int64 `json:"ranUeNgapId,omitempty"`
-	AmfUeNgapId int64 `json:"amfUeNgapId,omitempty"`
-
-	/* HandOver Info*/
-	HandOverType        ngapType.HandoverType
-	SuccessPduSessionId []int32 `json:"successPduSessionId,omitempty"`
-	SourceUe            *RanUe  `json:"-"`
-	TargetUe            *RanUe  `json:"-"`
-
-	/* UserLocation*/
-	Tai      models.Tai
-	Location models.UserLocation
-	/* context about udm */
-	SupportVoPSn3gpp  bool       `json:"-"`
-	SupportVoPS       bool       `json:"-"`
-	SupportedFeatures string     `json:"-"`
-	LastActTime       *time.Time `json:"-"`
-
-	/* Related Context*/
-	AmfUe *AmfUe `json:"-"`
-	Ran   *AmfRan
-
-	/* Routing ID */
-	RoutingID string
-	/* Trace Recording Session Reference */
-	Trsr string
-	/* Ue Context Release Action */
-	ReleaseAction RelAction
-	/* context used for AMF Re-allocation procedure */
-	OldAmfName            string
-	InitialUEMessage      []byte
-	RRCEstablishmentCause string // Received from initial ue message; pattern: ^[0-9a-fA-F]+$
-	UeContextRequest      bool
-
-	/* send initial context setup request or not*/
-	SentInitialContextSetupRequest bool
-
-	/*Received Initial context setup response or not */
-	RecvdInitialContextSetupResponse bool
-
-	/* logger */
-	Log *zap.SugaredLogger `json:"-"`
+	RanUeNgapId                      int64
+	AmfUeNgapId                      int64
+	HandOverType                     ngapType.HandoverType
+	SuccessPduSessionId              []int32
+	SourceUe                         *RanUe
+	TargetUe                         *RanUe
+	Tai                              models.Tai
+	Location                         models.UserLocation
+	SupportVoPS                      bool
+	SupportedFeatures                string
+	LastActTime                      *time.Time
+	AmfUe                            *AmfUe
+	Ran                              *AmfRan
+	RoutingID                        string
+	Trsr                             string /* Trace Recording Session Reference */
+	ReleaseAction                    RelAction
+	OldAmfName                       string
+	InitialUEMessage                 []byte
+	RRCEstablishmentCause            string // Received from initial ue message; pattern: ^[0-9a-fA-F]+$
+	UeContextRequest                 bool
+	SentInitialContextSetupRequest   bool
+	RecvdInitialContextSetupResponse bool /*Received Initial context setup response or not */
+	Log                              *zap.SugaredLogger
 }
 
 func (ranUe *RanUe) Remove() error {
-	fmt.Printf("RanUe has been deleted")
 	if ranUe == nil {
-		return fmt.Errorf("RanUe not found in RemoveRanUe")
+		return fmt.Errorf("ran ue is nil")
 	}
 	ran := ranUe.Ran
 	if ran == nil {
-		return fmt.Errorf("RanUe not found in Ran")
+		return fmt.Errorf("ran not found in ranUe not found")
 	}
 	if ranUe.AmfUe != nil {
 		ranUe.AmfUe.DetachRanUe(ran.AnType)
@@ -101,6 +80,7 @@ func (ranUe *RanUe) Remove() error {
 		}
 	}
 	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapId)
+	logger.AmfLog.Infof("ran ue removed: %d", ranUe.RanUeNgapId)
 	return nil
 }
 
@@ -110,11 +90,11 @@ func (ranUe *RanUe) DetachAmfUe() {
 
 func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapId int64) error {
 	if ranUe == nil {
-		return fmt.Errorf("ranUe is nil")
+		return fmt.Errorf("ran ue is nil")
 	}
 
 	if newRan == nil {
-		return fmt.Errorf("newRan is nil")
+		return fmt.Errorf("new ran is nil")
 	}
 
 	oldRan := ranUe.Ran
@@ -134,7 +114,7 @@ func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapId int64) error {
 	ranUe.Ran = newRan
 	ranUe.RanUeNgapId = ranUeNgapId
 
-	logger.AmfLog.Infof("RanUe[RanUeNgapID: %d] Switch to new Ran[Name: %s]", ranUe.RanUeNgapId, ranUe.Ran.Name)
+	logger.AmfLog.Infof("ran ue (%d) switch to new Ran: %s", ranUe.RanUeNgapId, ranUe.Ran.Name)
 	return nil
 }
 

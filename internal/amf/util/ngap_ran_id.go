@@ -5,13 +5,14 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-func RanIdToModels(ranNodeId ngapType.GlobalRANNodeID) (ranId models.GlobalRanNodeId) {
-	present := ranNodeId.Present
+func RanIdToModels(ranNodeID ngapType.GlobalRANNodeID) models.GlobalRanNodeId {
+	var ranId models.GlobalRanNodeId
+	present := ranNodeID.Present
 	switch present {
 	case ngapType.GlobalRANNodeIDPresentGlobalGNBID:
 		ranId.GNbId = new(models.GNbId)
 		gnbId := ranId.GNbId
-		ngapGnbId := ranNodeId.GlobalGNBID
+		ngapGnbId := ranNodeID.GlobalGNBID
 		plmnid := PlmnIdToModels(ngapGnbId.PLMNIdentity)
 		ranId.PlmnId = &plmnid
 		if ngapGnbId.GNBID.Present == ngapType.GNBIDPresentGNBID {
@@ -20,7 +21,7 @@ func RanIdToModels(ranNodeId ngapType.GlobalRANNodeID) (ranId models.GlobalRanNo
 			gnbId.GNBValue = BitStringToHex(choiceGnbId)
 		}
 	case ngapType.GlobalRANNodeIDPresentGlobalNgENBID:
-		ngapNgENBID := ranNodeId.GlobalNgENBID
+		ngapNgENBID := ranNodeID.GlobalNgENBID
 		plmnid := PlmnIdToModels(ngapNgENBID.PLMNIdentity)
 		ranId.PlmnId = &plmnid
 		if ngapNgENBID.NgENBID.Present == ngapType.NgENBIDPresentMacroNgENBID {
@@ -34,7 +35,7 @@ func RanIdToModels(ranNodeId ngapType.GlobalRANNodeID) (ranId models.GlobalRanNo
 			ranId.NgeNbId = "LMacroNGeNB-" + BitStringToHex(longMacroNgENBID)
 		}
 	case ngapType.GlobalRANNodeIDPresentGlobalN3IWFID:
-		ngapN3IWFID := ranNodeId.GlobalN3IWFID
+		ngapN3IWFID := ranNodeID.GlobalN3IWFID
 		plmnid := PlmnIdToModels(ngapN3IWFID.PLMNIdentity)
 		ranId.PlmnId = &plmnid
 		if ngapN3IWFID.N3IWFID.Present == ngapType.N3IWFIDPresentN3IWFID {

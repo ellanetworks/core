@@ -6,9 +6,9 @@ import (
 	"github.com/omec-project/aper"
 )
 
-func BitStringToHex(bitString *aper.BitString) (hexString string) {
-	hexString = hex.EncodeToString(bitString.Bytes)
+func BitStringToHex(bitString *aper.BitString) string {
+	hexString := hex.EncodeToString(bitString.Bytes)
 	hexLen := (bitString.BitLength + 3) / 4
 	hexString = hexString[:hexLen]
-	return
+	return hexString
 }

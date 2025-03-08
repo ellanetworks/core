@@ -2,68 +2,69 @@ package util
 
 import (
 	"encoding/hex"
+	"fmt"
 	"strings"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap/ngapType"
 )
 
-func TraceDataToNgap(traceData models.TraceData, trsr string) ngapType.TraceActivation {
+func TraceDataToNgap(traceData models.TraceData, trsr string) (ngapType.TraceActivation, error) {
 	var traceActivation ngapType.TraceActivation
-
 	if len(trsr) != 4 {
-		logger.AmfLog.Warnln("trace Recording Session Reference should be 2 octets")
-		return traceActivation
+		return traceActivation, fmt.Errorf("trace Recording Session Reference should be 2 octets")
 	}
-
 	// NG-RAN Trace ID (left most 6 octet Trace Reference + last 2 octet Trace Recoding Session Reference)
 	subStringSlice := strings.Split(traceData.TraceRef, "-")
 
 	if len(subStringSlice) != 2 {
-		logger.AmfLog.Warnln("traceRef format is not correct")
-		return traceActivation
+		return traceActivation, fmt.Errorf("trace reference format is not correct")
 	}
 
 	plmnID := models.PlmnId{}
 	plmnID.Mcc = subStringSlice[0][:3]
 	plmnID.Mnc = subStringSlice[0][3:]
 	var traceID []byte
-	if traceIDTmp, err := hex.DecodeString(subStringSlice[1]); err != nil {
-		logger.AmfLog.Warnf("traceIDTmp is empty")
-	} else {
-		traceID = traceIDTmp
+	traceIDTmp, err := hex.DecodeString(subStringSlice[1])
+	if err != nil {
+		return traceActivation, fmt.Errorf("could not decode traceID: %+v", err)
 	}
+	traceID = traceIDTmp
 
-	tmp := PlmnIdToNgap(plmnID)
+	tmp, err := PlmnIdToNgap(plmnID)
+	if err != nil {
+		return traceActivation, fmt.Errorf("convert plmnID to NGAP failed: %+v", err)
+	}
 	traceReference := append(tmp.Value, traceID...)
 	var trsrNgap []byte
-	if trsrNgapTmp, err := hex.DecodeString(trsr); err != nil {
-		logger.AmfLog.Warnf("decode trsr failed: %+v", err)
-	} else {
-		trsrNgap = trsrNgapTmp
+	trsrNgapTmp, err := hex.DecodeString(trsr)
+	if err != nil {
+		return traceActivation, fmt.Errorf("decode trsr failed: %+v", err)
 	}
+	trsrNgap = trsrNgapTmp
 
 	nGRANTraceID := append(traceReference, trsrNgap...)
-
 	traceActivation.NGRANTraceID.Value = nGRANTraceID
 
 	// Interfaces To Trace
 	var interfacesToTrace []byte
-	if interfacesToTraceTmp, err := hex.DecodeString(traceData.InterfaceList); err != nil {
-		logger.AmfLog.Warnf("decode Interface failed: %+v", err)
-	} else {
-		interfacesToTrace = interfacesToTraceTmp
+	interfacesToTraceTmp, err := hex.DecodeString(traceData.InterfaceList)
+	if err != nil {
+		return traceActivation, fmt.Errorf("decode Interface failed: %+v", err)
 	}
+	interfacesToTrace = interfacesToTraceTmp
 	traceActivation.InterfacesToTrace.Value = aper.BitString{
 		Bytes:     interfacesToTrace,
 		BitLength: 8,
 	}
 
 	// Trace Collection Entity IP Address
-	ngapIP := IPAddressToNgap(traceData.CollectionEntityIpv4Addr, traceData.CollectionEntityIpv6Addr)
-	traceActivation.TraceCollectionEntityIPAddress = ngapIP
+	ngapIP, err := IPAddressToNgap(traceData.CollectionEntityIpv4Addr, traceData.CollectionEntityIpv6Addr)
+	if err != nil {
+		return traceActivation, fmt.Errorf("could not convert IP address to NGAP: %+v", err)
+	}
+	traceActivation.TraceCollectionEntityIPAddress = *ngapIP
 
 	// Trace Depth
 	switch traceData.TraceDepth {
@@ -81,5 +82,5 @@ func TraceDataToNgap(traceData models.TraceData, trsr string) ngapType.TraceActi
 		traceActivation.TraceDepth.Value = ngapType.TraceDepthPresentMaximumWithoutVendorSpecificExtension
 	}
 
-	return traceActivation
+	return traceActivation, nil
 }

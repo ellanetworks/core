@@ -15,6 +15,7 @@ import (
 	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/util"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/omec-project/nas"
@@ -349,7 +350,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	registrationRequest *nasMessage.RegistrationRequest,
 ) error {
 	var guamiFromUeGuti models.Guami
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
@@ -487,7 +488,12 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	taiList := make([]models.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)
 	for i := range taiList {
-		taiList[i].Tac = util.TACConfigToModels(taiList[i].Tac)
+		tac, err := util.TACConfigToModels(taiList[i].Tac)
+		if err != nil {
+			logger.AmfLog.Warnf("failed to convert TAC[%s] to models.Tac", taiList[i].Tac)
+			continue
+		}
+		taiList[i].Tac = tac
 	}
 	if !context.InTaiList(ue.Tai, taiList) {
 		gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMMTrackingAreaNotAllowed, "")
@@ -530,7 +536,7 @@ func IdentityVerification(ue *context.AmfUe) bool {
 func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) error {
 	ue.GmmLog.Infoln("Handle InitialRegistration")
 
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	ue.ClearRegistrationData()
 
@@ -642,7 +648,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType models.AccessType) error {
 	ue.GmmLog.Infoln("Handle MobilityAndPeriodicRegistrationUpdating")
 
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	if ue.RegistrationRequest.UpdateType5GS != nil {
 		if ue.RegistrationRequest.UpdateType5GS.GetNGRanRcu() == nasMessage.NGRanRadioCapabilityUpdateNeeded {
@@ -981,7 +987,7 @@ func getSubscribedNssai(ue *context.AmfUe) {
 
 // TS 23.502 4.2.2.2.3 Registration with AMF Re-allocation
 func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	if ue.RegistrationRequest.RequestedNSSAI != nil {
 		requestedNssai, err := util.RequestedNssaiToModels(ue.RegistrationRequest.RequestedNSSAI)
@@ -1066,7 +1072,7 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 	if len(ue.AllowedNssai[anType]) == 0 {
 		for _, snssai := range ue.SubscribedNssai {
 			if snssai.DefaultIndication {
-				if amfSelf.InPlmnSupportList(*snssai.SubscribedSnssai) {
+				if amfSelf.InPlmnSupport(*snssai.SubscribedSnssai) {
 					allowedSnssai := models.AllowedSnssai{
 						AllowedSnssai: snssai.SubscribedSnssai,
 					}
@@ -1079,7 +1085,7 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 }
 
 func assignLadnInfo(ue *context.AmfUe, accessType models.AccessType) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	ue.LadnInfo = nil
 	if ue.RegistrationRequest.LADNIndication != nil {

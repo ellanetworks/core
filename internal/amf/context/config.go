@@ -9,12 +9,12 @@ import (
 // This file contains calls to db to get configuration data
 
 func ListAmfRan() []AmfRan {
-	amfSelf := AMF_Self()
+	amfSelf := AMFSelf()
 	return amfSelf.ListAmfRan()
 }
 
 func GetSupportTaiList() []models.Tai {
-	amfSelf := AMF_Self()
+	amfSelf := AMFSelf()
 	tais := make([]models.Tai, 0)
 	dbNetwork, err := amfSelf.DbInstance.GetOperator()
 	if err != nil {
@@ -37,7 +37,7 @@ func GetSupportTaiList() []models.Tai {
 }
 
 func GetServedGuamiList() []models.Guami {
-	amfSelf := AMF_Self()
+	amfSelf := AMFSelf()
 	guamis := make([]models.Guami, 0)
 	dbNetwork, err := amfSelf.DbInstance.GetOperator()
 	if err != nil {
@@ -56,15 +56,14 @@ func GetServedGuamiList() []models.Guami {
 	return guamis
 }
 
-func GetPlmnSupportList() []PlmnSupportItem {
-	amfSelf := AMF_Self()
-	plmnSupportList := make([]PlmnSupportItem, 0)
+func GetSupportedPlmn() *PlmnSupportItem {
+	amfSelf := AMFSelf()
 	operator, err := amfSelf.DbInstance.GetOperator()
 	if err != nil {
 		logger.AmfLog.Warnf("Failed to get operator: %s", err)
-		return plmnSupportList
+		return nil
 	}
-	plmnSupportItem := PlmnSupportItem{
+	plmnSupportItem := &PlmnSupportItem{
 		PlmnId: models.PlmnId{
 			Mcc: operator.Mcc,
 			Mnc: operator.Mnc,
@@ -76,6 +75,5 @@ func GetPlmnSupportList() []PlmnSupportItem {
 			},
 		},
 	}
-	plmnSupportList = append(plmnSupportList, plmnSupportItem)
-	return plmnSupportList
+	return plmnSupportItem
 }

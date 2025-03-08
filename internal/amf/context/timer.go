@@ -22,10 +22,7 @@ type Timer struct {
 // the user call Stop(). the number of expire event is be recorded when the timer is active. When the number of expire
 // event is > maxRetryTimes, then the timer will call cancelFunc and turns off itself. Whether expiredFunc pass a
 // parameter expireTimes to tell the user that the current expireTimes.
-func NewTimer(d time.Duration, maxRetryTimes int32,
-	expiredFunc func(expireTimes int32),
-	cancelFunc func(),
-) *Timer {
+func NewTimer(d time.Duration, maxRetryTimes int32, expiredFunc func(expireTimes int32), cancelFunc func()) *Timer {
 	t := &Timer{}
 	atomic.StoreInt32(&t.expireTimes, 0)
 	atomic.StoreInt32(&t.maxRetryTimes, maxRetryTimes)

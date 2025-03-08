@@ -7,6 +7,7 @@
 package service
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -38,16 +39,13 @@ var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 	AssocInfo: &sctp.AssocInfo{AsocMaxRxt: 4},
 }
 
-func Run(addresses []string, port int, handler NGAPHandler) {
+func Run(address string, port int, handler NGAPHandler) error {
 	ips := []net.IPAddr{}
-
-	for _, addr := range addresses {
-		if netAddr, err := net.ResolveIPAddr("ip", addr); err != nil {
-			logger.AmfLog.Errorf("Error resolving address '%s': %v\n", addr, err)
-		} else {
-			ips = append(ips, *netAddr)
-		}
+	netAddr, err := net.ResolveIPAddr("ip", address)
+	if err != nil {
+		return fmt.Errorf("error resolving address '%s': %v", address, err)
 	}
+	ips = append(ips, *netAddr)
 
 	addr := &sctp.SCTPAddr{
 		IPAddrs: ips,
@@ -55,18 +53,17 @@ func Run(addresses []string, port int, handler NGAPHandler) {
 	}
 
 	go listenAndServe(addr, handler)
+	return nil
 }
 
 func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
-	if listener, err := sctpConfig.Listen("sctp", addr); err != nil {
+	listener, err := sctpConfig.Listen("sctp", addr)
+	if err != nil {
 		logger.AmfLog.Errorf("Failed to listen: %+v", err)
 		return
-	} else {
-		sctpListener = listener
 	}
-
+	sctpListener = listener
 	logger.AmfLog.Infof("NGAP server started on %s", addr.String())
-
 	for {
 		newConn, err := sctpListener.AcceptSCTP()
 		if err != nil {

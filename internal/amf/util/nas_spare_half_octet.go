@@ -6,7 +6,8 @@ import (
 	"github.com/omec-project/nas/nasType"
 )
 
-func SpareHalfOctetAndNgksiToNas(ngKsiModels models.NgKsi) (ngKsiNas nasType.SpareHalfOctetAndNgksi) {
+func SpareHalfOctetAndNgksiToNas(ngKsiModels models.NgKsi) nasType.SpareHalfOctetAndNgksi {
+	var ngKsiNas nasType.SpareHalfOctetAndNgksi
 	switch ngKsiModels.Tsc {
 	case models.ScType_NATIVE:
 		ngKsiNas.SetTSC(nasMessage.TypeOfSecurityContextFlagNative)
@@ -16,5 +17,5 @@ func SpareHalfOctetAndNgksiToNas(ngKsiModels models.NgKsi) (ngKsiNas nasType.Spa
 
 	ngKsiNas.SetSpareHalfOctet(0)
 	ngKsiNas.SetNasKeySetIdentifiler(uint8(ngKsiModels.Ksi))
-	return
+	return ngKsiNas
 }

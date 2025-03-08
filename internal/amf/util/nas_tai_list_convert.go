@@ -2,14 +2,14 @@ package util
 
 import (
 	"encoding/hex"
+	"fmt"
 	"reflect"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
 // TS 24.501 9.11.3.9
-func TaiListToNas(taiList []models.Tai) []uint8 {
+func TaiListToNas(taiList []models.Tai) ([]uint8, error) {
 	var taiListNas []uint8
 	typeOfList := 0x00
 
@@ -26,27 +26,33 @@ func TaiListToNas(taiList []models.Tai) []uint8 {
 
 	switch typeOfList {
 	case 0x00:
-		plmnNas := PlmnIDToNas(*plmnId)
+		plmnNas, err := PlmnIDToNas(*plmnId)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert plmnID to nas: %s", err)
+		}
 		taiListNas = append(taiListNas, plmnNas...)
 
 		for _, tai := range taiList {
-			if tacBytes, err := hex.DecodeString(tai.Tac); err != nil {
-				logger.AmfLog.Warnf("decode tac failed: %+v", err)
-			} else {
-				taiListNas = append(taiListNas, tacBytes...)
+			tacBytes, err := hex.DecodeString(tai.Tac)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode tac: %s", err)
 			}
+			taiListNas = append(taiListNas, tacBytes...)
 		}
 	case 0x02:
 		for _, tai := range taiList {
-			plmnNas := PlmnIDToNas(*tai.PlmnId)
-			if tacBytes, err := hex.DecodeString(tai.Tac); err != nil {
-				logger.AmfLog.Warnf("decode tac failed: %+v", err)
-			} else {
-				taiListNas = append(taiListNas, plmnNas...)
-				taiListNas = append(taiListNas, tacBytes...)
+			plmnNas, err := PlmnIDToNas(*tai.PlmnId)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert plmnID to nas: %s", err)
 			}
+			tacBytes, err := hex.DecodeString(tai.Tac)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode tac: %s", err)
+			}
+			taiListNas = append(taiListNas, plmnNas...)
+			taiListNas = append(taiListNas, tacBytes...)
 		}
 	}
 
-	return taiListNas
+	return taiListNas, nil
 }

@@ -81,16 +81,14 @@ type AMFContext struct {
 	SupportedDnns                   []string
 	SecurityAlgorithm               SecurityAlgorithm
 	NetworkName                     NetworkName
-	NgapIpList                      []string // NGAP Server IP
-	T3502Value                      int      // unit is second
-	T3512Value                      int      // unit is second
-	Non3gppDeregistrationTimerValue int      // unit is second
-	// read-only fields
-	T3513Cfg TimerValue
-	T3522Cfg TimerValue
-	T3550Cfg TimerValue
-	T3560Cfg TimerValue
-	T3565Cfg TimerValue
+	T3502Value                      int // unit is second
+	T3512Value                      int // unit is second
+	Non3gppDeregistrationTimerValue int // unit is second
+	T3513Cfg                        TimerValue
+	T3522Cfg                        TimerValue
+	T3550Cfg                        TimerValue
+	T3560Cfg                        TimerValue
+	T3565Cfg                        TimerValue
 }
 
 type SecurityAlgorithm struct {
@@ -287,13 +285,11 @@ func (context *AMFContext) InSupportDnnList(targetDnn string) bool {
 	return false
 }
 
-func (context *AMFContext) InPlmnSupportList(snssai models.Snssai) bool {
-	plmnSupportList := GetPlmnSupportList()
-	for _, plmnSupportItem := range plmnSupportList {
-		for _, supportSnssai := range plmnSupportItem.SNssaiList {
-			if reflect.DeepEqual(supportSnssai, snssai) {
-				return true
-			}
+func (context *AMFContext) InPlmnSupport(snssai models.Snssai) bool {
+	plmnSupportItem := GetSupportedPlmn()
+	for _, supportSnssai := range plmnSupportItem.SNssaiList {
+		if reflect.DeepEqual(supportSnssai, snssai) {
+			return true
 		}
 	}
 	return false
@@ -426,6 +422,6 @@ func (context *AMFContext) Get5gsNwFeatSuppMcsi() uint8 {
 }
 
 // Create new AMF context
-func AMF_Self() *AMFContext {
+func AMFSelf() *AMFContext {
 	return &amfContext
 }

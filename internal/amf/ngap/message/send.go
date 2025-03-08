@@ -414,10 +414,7 @@ a Nsmf_PDUSession_CreateSMContext Response(N2 SM Information (PDU Session ID, ca
 // sourceToTargetTransparentContainer is received from S-RAN
 // nsci: new security context indicator, if amfUe has updated security context, set nsci to true, otherwise set to false
 // N2 handover in same AMF
-func SendHandoverRequest(sourceUe *context.RanUe, targetRan *context.AmfRan, cause ngapType.Cause,
-	pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq,
-	sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer, nsci bool,
-) {
+func SendHandoverRequest(sourceUe *context.RanUe, targetRan *context.AmfRan, cause ngapType.Cause, pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq, sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer) {
 	if sourceUe == nil {
 		logger.AmfLog.Error("sourceUe is nil")
 		return
@@ -457,10 +454,12 @@ func SendHandoverRequest(sourceUe *context.RanUe, targetRan *context.AmfRan, cau
 		targetUe = targetUeTmp
 	}
 
-	context.AttachSourceUeTargetUe(sourceUe, targetUe)
-
-	pkt, err := BuildHandoverRequest(targetUe, cause, pduSessionResourceSetupListHOReq,
-		sourceToTargetTransparentContainer, nsci)
+	err := context.AttachSourceUeTargetUe(sourceUe, targetUe)
+	if err != nil {
+		sourceUe.Log.Errorf("Attach source UE target UE error: %+v", err)
+		return
+	}
+	pkt, err := BuildHandoverRequest(targetUe, cause, pduSessionResourceSetupListHOReq, sourceToTargetTransparentContainer)
 	if err != nil {
 		sourceUe.Log.Errorf("Build HandoverRequest failed : %s", err.Error())
 		return
@@ -564,7 +563,7 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) {
 	// 	ngaplog.Errorf("Build Paging failed : %s", err.Error())
 	// }
 	taiList := ue.RegistrationArea[models.AccessType__3_GPP_ACCESS]
-	context.AMF_Self().AmfRanPool.Range(func(key, value interface{}) bool {
+	context.AMFSelf().AmfRanPool.Range(func(key, value interface{}) bool {
 		ran := value.(*context.AmfRan)
 		for _, item := range ran.SupportedTAList {
 			if context.InTaiList(item.Tai, taiList) {
@@ -577,11 +576,11 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) {
 		return true
 	})
 
-	if context.AMF_Self().T3513Cfg.Enable {
-		cfg := context.AMF_Self().T3513Cfg
+	if context.AMFSelf().T3513Cfg.Enable {
+		cfg := context.AMFSelf().T3513Cfg
 		ue.T3513 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			ue.GmmLog.Warnf("T3513 expires, retransmit Paging (retry: %d)", expireTimes)
-			context.AMF_Self().AmfRanPool.Range(func(key, value interface{}) bool {
+			context.AMFSelf().AmfRanPool.Range(func(key, value interface{}) bool {
 				ran := value.(*context.AmfRan)
 				for _, item := range ran.SupportedTAList {
 					if context.InTaiList(item.Tai, taiList) {

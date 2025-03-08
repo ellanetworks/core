@@ -2,50 +2,52 @@ package util
 
 import (
 	"encoding/hex"
+	"fmt"
 	"strconv"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
-func PlmnIDToNas(plmnID models.PlmnId) []uint8 {
+func PlmnIDToNas(plmnID models.PlmnId) ([]uint8, error) {
 	var plmnNas []uint8
 
 	var mccDigit1, mccDigit2, mccDigit3 int
-	if mccDigitTmp, err := strconv.Atoi(string(plmnID.Mcc[0])); err != nil {
-		logger.AmfLog.Warnf("atoi mcc error: %+v", err)
-	} else {
-		mccDigit1 = mccDigitTmp
+	mccDigitTmp, err := strconv.Atoi(string(plmnID.Mcc[0]))
+	if err != nil {
+		return nil, fmt.Errorf("atoi mcc error: %+v", err)
 	}
-	if mccDigitTmp, err := strconv.Atoi(string(plmnID.Mcc[1])); err != nil {
-		logger.AmfLog.Warnf("atoi mcc error: %+v", err)
-	} else {
-		mccDigit2 = mccDigitTmp
+	mccDigit1 = mccDigitTmp
+	mccDigitTmp, err = strconv.Atoi(string(plmnID.Mcc[1]))
+	if err != nil {
+		return nil, fmt.Errorf("atoi mcc error: %+v", err)
 	}
-	if mccDigitTmp, err := strconv.Atoi(string(plmnID.Mcc[2])); err != nil {
-		logger.AmfLog.Warnf("atoi mcc error: %+v", err)
-	} else {
-		mccDigit3 = mccDigitTmp
+	mccDigit2 = mccDigitTmp
+
+	mccDigitTmp, err = strconv.Atoi(string(plmnID.Mcc[2]))
+	if err != nil {
+		return nil, fmt.Errorf("atoi mcc error: %+v", err)
 	}
+	mccDigit3 = mccDigitTmp
 
 	var mncDigit1, mncDigit2, mncDigit3 int
-	if mncDigitTmp, err := strconv.Atoi(string(plmnID.Mnc[0])); err != nil {
-		logger.AmfLog.Warnf("atoi mnc error: %+v", err)
-	} else {
-		mncDigit1 = mncDigitTmp
+	mncDigitTmp, err := strconv.Atoi(string(plmnID.Mnc[0]))
+	if err != nil {
+		return nil, fmt.Errorf("atoi mnc error: %+v", err)
 	}
-	if mncDigitTmp, err := strconv.Atoi(string(plmnID.Mnc[1])); err != nil {
-		logger.AmfLog.Warnf("atoi mnc error: %+v", err)
-	} else {
-		mncDigit2 = mncDigitTmp
+	mncDigit1 = mncDigitTmp
+
+	mncDigitTmp, err = strconv.Atoi(string(plmnID.Mnc[1]))
+	if err != nil {
+		return nil, fmt.Errorf("atoi mnc error: %+v", err)
 	}
+	mncDigit2 = mncDigitTmp
 	mncDigit3 = 0x0f
 	if len(plmnID.Mnc) == 3 {
-		if mncDigitTmp, err := strconv.Atoi(string(plmnID.Mnc[2])); err != nil {
-			logger.AmfLog.Warnf("atoi mn error: %+v", err)
-		} else {
-			mncDigit3 = mncDigitTmp
+		mncDigitTmp, err := strconv.Atoi(string(plmnID.Mnc[2]))
+		if err != nil {
+			return nil, fmt.Errorf("atoi mnc error: %+v", err)
 		}
+		mncDigit3 = mncDigitTmp
 	}
 
 	plmnNas = []uint8{
@@ -54,7 +56,7 @@ func PlmnIDToNas(plmnID models.PlmnId) []uint8 {
 		uint8((mncDigit2 << 4) | mncDigit1),
 	}
 
-	return plmnNas
+	return plmnNas, nil
 }
 
 func PlmnIDToString(nasBuf []byte) string {

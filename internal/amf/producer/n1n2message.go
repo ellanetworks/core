@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	gmm_message "github.com/ellanetworks/core/internal/amf/gmm/message"
 	ngap_message "github.com/ellanetworks/core/internal/amf/ngap/message"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/nas/nasMessage"
@@ -21,7 +20,7 @@ import (
 )
 
 func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, reqUri string) (*models.N1N2MessageTransferRspData, error) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 	if _, ok := amfSelf.AmfUeFindByUeContextID(ueContextId); !ok {
 		return nil, fmt.Errorf("UE context not found")
 	}
@@ -53,18 +52,17 @@ func CreateN1N2MessageTransfer(ueContextId string, n1n2MessageTransferRequest mo
 // see TS 29.518 6.1.3.5.3.1 for more details.
 func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (*models.N1N2MessageTransferRspData, error) {
 	var (
-		requestData *models.N1N2MessageTransferReqData = n1n2MessageTransferRequest.JsonData
-		n2Info      []byte                             = n1n2MessageTransferRequest.BinaryDataN2Information
-		n1Msg       []byte                             = n1n2MessageTransferRequest.BinaryDataN1Message
-
-		ue        *context.AmfUe
-		ok        bool
-		smContext *context.SmContext
-		n1MsgType uint8
-		anType    models.AccessType = models.AccessType__3_GPP_ACCESS
+		requestData = n1n2MessageTransferRequest.JsonData
+		n2Info      = n1n2MessageTransferRequest.BinaryDataN2Information
+		n1Msg       = n1n2MessageTransferRequest.BinaryDataN1Message
+		ue          *context.AmfUe
+		ok          bool
+		smContext   *context.SmContext
+		n1MsgType   uint8
+		anType      = models.AccessType__3_GPP_ACCESS
 	)
 
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	if ue, ok = amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
 		return nil, fmt.Errorf("ue context not found")
@@ -73,12 +71,10 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 	if requestData.N1MessageContainer != nil {
 		switch requestData.N1MessageContainer.N1MessageClass {
 		case models.N1MessageClass_SM:
-			ue.ProducerLog.Debugf("Receive N1 SM Message (PDU Session ID: %d)", requestData.PduSessionId)
 			n1MsgType = nasMessage.PayloadContainerTypeN1SMInfo
-			if smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionId); !ok {
+			smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionId)
+			if !ok {
 				return nil, fmt.Errorf("sm context not found")
-			} else {
-				anType = smContext.AccessType()
 			}
 		case models.N1MessageClass_SMS:
 			n1MsgType = nasMessage.PayloadContainerTypeSMS
@@ -95,11 +91,11 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 		case models.N2InformationClass_SM:
 			ue.ProducerLog.Debugf("Receive N2 SM Message (PDU Session ID: %d)", requestData.PduSessionId)
 			if smContext == nil {
-				if smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionId); !ok {
+				smContext, ok = ue.SmContextFindByPDUSessionID(requestData.PduSessionId)
+				if !ok {
 					return nil, fmt.Errorf("sm context not found")
-				} else {
-					anType = smContext.AccessType()
 				}
+				anType = smContext.AccessType()
 			}
 		default:
 			return nil, fmt.Errorf("n2 information type [%s] is not supported", requestData.N2InfoContainer.N2InformationClass)
@@ -278,7 +274,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqUri string, n1n2Message
 			}
 			pkg, err := ngap_message.BuildPaging(ue, pagingPriority, true)
 			if err != nil {
-				logger.AmfLog.Errorf("Build Paging failed : %s", err.Error())
+				return n1n2MessageTransferRspData, fmt.Errorf("build paging error: %v", err)
 			}
 			ngap_message.SendPaging(ue, pkg)
 			return n1n2MessageTransferRspData, nil

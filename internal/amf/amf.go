@@ -3,6 +3,7 @@
 package amf
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,9 +21,7 @@ import (
 )
 
 func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
-	self := context.AMF_Self()
-	self.Name = "AMF"
-	self.NgapIpList = []string{n2Address}
+	self := context.AMFSelf()
 	self.NgapPort = n2Port
 	self.NetworkFeatureSupport5GS = &context.NetworkFeatureSupport5GS{
 		Emc:     0,
@@ -78,7 +77,10 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 	self.Name = "amf"
 	self.RelativeCapacity = 0xff
 
-	StartNGAPService()
+	err := StartNGAPService(n2Address, n2Port)
+	if err != nil {
+		return fmt.Errorf("failed to start NGAP service: %+v", err)
+	}
 	return nil
 }
 
@@ -118,14 +120,15 @@ func getEncAlgOrder(cipheringOrder []string) (encOrder []uint8) {
 	return
 }
 
-func StartNGAPService() {
-	self := context.AMF_Self()
-
+func StartNGAPService(ngapAddress string, ngapPort int) error {
 	ngapHandler := service.NGAPHandler{
 		HandleMessage:      ngap.Dispatch,
 		HandleNotification: ngap.HandleSCTPNotification,
 	}
-	service.Run(self.NgapIpList, self.NgapPort, ngapHandler)
+	err := service.Run(ngapAddress, ngapPort, ngapHandler)
+	if err != nil {
+		return fmt.Errorf("failed to start NGAP service: %+v", err)
+	}
 
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
@@ -134,12 +137,13 @@ func StartNGAPService() {
 		Terminate()
 		os.Exit(0)
 	}()
+	return nil
 }
 
 // Used in AMF planned removal procedure
 func Terminate() {
 	logger.AmfLog.Infof("Terminating AMF...")
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	// send AMF status indication to ran to notify ran that this AMF will be unavailable
 	logger.AmfLog.Infof("Send AMF Status Indication to Notify RANs due to AMF terminating")

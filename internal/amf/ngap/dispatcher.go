@@ -20,7 +20,7 @@ import (
 
 func Dispatch(conn net.Conn, msg []byte) {
 	var ran *context.AmfRan
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
@@ -173,7 +173,7 @@ func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 }
 
 func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
-	amfSelf := context.AMF_Self()
+	amfSelf := context.AMFSelf()
 
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
