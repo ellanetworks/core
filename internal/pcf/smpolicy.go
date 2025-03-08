@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/config"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -49,8 +48,7 @@ func deepCopyTrafficControlData(src *models.TrafficControlData) *models.TrafficC
 func GetSmPolicyData(ueId string) (*models.SmPolicyData, error) {
 	operator, err := pcfCtx.DbInstance.GetOperator()
 	if err != nil {
-		logger.PcfLog.Warnf("Failed to get operator: %+v", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to get operator: %s", err)
 	}
 	smPolicyData := &models.SmPolicyData{
 		SmPolicySnssaiData: make(map[string]models.SmPolicySnssaiData),
@@ -172,7 +170,10 @@ func CreateSMPolicy(request models.SmPolicyContextData) (*models.SmPolicyDecisio
 }
 
 func DeleteSMPolicy(smPolicyID string) error {
-	ue := pcfCtx.PCFUeFindByPolicyId(smPolicyID)
+	ue, err := pcfCtx.PCFUeFindByPolicyId(smPolicyID)
+	if err != nil {
+		return fmt.Errorf("ue not found in PCF for smPolicyID: %s", smPolicyID)
+	}
 	if ue == nil {
 		return fmt.Errorf("ue not found in PCF for smPolicyID: %s", smPolicyID)
 	}

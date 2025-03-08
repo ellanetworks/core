@@ -7,12 +7,14 @@ package pcf
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
 func DeleteAMPolicy(polAssoId string) error {
-	ue := pcfCtx.PCFUeFindByPolicyId(polAssoId)
+	ue, err := pcfCtx.PCFUeFindByPolicyId(polAssoId)
+	if err != nil {
+		return fmt.Errorf("ue not found in PCF for policy association ID: %s", polAssoId)
+	}
 	if ue == nil {
 		return fmt.Errorf("ue not found in PCF for policy association ID: %s", polAssoId)
 	}
@@ -25,7 +27,10 @@ func DeleteAMPolicy(polAssoId string) error {
 }
 
 func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest) (*models.PolicyUpdate, error) {
-	ue := pcfCtx.PCFUeFindByPolicyId(polAssoId)
+	ue, err := pcfCtx.PCFUeFindByPolicyId(polAssoId)
+	if err != nil {
+		return nil, fmt.Errorf("ue not found in PCF for policy association ID: %s", polAssoId)
+	}
 	if ue == nil || ue.AMPolicyData[polAssoId] == nil {
 		return nil, fmt.Errorf("polAssoId not found  in PCF")
 	}
@@ -39,13 +44,9 @@ func UpdateAMPolicy(polAssoId string, policyAssociationUpdateRequest models.Poli
 				return nil, fmt.Errorf("UserLoc doesn't exist in Policy Association Requset Update while Triggers include LOC_CH")
 			}
 			amPolicyData.UserLoc = policyAssociationUpdateRequest.UserLoc
-			logger.PcfLog.Infof("Ue[%s] UserLocation %+v", ue.Supi, amPolicyData.UserLoc)
 		case models.RequestTrigger_PRA_CH:
 			if policyAssociationUpdateRequest.PraStatuses == nil {
 				return nil, fmt.Errorf("PraStatuses doesn't exist in Policy Association")
-			}
-			for praId, praInfo := range policyAssociationUpdateRequest.PraStatuses {
-				logger.PcfLog.Infof("Policy Association Presence Id[%s] change state to %s", praId, praInfo.PresenceState)
 			}
 		case models.RequestTrigger_SERV_AREA_CH:
 			if policyAssociationUpdateRequest.ServAreaRes == nil {
@@ -98,6 +99,5 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 		response.Rfsp = amPolicy.Rfsp
 	}
 	ue.PolAssociationIDGenerator++
-	logger.PcfLog.Debugf("created AM Policy Association: %s", assolId)
 	return &response, assolId, nil
 }

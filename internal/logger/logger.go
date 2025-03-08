@@ -17,7 +17,6 @@ var (
 	DBLog       *zap.SugaredLogger
 	AmfLog      *zap.SugaredLogger
 	APILog      *zap.SugaredLogger
-	PcfLog      *zap.SugaredLogger
 	SmfLog      *zap.SugaredLogger
 	UpfLog      *zap.SugaredLogger
 	atomicLevel zap.AtomicLevel
@@ -68,7 +67,6 @@ func init() {
 	DBLog = log.Sugar().With("component", "DB")
 	AmfLog = log.Sugar().With("component", "AMF")
 	APILog = log.Sugar().With("component", "API")
-	PcfLog = log.Sugar().With("component", "PCF")
 	SmfLog = log.Sugar().With("component", "SMF")
 	UpfLog = log.Sugar().With("component", "UPF")
 	// Audit logger initially writes to stdout as well.
@@ -123,7 +121,6 @@ func ConfigureLogging(systemLevel string, systemOutput string, systemFilePath st
 	DBLog = log.Sugar().With("component", "DB")
 	AmfLog = log.Sugar().With("component", "AMF")
 	APILog = log.Sugar().With("component", "API")
-	PcfLog = log.Sugar().With("component", "PCF")
 	SmfLog = log.Sugar().With("component", "SMF")
 	UpfLog = log.Sugar().With("component", "UPF")
 
