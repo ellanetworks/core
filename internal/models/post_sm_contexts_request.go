@@ -1,6 +1,6 @@
 package models
 
 type PostSmContextsRequest struct {
-	JsonData              *SmContextCreateData
+	JSONData              *SmContextCreateData
 	BinaryDataN1SmMessage []byte
 }

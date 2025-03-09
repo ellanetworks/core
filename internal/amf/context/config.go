@@ -21,14 +21,14 @@ func GetSupportTaiList() []models.Tai {
 		logger.AmfLog.Warnf("Failed to get operator: %s", err)
 		return tais
 	}
-	plmnID := models.PlmnId{
+	plmnID := models.PlmnID{
 		Mcc: dbNetwork.Mcc,
 		Mnc: dbNetwork.Mnc,
 	}
 	supportedTacs := dbNetwork.GetSupportedTacs()
 	for _, tac := range supportedTacs {
 		tai := models.Tai{
-			PlmnId: &plmnID,
+			PlmnID: &plmnID,
 			Tac:    tac,
 		}
 		tais = append(tais, tai)
@@ -44,13 +44,13 @@ func GetServedGuamiList() []models.Guami {
 		logger.AmfLog.Warnf("Failed to get operator: %s", err)
 		return guamis
 	}
-	plmnID := models.PlmnId{
+	plmnID := models.PlmnID{
 		Mcc: dbNetwork.Mcc,
 		Mnc: dbNetwork.Mnc,
 	}
 	guami := models.Guami{
-		PlmnId: &plmnID,
-		AmfId:  "cafe00", // To edit
+		PlmnID: &plmnID,
+		AmfID:  "cafe00", // To edit
 	}
 	guamis = append(guamis, guami)
 	return guamis
@@ -64,7 +64,7 @@ func GetSupportedPlmn() *PlmnSupportItem {
 		return nil
 	}
 	plmnSupportItem := &PlmnSupportItem{
-		PlmnId: models.PlmnId{
+		PlmnID: models.PlmnID{
 			Mcc: operator.Mcc,
 			Mnc: operator.Mnc,
 		},

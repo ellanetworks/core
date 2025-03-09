@@ -14,7 +14,7 @@ func Start(dbInstance *db.Database) error {
 	if dbInstance == nil {
 		return fmt.Errorf("dbInstance is nil")
 	}
-	smfContext := context.SMF_Self()
+	smfContext := context.SMFSelf()
 
 	nodeID := context.NewNodeID("0.0.0.0")
 

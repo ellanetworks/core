@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	RULE_INITIAL RuleState = 0
-	RULE_CREATE  RuleState = 1
-	RULE_UPDATE  RuleState = 2
-	RULE_REMOVE  RuleState = 3
+	RuleInitial RuleState = 0
+	RuleCreate  RuleState = 1
+	RuleUpdate  RuleState = 2
+	RuleRemove  RuleState = 3
 )
 
 type RuleState uint8
@@ -39,7 +39,7 @@ type SDFFilter struct {
 	TosTrafficClass         []byte
 	SecurityParameterIndex  []byte
 	FlowLabel               []byte
-	SdfFilterId             uint32
+	SdfFilterID             uint32
 	LengthOfFlowDescription uint16
 	Bid                     bool
 	Fl                      bool
@@ -49,19 +49,19 @@ type SDFFilter struct {
 }
 
 type FTEID struct {
-	Ipv4Address net.IP
-	Ipv6Address net.IP
+	IPv4Address net.IP
+	IPv6Address net.IP
 	Chid        bool
 	Ch          bool
 	V6          bool
 	V4          bool
-	Teid        uint32
-	ChooseId    uint8
+	TeID        uint32
+	ChooseID    uint8
 }
 
 type UEIPAddress struct {
-	Ipv4Address              net.IP
-	Ipv6Address              net.IP
+	IPv4Address              net.IP
+	IPv6Address              net.IP
 	V6                       bool // bit 1
 	V4                       bool // bit 2
 	Sd                       bool // bit 3
@@ -75,7 +75,7 @@ type UEIPAddress struct {
 
 // Packet Detection. 7.5.2.2-2
 type PDI struct {
-	LocalFTeid      *FTEID
+	LocalFTeID      *FTEID
 	UEIPAddress     *UEIPAddress
 	SDFFilter       *SDFFilter
 	ApplicationID   string
@@ -148,7 +148,7 @@ func (pdr PDR) String() string {
 
 func (pdi PDI) String() string {
 	return fmt.Sprintf("PDI:[SourceInterface:[%v], LocalFteid:[%v], NetworkInstance:[%v], UEIpAddr:[%v], SdfFilter:[%v], AppId:[%v]]",
-		pdi.SourceInterface, pdi.LocalFTeid, pdi.NetworkInstance, pdi.UEIPAddress, pdi.SDFFilter, pdi.ApplicationID)
+		pdi.SourceInterface, pdi.LocalFTeID, pdi.NetworkInstance, pdi.UEIPAddress, pdi.SDFFilter, pdi.ApplicationID)
 }
 
 func (far FAR) String() string {

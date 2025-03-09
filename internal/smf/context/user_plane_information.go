@@ -20,8 +20,8 @@ type UserPlaneInformation struct {
 type UPNodeType string
 
 const (
-	UPNODE_UPF UPNodeType = "UPF"
-	UPNODE_AN  UPNodeType = "AN"
+	UpNodeUPF UPNodeType = "UPF"
+	UpNodeAN  UPNodeType = "AN"
 )
 
 type UPNode struct {
@@ -78,7 +78,7 @@ func GenerateDataPath(upPath UPPath, smContext *SMContext) (*DataPath, error) {
 		Destination: Destination{
 			DestinationIP:   "",
 			DestinationPort: "",
-			Url:             "",
+			URL:             "",
 		},
 		FirstDPNode: root,
 	}
@@ -107,12 +107,12 @@ func (upi *UserPlaneInformation) GenerateDefaultPath(selection *UPFSelectionPara
 	}
 
 	for _, node := range upi.AccessNetwork {
-		if node.Type == UPNODE_AN {
+		if node.Type == UpNodeAN {
 			source = node
 			var path []*UPNode
 			path, pathExist := getPathBetween(source, destinations[0], visited, selection)
 			if pathExist {
-				if path[0].Type == UPNODE_AN {
+				if path[0].Type == UpNodeAN {
 					path = path[1:]
 				}
 				upi.DefaultUserPlanePath[selection.String()] = path
@@ -166,13 +166,13 @@ func getPathBetween(cur *UPNode, dest *UPNode, visited map[*UPNode]bool,
 				continue
 			}
 
-			path_tail, path_exist := getPathBetween(nodes, dest, visited, selection)
+			pathTail, pathExist := getPathBetween(nodes, dest, visited, selection)
 
-			if path_exist {
+			if pathExist {
 				path = make([]*UPNode, 0)
 				path = append(path, cur)
 
-				path = append(path, path_tail...)
+				path = append(path, pathTail...)
 				pathExist = true
 
 				return path, pathExist

@@ -7,7 +7,7 @@ type PolicyAssociationRequest struct {
 	Pei         string
 	UserLoc     *UserLocation
 	TimeZone    string
-	ServingPlmn *PlmnId
+	ServingPlmn *PlmnID
 	ServAreaRes *ServiceAreaRestriction
 	Rfsp        int32
 	Guami       *Guami

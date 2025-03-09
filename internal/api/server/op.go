@@ -8,7 +8,7 @@ import (
 func deriveOPc(K []byte, OP []byte) ([]byte, error) {
 	// Ensure the key and OP are 16 bytes (128 bits)
 	if len(K) != 16 || len(OP) != 16 {
-		return nil, fmt.Errorf("K and OP must be 16 bytes (128 bits) each")
+		return nil, fmt.Errorf("k and op must be 16 bytes (128 bits) each")
 	}
 
 	// Create AES cipher with K

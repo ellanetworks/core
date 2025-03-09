@@ -1,9 +1,8 @@
 package models
 
-type UriScheme string
+type URIScheme string
 
-// List of UriScheme
 const (
-	UriScheme_HTTP  UriScheme = "http"
-	UriScheme_HTTPS UriScheme = "https"
+	URISchemeHTTP  URIScheme = "http"
+	URISchemeHTTPS URIScheme = "https"
 )

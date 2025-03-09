@@ -11,7 +11,7 @@ import {
     Collapse,
 } from "@mui/material";
 import * as yup from "yup";
-import { updateOperatorId } from "@/queries/operator";
+import { updateOperatorID } from "@/queries/operator";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
 
@@ -98,7 +98,7 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
         setAlert({ message: "" });
 
         try {
-            await updateOperatorId(cookies.user_token, formValues.mcc, formValues.mnc);
+            await updateOperatorID(cookies.user_token, formValues.mcc, formValues.mnc);
             onClose();
             onSuccess();
         } catch (error: any) {

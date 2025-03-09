@@ -31,13 +31,13 @@ func SendPfcpSessionEstablishmentRequest(
 	barList []*context.BAR,
 	qerList []*context.QER,
 ) (bool, *context.PFCPSessionResponseStatus, error) {
-	upNodeIDStr := upNodeID.ResolveNodeIdToIp().String()
+	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
 	pfcpContext, ok := ctx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return false, nil, fmt.Errorf("PFCP Context not found for NodeID[%v]", upNodeID)
 	}
 
-	nodeIDIPAddress := context.SMF_Self().CPNodeID.ResolveNodeIdToIp()
+	nodeIDIPAddress := context.SMFSelf().CPNodeID.ResolveNodeIDToIP()
 
 	pfcpMsg, err := BuildPfcpSessionEstablishmentRequest(
 		getSeqNumber(),
@@ -98,13 +98,13 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentResp
 		if ueIPAddress != nil {
 			smContext.SubPfcpLog.Infof("upf provided ue ip address [%v]", ueIPAddress)
 			// Release previous locally allocated UE IP-Addr
-			err := smContext.ReleaseUeIpAddr()
+			err := smContext.ReleaseUeIPAddr()
 			if err != nil {
 				logger.SmfLog.Errorf("failed to release UE IP-Addr: %+v", err)
 			}
 
 			// Update with one received from UPF
-			smContext.PDUAddress.Ip = ueIPAddress
+			smContext.PDUAddress.IP = ueIPAddress
 			smContext.PDUAddress.UpfProvided = true
 		}
 
@@ -146,7 +146,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentResp
 		smContext.SubPfcpLog.Errorf("PFCP Session Establishment rejected with cause [%v]", causeValue)
 	}
 
-	if context.SMF_Self().ULCLSupport && smContext.BPManager != nil {
+	if context.SMFSelf().ULCLSupport && smContext.BPManager != nil {
 		if smContext.BPManager.BPStatus == context.AddingPSA {
 			smContext.SubPfcpLog.Infoln("keep Adding PSAndULCL")
 			addPduSessionAnchor = true
@@ -162,7 +162,7 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 
 	smContext := context.GetSMContextBySEID(SEID)
 
-	if context.SMF_Self().ULCLSupport && smContext.BPManager != nil {
+	if context.SMFSelf().ULCLSupport && smContext.BPManager != nil {
 		if smContext.BPManager.BPStatus == context.AddingPSA {
 			addPduSessionAnchor = true
 		}
@@ -181,7 +181,7 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 	if causeValue == ie.CauseRequestAccepted {
 		smContext.SubPduSessLog.Infoln("PFCP Modification Response Accept")
 		upfNodeID := smContext.GetNodeIDByLocalSEID(SEID)
-		upfIP := upfNodeID.ResolveNodeIdToIp().String()
+		upfIP := upfNodeID.ResolveNodeIDToIP().String()
 		delete(smContext.PendingUPF, upfIP)
 		smContext.SubPduSessLog.Debugf("Delete pending pfcp response: UPF IP [%s]\n", upfIP)
 
@@ -189,7 +189,7 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 			status = context.SessionUpdateSuccess
 		}
 
-		if context.SMF_Self().ULCLSupport && smContext.BPManager != nil {
+		if context.SMFSelf().ULCLSupport && smContext.BPManager != nil {
 			if smContext.BPManager.BPStatus == context.UnInitialized {
 				smContext.BPManager.BPStatus = context.AddingPSA
 				addPduSessionAnchor = true
@@ -214,12 +214,12 @@ func SendPfcpSessionModificationRequest(
 	qerList []*context.QER,
 ) (bool, *context.PFCPSessionResponseStatus, error) {
 	seqNum := getSeqNumber()
-	upNodeIDStr := upNodeID.ResolveNodeIdToIp().String()
+	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
 	pfcpContext, ok := ctx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return false, nil, fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
 	}
-	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMF_Self().CPNodeID.ResolveNodeIdToIp(), pdrList, farList, qerList)
+	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID.ResolveNodeIDToIP(), pdrList, farList, qerList)
 	if err != nil {
 		return false, nil, fmt.Errorf("failed to build PFCP Session Modification Request: %v", err)
 	}
@@ -256,12 +256,12 @@ func HandlePfcpSessionDeletionResponse(msg *message.SessionDeletionResponse) (*c
 
 func SendPfcpSessionDeletionRequest(upNodeID context.NodeID, ctx *context.SMContext) (*context.PFCPSessionResponseStatus, error) {
 	seqNum := getSeqNumber()
-	upNodeIDStr := upNodeID.ResolveNodeIdToIp().String()
+	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
 	pfcpContext, ok := ctx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return nil, fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
 	}
-	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMF_Self().CPNodeID.ResolveNodeIdToIp())
+	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID.ResolveNodeIDToIP())
 
 	rsp, err := upf.HandlePfcpSessionDeletionRequest(pfcpMsg)
 	if err != nil {

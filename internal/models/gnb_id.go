@@ -1,6 +1,6 @@
 package models
 
-type GNbId struct {
+type GNbID struct {
 	BitLength int32
 	GNBValue  string
 }

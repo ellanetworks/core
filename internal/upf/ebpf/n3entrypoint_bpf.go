@@ -15,7 +15,7 @@ type N3EntrypointFarInfo struct {
 	Action                uint8
 	OuterHeaderCreation   uint8
 	_                     [2]byte
-	Teid                  uint32
+	TeID                  uint32
 	Remoteip              uint32
 	Localip               uint32
 	TransportLevelMarking uint16

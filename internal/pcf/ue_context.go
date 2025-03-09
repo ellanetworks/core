@@ -15,7 +15,7 @@ import (
 )
 
 type UeContext struct {
-	SmPolicyData              map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionId) as key
+	SmPolicyData              map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionID) as key
 	Supi                      string
 	Gpsi                      string
 	Pei                       string
@@ -25,7 +25,7 @@ type UeContext struct {
 
 type UeAMPolicyData struct {
 	AccessType  models.AccessType
-	ServingPlmn *models.PlmnId
+	ServingPlmn *models.PlmnID
 	Guami       *models.Guami
 	Pras        map[string]models.PresenceInfo
 	PcfUe       *UeContext
@@ -37,7 +37,7 @@ type UeAMPolicyData struct {
 }
 
 type UeSmPolicyData struct {
-	PackFiltMapToPccRuleID map[string]string    // use PackFiltId as Key
+	PackFiltMapToPccRuleID map[string]string    // use PackFiltID as Key
 	SmPolicyData           *models.SmPolicyData // Svbscription Data
 	PolicyContext          *models.SmPolicyContextData
 	AppSessions            map[string]bool // related appSessionId
@@ -77,7 +77,7 @@ func (ue *UeContext) NewUeSmPolicyData(key string, request models.SmPolicyContex
 }
 
 // returns AM Policy which AccessType and plmnID match
-func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnID *models.PlmnId) *UeAMPolicyData {
+func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnID *models.PlmnID) *UeAMPolicyData {
 	if ue == nil || plmnID == nil {
 		return nil
 	}

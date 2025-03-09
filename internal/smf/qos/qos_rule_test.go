@@ -47,7 +47,7 @@ func TestBuildQosRules(t *testing.T) {
 
 func makeSamplePccRules() map[string]*models.PccRule {
 	pccRule1 := models.PccRule{
-		PccRuleId:  "1",
+		PccRuleID:  "1",
 		Precedence: 200,
 		RefQosData: []string{"QosData1"},
 		FlowInfos:  make([]models.FlowInformation, 0),
@@ -56,15 +56,15 @@ func makeSamplePccRules() map[string]*models.PccRule {
 	flowInfos := []models.FlowInformation{
 		{
 			FlowDescription:   "permit out ip from 1.1.1.1 1000 to 2.2.2.2 2000",
-			PackFiltId:        "1",
+			PackFiltID:        "1",
 			PacketFilterUsage: true,
-			FlowDirection:     models.FlowDirectionRm_BIDIRECTIONAL,
+			FlowDirection:     models.FlowDirectionRmBidirectional,
 		},
 		{
 			FlowDescription:   "permit out ip from 3.3.3.3 3000 to 4.4.4.4 4000",
-			PackFiltId:        "2",
+			PackFiltID:        "2",
 			PacketFilterUsage: true,
-			FlowDirection:     models.FlowDirectionRm_BIDIRECTIONAL,
+			FlowDirection:     models.FlowDirectionRmBidirectional,
 		},
 	}
 
@@ -75,7 +75,7 @@ func makeSamplePccRules() map[string]*models.PccRule {
 
 func makeSampleQosData() map[string]*models.QosData {
 	qosData1 := models.QosData{
-		QosId:                "5",
+		QosID:                "5",
 		Var5qi:               5,
 		MaxbrUl:              "101 Mbps",
 		MaxbrDl:              "201 Mbps",
@@ -87,7 +87,7 @@ func makeSampleQosData() map[string]*models.QosData {
 
 	/*
 		qosData2 := models.QosData{
-			QosId:                "QosData2",
+			QosID:                "QosData2",
 			Var5qi:               3,
 			MaxbrUl:              "301 Mbps",
 			MaxbrDl:              "401 Mbps",
@@ -114,8 +114,8 @@ func makeSampleSessionRule() map[string]*models.SessionRule {
 			Var5qi: 9,
 			Arp: &models.Arp{
 				PriorityLevel: 8,
-				PreemptCap:    models.PreemptionCapability_MAY_PREEMPT,
-				PreemptVuln:   models.PreemptionVulnerability_NOT_PREEMPTABLE,
+				PreemptCap:    models.PreemptionCapabilityMayPreempt,
+				PreemptVuln:   models.PreemptionVulnerabilityNotPreemptable,
 			},
 			PriorityLevel: 8,
 		},
@@ -129,8 +129,8 @@ func makeSampleSessionRule() map[string]*models.SessionRule {
 			Var5qi: 8,
 			Arp: &models.Arp{
 				PriorityLevel: 7,
-				PreemptCap:    models.PreemptionCapability_MAY_PREEMPT,
-				PreemptVuln:   models.PreemptionVulnerability_NOT_PREEMPTABLE,
+				PreemptCap:    models.PreemptionCapabilityMayPreempt,
+				PreemptVuln:   models.PreemptionVulnerabilityNotPreemptable,
 			},
 			PriorityLevel: 7,
 		},

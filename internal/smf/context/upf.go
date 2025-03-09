@@ -196,9 +196,9 @@ func NewUPF(nodeID *NodeID, ifaces []InterfaceUpfInfoItem) (upf *UPF) {
 		upIface := NewUPFInterfaceInfo(&iface)
 
 		switch iface.InterfaceType {
-		case models.UpInterfaceType_N3:
+		case models.UpInterfaceTypeN3:
 			upf.N3Interfaces = append(upf.N3Interfaces, *upIface)
-		case models.UpInterfaceType_N9:
+		case models.UpInterfaceTypeN9:
 			upf.N9Interfaces = append(upf.N9Interfaces, *upIface)
 		}
 	}
@@ -209,13 +209,13 @@ func NewUPF(nodeID *NodeID, ifaces []InterfaceUpfInfoItem) (upf *UPF) {
 // GetInterface return the UPFInterfaceInfo that match input cond
 func (upf *UPF) GetInterface(interfaceType models.UpInterfaceType, dnn string) *UPFInterfaceInfo {
 	switch interfaceType {
-	case models.UpInterfaceType_N3:
+	case models.UpInterfaceTypeN3:
 		for i, iface := range upf.N3Interfaces {
 			if iface.NetworkInstance == dnn {
 				return &upf.N3Interfaces[i]
 			}
 		}
-	case models.UpInterfaceType_N9:
+	case models.UpInterfaceTypeN9:
 		for i, iface := range upf.N9Interfaces {
 			if iface.NetworkInstance == dnn {
 				return &upf.N9Interfaces[i]
@@ -289,10 +289,10 @@ func (upf *UPF) BuildCreatePdrFromPccRule(rule *models.PccRule) (*PDR, error) {
 		sdfFilter.Fd = true
 		sdfFilter.FlowDescription = []byte(flow.FlowDescription)
 		sdfFilter.LengthOfFlowDescription = uint16(len(sdfFilter.FlowDescription))
-		if id, err := strconv.ParseUint(flow.PackFiltId, 10, 32); err != nil {
+		if id, err := strconv.ParseUint(flow.PackFiltID, 10, 32); err != nil {
 			return nil, err
 		} else {
-			sdfFilter.SdfFilterId = uint32(id)
+			sdfFilter.SdfFilterID = uint32(id)
 		}
 	}
 

@@ -186,12 +186,12 @@ func SendUEContextReleaseCommand(ue *context.RanUe, action context.RelAction, ca
 	return nil
 }
 
-func SendErrorIndication(ran *context.AmfRan, amfUeNgapId, ranUeNgapId *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+func SendErrorIndication(ran *context.AmfRan, amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
 	if ran == nil {
 		return fmt.Errorf("ran is nil")
 	}
 
-	pkt, err := BuildErrorIndication(amfUeNgapId, ranUeNgapId, cause, criticalityDiagnostics)
+	pkt, err := BuildErrorIndication(amfUeNgapID, ranUeNgapID, cause, criticalityDiagnostics)
 	if err != nil {
 		return fmt.Errorf("error building error indication: %s", err.Error())
 	}
@@ -423,7 +423,7 @@ func SendHandoverRequest(sourceUe *context.RanUe, targetRan *context.AmfRan, cau
 	}
 
 	var targetUe *context.RanUe
-	if targetUeTmp, err := targetRan.NewRanUe(context.RanUeNgapIdUnspecified); err != nil {
+	if targetUeTmp, err := targetRan.NewRanUe(context.RanUeNgapIDUnspecified); err != nil {
 		return fmt.Errorf("error creating target ue: %s", err.Error())
 	} else {
 		targetUe = targetUeTmp
@@ -491,15 +491,15 @@ func SendPathSwitchRequestAcknowledge(
 // criticalityDiagnostics: from received node when received not comprehended IE or missing IE
 func SendPathSwitchRequestFailure(
 	ran *context.AmfRan,
-	amfUeNgapId,
-	ranUeNgapId int64,
+	amfUeNgapID,
+	ranUeNgapID int64,
 	pduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) error {
 	if pduSessionResourceReleasedList != nil && len(pduSessionResourceReleasedList.List) > context.MaxNumOfPDUSessions {
 		return fmt.Errorf("pdu list out of range")
 	}
-	pkt, err := BuildPathSwitchRequestFailure(amfUeNgapId, ranUeNgapId, pduSessionResourceReleasedList,
+	pkt, err := BuildPathSwitchRequestFailure(amfUeNgapID, ranUeNgapID, pduSessionResourceReleasedList,
 		criticalityDiagnostics)
 	if err != nil {
 		return fmt.Errorf("error building path switch request failure: %s", err.Error())
@@ -526,7 +526,7 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) error {
 		return fmt.Errorf("amf ue is nil")
 	}
 
-	taiList := ue.RegistrationArea[models.AccessType__3_GPP_ACCESS]
+	taiList := ue.RegistrationArea[models.AccessType3GPPAccess]
 	context.AMFSelf().AmfRanPool.Range(func(key, value interface{}) bool {
 		ran := value.(*context.AmfRan)
 		for _, item := range ran.SupportedTAList {
@@ -536,7 +536,7 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) error {
 					ue.GmmLog.Errorf("failed to send paging : %s", err.Error())
 					continue
 				}
-				ue.GmmLog.Infof("sent paging to TAI(%+v, Tac:%+v)", item.Tai.PlmnId, item.Tai.Tac)
+				ue.GmmLog.Infof("sent paging to TAI(%+v, Tac:%+v)", item.Tai.PlmnID, item.Tai.Tac)
 				break
 			}
 		}
@@ -556,7 +556,7 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) error {
 							ue.GmmLog.Errorf("failed to send paging : %s", err.Error())
 							continue
 						}
-						ue.GmmLog.Infof("sent paging to TAI(%+v, Tac:%+v)", item.Tai.PlmnId, item.Tai.Tac)
+						ue.GmmLog.Infof("sent paging to TAI(%+v, Tac:%+v)", item.Tai.PlmnID, item.Tai.Tac)
 						break
 					}
 				}

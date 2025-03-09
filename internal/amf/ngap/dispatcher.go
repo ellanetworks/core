@@ -25,7 +25,7 @@ func Dispatch(conn net.Conn, msg []byte) {
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
 		ran = amfSelf.NewAmfRan(conn)
-		logger.AmfLog.Infof("added a new radio: %s", conn.RemoteAddr().String())
+		logger.AmfLog.Infof("Added a new radio: %s", conn.RemoteAddr().String())
 	}
 
 	if len(msg) == 0 {
@@ -195,21 +195,21 @@ func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
 	})
 
 	switch notification.Type() {
-	case sctp.SCTP_ASSOC_CHANGE:
-		ran.Log.Infof("SCTP_ASSOC_CHANGE notification")
+	case sctp.SCTPAssocChange:
+		ran.Log.Infof("SCTPAssocChange notification")
 		event := notification.(*sctp.SCTPAssocChangeEvent)
 		switch event.State() {
-		case sctp.SCTP_COMM_LOST:
-			ran.Log.Infof("SCTP state is SCTP_COMM_LOST, close the connection")
+		case sctp.SCTPCommLost:
+			ran.Log.Infof("SCTP state is SCTPCommLost, close the connection")
 			ran.Remove()
-		case sctp.SCTP_SHUTDOWN_COMP:
-			ran.Log.Infof("SCTP state is SCTP_SHUTDOWN_COMP, close the connection")
+		case sctp.SCTPShutdownComp:
+			ran.Log.Infof("SCTP state is SCTPShutdownComp, close the connection")
 			ran.Remove()
 		default:
 			ran.Log.Warnf("SCTP state[%+v] is not handled", event.State())
 		}
-	case sctp.SCTP_SHUTDOWN_EVENT:
-		ran.Log.Infof("SCTP_SHUTDOWN_EVENT notification, close the connection")
+	case sctp.SCTPShutdownEvent:
+		ran.Log.Infof("SCTPShutdownEvent notification, close the connection")
 		ran.Remove()
 	default:
 		ran.Log.Warnf("Non handled notification type: 0x%x", notification.Type())

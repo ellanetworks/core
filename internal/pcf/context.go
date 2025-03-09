@@ -106,18 +106,18 @@ func GetSubscriberPolicy(imsi string) (*PcfSubscriberPolicyData, error) {
 
 	// Create QoS data
 	qosData := &models.QosData{
-		QosId:                strconv.FormatInt(qosID, 10),
+		QosID:                strconv.FormatInt(qosID, 10),
 		Var5qi:               profile.Var5qi,
 		MaxbrUl:              profile.BitrateUplink,
 		MaxbrDl:              profile.BitrateDownlink,
 		Arp:                  &models.Arp{PriorityLevel: profile.PriorityLevel},
 		DefQosFlowIndication: true,
 	}
-	subscriberPolicies.PccPolicy[pccPolicyID].QosDecs[qosData.QosId] = qosData
+	subscriberPolicies.PccPolicy[pccPolicyID].QosDecs[qosData.QosID] = qosData
 
 	// Add session rule
 	subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[config.DNN].SessionRules[strconv.FormatInt(sessionRuleID, 10)] = &models.SessionRule{
-		SessRuleId: strconv.FormatInt(sessionRuleID, 10),
+		SessRuleID: strconv.FormatInt(sessionRuleID, 10),
 		AuthDefQos: &models.AuthorizedDefaultQos{
 			Var5qi: qosData.Var5qi,
 			Arp:    qosData.Arp,

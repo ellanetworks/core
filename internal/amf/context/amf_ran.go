@@ -19,21 +19,21 @@ import (
 )
 
 const (
-	RanPresentGNbId   = 1
-	RanPresentNgeNbId = 2
-	RanPresentN3IwfId = 3
+	RanPresentGNbID   = 1
+	RanPresentNgeNbID = 2
+	RanPresentN3IwfID = 3
 )
 
 type AmfRan struct {
 	RanPresent      int
-	RanId           *models.GlobalRanNodeId
+	RanID           *models.GlobalRanNodeID
 	Name            string
 	AnType          models.AccessType
-	GnbIp           string
-	GnbId           string // RanId in string format, i.e.,mcc:mnc:gnbid
+	GnbIP           string
+	GnbID           string // RanID in string format, i.e.,mcc:mnc:gnbid
 	Conn            net.Conn
 	SupportedTAList []SupportedTAI
-	RanUeList       []*RanUe // RanUeNgapId as key
+	RanUeList       []*RanUe // RanUeNgapID as key
 	Log             *zap.SugaredLogger
 }
 
@@ -63,12 +63,12 @@ func (ran *AmfRan) NewRanUe(ranUeNgapID int64) (*RanUe, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error allocating amf ue ngap id: %+v", err)
 	}
-	ranUe.AmfUeNgapId = amfUeNgapID
-	ranUe.RanUeNgapId = ranUeNgapID
+	ranUe.AmfUeNgapID = amfUeNgapID
+	ranUe.RanUeNgapID = ranUeNgapID
 	ranUe.Ran = ran
-	ranUe.Log = ran.Log.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
+	ranUe.Log = ran.Log.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID))
 	ran.RanUeList = append(ran.RanUeList, &ranUe)
-	self.RanUePool.Store(ranUe.AmfUeNgapId, &ranUe)
+	self.RanUePool.Store(ranUe.AmfUeNgapID, &ranUe)
 	return &ranUe, nil
 }
 
@@ -83,7 +83,7 @@ func (ran *AmfRan) RemoveAllUeInRan() {
 
 func (ran *AmfRan) RanUeFindByRanUeNgapIDLocal(ranUeNgapID int64) *RanUe {
 	for _, ranUe := range ran.RanUeList {
-		if ranUe.RanUeNgapId == ranUeNgapID {
+		if ranUe.RanUeNgapID == ranUeNgapID {
 			return ranUe
 		}
 	}
@@ -97,19 +97,19 @@ func (ran *AmfRan) RanUeFindByRanUeNgapID(ranUeNgapID int64) *RanUe {
 }
 
 func (ran *AmfRan) SetRanID(ranNodeID *ngapType.GlobalRANNodeID) {
-	ranId := util.RanIdToModels(*ranNodeID)
+	ranID := util.RanIDToModels(*ranNodeID)
 	ran.RanPresent = ranNodeID.Present
-	ran.RanId = &ranId
+	ran.RanID = &ranID
 	if ranNodeID.Present == ngapType.GlobalRANNodeIDPresentGlobalN3IWFID {
-		ran.AnType = models.AccessType_NON_3_GPP_ACCESS
+		ran.AnType = models.AccessTypeNon3GPPAccess
 	} else {
-		ran.AnType = models.AccessType__3_GPP_ACCESS
+		ran.AnType = models.AccessType3GPPAccess
 	}
 
-	if ranId.PlmnId != nil {
-		ran.GnbId = ranId.PlmnId.Mcc + ":" + ranId.PlmnId.Mnc + ":"
+	if ranID.PlmnID != nil {
+		ran.GnbID = ranID.PlmnID.Mcc + ":" + ranID.PlmnID.Mnc + ":"
 	}
-	if ranId.GNbId != nil {
-		ran.GnbId += ranId.GNbId.GNBValue
+	if ranID.GNbID != nil {
+		ran.GnbID += ranID.GNbID.GNBValue
 	}
 }

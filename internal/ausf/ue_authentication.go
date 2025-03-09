@@ -59,12 +59,12 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	ueid := authInfoResult.Supi
 	ausfUeContext := NewAusfUeContext(ueid)
 	ausfUeContext.ServingNetworkName = snName
-	ausfUeContext.AuthStatus = models.AuthResult_ONGOING
+	ausfUeContext.AuthStatus = models.AuthResultOngoing
 	AddAusfUeContextToPool(ausfUeContext)
 
 	AddSuciSupiPairToMap(supiOrSuci, ueid)
 
-	if authInfoResult.AuthType == models.AuthType__5_G_AKA {
+	if authInfoResult.AuthType == models.AuthType5GAka {
 		// Derive HXRES* from XRES*
 		concat := authInfoResult.AuthenticationVector.Rand + authInfoResult.AuthenticationVector.XresStar
 		hxresStarBytes, err := hex.DecodeString(concat)
@@ -81,7 +81,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 			return nil, fmt.Errorf("AUSF decode failed: %s", err)
 		}
 		P0 := []byte(snName)
-		Kseaf, err := ueauth.GetKDFValue(ausfDecode, ueauth.FC_FOR_KSEAF_DERIVATION, P0, ueauth.KDFLen(P0))
+		Kseaf, err := ueauth.GetKDFValue(ausfDecode, ueauth.FCForKseafDerivation, P0, ueauth.KDFLen(P0))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get KDF value: %s", err)
 		}
@@ -96,7 +96,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		av5gAka.HxresStar = hxresStar
 
 		responseBody.Var5gAuthData = av5gAka
-	} else if authInfoResult.AuthType == models.AuthType_EAP_AKA_PRIME {
+	} else if authInfoResult.AuthType == models.AuthTypeEAPAkaPrime {
 		identity := ueid
 		ikPrime := authInfoResult.AuthenticationVector.IkPrime
 		ckPrime := authInfoResult.AuthenticationVector.CkPrime
@@ -120,7 +120,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 			return nil, fmt.Errorf("AUSF decode failed: %s", err)
 		}
 		P0 := []byte(snName)
-		Kseaf, err := ueauth.GetKDFValue(KausfDecode, ueauth.FC_FOR_KSEAF_DERIVATION, P0, ueauth.KDFLen(P0))
+		Kseaf, err := ueauth.GetKDFValue(KausfDecode, ueauth.FCForKseafDerivation, P0, ueauth.KDFLen(P0))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get KDF value: %s", err)
 		}
@@ -193,7 +193,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 
 func Auth5gAkaComfirmRequestProcedure(resStar string, confirmationDataResponseID string) (*models.ConfirmationDataResponse, error) {
 	var responseBody models.ConfirmationDataResponse
-	responseBody.AuthResult = models.AuthResult_FAILURE
+	responseBody.AuthResult = models.AuthResultFailure
 
 	if !CheckIfSuciSupiPairExists(confirmationDataResponseID) {
 		return nil, fmt.Errorf("supiSuciPair does not exist, confirmation failed (queried by %s)", confirmationDataResponseID)
@@ -208,12 +208,12 @@ func Auth5gAkaComfirmRequestProcedure(resStar string, confirmationDataResponseID
 
 	// Compare the received RES* with the stored XRES*
 	if strings.Compare(resStar, ausfCurrentContext.XresStar) == 0 {
-		ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
-		responseBody.AuthResult = models.AuthResult_SUCCESS
+		ausfCurrentContext.AuthStatus = models.AuthResultSuccess
+		responseBody.AuthResult = models.AuthResultSuccess
 		responseBody.Kseaf = ausfCurrentContext.Kseaf
 	} else {
-		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
-		responseBody.AuthResult = models.AuthResult_FAILURE
+		ausfCurrentContext.AuthStatus = models.AuthResultFailure
+		responseBody.AuthResult = models.AuthResultFailure
 	}
 
 	responseBody.Supi = currentSupi
@@ -241,8 +241,8 @@ func EapAuthComfirmRequestProcedure(eapPayload string, eapSessionID string) (*mo
 	eapContent, _ := eapLayer.(*layers.EAP)
 	var responseBody models.EapSession
 	if eapContent.Code != layers.EAPCodeResponse {
-		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
-		responseBody.AuthResult = models.AuthResult_ONGOING
+		ausfCurrentContext.AuthStatus = models.AuthResultFailure
+		responseBody.AuthResult = models.AuthResultOngoing
 		failEapAkaNoti, err := ConstructFailEapAkaNotification(eapContent.Id)
 		if err != nil {
 			return nil, fmt.Errorf("construct EAP-AKA' failed: %s", err)
@@ -251,7 +251,7 @@ func EapAuthComfirmRequestProcedure(eapPayload string, eapSessionID string) (*mo
 		return &responseBody, nil
 	}
 	switch ausfCurrentContext.AuthStatus {
-	case models.AuthResult_ONGOING:
+	case models.AuthResultOngoing:
 		responseBody.KSeaf = ausfCurrentContext.Kseaf
 		responseBody.Supi = currentSupi
 		Kautn := ausfCurrentContext.kAut
@@ -261,21 +261,21 @@ func EapAuthComfirmRequestProcedure(eapPayload string, eapSessionID string) (*mo
 			return nil, fmt.Errorf("decode RES MAC failed: %s", err)
 		}
 		if !decodeOK {
-			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
-			responseBody.AuthResult = models.AuthResult_ONGOING
+			ausfCurrentContext.AuthStatus = models.AuthResultFailure
+			responseBody.AuthResult = models.AuthResultOngoing
 			failEapAkaNoti, err := ConstructFailEapAkaNotification(eapContent.Id)
 			if err != nil {
 				return nil, fmt.Errorf("construct EAP-AKA' failed: %s", err)
 			}
 			responseBody.EapPayload = failEapAkaNoti
 		} else if XRES == string(RES) { // decodeOK && XRES == res, auth success
-			responseBody.AuthResult = models.AuthResult_SUCCESS
+			responseBody.AuthResult = models.AuthResultSuccess
 			eapSuccPkt := ConstructEapNoTypePkt(EapCodeSuccess, eapContent.Id)
 			responseBody.EapPayload = eapSuccPkt
-			ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
+			ausfCurrentContext.AuthStatus = models.AuthResultSuccess
 		} else {
-			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
-			responseBody.AuthResult = models.AuthResult_ONGOING
+			ausfCurrentContext.AuthStatus = models.AuthResultFailure
+			responseBody.AuthResult = models.AuthResultOngoing
 			failEapAkaNoti, err := ConstructFailEapAkaNotification(eapContent.Id)
 			if err != nil {
 				return nil, fmt.Errorf("construct EAP-AKA' failed: %s", err)
@@ -283,10 +283,10 @@ func EapAuthComfirmRequestProcedure(eapPayload string, eapSessionID string) (*mo
 			responseBody.EapPayload = failEapAkaNoti
 		}
 
-	case models.AuthResult_FAILURE:
+	case models.AuthResultFailure:
 		eapFailPkt := ConstructEapNoTypePkt(EapCodeFailure, eapPayload[1])
 		responseBody.EapPayload = eapFailPkt
-		responseBody.AuthResult = models.AuthResult_FAILURE
+		responseBody.AuthResult = models.AuthResultFailure
 	}
 
 	return &responseBody, nil

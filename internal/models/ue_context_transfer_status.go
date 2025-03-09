@@ -3,6 +3,6 @@ package models
 type UeContextTransferStatus string
 
 const (
-	UeContextTransferStatus_TRANSFERRED     UeContextTransferStatus = "TRANSFERRED"
-	UeContextTransferStatus_NOT_TRANSFERRED UeContextTransferStatus = "NOT_TRANSFERRED"
+	UeContextTransferStatusTransferred    UeContextTransferStatus = "TRANSFERRED"
+	UeContextTransferStatusNotTransferred UeContextTransferStatus = "NOT_TRANSFERRED"
 )

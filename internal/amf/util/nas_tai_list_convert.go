@@ -13,9 +13,9 @@ func TaiListToNas(taiList []models.Tai) ([]uint8, error) {
 	var taiListNas []uint8
 	typeOfList := 0x00
 
-	plmnId := taiList[0].PlmnId
+	plmnID := taiList[0].PlmnID
 	for _, tai := range taiList {
-		if !reflect.DeepEqual(plmnId, tai.PlmnId) {
+		if !reflect.DeepEqual(plmnID, tai.PlmnID) {
 			typeOfList = 0x02
 		}
 	}
@@ -26,7 +26,7 @@ func TaiListToNas(taiList []models.Tai) ([]uint8, error) {
 
 	switch typeOfList {
 	case 0x00:
-		plmnNas, err := PlmnIDToNas(*plmnId)
+		plmnNas, err := PlmnIDToNas(*plmnID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert plmnID to nas: %s", err)
 		}
@@ -41,7 +41,7 @@ func TaiListToNas(taiList []models.Tai) ([]uint8, error) {
 		}
 	case 0x02:
 		for _, tai := range taiList {
-			plmnNas, err := PlmnIDToNas(*tai.PlmnId)
+			plmnNas, err := PlmnIDToNas(*tai.PlmnID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert plmnID to nas: %s", err)
 			}

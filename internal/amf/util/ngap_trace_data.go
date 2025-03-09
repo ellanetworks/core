@@ -22,7 +22,7 @@ func TraceDataToNgap(traceData models.TraceData, trsr string) (ngapType.TraceAct
 		return traceActivation, fmt.Errorf("trace reference format is not correct")
 	}
 
-	plmnID := models.PlmnId{}
+	plmnID := models.PlmnID{}
 	plmnID.Mcc = subStringSlice[0][:3]
 	plmnID.Mnc = subStringSlice[0][3:]
 	var traceID []byte
@@ -32,7 +32,7 @@ func TraceDataToNgap(traceData models.TraceData, trsr string) (ngapType.TraceAct
 	}
 	traceID = traceIDTmp
 
-	tmp, err := PlmnIdToNgap(plmnID)
+	tmp, err := PlmnIDToNgap(plmnID)
 	if err != nil {
 		return traceActivation, fmt.Errorf("convert plmnID to NGAP failed: %+v", err)
 	}
@@ -68,17 +68,17 @@ func TraceDataToNgap(traceData models.TraceData, trsr string) (ngapType.TraceAct
 
 	// Trace Depth
 	switch traceData.TraceDepth {
-	case models.TraceDepth_MINIMUM:
+	case models.TraceDepthMinimum:
 		traceActivation.TraceDepth.Value = ngapType.TraceDepthPresentMinimum
-	case models.TraceDepth_MEDIUM:
+	case models.TraceDepthMedium:
 		traceActivation.TraceDepth.Value = ngapType.TraceDepthPresentMedium
-	case models.TraceDepth_MAXIMUM:
+	case models.TraceDepthMaximum:
 		traceActivation.TraceDepth.Value = ngapType.TraceDepthPresentMaximum
-	case models.TraceDepth_MINIMUM_WO_VENDOR_EXTENSION:
+	case models.TraceDepthMinimumWoVendorExtension:
 		traceActivation.TraceDepth.Value = ngapType.TraceDepthPresentMinimumWithoutVendorSpecificExtension
-	case models.TraceDepth_MEDIUM_WO_VENDOR_EXTENSION:
+	case models.TraceDepthMediumWoVendorExtension:
 		traceActivation.TraceDepth.Value = ngapType.TraceDepthPresentMediumWithoutVendorSpecificExtension
-	case models.TraceDepth_MAXIMUM_WO_VENDOR_EXTENSION:
+	case models.TraceDepthMaximumWoVendorExtension:
 		traceActivation.TraceDepth.Value = ngapType.TraceDepthPresentMaximumWithoutVendorSpecificExtension
 	}
 

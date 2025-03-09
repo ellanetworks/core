@@ -8,7 +8,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-func PlmnIDToNas(plmnID models.PlmnId) ([]uint8, error) {
+func PlmnIDToNas(plmnID models.PlmnID) ([]uint8, error) {
 	var plmnNas []uint8
 
 	var mccDigit1, mccDigit2, mccDigit3 int

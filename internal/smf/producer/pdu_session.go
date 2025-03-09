@@ -56,14 +56,14 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 		return "", errRsp, fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
-	createData := request.JsonData
+	createData := request.JSONData
 
 	// Create SM context
-	// smContext := context.NewSMContext(createData.Supi, createData.PduSessionId)
+	// smContext := context.NewSMContext(createData.Supi, createData.PduSessionID)
 	smContext.SubPduSessLog.Infof("SM context created")
 	// smContext.ChangeState(context.SmStateActivePending)
 	smContext.SetCreateData(createData)
-	smContext.SmStatusNotifyUri = createData.SmContextStatusUri
+	smContext.SmStatusNotifyURI = createData.SmContextStatusURI
 
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
@@ -78,17 +78,17 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	}
 
 	// IP Allocation
-	smfSelf := context.SMF_Self()
+	smfSelf := context.SMFSelf()
 	if ip, err := smfSelf.DBInstance.AllocateIP(smContext.Supi); err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, failed allocate IP address: ", err)
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMInsufficientResources)
 		return "", response, fmt.Errorf("failed allocate IP address: %v", err)
 	} else {
-		smContext.PDUAddress = &context.UeIpAddr{Ip: ip, UpfProvided: false}
-		smContext.SubPduSessLog.Infof("Successful IP Allocation: %s", smContext.PDUAddress.Ip.String())
+		smContext.PDUAddress = &context.UeIPAddr{IP: ip, UpfProvided: false}
+		smContext.SubPduSessLog.Infof("Successful IP Allocation: %s", smContext.PDUAddress.IP.String())
 	}
 
-	snssaiStr, err := marshtojsonstring.MarshToJsonString(createData.SNssai)
+	snssaiStr, err := marshtojsonstring.MarshToJSONString(createData.SNssai)
 	if err != nil {
 		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, marshalling SNssai error: ", err)
 	}
@@ -184,7 +184,7 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 
 	pfcpAction := &pfcpAction{}
 	var response models.UpdateSmContextResponse
-	response.JsonData = new(models.SmContextUpdatedData)
+	response.JSONData = new(models.SmContextUpdatedData)
 
 	err := HandleUpdateN1Msg(request, smContext, &response, pfcpAction)
 	if err != nil {
@@ -247,7 +247,7 @@ func HandlePDUSessionSMContextRelease(smContext *context.SMContext) error {
 	}
 
 	// Release UE IP-Address
-	err = smContext.ReleaseUeIpAddr()
+	err = smContext.ReleaseUeIPAddr()
 	if err != nil {
 		smContext.SubPduSessLog.Errorf("release UE IP address failed: %v", err)
 	}
@@ -313,13 +313,13 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 
 	// N2 Container Info
 	n2InfoContainer := models.N2InfoContainer{
-		N2InformationClass: models.N2InformationClass_SM,
+		N2InformationClass: models.N2InformationClassSM,
 		SmInfo: &models.N2SmInformation{
-			PduSessionId: smContext.PDUSessionID,
+			PduSessionID: smContext.PDUSessionID,
 			N2InfoContent: &models.N2InfoContent{
-				NgapIeType: models.NgapIeType_PDU_RES_SETUP_REQ,
+				NgapIeType: models.NgapIeTypePduResSetupReq,
 				NgapData: &models.RefToBinaryData{
-					ContentId: "N2SmInformation",
+					ContentID: "N2SmInformation",
 				},
 			},
 			SNssai: smContext.Snssai,
@@ -329,25 +329,25 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 	// N1 Container Info
 	n1MsgContainer := models.N1MessageContainer{
 		N1MessageClass:   "SM",
-		N1MessageContent: &models.RefToBinaryData{ContentId: "GSM_NAS"},
+		N1MessageContent: &models.RefToBinaryData{ContentID: "GSM_NAS"},
 	}
 
 	// N1N2 Json Data
-	n1n2Request.JsonData = &models.N1N2MessageTransferReqData{PduSessionId: smContext.PDUSessionID}
+	n1n2Request.JSONData = &models.N1N2MessageTransferReqData{PduSessionID: smContext.PDUSessionID}
 
 	if success {
 		if smNasBuf, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext); err != nil {
 			logger.SmfLog.Errorf("Build GSM PDUSessionEstablishmentAccept failed: %s", err)
 		} else {
 			n1n2Request.BinaryDataN1Message = smNasBuf
-			n1n2Request.JsonData.N1MessageContainer = &n1MsgContainer
+			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
 		}
 
 		if n2Pdu, err := context.BuildPDUSessionResourceSetupRequestTransfer(smContext); err != nil {
 			logger.SmfLog.Errorf("Build PDUSessionResourceSetupRequestTransfer failed: %s", err)
 		} else {
 			n1n2Request.BinaryDataN2Information = n2Pdu
-			n1n2Request.JsonData.N2InfoContainer = &n2InfoContainer
+			n1n2Request.JSONData.N2InfoContainer = &n2InfoContainer
 		}
 	} else {
 		if smNasBuf, err := context.BuildGSMPDUSessionEstablishmentReject(smContext,
@@ -355,7 +355,7 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 			logger.SmfLog.Errorf("Build GSM PDUSessionEstablishmentReject failed: %s", err)
 		} else {
 			n1n2Request.BinaryDataN1Message = smNasBuf
-			n1n2Request.JsonData.N1MessageContainer = &n1MsgContainer
+			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
 		}
 	}
 
@@ -370,7 +370,7 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 		}
 		return err
 	}
-	if rspData.Cause == models.N1N2MessageTransferCause_N1_MSG_NOT_TRANSFERRED {
+	if rspData.Cause == models.N1N2MessageTransferCauseN1MsgNotTransferred {
 		smContext.SubPfcpLog.Errorf("N1N2MessageTransfer failure, %v", rspData.Cause)
 		err = smContext.CommitSmPolicyDecision(false)
 		if err != nil {

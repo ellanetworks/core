@@ -3,8 +3,8 @@ package models
 type RegistrationContextContainer struct {
 	UeContext           *UeContext
 	AnType              AccessType
-	AnN2ApId            int32
-	RanNodeId           *GlobalRanNodeId
+	AnN2ApID            int32
+	RanNodeID           *GlobalRanNodeID
 	InitialAmfName      string
 	UserLocation        *UserLocation
 	RrcEstCause         string

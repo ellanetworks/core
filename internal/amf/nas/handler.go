@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/nas/nas_security"
+	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
 )
 
 func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) error {
@@ -25,7 +25,7 @@ func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) error {
 	}
 
 	if ue.AmfUe == nil {
-		ue.AmfUe = nas_security.FetchUeContextWithMobileIdentity(nasPdu)
+		ue.AmfUe = nassecurity.FetchUeContextWithMobileIdentity(nasPdu)
 		if ue.AmfUe == nil {
 			ue.AmfUe = amfSelf.NewAmfUe("")
 		}
@@ -48,7 +48,7 @@ func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) error {
 		return nil
 	}
 
-	msg, err := nas_security.Decode(ue.AmfUe, ue.Ran.AnType, nasPdu)
+	msg, err := nassecurity.Decode(ue.AmfUe, ue.Ran.AnType, nasPdu)
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
@@ -61,7 +61,7 @@ func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) error {
 }
 
 func DispatchMsg(amfUe *context.AmfUe, transInfo context.NasMsg) error {
-	msg, err := nas_security.Decode(amfUe, transInfo.AnType, transInfo.NasMsg)
+	msg, err := nassecurity.Decode(amfUe, transInfo.AnType, transInfo.NasMsg)
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}

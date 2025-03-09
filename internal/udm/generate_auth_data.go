@@ -83,7 +83,7 @@ func EditAuthenticationSubscription(ueID string, sequenceNumber string) error {
 func convertDBAuthSubsDataToModel(opc string, key string, sequenceNumber string) *models.AuthenticationSubscription {
 	authSubsData := &models.AuthenticationSubscription{}
 	authSubsData.AuthenticationManagementField = AuthenticationManagementField
-	authSubsData.AuthenticationMethod = models.AuthMethod__5_G_AKA
+	authSubsData.AuthenticationMethod = models.AuthMethod5GAka
 	authSubsData.Milenage = &models.Milenage{
 		Op: &models.Op{
 			EncryptionAlgorithm: EncryptionAlgorithm,
@@ -301,12 +301,12 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	fmt.Printf("AUTN = %x\n", AUTN)
 	response := &models.AuthenticationInfoResult{}
 	var av models.AuthenticationVector
-	if authSubs.AuthenticationMethod == models.AuthMethod__5_G_AKA {
-		response.AuthType = models.AuthType__5_G_AKA
+	if authSubs.AuthenticationMethod == models.AuthMethod5GAka {
+		response.AuthType = models.AuthType5GAka
 
 		// derive XRES*
 		key := append(CK, IK...)
-		FC := ueauth.FC_FOR_RES_STAR_XRES_STAR_DERIVATION
+		FC := ueauth.FCForResStarXresStarDerivation
 		P0 := []byte(authInfoRequest.ServingNetworkName)
 		P1 := RAND
 		P2 := RES
@@ -318,7 +318,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		xresStar := kdfValForXresStar[len(kdfValForXresStar)/2:]
 
 		// derive Kausf
-		FC = ueauth.FC_FOR_KAUSF_DERIVATION
+		FC = ueauth.FCForKausfDerivation
 		P0 = []byte(authInfoRequest.ServingNetworkName)
 		P1 = SQNxorAK
 		kdfValForKausf, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))
@@ -332,11 +332,11 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		av.Autn = hex.EncodeToString(AUTN)
 		av.Kausf = hex.EncodeToString(kdfValForKausf)
 	} else { // EAP-AKA'
-		response.AuthType = models.AuthType_EAP_AKA_PRIME
+		response.AuthType = models.AuthTypeEAPAkaPrime
 
 		// derive CK' and IK'
 		key := append(CK, IK...)
-		FC := ueauth.FC_FOR_CK_PRIME_IK_PRIME_DERIVATION
+		FC := ueauth.FCForCkPrimeIkPrimeDerivation
 		P0 := []byte(authInfoRequest.ServingNetworkName)
 		P1 := SQNxorAK
 		kdfVal, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))

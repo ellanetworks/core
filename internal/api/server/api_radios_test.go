@@ -16,13 +16,13 @@ const (
 	RadioName = "gnb-001"
 )
 
-type PlmnId struct {
+type PlmnID struct {
 	Mcc string `json:"mcc"`
 	Mnc string `json:"mnc"`
 }
 
 type Tai struct {
-	PlmnId PlmnId `json:"plmnId"`
+	PlmnID PlmnID `json:"plmnID"`
 	Tac    string `json:"tac"`
 }
 
@@ -38,7 +38,7 @@ type SupportedTAI struct {
 
 type GetRadioResponseResult struct {
 	Name          string         `json:"name"`
-	Id            string         `json:"id"`
+	ID            string         `json:"id"`
 	Address       string         `json:"address"`
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
@@ -77,8 +77,8 @@ func listRadios(url string, client *http.Client, token string) (int, *ListRadios
 
 func TestListRadios(t *testing.T) {
 	tempDir := t.TempDir()
-	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path, gin.TestMode)
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -96,7 +96,7 @@ func TestListRadios(t *testing.T) {
 	ran1.SupportedTAList = []amfContext.SupportedTAI{
 		{
 			Tai: models.Tai{
-				PlmnId: &models.PlmnId{
+				PlmnID: &models.PlmnID{
 					Mcc: "123",
 					Mnc: "12",
 				},
@@ -110,15 +110,15 @@ func TestListRadios(t *testing.T) {
 			},
 		},
 	}
-	ran1.GnbIp = "1.2.3.4"
-	ran1.GnbId = "mcc:001:mnc:01:gnb-001"
+	ran1.GnbIP = "1.2.3.4"
+	ran1.GnbID = "mcc:001:mnc:01:gnb-001"
 	amf.AmfRanPool.Store("id1", &ran1)
 	ran2 := amfContext.AmfRan{}
 	ran2.Name = "gnb-002"
 	ran2.SupportedTAList = []amfContext.SupportedTAI{
 		{
 			Tai: models.Tai{
-				PlmnId: &models.PlmnId{
+				PlmnID: &models.PlmnID{
 					Mcc: "001",
 					Mnc: "01",
 				},
@@ -132,8 +132,8 @@ func TestListRadios(t *testing.T) {
 			},
 		},
 	}
-	ran2.GnbIp = "2.3.4.5"
-	ran2.GnbId = "mcc:001:mnc:01:gnb-002"
+	ran2.GnbIP = "2.3.4.5"
+	ran2.GnbID = "mcc:001:mnc:01:gnb-002"
 	amf.AmfRanPool.Store("id2", &ran2)
 
 	// Set up the Gin router
@@ -158,17 +158,17 @@ func TestListRadios(t *testing.T) {
 			if radio.Address != "1.2.3.4" {
 				t.Fatalf("expected radio address %q, got %q", "1.2.3.4", radio.Address)
 			}
-			if radio.Id != "mcc:001:mnc:01:gnb-001" {
-				t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-001", radio.Id)
+			if radio.ID != "mcc:001:mnc:01:gnb-001" {
+				t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-001", radio.ID)
 			}
 			if len(radio.SupportedTAIs) != 1 {
 				t.Fatalf("expected 1 supported TAI, got %d", len(radio.SupportedTAIs))
 			}
-			if radio.SupportedTAIs[0].Tai.PlmnId.Mcc != "123" {
-				t.Fatalf("expected mcc %q, got %q", "123", radio.SupportedTAIs[0].Tai.PlmnId.Mcc)
+			if radio.SupportedTAIs[0].Tai.PlmnID.Mcc != "123" {
+				t.Fatalf("expected mcc %q, got %q", "123", radio.SupportedTAIs[0].Tai.PlmnID.Mcc)
 			}
-			if radio.SupportedTAIs[0].Tai.PlmnId.Mnc != "12" {
-				t.Fatalf("expected mnc %q, got %q", "12", radio.SupportedTAIs[0].Tai.PlmnId.Mnc)
+			if radio.SupportedTAIs[0].Tai.PlmnID.Mnc != "12" {
+				t.Fatalf("expected mnc %q, got %q", "12", radio.SupportedTAIs[0].Tai.PlmnID.Mnc)
 			}
 			if radio.SupportedTAIs[0].Tai.Tac != "0002" {
 				t.Fatalf("expected tac %q, got %q", "0002", radio.SupportedTAIs[0].Tai.Tac)
@@ -186,17 +186,17 @@ func TestListRadios(t *testing.T) {
 			if radio.Address != "2.3.4.5" {
 				t.Fatalf("expected radio address %q, got %q", "2.3.4.5", radio.Address)
 			}
-			if radio.Id != "mcc:001:mnc:01:gnb-002" {
-				t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-002", radio.Id)
+			if radio.ID != "mcc:001:mnc:01:gnb-002" {
+				t.Fatalf("expected radio ID %q, got %q", "mcc:001:mnc:01:gnb-002", radio.ID)
 			}
 			if len(radio.SupportedTAIs) != 1 {
 				t.Fatalf("expected 1 supported TAI, got %d", len(radio.SupportedTAIs))
 			}
-			if radio.SupportedTAIs[0].Tai.PlmnId.Mcc != "001" {
-				t.Fatalf("expected mcc %q, got %q", "001", radio.SupportedTAIs[0].Tai.PlmnId.Mcc)
+			if radio.SupportedTAIs[0].Tai.PlmnID.Mcc != "001" {
+				t.Fatalf("expected mcc %q, got %q", "001", radio.SupportedTAIs[0].Tai.PlmnID.Mcc)
 			}
-			if radio.SupportedTAIs[0].Tai.PlmnId.Mnc != "01" {
-				t.Fatalf("expected mnc %q, got %q", "01", radio.SupportedTAIs[0].Tai.PlmnId.Mnc)
+			if radio.SupportedTAIs[0].Tai.PlmnID.Mnc != "01" {
+				t.Fatalf("expected mnc %q, got %q", "01", radio.SupportedTAIs[0].Tai.PlmnID.Mnc)
 			}
 			if radio.SupportedTAIs[0].Tai.Tac != "0001" {
 				t.Fatalf("expected tac %q, got %q", "0001", radio.SupportedTAIs[0].Tai.Tac)

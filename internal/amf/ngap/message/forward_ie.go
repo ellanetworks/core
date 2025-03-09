@@ -17,10 +17,10 @@ import (
 )
 
 func AppendPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetupListSUReq,
-	pduSessionId int32, snssai models.Snssai, nasPDU []byte, transfer []byte,
+	pduSessionID int32, snssai models.Snssai, nasPDU []byte, transfer []byte,
 ) {
 	var item ngapType.PDUSessionResourceSetupItemSUReq
-	item.PDUSessionID.Value = int64(pduSessionId)
+	item.PDUSessionID.Value = int64(pduSessionID)
 	snssaiNgap, err := util.SNssaiToNgap(snssai)
 	if err != nil {
 		logger.AmfLog.Errorf("Convert SNssai to NGAP failed: %+v", err)
@@ -36,10 +36,10 @@ func AppendPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSet
 }
 
 func AppendPDUSessionResourceSetupListHOReq(list *ngapType.PDUSessionResourceSetupListHOReq,
-	pduSessionId int32, snssai models.Snssai, transfer []byte,
+	pduSessionID int32, snssai models.Snssai, transfer []byte,
 ) {
 	var item ngapType.PDUSessionResourceSetupItemHOReq
-	item.PDUSessionID.Value = int64(pduSessionId)
+	item.PDUSessionID.Value = int64(pduSessionID)
 	snssaiNgap, err := util.SNssaiToNgap(snssai)
 	if err != nil {
 		logger.AmfLog.Errorf("Convert SNssai to NGAP failed: %+v", err)
@@ -50,9 +50,9 @@ func AppendPDUSessionResourceSetupListHOReq(list *ngapType.PDUSessionResourceSet
 	list.List = append(list.List, item)
 }
 
-func AppendPDUSessionResourceSetupListCxtReq(list *ngapType.PDUSessionResourceSetupListCxtReq, pduSessionId int32, snssai models.Snssai, nasPDU []byte, transfer []byte) {
+func AppendPDUSessionResourceSetupListCxtReq(list *ngapType.PDUSessionResourceSetupListCxtReq, pduSessionID int32, snssai models.Snssai, nasPDU []byte, transfer []byte) {
 	var item ngapType.PDUSessionResourceSetupItemCxtReq
-	item.PDUSessionID.Value = int64(pduSessionId)
+	item.PDUSessionID.Value = int64(pduSessionID)
 	snssaiNgap, err := util.SNssaiToNgap(snssai)
 	if err != nil {
 		logger.AmfLog.Errorf("Convert SNssai to NGAP failed: %+v", err)
@@ -68,10 +68,10 @@ func AppendPDUSessionResourceSetupListCxtReq(list *ngapType.PDUSessionResourceSe
 }
 
 func AppendPDUSessionResourceModifyListModReq(list *ngapType.PDUSessionResourceModifyListModReq,
-	pduSessionId int32, nasPDU []byte, transfer []byte,
+	pduSessionID int32, nasPDU []byte, transfer []byte,
 ) {
 	var item ngapType.PDUSessionResourceModifyItemModReq
-	item.PDUSessionID.Value = int64(pduSessionId)
+	item.PDUSessionID.Value = int64(pduSessionID)
 	item.PDUSessionResourceModifyRequestTransfer = transfer
 	if nasPDU != nil {
 		item.NASPDU = new(ngapType.NASPDU)
@@ -81,43 +81,43 @@ func AppendPDUSessionResourceModifyListModReq(list *ngapType.PDUSessionResourceM
 }
 
 func AppendPDUSessionResourceModifyListModCfm(list *ngapType.PDUSessionResourceModifyListModCfm,
-	pduSessionId int64, transfer []byte,
+	pduSessionID int64, transfer []byte,
 ) {
 	var item ngapType.PDUSessionResourceModifyItemModCfm
-	item.PDUSessionID.Value = pduSessionId
+	item.PDUSessionID.Value = pduSessionID
 	item.PDUSessionResourceModifyConfirmTransfer = transfer
 	list.List = append(list.List, item)
 }
 
 func AppendPDUSessionResourceToReleaseListRelCmd(list *ngapType.PDUSessionResourceToReleaseListRelCmd,
-	pduSessionId int32, transfer []byte,
+	pduSessionID int32, transfer []byte,
 ) {
 	var item ngapType.PDUSessionResourceToReleaseItemRelCmd
-	item.PDUSessionID.Value = int64(pduSessionId)
+	item.PDUSessionID.Value = int64(pduSessionID)
 	item.PDUSessionResourceReleaseCommandTransfer = transfer
 	list.List = append(list.List, item)
 }
 
 func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrictionList {
 	mobilityRestrictionList := ngapType.MobilityRestrictionList{}
-	plmnId, err := util.PlmnIdToNgap(ue.PlmnId)
+	plmnID, err := util.PlmnIDToNgap(ue.PlmnID)
 	if err != nil {
 		logger.AmfLog.Errorf("Convert PLMN ID to NGAP failed: %+v", err)
 		return mobilityRestrictionList
 	}
-	mobilityRestrictionList.ServingPLMN = *plmnId
+	mobilityRestrictionList.ServingPLMN = *plmnID
 
 	if ue.AccessAndMobilitySubscriptionData != nil && len(ue.AccessAndMobilitySubscriptionData.RatRestrictions) > 0 {
 		mobilityRestrictionList.RATRestrictions = new(ngapType.RATRestrictions)
 		ratRestrictions := mobilityRestrictionList.RATRestrictions
 		for _, ratType := range ue.AccessAndMobilitySubscriptionData.RatRestrictions {
 			item := ngapType.RATRestrictionsItem{}
-			plmnId, err := util.PlmnIdToNgap(ue.PlmnId)
+			plmnID, err := util.PlmnIDToNgap(ue.PlmnID)
 			if err != nil {
 				logger.AmfLog.Errorf("Convert PLMN ID to NGAP failed: %+v", err)
 				continue
 			}
-			item.PLMNIdentity = *plmnId
+			item.PLMNIdentity = *plmnID
 			item.RATRestrictionInformation = util.RATRestrictionInformationToNgap(ratType)
 			ratRestrictions.List = append(ratRestrictions.List, item)
 		}
@@ -128,12 +128,12 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 		forbiddenAreaInformation := mobilityRestrictionList.ForbiddenAreaInformation
 		for _, info := range ue.AccessAndMobilitySubscriptionData.ForbiddenAreas {
 			item := ngapType.ForbiddenAreaInformationItem{}
-			plmnId, err := util.PlmnIdToNgap(ue.PlmnId)
+			plmnID, err := util.PlmnIDToNgap(ue.PlmnID)
 			if err != nil {
 				logger.AmfLog.Errorf("Convert PLMN ID to NGAP failed: %+v", err)
 				continue
 			}
-			item.PLMNIdentity = *plmnId
+			item.PLMNIdentity = *plmnID
 			for _, tac := range info.Tacs {
 				tacBytes, err := hex.DecodeString(tac)
 				if err != nil {
@@ -153,12 +153,12 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 		serviceAreaInformation := mobilityRestrictionList.ServiceAreaInformation
 
 		item := ngapType.ServiceAreaInformationItem{}
-		plmnId, err := util.PlmnIdToNgap(ue.PlmnId)
+		plmnID, err := util.PlmnIDToNgap(ue.PlmnID)
 		if err != nil {
 			logger.AmfLog.Errorf("Convert PLMN ID to NGAP failed: %+v", err)
 			return mobilityRestrictionList
 		}
-		item.PLMNIdentity = *plmnId
+		item.PLMNIdentity = *plmnID
 		var tacList []ngapType.TAC
 		for _, area := range ue.AmPolicyAssociation.ServAreaRes.Areas {
 			for _, tac := range area.Tacs {
@@ -172,7 +172,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 				tacList = append(tacList, tacNgap)
 			}
 		}
-		if ue.AmPolicyAssociation.ServAreaRes.RestrictionType == models.RestrictionType_ALLOWED_AREAS {
+		if ue.AmPolicyAssociation.ServAreaRes.RestrictionType == models.RestrictionTypeAllowedAreas {
 			item.AllowedTACs = new(ngapType.AllowedTACs)
 			item.AllowedTACs.List = append(item.AllowedTACs.List, tacList...)
 		} else {
@@ -187,16 +187,16 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 func BuildUnavailableGUAMIList(guamiList []models.Guami) (unavailableGUAMIList ngapType.UnavailableGUAMIList) {
 	for _, guami := range guamiList {
 		item := ngapType.UnavailableGUAMIItem{}
-		plmnId, err := util.PlmnIdToNgap(*guami.PlmnId)
+		plmnID, err := util.PlmnIDToNgap(*guami.PlmnID)
 		if err != nil {
 			logger.AmfLog.Errorf("Convert PLMN ID to NGAP failed: %+v", err)
 			continue
 		}
-		item.GUAMI.PLMNIdentity = *plmnId
-		regionId, setId, ptrId := ngapConvert.AmfIdToNgap(guami.AmfId)
-		item.GUAMI.AMFRegionID.Value = regionId
-		item.GUAMI.AMFSetID.Value = setId
-		item.GUAMI.AMFPointer.Value = ptrId
+		item.GUAMI.PLMNIdentity = *plmnID
+		regionID, setID, ptrID := ngapConvert.AmfIdToNgap(guami.AmfID)
+		item.GUAMI.AMFRegionID.Value = regionID
+		item.GUAMI.AMFSetID.Value = setID
+		item.GUAMI.AMFPointer.Value = ptrID
 		unavailableGUAMIList.List = append(unavailableGUAMIList.List, item)
 	}
 	return

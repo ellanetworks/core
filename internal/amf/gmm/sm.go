@@ -540,14 +540,14 @@ func SetDeregisteredState(amfUe *context.AmfUe, anType uint8) {
 	amfUe.SubscriptionDataValid = false
 	if anType == nasMessage.AccessType3GPP {
 		amfUe.GmmLog.Warnln("UE accessType[3GPP] transfer to Deregistered state")
-		amfUe.State[models.AccessType__3_GPP_ACCESS].Set(context.Deregistered)
+		amfUe.State[models.AccessType3GPPAccess].Set(context.Deregistered)
 	} else if anType == nasMessage.AccessTypeNon3GPP {
 		amfUe.GmmLog.Warnln("UE accessType[Non3GPP] transfer to Deregistered state")
-		amfUe.State[models.AccessType_NON_3_GPP_ACCESS].Set(context.Deregistered)
+		amfUe.State[models.AccessTypeNon3GPPAccess].Set(context.Deregistered)
 	} else {
 		amfUe.GmmLog.Warnln("UE accessType[3GPP] transfer to Deregistered state")
-		amfUe.State[models.AccessType__3_GPP_ACCESS].Set(context.Deregistered)
+		amfUe.State[models.AccessType3GPPAccess].Set(context.Deregistered)
 		amfUe.GmmLog.Warnln("UE accessType[Non3GPP] transfer to Deregistered state")
-		amfUe.State[models.AccessType_NON_3_GPP_ACCESS].Set(context.Deregistered)
+		amfUe.State[models.AccessTypeNon3GPPAccess].Set(context.Deregistered)
 	}
 }

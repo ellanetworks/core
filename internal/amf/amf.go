@@ -33,7 +33,7 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 		Mcsi:    0,
 		Mpsi:    0,
 	}
-	self.UriScheme = models.UriScheme_HTTP
+	self.URIScheme = models.URISchemeHTTP
 	self.SupportedDnns = []string{config.DNN}
 	security := &context.Security{
 		IntegrityOrder: []string{"NIA1", "NIA2"},

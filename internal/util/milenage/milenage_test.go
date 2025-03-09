@@ -151,17 +151,17 @@ func TestF1Test35207(t *testing.T) {
 		if !reflect.DeepEqual(OPC, ExpectedOPc) {
 			t.Errorf("Testf1Test35207[%d] \t OPC[0x%x] \t ExpectedOPc[0x%x]\n", i, OPC, ExpectedOPc)
 		}
-		MAC_A, MAC_S := make([]byte, 8), make([]byte, 8)
-		err = milenage.F1(OPC, K, RAND, SQN, AMF, MAC_A, MAC_S)
+		macA, macS := make([]byte, 8), make([]byte, 8)
+		err = milenage.F1(OPC, K, RAND, SQN, AMF, macA, macS)
 		if err != nil {
 			t.Errorf("err: %+v\n", err)
 		}
 
-		if !reflect.DeepEqual(MAC_A, f1) {
-			t.Errorf("Testf1Test35207[%d] \t MAC_A[0x%x] \t f1[0x%x]\n", i, MAC_A, f1)
+		if !reflect.DeepEqual(macA, f1) {
+			t.Errorf("Testf1Test35207[%d] \t macA[0x%x] \t f1[0x%x]\n", i, macA, f1)
 		}
-		if !reflect.DeepEqual(MAC_S, f1Start) {
-			t.Errorf("Testf1Test35207[%d] \t MAC_S[0x%x] \t f1Start[0x%x]\n", i, MAC_S, f1Start)
+		if !reflect.DeepEqual(macS, f1Start) {
+			t.Errorf("Testf1Test35207[%d] \t macS[0x%x] \t f1Start[0x%x]\n", i, macS, f1Start)
 		}
 	}
 }
@@ -376,16 +376,16 @@ func TestF4F5StarTest35207(t *testing.T) {
 }
 
 func TestGenerateOPC(t *testing.T) {
-	// K_str := "3016ebeae2c45bd0060923dbbb402be6"
-	K_str := "000102030405060708090a0b0c0d0e0f" // CHT
-	K, err := hex.DecodeString(K_str)
+	// kStr := "3016ebeae2c45bd0060923dbbb402be6"
+	kStr := "000102030405060708090a0b0c0d0e0f" // CHT
+	K, err := hex.DecodeString(kStr)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
 
-	// OP_str := "00000000000000000000000000000000"
-	OP_str := "00112233445566778899aabbccddeeff" // CHT
-	OP, err := hex.DecodeString(OP_str)
+	// opStr := "00000000000000000000000000000000"
+	opStr := "00112233445566778899aabbccddeeff" // CHT
+	OP, err := hex.DecodeString(opStr)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
@@ -408,19 +408,19 @@ func TestRAND(t *testing.T) {
 		AMF: 16 bits (2 bytes) (hex len = 4) TS33.102 - Annex H
 	*/
 
-	K_str := "5122250214c33e723a5dd523fc145fc0"
-	OP_str := "c9e8763286b5b9ffbdf56e1297d0887b"
-	SQN_str := "16f3b3f70fc2"
+	kStr := "5122250214c33e723a5dd523fc145fc0"
+	opStr := "c9e8763286b5b9ffbdf56e1297d0887b"
+	sqnStr := "16f3b3f70fc2"
 
-	K, err := hex.DecodeString(K_str)
+	K, err := hex.DecodeString(kStr)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
-	OP, err := hex.DecodeString(OP_str)
+	OP, err := hex.DecodeString(opStr)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
-	SQN, err := hex.DecodeString(SQN_str)
+	SQN, err := hex.DecodeString(sqnStr)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
@@ -448,14 +448,14 @@ func TestRAND(t *testing.T) {
 	fmt.Printf("For test: RAND=%x, AMF=%x\n", RAND, AMF)
 
 	// Run milenage
-	MAC_A, MAC_S := make([]byte, 8), make([]byte, 8)
+	macA, macS := make([]byte, 8), make([]byte, 8)
 	CK, IK := make([]byte, 16), make([]byte, 16)
 	RES := make([]byte, 8)
 	AK, AKstar := make([]byte, 6), make([]byte, 6)
 
-	// Generate MAC_A, MAC_S
+	// Generate macA, macS
 
-	err = milenage.F1(OPC, K, RAND, SQN, AMF, MAC_A, MAC_S)
+	err = milenage.F1(OPC, K, RAND, SQN, AMF, macA, macS)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
@@ -502,17 +502,17 @@ func TestRAND(t *testing.T) {
 	if !reflect.DeepEqual(AK, expAK) {
 		t.Errorf("AK[0x%x] \t expected[0x%x]\n", AK, expAK)
 	}
-	// fmt.Printf("AMF=%x, MAC_A=%x\n", AMF, MAC_A)
+	// fmt.Printf("AMF=%x, macA=%x\n", AMF, macA)
 	SQNxorAK := make([]byte, 6)
 	for i := 0; i < len(SQN); i++ {
 		SQNxorAK[i] = SQN[i] ^ AK[i]
 	}
 
 	fmt.Printf("SQN xor AK = %x\n", SQNxorAK)
-	AUTN := append(append(SQNxorAK, AMF...), MAC_A...)
+	AUTN := append(append(SQNxorAK, AMF...), macA...)
 
-	// fmt.Printf("MAC_A = %x\n", MAC_A)
-	// fmt.Printf("MAC_S = %x\n", MAC_S)
+	// fmt.Printf("macA = %x\n", macA)
+	// fmt.Printf("macS = %x\n", macS)
 
 	// fmt.Printf("AUTN = %x\n", AUTN)
 

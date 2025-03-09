@@ -38,7 +38,7 @@ type GetOperatorTrackingResponse struct {
 }
 
 type GetOperatorResponse struct {
-	Id          GetOperatorIdResponse          `json:"id,omitempty"`
+	ID          GetOperatorIDResponse          `json:"id,omitempty"`
 	Slice       GetOperatorSliceResponse       `json:"slice,omitempty"`
 	Tracking    GetOperatorTrackingResponse    `json:"tracking,omitempty"`
 	HomeNetwork GetOperatorHomeNetworkResponse `json:"homeNetwork,omitempty"`
@@ -49,7 +49,7 @@ type GetOperatorSliceResponse struct {
 	Sd  int `json:"sd,omitempty"`
 }
 
-type GetOperatorIdResponse struct {
+type GetOperatorIDResponse struct {
 	Mcc string `json:"mcc,omitempty"`
 	Mnc string `json:"mnc,omitempty"`
 }
@@ -62,7 +62,7 @@ const (
 	GetOperatorAction               = "get_operator"
 	GetOperatorSliceAction          = "get_operator_slice"
 	GetOperatorTrackingAction       = "get_operator_tracking"
-	GetOperatorIdAction             = "get_operator_id"
+	GetOperatorIDAction             = "get_operator_id"
 	GetOperatorHomeNetworkAction    = "get_operator_home_network"
 	UpdateOperatorSliceAction       = "update_operator_slice"
 	UpdateOperatorTrackingAction    = "update_operator_tracking"
@@ -184,7 +184,7 @@ func GetOperator(dbInstance *db.Database) gin.HandlerFunc {
 		}
 
 		operatorSlice := &GetOperatorResponse{
-			Id: GetOperatorIdResponse{
+			ID: GetOperatorIDResponse{
 				Mcc: dbOperator.Mcc,
 				Mnc: dbOperator.Mnc,
 			},
@@ -271,7 +271,7 @@ func GetOperatorTracking(dbInstance *db.Database) gin.HandlerFunc {
 	}
 }
 
-func GetOperatorId(dbInstance *db.Database) gin.HandlerFunc {
+func GetOperatorID(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		emailAny, _ := c.Get("email")
 		email, ok := emailAny.(string)
@@ -285,14 +285,14 @@ func GetOperatorId(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		operatorId := &GetOperatorIdResponse{
+		operatorID := &GetOperatorIDResponse{
 			Mcc: dbOperator.Mcc,
 			Mnc: dbOperator.Mnc,
 		}
 
-		writeResponse(c, operatorId, http.StatusOK)
+		writeResponse(c, operatorID, http.StatusOK)
 		logger.LogAuditEvent(
-			GetOperatorIdAction,
+			GetOperatorIDAction,
 			email,
 			c.ClientIP(),
 			"User retrieved operator Id",
@@ -401,25 +401,25 @@ func UpdateOperatorID(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		var updateOperatorIdParams UpdateOperatorIDParams
-		err := c.ShouldBindJSON(&updateOperatorIdParams)
+		var updateOperatorIDParams UpdateOperatorIDParams
+		err := c.ShouldBindJSON(&updateOperatorIDParams)
 		if err != nil {
 			writeError(c, http.StatusBadRequest, "Invalid request data")
 			return
 		}
-		if updateOperatorIdParams.Mcc == "" {
+		if updateOperatorIDParams.Mcc == "" {
 			writeError(c, http.StatusBadRequest, "mcc is missing")
 			return
 		}
-		if updateOperatorIdParams.Mnc == "" {
+		if updateOperatorIDParams.Mnc == "" {
 			writeError(c, http.StatusBadRequest, "mnc is missing")
 			return
 		}
-		if !isValidMcc(updateOperatorIdParams.Mcc) {
+		if !isValidMcc(updateOperatorIDParams.Mcc) {
 			writeError(c, http.StatusBadRequest, "Invalid mcc format. Must be a 3-decimal digit.")
 			return
 		}
-		if !isValidMnc(updateOperatorIdParams.Mnc) {
+		if !isValidMnc(updateOperatorIDParams.Mnc) {
 			writeError(c, http.StatusBadRequest, "Invalid mnc format. Must be a 2 or 3-decimal digit.")
 			return
 		}
@@ -433,10 +433,10 @@ func UpdateOperatorID(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		err = dbInstance.UpdateOperatorID(updateOperatorIdParams.Mcc, updateOperatorIdParams.Mnc)
+		err = dbInstance.UpdateOperatorID(updateOperatorIDParams.Mcc, updateOperatorIDParams.Mnc)
 		if err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c, http.StatusInternalServerError, "Failed to update operatorId")
+			writeError(c, http.StatusInternalServerError, "Failed to update operatorID")
 			return
 		}
 		message := SuccessResponse{Message: "Operator ID updated successfully"}
@@ -445,7 +445,7 @@ func UpdateOperatorID(dbInstance *db.Database) gin.HandlerFunc {
 			UpdateOperatorIDAction,
 			email,
 			c.ClientIP(),
-			"User updated operator with Id: "+updateOperatorIdParams.Mcc+""+updateOperatorIdParams.Mnc,
+			"User updated operator with Id: "+updateOperatorIDParams.Mcc+""+updateOperatorIDParams.Mnc,
 		)
 	}
 }
@@ -487,7 +487,7 @@ func UpdateOperatorCode(dbInstance *db.Database) gin.HandlerFunc {
 		err = dbInstance.UpdateOperatorCode(updateOperatorCodeParams.OperatorCode)
 		if err != nil {
 			logger.APILog.Warnln(err)
-			writeError(c, http.StatusInternalServerError, "Failed to update operatorId")
+			writeError(c, http.StatusInternalServerError, "Failed to update operatorID")
 			return
 		}
 		message := SuccessResponse{Message: "Operator Code updated successfully"}

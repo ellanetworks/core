@@ -22,10 +22,9 @@ import (
 )
 
 const (
-	CONNECTED               = "Connected"
-	DISCONNECTED            = "Disconnected"
-	IDLE                    = "Idle"
-	PDU_SESS_REL_CMD string = "PDUSessionReleaseCommand"
+	CONNECTED    = "Connected"
+	DISCONNECTED = "Disconnected"
+	IDLE         = "Idle"
 )
 
 var (
@@ -36,8 +35,8 @@ var (
 
 var smContextActive uint64
 
-type UeIpAddr struct {
-	Ip          net.IP
+type UeIPAddr struct {
+	IP          net.IP
 	UpfProvided bool
 }
 
@@ -49,8 +48,8 @@ type SMContext struct {
 	Gpsi                         string
 	Dnn                          string
 	UeTimeZone                   string
-	ServingNfId                  string
-	SmStatusNotifyUri            string
+	ServingNfID                  string
+	SmStatusNotifyURI            string
 	UpCnxState                   models.UpCnxState
 	AnType                       models.AccessType
 	RatType                      models.RatType
@@ -58,9 +57,9 @@ type SMContext struct {
 	HoState                      models.HoState
 	DnnConfiguration             models.DnnConfiguration
 	Snssai                       *models.Snssai
-	ServingNetwork               *models.PlmnId
+	ServingNetwork               *models.PlmnID
 	UeLocation                   *models.UserLocation
-	PDUAddress                   *UeIpAddr
+	PDUAddress                   *UeIPAddr
 	Tunnel                       *UPTunnel
 	BPManager                    *BPManager
 	DNNInfo                      *SnssaiSmfDnnInfo
@@ -76,13 +75,13 @@ type SMContext struct {
 	PFCPContext                  map[string]*PFCPSessionContext
 	SMLock                       sync.Mutex
 	// SMContextState                      SMContextState
-	PDUSessionID                        int32
-	OldPduSessionId                     int32
-	SelectedPDUSessionType              uint8
-	PDUSessionRelease_DUE_TO_DUP_PDU_ID bool
-	LocalPurged                         bool
-	Pti                                 uint8
-	EstAcceptCause5gSMValue             uint8
+	PDUSessionID                   int32
+	OldPduSessionID                int32
+	SelectedPDUSessionType         uint8
+	PDUSessionReleaseDueToDupPduID bool
+	LocalPurged                    bool
+	Pti                            uint8
+	EstAcceptCause5gSMValue        uint8
 }
 
 func canonicalName(identifier string, pduSessID int32) (canonical string) {
@@ -168,7 +167,7 @@ func RemoveSMContext(ref string) {
 	}
 
 	// Release UE IP-Address
-	err := smContext.ReleaseUeIpAddr()
+	err := smContext.ReleaseUeIPAddr()
 	if err != nil {
 		smContext.SubCtxLog.Errorf("release UE IP-Address failed, %v", err)
 	}
@@ -187,18 +186,18 @@ func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
 	return
 }
 
-func (smContext *SMContext) ReleaseUeIpAddr() error {
-	smfSelf := SMF_Self()
+func (smContext *SMContext) ReleaseUeIPAddr() error {
+	smfSelf := SMFSelf()
 	if smContext.PDUAddress == nil {
 		return nil
 	}
-	if ip := smContext.PDUAddress.Ip; ip != nil && !smContext.PDUAddress.UpfProvided {
+	if ip := smContext.PDUAddress.IP; ip != nil && !smContext.PDUAddress.UpfProvided {
 		err := smfSelf.DBInstance.ReleaseIP(smContext.Supi)
 		if err != nil {
 			return fmt.Errorf("failed to release IP Address, %v", err)
 		}
-		smContext.SubPduSessLog.Infof("Released IP Address: %s", smContext.PDUAddress.Ip.String())
-		smContext.PDUAddress.Ip = net.IPv4(0, 0, 0, 0)
+		smContext.SubPduSessLog.Infof("Released IP Address: %s", smContext.PDUAddress.IP.String())
+		smContext.PDUAddress.IP = net.IPv4(0, 0, 0, 0)
 	}
 	return nil
 }
@@ -214,8 +213,8 @@ func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData
 	smContext.PresenceInLadn = createData.PresenceInLadn
 	smContext.UeLocation = createData.UeLocation
 	smContext.UeTimeZone = createData.UeTimeZone
-	smContext.OldPduSessionId = createData.OldPduSessionId
-	smContext.ServingNfId = createData.ServingNfId
+	smContext.OldPduSessionID = createData.OldPduSessionID
+	smContext.ServingNfID = createData.ServingNfID
 }
 
 func (smContext *SMContext) BuildCreatedData() (createdData *models.SmContextCreatedData) {
@@ -225,7 +224,7 @@ func (smContext *SMContext) BuildCreatedData() (createdData *models.SmContextCre
 }
 
 func (smContext *SMContext) PDUAddressToNAS() (addr [12]byte, addrLen uint8) {
-	copy(addr[:], smContext.PDUAddress.Ip)
+	copy(addr[:], smContext.PDUAddress.IP)
 	switch smContext.SelectedPDUSessionType {
 	case nasMessage.PDUSessionTypeIPv4:
 		addrLen = 4 + 1
@@ -248,7 +247,7 @@ func (smContext *SMContext) GetNodeIDByLocalSEID(seid uint64) (nodeID NodeID) {
 
 func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) error {
 	for curDataPathNode := dataPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
-		NodeIDtoIP := curDataPathNode.UPF.NodeID.ResolveNodeIdToIp().String()
+		NodeIDtoIP := curDataPathNode.UPF.NodeID.ResolveNodeIDToIP().String()
 		if _, exist := smContext.PFCPContext[NodeIDtoIP]; !exist {
 			allocatedSEID, err := AllocateLocalSEID()
 			if err != nil {
@@ -267,7 +266,7 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) err
 }
 
 func (smContext *SMContext) PutPDRtoPFCPSession(nodeID NodeID, pdrList map[string]*PDR) error {
-	NodeIDtoIP := nodeID.ResolveNodeIdToIp().String()
+	NodeIDtoIP := nodeID.ResolveNodeIDToIP().String()
 	if pfcpSessCtx, exist := smContext.PFCPContext[NodeIDtoIP]; exist {
 		for name, pdr := range pdrList {
 			pfcpSessCtx.PDRs[pdrList[name].PDRID] = pdr
@@ -279,7 +278,7 @@ func (smContext *SMContext) PutPDRtoPFCPSession(nodeID NodeID, pdrList map[strin
 }
 
 func (smContext *SMContext) RemovePDRfromPFCPSession(nodeID NodeID, pdr *PDR) {
-	NodeIDtoIP := nodeID.ResolveNodeIdToIp().String()
+	NodeIDtoIP := nodeID.ResolveNodeIDToIP().String()
 	pfcpSessCtx := smContext.PFCPContext[NodeIDtoIP]
 	delete(pfcpSessCtx.PDRs, pdr.PDRID)
 }
@@ -296,53 +295,53 @@ func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint
 
 	for _, allowedPDUSessionType := range smContext.DnnConfiguration.PduSessionTypes.AllowedSessionTypes {
 		switch allowedPDUSessionType {
-		case models.PduSessionType_IPV4:
+		case models.PduSessionTypeIPv4:
 			allowIPv4 = true
-		case models.PduSessionType_IPV6:
+		case models.PduSessionTypeIPv6:
 			allowIPv6 = true
-		case models.PduSessionType_IPV4_V6:
+		case models.PduSessionTypeIPv4v6:
 			allowIPv4 = true
 			allowIPv6 = true
-		case models.PduSessionType_ETHERNET:
+		case models.PduSessionTypeEthernet:
 			allowEthernet = true
 		}
 	}
 
 	if !allowIPv4 {
-		return fmt.Errorf("PduSessionType_IPV4 is not allowed in DNN[%s] configuration", smContext.Dnn)
+		return fmt.Errorf("PduSessionTypeIPv4 is not allowed in DNN[%s] configuration", smContext.Dnn)
 	}
 
 	smContext.EstAcceptCause5gSMValue = 0
 	switch util.PDUSessionTypeToModels(requestedPDUSessionType) {
-	case models.PduSessionType_IPV4:
+	case models.PduSessionTypeIPv4:
 		if allowIPv4 {
-			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_IPV4)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionTypeIPv4)
 		} else {
-			return fmt.Errorf("PduSessionType_IPV4 is not allowed in DNN[%s] configuration", smContext.Dnn)
+			return fmt.Errorf("PduSessionTypeIPv4 is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
-	case models.PduSessionType_IPV6:
+	case models.PduSessionTypeIPv6:
 		if allowIPv6 {
-			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_IPV6)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionTypeIPv6)
 		} else {
-			return fmt.Errorf("PduSessionType_IPV6 is not allowed in DNN[%s] configuration", smContext.Dnn)
+			return fmt.Errorf("PduSessionTypeIPv6 is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
-	case models.PduSessionType_IPV4_V6:
+	case models.PduSessionTypeIPv4v6:
 		if allowIPv4 && allowIPv6 {
-			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_IPV4_V6)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionTypeIPv4v6)
 		} else if allowIPv4 {
-			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_IPV4)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionTypeIPv4)
 			smContext.EstAcceptCause5gSMValue = nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
 		} else if allowIPv6 {
-			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_IPV6)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionTypeIPv6)
 			smContext.EstAcceptCause5gSMValue = nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
 		} else {
-			return fmt.Errorf("PduSessionType_IPV4_V6 is not allowed in DNN[%s] configuration", smContext.Dnn)
+			return fmt.Errorf("PduSessionTypeIPv4v6 is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
-	case models.PduSessionType_ETHERNET:
+	case models.PduSessionTypeEthernet:
 		if allowEthernet {
-			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionType_ETHERNET)
+			smContext.SelectedPDUSessionType = util.ModelsToPDUSessionType(models.PduSessionTypeEthernet)
 		} else {
-			return fmt.Errorf("PduSessionType_ETHERNET is not allowed in DNN[%s] configuration", smContext.Dnn)
+			return fmt.Errorf("PduSessionTypeEthernet is not allowed in DNN[%s] configuration", smContext.Dnn)
 		}
 	default:
 		return fmt.Errorf("requested PDU Sesstion type[%d] is not supported", requestedPDUSessionType)

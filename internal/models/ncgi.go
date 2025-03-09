@@ -1,6 +1,6 @@
 package models
 
 type Ncgi struct {
-	PlmnId   *PlmnId
-	NrCellId string
+	PlmnID   *PlmnID
+	NrCellID string
 }

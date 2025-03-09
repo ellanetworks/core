@@ -16,12 +16,12 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-func SendDLNASTransport(ue *context.RanUe, payloadContainerType uint8, nasPdu []byte, pduSessionId int32, cause uint8) error {
+func SendDLNASTransport(ue *context.RanUe, payloadContainerType uint8, nasPdu []byte, pduSessionID int32, cause uint8) error {
 	var causePtr *uint8
 	if cause != 0 {
 		causePtr = &cause
 	}
-	nasMsg, err := BuildDLNASTransport(ue.AmfUe, payloadContainerType, nasPdu, uint8(pduSessionId), causePtr)
+	nasMsg, err := BuildDLNASTransport(ue.AmfUe, payloadContainerType, nasPdu, uint8(pduSessionID), causePtr)
 	if err != nil {
 		return fmt.Errorf("error building downlink NAS transport message: %s", err.Error())
 	}
@@ -87,7 +87,7 @@ func SendAuthenticationRequest(ue *context.RanUe) error {
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
-	amfUe.GmmLog.Infof("sent authentication request to UE")
+	amfUe.GmmLog.Infof("Sent authentication request to UE")
 
 	if context.AMFSelf().T3560Cfg.Enable {
 		cfg := context.AMFSelf().T3560Cfg
@@ -98,7 +98,7 @@ func SendAuthenticationRequest(ue *context.RanUe) error {
 				amfUe.GmmLog.Errorf("could not send downlink NAS transport message: %s", err.Error())
 				return
 			}
-			amfUe.GmmLog.Infof("sent authentication request to UE")
+			amfUe.GmmLog.Infof("Sent authentication request to UE")
 		}, func() {
 			amfUe.GmmLog.Warnf("T3560 Expires %d times, abort authentication procedure & ongoing 5GMM procedure",
 				cfg.MaxRetryTimes)
@@ -109,8 +109,8 @@ func SendAuthenticationRequest(ue *context.RanUe) error {
 	return nil
 }
 
-func SendServiceAccept(ue *context.RanUe, pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionId, errCause []uint8) error {
-	nasMsg, err := BuildServiceAccept(ue.AmfUe, pDUSessionStatus, reactivationResult, errPduSessionId, errCause)
+func SendServiceAccept(ue *context.RanUe, pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionID, errCause []uint8) error {
+	nasMsg, err := BuildServiceAccept(ue.AmfUe, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 	if err != nil {
 		return fmt.Errorf("error building service accept: %s", err.Error())
 	}
@@ -236,17 +236,17 @@ func SendDeregistrationRequest(ue *context.RanUe, accessType uint8, reRegistrati
 			amfUe.T3522 = nil // clear the timer
 			if accessType == nasMessage.AccessType3GPP {
 				amfUe.GmmLog.Warnln("UE accessType[3GPP] transfer to Deregistered state")
-				amfUe.State[models.AccessType__3_GPP_ACCESS].Set(context.Deregistered)
+				amfUe.State[models.AccessType3GPPAccess].Set(context.Deregistered)
 				amfUe.Remove()
 			} else if accessType == nasMessage.AccessTypeNon3GPP {
 				amfUe.GmmLog.Warnln("UE accessType[Non3GPP] transfer to Deregistered state")
-				amfUe.State[models.AccessType_NON_3_GPP_ACCESS].Set(context.Deregistered)
+				amfUe.State[models.AccessTypeNon3GPPAccess].Set(context.Deregistered)
 				amfUe.Remove()
 			} else {
 				amfUe.GmmLog.Warnln("UE accessType[3GPP] transfer to Deregistered state")
-				amfUe.State[models.AccessType__3_GPP_ACCESS].Set(context.Deregistered)
+				amfUe.State[models.AccessType3GPPAccess].Set(context.Deregistered)
 				amfUe.GmmLog.Warnln("UE accessType[Non3GPP] transfer to Deregistered state")
-				amfUe.State[models.AccessType_NON_3_GPP_ACCESS].Set(context.Deregistered)
+				amfUe.State[models.AccessTypeNon3GPPAccess].Set(context.Deregistered)
 				amfUe.Remove()
 			}
 		})
@@ -272,10 +272,10 @@ func SendRegistrationAccept(
 	anType models.AccessType,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
-	errPduSessionId, errCause []uint8,
+	errPduSessionID, errCause []uint8,
 	pduSessionResourceSetupList *ngapType.PDUSessionResourceSetupListCxtReq,
 ) error {
-	nasMsg, err := BuildRegistrationAccept(ue, anType, pDUSessionStatus, reactivationResult, errPduSessionId, errCause)
+	nasMsg, err := BuildRegistrationAccept(ue, anType, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 	if err != nil {
 		return fmt.Errorf("error building registration accept: %s", err.Error())
 	}
@@ -287,7 +287,7 @@ func SendRegistrationAccept(
 		}
 		ue.GmmLog.Infof("sent initial context setup request")
 	} else {
-		err = ngap_message.SendDownlinkNasTransport(ue.RanUe[models.AccessType__3_GPP_ACCESS], nasMsg, nil)
+		err = ngap_message.SendDownlinkNasTransport(ue.RanUe[models.AccessType3GPPAccess], nasMsg, nil)
 		if err != nil {
 			return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 		}

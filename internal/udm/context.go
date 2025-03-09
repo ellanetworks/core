@@ -33,7 +33,7 @@ func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagement
 	AllDnns := make([]map[string]models.DnnConfiguration, len(smDatafromUDR))
 
 	for idx, smSubscriptionData := range smDatafromUDR {
-		singleNssai, err := marshtojsonstring.MarshToJsonString(smSubscriptionData.SingleNssai)
+		singleNssai, err := marshtojsonstring.MarshToJSONString(smSubscriptionData.SingleNssai)
 		if err != nil {
 			return nil, fmt.Errorf("error in marshalling singleNssai")
 		}

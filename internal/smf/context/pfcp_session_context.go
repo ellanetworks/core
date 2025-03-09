@@ -37,7 +37,7 @@ func (pfcpSessionContext *PFCPSessionContext) String() string {
 		str += fmt.Sprintf("PDR: %v\n", pdr)
 	}
 
-	str += fmt.Sprintln("Node ID: ", pfcpSessionContext.NodeID.ResolveNodeIdToIp().String())
+	str += fmt.Sprintln("Node ID: ", pfcpSessionContext.NodeID.ResolveNodeIDToIP().String())
 	str += fmt.Sprintln("LocalSEID: ", pfcpSessionContext.LocalSEID)
 	str += fmt.Sprintln("RemoteSEID: ", pfcpSessionContext.RemoteSEID)
 	str += "\n"

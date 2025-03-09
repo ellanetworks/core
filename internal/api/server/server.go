@@ -55,7 +55,7 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	gin.SetMode(mode)
 	router := gin.New()
 	router.Use(ginToZap(logger.APILog))
-	AddUiService(router)
+	AddUIService(router)
 
 	apiGroup := router.Group("/api/v1")
 
@@ -96,7 +96,7 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	apiGroup.PUT("/operator/tracking", Authenticate(jwtSecret), Require(AdminRole, NetworkManagerRole), UpdateOperatorTracking(dbInstance))
 	apiGroup.GET("/operator/tracking", Authenticate(jwtSecret), GetOperatorTracking(dbInstance))
 	apiGroup.PUT("/operator/id", Authenticate(jwtSecret), Require(AdminRole, NetworkManagerRole), UpdateOperatorID(dbInstance))
-	apiGroup.GET("/operator/id", Authenticate(jwtSecret), GetOperatorId(dbInstance))
+	apiGroup.GET("/operator/id", Authenticate(jwtSecret), GetOperatorID(dbInstance))
 	apiGroup.PUT("/operator/code", Authenticate(jwtSecret), Require(AdminRole, NetworkManagerRole), UpdateOperatorCode(dbInstance))
 	apiGroup.PUT("/operator/home-network", Authenticate(jwtSecret), Require(AdminRole, NetworkManagerRole), UpdateOperatorHomeNetwork(dbInstance))
 
@@ -124,14 +124,14 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	return router
 }
 
-func AddUiService(engine *gin.Engine) {
+func AddUIService(engine *gin.Engine) {
 	staticFilesSystem, err := fs.Sub(ui.FrontendFS, "out")
 	if err != nil {
 		logger.APILog.Fatal(err)
 	}
 
 	engine.Use(func(c *gin.Context) {
-		if !isApiUrlPath(c.Request.URL.Path) {
+		if !isAPIURLPath(c.Request.URL.Path) {
 			htmlPath := strings.TrimPrefix(c.Request.URL.Path, "/") + ".html"
 			if _, err := staticFilesSystem.Open(htmlPath); err == nil {
 				c.Request.URL.Path = htmlPath
@@ -143,6 +143,6 @@ func AddUiService(engine *gin.Engine) {
 	})
 }
 
-func isApiUrlPath(path string) bool {
+func isAPIURLPath(path string) bool {
 	return strings.HasPrefix(path, "/api/v1/")
 }

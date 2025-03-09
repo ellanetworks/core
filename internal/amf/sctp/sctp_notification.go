@@ -60,25 +60,25 @@ func (s *SCTPAssocChangeEvent) Info() []uint8 {
 }
 
 // SCTPShutdownEvent is an implementation of Notification interface
-type SCTPShutdownEvent struct {
+type SCTPShutdownEventNotification struct {
 	sseType    uint16
 	sseFlags   uint16
 	sseLength  uint32
 	sseAssocID SCTPAssocID
 }
 
-func (s *SCTPShutdownEvent) Type() SCTPNotificationType {
+func (s *SCTPShutdownEventNotification) Type() SCTPNotificationType {
 	return SCTPNotificationType(s.sseType)
 }
 
-func (s *SCTPShutdownEvent) Flags() uint16 {
+func (s *SCTPShutdownEventNotification) Flags() uint16 {
 	return s.sseFlags
 }
 
-func (s *SCTPShutdownEvent) Length() uint32 {
+func (s *SCTPShutdownEventNotification) Length() uint32 {
 	return s.sseLength
 }
 
-func (s *SCTPShutdownEvent) AssocID() SCTPAssocID {
+func (s *SCTPShutdownEventNotification) AssocID() SCTPAssocID {
 	return s.sseAssocID
 }
