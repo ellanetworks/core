@@ -667,7 +667,6 @@ func HandleUplinkNasTransport(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		ran.Log.Error("UplinkNasTransport is nil")
 		return
 	}
-	ran.Log.Info("Handle Uplink Nas Transport")
 
 	for i := 0; i < len(uplinkNasTransport.ProtocolIEs.List); i++ {
 		ie := uplinkNasTransport.ProtocolIEs.List[i]
@@ -720,8 +719,7 @@ func HandleUplinkNasTransport(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		return
 	}
 
-	ranUe.Log.Infof("Uplink NAS Transport (RAN UE NGAP ID: %d)", ranUe.RanUeNgapID)
-
+	ranUe.Log.Infof("Received Uplink NAS transport message from RAN with NGAP ID: %s", ranUe.RanUeNgapID)
 	if userLocationInformation != nil {
 		ranUe.UpdateLocation(userLocationInformation)
 	}

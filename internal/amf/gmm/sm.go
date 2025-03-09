@@ -305,6 +305,8 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		case nas.MsgTypeSecurityModeComplete:
 			if err := HandleSecurityModeComplete(amfUe, accessType, procedureCode, gmmMessage.SecurityModeComplete); err != nil {
 				logger.AmfLog.Errorln(err)
+			} else {
+				logger.AmfLog.Infof("security mode complete received")
 			}
 		case nas.MsgTypeSecurityModeReject:
 			if err := HandleSecurityModeReject(amfUe, accessType, gmmMessage.SecurityModeReject); err != nil {

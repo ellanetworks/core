@@ -47,17 +47,15 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 		for _, far := range msg.CreateFAR {
 			farInfo, err := composeFarInfo(far, conn.n3Address.To4(), ebpf.FarInfo{})
 			if err != nil {
-				logger.UpfLog.Infof("Error extracting FAR info: %s", err.Error())
-				continue
+				return fmt.Errorf("couldn't extract FAR info: %s", err.Error())
 			}
 
 			farid, _ := far.FARID()
-			logger.UpfLog.Infof("Saving FAR info to session: %d, %+v", farid, farInfo)
+			logger.UpfLog.Debugf("Saving FAR info to session: %d, %+v", farid, farInfo)
 			if internalID, err := bpfObjects.NewFar(farInfo); err == nil {
 				session.NewFar(farid, internalID, farInfo)
 			} else {
-				logger.UpfLog.Infof("Can't put FAR: %s", err.Error())
-				return err
+				return fmt.Errorf("can't put FAR: %s", err.Error())
 			}
 		}
 
@@ -65,15 +63,14 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 			qerInfo := ebpf.QerInfo{}
 			qerID, err := qer.QERID()
 			if err != nil {
-				return fmt.Errorf("QER ID missing")
+				return fmt.Errorf("qer id is missing")
 			}
 			updateQer(&qerInfo, qer)
-			logger.UpfLog.Infof("Saving QER info to session: %d, %+v", qerID, qerInfo)
+			logger.UpfLog.Debugf("Saving QER info to session: %d, %+v", qerID, qerInfo)
 			if internalID, err := bpfObjects.NewQer(qerInfo); err == nil {
 				session.NewQer(qerID, internalID, qerInfo)
 			} else {
-				logger.UpfLog.Infof("Can't put QER: %s", err.Error())
-				return err
+				return fmt.Errorf("can't put QER: %s", err.Error())
 			}
 		}
 
@@ -451,7 +448,7 @@ func composeFarInfo(far *ie.IE, localIP net.IP, farInfo ebpf.FarInfo) (ebpf.FarI
 	if err == nil {
 		outerHeaderCreationIndex := findIEindex(forward, 84) // IE Type Outer Header Creation
 		if outerHeaderCreationIndex == -1 {
-			logger.UpfLog.Infof("WARN: No OuterHeaderCreation")
+			logger.UpfLog.Warnf("no outer header creation found")
 		} else {
 			outerHeaderCreation, _ := forward[outerHeaderCreationIndex].OuterHeaderCreation()
 			farInfo.OuterHeaderCreation = uint8(outerHeaderCreation.OuterHeaderCreationDescription >> 8)
@@ -460,7 +457,7 @@ func composeFarInfo(far *ie.IE, localIP net.IP, farInfo ebpf.FarInfo) (ebpf.FarI
 				farInfo.RemoteIP = binary.LittleEndian.Uint32(outerHeaderCreation.IPv4Address)
 			}
 			if outerHeaderCreation.HasIPv6() {
-				logger.UpfLog.Infof("WARN: IPv6 not supported yet, ignoring")
+				logger.UpfLog.Warnf("ipv6 not supported yet, ignoring")
 				return ebpf.FarInfo{}, fmt.Errorf("IPv6 not supported yet")
 			}
 		}

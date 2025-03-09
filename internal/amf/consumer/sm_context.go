@@ -23,8 +23,7 @@ func SelectSmf(
 	pduSessionID int32,
 	snssai models.Snssai,
 	dnn string,
-) (*context.SmContext, uint8, error) {
-	ue.GmmLog.Infof("Select SMF [snssai: %+v, dnn: %+v]", snssai, dnn)
+) *context.SmContext {
 	nsiInformation := ue.GetNsiInformationFromSnssai(anType, snssai)
 	smContext := context.NewSmContext(pduSessionID)
 	smContext.SetSnssai(snssai)
@@ -35,12 +34,10 @@ func SelectSmf(
 		smContext.SetNsInstance(nsiInformation.NsiID)
 	}
 
-	return smContext, 0, nil
+	return smContext
 }
 
-func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte) (
-	string, *models.PostSmContextsErrorResponse, error,
-) {
+func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte) (string, *models.PostSmContextsErrorResponse, error) {
 	smContextCreateData := buildCreateSmContextRequest(ue, smContext)
 	postSmContextsRequest := models.PostSmContextsRequest{
 		JSONData:              &smContextCreateData,

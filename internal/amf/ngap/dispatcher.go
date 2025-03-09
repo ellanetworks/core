@@ -44,7 +44,7 @@ func Dispatch(conn net.Conn, msg []byte) {
 
 	/* uecontext is found, submit the message to transaction queue*/
 	if ranUe != nil && ranUe.AmfUe != nil {
-		ranUe.AmfUe.TxLog.Infof("Uecontext found. queuing ngap message to uechannel")
+		ranUe.AmfUe.TxLog.Debugf("Uecontext found. queuing ngap message to uechannel")
 		ngapMsg := context.NgapMsg{
 			Ran:     ran,
 			NgapMsg: pdu,

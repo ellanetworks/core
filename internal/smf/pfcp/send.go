@@ -86,7 +86,6 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentResp
 			return addPduSessionAnchor, nil, fmt.Errorf("failed to parse FSEID IE: %+v", err)
 		}
 		pfcpSessionCtx.RemoteSEID = rspUPFseid.SEID
-		smContext.SubPfcpLog.Infof("in HandlePfcpSessionEstablishmentResponse rsp.UPFSEID.Seid [%v] ", rspUPFseid.SEID)
 	}
 
 	// Get N3 interface UPF

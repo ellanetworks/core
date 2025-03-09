@@ -111,7 +111,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", response, fmt.Errorf("error creating policy association: %v", err)
 	}
-	smContext.SubPduSessLog.Infof("created policy association")
+	smContext.SubPduSessLog.Infof("Created policy association")
 	smPolicyDecision = smPolicyDecisionRsp
 
 	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, smPolicyDecision)
@@ -154,7 +154,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 
 	_ = smContext.BuildCreatedData()
 
-	smContext.SubPduSessLog.Infof("successfully created PDU session context")
+	smContext.SubPduSessLog.Infof("Successfully created PDU session context")
 
 	return smContext.Ref, nil, nil
 }
