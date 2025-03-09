@@ -165,7 +165,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqURI string, n1n2Message
 					if err != nil {
 						return nil, fmt.Errorf("send initial context setup request error: %v", err)
 					}
-					ue.ProducerLog.Infof("Sent initial context setup request to UE")
+					ue.ProducerLog.Infof("Sent NGAP initial context setup request to UE")
 					ue.RanUe[anType].SentInitialContextSetupRequest = true
 				}
 				n1n2MessageTransferRspData = new(models.N1N2MessageTransferRspData)

@@ -557,7 +557,7 @@ func IdentityVerification(ue *context.AmfUe) bool {
 }
 
 func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) error {
-	ue.GmmLog.Infoln("Handle InitialRegistration")
+	ue.GmmLog.Infoln("Handle Initial Registration")
 
 	amfSelf := context.AMFSelf()
 
@@ -665,7 +665,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 		if err != nil {
 			return fmt.Errorf("error sending registration accept: %v", err)
 		}
-		ue.GmmLog.Infof("sent registration accept to UE")
+		ue.GmmLog.Infof("Sent GMM registration accept to UE")
 	} else {
 		// TS 23.502 4.12.2.2 10a ~ 13: if non-3gpp, AMF should send initial context setup request to N3IWF first,
 		// and send registration accept after receiving initial context setup response
@@ -673,7 +673,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 		if err != nil {
 			return fmt.Errorf("error sending initial context setup request: %v", err)
 		}
-		ue.GmmLog.Infof("Sent initial context setup request to N3IWF")
+		ue.GmmLog.Infof("Sent NGAP initial context setup request to N3IWF")
 		registrationAccept, err := gmm_message.BuildRegistrationAccept(ue, anType, nil, nil, nil, nil)
 		if err != nil {
 			ue.GmmLog.Errorf("Build Registration Accept: %+v", err)
@@ -959,7 +959,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
-			ue.GmmLog.Infof("Sent initial context setup request")
+			ue.GmmLog.Infof("Sent NGAP initial context setup request")
 			registrationAccept, err := gmm_message.BuildRegistrationAccept(ue, anType,
 				pduSessionStatus, reactivationResult, errPduSessionID, errCause)
 			if err != nil {
@@ -1755,13 +1755,13 @@ func sendServiceAccept(ue *context.AmfUe, anType models.AccessType, ctxList ngap
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
-			ue.GmmLog.Infof("Sent initial context setup request")
+			ue.GmmLog.Infof("Sent NGAP initial context setup request")
 		} else {
 			err := ngap_message.SendInitialContextSetupRequest(ue, anType, nasPdu, nil, nil, nil, nil)
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
-			ue.GmmLog.Infof("Sent initial context setup request")
+			ue.GmmLog.Infof("Sent NGAP initial context setup request")
 		}
 	} else if len(suList.List) != 0 {
 		nasPdu, err := gmm_message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult,

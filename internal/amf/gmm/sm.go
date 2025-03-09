@@ -292,7 +292,7 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 				if err != nil {
 					logger.AmfLog.Errorf("error sending security mode command: %+v", err)
 				}
-				logger.AmfLog.Infof("sent security mode command to UE")
+				logger.AmfLog.Infof("Sent security mode command to UE")
 			}
 		}
 	case GmmMessageEvent:
@@ -306,7 +306,7 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 			if err := HandleSecurityModeComplete(amfUe, accessType, procedureCode, gmmMessage.SecurityModeComplete); err != nil {
 				logger.AmfLog.Errorln(err)
 			} else {
-				logger.AmfLog.Infof("security mode complete received")
+				logger.AmfLog.Debugf("security mode complete received")
 			}
 		case nas.MsgTypeSecurityModeReject:
 			if err := HandleSecurityModeReject(amfUe, accessType, gmmMessage.SecurityModeReject); err != nil {
