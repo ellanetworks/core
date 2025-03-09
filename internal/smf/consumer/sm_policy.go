@@ -8,9 +8,7 @@ package consumer
 
 import (
 	"fmt"
-	"net/http"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/pcf"
 	"github.com/ellanetworks/core/internal/smf/context"
@@ -18,8 +16,7 @@ import (
 )
 
 // SendSMPolicyAssociationCreate creates the SM Policy Decision
-func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPolicyDecision, int, error) {
-	httpRspStatusCode := http.StatusInternalServerError
+func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPolicyDecision, error) {
 	smPolicyData := models.SmPolicyContextData{}
 	smPolicyData.Supi = smContext.Supi
 	smPolicyData.PduSessionID = smContext.PDUSessionID
@@ -50,14 +47,13 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 
 	smPolicyDecision, err := pcf.CreateSMPolicy(smPolicyData)
 	if err != nil {
-		return nil, httpRspStatusCode, fmt.Errorf("setup sm policy association failed: %s", err.Error())
+		return nil, fmt.Errorf("failed to create sm policy decision: %s", err.Error())
 	}
-	logger.SmfLog.Infof("created sm policy decision: %v", smPolicyDecision)
 	err = validateSmPolicyDecision(smPolicyDecision)
 	if err != nil {
-		return nil, httpRspStatusCode, fmt.Errorf("setup sm policy association failed: %s", err.Error())
+		return nil, fmt.Errorf("failed to validate sm policy decision: %s", err.Error())
 	}
-	return smPolicyDecision, http.StatusCreated, nil
+	return smPolicyDecision, nil
 }
 
 func SendSMPolicyAssociationDelete(supi string, pduSessionID int32) error {
@@ -66,21 +62,18 @@ func SendSMPolicyAssociationDelete(supi string, pduSessionID int32) error {
 	if err != nil {
 		return fmt.Errorf("smf policy delete failed, [%v] ", err.Error())
 	}
-	logger.SmfLog.Infof("smf policy deleted successfully, supi: %s, pduSessionID: %d", supi, pduSessionID)
 	return nil
 }
 
 func validateSmPolicyDecision(smPolicy *models.SmPolicyDecision) error {
 	// Validate just presence of important IEs as of now
 	// Sess Rules
-	for name, rule := range smPolicy.SessRules {
+	for _, rule := range smPolicy.SessRules {
 		if rule.AuthSessAmbr == nil {
-			logger.SmfLog.Errorf("SM policy decision rule [%s] validation failure, authorised session ambr missing", name)
 			return fmt.Errorf("authorised session ambr missing")
 		}
 
 		if rule.AuthDefQos == nil {
-			logger.SmfLog.Errorf("SM policy decision rule [%s] validation failure, authorised default qos missing", name)
 			return fmt.Errorf("authorised default qos missing")
 		}
 	}

@@ -22,7 +22,7 @@ import (
 func CreateN1N2MessageTransfer(ueContextID string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, reqURI string) (*models.N1N2MessageTransferRspData, error) {
 	amfSelf := context.AMFSelf()
 	if _, ok := amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
-		return nil, fmt.Errorf("UE context not found")
+		return nil, fmt.Errorf("ue context not found")
 	}
 	respData, err := N1N2MessageTransferProcedure(ueContextID, reqURI, n1n2MessageTransferRequest)
 	if err != nil {
