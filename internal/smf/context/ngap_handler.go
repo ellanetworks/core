@@ -15,19 +15,18 @@ import (
 	"github.com/omec-project/ngap/ngapType"
 )
 
-func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) (err error) {
+func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) error {
 	resourceSetupResponseTransfer := ngapType.PDUSessionResourceSetupResponseTransfer{}
-
-	err = aper.UnmarshalWithParams(b, &resourceSetupResponseTransfer, "valueExt")
+	err := aper.UnmarshalWithParams(b, &resourceSetupResponseTransfer, "valueExt")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshall resource setup response transfer: %s", err.Error())
 	}
 
 	QosFlowPerTNLInformation := resourceSetupResponseTransfer.DLQosFlowPerTNLInformation
 
 	if QosFlowPerTNLInformation.UPTransportLayerInformation.Present !=
 		ngapType.UPTransportLayerInformationPresentGTPTunnel {
-		return errors.New("resourceSetupResponseTransfer.QosFlowPerTNLInformation.UPTransportLayerInformation.Present")
+		return fmt.Errorf("expected qos flow per tnl information up transport layer information present to be gtp tunnel")
 	}
 
 	gtpTunnel := QosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel
@@ -91,34 +90,30 @@ func HandlePathSwitchRequestTransfer(b []byte, ctx *SMContext) error {
 	return nil
 }
 
-func HandlePathSwitchRequestSetupFailedTransfer(b []byte, ctx *SMContext) (err error) {
+func HandlePathSwitchRequestSetupFailedTransfer(b []byte, ctx *SMContext) error {
 	pathSwitchRequestSetupFailedTransfer := ngapType.PathSwitchRequestSetupFailedTransfer{}
-
-	err = aper.UnmarshalWithParams(b, &pathSwitchRequestSetupFailedTransfer, "valueExt")
+	err := aper.UnmarshalWithParams(b, &pathSwitchRequestSetupFailedTransfer, "valueExt")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshall path switch request setup failed transfer: %s", err.Error())
 	}
-
 	return nil
 }
 
-func HandleHandoverRequiredTransfer(b []byte, ctx *SMContext) (err error) {
+func HandleHandoverRequiredTransfer(b []byte, ctx *SMContext) error {
 	handoverRequiredTransfer := ngapType.HandoverRequiredTransfer{}
-
-	err = aper.UnmarshalWithParams(b, &handoverRequiredTransfer, "valueExt")
+	err := aper.UnmarshalWithParams(b, &handoverRequiredTransfer, "valueExt")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshall handover required transfer: %s", err.Error())
 	}
-
 	return nil
 }
 
-func HandleHandoverRequestAcknowledgeTransfer(b []byte, ctx *SMContext) (err error) {
+func HandleHandoverRequestAcknowledgeTransfer(b []byte, ctx *SMContext) error {
 	handoverRequestAcknowledgeTransfer := ngapType.HandoverRequestAcknowledgeTransfer{}
 
-	err = aper.UnmarshalWithParams(b, &handoverRequestAcknowledgeTransfer, "valueExt")
+	err := aper.UnmarshalWithParams(b, &handoverRequestAcknowledgeTransfer, "valueExt")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshall handover request acknowledge transfer: %s", err.Error())
 	}
 	DLNGUUPTNLInformation := handoverRequestAcknowledgeTransfer.DLNGUUPTNLInformation
 	GTPTunnel := DLNGUUPTNLInformation.GTPTunnel

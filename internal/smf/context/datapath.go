@@ -184,32 +184,20 @@ func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 			smContext.RemovePDRfromPFCPSession(node.UPF.NodeID, pdr)
 
 			// Remove of UPF
-			err := node.UPF.RemovePDR(pdr)
-			if err != nil {
-				logger.SmfLog.Warnln("deactivated UpLinkTunnel", err)
-			}
+			node.UPF.RemovePDR(pdr)
 
 			if far := pdr.FAR; far != nil {
-				err = node.UPF.RemoveFAR(far)
-				if err != nil {
-					logger.SmfLog.Warnln("deactivated UpLinkTunnel", err)
-				}
+				node.UPF.RemoveFAR(far)
 
 				bar := far.BAR
 				if bar != nil {
-					err = node.UPF.RemoveBAR(bar)
-					if err != nil {
-						logger.SmfLog.Warnln("deactivated UpLinkTunnel", err)
-					}
+					node.UPF.RemoveBAR(bar)
 				}
 			}
 			if qerList := pdr.QER; qerList != nil {
 				for _, qer := range qerList {
 					if qer != nil {
-						err = node.UPF.RemoveQER(qer)
-						if err != nil {
-							logger.SmfLog.Warnln("deactivated UpLinkTunnel", err)
-						}
+						node.UPF.RemoveQER(qer)
 					}
 				}
 			}
@@ -228,32 +216,20 @@ func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 			smContext.RemovePDRfromPFCPSession(node.UPF.NodeID, pdr)
 
 			// Remove from UPF
-			err := node.UPF.RemovePDR(pdr)
-			if err != nil {
-				logger.SmfLog.Warnln("deactivated DownLinkTunnel", err)
-			}
+			node.UPF.RemovePDR(pdr)
 
 			if far := pdr.FAR; far != nil {
-				err = node.UPF.RemoveFAR(far)
-				if err != nil {
-					logger.SmfLog.Warnln("deactivated DownLinkTunnel", err)
-				}
+				node.UPF.RemoveFAR(far)
 
 				bar := far.BAR
 				if bar != nil {
-					err = node.UPF.RemoveBAR(bar)
-					if err != nil {
-						logger.SmfLog.Warnln("deactivated DownLinkTunnel", err)
-					}
+					node.UPF.RemoveBAR(bar)
 				}
 			}
 			if qerList := pdr.QER; qerList != nil {
 				for _, qer := range qerList {
 					if qer != nil {
-						err = node.UPF.RemoveQER(qer)
-						if err != nil {
-							logger.SmfLog.Warnln("deactivated UpLinkTunnel", err)
-						}
+						node.UPF.RemoveQER(qer)
 					}
 				}
 			}

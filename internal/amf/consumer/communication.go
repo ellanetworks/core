@@ -13,7 +13,6 @@ import (
 
 func BuildUeContextModel(ue *context.AmfUe) (ueContext models.UeContext) {
 	ueContext.Supi = ue.Supi
-	ueContext.SupiUnauthInd = ue.UnauthenticatedSupi
 
 	if ue.Gpsi != "" {
 		ueContext.GpsiList = append(ueContext.GpsiList, ue.Gpsi)

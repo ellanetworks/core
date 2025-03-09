@@ -41,20 +41,19 @@ type UeIPAddr struct {
 }
 
 type SMContext struct {
-	Ref                            string
-	Supi                           string
-	Pei                            string
-	Identifier                     string
-	Gpsi                           string
-	Dnn                            string
-	UeTimeZone                     string
-	ServingNfID                    string
-	SmStatusNotifyURI              string
-	UpCnxState                     models.UpCnxState
-	AnType                         models.AccessType
-	RatType                        models.RatType
-	PresenceInLadn                 models.PresenceState
-	HoState                        models.HoState
+	Ref               string
+	Supi              string
+	Pei               string
+	Identifier        string
+	Gpsi              string
+	Dnn               string
+	UeTimeZone        string
+	ServingNfID       string
+	SmStatusNotifyURI string
+	UpCnxState        models.UpCnxState
+	AnType            models.AccessType
+	RatType           models.RatType
+	// PresenceInLadn                 models.PresenceState
 	DnnConfiguration               models.DnnConfiguration
 	Snssai                         *models.Snssai
 	ServingNetwork                 *models.PlmnID
@@ -67,16 +66,13 @@ type SMContext struct {
 	SubPfcpLog                     *zap.SugaredLogger
 	SubPduSessLog                  *zap.SugaredLogger
 	SubCtxLog                      *zap.SugaredLogger
-	SubFsmLog                      *zap.SugaredLogger
 	SmPolicyUpdates                []*qos.PolicyUpdate
 	SmPolicyData                   qos.SmCtxtPolicyData
 	PFCPContext                    map[string]*PFCPSessionContext
 	SMLock                         sync.Mutex
 	PDUSessionID                   int32
-	OldPduSessionID                int32
 	SelectedPDUSessionType         uint8
 	PDUSessionReleaseDueToDupPduID bool
-	LocalPurged                    bool
 	Pti                            uint8
 	EstAcceptCause5gSMValue        uint8
 }
@@ -139,7 +135,6 @@ func (smContext *SMContext) initLogTags() {
 	smContext.SubCtxLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
 	smContext.SubPduSessLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
 	smContext.SubGsmLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
-	smContext.SubFsmLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
 }
 
 func GetSMContext(ref string) (smContext *SMContext) {
@@ -207,10 +202,8 @@ func (smContext *SMContext) SetCreateData(createData *models.SmContextCreateData
 	smContext.ServingNetwork = createData.ServingNetwork
 	smContext.AnType = createData.AnType
 	smContext.RatType = createData.RatType
-	smContext.PresenceInLadn = createData.PresenceInLadn
 	smContext.UeLocation = createData.UeLocation
 	smContext.UeTimeZone = createData.UeTimeZone
-	smContext.OldPduSessionID = createData.OldPduSessionID
 	smContext.ServingNfID = createData.ServingNfID
 }
 

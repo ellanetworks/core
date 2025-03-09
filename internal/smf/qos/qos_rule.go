@@ -7,6 +7,7 @@ package qos
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math"
 	"net"
 	"strconv"
@@ -479,43 +480,31 @@ func BuildPFCompProtocolID(val string) (*PacketFilterComponent, uint8) {
 	return pfc, 2
 }
 
-func (pf *PacketFilter) MarshalBinary() (data []byte, err error) {
+func (pf *PacketFilter) MarshalBinary() ([]byte, error) {
 	packetFilterBuffer := bytes.NewBuffer(nil)
 	header := 0 | pf.Direction<<4 | pf.Identifier
 	// write header
-	err = packetFilterBuffer.WriteByte(header)
+	err := packetFilterBuffer.WriteByte(header)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error writing packet filter header: %v", err)
 	}
 	// write length of packet filter
 	err = packetFilterBuffer.WriteByte(pf.ContentLength) // uint8(len(pf.Content)))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error writing packet filter length: %v", err)
 	}
 
 	for _, content := range pf.Content {
 		err = packetFilterBuffer.WriteByte(content.ComponentType)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error writing packet filter component type: %v", err)
 		}
 		_, err = packetFilterBuffer.Write(content.ComponentValue)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error writing packet filter component value: %v", err)
 		}
 	}
-	/*
-		err = packetFilterBuffer.WriteByte(pf.Content)
-		if err != nil {
-			return nil, err
-		}
 
-		if pf.ComponentType == PacketFilterComponentTypeMatchAll || pf.Component == nil {
-			_, err = packetFilterBuffer.Write(pf.Component)
-			if err != nil {
-				return nil, err
-			}
-		}
-	*/
 	return packetFilterBuffer.Bytes(), nil
 }
 

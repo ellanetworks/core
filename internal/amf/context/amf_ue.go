@@ -79,16 +79,16 @@ type AmfUe struct {
 	/* Used for AMF relocation */
 	TargetAmfURI string `json:"targetAmfUri,omitempty"`
 	/* Ue Identity*/
-	PlmnID              models.PlmnID `json:"plmnID,omitempty"`
-	Suci                string        `json:"suci,omitempty"`
-	Supi                string        `json:"supi,omitempty"`
-	UnauthenticatedSupi bool          `json:"unauthenticatedSupi,omitempty"`
-	Gpsi                string        `json:"gpsi,omitempty"`
-	Pei                 string        `json:"pei,omitempty"`
-	Tmsi                int32         `json:"tmsi,omitempty"` // 5G-Tmsi
-	Guti                string        `json:"guti,omitempty"`
-	GroupID             string        `json:"groupID,omitempty"`
-	EBI                 int32         `json:"ebi,omitempty"`
+	PlmnID models.PlmnID `json:"plmnID,omitempty"`
+	Suci   string        `json:"suci,omitempty"`
+	Supi   string        `json:"supi,omitempty"`
+	// UnauthenticatedSupi bool          `json:"unauthenticatedSupi,omitempty"`
+	Gpsi    string `json:"gpsi,omitempty"`
+	Pei     string `json:"pei,omitempty"`
+	Tmsi    int32  `json:"tmsi,omitempty"` // 5G-Tmsi
+	Guti    string `json:"guti,omitempty"`
+	GroupID string `json:"groupID,omitempty"`
+	EBI     int32  `json:"ebi,omitempty"`
 	/* Ue Identity*/
 	/* User Location*/
 	RatType                  models.RatType      `json:"ratType,omitempty"`
@@ -261,7 +261,6 @@ func (ue *AmfUe) init() {
 	ue.State = make(map[models.AccessType]*fsm.State)
 	ue.State[models.AccessType3GPPAccess] = fsm.NewState(Deregistered)
 	ue.State[models.AccessTypeNon3GPPAccess] = fsm.NewState(Deregistered)
-	ue.UnauthenticatedSupi = true
 	ue.RanUe = make(map[models.AccessType]*RanUe)
 	ue.RegistrationArea = make(map[models.AccessType][]models.Tai)
 	ue.AllowedNssai = make(map[models.AccessType][]models.AllowedSnssai)
@@ -605,7 +604,6 @@ func (ue *AmfUe) RemoveAmPolicyAssociation() {
 func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 	if ueContext.Supi != "" {
 		ue.Supi = ueContext.Supi
-		ue.UnauthenticatedSupi = ueContext.SupiUnauthInd
 	}
 
 	if ueContext.Pei != "" {

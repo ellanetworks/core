@@ -130,7 +130,6 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 	switch smContextUpdateData.HoState {
 	case models.HoStatePreparing:
 
-		smContext.HoState = models.HoStatePreparing
 		if err := context.HandleHandoverRequiredTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, handle HandoverRequiredTransfer failed: %+v", err)
 		}
@@ -149,7 +148,6 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 	case models.HoStatePrepared:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, Ho state %v received", smContextUpdateData.HoState)
 
-		smContext.HoState = models.HoStatePrepared
 		response.JSONData.HoState = models.HoStatePrepared
 		if err := context.HandleHandoverRequestAcknowledgeTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, handle HandoverRequestAcknowledgeTransfer failed: %+v", err)
@@ -169,7 +167,6 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 	case models.HoStateCompleted:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, Ho state %v received", smContextUpdateData.HoState)
 
-		smContext.HoState = models.HoStateCompleted
 		response.JSONData.HoState = models.HoStateCompleted
 	}
 	return nil

@@ -54,14 +54,14 @@ func SendPfcpSessionEstablishmentRequest(
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
 	}
-	err = HandlePfcpSessionEstablishmentRequest(rsp)
+	err = HandlePfcpSessionEstablishmentResponse(rsp)
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Establishment Response: %v", err)
 	}
 	return nil
 }
 
-func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentResponse) error {
+func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentResponse) error {
 	SEID := msg.SEID()
 	smContext := context.GetSMContextBySEID(SEID)
 	if smContext == nil {

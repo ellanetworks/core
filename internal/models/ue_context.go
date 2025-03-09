@@ -2,7 +2,6 @@ package models
 
 type UeContext struct {
 	Supi                   string
-	SupiUnauthInd          bool
 	GpsiList               []string
 	Pei                    string
 	RoutingIndicator       string

@@ -359,6 +359,7 @@ func (upf *UPF) AddFAR() (*FAR, error) {
 func (upf *UPF) AddBAR() (*BAR, error) {
 	bar := new(BAR)
 	if BARID, err := upf.barID(); err != nil {
+		return nil, err
 	} else {
 		bar.BARID = BARID
 		upf.barPool.Store(bar.BARID, bar)
@@ -370,6 +371,7 @@ func (upf *UPF) AddBAR() (*BAR, error) {
 func (upf *UPF) AddQER() (*QER, error) {
 	qer := new(QER)
 	if QERID, err := upf.qerID(); err != nil {
+		return nil, err
 	} else {
 		qer.QERID = QERID
 		upf.qerPool.Store(qer.QERID, qer)
@@ -378,28 +380,24 @@ func (upf *UPF) AddQER() (*QER, error) {
 	return qer, nil
 }
 
-func (upf *UPF) RemovePDR(pdr *PDR) (err error) {
+func (upf *UPF) RemovePDR(pdr *PDR) {
 	upf.pdrIDGenerator.FreeID(int64(pdr.PDRID))
 	upf.pdrPool.Delete(pdr.PDRID)
-	return nil
 }
 
-func (upf *UPF) RemoveFAR(far *FAR) (err error) {
+func (upf *UPF) RemoveFAR(far *FAR) {
 	upf.farIDGenerator.FreeID(int64(far.FARID))
 	upf.farPool.Delete(far.FARID)
-	return nil
 }
 
-func (upf *UPF) RemoveBAR(bar *BAR) (err error) {
+func (upf *UPF) RemoveBAR(bar *BAR) {
 	upf.barIDGenerator.FreeID(int64(bar.BARID))
 	upf.barPool.Delete(bar.BARID)
-	return nil
 }
 
-func (upf *UPF) RemoveQER(qer *QER) (err error) {
+func (upf *UPF) RemoveQER(qer *QER) {
 	upf.qerIDGenerator.FreeID(int64(qer.QERID))
 	upf.qerPool.Delete(qer.QERID)
-	return nil
 }
 
 func (upf *UPF) isSupportSnssai(snssai *SNssai) bool {

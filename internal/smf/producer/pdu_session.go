@@ -28,7 +28,6 @@ func HandlePduSessionContextReplacement(smCtxtRef string) error {
 	}
 
 	smCtxt.SMLock.Lock()
-	smCtxt.LocalPurged = true
 	context.RemoveSMContext(smCtxt.Ref)
 
 	// Check if UPF session set, send release

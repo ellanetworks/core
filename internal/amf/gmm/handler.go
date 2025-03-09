@@ -1841,7 +1841,6 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 		}
 		switch response.AuthResult {
 		case models.AuthResultSuccess:
-			ue.UnauthenticatedSupi = false
 			ue.Kseaf = response.Kseaf
 			ue.Supi = response.Supi
 			ue.DerivateKamf()
@@ -1879,7 +1878,6 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 
 		switch response.AuthResult {
 		case models.AuthResultSuccess:
-			ue.UnauthenticatedSupi = false
 			ue.Kseaf = response.KSeaf
 			ue.Supi = response.Supi
 			ue.DerivateKamf()
