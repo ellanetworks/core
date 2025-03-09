@@ -130,7 +130,7 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 			logger.AmfLog.Debugf("Set read timeout: %+v", readTimeout)
 		}
 
-		logger.AmfLog.Infof("new connection from %s", newConn.RemoteAddr())
+		logger.AmfLog.Infof("New connection from %s", newConn.RemoteAddr())
 		connections.Store(newConn, newConn)
 
 		go handleConnection(newConn, readBufSize, handler)

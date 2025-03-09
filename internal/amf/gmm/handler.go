@@ -1354,7 +1354,7 @@ func AuthenticationProcedure(ue *context.AmfUe, accessType models.AccessType) (b
 	if err != nil {
 		return false, fmt.Errorf("error sending authentication request: %v", err)
 	}
-	ue.GmmLog.Infof("sent authentication request")
+	ue.GmmLog.Infof("Sent authentication request")
 	return false, nil
 }
 
@@ -1940,7 +1940,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 			if err != nil {
 				return fmt.Errorf("send authentication request error: %s", err)
 			}
-			ue.GmmLog.Infof("sent authentication request")
+			ue.GmmLog.Infof("Sent authentication request")
 		}
 	}
 
@@ -1989,7 +1989,7 @@ func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType, au
 			if err != nil {
 				return fmt.Errorf("send authentication request error: %s", err)
 			}
-			ue.GmmLog.Infof("sent authentication request")
+			ue.GmmLog.Infof("Sent authentication request")
 		case nasMessage.Cause5GMMSynchFailure: // TS 24.501 5.4.1.3.7 case f
 			ue.GmmLog.Warn("Authentication Failure 5GMM Cause: Synch Failure")
 
@@ -2020,7 +2020,7 @@ func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType, au
 			if err != nil {
 				return fmt.Errorf("send authentication request error: %s", err)
 			}
-			ue.GmmLog.Infof("sent authentication request")
+			ue.GmmLog.Infof("Sent authentication request")
 		}
 	} else if ue.AuthenticationCtx.AuthType == models.AuthTypeEAPAkaPrime {
 		switch cause5GMM {
@@ -2035,7 +2035,7 @@ func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType, au
 			if err != nil {
 				return fmt.Errorf("send authentication request error: %s", err)
 			}
-			ue.GmmLog.Infof("sent authentication request")
+			ue.GmmLog.Infof("Sent authentication request")
 		}
 	}
 

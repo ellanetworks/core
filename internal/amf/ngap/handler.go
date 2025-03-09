@@ -495,7 +495,7 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		logger.AmfLog.Error("ran is nil")
 		return
 	}
-	ran.Log.Infof("received NG Setup Request from: %s", ran.Name)
+	ran.Log.Infof("Received NG Setup Request from radio with id: %s", ran.GnbID)
 	if message == nil {
 		ran.Log.Error("NGAP Message is nil")
 		return
@@ -630,7 +630,7 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 			ran.Log.Errorf("error sending NG Setup Response: %+v", err)
 			return
 		}
-		ran.Log.Infof("sent NG Setup Response")
+		ran.Log.Infof("Sent NG Setup Response")
 	} else {
 		err := ngap_message.SendNGSetupFailure(ran, cause)
 		if err != nil {

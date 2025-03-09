@@ -25,7 +25,7 @@ func Dispatch(conn net.Conn, msg []byte) {
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
 		ran = amfSelf.NewAmfRan(conn)
-		logger.AmfLog.Infof("added a new radio: %s", conn.RemoteAddr().String())
+		logger.AmfLog.Infof("Added a new radio: %s", conn.RemoteAddr().String())
 	}
 
 	if len(msg) == 0 {
