@@ -78,7 +78,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMInsufficientResources)
 		return "", response, fmt.Errorf("failed to allocate IP address: %v", err)
 	}
-	smContext.SubPduSessLog.Infof("Successfully allocated IP address: %s", smContext.PDUAddress.IP.String())
+	smContext.SubPduSessLog.Infof("Successfully allocated IP address: %s", ip.String())
 	smContext.PDUAddress = &context.UeIPAddr{IP: ip, UpfProvided: false}
 
 	snssaiStr, err := marshtojsonstring.MarshToJSONString(createData.SNssai)
