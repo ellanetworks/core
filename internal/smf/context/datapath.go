@@ -157,19 +157,16 @@ func (node *DataPathNode) ActivateDownLinkTunnel(smContext *SMContext) error {
 		}
 	} else {
 		// Default PDR
-		if pdr, err = destUPF.AddPDR(); err != nil {
-			logger.SmfLog.Errorln("in ActivateDownLinkTunnel UPF IP:", node.UPF.NodeID.ResolveNodeIDToIP().String())
-			logger.SmfLog.Errorln("allocate PDR Error:", err)
+		pdr, err = destUPF.AddPDR()
+		if err != nil {
 			return fmt.Errorf("add PDR failed: %s", err)
-		} else {
-			node.DownLinkTunnel.PDR["default"] = pdr
 		}
+		node.DownLinkTunnel.PDR["default"] = pdr
 	}
 
 	// Put PDRs in PFCP session
 	if err = smContext.PutPDRtoPFCPSession(destUPF.NodeID, node.DownLinkTunnel.PDR); err != nil {
-		logger.SmfLog.Errorln("put PDR error:", err)
-		return err
+		return fmt.Errorf("error in put PDR to PFCP session: %s", err)
 	}
 
 	return nil
@@ -177,31 +174,33 @@ func (node *DataPathNode) ActivateDownLinkTunnel(smContext *SMContext) error {
 
 func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 	for name, pdr := range node.UpLinkTunnel.PDR {
-		if pdr != nil {
-			logger.SmfLog.Infof("deactivated UpLinkTunnel PDR name[%v], id[%v]", name, pdr.PDRID)
+		if pdr == nil {
+			logger.SmfLog.Debugf("PDR is nil in UpLinkTunnel: %s", name)
+			continue
+		}
 
-			// Remove PDR from PFCP Session
-			smContext.RemovePDRfromPFCPSession(node.UPF.NodeID, pdr)
+		// Remove PDR from PFCP Session
+		smContext.RemovePDRfromPFCPSession(node.UPF.NodeID, pdr)
 
-			// Remove of UPF
-			node.UPF.RemovePDR(pdr)
+		// Remove of UPF
+		node.UPF.RemovePDR(pdr)
 
-			if far := pdr.FAR; far != nil {
-				node.UPF.RemoveFAR(far)
+		if far := pdr.FAR; far != nil {
+			node.UPF.RemoveFAR(far)
 
-				bar := far.BAR
-				if bar != nil {
-					node.UPF.RemoveBAR(bar)
-				}
+			bar := far.BAR
+			if bar != nil {
+				node.UPF.RemoveBAR(bar)
 			}
-			if qerList := pdr.QER; qerList != nil {
-				for _, qer := range qerList {
-					if qer != nil {
-						node.UPF.RemoveQER(qer)
-					}
+		}
+		if qerList := pdr.QER; qerList != nil {
+			for _, qer := range qerList {
+				if qer != nil {
+					node.UPF.RemoveQER(qer)
 				}
 			}
 		}
+		logger.SmfLog.Infof("deactivated UpLinkTunnel PDR name[%v], id[%v]", name, pdr.PDRID)
 	}
 
 	node.DownLinkTunnel = &GTPTunnel{}
