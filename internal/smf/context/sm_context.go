@@ -41,40 +41,38 @@ type UeIPAddr struct {
 }
 
 type SMContext struct {
-	Ref                          string
-	Supi                         string
-	Pei                          string
-	Identifier                   string
-	Gpsi                         string
-	Dnn                          string
-	UeTimeZone                   string
-	ServingNfID                  string
-	SmStatusNotifyURI            string
-	UpCnxState                   models.UpCnxState
-	AnType                       models.AccessType
-	RatType                      models.RatType
-	PresenceInLadn               models.PresenceState
-	HoState                      models.HoState
-	DnnConfiguration             models.DnnConfiguration
-	Snssai                       *models.Snssai
-	ServingNetwork               *models.PlmnID
-	UeLocation                   *models.UserLocation
-	PDUAddress                   *UeIPAddr
-	Tunnel                       *UPTunnel
-	BPManager                    *BPManager
-	DNNInfo                      *SnssaiSmfDnnInfo
-	ProtocolConfigurationOptions *ProtocolConfigurationOptions
-	SubGsmLog                    *zap.SugaredLogger
-	SubPfcpLog                   *zap.SugaredLogger
-	SubPduSessLog                *zap.SugaredLogger
-	SubCtxLog                    *zap.SugaredLogger
-	SubFsmLog                    *zap.SugaredLogger
-	SmPolicyUpdates              []*qos.PolicyUpdate
-	SmPolicyData                 qos.SmCtxtPolicyData
-	PendingUPF                   PendingUPF
-	PFCPContext                  map[string]*PFCPSessionContext
-	SMLock                       sync.Mutex
-	// SMContextState                      SMContextState
+	Ref                            string
+	Supi                           string
+	Pei                            string
+	Identifier                     string
+	Gpsi                           string
+	Dnn                            string
+	UeTimeZone                     string
+	ServingNfID                    string
+	SmStatusNotifyURI              string
+	UpCnxState                     models.UpCnxState
+	AnType                         models.AccessType
+	RatType                        models.RatType
+	PresenceInLadn                 models.PresenceState
+	HoState                        models.HoState
+	DnnConfiguration               models.DnnConfiguration
+	Snssai                         *models.Snssai
+	ServingNetwork                 *models.PlmnID
+	UeLocation                     *models.UserLocation
+	PDUAddress                     *UeIPAddr
+	Tunnel                         *UPTunnel
+	DNNInfo                        *SnssaiSmfDnnInfo
+	ProtocolConfigurationOptions   *ProtocolConfigurationOptions
+	SubGsmLog                      *zap.SugaredLogger
+	SubPfcpLog                     *zap.SugaredLogger
+	SubPduSessLog                  *zap.SugaredLogger
+	SubCtxLog                      *zap.SugaredLogger
+	SubFsmLog                      *zap.SugaredLogger
+	SmPolicyUpdates                []*qos.PolicyUpdate
+	SmPolicyData                   qos.SmCtxtPolicyData
+	PendingUPF                     PendingUPF
+	PFCPContext                    map[string]*PFCPSessionContext
+	SMLock                         sync.Mutex
 	PDUSessionID                   int32
 	OldPduSessionID                int32
 	SelectedPDUSessionType         uint8

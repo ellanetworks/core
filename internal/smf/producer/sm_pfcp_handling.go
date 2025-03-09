@@ -17,15 +17,9 @@ import (
 func SendPfcpSessionModifyReq(smContext *context.SMContext, pfcpParam *pfcpParam) error {
 	defaultPath := smContext.Tunnel.DataPathPool.GetDefaultPath()
 	ANUPF := defaultPath.FirstDPNode
-	addPduSessionAnchor, status, err := pfcp.SendPfcpSessionModificationRequest(ANUPF.UPF.NodeID, smContext,
-		pfcpParam.pdrList, pfcpParam.farList, pfcpParam.barList, pfcpParam.qerList)
+	status, err := pfcp.SendPfcpSessionModificationRequest(ANUPF.UPF.NodeID, smContext, pfcpParam.pdrList, pfcpParam.farList, pfcpParam.barList, pfcpParam.qerList)
 	if err != nil {
 		logger.SmfLog.Warnf("Failed to send PFCP session modification request: %+v", err)
-	}
-	if addPduSessionAnchor {
-		rspNodeID := context.NewNodeID("0.0.0.0")
-		status2 := AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)
-		status = &status2
 	}
 
 	switch *status {
@@ -37,9 +31,7 @@ func SendPfcpSessionModifyReq(smContext *context.SMContext, pfcpParam *pfcpParam
 		fallthrough
 	case context.SessionUpdateTimeout:
 		smContext.SubCtxLog.Debugln("PDUSessionSMContextUpdate, PFCP Session Modification Timeout")
-
-		err := fmt.Errorf("pfcp modification failure")
-		return err
+		return fmt.Errorf("pfcp session modification failed")
 	}
 
 	return nil

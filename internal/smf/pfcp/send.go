@@ -30,11 +30,11 @@ func SendPfcpSessionEstablishmentRequest(
 	farList []*context.FAR,
 	barList []*context.BAR,
 	qerList []*context.QER,
-) (bool, *context.PFCPSessionResponseStatus, error) {
+) (*context.PFCPSessionResponseStatus, error) {
 	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
 	pfcpContext, ok := ctx.PFCPContext[upNodeIDStr]
 	if !ok {
-		return false, nil, fmt.Errorf("PFCP Context not found for NodeID[%v]", upNodeID)
+		return nil, fmt.Errorf("PFCP Context not found for NodeID[%v]", upNodeID)
 	}
 
 	nodeIDIPAddress := context.SMFSelf().CPNodeID.ResolveNodeIDToIP()
@@ -49,41 +49,40 @@ func SendPfcpSessionEstablishmentRequest(
 		qerList,
 	)
 	if err != nil {
-		return false, nil, err
+		return nil, err
 	}
 	rsp, err := upf.HandlePfcpSessionEstablishmentRequest(pfcpMsg)
 	if err != nil {
-		return false, nil, fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
+		return nil, fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
 	}
-	addPduSessionAnchor, status, err := HandlePfcpSessionEstablishmentRequest(rsp)
+	status, err := HandlePfcpSessionEstablishmentRequest(rsp)
 	if err != nil {
-		return false, status, fmt.Errorf("failed to handle PFCP Session Establishment Response: %v", err)
+		return status, fmt.Errorf("failed to handle PFCP Session Establishment Response: %v", err)
 	}
-	return addPduSessionAnchor, status, nil
+	return status, nil
 }
 
-func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentResponse) (bool, *context.PFCPSessionResponseStatus, error) {
-	var addPduSessionAnchor bool
+func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentResponse) (*context.PFCPSessionResponseStatus, error) {
 	SEID := msg.SEID()
 	smContext := context.GetSMContextBySEID(SEID)
 	if smContext == nil {
-		return addPduSessionAnchor, nil, fmt.Errorf("failed to find SMContext for SEID[%d]", SEID)
+		return nil, fmt.Errorf("failed to find SMContext for SEID[%d]", SEID)
 	}
 	smContext.SMLock.Lock()
 
 	if msg.NodeID == nil {
-		return addPduSessionAnchor, nil, fmt.Errorf("PFCP Session Establishment Response missing NodeID")
+		return nil, fmt.Errorf("PFCP Session Establishment Response missing NodeID")
 	}
 	nodeID, err := msg.NodeID.NodeID()
 	if err != nil {
-		return addPduSessionAnchor, nil, fmt.Errorf("failed to parse NodeID IE: %+v", err)
+		return nil, fmt.Errorf("failed to parse NodeID IE: %+v", err)
 	}
 
 	if msg.UPFSEID != nil {
 		pfcpSessionCtx := smContext.PFCPContext[nodeID]
 		rspUPFseid, err := msg.UPFSEID.FSEID()
 		if err != nil {
-			return addPduSessionAnchor, nil, fmt.Errorf("failed to parse FSEID IE: %+v", err)
+			return nil, fmt.Errorf("failed to parse FSEID IE: %+v", err)
 		}
 		pfcpSessionCtx.RemoteSEID = rspUPFseid.SEID
 	}
@@ -110,13 +109,13 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentResp
 		// Store F-TEID created by UPF
 		fteid, err := FindFTEID(msg.CreatedPDR)
 		if err != nil {
-			return addPduSessionAnchor, nil, fmt.Errorf("failed to parse TEID IE: %+v", err)
+			return nil, fmt.Errorf("failed to parse TEID IE: %+v", err)
 		}
 		logger.SmfLog.Debugf("Created PDR F-TEID: %+v", fteid)
 		ANUPF.UpLinkTunnel.TEID = fteid.TEID
 		upf := context.GetUserPlaneInformation().UPF.UPF
 		if upf == nil {
-			return addPduSessionAnchor, nil, fmt.Errorf("can't find UPF[%s]", nodeID)
+			return nil, fmt.Errorf("can't find UPF[%s]", nodeID)
 		}
 		upf.N3Interfaces = make([]context.UPFInterfaceInfo, 0)
 		n3Interface := context.UPFInterfaceInfo{}
@@ -126,15 +125,15 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentResp
 	smContext.SMLock.Unlock()
 
 	if msg.NodeID == nil {
-		return addPduSessionAnchor, nil, fmt.Errorf("PFCP Session Establishment Response missing NodeID")
+		return nil, fmt.Errorf("PFCP Session Establishment Response missing NodeID")
 	}
 
 	if msg.Cause == nil {
-		return addPduSessionAnchor, nil, fmt.Errorf("PFCP Session Establishment Response missing Cause")
+		return nil, fmt.Errorf("PFCP Session Establishment Response missing Cause")
 	}
 	causeValue, err := msg.Cause.Cause()
 	if err != nil {
-		return addPduSessionAnchor, nil, fmt.Errorf("failed to parse Cause IE: %+v", err)
+		return nil, fmt.Errorf("failed to parse Cause IE: %+v", err)
 	}
 	var status context.PFCPSessionResponseStatus
 	if causeValue == ie.CauseRequestAccepted {
@@ -145,35 +144,21 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentResp
 		smContext.SubPfcpLog.Errorf("PFCP Session Establishment rejected with cause [%v]", causeValue)
 	}
 
-	if context.SMFSelf().ULCLSupport && smContext.BPManager != nil {
-		if smContext.BPManager.BPStatus == context.AddingPSA {
-			smContext.SubPfcpLog.Infoln("keep Adding PSAndULCL")
-			addPduSessionAnchor = true
-			smContext.BPManager.BPStatus = context.AddingPSA
-		}
-	}
-	return addPduSessionAnchor, &status, nil
+	return &status, nil
 }
 
-func HandlePfcpSessionModificationResponse(msg *message.SessionModificationResponse) (bool, *context.PFCPSessionResponseStatus, error) {
-	var addPduSessionAnchor bool
+func HandlePfcpSessionModificationResponse(msg *message.SessionModificationResponse) (*context.PFCPSessionResponseStatus, error) {
 	SEID := msg.SEID()
 
 	smContext := context.GetSMContextBySEID(SEID)
 
-	if context.SMFSelf().ULCLSupport && smContext.BPManager != nil {
-		if smContext.BPManager.BPStatus == context.AddingPSA {
-			addPduSessionAnchor = true
-		}
-	}
-
 	if msg.Cause == nil {
-		return addPduSessionAnchor, nil, fmt.Errorf("PFCP Session Modification Response missing Cause")
+		return nil, fmt.Errorf("PFCP Session Modification Response missing Cause")
 	}
 
 	causeValue, err := msg.Cause.Cause()
 	if err != nil {
-		return addPduSessionAnchor, nil, fmt.Errorf("failed to parse Cause IE: %+v", err)
+		return nil, fmt.Errorf("failed to parse Cause IE: %+v", err)
 	}
 
 	var status context.PFCPSessionResponseStatus
@@ -188,20 +173,13 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 			status = context.SessionUpdateSuccess
 		}
 
-		if context.SMFSelf().ULCLSupport && smContext.BPManager != nil {
-			if smContext.BPManager.BPStatus == context.UnInitialized {
-				smContext.BPManager.BPStatus = context.AddingPSA
-				addPduSessionAnchor = true
-			}
-		}
-
 		smContext.SubPfcpLog.Debugf("PFCP Session Modification Success[%d]\n", SEID)
 	} else {
 		smContext.SubPfcpLog.Debugf("PFCP Session Modification Failed[%d]\n", SEID)
 		status = context.SessionUpdateFailed
 	}
 
-	return addPduSessionAnchor, &status, nil
+	return &status, nil
 }
 
 func SendPfcpSessionModificationRequest(
@@ -211,26 +189,26 @@ func SendPfcpSessionModificationRequest(
 	farList []*context.FAR,
 	barList []*context.BAR,
 	qerList []*context.QER,
-) (bool, *context.PFCPSessionResponseStatus, error) {
+) (*context.PFCPSessionResponseStatus, error) {
 	seqNum := getSeqNumber()
 	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
 	pfcpContext, ok := ctx.PFCPContext[upNodeIDStr]
 	if !ok {
-		return false, nil, fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
+		return nil, fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
 	}
 	pfcpMsg, err := BuildPfcpSessionModificationRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID.ResolveNodeIDToIP(), pdrList, farList, qerList)
 	if err != nil {
-		return false, nil, fmt.Errorf("failed to build PFCP Session Modification Request: %v", err)
+		return nil, fmt.Errorf("failed to build PFCP Session Modification Request: %v", err)
 	}
 	rsp, err := upf.HandlePfcpSessionModificationRequest(pfcpMsg)
 	if err != nil {
-		return false, nil, fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
+		return nil, fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
 	}
-	addPduSessionAnchor, status, err := HandlePfcpSessionModificationResponse(rsp)
+	status, err := HandlePfcpSessionModificationResponse(rsp)
 	if err != nil {
-		return false, status, fmt.Errorf("failed to handle PFCP Session Establishment Response: %v", err)
+		return status, fmt.Errorf("failed to handle PFCP Session Establishment Response: %v", err)
 	}
-	return addPduSessionAnchor, status, nil
+	return status, nil
 }
 
 func HandlePfcpSessionDeletionResponse(msg *message.SessionDeletionResponse) (*context.PFCPSessionResponseStatus, error) {

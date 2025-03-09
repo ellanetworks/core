@@ -12,7 +12,6 @@ import (
 	amf_producer "github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/consumer"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/ellanetworks/core/internal/smf/qos"
@@ -106,7 +105,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 
 	// PCF Policy Association
 	var smPolicyDecision *models.SmPolicyDecision
-	smPolicyDecisionRsp, err := consumer.SendSMPolicyAssociationCreate(smContext)
+	smPolicyDecisionRsp, err := SendSMPolicyAssociationCreate(smContext)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", response, fmt.Errorf("error creating policy association: %v", err)
@@ -221,7 +220,7 @@ func HandlePDUSessionSMContextRelease(smContext *context.SMContext) error {
 	defer smContext.SMLock.Unlock()
 
 	// Send Policy delete
-	err := consumer.SendSMPolicyAssociationDelete(smContext.Supi, smContext.PDUSessionID)
+	err := SendSMPolicyAssociationDelete(smContext.Supi, smContext.PDUSessionID)
 	if err != nil {
 		smContext.SubCtxLog.Errorf("error deleting policy association: %v", err)
 	}

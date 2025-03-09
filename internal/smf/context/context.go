@@ -30,7 +30,6 @@ type SMFContext struct {
 	UserPlaneInformation *UserPlaneInformation
 	CPNodeID             NodeID
 	LocalSEIDCount       uint64
-	ULCLSupport          bool
 }
 
 // RetrieveDnnInformation gets the corresponding dnn info from S-NSSAI and DNN
