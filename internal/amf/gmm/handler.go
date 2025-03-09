@@ -248,7 +248,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType, ulNasTran
 				newSmContext.SetSmContextRef(smContextRef)
 				newSmContext.SetUserLocation(ue.Location)
 				ue.StoreSmContext(pduSessionID, newSmContext)
-				ue.GmmLog.Infof("created sm context for pdu session id %d", pduSessionID)
+				ue.GmmLog.Debugf("Created sm context for pdu session id %d", pduSessionID)
 			}
 		case nasMessage.ULNASTransportRequestTypeModificationRequest:
 			fallthrough
@@ -673,7 +673,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 		if err != nil {
 			return fmt.Errorf("error sending initial context setup request: %v", err)
 		}
-		ue.GmmLog.Infof("sent initial context setup request to N3IWF")
+		ue.GmmLog.Infof("Sent initial context setup request to N3IWF")
 		registrationAccept, err := gmm_message.BuildRegistrationAccept(ue, anType, nil, nil, nil, nil)
 		if err != nil {
 			ue.GmmLog.Errorf("Build Registration Accept: %+v", err)
@@ -959,7 +959,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
-			ue.GmmLog.Infof("sent initial context setup request")
+			ue.GmmLog.Infof("Sent initial context setup request")
 			registrationAccept, err := gmm_message.BuildRegistrationAccept(ue, anType,
 				pduSessionStatus, reactivationResult, errPduSessionID, errCause)
 			if err != nil {
@@ -1755,13 +1755,13 @@ func sendServiceAccept(ue *context.AmfUe, anType models.AccessType, ctxList ngap
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
-			ue.GmmLog.Infof("sent initial context setup request")
+			ue.GmmLog.Infof("Sent initial context setup request")
 		} else {
 			err := ngap_message.SendInitialContextSetupRequest(ue, anType, nasPdu, nil, nil, nil, nil)
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
-			ue.GmmLog.Infof("sent initial context setup request")
+			ue.GmmLog.Infof("Sent initial context setup request")
 		}
 	} else if len(suList.List) != 0 {
 		nasPdu, err := gmm_message.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult,

@@ -73,7 +73,7 @@ func SendPFCPRules(smContext *context.SMContext) context.PFCPSessionResponseStat
 			if err != nil {
 				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, pfcpState.nodeID, pfcpState.nodeID.ResolveNodeIDToIP())
 			}
-			logger.SmfLog.Infof("sent pfcp session establishment request to upf: %v", pfcpState.nodeID)
+			logger.SmfLog.Infof("Sent pfcp session establishment request to upf: %v", pfcpState.nodeID)
 			if addPduSessionAnchor {
 				rspNodeID := context.NewNodeID("0.0.0.0")
 				responseStatus = AddPDUSessionAnchorAndULCL(smContext, *rspNodeID)

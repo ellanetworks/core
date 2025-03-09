@@ -157,7 +157,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqURI string, n1n2Message
 					if err != nil {
 						return nil, fmt.Errorf("send pdu session resource setup request error: %v", err)
 					}
-					ue.ProducerLog.Infof("sent pdu session resource setup request to UE")
+					ue.ProducerLog.Infof("Sent pdu session resource setup request to UE")
 				} else {
 					list := ngapType.PDUSessionResourceSetupListCxtReq{}
 					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&list, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
@@ -165,7 +165,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqURI string, n1n2Message
 					if err != nil {
 						return nil, fmt.Errorf("send initial context setup request error: %v", err)
 					}
-					ue.ProducerLog.Infof("sent initial context setup request to UE")
+					ue.ProducerLog.Infof("Sent initial context setup request to UE")
 					ue.RanUe[anType].SentInitialContextSetupRequest = true
 				}
 				n1n2MessageTransferRspData = new(models.N1N2MessageTransferRspData)

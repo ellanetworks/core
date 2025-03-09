@@ -8,6 +8,7 @@ package context
 
 import (
 	"encoding/hex"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/qos"
@@ -40,11 +41,15 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	pDUSessionEstablishmentAccept.SetPDUSessionType(smContext.SelectedPDUSessionType)
 
 	pDUSessionEstablishmentAccept.SetSSCMode(1)
-	pDUSessionEstablishmentAccept.SessionAMBR = util.ModelsToSessionAMBR(sessRule.AuthSessAmbr)
+	ambr, err := util.ModelsToSessionAMBR(sessRule.AuthSessAmbr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert models to SessionAMBR: %v", err)
+	}
+	pDUSessionEstablishmentAccept.SessionAMBR = ambr
 	pDUSessionEstablishmentAccept.SessionAMBR.SetLen(uint8(len(pDUSessionEstablishmentAccept.SessionAMBR.Octet)))
 
 	qoSRules := qos.BuildQosRules(smContext.SmPolicyUpdates[0])
-	logger.SmfLog.Infof("QoS Rules: %+v", qoSRules)
+	logger.SmfLog.Debugf("QoS Rules: %+v", qoSRules)
 
 	qosRulesBytes, err := qoSRules.MarshalBinary()
 	if err != nil {

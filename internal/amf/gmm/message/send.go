@@ -285,7 +285,7 @@ func SendRegistrationAccept(
 		if err != nil {
 			return fmt.Errorf("error sending initial context setup request: %s", err.Error())
 		}
-		ue.GmmLog.Infof("sent initial context setup request")
+		ue.GmmLog.Infof("Sent initial context setup request")
 	} else {
 		err = ngap_message.SendDownlinkNasTransport(ue.RanUe[models.AccessType3GPPAccess], nasMsg, nil)
 		if err != nil {
@@ -306,7 +306,7 @@ func SendRegistrationAccept(
 					if err != nil {
 						ue.GmmLog.Errorf("could not send initial context setup request: %s", err.Error())
 					}
-					ue.GmmLog.Infof("sent initial context setup request")
+					ue.GmmLog.Infof("Sent initial context setup request")
 				} else {
 					ue.GmmLog.Warnf("T3550 expires, retransmit Registration Accept (retry: %d)", expireTimes)
 					err = ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasMsg, nil)

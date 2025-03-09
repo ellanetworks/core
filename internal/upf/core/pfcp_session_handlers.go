@@ -448,7 +448,7 @@ func composeFarInfo(far *ie.IE, localIP net.IP, farInfo ebpf.FarInfo) (ebpf.FarI
 	if err == nil {
 		outerHeaderCreationIndex := findIEindex(forward, 84) // IE Type Outer Header Creation
 		if outerHeaderCreationIndex == -1 {
-			logger.UpfLog.Warnf("no outer header creation found")
+			logger.UpfLog.Warnf("No outer header creation found")
 		} else {
 			outerHeaderCreation, _ := forward[outerHeaderCreationIndex].OuterHeaderCreation()
 			farInfo.OuterHeaderCreation = uint8(outerHeaderCreation.OuterHeaderCreationDescription >> 8)
@@ -457,7 +457,7 @@ func composeFarInfo(far *ie.IE, localIP net.IP, farInfo ebpf.FarInfo) (ebpf.FarI
 				farInfo.RemoteIP = binary.LittleEndian.Uint32(outerHeaderCreation.IPv4Address)
 			}
 			if outerHeaderCreation.HasIPv6() {
-				logger.UpfLog.Warnf("ipv6 not supported yet, ignoring")
+				logger.UpfLog.Warnf("IPv6 not supported yet, ignoring")
 				return ebpf.FarInfo{}, fmt.Errorf("IPv6 not supported yet")
 			}
 		}
