@@ -7,6 +7,4 @@ type SmPolicyDecision struct {
 	PccRules map[string]*PccRule
 	// Map of QoS data policy decisions.
 	QosDecs map[string]*QosData
-	// Map of Traffic Control data policy decisions.
-	TraffContDecs map[string]*TrafficControlData
 }

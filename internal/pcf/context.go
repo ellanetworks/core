@@ -34,7 +34,6 @@ type SessionPolicy struct {
 type PccPolicy struct {
 	PccRules      map[string]*models.PccRule
 	QosDecs       map[string]*models.QosData
-	TraffContDecs map[string]*models.TrafficControlData
 	SessionPolicy map[string]*SessionPolicy // dnn is key
 }
 
@@ -90,7 +89,6 @@ func GetSubscriberPolicy(imsi string) (*PcfSubscriberPolicyData, error) {
 			SessionPolicy: make(map[string]*SessionPolicy),
 			PccRules:      make(map[string]*models.PccRule),
 			QosDecs:       make(map[string]*models.QosData),
-			TraffContDecs: make(map[string]*models.TrafficControlData),
 		}
 	}
 

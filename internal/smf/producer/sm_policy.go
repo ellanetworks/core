@@ -61,7 +61,6 @@ func SendSMPolicyAssociationDelete(supi string, pduSessionID int32) error {
 
 func validateSmPolicyDecision(smPolicy *models.SmPolicyDecision) error {
 	// Validate just presence of important IEs as of now
-	// Sess Rules
 	for _, rule := range smPolicy.SessRules {
 		if rule.AuthSessAmbr == nil {
 			return fmt.Errorf("authorised session ambr missing")

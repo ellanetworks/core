@@ -231,21 +231,21 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType, ulNasTran
 
 			smContextRef, errResponse, err := consumer.SendCreateSmContextRequest(ue, newSmContext, smMessage)
 			if err != nil {
-				ue.GmmLog.Errorf("error sending sm context request: %v", err)
-				return nil
-			} else if errResponse != nil {
-				ue.GmmLog.Warnf("pdu Session Establishment Request was rejected by SMF [pduSessionID: %d]", pduSessionID)
+				return fmt.Errorf("error sending sm context request: %v", err)
+			}
+			if errResponse != nil {
 				err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, errResponse.BinaryDataN1SmMessage, pduSessionID, 0)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport: %s", err)
 				}
 				ue.GmmLog.Infof("sent downlink nas transport to UE")
-			} else {
-				newSmContext.SetSmContextRef(smContextRef)
-				newSmContext.SetUserLocation(ue.Location)
-				ue.StoreSmContext(pduSessionID, newSmContext)
-				ue.GmmLog.Debugf("Created sm context for pdu session id %d", pduSessionID)
+				return fmt.Errorf("pdu session establishment request was rejected by SMF for pdu session id %d", pduSessionID)
 			}
+
+			newSmContext.SetSmContextRef(smContextRef)
+			newSmContext.SetUserLocation(ue.Location)
+			ue.StoreSmContext(pduSessionID, newSmContext)
+			ue.GmmLog.Debugf("Created sm context for pdu session id %d", pduSessionID)
 		case nasMessage.ULNASTransportRequestTypeModificationRequest:
 			fallthrough
 		case nasMessage.ULNASTransportRequestTypeExistingPduSession:

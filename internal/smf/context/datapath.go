@@ -109,7 +109,7 @@ func (node *DataPathNode) ActivateUpLinkTunnel(smContext *SMContext) error {
 
 		for name, rule := range addRules {
 			if pdr, err = destUPF.BuildCreatePdrFromPccRule(rule); err == nil {
-				if flowQer, err = node.CreatePccRuleQer(smContext, rule.RefQosData[0], rule.RefTcData[0]); err == nil {
+				if flowQer, err = node.CreatePccRuleQer(smContext, rule.RefQosData[0]); err == nil {
 					pdr.QER = append(pdr.QER, flowQer)
 				}
 				// Set PDR in Tunnel
@@ -148,7 +148,7 @@ func (node *DataPathNode) ActivateDownLinkTunnel(smContext *SMContext) error {
 		for name, rule := range addRules {
 			if pdr, err = destUPF.BuildCreatePdrFromPccRule(rule); err == nil {
 				// Add PCC Rule Qos Data QER
-				if flowQer, err = node.CreatePccRuleQer(smContext, rule.RefQosData[0], rule.RefTcData[0]); err == nil {
+				if flowQer, err = node.CreatePccRuleQer(smContext, rule.RefQosData[0]); err == nil {
 					pdr.QER = append(pdr.QER, flowQer)
 				}
 				// Set PDR in Tunnel
@@ -342,39 +342,34 @@ func (dataPath *DataPath) ActivateUlDlTunnel(smContext *SMContext) error {
 	return nil
 }
 
-func (node *DataPathNode) CreatePccRuleQer(smContext *SMContext, qosData string, tcData string) (*QER, error) {
+func (node *DataPathNode) CreatePccRuleQer(smContext *SMContext, qosData string) (*QER, error) {
 	smPolicyDec := smContext.SmPolicyUpdates[0].SmPolicyDecision
 	refQos := qos.GetQoSDataFromPolicyDecision(smPolicyDec, qosData)
-	tc := qos.GetTcDataFromPolicyDecision(smPolicyDec, tcData)
 
 	// Get Flow Status
 	gateStatus := GateOpen
-	if tc != nil && tc.FlowStatus == models.FlowStatusDisabled {
-		gateStatus = GateClose
-	}
 
 	var flowQER *QER
 
-	if newQER, err := node.UPF.AddQER(); err != nil {
-		logger.SmfLog.Errorln("new QER failed")
-		return nil, err
-	} else {
-		newQER.QFI.QFI = qos.GetQosFlowIDFromQosID(refQos.QosID)
-
-		// Flow Status
-		newQER.GateStatus = &GateStatus{
-			ULGate: gateStatus,
-			DLGate: gateStatus,
-		}
-
-		// Rates
-		newQER.MBR = &MBR{
-			ULMBR: util.BitRateTokbps(refQos.MaxbrUl),
-			DLMBR: util.BitRateTokbps(refQos.MaxbrDl),
-		}
-
-		flowQER = newQER
+	newQER, err := node.UPF.AddQER()
+	if err != nil {
+		return nil, fmt.Errorf("failed to add QER: %v", err)
 	}
+	newQER.QFI.QFI = qos.GetQosFlowIDFromQosID(refQos.QosID)
+
+	// Flow Status
+	newQER.GateStatus = &GateStatus{
+		ULGate: gateStatus,
+		DLGate: gateStatus,
+	}
+
+	// Rates
+	newQER.MBR = &MBR{
+		ULMBR: util.BitRateTokbps(refQos.MaxbrUl),
+		DLMBR: util.BitRateTokbps(refQos.MaxbrDl),
+	}
+
+	flowQER = newQER
 
 	return flowQER, nil
 }

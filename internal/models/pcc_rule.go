@@ -8,6 +8,4 @@ type PccRule struct {
 	Precedence int32
 	// A reference to the QoSData policy type decision type. It is the qosID described in subclause 5.6.2.8. (NOTE)
 	RefQosData []string
-	// A reference to the TrafficControlData policy decision type. It is the tcId described in subclause 5.6.2.10. (NOTE)
-	RefTcData []string
 }

@@ -13,7 +13,6 @@ type PolicyUpdate struct {
 	SessRuleUpdate *SessRulesUpdate
 	PccRuleUpdate  *PccRulesUpdate
 	QosFlowUpdate  *QosFlowsUpdate
-	TCUpdate       *TrafficControlUpdate
 
 	// relevant SM Policy Decision from PCF
 	SmPolicyDecision *models.SmPolicyDecision
@@ -23,7 +22,6 @@ type SmCtxtPolicyData struct {
 	// maintain all session rule-info and current active sess rule
 	SmCtxtPccRules     SmCtxtPccRulesInfo
 	SmCtxtQosData      SmCtxtQosData
-	SmCtxtTCData       SmCtxtTrafficControlData
 	SmCtxtSessionRules SmCtxtSessionRulesInfo
 }
 
@@ -42,15 +40,10 @@ type SmCtxtQosData struct {
 	QosData map[string]*models.QosData
 }
 
-type SmCtxtTrafficControlData struct {
-	TrafficControlData map[string]*models.TrafficControlData
-}
-
 func (upd *SmCtxtPolicyData) Initialize() {
 	upd.SmCtxtSessionRules.SessionRules = make(map[string]*models.SessionRule)
 	upd.SmCtxtPccRules.PccRules = make(map[string]*models.PccRule)
 	upd.SmCtxtQosData.QosData = make(map[string]*models.QosData)
-	upd.SmCtxtTCData.TrafficControlData = make(map[string]*models.TrafficControlData)
 }
 
 func BuildSmPolicyUpdate(smCtxtPolData *SmCtxtPolicyData, smPolicyDecision *models.SmPolicyDecision) *PolicyUpdate {
@@ -67,9 +60,6 @@ func BuildSmPolicyUpdate(smCtxtPolData *SmCtxtPolicyData, smPolicyDecision *mode
 
 	// Session Rules update
 	update.SessRuleUpdate = GetSessionRulesUpdate(smPolicyDecision.SessRules, smCtxtPolData.SmCtxtSessionRules.SessionRules)
-
-	// Traffic Control Data update
-	update.TCUpdate = GetTrafficControlUpdate(smPolicyDecision.TraffContDecs, smCtxtPolData.SmCtxtTCData.TrafficControlData)
 
 	return update
 }
@@ -88,11 +78,6 @@ func CommitSmPolicyDecision(smCtxtPolData *SmCtxtPolicyData, smPolicyUpdate *Pol
 	// Update Session Rules
 	if smPolicyUpdate.SessRuleUpdate != nil {
 		CommitSessionRulesUpdate(smCtxtPolData, smPolicyUpdate.SessRuleUpdate)
-	}
-
-	// Update Traffic Control data
-	if smPolicyUpdate.TCUpdate != nil {
-		CommitTrafficControlUpdate(smCtxtPolData, smPolicyUpdate.TCUpdate)
 	}
 
 	return nil

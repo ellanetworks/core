@@ -161,24 +161,21 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 		return nil, fmt.Errorf("failed to parse Cause IE: %+v", err)
 	}
 
-	var status context.PFCPSessionResponseStatus
-	if causeValue == ie.CauseRequestAccepted {
-		smContext.SubPduSessLog.Debugln("PFCP Modification Response Accept")
-		upfNodeID := smContext.GetNodeIDByLocalSEID(SEID)
-		upfIP := upfNodeID.ResolveNodeIDToIP().String()
-		delete(smContext.PendingUPF, upfIP)
-		smContext.SubPduSessLog.Debugf("Delete pending pfcp response: UPF IP [%s]\n", upfIP)
-
-		if smContext.PendingUPF.IsEmpty() {
-			status = context.SessionUpdateSuccess
-		}
-
-		smContext.SubPfcpLog.Debugf("PFCP Session Modification Success[%d]\n", SEID)
-	} else {
-		smContext.SubPfcpLog.Debugf("PFCP Session Modification Failed[%d]\n", SEID)
-		status = context.SessionUpdateFailed
+	if causeValue != ie.CauseRequestAccepted {
+		status := context.SessionUpdateFailed
+		return &status, fmt.Errorf("PFCP Session Modification Failed[%d]", SEID)
 	}
+	smContext.SubPduSessLog.Debugln("PFCP Modification Response Accept")
+	upfNodeID := smContext.GetNodeIDByLocalSEID(SEID)
+	upfIP := upfNodeID.ResolveNodeIDToIP().String()
+	delete(smContext.PendingUPF, upfIP)
+	smContext.SubPduSessLog.Debugf("Delete pending pfcp response: UPF IP [%s]\n", upfIP)
 
+	var status context.PFCPSessionResponseStatus
+	if smContext.PendingUPF.IsEmpty() {
+		status = context.SessionUpdateSuccess
+	}
+	smContext.SubPfcpLog.Debugf("PFCP Session Modification Success[%d]\n", SEID)
 	return &status, nil
 }
 
