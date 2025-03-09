@@ -1053,22 +1053,22 @@ func communicateWithUDM(ue *context.AmfUe, accessType models.AccessType) error {
 
 	err = consumer.SDMGetAmData(ue)
 	if err != nil {
-		return fmt.Errorf("SDM_Get AmData Error[%+v]", err)
+		return fmt.Errorf("error getting am data: %v", err)
 	}
 
 	err = consumer.SDMGetSmfSelectData(ue)
 	if err != nil {
-		return fmt.Errorf("SDM_Get SmfSelectData Error[%+v]", err)
+		return fmt.Errorf("error getting smf selection data: %v", err)
 	}
 
 	err = consumer.SDMGetUeContextInSmfData(ue)
 	if err != nil {
-		return fmt.Errorf("SDM_Get UeContextInSmfData Error[%+v]", err)
+		return fmt.Errorf("error getting ue context in smf data: %v", err)
 	}
 
 	err = consumer.SDMSubscribe(ue)
 	if err != nil {
-		return fmt.Errorf("SDM Subscribe Error[%+v]", err)
+		return fmt.Errorf("error subscribing: %v", err)
 	}
 	ue.SubscriptionDataValid = true
 	return nil
@@ -1077,7 +1077,7 @@ func communicateWithUDM(ue *context.AmfUe, accessType models.AccessType) error {
 func getSubscribedNssai(ue *context.AmfUe) {
 	err := consumer.SDMGetSliceSelectionSubscriptionData(ue)
 	if err != nil {
-		ue.GmmLog.Errorf("SDM_Get Slice Selection Subscription Data Error[%+v]", err)
+		ue.GmmLog.Errorf("error getting slice selection subscription data: %v", err)
 	}
 }
 
@@ -1090,8 +1090,6 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 		if err != nil {
 			return fmt.Errorf("failed to decode requested NSSAI[%s]", err)
 		}
-
-		ue.GmmLog.Infof("RequestedNssai: %+v", requestedNssai)
 
 		needSliceSelection := false
 		for _, requestedSnssai := range requestedNssai {
