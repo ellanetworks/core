@@ -292,7 +292,7 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 				if err != nil {
 					logger.AmfLog.Errorf("error sending security mode command: %+v", err)
 				}
-				logger.AmfLog.Infof("Sent security mode command to UE")
+				logger.AmfLog.Infof("Sent GMM security mode command to UE")
 			}
 		}
 	case GmmMessageEvent:

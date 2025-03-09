@@ -87,7 +87,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 			if err := pdrContext.ExtractPDR(pdr, &spdrInfo); err == nil {
 				session.PutPDR(spdrInfo.PdrID, spdrInfo)
 				applyPDR(spdrInfo, bpfObjects)
-				logger.UpfLog.Infof("applied packet detection rule: %d", spdrInfo.PdrID)
+				logger.UpfLog.Infof("Applied packet detection rule: %d", spdrInfo.PdrID)
 				createdPDRs = append(createdPDRs, spdrInfo)
 			} else {
 				logger.UpfLog.Errorf("couldn't extract PDR info: %s", err.Error())

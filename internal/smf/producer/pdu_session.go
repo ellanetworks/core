@@ -205,13 +205,12 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 			return nil, fmt.Errorf("pfcp session release error: %v ", err.Error())
 		}
 	} else if pfcpAction.sendPfcpModify {
-		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, send PFCP Modification")
-
 		// Initiate PFCP Modify
 		err := SendPfcpSessionModifyReq(smContext, pfcpParam)
 		if err != nil {
 			return nil, fmt.Errorf("pfcp session modify error: %v ", err.Error())
 		}
+		smContext.SubPduSessLog.Infof("Sent PFCP session modification request")
 	}
 
 	return &response, nil
@@ -348,7 +347,7 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 		}
 		return fmt.Errorf("failed to send n1 n2 transfer request: %v", err)
 	}
-	smContext.SubPduSessLog.Infof("sent n1 n2 transfer request")
+	smContext.SubPduSessLog.Infof("Sent n1 n2 transfer request")
 	if rspData.Cause == models.N1N2MessageTransferCauseN1MsgNotTransferred {
 		err = smContext.CommitSmPolicyDecision(false)
 		if err != nil {

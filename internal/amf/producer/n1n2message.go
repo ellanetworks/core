@@ -157,7 +157,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqURI string, n1n2Message
 					if err != nil {
 						return nil, fmt.Errorf("send pdu session resource setup request error: %v", err)
 					}
-					ue.ProducerLog.Infof("Sent pdu session resource setup request to UE")
+					ue.ProducerLog.Infof("sent NGAP pdu session resource setup request to UE")
 				} else {
 					list := ngapType.PDUSessionResourceSetupListCxtReq{}
 					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&list, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
@@ -264,7 +264,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqURI string, n1n2Message
 				if err != nil {
 					return n1n2MessageTransferRspData, fmt.Errorf("error sending downlink nas transport: %v", err)
 				}
-				ue.GmmLog.Infof("sent downlink nas transport message to UE")
+				ue.GmmLog.Infof("Sent GMM downlink nas transport message to UE")
 			} else {
 				n1n2MessageTransferRspData.Cause = models.N1N2MessageTransferCauseAttemptingToReachUE
 				message := context.N1N2Message{

@@ -553,8 +553,6 @@ func IdentityVerification(ue *context.AmfUe) bool {
 }
 
 func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) error {
-	ue.GmmLog.Infoln("Handle Initial Registration")
-
 	amfSelf := context.AMFSelf()
 
 	ue.ClearRegistrationData()
@@ -838,7 +836,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 					if err != nil {
 						return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 					}
-					ue.GmmLog.Infof("sent pdu session resource setup request")
+					ue.GmmLog.Infof("sent NGAP pdu session resource setup request")
 				} else {
 					err := gmm_message.SendRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList)
 					if err != nil {
@@ -852,25 +850,25 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
-					ue.GmmLog.Infof("sent downlink nas transport message to UE")
+					ue.GmmLog.Infof("Sent GMM downlink nas transport message to UE")
 				case models.N1MessageClassLPP:
 					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeLPP, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
-					ue.GmmLog.Infof("sent downlink nas transport message to UE")
+					ue.GmmLog.Infof("Sent GMM downlink nas transport message to UE")
 				case models.N1MessageClassSMS:
 					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeSMS, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
-					ue.GmmLog.Infof("sent downlink nas transport message to UE")
+					ue.GmmLog.Infof("Sent GMM downlink nas transport message to UE")
 				case models.N1MessageClassUPDP:
 					err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeUEPolicy, n1Msg, 0, 0)
 					if err != nil {
 						return fmt.Errorf("error sending downlink nas transport message: %v", err)
 					}
-					ue.GmmLog.Infof("sent downlink nas transport message to UE")
+					ue.GmmLog.Infof("Sent GMM downlink nas transport message to UE")
 				}
 				ue.N1N2Message = nil
 				return nil
@@ -975,7 +973,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			if err != nil {
 				return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 			}
-			ue.GmmLog.Infof("sent pdu session resource setup request")
+			ue.GmmLog.Infof("sent NGAP pdu session resource setup request")
 		} else {
 			err := ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasPdu, nil)
 			if err != nil {
@@ -1769,7 +1767,7 @@ func sendServiceAccept(ue *context.AmfUe, anType models.AccessType, ctxList ngap
 		if err != nil {
 			return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 		}
-		ue.GmmLog.Infof("sent pdu session resource setup request")
+		ue.GmmLog.Infof("sent NGAP pdu session resource setup request")
 	} else {
 		err := gmm_message.SendServiceAccept(ue.RanUe[anType], pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
@@ -2020,8 +2018,6 @@ func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType, au
 }
 
 func HandleRegistrationComplete(ue *context.AmfUe, accessType models.AccessType, registrationComplete *nasMessage.RegistrationComplete) error {
-	ue.GmmLog.Info("Handle Registration Complete")
-
 	if ue.T3550 != nil {
 		ue.T3550.Stop()
 		ue.T3550 = nil // clear the timer

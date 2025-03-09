@@ -65,7 +65,6 @@ func HandleUpdateN1Msg(body models.UpdateSmContextRequest, smContext *context.SM
 
 			// Send Release Notify to AMF
 			response.JSONData.UpCnxState = models.UpCnxStateDeactivated
-			smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, sent SMContext Status Notification successfully")
 		}
 	} else {
 		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, Binary Data N1 SmMessage is nil!")
