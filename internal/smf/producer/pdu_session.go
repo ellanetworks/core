@@ -8,7 +8,6 @@ package producer
 
 import (
 	"fmt"
-	"net/http"
 
 	amf_producer "github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/logger"
@@ -59,9 +58,6 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	createData := request.JSONData
 
 	// Create SM context
-	// smContext := context.NewSMContext(createData.Supi, createData.PduSessionID)
-	smContext.SubPduSessLog.Infof("SM context created")
-	// smContext.ChangeState(context.SmStateActivePending)
 	smContext.SetCreateData(createData)
 	smContext.SmStatusNotifyURI = createData.SmContextStatusURI
 
@@ -71,67 +67,55 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	// DNN Information from config
 	smContext.DNNInfo = context.RetrieveDnnInformation(*createData.SNssai, createData.Dnn)
 	if smContext.DNNInfo == nil {
-		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, S-NSSAI[sst: %d, sd: %s] DNN[%s] does not match DNN Config",
-			createData.SNssai.Sst, createData.SNssai.Sd, createData.Dnn)
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
-		return "", response, fmt.Errorf("SnssaiError")
+		return "", response, fmt.Errorf("couldn't find DNN information: snssai does not match DNN config: Sst: %d, Sd: %s, DNN: %s", createData.SNssai.Sst, createData.SNssai.Sd, createData.Dnn)
 	}
 
 	// IP Allocation
 	smfSelf := context.SMFSelf()
-	if ip, err := smfSelf.DBInstance.AllocateIP(smContext.Supi); err != nil {
-		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, failed allocate IP address: ", err)
+	ip, err := smfSelf.DBInstance.AllocateIP(smContext.Supi)
+	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMInsufficientResources)
-		return "", response, fmt.Errorf("failed allocate IP address: %v", err)
-	} else {
-		smContext.PDUAddress = &context.UeIPAddr{IP: ip, UpfProvided: false}
-		smContext.SubPduSessLog.Infof("Successful IP Allocation: %s", smContext.PDUAddress.IP.String())
+		return "", response, fmt.Errorf("failed to allocate IP address: %v", err)
 	}
+	smContext.SubPduSessLog.Infof("Successfully allocated IP address: %s", ip.String())
+	smContext.PDUAddress = &context.UeIPAddr{IP: ip, UpfProvided: false}
 
 	snssaiStr, err := marshtojsonstring.MarshToJSONString(createData.SNssai)
 	if err != nil {
-		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, marshalling SNssai error: ", err)
+		return "", nil, fmt.Errorf("failed marshalling SNssai: %v", err)
 	}
 
 	snssai := snssaiStr[0]
 	sessSubData, err := udm.GetAndSetSmData(smContext.Supi, createData.Dnn, snssai)
 	if err != nil {
-		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, get SessionManagementSubscriptionData error: ", err)
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("SubscriptionError")
+		return "", response, fmt.Errorf("failed to get subscription data: %v", err)
 	}
-	if len(sessSubData) > 0 {
-		smContext.DnnConfiguration = sessSubData[0].DnnConfigurations[createData.Dnn]
-		smContext.SubPduSessLog.Infof("subscription data retrieved from UDM")
-	} else {
-		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SessionManagementSubscriptionData from UDM is nil")
+
+	if len(sessSubData) == 0 {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("NoSubscriptionError")
+		return "", response, fmt.Errorf("no subscription data")
 	}
+
+	smContext.DnnConfiguration = sessSubData[0].DnnConfigurations[createData.Dnn]
 
 	// Decode UE content(PCO)
 	establishmentRequest := m.PDUSessionEstablishmentRequest
 	smContext.HandlePDUSessionEstablishmentRequest(establishmentRequest)
 
-	smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, send NF Discovery Serving PCF success")
-
 	// PCF Policy Association
 	var smPolicyDecision *models.SmPolicyDecision
-	if smPolicyDecisionRsp, httpStatus, err := consumer.SendSMPolicyAssociationCreate(smContext); err != nil {
-		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SMPolicyAssociationCreate error: ", err)
+	smPolicyDecisionRsp, err := consumer.SendSMPolicyAssociationCreate(smContext)
+	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("PcfAssoError")
-	} else if httpStatus != http.StatusCreated {
-		smContext.SubPduSessLog.Errorln("PDUSessionSMContextCreate, SMPolicyAssociationCreate http status: ", http.StatusText(httpStatus))
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("PcfAssoError")
-	} else {
-		smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, Policy association create success")
-		smPolicyDecision = smPolicyDecisionRsp
-
-		policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, smPolicyDecision)
-		smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
+		return "", response, fmt.Errorf("error creating policy association: %v", err)
 	}
+	smContext.SubPduSessLog.Infof("Created policy association")
+	smPolicyDecision = smPolicyDecisionRsp
+
+	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, smPolicyDecision)
+	smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
 
 	// dataPath selection
 	smContext.Tunnel = context.NewUPTunnel()
@@ -146,24 +130,21 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 
 	defaultUPPath, err := context.GetUserPlaneInformation().GetDefaultUserPlanePathByDNN(upfSelectionParams)
 	if err != nil {
-		smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, get default UP path error: %v", err.Error())
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("DataPathError")
+		return "", response, fmt.Errorf("couldn't get default user plane path: %v", err)
 	}
 	defaultPath, err = context.GenerateDataPath(defaultUPPath, smContext)
 	if err != nil {
-		smContext.SubPduSessLog.Errorf("couldn't generate data path: %v", err.Error())
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("DataPathError")
+		return "", response, fmt.Errorf("couldn't generate data path: %v", err)
 	}
 	if defaultPath != nil {
 		defaultPath.IsDefaultPath = true
 		smContext.Tunnel.AddDataPath(defaultPath)
 
 		if err := defaultPath.ActivateTunnelAndPDR(smContext, 255); err != nil {
-			smContext.SubPduSessLog.Errorf("PDUSessionSMContextCreate, data path error: %v", err.Error())
 			response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-			return "", response, fmt.Errorf("DataPathError")
+			return "", response, fmt.Errorf("couldn't activate data path: %v", err)
 		}
 	}
 	if defaultPath == nil {
@@ -173,7 +154,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 
 	_ = smContext.BuildCreatedData()
 
-	smContext.SubPduSessLog.Infof("PDUSessionSMContextCreate, PDU session context create success ")
+	smContext.SubPduSessLog.Infof("Successfully created PDU session context")
 
 	return smContext.Ref, nil, nil
 }
@@ -224,13 +205,12 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 			return nil, fmt.Errorf("pfcp session release error: %v ", err.Error())
 		}
 	} else if pfcpAction.sendPfcpModify {
-		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, send PFCP Modification")
-
 		// Initiate PFCP Modify
 		err := SendPfcpSessionModifyReq(smContext, pfcpParam)
 		if err != nil {
 			return nil, fmt.Errorf("pfcp session modify error: %v ", err.Error())
 		}
+		smContext.SubPduSessLog.Infof("Sent PFCP session modification request")
 	}
 
 	return &response, nil
@@ -359,31 +339,26 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 		}
 	}
 
-	smContext.SubPduSessLog.Infof("N1N2 transfer initiated")
-	// communicationClient := Namf_Communication.NewAPIClient(communicationConf)
 	rspData, err := amf_producer.CreateN1N2MessageTransfer(smContext.Supi, n1n2Request, "")
 	if err != nil {
-		smContext.SubPfcpLog.Warnf("Send N1N2Transfer failed, %v ", err.Error())
 		err = smContext.CommitSmPolicyDecision(false)
 		if err != nil {
-			smContext.SubPfcpLog.Errorf("CommitSmPolicyDecision failed, %v", err)
+			return fmt.Errorf("failed to commit sm policy decision: %v", err)
 		}
-		return err
+		return fmt.Errorf("failed to send n1 n2 transfer request: %v", err)
 	}
+	smContext.SubPduSessLog.Infof("Sent n1 n2 transfer request")
 	if rspData.Cause == models.N1N2MessageTransferCauseN1MsgNotTransferred {
-		smContext.SubPfcpLog.Errorf("N1N2MessageTransfer failure, %v", rspData.Cause)
 		err = smContext.CommitSmPolicyDecision(false)
 		if err != nil {
-			smContext.SubPfcpLog.Errorf("CommitSmPolicyDecision failed, %v", err)
+			return fmt.Errorf("failed to commit sm policy decision: %v", err)
 		}
-		return fmt.Errorf("N1N2MessageTransfer failure, %v", rspData.Cause)
+		return fmt.Errorf("failed to send n1 n2 transfer request: %v", rspData.Cause)
 	}
 
 	err = smContext.CommitSmPolicyDecision(true)
 	if err != nil {
-		smContext.SubPfcpLog.Errorf("CommitSmPolicyDecision failed, %v", err)
+		return fmt.Errorf("failed to commit sm policy decision: %v", err)
 	}
-	smContext.SubPduSessLog.Infof("Message content: %v", rspData)
-	smContext.SubPduSessLog.Infof("N1N2 Transfer completed")
 	return nil
 }

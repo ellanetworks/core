@@ -287,18 +287,13 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	if err != nil {
 		return nil, fmt.Errorf("milenage F2345 err: %w", err)
 	}
-	// fmt.Printf("milenage RES = %s\n", hex.EncodeToString(RES))
 
 	// Generate AUTN
-	// fmt.Printf("SQN=%x\nAK =%x\n", SQN, AK)
-	// fmt.Printf("AMF=%x, macA=%x\n", AMF, macA)
 	SQNxorAK := make([]byte, 6)
 	for i := 0; i < len(sqn); i++ {
 		SQNxorAK[i] = sqn[i] ^ AK[i]
 	}
-	// fmt.Printf("SQN xor AK = %x\n", SQNxorAK)
 	AUTN := append(append(SQNxorAK, AMF...), macA...)
-	fmt.Printf("AUTN = %x\n", AUTN)
 	response := &models.AuthenticationInfoResult{}
 	var av models.AuthenticationVector
 	if authSubs.AuthenticationMethod == models.AuthMethod5GAka {

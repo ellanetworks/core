@@ -45,7 +45,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (string, *models.Post
 			go func() {
 				err := producer.SendPduSessN1N2Transfer(smContext, false)
 				if err != nil {
-					logger.SmfLog.Errorf("error transferring N1N2: %v", err)
+					logger.SmfLog.Errorf("error transferring n1 n2: %v", err)
 				}
 			}()
 		}
@@ -54,7 +54,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (string, *models.Post
 	go func() {
 		err := producer.SendPduSessN1N2Transfer(smContext, true)
 		if err != nil {
-			logger.SmfLog.Errorf("error transferring N1N2: %v", err)
+			logger.SmfLog.Errorf("error transferring n1 n2: %v", err)
 		}
 	}()
 	return location, nil, nil

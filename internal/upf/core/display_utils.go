@@ -47,7 +47,7 @@ func printSessionEstablishmentRequest(req *message.SessionEstablishmentRequest) 
 		sb.WriteString("  Create")
 		displayBar(&sb, req.CreateBAR)
 	}
-	logger.UpfLog.Infof(sb.String())
+	logger.UpfLog.Debugf(sb.String())
 }
 
 // IE Contents of Create/Update/Remove are mostly the same
@@ -148,7 +148,7 @@ func printSessionModificationRequest(req *message.SessionModificationRequest) {
 			writeLineTabbed(&sb, fmt.Sprintf("BAR ID: %d ", barID), 2)
 		}
 	}
-	logger.UpfLog.Infof(sb.String())
+	logger.UpfLog.Debugf(sb.String())
 }
 
 func printSessionDeleteRequest(req *message.SessionDeletionRequest) {
@@ -348,7 +348,7 @@ func displayPdr(sb *strings.Builder, pdr *ie.IE) {
 					writeLineTabbed(sb, fmt.Sprintf("UE IPv6 Address: %s ", ueIP.IPv6Address), 2)
 				}
 			} else {
-				logger.UpfLog.Infof("ueIP is nil. ueipPdiID: %d", ueipPdiID)
+				logger.UpfLog.Debugf("ueIP is nil. ueipPdiID: %d", ueipPdiID)
 			}
 		}
 

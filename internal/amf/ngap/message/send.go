@@ -306,8 +306,6 @@ func SendInitialContextSetupRequest(
 		return fmt.Errorf("amf ue is nil")
 	}
 
-	amfUe.RanUe[anType].Log.Info("Send Initial Context Setup Request")
-
 	if pduSessionResourceSetupRequestList != nil {
 		if len(pduSessionResourceSetupRequestList.List) > context.MaxNumOfPDUSessions {
 			return fmt.Errorf("pdu list out of range")

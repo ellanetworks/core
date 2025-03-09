@@ -39,17 +39,9 @@ func milenageF1(opc, k, _rand, sqn, amf, macA, macS []uint8) error {
 	tmp1 := make([]byte, block.BlockSize())
 	block.Encrypt(tmp1, rijndaelInput)
 
-	// fmt.Printf("tmp1: %x\n", tmp1)
-
-	/* tmp2 = IN1 = SQN || AMF || SQN || AMF */
 	copy(tmp2[0:], sqn[0:6])
 	copy(tmp2[6:], amf[0:2])
 	copy(tmp2[8:], tmp2[0:8])
-	/*
-		os_memcpy(tmp2, sqn, 6);
-		os_memcpy(tmp2 + 6, amf, 2);
-		os_memcpy(tmp2 + 8, tmp2, 8);
-	*/
 
 	/* OUT1 = E_K(TEMP XOR rot(IN1 XOR OP_C, r1) XOR c1) XOR OP_C */
 
@@ -58,13 +50,10 @@ func milenageF1(opc, k, _rand, sqn, amf, macA, macS []uint8) error {
 		tmp3[(i+8)%16] = tmp2[i] ^ opc[i]
 	}
 
-	// fmt.Printf("tmp3: %x\n", tmp3)
-
 	/* XOR with TEMP = E_K(RAND XOR OP_C) */
 	for i := 0; i < 16; i++ {
 		tmp3[i] ^= tmp1[i]
 	}
-	// fmt.Printf("tmp3 XOR with TEMP: %x\n", tmp3)
 
 	/* XOR with c1 (= ..00, i.e., NOP) */
 	/* f1 || f1* = E_K(tmp3) XOR OP_c */
@@ -72,12 +61,9 @@ func milenageF1(opc, k, _rand, sqn, amf, macA, macS []uint8) error {
 	tmp1 = make([]byte, block.BlockSize())
 	block.Encrypt(tmp1, tmp3)
 
-	// fmt.Printf("XOR with c1 (: %x\n", tmp1)
-
 	for i := 0; i < 16; i++ {
 		tmp1[i] ^= opc[i]
 	}
-	// fmt.Printf("tmp1[i] ^= opc[i] %x\n", tmp1)
 	if macA != nil {
 		copy(macA[0:], tmp1[0:8])
 	}

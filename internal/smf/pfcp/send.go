@@ -86,7 +86,6 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentResp
 			return addPduSessionAnchor, nil, fmt.Errorf("failed to parse FSEID IE: %+v", err)
 		}
 		pfcpSessionCtx.RemoteSEID = rspUPFseid.SEID
-		smContext.SubPfcpLog.Infof("in HandlePfcpSessionEstablishmentResponse rsp.UPFSEID.Seid [%v] ", rspUPFseid.SEID)
 	}
 
 	// Get N3 interface UPF
@@ -113,7 +112,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentResp
 		if err != nil {
 			return addPduSessionAnchor, nil, fmt.Errorf("failed to parse TEID IE: %+v", err)
 		}
-		logger.SmfLog.Infof("created PDR FTEID: %+v", fteid)
+		logger.SmfLog.Debugf("Created PDR F-TEID: %+v", fteid)
 		ANUPF.UpLinkTunnel.TEID = fteid.TEID
 		upf := context.GetUserPlaneInformation().UPF.UPF
 		if upf == nil {
@@ -179,7 +178,7 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 
 	var status context.PFCPSessionResponseStatus
 	if causeValue == ie.CauseRequestAccepted {
-		smContext.SubPduSessLog.Infoln("PFCP Modification Response Accept")
+		smContext.SubPduSessLog.Debugln("PFCP Modification Response Accept")
 		upfNodeID := smContext.GetNodeIDByLocalSEID(SEID)
 		upfIP := upfNodeID.ResolveNodeIDToIP().String()
 		delete(smContext.PendingUPF, upfIP)
@@ -196,9 +195,9 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 			}
 		}
 
-		smContext.SubPfcpLog.Infof("PFCP Session Modification Success[%d]\n", SEID)
+		smContext.SubPfcpLog.Debugf("PFCP Session Modification Success[%d]\n", SEID)
 	} else {
-		smContext.SubPfcpLog.Infof("PFCP Session Modification Failed[%d]\n", SEID)
+		smContext.SubPfcpLog.Debugf("PFCP Session Modification Failed[%d]\n", SEID)
 		status = context.SessionUpdateFailed
 	}
 

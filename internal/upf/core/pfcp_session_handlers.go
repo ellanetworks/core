@@ -47,34 +47,32 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 		for _, far := range msg.CreateFAR {
 			farInfo, err := composeFarInfo(far, conn.n3Address.To4(), ebpf.FarInfo{})
 			if err != nil {
-				logger.UpfLog.Infof("Error extracting FAR info: %s", err.Error())
-				continue
+				return fmt.Errorf("couldn't extract FAR info: %s", err.Error())
 			}
 
 			farid, _ := far.FARID()
-			logger.UpfLog.Infof("Saving FAR info to session: %d, %+v", farid, farInfo)
-			if internalID, err := bpfObjects.NewFar(farInfo); err == nil {
-				session.NewFar(farid, internalID, farInfo)
-			} else {
-				logger.UpfLog.Infof("Can't put FAR: %s", err.Error())
-				return err
+			logger.UpfLog.Debugf("Saving FAR info to session: %d, %+v", farid, farInfo)
+			internalID, err := bpfObjects.NewFar(farInfo)
+			if err != nil {
+				return fmt.Errorf("can't put FAR: %s", err.Error())
 			}
+			session.NewFar(farid, internalID, farInfo)
+			logger.UpfLog.Infof("Created Forwarding Action Rule: %d", farid)
 		}
 
 		for _, qer := range msg.CreateQER {
 			qerInfo := ebpf.QerInfo{}
 			qerID, err := qer.QERID()
 			if err != nil {
-				return fmt.Errorf("QER ID missing")
+				return fmt.Errorf("qer id is missing")
 			}
 			updateQer(&qerInfo, qer)
-			logger.UpfLog.Infof("Saving QER info to session: %d, %+v", qerID, qerInfo)
-			if internalID, err := bpfObjects.NewQer(qerInfo); err == nil {
-				session.NewQer(qerID, internalID, qerInfo)
-			} else {
-				logger.UpfLog.Infof("Can't put QER: %s", err.Error())
-				return err
+			internalID, err := bpfObjects.NewQer(qerInfo)
+			if err != nil {
+				return fmt.Errorf("can't put QER: %s", err.Error())
 			}
+			session.NewQer(qerID, internalID, qerInfo)
+			logger.UpfLog.Infof("Created QoS Enforcement Rule: %d", qerID)
 		}
 
 		for _, pdr := range msg.CreatePDR {
@@ -89,6 +87,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 			if err := pdrContext.ExtractPDR(pdr, &spdrInfo); err == nil {
 				session.PutPDR(spdrInfo.PdrID, spdrInfo)
 				applyPDR(spdrInfo, bpfObjects)
+				logger.UpfLog.Infof("Applied packet detection rule: %d", spdrInfo.PdrID)
 				createdPDRs = append(createdPDRs, spdrInfo)
 			} else {
 				logger.UpfLog.Errorf("couldn't extract PDR info: %s", err.Error())
@@ -113,9 +112,8 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 	pdrIEs := processCreatedPDRs(createdPDRs, cloneIP(conn.n3Address))
 	additionalIEs = append(additionalIEs, pdrIEs...)
 
-	// Send SessionEstablishmentResponse
 	estResp := message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, additionalIEs...)
-	logger.UpfLog.Infof("Accepted Session Establishment Request from: %s", conn.SmfAddress)
+	logger.UpfLog.Debugf("Accepted Session Establishment Request from: %s", conn.SmfAddress)
 	return estResp, nil
 }
 
@@ -321,7 +319,7 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 				}
 			}
 		}
-		logger.UpfLog.Infof("Session modification successful")
+		logger.UpfLog.Debugf("Session modification successful")
 		return nil
 	}()
 	if err != nil {
@@ -451,7 +449,7 @@ func composeFarInfo(far *ie.IE, localIP net.IP, farInfo ebpf.FarInfo) (ebpf.FarI
 	if err == nil {
 		outerHeaderCreationIndex := findIEindex(forward, 84) // IE Type Outer Header Creation
 		if outerHeaderCreationIndex == -1 {
-			logger.UpfLog.Infof("WARN: No OuterHeaderCreation")
+			logger.UpfLog.Warnf("No outer header creation found")
 		} else {
 			outerHeaderCreation, _ := forward[outerHeaderCreationIndex].OuterHeaderCreation()
 			farInfo.OuterHeaderCreation = uint8(outerHeaderCreation.OuterHeaderCreationDescription >> 8)
@@ -460,7 +458,7 @@ func composeFarInfo(far *ie.IE, localIP net.IP, farInfo ebpf.FarInfo) (ebpf.FarI
 				farInfo.RemoteIP = binary.LittleEndian.Uint32(outerHeaderCreation.IPv4Address)
 			}
 			if outerHeaderCreation.HasIPv6() {
-				logger.UpfLog.Infof("WARN: IPv6 not supported yet, ignoring")
+				logger.UpfLog.Warnf("IPv6 not supported yet, ignoring")
 				return ebpf.FarInfo{}, fmt.Errorf("IPv6 not supported yet")
 			}
 		}

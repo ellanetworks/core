@@ -117,13 +117,11 @@ func FetchUeContextWithMobileIdentity(payload []byte) *context.AmfUe {
 	logger.AmfLog.Debugf("securityHeaderType is %v", msg.SecurityHeaderType)
 	switch msg.SecurityHeaderType {
 	case nas.SecurityHeaderTypeIntegrityProtected:
-		logger.AmfLog.Infof("Security header type: Integrity Protected")
 		p := payload[7:]
 		if err := msg.PlainNasDecode(&p); err != nil {
 			return nil
 		}
 	case nas.SecurityHeaderTypePlainNas:
-		logger.AmfLog.Infof("Security header type: PlainNas Message")
 		if err := msg.PlainNasDecode(&payload); err != nil {
 			return nil
 		}

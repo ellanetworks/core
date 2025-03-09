@@ -5,7 +5,6 @@
 package qos_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -26,7 +25,6 @@ func TestBuildAuthorizedQosFlowDescriptions(t *testing.T) {
 
 	authorizedQosFlow := qos.BuildAuthorizedQosFlowDescriptions(smPolicyUpdates)
 
-	fmt.Printf("Authorized QosFlow: %v\n", authorizedQosFlow.Content)
 	firstQosDataID := authorizedQosFlow.Content[0]
 	if firstQosDataID == 1 {
 		expectedBytes := []byte{

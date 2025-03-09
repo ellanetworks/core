@@ -87,7 +87,7 @@ func SendAuthenticationRequest(ue *context.RanUe) error {
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
-	amfUe.GmmLog.Infof("Sent authentication request to UE")
+	amfUe.GmmLog.Infof("Sent GMM downlink nas transport message to UE")
 
 	if context.AMFSelf().T3560Cfg.Enable {
 		cfg := context.AMFSelf().T3560Cfg
@@ -98,7 +98,7 @@ func SendAuthenticationRequest(ue *context.RanUe) error {
 				amfUe.GmmLog.Errorf("could not send downlink NAS transport message: %s", err.Error())
 				return
 			}
-			amfUe.GmmLog.Infof("Sent authentication request to UE")
+			amfUe.GmmLog.Infof("Sent GMM downlink nas transport message to UE")
 		}, func() {
 			amfUe.GmmLog.Warnf("T3560 Expires %d times, abort authentication procedure & ongoing 5GMM procedure",
 				cfg.MaxRetryTimes)
@@ -285,13 +285,13 @@ func SendRegistrationAccept(
 		if err != nil {
 			return fmt.Errorf("error sending initial context setup request: %s", err.Error())
 		}
-		ue.GmmLog.Infof("sent initial context setup request")
+		ue.GmmLog.Infof("Sent NGAP initial context setup request")
 	} else {
 		err = ngap_message.SendDownlinkNasTransport(ue.RanUe[models.AccessType3GPPAccess], nasMsg, nil)
 		if err != nil {
 			return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 		}
-		ue.GmmLog.Infof("sent registration accept")
+		ue.GmmLog.Infof("Sent GMM registration accept")
 	}
 
 	if context.AMFSelf().T3550Cfg.Enable {
@@ -306,14 +306,14 @@ func SendRegistrationAccept(
 					if err != nil {
 						ue.GmmLog.Errorf("could not send initial context setup request: %s", err.Error())
 					}
-					ue.GmmLog.Infof("sent initial context setup request")
+					ue.GmmLog.Infof("Sent NGAP initial context setup request")
 				} else {
 					ue.GmmLog.Warnf("T3550 expires, retransmit Registration Accept (retry: %d)", expireTimes)
 					err = ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasMsg, nil)
 					if err != nil {
 						ue.GmmLog.Errorf("could not send downlink NAS transport message: %s", err.Error())
 					}
-					ue.GmmLog.Infof("sent registration accept")
+					ue.GmmLog.Infof("Sent GMM registration accept")
 				}
 			}
 		}, func() {

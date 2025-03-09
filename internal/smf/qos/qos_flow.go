@@ -105,8 +105,7 @@ func BuildAuthorizedQosFlowDescriptions(smPolicyUpdates *PolicyUpdate) *QosFlowD
 
 	// QoS Flow Description to be Added
 	if qosFlowUpdate != nil {
-		for name, qosFlow := range qosFlowUpdate.add {
-			log.Printf("Adding Qos Flow Description [%v] ", name)
+		for _, qosFlow := range qosFlowUpdate.add {
 			QFDescriptions.BuildAddQosFlowDescFromQoSDesc(qosFlow)
 		}
 	}
