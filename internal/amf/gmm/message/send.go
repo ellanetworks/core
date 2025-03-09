@@ -291,7 +291,7 @@ func SendRegistrationAccept(
 		if err != nil {
 			return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 		}
-		ue.GmmLog.Infof("sent registration accept")
+		ue.GmmLog.Infof("Sent GMM registration accept")
 	}
 
 	if context.AMFSelf().T3550Cfg.Enable {
@@ -313,7 +313,7 @@ func SendRegistrationAccept(
 					if err != nil {
 						ue.GmmLog.Errorf("could not send downlink NAS transport message: %s", err.Error())
 					}
-					ue.GmmLog.Infof("sent registration accept")
+					ue.GmmLog.Infof("Sent GMM registration accept")
 				}
 			}
 		}, func() {

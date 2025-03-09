@@ -157,7 +157,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqURI string, n1n2Message
 					if err != nil {
 						return nil, fmt.Errorf("send pdu session resource setup request error: %v", err)
 					}
-					ue.ProducerLog.Infof("sent NGAP pdu session resource setup request to UE")
+					ue.ProducerLog.Infof("Sent NGAP pdu session resource setup request to UE")
 				} else {
 					list := ngapType.PDUSessionResourceSetupListCxtReq{}
 					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&list, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)

@@ -657,7 +657,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 	if anType == models.AccessType3GPPAccess {
 		err := gmm_message.SendRegistrationAccept(ue, anType, nil, nil, nil, nil, nil)
 		if err != nil {
-			return fmt.Errorf("error sending registration accept: %v", err)
+			return fmt.Errorf("error sending GMM registration accept: %v", err)
 		}
 		ue.GmmLog.Infof("Sent GMM registration accept to UE")
 	} else {
@@ -836,13 +836,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 					if err != nil {
 						return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 					}
-					ue.GmmLog.Infof("sent NGAP pdu session resource setup request")
+					ue.GmmLog.Infof("Sent NGAP pdu session resource setup request")
 				} else {
 					err := gmm_message.SendRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList)
 					if err != nil {
-						return fmt.Errorf("error sending registration accept: %v", err)
+						return fmt.Errorf("error sending GMM registration accept: %v", err)
 					}
-					ue.GmmLog.Infof("sent registration accept")
+					ue.GmmLog.Infof("Sent GMM registration accept")
 				}
 				switch requestData.N1MessageContainer.N1MessageClass {
 				case models.N1MessageClassSM:
@@ -945,9 +945,9 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		if anType == models.AccessType3GPPAccess {
 			err := gmm_message.SendRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList)
 			if err != nil {
-				return fmt.Errorf("error sending registration accept: %v", err)
+				return fmt.Errorf("error sending GMM registration accept: %v", err)
 			}
-			ue.GmmLog.Infof("sent registration accept")
+			ue.GmmLog.Infof("Sent GMM registration accept")
 		} else {
 			err := ngap_message.SendInitialContextSetupRequest(ue, anType, nil, &ctxList, nil, nil, nil)
 			if err != nil {
@@ -973,7 +973,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			if err != nil {
 				return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 			}
-			ue.GmmLog.Infof("sent NGAP pdu session resource setup request")
+			ue.GmmLog.Infof("Sent NGAP pdu session resource setup request")
 		} else {
 			err := ngap_message.SendDownlinkNasTransport(ue.RanUe[anType], nasPdu, nil)
 			if err != nil {
@@ -1767,7 +1767,7 @@ func sendServiceAccept(ue *context.AmfUe, anType models.AccessType, ctxList ngap
 		if err != nil {
 			return fmt.Errorf("error sending pdu session resource setup request: %v", err)
 		}
-		ue.GmmLog.Infof("sent NGAP pdu session resource setup request")
+		ue.GmmLog.Infof("Sent NGAP pdu session resource setup request")
 	} else {
 		err := gmm_message.SendServiceAccept(ue.RanUe[anType], pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {

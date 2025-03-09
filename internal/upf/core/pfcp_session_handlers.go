@@ -319,7 +319,7 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 				}
 			}
 		}
-		logger.UpfLog.Infof("Session modification successful")
+		logger.UpfLog.Debugf("Session modification successful")
 		return nil
 	}()
 	if err != nil {
