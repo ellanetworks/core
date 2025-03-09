@@ -52,11 +52,12 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 
 			farid, _ := far.FARID()
 			logger.UpfLog.Debugf("Saving FAR info to session: %d, %+v", farid, farInfo)
-			if internalID, err := bpfObjects.NewFar(farInfo); err == nil {
-				session.NewFar(farid, internalID, farInfo)
-			} else {
+			internalID, err := bpfObjects.NewFar(farInfo)
+			if err != nil {
 				return fmt.Errorf("can't put FAR: %s", err.Error())
 			}
+			session.NewFar(farid, internalID, farInfo)
+			logger.UpfLog.Infof("Created Forwarding Action Rule: %d", farid)
 		}
 
 		for _, qer := range msg.CreateQER {
@@ -66,12 +67,12 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 				return fmt.Errorf("qer id is missing")
 			}
 			updateQer(&qerInfo, qer)
-			logger.UpfLog.Debugf("Saving QER info to session: %d, %+v", qerID, qerInfo)
-			if internalID, err := bpfObjects.NewQer(qerInfo); err == nil {
-				session.NewQer(qerID, internalID, qerInfo)
-			} else {
+			internalID, err := bpfObjects.NewQer(qerInfo)
+			if err != nil {
 				return fmt.Errorf("can't put QER: %s", err.Error())
 			}
+			session.NewQer(qerID, internalID, qerInfo)
+			logger.UpfLog.Infof("Created QoS Enforcement Rule: %d", qerID)
 		}
 
 		for _, pdr := range msg.CreatePDR {
@@ -86,6 +87,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 			if err := pdrContext.ExtractPDR(pdr, &spdrInfo); err == nil {
 				session.PutPDR(spdrInfo.PdrID, spdrInfo)
 				applyPDR(spdrInfo, bpfObjects)
+				logger.UpfLog.Infof("applied packet detection rule: %d", spdrInfo.PdrID)
 				createdPDRs = append(createdPDRs, spdrInfo)
 			} else {
 				logger.UpfLog.Errorf("couldn't extract PDR info: %s", err.Error())
@@ -110,9 +112,8 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 	pdrIEs := processCreatedPDRs(createdPDRs, cloneIP(conn.n3Address))
 	additionalIEs = append(additionalIEs, pdrIEs...)
 
-	// Send SessionEstablishmentResponse
 	estResp := message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, additionalIEs...)
-	logger.UpfLog.Infof("Accepted Session Establishment Request from: %s", conn.SmfAddress)
+	logger.UpfLog.Debugf("Accepted Session Establishment Request from: %s", conn.SmfAddress)
 	return estResp, nil
 }
 

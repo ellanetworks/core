@@ -722,7 +722,6 @@ func HandleUplinkNasTransport(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		return
 	}
 
-	ranUe.Log.Infof("Received Uplink NAS transport message from RAN with NGAP ID: %v", ranUe.RanUeNgapID)
 	if userLocationInformation != nil {
 		ranUe.UpdateLocation(userLocationInformation)
 	}

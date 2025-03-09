@@ -38,11 +38,7 @@ func PlmnIDStringToModels(plmnIDStr string) models.PlmnID {
 	return plmnID
 }
 
-func HandleULNASTransport(ue *context.AmfUe, anType models.AccessType,
-	ulNasTransport *nasMessage.ULNASTransport,
-) error {
-	ue.GmmLog.Infoln("Handle UL NAS Transport")
-
+func HandleULNASTransport(ue *context.AmfUe, anType models.AccessType, ulNasTransport *nasMessage.ULNASTransport) error {
 	if ue.MacFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
@@ -1336,7 +1332,7 @@ func AuthenticationProcedure(ue *context.AmfUe, accessType models.AccessType) (b
 	if err != nil {
 		return false, fmt.Errorf("error sending authentication request: %v", err)
 	}
-	ue.GmmLog.Infof("Sent authentication request")
+	ue.GmmLog.Infof("Sent GMM authentication request")
 	return false, nil
 }
 
@@ -1827,9 +1823,9 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 			} else {
 				err := gmm_message.SendAuthenticationReject(ue.RanUe[accessType], "")
 				if err != nil {
-					return fmt.Errorf("error sending authentication reject: %v", err)
+					return fmt.Errorf("error sending GMM authentication reject: %v", err)
 				}
-				ue.GmmLog.Infof("sent authentication reject")
+				ue.GmmLog.Infof("Sent GMM authentication reject")
 				return GmmFSM.SendEvent(ue.State[accessType], AuthFailEvent, fsm.ArgsType{
 					ArgAmfUe:      ue,
 					ArgAccessType: accessType,
@@ -1864,9 +1860,9 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 			} else {
 				err := gmm_message.SendAuthenticationReject(ue.RanUe[accessType], "")
 				if err != nil {
-					return fmt.Errorf("error sending authentication reject: %v", err)
+					return fmt.Errorf("error sending GMM authentication reject: %v", err)
 				}
-				ue.GmmLog.Infof("sent authentication reject")
+				ue.GmmLog.Infof("Sent GMM authentication reject")
 				return GmmFSM.SendEvent(ue.State[accessType], AuthFailEvent, fsm.ArgsType{
 					ArgAmfUe:      ue,
 					ArgAccessType: accessType,
@@ -1907,9 +1903,9 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 			} else {
 				err := gmm_message.SendAuthenticationReject(ue.RanUe[accessType], response.EapPayload)
 				if err != nil {
-					return fmt.Errorf("error sending authentication reject: %v", err)
+					return fmt.Errorf("error sending GMM authentication reject: %v", err)
 				}
-				ue.GmmLog.Infof("sent authentication reject")
+				ue.GmmLog.Infof("Sent GMM authentication reject")
 				return GmmFSM.SendEvent(ue.State[accessType], AuthFailEvent, fsm.ArgsType{
 					ArgAmfUe:      ue,
 					ArgAccessType: accessType,
@@ -1944,17 +1940,17 @@ func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType, au
 			ue.GmmLog.Warnln("Authentication Failure Cause: Mac Failure")
 			err := gmm_message.SendAuthenticationReject(ue.RanUe[anType], "")
 			if err != nil {
-				return fmt.Errorf("error sending authentication reject: %v", err)
+				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
-			ue.GmmLog.Infof("sent authentication reject")
+			ue.GmmLog.Infof("Sent GMM authentication reject")
 			return GmmFSM.SendEvent(ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
 		case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
 			ue.GmmLog.Warnln("Authentication Failure Cause: Non-5G Authentication Unacceptable")
 			err := gmm_message.SendAuthenticationReject(ue.RanUe[anType], "")
 			if err != nil {
-				return fmt.Errorf("error sending authentication reject: %v", err)
+				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
-			ue.GmmLog.Infof("sent authentication reject")
+			ue.GmmLog.Infof("Sent GMM authentication reject")
 			return GmmFSM.SendEvent(ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
 		case nasMessage.Cause5GMMngKSIAlreadyInUse:
 			ue.GmmLog.Warnln("Authentication Failure Cause: NgKSI Already In Use")
@@ -1979,9 +1975,9 @@ func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType, au
 				ue.GmmLog.Warnf("2 consecutive Synch Failure, terminate authentication procedure")
 				err := gmm_message.SendAuthenticationReject(ue.RanUe[anType], "")
 				if err != nil {
-					return fmt.Errorf("error sending authentication reject: %v", err)
+					return fmt.Errorf("error sending GMM authentication reject: %v", err)
 				}
-				ue.GmmLog.Infof("sent authentication reject")
+				ue.GmmLog.Infof("Sent GMM authentication reject")
 				return GmmFSM.SendEvent(ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
 			}
 

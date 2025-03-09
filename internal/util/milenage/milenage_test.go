@@ -6,7 +6,6 @@ package milenage_test
 
 import (
 	"encoding/hex"
-	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -147,7 +146,6 @@ func TestF1Test35207(t *testing.T) {
 			t.Errorf("err: %+v\n", err)
 		}
 
-		fmt.Printf("K=%x\nSQN=%x\nOP=%x\nOPC=%x\n", K, SQN, OP, OPC)
 		if !reflect.DeepEqual(OPC, ExpectedOPc) {
 			t.Errorf("Testf1Test35207[%d] \t OPC[0x%x] \t ExpectedOPc[0x%x]\n", i, OPC, ExpectedOPc)
 		}
@@ -389,16 +387,12 @@ func TestGenerateOPC(t *testing.T) {
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
-	fmt.Println("K:", K)
 
-	fmt.Println("OP:", OP)
-
-	OPCbyGo, err := milenage.GenerateOPC(K, OP)
+	_, err = milenage.GenerateOPC(K, OP)
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
 
-	fmt.Println("OPCbyGo:", OPCbyGo)
 }
 
 func TestRAND(t *testing.T) {
@@ -430,7 +424,6 @@ func TestRAND(t *testing.T) {
 		t.Errorf("err: %+v\n", err)
 	}
 
-	fmt.Printf("K=%x\nSQN=%x\nOP=%x\nOPC=%x\n", K, SQN, OP, OPC)
 	RAND, err := hex.DecodeString("81e92b6c0ee0e12ebceba8d92a99dfa5")
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
@@ -440,12 +433,10 @@ func TestRAND(t *testing.T) {
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
-	fmt.Printf("RAND=%x\nAMF=%x\n", RAND, AMF)
 
 	// for test
 	// RAND, _ = hex.DecodeString(TestGenAuthData.MilenageTestSet19.RAND)
 	// AMF, _ = hex.DecodeString(TestGenAuthData.MilenageTestSet19.AMF)
-	fmt.Printf("For test: RAND=%x, AMF=%x\n", RAND, AMF)
 
 	// Run milenage
 	macA, macS := make([]byte, 8), make([]byte, 8)
@@ -466,9 +457,6 @@ func TestRAND(t *testing.T) {
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
-	fmt.Printf("milenage RES = %s\n", hex.EncodeToString(RES))
-	//
-	fmt.Printf("RES=%x\n", RES)
 	expRES, err := hex.DecodeString("28d7b0f2a2ec3de5")
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
@@ -476,8 +464,6 @@ func TestRAND(t *testing.T) {
 	if !reflect.DeepEqual(RES, RES) {
 		t.Errorf("RES[0x%x] \t expected[0x%x]\n", RES, expRES)
 	}
-	// Generate AUTN
-	fmt.Printf("CK=%x\n", CK)
 	expCK, err := hex.DecodeString("5349fbe098649f948f5d2e973a81c00f")
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
@@ -485,7 +471,6 @@ func TestRAND(t *testing.T) {
 	if !reflect.DeepEqual(CK, expCK) {
 		t.Errorf("CK[0x%x] \t expected[0x%x]\n", CK, expCK)
 	}
-	fmt.Printf("IK=%x\n", IK)
 	expIK, err := hex.DecodeString("9744871ad32bf9bbd1dd5ce54e3e2e5a")
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
@@ -493,8 +478,6 @@ func TestRAND(t *testing.T) {
 	if !reflect.DeepEqual(IK, expIK) {
 		t.Errorf("IK[0x%x] \t expected[0x%x]\n", IK, expIK)
 	}
-	// fmt.Printf("SQN=%x\nAK =%x\n", SQN, AK)
-	// fmt.Printf("AK=%x\n", AK)
 	expAK, err := hex.DecodeString("ada15aeb7bb8")
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
@@ -502,19 +485,12 @@ func TestRAND(t *testing.T) {
 	if !reflect.DeepEqual(AK, expAK) {
 		t.Errorf("AK[0x%x] \t expected[0x%x]\n", AK, expAK)
 	}
-	// fmt.Printf("AMF=%x, macA=%x\n", AMF, macA)
 	SQNxorAK := make([]byte, 6)
 	for i := 0; i < len(SQN); i++ {
 		SQNxorAK[i] = SQN[i] ^ AK[i]
 	}
 
-	fmt.Printf("SQN xor AK = %x\n", SQNxorAK)
 	AUTN := append(append(SQNxorAK, AMF...), macA...)
-
-	// fmt.Printf("macA = %x\n", macA)
-	// fmt.Printf("macS = %x\n", macS)
-
-	// fmt.Printf("AUTN = %x\n", AUTN)
 
 	expAUTN, err := hex.DecodeString("bb52e91c747ac3ab2a5c23d15ee351d5")
 	if err != nil {
