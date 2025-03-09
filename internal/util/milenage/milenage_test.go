@@ -392,7 +392,6 @@ func TestGenerateOPC(t *testing.T) {
 	if err != nil {
 		t.Errorf("err: %+v\n", err)
 	}
-
 }
 
 func TestRAND(t *testing.T) {
