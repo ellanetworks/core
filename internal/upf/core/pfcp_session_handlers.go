@@ -455,7 +455,7 @@ func composeFarInfo(far *ie.IE, localIP net.IP, farInfo ebpf.FarInfo) (ebpf.FarI
 		} else {
 			outerHeaderCreation, _ := forward[outerHeaderCreationIndex].OuterHeaderCreation()
 			farInfo.OuterHeaderCreation = uint8(outerHeaderCreation.OuterHeaderCreationDescription >> 8)
-			farInfo.Teid = outerHeaderCreation.TEID
+			farInfo.TeID = outerHeaderCreation.TEID
 			if outerHeaderCreation.HasIPv4() {
 				farInfo.RemoteIP = binary.LittleEndian.Uint32(outerHeaderCreation.IPv4Address)
 			}

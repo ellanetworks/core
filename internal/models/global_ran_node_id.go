@@ -1,8 +1,8 @@
 package models
 
-type GlobalRanNodeId struct {
-	PlmnId  *PlmnId
-	N3IwfId string
-	GNbId   *GNbId
-	NgeNbId string
+type GlobalRanNodeID struct {
+	PlmnID  *PlmnID
+	N3IwfID string
+	GNbID   *GNbID
+	NgeNbID string
 }

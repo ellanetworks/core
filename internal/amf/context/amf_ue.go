@@ -77,9 +77,9 @@ type AmfUe struct {
 	RegistrationAcceptForNon3GPPAccess []byte                          `json:"registrationAcceptForNon3GPPAccess,omitempty"`
 	RetransmissionOfInitialNASMsg      bool                            `json:"retransmissionOfInitialNASMsg,omitempty"`
 	/* Used for AMF relocation */
-	TargetAmfUri string `json:"targetAmfUri,omitempty"`
+	TargetAmfURI string `json:"targetAmfUri,omitempty"`
 	/* Ue Identity*/
-	PlmnId              models.PlmnId `json:"plmnId,omitempty"`
+	PlmnID              models.PlmnID `json:"plmnID,omitempty"`
 	Suci                string        `json:"suci,omitempty"`
 	Supi                string        `json:"supi,omitempty"`
 	UnauthenticatedSupi bool          `json:"unauthenticatedSupi,omitempty"`
@@ -105,21 +105,17 @@ type AmfUe struct {
 	TraceData                         *models.TraceData                         `json:"traceData,omitempty"`
 	SubscribedNssai                   []models.SubscribedSnssai                 `json:"subscribeNssai,omitempty"`
 	AccessAndMobilitySubscriptionData *models.AccessAndMobilitySubscriptionData `json:"accessAndMobilitySubscriptionData,omitempty"`
-	/* contex abut ausf */
-	AusfId                            string
-	RoutingIndicator                  string                      `json:"routingIndicator,omitempty"`
-	AuthenticationCtx                 *models.UeAuthenticationCtx `json:"authenticationCtx,omitempty"`
-	AuthFailureCauseSynchFailureTimes int                         `json:"authFailureCauseSynchFailureTimes,omitempty"`
-	ABBA                              []uint8                     `json:"abba,omitempty"`
-	Kseaf                             string                      `json:"kseaf,omitempty"`
-	Kamf                              string                      `json:"kamf,omitempty"`
+	RoutingIndicator                  string                                    `json:"routingIndicator,omitempty"`
+	AuthenticationCtx                 *models.UeAuthenticationCtx               `json:"authenticationCtx,omitempty"`
+	AuthFailureCauseSynchFailureTimes int                                       `json:"authFailureCauseSynchFailureTimes,omitempty"`
+	ABBA                              []uint8                                   `json:"abba,omitempty"`
+	Kseaf                             string                                    `json:"kseaf,omitempty"`
+	Kamf                              string                                    `json:"kamf,omitempty"`
 	/* context about PCF */
-	PolicyAssociationId          string                    `json:"policyAssociationId,omitempty"`
+	PolicyAssociationID          string                    `json:"policyAssociationId,omitempty"`
 	AmPolicyAssociation          *models.PolicyAssociation `json:"amPolicyAssociation,omitempty"`
-	RequestTriggerLocationChange bool                      `json:"requestTriggerLocationChange,omitempty"` // true if AmPolicyAssociation.Trigger contains RequestTrigger_LOC_CH
+	RequestTriggerLocationChange bool                      `json:"requestTriggerLocationChange,omitempty"` // true if AmPolicyAssociation.Trigger contains RequestTriggerLocCh
 	ConfigurationUpdateMessage   []byte                    `json:"configurationUpdateMessage,omitempty"`
-	/* UeContextForHandover*/
-	HandoverNotifyUri string `json:"handoverNotifyUri,omitempty"`
 	/* N1N2Message */
 	N1N2MessageIDGenerator          *idgenerator.IDGenerator `json:"n1n2MessageIDGenerator,omitempty"`
 	N1N2Message                     *N1N2Message             `json:"-"`
@@ -181,7 +177,7 @@ type AmfUe struct {
 
 	// AmfInstanceName and Ip
 	AmfInstanceName string `json:"amfInstanceName,omitempty"`
-	AmfInstanceIp   string `json:"amfInstanceIp,omitempty"`
+	AmfInstanceIP   string `json:"amfInstanceIp,omitempty"`
 
 	NASLog      *zap.SugaredLogger `json:"-"`
 	GmmLog      *zap.SugaredLogger `json:"-"`
@@ -250,7 +246,7 @@ type RecommendedCell struct {
 // TS 38.413 9.3.1.101
 type RecommendRanNode struct {
 	Present         int32
-	GlobalRanNodeId *models.GlobalRanNodeId
+	GlobalRanNodeID *models.GlobalRanNodeID
 	Tai             *models.Tai
 }
 
@@ -263,8 +259,8 @@ type NGRANCGI struct {
 func (ue *AmfUe) init() {
 	ue.ServingAMF = AMFSelf()
 	ue.State = make(map[models.AccessType]*fsm.State)
-	ue.State[models.AccessType__3_GPP_ACCESS] = fsm.NewState(Deregistered)
-	ue.State[models.AccessType_NON_3_GPP_ACCESS] = fsm.NewState(Deregistered)
+	ue.State[models.AccessType3GPPAccess] = fsm.NewState(Deregistered)
+	ue.State[models.AccessTypeNon3GPPAccess] = fsm.NewState(Deregistered)
 	ue.UnauthenticatedSupi = true
 	ue.RanUe = make(map[models.AccessType]*RanUe)
 	ue.RegistrationArea = make(map[models.AccessType][]models.Tai)
@@ -272,13 +268,13 @@ func (ue *AmfUe) init() {
 	ue.N1N2MessageIDGenerator = idgenerator.NewGenerator(1, 2147483647)
 	ue.N1N2MessageSubscribeIDGenerator = idgenerator.NewGenerator(1, 2147483647)
 	ue.OnGoing = make(map[models.AccessType]*OnGoingProcedureWithPrio)
-	ue.OnGoing[models.AccessType_NON_3_GPP_ACCESS] = new(OnGoingProcedureWithPrio)
-	ue.OnGoing[models.AccessType_NON_3_GPP_ACCESS].Procedure = OnGoingProcedureNothing
-	ue.OnGoing[models.AccessType__3_GPP_ACCESS] = new(OnGoingProcedureWithPrio)
-	ue.OnGoing[models.AccessType__3_GPP_ACCESS].Procedure = OnGoingProcedureNothing
+	ue.OnGoing[models.AccessTypeNon3GPPAccess] = new(OnGoingProcedureWithPrio)
+	ue.OnGoing[models.AccessTypeNon3GPPAccess].Procedure = OnGoingProcedureNothing
+	ue.OnGoing[models.AccessType3GPPAccess] = new(OnGoingProcedureWithPrio)
+	ue.OnGoing[models.AccessType3GPPAccess].Procedure = OnGoingProcedureNothing
 	ue.ReleaseCause = make(map[models.AccessType]*CauseAll)
 	ue.AmfInstanceName = os.Getenv("HOSTNAME")
-	ue.AmfInstanceIp = os.Getenv("POD_IP")
+	ue.AmfInstanceIP = os.Getenv("POD_IP")
 }
 
 func (ue *AmfUe) CmConnect(anType models.AccessType) bool {
@@ -325,16 +321,16 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	}()
 
 	// set log information
-	ue.NASLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
-	ue.GmmLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
-	ue.TxLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapId))
+	ue.NASLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID))
+	ue.GmmLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID))
+	ue.TxLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID))
 }
 
 func (ue *AmfUe) GetAnType() models.AccessType {
-	if ue.CmConnect(models.AccessType__3_GPP_ACCESS) {
-		return models.AccessType__3_GPP_ACCESS
-	} else if ue.CmConnect(models.AccessType_NON_3_GPP_ACCESS) {
-		return models.AccessType_NON_3_GPP_ACCESS
+	if ue.CmConnect(models.AccessType3GPPAccess) {
+		return models.AccessType3GPPAccess
+	} else if ue.CmConnect(models.AccessTypeNon3GPPAccess) {
+		return models.AccessTypeNon3GPPAccess
 	}
 	return ""
 }
@@ -415,7 +411,7 @@ func (ue *AmfUe) DerivateKamf() {
 		logger.AmfLog.Error(err)
 		return
 	}
-	KamfBytes, err := ueauth.GetKDFValue(KseafDecode, ueauth.FC_FOR_KAMF_DERIVATION, P0, L0, P1, L1)
+	KamfBytes, err := ueauth.GetKDFValue(KseafDecode, ueauth.FCForKamfDerivation, P0, L0, P1, L1)
 	if err != nil {
 		logger.AmfLog.Error(err)
 		return
@@ -436,7 +432,7 @@ func (ue *AmfUe) DerivateAlgKey() {
 		logger.AmfLog.Error(err)
 		return
 	}
-	kenc, err := ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_ALGORITHM_KEY_DERIVATION, P0, L0, P1, L1)
+	kenc, err := ueauth.GetKDFValue(KamfBytes, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
 		logger.AmfLog.Error(err)
 		return
@@ -449,7 +445,7 @@ func (ue *AmfUe) DerivateAlgKey() {
 	P1 = []byte{ue.IntegrityAlg}
 	L1 = ueauth.KDFLen(P1)
 
-	kint, err := ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_ALGORITHM_KEY_DERIVATION, P0, L0, P1, L1)
+	kint, err := ueauth.GetKDFValue(KamfBytes, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
 		logger.AmfLog.Error(err)
 		return
@@ -463,7 +459,7 @@ func (ue *AmfUe) DerivateAnKey(anType models.AccessType) {
 	P0 := make([]byte, 4)
 	binary.BigEndian.PutUint32(P0, ue.ULCount.Get())
 	L0 := ueauth.KDFLen(P0)
-	if anType == models.AccessType_NON_3_GPP_ACCESS {
+	if anType == models.AccessTypeNon3GPPAccess {
 		accessType = security.AccessTypeNon3GPP
 	}
 	P1 := []byte{accessType}
@@ -474,7 +470,7 @@ func (ue *AmfUe) DerivateAnKey(anType models.AccessType) {
 		logger.AmfLog.Error(err)
 		return
 	}
-	key, err := ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_KGNB_KN3IWF_DERIVATION, P0, L0, P1, L1)
+	key, err := ueauth.GetKDFValue(KamfBytes, ueauth.FCForKgnbKn3iwfDerivation, P0, L0, P1, L1)
 	if err != nil {
 		logger.AmfLog.Error(err)
 		return
@@ -497,7 +493,7 @@ func (ue *AmfUe) DerivateNH(syncInput []byte) {
 		logger.AmfLog.Error(err)
 		return
 	}
-	ue.NH, err = ueauth.GetKDFValue(KamfBytes, ueauth.FC_FOR_NH_DERIVATION, P0, L0)
+	ue.NH, err = ueauth.GetKDFValue(KamfBytes, ueauth.FCForNhDerivation, P0, L0)
 	if err != nil {
 		logger.AmfLog.Error(err)
 		return
@@ -507,9 +503,9 @@ func (ue *AmfUe) DerivateNH(syncInput []byte) {
 func (ue *AmfUe) UpdateSecurityContext(anType models.AccessType) {
 	ue.DerivateAnKey(anType)
 	switch anType {
-	case models.AccessType__3_GPP_ACCESS:
+	case models.AccessType3GPPAccess:
 		ue.DerivateNH(ue.Kgnb)
-	case models.AccessType_NON_3_GPP_ACCESS:
+	case models.AccessTypeNon3GPPAccess:
 		ue.DerivateNH(ue.Kn3iwf)
 	}
 	ue.NCC = 1
@@ -603,7 +599,7 @@ func (ue *AmfUe) GetOnGoing(anType models.AccessType) OnGoingProcedureWithPrio {
 
 func (ue *AmfUe) RemoveAmPolicyAssociation() {
 	ue.AmPolicyAssociation = nil
-	ue.PolicyAssociationId = ""
+	ue.PolicyAssociationID = ""
 }
 
 func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
@@ -686,7 +682,7 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 
 		ue.NgKsi = *seafData.NgKsi
 		if seafData.KeyAmf != nil {
-			if seafData.KeyAmf.KeyType == models.KeyAmfType_KAMF {
+			if seafData.KeyAmf.KeyType == models.KeyAmfTypeKamf {
 				ue.Kamf = seafData.KeyAmf.KeyVal
 			}
 		}
@@ -705,14 +701,14 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 		}
 		for _, trigger := range ueContext.AmPolicyReqTriggerList {
 			switch trigger {
-			case models.AmPolicyReqTrigger_LOCATION_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_LOC_CH)
-			case models.AmPolicyReqTrigger_PRA_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_PRA_CH)
-			case models.AmPolicyReqTrigger_SARI_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_SERV_AREA_CH)
-			case models.AmPolicyReqTrigger_RFSP_INDEX_CHANGE:
-				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTrigger_RFSP_CH)
+			case models.AmPolicyReqTriggerLocationChange:
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTriggerLocCh)
+			case models.AmPolicyReqTriggerPraChange:
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTriggerPraCh)
+			case models.AmPolicyReqTriggerSariChange:
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTriggerServAreaCh)
+			case models.AmPolicyReqTriggerRfspIndexChange:
+				ue.AmPolicyAssociation.Triggers = append(ue.AmPolicyAssociation.Triggers, models.RequestTriggerRfspCh)
 			}
 		}
 	}
@@ -721,42 +717,42 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 		for _, pduSessionContext := range ueContext.SessionContextList {
 			smContext := SmContext{
 				Mu:              new(sync.RWMutex),
-				PduSessionIDVal: pduSessionContext.PduSessionId,
+				PduSessionIDVal: pduSessionContext.PduSessionID,
 				SmContextRefVal: pduSessionContext.SmContextRef,
 				SnssaiVal:       *pduSessionContext.SNssai,
 				DnnVal:          pduSessionContext.Dnn,
 				AccessTypeVal:   pduSessionContext.AccessType,
-				HSmfIDVal:       pduSessionContext.HsmfId,
-				VSmfIDVal:       pduSessionContext.VsmfId,
+				HSmfIDVal:       pduSessionContext.HsmfID,
+				VSmfIDVal:       pduSessionContext.VsmfID,
 				NsInstanceVal:   pduSessionContext.NsInstance,
 			}
-			ue.StoreSmContext(pduSessionContext.PduSessionId, &smContext)
+			ue.StoreSmContext(pduSessionContext.PduSessionID, &smContext)
 		}
 	}
 
 	if len(ueContext.MmContextList) > 0 {
 		for _, mmContext := range ueContext.MmContextList {
-			if mmContext.AccessType == models.AccessType__3_GPP_ACCESS {
+			if mmContext.AccessType == models.AccessType3GPPAccess {
 				if nasSecurityMode := mmContext.NasSecurityMode; nasSecurityMode != nil {
 					switch nasSecurityMode.IntegrityAlgorithm {
-					case models.IntegrityAlgorithm_NIA0:
+					case models.IntegrityAlgorithmNIA0:
 						ue.IntegrityAlg = security.AlgIntegrity128NIA0
-					case models.IntegrityAlgorithm_NIA1:
+					case models.IntegrityAlgorithmNIA1:
 						ue.IntegrityAlg = security.AlgIntegrity128NIA1
-					case models.IntegrityAlgorithm_NIA2:
+					case models.IntegrityAlgorithmNIA2:
 						ue.IntegrityAlg = security.AlgIntegrity128NIA2
-					case models.IntegrityAlgorithm_NIA3:
+					case models.IntegrityAlgorithmNIA3:
 						ue.IntegrityAlg = security.AlgIntegrity128NIA3
 					}
 
 					switch nasSecurityMode.CipheringAlgorithm {
-					case models.CipheringAlgorithm_NEA0:
+					case models.CipheringAlgorithmNEA0:
 						ue.CipheringAlg = security.AlgCiphering128NEA0
-					case models.CipheringAlgorithm_NEA1:
+					case models.CipheringAlgorithmNEA1:
 						ue.CipheringAlg = security.AlgCiphering128NEA1
-					case models.CipheringAlgorithm_NEA2:
+					case models.CipheringAlgorithmNEA2:
 						ue.CipheringAlg = security.AlgCiphering128NEA2
-					case models.CipheringAlgorithm_NEA3:
+					case models.CipheringAlgorithmNEA3:
 						ue.CipheringAlg = security.AlgCiphering128NEA3
 					}
 

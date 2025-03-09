@@ -84,7 +84,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (*models.SmPolicyDecisio
 	}
 	var smData *models.SmPolicyData
 	var err error
-	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
+	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionID)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
 		smData, err = GetSmPolicyData()
@@ -133,7 +133,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (*models.SmPolicyDecisio
 		return nil, fmt.Errorf("can't find session policy for dnn %s", request.Dnn)
 	}
 	for _, sessRule := range sessPolicy.SessionRules {
-		decision.SessRules[sessRule.SessRuleId] = deepCopySessionRule(sessRule)
+		decision.SessRules[sessRule.SessRuleID] = deepCopySessionRule(sessRule)
 	}
 
 	for key, pccRule := range PccPolicy.PccRules {

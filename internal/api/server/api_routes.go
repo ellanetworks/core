@@ -46,8 +46,8 @@ func isRouteGatewayValid(gateway string) bool {
 	return ip != nil
 }
 
-// interfaceDbMap maps the interface string to the db.NetworkInterface enum.
-var interfaceDbMap = map[string]db.NetworkInterface{
+// interfaceDBMap maps the interface string to the db.NetworkInterface enum.
+var interfaceDBMap = map[string]db.NetworkInterface{
 	"n3": db.N3,
 	"n6": db.N6,
 }
@@ -198,7 +198,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 			return
 		}
 
-		dbNetworkInterface, ok := interfaceDbMap[createRouteParams.Interface]
+		dbNetworkInterface, ok := interfaceDBMap[createRouteParams.Interface]
 		if !ok {
 			writeError(c, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed")
 			return

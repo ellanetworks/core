@@ -1,7 +1,7 @@
 package models
 
 type SdmSubscription struct {
-	NfInstanceId   string
-	SubscriptionId string
-	PlmnId         *PlmnId
+	NfInstanceID   string
+	SubscriptionID string
+	PlmnID         *PlmnID
 }

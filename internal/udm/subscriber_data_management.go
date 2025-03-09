@@ -12,7 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-var AllowedSessionTypes = []models.PduSessionType{models.PduSessionType_IPV4}
+var AllowedSessionTypes = []models.PduSessionType{models.PduSessionTypeIPv4}
 
 var AllowedSscModes = []string{
 	"SSC_MODE_2",
@@ -94,11 +94,11 @@ func GetSmData(ueID string) ([]models.SessionManagementSubscriptionData, error) 
 	}
 	smDataObjModel.DnnConfigurations[config.DNN] = models.DnnConfiguration{
 		PduSessionTypes: &models.PduSessionTypes{
-			DefaultSessionType:  models.PduSessionType_IPV4,
+			DefaultSessionType:  models.PduSessionTypeIPv4,
 			AllowedSessionTypes: make([]models.PduSessionType, 0),
 		},
 		SscModes: &models.SscModes{
-			DefaultSscMode:  models.SscMode__1,
+			DefaultSscMode:  models.SscMode1,
 			AllowedSscModes: make([]models.SscMode, 0),
 		},
 		SessionAmbr: &models.Ambr{
@@ -197,7 +197,7 @@ func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueID string)
 	}
 
 	newSubscriptionID := strconv.Itoa(udmContext.SdmSubscriptionIDGenerator)
-	SdmSubscription.SubscriptionId = newSubscriptionID
+	SdmSubscription.SubscriptionID = newSubscriptionID
 	UESubsData.SdmSubscriptions[newSubscriptionID] = &SdmSubscription
 	udmContext.SdmSubscriptionIDGenerator++
 
@@ -210,7 +210,7 @@ func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string) er
 	if udmUe == nil {
 		udmUe = udmContext.NewUdmUe(supi)
 	}
-	udmUe.CreateSubscriptiontoNotifChange(sdmSubscriptionResp.SubscriptionId, &sdmSubscriptionResp)
+	udmUe.CreateSubscriptiontoNotifChange(sdmSubscriptionResp.SubscriptionID, &sdmSubscriptionResp)
 	return nil
 }
 
@@ -222,9 +222,9 @@ func GetUeContextInSmfData(supi string) (*models.UeContextInSmfData, error) {
 	for _, element := range pdusess {
 		var pduSession models.PduSession
 		pduSession.Dnn = element.Dnn
-		pduSession.SmfInstanceId = element.SmfInstanceId
-		pduSession.PlmnId = element.PlmnId
-		pduSessionMap[strconv.Itoa(int(element.PduSessionId))] = pduSession
+		pduSession.SmfInstanceID = element.SmfInstanceID
+		pduSession.PlmnID = element.PlmnID
+		pduSessionMap[strconv.Itoa(int(element.PduSessionID))] = pduSession
 	}
 	var ueContextInSmfData models.UeContextInSmfData
 	ueContextInSmfData.PduSessions = pduSessionMap
@@ -233,7 +233,7 @@ func GetUeContextInSmfData(supi string) (*models.UeContextInSmfData, error) {
 		var pgwInfo models.PgwInfo
 		pgwInfo.Dnn = element.Dnn
 		pgwInfo.PgwFqdn = element.PgwFqdn
-		pgwInfo.PlmnId = element.PlmnId
+		pgwInfo.PlmnID = element.PlmnID
 		pgwInfoArray = append(pgwInfoArray, pgwInfo)
 	}
 

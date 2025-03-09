@@ -24,7 +24,7 @@ type SmContext struct {
 	AccessTypeVal   models.AccessType
 	NsInstanceVal   string
 	UserLocationVal models.UserLocation
-	PlmnIDVal       models.PlmnId
+	PlmnIDVal       models.PlmnID
 
 	SmfIDVal              string
 	HSmfIDVal             string
@@ -135,7 +135,7 @@ func (c *SmContext) SetUserLocation(userLocation models.UserLocation) {
 	c.UserLocationVal = userLocation
 }
 
-func (c *SmContext) SetPlmnID(plmnID models.PlmnId) {
+func (c *SmContext) SetPlmnID(plmnID models.PlmnID) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.PlmnIDVal = plmnID

@@ -87,8 +87,8 @@ func lookupToken(url string, client *http.Client, token string) (int, *LoookupTo
 
 func TestLoginEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, jwtSecret, err := setupServer(db_path, gin.TestMode)
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, jwtSecret, err := setupServer(dbPath, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -216,8 +216,8 @@ func TestLoginEndToEnd(t *testing.T) {
 
 func TestRolesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	db_path := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(db_path, gin.TestMode)
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath, gin.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -349,7 +349,7 @@ func TestRolesEndToEnd(t *testing.T) {
 		createProfileParams := &CreateProfileParams{
 			Name:            ProfileName,
 			UeIPPool:        "0.0.0.0/24",
-			Dns:             "8.8.8.8",
+			DNS:             "8.8.8.8",
 			Mtu:             1500,
 			BitrateUplink:   "100 Mbps",
 			BitrateDownlink: "200 Mbps",

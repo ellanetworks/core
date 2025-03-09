@@ -111,17 +111,17 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 		var qosFlowsList []ngapType.QosFlowSetupRequestItem
 		for _, qosFlow := range qosAddFlows {
 			arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
-			if qosFlow.Arp.PreemptCap == models.PreemptionCapability_NOT_PREEMPT {
+			if qosFlow.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
 				arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
 			}
 
 			arpPreemptVul := ngapType.PreEmptionVulnerabilityPresentNotPreEmptable
-			if qosFlow.Arp.PreemptVuln == models.PreemptionVulnerability_PREEMPTABLE {
+			if qosFlow.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
 				arpPreemptVul = ngapType.PreEmptionVulnerabilityPresentPreEmptable
 			}
 
 			qosFlowItem := ngapType.QosFlowSetupRequestItem{
-				QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(qos.GetQosFlowIdFromQosId(qosFlow.QosId))},
+				QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(qos.GetQosFlowIDFromQosID(qosFlow.QosID))},
 				QosFlowLevelQosParameters: ngapType.QosFlowLevelQosParameters{
 					QosCharacteristics: ngapType.QosCharacteristics{
 						Present: ngapType.QosCharacteristicsPresentNonDynamic5QI,
@@ -166,12 +166,12 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 		ie.Criticality.Value = ngapType.CriticalityPresentReject
 
 		arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
-		if sessRule.AuthDefQos.Arp.PreemptCap == models.PreemptionCapability_NOT_PREEMPT {
+		if sessRule.AuthDefQos.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
 			arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
 		}
 
 		arpPreemptVul := ngapType.PreEmptionVulnerabilityPresentNotPreEmptable
-		if sessRule.AuthDefQos.Arp.PreemptVuln == models.PreemptionVulnerability_PREEMPTABLE {
+		if sessRule.AuthDefQos.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
 			arpPreemptVul = ngapType.PreEmptionVulnerabilityPresentPreEmptable
 		}
 		//Default Session Rule

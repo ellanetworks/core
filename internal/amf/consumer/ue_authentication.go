@@ -23,20 +23,20 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 ) (*models.UeAuthenticationCtx, error) {
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
-	var plmnId *models.PlmnId
-	if ue.Tai.PlmnId != nil {
-		plmnId = ue.Tai.PlmnId
+	var plmnID *models.PlmnID
+	if ue.Tai.PlmnID != nil {
+		plmnID = ue.Tai.PlmnID
 	} else {
-		ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc: %v Mnc: %v] is taken from Guami List", servedGuami.PlmnId.Mcc, servedGuami.PlmnId.Mnc)
-		plmnId = servedGuami.PlmnId
+		ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc: %v Mnc: %v] is taken from Guami List", servedGuami.PlmnID.Mcc, servedGuami.PlmnID.Mnc)
+		plmnID = servedGuami.PlmnID
 	}
 
 	var authInfo models.AuthenticationInfo
 	authInfo.SupiOrSuci = ue.Suci
-	if mnc, err := strconv.Atoi(plmnId.Mnc); err != nil {
+	if mnc, err := strconv.Atoi(plmnID.Mnc); err != nil {
 		return nil, err
 	} else {
-		authInfo.ServingNetworkName = fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, plmnId.Mcc)
+		authInfo.ServingNetworkName = fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, plmnID.Mcc)
 	}
 	if resynchronizationInfo != nil {
 		authInfo.ResynchronizationInfo = resynchronizationInfo

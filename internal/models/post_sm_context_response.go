@@ -1,5 +1,5 @@
 package models
 
 type PostSmContextsResponse struct {
-	JsonData *SmContextCreatedData
+	JSONData *SmContextCreatedData
 }

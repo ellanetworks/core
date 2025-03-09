@@ -46,11 +46,11 @@ type SmCtxtTrafficControlData struct {
 	TrafficControlData map[string]*models.TrafficControlData
 }
 
-func (obj *SmCtxtPolicyData) Initialize() {
-	obj.SmCtxtSessionRules.SessionRules = make(map[string]*models.SessionRule)
-	obj.SmCtxtPccRules.PccRules = make(map[string]*models.PccRule)
-	obj.SmCtxtQosData.QosData = make(map[string]*models.QosData)
-	obj.SmCtxtTCData.TrafficControlData = make(map[string]*models.TrafficControlData)
+func (upd *SmCtxtPolicyData) Initialize() {
+	upd.SmCtxtSessionRules.SessionRules = make(map[string]*models.SessionRule)
+	upd.SmCtxtPccRules.PccRules = make(map[string]*models.PccRule)
+	upd.SmCtxtQosData.QosData = make(map[string]*models.QosData)
+	upd.SmCtxtTCData.TrafficControlData = make(map[string]*models.TrafficControlData)
 }
 
 func BuildSmPolicyUpdate(smCtxtPolData *SmCtxtPolicyData, smPolicyDecision *models.SmPolicyDecision) *PolicyUpdate {

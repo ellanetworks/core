@@ -31,7 +31,7 @@ var (
 
 func init() {
 	tmsiGenerator = idgenerator.NewGenerator(1, math.MaxInt32)
-	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapId)
+	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID)
 }
 
 type NetworkFeatureSupport5GS struct {
@@ -51,7 +51,7 @@ type Security struct {
 }
 
 type PlmnSupportItem struct {
-	PlmnId     models.PlmnId
+	PlmnID     models.PlmnID
 	SNssaiList []models.Snssai
 }
 
@@ -73,9 +73,9 @@ type AMFContext struct {
 	AmfRanPool                      sync.Map         // map[net.Conn]*AmfRan
 	LadnPool                        map[string]*LADN // dnn as key
 	RelativeCapacity                int64
-	NfId                            string
+	NfID                            string
 	Name                            string
-	UriScheme                       models.UriScheme
+	URIScheme                       models.URIScheme
 	NgapPort                        int
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
 	SupportedDnns                   []string
@@ -117,9 +117,9 @@ func (context *AMFContext) AllocateGutiToUe(ue *AmfUe) {
 	guamis := GetServedGuamiList()
 	servedGuami := guamis[0]
 	ue.Tmsi = context.TmsiAllocate()
-	plmnID := servedGuami.PlmnId.Mcc + servedGuami.PlmnId.Mnc
+	plmnID := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc
 	tmsiStr := fmt.Sprintf("%08x", ue.Tmsi)
-	ue.Guti = plmnID + servedGuami.AmfId + tmsiStr
+	ue.Guti = plmnID + servedGuami.AmfID + tmsiStr
 }
 
 func (context *AMFContext) ReAllocateGutiToUe(ue *AmfUe) {
@@ -127,9 +127,9 @@ func (context *AMFContext) ReAllocateGutiToUe(ue *AmfUe) {
 	servedGuami := guamis[0]
 	tmsiGenerator.FreeID(int64(ue.Tmsi))
 	ue.Tmsi = context.TmsiAllocate()
-	plmnID := servedGuami.PlmnId.Mcc + servedGuami.PlmnId.Mnc
+	plmnID := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc
 	tmsiStr := fmt.Sprintf("%08x", ue.Tmsi)
-	ue.Guti = plmnID + servedGuami.AmfId + tmsiStr
+	ue.Guti = plmnID + servedGuami.AmfID + tmsiStr
 }
 
 func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.AccessType) {
@@ -210,7 +210,7 @@ func (context *AMFContext) NewAmfRan(conn net.Conn) *AmfRan {
 	ran := AmfRan{}
 	ran.SupportedTAList = NewSupportedTAIList()
 	ran.Conn = conn
-	ran.GnbIp = conn.RemoteAddr().String()
+	ran.GnbIP = conn.RemoteAddr().String()
 	ran.Log = logger.AmfLog.With(logger.FieldRanAddr, conn.RemoteAddr().String())
 	context.AmfRanPool.Store(conn, &ran)
 	return &ran
@@ -224,34 +224,34 @@ func (context *AMFContext) AmfRanFindByConn(conn net.Conn) (*AmfRan, bool) {
 	return nil, false
 }
 
-func (context *AMFContext) AmfRanFindByGnbId(gnbId string) (*AmfRan, bool) {
-	if value, ok := context.AmfRanPool.Load(gnbId); ok {
+func (context *AMFContext) AmfRanFindByGnbID(gnbID string) (*AmfRan, bool) {
+	if value, ok := context.AmfRanPool.Load(gnbID); ok {
 		return value.(*AmfRan), ok
 	}
 	return nil, false
 }
 
 // use ranNodeID to find RAN context, return *AmfRan and ok bit
-func (context *AMFContext) AmfRanFindByRanID(ranNodeID models.GlobalRanNodeId) (*AmfRan, bool) {
+func (context *AMFContext) AmfRanFindByRanID(ranNodeID models.GlobalRanNodeID) (*AmfRan, bool) {
 	var ran *AmfRan
 	var ok bool
 	context.AmfRanPool.Range(func(key, value interface{}) bool {
 		amfRan := value.(*AmfRan)
 		switch amfRan.RanPresent {
-		case RanPresentGNbId:
-			if amfRan.RanId.GNbId.GNBValue == ranNodeID.GNbId.GNBValue {
+		case RanPresentGNbID:
+			if amfRan.RanID.GNbID.GNBValue == ranNodeID.GNbID.GNBValue {
 				ran = amfRan
 				ok = true
 				return false
 			}
-		case RanPresentNgeNbId:
-			if amfRan.RanId.NgeNbId == ranNodeID.NgeNbId {
+		case RanPresentNgeNbID:
+			if amfRan.RanID.NgeNbID == ranNodeID.NgeNbID {
 				ran = amfRan
 				ok = true
 				return false
 			}
-		case RanPresentN3IwfId:
-			if amfRan.RanId.N3IwfId == ranNodeID.N3IwfId {
+		case RanPresentN3IwfID:
+			if amfRan.RanID.N3IwfID == ranNodeID.N3IwfID {
 				ran = amfRan
 				ok = true
 				return false
@@ -331,10 +331,10 @@ func (context *AMFContext) AmfUeFindByGuti(guti string) (ue *AmfUe, ok bool) {
 	return
 }
 
-func (context *AMFContext) AmfUeFindByPolicyAssociationID(polAssoId string) (ue *AmfUe, ok bool) {
+func (context *AMFContext) AmfUeFindByPolicyAssociationID(polAssoID string) (ue *AmfUe, ok bool) {
 	context.UePool.Range(func(key, value interface{}) bool {
 		candidate := value.(*AmfUe)
-		if ok = (candidate.PolicyAssociationId == polAssoId); ok {
+		if ok = (candidate.PolicyAssociationID == polAssoID); ok {
 			ue = candidate
 			return false
 		}
@@ -362,7 +362,7 @@ func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 }
 
 func (context *AMFContext) GetIPv4Uri() string {
-	return fmt.Sprintf("%s://", context.UriScheme)
+	return fmt.Sprintf("%s://", context.URIScheme)
 }
 
 func (context *AMFContext) Get5gsNwFeatSuppImsVoPS() uint8 {

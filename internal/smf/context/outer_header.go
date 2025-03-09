@@ -16,9 +16,9 @@ type OuterHeaderRemoval struct {
 }
 
 type OuterHeaderCreation struct {
-	Ipv4Address                    net.IP
-	Ipv6Address                    net.IP
-	Teid                           uint32
+	IPv4Address                    net.IP
+	IPv6Address                    net.IP
+	TeID                           uint32
 	PortNumber                     uint16
 	OuterHeaderCreationDescription uint16
 }

@@ -1,6 +1,6 @@
 package models
 
-type PlmnId struct {
+type PlmnID struct {
 	Mcc string
 	Mnc string
 }

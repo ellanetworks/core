@@ -22,12 +22,12 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 	httpRspStatusCode := http.StatusInternalServerError
 	smPolicyData := models.SmPolicyContextData{}
 	smPolicyData.Supi = smContext.Supi
-	smPolicyData.PduSessionId = smContext.PDUSessionID
+	smPolicyData.PduSessionID = smContext.PDUSessionID
 	smPolicyData.Dnn = smContext.Dnn
 	smPolicyData.PduSessionType = util.PDUSessionTypeToModels(smContext.SelectedPDUSessionType)
 	smPolicyData.AccessType = smContext.AnType
 	smPolicyData.RatType = smContext.RatType
-	smPolicyData.Ipv4Address = smContext.PDUAddress.Ip.To4().String()
+	smPolicyData.IPv4Address = smContext.PDUAddress.IP.To4().String()
 	smPolicyData.SubsSessAmbr = &models.Ambr{
 		Uplink:   smContext.DnnConfiguration.SessionAmbr.Uplink,
 		Downlink: smContext.DnnConfiguration.SessionAmbr.Downlink,
@@ -43,7 +43,7 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 		Sst: smContext.Snssai.Sst,
 		Sd:  smContext.Snssai.Sd,
 	}
-	smPolicyData.ServingNetwork = &models.PlmnId{
+	smPolicyData.ServingNetwork = &models.PlmnID{
 		Mcc: smContext.ServingNetwork.Mcc,
 		Mnc: smContext.ServingNetwork.Mnc,
 	}
@@ -60,13 +60,13 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 	return smPolicyDecision, http.StatusCreated, nil
 }
 
-func SendSMPolicyAssociationDelete(supi string, pduSessionId int32) error {
-	smPolicyID := fmt.Sprintf("%s-%d", supi, pduSessionId)
+func SendSMPolicyAssociationDelete(supi string, pduSessionID int32) error {
+	smPolicyID := fmt.Sprintf("%s-%d", supi, pduSessionID)
 	err := pcf.DeleteSMPolicy(smPolicyID)
 	if err != nil {
 		return fmt.Errorf("smf policy delete failed, [%v] ", err.Error())
 	}
-	logger.SmfLog.Infof("smf policy deleted successfully, supi: %s, pduSessionId: %d", supi, pduSessionId)
+	logger.SmfLog.Infof("smf policy deleted successfully, supi: %s, pduSessionID: %d", supi, pduSessionID)
 	return nil
 }
 

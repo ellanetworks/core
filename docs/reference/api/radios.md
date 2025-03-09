@@ -33,7 +33,7 @@ None
             "supported_tais": [
                 {
                     "tai": {
-                        "plmnId": {
+                        "plmnID": {
                             "mcc": "001",
                             "mnc": "01"
                         },
@@ -48,7 +48,7 @@ None
                 },
                 {
                     "tai": {
-                        "plmnId": {
+                        "plmnID": {
                             "mcc": "123",
                             "mnc": "12"
                         },
@@ -90,7 +90,7 @@ None
         "supported_tais": [
             {
                 "tai": {
-                    "plmnId": {
+                    "plmnID": {
                         "mcc": "001",
                         "mnc": "01"
                     },
@@ -105,7 +105,7 @@ None
             },
             {
                 "tai": {
-                    "plmnId": {
+                    "plmnID": {
                         "mcc": "123",
                         "mnc": "12"
                     },

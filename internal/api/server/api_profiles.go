@@ -47,8 +47,8 @@ func isProfileNameValid(name string) bool {
 	return len(name) > 0 && len(name) < 256
 }
 
-func isUeIPPoolValid(ueIpPool string) bool {
-	_, _, err := net.ParseCIDR(ueIpPool)
+func isUeIPPoolValid(ueIPPool string) bool {
+	_, _, err := net.ParseCIDR(ueIPPool)
 	return err == nil
 }
 

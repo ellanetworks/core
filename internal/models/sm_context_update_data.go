@@ -3,9 +3,9 @@ package models
 type SmContextUpdateData struct {
 	Pei                string
 	Gpsi               string
-	ServingNfId        string
+	ServingNfID        string
 	Guami              *Guami
-	ServingNetwork     *PlmnId
+	ServingNetwork     *PlmnID
 	AnType             AccessType
 	RatType            RatType
 	PresenceInLadn     PresenceState
@@ -18,9 +18,9 @@ type SmContextUpdateData struct {
 	N1SmMsg            *RefToBinaryData
 	N2SmInfo           *RefToBinaryData
 	N2SmInfoType       N2SmInfoType
-	TargetId           *NgRanTargetId
-	TargetServingNfId  string
-	SmContextStatusUri string
+	TargetID           *NgRanTargetID
+	TargetServingNfID  string
+	SmContextStatusURI string
 	Release            bool
 	Cause              Cause
 	NgApCause          *NgApCause

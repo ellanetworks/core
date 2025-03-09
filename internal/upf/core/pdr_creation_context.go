@@ -64,18 +64,18 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 					}
 				}
 				if allocate {
-					allocatedTeid, err := pdrContext.getFTEID(pdrContext.Session.RemoteSEID, spdrInfo.PdrID)
+					allocatedTeID, err := pdrContext.getFTEID(pdrContext.Session.RemoteSEID, spdrInfo.PdrID)
 					if err != nil {
 						return fmt.Errorf("can't allocate TEID: %s", causeToString(ie.CauseNoResourcesAvailable))
 					}
-					teid = allocatedTeid
+					teid = allocatedTeID
 					spdrInfo.Allocated = true
 					if fteid.HasChID() {
 						pdrContext.setTEIDCache(fteid.ChooseID, teid)
 					}
 				}
 			}
-			spdrInfo.Teid = teid
+			spdrInfo.TeID = teid
 			return nil
 		}
 		return fmt.Errorf("F-TEID IE is missing")
@@ -108,14 +108,14 @@ func (pdrContext *PDRCreationContext) deletePDR(spdrInfo SPDRInfo, bpfObjects *e
 			return fmt.Errorf("can't delete IPv6 PDR: %s", err.Error())
 		}
 	} else {
-		if _, ok := pdrContext.TEIDCache[uint8(spdrInfo.Teid)]; !ok {
-			if err := bpfObjects.DeletePdrUplink(spdrInfo.Teid); err != nil {
+		if _, ok := pdrContext.TEIDCache[uint8(spdrInfo.TeID)]; !ok {
+			if err := bpfObjects.DeletePdrUplink(spdrInfo.TeID); err != nil {
 				return fmt.Errorf("can't delete GTP PDR: %s", err.Error())
 			}
-			pdrContext.TEIDCache[uint8(spdrInfo.Teid)] = 0
+			pdrContext.TEIDCache[uint8(spdrInfo.TeID)] = 0
 		}
 	}
-	if spdrInfo.Teid != 0 {
+	if spdrInfo.TeID != 0 {
 		pdrContext.FteIDResourceManager.ReleaseTEID(pdrContext.Session.RemoteSEID)
 	}
 	return nil
@@ -134,11 +134,11 @@ func (pdrContext *PDRCreationContext) getFTEID(seID uint64, pdrID uint32) (uint3
 		return 0, errors.New("FTEID manager is nil")
 	}
 
-	allocatedTeid, err := pdrContext.FteIDResourceManager.AllocateTEID(seID, pdrID)
+	allocatedTeID, err := pdrContext.FteIDResourceManager.AllocateTEID(seID, pdrID)
 	if err != nil {
 		return 0, fmt.Errorf("can't allocate TEID: %s", causeToString(ie.CauseNoResourcesAvailable))
 	}
-	return allocatedTeid, nil
+	return allocatedTeID, nil
 }
 
 func (pdrContext *PDRCreationContext) hasTEIDCache(chooseID uint8) (uint32, bool) {

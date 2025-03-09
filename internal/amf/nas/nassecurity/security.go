@@ -4,7 +4,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package nas_security
+package nassecurity
 
 import (
 	"encoding/hex"
@@ -25,10 +25,10 @@ var mutex sync.Mutex
 
 func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 	if ue == nil {
-		return nil, fmt.Errorf("amfUe is nil")
+		return nil, fmt.Errorf("amf ue is nil")
 	}
 	if msg == nil {
-		return nil, fmt.Errorf("Nas Message is empty")
+		return nil, fmt.Errorf("nas message is nil")
 	}
 
 	// Plain NAS message
@@ -49,20 +49,20 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 			ue.ULCount.Set(0, 0)
 			ue.DLCount.Set(0, 0)
 		default:
-			return nil, fmt.Errorf("Wrong security header type: 0x%0x", msg.SecurityHeader.SecurityHeaderType)
+			return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeader.SecurityHeaderType)
 		}
 
 		// encode plain nas first
 		payload, err := msg.PlainNasEncode()
 		if err != nil {
-			return nil, fmt.Errorf("Plain NAS encode error: %+v", err)
+			return nil, fmt.Errorf("error encoding plain nas: %+v", err)
 		}
 
 		if needCiphering {
 			ue.NASLog.Debugf("Encrypt NAS message (algorithm: %+v, DLCount: 0x%0x)", ue.CipheringAlg, ue.DLCount.Get())
 			if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.DLCount.Get(), security.Bearer3GPP,
 				security.DirectionDownlink, payload); err != nil {
-				return nil, fmt.Errorf("Encrypt error: %+v", err)
+				return nil, fmt.Errorf("error encrypting: %+v", err)
 			}
 		}
 
@@ -95,11 +95,11 @@ func StmsiToGuti(buf [7]byte) (guti string) {
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 
-	tmpReginID := servedGuami.AmfId[:2]
+	tmpReginID := servedGuami.AmfID[:2]
 	amfID := hex.EncodeToString(buf[1:3])
 	tmsi5G := hex.EncodeToString(buf[3:])
 
-	guti = servedGuami.PlmnId.Mcc + servedGuami.PlmnId.Mnc + tmpReginID + amfID + tmsi5G
+	guti = servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc + tmpReginID + amfID + tmsi5G
 
 	return
 }
@@ -186,10 +186,10 @@ format is followed TS 24.501 9.1.1
 */
 func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*nas.Message, error) {
 	if ue == nil {
-		return nil, fmt.Errorf("amfUe is nil")
+		return nil, fmt.Errorf("amf ue is nil")
 	}
 	if payload == nil {
-		return nil, fmt.Errorf("Nas payload is empty")
+		return nil, fmt.Errorf("nas payload is empty")
 	}
 
 	msg := new(nas.Message)
@@ -205,7 +205,7 @@ func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*n
 			}
 
 			if msg.GmmMessage == nil {
-				return nil, fmt.Errorf("Gmm Message is nil")
+				return nil, fmt.Errorf("gmm message is nil")
 			}
 
 			// TS 24.501 4.4.4.3: Except the messages listed below, no NAS signalling messages shall be processed
@@ -259,7 +259,7 @@ func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*n
 			ciphered = true
 			ue.ULCount.Set(0, 0)
 		default:
-			return nil, fmt.Errorf("Wrong security header type: 0x%0x", msg.SecurityHeader.SecurityHeaderType)
+			return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeader.SecurityHeaderType)
 		}
 
 		if ue.ULCount.SQN() > sequenceNumber {
@@ -273,7 +273,7 @@ func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*n
 		mac32, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ue.ULCount.Get(), security.Bearer3GPP,
 			security.DirectionUplink, payload)
 		if err != nil {
-			return nil, fmt.Errorf("MAC calcuate error: %+v", err)
+			return nil, fmt.Errorf("error calculating mac: %+v", err)
 		}
 
 		if !reflect.DeepEqual(mac32, receivedMac32) {
@@ -288,7 +288,7 @@ func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*n
 			// decrypt payload without sequence number (payload[1])
 			if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP,
 				security.DirectionUplink, payload[1:]); err != nil {
-				return nil, fmt.Errorf("Encrypt error: %+v", err)
+				return nil, fmt.Errorf("error encrypting: %+v", err)
 			}
 		}
 
@@ -319,7 +319,7 @@ func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*n
 			case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
 				return msg, nil
 			default:
-				return nil, fmt.Errorf("Mac Verification for the nas message [%v] failed", msg.GmmHeader.GetMessageType())
+				return nil, fmt.Errorf("mac verification failed for the nas message: %v", msg.GmmHeader.GetMessageType())
 			}
 		}
 

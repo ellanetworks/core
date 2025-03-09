@@ -5,7 +5,7 @@ import (
 	"reflect"
 )
 
-func MarshToJsonString(v interface{}) ([]string, error) {
+func MarshToJSONString(v interface{}) ([]string, error) {
 	types := reflect.TypeOf(v)
 	val := reflect.ValueOf(v)
 	var result []string

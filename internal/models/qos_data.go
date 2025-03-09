@@ -1,8 +1,7 @@
 package models
 
 type QosData struct {
-	// Univocally identifies the QoS control policy data within a PDU session.
-	QosId         string
+	QosID         string
 	Var5qi        int32
 	MaxbrUl       string
 	MaxbrDl       string

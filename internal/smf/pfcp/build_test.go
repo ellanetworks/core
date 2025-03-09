@@ -65,7 +65,7 @@ func TestBuildPfcpSessionEstablishmentRequest(t *testing.T) {
 			Precedence:         123,
 			FAR:                &context.FAR{},
 			PDI: context.PDI{
-				LocalFTeid:      &context.FTEID{},
+				LocalFTeID:      &context.FTEID{},
 				UEIPAddress:     &context.UEIPAddress{},
 				SDFFilter:       &context.SDFFilter{},
 				ApplicationID:   "app",
@@ -130,7 +130,7 @@ func TestBuildPfcpSessionModificationRequest(t *testing.T) {
 			Precedence:         123,
 			FAR:                &context.FAR{},
 			PDI: context.PDI{
-				LocalFTeid:      &context.FTEID{},
+				LocalFTeID:      &context.FTEID{},
 				UEIPAddress:     &context.UEIPAddress{},
 				SDFFilter:       &context.SDFFilter{},
 				ApplicationID:   "app",
@@ -145,14 +145,14 @@ func TestBuildPfcpSessionModificationRequest(t *testing.T) {
 		{
 			ForwardingParameters: &context.ForwardingParameters{
 				OuterHeaderCreation: &context.OuterHeaderCreation{
-					Ipv4Address:                    net.ParseIP("1.2.3.4"),
-					Ipv6Address:                    net.ParseIP(""),
-					Teid:                           1,
+					IPv4Address:                    net.ParseIP("1.2.3.4"),
+					IPv6Address:                    net.ParseIP(""),
+					TeID:                           1,
 					PortNumber:                     1,
 					OuterHeaderCreationDescription: 256,
 				},
 			},
-			State:       context.RULE_UPDATE,
+			State:       context.RuleUpdate,
 			FARID:       1,
 			ApplyAction: context.ApplyAction{},
 		},
@@ -202,7 +202,7 @@ func TestBuildPfcpSessionModificationRequestNoOuterHeader(t *testing.T) {
 			Precedence:         123,
 			FAR:                &context.FAR{},
 			PDI: context.PDI{
-				LocalFTeid:      &context.FTEID{},
+				LocalFTeID:      &context.FTEID{},
 				UEIPAddress:     &context.UEIPAddress{},
 				SDFFilter:       &context.SDFFilter{},
 				ApplicationID:   "app",
@@ -216,7 +216,7 @@ func TestBuildPfcpSessionModificationRequestNoOuterHeader(t *testing.T) {
 	farList := []*context.FAR{
 		{
 			ForwardingParameters: &context.ForwardingParameters{},
-			State:                context.RULE_UPDATE,
+			State:                context.RuleUpdate,
 			FARID:                1,
 			ApplyAction:          context.ApplyAction{},
 		},

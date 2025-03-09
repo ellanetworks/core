@@ -1,7 +1,7 @@
 package models
 
 type Amf3GppAccessRegistration struct {
-	AmfInstanceId          string
+	AmfInstanceID          string
 	ImsVoPs                ImsVoPs
 	InitialRegistrationInd bool
 	Guami                  *Guami

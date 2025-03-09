@@ -22,16 +22,16 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) error {
 		Pei:        ue.Pei,
 		Gpsi:       ue.Gpsi,
 		AccessType: anType,
-		ServingPlmn: &models.PlmnId{
-			Mcc: ue.PlmnId.Mcc,
-			Mnc: ue.PlmnId.Mnc,
+		ServingPlmn: &models.PlmnID{
+			Mcc: ue.PlmnID.Mcc,
+			Mnc: ue.PlmnID.Mnc,
 		},
 		Guami: &models.Guami{
-			PlmnId: &models.PlmnId{
-				Mcc: guamiList[0].PlmnId.Mcc,
-				Mnc: guamiList[0].PlmnId.Mnc,
+			PlmnID: &models.PlmnID{
+				Mcc: guamiList[0].PlmnID.Mcc,
+				Mnc: guamiList[0].PlmnID.Mnc,
 			},
-			AmfId: guamiList[0].AmfId,
+			AmfID: guamiList[0].AmfID,
 		},
 	}
 
@@ -43,11 +43,11 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) error {
 	if err != nil {
 		return fmt.Errorf("failed to create policy: %+v", err)
 	}
-	ue.PolicyAssociationId = locationHeader
+	ue.PolicyAssociationID = locationHeader
 	ue.AmPolicyAssociation = res
 	if res.Triggers != nil {
 		for _, trigger := range res.Triggers {
-			if trigger == models.RequestTrigger_LOC_CH {
+			if trigger == models.RequestTriggerLocCh {
 				ue.RequestTriggerLocationChange = true
 			}
 		}
@@ -56,7 +56,7 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) error {
 }
 
 func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssociationUpdateRequest) error {
-	res, err := pcf.UpdateAMPolicy(ue.PolicyAssociationId, updateRequest)
+	res, err := pcf.UpdateAMPolicy(ue.PolicyAssociationID, updateRequest)
 	if err != nil {
 		return fmt.Errorf("failed to update policy: %+v", err)
 	}
@@ -69,7 +69,7 @@ func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssocia
 	ue.AmPolicyAssociation.Triggers = res.Triggers
 	ue.RequestTriggerLocationChange = false
 	for _, trigger := range res.Triggers {
-		if trigger == models.RequestTrigger_LOC_CH {
+		if trigger == models.RequestTriggerLocCh {
 			ue.RequestTriggerLocationChange = true
 		}
 	}
@@ -77,7 +77,7 @@ func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssocia
 }
 
 func AMPolicyControlDelete(ue *context.AmfUe) error {
-	err := pcf.DeleteAMPolicy(ue.PolicyAssociationId)
+	err := pcf.DeleteAMPolicy(ue.PolicyAssociationID)
 	if err != nil {
 		return fmt.Errorf("could not delete policy: %+v", err)
 	}

@@ -35,19 +35,19 @@ func createPDIIE(pdi *context.PDI) *ie.IE {
 		ie.NewSourceInterface(pdi.SourceInterface.InterfaceValue),
 	)
 
-	if pdi.LocalFTeid != nil {
+	if pdi.LocalFTeID != nil {
 		fteidFlags := new(Flag)
-		fteidFlags.setBit(1, pdi.LocalFTeid.V4)
-		fteidFlags.setBit(2, pdi.LocalFTeid.V6)
-		fteidFlags.setBit(3, pdi.LocalFTeid.Ch)
-		fteidFlags.setBit(4, pdi.LocalFTeid.Chid)
+		fteidFlags.setBit(1, pdi.LocalFTeID.V4)
+		fteidFlags.setBit(2, pdi.LocalFTeID.V6)
+		fteidFlags.setBit(3, pdi.LocalFTeID.Ch)
+		fteidFlags.setBit(4, pdi.LocalFTeID.Chid)
 		createPDIIes = append(createPDIIes,
 			ie.NewFTEID(
 				uint8(*fteidFlags),
-				pdi.LocalFTeid.Teid,
-				pdi.LocalFTeid.Ipv4Address,
-				pdi.LocalFTeid.Ipv6Address,
-				pdi.LocalFTeid.ChooseId,
+				pdi.LocalFTeID.TeID,
+				pdi.LocalFTeID.IPv4Address,
+				pdi.LocalFTeID.IPv6Address,
+				pdi.LocalFTeID.ChooseID,
 			),
 		)
 	}
@@ -66,8 +66,8 @@ func createPDIIE(pdi *context.PDI) *ie.IE {
 		createPDIIes = append(createPDIIes,
 			ie.NewUEIPAddress(
 				uint8(*ueIPAddressflags),
-				pdi.UEIPAddress.Ipv4Address.String(),
-				pdi.UEIPAddress.Ipv6Address.String(),
+				pdi.UEIPAddress.IPv4Address.String(),
+				pdi.UEIPAddress.IPv6Address.String(),
 				pdi.UEIPAddress.Ipv6PrefixDelegationBits,
 				0,
 			),
@@ -131,9 +131,9 @@ func farToCreateFAR(far *context.FAR) *ie.IE {
 		if far.ForwardingParameters.OuterHeaderCreation != nil {
 			forwardingParametersIEs = append(forwardingParametersIEs, ie.NewOuterHeaderCreation(
 				far.ForwardingParameters.OuterHeaderCreation.OuterHeaderCreationDescription,
-				far.ForwardingParameters.OuterHeaderCreation.Teid,
-				far.ForwardingParameters.OuterHeaderCreation.Ipv4Address.String(),
-				far.ForwardingParameters.OuterHeaderCreation.Ipv6Address.String(),
+				far.ForwardingParameters.OuterHeaderCreation.TeID,
+				far.ForwardingParameters.OuterHeaderCreation.IPv4Address.String(),
+				far.ForwardingParameters.OuterHeaderCreation.IPv6Address.String(),
 				far.ForwardingParameters.OuterHeaderCreation.PortNumber,
 				0,
 				0,
@@ -206,9 +206,9 @@ func farToUpdateFAR(far *context.FAR) *ie.IE {
 		if far.ForwardingParameters.OuterHeaderCreation != nil {
 			forwardingParametersIEs = append(forwardingParametersIEs, ie.NewOuterHeaderCreation(
 				far.ForwardingParameters.OuterHeaderCreation.OuterHeaderCreationDescription,
-				far.ForwardingParameters.OuterHeaderCreation.Teid,
-				far.ForwardingParameters.OuterHeaderCreation.Ipv4Address.String(),
-				far.ForwardingParameters.OuterHeaderCreation.Ipv6Address.String(),
+				far.ForwardingParameters.OuterHeaderCreation.TeID,
+				far.ForwardingParameters.OuterHeaderCreation.IPv4Address.String(),
+				far.ForwardingParameters.OuterHeaderCreation.IPv6Address.String(),
 				far.ForwardingParameters.OuterHeaderCreation.PortNumber,
 				0,
 				0,
@@ -235,7 +235,7 @@ func farToUpdateFAR(far *context.FAR) *ie.IE {
 func BuildPfcpSessionEstablishmentRequest(
 	sequenceNumber uint32,
 	nodeID string,
-	fseidIpv4Address net.IP,
+	fseidIPv4Address net.IP,
 	localSeid uint64,
 	pdrList []*context.PDR,
 	farList []*context.FAR,
@@ -243,19 +243,19 @@ func BuildPfcpSessionEstablishmentRequest(
 ) (*message.SessionEstablishmentRequest, error) {
 	ies := make([]*ie.IE, 0)
 	ies = append(ies, ie.NewNodeIDHeuristic(nodeID))
-	ies = append(ies, ie.NewFSEID(localSeid, fseidIpv4Address, nil))
+	ies = append(ies, ie.NewFSEID(localSeid, fseidIPv4Address, nil))
 
 	for _, pdr := range pdrList {
-		if pdr.State == context.RULE_INITIAL {
+		if pdr.State == context.RuleInitial {
 			ies = append(ies, pdrToCreatePDR(pdr))
 		}
 	}
 
 	for _, far := range farList {
-		if far.State == context.RULE_INITIAL {
+		if far.State == context.RuleInitial {
 			ies = append(ies, farToCreateFAR(far))
 		}
-		far.State = context.RULE_CREATE
+		far.State = context.RuleCreate
 	}
 
 	qerMap := make(map[uint32]*context.QER)
@@ -263,10 +263,10 @@ func BuildPfcpSessionEstablishmentRequest(
 		qerMap[qer.QERID] = qer
 	}
 	for _, filteredQER := range qerMap {
-		if filteredQER.State == context.RULE_INITIAL {
+		if filteredQER.State == context.RuleInitial {
 			ies = append(ies, qerToCreateQER(filteredQER))
 		}
-		filteredQER.State = context.RULE_CREATE
+		filteredQER.State = context.RuleCreate
 	}
 
 	ies = append(ies, ie.NewPDNType(ie.PDNTypeIPv4))
@@ -295,34 +295,34 @@ func BuildPfcpSessionModificationRequest(
 
 	for _, pdr := range pdrList {
 		switch pdr.State {
-		case context.RULE_INITIAL:
+		case context.RuleInitial:
 			ies = append(ies, pdrToCreatePDR(pdr))
-		case context.RULE_UPDATE:
+		case context.RuleUpdate:
 			ies = append(ies, pdrToUpdatePDR(pdr))
-		case context.RULE_REMOVE:
+		case context.RuleRemove:
 			ies = append(ies, ie.NewRemovePDR(ie.NewPDRID(pdr.PDRID)))
 		}
-		pdr.State = context.RULE_CREATE
+		pdr.State = context.RuleCreate
 	}
 
 	for _, far := range farList {
 		switch far.State {
-		case context.RULE_INITIAL:
+		case context.RuleInitial:
 			ies = append(ies, farToCreateFAR(far))
-		case context.RULE_UPDATE:
+		case context.RuleUpdate:
 			ies = append(ies, farToUpdateFAR(far))
-		case context.RULE_REMOVE:
+		case context.RuleRemove:
 			ies = append(ies, ie.NewRemoveFAR(ie.NewFARID(far.FARID)))
 		}
-		far.State = context.RULE_CREATE
+		far.State = context.RuleCreate
 	}
 
 	for _, qer := range qerList {
 		switch qer.State {
-		case context.RULE_INITIAL:
+		case context.RuleInitial:
 			ies = append(ies, qerToCreateQER(qer))
 		}
-		qer.State = context.RULE_CREATE
+		qer.State = context.RuleCreate
 	}
 	return message.NewSessionModificationRequest(
 		0,

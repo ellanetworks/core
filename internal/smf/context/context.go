@@ -49,19 +49,19 @@ func AllocateLocalSEID() (uint64, error) {
 	return smfContext.LocalSEIDCount, nil
 }
 
-func SMF_Self() *SMFContext {
+func SMFSelf() *SMFContext {
 	return &smfContext
 }
 
 func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
-	smfSelf := SMF_Self()
+	smfSelf := SMFSelf()
 	operator, err := smfSelf.DBInstance.GetOperator()
 	if err != nil {
 		logger.SmfLog.Errorf("failed to get operator information from db: %v", err)
 		return nil
 	}
 	intfUpfInfoItem := InterfaceUpfInfoItem{
-		InterfaceType:   models.UpInterfaceType_N3,
+		InterfaceType:   models.UpInterfaceTypeN3,
 		Endpoints:       make([]string, 0),
 		NetworkInstance: config.DNN,
 	}
@@ -85,7 +85,7 @@ func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 	}
 
 	upfNode := &UPNode{
-		Type:   UPNODE_UPF,
+		Type:   UpNodeUPF,
 		UPF:    upf,
 		NodeID: *upfNodeID,
 		Links:  make([]*UPNode, 0),
@@ -100,7 +100,7 @@ func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 	}
 
 	gnbNode := &UPNode{
-		Type:   UPNODE_AN,
+		Type:   UpNodeAN,
 		NodeID: *NewNodeID("1.1.1.1"),
 		Links:  make([]*UPNode, 0),
 		Dnn:    config.DNN,
@@ -118,7 +118,7 @@ func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 // Right now we only support 1 UPF
 // This function should be edited when we decide to support multiple UPFs
 func UpdateUserPlaneInformation() {
-	smfSelf := SMF_Self()
+	smfSelf := SMFSelf()
 	configUserPlaneInfo := BuildUserPlaneInformationFromConfig()
 	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)
 	if same {
@@ -156,7 +156,7 @@ func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInfo
 			return false
 		}
 
-		if !bytes.Equal(node.NodeID.NodeIdValue, contextUserPlaneInfo.UPNodes[nodeName].NodeID.NodeIdValue) {
+		if !bytes.Equal(node.NodeID.NodeIDValue, contextUserPlaneInfo.UPNodes[nodeName].NodeID.NodeIDValue) {
 			logger.SmfLog.Warnf("Node ID mismatch for node %s", nodeName)
 			return false
 		}
@@ -166,7 +166,7 @@ func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInfo
 			return false
 		}
 
-		if node.Type == UPNODE_UPF {
+		if node.Type == UpNodeUPF {
 			if !node.UPF.SNssaiInfos[0].SNssai.Equal(&contextUserPlaneInfo.UPNodes[nodeName].UPF.SNssaiInfos[0].SNssai) {
 				logger.SmfLog.Warnf("SNssai mismatch for node %s", nodeName)
 				return false
@@ -177,11 +177,11 @@ func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInfo
 }
 
 func GetUserPlaneInformation() *UserPlaneInformation {
-	return SMF_Self().UserPlaneInformation
+	return SMFSelf().UserPlaneInformation
 }
 
 func GetSnssaiInfo() []SnssaiSmfInfo {
-	self := SMF_Self()
+	self := SMFSelf()
 	operator, err := self.DBInstance.GetOperator()
 	if err != nil {
 		logger.SmfLog.Warnf("failed to get operator information from db: %v", err)
@@ -198,7 +198,7 @@ func GetSnssaiInfo() []SnssaiSmfInfo {
 			Sst: operator.Sst,
 			Sd:  operator.GetHexSd(),
 		},
-		PlmnId: models.PlmnId{
+		PlmnID: models.PlmnID{
 			Mcc: operator.Mcc,
 			Mnc: operator.Mnc,
 		},

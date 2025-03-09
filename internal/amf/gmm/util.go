@@ -7,9 +7,9 @@ import (
 )
 
 func AnTypeToNas(anType models.AccessType) uint8 {
-	if anType == models.AccessType__3_GPP_ACCESS {
+	if anType == models.AccessType3GPPAccess {
 		return nasMessage.AccessType3GPP
-	} else if anType == models.AccessType_NON_3_GPP_ACCESS {
+	} else if anType == models.AccessTypeNon3GPPAccess {
 		return nasMessage.AccessTypeNon3GPP
 	}
 

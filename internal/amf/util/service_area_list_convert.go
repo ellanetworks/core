@@ -9,11 +9,11 @@ import (
 )
 
 // TS 24.501 9.11.3.49
-func PartialServiceAreaListToNas(plmnID models.PlmnId, serviceAreaRestriction models.ServiceAreaRestriction) ([]byte, error) {
+func PartialServiceAreaListToNas(plmnID models.PlmnID, serviceAreaRestriction models.ServiceAreaRestriction) ([]byte, error) {
 	var partialServiceAreaList []byte
 	var allowedType uint8
 
-	if serviceAreaRestriction.RestrictionType == models.RestrictionType_ALLOWED_AREAS {
+	if serviceAreaRestriction.RestrictionType == models.RestrictionTypeAllowedAreas {
 		allowedType = nasMessage.AllowedTypeAllowedArea
 	} else {
 		allowedType = nasMessage.AllowedTypeNonAllowedArea

@@ -14,7 +14,7 @@ import (
 // SnssaiSmfInfo records the SMF S-NSSAI related information
 type SnssaiSmfInfo struct {
 	DnnInfos map[string]*SnssaiSmfDnnInfo
-	PlmnId   models.PlmnId
+	PlmnID   models.PlmnID
 	Snssai   SNssai
 }
 

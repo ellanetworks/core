@@ -24,7 +24,7 @@ import (
 type RelAction int
 
 const (
-	RanUeNgapIdUnspecified int64 = 0xffffffff
+	RanUeNgapIDUnspecified int64 = 0xffffffff
 )
 
 const (
@@ -35,10 +35,10 @@ const (
 )
 
 type RanUe struct {
-	RanUeNgapId                      int64
-	AmfUeNgapId                      int64
+	RanUeNgapID                      int64
+	AmfUeNgapID                      int64
 	HandOverType                     ngapType.HandoverType
-	SuccessPduSessionId              []int32
+	SuccessPduSessionID              []int32
 	SourceUe                         *RanUe
 	TargetUe                         *RanUe
 	Tai                              models.Tai
@@ -79,8 +79,8 @@ func (ranUe *RanUe) Remove() error {
 			break
 		}
 	}
-	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapId)
-	logger.AmfLog.Infof("ran ue removed: %d", ranUe.RanUeNgapId)
+	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapID)
+	logger.AmfLog.Infof("ran ue removed: %d", ranUe.RanUeNgapID)
 	return nil
 }
 
@@ -88,7 +88,7 @@ func (ranUe *RanUe) DetachAmfUe() {
 	ranUe.AmfUe = nil
 }
 
-func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapId int64) error {
+func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {
 	if ranUe == nil {
 		return fmt.Errorf("ran ue is nil")
 	}
@@ -112,9 +112,9 @@ func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapId int64) error {
 
 	// switch to newRan
 	ranUe.Ran = newRan
-	ranUe.RanUeNgapId = ranUeNgapId
+	ranUe.RanUeNgapID = ranUeNgapID
 
-	logger.AmfLog.Infof("ran ue (%d) switch to new Ran: %s", ranUe.RanUeNgapId, ranUe.Ran.Name)
+	logger.AmfLog.Infof("ran ue (%d) switch to new Ran: %s", ranUe.RanUeNgapID, ranUe.Ran.Name)
 	return nil
 }
 
@@ -132,25 +132,25 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 		}
 
 		tAI := locationInfoEUTRA.TAI
-		plmnID := util.PlmnIdToModels(tAI.PLMNIdentity)
+		plmnID := util.PlmnIDToModels(tAI.PLMNIdentity)
 		tac := hex.EncodeToString(tAI.TAC.Value)
 
 		if ranUe.Location.EutraLocation.Tai == nil {
 			ranUe.Location.EutraLocation.Tai = new(models.Tai)
 		}
-		ranUe.Location.EutraLocation.Tai.PlmnId = &plmnID
+		ranUe.Location.EutraLocation.Tai.PlmnID = &plmnID
 		ranUe.Location.EutraLocation.Tai.Tac = tac
 		ranUe.Tai = *ranUe.Location.EutraLocation.Tai
 
 		eUTRACGI := locationInfoEUTRA.EUTRACGI
-		ePlmnID := util.PlmnIdToModels(eUTRACGI.PLMNIdentity)
+		ePlmnID := util.PlmnIDToModels(eUTRACGI.PLMNIdentity)
 		eutraCellID := ngapConvert.BitStringToHex(&eUTRACGI.EUTRACellIdentity.Value)
 
 		if ranUe.Location.EutraLocation.Ecgi == nil {
 			ranUe.Location.EutraLocation.Ecgi = new(models.Ecgi)
 		}
-		ranUe.Location.EutraLocation.Ecgi.PlmnId = &ePlmnID
-		ranUe.Location.EutraLocation.Ecgi.EutraCellId = eutraCellID
+		ranUe.Location.EutraLocation.Ecgi.PlmnID = &ePlmnID
+		ranUe.Location.EutraLocation.Ecgi.EutraCellID = eutraCellID
 		ranUe.Location.EutraLocation.UeLocationTimestamp = &curTime
 		if locationInfoEUTRA.TimeStamp != nil {
 			ranUe.Location.EutraLocation.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(
@@ -170,25 +170,25 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 		}
 
 		tAI := locationInfoNR.TAI
-		plmnID := util.PlmnIdToModels(tAI.PLMNIdentity)
+		plmnID := util.PlmnIDToModels(tAI.PLMNIdentity)
 		tac := hex.EncodeToString(tAI.TAC.Value)
 
 		if ranUe.Location.NrLocation.Tai == nil {
 			ranUe.Location.NrLocation.Tai = new(models.Tai)
 		}
-		ranUe.Location.NrLocation.Tai.PlmnId = &plmnID
+		ranUe.Location.NrLocation.Tai.PlmnID = &plmnID
 		ranUe.Location.NrLocation.Tai.Tac = tac
 		ranUe.Tai = *ranUe.Location.NrLocation.Tai
 
 		nRCGI := locationInfoNR.NRCGI
-		nRPlmnID := util.PlmnIdToModels(nRCGI.PLMNIdentity)
+		nRPlmnID := util.PlmnIDToModels(nRCGI.PLMNIdentity)
 		nRCellID := ngapConvert.BitStringToHex(&nRCGI.NRCellIdentity.Value)
 
 		if ranUe.Location.NrLocation.Ncgi == nil {
 			ranUe.Location.NrLocation.Ncgi = new(models.Ncgi)
 		}
-		ranUe.Location.NrLocation.Ncgi.PlmnId = &nRPlmnID
-		ranUe.Location.NrLocation.Ncgi.NrCellId = nRCellID
+		ranUe.Location.NrLocation.Ncgi.PlmnID = &nRPlmnID
+		ranUe.Location.NrLocation.Ncgi.NrCellID = nRCellID
 		ranUe.Location.NrLocation.UeLocationTimestamp = &curTime
 		if locationInfoNR.TimeStamp != nil {
 			ranUe.Location.NrLocation.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(locationInfoNR.TimeStamp.Value)
@@ -222,7 +222,7 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 		}
 		tac := fmt.Sprintf("%06x", tmp)
 		ranUe.Location.N3gaLocation.N3gppTai = &models.Tai{
-			PlmnId: supportTaiList[0].PlmnId,
+			PlmnID: supportTaiList[0].PlmnID,
 			Tac:    tac,
 		}
 		ranUe.Tai = *ranUe.Location.N3gaLocation.N3gppTai

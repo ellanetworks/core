@@ -44,7 +44,7 @@ func BuildPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte,
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ue.AmfUeNgapId
+	aMFUENGAPID.Value = ue.AmfUeNgapID
 
 	PDUSessionResourceReleaseCommandIEs.List = append(PDUSessionResourceReleaseCommandIEs.List, ie)
 
@@ -56,7 +56,7 @@ func BuildPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte,
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ue.RanUeNgapId
+	rANUENGAPID.Value = ue.RanUeNgapID
 
 	PDUSessionResourceReleaseCommandIEs.List = append(PDUSessionResourceReleaseCommandIEs.List, ie)
 
@@ -121,16 +121,16 @@ func BuildNGSetupResponse() ([]byte, error) {
 	guamiList := context.GetServedGuamiList()
 	for _, guami := range guamiList {
 		servedGUAMIItem := ngapType.ServedGUAMIItem{}
-		plmnId, err := util.PlmnIdToNgap(*guami.PlmnId)
+		plmnID, err := util.PlmnIDToNgap(*guami.PlmnID)
 		if err != nil {
 			logger.AmfLog.Errorf("error converting PLMN ID to NGAP: %+v", err)
 			continue
 		}
-		servedGUAMIItem.GUAMI.PLMNIdentity = *plmnId
-		regionId, setId, prtId := ngapConvert.AmfIdToNgap(guami.AmfId)
-		servedGUAMIItem.GUAMI.AMFRegionID.Value = regionId
-		servedGUAMIItem.GUAMI.AMFSetID.Value = setId
-		servedGUAMIItem.GUAMI.AMFPointer.Value = prtId
+		servedGUAMIItem.GUAMI.PLMNIdentity = *plmnID
+		regionID, setID, prtID := ngapConvert.AmfIdToNgap(guami.AmfID)
+		servedGUAMIItem.GUAMI.AMFRegionID.Value = regionID
+		servedGUAMIItem.GUAMI.AMFSetID.Value = setID
+		servedGUAMIItem.GUAMI.AMFPointer.Value = prtID
 		servedGUAMIList.List = append(servedGUAMIList.List, servedGUAMIItem)
 	}
 
@@ -157,11 +157,11 @@ func BuildNGSetupResponse() ([]byte, error) {
 	pLMNSupportList := ie.Value.PLMNSupportList
 	plmnSupported := context.GetSupportedPlmn()
 	pLMNSupportItem := ngapType.PLMNSupportItem{}
-	plmnId, err := util.PlmnIdToNgap(plmnSupported.PlmnId)
+	plmnID, err := util.PlmnIDToNgap(plmnSupported.PlmnID)
 	if err != nil {
 		return nil, fmt.Errorf("error converting PLMN ID to NGAP: %+v", err)
 	}
-	pLMNSupportItem.PLMNIdentity = *plmnId
+	pLMNSupportItem.PLMNIdentity = *plmnID
 	for _, snssai := range plmnSupported.SNssaiList {
 		sliceSupportItem := ngapType.SliceSupportItem{}
 		snssaiNgap, err := util.SNssaiToNgap(snssai)
@@ -281,7 +281,7 @@ func BuildDownlinkNasTransport(ue *context.RanUe, nasPdu []byte,
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ue.AmfUeNgapId
+	aMFUENGAPID.Value = ue.AmfUeNgapID
 
 	downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
 
@@ -293,7 +293,7 @@ func BuildDownlinkNasTransport(ue *context.RanUe, nasPdu []byte,
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ue.RanUeNgapId
+	rANUENGAPID.Value = ue.RanUeNgapID
 
 	downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
 
@@ -324,7 +324,7 @@ func BuildDownlinkNasTransport(ue *context.RanUe, nasPdu []byte,
 
 	// RAN Paging Priority (optional)
 	// Mobility Restriction List (optional)
-	if ue.Ran.AnType == models.AccessType__3_GPP_ACCESS && mobilityRestrictionList != nil {
+	if ue.Ran.AnType == models.AccessType3GPPAccess && mobilityRestrictionList != nil {
 		amfUe := ue.AmfUe
 		if amfUe == nil {
 			return nil, fmt.Errorf("amfUe is nil")
@@ -371,17 +371,17 @@ func BuildUEContextReleaseCommand(
 
 	ueNGAPIDs := ie.Value.UENGAPIDs
 
-	if ue.RanUeNgapId == context.RanUeNgapIdUnspecified {
+	if ue.RanUeNgapID == context.RanUeNgapIDUnspecified {
 		ueNGAPIDs.Present = ngapType.UENGAPIDsPresentAMFUENGAPID
 		ueNGAPIDs.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
-		ueNGAPIDs.AMFUENGAPID.Value = ue.AmfUeNgapId
+		ueNGAPIDs.AMFUENGAPID.Value = ue.AmfUeNgapID
 	} else {
 		ueNGAPIDs.Present = ngapType.UENGAPIDsPresentUENGAPIDPair
 		ueNGAPIDs.UENGAPIDPair = new(ngapType.UENGAPIDPair)
 
-		ueNGAPIDs.UENGAPIDPair.AMFUENGAPID.Value = ue.AmfUeNgapId
-		ueNGAPIDs.UENGAPIDPair.RANUENGAPID.Value = ue.RanUeNgapId
+		ueNGAPIDs.UENGAPIDPair.AMFUENGAPID.Value = ue.AmfUeNgapID
+		ueNGAPIDs.UENGAPIDPair.RANUENGAPID.Value = ue.RanUeNgapID
 	}
 
 	ueContextReleaseCommandIEs.List = append(ueContextReleaseCommandIEs.List, ie)
@@ -396,7 +396,7 @@ func BuildUEContextReleaseCommand(
 	}
 	switch causePresent {
 	case ngapType.CausePresentNothing:
-		return nil, fmt.Errorf("Cause Present is Nothing")
+		return nil, fmt.Errorf("cause present is nothing")
 	case ngapType.CausePresentRadioNetwork:
 		ngapCause.RadioNetwork = new(ngapType.CauseRadioNetwork)
 		ngapCause.RadioNetwork.Value = cause
@@ -413,7 +413,7 @@ func BuildUEContextReleaseCommand(
 		ngapCause.Misc = new(ngapType.CauseMisc)
 		ngapCause.Misc.Value = cause
 	default:
-		return nil, fmt.Errorf("Cause Present is Unknown")
+		return nil, fmt.Errorf("invalid cause present")
 	}
 	ie.Value.Cause = &ngapCause
 
@@ -422,7 +422,7 @@ func BuildUEContextReleaseCommand(
 	return ngap.Encoder(pdu)
 }
 
-func BuildErrorIndication(amfUeNgapId, ranUeNgapId *int64, cause *ngapType.Cause,
+func BuildErrorIndication(amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
@@ -445,7 +445,7 @@ func BuildErrorIndication(amfUeNgapId, ranUeNgapId *int64, cause *ngapType.Cause
 			"[Build Error Indication] shall contain at least either the Cause or the Criticality Diagnostics")
 	}
 
-	if amfUeNgapId != nil {
+	if amfUeNgapID != nil {
 		ie := ngapType.ErrorIndicationIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
 		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -453,12 +453,12 @@ func BuildErrorIndication(amfUeNgapId, ranUeNgapId *int64, cause *ngapType.Cause
 		ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 		aMFUENGAPID := ie.Value.AMFUENGAPID
-		aMFUENGAPID.Value = *amfUeNgapId
+		aMFUENGAPID.Value = *amfUeNgapID
 
 		errorIndicationIEs.List = append(errorIndicationIEs.List, ie)
 	}
 
-	if ranUeNgapId != nil {
+	if ranUeNgapID != nil {
 		ie := ngapType.ErrorIndicationIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
 		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -466,7 +466,7 @@ func BuildErrorIndication(amfUeNgapId, ranUeNgapId *int64, cause *ngapType.Cause
 		ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 		rANUENGAPID := ie.Value.RANUENGAPID
-		rANUENGAPID.Value = *ranUeNgapId
+		rANUENGAPID.Value = *ranUeNgapID
 
 		errorIndicationIEs.List = append(errorIndicationIEs.List, ie)
 	}
@@ -522,7 +522,7 @@ func BuildHandoverCancelAcknowledge(
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ue.AmfUeNgapId
+	aMFUENGAPID.Value = ue.AmfUeNgapID
 
 	handoverCancelAcknowledgeIEs.List = append(handoverCancelAcknowledgeIEs.List, ie)
 
@@ -534,7 +534,7 @@ func BuildHandoverCancelAcknowledge(
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ue.RanUeNgapId
+	rANUENGAPID.Value = ue.RanUeNgapID
 
 	handoverCancelAcknowledgeIEs.List = append(handoverCancelAcknowledgeIEs.List, ie)
 
@@ -581,7 +581,7 @@ func BuildPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte,
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ue.AmfUeNgapId
+	aMFUENGAPID.Value = ue.AmfUeNgapID
 
 	pDUSessionResourceSetupRequestIEs.List = append(pDUSessionResourceSetupRequestIEs.List, ie)
 
@@ -593,7 +593,7 @@ func BuildPDUSessionResourceSetupRequest(ue *context.RanUe, nasPdu []byte,
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ue.RanUeNgapId
+	rANUENGAPID.Value = ue.RanUeNgapID
 
 	pDUSessionResourceSetupRequestIEs.List = append(pDUSessionResourceSetupRequestIEs.List, ie)
 
@@ -665,7 +665,7 @@ func BuildPDUSessionResourceModifyConfirm(
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ue.AmfUeNgapId
+	aMFUENGAPID.Value = ue.AmfUeNgapID
 
 	pDUSessionResourceModifyConfirmIEs.List = append(pDUSessionResourceModifyConfirmIEs.List, ie)
 
@@ -677,7 +677,7 @@ func BuildPDUSessionResourceModifyConfirm(
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ue.RanUeNgapId
+	rANUENGAPID.Value = ue.RanUeNgapID
 
 	pDUSessionResourceModifyConfirmIEs.List = append(pDUSessionResourceModifyConfirmIEs.List, ie)
 
@@ -738,7 +738,7 @@ func BuildPDUSessionResourceModifyRequest(ue *context.RanUe,
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ue.AmfUeNgapId
+	aMFUENGAPID.Value = ue.AmfUeNgapID
 
 	pDUSessionResourceModifyRequestIEs.List = append(pDUSessionResourceModifyRequestIEs.List, ie)
 
@@ -750,7 +750,7 @@ func BuildPDUSessionResourceModifyRequest(ue *context.RanUe,
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ue.RanUeNgapId
+	rANUENGAPID.Value = ue.RanUeNgapID
 
 	pDUSessionResourceModifyRequestIEs.List = append(pDUSessionResourceModifyRequestIEs.List, ie)
 
@@ -826,7 +826,7 @@ func BuildInitialContextSetupRequest(
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ranUe.AmfUeNgapId
+	aMFUENGAPID.Value = ranUe.AmfUeNgapID
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
@@ -838,7 +838,7 @@ func BuildInitialContextSetupRequest(
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ranUe.RanUeNgapId
+	rANUENGAPID.Value = ranUe.RanUeNgapID
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
@@ -898,12 +898,12 @@ func BuildInitialContextSetupRequest(
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 
-	plmnId, err := util.PlmnIdToNgap(*servedGuami.PlmnId)
+	ngapPlmnID, err := util.PlmnIDToNgap(*servedGuami.PlmnID)
 	if err != nil {
 		return nil, err
 	}
-	*plmnID = *plmnId
-	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfId)
+	*plmnID = *ngapPlmnID
+	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfID)
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
@@ -979,9 +979,9 @@ func BuildInitialContextSetupRequest(
 
 	securityKey := ie.Value.SecurityKey
 	switch ranUe.Ran.AnType {
-	case models.AccessType__3_GPP_ACCESS:
+	case models.AccessType3GPPAccess:
 		securityKey.Value = ngapConvert.ByteToBitString(amfUe.Kgnb, 256)
-	case models.AccessType_NON_3_GPP_ACCESS:
+	case models.AccessTypeNon3GPPAccess:
 		securityKey.Value = ngapConvert.ByteToBitString(amfUe.Kn3iwf, 256)
 	}
 
@@ -1003,7 +1003,7 @@ func BuildInitialContextSetupRequest(
 	}
 
 	// Mobility Restriction List (optional)
-	if anType == models.AccessType__3_GPP_ACCESS {
+	if anType == models.AccessType3GPPAccess {
 		ie = ngapType.InitialContextSetupRequestIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDMobilityRestrictionList
 		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
@@ -1165,7 +1165,7 @@ func BuildHandoverCommand(
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = sourceUe.AmfUeNgapId
+	aMFUENGAPID.Value = sourceUe.AmfUeNgapID
 
 	handoverCommandIEs.List = append(handoverCommandIEs.List, ie)
 
@@ -1177,7 +1177,7 @@ func BuildHandoverCommand(
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = sourceUe.RanUeNgapId
+	rANUENGAPID.Value = sourceUe.RanUeNgapID
 
 	handoverCommandIEs.List = append(handoverCommandIEs.List, ie)
 
@@ -1274,7 +1274,7 @@ func BuildHandoverPreparationFailure(sourceUe *context.RanUe, cause ngapType.Cau
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = sourceUe.AmfUeNgapId
+	aMFUENGAPID.Value = sourceUe.AmfUeNgapID
 
 	handoverPreparationFailureIEs.List = append(handoverPreparationFailureIEs.List, ie)
 
@@ -1286,7 +1286,7 @@ func BuildHandoverPreparationFailure(sourceUe *context.RanUe, cause ngapType.Cau
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = sourceUe.RanUeNgapId
+	rANUENGAPID.Value = sourceUe.RanUeNgapID
 
 	handoverPreparationFailureIEs.List = append(handoverPreparationFailureIEs.List, ie)
 
@@ -1353,7 +1353,7 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause, pduSessionRes
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ue.AmfUeNgapId
+	aMFUENGAPID.Value = ue.AmfUeNgapID
 
 	handoverRequestIEs.List = append(handoverRequestIEs.List, ie)
 
@@ -1492,12 +1492,12 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause, pduSessionRes
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 
-	plmnId, err := util.PlmnIdToNgap(*servedGuami.PlmnId)
+	ngapPlmnID, err := util.PlmnIDToNgap(*servedGuami.PlmnID)
 	if err != nil {
 		return nil, fmt.Errorf("error converting plmn id to ngap: %s", err)
 	}
-	*plmnID = *plmnId
-	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfId)
+	*plmnID = *ngapPlmnID
+	amfRegionID.Value, amfSetID.Value, amfPtrID.Value = ngapConvert.AmfIdToNgap(servedGuami.AmfID)
 
 	handoverRequestIEs.List = append(handoverRequestIEs.List, ie)
 
@@ -1544,7 +1544,7 @@ func BuildPathSwitchRequestAcknowledge(
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ue.AmfUeNgapId
+	aMFUENGAPID.Value = ue.AmfUeNgapID
 
 	pathSwitchRequestAckIEs.List = append(pathSwitchRequestAckIEs.List, ie)
 
@@ -1556,7 +1556,7 @@ func BuildPathSwitchRequestAcknowledge(
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ue.RanUeNgapId
+	rANUENGAPID.Value = ue.RanUeNgapID
 
 	pathSwitchRequestAckIEs.List = append(pathSwitchRequestAckIEs.List, ie)
 
@@ -1687,8 +1687,8 @@ func BuildPathSwitchRequestAcknowledge(
 // pduSessionResourceReleasedList: provided by AMF, and the transfer data is from SMF
 // criticalityDiagnostics: from received node when received not comprehended IE or missing IE
 func BuildPathSwitchRequestFailure(
-	amfUeNgapId,
-	ranUeNgapId int64,
+	amfUeNgapID,
+	ranUeNgapID int64,
 	pduSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListPSFail,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
 ) ([]byte, error) {
@@ -1714,7 +1714,7 @@ func BuildPathSwitchRequestFailure(
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = amfUeNgapId
+	aMFUENGAPID.Value = amfUeNgapID
 
 	pathSwitchRequestFailureIEs.List = append(pathSwitchRequestFailureIEs.List, ie)
 
@@ -1726,7 +1726,7 @@ func BuildPathSwitchRequestFailure(
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ranUeNgapId
+	rANUENGAPID.Value = ranUeNgapID
 
 	pathSwitchRequestFailureIEs.List = append(pathSwitchRequestFailureIEs.List, ie)
 
@@ -1821,14 +1821,14 @@ func BuildPaging(
 	ie.Value.TAIListForPaging = new(ngapType.TAIListForPaging)
 
 	taiListForPaging := ie.Value.TAIListForPaging
-	if ue.RegistrationArea[models.AccessType__3_GPP_ACCESS] == nil {
-		err = fmt.Errorf("Registration Area of Ue[%s] is empty", ue.Supi)
+	if ue.RegistrationArea[models.AccessType3GPPAccess] == nil {
+		err = fmt.Errorf("registration area is empty for ue: %s", ue.Supi)
 		return nil, err
 	} else {
-		for _, tai := range ue.RegistrationArea[models.AccessType__3_GPP_ACCESS] {
+		for _, tai := range ue.RegistrationArea[models.AccessType3GPPAccess] {
 			var tac []byte
 			taiListforPagingItem := ngapType.TAIListForPagingItem{}
-			plmnID, err := util.PlmnIdToNgap(*tai.PlmnId)
+			plmnID, err := util.PlmnIDToNgap(*tai.PlmnID)
 			if err != nil {
 				return nil, fmt.Errorf("error converting plmn id to ngap: %s", err)
 			}
@@ -1898,22 +1898,22 @@ func BuildPaging(
 				recommendedCellItem.NGRANCGI.Present = ngapType.NGRANCGIPresentNRCGI
 				recommendedCellItem.NGRANCGI.NRCGI = new(ngapType.NRCGI)
 				nrCGI := recommendedCellItem.NGRANCGI.NRCGI
-				plmnID, err := util.PlmnIdToNgap(*recommendedCell.NgRanCGI.NRCGI.PlmnId)
+				plmnID, err := util.PlmnIDToNgap(*recommendedCell.NgRanCGI.NRCGI.PlmnID)
 				if err != nil {
 					return nil, fmt.Errorf("error converting plmn id to ngap: %s", err)
 				}
 				nrCGI.PLMNIdentity = *plmnID
-				nrCGI.NRCellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.NRCGI.NrCellId, 36)
+				nrCGI.NRCellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.NRCGI.NrCellID, 36)
 			case context.NgRanCgiPresentEUTRACGI:
 				recommendedCellItem.NGRANCGI.Present = ngapType.NGRANCGIPresentEUTRACGI
 				recommendedCellItem.NGRANCGI.EUTRACGI = new(ngapType.EUTRACGI)
 				eutraCGI := recommendedCellItem.NGRANCGI.EUTRACGI
-				plmnID, err := util.PlmnIdToNgap(*recommendedCell.NgRanCGI.NRCGI.PlmnId)
+				plmnID, err := util.PlmnIDToNgap(*recommendedCell.NgRanCGI.NRCGI.PlmnID)
 				if err != nil {
 					return nil, fmt.Errorf("error converting plmn id to ngap: %s", err)
 				}
 				eutraCGI.PLMNIdentity = *plmnID
-				eutraCGI.EUTRACellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.EUTRACGI.EutraCellId, 28)
+				eutraCGI.EUTRACellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.EUTRACGI.EutraCellID, 28)
 			}
 
 			if recommendedCell.TimeStayedInCell != nil {
@@ -2138,7 +2138,7 @@ func BuildLocationReportingControl(
 	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
 
 	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = ue.AmfUeNgapId
+	aMFUENGAPID.Value = ue.AmfUeNgapID
 
 	locationReportingControlIEs.List = append(locationReportingControlIEs.List, ie)
 
@@ -2150,7 +2150,7 @@ func BuildLocationReportingControl(
 	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
 
 	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ue.RanUeNgapId
+	rANUENGAPID.Value = ue.RanUeNgapID
 
 	locationReportingControlIEs.List = append(locationReportingControlIEs.List, ie)
 

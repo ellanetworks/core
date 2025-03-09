@@ -15,7 +15,7 @@ const (
 	MaxNumOfTAI             int   = 16
 	MaxNumOfBroadcastPLMNs  int   = 12
 	MaxNumOfSlice           int   = 1024
-	MaxValueOfAmfUeNgapId   int64 = 1099511627775
+	MaxValueOfAmfUeNgapID   int64 = 1099511627775
 	MaxNumOfServedGuamiList int   = 256
 	MaxNumOfPDUSessions     int   = 256
 	MaxNumOfAOI             int   = 64

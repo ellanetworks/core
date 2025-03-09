@@ -117,7 +117,7 @@ func (bpfObjects *BpfObjects) DeleteDownlinkPdrIP6(ipv6 net.IP) error {
 type FarInfo struct {
 	Action                uint8
 	OuterHeaderCreation   uint8
-	Teid                  uint32
+	TeID                  uint32
 	RemoteIP              uint32
 	LocalIP               uint32
 	TransportLevelMarking uint16
@@ -131,7 +131,7 @@ func (f FarInfo) MarshalJSON() ([]byte, error) {
 	data := map[string]interface{}{
 		"action":                  f.Action,
 		"outer_header_creation":   f.OuterHeaderCreation,
-		"teid":                    f.Teid,
+		"teid":                    f.TeID,
 		"remote_ip":               remoteIP.String(),
 		"local_ip":                localIP.String(),
 		"transport_level_marking": f.TransportLevelMarking,

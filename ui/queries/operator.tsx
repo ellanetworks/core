@@ -22,8 +22,8 @@ export const getOperator = async (authToken: string) => {
   return respData.result;
 };
 
-export const updateOperatorId = async (authToken: string, mcc: string, mnc: string) => {
-  const operatorIdData = {
+export const updateOperatorID = async (authToken: string, mcc: string, mnc: string) => {
+  const operatorIDData = {
     mcc: mcc,
     mnc: mnc,
   };
@@ -33,7 +33,7 @@ export const updateOperatorId = async (authToken: string, mcc: string, mnc: stri
       "Content-Type": "application/json",
       "Authorization": "Bearer " + authToken
     },
-    body: JSON.stringify(operatorIdData),
+    body: JSON.stringify(operatorIDData),
   });
   let respData;
   try {

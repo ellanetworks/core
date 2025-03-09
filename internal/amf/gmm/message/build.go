@@ -12,7 +12,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/nas/nas_security"
+	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas"
@@ -21,7 +21,7 @@ import (
 	"github.com/omec-project/nas/nasType"
 )
 
-func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu []byte, pduSessionId uint8, cause *uint8) ([]byte, error) {
+func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause *uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeDLNASTransport)
@@ -39,10 +39,10 @@ func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu [
 	dLNASTransport.PayloadContainer.SetLen(uint16(len(nasPdu)))
 	dLNASTransport.PayloadContainer.SetPayloadContainerContents(nasPdu)
 
-	if pduSessionId != 0 {
+	if pduSessionID != 0 {
 		dLNASTransport.PduSessionID2Value = new(nasType.PduSessionID2Value)
 		dLNASTransport.PduSessionID2Value.SetIei(nasMessage.DLNASTransportPduSessionID2ValueType)
-		dLNASTransport.PduSessionID2Value.SetPduSessionID2Value(pduSessionId)
+		dLNASTransport.PduSessionID2Value.SetPduSessionID2Value(pduSessionID)
 	}
 	if cause != nil {
 		dLNASTransport.Cause5GMM = new(nasType.Cause5GMM)
@@ -52,7 +52,7 @@ func BuildDLNASTransport(ue *context.AmfUe, payloadContainerType uint8, nasPdu [
 
 	m.GmmMessage.DLNASTransport = dLNASTransport
 
-	return nas_security.Encode(ue, m)
+	return nassecurity.Encode(ue, m)
 }
 
 func BuildNotification(ue *context.AmfUe, accessType models.AccessType) ([]byte, error) {
@@ -69,7 +69,7 @@ func BuildNotification(ue *context.AmfUe, accessType models.AccessType) ([]byte,
 	notification.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
 	notification.ExtendedProtocolDiscriminator.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
 	notification.SetMessageType(nas.MsgTypeNotification)
-	if accessType == models.AccessType__3_GPP_ACCESS {
+	if accessType == models.AccessType3GPPAccess {
 		notification.SetAccessType(nasMessage.AccessType3GPP)
 	} else {
 		notification.SetAccessType(nasMessage.AccessTypeNon3GPP)
@@ -77,7 +77,7 @@ func BuildNotification(ue *context.AmfUe, accessType models.AccessType) ([]byte,
 
 	m.GmmMessage.Notification = notification
 
-	return nas_security.Encode(ue, m)
+	return nassecurity.Encode(ue, m)
 }
 
 func BuildIdentityRequest(typeOfIdentity uint8) ([]byte, error) {
@@ -112,7 +112,7 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 	authenticationRequest.ABBA.SetABBAContents(ue.ABBA)
 
 	switch ue.AuthenticationCtx.AuthType {
-	case models.AuthType__5_G_AKA:
+	case models.AuthType5GAka:
 		var tmpArray [16]byte
 		av5gAka, ok := ue.AuthenticationCtx.Var5gAuthData.(models.Av5gAka)
 		if !ok {
@@ -135,7 +135,7 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 		authenticationRequest.AuthenticationParameterAUTN.SetLen(uint8(len(autn)))
 		copy(tmpArray[:], autn[0:16])
 		authenticationRequest.AuthenticationParameterAUTN.SetAUTN(tmpArray)
-	case models.AuthType_EAP_AKA_PRIME:
+	case models.AuthTypeEAPAkaPrime:
 		eapMsg := ue.AuthenticationCtx.Var5gAuthData.(string)
 		rawEapMsg, err := base64.StdEncoding.DecodeString(eapMsg)
 		if err != nil {
@@ -152,7 +152,7 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 }
 
 func BuildServiceAccept(ue *context.AmfUe, pDUSessionStatus *[16]bool,
-	reactivationResult *[16]bool, errPduSessionId, errCause []uint8,
+	reactivationResult *[16]bool, errPduSessionID, errCause []uint8,
 ) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
@@ -179,17 +179,17 @@ func BuildServiceAccept(ue *context.AmfUe, pDUSessionStatus *[16]bool,
 		serviceAccept.PDUSessionReactivationResult.SetLen(2)
 		serviceAccept.PDUSessionReactivationResult.Buffer = nasConvert.PSIToBuf(*reactivationResult)
 	}
-	if errPduSessionId != nil {
+	if errPduSessionID != nil {
 		serviceAccept.PDUSessionReactivationResultErrorCause = new(nasType.PDUSessionReactivationResultErrorCause)
 		serviceAccept.PDUSessionReactivationResultErrorCause.SetIei(
 			nasMessage.ServiceAcceptPDUSessionReactivationResultErrorCauseType)
-		buf := nasConvert.PDUSessionReactivationResultErrorCauseToBuf(errPduSessionId, errCause)
+		buf := nasConvert.PDUSessionReactivationResultErrorCauseToBuf(errPduSessionID, errCause)
 		serviceAccept.PDUSessionReactivationResultErrorCause.SetLen(uint16(len(buf)))
 		serviceAccept.PDUSessionReactivationResultErrorCause.Buffer = buf
 	}
 	m.GmmMessage.ServiceAccept = serviceAccept
 
-	return nas_security.Encode(ue, m)
+	return nassecurity.Encode(ue, m)
 }
 
 func BuildAuthenticationReject(ue *context.AmfUe, eapMsg string) ([]byte, error) {
@@ -371,7 +371,7 @@ func BuildSecurityModeCommand(ue *context.AmfUe, eapSuccess bool, eapMessage str
 
 	ue.SecurityContextAvailable = true
 	m.GmmMessage.SecurityModeCommand = securityModeCommand
-	payload, err := nas_security.Encode(ue, m)
+	payload, err := nassecurity.Encode(ue, m)
 	if err != nil {
 		ue.SecurityContextAvailable = false
 		return nil, err
@@ -414,7 +414,7 @@ func BuildDeregistrationRequest(ue *context.RanUe, accessType uint8, reRegistrat
 			ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
 			SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
 		}
-		return nas_security.Encode(ue.AmfUe, m)
+		return nassecurity.Encode(ue.AmfUe, m)
 	}
 	return m.PlainNasEncode()
 }
@@ -440,7 +440,7 @@ func BuildRegistrationAccept(
 	anType models.AccessType,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
-	errPduSessionId, errCause []uint8,
+	errPduSessionID, errCause []uint8,
 ) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
@@ -459,14 +459,14 @@ func BuildRegistrationAccept(
 
 	registrationAccept.RegistrationResult5GS.SetLen(1)
 	registrationResult := uint8(0)
-	if anType == models.AccessType__3_GPP_ACCESS {
+	if anType == models.AccessType3GPPAccess {
 		registrationResult |= nasMessage.AccessType3GPP
-		if ue.State[models.AccessType_NON_3_GPP_ACCESS].Is(context.Registered) {
+		if ue.State[models.AccessTypeNon3GPPAccess].Is(context.Registered) {
 			registrationResult |= nasMessage.AccessTypeNon3GPP
 		}
 	} else {
 		registrationResult |= nasMessage.AccessTypeNon3GPP
-		if ue.State[models.AccessType__3_GPP_ACCESS].Is(context.Registered) {
+		if ue.State[models.AccessType3GPPAccess].Is(context.Registered) {
 			registrationResult |= nasMessage.AccessType3GPP
 		}
 	}
@@ -482,11 +482,11 @@ func BuildRegistrationAccept(
 	if plmnSupported != nil {
 		registrationAccept.EquivalentPlmns = nasType.NewEquivalentPlmns(nasMessage.RegistrationAcceptEquivalentPlmnsType)
 		var buf []uint8
-		plmnId, err := util.PlmnIDToNas(plmnSupported.PlmnId)
+		plmnID, err := util.PlmnIDToNas(plmnSupported.PlmnID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert PLMN ID to NAS: %s", err)
 		}
-		buf = append(buf, plmnId...)
+		buf = append(buf, plmnID...)
 		registrationAccept.EquivalentPlmns.SetLen(uint8(len(buf)))
 		copy(registrationAccept.EquivalentPlmns.Octet[:], buf)
 	}
@@ -520,7 +520,7 @@ func BuildRegistrationAccept(
 	if amfSelf.Get5gsNwFeatSuppEnable() {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
 		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)
-		if anType == models.AccessType__3_GPP_ACCESS {
+		if anType == models.AccessType3GPPAccess {
 			registrationAccept.SetIMSVoPS3GPP(amfSelf.Get5gsNwFeatSuppImsVoPS())
 		} else {
 			registrationAccept.SetIMSVoPSN3GPP(amfSelf.Get5gsNwFeatSuppImsVoPS())
@@ -545,10 +545,10 @@ func BuildRegistrationAccept(
 		registrationAccept.PDUSessionReactivationResult.Buffer = nasConvert.PSIToBuf(*reactivationResult)
 	}
 
-	if errPduSessionId != nil {
+	if errPduSessionID != nil {
 		registrationAccept.PDUSessionReactivationResultErrorCause = nasType.NewPDUSessionReactivationResultErrorCause(
 			nasMessage.RegistrationAcceptPDUSessionReactivationResultErrorCauseType)
-		buf := nasConvert.PDUSessionReactivationResultErrorCauseToBuf(errPduSessionId, errCause)
+		buf := nasConvert.PDUSessionReactivationResultErrorCauseToBuf(errPduSessionID, errCause)
 		registrationAccept.PDUSessionReactivationResultErrorCause.SetLen(uint16(len(buf)))
 		registrationAccept.PDUSessionReactivationResultErrorCause.Buffer = buf
 	}
@@ -574,10 +574,10 @@ func BuildRegistrationAccept(
 		ue.NetworkSlicingSubscriptionChanged = false // reset the value
 	}
 
-	if anType == models.AccessType__3_GPP_ACCESS && ue.AmPolicyAssociation != nil &&
+	if anType == models.AccessType3GPPAccess && ue.AmPolicyAssociation != nil &&
 		ue.AmPolicyAssociation.ServAreaRes != nil {
 		registrationAccept.ServiceAreaList = nasType.NewServiceAreaList(nasMessage.RegistrationAcceptServiceAreaListType)
-		partialServiceAreaList, err := util.PartialServiceAreaListToNas(ue.PlmnId, *ue.AmPolicyAssociation.ServAreaRes)
+		partialServiceAreaList, err := util.PartialServiceAreaListToNas(ue.PlmnID, *ue.AmPolicyAssociation.ServAreaRes)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert PartialServiceAreaList to NAS: %s", err)
 		}
@@ -586,14 +586,14 @@ func BuildRegistrationAccept(
 	}
 
 	// Temporary: commented this timer because UESIM is not supporting
-	/*if anType == models.AccessType__3_GPP_ACCESS && ue.T3512Value != 0 {
+	/*if anType == models.AccessType3GPPAccess && ue.T3512Value != 0 {
 		registrationAccept.T3512Value = nasType.NewT3512Value(nasMessage.RegistrationAcceptT3512ValueType)
 		registrationAccept.T3512Value.SetLen(1)
 		t3512 := nasConvert.GPRSTimer3ToNas(ue.T3512Value)
 		registrationAccept.T3512Value.Octet = t3512
 	}*/
 
-	if anType == models.AccessType_NON_3_GPP_ACCESS {
+	if anType == models.AccessTypeNon3GPPAccess {
 		registrationAccept.Non3GppDeregistrationTimerValue = nasType.NewNon3GppDeregistrationTimerValue(nasMessage.RegistrationAcceptNon3GppDeregistrationTimerValueType)
 		registrationAccept.Non3GppDeregistrationTimerValue.SetLen(1)
 		timerValue := nasConvert.GPRSTimer2ToNas(ue.Non3gppDeregistrationTimerValue)
@@ -616,5 +616,5 @@ func BuildRegistrationAccept(
 
 	m.GmmMessage.RegistrationAccept = registrationAccept
 
-	return nas_security.Encode(ue, m)
+	return nassecurity.Encode(ue, m)
 }

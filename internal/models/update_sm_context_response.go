@@ -1,7 +1,7 @@
 package models
 
 type UpdateSmContextResponse struct {
-	JsonData                  *SmContextUpdatedData
+	JSONData                  *SmContextUpdatedData
 	BinaryDataN1SmMessage     []byte
 	BinaryDataN2SmInformation []byte
 }
