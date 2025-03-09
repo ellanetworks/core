@@ -70,7 +70,6 @@ type SMContext struct {
 	SubFsmLog                      *zap.SugaredLogger
 	SmPolicyUpdates                []*qos.PolicyUpdate
 	SmPolicyData                   qos.SmCtxtPolicyData
-	PendingUPF                     PendingUPF
 	PFCPContext                    map[string]*PFCPSessionContext
 	SMLock                         sync.Mutex
 	PDUSessionID                   int32

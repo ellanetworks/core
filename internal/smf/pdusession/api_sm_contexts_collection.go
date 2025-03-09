@@ -39,8 +39,8 @@ func CreateSmContext(request models.PostSmContextsRequest) (string, *models.Post
 		return "", errRsp, nil
 	}
 
-	responseStatus := producer.SendPFCPRules(smContext)
-	if responseStatus != context.SessionEstablishSuccess {
+	err = producer.SendPFCPRules(smContext)
+	if err != nil {
 		if smContext != nil {
 			go func() {
 				err := producer.SendPduSessN1N2Transfer(smContext, false)
@@ -51,6 +51,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (string, *models.Post
 		}
 		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
 	}
+
 	go func() {
 		err := producer.SendPduSessN1N2Transfer(smContext, true)
 		if err != nil {

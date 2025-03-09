@@ -19,6 +19,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/nas/nasMessage"
 	libngap "github.com/omec-project/ngap"
@@ -2510,7 +2511,7 @@ func HandleUEContextReleaseRequest(ran *context.AmfRan, message *ngapType.NGAPPD
 			ranUe.Log.Info("Ue Context in Non GMM-Registered")
 			amfUe.SmContextList.Range(func(key, value interface{}) bool {
 				smContext := value.(*context.SmContext)
-				err := consumer.SendReleaseSmContextRequest(smContext)
+				err := pdusession.ReleaseSmContext(smContext.SmContextRef())
 				if err != nil {
 					ranUe.Log.Errorf("error sending release sm context request: %+v", err)
 				}

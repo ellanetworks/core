@@ -23,21 +23,23 @@ import (
 
 func HandlePduSessionContextReplacement(smCtxtRef string) error {
 	smCtxt := context.GetSMContext(smCtxtRef)
-
-	if smCtxt != nil {
-		smCtxt.SMLock.Lock()
-
-		smCtxt.LocalPurged = true
-
-		context.RemoveSMContext(smCtxt.Ref)
-
-		// Check if UPF session set, send release
-		if smCtxt.Tunnel != nil {
-			releaseTunnel(smCtxt)
-		}
-
-		smCtxt.SMLock.Unlock()
+	if smCtxt == nil {
+		return nil
 	}
+
+	smCtxt.SMLock.Lock()
+	smCtxt.LocalPurged = true
+	context.RemoveSMContext(smCtxt.Ref)
+
+	// Check if UPF session set, send release
+	if smCtxt.Tunnel != nil {
+		err := releaseTunnel(smCtxt)
+		if err != nil {
+			smCtxt.SubPduSessLog.Errorf("release tunnel failed: %v", err)
+		}
+	}
+
+	smCtxt.SMLock.Unlock()
 
 	return nil
 }
@@ -232,58 +234,35 @@ func HandlePDUSessionSMContextRelease(smContext *context.SMContext) error {
 	}
 
 	// Release User-plane
-	status, ok := releaseTunnel(smContext)
-	if !ok {
+	err = releaseTunnel(smContext)
+	if err != nil {
 		context.RemoveSMContext(smContext.Ref)
-		logger.SmfLog.Warnf("sm context was already released: %s", smContext.Ref)
-		return nil
+		return fmt.Errorf("release tunnel failed: %v", err)
 	}
-	// var releaseErr error
-	switch *status {
-	case context.SessionReleaseSuccess:
-		context.RemoveSMContext(smContext.Ref)
-		return nil
-
-	case context.SessionReleaseTimeout:
-		context.RemoveSMContext(smContext.Ref)
-		return fmt.Errorf("PFCP session release timeout")
-
-	case context.SessionReleaseFailed:
-		context.RemoveSMContext(smContext.Ref)
-		return fmt.Errorf("PFCP session release failed")
-
-	default:
-		smContext.SubCtxLog.Warnf("PDUSessionSMContextRelease, The state shouldn't be [%s]\n", status)
-		context.RemoveSMContext(smContext.Ref)
-		return fmt.Errorf("PFCP session release failed: unknown status")
-	}
+	context.RemoveSMContext(smContext.Ref)
+	return nil
 }
 
-func releaseTunnel(smContext *context.SMContext) (*context.PFCPSessionResponseStatus, bool) {
+func releaseTunnel(smContext *context.SMContext) error {
 	if smContext.Tunnel == nil {
-		smContext.SubPduSessLog.Errorf("releaseTunnel, pfcp tunnel already released")
-		return nil, false
+		return fmt.Errorf("tunnel not found")
 	}
-	var responseStatus *context.PFCPSessionResponseStatus
 	deletedPFCPNode := make(map[string]bool)
-	smContext.PendingUPF = make(context.PendingUPF)
 	for _, dataPath := range smContext.Tunnel.DataPathPool {
 		dataPath.DeactivateTunnelAndPDR(smContext)
 		for curDataPathNode := dataPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
 			curUPFID := curDataPathNode.UPF.UUID()
 			if _, exist := deletedPFCPNode[curUPFID]; !exist {
-				status, err := pfcp.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext)
-				responseStatus = status
+				err := pfcp.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext)
 				if err != nil {
-					smContext.SubPduSessLog.Errorf("releaseTunnel, send PFCP session deletion request failed: %v", err)
+					return fmt.Errorf("send PFCP session deletion request failed: %v", err)
 				}
 				deletedPFCPNode[curUPFID] = true
-				smContext.PendingUPF[curDataPathNode.GetNodeIP()] = true
 			}
 		}
 	}
 	smContext.Tunnel = nil
-	return responseStatus, true
+	return nil
 }
 
 func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {

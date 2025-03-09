@@ -317,10 +317,10 @@ func SendUpdateSmContextRequest(smContext *context.SmContext, updateData models.
 	return updateSmContextReponse, nil
 }
 
-func SendReleaseSmContextRequest(smContext *context.SmContext) error {
-	err := pdusession.ReleaseSmContext(smContext.SmContextRef())
-	if err != nil {
-		return fmt.Errorf("failed to release sm context: %s", err)
-	}
-	return nil
-}
+// func SendReleaseSmContextRequest(smContext *context.SmContext) error {
+// 	err := pdusession.ReleaseSmContext(smContext.SmContextRef())
+// 	if err != nil {
+// 		return fmt.Errorf("failed to release sm context: %s", err)
+// 	}
+// 	return nil
+// }

@@ -5,6 +5,8 @@
 package producer
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
@@ -18,10 +20,8 @@ type PFCPState struct {
 }
 
 // SendPFCPRules send all datapaths to UPFs
-func SendPFCPRules(smContext *context.SMContext) context.PFCPSessionResponseStatus {
+func SendPFCPRules(smContext *context.SMContext) error {
 	pfcpPool := make(map[string]*PFCPState)
-
-	var responseStatus context.PFCPSessionResponseStatus
 	for _, dataPath := range smContext.Tunnel.DataPathPool {
 		if dataPath.Activated {
 			for curDataPathNode := dataPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
@@ -65,23 +65,23 @@ func SendPFCPRules(smContext *context.SMContext) context.PFCPSessionResponseStat
 			}
 		}
 	}
+
 	for ip, pfcpState := range pfcpPool {
 		sessionContext, exist := smContext.PFCPContext[ip]
 		if !exist || sessionContext.RemoteSEID == 0 {
-			status, err := pfcp.SendPfcpSessionEstablishmentRequest(pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList)
-			responseStatus = *status
+			err := pfcp.SendPfcpSessionEstablishmentRequest(pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList)
 			if err != nil {
-				logger.SmfLog.Errorf("send pfcp session establishment request failed: %v for UPF[%v, %v]: ", err, pfcpState.nodeID, pfcpState.nodeID.ResolveNodeIDToIP())
+				return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 			}
 			logger.SmfLog.Infof("Sent PFCP session establishment request to upf: %v", pfcpState.nodeID)
 		} else {
-			status, err := pfcp.SendPfcpSessionModificationRequest(pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList)
-			responseStatus = *status
+			err := pfcp.SendPfcpSessionModificationRequest(pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList)
 			if err != nil {
 				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, pfcpState.nodeID, pfcpState.nodeID.ResolveNodeIDToIP())
+				return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 			}
 			logger.SmfLog.Infof("Sent PFCP session modification request to upf: %v", pfcpState.nodeID)
 		}
 	}
-	return responseStatus
+	return nil
 }
