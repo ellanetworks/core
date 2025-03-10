@@ -97,7 +97,6 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 			smContext.UpCnxState = body.JSONData.UpCnxState
 			smContext.UeLocation = body.JSONData.UeLocation
 			farList := []*context.FAR{}
-			smContext.PendingUPF = make(context.PendingUPF)
 			for _, dataPath := range smContext.Tunnel.DataPathPool {
 				ANUPF := dataPath.FirstDPNode
 				for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
@@ -112,7 +111,6 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 						if DLPDR.FAR.ForwardingParameters != nil {
 							DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
 						}
-						smContext.PendingUPF[ANUPF.GetNodeIP()] = true
 						farList = append(farList, DLPDR.FAR)
 					}
 				}
@@ -132,7 +130,6 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 	switch smContextUpdateData.HoState {
 	case models.HoStatePreparing:
 
-		smContext.HoState = models.HoStatePreparing
 		if err := context.HandleHandoverRequiredTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, handle HandoverRequiredTransfer failed: %+v", err)
 		}
@@ -151,7 +148,6 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 	case models.HoStatePrepared:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, Ho state %v received", smContextUpdateData.HoState)
 
-		smContext.HoState = models.HoStatePrepared
 		response.JSONData.HoState = models.HoStatePrepared
 		if err := context.HandleHandoverRequestAcknowledgeTransfer(body.BinaryDataN2SmInformation, smContext); err != nil {
 			smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, handle HandoverRequestAcknowledgeTransfer failed: %+v", err)
@@ -171,7 +167,6 @@ func HandleUpdateHoState(body models.UpdateSmContextRequest, smContext *context.
 	case models.HoStateCompleted:
 		smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, Ho state %v received", smContextUpdateData.HoState)
 
-		smContext.HoState = models.HoStateCompleted
 		response.JSONData.HoState = models.HoStateCompleted
 	}
 	return nil
@@ -215,7 +210,6 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 		pdrList := []*context.PDR{}
 		farList := []*context.FAR{}
 
-		smContext.PendingUPF = make(context.PendingUPF)
 		for _, dataPath := range tunnel.DataPathPool {
 			if dataPath.Activated {
 				ANUPF := dataPath.FirstDPNode
@@ -233,10 +227,6 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 
 					pdrList = append(pdrList, DLPDR)
 					farList = append(farList, DLPDR.FAR)
-
-					if _, exist := smContext.PendingUPF[ANUPF.GetNodeIP()]; !exist {
-						smContext.PendingUPF[ANUPF.GetNodeIP()] = true
-					}
 				}
 			}
 		}
@@ -287,17 +277,12 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 
 		pdrList := []*context.PDR{}
 		farList := []*context.FAR{}
-		smContext.PendingUPF = make(context.PendingUPF)
 		for _, dataPath := range tunnel.DataPathPool {
 			if dataPath.Activated {
 				ANUPF := dataPath.FirstDPNode
 				for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
 					pdrList = append(pdrList, DLPDR)
 					farList = append(farList, DLPDR.FAR)
-
-					if _, exist := smContext.PendingUPF[ANUPF.GetNodeIP()]; !exist {
-						smContext.PendingUPF[ANUPF.GetNodeIP()] = true
-					}
 				}
 			}
 		}

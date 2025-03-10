@@ -38,10 +38,6 @@ func PccRuleString(pcc *models.PccRule) string {
 		pcc.PccRuleID, pcc.Precedence, pcc.RefQosData[0], PccFlowInfosString(pcc.FlowInfos))
 }
 
-func TCDataString(tcData *models.TrafficControlData) string {
-	return fmt.Sprintf("TC Data:[Id:[%v], FlowStatus:[%v]]", tcData.TcID, tcData.FlowStatus)
-}
-
 func PccFlowInfosString(flows []models.FlowInformation) []string {
 	var flowStrs []string
 	for _, flow := range flows {
@@ -54,8 +50,8 @@ func PccFlowInfosString(flows []models.FlowInformation) []string {
 }
 
 func (obj PolicyUpdate) String() string {
-	return fmt.Sprintf("Policy Update:[\nPccRule:[%v], \nSessRules:[%v], \nQosData:[%v], \nTcData:[%v]]",
-		obj.PccRuleUpdate, obj.SessRuleUpdate, obj.QosFlowUpdate, obj.TCUpdate)
+	return fmt.Sprintf("Policy Update:[\nPccRule:[%v], \nSessRules:[%v], \nQosData:[%v]]",
+		obj.PccRuleUpdate, obj.SessRuleUpdate, obj.QosFlowUpdate)
 }
 
 func (upd PccRulesUpdate) String() string {
@@ -133,33 +129,6 @@ func (upd QosFlowsUpdate) String() string {
 	strDel := ""
 	for name, val := range upd.del {
 		strDel += fmt.Sprintf("\n[name:[%v], %v", name, QosDataString(val))
-	}
-	str += fmt.Sprintf("\n[to del:[%v]]", strDel)
-
-	return str
-}
-
-func (obj TrafficControlUpdate) String() string {
-	str := "\nTC Data Changes:"
-
-	// To be added
-	strAdd := ""
-	for name, val := range obj.add {
-		strAdd += fmt.Sprintf("\n[name:[%v], %v", name, TCDataString(val))
-	}
-	str += fmt.Sprintf("\n[to add:[%v]]", strAdd)
-
-	// To be modified
-	strMod := ""
-	for name, val := range obj.mod {
-		strMod += fmt.Sprintf("\n[name:[%v], %v", name, TCDataString(val))
-	}
-	str += fmt.Sprintf("\n[to mod:[%v]]", strMod)
-
-	// To be deleted
-	strDel := ""
-	for name, val := range obj.del {
-		strDel += fmt.Sprintf("\n[name:[%v], %v", name, TCDataString(val))
 	}
 	str += fmt.Sprintf("\n[to del:[%v]]", strDel)
 

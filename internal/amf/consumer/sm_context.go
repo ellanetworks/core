@@ -53,7 +53,6 @@ func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
 func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext) (smContextCreateData models.SmContextCreateData) {
 	amfSelf := context.AMFSelf()
 	smContextCreateData.Supi = ue.Supi
-	smContextCreateData.UnauthenticatedSupi = ue.UnauthenticatedSupi
 	smContextCreateData.Pei = ue.Pei
 	smContextCreateData.Gpsi = ue.Gpsi
 	smContextCreateData.PduSessionID = smContext.PduSessionID()
@@ -315,12 +314,4 @@ func SendUpdateSmContextRequest(smContext *context.SmContext, updateData models.
 		return updateSmContextReponse, fmt.Errorf("failed to update sm context: %s", err)
 	}
 	return updateSmContextReponse, nil
-}
-
-func SendReleaseSmContextRequest(smContext *context.SmContext) error {
-	err := pdusession.ReleaseSmContext(smContext.SmContextRef())
-	if err != nil {
-		return fmt.Errorf("failed to release sm context: %s", err)
-	}
-	return nil
 }

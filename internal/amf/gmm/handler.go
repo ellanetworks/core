@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasConvert"
@@ -231,21 +232,21 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType, ulNasTran
 
 			smContextRef, errResponse, err := consumer.SendCreateSmContextRequest(ue, newSmContext, smMessage)
 			if err != nil {
-				ue.GmmLog.Errorf("error sending sm context request: %v", err)
-				return nil
-			} else if errResponse != nil {
-				ue.GmmLog.Warnf("pdu Session Establishment Request was rejected by SMF [pduSessionID: %d]", pduSessionID)
+				return fmt.Errorf("error sending sm context request: %v", err)
+			}
+			if errResponse != nil {
 				err := gmm_message.SendDLNASTransport(ue.RanUe[anType], nasMessage.PayloadContainerTypeN1SMInfo, errResponse.BinaryDataN1SmMessage, pduSessionID, 0)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport: %s", err)
 				}
 				ue.GmmLog.Infof("sent downlink nas transport to UE")
-			} else {
-				newSmContext.SetSmContextRef(smContextRef)
-				newSmContext.SetUserLocation(ue.Location)
-				ue.StoreSmContext(pduSessionID, newSmContext)
-				ue.GmmLog.Debugf("Created sm context for pdu session id %d", pduSessionID)
+				return fmt.Errorf("pdu session establishment request was rejected by SMF for pdu session id %d", pduSessionID)
 			}
+
+			newSmContext.SetSmContextRef(smContextRef)
+			newSmContext.SetUserLocation(ue.Location)
+			ue.StoreSmContext(pduSessionID, newSmContext)
+			ue.GmmLog.Debugf("Created sm context for pdu session id %d", pduSessionID)
 		case nasMessage.ULNASTransportRequestTypeModificationRequest:
 			fallthrough
 		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
@@ -803,7 +804,10 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			pduSessionID := int32(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 				if !psiArray[psi] && smContext.AccessType() == anType {
-					err := consumer.SendReleaseSmContextRequest(smContext)
+					err := pdusession.ReleaseSmContext(smContext.SmContextRef())
+					if err != nil {
+						return fmt.Errorf("failed to release sm context: %s", err)
+					}
 					if err != nil {
 						pduSessionStatus[psi] = true
 						ue.GmmLog.Errorf("error sending release sm context request: %v", err)
@@ -1281,9 +1285,9 @@ func HandleNotificationResponse(ue *context.AmfUe, notificationResponse *nasMess
 			pduSessionID := int32(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 				if !psiArray[psi] {
-					err := consumer.SendReleaseSmContextRequest(smContext)
+					err := pdusession.ReleaseSmContext(smContext.SmContextRef())
 					if err != nil {
-						ue.GmmLog.Errorf("Release SmContext Error[%v]", err.Error())
+						return fmt.Errorf("failed to release sm context: %s", err)
 					}
 				}
 			}
@@ -1352,7 +1356,7 @@ func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType model
 
 		if smContext.AccessType() == accessType {
 			ue.GmmLog.Infof("Sending SmContext [slice: %v, dnn: %v] Release Request to SMF", smContext.Snssai(), smContext.Dnn())
-			err = consumer.SendReleaseSmContextRequest(smContext)
+			err := pdusession.ReleaseSmContext(smContext.SmContextRef())
 			if err != nil {
 				ue.GmmLog.Errorf("Release SmContext Error[%v]", err.Error())
 			}
@@ -1555,7 +1559,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType,
 			smContext := value.(*context.SmContext)
 			if smContext.AccessType() == anType {
 				if !psiArray[pduSessionID] {
-					err := consumer.SendReleaseSmContextRequest(smContext)
+					err := pdusession.ReleaseSmContext(smContext.SmContextRef())
 					if err != nil {
 						ue.GmmLog.Errorf("Release SmContext Error[%v]", err.Error())
 					}
@@ -1837,7 +1841,6 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 		}
 		switch response.AuthResult {
 		case models.AuthResultSuccess:
-			ue.UnauthenticatedSupi = false
 			ue.Kseaf = response.Kseaf
 			ue.Supi = response.Supi
 			ue.DerivateKamf()
@@ -1875,7 +1878,6 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 
 		switch response.AuthResult {
 		case models.AuthResultSuccess:
-			ue.UnauthenticatedSupi = false
 			ue.Kseaf = response.KSeaf
 			ue.Supi = response.Supi
 			ue.DerivateKamf()
@@ -2123,7 +2125,7 @@ func HandleDeregistrationRequest(ue *context.AmfUe, anType models.AccessType,
 
 		if smContext.AccessType() == anType ||
 			targetDeregistrationAccessType == nasMessage.AccessTypeBoth {
-			err := consumer.SendReleaseSmContextRequest(smContext)
+			err := pdusession.ReleaseSmContext(smContext.SmContextRef())
 			if err != nil {
 				ue.GmmLog.Errorf("Release SmContext Error[%v]", err.Error())
 			}

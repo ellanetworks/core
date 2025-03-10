@@ -1,10 +1,4 @@
-// Copyright 2024 Ella Networks
-// SPDX-FileCopyrightText: 2022-present Intel Corporation
-// SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
-// Copyright 2019 free5GC.org
-// SPDX-License-Identifier: Apache-2.0
-
-package consumer
+package producer
 
 import (
 	"fmt"
@@ -67,7 +61,6 @@ func SendSMPolicyAssociationDelete(supi string, pduSessionID int32) error {
 
 func validateSmPolicyDecision(smPolicy *models.SmPolicyDecision) error {
 	// Validate just presence of important IEs as of now
-	// Sess Rules
 	for _, rule := range smPolicy.SessRules {
 		if rule.AuthSessAmbr == nil {
 			return fmt.Errorf("authorised session ambr missing")

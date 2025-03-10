@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
@@ -23,7 +22,6 @@ func ReleaseSmContext(smContextRef string) error {
 	if err != nil {
 		return fmt.Errorf("error releasing pdu session: %v ", err.Error())
 	}
-	logger.SmfLog.Infof("SM Context released successfully: %s", smContextRef)
 	return nil
 }
 

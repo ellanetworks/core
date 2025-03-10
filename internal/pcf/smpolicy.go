@@ -37,14 +37,6 @@ func deepCopyQosData(src *models.QosData) *models.QosData {
 	return &copiedQosData
 }
 
-func deepCopyTrafficControlData(src *models.TrafficControlData) *models.TrafficControlData {
-	if src == nil {
-		return nil
-	}
-	copiedTrafficControlData := *src
-	return &copiedTrafficControlData
-}
-
 func GetSmPolicyData() (*models.SmPolicyData, error) {
 	operator, err := pcfCtx.DBInstance.GetOperator()
 	if err != nil {
@@ -109,10 +101,9 @@ func CreateSMPolicy(request models.SmPolicyContextData) (*models.SmPolicyDecisio
 	}
 	_ = ue.NewUeSmPolicyData(smPolicyID, request, smData)
 	decision := &models.SmPolicyDecision{
-		SessRules:     make(map[string]*models.SessionRule),
-		PccRules:      make(map[string]*models.PccRule),
-		QosDecs:       make(map[string]*models.QosData),
-		TraffContDecs: make(map[string]*models.TrafficControlData),
+		SessRules: make(map[string]*models.SessionRule),
+		PccRules:  make(map[string]*models.PccRule),
+		QosDecs:   make(map[string]*models.QosData),
 	}
 
 	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
@@ -142,9 +133,6 @@ func CreateSMPolicy(request models.SmPolicyContextData) (*models.SmPolicyDecisio
 
 	for key, qosData := range PccPolicy.QosDecs {
 		decision.QosDecs[key] = deepCopyQosData(qosData)
-	}
-	for key, trafficData := range PccPolicy.TraffContDecs {
-		decision.TraffContDecs[key] = deepCopyTrafficControlData(trafficData)
 	}
 
 	dnnData, err := GetSMPolicyDnnData(*smData, request.SliceInfo, request.Dnn)

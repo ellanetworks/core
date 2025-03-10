@@ -109,7 +109,7 @@ func (node *DataPathNode) ActivateUpLinkTunnel(smContext *SMContext) error {
 
 		for name, rule := range addRules {
 			if pdr, err = destUPF.BuildCreatePdrFromPccRule(rule); err == nil {
-				if flowQer, err = node.CreatePccRuleQer(smContext, rule.RefQosData[0], rule.RefTcData[0]); err == nil {
+				if flowQer, err = node.CreatePccRuleQer(smContext, rule.RefQosData[0]); err == nil {
 					pdr.QER = append(pdr.QER, flowQer)
 				}
 				// Set PDR in Tunnel
@@ -148,7 +148,7 @@ func (node *DataPathNode) ActivateDownLinkTunnel(smContext *SMContext) error {
 		for name, rule := range addRules {
 			if pdr, err = destUPF.BuildCreatePdrFromPccRule(rule); err == nil {
 				// Add PCC Rule Qos Data QER
-				if flowQer, err = node.CreatePccRuleQer(smContext, rule.RefQosData[0], rule.RefTcData[0]); err == nil {
+				if flowQer, err = node.CreatePccRuleQer(smContext, rule.RefQosData[0]); err == nil {
 					pdr.QER = append(pdr.QER, flowQer)
 				}
 				// Set PDR in Tunnel
@@ -157,19 +157,16 @@ func (node *DataPathNode) ActivateDownLinkTunnel(smContext *SMContext) error {
 		}
 	} else {
 		// Default PDR
-		if pdr, err = destUPF.AddPDR(); err != nil {
-			logger.SmfLog.Errorln("in ActivateDownLinkTunnel UPF IP:", node.UPF.NodeID.ResolveNodeIDToIP().String())
-			logger.SmfLog.Errorln("allocate PDR Error:", err)
+		pdr, err = destUPF.AddPDR()
+		if err != nil {
 			return fmt.Errorf("add PDR failed: %s", err)
-		} else {
-			node.DownLinkTunnel.PDR["default"] = pdr
 		}
+		node.DownLinkTunnel.PDR["default"] = pdr
 	}
 
 	// Put PDRs in PFCP session
 	if err = smContext.PutPDRtoPFCPSession(destUPF.NodeID, node.DownLinkTunnel.PDR); err != nil {
-		logger.SmfLog.Errorln("put PDR error:", err)
-		return err
+		return fmt.Errorf("error in put PDR to PFCP session: %s", err)
 	}
 
 	return nil
@@ -177,43 +174,33 @@ func (node *DataPathNode) ActivateDownLinkTunnel(smContext *SMContext) error {
 
 func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 	for name, pdr := range node.UpLinkTunnel.PDR {
-		if pdr != nil {
-			logger.SmfLog.Infof("deactivated UpLinkTunnel PDR name[%v], id[%v]", name, pdr.PDRID)
+		if pdr == nil {
+			logger.SmfLog.Debugf("PDR is nil in UpLinkTunnel: %s", name)
+			continue
+		}
 
-			// Remove PDR from PFCP Session
-			smContext.RemovePDRfromPFCPSession(node.UPF.NodeID, pdr)
+		// Remove PDR from PFCP Session
+		smContext.RemovePDRfromPFCPSession(node.UPF.NodeID, pdr)
 
-			// Remove of UPF
-			err := node.UPF.RemovePDR(pdr)
-			if err != nil {
-				logger.SmfLog.Warnln("deactivated UpLinkTunnel", err)
+		// Remove of UPF
+		node.UPF.RemovePDR(pdr)
+
+		if far := pdr.FAR; far != nil {
+			node.UPF.RemoveFAR(far)
+
+			bar := far.BAR
+			if bar != nil {
+				node.UPF.RemoveBAR(bar)
 			}
-
-			if far := pdr.FAR; far != nil {
-				err = node.UPF.RemoveFAR(far)
-				if err != nil {
-					logger.SmfLog.Warnln("deactivated UpLinkTunnel", err)
-				}
-
-				bar := far.BAR
-				if bar != nil {
-					err = node.UPF.RemoveBAR(bar)
-					if err != nil {
-						logger.SmfLog.Warnln("deactivated UpLinkTunnel", err)
-					}
-				}
-			}
-			if qerList := pdr.QER; qerList != nil {
-				for _, qer := range qerList {
-					if qer != nil {
-						err = node.UPF.RemoveQER(qer)
-						if err != nil {
-							logger.SmfLog.Warnln("deactivated UpLinkTunnel", err)
-						}
-					}
+		}
+		if qerList := pdr.QER; qerList != nil {
+			for _, qer := range qerList {
+				if qer != nil {
+					node.UPF.RemoveQER(qer)
 				}
 			}
 		}
+		logger.SmfLog.Infof("deactivated UpLinkTunnel PDR name[%v], id[%v]", name, pdr.PDRID)
 	}
 
 	node.DownLinkTunnel = &GTPTunnel{}
@@ -228,32 +215,20 @@ func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 			smContext.RemovePDRfromPFCPSession(node.UPF.NodeID, pdr)
 
 			// Remove from UPF
-			err := node.UPF.RemovePDR(pdr)
-			if err != nil {
-				logger.SmfLog.Warnln("deactivated DownLinkTunnel", err)
-			}
+			node.UPF.RemovePDR(pdr)
 
 			if far := pdr.FAR; far != nil {
-				err = node.UPF.RemoveFAR(far)
-				if err != nil {
-					logger.SmfLog.Warnln("deactivated DownLinkTunnel", err)
-				}
+				node.UPF.RemoveFAR(far)
 
 				bar := far.BAR
 				if bar != nil {
-					err = node.UPF.RemoveBAR(bar)
-					if err != nil {
-						logger.SmfLog.Warnln("deactivated DownLinkTunnel", err)
-					}
+					node.UPF.RemoveBAR(bar)
 				}
 			}
 			if qerList := pdr.QER; qerList != nil {
 				for _, qer := range qerList {
 					if qer != nil {
-						err = node.UPF.RemoveQER(qer)
-						if err != nil {
-							logger.SmfLog.Warnln("deactivated UpLinkTunnel", err)
-						}
+						node.UPF.RemoveQER(qer)
 					}
 				}
 			}
@@ -342,39 +317,34 @@ func (dataPath *DataPath) ActivateUlDlTunnel(smContext *SMContext) error {
 	return nil
 }
 
-func (node *DataPathNode) CreatePccRuleQer(smContext *SMContext, qosData string, tcData string) (*QER, error) {
+func (node *DataPathNode) CreatePccRuleQer(smContext *SMContext, qosData string) (*QER, error) {
 	smPolicyDec := smContext.SmPolicyUpdates[0].SmPolicyDecision
 	refQos := qos.GetQoSDataFromPolicyDecision(smPolicyDec, qosData)
-	tc := qos.GetTcDataFromPolicyDecision(smPolicyDec, tcData)
 
 	// Get Flow Status
 	gateStatus := GateOpen
-	if tc != nil && tc.FlowStatus == models.FlowStatusDisabled {
-		gateStatus = GateClose
-	}
 
 	var flowQER *QER
 
-	if newQER, err := node.UPF.AddQER(); err != nil {
-		logger.SmfLog.Errorln("new QER failed")
-		return nil, err
-	} else {
-		newQER.QFI.QFI = qos.GetQosFlowIDFromQosID(refQos.QosID)
-
-		// Flow Status
-		newQER.GateStatus = &GateStatus{
-			ULGate: gateStatus,
-			DLGate: gateStatus,
-		}
-
-		// Rates
-		newQER.MBR = &MBR{
-			ULMBR: util.BitRateTokbps(refQos.MaxbrUl),
-			DLMBR: util.BitRateTokbps(refQos.MaxbrDl),
-		}
-
-		flowQER = newQER
+	newQER, err := node.UPF.AddQER()
+	if err != nil {
+		return nil, fmt.Errorf("failed to add QER: %v", err)
 	}
+	newQER.QFI.QFI = qos.GetQosFlowIDFromQosID(refQos.QosID)
+
+	// Flow Status
+	newQER.GateStatus = &GateStatus{
+		ULGate: gateStatus,
+		DLGate: gateStatus,
+	}
+
+	// Rates
+	newQER.MBR = &MBR{
+		ULMBR: util.BitRateTokbps(refQos.MaxbrUl),
+		DLMBR: util.BitRateTokbps(refQos.MaxbrDl),
+	}
+
+	flowQER = newQER
 
 	return flowQER, nil
 }
