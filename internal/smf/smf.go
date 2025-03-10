@@ -21,10 +21,9 @@ func Start(dbInstance *db.Database) error {
 	smfContext.CPNodeID = *nodeID
 
 	smfContext.UserPlaneInformation = &context.UserPlaneInformation{
-		UPNodes:              make(map[string]*context.UPNode),
-		UPF:                  nil,
-		AccessNetwork:        make(map[string]*context.UPNode),
-		DefaultUserPlanePath: make(map[string][]*context.UPNode),
+		UPNodes:       make(map[string]*context.UPNode),
+		UPF:           nil,
+		AccessNetwork: make(map[string]*context.UPNode),
 	}
 
 	smfContext.DBInstance = dbInstance

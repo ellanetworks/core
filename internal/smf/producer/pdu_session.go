@@ -117,39 +117,15 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	policyUpdates := qos.BuildSmPolicyUpdate(&smContext.SmPolicyData, smPolicyDecision)
 	smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
 
-	// dataPath selection
 	smContext.Tunnel = context.NewUPTunnel()
-	var defaultPath *context.DataPath
-	upfSelectionParams := &context.UPFSelectionParams{
-		Dnn: createData.Dnn,
-		SNssai: &context.SNssai{
-			Sst: createData.SNssai.Sst,
-			Sd:  createData.SNssai.Sd,
-		},
-	}
+	upNode := *context.GetUserPlaneInformation().UPF
+	defaultPath := context.GenerateDataPath(upNode, smContext)
+	defaultPath.IsDefaultPath = true
+	smContext.Tunnel.AddDataPath(defaultPath)
 
-	defaultUPPath, err := context.GetUserPlaneInformation().GetDefaultUserPlanePathByDNN(upfSelectionParams)
-	if err != nil {
+	if err := defaultPath.ActivateTunnelAndPDR(smContext, 255); err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("couldn't get default user plane path: %v", err)
-	}
-	defaultPath, err = context.GenerateDataPath(defaultUPPath, smContext)
-	if err != nil {
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-		return "", response, fmt.Errorf("couldn't generate data path: %v", err)
-	}
-	if defaultPath != nil {
-		defaultPath.IsDefaultPath = true
-		smContext.Tunnel.AddDataPath(defaultPath)
-
-		if err := defaultPath.ActivateTunnelAndPDR(smContext, 255); err != nil {
-			response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
-			return "", response, fmt.Errorf("couldn't activate data path: %v", err)
-		}
-	}
-	if defaultPath == nil {
-		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMInsufficientResourcesForSpecificSliceAndDNN)
-		return "", response, fmt.Errorf("default data path not found")
+		return "", response, fmt.Errorf("couldn't activate data path: %v", err)
 	}
 
 	_ = smContext.BuildCreatedData()

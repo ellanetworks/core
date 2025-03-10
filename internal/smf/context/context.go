@@ -92,10 +92,9 @@ func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 	}
 
 	userPlaneInformation := &UserPlaneInformation{
-		UPNodes:              make(map[string]*UPNode),
-		UPF:                  upfNode,
-		AccessNetwork:        make(map[string]*UPNode),
-		DefaultUserPlanePath: make(map[string][]*UPNode),
+		UPNodes:       make(map[string]*UPNode),
+		UPF:           upfNode,
+		AccessNetwork: make(map[string]*UPNode),
 	}
 
 	gnbNode := &UPNode{
@@ -135,7 +134,6 @@ func UpdateUserPlaneInformation() {
 	smfSelf.UserPlaneInformation.UPNodes = configUserPlaneInfo.UPNodes
 	smfSelf.UserPlaneInformation.UPF = configUserPlaneInfo.UPF
 	smfSelf.UserPlaneInformation.AccessNetwork = configUserPlaneInfo.AccessNetwork
-	smfSelf.UserPlaneInformation.DefaultUserPlanePath = configUserPlaneInfo.DefaultUserPlanePath
 }
 
 func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInformation) bool {

@@ -8,7 +8,6 @@ package context
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"net"
 	"strconv"
@@ -127,26 +126,6 @@ func (i *UPFInterfaceInfo) IP(pduSessType uint8) (net.IP, error) {
 	}
 
 	return nil, errors.New("not matched ip address")
-}
-
-func (upfSelectionParams *UPFSelectionParams) String() string {
-	str := ""
-	Dnn := upfSelectionParams.Dnn
-	if Dnn != "" {
-		str += fmt.Sprintf("Dnn: %s\n", Dnn)
-	}
-
-	SNssai := upfSelectionParams.SNssai
-	if SNssai != nil {
-		str += fmt.Sprintf("Sst: %d, Sd: %s\n", int(SNssai.Sst), SNssai.Sd)
-	}
-
-	Dnai := upfSelectionParams.Dnai
-	if Dnai != "" {
-		str += fmt.Sprintf("DNAI: %s\n", Dnai)
-	}
-
-	return str
 }
 
 // UUID return this UPF UUID (allocate by SMF in this time)
@@ -398,13 +377,4 @@ func (upf *UPF) RemoveBAR(bar *BAR) {
 func (upf *UPF) RemoveQER(qer *QER) {
 	upf.qerIDGenerator.FreeID(int64(qer.QERID))
 	upf.qerPool.Delete(qer.QERID)
-}
-
-func (upf *UPF) isSupportSnssai(snssai *SNssai) bool {
-	for _, snssaiInfo := range upf.SNssaiInfos {
-		if snssaiInfo.SNssai.Equal(snssai) {
-			return true
-		}
-	}
-	return false
 }
