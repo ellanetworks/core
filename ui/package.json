@@ -11,15 +11,15 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
-    "@mui/icons-material": "^6.4.6",
+    "@mui/icons-material": "^6.4.7",
     "@mui/material": "^6.2.1",
     "@mui/x-charts": "^7.27.1",
-    "@mui/x-data-grid": "^7.27.2",
-    "@tanstack/react-query": "^5.67.1",
+    "@mui/x-data-grid": "^7.27.3",
+    "@tanstack/react-query": "^5.67.2",
     "@types/react": "18.3.12",
-    "autoprefixer": "^10.4.20",
+    "autoprefixer": "^10.4.21",
     "jwt-decode": "^4.0.0",
-    "next": "15.2.0",
+    "next": "15.2.1",
     "react": "18.3.1",
     "react-cookie": "^7.2.2",
     "react-dom": "18.3.1",
@@ -29,6 +29,6 @@
     "yup": "1.6.1"
   },
   "devDependencies": {
-    "@types/node": "22.13.9"
+    "@types/node": "22.13.10"
   }
 }
