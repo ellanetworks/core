@@ -118,8 +118,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	smContext.SmPolicyUpdates = append(smContext.SmPolicyUpdates, policyUpdates)
 
 	smContext.Tunnel = context.NewUPTunnel()
-	upf := context.GetUserPlaneInformation()
-	defaultPath := context.GenerateDataPath(upf, smContext)
+	defaultPath := context.GenerateDataPath(smfSelf.UPF, smContext)
 	err = smContext.Tunnel.AddDataPath(defaultPath)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)

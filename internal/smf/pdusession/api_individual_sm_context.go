@@ -5,7 +5,6 @@
 package pdusession
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -27,11 +26,11 @@ func ReleaseSmContext(smContextRef string) error {
 
 func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSmContextRequest) (*models.UpdateSmContextResponse, error) {
 	if smContextRef == "" {
-		return nil, errors.New("SM Context reference is missing")
+		return nil, fmt.Errorf("SM Context reference is missing")
 	}
 
 	if updateSmContextRequest.JSONData == nil {
-		return nil, errors.New("update request is missing JSONData")
+		return nil, fmt.Errorf("update request is missing JSONData")
 	}
 
 	smContext := context.GetSMContext(smContextRef)
@@ -41,7 +40,7 @@ func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSm
 		return rsp, fmt.Errorf("error updating pdu session: %v ", err.Error())
 	}
 	if rsp == nil {
-		return nil, errors.New("unexpected error during SM Context update")
+		return nil, fmt.Errorf("response is nil")
 	}
 	return rsp, nil
 }

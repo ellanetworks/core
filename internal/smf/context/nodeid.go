@@ -8,17 +8,13 @@ import (
 	"net"
 )
 
-const NodeIDTypeIPv4Address uint8 = iota
-
 type NodeID struct {
 	NodeIDValue []byte
-	NodeIDType  uint8 // 0x00001111
 }
 
 func NewNodeID(nodeID string) *NodeID {
 	ip := net.ParseIP(nodeID)
 	return &NodeID{
-		NodeIDType:  NodeIDTypeIPv4Address,
 		NodeIDValue: ip.To4(),
 	}
 }

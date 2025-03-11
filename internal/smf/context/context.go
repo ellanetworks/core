@@ -58,13 +58,14 @@ func BuildUserPlaneInformationFromConfig() (*UPF, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator information from db: %v", err)
 	}
-	intfUpfInfoItem := InterfaceUpfInfoItem{
-		InterfaceType:   models.UpInterfaceTypeN3,
-		Endpoints:       make([]string, 0),
-		NetworkInstance: config.DNN,
+
+	ifaces := []InterfaceUpfInfoItem{
+		{
+			NetworkInstance: config.DNN,
+			InterfaceType:   models.UpInterfaceTypeN3,
+			Endpoints:       make([]string, 0),
+		},
 	}
-	ifaces := []InterfaceUpfInfoItem{}
-	ifaces = append(ifaces, intfUpfInfoItem)
 
 	upfNodeID := NewNodeID(config.UpfNodeID)
 	upf := NewUPF(upfNodeID, ifaces)
@@ -83,10 +84,6 @@ func BuildUserPlaneInformationFromConfig() (*UPF, error) {
 	}
 
 	return upf, nil
-}
-
-func GetUserPlaneInformation() *UPF {
-	return SMFSelf().UPF
 }
 
 func GetSnssaiInfo() []SnssaiSmfInfo {

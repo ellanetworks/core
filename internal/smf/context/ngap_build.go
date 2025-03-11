@@ -157,61 +157,6 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 
 		resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
 	}
-	/*else {
-		//Do not Delete- Might have to enable default Session rule based flow later
-
-		// QoS Flow Setup Request List
-		// Get QFI from PCF
-		ie = ngapType.PDUSessionResourceSetupRequestTransferIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDQosFlowSetupRequestList
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-
-		arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
-		if sessRule.AuthDefQos.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
-			arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
-		}
-
-		arpPreemptVul := ngapType.PreEmptionVulnerabilityPresentNotPreEmptable
-		if sessRule.AuthDefQos.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
-			arpPreemptVul = ngapType.PreEmptionVulnerabilityPresentPreEmptable
-		}
-		//Default Session Rule
-		ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
-			Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentQosFlowSetupRequestList,
-			QosFlowSetupRequestList: &ngapType.QosFlowSetupRequestList{
-
-				List: []ngapType.QosFlowSetupRequestItem{
-					{
-						QosFlowIdentifier: ngapType.QosFlowIdentifier{
-							Value: int64(sessRule.AuthDefQos.Var5qi), //DefaultNonGBR5QI,
-						},
-						QosFlowLevelQosParameters: ngapType.QosFlowLevelQosParameters{
-							QosCharacteristics: ngapType.QosCharacteristics{
-								Present: ngapType.QosCharacteristicsPresentNonDynamic5QI,
-								NonDynamic5QI: &ngapType.NonDynamic5QIDescriptor{
-									FiveQI: ngapType.FiveQI{
-										Value: int64(sessRule.AuthDefQos.Var5qi), //DefaultNonGBR5QI,
-									},
-								},
-							},
-							AllocationAndRetentionPriority: ngapType.AllocationAndRetentionPriority{
-								PriorityLevelARP: ngapType.PriorityLevelARP{
-									Value: int64(sessRule.AuthDefQos.Arp.PriorityLevel), //15,
-								},
-								PreEmptionCapability: ngapType.PreEmptionCapability{
-									Value: arpPreemptCap, //ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption,
-								},
-								PreEmptionVulnerability: ngapType.PreEmptionVulnerability{
-									Value: arpPreemptVul, //ngapType.PreEmptionVulnerabilityPresentNotPreEmptable,
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-		resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
-	}*/
 
 	if buf, err := aper.MarshalWithParams(resourceSetupRequestTransfer, "valueExt"); err != nil {
 		return nil, fmt.Errorf("encode resourceSetupRequestTransfer failed: %s", err)

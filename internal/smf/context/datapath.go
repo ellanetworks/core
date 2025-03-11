@@ -42,14 +42,6 @@ func NewDataPathNode() *DataPathNode {
 	return node
 }
 
-func (node *DataPathNode) AddNext(next *DataPathNode) {
-	node.DownLinkTunnel.SrcEndPoint = next
-}
-
-func (node *DataPathNode) AddPrev(prev *DataPathNode) {
-	node.UpLinkTunnel.SrcEndPoint = prev
-}
-
 func (node *DataPathNode) Next() *DataPathNode {
 	if node.DownLinkTunnel == nil {
 		return nil
