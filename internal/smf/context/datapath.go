@@ -8,7 +8,6 @@ package context
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -20,36 +19,21 @@ import (
 type GTPTunnel struct {
 	SrcEndPoint  *DataPathNode
 	DestEndPoint *DataPathNode
-
-	PDR  map[string]*PDR
-	TEID uint32
+	PDR          map[string]*PDR
+	TEID         uint32
 }
 
 type DataPathNode struct {
-	UPF *UPF
-	// DataPathToAN *DataPathDownLink
-	// DataPathToDN map[string]*DataPathUpLink //uuid to DataPathLink
-
+	UPF            *UPF
 	UpLinkTunnel   *GTPTunnel
 	DownLinkTunnel *GTPTunnel
-	// for UE Routing Topology
-	// for special case:
-	// branching & leafnode
-
-	// InUse                bool
-	IsBranchingPoint bool
-	// DLDataPathLinkForPSA *DataPathUpLink
-	// BPUpLinkPDRs         map[string]*DataPathDownLink // uuid to UpLink
 }
 
 type DataPath struct {
-	// Data Path Double Link List
-	FirstDPNode *DataPathNode
-	// meta data
-	Destination       Destination
-	Activated         bool
-	IsDefaultPath     bool
-	HasBranchingPoint bool
+	FirstDPNode   *DataPathNode
+	Destination   Destination
+	Activated     bool
+	IsDefaultPath bool
 }
 
 type DataPathPool map[int64]*DataPath
@@ -269,48 +253,15 @@ func (dataPathPool DataPathPool) GetDefaultPath() (dataPath *DataPath) {
 	return
 }
 
-func (dataPath *DataPath) String() string {
-	firstDPNode := dataPath.FirstDPNode
-
-	var str string
-
-	str += "DataPath Meta Information\n"
-	str += "Activated: " + strconv.FormatBool(dataPath.Activated) + "\n"
-	str += "IsDefault Path: " + strconv.FormatBool(dataPath.IsDefaultPath) + "\n"
-	str += "Has Braching Point: " + strconv.FormatBool(dataPath.HasBranchingPoint) + "\n"
-	str += "Destination IP: " + dataPath.Destination.DestinationIP + "\n"
-	str += "Destination Port: " + dataPath.Destination.DestinationPort + "\n"
-
-	str += "DataPath Routing Information\n"
-	index := 1
-	for curDPNode := firstDPNode; curDPNode != nil; curDPNode = curDPNode.Next() {
-		str += strconv.Itoa(index) + "th Node in the Path\n"
-		str += "Current UPF IP: " + curDPNode.GetNodeIP() + "\n"
-		if curDPNode.Prev() != nil {
-			str += "Previous UPF IP: " + curDPNode.Prev().GetNodeIP() + "\n"
-		} else {
-			str += "Previous UPF IP: None\n"
-		}
-
-		if curDPNode.Next() != nil {
-			str += "Next UPF IP: " + curDPNode.Next().GetNodeIP() + "\n"
-		} else {
-			str += "Next UPF IP: None\n"
-		}
-
-		index++
-	}
-
-	return str
-}
-
 func (dataPath *DataPath) ActivateUlDlTunnel(smContext *SMContext) error {
 	firstDPNode := dataPath.FirstDPNode
 	for curDataPathNode := firstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
-		if err := curDataPathNode.ActivateUpLinkTunnel(smContext); err != nil {
+		err := curDataPathNode.ActivateUpLinkTunnel(smContext)
+		if err != nil {
 			return fmt.Errorf("couldn't activate UpLinkTunnel: %s", err)
 		}
-		if err := curDataPathNode.ActivateDownLinkTunnel(smContext); err != nil {
+		err = curDataPathNode.ActivateDownLinkTunnel(smContext)
+		if err != nil {
 			return fmt.Errorf("couldn't activate DownLinkTunnel: %s", err)
 		}
 	}

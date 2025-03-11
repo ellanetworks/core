@@ -8,6 +8,7 @@ package context
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"net"
 	"strconv"
@@ -144,18 +145,16 @@ func NewUPTunnel() (tunnel *UPTunnel) {
 	return
 }
 
-// *** add unit test ***//
-func (upTunnel *UPTunnel) AddDataPath(dataPath *DataPath) {
+func (upTunnel *UPTunnel) AddDataPath(dataPath *DataPath) error {
 	pathID, err := upTunnel.PathIDGenerator.Allocate()
 	if err != nil {
-		logger.SmfLog.Warnf("Allocate pathID error: %+v", err)
-		return
+		return fmt.Errorf("error allocating data path ID: %s", err.Error())
 	}
 
 	upTunnel.DataPathPool[pathID] = dataPath
+	return nil
 }
 
-// *** add unit test ***//
 // NewUPF returns a new UPF context in SMF
 func NewUPF(nodeID *NodeID, ifaces []InterfaceUpfInfoItem) (upf *UPF) {
 	upf = new(UPF)

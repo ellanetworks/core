@@ -121,9 +121,14 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	upNode := *context.GetUserPlaneInformation().UPF
 	defaultPath := context.GenerateDataPath(upNode, smContext)
 	defaultPath.IsDefaultPath = true
-	smContext.Tunnel.AddDataPath(defaultPath)
+	err = smContext.Tunnel.AddDataPath(defaultPath)
+	if err != nil {
+		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
+		return "", response, fmt.Errorf("couldn't add data path: %v", err)
+	}
 
-	if err := defaultPath.ActivateTunnelAndPDR(smContext, 255); err != nil {
+	err = defaultPath.ActivateTunnelAndPDR(smContext, 255)
+	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", response, fmt.Errorf("couldn't activate data path: %v", err)
 	}
