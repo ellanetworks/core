@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/google/uuid"
@@ -23,24 +22,20 @@ import (
 )
 
 type UPTunnel struct {
-	PathIDGenerator *idgenerator.IDGenerator
-	DataPathPool    DataPathPool
-	ANInformation   struct {
+	DataPath      *DataPath
+	ANInformation struct {
 		IPAddress net.IP
 		TEID      uint32
 	}
 }
-
-type UPFStatus int
 
 type RecoveryTimeStamp struct {
 	RecoveryTimeStamp time.Time
 }
 
 type UPF struct {
-	SNssaiInfos  []SnssaiUPFInfo
-	N3Interfaces []UPFInterfaceInfo
-	N9Interfaces []UPFInterfaceInfo
+	SNssaiInfos []SnssaiUPFInfo
+	N3Interface UPFInterfaceInfo
 
 	pdrPool sync.Map
 	farPool sync.Map
@@ -59,42 +54,10 @@ type UPF struct {
 	UpfLock sync.RWMutex
 }
 
-// UPFSelectionParams ... parameters for upf selection
-type UPFSelectionParams struct {
-	Dnn    string
-	SNssai *SNssai
-	Dnai   string
-}
-
 // UPFInterfaceInfo store the UPF interface information
 type UPFInterfaceInfo struct {
 	NetworkInstance       string
-	EndpointFQDN          string
 	IPv4EndPointAddresses []net.IP
-	IPv6EndPointAddresses []net.IP
-}
-
-// NewUPFInterfaceInfo parse the InterfaceUpfInfoItem to generate UPFInterfaceInfo
-func NewUPFInterfaceInfo(i *InterfaceUpfInfoItem) *UPFInterfaceInfo {
-	interfaceInfo := new(UPFInterfaceInfo)
-
-	interfaceInfo.IPv4EndPointAddresses = make([]net.IP, 0)
-	interfaceInfo.IPv6EndPointAddresses = make([]net.IP, 0)
-
-	for _, endpoint := range i.Endpoints {
-		eIP := net.ParseIP(endpoint)
-		if eIP == nil {
-			interfaceInfo.EndpointFQDN = endpoint
-		} else if eIPv4 := eIP.To4(); eIPv4 == nil {
-			interfaceInfo.IPv6EndPointAddresses = append(interfaceInfo.IPv6EndPointAddresses, eIP)
-		} else {
-			interfaceInfo.IPv4EndPointAddresses = append(interfaceInfo.IPv4EndPointAddresses, eIPv4)
-		}
-	}
-
-	interfaceInfo.NetworkInstance = i.NetworkInstance
-
-	return interfaceInfo
 }
 
 // IP returns the IP of the user plane IP information of the pduSessType
@@ -103,50 +66,7 @@ func (i *UPFInterfaceInfo) IP(pduSessType uint8) (net.IP, error) {
 		return i.IPv4EndPointAddresses[0].To4(), nil
 	}
 
-	if (pduSessType == nasMessage.PDUSessionTypeIPv6 || pduSessType == nasMessage.PDUSessionTypeIPv4IPv6) && len(i.IPv6EndPointAddresses) != 0 {
-		return i.IPv6EndPointAddresses[0], nil
-	}
-
-	if i.EndpointFQDN != "" {
-		if resolvedAddr, err := net.ResolveIPAddr("ip", i.EndpointFQDN); err != nil {
-			logger.SmfLog.Errorf("resolve addr [%s] failed", i.EndpointFQDN)
-		} else {
-			if pduSessType == nasMessage.PDUSessionTypeIPv4 {
-				return resolvedAddr.IP.To4(), nil
-			} else if pduSessType == nasMessage.PDUSessionTypeIPv6 {
-				return resolvedAddr.IP.To16(), nil
-			} else {
-				v4addr := resolvedAddr.IP.To4()
-				if v4addr != nil {
-					return v4addr, nil
-				} else {
-					return resolvedAddr.IP.To16(), nil
-				}
-			}
-		}
-	}
-
 	return nil, errors.New("not matched ip address")
-}
-
-func (upfSelectionParams *UPFSelectionParams) String() string {
-	str := ""
-	Dnn := upfSelectionParams.Dnn
-	if Dnn != "" {
-		str += fmt.Sprintf("Dnn: %s\n", Dnn)
-	}
-
-	SNssai := upfSelectionParams.SNssai
-	if SNssai != nil {
-		str += fmt.Sprintf("Sst: %d, Sd: %s\n", int(SNssai.Sst), SNssai.Sd)
-	}
-
-	Dnai := upfSelectionParams.Dnai
-	if Dnai != "" {
-		str += fmt.Sprintf("DNAI: %s\n", Dnai)
-	}
-
-	return str
 }
 
 // UUID return this UPF UUID (allocate by SMF in this time)
@@ -156,84 +76,28 @@ func (upf *UPF) UUID() string {
 	return uuid
 }
 
-func NewUPTunnel() (tunnel *UPTunnel) {
-	tunnel = &UPTunnel{
-		DataPathPool:    make(DataPathPool),
-		PathIDGenerator: idgenerator.NewGenerator(1, 2147483647),
-	}
-
-	return
-}
-
-// *** add unit test ***//
-func (upTunnel *UPTunnel) AddDataPath(dataPath *DataPath) {
-	pathID, err := upTunnel.PathIDGenerator.Allocate()
-	if err != nil {
-		logger.SmfLog.Warnf("Allocate pathID error: %+v", err)
-		return
-	}
-
-	upTunnel.DataPathPool[pathID] = dataPath
-}
-
-// *** add unit test ***//
-// NewUPF returns a new UPF context in SMF
-func NewUPF(nodeID *NodeID, ifaces []InterfaceUpfInfoItem) (upf *UPF) {
+func NewUPF(nodeID *NodeID, dnn string) (upf *UPF) {
 	upf = new(UPF)
 	upf.uuid = uuid.New()
-
-	// Initialize context
 	upf.NodeID = *nodeID
 	upf.pdrIDGenerator = idgenerator.NewGenerator(1, math.MaxUint16)
 	upf.farIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
 	upf.barIDGenerator = idgenerator.NewGenerator(1, math.MaxUint8)
 	upf.qerIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
-
-	upf.N3Interfaces = make([]UPFInterfaceInfo, 0)
-	upf.N9Interfaces = make([]UPFInterfaceInfo, 0)
-
-	for _, iface := range ifaces {
-		upIface := NewUPFInterfaceInfo(&iface)
-
-		switch iface.InterfaceType {
-		case models.UpInterfaceTypeN3:
-			upf.N3Interfaces = append(upf.N3Interfaces, *upIface)
-		case models.UpInterfaceTypeN9:
-			upf.N9Interfaces = append(upf.N9Interfaces, *upIface)
-		}
+	upf.N3Interface = UPFInterfaceInfo{
+		NetworkInstance:       dnn,
+		IPv4EndPointAddresses: make([]net.IP, 0),
 	}
 
 	return upf
 }
 
-// GetInterface return the UPFInterfaceInfo that match input cond
-func (upf *UPF) GetInterface(interfaceType models.UpInterfaceType, dnn string) *UPFInterfaceInfo {
-	switch interfaceType {
-	case models.UpInterfaceTypeN3:
-		for i, iface := range upf.N3Interfaces {
-			if iface.NetworkInstance == dnn {
-				return &upf.N3Interfaces[i]
-			}
-		}
-	case models.UpInterfaceTypeN9:
-		for i, iface := range upf.N9Interfaces {
-			if iface.NetworkInstance == dnn {
-				return &upf.N9Interfaces[i]
-			}
-		}
-	}
-	return nil
-}
-
 func (upf *UPF) pdrID() (uint16, error) {
-	var pdrID uint16
-	if tmpID, err := upf.pdrIDGenerator.Allocate(); err != nil {
-		return 0, err
-	} else {
-		pdrID = uint16(tmpID)
+	pdrID, err := upf.pdrIDGenerator.Allocate()
+	if err != nil {
+		return 0, fmt.Errorf("could not allocate PDR ID: %v", err)
 	}
-
-	return pdrID, nil
+	return uint16(pdrID), nil
 }
 
 func (upf *UPF) farID() (uint32, error) {
@@ -400,11 +264,15 @@ func (upf *UPF) RemoveQER(qer *QER) {
 	upf.qerPool.Delete(qer.QERID)
 }
 
-func (upf *UPF) isSupportSnssai(snssai *SNssai) bool {
-	for _, snssaiInfo := range upf.SNssaiInfos {
-		if snssaiInfo.SNssai.Equal(snssai) {
-			return true
-		}
+func GenerateDataPath(upf *UPF, smContext *SMContext) *DataPath {
+	curDataPathNode := &DataPathNode{
+		UpLinkTunnel:   &GTPTunnel{PDR: make(map[string]*PDR)},
+		DownLinkTunnel: &GTPTunnel{PDR: make(map[string]*PDR)},
+		UPF:            upf,
 	}
-	return false
+
+	dataPath := &DataPath{
+		DPNode: curDataPathNode,
+	}
+	return dataPath
 }

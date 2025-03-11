@@ -14,8 +14,8 @@ import (
 )
 
 func SendPfcpSessionModifyReq(smContext *context.SMContext, pfcpParam *pfcpParam) error {
-	defaultPath := smContext.Tunnel.DataPathPool.GetDefaultPath()
-	ANUPF := defaultPath.FirstDPNode
+	dataPath := smContext.Tunnel.DataPath
+	ANUPF := dataPath.DPNode
 	err := pfcp.SendPfcpSessionModificationRequest(ANUPF.UPF.NodeID, smContext, pfcpParam.pdrList, pfcpParam.farList, pfcpParam.barList, pfcpParam.qerList)
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)

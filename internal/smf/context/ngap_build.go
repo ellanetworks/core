@@ -19,7 +19,8 @@ import (
 const DefaultNonGBR5QI = 9
 
 func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error) {
-	ANUPF := ctx.Tunnel.DataPathPool.GetDefaultPath().FirstDPNode
+	dataPath := ctx.Tunnel.DataPath
+	ANUPF := dataPath.DPNode
 	UpNode := ANUPF.UPF
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, ANUPF.UpLinkTunnel.TEID)
@@ -52,24 +53,24 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	ie = ngapType.PDUSessionResourceSetupRequestTransferIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDULNGUUPTNLInformation
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	if n3IP, err := UpNode.N3Interfaces[0].IP(ctx.SelectedPDUSessionType); err != nil {
-		return nil, err
-	} else {
-		ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
-			Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentULNGUUPTNLInformation,
-			ULNGUUPTNLInformation: &ngapType.UPTransportLayerInformation{
-				Present: ngapType.UPTransportLayerInformationPresentGTPTunnel,
-				GTPTunnel: &ngapType.GTPTunnel{
-					TransportLayerAddress: ngapType.TransportLayerAddress{
-						Value: aper.BitString{
-							Bytes:     n3IP,
-							BitLength: uint64(len(n3IP) * 8),
-						},
+	n3IP, err := UpNode.N3Interface.IP(ctx.SelectedPDUSessionType)
+	if err != nil {
+		return nil, fmt.Errorf("could not get N3 IP: %s", err)
+	}
+	ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
+		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentULNGUUPTNLInformation,
+		ULNGUUPTNLInformation: &ngapType.UPTransportLayerInformation{
+			Present: ngapType.UPTransportLayerInformationPresentGTPTunnel,
+			GTPTunnel: &ngapType.GTPTunnel{
+				TransportLayerAddress: ngapType.TransportLayerAddress{
+					Value: aper.BitString{
+						Bytes:     n3IP,
+						BitLength: uint64(len(n3IP) * 8),
 					},
-					GTPTEID: ngapType.GTPTEID{Value: teidOct},
 				},
+				GTPTEID: ngapType.GTPTEID{Value: teidOct},
 			},
-		}
+		},
 	}
 
 	resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
@@ -156,61 +157,6 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 
 		resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
 	}
-	/*else {
-		//Do not Delete- Might have to enable default Session rule based flow later
-
-		// QoS Flow Setup Request List
-		// Get QFI from PCF
-		ie = ngapType.PDUSessionResourceSetupRequestTransferIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDQosFlowSetupRequestList
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-
-		arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
-		if sessRule.AuthDefQos.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
-			arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
-		}
-
-		arpPreemptVul := ngapType.PreEmptionVulnerabilityPresentNotPreEmptable
-		if sessRule.AuthDefQos.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
-			arpPreemptVul = ngapType.PreEmptionVulnerabilityPresentPreEmptable
-		}
-		//Default Session Rule
-		ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
-			Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentQosFlowSetupRequestList,
-			QosFlowSetupRequestList: &ngapType.QosFlowSetupRequestList{
-
-				List: []ngapType.QosFlowSetupRequestItem{
-					{
-						QosFlowIdentifier: ngapType.QosFlowIdentifier{
-							Value: int64(sessRule.AuthDefQos.Var5qi), //DefaultNonGBR5QI,
-						},
-						QosFlowLevelQosParameters: ngapType.QosFlowLevelQosParameters{
-							QosCharacteristics: ngapType.QosCharacteristics{
-								Present: ngapType.QosCharacteristicsPresentNonDynamic5QI,
-								NonDynamic5QI: &ngapType.NonDynamic5QIDescriptor{
-									FiveQI: ngapType.FiveQI{
-										Value: int64(sessRule.AuthDefQos.Var5qi), //DefaultNonGBR5QI,
-									},
-								},
-							},
-							AllocationAndRetentionPriority: ngapType.AllocationAndRetentionPriority{
-								PriorityLevelARP: ngapType.PriorityLevelARP{
-									Value: int64(sessRule.AuthDefQos.Arp.PriorityLevel), //15,
-								},
-								PreEmptionCapability: ngapType.PreEmptionCapability{
-									Value: arpPreemptCap, //ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption,
-								},
-								PreEmptionVulnerability: ngapType.PreEmptionVulnerability{
-									Value: arpPreemptVul, //ngapType.PreEmptionVulnerabilityPresentNotPreEmptable,
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-		resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
-	}*/
 
 	if buf, err := aper.MarshalWithParams(resourceSetupRequestTransfer, "valueExt"); err != nil {
 		return nil, fmt.Errorf("encode resourceSetupRequestTransfer failed: %s", err)
@@ -237,8 +183,8 @@ func BuildPDUSessionResourceReleaseCommandTransfer(ctx *SMContext) (buf []byte, 
 
 // TS 38.413 9.3.4.9
 func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
-	logger.SmfLog.Warnf("BuildPathSwitchRequestAcknowledgeTransfer")
-	ANUPF := ctx.Tunnel.DataPathPool.GetDefaultPath().FirstDPNode
+	dataPath := ctx.Tunnel.DataPath
+	ANUPF := dataPath.DPNode
 	UpNode := ANUPF.UPF
 	logger.SmfLog.Warnf("UPF TEID: %v", ANUPF.UpLinkTunnel.TEID)
 	teidOct := make([]byte, 4)
@@ -254,15 +200,15 @@ func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
 	ULNGUUPTNLInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
 	ULNGUUPTNLInformation.GTPTunnel = new(ngapType.GTPTunnel)
 
-	if n3IP, err := UpNode.N3Interfaces[0].IP(ctx.SelectedPDUSessionType); err != nil {
-		return nil, err
-	} else {
-		gtpTunnel := ULNGUUPTNLInformation.GTPTunnel
-		gtpTunnel.GTPTEID.Value = teidOct
-		gtpTunnel.TransportLayerAddress.Value = aper.BitString{
-			Bytes:     n3IP,
-			BitLength: uint64(len(n3IP) * 8),
-		}
+	n3IP, err := UpNode.N3Interface.IP(ctx.SelectedPDUSessionType)
+	if err != nil {
+		return nil, fmt.Errorf("could not get N3 IP: %s", err)
+	}
+	gtpTunnel := ULNGUUPTNLInformation.GTPTunnel
+	gtpTunnel.GTPTEID.Value = teidOct
+	gtpTunnel.TransportLayerAddress.Value = aper.BitString{
+		Bytes:     n3IP,
+		BitLength: uint64(len(n3IP) * 8),
 	}
 
 	// Security Indication(optional) TS 38.413 9.3.1.27
@@ -286,10 +232,9 @@ func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
 }
 
 func BuildHandoverCommandTransfer(ctx *SMContext) ([]byte, error) {
-	logger.SmfLog.Warnf("BuildHandoverCommandTransfer")
-	ANUPF := ctx.Tunnel.DataPathPool.GetDefaultPath().FirstDPNode
+	dataPath := ctx.Tunnel.DataPath
+	ANUPF := dataPath.DPNode
 	UpNode := ANUPF.UPF
-	logger.SmfLog.Warnf("UPF TEID: %v", ANUPF.UpLinkTunnel.TEID)
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, ANUPF.UpLinkTunnel.TEID)
 	handoverCommandTransfer := ngapType.HandoverCommandTransfer{}
@@ -298,20 +243,19 @@ func BuildHandoverCommandTransfer(ctx *SMContext) ([]byte, error) {
 	handoverCommandTransfer.DLForwardingUPTNLInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
 	handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel = new(ngapType.GTPTunnel)
 
-	if n3IP, err := UpNode.N3Interfaces[0].IP(ctx.SelectedPDUSessionType); err != nil {
-		return nil, err
-	} else {
-		gtpTunnel := handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel
-		gtpTunnel.GTPTEID.Value = teidOct
-		gtpTunnel.TransportLayerAddress.Value = aper.BitString{
-			Bytes:     n3IP,
-			BitLength: uint64(len(n3IP) * 8),
-		}
+	n3IP, err := UpNode.N3Interface.IP(ctx.SelectedPDUSessionType)
+	if err != nil {
+		return nil, fmt.Errorf("could not get N3 IP: %s", err)
 	}
-
-	if buf, err := aper.MarshalWithParams(handoverCommandTransfer, "valueExt"); err != nil {
-		return nil, err
-	} else {
-		return buf, nil
+	gtpTunnel := handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel
+	gtpTunnel.GTPTEID.Value = teidOct
+	gtpTunnel.TransportLayerAddress.Value = aper.BitString{
+		Bytes:     n3IP,
+		BitLength: uint64(len(n3IP) * 8),
 	}
+	buf, err := aper.MarshalWithParams(handoverCommandTransfer, "valueExt")
+	if err != nil {
+		return nil, fmt.Errorf("could not encode handover command transfer: %s", err)
+	}
+	return buf, nil
 }

@@ -98,7 +98,7 @@ func TestActivateDlLinkPdr(t *testing.T) {
 	}
 
 	dataPath := &context.DataPath{
-		FirstDPNode: node,
+		DPNode: node,
 	}
 
 	err := node.ActivateDlLinkPdr(smContext, defQER, 10, dataPath)

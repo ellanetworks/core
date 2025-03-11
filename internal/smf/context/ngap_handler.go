@@ -36,16 +36,15 @@ func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) err
 	ctx.Tunnel.ANInformation.IPAddress = gtpTunnel.TransportLayerAddress.Value.Bytes
 	ctx.Tunnel.ANInformation.TEID = teid
 
-	for _, dataPath := range ctx.Tunnel.DataPathPool {
-		if dataPath.Activated {
-			ANUPF := dataPath.FirstDPNode
-			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
-				DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
-				dlOuterHeaderCreation := DLPDR.FAR.ForwardingParameters.OuterHeaderCreation
-				dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
-				dlOuterHeaderCreation.TeID = teid
-				dlOuterHeaderCreation.IPv4Address = ctx.Tunnel.ANInformation.IPAddress.To4()
-			}
+	dataPath := ctx.Tunnel.DataPath
+	if dataPath.Activated {
+		ANUPF := dataPath.DPNode
+		for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
+			DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
+			dlOuterHeaderCreation := DLPDR.FAR.ForwardingParameters.OuterHeaderCreation
+			dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
+			dlOuterHeaderCreation.TeID = teid
+			dlOuterHeaderCreation.IPv4Address = ctx.Tunnel.ANInformation.IPAddress.To4()
 		}
 	}
 
@@ -70,20 +69,18 @@ func HandlePathSwitchRequestTransfer(b []byte, ctx *SMContext) error {
 
 	ctx.Tunnel.ANInformation.IPAddress = gtpTunnel.TransportLayerAddress.Value.Bytes
 	ctx.Tunnel.ANInformation.TEID = teid
-
-	for _, dataPath := range ctx.Tunnel.DataPathPool {
-		if dataPath.Activated {
-			ANUPF := dataPath.FirstDPNode
-			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
-				DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
-				dlOuterHeaderCreation := DLPDR.FAR.ForwardingParameters.OuterHeaderCreation
-				dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
-				dlOuterHeaderCreation.TeID = teid
-				dlOuterHeaderCreation.IPv4Address = gtpTunnel.TransportLayerAddress.Value.Bytes
-				DLPDR.FAR.State = RuleUpdate
-				DLPDR.FAR.ForwardingParameters.PFCPSMReqFlags = new(PFCPSMReqFlags)
-				DLPDR.FAR.ForwardingParameters.PFCPSMReqFlags.Sndem = true
-			}
+	dataPath := ctx.Tunnel.DataPath
+	if dataPath.Activated {
+		ANUPF := dataPath.DPNode
+		for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
+			DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
+			dlOuterHeaderCreation := DLPDR.FAR.ForwardingParameters.OuterHeaderCreation
+			dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
+			dlOuterHeaderCreation.TeID = teid
+			dlOuterHeaderCreation.IPv4Address = gtpTunnel.TransportLayerAddress.Value.Bytes
+			DLPDR.FAR.State = RuleUpdate
+			DLPDR.FAR.ForwardingParameters.PFCPSMReqFlags = new(PFCPSMReqFlags)
+			DLPDR.FAR.ForwardingParameters.PFCPSMReqFlags.Sndem = true
 		}
 	}
 
@@ -123,18 +120,16 @@ func HandleHandoverRequestAcknowledgeTransfer(b []byte, ctx *SMContext) error {
 	if err != nil {
 		return fmt.Errorf("parse TEID error %s", err.Error())
 	}
-
-	for _, dataPath := range ctx.Tunnel.DataPathPool {
-		if dataPath.Activated {
-			ANUPF := dataPath.FirstDPNode
-			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
-				DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
-				dlOuterHeaderCreation := DLPDR.FAR.ForwardingParameters.OuterHeaderCreation
-				dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
-				dlOuterHeaderCreation.TeID = uint32(teid)
-				dlOuterHeaderCreation.IPv4Address = GTPTunnel.TransportLayerAddress.Value.Bytes
-				DLPDR.FAR.State = RuleUpdate
-			}
+	dataPath := ctx.Tunnel.DataPath
+	if dataPath.Activated {
+		ANUPF := dataPath.DPNode
+		for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
+			DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
+			dlOuterHeaderCreation := DLPDR.FAR.ForwardingParameters.OuterHeaderCreation
+			dlOuterHeaderCreation.OuterHeaderCreationDescription = OuterHeaderCreationGtpUUdpIpv4
+			dlOuterHeaderCreation.TeID = uint32(teid)
+			dlOuterHeaderCreation.IPv4Address = GTPTunnel.TransportLayerAddress.Value.Bytes
+			DLPDR.FAR.State = RuleUpdate
 		}
 	}
 

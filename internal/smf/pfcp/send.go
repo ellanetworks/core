@@ -87,7 +87,9 @@ func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentRes
 	}
 
 	// Get N3 interface UPF
-	ANUPF := smContext.Tunnel.DataPathPool.GetDefaultPath().FirstDPNode
+	dataPath := smContext.Tunnel.DataPath
+	ANUPF := dataPath.DPNode
+	smfSelf := context.SMFSelf()
 
 	// UE IP-Addr(only v4 supported)
 	if msg.CreatedPDR != nil {
@@ -111,14 +113,13 @@ func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentRes
 			return fmt.Errorf("failed to parse TEID IE: %+v", err)
 		}
 		ANUPF.UpLinkTunnel.TEID = fteid.TEID
-		upf := context.GetUserPlaneInformation().UPF.UPF
-		if upf == nil {
+		upf := smfSelf.UPF
+		if smfSelf.UPF == nil {
 			return fmt.Errorf("can't find UPF: %s", nodeID)
 		}
-		upf.N3Interfaces = make([]context.UPFInterfaceInfo, 0)
 		n3Interface := context.UPFInterfaceInfo{}
 		n3Interface.IPv4EndPointAddresses = append(n3Interface.IPv4EndPointAddresses, fteid.IPv4Address)
-		upf.N3Interfaces = append(upf.N3Interfaces, n3Interface)
+		upf.N3Interface = n3Interface
 	}
 	smContext.SMLock.Unlock()
 
@@ -133,7 +134,6 @@ func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentRes
 		smContext.SubPfcpLog.Infof("PFCP Session Establishment accepted")
 		return nil
 	}
-	smContext.SubPfcpLog.Errorf("PFCP Session Establishment rejected with cause [%v]", causeValue)
 	return fmt.Errorf("PFCP Session Establishment rejected with cause: %v", causeValue)
 }
 
@@ -158,7 +158,6 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 	upfNodeID := smContext.GetNodeIDByLocalSEID(SEID)
 	upfIP := upfNodeID.ResolveNodeIDToIP().String()
 	smContext.SubPduSessLog.Debugf("Delete pending pfcp response: UPF IP [%s]\n", upfIP)
-
 	smContext.SubPfcpLog.Debugf("PFCP Session Modification Success[%d]\n", SEID)
 	return nil
 }
