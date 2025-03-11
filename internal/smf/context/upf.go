@@ -21,9 +21,8 @@ import (
 )
 
 type UPTunnel struct {
-	PathIDGenerator *idgenerator.IDGenerator
-	DataPath        *DataPath
-	ANInformation   struct {
+	DataPath      *DataPath
+	ANInformation struct {
 		IPAddress net.IP
 		TEID      uint32
 	}
@@ -36,7 +35,6 @@ type RecoveryTimeStamp struct {
 type UPF struct {
 	SNssaiInfos  []SnssaiUPFInfo
 	N3Interfaces []UPFInterfaceInfo
-	N9Interfaces []UPFInterfaceInfo
 
 	pdrPool sync.Map
 	farPool sync.Map
@@ -84,20 +82,7 @@ func (upf *UPF) UUID() string {
 	return uuid
 }
 
-func NewUPTunnel() (tunnel *UPTunnel) {
-	tunnel = &UPTunnel{
-		PathIDGenerator: idgenerator.NewGenerator(1, 2147483647),
-	}
-
-	return
-}
-
-func (upTunnel *UPTunnel) AddDataPath(dataPath *DataPath) error {
-	upTunnel.DataPath = dataPath
-	return nil
-}
-
-func NewUPF(nodeID *NodeID, ifaces []InterfaceUpfInfoItem) (upf *UPF) {
+func NewUPF(nodeID *NodeID, ifaces []N3InterfaceUpfInfoItem) (upf *UPF) {
 	upf = new(UPF)
 	upf.uuid = uuid.New()
 
@@ -109,36 +94,20 @@ func NewUPF(nodeID *NodeID, ifaces []InterfaceUpfInfoItem) (upf *UPF) {
 	upf.qerIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
 
 	upf.N3Interfaces = make([]UPFInterfaceInfo, 0)
-	upf.N9Interfaces = make([]UPFInterfaceInfo, 0)
 
 	for _, iface := range ifaces {
 		upIface := NewUPFInterfaceInfo(iface.NetworkInstance)
-
-		switch iface.InterfaceType {
-		case models.UpInterfaceTypeN3:
-			upf.N3Interfaces = append(upf.N3Interfaces, *upIface)
-		case models.UpInterfaceTypeN9:
-			upf.N9Interfaces = append(upf.N9Interfaces, *upIface)
-		}
+		upf.N3Interfaces = append(upf.N3Interfaces, *upIface)
 	}
 
 	return upf
 }
 
 // GetInterface return the UPFInterfaceInfo that match input cond
-func (upf *UPF) GetInterface(interfaceType models.UpInterfaceType, dnn string) *UPFInterfaceInfo {
-	switch interfaceType {
-	case models.UpInterfaceTypeN3:
-		for i, iface := range upf.N3Interfaces {
-			if iface.NetworkInstance == dnn {
-				return &upf.N3Interfaces[i]
-			}
-		}
-	case models.UpInterfaceTypeN9:
-		for i, iface := range upf.N9Interfaces {
-			if iface.NetworkInstance == dnn {
-				return &upf.N9Interfaces[i]
-			}
+func (upf *UPF) GetInterface(dnn string) *UPFInterfaceInfo {
+	for i, iface := range upf.N3Interfaces {
+		if iface.NetworkInstance == dnn {
+			return &upf.N3Interfaces[i]
 		}
 	}
 	return nil
@@ -320,11 +289,14 @@ func (upf *UPF) RemoveQER(qer *QER) {
 }
 
 func GenerateDataPath(upf *UPF, smContext *SMContext) *DataPath {
-	curDataPathNode := NewDataPathNode()
-	curDataPathNode.UPF = upf
+	curDataPathNode := &DataPathNode{
+		UpLinkTunnel:   &GTPTunnel{PDR: make(map[string]*PDR)},
+		DownLinkTunnel: &GTPTunnel{PDR: make(map[string]*PDR)},
+		UPF:            upf,
+	}
 
 	dataPath := &DataPath{
-		FirstDPNode: curDataPathNode,
+		DPNode: curDataPathNode,
 	}
 	return dataPath
 }

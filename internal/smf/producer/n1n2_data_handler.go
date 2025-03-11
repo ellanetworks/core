@@ -98,7 +98,7 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 			smContext.UeLocation = body.JSONData.UeLocation
 			farList := []*context.FAR{}
 			dataPath := smContext.Tunnel.DataPath
-			ANUPF := dataPath.FirstDPNode
+			ANUPF := dataPath.DPNode
 			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
 				if DLPDR == nil {
 					smContext.SubPduSessLog.Errorf("AN Release Error")
@@ -210,7 +210,7 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 		farList := []*context.FAR{}
 		dataPath := tunnel.DataPath
 		if dataPath.Activated {
-			ANUPF := dataPath.FirstDPNode
+			ANUPF := dataPath.DPNode
 			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
 				DLPDR.FAR.ApplyAction = context.ApplyAction{Buff: false, Drop: false, Dupl: false, Forw: true, Nocp: false}
 				DLPDR.FAR.ForwardingParameters = &context.ForwardingParameters{
@@ -276,7 +276,7 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 		farList := []*context.FAR{}
 		dataPath := tunnel.DataPath
 		if dataPath.Activated {
-			ANUPF := dataPath.FirstDPNode
+			ANUPF := dataPath.DPNode
 			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
 				pdrList = append(pdrList, DLPDR)
 				farList = append(farList, DLPDR.FAR)

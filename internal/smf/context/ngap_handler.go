@@ -38,7 +38,7 @@ func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) err
 
 	dataPath := ctx.Tunnel.DataPath
 	if dataPath.Activated {
-		ANUPF := dataPath.FirstDPNode
+		ANUPF := dataPath.DPNode
 		for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
 			DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
 			dlOuterHeaderCreation := DLPDR.FAR.ForwardingParameters.OuterHeaderCreation
@@ -71,7 +71,7 @@ func HandlePathSwitchRequestTransfer(b []byte, ctx *SMContext) error {
 	ctx.Tunnel.ANInformation.TEID = teid
 	dataPath := ctx.Tunnel.DataPath
 	if dataPath.Activated {
-		ANUPF := dataPath.FirstDPNode
+		ANUPF := dataPath.DPNode
 		for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
 			DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
 			dlOuterHeaderCreation := DLPDR.FAR.ForwardingParameters.OuterHeaderCreation
@@ -122,7 +122,7 @@ func HandleHandoverRequestAcknowledgeTransfer(b []byte, ctx *SMContext) error {
 	}
 	dataPath := ctx.Tunnel.DataPath
 	if dataPath.Activated {
-		ANUPF := dataPath.FirstDPNode
+		ANUPF := dataPath.DPNode
 		for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
 			DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = new(OuterHeaderCreation)
 			dlOuterHeaderCreation := DLPDR.FAR.ForwardingParameters.OuterHeaderCreation

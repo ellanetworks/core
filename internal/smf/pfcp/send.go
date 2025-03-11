@@ -88,7 +88,7 @@ func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentRes
 
 	// Get N3 interface UPF
 	dataPath := smContext.Tunnel.DataPath
-	ANUPF := dataPath.FirstDPNode
+	ANUPF := dataPath.DPNode
 	smfSelf := context.SMFSelf()
 
 	// UE IP-Addr(only v4 supported)

@@ -19,9 +19,8 @@ import (
 
 var smfContext SMFContext
 
-type InterfaceUpfInfoItem struct {
+type N3InterfaceUpfInfoItem struct {
 	NetworkInstance string
-	InterfaceType   models.UpInterfaceType
 }
 
 type SMFContext struct {
@@ -58,10 +57,9 @@ func BuildUserPlaneInformationFromConfig() (*UPF, error) {
 		return nil, fmt.Errorf("failed to get operator information from db: %v", err)
 	}
 
-	ifaces := []InterfaceUpfInfoItem{
+	ifaces := []N3InterfaceUpfInfoItem{
 		{
 			NetworkInstance: config.DNN,
-			InterfaceType:   models.UpInterfaceTypeN3,
 		},
 	}
 

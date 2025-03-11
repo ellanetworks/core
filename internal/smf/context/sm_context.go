@@ -41,19 +41,18 @@ type UeIPAddr struct {
 }
 
 type SMContext struct {
-	Ref               string
-	Supi              string
-	Pei               string
-	Identifier        string
-	Gpsi              string
-	Dnn               string
-	UeTimeZone        string
-	ServingNfID       string
-	SmStatusNotifyURI string
-	UpCnxState        models.UpCnxState
-	AnType            models.AccessType
-	RatType           models.RatType
-	// PresenceInLadn                 models.PresenceState
+	Ref                            string
+	Supi                           string
+	Pei                            string
+	Identifier                     string
+	Gpsi                           string
+	Dnn                            string
+	UeTimeZone                     string
+	ServingNfID                    string
+	SmStatusNotifyURI              string
+	UpCnxState                     models.UpCnxState
+	AnType                         models.AccessType
+	RatType                        models.RatType
 	DnnConfiguration               models.DnnConfiguration
 	Snssai                         *models.Snssai
 	ServingNetwork                 *models.PlmnID
@@ -236,21 +235,20 @@ func (smContext *SMContext) GetNodeIDByLocalSEID(seid uint64) (nodeID NodeID) {
 }
 
 func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) error {
-	for curDataPathNode := dataPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
-		NodeIDtoIP := curDataPathNode.UPF.NodeID.ResolveNodeIDToIP().String()
-		if _, exist := smContext.PFCPContext[NodeIDtoIP]; !exist {
-			allocatedSEID, err := AllocateLocalSEID()
-			if err != nil {
-				return fmt.Errorf("failed allocating SEID, %v", err)
-			}
-			smContext.PFCPContext[NodeIDtoIP] = &PFCPSessionContext{
-				PDRs:      make(map[uint16]*PDR),
-				NodeID:    curDataPathNode.UPF.NodeID,
-				LocalSEID: allocatedSEID,
-			}
-
-			seidSMContextMap.Store(allocatedSEID, smContext)
+	curDataPathNode := dataPath.DPNode
+	NodeIDtoIP := curDataPathNode.UPF.NodeID.ResolveNodeIDToIP().String()
+	if _, exist := smContext.PFCPContext[NodeIDtoIP]; !exist {
+		allocatedSEID, err := AllocateLocalSEID()
+		if err != nil {
+			return fmt.Errorf("failed allocating SEID, %v", err)
 		}
+		smContext.PFCPContext[NodeIDtoIP] = &PFCPSessionContext{
+			PDRs:      make(map[uint16]*PDR),
+			NodeID:    curDataPathNode.UPF.NodeID,
+			LocalSEID: allocatedSEID,
+		}
+
+		seidSMContextMap.Store(allocatedSEID, smContext)
 	}
 	return nil
 }

@@ -20,7 +20,7 @@ const DefaultNonGBR5QI = 9
 
 func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error) {
 	dataPath := ctx.Tunnel.DataPath
-	ANUPF := dataPath.FirstDPNode
+	ANUPF := dataPath.DPNode
 	UpNode := ANUPF.UPF
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, ANUPF.UpLinkTunnel.TEID)
@@ -184,7 +184,7 @@ func BuildPDUSessionResourceReleaseCommandTransfer(ctx *SMContext) (buf []byte, 
 // TS 38.413 9.3.4.9
 func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
 	dataPath := ctx.Tunnel.DataPath
-	ANUPF := dataPath.FirstDPNode
+	ANUPF := dataPath.DPNode
 	UpNode := ANUPF.UPF
 	logger.SmfLog.Warnf("UPF TEID: %v", ANUPF.UpLinkTunnel.TEID)
 	teidOct := make([]byte, 4)
@@ -233,7 +233,7 @@ func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
 
 func BuildHandoverCommandTransfer(ctx *SMContext) ([]byte, error) {
 	dataPath := ctx.Tunnel.DataPath
-	ANUPF := dataPath.FirstDPNode
+	ANUPF := dataPath.DPNode
 	UpNode := ANUPF.UPF
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, ANUPF.UpLinkTunnel.TEID)
