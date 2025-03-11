@@ -6,14 +6,17 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type Role string
+
+const TokenExpirationTime = time.Hour * 1
 
 const (
 	AdminRole          Role = "admin"
@@ -27,7 +30,7 @@ type claims struct {
 	ID    int    `json:"id"`
 	Email string `json:"email"`
 	Role  Role   `json:"role"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
 func Authenticate(jwtSecret []byte) gin.HandlerFunc {
@@ -144,8 +147,8 @@ func generateJWT(id int, email string, role Role, jwtSecret []byte) (string, err
 		ID:    id,
 		Email: email,
 		Role:  role,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: expireAfter(),
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: &jwt.NumericDate{time.Now().Add(TokenExpirationTime)},
 		},
 	})
 	tokenString, err := token.SignedString(jwtSecret)

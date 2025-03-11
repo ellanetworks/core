@@ -2,17 +2,12 @@ package server
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
-
-func expireAfter() int64 {
-	return time.Now().Add(time.Hour * 1).Unix()
-}
 
 type LoginParams struct {
 	Email    string `json:"email"`
