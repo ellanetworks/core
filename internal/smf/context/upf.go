@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/google/uuid"
@@ -59,17 +58,13 @@ type UPF struct {
 // UPFInterfaceInfo store the UPF interface information
 type UPFInterfaceInfo struct {
 	NetworkInstance       string
-	EndpointFQDN          string
 	IPv4EndPointAddresses []net.IP
-	IPv6EndPointAddresses []net.IP
 }
 
-// NewUPFInterfaceInfo parse the InterfaceUpfInfoItem to generate UPFInterfaceInfo
-func NewUPFInterfaceInfo(i *InterfaceUpfInfoItem) *UPFInterfaceInfo {
+func NewUPFInterfaceInfo(networkInstance string) *UPFInterfaceInfo {
 	interfaceInfo := new(UPFInterfaceInfo)
 	interfaceInfo.IPv4EndPointAddresses = make([]net.IP, 0)
-	interfaceInfo.IPv6EndPointAddresses = make([]net.IP, 0)
-	interfaceInfo.NetworkInstance = i.NetworkInstance
+	interfaceInfo.NetworkInstance = networkInstance
 	return interfaceInfo
 }
 
@@ -77,29 +72,6 @@ func NewUPFInterfaceInfo(i *InterfaceUpfInfoItem) *UPFInterfaceInfo {
 func (i *UPFInterfaceInfo) IP(pduSessType uint8) (net.IP, error) {
 	if (pduSessType == nasMessage.PDUSessionTypeIPv4 || pduSessType == nasMessage.PDUSessionTypeIPv4IPv6) && len(i.IPv4EndPointAddresses) != 0 {
 		return i.IPv4EndPointAddresses[0].To4(), nil
-	}
-
-	if (pduSessType == nasMessage.PDUSessionTypeIPv6 || pduSessType == nasMessage.PDUSessionTypeIPv4IPv6) && len(i.IPv6EndPointAddresses) != 0 {
-		return i.IPv6EndPointAddresses[0], nil
-	}
-
-	if i.EndpointFQDN != "" {
-		if resolvedAddr, err := net.ResolveIPAddr("ip", i.EndpointFQDN); err != nil {
-			logger.SmfLog.Errorf("resolve addr [%s] failed", i.EndpointFQDN)
-		} else {
-			if pduSessType == nasMessage.PDUSessionTypeIPv4 {
-				return resolvedAddr.IP.To4(), nil
-			} else if pduSessType == nasMessage.PDUSessionTypeIPv6 {
-				return resolvedAddr.IP.To16(), nil
-			} else {
-				v4addr := resolvedAddr.IP.To4()
-				if v4addr != nil {
-					return v4addr, nil
-				} else {
-					return resolvedAddr.IP.To16(), nil
-				}
-			}
-		}
 	}
 
 	return nil, errors.New("not matched ip address")
@@ -140,7 +112,7 @@ func NewUPF(nodeID *NodeID, ifaces []InterfaceUpfInfoItem) (upf *UPF) {
 	upf.N9Interfaces = make([]UPFInterfaceInfo, 0)
 
 	for _, iface := range ifaces {
-		upIface := NewUPFInterfaceInfo(&iface)
+		upIface := NewUPFInterfaceInfo(iface.NetworkInstance)
 
 		switch iface.InterfaceType {
 		case models.UpInterfaceTypeN3:
