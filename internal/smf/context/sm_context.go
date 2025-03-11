@@ -255,12 +255,12 @@ func (smContext *SMContext) AllocateLocalSEIDForDataPath(dataPath *DataPath) err
 
 func (smContext *SMContext) PutPDRtoPFCPSession(nodeID NodeID, pdrList map[string]*PDR) error {
 	NodeIDtoIP := nodeID.ResolveNodeIDToIP().String()
-	if pfcpSessCtx, exist := smContext.PFCPContext[NodeIDtoIP]; exist {
-		for name, pdr := range pdrList {
-			pfcpSessCtx.PDRs[pdrList[name].PDRID] = pdr
-		}
-	} else {
+	pfcpSessCtx, exist := smContext.PFCPContext[NodeIDtoIP]
+	if !exist {
 		return fmt.Errorf("error, can't find PFCPContext[%s] to put PDR(%v)", NodeIDtoIP, pdrList)
+	}
+	for name, pdr := range pdrList {
+		pfcpSessCtx.PDRs[pdrList[name].PDRID] = pdr
 	}
 	return nil
 }

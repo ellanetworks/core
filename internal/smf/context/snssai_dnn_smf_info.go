@@ -11,14 +11,12 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-// SnssaiSmfInfo records the SMF S-NSSAI related information
 type SnssaiSmfInfo struct {
 	DnnInfos map[string]*SnssaiSmfDnnInfo
 	PlmnID   models.PlmnID
 	Snssai   SNssai
 }
 
-// SnssaiSmfDnnInfo records the SMF per S-NSSAI DNN information
 type SnssaiSmfDnnInfo struct {
 	DNS DNS
 	MTU uint16

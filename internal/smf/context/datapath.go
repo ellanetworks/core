@@ -55,16 +55,15 @@ func (node *DataPathNode) ActivateUpLinkTunnel(smContext *SMContext) error {
 		}
 	} else {
 		// Default PDR
-		if pdr, err = destUPF.AddPDR(); err != nil {
+		pdr, err = destUPF.AddPDR()
+		if err != nil {
 			return fmt.Errorf("add PDR failed: %s", err)
-		} else {
-			node.UpLinkTunnel.PDR["default"] = pdr
 		}
+		node.UpLinkTunnel.PDR["default"] = pdr
 	}
 
 	if err = smContext.PutPDRtoPFCPSession(destUPF.NodeID, node.UpLinkTunnel.PDR); err != nil {
-		logger.SmfLog.Errorln("put PDR Error:", err)
-		return err
+		return fmt.Errorf("error in put PDR to PFCP session: %s", err)
 	}
 
 	return nil
@@ -135,7 +134,7 @@ func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 				}
 			}
 		}
-		logger.SmfLog.Infof("deactivated UpLinkTunnel PDR name[%v], id[%v]", name, pdr.PDRID)
+		logger.SmfLog.Infof("deactivated uplink tunnel pdr with name and id: %v, %v", name, pdr.PDRID)
 	}
 
 	node.DownLinkTunnel = &GTPTunnel{}
@@ -144,8 +143,6 @@ func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 	for name, pdr := range node.DownLinkTunnel.PDR {
 		if pdr != nil {
-			logger.SmfLog.Infof("deactivated DownLinkTunnel PDR name[%v], id[%v]", name, pdr.PDRID)
-
 			// Remove PDR from PFCP Session
 			smContext.RemovePDRfromPFCPSession(node.UPF.NodeID, pdr)
 
@@ -167,6 +164,7 @@ func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 					}
 				}
 			}
+			logger.SmfLog.Infof("deactivated downLink tunnel PDR name with name and id: %v, %v", name, pdr.PDRID)
 		}
 	}
 
@@ -240,8 +238,7 @@ func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) 
 		return nil, fmt.Errorf("default QOS Data not found in Policy Decision")
 	}
 	if newQER, err := node.UPF.AddQER(); err != nil {
-		logger.SmfLog.Errorln("new QER failed")
-		return nil, err
+		return nil, fmt.Errorf("failed to add QER: %v", err)
 	} else {
 		newQER.QFI.QFI = qos.GetQosFlowIDFromQosID(defQosData.QosID)
 		newQER.GateStatus = &GateStatus{

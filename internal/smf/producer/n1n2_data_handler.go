@@ -8,6 +8,7 @@ package producer
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/omec-project/nas"
@@ -25,49 +26,45 @@ type pfcpParam struct {
 }
 
 func HandleUpdateN1Msg(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) error {
-	if body.BinaryDataN1SmMessage != nil {
-		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, Binary Data N1 SmMessage isn't nil!")
-		m := nas.NewMessage()
-		err := m.GsmMessageDecode(&body.BinaryDataN1SmMessage)
-		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, Update SM Context Request N1SmMessage: ", m)
+	if body.BinaryDataN1SmMessage == nil {
+		return fmt.Errorf("binary data N1 SmMessage is nil")
+	}
+	m := nas.NewMessage()
+	err := m.GsmMessageDecode(&body.BinaryDataN1SmMessage)
+	if err != nil {
+		return fmt.Errorf("error decoding N1 SM Message: %v", err)
+	}
+	switch m.GsmHeader.GetMessageType() {
+	case nas.MsgTypePDUSessionReleaseRequest:
+		smContext.SubPduSessLog.Infof("Received N1 Msg PDU Session Release Request")
+		err := smContext.HandlePDUSessionReleaseRequest(m.PDUSessionReleaseRequest)
 		if err != nil {
-			return fmt.Errorf("error decoding N1SmMessage: %v", err)
+			return fmt.Errorf("failed to handle PDU Session Release Request: %v", err)
 		}
-		switch m.GsmHeader.GetMessageType() {
-		case nas.MsgTypePDUSessionReleaseRequest:
-			smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N1 Msg PDU Session Release Request received")
-
-			smContext.HandlePDUSessionReleaseRequest(m.PDUSessionReleaseRequest)
-			if buf, err := context.BuildGSMPDUSessionReleaseCommand(smContext); err != nil {
-				smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, build GSM PDUSessionReleaseCommand failed: %+v", err)
-			} else {
-				response.BinaryDataN1SmMessage = buf
-			}
-
-			response.JSONData.N1SmMsg = &models.RefToBinaryData{ContentID: "PDUSessionReleaseCommand"}
-
-			response.JSONData.N2SmInfo = &models.RefToBinaryData{ContentID: "PDUResourceReleaseCommand"}
-			response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResRelCmd
-
-			if buf, err := context.BuildPDUSessionResourceReleaseCommandTransfer(smContext); err != nil {
-				smContext.SubPduSessLog.Errorf("PDUSessionSMContextUpdate, build PDUSessionResourceReleaseCommandTransfer failed: %+v", err)
-			} else {
-				response.BinaryDataN2SmInformation = buf
-			}
-
-			if smContext.Tunnel != nil {
-				// Send release to UPF
-				pfcpAction.sendPfcpDelete = true
-			}
-
-		case nas.MsgTypePDUSessionReleaseComplete:
-			smContext.SubPduSessLog.Infof("PDUSessionSMContextUpdate, N1 Msg PDU Session Release Complete received")
-
-			// Send Release Notify to AMF
-			response.JSONData.UpCnxState = models.UpCnxStateDeactivated
+		logger.SmfLog.Infof("Successfully completed PDU Session Release Request for PDU Session ID: %d", smContext.PDUSessionID)
+		buf, err := context.BuildGSMPDUSessionReleaseCommand(smContext)
+		if err != nil {
+			return fmt.Errorf("failed to build GSM PDUSessionReleaseCommand: %v", err)
 		}
-	} else {
-		smContext.SubPduSessLog.Debugln("PDUSessionSMContextUpdate, Binary Data N1 SmMessage is nil!")
+		response.BinaryDataN1SmMessage = buf
+		response.JSONData.N1SmMsg = &models.RefToBinaryData{ContentID: "PDUSessionReleaseCommand"}
+		response.JSONData.N2SmInfo = &models.RefToBinaryData{ContentID: "PDUResourceReleaseCommand"}
+		response.JSONData.N2SmInfoType = models.N2SmInfoTypePduResRelCmd
+		buf, err = context.BuildPDUSessionResourceReleaseCommandTransfer(smContext)
+		if err != nil {
+			return fmt.Errorf("failed to build PDU Session Resource Release Command Transfer: %v", err)
+		}
+		response.BinaryDataN2SmInformation = buf
+
+		if smContext.Tunnel != nil {
+			// Send release to UPF
+			pfcpAction.sendPfcpDelete = true
+		}
+
+	case nas.MsgTypePDUSessionReleaseComplete:
+		smContext.SubPduSessLog.Infof("Received N1 Msg PDU Session Release Complete")
+		// Send Release Notify to AMF
+		response.JSONData.UpCnxState = models.UpCnxStateDeactivated
 	}
 
 	return nil

@@ -65,11 +65,16 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	defer smContext.SMLock.Unlock()
 
 	// DNN Information from config
-	smContext.DNNInfo = context.RetrieveDnnInformation(*createData.SNssai, createData.Dnn)
-	if smContext.DNNInfo == nil {
+	dnnInfo, err := context.RetrieveDnnInformation(*createData.SNssai, createData.Dnn)
+	if err != nil {
+		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
+		return "", response, fmt.Errorf("failed to retrieve DNN information: %v", err)
+	}
+	if dnnInfo == nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
 		return "", response, fmt.Errorf("couldn't find DNN information: snssai does not match DNN config: Sst: %d, Sd: %s, DNN: %s", createData.SNssai.Sst, createData.SNssai.Sd, createData.Dnn)
 	}
+	smContext.DNNInfo = dnnInfo
 
 	// IP Allocation
 	smfSelf := context.SMFSelf()
@@ -145,7 +150,7 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 
 	err := HandleUpdateN1Msg(request, smContext, &response, pfcpAction)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error handling N1 message: %v", err)
 	}
 
 	pfcpParam := &pfcpParam{
@@ -157,31 +162,32 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 
 	// UP Cnx State handling
 	if err := HandleUpCnxState(request, smContext, &response, pfcpAction, pfcpParam); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error handling UP connection state: %v", err)
 	}
 
 	// N2 Msg Handling
 	if err := HandleUpdateN2Msg(request, smContext, &response, pfcpAction, pfcpParam); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error handling N2 message: %v", err)
 	}
 
 	// Ho state handling
 	if err := HandleUpdateHoState(request, smContext, &response); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error handling HO state: %v", err)
 	}
 
 	// Cause handling
 	if err := HandleUpdateCause(request, smContext, &response, pfcpAction); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error handling cause: %v", err)
 	}
 
 	// Initiate PFCP Release
 	if pfcpAction.sendPfcpDelete {
-		if err = SendPfcpSessionReleaseReq(smContext); err != nil {
+		err = SendPfcpSessionReleaseReq(smContext)
+		if err != nil {
 			return nil, fmt.Errorf("pfcp session release error: %v ", err.Error())
 		}
+		smContext.SubPduSessLog.Infof("Sent PFCP session release request")
 	} else if pfcpAction.sendPfcpModify {
-		// Initiate PFCP Modify
 		err := SendPfcpSessionModifyReq(smContext, pfcpParam)
 		if err != nil {
 			return nil, fmt.Errorf("pfcp session modify error: %v ", err.Error())
@@ -226,7 +232,7 @@ func releaseTunnel(smContext *context.SMContext) error {
 	dataPath := smContext.Tunnel.DataPath
 	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR(smContext)
 	curDataPathNode := dataPath.DPNode
-	curUPFID := curDataPathNode.UPF.UUID()
+	curUPFID := curDataPathNode.UPF.NodeID.String()
 	if _, exist := deletedPFCPNode[curUPFID]; !exist {
 		err := pfcp.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext)
 		if err != nil {

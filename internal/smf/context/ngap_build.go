@@ -8,15 +8,12 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
 )
-
-const DefaultNonGBR5QI = 9
 
 func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error) {
 	dataPath := ctx.Tunnel.DataPath
@@ -33,7 +30,10 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	ie.Id.Value = ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
 	sessRule := ctx.SelectedSessionRule()
-	if sessRule == nil || sessRule.AuthSessAmbr == nil {
+	if sessRule == nil {
+		return nil, fmt.Errorf("no session rule")
+	}
+	if sessRule.AuthSessAmbr == nil {
 		return nil, fmt.Errorf("no PDU Session AMBR")
 	}
 	ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
@@ -165,7 +165,7 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	}
 }
 
-func BuildPDUSessionResourceReleaseCommandTransfer(ctx *SMContext) (buf []byte, err error) {
+func BuildPDUSessionResourceReleaseCommandTransfer(ctx *SMContext) ([]byte, error) {
 	resourceReleaseCommandTransfer := ngapType.PDUSessionResourceReleaseCommandTransfer{
 		Cause: ngapType.Cause{
 			Present: ngapType.CausePresentNas,
@@ -174,11 +174,11 @@ func BuildPDUSessionResourceReleaseCommandTransfer(ctx *SMContext) (buf []byte, 
 			},
 		},
 	}
-	buf, err = aper.MarshalWithParams(resourceReleaseCommandTransfer, "valueExt")
+	buf, err := aper.MarshalWithParams(resourceReleaseCommandTransfer, "valueExt")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error encoding resource release command transfer: %s", err)
 	}
-	return
+	return buf, nil
 }
 
 // TS 38.413 9.3.4.9
@@ -186,7 +186,6 @@ func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
 	dataPath := ctx.Tunnel.DataPath
 	ANUPF := dataPath.DPNode
 	UpNode := ANUPF.UPF
-	logger.SmfLog.Warnf("UPF TEID: %v", ANUPF.UpLinkTunnel.TEID)
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, ANUPF.UpLinkTunnel.TEID)
 
