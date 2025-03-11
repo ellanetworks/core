@@ -27,7 +27,8 @@ type pfcpParam struct {
 
 func HandleUpdateN1Msg(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) error {
 	if body.BinaryDataN1SmMessage == nil {
-		return fmt.Errorf("binary data N1 SmMessage is nil")
+		logger.SmfLog.Debugf("No N1 Message received")
+		return nil
 	}
 	m := nas.NewMessage()
 	err := m.GsmMessageDecode(&body.BinaryDataN1SmMessage)
