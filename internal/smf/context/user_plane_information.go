@@ -33,11 +33,6 @@ func GenerateDataPath(upNode UPNode, smContext *SMContext) *DataPath {
 	curDataPathNode.UPF = upNode.UPF
 
 	dataPath := &DataPath{
-		Destination: Destination{
-			DestinationIP:   "",
-			DestinationPort: "",
-			URL:             "",
-		},
 		FirstDPNode: curDataPathNode,
 	}
 	return dataPath

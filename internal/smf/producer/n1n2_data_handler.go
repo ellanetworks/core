@@ -97,22 +97,21 @@ func HandleUpCnxState(body models.UpdateSmContextRequest, smContext *context.SMC
 			smContext.UpCnxState = body.JSONData.UpCnxState
 			smContext.UeLocation = body.JSONData.UeLocation
 			farList := []*context.FAR{}
-			for _, dataPath := range smContext.Tunnel.DataPathPool {
-				ANUPF := dataPath.FirstDPNode
-				for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
-					if DLPDR == nil {
-						smContext.SubPduSessLog.Errorf("AN Release Error")
-					} else {
-						DLPDR.FAR.State = context.RuleUpdate
-						DLPDR.FAR.ApplyAction.Forw = false
-						DLPDR.FAR.ApplyAction.Buff = true
-						DLPDR.FAR.ApplyAction.Nocp = true
-						// Set DL Tunnel info to nil
-						if DLPDR.FAR.ForwardingParameters != nil {
-							DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
-						}
-						farList = append(farList, DLPDR.FAR)
+			dataPath := smContext.Tunnel.DataPath
+			ANUPF := dataPath.FirstDPNode
+			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
+				if DLPDR == nil {
+					smContext.SubPduSessLog.Errorf("AN Release Error")
+				} else {
+					DLPDR.FAR.State = context.RuleUpdate
+					DLPDR.FAR.ApplyAction.Forw = false
+					DLPDR.FAR.ApplyAction.Buff = true
+					DLPDR.FAR.ApplyAction.Nocp = true
+					// Set DL Tunnel info to nil
+					if DLPDR.FAR.ForwardingParameters != nil {
+						DLPDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
 					}
+					farList = append(farList, DLPDR.FAR)
 				}
 			}
 
@@ -209,25 +208,23 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 
 		pdrList := []*context.PDR{}
 		farList := []*context.FAR{}
-
-		for _, dataPath := range tunnel.DataPathPool {
-			if dataPath.Activated {
-				ANUPF := dataPath.FirstDPNode
-				for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
-					DLPDR.FAR.ApplyAction = context.ApplyAction{Buff: false, Drop: false, Dupl: false, Forw: true, Nocp: false}
-					DLPDR.FAR.ForwardingParameters = &context.ForwardingParameters{
-						DestinationInterface: context.DestinationInterface{
-							InterfaceValue: context.DestinationInterfaceAccess,
-						},
-						NetworkInstance: smContext.Dnn,
-					}
-
-					DLPDR.State = context.RuleUpdate
-					DLPDR.FAR.State = context.RuleUpdate
-
-					pdrList = append(pdrList, DLPDR)
-					farList = append(farList, DLPDR.FAR)
+		dataPath := tunnel.DataPath
+		if dataPath.Activated {
+			ANUPF := dataPath.FirstDPNode
+			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
+				DLPDR.FAR.ApplyAction = context.ApplyAction{Buff: false, Drop: false, Dupl: false, Forw: true, Nocp: false}
+				DLPDR.FAR.ForwardingParameters = &context.ForwardingParameters{
+					DestinationInterface: context.DestinationInterface{
+						InterfaceValue: context.DestinationInterfaceAccess,
+					},
+					NetworkInstance: smContext.Dnn,
 				}
+
+				DLPDR.State = context.RuleUpdate
+				DLPDR.FAR.State = context.RuleUpdate
+
+				pdrList = append(pdrList, DLPDR)
+				farList = append(farList, DLPDR.FAR)
 			}
 		}
 
@@ -277,13 +274,12 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 
 		pdrList := []*context.PDR{}
 		farList := []*context.FAR{}
-		for _, dataPath := range tunnel.DataPathPool {
-			if dataPath.Activated {
-				ANUPF := dataPath.FirstDPNode
-				for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
-					pdrList = append(pdrList, DLPDR)
-					farList = append(farList, DLPDR.FAR)
-				}
+		dataPath := tunnel.DataPath
+		if dataPath.Activated {
+			ANUPF := dataPath.FirstDPNode
+			for _, DLPDR := range ANUPF.DownLinkTunnel.PDR {
+				pdrList = append(pdrList, DLPDR)
+				farList = append(farList, DLPDR.FAR)
 			}
 		}
 

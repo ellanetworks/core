@@ -113,14 +113,12 @@ func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 	return userPlaneInformation
 }
 
-// Right now we only support 1 UPF
-// This function should be edited when we decide to support multiple UPFs
 func UpdateUserPlaneInformation() {
 	smfSelf := SMFSelf()
 	configUserPlaneInfo := BuildUserPlaneInformationFromConfig()
 	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)
 	if same {
-		logger.SmfLog.Info("Context user plane info matches config")
+		logger.SmfLog.Debugf("Context user plane info matches config")
 		return
 	}
 	if configUserPlaneInfo == nil {
@@ -128,7 +126,7 @@ func UpdateUserPlaneInformation() {
 		return
 	}
 	if smfSelf.UserPlaneInformation == nil {
-		logger.SmfLog.Warnf("Context user plane info is nil")
+		logger.SmfLog.Debugf("Context user plane info is nil")
 		return
 	}
 	smfSelf.UserPlaneInformation.UPNodes = configUserPlaneInfo.UPNodes
@@ -149,23 +147,23 @@ func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInfo
 		}
 
 		if node.Type != contextUserPlaneInfo.UPNodes[nodeName].Type {
-			logger.SmfLog.Warnf("Node type mismatch for node %s", nodeName)
+			logger.SmfLog.Debugf("Node type mismatch for node %s", nodeName)
 			return false
 		}
 
 		if !bytes.Equal(node.NodeID.NodeIDValue, contextUserPlaneInfo.UPNodes[nodeName].NodeID.NodeIDValue) {
-			logger.SmfLog.Warnf("Node ID mismatch for node %s", nodeName)
+			logger.SmfLog.Debugf("Node ID mismatch for node %s", nodeName)
 			return false
 		}
 
 		if node.Dnn != contextUserPlaneInfo.UPNodes[nodeName].Dnn {
-			logger.SmfLog.Warnf("DNN mismatch for node %s", nodeName)
+			logger.SmfLog.Debugf("DNN mismatch for node %s", nodeName)
 			return false
 		}
 
 		if node.Type == UpNodeUPF {
 			if !node.UPF.SNssaiInfos[0].SNssai.Equal(&contextUserPlaneInfo.UPNodes[nodeName].UPF.SNssaiInfos[0].SNssai) {
-				logger.SmfLog.Warnf("SNssai mismatch for node %s", nodeName)
+				logger.SmfLog.Debugf("SNssai mismatch for node %s", nodeName)
 				return false
 			}
 		}

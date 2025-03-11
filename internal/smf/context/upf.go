@@ -8,7 +8,6 @@ package context
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"net"
 	"strconv"
@@ -24,7 +23,7 @@ import (
 
 type UPTunnel struct {
 	PathIDGenerator *idgenerator.IDGenerator
-	DataPathPool    DataPathPool
+	DataPath        *DataPath
 	ANInformation   struct {
 		IPAddress net.IP
 		TEID      uint32
@@ -138,7 +137,6 @@ func (upf *UPF) UUID() string {
 
 func NewUPTunnel() (tunnel *UPTunnel) {
 	tunnel = &UPTunnel{
-		DataPathPool:    make(DataPathPool),
 		PathIDGenerator: idgenerator.NewGenerator(1, 2147483647),
 	}
 
@@ -146,12 +144,7 @@ func NewUPTunnel() (tunnel *UPTunnel) {
 }
 
 func (upTunnel *UPTunnel) AddDataPath(dataPath *DataPath) error {
-	pathID, err := upTunnel.PathIDGenerator.Allocate()
-	if err != nil {
-		return fmt.Errorf("error allocating data path ID: %s", err.Error())
-	}
-
-	upTunnel.DataPathPool[pathID] = dataPath
+	upTunnel.DataPath = dataPath
 	return nil
 }
 

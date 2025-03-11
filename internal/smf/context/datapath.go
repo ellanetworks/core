@@ -30,18 +30,8 @@ type DataPathNode struct {
 }
 
 type DataPath struct {
-	FirstDPNode   *DataPathNode
-	Destination   Destination
-	Activated     bool
-	IsDefaultPath bool
-}
-
-type DataPathPool map[int64]*DataPath
-
-type Destination struct {
-	DestinationIP   string
-	DestinationPort string
-	URL             string
+	FirstDPNode *DataPathNode
+	Activated   bool
 }
 
 func NewDataPathNode() *DataPathNode {
@@ -241,16 +231,6 @@ func (node *DataPathNode) IsAnchorUPF() bool {
 	} else {
 		return false
 	}
-}
-
-func (dataPathPool DataPathPool) GetDefaultPath() (dataPath *DataPath) {
-	for _, path := range dataPathPool {
-		if path.IsDefaultPath {
-			dataPath = path
-			return
-		}
-	}
-	return
 }
 
 func (dataPath *DataPath) ActivateUlDlTunnel(smContext *SMContext) error {

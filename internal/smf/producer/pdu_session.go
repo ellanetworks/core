@@ -120,7 +120,6 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	smContext.Tunnel = context.NewUPTunnel()
 	upNode := *context.GetUserPlaneInformation().UPF
 	defaultPath := context.GenerateDataPath(upNode, smContext)
-	defaultPath.IsDefaultPath = true
 	err = smContext.Tunnel.AddDataPath(defaultPath)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
@@ -228,17 +227,16 @@ func releaseTunnel(smContext *context.SMContext) error {
 		return fmt.Errorf("tunnel not found")
 	}
 	deletedPFCPNode := make(map[string]bool)
-	for _, dataPath := range smContext.Tunnel.DataPathPool {
-		dataPath.DeactivateTunnelAndPDR(smContext)
-		for curDataPathNode := dataPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
-			curUPFID := curDataPathNode.UPF.UUID()
-			if _, exist := deletedPFCPNode[curUPFID]; !exist {
-				err := pfcp.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext)
-				if err != nil {
-					return fmt.Errorf("send PFCP session deletion request failed: %v", err)
-				}
-				deletedPFCPNode[curUPFID] = true
+	dataPath := smContext.Tunnel.DataPath
+	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR(smContext)
+	for curDataPathNode := dataPath.FirstDPNode; curDataPathNode != nil; curDataPathNode = curDataPathNode.Next() {
+		curUPFID := curDataPathNode.UPF.UUID()
+		if _, exist := deletedPFCPNode[curUPFID]; !exist {
+			err := pfcp.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext)
+			if err != nil {
+				return fmt.Errorf("send PFCP session deletion request failed: %v", err)
 			}
+			deletedPFCPNode[curUPFID] = true
 		}
 	}
 	smContext.Tunnel = nil
