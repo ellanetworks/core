@@ -57,14 +57,8 @@ func BuildUserPlaneInformationFromConfig() (*UPF, error) {
 		return nil, fmt.Errorf("failed to get operator information from db: %v", err)
 	}
 
-	ifaces := []N3InterfaceUpfInfoItem{
-		{
-			NetworkInstance: config.DNN,
-		},
-	}
-
 	upfNodeID := NewNodeID(config.UpfNodeID)
-	upf := NewUPF(upfNodeID, ifaces)
+	upf := NewUPF(upfNodeID, config.DNN)
 	upf.SNssaiInfos = []SnssaiUPFInfo{
 		{
 			SNssai: SNssai{

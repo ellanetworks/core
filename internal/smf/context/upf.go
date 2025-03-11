@@ -8,6 +8,7 @@ package context
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"net"
 	"strconv"
@@ -33,8 +34,8 @@ type RecoveryTimeStamp struct {
 }
 
 type UPF struct {
-	SNssaiInfos  []SnssaiUPFInfo
-	N3Interfaces []UPFInterfaceInfo
+	SNssaiInfos []SnssaiUPFInfo
+	N3Interface UPFInterfaceInfo
 
 	pdrPool sync.Map
 	farPool sync.Map
@@ -59,13 +60,6 @@ type UPFInterfaceInfo struct {
 	IPv4EndPointAddresses []net.IP
 }
 
-func NewUPFInterfaceInfo(networkInstance string) *UPFInterfaceInfo {
-	interfaceInfo := new(UPFInterfaceInfo)
-	interfaceInfo.IPv4EndPointAddresses = make([]net.IP, 0)
-	interfaceInfo.NetworkInstance = networkInstance
-	return interfaceInfo
-}
-
 // IP returns the IP of the user plane IP information of the pduSessType
 func (i *UPFInterfaceInfo) IP(pduSessType uint8) (net.IP, error) {
 	if (pduSessType == nasMessage.PDUSessionTypeIPv4 || pduSessType == nasMessage.PDUSessionTypeIPv4IPv6) && len(i.IPv4EndPointAddresses) != 0 {
@@ -82,46 +76,28 @@ func (upf *UPF) UUID() string {
 	return uuid
 }
 
-func NewUPF(nodeID *NodeID, ifaces []N3InterfaceUpfInfoItem) (upf *UPF) {
+func NewUPF(nodeID *NodeID, dnn string) (upf *UPF) {
 	upf = new(UPF)
 	upf.uuid = uuid.New()
-
-	// Initialize context
 	upf.NodeID = *nodeID
 	upf.pdrIDGenerator = idgenerator.NewGenerator(1, math.MaxUint16)
 	upf.farIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
 	upf.barIDGenerator = idgenerator.NewGenerator(1, math.MaxUint8)
 	upf.qerIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
-
-	upf.N3Interfaces = make([]UPFInterfaceInfo, 0)
-
-	for _, iface := range ifaces {
-		upIface := NewUPFInterfaceInfo(iface.NetworkInstance)
-		upf.N3Interfaces = append(upf.N3Interfaces, *upIface)
+	upf.N3Interface = UPFInterfaceInfo{
+		NetworkInstance:       dnn,
+		IPv4EndPointAddresses: make([]net.IP, 0),
 	}
 
 	return upf
 }
 
-// GetInterface return the UPFInterfaceInfo that match input cond
-func (upf *UPF) GetInterface(dnn string) *UPFInterfaceInfo {
-	for i, iface := range upf.N3Interfaces {
-		if iface.NetworkInstance == dnn {
-			return &upf.N3Interfaces[i]
-		}
-	}
-	return nil
-}
-
 func (upf *UPF) pdrID() (uint16, error) {
-	var pdrID uint16
-	if tmpID, err := upf.pdrIDGenerator.Allocate(); err != nil {
-		return 0, err
-	} else {
-		pdrID = uint16(tmpID)
+	pdrID, err := upf.pdrIDGenerator.Allocate()
+	if err != nil {
+		return 0, fmt.Errorf("could not allocate PDR ID: %v", err)
 	}
-
-	return pdrID, nil
+	return uint16(pdrID), nil
 }
 
 func (upf *UPF) farID() (uint32, error) {

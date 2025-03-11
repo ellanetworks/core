@@ -53,24 +53,24 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 	ie = ngapType.PDUSessionResourceSetupRequestTransferIEs{}
 	ie.Id.Value = ngapType.ProtocolIEIDULNGUUPTNLInformation
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	if n3IP, err := UpNode.N3Interfaces[0].IP(ctx.SelectedPDUSessionType); err != nil {
-		return nil, err
-	} else {
-		ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
-			Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentULNGUUPTNLInformation,
-			ULNGUUPTNLInformation: &ngapType.UPTransportLayerInformation{
-				Present: ngapType.UPTransportLayerInformationPresentGTPTunnel,
-				GTPTunnel: &ngapType.GTPTunnel{
-					TransportLayerAddress: ngapType.TransportLayerAddress{
-						Value: aper.BitString{
-							Bytes:     n3IP,
-							BitLength: uint64(len(n3IP) * 8),
-						},
+	n3IP, err := UpNode.N3Interface.IP(ctx.SelectedPDUSessionType)
+	if err != nil {
+		return nil, fmt.Errorf("could not get N3 IP: %s", err)
+	}
+	ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
+		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentULNGUUPTNLInformation,
+		ULNGUUPTNLInformation: &ngapType.UPTransportLayerInformation{
+			Present: ngapType.UPTransportLayerInformationPresentGTPTunnel,
+			GTPTunnel: &ngapType.GTPTunnel{
+				TransportLayerAddress: ngapType.TransportLayerAddress{
+					Value: aper.BitString{
+						Bytes:     n3IP,
+						BitLength: uint64(len(n3IP) * 8),
 					},
-					GTPTEID: ngapType.GTPTEID{Value: teidOct},
 				},
+				GTPTEID: ngapType.GTPTEID{Value: teidOct},
 			},
-		}
+		},
 	}
 
 	resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
@@ -200,15 +200,15 @@ func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
 	ULNGUUPTNLInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
 	ULNGUUPTNLInformation.GTPTunnel = new(ngapType.GTPTunnel)
 
-	if n3IP, err := UpNode.N3Interfaces[0].IP(ctx.SelectedPDUSessionType); err != nil {
-		return nil, err
-	} else {
-		gtpTunnel := ULNGUUPTNLInformation.GTPTunnel
-		gtpTunnel.GTPTEID.Value = teidOct
-		gtpTunnel.TransportLayerAddress.Value = aper.BitString{
-			Bytes:     n3IP,
-			BitLength: uint64(len(n3IP) * 8),
-		}
+	n3IP, err := UpNode.N3Interface.IP(ctx.SelectedPDUSessionType)
+	if err != nil {
+		return nil, fmt.Errorf("could not get N3 IP: %s", err)
+	}
+	gtpTunnel := ULNGUUPTNLInformation.GTPTunnel
+	gtpTunnel.GTPTEID.Value = teidOct
+	gtpTunnel.TransportLayerAddress.Value = aper.BitString{
+		Bytes:     n3IP,
+		BitLength: uint64(len(n3IP) * 8),
 	}
 
 	// Security Indication(optional) TS 38.413 9.3.1.27
@@ -243,7 +243,7 @@ func BuildHandoverCommandTransfer(ctx *SMContext) ([]byte, error) {
 	handoverCommandTransfer.DLForwardingUPTNLInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
 	handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel = new(ngapType.GTPTunnel)
 
-	n3IP, err := UpNode.N3Interfaces[0].IP(ctx.SelectedPDUSessionType)
+	n3IP, err := UpNode.N3Interface.IP(ctx.SelectedPDUSessionType)
 	if err != nil {
 		return nil, fmt.Errorf("could not get N3 IP: %s", err)
 	}

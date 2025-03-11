@@ -117,10 +117,9 @@ func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentRes
 		if smfSelf.UPF == nil {
 			return fmt.Errorf("can't find UPF: %s", nodeID)
 		}
-		upf.N3Interfaces = make([]context.UPFInterfaceInfo, 0)
 		n3Interface := context.UPFInterfaceInfo{}
 		n3Interface.IPv4EndPointAddresses = append(n3Interface.IPv4EndPointAddresses, fteid.IPv4Address)
-		upf.N3Interfaces = append(upf.N3Interfaces, n3Interface)
+		upf.N3Interface = n3Interface
 	}
 	smContext.SMLock.Unlock()
 
