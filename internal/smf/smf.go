@@ -15,9 +15,9 @@ func Start(dbInstance *db.Database) error {
 		return fmt.Errorf("dbInstance is nil")
 	}
 	smfContext := context.SMFSelf()
+	smfContext.DBInstance = dbInstance
 	nodeID := context.NewNodeID("0.0.0.0")
 	smfContext.CPNodeID = *nodeID
-	smfContext.DBInstance = dbInstance
 	upNode, err := context.BuildUserPlaneInformationFromConfig()
 	if err != nil {
 		return fmt.Errorf("failed to build user plane information from config: %v", err)

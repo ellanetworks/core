@@ -67,23 +67,9 @@ type UPFInterfaceInfo struct {
 // NewUPFInterfaceInfo parse the InterfaceUpfInfoItem to generate UPFInterfaceInfo
 func NewUPFInterfaceInfo(i *InterfaceUpfInfoItem) *UPFInterfaceInfo {
 	interfaceInfo := new(UPFInterfaceInfo)
-
 	interfaceInfo.IPv4EndPointAddresses = make([]net.IP, 0)
 	interfaceInfo.IPv6EndPointAddresses = make([]net.IP, 0)
-
-	for _, endpoint := range i.Endpoints {
-		eIP := net.ParseIP(endpoint)
-		if eIP == nil {
-			interfaceInfo.EndpointFQDN = endpoint
-		} else if eIPv4 := eIP.To4(); eIPv4 == nil {
-			interfaceInfo.IPv6EndPointAddresses = append(interfaceInfo.IPv6EndPointAddresses, eIP)
-		} else {
-			interfaceInfo.IPv4EndPointAddresses = append(interfaceInfo.IPv4EndPointAddresses, eIPv4)
-		}
-	}
-
 	interfaceInfo.NetworkInstance = i.NetworkInstance
-
 	return interfaceInfo
 }
 

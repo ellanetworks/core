@@ -22,7 +22,6 @@ var smfContext SMFContext
 type InterfaceUpfInfoItem struct {
 	NetworkInstance string
 	InterfaceType   models.UpInterfaceType
-	Endpoints       []string
 }
 
 type SMFContext struct {
@@ -63,7 +62,6 @@ func BuildUserPlaneInformationFromConfig() (*UPF, error) {
 		{
 			NetworkInstance: config.DNN,
 			InterfaceType:   models.UpInterfaceTypeN3,
-			Endpoints:       make([]string, 0),
 		},
 	}
 
