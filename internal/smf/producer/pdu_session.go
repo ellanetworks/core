@@ -182,15 +182,16 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 
 	// Initiate PFCP Release
 	if pfcpAction.sendPfcpDelete {
-		err = SendPfcpSessionReleaseReq(smContext)
+		err = releaseTunnel(smContext)
 		if err != nil {
-			return nil, fmt.Errorf("pfcp session release error: %v ", err.Error())
+			return nil, fmt.Errorf("failed to release tunnel: %v", err)
 		}
 		smContext.SubPduSessLog.Infof("Sent PFCP session release request")
 	} else if pfcpAction.sendPfcpModify {
-		err := SendPfcpSessionModifyReq(smContext, pfcpParam)
+		pfcpSessionContext := smContext.PFCPContext[smContext.Tunnel.DataPath.DPNode.UPF.NodeID.ResolveNodeIDToIP().String()]
+		err := pfcp.SendPfcpSessionModificationRequest(pfcpSessionContext, pfcpParam.pdrList, pfcpParam.farList, pfcpParam.qerList)
 		if err != nil {
-			return nil, fmt.Errorf("pfcp session modify error: %v ", err.Error())
+			return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 		}
 		smContext.SubPduSessLog.Infof("Sent PFCP session modification request")
 	}
@@ -234,7 +235,12 @@ func releaseTunnel(smContext *context.SMContext) error {
 	curDataPathNode := dataPath.DPNode
 	curUPFID := curDataPathNode.UPF.NodeID.String()
 	if _, exist := deletedPFCPNode[curUPFID]; !exist {
-		err := pfcp.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext)
+		upNodeIDStr := curDataPathNode.UPF.NodeID.ResolveNodeIDToIP().String()
+		pfcpSessionContext, ok := smContext.PFCPContext[upNodeIDStr]
+		if !ok {
+			return fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
+		}
+		err := pfcp.SendPfcpSessionDeletionRequest(pfcpSessionContext)
 		if err != nil {
 			return fmt.Errorf("send PFCP session deletion request failed: %v", err)
 		}
