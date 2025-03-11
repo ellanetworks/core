@@ -47,11 +47,13 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	pDUSessionEstablishmentAccept.SessionAMBR = ambr
 	pDUSessionEstablishmentAccept.SessionAMBR.SetLen(uint8(len(pDUSessionEstablishmentAccept.SessionAMBR.Octet)))
 
-	qoSRules := qos.BuildQosRules(smContext.SmPolicyUpdates[0])
-
+	qoSRules, err := qos.BuildQosRules(smContext.SmPolicyUpdates[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to build QoS rules: %v", err)
+	}
 	qosRulesBytes, err := qoSRules.MarshalBinary()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal QoS rules: %v", err)
 	}
 
 	pDUSessionEstablishmentAccept.AuthorizedQosRules.SetLen(uint16(len(qosRulesBytes)))
@@ -65,24 +67,21 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 		pDUSessionEstablishmentAccept.PDUAddress.SetPDUAddressInformation(addr)
 	}
 
-	// Get Authorized QoS Flow Descriptions
-	authQfd := qos.BuildAuthorizedQosFlowDescriptions(smContext.SmPolicyUpdates[0])
-	// Add Default Qos Flow
-	// authQfd.AddDefaultQosFlowDescription(smContext.SmPolicyUpdates[0].SessRuleUpdate.ActiveSessRule)
+	authQfd, err := qos.BuildAuthorizedQosFlowDescriptions(smContext.SmPolicyUpdates[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to build Authorized QoS Flow Descriptions: %v", err)
+	}
 
 	pDUSessionEstablishmentAccept.AuthorizedQosFlowDescriptions = nasType.NewAuthorizedQosFlowDescriptions(nasMessage.PDUSessionEstablishmentAcceptAuthorizedQosFlowDescriptionsType)
 	pDUSessionEstablishmentAccept.AuthorizedQosFlowDescriptions.SetLen(authQfd.IeLen)
 	pDUSessionEstablishmentAccept.SetQoSFlowDescriptions(authQfd.Content)
-	// pDUSessionEstablishmentAccept.AuthorizedQosFlowDescriptions.SetLen(6)
-	// pDUSessionEstablishmentAccept.SetQoSFlowDescriptions([]uint8{uint8(authDefQos.Var5qi), 0x20, 0x41, 0x01, 0x01, 0x09})
 
 	var sd [3]uint8
-
-	if byteArray, err := hex.DecodeString(smContext.Snssai.Sd); err != nil {
-		return nil, err
-	} else {
-		copy(sd[:], byteArray)
+	byteArray, err := hex.DecodeString(smContext.Snssai.Sd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode hex string: %v", err)
 	}
+	copy(sd[:], byteArray)
 
 	pDUSessionEstablishmentAccept.SNSSAI = nasType.NewSNSSAI(nasMessage.ULNASTransportSNSSAIType)
 	pDUSessionEstablishmentAccept.SNSSAI.SetLen(4)

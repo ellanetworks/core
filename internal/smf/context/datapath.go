@@ -206,7 +206,11 @@ func (node *DataPathNode) CreatePccRuleQer(smContext *SMContext, qosData string)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add QER: %v", err)
 	}
-	newQER.QFI.QFI = qos.GetQosFlowIDFromQosID(refQos.QosID)
+	qfi, err := qos.GetQosFlowIDFromQosID(refQos.QosID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get QFI from QOS ID: %v", err)
+	}
+	newQER.QFI.QFI = qfi
 
 	// Flow Status
 	newQER.GateStatus = &GateStatus{
@@ -237,21 +241,26 @@ func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) 
 	if defQosData == nil {
 		return nil, fmt.Errorf("default QOS Data not found in Policy Decision")
 	}
-	if newQER, err := node.UPF.AddQER(); err != nil {
+	newQER, err := node.UPF.AddQER()
+	if err != nil {
 		return nil, fmt.Errorf("failed to add QER: %v", err)
-	} else {
-		newQER.QFI.QFI = qos.GetQosFlowIDFromQosID(defQosData.QosID)
-		newQER.GateStatus = &GateStatus{
-			ULGate: GateOpen,
-			DLGate: GateOpen,
-		}
-		newQER.MBR = &MBR{
-			ULMBR: util.BitRateTokbps(sessionRule.AuthSessAmbr.Uplink),
-			DLMBR: util.BitRateTokbps(sessionRule.AuthSessAmbr.Downlink),
-		}
-
-		flowQER = newQER
 	}
+	qfi, err := qos.GetQosFlowIDFromQosID(defQosData.QosID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get QFI from QOS ID: %v", err)
+	}
+
+	newQER.QFI.QFI = qfi
+	newQER.GateStatus = &GateStatus{
+		ULGate: GateOpen,
+		DLGate: GateOpen,
+	}
+	newQER.MBR = &MBR{
+		ULMBR: util.BitRateTokbps(sessionRule.AuthSessAmbr.Uplink),
+		DLMBR: util.BitRateTokbps(sessionRule.AuthSessAmbr.Downlink),
+	}
+
+	flowQER = newQER
 
 	return flowQER, nil
 }
