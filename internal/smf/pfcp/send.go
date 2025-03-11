@@ -93,20 +93,6 @@ func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentRes
 
 	// UE IP-Addr(only v4 supported)
 	if msg.CreatedPDR != nil {
-		ueIPAddress := FindUEIPAddress(msg.CreatedPDR)
-		if ueIPAddress != nil {
-			smContext.SubPfcpLog.Infof("upf provided ue ip address [%v]", ueIPAddress)
-			// Release previous locally allocated UE IP-Addr
-			err := smContext.ReleaseUeIPAddr()
-			if err != nil {
-				return fmt.Errorf("failed to release UE IP-Addr: %+v", err)
-			}
-
-			// Update with one received from UPF
-			smContext.PDUAddress.IP = ueIPAddress
-			smContext.PDUAddress.UpfProvided = true
-		}
-
 		// Store F-TEID created by UPF
 		fteid, err := FindFTEID(msg.CreatedPDR)
 		if err != nil {

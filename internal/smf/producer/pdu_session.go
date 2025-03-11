@@ -84,7 +84,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 		return "", response, fmt.Errorf("failed to allocate IP address: %v", err)
 	}
 	smContext.SubPduSessLog.Infof("Successfully allocated IP address: %s", ip.String())
-	smContext.PDUAddress = &context.UeIPAddr{IP: ip, UpfProvided: false}
+	smContext.PDUAddress = &context.UeIPAddr{IP: ip}
 
 	snssaiStr, err := marshtojsonstring.MarshToJSONString(createData.SNssai)
 	if err != nil {

@@ -36,8 +36,7 @@ var (
 var smContextActive uint64
 
 type UeIPAddr struct {
-	IP          net.IP
-	UpfProvided bool
+	IP net.IP
 }
 
 type SMContext struct {
@@ -182,12 +181,11 @@ func (smContext *SMContext) ReleaseUeIPAddr() error {
 	if smContext.PDUAddress == nil {
 		return nil
 	}
-	if ip := smContext.PDUAddress.IP; ip != nil && !smContext.PDUAddress.UpfProvided {
+	if ip := smContext.PDUAddress.IP; ip != nil {
 		err := smfSelf.DBInstance.ReleaseIP(smContext.Supi)
 		if err != nil {
 			return fmt.Errorf("failed to release IP Address, %v", err)
 		}
-		smContext.SubPduSessLog.Infof("Released IP Address: %s", smContext.PDUAddress.IP.String())
 		smContext.PDUAddress.IP = net.IPv4(0, 0, 0, 0)
 	}
 	return nil
