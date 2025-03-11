@@ -112,7 +112,7 @@ func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentRes
 			return fmt.Errorf("failed to parse TEID IE: %+v", err)
 		}
 		ANUPF.UpLinkTunnel.TEID = fteid.TEID
-		upf := context.GetUserPlaneInformation().UPF.UPF
+		upf := context.GetUserPlaneInformation()
 		if upf == nil {
 			return fmt.Errorf("can't find UPF: %s", nodeID)
 		}

@@ -15,19 +15,14 @@ func Start(dbInstance *db.Database) error {
 		return fmt.Errorf("dbInstance is nil")
 	}
 	smfContext := context.SMFSelf()
-
 	nodeID := context.NewNodeID("0.0.0.0")
-
 	smfContext.CPNodeID = *nodeID
-
-	smfContext.UserPlaneInformation = &context.UserPlaneInformation{
-		UPNodes:       make(map[string]*context.UPNode),
-		UPF:           nil,
-		AccessNetwork: make(map[string]*context.UPNode),
-	}
-
 	smfContext.DBInstance = dbInstance
-	context.UpdateUserPlaneInformation()
+	upNode, err := context.BuildUserPlaneInformationFromConfig()
+	if err != nil {
+		return fmt.Errorf("failed to build user plane information from config: %v", err)
+	}
+	smfContext.UPF = upNode
 	metrics.RegisterSmfMetrics()
 	return nil
 }

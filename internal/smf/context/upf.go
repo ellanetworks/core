@@ -30,8 +30,6 @@ type UPTunnel struct {
 	}
 }
 
-type UPFStatus int
-
 type RecoveryTimeStamp struct {
 	RecoveryTimeStamp time.Time
 }
@@ -56,13 +54,6 @@ type UPF struct {
 
 	// lock
 	UpfLock sync.RWMutex
-}
-
-// UPFSelectionParams ... parameters for upf selection
-type UPFSelectionParams struct {
-	Dnn    string
-	SNssai *SNssai
-	Dnai   string
 }
 
 // UPFInterfaceInfo store the UPF interface information
@@ -148,7 +139,6 @@ func (upTunnel *UPTunnel) AddDataPath(dataPath *DataPath) error {
 	return nil
 }
 
-// NewUPF returns a new UPF context in SMF
 func NewUPF(nodeID *NodeID, ifaces []InterfaceUpfInfoItem) (upf *UPF) {
 	upf = new(UPF)
 	upf.uuid = uuid.New()
@@ -369,4 +359,14 @@ func (upf *UPF) RemoveBAR(bar *BAR) {
 func (upf *UPF) RemoveQER(qer *QER) {
 	upf.qerIDGenerator.FreeID(int64(qer.QERID))
 	upf.qerPool.Delete(qer.QERID)
+}
+
+func GenerateDataPath(upf *UPF, smContext *SMContext) *DataPath {
+	curDataPathNode := NewDataPathNode()
+	curDataPathNode.UPF = upf
+
+	dataPath := &DataPath{
+		FirstDPNode: curDataPathNode,
+	}
+	return dataPath
 }

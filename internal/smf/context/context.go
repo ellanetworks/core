@@ -7,7 +7,7 @@
 package context
 
 import (
-	"bytes"
+	"fmt"
 	"net"
 	"sync/atomic"
 
@@ -26,10 +26,10 @@ type InterfaceUpfInfoItem struct {
 }
 
 type SMFContext struct {
-	DBInstance           *db.Database
-	UserPlaneInformation *UserPlaneInformation
-	CPNodeID             NodeID
-	LocalSEIDCount       uint64
+	DBInstance     *db.Database
+	UPF            *UPF
+	CPNodeID       NodeID
+	LocalSEIDCount uint64
 }
 
 // RetrieveDnnInformation gets the corresponding dnn info from S-NSSAI and DNN
@@ -52,12 +52,11 @@ func SMFSelf() *SMFContext {
 	return &smfContext
 }
 
-func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
+func BuildUserPlaneInformationFromConfig() (*UPF, error) {
 	smfSelf := SMFSelf()
 	operator, err := smfSelf.DBInstance.GetOperator()
 	if err != nil {
-		logger.SmfLog.Errorf("failed to get operator information from db: %v", err)
-		return nil
+		return nil, fmt.Errorf("failed to get operator information from db: %v", err)
 	}
 	intfUpfInfoItem := InterfaceUpfInfoItem{
 		InterfaceType:   models.UpInterfaceTypeN3,
@@ -83,96 +82,11 @@ func BuildUserPlaneInformationFromConfig() *UserPlaneInformation {
 		},
 	}
 
-	upfNode := &UPNode{
-		Type:   UpNodeUPF,
-		UPF:    upf,
-		NodeID: *upfNodeID,
-		Links:  make([]*UPNode, 0),
-		Dnn:    config.DNN,
-	}
-
-	userPlaneInformation := &UserPlaneInformation{
-		UPNodes:       make(map[string]*UPNode),
-		UPF:           upfNode,
-		AccessNetwork: make(map[string]*UPNode),
-	}
-
-	gnbNode := &UPNode{
-		Type:   UpNodeAN,
-		NodeID: *NewNodeID("1.1.1.1"),
-		Links:  make([]*UPNode, 0),
-		Dnn:    config.DNN,
-	}
-	gnbNode.Links = append(gnbNode.Links, upfNode)
-	upfNode.Links = append(upfNode.Links, gnbNode)
-	gnbName := "gnb"
-	userPlaneInformation.AccessNetwork[gnbName] = gnbNode
-	userPlaneInformation.UPNodes[gnbName] = gnbNode
-
-	userPlaneInformation.UPNodes[config.UpfNodeID] = upfNode
-	return userPlaneInformation
+	return upf, nil
 }
 
-func UpdateUserPlaneInformation() {
-	smfSelf := SMFSelf()
-	configUserPlaneInfo := BuildUserPlaneInformationFromConfig()
-	same := UserPlaneInfoMatch(configUserPlaneInfo, smfSelf.UserPlaneInformation)
-	if same {
-		logger.SmfLog.Debugf("Context user plane info matches config")
-		return
-	}
-	if configUserPlaneInfo == nil {
-		logger.SmfLog.Debugf("Config user plane info is nil")
-		return
-	}
-	if smfSelf.UserPlaneInformation == nil {
-		logger.SmfLog.Debugf("Context user plane info is nil")
-		return
-	}
-	smfSelf.UserPlaneInformation.UPNodes = configUserPlaneInfo.UPNodes
-	smfSelf.UserPlaneInformation.UPF = configUserPlaneInfo.UPF
-	smfSelf.UserPlaneInformation.AccessNetwork = configUserPlaneInfo.AccessNetwork
-}
-
-func UserPlaneInfoMatch(configUserPlaneInfo, contextUserPlaneInfo *UserPlaneInformation) bool {
-	if configUserPlaneInfo == nil || contextUserPlaneInfo == nil {
-		return false
-	}
-	if len(configUserPlaneInfo.UPNodes) != len(contextUserPlaneInfo.UPNodes) {
-		return false
-	}
-	for nodeName, node := range configUserPlaneInfo.UPNodes {
-		if _, ok := contextUserPlaneInfo.UPNodes[nodeName]; !ok {
-			return false
-		}
-
-		if node.Type != contextUserPlaneInfo.UPNodes[nodeName].Type {
-			logger.SmfLog.Debugf("Node type mismatch for node %s", nodeName)
-			return false
-		}
-
-		if !bytes.Equal(node.NodeID.NodeIDValue, contextUserPlaneInfo.UPNodes[nodeName].NodeID.NodeIDValue) {
-			logger.SmfLog.Debugf("Node ID mismatch for node %s", nodeName)
-			return false
-		}
-
-		if node.Dnn != contextUserPlaneInfo.UPNodes[nodeName].Dnn {
-			logger.SmfLog.Debugf("DNN mismatch for node %s", nodeName)
-			return false
-		}
-
-		if node.Type == UpNodeUPF {
-			if !node.UPF.SNssaiInfos[0].SNssai.Equal(&contextUserPlaneInfo.UPNodes[nodeName].UPF.SNssaiInfos[0].SNssai) {
-				logger.SmfLog.Debugf("SNssai mismatch for node %s", nodeName)
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func GetUserPlaneInformation() *UserPlaneInformation {
-	return SMFSelf().UserPlaneInformation
+func GetUserPlaneInformation() *UPF {
+	return SMFSelf().UPF
 }
 
 func GetSnssaiInfo() []SnssaiSmfInfo {
