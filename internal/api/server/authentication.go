@@ -143,12 +143,13 @@ func GenerateJWTSecret() ([]byte, error) {
 
 // Helper function to generate a JWT
 func generateJWT(id int, email string, role Role, jwtSecret []byte) (string, error) {
+	expiresAt := jwt.NewNumericDate(time.Now().Add(TokenExpirationTime))
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
 		ID:    id,
 		Email: email,
 		Role:  role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: &jwt.NumericDate{time.Now().Add(TokenExpirationTime)},
+			ExpiresAt: expiresAt,
 		},
 	})
 	tokenString, err := token.SignedString(jwtSecret)
