@@ -34,40 +34,30 @@ const (
 	OpValue                       = ""
 )
 
-func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte) {
+func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
 	AK, SQNms := make([]byte, 6), make([]byte, 6)
 	macS := make([]byte, 8)
 	ConcSQNms := auts[:6]
 	AMF, err := hex.DecodeString("0000")
 	if err != nil {
-		return nil, nil
+		return nil, nil, fmt.Errorf("failed to decode AMF: %w", err)
 	}
-
-	logger.UdmLog.Debugln("ConcSQNms", ConcSQNms)
 
 	err = milenage.F2345(opc, k, rand, nil, nil, nil, nil, AK)
 	if err != nil {
-		logger.UdmLog.Errorln("milenage F2345 err ", err)
+		return nil, nil, fmt.Errorf("failed to generate AK: %w", err)
 	}
 
 	for i := 0; i < 6; i++ {
 		SQNms[i] = AK[i] ^ ConcSQNms[i]
 	}
 
-	// fmt.Printf("opc=%x\n", opc)
-	// fmt.Printf("k=%x\n", k)
-	// fmt.Printf("rand=%x\n", rand)
-	// fmt.Printf("AMF %x\n", AMF)
-	// fmt.Printf("SQNms %x\n", SQNms)
 	err = milenage.F1(opc, k, rand, SQNms, AMF, nil, macS)
 	if err != nil {
-		logger.UdmLog.Errorln("milenage F1 err ", err)
+		return nil, nil, fmt.Errorf("failed to generate macS: %w", err)
 	}
-	// fmt.Printf("macS %x\n", macS)
 
-	logger.UdmLog.Debugln("SQNms", SQNms)
-	logger.UdmLog.Debugln("macS", macS)
-	return SQNms, macS
+	return SQNms, macS, nil
 }
 
 func strictHex(s string, n int) string {
@@ -237,7 +227,10 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 			return nil, fmt.Errorf("could not decode rand: %w", err)
 		}
 
-		SQNms, macS := aucSQN(opc, k, Auts, randHex)
+		SQNms, macS, err := aucSQN(opc, k, Auts, randHex)
+		if err != nil {
+			return nil, fmt.Errorf("failed to re-sync SQN with supi %s: %w", supi, err)
+		}
 		if !reflect.DeepEqual(macS, Auts[6:]) {
 			return nil, fmt.Errorf("failed to re-sync MAC with supi %s, macS %x, auts[6:] %x, sqn %x", supi, macS, Auts[6:], SQNms)
 		}
