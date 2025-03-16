@@ -18,6 +18,7 @@ var (
 	AmfLog      *zap.SugaredLogger
 	APILog      *zap.SugaredLogger
 	SmfLog      *zap.SugaredLogger
+	UdmLog      *zap.SugaredLogger
 	UpfLog      *zap.SugaredLogger
 	atomicLevel zap.AtomicLevel
 )
