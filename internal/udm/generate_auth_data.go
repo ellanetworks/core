@@ -111,7 +111,6 @@ func convertDBAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 func GetAuthSubsData(ueID string) (*models.AuthenticationSubscription, error) {
 	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID)
 	if err != nil {
-		logger.UdmLog.Warnln(err)
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
 	authSubsData := convertDBAuthSubsDataToModel(subscriber.Opc, subscriber.PermanentKey, subscriber.SequenceNumber)
@@ -119,6 +118,9 @@ func GetAuthSubsData(ueID string) (*models.AuthenticationSubscription, error) {
 }
 
 func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (*models.AuthenticationInfoResult, error) {
+	if udmContext.DBInstance == nil {
+		return nil, fmt.Errorf("db instance is nil")
+	}
 	hnPrivateKey, err := udmContext.DBInstance.GetHomeNetworkPrivateKey()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get home network private key: %w", err)
@@ -282,14 +284,14 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	// Generate macA, macS
 	err = milenage.F1(opc, k, RAND, sqn, AMF, macA, macS)
 	if err != nil {
-		logger.UdmLog.Errorln("milenage F1 err ", err)
+		return nil, fmt.Errorf("milenage F1 err: %w", err)
 	}
 
 	// Generate RES, CK, IK, AK, AKstar
 	// RES == XRES (expected RES) for server
 	err = milenage.F2345(opc, k, RAND, RES, CK, IK, AK, AKstar)
 	if err != nil {
-		logger.UdmLog.Errorln("milenage F2345 err ", err)
+		return nil, fmt.Errorf("milenage F2345 err: %w", err)
 	}
 
 	// Generate AUTN
@@ -310,10 +312,9 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		P1 := RAND
 		P2 := RES
 
-		kdfValForXresStar, err := ueauth.GetKDFValue(
-			key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1), P2, ueauth.KDFLen(P2))
+		kdfValForXresStar, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1), P2, ueauth.KDFLen(P2))
 		if err != nil {
-			logger.UdmLog.Error(err)
+			return nil, fmt.Errorf("failed to get KDF value: %w", err)
 		}
 		xresStar := kdfValForXresStar[len(kdfValForXresStar)/2:]
 
@@ -323,7 +324,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		P1 = SQNxorAK
 		kdfValForKausf, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))
 		if err != nil {
-			logger.UdmLog.Error(err)
+			return nil, fmt.Errorf("failed to get KDF value: %w", err)
 		}
 
 		// Fill in rand, xresStar, autn, kausf
@@ -341,7 +342,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		P1 := SQNxorAK
 		kdfVal, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))
 		if err != nil {
-			logger.UdmLog.Error(err)
+			return nil, fmt.Errorf("failed to get KDF value: %w", err)
 		}
 
 		// For TS 35.208 test set 19 & RFC 5448 test vector 1
