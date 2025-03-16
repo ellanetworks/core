@@ -160,40 +160,39 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	op := make([]byte, 16)
 	opc := make([]byte, 16)
 
-	if authSubs.PermanentKey != nil {
-		kStr = authSubs.PermanentKey.PermanentKeyValue
-		if len(kStr) == keyStrLen {
-			k, err = hex.DecodeString(kStr)
+	if authSubs.PermanentKey == nil {
+		return nil, fmt.Errorf("permanent key is nil")
+	}
+
+	kStr = authSubs.PermanentKey.PermanentKeyValue
+	if len(kStr) != keyStrLen {
+		return nil, fmt.Errorf("kStr length is %d", len(kStr))
+	}
+	k, err = hex.DecodeString(kStr)
+	if err != nil {
+		logger.UdmLog.Errorln("err", err)
+	} else {
+		hasK = true
+	}
+
+	if authSubs.Milenage == nil {
+		return nil, fmt.Errorf("milenage is nil")
+	}
+
+	if authSubs.Milenage.Op != nil {
+		opStr = authSubs.Milenage.Op.OpValue
+		if len(opStr) == opStrLen {
+			op, err = hex.DecodeString(opStr)
 			if err != nil {
 				logger.UdmLog.Errorln("err", err)
 			} else {
-				hasK = true
+				hasOP = true
 			}
 		} else {
-			return nil, fmt.Errorf("kStr length is %d", len(kStr))
+			logger.UdmLog.Debugf("opStr is of length %d", len(opStr))
 		}
 	} else {
-		return nil, fmt.Errorf("Nil PermanentKey")
-	}
-
-	if authSubs.Milenage != nil {
-		if authSubs.Milenage.Op != nil {
-			opStr = authSubs.Milenage.Op.OpValue
-			if len(opStr) == opStrLen {
-				op, err = hex.DecodeString(opStr)
-				if err != nil {
-					logger.UdmLog.Errorln("err", err)
-				} else {
-					hasOP = true
-				}
-			} else {
-				logger.UdmLog.Warnf("opStr is of length %d", len(opStr))
-			}
-		} else {
-			logger.UdmLog.Infoln("milenage Op is nil")
-		}
-	} else {
-		return nil, fmt.Errorf("Nil Milenage")
+		logger.UdmLog.Debugf("milenage Op is nil")
 	}
 
 	if authSubs.Opc != nil && authSubs.Opc.OpcValue != "" {
@@ -201,10 +200,9 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		if len(opcStr) == opcStrLen {
 			opc, err = hex.DecodeString(opcStr)
 			if err != nil {
-				logger.UdmLog.Errorln("err", err)
-			} else {
-				hasOPC = true
+				return nil, fmt.Errorf("failed to decode opc: %w", err)
 			}
+			hasOPC = true
 		} else {
 			logger.UdmLog.Errorln("opcStr length is ", len(opcStr))
 		}
@@ -213,29 +211,20 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	}
 
 	if !hasOPC && !hasOP {
-		return nil, fmt.Errorf("Unable to derive OP")
+		return nil, fmt.Errorf("unable to derive OP")
 	}
 
 	if !hasOPC {
-		if hasK && hasOP {
-			opc, err = milenage.GenerateOPC(k, op)
-			if err != nil {
-				logger.UdmLog.Errorln("milenage GenerateOPC err ", err)
-			}
-		} else {
-			return nil, fmt.Errorf("Unable to derive OPC")
+		if !hasK {
+			return nil, fmt.Errorf("unable to derive K")
+		}
+		opc, err = milenage.GenerateOPC(k, op)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate OPC: %w", err)
 		}
 	}
 
 	sqnStr := strictHex(authSubs.SequenceNumber, 12)
-	logger.UdmLog.Debugln("sqnStr", sqnStr)
-	sqn, err := hex.DecodeString(sqnStr)
-	if err != nil {
-		return nil, fmt.Errorf("sqnStr decode error: %w", err)
-	}
-
-	logger.UdmLog.Debugln("sqn", sqn)
-	// fmt.Printf("K=%x\nsqn=%x\nOP=%x\nOPC=%x\n", K, sqn, OP, OPC)
 
 	RAND := make([]byte, 16)
 	_, err = rand.Read(RAND)
@@ -248,58 +237,46 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		return nil, fmt.Errorf("AMF decode error: %w", err)
 	}
 
-	// fmt.Printf("RAND=%x\nAMF=%x\n", RAND, AMF)
-
-	// for test
-	// RAND, _ = hex.DecodeString(TestGenAuthData.MilenageTestSet19.RAND)
-	// AMF, _ = hex.DecodeString(TestGenAuthData.MilenageTestSet19.AMF)
-	// fmt.Printf("For test: RAND=%x, AMF=%x\n", RAND, AMF)
-
 	// re-synchroniztion
 	if authInfoRequest.ResynchronizationInfo != nil {
-		Auts, deCodeErr := hex.DecodeString(authInfoRequest.ResynchronizationInfo.Auts)
-		if deCodeErr != nil {
-			return nil, fmt.Errorf("Auts decode error: %w", deCodeErr)
+		Auts, err := hex.DecodeString(authInfoRequest.ResynchronizationInfo.Auts)
+		if err != nil {
+			return nil, fmt.Errorf("could not decode auts: %w", err)
 		}
 
-		randHex, deCodeErr := hex.DecodeString(authInfoRequest.ResynchronizationInfo.Rand)
-		if deCodeErr != nil {
-			return nil, fmt.Errorf("randHex decode error: %w", deCodeErr)
+		randHex, err := hex.DecodeString(authInfoRequest.ResynchronizationInfo.Rand)
+		if err != nil {
+			return nil, fmt.Errorf("could not decode rand: %w", err)
 		}
 
 		SQNms, macS := aucSQN(opc, k, Auts, randHex)
-		if reflect.DeepEqual(macS, Auts[6:]) {
-			_, err = rand.Read(RAND)
-			if err != nil {
-				return nil, fmt.Errorf("rand read error: %w", err)
-			}
-
-			// increment sqn authSubs.SequenceNumber
-			bigSQN := big.NewInt(0)
-			sqnStr = hex.EncodeToString(SQNms)
-			bigSQN.SetString(sqnStr, 16)
-
-			bigInc := big.NewInt(ind + 1)
-
-			bigP := big.NewInt(SqnMAx)
-			bigSQN = bigInc.Add(bigSQN, bigInc)
-			bigSQN = bigSQN.Mod(bigSQN, bigP)
-			sqnStr = fmt.Sprintf("%x", bigSQN)
-			sqnStr = strictHex(sqnStr, 12)
-		} else {
-			logger.UdmLog.Errorln("Re-Sync MAC failed ", supi)
-			logger.UdmLog.Errorln("MACS ", macS)
-			logger.UdmLog.Errorln("Auts[6:] ", Auts[6:])
-			logger.UdmLog.Errorln("Sqn ", SQNms)
-			return nil, fmt.Errorf("Re-Sync MAC failed")
+		if !reflect.DeepEqual(macS, Auts[6:]) {
+			return nil, fmt.Errorf("failed to re-sync MAC with supi %s, macS %x, auts[6:] %x, sqn %x", supi, macS, Auts[6:], SQNms)
 		}
+		_, err = rand.Read(RAND)
+		if err != nil {
+			return nil, fmt.Errorf("rand read error: %w", err)
+		}
+
+		// increment sqn authSubs.SequenceNumber
+		bigSQN := big.NewInt(0)
+		sqnStr = hex.EncodeToString(SQNms)
+		bigSQN.SetString(sqnStr, 16)
+
+		bigInc := big.NewInt(ind + 1)
+
+		bigP := big.NewInt(SqnMAx)
+		bigSQN = bigInc.Add(bigSQN, bigInc)
+		bigSQN = bigSQN.Mod(bigSQN, bigP)
+		sqnStr = fmt.Sprintf("%x", bigSQN)
+		sqnStr = strictHex(sqnStr, 12)
 	}
 
 	// increment sqn
 	bigSQN := big.NewInt(0)
-	sqn, err = hex.DecodeString(sqnStr)
+	sqn, err := hex.DecodeString(sqnStr)
 	if err != nil {
-		return nil, fmt.Errorf("sqn decode error: %w", err)
+		return nil, fmt.Errorf("error decoding sqn: %w", err)
 	}
 
 	bigSQN.SetString(sqnStr, 16)
@@ -333,18 +310,13 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	if err != nil {
 		logger.UdmLog.Errorln("milenage F2345 err ", err)
 	}
-	// fmt.Printf("milenage RES = %s\n", hex.EncodeToString(RES))
 
 	// Generate AUTN
-	// fmt.Printf("SQN=%x\nAK =%x\n", SQN, AK)
-	// fmt.Printf("AMF=%x, macA=%x\n", AMF, macA)
 	SQNxorAK := make([]byte, 6)
 	for i := 0; i < len(sqn); i++ {
 		SQNxorAK[i] = sqn[i] ^ AK[i]
 	}
-	// fmt.Printf("SQN xor AK = %x\n", SQNxorAK)
 	AUTN := append(append(SQNxorAK, AMF...), macA...)
-	fmt.Printf("AUTN = %x\n", AUTN)
 	response := &models.AuthenticationInfoResult{}
 	var av models.AuthenticationVector
 	if authSubs.AuthenticationMethod == models.AuthMethod5GAka {
@@ -390,7 +362,6 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		if err != nil {
 			logger.UdmLog.Error(err)
 		}
-		// fmt.Printf("kdfVal = %x (len = %d)\n", kdfVal, len(kdfVal))
 
 		// For TS 35.208 test set 19 & RFC 5448 test vector 1
 		// CK': 0093 962d 0dd8 4aa5 684b 045c 9edf fa04
@@ -398,7 +369,6 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 
 		ckPrime := kdfVal[:len(kdfVal)/2]
 		ikPrime := kdfVal[len(kdfVal)/2:]
-		// fmt.Printf("ckPrime: %x\nikPrime: %x\n", ckPrime, ikPrime)
 
 		// Fill in rand, xres, autn, ckPrime, ikPrime
 		av.Rand = hex.EncodeToString(RAND)
