@@ -79,20 +79,20 @@ func strictHex(s string, n int) string {
 	}
 }
 
-func EditAuthenticationSubscription(ueId string, sequenceNumber string) error {
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ueId)
+func EditAuthenticationSubscription(ueID string, sequenceNumber string) error {
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID)
 	if err != nil {
-		return fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
+		return fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
 	subscriber.SequenceNumber = sequenceNumber
 	err = udmContext.DBInstance.UpdateSubscriber(subscriber)
 	if err != nil {
-		return fmt.Errorf("couldn't update subscriber %s: %v", ueId, err)
+		return fmt.Errorf("couldn't update subscriber %s: %v", ueID, err)
 	}
 	return nil
 }
 
-func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string) *models.AuthenticationSubscription {
+func convertDBAuthSubsDataToModel(opc string, key string, sequenceNumber string) *models.AuthenticationSubscription {
 	authSubsData := &models.AuthenticationSubscription{}
 	authSubsData.AuthenticationManagementField = AuthenticationManagementField
 	authSubsData.AuthenticationMethod = models.AuthMethod5GAka
@@ -118,19 +118,17 @@ func convertDbAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 	return authSubsData
 }
 
-func GetAuthSubsData(ueId string) (*models.AuthenticationSubscription, error) {
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ueId)
+func GetAuthSubsData(ueID string) (*models.AuthenticationSubscription, error) {
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID)
 	if err != nil {
 		logger.UdmLog.Warnln(err)
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueId, err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
-	authSubsData := convertDbAuthSubsDataToModel(subscriber.Opc, subscriber.PermanentKey, subscriber.SequenceNumber)
+	authSubsData := convertDBAuthSubsDataToModel(subscriber.Opc, subscriber.PermanentKey, subscriber.SequenceNumber)
 	return authSubsData, nil
 }
 
-func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (
-	*models.AuthenticationInfoResult, error,
-) {
+func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (*models.AuthenticationInfoResult, error) {
 	hnPrivateKey, err := udmContext.DBInstance.GetHomeNetworkPrivateKey()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get home network private key: %w", err)
@@ -152,7 +150,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		AMF: 16 bits (2 bytes) (hex len = 4) TS33.102 - Annex H
 	*/
 
-	hasK, hasOP, hasOPC := false, false, false
+	hasOP, hasOPC := false, false
 
 	var kStr, opStr, opcStr string
 
@@ -170,9 +168,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	}
 	k, err = hex.DecodeString(kStr)
 	if err != nil {
-		logger.UdmLog.Errorln("err", err)
-	} else {
-		hasK = true
+		return nil, fmt.Errorf("failed to decode k: %w", err)
 	}
 
 	if authSubs.Milenage == nil {
@@ -184,15 +180,10 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		if len(opStr) == opStrLen {
 			op, err = hex.DecodeString(opStr)
 			if err != nil {
-				logger.UdmLog.Errorln("err", err)
-			} else {
-				hasOP = true
+				return nil, fmt.Errorf("failed to decode op: %w", err)
 			}
-		} else {
-			logger.UdmLog.Debugf("opStr is of length %d", len(opStr))
+			hasOP = true
 		}
-	} else {
-		logger.UdmLog.Debugf("milenage Op is nil")
 	}
 
 	if authSubs.Opc != nil && authSubs.Opc.OpcValue != "" {
@@ -214,10 +205,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		return nil, fmt.Errorf("unable to derive OP")
 	}
 
-	if !hasOPC {
-		if !hasK {
-			return nil, fmt.Errorf("unable to derive K")
-		}
+	if hasOP && !hasOPC {
 		opc, err = milenage.GenerateOPC(k, op)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate OPC: %w", err)
