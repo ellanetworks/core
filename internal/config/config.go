@@ -254,19 +254,17 @@ func Validate(filePath string) (Config, error) {
 	if c.Interfaces.API.Port == 0 {
 		return Config{}, errors.New("interfaces.api.port is empty")
 	}
-	if c.Interfaces.API.TLS.Cert == "" {
-		return Config{}, fmt.Errorf("interfaces.api.tls.cert is empty")
+	if c.Interfaces.API.TLS.Cert != "" {
+		if _, err := os.Stat(c.Interfaces.API.TLS.Cert); os.IsNotExist(err) {
+			return Config{}, fmt.Errorf("cert file %s does not exist", c.Interfaces.API.TLS.Cert)
+		}
+		config.Interfaces.API.TLS.Cert = c.Interfaces.API.TLS.Cert
 	}
-	if c.Interfaces.API.TLS.Key == "" {
-		return Config{}, fmt.Errorf("interfaces.api.tls.key is empty")
-	}
-
-	if _, err := os.Stat(c.Interfaces.API.TLS.Cert); os.IsNotExist(err) {
-		return Config{}, fmt.Errorf("cert file %s does not exist", c.Interfaces.API.TLS.Cert)
-	}
-
-	if _, err := os.Stat(c.Interfaces.API.TLS.Key); os.IsNotExist(err) {
-		return Config{}, fmt.Errorf("key file %s does not exist", c.Interfaces.API.TLS.Key)
+	if c.Interfaces.API.TLS.Key != "" {
+		if _, err := os.Stat(c.Interfaces.API.TLS.Key); os.IsNotExist(err) {
+			return Config{}, fmt.Errorf("key file %s does not exist", c.Interfaces.API.TLS.Key)
+		}
+		config.Interfaces.API.TLS.Key = c.Interfaces.API.TLS.Key
 	}
 
 	if c.XDP == (XDPYaml{}) {
@@ -298,8 +296,6 @@ func Validate(filePath string) (Config, error) {
 	config.Interfaces.N6.Name = c.Interfaces.N6.Name
 	config.Interfaces.API.Name = c.Interfaces.API.Name
 	config.Interfaces.API.Port = c.Interfaces.API.Port
-	config.Interfaces.API.TLS.Cert = c.Interfaces.API.TLS.Cert
-	config.Interfaces.API.TLS.Key = c.Interfaces.API.TLS.Key
 	config.XDP.AttachMode = c.XDP.AttachMode
 	return config, nil
 }

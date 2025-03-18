@@ -11,7 +11,9 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 )
 
-func TestGoodConfigSuccess(t *testing.T) {
+const InterfaceIP = "1.2.3.4"
+
+func TestValidConfigSuccess(t *testing.T) {
 	tempCertFile, err := os.CreateTemp("", "ella_cert_*.pem")
 	if err != nil {
 		t.Fatalf("Failed to create temp cert file: %s", err)
@@ -54,7 +56,7 @@ func TestGoodConfigSuccess(t *testing.T) {
 		return true, nil
 	}
 	config.GetInterfaceIPFunc = func(name string) (string, error) {
-		return "1.2.3.4", nil
+		return InterfaceIP, nil
 	}
 
 	// Update the config file to use the temporary cert and key paths
@@ -87,7 +89,7 @@ func TestGoodConfigSuccess(t *testing.T) {
 		t.Fatalf("N3 interface was not configured correctly")
 	}
 
-	if conf.Interfaces.N3.Address != "1.2.3.4" {
+	if conf.Interfaces.N3.Address != InterfaceIP {
 		t.Fatalf("N3 interface address was not configured correctly")
 	}
 
@@ -108,6 +110,65 @@ func TestGoodConfigSuccess(t *testing.T) {
 	}
 
 	if conf.Interfaces.API.TLS.Key != tempKeyFile.Name() {
+		t.Fatalf("TLS key was not configured correctly")
+	}
+
+	if conf.DB.Path != "test" {
+		t.Fatalf("Database path was not configured correctly")
+	}
+}
+
+func TestValidConfigNoTLSSuccess(t *testing.T) {
+	config.CheckInterfaceExistsFunc = func(name string) (bool, error) {
+		return true, nil
+	}
+	config.GetInterfaceIPFunc = func(name string) (string, error) {
+		return InterfaceIP, nil
+	}
+
+	confFilePath := "testdata/valid_no_tls.yaml"
+	originalContent, err := os.ReadFile(confFilePath)
+	if err != nil {
+		t.Fatalf("Failed to read config file: %s", err)
+	}
+
+	defer func() {
+		if err := os.WriteFile(confFilePath, originalContent, os.FileMode(0o600)); err != nil {
+			log.Fatalf("Failed to close database: %v", err)
+		}
+	}()
+
+	// Run the validation
+	conf, err := config.Validate(confFilePath)
+	if err != nil {
+		t.Fatalf("Error occurred: %s", err)
+	}
+
+	if conf.Interfaces.N3.Name != "enp3s0" {
+		t.Fatalf("N3 interface was not configured correctly")
+	}
+
+	if conf.Interfaces.N3.Address != InterfaceIP {
+		t.Fatalf("N3 interface address was not configured correctly")
+	}
+
+	if conf.Interfaces.N6.Name != "enp6s0" {
+		t.Fatalf("N6 interface was not configured correctly")
+	}
+
+	if conf.Interfaces.API.Name != "enp0s8" {
+		t.Fatalf("API interface was not configured correctly")
+	}
+
+	if conf.Interfaces.API.Port != 5002 {
+		t.Fatalf("API port was not configured correctly")
+	}
+
+	if conf.Interfaces.API.TLS.Cert != "" {
+		t.Fatalf("TLS cert was not configured correctly")
+	}
+
+	if conf.Interfaces.API.TLS.Key != "" {
 		t.Fatalf("TLS key was not configured correctly")
 	}
 
