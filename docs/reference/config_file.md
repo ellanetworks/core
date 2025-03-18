@@ -31,9 +31,9 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `api` (object): The configuration for the api interface.
         - `name` (string): The name of the network interface.
         - `port` (int): The port to listen on.
-        - `tls` (object): The TLS configuration.
-            - `cert` (string): The path to the TLS certificate file.
-            - `key` (string): The path to the TLS key file.
+        - `tls` (object): The TLS configuration (optional).
+            - `cert` (string): The path to the TLS certificate file (optional).
+            - `key` (string): The path to the TLS key file (optional).
 - `xdp` (object): The XDP configuration.
     - `attach-mode` (string): The XDP attach mode. Options are `native` and `generic`. `native` is the most performant option and only works on supported drivers.
 
