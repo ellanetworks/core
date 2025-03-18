@@ -16,13 +16,24 @@ import (
 	"golang.org/x/net/http2/h2c"
 )
 
-// interfaceKernelMap maps the interface string to the kernel.NetworkInterface enum.
+// interfaceDBKernelMap maps the interface string to the kernel.NetworkInterface enum.
 var interfaceDBKernelMap = map[db.NetworkInterface]kernel.NetworkInterface{
 	db.N3: kernel.N3,
 	db.N6: kernel.N6,
 }
 
-func Start(dbInstance *db.Database, port int, certFile string, keyFile string, n3Interface string, n6Interface string) error {
+type Scheme string
+
+const (
+	HTTP  Scheme = "http"
+	HTTPS Scheme = "https"
+)
+
+// routeReconciler is used to reconcile routes periodically.
+// In tests we can override it to disable actual reconciliation.
+var routeReconciler = ReconcileKernelRouting
+
+func Start(dbInstance *db.Database, port int, scheme Scheme, certFile string, keyFile string, n3Interface string, n6Interface string) error {
 	jwtSecret, err := server.GenerateJWTSecret()
 	if err != nil {
 		return fmt.Errorf("couldn't generate jwt secret: %v", err)
@@ -30,27 +41,34 @@ func Start(dbInstance *db.Database, port int, certFile string, keyFile string, n
 	kernelInt := kernel.NewRealKernel(n3Interface, n6Interface)
 	router := server.NewHandler(dbInstance, kernelInt, jwtSecret, gin.ReleaseMode)
 
+	// Start the HTTP server in a goroutine.
 	go func() {
 		httpAddr := ":" + strconv.Itoa(port)
 		h2Server := &http2.Server{
 			IdleTimeout: 1 * time.Millisecond,
 		}
-		server := &http.Server{
+		srv := &http.Server{
 			Addr:              httpAddr,
 			ReadHeaderTimeout: 5 * time.Second,
 			Handler:           h2c.NewHandler(router, h2Server),
 		}
-		err := server.ListenAndServeTLS(certFile, keyFile)
-		if err != nil {
-			logger.APILog.Errorln("couldn't start API server:", err)
+		if scheme == HTTPS {
+			if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil {
+				logger.APILog.Errorf("couldn't start API server: %v", err)
+			}
+		} else {
+			if err := srv.ListenAndServe(); err != nil {
+				logger.APILog.Errorf("couldn't start API server: %v", err)
+			}
 		}
 	}()
-	logger.APILog.Infof("API server started on https://localhost:%d", port)
 
-	// Reconcile routes on startup and every 5 minutes
+	logger.APILog.Infof("API server started on %s://127.0.0.1:%d", scheme, port)
+
+	// Reconcile routes on startup and every 5 minutes.
 	go func() {
 		for {
-			err := ReconcileKernelRouting(dbInstance, kernelInt)
+			err := routeReconciler(dbInstance, kernelInt)
 			if err != nil {
 				logger.APILog.Errorf("couldn't reconcile routes: %v", err)
 			}
@@ -100,6 +118,6 @@ func ReconcileKernelRouting(dbInstance *db.Database, kernelInt kernel.Kernel) er
 			}
 		}
 	}
-	logger.APILog.Debugln("routes reconciled")
+	logger.APILog.Debugln("Routes reconciled")
 	return nil
 }
