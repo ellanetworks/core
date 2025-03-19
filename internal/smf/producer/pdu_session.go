@@ -65,11 +65,16 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	defer smContext.SMLock.Unlock()
 
 	// DNN Information from config
-	smContext.DNNInfo = context.RetrieveDnnInformation(*createData.SNssai, createData.Dnn)
-	if smContext.DNNInfo == nil {
+	dnnInfo, err := context.RetrieveDnnInformation(*createData.SNssai, createData.Dnn)
+	if err != nil {
+		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
+		return "", response, fmt.Errorf("failed to retrieve DNN information: %v", err)
+	}
+	if dnnInfo == nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
 		return "", response, fmt.Errorf("couldn't find DNN information: snssai does not match DNN config: Sst: %d, Sd: %s, DNN: %s", createData.SNssai.Sst, createData.SNssai.Sd, createData.Dnn)
 	}
+	smContext.DNNInfo = dnnInfo
 
 	// IP Allocation
 	smfSelf := context.SMFSelf()
@@ -79,7 +84,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 		return "", response, fmt.Errorf("failed to allocate IP address: %v", err)
 	}
 	smContext.SubPduSessLog.Infof("Successfully allocated IP address: %s", ip.String())
-	smContext.PDUAddress = &context.UeIPAddr{IP: ip, UpfProvided: false}
+	smContext.PDUAddress = &context.UeIPAddr{IP: ip}
 
 	snssaiStr, err := marshtojsonstring.MarshToJSONString(createData.SNssai)
 	if err != nil {
@@ -145,7 +150,7 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 
 	err := HandleUpdateN1Msg(request, smContext, &response, pfcpAction)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error handling N1 message: %v", err)
 	}
 
 	pfcpParam := &pfcpParam{
@@ -157,34 +162,36 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 
 	// UP Cnx State handling
 	if err := HandleUpCnxState(request, smContext, &response, pfcpAction, pfcpParam); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error handling UP connection state: %v", err)
 	}
 
 	// N2 Msg Handling
 	if err := HandleUpdateN2Msg(request, smContext, &response, pfcpAction, pfcpParam); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error handling N2 message: %v", err)
 	}
 
 	// Ho state handling
 	if err := HandleUpdateHoState(request, smContext, &response); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error handling HO state: %v", err)
 	}
 
 	// Cause handling
 	if err := HandleUpdateCause(request, smContext, &response, pfcpAction); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error handling cause: %v", err)
 	}
 
 	// Initiate PFCP Release
 	if pfcpAction.sendPfcpDelete {
-		if err = SendPfcpSessionReleaseReq(smContext); err != nil {
-			return nil, fmt.Errorf("pfcp session release error: %v ", err.Error())
-		}
-	} else if pfcpAction.sendPfcpModify {
-		// Initiate PFCP Modify
-		err := SendPfcpSessionModifyReq(smContext, pfcpParam)
+		err = releaseTunnel(smContext)
 		if err != nil {
-			return nil, fmt.Errorf("pfcp session modify error: %v ", err.Error())
+			return nil, fmt.Errorf("failed to release tunnel: %v", err)
+		}
+		smContext.SubPduSessLog.Infof("Sent PFCP session release request")
+	} else if pfcpAction.sendPfcpModify {
+		pfcpSessionContext := smContext.PFCPContext[smContext.Tunnel.DataPath.DPNode.UPF.NodeID.ResolveNodeIDToIP().String()]
+		err := pfcp.SendPfcpSessionModificationRequest(pfcpSessionContext, pfcpParam.pdrList, pfcpParam.farList, pfcpParam.qerList)
+		if err != nil {
+			return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 		}
 		smContext.SubPduSessLog.Infof("Sent PFCP session modification request")
 	}
@@ -226,9 +233,14 @@ func releaseTunnel(smContext *context.SMContext) error {
 	dataPath := smContext.Tunnel.DataPath
 	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR(smContext)
 	curDataPathNode := dataPath.DPNode
-	curUPFID := curDataPathNode.UPF.UUID()
+	curUPFID := curDataPathNode.UPF.NodeID.String()
 	if _, exist := deletedPFCPNode[curUPFID]; !exist {
-		err := pfcp.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext)
+		upNodeIDStr := curDataPathNode.UPF.NodeID.ResolveNodeIDToIP().String()
+		pfcpSessionContext, ok := smContext.PFCPContext[upNodeIDStr]
+		if !ok {
+			return fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
+		}
+		err := pfcp.SendPfcpSessionDeletionRequest(pfcpSessionContext)
 		if err != nil {
 			return fmt.Errorf("send PFCP session deletion request failed: %v", err)
 		}
