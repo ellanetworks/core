@@ -73,11 +73,9 @@ func ansiX963KDF(sharedKey, publicKey []byte, profileEncKeyLen, profileMacKeyLen
 	for i := 1; i <= kdfRounds; i++ {
 		counterBytes := make([]byte, 4)
 		binary.BigEndian.PutUint32(counterBytes, counter)
-		// logger.UtilLog.Debugf("counterBytes: %x", counterBytes)
 		tmpK := sha256.Sum256(append(append(sharedKey, counterBytes...), publicKey...))
 		sliceK := tmpK[:]
 		kdfKey = append(kdfKey, sliceK...)
-		// logger.UtilLog.Debugf("kdfKey in round %d: %x", i, kdfKey)
 		counter++
 	}
 	return kdfKey
@@ -171,19 +169,17 @@ func ToSupi(suci string, privateKey string) (string, error) {
 		return mccMnc + suciPart[len(suciPart)-1], nil
 	}
 
-	protectScheme := profileAScheme
-
-	if scheme != protectScheme {
-		return "", fmt.Errorf("protect Scheme mismatch [%s:%s]", scheme, protectScheme)
+	if scheme != profileAScheme {
+		return "", fmt.Errorf("protect Scheme mismatch [%s:%s]", scheme, profileAScheme)
 	}
 
-	if scheme == profileAScheme {
-		if profileAResult, err := profileA(suciPart[len(suciPart)-1], suciPart[supiTypePlace], privateKey); err != nil {
-			return "", err
-		} else {
-			return mccMnc + profileAResult, nil
-		}
-	} else {
+	if scheme != profileAScheme {
 		return "", fmt.Errorf("protect Scheme (%s) is not supported", scheme)
 	}
+
+	profileAResult, err := profileA(suciPart[len(suciPart)-1], suciPart[supiTypePlace], privateKey)
+	if err != nil {
+		return "", fmt.Errorf("profile A error: %w", err)
+	}
+	return mccMnc + profileAResult, nil
 }

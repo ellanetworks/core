@@ -17,6 +17,13 @@ class Kubernetes:
             logger.error(f"Failed to create namespace: {e}")
             raise RuntimeError("Failed to create namespace") from e
 
+    def delete_namespace(self):
+        try:
+            subprocess.check_call(["kubectl", "delete", "namespace", self.namespace])
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to delete namespace: {e}")
+            raise RuntimeError("Failed to delete namespace") from e
+
     def apply_manifest(self, manifest_path: str):
         subprocess.check_call(["kubectl", "apply", "-f", manifest_path, "-n", self.namespace])
 
