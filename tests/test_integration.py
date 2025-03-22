@@ -11,12 +11,13 @@ from tests.k8s import Kubernetes
 
 logger = logging.getLogger(__name__)
 
-NAMESPACE = "dev2"
+GNBSIM_NAMESPACE = "gnbsim"
+UERANSIM_NAMESPACE = "ueransim"
 TEST_PROFILE_NAME = "default"
 TEST_START_IMSI = "001010100000001"
 NUM_IMSIS = 5
 TEST_SUBSCRIBER_KEY = "5122250214c33e723a5dd523fc145fc0"
-TEST_SUBSCRIBER_SEQUENCE_NUMBER = "000000000001"
+TEST_SUBSCRIBER_SEQUENCE_NUMBER = "000000000022"
 
 NUM_PROFILES = 5
 
@@ -25,7 +26,7 @@ class TestELLA:
     def test_given_ella_and_gnbsim_deployed_when_start_simulation_then_simulation_success_status_is_true(  # noqa: E501
         self,
     ):
-        k8s_client = Kubernetes(namespace=NAMESPACE)
+        k8s_client = Kubernetes(namespace=GNBSIM_NAMESPACE)
         k8s_client.create_namespace()
         manifests = [
             "k8s/router-n6-nad.yaml",
@@ -36,10 +37,6 @@ class TestELLA:
             "k8s/core-configmap.yaml",
             "k8s/core-deployment.yaml",
             "k8s/core-service.yaml",
-            "k8s/ueransim-configmap.yaml",
-            "k8s/ueransim-deployment.yaml",
-            "k8s/ueransim-n2-nad.yaml",
-            "k8s/ueransim-n3-nad.yaml",
         ]
         for manifest in manifests:
             k8s_client.apply_manifest(manifest)
@@ -81,6 +78,80 @@ class TestELLA:
         uplink_bytes, downlink_bytes = get_byte_count(core_address)
         assert uplink_bytes == 9000
         assert downlink_bytes == 9000
+        k8s_client.delete_namespace()
+
+    def test_given_ella_core_and_ueransim_deployed_when_start_simulation_then_simulation_success_status_is_true(  # noqa: E501
+        self,
+    ):
+        k8s_client = Kubernetes(namespace=UERANSIM_NAMESPACE)
+        k8s_client.create_namespace()
+        manifests = [
+            "k8s/router-n6-nad.yaml",
+            "k8s/router-deployment.yaml",
+            "k8s/core-n2-nad.yaml",
+            "k8s/core-n3-nad.yaml",
+            "k8s/core-n6-nad.yaml",
+            "k8s/core-configmap.yaml",
+            "k8s/core-deployment.yaml",
+            "k8s/core-service.yaml",
+        ]
+        for manifest in manifests:
+            k8s_client.apply_manifest(manifest)
+            logger.info(f"Applied manifest: {manifest}")
+        logger.info("Waiting for Ella Core and Router components to be ready...")
+        k8s_client.wait_for_app_ready(app_name="ella-core")
+        k8s_client.wait_for_app_ready(app_name="router")
+        logger.info("Ella Core and Router components are ready.")
+        ella_core_pod_name = k8s_client.get_pod_name(app_name="ella-core")
+        k8s_client.exec(
+            pod_name=ella_core_pod_name, command="pebble add ella-core /config/pebble.yaml"
+        )
+        k8s_client.exec(pod_name=ella_core_pod_name, command="pebble start ella-core")
+        time.sleep(2)
+        core_port = k8s_client.get_core_node_port(service_name="ella-core")
+        core_address = f"https://127.0.0.1:{core_port}"
+        subscriber = configure_ella_core(core_address=core_address)
+        time.sleep(2)
+        create_ue_configmap(k8s_client, subscriber)
+        ueransim_manifests = [
+            "k8s/ueransim-deployment.yaml",
+            "k8s/ueransim-n2-nad.yaml",
+            "k8s/ueransim-n3-nad.yaml",
+        ]
+        for manifest in ueransim_manifests:
+            k8s_client.apply_manifest(manifest)
+            logger.info("Applied UERANSIM manifest.")
+        k8s_client.wait_for_app_ready(app_name="ueransim")
+        time.sleep(2)
+        ueransim_pod_name = k8s_client.get_pod_name(app_name="ueransim")
+        k8s_client.exec(
+            pod_name=ueransim_pod_name, command="pebble add gnb /etc/ueransim/pebble_gnb.yaml"
+        )
+        k8s_client.exec(pod_name=ueransim_pod_name, command="pebble start gnb")
+        logger.info(f"Started gnb pebble service in pod {ueransim_pod_name}")
+        time.sleep(2)
+        k8s_client.exec(
+            pod_name=ueransim_pod_name, command="pebble add ue /etc/ueransim/pebble_ue.yaml"
+        )
+        k8s_client.exec(pod_name=ueransim_pod_name, command="pebble start ue")
+        logger.info(f"Started ue pebble service in pod {ueransim_pod_name}")
+        time.sleep(2)
+        result = k8s_client.exec(
+            pod_name=ueransim_pod_name,
+            command="ip a",
+            timeout=1 * 60,
+        )
+        logger.info(result)
+        assert "uesimtun0" in result
+        result = k8s_client.exec(
+            pod_name=ueransim_pod_name,
+            command="ping -I uesimtun0 192.168.250.1 -c 3",
+            timeout=1 * 60,
+        )
+        logger.info(result)
+        assert "3 packets transmitted, 3 received" in result
+        assert "0% packet loss" in result
+        k8s_client.delete_namespace()
 
 
 def compute_imsi(base_imsi: str, increment: int) -> str:
@@ -359,7 +430,124 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
         "kind": "ConfigMap",
         "metadata": {
             "name": "gnbsim-config",
-            "namespace": NAMESPACE,
+            "namespace": GNBSIM_NAMESPACE,
+        },
+        "data": config,
+    }
+
+    configmap_path = "/tmp/gnbsim-configmap.yaml"
+    with open(configmap_path, "w") as f:
+        yaml.dump(configmap_manifest, f)
+
+    k8s_client.apply_manifest(configmap_path)
+    logger.info("Created GNBSim ConfigMap.")
+
+
+def create_ue_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> None:
+    config = {
+        "gnb.yaml": yaml.dump(
+            {
+                "mcc": "001",
+                "mnc": "01",
+                "nci": "0x000000010",
+                "idLength": 32,
+                "tac": 1,
+                "linkIp": "127.0.0.1",
+                "ngapIp": "192.168.253.6",
+                "gtpIp": "192.168.252.6",
+                "amfConfigs": [{"address": "192.168.253.3", "port": 38412}],
+                "slices": [{"sst": 1, "sd": 1056816}],
+                "ignoreStreamIds": True,
+            },
+            default_flow_style=False,
+        ),
+        "ue.yaml": yaml.dump(
+            {
+                "supi": f"imsi-{subscriber.imsi}",
+                "mcc": "001",
+                "mnc": "01",
+                "protectionScheme": 0,
+                "homeNetworkPublicKey": "75d1dde9519b390b172104ae3397557a114acbd39d3c39b2bcc3ce282abc4c3e",  # noqa: E501
+                "homeNetworkPublicKeyId": 1,
+                "routingIndicator": "0000",
+                "key": subscriber.key,
+                "op": subscriber.opc,
+                "opType": "OPC",
+                "amf": "8000",
+                "imei": "356938035643803",
+                "imeiSv": "4370816125816151",
+                "gnbSearchList": ["127.0.0.1"],
+                "uacAic": {
+                    "mps": False,
+                    "mcs": False,
+                },
+                "uacAcc": {
+                    "normalClass": 0,
+                    "class11": False,
+                    "class12": False,
+                    "class13": False,
+                    "class14": False,
+                    "class15": False,
+                },
+                "sessions": [{"type": "IPv4"}],
+                "apn": "internet",
+                "slice": {"sst": 1, "sd": 1056816},
+                "configured-nssai": [{"sst": 1}],
+                "sd": 1056816,
+                "default-nssai": [{"sst": 1, "sd": 1}],
+                "integrity": {
+                    "IA1": True,
+                    "IA2": True,
+                    "IA3": True,
+                },
+                "ciphering": {
+                    "EA1": True,
+                    "EA2": True,
+                    "EA3": True,
+                },
+                "integrityMaxRate": {
+                    "uplink": "full",
+                    "downlink": "full",
+                },
+            },
+            default_flow_style=False,
+        ),
+        "pebble_gnb.yaml": yaml.dump(
+            {
+                "summary": "UERANSIM gNodeB Pebble layer",
+                "description": "UERANSIM gNodeB Pebble layer",
+                "services": {
+                    "gnb": {
+                        "override": "replace",
+                        "summary": "gNodeB service",
+                        "command": "/bin/nr-gnb --config /etc/ueransim/gnb.yaml",
+                        "startup": "enabled",
+                    }
+                },
+            }
+        ),
+        "pebble_ue.yaml": yaml.dump(
+            {
+                "summary": "UERANSIM UE Pebble layer",
+                "description": "UERANSIM UE Pebble layer",
+                "services": {
+                    "ue": {
+                        "override": "replace",
+                        "summary": "UE service",
+                        "command": "/bin/nr-ue --config /etc/ueransim/ue.yaml",
+                        "startup": "enabled",
+                    }
+                },
+            }
+        ),
+    }
+
+    configmap_manifest = {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {
+            "name": "ueransim-config",
+            "namespace": UERANSIM_NAMESPACE,
         },
         "data": config,
     }
