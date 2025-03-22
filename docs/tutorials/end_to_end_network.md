@@ -389,7 +389,7 @@ UERANSIM v3.2.6
 [2025-01-25 16:29:02.687] [rrc] [info] UE switches to state [RRC-CONNECTED]
 [2025-01-25 16:29:02.687] [nas] [info] UE switches to state [CM-CONNECTED]
 [2025-01-25 16:29:02.717] [nas] [debug] Authentication Request received
-[2025-01-25 16:29:02.717] [nas] [debug] Received SQN [000000000001]
+[2025-01-25 16:29:02.717] [nas] [debug] Received SQN [000000000022]
 [2025-01-25 16:29:02.717] [nas] [debug] SQN-MS [000000000000]
 [2025-01-25 16:29:02.717] [nas] [debug] Sending Authentication Failure due to SQN out of range
 [2025-01-25 16:29:02.738] [nas] [debug] Authentication Request received
