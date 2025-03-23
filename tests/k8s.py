@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-
 import logging
 import subprocess
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,36 @@ class Kubernetes:
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to delete namespace: {e}")
             raise RuntimeError("Failed to delete namespace") from e
+
+    def get_configmap(self, name: str) -> dict:
+        """Fetch the given ConfigMap using kubectl."""
+        cmd = [
+            "kubectl",
+            "get",
+            "configmap",
+            name,
+            "-n",
+            self.namespace,
+            "-o",
+            "yaml",
+        ]
+        output = subprocess.check_output(cmd)
+        return yaml.safe_load(output)
+
+    def patch_configmap(self, name: str, patch: dict) -> None:
+        """Patch the given ConfigMap using kubectl."""
+        patch_yaml = yaml.dump(patch, default_flow_style=False)
+        cmd = [
+            "kubectl",
+            "patch",
+            "configmap",
+            name,
+            "-n",
+            self.namespace,
+            "--patch",
+            patch_yaml,
+        ]
+        subprocess.check_call(cmd)
 
     def apply_manifest(self, manifest_path: str):
         subprocess.check_call(["kubectl", "apply", "-f", manifest_path, "-n", self.namespace])

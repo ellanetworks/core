@@ -45,14 +45,9 @@ class TestELLA:
         k8s_client.wait_for_app_ready(app_name="ella-core")
         k8s_client.wait_for_app_ready(app_name="router")
         logger.info("Ella Core and Router components are ready.")
-        ella_core_pod_name = k8s_client.get_pod_name(app_name="ella-core")
-        k8s_client.exec(
-            pod_name=ella_core_pod_name, command="pebble add ella-core /config/pebble.yaml"
-        )
-        k8s_client.exec(pod_name=ella_core_pod_name, command="pebble start ella-core")
         time.sleep(2)
         core_port = k8s_client.get_core_node_port(service_name="ella-core")
-        core_address = f"https://127.0.0.1:{core_port}"
+        core_address = f"http://127.0.0.1:{core_port}"
         subscriber = configure_ella_core(core_address=core_address)
         create_gnbsim_configmap(k8s_client, subscriber)
         gnbsim_manifests = [
@@ -94,35 +89,25 @@ class TestELLA:
             "k8s/core-configmap.yaml",
             "k8s/core-deployment.yaml",
             "k8s/core-service.yaml",
-        ]
-        for manifest in manifests:
-            k8s_client.apply_manifest(manifest)
-            logger.info(f"Applied manifest: {manifest}")
-        logger.info("Waiting for Ella Core and Router components to be ready...")
-        k8s_client.wait_for_app_ready(app_name="ella-core")
-        k8s_client.wait_for_app_ready(app_name="router")
-        logger.info("Ella Core and Router components are ready.")
-        ella_core_pod_name = k8s_client.get_pod_name(app_name="ella-core")
-        k8s_client.exec(
-            pod_name=ella_core_pod_name, command="pebble add ella-core /config/pebble.yaml"
-        )
-        k8s_client.exec(pod_name=ella_core_pod_name, command="pebble start ella-core")
-        time.sleep(2)
-        core_port = k8s_client.get_core_node_port(service_name="ella-core")
-        core_address = f"https://127.0.0.1:{core_port}"
-        subscriber = configure_ella_core(core_address=core_address)
-        time.sleep(2)
-        create_ue_configmap(k8s_client, subscriber)
-        ueransim_manifests = [
+            "k8s/ueransim-configmap.yaml",
             "k8s/ueransim-deployment.yaml",
             "k8s/ueransim-n2-nad.yaml",
             "k8s/ueransim-n3-nad.yaml",
         ]
-        for manifest in ueransim_manifests:
+        for manifest in manifests:
             k8s_client.apply_manifest(manifest)
-            logger.info("Applied UERANSIM manifest.")
+            logger.info(f"Applied manifest: {manifest}")
+        logger.info("Waiting for Ella Core, Router, and UERANSIM to be ready...")
+        k8s_client.wait_for_app_ready(app_name="ella-core")
+        k8s_client.wait_for_app_ready(app_name="router")
         k8s_client.wait_for_app_ready(app_name="ueransim")
+        logger.info("Ella Core and Router components are ready.")
         time.sleep(2)
+        core_port = k8s_client.get_core_node_port(service_name="ella-core")
+        core_address = f"http://127.0.0.1:{core_port}"
+        subscriber = configure_ella_core(core_address=core_address)
+        time.sleep(2)
+        patch_ue_configmap(k8s_client, subscriber)
         ueransim_pod_name = k8s_client.get_pod_name(app_name="ueransim")
         k8s_client.exec(
             pod_name=ueransim_pod_name, command="pebble add gnb /etc/ueransim/pebble_gnb.yaml"
@@ -443,118 +428,58 @@ def create_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> N
     logger.info("Created GNBSim ConfigMap.")
 
 
-def create_ue_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> None:
-    config = {
-        "gnb.yaml": yaml.dump(
-            {
-                "mcc": "001",
-                "mnc": "01",
-                "nci": "0x000000010",
-                "idLength": 32,
-                "tac": 1,
-                "linkIp": "127.0.0.1",
-                "ngapIp": "192.168.253.6",
-                "gtpIp": "192.168.252.6",
-                "amfConfigs": [{"address": "192.168.253.3", "port": 38412}],
-                "slices": [{"sst": 1, "sd": 1056816}],
-                "ignoreStreamIds": True,
-            },
-            default_flow_style=False,
-        ),
-        "ue.yaml": yaml.dump(
-            {
-                "supi": f"imsi-{subscriber.imsi}",
-                "mcc": "001",
-                "mnc": "01",
-                "protectionScheme": 0,
-                "homeNetworkPublicKey": "75d1dde9519b390b172104ae3397557a114acbd39d3c39b2bcc3ce282abc4c3e",  # noqa: E501
-                "homeNetworkPublicKeyId": 1,
-                "routingIndicator": "0000",
-                "key": subscriber.key,
-                "op": subscriber.opc,
-                "opType": "OPC",
-                "amf": "8000",
-                "imei": "356938035643803",
-                "imeiSv": "4370816125816151",
-                "gnbSearchList": ["127.0.0.1"],
-                "uacAic": {
-                    "mps": False,
-                    "mcs": False,
-                },
-                "uacAcc": {
-                    "normalClass": 0,
-                    "class11": False,
-                    "class12": False,
-                    "class13": False,
-                    "class14": False,
-                    "class15": False,
-                },
-                "sessions": [{"type": "IPv4"}],
-                "apn": "internet",
-                "slice": {"sst": 1, "sd": 1056816},
-                "configured-nssai": [{"sst": 1}],
-                "sd": 1056816,
-                "default-nssai": [{"sst": 1, "sd": 1}],
-                "integrity": {
-                    "IA1": True,
-                    "IA2": True,
-                    "IA3": True,
-                },
-                "ciphering": {
-                    "EA1": True,
-                    "EA2": True,
-                    "EA3": True,
-                },
-                "integrityMaxRate": {
-                    "uplink": "full",
-                    "downlink": "full",
-                },
-            },
-            default_flow_style=False,
-        ),
-        "pebble_gnb.yaml": yaml.dump(
-            {
-                "summary": "UERANSIM gNodeB Pebble layer",
-                "description": "UERANSIM gNodeB Pebble layer",
-                "services": {
-                    "gnb": {
-                        "override": "replace",
-                        "summary": "gNodeB service",
-                        "command": "/bin/nr-gnb --config /etc/ueransim/gnb.yaml",
-                        "startup": "enabled",
-                    }
-                },
-            }
-        ),
-        "pebble_ue.yaml": yaml.dump(
-            {
-                "summary": "UERANSIM UE Pebble layer",
-                "description": "UERANSIM UE Pebble layer",
-                "services": {
-                    "ue": {
-                        "override": "replace",
-                        "summary": "UE service",
-                        "command": "/bin/nr-ue --config /etc/ueransim/ue.yaml",
-                        "startup": "enabled",
-                    }
-                },
-            }
-        ),
-    }
+def patch_ue_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> None:
+    """Patch the UERANSIM ConfigMap with the subscriber information.
 
-    configmap_manifest = {
-        "apiVersion": "v1",
-        "kind": "ConfigMap",
-        "metadata": {
-            "name": "ueransim-config",
-            "namespace": UERANSIM_NAMESPACE,
-        },
-        "data": config,
-    }
+    Get the existing ueransim-config ConfigMap, patch its ue.yaml data with the new values
+    (IMSI, key, and OPC), and wait until the changes are reflected in the container.
+    """
+    configmap_name = "ueransim-config"
+    logger.info(
+        "Waiting for ConfigMap '%s' in namespace '%s'...", configmap_name, UERANSIM_NAMESPACE
+    )
+    timeout = 60
+    start_time = time.time()
+    configmap = k8s_client.get_configmap(configmap_name)
+    logger.info("Found ConfigMap '%s'.", configmap_name)
 
-    configmap_path = "/tmp/gnbsim-configmap.yaml"
-    with open(configmap_path, "w") as f:
-        yaml.dump(configmap_manifest, f)
+    # Get the current ue.yaml content from the ConfigMap
+    ue_yaml_str = configmap["data"].get("ue.yaml", "")
+    if not ue_yaml_str:
+        raise ValueError("The 'ue.yaml' key is missing in the ConfigMap data.")
+    ue_config = yaml.safe_load(ue_yaml_str)
 
-    k8s_client.apply_manifest(configmap_path)
-    logger.info("Created GNBSim ConfigMap.")
+    # Update the necessary fields with values from the subscriber
+    ue_config["supi"] = f"imsi-{subscriber.imsi}"
+    ue_config["key"] = subscriber.key
+    ue_config["op"] = subscriber.opc
+
+    # Create the updated YAML string
+    updated_ue_yaml_str = yaml.dump(ue_config, default_flow_style=False)
+
+    # Construct a patch to update the 'ue.yaml' field
+    patch = {"data": {"ue.yaml": updated_ue_yaml_str}}
+    logger.info("Patching ConfigMap '%s' with updated subscriber values...", configmap_name)
+    k8s_client.patch_configmap(configmap_name, patch)
+    logger.info("Patched ConfigMap '%s'.", configmap_name)
+
+    # Wait until the updated config is available in the container
+    pod_name = k8s_client.get_pod_name("ueransim")
+    logger.info("Waiting for updated config to be available in pod '%s'...", pod_name)
+    timeout = 5*60
+    start_time = time.time()
+    while True:
+        result = k8s_client.exec(
+            pod_name=pod_name,
+            command="cat /etc/ueransim/ue.yaml",
+            timeout=10,
+        )
+        if subscriber.key in result and subscriber.opc in result:
+            logger.info("Updated config is now available in container '%s'.", pod_name)
+            break
+        if time.time() - start_time > timeout:
+            raise TimeoutError(
+                "Updated config did not become available in container within timeout"
+            )
+        logger.info("Waiting for updated config to be available...")
+        time.sleep(5)

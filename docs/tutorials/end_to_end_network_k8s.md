@@ -45,5 +45,5 @@ microk8s.kubectl create namespace ella
 Install Ella Core:
 
 ```shell
-microk8s.kubectl apply -f https://raw.githubusercontent.com/ellanetworks/core/main/k8s/ella-core.yaml
+microk8s.kubectl apply -k https://raw.githubusercontent.com/ellanetworks/core/refs/heads/main/k8s/
 ```
