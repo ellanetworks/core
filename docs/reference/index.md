@@ -2,7 +2,7 @@
 
 This section provides detailed reference material for Ella Core, from configuration options to complete API documentation.
 
-- [API](api/overview.md)
+- [API](api/index.md)
 - [Configuration File](config_file.md)
 - [Metrics](metrics.md)
 - [Logging](logging.md)

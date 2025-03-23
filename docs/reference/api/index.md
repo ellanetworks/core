@@ -2,9 +2,9 @@
 description: RESTful API reference for managing Ella Core.
 ---
 
-# API Overview
+# API
 
-Ella Core exposes a RESTful API for managing subscribers, radios, profiles, users, and operator configuration.
+Ella Core exposes a RESTful API for managing subscribers, radios, profiles, users, routes, and operator configuration.
 
 ## Authentication
 
@@ -35,4 +35,5 @@ Ella Core uses rate limiting to prevent abuse of the API. The rate limit is set 
 - 201 - Created.
 - 400 - Bad request.
 - 401 - Unauthorized.
+- 429 - Too many requests.
 - 500 - Internal server error.
