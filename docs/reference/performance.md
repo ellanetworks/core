@@ -44,7 +44,7 @@ We performed performance tests on a system with the following specifications:
 - **RAM**: 64GB
 - **Disk**: 1TB NVMe SSD
 
-We used the same virtualized environment outlined in the [Running an End-to-End 5G Network with Ella Core](../tutorials/end_to_end_network.md) tutorial, with the iPerf3 server running on the router virtual machine, and the iPerf3 client running on the radio virtual machine.
+We used the same virtualized environment outlined in the [Running an End-to-End 5G Network with Ella Core](../tutorials/end_to_end_network_snap.md) tutorial, with the iPerf3 server running on the router virtual machine, and the iPerf3 client running on the radio virtual machine.
 
 !!! note
     We performed the performance tests in a virtualized environment. The results will likely improve in a bare-metal environment.

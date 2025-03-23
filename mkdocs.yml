@@ -43,7 +43,8 @@ nav:
   - Tutorials:
     - tutorials/index.md 
     - Getting Started: tutorials/getting_started.md
-    - Running an End-to-End 5G Network: tutorials/end_to_end_network.md
+    - Running an End-to-End 5G Network (Snap): tutorials/end_to_end_network_snap.md
+    - Running an End-to-End 5G Network (Kubernetes): tutorials/end_to_end_network_k8s.md
   - How-to Guides:
     - how_to/index.md
     - Install: how_to/install.md

@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: core-config
+data:
+  config.yaml: |
+    logging:
+      system:
+        level: "debug"
+        output: "stdout"
+      audit:
+        output: "stdout"
+    db:
+      path: /core/data/core.db
+    interfaces:
+      n2:
+        name: "n2"
+        port: 38412
+      n3:
+        name: "n3"
+      n6:
+        name: "n6"
+      api:
+        name: "enp0s8"
+        port: 5002
+        tls:
+          cert: "/config/cert.pem"
+          key: "/config/key.pem"
+    xdp:
+      attach-mode: "generic"
+  pebble.yaml: |
+    summary: Ella Core layer
+    description: pebble config layer for Ella Core
+    services:
+      ella-core:
+        override: replace
+        summary: Ella Core is a private mobile network.
+        command: core --config /config/config.yaml
+        startup: enabled
+  cert.pem: |
+    -----BEGIN CERTIFICATE-----
+    MIIDDTCCAfWgAwIBAgIUSH7fZNfwUkzUAPBYKo7hAN6VDNswDQYJKoZIhvcNAQEL
+    BQAwFjEUMBIGA1UEAwwLZXhhbXBsZS5jb20wHhcNMjQxMDA4MTY1NjM3WhcNMjQx
+    MDA5MTY1NjM3WjAWMRQwEgYDVQQDDAtleGFtcGxlLmNvbTCCASIwDQYJKoZIhvcN
+    AQEBBQADggEPADCCAQoCggEBAL6FFUVi3YgqY3JbzRB75+E2WDOUiZMWMS+R1phu
+    sNM3ouA+tFdlETuJjADQC3W3BEXMvBGNYinFaJtJrkubRGeUSGYM4oAIUjz617sK
+    wdEpYa1bA2MbO9V+SjL3nu2UzSI+IYgRkkT6SwYWqmi2Xz4Ax7TH990Ehf0svcK6
+    0nevD+iUrvKi2xkhzaMaAQpS2Fb1Q/l0Hvq73MBbqgXV8alqjPhPQHMXFSvrEj+P
+    WMs5YCA5MuRBam+nlD1lnBXxCoSB7RU/SCDrqwgL+i6Ae9WutVx3lVLoDEJWuWWP
+    yNDgwb5C/gwvgsJmZTHBiGY/BOXdi6a6HAINXO9i/jbOseMCAwEAAaNTMFEwHQYD
+    VR0OBBYEFDUuo19uzRZQre957WFTjg3TIS/1MB8GA1UdIwQYMBaAFDUuo19uzRZQ
+    re957WFTjg3TIS/1MA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEB
+    AG1n54JCtaTKWNGu3fXcb7UQcufXb6huh7AvM5ojnQDbu2ubiCI6S2fxzN7mKigH
+    QI4gjpjk9ye4ozKZ3APbYjWbrZdkFd2KZdYEawKWkxJNT/RUZoOwPEm6M+1+v49Z
+    kkwoQfC65VGR1Jnr1DIqcptQNKn4sQB4SFsg/VTPYLOeZn6DmOhDAYE2az9k7u0g
+    BlG7+bnbwCuR2cDa7Y52pxfKRQ2KMNqHtabR8wyq3owSuiLbcheQ3u3ze61x9lhd
+    adH8dLeKhN9PKrSPzQPnC7jxAFFqQL1kYuwifk33cqVZi/sPBDLy8X6icmMFGItH
+    icNKKPufnT2WDYYHvxVbWRc=
+    -----END CERTIFICATE-----
+  key.pem: |
+    -----BEGIN PRIVATE KEY-----
+    MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC+hRVFYt2IKmNy
+    W80Qe+fhNlgzlImTFjEvkdaYbrDTN6LgPrRXZRE7iYwA0At1twRFzLwRjWIpxWib
+    Sa5Lm0RnlEhmDOKACFI8+te7CsHRKWGtWwNjGzvVfkoy957tlM0iPiGIEZJE+ksG
+    Fqpotl8+AMe0x/fdBIX9LL3CutJ3rw/olK7yotsZIc2jGgEKUthW9UP5dB76u9zA
+    W6oF1fGpaoz4T0BzFxUr6xI/j1jLOWAgOTLkQWpvp5Q9ZZwV8QqEge0VP0gg66sI
+    C/ougHvVrrVcd5VS6AxCVrllj8jQ4MG+Qv4ML4LCZmUxwYhmPwTl3YumuhwCDVzv
+    Yv42zrHjAgMBAAECggEAPbSIwSJWMcXY068b6ZzX6z9YrcwMCtGDOK75XAFtz9sT
+    K6HjcvLO9AOGjrTTIVsXTSwUNXMfOfwv9yuUAfTV4N5L3JGLwn/vcsSjnnbLc1z9
+    v9HcdPrbFDiE+6DrnnM1RUPuRE28nA6cweoRYzy9+Cz0gX7KrpDKfMdC5pDvncdK
+    /wggqCohjOUI7jHF4kqiIK4IGA2/tmAEkcoAEZ+LYLm7o1j+g6UIU26JWzefjs9U
+    DBNjQNewnmp7ET3WQ1CqqDcdW74qYNJwcRYl/bfgbQOt0SPsLmklZhDTsrYKNdkf
+    AIMz7QviDcq+kQJgKVAQMJ/LUM4k0AdEix5RswM2cQKBgQD8dSRa12853r7XRhWX
+    oeBxrcZHKpTyK1LNjhGsrWLi5RzdVjy24COOR7DK+KY14+IqbSeCiL83SRmRkbUj
+    HC0bEszWbXScBinLBJRKyQf1aVWFRZ7rvOcNI+I0czQ5b0htd2nqmkehQMcVK1tX
+    PD6RRA6GtPFF40pDVZh3xzuspQKBgQDBMXQMBzIQuo9354N7bQYRIoMW4dtwZZGx
+    RStPGOsfKoQyKjSruOAiOjvov5P6hPBevLNJNjShy0QoNPP+hY/C23VK6oRhlOwS
+    eyy6IcmxFUsK7rYnKGFjR8W29LNZyPBi04ud8mDibUdD60aBr1eJKgWt1cMTdW3f
+    UaI7jAz15wKBgAeyUo9qbfunrM3HVzUuPDd7AsZ8p9nSNE4L/MH070TXk0+0J1mz
+    76GQ0fT+K6MM9YIxnbi/DoVS9zKW7JzLaRygMBqBb8Kp9XA5DYRSKKn0siTEAJpT
+    QgAGjgjnUjpGCEE+GL6MQY7K+MbOcZRxQ78OAhtdPNXSnhr7axCLxGf5AoGAacBK
+    R7NAooucsQPXox5grcx4eXQUjIfsol68gEWhnqPFTThxMHa4qcO6u4Ly27UdZp5g
+    fXjggpgjrOafkPlHYmCC6glJgajlOJCYQSLxpq+DLm7Q4spl1NSa07VK36DwhQhL
+    aqAcjJVI51LIe4ChqAGKrkdOyz4CcLXc2j+lcI0CgYEAs/tqtKrLJ8oak6PzL7A3
+    S9AGgMOxpRvpvFin1jpcCXRVaVl59o57ASwip/vO1GXiW9eptLZ1xdA99/605Zl4
+    RK4d7S561OfV5Di/0Lybblym61BJr16VDLy/EZNpWSwaCqnwYOfyi4Kb4HZU0IoX
+    TGi5H2cuIzYDXuHdZPDV7rI=
+    -----END PRIVATE KEY-----

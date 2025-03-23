@@ -4,7 +4,7 @@ description: Step-by-step instructions to install Ella Core.
 
 # Install
 
-You can install Ella Core on Linux or in Kubernetes.
+You can install Ella Core on Linux or on Kubernetes.
 
 === "Linux"
 
@@ -72,7 +72,7 @@ You can install Ella Core on Linux or in Kubernetes.
         For more information on the configuration options, see the [configuration file reference](../reference/config_file.md).
 
     Start the service:
-    
+
     ```bash
     sudo snap start ella-core.cored
     ```

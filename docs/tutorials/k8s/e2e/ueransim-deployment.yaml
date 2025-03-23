@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ueransim
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ueransim
+  template:
+    metadata:
+      labels:
+        app: ueransim
+      annotations:
+        k8s.v1.cni.cncf.io/networks: |
+          [
+            {"name": "ueransim-n2", "interface": "n2"},
+            {"name": "ueransim-n3", "interface": "n3"}
+          ]
+    spec:
+      containers:
+      - name: ueransim
+        image: ghcr.io/gruyaume/ueransim:3.2.6
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/ueransim
+        securityContext:
+          privileged: true
+        ports:
+        - containerPort: 38412
+      volumes:
+      - name: config-volume
+        configMap:
+          name: ueransim-config
