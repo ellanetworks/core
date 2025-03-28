@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: core-config
+data:
+  config.yaml: |
+    logging:
+      system:
+        level: "debug"
+        output: "stdout"
+      audit:
+        output: "stdout"
+    db:
+      path: /core/data/core.db
+    interfaces:
+      n2:
+        name: "n2"
+        port: 38412
+      n3:
+        name: "n3"
+      n6:
+        name: "n6"
+      api:
+        name: "enp0s8"
+        port: 5002
+    xdp:
+      attach-mode: "generic"

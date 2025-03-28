@@ -1,10 +1,10 @@
 ---
-description: Running an end-to-end 5G network with Ella Core.
+description: Running an end-to-end 5G network with Ella Core using Snap
 ---
 
-# Running an End-to-End 5G Network with Ella Core
+# Running an End-to-End 5G Network with Ella Core (Snap)
 
-In this tutorial, we will deploy, initialize, and configure Ella Core. First, we will use [Multipass](https://canonical.com/multipass/docs) to create a virtual machine, install Ella Core, access the the UI, initialize Ella Core, and configure it. In this tutorial, we will deploy, initialize, and configure Ella Core, an open-source 5G mobile core network. First, we will use Multipass to create a virtual machine, install Ella Core, access the the UI, initialize Ella Core, and configure it. Then, we will create another virtual machine, install a 5G radio and User Equipment simulator, connect it to Ella Core, and use the simulator to validate that the subscriber can communicate with the Internet using Ella Core.
+In this tutorial, we will deploy, initialize, and configure Ella Core, an open-source 5G mobile core network. First, we will use [Multipass](https://canonical.com/multipass/docs) to create a virtual machine, install Ella Core, access the the UI, initialize Ella Core, and configure it. Then, we will create another virtual machine, install a 5G radio and User Equipment simulator, connect it to Ella Core, and use the simulator to validate that subscribers can communicate with the Internet using Ella Core.
 
 You can expect to spend about 30 minutes completing this tutorial. Follow the steps in sequence to ensure a successful deployment.
 

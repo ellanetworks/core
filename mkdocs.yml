@@ -43,16 +43,17 @@ nav:
   - Tutorials:
     - tutorials/index.md 
     - Getting Started: tutorials/getting_started.md
-    - Running an End-to-End 5G Network: tutorials/end_to_end_network.md
+    - Running an End-to-End 5G Network (Snap): tutorials/end_to_end_network_snap.md
+    - Running an End-to-End 5G Network (Kubernetes): tutorials/end_to_end_network_k8s.md
   - How-to Guides:
     - how_to/index.md
-    - Deploy: how_to/deploy.md
+    - Install: how_to/install.md
     - Integrate with a Radio: how_to/integrate_with_radio.md
     - Backup and Restore: how_to/backup_and_restore.md
   - Reference:
     - reference/index.md
     - API:
-      - Overview: reference/api/overview.md
+      - reference/api/index.md
       - Backup: reference/api/backup.md
       - Authentication: reference/api/auth.md
       - Metrics: reference/api/metrics.md
@@ -60,6 +61,7 @@ nav:
       - Profiles: reference/api/profiles.md
       - Radios: reference/api/radios.md
       - Restore: reference/api/restore.md
+      - Routes: reference/api/routes.md
       - Status: reference/api/status.md
       - Subscribers: reference/api/subscribers.md
       - Users: reference/api/users.md

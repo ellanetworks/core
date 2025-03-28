@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - core-configmap.yaml
+  - core-deployment.yaml
+  - core-service.yaml
+  - core-n2-nad.yaml
+  - core-n3-nad.yaml
+  - core-n6-nad.yaml

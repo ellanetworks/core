@@ -29,7 +29,7 @@ Ella Core currently relies on the kernel to make routing decisions for incoming 
 
 ### NATing
 
-Ella Core currently does not support Network Address Translation (NAT). If a subscriber is assigned a private IP address, the subscriber's packets will not be translated to a public IP address when sent to the Internet. In the [End-to-End Network tutorial](../tutorials/end_to_end_network.md), we use an external router to enable NATting using the `iptables` command so that subscribers can use publicly routable addresses.
+Ella Core currently does not support Network Address Translation (NAT). If a subscriber is assigned a private IP address, the subscriber's packets will not be translated to a public IP address when sent to the Internet. In the [End-to-End Network tutorial](../tutorials/end_to_end_network_snap.md), we use an external router to enable NATting using the `iptables` command so that subscribers can use publicly routable addresses.
 
 ### Performance
 
