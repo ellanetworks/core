@@ -84,7 +84,9 @@ func (operator *Operator) GetHomeNetworkPublicKey() (string, error) {
 }
 
 func (operator *Operator) GetHexSd() string {
-	return fmt.Sprintf("%X", operator.Sd)
+	aa := fmt.Sprintf("%X", operator.Sd)
+	logger.DBLog.Warnf("TO DELETE: get sd value", aa)
+	return aa
 }
 
 func (operator *Operator) SetSupportedTacs(supportedTACs []string) {
