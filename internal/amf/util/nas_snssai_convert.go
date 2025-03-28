@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasType"
 )
@@ -13,7 +12,6 @@ func SnssaiToModels(nasSnssai *nasType.SNSSAI) models.Snssai {
 	var snssai models.Snssai
 	sD := nasSnssai.GetSD()
 	snssai.Sd = hex.EncodeToString(sD[:])
-	logger.AmfLog.Warnf("TO DELETE: SD: %s", snssai.Sd)
 	snssai.Sst = int32(nasSnssai.GetSST())
 	return snssai
 }
