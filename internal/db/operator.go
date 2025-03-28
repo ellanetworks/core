@@ -84,7 +84,7 @@ func (operator *Operator) GetHomeNetworkPublicKey() (string, error) {
 }
 
 func (operator *Operator) GetHexSd() string {
-	return fmt.Sprintf("%X", operator.Sd)
+	return fmt.Sprintf("%06X", operator.Sd)
 }
 
 func (operator *Operator) SetSupportedTacs(supportedTACs []string) {
