@@ -14,6 +14,7 @@ func SNssaiToModels(ngapSnssai ngapType.SNSSAI) models.Snssai {
 	modelsSnssai.Sst = int32(ngapSnssai.SST.Value[0])
 	if ngapSnssai.SD != nil {
 		modelsSnssai.Sd = hex.EncodeToString(ngapSnssai.SD.Value)
+		logger.AmfLog.Warnf("TO DELETE: SD: %s", modelsSnssai.Sd)
 	}
 	return modelsSnssai
 }
@@ -25,7 +26,7 @@ func SNssaiToNgap(modelsSnssai models.Snssai) (ngapType.SNSSAI, error) {
 	if modelsSnssai.Sd != "" {
 		logger.AmfLog.Warnf("TO DELETE: SD: %s", modelsSnssai.Sd)
 		ngapSnssai.SD = new(ngapType.SD)
-		sdTmp, err := hex.DecodeString("012030")
+		sdTmp, err := hex.DecodeString(modelsSnssai.Sd)
 		if err != nil {
 			return ngapSnssai, fmt.Errorf("could not decode SD: %+v", err)
 		}
