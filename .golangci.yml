@@ -1,41 +1,51 @@
-
+version: "2"
 linters:
   enable:
-    - gofmt
-    - errcheck
-    - staticcheck
-    - unused
-    - gosimple
-    - typecheck
-    - godox
-    - goconst
-    - gomodguard
-    - nakedret
-    - misspell
-    - gofumpt
-    - whitespace
-    - unconvert
-    - predeclared
-    - noctx
-    - dogsled
-    - bodyclose
     - asciicheck
+    - bodyclose
+    - dogsled
+    - goconst
+    - godox
+    - gomodguard
+    - misspell
+    - nakedret
+    - noctx
+    - predeclared
+    - staticcheck
+    - unconvert
     - unparam
-    - gci
-    - stylecheck
-    # - gocognit
-    # - nestif
-    # - wsl
-
-  fast: true
+    - whitespace
+    - govet
+  disable:
+    - staticcheck
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 issues:
-  exclude-case-sensitive: false
-  new: false
   new-from-rev: ""
+  new: false
 severity:
-  default-severity: error
-  case-sensitive: false
+  default: error
   rules:
     - linters:
-        - gomnd
+        - mnd
       severity: ignore
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
