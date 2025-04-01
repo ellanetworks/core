@@ -7,7 +7,7 @@ import { getMetrics } from "@/queries/metrics";
 import { listSubscribers } from "@/queries/subscribers";
 import { listRadios } from "@/queries/radios";
 import { PieChart } from "@mui/x-charts/PieChart";
-import Grid from "@mui/material/Grid2";
+import Grid from "@mui/material/Grid";
 import { useCookies } from "react-cookie";
 
 const Dashboard = () => {

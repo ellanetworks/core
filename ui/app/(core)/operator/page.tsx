@@ -22,7 +22,7 @@ import EditOperatorCodeModal from "@/components/EditOperatorCodeModal";
 import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
 import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
 import EditOperatorHomeNetworkModal from "@/components/EditOperatorHomeNetworkModal";
-import Grid from "@mui/material/Grid2";
+import Grid from "@mui/material/Grid";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface OperatorData {
