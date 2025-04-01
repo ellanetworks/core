@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { Box, Typography, Button, Alert } from "@mui/material";
 import { backup, restore } from "@/queries/backup";
 import { useCookies } from "react-cookie";
-import Grid from "@mui/material/Grid2";
+import Grid from "@mui/material/Grid";
 
 const BackupRestore = () => {
   const [cookies, setCookie, removeCookie] = useCookies(["user_token"]);
