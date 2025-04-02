@@ -7,7 +7,6 @@ package qos
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -31,8 +30,6 @@ func PccRuleString(pcc *models.PccRule) string {
 	if pcc == nil {
 		return ""
 	}
-	logger.SmfLog.Warnf("PccRuleString: %v", pcc)
-	logger.SmfLog.Warnf("PccRuleString RefQosData: %v", pcc.RefQosData)
 
 	return fmt.Sprintf("PccRule:[RuleId:[%v], Precdence:[%v], RefQosData:[%v], flow:[%v]]",
 		pcc.PccRuleID, pcc.Precedence, pcc.RefQosData[0], PccFlowInfosString(pcc.FlowInfos))

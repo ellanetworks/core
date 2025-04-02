@@ -7,7 +7,6 @@ package context
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -55,12 +54,13 @@ func HandlePDUSessionResourceSetupResponseTransfer(b []byte, ctx *SMContext) err
 func HandlePathSwitchRequestTransfer(b []byte, ctx *SMContext) error {
 	pathSwitchRequestTransfer := ngapType.PathSwitchRequestTransfer{}
 
-	if err := aper.UnmarshalWithParams(b, &pathSwitchRequestTransfer, "valueExt"); err != nil {
-		return err
+	err := aper.UnmarshalWithParams(b, &pathSwitchRequestTransfer, "valueExt")
+	if err != nil {
+		return fmt.Errorf("failed to unmarshall path switch request transfer: %s", err.Error())
 	}
 
 	if pathSwitchRequestTransfer.DLNGUUPTNLInformation.Present != ngapType.UPTransportLayerInformationPresentGTPTunnel {
-		return errors.New("pathSwitchRequestTransfer.DLNGUUPTNLInformation.Present")
+		return fmt.Errorf("expected downlink transport information present to be gtp tunnel")
 	}
 
 	gtpTunnel := pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel

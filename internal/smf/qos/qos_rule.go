@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -96,7 +95,7 @@ type QosRule struct {
 	Length           uint8
 }
 
-func BuildQosRules(smPolicyUpdates *PolicyUpdate) QoSRules {
+func BuildQosRules(smPolicyUpdates *PolicyUpdate) (QoSRules, error) {
 	qosRules := QoSRules{}
 
 	smPolicyDecision := smPolicyUpdates.SmPolicyDecision
@@ -104,36 +103,35 @@ func BuildQosRules(smPolicyUpdates *PolicyUpdate) QoSRules {
 
 	// New Rules to be added
 	if pccRulesUpdate != nil {
-		for pccRuleName, pccRuleVal := range pccRulesUpdate.add {
-			logger.SmfLog.Infof("Building QoS Rule from PCC rule [%s]", pccRuleName)
+		for _, pccRuleVal := range pccRulesUpdate.add {
 			refQosData := GetQoSDataFromPolicyDecision(smPolicyDecision, pccRuleVal.RefQosData[0])
-			qosRule := BuildAddQoSRuleFromPccRule(pccRuleVal, refQosData, OperationCodeCreateNewQoSRule)
+			qosRule, err := BuildAddQoSRuleFromPccRule(pccRuleVal, refQosData, OperationCodeCreateNewQoSRule)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build QoS Rule from PCC Rule: %v", err)
+			}
 			qosRules = append(qosRules, *qosRule)
 		}
 	}
 
-	//Add default Matchall QosRule as well
-	/*
-		if smPolicyUpdates.SessRuleUpdate != nil {
-			defQosRule := BuildAddDefaultQosRule(uint8(smPolicyUpdates.SessRuleUpdate.ActiveSessRule.AuthDefQos.Var5qi))
-			qosRules = append(qosRules, *defQosRule)
-		}
-	*/
-	return qosRules
+	return qosRules, nil
 }
 
-func BuildAddQoSRuleFromPccRule(pccRule *models.PccRule, qosData *models.QosData, pccRuleOpCode uint8) *QosRule {
+func BuildAddQoSRuleFromPccRule(pccRule *models.PccRule, qosData *models.QosData, pccRuleOpCode uint8) (*QosRule, error) {
+	flowID, err := GetQosFlowIDFromQosID(qosData.QosID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get QFI from QosID: %v", err)
+	}
 	qRule := QosRule{
 		Identifier:    GetQosRuleIDFromPccRuleID(pccRule.PccRuleID),
 		DQR:           btou(qosData.DefQosFlowIndication),
 		OperationCode: pccRuleOpCode,
 		Precedence:    uint8(pccRule.Precedence),
-		QFI:           GetQosFlowIDFromQosID(qosData.QosID),
+		QFI:           flowID,
 	}
 
 	qRule.BuildPacketFilterListFromPccRule(pccRule)
 
-	return &qRule
+	return &qRule, nil
 }
 
 func btou(b bool) uint8 {

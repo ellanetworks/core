@@ -35,8 +35,6 @@ func GetPccRulesUpdate(pcfPccRules, ctxtPccRules map[string]*models.PccRule) *Pc
 		// match against SM ctxt Rules for add/mod
 		if ctxtrule := ctxtPccRules[name]; ctxtrule == nil {
 			change.add[name] = pcfRule
-		} else if GetPccRuleChanges(pcfRule, ctxtrule) {
-			change.mod[name] = pcfRule
 		}
 	}
 
@@ -59,11 +57,6 @@ func CommitPccRulesUpdate(smCtxtPolData *SmCtxtPolicyData, update *PccRulesUpdat
 			delete(smCtxtPolData.SmCtxtPccRules.PccRules, name)
 		}
 	}
-}
-
-// Get the difference between 2 pcc rules
-func GetPccRuleChanges(s, d *models.PccRule) bool {
-	return false
 }
 
 func (upd *PccRulesUpdate) GetAddPccRuleUpdate() map[string]*models.PccRule {
