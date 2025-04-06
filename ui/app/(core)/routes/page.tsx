@@ -11,7 +11,7 @@ import {
   IconButton,
 } from "@mui/material";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
-import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
+import { Delete as DeleteIcon } from "@mui/icons-material";
 import { listRoutes, deleteRoute } from "@/queries/routes";
 import CreateRouteModal from "@/components/CreateRouteModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";

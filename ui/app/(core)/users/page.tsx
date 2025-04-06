@@ -18,7 +18,7 @@ import EditUserPasswordModal from "@/components/EditUserPasswordModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
-import { GridColDef, DataGrid, GridCellParams } from '@mui/x-data-grid';
+import { GridColDef, DataGrid } from '@mui/x-data-grid';
 
 interface UserData {
   email: string;
