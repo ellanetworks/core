@@ -9,6 +9,51 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
+func TestGetHexSd(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    int
+		expected string
+	}{
+		{
+			name:     "Normal case with leading zeros",
+			input:    0x012030,
+			expected: "012030",
+		},
+		{
+			name:     "Zero value",
+			input:    0x0,
+			expected: "000000",
+		},
+		{
+			name:     "Maximum 6-digit hex value",
+			input:    0xFFFFFF,
+			expected: "FFFFFF",
+		},
+		{
+			name:     "Value with no additional padding needed",
+			input:    0xABCDEF,
+			expected: "ABCDEF",
+		},
+		{
+			name:  "Value greater than six hex digits",
+			input: 0x1234567,
+			// Note: %06X will not truncate numbers larger than 6 digits.
+			expected: "1234567",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			op := &db.Operator{Sd: tc.input}
+			result := op.GetHexSd()
+			if result != tc.expected {
+				t.Errorf("For input 0x%X, expected %s but got %s", tc.input, tc.expected, result)
+			}
+		})
+	}
+}
+
 func TestDbOperatorsEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"), initialOperator)
