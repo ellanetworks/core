@@ -143,10 +143,24 @@ You can install Ella Core on Linux or on Kubernetes.
 
     ### Pre-requisites
     - A Kubernetes cluster with:
-      - Multus CNI installed.
+        - Multus CNI installed
 
     ### Steps
 
+    Create a namespace for Ella Core:
+
     ```bash
-    kubectl apply -k github.com/ellanetworks/core/k8s/core/base?ref=v0.0.14
+    kubectl create namespace ella
     ```
+
+    Install Ella Core:
+    ```bash
+    kubectl apply -k github.com/ellanetworks/core/k8s/core/base?ref=v0.0.14 -n ella
+    ```
+
+    !!! note
+        You can change the configuration by editing the `core-config` ConfigMap:
+
+        ```bash
+        kubectl edit configmap core-config -n ella
+        ```
