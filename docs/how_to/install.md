@@ -79,7 +79,6 @@ You can install Ella Core on Linux or on Kubernetes.
 
     Navigate to `https://localhost:5002` to access the Ella UI.
 
-
     ## Building from Source
 
     You can build Ella Core from source.
@@ -140,12 +139,14 @@ You can install Ella Core on Linux or on Kubernetes.
 
 === "Kubernetes"
 
-    We provide a container image for Ella Core on GitHub Container Registry.
+    Ella Core is available as a Container image, making it easy to deploy on Kubernetes. View the Ella Core image on the [GitHub Container Registry](https://github.com/ellanetworks/core/pkgs/container/ella-core).
 
-    Pull the image from the registry:
+    ### Pre-requisites
+    - A Kubernetes cluster with:
+      - Multus CNI installed.
 
-    ```shell
-    docker pull ghcr.io/ellanetworks/ella-core:latest
+    ### Steps
+
+    ```bash
+    kubectl apply -k github.com/ellanetworks/core/k8s/core/base?ref=v0.0.14
     ```
-
-    Installation can then be done using the approach of your choice. 

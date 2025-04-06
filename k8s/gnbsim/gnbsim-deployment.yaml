@@ -30,6 +30,9 @@ spec:
         - containerPort: 38412
       - name: network-tools
         image: busybox:latest
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/gnbsim
         command:
         - /bin/sh
         - -c
