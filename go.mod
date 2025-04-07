@@ -1,26 +1,28 @@
 module github.com/ellanetworks/core
 
-go 1.24
+go 1.24.0
+
+toolchain go1.24.2
 
 require (
 	github.com/RoaringBitmap/roaring v1.9.4
 	github.com/canonical/sqlair v0.0.0-20250120155751-a83645b9a121
-	github.com/cilium/ebpf v0.17.3
+	github.com/cilium/ebpf v0.18.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0
-	github.com/mattn/go-sqlite3 v1.14.24
+	github.com/mattn/go-sqlite3 v1.14.27
 	github.com/omec-project/aper v1.2.3
-	github.com/omec-project/nas v1.4.5
+	github.com/omec-project/nas v1.4.6
 	github.com/omec-project/ngap v1.3.2
 	github.com/prometheus/client_golang v1.21.1
 	github.com/vishvananda/netlink v1.3.0
 	github.com/wmnsk/go-pfcp v0.0.24
 	go.uber.org/zap v1.27.0
-	golang.org/x/crypto v0.36.0
+	golang.org/x/crypto v0.37.0
 	golang.org/x/net v0.38.0
-	golang.org/x/sys v0.31.0
+	golang.org/x/sys v0.32.0
 	golang.org/x/time v0.11.0
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -62,7 +64,7 @@ require (
 	github.com/vishvananda/netns v0.0.5 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.15.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/text v0.24.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
