@@ -76,6 +76,11 @@ type Config struct {
 type Client struct {
 	Requester Requester
 	host      string
+	token     string
+}
+
+func (c *Client) GetToken() string {
+	return c.token
 }
 
 func New(config *Config) (*Client, error) {

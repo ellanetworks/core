@@ -30,13 +30,14 @@ func TestLogin_Success(t *testing.T) {
 		Password: "secret",
 	}
 
-	resp, err := clientObj.Login(loginOpts)
+	err := clientObj.Login(loginOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if resp.Token != "testtoken" {
-		t.Errorf("expected token 'testtoken', got: %s", resp.Token)
+	token := clientObj.GetToken()
+	if token != "testtoken" {
+		t.Errorf("expected token 'testtoken', got: %s", token)
 	}
 }
 
@@ -54,7 +55,7 @@ func TestLogin_RequesterError(t *testing.T) {
 		Password: "secret",
 	}
 
-	_, err := clientObj.Login(loginOpts)
+	err := clientObj.Login(loginOpts)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -83,7 +84,7 @@ func TestLogin_DecodeError(t *testing.T) {
 		Password: "secret",
 	}
 
-	_, err := clientObj.Login(loginOpts)
+	err := clientObj.Login(loginOpts)
 	if err == nil {
 		t.Fatal("expected a decode error, got nil")
 	}
@@ -109,7 +110,7 @@ func TestLogin_RequestParameters(t *testing.T) {
 		Password: password,
 	}
 
-	_, err := clientObj.Login(loginOpts)
+	err := clientObj.Login(loginOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}

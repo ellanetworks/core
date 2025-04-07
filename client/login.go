@@ -15,7 +15,9 @@ type LoginResponseResult struct {
 	Token string `json:"token"`
 }
 
-func (c *Client) Login(opts *LoginOptions) (*LoginResponseResult, error) {
+// Login authenticates the user with the provided email and password.
+// It stores the token in the client for future requests.
+func (c *Client) Login(opts *LoginOptions) error {
 	payload := struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -28,7 +30,7 @@ func (c *Client) Login(opts *LoginOptions) (*LoginResponseResult, error) {
 
 	err := json.NewEncoder(&body).Encode(payload)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	headers := map[string]string{
@@ -45,13 +47,15 @@ func (c *Client) Login(opts *LoginOptions) (*LoginResponseResult, error) {
 		Headers: headers,
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	err = resp.DecodeResult(&loginResponse)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &loginResponse, nil
+	c.token = loginResponse.Token
+
+	return nil
 }

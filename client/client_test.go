@@ -19,7 +19,7 @@ func (f *fakeRequester) Do(ctx context.Context, opts *client.RequestOptions) (*c
 	return f.response, f.err
 }
 
-// func TestLoginReal(t *testing.T) {
+// func TestE2EReal(t *testing.T) {
 // 	clientConfig := &client.Config{
 // 		BaseURL: "http://127.0.0.1:32308",
 // 	}
@@ -33,11 +33,28 @@ func (f *fakeRequester) Do(ctx context.Context, opts *client.RequestOptions) (*c
 // 		Email:    "admin@ellanetworks.com",
 // 		Password: "admin",
 // 	}
-// 	response, err := ella.Login(loginOpts)
+// 	err = ella.Login(loginOpts)
 // 	if err != nil {
 // 		t.Fatalf("Failed to login: %v", err)
 // 	}
-// 	if response.Token == "" {
+
+// 	token := ella.GetToken()
+// 	if token == "" {
 // 		t.Fatalf("Expected token, got empty string")
 // 	}
+
+// 	metrics, err := ella.GetMetrics()
+// 	if err != nil {
+// 		t.Fatalf("Failed to get metrics: %v", err)
+// 	}
+
+// 	if metrics == nil {
+// 		t.Fatalf("Expected metrics, got nil")
+// 	}
+
+// 	appDownlinkBytes := metrics["app_downlink_bytes"]
+// 	if appDownlinkBytes == 0 {
+// 		t.Fatalf("Expected app_downlink_bytes, got 0")
+// 	}
+
 // }
