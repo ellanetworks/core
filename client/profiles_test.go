@@ -8,12 +8,12 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-func TestCreateRoute_Success(t *testing.T) {
+func TestCreateProfile_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Route created successfully"}`),
+			Result:     []byte(`{"message": "Profile created successfully"}`),
 		},
 		err: nil,
 	}
@@ -21,141 +21,155 @@ func TestCreateRoute_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	createRouteOpts := &client.CreateRouteOptions{
-		Destination: "1.2.3.4",
-		Gateway:     "1.2.3.1",
-		Interface:   "eth0",
-		Metric:      100,
+	createProfileOpts := &client.CreateProfileOptions{
+		Name:            "testProfile",
+		UeIPPool:        "10.45.0.0/16",
+		DNS:             "8.8.8.8",
+		Mtu:             1400,
+		BitrateUplink:   "100 Mbps",
+		BitrateDownlink: "100 Mbps",
+		Var5qi:          9,
+		PriorityLevel:   1,
 	}
 
-	err := clientObj.CreateRoute(createRouteOpts)
+	err := clientObj.CreateProfile(createProfileOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
-func TestCreateRoute_Failure(t *testing.T) {
+func TestCreateProfile_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 400,
 			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid Destination"}`),
+			Result:     []byte(`{"error": "Invalid UE IP Pool"}`),
 		},
 		err: errors.New("requester error"),
 	}
 	clientObj := &client.Client{
 		Requester: fake,
 	}
-	createRouteOpts := &client.CreateRouteOptions{
-		Destination: "invalid_destination",
-		Gateway:     "1.2.3.1",
-		Interface:   "eth0",
-		Metric:      100,
+	createProfileOpts := &client.CreateProfileOptions{
+		Name:            "testProfile",
+		UeIPPool:        "12312312312",
+		DNS:             "8.8.8.8",
+		Mtu:             1400,
+		BitrateUplink:   "100 Mbps",
+		BitrateDownlink: "100 Mbps",
+		Var5qi:          9,
+		PriorityLevel:   1,
 	}
 
-	err := clientObj.CreateRoute(createRouteOpts)
+	err := clientObj.CreateProfile(createProfileOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
 }
 
-func TestGetRoute_Success(t *testing.T) {
+func TestGetProfile_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"id": 123, "destination": "1.2.3.4"}`),
+			Result:     []byte(`{"name": "my-profile", "ue-ip-pool": "1.2.3.0/24"}`),
 		},
 		err: nil,
 	}
 	clientObj := &client.Client{
 		Requester: fake,
 	}
-	var id int64 = 123
+	name := "my-profile"
 
-	getRouteOpts := &client.GetRouteOptions{
-		ID: id,
+	getRouteOpts := &client.GetProfileOptions{
+		Name: name,
 	}
-	route, err := clientObj.GetRoute(getRouteOpts)
+
+	profile, err := clientObj.GetProfile(getRouteOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if route.ID != id {
-		t.Fatalf("expected ID %d, got %d", id, route.ID)
+	if profile.Name != name {
+		t.Fatalf("expected ID %v, got %v", name, profile.Name)
+	}
+
+	if profile.UeIPPool != "1.2.3.0/24" {
+		t.Fatalf("expected ID %v, got %v", "1.2.3.0/24", profile.UeIPPool)
 	}
 }
 
-func TestGetRoute_Failure(t *testing.T) {
+func TestGetProfile_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 404,
 			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Route not found"}`),
+			Result:     []byte(`{"error": "Profile not found"}`),
 		},
 		err: errors.New("requester error"),
 	}
 	clientObj := &client.Client{
 		Requester: fake,
 	}
-	var id int64 = 123
 
-	getRouteOpts := &client.GetRouteOptions{
-		ID: id,
+	name := "non-existent-profile"
+	getProfileOpts := &client.GetProfileOptions{
+		Name: name,
 	}
-	_, err := clientObj.GetRoute(getRouteOpts)
+	_, err := clientObj.GetProfile(getProfileOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
 }
 
-func TestDeleteRoute_Success(t *testing.T) {
+func TestDeleteProfile_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Route deleted successfully"}`),
+			Result:     []byte(`{"message": "Profile deleted successfully"}`),
 		},
 		err: nil,
 	}
 	clientObj := &client.Client{
 		Requester: fake,
 	}
-	var id int64 = 132
+	name := "testProfile"
 
-	deleteRouteOpts := &client.DeleteRouteOptions{
-		ID: id,
+	deleteProfileOpts := &client.DeleteProfileOptions{
+		Name: name,
 	}
-	err := clientObj.DeleteRoute(deleteRouteOpts)
+	err := clientObj.DeleteProfile(deleteProfileOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
-func TestDeleteRoute_Failure(t *testing.T) {
+func TestDeleteProfile_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 404,
 			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Route not found"}`),
+			Result:     []byte(`{"error": "Profile not found"}`),
 		},
 		err: errors.New("requester error"),
 	}
 	clientObj := &client.Client{
 		Requester: fake,
 	}
-	var id int64 = 123
 
-	deleteRouteOpts := &client.DeleteRouteOptions{
-		ID: id,
+	name := "non-existent-profile"
+
+	deleteProfileOpts := &client.DeleteProfileOptions{
+		Name: name,
 	}
-	err := clientObj.DeleteRoute(deleteRouteOpts)
+	err := clientObj.DeleteProfile(deleteProfileOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
 }
 
-func TestListRoutes_Success(t *testing.T) {
+func TestListProfiles_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
@@ -168,17 +182,17 @@ func TestListRoutes_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	routes, err := clientObj.ListRoutes()
+	profiles, err := clientObj.ListProfiles()
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(routes) != 1 {
-		t.Fatalf("expected 1 route, got %d", len(routes))
+	if len(profiles) != 1 {
+		t.Fatalf("expected 1 profile, got %d", len(profiles))
 	}
 }
 
-func TestListRoutes_Failure(t *testing.T) {
+func TestListProfiles_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 500,
@@ -191,7 +205,7 @@ func TestListRoutes_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	_, err := clientObj.ListRoutes()
+	_, err := clientObj.ListProfiles()
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

@@ -127,4 +127,69 @@ func (f *fakeRequester) Do(ctx context.Context, opts *client.RequestOptions) (*c
 // 	if len(routes) != 0 {
 // 		t.Fatalf("Expected no routes, got %d", len(routes))
 // 	}
+
+// 	profiles, err := ella.ListProfiles()
+// 	if err != nil {
+// 		t.Fatalf("Failed to list profiles: %v", err)
+// 	}
+// 	if len(profiles) == 0 {
+// 		t.Fatalf("Expected profiles, got empty list")
+// 	}
+
+// 	newProfile := &client.CreateProfileOptions{
+// 		Name:            "testProfile",
+// 		UeIPPool:        "10.45.0.0/16",
+// 		DNS:             "8.8.8.8",
+// 		Mtu:             1400,
+// 		BitrateUplink:   "100 Mbps",
+// 		BitrateDownlink: "100 Mbps",
+// 		Var5qi:          9,
+// 		PriorityLevel:   1,
+// 	}
+// 	err = ella.CreateProfile(newProfile)
+// 	if err != nil {
+// 		t.Fatalf("Failed to create profile: %v", err)
+// 	}
+// 	_, err = ella.ListProfiles()
+// 	if err != nil {
+// 		t.Fatalf("Failed to list profiles: %v", err)
+// 	}
+// 	getProfileOpt := &client.GetProfileOptions{
+// 		Name: "testProfile",
+// 	}
+// 	profile, err := ella.GetProfile(getProfileOpt)
+// 	if err != nil {
+// 		t.Fatalf("Failed to get profile: %v", err)
+// 	}
+// 	if profile == nil {
+// 		t.Fatalf("Expected profile, got nil")
+// 	}
+// 	deleteProfileOpts := &client.DeleteProfileOptions{
+// 		Name: "testProfile",
+// 	}
+// 	err = ella.DeleteProfile(deleteProfileOpts)
+// 	if err != nil {
+// 		t.Fatalf("Failed to delete profile: %v", err)
+// 	}
+// 	profile, err = ella.GetProfile(getProfileOpt)
+// 	if err == nil {
+// 		t.Fatalf("Expected error, got nil")
+// 	}
+// 	if profile != nil {
+// 		t.Fatalf("Expected nil, got profile")
+// 	}
+
+// 	status, err := ella.GetStatus()
+// 	if err != nil {
+// 		t.Fatalf("Failed to get status: %v", err)
+// 	}
+// 	if status == nil {
+// 		t.Fatalf("Expected status, got nil")
+// 	}
+// 	if status.Initialized != true {
+// 		t.Fatalf("Expected initialized status, got false")
+// 	}
+// 	if status.Version != "v0.0.14" {
+// 		t.Fatalf("Expected version v0.0.14, got %s", status.Version)
+// 	}
 // }
