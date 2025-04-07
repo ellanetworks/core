@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-
 import logging
 import subprocess
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +25,41 @@ class Kubernetes:
             logger.error(f"Failed to delete namespace: {e}")
             raise RuntimeError("Failed to delete namespace") from e
 
+    def get_configmap(self, name: str) -> dict:
+        """Fetch the given ConfigMap using kubectl."""
+        cmd = [
+            "kubectl",
+            "get",
+            "configmap",
+            name,
+            "-n",
+            self.namespace,
+            "-o",
+            "yaml",
+        ]
+        output = subprocess.check_output(cmd)
+        return yaml.safe_load(output)
+
+    def patch_configmap(self, name: str, patch: dict) -> None:
+        """Patch the given ConfigMap using kubectl."""
+        patch_yaml = yaml.dump(patch, default_flow_style=False)
+        cmd = [
+            "kubectl",
+            "patch",
+            "configmap",
+            name,
+            "-n",
+            self.namespace,
+            "--patch",
+            patch_yaml,
+        ]
+        subprocess.check_call(cmd)
+
     def apply_manifest(self, manifest_path: str):
         subprocess.check_call(["kubectl", "apply", "-f", manifest_path, "-n", self.namespace])
+
+    def apply_kustomize(self, kustomize_path: str):
+        subprocess.check_call(["kubectl", "apply", "-k", kustomize_path, "-n", self.namespace])
 
     def wait_for_app_ready(self, app_name: str):
         label_selector = f"app={app_name}"
@@ -51,7 +85,8 @@ class Kubernetes:
 
     def get_pod_name(self, app_name: str):
         try:
-            pod_name = subprocess.check_output(
+            # Get all pod names sorted by creation timestamp
+            pod_names_str = subprocess.check_output(
                 [
                     "kubectl",
                     "get",
@@ -60,12 +95,17 @@ class Kubernetes:
                     self.namespace,
                     "-l",
                     f"app={app_name}",
+                    "--sort-by=.metadata.creationTimestamp",
                     "-o",
-                    "jsonpath={.items[0].metadata.name}",
+                    "jsonpath={.items[*].metadata.name}",
                 ],
                 text=True,
             ).strip()
-            return pod_name
+            pod_names = pod_names_str.split()
+            if not pod_names:
+                raise RuntimeError("No pods found")
+            # Return the last pod (the newest one)
+            return pod_names[-1]
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to get pod name: {e}")
             raise RuntimeError("Failed to get pod name") from e
@@ -92,7 +132,49 @@ class Kubernetes:
             logger.error(f"Failed to fetch Ella NodePort: {e.output}")
             raise RuntimeError(f"Could not retrieve NodePort for {service_name} service") from e
 
-    def exec(self, pod_name: str, command: str, timeout: int = 60) -> str:
+    def rollout_restart(self, deployment_name: str):
+        """Rollout restart the given deployment using kubectl."""
+        try:
+            subprocess.check_call(
+                [
+                    "kubectl",
+                    "rollout",
+                    "restart",
+                    "deployment",
+                    deployment_name,
+                    "-n",
+                    self.namespace,
+                ]
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to rollout restart: {e}")
+            raise RuntimeError("Failed to rollout restart") from e
+
+    def wait_for_rollout(self, deployment_name: str):
+        """Wait for the rollout of the given deployment to finish."""
+        try:
+            subprocess.check_call(
+                [
+                    "kubectl",
+                    "rollout",
+                    "status",
+                    "deployment",
+                    deployment_name,
+                    "-n",
+                    self.namespace,
+                ]
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to wait for rollout: {e}")
+            raise RuntimeError("Failed to wait for rollout") from e
+
+    def exec(
+        self,
+        pod_name: str,
+        command: str,
+        container: str,
+        timeout: int = 60,
+    ) -> str:
         command_list = command.split()
         try:
             result = subprocess.check_output(
@@ -101,6 +183,8 @@ class Kubernetes:
                     "exec",
                     "-i",
                     pod_name,
+                    "-c",
+                    container,
                     "-n",
                     self.namespace,
                     "--",

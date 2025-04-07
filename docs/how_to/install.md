@@ -1,16 +1,18 @@
 ---
-description: Step-by-step instructions to deploy Ella Core.
+description: Step-by-step instructions to install Ella Core.
 ---
 
-# Deploy
+# Install
 
-Ella Core is available as a Snap and a container image.
+You can install Ella Core on Linux or on Kubernetes.
 
-=== "Snap (Recommended)"
+=== "Linux"
 
-    Ella Core is available as a Snap. View it on the [Snap Store](https://snapcraft.io/ella-core).
+    ## Using the Snap (Recommended)
 
-    ## Pre-requisites
+    Ella Core is available as a Snap, making it easy to install on many Linux distributions, including Ubuntu, Ubuntu Core, Debian, Arch Linux, and more. View the Ella Core snap on the [Snap Store](https://snapcraft.io/ella-core).
+
+    ### Pre-requisites
 
     - A machine with at least:
         - 2 CPU cores
@@ -19,7 +21,7 @@ Ella Core is available as a Snap and a container image.
         - 4 network interfaces
     - A Linux distribution that supports Snap packages.
   
-    ## Steps
+    ### Steps
 
     Install the snap:
 
@@ -70,33 +72,21 @@ Ella Core is available as a Snap and a container image.
         For more information on the configuration options, see the [configuration file reference](../reference/config_file.md).
 
     Start the service:
+
     ```bash
     sudo snap start ella-core.cored
     ```
 
     Navigate to `https://localhost:5002` to access the Ella UI.
 
-
-=== "Container"
-
-    We provide a container image for Ella Core on GitHub Container Registry.
-
-    Pull the image from the registry:
-
-    ```shell
-    docker pull ghcr.io/ellanetworks/ella-core:latest
-    ```
-
-    Installation can then be done using the approach of your choice. 
-
-=== "Source"
+    ## Building from Source
 
     You can build Ella Core from source.
 
     !!! warning
         Building from source is recommended for development purposes only.
 
-    ## Pre-requisites
+    ### Pre-requisites
 
     Install the pre-requisites:
 
@@ -105,6 +95,8 @@ Ella Core is available as a Snap and a container image.
     sudo snap install node --channel=20/stable --classic
     sudo apt install clang llvm gcc-multilib libbpf-dev
     ```
+
+    ### Steps
 
     Clone the Ella Core repository:
 
@@ -123,12 +115,14 @@ Ella Core is available as a Snap and a container image.
         For example, to build version 0.0.4, run `git checkout v0.0.4`.
 
     Build the frontend:
+  
     ```shell
     npm install --prefix ui
     npm run build --prefix ui
     ```
 
     Build the backend:
+  
     ```shell
     go build cmd/core/main.go
     ```
@@ -136,8 +130,37 @@ Ella Core is available as a Snap and a container image.
     Edit the configuration file at `core.yaml` to configure the network interfaces.
 
     Start the service:
+  
     ```shell
     ./main --config core.yaml
     ```
 
     Navigate to `https://localhost:5002` to access the Ella UI.
+
+=== "Kubernetes"
+
+    Ella Core is available as a Container image, making it easy to deploy on Kubernetes. View the Ella Core image on the [GitHub Container Registry](https://github.com/ellanetworks/core/pkgs/container/ella-core).
+
+    ### Pre-requisites
+    - A Kubernetes cluster with:
+        - Multus CNI installed
+
+    ### Steps
+
+    Create a namespace for Ella Core:
+
+    ```bash
+    kubectl create namespace ella
+    ```
+
+    Install Ella Core:
+    ```bash
+    kubectl apply -k github.com/ellanetworks/core/k8s/core/base?ref=v0.0.14 -n ella
+    ```
+
+    !!! note
+        You can change the configuration by editing the `core-config` ConfigMap:
+
+        ```bash
+        kubectl edit configmap core-config -n ella
+        ```

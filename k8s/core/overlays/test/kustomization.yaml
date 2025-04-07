@@ -1,0 +1,8 @@
+images:
+- name: ghcr.io/ellanetworks/ella-core
+  newName: localhost:5000/ella-core
+  newTag: latest
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../base

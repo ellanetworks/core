@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ueransim-config
+data:
+  gnb.yaml: |
+    amfConfigs:
+    - address: 192.168.253.3
+      port: 38412
+    gtpIp: 192.168.252.6
+    idLength: 32
+    ignoreStreamIds: true
+    linkIp: 127.0.0.1
+    mcc: '001'
+    mnc: '01'
+    nci: '0x000000010'
+    ngapIp: 192.168.253.6
+    slices:
+    - sd: 1056816
+      sst: 1
+    tac: 1
+  ue.yaml: |
+    amf: '8000'
+    apn: internet
+    ciphering:
+      EA1: true
+      EA2: true
+      EA3: true
+    configured-nssai:
+    - sst: 1
+    default-nssai:
+    - sd: 1
+      sst: 1
+    gnbSearchList:
+    - 127.0.0.1
+    homeNetworkPublicKey: 75d1dde9519b390b172104ae3397557a114acbd39d3c39b2bcc3ce282abc4c3e
+    homeNetworkPublicKeyId: 1
+    imei: '356938035643803'
+    imeiSv: '4370816125816151'
+    integrity:
+      IA1: true
+      IA2: true
+      IA3: true
+    integrityMaxRate:
+      downlink: full
+      uplink: full
+    key: 5122250214c33e723a5dd523fc145fc0
+    mcc: '001'
+    mnc: '01'
+    op: 07885f59c03886755c3a45ba64caee86
+    opType: OPC
+    protectionScheme: 0
+    routingIndicator: '0000'
+    sd: 1056816
+    sessions:
+    - type: IPv4
+    slice:
+      sd: 1056816
+      sst: 1
+    supi: imsi-001010100000001
+    uacAcc:
+      class11: false
+      class12: false
+      class13: false
+      class14: false
+      class15: false
+      normalClass: 0
+    uacAic:
+      mcs: false
+      mps: false
+  pebble_gnb.yaml: |
+    summary: UERANSIM gNodeB Pebble layer
+    description: UERANSIM gNodeB Pebble layer
+    services:
+      gnb:
+        override: replace
+        summary: gNodeB service
+        command: /bin/nr-gnb --config /etc/ueransim/gnb.yaml
+        startup: enabled
+  pebble_ue.yaml: |
+    summary: UERANSIM UE Pebble layer
+    description: UERANSIM UE Pebble layer
+    services:
+      ue:
+        override: replace
+        summary: UE service
+        command: /bin/nr-ue --config /etc/ueransim/ue.yaml
+        startup: enabled

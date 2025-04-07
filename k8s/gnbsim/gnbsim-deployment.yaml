@@ -1,41 +1,38 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: router
+  name: gnbsim
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: router
+      app: gnbsim
   template:
     metadata:
       labels:
-        app: router
+        app: gnbsim
       annotations:
         k8s.v1.cni.cncf.io/networks: |
           [
-            {
-              "name": "router-n6",
-              "interface": "core"
-            }
+            {"name": "gnb-n2", "interface": "n2"},
+            {"name": "gnb-n3", "interface": "n3"}
           ]
     spec:
       containers:
-      - name: router
-        image: ghcr.io/canonical/ubuntu-router:0.1
-        command: ["/bin/bash", "-c"]
-        args:
-          - >
-            sysctl -w net.ipv4.ip_forward=1;
-            iptables-legacy -t nat -A POSTROUTING -o eth0 -j MASQUERADE;
-            trap : TERM INT; sleep infinity & wait
+      - name: gnbsim
+        image: ghcr.io/canonical/sdcore-gnbsim:1.4.5
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/gnbsim
         securityContext:
           privileged: true
-          capabilities:
-            add:
-              - NET_ADMIN
+        ports:
+        - containerPort: 38412
       - name: network-tools
         image: busybox:latest
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/gnbsim
         command:
         - /bin/sh
         - -c
@@ -50,3 +47,7 @@ spec:
           limits:
             memory: "64Mi"
             cpu: "100m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: gnbsim-config
