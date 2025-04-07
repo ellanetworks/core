@@ -37,3 +37,48 @@ Ella Core uses rate limiting to prevent abuse of the API. The rate limit is set 
 - 401 - Unauthorized.
 - 429 - Too many requests.
 - 500 - Internal server error.
+
+## Client
+
+Ella Core provides a Go client for interacting with the API.
+
+```go
+package main
+
+import (
+	"log"
+
+	"github.com/ellanetworks/core/client"
+)
+
+func main() {
+	clientConfig := &client.Config{
+		BaseURL: "http://127.0.0.1:32308",
+	}
+
+	ella, err := client.New(clientConfig)
+	if err != nil {
+		log.Println("Failed to create client:", err)
+	}
+
+	loginOpts := &client.LoginOptions{
+		Email:    "admin@ellanetworks.com",
+		Password: "admin",
+	}
+	err = ella.Login(loginOpts)
+	if err != nil {
+		log.Println("Failed to login:", err)
+	}
+
+	createSubscriberOpts := &client.CreateSubscriberOptions{
+		Imsi:           "001010100000033",
+		Key:            "5122250214c33e723a5dd523fc145fc0",
+		SequenceNumber: "000000000022",
+		ProfileName:    "default",
+	}
+	err = ella.CreateSubscriber(createSubscriberOpts)
+	if err != nil {
+		log.Println("Failed to create subscriber:", err)
+	}
+}
+```
