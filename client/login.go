@@ -23,7 +23,9 @@ func (c *Client) Login(opts *LoginOptions) (*LoginResponseResult, error) {
 		Email:    opts.Email,
 		Password: opts.Password,
 	}
+
 	var body bytes.Buffer
+
 	err := json.NewEncoder(&body).Encode(payload)
 	if err != nil {
 		return nil, err
@@ -32,8 +34,10 @@ func (c *Client) Login(opts *LoginOptions) (*LoginResponseResult, error) {
 	headers := map[string]string{
 		"Content-Type": "application/json",
 	}
+
 	var loginResponse LoginResponseResult
-	resp, err := c.Requester().Do(context.Background(), &RequestOptions{
+
+	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
 		Type:    SyncRequest,
 		Method:  "POST",
 		Path:    "api/v1/auth/login",
@@ -43,9 +47,11 @@ func (c *Client) Login(opts *LoginOptions) (*LoginResponseResult, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	err = resp.DecodeResult(&loginResponse)
 	if err != nil {
 		return nil, err
 	}
+
 	return &loginResponse, nil
 }

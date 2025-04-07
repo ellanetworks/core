@@ -1,25 +1,43 @@
 package client_test
 
-// func TestClient(t *testing.T) {
-// 	config := &client.Config{
+import (
+	"context"
+
+	"github.com/ellanetworks/core/client"
+)
+
+type fakeRequester struct {
+	response *client.RequestResponse
+	err      error
+	// lastOpts holds the most recent RequestOptions passed in, so that we can verify
+	// that the Login method constructs the request correctly.
+	lastOpts *client.RequestOptions
+}
+
+func (f *fakeRequester) Do(ctx context.Context, opts *client.RequestOptions) (*client.RequestResponse, error) {
+	f.lastOpts = opts
+	return f.response, f.err
+}
+
+// func TestLoginReal(t *testing.T) {
+// 	clientConfig := &client.Config{
 // 		BaseURL: "http://127.0.0.1:32308",
 // 	}
-// 	ellaClient, err := client.New(config)
+// 	ella, err := client.New(clientConfig)
+
 // 	if err != nil {
 // 		t.Fatalf("Failed to create client: %v", err)
 // 	}
+
 // 	loginOpts := &client.LoginOptions{
 // 		Email:    "admin@ellanetworks.com",
-// 		Password: "aa",
+// 		Password: "admin",
 // 	}
-// 	loginResponse, err := ellaClient.Login(loginOpts)
+// 	response, err := ella.Login(loginOpts)
 // 	if err != nil {
 // 		t.Fatalf("Failed to login: %v", err)
 // 	}
-// 	if loginResponse == nil {
-// 		t.Fatalf("Login response is nil")
-// 	}
-// 	if loginResponse.Token == "" {
-// 		t.Fatalf("Login response token is empty")
+// 	if response.Token == "" {
+// 		t.Fatalf("Expected token, got empty string")
 // 	}
 // }
