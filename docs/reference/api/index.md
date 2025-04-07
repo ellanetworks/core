@@ -40,7 +40,7 @@ Ella Core uses rate limiting to prevent abuse of the API. The rate limit is set 
 
 ## Client
 
-Ella Core provides a client library for Go, which can used to interact with the API.
+Ella Core provides a Go client for interacting with the API.
 
 ```go
 package main
