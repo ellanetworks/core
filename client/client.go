@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"time"
 )
 
 type Requester interface {
@@ -44,8 +43,7 @@ type RequestResponse struct {
 }
 
 // DecodeResult decodes the endpoint-specific result payload that is included as part of
-// sync and async request responses. The decoding is performed with the standard JSON
-// package, so the usual field tags should be used to prepare the type for decoding.
+// sync and async request responses.
 func (resp *RequestResponse) DecodeResult(result any) error {
 	reader := bytes.NewReader(resp.Result)
 	dec := json.NewDecoder(reader)
@@ -96,7 +94,6 @@ func New(config *Config) (*Client, error) {
 	}
 
 	client.Requester = requester
-
 	client.host = requester.baseURL.Host
 
 	return client, nil
@@ -123,7 +120,6 @@ func (e ConnectionError) Unwrap() error {
 }
 
 func (rq *defaultRequester) dispatch(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
-	// fake a url to keep http.Client happy
 	u := rq.baseURL
 	u.Path = path.Join(rq.baseURL.Path, urlpath)
 	u.RawQuery = query.Encode()
@@ -133,8 +129,14 @@ func (rq *defaultRequester) dispatch(ctx context.Context, method, urlpath string
 		return nil, RequestError{err}
 	}
 
+	// Set any custom headers.
 	for key, value := range headers {
 		req.Header.Set(key, value)
+	}
+
+	// Set the authentication token if available.
+	if rq.client.token != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rq.client.token))
 	}
 
 	rsp, err := rq.doer.Do(req)
@@ -145,53 +147,14 @@ func (rq *defaultRequester) dispatch(ctx context.Context, method, urlpath string
 	return rsp, nil
 }
 
-var (
-	doRetry   = 250 * time.Millisecond
-	doTimeout = 5 * time.Second
-)
-
-// retry builds in a retry mechanism for GET failures.
-func (rq *defaultRequester) retry(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
-	retry := time.NewTicker(doRetry)
-	defer retry.Stop()
-
-	timeout := time.After(doTimeout)
-
-	var rsp *http.Response
-
-	var err error
-
-	for {
-		rsp, err = rq.dispatch(ctx, method, urlpath, query, headers, body)
-		if err == nil || method != "GET" {
-			break
-		}
-		select {
-		case <-retry.C:
-			continue
-		case <-timeout:
-		case <-ctx.Done():
-		}
-
-		break
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return rsp, nil
-}
-
-// Do performs the HTTP request according to the provided options, possibly retrying GET requests
-// if appropriate for the status reported by the server.
+// Do performs the HTTP request according to the provided options.
 func (rq *defaultRequester) Do(ctx context.Context, opts *RequestOptions) (*RequestResponse, error) {
-	httpResp, err := rq.retry(ctx, opts.Method, opts.Path, opts.Query, opts.Headers, opts.Body)
+	httpResp, err := rq.dispatch(ctx, opts.Method, opts.Path, opts.Query, opts.Headers, opts.Body)
 	if err != nil {
 		return nil, err
 	}
 
-	// Is the result expecting a caller-managed raw body?
+	// For RawRequest types, the caller manages the response body.
 	if opts.Type == RawRequest {
 		return &RequestResponse{
 			StatusCode: httpResp.StatusCode,
@@ -207,12 +170,10 @@ func (rq *defaultRequester) Do(ctx context.Context, opts *RequestOptions) (*Requ
 		return nil, err
 	}
 
-	// Deal with error type response
 	if err := serverResp.err(); err != nil {
 		return nil, err
 	}
 
-	// Common response
 	return &RequestResponse{
 		Headers: httpResp.Header,
 		Result:  serverResp.Result,
@@ -235,8 +196,7 @@ func decodeInto(reader io.Reader, v any) error {
 	return nil
 }
 
-// A response produced by the REST API will usually fit in this
-// (exceptions are the icons/ endpoints obvs)
+// response is the common structure produced by the REST API.
 type response struct {
 	Result json.RawMessage `json:"result"`
 	Error  string          `json:"error"`
@@ -246,7 +206,6 @@ func (rsp *response) err() error {
 	if rsp.Error != "" {
 		return fmt.Errorf("server error: %s", rsp.Error)
 	}
-
 	return nil
 }
 
@@ -261,17 +220,14 @@ func newDefaultRequester(client *Client, opts *Config) (*defaultRequester, error
 		opts = &Config{}
 	}
 
-	var requester *defaultRequester
-
 	baseURL, err := url.Parse(opts.BaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse base URL: %w", err)
 	}
 
-	requester = &defaultRequester{baseURL: *baseURL}
-
-	requester.doer = &http.Client{}
-	requester.client = client
-
-	return requester, nil
+	return &defaultRequester{
+		baseURL: *baseURL,
+		doer:    &http.Client{},
+		client:  client,
+	}, nil
 }

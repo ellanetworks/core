@@ -37,8 +37,6 @@ func (c *Client) Login(opts *LoginOptions) error {
 		"Content-Type": "application/json",
 	}
 
-	var loginResponse LoginResponseResult
-
 	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
 		Type:    SyncRequest,
 		Method:  "POST",
@@ -49,6 +47,8 @@ func (c *Client) Login(opts *LoginOptions) error {
 	if err != nil {
 		return err
 	}
+
+	var loginResponse LoginResponseResult
 
 	err = resp.DecodeResult(&loginResponse)
 	if err != nil {
