@@ -120,4 +120,11 @@ func (f *fakeRequester) Do(ctx context.Context, opts *client.RequestOptions) (*c
 // 		t.Fatalf("Failed to delete subscriber: %v", err)
 // 	}
 
+// 	routes, err := ella.ListRoutes()
+// 	if err != nil {
+// 		t.Fatalf("Failed to list routes: %v", err)
+// 	}
+// 	if len(routes) != 0 {
+// 		t.Fatalf("Expected no routes, got %d", len(routes))
+// 	}
 // }
