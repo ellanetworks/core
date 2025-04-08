@@ -1,10 +1,7 @@
 package integration_test
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -151,7 +148,7 @@ func deploy(k *K8s) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get node port: %v", err)
 	}
-	return fmt.Sprintf("https://127.0.0.1:%d", nodePort), nil
+	return fmt.Sprintf("http://127.0.0.1:%d", nodePort), nil
 }
 
 func patchGnbsimConfigmap(k *K8s, subscriber *client.Subscriber) error {
@@ -282,23 +279,8 @@ func TestIntegrationGnbsim(t *testing.T) {
 	}
 	t.Log("deployed ella core")
 
-	caCertPath := "testdata/cert.pem"
-	caCert, err := os.ReadFile(caCertPath)
-	if err != nil {
-		t.Fatalf("failed to read CA cert: %v", err)
-	}
-
-	caCertPool := x509.NewCertPool()
-	ok := caCertPool.AppendCertsFromPEM(caCert)
-	if !ok {
-		t.Fatalf("failed to append CA cert to pool")
-	}
-
 	clientConfig := &client.Config{
 		BaseURL: ellaCoreURL,
-		TLSConfig: &tls.Config{
-			RootCAs: caCertPool,
-		},
 	}
 	ellaClient, err := client.New(clientConfig)
 	if err != nil {

@@ -23,58 +23,5 @@ data:
       api:
         name: "enp0s8"
         port: 5002
-        tls:
-          cert: "/config/cert.pem"
-          key: "/config/key.pem"
     xdp:
       attach-mode: "generic"
-  cert.pem: |
-    -----BEGIN CERTIFICATE-----
-    MIIDSTCCAjGgAwIBAgIUYQo3fV/37vGKALamfeua3xiz4TowDQYJKoZIhvcNAQEL
-    BQAwIDEeMBwGA1UEAwwVY29yZS5lbGxhbmV0d29ya3MuY29tMB4XDTI1MDQwODIx
-    MDUyNVoXDTI2MDQwODIxMDUyNVowIDEeMBwGA1UEAwwVY29yZS5lbGxhbmV0d29y
-    a3MuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwdcAdEbLwck3
-    g6LRfPE9SOmn0hD/OAyrya34pLrh+jXyo8mEsXImIwIkJp5lHq7KvxDwOrseN6LY
-    JEl5YjOTfB6EQBfkaTRA1pM0WtqNI73NGr7AP2NUaIDWcNc9LaEd7hKhoTOK2ALC
-    IYNG4PKQuMTCEnmQ8i+/FXjp0jgL7QyJFgR+gCta/JDArqPbAMY0NjT7Jtm5gihN
-    SoM9pNQjgg8A8GFA91AipM4EWMr6g/gnSXXicIG/kTzuO8QhUxtLxxUlJQzBHZ5G
-    4UKZKiFLhnNWnWHz2m2rtg7RwDbZEoX3DGP3BfWej49ik/r39zF+791VRNaFwKjN
-    4klMQmMJOQIDAQABo3sweTAdBgNVHQ4EFgQUh4bWAW6h7TCzGbTT8c27jgVHzesw
-    HwYDVR0jBBgwFoAUh4bWAW6h7TCzGbTT8c27jgVHzeswDwYDVR0TAQH/BAUwAwEB
-    /zAmBgNVHREEHzAdhwR/AAABghVjb3JlLmVsbGFuZXR3b3Jrcy5jb20wDQYJKoZI
-    hvcNAQELBQADggEBAFvq4IS+sEILN7H4M1rIJQUQgrzS/rYfWnnONOuJp+7LilOj
-    tfqhrNxyei+02LyVWxTHb9/j8+LfiLm8fCnEywlVKCaWAiNmeNzEuqwilsCK+1GS
-    Yqt6dth8OdnMMAcNiA2kn1ANRjgKvQBEGPs43qIcJgUUtsnEDAFiVYAEbiR8Fm5/
-    +LcEubT48YzlfmoinL5yfSHPrg42yge8XzExFSKeozRuqwbcSJYtWn0u3BMiRnlL
-    2J/5uOx8aBFtoBdU/ISEnpv1W6LMxw7C0LvE4rH5hy+UK8gsGC5/iMVC9T8AQ6Fi
-    BPbOeEoxLug2uzmNjTdJkJsDrUn8IS9hf7Ffknk=
-    -----END CERTIFICATE-----
-  key.pem: |
-    -----BEGIN PRIVATE KEY-----
-    MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDB1wB0RsvByTeD
-    otF88T1I6afSEP84DKvJrfikuuH6NfKjyYSxciYjAiQmnmUersq/EPA6ux43otgk
-    SXliM5N8HoRAF+RpNEDWkzRa2o0jvc0avsA/Y1RogNZw1z0toR3uEqGhM4rYAsIh
-    g0bg8pC4xMISeZDyL78VeOnSOAvtDIkWBH6AK1r8kMCuo9sAxjQ2NPsm2bmCKE1K
-    gz2k1COCDwDwYUD3UCKkzgRYyvqD+CdJdeJwgb+RPO47xCFTG0vHFSUlDMEdnkbh
-    QpkqIUuGc1adYfPabau2DtHANtkShfcMY/cF9Z6Pj2KT+vf3MX7v3VVE1oXAqM3i
-    SUxCYwk5AgMBAAECggEAIDvi6zMfrJLLvMPtXr/WH2MdoXjqnBU9Vv0rcSdTr1Jb
-    zmFTQ9fV4DH5tYNXEPZjqEjGjhmyQXG+zC/8s7gccUI431ipxtXl51jU1rvrxxMH
-    wcgRO6lGrtcn8d1VItqdWcr23lHuJ5Qz2LNWLM+hgdxUYpKdKC0I82bnSSpBT3Kh
-    IhFgsh+uEj0uv5/yD4ybngHhMyCmEBLXQjsjSftCrjradupq6lHMZkNmRqTm4bQj
-    Lq6NfhmA3GRXo0vQBKcFbLMD1WhgOZo3gm90atgdozA5RvAqXBZ3viouKRIUEWJ1
-    +B2E0U0x6PocgTdPcfc469LL+0z15SW4jPNTkqhBNQKBgQDxJiQCS8MpDm2OYxaj
-    LpLFmZwIA87HN+2eh5h28XknfCzcDIkMRzHaNyTvGeUs7q3aJdHquBR0ZGSN0tOR
-    Tio+wf2Sv9tKB40MjnB2Je87gaN5gRcaa+9idtK36k68PvNjrActMtyDbUMWjAo/
-    IhQv6t3OhWaVGi6+9bh57pb5zQKBgQDNxwEHv0DlxYpw9BB81DkT1/Zw5XeeVloy
-    zYx7HmLwGh6FRmNOTdrEekeCrEHRlfKQHQ1JccfjwcpkupSUfraADRkEBi7WSS1T
-    OylPyYXJiqfKYprueQPXsXTtZ3l7r5ROPlfkbOYLpObonpYKeK1nqNL4a2cyeP9W
-    AbcpoNqxHQKBgA6JvRwCU0azXvl5kdDOqvyMsTJugFXUUlf/Vrq8/g/aVZ4Ch3Sd
-    Ci1cq7Zaek2GKib/prMe2+TUdJd0QVr+Ol/ENDRXqrHA2MkMAU2uJckRnLhjhvAJ
-    18m43iVGU+7XYLb+lQQtj8vAl43RbYC23j6xSyP7ON7+UBklGTUIpEN1AoGAJUua
-    LjNFqd9hthMmIdm89pG/wrp0Maho9Kg4e+AIAohZW8JkIT8PFWksKMzbqQbKTcBW
-    Nid/GRJ4gkUmxLsqjI7TJ92PA5uDsYAZfrKBowOUYaP5fJtGTQOGs7h7ViV+dafq
-    +iWalCWxDBwiCYfRteXtRsUAkS9I5+ersMnMmSkCgYA+iAE7Nx3kLSjQCO/rqN+W
-    eEwDfXTkRhJ1FCO7thdC7/U5wTEajM4Akv1TvgwB8Rk1uVRqhtCy3Xwqr9FJUDSR
-    ciE8fpB+yu4DhuF5sAlcq/6gfOiHZcWiZKUBGgAPgdvZCKDB3vYCPCSg7ght7+yg
-    eBe1dZTgviu7kLLPWgtQsQ==
-    -----END PRIVATE KEY-----
