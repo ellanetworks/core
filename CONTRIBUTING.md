@@ -51,10 +51,16 @@ docker push localhost:5000/ella-core:latest
 Run End-to-End tests
 
 ```shell
-go test ./...
+INTEGRATION=1 go test ./...
 ```
 
 ## How-to Guides
+
+### Run Unit Tests
+
+```shell
+go test ./...
+```
 
 ### Build the Frontend
 
@@ -108,7 +114,7 @@ docker run ella-core:latest
 ### View Test Coverage
 
 ```shell
-go test -short ./... -coverprofile coverage.out
+go test ./... -coverprofile coverage.out
 go tool cover -func coverage.out
 ```
 

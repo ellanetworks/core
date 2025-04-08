@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -267,8 +268,8 @@ func patchUERANSIMConfigmap(k *K8s, subscriber *client.Subscriber) error {
 }
 
 func TestIntegrationGnbsim(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
+	if os.Getenv("INTEGRATION") == "" {
+		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
 	k := &K8s{Namespace: gnbsimNamespace}
@@ -359,8 +360,8 @@ func TestIntegrationGnbsim(t *testing.T) {
 }
 
 func TestIntegrationUERANSIM(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
+	if os.Getenv("INTEGRATION") == "" {
+		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
 	k := &K8s{Namespace: ueransimNamespace}
