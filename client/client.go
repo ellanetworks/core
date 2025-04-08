@@ -3,6 +3,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -68,6 +69,8 @@ type doer interface {
 type Config struct {
 	// BaseURL contains the base URL where Ella Core is expected to be.
 	BaseURL string
+	// TLSConfig is an optional TLS configuration.
+	TLSConfig *tls.Config
 }
 
 // A Client knows how to talk to the the Ella Core API.
@@ -225,9 +228,19 @@ func newDefaultRequester(client *Client, opts *Config) (*defaultRequester, error
 		return nil, fmt.Errorf("cannot parse base URL: %w", err)
 	}
 
+	// Create a custom http.Transport with TLSConfig if provided.
+	transport := &http.Transport{}
+	if opts.TLSConfig != nil {
+		transport.TLSClientConfig = opts.TLSConfig
+	}
+
+	httpClient := &http.Client{
+		Transport: transport,
+	}
+
 	return &defaultRequester{
 		baseURL: *baseURL,
-		doer:    &http.Client{},
+		doer:    httpClient,
 		client:  client,
 	}, nil
 }
