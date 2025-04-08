@@ -12,6 +12,7 @@ import (
 
 const (
 	gnbsimNamespace              = "gnbsim"
+	ueransimNamespace            = "ueransim"
 	testProfileName              = "default"
 	numIMSIS                     = 5
 	testStartIMSI                = "001010100000001"
@@ -123,7 +124,7 @@ func deploy(k *K8s) (string, error) {
 		return "", fmt.Errorf("failed to create namespace %s: %v", gnbsimNamespace, err)
 	}
 
-	err = k.ApplyKustomize("../k8s/core/base")
+	err = k.ApplyKustomize("../k8s/core/overlays/test")
 	if err != nil {
 		return "", fmt.Errorf("kubectl apply failed: %v", err)
 	}
@@ -157,7 +158,6 @@ func patchGnbsimConfigmap(k *K8s, subscriber *client.Subscriber) error {
 		return fmt.Errorf("failed to get configmap %s: %v", configmapName, err)
 	}
 
-	// Assert the "data" field as map[interface{}]interface{}
 	data, ok := configmap["data"].(map[interface{}]interface{})
 	if !ok {
 		return fmt.Errorf("the 'data' field in the ConfigMap is not of the expected type")
@@ -172,7 +172,6 @@ func patchGnbsimConfigmap(k *K8s, subscriber *client.Subscriber) error {
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal configmap data: %v", err)
 	}
-	// Update the necessary fields with values from the subscriber
 	configuration, ok := config["configuration"].(map[interface{}]interface{})
 	if !ok {
 		return fmt.Errorf("the 'configuration' key is missing or not a map in the config")
@@ -214,6 +213,55 @@ func patchGnbsimConfigmap(k *K8s, subscriber *client.Subscriber) error {
 	err = k.WaitForRollout("gnbsim")
 	if err != nil {
 		return fmt.Errorf("failed to wait for rollout gnbsim: %v", err)
+	}
+	return nil
+}
+
+func patchUERANSIMConfigmap(k *K8s, subscriber *client.Subscriber) error {
+	configmapName := "ueransim-config"
+	configmap, err := k.GetConfigMap(configmapName)
+	if err != nil {
+		return fmt.Errorf("failed to get configmap %s: %v", configmapName, err)
+	}
+	data, ok := configmap["data"].(map[interface{}]interface{})
+	if !ok {
+		return fmt.Errorf("the 'data' field in the ConfigMap is not of the expected type")
+	}
+	configYamlStr, ok := data["ue.yaml"].(string)
+	if !ok {
+		return fmt.Errorf("the 'ue.yaml' key is missing in the ConfigMap data")
+	}
+	var config map[interface{}]interface{}
+	err = yaml.Unmarshal([]byte(configYamlStr), &config)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal configmap data: %v", err)
+	}
+	config["supi"] = fmt.Sprintf("imsi-%s", subscriber.Imsi)
+	config["key"] = subscriber.Key
+	config["op"] = subscriber.Opc
+	// Create the updated YAML string
+	updatedConfigYamlStr, err := yaml.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated config: %v", err)
+	}
+	// Construct a patch to update the 'ue.yaml' field.
+	// This patch uses a map with string keys.
+	patch := map[string]interface{}{
+		"data": map[string]interface{}{
+			"ue.yaml": string(updatedConfigYamlStr),
+		},
+	}
+	err = k.PatchConfigMap(configmapName, patch)
+	if err != nil {
+		return fmt.Errorf("failed to patch configmap %s: %v", configmapName, err)
+	}
+	err = k.RolloutRestart("ueransim")
+	if err != nil {
+		return fmt.Errorf("failed to rollout restart ueransim: %v", err)
+	}
+	err = k.WaitForRollout("ueransim")
+	if err != nil {
+		return fmt.Errorf("failed to wait for rollout ueransim: %v", err)
 	}
 	return nil
 }
@@ -306,5 +354,110 @@ func TestIntegrationGnbsim(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to delete namespace %s: %v", gnbsimNamespace, err)
 	}
-	t.Logf("kubectl delete namespace succeeded: %s", gnbsimNamespace)
+	t.Logf("deleted namespace %s", gnbsimNamespace)
+	t.Log("GNBSIM test completed successfully")
+}
+
+func TestIntegrationUERANSIM(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	k := &K8s{Namespace: ueransimNamespace}
+
+	ellaCoreURL, err := deploy(k)
+	if err != nil {
+		t.Fatalf("failed to deploy: %v", err)
+	}
+	t.Log("deployed ella core")
+
+	clientConfig := &client.Config{
+		BaseURL: ellaCoreURL,
+	}
+	ellaClient, err := client.New(clientConfig)
+	if err != nil {
+		t.Fatalf("failed to create ella client: %v", err)
+	}
+
+	subscriber0, err := configureEllaCore(ellaClient)
+	if err != nil {
+		t.Fatalf("failed to configure Ella Core: %v", err)
+	}
+	t.Log("configured Ella Core")
+
+	err = k.ApplyKustomize("../k8s/ueransim")
+	if err != nil {
+		t.Fatalf("failed to apply kustomize: %v", err)
+	}
+	t.Log("applied kustomize for ueransim")
+	err = k.WaitForAppReady("ueransim")
+	if err != nil {
+		t.Fatalf("failed to wait for ueransim app to be ready: %v", err)
+	}
+
+	err = patchUERANSIMConfigmap(k, subscriber0)
+	if err != nil {
+		t.Fatalf("failed to patch ueransim configmap: %v", err)
+	}
+	t.Log("patched ueransim configmap")
+
+	ueransimPodName, err := k.GetPodName("ueransim")
+	if err != nil {
+		t.Fatalf("failed to get pod name: %v", err)
+	}
+
+	_, err = k.Exec(ueransimPodName, "pebble add gnb /etc/ueransim/pebble_gnb.yaml", "ueransim")
+	if err != nil {
+		t.Fatalf("failed to exec command in pod: %v", err)
+	}
+
+	t.Log("added pebble gnb.yaml")
+
+	_, err = k.Exec(ueransimPodName, "pebble start gnb", "ueransim")
+	if err != nil {
+		t.Fatalf("failed to exec command in pod: %v", err)
+	}
+	t.Log("started pebble gnb")
+
+	_, err = k.Exec(ueransimPodName, "pebble add ue /etc/ueransim/pebble_ue.yaml", "ueransim")
+	if err != nil {
+		t.Fatalf("failed to exec command in pod: %v", err)
+	}
+	t.Log("added pebble ue.yaml")
+
+	_, err = k.Exec(ueransimPodName, "pebble start ue", "ueransim")
+	if err != nil {
+		t.Fatalf("failed to exec command in pod: %v", err)
+	}
+	t.Log("started pebble ue")
+
+	result, err := k.Exec(ueransimPodName, "ip a", "ueransim")
+	if err != nil {
+		t.Fatalf("failed to exec command in pod: %v", err)
+	}
+	t.Logf("UERANSIM result: %s", result)
+	if !strings.Contains(result, "uesimtun0") {
+		t.Fatalf("expected 'uesimtun0' to be in the result, but it was not found")
+	}
+	t.Logf("Verified that 'uesimtun0' is in the result")
+
+	result, err = k.Exec(ueransimPodName, "ping -I uesimtun0 192.168.250.1 -c 3", "ueransim")
+	if err != nil {
+		t.Fatalf("failed to exec command in pod: %v", err)
+	}
+	t.Logf("UERANSIM ping result: %s", result)
+	if !strings.Contains(result, "3 packets transmitted, 3 received") {
+		t.Fatalf("expected '3 packets transmitted, 3 received' to be in the result, but it was not found")
+	}
+	if !strings.Contains(result, "0% packet loss") {
+		t.Fatalf("expected '0 packet loss' to be in the result, but it was not found")
+	}
+	t.Logf("Verified that '3 packets transmitted, 3 received' and '0 packet loss' are in the result")
+
+	err = k.DeleteNamespace()
+	if err != nil {
+		t.Fatalf("failed to delete namespace %s: %v", ueransimNamespace, err)
+	}
+	t.Logf("deleted namespace %s", ueransimNamespace)
+	t.Log("UERANSIM test completed successfully")
 }
