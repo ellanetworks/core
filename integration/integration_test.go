@@ -29,21 +29,13 @@ func computeIMSI(baseIMSI string, increment int) (string, error) {
 	return fmt.Sprintf("%015d", newIMSI), nil
 }
 
-func configureEllaCore(baseUrl string) (*client.Subscriber, error) {
-	clientConfig := &client.Config{
-		BaseURL: baseUrl,
-	}
-	ellaClient, err := client.New(clientConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ella client: %v", err)
-	}
-
+func configureEllaCore(ellaClient *client.Client) (*client.Subscriber, error) {
 	createUserOpts := &client.CreateUserOptions{
 		Email:    "admin@ellanetworks.com",
 		Password: "admin",
 		Role:     "admin",
 	}
-	err = ellaClient.CreateUser(createUserOpts)
+	err := ellaClient.CreateUser(createUserOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %v", err)
 	}
@@ -239,7 +231,15 @@ func TestIntegrationGnbsim(t *testing.T) {
 	}
 	t.Log("deployed ella core")
 
-	subscriber0, err := configureEllaCore(ellaCoreURL)
+	clientConfig := &client.Config{
+		BaseURL: ellaCoreURL,
+	}
+	ellaClient, err := client.New(clientConfig)
+	if err != nil {
+		t.Fatalf("failed to create ella client: %v", err)
+	}
+
+	subscriber0, err := configureEllaCore(ellaClient)
 	if err != nil {
 		t.Fatalf("failed to configure Ella Core: %v", err)
 	}
@@ -285,6 +285,22 @@ func TestIntegrationGnbsim(t *testing.T) {
 		t.Fatalf("expected 'Profile Status: PASS' to appear %d times, but found %d times", numProfiles, passCount)
 	}
 	t.Logf("Verified that 'Profile Status: PASS' appears %d times", passCount)
+
+	metrics, err := ellaClient.GetMetrics()
+	if err != nil {
+		t.Fatalf("failed to get metrics: %v", err)
+	}
+
+	appUplinkBytes := metrics["app_uplink_bytes"]
+	appDownlinkBytes := metrics["app_downlink_bytes"]
+
+	if appUplinkBytes != 9000 {
+		t.Fatalf("expected app_uplink_bytes to be 9000, but got %v", appUplinkBytes)
+	}
+
+	if appDownlinkBytes != 9000 {
+		t.Fatalf("expected app_downlink_bytes to be 9000, but got %v", appDownlinkBytes)
+	}
 
 	err = k.DeleteNamespace()
 	if err != nil {

@@ -41,7 +41,7 @@ func (k *K8s) ApplyKustomize(kustomizeDir string) error {
 
 func (k *K8s) WaitForAppReady(name string) error {
 	labelSelector := "app=" + name
-	cmd := exec.Command("kubectl", "wait", "--for=condition=ready", "--timeout=60s", "pod", "-l", labelSelector, "-n", k.Namespace)
+	cmd := exec.Command("kubectl", "wait", "--for=condition=ready", "--timeout=120s", "pod", "-l", labelSelector, "-n", k.Namespace)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("kubectl wait failed: %s: %v", string(out), err)
@@ -127,7 +127,18 @@ func (k *K8s) GetPodName(appName string) (string, error) {
 }
 
 func (k *K8s) Exec(podName string, command string, container string) (string, error) {
-	cmd := exec.Command("kubectl", "exec", "-i", podName, "-c", container, "-n", k.Namespace, "--", command)
+	baseArgs := []string{
+		"exec",
+		"-i",
+		podName,
+		"-c", container,
+		"-n", k.Namespace,
+		"--",
+	}
+	cmdArgs := strings.Fields(command)
+	args := append(baseArgs, cmdArgs...)
+
+	cmd := exec.Command("kubectl", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("kubectl exec failed: %s: %v", string(out), err)

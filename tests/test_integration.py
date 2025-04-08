@@ -23,42 +23,6 @@ NUM_PROFILES = 5
 
 
 class TestELLA:
-    def test_given_ella_and_gnbsim_deployed_when_start_simulation_then_simulation_success_status_is_true(  # noqa: E501
-        self,
-    ):
-        k8s_client = Kubernetes(namespace=GNBSIM_NAMESPACE)
-        k8s_client.create_namespace()
-        k8s_client.apply_kustomize("k8s/core/overlays/test")
-        logger.info("Applied Ella Core manifests.")
-        k8s_client.apply_kustomize("k8s/router")
-        logger.info("Applied Router manifests.")
-        logger.info("Waiting for Ella Core and Router components to be ready...")
-        k8s_client.wait_for_app_ready(app_name="ella-core")
-        k8s_client.wait_for_app_ready(app_name="router")
-        logger.info("Ella Core and Router components are ready.")
-        time.sleep(2)
-        core_port = k8s_client.get_core_node_port(service_name="ella-core")
-        core_address = f"http://127.0.0.1:{core_port}"
-        subscriber = configure_ella_core(core_address=core_address)
-        k8s_client.apply_kustomize("k8s/gnbsim")
-        k8s_client.wait_for_app_ready(app_name="gnbsim")
-        time.sleep(2)
-        patch_gnbsim_configmap(k8s_client, subscriber)
-        k8s_client.wait_for_app_ready(app_name="gnbsim")
-        pod_name = k8s_client.get_pod_name(app_name="gnbsim")
-        logger.info(f"Running GNBSim simulation in pod {pod_name}")
-        result = k8s_client.exec(
-            pod_name=pod_name,
-            command="pebble exec gnbsim --cfg /etc/gnbsim/configuration.yaml",
-            container="gnbsim",
-            timeout=6 * 60,
-        )
-        logger.info(result)
-        assert result.count("Profile Status: PASS") == NUM_PROFILES
-        uplink_bytes, downlink_bytes = get_byte_count(core_address)
-        assert uplink_bytes == 9000
-        assert downlink_bytes == 9000
-        k8s_client.delete_namespace()
 
     def test_given_ella_core_and_ueransim_deployed_when_start_simulation_then_simulation_success_status_is_true(  # noqa: E501
         self,
@@ -197,35 +161,6 @@ def get_byte_count(core_address: str) -> Tuple[int, int]:
     uplink_bytes = ella_client.get_uplink_bytes_metric()
     downlink_bytes = ella_client.get_downlink_bytes_metric()
     return uplink_bytes, downlink_bytes
-
-
-def patch_gnbsim_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> None:
-    configmap_name = "gnbsim-config"
-    logger.info(
-        "Waiting for ConfigMap '%s' in namespace '%s'...", configmap_name, GNBSIM_NAMESPACE
-    )
-    configmap = k8s_client.get_configmap(configmap_name)
-    logger.info("Found ConfigMap '%s'.", configmap_name)
-    config_yaml_str = configmap["data"].get("configuration.yaml", "")
-    if not config_yaml_str:
-        raise ValueError("The 'configuration.yaml' key is missing in the ConfigMap data.")
-    config = yaml.safe_load(config_yaml_str)
-    # Update the necessary fields with values from the subscriber
-    for profile in config["configuration"]["profiles"]:
-        profile["startImsi"] = subscriber.imsi
-        profile["opc"] = subscriber.opc
-        profile["key"] = subscriber.key
-        profile["sequenceNumber"] = subscriber.sequence_number
-    # Create the updated YAML string
-    updated_config_yaml_str = yaml.dump(config, default_flow_style=False)
-    # Construct a patch to update the 'configuration.yaml' field
-    patch = {"data": {"configuration.yaml": updated_config_yaml_str}}
-    logger.info("Patching ConfigMap '%s' with updated subscriber values...", configmap_name)
-    k8s_client.patch_configmap(name=configmap_name, patch=patch)
-    logger.info("Patched ConfigMap '%s'.", configmap_name)
-    k8s_client.rollout_restart("gnbsim")
-    k8s_client.wait_for_rollout("gnbsim")
-
 
 def patch_ue_configmap(k8s_client: Kubernetes, subscriber: Subscriber) -> None:
     """Patch the UERANSIM ConfigMap with the subscriber information.
