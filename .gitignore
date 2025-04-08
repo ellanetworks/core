@@ -11,12 +11,6 @@ ui/next-env.d.ts
 ui/.vercel
 ui/.env*.local
 
-# Python
-venv/
-.tox/
-.ruff_cache/
-tests/__pycache__/
-
 # OCI image
 *.rock
 

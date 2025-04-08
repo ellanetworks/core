@@ -51,8 +51,7 @@ docker push localhost:5000/ella-core:latest
 Run End-to-End tests
 
 ```shell
-pip install tox
-tox -e integration
+go test ./...
 ```
 
 ## How-to Guides
@@ -109,7 +108,7 @@ docker run ella-core:latest
 ### View Test Coverage
 
 ```shell
-go test ./... -coverprofile coverage.out
+go test -short ./... -coverprofile coverage.out
 go tool cover -func coverage.out
 ```
 
