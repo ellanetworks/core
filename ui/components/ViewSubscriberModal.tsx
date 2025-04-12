@@ -76,6 +76,12 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
     }, [imsi, open, cookies.user_token]);
 
     const handleCopy = async (value: string, label: string) => {
+        if (!navigator.clipboard) {
+            console.error(`Clipboard API not available.`);
+            setAlert({ message: `Clipboard API not available. Please use HTTPS or try a different browser.` });
+            return;
+        }
+
         try {
             await navigator.clipboard.writeText(value);
             setAlert({ message: `${label} copied to clipboard!` });

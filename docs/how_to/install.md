@@ -93,7 +93,8 @@ You can install Ella Core on Linux or on Kubernetes.
     ```shell
     sudo snap install go --channel=1.24/stable --classic
     sudo snap install node --channel=20/stable --classic
-    sudo apt install clang llvm gcc-multilib libbpf-dev
+    sudo apt update
+    sudo apt -y install clang llvm gcc-multilib libbpf-dev
     ```
 
     ### Steps
@@ -130,9 +131,9 @@ You can install Ella Core on Linux or on Kubernetes.
     Edit the configuration file at `core.yaml` to configure the network interfaces.
 
     Start the service:
-  
+
     ```shell
-    ./main --config core.yaml
+    sudo ./main --config core.yaml
     ```
 
     Navigate to `https://localhost:5002` to access the Ella UI.
