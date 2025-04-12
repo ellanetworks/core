@@ -11,7 +11,9 @@ import {
     Alert,
     Collapse,
     MenuItem,
+    FormControlLabel,
     Select,
+    Checkbox,
     InputLabel,
     FormControl,
     FormGroup,
@@ -48,6 +50,10 @@ const schema = yup.object().shape({
     profileName: yup
         .string()
         .required("Profile Name is required."),
+    opc: yup
+        .string()
+        .matches(/^[0-9a-fA-F]{32}$/, "Key must be a 32-character hexadecimal string.")
+        .notRequired(),
 });
 
 const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onClose, onSuccess }) => {
@@ -60,6 +66,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
     const [formValues, setFormValues] = useState({
         msin: "",
         key: "",
+        opc: "",
         sequenceNumber: "000000000022", // Default value
         profileName: "",
     });
@@ -72,6 +79,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
     const [isValid, setIsValid] = useState(false);
     const [loading, setLoading] = useState(false);
     const [alert, setAlert] = useState<{ message: string }>({ message: "" });
+    const [customOPC, setCustomOPC] = useState(false);
 
     useEffect(() => {
         const fetchOperatorAndProfiles = async () => {
@@ -156,7 +164,8 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                 imsi,
                 formValues.key,
                 formValues.sequenceNumber,
-                formValues.profileName
+                formValues.profileName,
+                formValues.opc
             );
             onClose();
             onSuccess();
@@ -292,6 +301,31 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({ open, onC
                         </Typography>
                     )}
                 </FormControl>
+                <FormControlLabel
+                    control={
+                        <Checkbox
+                            checked={customOPC}
+                            onChange={(e) => {
+                                setCustomOPC(e.target.checked);
+                                if (!e.target.checked) {
+                                    handleChange("opc", "");
+                                }
+                            }}
+                        />
+                    }
+                    label="Provide custom OPC"
+                />
+                {customOPC && (
+                    <TextField
+                        fullWidth
+                        label="OPC (optional)"
+                        value={formValues.opc}
+                        onChange={(e) => handleChange("opc", e.target.value)}
+                        onBlur={() => handleBlur("opc")}
+                        margin="normal"
+                        helperText="Leave blank to use centrally managed OP"
+                    />
+                )}
             </DialogContent>
             <DialogActions>
                 <Button onClick={onClose} >

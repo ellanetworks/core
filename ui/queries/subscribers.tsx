@@ -44,12 +44,13 @@ export const getSubscriber = async (authToken: string, imsi: string) => {
   return respData.result;
 };
 
-export const createSubscriber = async (authToken: string, imsi: string, key: string, sequenceNumber: string, profileName: string) => {
+export const createSubscriber = async (authToken: string, imsi: string, key: string, sequenceNumber: string, profileName: string, opc: string) => {
   const subscriberData = {
     imsi,
     key,
     sequenceNumber,
     profileName,
+    opc
   };
 
   const response = await fetch(`/api/v1/subscribers`, {

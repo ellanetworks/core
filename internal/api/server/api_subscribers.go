@@ -12,6 +12,7 @@ import (
 type CreateSubscriberParams struct {
 	Imsi           string `json:"imsi"`
 	Key            string `json:"key"`
+	Opc            string `json:"opc,omitempty"`
 	SequenceNumber string `json:"sequenceNumber"`
 	ProfileName    string `json:"profileName"`
 }
@@ -193,6 +194,12 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Invalid key format. Must be a 32-character hexadecimal string.")
 			return
 		}
+		if createSubscriberParams.Opc != "" {
+			if !isHexString(createSubscriberParams.Opc) {
+				writeError(c, http.StatusBadRequest, "Invalid OPc format. Must be a 32-character hexadecimal string.")
+				return
+			}
+		}
 
 		K, err := hex.DecodeString(createSubscriberParams.Key)
 		if err != nil {
@@ -200,26 +207,32 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Invalid key format")
 			return
 		}
-		opCodeHex, err := dbInstance.GetOperatorCode()
-		if err != nil {
-			logger.APILog.Warnln(err)
-			writeError(c, http.StatusInternalServerError, "Failed to retrieve operator code")
-			return
-		}
-		OP, err := hex.DecodeString(opCodeHex)
-		if err != nil {
-			logger.APILog.Warnln(err)
-			writeError(c, http.StatusInternalServerError, "Failed to decode OP")
-			return
-		}
 
-		opc, err := deriveOPc(K, OP)
-		if err != nil {
-			logger.APILog.Warnln(err)
-			writeError(c, http.StatusInternalServerError, "Failed to generate OPc")
-			return
+		var opcHex string
+		if createSubscriberParams.Opc == "" {
+			opCodeHex, err := dbInstance.GetOperatorCode()
+			if err != nil {
+				logger.APILog.Warnln(err)
+				writeError(c, http.StatusInternalServerError, "Failed to retrieve operator code")
+				return
+			}
+			OP, err := hex.DecodeString(opCodeHex)
+			if err != nil {
+				logger.APILog.Warnln(err)
+				writeError(c, http.StatusInternalServerError, "Failed to decode OP")
+				return
+			}
+
+			opc, err := deriveOPc(K, OP)
+			if err != nil {
+				logger.APILog.Warnln(err)
+				writeError(c, http.StatusInternalServerError, "Failed to generate OPc")
+				return
+			}
+			opcHex = hex.EncodeToString(opc)
+		} else {
+			opcHex = createSubscriberParams.Opc
 		}
-		opcHex := hex.EncodeToString(opc)
 
 		_, err = dbInstance.GetSubscriber(createSubscriberParams.Imsi)
 		if err == nil {

@@ -43,6 +43,7 @@ type GetSubscriberResponse struct {
 type CreateSubscriberParams struct {
 	Imsi           string `json:"imsi"`
 	Key            string `json:"key"`
+	Opc            string `json:"opc,omitempty"`
 	SequenceNumber string `json:"sequenceNumber"`
 	ProfileName    string `json:"profileName"`
 }
@@ -301,6 +302,57 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		}
 		if response.Error != "Subscriber not found" {
 			t.Fatalf("expected error %q, got %q", "Subscriber not found", response.Error)
+		}
+	})
+
+	t.Run("8. Create subscriber (with opc)", func(t *testing.T) {
+		createSubscriberParams := &CreateSubscriberParams{
+			Imsi:           Imsi,
+			Key:            Key,
+			Opc:            Opc,
+			SequenceNumber: SequenceNumber,
+			ProfileName:    ProfileName,
+		}
+		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
+		if err != nil {
+			t.Fatalf("couldn't create subscriber: %s", err)
+		}
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+		if response.Result.Message != "Subscriber created successfully" {
+			t.Fatalf("expected message 'Subscriber created successfully', got %q", response.Result.Message)
+		}
+	})
+
+	t.Run("9. Get subscriber - with opc", func(t *testing.T) {
+		statusCode, response, err := getSubscriber(ts.URL, client, token, Imsi)
+		if err != nil {
+			t.Fatalf("couldn't get subscriber: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+		if response.Result.Imsi != Imsi {
+			t.Fatalf("expected imsi %s, got %s", Imsi, response.Result.Imsi)
+		}
+		if response.Result.OPc != Opc {
+			t.Fatalf("expected opc %s, got %s", Opc, response.Result.OPc)
+		}
+		if response.Result.Key != Key {
+			t.Fatalf("expected key %s, got %s", Key, response.Result.Key)
+		}
+		if response.Result.SequenceNumber != SequenceNumber {
+			t.Fatalf("expected sequenceNumber %s, got %s", SequenceNumber, response.Result.SequenceNumber)
+		}
+		if response.Result.ProfileName != ProfileName {
+			t.Fatalf("expected profileName %s, got %s", ProfileName, response.Result.ProfileName)
+		}
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
 		}
 	})
 }

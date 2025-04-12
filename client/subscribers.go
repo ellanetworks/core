@@ -11,6 +11,7 @@ type CreateSubscriberOptions struct {
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequenceNumber"`
 	ProfileName    string `json:"profileName"`
+	OPc            string `json:"opc,omitempty"`
 }
 
 type GetSubscriberOptions struct {
