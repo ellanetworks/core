@@ -18,6 +18,7 @@ const (
 	numIMSIS                     = 5
 	testStartIMSI                = "001010100000001"
 	testSubscriberKey            = "5122250214c33e723a5dd523fc145fc0"
+	testSubscriberCustomOPc      = "981d464c7c52eb6e5036234984ad0bcf"
 	testSubscriberSequenceNumber = "000000000022"
 	numProfiles                  = 5
 )
@@ -31,13 +32,18 @@ func computeIMSI(baseIMSI string, increment int) (string, error) {
 	return fmt.Sprintf("%015d", newIMSI), nil
 }
 
-func configureEllaCore(ellaClient *client.Client) (*client.Subscriber, error) {
+type ConfigureEllaCoreOpts struct {
+	client    *client.Client
+	customOPc bool
+}
+
+func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) {
 	createUserOpts := &client.CreateUserOptions{
 		Email:    "admin@ellanetworks.com",
 		Password: "admin",
 		Role:     "admin",
 	}
-	err := ellaClient.CreateUser(createUserOpts)
+	err := opts.client.CreateUser(createUserOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %v", err)
 	}
@@ -46,7 +52,7 @@ func configureEllaCore(ellaClient *client.Client) (*client.Subscriber, error) {
 		Email:    "admin@ellanetworks.com",
 		Password: "admin",
 	}
-	err = ellaClient.Login(loginOpts)
+	err = opts.client.Login(loginOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to login: %v", err)
 	}
@@ -61,7 +67,7 @@ func configureEllaCore(ellaClient *client.Client) (*client.Subscriber, error) {
 		Var5qi:          8,
 		PriorityLevel:   1,
 	}
-	err = ellaClient.CreateProfile(createProfileOpts)
+	err = opts.client.CreateProfile(createProfileOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create profile: %v", err)
 	}
@@ -70,7 +76,7 @@ func configureEllaCore(ellaClient *client.Client) (*client.Subscriber, error) {
 		Mcc: "001",
 		Mnc: "01",
 	}
-	err = ellaClient.UpdateOperatorID(updateOperatorIDOpts)
+	err = opts.client.UpdateOperatorID(updateOperatorIDOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update operator ID: %v", err)
 	}
@@ -79,7 +85,7 @@ func configureEllaCore(ellaClient *client.Client) (*client.Subscriber, error) {
 		Sst: 1,
 		Sd:  1056816,
 	}
-	err = ellaClient.UpdateOperatorSlice(updateOperatorSliceOpts)
+	err = opts.client.UpdateOperatorSlice(updateOperatorSliceOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update operator slice: %v", err)
 	}
@@ -87,7 +93,7 @@ func configureEllaCore(ellaClient *client.Client) (*client.Subscriber, error) {
 	updateOperatorTrackingOpts := &client.UpdateOperatorTrackingOptions{
 		SupportedTacs: []string{"001"},
 	}
-	err = ellaClient.UpdateOperatorTracking(updateOperatorTrackingOpts)
+	err = opts.client.UpdateOperatorTracking(updateOperatorTrackingOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update operator tracking: %v", err)
 	}
@@ -97,13 +103,18 @@ func configureEllaCore(ellaClient *client.Client) (*client.Subscriber, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to compute IMSI: %v", err)
 		}
+		var opc string
+		if opts.customOPc {
+			opc = testSubscriberCustomOPc
+		}
 		createSubscriberOpts := &client.CreateSubscriberOptions{
 			Imsi:           imsi,
 			Key:            testSubscriberKey,
 			SequenceNumber: testSubscriberSequenceNumber,
 			ProfileName:    testProfileName,
+			OPc:            opc,
 		}
-		err = ellaClient.CreateSubscriber(createSubscriberOpts)
+		err = opts.client.CreateSubscriber(createSubscriberOpts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create subscriber: %v", err)
 		}
@@ -112,7 +123,7 @@ func configureEllaCore(ellaClient *client.Client) (*client.Subscriber, error) {
 	getSubscriberOpts := &client.GetSubscriberOptions{
 		ID: testStartIMSI,
 	}
-	subscriber0, err := ellaClient.GetSubscriber(getSubscriberOpts)
+	subscriber0, err := opts.client.GetSubscriber(getSubscriberOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subscriber: %v", err)
 	}
@@ -288,7 +299,11 @@ func TestIntegrationGnbsim(t *testing.T) {
 		t.Fatalf("failed to create ella client: %v", err)
 	}
 
-	subscriber0, err := configureEllaCore(ellaClient)
+	configureOpts := &ConfigureEllaCoreOpts{
+		client:    ellaClient,
+		customOPc: true,
+	}
+	subscriber0, err := configureEllaCore(configureOpts)
 	if err != nil {
 		t.Fatalf("failed to configure Ella Core: %v", err)
 	}
@@ -380,7 +395,11 @@ func TestIntegrationUERANSIM(t *testing.T) {
 		t.Fatalf("failed to create ella client: %v", err)
 	}
 
-	subscriber0, err := configureEllaCore(ellaClient)
+	configureOpts := &ConfigureEllaCoreOpts{
+		client:    ellaClient,
+		customOPc: false,
+	}
+	subscriber0, err := configureEllaCore(configureOpts)
 	if err != nil {
 		t.Fatalf("failed to configure Ella Core: %v", err)
 	}

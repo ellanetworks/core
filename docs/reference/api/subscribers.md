@@ -10,7 +10,6 @@ This section describes the RESTful API for managing network subscribers. Network
 
 This path returns the list of network subscribers.
 
-
 | Method | Path                  |
 | ------ | --------------------- |
 | GET    | `/api/v1/subscribers` |
@@ -50,9 +49,7 @@ This path creates a new network subscriber.
 - `key` (string): The key of the subscriber. Must be a 32-character hexadecimal string.
 - `sequenceNumber` (string): The sequence number of the subscriber. Must be a 6-byte hexadecimal string.
 - `ProfileName` (string): The profile name of the subscriber. Must be the name of an existing profile.
-
-!!! note
-    The `opc` parameter is generated automatically using the Operator Code (OP) and the `key` parameter.
+- `opc` (optional string): The operator code of the subscriber. If not provided, it will be generated automatically using the Operator Code (OP) and the `key` parameter.
 
 ### Sample Response
 
