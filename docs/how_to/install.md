@@ -156,7 +156,7 @@ You can install Ella Core on Linux or on Kubernetes.
 
     Install Ella Core:
     ```bash
-    kubectl apply -k github.com/ellanetworks/core/k8s/core/base?ref=v0.0.15 -n ella
+    kubectl apply -k github.com/ellanetworks/core/k8s/core/base?ref=v0.0.16 -n ella
     ```
 
     !!! note
