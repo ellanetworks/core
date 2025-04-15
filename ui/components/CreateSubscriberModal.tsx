@@ -52,7 +52,10 @@ const schema = yup.object().shape({
         .required("Profile Name is required."),
     opc: yup
         .string()
-        .matches(/^[0-9a-fA-F]{32}$/, "Key must be a 32-character hexadecimal string.")
+        .matches(
+            /(^$)|(^[0-9a-fA-F]{32}$)/,
+            "OPC must be either empty or a 32-character hexadecimal string."
+        )
         .notRequired(),
 });
 
