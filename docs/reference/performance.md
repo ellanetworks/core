@@ -14,7 +14,7 @@ The following table outlines the performance test results of Ella Core's data pl
 
 | Uplink (Gbps) | Downlink (Gbps) |
 | ------------- | --------------- |
-| 3.51          | 1.67            |
+| 3.05          | 1.31            |
 
 ### Latency
 
