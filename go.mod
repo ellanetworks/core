@@ -12,8 +12,8 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0
-	github.com/mattn/go-sqlite3 v1.14.27
-	github.com/omec-project/aper v1.2.3
+	github.com/mattn/go-sqlite3 v1.14.28
+	github.com/omec-project/aper v1.3.0
 	github.com/omec-project/nas v1.4.6
 	github.com/omec-project/ngap v1.3.2
 	github.com/prometheus/client_golang v1.22.0
