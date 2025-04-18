@@ -12,11 +12,9 @@ This reference document contains performance test results of Ella Core, covering
 
 The following table outlines the performance test results of Ella Core's data plane throughput:
 
-| Streams | Uplink (Gbps) | Downlink (Gbps) |
-| ------- | ------------- | --------------- |
-| 1       | 1.20          | 1.00            |
-| 10      | 1.48          | 1.22            |
-| 100     | 1.54          | 1.25            |
+| Uplink (Gbps) | Downlink (Gbps) |
+| ------------- | --------------- |
+| 3.05          | 1.31            |
 
 ### Latency
 
@@ -24,9 +22,9 @@ The following table outlines the performance test results of Ella Core's data pl
 
 | Average (ms) | Best (ms) | Worst (ms) | Standard Deviation (ms) |
 | ------------ | --------- | ---------- | ----------------------- |
-| 1.4          | 0.8       | 4.0        | 0.6                     |
+| 1.702        | 0.903     | 2.338      | 0.269                   |
 
-The value represents the round-trip-response times.
+The value represents the round-trip-response times from the UE to the router and back.
 
 ## PDU Session Support
 
@@ -44,7 +42,7 @@ We performed performance tests on a system with the following specifications:
 - **RAM**: 64GB
 - **Disk**: 1TB NVMe SSD
 
-We used the same virtualized environment outlined in the [Running an End-to-End 5G Network with Ella Core](../tutorials/end_to_end_network.md) tutorial, with the iPerf3 server running on the router virtual machine, and the iPerf3 client running on the radio virtual machine.
+We used the same virtualized environment outlined in the [Running an End-to-End 5G Network with Ella Core](../tutorials/end_to_end_network.md) tutorial, with the iPerf3 server running on the router virtual machine, and the iPerf3 client running on the radio virtual machine. We used [Ella Core Tester](https://github.com/ellanetworks/core-tester) as the UE and gNB simulator.
 
 !!! note
     We performed the performance tests in a virtualized environment. The results will likely improve in a bare-metal environment.
@@ -58,13 +56,15 @@ Test parameters:
 - **Version**: v3.16
 - **Protocol**: TCP
 - **Duration**: 30 seconds
+- **Streams**: 1
+- **MTU (upstream)**: 1424 bytes
+- **MTU (downstream)**: 1416 bytes
+- **Runs (average over)**: 5 
 
 #### Latency testing
 
-We performed latency tests using [mtr](https://manpages.ubuntu.com/manpages/focal/man8/mtr.8.html).
+We performed latency tests using ping.
 
 Test parameters:
 
-- **Version**: v0.95
-- **Protocol**: TCP
-- **Report Cycles**: 60
+- **Count**: 30
