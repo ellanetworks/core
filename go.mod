@@ -14,8 +14,8 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/omec-project/aper v1.3.0
-	github.com/omec-project/nas v1.4.6
-	github.com/omec-project/ngap v1.3.2
+	github.com/omec-project/nas v1.5.0
+	github.com/omec-project/ngap v1.4.0
 	github.com/prometheus/client_golang v1.22.0
 	github.com/vishvananda/netlink v1.3.0
 	github.com/wmnsk/go-pfcp v0.0.24
@@ -51,8 +51,8 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/omec-project/openapi v1.3.4 // indirect
-	github.com/omec-project/util v1.2.14 // indirect
+	github.com/omec-project/openapi v1.4.0 // indirect
+	github.com/omec-project/util v1.3.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
