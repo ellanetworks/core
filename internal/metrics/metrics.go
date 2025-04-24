@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 var (
@@ -40,7 +41,7 @@ func RegisterDatabaseMetrics(db *db.Database) {
 	}, func() float64 {
 		dbSize, err := db.GetSize()
 		if err != nil {
-			logger.MetricsLog.Warnf("Failed to get database storage used: %v", err)
+			logger.MetricsLog.Warn("Failed to get database storage used", zap.Error(err))
 			return 0
 		}
 		return float64(dbSize)
@@ -52,7 +53,7 @@ func RegisterDatabaseMetrics(db *db.Database) {
 	}, func() float64 {
 		total, err := db.GetIPAddressesTotal()
 		if err != nil {
-			logger.MetricsLog.Warnf("Failed to get total IP addresses: %v", err)
+			logger.MetricsLog.Warn("Failed to get total IP addresses", zap.Error(err))
 			return 0
 		}
 		return float64(total)
@@ -64,7 +65,7 @@ func RegisterDatabaseMetrics(db *db.Database) {
 	}, func() float64 {
 		allocated, err := db.GetIPAddressesAllocated()
 		if err != nil {
-			logger.MetricsLog.Warnf("Failed to get allocated IP addresses: %v", err)
+			logger.MetricsLog.Warn("Failed to get allocated IP addresses", zap.Error(err))
 			return 0
 		}
 		return float64(allocated)

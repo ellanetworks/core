@@ -10,6 +10,7 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 func (db *Database) Restore(backupFile *os.File) error {
@@ -31,7 +32,7 @@ func (db *Database) Restore(backupFile *os.File) error {
 	}
 	defer func() {
 		if err := destinationFile.Close(); err != nil {
-			logger.DBLog.Errorf("Failed to close destination database file: %v", err)
+			logger.DBLog.Error("Failed to close destination database file", zap.Error(err))
 		}
 	}()
 

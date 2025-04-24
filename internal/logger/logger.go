@@ -11,15 +11,15 @@ import (
 
 var (
 	log         *zap.Logger
-	EllaLog     *zap.SugaredLogger
-	AuditLog    *zap.SugaredLogger
-	MetricsLog  *zap.SugaredLogger
-	DBLog       *zap.SugaredLogger
+	EllaLog     *zap.Logger
+	AuditLog    *zap.Logger
+	MetricsLog  *zap.Logger
+	DBLog       *zap.Logger
 	AmfLog      *zap.SugaredLogger
 	APILog      *zap.SugaredLogger
 	SmfLog      *zap.SugaredLogger
 	UdmLog      *zap.SugaredLogger
-	UpfLog      *zap.SugaredLogger
+	UpfLog      *zap.Logger
 	atomicLevel zap.AtomicLevel
 )
 
@@ -62,16 +62,16 @@ func init() {
 	}
 
 	// System logs for various components
-	EllaLog = log.Sugar().With("component", "Ella")
-	MetricsLog = log.Sugar().With("component", "Metrics")
-	DBLog = log.Sugar().With("component", "DB")
+	EllaLog = log.With(zap.String("component", "Ella"))
+	MetricsLog = log.With(zap.String("component", "Metrics"))
+	DBLog = log.With(zap.String("component", "DB"))
 	AmfLog = log.Sugar().With("component", "AMF")
 	APILog = log.Sugar().With("component", "API")
 	SmfLog = log.Sugar().With("component", "SMF")
 	UdmLog = log.Sugar().With("component", "UDM")
-	UpfLog = log.Sugar().With("component", "UPF")
+	UpfLog = log.With(zap.String("component", "UPF"))
 	// Audit logger initially writes to stdout as well.
-	AuditLog = log.Sugar().With("component", "Audit")
+	AuditLog = log.With(zap.String("component", "Audit"))
 }
 
 // ConfigureLogging allows the user to reconfigure the logger.
@@ -117,14 +117,14 @@ func ConfigureLogging(systemLevel string, systemOutput string, systemFilePath st
 	}
 	// Update the global system logger and its component-specific sugared loggers.
 	log = newSysLogger
-	EllaLog = log.Sugar().With("component", "Ella")
-	MetricsLog = log.Sugar().With("component", "Metrics")
-	DBLog = log.Sugar().With("component", "DB")
+	EllaLog = log.With(zap.String("component", "Ella"))
+	MetricsLog = log.With(zap.String("component", "Metrics"))
+	DBLog = log.With(zap.String("component", "DB"))
 	AmfLog = log.Sugar().With("component", "AMF")
 	APILog = log.Sugar().With("component", "API")
 	SmfLog = log.Sugar().With("component", "SMF")
 	UdmLog = log.Sugar().With("component", "UDM")
-	UpfLog = log.Sugar().With("component", "UPF")
+	UpfLog = log.With(zap.String("component", "UPF"))
 
 	// Determine output paths for audit logs.
 	auditOutputs, err := buildOutputPaths(auditOutput, auditFilePath)
@@ -145,7 +145,7 @@ func ConfigureLogging(systemLevel string, systemOutput string, systemFilePath st
 	if err != nil {
 		return fmt.Errorf("failed to build audit logger: %w", err)
 	}
-	AuditLog = auditLogger.Sugar().With("component", "Audit")
+	AuditLog = auditLogger.With(zap.String("component", "Audit"))
 
 	return nil
 }
@@ -195,11 +195,5 @@ func CapitalColorLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder
 
 // LogAuditEvent logs an audit event to the audit logger.
 func LogAuditEvent(action string, actor string, ip string, details string) {
-	fields := []interface{}{
-		"action", action,
-		"actor", actor,
-		"details", details,
-		"ip", ip,
-	}
-	AuditLog.Infow("audit event", fields...)
+	AuditLog.Info("Audit event", zap.String("action", action), zap.String("actor", actor), zap.String("ip", ip), zap.String("details", details))
 }

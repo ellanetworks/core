@@ -10,6 +10,7 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/curve25519"
 )
 
@@ -53,7 +54,7 @@ func (operator *Operator) GetSupportedTacs() []string {
 	var supportedTACs []string
 	err := json.Unmarshal([]byte(operator.SupportedTACs), &supportedTACs)
 	if err != nil {
-		logger.DBLog.Warnf("Failed to unmarshal supported TACs: %v", err)
+		logger.DBLog.Warn("Failed to unmarshal supported TACs", zap.Error(err))
 		return nil
 	}
 	return supportedTACs
@@ -90,7 +91,7 @@ func (operator *Operator) GetHexSd() string {
 func (operator *Operator) SetSupportedTacs(supportedTACs []string) {
 	supportedTACsBytes, err := json.Marshal(supportedTACs)
 	if err != nil {
-		logger.DBLog.Warnf("Failed to marshal supported TACs: %v", err)
+		logger.DBLog.Warn("Failed to marshal supported TACs", zap.Error(err))
 		return
 	}
 	operator.SupportedTACs = string(supportedTACsBytes)
@@ -134,7 +135,7 @@ func (db *Database) UpdateOperatorSlice(sst int32, sd int) error {
 	if err != nil {
 		return fmt.Errorf("failed to update operator ID: %v", err)
 	}
-	logger.DBLog.Infof("Updated operator slice information")
+	logger.DBLog.Info("Updated operator slice information")
 	return nil
 }
 
@@ -149,7 +150,7 @@ func (db *Database) UpdateOperatorTracking(supportedTACs []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to update operator tracking area code: %v", err)
 	}
-	logger.DBLog.Infof("Updated operator tracking area code")
+	logger.DBLog.Info("Updated operator tracking area code")
 	return nil
 }
 
@@ -166,7 +167,7 @@ func (db *Database) UpdateOperatorID(mcc, mnc string) error {
 	if err != nil {
 		return fmt.Errorf("failed to update operator ID: %v", err)
 	}
-	logger.DBLog.Infof("Updated operator ID")
+	logger.DBLog.Info("Updated operator ID")
 	return nil
 }
 
@@ -195,7 +196,7 @@ func (db *Database) UpdateOperatorCode(operatorCode string) error {
 	if err != nil {
 		return fmt.Errorf("failed to update operator code: %v", err)
 	}
-	logger.DBLog.Infof("Updated operator code")
+	logger.DBLog.Info("Updated operator code")
 	return nil
 }
 
@@ -211,7 +212,7 @@ func (db *Database) UpdateHomeNetworkPrivateKey(privateKey string) error {
 	if err != nil {
 		return fmt.Errorf("failed to update operator home network private key: %v", err)
 	}
-	logger.DBLog.Infof("Updated operator home network private key")
+	logger.DBLog.Info("Updated operator home network private key")
 	return nil
 }
 

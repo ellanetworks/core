@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"go.uber.org/zap"
 )
 
 func ParseSdfFilter(flowDescription string) (ebpf.SdfFilter, error) {
@@ -18,7 +19,7 @@ func ParseSdfFilter(flowDescription string) (ebpf.SdfFilter, error) {
 	var err error
 
 	match := re.FindStringSubmatch(flowDescription)
-	logger.UpfLog.Infof("Matched groups: %+q\n", match)
+	logger.UpfLog.Info("Matched groups", zap.Strings("match", match))
 	if len(match) == 0 {
 		return ebpf.SdfFilter{}, fmt.Errorf("SDF Filter: bad formatting. Should be compatible with regexp: %s", re.String())
 	}

@@ -71,7 +71,7 @@ func NewDatabase(databasePath string, initialOperator Operator) (*Database, erro
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize network configuration: %v", err)
 	}
-	logger.DBLog.Infof("Database Initialized")
+	logger.DBLog.Info("Database Initialized")
 	return db, nil
 }
 

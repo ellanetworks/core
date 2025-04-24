@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
+	"go.uber.org/zap"
 )
 
 var (
@@ -24,13 +25,13 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 	}
 	remoteSEID, err := validateRequest(msg.NodeID, msg.CPFSEID)
 	if err != nil {
-		logger.UpfLog.Infof("Rejecting Session Establishment Request from: %s (error in IEs)", err)
+		logger.UpfLog.Info("Rejecting Session Establishment Request", zap.Error(err))
 		return message.NewSessionEstablishmentResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), convertErrorToIeCause(err)), nil
 	}
 
 	association := conn.SmfNodeAssociation
 	if association == nil {
-		logger.UpfLog.Infof("Rejecting Session Establishment Request from: %s (no association)", conn.SmfAddress)
+		logger.UpfLog.Info("Rejecting Session Establishment Request (no association)", zap.String("smfAddress", conn.SmfAddress))
 		return message.NewSessionEstablishmentResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseNoEstablishedPFCPAssociation)), nil
 	}
 
@@ -51,13 +52,13 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 			}
 
 			farid, _ := far.FARID()
-			logger.UpfLog.Debugf("Saving FAR info to session: %d, %+v", farid, farInfo)
+			logger.UpfLog.Debug("Saving FAR info to session", zap.Uint32("farID", farid), zap.Any("farInfo", farInfo))
 			internalID, err := bpfObjects.NewFar(farInfo)
 			if err != nil {
 				return fmt.Errorf("can't put FAR: %s", err.Error())
 			}
 			session.NewFar(farid, internalID, farInfo)
-			logger.UpfLog.Infof("Created Forwarding Action Rule: %d", farid)
+			logger.UpfLog.Info("Created Forwarding Action Rule", zap.Uint32("farID", farid))
 		}
 
 		for _, qer := range msg.CreateQER {
@@ -72,7 +73,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 				return fmt.Errorf("can't put QER: %s", err.Error())
 			}
 			session.NewQer(qerID, internalID, qerInfo)
-			logger.UpfLog.Infof("Created QoS Enforcement Rule: %d", qerID)
+			logger.UpfLog.Info("Created QoS Enforcement Rule", zap.Uint32("qerID", qerID))
 		}
 
 		for _, pdr := range msg.CreatePDR {
@@ -87,16 +88,16 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 			if err := pdrContext.ExtractPDR(pdr, &spdrInfo); err == nil {
 				session.PutPDR(spdrInfo.PdrID, spdrInfo)
 				applyPDR(spdrInfo, bpfObjects)
-				logger.UpfLog.Infof("Applied packet detection rule: %d", spdrInfo.PdrID)
+				logger.UpfLog.Info("Applied packet detection rule", zap.Uint32("pdrID", spdrInfo.PdrID))
 				createdPDRs = append(createdPDRs, spdrInfo)
 			} else {
-				logger.UpfLog.Errorf("couldn't extract PDR info: %s", err.Error())
+				logger.UpfLog.Error("couldn't extract PDR info", zap.Error(err))
 			}
 		}
 		return nil
 	}()
 	if err != nil {
-		logger.UpfLog.Infof("Rejecting Session Establishment Request from: %s (error in applying IEs)", err)
+		logger.UpfLog.Info("Rejecting Session Establishment Request (error in applying IEs)", zap.Error(err))
 		return message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), nil
 	}
 
@@ -113,7 +114,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 	additionalIEs = append(additionalIEs, pdrIEs...)
 
 	estResp := message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, additionalIEs...)
-	logger.UpfLog.Debugf("Accepted Session Establishment Request from: %s", conn.SmfAddress)
+	logger.UpfLog.Debug("Accepted Session Establishment Request", zap.String("smfAddress", conn.SmfAddress))
 	return estResp, nil
 }
 
@@ -124,14 +125,14 @@ func HandlePfcpSessionDeletionRequest(msg *message.SessionDeletionRequest) (*mes
 	}
 	association := conn.SmfNodeAssociation
 	if association == nil {
-		logger.UpfLog.Infof("Rejecting Session Deletion Request from: %s (no association)", conn.SmfAddress)
+		logger.UpfLog.Info("Rejecting Session Deletion Request (no association)", zap.String("smfAddress", conn.SmfAddress))
 		return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseNoEstablishedPFCPAssociation)), nil
 	}
 	printSessionDeleteRequest(msg)
 
 	session, ok := association.Sessions[msg.SEID()]
 	if !ok {
-		logger.UpfLog.Infof("Rejecting Session Deletion Request from: %s (unknown SEID)", conn.SmfAddress)
+		logger.UpfLog.Info("Rejecting Session Deletion Request (unknown SEID)", zap.String("smfAddress", conn.SmfAddress))
 		return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseSessionContextNotFound)), nil
 	}
 	bpfObjects := conn.bpfObjects
@@ -151,7 +152,7 @@ func HandlePfcpSessionDeletionRequest(msg *message.SessionDeletionRequest) (*mes
 			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
 		}
 	}
-	logger.UpfLog.Infof("Deleting session: %d", msg.SEID())
+	logger.UpfLog.Info("Deleting session", zap.Uint64("seid", msg.SEID()))
 	delete(association.Sessions, msg.SEID())
 
 	conn.ReleaseResources(msg.SEID())
@@ -167,13 +168,13 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 
 	association := conn.SmfNodeAssociation
 	if association == nil {
-		logger.UpfLog.Infof("Rejecting Session Modification Request from: %s (no association)", conn.SmfAddress)
+		logger.UpfLog.Info("Rejecting Session Modification Request (no association)", zap.String("smfAddress", conn.SmfAddress))
 		return message.NewSessionModificationResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseNoEstablishedPFCPAssociation)), nil
 	}
 
 	session, ok := association.Sessions[msg.SEID()]
 	if !ok {
-		logger.UpfLog.Infof("Rejecting Session Modification Request from: %s (unknown SEID)", conn.SmfAddress)
+		logger.UpfLog.Info("Rejecting Session Modification Request (unknown SEID)", zap.String("smfAddress", conn.SmfAddress))
 		return message.NewSessionModificationResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseSessionContextNotFound)), nil
 	}
 
@@ -319,11 +320,11 @@ func HandlePfcpSessionModificationRequest(msg *message.SessionModificationReques
 				}
 			}
 		}
-		logger.UpfLog.Debugf("Session modification successful")
+		logger.UpfLog.Debug("Session modification successful")
 		return nil
 	}()
 	if err != nil {
-		logger.UpfLog.Infof("Rejecting Session Modification Request from: %s (failed to apply rules)", err)
+		logger.UpfLog.Info("Rejecting Session Modification Request (failed to apply rules)", zap.Error(err))
 		return message.NewSessionModificationResponse(0, 0, session.RemoteSEID, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), nil
 	}
 
@@ -348,7 +349,7 @@ func convertErrorToIeCause(err error) *ie.IE {
 	case errNoEstablishedAssociation:
 		return ie.NewCause(ie.CauseNoEstablishedPFCPAssociation)
 	default:
-		logger.UpfLog.Infof("Unknown error: %s", err.Error())
+		logger.UpfLog.Info("Unknown error", zap.Error(err))
 		return ie.NewCause(ie.CauseRequestRejected)
 	}
 }
@@ -449,7 +450,7 @@ func composeFarInfo(far *ie.IE, localIP net.IP, farInfo ebpf.FarInfo) (ebpf.FarI
 	if err == nil {
 		outerHeaderCreationIndex := findIEindex(forward, 84) // IE Type Outer Header Creation
 		if outerHeaderCreationIndex == -1 {
-			logger.UpfLog.Warnf("No outer header creation found")
+			logger.UpfLog.Warn("No outer header creation found")
 		} else {
 			outerHeaderCreation, _ := forward[outerHeaderCreationIndex].OuterHeaderCreation()
 			farInfo.OuterHeaderCreation = uint8(outerHeaderCreation.OuterHeaderCreationDescription >> 8)
@@ -458,7 +459,7 @@ func composeFarInfo(far *ie.IE, localIP net.IP, farInfo ebpf.FarInfo) (ebpf.FarI
 				farInfo.RemoteIP = binary.LittleEndian.Uint32(outerHeaderCreation.IPv4Address)
 			}
 			if outerHeaderCreation.HasIPv6() {
-				logger.UpfLog.Warnf("IPv6 not supported yet, ignoring")
+				logger.UpfLog.Warn("IPv6 not supported yet, ignoring")
 				return ebpf.FarInfo{}, fmt.Errorf("IPv6 not supported yet")
 			}
 		}

@@ -8,6 +8,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/wmnsk/go-pfcp/ie"
+	"go.uber.org/zap"
 )
 
 type PDRCreationContext struct {
@@ -42,7 +43,7 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 
 	if sdfFilter, err := pdr.SDFFilter(); err == nil {
 		if sdfFilter.FlowDescription == "" {
-			logger.UpfLog.Warnf("SDFFilter is empty")
+			logger.UpfLog.Warn("SDFFilter is empty")
 		} else if sdfFilterParsed, err := ParseSdfFilter(sdfFilter.FlowDescription); err == nil {
 			spdrInfo.PdrInfo.SdfFilter = &sdfFilterParsed
 		} else {
@@ -60,7 +61,7 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr *ie.IE, spdrInfo *SPDRInfo)
 						allocate = false
 						teid = teidFromCache
 						spdrInfo.Allocated = true
-						logger.UpfLog.Infof("TEID from cache: %d", teid)
+						logger.UpfLog.Info("retrieved TEID from cache", zap.Uint32("TEID", teid))
 					}
 				}
 				if allocate {
