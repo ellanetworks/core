@@ -17,8 +17,8 @@ var (
 	DBLog       *zap.Logger
 	AmfLog      *zap.SugaredLogger
 	APILog      *zap.SugaredLogger
-	SmfLog      *zap.SugaredLogger
-	UdmLog      *zap.SugaredLogger
+	SmfLog      *zap.Logger
+	UdmLog      *zap.Logger
 	UpfLog      *zap.Logger
 	atomicLevel zap.AtomicLevel
 )
@@ -67,8 +67,8 @@ func init() {
 	DBLog = log.With(zap.String("component", "DB"))
 	AmfLog = log.Sugar().With("component", "AMF")
 	APILog = log.Sugar().With("component", "API")
-	SmfLog = log.Sugar().With("component", "SMF")
-	UdmLog = log.Sugar().With("component", "UDM")
+	SmfLog = log.With(zap.String("component", "SMF"))
+	UdmLog = log.With(zap.String("component", "UDM"))
 	UpfLog = log.With(zap.String("component", "UPF"))
 	// Audit logger initially writes to stdout as well.
 	AuditLog = log.With(zap.String("component", "Audit"))
@@ -122,8 +122,8 @@ func ConfigureLogging(systemLevel string, systemOutput string, systemFilePath st
 	DBLog = log.With(zap.String("component", "DB"))
 	AmfLog = log.Sugar().With("component", "AMF")
 	APILog = log.Sugar().With("component", "API")
-	SmfLog = log.Sugar().With("component", "SMF")
-	UdmLog = log.Sugar().With("component", "UDM")
+	SmfLog = log.With(zap.String("component", "SMF"))
+	UdmLog = log.With(zap.String("component", "UDM"))
 	UpfLog = log.With(zap.String("component", "UPF"))
 
 	// Determine output paths for audit logs.

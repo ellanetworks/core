@@ -15,6 +15,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"go.uber.org/zap"
 )
 
 const (
@@ -105,7 +106,7 @@ func BuildQosRules(smPolicyUpdates *PolicyUpdate) QoSRules {
 	// New Rules to be added
 	if pccRulesUpdate != nil {
 		for pccRuleName, pccRuleVal := range pccRulesUpdate.add {
-			logger.SmfLog.Infof("Building QoS Rule from PCC rule [%s]", pccRuleName)
+			logger.SmfLog.Info("Building QoS Rule from PCC rule", zap.String("name", pccRuleName))
 			refQosData := GetQoSDataFromPolicyDecision(smPolicyDecision, pccRuleVal.RefQosData[0])
 			qosRule := BuildAddQoSRuleFromPccRule(pccRuleVal, refQosData, OperationCodeCreateNewQoSRule)
 			qosRules = append(qosRules, *qosRule)

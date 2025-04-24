@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"go.uber.org/zap"
 )
 
 var smfContext SMFContext
@@ -80,12 +81,12 @@ func GetSnssaiInfo() []SnssaiSmfInfo {
 	self := SMFSelf()
 	operator, err := self.DBInstance.GetOperator()
 	if err != nil {
-		logger.SmfLog.Warnf("failed to get operator information from db: %v", err)
+		logger.SmfLog.Warn("failed to get operator information from db", zap.Error(err))
 		return nil
 	}
 	profiles, err := self.DBInstance.ListProfiles()
 	if err != nil {
-		logger.SmfLog.Warnf("failed to get profiles from db: %v", err)
+		logger.SmfLog.Warn("failed to get profiles from db", zap.Error(err))
 		return nil
 	}
 	snssaiInfoList := make([]SnssaiSmfInfo, 0)

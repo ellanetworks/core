@@ -61,10 +61,10 @@ type SMContext struct {
 	Tunnel                         *UPTunnel
 	DNNInfo                        *SnssaiSmfDnnInfo
 	ProtocolConfigurationOptions   *ProtocolConfigurationOptions
-	SubGsmLog                      *zap.SugaredLogger
-	SubPfcpLog                     *zap.SugaredLogger
-	SubPduSessLog                  *zap.SugaredLogger
-	SubCtxLog                      *zap.SugaredLogger
+	SubGsmLog                      *zap.Logger
+	SubPfcpLog                     *zap.Logger
+	SubPduSessLog                  *zap.Logger
+	SubCtxLog                      *zap.Logger
 	SmPolicyUpdates                []*qos.PolicyUpdate
 	SmPolicyData                   qos.SmCtxtPolicyData
 	PFCPContext                    map[string]*PFCPSessionContext
@@ -130,10 +130,10 @@ func NewSMContext(identifier string, pduSessID int32) (smContext *SMContext) {
 }
 
 func (smContext *SMContext) initLogTags() {
-	smContext.SubPfcpLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
-	smContext.SubCtxLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
-	smContext.SubPduSessLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
-	smContext.SubGsmLog = logger.SmfLog.With("uuid", smContext.Ref, "id", smContext.Identifier, "pduid", smContext.PDUSessionID)
+	smContext.SubPfcpLog = logger.SmfLog.With(zap.String("uuid", smContext.Ref), zap.String("id", smContext.Identifier), zap.Int32("pduid", smContext.PDUSessionID))
+	smContext.SubCtxLog = logger.SmfLog.With(zap.String("uuid", smContext.Ref), zap.String("id", smContext.Identifier), zap.Int32("pduid", smContext.PDUSessionID))
+	smContext.SubPduSessLog = logger.SmfLog.With(zap.String("uuid", smContext.Ref), zap.String("id", smContext.Identifier), zap.Int32("pduid", smContext.PDUSessionID))
+	smContext.SubGsmLog = logger.SmfLog.With(zap.String("uuid", smContext.Ref), zap.String("id", smContext.Identifier), zap.Int32("pduid", smContext.PDUSessionID))
 }
 
 func GetSMContext(ref string) (smContext *SMContext) {
@@ -160,14 +160,14 @@ func RemoveSMContext(ref string) {
 	// Release UE IP-Address
 	err := smContext.ReleaseUeIPAddr()
 	if err != nil {
-		smContext.SubCtxLog.Errorf("release UE IP-Address failed, %v", err)
+		smContext.SubCtxLog.Error("release UE IP-Address failed", zap.Error(err))
 	}
 
 	smContextPool.Delete(ref)
 
 	canonicalRef.Delete(canonicalName(smContext.Supi, smContext.PDUSessionID))
 	decSMContextActive()
-	smContext.SubCtxLog.Infof("SM Context removed: %s", ref)
+	smContext.SubCtxLog.Info("SM Context removed", zap.String("ref", ref))
 }
 
 func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
@@ -187,7 +187,7 @@ func (smContext *SMContext) ReleaseUeIPAddr() error {
 		if err != nil {
 			return fmt.Errorf("failed to release IP Address, %v", err)
 		}
-		smContext.SubPduSessLog.Infof("Released IP Address: %s", smContext.PDUAddress.IP.String())
+		smContext.SubPduSessLog.Info("Released IP Address", zap.String("IP", smContext.PDUAddress.IP.String()))
 		smContext.PDUAddress.IP = net.IPv4(0, 0, 0, 0)
 	}
 	return nil
@@ -370,7 +370,7 @@ func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 	if status {
 		err := qos.CommitSmPolicyDecision(&smContext.SmPolicyData, smContext.SmPolicyUpdates[0])
 		if err != nil {
-			logger.SmfLog.Errorf("failed to commit SM Policy Decision, %v", err)
+			logger.SmfLog.Error("failed to commit SM Policy Decision", zap.Error(err))
 		}
 	}
 

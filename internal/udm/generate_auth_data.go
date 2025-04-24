@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/ellanetworks/core/internal/util/ueauth"
+	"go.uber.org/zap"
 )
 
 const (
@@ -187,10 +188,10 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 			}
 			hasOPC = true
 		} else {
-			logger.UdmLog.Errorln("opcStr length is ", len(opcStr))
+			logger.UdmLog.Error("opcStr length is not 32", zap.Int("len", len(opcStr)))
 		}
 	} else {
-		logger.UdmLog.Infoln("Nil Opc")
+		logger.UdmLog.Info("nil Opc")
 	}
 
 	if !hasOPC && !hasOP {

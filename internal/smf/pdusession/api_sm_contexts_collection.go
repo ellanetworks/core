@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
+	"go.uber.org/zap"
 )
 
 func CreateSmContext(request models.PostSmContextsRequest) (string, *models.PostSmContextsErrorResponse, error) {
@@ -45,7 +46,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (string, *models.Post
 			go func() {
 				err := producer.SendPduSessN1N2Transfer(smContext, false)
 				if err != nil {
-					logger.SmfLog.Errorf("error transferring n1 n2: %v", err)
+					logger.SmfLog.Error("error transferring n1 n2", zap.Error(err))
 				}
 			}()
 		}
@@ -55,7 +56,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (string, *models.Post
 	go func() {
 		err := producer.SendPduSessN1N2Transfer(smContext, true)
 		if err != nil {
-			logger.SmfLog.Errorf("error transferring n1 n2: %v", err)
+			logger.SmfLog.Error("error transferring n1 n2", zap.Error(err))
 		}
 	}()
 	return location, nil, nil
