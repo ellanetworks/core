@@ -8,6 +8,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 const RestoreAction = "restore_database"
@@ -35,11 +36,11 @@ func Restore(dbInstance *db.Database) gin.HandlerFunc {
 		defer func() {
 			err := tempFile.Close()
 			if err != nil {
-				logger.APILog.Warnf("Failed to close temp restore file: %v", err)
+				logger.APILog.Warn("Failed to close temp restore file", zap.Error(err))
 			}
 			err = os.Remove(tempFile.Name())
 			if err != nil {
-				logger.APILog.Warnf("Failed to remove temp restore file: %v", err)
+				logger.APILog.Warn("Failed to remove temp restore file", zap.Error(err))
 			}
 		}()
 

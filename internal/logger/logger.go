@@ -16,7 +16,7 @@ var (
 	MetricsLog  *zap.Logger
 	DBLog       *zap.Logger
 	AmfLog      *zap.SugaredLogger
-	APILog      *zap.SugaredLogger
+	APILog      *zap.Logger
 	SmfLog      *zap.Logger
 	UdmLog      *zap.Logger
 	UpfLog      *zap.Logger
@@ -66,7 +66,7 @@ func init() {
 	MetricsLog = log.With(zap.String("component", "Metrics"))
 	DBLog = log.With(zap.String("component", "DB"))
 	AmfLog = log.Sugar().With("component", "AMF")
-	APILog = log.Sugar().With("component", "API")
+	APILog = log.With(zap.String("component", "API"))
 	SmfLog = log.With(zap.String("component", "SMF"))
 	UdmLog = log.With(zap.String("component", "UDM"))
 	UpfLog = log.With(zap.String("component", "UPF"))
@@ -121,7 +121,7 @@ func ConfigureLogging(systemLevel string, systemOutput string, systemFilePath st
 	MetricsLog = log.With(zap.String("component", "Metrics"))
 	DBLog = log.With(zap.String("component", "DB"))
 	AmfLog = log.Sugar().With("component", "AMF")
-	APILog = log.Sugar().With("component", "API")
+	APILog = log.With(zap.String("component", "API"))
 	SmfLog = log.With(zap.String("component", "SMF"))
 	UdmLog = log.With(zap.String("component", "UDM"))
 	UpfLog = log.With(zap.String("component", "UPF"))

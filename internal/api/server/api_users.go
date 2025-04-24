@@ -8,6 +8,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -84,7 +85,7 @@ func ListUsers(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		dbUsers, err := dbInstance.ListUsers()
 		if err != nil {
-			logger.APILog.Warnln(err)
+			logger.APILog.Warn("Failed to query users", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Unable to retrieve users")
 			return
 		}
@@ -219,7 +220,7 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		err = dbInstance.CreateUser(dbUser)
 		if err != nil {
-			logger.APILog.Warnln(err)
+			logger.APILog.Warn("Failed to create user", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to create user")
 			return
 		}
@@ -273,7 +274,7 @@ func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		err = dbInstance.UpdateUser(updateUserParams.Email, role)
 		if err != nil {
-			logger.APILog.Warnln(err)
+			logger.APILog.Warn("Failed to update user", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update user")
 			return
 		}
@@ -327,13 +328,13 @@ func UpdateUserPassword(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		hashedPassword, err := hashPassword(updateUserParams.Password)
 		if err != nil {
-			logger.APILog.Warnln(err)
+			logger.APILog.Warn("Failed to hash password", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to hash password")
 			return
 		}
 		err = dbInstance.UpdateUserPassword(updateUserParams.Email, hashedPassword)
 		if err != nil {
-			logger.APILog.Warnln(err)
+			logger.APILog.Warn("Failed to update user password", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update user")
 			return
 		}
@@ -368,7 +369,7 @@ func DeleteUser(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		err = dbInstance.DeleteUser(emailParam)
 		if err != nil {
-			logger.APILog.Warnln(err)
+			logger.APILog.Warn("Failed to delete user", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to delete user")
 			return
 		}

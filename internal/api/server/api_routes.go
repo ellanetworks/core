@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type CreateRouteParams struct {
@@ -218,7 +219,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 		defer func() {
 			if !committed {
 				if rbErr := tx.Rollback(); rbErr != nil {
-					logger.APILog.Errorf("Failed to rollback transaction: %v", rbErr)
+					logger.APILog.Error("Failed to rollback transaction", zap.Error(rbErr))
 				}
 			}
 		}()
@@ -296,7 +297,7 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 		defer func() {
 			if !committed {
 				if rbErr := tx.Rollback(); rbErr != nil {
-					logger.APILog.Errorf("Failed to rollback transaction: %v", rbErr)
+					logger.APILog.Error("Failed to rollback transaction", zap.Error(rbErr))
 				}
 			}
 		}()
