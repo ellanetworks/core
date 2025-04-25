@@ -3881,7 +3881,7 @@ func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU
 				ran.Log.Error("RAN Node Name is nil")
 				return
 			}
-			ran.Log.Debug("Decode IE RANNodeName", zap.String("RANNodeName", string(rANNodeName.Value)))
+			ran.Log.Debug("Decode IE RANNodeName", zap.String("RANNodeName", rANNodeName.Value))
 		case ngapType.ProtocolIEIDSupportedTAList:
 			supportedTAList = ie.Value.SupportedTAList
 			ran.Log.Debug("Decode IE SupportedTAList")
@@ -3895,7 +3895,7 @@ func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU
 				ran.Log.Error("PagingDRX is nil")
 				return
 			}
-			ran.Log.Debug("Decode IE PagingDRX", zap.String("PagingDRX", string(pagingDRX.Value)))
+			ran.Log.Debug("Decode IE PagingDRX", zap.Any("PagingDRX", pagingDRX.Value))
 		}
 	}
 
