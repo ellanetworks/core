@@ -148,7 +148,7 @@ func Stop() {
 	connections.Range(func(key, value interface{}) bool {
 		conn := value.(net.Conn)
 		if err := conn.Close(); err != nil {
-			logger.AmfLog.Error("close connection error", zap.Error(err), zap.String("address", conn.RemoteAddr().String()))
+			logger.AmfLog.Error("close connection error", zap.Error(err))
 		}
 		return true
 	})
