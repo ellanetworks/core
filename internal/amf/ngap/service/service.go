@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap"
+	"go.uber.org/zap"
 )
 
 type NGAPHandler struct {
@@ -59,78 +60,78 @@ func Run(address string, port int, handler NGAPHandler) error {
 func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 	listener, err := sctpConfig.Listen("sctp", addr)
 	if err != nil {
-		logger.AmfLog.Errorf("Failed to listen: %+v", err)
+		logger.AmfLog.Error("Failed to listen", zap.Error(err))
 		return
 	}
 	sctpListener = listener
-	logger.AmfLog.Infof("NGAP server started on %s", addr.String())
+	logger.AmfLog.Info("NGAP server started", zap.String("address", addr.String()))
 	for {
 		newConn, err := sctpListener.AcceptSCTP()
 		if err != nil {
 			switch err {
 			case syscall.EINTR, syscall.EAGAIN:
-				logger.AmfLog.Debugf("AcceptSCTP: %+v", err)
+				logger.AmfLog.Debug("AcceptSCTP", zap.Error(err))
 			default:
-				logger.AmfLog.Errorf("Failed to accept: %+v", err)
+				logger.AmfLog.Error("Failed to accept", zap.Error(err))
 			}
 			continue
 		}
 
 		var info *sctp.SndRcvInfo
 		if infoTmp, err := newConn.GetDefaultSentParam(); err != nil {
-			logger.AmfLog.Errorf("Get default sent param error: %+v, accept failed", err)
+			logger.AmfLog.Error("Get default sent param error", zap.Error(err))
 			if err = newConn.Close(); err != nil {
-				logger.AmfLog.Errorf("Close error: %+v", err)
+				logger.AmfLog.Error("Close error", zap.Error(err))
 			}
 			continue
 		} else {
 			info = infoTmp
-			logger.AmfLog.Debugf("Get default sent param[value: %+v]", info)
+			logger.AmfLog.Debug("Get default sent param", zap.Any("info", info))
 		}
 
 		info.PPID = ngap.PPID
 		if err := newConn.SetDefaultSentParam(info); err != nil {
-			logger.AmfLog.Errorf("Set default sent param error: %+v, accept failed", err)
+			logger.AmfLog.Error("Set default sent param error", zap.Error(err))
 			if err = newConn.Close(); err != nil {
-				logger.AmfLog.Errorf("Close error: %+v", err)
+				logger.AmfLog.Error("Close error", zap.Error(err))
 			}
 			continue
 		} else {
-			logger.AmfLog.Debugf("Set default sent param[value: %+v]", info)
+			logger.AmfLog.Debug("Set default sent param", zap.Any("info", info))
 		}
 
 		events := sctp.SCTPEventDataIO | sctp.SCTPEventShutdown | sctp.SCTPEventAssociation
 		if err := newConn.SubscribeEvents(events); err != nil {
-			logger.AmfLog.Errorf("Failed to accept: %+v", err)
+			logger.AmfLog.Error("Failed to accept", zap.Error(err))
 			if err = newConn.Close(); err != nil {
-				logger.AmfLog.Errorf("Close error: %+v", err)
+				logger.AmfLog.Error("Close error", zap.Error(err))
 			}
 			continue
 		} else {
-			logger.AmfLog.Debugln("Subscribe SCTP event[DATA_IO, SHUTDOWN_EVENT, ASSOCIATION_CHANGE]")
+			logger.AmfLog.Debug("Subscribe SCTP event[DATA_IO, SHUTDOWN_EVENT, ASSOCIATION_CHANGE]")
 		}
 
 		if err := newConn.SetReadBuffer(int(readBufSize)); err != nil {
-			logger.AmfLog.Errorf("Set read buffer error: %+v, accept failed", err)
+			logger.AmfLog.Error("Set read buffer error", zap.Error(err))
 			if err = newConn.Close(); err != nil {
-				logger.AmfLog.Errorf("Close error: %+v", err)
+				logger.AmfLog.Error("Close error", zap.Error(err))
 			}
 			continue
 		} else {
-			logger.AmfLog.Debugf("Set read buffer to %d bytes", readBufSize)
+			logger.AmfLog.Debug("Set read buffer", zap.Any("size", readBufSize))
 		}
 
 		if err := newConn.SetReadTimeout(readTimeout); err != nil {
-			logger.AmfLog.Errorf("Set read timeout error: %+v, accept failed", err)
+			logger.AmfLog.Error("Set read timeout error", zap.Error(err))
 			if err = newConn.Close(); err != nil {
-				logger.AmfLog.Errorf("Close error: %+v", err)
+				logger.AmfLog.Error("Close error", zap.Error(err))
 			}
 			continue
 		} else {
-			logger.AmfLog.Debugf("Set read timeout: %+v", readTimeout)
+			logger.AmfLog.Debug("Set read timeout", zap.Any("timeout", readTimeout))
 		}
 
-		logger.AmfLog.Infof("New connection from %s", newConn.RemoteAddr())
+		logger.AmfLog.Info("New connection", zap.String("address", newConn.RemoteAddr().String()))
 		connections.Store(newConn, newConn)
 
 		go handleConnection(newConn, readBufSize, handler)
@@ -138,28 +139,28 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 }
 
 func Stop() {
-	logger.AmfLog.Infof("Close SCTP server...")
+	logger.AmfLog.Info("Close SCTP server...")
 	if err := sctpListener.Close(); err != nil {
-		logger.AmfLog.Error(err)
-		logger.AmfLog.Infof("SCTP server may not close normally.")
+		logger.AmfLog.Error("close SCTP server error", zap.Error(err))
+		logger.AmfLog.Info("SCTP server may not close normally.")
 	}
 
 	connections.Range(func(key, value interface{}) bool {
 		conn := value.(net.Conn)
 		if err := conn.Close(); err != nil {
-			logger.AmfLog.Error(err)
+			logger.AmfLog.Error("close connection error", zap.Error(err))
 		}
 		return true
 	})
 
-	logger.AmfLog.Infof("SCTP server closed")
+	logger.AmfLog.Info("SCTP server closed")
 }
 
 func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler NGAPHandler) {
 	defer func() {
 		// if AMF call Stop(), then conn.Close() will return EBADF because conn has been closed inside Stop()
 		if err := conn.Close(); err != nil && err != syscall.EBADF {
-			logger.AmfLog.Errorf("close connection error: %+v", err)
+			logger.AmfLog.Error("close connection error", zap.Error(err))
 		}
 		connections.Delete(conn)
 	}()
@@ -175,10 +176,10 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler NGAPHandler) 
 			case syscall.EAGAIN:
 				continue
 			case syscall.EINTR:
-				logger.AmfLog.Debugf("SCTPRead: %+v", err)
+				logger.AmfLog.Debug("SCTPRead", zap.Error(err))
 				continue
 			default:
-				logger.AmfLog.Errorf("Handle connection[addr: %+v] error: %+v", conn.RemoteAddr(), err)
+				logger.AmfLog.Error("Handle connection error", zap.Error(err), zap.String("address", conn.RemoteAddr().String()))
 				return
 			}
 		}
@@ -187,11 +188,11 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler NGAPHandler) 
 			if handler.HandleNotification != nil {
 				handler.HandleNotification(conn, notification)
 			} else {
-				logger.AmfLog.Warnf("Received sctp notification[type 0x%x] but not handled", notification.Type())
+				logger.AmfLog.Warn("Received sctp notification but not handled", zap.Any("type", notification.Type()))
 			}
 		} else {
 			if info == nil || info.PPID != ngap.PPID {
-				logger.AmfLog.Warnln("Received SCTP PPID != 60, discard this packet")
+				logger.AmfLog.Warn("Received SCTP PPID != 60, discard this packet")
 				continue
 			}
 

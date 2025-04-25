@@ -10,6 +10,7 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 const SubscribersTableName = "subscribers"
@@ -127,7 +128,7 @@ func (db *Database) DeleteSubscriber(imsi string) error {
 		Imsi: imsi,
 	}
 	err = db.conn.Query(context.Background(), stmt, row).Run()
-	logger.DBLog.Infof("Deleted subscriber with Imsi %s", imsi)
+	logger.DBLog.Info("Deleted subscriber", zap.String("imsi", imsi))
 	return err
 }
 

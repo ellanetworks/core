@@ -7,6 +7,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/vishvananda/netlink"
+	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 )
 
@@ -67,7 +68,7 @@ func (rk *RealKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priori
 	if err := netlink.RouteAdd(&nlRoute); err != nil {
 		return fmt.Errorf("failed to add route: %v", err)
 	}
-	logger.EllaLog.Debugf("Added route: %v", nlRoute)
+	logger.EllaLog.Debug("Added route", zap.String("destination", destination.String()), zap.String("gateway", gateway.String()), zap.Int("priority", priority), zap.String("interface", interfaceName))
 	return nil
 }
 
@@ -148,7 +149,7 @@ func (rk *RealKernel) EnableIPForwarding() error {
 	if err != nil {
 		return fmt.Errorf("failed to enable ip_forward: %v", err)
 	}
-	logger.EllaLog.Debugf("Enabled IP forwarding")
+	logger.EllaLog.Debug("Enabled IP forwarding")
 	return nil
 }
 

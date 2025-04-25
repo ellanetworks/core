@@ -9,6 +9,7 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 // The BPF_ARRAY map type has no delete operation. The only way to delete an element is to replace it with a new one.
@@ -58,7 +59,7 @@ func PreprocessN6PdrWithSdf(lookup func(interface{}, interface{}) error, key int
 }
 
 func (bpfObjects *BpfObjects) PutPdrUplink(teid uint32, pdrInfo PdrInfo) error {
-	logger.UpfLog.Debugf("EBPF: Put PDR Uplink: teid=%d, pdrInfo=%+v", teid, pdrInfo)
+	logger.UpfLog.Debug("Put PDR Uplink", zap.Uint32("teid", teid), zap.Any("pdrInfo", pdrInfo))
 	var pdrToStore N3EntrypointN3PdrInfo
 	var err error
 	if pdrInfo.SdfFilter != nil {
@@ -72,7 +73,7 @@ func (bpfObjects *BpfObjects) PutPdrUplink(teid uint32, pdrInfo PdrInfo) error {
 }
 
 func (bpfObjects *BpfObjects) PutPdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) error {
-	logger.UpfLog.Debugf("EBPF: Put PDR Downlink: ipv4=%s, pdrInfo=%+v", ipv4, pdrInfo)
+	logger.UpfLog.Debug("Put PDR Downlink", zap.String("ipv4", ipv4.String()), zap.Any("pdrInfo", pdrInfo))
 	var pdrToStore N6EntrypointPdrInfo
 	var err error
 	if pdrInfo.SdfFilter != nil {
@@ -86,17 +87,17 @@ func (bpfObjects *BpfObjects) PutPdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) error
 }
 
 func (bpfObjects *BpfObjects) DeletePdrUplink(teid uint32) error {
-	logger.UpfLog.Debugf("EBPF: Delete PDR Uplink: teid=%d", teid)
+	logger.UpfLog.Debug("Delete PDR Uplink", zap.Uint32("teid", teid))
 	return bpfObjects.N3EntrypointMaps.N3PdrMapUplinkIp4.Delete(teid)
 }
 
 func (bpfObjects *BpfObjects) DeletePdrDownlink(ipv4 net.IP) error {
-	logger.UpfLog.Debugf("EBPF: Delete PDR Downlink: ipv4=%s", ipv4)
+	logger.UpfLog.Debug("Delete PDR Downlink", zap.String("ipv4", ipv4.String()))
 	return bpfObjects.N6EntrypointMaps.PdrMapDownlinkIp4.Delete(ipv4)
 }
 
 func (bpfObjects *BpfObjects) PutDownlinkPdrIP6(ipv6 net.IP, pdrInfo PdrInfo) error {
-	logger.UpfLog.Debugf("EBPF: Put PDR Ipv6 Downlink: ipv6=%s, pdrInfo=%+v", ipv6, pdrInfo)
+	logger.UpfLog.Debug("EBPF: Put PDR Ipv6 Downlink", zap.String("ipv6", ipv6.String()), zap.Any("pdrInfo", pdrInfo))
 	var pdrToStore N6EntrypointPdrInfo
 	var err error
 	if pdrInfo.SdfFilter != nil {
@@ -110,7 +111,7 @@ func (bpfObjects *BpfObjects) PutDownlinkPdrIP6(ipv6 net.IP, pdrInfo PdrInfo) er
 }
 
 func (bpfObjects *BpfObjects) DeleteDownlinkPdrIP6(ipv6 net.IP) error {
-	logger.UpfLog.Debugf("EBPF: Delete PDR Ipv6 Downlink: ipv6=%s", ipv6)
+	logger.UpfLog.Debug("Delete PDR Ipv6 Downlink", zap.String("ipv6", ipv6.String()))
 	return bpfObjects.N6EntrypointMaps.PdrMapDownlinkIp6.Delete(ipv6)
 }
 
@@ -144,7 +145,7 @@ func (bpfObjects *BpfObjects) NewFar(farInfo FarInfo) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	logger.UpfLog.Debugf("EBPF: Put FAR: internalID=%d, qerInfo=%+v", internalID, farInfo)
+	logger.UpfLog.Debug("Put FAR", zap.Uint32("internalID", internalID), zap.Any("farInfo", farInfo))
 	err = bpfObjects.N3EntrypointMaps.FarMap.Put(internalID, unsafe.Pointer(&farInfo))
 	if err != nil {
 		return 0, err
@@ -157,7 +158,7 @@ func (bpfObjects *BpfObjects) NewFar(farInfo FarInfo) (uint32, error) {
 }
 
 func (bpfObjects *BpfObjects) UpdateFar(internalID uint32, farInfo FarInfo) error {
-	logger.UpfLog.Debugf("EBPF: Update FAR: internalID=%d, farInfo=%+v", internalID, farInfo)
+	logger.UpfLog.Debug("Update FAR", zap.Uint32("internalID", internalID), zap.Any("farInfo", farInfo))
 	err := bpfObjects.N3EntrypointMaps.FarMap.Update(internalID, unsafe.Pointer(&farInfo), ebpf.UpdateExist)
 	if err != nil {
 		return err
@@ -170,7 +171,7 @@ func (bpfObjects *BpfObjects) UpdateFar(internalID uint32, farInfo FarInfo) erro
 }
 
 func (bpfObjects *BpfObjects) DeleteFar(internalID uint32) error {
-	logger.UpfLog.Debugf("EBPF: Delete FAR: internalID=%d", internalID)
+	logger.UpfLog.Debug("Delete FAR", zap.Uint32("internalID", internalID))
 	bpfObjects.FarIDTracker.Release(internalID)
 	err := bpfObjects.N3EntrypointMaps.FarMap.Update(internalID, unsafe.Pointer(&FarInfo{}), ebpf.UpdateExist)
 	if err != nil {
@@ -198,7 +199,7 @@ func (bpfObjects *BpfObjects) NewQer(qerInfo QerInfo) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	logger.UpfLog.Debugf("EBPF: Put QER: internalID=%d, qerInfo=%+v", internalID, qerInfo)
+	logger.UpfLog.Debug("Put QER", zap.Uint32("internalID", internalID), zap.Any("qerInfo", qerInfo))
 	err = bpfObjects.N3EntrypointMaps.QerMap.Put(internalID, unsafe.Pointer(&qerInfo))
 	if err != nil {
 		return 0, err
@@ -211,7 +212,7 @@ func (bpfObjects *BpfObjects) NewQer(qerInfo QerInfo) (uint32, error) {
 }
 
 func (bpfObjects *BpfObjects) UpdateQer(internalID uint32, qerInfo QerInfo) error {
-	logger.UpfLog.Debugf("EBPF: Update QER: internalID=%d, qerInfo=%+v", internalID, qerInfo)
+	logger.UpfLog.Debug("Update QER", zap.Uint32("internalID", internalID), zap.Any("qerInfo", qerInfo))
 	err := bpfObjects.N3EntrypointMaps.QerMap.Update(internalID, unsafe.Pointer(&qerInfo), ebpf.UpdateExist)
 	if err != nil {
 		return err
@@ -224,7 +225,7 @@ func (bpfObjects *BpfObjects) UpdateQer(internalID uint32, qerInfo QerInfo) erro
 }
 
 func (bpfObjects *BpfObjects) DeleteQer(internalID uint32) error {
-	logger.UpfLog.Debugf("EBPF: Delete QER: internalID=%d", internalID)
+	logger.UpfLog.Debug("Delete QER", zap.Uint32("internalID", internalID))
 	bpfObjects.QerIDTracker.Release(internalID)
 	err := bpfObjects.N3EntrypointMaps.QerMap.Update(internalID, unsafe.Pointer(&QerInfo{}), ebpf.UpdateExist)
 	if err != nil {

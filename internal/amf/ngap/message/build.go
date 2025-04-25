@@ -18,6 +18,7 @@ import (
 	"github.com/omec-project/ngap"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
+	"go.uber.org/zap"
 )
 
 func BuildPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte,
@@ -123,7 +124,7 @@ func BuildNGSetupResponse() ([]byte, error) {
 		servedGUAMIItem := ngapType.ServedGUAMIItem{}
 		plmnID, err := util.PlmnIDToNgap(*guami.PlmnID)
 		if err != nil {
-			logger.AmfLog.Errorf("error converting PLMN ID to NGAP: %+v", err)
+			logger.AmfLog.Error("error converting PLMN ID to NGAP", zap.Error(err))
 			continue
 		}
 		servedGUAMIItem.GUAMI.PLMNIdentity = *plmnID
@@ -1118,13 +1119,13 @@ func BuildInitialContextSetupRequest(
 		if amfUe.UeRadioCapabilityForPaging.NR != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value, err = hex.DecodeString(amfUe.UeRadioCapabilityForPaging.NR)
 			if err != nil {
-				logger.AmfLog.Errorf("[Build Error] DecodeString amfUe.UeRadioCapabilityForPaging.NR error: %+v", err)
+				logger.AmfLog.Error("DecodeString amfUe.UeRadioCapabilityForPaging.NR error", zap.Error(err))
 			}
 		}
 		if amfUe.UeRadioCapabilityForPaging.EUTRA != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value, err = hex.DecodeString(amfUe.UeRadioCapabilityForPaging.EUTRA)
 			if err != nil {
-				logger.AmfLog.Errorf("[Build Error] DecodeString amfUe.UeRadioCapabilityForPaging.NR error: %+v", err)
+				logger.AmfLog.Error("DecodeString amfUe.UeRadioCapabilityForPaging.NR error", zap.Error(err))
 			}
 		}
 		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
@@ -1806,7 +1807,7 @@ func BuildPaging(
 	uePagingIdentity.FiveGSTMSI.AMFPointer.Value = amfPointer
 	uePagingIdentity.FiveGSTMSI.FiveGTMSI.Value, err = hex.DecodeString(tmsi)
 	if err != nil {
-		logger.AmfLog.Errorf("[Build Error] DecodeString tmsi error: %+v", err)
+		logger.AmfLog.Error("DecodeString tmsi error", zap.Error(err))
 	}
 
 	pagingIEs.List = append(pagingIEs.List, ie)
@@ -1835,7 +1836,7 @@ func BuildPaging(
 			taiListforPagingItem.TAI.PLMNIdentity = *plmnID
 			tac, err = hex.DecodeString(tai.Tac)
 			if err != nil {
-				logger.AmfLog.Errorf("[Build Error] DecodeString tai.Tac error: %+v", err)
+				logger.AmfLog.Error("DecodeString tai.Tac error", zap.Error(err))
 			}
 			taiListforPagingItem.TAI.TAC.Value = tac
 			taiListForPaging.List = append(taiListForPaging.List, taiListforPagingItem)
@@ -1865,14 +1866,13 @@ func BuildPaging(
 		if ue.UeRadioCapabilityForPaging.NR != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value, err = hex.DecodeString(ue.UeRadioCapabilityForPaging.NR)
 			if err != nil {
-				logger.AmfLog.Errorf(
-					"[Build Error] DecodeString ue.UeRadioCapabilityForPaging.NR error: %+v", err)
+				logger.AmfLog.Error("DecodeString ue.UeRadioCapabilityForPaging.NR error", zap.Error(err))
 			}
 		}
 		if ue.UeRadioCapabilityForPaging.EUTRA != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value, err = hex.DecodeString(ue.UeRadioCapabilityForPaging.EUTRA)
 			if err != nil {
-				logger.AmfLog.Errorf("[Build Error] DecodeString ue.UeRadioCapabilityForPaging.EUTRA error: %+v", err)
+				logger.AmfLog.Error("DecodeString ue.UeRadioCapabilityForPaging.EUTRA error", zap.Error(err))
 			}
 		}
 		pagingIEs.List = append(pagingIEs.List, ie)

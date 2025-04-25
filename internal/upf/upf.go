@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"go.uber.org/zap"
 )
 
 const (
@@ -32,24 +33,24 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 
 	if err := ebpf.IncreaseResourceLimits(); err != nil {
-		logger.UpfLog.Fatalf("Can't increase resource limits: %s", err.Error())
+		logger.UpfLog.Fatal("Can't increase resource limits", zap.Error(err))
 	}
 
 	bpfObjects := ebpf.NewBpfObjects(FarMapSize, QerMapSize)
 	if err := bpfObjects.Load(); err != nil {
-		logger.UpfLog.Fatalf("Loading bpf objects failed: %s", err.Error())
+		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
 		return err
 	}
 
 	defer func() {
 		if err := bpfObjects.Close(); err != nil {
-			logger.UpfLog.Warnf("Failed to detach eBPF program: %s", err)
+			logger.UpfLog.Warn("Failed to detach eBPF program", zap.Error(err))
 		}
 	}()
 
 	n3Iface, err := net.InterfaceByName(n3Interface)
 	if err != nil {
-		logger.UpfLog.Fatalf("Lookup network iface %q: %s", n3Interface, err.Error())
+		logger.UpfLog.Fatal("Lookup network iface", zap.String("iface", n3Interface), zap.Error(err))
 		return err
 	}
 
@@ -63,15 +64,15 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 	}
 	defer func() {
 		if err := n3Link.Close(); err != nil {
-			logger.UpfLog.Warnf("Failed to detach eBPF program from n3 interface: %s", err)
+			logger.UpfLog.Warn("Failed to detach eBPF program from n3 interface", zap.Error(err))
 		}
 	}()
 
-	logger.UpfLog.Infof("Attached eBPF program to n3 interface %q in mode %q", n3Interface, xdpAttachMode)
+	logger.UpfLog.Info("Attached eBPF program to interface", zap.String("iface", n3Interface), zap.String("mode", xdpAttachMode))
 
 	n6Iface, err := net.InterfaceByName(n6Interface)
 	if err != nil {
-		logger.UpfLog.Fatalf("Lookup network iface %q: %s", n6Interface, err.Error())
+		logger.UpfLog.Fatal("Lookup network iface", zap.String("iface", n6Interface), zap.Error(err))
 		return err
 	}
 
@@ -85,20 +86,20 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 	}
 	defer func() {
 		if err := n6Link.Close(); err != nil {
-			logger.UpfLog.Warnf("Failed to detach eBPF program from n6 interface: %s", err)
+			logger.UpfLog.Warn("Failed to detach eBPF program from n6 interface", zap.Error(err))
 		}
 	}()
 
-	logger.UpfLog.Infof("Attached eBPF program to n6 interface %q in mode %q", n6Interface, xdpAttachMode)
+	logger.UpfLog.Info("Attached eBPF program to interface", zap.String("iface", n6Interface), zap.String("mode", xdpAttachMode))
 
 	resourceManager, err := core.NewFteIDResourceManager(FTEIDPool)
 	if err != nil {
-		logger.UpfLog.Errorf("failed to create ResourceManager - err: %v", err)
+		logger.UpfLog.Error("failed to create Resource Manager", zap.Error(err))
 	}
 
 	pfcpConn, err := core.CreatePfcpConnection(PfcpAddress, PfcpNodeID, n3Address, SmfAddress, bpfObjects, resourceManager)
 	if err != nil {
-		logger.UpfLog.Fatalf("Could not create PFCP connection: %s", err.Error())
+		logger.UpfLog.Fatal("Could not create PFCP connection", zap.Error(err))
 	}
 
 	remoteNode := core.NewNodeAssociation(SmfNodeID, SmfAddress)
@@ -118,7 +119,7 @@ func Start(n3Address string, n3Interface string, n6Interface string, xdpAttachMo
 		select {
 		case <-ticker.C:
 		case <-stopper:
-			logger.UpfLog.Infof("Received signal, exiting program..")
+			logger.UpfLog.Info("Received signal, exiting program..")
 			return nil
 		}
 	}

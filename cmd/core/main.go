@@ -21,6 +21,8 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/upf"
+	"github.com/ellanetworks/core/version"
+	"go.uber.org/zap"
 )
 
 const (
@@ -84,11 +86,11 @@ func main() {
 	}
 	initialOp, err := generateOperatorCode()
 	if err != nil {
-		logger.EllaLog.Panicf("Failed to generate operator code: %v", err)
+		logger.EllaLog.Panic("Failed to generate operator code", zap.Error(err))
 	}
 	initialHNPrivateKey, err := generateHomeNetworkPrivateKey()
 	if err != nil {
-		logger.EllaLog.Panicf("Failed to generate home network private key: %v", err)
+		logger.EllaLog.Panic("Failed to generate home network private key", zap.Error(err))
 	}
 	initialOperatorValues := db.Operator{
 		Mcc:                   InitialMcc,
@@ -105,19 +107,21 @@ func main() {
 	)
 	dbInstance, err := db.NewDatabase(cfg.DB.Path, initialOperatorValues)
 	if err != nil {
-		logger.EllaLog.Panicf("Failed to initialize database: %v", err)
+		logger.EllaLog.Panic("Failed to initialize database", zap.Error(err))
 	}
 	defer func() {
 		if err := dbInstance.Close(); err != nil {
-			logger.EllaLog.Panicf("Failed to close database: %v", err)
+			logger.EllaLog.Panic("Failed to close database", zap.Error(err))
 		}
 	}()
 	metrics.RegisterDatabaseMetrics(dbInstance)
 	err = startNetwork(dbInstance, cfg)
 	if err != nil {
-		logger.EllaLog.Panicf("Failed to start network: %v", err)
+		logger.EllaLog.Panic("Failed to start network", zap.Error(err))
 	}
-	logger.EllaLog.Infof("Ella is running")
+
+	version := version.GetVersion()
+	logger.EllaLog.Info("Ella Core is running", zap.String("version", version))
 	select {}
 }
 

@@ -8,7 +8,6 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/omec-project/aper"
@@ -186,7 +185,6 @@ func BuildPathSwitchRequestAcknowledgeTransfer(ctx *SMContext) ([]byte, error) {
 	dataPath := ctx.Tunnel.DataPath
 	ANUPF := dataPath.DPNode
 	UpNode := ANUPF.UPF
-	logger.SmfLog.Warnf("UPF TEID: %v", ANUPF.UpLinkTunnel.TEID)
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, ANUPF.UpLinkTunnel.TEID)
 

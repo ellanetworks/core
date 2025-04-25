@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )
@@ -54,23 +55,22 @@ func Start(dbInstance *db.Database, port int, scheme Scheme, certFile string, ke
 		}
 		if scheme == HTTPS {
 			if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil {
-				logger.APILog.Errorf("couldn't start API server: %v", err)
+				logger.APILog.Error("couldn't start API server", zap.Error(err))
 			}
 		} else {
 			if err := srv.ListenAndServe(); err != nil {
-				logger.APILog.Errorf("couldn't start API server: %v", err)
+				logger.APILog.Error("couldn't start API server", zap.Error(err))
 			}
 		}
 	}()
-
-	logger.APILog.Infof("API server started on %s://127.0.0.1:%d", scheme, port)
+	logger.APILog.Info("API server started", zap.String("scheme", string(scheme)), zap.String("address", fmt.Sprintf("%s://127.0.0.1:%d", scheme, port)))
 
 	// Reconcile routes on startup and every 5 minutes.
 	go func() {
 		for {
 			err := routeReconciler(dbInstance, kernelInt)
 			if err != nil {
-				logger.APILog.Errorf("couldn't reconcile routes: %v", err)
+				logger.APILog.Error("couldn't reconcile routes", zap.Error(err))
 			}
 			time.Sleep(5 * time.Minute)
 		}
@@ -118,6 +118,6 @@ func ReconcileKernelRouting(dbInstance *db.Database, kernelInt kernel.Kernel) er
 			}
 		}
 	}
-	logger.APILog.Debugln("Routes reconciled")
+	logger.APILog.Debug("Routes reconciled")
 	return nil
 }

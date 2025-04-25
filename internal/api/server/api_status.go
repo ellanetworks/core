@@ -7,6 +7,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/version"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type StatusResponse struct {
@@ -20,7 +21,7 @@ func GetStatus(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		numUsers, err := dbInstance.NumUsers()
 		if err != nil {
-			logger.APILog.Warnf("Failed to query number of users: %v", err)
+			logger.APILog.Warn("Failed to query number of users", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Unable to retrieve number of users")
 			return
 		}

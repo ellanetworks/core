@@ -1,6 +1,9 @@
 package ebpf
 
-import "github.com/ellanetworks/core/internal/logger"
+import (
+	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
+)
 
 type UpfXdpActionStatistic struct {
 	BpfObjects *BpfObjects
@@ -33,7 +36,7 @@ func (stat *UpfXdpActionStatistic) getUpfN3XdpStatisticField(field uint32) uint6
 	var statistics []N3EntrypointUpfN3Statistic
 	err := stat.BpfObjects.N3EntrypointObjects.UpfN3Stat.Lookup(uint32(0), &statistics)
 	if err != nil {
-		logger.UpfLog.Infof(err.Error())
+		logger.UpfLog.Info("Failed to fetch UPF N3 stats", zap.Error(err))
 		return 0
 	}
 
@@ -49,7 +52,7 @@ func (stat *UpfXdpActionStatistic) getUpfN6XdpStatisticField(field uint32) uint6
 	var statistics []N6EntrypointUpfN6Statistic
 	err := stat.BpfObjects.N6EntrypointObjects.UpfN6Stat.Lookup(uint32(0), &statistics)
 	if err != nil {
-		logger.UpfLog.Infof(err.Error())
+		logger.UpfLog.Info("Failed to fetch UPF N6 stats", zap.Error(err))
 		return 0
 	}
 
@@ -101,7 +104,7 @@ func (stat *UpfXdpActionStatistic) GetN3UplinkThroughputStats() uint64 {
 	var n3Statistics []N3EntrypointUpfN3Statistic
 	err := stat.BpfObjects.N3EntrypointMaps.UpfN3Stat.Lookup(uint32(0), &n3Statistics)
 	if err != nil {
-		logger.UpfLog.Infof("Failed to fetch UPF stats: %v", err)
+		logger.UpfLog.Info("Failed to fetch UPF N3 stats", zap.Error(err))
 		return 0
 	}
 
@@ -117,7 +120,7 @@ func (stat *UpfXdpActionStatistic) GetN6DownlinkThroughputStats() uint64 {
 	var n6Statistics []N6EntrypointUpfN6Statistic
 	err := stat.BpfObjects.N6EntrypointMaps.UpfN6Stat.Lookup(uint32(0), &n6Statistics)
 	if err != nil {
-		logger.UpfLog.Infof("Failed to fetch UPF stats: %v", err)
+		logger.UpfLog.Info("Failed to fetch UPF N6 stats", zap.Error(err))
 		return 0
 	}
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
+	"go.uber.org/zap"
 )
 
 func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) error {
@@ -53,7 +54,7 @@ func HandleNAS(ue *context.RanUe, procedureCode int64, nasPdu []byte) error {
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
 	if err := Dispatch(ue.AmfUe, ue.Ran.AnType, procedureCode, msg); err != nil {
-		ue.AmfUe.NASLog.Errorf("Handle NAS Error: %v", err)
+		ue.AmfUe.NASLog.Error("Handle NAS Error", zap.Error(err))
 		return fmt.Errorf("error handling NAS message: %v", err)
 	}
 

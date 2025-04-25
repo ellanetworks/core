@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
+	"go.uber.org/zap"
 )
 
 func writeLineTabbed(sb *strings.Builder, s string, tab int) {
@@ -47,7 +48,7 @@ func printSessionEstablishmentRequest(req *message.SessionEstablishmentRequest) 
 		sb.WriteString("  Create")
 		displayBar(&sb, req.CreateBAR)
 	}
-	logger.UpfLog.Debugf(sb.String())
+	logger.UpfLog.Debug("session establishment request", zap.String("request", sb.String()))
 }
 
 // IE Contents of Create/Update/Remove are mostly the same
@@ -148,7 +149,7 @@ func printSessionModificationRequest(req *message.SessionModificationRequest) {
 			writeLineTabbed(&sb, fmt.Sprintf("BAR ID: %d ", barID), 2)
 		}
 	}
-	logger.UpfLog.Debugf(sb.String())
+	logger.UpfLog.Debug("session modification request", zap.String("request", sb.String()))
 }
 
 func printSessionDeleteRequest(req *message.SessionDeletionRequest) {
@@ -348,7 +349,7 @@ func displayPdr(sb *strings.Builder, pdr *ie.IE) {
 					writeLineTabbed(sb, fmt.Sprintf("UE IPv6 Address: %s ", ueIP.IPv6Address), 2)
 				}
 			} else {
-				logger.UpfLog.Debugf("ueIP is nil. ueipPdiID: %d", ueipPdiID)
+				logger.UpfLog.Debug("ueIP is nil", zap.Int("ueipPdiID", ueipPdiID))
 			}
 		}
 

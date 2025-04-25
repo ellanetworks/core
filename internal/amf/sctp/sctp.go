@@ -28,6 +28,7 @@ import (
 	"unsafe"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 const (
@@ -221,7 +222,7 @@ func toBuf(v interface{}) []byte {
 	var buf bytes.Buffer
 	err := binary.Write(&buf, nativeEndian, v)
 	if err != nil {
-		logger.AmfLog.Warnf("failed to write binary: %+v", err)
+		logger.AmfLog.Warn("failed to write binary", zap.Error(err))
 	}
 	return buf.Bytes()
 }

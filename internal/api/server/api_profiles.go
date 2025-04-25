@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type CreateProfileParams struct {
@@ -407,7 +408,7 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 		}
 		subsInProfile, err := dbInstance.SubscribersInProfile(profileName)
 		if err != nil {
-			logger.APILog.Warnln(err)
+			logger.APILog.Warn("Failed to check subscribers in profile", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to count subscribers")
 			return
 		}

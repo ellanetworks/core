@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/qos"
 	"github.com/ellanetworks/core/internal/smf/util"
+	"go.uber.org/zap"
 )
 
 // GTPTunnel represents the GTP tunnel information
@@ -63,7 +64,7 @@ func (node *DataPathNode) ActivateUpLinkTunnel(smContext *SMContext) error {
 	}
 
 	if err = smContext.PutPDRtoPFCPSession(destUPF.NodeID, node.UpLinkTunnel.PDR); err != nil {
-		logger.SmfLog.Errorln("put PDR Error:", err)
+		logger.SmfLog.Error("couldn't put PDR to PFCP session", zap.Error(err))
 		return err
 	}
 
@@ -110,7 +111,7 @@ func (node *DataPathNode) ActivateDownLinkTunnel(smContext *SMContext) error {
 func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 	for name, pdr := range node.UpLinkTunnel.PDR {
 		if pdr == nil {
-			logger.SmfLog.Debugf("PDR is nil in UpLinkTunnel: %s", name)
+			logger.SmfLog.Debug("PDR is nil in UpLink Tunnel", zap.String("name", name))
 			continue
 		}
 
@@ -135,7 +136,7 @@ func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 				}
 			}
 		}
-		logger.SmfLog.Infof("deactivated UpLinkTunnel PDR name[%v], id[%v]", name, pdr.PDRID)
+		logger.SmfLog.Info("deactivated UpLinkTunnel PDR ", zap.String("name", name), zap.Uint16("id", pdr.PDRID))
 	}
 
 	node.DownLinkTunnel = &GTPTunnel{}
@@ -144,7 +145,7 @@ func (node *DataPathNode) DeactivateUpLinkTunnel(smContext *SMContext) {
 func (node *DataPathNode) DeactivateDownLinkTunnel(smContext *SMContext) {
 	for name, pdr := range node.DownLinkTunnel.PDR {
 		if pdr != nil {
-			logger.SmfLog.Infof("deactivated DownLinkTunnel PDR name[%v], id[%v]", name, pdr.PDRID)
+			logger.SmfLog.Info("deactivated DownLinkTunnel PDR", zap.String("name", name), zap.Uint16("id", pdr.PDRID))
 
 			// Remove PDR from PFCP Session
 			smContext.RemovePDRfromPFCPSession(node.UPF.NodeID, pdr)
@@ -240,7 +241,7 @@ func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) 
 		return nil, fmt.Errorf("default QOS Data not found in Policy Decision")
 	}
 	if newQER, err := node.UPF.AddQER(); err != nil {
-		logger.SmfLog.Errorln("new QER failed")
+		logger.SmfLog.Error("new QER failed")
 		return nil, err
 	} else {
 		newQER.QFI.QFI = qos.GetQosFlowIDFromQosID(defQosData.QosID)

@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap"
 	"github.com/omec-project/ngap/ngapType"
+	"go.uber.org/zap"
 )
 
 func Dispatch(conn net.Conn, msg []byte) {
@@ -25,18 +26,18 @@ func Dispatch(conn net.Conn, msg []byte) {
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
 		ran = amfSelf.NewAmfRan(conn)
-		logger.AmfLog.Infof("Added a new radio: %s", conn.RemoteAddr().String())
+		logger.AmfLog.Info("Added a new radio", zap.String("address", conn.RemoteAddr().String()))
 	}
 
 	if len(msg) == 0 {
-		ran.Log.Infof("RAN close the connection.")
+		ran.Log.Info("RAN close the connection.")
 		ran.Remove()
 		return
 	}
 
 	pdu, err := ngap.Decoder(msg)
 	if err != nil {
-		ran.Log.Errorf("NGAP decode error : %+v", err)
+		ran.Log.Error("NGAP decode error", zap.Error(err))
 		return
 	}
 
@@ -44,7 +45,7 @@ func Dispatch(conn net.Conn, msg []byte) {
 
 	/* uecontext is found, submit the message to transaction queue*/
 	if ranUe != nil && ranUe.AmfUe != nil {
-		ranUe.AmfUe.TxLog.Debugf("Uecontext found. queuing ngap message to uechannel")
+		ranUe.AmfUe.TxLog.Debug("Uecontext found. queuing ngap message to uechannel")
 		ngapMsg := context.NgapMsg{
 			Ran:     ran,
 			NgapMsg: pdu,
@@ -65,7 +66,7 @@ func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
 		initiatingMessage := pdu.InitiatingMessage
 		if initiatingMessage == nil {
-			ran.Log.Errorln("Initiating Message is nil")
+			ran.Log.Error("Initiating Message is nil")
 			return
 		}
 
@@ -117,12 +118,12 @@ func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 		case ngapType.ProcedureCodeUplinkNonUEAssociatedNRPPaTransport:
 			HandleUplinkNonUEAssociatedNRPPATransport(ran, pdu)
 		default:
-			ran.Log.Warnf("Not implemented(choice:%d, procedureCode:%d)\n", pdu.Present, initiatingMessage.ProcedureCode.Value)
+			ran.Log.Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", initiatingMessage.ProcedureCode.Value))
 		}
 	case ngapType.NGAPPDUPresentSuccessfulOutcome:
 		successfulOutcome := pdu.SuccessfulOutcome
 		if successfulOutcome == nil {
-			ran.Log.Errorln("successful Outcome is nil")
+			ran.Log.Error("successful Outcome is nil")
 			return
 		}
 
@@ -148,12 +149,12 @@ func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
 			HandleHandoverRequestAcknowledge(ran, pdu)
 		default:
-			ran.Log.Warnf("Not implemented(choice:%d, procedureCode:%d)\n", pdu.Present, successfulOutcome.ProcedureCode.Value)
+			ran.Log.Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", successfulOutcome.ProcedureCode.Value))
 		}
 	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
 		unsuccessfulOutcome := pdu.UnsuccessfulOutcome
 		if unsuccessfulOutcome == nil {
-			ran.Log.Errorln("unsuccessful Outcome is nil")
+			ran.Log.Error("unsuccessful Outcome is nil")
 			return
 		}
 
@@ -167,7 +168,7 @@ func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
 			HandleHandoverFailure(ran, pdu)
 		default:
-			ran.Log.Warnf("Not implemented(choice:%d, procedureCode:%d)\n", pdu.Present, unsuccessfulOutcome.ProcedureCode.Value)
+			ran.Log.Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", unsuccessfulOutcome.ProcedureCode.Value))
 		}
 	}
 }
@@ -177,7 +178,7 @@ func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
 
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
-		logger.AmfLog.Warnf("couldn't find RAN context [addr: %+v]", conn.RemoteAddr())
+		logger.AmfLog.Warn("couldn't find RAN context", zap.String("address", conn.RemoteAddr().String()))
 		return
 	}
 
@@ -189,29 +190,29 @@ func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
 		errorConn := sctp.NewSCTPConn(-1, nil)
 		if reflect.DeepEqual(conn, errorConn) {
 			amfRan.Remove()
-			ran.Log.Infof("removed stale entry in AmfRan pool")
+			ran.Log.Info("removed stale entry in AmfRan pool")
 		}
 		return true
 	})
 
 	switch notification.Type() {
 	case sctp.SCTPAssocChange:
-		ran.Log.Infof("SCTPAssocChange notification")
+		ran.Log.Info("SCTPAssocChange notification")
 		event := notification.(*sctp.SCTPAssocChangeEvent)
 		switch event.State() {
 		case sctp.SCTPCommLost:
-			ran.Log.Infof("SCTP state is SCTPCommLost, close the connection")
+			ran.Log.Info("SCTP state is SCTPCommLost, close the connection")
 			ran.Remove()
 		case sctp.SCTPShutdownComp:
-			ran.Log.Infof("SCTP state is SCTPShutdownComp, close the connection")
+			ran.Log.Info("SCTP state is SCTPShutdownComp, close the connection")
 			ran.Remove()
 		default:
-			ran.Log.Warnf("SCTP state[%+v] is not handled", event.State())
+			ran.Log.Info("SCTP state is not handled", zap.Int("state", int(event.State())))
 		}
 	case sctp.SCTPShutdownEvent:
-		ran.Log.Infof("SCTPShutdownEvent notification, close the connection")
+		ran.Log.Info("SCTPShutdownEvent notification, close the connection")
 		ran.Remove()
 	default:
-		ran.Log.Warnf("Non handled notification type: 0x%x", notification.Type())
+		ran.Log.Warn("Non handled notification type", zap.Any("type", notification.Type()))
 	}
 }

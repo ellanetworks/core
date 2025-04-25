@@ -8,6 +8,7 @@ import (
 	"github.com/RoaringBitmap/roaring"
 	"github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 //
@@ -38,7 +39,7 @@ func NewBpfObjects(farMapSize uint32, qerMapSize uint32) *BpfObjects {
 func (bpfObjects *BpfObjects) Load() error {
 	pinPath := "/sys/fs/bpf/upf_pipeline"
 	if err := os.MkdirAll(pinPath, 0o750); err != nil {
-		logger.UpfLog.Infof("failed to create bpf fs subpath: %+v", err)
+		logger.UpfLog.Info("failed to create bpf fs subpath", zap.Error(err))
 		return err
 	}
 

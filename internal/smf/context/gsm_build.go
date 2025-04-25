@@ -17,6 +17,7 @@ import (
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/nasType"
+	"go.uber.org/zap"
 )
 
 func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error) {
@@ -49,7 +50,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	pDUSessionEstablishmentAccept.SessionAMBR.SetLen(uint8(len(pDUSessionEstablishmentAccept.SessionAMBR.Octet)))
 
 	qoSRules := qos.BuildQosRules(smContext.SmPolicyUpdates[0])
-	logger.SmfLog.Debugf("QoS Rules: %+v", qoSRules)
+	logger.SmfLog.Debug("Built qos rules", zap.Any("QoS Rules", qoSRules))
 
 	qosRulesBytes, err := qoSRules.MarshalBinary()
 	if err != nil {
@@ -106,7 +107,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 		if smContext.ProtocolConfigurationOptions.DNSIPv4Request {
 			err := protocolConfigurationOptions.AddDNSServerIPv4Address(smContext.DNNInfo.DNS.IPv4Addr)
 			if err != nil {
-				smContext.SubGsmLog.Warnln("Error while adding DNS IPv4 Addr: ", err)
+				smContext.SubGsmLog.Warn("Error while adding DNS IPv4 Addr", zap.Error(err))
 			}
 		}
 
@@ -114,7 +115,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 		if smContext.ProtocolConfigurationOptions.DNSIPv6Request {
 			err := protocolConfigurationOptions.AddDNSServerIPv6Address(smContext.DNNInfo.DNS.IPv6Addr)
 			if err != nil {
-				smContext.SubGsmLog.Warnln("Error while adding DNS IPv6 Addr: ", err)
+				smContext.SubGsmLog.Warn("Error while adding DNS IPv6 Addr", zap.Error(err))
 			}
 		}
 
@@ -122,7 +123,7 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 		if smContext.ProtocolConfigurationOptions.IPv4LinkMTURequest {
 			err := protocolConfigurationOptions.AddIPv4LinkMTU(smContext.DNNInfo.MTU)
 			if err != nil {
-				smContext.SubGsmLog.Warnln("Error while adding MTU: ", err)
+				smContext.SubGsmLog.Warn("Error while adding MTU", zap.Error(err))
 			}
 		}
 

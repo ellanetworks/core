@@ -14,6 +14,7 @@ import (
 	upf "github.com/ellanetworks/core/internal/upf/core"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
+	"go.uber.org/zap"
 )
 
 var seq uint32
@@ -95,7 +96,7 @@ func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentRes
 	if msg.CreatedPDR != nil {
 		ueIPAddress := FindUEIPAddress(msg.CreatedPDR)
 		if ueIPAddress != nil {
-			smContext.SubPfcpLog.Infof("upf provided ue ip address [%v]", ueIPAddress)
+			smContext.SubPfcpLog.Info("upf provided ue ip address", zap.String("IP", ueIPAddress.String()))
 			// Release previous locally allocated UE IP-Addr
 			err := smContext.ReleaseUeIPAddr()
 			if err != nil {
@@ -131,7 +132,7 @@ func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentRes
 		return fmt.Errorf("failed to parse Cause IE: %+v", err)
 	}
 	if causeValue == ie.CauseRequestAccepted {
-		smContext.SubPfcpLog.Infof("PFCP Session Establishment accepted")
+		smContext.SubPfcpLog.Info("PFCP Session Establishment accepted")
 		return nil
 	}
 	return fmt.Errorf("PFCP Session Establishment rejected with cause: %v", causeValue)
@@ -154,11 +155,11 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 	if causeValue != ie.CauseRequestAccepted {
 		return fmt.Errorf("PFCP Session Modification Failed: %d", SEID)
 	}
-	smContext.SubPduSessLog.Debugln("PFCP Modification Response Accept")
+	smContext.SubPduSessLog.Debug("PFCP Modification Response Accept")
 	upfNodeID := smContext.GetNodeIDByLocalSEID(SEID)
 	upfIP := upfNodeID.ResolveNodeIDToIP().String()
-	smContext.SubPduSessLog.Debugf("Delete pending pfcp response: UPF IP [%s]\n", upfIP)
-	smContext.SubPfcpLog.Debugf("PFCP Session Modification Success[%d]\n", SEID)
+	smContext.SubPduSessLog.Debug("Delete pending pfcp response", zap.String("UPF IP", upfIP))
+	smContext.SubPfcpLog.Debug("PFCP Session Modification Success", zap.Uint64("SEID", SEID))
 	return nil
 }
 

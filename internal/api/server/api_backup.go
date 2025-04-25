@@ -8,6 +8,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 const BackupAction = "backup_database"
@@ -29,11 +30,11 @@ func Backup(dbInstance *db.Database) gin.HandlerFunc {
 		defer func() {
 			err := tempFile.Close()
 			if err != nil {
-				logger.APILog.Warnf("Failed to close temp backup file: %v", err)
+				logger.APILog.Warn("Failed to close temp backup file", zap.Error(err))
 			}
 			err = os.Remove(tempFile.Name())
 			if err != nil {
-				logger.APILog.Warnf("Failed to remove temp backup file: %v", err)
+				logger.APILog.Warn("Failed to remove temp backup file", zap.Error(err))
 			}
 		}()
 

@@ -13,13 +13,14 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/aper"
 	"github.com/omec-project/ngap/ngapType"
+	"go.uber.org/zap"
 )
 
 func SendToRan(ran *context.AmfRan, packet []byte) error {
 	defer func() {
 		err := recover()
 		if err != nil {
-			logger.AmfLog.Warnf("could not send to ran: %s", err)
+			logger.AmfLog.Warn("could not send to ran", zap.Any("error", err))
 		}
 	}()
 
@@ -531,10 +532,10 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) error {
 			if context.InTaiList(item.Tai, taiList) {
 				err := SendToRan(ran, ngapBuf)
 				if err != nil {
-					ue.GmmLog.Errorf("failed to send paging : %s", err.Error())
+					ue.GmmLog.Error("failed to send paging", zap.Error(err))
 					continue
 				}
-				ue.GmmLog.Infof("sent paging to TAI(%+v, Tac:%+v)", item.Tai.PlmnID, item.Tai.Tac)
+				ue.GmmLog.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
 				break
 			}
 		}
@@ -544,24 +545,24 @@ func SendPaging(ue *context.AmfUe, ngapBuf []byte) error {
 	if context.AMFSelf().T3513Cfg.Enable {
 		cfg := context.AMFSelf().T3513Cfg
 		ue.T3513 = context.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-			ue.GmmLog.Warnf("T3513 expires, retransmit Paging (retry: %d)", expireTimes)
+			ue.GmmLog.Warn("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
 			context.AMFSelf().AmfRanPool.Range(func(key, value interface{}) bool {
 				ran := value.(*context.AmfRan)
 				for _, item := range ran.SupportedTAList {
 					if context.InTaiList(item.Tai, taiList) {
 						err := SendToRan(ran, ngapBuf)
 						if err != nil {
-							ue.GmmLog.Errorf("failed to send paging : %s", err.Error())
+							ue.GmmLog.Error("failed to send paging", zap.Error(err))
 							continue
 						}
-						ue.GmmLog.Infof("sent paging to TAI(%+v, Tac:%+v)", item.Tai.PlmnID, item.Tai.Tac)
+						ue.GmmLog.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
 						break
 					}
 				}
 				return true
 			})
 		}, func() {
-			ue.GmmLog.Warnf("T3513 expires %d times, abort paging procedure", cfg.MaxRetryTimes)
+			ue.GmmLog.Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
 			ue.T3513 = nil // clear the timer
 		})
 	}

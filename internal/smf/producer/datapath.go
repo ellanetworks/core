@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/pfcp"
+	"go.uber.org/zap"
 )
 
 type PFCPState struct {
@@ -71,14 +72,14 @@ func SendPFCPRules(smContext *context.SMContext) error {
 			if err != nil {
 				return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 			}
-			logger.SmfLog.Infof("Sent PFCP session establishment request to upf: %v", pfcpState.nodeID)
+			logger.SmfLog.Info("Sent PFCP session establishment request to upf", zap.String("nodeID", pfcpState.nodeID.String()))
 		} else {
 			err := pfcp.SendPfcpSessionModificationRequest(pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList)
 			if err != nil {
-				logger.SmfLog.Errorf("send pfcp session modification request failed: %v for UPF[%v, %v]: ", err, pfcpState.nodeID, pfcpState.nodeID.ResolveNodeIDToIP())
+				logger.SmfLog.Error("send pfcp session modification request failed", zap.Error(err), zap.String("nodeID", pfcpState.nodeID.String()))
 				return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 			}
-			logger.SmfLog.Infof("Sent PFCP session modification request to upf: %v", pfcpState.nodeID)
+			logger.SmfLog.Info("Sent PFCP session modification request to upf", zap.String("nodeID", pfcpState.nodeID.String()))
 		}
 	}
 	return nil

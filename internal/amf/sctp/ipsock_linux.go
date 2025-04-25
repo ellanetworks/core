@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 // from https://github.com/golang/go
@@ -120,7 +121,7 @@ func (p *ipStackCapabilities) probe() {
 	case nil:
 		err := syscall.Close(s)
 		if err != nil {
-			logger.AmfLog.Warnf("failed to close socket: %+v", err)
+			logger.AmfLog.Warn("failed to close socket", zap.Error(err))
 		}
 		p.ipv4Enabled = true
 	}
@@ -142,12 +143,12 @@ func (p *ipStackCapabilities) probe() {
 		defer func() {
 			err := syscall.Close(s)
 			if err != nil {
-				logger.AmfLog.Warnf("failed to close socket: %+v", err)
+				logger.AmfLog.Warn("failed to close socket", zap.Error(err))
 			}
 		}()
 		err = syscall.SetsockoptInt(s, syscall.IPPROTO_IPV6, syscall.IPV6_V6ONLY, probes[i].value)
 		if err != nil {
-			logger.AmfLog.Warnf("failed to set IPV6_V6ONLY: %+v", err)
+			logger.AmfLog.Warn("failed to set IPV6_V6ONLY", zap.Error(err))
 			continue
 		}
 		sa, err := sockaddr(&(probes[i].laddr), syscall.AF_INET6)

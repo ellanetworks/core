@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func ginToZap(logger *zap.SugaredLogger) gin.HandlerFunc {
+func ginToZap(logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Record start time
 		startTime := time.Now()
@@ -41,13 +41,7 @@ func ginToZap(logger *zap.SugaredLogger) gin.HandlerFunc {
 			path = path + "?" + raw
 		}
 
-		logger.Infow("handled API request",
-			"status", statusCode,
-			"latency", latency,
-			"method", method,
-			"path", path,
-			"error", errorMessage,
-		)
+		logger.Info("handled API request", zap.Int("statusCode", statusCode), zap.Any("latency", latency), zap.String("method", method), zap.String("path", path), zap.String("error", errorMessage))
 	}
 }
 
@@ -127,7 +121,7 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 func AddUIService(engine *gin.Engine) {
 	staticFilesSystem, err := fs.Sub(ui.FrontendFS, "out")
 	if err != nil {
-		logger.APILog.Fatal(err)
+		logger.APILog.Fatal("Failed to create static files system", zap.Error(err))
 	}
 
 	engine.Use(func(c *gin.Context) {

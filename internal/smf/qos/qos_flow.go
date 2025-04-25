@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasMessage"
+	"go.uber.org/zap"
 )
 
 // TS 24.501 Table 9.11.4.12
@@ -84,11 +85,11 @@ type QosFlowsUpdate struct {
 func GetQosFlowIDFromQosID(qosID string) uint8 {
 	id, err := strconv.Atoi(qosID)
 	if err != nil {
-		logger.SmfLog.Errorf("String can not be converted to integer: %+v", err)
+		logger.SmfLog.Error("String can not be converted to integer", zap.String("QosID", qosID), zap.Error(err))
 		return 0
 	}
 	if id < 0 || id > 255 {
-		logger.SmfLog.Errorf("Integer value out of uint8 range: %d", id)
+		logger.SmfLog.Error("Integer value out of uint8 range", zap.String("QosID", qosID), zap.Int("QosID", id))
 		return 0
 	}
 	return uint8(id)
