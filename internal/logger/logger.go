@@ -15,7 +15,7 @@ var (
 	AuditLog    *zap.Logger
 	MetricsLog  *zap.Logger
 	DBLog       *zap.Logger
-	AmfLog      *zap.SugaredLogger
+	AmfLog      *zap.Logger
 	APILog      *zap.Logger
 	SmfLog      *zap.Logger
 	UdmLog      *zap.Logger
@@ -65,7 +65,7 @@ func init() {
 	EllaLog = log.With(zap.String("component", "Ella"))
 	MetricsLog = log.With(zap.String("component", "Metrics"))
 	DBLog = log.With(zap.String("component", "DB"))
-	AmfLog = log.Sugar().With("component", "AMF")
+	AmfLog = log.With(zap.String("component", "AMF"))
 	APILog = log.With(zap.String("component", "API"))
 	SmfLog = log.With(zap.String("component", "SMF"))
 	UdmLog = log.With(zap.String("component", "UDM"))
@@ -115,12 +115,12 @@ func ConfigureLogging(systemLevel string, systemOutput string, systemFilePath st
 	if err != nil {
 		return fmt.Errorf("failed to build system logger: %w", err)
 	}
-	// Update the global system logger and its component-specific sugared loggers.
+
 	log = newSysLogger
 	EllaLog = log.With(zap.String("component", "Ella"))
 	MetricsLog = log.With(zap.String("component", "Metrics"))
 	DBLog = log.With(zap.String("component", "DB"))
-	AmfLog = log.Sugar().With("component", "AMF")
+	AmfLog = log.With(zap.String("component", "AMF"))
 	APILog = log.With(zap.String("component", "API"))
 	SmfLog = log.With(zap.String("component", "SMF"))
 	UdmLog = log.With(zap.String("component", "UDM"))

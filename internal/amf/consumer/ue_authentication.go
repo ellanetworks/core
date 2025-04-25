@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasType"
+	"go.uber.org/zap"
 )
 
 func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
@@ -27,7 +28,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 	if ue.Tai.PlmnID != nil {
 		plmnID = ue.Tai.PlmnID
 	} else {
-		ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc: %v Mnc: %v] is taken from Guami List", servedGuami.PlmnID.Mcc, servedGuami.PlmnID.Mnc)
+		ue.GmmLog.Warn("Tai is not received from Serving Network", zap.String("mcc", servedGuami.PlmnID.Mcc), zap.String("mnc", servedGuami.PlmnID.Mnc))
 		plmnID = servedGuami.PlmnID
 	}
 
@@ -44,7 +45,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 
 	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(authInfo)
 	if err != nil {
-		logger.AmfLog.Errorf("UE Authentication Authenticate Request failed: %+v", err)
+		logger.AmfLog.Error("UE Authentication Authenticate Request failed", zap.Error(err))
 		return nil, err
 	}
 	return ueAuthenticationCtx, nil

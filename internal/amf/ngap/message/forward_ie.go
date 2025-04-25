@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
+	"go.uber.org/zap"
 )
 
 func AppendPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSetupListSUReq,
@@ -23,7 +24,7 @@ func AppendPDUSessionResourceSetupListSUReq(list *ngapType.PDUSessionResourceSet
 	item.PDUSessionID.Value = int64(pduSessionID)
 	snssaiNgap, err := util.SNssaiToNgap(snssai)
 	if err != nil {
-		logger.AmfLog.Errorf("Convert SNssai to NGAP failed: %+v", err)
+		logger.AmfLog.Error("Convert SNssai to NGAP failed", zap.Error(err))
 		return
 	}
 	item.SNSSAI = snssaiNgap
@@ -42,7 +43,7 @@ func AppendPDUSessionResourceSetupListHOReq(list *ngapType.PDUSessionResourceSet
 	item.PDUSessionID.Value = int64(pduSessionID)
 	snssaiNgap, err := util.SNssaiToNgap(snssai)
 	if err != nil {
-		logger.AmfLog.Errorf("Convert SNssai to NGAP failed: %+v", err)
+		logger.AmfLog.Error("Convert SNssai to NGAP failed", zap.Error(err))
 		return
 	}
 	item.SNSSAI = snssaiNgap
@@ -55,7 +56,7 @@ func AppendPDUSessionResourceSetupListCxtReq(list *ngapType.PDUSessionResourceSe
 	item.PDUSessionID.Value = int64(pduSessionID)
 	snssaiNgap, err := util.SNssaiToNgap(snssai)
 	if err != nil {
-		logger.AmfLog.Errorf("Convert SNssai to NGAP failed: %+v", err)
+		logger.AmfLog.Error("Convert SNssai to NGAP failed", zap.Error(err))
 		return
 	}
 	item.SNSSAI = snssaiNgap
@@ -102,7 +103,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 	mobilityRestrictionList := ngapType.MobilityRestrictionList{}
 	plmnID, err := util.PlmnIDToNgap(ue.PlmnID)
 	if err != nil {
-		logger.AmfLog.Errorf("Convert PLMN ID to NGAP failed: %+v", err)
+		logger.AmfLog.Error("Convert PLMN ID to NGAP failed", zap.Error(err))
 		return mobilityRestrictionList
 	}
 	mobilityRestrictionList.ServingPLMN = *plmnID
@@ -114,7 +115,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 			item := ngapType.RATRestrictionsItem{}
 			plmnID, err := util.PlmnIDToNgap(ue.PlmnID)
 			if err != nil {
-				logger.AmfLog.Errorf("Convert PLMN ID to NGAP failed: %+v", err)
+				logger.AmfLog.Error("Convert PLMN ID to NGAP failed", zap.Error(err))
 				continue
 			}
 			item.PLMNIdentity = *plmnID
@@ -130,15 +131,14 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 			item := ngapType.ForbiddenAreaInformationItem{}
 			plmnID, err := util.PlmnIDToNgap(ue.PlmnID)
 			if err != nil {
-				logger.AmfLog.Errorf("Convert PLMN ID to NGAP failed: %+v", err)
+				logger.AmfLog.Error("Convert PLMN ID to NGAP failed", zap.Error(err))
 				continue
 			}
 			item.PLMNIdentity = *plmnID
 			for _, tac := range info.Tacs {
 				tacBytes, err := hex.DecodeString(tac)
 				if err != nil {
-					logger.AmfLog.Errorf(
-						"[Error] DecodeString tac error: %+v", err)
+					logger.AmfLog.Error("DecodeString tac error", zap.Error(err))
 				}
 				tacNgap := ngapType.TAC{}
 				tacNgap.Value = tacBytes
@@ -155,7 +155,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 		item := ngapType.ServiceAreaInformationItem{}
 		plmnID, err := util.PlmnIDToNgap(ue.PlmnID)
 		if err != nil {
-			logger.AmfLog.Errorf("Convert PLMN ID to NGAP failed: %+v", err)
+			logger.AmfLog.Error("Convert PLMN ID to NGAP failed", zap.Error(err))
 			return mobilityRestrictionList
 		}
 		item.PLMNIdentity = *plmnID
@@ -164,8 +164,7 @@ func BuildIEMobilityRestrictionList(ue *context.AmfUe) ngapType.MobilityRestrict
 			for _, tac := range area.Tacs {
 				tacBytes, err := hex.DecodeString(tac)
 				if err != nil {
-					logger.AmfLog.Errorf(
-						"[Error] DecodeString tac error: %+v", err)
+					logger.AmfLog.Error("DecodeString tac error", zap.Error(err))
 				}
 				tacNgap := ngapType.TAC{}
 				tacNgap.Value = tacBytes
@@ -189,7 +188,7 @@ func BuildUnavailableGUAMIList(guamiList []models.Guami) (unavailableGUAMIList n
 		item := ngapType.UnavailableGUAMIItem{}
 		plmnID, err := util.PlmnIDToNgap(*guami.PlmnID)
 		if err != nil {
-			logger.AmfLog.Errorf("Convert PLMN ID to NGAP failed: %+v", err)
+			logger.AmfLog.Error("Convert PLMN ID to NGAP failed", zap.Error(err))
 			continue
 		}
 		item.GUAMI.PLMNIdentity = *plmnID

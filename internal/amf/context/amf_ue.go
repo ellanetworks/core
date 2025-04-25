@@ -179,10 +179,10 @@ type AmfUe struct {
 	AmfInstanceName string `json:"amfInstanceName,omitempty"`
 	AmfInstanceIP   string `json:"amfInstanceIp,omitempty"`
 
-	NASLog      *zap.SugaredLogger `json:"-"`
-	GmmLog      *zap.SugaredLogger `json:"-"`
-	TxLog       *zap.SugaredLogger `json:"-"`
-	ProducerLog *zap.SugaredLogger `json:"-"`
+	NASLog      *zap.Logger `json:"-"`
+	GmmLog      *zap.Logger `json:"-"`
+	TxLog       *zap.Logger `json:"-"`
+	ProducerLog *zap.Logger `json:"-"`
 }
 
 type InterfaceType uint8
@@ -290,7 +290,7 @@ func (ue *AmfUe) CmIdle(anType models.AccessType) bool {
 func (ue *AmfUe) Remove() {
 	for _, ranUe := range ue.RanUe {
 		if err := ranUe.Remove(); err != nil {
-			logger.AmfLog.Errorf("Remove RanUe error: %v", err)
+			logger.AmfLog.Error("Remove RanUe error", zap.Error(err))
 		}
 	}
 
@@ -314,15 +314,15 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	go func() {
 		time.Sleep(time.Second * 2)
 		if oldRanUe != nil {
-			oldRanUe.Log.Infof("Detached UeContext from OldRanUe")
+			oldRanUe.Log.Info("Detached UeContext from OldRanUe")
 			oldRanUe.AmfUe = nil
 		}
 	}()
 
 	// set log information
-	ue.NASLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID))
-	ue.GmmLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID))
-	ue.TxLog = logger.AmfLog.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID))
+	ue.NASLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
+	ue.GmmLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
+	ue.TxLog = logger.AmfLog.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID)))
 }
 
 func (ue *AmfUe) GetAnType() models.AccessType {
@@ -391,12 +391,12 @@ func (ue *AmfUe) SecurityContextIsValid() bool {
 func (ue *AmfUe) DerivateKamf() {
 	supiRegexp, err := regexp.Compile("([0-9]{5,15})")
 	if err != nil {
-		logger.AmfLog.Error(err)
+		logger.AmfLog.Error("compile supi regexp error", zap.Error(err))
 		return
 	}
 	groups := supiRegexp.FindStringSubmatch(ue.Supi)
 	if groups == nil {
-		logger.AmfLog.Errorln("supi is not correct")
+		logger.AmfLog.Error("supi is not correct")
 		return
 	}
 
@@ -407,12 +407,12 @@ func (ue *AmfUe) DerivateKamf() {
 
 	KseafDecode, err := hex.DecodeString(ue.Kseaf)
 	if err != nil {
-		logger.AmfLog.Error(err)
+		logger.AmfLog.Error("decode kseaf error", zap.Error(err))
 		return
 	}
 	KamfBytes, err := ueauth.GetKDFValue(KseafDecode, ueauth.FCForKamfDerivation, P0, L0, P1, L1)
 	if err != nil {
-		logger.AmfLog.Error(err)
+		logger.AmfLog.Error("get kdf value error", zap.Error(err))
 		return
 	}
 	ue.Kamf = hex.EncodeToString(KamfBytes)
@@ -428,12 +428,12 @@ func (ue *AmfUe) DerivateAlgKey() {
 
 	KamfBytes, err := hex.DecodeString(ue.Kamf)
 	if err != nil {
-		logger.AmfLog.Error(err)
+		logger.AmfLog.Error("decode kamf error", zap.Error(err))
 		return
 	}
 	kenc, err := ueauth.GetKDFValue(KamfBytes, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
-		logger.AmfLog.Error(err)
+		logger.AmfLog.Error("get kdf value error", zap.Error(err))
 		return
 	}
 	copy(ue.KnasEnc[:], kenc[16:32])
@@ -446,7 +446,7 @@ func (ue *AmfUe) DerivateAlgKey() {
 
 	kint, err := ueauth.GetKDFValue(KamfBytes, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
 	if err != nil {
-		logger.AmfLog.Error(err)
+		logger.AmfLog.Error("get kdf value error", zap.Error(err))
 		return
 	}
 	copy(ue.KnasInt[:], kint[16:32])
@@ -466,12 +466,12 @@ func (ue *AmfUe) DerivateAnKey(anType models.AccessType) {
 
 	KamfBytes, err := hex.DecodeString(ue.Kamf)
 	if err != nil {
-		logger.AmfLog.Error(err)
+		logger.AmfLog.Error("decode kamf error", zap.Error(err))
 		return
 	}
 	key, err := ueauth.GetKDFValue(KamfBytes, ueauth.FCForKgnbKn3iwfDerivation, P0, L0, P1, L1)
 	if err != nil {
-		logger.AmfLog.Error(err)
+		logger.AmfLog.Error("get kdf value error", zap.Error(err))
 		return
 	}
 	switch accessType {
@@ -489,12 +489,12 @@ func (ue *AmfUe) DerivateNH(syncInput []byte) {
 
 	KamfBytes, err := hex.DecodeString(ue.Kamf)
 	if err != nil {
-		logger.AmfLog.Error(err)
+		logger.AmfLog.Error("decode kamf error", zap.Error(err))
 		return
 	}
 	ue.NH, err = ueauth.GetKDFValue(KamfBytes, ueauth.FCForNhDerivation, P0, L0)
 	if err != nil {
-		logger.AmfLog.Error(err)
+		logger.AmfLog.Error("get kdf value error", zap.Error(err))
 		return
 	}
 }
@@ -588,8 +588,7 @@ func (ue *AmfUe) ClearRegistrationData() {
 func (ue *AmfUe) SetOnGoing(anType models.AccessType, onGoing *OnGoingProcedureWithPrio) {
 	prevOnGoing := ue.OnGoing[anType]
 	ue.OnGoing[anType] = onGoing
-	ue.GmmLog.Debugf("OnGoing[%s]->[%s] PPI[%d]->[%d]", prevOnGoing.Procedure, onGoing.Procedure,
-		prevOnGoing.Ppi, onGoing.Ppi)
+	ue.GmmLog.Debug("set ongoing procedure", zap.Any("ongoingProcedure", onGoing.Procedure), zap.Any("previousOnGoingProcedure", prevOnGoing.Procedure), zap.Any("OnGoingPPi", onGoing.Ppi), zap.Any("PreviousOnGoingPPi", prevOnGoing.Ppi))
 }
 
 func (ue *AmfUe) GetOnGoing(anType models.AccessType) OnGoingProcedureWithPrio {
@@ -685,7 +684,7 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 			}
 		}
 		if nh, err := hex.DecodeString(seafData.Nh); err != nil {
-			logger.AmfLog.Error(err)
+			logger.AmfLog.Error("decode nh error", zap.Error(err))
 			return
 		} else {
 			ue.NH = nh
@@ -771,7 +770,7 @@ func (ue *AmfUe) CopyDataFromUeContextModel(ueContext models.UeContext) {
 						// ue.SecurityCapabilities
 						buf, err := base64.StdEncoding.DecodeString(mmContext.UeSecurityCapability)
 						if err != nil {
-							logger.AmfLog.Error(err)
+							logger.AmfLog.Error("decode ueSecurityCapability error", zap.Error(err))
 							return
 						}
 						ue.UESecurityCapability.Buffer = buf

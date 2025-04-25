@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/security"
+	"go.uber.org/zap"
 )
 
 func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
@@ -96,7 +97,7 @@ func getIntAlgOrder(integrityOrder []string) (intOrder []uint8) {
 		case "NIA3":
 			intOrder = append(intOrder, security.AlgIntegrity128NIA3)
 		default:
-			logger.AmfLog.Errorf("Unsupported algorithm: %s", intAlg)
+			logger.AmfLog.Error("Unsupported algorithm", zap.String("algorithm", intAlg))
 		}
 	}
 	return
@@ -114,7 +115,7 @@ func getEncAlgOrder(cipheringOrder []string) (encOrder []uint8) {
 		case "NEA3":
 			encOrder = append(encOrder, security.AlgCiphering128NEA3)
 		default:
-			logger.AmfLog.Errorf("Unsupported algorithm: %s", encAlg)
+			logger.AmfLog.Error("Unsupported algorithm", zap.String("algorithm", encAlg))
 		}
 	}
 	return
@@ -142,23 +143,23 @@ func StartNGAPService(ngapAddress string, ngapPort int) error {
 
 // Used in AMF planned removal procedure
 func Terminate() {
-	logger.AmfLog.Infof("Terminating AMF...")
+	logger.AmfLog.Info("Terminating AMF...")
 	amfSelf := context.AMFSelf()
 
 	// send AMF status indication to ran to notify ran that this AMF will be unavailable
-	logger.AmfLog.Infof("Send AMF Status Indication to Notify RANs due to AMF terminating")
+	logger.AmfLog.Info("Send AMF Status Indication to Notify RANs due to AMF terminating")
 	guamiList := context.GetServedGuamiList()
 	unavailableGuamiList := message.BuildUnavailableGUAMIList(guamiList)
 	amfSelf.AmfRanPool.Range(func(key, value interface{}) bool {
 		ran := value.(*context.AmfRan)
 		err := message.SendAMFStatusIndication(ran, unavailableGuamiList)
 		if err != nil {
-			logger.AmfLog.Errorf("failed to send AMF Status Indication to RAN: %+v", err)
+			logger.AmfLog.Error("failed to send AMF Status Indication to RAN", zap.Error(err))
 		}
 		return true
 	})
 
 	service.Stop()
 
-	logger.AmfLog.Infof("AMF terminated")
+	logger.AmfLog.Info("AMF terminated")
 }

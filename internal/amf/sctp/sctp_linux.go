@@ -27,6 +27,7 @@ import (
 	"unsafe"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 func setsockopt(fd int, optname, optval, optlen uintptr) error {
@@ -243,7 +244,7 @@ func listenSCTPExtConfig(network string, laddr *SCTPAddr, options InitMsg, rtoIn
 		if err != nil {
 			err := syscall.Close(sock)
 			if err != nil {
-				logger.AmfLog.Warnf("failed to close socket: %+v", err)
+				logger.AmfLog.Warn("failed to close socket", zap.Error(err))
 			}
 		}
 	}()
@@ -327,7 +328,7 @@ func createEpollForSock(sock int) (int, error) {
 		if err != nil {
 			err := syscall.Close(epfd)
 			if err != nil {
-				logger.AmfLog.Warnf("failed to close epoll: %+v", err)
+				logger.AmfLog.Warn("failed to close epoll", zap.Error(err))
 			}
 		}
 	}()

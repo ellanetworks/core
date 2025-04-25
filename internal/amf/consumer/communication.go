@@ -70,7 +70,7 @@ func UEContextTransferRequest(
 	ue *context.AmfUe, accessType models.AccessType, transferReason models.TransferReason) (
 	*models.UeContextTransferRspData, error,
 ) {
-	logger.AmfLog.Warnf("UE context transfer request is not implemented")
+	logger.AmfLog.Warn("UE context transfer request is not implemented")
 	return nil, nil
 }
 
@@ -78,6 +78,6 @@ func UEContextTransferRequest(
 func RegistrationStatusUpdate(ue *context.AmfUe, request models.UeRegStatusUpdateReqData) (
 	bool, error,
 ) {
-	logger.AmfLog.Warnf("UE registration status update is not implemented")
+	logger.AmfLog.Warn("UE registration status update is not implemented")
 	return false, nil
 }

@@ -4,6 +4,7 @@ package context
 import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"go.uber.org/zap"
 )
 
 // This file contains calls to db to get configuration data
@@ -18,7 +19,7 @@ func GetSupportTaiList() []models.Tai {
 	tais := make([]models.Tai, 0)
 	dbNetwork, err := amfSelf.DBInstance.GetOperator()
 	if err != nil {
-		logger.AmfLog.Warnf("Failed to get operator: %s", err)
+		logger.AmfLog.Warn("Failed to get operator", zap.Error(err))
 		return tais
 	}
 	plmnID := models.PlmnID{
@@ -41,7 +42,7 @@ func GetServedGuamiList() []models.Guami {
 	guamis := make([]models.Guami, 0)
 	dbNetwork, err := amfSelf.DBInstance.GetOperator()
 	if err != nil {
-		logger.AmfLog.Warnf("Failed to get operator: %s", err)
+		logger.AmfLog.Warn("Failed to get operator", zap.Error(err))
 		return guamis
 	}
 	plmnID := models.PlmnID{
@@ -60,7 +61,7 @@ func GetSupportedPlmn() *PlmnSupportItem {
 	amfSelf := AMFSelf()
 	operator, err := amfSelf.DBInstance.GetOperator()
 	if err != nil {
-		logger.AmfLog.Warnf("Failed to get operator: %s", err)
+		logger.AmfLog.Warn("Failed to get operator", zap.Error(err))
 		return nil
 	}
 	plmnSupportItem := &PlmnSupportItem{

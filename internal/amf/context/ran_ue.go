@@ -57,7 +57,7 @@ type RanUe struct {
 	UeContextRequest                 bool
 	SentInitialContextSetupRequest   bool
 	RecvdInitialContextSetupResponse bool /*Received Initial context setup response or not */
-	Log                              *zap.SugaredLogger
+	Log                              *zap.Logger
 }
 
 func (ranUe *RanUe) Remove() error {
@@ -80,7 +80,7 @@ func (ranUe *RanUe) Remove() error {
 		}
 	}
 	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapID)
-	logger.AmfLog.Infof("ran ue removed: %d", ranUe.RanUeNgapID)
+	logger.AmfLog.Info("ran ue removed", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 	return nil
 }
 
@@ -114,7 +114,7 @@ func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {
 	ranUe.Ran = newRan
 	ranUe.RanUeNgapID = ranUeNgapID
 
-	logger.AmfLog.Infof("ran ue (%d) switch to new Ran: %s", ranUe.RanUeNgapID, ranUe.Ran.Name)
+	logger.AmfLog.Info("ran ue switch to new Ran", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.String("RanName", ranUe.Ran.Name))
 	return nil
 }
 
@@ -218,7 +218,7 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 		supportTaiList := GetSupportTaiList()
 		tmp, err := strconv.ParseUint(supportTaiList[0].Tac, 10, 32)
 		if err != nil {
-			logger.AmfLog.Errorf("Error parsing TAC: %v", err)
+			logger.AmfLog.Error("Error parsing TAC", zap.String("Tac", supportTaiList[0].Tac), zap.Error(err))
 		}
 		tac := fmt.Sprintf("%06x", tmp)
 		ranUe.Location.N3gaLocation.N3gppTai = &models.Tai{

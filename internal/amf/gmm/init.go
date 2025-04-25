@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/util/fsm"
+	"go.uber.org/zap"
 )
 
 const (
@@ -81,7 +82,7 @@ var GmmFSM *fsm.FSM
 
 func init() {
 	if f, err := fsm.NewFSM(transitions, callbacks); err != nil {
-		logger.AmfLog.Errorf("Initialize Gmm FSM Error: %+v", err)
+		logger.AmfLog.Error("Initialize Gmm FSM Error", zap.Error(err))
 	} else {
 		GmmFSM = f
 	}

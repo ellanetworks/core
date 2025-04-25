@@ -34,7 +34,7 @@ type AmfRan struct {
 	Conn            net.Conn
 	SupportedTAList []SupportedTAI
 	RanUeList       []*RanUe // RanUeNgapID as key
-	Log             *zap.SugaredLogger
+	Log             *zap.Logger
 }
 
 type SupportedTAI struct {
@@ -66,7 +66,7 @@ func (ran *AmfRan) NewRanUe(ranUeNgapID int64) (*RanUe, error) {
 	ranUe.AmfUeNgapID = amfUeNgapID
 	ranUe.RanUeNgapID = ranUeNgapID
 	ranUe.Ran = ran
-	ranUe.Log = ran.Log.With(logger.FieldAmfUeNgapID, fmt.Sprintf("AMF_UE_NGAP_ID:%d", ranUe.AmfUeNgapID))
+	ranUe.Log = ran.Log.With(zap.String("AMF_UE_NGAP_ID", fmt.Sprintf("%d", ranUe.AmfUeNgapID)))
 	ran.RanUeList = append(ran.RanUeList, &ranUe)
 	self.RanUePool.Store(ranUe.AmfUeNgapID, &ranUe)
 	return &ranUe, nil
@@ -76,7 +76,7 @@ func (ran *AmfRan) RemoveAllUeInRan() {
 	for _, ranUe := range ran.RanUeList {
 		err := ranUe.Remove()
 		if err != nil {
-			logger.AmfLog.Errorf("error removing ran ue: %+v", err)
+			logger.AmfLog.Error("error removing ran ue", zap.Error(err))
 		}
 	}
 }
@@ -87,7 +87,7 @@ func (ran *AmfRan) RanUeFindByRanUeNgapIDLocal(ranUeNgapID int64) *RanUe {
 			return ranUe
 		}
 	}
-	ran.Log.Debugf("Ran ue not found: %d", ranUeNgapID)
+	ran.Log.Debug("Ran ue not found", zap.Int64("ranUeNgapID", ranUeNgapID))
 	return nil
 }
 

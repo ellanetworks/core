@@ -20,6 +20,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
+	"go.uber.org/zap"
 )
 
 var (
@@ -99,7 +100,7 @@ type SecurityAlgorithm struct {
 func (context *AMFContext) TmsiAllocate() int32 {
 	val, err := tmsiGenerator.Allocate()
 	if err != nil {
-		logger.AmfLog.Warnf("could not allocate TMSI: %v", err)
+		logger.AmfLog.Warn("could not allocate TMSI", zap.Error(err))
 		return -1
 	}
 	return int32(val)
@@ -144,7 +145,7 @@ func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.Acc
 	for i := range taiList {
 		tmp, err := strconv.ParseUint(taiList[i].Tac, 10, 32)
 		if err != nil {
-			logger.AmfLog.Errorf("Could not convert TAC to int: %v", err)
+			logger.AmfLog.Error("Could not convert TAC to int", zap.Error(err))
 		}
 		taiList[i].Tac = fmt.Sprintf("%06x", tmp)
 	}
@@ -158,7 +159,7 @@ func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.Acc
 
 func (context *AMFContext) AddAmfUeToUePool(ue *AmfUe, supi string) {
 	if len(supi) == 0 {
-		logger.AmfLog.Errorf("Supi is nil")
+		logger.AmfLog.Error("Supi is nil")
 	}
 	ue.Supi = supi
 	context.UePool.Store(ue.Supi, ue)
@@ -188,7 +189,7 @@ func (context *AMFContext) AmfUeFindBySupi(supi string) (ue *AmfUe, ok bool) {
 		ue = value.(*AmfUe)
 		ok = loadOk
 	} else {
-		logger.AmfLog.Infoln("Ue with Supi not found : ", supi)
+		logger.AmfLog.Info("Ue with Supi not found", zap.String("supi", supi))
 	}
 
 	return
@@ -211,7 +212,7 @@ func (context *AMFContext) NewAmfRan(conn net.Conn) *AmfRan {
 	ran.SupportedTAList = NewSupportedTAIList()
 	ran.Conn = conn
 	ran.GnbIP = conn.RemoteAddr().String()
-	ran.Log = logger.AmfLog.With(logger.FieldRanAddr, conn.RemoteAddr().String())
+	ran.Log = logger.AmfLog.With(zap.String("ran_addr", conn.RemoteAddr().String()))
 	context.AmfRanPool.Store(conn, &ran)
 	return &ran
 }
@@ -324,9 +325,9 @@ func (context *AMFContext) AmfUeFindBySupiLocal(supi string) (ue *AmfUe, ok bool
 func (context *AMFContext) AmfUeFindByGuti(guti string) (ue *AmfUe, ok bool) {
 	ue, ok = context.AmfUeFindByGutiLocal(guti)
 	if ok {
-		logger.AmfLog.Infoln("Guti found locally : ", guti)
+		logger.AmfLog.Info("Guti found locally", zap.String("guti", guti))
 	} else {
-		logger.AmfLog.Infoln("Ue with Guti not found : ", guti)
+		logger.AmfLog.Info("Ue with Guti not found", zap.String("guti", guti))
 	}
 	return
 }
@@ -357,7 +358,7 @@ func (context *AMFContext) RanUeFindByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 		return ranUe
 	}
 
-	logger.AmfLog.Errorf("ranUe not found with AmfUeNgapID")
+	logger.AmfLog.Error("ranUe not found with AmfUeNgapID")
 	return nil
 }
 

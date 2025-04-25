@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
+	"go.uber.org/zap"
 )
 
 const N2SMInfoID = "N2SmInfo"
@@ -78,7 +79,8 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 			Mnc: ue.Tai.PlmnID.Mnc,
 		}
 	} else {
-		ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc %v, Mnc: %v] is taken from Guami List", guamiList[0].PlmnID.Mcc, guamiList[0].PlmnID.Mnc)
+		// ue.GmmLog.Warnf("Tai is not received from Serving Network, Serving Plmn [Mcc %v, Mnc: %v] is taken from Guami List", guamiList[0].PlmnID.Mcc, guamiList[0].PlmnID.Mnc)
+		ue.GmmLog.Warn("Tai is not received from Serving Network, Serving Plmn is taken from Guami List", zap.String("mcc", guamiList[0].PlmnID.Mcc), zap.String("mnc", guamiList[0].PlmnID.Mnc))
 		smContextCreateData.ServingNetwork = &models.PlmnID{
 			Mcc: guamiList[0].PlmnID.Mcc,
 			Mnc: guamiList[0].PlmnID.Mnc,
