@@ -178,7 +178,7 @@ func HandleSCTPNotification(conn net.Conn, notification sctp.Notification) {
 
 	ran, ok := amfSelf.AmfRanFindByConn(conn)
 	if !ok {
-		logger.AmfLog.Warn("couldn't find RAN context", zap.String("address", conn.RemoteAddr().String()))
+		logger.AmfLog.Warn("couldn't find RAN context", zap.Any("address", conn.RemoteAddr()))
 		return
 	}
 
