@@ -15,7 +15,7 @@
     "@mui/material": "^7.0.1",
     "@mui/x-charts": "^8.1.0",
     "@mui/x-data-grid": "^8.1.0",
-    "@tanstack/react-query": "^5.74.4",
+    "@tanstack/react-query": "^5.74.7",
     "@types/react": "18.3.12",
     "autoprefixer": "^10.4.21",
     "jwt-decode": "^4.0.0",
@@ -29,6 +29,6 @@
     "yup": "1.6.1"
   },
   "devDependencies": {
-    "@types/node": "22.15.2"
+    "@types/node": "22.15.3"
   }
 }
