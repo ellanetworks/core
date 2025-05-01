@@ -45,7 +45,7 @@ func HandlePduSessionContextReplacement(smCtxtRef string) error {
 	return nil
 }
 
-func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smContext *context.SMContext) (string, *models.PostSmContextsErrorResponse, error) {
+func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smContext *context.SMContext, ctext ctx.Context) (string, *models.PostSmContextsErrorResponse, error) {
 	// GSM State
 	// PDU Session Establishment Accept/Reject
 
@@ -89,7 +89,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	}
 
 	snssai := snssaiStr[0]
-	sessSubData, err := udm.GetAndSetSmData(smContext.Supi, createData.Dnn, snssai)
+	sessSubData, err := udm.GetAndSetSmData(smContext.Supi, createData.Dnn, snssai, ctext)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", response, fmt.Errorf("failed to get subscription data: %v", err)

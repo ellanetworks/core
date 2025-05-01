@@ -100,7 +100,7 @@ func Registered(ctext ctx.Context, state *fsm.State, event fsm.EventType, args f
 				}
 			}
 		case nas.MsgTypeULNASTransport:
-			if err := HandleULNASTransport(amfUe, accessType, gmmMessage.ULNASTransport); err != nil {
+			if err := HandleULNASTransport(amfUe, accessType, gmmMessage.ULNASTransport, ctext); err != nil {
 				logger.AmfLog.Error("Error handling UL NASTransport", zap.Error(err))
 			}
 		case nas.MsgTypeConfigurationUpdateComplete:
@@ -163,7 +163,7 @@ func Authentication(ctext ctx.Context, state *fsm.State, event fsm.EventType, ar
 		accessType := args[ArgAccessType].(models.AccessType)
 		amfUe.GmmLog.Debug("AuthRestartEvent at GMM State[Authentication]")
 
-		pass, err := AuthenticationProcedure(amfUe, accessType)
+		pass, err := AuthenticationProcedure(amfUe, accessType, ctext)
 		if err != nil {
 			if err := GmmFSM.SendEvent(ctext, state, AuthErrorEvent, fsm.ArgsType{
 				ArgAmfUe:      amfUe,

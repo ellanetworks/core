@@ -41,7 +41,7 @@ func PlmnIDStringToModels(plmnIDStr string) models.PlmnID {
 	return plmnID
 }
 
-func HandleULNASTransport(ue *context.AmfUe, anType models.AccessType, ulNasTransport *nasMessage.ULNASTransport) error {
+func HandleULNASTransport(ue *context.AmfUe, anType models.AccessType, ulNasTransport *nasMessage.ULNASTransport, ctext ctx.Context) error {
 	if ue.MacFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
@@ -49,7 +49,7 @@ func HandleULNASTransport(ue *context.AmfUe, anType models.AccessType, ulNasTran
 	switch ulNasTransport.GetPayloadContainerType() {
 	// TS 24.501 5.4.5.2.3 case a)
 	case nasMessage.PayloadContainerTypeN1SMInfo:
-		return transport5GSMMessage(ue, anType, ulNasTransport)
+		return transport5GSMMessage(ue, anType, ulNasTransport, ctext)
 	case nasMessage.PayloadContainerTypeSMS:
 		return fmt.Errorf("PayloadContainerTypeSMS has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeLPP:
@@ -71,7 +71,7 @@ func HandleULNASTransport(ue *context.AmfUe, anType models.AccessType, ulNasTran
 	return nil
 }
 
-func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType, ulNasTransport *nasMessage.ULNASTransport) error {
+func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType, ulNasTransport *nasMessage.ULNASTransport, ctext ctx.Context) error {
 	var pduSessionID int32
 	smMessage := ulNasTransport.PayloadContainer.GetPayloadContainerContents()
 
@@ -232,7 +232,7 @@ func transport5GSMMessage(ue *context.AmfUe, anType models.AccessType, ulNasTran
 			}
 			newSmContext := consumer.SelectSmf(ue, anType, pduSessionID, snssai, dnn)
 
-			smContextRef, errResponse, err := consumer.SendCreateSmContextRequest(ue, newSmContext, smMessage)
+			smContextRef, errResponse, err := consumer.SendCreateSmContextRequest(ue, newSmContext, smMessage, ctext)
 			if err != nil {
 				return fmt.Errorf("error sending sm context request: %v", err)
 			}
@@ -1039,7 +1039,7 @@ func communicateWithUDM(ctext ctx.Context, ue *context.AmfUe, accessType models.
 		return fmt.Errorf("error getting am data: %v", err)
 	}
 
-	err = consumer.SDMGetSmfSelectData(ue)
+	err = consumer.SDMGetSmfSelectData(ue, ctext)
 	if err != nil {
 		return fmt.Errorf("error getting smf selection data: %v", err)
 	}
@@ -1304,7 +1304,7 @@ func HandleConfigurationUpdateComplete(ue *context.AmfUe, configurationUpdateCom
 	return nil
 }
 
-func AuthenticationProcedure(ue *context.AmfUe, accessType models.AccessType) (bool, error) {
+func AuthenticationProcedure(ue *context.AmfUe, accessType models.AccessType, ctext ctx.Context) (bool, error) {
 	// Check whether UE has SUCI and SUPI
 	if IdentityVerification(ue) {
 		ue.GmmLog.Debug("UE has SUCI / SUPI")
@@ -1322,7 +1322,7 @@ func AuthenticationProcedure(ue *context.AmfUe, accessType models.AccessType) (b
 		return false, nil
 	}
 
-	response, err := consumer.SendUEAuthenticationAuthenticateRequest(ue, nil)
+	response, err := consumer.SendUEAuthenticationAuthenticateRequest(ue, nil, ctext)
 	if err != nil {
 		return false, fmt.Errorf("Authentication procedure failed: %s", err)
 	}
@@ -1983,7 +1983,7 @@ func HandleAuthenticationFailure(ctext ctx.Context, ue *context.AmfUe, anType mo
 				Auts: hex.EncodeToString(auts[:]),
 			}
 
-			response, err := consumer.SendUEAuthenticationAuthenticateRequest(ue, resynchronizationInfo)
+			response, err := consumer.SendUEAuthenticationAuthenticateRequest(ue, resynchronizationInfo, ctext)
 			if err != nil {
 				return fmt.Errorf("send UE Authentication Authenticate Request Error: %s", err.Error())
 			}

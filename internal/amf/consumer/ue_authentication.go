@@ -7,6 +7,7 @@
 package consumer
 
 import (
+	ctx "context"
 	"encoding/base64"
 	"fmt"
 	"strconv"
@@ -19,9 +20,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
-	resynchronizationInfo *models.ResynchronizationInfo,
-) (*models.UeAuthenticationCtx, error) {
+func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe, resynchronizationInfo *models.ResynchronizationInfo, ctext ctx.Context) (*models.UeAuthenticationCtx, error) {
 	guamiList := context.GetServedGuamiList()
 	servedGuami := guamiList[0]
 	var plmnID *models.PlmnID
@@ -43,7 +42,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe,
 		authInfo.ResynchronizationInfo = resynchronizationInfo
 	}
 
-	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(authInfo)
+	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(authInfo, ctext)
 	if err != nil {
 		logger.AmfLog.Error("UE Authentication Authenticate Request failed", zap.Error(err))
 		return nil, err

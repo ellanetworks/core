@@ -7,6 +7,7 @@
 package consumer
 
 import (
+	ctx "context"
 	"fmt"
 	"strconv"
 
@@ -38,13 +39,13 @@ func SelectSmf(
 	return smContext
 }
 
-func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte) (string, *models.PostSmContextsErrorResponse, error) {
+func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte, ctext ctx.Context) (string, *models.PostSmContextsErrorResponse, error) {
 	smContextCreateData := buildCreateSmContextRequest(ue, smContext)
 	postSmContextsRequest := models.PostSmContextsRequest{
 		JSONData:              &smContextCreateData,
 		BinaryDataN1SmMessage: nasPdu,
 	}
-	smContextRef, postSmContextErrorReponse, err := pdusession.CreateSmContext(postSmContextsRequest)
+	smContextRef, postSmContextErrorReponse, err := pdusession.CreateSmContext(postSmContextsRequest, ctext)
 	if err != nil {
 		return smContextRef, postSmContextErrorReponse, fmt.Errorf("create sm context request error: %s", err)
 	}

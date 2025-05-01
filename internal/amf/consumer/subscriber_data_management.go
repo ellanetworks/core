@@ -24,8 +24,8 @@ func SDMGetAmData(ue *context.AmfUe, ctext ctx.Context) error {
 	return nil
 }
 
-func SDMGetSmfSelectData(ue *context.AmfUe) error {
-	data, err := udm.GetAndSetSmfSelectData(ue.Supi)
+func SDMGetSmfSelectData(ue *context.AmfUe, ctext ctx.Context) error {
+	data, err := udm.GetAndSetSmfSelectData(ue.Supi, ctext)
 	if err != nil {
 		return err
 	}
