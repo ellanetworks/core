@@ -7,6 +7,7 @@
 package consumer
 
 import (
+	ctx "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
@@ -14,7 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/pcf"
 )
 
-func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) error {
+func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType, ctext ctx.Context) error {
 	guamiList := context.GetServedGuamiList()
 
 	policyAssociationRequest := models.PolicyAssociationRequest{
@@ -39,7 +40,7 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType) error {
 		policyAssociationRequest.Rfsp = ue.AccessAndMobilitySubscriptionData.RfspIndex
 	}
 
-	res, locationHeader, err := pcf.CreateAMPolicy(policyAssociationRequest)
+	res, locationHeader, err := pcf.CreateAMPolicy(policyAssociationRequest, ctext)
 	if err != nil {
 		return fmt.Errorf("failed to create policy: %+v", err)
 	}

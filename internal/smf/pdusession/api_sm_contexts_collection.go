@@ -24,7 +24,7 @@ func CreateSmContext(request models.PostSmContextsRequest, ctext ctx.Context) (s
 	createData := request.JSONData
 	smCtxtRef, err := context.ResolveRef(createData.Supi, createData.PduSessionID)
 	if err == nil {
-		err := producer.HandlePduSessionContextReplacement(smCtxtRef)
+		err := producer.HandlePduSessionContextReplacement(smCtxtRef, ctext)
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to replace existing context")
 		}
@@ -41,7 +41,7 @@ func CreateSmContext(request models.PostSmContextsRequest, ctext ctx.Context) (s
 		return "", errRsp, nil
 	}
 
-	err = producer.SendPFCPRules(smContext)
+	err = producer.SendPFCPRules(smContext, ctext)
 	if err != nil {
 		if smContext != nil {
 			go func() {

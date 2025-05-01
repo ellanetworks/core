@@ -5,6 +5,7 @@
 package pdusession
 
 import (
+	ctx "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -12,19 +13,19 @@ import (
 	"github.com/ellanetworks/core/internal/smf/producer"
 )
 
-func ReleaseSmContext(smContextRef string) error {
+func ReleaseSmContext(smContextRef string, ctext ctx.Context) error {
 	ctxt := context.GetSMContext(smContextRef)
 	if ctxt == nil {
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
-	err := producer.HandlePDUSessionSMContextRelease(ctxt)
+	err := producer.HandlePDUSessionSMContextRelease(ctxt, ctext)
 	if err != nil {
 		return fmt.Errorf("error releasing pdu session: %v ", err.Error())
 	}
 	return nil
 }
 
-func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSmContextRequest) (*models.UpdateSmContextResponse, error) {
+func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSmContextRequest, ctext ctx.Context) (*models.UpdateSmContextResponse, error) {
 	if smContextRef == "" {
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}
@@ -35,7 +36,7 @@ func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSm
 
 	smContext := context.GetSMContext(smContextRef)
 
-	rsp, err := producer.HandlePDUSessionSMContextUpdate(updateSmContextRequest, smContext)
+	rsp, err := producer.HandlePDUSessionSMContextUpdate(updateSmContextRequest, smContext, ctext)
 	if err != nil {
 		return rsp, fmt.Errorf("error updating pdu session: %v ", err.Error())
 	}

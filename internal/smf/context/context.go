@@ -33,8 +33,8 @@ type SMFContext struct {
 }
 
 // RetrieveDnnInformation gets the corresponding dnn info from S-NSSAI and DNN
-func RetrieveDnnInformation(Snssai models.Snssai, dnn string) *SnssaiSmfDnnInfo {
-	snssaiInfo := GetSnssaiInfo()
+func RetrieveDnnInformation(Snssai models.Snssai, dnn string, ctx context.Context) *SnssaiSmfDnnInfo {
+	snssaiInfo := GetSnssaiInfo(ctx)
 	for _, snssaiInfo := range snssaiInfo {
 		if snssaiInfo.Snssai.Sst == Snssai.Sst && snssaiInfo.Snssai.Sd == Snssai.Sd {
 			return snssaiInfo.DnnInfos[dnn]
@@ -52,9 +52,9 @@ func SMFSelf() *SMFContext {
 	return &smfContext
 }
 
-func BuildUserPlaneInformationFromConfig() (*UPF, error) {
+func BuildUserPlaneInformationFromConfig(ctx context.Context) (*UPF, error) {
 	smfSelf := SMFSelf()
-	operator, err := smfSelf.DBInstance.GetOperator(context.Background())
+	operator, err := smfSelf.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator information from db: %v", err)
 	}
@@ -78,14 +78,14 @@ func BuildUserPlaneInformationFromConfig() (*UPF, error) {
 	return upf, nil
 }
 
-func GetSnssaiInfo() []SnssaiSmfInfo {
+func GetSnssaiInfo(ctx context.Context) []SnssaiSmfInfo {
 	self := SMFSelf()
-	operator, err := self.DBInstance.GetOperator(context.Background())
+	operator, err := self.DBInstance.GetOperator(ctx)
 	if err != nil {
 		logger.SmfLog.Warn("failed to get operator information from db", zap.Error(err))
 		return nil
 	}
-	profiles, err := self.DBInstance.ListProfiles(context.Background())
+	profiles, err := self.DBInstance.ListProfiles(ctx)
 	if err != nil {
 		logger.SmfLog.Warn("failed to get profiles from db", zap.Error(err))
 		return nil

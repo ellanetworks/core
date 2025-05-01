@@ -23,14 +23,14 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandlePduSessionContextReplacement(smCtxtRef string) error {
+func HandlePduSessionContextReplacement(smCtxtRef string, ctext ctx.Context) error {
 	smCtxt := context.GetSMContext(smCtxtRef)
 	if smCtxt == nil {
 		return nil
 	}
 
 	smCtxt.SMLock.Lock()
-	context.RemoveSMContext(smCtxt.Ref)
+	context.RemoveSMContext(smCtxt.Ref, ctext)
 
 	// Check if UPF session set, send release
 	if smCtxt.Tunnel != nil {
@@ -67,7 +67,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	defer smContext.SMLock.Unlock()
 
 	// DNN Information from config
-	smContext.DNNInfo = context.RetrieveDnnInformation(*createData.SNssai, createData.Dnn)
+	smContext.DNNInfo = context.RetrieveDnnInformation(*createData.SNssai, createData.Dnn, ctext)
 	if smContext.DNNInfo == nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
 		return "", response, fmt.Errorf("couldn't find DNN information: snssai does not match DNN config: Sst: %d, Sd: %s, DNN: %s", createData.SNssai.Sst, createData.SNssai.Sd, createData.Dnn)
@@ -108,7 +108,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 
 	// PCF Policy Association
 	var smPolicyDecision *models.SmPolicyDecision
-	smPolicyDecisionRsp, err := SendSMPolicyAssociationCreate(smContext)
+	smPolicyDecisionRsp, err := SendSMPolicyAssociationCreate(smContext, ctext)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", response, fmt.Errorf("error creating policy association: %v", err)
@@ -137,7 +137,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	return smContext.Ref, nil, nil
 }
 
-func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smContext *context.SMContext) (*models.UpdateSmContextResponse, error) {
+func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smContext *context.SMContext, ctext ctx.Context) (*models.UpdateSmContextResponse, error) {
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
@@ -145,7 +145,7 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 	var response models.UpdateSmContextResponse
 	response.JSONData = new(models.SmContextUpdatedData)
 
-	err := HandleUpdateN1Msg(request, smContext, &response, pfcpAction)
+	err := HandleUpdateN1Msg(request, smContext, &response, pfcpAction, ctext)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 	}
 
 	// N2 Msg Handling
-	if err := HandleUpdateN2Msg(request, smContext, &response, pfcpAction, pfcpParam); err != nil {
+	if err := HandleUpdateN2Msg(request, smContext, &response, pfcpAction, pfcpParam, ctext); err != nil {
 		return nil, err
 	}
 
@@ -194,7 +194,7 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 	return &response, nil
 }
 
-func HandlePDUSessionSMContextRelease(smContext *context.SMContext) error {
+func HandlePDUSessionSMContextRelease(smContext *context.SMContext, ctext ctx.Context) error {
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
@@ -205,7 +205,7 @@ func HandlePDUSessionSMContextRelease(smContext *context.SMContext) error {
 	}
 
 	// Release UE IP-Address
-	err = smContext.ReleaseUeIPAddr()
+	err = smContext.ReleaseUeIPAddr(ctext)
 	if err != nil {
 		smContext.SubPduSessLog.Error("release UE IP address failed", zap.Error(err))
 	}
@@ -213,10 +213,10 @@ func HandlePDUSessionSMContextRelease(smContext *context.SMContext) error {
 	// Release User-plane
 	err = releaseTunnel(smContext)
 	if err != nil {
-		context.RemoveSMContext(smContext.Ref)
+		context.RemoveSMContext(smContext.Ref, ctext)
 		return fmt.Errorf("release tunnel failed: %v", err)
 	}
-	context.RemoveSMContext(smContext.Ref)
+	context.RemoveSMContext(smContext.Ref, ctext)
 	return nil
 }
 

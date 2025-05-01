@@ -148,7 +148,7 @@ func GetPDUSessionCount() int {
 	return int(smContextActive)
 }
 
-func RemoveSMContext(ref string) {
+func RemoveSMContext(ref string, ctx context.Context) {
 	var smContext *SMContext
 	if value, ok := smContextPool.Load(ref); ok {
 		smContext = value.(*SMContext)
@@ -159,7 +159,7 @@ func RemoveSMContext(ref string) {
 	}
 
 	// Release UE IP-Address
-	err := smContext.ReleaseUeIPAddr()
+	err := smContext.ReleaseUeIPAddr(ctx)
 	if err != nil {
 		smContext.SubCtxLog.Error("release UE IP-Address failed", zap.Error(err))
 	}
@@ -178,13 +178,13 @@ func GetSMContextBySEID(SEID uint64) (smContext *SMContext) {
 	return
 }
 
-func (smContext *SMContext) ReleaseUeIPAddr() error {
+func (smContext *SMContext) ReleaseUeIPAddr(ctx context.Context) error {
 	smfSelf := SMFSelf()
 	if smContext.PDUAddress == nil {
 		return nil
 	}
 	if ip := smContext.PDUAddress.IP; ip != nil && !smContext.PDUAddress.UpfProvided {
-		err := smfSelf.DBInstance.ReleaseIP(smContext.Supi, context.Background())
+		err := smfSelf.DBInstance.ReleaseIP(smContext.Supi, ctx)
 		if err != nil {
 			return fmt.Errorf("failed to release IP Address, %v", err)
 		}

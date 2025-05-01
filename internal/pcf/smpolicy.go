@@ -38,8 +38,8 @@ func deepCopyQosData(src *models.QosData) *models.QosData {
 	return &copiedQosData
 }
 
-func GetSmPolicyData() (*models.SmPolicyData, error) {
-	operator, err := pcfCtx.DBInstance.GetOperator(context.Background())
+func GetSmPolicyData(ctx context.Context) (*models.SmPolicyData, error) {
+	operator, err := pcfCtx.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator: %s", err)
 	}
@@ -62,7 +62,7 @@ func GetSmPolicyData() (*models.SmPolicyData, error) {
 	return smPolicyData, nil
 }
 
-func CreateSMPolicy(request models.SmPolicyContextData) (*models.SmPolicyDecision, error) {
+func CreateSMPolicy(request models.SmPolicyContextData, ctx context.Context) (*models.SmPolicyDecision, error) {
 	if request.Supi == "" || request.SliceInfo == nil || len(request.SliceInfo.Sd) != 6 {
 		return nil, fmt.Errorf("Errorneous/Missing Mandotory IE")
 	}
@@ -80,7 +80,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (*models.SmPolicyDecisio
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionID)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
-		smData, err = GetSmPolicyData()
+		smData, err = GetSmPolicyData(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("can't find UE SM Policy Data in UDR: %s", ue.Supi)
 		}
@@ -109,7 +109,7 @@ func CreateSMPolicy(request models.SmPolicyContextData) (*models.SmPolicyDecisio
 
 	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
 	sliceid := sstStr + request.SliceInfo.Sd
-	subscriberPolicy, err := GetSubscriberPolicy(ue.Supi)
+	subscriberPolicy, err := GetSubscriberPolicy(ue.Supi, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("can't find subscriber policy for subscriber %s: %s", ue.Supi, err)
 	}

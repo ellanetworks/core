@@ -49,7 +49,7 @@ func DeRegistered(ctext ctx.Context, state *fsm.State, event fsm.EventType, args
 				}
 			}
 		case nas.MsgTypeServiceRequest:
-			if err := HandleServiceRequest(amfUe, accessType, gmmMessage.ServiceRequest); err != nil {
+			if err := HandleServiceRequest(amfUe, accessType, gmmMessage.ServiceRequest, ctext); err != nil {
 				logger.AmfLog.Error("Error handling service request", zap.Error(err))
 			}
 		default:
@@ -58,7 +58,7 @@ func DeRegistered(ctext ctx.Context, state *fsm.State, event fsm.EventType, args
 	case NwInitiatedDeregistrationEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
 		accessType := args[ArgAccessType].(models.AccessType)
-		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType); err != nil {
+		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType, ctext); err != nil {
 			logger.AmfLog.Error("Error handling network initiated deregistration", zap.Error(err))
 		}
 	case StartAuthEvent:
@@ -108,11 +108,11 @@ func Registered(ctext ctx.Context, state *fsm.State, event fsm.EventType, args f
 				logger.AmfLog.Error("Error handling configuration update complete", zap.Error(err))
 			}
 		case nas.MsgTypeServiceRequest:
-			if err := HandleServiceRequest(amfUe, accessType, gmmMessage.ServiceRequest); err != nil {
+			if err := HandleServiceRequest(amfUe, accessType, gmmMessage.ServiceRequest, ctext); err != nil {
 				logger.AmfLog.Error("Error handling service request", zap.Error(err))
 			}
 		case nas.MsgTypeNotificationResponse:
-			if err := HandleNotificationResponse(amfUe, gmmMessage.NotificationResponse); err != nil {
+			if err := HandleNotificationResponse(amfUe, gmmMessage.NotificationResponse, ctext); err != nil {
 				logger.AmfLog.Error("Error handling notification response", zap.Error(err))
 			}
 		case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
@@ -137,7 +137,7 @@ func Registered(ctext ctx.Context, state *fsm.State, event fsm.EventType, args f
 	case NwInitiatedDeregistrationEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
 		accessType := args[ArgAccessType].(models.AccessType)
-		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType); err != nil {
+		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType, ctext); err != nil {
 			logger.AmfLog.Error("Error handling network initiated deregistration", zap.Error(err))
 		}
 	case SliceInfoAddEvent:
@@ -235,7 +235,7 @@ func Authentication(ctext ctx.Context, state *fsm.State, event fsm.EventType, ar
 	case NwInitiatedDeregistrationEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
 		accessType := args[ArgAccessType].(models.AccessType)
-		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType); err != nil {
+		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType, ctext); err != nil {
 			logger.AmfLog.Error("Error handling network initiated deregistration", zap.Error(err))
 		}
 	case fsm.ExitEvent:
@@ -368,7 +368,7 @@ func SecurityMode(ctext ctx.Context, state *fsm.State, event fsm.EventType, args
 		accessType := args[ArgAccessType].(models.AccessType)
 		amfUe.T3560.Stop()
 		amfUe.T3560 = nil
-		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType); err != nil {
+		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType, ctext); err != nil {
 			logger.AmfLog.Error("Error handling network initiated deregistration", zap.Error(err))
 		}
 	case SecurityModeSuccessEvent:
@@ -406,7 +406,7 @@ func ContextSetup(ctext ctx.Context, state *fsm.State, event fsm.EventType, args
 				}
 			}
 		case *nasMessage.ServiceRequest:
-			if err := HandleServiceRequest(amfUe, accessType, message); err != nil {
+			if err := HandleServiceRequest(amfUe, accessType, message, ctext); err != nil {
 				logger.AmfLog.Error("Error handling service request", zap.Error(err))
 			}
 		default:
@@ -481,7 +481,7 @@ func ContextSetup(ctext ctx.Context, state *fsm.State, event fsm.EventType, args
 		amfUe.T3550.Stop()
 		amfUe.T3550 = nil
 		amfUe.State[accessType].Set(context.Registered)
-		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType); err != nil {
+		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType, ctext); err != nil {
 			logger.AmfLog.Error("Error handling network initiated deregistration", zap.Error(err))
 		}
 	case ContextSetupFailEvent:

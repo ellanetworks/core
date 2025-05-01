@@ -5,6 +5,7 @@
 package producer
 
 import (
+	ctx "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -21,7 +22,7 @@ type PFCPState struct {
 }
 
 // SendPFCPRules send all datapaths to UPFs
-func SendPFCPRules(smContext *context.SMContext) error {
+func SendPFCPRules(smContext *context.SMContext, ctext ctx.Context) error {
 	pfcpPool := make(map[string]*PFCPState)
 	dataPath := smContext.Tunnel.DataPath
 	if dataPath.Activated {
@@ -68,7 +69,7 @@ func SendPFCPRules(smContext *context.SMContext) error {
 	for ip, pfcpState := range pfcpPool {
 		sessionContext, exist := smContext.PFCPContext[ip]
 		if !exist || sessionContext.RemoteSEID == 0 {
-			err := pfcp.SendPfcpSessionEstablishmentRequest(pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList)
+			err := pfcp.SendPfcpSessionEstablishmentRequest(pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList, ctext)
 			if err != nil {
 				return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 			}

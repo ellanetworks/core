@@ -67,16 +67,16 @@ func (c *PCFContext) PCFUeFindByPolicyID(PolicyID string) (*UeContext, error) {
 	return nil, fmt.Errorf("ue not found in PCF for policy association ID: %s", PolicyID)
 }
 
-func GetSubscriberPolicy(imsi string) (*PcfSubscriberPolicyData, error) {
-	subscriber, err := pcfCtx.DBInstance.GetSubscriber(imsi, context.Background())
+func GetSubscriberPolicy(imsi string, ctx context.Context) (*PcfSubscriberPolicyData, error) {
+	subscriber, err := pcfCtx.DBInstance.GetSubscriber(imsi, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subscriber %s: %w", imsi, err)
 	}
-	profile, err := pcfCtx.DBInstance.GetProfileByID(subscriber.ProfileID, context.Background())
+	profile, err := pcfCtx.DBInstance.GetProfileByID(subscriber.ProfileID, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get profile %d: %w", subscriber.ProfileID, err)
 	}
-	operator, err := pcfCtx.DBInstance.GetOperator(context.Background())
+	operator, err := pcfCtx.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator: %w", err)
 	}

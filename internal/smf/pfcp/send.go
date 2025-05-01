@@ -7,6 +7,7 @@
 package pfcp
 
 import (
+	ctx "context"
 	"fmt"
 	"sync/atomic"
 
@@ -30,6 +31,7 @@ func SendPfcpSessionEstablishmentRequest(
 	farList []*context.FAR,
 	barList []*context.BAR,
 	qerList []*context.QER,
+	ctext ctx.Context,
 ) error {
 	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
 	pfcpContext, ok := ctx.PFCPContext[upNodeIDStr]
@@ -55,14 +57,14 @@ func SendPfcpSessionEstablishmentRequest(
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
 	}
-	err = HandlePfcpSessionEstablishmentResponse(rsp)
+	err = HandlePfcpSessionEstablishmentResponse(rsp, ctext)
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Establishment Response: %v", err)
 	}
 	return nil
 }
 
-func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentResponse) error {
+func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentResponse, ctext ctx.Context) error {
 	SEID := msg.SEID()
 	smContext := context.GetSMContextBySEID(SEID)
 	if smContext == nil {
@@ -98,7 +100,7 @@ func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentRes
 		if ueIPAddress != nil {
 			smContext.SubPfcpLog.Info("upf provided ue ip address", zap.String("IP", ueIPAddress.String()))
 			// Release previous locally allocated UE IP-Addr
-			err := smContext.ReleaseUeIPAddr()
+			err := smContext.ReleaseUeIPAddr(ctext)
 			if err != nil {
 				return fmt.Errorf("failed to release UE IP-Addr: %+v", err)
 			}

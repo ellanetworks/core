@@ -1,6 +1,7 @@
 package producer
 
 import (
+	ctx "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -10,7 +11,7 @@ import (
 )
 
 // SendSMPolicyAssociationCreate creates the SM Policy Decision
-func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPolicyDecision, error) {
+func SendSMPolicyAssociationCreate(smContext *context.SMContext, ctext ctx.Context) (*models.SmPolicyDecision, error) {
 	smPolicyData := models.SmPolicyContextData{}
 	smPolicyData.Supi = smContext.Supi
 	smPolicyData.PduSessionID = smContext.PDUSessionID
@@ -39,7 +40,7 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext) (*models.SmPoli
 		Mnc: smContext.ServingNetwork.Mnc,
 	}
 
-	smPolicyDecision, err := pcf.CreateSMPolicy(smPolicyData)
+	smPolicyDecision, err := pcf.CreateSMPolicy(smPolicyData, ctext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create sm policy decision: %s", err.Error())
 	}
