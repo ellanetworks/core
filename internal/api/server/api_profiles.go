@@ -406,7 +406,7 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusNotFound, "Profile not found")
 			return
 		}
-		subsInProfile, err := dbInstance.SubscribersInProfile(profileName)
+		subsInProfile, err := dbInstance.SubscribersInProfile(profileName, c.Request.Context())
 		if err != nil {
 			logger.APILog.Warn("Failed to check subscribers in profile", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to count subscribers")

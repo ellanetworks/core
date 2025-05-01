@@ -14,9 +14,10 @@ import (
 )
 
 type TelemetryConfig struct {
-	Enabled      bool
-	OTLPEndpoint string
-	ServiceName  string
+	Enabled        bool
+	OTLPEndpoint   string
+	ServiceName    string
+	ServiceVersion string
 }
 
 // InitTracer sets up a global TracerProvider based on the given configuration.
@@ -34,7 +35,7 @@ func InitTracer(ctx context.Context, cfg TelemetryConfig) (*sdktrace.TracerProvi
 	res, err := sdkresource.New(ctx,
 		sdkresource.WithAttributes(
 			semconv.ServiceNameKey.String(cfg.ServiceName),
-			attribute.String("service.version", "v1.0.0"),
+			attribute.String("service.version", cfg.ServiceVersion),
 		),
 	)
 	if err != nil {

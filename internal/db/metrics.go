@@ -3,6 +3,7 @@
 package db
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -43,7 +44,7 @@ func countIPsInCIDR(ipNet *net.IPNet) int {
 }
 
 func (db *Database) GetIPAddressesAllocated() (int, error) {
-	subscribers, err := db.ListSubscribers()
+	subscribers, err := db.ListSubscribers(context.Background())
 	if err != nil {
 		return 0, fmt.Errorf("failed to list subscribers: %v", err)
 	}

@@ -58,13 +58,13 @@ type Subscriber struct {
 }
 
 // ListSubscribers returns all of the subscribers and their fields available in the database.
-func (db *Database) ListSubscribers() ([]Subscriber, error) {
+func (db *Database) ListSubscribers(ctx context.Context) ([]Subscriber, error) {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(listSubscribersStmt, db.subscribersTable), Subscriber{})
 	if err != nil {
 		return nil, err
 	}
 	var subscribers []Subscriber
-	err = db.conn.Query(context.Background(), stmt).GetAll(&subscribers)
+	err = db.conn.Query(ctx, stmt).GetAll(&subscribers)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -74,7 +74,7 @@ func (db *Database) ListSubscribers() ([]Subscriber, error) {
 	return subscribers, nil
 }
 
-func (db *Database) GetSubscriber(imsi string) (*Subscriber, error) {
+func (db *Database) GetSubscriber(imsi string, ctx context.Context) (*Subscriber, error) {
 	row := Subscriber{
 		Imsi: imsi,
 	}
@@ -82,15 +82,15 @@ func (db *Database) GetSubscriber(imsi string) (*Subscriber, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = db.conn.Query(context.Background(), stmt, row).Get(&row)
+	err = db.conn.Query(ctx, stmt, row).Get(&row)
 	if err != nil {
 		return nil, err
 	}
 	return &row, nil
 }
 
-func (db *Database) CreateSubscriber(subscriber *Subscriber) error {
-	_, err := db.GetSubscriber(subscriber.Imsi)
+func (db *Database) CreateSubscriber(subscriber *Subscriber, ctx context.Context) error {
+	_, err := db.GetSubscriber(subscriber.Imsi, ctx)
 	if err == nil {
 		return fmt.Errorf("subscriber with imsi %s already exists", subscriber.Imsi)
 	}
@@ -98,12 +98,12 @@ func (db *Database) CreateSubscriber(subscriber *Subscriber) error {
 	if err != nil {
 		return err
 	}
-	err = db.conn.Query(context.Background(), stmt, subscriber).Run()
+	err = db.conn.Query(ctx, stmt, subscriber).Run()
 	return err
 }
 
-func (db *Database) UpdateSubscriber(subscriber *Subscriber) error {
-	_, err := db.GetSubscriber(subscriber.Imsi)
+func (db *Database) UpdateSubscriber(subscriber *Subscriber, ctx context.Context) error {
+	_, err := db.GetSubscriber(subscriber.Imsi, ctx)
 	if err != nil {
 		return err
 	}
@@ -111,12 +111,12 @@ func (db *Database) UpdateSubscriber(subscriber *Subscriber) error {
 	if err != nil {
 		return err
 	}
-	err = db.conn.Query(context.Background(), stmt, subscriber).Run()
+	err = db.conn.Query(ctx, stmt, subscriber).Run()
 	return err
 }
 
-func (db *Database) DeleteSubscriber(imsi string) error {
-	_, err := db.GetSubscriber(imsi)
+func (db *Database) DeleteSubscriber(imsi string, ctx context.Context) error {
+	_, err := db.GetSubscriber(imsi, ctx)
 	if err != nil {
 		return fmt.Errorf("subscriber with imsi %s not found", imsi)
 	}
@@ -127,18 +127,18 @@ func (db *Database) DeleteSubscriber(imsi string) error {
 	row := Subscriber{
 		Imsi: imsi,
 	}
-	err = db.conn.Query(context.Background(), stmt, row).Run()
+	err = db.conn.Query(ctx, stmt, row).Run()
 	logger.DBLog.Info("Deleted subscriber", zap.String("imsi", imsi))
 	return err
 }
 
-func (db *Database) SubscribersInProfile(name string) (bool, error) {
+func (db *Database) SubscribersInProfile(name string, ctx context.Context) (bool, error) {
 	profile, err := db.GetProfile(name)
 	if err != nil {
 		return false, fmt.Errorf("failed to get profile with name %s: %v", name, err)
 	}
 
-	allSubscribers, err := db.ListSubscribers()
+	allSubscribers, err := db.ListSubscribers(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to list subscribers: %v", err)
 	}
@@ -152,8 +152,8 @@ func (db *Database) SubscribersInProfile(name string) (bool, error) {
 	return false, nil
 }
 
-func (db *Database) AllocateIP(imsi string) (net.IP, error) {
-	subscriber, err := db.GetSubscriber(imsi)
+func (db *Database) AllocateIP(imsi string, ctx context.Context) (net.IP, error) {
+	subscriber, err := db.GetSubscriber(imsi, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subscriber: %v", err)
 	}
@@ -181,7 +181,7 @@ func (db *Database) AllocateIP(imsi string) (net.IP, error) {
 			return nil, fmt.Errorf("failed to prepare IP check statement: %v", err)
 		}
 		var existing Subscriber
-		err = db.conn.Query(context.Background(), stmt, Subscriber{IPAddress: ipStr}).Get(&existing)
+		err = db.conn.Query(ctx, stmt, Subscriber{IPAddress: ipStr}).Get(&existing)
 		if err == sql.ErrNoRows {
 			// IP is not allocated, assign it to the subscriber
 			subscriber.IPAddress = ipStr
@@ -189,7 +189,7 @@ func (db *Database) AllocateIP(imsi string) (net.IP, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to prepare IP allocation statement: %v", err)
 			}
-			err = db.conn.Query(context.Background(), stmt, subscriber).Run()
+			err = db.conn.Query(ctx, stmt, subscriber).Run()
 			if err != nil {
 				return nil, fmt.Errorf("failed to allocate IP: %v", err)
 			}
@@ -202,8 +202,8 @@ func (db *Database) AllocateIP(imsi string) (net.IP, error) {
 	return nil, fmt.Errorf("no available IP addresses")
 }
 
-func (db *Database) ReleaseIP(imsi string) error {
-	subscriber, err := db.GetSubscriber(imsi)
+func (db *Database) ReleaseIP(imsi string, ctx context.Context) error {
+	subscriber, err := db.GetSubscriber(imsi, ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get subscriber: %v", err)
 	}
@@ -217,7 +217,7 @@ func (db *Database) ReleaseIP(imsi string) error {
 		return fmt.Errorf("failed to prepare IP release statement: %v", err)
 	}
 
-	err = db.conn.Query(context.Background(), stmt, subscriber).Run()
+	err = db.conn.Query(ctx, stmt, subscriber).Run()
 	if err != nil {
 		return fmt.Errorf("failed to release IP: %v", err)
 	}
@@ -238,13 +238,13 @@ func addOffsetToIP(baseIP net.IP, offset int) net.IP {
 	return resultIP
 }
 
-func (db *Database) NumSubscribers() (int, error) {
+func (db *Database) NumSubscribers(ctx context.Context) (int, error) {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(getNumSubscribersStmt, db.subscribersTable), NumSubscribers{})
 	if err != nil {
 		return 0, fmt.Errorf("failed to prepare statement: %v", err)
 	}
 	result := NumSubscribers{}
-	err = db.conn.Query(context.Background(), stmt).Get(&result)
+	err = db.conn.Query(ctx, stmt).Get(&result)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get number of subscribers: %v", err)
 	}

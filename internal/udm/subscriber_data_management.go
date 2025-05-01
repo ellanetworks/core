@@ -5,6 +5,7 @@
 package udm
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
@@ -26,7 +27,7 @@ type UESubsData struct {
 }
 
 func GetAmData(ueID string) (*models.AccessAndMobilitySubscriptionData, error) {
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID)
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID, context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
@@ -72,7 +73,7 @@ func GetAmDataAndSetAMSubscription(supi string) (
 }
 
 func GetSmData(ueID string) ([]models.SessionManagementSubscriptionData, error) {
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID)
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID, context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}

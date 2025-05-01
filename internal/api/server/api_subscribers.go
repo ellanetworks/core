@@ -7,6 +7,8 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
 )
 
@@ -78,11 +80,17 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		dbSubscribers, err := dbInstance.ListSubscribers()
+		tracer := otel.Tracer("ella-core/api")
+		_, span := tracer.Start(c.Request.Context(), "db.ListSubscribers")
+		dbSubscribers, err := dbInstance.ListSubscribers(c.Request.Context())
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "ListSubscribers failed")
+			span.End()
 			writeError(c, http.StatusInternalServerError, "Unable to retrieve subscribers")
 			return
 		}
+		span.End()
 
 		subscribers := make([]GetSubscriberResponse, 0)
 		for _, dbSubscriber := range dbSubscribers {
@@ -124,7 +132,7 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		dbSubscriber, err := dbInstance.GetSubscriber(imsi)
+		dbSubscriber, err := dbInstance.GetSubscriber(imsi, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Subscriber not found")
 			return
@@ -235,7 +243,7 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			opcHex = createSubscriberParams.Opc
 		}
 
-		_, err = dbInstance.GetSubscriber(createSubscriberParams.Imsi)
+		_, err = dbInstance.GetSubscriber(createSubscriberParams.Imsi, c.Request.Context())
 		if err == nil {
 			writeError(c, http.StatusBadRequest, "Subscriber already exists")
 			return
@@ -253,7 +261,7 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			ProfileID:      profile.ID,
 		}
 
-		if err := dbInstance.CreateSubscriber(newSubscriber); err != nil {
+		if err := dbInstance.CreateSubscriber(newSubscriber, c.Request.Context()); err != nil {
 			logger.APILog.Warn("Failed to create subscriber", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to create subscriber")
 			return
@@ -302,7 +310,7 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		existingSubscriber, err := dbInstance.GetSubscriber(imsi)
+		existingSubscriber, err := dbInstance.GetSubscriber(imsi, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Subscriber not found")
 			return
@@ -320,7 +328,7 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			ProfileID:      profile.ID,
 		}
 
-		if err := dbInstance.UpdateSubscriber(updatedSubscriber); err != nil {
+		if err := dbInstance.UpdateSubscriber(updatedSubscriber, c.Request.Context()); err != nil {
 			logger.APILog.Warn("Failed to update subscriber", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update subscriber")
 			return
@@ -350,12 +358,12 @@ func DeleteSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Missing imsi parameter")
 			return
 		}
-		_, err := dbInstance.GetSubscriber(imsi)
+		_, err := dbInstance.GetSubscriber(imsi, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Subscriber not found")
 			return
 		}
-		err = dbInstance.DeleteSubscriber(imsi)
+		err = dbInstance.DeleteSubscriber(imsi, c.Request.Context())
 		if err != nil {
 			logger.APILog.Warn("Failed to delete subscriber", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to delete subscriber")

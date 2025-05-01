@@ -99,11 +99,14 @@ func main() {
 		log.Fatalf("Failed to configure logging: %v", err)
 	}
 
+	version := version.GetVersion()
+
 	ctx := context.Background()
 
 	tp, err := tracing.InitTracer(ctx, tracing.TelemetryConfig{
-		OTLPEndpoint: cfg.Telemetry.OTLPEndpoint,
-		ServiceName:  "ella-core",
+		OTLPEndpoint:   cfg.Telemetry.OTLPEndpoint,
+		ServiceName:    "ella-core",
+		ServiceVersion: version,
 	})
 	if err != nil {
 		logger.EllaLog.Panic("could not initialize tracer", zap.Error(err))
@@ -157,8 +160,6 @@ func main() {
 	if err != nil {
 		logger.EllaLog.Panic("Failed to start network", zap.Error(err))
 	}
-
-	version := version.GetVersion()
 
 	logger.EllaLog.Info("Ella Core is running", zap.String("version", version))
 

@@ -3,6 +3,7 @@
 package db_test
 
 import (
+	"context"
 	"net"
 	"path/filepath"
 	"testing"
@@ -41,7 +42,7 @@ func TestDatabaseMetrics(t *testing.T) {
 		{Imsi: "003", IPAddress: "", ProfileID: 1},
 	}
 	for _, subscriber := range subscribers {
-		err := database.CreateSubscriber(&subscriber)
+		err := database.CreateSubscriber(&subscriber, context.Background())
 		if err != nil {
 			t.Fatalf("Couldn't create subscriber: %s", err)
 		}

@@ -7,6 +7,7 @@
 package context
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync"
@@ -183,7 +184,7 @@ func (smContext *SMContext) ReleaseUeIPAddr() error {
 		return nil
 	}
 	if ip := smContext.PDUAddress.IP; ip != nil && !smContext.PDUAddress.UpfProvided {
-		err := smfSelf.DBInstance.ReleaseIP(smContext.Supi)
+		err := smfSelf.DBInstance.ReleaseIP(smContext.Supi, context.Background())
 		if err != nil {
 			return fmt.Errorf("failed to release IP Address, %v", err)
 		}

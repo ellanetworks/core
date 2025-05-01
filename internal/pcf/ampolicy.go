@@ -5,6 +5,7 @@
 package pcf
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -88,7 +89,7 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest) (*
 	amPolicy := ue.AMPolicyData[assolID]
 
 	if amPolicy == nil {
-		_, err := pcfCtx.DBInstance.GetSubscriber(ue.Supi)
+		_, err := pcfCtx.DBInstance.GetSubscriber(ue.Supi, context.Background())
 		if err != nil {
 			return nil, "", fmt.Errorf("ue not found in database: %s", ue.Supi)
 		}

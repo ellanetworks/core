@@ -424,7 +424,7 @@ func UpdateOperatorID(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Invalid mnc format. Must be a 2 or 3-decimal digit.")
 			return
 		}
-		numSubs, err := dbInstance.NumSubscribers()
+		numSubs, err := dbInstance.NumSubscribers(c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusInternalServerError, "Failed to get number of subscribers")
 			return
@@ -475,7 +475,7 @@ func UpdateOperatorCode(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		numSubs, err := dbInstance.NumSubscribers()
+		numSubs, err := dbInstance.NumSubscribers(c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusInternalServerError, "Failed to get number of subscribers")
 			return

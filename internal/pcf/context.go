@@ -7,6 +7,7 @@
 package pcf
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -67,7 +68,7 @@ func (c *PCFContext) PCFUeFindByPolicyID(PolicyID string) (*UeContext, error) {
 }
 
 func GetSubscriberPolicy(imsi string) (*PcfSubscriberPolicyData, error) {
-	subscriber, err := pcfCtx.DBInstance.GetSubscriber(imsi)
+	subscriber, err := pcfCtx.DBInstance.GetSubscriber(imsi, context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subscriber %s: %w", imsi, err)
 	}

@@ -5,6 +5,7 @@
 package udm
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -71,12 +72,12 @@ func strictHex(s string, n int) string {
 }
 
 func EditAuthenticationSubscription(ueID string, sequenceNumber string) error {
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID)
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID, context.Background())
 	if err != nil {
 		return fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
 	subscriber.SequenceNumber = sequenceNumber
-	err = udmContext.DBInstance.UpdateSubscriber(subscriber)
+	err = udmContext.DBInstance.UpdateSubscriber(subscriber, context.Background())
 	if err != nil {
 		return fmt.Errorf("couldn't update subscriber %s: %v", ueID, err)
 	}
@@ -110,7 +111,7 @@ func convertDBAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 }
 
 func GetAuthSubsData(ueID string) (*models.AuthenticationSubscription, error) {
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID)
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID, context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}

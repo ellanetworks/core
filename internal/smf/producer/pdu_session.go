@@ -7,6 +7,7 @@
 package producer
 
 import (
+	ctx "context"
 	"fmt"
 
 	amf_producer "github.com/ellanetworks/core/internal/amf/producer"
@@ -74,7 +75,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 
 	// IP Allocation
 	smfSelf := context.SMFSelf()
-	ip, err := smfSelf.DBInstance.AllocateIP(smContext.Supi)
+	ip, err := smfSelf.DBInstance.AllocateIP(smContext.Supi, ctx.Background())
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMInsufficientResources)
 		return "", response, fmt.Errorf("failed to allocate IP address: %v", err)
