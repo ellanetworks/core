@@ -731,14 +731,14 @@ func HandleUplinkNasTransport(ctext ctx.Context, ran *context.AmfRan, message *n
 		ranUe.UpdateLocation(userLocationInformation)
 	}
 
-	_, span := tracer.Start(ctext, "nas.UplinkNASTransport",
+	ctext, span := tracer.Start(ctext, "HandleUplinkNasTransport",
 		trace.WithAttributes(
 			attribute.String("nas.ue_ngap_id", fmt.Sprint(ranUe.AmfUeNgapID)),
 			attribute.Int("nas.pdu_length", len(nASPDU.Value)),
 		),
 	)
 	defer span.End()
-	err := nas.HandleNAS(ranUe, ngapType.ProcedureCodeUplinkNASTransport, nASPDU.Value)
+	err := nas.HandleNAS(ctext, ranUe, ngapType.ProcedureCodeUplinkNASTransport, nASPDU.Value)
 	if err != nil {
 		ranUe.Log.Error("error handling NAS message", zap.Error(err))
 	}
@@ -1371,7 +1371,7 @@ func HandleLocationReportingFailureIndication(ran *context.AmfRan, message *ngap
 	}
 }
 
-func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
+func HandleInitialUEMessage(ctext ctx.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	amfSelf := context.AMFSelf()
 
 	var rANUENGAPID *ngapType.RANUENGAPID
@@ -1554,7 +1554,7 @@ func HandleInitialUEMessage(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		ran.Log.Error("libngap Encoder Error", zap.Error(err))
 	}
 	ranUe.InitialUEMessage = pdu
-	err = nas.HandleNAS(ranUe, ngapType.ProcedureCodeInitialUEMessage, nASPDU.Value)
+	err = nas.HandleNAS(ctext, ranUe, ngapType.ProcedureCodeInitialUEMessage, nASPDU.Value)
 	if err != nil {
 		ran.Log.Error("error handling NAS", zap.Error(err))
 	}
@@ -3781,7 +3781,7 @@ func HandleUplinkRanStatusTransfer(ran *context.AmfRan, message *ngapType.NGAPPD
 	// send to T-AMF using N1N2MessageTransfer (R16)
 }
 
-func HandleNasNonDeliveryIndication(ran *context.AmfRan, message *ngapType.NGAPPDU) {
+func HandleNasNonDeliveryIndication(ctext ctx.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var aMFUENGAPID *ngapType.AMFUENGAPID
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var nASPDU *ngapType.NASPDU
@@ -3847,7 +3847,7 @@ func HandleNasNonDeliveryIndication(ran *context.AmfRan, message *ngapType.NGAPP
 
 	printAndGetCause(ran, cause)
 
-	err := nas.HandleNAS(ranUe, ngapType.ProcedureCodeNASNonDeliveryIndication, nASPDU.Value)
+	err := nas.HandleNAS(ctext, ranUe, ngapType.ProcedureCodeNASNonDeliveryIndication, nASPDU.Value)
 	if err != nil {
 		ranUe.Log.Error("error handling NAS", zap.Error(err))
 	}

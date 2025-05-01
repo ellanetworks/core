@@ -225,7 +225,7 @@ func DispatchNgapMsg(conn net.Conn, ran *context.AmfRan, pdu *ngapType.NGAPPDU) 
 		case ngapType.ProcedureCodeNGSetup:
 			HandleNGSetupRequest(ran, pdu)
 		case ngapType.ProcedureCodeInitialUEMessage:
-			HandleInitialUEMessage(ran, pdu)
+			HandleInitialUEMessage(ctx, ran, pdu)
 		case ngapType.ProcedureCodeUplinkNASTransport:
 			HandleUplinkNasTransport(ctx, ran, pdu)
 		case ngapType.ProcedureCodeNGReset:
@@ -235,7 +235,7 @@ func DispatchNgapMsg(conn net.Conn, ran *context.AmfRan, pdu *ngapType.NGAPPDU) 
 		case ngapType.ProcedureCodeUEContextReleaseRequest:
 			HandleUEContextReleaseRequest(ran, pdu)
 		case ngapType.ProcedureCodeNASNonDeliveryIndication:
-			HandleNasNonDeliveryIndication(ran, pdu)
+			HandleNasNonDeliveryIndication(ctx, ran, pdu)
 		case ngapType.ProcedureCodeLocationReportingFailureIndication:
 			HandleLocationReportingFailureIndication(ran, pdu)
 		case ngapType.ProcedureCodeErrorIndication:
