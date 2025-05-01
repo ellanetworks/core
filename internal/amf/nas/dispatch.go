@@ -15,68 +15,71 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/omec-project/nas"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
+var tracer = otel.Tracer("ella-core/nas")
+
 func messageTypeName(code uint8) string {
 	switch code {
 	case 65:
-		return "MsgTypeRegistrationRequest"
+		return "RegistrationRequest"
 	case 66:
-		return "MsgTypeRegistrationAccept"
+		return "RegistrationAccept"
 	case 67:
-		return "MsgTypeRegistrationComplete"
+		return "RegistrationComplete"
 	case 68:
-		return "MsgTypeRegistrationReject"
+		return "RegistrationReject"
 	case 69:
-		return "MsgTypeDeregistrationRequestUEOriginatingDeregistration"
+		return "DeregistrationRequestUEOriginatingDeregistration"
 	case 70:
-		return "MsgTypeDeregistrationAcceptUEOriginatingDeregistration"
+		return "DeregistrationAcceptUEOriginatingDeregistration"
 	case 71:
-		return "MsgTypeDeregistrationRequestUETerminatedDeregistration"
+		return "DeregistrationRequestUETerminatedDeregistration"
 	case 72:
-		return "MsgTypeDeregistrationAcceptUETerminatedDeregistration"
+		return "DeregistrationAcceptUETerminatedDeregistration"
 	case 76:
-		return "MsgTypeServiceRequest"
+		return "ServiceRequest"
 	case 77:
-		return "MsgTypeServiceReject"
+		return "ServiceReject"
 	case 78:
-		return "MsgTypeServiceAccept"
+		return "ServiceAccept"
 	case 84:
-		return "MsgTypeConfigurationUpdateCommand"
+		return "ConfigurationUpdateCommand"
 	case 85:
-		return "MsgTypeConfigurationUpdateComplete"
+		return "ConfigurationUpdateComplete"
 	case 86:
-		return "MsgTypeAuthenticationRequest"
+		return "AuthenticationRequest"
 	case 87:
-		return "MsgTypeAuthenticationResponse"
+		return "AuthenticationResponse"
 	case 88:
-		return "MsgTypeAuthenticationReject"
+		return "AuthenticationReject"
 	case 89:
-		return "MsgTypeAuthenticationFailure"
+		return "AuthenticationFailure"
 	case 90:
-		return "MsgTypeAuthenticationResult"
+		return "AuthenticationResult"
 	case 91:
-		return "MsgTypeIdentityRequest"
+		return "IdentityRequest"
 	case 92:
-		return "MsgTypeIdentityResponse"
+		return "IdentityResponse"
 	case 93:
-		return "MsgTypeSecurityModeCommand"
+		return "SecurityModeCommand"
 	case 94:
-		return "MsgTypeSecurityModeComplete"
+		return "SecurityModeComplete"
 	case 95:
-		return "MsgTypeSecurityModeReject"
+		return "SecurityModeReject"
 	case 100:
-		return "MsgTypeStatus5GMM"
+		return "Status5GMM"
 	case 101:
-		return "MsgTypeNotification"
+		return "Notification"
 	case 102:
-		return "MsgTypeNotificationResponse"
+		return "NotificationResponse"
 	case 103:
-		return "MsgTypeULNASTransport"
+		return "ULNASTransport"
 	case 104:
-		return "MsgTypeDLNASTransport"
+		return "DLNASTransport"
 	default:
 		return fmt.Sprintf("Unknown message type: %d", code)
 	}

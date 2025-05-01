@@ -12,39 +12,16 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/nassecurity"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
-// tracer is used to instrument NAS handling spans
-var tracer = otel.Tracer("ella-core/nas")
-
 // HandleNAS processes an uplink NAS PDU and emits a span around the entire operation.
 func HandleNAS(ctext ctx.Context, ue *context.RanUe, procedureCode int64, nasPdu []byte) error {
-	// Start a span for NAS handling
-	_, span := tracer.Start(ctext, "nas.HandleNAS",
-		trace.WithAttributes(
-			attribute.Int64("nas.procedureCode", procedureCode),
-			attribute.Int("nas.pdu_length", len(nasPdu)),
-		),
-	)
-	defer span.End()
-
-	// Validate inputs
 	if ue == nil {
-		err := fmt.Errorf("ue is nil")
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return err
+		return fmt.Errorf("ue is nil")
 	}
 	if nasPdu == nil {
-		err := fmt.Errorf("nas pdu is nil")
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return err
+		return fmt.Errorf("nas pdu is nil")
 	}
 
 	amfSelf := context.AMFSelf()
@@ -69,8 +46,6 @@ func HandleNAS(ctext ctx.Context, ue *context.RanUe, procedureCode int64, nasPdu
 		}
 		err := DispatchMsg(ctext, eeCtx, nasMsg)
 		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
 			return fmt.Errorf("error dispatching NAS message: %v", err)
 		}
 		return nil
@@ -79,15 +54,11 @@ func HandleNAS(ctext ctx.Context, ue *context.RanUe, procedureCode int64, nasPdu
 	// Decode and dispatch for existing UE
 	msg, err := nassecurity.Decode(ue.AmfUe, ue.Ran.AnType, nasPdu)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
 	if err := Dispatch(ctext, ue.AmfUe, ue.Ran.AnType, procedureCode, msg); err != nil {
 		eeCtx := ue.AmfUe
 		eeCtx.NASLog.Error("Handle NAS Error", zap.Error(err))
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("error handling NAS message: %v", err)
 	}
 
