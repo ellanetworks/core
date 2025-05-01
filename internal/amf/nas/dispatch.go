@@ -6,6 +6,7 @@
 package nas
 
 import (
+	ctx "context"
 	"errors"
 	"fmt"
 
@@ -14,9 +15,28 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/fsm"
 	"github.com/omec-project/nas"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
-func Dispatch(ue *context.AmfUe, accessType models.AccessType, procedureCode int64, msg *nas.Message) error {
+func messageTypeName(code uint8) string {
+	switch code {
+	case 0x00:
+		return "SecurityHeaderTypePlainNas"
+	case 0x01:
+		return "SecurityHeaderTypeIntegrityProtected"
+	case 0x02:
+		return "SecurityHeaderTypeIntegrityProtectedAndCiphered"
+	case 0x03:
+		return "SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext"
+	case 0x04:
+		return "SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext"
+	default:
+		return fmt.Sprintf("Unknown message type: %d", code)
+	}
+}
+
+func Dispatch(ctext ctx.Context, ue *context.AmfUe, accessType models.AccessType, procedureCode int64, msg *nas.Message) error {
 	if msg.GmmMessage == nil {
 		return errors.New("gmm message is nil")
 	}
@@ -28,6 +48,18 @@ func Dispatch(ue *context.AmfUe, accessType models.AccessType, procedureCode int
 	if ue.State[accessType] == nil {
 		return fmt.Errorf("ue state is empty for access type: %v", accessType)
 	}
+
+	msgTypeName := messageTypeName(msg.GmmMessage.GmmHeader.GetMessageType())
+	spanName := fmt.Sprintf("nas.%s", msgTypeName)
+
+	_, span := tracer.Start(ctext, spanName,
+		trace.WithAttributes(
+			attribute.String("nas.accessType", string(accessType)),
+			attribute.Int64("nas.procedureCode", procedureCode),
+			attribute.String("nas.messageType", msgTypeName),
+		),
+	)
+	defer span.End()
 
 	return gmm.GmmFSM.SendEvent(ue.State[accessType], gmm.GmmMessageEvent, fsm.ArgsType{
 		gmm.ArgAmfUe:         ue,
