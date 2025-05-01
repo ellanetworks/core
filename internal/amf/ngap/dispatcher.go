@@ -24,7 +24,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var tracer = otel.Tracer("ella-core/ngap")
+var tracer = otel.Tracer("amf/ngap")
 
 func procedureName(code int64) string {
 	switch code {
