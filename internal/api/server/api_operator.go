@@ -171,7 +171,7 @@ func GetOperator(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		dbOperator, err := dbInstance.GetOperator()
+		dbOperator, err := dbInstance.GetOperator(c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Operator not found")
 			return
@@ -219,7 +219,7 @@ func GetOperatorSlice(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		dbOperator, err := dbInstance.GetOperator()
+		dbOperator, err := dbInstance.GetOperator(c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Operator not found")
 			return
@@ -252,7 +252,7 @@ func GetOperatorTracking(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		dbOperator, err := dbInstance.GetOperator()
+		dbOperator, err := dbInstance.GetOperator(c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Operator not found")
 			return
@@ -280,7 +280,7 @@ func GetOperatorID(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		dbOperator, err := dbInstance.GetOperator()
+		dbOperator, err := dbInstance.GetOperator(c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Operator not found")
 			return
@@ -334,7 +334,7 @@ func UpdateOperatorSlice(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		err = dbInstance.UpdateOperatorSlice(int32(updateOperatorSliceParams.Sst), updateOperatorSliceParams.Sd)
+		err = dbInstance.UpdateOperatorSlice(int32(updateOperatorSliceParams.Sst), updateOperatorSliceParams.Sd, c.Request.Context())
 		if err != nil {
 			logger.APILog.Warn("Failed to update operator slice information", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update operator slice information")
@@ -377,7 +377,7 @@ func UpdateOperatorTracking(dbInstance *db.Database) gin.HandlerFunc {
 			}
 		}
 
-		err = dbInstance.UpdateOperatorTracking(updateOperatorTrackingParams.SupportedTacs)
+		err = dbInstance.UpdateOperatorTracking(updateOperatorTrackingParams.SupportedTacs, c.Request.Context())
 		if err != nil {
 			logger.APILog.Warn("Failed to update operator tracking information", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update operator tracking information")
@@ -434,7 +434,7 @@ func UpdateOperatorID(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		err = dbInstance.UpdateOperatorID(updateOperatorIDParams.Mcc, updateOperatorIDParams.Mnc)
+		err = dbInstance.UpdateOperatorID(updateOperatorIDParams.Mcc, updateOperatorIDParams.Mnc, c.Request.Context())
 		if err != nil {
 			logger.APILog.Warn("Failed to update operator ID", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update operatorID")
@@ -485,7 +485,7 @@ func UpdateOperatorCode(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		err = dbInstance.UpdateOperatorCode(updateOperatorCodeParams.OperatorCode)
+		err = dbInstance.UpdateOperatorCode(updateOperatorCodeParams.OperatorCode, c.Request.Context())
 		if err != nil {
 			logger.APILog.Warn("Failed to update operator code", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update operatorID")
@@ -526,7 +526,7 @@ func UpdateOperatorHomeNetwork(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		err = dbInstance.UpdateHomeNetworkPrivateKey(updateOperatorHomeNetworkParams.PrivateKey)
+		err = dbInstance.UpdateHomeNetworkPrivateKey(updateOperatorHomeNetworkParams.PrivateKey, c.Request.Context())
 		if err != nil {
 			logger.APILog.Warn("Failed to update home network private key", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update home network private key")

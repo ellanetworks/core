@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/hex"
 	"net/http"
 
@@ -42,11 +43,11 @@ const (
 	DeleteSubscriberAction = "delete_subscriber"
 )
 
-func isImsiValid(imsi string, dbInstance *db.Database) bool {
+func isImsiValid(imsi string, dbInstance *db.Database, ctx context.Context) bool {
 	if len(imsi) != 15 {
 		return false
 	}
-	network, err := dbInstance.GetOperator()
+	network, err := dbInstance.GetOperator(ctx)
 	if err != nil {
 		logger.APILog.Warn("Failed to retrieve operator", zap.Error(err))
 		return false
@@ -191,7 +192,7 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Missing profileName parameter")
 			return
 		}
-		if !isImsiValid(createSubscriberParams.Imsi, dbInstance) {
+		if !isImsiValid(createSubscriberParams.Imsi, dbInstance, c.Request.Context()) {
 			writeError(c, http.StatusBadRequest, "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.")
 			return
 		}
@@ -219,7 +220,7 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 
 		var opcHex string
 		if createSubscriberParams.Opc == "" {
-			opCodeHex, err := dbInstance.GetOperatorCode()
+			opCodeHex, err := dbInstance.GetOperatorCode(c.Request.Context())
 			if err != nil {
 				logger.APILog.Warn("Failed to retrieve operator code", zap.Error(err))
 				writeError(c, http.StatusInternalServerError, "Failed to retrieve operator code")
@@ -305,7 +306,7 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Missing profileName parameter")
 			return
 		}
-		if !isImsiValid(updateSubscriberParams.Imsi, dbInstance) {
+		if !isImsiValid(updateSubscriberParams.Imsi, dbInstance, c.Request.Context()) {
 			writeError(c, http.StatusBadRequest, "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.")
 			return
 		}

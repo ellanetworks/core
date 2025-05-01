@@ -3,6 +3,7 @@
 package db_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -24,7 +25,7 @@ func TestDatabaseBackup(t *testing.T) {
 		}
 	}()
 
-	err = database.UpdateOperatorID("123", "456")
+	err = database.UpdateOperatorID("123", "456", context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't update operator id: %s", err)
 	}

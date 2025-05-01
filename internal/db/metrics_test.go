@@ -74,7 +74,7 @@ func TestDatabaseMetrics(t *testing.T) {
 	})
 
 	t.Run("GetIPAddressesAllocated", func(t *testing.T) {
-		allocatedIPs, err := database.GetIPAddressesAllocated()
+		allocatedIPs, err := database.GetIPAddressesAllocated(context.Background())
 		if err != nil {
 			t.Fatalf("Couldn't get allocated IP addresses: %s", err)
 		}

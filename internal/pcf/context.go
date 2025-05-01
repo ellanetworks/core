@@ -76,7 +76,7 @@ func GetSubscriberPolicy(imsi string) (*PcfSubscriberPolicyData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get profile %d: %w", subscriber.ProfileID, err)
 	}
-	operator, err := pcfCtx.DBInstance.GetOperator()
+	operator, err := pcfCtx.DBInstance.GetOperator(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator: %w", err)
 	}

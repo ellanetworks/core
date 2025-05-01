@@ -43,8 +43,8 @@ func countIPsInCIDR(ipNet *net.IPNet) int {
 	return 1 << (bits - ones)
 }
 
-func (db *Database) GetIPAddressesAllocated() (int, error) {
-	subscribers, err := db.ListSubscribers(context.Background())
+func (db *Database) GetIPAddressesAllocated(ctx context.Context) (int, error) {
+	subscribers, err := db.ListSubscribers(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to list subscribers: %v", err)
 	}

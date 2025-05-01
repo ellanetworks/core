@@ -3,6 +3,7 @@
 package db_test
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -66,7 +67,7 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 		}
 	}()
 
-	retrievedOperator, err := database.GetOperator()
+	retrievedOperator, err := database.GetOperator(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -77,7 +78,7 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 		t.Fatalf("The mnc from the database doesn't match the expected default")
 	}
 
-	retrievedOperatorCode, err := database.GetOperatorCode()
+	retrievedOperatorCode, err := database.GetOperatorCode(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -86,12 +87,12 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 		t.Fatalf("The operator code from the database doesn't match the expected default")
 	}
 
-	err = database.UpdateOperatorSlice(1, 1056816)
+	err = database.UpdateOperatorSlice(1, 1056816, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
 
-	retrievedOperator, err = database.GetOperator()
+	retrievedOperator, err = database.GetOperator(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -104,7 +105,7 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 	if retrievedOperator.GetHexSd() != "102030" {
 		t.Fatalf("The hex sd from the database doesn't match the expected value")
 	}
-	retrievedOperatorCode, err = database.GetOperatorCode()
+	retrievedOperatorCode, err = database.GetOperatorCode(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -114,12 +115,12 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 
 	mcc := "002"
 	mnc := "02"
-	err = database.UpdateOperatorID(mcc, mnc)
+	err = database.UpdateOperatorID(mcc, mnc, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
 
-	operator, err := database.GetOperator()
+	operator, err := database.GetOperator(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}

@@ -6,6 +6,7 @@
 package pcf
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
@@ -38,7 +39,7 @@ func deepCopyQosData(src *models.QosData) *models.QosData {
 }
 
 func GetSmPolicyData() (*models.SmPolicyData, error) {
-	operator, err := pcfCtx.DBInstance.GetOperator()
+	operator, err := pcfCtx.DBInstance.GetOperator(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator: %s", err)
 	}

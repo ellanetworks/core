@@ -123,7 +123,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	if udmContext.DBInstance == nil {
 		return nil, fmt.Errorf("db instance is nil")
 	}
-	hnPrivateKey, err := udmContext.DBInstance.GetHomeNetworkPrivateKey()
+	hnPrivateKey, err := udmContext.DBInstance.GetHomeNetworkPrivateKey(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get home network private key: %w", err)
 	}

@@ -3,6 +3,8 @@
 package metrics
 
 import (
+	"context"
+
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	smfStats "github.com/ellanetworks/core/internal/smf/stats"
@@ -63,7 +65,7 @@ func RegisterDatabaseMetrics(db *db.Database) {
 		Name: "app_ip_addresses_allocated",
 		Help: "The total number of IP addresses currently allocated to subscribers",
 	}, func() float64 {
-		allocated, err := db.GetIPAddressesAllocated()
+		allocated, err := db.GetIPAddressesAllocated(context.Background())
 		if err != nil {
 			logger.MetricsLog.Warn("Failed to get allocated IP addresses", zap.Error(err))
 			return 0

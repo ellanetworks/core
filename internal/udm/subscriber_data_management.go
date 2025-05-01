@@ -35,7 +35,7 @@ func GetAmData(ueID string) (*models.AccessAndMobilitySubscriptionData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
-	operator, err := udmContext.DBInstance.GetOperator()
+	operator, err := udmContext.DBInstance.GetOperator(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
@@ -81,7 +81,7 @@ func GetSmData(ueID string) ([]models.SessionManagementSubscriptionData, error) 
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
-	operator, err := udmContext.DBInstance.GetOperator()
+	operator, err := udmContext.DBInstance.GetOperator(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
@@ -155,7 +155,7 @@ func GetNssai(supi string) (*models.Nssai, error) {
 }
 
 func GetSmfSelectData(ueID string) (*models.SmfSelectionSubscriptionData, error) {
-	operator, err := udmContext.DBInstance.GetOperator()
+	operator, err := udmContext.DBInstance.GetOperator(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}

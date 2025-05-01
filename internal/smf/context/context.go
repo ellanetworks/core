@@ -7,6 +7,7 @@
 package context
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync/atomic"
@@ -53,7 +54,7 @@ func SMFSelf() *SMFContext {
 
 func BuildUserPlaneInformationFromConfig() (*UPF, error) {
 	smfSelf := SMFSelf()
-	operator, err := smfSelf.DBInstance.GetOperator()
+	operator, err := smfSelf.DBInstance.GetOperator(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator information from db: %v", err)
 	}
@@ -79,7 +80,7 @@ func BuildUserPlaneInformationFromConfig() (*UPF, error) {
 
 func GetSnssaiInfo() []SnssaiSmfInfo {
 	self := SMFSelf()
-	operator, err := self.DBInstance.GetOperator()
+	operator, err := self.DBInstance.GetOperator(context.Background())
 	if err != nil {
 		logger.SmfLog.Warn("failed to get operator information from db", zap.Error(err))
 		return nil
