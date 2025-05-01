@@ -20,7 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var tracer = otel.Tracer("amf/nas")
+var tracer = otel.Tracer("ella-core/nas")
 
 func messageTypeName(code uint8) string {
 	switch code {
