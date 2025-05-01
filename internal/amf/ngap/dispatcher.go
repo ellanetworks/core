@@ -223,7 +223,7 @@ func DispatchNgapMsg(conn net.Conn, ran *context.AmfRan, pdu *ngapType.NGAPPDU) 
 
 		switch initiatingMessage.ProcedureCode.Value {
 		case ngapType.ProcedureCodeNGSetup:
-			HandleNGSetupRequest(ran, pdu)
+			HandleNGSetupRequest(ctx, ran, pdu)
 		case ngapType.ProcedureCodeInitialUEMessage:
 			HandleInitialUEMessage(ctx, ran, pdu)
 		case ngapType.ProcedureCodeUplinkNASTransport:
@@ -247,7 +247,7 @@ func DispatchNgapMsg(conn net.Conn, ran *context.AmfRan, pdu *ngapType.NGAPPDU) 
 		case ngapType.ProcedureCodeHandoverPreparation:
 			HandleHandoverRequired(ran, pdu)
 		case ngapType.ProcedureCodeRANConfigurationUpdate:
-			HandleRanConfigurationUpdate(ran, pdu)
+			HandleRanConfigurationUpdate(ctx, ran, pdu)
 		case ngapType.ProcedureCodeRRCInactiveTransitionReport:
 			HandleRRCInactiveTransitionReport(ran, pdu)
 		case ngapType.ProcedureCodePDUSessionResourceNotify:

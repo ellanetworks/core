@@ -26,16 +26,16 @@ type UESubsData struct {
 	SdmSubscriptions map[subsID]*models.SdmSubscription
 }
 
-func GetAmData(ueID string) (*models.AccessAndMobilitySubscriptionData, error) {
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID, context.Background())
+func GetAmData(ueID string, ctx context.Context) (*models.AccessAndMobilitySubscriptionData, error) {
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
-	profile, err := udmContext.DBInstance.GetProfileByID(subscriber.ProfileID, context.Background())
+	profile, err := udmContext.DBInstance.GetProfileByID(subscriber.ProfileID, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
-	operator, err := udmContext.DBInstance.GetOperator(context.Background())
+	operator, err := udmContext.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
@@ -60,10 +60,8 @@ func GetAmData(ueID string) (*models.AccessAndMobilitySubscriptionData, error) {
 	return amData, nil
 }
 
-func GetAmDataAndSetAMSubscription(supi string) (
-	*models.AccessAndMobilitySubscriptionData, error,
-) {
-	amData, err := GetAmData(supi)
+func GetAmDataAndSetAMSubscription(supi string, ctx context.Context) (*models.AccessAndMobilitySubscriptionData, error) {
+	amData, err := GetAmData(supi, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
@@ -143,8 +141,8 @@ func GetAndSetSmData(supi string, Dnn string, Snssai string) ([]models.SessionMa
 	return rspSMSubDataList, nil
 }
 
-func GetNssai(supi string) (*models.Nssai, error) {
-	accessAndMobilitySubscriptionDataResp, err := GetAmData(supi)
+func GetNssai(supi string, ctx context.Context) (*models.Nssai, error) {
+	accessAndMobilitySubscriptionDataResp, err := GetAmData(supi, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}

@@ -16,10 +16,10 @@ func ListAmfRan() []AmfRan {
 	return amfSelf.ListAmfRan()
 }
 
-func GetSupportTaiList() []models.Tai {
+func GetSupportTaiList(ctx context.Context) []models.Tai {
 	amfSelf := AMFSelf()
 	tais := make([]models.Tai, 0)
-	dbNetwork, err := amfSelf.DBInstance.GetOperator(context.Background())
+	dbNetwork, err := amfSelf.DBInstance.GetOperator(ctx)
 	if err != nil {
 		logger.AmfLog.Warn("Failed to get operator", zap.Error(err))
 		return tais

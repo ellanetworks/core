@@ -7,6 +7,7 @@
 package consumer
 
 import (
+	ctx "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
@@ -14,8 +15,8 @@ import (
 	"github.com/ellanetworks/core/internal/udm"
 )
 
-func SDMGetAmData(ue *context.AmfUe) error {
-	data, err := udm.GetAmDataAndSetAMSubscription(ue.Supi)
+func SDMGetAmData(ue *context.AmfUe, ctext ctx.Context) error {
+	data, err := udm.GetAmDataAndSetAMSubscription(ue.Supi, ctext)
 	if err != nil {
 		return err
 	}
@@ -57,8 +58,8 @@ func SDMSubscribe(ue *context.AmfUe) error {
 	return nil
 }
 
-func SDMGetSliceSelectionSubscriptionData(ue *context.AmfUe) error {
-	nssai, err := udm.GetNssai(ue.Supi)
+func SDMGetSliceSelectionSubscriptionData(ue *context.AmfUe, ctext ctx.Context) error {
+	nssai, err := udm.GetNssai(ue.Supi, ctext)
 	if err != nil {
 		return fmt.Errorf("get nssai failed: %s", err.Error())
 	}

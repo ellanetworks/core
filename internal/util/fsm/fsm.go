@@ -5,6 +5,7 @@
 package fsm
 
 import (
+	"context"
 	"fmt"
 )
 
@@ -14,7 +15,7 @@ type (
 )
 
 type (
-	Callback  func(*State, EventType, ArgsType)
+	Callback  func(context.Context, *State, EventType, ArgsType)
 	Callbacks map[StateType]Callback
 )
 
@@ -85,7 +86,7 @@ func NewFSM(transitions Transitions, callbacks Callbacks) (*FSM, error) {
 //   - on exit callback: call when fsm leave one state, with ExitEvent event
 //   - event callback: call when user trigger a user-defined event
 //   - on entry callback: call when fsm enter one state, with EntryEvent event
-func (fsm *FSM) SendEvent(state *State, event EventType, args ArgsType) error {
+func (fsm *FSM) SendEvent(ctx context.Context, state *State, event EventType, args ArgsType) error {
 	key := eventKey{
 		From:  state.Current(),
 		Event: event,
@@ -93,17 +94,17 @@ func (fsm *FSM) SendEvent(state *State, event EventType, args ArgsType) error {
 
 	if trans, ok := fsm.transitions[key]; ok {
 		// event callback
-		fsm.callbacks[trans.From](state, event, args)
+		fsm.callbacks[trans.From](ctx, state, event, args)
 
 		// exit callback
 		if trans.From != trans.To {
-			fsm.callbacks[trans.From](state, ExitEvent, args)
+			fsm.callbacks[trans.From](ctx, state, ExitEvent, args)
 		}
 
 		// entry callback
 		if trans.From != trans.To {
 			state.Set(trans.To)
-			fsm.callbacks[trans.To](state, EntryEvent, args)
+			fsm.callbacks[trans.To](ctx, state, EntryEvent, args)
 		}
 		return nil
 	} else {

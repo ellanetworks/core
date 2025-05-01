@@ -110,7 +110,7 @@ func Dispatch(ctext ctx.Context, ue *context.AmfUe, accessType models.AccessType
 	)
 	defer span.End()
 
-	return gmm.GmmFSM.SendEvent(ue.State[accessType], gmm.GmmMessageEvent, fsm.ArgsType{
+	return gmm.GmmFSM.SendEvent(ctext, ue.State[accessType], gmm.GmmMessageEvent, fsm.ArgsType{
 		gmm.ArgAmfUe:         ue,
 		gmm.ArgAccessType:    accessType,
 		gmm.ArgNASMessage:    msg.GmmMessage,

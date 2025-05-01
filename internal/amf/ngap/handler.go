@@ -486,7 +486,7 @@ func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context
 	return ranUe, aMFUENGAPID
 }
 
-func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
+func HandleNGSetupRequest(ctext ctx.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var globalRANNodeID *ngapType.GlobalRANNodeID
 	var rANNodeName *ngapType.RANNodeName
 	var supportedTAList *ngapType.SupportedTAList
@@ -599,7 +599,7 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		}
 	} else {
 		var found bool
-		supportTaiList := context.GetSupportTaiList()
+		supportTaiList := context.GetSupportTaiList(ctext)
 		taiList := make([]models.Tai, len(supportTaiList))
 		copy(taiList, supportTaiList)
 		for i := range taiList {
@@ -3843,7 +3843,7 @@ func HandleNasNonDeliveryIndication(ctext ctx.Context, ran *context.AmfRan, mess
 	}
 }
 
-func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU) {
+func HandleRanConfigurationUpdate(ctext ctx.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var rANNodeName *ngapType.RANNodeName
 	var supportedTAList *ngapType.SupportedTAList
 	var pagingDRX *ngapType.PagingDRX
@@ -3936,7 +3936,7 @@ func HandleRanConfigurationUpdate(ran *context.AmfRan, message *ngapType.NGAPPDU
 		}
 	} else {
 		var found bool
-		supportTaiList := context.GetSupportTaiList()
+		supportTaiList := context.GetSupportTaiList(ctext)
 		taiList := make([]models.Tai, len(supportTaiList))
 		copy(taiList, supportTaiList)
 		for i := range taiList {

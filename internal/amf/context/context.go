@@ -8,6 +8,7 @@
 package context
 
 import (
+	ctx "context"
 	"fmt"
 	"math"
 	"net"
@@ -139,7 +140,7 @@ func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.Acc
 		ue.RegistrationArea[anType] = nil
 	}
 
-	supportTaiList := GetSupportTaiList()
+	supportTaiList := GetSupportTaiList(ctx.Background())
 	taiList := make([]models.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)
 	for i := range taiList {

@@ -3,6 +3,7 @@ package gmm
 
 import (
 	"bytes"
+	ctx "context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -497,7 +498,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	ue.Tai = ue.RanUe[anType].Tai
 
 	// Check TAI
-	supportTaiList := context.GetSupportTaiList()
+	supportTaiList := context.GetSupportTaiList(ctx.Background())
 	taiList := make([]models.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)
 	for i := range taiList {
@@ -554,7 +555,7 @@ func IdentityVerification(ue *context.AmfUe) bool {
 	return ue.Supi != "" || len(ue.Suci) != 0
 }
 
-func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) error {
+func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType, ctext ctx.Context) error {
 	amfSelf := context.AMFSelf()
 
 	ue.ClearRegistrationData()
@@ -564,7 +565,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 
 	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
 	if len(ue.SubscribedNssai) == 0 {
-		getSubscribedNssai(ue)
+		getSubscribedNssai(ue, ctext)
 	}
 
 	if err := handleRequestedNssai(ue, anType); err != nil {
@@ -613,7 +614,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 
 	if ue.ServingAmfChanged || ue.State[models.AccessTypeNon3GPPAccess].Is(context.Registered) ||
 		!ue.SubscriptionDataValid {
-		if err := communicateWithUDM(ue, anType); err != nil {
+		if err := communicateWithUDM(ctext, ue, anType); err != nil {
 			return err
 		}
 	}
@@ -679,7 +680,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType) erro
 	return nil
 }
 
-func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType models.AccessType) error {
+func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType models.AccessType, ctext ctx.Context) error {
 	ue.GmmLog.Info("Handle MobilityAndPeriodicRegistrationUpdating")
 
 	amfSelf := context.AMFSelf()
@@ -693,7 +694,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 
 	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
 	if len(ue.SubscribedNssai) == 0 {
-		getSubscribedNssai(ue)
+		getSubscribedNssai(ue, ctext)
 	}
 
 	if err := handleRequestedNssai(ue, anType); err != nil {
@@ -732,7 +733,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 
 	if ue.ServingAmfChanged || ue.State[models.AccessTypeNon3GPPAccess].Is(context.Registered) ||
 		!ue.SubscriptionDataValid {
-		if err := communicateWithUDM(ue, anType); err != nil {
+		if err := communicateWithUDM(ctext, ue, anType); err != nil {
 			return err
 		}
 	}
@@ -1027,13 +1028,13 @@ func negotiateDRXParameters(ue *context.AmfUe, requestedDRXParameters *nasType.R
 	}
 }
 
-func communicateWithUDM(ue *context.AmfUe, accessType models.AccessType) error {
+func communicateWithUDM(ctext ctx.Context, ue *context.AmfUe, accessType models.AccessType) error {
 	err := consumer.UeCmRegistration(ue, accessType, true)
 	if err != nil {
 		ue.GmmLog.Error("UECM_Registration Error", zap.Error(err))
 	}
 
-	err = consumer.SDMGetAmData(ue)
+	err = consumer.SDMGetAmData(ue, ctext)
 	if err != nil {
 		return fmt.Errorf("error getting am data: %v", err)
 	}
@@ -1056,8 +1057,8 @@ func communicateWithUDM(ue *context.AmfUe, accessType models.AccessType) error {
 	return nil
 }
 
-func getSubscribedNssai(ue *context.AmfUe) {
-	err := consumer.SDMGetSliceSelectionSubscriptionData(ue)
+func getSubscribedNssai(ue *context.AmfUe, ctext ctx.Context) {
+	err := consumer.SDMGetSliceSelectionSubscriptionData(ue, ctext)
 	if err != nil {
 		ue.GmmLog.Error("error getting slice selection subscription data", zap.Error(err))
 	}
@@ -1779,7 +1780,7 @@ func sendServiceAccept(ue *context.AmfUe, anType models.AccessType, ctxList ngap
 }
 
 // TS 24.501 5.4.1
-func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessType, authenticationResponse *nasMessage.AuthenticationResponse) error {
+func HandleAuthenticationResponse(ctext ctx.Context, ue *context.AmfUe, accessType models.AccessType, authenticationResponse *nasMessage.AuthenticationResponse) error {
 	ue.GmmLog.Info("Handle Authentication Response")
 	if ue.T3560 != nil {
 		ue.T3560.Stop()
@@ -1824,7 +1825,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 					return fmt.Errorf("error sending GMM authentication reject: %v", err)
 				}
 				ue.GmmLog.Info("Sent GMM authentication reject")
-				return GmmFSM.SendEvent(ue.State[accessType], AuthFailEvent, fsm.ArgsType{
+				return GmmFSM.SendEvent(ctext, ue.State[accessType], AuthFailEvent, fsm.ArgsType{
 					ArgAmfUe:      ue,
 					ArgAccessType: accessType,
 				})
@@ -1840,7 +1841,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 			ue.Kseaf = response.Kseaf
 			ue.Supi = response.Supi
 			ue.DerivateKamf()
-			return GmmFSM.SendEvent(ue.State[accessType], AuthSuccessEvent, fsm.ArgsType{
+			return GmmFSM.SendEvent(ctext, ue.State[accessType], AuthSuccessEvent, fsm.ArgsType{
 				ArgAmfUe:      ue,
 				ArgAccessType: accessType,
 				ArgEAPSuccess: false,
@@ -1860,7 +1861,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 					return fmt.Errorf("error sending GMM authentication reject: %v", err)
 				}
 				ue.GmmLog.Info("Sent GMM authentication reject")
-				return GmmFSM.SendEvent(ue.State[accessType], AuthFailEvent, fsm.ArgsType{
+				return GmmFSM.SendEvent(ctext, ue.State[accessType], AuthFailEvent, fsm.ArgsType{
 					ArgAmfUe:      ue,
 					ArgAccessType: accessType,
 				})
@@ -1877,7 +1878,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 			ue.Kseaf = response.KSeaf
 			ue.Supi = response.Supi
 			ue.DerivateKamf()
-			return GmmFSM.SendEvent(ue.State[accessType], SecurityModeSuccessEvent, fsm.ArgsType{
+			return GmmFSM.SendEvent(ctext, ue.State[accessType], SecurityModeSuccessEvent, fsm.ArgsType{
 				ArgAmfUe:      ue,
 				ArgAccessType: accessType,
 				ArgEAPSuccess: true,
@@ -1902,7 +1903,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 					return fmt.Errorf("error sending GMM authentication reject: %v", err)
 				}
 				ue.GmmLog.Info("Sent GMM authentication reject")
-				return GmmFSM.SendEvent(ue.State[accessType], AuthFailEvent, fsm.ArgsType{
+				return GmmFSM.SendEvent(ctext, ue.State[accessType], AuthFailEvent, fsm.ArgsType{
 					ArgAmfUe:      ue,
 					ArgAccessType: accessType,
 				})
@@ -1920,7 +1921,7 @@ func HandleAuthenticationResponse(ue *context.AmfUe, accessType models.AccessTyp
 	return nil
 }
 
-func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType, authenticationFailure *nasMessage.AuthenticationFailure) error {
+func HandleAuthenticationFailure(ctext ctx.Context, ue *context.AmfUe, anType models.AccessType, authenticationFailure *nasMessage.AuthenticationFailure) error {
 	ue.GmmLog.Info("Handle Authentication Failure")
 
 	if ue.T3560 != nil {
@@ -1939,7 +1940,7 @@ func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType, au
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
 			ue.GmmLog.Info("Sent GMM authentication reject")
-			return GmmFSM.SendEvent(ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
+			return GmmFSM.SendEvent(ctext, ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
 		case nasMessage.Cause5GMMNon5GAuthenticationUnacceptable:
 			ue.GmmLog.Warn("Authentication Failure Cause: Non-5G Authentication Unacceptable")
 			err := gmm_message.SendAuthenticationReject(ue.RanUe[anType], "")
@@ -1947,7 +1948,7 @@ func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType, au
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
 			ue.GmmLog.Info("Sent GMM authentication reject")
-			return GmmFSM.SendEvent(ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
+			return GmmFSM.SendEvent(ctext, ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
 		case nasMessage.Cause5GMMngKSIAlreadyInUse:
 			ue.GmmLog.Warn("Authentication Failure Cause: NgKSI Already In Use")
 			ue.AuthFailureCauseSynchFailureTimes = 0
@@ -1974,7 +1975,7 @@ func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType, au
 					return fmt.Errorf("error sending GMM authentication reject: %v", err)
 				}
 				ue.GmmLog.Info("Sent GMM authentication reject")
-				return GmmFSM.SendEvent(ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
+				return GmmFSM.SendEvent(ctext, ue.State[anType], AuthFailEvent, fsm.ArgsType{ArgAmfUe: ue, ArgAccessType: anType})
 			}
 
 			auts := authenticationFailure.AuthenticationFailureParameter.GetAuthenticationFailureParameter()
@@ -2015,7 +2016,7 @@ func HandleAuthenticationFailure(ue *context.AmfUe, anType models.AccessType, au
 	return nil
 }
 
-func HandleRegistrationComplete(ue *context.AmfUe, accessType models.AccessType, registrationComplete *nasMessage.RegistrationComplete) error {
+func HandleRegistrationComplete(ctext ctx.Context, ue *context.AmfUe, accessType models.AccessType, registrationComplete *nasMessage.RegistrationComplete) error {
 	if ue.T3550 != nil {
 		ue.T3550.Stop()
 		ue.T3550 = nil // clear the timer
@@ -2030,14 +2031,14 @@ func HandleRegistrationComplete(ue *context.AmfUe, accessType models.AccessType,
 		ue.GmmLog.Info("sent ue context release command")
 	}
 
-	return GmmFSM.SendEvent(ue.State[accessType], ContextSetupSuccessEvent, fsm.ArgsType{
+	return GmmFSM.SendEvent(ctext, ue.State[accessType], ContextSetupSuccessEvent, fsm.ArgsType{
 		ArgAmfUe:      ue,
 		ArgAccessType: accessType,
 	})
 }
 
 // TS 33.501 6.7.2
-func HandleSecurityModeComplete(ue *context.AmfUe, anType models.AccessType, procedureCode int64, securityModeComplete *nasMessage.SecurityModeComplete) error {
+func HandleSecurityModeComplete(ctext ctx.Context, ue *context.AmfUe, anType models.AccessType, procedureCode int64, securityModeComplete *nasMessage.SecurityModeComplete) error {
 	if ue.MacFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
@@ -2069,7 +2070,7 @@ func HandleSecurityModeComplete(ue *context.AmfUe, anType models.AccessType, pro
 			ue.GmmLog.Error("nas message container Iei type error")
 			return errors.New("nas message container Iei type error")
 		} else {
-			return GmmFSM.SendEvent(ue.State[anType], SecurityModeSuccessEvent, fsm.ArgsType{
+			return GmmFSM.SendEvent(ctext, ue.State[anType], SecurityModeSuccessEvent, fsm.ArgsType{
 				ArgAmfUe:         ue,
 				ArgAccessType:    anType,
 				ArgProcedureCode: procedureCode,
@@ -2077,7 +2078,7 @@ func HandleSecurityModeComplete(ue *context.AmfUe, anType models.AccessType, pro
 			})
 		}
 	}
-	return GmmFSM.SendEvent(ue.State[anType], SecurityModeSuccessEvent, fsm.ArgsType{
+	return GmmFSM.SendEvent(ctext, ue.State[anType], SecurityModeSuccessEvent, fsm.ArgsType{
 		ArgAmfUe:         ue,
 		ArgAccessType:    anType,
 		ArgProcedureCode: procedureCode,
@@ -2110,7 +2111,7 @@ func HandleSecurityModeReject(ue *context.AmfUe, anType models.AccessType,
 }
 
 // TS 23.502 4.2.2.3
-func HandleDeregistrationRequest(ue *context.AmfUe, anType models.AccessType,
+func HandleDeregistrationRequest(ctext ctx.Context, ue *context.AmfUe, anType models.AccessType,
 	deregistrationRequest *nasMessage.DeregistrationRequestUEOriginatingDeregistration,
 ) error {
 	ue.GmmLog.Info("Handle Deregistration Request(UE Originating)")
@@ -2165,7 +2166,7 @@ func HandleDeregistrationRequest(ue *context.AmfUe, anType models.AccessType,
 			}
 			ue.GmmLog.Info("sent ue context release command")
 		}
-		return GmmFSM.SendEvent(ue.State[models.AccessType3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
+		return GmmFSM.SendEvent(ctext, ue.State[models.AccessType3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
 			ArgAmfUe:      ue,
 			ArgAccessType: anType,
 		})
@@ -2177,7 +2178,7 @@ func HandleDeregistrationRequest(ue *context.AmfUe, anType models.AccessType,
 			}
 			ue.GmmLog.Info("sent ue context release command")
 		}
-		return GmmFSM.SendEvent(ue.State[models.AccessTypeNon3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
+		return GmmFSM.SendEvent(ctext, ue.State[models.AccessTypeNon3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
 			ArgAmfUe:      ue,
 			ArgAccessType: anType,
 		})
@@ -2197,14 +2198,14 @@ func HandleDeregistrationRequest(ue *context.AmfUe, anType models.AccessType,
 			ue.GmmLog.Info("sent ue context release command")
 		}
 
-		err := GmmFSM.SendEvent(ue.State[models.AccessType3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
+		err := GmmFSM.SendEvent(ctext, ue.State[models.AccessType3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
 			ArgAmfUe:      ue,
 			ArgAccessType: anType,
 		})
 		if err != nil {
 			ue.GmmLog.Error("Send Deregistration Accept Event Error", zap.Error(err))
 		}
-		return GmmFSM.SendEvent(ue.State[models.AccessTypeNon3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
+		return GmmFSM.SendEvent(ctext, ue.State[models.AccessTypeNon3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
 			ArgAmfUe:      ue,
 			ArgAccessType: anType,
 		})
@@ -2214,7 +2215,7 @@ func HandleDeregistrationRequest(ue *context.AmfUe, anType models.AccessType,
 }
 
 // TS 23.502 4.2.2.3
-func HandleDeregistrationAccept(ue *context.AmfUe, anType models.AccessType,
+func HandleDeregistrationAccept(ctext ctx.Context, ue *context.AmfUe, anType models.AccessType,
 	deregistrationAccept *nasMessage.DeregistrationAcceptUETerminatedDeregistration,
 ) error {
 	ue.GmmLog.Info("Handle Deregistration Accept(UE Terminated)")
@@ -2263,7 +2264,7 @@ func HandleDeregistrationAccept(ue *context.AmfUe, anType models.AccessType,
 
 	ue.DeregistrationTargetAccessType = 0
 
-	return GmmFSM.SendEvent(ue.State[models.AccessType3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
+	return GmmFSM.SendEvent(ctext, ue.State[models.AccessType3GPPAccess], DeregistrationAcceptEvent, fsm.ArgsType{
 		ArgAmfUe:      ue,
 		ArgAccessType: anType,
 	})
