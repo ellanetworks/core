@@ -122,11 +122,10 @@ func getEncAlgOrder(cipheringOrder []string) (encOrder []uint8) {
 }
 
 func StartNGAPService(ngapAddress string, ngapPort int) error {
-	raw := service.NGAPHandler{
+	ngapHandler := service.NGAPHandler{
 		HandleMessage:      ngap.Dispatch,
 		HandleNotification: ngap.HandleSCTPNotification,
 	}
-	ngapHandler := service.InstrumentHandler(raw)
 	err := service.Run(ngapAddress, ngapPort, ngapHandler)
 	if err != nil {
 		return fmt.Errorf("failed to start NGAP service: %+v", err)

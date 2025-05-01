@@ -7,7 +7,6 @@
 package service
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net"
@@ -17,9 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -42,38 +38,6 @@ var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 	InitMsg:   sctp.InitMsg{NumOstreams: 3, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
 	RtoInfo:   &sctp.RtoInfo{SrtoAssocID: 0, SrtoInitial: 500, SrtoMax: 1500, StroMin: 100},
 	AssocInfo: &sctp.AssocInfo{AsocMaxRxt: 4},
-}
-
-func InstrumentHandler(base NGAPHandler) NGAPHandler {
-	tracer := otel.Tracer("ella-core/ngap")
-	return NGAPHandler{
-		// wrap every incoming message in a span
-		HandleMessage: func(conn net.Conn, msg []byte) {
-			_, span := tracer.Start(
-				context.Background(),
-				"ngap.receive",
-				trace.WithAttributes(
-					attribute.String("net.peer", conn.RemoteAddr().String()),
-					attribute.Int("ngap.msg_bytes", len(msg)),
-				),
-			)
-			defer span.End()
-
-			base.HandleMessage(conn, msg)
-		},
-
-		// wrap SCTP notifications too, if you care
-		HandleNotification: func(conn net.Conn, n sctp.Notification) {
-			_, span := tracer.Start(
-				context.Background(),
-				"sctp.notification",
-				trace.WithAttributes(attribute.String("net.peer", conn.RemoteAddr().String())),
-			)
-			defer span.End()
-
-			base.HandleNotification(conn, n)
-		},
-	}
 }
 
 func Run(address string, port int, handler NGAPHandler) error {

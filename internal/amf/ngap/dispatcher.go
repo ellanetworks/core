@@ -8,6 +8,8 @@
 package ngap
 
 import (
+	ctx "context"
+	"fmt"
 	"net"
 	"reflect"
 
@@ -16,8 +18,13 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/omec-project/ngap"
 	"github.com/omec-project/ngap/ngapType"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
+
+var tracer = otel.Tracer("ella-core/ngap")
 
 func Dispatch(conn net.Conn, msg []byte) {
 	var ran *context.AmfRan
@@ -40,6 +47,16 @@ func Dispatch(conn net.Conn, msg []byte) {
 		ran.Log.Error("NGAP decode error", zap.Error(err))
 		return
 	}
+
+	// 2) Start a span named after the NGAP procedure
+	spanName := fmt.Sprintf("ngap.%v", pdu.InitiatingMessage.ProcedureCode.Value)
+	_, span := tracer.Start(ctx.Background(), spanName,
+		trace.WithAttributes(
+			attribute.String("net.peer", conn.RemoteAddr().String()),
+			attribute.String("ngap.messageType", string(pdu.InitiatingMessage.ProcedureCode.Value)),
+		),
+	)
+	defer span.End()
 
 	ranUe, _ := FetchRanUeContext(ran, pdu)
 
