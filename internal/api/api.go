@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -79,7 +80,7 @@ func Start(dbInstance *db.Database, port int, scheme Scheme, certFile string, ke
 }
 
 func ReconcileKernelRouting(dbInstance *db.Database, kernelInt kernel.Kernel) error {
-	expectedRoutes, err := dbInstance.ListRoutes()
+	expectedRoutes, err := dbInstance.ListRoutes(context.Background())
 	if err != nil {
 		return fmt.Errorf("couldn't list routes: %v", err)
 	}

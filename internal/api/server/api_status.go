@@ -19,7 +19,7 @@ const GetStatusAction = "get_status"
 
 func GetStatus(dbInstance *db.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		numUsers, err := dbInstance.NumUsers()
+		numUsers, err := dbInstance.NumUsers(c.Request.Context())
 		if err != nil {
 			logger.APILog.Warn("Failed to query number of users", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Unable to retrieve number of users")

@@ -8,8 +8,6 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
 )
 
@@ -81,21 +79,17 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		tracer := otel.Tracer("ella-core/api")
-		_, span := tracer.Start(c.Request.Context(), "db.ListSubscribers")
+
 		dbSubscribers, err := dbInstance.ListSubscribers(c.Request.Context())
 		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "ListSubscribers failed")
-			span.End()
-			writeError(c, http.StatusInternalServerError, "Unable to retrieve subscribers")
+			logger.APILog.Warn("Failed to list subscribers", zap.Error(err))
+			writeError(c, http.StatusInternalServerError, "Failed to list subscribers")
 			return
 		}
-		span.End()
 
 		subscribers := make([]GetSubscriberResponse, 0)
 		for _, dbSubscriber := range dbSubscribers {
-			profile, err := dbInstance.GetProfileByID(dbSubscriber.ProfileID)
+			profile, err := dbInstance.GetProfileByID(dbSubscriber.ProfileID, c.Request.Context())
 			if err != nil {
 				writeError(c, http.StatusInternalServerError, "Failed to retrieve profile")
 				return
@@ -138,7 +132,7 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusNotFound, "Subscriber not found")
 			return
 		}
-		profile, err := dbInstance.GetProfileByID(dbSubscriber.ProfileID)
+		profile, err := dbInstance.GetProfileByID(dbSubscriber.ProfileID, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusInternalServerError, "Failed to retrieve profile")
 			return
@@ -249,7 +243,7 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Subscriber already exists")
 			return
 		}
-		profile, err := dbInstance.GetProfile(createSubscriberParams.ProfileName)
+		profile, err := dbInstance.GetProfile(createSubscriberParams.ProfileName, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Profile not found")
 			return
@@ -316,7 +310,7 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusNotFound, "Subscriber not found")
 			return
 		}
-		profile, err := dbInstance.GetProfile(updateSubscriberParams.ProfileName)
+		profile, err := dbInstance.GetProfile(updateSubscriberParams.ProfileName, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Profile not found")
 			return

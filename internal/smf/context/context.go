@@ -85,7 +85,7 @@ func GetSnssaiInfo() []SnssaiSmfInfo {
 		logger.SmfLog.Warn("failed to get operator information from db", zap.Error(err))
 		return nil
 	}
-	profiles, err := self.DBInstance.ListProfiles()
+	profiles, err := self.DBInstance.ListProfiles(context.Background())
 	if err != nil {
 		logger.SmfLog.Warn("failed to get profiles from db", zap.Error(err))
 		return nil

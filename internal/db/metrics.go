@@ -18,7 +18,7 @@ func (db *Database) GetSize() (int64, error) {
 }
 
 func (db *Database) GetIPAddressesTotal() (int, error) {
-	profiles, err := db.ListProfiles()
+	profiles, err := db.ListProfiles(context.Background())
 	if err != nil {
 		return 0, err
 	}

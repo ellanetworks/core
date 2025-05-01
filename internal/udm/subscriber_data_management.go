@@ -31,7 +31,7 @@ func GetAmData(ueID string) (*models.AccessAndMobilitySubscriptionData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
-	profile, err := udmContext.DBInstance.GetProfileByID(subscriber.ProfileID)
+	profile, err := udmContext.DBInstance.GetProfileByID(subscriber.ProfileID, context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
@@ -77,7 +77,7 @@ func GetSmData(ueID string) ([]models.SessionManagementSubscriptionData, error) 
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
-	profile, err := udmContext.DBInstance.GetProfileByID(subscriber.ProfileID)
+	profile, err := udmContext.DBInstance.GetProfileByID(subscriber.ProfileID, context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}

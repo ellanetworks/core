@@ -73,7 +73,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		Name:     "myprofilename",
 		UeIPPool: "0.0.0.0/24",
 	}
-	err = database.CreateProfile(profileData)
+	err = database.CreateProfile(profileData, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
@@ -117,12 +117,12 @@ func TestIPAllocationAndRelease(t *testing.T) {
 		Name:     "test-profile",
 		UeIPPool: "192.168.1.0/24",
 	}
-	err = database.CreateProfile(profile)
+	err = database.CreateProfile(profile, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateProfile: %s", err)
 	}
 
-	createdProfile, err := database.GetProfile(profile.Name)
+	createdProfile, err := database.GetProfile(profile.Name, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't retrieve profile: %s", err)
 	}
@@ -204,12 +204,12 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 		Name:     "test-pool",
 		UeIPPool: "192.168.1.0/29", // Small pool for testing (6 usable addresses)
 	}
-	err = database.CreateProfile(profile)
+	err = database.CreateProfile(profile, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateProfile: %s", err)
 	}
 
-	createdProfile, err := database.GetProfile(profile.Name)
+	createdProfile, err := database.GetProfile(profile.Name, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't retrieve profile: %s", err)
 	}

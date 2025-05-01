@@ -3,6 +3,7 @@
 package db_test
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -21,7 +22,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, err := database.ListProfiles()
+	res, err := database.ListProfiles(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
@@ -40,12 +41,12 @@ func TestProfilesEndToEnd(t *testing.T) {
 		Var5qi:          9,
 		PriorityLevel:   1,
 	}
-	err = database.CreateProfile(profile)
+	err = database.CreateProfile(profile, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
 
-	res, err = database.ListProfiles()
+	res, err = database.ListProfiles(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
@@ -53,7 +54,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 		t.Fatalf("One or more profiles weren't found in DB")
 	}
 
-	retrievedProfile, err := database.GetProfile(profile.Name)
+	retrievedProfile, err := database.GetProfile(profile.Name, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -86,11 +87,11 @@ func TestProfilesEndToEnd(t *testing.T) {
 	profile.UeIPPool = "1.1.1.0/24"
 	profile.DNS = "2.2.2.2"
 
-	if err = database.UpdateProfile(profile); err != nil {
+	if err = database.UpdateProfile(profile, context.Background()); err != nil {
 		t.Fatalf("Couldn't complete Update: %s", err)
 	}
 
-	retrievedProfile, err = database.GetProfile(profile.Name)
+	retrievedProfile, err = database.GetProfile(profile.Name, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -107,10 +108,10 @@ func TestProfilesEndToEnd(t *testing.T) {
 		t.Fatalf("The dns from the database doesn't match the dns that was given")
 	}
 
-	if err = database.DeleteProfile(profile.Name); err != nil {
+	if err = database.DeleteProfile(profile.Name, context.Background()); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
-	res, _ = database.ListProfiles()
+	res, _ = database.ListProfiles(context.Background())
 	if len(res) != 0 {
 		t.Fatalf("Profiles weren't deleted from the DB properly")
 	}

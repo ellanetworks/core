@@ -72,7 +72,7 @@ func GetSubscriberPolicy(imsi string) (*PcfSubscriberPolicyData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subscriber %s: %w", imsi, err)
 	}
-	profile, err := pcfCtx.DBInstance.GetProfileByID(subscriber.ProfileID)
+	profile, err := pcfCtx.DBInstance.GetProfileByID(subscriber.ProfileID, context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get profile %d: %w", subscriber.ProfileID, err)
 	}

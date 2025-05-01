@@ -67,7 +67,7 @@ func ListRoutes(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		dbRoutes, err := dbInstance.ListRoutes()
+		dbRoutes, err := dbInstance.ListRoutes(c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusInternalServerError, "Routes not found")
 			return
@@ -111,7 +111,7 @@ func GetRoute(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Invalid id format")
 			return
 		}
-		dbRoute, err := dbInstance.GetRoute(idNum)
+		dbRoute, err := dbInstance.GetRoute(idNum, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Route not found")
 			return
@@ -224,7 +224,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 			}
 		}()
 
-		routeID, err := tx.CreateRoute(dbRoute)
+		routeID, err := tx.CreateRoute(dbRoute, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusInternalServerError, "Failed to create route in DB")
 			return
@@ -270,7 +270,7 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 			writeError(c, http.StatusBadRequest, "Invalid id format")
 			return
 		}
-		route, err := dbInstance.GetRoute(routeIDNum)
+		route, err := dbInstance.GetRoute(routeIDNum, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Route not found")
 			return
@@ -303,7 +303,7 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) gin.HandlerFu
 		}()
 
 		// Delete the DB record within the transaction.
-		if err := tx.DeleteRoute(routeIDNum); err != nil {
+		if err := tx.DeleteRoute(routeIDNum, c.Request.Context()); err != nil {
 			writeError(c, http.StatusInternalServerError, "Failed to delete route from DB")
 			return
 		}

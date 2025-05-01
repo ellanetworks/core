@@ -133,7 +133,7 @@ func (db *Database) DeleteSubscriber(imsi string, ctx context.Context) error {
 }
 
 func (db *Database) SubscribersInProfile(name string, ctx context.Context) (bool, error) {
-	profile, err := db.GetProfile(name)
+	profile, err := db.GetProfile(name, ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to get profile with name %s: %v", name, err)
 	}
@@ -158,7 +158,7 @@ func (db *Database) AllocateIP(imsi string, ctx context.Context) (net.IP, error)
 		return nil, fmt.Errorf("failed to get subscriber: %v", err)
 	}
 
-	profile, err := db.GetProfileByID(subscriber.ProfileID)
+	profile, err := db.GetProfileByID(subscriber.ProfileID, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get profile for subscriber %s: %v", imsi, err)
 	}

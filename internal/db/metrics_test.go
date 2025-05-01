@@ -30,7 +30,7 @@ func TestDatabaseMetrics(t *testing.T) {
 		{Name: "Profile2", UeIPPool: "10.0.0.0/16"},
 	}
 	for _, profile := range profiles {
-		err := database.CreateProfile(&profile)
+		err := database.CreateProfile(&profile, context.Background())
 		if err != nil {
 			t.Fatalf("Couldn't create profile: %s", err)
 		}
