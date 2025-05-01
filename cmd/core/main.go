@@ -101,23 +101,24 @@ func main() {
 
 	version := version.GetVersion()
 
-	ctx := context.Background()
-
-	tp, err := tracing.InitTracer(ctx, tracing.TelemetryConfig{
-		OTLPEndpoint:   cfg.Telemetry.OTLPEndpoint,
-		ServiceName:    "ella-core",
-		ServiceVersion: version,
-	})
-	if err != nil {
-		logger.EllaLog.Panic("could not initialize tracer", zap.Error(err))
-	}
-
-	defer func() {
-		err := tp.Shutdown(ctx)
+	if cfg.Telemetry.Enabled {
+		ctx := context.Background()
+		tp, err := tracing.InitTracer(ctx, tracing.TelemetryConfig{
+			OTLPEndpoint:   cfg.Telemetry.OTLPEndpoint,
+			ServiceName:    "ella-core",
+			ServiceVersion: version,
+		})
 		if err != nil {
-			logger.EllaLog.Error("failed to shutdown tracer", zap.Error(err))
+			logger.EllaLog.Panic("could not initialize tracer", zap.Error(err))
 		}
-	}()
+
+		defer func() {
+			err := tp.Shutdown(ctx)
+			if err != nil {
+				logger.EllaLog.Error("failed to shutdown tracer", zap.Error(err))
+			}
+		}()
+	}
 
 	initialOp, err := generateOperatorCode()
 	if err != nil {
