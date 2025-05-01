@@ -47,13 +47,25 @@ func Dispatch(conn net.Conn, msg []byte) {
 		ran.Log.Error("NGAP decode error", zap.Error(err))
 		return
 	}
+	// Determine NGAP procedure code based on PDU type
+	var procCode int64
+	switch pdu.Present {
+	case ngapType.NGAPPDUPresentInitiatingMessage:
+		procCode = pdu.InitiatingMessage.ProcedureCode.Value
+	case ngapType.NGAPPDUPresentSuccessfulOutcome:
+		procCode = pdu.SuccessfulOutcome.ProcedureCode.Value
+	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
+		procCode = pdu.UnsuccessfulOutcome.ProcedureCode.Value
+	default:
+		procCode = -1
+	}
 
-	// 2) Start a span named after the NGAP procedure
-	spanName := fmt.Sprintf("ngap.%v", pdu.InitiatingMessage.ProcedureCode.Value)
+	spanName := fmt.Sprintf("ngap.%d", procCode)
 	_, span := tracer.Start(ctx.Background(), spanName,
 		trace.WithAttributes(
 			attribute.String("net.peer", conn.RemoteAddr().String()),
-			attribute.String("ngap.messageType", string(pdu.InitiatingMessage.ProcedureCode.Value)),
+			attribute.Int("ngap.msg_length", len(msg)),
+			attribute.Int64("ngap.procedureCode", procCode),
 		),
 	)
 	defer span.End()
