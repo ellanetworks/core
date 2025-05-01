@@ -17,8 +17,8 @@ interfaces:
   api:
     name: "lo"
     port: 5002
-    tls:
-      cert: "cert.pem"
-      key: "key.pem"
 xdp:
   attach-mode: "generic"
+telemetry:
+  enabled: true
+  otlp-endpoint: "localhost:4317"

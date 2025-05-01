@@ -34,13 +34,13 @@ const (
 // In tests we can override it to disable actual reconciliation.
 var routeReconciler = ReconcileKernelRouting
 
-func Start(dbInstance *db.Database, port int, scheme Scheme, certFile string, keyFile string, n3Interface string, n6Interface string) error {
+func Start(dbInstance *db.Database, port int, scheme Scheme, certFile string, keyFile string, n3Interface string, n6Interface string, tracingEnabled bool) error {
 	jwtSecret, err := server.GenerateJWTSecret()
 	if err != nil {
 		return fmt.Errorf("couldn't generate jwt secret: %v", err)
 	}
 	kernelInt := kernel.NewRealKernel(n3Interface, n6Interface)
-	router := server.NewHandler(dbInstance, kernelInt, jwtSecret, gin.ReleaseMode)
+	router := server.NewHandler(dbInstance, kernelInt, jwtSecret, gin.ReleaseMode, tracingEnabled)
 
 	// Start the HTTP server in a goroutine.
 	go func() {
