@@ -26,6 +26,22 @@ import (
 
 var tracer = otel.Tracer("ella-core/ngap")
 
+func procedureName(code int64) string {
+	switch code {
+	case ngapType.ProcedureCodeNGSetup:
+		return "NGSetup"
+	case ngapType.ProcedureCodeInitialUEMessage:
+		return "InitialUEMessage"
+	case ngapType.ProcedureCodeUplinkNASTransport:
+		return "UplinkNASTransport"
+	case ngapType.ProcedureCodeNGReset:
+		return "NGReset"
+	// add other specific mappings as needed
+	default:
+		return fmt.Sprintf("ProcedureCode%d", code)
+	}
+}
+
 func Dispatch(conn net.Conn, msg []byte) {
 	var ran *context.AmfRan
 	amfSelf := context.AMFSelf()
@@ -47,28 +63,6 @@ func Dispatch(conn net.Conn, msg []byte) {
 		ran.Log.Error("NGAP decode error", zap.Error(err))
 		return
 	}
-	// Determine NGAP procedure code based on PDU type
-	var procCode int64
-	switch pdu.Present {
-	case ngapType.NGAPPDUPresentInitiatingMessage:
-		procCode = pdu.InitiatingMessage.ProcedureCode.Value
-	case ngapType.NGAPPDUPresentSuccessfulOutcome:
-		procCode = pdu.SuccessfulOutcome.ProcedureCode.Value
-	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
-		procCode = pdu.UnsuccessfulOutcome.ProcedureCode.Value
-	default:
-		procCode = -1
-	}
-
-	spanName := fmt.Sprintf("ngap.%d", procCode)
-	_, span := tracer.Start(ctx.Background(), spanName,
-		trace.WithAttributes(
-			attribute.String("net.peer", conn.RemoteAddr().String()),
-			attribute.Int("ngap.msg_length", len(msg)),
-			attribute.Int64("ngap.procedureCode", procCode),
-		),
-	)
-	defer span.End()
 
 	ranUe, _ := FetchRanUeContext(ran, pdu)
 
@@ -80,17 +74,50 @@ func Dispatch(conn net.Conn, msg []byte) {
 			NgapMsg: pdu,
 		}
 		ranUe.Ran.Conn = conn
-		NgapMsgHandler(ranUe.AmfUe, ngapMsg)
+		NgapMsgHandler(conn, ranUe.AmfUe, ngapMsg)
 	} else {
-		go DispatchNgapMsg(ran, pdu)
+		go DispatchNgapMsg(conn, ran, pdu)
 	}
 }
 
-func NgapMsgHandler(ue *context.AmfUe, msg context.NgapMsg) {
-	DispatchNgapMsg(msg.Ran, msg.NgapMsg)
+func NgapMsgHandler(conn net.Conn, ue *context.AmfUe, msg context.NgapMsg) {
+	DispatchNgapMsg(conn, msg.Ran, msg.NgapMsg)
 }
 
-func DispatchNgapMsg(ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
+func DispatchNgapMsg(conn net.Conn, ran *context.AmfRan, pdu *ngapType.NGAPPDU) {
+	var code int64
+	switch pdu.Present {
+	case ngapType.NGAPPDUPresentInitiatingMessage:
+		if pdu.InitiatingMessage != nil {
+			code = pdu.InitiatingMessage.ProcedureCode.Value
+		}
+	case ngapType.NGAPPDUPresentSuccessfulOutcome:
+		if pdu.SuccessfulOutcome != nil {
+			code = pdu.SuccessfulOutcome.ProcedureCode.Value
+		}
+	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
+		if pdu.UnsuccessfulOutcome != nil {
+			code = pdu.UnsuccessfulOutcome.ProcedureCode.Value
+		}
+	}
+	procName := procedureName(code)
+
+	if procName == "" {
+		procName = "UnknownProcedure"
+	}
+
+	// Start span named "ngap.<ProcedureName>"
+	spanName := fmt.Sprintf("ngap.%s", procName)
+	_, span := tracer.Start(ctx.Background(), spanName,
+		trace.WithAttributes(
+			attribute.String("net.peer", conn.RemoteAddr().String()),
+			attribute.String("ngap.pdu_present", fmt.Sprintf("%d", pdu.Present)),
+			attribute.String("ngap.procedureCode", procName),
+			// attribute.Int("ngap.msg_length", len(pdu.Value)),
+		),
+	)
+	defer span.End()
+
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
 		initiatingMessage := pdu.InitiatingMessage
