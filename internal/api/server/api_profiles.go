@@ -95,7 +95,7 @@ func ListProfiles(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		dbProfiles, err := dbInstance.ListProfiles()
+		dbProfiles, err := dbInstance.ListProfiles(c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusInternalServerError, "Profiles not found")
 			return
@@ -136,7 +136,7 @@ func GetProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Missing name parameter")
 			return
 		}
-		dbProfile, err := dbInstance.GetProfile(profileName)
+		dbProfile, err := dbInstance.GetProfile(profileName, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Profile not found")
 			return
@@ -241,7 +241,7 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		_, err = dbInstance.GetProfile(createProfileParams.Name)
+		_, err = dbInstance.GetProfile(createProfileParams.Name, c.Request.Context())
 		if err == nil {
 			writeError(c, http.StatusBadRequest, "Profile already exists")
 			return
@@ -257,7 +257,7 @@ func CreateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			Var5qi:          createProfileParams.Var5qi,
 			PriorityLevel:   createProfileParams.PriorityLevel,
 		}
-		err = dbInstance.CreateProfile(dbProfile)
+		err = dbInstance.CreateProfile(dbProfile, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusInternalServerError, "Failed to create profile")
 			return
@@ -357,7 +357,7 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		profile, err := dbInstance.GetProfile(groupName)
+		profile, err := dbInstance.GetProfile(groupName, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Profile not found")
 			return
@@ -371,7 +371,7 @@ func UpdateProfile(dbInstance *db.Database) gin.HandlerFunc {
 		profile.BitrateUplink = updateProfileParams.BitrateUplink
 		profile.Var5qi = updateProfileParams.Var5qi
 		profile.PriorityLevel = updateProfileParams.PriorityLevel
-		err = dbInstance.UpdateProfile(profile)
+		err = dbInstance.UpdateProfile(profile, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusInternalServerError, "Failed to update profile")
 			return
@@ -401,12 +401,12 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Missing name parameter")
 			return
 		}
-		_, err := dbInstance.GetProfile(profileName)
+		_, err := dbInstance.GetProfile(profileName, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Profile not found")
 			return
 		}
-		subsInProfile, err := dbInstance.SubscribersInProfile(profileName)
+		subsInProfile, err := dbInstance.SubscribersInProfile(profileName, c.Request.Context())
 		if err != nil {
 			logger.APILog.Warn("Failed to check subscribers in profile", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to count subscribers")
@@ -416,7 +416,7 @@ func DeleteProfile(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusConflict, "Profile has subscribers")
 			return
 		}
-		err = dbInstance.DeleteProfile(profileName)
+		err = dbInstance.DeleteProfile(profileName, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusInternalServerError, "Failed to delete profile")
 			return

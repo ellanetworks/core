@@ -97,32 +97,32 @@ func (operator *Operator) SetSupportedTacs(supportedTACs []string) {
 	operator.SupportedTACs = string(supportedTACsBytes)
 }
 
-func (db *Database) InitializeOperator(initialOperator Operator) error {
+func (db *Database) InitializeOperator(initialOperator Operator, ctx context.Context) error {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(initializeOperatorStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare initialize operator configuration statement: %v", err)
 	}
-	err = db.conn.Query(context.Background(), stmt, initialOperator).Run()
+	err = db.conn.Query(ctx, stmt, initialOperator).Run()
 	if err != nil {
 		return fmt.Errorf("failed to initialize operator configuration: %v", err)
 	}
 	return nil
 }
 
-func (db *Database) GetOperator() (*Operator, error) {
+func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(getOperatorStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare get Operator statement: %v", err)
 	}
 	var operator Operator
-	err = db.conn.Query(context.Background(), stmt).Get(&operator)
+	err = db.conn.Query(ctx, stmt).Get(&operator)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get Operator: %v", err)
 	}
 	return &operator, nil
 }
 
-func (db *Database) UpdateOperatorSlice(sst int32, sd int) error {
+func (db *Database) UpdateOperatorSlice(sst int32, sd int, ctx context.Context) error {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorSliceStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return err
@@ -131,7 +131,7 @@ func (db *Database) UpdateOperatorSlice(sst int32, sd int) error {
 		Sst: sst,
 		Sd:  sd,
 	}
-	err = db.conn.Query(context.Background(), stmt, operator).Run()
+	err = db.conn.Query(ctx, stmt, operator).Run()
 	if err != nil {
 		return fmt.Errorf("failed to update operator ID: %v", err)
 	}
@@ -139,14 +139,14 @@ func (db *Database) UpdateOperatorSlice(sst int32, sd int) error {
 	return nil
 }
 
-func (db *Database) UpdateOperatorTracking(supportedTACs []string) error {
+func (db *Database) UpdateOperatorTracking(supportedTACs []string, ctx context.Context) error {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorTrackingStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return err
 	}
 	operator := Operator{}
 	operator.SetSupportedTacs(supportedTACs)
-	err = db.conn.Query(context.Background(), stmt, operator).Run()
+	err = db.conn.Query(ctx, stmt, operator).Run()
 	if err != nil {
 		return fmt.Errorf("failed to update operator tracking area code: %v", err)
 	}
@@ -154,7 +154,7 @@ func (db *Database) UpdateOperatorTracking(supportedTACs []string) error {
 	return nil
 }
 
-func (db *Database) UpdateOperatorID(mcc, mnc string) error {
+func (db *Database) UpdateOperatorID(mcc, mnc string, ctx context.Context) error {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorIDStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return err
@@ -163,7 +163,7 @@ func (db *Database) UpdateOperatorID(mcc, mnc string) error {
 		Mcc: mcc,
 		Mnc: mnc,
 	}
-	err = db.conn.Query(context.Background(), stmt, operator).Run()
+	err = db.conn.Query(ctx, stmt, operator).Run()
 	if err != nil {
 		return fmt.Errorf("failed to update operator ID: %v", err)
 	}
@@ -171,20 +171,20 @@ func (db *Database) UpdateOperatorID(mcc, mnc string) error {
 	return nil
 }
 
-func (db *Database) GetOperatorCode() (string, error) {
+func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(getOperatorStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return "", fmt.Errorf("failed to prepare get operator code statement: %v", err)
 	}
 	var operator Operator
-	err = db.conn.Query(context.Background(), stmt).Get(&operator)
+	err = db.conn.Query(ctx, stmt).Get(&operator)
 	if err != nil {
 		return "", fmt.Errorf("failed to get operator code: %v", err)
 	}
 	return operator.OperatorCode, nil
 }
 
-func (db *Database) UpdateOperatorCode(operatorCode string) error {
+func (db *Database) UpdateOperatorCode(operatorCode string, ctx context.Context) error {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorCodeStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return err
@@ -192,7 +192,7 @@ func (db *Database) UpdateOperatorCode(operatorCode string) error {
 	operator := Operator{
 		OperatorCode: operatorCode,
 	}
-	err = db.conn.Query(context.Background(), stmt, operator).Run()
+	err = db.conn.Query(ctx, stmt, operator).Run()
 	if err != nil {
 		return fmt.Errorf("failed to update operator code: %v", err)
 	}
@@ -200,7 +200,7 @@ func (db *Database) UpdateOperatorCode(operatorCode string) error {
 	return nil
 }
 
-func (db *Database) UpdateHomeNetworkPrivateKey(privateKey string) error {
+func (db *Database) UpdateHomeNetworkPrivateKey(privateKey string, ctx context.Context) error {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorHomeNetworkPrivateKeyStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return err
@@ -208,7 +208,7 @@ func (db *Database) UpdateHomeNetworkPrivateKey(privateKey string) error {
 	operator := Operator{
 		HomeNetworkPrivateKey: privateKey,
 	}
-	err = db.conn.Query(context.Background(), stmt, operator).Run()
+	err = db.conn.Query(ctx, stmt, operator).Run()
 	if err != nil {
 		return fmt.Errorf("failed to update operator home network private key: %v", err)
 	}
@@ -216,13 +216,13 @@ func (db *Database) UpdateHomeNetworkPrivateKey(privateKey string) error {
 	return nil
 }
 
-func (db *Database) GetHomeNetworkPrivateKey() (string, error) {
+func (db *Database) GetHomeNetworkPrivateKey(ctx context.Context) (string, error) {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(getOperatorStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return "", fmt.Errorf("failed to prepare get home network private key statement: %v", err)
 	}
 	var operator Operator
-	err = db.conn.Query(context.Background(), stmt).Get(&operator)
+	err = db.conn.Query(ctx, stmt).Get(&operator)
 	if err != nil {
 		return "", fmt.Errorf("failed to get home network private key: %v", err)
 	}

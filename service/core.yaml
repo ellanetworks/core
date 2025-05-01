@@ -22,3 +22,5 @@ interfaces:
       key: "/var/snap/ella-core/common/key.pem"
 xdp:
   attach-mode: "native"
+telemetry:
+  enabled: false

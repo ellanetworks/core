@@ -5,6 +5,7 @@
 package ausf
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -30,7 +31,7 @@ func GenerateRandomNumber() (uint8, error) {
 	return uint8(randomNumber.Int64()), nil
 }
 
-func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (*models.UeAuthenticationCtx, error) {
+func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo, ctx context.Context) (*models.UeAuthenticationCtx, error) {
 	var responseBody models.UeAuthenticationCtx
 	var authInfoReq models.AuthenticationInfoRequest
 
@@ -51,7 +52,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
 	}
 
-	authInfoResult, err := udm.CreateAuthData(authInfoReq, supiOrSuci)
+	authInfoResult, err := udm.CreateAuthData(authInfoReq, supiOrSuci, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auth data: %s", err)
 	}

@@ -56,13 +56,13 @@ type Route struct {
 	Metric      int              `db:"metric"`
 }
 
-func (db *Database) ListRoutes() ([]Route, error) {
+func (db *Database) ListRoutes(ctx context.Context) ([]Route, error) {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(listRoutesStmt, db.routesTable), Route{})
 	if err != nil {
 		return nil, err
 	}
 	var routes []Route
-	err = db.conn.Query(context.Background(), stmt).GetAll(&routes)
+	err = db.conn.Query(ctx, stmt).GetAll(&routes)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -72,7 +72,7 @@ func (db *Database) ListRoutes() ([]Route, error) {
 	return routes, nil
 }
 
-func (db *Database) GetRoute(id int64) (*Route, error) {
+func (db *Database) GetRoute(id int64, ctx context.Context) (*Route, error) {
 	row := Route{
 		ID: id,
 	}
@@ -80,20 +80,20 @@ func (db *Database) GetRoute(id int64) (*Route, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = db.conn.Query(context.Background(), stmt, row).Get(&row)
+	err = db.conn.Query(ctx, stmt, row).Get(&row)
 	if err != nil {
 		return nil, err
 	}
 	return &row, nil
 }
 
-func (t *Transaction) CreateRoute(route *Route) (int64, error) {
+func (t *Transaction) CreateRoute(route *Route, ctx context.Context) (int64, error) {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(createRouteStmt, t.db.routesTable), Route{})
 	if err != nil {
 		return 0, err
 	}
 	var outcome sqlair.Outcome
-	err = t.tx.Query(context.Background(), stmt, route).Get(&outcome)
+	err = t.tx.Query(ctx, stmt, route).Get(&outcome)
 	if err != nil {
 		return 0, err
 	}
@@ -104,11 +104,11 @@ func (t *Transaction) CreateRoute(route *Route) (int64, error) {
 	return insertedRowID, nil
 }
 
-func (t *Transaction) DeleteRoute(id int64) error {
+func (t *Transaction) DeleteRoute(id int64, ctx context.Context) error {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(deleteRouteStmt, t.db.routesTable), Route{})
 	if err != nil {
 		return err
 	}
 	row := Route{ID: id}
-	return t.tx.Query(context.Background(), stmt, row).Run()
+	return t.tx.Query(ctx, stmt, row).Run()
 }

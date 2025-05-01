@@ -45,10 +45,13 @@ func ginToZap(logger *zap.Logger) gin.HandlerFunc {
 	}
 }
 
-func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, mode string) http.Handler {
+func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, mode string, tracingEnabled bool) http.Handler {
 	gin.SetMode(mode)
 	router := gin.New()
 	router.Use(ginToZap(logger.APILog))
+	if tracingEnabled {
+		router.Use(Tracing("ella-core/api"))
+	}
 	AddUIService(router)
 
 	apiGroup := router.Group("/api/v1")

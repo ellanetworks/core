@@ -48,13 +48,13 @@ type Profile struct {
 	PriorityLevel   int32  `db:"priorityLevel"`
 }
 
-func (db *Database) ListProfiles() ([]Profile, error) {
+func (db *Database) ListProfiles(ctx context.Context) ([]Profile, error) {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(listProfilesStmt, db.profilesTable), Profile{})
 	if err != nil {
 		return nil, err
 	}
 	var profiles []Profile
-	err = db.conn.Query(context.Background(), stmt).GetAll(&profiles)
+	err = db.conn.Query(ctx, stmt).GetAll(&profiles)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -64,7 +64,7 @@ func (db *Database) ListProfiles() ([]Profile, error) {
 	return profiles, nil
 }
 
-func (db *Database) GetProfile(name string) (*Profile, error) {
+func (db *Database) GetProfile(name string, ctx context.Context) (*Profile, error) {
 	row := Profile{
 		Name: name,
 	}
@@ -72,14 +72,14 @@ func (db *Database) GetProfile(name string) (*Profile, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = db.conn.Query(context.Background(), stmt, row).Get(&row)
+	err = db.conn.Query(ctx, stmt, row).Get(&row)
 	if err != nil {
 		return nil, err
 	}
 	return &row, nil
 }
 
-func (db *Database) GetProfileByID(id int) (*Profile, error) {
+func (db *Database) GetProfileByID(id int, ctx context.Context) (*Profile, error) {
 	row := Profile{
 		ID: id,
 	}
@@ -87,7 +87,7 @@ func (db *Database) GetProfileByID(id int) (*Profile, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = db.conn.Query(context.Background(), stmt, row).Get(&row)
+	err = db.conn.Query(ctx, stmt, row).Get(&row)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("profile with ID %d not found", id)
@@ -97,8 +97,8 @@ func (db *Database) GetProfileByID(id int) (*Profile, error) {
 	return &row, nil
 }
 
-func (db *Database) CreateProfile(profile *Profile) error {
-	_, err := db.GetProfile(profile.Name)
+func (db *Database) CreateProfile(profile *Profile, ctx context.Context) error {
+	_, err := db.GetProfile(profile.Name, ctx)
 	if err == nil {
 		return fmt.Errorf("profile with name %s already exists", profile.Name)
 	}
@@ -106,12 +106,12 @@ func (db *Database) CreateProfile(profile *Profile) error {
 	if err != nil {
 		return err
 	}
-	err = db.conn.Query(context.Background(), stmt, profile).Run()
+	err = db.conn.Query(ctx, stmt, profile).Run()
 	return err
 }
 
-func (db *Database) UpdateProfile(profile *Profile) error {
-	_, err := db.GetProfile(profile.Name)
+func (db *Database) UpdateProfile(profile *Profile, ctx context.Context) error {
+	_, err := db.GetProfile(profile.Name, ctx)
 	if err != nil {
 		return err
 	}
@@ -119,12 +119,12 @@ func (db *Database) UpdateProfile(profile *Profile) error {
 	if err != nil {
 		return err
 	}
-	err = db.conn.Query(context.Background(), stmt, profile).Run()
+	err = db.conn.Query(ctx, stmt, profile).Run()
 	return err
 }
 
-func (db *Database) DeleteProfile(name string) error {
-	_, err := db.GetProfile(name)
+func (db *Database) DeleteProfile(name string, ctx context.Context) error {
+	_, err := db.GetProfile(name, ctx)
 	if err != nil {
 		return err
 	}
@@ -135,6 +135,6 @@ func (db *Database) DeleteProfile(name string) error {
 	row := Profile{
 		Name: name,
 	}
-	err = db.conn.Query(context.Background(), stmt, row).Run()
+	err = db.conn.Query(ctx, stmt, row).Run()
 	return err
 }

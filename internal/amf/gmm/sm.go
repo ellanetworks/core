@@ -8,6 +8,7 @@
 package gmm
 
 import (
+	ctx "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
@@ -21,7 +22,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func DeRegistered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
+func DeRegistered(ctext ctx.Context, state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 	switch event {
 	case fsm.EntryEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
@@ -39,7 +40,7 @@ func DeRegistered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 			if err := HandleRegistrationRequest(amfUe, accessType, procedureCode, gmmMessage.RegistrationRequest); err != nil {
 				logger.AmfLog.Error("Error handling registration request", zap.Error(err))
 			} else {
-				if err := GmmFSM.SendEvent(state, StartAuthEvent, fsm.ArgsType{
+				if err := GmmFSM.SendEvent(ctext, state, StartAuthEvent, fsm.ArgsType{
 					ArgAmfUe:         amfUe,
 					ArgAccessType:    accessType,
 					ArgProcedureCode: procedureCode,
@@ -48,7 +49,7 @@ func DeRegistered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 				}
 			}
 		case nas.MsgTypeServiceRequest:
-			if err := HandleServiceRequest(amfUe, accessType, gmmMessage.ServiceRequest); err != nil {
+			if err := HandleServiceRequest(amfUe, accessType, gmmMessage.ServiceRequest, ctext); err != nil {
 				logger.AmfLog.Error("Error handling service request", zap.Error(err))
 			}
 		default:
@@ -57,7 +58,7 @@ func DeRegistered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 	case NwInitiatedDeregistrationEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
 		accessType := args[ArgAccessType].(models.AccessType)
-		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType); err != nil {
+		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType, ctext); err != nil {
 			logger.AmfLog.Error("Error handling network initiated deregistration", zap.Error(err))
 		}
 	case StartAuthEvent:
@@ -69,7 +70,7 @@ func DeRegistered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 	}
 }
 
-func Registered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
+func Registered(ctext ctx.Context, state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 	switch event {
 	case fsm.EntryEvent:
 		// clear stored registration request data for this registration
@@ -90,7 +91,7 @@ func Registered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 			if err := HandleRegistrationRequest(amfUe, accessType, procedureCode, gmmMessage.RegistrationRequest); err != nil {
 				logger.AmfLog.Error("Error handling registration request", zap.Error(err))
 			} else {
-				if err := GmmFSM.SendEvent(state, StartAuthEvent, fsm.ArgsType{
+				if err := GmmFSM.SendEvent(ctext, state, StartAuthEvent, fsm.ArgsType{
 					ArgAmfUe:         amfUe,
 					ArgAccessType:    accessType,
 					ArgProcedureCode: procedureCode,
@@ -99,7 +100,7 @@ func Registered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 				}
 			}
 		case nas.MsgTypeULNASTransport:
-			if err := HandleULNASTransport(amfUe, accessType, gmmMessage.ULNASTransport); err != nil {
+			if err := HandleULNASTransport(amfUe, accessType, gmmMessage.ULNASTransport, ctext); err != nil {
 				logger.AmfLog.Error("Error handling UL NASTransport", zap.Error(err))
 			}
 		case nas.MsgTypeConfigurationUpdateComplete:
@@ -107,15 +108,15 @@ func Registered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 				logger.AmfLog.Error("Error handling configuration update complete", zap.Error(err))
 			}
 		case nas.MsgTypeServiceRequest:
-			if err := HandleServiceRequest(amfUe, accessType, gmmMessage.ServiceRequest); err != nil {
+			if err := HandleServiceRequest(amfUe, accessType, gmmMessage.ServiceRequest, ctext); err != nil {
 				logger.AmfLog.Error("Error handling service request", zap.Error(err))
 			}
 		case nas.MsgTypeNotificationResponse:
-			if err := HandleNotificationResponse(amfUe, gmmMessage.NotificationResponse); err != nil {
+			if err := HandleNotificationResponse(amfUe, gmmMessage.NotificationResponse, ctext); err != nil {
 				logger.AmfLog.Error("Error handling notification response", zap.Error(err))
 			}
 		case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
-			if err := GmmFSM.SendEvent(state, InitDeregistrationEvent, fsm.ArgsType{
+			if err := GmmFSM.SendEvent(ctext, state, InitDeregistrationEvent, fsm.ArgsType{
 				ArgAmfUe:      amfUe,
 				ArgAccessType: accessType,
 				ArgNASMessage: gmmMessage,
@@ -136,7 +137,7 @@ func Registered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 	case NwInitiatedDeregistrationEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
 		accessType := args[ArgAccessType].(models.AccessType)
-		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType); err != nil {
+		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType, ctext); err != nil {
 			logger.AmfLog.Error("Error handling network initiated deregistration", zap.Error(err))
 		}
 	case SliceInfoAddEvent:
@@ -148,7 +149,7 @@ func Registered(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 	}
 }
 
-func Authentication(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
+func Authentication(ctext ctx.Context, state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 	var amfUe *context.AmfUe
 	switch event {
 	case fsm.EntryEvent:
@@ -162,9 +163,9 @@ func Authentication(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		accessType := args[ArgAccessType].(models.AccessType)
 		amfUe.GmmLog.Debug("AuthRestartEvent at GMM State[Authentication]")
 
-		pass, err := AuthenticationProcedure(amfUe, accessType)
+		pass, err := AuthenticationProcedure(amfUe, accessType, ctext)
 		if err != nil {
-			if err := GmmFSM.SendEvent(state, AuthErrorEvent, fsm.ArgsType{
+			if err := GmmFSM.SendEvent(ctext, state, AuthErrorEvent, fsm.ArgsType{
 				ArgAmfUe:      amfUe,
 				ArgAccessType: accessType,
 			}); err != nil {
@@ -172,7 +173,7 @@ func Authentication(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 			}
 		}
 		if pass {
-			if err := GmmFSM.SendEvent(state, AuthSuccessEvent, fsm.ArgsType{
+			if err := GmmFSM.SendEvent(ctext, state, AuthSuccessEvent, fsm.ArgsType{
 				ArgAmfUe:      amfUe,
 				ArgAccessType: accessType,
 			}); err != nil {
@@ -190,16 +191,16 @@ func Authentication(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 			if err := HandleIdentityResponse(amfUe, gmmMessage.IdentityResponse); err != nil {
 				logger.AmfLog.Error("Error handling identity response", zap.Error(err))
 			}
-			err := GmmFSM.SendEvent(state, AuthRestartEvent, fsm.ArgsType{ArgAmfUe: amfUe, ArgAccessType: accessType})
+			err := GmmFSM.SendEvent(ctext, state, AuthRestartEvent, fsm.ArgsType{ArgAmfUe: amfUe, ArgAccessType: accessType})
 			if err != nil {
 				logger.AmfLog.Error("Error sending event", zap.Error(err))
 			}
 		case nas.MsgTypeAuthenticationResponse:
-			if err := HandleAuthenticationResponse(amfUe, accessType, gmmMessage.AuthenticationResponse); err != nil {
+			if err := HandleAuthenticationResponse(ctext, amfUe, accessType, gmmMessage.AuthenticationResponse); err != nil {
 				logger.AmfLog.Error("Error handling authentication response", zap.Error(err))
 			}
 		case nas.MsgTypeAuthenticationFailure:
-			if err := HandleAuthenticationFailure(amfUe, accessType, gmmMessage.AuthenticationFailure); err != nil {
+			if err := HandleAuthenticationFailure(ctext, amfUe, accessType, gmmMessage.AuthenticationFailure); err != nil {
 				logger.AmfLog.Error("Error handling authentication failure", zap.Error(err))
 			}
 		case nas.MsgTypeStatus5GMM:
@@ -209,7 +210,7 @@ func Authentication(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		default:
 			logger.AmfLog.Error("state mismatch: receive gmm message", zap.String("message type", fmt.Sprintf("0x%0x", gmmMessage.GetMessageType())), zap.Any("state", state.Current()))
 			// called SendEvent() to move to deregistered state if state mismatch occurs
-			err := GmmFSM.SendEvent(state, AuthFailEvent, fsm.ArgsType{
+			err := GmmFSM.SendEvent(ctext, state, AuthFailEvent, fsm.ArgsType{
 				ArgAmfUe:      amfUe,
 				ArgAccessType: accessType,
 			})
@@ -234,7 +235,7 @@ func Authentication(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 	case NwInitiatedDeregistrationEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
 		accessType := args[ArgAccessType].(models.AccessType)
-		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType); err != nil {
+		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType, ctext); err != nil {
 			logger.AmfLog.Error("Error handling network initiated deregistration", zap.Error(err))
 		}
 	case fsm.ExitEvent:
@@ -248,7 +249,7 @@ func Authentication(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 	}
 }
 
-func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
+func SecurityMode(ctext ctx.Context, state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 	switch event {
 	case fsm.EntryEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
@@ -261,7 +262,7 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		amfUe.GmmLog.Debug("EntryEvent at GMM State[SecurityMode]")
 		if amfUe.SecurityContextIsValid() {
 			amfUe.GmmLog.Debug("UE has a valid security context - skip security mode control procedure")
-			if err := GmmFSM.SendEvent(state, SecurityModeSuccessEvent, fsm.ArgsType{
+			if err := GmmFSM.SendEvent(ctext, state, SecurityModeSuccessEvent, fsm.ArgsType{
 				ArgAmfUe:      amfUe,
 				ArgAccessType: accessType,
 				ArgNASMessage: amfUe.RegistrationRequest,
@@ -277,7 +278,7 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 			// Generate KnasEnc, KnasInt
 			amfUe.DerivateAlgKey()
 			if amfUe.CipheringAlg == security.AlgCiphering128NEA0 && amfUe.IntegrityAlg == security.AlgIntegrity128NIA0 {
-				err := GmmFSM.SendEvent(state, SecuritySkipEvent, fsm.ArgsType{
+				err := GmmFSM.SendEvent(ctext, state, SecuritySkipEvent, fsm.ArgsType{
 					ArgAmfUe:      amfUe,
 					ArgAccessType: accessType,
 					ArgNASMessage: amfUe.RegistrationRequest,
@@ -301,7 +302,7 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		amfUe.GmmLog.Debug("GmmMessageEvent to GMM State[SecurityMode]")
 		switch gmmMessage.GetMessageType() {
 		case nas.MsgTypeSecurityModeComplete:
-			if err := HandleSecurityModeComplete(amfUe, accessType, procedureCode, gmmMessage.SecurityModeComplete); err != nil {
+			if err := HandleSecurityModeComplete(ctext, amfUe, accessType, procedureCode, gmmMessage.SecurityModeComplete); err != nil {
 				logger.AmfLog.Error("Error handling security mode complete", zap.Error(err))
 			} else {
 				logger.AmfLog.Debug("security mode complete received")
@@ -310,7 +311,7 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 			if err := HandleSecurityModeReject(amfUe, accessType, gmmMessage.SecurityModeReject); err != nil {
 				logger.AmfLog.Error("Error handling security mode reject", zap.Error(err))
 			}
-			err := GmmFSM.SendEvent(state, SecurityModeFailEvent, fsm.ArgsType{
+			err := GmmFSM.SendEvent(ctext, state, SecurityModeFailEvent, fsm.ArgsType{
 				ArgAmfUe:      amfUe,
 				ArgAccessType: accessType,
 			})
@@ -319,7 +320,7 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 			}
 		case nas.MsgTypeRegistrationRequest:
 			// Sending AbortEvent to ongoing procedure
-			err := GmmFSM.SendEvent(state, SecurityModeAbortEvent, fsm.ArgsType{
+			err := GmmFSM.SendEvent(ctext, state, SecurityModeAbortEvent, fsm.ArgsType{
 				ArgAmfUe:      amfUe,
 				ArgAccessType: accessType,
 			})
@@ -327,7 +328,7 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 				logger.AmfLog.Error("Error sending event", zap.Error(err))
 			}
 
-			err = GmmFSM.SendEvent(state, GmmMessageEvent, fsm.ArgsType{
+			err = GmmFSM.SendEvent(ctext, state, GmmMessageEvent, fsm.ArgsType{
 				ArgAmfUe:         amfUe,
 				ArgAccessType:    accessType,
 				ArgNASMessage:    gmmMessage,
@@ -344,7 +345,7 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		default:
 			amfUe.GmmLog.Error("state mismatch: receive gmm message", zap.String("message type", fmt.Sprintf("0x%0x", gmmMessage.GetMessageType())), zap.Any("state", state.Current()))
 			// called SendEvent() to move to deregistered state if state mismatch occurs
-			err := GmmFSM.SendEvent(state, SecurityModeFailEvent, fsm.ArgsType{
+			err := GmmFSM.SendEvent(ctext, state, SecurityModeFailEvent, fsm.ArgsType{
 				ArgAmfUe:      amfUe,
 				ArgAccessType: accessType,
 			})
@@ -367,7 +368,7 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		accessType := args[ArgAccessType].(models.AccessType)
 		amfUe.T3560.Stop()
 		amfUe.T3560 = nil
-		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType); err != nil {
+		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType, ctext); err != nil {
 			logger.AmfLog.Error("Error handling network initiated deregistration", zap.Error(err))
 		}
 	case SecurityModeSuccessEvent:
@@ -382,7 +383,7 @@ func SecurityMode(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 	}
 }
 
-func ContextSetup(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
+func ContextSetup(ctext ctx.Context, state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 	switch event {
 	case fsm.EntryEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
@@ -394,18 +395,18 @@ func ContextSetup(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 			amfUe.RegistrationRequest = message
 			switch amfUe.RegistrationType5GS {
 			case nasMessage.RegistrationType5GSInitialRegistration:
-				if err := HandleInitialRegistration(amfUe, accessType); err != nil {
+				if err := HandleInitialRegistration(amfUe, accessType, ctext); err != nil {
 					logger.AmfLog.Error("Error handling initial registration", zap.Error(err))
 				}
 			case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
 				fallthrough
 			case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
-				if err := HandleMobilityAndPeriodicRegistrationUpdating(amfUe, accessType); err != nil {
+				if err := HandleMobilityAndPeriodicRegistrationUpdating(amfUe, accessType, ctext); err != nil {
 					logger.AmfLog.Error("Error handling mobility and periodic registration updating", zap.Error(err))
 				}
 			}
 		case *nasMessage.ServiceRequest:
-			if err := HandleServiceRequest(amfUe, accessType, message); err != nil {
+			if err := HandleServiceRequest(amfUe, accessType, message, ctext); err != nil {
 				logger.AmfLog.Error("Error handling service request", zap.Error(err))
 			}
 		default:
@@ -423,9 +424,9 @@ func ContextSetup(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 			}
 			switch amfUe.RegistrationType5GS {
 			case nasMessage.RegistrationType5GSInitialRegistration:
-				if err := HandleInitialRegistration(amfUe, accessType); err != nil {
+				if err := HandleInitialRegistration(amfUe, accessType, ctext); err != nil {
 					logger.AmfLog.Error("Error handling initial registration", zap.Error(err))
-					err = GmmFSM.SendEvent(state, ContextSetupFailEvent, fsm.ArgsType{
+					err = GmmFSM.SendEvent(ctext, state, ContextSetupFailEvent, fsm.ArgsType{
 						ArgAmfUe:      amfUe,
 						ArgAccessType: accessType,
 					})
@@ -436,9 +437,9 @@ func ContextSetup(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 			case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
 				fallthrough
 			case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
-				if err := HandleMobilityAndPeriodicRegistrationUpdating(amfUe, accessType); err != nil {
+				if err := HandleMobilityAndPeriodicRegistrationUpdating(amfUe, accessType, ctext); err != nil {
 					logger.AmfLog.Error("Error handling mobility and periodic registration updating", zap.Error(err))
-					err = GmmFSM.SendEvent(state, ContextSetupFailEvent, fsm.ArgsType{
+					err = GmmFSM.SendEvent(ctext, state, ContextSetupFailEvent, fsm.ArgsType{
 						ArgAmfUe:      amfUe,
 						ArgAccessType: accessType,
 					})
@@ -448,7 +449,7 @@ func ContextSetup(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 				}
 			}
 		case nas.MsgTypeRegistrationComplete:
-			if err := HandleRegistrationComplete(amfUe, accessType, gmmMessage.RegistrationComplete); err != nil {
+			if err := HandleRegistrationComplete(ctext, amfUe, accessType, gmmMessage.RegistrationComplete); err != nil {
 				logger.AmfLog.Error("Error handling registration complete", zap.Error(err))
 			}
 		case nas.MsgTypeStatus5GMM:
@@ -460,7 +461,7 @@ func ContextSetup(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 			msgType := gmmMessage.GetMessageType()
 			if msgType == nas.MsgTypeRegistrationRequest {
 				// called SendEvent() to move to deregistered state if state mismatch occurs
-				err := GmmFSM.SendEvent(state, ContextSetupFailEvent, fsm.ArgsType{
+				err := GmmFSM.SendEvent(ctext, state, ContextSetupFailEvent, fsm.ArgsType{
 					ArgAmfUe:      amfUe,
 					ArgAccessType: accessType,
 				})
@@ -480,7 +481,7 @@ func ContextSetup(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 		amfUe.T3550.Stop()
 		amfUe.T3550 = nil
 		amfUe.State[accessType].Set(context.Registered)
-		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType); err != nil {
+		if err := NetworkInitiatedDeregistrationProcedure(amfUe, accessType, ctext); err != nil {
 			logger.AmfLog.Error("Error handling network initiated deregistration", zap.Error(err))
 		}
 	case ContextSetupFailEvent:
@@ -492,7 +493,7 @@ func ContextSetup(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 	}
 }
 
-func DeregisteredInitiated(state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
+func DeregisteredInitiated(ctext ctx.Context, state *fsm.State, event fsm.EventType, args fsm.ArgsType) {
 	switch event {
 	case fsm.EntryEvent:
 		amfUe := args[ArgAmfUe].(*context.AmfUe)
@@ -501,7 +502,7 @@ func DeregisteredInitiated(state *fsm.State, event fsm.EventType, args fsm.ArgsT
 			if gmmMessage != nil {
 				accessType := args[ArgAccessType].(models.AccessType)
 				amfUe.GmmLog.Debug("EntryEvent at GMM State[DeregisteredInitiated]")
-				if err := HandleDeregistrationRequest(amfUe, accessType,
+				if err := HandleDeregistrationRequest(ctext, amfUe, accessType,
 					gmmMessage.DeregistrationRequestUEOriginatingDeregistration); err != nil {
 					logger.AmfLog.Error("Error handling deregistration request", zap.Error(err))
 				}
@@ -514,7 +515,7 @@ func DeregisteredInitiated(state *fsm.State, event fsm.EventType, args fsm.ArgsT
 		amfUe.GmmLog.Debug("GmmMessageEvent at GMM State[DeregisteredInitiated]")
 		switch gmmMessage.GetMessageType() {
 		case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
-			if err := HandleDeregistrationAccept(amfUe, accessType,
+			if err := HandleDeregistrationAccept(ctext, amfUe, accessType,
 				gmmMessage.DeregistrationAcceptUETerminatedDeregistration); err != nil {
 				logger.AmfLog.Error("Error handling deregistration accept", zap.Error(err))
 			}

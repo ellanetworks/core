@@ -1,6 +1,7 @@
 package db_test
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -19,7 +20,7 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, err := database.ListRoutes()
+	res, err := database.ListRoutes(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
@@ -48,7 +49,7 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 		}
 	}()
 
-	routeID, err := tx.CreateRoute(route)
+	routeID, err := tx.CreateRoute(route, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
@@ -61,7 +62,7 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 		t.Fatalf("expected routeID 1, got %d", routeID)
 	}
 
-	res, err = database.ListRoutes()
+	res, err = database.ListRoutes(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
@@ -69,7 +70,7 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 		t.Fatalf("One or more routes weren't found in DB")
 	}
 
-	retrievedRoute, err := database.GetRoute(routeID)
+	retrievedRoute, err := database.GetRoute(routeID, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -96,7 +97,7 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 		}
 	}()
 
-	if err := tx.DeleteRoute(routeID); err != nil {
+	if err := tx.DeleteRoute(routeID, context.Background()); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
 
@@ -106,7 +107,7 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 
 	committedDelete = true
 
-	res, err = database.ListRoutes()
+	res, err = database.ListRoutes(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}

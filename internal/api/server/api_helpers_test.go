@@ -55,7 +55,7 @@ func setupServer(filepath string, mode string) (*httptest.Server, []byte, error)
 	}
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret, mode))
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret, mode, false))
 	return ts, jwtSecret, nil
 }
 

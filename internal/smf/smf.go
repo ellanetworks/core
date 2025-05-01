@@ -3,6 +3,7 @@
 package smf
 
 import (
+	ctx "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -18,7 +19,7 @@ func Start(dbInstance *db.Database) error {
 	smfContext.DBInstance = dbInstance
 	nodeID := context.NewNodeID("0.0.0.0")
 	smfContext.CPNodeID = *nodeID
-	upNode, err := context.BuildUserPlaneInformationFromConfig()
+	upNode, err := context.BuildUserPlaneInformationFromConfig(ctx.Background())
 	if err != nil {
 		return fmt.Errorf("failed to build user plane information from config: %v", err)
 	}

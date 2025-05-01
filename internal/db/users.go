@@ -63,13 +63,13 @@ type User struct {
 	HashedPassword string `db:"hashedPassword"`
 }
 
-func (db *Database) ListUsers() ([]User, error) {
+func (db *Database) ListUsers(ctx context.Context) ([]User, error) {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(listUsersStmt, db.usersTable), User{})
 	if err != nil {
 		return nil, err
 	}
 	var users []User
-	err = db.conn.Query(context.Background(), stmt).GetAll(&users)
+	err = db.conn.Query(ctx, stmt).GetAll(&users)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -79,7 +79,7 @@ func (db *Database) ListUsers() ([]User, error) {
 	return users, nil
 }
 
-func (db *Database) GetUser(email string) (*User, error) {
+func (db *Database) GetUser(email string, ctx context.Context) (*User, error) {
 	row := User{
 		Email: email,
 	}
@@ -87,15 +87,15 @@ func (db *Database) GetUser(email string) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = db.conn.Query(context.Background(), stmt, row).Get(&row)
+	err = db.conn.Query(ctx, stmt, row).Get(&row)
 	if err != nil {
 		return nil, err
 	}
 	return &row, nil
 }
 
-func (db *Database) CreateUser(user *User) error {
-	_, err := db.GetUser(user.Email)
+func (db *Database) CreateUser(user *User, ctx context.Context) error {
+	_, err := db.GetUser(user.Email, ctx)
 	if err == nil {
 		return fmt.Errorf("user with email %s already exists", user.Email)
 	}
@@ -103,12 +103,12 @@ func (db *Database) CreateUser(user *User) error {
 	if err != nil {
 		return err
 	}
-	err = db.conn.Query(context.Background(), stmt, user).Run()
+	err = db.conn.Query(ctx, stmt, user).Run()
 	return err
 }
 
-func (db *Database) UpdateUser(email string, role Role) error {
-	user, err := db.GetUser(email)
+func (db *Database) UpdateUser(email string, role Role, ctx context.Context) error {
+	user, err := db.GetUser(email, ctx)
 	if err != nil {
 		return err
 	}
@@ -117,12 +117,12 @@ func (db *Database) UpdateUser(email string, role Role) error {
 		return err
 	}
 	user.Role = role
-	err = db.conn.Query(context.Background(), stmt, user).Run()
+	err = db.conn.Query(ctx, stmt, user).Run()
 	return err
 }
 
-func (db *Database) UpdateUserPassword(email string, hashedPassword string) error {
-	user, err := db.GetUser(email)
+func (db *Database) UpdateUserPassword(email string, hashedPassword string, ctx context.Context) error {
+	user, err := db.GetUser(email, ctx)
 	if err != nil {
 		return err
 	}
@@ -131,12 +131,12 @@ func (db *Database) UpdateUserPassword(email string, hashedPassword string) erro
 		return err
 	}
 	user.HashedPassword = hashedPassword
-	err = db.conn.Query(context.Background(), stmt, user).Run()
+	err = db.conn.Query(ctx, stmt, user).Run()
 	return err
 }
 
-func (db *Database) DeleteUser(email string) error {
-	_, err := db.GetUser(email)
+func (db *Database) DeleteUser(email string, ctx context.Context) error {
+	_, err := db.GetUser(email, ctx)
 	if err != nil {
 		return err
 	}
@@ -147,17 +147,17 @@ func (db *Database) DeleteUser(email string) error {
 	row := User{
 		Email: email,
 	}
-	err = db.conn.Query(context.Background(), stmt, row).Run()
+	err = db.conn.Query(ctx, stmt, row).Run()
 	return err
 }
 
-func (db *Database) NumUsers() (int, error) {
+func (db *Database) NumUsers(ctx context.Context) (int, error) {
 	stmt, err := sqlair.Prepare(fmt.Sprintf(getNumUsersStmt, db.usersTable), NumUsers{})
 	if err != nil {
 		return 0, fmt.Errorf("failed to prepare statement: %v", err)
 	}
 	result := NumUsers{}
-	err = db.conn.Query(context.Background(), stmt).Get(&result)
+	err = db.conn.Query(ctx, stmt).Get(&result)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get number of users: %v", err)
 	}

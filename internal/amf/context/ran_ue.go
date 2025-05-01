@@ -8,6 +8,7 @@
 package context
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"strconv"
@@ -118,7 +119,7 @@ func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {
 	return nil
 }
 
-func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocationInformation) {
+func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocationInformation, ctx context.Context) {
 	if userLocationInformation == nil {
 		return
 	}
@@ -215,7 +216,7 @@ func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocatio
 		ranUe.Location.N3gaLocation.UeIpv6Addr = ipv6Addr
 		ranUe.Location.N3gaLocation.PortNumber = ngapConvert.PortNumberToInt(port)
 
-		supportTaiList := GetSupportTaiList()
+		supportTaiList := GetSupportTaiList(ctx)
 		tmp, err := strconv.ParseUint(supportTaiList[0].Tac, 10, 32)
 		if err != nil {
 			logger.AmfLog.Error("Error parsing TAC", zap.String("Tac", supportTaiList[0].Tac), zap.Error(err))

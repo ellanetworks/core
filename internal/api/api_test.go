@@ -62,7 +62,7 @@ func TestStartServerStandup(t *testing.T) {
 	n6Interface := "eth1"
 
 	// Start the server in a separate goroutine.
-	if err := Start(testdb, port, scheme, certFile, keyFile, n3Interface, n6Interface); err != nil {
+	if err := Start(testdb, port, scheme, certFile, keyFile, n3Interface, n6Interface, false); err != nil {
 		t.Fatalf("Start returned error: %v", err)
 	}
 

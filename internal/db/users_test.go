@@ -3,6 +3,7 @@
 package db_test
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -21,7 +22,7 @@ func TestDBUsersEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, err := database.ListUsers()
+	res, err := database.ListUsers(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
@@ -34,12 +35,12 @@ func TestDBUsersEndToEnd(t *testing.T) {
 		Email:          "my.user123@ellanetworks.com",
 		HashedPassword: "my-hashed-password",
 	}
-	err = database.CreateUser(user)
+	err = database.CreateUser(user, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
 
-	res, err = database.ListUsers()
+	res, err = database.ListUsers(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
@@ -47,7 +48,7 @@ func TestDBUsersEndToEnd(t *testing.T) {
 		t.Fatalf("One or more users weren't found in DB")
 	}
 
-	retrievedUser, err := database.GetUser(user.Email)
+	retrievedUser, err := database.GetUser(user.Email, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -55,10 +56,10 @@ func TestDBUsersEndToEnd(t *testing.T) {
 		t.Fatalf("The user from the database doesn't match the user that was given")
 	}
 
-	if err = database.DeleteUser(user.Email); err != nil {
+	if err = database.DeleteUser(user.Email, context.Background()); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
-	res, _ = database.ListUsers()
+	res, _ = database.ListUsers(context.Background())
 	if len(res) != 0 {
 		t.Fatalf("Users weren't deleted from the DB properly")
 	}

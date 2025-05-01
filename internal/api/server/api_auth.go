@@ -50,7 +50,7 @@ func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Password is required")
 			return
 		}
-		user, err := dbInstance.GetUser(loginParams.Email)
+		user, err := dbInstance.GetUser(loginParams.Email, c.Request.Context())
 		if err != nil {
 			logger.LogAuditEvent(
 				LoginAction,

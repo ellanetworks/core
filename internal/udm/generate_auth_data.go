@@ -5,6 +5,7 @@
 package udm
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -70,13 +71,13 @@ func strictHex(s string, n int) string {
 	}
 }
 
-func EditAuthenticationSubscription(ueID string, sequenceNumber string) error {
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID)
+func EditAuthenticationSubscription(ueID string, sequenceNumber string, ctx context.Context) error {
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID, ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
 	subscriber.SequenceNumber = sequenceNumber
-	err = udmContext.DBInstance.UpdateSubscriber(subscriber)
+	err = udmContext.DBInstance.UpdateSubscriber(subscriber, ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't update subscriber %s: %v", ueID, err)
 	}
@@ -109,8 +110,8 @@ func convertDBAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 	return authSubsData
 }
 
-func GetAuthSubsData(ueID string) (*models.AuthenticationSubscription, error) {
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID)
+func GetAuthSubsData(ueID string, ctx context.Context) (*models.AuthenticationSubscription, error) {
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
@@ -118,11 +119,11 @@ func GetAuthSubsData(ueID string) (*models.AuthenticationSubscription, error) {
 	return authSubsData, nil
 }
 
-func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (*models.AuthenticationInfoResult, error) {
+func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string, ctx context.Context) (*models.AuthenticationInfoResult, error) {
 	if udmContext.DBInstance == nil {
 		return nil, fmt.Errorf("db instance is nil")
 	}
-	hnPrivateKey, err := udmContext.DBInstance.GetHomeNetworkPrivateKey()
+	hnPrivateKey, err := udmContext.DBInstance.GetHomeNetworkPrivateKey(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get home network private key: %w", err)
 	}
@@ -132,7 +133,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		return nil, fmt.Errorf("couldn't convert suci to supi: %w", err)
 	}
 
-	authSubs, err := GetAuthSubsData(supi)
+	authSubs, err := GetAuthSubsData(supi, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get authentication subscriber data: %w", err)
 	}
@@ -271,7 +272,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	SQNheStr := fmt.Sprintf("%x", bigSQN)
 	SQNheStr = strictHex(SQNheStr, 12)
 
-	err = EditAuthenticationSubscription(supi, SQNheStr)
+	err = EditAuthenticationSubscription(supi, SQNheStr, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("update sqn error: %w", err)
 	}

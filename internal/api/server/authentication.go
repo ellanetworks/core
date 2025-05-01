@@ -98,7 +98,7 @@ func Require(allowedRoles ...Role) gin.HandlerFunc {
 
 func RequireAdminOrFirstUser(db *db.Database, jwtSecret []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		numUsers, err := db.NumUsers()
+		numUsers, err := db.NumUsers(c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusInternalServerError, "Internal Error")
 			c.Abort()

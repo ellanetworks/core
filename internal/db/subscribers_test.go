@@ -3,6 +3,7 @@
 package db_test
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -23,7 +24,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, err := database.ListSubscribers()
+	res, err := database.ListSubscribers(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
@@ -38,12 +39,12 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		PermanentKey:   "123456",
 		Opc:            "123456",
 	}
-	err = database.CreateSubscriber(subscriber)
+	err = database.CreateSubscriber(subscriber, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
 
-	res, err = database.ListSubscribers()
+	res, err = database.ListSubscribers(context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
@@ -51,7 +52,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("One or more subscribers weren't found in DB")
 	}
 
-	retrievedSubscriber, err := database.GetSubscriber(subscriber.Imsi)
+	retrievedSubscriber, err := database.GetSubscriber(subscriber.Imsi, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -72,17 +73,17 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		Name:     "myprofilename",
 		UeIPPool: "0.0.0.0/24",
 	}
-	err = database.CreateProfile(profileData)
+	err = database.CreateProfile(profileData, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
 
 	subscriber.SequenceNumber = "654321"
-	if err = database.UpdateSubscriber(subscriber); err != nil {
+	if err = database.UpdateSubscriber(subscriber, context.Background()); err != nil {
 		t.Fatalf("Couldn't complete Update: %s", err)
 	}
 
-	retrievedSubscriber, err = database.GetSubscriber(subscriber.Imsi)
+	retrievedSubscriber, err = database.GetSubscriber(subscriber.Imsi, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -91,10 +92,10 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("Sequence numbers don't match: %s", retrievedSubscriber.SequenceNumber)
 	}
 
-	if err = database.DeleteSubscriber(subscriber.Imsi); err != nil {
+	if err = database.DeleteSubscriber(subscriber.Imsi, context.Background()); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
-	res, _ = database.ListSubscribers()
+	res, _ = database.ListSubscribers(context.Background())
 	if len(res) != 0 {
 		t.Fatalf("Subscribers weren't deleted from the DB properly")
 	}
@@ -116,12 +117,12 @@ func TestIPAllocationAndRelease(t *testing.T) {
 		Name:     "test-profile",
 		UeIPPool: "192.168.1.0/24",
 	}
-	err = database.CreateProfile(profile)
+	err = database.CreateProfile(profile, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateProfile: %s", err)
 	}
 
-	createdProfile, err := database.GetProfile(profile.Name)
+	createdProfile, err := database.GetProfile(profile.Name, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't retrieve profile: %s", err)
 	}
@@ -133,13 +134,13 @@ func TestIPAllocationAndRelease(t *testing.T) {
 		Opc:            "123456",
 		ProfileID:      createdProfile.ID,
 	}
-	err = database.CreateSubscriber(subscriber)
+	err = database.CreateSubscriber(subscriber, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateSubscriber: %s", err)
 	}
 
 	// Step 3: Allocate an IP for the subscriber
-	allocatedIP, err := database.AllocateIP(subscriber.Imsi)
+	allocatedIP, err := database.AllocateIP(subscriber.Imsi, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't allocate IP for subscriber: %s", err)
 	}
@@ -153,7 +154,7 @@ func TestIPAllocationAndRelease(t *testing.T) {
 		t.Fatalf("Allocated IP %s is not within the profile's IP pool %s", allocatedIP.String(), profile.UeIPPool)
 	}
 
-	retrievedSubscriber, err := database.GetSubscriber(subscriber.Imsi)
+	retrievedSubscriber, err := database.GetSubscriber(subscriber.Imsi, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't retrieve subscriber: %s", err)
 	}
@@ -162,13 +163,13 @@ func TestIPAllocationAndRelease(t *testing.T) {
 	}
 
 	// Step 5: Release the IP
-	err = database.ReleaseIP(subscriber.Imsi)
+	err = database.ReleaseIP(subscriber.Imsi, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't release IP for subscriber: %s", err)
 	}
 
 	// Verify that the IP is cleared in the database
-	retrievedSubscriber, err = database.GetSubscriber(subscriber.Imsi)
+	retrievedSubscriber, err = database.GetSubscriber(subscriber.Imsi, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't retrieve subscriber after release: %s", err)
 	}
@@ -177,7 +178,7 @@ func TestIPAllocationAndRelease(t *testing.T) {
 	}
 
 	// Step 6: Reallocate an IP for the same subscriber
-	newAllocatedIP, err := database.AllocateIP(subscriber.Imsi)
+	newAllocatedIP, err := database.AllocateIP(subscriber.Imsi, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't allocate a new IP for subscriber: %s", err)
 	}
@@ -203,12 +204,12 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 		Name:     "test-pool",
 		UeIPPool: "192.168.1.0/29", // Small pool for testing (6 usable addresses)
 	}
-	err = database.CreateProfile(profile)
+	err = database.CreateProfile(profile, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateProfile: %s", err)
 	}
 
-	createdProfile, err := database.GetProfile(profile.Name)
+	createdProfile, err := database.GetProfile(profile.Name, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't retrieve profile: %s", err)
 	}
@@ -228,12 +229,12 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 			ProfileID:      createdProfile.ID,
 		}
 
-		err := database.CreateSubscriber(subscriber)
+		err := database.CreateSubscriber(subscriber, context.Background())
 		if err != nil {
 			t.Fatalf("Couldn't complete CreateSubscriber: %s", err)
 		}
 
-		allocatedIP, err := database.AllocateIP(subscriber.Imsi)
+		allocatedIP, err := database.AllocateIP(subscriber.Imsi, context.Background())
 		if err != nil {
 			t.Fatalf("Couldn't allocate IP for subscriber %s: %s", subscriber.Imsi, err)
 		}
@@ -261,12 +262,12 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 		Opc:            "123456",
 		ProfileID:      createdProfile.ID,
 	}
-	err = database.CreateSubscriber(extraSubscriber)
+	err = database.CreateSubscriber(extraSubscriber, context.Background())
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateSubscriber for overflow subscriber: %s", err)
 	}
 
-	_, err = database.AllocateIP(extraSubscriber.Imsi)
+	_, err = database.AllocateIP(extraSubscriber.Imsi, context.Background())
 	if err == nil {
 		t.Fatalf("Expected error when allocating IP for subscriber %s, but no error occurred", extraSubscriber.Imsi)
 	}

@@ -5,6 +5,7 @@
 package pdusession
 
 import (
+	ctx "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -14,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func CreateSmContext(request models.PostSmContextsRequest) (string, *models.PostSmContextsErrorResponse, error) {
+func CreateSmContext(request models.PostSmContextsRequest, ctext ctx.Context) (string, *models.PostSmContextsErrorResponse, error) {
 	if request.JSONData == nil {
 		errResponse := &models.PostSmContextsErrorResponse{}
 		return "", errResponse, fmt.Errorf("missing JSONData in request")
@@ -23,7 +24,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (string, *models.Post
 	createData := request.JSONData
 	smCtxtRef, err := context.ResolveRef(createData.Supi, createData.PduSessionID)
 	if err == nil {
-		err := producer.HandlePduSessionContextReplacement(smCtxtRef)
+		err := producer.HandlePduSessionContextReplacement(smCtxtRef, ctext)
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to replace existing context")
 		}
@@ -31,7 +32,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (string, *models.Post
 
 	smContext := context.NewSMContext(createData.Supi, createData.PduSessionID)
 
-	location, errRsp, err := producer.HandlePDUSessionSMContextCreate(request, smContext)
+	location, errRsp, err := producer.HandlePDUSessionSMContextCreate(request, smContext, ctext)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
 	}
@@ -40,7 +41,7 @@ func CreateSmContext(request models.PostSmContextsRequest) (string, *models.Post
 		return "", errRsp, nil
 	}
 
-	err = producer.SendPFCPRules(smContext)
+	err = producer.SendPFCPRules(smContext, ctext)
 	if err != nil {
 		if smContext != nil {
 			go func() {

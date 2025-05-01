@@ -67,6 +67,7 @@ nav:
     - Configuration File: reference/config_file.md
     - Metrics: reference/metrics.md
     - Logging: reference/logging.md
+    - Tracing (beta): reference/tracing.md
     - Connectivity: reference/connectivity.md
     - TLS: reference/tls.md
     - Performance: reference/performance.md

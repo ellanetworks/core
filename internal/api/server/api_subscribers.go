@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/hex"
 	"net/http"
 
@@ -40,11 +41,11 @@ const (
 	DeleteSubscriberAction = "delete_subscriber"
 )
 
-func isImsiValid(imsi string, dbInstance *db.Database) bool {
+func isImsiValid(imsi string, dbInstance *db.Database, ctx context.Context) bool {
 	if len(imsi) != 15 {
 		return false
 	}
-	network, err := dbInstance.GetOperator()
+	network, err := dbInstance.GetOperator(ctx)
 	if err != nil {
 		logger.APILog.Warn("Failed to retrieve operator", zap.Error(err))
 		return false
@@ -78,15 +79,17 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
 			return
 		}
-		dbSubscribers, err := dbInstance.ListSubscribers()
+
+		dbSubscribers, err := dbInstance.ListSubscribers(c.Request.Context())
 		if err != nil {
-			writeError(c, http.StatusInternalServerError, "Unable to retrieve subscribers")
+			logger.APILog.Warn("Failed to list subscribers", zap.Error(err))
+			writeError(c, http.StatusInternalServerError, "Failed to list subscribers")
 			return
 		}
 
 		subscribers := make([]GetSubscriberResponse, 0)
 		for _, dbSubscriber := range dbSubscribers {
-			profile, err := dbInstance.GetProfileByID(dbSubscriber.ProfileID)
+			profile, err := dbInstance.GetProfileByID(dbSubscriber.ProfileID, c.Request.Context())
 			if err != nil {
 				writeError(c, http.StatusInternalServerError, "Failed to retrieve profile")
 				return
@@ -124,12 +127,12 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		dbSubscriber, err := dbInstance.GetSubscriber(imsi)
+		dbSubscriber, err := dbInstance.GetSubscriber(imsi, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Subscriber not found")
 			return
 		}
-		profile, err := dbInstance.GetProfileByID(dbSubscriber.ProfileID)
+		profile, err := dbInstance.GetProfileByID(dbSubscriber.ProfileID, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusInternalServerError, "Failed to retrieve profile")
 			return
@@ -183,7 +186,7 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Missing profileName parameter")
 			return
 		}
-		if !isImsiValid(createSubscriberParams.Imsi, dbInstance) {
+		if !isImsiValid(createSubscriberParams.Imsi, dbInstance, c.Request.Context()) {
 			writeError(c, http.StatusBadRequest, "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.")
 			return
 		}
@@ -211,7 +214,7 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 
 		var opcHex string
 		if createSubscriberParams.Opc == "" {
-			opCodeHex, err := dbInstance.GetOperatorCode()
+			opCodeHex, err := dbInstance.GetOperatorCode(c.Request.Context())
 			if err != nil {
 				logger.APILog.Warn("Failed to retrieve operator code", zap.Error(err))
 				writeError(c, http.StatusInternalServerError, "Failed to retrieve operator code")
@@ -235,12 +238,12 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			opcHex = createSubscriberParams.Opc
 		}
 
-		_, err = dbInstance.GetSubscriber(createSubscriberParams.Imsi)
+		_, err = dbInstance.GetSubscriber(createSubscriberParams.Imsi, c.Request.Context())
 		if err == nil {
 			writeError(c, http.StatusBadRequest, "Subscriber already exists")
 			return
 		}
-		profile, err := dbInstance.GetProfile(createSubscriberParams.ProfileName)
+		profile, err := dbInstance.GetProfile(createSubscriberParams.ProfileName, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Profile not found")
 			return
@@ -253,7 +256,7 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			ProfileID:      profile.ID,
 		}
 
-		if err := dbInstance.CreateSubscriber(newSubscriber); err != nil {
+		if err := dbInstance.CreateSubscriber(newSubscriber, c.Request.Context()); err != nil {
 			logger.APILog.Warn("Failed to create subscriber", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to create subscriber")
 			return
@@ -297,17 +300,17 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Missing profileName parameter")
 			return
 		}
-		if !isImsiValid(updateSubscriberParams.Imsi, dbInstance) {
+		if !isImsiValid(updateSubscriberParams.Imsi, dbInstance, c.Request.Context()) {
 			writeError(c, http.StatusBadRequest, "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.")
 			return
 		}
 
-		existingSubscriber, err := dbInstance.GetSubscriber(imsi)
+		existingSubscriber, err := dbInstance.GetSubscriber(imsi, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Subscriber not found")
 			return
 		}
-		profile, err := dbInstance.GetProfile(updateSubscriberParams.ProfileName)
+		profile, err := dbInstance.GetProfile(updateSubscriberParams.ProfileName, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Profile not found")
 			return
@@ -320,7 +323,7 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			ProfileID:      profile.ID,
 		}
 
-		if err := dbInstance.UpdateSubscriber(updatedSubscriber); err != nil {
+		if err := dbInstance.UpdateSubscriber(updatedSubscriber, c.Request.Context()); err != nil {
 			logger.APILog.Warn("Failed to update subscriber", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update subscriber")
 			return
@@ -350,12 +353,12 @@ func DeleteSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Missing imsi parameter")
 			return
 		}
-		_, err := dbInstance.GetSubscriber(imsi)
+		_, err := dbInstance.GetSubscriber(imsi, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Subscriber not found")
 			return
 		}
-		err = dbInstance.DeleteSubscriber(imsi)
+		err = dbInstance.DeleteSubscriber(imsi, c.Request.Context())
 		if err != nil {
 			logger.APILog.Warn("Failed to delete subscriber", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to delete subscriber")

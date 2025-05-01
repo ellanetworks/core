@@ -1,6 +1,7 @@
 package udm_test
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -20,7 +21,7 @@ func TestCreateAuthDataBadSuci(t *testing.T) {
 	udm.SetDBInstance(testdb)
 	authInfoRequest := models.AuthenticationInfoRequest{}
 	ueSuci := "123"
-	authInfoResult, err := udm.CreateAuthData(authInfoRequest, ueSuci)
+	authInfoResult, err := udm.CreateAuthData(authInfoRequest, ueSuci, context.Background())
 	if err == nil {
 		t.Fatalf("failed to create auth data: %v", err)
 	}
