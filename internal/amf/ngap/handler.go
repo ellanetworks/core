@@ -8,7 +8,9 @@
 package ngap
 
 import (
+	ctx "context"
 	"encoding/hex"
+	"fmt"
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/amf/consumer"
@@ -25,6 +27,8 @@ import (
 	libngap "github.com/omec-project/ngap"
 	"github.com/omec-project/ngap/ngapConvert"
 	"github.com/omec-project/ngap/ngapType"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -643,7 +647,7 @@ func HandleNGSetupRequest(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	}
 }
 
-func HandleUplinkNasTransport(ran *context.AmfRan, message *ngapType.NGAPPDU) {
+func HandleUplinkNasTransport(ctext ctx.Context, ran *context.AmfRan, message *ngapType.NGAPPDU) {
 	var aMFUENGAPID *ngapType.AMFUENGAPID
 	var rANUENGAPID *ngapType.RANUENGAPID
 	var nASPDU *ngapType.NASPDU
@@ -727,6 +731,13 @@ func HandleUplinkNasTransport(ran *context.AmfRan, message *ngapType.NGAPPDU) {
 		ranUe.UpdateLocation(userLocationInformation)
 	}
 
+	_, span := tracer.Start(ctext, "nas.UplinkNASTransport",
+		trace.WithAttributes(
+			attribute.String("nas.ue_ngap_id", fmt.Sprint(ranUe.AmfUeNgapID)),
+			attribute.Int("nas.pdu_length", len(nASPDU.Value)),
+		),
+	)
+	defer span.End()
 	err := nas.HandleNAS(ranUe, ngapType.ProcedureCodeUplinkNASTransport, nASPDU.Value)
 	if err != nil {
 		ranUe.Log.Error("error handling NAS message", zap.Error(err))
