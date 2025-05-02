@@ -645,7 +645,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType, ctex
 		}
 	}
 
-	amfSelf.AllocateRegistrationArea(ue, anType)
+	amfSelf.AllocateRegistrationArea(ue, anType, ctext)
 	ue.GmmLog.Debug("use original GUTI", zap.String("guti", ue.Guti))
 
 	assignLadnInfo(ue, anType)
@@ -945,7 +945,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		ue.LocationChanged = false
 	}
 
-	amfSelf.AllocateRegistrationArea(ue, anType)
+	amfSelf.AllocateRegistrationArea(ue, anType, ctext)
 	assignLadnInfo(ue, anType)
 
 	if ue.RanUe[anType].UeContextRequest {
