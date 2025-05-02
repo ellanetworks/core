@@ -22,7 +22,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var tracer = otel.Tracer("ella/consumer")
+var tracer = otel.Tracer("ella-core/ausf")
 
 func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe, resynchronizationInfo *models.ResynchronizationInfo, ctext ctx.Context) (*models.UeAuthenticationCtx, error) {
 	guamiList := context.GetServedGuamiList(ctext)
@@ -45,7 +45,11 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe, resynchronizatio
 	if resynchronizationInfo != nil {
 		authInfo.ResynchronizationInfo = resynchronizationInfo
 	}
-
+	_, span := tracer.Start(ctext, "ausf.UeAuthPostRequest")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.suci", ue.Suci),
+	)
 	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(authInfo, ctext)
 	if err != nil {
 		logger.AmfLog.Error("UE Authentication Authenticate Request failed", zap.Error(err))
@@ -55,7 +59,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe, resynchronizatio
 }
 
 func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string, ctext ctx.Context) (*models.ConfirmationDataResponse, error) {
-	_, span := tracer.Start(ctext, "SendAuth5gAkaConfirmRequest")
+	_, span := tracer.Start(ctext, "ausf.Auth5gAkaComfirmRequest")
 	defer span.End()
 
 	span.SetAttributes(
@@ -68,7 +72,13 @@ func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string, ctext ctx.Co
 	return confirmResult, nil
 }
 
-func SendEapAuthConfirmRequest(suci string, eapMsg nasType.EAPMessage) (*models.EapSession, error) {
+func SendEapAuthConfirmRequest(suci string, eapMsg nasType.EAPMessage, ctext ctx.Context) (*models.EapSession, error) {
+	_, span := tracer.Start(ctext, "ausf.EapAuthComfirmRequest")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.suci", suci),
+	)
+
 	eapPayload := base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage())
 	response, err := ausf.EapAuthComfirmRequestProcedure(eapPayload, suci)
 	if err != nil {

@@ -1866,7 +1866,7 @@ func HandleAuthenticationResponse(ctext ctx.Context, ue *context.AmfUe, accessTy
 			}
 		}
 	case models.AuthTypeEAPAkaPrime:
-		response, err := consumer.SendEapAuthConfirmRequest(ue.Suci, *authenticationResponse.EAPMessage)
+		response, err := consumer.SendEapAuthConfirmRequest(ue.Suci, *authenticationResponse.EAPMessage, ctext)
 		if err != nil {
 			return err
 		}
