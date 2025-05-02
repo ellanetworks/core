@@ -29,7 +29,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context.RanUe, *ngapType.AMFUENGAPID) {
+func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU, ctext ctx.Context) (*context.RanUe, *ngapType.AMFUENGAPID) {
 	amfSelf := context.AMFSelf()
 
 	var rANUENGAPID *ngapType.RANUENGAPID
@@ -80,7 +80,7 @@ func FetchRanUeContext(ran *context.AmfRan, message *ngapType.NGAPPDU) (*context
 				var err error
 
 				if fiveGSTMSI != nil {
-					guamiList := context.GetServedGuamiList()
+					guamiList := context.GetServedGuamiList(ctext)
 					servedGuami := guamiList[0]
 
 					// <5G-S-TMSI> := <AMF Set ID><AMF Pointer><5G-TMSI>
@@ -628,7 +628,7 @@ func HandleNGSetupRequest(ctext ctx.Context, ran *context.AmfRan, message *ngapT
 	}
 
 	if cause.Present == ngapType.CausePresentNothing {
-		err := ngap_message.SendNGSetupResponse(ran)
+		err := ngap_message.SendNGSetupResponse(ran, ctext)
 		if err != nil {
 			ran.Log.Error("error sending NG Setup Response", zap.Error(err))
 			return
@@ -1491,7 +1491,7 @@ func HandleInitialUEMessage(ctext ctx.Context, ran *context.AmfRan, message *nga
 
 		if fiveGSTMSI != nil {
 			ranUe.Log.Debug("Receive 5G-S-TMSI")
-			guamiList := context.GetServedGuamiList()
+			guamiList := context.GetServedGuamiList(ctext)
 			servedGuami := guamiList[0]
 
 			// <5G-S-TMSI> := <AMF Set ID><AMF Pointer><5G-TMSI>
@@ -2509,10 +2509,12 @@ func HandleUEContextReleaseRequest(ran *context.AmfRan, message *ngapType.NGAPPD
 			ranUe.Log.Info("Ue Context in Non GMM-Registered")
 			amfUe.SmContextList.Range(func(key, value interface{}) bool {
 				smContext := value.(*context.SmContext)
+				ctext, span := tracer.Start(ctext, "smf.ReleaseSmContext")
 				err := pdusession.ReleaseSmContext(smContext.SmContextRef(), ctext)
 				if err != nil {
 					ranUe.Log.Error("error sending release sm context request", zap.Error(err))
 				}
+				span.End()
 				return true
 			})
 			err := ngap_message.SendUEContextReleaseCommand(ranUe, context.UeContextReleaseUeContext, causeGroup, causeValue)
@@ -3077,7 +3079,7 @@ func HandlePathSwitchRequest(ran *context.AmfRan, message *ngapType.NGAPPDU, cte
 			ranUe.Log.Error(err.Error())
 			return
 		}
-		err = ngap_message.SendPathSwitchRequestAcknowledge(ranUe, pduSessionResourceSwitchedList, pduSessionResourceReleasedListPSAck, false, nil, nil, nil)
+		err = ngap_message.SendPathSwitchRequestAcknowledge(ranUe, pduSessionResourceSwitchedList, pduSessionResourceReleasedListPSAck, false, nil, nil, nil, ctext)
 		if err != nil {
 			ranUe.Log.Error("error sending path switch request acknowledge", zap.Error(err))
 			return
@@ -3578,7 +3580,7 @@ func HandleHandoverRequired(ran *context.AmfRan, message *ngapType.NGAPPDU, ctex
 			return
 		}
 		amfUe.UpdateNH()
-		err := ngap_message.SendHandoverRequest(sourceUe, targetRan, *cause, pduSessionReqList, *sourceToTargetTransparentContainer)
+		err := ngap_message.SendHandoverRequest(sourceUe, targetRan, *cause, pduSessionReqList, *sourceToTargetTransparentContainer, ctext)
 		if err != nil {
 			sourceUe.Log.Error("error sending handover request to target UE", zap.Error(err))
 			return

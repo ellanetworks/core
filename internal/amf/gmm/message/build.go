@@ -7,6 +7,7 @@
 package message
 
 import (
+	ctx "context"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -441,6 +442,7 @@ func BuildRegistrationAccept(
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
+	ctext ctx.Context,
 ) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
@@ -478,7 +480,7 @@ func BuildRegistrationAccept(
 		registrationAccept.GUTI5G.SetIei(nasMessage.RegistrationAcceptGUTI5GType)
 	}
 
-	plmnSupported := context.GetSupportedPlmn()
+	plmnSupported := context.GetSupportedPlmn(ctext)
 	if plmnSupported != nil {
 		registrationAccept.EquivalentPlmns = nasType.NewEquivalentPlmns(nasMessage.RegistrationAcceptEquivalentPlmnsType)
 		var buf []uint8

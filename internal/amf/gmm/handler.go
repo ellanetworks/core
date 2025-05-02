@@ -26,8 +26,11 @@ import (
 	"github.com/omec-project/nas/nasType"
 	"github.com/omec-project/nas/security"
 	"github.com/omec-project/ngap/ngapType"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 )
+
+var tracer = otel.Tracer("ella-core/amf/gmm")
 
 func SnssaiModelsToHex(snssai models.Snssai) string {
 	sst := fmt.Sprintf("%02x", snssai.Sst)
@@ -361,9 +364,7 @@ func forward5GSMMessageToSMF(
 }
 
 // Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
-func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, procedureCode int64,
-	registrationRequest *nasMessage.RegistrationRequest,
-) error {
+func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, procedureCode int64, registrationRequest *nasMessage.RegistrationRequest, ctext ctx.Context) error {
 	var guamiFromUeGuti models.Guami
 	amfSelf := context.AMFSelf()
 
@@ -378,7 +379,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	// MacFailed is set if plain Registration Request message received with GUTI/SUCI or
 	// integrity protected Registration Reguest message received but mac verification Failed
 	if ue.MacFailed {
-		amfSelf.ReAllocateGutiToUe(ue)
+		amfSelf.ReAllocateGutiToUe(ue, ctext)
 		ue.SecurityContextAvailable = false
 	}
 
@@ -462,7 +463,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 		ue.Guti = guti
 		ue.GmmLog.Debug("GUTI", zap.String("guti", guti))
 
-		guamiList := context.GetServedGuamiList()
+		guamiList := context.GetServedGuamiList(ctext)
 		servedGuami := guamiList[0]
 		if reflect.DeepEqual(guamiFromUeGuti, servedGuami) {
 			ue.ServingAmfChanged = false
@@ -499,7 +500,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	ue.Tai = ue.RanUe[anType].Tai
 
 	// Check TAI
-	supportTaiList := context.GetSupportTaiList(ctx.Background())
+	supportTaiList := context.GetSupportTaiList(ctext)
 	taiList := make([]models.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)
 	for i := range taiList {
@@ -569,7 +570,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType, ctex
 		getSubscribedNssai(ue, ctext)
 	}
 
-	if err := handleRequestedNssai(ue, anType); err != nil {
+	if err := handleRequestedNssai(ue, anType, ctext); err != nil {
 		return err
 	}
 
@@ -644,7 +645,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType, ctex
 		}
 	}
 
-	amfSelf.AllocateRegistrationArea(ue, anType)
+	amfSelf.AllocateRegistrationArea(ue, anType, ctext)
 	ue.GmmLog.Debug("use original GUTI", zap.String("guti", ue.Guti))
 
 	assignLadnInfo(ue, anType)
@@ -658,7 +659,7 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType, ctex
 	}
 
 	if anType == models.AccessType3GPPAccess {
-		err := gmm_message.SendRegistrationAccept(ue, anType, nil, nil, nil, nil, nil)
+		err := gmm_message.SendRegistrationAccept(ue, anType, nil, nil, nil, nil, nil, ctext)
 		if err != nil {
 			return fmt.Errorf("error sending GMM registration accept: %v", err)
 		}
@@ -666,12 +667,12 @@ func HandleInitialRegistration(ue *context.AmfUe, anType models.AccessType, ctex
 	} else {
 		// TS 23.502 4.12.2.2 10a ~ 13: if non-3gpp, AMF should send initial context setup request to N3IWF first,
 		// and send registration accept after receiving initial context setup response
-		err := ngap_message.SendInitialContextSetupRequest(ue, anType, nil, nil, nil, nil, nil)
+		err := ngap_message.SendInitialContextSetupRequest(ue, anType, nil, nil, nil, nil, nil, ctext)
 		if err != nil {
 			return fmt.Errorf("error sending initial context setup request: %v", err)
 		}
 		ue.GmmLog.Info("Sent NGAP initial context setup request to N3IWF")
-		registrationAccept, err := gmm_message.BuildRegistrationAccept(ue, anType, nil, nil, nil, nil)
+		registrationAccept, err := gmm_message.BuildRegistrationAccept(ue, anType, nil, nil, nil, nil, ctext)
 		if err != nil {
 			ue.GmmLog.Error("Build Registration Accept", zap.Error(err))
 			return nil
@@ -698,7 +699,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		getSubscribedNssai(ue, ctext)
 	}
 
-	if err := handleRequestedNssai(ue, anType); err != nil {
+	if err := handleRequestedNssai(ue, anType, ctext); err != nil {
 		return err
 	}
 
@@ -805,10 +806,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			pduSessionID := int32(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 				if !psiArray[psi] && smContext.AccessType() == anType {
+					ctext, span := tracer.Start(ctext, "smf.ReleaseSmContext")
 					err := pdusession.ReleaseSmContext(smContext.SmContextRef(), ctext)
 					if err != nil {
 						return fmt.Errorf("failed to release sm context: %s", err)
 					}
+					span.End()
 					if err != nil {
 						pduSessionStatus[psi] = true
 						ue.GmmLog.Error("error sending release sm context request", zap.Error(err))
@@ -833,7 +836,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			if n2Info == nil {
 				if len(suList.List) != 0 {
 					nasPdu, err := gmm_message.BuildRegistrationAccept(ue, anType, pduSessionStatus,
-						reactivationResult, errPduSessionID, errCause)
+						reactivationResult, errPduSessionID, errCause, ctext)
 					if err != nil {
 						return err
 					}
@@ -843,7 +846,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 					}
 					ue.GmmLog.Info("Sent NGAP pdu session resource setup request")
 				} else {
-					err := gmm_message.SendRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList)
+					err := gmm_message.SendRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, ctext)
 					if err != nil {
 						return fmt.Errorf("error sending GMM registration accept: %v", err)
 					}
@@ -935,31 +938,31 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		updateReq := models.PolicyAssociationUpdateRequest{}
 		updateReq.Triggers = append(updateReq.Triggers, models.RequestTriggerLocCh)
 		updateReq.UserLoc = &ue.Location
-		err := consumer.AMPolicyControlUpdate(ue, updateReq)
+		err := consumer.AMPolicyControlUpdate(ue, updateReq, ctext)
 		if err != nil {
 			ue.GmmLog.Error("AM Policy Control Update Error", zap.Error(err))
 		}
 		ue.LocationChanged = false
 	}
 
-	amfSelf.AllocateRegistrationArea(ue, anType)
+	amfSelf.AllocateRegistrationArea(ue, anType, ctext)
 	assignLadnInfo(ue, anType)
 
 	if ue.RanUe[anType].UeContextRequest {
 		if anType == models.AccessType3GPPAccess {
-			err := gmm_message.SendRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList)
+			err := gmm_message.SendRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, ctext)
 			if err != nil {
 				return fmt.Errorf("error sending GMM registration accept: %v", err)
 			}
 			ue.GmmLog.Info("Sent GMM registration accept")
 		} else {
-			err := ngap_message.SendInitialContextSetupRequest(ue, anType, nil, &ctxList, nil, nil, nil)
+			err := ngap_message.SendInitialContextSetupRequest(ue, anType, nil, &ctxList, nil, nil, nil, ctext)
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
 			ue.GmmLog.Info("Sent NGAP initial context setup request")
 			registrationAccept, err := gmm_message.BuildRegistrationAccept(ue, anType,
-				pduSessionStatus, reactivationResult, errPduSessionID, errCause)
+				pduSessionStatus, reactivationResult, errPduSessionID, errCause, ctext)
 			if err != nil {
 				ue.GmmLog.Error("Build Registration Accept", zap.Error(err))
 				return nil
@@ -968,7 +971,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		}
 		return nil
 	} else {
-		nasPdu, err := gmm_message.BuildRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause)
+		nasPdu, err := gmm_message.BuildRegistrationAccept(ue, anType, pduSessionStatus, reactivationResult, errPduSessionID, errCause, ctext)
 		if err != nil {
 			return fmt.Errorf("error building registration accept: %v", err)
 		}
@@ -1030,7 +1033,7 @@ func negotiateDRXParameters(ue *context.AmfUe, requestedDRXParameters *nasType.R
 }
 
 func communicateWithUDM(ctext ctx.Context, ue *context.AmfUe, accessType models.AccessType) error {
-	err := consumer.UeCmRegistration(ue, accessType, true)
+	err := consumer.UeCmRegistration(ue, accessType, true, ctext)
 	if err != nil {
 		ue.GmmLog.Error("UECM_Registration Error", zap.Error(err))
 	}
@@ -1045,12 +1048,12 @@ func communicateWithUDM(ctext ctx.Context, ue *context.AmfUe, accessType models.
 		return fmt.Errorf("error getting smf selection data: %v", err)
 	}
 
-	err = consumer.SDMGetUeContextInSmfData(ue)
+	err = consumer.SDMGetUeContextInSmfData(ue, ctext)
 	if err != nil {
 		return fmt.Errorf("error getting ue context in smf data: %v", err)
 	}
 
-	err = consumer.SDMSubscribe(ue)
+	err = consumer.SDMSubscribe(ue, ctext)
 	if err != nil {
 		return fmt.Errorf("error subscribing: %v", err)
 	}
@@ -1066,7 +1069,7 @@ func getSubscribedNssai(ue *context.AmfUe, ctext ctx.Context) {
 }
 
 // TS 23.502 4.2.2.2.3 Registration with AMF Re-allocation
-func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
+func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType, ctext ctx.Context) error {
 	amfSelf := context.AMFSelf()
 
 	if ue.RegistrationRequest.RequestedNSSAI != nil {
@@ -1154,7 +1157,7 @@ func handleRequestedNssai(ue *context.AmfUe, anType models.AccessType) error {
 	if len(ue.AllowedNssai[anType]) == 0 {
 		for _, snssai := range ue.SubscribedNssai {
 			if snssai.DefaultIndication {
-				if amfSelf.InPlmnSupport(*snssai.SubscribedSnssai) {
+				if amfSelf.InPlmnSupport(*snssai.SubscribedSnssai, ctext) {
 					allowedSnssai := models.AllowedSnssai{
 						AllowedSnssai: snssai.SubscribedSnssai,
 					}
@@ -1285,10 +1288,12 @@ func HandleNotificationResponse(ue *context.AmfUe, notificationResponse *nasMess
 			pduSessionID := int32(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 				if !psiArray[psi] {
+					ctext, span := tracer.Start(ctext, "smf.ReleaseSmContext")
 					err := pdusession.ReleaseSmContext(smContext.SmContextRef(), ctext)
 					if err != nil {
 						return fmt.Errorf("failed to release sm context: %s", err)
 					}
+					span.End()
 				}
 			}
 		}
@@ -1356,10 +1361,12 @@ func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType model
 
 		if smContext.AccessType() == accessType {
 			ue.GmmLog.Info("Sending SmContext Release Request to SMF", zap.Any("slice", smContext.Snssai()), zap.String("dnn", smContext.Dnn()))
+			ctext, span := tracer.Start(ctext, "smf.ReleaseSmContext")
 			err := pdusession.ReleaseSmContext(smContext.SmContextRef(), ctext)
 			if err != nil {
 				ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
 			}
+			span.End()
 		}
 		return true
 	})
@@ -1374,7 +1381,7 @@ func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType model
 		}
 
 		if terminateAmPolicyAssocaition {
-			err = consumer.AMPolicyControlDelete(ue)
+			err = consumer.AMPolicyControlDelete(ue, ctext)
 			if err != nil {
 				ue.GmmLog.Error("AM Policy Control Delete Error", zap.Error(err))
 			}
@@ -1503,7 +1510,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType, serviceRe
 
 	ue.RanUe[anType].UeContextRequest = true
 	if serviceType == nasMessage.ServiceTypeSignalling {
-		err := sendServiceAccept(ue, anType, ctxList, suList, nil, nil, nil, nil)
+		err := sendServiceAccept(ue, anType, ctxList, suList, nil, nil, nil, nil, ctext)
 		return err
 	}
 	if ue.N1N2Message != nil {
@@ -1556,10 +1563,12 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType, serviceRe
 			smContext := value.(*context.SmContext)
 			if smContext.AccessType() == anType {
 				if !psiArray[pduSessionID] {
+					ctext, span := tracer.Start(ctext, "smf.ReleaseSmContext")
 					err := pdusession.ReleaseSmContext(smContext.SmContextRef(), ctext)
 					if err != nil {
 						ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
 					}
+					span.End()
 				} else {
 					acceptPduSessionPsi[pduSessionID] = true
 				}
@@ -1577,7 +1586,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType, serviceRe
 			// downlink signalling
 			if n2Info == nil {
 				err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi,
-					reactivationResult, errPduSessionID, errCause)
+					reactivationResult, errPduSessionID, errCause, ctext)
 				if err != nil {
 					return err
 				}
@@ -1671,14 +1680,14 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType, serviceRe
 					ngap_message.AppendPDUSessionResourceSetupListSUReq(&suList, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
 				}
 			}
-			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause)
+			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, ctext)
 			if err != nil {
 				return err
 			}
 		}
 		// downlink signaling
 		if ue.ConfigurationUpdateMessage != nil {
-			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause)
+			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, ctext)
 			if err != nil {
 				return err
 			}
@@ -1710,13 +1719,13 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType, serviceRe
 					return nil
 				}
 			}
-			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause)
+			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, ctext)
 			if err != nil {
 				return err
 			}
 		} else {
 			err := sendServiceAccept(ue, anType, ctxList, suList, acceptPduSessionPsi,
-				reactivationResult, errPduSessionID, errCause)
+				reactivationResult, errPduSessionID, errCause, ctext)
 			if err != nil {
 				return err
 			}
@@ -1734,6 +1743,7 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType, serviceRe
 func sendServiceAccept(ue *context.AmfUe, anType models.AccessType, ctxList ngapType.PDUSessionResourceSetupListCxtReq,
 	suList ngapType.PDUSessionResourceSetupListSUReq, pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool, errPduSessionID, errCause []uint8,
+	ctext ctx.Context,
 ) error {
 	if ue.RanUe[anType].UeContextRequest {
 		// update Kgnb/Kn3iwf
@@ -1745,13 +1755,13 @@ func sendServiceAccept(ue *context.AmfUe, anType models.AccessType, ctxList ngap
 			return err
 		}
 		if len(ctxList.List) != 0 {
-			err := ngap_message.SendInitialContextSetupRequest(ue, anType, nasPdu, &ctxList, nil, nil, nil)
+			err := ngap_message.SendInitialContextSetupRequest(ue, anType, nasPdu, &ctxList, nil, nil, nil, ctext)
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
 			ue.GmmLog.Info("Sent NGAP initial context setup request")
 		} else {
-			err := ngap_message.SendInitialContextSetupRequest(ue, anType, nasPdu, nil, nil, nil, nil)
+			err := ngap_message.SendInitialContextSetupRequest(ue, anType, nasPdu, nil, nil, nil, nil, ctext)
 			if err != nil {
 				return fmt.Errorf("error sending initial context setup request: %v", err)
 			}
@@ -1831,7 +1841,7 @@ func HandleAuthenticationResponse(ctext ctx.Context, ue *context.AmfUe, accessTy
 			}
 		}
 
-		response, err := consumer.SendAuth5gAkaConfirmRequest(ue, hex.EncodeToString(resStar[:]))
+		response, err := consumer.SendAuth5gAkaConfirmRequest(ue, hex.EncodeToString(resStar[:]), ctext)
 		if err != nil {
 			return fmt.Errorf("Authentication procedure failed: %s", err)
 		}
@@ -1867,7 +1877,7 @@ func HandleAuthenticationResponse(ctext ctx.Context, ue *context.AmfUe, accessTy
 			}
 		}
 	case models.AuthTypeEAPAkaPrime:
-		response, err := consumer.SendEapAuthConfirmRequest(ue.Suci, *authenticationResponse.EAPMessage)
+		response, err := consumer.SendEapAuthConfirmRequest(ue.Suci, *authenticationResponse.EAPMessage, ctext)
 		if err != nil {
 			return err
 		}
@@ -2121,10 +2131,12 @@ func HandleDeregistrationRequest(ctext ctx.Context, ue *context.AmfUe, anType mo
 
 		if smContext.AccessType() == anType ||
 			targetDeregistrationAccessType == nasMessage.AccessTypeBoth {
+			ctext, span := tracer.Start(ctext, "smf.ReleaseSmContext")
 			err := pdusession.ReleaseSmContext(smContext.SmContextRef(), ctext)
 			if err != nil {
 				ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
 			}
+			span.End()
 		}
 		return true
 	})
@@ -2139,7 +2151,7 @@ func HandleDeregistrationRequest(ctext ctx.Context, ue *context.AmfUe, anType mo
 		}
 
 		if terminateAmPolicyAssocaition {
-			err := consumer.AMPolicyControlDelete(ue)
+			err := consumer.AMPolicyControlDelete(ue, ctext)
 			if err != nil {
 				ue.GmmLog.Error("AM Policy Control Delete Error", zap.Error(err))
 			}

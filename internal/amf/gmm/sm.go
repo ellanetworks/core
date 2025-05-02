@@ -37,7 +37,7 @@ func DeRegistered(ctext ctx.Context, state *fsm.State, event fsm.EventType, args
 		amfUe.GmmLog.Debug("GmmMessageEvent at GMM State[DeRegistered]")
 		switch gmmMessage.GetMessageType() {
 		case nas.MsgTypeRegistrationRequest:
-			if err := HandleRegistrationRequest(amfUe, accessType, procedureCode, gmmMessage.RegistrationRequest); err != nil {
+			if err := HandleRegistrationRequest(amfUe, accessType, procedureCode, gmmMessage.RegistrationRequest, ctext); err != nil {
 				logger.AmfLog.Error("Error handling registration request", zap.Error(err))
 			} else {
 				if err := GmmFSM.SendEvent(ctext, state, StartAuthEvent, fsm.ArgsType{
@@ -88,7 +88,7 @@ func Registered(ctext ctx.Context, state *fsm.State, event fsm.EventType, args f
 		switch gmmMessage.GetMessageType() {
 		// Mobility Registration update / Periodic Registration update
 		case nas.MsgTypeRegistrationRequest:
-			if err := HandleRegistrationRequest(amfUe, accessType, procedureCode, gmmMessage.RegistrationRequest); err != nil {
+			if err := HandleRegistrationRequest(amfUe, accessType, procedureCode, gmmMessage.RegistrationRequest, ctext); err != nil {
 				logger.AmfLog.Error("Error handling registration request", zap.Error(err))
 			} else {
 				if err := GmmFSM.SendEvent(ctext, state, StartAuthEvent, fsm.ArgsType{

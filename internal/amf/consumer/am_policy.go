@@ -13,10 +13,14 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/pcf"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
+var tracer = otel.Tracer("ella-core/amf/consumer")
+
 func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType, ctext ctx.Context) error {
-	guamiList := context.GetServedGuamiList()
+	guamiList := context.GetServedGuamiList(ctext)
 
 	policyAssociationRequest := models.PolicyAssociationRequest{
 		Supi:       ue.Supi,
@@ -40,6 +44,11 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType, ctext ct
 		policyAssociationRequest.Rfsp = ue.AccessAndMobilitySubscriptionData.RfspIndex
 	}
 
+	ctext, span := tracer.Start(ctext, "pcf.CreateAMPolicy")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supi", ue.Supi),
+	)
 	res, locationHeader, err := pcf.CreateAMPolicy(policyAssociationRequest, ctext)
 	if err != nil {
 		return fmt.Errorf("failed to create policy: %+v", err)
@@ -56,7 +65,12 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType, ctext ct
 	return nil
 }
 
-func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssociationUpdateRequest) error {
+func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssociationUpdateRequest, ctext ctx.Context) error {
+	_, span := tracer.Start(ctext, "pcf.UpdateAMPolicy")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supi", ue.Supi),
+	)
 	res, err := pcf.UpdateAMPolicy(ue.PolicyAssociationID, updateRequest)
 	if err != nil {
 		return fmt.Errorf("failed to update policy: %+v", err)
@@ -77,7 +91,12 @@ func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssocia
 	return nil
 }
 
-func AMPolicyControlDelete(ue *context.AmfUe) error {
+func AMPolicyControlDelete(ue *context.AmfUe, ctext ctx.Context) error {
+	_, span := tracer.Start(ctext, "pcf.DeleteAMPolicy")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supi", ue.Supi),
+	)
 	err := pcf.DeleteAMPolicy(ue.PolicyAssociationID)
 	if err != nil {
 		return fmt.Errorf("could not delete policy: %+v", err)

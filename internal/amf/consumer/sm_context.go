@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
 
@@ -40,11 +41,16 @@ func SelectSmf(
 }
 
 func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte, ctext ctx.Context) (string, *models.PostSmContextsErrorResponse, error) {
-	smContextCreateData := buildCreateSmContextRequest(ue, smContext)
+	smContextCreateData := buildCreateSmContextRequest(ue, smContext, ctext)
 	postSmContextsRequest := models.PostSmContextsRequest{
 		JSONData:              &smContextCreateData,
 		BinaryDataN1SmMessage: nasPdu,
 	}
+	ctext, span := tracer.Start(ctext, "smf.CreateSmContext")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supi", ue.Supi),
+	)
 	smContextRef, postSmContextErrorReponse, err := pdusession.CreateSmContext(postSmContextsRequest, ctext)
 	if err != nil {
 		return smContextRef, postSmContextErrorReponse, fmt.Errorf("create sm context request error: %s", err)
@@ -52,7 +58,7 @@ func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
 	return smContextRef, nil, nil
 }
 
-func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext) (smContextCreateData models.SmContextCreateData) {
+func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, ctext ctx.Context) (smContextCreateData models.SmContextCreateData) {
 	amfSelf := context.AMFSelf()
 	smContextCreateData.Supi = ue.Supi
 	smContextCreateData.Pei = ue.Pei
@@ -65,7 +71,7 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 	}
 	smContextCreateData.Dnn = smContext.Dnn()
 	smContextCreateData.ServingNfID = amfSelf.NfID
-	guamiList := context.GetServedGuamiList()
+	guamiList := context.GetServedGuamiList(ctext)
 	smContextCreateData.Guami = &models.Guami{
 		PlmnID: &models.PlmnID{
 			Mcc: guamiList[0].PlmnID.Mcc,
@@ -248,8 +254,7 @@ func SendUpdateSmContextN2HandoverPreparing(ue *context.AmfUe, smContext *contex
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo, ctext)
 }
 
-func SendUpdateSmContextN2HandoverPrepared(ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte, ctext ctx.Context) (*models.UpdateSmContextResponse, error,
-) {
+func SendUpdateSmContextN2HandoverPrepared(ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte, ctext ctx.Context) (*models.UpdateSmContextResponse, error) {
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
@@ -260,8 +265,7 @@ func SendUpdateSmContextN2HandoverPrepared(ue *context.AmfUe, smContext *context
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo, ctext)
 }
 
-func SendUpdateSmContextN2HandoverComplete(ue *context.AmfUe, smContext *context.SmContext, amfid string, guami *models.Guami, ctext ctx.Context) (*models.UpdateSmContextResponse, error,
-) {
+func SendUpdateSmContextN2HandoverComplete(ue *context.AmfUe, smContext *context.SmContext, amfid string, guami *models.Guami, ctext ctx.Context) (*models.UpdateSmContextResponse, error) {
 	updateData := models.SmContextUpdateData{}
 	updateData.HoState = models.HoStateCompleted
 	if amfid != "" {
@@ -311,7 +315,8 @@ func SendUpdateSmContextRequest(smContext *context.SmContext, updateData models.
 	updateSmContextRequest.JSONData = &updateData
 	updateSmContextRequest.BinaryDataN1SmMessage = n1Msg
 	updateSmContextRequest.BinaryDataN2SmInformation = n2Info
-
+	ctext, span := tracer.Start(ctext, "smf.UpdateSmContext")
+	defer span.End()
 	updateSmContextReponse, err := pdusession.UpdateSmContext(smContext.SmContextRef(), updateSmContextRequest, ctext)
 	if err != nil {
 		return updateSmContextReponse, fmt.Errorf("failed to update sm context: %s", err)

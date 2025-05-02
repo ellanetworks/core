@@ -7,6 +7,7 @@
 package nassecurity
 
 import (
+	ctx "context"
 	"encoding/hex"
 	"fmt"
 	"reflect"
@@ -92,8 +93,8 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 	}
 }
 
-func StmsiToGuti(buf [7]byte) (guti string) {
-	guamiList := context.GetServedGuamiList()
+func StmsiToGuti(buf [7]byte, ctext ctx.Context) (guti string) {
+	guamiList := context.GetServedGuamiList(ctext)
 	servedGuami := guamiList[0]
 
 	tmpReginID := servedGuami.AmfID[:2]
@@ -108,7 +109,7 @@ func StmsiToGuti(buf [7]byte) (guti string) {
 /*
 fetch Guti if present incase of integrity protected Nas Message
 */
-func FetchUeContextWithMobileIdentity(payload []byte) *context.AmfUe {
+func FetchUeContextWithMobileIdentity(payload []byte, ctext ctx.Context) *context.AmfUe {
 	if payload == nil {
 		return nil
 	}
@@ -152,7 +153,7 @@ func FetchUeContextWithMobileIdentity(payload []byte) *context.AmfUe {
 	} else if msg.GmmHeader.GetMessageType() == nas.MsgTypeServiceRequest {
 		mobileIdentity5GSContents := msg.ServiceRequest.TMSI5GS.Octet
 		if nasMessage.MobileIdentity5GSType5gSTmsi == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
-			guti = StmsiToGuti(mobileIdentity5GSContents)
+			guti = StmsiToGuti(mobileIdentity5GSContents, ctext)
 			logger.AmfLog.Debug("Guti derived from Service Request Message", zap.String("guti", guti))
 		}
 	} else if msg.GmmHeader.GetMessageType() == nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration {

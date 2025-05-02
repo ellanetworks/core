@@ -45,7 +45,7 @@ func CreateSmContext(request models.PostSmContextsRequest, ctext ctx.Context) (s
 	if err != nil {
 		if smContext != nil {
 			go func() {
-				err := producer.SendPduSessN1N2Transfer(smContext, false)
+				err := producer.SendPduSessN1N2Transfer(smContext, false, ctext)
 				if err != nil {
 					logger.SmfLog.Error("error transferring n1 n2", zap.Error(err))
 				}
@@ -55,7 +55,7 @@ func CreateSmContext(request models.PostSmContextsRequest, ctext ctx.Context) (s
 	}
 
 	go func() {
-		err := producer.SendPduSessN1N2Transfer(smContext, true)
+		err := producer.SendPduSessN1N2Transfer(smContext, true, ctext)
 		if err != nil {
 			logger.SmfLog.Error("error transferring n1 n2", zap.Error(err))
 		}

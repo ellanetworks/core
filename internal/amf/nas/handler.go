@@ -28,9 +28,9 @@ func HandleNAS(ctext ctx.Context, ue *context.RanUe, procedureCode int64, nasPdu
 
 	// First-time UE attach: fetch or create AMF context
 	if ue.AmfUe == nil {
-		ue.AmfUe = nassecurity.FetchUeContextWithMobileIdentity(nasPdu)
+		ue.AmfUe = nassecurity.FetchUeContextWithMobileIdentity(nasPdu, ctext)
 		if ue.AmfUe == nil {
-			ue.AmfUe = amfSelf.NewAmfUe("")
+			ue.AmfUe = amfSelf.NewAmfUe("", ctext)
 		}
 
 		eeCtx := ue.AmfUe

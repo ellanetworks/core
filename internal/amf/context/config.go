@@ -39,10 +39,10 @@ func GetSupportTaiList(ctx context.Context) []models.Tai {
 	return tais
 }
 
-func GetServedGuamiList() []models.Guami {
+func GetServedGuamiList(ctx context.Context) []models.Guami {
 	amfSelf := AMFSelf()
 	guamis := make([]models.Guami, 0)
-	dbNetwork, err := amfSelf.DBInstance.GetOperator(context.Background())
+	dbNetwork, err := amfSelf.DBInstance.GetOperator(ctx)
 	if err != nil {
 		logger.AmfLog.Warn("Failed to get operator", zap.Error(err))
 		return guamis
@@ -59,9 +59,9 @@ func GetServedGuamiList() []models.Guami {
 	return guamis
 }
 
-func GetSupportedPlmn() *PlmnSupportItem {
+func GetSupportedPlmn(ctx context.Context) *PlmnSupportItem {
 	amfSelf := AMFSelf()
-	operator, err := amfSelf.DBInstance.GetOperator(context.Background())
+	operator, err := amfSelf.DBInstance.GetOperator(ctx)
 	if err != nil {
 		logger.AmfLog.Warn("Failed to get operator", zap.Error(err))
 		return nil

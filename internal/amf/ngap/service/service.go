@@ -7,6 +7,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -20,7 +21,7 @@ import (
 )
 
 type NGAPHandler struct {
-	HandleMessage      func(conn net.Conn, msg []byte)
+	HandleMessage      func(conn net.Conn, msg []byte, ctx context.Context)
 	HandleNotification func(conn net.Conn, notification sctp.Notification)
 }
 
@@ -196,7 +197,7 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler NGAPHandler) 
 				continue
 			}
 
-			handler.HandleMessage(conn, buf[:n])
+			handler.HandleMessage(conn, buf[:n], context.Background())
 		}
 	}
 }
