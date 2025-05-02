@@ -2509,10 +2509,12 @@ func HandleUEContextReleaseRequest(ran *context.AmfRan, message *ngapType.NGAPPD
 			ranUe.Log.Info("Ue Context in Non GMM-Registered")
 			amfUe.SmContextList.Range(func(key, value interface{}) bool {
 				smContext := value.(*context.SmContext)
+				ctext, span := tracer.Start(ctext, "smf.ReleaseSmContext")
 				err := pdusession.ReleaseSmContext(smContext.SmContextRef(), ctext)
 				if err != nil {
 					ranUe.Log.Error("error sending release sm context request", zap.Error(err))
 				}
+				span.End()
 				return true
 			})
 			err := ngap_message.SendUEContextReleaseCommand(ranUe, context.UeContextReleaseUeContext, causeGroup, causeValue)

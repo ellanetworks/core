@@ -17,7 +17,7 @@ import (
 )
 
 func SDMGetAmData(ue *context.AmfUe, ctext ctx.Context) error {
-	_, span := tracer.Start(ctext, "udm.GetAmDataAndSetAMSubscription")
+	ctext, span := tracer.Start(ctext, "udm.GetAmDataAndSetAMSubscription")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", ue.Supi),
@@ -31,7 +31,7 @@ func SDMGetAmData(ue *context.AmfUe, ctext ctx.Context) error {
 }
 
 func SDMGetSmfSelectData(ue *context.AmfUe, ctext ctx.Context) error {
-	_, span := tracer.Start(ctext, "udm.GetAndSetSmfSelectData")
+	ctext, span := tracer.Start(ctext, "udm.GetAndSetSmfSelectData")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", ue.Supi),
@@ -80,7 +80,7 @@ func SDMSubscribe(ue *context.AmfUe, ctext ctx.Context) error {
 }
 
 func SDMGetSliceSelectionSubscriptionData(ue *context.AmfUe, ctext ctx.Context) error {
-	_, span := tracer.Start(ctext, "udm.GetNssai")
+	ctext, span := tracer.Start(ctext, "udm.GetNssai")
 	span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", ue.Supi),

@@ -44,7 +44,7 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType, ctext ct
 		policyAssociationRequest.Rfsp = ue.AccessAndMobilitySubscriptionData.RfspIndex
 	}
 
-	_, span := tracer.Start(ctext, "pcf.CreateAMPolicy")
+	ctext, span := tracer.Start(ctext, "pcf.CreateAMPolicy")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", ue.Supi),

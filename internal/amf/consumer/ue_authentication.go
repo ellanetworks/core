@@ -42,7 +42,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe, resynchronizatio
 	if resynchronizationInfo != nil {
 		authInfo.ResynchronizationInfo = resynchronizationInfo
 	}
-	_, span := tracer.Start(ctext, "ausf.UeAuthPostRequest")
+	ctext, span := tracer.Start(ctext, "ausf.UeAuthPostRequest")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.suci", ue.Suci),

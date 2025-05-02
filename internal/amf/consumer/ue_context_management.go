@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRegistrationInd bool, ctext ctx.Context) error {
@@ -34,10 +35,15 @@ func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRe
 			RatType: ue.RatType,
 			ImsVoPs: models.ImsVoPsHomogeneousNonSupport,
 		}
+		_, span := tracer.Start(ctext, "udm.EditRegistrationAmf3gppAccess")
+		span.SetAttributes(
+			attribute.String("ue.supi", ue.Supi),
+		)
 		err := udm.EditRegistrationAmf3gppAccess(registrationData, ue.Supi)
 		if err != nil {
 			return err
 		}
+		span.End()
 	case models.AccessTypeNon3GPPAccess:
 		return fmt.Errorf("Non-3GPP access is not supported")
 	}
