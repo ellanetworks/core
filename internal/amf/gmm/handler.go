@@ -500,7 +500,7 @@ func HandleRegistrationRequest(ue *context.AmfUe, anType models.AccessType, proc
 	ue.Tai = ue.RanUe[anType].Tai
 
 	// Check TAI
-	supportTaiList := context.GetSupportTaiList(ctx.Background())
+	supportTaiList := context.GetSupportTaiList(ctext)
 	taiList := make([]models.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)
 	for i := range taiList {

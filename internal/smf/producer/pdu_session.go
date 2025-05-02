@@ -25,7 +25,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var tracer = otel.Tracer("ella-core/smf/product")
+var tracer = otel.Tracer("ella-core/smf/producer")
 
 func HandlePduSessionContextReplacement(smCtxtRef string, ctext ctx.Context) error {
 	smCtxt := context.GetSMContext(smCtxtRef)
@@ -79,7 +79,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 
 	// IP Allocation
 	smfSelf := context.SMFSelf()
-	ip, err := smfSelf.DBInstance.AllocateIP(smContext.Supi, ctx.Background())
+	ip, err := smfSelf.DBInstance.AllocateIP(smContext.Supi, ctext)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMInsufficientResources)
 		return "", response, fmt.Errorf("failed to allocate IP address: %v", err)

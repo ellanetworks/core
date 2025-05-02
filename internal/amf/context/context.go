@@ -134,13 +134,13 @@ func (context *AMFContext) ReAllocateGutiToUe(ue *AmfUe, ctext ctx.Context) {
 	ue.Guti = plmnID + servedGuami.AmfID + tmsiStr
 }
 
-func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.AccessType) {
+func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.AccessType, ctext ctx.Context) {
 	// clear the previous registration area if need
 	if len(ue.RegistrationArea[anType]) > 0 {
 		ue.RegistrationArea[anType] = nil
 	}
 
-	supportTaiList := GetSupportTaiList(ctx.Background())
+	supportTaiList := GetSupportTaiList(ctext)
 	taiList := make([]models.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)
 	for i := range taiList {
