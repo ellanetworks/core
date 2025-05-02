@@ -19,7 +19,10 @@ import (
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"go.opentelemetry.io/otel"
 )
+
+var tracer = otel.Tracer("ella-core/ausf")
 
 // Generates a random int between 0 and 255
 func GenerateRandomNumber() (uint8, error) {
@@ -51,11 +54,12 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
 	}
-
+	ctx, span := tracer.Start(ctx, "udm.CreateAuthData")
 	authInfoResult, err := udm.CreateAuthData(authInfoReq, supiOrSuci, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auth data: %s", err)
 	}
+	span.End()
 
 	ueid := authInfoResult.Supi
 	ausfUeContext := NewAusfUeContext(ueid)

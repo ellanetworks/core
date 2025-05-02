@@ -254,8 +254,7 @@ func SendUpdateSmContextN2HandoverPreparing(ue *context.AmfUe, smContext *contex
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo, ctext)
 }
 
-func SendUpdateSmContextN2HandoverPrepared(ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte, ctext ctx.Context) (*models.UpdateSmContextResponse, error,
-) {
+func SendUpdateSmContextN2HandoverPrepared(ue *context.AmfUe, smContext *context.SmContext, n2SmType models.N2SmInfoType, N2SmInfo []byte, ctext ctx.Context) (*models.UpdateSmContextResponse, error) {
 	updateData := models.SmContextUpdateData{}
 	if n2SmType != "" {
 		updateData.N2SmInfoType = n2SmType
@@ -266,8 +265,7 @@ func SendUpdateSmContextN2HandoverPrepared(ue *context.AmfUe, smContext *context
 	return SendUpdateSmContextRequest(smContext, updateData, nil, N2SmInfo, ctext)
 }
 
-func SendUpdateSmContextN2HandoverComplete(ue *context.AmfUe, smContext *context.SmContext, amfid string, guami *models.Guami, ctext ctx.Context) (*models.UpdateSmContextResponse, error,
-) {
+func SendUpdateSmContextN2HandoverComplete(ue *context.AmfUe, smContext *context.SmContext, amfid string, guami *models.Guami, ctext ctx.Context) (*models.UpdateSmContextResponse, error) {
 	updateData := models.SmContextUpdateData{}
 	updateData.HoState = models.HoStateCompleted
 	if amfid != "" {

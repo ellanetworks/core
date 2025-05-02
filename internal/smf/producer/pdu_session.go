@@ -20,8 +20,12 @@ import (
 	"github.com/ellanetworks/core/internal/util/marshtojsonstring"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
+
+var tracer = otel.Tracer("ella-core/smf/product")
 
 func HandlePduSessionContextReplacement(smCtxtRef string, ctext ctx.Context) error {
 	smCtxt := context.GetSMContext(smCtxtRef)
@@ -34,7 +38,7 @@ func HandlePduSessionContextReplacement(smCtxtRef string, ctext ctx.Context) err
 
 	// Check if UPF session set, send release
 	if smCtxt.Tunnel != nil {
-		err := releaseTunnel(smCtxt)
+		err := releaseTunnel(smCtxt, ctext)
 		if err != nil {
 			smCtxt.SubPduSessLog.Error("release tunnel failed", zap.Error(err))
 		}
@@ -179,12 +183,12 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 
 	// Initiate PFCP Release
 	if pfcpAction.sendPfcpDelete {
-		if err = SendPfcpSessionReleaseReq(smContext); err != nil {
+		if err = SendPfcpSessionReleaseReq(smContext, ctext); err != nil {
 			return nil, fmt.Errorf("pfcp session release error: %v ", err.Error())
 		}
 	} else if pfcpAction.sendPfcpModify {
 		// Initiate PFCP Modify
-		err := SendPfcpSessionModifyReq(smContext, pfcpParam)
+		err := SendPfcpSessionModifyReq(smContext, pfcpParam, ctext)
 		if err != nil {
 			return nil, fmt.Errorf("pfcp session modify error: %v ", err.Error())
 		}
@@ -199,7 +203,7 @@ func HandlePDUSessionSMContextRelease(smContext *context.SMContext, ctext ctx.Co
 	defer smContext.SMLock.Unlock()
 
 	// Send Policy delete
-	err := SendSMPolicyAssociationDelete(smContext.Supi, smContext.PDUSessionID)
+	err := SendSMPolicyAssociationDelete(smContext.Supi, smContext.PDUSessionID, ctext)
 	if err != nil {
 		smContext.SubCtxLog.Error("error deleting policy association", zap.Error(err))
 	}
@@ -211,7 +215,7 @@ func HandlePDUSessionSMContextRelease(smContext *context.SMContext, ctext ctx.Co
 	}
 
 	// Release User-plane
-	err = releaseTunnel(smContext)
+	err = releaseTunnel(smContext, ctext)
 	if err != nil {
 		context.RemoveSMContext(smContext.Ref, ctext)
 		return fmt.Errorf("release tunnel failed: %v", err)
@@ -220,7 +224,7 @@ func HandlePDUSessionSMContextRelease(smContext *context.SMContext, ctext ctx.Co
 	return nil
 }
 
-func releaseTunnel(smContext *context.SMContext) error {
+func releaseTunnel(smContext *context.SMContext, ctext ctx.Context) error {
 	if smContext.Tunnel == nil {
 		return fmt.Errorf("tunnel not found")
 	}
@@ -230,7 +234,7 @@ func releaseTunnel(smContext *context.SMContext) error {
 	curDataPathNode := dataPath.DPNode
 	curUPFID := curDataPathNode.UPF.UUID()
 	if _, exist := deletedPFCPNode[curUPFID]; !exist {
-		err := pfcp.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext)
+		err := pfcp.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext, ctext)
 		if err != nil {
 			return fmt.Errorf("send PFCP session deletion request failed: %v", err)
 		}
@@ -291,8 +295,13 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool, ctext c
 			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
 		}
 	}
-
+	ctext, span := tracer.Start(ctext, "amf.CreateN1N2MessageTransfer")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supi", smContext.Supi),
+	)
 	rspData, err := amf_producer.CreateN1N2MessageTransfer(smContext.Supi, n1n2Request, "", ctext)
+	span.End()
 	if err != nil {
 		err = smContext.CommitSmPolicyDecision(false)
 		if err != nil {
