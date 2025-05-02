@@ -240,7 +240,7 @@ func releaseTunnel(smContext *context.SMContext) error {
 	return nil
 }
 
-func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
+func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool, ctext ctx.Context) error {
 	// N1N2 Request towards AMF
 	n1n2Request := models.N1N2MessageTransferRequest{}
 
@@ -292,7 +292,7 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool) error {
 		}
 	}
 
-	rspData, err := amf_producer.CreateN1N2MessageTransfer(smContext.Supi, n1n2Request, "")
+	rspData, err := amf_producer.CreateN1N2MessageTransfer(smContext.Supi, n1n2Request, "", ctext)
 	if err != nil {
 		err = smContext.CommitSmPolicyDecision(false)
 		if err != nil {

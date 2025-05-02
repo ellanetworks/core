@@ -7,6 +7,7 @@
 package message
 
 import (
+	ctx "context"
 	"encoding/hex"
 	"fmt"
 
@@ -85,7 +86,7 @@ func BuildPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte,
 	return ngap.Encoder(pdu)
 }
 
-func BuildNGSetupResponse() ([]byte, error) {
+func BuildNGSetupResponse(ctext ctx.Context) ([]byte, error) {
 	amfSelf := context.AMFSelf()
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
@@ -119,7 +120,7 @@ func BuildNGSetupResponse() ([]byte, error) {
 	ie.Value.ServedGUAMIList = new(ngapType.ServedGUAMIList)
 
 	servedGUAMIList := ie.Value.ServedGUAMIList
-	guamiList := context.GetServedGuamiList()
+	guamiList := context.GetServedGuamiList(ctext)
 	for _, guami := range guamiList {
 		servedGUAMIItem := ngapType.ServedGUAMIItem{}
 		plmnID, err := util.PlmnIDToNgap(*guami.PlmnID)
@@ -156,7 +157,7 @@ func BuildNGSetupResponse() ([]byte, error) {
 	ie.Value.PLMNSupportList = new(ngapType.PLMNSupportList)
 
 	pLMNSupportList := ie.Value.PLMNSupportList
-	plmnSupported := context.GetSupportedPlmn()
+	plmnSupported := context.GetSupportedPlmn(ctext)
 	pLMNSupportItem := ngapType.PLMNSupportItem{}
 	plmnID, err := util.PlmnIDToNgap(plmnSupported.PlmnID)
 	if err != nil {
@@ -776,6 +777,7 @@ func BuildInitialContextSetupRequest(
 	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
 	coreNetworkAssistanceInfo *ngapType.CoreNetworkAssistanceInformation,
 	emergencyFallbackIndicator *ngapType.EmergencyFallbackIndicator,
+	ctext ctx.Context,
 ) ([]byte, error) {
 	// Old AMF: new amf should get old amf's amf name
 
@@ -896,7 +898,7 @@ func BuildInitialContextSetupRequest(
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	guamiList := context.GetServedGuamiList()
+	guamiList := context.GetServedGuamiList(ctext)
 	servedGuami := guamiList[0]
 
 	ngapPlmnID, err := util.PlmnIDToNgap(*servedGuami.PlmnID)
@@ -1325,7 +1327,7 @@ a Nsmf_PDUSession_CreateSMContext Response(N2 SM Information (PDU Session ID, ca
 // sourceToTargetTransparentContainer is received from S-RAN
 // nsci: new security context indicator, if amfUe has updated security context,
 // set nsci to true, otherwise set to false
-func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause, pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq, sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer) ([]byte, error) {
+func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause, pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq, sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer, ctext ctx.Context) ([]byte, error) {
 	amfUe := ue.AmfUe
 	if amfUe == nil {
 		return nil, fmt.Errorf("AmfUe is nil")
@@ -1452,7 +1454,7 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause, pduSessionRes
 	ie.Value.AllowedNSSAI = new(ngapType.AllowedNSSAI)
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
-	plmnSupport := context.GetSupportedPlmn()
+	plmnSupport := context.GetSupportedPlmn(ctext)
 	for _, snssaiItem := range plmnSupport.SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 
@@ -1490,7 +1492,7 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause, pduSessionRes
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	guamiList := context.GetServedGuamiList()
+	guamiList := context.GetServedGuamiList(ctext)
 	servedGuami := guamiList[0]
 
 	ngapPlmnID, err := util.PlmnIDToNgap(*servedGuami.PlmnID)
@@ -1522,6 +1524,7 @@ func BuildPathSwitchRequestAcknowledge(
 	coreNetworkAssistanceInformation *ngapType.CoreNetworkAssistanceInformation,
 	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
+	ctext ctx.Context,
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
@@ -1640,7 +1643,7 @@ func BuildPathSwitchRequestAcknowledge(
 	ie.Value.AllowedNSSAI = new(ngapType.AllowedNSSAI)
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
-	plmnSupport := context.GetSupportedPlmn()
+	plmnSupport := context.GetSupportedPlmn(ctext)
 	for _, modelSnssai := range plmnSupport.SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 		ngapSnssai, err := util.SNssaiToNgap(modelSnssai)

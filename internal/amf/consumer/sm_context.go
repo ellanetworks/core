@@ -40,7 +40,7 @@ func SelectSmf(
 }
 
 func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, nasPdu []byte, ctext ctx.Context) (string, *models.PostSmContextsErrorResponse, error) {
-	smContextCreateData := buildCreateSmContextRequest(ue, smContext)
+	smContextCreateData := buildCreateSmContextRequest(ue, smContext, ctext)
 	postSmContextsRequest := models.PostSmContextsRequest{
 		JSONData:              &smContextCreateData,
 		BinaryDataN1SmMessage: nasPdu,
@@ -52,7 +52,7 @@ func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
 	return smContextRef, nil, nil
 }
 
-func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext) (smContextCreateData models.SmContextCreateData) {
+func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext, ctext ctx.Context) (smContextCreateData models.SmContextCreateData) {
 	amfSelf := context.AMFSelf()
 	smContextCreateData.Supi = ue.Supi
 	smContextCreateData.Pei = ue.Pei
@@ -65,7 +65,7 @@ func buildCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext
 	}
 	smContextCreateData.Dnn = smContext.Dnn()
 	smContextCreateData.ServingNfID = amfSelf.NfID
-	guamiList := context.GetServedGuamiList()
+	guamiList := context.GetServedGuamiList(ctext)
 	smContextCreateData.Guami = &models.Guami{
 		PlmnID: &models.PlmnID{
 			Mcc: guamiList[0].PlmnID.Mcc,

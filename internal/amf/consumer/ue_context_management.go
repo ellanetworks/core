@@ -7,6 +7,7 @@
 package consumer
 
 import (
+	ctx "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
@@ -14,9 +15,9 @@ import (
 	"github.com/ellanetworks/core/internal/udm"
 )
 
-func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRegistrationInd bool) error {
+func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRegistrationInd bool, ctext ctx.Context) error {
 	amfSelf := context.AMFSelf()
-	guamiList := context.GetServedGuamiList()
+	guamiList := context.GetServedGuamiList(ctext)
 
 	switch accessType {
 	case models.AccessType3GPPAccess:

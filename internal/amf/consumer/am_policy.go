@@ -16,7 +16,7 @@ import (
 )
 
 func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType, ctext ctx.Context) error {
-	guamiList := context.GetServedGuamiList()
+	guamiList := context.GetServedGuamiList(ctext)
 
 	policyAssociationRequest := models.PolicyAssociationRequest{
 		Supi:       ue.Supi,

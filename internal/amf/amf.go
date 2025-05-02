@@ -3,6 +3,7 @@
 package amf
 
 import (
+	ctx "context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -148,7 +149,7 @@ func Terminate() {
 
 	// send AMF status indication to ran to notify ran that this AMF will be unavailable
 	logger.AmfLog.Info("Send AMF Status Indication to Notify RANs due to AMF terminating")
-	guamiList := context.GetServedGuamiList()
+	guamiList := context.GetServedGuamiList(ctx.Background())
 	unavailableGuamiList := message.BuildUnavailableGUAMIList(guamiList)
 	amfSelf.AmfRanPool.Range(func(key, value interface{}) bool {
 		ran := value.(*context.AmfRan)

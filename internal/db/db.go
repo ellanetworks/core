@@ -39,7 +39,6 @@ func (db *Database) Close() error {
 // The database path must be a valid file path or ":memory:".
 // The table will be created if it doesn't exist in the format expected by the package.
 func NewDatabase(databasePath string, initialOperator Operator) (*Database, error) {
-	// Register an instrumented driver for sqlite3
 	driverName, err := otelsql.Register(
 		"sqlite3",
 		otelsql.WithAttributes(
@@ -51,7 +50,6 @@ func NewDatabase(databasePath string, initialOperator Operator) (*Database, erro
 		return nil, fmt.Errorf("failed to register otel sqlite3 driver: %w", err)
 	}
 
-	// Open a connection using the instrumented driver
 	sqlConnection, err := sql.Open(driverName, databasePath)
 	if err != nil {
 		return nil, err

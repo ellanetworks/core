@@ -139,7 +139,7 @@ func procedureName(code int64) string {
 	}
 }
 
-func Dispatch(conn net.Conn, msg []byte) {
+func Dispatch(conn net.Conn, msg []byte, ctext ctx.Context) {
 	var ran *context.AmfRan
 	amfSelf := context.AMFSelf()
 
@@ -161,7 +161,7 @@ func Dispatch(conn net.Conn, msg []byte) {
 		return
 	}
 
-	ranUe, _ := FetchRanUeContext(ran, pdu)
+	ranUe, _ := FetchRanUeContext(ran, pdu, ctext)
 
 	/* uecontext is found, submit the message to transaction queue*/
 	if ranUe != nil && ranUe.AmfUe != nil {

@@ -17,11 +17,15 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasType"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
 
+var tracer = otel.Tracer("ella/consumer")
+
 func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe, resynchronizationInfo *models.ResynchronizationInfo, ctext ctx.Context) (*models.UeAuthenticationCtx, error) {
-	guamiList := context.GetServedGuamiList()
+	guamiList := context.GetServedGuamiList(ctext)
 	servedGuami := guamiList[0]
 	var plmnID *models.PlmnID
 	if ue.Tai.PlmnID != nil {
@@ -50,7 +54,13 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe, resynchronizatio
 	return ueAuthenticationCtx, nil
 }
 
-func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string) (*models.ConfirmationDataResponse, error) {
+func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string, ctext ctx.Context) (*models.ConfirmationDataResponse, error) {
+	_, span := tracer.Start(ctext, "SendAuth5gAkaConfirmRequest")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("ue.suci", ue.Suci),
+	)
 	confirmResult, err := ausf.Auth5gAkaComfirmRequestProcedure(resStar, ue.Suci)
 	if err != nil {
 		return nil, fmt.Errorf("ausf 5G-AKA Confirm Request failed: %s", err.Error())
