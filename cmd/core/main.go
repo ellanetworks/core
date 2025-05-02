@@ -105,7 +105,7 @@ func main() {
 		ctx := context.Background()
 		tp, err := tracing.InitTracer(ctx, tracing.TelemetryConfig{
 			OTLPEndpoint:   cfg.Telemetry.OTLPEndpoint,
-			ServiceName:    "ella-core",
+			ServiceName:    "amf",
 			ServiceVersion: version,
 		})
 		if err != nil {
