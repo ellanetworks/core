@@ -36,8 +36,8 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
             - `key` (string): The path to the TLS key file (optional).
 - `xdp` (object): The XDP configuration.
     - `attach-mode` (string): The XDP attach mode. Options are `native` and `generic`. `native` is the most performant option and only works on supported drivers.
-- `tracing` (object): The tracing configuration.
-    - `enabled` (boolean): Whether tracing is enabled or not. Default is `false`.
+- `telemetry` (object): The telemetry configuration.
+    - `enabled` (boolean): Whether telemetry is enabled or not. Default is `false`.
     - `otlp-endpoint` (string): The endpoint for the OpenTelemetry Protocol (OTLP) collector.
 
 ## Example

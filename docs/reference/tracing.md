@@ -2,7 +2,7 @@
 description: Reference for tracing in Ella Core.
 ---
 
-# Tracing (beta)
+# Tracing
 
 Ella Core supports tracing using [OpenTelemetry](https://opentelemetry.io/). This allows users to collect and export traces from Ella Core to a tracing backend for analysis and visualization.
 
@@ -17,7 +17,7 @@ Ella Core captures traces for each API call, allowing users to monitor and analy
 
 ## NGAP Interface (N2)
 
-Ella Core captures traces from each NGAP communication with the RAN, allowing users to monitor and analyze the performance of NGAP messages. This includes information about the message type. Each NGAP trace that includes NAS messages includes spans for the NAS operations.
+Ella Core captures traces from each NGAP communication with the RAN, allowing users to monitor and analyze the performance of NGAP messages. This includes information about the message type. Each NGAP trace that includes NAS message handling includes spans for the NAS operations.
 
 <figure markdown="span">
   ![Tracing](../images/tracing_ngap.png){ width="800" }
