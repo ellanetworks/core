@@ -933,7 +933,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 		updateReq := models.PolicyAssociationUpdateRequest{}
 		updateReq.Triggers = append(updateReq.Triggers, models.RequestTriggerLocCh)
 		updateReq.UserLoc = &ue.Location
-		err := consumer.AMPolicyControlUpdate(ue, updateReq)
+		err := consumer.AMPolicyControlUpdate(ue, updateReq, ctext)
 		if err != nil {
 			ue.GmmLog.Error("AM Policy Control Update Error", zap.Error(err))
 		}
@@ -1372,7 +1372,7 @@ func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType model
 		}
 
 		if terminateAmPolicyAssocaition {
-			err = consumer.AMPolicyControlDelete(ue)
+			err = consumer.AMPolicyControlDelete(ue, ctext)
 			if err != nil {
 				ue.GmmLog.Error("AM Policy Control Delete Error", zap.Error(err))
 			}
@@ -2138,7 +2138,7 @@ func HandleDeregistrationRequest(ctext ctx.Context, ue *context.AmfUe, anType mo
 		}
 
 		if terminateAmPolicyAssocaition {
-			err := consumer.AMPolicyControlDelete(ue)
+			err := consumer.AMPolicyControlDelete(ue, ctext)
 			if err != nil {
 				ue.GmmLog.Error("AM Policy Control Delete Error", zap.Error(err))
 			}

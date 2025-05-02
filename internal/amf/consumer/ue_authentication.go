@@ -17,12 +17,9 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasType"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
-
-var tracer = otel.Tracer("ella-core/ausf")
 
 func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe, resynchronizationInfo *models.ResynchronizationInfo, ctext ctx.Context) (*models.UeAuthenticationCtx, error) {
 	guamiList := context.GetServedGuamiList(ctext)
