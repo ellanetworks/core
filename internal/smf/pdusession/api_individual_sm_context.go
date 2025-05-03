@@ -11,9 +11,15 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func ReleaseSmContext(smContextRef string, ctext ctx.Context) error {
+	ctext, span := tracer.Start(ctext, "ReleaseSmContext")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("smContextRef", smContextRef),
+	)
 	ctxt := context.GetSMContext(smContextRef)
 	if ctxt == nil {
 		return fmt.Errorf("sm context not found: %s", smContextRef)
@@ -26,6 +32,11 @@ func ReleaseSmContext(smContextRef string, ctext ctx.Context) error {
 }
 
 func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSmContextRequest, ctext ctx.Context) (*models.UpdateSmContextResponse, error) {
+	ctext, span := tracer.Start(ctext, "UpdateSmContext")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("smContextRef", smContextRef),
+	)
 	if smContextRef == "" {
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}

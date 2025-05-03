@@ -26,11 +26,8 @@ import (
 	"github.com/omec-project/nas/nasType"
 	"github.com/omec-project/nas/security"
 	"github.com/omec-project/ngap/ngapType"
-	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 )
-
-var tracer = otel.Tracer("ella-core/amf/gmm")
 
 func SnssaiModelsToHex(snssai models.Snssai) string {
 	sst := fmt.Sprintf("%02x", snssai.Sst)
@@ -806,12 +803,10 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ue *context.AmfUe, anType mod
 			pduSessionID := int32(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 				if !psiArray[psi] && smContext.AccessType() == anType {
-					ctext, span := tracer.Start(ctext, "smf.ReleaseSmContext")
 					err := pdusession.ReleaseSmContext(smContext.SmContextRef(), ctext)
 					if err != nil {
 						return fmt.Errorf("failed to release sm context: %s", err)
 					}
-					span.End()
 					if err != nil {
 						pduSessionStatus[psi] = true
 						ue.GmmLog.Error("error sending release sm context request", zap.Error(err))
@@ -1288,12 +1283,10 @@ func HandleNotificationResponse(ue *context.AmfUe, notificationResponse *nasMess
 			pduSessionID := int32(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 				if !psiArray[psi] {
-					ctext, span := tracer.Start(ctext, "smf.ReleaseSmContext")
 					err := pdusession.ReleaseSmContext(smContext.SmContextRef(), ctext)
 					if err != nil {
 						return fmt.Errorf("failed to release sm context: %s", err)
 					}
-					span.End()
 				}
 			}
 		}
@@ -1361,12 +1354,10 @@ func NetworkInitiatedDeregistrationProcedure(ue *context.AmfUe, accessType model
 
 		if smContext.AccessType() == accessType {
 			ue.GmmLog.Info("Sending SmContext Release Request to SMF", zap.Any("slice", smContext.Snssai()), zap.String("dnn", smContext.Dnn()))
-			ctext, span := tracer.Start(ctext, "smf.ReleaseSmContext")
 			err := pdusession.ReleaseSmContext(smContext.SmContextRef(), ctext)
 			if err != nil {
 				ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
 			}
-			span.End()
 		}
 		return true
 	})
@@ -1563,12 +1554,10 @@ func HandleServiceRequest(ue *context.AmfUe, anType models.AccessType, serviceRe
 			smContext := value.(*context.SmContext)
 			if smContext.AccessType() == anType {
 				if !psiArray[pduSessionID] {
-					ctext, span := tracer.Start(ctext, "smf.ReleaseSmContext")
 					err := pdusession.ReleaseSmContext(smContext.SmContextRef(), ctext)
 					if err != nil {
 						ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
 					}
-					span.End()
 				} else {
 					acceptPduSessionPsi[pduSessionID] = true
 				}
@@ -2131,12 +2120,10 @@ func HandleDeregistrationRequest(ctext ctx.Context, ue *context.AmfUe, anType mo
 
 		if smContext.AccessType() == anType ||
 			targetDeregistrationAccessType == nasMessage.AccessTypeBoth {
-			ctext, span := tracer.Start(ctext, "smf.ReleaseSmContext")
 			err := pdusession.ReleaseSmContext(smContext.SmContextRef(), ctext)
 			if err != nil {
 				ue.GmmLog.Error("Release SmContext Error", zap.Error(err))
 			}
-			span.End()
 		}
 		return true
 	})

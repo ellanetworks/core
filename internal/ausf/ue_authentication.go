@@ -20,6 +20,7 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 var tracer = otel.Tracer("ella-core/ausf")
@@ -35,6 +36,11 @@ func GenerateRandomNumber() (uint8, error) {
 }
 
 func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo, ctx context.Context) (*models.UeAuthenticationCtx, error) {
+	ctx, span := tracer.Start(ctx, "UeAuthPostRequestProcedure")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.suci", updateAuthenticationInfo.SupiOrSuci),
+	)
 	var responseBody models.UeAuthenticationCtx
 	var authInfoReq models.AuthenticationInfoRequest
 
@@ -54,12 +60,11 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
 	}
-	ctx, span := tracer.Start(ctx, "udm.CreateAuthData")
+
 	authInfoResult, err := udm.CreateAuthData(authInfoReq, supiOrSuci, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auth data: %s", err)
 	}
-	span.End()
 
 	ueid := authInfoResult.Supi
 	ausfUeContext := NewAusfUeContext(ueid)
@@ -196,7 +201,12 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	return &responseBody, nil
 }
 
-func Auth5gAkaComfirmRequestProcedure(resStar string, confirmationDataResponseID string) (*models.ConfirmationDataResponse, error) {
+func Auth5gAkaComfirmRequestProcedure(resStar string, confirmationDataResponseID string, ctx context.Context) (*models.ConfirmationDataResponse, error) {
+	_, span := tracer.Start(ctx, "Auth5gAkaComfirmRequest")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.suci", confirmationDataResponseID),
+	)
 	var responseBody models.ConfirmationDataResponse
 	responseBody.AuthResult = models.AuthResultFailure
 
@@ -225,7 +235,9 @@ func Auth5gAkaComfirmRequestProcedure(resStar string, confirmationDataResponseID
 	return &responseBody, nil
 }
 
-func EapAuthComfirmRequestProcedure(eapPayload string, eapSessionID string) (*models.EapSession, error) {
+func EapAuthComfirmRequestProcedure(eapPayload string, eapSessionID string, ctx context.Context) (*models.EapSession, error) {
+	_, span := tracer.Start(ctx, "EapAuthComfirmRequestProcedure")
+	defer span.End()
 	if !CheckIfSuciSupiPairExists(eapSessionID) {
 		return nil, fmt.Errorf("supi-suci pair does not exist")
 	}

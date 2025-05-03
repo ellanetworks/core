@@ -2,6 +2,7 @@
 package core
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 )
 
@@ -18,7 +20,12 @@ var (
 	errNoEstablishedAssociation = fmt.Errorf("no established association")
 )
 
-func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequest) (*message.SessionEstablishmentResponse, error) {
+var tracer = otel.Tracer("ella-core/upf")
+
+func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequest, ctx context.Context) (*message.SessionEstablishmentResponse, error) {
+	_, span := tracer.Start(ctx, "HandlePfcpSessionEstablishmentRequest")
+	defer span.End()
+
 	conn := GetConnection()
 	if conn == nil {
 		return nil, fmt.Errorf("no connection")
@@ -118,7 +125,9 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 	return estResp, nil
 }
 
-func HandlePfcpSessionDeletionRequest(msg *message.SessionDeletionRequest) (*message.SessionDeletionResponse, error) {
+func HandlePfcpSessionDeletionRequest(msg *message.SessionDeletionRequest, ctx context.Context) (*message.SessionDeletionResponse, error) {
+	_, span := tracer.Start(ctx, "HandlePfcpSessionDeletionRequest")
+	defer span.End()
 	conn := GetConnection()
 	if conn == nil {
 		return nil, fmt.Errorf("no connection")
@@ -160,7 +169,9 @@ func HandlePfcpSessionDeletionRequest(msg *message.SessionDeletionRequest) (*mes
 	return message.NewSessionDeletionResponse(0, 0, session.RemoteSEID, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRequestAccepted)), nil
 }
 
-func HandlePfcpSessionModificationRequest(msg *message.SessionModificationRequest) (*message.SessionModificationResponse, error) {
+func HandlePfcpSessionModificationRequest(msg *message.SessionModificationRequest, ctx context.Context) (*message.SessionModificationResponse, error) {
+	_, span := tracer.Start(ctx, "HandlePfcpSessionModificationRequest")
+	defer span.End()
 	conn := GetConnection()
 	if conn == nil {
 		return nil, fmt.Errorf("no connection")

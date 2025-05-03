@@ -12,10 +12,19 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/ellanetworks/core/internal/smf/producer"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
 
+var tracer = otel.Tracer("ella-core/smf")
+
 func CreateSmContext(request models.PostSmContextsRequest, ctext ctx.Context) (string, *models.PostSmContextsErrorResponse, error) {
+	ctext, span := tracer.Start(ctext, "CreateSmContext")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supi", request.JSONData.Supi),
+	)
 	if request.JSONData == nil {
 		errResponse := &models.PostSmContextsErrorResponse{}
 		return "", errResponse, fmt.Errorf("missing JSONData in request")

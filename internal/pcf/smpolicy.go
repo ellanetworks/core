@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/models"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func deepCopySessionRule(src *models.SessionRule) *models.SessionRule {
@@ -63,6 +64,10 @@ func GetSmPolicyData(ctx context.Context) (*models.SmPolicyData, error) {
 }
 
 func CreateSMPolicy(request models.SmPolicyContextData, ctx context.Context) (*models.SmPolicyDecision, error) {
+	ctx, span := tracer.Start(ctx, "CreateSMPolicy")
+	span.SetAttributes(
+		attribute.String("ue.supi", request.Supi),
+	)
 	if request.Supi == "" || request.SliceInfo == nil || len(request.SliceInfo.Sd) != 6 {
 		return nil, fmt.Errorf("Errorneous/Missing Mandotory IE")
 	}
@@ -158,7 +163,12 @@ func CreateSMPolicy(request models.SmPolicyContextData, ctx context.Context) (*m
 	return decision, nil
 }
 
-func DeleteSMPolicy(smPolicyID string) error {
+func DeleteSMPolicy(smPolicyID string, ctx context.Context) error {
+	_, span := tracer.Start(ctx, "DeleteSMPolicy")
+	span.SetAttributes(
+		attribute.String("smPolicyID", smPolicyID),
+	)
+	defer span.End()
 	ue, err := pcfCtx.PCFUeFindByPolicyID(smPolicyID)
 	if err != nil {
 		return fmt.Errorf("ue not found in PCF for smPolicyID: %s", smPolicyID)
