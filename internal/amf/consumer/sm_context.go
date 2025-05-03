@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/pdusession"
-	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
 
@@ -46,11 +45,7 @@ func SendCreateSmContextRequest(ue *context.AmfUe, smContext *context.SmContext,
 		JSONData:              &smContextCreateData,
 		BinaryDataN1SmMessage: nasPdu,
 	}
-	ctext, span := tracer.Start(ctext, "smf.CreateSmContext")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.supi", ue.Supi),
-	)
+
 	smContextRef, postSmContextErrorReponse, err := pdusession.CreateSmContext(postSmContextsRequest, ctext)
 	if err != nil {
 		return smContextRef, postSmContextErrorReponse, fmt.Errorf("create sm context request error: %s", err)
@@ -315,8 +310,6 @@ func SendUpdateSmContextRequest(smContext *context.SmContext, updateData models.
 	updateSmContextRequest.JSONData = &updateData
 	updateSmContextRequest.BinaryDataN1SmMessage = n1Msg
 	updateSmContextRequest.BinaryDataN2SmInformation = n2Info
-	ctext, span := tracer.Start(ctext, "smf.UpdateSmContext")
-	defer span.End()
 	updateSmContextReponse, err := pdusession.UpdateSmContext(smContext.SmContextRef(), updateSmContextRequest, ctext)
 	if err != nil {
 		return updateSmContextReponse, fmt.Errorf("failed to update sm context: %s", err)

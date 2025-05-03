@@ -15,11 +15,8 @@ import (
 	upf "github.com/ellanetworks/core/internal/upf/core"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
-	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 )
-
-var tracer = otel.Tracer("ella-core/smf/pfcp")
 
 var seq uint32
 
@@ -56,9 +53,7 @@ func SendPfcpSessionEstablishmentRequest(
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Establishment Request: %v", err)
 	}
-	ctext, span := tracer.Start(ctext, "upf.HandlePfcpSessionEstablishmentRequest")
-	rsp, err := upf.HandlePfcpSessionEstablishmentRequest(pfcpMsg)
-	span.End()
+	rsp, err := upf.HandlePfcpSessionEstablishmentRequest(pfcpMsg, ctext)
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
 	}
@@ -189,9 +184,7 @@ func SendPfcpSessionModificationRequest(
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Modification Request: %v", err)
 	}
-	_, span := tracer.Start(ctext, "upf.HandlePfcpSessionModificationRequest")
-	rsp, err := upf.HandlePfcpSessionModificationRequest(pfcpMsg)
-	span.End()
+	rsp, err := upf.HandlePfcpSessionModificationRequest(pfcpMsg, ctext)
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
 	}
@@ -226,9 +219,7 @@ func SendPfcpSessionDeletionRequest(upNodeID context.NodeID, ctx *context.SMCont
 		return fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
 	}
 	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID.ResolveNodeIDToIP())
-	_, span := tracer.Start(ctext, "upf.HandlePfcpSessionDeletionRequest")
-	rsp, err := upf.HandlePfcpSessionDeletionRequest(pfcpMsg)
-	span.End()
+	rsp, err := upf.HandlePfcpSessionDeletionRequest(pfcpMsg, ctext)
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
 	}

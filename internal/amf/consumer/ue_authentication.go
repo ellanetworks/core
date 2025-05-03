@@ -17,7 +17,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasType"
-	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
 
@@ -42,11 +41,6 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe, resynchronizatio
 	if resynchronizationInfo != nil {
 		authInfo.ResynchronizationInfo = resynchronizationInfo
 	}
-	ctext, span := tracer.Start(ctext, "ausf.UeAuthPostRequest")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.suci", ue.Suci),
-	)
 	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(authInfo, ctext)
 	if err != nil {
 		logger.AmfLog.Error("UE Authentication Authenticate Request failed", zap.Error(err))
@@ -56,13 +50,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe, resynchronizatio
 }
 
 func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string, ctext ctx.Context) (*models.ConfirmationDataResponse, error) {
-	_, span := tracer.Start(ctext, "ausf.Auth5gAkaComfirmRequest")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("ue.suci", ue.Suci),
-	)
-	confirmResult, err := ausf.Auth5gAkaComfirmRequestProcedure(resStar, ue.Suci)
+	confirmResult, err := ausf.Auth5gAkaComfirmRequestProcedure(resStar, ue.Suci, ctext)
 	if err != nil {
 		return nil, fmt.Errorf("ausf 5G-AKA Confirm Request failed: %s", err.Error())
 	}
@@ -70,14 +58,8 @@ func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string, ctext ctx.Co
 }
 
 func SendEapAuthConfirmRequest(suci string, eapMsg nasType.EAPMessage, ctext ctx.Context) (*models.EapSession, error) {
-	_, span := tracer.Start(ctext, "ausf.EapAuthComfirmRequest")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.suci", suci),
-	)
-
 	eapPayload := base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage())
-	response, err := ausf.EapAuthComfirmRequestProcedure(eapPayload, suci)
+	response, err := ausf.EapAuthComfirmRequestProcedure(eapPayload, suci, ctext)
 	if err != nil {
 		return nil, fmt.Errorf("ausf EAP Confirm Request failed: %s", err.Error())
 	}

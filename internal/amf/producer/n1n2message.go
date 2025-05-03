@@ -18,10 +18,20 @@ import (
 	"github.com/omec-project/aper"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/ngap/ngapType"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
 
+var tracer = otel.Tracer("ella-core/amf")
+
 func CreateN1N2MessageTransfer(ueContextID string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, reqURI string, ctext ctx.Context) (*models.N1N2MessageTransferRspData, error) {
+	ctext, span := tracer.Start(ctext, "CreateN1N2MessageTransfer")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ueContextID", ueContextID),
+		attribute.String("reqURI", reqURI),
+	)
 	amfSelf := context.AMFSelf()
 	if _, ok := amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
 		return nil, fmt.Errorf("ue context not found")

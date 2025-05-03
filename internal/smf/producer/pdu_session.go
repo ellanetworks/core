@@ -20,12 +20,8 @@ import (
 	"github.com/ellanetworks/core/internal/util/marshtojsonstring"
 	"github.com/omec-project/nas"
 	"github.com/omec-project/nas/nasMessage"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
-
-var tracer = otel.Tracer("ella-core/smf/producer")
 
 func HandlePduSessionContextReplacement(smCtxtRef string, ctext ctx.Context) error {
 	smCtxt := context.GetSMContext(smCtxtRef)
@@ -295,13 +291,7 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool, ctext c
 			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
 		}
 	}
-	ctext, span := tracer.Start(ctext, "amf.CreateN1N2MessageTransfer")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.supi", smContext.Supi),
-	)
 	rspData, err := amf_producer.CreateN1N2MessageTransfer(smContext.Supi, n1n2Request, "", ctext)
-	span.End()
 	if err != nil {
 		err = smContext.CommitSmPolicyDecision(false)
 		if err != nil {

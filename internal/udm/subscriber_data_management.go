@@ -11,7 +11,11 @@ import (
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/models"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
+
+var tracer = otel.Tracer("ella-core/udm")
 
 var AllowedSessionTypes = []models.PduSessionType{models.PduSessionTypeIPv4}
 
@@ -61,6 +65,11 @@ func GetAmData(ueID string, ctx context.Context) (*models.AccessAndMobilitySubsc
 }
 
 func GetAmDataAndSetAMSubscription(supi string, ctx context.Context) (*models.AccessAndMobilitySubscriptionData, error) {
+	ctx, span := tracer.Start(ctx, "GetAmDataAndSetAMSubscription")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supi", supi),
+	)
 	amData, err := GetAmData(supi, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
@@ -142,6 +151,11 @@ func GetAndSetSmData(supi string, Dnn string, Snssai string, ctx context.Context
 }
 
 func GetNssai(supi string, ctx context.Context) (*models.Nssai, error) {
+	ctx, span := tracer.Start(ctx, "GetNssai")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supi", supi),
+	)
 	accessAndMobilitySubscriptionDataResp, err := GetAmData(supi, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
@@ -173,6 +187,11 @@ func GetSmfSelectData(ueID string, ctx context.Context) (*models.SmfSelectionSub
 }
 
 func GetAndSetSmfSelectData(supi string, ctx context.Context) (*models.SmfSelectionSubscriptionData, error) {
+	ctx, span := tracer.Start(ctx, "GetAndSetSmfSelectData")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supi", supi),
+	)
 	var body models.SmfSelectionSubscriptionData
 	udmContext.CreateSmfSelectionSubsDataforUe(supi, body)
 	smfSelectionSubscriptionDataResp, err := GetSmfSelectData(supi, ctx)
@@ -203,7 +222,12 @@ func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueID string)
 	return SdmSubscription
 }
 
-func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string) error {
+func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string, ctx context.Context) error {
+	_, span := tracer.Start(ctx, "CreateSubscription")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supi", supi),
+	)
 	sdmSubscriptionResp := CreateSdmSubscriptions(*sdmSubscription, supi)
 	udmUe, _ := udmContext.UdmUeFindBySupi(supi)
 	if udmUe == nil {
@@ -213,7 +237,12 @@ func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string) er
 	return nil
 }
 
-func GetUeContextInSmfData(supi string) (*models.UeContextInSmfData, error) {
+func GetUeContextInSmfData(supi string, ctx context.Context) (*models.UeContextInSmfData, error) {
+	_, span := tracer.Start(ctx, "GetUeContextInSmfData")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supi", supi),
+	)
 	var body models.UeContextInSmfData
 	udmContext.CreateUeContextInSmfDataforUe(supi, body)
 	pdusess := []*models.SmfRegistration{}

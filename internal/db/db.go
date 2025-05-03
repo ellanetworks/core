@@ -8,12 +8,14 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/XSAM/otelsql"
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
 	_ "github.com/mattn/go-sqlite3"
-	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel"
+	"go.uber.org/zap"
 )
+
+var tracer = otel.Tracer("ella-core/db")
 
 // Database is the object used to communicate with the established repository.
 type Database struct {
@@ -39,20 +41,18 @@ func (db *Database) Close() error {
 // The database path must be a valid file path or ":memory:".
 // The table will be created if it doesn't exist in the format expected by the package.
 func NewDatabase(databasePath string, initialOperator Operator) (*Database, error) {
-	driverName, err := otelsql.Register(
-		"sqlite3",
-		otelsql.WithAttributes(
-			attribute.String("db.system", "sqlite"),
-			attribute.String("db.name", databasePath),
-		),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to register otel sqlite3 driver: %w", err)
-	}
-
-	sqlConnection, err := sql.Open(driverName, databasePath)
+	sqlConnection, err := sql.Open("sqlite3", databasePath)
 	if err != nil {
 		return nil, err
+	}
+
+	// turn on WAL journaling
+	if _, err := sqlConnection.Exec("PRAGMA journal_mode = WAL;"); err != nil {
+		err := sqlConnection.Close()
+		if err != nil {
+			logger.DBLog.Error("Failed to close database connection after error", zap.Error(err))
+		}
+		return nil, fmt.Errorf("failed to enable WAL journaling: %w", err)
 	}
 
 	// Initialize tables

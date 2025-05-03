@@ -98,6 +98,8 @@ func (operator *Operator) SetSupportedTacs(supportedTACs []string) {
 }
 
 func (db *Database) InitializeOperator(initialOperator Operator, ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "InitializeOperator")
+	defer span.End()
 	stmt, err := sqlair.Prepare(fmt.Sprintf(initializeOperatorStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return fmt.Errorf("failed to prepare initialize operator configuration statement: %v", err)
@@ -110,6 +112,8 @@ func (db *Database) InitializeOperator(initialOperator Operator, ctx context.Con
 }
 
 func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
+	ctx, span := tracer.Start(ctx, "GetOperator")
+	defer span.End()
 	stmt, err := sqlair.Prepare(fmt.Sprintf(getOperatorStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare get Operator statement: %v", err)
@@ -123,6 +127,8 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 }
 
 func (db *Database) UpdateOperatorSlice(sst int32, sd int, ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "UpdateOperatorSlice")
+	defer span.End()
 	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorSliceStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return err
@@ -140,6 +146,8 @@ func (db *Database) UpdateOperatorSlice(sst int32, sd int, ctx context.Context) 
 }
 
 func (db *Database) UpdateOperatorTracking(supportedTACs []string, ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "UpdateOperatorTracking")
+	defer span.End()
 	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorTrackingStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return err
@@ -155,6 +163,8 @@ func (db *Database) UpdateOperatorTracking(supportedTACs []string, ctx context.C
 }
 
 func (db *Database) UpdateOperatorID(mcc, mnc string, ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "UpdateOperatorID")
+	defer span.End()
 	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorIDStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return err
@@ -172,6 +182,8 @@ func (db *Database) UpdateOperatorID(mcc, mnc string, ctx context.Context) error
 }
 
 func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
+	ctx, span := tracer.Start(ctx, "GetOperatorCode")
+	defer span.End()
 	stmt, err := sqlair.Prepare(fmt.Sprintf(getOperatorStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return "", fmt.Errorf("failed to prepare get operator code statement: %v", err)
@@ -185,6 +197,8 @@ func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 }
 
 func (db *Database) UpdateOperatorCode(operatorCode string, ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "UpdateOperatorCode")
+	defer span.End()
 	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorCodeStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return err
@@ -201,6 +215,8 @@ func (db *Database) UpdateOperatorCode(operatorCode string, ctx context.Context)
 }
 
 func (db *Database) UpdateHomeNetworkPrivateKey(privateKey string, ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "UpdateHomeNetworkPrivateKey")
+	defer span.End()
 	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorHomeNetworkPrivateKeyStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return err
@@ -217,6 +233,8 @@ func (db *Database) UpdateHomeNetworkPrivateKey(privateKey string, ctx context.C
 }
 
 func (db *Database) GetHomeNetworkPrivateKey(ctx context.Context) (string, error) {
+	ctx, span := tracer.Start(ctx, "GetHomeNetworkPrivateKey")
+	defer span.End()
 	stmt, err := sqlair.Prepare(fmt.Sprintf(getOperatorStmt, db.operatorTable), Operator{})
 	if err != nil {
 		return "", fmt.Errorf("failed to prepare get home network private key statement: %v", err)

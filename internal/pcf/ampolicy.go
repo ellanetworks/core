@@ -9,9 +9,18 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
-func DeleteAMPolicy(polAssoID string) error {
+var tracer = otel.Tracer("ella-core/pcf")
+
+func DeleteAMPolicy(polAssoID string, ctx context.Context) error {
+	_, span := tracer.Start(ctx, "DeleteAMPolicy")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.policy_association_id", polAssoID),
+	)
 	ue, err := pcfCtx.PCFUeFindByPolicyID(polAssoID)
 	if err != nil {
 		return fmt.Errorf("ue not found in PCF for policy association ID: %s", polAssoID)
@@ -27,7 +36,12 @@ func DeleteAMPolicy(polAssoID string) error {
 	return nil
 }
 
-func UpdateAMPolicy(polAssoID string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest) (*models.PolicyUpdate, error) {
+func UpdateAMPolicy(polAssoID string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest, ctx context.Context) (*models.PolicyUpdate, error) {
+	_, span := tracer.Start(ctx, "UpdateAMPolicy")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.policy_association_id", polAssoID),
+	)
 	ue, err := pcfCtx.PCFUeFindByPolicyID(polAssoID)
 	if err != nil {
 		return nil, fmt.Errorf("ue not found in PCF for policy association ID: %s", polAssoID)
@@ -72,6 +86,11 @@ func UpdateAMPolicy(polAssoID string, policyAssociationUpdateRequest models.Poli
 }
 
 func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest, ctx context.Context) (*models.PolicyAssociation, string, error) {
+	ctx, span := tracer.Start(ctx, "CreateAMPolicy")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supi", policyAssociationRequest.Supi),
+	)
 	var response models.PolicyAssociation
 	var ue *UeContext
 	if val, ok := pcfCtx.UePool.Load(policyAssociationRequest.Supi); ok {

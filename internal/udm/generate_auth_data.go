@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/suci"
 	"github.com/ellanetworks/core/internal/util/ueauth"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
 
@@ -120,6 +121,11 @@ func GetAuthSubsData(ueID string, ctx context.Context) (*models.AuthenticationSu
 }
 
 func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string, ctx context.Context) (*models.AuthenticationInfoResult, error) {
+	ctx, span := tracer.Start(ctx, "CreateAuthData")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("ue.supiOrSuci", supiOrSuci),
+	)
 	if udmContext.DBInstance == nil {
 		return nil, fmt.Errorf("db instance is nil")
 	}

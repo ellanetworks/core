@@ -13,15 +13,9 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 func SDMGetAmData(ue *context.AmfUe, ctext ctx.Context) error {
-	ctext, span := tracer.Start(ctext, "udm.GetAmDataAndSetAMSubscription")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.supi", ue.Supi),
-	)
 	data, err := udm.GetAmDataAndSetAMSubscription(ue.Supi, ctext)
 	if err != nil {
 		return err
@@ -31,11 +25,6 @@ func SDMGetAmData(ue *context.AmfUe, ctext ctx.Context) error {
 }
 
 func SDMGetSmfSelectData(ue *context.AmfUe, ctext ctx.Context) error {
-	ctext, span := tracer.Start(ctext, "udm.GetAndSetSmfSelectData")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.supi", ue.Supi),
-	)
 	data, err := udm.GetAndSetSmfSelectData(ue.Supi, ctext)
 	if err != nil {
 		return err
@@ -45,12 +34,7 @@ func SDMGetSmfSelectData(ue *context.AmfUe, ctext ctx.Context) error {
 }
 
 func SDMGetUeContextInSmfData(ue *context.AmfUe, ctext ctx.Context) (err error) {
-	_, span := tracer.Start(ctext, "udm.GetUeContextInSmfData")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.supi", ue.Supi),
-	)
-	data, err := udm.GetUeContextInSmfData(ue.Supi)
+	data, err := udm.GetUeContextInSmfData(ue.Supi, ctext)
 	if err != nil {
 		return err
 	}
@@ -59,11 +43,6 @@ func SDMGetUeContextInSmfData(ue *context.AmfUe, ctext ctx.Context) (err error) 
 }
 
 func SDMSubscribe(ue *context.AmfUe, ctext ctx.Context) error {
-	_, span := tracer.Start(ctext, "udm.CreateSubscription")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.supi", ue.Supi),
-	)
 	amfSelf := context.AMFSelf()
 	sdmSubscription := &models.SdmSubscription{
 		NfInstanceID: amfSelf.NfID,
@@ -72,7 +51,7 @@ func SDMSubscribe(ue *context.AmfUe, ctext ctx.Context) error {
 			Mnc: ue.PlmnID.Mnc,
 		},
 	}
-	err := udm.CreateSubscription(sdmSubscription, ue.Supi)
+	err := udm.CreateSubscription(sdmSubscription, ue.Supi, ctext)
 	if err != nil {
 		return fmt.Errorf("subscription creation failed: %s", err.Error())
 	}
@@ -80,16 +59,10 @@ func SDMSubscribe(ue *context.AmfUe, ctext ctx.Context) error {
 }
 
 func SDMGetSliceSelectionSubscriptionData(ue *context.AmfUe, ctext ctx.Context) error {
-	ctext, span := tracer.Start(ctext, "udm.GetNssai")
-	span.End()
-	span.SetAttributes(
-		attribute.String("ue.supi", ue.Supi),
-	)
 	nssai, err := udm.GetNssai(ue.Supi, ctext)
 	if err != nil {
 		return fmt.Errorf("get nssai failed: %s", err.Error())
 	}
-	span.End()
 	for _, defaultSnssai := range nssai.DefaultSingleNssais {
 		subscribedSnssai := models.SubscribedSnssai{
 			SubscribedSnssai: &models.Snssai{
