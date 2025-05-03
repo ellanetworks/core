@@ -49,6 +49,8 @@ type Profile struct {
 }
 
 func (db *Database) ListProfiles(ctx context.Context) ([]Profile, error) {
+	ctx, span := tracer.Start(ctx, "ListProfiles")
+	defer span.End()
 	stmt, err := sqlair.Prepare(fmt.Sprintf(listProfilesStmt, db.profilesTable), Profile{})
 	if err != nil {
 		return nil, err
@@ -65,6 +67,8 @@ func (db *Database) ListProfiles(ctx context.Context) ([]Profile, error) {
 }
 
 func (db *Database) GetProfile(name string, ctx context.Context) (*Profile, error) {
+	ctx, span := tracer.Start(ctx, "GetProfile")
+	defer span.End()
 	row := Profile{
 		Name: name,
 	}
@@ -80,6 +84,8 @@ func (db *Database) GetProfile(name string, ctx context.Context) (*Profile, erro
 }
 
 func (db *Database) GetProfileByID(id int, ctx context.Context) (*Profile, error) {
+	ctx, span := tracer.Start(ctx, "GetProfileByID")
+	defer span.End()
 	row := Profile{
 		ID: id,
 	}
@@ -98,6 +104,8 @@ func (db *Database) GetProfileByID(id int, ctx context.Context) (*Profile, error
 }
 
 func (db *Database) CreateProfile(profile *Profile, ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "CreateProfile")
+	defer span.End()
 	_, err := db.GetProfile(profile.Name, ctx)
 	if err == nil {
 		return fmt.Errorf("profile with name %s already exists", profile.Name)
@@ -111,6 +119,8 @@ func (db *Database) CreateProfile(profile *Profile, ctx context.Context) error {
 }
 
 func (db *Database) UpdateProfile(profile *Profile, ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "UpdateProfile")
+	defer span.End()
 	_, err := db.GetProfile(profile.Name, ctx)
 	if err != nil {
 		return err
@@ -124,6 +134,8 @@ func (db *Database) UpdateProfile(profile *Profile, ctx context.Context) error {
 }
 
 func (db *Database) DeleteProfile(name string, ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "DeleteProfile")
+	defer span.End()
 	_, err := db.GetProfile(name, ctx)
 	if err != nil {
 		return err

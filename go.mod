@@ -31,8 +31,9 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 )
 
+require go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
+
 require (
-	github.com/XSAM/otelsql v0.38.0
 	github.com/aead/cmac v0.0.0-20160719120800-7af84192f0b1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.22.0 // indirect

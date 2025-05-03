@@ -57,6 +57,8 @@ type Route struct {
 }
 
 func (db *Database) ListRoutes(ctx context.Context) ([]Route, error) {
+	ctx, span := tracer.Start(ctx, "ListRoutes")
+	defer span.End()
 	stmt, err := sqlair.Prepare(fmt.Sprintf(listRoutesStmt, db.routesTable), Route{})
 	if err != nil {
 		return nil, err
@@ -73,6 +75,8 @@ func (db *Database) ListRoutes(ctx context.Context) ([]Route, error) {
 }
 
 func (db *Database) GetRoute(id int64, ctx context.Context) (*Route, error) {
+	ctx, span := tracer.Start(ctx, "GetRoute")
+	defer span.End()
 	row := Route{
 		ID: id,
 	}
@@ -88,6 +92,8 @@ func (db *Database) GetRoute(id int64, ctx context.Context) (*Route, error) {
 }
 
 func (t *Transaction) CreateRoute(route *Route, ctx context.Context) (int64, error) {
+	ctx, span := tracer.Start(ctx, "CreateRoute")
+	defer span.End()
 	stmt, err := sqlair.Prepare(fmt.Sprintf(createRouteStmt, t.db.routesTable), Route{})
 	if err != nil {
 		return 0, err
@@ -105,6 +111,8 @@ func (t *Transaction) CreateRoute(route *Route, ctx context.Context) (int64, err
 }
 
 func (t *Transaction) DeleteRoute(id int64, ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "DeleteRoute")
+	defer span.End()
 	stmt, err := sqlair.Prepare(fmt.Sprintf(deleteRouteStmt, t.db.routesTable), Route{})
 	if err != nil {
 		return err
