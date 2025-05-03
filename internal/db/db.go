@@ -45,6 +45,12 @@ func NewDatabase(databasePath string, initialOperator Operator) (*Database, erro
 		return nil, err
 	}
 
+	// turn on WAL journaling
+	if _, err := sqlConnection.Exec("PRAGMA journal_mode = WAL;"); err != nil {
+		sqlConnection.Close()
+		return nil, fmt.Errorf("failed to enable WAL journaling: %w", err)
+	}
+
 	// Initialize tables
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateSubscribersTable, SubscribersTableName)); err != nil {
 		return nil, err
