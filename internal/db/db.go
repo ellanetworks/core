@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	_ "github.com/mattn/go-sqlite3"
 	"go.opentelemetry.io/otel"
+	"go.uber.org/zap"
 )
 
 var tracer = otel.Tracer("ella-core/db")
@@ -47,7 +48,10 @@ func NewDatabase(databasePath string, initialOperator Operator) (*Database, erro
 
 	// turn on WAL journaling
 	if _, err := sqlConnection.Exec("PRAGMA journal_mode = WAL;"); err != nil {
-		sqlConnection.Close()
+		err := sqlConnection.Close()
+		if err != nil {
+			logger.DBLog.Error("Failed to close database connection after error", zap.Error(err))
+		}
 		return nil, fmt.Errorf("failed to enable WAL journaling: %w", err)
 	}
 
