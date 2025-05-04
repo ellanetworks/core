@@ -203,13 +203,14 @@ func DispatchNgapMsg(conn net.Conn, ran *context.AmfRan, pdu *ngapType.NGAPPDU) 
 		procName = "UnknownProcedure"
 	}
 
-	spanName := fmt.Sprintf("ngap.%s", procName)
+	spanName := fmt.Sprintf("AMF NGAP %s", procName)
 	ctx, span := tracer.Start(ctx.Background(), spanName,
 		trace.WithAttributes(
 			attribute.String("net.peer", conn.RemoteAddr().String()),
 			attribute.String("ngap.pdu_present", fmt.Sprintf("%d", pdu.Present)),
 			attribute.String("ngap.procedureCode", procName),
 		),
+		trace.WithSpanKind(trace.SpanKindServer),
 	)
 	defer span.End()
 

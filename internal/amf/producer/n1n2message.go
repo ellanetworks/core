@@ -26,12 +26,14 @@ import (
 var tracer = otel.Tracer("ella-core/amf")
 
 func CreateN1N2MessageTransfer(ueContextID string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, reqURI string, ctext ctx.Context) (*models.N1N2MessageTransferRspData, error) {
-	ctext, span := tracer.Start(ctext, "CreateN1N2MessageTransfer")
+	ctext, span := tracer.Start(ctext, "AMF N1N2 MessageTransfer")
 	defer span.End()
+
 	span.SetAttributes(
-		attribute.String("ueContextID", ueContextID),
-		attribute.String("reqURI", reqURI),
+		attribute.String("amf.ue_context_id", ueContextID),
+		attribute.String("n1n2.request_uri", reqURI),
 	)
+
 	amfSelf := context.AMFSelf()
 	if _, ok := amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
 		return nil, fmt.Errorf("ue context not found")

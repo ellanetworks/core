@@ -8,6 +8,10 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const ProfilesTableName = "profiles"
@@ -49,104 +53,230 @@ type Profile struct {
 }
 
 func (db *Database) ListProfiles(ctx context.Context) ([]Profile, error) {
-	ctx, span := tracer.Start(ctx, "ListProfiles")
+	operation := "SELECT"
+	target := ProfilesTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
-	stmt, err := sqlair.Prepare(fmt.Sprintf(listProfilesStmt, db.profilesTable), Profile{})
+
+	stmt := fmt.Sprintf(listProfilesStmt, db.profilesTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	q, err := sqlair.Prepare(stmt, Profile{})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
 		return nil, err
 	}
+
 	var profiles []Profile
-	err = db.conn.Query(ctx, stmt).GetAll(&profiles)
-	if err != nil {
+	if err := db.conn.Query(ctx, q).GetAll(&profiles); err != nil {
 		if err == sql.ErrNoRows {
+			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
 		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
 		return nil, err
 	}
+
+	span.SetStatus(codes.Ok, "")
 	return profiles, nil
 }
 
 func (db *Database) GetProfile(name string, ctx context.Context) (*Profile, error) {
-	ctx, span := tracer.Start(ctx, "GetProfile")
+	operation := "SELECT"
+	target := ProfilesTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
-	row := Profile{
-		Name: name,
-	}
-	stmt, err := sqlair.Prepare(fmt.Sprintf(getProfileStmt, db.profilesTable), Profile{})
+
+	stmt := fmt.Sprintf(getProfileStmt, db.profilesTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	row := Profile{Name: name}
+	q, err := sqlair.Prepare(stmt, Profile{})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
 		return nil, err
 	}
-	err = db.conn.Query(ctx, stmt, row).Get(&row)
-	if err != nil {
+
+	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
 		return nil, err
 	}
+
+	span.SetStatus(codes.Ok, "")
 	return &row, nil
 }
 
 func (db *Database) GetProfileByID(id int, ctx context.Context) (*Profile, error) {
-	ctx, span := tracer.Start(ctx, "GetProfileByID")
+	operation := "SELECT"
+	target := ProfilesTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
-	row := Profile{
-		ID: id,
-	}
-	stmt, err := sqlair.Prepare(fmt.Sprintf(getProfileByIDStmt, db.profilesTable), Profile{})
+
+	stmt := fmt.Sprintf(getProfileByIDStmt, db.profilesTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	row := Profile{ID: id}
+	q, err := sqlair.Prepare(stmt, Profile{})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
 		return nil, err
 	}
-	err = db.conn.Query(ctx, stmt, row).Get(&row)
-	if err != nil {
+
+	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
 		if err == sql.ErrNoRows {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "not found")
 			return nil, fmt.Errorf("profile with ID %d not found", id)
 		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
 		return nil, err
 	}
+
+	span.SetStatus(codes.Ok, "")
 	return &row, nil
 }
 
 func (db *Database) CreateProfile(profile *Profile, ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "CreateProfile")
+	operation := "INSERT"
+	target := ProfilesTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
-	_, err := db.GetProfile(profile.Name, ctx)
-	if err == nil {
-		return fmt.Errorf("profile with name %s already exists", profile.Name)
+
+	stmt := fmt.Sprintf(createProfileStmt, db.profilesTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	// ensure unique name
+	if _, err := db.GetProfile(profile.Name, ctx); err == nil {
+		dup := fmt.Errorf("profile with name %s already exists", profile.Name)
+		span.RecordError(dup)
+		span.SetStatus(codes.Error, "duplicate key")
+		return dup
 	}
-	stmt, err := sqlair.Prepare(fmt.Sprintf(createProfileStmt, db.profilesTable), Profile{})
+
+	q, err := sqlair.Prepare(stmt, Profile{})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
-	err = db.conn.Query(ctx, stmt, profile).Run()
-	return err
+	if err := db.conn.Query(ctx, q, profile).Run(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return nil
 }
 
 func (db *Database) UpdateProfile(profile *Profile, ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "UpdateProfile")
+	operation := "UPDATE"
+	target := ProfilesTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
-	_, err := db.GetProfile(profile.Name, ctx)
-	if err != nil {
+
+	stmt := fmt.Sprintf(editProfileStmt, db.profilesTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	// ensure exists
+	if _, err := db.GetProfile(profile.Name, ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "not found")
 		return err
 	}
-	stmt, err := sqlair.Prepare(fmt.Sprintf(editProfileStmt, db.profilesTable), Profile{})
+
+	q, err := sqlair.Prepare(stmt, Profile{})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
-	err = db.conn.Query(ctx, stmt, profile).Run()
-	return err
+	if err := db.conn.Query(ctx, q, profile).Run(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return nil
 }
 
 func (db *Database) DeleteProfile(name string, ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "DeleteProfile")
+	operation := "DELETE"
+	target := ProfilesTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
-	_, err := db.GetProfile(name, ctx)
-	if err != nil {
+
+	stmt := fmt.Sprintf(deleteProfileStmt, db.profilesTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	// ensure exists
+	if _, err := db.GetProfile(name, ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "not found")
 		return err
 	}
-	stmt, err := sqlair.Prepare(fmt.Sprintf(deleteProfileStmt, db.profilesTable), Profile{})
+
+	q, err := sqlair.Prepare(stmt, Profile{})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
-	row := Profile{
-		Name: name,
+	if err := db.conn.Query(ctx, q, Profile{Name: name}).Run(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return err
 	}
-	err = db.conn.Query(ctx, stmt, row).Run()
-	return err
+
+	span.SetStatus(codes.Ok, "")
+	return nil
 }

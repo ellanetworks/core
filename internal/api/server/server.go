@@ -49,13 +49,13 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	gin.SetMode(mode)
 	router := gin.New()
 	router.Use(ginToZap(logger.APILog))
-	if tracingEnabled {
-		router.Use(Tracing("ella-core/api"))
-	}
+
 	AddUIService(router)
 
 	apiGroup := router.Group("/api/v1")
-
+	if tracingEnabled {
+		apiGroup.Use(Tracing("ella-core/api"))
+	}
 	if gin.Mode() != gin.TestMode {
 		apiGroup.Use(RateLimitMiddleware())
 	}

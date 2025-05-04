@@ -15,10 +15,10 @@ import (
 )
 
 func ReleaseSmContext(smContextRef string, ctext ctx.Context) error {
-	ctext, span := tracer.Start(ctext, "ReleaseSmContext")
+	ctext, span := tracer.Start(ctext, "SMF Release SmContext")
 	defer span.End()
 	span.SetAttributes(
-		attribute.String("smContextRef", smContextRef),
+		attribute.String("smf.smContextRef", smContextRef),
 	)
 	ctxt := context.GetSMContext(smContextRef)
 	if ctxt == nil {
@@ -32,10 +32,10 @@ func ReleaseSmContext(smContextRef string, ctext ctx.Context) error {
 }
 
 func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSmContextRequest, ctext ctx.Context) (*models.UpdateSmContextResponse, error) {
-	ctext, span := tracer.Start(ctext, "UpdateSmContext")
+	ctext, span := tracer.Start(ctext, "SMF Update SmContext")
 	defer span.End()
 	span.SetAttributes(
-		attribute.String("smContextRef", smContextRef),
+		attribute.String("smf.smContextRef", smContextRef),
 	)
 	if smContextRef == "" {
 		return nil, fmt.Errorf("SM Context reference is missing")

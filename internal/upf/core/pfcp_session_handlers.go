@@ -23,7 +23,7 @@ var (
 var tracer = otel.Tracer("ella-core/upf")
 
 func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequest, ctx context.Context) (*message.SessionEstablishmentResponse, error) {
-	_, span := tracer.Start(ctx, "HandlePfcpSessionEstablishmentRequest")
+	_, span := tracer.Start(ctx, "UPF Session Establish")
 	defer span.End()
 
 	conn := GetConnection()
@@ -126,7 +126,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 }
 
 func HandlePfcpSessionDeletionRequest(msg *message.SessionDeletionRequest, ctx context.Context) (*message.SessionDeletionResponse, error) {
-	_, span := tracer.Start(ctx, "HandlePfcpSessionDeletionRequest")
+	_, span := tracer.Start(ctx, "UPF Session Delete")
 	defer span.End()
 	conn := GetConnection()
 	if conn == nil {
@@ -170,7 +170,7 @@ func HandlePfcpSessionDeletionRequest(msg *message.SessionDeletionRequest, ctx c
 }
 
 func HandlePfcpSessionModificationRequest(msg *message.SessionModificationRequest, ctx context.Context) (*message.SessionModificationResponse, error) {
-	_, span := tracer.Start(ctx, "HandlePfcpSessionModificationRequest")
+	_, span := tracer.Start(ctx, "UPF Session Modify")
 	defer span.End()
 	conn := GetConnection()
 	if conn == nil {
