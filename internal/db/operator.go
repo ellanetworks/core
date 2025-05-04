@@ -10,6 +10,10 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/curve25519"
 )
@@ -60,6 +64,10 @@ func (operator *Operator) GetSupportedTacs() []string {
 	return supportedTACs
 }
 
+func (operator *Operator) GetHomeNetworkPublicKey() (string, error) {
+	return deriveHomeNetworkPublicKey(operator.HomeNetworkPrivateKey)
+}
+
 // deriveHomeNetworkPublicKey derives the public key from a given private key using Curve25519.
 func deriveHomeNetworkPublicKey(privateKeyHex string) (string, error) {
 	privateKey, err := hex.DecodeString(privateKeyHex)
@@ -80,10 +88,6 @@ func deriveHomeNetworkPublicKey(privateKeyHex string) (string, error) {
 	return hex.EncodeToString(publicKey), nil
 }
 
-func (operator *Operator) GetHomeNetworkPublicKey() (string, error) {
-	return deriveHomeNetworkPublicKey(operator.HomeNetworkPrivateKey)
-}
-
 func (operator *Operator) GetHexSd() string {
 	return fmt.Sprintf("%06X", operator.Sd)
 }
@@ -98,151 +102,314 @@ func (operator *Operator) SetSupportedTacs(supportedTACs []string) {
 }
 
 func (db *Database) InitializeOperator(initialOperator Operator, ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "InitializeOperator")
+	operation := "INSERT"
+	target := OperatorTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
-	stmt, err := sqlair.Prepare(fmt.Sprintf(initializeOperatorStmt, db.operatorTable), Operator{})
+
+	stmt := fmt.Sprintf(initializeOperatorStmt, db.operatorTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	q, err := sqlair.Prepare(stmt, Operator{})
 	if err != nil {
-		return fmt.Errorf("failed to prepare initialize operator configuration statement: %v", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		return fmt.Errorf("failed to prepare initialize operator configuration statement: %w", err)
 	}
-	err = db.conn.Query(ctx, stmt, initialOperator).Run()
-	if err != nil {
-		return fmt.Errorf("failed to initialize operator configuration: %v", err)
+	if err := db.conn.Query(ctx, q, initialOperator).Run(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return fmt.Errorf("failed to initialize operator configuration: %w", err)
 	}
+
+	span.SetStatus(codes.Ok, "")
 	return nil
 }
 
+// GetOperator retrieves the operator row.
 func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
-	ctx, span := tracer.Start(ctx, "GetOperator")
+	operation := "SELECT"
+	target := OperatorTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
-	stmt, err := sqlair.Prepare(fmt.Sprintf(getOperatorStmt, db.operatorTable), Operator{})
+
+	stmt := fmt.Sprintf(getOperatorStmt, db.operatorTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	q, err := sqlair.Prepare(stmt, Operator{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to prepare get Operator statement: %v", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		return nil, fmt.Errorf("failed to prepare get operator statement: %w", err)
 	}
-	var operator Operator
-	err = db.conn.Query(ctx, stmt).Get(&operator)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Operator: %v", err)
+
+	var op Operator
+	if err := db.conn.Query(ctx, q).Get(&op); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+		return nil, fmt.Errorf("failed to get operator: %w", err)
 	}
-	return &operator, nil
+
+	span.SetStatus(codes.Ok, "")
+	return &op, nil
 }
 
+// UpdateOperatorSlice updates SST/SD.
 func (db *Database) UpdateOperatorSlice(sst int32, sd int, ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "UpdateOperatorSlice")
+	operation := "UPDATE"
+	target := OperatorTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
-	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorSliceStmt, db.operatorTable), Operator{})
+
+	stmt := fmt.Sprintf(updateOperatorSliceStmt, db.operatorTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	op := Operator{Sst: sst, Sd: sd}
+	q, err := sqlair.Prepare(stmt, Operator{})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
-	operator := Operator{
-		Sst: sst,
-		Sd:  sd,
+	if err := db.conn.Query(ctx, q, op).Run(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return fmt.Errorf("failed to update operator slice: %w", err)
 	}
-	err = db.conn.Query(ctx, stmt, operator).Run()
-	if err != nil {
-		return fmt.Errorf("failed to update operator ID: %v", err)
-	}
+
 	logger.DBLog.Info("Updated operator slice information")
+	span.SetStatus(codes.Ok, "")
 	return nil
 }
 
+// UpdateOperatorTracking updates supported TACs.
 func (db *Database) UpdateOperatorTracking(supportedTACs []string, ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "UpdateOperatorTracking")
+	operation := "UPDATE"
+	target := OperatorTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
-	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorTrackingStmt, db.operatorTable), Operator{})
+
+	stmt := fmt.Sprintf(updateOperatorTrackingStmt, db.operatorTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	op := Operator{}
+	op.SetSupportedTacs(supportedTACs)
+	q, err := sqlair.Prepare(stmt, Operator{})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
-	operator := Operator{}
-	operator.SetSupportedTacs(supportedTACs)
-	err = db.conn.Query(ctx, stmt, operator).Run()
-	if err != nil {
-		return fmt.Errorf("failed to update operator tracking area code: %v", err)
+	if err := db.conn.Query(ctx, q, op).Run(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return fmt.Errorf("failed to update operator tracking area code: %w", err)
 	}
+
 	logger.DBLog.Info("Updated operator tracking area code")
+	span.SetStatus(codes.Ok, "")
 	return nil
 }
 
+// UpdateOperatorID updates MCC/MNC.
 func (db *Database) UpdateOperatorID(mcc, mnc string, ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "UpdateOperatorID")
+	operation := "UPDATE"
+	target := OperatorTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
-	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorIDStmt, db.operatorTable), Operator{})
+
+	stmt := fmt.Sprintf(updateOperatorIDStmt, db.operatorTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	op := Operator{Mcc: mcc, Mnc: mnc}
+	q, err := sqlair.Prepare(stmt, Operator{})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
-	operator := Operator{
-		Mcc: mcc,
-		Mnc: mnc,
+	if err := db.conn.Query(ctx, q, op).Run(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return fmt.Errorf("failed to update operator ID: %w", err)
 	}
-	err = db.conn.Query(ctx, stmt, operator).Run()
-	if err != nil {
-		return fmt.Errorf("failed to update operator ID: %v", err)
-	}
+
 	logger.DBLog.Info("Updated operator ID")
+	span.SetStatus(codes.Ok, "")
 	return nil
 }
 
+// GetOperatorCode fetches only the operatorCode field.
 func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
-	ctx, span := tracer.Start(ctx, "GetOperatorCode")
+	operation := "SELECT"
+	target := OperatorTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
-	stmt, err := sqlair.Prepare(fmt.Sprintf(getOperatorStmt, db.operatorTable), Operator{})
+
+	stmt := fmt.Sprintf(getOperatorStmt, db.operatorTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	q, err := sqlair.Prepare(stmt, Operator{})
 	if err != nil {
-		return "", fmt.Errorf("failed to prepare get operator code statement: %v", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		return "", err
 	}
-	var operator Operator
-	err = db.conn.Query(ctx, stmt).Get(&operator)
-	if err != nil {
-		return "", fmt.Errorf("failed to get operator code: %v", err)
+
+	var op Operator
+	if err := db.conn.Query(ctx, q).Get(&op); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+		return "", err
 	}
-	return operator.OperatorCode, nil
+
+	span.SetStatus(codes.Ok, "")
+	return op.OperatorCode, nil
 }
 
+// UpdateOperatorCode sets a new operatorCode.
 func (db *Database) UpdateOperatorCode(operatorCode string, ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "UpdateOperatorCode")
+	operation := "UPDATE"
+	target := OperatorTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
-	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorCodeStmt, db.operatorTable), Operator{})
+
+	stmt := fmt.Sprintf(updateOperatorCodeStmt, db.operatorTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	op := Operator{OperatorCode: operatorCode}
+	q, err := sqlair.Prepare(stmt, Operator{})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
-	operator := Operator{
-		OperatorCode: operatorCode,
+	if err := db.conn.Query(ctx, q, op).Run(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return fmt.Errorf("failed to update operator code: %w", err)
 	}
-	err = db.conn.Query(ctx, stmt, operator).Run()
-	if err != nil {
-		return fmt.Errorf("failed to update operator code: %v", err)
-	}
+
 	logger.DBLog.Info("Updated operator code")
+	span.SetStatus(codes.Ok, "")
 	return nil
 }
 
+// UpdateHomeNetworkPrivateKey updates the private key.
 func (db *Database) UpdateHomeNetworkPrivateKey(privateKey string, ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "UpdateHomeNetworkPrivateKey")
+	operation := "UPDATE"
+	target := OperatorTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
-	stmt, err := sqlair.Prepare(fmt.Sprintf(updateOperatorHomeNetworkPrivateKeyStmt, db.operatorTable), Operator{})
+
+	stmt := fmt.Sprintf(updateOperatorHomeNetworkPrivateKeyStmt, db.operatorTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	op := Operator{HomeNetworkPrivateKey: privateKey}
+	q, err := sqlair.Prepare(stmt, Operator{})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
-	operator := Operator{
-		HomeNetworkPrivateKey: privateKey,
+	if err := db.conn.Query(ctx, q, op).Run(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return fmt.Errorf("failed to update operator home network private key: %w", err)
 	}
-	err = db.conn.Query(ctx, stmt, operator).Run()
-	if err != nil {
-		return fmt.Errorf("failed to update operator home network private key: %v", err)
-	}
+
 	logger.DBLog.Info("Updated operator home network private key")
+	span.SetStatus(codes.Ok, "")
 	return nil
 }
 
+// GetHomeNetworkPrivateKey retrieves the private key.
 func (db *Database) GetHomeNetworkPrivateKey(ctx context.Context) (string, error) {
-	ctx, span := tracer.Start(ctx, "GetHomeNetworkPrivateKey")
+	operation := "SELECT"
+	target := OperatorTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
-	stmt, err := sqlair.Prepare(fmt.Sprintf(getOperatorStmt, db.operatorTable), Operator{})
+
+	stmt := fmt.Sprintf(getOperatorStmt, db.operatorTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	q, err := sqlair.Prepare(stmt, Operator{})
 	if err != nil {
-		return "", fmt.Errorf("failed to prepare get home network private key statement: %v", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		return "", err
 	}
-	var operator Operator
-	err = db.conn.Query(ctx, stmt).Get(&operator)
-	if err != nil {
-		return "", fmt.Errorf("failed to get home network private key: %v", err)
+
+	var op Operator
+	if err := db.conn.Query(ctx, q).Get(&op); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+		return "", err
 	}
-	return operator.HomeNetworkPrivateKey, nil
+
+	span.SetStatus(codes.Ok, "")
+	return op.HomeNetworkPrivateKey, nil
 }
