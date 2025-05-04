@@ -190,7 +190,7 @@ payload either a security protected 5GS NAS message or a plain 5GS NAS message w
 format is followed TS 24.501 9.1.1
 */
 func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte, ctext ctx.Context) (*nas.Message, error) {
-	_, span := tracer.Start(ctext, "NAS Decode",
+	_, span := tracer.Start(ctext, "AMF NAS Decode",
 		trace.WithAttributes(
 			attribute.String("nas.accessType", string(accessType)),
 		),
