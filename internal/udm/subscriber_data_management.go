@@ -65,7 +65,7 @@ func GetAmData(ueID string, ctx context.Context) (*models.AccessAndMobilitySubsc
 }
 
 func GetAmDataAndSetAMSubscription(supi string, ctx context.Context) (*models.AccessAndMobilitySubscriptionData, error) {
-	ctx, span := tracer.Start(ctx, "GetAmDataAndSetAMSubscription")
+	ctx, span := tracer.Start(ctx, "UDM GetAmDataAndSetAMSubscription")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", supi),
@@ -151,7 +151,7 @@ func GetAndSetSmData(supi string, Dnn string, Snssai string, ctx context.Context
 }
 
 func GetNssai(supi string, ctx context.Context) (*models.Nssai, error) {
-	ctx, span := tracer.Start(ctx, "GetNssai")
+	ctx, span := tracer.Start(ctx, "UDM GetNssai")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", supi),
@@ -187,7 +187,7 @@ func GetSmfSelectData(ueID string, ctx context.Context) (*models.SmfSelectionSub
 }
 
 func GetAndSetSmfSelectData(supi string, ctx context.Context) (*models.SmfSelectionSubscriptionData, error) {
-	ctx, span := tracer.Start(ctx, "GetAndSetSmfSelectData")
+	ctx, span := tracer.Start(ctx, "UDM SetSmfSelectData")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", supi),
@@ -223,7 +223,7 @@ func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueID string)
 }
 
 func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string, ctx context.Context) error {
-	_, span := tracer.Start(ctx, "CreateSubscription")
+	_, span := tracer.Start(ctx, "UDM CreateSubscription")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", supi),
@@ -238,7 +238,7 @@ func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string, ct
 }
 
 func GetUeContextInSmfData(supi string, ctx context.Context) (*models.UeContextInSmfData, error) {
-	_, span := tracer.Start(ctx, "GetUeContextInSmfData")
+	_, span := tracer.Start(ctx, "UDM GetUeContextInSmfData")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", supi),

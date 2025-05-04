@@ -20,7 +20,7 @@ import (
 var tracer = otel.Tracer("ella-core/smf")
 
 func CreateSmContext(request models.PostSmContextsRequest, ctext ctx.Context) (string, *models.PostSmContextsErrorResponse, error) {
-	ctext, span := tracer.Start(ctext, "CreateSmContext")
+	ctext, span := tracer.Start(ctext, "SMF Create SmContext")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", request.JSONData.Supi),

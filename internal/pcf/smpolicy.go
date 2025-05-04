@@ -64,7 +64,7 @@ func GetSmPolicyData(ctx context.Context) (*models.SmPolicyData, error) {
 }
 
 func CreateSMPolicy(request models.SmPolicyContextData, ctx context.Context) (*models.SmPolicyDecision, error) {
-	ctx, span := tracer.Start(ctx, "CreateSMPolicy")
+	ctx, span := tracer.Start(ctx, "PCF Create SMPolicy")
 	span.SetAttributes(
 		attribute.String("ue.supi", request.Supi),
 	)
@@ -164,7 +164,7 @@ func CreateSMPolicy(request models.SmPolicyContextData, ctx context.Context) (*m
 }
 
 func DeleteSMPolicy(smPolicyID string, ctx context.Context) error {
-	_, span := tracer.Start(ctx, "DeleteSMPolicy")
+	_, span := tracer.Start(ctx, "PCF Delete SMPolicy")
 	span.SetAttributes(
 		attribute.String("smPolicyID", smPolicyID),
 	)

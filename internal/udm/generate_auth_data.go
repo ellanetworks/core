@@ -121,7 +121,7 @@ func GetAuthSubsData(ueID string, ctx context.Context) (*models.AuthenticationSu
 }
 
 func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string, ctx context.Context) (*models.AuthenticationInfoResult, error) {
-	ctx, span := tracer.Start(ctx, "CreateAuthData")
+	ctx, span := tracer.Start(ctx, "UDM CreateAuthData")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supiOrSuci", supiOrSuci),

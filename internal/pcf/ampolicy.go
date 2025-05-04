@@ -16,7 +16,7 @@ import (
 var tracer = otel.Tracer("ella-core/pcf")
 
 func DeleteAMPolicy(polAssoID string, ctx context.Context) error {
-	_, span := tracer.Start(ctx, "DeleteAMPolicy")
+	_, span := tracer.Start(ctx, "PCF Delete AMPolicy")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.policy_association_id", polAssoID),
@@ -37,7 +37,7 @@ func DeleteAMPolicy(polAssoID string, ctx context.Context) error {
 }
 
 func UpdateAMPolicy(polAssoID string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest, ctx context.Context) (*models.PolicyUpdate, error) {
-	_, span := tracer.Start(ctx, "UpdateAMPolicy")
+	_, span := tracer.Start(ctx, "PCF Update AMPolicy")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.policy_association_id", polAssoID),
@@ -86,7 +86,7 @@ func UpdateAMPolicy(polAssoID string, policyAssociationUpdateRequest models.Poli
 }
 
 func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest, ctx context.Context) (*models.PolicyAssociation, string, error) {
-	ctx, span := tracer.Start(ctx, "CreateAMPolicy")
+	ctx, span := tracer.Start(ctx, "PCF Create AMPolicy")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", policyAssociationRequest.Supi),

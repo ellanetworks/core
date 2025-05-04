@@ -36,7 +36,7 @@ func GenerateRandomNumber() (uint8, error) {
 }
 
 func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo, ctx context.Context) (*models.UeAuthenticationCtx, error) {
-	ctx, span := tracer.Start(ctx, "UeAuthPostRequestProcedure")
+	ctx, span := tracer.Start(ctx, "AUSF UEAuthentication PostRequest")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.suci", updateAuthenticationInfo.SupiOrSuci),
@@ -202,10 +202,11 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 }
 
 func Auth5gAkaComfirmRequestProcedure(resStar string, confirmationDataResponseID string, ctx context.Context) (*models.ConfirmationDataResponse, error) {
-	_, span := tracer.Start(ctx, "Auth5gAkaComfirmRequest")
+	_, span := tracer.Start(ctx, "AUSF UEAuthentication ConfirmRequest")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.suci", confirmationDataResponseID),
+		attribute.String("auth.Method", "5G AKA"),
 	)
 	var responseBody models.ConfirmationDataResponse
 	responseBody.AuthResult = models.AuthResultFailure
@@ -236,8 +237,11 @@ func Auth5gAkaComfirmRequestProcedure(resStar string, confirmationDataResponseID
 }
 
 func EapAuthComfirmRequestProcedure(eapPayload string, eapSessionID string, ctx context.Context) (*models.EapSession, error) {
-	_, span := tracer.Start(ctx, "EapAuthComfirmRequestProcedure")
+	_, span := tracer.Start(ctx, "AUSF UEAuthentication ConfirmRequest")
 	defer span.End()
+	span.SetAttributes(
+		attribute.String("auth.Method", "EAP-AKA'"),
+	)
 	if !CheckIfSuciSupiPairExists(eapSessionID) {
 		return nil, fmt.Errorf("supi-suci pair does not exist")
 	}
