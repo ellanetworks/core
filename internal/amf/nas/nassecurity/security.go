@@ -20,10 +20,15 @@ import (
 	"github.com/omec-project/nas/nasConvert"
 	"github.com/omec-project/nas/nasMessage"
 	"github.com/omec-project/nas/security"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 var mutex sync.Mutex
+
+var tracer = otel.Tracer("ella-core/nas/security")
 
 func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 	if ue == nil {
@@ -184,7 +189,13 @@ func FetchUeContextWithMobileIdentity(payload []byte, ctext ctx.Context) *contex
 payload either a security protected 5GS NAS message or a plain 5GS NAS message which
 format is followed TS 24.501 9.1.1
 */
-func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte) (*nas.Message, error) {
+func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte, ctext ctx.Context) (*nas.Message, error) {
+	_, span := tracer.Start(ctext, "NAS Decode",
+		trace.WithAttributes(
+			attribute.String("nas.accessType", string(accessType)),
+		),
+	)
+	defer span.End()
 	if ue == nil {
 		return nil, fmt.Errorf("amf ue is nil")
 	}
