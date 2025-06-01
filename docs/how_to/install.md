@@ -113,7 +113,7 @@ You can install Ella Core on Linux or on Kubernetes.
 
     !!! note
         If you want to build a specific version, checkout the tag after cloning the repository.
-        For example, to build version 0.0.17, run `git checkout v0.0.17`.
+        For example, to build version 0.0.18, run `git checkout v0.0.18`.
 
     Build the frontend:
   
@@ -156,7 +156,7 @@ You can install Ella Core on Linux or on Kubernetes.
 
     Install Ella Core:
     ```bash
-    kubectl apply -k github.com/ellanetworks/core/k8s/core/base?ref=v0.0.17 -n ella
+    kubectl apply -k github.com/ellanetworks/core/k8s/core/base?ref=v0.0.18 -n ella
     ```
 
     !!! note
