@@ -14,9 +14,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"go.uber.org/zap"
 )
 
 var smfContext SMFContext
@@ -33,14 +31,18 @@ type SMFContext struct {
 }
 
 // RetrieveDnnInformation gets the corresponding dnn info from S-NSSAI and DNN
-func RetrieveDnnInformation(Snssai models.Snssai, dnn string, ctx context.Context) *SnssaiSmfDnnInfo {
-	snssaiInfo := GetSnssaiInfo(ctx)
-	for _, snssaiInfo := range snssaiInfo {
-		if snssaiInfo.Snssai.Sst == Snssai.Sst && snssaiInfo.Snssai.Sd == Snssai.Sd {
-			return snssaiInfo.DnnInfos[dnn]
-		}
+func RetrieveDnnInformation(Snssai models.Snssai, dnn string, ctx context.Context) (*SnssaiSmfDnnInfo, error) {
+	snssaiInfo, err := GetSnssaiInfo(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get snssai information: %v", err)
 	}
-	return nil
+	if snssaiInfo.Snssai.Sst != Snssai.Sst {
+		return nil, fmt.Errorf("expected sst %d, got %d", Snssai.Sst, snssaiInfo.Snssai.Sst)
+	}
+	if snssaiInfo.Snssai.Sd != Snssai.Sd {
+		return nil, fmt.Errorf("expected sd %s, got %s", Snssai.Sd, snssaiInfo.Snssai.Sd)
+	}
+	return snssaiInfo.DnnInfos[dnn], nil
 }
 
 func AllocateLocalSEID() (uint64, error) {
@@ -52,46 +54,17 @@ func SMFSelf() *SMFContext {
 	return &smfContext
 }
 
-func BuildUserPlaneInformationFromConfig(ctx context.Context) (*UPF, error) {
-	smfSelf := SMFSelf()
-	operator, err := smfSelf.DBInstance.GetOperator(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get operator information from db: %v", err)
-	}
-
-	upfNodeID := NewNodeID(config.UpfNodeID)
-	upf := NewUPF(upfNodeID, config.DNN)
-	upf.SNssaiInfos = []SnssaiUPFInfo{
-		{
-			SNssai: SNssai{
-				Sst: operator.Sst,
-				Sd:  operator.GetHexSd(),
-			},
-			DnnList: []DnnUPFInfoItem{
-				{
-					Dnn: config.DNN,
-				},
-			},
-		},
-	}
-
-	return upf, nil
-}
-
-func GetSnssaiInfo(ctx context.Context) []SnssaiSmfInfo {
+func GetSnssaiInfo(ctx context.Context) (*SnssaiSmfInfo, error) {
 	self := SMFSelf()
 	operator, err := self.DBInstance.GetOperator(ctx)
 	if err != nil {
-		logger.SmfLog.Warn("failed to get operator information from db", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf("failed to get operator information from db: %v", err)
 	}
 	profiles, err := self.DBInstance.ListProfiles(ctx)
 	if err != nil {
-		logger.SmfLog.Warn("failed to get profiles from db", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf("failed to list profiles from db: %v", err)
 	}
-	snssaiInfoList := make([]SnssaiSmfInfo, 0)
-	snssaiInfo := SnssaiSmfInfo{
+	snssaiInfo := &SnssaiSmfInfo{
 		Snssai: SNssai{
 			Sst: operator.Sst,
 			Sd:  operator.GetHexSd(),
@@ -115,6 +88,5 @@ func GetSnssaiInfo(ctx context.Context) []SnssaiSmfInfo {
 		}
 		snssaiInfo.DnnInfos[dnn] = &dnnInfo
 	}
-	snssaiInfoList = append(snssaiInfoList, snssaiInfo)
-	return snssaiInfoList
+	return snssaiInfo, nil
 }

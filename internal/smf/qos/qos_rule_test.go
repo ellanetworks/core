@@ -25,7 +25,11 @@ func TestBuildQosRules(t *testing.T) {
 
 	smPolicyUpdates := qos.BuildSmPolicyUpdate(smCtxtPolData, smPolicyDecision)
 
-	qosRules := qos.BuildQosRules(smPolicyUpdates)
+	qosRules, err := qos.BuildQosRules(smPolicyUpdates)
+	if err != nil {
+		t.Errorf("Error building QoS Rules: %v", err)
+		return
+	}
 
 	if bytes, err := qosRules.MarshalBinary(); err != nil {
 		fmt.Printf("Marshal Error : %v", err.Error())

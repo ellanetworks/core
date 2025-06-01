@@ -5,14 +5,13 @@
 package qos
 
 import (
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/omec-project/nas/nasMessage"
-	"go.uber.org/zap"
 )
 
 // TS 24.501 Table 9.11.4.12
@@ -82,21 +81,19 @@ type QosFlowsUpdate struct {
 	add, mod, del map[string]*models.QosData
 }
 
-func GetQosFlowIDFromQosID(qosID string) uint8 {
+func GetQosFlowIDFromQosID(qosID string) (uint8, error) {
 	id, err := strconv.Atoi(qosID)
 	if err != nil {
-		logger.SmfLog.Error("String can not be converted to integer", zap.String("QosID", qosID), zap.Error(err))
-		return 0
+		return 0, fmt.Errorf("string can not be converted to integer: %w", err)
 	}
 	if id < 0 || id > 255 {
-		logger.SmfLog.Error("Integer value out of uint8 range", zap.String("QosID", qosID), zap.Int("QosID", id))
-		return 0
+		return 0, fmt.Errorf("QosID %s is out of range [0-255]", qosID)
 	}
-	return uint8(id)
+	return uint8(id), nil
 }
 
 // Build Qos Flow Description to be sent to UE
-func BuildAuthorizedQosFlowDescriptions(smPolicyUpdates *PolicyUpdate) *QosFlowDescriptionsAuthorized {
+func BuildAuthorizedQosFlowDescriptions(smPolicyUpdates *PolicyUpdate) (*QosFlowDescriptionsAuthorized, error) {
 	QFDescriptions := QosFlowDescriptionsAuthorized{
 		IeType:  nasMessage.PDUSessionEstablishmentAcceptAuthorizedQosFlowDescriptionsType,
 		Content: make([]byte, 0),
@@ -107,18 +104,25 @@ func BuildAuthorizedQosFlowDescriptions(smPolicyUpdates *PolicyUpdate) *QosFlowD
 	// QoS Flow Description to be Added
 	if qosFlowUpdate != nil {
 		for _, qosFlow := range qosFlowUpdate.add {
-			QFDescriptions.BuildAddQosFlowDescFromQoSDesc(qosFlow)
+			err := QFDescriptions.BuildAddQosFlowDescFromQoSDesc(qosFlow)
+			if err != nil {
+				return nil, fmt.Errorf("error building QoS Flow Description from QoS Data %s: %v", qosFlow.QosID, err)
+			}
 		}
 	}
 
-	return &QFDescriptions
+	return &QFDescriptions, nil
 }
 
-func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *models.QosData) {
+func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *models.QosData) error {
 	qfd := QoSFlowDescription{QFDLen: QFDFixLen}
 
 	// Set QFI
-	qfd.SetQoSFlowDescQfi(GetQosFlowIDFromQosID(qosData.QosID))
+	qosFlowID, err := GetQosFlowIDFromQosID(qosData.QosID)
+	if err != nil {
+		return fmt.Errorf("error getting QosFlowID from QosID %s: %v", qosData.QosID, err)
+	}
+	qfd.SetQoSFlowDescQfi(qosFlowID)
 
 	// Operation Code
 	qfd.SetQoSFlowDescOpCode(QFDOpCreate)
@@ -152,6 +156,8 @@ func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *
 
 	// Add QFD to Authorised QFD IE
 	d.AddQFD(&qfd)
+
+	return nil
 }
 
 func GetBitRate(sBitRate string) (val uint16, unit uint8) {

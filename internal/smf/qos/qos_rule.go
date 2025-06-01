@@ -97,7 +97,7 @@ type QosRule struct {
 	Length           uint8
 }
 
-func BuildQosRules(smPolicyUpdates *PolicyUpdate) QoSRules {
+func BuildQosRules(smPolicyUpdates *PolicyUpdate) (QoSRules, error) {
 	qosRules := QoSRules{}
 
 	smPolicyDecision := smPolicyUpdates.SmPolicyDecision
@@ -108,7 +108,10 @@ func BuildQosRules(smPolicyUpdates *PolicyUpdate) QoSRules {
 		for pccRuleName, pccRuleVal := range pccRulesUpdate.add {
 			logger.SmfLog.Info("Building QoS Rule from PCC rule", zap.String("name", pccRuleName))
 			refQosData := GetQoSDataFromPolicyDecision(smPolicyDecision, pccRuleVal.RefQosData[0])
-			qosRule := BuildAddQoSRuleFromPccRule(pccRuleVal, refQosData, OperationCodeCreateNewQoSRule)
+			qosRule, err := BuildAddQoSRuleFromPccRule(pccRuleVal, refQosData, OperationCodeCreateNewQoSRule)
+			if err != nil {
+				return nil, fmt.Errorf("error building QoS rule from PCC rule %s: %v", pccRuleName, err)
+			}
 			qosRules = append(qosRules, *qosRule)
 		}
 	}
@@ -118,7 +121,7 @@ func BuildQosRules(smPolicyUpdates *PolicyUpdate) QoSRules {
 		qosRules = append(qosRules, *defQosRule)
 	}
 
-	return qosRules
+	return qosRules, nil
 }
 
 func BuildAddDefaultQosRule(defQFI uint8) *QosRule {
@@ -146,18 +149,23 @@ func BuildAddDefaultQosRule(defQFI uint8) *QosRule {
 	return defQosRule
 }
 
-func BuildAddQoSRuleFromPccRule(pccRule *models.PccRule, qosData *models.QosData, pccRuleOpCode uint8) *QosRule {
+func BuildAddQoSRuleFromPccRule(pccRule *models.PccRule, qosData *models.QosData, pccRuleOpCode uint8) (*QosRule, error) {
+	qosFlowID, err := GetQosFlowIDFromQosID(qosData.QosID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting QosFlowID from QosID %s: %v", qosData.QosID, err)
+	}
+
 	qRule := QosRule{
 		Identifier:    GetQosRuleIDFromPccRuleID(pccRule.PccRuleID),
 		DQR:           btou(qosData.DefQosFlowIndication),
 		OperationCode: pccRuleOpCode,
 		Precedence:    uint8(pccRule.Precedence),
-		QFI:           GetQosFlowIDFromQosID(qosData.QosID),
+		QFI:           qosFlowID,
 	}
 
 	qRule.BuildPacketFilterListFromPccRule(pccRule)
 
-	return &qRule
+	return &qRule, nil
 }
 
 func btou(b bool) uint8 {

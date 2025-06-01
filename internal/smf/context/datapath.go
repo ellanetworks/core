@@ -179,10 +179,6 @@ func (node *DataPathNode) GetNodeIP() (ip string) {
 	return
 }
 
-func (node *DataPathNode) IsANUPF() bool {
-	return true
-}
-
 func (dataPath *DataPath) ActivateUlDlTunnel(smContext *SMContext) error {
 	DPNode := dataPath.DPNode
 	err := DPNode.ActivateUpLinkTunnel(smContext)
@@ -209,7 +205,11 @@ func (node *DataPathNode) CreatePccRuleQer(smContext *SMContext, qosData string)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add QER: %v", err)
 	}
-	newQER.QFI.QFI = qos.GetQosFlowIDFromQosID(refQos.QosID)
+	qfi, err := qos.GetQosFlowIDFromQosID(refQos.QosID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get QosFlowID from QosID %s: %v", refQos.QosID, err)
+	}
+	newQER.QFI.QFI = qfi
 
 	// Flow Status
 	newQER.GateStatus = &GateStatus{
@@ -244,7 +244,12 @@ func (node *DataPathNode) CreateSessRuleQer(smContext *SMContext) (*QER, error) 
 		logger.SmfLog.Error("new QER failed")
 		return nil, err
 	} else {
-		newQER.QFI.QFI = qos.GetQosFlowIDFromQosID(defQosData.QosID)
+		qfi, err := qos.GetQosFlowIDFromQosID(defQosData.QosID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get QosFlowID from QosID %s: %v", defQosData.QosID, err)
+		}
+
+		newQER.QFI.QFI = qfi
 		newQER.GateStatus = &GateStatus{
 			ULGate: GateOpen,
 			DLGate: GateOpen,
