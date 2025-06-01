@@ -107,7 +107,6 @@ func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentRes
 
 			// Update with one received from UPF
 			smContext.PDUAddress.IP = ueIPAddress
-			smContext.PDUAddress.UpfProvided = true
 		}
 
 		// Store F-TEID created by UPF

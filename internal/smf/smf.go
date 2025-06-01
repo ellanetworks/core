@@ -3,9 +3,9 @@
 package smf
 
 import (
-	ctx "context"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/smf/context"
@@ -17,13 +17,9 @@ func Start(dbInstance *db.Database) error {
 	}
 	smfContext := context.SMFSelf()
 	smfContext.DBInstance = dbInstance
-	nodeID := context.NewNodeID("0.0.0.0")
-	smfContext.CPNodeID = *nodeID
-	upNode, err := context.BuildUserPlaneInformationFromConfig(ctx.Background())
-	if err != nil {
-		return fmt.Errorf("failed to build user plane information from config: %v", err)
-	}
-	smfContext.UPF = upNode
+	smfContext.CPNodeID = *context.NewNodeID("0.0.0.0")
+	upfNodeID := context.NewNodeID(config.UpfNodeID)
+	smfContext.UPF = context.NewUPF(upfNodeID, config.DNN)
 	metrics.RegisterSmfMetrics()
 	return nil
 }

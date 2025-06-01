@@ -23,7 +23,11 @@ func TestBuildAuthorizedQosFlowDescriptions(t *testing.T) {
 
 	smPolicyUpdates := qos.BuildSmPolicyUpdate(smCtxtPolData, smPolicyDecision)
 
-	authorizedQosFlow := qos.BuildAuthorizedQosFlowDescriptions(smPolicyUpdates)
+	authorizedQosFlow, err := qos.BuildAuthorizedQosFlowDescriptions(smPolicyUpdates)
+	if err != nil {
+		t.Errorf("Error building Authorized QoS Flow Descriptions: %v", err)
+		return
+	}
 
 	firstQosDataID := authorizedQosFlow.Content[0]
 	if firstQosDataID == 1 {

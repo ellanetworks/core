@@ -49,7 +49,11 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	pDUSessionEstablishmentAccept.SessionAMBR = ambr
 	pDUSessionEstablishmentAccept.SessionAMBR.SetLen(uint8(len(pDUSessionEstablishmentAccept.SessionAMBR.Octet)))
 
-	qoSRules := qos.BuildQosRules(smContext.SmPolicyUpdates[0])
+	qoSRules, err := qos.BuildQosRules(smContext.SmPolicyUpdates[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to build QoS rules: %v", err)
+	}
+
 	logger.SmfLog.Debug("Built qos rules", zap.Any("QoS Rules", qoSRules))
 
 	qosRulesBytes, err := qoSRules.MarshalBinary()
@@ -69,7 +73,11 @@ func BuildGSMPDUSessionEstablishmentAccept(smContext *SMContext) ([]byte, error)
 	}
 
 	// Get Authorized QoS Flow Descriptions
-	authQfd := qos.BuildAuthorizedQosFlowDescriptions(smContext.SmPolicyUpdates[0])
+	authQfd, err := qos.BuildAuthorizedQosFlowDescriptions(smContext.SmPolicyUpdates[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to build Authorized QoS Flow Descriptions: %v", err)
+	}
+
 	// Add Default Qos Flow
 	// authQfd.AddDefaultQosFlowDescription(smContext.SmPolicyUpdates[0].SessRuleUpdate.ActiveSessRule)
 

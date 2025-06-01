@@ -120,8 +120,13 @@ func BuildPDUSessionResourceSetupRequestTransfer(ctx *SMContext) ([]byte, error)
 				arpPreemptVul = ngapType.PreEmptionVulnerabilityPresentPreEmptable
 			}
 
+			qosFlowID, err := qos.GetQosFlowIDFromQosID(qosFlow.QosID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get QosFlowID from QosID %s: %w", qosFlow.QosID, err)
+			}
+
 			qosFlowItem := ngapType.QosFlowSetupRequestItem{
-				QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(qos.GetQosFlowIDFromQosID(qosFlow.QosID))},
+				QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(qosFlowID)},
 				QosFlowLevelQosParameters: ngapType.QosFlowLevelQosParameters{
 					QosCharacteristics: ngapType.QosCharacteristics{
 						Present: ngapType.QosCharacteristicsPresentNonDynamic5QI,

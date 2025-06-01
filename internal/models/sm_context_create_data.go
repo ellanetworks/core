@@ -1,8 +1,7 @@
 package models
 
 type SmContextCreateData struct {
-	Supi string
-	// UnauthenticatedSupi bool
+	Supi               string
 	Pei                string
 	Gpsi               string
 	PduSessionID       int32
