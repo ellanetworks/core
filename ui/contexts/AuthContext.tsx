@@ -24,7 +24,7 @@ interface AuthProviderProps {
 
 interface DecodedToken {
     email: string;
-    role: number | string;
+    role_id: number;
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
@@ -43,14 +43,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             const decoded = jwtDecode(token) as DecodedToken;
 
             let roleString = "";
-            if (decoded.role === "admin") {
+            if (decoded.role_id === 1) {
                 roleString = "Admin";
-            } else if (decoded.role === "readonly") {
+            } else if (decoded.role_id === 2) {
                 roleString = "Read Only";
-            } else if (decoded.role === "network-manager") {
+            } else if (decoded.role_id === 3) {
                 roleString = "Network Manager";
             } else {
-                roleString = String(decoded.role);
+                roleString = "Unknown";
             }
             setAuthData({ email: decoded.email, role: roleString });
         } catch (error) {

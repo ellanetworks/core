@@ -43,13 +43,6 @@ const (
 	UpdateUserPasswordAction = "update_user_password"
 )
 
-// roleDBMap maps the role string to the db.Role enum.
-var roleDBMap = map[string]db.Role{
-	"admin":           db.AdminRole,
-	"readonly":        db.ReadOnlyRole,
-	"network-manager": db.NetworkManagerRole,
-}
-
 func isValidEmail(email string) bool {
 	// Regular expression for a valid email format.
 	// This regex ensures a proper structure: local-part@domain.
@@ -94,7 +87,7 @@ func ListUsers(dbInstance *db.Database) gin.HandlerFunc {
 		for _, user := range dbUsers {
 			users = append(users, GetUserParams{
 				Email: user.Email,
-				Role:  user.Role.String(),
+				Role:  roleIDToName[user.RoleID],
 			})
 		}
 		writeResponse(c, users, http.StatusOK)
@@ -128,7 +121,7 @@ func GetUser(dbInstance *db.Database) gin.HandlerFunc {
 
 		user := GetUserParams{
 			Email: dbUser.Email,
-			Role:  dbUser.Role.String(),
+			Role:  roleIDToName[dbUser.RoleID],
 		}
 		writeResponse(c, user, http.StatusOK)
 		logger.LogAuditEvent(
@@ -160,7 +153,7 @@ func GetLoggedInUser(dbInstance *db.Database) gin.HandlerFunc {
 
 		user := GetUserParams{
 			Email: dbUser.Email,
-			Role:  dbUser.Role.String(),
+			Role:  roleIDToName[dbUser.RoleID],
 		}
 		writeResponse(c, user, http.StatusOK)
 		logger.LogAuditEvent(
@@ -197,11 +190,6 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Invalid email format")
 			return
 		}
-		role, ok := roleDBMap[newUser.Role]
-		if !ok {
-			writeError(c, http.StatusBadRequest, "Invalid role")
-			return
-		}
 		_, err = dbInstance.GetUser(newUser.Email, c.Request.Context())
 		if err == nil {
 			writeError(c, http.StatusBadRequest, "user already exists")
@@ -216,7 +204,7 @@ func CreateUser(dbInstance *db.Database) gin.HandlerFunc {
 		dbUser := &db.User{
 			Email:          newUser.Email,
 			HashedPassword: hashedPassword,
-			Role:           role,
+			RoleID:         roleNameToID[newUser.Role],
 		}
 		err = dbInstance.CreateUser(dbUser, c.Request.Context())
 		if err != nil {
@@ -262,17 +250,13 @@ func UpdateUser(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Invalid email format")
 			return
 		}
-		role, ok := roleDBMap[updateUserParams.Role]
-		if !ok {
-			writeError(c, http.StatusBadRequest, "Invalid role")
-			return
-		}
+
 		_, err = dbInstance.GetUser(emailParam, c.Request.Context())
 		if err != nil {
 			writeError(c, http.StatusNotFound, "User not found")
 			return
 		}
-		err = dbInstance.UpdateUser(updateUserParams.Email, role, c.Request.Context())
+		err = dbInstance.UpdateUser(updateUserParams.Email, roleNameToID[updateUserParams.Role], c.Request.Context())
 		if err != nil {
 			logger.APILog.Warn("Failed to update user", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update user")

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"net"
 	"net/http"
@@ -35,8 +36,16 @@ const (
 // In tests we can override it to disable actual reconciliation.
 var routeReconciler = ReconcileKernelRouting
 
+func GenerateJWTSecret() ([]byte, error) {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return bytes, fmt.Errorf("failed to generate JWT secret: %w", err)
+	}
+	return bytes, nil
+}
+
 func Start(dbInstance *db.Database, port int, scheme Scheme, certFile string, keyFile string, n3Interface string, n6Interface string, tracingEnabled bool) error {
-	jwtSecret, err := server.GenerateJWTSecret()
+	jwtSecret, err := GenerateJWTSecret()
 	if err != nil {
 		return fmt.Errorf("couldn't generate jwt secret: %v", err)
 	}
