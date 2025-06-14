@@ -20,5 +20,5 @@ interfaces:
 xdp:
   attach-mode: "generic"
 telemetry:
-  enabled: true
+  enabled: false
   otlp-endpoint: "localhost:4317"

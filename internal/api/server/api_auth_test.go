@@ -240,20 +240,17 @@ func TestRolesEndToEnd(t *testing.T) {
 	}
 
 	t.Run("1. Use ReadOnly user to create a new user - should fail", func(t *testing.T) {
-		user := &CreateUserParams{
+		newUser := &CreateUserParams{
 			Email:    "whatever@ellanetworks.com",
 			Password: "password123",
 			Role:     "readonly",
 		}
-		statusCode, response, _ := createUser(ts.URL, client, readOnlyToken, user)
-		if err != nil {
-			t.Fatalf("couldn't create user: %s", err)
-		}
+		statusCode, response, _ := createUser(ts.URL, client, readOnlyToken, newUser)
 		if statusCode != http.StatusForbidden {
 			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
 		}
-		if response.Error != "Admin role required" {
-			t.Fatalf("expected error %s, got %q", "Admin role required", response.Error)
+		if response.Error != "Forbidden" {
+			t.Fatalf("expected error %s, got %q", "Forbidden", response.Error)
 		}
 	})
 
@@ -270,8 +267,8 @@ func TestRolesEndToEnd(t *testing.T) {
 		if statusCode != http.StatusForbidden {
 			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
 		}
-		if response.Error != "Admin role required" {
-			t.Fatalf("expected error %s, got %q", "Admin role required", response.Error)
+		if response.Error != "Forbidden" {
+			t.Fatalf("expected error %s, got %q", "Forbidden", response.Error)
 		}
 	})
 
@@ -327,8 +324,8 @@ func TestRolesEndToEnd(t *testing.T) {
 		if statusCode != http.StatusForbidden {
 			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
 		}
-		if response.Error != "Insufficient permissions" {
-			t.Fatalf("expected error %q, got %q", "Insufficient permissions", response.Error)
+		if response.Error != "Forbidden" {
+			t.Fatalf("expected error %q, got %q", "Forbidden", response.Error)
 		}
 	})
 
@@ -340,8 +337,8 @@ func TestRolesEndToEnd(t *testing.T) {
 		if statusCode != http.StatusForbidden {
 			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
 		}
-		if response.Error != "Insufficient permissions" {
-			t.Fatalf("expected error %q, got %q", "Insufficient permissions", response.Error)
+		if response.Error != "Forbidden" {
+			t.Fatalf("expected error %q, got %q", "Forbidden", response.Error)
 		}
 	})
 
