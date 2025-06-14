@@ -2,12 +2,16 @@ package server
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
+
+const TokenExpirationTime = time.Hour * 1
 
 type LoginParams struct {
 	Email    string `json:"email"`
@@ -26,6 +30,25 @@ const (
 	LoginAction       = "auth_login"
 	LookupTokenAction = "auth_lookup_token" // #nosec G101
 )
+
+// Helper function to generate a JWT
+func generateJWT(id int, email string, roleID int, jwtSecret []byte) (string, error) {
+	expiresAt := jwt.NewNumericDate(time.Now().Add(TokenExpirationTime))
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
+		ID:     id,
+		Email:  email,
+		RoleID: roleID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: expiresAt,
+		},
+	})
+	tokenString, err := token.SignedString(jwtSecret)
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
+}
 
 func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {

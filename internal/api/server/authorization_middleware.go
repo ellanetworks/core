@@ -107,7 +107,6 @@ func RequirePermissionOrFirstUser(permission string, db *db.Database, jwtSecret 
 			}
 		}
 
-		// authenticate inline, not via middleware chain
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header not found"})
@@ -125,7 +124,6 @@ func RequirePermissionOrFirstUser(permission string, db *db.Database, jwtSecret 
 		c.Set("email", claims.Email)
 		c.Set("role_id", claims.RoleID)
 
-		// permission check
 		allowedPerms := PermissionsByRole[claims.RoleID]
 		authorized := false
 		for _, p := range allowedPerms {

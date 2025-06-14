@@ -1,19 +1,15 @@
 package server
 
 import (
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
-
-const TokenExpirationTime = time.Hour * 1
 
 const AuthenticationAction = "user_authentication"
 
@@ -45,33 +41,6 @@ func Authenticate(jwtSecret []byte) gin.HandlerFunc {
 
 		c.Next()
 	}
-}
-
-func GenerateJWTSecret() ([]byte, error) {
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		return bytes, fmt.Errorf("failed to generate JWT secret: %w", err)
-	}
-	return bytes, nil
-}
-
-// Helper function to generate a JWT
-func generateJWT(id int, email string, roleID int, jwtSecret []byte) (string, error) {
-	expiresAt := jwt.NewNumericDate(time.Now().Add(TokenExpirationTime))
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
-		ID:     id,
-		Email:  email,
-		RoleID: roleID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: expiresAt,
-		},
-	})
-	tokenString, err := token.SignedString(jwtSecret)
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
 }
 
 func getClaimsFromAuthorizationHeader(header string, jwtSecret []byte) (*claims, error) {
