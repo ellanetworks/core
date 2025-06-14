@@ -43,13 +43,6 @@ const (
 	UpdateUserPasswordAction = "update_user_password"
 )
 
-// // roleDBMap maps the role string to the db.Role enum.
-// var roleDBMap = map[string]db.Role{
-// 	"admin":           db.AdminRole,
-// 	"readonly":        db.ReadOnlyRole,
-// 	"network-manager": db.NetworkManagerRole,
-// }
-
 func isValidEmail(email string) bool {
 	// Regular expression for a valid email format.
 	// This regex ensures a proper structure: local-part@domain.
