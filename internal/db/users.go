@@ -21,40 +21,19 @@ const QueryCreateUsersTable = `
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
 		email TEXT NOT NULL,
-		role INTEGER NOT NULL,
+		roleID INTEGER NOT NULL,
 		hashedPassword TEXT NOT NULL
 )`
 
 const (
 	listUsersStmt        = "SELECT &User.* from %s"
 	getUserStmt          = "SELECT &User.* from %s WHERE email==$User.email"
-	createUserStmt       = "INSERT INTO %s (email, role, hashedPassword) VALUES ($User.email, $User.role, $User.hashedPassword)"
-	editUserStmt         = "UPDATE %s SET role=$User.role WHERE email==$User.email"
+	createUserStmt       = "INSERT INTO %s (email, roleID, hashedPassword) VALUES ($User.email, $User.roleID, $User.hashedPassword)"
+	editUserStmt         = "UPDATE %s SET roleID=$User.roleID WHERE email==$User.email"
 	editUserPasswordStmt = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE email==$User.email" // #nosec: G101
 	deleteUserStmt       = "DELETE FROM %s WHERE email==$User.email"
 	getNumUsersStmt      = "SELECT COUNT(*) AS &NumUsers.count FROM %s"
 )
-
-type Role int
-
-const (
-	AdminRole Role = iota
-	ReadOnlyRole
-	NetworkManagerRole
-)
-
-func (r Role) String() string {
-	switch r {
-	case AdminRole:
-		return "admin"
-	case ReadOnlyRole:
-		return "readonly"
-	case NetworkManagerRole:
-		return "network-manager"
-	default:
-		return "unknown"
-	}
-}
 
 type NumUsers struct {
 	Count int `db:"count"`
@@ -63,7 +42,7 @@ type NumUsers struct {
 type User struct {
 	ID             int    `db:"id"`
 	Email          string `db:"email"`
-	Role           Role   `db:"role"`
+	RoleID         int    `db:"roleID"`
 	HashedPassword string `db:"hashedPassword"`
 }
 
@@ -181,7 +160,7 @@ func (db *Database) CreateUser(user *User, ctx context.Context) error {
 }
 
 // UpdateUser updates a user's role with a span named "UPDATE users".
-func (db *Database) UpdateUser(email string, role Role, ctx context.Context) error {
+func (db *Database) UpdateUser(email string, roleID int, ctx context.Context) error {
 	operation := "UPDATE"
 	target := UsersTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -211,7 +190,7 @@ func (db *Database) UpdateUser(email string, role Role, ctx context.Context) err
 		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
-	user.Role = role
+	user.RoleID = roleID
 	if err := db.conn.Query(ctx, q, user).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
