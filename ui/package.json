@@ -10,12 +10,12 @@
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.0",
-    "@mui/icons-material": "^7.1.2",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.2.0",
     "@mui/material": "^7.0.1",
-    "@mui/x-charts": "^8.5.3",
-    "@mui/x-data-grid": "^8.5.3",
-    "@tanstack/react-query": "^5.81.2",
+    "@mui/x-charts": "^8.6.0",
+    "@mui/x-data-grid": "^8.6.0",
+    "@tanstack/react-query": "^5.81.5",
     "@types/react": "18.3.12",
     "autoprefixer": "^10.4.21",
     "jwt-decode": "^4.0.0",
@@ -29,6 +29,6 @@
     "yup": "1.6.1"
   },
   "devDependencies": {
-    "@types/node": "24.0.3"
+    "@types/node": "24.0.7"
   }
 }
