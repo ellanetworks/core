@@ -26,119 +26,6 @@ import (
 
 var tracer = otel.Tracer("ella-core/ngap")
 
-func procedureName(code int64) string {
-	switch code {
-	case ngapType.ProcedureCodeAMFConfigurationUpdate:
-		return "AMFConfigurationUpdate"
-	case ngapType.ProcedureCodeAMFStatusIndication:
-		return "AMFStatusIndication"
-	case ngapType.ProcedureCodeCellTrafficTrace:
-		return "CellTrafficTrace"
-	case ngapType.ProcedureCodeDeactivateTrace:
-		return "DeactivateTrace"
-	case ngapType.ProcedureCodeDownlinkNASTransport:
-		return "DownlinkNASTransport"
-	case ngapType.ProcedureCodeDownlinkNonUEAssociatedNRPPaTransport:
-		return "DownlinkNonUEAssociatedNRPPaTransport"
-	case ngapType.ProcedureCodeDownlinkRANConfigurationTransfer:
-		return "DownlinkRANConfigurationTransfer"
-	case ngapType.ProcedureCodeDownlinkRANStatusTransfer:
-		return "DownlinkRANStatusTransfer"
-	case ngapType.ProcedureCodeDownlinkUEAssociatedNRPPaTransport:
-		return "DownlinkUEAssociatedNRPPaTransport"
-	case ngapType.ProcedureCodeErrorIndication:
-		return "ErrorIndication"
-	case ngapType.ProcedureCodeHandoverCancel:
-		return "HandoverCancel"
-	case ngapType.ProcedureCodeHandoverNotification:
-		return "HandoverNotification"
-	case ngapType.ProcedureCodeHandoverPreparation:
-		return "HandoverPreparation"
-	case ngapType.ProcedureCodeHandoverResourceAllocation:
-		return "HandoverResourceAllocation"
-	case ngapType.ProcedureCodeInitialContextSetup:
-		return "InitialContextSetup"
-	case ngapType.ProcedureCodeInitialUEMessage:
-		return "InitialUEMessage"
-	case ngapType.ProcedureCodeLocationReportingControl:
-		return "LocationReportingControl"
-	case ngapType.ProcedureCodeLocationReportingFailureIndication:
-		return "LocationReportingFailureIndication"
-	case ngapType.ProcedureCodeLocationReport:
-		return "LocationReport"
-	case ngapType.ProcedureCodeNASNonDeliveryIndication:
-		return "NASNonDeliveryIndication"
-	case ngapType.ProcedureCodeNGReset:
-		return "NGReset"
-	case ngapType.ProcedureCodeNGSetup:
-		return "NGSetup"
-	case ngapType.ProcedureCodeOverloadStart:
-		return "OverloadStart"
-	case ngapType.ProcedureCodeOverloadStop:
-		return "OverloadStop"
-	case ngapType.ProcedureCodePaging:
-		return "Paging"
-	case ngapType.ProcedureCodePathSwitchRequest:
-		return "PathSwitchRequest"
-	case ngapType.ProcedureCodePDUSessionResourceModify:
-		return "PDUSessionResourceModify"
-	case ngapType.ProcedureCodePDUSessionResourceModifyIndication:
-		return "PDUSessionResourceModifyIndication"
-	case ngapType.ProcedureCodePDUSessionResourceRelease:
-		return "PDUSessionResourceRelease"
-	case ngapType.ProcedureCodePDUSessionResourceSetup:
-		return "PDUSessionResourceSetup"
-	case ngapType.ProcedureCodePDUSessionResourceNotify:
-		return "PDUSessionResourceNotify"
-	case ngapType.ProcedureCodePrivateMessage:
-		return "PrivateMessage"
-	case ngapType.ProcedureCodePWSCancel:
-		return "PWSCancel"
-	case ngapType.ProcedureCodePWSFailureIndication:
-		return "PWSFailureIndication"
-	case ngapType.ProcedureCodePWSRestartIndication:
-		return "PWSRestartIndication"
-	case ngapType.ProcedureCodeRANConfigurationUpdate:
-		return "RANConfigurationUpdate"
-	case ngapType.ProcedureCodeRerouteNASRequest:
-		return "RerouteNASRequest"
-	case ngapType.ProcedureCodeRRCInactiveTransitionReport:
-		return "RRCInactiveTransitionReport"
-	case ngapType.ProcedureCodeTraceFailureIndication:
-		return "TraceFailureIndication"
-	case ngapType.ProcedureCodeTraceStart:
-		return "TraceStart"
-	case ngapType.ProcedureCodeUEContextModification:
-		return "UEContextModification"
-	case ngapType.ProcedureCodeUEContextRelease:
-		return "UEContextRelease"
-	case ngapType.ProcedureCodeUEContextReleaseRequest:
-		return "UEContextReleaseRequest"
-	case ngapType.ProcedureCodeUERadioCapabilityCheck:
-		return "UERadioCapabilityCheck"
-	case ngapType.ProcedureCodeUERadioCapabilityInfoIndication:
-		return "UERadioCapabilityInfoIndication"
-	case ngapType.ProcedureCodeUETNLABindingRelease:
-		return "UETNLABindingRelease"
-	case ngapType.ProcedureCodeUplinkNASTransport:
-		return "UplinkNASTransport"
-	case ngapType.ProcedureCodeUplinkNonUEAssociatedNRPPaTransport:
-		return "UplinkNonUEAssociatedNRPPaTransport"
-	case ngapType.ProcedureCodeUplinkRANConfigurationTransfer:
-		return "UplinkRANConfigurationTransfer"
-	case ngapType.ProcedureCodeUplinkRANStatusTransfer:
-		return "UplinkRANStatusTransfer"
-	case ngapType.ProcedureCodeUplinkUEAssociatedNRPPaTransport:
-		return "UplinkUEAssociatedNRPPaTransport"
-	case ngapType.ProcedureCodeWriteReplaceWarning:
-		return "WriteReplaceWarning"
-	case ngapType.ProcedureCodeSecondaryRATDataUsageReport:
-		return "SecondaryRATDataUsageReport"
-	default:
-		return fmt.Sprintf("ProcedureCode%d", code)
-	}
-}
-
 func Dispatch(conn net.Conn, msg []byte, ctext ctx.Context) {
 	var ran *context.AmfRan
 	amfSelf := context.AMFSelf()
@@ -197,7 +84,7 @@ func DispatchNgapMsg(conn net.Conn, ran *context.AmfRan, pdu *ngapType.NGAPPDU) 
 			code = pdu.UnsuccessfulOutcome.ProcedureCode.Value
 		}
 	}
-	procName := procedureName(code)
+	procName := ngapType.ProcedureName(code)
 
 	if procName == "" {
 		procName = "UnknownProcedure"
