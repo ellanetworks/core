@@ -104,7 +104,7 @@ func (db *Database) ListSubscribers(ctx context.Context) ([]Subscriber, error) {
 	return subs, nil
 }
 
-func (db *Database) GetSubscriber(imsi string, ctx context.Context) (*Subscriber, error) {
+func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber, error) {
 	operation := "SELECT"
 	target := db.subscribersTable
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -137,7 +137,7 @@ func (db *Database) GetSubscriber(imsi string, ctx context.Context) (*Subscriber
 	return &row, nil
 }
 
-func (db *Database) CreateSubscriber(subscriber *Subscriber, ctx context.Context) error {
+func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber) error {
 	operation := "INSERT"
 	target := db.subscribersTable
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -153,7 +153,7 @@ func (db *Database) CreateSubscriber(subscriber *Subscriber, ctx context.Context
 		attribute.String("db.collection", target),
 	)
 
-	if _, err := db.GetSubscriber(subscriber.Imsi, ctx); err == nil {
+	if _, err := db.GetSubscriber(ctx, subscriber.Imsi); err == nil {
 		dupErr := fmt.Errorf("subscriber with imsi %s already exists", subscriber.Imsi)
 		span.RecordError(dupErr)
 		span.SetStatus(codes.Error, "duplicate key")
@@ -177,7 +177,7 @@ func (db *Database) CreateSubscriber(subscriber *Subscriber, ctx context.Context
 	return nil
 }
 
-func (db *Database) UpdateSubscriber(subscriber *Subscriber, ctx context.Context) error {
+func (db *Database) UpdateSubscriber(ctx context.Context, subscriber *Subscriber) error {
 	operation := "UPDATE"
 	target := db.subscribersTable
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -194,7 +194,7 @@ func (db *Database) UpdateSubscriber(subscriber *Subscriber, ctx context.Context
 	)
 
 	// verify existence
-	if _, err := db.GetSubscriber(subscriber.Imsi, ctx); err != nil {
+	if _, err := db.GetSubscriber(ctx, subscriber.Imsi); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "not found")
 		return err
@@ -217,7 +217,7 @@ func (db *Database) UpdateSubscriber(subscriber *Subscriber, ctx context.Context
 	return nil
 }
 
-func (db *Database) DeleteSubscriber(imsi string, ctx context.Context) error {
+func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 	operation := "DELETE"
 	target := db.subscribersTable
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -234,7 +234,7 @@ func (db *Database) DeleteSubscriber(imsi string, ctx context.Context) error {
 	)
 
 	// verify existence
-	if _, err := db.GetSubscriber(imsi, ctx); err != nil {
+	if _, err := db.GetSubscriber(ctx, imsi); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "not found")
 		return err
@@ -258,12 +258,12 @@ func (db *Database) DeleteSubscriber(imsi string, ctx context.Context) error {
 	return nil
 }
 
-func (db *Database) SubscribersInProfile(name string, ctx context.Context) (bool, error) {
+func (db *Database) SubscribersInProfile(ctx context.Context, name string) (bool, error) {
 	// business‐logic span (no direct SQL)
 	ctx, span := tracer.Start(ctx, "SubscribersInProfile")
 	defer span.End()
 
-	profile, err := db.GetProfile(name, ctx)
+	profile, err := db.GetProfile(ctx, name)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "profile not found")
@@ -288,13 +288,13 @@ func (db *Database) SubscribersInProfile(name string, ctx context.Context) (bool
 	return false, nil
 }
 
-func (db *Database) allocateIP(imsi string, ctx context.Context) (net.IP, error) {
-	subscriber, err := db.GetSubscriber(imsi, ctx)
+func (db *Database) allocateIP(ctx context.Context, imsi string) (net.IP, error) {
+	subscriber, err := db.GetSubscriber(ctx, imsi)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subscriber: %v", err)
 	}
 
-	profile, err := db.GetProfileByID(subscriber.ProfileID, ctx)
+	profile, err := db.GetProfileByID(ctx, subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get profile for subscriber %s: %v", imsi, err)
 	}
@@ -337,11 +337,11 @@ func (db *Database) allocateIP(imsi string, ctx context.Context) (net.IP, error)
 	return nil, fmt.Errorf("no available IP addresses")
 }
 
-func (db *Database) AllocateIP(imsi string, ctx context.Context) (net.IP, error) {
+func (db *Database) AllocateIP(ctx context.Context, imsi string) (net.IP, error) {
 	ctx, span := tracer.Start(ctx, "AllocateIP", trace.WithSpanKind(trace.SpanKindInternal))
 	defer span.End()
 
-	ip, err := db.allocateIP(imsi, ctx)
+	ip, err := db.allocateIP(ctx, imsi)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "allocation failed")
@@ -352,8 +352,8 @@ func (db *Database) AllocateIP(imsi string, ctx context.Context) (net.IP, error)
 	return ip, nil
 }
 
-func (db *Database) releaseIP(imsi string, ctx context.Context) error {
-	subscriber, err := db.GetSubscriber(imsi, ctx)
+func (db *Database) releaseIP(ctx context.Context, imsi string) error {
+	subscriber, err := db.GetSubscriber(ctx, imsi)
 	if err != nil {
 		return fmt.Errorf("failed to get subscriber: %v", err)
 	}
@@ -376,11 +376,11 @@ func (db *Database) releaseIP(imsi string, ctx context.Context) error {
 }
 
 // ReleaseIP removes any assigned IP for a subscriber.
-func (db *Database) ReleaseIP(imsi string, ctx context.Context) error {
+func (db *Database) ReleaseIP(ctx context.Context, imsi string) error {
 	ctx, span := tracer.Start(ctx, "ReleaseIP", trace.WithSpanKind(trace.SpanKindInternal))
 	defer span.End()
 
-	err := db.releaseIP(imsi, ctx)
+	err := db.releaseIP(ctx, imsi)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "release failed")

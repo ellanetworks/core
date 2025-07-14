@@ -5,7 +5,7 @@
 package pdusession
 
 import (
-	ctx "context"
+	ctxt "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -19,8 +19,8 @@ import (
 
 var tracer = otel.Tracer("ella-core/smf")
 
-func CreateSmContext(request models.PostSmContextsRequest, ctext ctx.Context) (string, *models.PostSmContextsErrorResponse, error) {
-	ctext, span := tracer.Start(ctext, "SMF Create SmContext")
+func CreateSmContext(ctx ctxt.Context, request models.PostSmContextsRequest) (string, *models.PostSmContextsErrorResponse, error) {
+	ctx, span := tracer.Start(ctx, "SMF Create SmContext")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", request.JSONData.Supi),
@@ -33,7 +33,7 @@ func CreateSmContext(request models.PostSmContextsRequest, ctext ctx.Context) (s
 	createData := request.JSONData
 	smCtxtRef, err := context.ResolveRef(createData.Supi, createData.PduSessionID)
 	if err == nil {
-		err := producer.HandlePduSessionContextReplacement(smCtxtRef, ctext)
+		err := producer.HandlePduSessionContextReplacement(ctx, smCtxtRef)
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to replace existing context")
 		}
@@ -41,7 +41,7 @@ func CreateSmContext(request models.PostSmContextsRequest, ctext ctx.Context) (s
 
 	smContext := context.NewSMContext(createData.Supi, createData.PduSessionID)
 
-	location, errRsp, err := producer.HandlePDUSessionSMContextCreate(request, smContext, ctext)
+	location, errRsp, err := producer.HandlePDUSessionSMContextCreate(ctx, request, smContext)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
 	}
@@ -50,11 +50,11 @@ func CreateSmContext(request models.PostSmContextsRequest, ctext ctx.Context) (s
 		return "", errRsp, nil
 	}
 
-	err = producer.SendPFCPRules(smContext, ctext)
+	err = producer.SendPFCPRules(ctx, smContext)
 	if err != nil {
 		if smContext != nil {
 			go func() {
-				err := producer.SendPduSessN1N2Transfer(smContext, false, ctext)
+				err := producer.SendPduSessN1N2Transfer(ctx, smContext, false)
 				if err != nil {
 					logger.SmfLog.Error("error transferring n1 n2", zap.Error(err))
 				}
@@ -64,7 +64,7 @@ func CreateSmContext(request models.PostSmContextsRequest, ctext ctx.Context) (s
 	}
 
 	go func() {
-		err := producer.SendPduSessN1N2Transfer(smContext, true, ctext)
+		err := producer.SendPduSessN1N2Transfer(ctx, smContext, true)
 		if err != nil {
 			logger.SmfLog.Error("error transferring n1 n2", zap.Error(err))
 		}

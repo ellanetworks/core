@@ -31,7 +31,7 @@ type SMFContext struct {
 }
 
 // RetrieveDnnInformation gets the corresponding dnn info from S-NSSAI and DNN
-func RetrieveDnnInformation(Snssai models.Snssai, dnn string, ctx context.Context) (*SnssaiSmfDnnInfo, error) {
+func RetrieveDnnInformation(ctx context.Context, Snssai models.Snssai, dnn string) (*SnssaiSmfDnnInfo, error) {
 	snssaiInfo, err := GetSnssaiInfo(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get snssai information: %v", err)

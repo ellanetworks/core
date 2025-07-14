@@ -30,12 +30,12 @@ type UESubsData struct {
 	SdmSubscriptions map[subsID]*models.SdmSubscription
 }
 
-func GetAmData(ueID string, ctx context.Context) (*models.AccessAndMobilitySubscriptionData, error) {
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID, ctx)
+func GetAmData(ctx context.Context, ueID string) (*models.AccessAndMobilitySubscriptionData, error) {
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
-	profile, err := udmContext.DBInstance.GetProfileByID(subscriber.ProfileID, ctx)
+	profile, err := udmContext.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
@@ -64,13 +64,13 @@ func GetAmData(ueID string, ctx context.Context) (*models.AccessAndMobilitySubsc
 	return amData, nil
 }
 
-func GetAmDataAndSetAMSubscription(supi string, ctx context.Context) (*models.AccessAndMobilitySubscriptionData, error) {
+func GetAmDataAndSetAMSubscription(ctx context.Context, supi string) (*models.AccessAndMobilitySubscriptionData, error) {
 	ctx, span := tracer.Start(ctx, "UDM GetAmDataAndSetAMSubscription")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", supi),
 	)
-	amData, err := GetAmData(supi, ctx)
+	amData, err := GetAmData(ctx, supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
@@ -79,12 +79,12 @@ func GetAmDataAndSetAMSubscription(supi string, ctx context.Context) (*models.Ac
 	return amData, nil
 }
 
-func GetSmData(ueID string, ctx context.Context) ([]models.SessionManagementSubscriptionData, error) {
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID, ctx)
+func GetSmData(ctx context.Context, ueID string) ([]models.SessionManagementSubscriptionData, error) {
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
-	profile, err := udmContext.DBInstance.GetProfileByID(subscriber.ProfileID, ctx)
+	profile, err := udmContext.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
@@ -127,8 +127,8 @@ func GetSmData(ueID string, ctx context.Context) ([]models.SessionManagementSubs
 	return smData, nil
 }
 
-func GetAndSetSmData(supi string, Dnn string, Snssai string, ctx context.Context) ([]models.SessionManagementSubscriptionData, error) {
-	sessionManagementSubscriptionDataResp, err := GetSmData(supi, ctx)
+func GetAndSetSmData(ctx context.Context, supi string, Dnn string, Snssai string) ([]models.SessionManagementSubscriptionData, error) {
+	sessionManagementSubscriptionDataResp, err := GetSmData(ctx, supi)
 	if err != nil {
 		return nil, fmt.Errorf("error getting sm data: %+v", err)
 	}
@@ -150,13 +150,13 @@ func GetAndSetSmData(supi string, Dnn string, Snssai string, ctx context.Context
 	return rspSMSubDataList, nil
 }
 
-func GetNssai(supi string, ctx context.Context) (*models.Nssai, error) {
+func GetNssai(ctx context.Context, supi string) (*models.Nssai, error) {
 	ctx, span := tracer.Start(ctx, "UDM GetNssai")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("ue.supi", supi),
 	)
-	accessAndMobilitySubscriptionDataResp, err := GetAmData(supi, ctx)
+	accessAndMobilitySubscriptionDataResp, err := GetAmData(ctx, supi)
 	if err != nil {
 		return nil, fmt.Errorf("GetAmData error: %+v", err)
 	}
@@ -166,7 +166,7 @@ func GetNssai(supi string, ctx context.Context) (*models.Nssai, error) {
 	return udmUe.Nssai, nil
 }
 
-func GetSmfSelectData(ueID string, ctx context.Context) (*models.SmfSelectionSubscriptionData, error) {
+func GetSmfSelectData(ctx context.Context, ueID string) (*models.SmfSelectionSubscriptionData, error) {
 	operator, err := udmContext.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
@@ -186,7 +186,7 @@ func GetSmfSelectData(ueID string, ctx context.Context) (*models.SmfSelectionSub
 	return smfSelectionData, nil
 }
 
-func GetAndSetSmfSelectData(supi string, ctx context.Context) (*models.SmfSelectionSubscriptionData, error) {
+func GetAndSetSmfSelectData(ctx context.Context, supi string) (*models.SmfSelectionSubscriptionData, error) {
 	ctx, span := tracer.Start(ctx, "UDM SetSmfSelectData")
 	defer span.End()
 	span.SetAttributes(
@@ -194,7 +194,7 @@ func GetAndSetSmfSelectData(supi string, ctx context.Context) (*models.SmfSelect
 	)
 	var body models.SmfSelectionSubscriptionData
 	udmContext.CreateSmfSelectionSubsDataforUe(supi, body)
-	smfSelectionSubscriptionDataResp, err := GetSmfSelectData(supi, ctx)
+	smfSelectionSubscriptionDataResp, err := GetSmfSelectData(ctx, supi)
 	if err != nil {
 		return nil, fmt.Errorf("error getting smf selection data: %+v", err)
 	}
@@ -222,7 +222,7 @@ func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueID string)
 	return SdmSubscription
 }
 
-func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string, ctx context.Context) error {
+func CreateSubscription(ctx context.Context, sdmSubscription *models.SdmSubscription, supi string) error {
 	_, span := tracer.Start(ctx, "UDM CreateSubscription")
 	defer span.End()
 	span.SetAttributes(
@@ -237,7 +237,7 @@ func CreateSubscription(sdmSubscription *models.SdmSubscription, supi string, ct
 	return nil
 }
 
-func GetUeContextInSmfData(supi string, ctx context.Context) (*models.UeContextInSmfData, error) {
+func GetUeContextInSmfData(ctx context.Context, supi string) (*models.UeContextInSmfData, error) {
 	_, span := tracer.Start(ctx, "UDM GetUeContextInSmfData")
 	defer span.End()
 	span.SetAttributes(

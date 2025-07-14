@@ -90,7 +90,7 @@ func (db *Database) ListProfiles(ctx context.Context) ([]Profile, error) {
 	return profiles, nil
 }
 
-func (db *Database) GetProfile(name string, ctx context.Context) (*Profile, error) {
+func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, error) {
 	operation := "SELECT"
 	target := ProfilesTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -124,7 +124,7 @@ func (db *Database) GetProfile(name string, ctx context.Context) (*Profile, erro
 	return &row, nil
 }
 
-func (db *Database) GetProfileByID(id int, ctx context.Context) (*Profile, error) {
+func (db *Database) GetProfileByID(ctx context.Context, id int) (*Profile, error) {
 	operation := "SELECT"
 	target := ProfilesTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -163,7 +163,7 @@ func (db *Database) GetProfileByID(id int, ctx context.Context) (*Profile, error
 	return &row, nil
 }
 
-func (db *Database) CreateProfile(profile *Profile, ctx context.Context) error {
+func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 	operation := "INSERT"
 	target := ProfilesTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -180,7 +180,7 @@ func (db *Database) CreateProfile(profile *Profile, ctx context.Context) error {
 	)
 
 	// ensure unique name
-	if _, err := db.GetProfile(profile.Name, ctx); err == nil {
+	if _, err := db.GetProfile(ctx, profile.Name); err == nil {
 		dup := fmt.Errorf("profile with name %s already exists", profile.Name)
 		span.RecordError(dup)
 		span.SetStatus(codes.Error, "duplicate key")
@@ -203,7 +203,7 @@ func (db *Database) CreateProfile(profile *Profile, ctx context.Context) error {
 	return nil
 }
 
-func (db *Database) UpdateProfile(profile *Profile, ctx context.Context) error {
+func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 	operation := "UPDATE"
 	target := ProfilesTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -220,7 +220,7 @@ func (db *Database) UpdateProfile(profile *Profile, ctx context.Context) error {
 	)
 
 	// ensure exists
-	if _, err := db.GetProfile(profile.Name, ctx); err != nil {
+	if _, err := db.GetProfile(ctx, profile.Name); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "not found")
 		return err
@@ -242,7 +242,7 @@ func (db *Database) UpdateProfile(profile *Profile, ctx context.Context) error {
 	return nil
 }
 
-func (db *Database) DeleteProfile(name string, ctx context.Context) error {
+func (db *Database) DeleteProfile(ctx context.Context, name string) error {
 	operation := "DELETE"
 	target := ProfilesTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -259,7 +259,7 @@ func (db *Database) DeleteProfile(name string, ctx context.Context) error {
 	)
 
 	// ensure exists
-	if _, err := db.GetProfile(name, ctx); err != nil {
+	if _, err := db.GetProfile(ctx, name); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "not found")
 		return err

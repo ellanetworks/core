@@ -6,7 +6,7 @@
 package producer
 
 import (
-	ctx "context"
+	ctxt "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -26,7 +26,7 @@ type pfcpParam struct {
 	qerList []*context.QER
 }
 
-func HandleUpdateN1Msg(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction, ctext ctx.Context) error {
+func HandleUpdateN1Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction) error {
 	if body.BinaryDataN1SmMessage != nil {
 		smContext.SubPduSessLog.Debug("Binary Data N1 SmMessage isn't nil")
 		m := nas.NewMessage()
@@ -39,7 +39,7 @@ func HandleUpdateN1Msg(body models.UpdateSmContextRequest, smContext *context.SM
 		case nas.MsgTypePDUSessionReleaseRequest:
 			smContext.SubPduSessLog.Info("N1 Msg PDU Session Release Request received")
 
-			smContext.HandlePDUSessionReleaseRequest(m.PDUSessionReleaseRequest, ctext)
+			smContext.HandlePDUSessionReleaseRequest(ctx, m.PDUSessionReleaseRequest)
 			if buf, err := context.BuildGSMPDUSessionReleaseCommand(smContext); err != nil {
 				smContext.SubPduSessLog.Error("build GSM PDUSessionReleaseCommand failed", zap.Error(err))
 			} else {
@@ -200,7 +200,7 @@ func HandleUpdateCause(body models.UpdateSmContextRequest, smContext *context.SM
 	return nil
 }
 
-func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction, pfcpParam *pfcpParam, ctext ctx.Context) error {
+func HandleUpdateN2Msg(ctx ctxt.Context, body models.UpdateSmContextRequest, smContext *context.SMContext, response *models.UpdateSmContextResponse, pfcpAction *pfcpAction, pfcpParam *pfcpParam) error {
 	smContextUpdateData := body.JSONData
 	tunnel := smContext.Tunnel
 
@@ -251,7 +251,7 @@ func HandleUpdateN2Msg(body models.UpdateSmContextRequest, smContext *context.SM
 		if smContext.PDUSessionReleaseDueToDupPduID {
 			response.JSONData.UpCnxState = models.UpCnxStateDeactivated
 			smContext.PDUSessionReleaseDueToDupPduID = false
-			context.RemoveSMContext(smContext.Ref, ctext)
+			context.RemoveSMContext(ctx, smContext.Ref)
 		} else {
 			smContext.SubPduSessLog.Info("send Update SmContext Response")
 		}

@@ -7,7 +7,7 @@
 package message
 
 import (
-	ctx "context"
+	ctxt "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
@@ -269,21 +269,21 @@ func SendDeregistrationAccept(ue *context.RanUe) error {
 }
 
 func SendRegistrationAccept(
+	ctx ctxt.Context,
 	ue *context.AmfUe,
 	anType models.AccessType,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
 	pduSessionResourceSetupList *ngapType.PDUSessionResourceSetupListCxtReq,
-	ctext ctx.Context,
 ) error {
-	nasMsg, err := BuildRegistrationAccept(ue, anType, pDUSessionStatus, reactivationResult, errPduSessionID, errCause, ctext)
+	nasMsg, err := BuildRegistrationAccept(ctx, ue, anType, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 	if err != nil {
 		return fmt.Errorf("error building registration accept: %s", err.Error())
 	}
 
 	if ue.RanUe[anType].UeContextRequest {
-		err = ngap_message.SendInitialContextSetupRequest(ue, anType, nasMsg, pduSessionResourceSetupList, nil, nil, nil, ctext)
+		err = ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasMsg, pduSessionResourceSetupList, nil, nil, nil)
 		if err != nil {
 			return fmt.Errorf("error sending initial context setup request: %s", err.Error())
 		}
@@ -304,7 +304,7 @@ func SendRegistrationAccept(
 				ue.T3550 = nil
 			} else {
 				if ue.RanUe[anType].UeContextRequest && !ue.RanUe[anType].RecvdInitialContextSetupResponse {
-					err = ngap_message.SendInitialContextSetupRequest(ue, anType, nasMsg, pduSessionResourceSetupList, nil, nil, nil, ctext)
+					err = ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nasMsg, pduSessionResourceSetupList, nil, nil, nil)
 					if err != nil {
 						ue.GmmLog.Error("could not send initial context setup request", zap.Error(err))
 					}

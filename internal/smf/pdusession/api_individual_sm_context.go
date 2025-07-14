@@ -5,7 +5,7 @@
 package pdusession
 
 import (
-	ctx "context"
+	ctxt "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -14,8 +14,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-func ReleaseSmContext(smContextRef string, ctext ctx.Context) error {
-	ctext, span := tracer.Start(ctext, "SMF Release SmContext")
+func ReleaseSmContext(ctx ctxt.Context, smContextRef string) error {
+	ctx, span := tracer.Start(ctx, "SMF Release SmContext")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("smf.smContextRef", smContextRef),
@@ -24,15 +24,15 @@ func ReleaseSmContext(smContextRef string, ctext ctx.Context) error {
 	if ctxt == nil {
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
-	err := producer.HandlePDUSessionSMContextRelease(ctxt, ctext)
+	err := producer.HandlePDUSessionSMContextRelease(ctx, ctxt)
 	if err != nil {
 		return fmt.Errorf("error releasing pdu session: %v ", err.Error())
 	}
 	return nil
 }
 
-func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSmContextRequest, ctext ctx.Context) (*models.UpdateSmContextResponse, error) {
-	ctext, span := tracer.Start(ctext, "SMF Update SmContext")
+func UpdateSmContext(ctx ctxt.Context, smContextRef string, updateSmContextRequest models.UpdateSmContextRequest) (*models.UpdateSmContextResponse, error) {
+	ctx, span := tracer.Start(ctx, "SMF Update SmContext")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("smf.smContextRef", smContextRef),
@@ -47,7 +47,7 @@ func UpdateSmContext(smContextRef string, updateSmContextRequest models.UpdateSm
 
 	smContext := context.GetSMContext(smContextRef)
 
-	rsp, err := producer.HandlePDUSessionSMContextUpdate(updateSmContextRequest, smContext, ctext)
+	rsp, err := producer.HandlePDUSessionSMContextUpdate(ctx, updateSmContextRequest, smContext)
 	if err != nil {
 		return rsp, fmt.Errorf("error updating pdu session: %v ", err.Error())
 	}

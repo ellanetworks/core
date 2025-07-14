@@ -85,7 +85,7 @@ func (db *Database) ListUsers(ctx context.Context) ([]User, error) {
 }
 
 // GetUser fetches a single user by email with a span named "SELECT users".
-func (db *Database) GetUser(email string, ctx context.Context) (*User, error) {
+func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 	operation := "SELECT"
 	target := UsersTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -119,7 +119,7 @@ func (db *Database) GetUser(email string, ctx context.Context) (*User, error) {
 }
 
 // CreateUser inserts a new user with a span named "INSERT users".
-func (db *Database) CreateUser(user *User, ctx context.Context) error {
+func (db *Database) CreateUser(ctx context.Context, user *User) error {
 	operation := "INSERT"
 	target := UsersTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -136,7 +136,7 @@ func (db *Database) CreateUser(user *User, ctx context.Context) error {
 	)
 
 	// uniqueness check
-	if _, err := db.GetUser(user.Email, ctx); err == nil {
+	if _, err := db.GetUser(ctx, user.Email); err == nil {
 		dup := fmt.Errorf("user with email %s already exists", user.Email)
 		span.RecordError(dup)
 		span.SetStatus(codes.Error, "duplicate key")
@@ -160,7 +160,7 @@ func (db *Database) CreateUser(user *User, ctx context.Context) error {
 }
 
 // UpdateUser updates a user's role with a span named "UPDATE users".
-func (db *Database) UpdateUser(email string, roleID int, ctx context.Context) error {
+func (db *Database) UpdateUser(ctx context.Context, email string, roleID int) error {
 	operation := "UPDATE"
 	target := UsersTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -169,7 +169,7 @@ func (db *Database) UpdateUser(email string, roleID int, ctx context.Context) er
 	defer span.End()
 
 	// existence check
-	user, err := db.GetUser(email, ctx)
+	user, err := db.GetUser(ctx, email)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "not found")
@@ -202,7 +202,7 @@ func (db *Database) UpdateUser(email string, roleID int, ctx context.Context) er
 }
 
 // UpdateUserPassword sets a new password hash with a span named "UPDATE users".
-func (db *Database) UpdateUserPassword(email string, hashedPassword string, ctx context.Context) error {
+func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashedPassword string) error {
 	operation := "UPDATE"
 	target := UsersTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -210,7 +210,7 @@ func (db *Database) UpdateUserPassword(email string, hashedPassword string, ctx 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	user, err := db.GetUser(email, ctx)
+	user, err := db.GetUser(ctx, email)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "not found")
@@ -243,7 +243,7 @@ func (db *Database) UpdateUserPassword(email string, hashedPassword string, ctx 
 }
 
 // DeleteUser removes a user by email with a span named "DELETE users".
-func (db *Database) DeleteUser(email string, ctx context.Context) error {
+func (db *Database) DeleteUser(ctx context.Context, email string) error {
 	operation := "DELETE"
 	target := UsersTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -252,7 +252,7 @@ func (db *Database) DeleteUser(email string, ctx context.Context) error {
 	defer span.End()
 
 	// existence check
-	if _, err := db.GetUser(email, ctx); err != nil {
+	if _, err := db.GetUser(ctx, email); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "not found")
 		return err

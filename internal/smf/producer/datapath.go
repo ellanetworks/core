@@ -5,7 +5,7 @@
 package producer
 
 import (
-	ctx "context"
+	ctxt "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -22,7 +22,7 @@ type PFCPState struct {
 }
 
 // SendPFCPRules send all datapaths to UPFs
-func SendPFCPRules(smContext *context.SMContext, ctext ctx.Context) error {
+func SendPFCPRules(ctx ctxt.Context, smContext *context.SMContext) error {
 	pfcpPool := make(map[string]*PFCPState)
 	dataPath := smContext.Tunnel.DataPath
 	if dataPath.Activated {
@@ -69,13 +69,13 @@ func SendPFCPRules(smContext *context.SMContext, ctext ctx.Context) error {
 	for ip, pfcpState := range pfcpPool {
 		sessionContext, exist := smContext.PFCPContext[ip]
 		if !exist || sessionContext.RemoteSEID == 0 {
-			err := pfcp.SendPfcpSessionEstablishmentRequest(pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList, ctext)
+			err := pfcp.SendPfcpSessionEstablishmentRequest(ctx, pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList)
 			if err != nil {
 				return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 			}
 			logger.SmfLog.Info("Sent PFCP session establishment request to upf", zap.String("nodeID", pfcpState.nodeID.String()))
 		} else {
-			err := pfcp.SendPfcpSessionModificationRequest(pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList, ctext)
+			err := pfcp.SendPfcpSessionModificationRequest(ctx, pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList)
 			if err != nil {
 				logger.SmfLog.Error("send pfcp session modification request failed", zap.Error(err), zap.String("nodeID", pfcpState.nodeID.String()))
 				return fmt.Errorf("failed to send PFCP session modification request: %v", err)
