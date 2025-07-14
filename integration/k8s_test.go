@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
 )
 
 type K8s struct {
