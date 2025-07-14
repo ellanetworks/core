@@ -31,8 +31,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 )
 
-require gopkg.in/yaml.v3 v3.0.1 // indirect
-
 require (
 	github.com/aead/cmac v0.0.0-20160719120800-7af84192f0b1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -82,4 +80,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/grpc v1.73.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
