@@ -30,7 +30,7 @@ func TestDatabaseMetrics(t *testing.T) {
 		{Name: "Profile2", UeIPPool: "10.0.0.0/16"},
 	}
 	for _, profile := range profiles {
-		err := database.CreateProfile(&profile, context.Background())
+		err := database.CreateProfile(context.Background(), &profile)
 		if err != nil {
 			t.Fatalf("Couldn't create profile: %s", err)
 		}
@@ -42,7 +42,7 @@ func TestDatabaseMetrics(t *testing.T) {
 		{Imsi: "003", IPAddress: "", ProfileID: 1},
 	}
 	for _, subscriber := range subscribers {
-		err := database.CreateSubscriber(&subscriber, context.Background())
+		err := database.CreateSubscriber(context.Background(), &subscriber)
 		if err != nil {
 			t.Fatalf("Couldn't create subscriber: %s", err)
 		}

@@ -53,7 +53,7 @@ func TestHandlePfcpSessionModificationRequestCauseNoEstablishedPFCPAssociation(t
 		0,
 		ies...,
 	)
-	response, err := core.HandlePfcpSessionModificationRequest(msg, context.Background())
+	response, err := core.HandlePfcpSessionModificationRequest(context.Background(), msg)
 	if err != nil {
 		t.Fatalf("Error handling session modification request: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestHandlePfcpSessionModificationRequestCauseSessionContextNotFound(t *test
 		0,
 		ies...,
 	)
-	response, err := core.HandlePfcpSessionModificationRequest(msg, context.Background())
+	response, err := core.HandlePfcpSessionModificationRequest(context.Background(), msg)
 	if err != nil {
 		t.Fatalf("Error handling session modification request: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestHandlePfcpSessionDeletionRequestCauseRequestAccepted(t *testing.T) {
 		0,
 		ies...,
 	)
-	response, err := core.HandlePfcpSessionDeletionRequest(msg, context.Background())
+	response, err := core.HandlePfcpSessionDeletionRequest(context.Background(), msg)
 	if err != nil {
 		t.Fatalf("Error handling session modification request: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestHandlePfcpSessionDeletionRequestCauseNoEstablishedPFCPAssociation(t *te
 		0,
 		ies...,
 	)
-	response, err := core.HandlePfcpSessionDeletionRequest(msg, context.Background())
+	response, err := core.HandlePfcpSessionDeletionRequest(context.Background(), msg)
 	if err != nil {
 		t.Fatalf("Error handling session modification request: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestHandlePfcpSessionDeletionRequestCauseSessionContextNotFound(t *testing.
 		0,
 		ies...,
 	)
-	response, err := core.HandlePfcpSessionModificationRequest(msg, context.Background())
+	response, err := core.HandlePfcpSessionModificationRequest(context.Background(), msg)
 	if err != nil {
 		t.Fatalf("Error handling session modification request: %v", err)
 	}
@@ -286,7 +286,7 @@ func TestHandlePfcpSessionModificationRequestCauseRequestAccepted(t *testing.T) 
 		0,
 		ies...,
 	)
-	response, err := core.HandlePfcpSessionModificationRequest(msg, context.Background())
+	response, err := core.HandlePfcpSessionModificationRequest(context.Background(), msg)
 	if err != nil {
 		t.Fatalf("Error handling session modification request: %v", err)
 	}

@@ -7,7 +7,7 @@
 package pfcp
 
 import (
-	ctx "context"
+	ctxt "context"
 	"fmt"
 	"sync/atomic"
 
@@ -25,16 +25,16 @@ func getSeqNumber() uint32 {
 }
 
 func SendPfcpSessionEstablishmentRequest(
+	ctx ctxt.Context,
 	upNodeID context.NodeID,
-	ctx *context.SMContext,
+	smCtx *context.SMContext,
 	pdrList []*context.PDR,
 	farList []*context.FAR,
 	barList []*context.BAR,
 	qerList []*context.QER,
-	ctext ctx.Context,
 ) error {
 	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
-	pfcpContext, ok := ctx.PFCPContext[upNodeIDStr]
+	pfcpContext, ok := smCtx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return fmt.Errorf("PFCP context not found for Node ID: %v", upNodeID)
 	}
@@ -53,18 +53,18 @@ func SendPfcpSessionEstablishmentRequest(
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Establishment Request: %v", err)
 	}
-	rsp, err := upf.HandlePfcpSessionEstablishmentRequest(pfcpMsg, ctext)
+	rsp, err := upf.HandlePfcpSessionEstablishmentRequest(ctx, pfcpMsg)
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
 	}
-	err = HandlePfcpSessionEstablishmentResponse(rsp, ctext)
+	err = HandlePfcpSessionEstablishmentResponse(ctx, rsp)
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Establishment Response: %v", err)
 	}
 	return nil
 }
 
-func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentResponse, ctext ctx.Context) error {
+func HandlePfcpSessionEstablishmentResponse(ctx ctxt.Context, msg *message.SessionEstablishmentResponse) error {
 	SEID := msg.SEID()
 	smContext := context.GetSMContextBySEID(SEID)
 	if smContext == nil {
@@ -100,7 +100,7 @@ func HandlePfcpSessionEstablishmentResponse(msg *message.SessionEstablishmentRes
 		if ueIPAddress != nil {
 			smContext.SubPfcpLog.Info("upf provided ue ip address", zap.String("IP", ueIPAddress.String()))
 			// Release previous locally allocated UE IP-Addr
-			err := smContext.ReleaseUeIPAddr(ctext)
+			err := smContext.ReleaseUeIPAddr(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to release UE IP-Addr: %+v", err)
 			}
@@ -165,17 +165,17 @@ func HandlePfcpSessionModificationResponse(msg *message.SessionModificationRespo
 }
 
 func SendPfcpSessionModificationRequest(
+	ctx ctxt.Context,
 	upNodeID context.NodeID,
-	ctx *context.SMContext,
+	smCtx *context.SMContext,
 	pdrList []*context.PDR,
 	farList []*context.FAR,
 	barList []*context.BAR,
 	qerList []*context.QER,
-	ctext ctx.Context,
 ) error {
 	seqNum := getSeqNumber()
 	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
-	pfcpContext, ok := ctx.PFCPContext[upNodeIDStr]
+	pfcpContext, ok := smCtx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
 	}
@@ -183,7 +183,7 @@ func SendPfcpSessionModificationRequest(
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Modification Request: %v", err)
 	}
-	rsp, err := upf.HandlePfcpSessionModificationRequest(pfcpMsg, ctext)
+	rsp, err := upf.HandlePfcpSessionModificationRequest(ctx, pfcpMsg)
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
 	}
@@ -210,15 +210,15 @@ func HandlePfcpSessionDeletionResponse(msg *message.SessionDeletionResponse) err
 	return nil
 }
 
-func SendPfcpSessionDeletionRequest(upNodeID context.NodeID, ctx *context.SMContext, ctext ctx.Context) error {
+func SendPfcpSessionDeletionRequest(ctx ctxt.Context, upNodeID context.NodeID, smCtx *context.SMContext) error {
 	seqNum := getSeqNumber()
 	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
-	pfcpContext, ok := ctx.PFCPContext[upNodeIDStr]
+	pfcpContext, ok := smCtx.PFCPContext[upNodeIDStr]
 	if !ok {
 		return fmt.Errorf("PFCP Context not found for NodeID[%s]", upNodeIDStr)
 	}
 	pfcpMsg := BuildPfcpSessionDeletionRequest(seqNum, pfcpContext.LocalSEID, pfcpContext.RemoteSEID, context.SMFSelf().CPNodeID.ResolveNodeIDToIP())
-	rsp, err := upf.HandlePfcpSessionDeletionRequest(pfcpMsg, ctext)
+	rsp, err := upf.HandlePfcpSessionDeletionRequest(ctx, pfcpMsg)
 	if err != nil {
 		return fmt.Errorf("failed to handle PFCP Session Establishment Request in upf: %v", err)
 	}

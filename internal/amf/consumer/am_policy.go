@@ -7,7 +7,7 @@
 package consumer
 
 import (
-	ctx "context"
+	ctxt "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
@@ -15,8 +15,8 @@ import (
 	"github.com/ellanetworks/core/internal/pcf"
 )
 
-func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType, ctext ctx.Context) error {
-	guamiList := context.GetServedGuamiList(ctext)
+func AMPolicyControlCreate(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType) error {
+	guamiList := context.GetServedGuamiList(ctx)
 
 	policyAssociationRequest := models.PolicyAssociationRequest{
 		Supi:       ue.Supi,
@@ -40,7 +40,7 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType, ctext ct
 		policyAssociationRequest.Rfsp = ue.AccessAndMobilitySubscriptionData.RfspIndex
 	}
 
-	res, locationHeader, err := pcf.CreateAMPolicy(policyAssociationRequest, ctext)
+	res, locationHeader, err := pcf.CreateAMPolicy(ctx, policyAssociationRequest)
 	if err != nil {
 		return fmt.Errorf("failed to create policy: %+v", err)
 	}
@@ -56,8 +56,8 @@ func AMPolicyControlCreate(ue *context.AmfUe, anType models.AccessType, ctext ct
 	return nil
 }
 
-func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssociationUpdateRequest, ctext ctx.Context) error {
-	res, err := pcf.UpdateAMPolicy(ue.PolicyAssociationID, updateRequest, ctext)
+func AMPolicyControlUpdate(ctx ctxt.Context, ue *context.AmfUe, updateRequest models.PolicyAssociationUpdateRequest) error {
+	res, err := pcf.UpdateAMPolicy(ctx, ue.PolicyAssociationID, updateRequest)
 	if err != nil {
 		return fmt.Errorf("failed to update policy: %+v", err)
 	}
@@ -77,8 +77,8 @@ func AMPolicyControlUpdate(ue *context.AmfUe, updateRequest models.PolicyAssocia
 	return nil
 }
 
-func AMPolicyControlDelete(ue *context.AmfUe, ctext ctx.Context) error {
-	err := pcf.DeleteAMPolicy(ue.PolicyAssociationID, ctext)
+func AMPolicyControlDelete(ctx ctxt.Context, ue *context.AmfUe) error {
+	err := pcf.DeleteAMPolicy(ctx, ue.PolicyAssociationID)
 	if err != nil {
 		return fmt.Errorf("could not delete policy: %+v", err)
 	}

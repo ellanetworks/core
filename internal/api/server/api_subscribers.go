@@ -41,7 +41,7 @@ const (
 	DeleteSubscriberAction = "delete_subscriber"
 )
 
-func isImsiValid(imsi string, dbInstance *db.Database, ctx context.Context) bool {
+func isImsiValid(ctx context.Context, imsi string, dbInstance *db.Database) bool {
 	if len(imsi) != 15 {
 		return false
 	}
@@ -89,7 +89,7 @@ func ListSubscribers(dbInstance *db.Database) gin.HandlerFunc {
 
 		subscribers := make([]GetSubscriberResponse, 0)
 		for _, dbSubscriber := range dbSubscribers {
-			profile, err := dbInstance.GetProfileByID(dbSubscriber.ProfileID, c.Request.Context())
+			profile, err := dbInstance.GetProfileByID(c.Request.Context(), dbSubscriber.ProfileID)
 			if err != nil {
 				writeError(c, http.StatusInternalServerError, "Failed to retrieve profile")
 				return
@@ -127,12 +127,12 @@ func GetSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		dbSubscriber, err := dbInstance.GetSubscriber(imsi, c.Request.Context())
+		dbSubscriber, err := dbInstance.GetSubscriber(c.Request.Context(), imsi)
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Subscriber not found")
 			return
 		}
-		profile, err := dbInstance.GetProfileByID(dbSubscriber.ProfileID, c.Request.Context())
+		profile, err := dbInstance.GetProfileByID(c.Request.Context(), dbSubscriber.ProfileID)
 		if err != nil {
 			writeError(c, http.StatusInternalServerError, "Failed to retrieve profile")
 			return
@@ -186,7 +186,7 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Missing profileName parameter")
 			return
 		}
-		if !isImsiValid(createSubscriberParams.Imsi, dbInstance, c.Request.Context()) {
+		if !isImsiValid(c.Request.Context(), createSubscriberParams.Imsi, dbInstance) {
 			writeError(c, http.StatusBadRequest, "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.")
 			return
 		}
@@ -238,12 +238,12 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			opcHex = createSubscriberParams.Opc
 		}
 
-		_, err = dbInstance.GetSubscriber(createSubscriberParams.Imsi, c.Request.Context())
+		_, err = dbInstance.GetSubscriber(c.Request.Context(), createSubscriberParams.Imsi)
 		if err == nil {
 			writeError(c, http.StatusBadRequest, "Subscriber already exists")
 			return
 		}
-		profile, err := dbInstance.GetProfile(createSubscriberParams.ProfileName, c.Request.Context())
+		profile, err := dbInstance.GetProfile(c.Request.Context(), createSubscriberParams.ProfileName)
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Profile not found")
 			return
@@ -256,7 +256,7 @@ func CreateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			ProfileID:      profile.ID,
 		}
 
-		if err := dbInstance.CreateSubscriber(newSubscriber, c.Request.Context()); err != nil {
+		if err := dbInstance.CreateSubscriber(c.Request.Context(), newSubscriber); err != nil {
 			logger.APILog.Warn("Failed to create subscriber", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to create subscriber")
 			return
@@ -300,17 +300,17 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Missing profileName parameter")
 			return
 		}
-		if !isImsiValid(updateSubscriberParams.Imsi, dbInstance, c.Request.Context()) {
+		if !isImsiValid(c.Request.Context(), updateSubscriberParams.Imsi, dbInstance) {
 			writeError(c, http.StatusBadRequest, "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.")
 			return
 		}
 
-		existingSubscriber, err := dbInstance.GetSubscriber(imsi, c.Request.Context())
+		existingSubscriber, err := dbInstance.GetSubscriber(c.Request.Context(), imsi)
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Subscriber not found")
 			return
 		}
-		profile, err := dbInstance.GetProfile(updateSubscriberParams.ProfileName, c.Request.Context())
+		profile, err := dbInstance.GetProfile(c.Request.Context(), updateSubscriberParams.ProfileName)
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Profile not found")
 			return
@@ -323,7 +323,7 @@ func UpdateSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			ProfileID:      profile.ID,
 		}
 
-		if err := dbInstance.UpdateSubscriber(updatedSubscriber, c.Request.Context()); err != nil {
+		if err := dbInstance.UpdateSubscriber(c.Request.Context(), updatedSubscriber); err != nil {
 			logger.APILog.Warn("Failed to update subscriber", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update subscriber")
 			return
@@ -353,12 +353,12 @@ func DeleteSubscriber(dbInstance *db.Database) gin.HandlerFunc {
 			writeError(c, http.StatusBadRequest, "Missing imsi parameter")
 			return
 		}
-		_, err := dbInstance.GetSubscriber(imsi, c.Request.Context())
+		_, err := dbInstance.GetSubscriber(c.Request.Context(), imsi)
 		if err != nil {
 			writeError(c, http.StatusNotFound, "Subscriber not found")
 			return
 		}
-		err = dbInstance.DeleteSubscriber(imsi, c.Request.Context())
+		err = dbInstance.DeleteSubscriber(c.Request.Context(), imsi)
 		if err != nil {
 			logger.APILog.Warn("Failed to delete subscriber", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to delete subscriber")

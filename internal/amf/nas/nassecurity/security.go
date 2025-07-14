@@ -7,7 +7,7 @@
 package nassecurity
 
 import (
-	ctx "context"
+	ctxt "context"
 	"encoding/hex"
 	"fmt"
 	"reflect"
@@ -98,8 +98,8 @@ func Encode(ue *context.AmfUe, msg *nas.Message) ([]byte, error) {
 	}
 }
 
-func StmsiToGuti(buf [7]byte, ctext ctx.Context) (guti string) {
-	guamiList := context.GetServedGuamiList(ctext)
+func StmsiToGuti(ctx ctxt.Context, buf [7]byte) (guti string) {
+	guamiList := context.GetServedGuamiList(ctx)
 	servedGuami := guamiList[0]
 
 	tmpReginID := servedGuami.AmfID[:2]
@@ -114,7 +114,7 @@ func StmsiToGuti(buf [7]byte, ctext ctx.Context) (guti string) {
 /*
 fetch Guti if present incase of integrity protected Nas Message
 */
-func FetchUeContextWithMobileIdentity(payload []byte, ctext ctx.Context) *context.AmfUe {
+func FetchUeContextWithMobileIdentity(ctx ctxt.Context, payload []byte) *context.AmfUe {
 	if payload == nil {
 		return nil
 	}
@@ -158,7 +158,7 @@ func FetchUeContextWithMobileIdentity(payload []byte, ctext ctx.Context) *contex
 	} else if msg.GmmHeader.GetMessageType() == nas.MsgTypeServiceRequest {
 		mobileIdentity5GSContents := msg.ServiceRequest.TMSI5GS.Octet
 		if nasMessage.MobileIdentity5GSType5gSTmsi == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
-			guti = StmsiToGuti(mobileIdentity5GSContents, ctext)
+			guti = StmsiToGuti(ctx, mobileIdentity5GSContents)
 			logger.AmfLog.Debug("Guti derived from Service Request Message", zap.String("guti", guti))
 		}
 	} else if msg.GmmHeader.GetMessageType() == nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration {
@@ -189,8 +189,8 @@ func FetchUeContextWithMobileIdentity(payload []byte, ctext ctx.Context) *contex
 payload either a security protected 5GS NAS message or a plain 5GS NAS message which
 format is followed TS 24.501 9.1.1
 */
-func Decode(ue *context.AmfUe, accessType models.AccessType, payload []byte, ctext ctx.Context) (*nas.Message, error) {
-	_, span := tracer.Start(ctext, "AMF NAS Decode",
+func Decode(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, payload []byte) (*nas.Message, error) {
+	_, span := tracer.Start(ctx, "AMF NAS Decode",
 		trace.WithAttributes(
 			attribute.String("nas.accessType", string(accessType)),
 		),

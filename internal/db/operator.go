@@ -101,7 +101,7 @@ func (operator *Operator) SetSupportedTacs(supportedTACs []string) {
 	operator.SupportedTACs = string(supportedTACsBytes)
 }
 
-func (db *Database) InitializeOperator(initialOperator Operator, ctx context.Context) error {
+func (db *Database) InitializeOperator(ctx context.Context, initialOperator Operator) error {
 	operation := "INSERT"
 	target := OperatorTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -169,7 +169,7 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 }
 
 // UpdateOperatorSlice updates SST/SD.
-func (db *Database) UpdateOperatorSlice(sst int32, sd int, ctx context.Context) error {
+func (db *Database) UpdateOperatorSlice(ctx context.Context, sst int32, sd int) error {
 	operation := "UPDATE"
 	target := OperatorTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -204,7 +204,7 @@ func (db *Database) UpdateOperatorSlice(sst int32, sd int, ctx context.Context) 
 }
 
 // UpdateOperatorTracking updates supported TACs.
-func (db *Database) UpdateOperatorTracking(supportedTACs []string, ctx context.Context) error {
+func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []string) error {
 	operation := "UPDATE"
 	target := OperatorTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -240,7 +240,7 @@ func (db *Database) UpdateOperatorTracking(supportedTACs []string, ctx context.C
 }
 
 // UpdateOperatorID updates MCC/MNC.
-func (db *Database) UpdateOperatorID(mcc, mnc string, ctx context.Context) error {
+func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error {
 	operation := "UPDATE"
 	target := OperatorTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -310,7 +310,7 @@ func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 }
 
 // UpdateOperatorCode sets a new operatorCode.
-func (db *Database) UpdateOperatorCode(operatorCode string, ctx context.Context) error {
+func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string) error {
 	operation := "UPDATE"
 	target := OperatorTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -345,7 +345,7 @@ func (db *Database) UpdateOperatorCode(operatorCode string, ctx context.Context)
 }
 
 // UpdateHomeNetworkPrivateKey updates the private key.
-func (db *Database) UpdateHomeNetworkPrivateKey(privateKey string, ctx context.Context) error {
+func (db *Database) UpdateHomeNetworkPrivateKey(ctx context.Context, privateKey string) error {
 	operation := "UPDATE"
 	target := OperatorTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)

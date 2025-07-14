@@ -124,7 +124,7 @@ func (smContext *SMContext) HandlePDUSessionEstablishmentRequest(req *nasMessage
 	}
 }
 
-func (smContext *SMContext) HandlePDUSessionReleaseRequest(req *nasMessage.PDUSessionReleaseRequest, ctx context.Context) {
+func (smContext *SMContext) HandlePDUSessionReleaseRequest(ctx context.Context, req *nasMessage.PDUSessionReleaseRequest) {
 	smContext.Pti = req.GetPTI()
 	err := smContext.ReleaseUeIPAddr(ctx)
 	if err != nil {

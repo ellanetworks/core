@@ -7,7 +7,7 @@
 package message
 
 import (
-	ctx "context"
+	ctxt "context"
 	"encoding/hex"
 	"fmt"
 
@@ -86,7 +86,7 @@ func BuildPDUSessionResourceReleaseCommand(ue *context.RanUe, nasPdu []byte,
 	return ngap.Encoder(pdu)
 }
 
-func BuildNGSetupResponse(ctext ctx.Context) ([]byte, error) {
+func BuildNGSetupResponse(ctx ctxt.Context) ([]byte, error) {
 	amfSelf := context.AMFSelf()
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
@@ -120,7 +120,7 @@ func BuildNGSetupResponse(ctext ctx.Context) ([]byte, error) {
 	ie.Value.ServedGUAMIList = new(ngapType.ServedGUAMIList)
 
 	servedGUAMIList := ie.Value.ServedGUAMIList
-	guamiList := context.GetServedGuamiList(ctext)
+	guamiList := context.GetServedGuamiList(ctx)
 	for _, guami := range guamiList {
 		servedGUAMIItem := ngapType.ServedGUAMIItem{}
 		plmnID, err := util.PlmnIDToNgap(*guami.PlmnID)
@@ -157,7 +157,7 @@ func BuildNGSetupResponse(ctext ctx.Context) ([]byte, error) {
 	ie.Value.PLMNSupportList = new(ngapType.PLMNSupportList)
 
 	pLMNSupportList := ie.Value.PLMNSupportList
-	plmnSupported := context.GetSupportedPlmn(ctext)
+	plmnSupported := context.GetSupportedPlmn(ctx)
 	pLMNSupportItem := ngapType.PLMNSupportItem{}
 	plmnID, err := util.PlmnIDToNgap(plmnSupported.PlmnID)
 	if err != nil {
@@ -770,6 +770,7 @@ func BuildPDUSessionResourceModifyRequest(ue *context.RanUe,
 }
 
 func BuildInitialContextSetupRequest(
+	ctx ctxt.Context,
 	amfUe *context.AmfUe,
 	anType models.AccessType,
 	nasPdu []byte,
@@ -777,7 +778,6 @@ func BuildInitialContextSetupRequest(
 	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
 	coreNetworkAssistanceInfo *ngapType.CoreNetworkAssistanceInformation,
 	emergencyFallbackIndicator *ngapType.EmergencyFallbackIndicator,
-	ctext ctx.Context,
 ) ([]byte, error) {
 	// Old AMF: new amf should get old amf's amf name
 
@@ -898,7 +898,7 @@ func BuildInitialContextSetupRequest(
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	guamiList := context.GetServedGuamiList(ctext)
+	guamiList := context.GetServedGuamiList(ctx)
 	servedGuami := guamiList[0]
 
 	ngapPlmnID, err := util.PlmnIDToNgap(*servedGuami.PlmnID)
@@ -1327,7 +1327,7 @@ a Nsmf_PDUSession_CreateSMContext Response(N2 SM Information (PDU Session ID, ca
 // sourceToTargetTransparentContainer is received from S-RAN
 // nsci: new security context indicator, if amfUe has updated security context,
 // set nsci to true, otherwise set to false
-func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause, pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq, sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer, ctext ctx.Context) ([]byte, error) {
+func BuildHandoverRequest(ctx ctxt.Context, ue *context.RanUe, cause ngapType.Cause, pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq, sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer) ([]byte, error) {
 	amfUe := ue.AmfUe
 	if amfUe == nil {
 		return nil, fmt.Errorf("AmfUe is nil")
@@ -1454,7 +1454,7 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause, pduSessionRes
 	ie.Value.AllowedNSSAI = new(ngapType.AllowedNSSAI)
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
-	plmnSupport := context.GetSupportedPlmn(ctext)
+	plmnSupport := context.GetSupportedPlmn(ctx)
 	for _, snssaiItem := range plmnSupport.SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 
@@ -1492,7 +1492,7 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause, pduSessionRes
 	amfSetID := &guami.AMFSetID
 	amfPtrID := &guami.AMFPointer
 
-	guamiList := context.GetServedGuamiList(ctext)
+	guamiList := context.GetServedGuamiList(ctx)
 	servedGuami := guamiList[0]
 
 	ngapPlmnID, err := util.PlmnIDToNgap(*servedGuami.PlmnID)
@@ -1517,6 +1517,7 @@ func BuildHandoverRequest(ue *context.RanUe, cause ngapType.Cause, pduSessionRes
 // rrcInactiveTransitionReportRequest: configured by amf
 // criticalityDiagnostics: from received node when received not comprehended IE or missing IE
 func BuildPathSwitchRequestAcknowledge(
+	ctx ctxt.Context,
 	ue *context.RanUe,
 	pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList,
 	pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck,
@@ -1524,7 +1525,6 @@ func BuildPathSwitchRequestAcknowledge(
 	coreNetworkAssistanceInformation *ngapType.CoreNetworkAssistanceInformation,
 	rrcInactiveTransitionReportRequest *ngapType.RRCInactiveTransitionReportRequest,
 	criticalityDiagnostics *ngapType.CriticalityDiagnostics,
-	ctext ctx.Context,
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
@@ -1643,7 +1643,7 @@ func BuildPathSwitchRequestAcknowledge(
 	ie.Value.AllowedNSSAI = new(ngapType.AllowedNSSAI)
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
-	plmnSupport := context.GetSupportedPlmn(ctext)
+	plmnSupport := context.GetSupportedPlmn(ctx)
 	for _, modelSnssai := range plmnSupport.SNssaiList {
 		allowedNSSAIItem := ngapType.AllowedNSSAIItem{}
 		ngapSnssai, err := util.SNssaiToNgap(modelSnssai)

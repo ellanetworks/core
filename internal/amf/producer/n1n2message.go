@@ -8,7 +8,7 @@
 package producer
 
 import (
-	ctx "context"
+	ctxt "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
@@ -25,8 +25,8 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf")
 
-func CreateN1N2MessageTransfer(ueContextID string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, reqURI string, ctext ctx.Context) (*models.N1N2MessageTransferRspData, error) {
-	ctext, span := tracer.Start(ctext, "AMF N1N2 MessageTransfer")
+func CreateN1N2MessageTransfer(ctx ctxt.Context, ueContextID string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, reqURI string) (*models.N1N2MessageTransferRspData, error) {
+	ctx, span := tracer.Start(ctx, "AMF N1N2 MessageTransfer")
 	defer span.End()
 
 	span.SetAttributes(
@@ -38,7 +38,7 @@ func CreateN1N2MessageTransfer(ueContextID string, n1n2MessageTransferRequest mo
 	if _, ok := amfSelf.AmfUeFindByUeContextID(ueContextID); !ok {
 		return nil, fmt.Errorf("ue context not found")
 	}
-	respData, err := N1N2MessageTransferProcedure(ueContextID, reqURI, n1n2MessageTransferRequest, ctext)
+	respData, err := N1N2MessageTransferProcedure(ctx, ueContextID, reqURI, n1n2MessageTransferRequest)
 	if err != nil {
 		return nil, fmt.Errorf("n1 n2 message transfer error: %v", err)
 	}
@@ -64,7 +64,7 @@ func CreateN1N2MessageTransfer(ueContextID string, n1n2MessageTransferRequest mo
 //   - error: if AMF reject the request due to application error, e.g. UE context not found.
 
 // see TS 29.518 6.1.3.5.3.1 for more details.
-func N1N2MessageTransferProcedure(ueContextID string, reqURI string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest, ctext ctx.Context) (*models.N1N2MessageTransferRspData, error) {
+func N1N2MessageTransferProcedure(ctx ctxt.Context, ueContextID string, reqURI string, n1n2MessageTransferRequest models.N1N2MessageTransferRequest) (*models.N1N2MessageTransferRspData, error) {
 	var (
 		requestData = n1n2MessageTransferRequest.JSONData
 		n2Info      = n1n2MessageTransferRequest.BinaryDataN2Information
@@ -175,7 +175,7 @@ func N1N2MessageTransferProcedure(ueContextID string, reqURI string, n1n2Message
 				} else {
 					list := ngapType.PDUSessionResourceSetupListCxtReq{}
 					ngap_message.AppendPDUSessionResourceSetupListCxtReq(&list, smInfo.PduSessionID, omecSnssai, nasPdu, n2Info)
-					err := ngap_message.SendInitialContextSetupRequest(ue, anType, nil, &list, nil, nil, nil, ctext)
+					err := ngap_message.SendInitialContextSetupRequest(ctx, ue, anType, nil, &list, nil, nil, nil)
 					if err != nil {
 						return nil, fmt.Errorf("send initial context setup request error: %v", err)
 					}

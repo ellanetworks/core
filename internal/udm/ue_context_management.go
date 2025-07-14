@@ -12,7 +12,7 @@ import (
 )
 
 // TS 29.503 5.3.2.2.2
-func EditRegistrationAmf3gppAccess(registerRequest models.Amf3GppAccessRegistration, ueID string, ctx context.Context) error {
+func EditRegistrationAmf3gppAccess(ctx context.Context, registerRequest models.Amf3GppAccessRegistration, ueID string) error {
 	_, span := tracer.Start(ctx, "UDM EditRegistrationAmf3gppAccess")
 	defer span.End()
 	span.SetAttributes(

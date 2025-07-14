@@ -35,7 +35,7 @@ func TestDBUsersEndToEnd(t *testing.T) {
 		Email:          "my.user123@ellanetworks.com",
 		HashedPassword: "my-hashed-password",
 	}
-	err = database.CreateUser(user, context.Background())
+	err = database.CreateUser(context.Background(), user)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
@@ -48,7 +48,7 @@ func TestDBUsersEndToEnd(t *testing.T) {
 		t.Fatalf("One or more users weren't found in DB")
 	}
 
-	retrievedUser, err := database.GetUser(user.Email, context.Background())
+	retrievedUser, err := database.GetUser(context.Background(), user.Email)
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -56,7 +56,7 @@ func TestDBUsersEndToEnd(t *testing.T) {
 		t.Fatalf("The user from the database doesn't match the user that was given")
 	}
 
-	if err = database.DeleteUser(user.Email, context.Background()); err != nil {
+	if err = database.DeleteUser(context.Background(), user.Email); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
 	res, _ = database.ListUsers(context.Background())

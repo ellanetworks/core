@@ -7,7 +7,7 @@
 package consumer
 
 import (
-	ctx "context"
+	ctxt "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
@@ -15,8 +15,8 @@ import (
 	"github.com/ellanetworks/core/internal/udm"
 )
 
-func SDMGetAmData(ue *context.AmfUe, ctext ctx.Context) error {
-	data, err := udm.GetAmDataAndSetAMSubscription(ue.Supi, ctext)
+func SDMGetAmData(ctx ctxt.Context, ue *context.AmfUe) error {
+	data, err := udm.GetAmDataAndSetAMSubscription(ctx, ue.Supi)
 	if err != nil {
 		return err
 	}
@@ -24,8 +24,8 @@ func SDMGetAmData(ue *context.AmfUe, ctext ctx.Context) error {
 	return nil
 }
 
-func SDMGetSmfSelectData(ue *context.AmfUe, ctext ctx.Context) error {
-	data, err := udm.GetAndSetSmfSelectData(ue.Supi, ctext)
+func SDMGetSmfSelectData(ctx ctxt.Context, ue *context.AmfUe) error {
+	data, err := udm.GetAndSetSmfSelectData(ctx, ue.Supi)
 	if err != nil {
 		return err
 	}
@@ -33,8 +33,8 @@ func SDMGetSmfSelectData(ue *context.AmfUe, ctext ctx.Context) error {
 	return nil
 }
 
-func SDMGetUeContextInSmfData(ue *context.AmfUe, ctext ctx.Context) (err error) {
-	data, err := udm.GetUeContextInSmfData(ue.Supi, ctext)
+func SDMGetUeContextInSmfData(ctx ctxt.Context, ue *context.AmfUe) (err error) {
+	data, err := udm.GetUeContextInSmfData(ctx, ue.Supi)
 	if err != nil {
 		return err
 	}
@@ -42,7 +42,7 @@ func SDMGetUeContextInSmfData(ue *context.AmfUe, ctext ctx.Context) (err error) 
 	return nil
 }
 
-func SDMSubscribe(ue *context.AmfUe, ctext ctx.Context) error {
+func SDMSubscribe(ctx ctxt.Context, ue *context.AmfUe) error {
 	amfSelf := context.AMFSelf()
 	sdmSubscription := &models.SdmSubscription{
 		NfInstanceID: amfSelf.NfID,
@@ -51,15 +51,15 @@ func SDMSubscribe(ue *context.AmfUe, ctext ctx.Context) error {
 			Mnc: ue.PlmnID.Mnc,
 		},
 	}
-	err := udm.CreateSubscription(sdmSubscription, ue.Supi, ctext)
+	err := udm.CreateSubscription(ctx, sdmSubscription, ue.Supi)
 	if err != nil {
 		return fmt.Errorf("subscription creation failed: %s", err.Error())
 	}
 	return nil
 }
 
-func SDMGetSliceSelectionSubscriptionData(ue *context.AmfUe, ctext ctx.Context) error {
-	nssai, err := udm.GetNssai(ue.Supi, ctext)
+func SDMGetSliceSelectionSubscriptionData(ctx ctxt.Context, ue *context.AmfUe) error {
+	nssai, err := udm.GetNssai(ctx, ue.Supi)
 	if err != nil {
 		return fmt.Errorf("get nssai failed: %s", err.Error())
 	}

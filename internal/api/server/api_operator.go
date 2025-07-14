@@ -334,7 +334,7 @@ func UpdateOperatorSlice(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		err = dbInstance.UpdateOperatorSlice(int32(updateOperatorSliceParams.Sst), updateOperatorSliceParams.Sd, c.Request.Context())
+		err = dbInstance.UpdateOperatorSlice(c.Request.Context(), int32(updateOperatorSliceParams.Sst), updateOperatorSliceParams.Sd)
 		if err != nil {
 			logger.APILog.Warn("Failed to update operator slice information", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update operator slice information")
@@ -377,7 +377,7 @@ func UpdateOperatorTracking(dbInstance *db.Database) gin.HandlerFunc {
 			}
 		}
 
-		err = dbInstance.UpdateOperatorTracking(updateOperatorTrackingParams.SupportedTacs, c.Request.Context())
+		err = dbInstance.UpdateOperatorTracking(c.Request.Context(), updateOperatorTrackingParams.SupportedTacs)
 		if err != nil {
 			logger.APILog.Warn("Failed to update operator tracking information", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update operator tracking information")
@@ -434,7 +434,7 @@ func UpdateOperatorID(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		err = dbInstance.UpdateOperatorID(updateOperatorIDParams.Mcc, updateOperatorIDParams.Mnc, c.Request.Context())
+		err = dbInstance.UpdateOperatorID(c.Request.Context(), updateOperatorIDParams.Mcc, updateOperatorIDParams.Mnc)
 		if err != nil {
 			logger.APILog.Warn("Failed to update operator ID", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update operatorID")
@@ -485,7 +485,7 @@ func UpdateOperatorCode(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		err = dbInstance.UpdateOperatorCode(updateOperatorCodeParams.OperatorCode, c.Request.Context())
+		err = dbInstance.UpdateOperatorCode(c.Request.Context(), updateOperatorCodeParams.OperatorCode)
 		if err != nil {
 			logger.APILog.Warn("Failed to update operator code", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update operatorID")
@@ -526,7 +526,7 @@ func UpdateOperatorHomeNetwork(dbInstance *db.Database) gin.HandlerFunc {
 			return
 		}
 
-		err = dbInstance.UpdateHomeNetworkPrivateKey(updateOperatorHomeNetworkParams.PrivateKey, c.Request.Context())
+		err = dbInstance.UpdateHomeNetworkPrivateKey(c.Request.Context(), updateOperatorHomeNetworkParams.PrivateKey)
 		if err != nil {
 			logger.APILog.Warn("Failed to update home network private key", zap.Error(err))
 			writeError(c, http.StatusInternalServerError, "Failed to update home network private key")

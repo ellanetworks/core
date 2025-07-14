@@ -7,7 +7,7 @@
 package consumer
 
 import (
-	ctx "context"
+	ctxt "context"
 	"encoding/base64"
 	"fmt"
 	"strconv"
@@ -20,8 +20,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe, resynchronizationInfo *models.ResynchronizationInfo, ctext ctx.Context) (*models.UeAuthenticationCtx, error) {
-	guamiList := context.GetServedGuamiList(ctext)
+func SendUEAuthenticationAuthenticateRequest(ctx ctxt.Context, ue *context.AmfUe, resynchronizationInfo *models.ResynchronizationInfo) (*models.UeAuthenticationCtx, error) {
+	guamiList := context.GetServedGuamiList(ctx)
 	servedGuami := guamiList[0]
 	var plmnID *models.PlmnID
 	if ue.Tai.PlmnID != nil {
@@ -41,7 +41,7 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe, resynchronizatio
 	if resynchronizationInfo != nil {
 		authInfo.ResynchronizationInfo = resynchronizationInfo
 	}
-	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(authInfo, ctext)
+	ueAuthenticationCtx, err := ausf.UeAuthPostRequestProcedure(ctx, authInfo)
 	if err != nil {
 		logger.AmfLog.Error("UE Authentication Authenticate Request failed", zap.Error(err))
 		return nil, err
@@ -49,17 +49,17 @@ func SendUEAuthenticationAuthenticateRequest(ue *context.AmfUe, resynchronizatio
 	return ueAuthenticationCtx, nil
 }
 
-func SendAuth5gAkaConfirmRequest(ue *context.AmfUe, resStar string, ctext ctx.Context) (*models.ConfirmationDataResponse, error) {
-	confirmResult, err := ausf.Auth5gAkaComfirmRequestProcedure(resStar, ue.Suci, ctext)
+func SendAuth5gAkaConfirmRequest(ctx ctxt.Context, ue *context.AmfUe, resStar string) (*models.ConfirmationDataResponse, error) {
+	confirmResult, err := ausf.Auth5gAkaComfirmRequestProcedure(ctx, resStar, ue.Suci)
 	if err != nil {
 		return nil, fmt.Errorf("ausf 5G-AKA Confirm Request failed: %s", err.Error())
 	}
 	return confirmResult, nil
 }
 
-func SendEapAuthConfirmRequest(suci string, eapMsg nasType.EAPMessage, ctext ctx.Context) (*models.EapSession, error) {
+func SendEapAuthConfirmRequest(ctx ctxt.Context, suci string, eapMsg nasType.EAPMessage) (*models.EapSession, error) {
 	eapPayload := base64.StdEncoding.EncodeToString(eapMsg.GetEAPMessage())
-	response, err := ausf.EapAuthComfirmRequestProcedure(eapPayload, suci, ctext)
+	response, err := ausf.EapAuthComfirmRequestProcedure(ctx, eapPayload, suci)
 	if err != nil {
 		return nil, fmt.Errorf("ausf EAP Confirm Request failed: %s", err.Error())
 	}

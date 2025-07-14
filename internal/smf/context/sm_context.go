@@ -147,7 +147,7 @@ func GetPDUSessionCount() int {
 	return int(smContextActive)
 }
 
-func RemoveSMContext(ref string, ctx context.Context) {
+func RemoveSMContext(ctx context.Context, ref string) {
 	var smContext *SMContext
 	if value, ok := smContextPool.Load(ref); ok {
 		smContext = value.(*SMContext)
@@ -183,7 +183,7 @@ func (smContext *SMContext) ReleaseUeIPAddr(ctx context.Context) error {
 		return nil
 	}
 	if ip := smContext.PDUAddress.IP; ip != nil {
-		err := smfSelf.DBInstance.ReleaseIP(smContext.Supi, ctx)
+		err := smfSelf.DBInstance.ReleaseIP(ctx, smContext.Supi)
 		if err != nil {
 			return fmt.Errorf("failed to release IP Address, %v", err)
 		}

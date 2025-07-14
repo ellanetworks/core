@@ -22,7 +22,7 @@ var (
 
 var tracer = otel.Tracer("ella-core/upf")
 
-func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequest, ctx context.Context) (*message.SessionEstablishmentResponse, error) {
+func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.SessionEstablishmentRequest) (*message.SessionEstablishmentResponse, error) {
 	_, span := tracer.Start(ctx, "UPF Session Establish")
 	defer span.End()
 
@@ -125,7 +125,7 @@ func HandlePfcpSessionEstablishmentRequest(msg *message.SessionEstablishmentRequ
 	return estResp, nil
 }
 
-func HandlePfcpSessionDeletionRequest(msg *message.SessionDeletionRequest, ctx context.Context) (*message.SessionDeletionResponse, error) {
+func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionDeletionRequest) (*message.SessionDeletionResponse, error) {
 	_, span := tracer.Start(ctx, "UPF Session Delete")
 	defer span.End()
 	conn := GetConnection()
@@ -169,7 +169,7 @@ func HandlePfcpSessionDeletionRequest(msg *message.SessionDeletionRequest, ctx c
 	return message.NewSessionDeletionResponse(0, 0, session.RemoteSEID, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRequestAccepted)), nil
 }
 
-func HandlePfcpSessionModificationRequest(msg *message.SessionModificationRequest, ctx context.Context) (*message.SessionModificationResponse, error) {
+func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.SessionModificationRequest) (*message.SessionModificationResponse, error) {
 	_, span := tracer.Start(ctx, "UPF Session Modify")
 	defer span.End()
 	conn := GetConnection()
