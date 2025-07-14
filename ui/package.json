@@ -13,9 +13,9 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.2.0",
     "@mui/material": "^7.0.1",
-    "@mui/x-charts": "^8.7.0",
-    "@mui/x-data-grid": "^8.7.0",
-    "@tanstack/react-query": "^5.81.5",
+    "@mui/x-charts": "^8.8.0",
+    "@mui/x-data-grid": "^8.8.0",
+    "@tanstack/react-query": "^5.83.0",
     "@types/react": "18.3.12",
     "autoprefixer": "^10.4.21",
     "jwt-decode": "^4.0.0",
@@ -29,6 +29,6 @@
     "yup": "1.6.1"
   },
   "devDependencies": {
-    "@types/node": "24.0.10"
+    "@types/node": "24.0.13"
   }
 }
