@@ -119,7 +119,7 @@ func (ranUe *RanUe) SwitchToRan(newRan *AmfRan, ranUeNgapID int64) error {
 	return nil
 }
 
-func (ranUe *RanUe) UpdateLocation(userLocationInformation *ngapType.UserLocationInformation, ctx context.Context) {
+func (ranUe *RanUe) UpdateLocation(ctx context.Context, userLocationInformation *ngapType.UserLocationInformation) {
 	if userLocationInformation == nil {
 		return
 	}

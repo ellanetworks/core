@@ -15,7 +15,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/pcf")
 
-func DeleteAMPolicy(polAssoID string, ctx context.Context) error {
+func DeleteAMPolicy(ctx context.Context, polAssoID string) error {
 	_, span := tracer.Start(ctx, "PCF Delete AMPolicy")
 	defer span.End()
 	span.SetAttributes(
@@ -36,7 +36,7 @@ func DeleteAMPolicy(polAssoID string, ctx context.Context) error {
 	return nil
 }
 
-func UpdateAMPolicy(polAssoID string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest, ctx context.Context) (*models.PolicyUpdate, error) {
+func UpdateAMPolicy(ctx context.Context, polAssoID string, policyAssociationUpdateRequest models.PolicyAssociationUpdateRequest) (*models.PolicyUpdate, error) {
 	_, span := tracer.Start(ctx, "PCF Update AMPolicy")
 	defer span.End()
 	span.SetAttributes(
@@ -85,7 +85,7 @@ func UpdateAMPolicy(polAssoID string, policyAssociationUpdateRequest models.Poli
 	return &response, nil
 }
 
-func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest, ctx context.Context) (*models.PolicyAssociation, string, error) {
+func CreateAMPolicy(ctx context.Context, policyAssociationRequest models.PolicyAssociationRequest) (*models.PolicyAssociation, string, error) {
 	ctx, span := tracer.Start(ctx, "PCF Create AMPolicy")
 	defer span.End()
 	span.SetAttributes(
@@ -108,7 +108,7 @@ func CreateAMPolicy(policyAssociationRequest models.PolicyAssociationRequest, ct
 	amPolicy := ue.AMPolicyData[assolID]
 
 	if amPolicy == nil {
-		_, err := pcfCtx.DBInstance.GetSubscriber(ue.Supi, ctx)
+		_, err := pcfCtx.DBInstance.GetSubscriber(ctx, ue.Supi)
 		if err != nil {
 			return nil, "", fmt.Errorf("ue not found in database: %s", ue.Supi)
 		}

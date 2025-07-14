@@ -63,7 +63,7 @@ func GetSmPolicyData(ctx context.Context) (*models.SmPolicyData, error) {
 	return smPolicyData, nil
 }
 
-func CreateSMPolicy(request models.SmPolicyContextData, ctx context.Context) (*models.SmPolicyDecision, error) {
+func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*models.SmPolicyDecision, error) {
 	ctx, span := tracer.Start(ctx, "PCF Create SMPolicy")
 	span.SetAttributes(
 		attribute.String("ue.supi", request.Supi),
@@ -114,7 +114,7 @@ func CreateSMPolicy(request models.SmPolicyContextData, ctx context.Context) (*m
 
 	sstStr := strconv.Itoa(int(request.SliceInfo.Sst))
 	sliceid := sstStr + request.SliceInfo.Sd
-	subscriberPolicy, err := GetSubscriberPolicy(ue.Supi, ctx)
+	subscriberPolicy, err := GetSubscriberPolicy(ctx, ue.Supi)
 	if err != nil {
 		return nil, fmt.Errorf("can't find subscriber policy for subscriber %s: %s", ue.Supi, err)
 	}
@@ -163,7 +163,7 @@ func CreateSMPolicy(request models.SmPolicyContextData, ctx context.Context) (*m
 	return decision, nil
 }
 
-func DeleteSMPolicy(smPolicyID string, ctx context.Context) error {
+func DeleteSMPolicy(ctx context.Context, smPolicyID string) error {
 	_, span := tracer.Start(ctx, "PCF Delete SMPolicy")
 	span.SetAttributes(
 		attribute.String("smPolicyID", smPolicyID),

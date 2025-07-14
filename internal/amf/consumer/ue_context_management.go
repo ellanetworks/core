@@ -7,7 +7,7 @@
 package consumer
 
 import (
-	ctx "context"
+	ctxt "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf/context"
@@ -15,9 +15,9 @@ import (
 	"github.com/ellanetworks/core/internal/udm"
 )
 
-func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRegistrationInd bool, ctext ctx.Context) error {
+func UeCmRegistration(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, initialRegistrationInd bool) error {
 	amfSelf := context.AMFSelf()
-	guamiList := context.GetServedGuamiList(ctext)
+	guamiList := context.GetServedGuamiList(ctx)
 
 	switch accessType {
 	case models.AccessType3GPPAccess:
@@ -34,7 +34,7 @@ func UeCmRegistration(ue *context.AmfUe, accessType models.AccessType, initialRe
 			RatType: ue.RatType,
 			ImsVoPs: models.ImsVoPsHomogeneousNonSupport,
 		}
-		err := udm.EditRegistrationAmf3gppAccess(registrationData, ue.Supi, ctext)
+		err := udm.EditRegistrationAmf3gppAccess(ctx, registrationData, ue.Supi)
 		if err != nil {
 			return err
 		}

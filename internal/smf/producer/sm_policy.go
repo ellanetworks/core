@@ -1,7 +1,7 @@
 package producer
 
 import (
-	ctx "context"
+	ctxt "context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -11,7 +11,7 @@ import (
 )
 
 // SendSMPolicyAssociationCreate creates the SM Policy Decision
-func SendSMPolicyAssociationCreate(smContext *context.SMContext, ctext ctx.Context) (*models.SmPolicyDecision, error) {
+func SendSMPolicyAssociationCreate(ctx ctxt.Context, smContext *context.SMContext) (*models.SmPolicyDecision, error) {
 	smPolicyData := models.SmPolicyContextData{}
 	smPolicyData.Supi = smContext.Supi
 	smPolicyData.PduSessionID = smContext.PDUSessionID
@@ -39,7 +39,7 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext, ctext ctx.Conte
 		Mcc: smContext.ServingNetwork.Mcc,
 		Mnc: smContext.ServingNetwork.Mnc,
 	}
-	smPolicyDecision, err := pcf.CreateSMPolicy(smPolicyData, ctext)
+	smPolicyDecision, err := pcf.CreateSMPolicy(ctx, smPolicyData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create sm policy decision: %s", err.Error())
 	}
@@ -50,9 +50,9 @@ func SendSMPolicyAssociationCreate(smContext *context.SMContext, ctext ctx.Conte
 	return smPolicyDecision, nil
 }
 
-func SendSMPolicyAssociationDelete(supi string, pduSessionID int32, ctext ctx.Context) error {
+func SendSMPolicyAssociationDelete(ctx ctxt.Context, supi string, pduSessionID int32) error {
 	smPolicyID := fmt.Sprintf("%s-%d", supi, pduSessionID)
-	err := pcf.DeleteSMPolicy(smPolicyID, ctext)
+	err := pcf.DeleteSMPolicy(ctx, smPolicyID)
 	if err != nil {
 		return fmt.Errorf("smf policy delete failed, [%v] ", err.Error())
 	}

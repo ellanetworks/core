@@ -8,7 +8,7 @@
 package context
 
 import (
-	ctx "context"
+	ctxt "context"
 	"fmt"
 	"math"
 	"net"
@@ -115,8 +115,8 @@ func (context *AMFContext) AllocateAmfUeNgapID() (int64, error) {
 	return val, nil
 }
 
-func (context *AMFContext) AllocateGutiToUe(ue *AmfUe, ctext ctx.Context) {
-	guamis := GetServedGuamiList(ctext)
+func (context *AMFContext) AllocateGutiToUe(ctx ctxt.Context, ue *AmfUe) {
+	guamis := GetServedGuamiList(ctx)
 	servedGuami := guamis[0]
 	ue.Tmsi = context.TmsiAllocate()
 	plmnID := servedGuami.PlmnID.Mcc + servedGuami.PlmnID.Mnc
@@ -124,8 +124,8 @@ func (context *AMFContext) AllocateGutiToUe(ue *AmfUe, ctext ctx.Context) {
 	ue.Guti = plmnID + servedGuami.AmfID + tmsiStr
 }
 
-func (context *AMFContext) ReAllocateGutiToUe(ue *AmfUe, ctext ctx.Context) {
-	guamis := GetServedGuamiList(ctext)
+func (context *AMFContext) ReAllocateGutiToUe(ctx ctxt.Context, ue *AmfUe) {
+	guamis := GetServedGuamiList(ctx)
 	servedGuami := guamis[0]
 	tmsiGenerator.FreeID(int64(ue.Tmsi))
 	ue.Tmsi = context.TmsiAllocate()
@@ -134,13 +134,13 @@ func (context *AMFContext) ReAllocateGutiToUe(ue *AmfUe, ctext ctx.Context) {
 	ue.Guti = plmnID + servedGuami.AmfID + tmsiStr
 }
 
-func (context *AMFContext) AllocateRegistrationArea(ue *AmfUe, anType models.AccessType, ctext ctx.Context) {
+func (context *AMFContext) AllocateRegistrationArea(ctx ctxt.Context, ue *AmfUe, anType models.AccessType) {
 	// clear the previous registration area if need
 	if len(ue.RegistrationArea[anType]) > 0 {
 		ue.RegistrationArea[anType] = nil
 	}
 
-	supportTaiList := GetSupportTaiList(ctext)
+	supportTaiList := GetSupportTaiList(ctx)
 	taiList := make([]models.Tai, len(supportTaiList))
 	copy(taiList, supportTaiList)
 	for i := range taiList {
@@ -166,7 +166,7 @@ func (context *AMFContext) AddAmfUeToUePool(ue *AmfUe, supi string) {
 	context.UePool.Store(ue.Supi, ue)
 }
 
-func (context *AMFContext) NewAmfUe(supi string, ctext ctx.Context) *AmfUe {
+func (context *AMFContext) NewAmfUe(ctx ctxt.Context, supi string) *AmfUe {
 	mutex.Lock()
 	defer mutex.Unlock()
 	ue := AmfUe{}
@@ -176,7 +176,7 @@ func (context *AMFContext) NewAmfUe(supi string, ctext ctx.Context) *AmfUe {
 		context.AddAmfUeToUePool(&ue, supi)
 	}
 
-	context.AllocateGutiToUe(&ue, ctext)
+	context.AllocateGutiToUe(ctx, &ue)
 
 	return &ue
 }
@@ -287,8 +287,8 @@ func (context *AMFContext) InSupportDnnList(targetDnn string) bool {
 	return false
 }
 
-func (context *AMFContext) InPlmnSupport(snssai models.Snssai, ctext ctx.Context) bool {
-	plmnSupportItem := GetSupportedPlmn(ctext)
+func (context *AMFContext) InPlmnSupport(ctx ctxt.Context, snssai models.Snssai) bool {
+	plmnSupportItem := GetSupportedPlmn(ctx)
 	for _, supportSnssai := range plmnSupportItem.SNssaiList {
 		if reflect.DeepEqual(supportSnssai, snssai) {
 			return true

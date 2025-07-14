@@ -72,13 +72,13 @@ func strictHex(s string, n int) string {
 	}
 }
 
-func EditAuthenticationSubscription(ueID string, sequenceNumber string, ctx context.Context) error {
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID, ctx)
+func EditAuthenticationSubscription(ctx context.Context, ueID string, sequenceNumber string) error {
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
 		return fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
 	subscriber.SequenceNumber = sequenceNumber
-	err = udmContext.DBInstance.UpdateSubscriber(subscriber, ctx)
+	err = udmContext.DBInstance.UpdateSubscriber(ctx, subscriber)
 	if err != nil {
 		return fmt.Errorf("couldn't update subscriber %s: %v", ueID, err)
 	}
@@ -111,8 +111,8 @@ func convertDBAuthSubsDataToModel(opc string, key string, sequenceNumber string)
 	return authSubsData
 }
 
-func GetAuthSubsData(ueID string, ctx context.Context) (*models.AuthenticationSubscription, error) {
-	subscriber, err := udmContext.DBInstance.GetSubscriber(ueID, ctx)
+func GetAuthSubsData(ctx context.Context, ueID string) (*models.AuthenticationSubscription, error) {
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
@@ -120,7 +120,7 @@ func GetAuthSubsData(ueID string, ctx context.Context) (*models.AuthenticationSu
 	return authSubsData, nil
 }
 
-func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string, ctx context.Context) (*models.AuthenticationInfoResult, error) {
+func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (*models.AuthenticationInfoResult, error) {
 	ctx, span := tracer.Start(ctx, "UDM CreateAuthData")
 	defer span.End()
 	span.SetAttributes(
@@ -139,7 +139,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 		return nil, fmt.Errorf("couldn't convert suci to supi: %w", err)
 	}
 
-	authSubs, err := GetAuthSubsData(supi, ctx)
+	authSubs, err := GetAuthSubsData(ctx, supi)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get authentication subscriber data: %w", err)
 	}
@@ -278,7 +278,7 @@ func CreateAuthData(authInfoRequest models.AuthenticationInfoRequest, supiOrSuci
 	SQNheStr := fmt.Sprintf("%x", bigSQN)
 	SQNheStr = strictHex(SQNheStr, 12)
 
-	err = EditAuthenticationSubscription(supi, SQNheStr, ctx)
+	err = EditAuthenticationSubscription(ctx, supi, SQNheStr)
 	if err != nil {
 		return nil, fmt.Errorf("update sqn error: %w", err)
 	}

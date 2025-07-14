@@ -87,7 +87,7 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 		t.Fatalf("The operator code from the database doesn't match the expected default")
 	}
 
-	err = database.UpdateOperatorSlice(1, 1056816, context.Background())
+	err = database.UpdateOperatorSlice(context.Background(), 1, 1056816)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
@@ -115,7 +115,7 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 
 	mcc := "002"
 	mnc := "02"
-	err = database.UpdateOperatorID(mcc, mnc, context.Background())
+	err = database.UpdateOperatorID(context.Background(), mcc, mnc)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}

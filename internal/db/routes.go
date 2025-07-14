@@ -99,7 +99,7 @@ func (db *Database) ListRoutes(ctx context.Context) ([]Route, error) {
 	return routes, nil
 }
 
-func (db *Database) GetRoute(id int64, ctx context.Context) (*Route, error) {
+func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 	operation := "SELECT"
 	target := RoutesTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -133,7 +133,7 @@ func (db *Database) GetRoute(id int64, ctx context.Context) (*Route, error) {
 	return &row, nil
 }
 
-func (t *Transaction) CreateRoute(route *Route, ctx context.Context) (int64, error) {
+func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, error) {
 	operation := "INSERT"
 	target := t.db.routesTable
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -174,7 +174,7 @@ func (t *Transaction) CreateRoute(route *Route, ctx context.Context) (int64, err
 	return id, nil
 }
 
-func (t *Transaction) DeleteRoute(id int64, ctx context.Context) error {
+func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 	operation := "DELETE"
 	target := t.db.routesTable
 	spanName := fmt.Sprintf("%s %s", operation, target)

@@ -6,7 +6,7 @@
 package nas
 
 import (
-	ctx "context"
+	ctxt "context"
 	"errors"
 	"fmt"
 
@@ -22,7 +22,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/nas")
 
-func Dispatch(ctext ctx.Context, ue *context.AmfUe, accessType models.AccessType, procedureCode int64, msg *nas.Message) error {
+func Dispatch(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, procedureCode int64, msg *nas.Message) error {
 	if msg.GmmMessage == nil {
 		return errors.New("gmm message is nil")
 	}
@@ -38,7 +38,7 @@ func Dispatch(ctext ctx.Context, ue *context.AmfUe, accessType models.AccessType
 	msgTypeName := nas.MessageName(msg.GmmMessage.GmmHeader.GetMessageType())
 	spanName := fmt.Sprintf("AMF NAS %s", msgTypeName)
 
-	_, span := tracer.Start(ctext, spanName,
+	_, span := tracer.Start(ctx, spanName,
 		trace.WithAttributes(
 			attribute.String("nas.accessType", string(accessType)),
 			attribute.Int64("nas.procedureCode", procedureCode),
@@ -47,7 +47,7 @@ func Dispatch(ctext ctx.Context, ue *context.AmfUe, accessType models.AccessType
 	)
 	defer span.End()
 
-	return gmm.GmmFSM.SendEvent(ctext, ue.State[accessType], gmm.GmmMessageEvent, fsm.ArgsType{
+	return gmm.GmmFSM.SendEvent(ctx, ue.State[accessType], gmm.GmmMessageEvent, fsm.ArgsType{
 		gmm.ArgAmfUe:         ue,
 		gmm.ArgAccessType:    accessType,
 		gmm.ArgNASMessage:    msg.GmmMessage,

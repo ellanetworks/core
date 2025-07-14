@@ -7,7 +7,7 @@
 package producer
 
 import (
-	ctx "context"
+	ctxt "context"
 	"fmt"
 
 	amf_producer "github.com/ellanetworks/core/internal/amf/producer"
@@ -23,18 +23,18 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandlePduSessionContextReplacement(smCtxtRef string, ctext ctx.Context) error {
+func HandlePduSessionContextReplacement(ctx ctxt.Context, smCtxtRef string) error {
 	smCtxt := context.GetSMContext(smCtxtRef)
 	if smCtxt == nil {
 		return nil
 	}
 
 	smCtxt.SMLock.Lock()
-	context.RemoveSMContext(smCtxt.Ref, ctext)
+	context.RemoveSMContext(ctx, smCtxt.Ref)
 
 	// Check if UPF session set, send release
 	if smCtxt.Tunnel != nil {
-		err := releaseTunnel(smCtxt, ctext)
+		err := releaseTunnel(ctx, smCtxt)
 		if err != nil {
 			smCtxt.SubPduSessLog.Error("release tunnel failed", zap.Error(err))
 		}
@@ -45,7 +45,7 @@ func HandlePduSessionContextReplacement(smCtxtRef string, ctext ctx.Context) err
 	return nil
 }
 
-func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smContext *context.SMContext, ctext ctx.Context) (string, *models.PostSmContextsErrorResponse, error) {
+func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmContextsRequest, smContext *context.SMContext) (string, *models.PostSmContextsErrorResponse, error) {
 	// GSM State
 	// PDU Session Establishment Accept/Reject
 
@@ -67,7 +67,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	defer smContext.SMLock.Unlock()
 
 	// DNN Information from config
-	dnnInfo, err := context.RetrieveDnnInformation(*createData.SNssai, createData.Dnn, ctext)
+	dnnInfo, err := context.RetrieveDnnInformation(ctx, *createData.SNssai, createData.Dnn)
 	if err != nil {
 		return "", nil, fmt.Errorf("error retrieving DNN information: %v", err)
 	}
@@ -79,7 +79,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 
 	// IP Allocation
 	smfSelf := context.SMFSelf()
-	ip, err := smfSelf.DBInstance.AllocateIP(smContext.Supi, ctext)
+	ip, err := smfSelf.DBInstance.AllocateIP(ctx, smContext.Supi)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMInsufficientResources)
 		return "", response, fmt.Errorf("failed to allocate IP address: %v", err)
@@ -93,7 +93,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	}
 
 	snssai := snssaiStr[0]
-	sessSubData, err := udm.GetAndSetSmData(smContext.Supi, createData.Dnn, snssai, ctext)
+	sessSubData, err := udm.GetAndSetSmData(ctx, smContext.Supi, createData.Dnn, snssai)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", response, fmt.Errorf("failed to get subscription data: %v", err)
@@ -112,7 +112,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 
 	// PCF Policy Association
 	var smPolicyDecision *models.SmPolicyDecision
-	smPolicyDecisionRsp, err := SendSMPolicyAssociationCreate(smContext, ctext)
+	smPolicyDecisionRsp, err := SendSMPolicyAssociationCreate(ctx, smContext)
 	if err != nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GSMRequestRejectedUnspecified)
 		return "", response, fmt.Errorf("error creating policy association: %v", err)
@@ -141,7 +141,7 @@ func HandlePDUSessionSMContextCreate(request models.PostSmContextsRequest, smCon
 	return smContext.Ref, nil, nil
 }
 
-func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smContext *context.SMContext, ctext ctx.Context) (*models.UpdateSmContextResponse, error) {
+func HandlePDUSessionSMContextUpdate(ctx ctxt.Context, request models.UpdateSmContextRequest, smContext *context.SMContext) (*models.UpdateSmContextResponse, error) {
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
@@ -149,7 +149,7 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 	var response models.UpdateSmContextResponse
 	response.JSONData = new(models.SmContextUpdatedData)
 
-	err := HandleUpdateN1Msg(request, smContext, &response, pfcpAction, ctext)
+	err := HandleUpdateN1Msg(ctx, request, smContext, &response, pfcpAction)
 	if err != nil {
 		return nil, fmt.Errorf("error handling N1 message: %v", err)
 	}
@@ -167,7 +167,7 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 	}
 
 	// N2 Msg Handling
-	if err := HandleUpdateN2Msg(request, smContext, &response, pfcpAction, pfcpParam, ctext); err != nil {
+	if err := HandleUpdateN2Msg(ctx, request, smContext, &response, pfcpAction, pfcpParam); err != nil {
 		return nil, fmt.Errorf("error handling N2 message: %v", err)
 	}
 
@@ -183,12 +183,12 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 
 	// Initiate PFCP Release
 	if pfcpAction.sendPfcpDelete {
-		if err = SendPfcpSessionReleaseReq(smContext, ctext); err != nil {
+		if err = SendPfcpSessionReleaseReq(ctx, smContext); err != nil {
 			return nil, fmt.Errorf("pfcp session release error: %v ", err.Error())
 		}
 	} else if pfcpAction.sendPfcpModify {
 		// Initiate PFCP Modify
-		err := SendPfcpSessionModifyReq(smContext, pfcpParam, ctext)
+		err := SendPfcpSessionModifyReq(ctx, smContext, pfcpParam)
 		if err != nil {
 			return nil, fmt.Errorf("pfcp session modify error: %v ", err.Error())
 		}
@@ -198,33 +198,33 @@ func HandlePDUSessionSMContextUpdate(request models.UpdateSmContextRequest, smCo
 	return &response, nil
 }
 
-func HandlePDUSessionSMContextRelease(smContext *context.SMContext, ctext ctx.Context) error {
+func HandlePDUSessionSMContextRelease(ctx ctxt.Context, smContext *context.SMContext) error {
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
 	// Send Policy delete
-	err := SendSMPolicyAssociationDelete(smContext.Supi, smContext.PDUSessionID, ctext)
+	err := SendSMPolicyAssociationDelete(ctx, smContext.Supi, smContext.PDUSessionID)
 	if err != nil {
 		smContext.SubCtxLog.Error("error deleting policy association", zap.Error(err))
 	}
 
 	// Release UE IP-Address
-	err = smContext.ReleaseUeIPAddr(ctext)
+	err = smContext.ReleaseUeIPAddr(ctx)
 	if err != nil {
 		smContext.SubPduSessLog.Error("release UE IP address failed", zap.Error(err))
 	}
 
 	// Release User-plane
-	err = releaseTunnel(smContext, ctext)
+	err = releaseTunnel(ctx, smContext)
 	if err != nil {
-		context.RemoveSMContext(smContext.Ref, ctext)
+		context.RemoveSMContext(ctx, smContext.Ref)
 		return fmt.Errorf("release tunnel failed: %v", err)
 	}
-	context.RemoveSMContext(smContext.Ref, ctext)
+	context.RemoveSMContext(ctx, smContext.Ref)
 	return nil
 }
 
-func releaseTunnel(smContext *context.SMContext, ctext ctx.Context) error {
+func releaseTunnel(ctx ctxt.Context, smContext *context.SMContext) error {
 	if smContext.Tunnel == nil {
 		return fmt.Errorf("tunnel not found")
 	}
@@ -234,7 +234,7 @@ func releaseTunnel(smContext *context.SMContext, ctext ctx.Context) error {
 	curDataPathNode := dataPath.DPNode
 	curUPFID := curDataPathNode.UPF.NodeID.String()
 	if _, exist := deletedPFCPNode[curUPFID]; !exist {
-		err := pfcp.SendPfcpSessionDeletionRequest(curDataPathNode.UPF.NodeID, smContext, ctext)
+		err := pfcp.SendPfcpSessionDeletionRequest(ctx, curDataPathNode.UPF.NodeID, smContext)
 		if err != nil {
 			return fmt.Errorf("send PFCP session deletion request failed: %v", err)
 		}
@@ -244,7 +244,7 @@ func releaseTunnel(smContext *context.SMContext, ctext ctx.Context) error {
 	return nil
 }
 
-func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool, ctext ctx.Context) error {
+func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, success bool) error {
 	// N1N2 Request towards AMF
 	n1n2Request := models.N1N2MessageTransferRequest{}
 
@@ -295,7 +295,7 @@ func SendPduSessN1N2Transfer(smContext *context.SMContext, success bool, ctext c
 			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
 		}
 	}
-	rspData, err := amf_producer.CreateN1N2MessageTransfer(smContext.Supi, n1n2Request, "", ctext)
+	rspData, err := amf_producer.CreateN1N2MessageTransfer(ctx, smContext.Supi, n1n2Request, "")
 	if err != nil {
 		err = smContext.CommitSmPolicyDecision(false)
 		if err != nil {

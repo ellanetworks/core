@@ -41,7 +41,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 		Var5qi:          9,
 		PriorityLevel:   1,
 	}
-	err = database.CreateProfile(profile, context.Background())
+	err = database.CreateProfile(context.Background(), profile)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
@@ -54,7 +54,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 		t.Fatalf("One or more profiles weren't found in DB")
 	}
 
-	retrievedProfile, err := database.GetProfile(profile.Name, context.Background())
+	retrievedProfile, err := database.GetProfile(context.Background(), profile.Name)
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -87,11 +87,11 @@ func TestProfilesEndToEnd(t *testing.T) {
 	profile.UeIPPool = "1.1.1.0/24"
 	profile.DNS = "2.2.2.2"
 
-	if err = database.UpdateProfile(profile, context.Background()); err != nil {
+	if err = database.UpdateProfile(context.Background(), profile); err != nil {
 		t.Fatalf("Couldn't complete Update: %s", err)
 	}
 
-	retrievedProfile, err = database.GetProfile(profile.Name, context.Background())
+	retrievedProfile, err = database.GetProfile(context.Background(), profile.Name)
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
@@ -108,7 +108,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 		t.Fatalf("The dns from the database doesn't match the dns that was given")
 	}
 
-	if err = database.DeleteProfile(profile.Name, context.Background()); err != nil {
+	if err = database.DeleteProfile(context.Background(), profile.Name); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
 	res, _ = database.ListProfiles(context.Background())
