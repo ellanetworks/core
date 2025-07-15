@@ -56,12 +56,12 @@ func cleanupVisitors() {
 }
 
 // RateLimitMiddleware is a Gin middleware that rate limits incoming requests based on the client IP.
-func RateLimitMiddlewareHTTP(next http.Handler) http.Handler {
+func RateLimitMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := getClientIP(r)
 		limiter := getVisitor(ip)
 		if !limiter.Allow() {
-			writeErrorHTTP(w, http.StatusTooManyRequests, "Rate limit exceeded", fmt.Errorf("rate limit exceeded for IP %s", ip), logger.APILog)
+			writeError(w, http.StatusTooManyRequests, "Rate limit exceeded", fmt.Errorf("rate limit exceeded for IP %s", ip), logger.APILog)
 			return
 		}
 		next.ServeHTTP(w, r)

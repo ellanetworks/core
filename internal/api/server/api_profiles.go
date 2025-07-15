@@ -91,12 +91,12 @@ func ListProfiles(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value("email").(string)
 		if !ok {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
 		dbProfiles, err := dbInstance.ListProfiles(r.Context())
 		if err != nil {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Profiles not found", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Profiles not found", err, logger.APILog)
 			return
 		}
 		profileList := make([]GetProfileResponse, 0)
@@ -121,17 +121,17 @@ func GetProfile(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value("email").(string)
 		if !ok {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
 		name := strings.TrimPrefix(r.URL.Path, "/api/v1/profiles/")
 		if name == "" {
-			writeErrorHTTP(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
+			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 			return
 		}
 		dbProfile, err := dbInstance.GetProfile(r.Context(), name)
 		if err != nil {
-			writeErrorHTTP(w, http.StatusNotFound, "Profile not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "Profile not found", err, logger.APILog)
 			return
 		}
 		profile := GetProfileResponse{
@@ -153,30 +153,30 @@ func DeleteProfile(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value("email").(string)
 		if !ok {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
 		name := strings.TrimPrefix(r.URL.Path, "/api/v1/profiles/")
 		if name == "" {
-			writeErrorHTTP(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
+			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 			return
 		}
 		_, err := dbInstance.GetProfile(r.Context(), name)
 		if err != nil {
-			writeErrorHTTP(w, http.StatusNotFound, "Profile not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "Profile not found", err, logger.APILog)
 			return
 		}
 		subsInProfile, err := dbInstance.SubscribersInProfile(r.Context(), name)
 		if err != nil {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to check subscribers", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to check subscribers", err, logger.APILog)
 			return
 		}
 		if subsInProfile {
-			writeErrorHTTP(w, http.StatusConflict, "Profile has subscribers", nil, logger.APILog)
+			writeError(w, http.StatusConflict, "Profile has subscribers", nil, logger.APILog)
 			return
 		}
 		if err := dbInstance.DeleteProfile(r.Context(), name); err != nil {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to delete profile", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to delete profile", err, logger.APILog)
 			return
 		}
 		writeResponse(w, SuccessResponse{Message: "Profile deleted successfully"}, http.StatusOK, logger.APILog)
@@ -188,23 +188,23 @@ func CreateProfile(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value("email").(string)
 		if !ok {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
 
 		var createProfileParams CreateProfileParams
 		if err := json.NewDecoder(r.Body).Decode(&createProfileParams); err != nil {
-			writeErrorHTTP(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
 		if err := validateProfileParams(createProfileParams); err != nil {
-			writeErrorHTTP(w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			writeError(w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
 
 		if _, err := dbInstance.GetProfile(r.Context(), createProfileParams.Name); err == nil {
-			writeErrorHTTP(w, http.StatusBadRequest, "Profile already exists", nil, logger.APILog)
+			writeError(w, http.StatusBadRequest, "Profile already exists", nil, logger.APILog)
 			return
 		}
 
@@ -220,7 +220,7 @@ func CreateProfile(dbInstance *db.Database) http.Handler {
 		}
 
 		if err := dbInstance.CreateProfile(r.Context(), dbProfile); err != nil {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to create profile", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to create profile", err, logger.APILog)
 			return
 		}
 
@@ -233,30 +233,30 @@ func UpdateProfile(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value("email").(string)
 		if !ok {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
 
 		groupName := strings.TrimPrefix(r.URL.Path, "/api/v1/profiles/")
 		if groupName == "" || strings.ContainsRune(groupName, '/') {
-			writeErrorHTTP(w, http.StatusBadRequest, "Invalid or missing name parameter", nil, logger.APILog)
+			writeError(w, http.StatusBadRequest, "Invalid or missing name parameter", nil, logger.APILog)
 			return
 		}
 
 		var updateProfileParams CreateProfileParams
 		if err := json.NewDecoder(r.Body).Decode(&updateProfileParams); err != nil {
-			writeErrorHTTP(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
 		if err := validateProfileParams(updateProfileParams); err != nil {
-			writeErrorHTTP(w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			writeError(w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
 
 		profile, err := dbInstance.GetProfile(r.Context(), groupName)
 		if err != nil {
-			writeErrorHTTP(w, http.StatusNotFound, "Profile not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "Profile not found", err, logger.APILog)
 			return
 		}
 
@@ -270,7 +270,7 @@ func UpdateProfile(dbInstance *db.Database) http.Handler {
 		profile.PriorityLevel = updateProfileParams.PriorityLevel
 
 		if err := dbInstance.UpdateProfile(r.Context(), profile); err != nil {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to update profile", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to update profile", err, logger.APILog)
 			return
 		}
 

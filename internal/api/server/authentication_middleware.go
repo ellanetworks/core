@@ -24,14 +24,14 @@ func Authenticate(jwtSecret []byte, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			writeErrorHTTP(w, http.StatusUnauthorized, "Authorization header not found", errors.New("missing header"), logger.APILog)
+			writeError(w, http.StatusUnauthorized, "Authorization header not found", errors.New("missing header"), logger.APILog)
 			return
 		}
 
 		claims, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
 		if err != nil {
 			logger.LogAuditEvent(AuthenticationAction, "", getClientIP(r), "Unauthorized access attempt")
-			writeErrorHTTP(w, http.StatusUnauthorized, "Invalid token", err, logger.APILog)
+			writeError(w, http.StatusUnauthorized, "Invalid token", err, logger.APILog)
 			return
 		}
 

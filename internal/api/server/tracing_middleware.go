@@ -7,8 +7,8 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-// TracingMiddlewareHTTP wraps the handler in OpenTelemetry HTTP middleware
-func TracingMiddlewareHTTP(serviceName string, handler http.Handler) http.Handler {
+// TracingMiddleware wraps the handler in OpenTelemetry HTTP middleware
+func TracingMiddleware(serviceName string, handler http.Handler) http.Handler {
 	return otelhttp.NewHandler(
 		handler,
 		"", // leave span name empty so formatter is used

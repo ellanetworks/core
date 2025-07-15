@@ -102,7 +102,7 @@ func RequirePermissionOrFirstUser(permission string, db *db.Database, jwtSecret 
 		if permission == PermCreateUser && r.Method == http.MethodPost {
 			userCount, err := db.NumUsers(ctx)
 			if err != nil {
-				writeErrorHTTP(w, http.StatusInternalServerError, "Failed to count users", err, logger.APILog)
+				writeError(w, http.StatusInternalServerError, "Failed to count users", err, logger.APILog)
 				return
 			}
 			if userCount == 0 {
@@ -113,14 +113,14 @@ func RequirePermissionOrFirstUser(permission string, db *db.Database, jwtSecret 
 
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			writeErrorHTTP(w, http.StatusUnauthorized, "Authorization header not found", errors.New("missing header"), logger.APILog)
+			writeError(w, http.StatusUnauthorized, "Authorization header not found", errors.New("missing header"), logger.APILog)
 			return
 		}
 
 		claims, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
 		if err != nil {
 			logger.LogAuditEvent("auth_fail", "", getClientIP(r), "unauthorized")
-			writeErrorHTTP(w, http.StatusUnauthorized, "Invalid token", err, logger.APILog)
+			writeError(w, http.StatusUnauthorized, "Invalid token", err, logger.APILog)
 			return
 		}
 
@@ -139,7 +139,7 @@ func RequirePermissionOrFirstUser(permission string, db *db.Database, jwtSecret 
 			}
 		}
 
-		writeErrorHTTP(w, http.StatusForbidden, "Forbidden", errors.New("permission denied"), logger.APILog)
+		writeError(w, http.StatusForbidden, "Forbidden", errors.New("permission denied"), logger.APILog)
 	})
 }
 
@@ -148,7 +148,7 @@ func RequirePermission(permission string, next http.Handler) http.Handler {
 		roleIDAny := r.Context().Value("roleID")
 		roleID, ok := roleIDAny.(int)
 		if !ok {
-			writeErrorHTTP(w, http.StatusForbidden, "Invalid or missing role ID", errors.New("role ID missing in context"), logger.APILog)
+			writeError(w, http.StatusForbidden, "Invalid or missing role ID", errors.New("role ID missing in context"), logger.APILog)
 			return
 		}
 
@@ -160,6 +160,6 @@ func RequirePermission(permission string, next http.Handler) http.Handler {
 			}
 		}
 
-		writeErrorHTTP(w, http.StatusForbidden, "Forbidden", errors.New("permission denied"), logger.APILog)
+		writeError(w, http.StatusForbidden, "Forbidden", errors.New("permission denied"), logger.APILog)
 	})
 }

@@ -74,14 +74,14 @@ func ListUsers(dbInstance *db.Database) http.Handler {
 		emailAny := r.Context().Value("email")
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
 
 		dbUsers, err := dbInstance.ListUsers(r.Context())
 		if err != nil {
 			logger.APILog.Warn("Failed to query users", zap.Error(err))
-			writeErrorHTTP(w, http.StatusInternalServerError, "Unable to retrieve users", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Unable to retrieve users", err, logger.APILog)
 			return
 		}
 
@@ -109,19 +109,19 @@ func GetUser(dbInstance *db.Database) http.Handler {
 		emailAny := r.Context().Value("email")
 		requester, ok := emailAny.(string)
 		if !ok {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
 			return
 		}
 
 		emailParam := strings.TrimPrefix(r.URL.Path, "/api/v1/users/")
 		if emailParam == "" {
-			writeErrorHTTP(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
 			return
 		}
 
 		dbUser, err := dbInstance.GetUser(r.Context(), emailParam)
 		if err != nil {
-			writeErrorHTTP(w, http.StatusNotFound, "User not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "User not found", err, logger.APILog)
 			return
 		}
 
@@ -140,13 +140,13 @@ func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 		emailAny := r.Context().Value("email")
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
-			writeErrorHTTP(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
+			writeError(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
 			return
 		}
 
 		dbUser, err := dbInstance.GetUser(r.Context(), email)
 		if err != nil {
-			writeErrorHTTP(w, http.StatusNotFound, "User not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "User not found", err, logger.APILog)
 			return
 		}
 
@@ -176,29 +176,29 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 
 		var newUser CreateUserParams
 		if err := json.NewDecoder(r.Body).Decode(&newUser); err != nil {
-			writeErrorHTTP(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 		if newUser.Email == "" {
-			writeErrorHTTP(w, http.StatusBadRequest, "email is missing", errors.New("missing email"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "email is missing", errors.New("missing email"), logger.APILog)
 			return
 		}
 		if newUser.Password == "" {
-			writeErrorHTTP(w, http.StatusBadRequest, "password is missing", errors.New("missing password"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "password is missing", errors.New("missing password"), logger.APILog)
 			return
 		}
 		if !isValidEmail(newUser.Email) {
-			writeErrorHTTP(w, http.StatusBadRequest, "Invalid email format", errors.New("bad format"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "Invalid email format", errors.New("bad format"), logger.APILog)
 			return
 		}
 		if _, err := dbInstance.GetUser(r.Context(), newUser.Email); err == nil {
-			writeErrorHTTP(w, http.StatusBadRequest, "user already exists", errors.New("duplicate"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "user already exists", errors.New("duplicate"), logger.APILog)
 			return
 		}
 
 		hashedPassword, err := hashPassword(newUser.Password)
 		if err != nil {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
 			return
 		}
 
@@ -209,7 +209,7 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 		}
 		if err := dbInstance.CreateUser(r.Context(), dbUser); err != nil {
 			logger.APILog.Warn("Failed to create user", zap.Error(err))
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to create user", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to create user", err, logger.APILog)
 			return
 		}
 
@@ -229,33 +229,33 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 		emailAny := r.Context().Value("email")
 		requester, ok := emailAny.(string)
 		if !ok {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
 			return
 		}
 
 		emailParam := strings.TrimPrefix(r.URL.Path, "/api/v1/users/")
 		if emailParam == "" {
-			writeErrorHTTP(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
 			return
 		}
 
 		var updateUserParams UpdateUserParams
 		if err := json.NewDecoder(r.Body).Decode(&updateUserParams); err != nil {
-			writeErrorHTTP(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 		if updateUserParams.Email == "" || !isValidEmail(updateUserParams.Email) {
-			writeErrorHTTP(w, http.StatusBadRequest, "Invalid or missing email", errors.New("bad format"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "Invalid or missing email", errors.New("bad format"), logger.APILog)
 			return
 		}
 
 		if _, err := dbInstance.GetUser(r.Context(), emailParam); err != nil {
-			writeErrorHTTP(w, http.StatusNotFound, "User not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "User not found", err, logger.APILog)
 			return
 		}
 
 		if err := dbInstance.UpdateUser(r.Context(), updateUserParams.Email, roleNameToID[updateUserParams.Role]); err != nil {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to update user", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to update user", err, logger.APILog)
 			return
 		}
 
@@ -269,39 +269,39 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 		emailAny := r.Context().Value("email")
 		requester, ok := emailAny.(string)
 		if !ok {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
 			return
 		}
 
 		emailParam := strings.TrimPrefix(strings.TrimSuffix(r.URL.Path, "/password"), "/api/v1/users/")
 		if emailParam == "" {
-			writeErrorHTTP(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
 			return
 		}
 
 		var updateUserParams UpdateUserPasswordParams
 		if err := json.NewDecoder(r.Body).Decode(&updateUserParams); err != nil {
-			writeErrorHTTP(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 		if updateUserParams.Email == "" || updateUserParams.Password == "" || !isValidEmail(updateUserParams.Email) {
-			writeErrorHTTP(w, http.StatusBadRequest, "Invalid input", errors.New("bad input"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "Invalid input", errors.New("bad input"), logger.APILog)
 			return
 		}
 
 		if _, err := dbInstance.GetUser(r.Context(), emailParam); err != nil {
-			writeErrorHTTP(w, http.StatusNotFound, "User not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "User not found", err, logger.APILog)
 			return
 		}
 
 		hashedPassword, err := hashPassword(updateUserParams.Password)
 		if err != nil {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
 			return
 		}
 
 		if err := dbInstance.UpdateUserPassword(r.Context(), updateUserParams.Email, hashedPassword); err != nil {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to update password", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to update password", err, logger.APILog)
 			return
 		}
 
@@ -315,23 +315,23 @@ func DeleteUser(dbInstance *db.Database) http.Handler {
 		emailAny := r.Context().Value("email")
 		requester, ok := emailAny.(string)
 		if !ok {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
 			return
 		}
 
 		emailParam := strings.TrimPrefix(r.URL.Path, "/api/v1/users/")
 		if emailParam == "" {
-			writeErrorHTTP(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
 			return
 		}
 
 		if _, err := dbInstance.GetUser(r.Context(), emailParam); err != nil {
-			writeErrorHTTP(w, http.StatusNotFound, "User not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "User not found", err, logger.APILog)
 			return
 		}
 
 		if err := dbInstance.DeleteUser(r.Context(), emailParam); err != nil {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to delete user", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to delete user", err, logger.APILog)
 			return
 		}
 

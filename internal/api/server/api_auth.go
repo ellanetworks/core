@@ -56,16 +56,16 @@ func Login(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var loginParams LoginParams
 		if err := json.NewDecoder(r.Body).Decode(&loginParams); err != nil {
-			writeErrorHTTP(w, http.StatusBadRequest, "Invalid JSON format", err, logger.APILog)
+			writeError(w, http.StatusBadRequest, "Invalid JSON format", err, logger.APILog)
 			return
 		}
 
 		if loginParams.Email == "" {
-			writeErrorHTTP(w, http.StatusBadRequest, "Email is required", fmt.Errorf("email is missing"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "Email is required", fmt.Errorf("email is missing"), logger.APILog)
 			return
 		}
 		if loginParams.Password == "" {
-			writeErrorHTTP(w, http.StatusBadRequest, "Password is required", fmt.Errorf("password is missing"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "Password is required", fmt.Errorf("password is missing"), logger.APILog)
 			return
 		}
 
@@ -77,7 +77,7 @@ func Login(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 				getClientIP(r),
 				"User failed to log in",
 			)
-			writeErrorHTTP(w, http.StatusUnauthorized, "The email or password is incorrect. Try again.", err, logger.APILog)
+			writeError(w, http.StatusUnauthorized, "The email or password is incorrect. Try again.", err, logger.APILog)
 			return
 		}
 
@@ -88,13 +88,13 @@ func Login(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 				getClientIP(r),
 				"User failed to log in",
 			)
-			writeErrorHTTP(w, http.StatusUnauthorized, "The email or password is incorrect. Try again.", fmt.Errorf("password mismatch"), logger.APILog)
+			writeError(w, http.StatusUnauthorized, "The email or password is incorrect. Try again.", fmt.Errorf("password mismatch"), logger.APILog)
 			return
 		}
 
 		token, err := generateJWT(user.ID, user.Email, user.RoleID, jwtSecret)
 		if err != nil {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
 		}
 
@@ -114,7 +114,7 @@ func LookupToken(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			writeErrorHTTP(w, http.StatusBadRequest, "Authorization header is required", errors.New("missing Authorization header"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "Authorization header is required", errors.New("missing Authorization header"), logger.APILog)
 			return
 		}
 

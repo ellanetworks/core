@@ -22,7 +22,7 @@ func GetStatus(dbInstance *db.Database) http.Handler {
 		numUsers, err := dbInstance.NumUsers(ctx)
 		if err != nil {
 			logger.APILog.Warn("Failed to query number of users", zap.Error(err))
-			writeErrorHTTP(w, http.StatusInternalServerError, "Unable to retrieve number of users", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Unable to retrieve number of users", err, logger.APILog)
 			return
 		}
 

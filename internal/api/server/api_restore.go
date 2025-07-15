@@ -16,26 +16,26 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 		email := r.Context().Value("email")
 		emailStr, ok := email.(string)
 		if !ok {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
 
 		err := r.ParseMultipartForm(32 << 20) // 32MB max memory buffer
 		if err != nil {
-			writeErrorHTTP(w, http.StatusBadRequest, "Invalid multipart form", err, logger.APILog)
+			writeError(w, http.StatusBadRequest, "Invalid multipart form", err, logger.APILog)
 			return
 		}
 
 		file, _, err := r.FormFile("backup")
 		if err != nil {
-			writeErrorHTTP(w, http.StatusBadRequest, "No backup file provided", err, logger.APILog)
+			writeError(w, http.StatusBadRequest, "No backup file provided", err, logger.APILog)
 			return
 		}
 		defer file.Close()
 
 		tempFile, err := os.CreateTemp("", "restore_*.db")
 		if err != nil {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to create temporary file", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to create temporary file", err, logger.APILog)
 			return
 		}
 		defer func() {
@@ -44,17 +44,17 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 		}()
 
 		if _, err := io.Copy(tempFile, file); err != nil {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to copy uploaded file", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to copy uploaded file", err, logger.APILog)
 			return
 		}
 
 		if _, err := tempFile.Seek(0, 0); err != nil {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to reset file pointer", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to reset file pointer", err, logger.APILog)
 			return
 		}
 
 		if err := dbInstance.Restore(tempFile); err != nil {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to restore database", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to restore database", err, logger.APILog)
 			return
 		}
 

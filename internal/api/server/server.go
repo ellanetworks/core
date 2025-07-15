@@ -88,10 +88,10 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	// Wrap with optional tracing and rate limiting
 	var handler http.Handler = mux
 	if tracingEnabled {
-		handler = TracingMiddlewareHTTP("ella-core/api", handler)
+		handler = TracingMiddleware("ella-core/api", handler)
 	}
 	if mode != TestMode {
-		handler = RateLimitMiddlewareHTTP(handler)
+		handler = RateLimitMiddleware(handler)
 	}
 
 	return handler

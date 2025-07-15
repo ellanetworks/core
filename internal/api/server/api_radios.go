@@ -71,7 +71,7 @@ func ListRadios() http.HandlerFunc {
 		email := r.Context().Value("email")
 		emailStr, ok := email.(string)
 		if !ok {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to get email", fmt.Errorf("missing email in context"), logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to get email", fmt.Errorf("missing email in context"), logger.APILog)
 			return
 		}
 
@@ -103,13 +103,13 @@ func GetRadio() http.HandlerFunc {
 		email := r.Context().Value("email")
 		emailStr, ok := email.(string)
 		if !ok {
-			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to get email", fmt.Errorf("missing email in context"), logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to get email", fmt.Errorf("missing email in context"), logger.APILog)
 			return
 		}
 
 		radioName := pathParam(r.URL.Path, "/api/v1/radios/")
 		if radioName == "" {
-			writeErrorHTTP(w, http.StatusBadRequest, "Missing name parameter", fmt.Errorf("name parameter is required"), logger.APILog)
+			writeError(w, http.StatusBadRequest, "Missing name parameter", fmt.Errorf("name parameter is required"), logger.APILog)
 			return
 		}
 
@@ -134,6 +134,6 @@ func GetRadio() http.HandlerFunc {
 			}
 		}
 
-		writeErrorHTTP(w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)
+		writeError(w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)
 	}
 }
