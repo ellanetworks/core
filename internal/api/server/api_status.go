@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -33,9 +32,7 @@ func GetStatus(dbInstance *db.Database) http.Handler {
 			Initialized: initialized,
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(statusResponse)
+		writeResponseHTTP(w, statusResponse, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
 			GetStatusAction,

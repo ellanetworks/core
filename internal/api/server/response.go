@@ -22,6 +22,26 @@ func writeResponse(c *gin.Context, v any, status int) {
 	c.JSON(status, gin.H{"result": v})
 }
 
+func writeResponseHTTP(w http.ResponseWriter, v any, status int, logger *zap.Logger) {
+	type response struct {
+		Result any `json:"result,omitempty"`
+	}
+	resp := response{Result: v}
+	respBytes, err := json.Marshal(&resp)
+	if err != nil {
+		logger.Error("Error marshalling response", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if _, err := w.Write(respBytes); err != nil {
+		logger.Error("Error writing response", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
 func writeError(c *gin.Context, status int, message string) {
 	_ = c.Error(errors.New(message)).SetType(gin.ErrorTypePublic)
 	c.JSON(status, gin.H{"error": message})

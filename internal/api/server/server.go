@@ -60,29 +60,6 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 		apiGroup.Use(RateLimitMiddleware())
 	}
 
-	// Metrics (Unauthenticated)
-	apiGroup.GET("/metrics", GetMetrics())
-
-	// Subscribers (Authenticated)
-	apiGroup.GET("/subscribers", Authenticate(jwtSecret), RequirePermission(PermListSubscribers), ListSubscribers(dbInstance))
-	apiGroup.POST("/subscribers", Authenticate(jwtSecret), RequirePermission(PermCreateSubscriber), CreateSubscriber(dbInstance))
-	apiGroup.PUT("/subscribers/:imsi", Authenticate(jwtSecret), RequirePermission(PermUpdateSubscriber), UpdateSubscriber(dbInstance))
-	apiGroup.GET("/subscribers/:imsi", Authenticate(jwtSecret), RequirePermission(PermReadSubscriber), GetSubscriber(dbInstance))
-	apiGroup.DELETE("/subscribers/:imsi", Authenticate(jwtSecret), RequirePermission(PermDeleteSubscriber), DeleteSubscriber(dbInstance))
-
-	// Profiles (Authenticated)
-	apiGroup.GET("/profiles", Authenticate(jwtSecret), RequirePermission(PermListProfiles), ListProfiles(dbInstance))
-	apiGroup.POST("/profiles", Authenticate(jwtSecret), RequirePermission(PermCreateProfile), CreateProfile(dbInstance))
-	apiGroup.PUT("/profiles/:name", Authenticate(jwtSecret), RequirePermission(PermUpdateProfile), UpdateProfile(dbInstance))
-	apiGroup.GET("/profiles/:name", Authenticate(jwtSecret), RequirePermission(PermReadProfile), GetProfile(dbInstance))
-	apiGroup.DELETE("/profiles/:name", Authenticate(jwtSecret), RequirePermission(PermDeleteProfile), DeleteProfile(dbInstance))
-
-	// Routes (Authenticated)
-	apiGroup.GET("/routes", Authenticate(jwtSecret), RequirePermission(PermListRoutes), ListRoutes(dbInstance))
-	apiGroup.POST("/routes", Authenticate(jwtSecret), RequirePermission(PermCreateRoute), CreateRoute(dbInstance, kernel))
-	apiGroup.GET("/routes/:id", Authenticate(jwtSecret), RequirePermission(PermReadRoute), GetRoute(dbInstance))
-	apiGroup.DELETE("/routes/:id", Authenticate(jwtSecret), RequirePermission(PermDeleteRoute), DeleteRoute(dbInstance, kernel))
-
 	// Operator (Authenticated)
 	apiGroup.GET("/operator", Authenticate(jwtSecret), RequirePermission(PermReadOperator), GetOperator(dbInstance))
 	apiGroup.PUT("/operator/slice", Authenticate(jwtSecret), RequirePermission(PermUpdateOperatorSlice), UpdateOperatorSlice(dbInstance))
@@ -98,26 +75,173 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	apiGroup.GET("/radios", Authenticate(jwtSecret), RequirePermission(PermListRadios), ListRadios())
 	apiGroup.GET("/radios/:name", Authenticate(jwtSecret), RequirePermission(PermReadRadio), GetRadio())
 
-	// Users (Authenticated except for first user creation)
-	apiGroup.GET("/users", Authenticate(jwtSecret), RequirePermission(PermListUsers), ListUsers(dbInstance))
-	apiGroup.POST("/users", RequirePermissionOrFirstUser(PermCreateUser, dbInstance, jwtSecret), CreateUser(dbInstance))
-	apiGroup.PUT("/users/:email", Authenticate(jwtSecret), RequirePermission(PermUpdateUser), UpdateUser(dbInstance))
-	apiGroup.PUT("/users/:email/password", Authenticate(jwtSecret), RequirePermission(PermUpdateUserPassword), UpdateUserPassword(dbInstance))
-	apiGroup.GET("/users/:email", Authenticate(jwtSecret), RequirePermission(PermReadUser), GetUser(dbInstance))
-	apiGroup.DELETE("/users/:email", Authenticate(jwtSecret), RequirePermission(PermDeleteUser), DeleteUser(dbInstance))
-	apiGroup.GET("/users/me", Authenticate(jwtSecret), RequirePermission(PermReadMyUser), GetLoggedInUser(dbInstance))
-
 	// Backup and Restore (Authenticated)
 	apiGroup.POST("/backup", Authenticate(jwtSecret), RequirePermission(PermBackup), Backup(dbInstance))
 	apiGroup.POST("/restore", Authenticate(jwtSecret), RequirePermission(PermRestore), Restore(dbInstance))
 
-	// Authentication
-	apiGroup.POST("/auth/login", Login(dbInstance, jwtSecret))
-	apiGroup.POST("/auth/lookup-token", LookupToken(dbInstance, jwtSecret))
-
-	// Now, add raw http.ServeMux
+	// Status (Unauthenticated)
 	mux := http.NewServeMux()
-	mux.Handle("/api/v1/status", GetStatus(dbInstance)) // ← New raw handler
+	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance).ServeHTTP)
+
+	// Metrics (Unauthenticated)
+	mux.HandleFunc("GET /api/v1/metrics", GetMetrics().ServeHTTP)
+
+	// Authentication
+	mux.HandleFunc("POST /api/v1/auth/login", Login(dbInstance, jwtSecret).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/auth/lookup-token", LookupToken(dbInstance, jwtSecret).ServeHTTP)
+
+	// Users (Authenticated except for first user creation)
+	mux.HandleFunc("GET /api/v1/users/me", AuthenticateHTTP(jwtSecret, GetLoggedInUser(dbInstance)).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/users",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermListUsers,
+				ListUsers(dbInstance),
+			),
+		).ServeHTTP,
+	)
+	mux.HandleFunc("POST /api/v1/users",
+		RequirePermissionOrFirstUserHTTP(
+			PermCreateUser,
+			dbInstance,
+			jwtSecret,
+			CreateUser(dbInstance),
+		).ServeHTTP,
+	)
+	mux.HandleFunc("PUT /api/v1/users/{email}",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermUpdateUser,
+				UpdateUser(dbInstance),
+			),
+		).ServeHTTP,
+	)
+	mux.HandleFunc("PUT /api/v1/users/{email}/password",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermUpdateUserPassword,
+				UpdateUserPassword(dbInstance),
+			),
+		).ServeHTTP,
+	)
+	mux.HandleFunc("GET /api/v1/users/{email}",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermReadUser,
+				GetUser(dbInstance),
+			),
+		).ServeHTTP,
+	)
+	mux.HandleFunc("DELETE /api/v1/users/{email}",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermDeleteUser,
+				DeleteUser(dbInstance),
+			),
+		).ServeHTTP,
+	)
+
+	// Subscribers (Authenticated)
+	mux.HandleFunc("GET /api/v1/subscribers",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermListSubscribers,
+				ListSubscribers(dbInstance),
+			),
+		).ServeHTTP,
+	)
+	mux.HandleFunc("POST /api/v1/subscribers",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermCreateSubscriber,
+				CreateSubscriber(dbInstance),
+			),
+		).ServeHTTP,
+	)
+	mux.HandleFunc("PUT /api/v1/subscribers/",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermUpdateSubscriber,
+				UpdateSubscriber(dbInstance),
+			),
+		).ServeHTTP,
+	)
+	mux.HandleFunc("GET /api/v1/subscribers/",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermReadSubscriber,
+				GetSubscriber(dbInstance),
+			),
+		).ServeHTTP,
+	)
+	mux.HandleFunc("DELETE /api/v1/subscribers/",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermDeleteSubscriber,
+				DeleteSubscriber(dbInstance),
+			),
+		).ServeHTTP,
+	)
+
+	// Profiles (Authenticated)
+	mux.HandleFunc("GET /api/v1/profiles",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermListProfiles,
+				ListProfiles(dbInstance),
+			),
+		).ServeHTTP,
+	)
+	mux.HandleFunc("POST /api/v1/profiles",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermCreateProfile,
+				CreateProfile(dbInstance),
+			),
+		).ServeHTTP,
+	)
+	mux.HandleFunc("PUT /api/v1/profiles/",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermUpdateProfile,
+				UpdateProfile(dbInstance),
+			),
+		).ServeHTTP,
+	)
+	mux.HandleFunc("GET /api/v1/profiles/",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermReadProfile,
+				GetProfile(dbInstance),
+			),
+		).ServeHTTP,
+	)
+	mux.HandleFunc("DELETE /api/v1/profiles/",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermDeleteProfile,
+				DeleteProfile(dbInstance),
+			),
+		).ServeHTTP,
+	)
+
+	// Routes (Authenticated)
+	mux.HandleFunc("GET /api/v1/routes",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermListRoutes,
+				ListRoutes(dbInstance),
+			),
+		).ServeHTTP,
+	)
+
+	mux.HandleFunc("POST /api/v1/routes",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermCreateRoute,
+				CreateRoute(dbInstance, kernel),
+			),
+		).ServeHTTP,
+	)
+
+	mux.HandleFunc("GET /api/v1/routes/{id}",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermReadRoute,
+				GetRoute(dbInstance),
+			),
+		).ServeHTTP,
+	)
+
+	mux.HandleFunc("DELETE /api/v1/routes/{id}",
+		AuthenticateHTTP(jwtSecret,
+			RequirePermissionHTTP(PermDeleteRoute,
+				DeleteRoute(dbInstance, kernel),
+			),
+		).ServeHTTP,
+	)
 
 	// Mount Gin under root fallback
 	mux.Handle("/", router)

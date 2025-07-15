@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -41,6 +42,30 @@ func Authenticate(jwtSecret []byte) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func AuthenticateHTTP(jwtSecret []byte, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			writeErrorHTTP(w, http.StatusUnauthorized, "Authorization header not found", errors.New("missing header"), logger.APILog)
+			return
+		}
+
+		claims, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
+		if err != nil {
+			logger.LogAuditEvent(AuthenticationAction, "", r.RemoteAddr, "Unauthorized access attempt")
+			writeErrorHTTP(w, http.StatusUnauthorized, "Invalid token", err, logger.APILog)
+			return
+		}
+
+		// Store claims in context
+		ctx := context.WithValue(r.Context(), "userID", claims.ID)
+		ctx = context.WithValue(ctx, "email", claims.Email)
+		ctx = context.WithValue(ctx, "roleID", claims.RoleID)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 func getClaimsFromAuthorizationHeader(header string, jwtSecret []byte) (*claims, error) {
