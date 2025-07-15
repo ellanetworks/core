@@ -206,7 +206,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 		logger.LogAuditEvent(
 			GetOperatorAction,
 			email,
-			r.RemoteAddr,
+			getClientIP(r),
 			"User retrieved operator information",
 		)
 	})
@@ -236,7 +236,7 @@ func GetOperatorSlice(dbInstance *db.Database) http.Handler {
 		logger.LogAuditEvent(
 			GetOperatorSliceAction,
 			email,
-			r.RemoteAddr,
+			getClientIP(r),
 			"User retrieved operator slice",
 		)
 	})
@@ -265,7 +265,7 @@ func GetOperatorTracking(dbInstance *db.Database) http.Handler {
 		logger.LogAuditEvent(
 			GetOperatorTrackingAction,
 			email,
-			r.RemoteAddr,
+			getClientIP(r),
 			"User retrieved operator tracking information",
 		)
 	})
@@ -295,7 +295,7 @@ func GetOperatorID(dbInstance *db.Database) http.Handler {
 		logger.LogAuditEvent(
 			GetOperatorIDAction,
 			email,
-			r.RemoteAddr,
+			getClientIP(r),
 			"User retrieved operator Id",
 		)
 	})
@@ -345,7 +345,7 @@ func UpdateOperatorSlice(dbInstance *db.Database) http.Handler {
 		logger.LogAuditEvent(
 			UpdateOperatorSliceAction,
 			email,
-			r.RemoteAddr,
+			getClientIP(r),
 			"User updated operator slice information",
 		)
 	})
@@ -389,7 +389,7 @@ func UpdateOperatorTracking(dbInstance *db.Database) http.Handler {
 		logger.LogAuditEvent(
 			UpdateOperatorTrackingAction,
 			email,
-			r.RemoteAddr,
+			getClientIP(r),
 			"User updated operator tracking information",
 		)
 	})
@@ -448,7 +448,7 @@ func UpdateOperatorID(dbInstance *db.Database) http.Handler {
 		logger.LogAuditEvent(
 			UpdateOperatorIDAction,
 			email,
-			r.RemoteAddr,
+			getClientIP(r),
 			"User updated operator with Id: "+params.Mcc+params.Mnc,
 		)
 	})
@@ -499,7 +499,7 @@ func UpdateOperatorCode(dbInstance *db.Database) http.Handler {
 		logger.LogAuditEvent(
 			UpdateOperatorCodeAction,
 			email,
-			r.RemoteAddr,
+			getClientIP(r),
 			"User updated operator Code",
 		)
 	})
@@ -541,7 +541,7 @@ func UpdateOperatorHomeNetwork(dbInstance *db.Database) http.Handler {
 		logger.LogAuditEvent(
 			UpdateOperatorHomeNetworkAction,
 			email,
-			r.RemoteAddr,
+			getClientIP(r),
 			"User updated home network private key",
 		)
 	})

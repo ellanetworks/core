@@ -37,7 +37,7 @@ func GetStatus(dbInstance *db.Database) http.Handler {
 		logger.LogAuditEvent(
 			GetStatusAction,
 			"", // User unknown on unauthenticated endpoint
-			r.RemoteAddr,
+			getClientIP(r),
 			"Successfully retrieved status",
 		)
 	})

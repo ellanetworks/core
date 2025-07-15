@@ -31,9 +31,8 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, out any) error {
 	return nil
 }
 
-// GetClientIP extracts the client IP address from the request headers or remote address.
-func GetClientIP(r *http.Request) string {
-	// Check X-Forwarded-For header (may contain multiple IPs)
+// getClientIP extracts the client IP address from the request headers or remote address.
+func getClientIP(r *http.Request) string {
 	xForwardedFor := r.Header.Get("X-Forwarded-For")
 	if xForwardedFor != "" {
 		ips := strings.Split(xForwardedFor, ",")

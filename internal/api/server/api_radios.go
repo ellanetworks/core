@@ -92,7 +92,7 @@ func ListRadios() http.HandlerFunc {
 		logger.LogAuditEvent(
 			ListRadiosAction,
 			emailStr,
-			GetClientIP(r),
+			getClientIP(r),
 			"User listed radios",
 		)
 	}
@@ -127,7 +127,7 @@ func GetRadio() http.HandlerFunc {
 				logger.LogAuditEvent(
 					GetRadioAction,
 					emailStr,
-					GetClientIP(r),
+					getClientIP(r),
 					"User retrieved radio: "+radioName,
 				)
 				return

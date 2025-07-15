@@ -47,7 +47,7 @@ func Backup(dbInstance *db.Database) http.HandlerFunc {
 		logger.LogAuditEvent(
 			BackupAction,
 			emailStr,
-			GetClientIP(r),
+			getClientIP(r),
 			"Successfully backed up database",
 		)
 	}

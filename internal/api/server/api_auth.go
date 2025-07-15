@@ -74,7 +74,7 @@ func Login(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 			logger.LogAuditEvent(
 				LoginAction,
 				loginParams.Email,
-				r.RemoteAddr,
+				getClientIP(r),
 				"User failed to log in",
 			)
 			writeErrorHTTP(w, http.StatusUnauthorized, "The email or password is incorrect. Try again.", err, logger.APILog)
@@ -85,7 +85,7 @@ func Login(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 			logger.LogAuditEvent(
 				LoginAction,
 				user.Email,
-				r.RemoteAddr,
+				getClientIP(r),
 				"User failed to log in",
 			)
 			writeErrorHTTP(w, http.StatusUnauthorized, "The email or password is incorrect. Try again.", fmt.Errorf("password mismatch"), logger.APILog)
@@ -104,7 +104,7 @@ func Login(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 		logger.LogAuditEvent(
 			LoginAction,
 			user.Email,
-			r.RemoteAddr,
+			getClientIP(r),
 			"User logged in",
 		)
 	})
@@ -130,7 +130,7 @@ func LookupToken(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 		logger.LogAuditEvent(
 			LookupTokenAction,
 			"",
-			r.RemoteAddr,
+			getClientIP(r),
 			"User looked up token",
 		)
 	})

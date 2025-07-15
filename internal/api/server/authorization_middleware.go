@@ -119,7 +119,7 @@ func RequirePermissionOrFirstUser(permission string, db *db.Database, jwtSecret 
 
 		claims, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
 		if err != nil {
-			logger.LogAuditEvent("auth_fail", "", r.RemoteAddr, "unauthorized")
+			logger.LogAuditEvent("auth_fail", "", getClientIP(r), "unauthorized")
 			writeErrorHTTP(w, http.StatusUnauthorized, "Invalid token", err, logger.APILog)
 			return
 		}

@@ -110,7 +110,7 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 		logger.LogAuditEvent(
 			ListSubscribersAction,
 			email,
-			r.RemoteAddr,
+			getClientIP(r),
 			"User listed subscribers",
 		)
 	})
@@ -149,7 +149,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			ProfileName:    profile.Name,
 		}
 		writeResponse(w, subscriber, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(GetSubscriberAction, email, r.RemoteAddr, "User retrieved subscriber: "+imsi)
+		logger.LogAuditEvent(GetSubscriberAction, email, getClientIP(r), "User retrieved subscriber: "+imsi)
 	})
 }
 
@@ -233,7 +233,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Subscriber created successfully"}, http.StatusCreated, logger.APILog)
-		logger.LogAuditEvent(CreateSubscriberAction, email, r.RemoteAddr, "User created subscriber: "+params.Imsi)
+		logger.LogAuditEvent(CreateSubscriberAction, email, getClientIP(r), "User created subscriber: "+params.Imsi)
 	})
 }
 
@@ -290,7 +290,7 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Subscriber updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(UpdateSubscriberAction, email, r.RemoteAddr, "User updated subscriber: "+imsi)
+		logger.LogAuditEvent(UpdateSubscriberAction, email, getClientIP(r), "User updated subscriber: "+imsi)
 	})
 }
 
@@ -311,6 +311,6 @@ func DeleteSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 		writeResponse(w, SuccessResponse{Message: "Subscriber deleted successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(DeleteSubscriberAction, email, r.RemoteAddr, "User deleted subscriber: "+imsi)
+		logger.LogAuditEvent(DeleteSubscriberAction, email, getClientIP(r), "User deleted subscriber: "+imsi)
 	})
 }

@@ -62,7 +62,7 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 		logger.LogAuditEvent(
 			RestoreAction,
 			emailStr,
-			GetClientIP(r),
+			getClientIP(r),
 			"User restored database",
 		)
 	}

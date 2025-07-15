@@ -113,7 +113,7 @@ func ListProfiles(dbInstance *db.Database) http.Handler {
 			})
 		}
 		writeResponse(w, profileList, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(ListProfilesAction, email, r.RemoteAddr, "User listed profiles")
+		logger.LogAuditEvent(ListProfilesAction, email, getClientIP(r), "User listed profiles")
 	})
 }
 
@@ -145,7 +145,7 @@ func GetProfile(dbInstance *db.Database) http.Handler {
 			PriorityLevel:   dbProfile.PriorityLevel,
 		}
 		writeResponse(w, profile, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(GetProfileAction, email, r.RemoteAddr, "User retrieved profile: "+name)
+		logger.LogAuditEvent(GetProfileAction, email, getClientIP(r), "User retrieved profile: "+name)
 	})
 }
 
@@ -180,7 +180,7 @@ func DeleteProfile(dbInstance *db.Database) http.Handler {
 			return
 		}
 		writeResponse(w, SuccessResponse{Message: "Profile deleted successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(DeleteProfileAction, email, r.RemoteAddr, "User deleted profile: "+name)
+		logger.LogAuditEvent(DeleteProfileAction, email, getClientIP(r), "User deleted profile: "+name)
 	})
 }
 
@@ -225,7 +225,7 @@ func CreateProfile(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Profile created successfully"}, http.StatusCreated, logger.APILog)
-		logger.LogAuditEvent(CreateProfileAction, email, r.RemoteAddr, "User created profile: "+createProfileParams.Name)
+		logger.LogAuditEvent(CreateProfileAction, email, getClientIP(r), "User created profile: "+createProfileParams.Name)
 	})
 }
 
@@ -275,7 +275,7 @@ func UpdateProfile(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "Profile updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(UpdateProfileAction, email, r.RemoteAddr, "User updated profile: "+updateProfileParams.Name)
+		logger.LogAuditEvent(UpdateProfileAction, email, getClientIP(r), "User updated profile: "+updateProfileParams.Name)
 	})
 }
 

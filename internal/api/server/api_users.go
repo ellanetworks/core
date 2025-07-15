@@ -98,7 +98,7 @@ func ListUsers(dbInstance *db.Database) http.Handler {
 		logger.LogAuditEvent(
 			ListUsersAction,
 			email,
-			r.RemoteAddr,
+			getClientIP(r),
 			"Successfully retrieved list of users",
 		)
 	})
@@ -131,7 +131,7 @@ func GetUser(dbInstance *db.Database) http.Handler {
 		}
 		writeResponse(w, resp, http.StatusOK, logger.APILog)
 
-		logger.LogAuditEvent(GetUserAction, requester, r.RemoteAddr, "Successfully retrieved user")
+		logger.LogAuditEvent(GetUserAction, requester, getClientIP(r), "Successfully retrieved user")
 	})
 }
 
@@ -160,7 +160,7 @@ func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 		logger.LogAuditEvent(
 			GetLoggedInUserAction,
 			email,
-			r.RemoteAddr,
+			getClientIP(r),
 			"Successfully retrieved logged in user",
 		)
 	})
@@ -218,7 +218,7 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 		logger.LogAuditEvent(
 			CreateUserAction,
 			email,
-			r.RemoteAddr,
+			getClientIP(r),
 			"User created user: "+newUser.Email+" with role: "+newUser.Role,
 		)
 	})
@@ -260,7 +260,7 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "User updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(UpdateUserAction, requester, r.RemoteAddr, "User updated user: "+updateUserParams.Email)
+		logger.LogAuditEvent(UpdateUserAction, requester, getClientIP(r), "User updated user: "+updateUserParams.Email)
 	})
 }
 
@@ -306,7 +306,7 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(UpdateUserPasswordAction, requester, r.RemoteAddr, "User updated password for user: "+updateUserParams.Email)
+		logger.LogAuditEvent(UpdateUserPasswordAction, requester, getClientIP(r), "User updated password for user: "+updateUserParams.Email)
 	})
 }
 
@@ -336,6 +336,6 @@ func DeleteUser(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, SuccessResponse{Message: "User deleted successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(DeleteUserAction, requester, r.RemoteAddr, "User deleted user: "+emailParam)
+		logger.LogAuditEvent(DeleteUserAction, requester, getClientIP(r), "User deleted user: "+emailParam)
 	})
 }

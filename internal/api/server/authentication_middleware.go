@@ -30,7 +30,7 @@ func Authenticate(jwtSecret []byte, next http.Handler) http.Handler {
 
 		claims, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
 		if err != nil {
-			logger.LogAuditEvent(AuthenticationAction, "", r.RemoteAddr, "Unauthorized access attempt")
+			logger.LogAuditEvent(AuthenticationAction, "", getClientIP(r), "Unauthorized access attempt")
 			writeErrorHTTP(w, http.StatusUnauthorized, "Invalid token", err, logger.APILog)
 			return
 		}
