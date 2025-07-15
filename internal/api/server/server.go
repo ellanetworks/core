@@ -1,14 +1,11 @@
 package server
 
 import (
-	"io/fs"
 	"net/http"
-	"strings"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/ui"
 	"go.uber.org/zap"
 )
 
@@ -21,9 +18,6 @@ const (
 
 func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, mode Mode, tracingEnabled bool) http.Handler {
 	mux := http.NewServeMux()
-
-	// UI Service fallback (must be registered before "/" to be matched last)
-	uiHandler := AddUIService()
 
 	// Status (Unauthenticated)
 	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance).ServeHTTP)
@@ -84,7 +78,12 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	mux.HandleFunc("POST /api/v1/restore", Authenticate(jwtSecret, RequirePermission(PermRestore, Restore(dbInstance))).ServeHTTP)
 
 	// Fallback to UI
-	mux.Handle("/", uiHandler)
+	frontendHandler, err := newFrontendFileServer()
+	if err != nil {
+		logger.APILog.Fatal("Failed to create frontend file server", zap.Error(err))
+		return nil
+	}
+	mux.Handle("/", frontendHandler)
 
 	// Wrap with optional tracing and rate limiting
 	var handler http.Handler = mux
@@ -96,46 +95,4 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	}
 
 	return handler
-}
-
-func AddUIService() http.Handler {
-	staticFilesSystem, err := fs.Sub(ui.FrontendFS, "out")
-	if err != nil {
-		logger.APILog.Fatal("Failed to create static files system", zap.Error(err))
-	}
-
-	fileServer := http.FileServer(http.FS(staticFilesSystem))
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip if API path
-		if isAPIURLPath(r.URL.Path) {
-			http.NotFound(w, r)
-			return
-		}
-
-		// Check for direct file first
-		f, err := staticFilesSystem.Open(strings.TrimPrefix(r.URL.Path, "/"))
-		if err == nil {
-			_ = f.Close()
-			fileServer.ServeHTTP(w, r)
-			return
-		}
-
-		// Check if {path}.html exists
-		htmlPath := strings.TrimPrefix(r.URL.Path, "/") + ".html"
-		f, err = staticFilesSystem.Open(htmlPath)
-		if err == nil {
-			_ = f.Close()
-			r.URL.Path = "/" + htmlPath
-			fileServer.ServeHTTP(w, r)
-			return
-		}
-
-		// Fallthrough: 404
-		http.NotFound(w, r)
-	})
-}
-
-func isAPIURLPath(path string) bool {
-	return strings.HasPrefix(path, "/api/v1/")
 }

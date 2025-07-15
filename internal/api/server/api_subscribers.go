@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -157,8 +158,10 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
 		var params CreateSubscriberParams
-		if err := decodeJSONBody(w, r, &params); err != nil {
-			return // already written
+
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+			writeErrorHTTP(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			return
 		}
 
 		if params.Imsi == "" {
@@ -247,8 +250,10 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		var params UpdateSubscriberParams
-		if err := decodeJSONBody(w, r, &params); err != nil {
-			return // already written
+
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+			writeErrorHTTP(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			return
 		}
 
 		if params.Imsi == "" {

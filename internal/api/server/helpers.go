@@ -1,12 +1,9 @@
 package server
 
 import (
-	"encoding/json"
 	"net"
 	"net/http"
 	"strings"
-
-	"github.com/ellanetworks/core/internal/logger"
 )
 
 func pathParam(path, prefix string) string {
@@ -21,14 +18,6 @@ func getEmailFromContext(r *http.Request) string {
 		return email
 	}
 	return ""
-}
-
-func decodeJSONBody(w http.ResponseWriter, r *http.Request, out any) error {
-	if err := json.NewDecoder(r.Body).Decode(out); err != nil {
-		writeErrorHTTP(w, http.StatusBadRequest, "Invalid JSON body", err, logger.APILog)
-		return err
-	}
-	return nil
 }
 
 // getClientIP extracts the client IP address from the request headers or remote address.
