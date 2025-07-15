@@ -63,9 +63,6 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	// Metrics (Unauthenticated)
 	apiGroup.GET("/metrics", GetMetrics())
 
-	// Status (Unauthenticated)
-	apiGroup.GET("/status", GetStatus(dbInstance))
-
 	// Subscribers (Authenticated)
 	apiGroup.GET("/subscribers", Authenticate(jwtSecret), RequirePermission(PermListSubscribers), ListSubscribers(dbInstance))
 	apiGroup.POST("/subscribers", Authenticate(jwtSecret), RequirePermission(PermCreateSubscriber), CreateSubscriber(dbInstance))
@@ -118,7 +115,14 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	apiGroup.POST("/auth/login", Login(dbInstance, jwtSecret))
 	apiGroup.POST("/auth/lookup-token", LookupToken(dbInstance, jwtSecret))
 
-	return router
+	// Now, add raw http.ServeMux
+	mux := http.NewServeMux()
+	mux.Handle("/api/v1/status", GetStatus(dbInstance)) // ← New raw handler
+
+	// Mount Gin under root fallback
+	mux.Handle("/", router)
+
+	return mux
 }
 
 func AddUIService(engine *gin.Engine) {
