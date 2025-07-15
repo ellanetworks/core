@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -21,30 +20,7 @@ type claims struct {
 	jwt.RegisteredClaims
 }
 
-func Authenticate(jwtSecret []byte) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header not found"})
-			return
-		}
-
-		claims, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
-		if err != nil {
-			logger.LogAuditEvent(AuthenticationAction, "", c.ClientIP(), "Unauthorized access attempt")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.Set("userID", claims.ID)
-		c.Set("email", claims.Email)
-		c.Set("role_id", claims.RoleID)
-
-		c.Next()
-	}
-}
-
-func AuthenticateHTTP(jwtSecret []byte, next http.Handler) http.Handler {
+func Authenticate(jwtSecret []byte, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {

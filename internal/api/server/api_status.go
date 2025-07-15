@@ -32,7 +32,7 @@ func GetStatus(dbInstance *db.Database) http.Handler {
 			Initialized: initialized,
 		}
 
-		writeResponseHTTP(w, statusResponse, http.StatusOK, logger.APILog)
+		writeResponse(w, statusResponse, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
 			GetStatusAction,

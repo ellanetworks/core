@@ -7,7 +7,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/gin-gonic/gin"
 )
 
 var roleNameToID = map[string]int{
@@ -95,55 +94,7 @@ const (
 	PermRestore = "backup:restore"
 )
 
-func RequirePermissionOrFirstUser(permission string, db *db.Database, jwtSecret []byte) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if permission == PermCreateUser && c.Request.Method == http.MethodPost {
-			userCount, err := db.NumUsers(c.Request.Context())
-			if err != nil {
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to count users"})
-				return
-			}
-			if userCount == 0 {
-				c.Next()
-				return
-			}
-		}
-
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header not found"})
-			return
-		}
-
-		claims, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
-		if err != nil {
-			logger.LogAuditEvent("auth_fail", "", c.ClientIP(), "unauthorized")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.Set("userID", claims.ID)
-		c.Set("email", claims.Email)
-		c.Set("role_id", claims.RoleID)
-
-		allowedPerms := PermissionsByRole[claims.RoleID]
-		authorized := false
-		for _, p := range allowedPerms {
-			if p == permission || p == "*" {
-				authorized = true
-				break
-			}
-		}
-		if !authorized {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
-			return
-		}
-
-		c.Next()
-	}
-}
-
-func RequirePermissionOrFirstUserHTTP(permission string, db *db.Database, jwtSecret []byte, next http.Handler) http.Handler {
+func RequirePermissionOrFirstUser(permission string, db *db.Database, jwtSecret []byte, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -192,33 +143,7 @@ func RequirePermissionOrFirstUserHTTP(permission string, db *db.Database, jwtSec
 	})
 }
 
-func RequirePermission(permission string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		roleIDAny, exists := c.Get("role_id")
-		if !exists {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Role ID not found"})
-			return
-		}
-
-		roleID, ok := roleIDAny.(int)
-		if !ok {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Invalid role ID format"})
-			return
-		}
-
-		allowedPerms := PermissionsByRole[roleID]
-		for _, p := range allowedPerms {
-			if p == permission || p == "*" {
-				c.Next()
-				return
-			}
-		}
-
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
-	}
-}
-
-func RequirePermissionHTTP(permission string, next http.Handler) http.Handler {
+func RequirePermission(permission string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		roleIDAny := r.Context().Value("roleID")
 		roleID, ok := roleIDAny.(int)

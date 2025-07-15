@@ -48,7 +48,7 @@ func (fk FakeKernel) IsIPForwardingEnabled() (bool, error) {
 	return true, nil
 }
 
-func setupServer(filepath string, mode string) (*httptest.Server, []byte, error) {
+func setupServer(filepath string, mode server.Mode) (*httptest.Server, []byte, error) {
 	testdb, err := db.NewDatabase(filepath, initialOperator)
 	if err != nil {
 		return nil, nil, err

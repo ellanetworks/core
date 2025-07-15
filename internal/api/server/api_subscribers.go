@@ -105,7 +105,7 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 			})
 		}
 
-		writeResponseHTTP(w, subscribers, http.StatusOK, logger.APILog)
+		writeResponse(w, subscribers, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
 			ListSubscribersAction,
@@ -148,7 +148,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			Key:            dbSubscriber.PermanentKey,
 			ProfileName:    profile.Name,
 		}
-		writeResponseHTTP(w, subscriber, http.StatusOK, logger.APILog)
+		writeResponse(w, subscriber, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(GetSubscriberAction, email, r.RemoteAddr, "User retrieved subscriber: "+imsi)
 	})
 }
@@ -161,15 +161,38 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			return // already written
 		}
 
-		// Validate
-		if params.Imsi == "" || params.SequenceNumber == "" || params.Key == "" || params.ProfileName == "" {
-			writeErrorHTTP(w, http.StatusBadRequest, "Missing required fields", errors.New("validation error"), logger.APILog)
+		if params.Imsi == "" {
+			writeErrorHTTP(w, http.StatusBadRequest, "Missing imsi parameter", errors.New("validation error"), logger.APILog)
 			return
 		}
-		if !isImsiValid(r.Context(), params.Imsi, dbInstance) ||
-			!isSequenceNumberValid(params.SequenceNumber) ||
-			!isHexString(params.Key) || (params.Opc != "" && !isHexString(params.Opc)) {
-			writeErrorHTTP(w, http.StatusBadRequest, "Invalid format in one of the fields", errors.New("validation error"), logger.APILog)
+
+		if params.ProfileName == "" {
+			writeErrorHTTP(w, http.StatusBadRequest, "Missing profileName parameter", errors.New("validation error"), logger.APILog)
+			return
+		}
+
+		if params.SequenceNumber == "" {
+			writeErrorHTTP(w, http.StatusBadRequest, "Missing sequenceNumber parameter", errors.New("validation error"), logger.APILog)
+			return
+		}
+
+		if !isImsiValid(r.Context(), params.Imsi, dbInstance) {
+			writeErrorHTTP(w, http.StatusBadRequest, "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.", errors.New("validation error"), logger.APILog)
+			return
+		}
+
+		if !isSequenceNumberValid(params.SequenceNumber) {
+			writeErrorHTTP(w, http.StatusBadRequest, "Invalid sequenceNumber. Must be a 6-byte hexadecimal string.", errors.New("validation error"), logger.APILog)
+			return
+		}
+
+		if !isHexString(params.Key) {
+			writeErrorHTTP(w, http.StatusBadRequest, "Invalid key format. Must be a 32-character hexadecimal string.", errors.New("validation error"), logger.APILog)
+			return
+		}
+
+		if params.Opc != "" && !isHexString(params.Opc) {
+			writeErrorHTTP(w, http.StatusBadRequest, "Invalid OPC format. Must be a 32-character hex string.", errors.New("validation error"), logger.APILog)
 			return
 		}
 
@@ -209,7 +232,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		writeResponseHTTP(w, SuccessResponse{Message: "Subscriber created successfully"}, http.StatusCreated, logger.APILog)
+		writeResponse(w, SuccessResponse{Message: "Subscriber created successfully"}, http.StatusCreated, logger.APILog)
 		logger.LogAuditEvent(CreateSubscriberAction, email, r.RemoteAddr, "User created subscriber: "+params.Imsi)
 	})
 }
@@ -227,10 +250,17 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 		if err := decodeJSONBody(w, r, &params); err != nil {
 			return // already written
 		}
-		if params.Imsi == "" || params.ProfileName == "" {
-			writeErrorHTTP(w, http.StatusBadRequest, "Missing required fields", errors.New("validation error"), logger.APILog)
+
+		if params.Imsi == "" {
+			writeErrorHTTP(w, http.StatusBadRequest, "Missing imsi parameter", errors.New("validation error"), logger.APILog)
 			return
 		}
+
+		if params.ProfileName == "" {
+			writeErrorHTTP(w, http.StatusBadRequest, "Missing profileName parameter", errors.New("validation error"), logger.APILog)
+			return
+		}
+
 		if !isImsiValid(r.Context(), params.Imsi, dbInstance) {
 			writeErrorHTTP(w, http.StatusBadRequest, "Invalid IMSI", errors.New("validation error"), logger.APILog)
 			return
@@ -259,7 +289,7 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		writeResponseHTTP(w, SuccessResponse{Message: "Subscriber updated successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(w, SuccessResponse{Message: "Subscriber updated successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(UpdateSubscriberAction, email, r.RemoteAddr, "User updated subscriber: "+imsi)
 	})
 }
@@ -280,7 +310,7 @@ func DeleteSubscriber(dbInstance *db.Database) http.Handler {
 			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to delete subscriber", err, logger.APILog)
 			return
 		}
-		writeResponseHTTP(w, SuccessResponse{Message: "Subscriber deleted successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(w, SuccessResponse{Message: "Subscriber deleted successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(DeleteSubscriberAction, email, r.RemoteAddr, "User deleted subscriber: "+imsi)
 	})
 }

@@ -85,7 +85,7 @@ func ListRoutes(dbInstance *db.Database) http.Handler {
 				Metric:      dbRoute.Metric,
 			})
 		}
-		writeResponseHTTP(w, routeList, http.StatusOK, logger.APILog)
+		writeResponse(w, routeList, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(ListRoutesAction, email, r.RemoteAddr, "User listed routes")
 	})
 }
@@ -119,7 +119,7 @@ func GetRoute(dbInstance *db.Database) http.Handler {
 			Interface:   dbRoute.Interface.String(),
 			Metric:      dbRoute.Metric,
 		}
-		writeResponseHTTP(w, routeResponse, http.StatusOK, logger.APILog)
+		writeResponse(w, routeResponse, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(GetRouteAction, email, r.RemoteAddr, "User retrieved route: "+idStr)
 	})
 }
@@ -238,7 +238,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 		committed = true
 
 		response := CreateSuccessResponse{Message: "Route created successfully", ID: routeID}
-		writeResponseHTTP(w, response, http.StatusCreated, logger.APILog)
+		writeResponse(w, response, http.StatusCreated, logger.APILog)
 		logger.LogAuditEvent(CreateRouteAction, email, r.RemoteAddr, "User created route: "+fmt.Sprint(routeID))
 	})
 }
@@ -314,7 +314,7 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 		}
 		committed = true
 
-		writeResponseHTTP(w, SuccessResponse{Message: "Route deleted successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(w, SuccessResponse{Message: "Route deleted successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(
 			DeleteRouteAction,
 			email,

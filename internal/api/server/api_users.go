@@ -93,7 +93,7 @@ func ListUsers(dbInstance *db.Database) http.Handler {
 			})
 		}
 
-		writeResponseHTTP(w, users, http.StatusOK, logger.APILog)
+		writeResponse(w, users, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
 			ListUsersAction,
@@ -129,7 +129,7 @@ func GetUser(dbInstance *db.Database) http.Handler {
 			Email: dbUser.Email,
 			Role:  roleIDToName[dbUser.RoleID],
 		}
-		writeResponseHTTP(w, resp, http.StatusOK, logger.APILog)
+		writeResponse(w, resp, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(GetUserAction, requester, r.RemoteAddr, "Successfully retrieved user")
 	})
@@ -155,7 +155,7 @@ func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 			Role:  roleIDToName[dbUser.RoleID],
 		}
 
-		writeResponseHTTP(w, user, http.StatusOK, logger.APILog)
+		writeResponse(w, user, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
 			GetLoggedInUserAction,
@@ -213,7 +213,7 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		writeResponseHTTP(w, SuccessResponse{Message: "User created successfully"}, http.StatusCreated, logger.APILog)
+		writeResponse(w, SuccessResponse{Message: "User created successfully"}, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
 			CreateUserAction,
@@ -259,7 +259,7 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		writeResponseHTTP(w, SuccessResponse{Message: "User updated successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(w, SuccessResponse{Message: "User updated successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(UpdateUserAction, requester, r.RemoteAddr, "User updated user: "+updateUserParams.Email)
 	})
 }
@@ -305,7 +305,7 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		writeResponseHTTP(w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(UpdateUserPasswordAction, requester, r.RemoteAddr, "User updated password for user: "+updateUserParams.Email)
 	})
 }
@@ -335,7 +335,7 @@ func DeleteUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		writeResponseHTTP(w, SuccessResponse{Message: "User deleted successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(w, SuccessResponse{Message: "User deleted successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(DeleteUserAction, requester, r.RemoteAddr, "User deleted user: "+emailParam)
 	})
 }

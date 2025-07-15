@@ -2,10 +2,8 @@ package server
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
@@ -18,11 +16,7 @@ type CreateSuccessResponse struct {
 	ID      int64  `json:"id"`
 }
 
-func writeResponse(c *gin.Context, v any, status int) {
-	c.JSON(status, gin.H{"result": v})
-}
-
-func writeResponseHTTP(w http.ResponseWriter, v any, status int, logger *zap.Logger) {
+func writeResponse(w http.ResponseWriter, v any, status int, logger *zap.Logger) {
 	type response struct {
 		Result any `json:"result,omitempty"`
 	}
@@ -40,11 +34,6 @@ func writeResponseHTTP(w http.ResponseWriter, v any, status int, logger *zap.Log
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-}
-
-func writeError(c *gin.Context, status int, message string) {
-	_ = c.Error(errors.New(message)).SetType(gin.ErrorTypePublic)
-	c.JSON(status, gin.H{"error": message})
 }
 
 // writeError is a helper function that logs errors and writes http response for errors

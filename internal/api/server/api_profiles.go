@@ -112,7 +112,7 @@ func ListProfiles(dbInstance *db.Database) http.Handler {
 				PriorityLevel:   dbProfile.PriorityLevel,
 			})
 		}
-		writeResponseHTTP(w, profileList, http.StatusOK, logger.APILog)
+		writeResponse(w, profileList, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(ListProfilesAction, email, r.RemoteAddr, "User listed profiles")
 	})
 }
@@ -144,7 +144,7 @@ func GetProfile(dbInstance *db.Database) http.Handler {
 			Var5qi:          dbProfile.Var5qi,
 			PriorityLevel:   dbProfile.PriorityLevel,
 		}
-		writeResponseHTTP(w, profile, http.StatusOK, logger.APILog)
+		writeResponse(w, profile, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(GetProfileAction, email, r.RemoteAddr, "User retrieved profile: "+name)
 	})
 }
@@ -179,7 +179,7 @@ func DeleteProfile(dbInstance *db.Database) http.Handler {
 			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to delete profile", err, logger.APILog)
 			return
 		}
-		writeResponseHTTP(w, SuccessResponse{Message: "Profile deleted successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(w, SuccessResponse{Message: "Profile deleted successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(DeleteProfileAction, email, r.RemoteAddr, "User deleted profile: "+name)
 	})
 }
@@ -224,7 +224,7 @@ func CreateProfile(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		writeResponseHTTP(w, SuccessResponse{Message: "Profile created successfully"}, http.StatusCreated, logger.APILog)
+		writeResponse(w, SuccessResponse{Message: "Profile created successfully"}, http.StatusCreated, logger.APILog)
 		logger.LogAuditEvent(CreateProfileAction, email, r.RemoteAddr, "User created profile: "+createProfileParams.Name)
 	})
 }
@@ -274,7 +274,7 @@ func UpdateProfile(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		writeResponseHTTP(w, SuccessResponse{Message: "Profile updated successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(w, SuccessResponse{Message: "Profile updated successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(UpdateProfileAction, email, r.RemoteAddr, "User updated profile: "+updateProfileParams.Name)
 	})
 }
@@ -306,13 +306,13 @@ func validateProfileParams(p CreateProfileParams) error {
 	case !isValidMTU(p.Mtu):
 		return errors.New("Invalid mtu format. Must be an integer between 0 and 65535")
 	case !isValidBitrate(p.BitrateUplink):
-		return errors.New("Invalid bitrate-uplink format. Must be `<number> <unit>`: Mbps or Gbps")
+		return errors.New("Invalid bitrate-uplink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
 	case !isValidBitrate(p.BitrateDownlink):
-		return errors.New("Invalid bitrate-downlink format. Must be `<number> <unit>`: Mbps or Gbps")
+		return errors.New("Invalid bitrate-downlink format. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps")
 	case !isValid5Qi(p.Var5qi):
-		return errors.New("Invalid Var5qi format. Must be between 1 and 255")
+		return errors.New("Invalid Var5qi format. Must be an integer between 1 and 255")
 	case !isValidPriorityLevel(p.PriorityLevel):
-		return errors.New("Invalid priority-level format. Must be between 1 and 255")
+		return errors.New("Invalid priority-level format. Must be an integer between 1 and 255")
 	}
 	return nil
 }

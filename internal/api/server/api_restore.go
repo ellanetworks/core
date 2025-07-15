@@ -7,73 +7,62 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 const RestoreAction = "restore_database"
 
-func Restore(dbInstance *db.Database) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		emailAny, _ := c.Get("email")
-		email, ok := emailAny.(string)
+func Restore(dbInstance *db.Database) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		email := r.Context().Value("email")
+		emailStr, ok := email.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
 
-		file, err := c.FormFile("backup")
+		err := r.ParseMultipartForm(32 << 20) // 32MB max memory buffer
 		if err != nil {
-			writeError(c, http.StatusBadRequest, "No backup file provided")
+			writeErrorHTTP(w, http.StatusBadRequest, "Invalid multipart form", err, logger.APILog)
 			return
 		}
+
+		file, _, err := r.FormFile("backup")
+		if err != nil {
+			writeErrorHTTP(w, http.StatusBadRequest, "No backup file provided", err, logger.APILog)
+			return
+		}
+		defer file.Close()
 
 		tempFile, err := os.CreateTemp("", "restore_*.db")
 		if err != nil {
-			writeError(c, http.StatusInternalServerError, "failed to create temporary file")
+			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to create temporary file", err, logger.APILog)
 			return
 		}
 		defer func() {
-			err := tempFile.Close()
-			if err != nil {
-				logger.APILog.Warn("Failed to close temp restore file", zap.Error(err))
-			}
-			err = os.Remove(tempFile.Name())
-			if err != nil {
-				logger.APILog.Warn("Failed to remove temp restore file", zap.Error(err))
-			}
+			_ = tempFile.Close()
+			_ = os.Remove(tempFile.Name())
 		}()
 
-		uploadedFile, err := file.Open()
-		if err != nil {
-			writeError(c, http.StatusInternalServerError, "failed to open uploaded file")
-			return
-		}
-		defer uploadedFile.Close()
-
-		if _, err := io.Copy(tempFile, uploadedFile); err != nil {
-			writeError(c, http.StatusInternalServerError, "failed to copy uploaded file")
+		if _, err := io.Copy(tempFile, file); err != nil {
+			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to copy uploaded file", err, logger.APILog)
 			return
 		}
 
 		if _, err := tempFile.Seek(0, 0); err != nil {
-			writeError(c, http.StatusInternalServerError, "failed to reset file pointer")
+			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to reset file pointer", err, logger.APILog)
 			return
 		}
 
 		if err := dbInstance.Restore(tempFile); err != nil {
-			writeError(c, http.StatusInternalServerError, "failed to restore database")
+			writeErrorHTTP(w, http.StatusInternalServerError, "Failed to restore database", err, logger.APILog)
 			return
 		}
 
-		successResponse := SuccessResponse{
-			Message: "Database restored successfully",
-		}
-		writeResponse(c, successResponse, http.StatusOK)
+		writeResponse(w, SuccessResponse{Message: "Database restored successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(
 			RestoreAction,
-			email,
-			c.ClientIP(),
+			emailStr,
+			GetClientIP(r),
 			"User restored database",
 		)
 	}

@@ -1,18 +1,23 @@
 package server
 
 import (
-	"fmt"
+	"net/http"
+	"strings"
 
-	"github.com/gin-gonic/gin"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-func Tracing(serviceName string) gin.HandlerFunc {
-	return otelgin.Middleware(
-		serviceName,
-		otelgin.WithSpanNameFormatter(func(c *gin.Context) string {
-			// Name spans like "GET /api/v1/subscribers"
-			return fmt.Sprintf("%s %s", c.Request.Method, c.FullPath())
+// TracingMiddlewareHTTP wraps the handler in OpenTelemetry HTTP middleware
+func TracingMiddlewareHTTP(serviceName string, handler http.Handler) http.Handler {
+	return otelhttp.NewHandler(
+		handler,
+		"", // leave span name empty so formatter is used
+		otelhttp.WithSpanNameFormatter(func(operation string, r *http.Request) string {
+			path := r.URL.Path
+			// strip dynamic segments for better grouping, e.g., "/users/{email}"
+			path = strings.ReplaceAll(path, "/{", "/:")
+			return r.Method + " " + path
 		}),
+		otelhttp.WithServerName(serviceName),
 	)
 }

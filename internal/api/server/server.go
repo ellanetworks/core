@@ -4,83 +4,28 @@ import (
 	"io/fs"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ui"
-	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-func ginToZap(logger *zap.Logger) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Record start time
-		startTime := time.Now()
+type Mode string
 
-		// Skip logging for static files and other unwanted paths
-		path := c.Request.URL.Path
-		if strings.HasPrefix(path, "/_next/static") ||
-			strings.HasPrefix(path, "/favicon.ico") ||
-			strings.HasPrefix(path, "/assets/") ||
-			strings.HasPrefix(path, "/static/") {
-			c.Next()
-			return
-		}
+const (
+	TestMode    Mode = "test"
+	ReleaseMode Mode = "release"
+)
 
-		raw := c.Request.URL.RawQuery
-		c.Next()
+func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, mode Mode, tracingEnabled bool) http.Handler {
+	mux := http.NewServeMux()
 
-		latency := time.Since(startTime)
-		method := c.Request.Method
-		statusCode := c.Writer.Status()
-		errorMessage := c.Errors.String()
-
-		if raw != "" {
-			path = path + "?" + raw
-		}
-
-		logger.Info("handled API request", zap.Int("statusCode", statusCode), zap.Any("latency", latency), zap.String("method", method), zap.String("path", path), zap.String("error", errorMessage))
-	}
-}
-
-func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, mode string, tracingEnabled bool) http.Handler {
-	gin.SetMode(mode)
-	router := gin.New()
-	router.Use(ginToZap(logger.APILog))
-
-	AddUIService(router)
-
-	apiGroup := router.Group("/api/v1")
-	if tracingEnabled {
-		apiGroup.Use(Tracing("ella-core/api"))
-	}
-	if gin.Mode() != gin.TestMode {
-		apiGroup.Use(RateLimitMiddleware())
-	}
-
-	// Operator (Authenticated)
-	apiGroup.GET("/operator", Authenticate(jwtSecret), RequirePermission(PermReadOperator), GetOperator(dbInstance))
-	apiGroup.PUT("/operator/slice", Authenticate(jwtSecret), RequirePermission(PermUpdateOperatorSlice), UpdateOperatorSlice(dbInstance))
-	apiGroup.GET("/operator/slice", Authenticate(jwtSecret), RequirePermission(PermGetOperatorSlice), GetOperatorSlice(dbInstance))
-	apiGroup.PUT("/operator/tracking", Authenticate(jwtSecret), RequirePermission(PermUpdateOperatorTracking), UpdateOperatorTracking(dbInstance))
-	apiGroup.GET("/operator/tracking", Authenticate(jwtSecret), RequirePermission(PermGetOperatorTracking), GetOperatorTracking(dbInstance))
-	apiGroup.PUT("/operator/id", Authenticate(jwtSecret), RequirePermission(PermUpdateOperatorID), UpdateOperatorID(dbInstance))
-	apiGroup.GET("/operator/id", Authenticate(jwtSecret), RequirePermission(PermGetOperatorID), GetOperatorID(dbInstance))
-	apiGroup.PUT("/operator/code", Authenticate(jwtSecret), RequirePermission(PermUpdateOperatorCode), UpdateOperatorCode(dbInstance))
-	apiGroup.PUT("/operator/home-network", Authenticate(jwtSecret), RequirePermission(PermUpdateOperatorHomeNetwork), UpdateOperatorHomeNetwork(dbInstance))
-
-	// Radios (Authenticated)
-	apiGroup.GET("/radios", Authenticate(jwtSecret), RequirePermission(PermListRadios), ListRadios())
-	apiGroup.GET("/radios/:name", Authenticate(jwtSecret), RequirePermission(PermReadRadio), GetRadio())
-
-	// Backup and Restore (Authenticated)
-	apiGroup.POST("/backup", Authenticate(jwtSecret), RequirePermission(PermBackup), Backup(dbInstance))
-	apiGroup.POST("/restore", Authenticate(jwtSecret), RequirePermission(PermRestore), Restore(dbInstance))
+	// UI Service fallback (must be registered before "/" to be matched last)
+	uiHandler := AddUIService()
 
 	// Status (Unauthenticated)
-	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance).ServeHTTP)
 
 	// Metrics (Unauthenticated)
@@ -91,180 +36,103 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	mux.HandleFunc("POST /api/v1/auth/lookup-token", LookupToken(dbInstance, jwtSecret).ServeHTTP)
 
 	// Users (Authenticated except for first user creation)
-	mux.HandleFunc("GET /api/v1/users/me", AuthenticateHTTP(jwtSecret, GetLoggedInUser(dbInstance)).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/users",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermListUsers,
-				ListUsers(dbInstance),
-			),
-		).ServeHTTP,
-	)
-	mux.HandleFunc("POST /api/v1/users",
-		RequirePermissionOrFirstUserHTTP(
-			PermCreateUser,
-			dbInstance,
-			jwtSecret,
-			CreateUser(dbInstance),
-		).ServeHTTP,
-	)
-	mux.HandleFunc("PUT /api/v1/users/{email}",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermUpdateUser,
-				UpdateUser(dbInstance),
-			),
-		).ServeHTTP,
-	)
-	mux.HandleFunc("PUT /api/v1/users/{email}/password",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermUpdateUserPassword,
-				UpdateUserPassword(dbInstance),
-			),
-		).ServeHTTP,
-	)
-	mux.HandleFunc("GET /api/v1/users/{email}",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermReadUser,
-				GetUser(dbInstance),
-			),
-		).ServeHTTP,
-	)
-	mux.HandleFunc("DELETE /api/v1/users/{email}",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermDeleteUser,
-				DeleteUser(dbInstance),
-			),
-		).ServeHTTP,
-	)
+	mux.HandleFunc("GET /api/v1/users/me", Authenticate(jwtSecret, GetLoggedInUser(dbInstance)).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/users", Authenticate(jwtSecret, RequirePermission(PermListUsers, ListUsers(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/users", RequirePermissionOrFirstUser(PermCreateUser, dbInstance, jwtSecret, CreateUser(dbInstance)).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/users/{email}", Authenticate(jwtSecret, RequirePermission(PermUpdateUser, UpdateUser(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/users/{email}/password", Authenticate(jwtSecret, RequirePermission(PermUpdateUserPassword, UpdateUserPassword(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/users/{email}", Authenticate(jwtSecret, RequirePermission(PermReadUser, GetUser(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/users/{email}", Authenticate(jwtSecret, RequirePermission(PermDeleteUser, DeleteUser(dbInstance))).ServeHTTP)
 
 	// Subscribers (Authenticated)
-	mux.HandleFunc("GET /api/v1/subscribers",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermListSubscribers,
-				ListSubscribers(dbInstance),
-			),
-		).ServeHTTP,
-	)
-	mux.HandleFunc("POST /api/v1/subscribers",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermCreateSubscriber,
-				CreateSubscriber(dbInstance),
-			),
-		).ServeHTTP,
-	)
-	mux.HandleFunc("PUT /api/v1/subscribers/",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermUpdateSubscriber,
-				UpdateSubscriber(dbInstance),
-			),
-		).ServeHTTP,
-	)
-	mux.HandleFunc("GET /api/v1/subscribers/",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermReadSubscriber,
-				GetSubscriber(dbInstance),
-			),
-		).ServeHTTP,
-	)
-	mux.HandleFunc("DELETE /api/v1/subscribers/",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermDeleteSubscriber,
-				DeleteSubscriber(dbInstance),
-			),
-		).ServeHTTP,
-	)
+	mux.HandleFunc("GET /api/v1/subscribers", Authenticate(jwtSecret, RequirePermission(PermListSubscribers, ListSubscribers(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/subscribers", Authenticate(jwtSecret, RequirePermission(PermCreateSubscriber, CreateSubscriber(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/subscribers/", Authenticate(jwtSecret, RequirePermission(PermUpdateSubscriber, UpdateSubscriber(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/subscribers/", Authenticate(jwtSecret, RequirePermission(PermReadSubscriber, GetSubscriber(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/subscribers/", Authenticate(jwtSecret, RequirePermission(PermDeleteSubscriber, DeleteSubscriber(dbInstance))).ServeHTTP)
 
 	// Profiles (Authenticated)
-	mux.HandleFunc("GET /api/v1/profiles",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermListProfiles,
-				ListProfiles(dbInstance),
-			),
-		).ServeHTTP,
-	)
-	mux.HandleFunc("POST /api/v1/profiles",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermCreateProfile,
-				CreateProfile(dbInstance),
-			),
-		).ServeHTTP,
-	)
-	mux.HandleFunc("PUT /api/v1/profiles/",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermUpdateProfile,
-				UpdateProfile(dbInstance),
-			),
-		).ServeHTTP,
-	)
-	mux.HandleFunc("GET /api/v1/profiles/",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermReadProfile,
-				GetProfile(dbInstance),
-			),
-		).ServeHTTP,
-	)
-	mux.HandleFunc("DELETE /api/v1/profiles/",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermDeleteProfile,
-				DeleteProfile(dbInstance),
-			),
-		).ServeHTTP,
-	)
+	mux.HandleFunc("GET /api/v1/profiles", Authenticate(jwtSecret, RequirePermission(PermListProfiles, ListProfiles(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/profiles", Authenticate(jwtSecret, RequirePermission(PermCreateProfile, CreateProfile(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/profiles/", Authenticate(jwtSecret, RequirePermission(PermUpdateProfile, UpdateProfile(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/profiles/", Authenticate(jwtSecret, RequirePermission(PermReadProfile, GetProfile(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/profiles/", Authenticate(jwtSecret, RequirePermission(PermDeleteProfile, DeleteProfile(dbInstance))).ServeHTTP)
 
 	// Routes (Authenticated)
-	mux.HandleFunc("GET /api/v1/routes",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermListRoutes,
-				ListRoutes(dbInstance),
-			),
-		).ServeHTTP,
-	)
+	mux.HandleFunc("GET /api/v1/routes", Authenticate(jwtSecret, RequirePermission(PermListRoutes, ListRoutes(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/routes", Authenticate(jwtSecret, RequirePermission(PermCreateRoute, CreateRoute(dbInstance, kernel))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/routes/{id}", Authenticate(jwtSecret, RequirePermission(PermReadRoute, GetRoute(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/routes/{id}", Authenticate(jwtSecret, RequirePermission(PermDeleteRoute, DeleteRoute(dbInstance, kernel))).ServeHTTP)
 
-	mux.HandleFunc("POST /api/v1/routes",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermCreateRoute,
-				CreateRoute(dbInstance, kernel),
-			),
-		).ServeHTTP,
-	)
+	// Operator (Authenticated)
+	mux.HandleFunc("GET /api/v1/operator", Authenticate(jwtSecret, RequirePermission(PermReadOperator, GetOperator(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/operator/slice", Authenticate(jwtSecret, RequirePermission(PermUpdateOperatorSlice, UpdateOperatorSlice(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/operator/slice", Authenticate(jwtSecret, RequirePermission(PermGetOperatorSlice, GetOperatorSlice(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/operator/tracking", Authenticate(jwtSecret, RequirePermission(PermUpdateOperatorTracking, UpdateOperatorTracking(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/operator/tracking", Authenticate(jwtSecret, RequirePermission(PermGetOperatorTracking, GetOperatorTracking(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/operator/id", Authenticate(jwtSecret, RequirePermission(PermUpdateOperatorID, UpdateOperatorID(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/operator/id", Authenticate(jwtSecret, RequirePermission(PermGetOperatorID, GetOperatorID(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/operator/code", Authenticate(jwtSecret, RequirePermission(PermUpdateOperatorCode, UpdateOperatorCode(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/operator/home-network", Authenticate(jwtSecret, RequirePermission(PermUpdateOperatorHomeNetwork, UpdateOperatorHomeNetwork(dbInstance))).ServeHTTP)
 
-	mux.HandleFunc("GET /api/v1/routes/{id}",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermReadRoute,
-				GetRoute(dbInstance),
-			),
-		).ServeHTTP,
-	)
+	// Radios (Authenticated)
+	mux.HandleFunc("GET /api/v1/radios", Authenticate(jwtSecret, RequirePermission(PermListRadios, ListRadios())).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/radios/", Authenticate(jwtSecret, RequirePermission(PermReadRadio, GetRadio())).ServeHTTP)
 
-	mux.HandleFunc("DELETE /api/v1/routes/{id}",
-		AuthenticateHTTP(jwtSecret,
-			RequirePermissionHTTP(PermDeleteRoute,
-				DeleteRoute(dbInstance, kernel),
-			),
-		).ServeHTTP,
-	)
+	// Backup and Restore (Authenticated)
+	mux.HandleFunc("POST /api/v1/backup", Authenticate(jwtSecret, RequirePermission(PermBackup, Backup(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/restore", Authenticate(jwtSecret, RequirePermission(PermRestore, Restore(dbInstance))).ServeHTTP)
 
-	// Mount Gin under root fallback
-	mux.Handle("/", router)
+	// Fallback to UI
+	mux.Handle("/", uiHandler)
 
-	return mux
+	// Wrap with optional tracing and rate limiting
+	var handler http.Handler = mux
+	if tracingEnabled {
+		handler = TracingMiddlewareHTTP("ella-core/api", handler)
+	}
+	if mode != TestMode {
+		handler = RateLimitMiddlewareHTTP(handler)
+	}
+
+	return handler
 }
 
-func AddUIService(engine *gin.Engine) {
+func AddUIService() http.Handler {
 	staticFilesSystem, err := fs.Sub(ui.FrontendFS, "out")
 	if err != nil {
 		logger.APILog.Fatal("Failed to create static files system", zap.Error(err))
 	}
 
-	engine.Use(func(c *gin.Context) {
-		if !isAPIURLPath(c.Request.URL.Path) {
-			htmlPath := strings.TrimPrefix(c.Request.URL.Path, "/") + ".html"
-			if _, err := staticFilesSystem.Open(htmlPath); err == nil {
-				c.Request.URL.Path = htmlPath
-			}
-			fileServer := http.FileServer(http.FS(staticFilesSystem))
-			fileServer.ServeHTTP(c.Writer, c.Request)
-			c.Abort()
+	fileServer := http.FileServer(http.FS(staticFilesSystem))
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Skip if API path
+		if isAPIURLPath(r.URL.Path) {
+			http.NotFound(w, r)
+			return
 		}
+
+		// Check for direct file first
+		f, err := staticFilesSystem.Open(strings.TrimPrefix(r.URL.Path, "/"))
+		if err == nil {
+			_ = f.Close()
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+
+		// Check if {path}.html exists
+		htmlPath := strings.TrimPrefix(r.URL.Path, "/") + ".html"
+		f, err = staticFilesSystem.Open(htmlPath)
+		if err == nil {
+			_ = f.Close()
+			r.URL.Path = "/" + htmlPath
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+
+		// Fallthrough: 404
+		http.NotFound(w, r)
 	})
 }
 

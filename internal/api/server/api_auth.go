@@ -99,7 +99,7 @@ func Login(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 		}
 
 		resp := LoginResponse{Token: token}
-		writeResponseHTTP(w, resp, http.StatusOK, logger.APILog)
+		writeResponse(w, resp, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
 			LoginAction,
@@ -125,7 +125,7 @@ func LookupToken(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 			Valid: valid,
 		}
 
-		writeResponseHTTP(w, lookupTokenResponse, http.StatusOK, logger.APILog)
+		writeResponse(w, lookupTokenResponse, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
 			LookupTokenAction,
