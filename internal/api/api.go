@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -50,7 +49,7 @@ func Start(dbInstance *db.Database, port int, scheme Scheme, certFile string, ke
 		return fmt.Errorf("couldn't generate jwt secret: %v", err)
 	}
 	kernelInt := kernel.NewRealKernel(n3Interface, n6Interface)
-	router := server.NewHandler(dbInstance, kernelInt, jwtSecret, gin.ReleaseMode, tracingEnabled)
+	router := server.NewHandler(dbInstance, kernelInt, jwtSecret, server.ReleaseMode, tracingEnabled)
 
 	// Start the HTTP server in a goroutine.
 	go func() {

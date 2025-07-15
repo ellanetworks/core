@@ -1,11 +1,12 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/ellanetworks/core/internal/logger"
 	"golang.org/x/time/rate"
 )
 
@@ -55,17 +56,16 @@ func cleanupVisitors() {
 }
 
 // RateLimitMiddleware is a Gin middleware that rate limits incoming requests based on the client IP.
-func RateLimitMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ip := c.ClientIP()
+func RateLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip := getClientIP(r)
 		limiter := getVisitor(ip)
 		if !limiter.Allow() {
-			writeError(c, http.StatusTooManyRequests, "Too many requests")
-			c.Abort()
+			writeError(w, http.StatusTooManyRequests, "Rate limit exceeded", fmt.Errorf("rate limit exceeded for IP %s", ip), logger.APILog)
 			return
 		}
-		c.Next()
-	}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func ResetVisitors() {

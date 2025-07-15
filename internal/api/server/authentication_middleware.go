@@ -1,13 +1,13 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -20,27 +20,28 @@ type claims struct {
 	jwt.RegisteredClaims
 }
 
-func Authenticate(jwtSecret []byte) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
+func Authenticate(jwtSecret []byte, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header not found"})
+			writeError(w, http.StatusUnauthorized, "Authorization header not found", errors.New("missing header"), logger.APILog)
 			return
 		}
 
 		claims, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
 		if err != nil {
-			logger.LogAuditEvent(AuthenticationAction, "", c.ClientIP(), "Unauthorized access attempt")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			logger.LogAuditEvent(AuthenticationAction, "", getClientIP(r), "Unauthorized access attempt")
+			writeError(w, http.StatusUnauthorized, "Invalid token", err, logger.APILog)
 			return
 		}
 
-		c.Set("userID", claims.ID)
-		c.Set("email", claims.Email)
-		c.Set("role_id", claims.RoleID)
+		// Store claims in context
+		ctx := context.WithValue(r.Context(), "userID", claims.ID)
+		ctx = context.WithValue(ctx, "email", claims.Email)
+		ctx = context.WithValue(ctx, "roleID", claims.RoleID)
 
-		c.Next()
-	}
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 func getClaimsFromAuthorizationHeader(header string, jwtSecret []byte) (*claims, error) {

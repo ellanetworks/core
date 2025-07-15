@@ -6,7 +6,6 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/version"
-	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
@@ -17,30 +16,29 @@ type StatusResponse struct {
 
 const GetStatusAction = "get_status"
 
-func GetStatus(dbInstance *db.Database) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		numUsers, err := dbInstance.NumUsers(c.Request.Context())
+func GetStatus(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		numUsers, err := dbInstance.NumUsers(ctx)
 		if err != nil {
 			logger.APILog.Warn("Failed to query number of users", zap.Error(err))
-			writeError(c, http.StatusInternalServerError, "Unable to retrieve number of users")
+			writeError(w, http.StatusInternalServerError, "Unable to retrieve number of users", err, logger.APILog)
 			return
 		}
-		var initialized bool
-		if numUsers > 0 {
-			initialized = true
-		} else {
-			initialized = false
-		}
+
+		initialized := numUsers > 0
 		statusResponse := StatusResponse{
 			Version:     version.GetVersion(),
 			Initialized: initialized,
 		}
-		writeResponse(c, statusResponse, http.StatusOK)
+
+		writeResponse(w, statusResponse, http.StatusOK, logger.APILog)
+
 		logger.LogAuditEvent(
 			GetStatusAction,
-			"",
-			c.ClientIP(),
+			"", // User unknown on unauthenticated endpoint
+			getClientIP(r),
 			"Successfully retrieved status",
 		)
-	}
+	})
 }

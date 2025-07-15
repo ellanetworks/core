@@ -8,13 +8,12 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/api/server"
-	"github.com/gin-gonic/gin"
 )
 
 func TestRateLimiterMiddleware(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, gin.ReleaseMode)
+	ts, _, err := setupServer(dbPath, server.ReleaseMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -43,14 +42,20 @@ func TestRateLimiterMiddleware(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			respCode, _, err := login(ts.URL, client, loginData)
-			if err != nil {
-				t.Errorf("login error: %s", err)
-				return
-			}
-			if respCode == http.StatusOK {
-				atomic.AddInt32(&successCount, 1)
-			} else if respCode == http.StatusTooManyRequests {
+
+			switch {
+			case err != nil && respCode == http.StatusTooManyRequests:
+				// Acceptable: rate-limited and body not JSON
 				atomic.AddInt32(&rateLimitCount, 1)
+			case err != nil:
+				// Unexpected error
+				t.Errorf("unexpected login error: %s", err)
+			case respCode == http.StatusOK:
+				atomic.AddInt32(&successCount, 1)
+			case respCode == http.StatusTooManyRequests:
+				atomic.AddInt32(&rateLimitCount, 1)
+			default:
+				t.Errorf("unexpected response code: %d", respCode)
 			}
 		}()
 	}

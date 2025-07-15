@@ -2,13 +2,13 @@ package server
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
@@ -163,28 +163,29 @@ func isValidSd(sd int) bool {
 	return sd >= 0 && sd <= 0xFFFFFF
 }
 
-func GetOperator(dbInstance *db.Database) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		emailAny, _ := c.Get("email")
+func GetOperator(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value("email")
 		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
-		dbOperator, err := dbInstance.GetOperator(c.Request.Context())
+
+		dbOperator, err := dbInstance.GetOperator(r.Context())
 		if err != nil {
-			writeError(c, http.StatusNotFound, "Operator not found")
+			writeError(w, http.StatusNotFound, "Operator not found", err, logger.APILog)
 			return
 		}
 
 		hnPublicKey, err := dbOperator.GetHomeNetworkPublicKey()
 		if err != nil {
 			logger.APILog.Warn("Failed to get home network public key", zap.Error(err))
-			writeError(c, http.StatusInternalServerError, "Failed to get home network public key")
+			writeError(w, http.StatusInternalServerError, "Failed to get home network public key", err, logger.APILog)
 			return
 		}
 
-		operatorSlice := &GetOperatorResponse{
+		operator := &GetOperatorResponse{
 			ID: GetOperatorIDResponse{
 				Mcc: dbOperator.Mcc,
 				Mnc: dbOperator.Mnc,
@@ -201,27 +202,28 @@ func GetOperator(dbInstance *db.Database) gin.HandlerFunc {
 			},
 		}
 
-		writeResponse(c, operatorSlice, http.StatusOK)
+		writeResponse(w, operator, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(
 			GetOperatorAction,
 			email,
-			c.ClientIP(),
+			getClientIP(r),
 			"User retrieved operator information",
 		)
-	}
+	})
 }
 
-func GetOperatorSlice(dbInstance *db.Database) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		emailAny, _ := c.Get("email")
+func GetOperatorSlice(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value("email")
 		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
-		dbOperator, err := dbInstance.GetOperator(c.Request.Context())
+
+		dbOperator, err := dbInstance.GetOperator(r.Context())
 		if err != nil {
-			writeError(c, http.StatusNotFound, "Operator not found")
+			writeError(w, http.StatusNotFound, "Operator not found", err, logger.APILog)
 			return
 		}
 
@@ -230,31 +232,28 @@ func GetOperatorSlice(dbInstance *db.Database) gin.HandlerFunc {
 			Sd:  dbOperator.Sd,
 		}
 
-		writeResponse(c, operatorSlice, http.StatusOK)
-		if err != nil {
-			writeError(c, http.StatusInternalServerError, "internal error")
-			return
-		}
+		writeResponse(w, operatorSlice, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(
 			GetOperatorSliceAction,
 			email,
-			c.ClientIP(),
+			getClientIP(r),
 			"User retrieved operator slice",
 		)
-	}
+	})
 }
 
-func GetOperatorTracking(dbInstance *db.Database) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		emailAny, _ := c.Get("email")
+func GetOperatorTracking(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value("email")
 		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
-		dbOperator, err := dbInstance.GetOperator(c.Request.Context())
+
+		dbOperator, err := dbInstance.GetOperator(r.Context())
 		if err != nil {
-			writeError(c, http.StatusNotFound, "Operator not found")
+			writeError(w, http.StatusNotFound, "Operator not found", err, logger.APILog)
 			return
 		}
 
@@ -262,27 +261,28 @@ func GetOperatorTracking(dbInstance *db.Database) gin.HandlerFunc {
 			SupportedTacs: dbOperator.GetSupportedTacs(),
 		}
 
-		writeResponse(c, operatorTracking, http.StatusOK)
+		writeResponse(w, operatorTracking, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(
 			GetOperatorTrackingAction,
 			email,
-			c.ClientIP(),
+			getClientIP(r),
 			"User retrieved operator tracking information",
 		)
-	}
+	})
 }
 
-func GetOperatorID(dbInstance *db.Database) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		emailAny, _ := c.Get("email")
+func GetOperatorID(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value("email")
 		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
-		dbOperator, err := dbInstance.GetOperator(c.Request.Context())
+
+		dbOperator, err := dbInstance.GetOperator(r.Context())
 		if err != nil {
-			writeError(c, http.StatusNotFound, "Operator not found")
+			writeError(w, http.StatusNotFound, "Operator not found", err, logger.APILog)
 			return
 		}
 
@@ -291,254 +291,258 @@ func GetOperatorID(dbInstance *db.Database) gin.HandlerFunc {
 			Mnc: dbOperator.Mnc,
 		}
 
-		writeResponse(c, operatorID, http.StatusOK)
+		writeResponse(w, operatorID, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(
 			GetOperatorIDAction,
 			email,
-			c.ClientIP(),
+			getClientIP(r),
 			"User retrieved operator Id",
 		)
-	}
+	})
 }
 
-func UpdateOperatorSlice(dbInstance *db.Database) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		emailAny, _ := c.Get("email")
+func UpdateOperatorSlice(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value("email")
 		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
-			return
-		}
-		var updateOperatorSliceParams UpdateOperatorSliceParams
-		err := c.ShouldBindJSON(&updateOperatorSliceParams)
-		if err != nil {
-			writeError(c, http.StatusBadRequest, "Invalid request data")
+			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
 
-		if updateOperatorSliceParams.Sst == 0 {
-			writeError(c, http.StatusBadRequest, "sst is missing")
-			return
-		}
-		if updateOperatorSliceParams.Sd == 0 {
-			writeError(c, http.StatusBadRequest, "sd is missing")
+		var params UpdateOperatorSliceParams
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
-		if !isValidSst(updateOperatorSliceParams.Sst) {
-			writeError(c, http.StatusBadRequest, "Invalid SST format. Must be an 8-bit integer")
+		if params.Sst == 0 {
+			writeError(w, http.StatusBadRequest, "sst is missing", nil, logger.APILog)
 			return
 		}
-		if !isValidSd(updateOperatorSliceParams.Sd) {
-			writeError(c, http.StatusBadRequest, "Invalid SD format. Must be a 24-bit integer")
+		if params.Sd == 0 {
+			writeError(w, http.StatusBadRequest, "sd is missing", nil, logger.APILog)
+			return
+		}
+		if !isValidSst(params.Sst) {
+			writeError(w, http.StatusBadRequest, "Invalid SST format. Must be an 8-bit integer", nil, logger.APILog)
+			return
+		}
+		if !isValidSd(params.Sd) {
+			writeError(w, http.StatusBadRequest, "Invalid SD format. Must be a 24-bit integer", nil, logger.APILog)
 			return
 		}
 
-		err = dbInstance.UpdateOperatorSlice(c.Request.Context(), int32(updateOperatorSliceParams.Sst), updateOperatorSliceParams.Sd)
-		if err != nil {
+		if err := dbInstance.UpdateOperatorSlice(r.Context(), int32(params.Sst), params.Sd); err != nil {
 			logger.APILog.Warn("Failed to update operator slice information", zap.Error(err))
-			writeError(c, http.StatusInternalServerError, "Failed to update operator slice information")
+			writeError(w, http.StatusInternalServerError, "Failed to update operator slice information", err, logger.APILog)
 			return
 		}
-		message := SuccessResponse{Message: "Operator slice information updated successfully"}
-		writeResponse(c, message, http.StatusCreated)
+
+		resp := SuccessResponse{Message: "Operator slice information updated successfully"}
+		writeResponse(w, resp, http.StatusCreated, logger.APILog)
+
 		logger.LogAuditEvent(
 			UpdateOperatorSliceAction,
 			email,
-			c.ClientIP(),
+			getClientIP(r),
 			"User updated operator slice information",
 		)
-	}
+	})
 }
 
-func UpdateOperatorTracking(dbInstance *db.Database) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		emailAny, _ := c.Get("email")
+func UpdateOperatorTracking(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value("email")
 		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
-			return
-		}
-		var updateOperatorTrackingParams UpdateOperatorTrackingParams
-		err := c.ShouldBindJSON(&updateOperatorTrackingParams)
-		if err != nil {
-			writeError(c, http.StatusBadRequest, "Invalid request data")
-			return
-		}
-		if len(updateOperatorTrackingParams.SupportedTacs) == 0 {
-			writeError(c, http.StatusBadRequest, "supportedTacs is missing")
+			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
 
-		for _, tac := range updateOperatorTrackingParams.SupportedTacs {
+		var params UpdateOperatorTrackingParams
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			return
+		}
+		if len(params.SupportedTacs) == 0 {
+			writeError(w, http.StatusBadRequest, "supportedTacs is missing", nil, logger.APILog)
+			return
+		}
+
+		for _, tac := range params.SupportedTacs {
 			if !isValidTac(tac) {
-				writeError(c, http.StatusBadRequest, "Invalid TAC format. Must be a 3-digit number")
+				writeError(w, http.StatusBadRequest, "Invalid TAC format. Must be a 3-digit number", nil, logger.APILog)
 				return
 			}
 		}
 
-		err = dbInstance.UpdateOperatorTracking(c.Request.Context(), updateOperatorTrackingParams.SupportedTacs)
-		if err != nil {
+		if err := dbInstance.UpdateOperatorTracking(r.Context(), params.SupportedTacs); err != nil {
 			logger.APILog.Warn("Failed to update operator tracking information", zap.Error(err))
-			writeError(c, http.StatusInternalServerError, "Failed to update operator tracking information")
+			writeError(w, http.StatusInternalServerError, "Failed to update operator tracking information", err, logger.APILog)
 			return
 		}
-		message := SuccessResponse{Message: "Operator tracking information updated successfully"}
-		writeResponse(c, message, http.StatusCreated)
+
+		resp := SuccessResponse{Message: "Operator tracking information updated successfully"}
+		writeResponse(w, resp, http.StatusCreated, logger.APILog)
+
 		logger.LogAuditEvent(
 			UpdateOperatorTrackingAction,
 			email,
-			c.ClientIP(),
+			getClientIP(r),
 			"User updated operator tracking information",
 		)
-	}
+	})
 }
 
-func UpdateOperatorID(dbInstance *db.Database) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		emailAny, _ := c.Get("email")
+func UpdateOperatorID(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value("email")
 		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
-		var updateOperatorIDParams UpdateOperatorIDParams
-		err := c.ShouldBindJSON(&updateOperatorIDParams)
+
+		var params UpdateOperatorIDParams
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			return
+		}
+		if params.Mcc == "" {
+			writeError(w, http.StatusBadRequest, "mcc is missing", nil, logger.APILog)
+			return
+		}
+		if params.Mnc == "" {
+			writeError(w, http.StatusBadRequest, "mnc is missing", nil, logger.APILog)
+			return
+		}
+		if !isValidMcc(params.Mcc) {
+			writeError(w, http.StatusBadRequest, "Invalid mcc format. Must be a 3-decimal digit.", nil, logger.APILog)
+			return
+		}
+		if !isValidMnc(params.Mnc) {
+			writeError(w, http.StatusBadRequest, "Invalid mnc format. Must be a 2 or 3-decimal digit.", nil, logger.APILog)
+			return
+		}
+
+		numSubs, err := dbInstance.NumSubscribers(r.Context())
 		if err != nil {
-			writeError(c, http.StatusBadRequest, "Invalid request data")
-			return
-		}
-		if updateOperatorIDParams.Mcc == "" {
-			writeError(c, http.StatusBadRequest, "mcc is missing")
-			return
-		}
-		if updateOperatorIDParams.Mnc == "" {
-			writeError(c, http.StatusBadRequest, "mnc is missing")
-			return
-		}
-		if !isValidMcc(updateOperatorIDParams.Mcc) {
-			writeError(c, http.StatusBadRequest, "Invalid mcc format. Must be a 3-decimal digit.")
-			return
-		}
-		if !isValidMnc(updateOperatorIDParams.Mnc) {
-			writeError(c, http.StatusBadRequest, "Invalid mnc format. Must be a 2 or 3-decimal digit.")
-			return
-		}
-		numSubs, err := dbInstance.NumSubscribers(c.Request.Context())
-		if err != nil {
-			writeError(c, http.StatusInternalServerError, "Failed to get number of subscribers")
+			writeError(w, http.StatusInternalServerError, "Failed to get number of subscribers", err, logger.APILog)
 			return
 		}
 		if numSubs > 0 {
-			writeError(c, http.StatusBadRequest, "Cannot update operator ID when there are subscribers")
+			writeError(w, http.StatusBadRequest, "Cannot update operator ID when there are subscribers", nil, logger.APILog)
 			return
 		}
 
-		err = dbInstance.UpdateOperatorID(c.Request.Context(), updateOperatorIDParams.Mcc, updateOperatorIDParams.Mnc)
-		if err != nil {
+		if err := dbInstance.UpdateOperatorID(r.Context(), params.Mcc, params.Mnc); err != nil {
 			logger.APILog.Warn("Failed to update operator ID", zap.Error(err))
-			writeError(c, http.StatusInternalServerError, "Failed to update operatorID")
+			writeError(w, http.StatusInternalServerError, "Failed to update operatorID", err, logger.APILog)
 			return
 		}
-		message := SuccessResponse{Message: "Operator ID updated successfully"}
-		writeResponse(c, message, http.StatusCreated)
+
+		resp := SuccessResponse{Message: "Operator ID updated successfully"}
+		writeResponse(w, resp, http.StatusCreated, logger.APILog)
+
 		logger.LogAuditEvent(
 			UpdateOperatorIDAction,
 			email,
-			c.ClientIP(),
-			"User updated operator with Id: "+updateOperatorIDParams.Mcc+""+updateOperatorIDParams.Mnc,
+			getClientIP(r),
+			"User updated operator with Id: "+params.Mcc+params.Mnc,
 		)
-	}
+	})
 }
 
-func UpdateOperatorCode(dbInstance *db.Database) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		emailAny, _ := c.Get("email")
+func UpdateOperatorCode(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value("email")
 		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
-			return
-		}
-		var updateOperatorCodeParams UpdateOperatorCodeParams
-		err := c.ShouldBindJSON(&updateOperatorCodeParams)
-		if err != nil {
-			writeError(c, http.StatusBadRequest, "Invalid request data")
-			return
-		}
-		if updateOperatorCodeParams.OperatorCode == "" {
-			writeError(c, http.StatusBadRequest, "operator code is missing")
+			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
 
-		if !isValidOperatorCode(updateOperatorCodeParams.OperatorCode) {
-			writeError(c, http.StatusBadRequest, "Invalid operator code format. Must be a 32-character hexadecimal string.")
+		var params UpdateOperatorCodeParams
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
-		numSubs, err := dbInstance.NumSubscribers(c.Request.Context())
+		if params.OperatorCode == "" {
+			writeError(w, http.StatusBadRequest, "operator code is missing", nil, logger.APILog)
+			return
+		}
+		if !isValidOperatorCode(params.OperatorCode) {
+			writeError(w, http.StatusBadRequest, "Invalid operator code format. Must be a 32-character hexadecimal string.", nil, logger.APILog)
+			return
+		}
+
+		numSubs, err := dbInstance.NumSubscribers(r.Context())
 		if err != nil {
-			writeError(c, http.StatusInternalServerError, "Failed to get number of subscribers")
+			writeError(w, http.StatusInternalServerError, "Failed to get number of subscribers", err, logger.APILog)
 			return
 		}
 		if numSubs > 0 {
-			writeError(c, http.StatusBadRequest, "Cannot update operator code when there are subscribers")
+			writeError(w, http.StatusBadRequest, "Cannot update operator code when there are subscribers", nil, logger.APILog)
 			return
 		}
 
-		err = dbInstance.UpdateOperatorCode(c.Request.Context(), updateOperatorCodeParams.OperatorCode)
-		if err != nil {
+		if err := dbInstance.UpdateOperatorCode(r.Context(), params.OperatorCode); err != nil {
 			logger.APILog.Warn("Failed to update operator code", zap.Error(err))
-			writeError(c, http.StatusInternalServerError, "Failed to update operatorID")
+			writeError(w, http.StatusInternalServerError, "Failed to update operatorID", err, logger.APILog)
 			return
 		}
-		message := SuccessResponse{Message: "Operator Code updated successfully"}
-		writeResponse(c, message, http.StatusCreated)
+
+		writeResponse(w, SuccessResponse{Message: "Operator Code updated successfully"}, http.StatusCreated, logger.APILog)
+
 		logger.LogAuditEvent(
 			UpdateOperatorCodeAction,
 			email,
-			c.ClientIP(),
+			getClientIP(r),
 			"User updated operator Code",
 		)
-	}
+	})
 }
 
-func UpdateOperatorHomeNetwork(dbInstance *db.Database) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		emailAny, _ := c.Get("email")
+func UpdateOperatorHomeNetwork(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value("email")
 		email, ok := emailAny.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
-			return
-		}
-		var updateOperatorHomeNetworkParams UpdateOperatorHomeNetworkParams
-		err := c.ShouldBindJSON(&updateOperatorHomeNetworkParams)
-		if err != nil {
-			writeError(c, http.StatusBadRequest, "Invalid request data")
-			return
-		}
-		if updateOperatorHomeNetworkParams.PrivateKey == "" {
-			writeError(c, http.StatusBadRequest, "privateKey is missing")
+			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
 			return
 		}
 
-		if !isValidPrivateKey(updateOperatorHomeNetworkParams.PrivateKey) {
-			writeError(c, http.StatusBadRequest, "Invalid private key format. Must be a 32-byte hexadecimal string.")
+		var params UpdateOperatorHomeNetworkParams
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
-		err = dbInstance.UpdateHomeNetworkPrivateKey(c.Request.Context(), updateOperatorHomeNetworkParams.PrivateKey)
-		if err != nil {
+		if params.PrivateKey == "" {
+			writeError(w, http.StatusBadRequest, "privateKey is missing", nil, logger.APILog)
+			return
+		}
+
+		if !isValidPrivateKey(params.PrivateKey) {
+			writeError(w, http.StatusBadRequest, "Invalid private key format. Must be a 32-byte hexadecimal string.", nil, logger.APILog)
+			return
+		}
+
+		if err := dbInstance.UpdateHomeNetworkPrivateKey(r.Context(), params.PrivateKey); err != nil {
 			logger.APILog.Warn("Failed to update home network private key", zap.Error(err))
-			writeError(c, http.StatusInternalServerError, "Failed to update home network private key")
+			writeError(w, http.StatusInternalServerError, "Failed to update home network private key", err, logger.APILog)
 			return
 		}
-		message := SuccessResponse{Message: "Home Network private key updated successfully"}
-		writeResponse(c, message, http.StatusCreated)
+
+		writeResponse(w, SuccessResponse{Message: "Home Network private key updated successfully"}, http.StatusCreated, logger.APILog)
+
 		logger.LogAuditEvent(
 			UpdateOperatorHomeNetworkAction,
 			email,
-			c.ClientIP(),
+			getClientIP(r),
 			"User updated home network private key",
 		)
-	}
+	})
 }

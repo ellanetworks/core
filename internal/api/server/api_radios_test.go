@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -78,7 +78,7 @@ func listRadios(url string, client *http.Client, token string) (int, *ListRadios
 func TestListRadios(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, gin.TestMode)
+	ts, _, err := setupServer(dbPath, server.TestMode)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

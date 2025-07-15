@@ -1,11 +1,11 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/gin-gonic/gin"
 )
 
 type PlmnID struct {
@@ -66,17 +66,17 @@ func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
 	return returnedTais
 }
 
-func ListRadios() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		emailAny, _ := c.Get("email")
-		email, ok := emailAny.(string)
+func ListRadios() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		email := r.Context().Value("email")
+		emailStr, ok := email.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			writeError(w, http.StatusInternalServerError, "Failed to get email", fmt.Errorf("missing email in context"), logger.APILog)
 			return
 		}
 
 		ranList := context.ListAmfRan()
-		radios := make([]GetRadioParams, 0)
+		radios := make([]GetRadioParams, 0, len(ranList))
 		for _, radio := range ranList {
 			supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAList)
 			newRadio := GetRadioParams{
@@ -88,50 +88,52 @@ func ListRadios() gin.HandlerFunc {
 			radios = append(radios, newRadio)
 		}
 
-		writeResponse(c, radios, http.StatusOK)
+		writeResponse(w, radios, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(
 			ListRadiosAction,
-			email,
-			c.ClientIP(),
+			emailStr,
+			getClientIP(r),
 			"User listed radios",
 		)
 	}
 }
 
-func GetRadio() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		emailAny, _ := c.Get("email")
-		email, ok := emailAny.(string)
+func GetRadio() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		email := r.Context().Value("email")
+		emailStr, ok := email.(string)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get email"})
+			writeError(w, http.StatusInternalServerError, "Failed to get email", fmt.Errorf("missing email in context"), logger.APILog)
 			return
 		}
-		radioName, exists := c.Params.Get("name")
-		if !exists {
-			writeError(c, http.StatusBadRequest, "Missing name parameter")
+
+		radioName := pathParam(r.URL.Path, "/api/v1/radios/")
+		if radioName == "" {
+			writeError(w, http.StatusBadRequest, "Missing name parameter", fmt.Errorf("name parameter is required"), logger.APILog)
 			return
 		}
+
 		ranList := context.ListAmfRan()
-		var returnRadio GetRadioParams
 		for _, radio := range ranList {
 			if radio.Name == radioName {
 				supportedTais := convertRadioTaiToReturnTai(radio.SupportedTAList)
-				returnRadio = GetRadioParams{
+				result := GetRadioParams{
 					Name:          radio.Name,
 					ID:            radio.GnbID,
 					Address:       radio.GnbIP,
 					SupportedTAIs: supportedTais,
 				}
-				break
+				writeResponse(w, result, http.StatusOK, logger.APILog)
+				logger.LogAuditEvent(
+					GetRadioAction,
+					emailStr,
+					getClientIP(r),
+					"User retrieved radio: "+radioName,
+				)
+				return
 			}
 		}
 
-		writeResponse(c, returnRadio, http.StatusOK)
-		logger.LogAuditEvent(
-			GetRadioAction,
-			email,
-			c.ClientIP(),
-			"User retrieved radio: "+radioName,
-		)
+		writeError(w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)
 	}
 }

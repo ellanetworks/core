@@ -1,11 +1,12 @@
 package server
 
 import (
+	"context"
+	"errors"
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/gin-gonic/gin"
 )
 
 var roleNameToID = map[string]int{
@@ -93,76 +94,72 @@ const (
 	PermRestore = "backup:restore"
 )
 
-func RequirePermissionOrFirstUser(permission string, db *db.Database, jwtSecret []byte) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if permission == PermCreateUser && c.Request.Method == http.MethodPost {
-			userCount, err := db.NumUsers(c.Request.Context())
+func RequirePermissionOrFirstUser(permission string, db *db.Database, jwtSecret []byte, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
+		// Allow unauthenticated creation if first user
+		if permission == PermCreateUser && r.Method == http.MethodPost {
+			userCount, err := db.NumUsers(ctx)
 			if err != nil {
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to count users"})
+				writeError(w, http.StatusInternalServerError, "Failed to count users", err, logger.APILog)
 				return
 			}
 			if userCount == 0 {
-				c.Next()
+				next.ServeHTTP(w, r)
 				return
 			}
 		}
 
-		authHeader := c.GetHeader("Authorization")
+		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header not found"})
+			writeError(w, http.StatusUnauthorized, "Authorization header not found", errors.New("missing header"), logger.APILog)
 			return
 		}
 
 		claims, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
 		if err != nil {
-			logger.LogAuditEvent("auth_fail", "", c.ClientIP(), "unauthorized")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			logger.LogAuditEvent("auth_fail", "", getClientIP(r), "unauthorized")
+			writeError(w, http.StatusUnauthorized, "Invalid token", err, logger.APILog)
 			return
 		}
 
-		c.Set("userID", claims.ID)
-		c.Set("email", claims.Email)
-		c.Set("role_id", claims.RoleID)
+		// Inject claims into context
+		ctx = context.WithValue(ctx, "userID", claims.ID)
+		ctx = context.WithValue(ctx, "email", claims.Email)
+		ctx = context.WithValue(ctx, "roleID", claims.RoleID)
+		r = r.WithContext(ctx)
 
+		// Check permission
 		allowedPerms := PermissionsByRole[claims.RoleID]
-		authorized := false
 		for _, p := range allowedPerms {
 			if p == permission || p == "*" {
-				authorized = true
-				break
+				next.ServeHTTP(w, r)
+				return
 			}
 		}
-		if !authorized {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
-			return
-		}
 
-		c.Next()
-	}
+		writeError(w, http.StatusForbidden, "Forbidden", errors.New("permission denied"), logger.APILog)
+	})
 }
 
-func RequirePermission(permission string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		roleIDAny, exists := c.Get("role_id")
-		if !exists {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Role ID not found"})
-			return
-		}
-
+func RequirePermission(permission string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		roleIDAny := r.Context().Value("roleID")
 		roleID, ok := roleIDAny.(int)
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Invalid role ID format"})
+			writeError(w, http.StatusForbidden, "Invalid or missing role ID", errors.New("role ID missing in context"), logger.APILog)
 			return
 		}
 
 		allowedPerms := PermissionsByRole[roleID]
 		for _, p := range allowedPerms {
 			if p == permission || p == "*" {
-				c.Next()
+				next.ServeHTTP(w, r)
 				return
 			}
 		}
 
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
-	}
+		writeError(w, http.StatusForbidden, "Forbidden", errors.New("permission denied"), logger.APILog)
+	})
 }

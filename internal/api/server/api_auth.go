@@ -1,12 +1,14 @@
 package server
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -50,88 +52,86 @@ func generateJWT(id int, email string, roleID int, jwtSecret []byte) (string, er
 	return tokenString, nil
 }
 
-func Login(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
-	return func(c *gin.Context) {
+func Login(dbInstance *db.Database, jwtSecret []byte) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var loginParams LoginParams
-		err := c.ShouldBindJSON(&loginParams)
-		if err != nil {
-			writeError(c, http.StatusBadRequest, "Invalid JSON format")
+		if err := json.NewDecoder(r.Body).Decode(&loginParams); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid JSON format", err, logger.APILog)
 			return
 		}
+
 		if loginParams.Email == "" {
-			writeError(c, http.StatusBadRequest, "Email is required")
+			writeError(w, http.StatusBadRequest, "Email is required", fmt.Errorf("email is missing"), logger.APILog)
 			return
 		}
 		if loginParams.Password == "" {
-			writeError(c, http.StatusBadRequest, "Password is required")
+			writeError(w, http.StatusBadRequest, "Password is required", fmt.Errorf("password is missing"), logger.APILog)
 			return
 		}
-		user, err := dbInstance.GetUser(c.Request.Context(), loginParams.Email)
+
+		user, err := dbInstance.GetUser(r.Context(), loginParams.Email)
 		if err != nil {
 			logger.LogAuditEvent(
 				LoginAction,
 				loginParams.Email,
-				c.ClientIP(),
+				getClientIP(r),
 				"User failed to log in",
 			)
-			writeError(c, http.StatusUnauthorized, "The email or password is incorrect. Try again.")
+			writeError(w, http.StatusUnauthorized, "The email or password is incorrect. Try again.", err, logger.APILog)
 			return
 		}
 
-		err = bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(loginParams.Password))
-		if err != nil {
+		if bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(loginParams.Password)) != nil {
 			logger.LogAuditEvent(
 				LoginAction,
 				user.Email,
-				c.ClientIP(),
+				getClientIP(r),
 				"User failed to log in",
 			)
-			writeError(c, http.StatusUnauthorized, "The email or password is incorrect. Try again.")
+			writeError(w, http.StatusUnauthorized, "The email or password is incorrect. Try again.", fmt.Errorf("password mismatch"), logger.APILog)
 			return
 		}
 
 		token, err := generateJWT(user.ID, user.Email, user.RoleID, jwtSecret)
 		if err != nil {
-			writeError(c, http.StatusInternalServerError, "Internal Error")
+			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
 		}
 
-		loginResponse := LoginResponse{
-			Token: token,
-		}
-		writeResponse(c, loginResponse, http.StatusOK)
+		resp := LoginResponse{Token: token}
+		writeResponse(w, resp, http.StatusOK, logger.APILog)
+
 		logger.LogAuditEvent(
 			LoginAction,
 			user.Email,
-			c.ClientIP(),
+			getClientIP(r),
 			"User logged in",
 		)
-	}
+	})
 }
 
-func LookupToken(dbInstance *db.Database, jwtSecret []byte) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
+func LookupToken(dbInstance *db.Database, jwtSecret []byte) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			writeError(c, http.StatusBadRequest, "Authorization header is required")
+			writeError(w, http.StatusBadRequest, "Authorization header is required", errors.New("missing Authorization header"), logger.APILog)
 			return
 		}
+
 		_, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
-		var valid bool
-		if err != nil {
-			valid = false
-		} else {
-			valid = true
-		}
+		valid := err == nil
+
 		lookupTokenResponse := LookupTokenResponse{
 			Valid: valid,
 		}
-		writeResponse(c, lookupTokenResponse, http.StatusOK)
+
+		writeResponse(w, lookupTokenResponse, http.StatusOK, logger.APILog)
+
 		logger.LogAuditEvent(
 			LookupTokenAction,
 			"",
-			c.ClientIP(),
+			getClientIP(r),
 			"User looked up token",
 		)
-	}
+	})
 }
