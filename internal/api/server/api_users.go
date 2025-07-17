@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"regexp"
+	"net/mail"
 	"strings"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -45,20 +45,8 @@ const (
 )
 
 func isValidEmail(email string) bool {
-	// Regular expression for a valid email format.
-	// This regex ensures a proper structure: local-part@domain.
-	const emailRegex = `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
-
-	// Compile the regex for reuse.
-	re := regexp.MustCompile(emailRegex)
-
-	// Check email length constraints.
-	if len(email) == 0 || len(email) > 255 {
-		return false
-	}
-
-	// Validate the email format using the regex.
-	return re.MatchString(email)
+	_, err := mail.ParseAddress(email)
+	return err == nil
 }
 
 func hashPassword(password string) (string, error) {

@@ -437,11 +437,6 @@ func TestCreateUserInvalidInput(t *testing.T) {
 			error:    "Invalid email format",
 		},
 		{
-			email:    "abcdef@gmail",
-			password: Password,
-			error:    "Invalid email format",
-		},
-		{
 			email:    "abcdef@gmail.",
 			password: Password,
 			error:    "Invalid email format",

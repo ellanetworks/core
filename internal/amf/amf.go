@@ -44,8 +44,8 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 	self.SecurityAlgorithm.IntegrityOrder = getIntAlgOrder(security.IntegrityOrder)
 	self.SecurityAlgorithm.CipheringOrder = getEncAlgOrder(security.CipheringOrder)
 	self.NetworkName = context.NetworkName{
-		Full:  "SDCORE5G",
-		Short: "SDCORE",
+		Full:  "ELLACORE5G",
+		Short: "ELLACORE",
 	}
 	self.T3502Value = 720
 	self.T3512Value = 3600

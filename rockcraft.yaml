@@ -6,6 +6,7 @@ summary: Ella Core is a secure, reliable, and easy to operate mobile network.
 description: Ella Core is a secure, reliable, and easy to operate mobile network.
 platforms:
   amd64:
+  arm64:
 
 services:
   ella-core:
