@@ -24,6 +24,9 @@ jobs:
   rock-build:
     needs: [go-unit-test, go-vet, go-lint]
     uses: ./.github/workflows/rock-build.yaml
+  rock-publish: # TO DELETE
+    needs: rock-build
+    uses: ./.github/workflows/rock-publish.yaml
   integration-tests:
     needs: [go-unit-test, go-vet, go-lint, rock-build]
     uses: ./.github/workflows/integration-tests.yaml

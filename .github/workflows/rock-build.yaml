@@ -8,6 +8,11 @@ on:
 
 jobs:
   build-rock:
+    strategy:
+      matrix:
+        arch:
+          - arch: amd64
+          - arch: arm64
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
@@ -21,5 +26,5 @@ jobs:
       - name: Upload container image to GitHub Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rock
+          name: rock-${{ matrix.arch.arch }}
           path: ${{ steps.rockcraft.outputs.rock }}
