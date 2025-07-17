@@ -8,14 +8,7 @@ on:
 
 jobs:
   build-rock:
-    strategy:
-      matrix:
-        arch:
-          - arch: amd64
-            runner: ubuntu-22.04
-          - arch: arm64
-            runner: ubuntu-22.04-arm
-    runs-on: ${{ matrix.arch.runner }}
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -28,5 +21,5 @@ jobs:
       - name: Upload container image to GitHub Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rock-${{ matrix.arch.arch }}
+          name: rock
           path: ${{ steps.rockcraft.outputs.rock }}
