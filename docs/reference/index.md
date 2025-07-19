@@ -10,4 +10,5 @@ This section provides detailed reference material for Ella Core, from configurat
 - [Connectivity](connectivity.md)
 - [TLS](tls.md)
 - [Performance](performance.md)
+- [System Requirements](system_reqs.md)
 - [Supported Radios](supported_radios.md)

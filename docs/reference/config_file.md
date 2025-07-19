@@ -40,6 +40,9 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `enabled` (boolean): Whether telemetry is enabled or not. Default is `false`.
     - `otlp-endpoint` (string): The endpoint for the OpenTelemetry Protocol (OTLP) collector.
 
+!!! note
+    When you use the Ella Core snap, the configuration file is located at `/var/snap/ella-core/common/config.yaml`. After modifying the configuration file, restart Ella Core with `sudo snap restart ella-core.cored` for the changes to take effect.
+
 ## Example
 
 ```yaml
