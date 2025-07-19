@@ -71,6 +71,7 @@ nav:
     - Connectivity: reference/connectivity.md
     - TLS: reference/tls.md
     - Performance: reference/performance.md
+    - System Requirements: reference/system_reqs.md
     - Supported Radios: reference/supported_radios.md
   - Explanation:
     - explanation/index.md
