@@ -19,3 +19,5 @@ ui/.env*.local
 
 # DB
 *.db
+
+.vscode
