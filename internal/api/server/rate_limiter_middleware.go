@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	NumRequests     = 200
+	NumRequests     = 100
 	RequestsPerTime = time.Second
 )
 
