@@ -23,7 +23,7 @@ parts:
     source-type: local
     build-snaps:
       - go/1.24/stable
-      - node/20/stable
+      - node/22/stable
     override-build: |
       npm install --prefix ui
       npm run build --prefix ui

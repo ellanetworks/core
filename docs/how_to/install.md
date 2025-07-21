@@ -7,7 +7,7 @@ description: Step-by-step instructions to install Ella Core.
 
 === "Linux"
 
-    Ensure your system meets the [system requirements](../reference/system_reqs.md).
+    Ensure your system meets the [requirements](../reference/system_reqs.md).
 
     ## Using Snap (Recommended)
 
@@ -23,7 +23,7 @@ description: Step-by-step instructions to install Ella Core.
 
     ```shell
     sudo snap install go --channel=1.24/stable --classic
-    sudo snap install node --channel=20/stable --classic
+    sudo snap install node --channel=22/stable --classic
     sudo apt update
     sudo apt -y install clang llvm gcc-multilib libbpf-dev
     git clone https://github.com/ellanetworks/core.git
