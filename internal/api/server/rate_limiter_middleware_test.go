@@ -36,7 +36,7 @@ func TestRateLimiterMiddleware(t *testing.T) {
 	var rateLimitCount int32
 
 	// Fire many concurrent requests.
-	totalRequests := 200
+	totalRequests := 300
 	wg.Add(totalRequests)
 	for i := 0; i < totalRequests; i++ {
 		go func() {
@@ -61,8 +61,8 @@ func TestRateLimiterMiddleware(t *testing.T) {
 	}
 	wg.Wait()
 
-	if successCount < 100 {
-		t.Fatalf("expected at least 100 successful logins, got %d", successCount)
+	if successCount < 200 {
+		t.Fatalf("expected at least 200 successful logins, got %d", successCount)
 	}
 	if rateLimitCount == 0 {
 		t.Fatalf("expected at least one rate limited response, got %d", rateLimitCount)

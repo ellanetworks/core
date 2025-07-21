@@ -22,7 +22,7 @@ const OperatorTableName = "operator"
 
 const QueryCreateOperatorTable = `
 	CREATE TABLE IF NOT EXISTS %s (
- 		id INTEGER PRIMARY KEY AUTOINCREMENT,
+ 		id INTEGER PRIMARY KEY CHECK (id = 1),
 
 		mcc TEXT NOT NULL,
 		mnc TEXT NOT NULL,
@@ -99,6 +99,42 @@ func (operator *Operator) SetSupportedTacs(supportedTACs []string) {
 		return
 	}
 	operator.SupportedTACs = string(supportedTACsBytes)
+}
+
+func (db *Database) IsOperatorInitialized() bool {
+	ctx := context.Background()
+	operation := "SELECT"
+	target := OperatorTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+	stmt := fmt.Sprintf(getOperatorStmt, db.operatorTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+	q, err := sqlair.Prepare(stmt, Operator{})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		logger.DBLog.Error("Failed to prepare get operator statement", zap.Error(err))
+		return false
+	}
+	var op Operator
+	if err := db.conn.Query(ctx, q).Get(&op); err != nil {
+		if err == sqlair.ErrNoRows {
+			span.SetStatus(codes.Ok, "operator not initialized")
+			return false
+		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+		logger.DBLog.Error("Failed to get operator", zap.Error(err))
+		return false
+	}
+	span.SetStatus(codes.Ok, "operator initialized")
+	return op.ID > 0
 }
 
 func (db *Database) InitializeOperator(ctx context.Context, initialOperator Operator) error {

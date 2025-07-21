@@ -17,7 +17,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
-	"github.com/google/uuid"
 	"github.com/omec-project/nas/nasMessage"
 )
 
@@ -47,7 +46,6 @@ type UPF struct {
 	qerIDGenerator *idgenerator.IDGenerator
 
 	NodeID NodeID
-	uuid   uuid.UUID
 
 	// lock
 	UpfLock sync.RWMutex
@@ -70,7 +68,6 @@ func (i *UPFInterfaceInfo) IP(pduSessType uint8) (net.IP, error) {
 
 func NewUPF(nodeID *NodeID, dnn string) (upf *UPF) {
 	upf = new(UPF)
-	upf.uuid = uuid.New()
 	upf.NodeID = *nodeID
 	upf.pdrIDGenerator = idgenerator.NewGenerator(1, math.MaxUint16)
 	upf.farIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)

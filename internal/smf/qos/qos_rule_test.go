@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf/qos"
 )
 
+// This test is flaky because the order of rules from BuildQosRules is not guaranteed since it uses maps.
 func TestBuildQosRules(t *testing.T) {
 	// make SM Policy Decision
 	smPolicyDecision := &models.SmPolicyDecision{}

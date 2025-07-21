@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	NumRequests     = 100
+	NumRequests     = 200
 	RequestsPerTime = time.Second
 )
 
@@ -32,8 +32,7 @@ func getVisitor(ip string) *rate.Limiter {
 
 	v, exists := visitors[ip]
 	if !exists {
-		every := rate.Every(RequestsPerTime)
-		limiter := rate.NewLimiter(every, NumRequests)
+		limiter := rate.NewLimiter(rate.Limit(NumRequests), NumRequests)
 		visitors[ip] = &Visitor{limiter: limiter, lastSeen: time.Now()}
 		return limiter
 	}
