@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/ellanetworks/core/internal/api/server"
 )
 
 const (
@@ -198,7 +196,7 @@ func deleteProfile(url string, client *http.Client, token, name string) (int, *D
 func TestAPIProfilesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, server.TestMode)
+	ts, _, err := setupServer(dbPath, ReqsPerSec)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -430,7 +428,7 @@ func TestAPIProfilesEndToEnd(t *testing.T) {
 func TestCreateProfileInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, server.TestMode)
+	ts, _, err := setupServer(dbPath, ReqsPerSec)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

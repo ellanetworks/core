@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/ellanetworks/core/internal/api/server"
 )
 
 func backup(url string, client *http.Client, token string) (int, []byte, error) {
@@ -36,7 +34,7 @@ func backup(url string, client *http.Client, token string) (int, []byte, error) 
 func TestBackupEndpoint(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, server.TestMode)
+	ts, _, err := setupServer(dbPath, ReqsPerSec)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

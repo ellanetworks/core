@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"testing"
-
-	"github.com/ellanetworks/core/internal/api/server"
 )
 
 type GetStatusResponseResult struct {
@@ -46,7 +44,7 @@ func getStatus(url string, client *http.Client) (int, *GetStatusResponse, error)
 func TestStatusEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, server.TestMode)
+	ts, _, err := setupServer(dbPath, ReqsPerSec)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
