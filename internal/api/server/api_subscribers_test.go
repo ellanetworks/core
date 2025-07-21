@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/ellanetworks/core/internal/api/server"
 )
 
 const (
@@ -164,7 +162,7 @@ func deleteSubscriber(url string, client *http.Client, token string, imsi string
 func TestSubscribersApiEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, server.TestMode)
+	ts, _, err := setupServer(dbPath, ReqsPerSec)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -360,7 +358,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 func TestCreateSubscriberInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, server.TestMode)
+	ts, _, err := setupServer(dbPath, ReqsPerSec)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

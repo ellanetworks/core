@@ -10,8 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/ellanetworks/core/internal/api/server"
 )
 
 type RestoreResponseResult struct {
@@ -82,7 +80,7 @@ func TestRestoreEndpoint(t *testing.T) {
 		t.Fatalf("failed to create dummy backup file: %s", err)
 	}
 
-	ts, _, err := setupServer(dbPath, server.TestMode)
+	ts, _, err := setupServer(dbPath, ReqsPerSec)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

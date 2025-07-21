@@ -81,8 +81,10 @@ func NewDatabase(databasePath string, initialOperator Operator) (*Database, erro
 	db.operatorTable = OperatorTableName
 	db.usersTable = UsersTableName
 
-	if err := db.InitializeOperator(context.Background(), initialOperator); err != nil {
-		return nil, fmt.Errorf("failed to initialize network configuration: %v", err)
+	if !db.IsOperatorInitialized() {
+		if err := db.InitializeOperator(context.Background(), initialOperator); err != nil {
+			return nil, fmt.Errorf("failed to initialize network configuration: %v", err)
+		}
 	}
 
 	logger.DBLog.Info("Database Initialized")

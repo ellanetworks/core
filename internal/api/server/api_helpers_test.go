@@ -12,6 +12,10 @@ import (
 	"github.com/ellanetworks/core/internal/kernel"
 )
 
+const (
+	ReqsPerSec = 9999 // High number to avoid rate limiting in tests
+)
+
 var initialOperator = db.Operator{
 	Mcc:                   "001",
 	Mnc:                   "01",
@@ -48,14 +52,14 @@ func (fk FakeKernel) IsIPForwardingEnabled() (bool, error) {
 	return true, nil
 }
 
-func setupServer(filepath string, mode server.Mode) (*httptest.Server, []byte, error) {
+func setupServer(filepath string, reqsPerSec int) (*httptest.Server, []byte, error) {
 	testdb, err := db.NewDatabase(filepath, initialOperator)
 	if err != nil {
 		return nil, nil, err
 	}
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret, mode, false))
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret, reqsPerSec, false))
 	return ts, jwtSecret, nil
 }
 

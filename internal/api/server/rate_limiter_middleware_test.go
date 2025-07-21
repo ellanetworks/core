@@ -10,10 +10,14 @@ import (
 	"github.com/ellanetworks/core/internal/api/server"
 )
 
+const (
+	NumRequests = 5 // Number of requests per second allowed per IP (Rate Limiting
+)
+
 func TestRateLimiterMiddleware(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, server.ReleaseMode)
+	ts, _, err := setupServer(dbPath, NumRequests)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -36,7 +40,7 @@ func TestRateLimiterMiddleware(t *testing.T) {
 	var rateLimitCount int32
 
 	// Fire many concurrent requests.
-	totalRequests := 200
+	totalRequests := 100
 	wg.Add(totalRequests)
 	for i := 0; i < totalRequests; i++ {
 		go func() {
@@ -61,8 +65,8 @@ func TestRateLimiterMiddleware(t *testing.T) {
 	}
 	wg.Wait()
 
-	if successCount < 100 {
-		t.Fatalf("expected at least 100 successful logins, got %d", successCount)
+	if successCount < 5 {
+		t.Fatalf("expected at least 5 successful logins, got %d", successCount)
 	}
 	if rateLimitCount == 0 {
 		t.Fatalf("expected at least one rate limited response, got %d", rateLimitCount)

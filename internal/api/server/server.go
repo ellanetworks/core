@@ -9,14 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type Mode string
-
-const (
-	TestMode    Mode = "test"
-	ReleaseMode Mode = "release"
-)
-
-func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, mode Mode, tracingEnabled bool) http.Handler {
+func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, reqsPerSec int, tracingEnabled bool) http.Handler {
 	mux := http.NewServeMux()
 
 	// Status (Unauthenticated)
@@ -90,9 +83,7 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	if tracingEnabled {
 		handler = TracingMiddleware("ella-core/api", handler)
 	}
-	if mode != TestMode {
-		handler = RateLimitMiddleware(handler)
-	}
+	handler = RateLimitMiddleware(handler, reqsPerSec)
 
 	return handler
 }

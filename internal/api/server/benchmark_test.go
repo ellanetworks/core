@@ -4,14 +4,12 @@ import (
 	"net/http"
 	"path/filepath"
 	"testing"
-
-	"github.com/ellanetworks/core/internal/api/server"
 )
 
 func BenchmarkLoginHandler(b *testing.B) {
 	tempDir := b.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, server.TestMode)
+	ts, _, err := setupServer(dbPath, ReqsPerSec)
 	if err != nil {
 		b.Fatalf("couldn't create test server: %s", err)
 	}
