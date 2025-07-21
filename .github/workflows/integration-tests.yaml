@@ -63,7 +63,7 @@ jobs:
       - name: Download Container image from GitHub Artifact
         uses: actions/download-artifact@v4
         with:
-          name: rock
+          name: rock-amd64
       
       - name: Push container image to local registry
         run: |
