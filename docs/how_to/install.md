@@ -38,5 +38,5 @@ description: Step-by-step instructions to install Ella Core.
     Ensure your Kubernetes cluster is running with the [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni) installed.
 
     ```bash
-    kubectl apply -k github.com/ellanetworks/core/k8s/core/base?ref=v0.0.19 -n ella
+    kubectl apply -k github.com/ellanetworks/core/k8s/core/base?ref=v0.0.20 -n ella
     ```
