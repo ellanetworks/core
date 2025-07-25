@@ -89,7 +89,7 @@ func isValidPriorityLevel(priorityLevel int32) bool {
 
 func ListProfiles(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		email, ok := r.Context().Value("email").(string)
+		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
@@ -119,7 +119,7 @@ func ListProfiles(dbInstance *db.Database) http.Handler {
 
 func GetProfile(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		email, ok := r.Context().Value("email").(string)
+		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
@@ -151,7 +151,7 @@ func GetProfile(dbInstance *db.Database) http.Handler {
 
 func DeleteProfile(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		email, ok := r.Context().Value("email").(string)
+		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
@@ -186,7 +186,7 @@ func DeleteProfile(dbInstance *db.Database) http.Handler {
 
 func CreateProfile(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		email, ok := r.Context().Value("email").(string)
+		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
@@ -231,7 +231,7 @@ func CreateProfile(dbInstance *db.Database) http.Handler {
 
 func UpdateProfile(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		email, ok := r.Context().Value("email").(string)
+		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return

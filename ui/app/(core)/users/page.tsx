@@ -19,6 +19,7 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { GridColDef, DataGrid } from '@mui/x-data-grid';
+import { RoleID } from "@/types/types";
 
 interface UserData {
   email: string;
@@ -45,7 +46,7 @@ const User = () => {
       const data = await listUsers(cookies.user_token);
       const transformedUsers = data.map((user: any) => ({
         ...user,
-        role: user.role === "admin" ? "Admin" : user.role === "network-manager" ? "Network Manager" : user.role === "readonly" ? "Read Only" : user.role,
+        role: user.role_id === RoleID.Admin ? "Admin" : user.role_id === RoleID.NetworkManager ? "Network Manager" : user.role_id === RoleID.ReadOnly ? "Read Only" : user.role_id,
       }));
       setUsers(transformedUsers);
     } catch (error) {
@@ -63,7 +64,7 @@ const User = () => {
   const handleCloseCreateModal = () => setCreateModalOpen(false);
 
   const handleEditPasswordClick = (user: any) => {
-    setEditPasswordData({ email: user.email, role: user.role });
+    setEditPasswordData({ email: user.email, role: user.role_id });
     setEditPasswordModalOpen(true);
   };
 
@@ -73,9 +74,19 @@ const User = () => {
   };
 
   const handleEditClick = (user: any) => {
-    setEditData({ email: user.email, role: user.role });
+  const readableRole =
+    user.role_id === RoleID.Admin
+      ? "Admin"
+      : user.role_id === RoleID.NetworkManager
+      ? "Network Manager"
+      : user.role_id === RoleID.ReadOnly
+      ? "Read Only"
+      : "Read Only"; // fallback for safety
+
+    setEditData({ email: user.email, role: readableRole });
     setEditModalOpen(true);
   };
+
 
   const handleEditModalClose = () => {
     setEditModalOpen(false);

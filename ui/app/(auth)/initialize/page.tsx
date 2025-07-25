@@ -12,6 +12,7 @@ import {
 } from "@mui/material";
 import { createUser } from "@/queries/users";
 import { getStatus } from "@/queries/status";
+import { RoleID } from "@/types/types";
 
 const InitializePage = () => {
     const router = useRouter();
@@ -45,7 +46,7 @@ const InitializePage = () => {
         setError(null);
 
         try {
-            await createUser("", email, "admin", password);
+            await createUser("", email, RoleID.Admin, password);
             router.push("/login");
         } catch (err: any) {
             setError(err.message || "User creation failed");

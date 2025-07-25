@@ -98,7 +98,7 @@ func TestLoginEndToEnd(t *testing.T) {
 		user := &CreateUserParams{
 			Email:    "my.user123@ellanetworks.com",
 			Password: "password123",
-			Role:     "admin",
+			RoleID:   RoleAdmin,
 		}
 		statusCode, _, err := createUser(ts.URL, client, "", user)
 		if err != nil {
@@ -228,12 +228,12 @@ func TestRolesEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	readOnlyToken, err := createUserAndLogin(ts.URL, adminToken, "readonly@ellanetworks.com", "readonly", client)
+	readOnlyToken, err := createUserAndLogin(ts.URL, adminToken, "readonly@ellanetworks.com", RoleReadOnly, client)
 	if err != nil {
 		t.Fatalf("couldn't create readonly user and login: %s", err)
 	}
 
-	networkManagerToken, err := createUserAndLogin(ts.URL, adminToken, "networkmanager@ellanetworks.com", "network-manager", client)
+	networkManagerToken, err := createUserAndLogin(ts.URL, adminToken, "networkmanager@ellanetworks.com", RoleNetworkManager, client)
 	if err != nil {
 		t.Fatalf("couldn't create network manager user and login: %s", err)
 	}
@@ -242,7 +242,7 @@ func TestRolesEndToEnd(t *testing.T) {
 		newUser := &CreateUserParams{
 			Email:    "whatever@ellanetworks.com",
 			Password: "password123",
-			Role:     "readonly",
+			RoleID:   RoleReadOnly,
 		}
 		statusCode, response, _ := createUser(ts.URL, client, readOnlyToken, newUser)
 		if statusCode != http.StatusForbidden {
@@ -257,7 +257,7 @@ func TestRolesEndToEnd(t *testing.T) {
 		user := &CreateUserParams{
 			Email:    "whatever@ellanetworks.com",
 			Password: "password123",
-			Role:     "readonly",
+			RoleID:   RoleReadOnly,
 		}
 		statusCode, response, _ := createUser(ts.URL, client, networkManagerToken, user)
 		if err != nil {
@@ -275,7 +275,7 @@ func TestRolesEndToEnd(t *testing.T) {
 		user := &CreateUserParams{
 			Email:    "whatever@ellanetworks.com",
 			Password: "password123",
-			Role:     "readonly",
+			RoleID:   RoleReadOnly,
 		}
 		statusCode, response, err := createUser(ts.URL, client, adminToken, user)
 		if err != nil {
@@ -379,7 +379,7 @@ func TestLookupToken(t *testing.T) {
 		createUserParams := &CreateUserParams{
 			Email:    "my.user123@ellanetworks.com",
 			Password: "password123",
-			Role:     "admin",
+			RoleID:   RoleAdmin,
 		}
 		statusCode, _, err := createUser(ts.URL, client, "", createUserParams)
 		if err != nil {

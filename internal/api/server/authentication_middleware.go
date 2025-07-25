@@ -16,9 +16,17 @@ const AuthenticationAction = "user_authentication"
 type claims struct {
 	ID     int    `json:"id"`
 	Email  string `json:"email"`
-	RoleID int    `json:"role_id"`
+	RoleID RoleID `json:"role_id"`
 	jwt.RegisteredClaims
 }
+
+type contextKey string
+
+const (
+	contextKeyUserID contextKey = "userID"
+	contextKeyEmail  contextKey = "email"
+	contextKeyRoleID contextKey = "roleID"
+)
 
 func Authenticate(jwtSecret []byte, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -35,10 +43,9 @@ func Authenticate(jwtSecret []byte, next http.Handler) http.Handler {
 			return
 		}
 
-		// Store claims in context
-		ctx := context.WithValue(r.Context(), "userID", claims.ID)
-		ctx = context.WithValue(ctx, "email", claims.Email)
-		ctx = context.WithValue(ctx, "roleID", claims.RoleID)
+		ctx := context.WithValue(r.Context(), contextKeyUserID, claims.ID)
+		ctx = context.WithValue(ctx, contextKeyEmail, claims.Email)
+		ctx = context.WithValue(ctx, contextKeyRoleID, claims.RoleID)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
