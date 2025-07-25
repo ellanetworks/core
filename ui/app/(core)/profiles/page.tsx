@@ -43,7 +43,10 @@ const Profile = () => {
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [editData, setEditData] = useState<ProfileData | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
-  const [alert, setAlert] = useState<{ message: string; severity: "success" | "error" | null }>({
+  const [alert, setAlert] = useState<{
+    message: string;
+    severity: "success" | "error" | null;
+  }>({
     message: "",
     severity: null,
   });
@@ -179,7 +182,13 @@ const Profile = () => {
         </Collapse>
       </Box>
       {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
           <CircularProgress />
         </Box>
       ) : profiles.length === 0 ? (
@@ -205,7 +214,11 @@ const Profile = () => {
               Profiles ({profiles.length})
             </Typography>
             {(role === "Admin" || role === "Network Manager") && (
-              <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
+              <Button
+                variant="contained"
+                color="success"
+                onClick={handleOpenCreateModal}
+              >
                 Create
               </Button>
             )}

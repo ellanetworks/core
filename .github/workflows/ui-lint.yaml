@@ -6,15 +6,12 @@ on:
 jobs:
   ui-lint:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ui
 
     steps:
       - uses: actions/checkout@v4
       - name: use npm
         uses: actions/setup-node@v4
 
-      - name: Run npx prettier
+      - name: Run npm format check
         run: |
           npx prettier -c src/

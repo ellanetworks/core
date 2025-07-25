@@ -6,7 +6,9 @@ export const getMetrics = async () => {
   });
 
   if (!response.ok) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
+    );
   }
 
   return response.text();

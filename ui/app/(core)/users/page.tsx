@@ -10,7 +10,11 @@ import {
   Collapse,
   IconButton,
 } from "@mui/material";
-import { Delete as DeleteIcon, Edit as EditIcon, Password as PasswordIcon } from "@mui/icons-material";
+import {
+  Delete as DeleteIcon,
+  Edit as EditIcon,
+  Password as PasswordIcon,
+} from "@mui/icons-material";
 import { listUsers, deleteUser } from "@/queries/users";
 import CreateUserModal from "@/components/CreateUserModal";
 import EditUserModal from "@/components/EditUserModal";
@@ -18,7 +22,7 @@ import EditUserPasswordModal from "@/components/EditUserPasswordModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
-import { GridColDef, DataGrid } from '@mui/x-data-grid';
+import { GridColDef, DataGrid } from "@mui/x-data-grid";
 import { RoleID } from "@/types/types";
 
 interface UserData {
@@ -35,10 +39,11 @@ const User = () => {
   const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [editData, setEditData] = useState<UserData | null>(null);
-  const [editPasswordData, setEditPasswordData] = useState<UserData | null>(null);
+  const [editPasswordData, setEditPasswordData] = useState<UserData | null>(
+    null,
+  );
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
-
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -46,7 +51,14 @@ const User = () => {
       const data = await listUsers(cookies.user_token);
       const transformedUsers = data.map((user: any) => ({
         ...user,
-        role: user.role_id === RoleID.Admin ? "Admin" : user.role_id === RoleID.NetworkManager ? "Network Manager" : user.role_id === RoleID.ReadOnly ? "Read Only" : user.role_id,
+        role:
+          user.role_id === RoleID.Admin
+            ? "Admin"
+            : user.role_id === RoleID.NetworkManager
+              ? "Network Manager"
+              : user.role_id === RoleID.ReadOnly
+                ? "Read Only"
+                : user.role_id,
       }));
       setUsers(transformedUsers);
     } catch (error) {
@@ -74,19 +86,18 @@ const User = () => {
   };
 
   const handleEditClick = (user: any) => {
-  const readableRole =
-    user.role_id === RoleID.Admin
-      ? "Admin"
-      : user.role_id === RoleID.NetworkManager
-      ? "Network Manager"
-      : user.role_id === RoleID.ReadOnly
-      ? "Read Only"
-      : "Read Only"; // fallback for safety
+    const readableRole =
+      user.role_id === RoleID.Admin
+        ? "Admin"
+        : user.role_id === RoleID.NetworkManager
+          ? "Network Manager"
+          : user.role_id === RoleID.ReadOnly
+            ? "Read Only"
+            : "Read Only"; // fallback for safety
 
     setEditData({ email: user.email, role: readableRole });
     setEditModalOpen(true);
   };
-
 
   const handleEditModalClose = () => {
     setEditModalOpen(false);
@@ -117,7 +128,9 @@ const User = () => {
   const columns: GridColDef[] = [
     { field: "email", headerName: "Email", flex: 1 },
     {
-      field: "role", headerName: "Role", flex: 1,
+      field: "role",
+      headerName: "Role",
+      flex: 1,
     },
     {
       field: "actions",
@@ -205,7 +218,11 @@ const User = () => {
             <Typography variant="h4" component="h1" gutterBottom>
               Users ({users.length})
             </Typography>
-            <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
+            <Button
+              variant="contained"
+              color="success"
+              onClick={handleOpenCreateModal}
+            >
               Create
             </Button>
           </Box>
