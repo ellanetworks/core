@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/mail"
 	"strings"
@@ -16,12 +17,12 @@ import (
 type CreateUserParams struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
-	Role     string `json:"role"`
+	RoleID   RoleID `json:"role_id"`
 }
 
 type UpdateUserParams struct {
-	Email string `json:"email"`
-	Role  string `json:"role"`
+	Email  string `json:"email"`
+	RoleID RoleID `json:"role_id"`
 }
 
 type UpdateUserPasswordParams struct {
@@ -30,8 +31,8 @@ type UpdateUserPasswordParams struct {
 }
 
 type GetUserParams struct {
-	Email string `json:"email"`
-	Role  string `json:"role"`
+	Email  string `json:"email"`
+	RoleID RoleID `json:"role_id"`
 }
 
 const (
@@ -59,7 +60,7 @@ func hashPassword(password string) (string, error) {
 
 func ListUsers(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
@@ -76,8 +77,8 @@ func ListUsers(dbInstance *db.Database) http.Handler {
 		users := make([]GetUserParams, 0, len(dbUsers))
 		for _, user := range dbUsers {
 			users = append(users, GetUserParams{
-				Email: user.Email,
-				Role:  roleIDToName[user.RoleID],
+				Email:  user.Email,
+				RoleID: RoleID(user.RoleID),
 			})
 		}
 
@@ -94,7 +95,7 @@ func ListUsers(dbInstance *db.Database) http.Handler {
 
 func GetUser(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		requester, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
@@ -114,8 +115,8 @@ func GetUser(dbInstance *db.Database) http.Handler {
 		}
 
 		resp := GetUserParams{
-			Email: dbUser.Email,
-			Role:  roleIDToName[dbUser.RoleID],
+			Email:  dbUser.Email,
+			RoleID: RoleID(dbUser.RoleID),
 		}
 		writeResponse(w, resp, http.StatusOK, logger.APILog)
 
@@ -125,7 +126,7 @@ func GetUser(dbInstance *db.Database) http.Handler {
 
 func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
 			writeError(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
@@ -139,8 +140,8 @@ func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 		}
 
 		user := GetUserParams{
-			Email: dbUser.Email,
-			Role:  roleIDToName[dbUser.RoleID],
+			Email:  dbUser.Email,
+			RoleID: RoleID(dbUser.RoleID),
 		}
 
 		writeResponse(w, user, http.StatusOK, logger.APILog)
@@ -156,7 +157,7 @@ func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 
 func CreateUser(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok || email == "" {
 			email = "First User"
@@ -193,7 +194,7 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 		dbUser := &db.User{
 			Email:          newUser.Email,
 			HashedPassword: hashedPassword,
-			RoleID:         roleNameToID[newUser.Role],
+			RoleID:         db.RoleID(newUser.RoleID),
 		}
 		if err := dbInstance.CreateUser(r.Context(), dbUser); err != nil {
 			logger.APILog.Warn("Failed to create user", zap.Error(err))
@@ -207,14 +208,14 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 			CreateUserAction,
 			email,
 			getClientIP(r),
-			"User created user: "+newUser.Email+" with role: "+newUser.Role,
+			fmt.Sprintf("User created user: %s with role: %d", newUser.Email, newUser.RoleID),
 		)
 	})
 }
 
 func UpdateUser(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		requester, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
@@ -242,7 +243,7 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := dbInstance.UpdateUser(r.Context(), updateUserParams.Email, roleNameToID[updateUserParams.Role]); err != nil {
+		if err := dbInstance.UpdateUser(r.Context(), updateUserParams.Email, db.RoleID(updateUserParams.RoleID)); err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to update user", err, logger.APILog)
 			return
 		}
@@ -254,7 +255,7 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 
 func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		requester, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
@@ -300,7 +301,7 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 
 func DeleteUser(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		requester, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)

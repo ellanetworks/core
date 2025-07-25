@@ -165,7 +165,7 @@ func isValidSd(sd int) bool {
 
 func GetOperator(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -214,7 +214,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 
 func GetOperatorSlice(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -244,7 +244,7 @@ func GetOperatorSlice(dbInstance *db.Database) http.Handler {
 
 func GetOperatorTracking(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -273,7 +273,7 @@ func GetOperatorTracking(dbInstance *db.Database) http.Handler {
 
 func GetOperatorID(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -303,7 +303,7 @@ func GetOperatorID(dbInstance *db.Database) http.Handler {
 
 func UpdateOperatorSlice(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -353,7 +353,7 @@ func UpdateOperatorSlice(dbInstance *db.Database) http.Handler {
 
 func UpdateOperatorTracking(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -397,7 +397,7 @@ func UpdateOperatorTracking(dbInstance *db.Database) http.Handler {
 
 func UpdateOperatorID(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -456,7 +456,7 @@ func UpdateOperatorID(dbInstance *db.Database) http.Handler {
 
 func UpdateOperatorCode(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -507,7 +507,7 @@ func UpdateOperatorCode(dbInstance *db.Database) http.Handler {
 
 func UpdateOperatorHomeNetwork(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)

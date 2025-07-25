@@ -14,7 +14,7 @@ func pathParam(path, prefix string) string {
 }
 
 func getEmailFromContext(r *http.Request) string {
-	if email, ok := r.Context().Value("email").(string); ok {
+	if email, ok := r.Context().Value(contextKeyEmail).(string); ok {
 		return email
 	}
 	return ""

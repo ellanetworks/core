@@ -41,7 +41,7 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 	createUserOpts := &client.CreateUserOptions{
 		Email:    "admin@ellanetworks.com",
 		Password: "admin",
-		Role:     "admin",
+		RoleID:   client.RoleAdmin,
 	}
 	err := opts.client.CreateUser(createUserOpts)
 	if err != nil {

@@ -1,5 +1,5 @@
 import { HTTPStatus } from "@/queries/utils";
-
+import { RoleID } from "@/types/types";
 
 export const getLoggedInUser = async (authToken: string) => {
   const response = await fetch(`/api/v1/users/me`, {
@@ -46,11 +46,11 @@ export const listUsers = async (authToken: string) => {
   return respData.result;
 };
 
-export const createUser = async (authToken: string, email: string, role: string, password: string) => {
+export const createUser = async (authToken: string, email: string, role_id: RoleID, password: string) => {
   const userData = {
     "email": email,
     "password": password,
-    "role": role,
+    "role_id": role_id,
   }
 
   const response = await fetch(`/api/v1/users`, {
@@ -103,10 +103,10 @@ export const updateUserPassword = async (authToken: string, email: string, passw
   return respData.result;
 }
 
-export const updateUser = async (authToken: string, email: string, role: string) => {
+export const updateUser = async (authToken: string, email: string, role_id: RoleID) => {
   const userData = {
     "email": email,
-    "role": role,
+    "role_id": role_id,
   }
 
   const response = await fetch(`/api/v1/users/${email}`, {

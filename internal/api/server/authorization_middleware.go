@@ -9,23 +9,18 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 )
 
-var roleNameToID = map[string]int{
-	"admin":           1,
-	"readonly":        2,
-	"network-manager": 3,
-}
+type RoleID int
 
-// map role ID to role name
-var roleIDToName = map[int]string{
-	1: "admin",
-	2: "readonly",
-	3: "network-manager",
-}
+const (
+	RoleAdmin          RoleID = 1
+	RoleReadOnly       RoleID = 2
+	RoleNetworkManager RoleID = 3
+)
 
-var PermissionsByRole = map[int][]string{
-	1: {"*"}, // Admin
+var PermissionsByRole = map[RoleID][]string{
+	RoleAdmin: {"*"},
 
-	2: { // Read Only
+	RoleReadOnly: {
 		PermReadMyUser,
 		PermReadOperator, PermGetOperatorSlice, PermGetOperatorTracking,
 		PermListSubscribers, PermReadSubscriber,
@@ -34,7 +29,7 @@ var PermissionsByRole = map[int][]string{
 		PermListRadios, PermReadRadio,
 	},
 
-	3: { // Network Manager
+	RoleNetworkManager: {
 		PermUpdateUserPassword, PermReadUser, PermReadMyUser,
 		PermReadOperator, PermUpdateOperatorSlice, PermGetOperatorSlice, PermUpdateOperatorTracking, PermGetOperatorTracking,
 		PermListSubscribers, PermCreateSubscriber, PermUpdateSubscriber, PermReadSubscriber, PermDeleteSubscriber,
@@ -124,10 +119,9 @@ func RequirePermissionOrFirstUser(permission string, db *db.Database, jwtSecret 
 			return
 		}
 
-		// Inject claims into context
-		ctx = context.WithValue(ctx, "userID", claims.ID)
-		ctx = context.WithValue(ctx, "email", claims.Email)
-		ctx = context.WithValue(ctx, "roleID", claims.RoleID)
+		ctx = context.WithValue(ctx, contextKeyUserID, claims.ID)
+		ctx = context.WithValue(ctx, contextKeyEmail, claims.Email)
+		ctx = context.WithValue(ctx, contextKeyRoleID, claims.RoleID)
 		r = r.WithContext(ctx)
 
 		// Check permission
@@ -143,16 +137,15 @@ func RequirePermissionOrFirstUser(permission string, db *db.Database, jwtSecret 
 	})
 }
 
-func RequirePermission(permission string, next http.Handler) http.Handler {
+func RequirePermission(permission string, jwtSecret []byte, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		roleIDAny := r.Context().Value("roleID")
-		roleID, ok := roleIDAny.(int)
-		if !ok {
-			writeError(w, http.StatusForbidden, "Invalid or missing role ID", errors.New("role ID missing in context"), logger.APILog)
+		claims, err := getClaimsFromAuthorizationHeader(r.Header.Get("Authorization"), jwtSecret)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "Unauthorized", err, logger.APILog)
 			return
 		}
 
-		allowedPerms := PermissionsByRole[roleID]
+		allowedPerms := PermissionsByRole[claims.RoleID]
 		for _, p := range allowedPerms {
 			if p == permission || p == "*" {
 				next.ServeHTTP(w, r)

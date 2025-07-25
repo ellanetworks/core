@@ -39,10 +39,19 @@ type NumUsers struct {
 	Count int `db:"count"`
 }
 
+type RoleID int
+
+const (
+	RoleAdmin                RoleID = 0
+	RoleCertificateManager   RoleID = 1
+	RoleCertificateRequestor RoleID = 2
+	RoleReadOnly             RoleID = 3
+)
+
 type User struct {
 	ID             int    `db:"id"`
 	Email          string `db:"email"`
-	RoleID         int    `db:"roleID"`
+	RoleID         RoleID `db:"roleID"`
 	HashedPassword string `db:"hashedPassword"`
 }
 
@@ -160,7 +169,7 @@ func (db *Database) CreateUser(ctx context.Context, user *User) error {
 }
 
 // UpdateUser updates a user's role with a span named "UPDATE users".
-func (db *Database) UpdateUser(ctx context.Context, email string, roleID int) error {
+func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID) error {
 	operation := "UPDATE"
 	target := UsersTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)

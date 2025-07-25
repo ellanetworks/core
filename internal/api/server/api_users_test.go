@@ -14,14 +14,22 @@ const (
 	Password = "password123"
 )
 
+type RoleID int
+
+const (
+	RoleAdmin          RoleID = 1
+	RoleReadOnly       RoleID = 2
+	RoleNetworkManager RoleID = 3
+)
+
 type ListUsersResponse struct {
 	Result []GetUserResponseResult `json:"result"`
 	Error  string                  `json:"error,omitempty"`
 }
 
 type GetUserResponseResult struct {
-	Email string `json:"email"`
-	Role  string `json:"role"`
+	Email  string `json:"email"`
+	RoleID RoleID `json:"role_id"`
 }
 
 type GetUserResponse struct {
@@ -32,7 +40,7 @@ type GetUserResponse struct {
 type CreateUserParams struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
-	Role     string `json:"role"`
+	RoleID   RoleID `json:"role_id"`
 }
 
 type UpdateUserPasswordParams struct {
@@ -41,8 +49,8 @@ type UpdateUserPasswordParams struct {
 }
 
 type UpdateUserParams struct {
-	Email string `json:"email"`
-	Role  string `json:"role"`
+	Email  string `json:"email"`
+	RoleID RoleID `json:"role_id"`
 }
 
 type CreateUserResponseResult struct {
@@ -248,7 +256,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		createUserParams := &CreateUserParams{
 			Email:    Email,
 			Password: Password,
-			Role:     "admin",
+			RoleID:   RoleAdmin,
 		}
 		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
 		if err != nil {
@@ -297,7 +305,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	t.Run("4. Create admin user - no email", func(t *testing.T) {
 		createUserParams := &CreateUserParams{
 			Password: Password,
-			Role:     "admin",
+			RoleID:   RoleAdmin,
 		}
 		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
 		if err != nil {
@@ -333,8 +341,8 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 
 	t.Run("6. Edit user", func(t *testing.T) {
 		updateUserParams := &UpdateUserParams{
-			Email: Email,
-			Role:  "readonly",
+			Email:  Email,
+			RoleID: RoleReadOnly,
 		}
 		statusCode, response, err := editUser(ts.URL, client, token, Email, updateUserParams)
 		if err != nil {
@@ -362,8 +370,8 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		if response.Result.Email != Email {
 			t.Fatalf("expected email %s, got %s", Email, response.Result.Email)
 		}
-		if response.Result.Role != "readonly" {
-			t.Fatalf("expected role %v, got %v", "readonly", response.Result.Role)
+		if response.Result.RoleID != RoleReadOnly {
+			t.Fatalf("expected role %v, got %v", RoleReadOnly, response.Result.RoleID)
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)

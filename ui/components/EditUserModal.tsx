@@ -16,6 +16,7 @@ import {
 import { updateUser } from "@/queries/users";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
+import { RoleID } from "@/types/types";
 
 interface EditUserModalProps {
     open: boolean;
@@ -23,14 +24,44 @@ interface EditUserModalProps {
     onSuccess: () => void;
     initialData: {
         email: string;
-        role: string;
+        role: string; // This comes as a human-readable string from the parent
     };
 }
 
 interface FormValues {
     email: string;
-    role: string;
+    role: RoleID;
 }
+
+// Helper: string → RoleID
+const stringToRoleID = (role: string): RoleID => {
+    switch (role.toLowerCase()) {
+        case "admin":
+            return RoleID.Admin;
+        case "network manager":
+        case "network-manager":
+            return RoleID.NetworkManager;
+        case "read only":
+        case "readonly":
+            return RoleID.ReadOnly;
+        default:
+            return RoleID.ReadOnly;
+    }
+};
+
+// Helper: RoleID → human-readable string
+const roleIDToLabel = (role: RoleID): string => {
+    switch (role) {
+        case RoleID.Admin:
+            return "Admin";
+        case RoleID.NetworkManager:
+            return "Network Manager";
+        case RoleID.ReadOnly:
+            return "Read Only";
+        default:
+            return "";
+    }
+};
 
 const EditUserModal: React.FC<EditUserModalProps> = ({
     open,
@@ -47,7 +78,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
     const [formValues, setFormValues] = useState<FormValues>({
         email: "",
-        role: "",
+        role: RoleID.ReadOnly,
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -56,23 +87,18 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
     useEffect(() => {
         if (open) {
-            const convertedRole =
-                initialData.role === "Admin" ? "admin"
-                    : initialData.role === "Read Only" ? "readonly"
-                        : initialData.role === "Network Manager" ? "network-manager"
-                            : "";
             setFormValues({
                 email: initialData.email,
-                role: convertedRole,
+                role: stringToRoleID(initialData.role),
             });
             setErrors({});
         }
     }, [open, initialData]);
 
-    const handleChange = (field: keyof FormValues, value: string) => {
+    const handleChange = (value: string) => {
         setFormValues((prev) => ({
             ...prev,
-            [field]: value,
+            role: stringToRoleID(value),
         }));
     };
 
@@ -126,13 +152,13 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                     <Select
                         labelId="role-select-label"
                         id="role-select"
-                        value={formValues.role}
+                        value={roleIDToLabel(formValues.role)}
                         label="Role"
-                        onChange={(e) => handleChange("role", e.target.value as string)}
+                        onChange={(e) => handleChange(e.target.value)}
                     >
-                        <MenuItem value={"admin"}>Admin</MenuItem>
-                        <MenuItem value={"network-manager"}>Network Manager</MenuItem>
-                        <MenuItem value={"readonly"}>Read Only</MenuItem>
+                        <MenuItem value="Admin">Admin</MenuItem>
+                        <MenuItem value="Network Manager">Network Manager</MenuItem>
+                        <MenuItem value="Read Only">Read Only</MenuItem>
                     </Select>
                 </FormControl>
             </DialogContent>

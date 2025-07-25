@@ -19,7 +19,7 @@ func BenchmarkLoginHandler(b *testing.B) {
 	user := &CreateUserParams{
 		Email:    "my.user123@ellanetworks.com",
 		Password: "password123",
-		Role:     "admin",
+		RoleID:   RoleAdmin,
 	}
 	statusCode, _, err := createUser(ts.URL, client, "", user)
 	if err != nil {

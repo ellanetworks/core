@@ -34,7 +34,7 @@ const (
 )
 
 // Helper function to generate a JWT
-func generateJWT(id int, email string, roleID int, jwtSecret []byte) (string, error) {
+func generateJWT(id int, email string, roleID RoleID, jwtSecret []byte) (string, error) {
 	expiresAt := jwt.NewNumericDate(time.Now().Add(TokenExpirationTime))
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
 		ID:     id,
@@ -92,7 +92,7 @@ func Login(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 			return
 		}
 
-		token, err := generateJWT(user.ID, user.Email, user.RoleID, jwtSecret)
+		token, err := generateJWT(user.ID, user.Email, RoleID(user.RoleID), jwtSecret)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
