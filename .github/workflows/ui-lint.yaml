@@ -12,6 +12,10 @@ jobs:
       - name: use npm
         uses: actions/setup-node@v4
 
-      - name: Run npm format check
+      - name: Install dependencies
         run: |
-          npx prettier -c src/
+          npm install --prefix ui
+
+      - name: Run format check
+        run: |
+          npm run format:check --prefix ui
