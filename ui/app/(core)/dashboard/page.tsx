@@ -40,25 +40,25 @@ const Dashboard = () => {
     const lines = metrics.split("\n");
 
     const pduSessionMetric = lines.find((line) =>
-      line.startsWith("app_pdu_sessions ")
+      line.startsWith("app_pdu_sessions "),
     );
     const memoryMetric = lines.find((line) =>
-      line.startsWith("go_memstats_alloc_bytes ")
+      line.startsWith("go_memstats_alloc_bytes "),
     );
     const databaseSizeMetric = lines.find((line) =>
-      line.startsWith("app_database_storage_bytes ")
+      line.startsWith("app_database_storage_bytes "),
     );
     const allocatedIPsMetric = lines.find((line) =>
-      line.startsWith("app_ip_addresses_allocated ")
+      line.startsWith("app_ip_addresses_allocated "),
     );
     const totalIPsMetric = lines.find((line) =>
-      line.startsWith("app_ip_addresses_total ")
+      line.startsWith("app_ip_addresses_total "),
     );
     const uplinkMetric = lines.find((line) =>
-      line.startsWith("app_uplink_bytes ")
+      line.startsWith("app_uplink_bytes "),
     );
     const downlinkMetric = lines.find((line) =>
-      line.startsWith("app_downlink_bytes ")
+      line.startsWith("app_downlink_bytes "),
     );
 
     return {
@@ -74,9 +74,7 @@ const Dashboard = () => {
       allocatedIPs: allocatedIPsMetric
         ? parseInt(allocatedIPsMetric.split(" ")[1], 10)
         : 0,
-      totalIPs: totalIPsMetric
-        ? parseInt(totalIPsMetric.split(" ")[1], 10)
-        : 0,
+      totalIPs: totalIPsMetric ? parseInt(totalIPsMetric.split(" ")[1], 10) : 0,
       uplinkBytes: uplinkMetric ? parseFloat(uplinkMetric.split(" ")[1]) : 0,
       downlinkBytes: downlinkMetric
         ? parseFloat(downlinkMetric.split(" ")[1])
@@ -336,7 +334,7 @@ const Dashboard = () => {
               <CircularProgress />
             ) : (
               <Typography variant="h4">
-                {`${(uplinkThroughput * 8 / 1_000_000).toFixed(2)} Mbps`}
+                {`${((uplinkThroughput * 8) / 1_000_000).toFixed(2)} Mbps`}
               </Typography>
             )}
           </Card>
@@ -362,7 +360,7 @@ const Dashboard = () => {
               <CircularProgress />
             ) : (
               <Typography variant="h4">
-                {`${(downlinkThroughput * 8 / 1_000_000).toFixed(2)} Mbps`}
+                {`${((downlinkThroughput * 8) / 1_000_000).toFixed(2)} Mbps`}
               </Typography>
             )}
           </Card>

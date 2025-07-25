@@ -2,7 +2,7 @@ export const backup = async (authToken: string): Promise<Blob> => {
   const response = await fetch(`/api/v1/backup`, {
     method: "POST",
     headers: {
-      "Authorization": "Bearer " + authToken,
+      Authorization: "Bearer " + authToken,
     },
   });
 
@@ -19,14 +19,17 @@ export const backup = async (authToken: string): Promise<Blob> => {
   return await response.blob();
 };
 
-export const restore = async (authToken: string, backupFile: Blob): Promise<void> => {
+export const restore = async (
+  authToken: string,
+  backupFile: Blob,
+): Promise<void> => {
   const formData = new FormData();
   formData.append("backup", backupFile);
 
   const response = await fetch(`/api/v1/restore`, {
     method: "POST",
     headers: {
-      "Authorization": "Bearer " + authToken,
+      Authorization: "Bearer " + authToken,
     },
     body: formData,
   });
@@ -40,4 +43,4 @@ export const restore = async (authToken: string, backupFile: Blob): Promise<void
     }
     throw new Error(respData?.error || "Unknown error");
   }
-}
+};

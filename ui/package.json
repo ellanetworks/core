@@ -6,7 +6,9 @@
     "dev": "next dev -p 3005",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -29,6 +31,10 @@
     "yup": "1.6.1"
   },
   "devDependencies": {
-    "@types/node": "24.0.15"
+    "@types/node": "24.0.15",
+    "eslint": "9.32.0",
+    "eslint-config-next": "15.4.4",
+    "prettier": "^3.6.2",
+    "prettier-plugin-tailwindcss": "^0.6.14"
   }
 }

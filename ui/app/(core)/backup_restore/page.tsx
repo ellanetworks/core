@@ -33,11 +33,15 @@ const BackupRestore = () => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      setAlert({ message: "Backup created successfully!", severity: "success" });
+      setAlert({
+        message: "Backup created successfully!",
+        severity: "success",
+      });
     } catch (error) {
       console.error("Error creating backup:", error);
 
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred";
       setAlert({
         message: `Failed to create backup: ${errorMessage}`,
         severity: "error",
@@ -57,7 +61,8 @@ const BackupRestore = () => {
       } catch (error) {
         console.error("Error restoring backup:", error);
 
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+        const errorMessage =
+          error instanceof Error ? error.message : "An unknown error occurred";
         setAlert({
           message: `Failed to restore backup: ${errorMessage}`,
           severity: "error",

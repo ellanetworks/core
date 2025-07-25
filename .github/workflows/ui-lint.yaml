@@ -1,0 +1,21 @@
+name: UI Lint
+
+on:
+  workflow_call:
+
+jobs:
+  ui-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: use npm
+        uses: actions/setup-node@v4
+
+      - name: Install dependencies
+        run: |
+          npm install --prefix ui
+
+      - name: Run format check
+        run: |
+          npm run format:check --prefix ui

@@ -5,24 +5,32 @@ export const getOperator = async (authToken: string) => {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": "Bearer " + authToken
+      Authorization: "Bearer " + authToken,
     },
   });
   let respData;
   try {
     respData = await response.json();
   } catch {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
+    );
   }
 
   if (!response.ok) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
+    );
   }
 
   return respData.result;
 };
 
-export const updateOperatorID = async (authToken: string, mcc: string, mnc: string) => {
+export const updateOperatorID = async (
+  authToken: string,
+  mcc: string,
+  mnc: string,
+) => {
   const operatorIDData = {
     mcc: mcc,
     mnc: mnc,
@@ -31,7 +39,7 @@ export const updateOperatorID = async (authToken: string, mcc: string, mnc: stri
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": "Bearer " + authToken
+      Authorization: "Bearer " + authToken,
     },
     body: JSON.stringify(operatorIDData),
   });
@@ -39,17 +47,24 @@ export const updateOperatorID = async (authToken: string, mcc: string, mnc: stri
   try {
     respData = await response.json();
   } catch {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
+    );
   }
 
   if (!response.ok) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
+    );
   }
 
   return respData.result;
 };
 
-export const updateOperatorTracking = async (authToken: string, supportedTacs: string[]) => {
+export const updateOperatorTracking = async (
+  authToken: string,
+  supportedTacs: string[],
+) => {
   const operatorTrackingData = {
     supportedTacs: supportedTacs,
   };
@@ -57,7 +72,7 @@ export const updateOperatorTracking = async (authToken: string, supportedTacs: s
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": "Bearer " + authToken
+      Authorization: "Bearer " + authToken,
     },
     body: JSON.stringify(operatorTrackingData),
   });
@@ -65,17 +80,25 @@ export const updateOperatorTracking = async (authToken: string, supportedTacs: s
   try {
     respData = await response.json();
   } catch {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
+    );
   }
 
   if (!response.ok) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
+    );
   }
 
   return respData.result;
 };
 
-export const updateOperatorSlice = async (authToken: string, sd: number, sst: number) => {
+export const updateOperatorSlice = async (
+  authToken: string,
+  sd: number,
+  sst: number,
+) => {
   if (typeof sd !== "number" || typeof sst !== "number") {
     throw new Error("Both sd and sst must be numbers.");
   }
@@ -84,12 +107,12 @@ export const updateOperatorSlice = async (authToken: string, sd: number, sst: nu
     sst: sst,
   };
 
-  const data = JSON.stringify(operatorSliceData)
+  const data = JSON.stringify(operatorSliceData);
   const response = await fetch(`/api/v1/operator/slice`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": "Bearer " + authToken
+      Authorization: "Bearer " + authToken,
     },
     body: JSON.stringify(operatorSliceData),
   });
@@ -97,17 +120,24 @@ export const updateOperatorSlice = async (authToken: string, sd: number, sst: nu
   try {
     respData = await response.json();
   } catch {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
+    );
   }
 
   if (!response.ok) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
+    );
   }
 
   return respData.result;
 };
 
-export const updateOperatorCode = async (authToken: string, operatorCode: string) => {
+export const updateOperatorCode = async (
+  authToken: string,
+  operatorCode: string,
+) => {
   const operatorCodeData = {
     operatorCode: operatorCode,
   };
@@ -115,7 +145,7 @@ export const updateOperatorCode = async (authToken: string, operatorCode: string
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": "Bearer " + authToken
+      Authorization: "Bearer " + authToken,
     },
     body: JSON.stringify(operatorCodeData),
   });
@@ -123,17 +153,24 @@ export const updateOperatorCode = async (authToken: string, operatorCode: string
   try {
     respData = await response.json();
   } catch {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
+    );
   }
 
   if (!response.ok) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
+    );
   }
 
   return respData.result;
 };
 
-export const updateOperatorHomeNetwork = async (authToken: string, privateKey: string) => {
+export const updateOperatorHomeNetwork = async (
+  authToken: string,
+  privateKey: string,
+) => {
   const operatorHomeNetworkData = {
     privateKey: privateKey,
   };
@@ -141,7 +178,7 @@ export const updateOperatorHomeNetwork = async (authToken: string, privateKey: s
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": "Bearer " + authToken
+      Authorization: "Bearer " + authToken,
     },
     body: JSON.stringify(operatorHomeNetworkData),
   });
@@ -149,11 +186,15 @@ export const updateOperatorHomeNetwork = async (authToken: string, privateKey: s
   try {
     respData = await response.json();
   } catch {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`);
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
+    );
   }
 
   if (!response.ok) {
-    throw new Error(`${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`);
+    throw new Error(
+      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
+    );
   }
 
   return respData.result;

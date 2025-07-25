@@ -12,7 +12,9 @@ on:
     branches:
       - main
 
-jobs: 
+jobs:
+  ui-lint:
+    uses: ./.github/workflows/ui-lint.yaml
   go-unit-test:
     uses: ./.github/workflows/go-unittest.yaml
   go-vet:

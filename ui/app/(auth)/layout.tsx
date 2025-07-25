@@ -1,21 +1,18 @@
 "use client";
 
 import React, { useState } from "react";
-import {
-  Box,
-  CssBaseline,
-  Toolbar,
-  AppBar,
-  Typography,
-} from "@mui/material";
+import { Box, CssBaseline, Toolbar, AppBar, Typography } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import theme from "@/utils/theme";
 import "../globals.scss";
 import Logo from "@/components/Logo";
 
-
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [queryClient] = useState(() => new QueryClient());
 
   return (
@@ -34,7 +31,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               >
                 <Toolbar>
                   <Logo width={50} height={50} />
-                  <Typography variant="h6" noWrap component="div" sx={{ ml: 2 }}>
+                  <Typography
+                    variant="h6"
+                    noWrap
+                    component="div"
+                    sx={{ ml: 2 }}
+                  >
                     Ella Core
                   </Typography>
                 </Toolbar>

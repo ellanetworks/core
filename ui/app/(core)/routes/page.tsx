@@ -35,7 +35,10 @@ const Route = () => {
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<number | null>(null);
-  const [alert, setAlert] = useState<{ message: string; severity: "success" | "error" | null }>({
+  const [alert, setAlert] = useState<{
+    message: string;
+    severity: "success" | "error" | null;
+  }>({
     message: "",
     severity: null,
   });
@@ -144,7 +147,13 @@ const Route = () => {
         </Collapse>
       </Box>
       {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
           <CircularProgress />
         </Box>
       ) : routes.length === 0 ? (
@@ -170,7 +179,11 @@ const Route = () => {
               Routes ({routes.length})
             </Typography>
             {(role === "Admin" || role === "Network Manager") && (
-              <Button variant="contained" color="success" onClick={handleOpenCreateModal}>
+              <Button
+                variant="contained"
+                color="success"
+                onClick={handleOpenCreateModal}
+              >
                 Create
               </Button>
             )}

@@ -9,7 +9,11 @@ import DrawerLayout from "@/components/DrawerLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
 import useTokenValidation from "@/utils/token_validation";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [queryClient] = useState(() => new QueryClient());
 
   useTokenValidation();
