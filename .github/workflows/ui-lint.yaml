@@ -1,0 +1,20 @@
+name: UI Lint
+
+on:
+  workflow_call:
+
+jobs:
+  ui-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: use npm
+        uses: actions/setup-node@v4
+
+      - name: Run npx prettier
+        run: |
+          npx prettier -c src/
