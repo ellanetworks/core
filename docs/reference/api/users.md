@@ -24,7 +24,8 @@ None
 {
     "result": [
         {
-            "email": "admin"
+            "email": "admin@ellanetworks.com",
+            "role_id": 1
         }
     ]
 }
@@ -40,12 +41,12 @@ This path creates a new system user. The first user can be created without authe
 
 ### Parameters
 
-- `email` (string): The email of the user. 
+- `email` (string): The email of the user.
 - `password` (string): The password of the user.
-- `role` (int): The role of the user. Allowed values:
-    - `admin`: Administrator user with full access to network and system resources.
-    - `network-manager`: Network manager user with full access to network resources.
-    - `readonly`: Read-only user with only read access to network resources.
+- `role_id` (int): The role ID of the user. Allowed values:
+    - 1 (admin): Administrator user with full access to network and system resources.
+    - 2 (network manager): Network manager user with full access to network resources.
+    - 3 (read only): Read-only user with only read access to network resources.
 
 ### Sample Response
 
@@ -67,10 +68,10 @@ This path updates an existing system user.
 
 ### Parameters
 
-- `role` (int): The role of the user. Allowed values:
-    - `admin`: Administrator user with full access to network and system resources.
-    - `network-manager`: Network manager user with full access to network resources.
-    - `readonly`: Read-only user with only read access to network resources.
+- `role_id` (int): The role of the user. Allowed values:
+    - 1 (admin): Administrator user with full access to network and system resources.
+    - 2 (network manager): Network manager user with full access to network resources.
+    - 3 (read only): Read-only user with only read access to network resources.
 
 ### Sample Response
 
@@ -99,7 +100,8 @@ None
 ```json
 {
     "result": {
-        "email": "guillaume@ellanetworks.com"
+        "email": "admin@ellanetworks.com",
+        "role_id": 1
     }
 }
 ```

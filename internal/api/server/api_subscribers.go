@@ -74,7 +74,7 @@ func isSequenceNumberValid(sequenceNumber string) bool {
 
 func ListSubscribers(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
@@ -119,7 +119,7 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 
 func GetSubscriber(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		email, ok := r.Context().Value("email").(string)
+		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return

@@ -68,7 +68,7 @@ func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
 
 func ListRadios() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		email := r.Context().Value("email")
+		email := r.Context().Value(contextKeyEmail)
 		emailStr, ok := email.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", fmt.Errorf("missing email in context"), logger.APILog)
@@ -100,7 +100,7 @@ func ListRadios() http.HandlerFunc {
 
 func GetRadio() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		email := r.Context().Value("email")
+		email := r.Context().Value(contextKeyEmail)
 		emailStr, ok := email.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", fmt.Errorf("missing email in context"), logger.APILog)

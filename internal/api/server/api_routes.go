@@ -62,7 +62,7 @@ var interfaceKernelMap = map[string]kernel.NetworkInterface{
 
 func ListRoutes(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -92,7 +92,7 @@ func ListRoutes(dbInstance *db.Database) http.Handler {
 
 func GetRoute(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -126,7 +126,7 @@ func GetRoute(dbInstance *db.Database) http.Handler {
 
 func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
@@ -245,7 +245,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 
 func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value("email")
+		emailAny := r.Context().Value(contextKeyEmail)
 		email, ok := emailAny.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)

@@ -13,7 +13,7 @@ const BackupAction = "backup_database"
 
 func Backup(dbInstance *db.Database) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		email := r.Context().Value("email")
+		email := r.Context().Value(contextKeyEmail)
 		emailStr, ok := email.(string)
 		if !ok {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
