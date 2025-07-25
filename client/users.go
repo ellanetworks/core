@@ -6,9 +6,17 @@ import (
 	"encoding/json"
 )
 
+type RoleID int
+
+const (
+	RoleAdmin          RoleID = 1
+	RoleReadOnly       RoleID = 2
+	RoleNetworkManager RoleID = 3
+)
+
 type CreateUserOptions struct {
 	Email    string `json:"email"`
-	Role     string `json:"role"`
+	RoleID   RoleID `json:"role_id"`
 	Password string `json:"password"`
 }
 
@@ -17,7 +25,8 @@ type DeleteUserOptions struct {
 }
 
 type User struct {
-	Email string `json:"email"`
+	Email  string `json:"email"`
+	RoleID RoleID `json:"role_id"`
 }
 
 func (c *Client) ListUsers() ([]*User, error) {
@@ -41,11 +50,11 @@ func (c *Client) CreateUser(opts *CreateUserOptions) error {
 	payload := struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
-		Role     string `json:"role"`
+		RoleID   RoleID `json:"role_id"`
 	}{
 		Email:    opts.Email,
 		Password: opts.Password,
-		Role:     opts.Role,
+		RoleID:   opts.RoleID,
 	}
 
 	var body bytes.Buffer

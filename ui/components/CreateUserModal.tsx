@@ -18,6 +18,7 @@ import { ValidationError } from "yup";
 import { createUser } from "@/queries/users";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
+import { RoleID } from "@/types/types";
 
 interface CreateUserModalProps {
     open: boolean;
@@ -30,6 +31,32 @@ const schema = yup.object().shape({
     password: yup.string().min(1).max(256).required("Password is required"),
 });
 
+const roleLabelToEnum = (label: string): RoleID => {
+    switch (label) {
+        case "admin":
+            return RoleID.Admin;
+        case "network-manager":
+            return RoleID.NetworkManager;
+        case "readonly":
+            return RoleID.ReadOnly;
+        default:
+            return RoleID.ReadOnly;
+    }
+};
+
+const enumToRoleLabel = (role: RoleID): string => {
+    switch (role) {
+        case RoleID.Admin:
+            return "admin";
+        case RoleID.NetworkManager:
+            return "network-manager";
+        case RoleID.ReadOnly:
+            return "readonly";
+        default:
+            return "";
+    }
+};
+
 const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSuccess }) => {
     const router = useRouter();
     const [cookies] = useCookies(['user_token']);
@@ -40,7 +67,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
 
     const [formValues, setFormValues] = useState({
         email: "",
-        role: "admin",
+        role_id: RoleID.Admin,
         password: "",
     });
 
@@ -50,10 +77,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
     const [loading, setLoading] = useState(false);
     const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
-    const handleChange = (field: string, value: string | number) => {
+    const handleChange = (field: string, value: string | RoleID) => {
         setFormValues((prev) => ({
             ...prev,
-            [field]: value,
+            [field]: field === "role_id" ? roleLabelToEnum(value as string) : value,
         }));
         validateField(field, value);
     };
@@ -111,7 +138,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
             await createUser(
                 cookies.user_token,
                 formValues.email,
-                formValues.role,
+                formValues.role_id,
                 formValues.password,
             );
             onClose();
@@ -171,13 +198,13 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
                     <Select
                         labelId="role-select-label"
                         id="role-select"
-                        value={formValues.role}
+                        value={enumToRoleLabel(formValues.role_id)}
                         label="Role"
-                        onChange={(e) => handleChange("role", e.target.value)}
+                        onChange={(e) => handleChange("role_id", e.target.value)}
                     >
-                        <MenuItem value={"admin"}>Admin</MenuItem>
-                        <MenuItem value={"network-manager"}>Network Manager</MenuItem>
-                        <MenuItem value={"readonly"}>Read Only</MenuItem>
+                        <MenuItem value="admin">Admin</MenuItem>
+                        <MenuItem value="network-manager">Network Manager</MenuItem>
+                        <MenuItem value="readonly">Read Only</MenuItem>
                     </Select>
                 </FormControl>
             </DialogContent>

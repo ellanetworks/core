@@ -19,3 +19,7 @@ ui/.env*.local
 
 # DB
 *.db
+*.db-*
+
+# Binary
+main
