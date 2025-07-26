@@ -14,24 +14,22 @@ import {
 import { updateProfile } from "@/queries/profiles";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
+import { Profile } from "@/types/types"
 
 interface EditProfileModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialData: {
-    name: string;
-    ipPool: string;
-    dns: string;
-    mtu: number;
-    bitrateUpValue: number;
-    bitrateUpUnit: string;
-    bitrateDownValue: number;
-    bitrateDownUnit: string;
-    fiveQi: number;
-    priorityLevel: number;
-  };
+  initialData: Profile;
 }
+
+type FormState = Omit<Profile, "bitrateUp" | "bitrateDown"> & {
+  bitrateUpValue: number;
+  bitrateUpUnit: "Mbps" | "Gbps";
+  bitrateDownValue: number;
+  bitrateDownUnit: "Mbps" | "Gbps";
+};
+
 
 const EditProfileModal: React.FC<EditProfileModalProps> = ({
   open,
@@ -45,17 +43,44 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
   if (!cookies.user_token) {
     router.push("/login");
   }
-  const [formValues, setFormValues] = useState(initialData);
+  const [formValues, setFormValues] = useState<FormState>({
+  name: "",
+  ipPool: "",
+  dns: "",
+  mtu: 1500,
+  bitrateUpValue: 0,
+  bitrateUpUnit: "Mbps",
+  bitrateDownValue: 0,
+  bitrateDownUnit: "Mbps",
+  fiveQi: 0,
+  priorityLevel: 0,
+});
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
   useEffect(() => {
-    if (open) {
-      setFormValues(initialData);
-      setErrors({});
-    }
-  }, [open, initialData]);
+  if (open) {
+    const [bitrateUpValueStr, bitrateUpUnit] = initialData.bitrateUp.split(" ");
+    const [bitrateDownValueStr, bitrateDownUnit] = initialData.bitrateDown.split(" ");
+
+    setFormValues({
+      name: initialData.name,
+      ipPool: initialData.ipPool,
+      dns: initialData.dns,
+      mtu: initialData.mtu,
+      bitrateUpValue: parseInt(bitrateUpValueStr, 10),
+      bitrateUpUnit: bitrateUpUnit as "Mbps" | "Gbps",
+      bitrateDownValue: parseInt(bitrateDownValueStr, 10),
+      bitrateDownUnit: bitrateDownUnit as "Mbps" | "Gbps",
+      fiveQi: initialData.fiveQi,
+      priorityLevel: initialData.priorityLevel,
+    });
+    setErrors({});
+  }
+}, [open, initialData]);
+
 
   const handleChange = (field: string, value: string | number) => {
     setFormValues((prev) => ({
@@ -65,32 +90,34 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
   };
 
   const handleSubmit = async () => {
-    setLoading(true);
-    setAlert({ message: "" });
+  setLoading(true);
+  setAlert({ message: "" });
 
-    try {
-      const bitrateUplink = `${formValues.bitrateUpValue} ${formValues.bitrateUpUnit}`;
-      const bitrateDownlink = `${formValues.bitrateDownValue} ${formValues.bitrateDownUnit}`;
-      await updateProfile(
-        cookies.user_token,
-        formValues.name,
-        formValues.ipPool,
-        formValues.dns,
-        formValues.mtu,
-        bitrateUplink,
-        bitrateDownlink,
-        formValues.fiveQi,
-        formValues.priorityLevel,
-      );
-      onClose();
-      onSuccess();
-    } catch (error: any) {
-      const errorMessage = error?.message || "Unknown error occurred.";
-      setAlert({ message: `Failed to update profile: ${errorMessage}` });
-    } finally {
-      setLoading(false);
-    }
-  };
+  const bitrateUp = `${formValues.bitrateUpValue} ${formValues.bitrateUpUnit}`;
+  const bitrateDown = `${formValues.bitrateDownValue} ${formValues.bitrateDownUnit}`;
+
+  try {
+    await updateProfile(
+      cookies.user_token,
+      formValues.name,
+      formValues.ipPool,
+      formValues.dns,
+      formValues.mtu,
+      bitrateUp,
+      bitrateDown,
+      formValues.fiveQi,
+      formValues.priorityLevel,
+    );
+    onClose();
+    onSuccess();
+  } catch (error: any) {
+    const errorMessage = error?.message || "Unknown error occurred.";
+    setAlert({ message: `Failed to update profile: ${errorMessage}` });
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <Dialog

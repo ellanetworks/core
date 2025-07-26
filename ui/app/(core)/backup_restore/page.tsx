@@ -6,7 +6,7 @@ import { useCookies } from "react-cookie";
 import Grid from "@mui/material/Grid";
 
 const BackupRestore = () => {
-  const [cookies, setCookie, removeCookie] = useCookies(["user_token"]);
+  const [cookies, , ] = useCookies(["user_token"]);
 
   const [alert, setAlert] = useState<{
     message: string;

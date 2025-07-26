@@ -3,3 +3,15 @@ export enum RoleID {
   ReadOnly = 2,
   NetworkManager = 3,
 }
+
+export type Profile = {
+  name: string;
+  ipPool: string;
+  dns: string;
+  mtu: number;
+  bitrateUp: string;
+  bitrateDown: string;
+  fiveQi: number;
+  priorityLevel: number
+};
+
