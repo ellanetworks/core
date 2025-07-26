@@ -47,7 +47,7 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
   initialData,
 }) => {
   const router = useRouter();
-  const [cookies, setCookie, removeCookie] = useCookies(["user_token"]);
+  const [cookies, ,] = useCookies(["user_token"]);
 
   if (!cookies.user_token) {
     router.push("/login");
@@ -83,14 +83,16 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
       await schema.validate(formValues, { abortEarly: false });
       setErrors({});
       return true;
-    } catch (err: any) {
-      const validationErrors: Record<string, string> = {};
-      err.inner.forEach((error: yup.ValidationError) => {
-        if (error.path) {
-          validationErrors[error.path] = error.message;
-        }
-      });
-      setErrors(validationErrors);
+    } catch (err: unknown) {
+      if (err instanceof yup.ValidationError) {
+        const validationErrors: Record<string, string> = {};
+        err.inner.forEach((error) => {
+          if (error.path) {
+            validationErrors[error.path] = error.message;
+          }
+        });
+        setErrors(validationErrors);
+      }
       return false;
     }
   };
@@ -110,8 +112,9 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
       );
       onClose();
       onSuccess();
-    } catch (error: any) {
-      const errorMessage = error?.message || "Unknown error occurred.";
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred.";
       setAlert({
         message: `Failed to update operator slice information: ${errorMessage}`,
       });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -114,7 +114,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
     }
   };
 
-  const validateForm = async () => {
+  const validateForm = useCallback(async () => {
     try {
       await schema.validate(formValues, { abortEarly: false });
       setErrors({});
@@ -132,11 +132,11 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
       }
       setIsValid(false);
     }
-  };
+  }, [formValues]);
 
   useEffect(() => {
     validateForm();
-  }, [formValues]);
+  }, [formValues, validateForm]);
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -150,8 +150,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
       );
       onClose();
       onSuccess();
-    } catch (error: any) {
-      const errorMessage = error?.message || "Unknown error occurred.";
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred.";
       setAlert({
         message: `Failed to create user: ${errorMessage}`,
       });

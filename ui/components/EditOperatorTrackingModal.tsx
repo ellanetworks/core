@@ -69,7 +69,10 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
     return true;
   };
 
-  const handleTacsChange = (event: any, value: string[]) => {
+  const handleTacsChange = (
+    _event: React.SyntheticEvent<Element, Event>,
+    value: string[],
+  ) => {
     setFormValues({ supportedTacs: value });
     validateTacs(value);
   };
@@ -87,8 +90,9 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
       );
       onClose();
       onSuccess();
-    } catch (error: any) {
-      const errorMessage = error?.message || "Unknown error occurred.";
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred.";
       setAlert({ message: `Failed to update supported TACs: ${errorMessage}` });
     } finally {
       setLoading(false);
@@ -127,15 +131,6 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
           options={[]}
           value={formValues.supportedTacs}
           onChange={handleTacsChange}
-          renderTags={(value: readonly string[], getTagProps) =>
-            value.map((option: string, index: number) => (
-              <Chip
-                variant="outlined"
-                label={option}
-                {...getTagProps({ index })}
-              />
-            ))
-          }
           renderInput={(params) => (
             <TextField
               {...params}

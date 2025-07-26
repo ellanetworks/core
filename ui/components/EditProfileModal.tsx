@@ -37,7 +37,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
   initialData,
 }) => {
   const router = useRouter();
-  const [cookies, setCookie, removeCookie] = useCookies(["user_token"]);
+  const [cookies, ,] = useCookies(["user_token"]);
 
   if (!cookies.user_token) {
     router.push("/login");
@@ -110,8 +110,9 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
       );
       onClose();
       onSuccess();
-    } catch (error: any) {
-      const errorMessage = error?.message || "Unknown error occurred.";
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred.";
       setAlert({ message: `Failed to update profile: ${errorMessage}` });
     } finally {
       setLoading(false);
