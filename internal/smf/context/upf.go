@@ -46,6 +46,7 @@ type UPF struct {
 	qerIDGenerator *idgenerator.IDGenerator
 
 	NodeID NodeID
+	Load   uint8 // Percentage
 
 	// lock
 	UpfLock sync.RWMutex

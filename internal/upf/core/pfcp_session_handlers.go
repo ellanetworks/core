@@ -120,6 +120,17 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 	pdrIEs := processCreatedPDRs(createdPDRs, cloneIP(conn.n3Address))
 	additionalIEs = append(additionalIEs, pdrIEs...)
 
+	load, err := GetCPUUsagePercent()
+	if err != nil {
+		logger.UpfLog.Warn("Failed to get CPU usage", zap.Error(err))
+	}
+
+	metricIE := ie.NewMetric(load)
+	loadControlSequenceNumber := ie.NewSequenceNumber(1) // Hardcoding sequence number to 1 for simplicity (differs from 3gpp spec)
+	loadControlIE := ie.NewLoadControlInformation(metricIE, loadControlSequenceNumber)
+
+	additionalIEs = append(additionalIEs, loadControlIE)
+
 	estResp := message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, additionalIEs...)
 	logger.UpfLog.Debug("Accepted Session Establishment Request", zap.String("smfAddress", conn.SmfAddress))
 	return estResp, nil

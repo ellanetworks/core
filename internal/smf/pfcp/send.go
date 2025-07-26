@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/context"
 	upf "github.com/ellanetworks/core/internal/upf/core"
 	"github.com/wmnsk/go-pfcp/ie"
@@ -122,6 +123,13 @@ func HandlePfcpSessionEstablishmentResponse(ctx ctxt.Context, msg *message.Sessi
 		n3Interface := context.UPFInterfaceInfo{}
 		n3Interface.IPv4EndPointAddresses = append(n3Interface.IPv4EndPointAddresses, fteid.IPv4Address)
 		upf.N3Interface = n3Interface
+
+		load, err := getLoadFromSessionEstablishmentResponse(msg)
+		if err != nil {
+			return fmt.Errorf("failed to get load from SessionEstablishmentResponse: %v", err)
+		}
+
+		upf.Load = load
 	}
 	smContext.SMLock.Unlock()
 
@@ -137,6 +145,31 @@ func HandlePfcpSessionEstablishmentResponse(ctx ctxt.Context, msg *message.Sessi
 		return nil
 	}
 	return fmt.Errorf("PFCP Session Establishment rejected with cause: %v", causeValue)
+}
+
+func getLoadFromSessionEstablishmentResponse(msg *message.SessionEstablishmentResponse) (uint8, error) {
+	for _, msgIE := range msg.IEs {
+		if msgIE.Type == ie.LoadControlInformation {
+			// LoadControlInformation is a Grouped IE, parse its children
+			loadMetricIEs, err := msgIE.LoadControlInformation()
+			if err != nil {
+				return 0, fmt.Errorf("failed to parse LoadControlInformation IE: %v", err)
+			}
+
+			for _, child := range loadMetricIEs {
+				if child.Type == ie.Metric {
+					load, err := child.Metric()
+					if err != nil {
+						return 0, fmt.Errorf("failed to parse Load Metric: %v", err)
+					}
+					return load, nil
+				}
+			}
+		}
+	}
+
+	logger.SmfLog.Debug("No LoadControlInformation IE in Session Establishment Response")
+	return 0, nil
 }
 
 func HandlePfcpSessionModificationResponse(msg *message.SessionModificationResponse) error {
