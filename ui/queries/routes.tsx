@@ -1,6 +1,7 @@
 import { HTTPStatus } from "@/queries/utils";
+import { Route } from "@/types/types";
 
-export const listRoutes = async (authToken: string) => {
+export const listRoutes = async (authToken: string): Promise<Route[]> => {
   const response = await fetch(`/api/v1/routes`, {
     method: "GET",
     headers: {
@@ -23,7 +24,15 @@ export const listRoutes = async (authToken: string) => {
     );
   }
 
-  return respData.result;
+  const transformed: Route[] = respData.result.map((p: any) => ({
+    id: p.id,
+    destination: p.destination,
+    gateway: p.gateway,
+    interface: p.interface,
+    metric: p.metric,
+  }));
+
+  return transformed;
 };
 
 export const createRoute = async (

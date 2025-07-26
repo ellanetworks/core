@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Box,
   IconButton,
@@ -65,18 +65,18 @@ const Operator = () => {
     severity: null,
   });
 
-  const fetchOperator = async () => {
+  const fetchOperator = useCallback(async () => {
     try {
       const data = await getOperator(cookies.user_token);
       setOperator(data);
     } catch (error) {
       console.error("Error fetching operator information:", error);
     }
-  };
+  }, [cookies.user_token]);
 
   useEffect(() => {
     fetchOperator();
-  }, []);
+  }, [fetchOperator]);
 
   const handleEditOperatorIdClick = () => setEditOperatorIdModalOpen(true);
   const handleEditOperatorCodeClick = () => setEditOperatorCodeModalOpen(true);
@@ -247,7 +247,7 @@ const Operator = () => {
           <Grid container spacing={2}>
             <Grid size={6}>
               <Typography variant="body1">
-                Supported Tracking Area Codes (TAC's)
+                Supported Tracking Area Codes (TAC&apos;s)
               </Typography>
             </Grid>
             <Grid size={6}>

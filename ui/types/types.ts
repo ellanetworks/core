@@ -14,3 +14,11 @@ export type Profile = {
   fiveQi: number;
   priorityLevel: number;
 };
+
+export type Route = {
+  id: string;
+  destination: string;
+  gateway: string;
+  interface: string;
+  metric: number;
+};
