@@ -13,8 +13,8 @@ func TestGetCPUUsagePercent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error getting CPU usage: %v", err)
 	}
-	if usage < 0 || usage > 100 {
-		t.Fatalf("CPU usage out of bounds: %f", usage)
+	if usage > 100 {
+		t.Fatalf("CPU usage out of bounds: %d", usage)
 	}
-	t.Logf("CPU Usage: %f%%", usage)
+	t.Logf("CPU Usage: %d%%", usage)
 }
