@@ -12,6 +12,5 @@ export type Profile = {
   bitrateUp: string;
   bitrateDown: string;
   fiveQi: number;
-  priorityLevel: number
+  priorityLevel: number;
 };
-

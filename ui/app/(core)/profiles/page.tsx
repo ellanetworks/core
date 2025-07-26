@@ -19,7 +19,7 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
-import { Profile } from "@/types/types"
+import { Profile } from "@/types/types";
 
 const ProfilePage = () => {
   const { role } = useAuth();
@@ -45,7 +45,6 @@ const ProfilePage = () => {
       const data = await listProfiles(cookies.user_token);
 
       setProfiles(data);
-
     } catch (error) {
       console.error("Error fetching profiles:", error);
     } finally {

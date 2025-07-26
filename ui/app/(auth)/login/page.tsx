@@ -16,7 +16,7 @@ import { getStatus } from "@/queries/status";
 
 const LoginPage = () => {
   const router = useRouter();
-  const [, setCookie,] = useCookies(["user_token"]);
+  const [, setCookie] = useCookies(["user_token"]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);

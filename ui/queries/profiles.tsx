@@ -1,5 +1,5 @@
 import { HTTPStatus } from "@/queries/utils";
-import { Profile } from "@/types/types"
+import { Profile } from "@/types/types";
 
 export const listProfiles = async (authToken: string): Promise<Profile[]> => {
   const response = await fetch(`/api/v1/profiles`, {

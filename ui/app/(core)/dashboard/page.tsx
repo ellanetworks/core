@@ -95,7 +95,7 @@ const Dashboard = () => {
         setSubscriberCount(subscribers.length);
         setRadioCount(radios.length);
       } catch {
-        setError("Failed to fetch initial data.")
+        setError("Failed to fetch initial data.");
       }
     };
 
