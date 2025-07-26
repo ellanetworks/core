@@ -1,6 +1,9 @@
 import { HTTPStatus } from "@/queries/utils";
+import { Subscriber } from "@/types/types";
 
-export const listSubscribers = async (authToken: string) => {
+export const listSubscribers = async (
+  authToken: string,
+): Promise<Subscriber[]> => {
   const response = await fetch(`/api/v1/subscribers`, {
     method: "GET",
     headers: {
@@ -23,7 +26,16 @@ export const listSubscribers = async (authToken: string) => {
     );
   }
 
-  return respData.result;
+  const transformed: Subscriber[] = respData.result.map((p: any) => ({
+    imsi: p.imsi,
+    ipAddress: p.ipAddress,
+    opc: p.opc,
+    sequenceNumber: p.sequenceNumber,
+    key: p.key,
+    profileName: p.profileName,
+  }));
+
+  return transformed;
 };
 
 export const getSubscriber = async (authToken: string, imsi: string) => {

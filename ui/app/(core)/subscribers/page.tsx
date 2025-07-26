@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -24,23 +24,18 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
+import { Subscriber } from "@/types/types";
 
-interface SubscriberData {
-  imsi: string;
-  ipAddress: string;
-  profileName: string;
-}
-
-const Subscriber = () => {
+const SubscriberPage = () => {
   const { role } = useAuth();
   const [cookies] = useCookies(["user_token"]);
-  const [subscribers, setSubscribers] = useState<SubscriberData[]>([]);
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isViewModalOpen, setViewModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-  const [editData, setEditData] = useState<SubscriberData | null>(null);
+  const [editData, setEditData] = useState<Subscriber | null>(null);
   const [selectedSubscriber, setSelectedSubscriber] = useState<string | null>(
     null,
   );
@@ -52,7 +47,7 @@ const Subscriber = () => {
     severity: null,
   });
 
-  const fetchSubscribers = async () => {
+  const fetchSubscribers = useCallback(async () => {
     setLoading(true);
     try {
       const data = await listSubscribers(cookies.user_token);
@@ -62,11 +57,11 @@ const Subscriber = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [cookies.user_token]);
 
   useEffect(() => {
     fetchSubscribers();
-  }, []);
+  }, [fetchSubscribers]);
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
@@ -75,17 +70,12 @@ const Subscriber = () => {
     setViewModalOpen(false);
   };
 
-  const handleEditClick = (subscriber: any) => {
-    const mappedSubscriber = {
-      imsi: subscriber.imsi,
-      ipAddress: subscriber.ipAddress,
-      profileName: subscriber.profileName,
-    };
-    setEditData(mappedSubscriber);
+  const handleEditClick = (subscriber: Subscriber) => {
+    setEditData(subscriber);
     setEditModalOpen(true);
   };
 
-  const handleViewClick = (subscriber: any) => {
+  const handleViewClick = (subscriber: Subscriber) => {
     setSelectedSubscriber(subscriber.imsi);
     setViewModalOpen(true);
   };
@@ -105,7 +95,7 @@ const Subscriber = () => {
           severity: "success",
         });
         fetchSubscribers();
-      } catch (error) {
+      } catch {
         setAlert({
           message: `Failed to delete subscriber "${selectedSubscriber}".`,
           severity: "error",
@@ -271,4 +261,4 @@ const Subscriber = () => {
   );
 };
 
-export default Subscriber;
+export default SubscriberPage;

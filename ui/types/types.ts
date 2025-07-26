@@ -22,3 +22,12 @@ export type Route = {
   interface: string;
   metric: number;
 };
+
+export type Subscriber = {
+  imsi: string;
+  ipAddress: string;
+  opc: string;
+  sequenceNumber: string;
+  key: string;
+  profileName: string;
+};
