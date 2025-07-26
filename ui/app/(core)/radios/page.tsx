@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -25,7 +25,7 @@ const Radio = () => {
   const [loading, setLoading] = useState(true);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
-  const fetchRadios = async () => {
+  const fetchRadios = useCallback(async () => {
     setLoading(true);
     try {
       const data = await listRadios(cookies.user_token);
@@ -35,11 +35,11 @@ const Radio = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [cookies.user_token]);
 
   useEffect(() => {
     fetchRadios();
-  }, []);
+  }, [fetchRadios]);
 
   const columns: GridColDef[] = [
     { field: "id", headerName: "ID", flex: 1 },

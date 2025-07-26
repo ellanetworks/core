@@ -78,8 +78,11 @@ const EditUserPasswordModal: React.FC<EditUserPasswordModalProps> = ({
       );
       onClose();
       onSuccess();
-    } catch (error: any) {
-      const errorMessage = error?.message || "Unknown error occurred.";
+    } catch (error: unknown) {
+      let errorMessage = "Unknown error occurred.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
       setAlert({ message: `Failed to update user: ${errorMessage}` });
     } finally {
       setLoading(false);

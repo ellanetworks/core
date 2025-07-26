@@ -1,6 +1,7 @@
 import { HTTPStatus } from "@/queries/utils";
+import { Profile } from "@/types/types";
 
-export const listProfiles = async (authToken: string) => {
+export const listProfiles = async (authToken: string): Promise<Profile[]> => {
   const response = await fetch(`/api/v1/profiles`, {
     method: "GET",
     headers: {
@@ -8,6 +9,7 @@ export const listProfiles = async (authToken: string) => {
       Authorization: "Bearer " + authToken,
     },
   });
+
   let respData;
   try {
     respData = await response.json();
@@ -23,7 +25,18 @@ export const listProfiles = async (authToken: string) => {
     );
   }
 
-  return respData.result;
+  const transformed: Profile[] = respData.result.map((p: any) => ({
+    name: p.name,
+    ipPool: p["ue-ip-pool"],
+    dns: p.dns,
+    mtu: p.mtu,
+    bitrateUp: p["bitrate-uplink"],
+    bitrateDown: p["bitrate-downlink"],
+    fiveQi: p["var5qi"],
+    priorityLevel: p["priority-level"],
+  }));
+
+  return transformed;
 };
 
 export const createProfile = async (

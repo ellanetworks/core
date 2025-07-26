@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -11,26 +11,19 @@ import {
   IconButton,
 } from "@mui/material";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
-import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
+import { Delete as DeleteIcon } from "@mui/icons-material";
 import { listRoutes, deleteRoute } from "@/queries/routes";
 import CreateRouteModal from "@/components/CreateRouteModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
+import { Route } from "@/types/types";
 
-interface RouteData {
-  id: number;
-  destination: string;
-  gateway: string;
-  interface: string;
-  mtu: number;
-}
-
-const Route = () => {
+const RoutePage = () => {
   const { role } = useAuth();
   const [cookies] = useCookies(["user_token"]);
-  const [routes, setRoutes] = useState<RouteData[]>([]);
+  const [routes, setRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
@@ -43,30 +36,21 @@ const Route = () => {
     severity: null,
   });
 
-  const fetchRoutes = async () => {
+  const fetchRoutes = useCallback(async () => {
     setLoading(true);
     try {
       const data = await listRoutes(cookies.user_token);
-
-      const mappedData = data.map((route: any) => ({
-        id: route.id,
-        destination: route.destination,
-        gateway: route.gateway,
-        interface: route.interface,
-        metric: route.metric,
-      }));
-
-      setRoutes(mappedData);
+      setRoutes(data);
     } catch (error) {
       console.error("Error fetching routes:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [cookies.user_token]);
 
   useEffect(() => {
     fetchRoutes();
-  }, []);
+  }, [fetchRoutes]);
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
@@ -224,4 +208,4 @@ const Route = () => {
   );
 };
 
-export default Route;
+export default RoutePage;

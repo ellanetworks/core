@@ -17,6 +17,7 @@ import { updateSubscriber } from "@/queries/subscribers";
 import { listProfiles } from "@/queries/profiles";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
+import { Profile } from "@/types/types";
 
 interface EditSubscriberModalProps {
   open: boolean;
@@ -35,7 +36,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
   initialData,
 }) => {
   const router = useRouter();
-  const [cookies, setCookie, removeCookie] = useCookies(["user_token"]);
+  const [cookies, ,] = useCookies(["user_token"]);
 
   if (!cookies.user_token) {
     router.push("/login");
@@ -50,7 +51,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
     const fetchProfiles = async () => {
       try {
         const profileData = await listProfiles(cookies.user_token);
-        setProfiles(profileData.map((profile: any) => profile.name));
+        setProfiles(profileData.map((profile: Profile) => profile.name));
       } catch (error) {
         console.error("Failed to fetch profiles:", error);
       }
@@ -61,7 +62,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
       setFormValues(initialData);
       setErrors({});
     }
-  }, [open, initialData]);
+  }, [open, initialData, cookies.user_token]);
 
   const handleChange = (field: string, value: string | number) => {
     setFormValues((prev) => ({
@@ -82,8 +83,14 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
       );
       onClose();
       onSuccess();
-    } catch (error: any) {
-      const errorMessage = error?.message || "Unknown error occurred.";
+    } catch (error: unknown) {
+      let errorMessage = "Unknown error occurred.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      setAlert({
+        message: `Failed to get subscriber: ${errorMessage}`,
+      });
       setAlert({ message: `Failed to update subscriber: ${errorMessage}` });
     } finally {
       setLoading(false);

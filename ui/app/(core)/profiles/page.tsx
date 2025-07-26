@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -19,29 +19,17 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
+import { Profile } from "@/types/types";
 
-interface ProfileData {
-  name: string;
-  ipPool: string;
-  dns: string;
-  mtu: number;
-  bitrateUpValue: number;
-  bitrateUpUnit: string;
-  bitrateDownValue: number;
-  bitrateDownUnit: string;
-  fiveQi: number;
-  priorityLevel: number;
-}
-
-const Profile = () => {
+const ProfilePage = () => {
   const { role } = useAuth();
   const [cookies] = useCookies(["user_token"]);
-  const [profiles, setProfiles] = useState<ProfileData[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-  const [editData, setEditData] = useState<ProfileData | null>(null);
+  const [editData, setEditData] = useState<Profile | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
   const [alert, setAlert] = useState<{
     message: string;
@@ -51,49 +39,27 @@ const Profile = () => {
     severity: null,
   });
 
-  const fetchProfiles = async () => {
+  const fetchProfiles = useCallback(async () => {
     setLoading(true);
     try {
       const data = await listProfiles(cookies.user_token);
-
-      const mappedData = data.map((profile: any) => ({
-        name: profile.name,
-        ipPool: profile["ue-ip-pool"] || "N/A",
-        dns: profile.dns || "N/A",
-        bitrateUp: profile["bitrate-uplink"] || "0 Mbps",
-        bitrateDown: profile["bitrate-downlink"] || "0 Mbps",
-        fiveQi: profile["var5qi"] || 0,
-        priorityLevel: profile["priority-level"] || 0,
-      }));
-
-      setProfiles(mappedData);
+      setProfiles(data);
     } catch (error) {
       console.error("Error fetching profiles:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [cookies.user_token]);
 
   useEffect(() => {
     fetchProfiles();
-  }, []);
+  }, [fetchProfiles]);
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
 
-  const handleEditClick = (profile: any) => {
-    setEditData({
-      name: profile.name,
-      ipPool: profile.ipPool,
-      dns: profile.dns,
-      mtu: 1500,
-      bitrateUpValue: parseInt(profile.bitrateUp),
-      bitrateUpUnit: profile.bitrateUp.includes("Gbps") ? "Gbps" : "Mbps",
-      bitrateDownValue: parseInt(profile.bitrateDown),
-      bitrateDownUnit: profile.bitrateDown.includes("Gbps") ? "Gbps" : "Mbps",
-      fiveQi: profile.fiveQi,
-      priorityLevel: profile.priorityLevel,
-    });
+  const handleEditClick = (profile: Profile) => {
+    setEditData(profile);
     setEditModalOpen(true);
   };
 
@@ -257,10 +223,8 @@ const Profile = () => {
             ipPool: "",
             dns: "",
             mtu: 1500,
-            bitrateUpValue: 100,
-            bitrateUpUnit: "Mbps",
-            bitrateDownValue: 100,
-            bitrateDownUnit: "Mbps",
+            bitrateUp: "100 Mbps",
+            bitrateDown: "100 Mbps",
             fiveQi: 1,
             priorityLevel: 1,
           }
@@ -277,4 +241,4 @@ const Profile = () => {
   );
 };
 
-export default Profile;
+export default ProfilePage;

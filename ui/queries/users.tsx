@@ -1,5 +1,5 @@
 import { HTTPStatus } from "@/queries/utils";
-import { RoleID } from "@/types/types";
+import { User, RoleID } from "@/types/types";
 
 export const getLoggedInUser = async (authToken: string) => {
   const response = await fetch(`/api/v1/users/me`, {
@@ -27,7 +27,7 @@ export const getLoggedInUser = async (authToken: string) => {
   return respData.result;
 };
 
-export const listUsers = async (authToken: string) => {
+export const listUsers = async (authToken: string): Promise<User[]> => {
   const response = await fetch(`/api/v1/users`, {
     method: "GET",
     headers: {
@@ -50,7 +50,12 @@ export const listUsers = async (authToken: string) => {
     );
   }
 
-  return respData.result;
+  const transformed: User[] = respData.result.map((p: any) => ({
+    email: p.email,
+    roleID: p.role_id,
+  }));
+
+  return transformed;
 };
 
 export const createUser = async (

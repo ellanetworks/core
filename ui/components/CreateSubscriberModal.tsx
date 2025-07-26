@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Box,
   Dialog,
@@ -31,6 +31,25 @@ interface CreateSubscriberModalProps {
   onClose: () => void;
   onSuccess: () => void;
 }
+
+type FormValues = {
+  msin: string;
+  key: string;
+  opc: string;
+  sequenceNumber: string;
+  profileName: string;
+};
+
+type Operator = {
+  id: {
+    mcc: string;
+    mnc: string;
+  };
+};
+
+type Profile = {
+  name: string;
+};
 
 const schema = yup.object().shape({
   msin: yup
@@ -68,16 +87,16 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   onSuccess,
 }) => {
   const router = useRouter();
-  const [cookies, setCookie, removeCookie] = useCookies(["user_token"]);
+  const [cookies, ,] = useCookies(["user_token"]);
 
   if (!cookies.user_token) {
     router.push("/login");
   }
-  const [formValues, setFormValues] = useState({
+  const [formValues, setFormValues] = useState<FormValues>({
     msin: "",
     key: "",
     opc: "",
-    sequenceNumber: "000000000022", // Default value
+    sequenceNumber: "000000000022",
     profileName: "",
   });
 
@@ -94,12 +113,12 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   useEffect(() => {
     const fetchOperatorAndProfiles = async () => {
       try {
-        const operator = await getOperator(cookies.user_token);
+        const operator: Operator = await getOperator(cookies.user_token);
         setMcc(operator.id.mcc);
         setMnc(operator.id.mnc);
 
-        const profileData = await listProfiles(cookies.user_token);
-        setProfiles(profileData.map((profile: any) => profile.name));
+        const profileData: Profile[] = await listProfiles(cookies.user_token);
+        setProfiles(profileData.map((profile) => profile.name));
       } catch (error) {
         console.error("Failed to fetch data:", error);
       }
@@ -108,7 +127,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
     if (open) {
       fetchOperatorAndProfiles();
     }
-  }, [open]);
+  }, [open, cookies.user_token]);
 
   const handleChange = (field: string, value: string | number) => {
     setFormValues((prev) => ({
@@ -143,7 +162,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
     }
   };
 
-  const validateForm = async () => {
+  const validateForm = useCallback(async () => {
     try {
       await schema.validate(formValues, { abortEarly: false });
       setErrors({});
@@ -161,11 +180,11 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
       }
       setIsValid(false);
     }
-  };
+  }, [formValues]);
 
   useEffect(() => {
     validateForm();
-  }, [formValues]);
+  }, [formValues, validateForm]);
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -182,8 +201,9 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
       );
       onClose();
       onSuccess();
-    } catch (error: any) {
-      const errorMessage = error.message || "Unknown error occurred.";
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred.";
       setAlert({
         message: `Failed to create subscriber: ${errorMessage}`,
       });

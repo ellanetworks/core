@@ -41,7 +41,7 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
     sequenceNumber: "",
     profileName: "",
   });
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
   const [keyObfuscated, setKeyObfuscated] = useState(true);
   const [opcObfuscated, setOPcObfuscated] = useState(true);
@@ -62,9 +62,13 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
           sequenceNumber: data.sequenceNumber,
           profileName: data.profileName,
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
+        let errorMessage = "Unknown error occurred.";
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        }
         setAlert({
-          message: error?.message || "Failed to fetch subscriber data.",
+          message: `Failed to get subscriber: ${errorMessage}`,
         });
         console.error("Error fetching subscriber data:", error);
       } finally {

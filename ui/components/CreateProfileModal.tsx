@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Box,
   Dialog,
@@ -66,7 +66,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
   onSuccess,
 }) => {
   const router = useRouter();
-  const [cookies, setCookie, removeCookie] = useCookies(["user_token"]);
+  const [cookies, ,] = useCookies(["user_token"]);
 
   if (!cookies.user_token) {
     router.push("/login");
@@ -124,7 +124,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
     }
   };
 
-  const validateForm = async () => {
+  const validateForm = useCallback(async () => {
     try {
       await schema.validate(formValues, { abortEarly: false });
       setErrors({});
@@ -142,11 +142,11 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
       }
       setIsValid(false);
     }
-  };
+  }, [formValues]);
 
   useEffect(() => {
     validateForm();
-  }, [formValues]);
+  }, [validateForm, formValues]);
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -167,8 +167,12 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
       );
       onClose();
       onSuccess();
-    } catch (error: any) {
-      const errorMessage = error?.message || "Unknown error occurred.";
+    } catch (error: unknown) {
+      let errorMessage = "Unknown error occurred.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
       setAlert({
         message: `Failed to create profile: ${errorMessage}`,
       });

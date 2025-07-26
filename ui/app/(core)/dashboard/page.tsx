@@ -82,7 +82,6 @@ const Dashboard = () => {
     };
   };
 
-  // Static fetch for status, subscribers, and radios.
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
@@ -95,8 +94,7 @@ const Dashboard = () => {
         setVersion(status.version);
         setSubscriberCount(subscribers.length);
         setRadioCount(radios.length);
-      } catch (err: any) {
-        console.error("Failed to fetch initial data:", err);
+      } catch {
         setError("Failed to fetch initial data.");
       }
     };
@@ -104,7 +102,6 @@ const Dashboard = () => {
     fetchInitialData();
   }, [cookies.user_token]);
 
-  // Metrics update every second: this call updates all metrics state and throughput.
   useEffect(() => {
     const updateMetrics = async () => {
       try {

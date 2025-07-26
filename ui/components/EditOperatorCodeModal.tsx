@@ -11,6 +11,7 @@ import {
   Collapse,
 } from "@mui/material";
 import * as yup from "yup";
+import { ValidationError } from "yup";
 import { updateOperatorCode } from "@/queries/operator";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
@@ -31,19 +32,23 @@ const schema = yup.object().shape({
     ),
 });
 
+interface FormValues {
+  operatorCode: string;
+}
+
 const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
   open,
   onClose,
   onSuccess,
 }) => {
   const router = useRouter();
-  const [cookies, setCookie, removeCookie] = useCookies(["user_token"]);
+  const [cookies] = useCookies(["user_token"]);
 
   if (!cookies.user_token) {
     router.push("/login");
   }
 
-  const [formValues, setFormValues] = useState<{ operatorCode: string }>({
+  const [formValues, setFormValues] = useState<FormValues>({
     operatorCode: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -57,13 +62,12 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
     }
   }, [open]);
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: keyof FormValues, value: string) => {
     setFormValues((prev) => ({
       ...prev,
       [field]: value,
     }));
 
-    // Reset error when the user types
     setErrors((prev) => ({
       ...prev,
       [field]: "",
@@ -75,23 +79,23 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
       await schema.validate(formValues, { abortEarly: false });
       setErrors({});
       return true;
-    } catch (err: any) {
-      const validationErrors: Record<string, string> = {};
-      err.inner.forEach((error: yup.ValidationError) => {
-        if (error.path) {
-          validationErrors[error.path] = error.message;
-        }
-      });
-      setErrors(validationErrors);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        const validationErrors: Record<string, string> = {};
+        err.inner.forEach((error) => {
+          if (error.path) {
+            validationErrors[error.path] = error.message;
+          }
+        });
+        setErrors(validationErrors);
+      }
       return false;
     }
   };
 
   const handleSubmit = async () => {
     const isValid = await validate();
-    if (!isValid) {
-      return;
-    }
+    if (!isValid) return;
 
     setLoading(true);
     setAlert({ message: "" });
@@ -100,8 +104,9 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
       await updateOperatorCode(cookies.user_token, formValues.operatorCode);
       onClose();
       onSuccess();
-    } catch (error: any) {
-      const errorMessage = error?.message || "Unknown error occurred.";
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred.";
       setAlert({ message: `Failed to update operator code: ${errorMessage}` });
     } finally {
       setLoading(false);
@@ -126,10 +131,10 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
             {alert.message}
           </Alert>
         </Collapse>
-        <DialogContentText id="alert-dialog-slide-description">
+        <DialogContentText id="edit-operator-code-modal-description">
           The Operator Code (OP) is a secret identifier used to authenticate the
-          operator and provision SIM cards. Keep this code secure as it can't be
-          retrieved once set.
+          operator and provision SIM cards. Keep this code secure as it
+          can&apos;t be retrieved once set.
         </DialogContentText>
         <TextField
           fullWidth

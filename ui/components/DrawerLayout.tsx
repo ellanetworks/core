@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Box,
   Toolbar,
@@ -49,7 +49,7 @@ export default function DrawerLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [cookies] = useCookies(["user_token"]);
-  const { email, role } = useAuth();
+  const { role } = useAuth();
 
   if (!cookies.user_token) {
     router.push("/login");
@@ -73,18 +73,18 @@ export default function DrawerLayout({
     router.push("/login");
   };
 
-  const fetchUser = async () => {
+  const fetchUser = useCallback(async () => {
     try {
       const data = await getLoggedInUser(cookies.user_token);
       setLocalEmail(data.email);
     } catch (error) {
       console.error("Error fetching user:", error);
     }
-  };
+  }, [cookies.user_token]);
 
   useEffect(() => {
     fetchUser();
-  }, []);
+  }, [fetchUser]);
 
   return (
     <Box sx={{ display: "flex" }}>

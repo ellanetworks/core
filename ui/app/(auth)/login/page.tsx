@@ -16,7 +16,7 @@ import { getStatus } from "@/queries/status";
 
 const LoginPage = () => {
   const router = useRouter();
-  const [cookies, setCookie, removeCookie] = useCookies(["user_token"]);
+  const [, setCookie] = useCookies(["user_token"]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -59,8 +59,9 @@ const LoginPage = () => {
       } else {
         throw new Error("Invalid response: Token not found.");
       }
-    } catch (err: any) {
-      setError(err.message || "Login failed");
+    } catch (err) {
+      const error = err as Error;
+      setError(error.message || "Login failed");
     } finally {
       setLoading(false);
     }
