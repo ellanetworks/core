@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -14,6 +14,7 @@ import {
   Checkbox,
 } from "@mui/material";
 import * as yup from "yup";
+import { isSchema } from "yup";
 import { ValidationError } from "yup";
 import { createRoute } from "@/queries/routes";
 import { useRouter } from "next/navigation";
@@ -26,21 +27,19 @@ const ipv4Regex =
 
 const schema = yup.object().shape({
   defaultRoute: yup.boolean(),
-  destination: yup
-    .string()
-    .when(["defaultRoute"], (values: any[], schema: yup.StringSchema) => {
-      const defaultRoute = values[0];
-      if (defaultRoute === true) {
-        return schema.oneOf(
-          ["0.0.0.0/0"],
-          "For a default route, destination must be 0.0.0.0/0",
-        );
-      } else {
-        return schema
-          .required("Destination is required")
-          .matches(cidrRegex, "Destination must be a valid CIDR (IPv4)");
-      }
-    }),
+  destination: yup.string().when(["defaultRoute"], (values, schema) => {
+    const defaultRoute = values[0] as boolean;
+    if (defaultRoute) {
+      return schema.oneOf(
+        ["0.0.0.0/0"],
+        "For a default route, destination must be 0.0.0.0/0",
+      );
+    } else {
+      return schema
+        .required("Destination is required")
+        .matches(cidrRegex, "Destination must be a valid CIDR (IPv4)");
+    }
+  }),
   gateway: yup
     .string()
     .required("Gateway is required")
@@ -58,6 +57,14 @@ interface CreateRouteModalProps {
   onSuccess: () => void;
 }
 
+type FormValues = {
+  defaultRoute: boolean;
+  destination: string;
+  gateway: string;
+  interface: string;
+  metric: number;
+};
+
 const CreateRouteModal: React.FC<CreateRouteModalProps> = ({
   open,
   onClose,
@@ -71,7 +78,7 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({
   }
 
   // Set default interface to "n6" and defaultRoute to false.
-  const [formValues, setFormValues] = useState({
+  const [formValues, setFormValues] = useState<FormValues>({
     destination: "",
     gateway: "",
     interface: "n6",
@@ -115,7 +122,11 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({
     value: string | number | boolean,
   ) => {
     try {
-      const fieldSchema = yup.reach(schema, field) as yup.Schema<any>;
+      const fieldSchema = yup.reach(schema, field);
+      if (!isSchema(fieldSchema)) {
+        throw new Error(`Field "${field}" does not resolve to a schema`);
+      }
+
       await fieldSchema.validate(value);
       setErrors((prev) => ({
         ...prev,
@@ -131,7 +142,7 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({
     }
   };
 
-  const validateForm = async () => {
+  const validateForm = useCallback(async () => {
     try {
       await schema.validate(formValues, { abortEarly: false });
       setErrors({});
@@ -149,11 +160,11 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({
       }
       setIsValid(false);
     }
-  };
+  }, [formValues]);
 
   useEffect(() => {
     validateForm();
-  }, [formValues]);
+  }, [formValues, validateForm]);
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -168,8 +179,9 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({
       );
       onClose();
       onSuccess();
-    } catch (error: any) {
-      const errorMessage = error?.message || "Unknown error occurred.";
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred.";
       setAlert({
         message: `Failed to create route: ${errorMessage}`,
       });
