@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -23,50 +23,32 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { GridColDef, DataGrid } from "@mui/x-data-grid";
-import { RoleID } from "@/types/types";
+import { RoleID, User, roleIDToLabel } from "@/types/types";
 
-interface UserData {
-  email: string;
-  role: string;
-}
-
-const User = () => {
+const UserPage = () => {
   const [cookies] = useCookies(["user_token"]);
-  const [users, setUsers] = useState<UserData[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-  const [editData, setEditData] = useState<UserData | null>(null);
-  const [editPasswordData, setEditPasswordData] = useState<UserData | null>(
-    null,
-  );
+  const [editData, setEditData] = useState<User | null>(null);
+  const [editPasswordData, setEditPasswordData] = useState<User | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const data = await listUsers(cookies.user_token);
-      const transformedUsers = data.map((user: any) => ({
-        ...user,
-        role:
-          user.role_id === RoleID.Admin
-            ? "Admin"
-            : user.role_id === RoleID.NetworkManager
-              ? "Network Manager"
-              : user.role_id === RoleID.ReadOnly
-                ? "Read Only"
-                : user.role_id,
-      }));
-      setUsers(transformedUsers);
+      setUsers(data);
     } catch (error) {
       console.error("Error fetching users:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [cookies.user_token]);
 
   useEffect(() => {
     fetchUsers();
@@ -75,8 +57,8 @@ const User = () => {
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
 
-  const handleEditPasswordClick = (user: any) => {
-    setEditPasswordData({ email: user.email, role: user.role_id });
+  const handleEditPasswordClick = (user: User) => {
+    setEditPasswordData(user);
     setEditPasswordModalOpen(true);
   };
 
@@ -85,17 +67,8 @@ const User = () => {
     setEditPasswordData(null);
   };
 
-  const handleEditClick = (user: any) => {
-    const readableRole =
-      user.role_id === RoleID.Admin
-        ? "Admin"
-        : user.role_id === RoleID.NetworkManager
-          ? "Network Manager"
-          : user.role_id === RoleID.ReadOnly
-            ? "Read Only"
-            : "Read Only"; // fallback for safety
-
-    setEditData({ email: user.email, role: readableRole });
+  const handleEditClick = (user: User) => {
+    setEditData(user);
     setEditModalOpen(true);
   };
 
@@ -116,8 +89,7 @@ const User = () => {
         await deleteUser(cookies.user_token, selectedUser);
         setAlert({ message: `User "${selectedUser}" deleted successfully!` });
         fetchUsers();
-      } catch (error) {
-        console.error("Error deleting user:", error);
+      } catch {
         setAlert({ message: `Failed to delete user "${selectedUser}".` });
       } finally {
         setSelectedUser(null);
@@ -128,9 +100,12 @@ const User = () => {
   const columns: GridColDef[] = [
     { field: "email", headerName: "Email", flex: 1 },
     {
-      field: "role",
+      field: "roleID",
       headerName: "Role",
       flex: 1,
+      valueGetter: (value, row) => {
+        return roleIDToLabel(row.roleID);
+      },
     },
     {
       field: "actions",
@@ -262,7 +237,7 @@ const User = () => {
         open={isEditModalOpen}
         onClose={handleEditModalClose}
         onSuccess={fetchUsers}
-        initialData={editData || { email: "", role: "" }}
+        initialData={editData || { email: "", roleID: RoleID.ReadOnly }}
       />
       <EditUserPasswordModal
         open={isEditPasswordModalOpen}
@@ -281,4 +256,4 @@ const User = () => {
   );
 };
 
-export default User;
+export default UserPage;

@@ -31,3 +31,21 @@ export type Subscriber = {
   key: string;
   profileName: string;
 };
+
+export type User = {
+  email: string;
+  roleID: RoleID;
+};
+
+export const roleIDToLabel = (role: RoleID): string => {
+  switch (role) {
+    case RoleID.Admin:
+      return "Admin";
+    case RoleID.NetworkManager:
+      return "Network Manager";
+    case RoleID.ReadOnly:
+      return "Read Only";
+    default:
+      return "Unknown";
+  }
+};

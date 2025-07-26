@@ -12,56 +12,24 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  SelectChangeEvent,
 } from "@mui/material";
 import { updateUser } from "@/queries/users";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
-import { RoleID } from "@/types/types";
+import { RoleID, User, roleIDToLabel } from "@/types/types";
 
 interface EditUserModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialData: {
-    email: string;
-    role: string; // This comes as a human-readable string from the parent
-  };
+  initialData: User;
 }
 
 interface FormValues {
   email: string;
   role: RoleID;
 }
-
-// Helper: string → RoleID
-const stringToRoleID = (role: string): RoleID => {
-  switch (role.toLowerCase()) {
-    case "admin":
-      return RoleID.Admin;
-    case "network manager":
-    case "network-manager":
-      return RoleID.NetworkManager;
-    case "read only":
-    case "readonly":
-      return RoleID.ReadOnly;
-    default:
-      return RoleID.ReadOnly;
-  }
-};
-
-// Helper: RoleID → human-readable string
-const roleIDToLabel = (role: RoleID): string => {
-  switch (role) {
-    case RoleID.Admin:
-      return "Admin";
-    case RoleID.NetworkManager:
-      return "Network Manager";
-    case RoleID.ReadOnly:
-      return "Read Only";
-    default:
-      return "";
-  }
-};
 
 const EditUserModal: React.FC<EditUserModalProps> = ({
   open,
@@ -81,7 +49,6 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     role: RoleID.ReadOnly,
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
@@ -89,16 +56,15 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     if (open) {
       setFormValues({
         email: initialData.email,
-        role: stringToRoleID(initialData.role),
+        role: initialData.roleID,
       });
-      setErrors({});
     }
   }, [open, initialData]);
 
-  const handleChange = (value: string) => {
+  const handleChange = (event: SelectChangeEvent) => {
     setFormValues((prev) => ({
       ...prev,
-      role: stringToRoleID(value),
+      role: parseInt(event.target.value, 10) as RoleID,
     }));
   };
 
@@ -110,9 +76,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       await updateUser(cookies.user_token, formValues.email, formValues.role);
       onClose();
       onSuccess();
-    } catch (error: any) {
-      const errorMessage = error?.message || "Unknown error occurred.";
-      setAlert({ message: `Failed to update user: ${errorMessage}` });
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Unknown error occurred.";
+      setAlert({ message: `Failed to update user: ${message}` });
     } finally {
       setLoading(false);
     }
@@ -148,13 +115,19 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           <Select
             labelId="role-select-label"
             id="role-select"
-            value={roleIDToLabel(formValues.role)}
+            value={formValues.role.toString()}
             label="Role"
-            onChange={(e) => handleChange(e.target.value)}
+            onChange={handleChange}
           >
-            <MenuItem value="Admin">Admin</MenuItem>
-            <MenuItem value="Network Manager">Network Manager</MenuItem>
-            <MenuItem value="Read Only">Read Only</MenuItem>
+            <MenuItem value={RoleID.Admin.toString()}>
+              {roleIDToLabel(RoleID.Admin)}
+            </MenuItem>
+            <MenuItem value={RoleID.NetworkManager.toString()}>
+              {roleIDToLabel(RoleID.NetworkManager)}
+            </MenuItem>
+            <MenuItem value={RoleID.ReadOnly.toString()}>
+              {roleIDToLabel(RoleID.ReadOnly)}
+            </MenuItem>
           </Select>
         </FormControl>
       </DialogContent>
