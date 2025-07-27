@@ -87,7 +87,7 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
 		smData, err = GetSmPolicyData(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("can't find UE SM Policy Data in UDR: %s", ue.Supi)
+			return nil, fmt.Errorf("can't find UE SM Policy Data: %s", ue.Supi)
 		}
 	} else {
 		smData = smPolicyData.SmPolicyData

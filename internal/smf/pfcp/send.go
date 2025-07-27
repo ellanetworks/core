@@ -32,6 +32,7 @@ func SendPfcpSessionEstablishmentRequest(
 	farList []*context.FAR,
 	barList []*context.BAR,
 	qerList []*context.QER,
+	urrList []*context.URR,
 ) error {
 	upNodeIDStr := upNodeID.ResolveNodeIDToIP().String()
 	pfcpContext, ok := smCtx.PFCPContext[upNodeIDStr]
@@ -49,6 +50,7 @@ func SendPfcpSessionEstablishmentRequest(
 		pdrList,
 		farList,
 		qerList,
+		urrList,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to build PFCP Session Establishment Request: %v", err)

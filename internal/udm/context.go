@@ -28,11 +28,11 @@ func SetDBInstance(dbInstance *db.Database) {
 	udmContext.DBInstance = dbInstance
 }
 
-func (context *UDMContext) ManageSmData(smDatafromUDR []models.SessionManagementSubscriptionData, snssaiFromReq string, dnnFromReq string) (map[string]models.SessionManagementSubscriptionData, error) {
+func (context *UDMContext) ManageSmData(smData []models.SessionManagementSubscriptionData, snssaiFromReq string, dnnFromReq string) (map[string]models.SessionManagementSubscriptionData, error) {
 	smDataMap := make(map[string]models.SessionManagementSubscriptionData)
-	AllDnns := make([]map[string]models.DnnConfiguration, len(smDatafromUDR))
+	AllDnns := make([]map[string]models.DnnConfiguration, len(smData))
 
-	for idx, smSubscriptionData := range smDatafromUDR {
+	for idx, smSubscriptionData := range smData {
 		singleNssai, err := marshtojsonstring.MarshToJSONString(smSubscriptionData.SingleNssai)
 		if err != nil {
 			return nil, fmt.Errorf("error in marshalling singleNssai")

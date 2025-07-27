@@ -232,6 +232,85 @@ func farToUpdateFAR(far *context.FAR) *ie.IE {
 	return ie.NewUpdateFAR(updateFARies...)
 }
 
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func buildReportingTriggerFlags(rt *context.ReportingTriggers) []uint8 {
+	var octet5, octet6, octet7 uint8
+
+	// Octet 5
+	if rt.PERIO {
+		octet5 |= 1 << 0 // bit 1
+	}
+	if rt.VOLTH {
+		octet5 |= 1 << 1
+	}
+	if rt.TIMTH {
+		octet5 |= 1 << 2
+	}
+	if rt.QUHTI {
+		octet5 |= 1 << 3
+	}
+	if rt.START {
+		octet5 |= 1 << 4
+	}
+	if rt.STOPT {
+		octet5 |= 1 << 5
+	}
+	if rt.DROTH {
+		octet5 |= 1 << 6
+	}
+	if rt.LIUSA {
+		octet5 |= 1 << 7
+	}
+
+	// Octet 6
+	if rt.VOLQU {
+		octet6 |= 1 << 0
+	}
+	if rt.TIMQU {
+		octet6 |= 1 << 1
+	}
+	if rt.ENVCL {
+		octet6 |= 1 << 2
+	}
+	if rt.MACAR {
+		octet6 |= 1 << 3
+	}
+	if rt.EVETH {
+		octet6 |= 1 << 4
+	}
+	if rt.EVEQU {
+		octet6 |= 1 << 5
+	}
+	if rt.IPMJL {
+		octet6 |= 1 << 6
+	}
+	if rt.QUVTI {
+		octet6 |= 1 << 7
+	}
+
+	// Octet 7
+	if rt.REEMR {
+		octet7 |= 1 << 0
+	}
+
+	// Only include non-zero octets
+	flags := []uint8{octet5}
+	if octet6 != 0 || octet7 != 0 {
+		flags = append(flags, octet6)
+	}
+	if octet7 != 0 {
+		flags = append(flags, octet7)
+	}
+
+	return flags
+}
+
 func BuildPfcpSessionEstablishmentRequest(
 	sequenceNumber uint32,
 	nodeID string,
@@ -240,6 +319,7 @@ func BuildPfcpSessionEstablishmentRequest(
 	pdrList []*context.PDR,
 	farList []*context.FAR,
 	qerList []*context.QER,
+	urrList []*context.URR,
 ) (*message.SessionEstablishmentRequest, error) {
 	ies := make([]*ie.IE, 0)
 	ies = append(ies, ie.NewNodeIDHeuristic(nodeID))
@@ -270,6 +350,23 @@ func BuildPfcpSessionEstablishmentRequest(
 	}
 
 	ies = append(ies, ie.NewPDNType(ie.PDNTypeIPv4))
+
+	for _, urr := range urrList {
+		if urr != nil {
+			urrIEs := make([]*ie.IE, 0)
+			urrIEs = append(urrIEs, ie.NewURRID(urr.URRID))
+			urrIEs = append(urrIEs, ie.NewMeasurementMethod(
+				boolToInt(urr.MeasurementMethod.EVENT),
+				boolToInt(urr.MeasurementMethod.VOLUM),
+				boolToInt(urr.MeasurementMethod.DURAT),
+			))
+			urrIEs = append(urrIEs, ie.NewReportingTriggers(buildReportingTriggerFlags(urr.ReportingTriggers)...))
+
+			urrIEs = append(urrIEs, ie.NewMeasurementPeriod(urr.MeasurementPeriod))
+
+			ies = append(ies, ie.NewCreateURR(urrIEs...))
+		}
+	}
 
 	return message.NewSessionEstablishmentRequest(
 		1,
