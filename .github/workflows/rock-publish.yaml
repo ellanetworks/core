@@ -9,7 +9,7 @@ on:
 
 jobs:
   publish-rock:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -24,7 +24,7 @@ jobs:
       - name: Install rockcraft
         run: |
           sudo snap install rockcraft --classic --channel edge
-        
+
       - uses: actions/download-artifact@v4
         with:
           name: rock
