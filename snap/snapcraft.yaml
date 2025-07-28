@@ -1,6 +1,6 @@
 name: ella-core
 title: Ella Core
-base: core22
+base: core24
 adopt-info: core-release-data
 summary: Ella Core is a 5G mobile core network designed for private deployments.
 description: |
@@ -21,7 +21,7 @@ license: Apache-2.0
 icon: docs/images/logo.png
 
 plugs:
-  sys-fs-bpf-upf-pipeline: 
+  sys-fs-bpf-upf-pipeline:
     interface: system-files
     write:
     - /sys/fs/bpf/upf_pipeline
