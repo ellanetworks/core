@@ -1,5 +1,5 @@
 name: ella-core
-base: ubuntu@24.04
+base: bare
 build-base: ubuntu@24.04
 adopt-info: core-release-data
 summary: Ella Core is a secure, reliable, and easy to operate mobile network.
