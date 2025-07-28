@@ -24,6 +24,8 @@ parts:
     build-snaps:
       - go/1.24/stable
       - node/22/stable
+    stage-packages:
+      - libc6_libs
     override-build: |
       npm install --prefix ui
       npm run build --prefix ui
