@@ -1,5 +1,5 @@
 name: ella-core
-base: ubuntu@24.04
+base: bare
 build-base: ubuntu@24.04
 adopt-info: core-release-data
 summary: Ella Core is a secure, reliable, and easy to operate mobile network.
@@ -24,6 +24,8 @@ parts:
     build-snaps:
       - go/1.24/stable
       - node/22/stable
+    stage-packages:
+      - libc6_libs
     override-build: |
       npm install --prefix ui
       npm run build --prefix ui
