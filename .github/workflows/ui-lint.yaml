@@ -3,6 +3,9 @@ name: UI Lint
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   ui-lint:
     runs-on: ubuntu-24.04
