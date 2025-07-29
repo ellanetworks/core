@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/api"
@@ -34,7 +36,7 @@ const (
 	InitialOperatorSd  = 1056816
 )
 
-func startNetwork(dbInstance *db.Database, cfg config.Config) error {
+func startNetwork(ctx context.Context, dbInstance *db.Database, cfg config.Config) (*upf.UPF, error) {
 	scheme := api.HTTPS
 	if cfg.Interfaces.API.TLS.Cert == "" || cfg.Interfaces.API.TLS.Key == "" {
 		scheme = api.HTTP
@@ -42,40 +44,40 @@ func startNetwork(dbInstance *db.Database, cfg config.Config) error {
 
 	err := api.Start(dbInstance, cfg.Interfaces.API.Port, scheme, cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key, cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name, cfg.Telemetry.Enabled)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to start API server: %v", err)
 	}
 
 	err = smf.Start(dbInstance)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to start SMF: %v", err)
 	}
 
-	err = amf.Start(dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port)
+	err = amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to start AMF: %v", err)
 	}
 
 	err = ausf.Start()
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to start AUSF: %v", err)
 	}
 
 	err = pcf.Start(dbInstance)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to start PCF: %v", err)
 	}
 
 	err = udm.Start(dbInstance)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to start UDM: %v", err)
 	}
 
-	err = upf.Start(cfg.Interfaces.N3.Address, cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name, cfg.XDP.AttachMode)
+	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3.Address, cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name, cfg.XDP.AttachMode)
 	if err != nil {
-		return fmt.Errorf("failed to start UPF: %v", err)
+		return nil, fmt.Errorf("failed to start UPF: %v", err)
 	}
 
-	return nil
+	return upfInstance, nil
 }
 
 func main() {
@@ -101,8 +103,10 @@ func main() {
 
 	version := version.GetVersion()
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	if cfg.Telemetry.Enabled {
-		ctx := context.Background()
 		tp, err := tracing.InitTracer(ctx, tracing.TelemetryConfig{
 			OTLPEndpoint:   cfg.Telemetry.OTLPEndpoint,
 			ServiceName:    "ella-core",
@@ -157,14 +161,18 @@ func main() {
 
 	metrics.RegisterDatabaseMetrics(dbInstance)
 
-	err = startNetwork(dbInstance, cfg)
+	upfInstance, err := startNetwork(ctx, dbInstance, cfg)
 	if err != nil {
 		logger.EllaLog.Panic("Failed to start network", zap.Error(err))
 	}
 
-	logger.EllaLog.Info("Ella Core is running", zap.String("version", version))
+	<-ctx.Done()
+	logger.EllaLog.Info("Shutdown signal received, exiting.")
 
-	select {}
+	upfInstance.Close()
+	amf.Close()
+
+	logger.EllaLog.Info("Ella Core has been shut down gracefully.")
 }
 
 func generateOperatorCode() (string, error) {
