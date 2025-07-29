@@ -4,13 +4,11 @@ import (
 	"io/fs"
 	"net/http"
 	"strings"
-
-	"github.com/ellanetworks/core/ui"
 )
 
 // newFrontendFileServer uses the embedded ui output files as the base for a file server
-func newFrontendFileServer() (http.Handler, error) {
-	frontendFS, err := fs.Sub(ui.FrontendFS, "out")
+func newFrontendFileServer(embedFS fs.FS) (http.Handler, error) {
+	frontendFS, err := fs.Sub(embedFS, "out")
 	if err != nil {
 		return nil, err
 	}
