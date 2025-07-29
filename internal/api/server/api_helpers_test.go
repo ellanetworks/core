@@ -3,6 +3,7 @@ package server_test
 
 import (
 	"fmt"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -52,6 +53,12 @@ func (fk FakeKernel) IsIPForwardingEnabled() (bool, error) {
 	return true, nil
 }
 
+type dummyFS struct{}
+
+func (dummyFS) Open(name string) (fs.File, error) {
+	return nil, fs.ErrNotExist
+}
+
 func setupServer(filepath string, reqsPerSec int) (*httptest.Server, []byte, error) {
 	testdb, err := db.NewDatabase(filepath, initialOperator)
 	if err != nil {
@@ -59,7 +66,8 @@ func setupServer(filepath string, reqsPerSec int) (*httptest.Server, []byte, err
 	}
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret, reqsPerSec, false, nil, nil))
+	dummyfs := dummyFS{}
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret, reqsPerSec, false, dummyfs, nil))
 	return ts, jwtSecret, nil
 }
 
