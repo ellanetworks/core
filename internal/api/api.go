@@ -47,13 +47,13 @@ func GenerateJWTSecret() ([]byte, error) {
 	return bytes, nil
 }
 
-func Start(dbInstance *db.Database, port int, scheme Scheme, certFile string, keyFile string, n3Interface string, n6Interface string, tracingEnabled bool) error {
+func Start(dbInstance *db.Database, port int, scheme Scheme, certFile string, keyFile string, n3Interface string, n6Interface string, tracingEnabled bool, registerExtraRoutes func(mux *http.ServeMux)) error {
 	jwtSecret, err := GenerateJWTSecret()
 	if err != nil {
 		return fmt.Errorf("couldn't generate jwt secret: %v", err)
 	}
 	kernelInt := kernel.NewRealKernel(n3Interface, n6Interface)
-	router := server.NewHandler(dbInstance, kernelInt, jwtSecret, ReqsPerSec, tracingEnabled)
+	router := server.NewHandler(dbInstance, kernelInt, jwtSecret, ReqsPerSec, tracingEnabled, registerExtraRoutes)
 
 	// Start the HTTP server in a goroutine.
 	go func() {

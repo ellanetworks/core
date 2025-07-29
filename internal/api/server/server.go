@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, reqsPerSec int, tracingEnabled bool) http.Handler {
+func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, reqsPerSec int, tracingEnabled bool, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 
 	// Status (Unauthenticated)
@@ -77,6 +77,10 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 		return nil
 	}
 	mux.Handle("/", frontendHandler)
+
+	if registerExtraRoutes != nil {
+		registerExtraRoutes(mux)
+	}
 
 	// Wrap with optional tracing and rate limiting
 	var handler http.Handler = mux
