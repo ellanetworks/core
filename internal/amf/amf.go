@@ -5,9 +5,6 @@ package amf
 import (
 	ctxt "context"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf/context"
@@ -22,7 +19,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
+func Start(ctx ctxt.Context, dbInstance *db.Database, n2Address string, n2Port int) error {
 	self := context.AMFSelf()
 	self.NgapPort = n2Port
 	self.NetworkFeatureSupport5GS = &context.NetworkFeatureSupport5GS{
@@ -79,7 +76,7 @@ func Start(dbInstance *db.Database, n2Address string, n2Port int) error {
 	self.Name = "amf"
 	self.RelativeCapacity = 0xff
 
-	err := StartNGAPService(n2Address, n2Port)
+	err := StartNGAPService(ctx, n2Address, n2Port)
 	if err != nil {
 		return fmt.Errorf("failed to start NGAP service: %+v", err)
 	}
@@ -122,7 +119,7 @@ func getEncAlgOrder(cipheringOrder []string) (encOrder []uint8) {
 	return
 }
 
-func StartNGAPService(ngapAddress string, ngapPort int) error {
+func StartNGAPService(ctx ctxt.Context, ngapAddress string, ngapPort int) error {
 	ngapHandler := service.NGAPHandler{
 		HandleMessage:      ngap.Dispatch,
 		HandleNotification: ngap.HandleSCTPNotification,
@@ -132,12 +129,9 @@ func StartNGAPService(ngapAddress string, ngapPort int) error {
 		return fmt.Errorf("failed to start NGAP service: %+v", err)
 	}
 
-	signalChannel := make(chan os.Signal, 1)
-	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
 	go func() {
-		<-signalChannel
+		<-ctx.Done()
 		Terminate()
-		os.Exit(0)
 	}()
 	return nil
 }
