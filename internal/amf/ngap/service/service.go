@@ -140,10 +140,8 @@ func listenAndServe(addr *sctp.SCTPAddr, handler NGAPHandler) {
 }
 
 func Stop() {
-	logger.AmfLog.Info("Close SCTP server...")
 	if err := sctpListener.Close(); err != nil {
-		logger.AmfLog.Error("close SCTP server error", zap.Error(err))
-		logger.AmfLog.Info("SCTP server may not close normally.")
+		logger.AmfLog.Error("could not close sctp listener", zap.Error(err))
 	}
 
 	connections.Range(func(key, value interface{}) bool {

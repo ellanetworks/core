@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"time"
 
 	"github.com/cilium/ebpf/link"
 	"github.com/ellanetworks/core/internal/logger"
@@ -26,7 +25,13 @@ const (
 	FTEIDPool   = 65535
 )
 
-func Start(ctx context.Context, n3Address string, n3Interface string, n6Interface string, xdpAttachMode string) error {
+type UPF struct {
+	bpfObjects *ebpf.BpfObjects
+	n3Link     link.Link
+	n6Link     link.Link
+}
+
+func Start(ctx context.Context, n3Address string, n3Interface string, n6Interface string, xdpAttachMode string) (*UPF, error) {
 	if err := ebpf.IncreaseResourceLimits(); err != nil {
 		logger.UpfLog.Fatal("Can't increase resource limits", zap.Error(err))
 	}
@@ -34,13 +39,13 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 	bpfObjects := ebpf.NewBpfObjects(FarMapSize, QerMapSize)
 	if err := bpfObjects.Load(); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
-		return err
+		return nil, err
 	}
 
 	n3Iface, err := net.InterfaceByName(n3Interface)
 	if err != nil {
 		logger.UpfLog.Fatal("Lookup network iface", zap.String("iface", n3Interface), zap.Error(err))
-		return err
+		return nil, err
 	}
 	n3Link, err := link.AttachXDP(link.XDPOptions{
 		Program:   bpfObjects.UpfN3EntrypointFunc,
@@ -48,13 +53,13 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 		Flags:     StringToXDPAttachMode(xdpAttachMode),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to attach eBPF program on n3 interface %q: %s", n3Interface, err)
+		return nil, fmt.Errorf("failed to attach eBPF program on n3 interface %q: %s", n3Interface, err)
 	}
 
 	n6Iface, err := net.InterfaceByName(n6Interface)
 	if err != nil {
 		logger.UpfLog.Fatal("Lookup network iface", zap.String("iface", n6Interface), zap.Error(err))
-		return err
+		return nil, err
 	}
 	n6Link, err := link.AttachXDP(link.XDPOptions{
 		Program:   bpfObjects.UpfN6EntrypointFunc,
@@ -62,17 +67,17 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 		Flags:     StringToXDPAttachMode(xdpAttachMode),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to attach eBPF program on n6 interface %q: %s", n6Interface, err)
+		return nil, fmt.Errorf("failed to attach eBPF program on n6 interface %q: %s", n6Interface, err)
 	}
 
 	resourceManager, err := core.NewFteIDResourceManager(FTEIDPool)
 	if err != nil {
-		logger.UpfLog.Error("failed to create Resource Manager", zap.Error(err))
+		return nil, fmt.Errorf("failed to create Resource Manager: %w", err)
 	}
 
 	pfcpConn, err := core.CreatePfcpConnection(PfcpAddress, PfcpNodeID, n3Address, SmfAddress, bpfObjects, resourceManager)
 	if err != nil {
-		logger.UpfLog.Fatal("Could not create PFCP connection", zap.Error(err))
+		return nil, fmt.Errorf("failed to create PFCP connection: %w", err)
 	}
 
 	remoteNode := core.NewNodeAssociation(SmfNodeID, SmfAddress)
@@ -83,34 +88,26 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 	}
 	metrics.RegisterUPFMetrics(ForwardPlaneStats, pfcpConn)
 
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	// Wait until context is canceled
-	<-ctx.Done()
-
-	logger.UpfLog.Info("Received shutdown signal, cleaning up UPF...")
-
-	// Explicit cleanup instead of relying on defer
-	if err := n6Link.Close(); err != nil {
-		logger.UpfLog.Warn("Failed to detach eBPF program from n6 interface", zap.Error(err))
-	} else {
-		logger.UpfLog.Info("eBPF program detached from n6 interface")
+	upf := &UPF{
+		bpfObjects: bpfObjects,
+		n3Link:     n3Link,
+		n6Link:     n6Link,
 	}
 
-	if err := n3Link.Close(); err != nil {
-		logger.UpfLog.Warn("Failed to detach eBPF program from n3 interface", zap.Error(err))
-	} else {
-		logger.UpfLog.Info("eBPF program detached from n3 interface")
-	}
+	return upf, nil
+}
 
-	if err := bpfObjects.Close(); err != nil {
+func (u *UPF) Close() {
+	if err := u.n6Link.Close(); err != nil {
+		logger.UpfLog.Warn("Failed to detach eBPF from n6", zap.Error(err))
+	}
+	if err := u.n3Link.Close(); err != nil {
+		logger.UpfLog.Warn("Failed to detach eBPF from n3", zap.Error(err))
+	}
+	if err := u.bpfObjects.Close(); err != nil {
 		logger.UpfLog.Warn("Failed to close BPF objects", zap.Error(err))
-	} else {
-		logger.UpfLog.Info("BPF objects closed")
 	}
-
-	return nil
+	logger.UpfLog.Info("UPF resources released")
 }
 
 func StringToXDPAttachMode(Mode string) link.XDPAttachFlags {
