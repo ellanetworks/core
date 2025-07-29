@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/ellanetworks/core/pkg/runtime"
+	"github.com/ellanetworks/core/ui"
 )
 
 func main() {
@@ -26,6 +27,7 @@ func main() {
 
 	err := runtime.Start(ctx, runtime.RuntimeConfig{
 		ConfigPath: *configFilePtr,
+		EmbedFS:    ui.FrontendFS,
 	})
 	if err != nil {
 		log.Fatal(err)

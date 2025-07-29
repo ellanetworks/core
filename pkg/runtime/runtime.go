@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io/fs"
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -33,6 +34,7 @@ const (
 type RuntimeConfig struct {
 	ConfigPath          string
 	RegisterExtraRoutes func(mux *http.ServeMux)
+	EmbedFS             fs.FS
 }
 
 func Start(ctx context.Context, rc RuntimeConfig) error {
@@ -108,6 +110,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		cfg.Interfaces.N3.Name,
 		cfg.Interfaces.N6.Name,
 		cfg.Telemetry.Enabled,
+		rc.EmbedFS,
 		rc.RegisterExtraRoutes,
 	); err != nil {
 		return fmt.Errorf("couldn't start API: %w", err)

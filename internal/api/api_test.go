@@ -4,6 +4,7 @@ package api
 import (
 	"context"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -36,6 +37,12 @@ func freePort(t *testing.T) int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
+type dummyFS struct{}
+
+func (dummyFS) Open(name string) (fs.File, error) {
+	return nil, fs.ErrNotExist
+}
+
 func TestStartServerStandup(t *testing.T) {
 	// Override routeReconciler to a no-op to avoid actual route reconciliation.
 	origReconciler := routeReconciler
@@ -62,7 +69,8 @@ func TestStartServerStandup(t *testing.T) {
 	n6Interface := "eth1"
 
 	// Start the server in a separate goroutine.
-	if err := Start(testdb, port, scheme, certFile, keyFile, n3Interface, n6Interface, false, nil); err != nil {
+	dummyFS := dummyFS{}
+	if err := Start(testdb, port, scheme, certFile, keyFile, n3Interface, n6Interface, false, dummyFS, nil); err != nil {
 		t.Fatalf("Start returned error: %v", err)
 	}
 
