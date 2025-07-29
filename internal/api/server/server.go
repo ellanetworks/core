@@ -1,6 +1,7 @@
 package server
 
 import (
+	"io/fs"
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -9,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, reqsPerSec int, tracingEnabled bool, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
+func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, reqsPerSec int, tracingEnabled bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 
 	// Status (Unauthenticated)
@@ -71,7 +72,7 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	mux.HandleFunc("POST /api/v1/restore", Authenticate(jwtSecret, RequirePermission(PermRestore, jwtSecret, Restore(dbInstance))).ServeHTTP)
 
 	// Fallback to UI
-	frontendHandler, err := newFrontendFileServer()
+	frontendHandler, err := newFrontendFileServer(embedFS)
 	if err != nil {
 		logger.APILog.Fatal("Failed to create frontend file server", zap.Error(err))
 		return nil
