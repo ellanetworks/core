@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ellanetworks/core/internal/runtime"
+	"github.com/ellanetworks/core/pkg/runtime"
 )
 
 func main() {
