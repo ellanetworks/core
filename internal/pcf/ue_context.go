@@ -15,7 +15,6 @@ import (
 )
 
 type UeContext struct {
-	SmPolicyData              map[string]*models.SmPolicyData // use smPolicyId(ue.Supi-pduSessionID) as key
 	Supi                      string
 	AMPolicyData              map[string]*UeAMPolicyData // use PolAssoId(ue.Supi-numPolId) as key
 	PolAssociationIDGenerator uint32
@@ -37,16 +36,6 @@ func (ue *UeContext) NewUeAMPolicyData(assolID string, req models.PolicyAssociat
 		UserLoc:     req.UserLoc,
 	}
 	return ue.AMPolicyData[assolID]
-}
-
-// returns UeSmPolicyData and insert related info to Ue with smPolId
-func (ue *UeContext) NewUeSmPolicyData(key string, request models.SmPolicyContextData, smData *models.SmPolicyData) *models.SmPolicyData {
-	if smData == nil {
-		return nil
-	}
-
-	ue.SmPolicyData[key] = smData
-	return smData
 }
 
 // returns AM Policy which AccessType and plmnID match

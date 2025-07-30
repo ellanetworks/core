@@ -46,7 +46,6 @@ type PcfSubscriberPolicyData struct {
 // Allocate PCF Ue with supi and add to pcf Context and returns allocated ue
 func (c *PCFContext) NewPCFUe(Supi string) (*UeContext, error) {
 	newUeContext := &UeContext{}
-	newUeContext.SmPolicyData = make(map[string]*models.SmPolicyData)
 	newUeContext.AMPolicyData = make(map[string]*UeAMPolicyData)
 	newUeContext.PolAssociationIDGenerator = 1
 	newUeContext.Supi = Supi
