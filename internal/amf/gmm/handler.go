@@ -1048,10 +1048,6 @@ func communicateWithUDM(ctx ctxt.Context, ue *context.AmfUe, accessType models.A
 		return fmt.Errorf("error getting ue context in smf data: %v", err)
 	}
 
-	err = consumer.SDMSubscribe(ctx, ue)
-	if err != nil {
-		return fmt.Errorf("error subscribing: %v", err)
-	}
 	ue.SubscriptionDataValid = true
 	return nil
 }

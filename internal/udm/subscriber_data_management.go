@@ -24,12 +24,6 @@ var AllowedSscModes = []string{
 	"SSC_MODE_3",
 }
 
-type subsID = string
-
-type UESubsData struct {
-	SdmSubscriptions map[subsID]*models.SdmSubscription
-}
-
 func GetAmData(ctx context.Context, ueID string) (*models.AccessAndMobilitySubscriptionData, error) {
 	subscriber, err := udmContext.DBInstance.GetSubscriber(ctx, ueID)
 	if err != nil {
@@ -201,40 +195,6 @@ func GetAndSetSmfSelectData(ctx context.Context, supi string) (*models.SmfSelect
 	udmUe := udmContext.NewUdmUe(supi)
 	udmUe.SetSmfSelectionSubsData(smfSelectionSubscriptionDataResp)
 	return udmUe.SmfSelSubsData, nil
-}
-
-func CreateSdmSubscriptions(SdmSubscription models.SdmSubscription, ueID string) models.SdmSubscription {
-	value, ok := udmContext.UESubsCollection.Load(ueID)
-	if !ok {
-		udmContext.UESubsCollection.Store(ueID, new(UESubsData))
-		value, _ = udmContext.UESubsCollection.Load(ueID)
-	}
-	UESubsData := value.(*UESubsData)
-	if UESubsData.SdmSubscriptions == nil {
-		UESubsData.SdmSubscriptions = make(map[string]*models.SdmSubscription)
-	}
-
-	newSubscriptionID := strconv.Itoa(udmContext.SdmSubscriptionIDGenerator)
-	SdmSubscription.SubscriptionID = newSubscriptionID
-	UESubsData.SdmSubscriptions[newSubscriptionID] = &SdmSubscription
-	udmContext.SdmSubscriptionIDGenerator++
-
-	return SdmSubscription
-}
-
-func CreateSubscription(ctx context.Context, sdmSubscription *models.SdmSubscription, supi string) error {
-	_, span := tracer.Start(ctx, "UDM CreateSubscription")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("ue.supi", supi),
-	)
-	sdmSubscriptionResp := CreateSdmSubscriptions(*sdmSubscription, supi)
-	udmUe, _ := udmContext.UdmUeFindBySupi(supi)
-	if udmUe == nil {
-		udmUe = udmContext.NewUdmUe(supi)
-	}
-	udmUe.CreateSubscriptiontoNotifChange(sdmSubscriptionResp.SubscriptionID, &sdmSubscriptionResp)
-	return nil
 }
 
 func GetUeContextInSmfData(ctx context.Context, supi string) (*models.UeContextInSmfData, error) {
