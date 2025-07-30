@@ -15,7 +15,6 @@ import (
 type AUSFContext struct {
 	suciSupiMap sync.Map
 	UePool      sync.Map
-	snRegex     *regexp.Regexp
 }
 
 type AusfUeContext struct {
@@ -35,8 +34,8 @@ type AusfUeContext struct {
 }
 
 type SuciSupiMap struct {
-	SupiOrSuci string
-	Supi       string
+	Suci string
+	Supi string
 }
 
 const (
@@ -57,6 +56,8 @@ const (
 
 var ausfContext AUSFContext
 
+var servingNetworkRegex = regexp.MustCompile(`^5G:mnc[0-9]{3}\.mcc[0-9]{3}\.3gppnetwork\.org$`)
+
 func NewAusfUeContext(identifier string) (ausfUeContext *AusfUeContext) {
 	ausfUeContext = new(AusfUeContext)
 	ausfUeContext.Supi = identifier
@@ -73,16 +74,19 @@ func CheckIfAusfUeContextExists(ref string) bool {
 }
 
 func GetAusfUeContext(ref string) *AusfUeContext {
-	context, _ := ausfContext.UePool.Load(ref)
+	context, ok := ausfContext.UePool.Load(ref)
+	if !ok {
+		return nil
+	}
 	ausfUeContext := context.(*AusfUeContext)
 	return ausfUeContext
 }
 
-func AddSuciSupiPairToMap(supiOrSuci string, supi string) {
+func AddSuciSupiPairToMap(suci string, supi string) {
 	newPair := new(SuciSupiMap)
-	newPair.SupiOrSuci = supiOrSuci
+	newPair.Suci = suci
 	newPair.Supi = supi
-	ausfContext.suciSupiMap.Store(supiOrSuci, newPair)
+	ausfContext.suciSupiMap.Store(suci, newPair)
 }
 
 func CheckIfSuciSupiPairExists(ref string) bool {
@@ -98,9 +102,5 @@ func GetSupiFromSuciSupiMap(ref string) string {
 }
 
 func IsServingNetworkAuthorized(lookup string) bool {
-	if ausfContext.snRegex.MatchString(lookup) {
-		return true
-	} else {
-		return false
-	}
+	return servingNetworkRegex.MatchString(lookup)
 }
