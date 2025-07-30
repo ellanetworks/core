@@ -16,8 +16,6 @@ import (
 )
 
 func AMPolicyControlCreate(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType) error {
-	guamiList := context.GetServedGuamiList(ctx)
-
 	policyAssociationRequest := models.PolicyAssociationRequest{
 		Supi:       ue.Supi,
 		Pei:        ue.Pei,
@@ -26,13 +24,6 @@ func AMPolicyControlCreate(ctx ctxt.Context, ue *context.AmfUe, anType models.Ac
 		ServingPlmn: &models.PlmnID{
 			Mcc: ue.PlmnID.Mcc,
 			Mnc: ue.PlmnID.Mnc,
-		},
-		Guami: &models.Guami{
-			PlmnID: &models.PlmnID{
-				Mcc: guamiList[0].PlmnID.Mcc,
-				Mnc: guamiList[0].PlmnID.Mnc,
-			},
-			AmfID: guamiList[0].AmfID,
 		},
 	}
 

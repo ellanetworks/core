@@ -6,9 +6,6 @@ type PolicyAssociationRequest struct {
 	AccessType  AccessType
 	Pei         string
 	UserLoc     *UserLocation
-	TimeZone    string
 	ServingPlmn *PlmnID
-	ServAreaRes *ServiceAreaRestriction
 	Rfsp        int32
-	Guami       *Guami
 }

@@ -84,13 +84,13 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 	var err error
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionID)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
-	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
+	if smPolicyData == nil {
 		smData, err = GetSmPolicyData(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("can't find UE SM Policy Data in UDR: %s", ue.Supi)
 		}
 	} else {
-		smData = smPolicyData.SmPolicyData
+		smData = smPolicyData
 	}
 	amPolicy := ue.FindAMPolicy(request.AccessType, request.ServingNetwork)
 	if amPolicy == nil {
