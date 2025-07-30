@@ -18,8 +18,6 @@ import (
 func AMPolicyControlCreate(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType) error {
 	policyAssociationRequest := models.PolicyAssociationRequest{
 		Supi:       ue.Supi,
-		Pei:        ue.Pei,
-		Gpsi:       ue.Gpsi,
 		AccessType: anType,
 		ServingPlmn: &models.PlmnID{
 			Mcc: ue.PlmnID.Mcc,

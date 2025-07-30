@@ -73,8 +73,9 @@ func CreateAMPolicy(ctx context.Context, policyAssociationRequest models.PolicyA
 	ctx, span := tracer.Start(ctx, "PCF Create AMPolicy")
 	defer span.End()
 	span.SetAttributes(
-		attribute.String("ue.supi", policyAssociationRequest.Supi),
+		attribute.String("supi", policyAssociationRequest.Supi),
 	)
+
 	var response models.PolicyAssociation
 	var ue *UeContext
 	if val, ok := pcfCtx.UePool.Load(policyAssociationRequest.Supi); ok {

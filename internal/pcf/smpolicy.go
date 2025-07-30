@@ -96,12 +96,7 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 	if amPolicy == nil {
 		return nil, fmt.Errorf("can't find corresponding AM Policy")
 	}
-	if ue.Gpsi == "" {
-		ue.Gpsi = request.Gpsi
-	}
-	if ue.Pei == "" {
-		ue.Pei = request.Pei
-	}
+
 	if smPolicyData != nil {
 		delete(ue.SmPolicyData, smPolicyID)
 	}

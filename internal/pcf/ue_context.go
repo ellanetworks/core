@@ -17,8 +17,6 @@ import (
 type UeContext struct {
 	SmPolicyData              map[string]*models.SmPolicyData // use smPolicyId(ue.Supi-pduSessionID) as key
 	Supi                      string
-	Gpsi                      string
-	Pei                       string
 	AMPolicyData              map[string]*UeAMPolicyData // use PolAssoId(ue.Supi-numPolId) as key
 	PolAssociationIDGenerator uint32
 }
@@ -32,8 +30,6 @@ type UeAMPolicyData struct {
 }
 
 func (ue *UeContext) NewUeAMPolicyData(assolID string, req models.PolicyAssociationRequest) *UeAMPolicyData {
-	ue.Gpsi = req.Gpsi
-	ue.Pei = req.Pei
 	ue.AMPolicyData[assolID] = &UeAMPolicyData{
 		AccessType:  req.AccessType,
 		ServingPlmn: req.ServingPlmn,
