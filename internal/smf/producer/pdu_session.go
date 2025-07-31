@@ -66,14 +66,11 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 	smContext.SMLock.Lock()
 	defer smContext.SMLock.Unlock()
 
-	// DNN Information from config
 	dnnInfo, err := context.RetrieveDnnInformation(ctx, *createData.SNssai, createData.Dnn)
 	if err != nil {
 		return "", nil, fmt.Errorf("error retrieving DNN information: %v", err)
 	}
 	smContext.DNNInfo = dnnInfo
-
-	logger.SmfLog.Warn("TO DELETE: DNN Information", zap.Any("DNNInfo", dnnInfo))
 
 	if smContext.DNNInfo == nil {
 		response := smContext.GeneratePDUSessionEstablishmentReject(nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
@@ -108,8 +105,6 @@ func HandlePDUSessionSMContextCreate(ctx ctxt.Context, request models.PostSmCont
 	}
 
 	smContext.DnnConfiguration = sessSubData[0].DnnConfigurations[createData.Dnn]
-
-	logger.SmfLog.Warn("TO DELETE: Configured DNN", zap.String("DNN", createData.Dnn))
 
 	// Decode UE content(PCO)
 	establishmentRequest := m.PDUSessionEstablishmentRequest

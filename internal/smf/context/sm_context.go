@@ -272,9 +272,6 @@ func (smContext *SMContext) RemovePDRfromPFCPSession(nodeID NodeID, pdr *PDR) {
 }
 
 func (smContext *SMContext) isAllowedPDUSessionType(requestedPDUSessionType uint8) error {
-	logger.SmfLog.Warn("TO DELETE: Checking allowed PDUSessionType", zap.Uint8("requestedPDUSessionType", requestedPDUSessionType))
-	logger.SmfLog.Warn("TO DELETE: DNN Configuration", zap.Any("DnnConfiguration", smContext.DnnConfiguration))
-
 	dnnPDUSessionType := smContext.DnnConfiguration.PduSessionTypes
 	if dnnPDUSessionType == nil {
 		return fmt.Errorf("this SMContext[%s] has no subscription pdu session type info", smContext.Ref)

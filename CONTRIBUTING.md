@@ -51,7 +51,7 @@ docker push localhost:5000/ella-core:latest
 Run End-to-End tests
 
 ```shell
-INTEGRATION=1 go test ./...
+INTEGRATION=1 go test ./integration/... -v
 ```
 
 ## How-to Guides

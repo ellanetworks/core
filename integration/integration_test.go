@@ -287,101 +287,101 @@ func patchUERANSIMConfigmap(k *K8s, subscriber *client.Subscriber) error {
 	return nil
 }
 
-// func TestIntegrationGnbsim(t *testing.T) {
-// 	if os.Getenv("INTEGRATION") == "" {
-// 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
-// 	}
+func TestIntegrationGnbsim(t *testing.T) {
+	if os.Getenv("INTEGRATION") == "" {
+		t.Skip("skipping integration tests, set environment variable INTEGRATION")
+	}
 
-// 	k := &K8s{Namespace: gnbsimNamespace}
+	k := &K8s{Namespace: gnbsimNamespace}
 
-// 	ellaCoreURL, err := deploy(k)
-// 	if err != nil {
-// 		t.Fatalf("failed to deploy: %v", err)
-// 	}
-// 	t.Log("deployed ella core")
+	ellaCoreURL, err := deploy(k)
+	if err != nil {
+		t.Fatalf("failed to deploy: %v", err)
+	}
+	t.Log("deployed ella core")
 
-// 	clientConfig := &client.Config{
-// 		BaseURL: ellaCoreURL,
-// 	}
-// 	ellaClient, err := client.New(clientConfig)
-// 	if err != nil {
-// 		t.Fatalf("failed to create ella client: %v", err)
-// 	}
+	clientConfig := &client.Config{
+		BaseURL: ellaCoreURL,
+	}
+	ellaClient, err := client.New(clientConfig)
+	if err != nil {
+		t.Fatalf("failed to create ella client: %v", err)
+	}
 
-// 	configureOpts := &ConfigureEllaCoreOpts{
-// 		client:    ellaClient,
-// 		customOPc: true,
-// 	}
-// 	subscriber0, err := configureEllaCore(configureOpts)
-// 	if err != nil {
-// 		t.Fatalf("failed to configure Ella Core: %v", err)
-// 	}
-// 	t.Log("configured Ella Core")
+	configureOpts := &ConfigureEllaCoreOpts{
+		client:    ellaClient,
+		customOPc: true,
+	}
+	subscriber0, err := configureEllaCore(configureOpts)
+	if err != nil {
+		t.Fatalf("failed to configure Ella Core: %v", err)
+	}
+	t.Log("configured Ella Core")
 
-// 	err = k.ApplyKustomize("../k8s/gnbsim")
-// 	if err != nil {
-// 		t.Fatalf("failed to apply kustomize: %v", err)
-// 	}
-// 	t.Log("applied kustomize for gnbsim")
-// 	err = k.WaitForAppReady("gnbsim")
-// 	if err != nil {
-// 		t.Fatalf("failed to wait for gnbsim app to be ready: %v", err)
-// 	}
+	err = k.ApplyKustomize("../k8s/gnbsim")
+	if err != nil {
+		t.Fatalf("failed to apply kustomize: %v", err)
+	}
+	t.Log("applied kustomize for gnbsim")
+	err = k.WaitForAppReady("gnbsim")
+	if err != nil {
+		t.Fatalf("failed to wait for gnbsim app to be ready: %v", err)
+	}
 
-// 	err = patchGnbsimConfigmap(k, subscriber0)
-// 	if err != nil {
-// 		t.Fatalf("failed to patch gnbsim configmap: %v", err)
-// 	}
-// 	t.Log("patched gnbsim configmap")
+	err = patchGnbsimConfigmap(k, subscriber0)
+	if err != nil {
+		t.Fatalf("failed to patch gnbsim configmap: %v", err)
+	}
+	t.Log("patched gnbsim configmap")
 
-// 	err = k.WaitForAppReady("gnbsim")
-// 	if err != nil {
-// 		t.Fatalf("failed to wait for gnbsim app to be ready: %v", err)
-// 	}
-// 	t.Log("gnbsim app is ready")
+	err = k.WaitForAppReady("gnbsim")
+	if err != nil {
+		t.Fatalf("failed to wait for gnbsim app to be ready: %v", err)
+	}
+	t.Log("gnbsim app is ready")
 
-// 	podName, err := k.GetPodName("gnbsim")
-// 	if err != nil {
-// 		t.Fatalf("failed to get pod name: %v", err)
-// 	}
+	podName, err := k.GetPodName("gnbsim")
+	if err != nil {
+		t.Fatalf("failed to get pod name: %v", err)
+	}
 
-// 	t.Logf("Running GNBSim simulation in pod %s", podName)
+	t.Logf("Running GNBSim simulation in pod %s", podName)
 
-// 	result, err := k.Exec(podName, "pebble exec gnbsim --cfg /etc/gnbsim/configuration.yaml", "gnbsim")
-// 	if err != nil {
-// 		t.Fatalf("failed to exec command in pod: %v", err)
-// 	}
-// 	t.Logf("GNBSim simulation result: %s", result)
+	result, err := k.Exec(podName, "pebble exec gnbsim --cfg /etc/gnbsim/configuration.yaml", "gnbsim")
+	if err != nil {
+		t.Fatalf("failed to exec command in pod: %v", err)
+	}
+	t.Logf("GNBSim simulation result: %s", result)
 
-// 	passCount := strings.Count(result, "Profile Status: PASS")
-// 	if passCount != numProfiles {
-// 		t.Fatalf("expected 'Profile Status: PASS' to appear %d times, but found %d times", numProfiles, passCount)
-// 	}
-// 	t.Logf("Verified that 'Profile Status: PASS' appears %d times", passCount)
+	passCount := strings.Count(result, "Profile Status: PASS")
+	if passCount != numProfiles {
+		t.Fatalf("expected 'Profile Status: PASS' to appear %d times, but found %d times", numProfiles, passCount)
+	}
+	t.Logf("Verified that 'Profile Status: PASS' appears %d times", passCount)
 
-// 	metrics, err := ellaClient.GetMetrics()
-// 	if err != nil {
-// 		t.Fatalf("failed to get metrics: %v", err)
-// 	}
+	metrics, err := ellaClient.GetMetrics()
+	if err != nil {
+		t.Fatalf("failed to get metrics: %v", err)
+	}
 
-// 	appUplinkBytes := metrics["app_uplink_bytes"]
-// 	appDownlinkBytes := metrics["app_downlink_bytes"]
+	appUplinkBytes := metrics["app_uplink_bytes"]
+	appDownlinkBytes := metrics["app_downlink_bytes"]
 
-// 	if appUplinkBytes != 9000 {
-// 		t.Fatalf("expected app_uplink_bytes to be 9000, but got %v", appUplinkBytes)
-// 	}
+	if appUplinkBytes != 9000 {
+		t.Fatalf("expected app_uplink_bytes to be 9000, but got %v", appUplinkBytes)
+	}
 
-// 	if appDownlinkBytes != 9000 {
-// 		t.Fatalf("expected app_downlink_bytes to be 9000, but got %v", appDownlinkBytes)
-// 	}
+	if appDownlinkBytes != 9000 {
+		t.Fatalf("expected app_downlink_bytes to be 9000, but got %v", appDownlinkBytes)
+	}
 
-// 	err = k.DeleteNamespace()
-// 	if err != nil {
-// 		t.Fatalf("failed to delete namespace %s: %v", gnbsimNamespace, err)
-// 	}
-// 	t.Logf("deleted namespace %s", gnbsimNamespace)
-// 	t.Log("GNBSIM test completed successfully")
-// }
+	err = k.DeleteNamespace()
+	if err != nil {
+		t.Fatalf("failed to delete namespace %s: %v", gnbsimNamespace, err)
+	}
+	t.Logf("deleted namespace %s", gnbsimNamespace)
+	t.Log("GNBSIM test completed successfully")
+}
 
 func TestIntegrationUERANSIM(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {

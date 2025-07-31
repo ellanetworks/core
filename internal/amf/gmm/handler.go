@@ -217,23 +217,24 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			} else {
 				// if user's subscription context obtained from UDM does not contain the default DNN for the,
 				// S-NSSAI, the AMF shall use a locally configured DNN as the DNN
-				dataNetworks, err := ue.ServingAMF.DBInstance.ListDataNetworks(ctx)
+				subscriber, err := ue.ServingAMF.DBInstance.GetSubscriber(ctxt.Background(), ue.Supi)
 				if err != nil {
-					return fmt.Errorf("failed to get data networks: %s", err)
+					return fmt.Errorf("couldn't get subscriber information: %v", err)
 				}
-				dnn = dataNetworks[0].Name
 
-				if ue.SmfSelectionData != nil {
-					snssaiStr := SnssaiModelsToHex(snssai)
-					if snssaiInfo, ok := ue.SmfSelectionData.SubscribedSnssaiInfos[snssaiStr]; ok {
-						for _, dnnInfo := range snssaiInfo.DnnInfos {
-							if dnnInfo.DefaultDnnIndicator {
-								dnn = dnnInfo.Dnn
-							}
-						}
-					}
+				policy, err := ue.ServingAMF.DBInstance.GetPolicyByID(ctxt.Background(), subscriber.PolicyID)
+				if err != nil {
+					return fmt.Errorf("couldn't get policy information: %v", err)
 				}
+
+				dataNetwork, err := ue.ServingAMF.DBInstance.GetDataNetworkByID(ctxt.Background(), policy.DataNetworkID)
+				if err != nil {
+					return fmt.Errorf("couldn't get data network information: %v", err)
+				}
+
+				dnn = dataNetwork.Name
 			}
+
 			newSmContext := consumer.SelectSmf(ue, anType, pduSessionID, snssai, dnn)
 
 			smContextRef, errResponse, err := consumer.SendCreateSmContextRequest(ctx, ue, newSmContext, smMessage)
