@@ -12,7 +12,6 @@ import (
 	"net"
 	"sync/atomic"
 
-	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 )
@@ -77,7 +76,7 @@ func GetSnssaiInfo(ctx context.Context) (*SnssaiSmfInfo, error) {
 	}
 
 	for _, dn := range dataNetworks {
-		dnn := config.DNN // To change to use dn.Name when available
+		dnn := dn.Name
 		dnsPrimary := dn.DNS
 		mtu := dn.MTU
 		dnnInfo := SnssaiSmfDnnInfo{

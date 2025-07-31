@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/models"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -39,10 +38,22 @@ func deepCopyQosData(src *models.QosData) *models.QosData {
 	return &copiedQosData
 }
 
-func GetSmPolicyData(ctx context.Context) (*models.SmPolicyData, error) {
+func GetSmPolicyData(ctx context.Context, supi string) (*models.SmPolicyData, error) {
 	operator, err := pcfCtx.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator: %s", err)
+	}
+	subscriber, err := pcfCtx.DBInstance.GetSubscriber(ctx, supi)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get subscriber: %s", err)
+	}
+	policy, err := pcfCtx.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get policy: %s", err)
+	}
+	dataNetwork, err := pcfCtx.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get data network: %s", err)
 	}
 	smPolicyData := &models.SmPolicyData{
 		SmPolicySnssaiData: make(map[string]models.SmPolicySnssaiData),
@@ -56,8 +67,8 @@ func GetSmPolicyData(ctx context.Context) (*models.SmPolicyData, error) {
 		SmPolicyDnnData: make(map[string]models.SmPolicyDnnData),
 	}
 	smPolicySnssaiData := smPolicyData.SmPolicySnssaiData[snssai]
-	smPolicySnssaiData.SmPolicyDnnData[config.DNN] = models.SmPolicyDnnData{
-		Dnn: config.DNN,
+	smPolicySnssaiData.SmPolicyDnnData[dataNetwork.Name] = models.SmPolicyDnnData{
+		Dnn: dataNetwork.Name,
 	}
 	smPolicyData.SmPolicySnssaiData[snssai] = smPolicySnssaiData
 	return smPolicyData, nil
@@ -85,7 +96,7 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionID)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
-		smData, err = GetSmPolicyData(ctx)
+		smData, err = GetSmPolicyData(ctx, ue.Supi)
 		if err != nil {
 			return nil, fmt.Errorf("can't find UE SM Policy Data in UDR: %s", ue.Supi)
 		}

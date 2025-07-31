@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
@@ -76,6 +75,10 @@ func GetSubscriberPolicy(ctx context.Context, imsi string) (*PcfSubscriberPolicy
 	if err != nil {
 		return nil, fmt.Errorf("failed to get policy %d: %w", subscriber.PolicyID, err)
 	}
+	dataNetwork, err := pcfCtx.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get data network %d: %w", policy.DataNetworkID, err)
+	}
 	operator, err := pcfCtx.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator: %w", err)
@@ -93,8 +96,8 @@ func GetSubscriberPolicy(ctx context.Context, imsi string) (*PcfSubscriberPolicy
 		}
 	}
 
-	if _, exists := subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[config.DNN]; !exists {
-		subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[config.DNN] = &SessionPolicy{
+	if _, exists := subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[dataNetwork.Name]; !exists {
+		subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[dataNetwork.Name] = &SessionPolicy{
 			SessionRules: make(map[string]*models.SessionRule),
 		}
 	}
@@ -115,7 +118,7 @@ func GetSubscriberPolicy(ctx context.Context, imsi string) (*PcfSubscriberPolicy
 	subscriberPolicies.PccPolicy[pccPolicyID].QosDecs[qosData.QosID] = qosData
 
 	// Add session rule
-	subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[config.DNN].SessionRules[strconv.FormatInt(sessionRuleID, 10)] = &models.SessionRule{
+	subscriberPolicies.PccPolicy[pccPolicyID].SessionPolicy[dataNetwork.Name].SessionRules[strconv.FormatInt(sessionRuleID, 10)] = &models.SessionRule{
 		SessRuleID: strconv.FormatInt(sessionRuleID, 10),
 		AuthDefQos: &models.AuthorizedDefaultQos{
 			Var5qi: qosData.Var5qi,

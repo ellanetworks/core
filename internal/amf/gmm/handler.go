@@ -217,7 +217,11 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 			} else {
 				// if user's subscription context obtained from UDM does not contain the default DNN for the,
 				// S-NSSAI, the AMF shall use a locally configured DNN as the DNN
-				dnn = ue.ServingAMF.SupportedDnns[0]
+				dataNetworks, err := ue.ServingAMF.DBInstance.ListDataNetworks(ctx)
+				if err != nil {
+					return fmt.Errorf("failed to get data networks: %s", err)
+				}
+				dnn = dataNetworks[0].Name
 
 				if ue.SmfSelectionData != nil {
 					snssaiStr := SnssaiModelsToHex(snssai)
