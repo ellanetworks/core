@@ -21,7 +21,7 @@ data:
     tac: 1
   ue.yaml: |
     amf: '8000'
-    apn: internet
+    apn: not-internet
     ciphering:
       EA1: true
       EA2: true
