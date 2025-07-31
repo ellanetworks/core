@@ -13,8 +13,7 @@ import (
 )
 
 type CreateDataNetworkParams struct {
-	Name string `json:"name"`
-
+	Name   string `json:"name"`
 	IPPool string `json:"ip-pool,omitempty"`
 	DNS    string `json:"dns,omitempty"`
 	MTU    int32  `json:"mtu,omitempty"`
@@ -118,15 +117,15 @@ func DeleteDataNetwork(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusNotFound, "Data Network not found", err, logger.APILog)
 			return
 		}
-		// subsInDataNetwork, err := dbInstance.SubscribersInDataNetwork(r.Context(), name)
-		// if err != nil {
-		// 	writeError(w, http.StatusInternalServerError, "Failed to check subscribers", err, logger.APILog)
-		// 	return
-		// }
-		// if subsInDataNetwork {
-		// 	writeError(w, http.StatusConflict, "Data Network has subscribers", nil, logger.APILog)
-		// 	return
-		// }
+		policiesInDataNetwork, err := dbInstance.PoliciesInDataNetwork(r.Context(), name)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to check policies", err, logger.APILog)
+			return
+		}
+		if policiesInDataNetwork {
+			writeError(w, http.StatusConflict, "Data Network has policies", nil, logger.APILog)
+			return
+		}
 		if err := dbInstance.DeleteDataNetwork(r.Context(), name); err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to delete data network", err, logger.APILog)
 			return
@@ -185,7 +184,7 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		name := strings.TrimPrefix(r.URL.Path, "/api/v1/policies/")
+		name := strings.TrimPrefix(r.URL.Path, "/api/v1/data-networks/")
 		if name == "" || strings.ContainsRune(name, '/') {
 			writeError(w, http.StatusBadRequest, "Invalid or missing name parameter", nil, logger.APILog)
 			return

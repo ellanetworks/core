@@ -287,35 +287,34 @@ func (db *Database) SubscribersInPolicy(ctx context.Context, name string) (bool,
 	return false, nil
 }
 
-// func (db *Database) SubscribersInDataNetwork(ctx context.Context, name string) (bool, error) {
-// 	// business‐logic span (no direct SQL)
-// 	ctx, span := tracer.Start(ctx, "SubscribersInDataNetwork")
-// 	defer span.End()
+func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (bool, error) {
+	ctx, span := tracer.Start(ctx, "PoliciesInDataNetwork")
+	defer span.End()
 
-// 	dataNetwork, err := db.GetDataNetwork(ctx, name)
-// 	if err != nil {
-// 		span.RecordError(err)
-// 		span.SetStatus(codes.Error, "data network not found")
-// 		return false, err
-// 	}
+	dataNetwork, err := db.GetDataNetwork(ctx, name)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "data network not found")
+		return false, err
+	}
 
-// 	subs, err := db.ListSubscribers(ctx)
-// 	if err != nil {
-// 		span.RecordError(err)
-// 		span.SetStatus(codes.Error, "listing failed")
-// 		return false, err
-// 	}
+	policies, err := db.ListPolicies(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "listing failed")
+		return false, err
+	}
 
-// 	for _, s := range subs {
-// 		// if s.PolicyID == dataNetwork.ID {
-// 		// 	span.SetStatus(codes.Ok, "")
-// 		// 	return true, nil
-// 		// }
-// 	}
+	for _, p := range policies {
+		if p.DataNetworkID == dataNetwork.ID {
+			span.SetStatus(codes.Ok, "")
+			return true, nil
+		}
+	}
 
-// 	span.SetStatus(codes.Ok, "none found")
-// 	return false, nil
-// }
+	span.SetStatus(codes.Ok, "none found")
+	return false, nil
+}
 
 func (db *Database) allocateIP(ctx context.Context, imsi string) (net.IP, error) {
 	subscriber, err := db.GetSubscriber(ctx, imsi)

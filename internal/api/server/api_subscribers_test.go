@@ -176,7 +176,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 	t.Run("1. Create data network", func(t *testing.T) {
 		createDataNetworkParams := &CreateDataNetworkParams{
-			Name:   DataNetworkName,
+			Name:   "whatever",
 			MTU:    MTU,
 			IPPool: IPPool,
 			DNS:    DNS,
@@ -200,7 +200,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			BitrateDownlink: "100 Mbps",
 			Var5qi:          9,
 			PriorityLevel:   1,
-			DataNetworkName: DataNetworkName,
+			DataNetworkName: "whatever",
 		}
 		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
 		if err != nil {
