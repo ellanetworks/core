@@ -12,6 +12,11 @@ import (
 
 // SendSMPolicyAssociationCreate creates the SM Policy Decision
 func SendSMPolicyAssociationCreate(ctx ctxt.Context, smContext *context.SMContext) (*models.SmPolicyDecision, error) {
+	nilval := models.DnnConfiguration{}
+	if smContext.DnnConfiguration == nilval {
+		return nil, fmt.Errorf("DNN configuration is not set for SMContext")
+	}
+
 	smPolicyData := models.SmPolicyContextData{}
 	smPolicyData.Supi = smContext.Supi
 	smPolicyData.PduSessionID = smContext.PDUSessionID

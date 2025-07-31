@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.uber.org/zap"
 )
 
 var tracer = otel.Tracer("ella-core/udm")
@@ -126,6 +128,7 @@ func GetSmData(ctx context.Context, ueID string) ([]models.SessionManagementSubs
 	smDataObjModel.DnnConfigurations[dataNetwork.Name].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[dataNetwork.Name].PduSessionTypes.AllowedSessionTypes, AllowedSessionTypes...)
 	for _, sscMode := range AllowedSscModes {
 		smDataObjModel.DnnConfigurations[dataNetwork.Name].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[dataNetwork.Name].SscModes.AllowedSscModes, models.SscMode(sscMode))
+		logger.UdmLog.Warn("TO DELETE: Configured SSC Mode for DNN", zap.String("DNN", dataNetwork.Name), zap.String("SSC Mode", sscMode))
 	}
 	smData = append(smData, smDataObjModel)
 	return smData, nil
