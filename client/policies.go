@@ -8,13 +8,11 @@ import (
 
 type CreatePolicyOptions struct {
 	Name            string `json:"name"`
-	IPPool          string `json:"ip-pool"`
-	DNS             string `json:"dns"`
-	Mtu             int32  `json:"mtu"`
 	BitrateUplink   string `json:"bitrate-uplink"`
 	BitrateDownlink string `json:"bitrate-downlink"`
 	Var5qi          int32  `json:"var5qi"`
 	PriorityLevel   int32  `json:"priority-level"`
+	DataNetworkName string `json:"data-network-name"`
 }
 
 type GetPolicyOptions struct {
@@ -27,34 +25,28 @@ type DeletePolicyOptions struct {
 
 type Policy struct {
 	Name            string `json:"name"`
-	IPPool          string `json:"ip-pool"`
-	DNS             string `json:"dns"`
-	Mtu             int32  `json:"mtu"`
 	BitrateUplink   string `json:"bitrate-uplink"`
 	BitrateDownlink string `json:"bitrate-downlink"`
 	Var5qi          int32  `json:"var5qi"`
 	PriorityLevel   int32  `json:"priority-level"`
+	DataNetworkName string `json:"data-network-name"`
 }
 
 func (c *Client) CreatePolicy(opts *CreatePolicyOptions) error {
 	payload := struct {
 		Name            string `json:"name"`
-		IPPool          string `json:"ip-pool"`
-		DNS             string `json:"dns"`
-		Mtu             int32  `json:"mtu"`
 		BitrateUplink   string `json:"bitrate-uplink"`
 		BitrateDownlink string `json:"bitrate-downlink"`
 		Var5qi          int32  `json:"var5qi"`
 		PriorityLevel   int32  `json:"priority-level"`
+		DataNetworkName string `json:"data-network-name"`
 	}{
 		Name:            opts.Name,
-		IPPool:          opts.IPPool,
-		DNS:             opts.DNS,
-		Mtu:             opts.Mtu,
 		BitrateUplink:   opts.BitrateUplink,
 		BitrateDownlink: opts.BitrateDownlink,
 		Var5qi:          opts.Var5qi,
 		PriorityLevel:   opts.PriorityLevel,
+		DataNetworkName: opts.DataNetworkName,
 	}
 
 	var body bytes.Buffer

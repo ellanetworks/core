@@ -57,15 +57,24 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 		return nil, fmt.Errorf("failed to login: %v", err)
 	}
 
+	createDataNetworkOpts := &client.CreateDataNetworkOptions{
+		Name:   "internet",
+		IPPool: "172.250.0.0/24",
+		DNS:    "8.8.8.8",
+		Mtu:    1460,
+	}
+	err = opts.client.CreateDataNetwork(createDataNetworkOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create data network: %v", err)
+	}
+
 	createPolicyOpts := &client.CreatePolicyOptions{
 		Name:            testPolicyName,
-		UeIPPool:        "172.250.0.0/24",
-		DNS:             "8.8.8.8",
-		Mtu:             1460,
 		BitrateUplink:   "200 Mbps",
 		BitrateDownlink: "100 Mbps",
 		Var5qi:          8,
 		PriorityLevel:   1,
+		DataNetworkName: "internet",
 	}
 	err = opts.client.CreatePolicy(createPolicyOpts)
 	if err != nil {

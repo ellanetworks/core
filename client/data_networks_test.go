@@ -8,12 +8,12 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-func TestCreatePolicy_Success(t *testing.T) {
+func TestCreateDataNetwork_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Policy created successfully"}`),
+			Result:     []byte(`{"message": "Data Network created successfully"}`),
 		},
 		err: nil,
 	}
@@ -21,21 +21,20 @@ func TestCreatePolicy_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	createPolicyOpts := &client.CreatePolicyOptions{
-		Name:            "testPolicy",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "100 Mbps",
-		Var5qi:          9,
-		PriorityLevel:   1,
+	createDataNetworkOpts := &client.CreateDataNetworkOptions{
+		Name:   "testDataNetwork",
+		IPPool: "10.45.0.0/16",
+		DNS:    "8.8.8.8",
+		Mtu:    1400,
 	}
 
-	err := clientObj.CreatePolicy(createPolicyOpts)
+	err := clientObj.CreateDataNetwork(createDataNetworkOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
-func TestCreatePolicy_Failure(t *testing.T) {
+func TestCreateDataNetwork_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 400,
@@ -47,54 +46,57 @@ func TestCreatePolicy_Failure(t *testing.T) {
 	clientObj := &client.Client{
 		Requester: fake,
 	}
-	createPolicyOpts := &client.CreatePolicyOptions{
-		Name:            "testPolicy",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "100 Mbps",
-		Var5qi:          9,
-		PriorityLevel:   1,
+	createDataNetworkOpts := &client.CreateDataNetworkOptions{
+		Name:   "testDataNetwork",
+		IPPool: "12312312312",
+		DNS:    "8.8.8.8",
+		Mtu:    1400,
 	}
 
-	err := clientObj.CreatePolicy(createPolicyOpts)
+	err := clientObj.CreateDataNetwork(createDataNetworkOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
 }
 
-func TestGetPolicy_Success(t *testing.T) {
+func TestGetDataNetwork_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"name": "my-policy", "ip-pool": "1.2.3.0/24"}`),
+			Result:     []byte(`{"name": "my-data-network", "ip-pool": "1.2.3.0/24"}`),
 		},
 		err: nil,
 	}
 	clientObj := &client.Client{
 		Requester: fake,
 	}
-	name := "my-policy"
+	name := "my-data-network"
 
-	getRouteOpts := &client.GetPolicyOptions{
+	getRouteOpts := &client.GetDataNetworkOptions{
 		Name: name,
 	}
 
-	policy, err := clientObj.GetPolicy(getRouteOpts)
+	dataNetwork, err := clientObj.GetDataNetwork(getRouteOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if policy.Name != name {
-		t.Fatalf("expected ID %v, got %v", name, policy.Name)
+	if dataNetwork.Name != name {
+		t.Fatalf("expected ID %v, got %v", name, dataNetwork.Name)
+	}
+
+	if dataNetwork.IPPool != "1.2.3.0/24" {
+		t.Fatalf("expected ID %v, got %v", "1.2.3.0/24", dataNetwork.IPPool)
 	}
 }
 
-func TestGetPolicy_Failure(t *testing.T) {
+func TestGetDataNetwork_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 404,
 			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Policy not found"}`),
+			Result:     []byte(`{"error": "Data Network not found"}`),
 		},
 		err: errors.New("requester error"),
 	}
@@ -102,45 +104,45 @@ func TestGetPolicy_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	name := "non-existent-policy"
-	getPolicyOpts := &client.GetPolicyOptions{
+	name := "non-existent-data-network"
+	getDataNetworkOpts := &client.GetDataNetworkOptions{
 		Name: name,
 	}
-	_, err := clientObj.GetPolicy(getPolicyOpts)
+	_, err := clientObj.GetDataNetwork(getDataNetworkOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
 }
 
-func TestDeletePolicy_Success(t *testing.T) {
+func TestDeleteDataNetwork_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Policy deleted successfully"}`),
+			Result:     []byte(`{"message": "Data Network deleted successfully"}`),
 		},
 		err: nil,
 	}
 	clientObj := &client.Client{
 		Requester: fake,
 	}
-	name := "testPolicy"
+	name := "testDataNetwork"
 
-	deletePolicyOpts := &client.DeletePolicyOptions{
+	deleteDataNetworkOpts := &client.DeleteDataNetworkOptions{
 		Name: name,
 	}
-	err := clientObj.DeletePolicy(deletePolicyOpts)
+	err := clientObj.DeleteDataNetwork(deleteDataNetworkOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
-func TestDeletePolicy_Failure(t *testing.T) {
+func TestDeleteDataNetwork_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 404,
 			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Policy not found"}`),
+			Result:     []byte(`{"error": "Data Network not found"}`),
 		},
 		err: errors.New("requester error"),
 	}
@@ -148,23 +150,23 @@ func TestDeletePolicy_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	name := "non-existent-policy"
+	name := "non-existent-data-network"
 
-	deletePolicyOpts := &client.DeletePolicyOptions{
+	deleteDataNetworkOpts := &client.DeleteDataNetworkOptions{
 		Name: name,
 	}
-	err := clientObj.DeletePolicy(deletePolicyOpts)
+	err := clientObj.DeleteDataNetwork(deleteDataNetworkOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
 }
 
-func TestListPolicies_Success(t *testing.T) {
+func TestListDataNetworks_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[{"imsi": "001010100000022", "policyName": "default"}]`),
+			Result:     []byte(`[{"imsi": "001010100000022", "dataNetworkName": "default"}]`),
 		},
 		err: nil,
 	}
@@ -172,17 +174,17 @@ func TestListPolicies_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	policies, err := clientObj.ListPolicies()
+	dataNetworks, err := clientObj.ListDataNetworks()
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(policies) != 1 {
-		t.Fatalf("expected 1 policy, got %d", len(policies))
+	if len(dataNetworks) != 1 {
+		t.Fatalf("expected 1 data network, got %d", len(dataNetworks))
 	}
 }
 
-func TestListPolicies_Failure(t *testing.T) {
+func TestListDataNetworks_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 500,
@@ -195,7 +197,7 @@ func TestListPolicies_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	_, err := clientObj.ListPolicies()
+	_, err := clientObj.ListDataNetworks()
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
