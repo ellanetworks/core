@@ -4,15 +4,20 @@ export enum RoleID {
   NetworkManager = 3,
 }
 
-export type Policy = {
+export type DataNetwork = {
   name: string;
   ipPool: string;
   dns: string;
   mtu: number;
+};
+
+export type Policy = {
+  name: string;
   bitrateUp: string;
   bitrateDown: string;
   fiveQi: number;
   priorityLevel: number;
+  dataNetworkName: string;
 };
 
 export type Route = {

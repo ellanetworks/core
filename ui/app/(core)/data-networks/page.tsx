@@ -12,25 +12,27 @@ import {
 } from "@mui/material";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
-import { listPolicies, deletePolicy } from "@/queries/policies";
-import CreatePolicyModal from "@/components/CreatePolicyModal";
-import EditPolicyModal from "@/components/EditPolicyModal";
+import { listDataNetworks, deleteDataNetwork } from "@/queries/data_networks";
+import CreateDataNetworkModal from "@/components/CreateDataNetworkModal";
+import EditDataNetworkModal from "@/components/EditDataNetworkModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
-import { Policy } from "@/types/types";
+import { DataNetwork } from "@/types/types";
 
-const PolicyPage = () => {
+const DataNetworkPage = () => {
   const { role } = useAuth();
   const [cookies] = useCookies(["user_token"]);
-  const [policies, setPolicies] = useState<Policy[]>([]);
+  const [dataNetworks, setDataNetworks] = useState<DataNetwork[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-  const [editData, setEditData] = useState<Policy | null>(null);
-  const [selectedPolicy, setSelectedPolicy] = useState<string | null>(null);
+  const [editData, setEditData] = useState<DataNetwork | null>(null);
+  const [selectedDataNetwork, setSelectedDataNetwork] = useState<string | null>(
+    null,
+  );
   const [alert, setAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
@@ -39,63 +41,60 @@ const PolicyPage = () => {
     severity: null,
   });
 
-  const fetchPolicies = useCallback(async () => {
+  const fetchDataNetworks = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await listPolicies(cookies.user_token);
-      setPolicies(data);
+      const data = await listDataNetworks(cookies.user_token);
+      setDataNetworks(data);
     } catch (error) {
-      console.error("Error fetching policies:", error);
+      console.error("Error fetching data networks:", error);
     } finally {
       setLoading(false);
     }
   }, [cookies.user_token]);
 
   useEffect(() => {
-    fetchPolicies();
-  }, [fetchPolicies]);
+    fetchDataNetworks();
+  }, [fetchDataNetworks]);
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
 
-  const handleEditClick = (policy: Policy) => {
-    setEditData(policy);
+  const handleEditClick = (dataNetwork: DataNetwork) => {
+    setEditData(dataNetwork);
     setEditModalOpen(true);
   };
 
-  const handleDeleteClick = (policyName: string) => {
-    setSelectedPolicy(policyName);
+  const handleDeleteClick = (dataNetworkName: string) => {
+    setSelectedDataNetwork(dataNetworkName);
     setConfirmationOpen(true);
   };
 
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
-    if (selectedPolicy) {
+    if (selectedDataNetwork) {
       try {
-        await deletePolicy(cookies.user_token, selectedPolicy);
+        await deleteDataNetwork(cookies.user_token, selectedDataNetwork);
         setAlert({
-          message: `Policy "${selectedPolicy}" deleted successfully!`,
+          message: `Data Network "${selectedDataNetwork}" deleted successfully!`,
           severity: "success",
         });
-        fetchPolicies();
+        fetchDataNetworks();
       } catch (error) {
         setAlert({
-          message: `Failed to delete policy "${selectedPolicy}": ${error}`,
+          message: `Failed to delete data network "${selectedDataNetwork}": ${error}`,
           severity: "error",
         });
       } finally {
-        setSelectedPolicy(null);
+        setSelectedDataNetwork(null);
       }
     }
   };
 
   const baseColumns: GridColDef[] = [
     { field: "name", headerName: "Name", flex: 1 },
-    { field: "bitrateUp", headerName: "Bitrate (Up)", flex: 1 },
-    { field: "bitrateDown", headerName: "Bitrate (Down)", flex: 1 },
-    { field: "fiveQi", headerName: "5QI", flex: 0.5 },
-    { field: "priorityLevel", headerName: "Priority", flex: 0.5 },
-    { field: "dataNetworkName", headerName: "Data Network Name", flex: 1 },
+    { field: "ipPool", headerName: "IP Pool", flex: 1 },
+    { field: "dns", headerName: "DNS", flex: 1 },
   ];
 
   if (role === "Admin" || role === "Network Manager") {
@@ -156,10 +155,10 @@ const PolicyPage = () => {
         >
           <CircularProgress />
         </Box>
-      ) : policies.length === 0 ? (
+      ) : dataNetworks.length === 0 ? (
         <EmptyState
-          primaryText="No policy found."
-          secondaryText="Create a new policy in order to add subscribers to the network."
+          primaryText="No data network found."
+          secondaryText="Create a new data network in order to add subscribers to the network."
           button={role === "Admin" || role === "Network Manager"}
           buttonText="Create"
           onCreate={handleOpenCreateModal}
@@ -176,7 +175,7 @@ const PolicyPage = () => {
             }}
           >
             <Typography variant="h4" component="h1" gutterBottom>
-              Policies ({policies.length})
+              Data Networks ({dataNetworks.length})
             </Typography>
             {(role === "Admin" || role === "Network Manager") && (
               <Button
@@ -199,7 +198,7 @@ const PolicyPage = () => {
             }}
           >
             <DataGrid
-              rows={policies}
+              rows={dataNetworks}
               columns={baseColumns}
               disableRowSelectionOnClick
               getRowId={(row) => row.name}
@@ -207,23 +206,21 @@ const PolicyPage = () => {
           </Box>
         </>
       )}
-      <CreatePolicyModal
+      <CreateDataNetworkModal
         open={isCreateModalOpen}
         onClose={handleCloseCreateModal}
-        onSuccess={fetchPolicies}
+        onSuccess={fetchDataNetworks}
       />
-      <EditPolicyModal
+      <EditDataNetworkModal
         open={isEditModalOpen}
         onClose={() => setEditModalOpen(false)}
-        onSuccess={fetchPolicies}
+        onSuccess={fetchDataNetworks}
         initialData={
           editData || {
             name: "",
-            bitrateUp: "100 Mbps",
-            bitrateDown: "100 Mbps",
-            fiveQi: 1,
-            priorityLevel: 1,
-            dataNetworkName: "",
+            ipPool: "",
+            dns: "",
+            mtu: 1500,
           }
         }
       />
@@ -232,10 +229,10 @@ const PolicyPage = () => {
         onClose={() => setConfirmationOpen(false)}
         onConfirm={handleDeleteConfirm}
         title="Confirm Deletion"
-        description={`Are you sure you want to delete the policy "${selectedPolicy}"? This action cannot be undone.`}
+        description={`Are you sure you want to delete the data network "${selectedDataNetwork}"? This action cannot be undone.`}
       />
     </Box>
   );
 };
 
-export default PolicyPage;
+export default DataNetworkPage;

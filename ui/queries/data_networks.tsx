@@ -1,8 +1,10 @@
 import { HTTPStatus } from "@/queries/utils";
-import { Policy } from "@/types/types";
+import { DataNetwork } from "@/types/types";
 
-export const listPolicies = async (authToken: string): Promise<Policy[]> => {
-  const response = await fetch(`/api/v1/policies`, {
+export const listDataNetworks = async (
+  authToken: string,
+): Promise<DataNetwork[]> => {
+  const response = await fetch(`/api/v1/data-networks`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -25,37 +27,31 @@ export const listPolicies = async (authToken: string): Promise<Policy[]> => {
     );
   }
 
-  const transformed: Policy[] = respData.result.map((p: any) => ({
+  const transformed: DataNetwork[] = respData.result.map((p: any) => ({
     name: p.name,
-    bitrateUp: p["bitrate-uplink"],
-    bitrateDown: p["bitrate-downlink"],
-    fiveQi: p["var5qi"],
-    priorityLevel: p["priority-level"],
-    dataNetworkName: p["data-network-name"],
+    ipPool: p["ip-pool"],
+    dns: p.dns,
+    mtu: p.mtu,
   }));
 
   return transformed;
 };
 
-export const createPolicy = async (
+export const createDataNetwork = async (
   authToken: string,
   name: string,
-  bitrateUplink: string,
-  bitrateDownlink: string,
-  var5qi: number,
-  priorityLevel: number,
-  dataNetworkName: string,
+  ipPool: string,
+  dns: string,
+  mtu: number,
 ) => {
   const policyData = {
     name: name,
-    "bitrate-uplink": bitrateUplink,
-    "bitrate-downlink": bitrateDownlink,
-    var5qi: var5qi,
-    "priority-level": priorityLevel,
-    "data-network-name": dataNetworkName,
+    "ip-pool": ipPool,
+    dns: dns,
+    mtu: mtu,
   };
 
-  const response = await fetch(`/api/v1/policies`, {
+  const response = await fetch(`/api/v1/data-networks`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -81,25 +77,21 @@ export const createPolicy = async (
   return respData.result;
 };
 
-export const updatePolicy = async (
+export const updateDataNetwork = async (
   authToken: string,
   name: string,
-  bitrateUplink: string,
-  bitrateDownlink: string,
-  var5qi: number,
-  priorityLevel: number,
-  dataNetworkName: string,
+  ipPool: string,
+  dns: string,
+  mtu: number,
 ) => {
   const policyData = {
     name: name,
-    "bitrate-uplink": bitrateUplink,
-    "bitrate-downlink": bitrateDownlink,
-    var5qi: var5qi,
-    "priority-level": priorityLevel,
-    "data-network-name": dataNetworkName,
+    "ip-pool": ipPool,
+    dns: dns,
+    mtu: mtu,
   };
 
-  const response = await fetch(`/api/v1/policies/${name}`, {
+  const response = await fetch(`/api/v1/data-networks/${name}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -125,8 +117,8 @@ export const updatePolicy = async (
   return respData.result;
 };
 
-export const deletePolicy = async (authToken: string, name: string) => {
-  const response = await fetch(`/api/v1/policies/${name}`, {
+export const deleteDataNetwork = async (authToken: string, name: string) => {
+  const response = await fetch(`/api/v1/data-networks/${name}`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",

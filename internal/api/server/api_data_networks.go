@@ -253,7 +253,7 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 	case !isDataNetworkNameValid(p.Name):
 		return errors.New("invalid name format, must be less than 256 characters")
 	case !isUeIPPoolValid(p.IPPool):
-		return errors.New("invalid ue-ip-pool format, must be in CIDR format")
+		return errors.New("invalid ip-pool format, must be in CIDR format")
 	case !isValidDNS(p.DNS):
 		return errors.New("invalid dns format, must be a valid IP address")
 	case !isValidMTU(p.MTU):

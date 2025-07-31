@@ -98,7 +98,7 @@ None
 {
     "result": {
         "name": "internet",
-        "ue-ip-pool": "0.0.0.0/24",
+        "ip-pool": "0.0.0.0/24",
         "dns": "8.8.8.8",
         "mtu": 1460
     }

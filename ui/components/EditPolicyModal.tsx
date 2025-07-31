@@ -6,15 +6,19 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  FormControl,
+  Select,
+  InputLabel,
   Button,
   MenuItem,
   Alert,
   Collapse,
 } from "@mui/material";
 import { updatePolicy } from "@/queries/policies";
+import { listDataNetworks } from "@/queries/data_networks";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
-import { Policy } from "@/types/types";
+import { Policy, DataNetwork } from "@/types/types";
 
 interface EditPolicyModalProps {
   open: boolean;
@@ -44,20 +48,53 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   }
   const [formValues, setFormValues] = useState<FormState>({
     name: "",
-    ipPool: "",
-    dns: "",
-    mtu: 1500,
     bitrateUpValue: 0,
     bitrateUpUnit: "Mbps",
     bitrateDownValue: 0,
     bitrateDownUnit: "Mbps",
     fiveQi: 0,
     priorityLevel: 0,
+    dataNetworkName: "",
   });
 
+  const [dataNetworks, setDataNetworks] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
+
+  useEffect(() => {
+    const fetchDataNetworks = async () => {
+      try {
+        const policyData = await listDataNetworks(cookies.user_token);
+        setDataNetworks(
+          policyData.map((dataNetwork: DataNetwork) => dataNetwork.name),
+        );
+      } catch (error) {
+        console.error("Failed to fetch data networks:", error);
+      }
+    };
+
+    if (open) {
+      fetchDataNetworks();
+      const [bitrateUpValueStr, bitrateUpUnit] =
+        initialData.bitrateUp.split(" ");
+      const [bitrateDownValueStr, bitrateDownUnit] =
+        initialData.bitrateDown.split(" ");
+
+      setFormValues({
+        name: initialData.name,
+        bitrateUpValue: parseInt(bitrateUpValueStr, 10),
+        bitrateUpUnit: bitrateUpUnit as "Mbps" | "Gbps",
+        bitrateDownValue: parseInt(bitrateDownValueStr, 10),
+        bitrateDownUnit: bitrateDownUnit as "Mbps" | "Gbps",
+        fiveQi: initialData.fiveQi,
+        priorityLevel: initialData.priorityLevel,
+        dataNetworkName: initialData.dataNetworkName,
+      });
+
+      setErrors({});
+    }
+  }, [open, initialData, cookies.user_token]);
 
   useEffect(() => {
     if (open) {
@@ -68,15 +105,13 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
 
       setFormValues({
         name: initialData.name,
-        ipPool: initialData.ipPool,
-        dns: initialData.dns,
-        mtu: initialData.mtu,
         bitrateUpValue: parseInt(bitrateUpValueStr, 10),
         bitrateUpUnit: bitrateUpUnit as "Mbps" | "Gbps",
         bitrateDownValue: parseInt(bitrateDownValueStr, 10),
         bitrateDownUnit: bitrateDownUnit as "Mbps" | "Gbps",
         fiveQi: initialData.fiveQi,
         priorityLevel: initialData.priorityLevel,
+        dataNetworkName: initialData.dataNetworkName,
       });
       setErrors({});
     }
@@ -100,13 +135,11 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
       await updatePolicy(
         cookies.user_token,
         formValues.name,
-        formValues.ipPool,
-        formValues.dns,
-        formValues.mtu,
         bitrateUp,
         bitrateDown,
         formValues.fiveQi,
         formValues.priorityLevel,
+        formValues.dataNetworkName,
       );
       onClose();
       onSuccess();
@@ -144,34 +177,22 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           margin="normal"
           disabled
         />
-        <TextField
-          fullWidth
-          label="IP Pool"
-          value={formValues.ipPool}
-          onChange={(e) => handleChange("ipPool", e.target.value)}
-          error={!!errors.ipPool}
-          helperText={errors.ipPool}
-          margin="normal"
-        />
-        <TextField
-          fullWidth
-          label="DNS"
-          value={formValues.dns}
-          onChange={(e) => handleChange("dns", e.target.value)}
-          error={!!errors.dns}
-          helperText={errors.dns}
-          margin="normal"
-        />
-        <TextField
-          fullWidth
-          label="MTU"
-          type="number"
-          value={formValues.mtu}
-          onChange={(e) => handleChange("mtu", Number(e.target.value))}
-          error={!!errors.mtu}
-          helperText={errors.mtu}
-          margin="normal"
-        />
+        <FormControl fullWidth margin="normal">
+          <InputLabel id="demo-simple-select-label">Policy Name</InputLabel>
+          <Select
+            value={formValues.dataNetworkName}
+            onChange={(e) => handleChange("dataNetworkName", e.target.value)}
+            error={!!errors.policyName}
+            label={"Data Network Name"}
+            labelId="demo-simple-select-label"
+          >
+            {dataNetworks.map((dataNetwork) => (
+              <MenuItem key={dataNetwork} value={dataNetwork}>
+                {dataNetwork}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
         <Box display="flex" gap={2}>
           <TextField
             label="Bitrate Up Value"

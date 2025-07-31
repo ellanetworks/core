@@ -8,6 +8,10 @@ import {
   TextField,
   Button,
   Alert,
+  FormControl,
+  Typography,
+  InputLabel,
+  Select,
   Collapse,
   MenuItem,
 } from "@mui/material";
@@ -16,6 +20,11 @@ import { ValidationError } from "yup";
 import { createPolicy } from "@/queries/policies";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
+import { listDataNetworks } from "@/queries/data_networks";
+
+type DataNetwork = {
+  name: string;
+};
 
 interface CreatePolicyModalProps {
   open: boolean;
@@ -25,21 +34,6 @@ interface CreatePolicyModalProps {
 
 const schema = yup.object().shape({
   name: yup.string().min(1).max(256).required("Name is required"),
-  ipPool: yup
-    .string()
-    .matches(
-      /^(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\/\d{1,2}$/,
-      "Must be a valid IP pool (e.g., 10.45.0.0/16)",
-    )
-    .required("IP Pool is required"),
-  dns: yup
-    .string()
-    .matches(
-      /^(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)$/,
-      "Must be a valid IP address",
-    )
-    .required("DNS is required"),
-  mtu: yup.number().min(1).max(65535).required("MTU is required"),
   bitrateUpValue: yup
     .number()
     .min(1, "Bitrate value must be between 1 and 999")
@@ -58,6 +52,7 @@ const schema = yup.object().shape({
     .min(0)
     .max(256)
     .required("Priority Level is required"),
+  dataNetworkName: yup.string().required("Data Network Name is required."),
 });
 
 const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
@@ -74,22 +69,38 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
 
   const [formValues, setFormValues] = useState({
     name: "",
-    ipPool: "10.45.0.0/16",
-    dns: "8.8.8.8",
-    mtu: 1500,
     bitrateUpValue: 100,
     bitrateUpUnit: "Mbps",
     bitrateDownValue: 100,
     bitrateDownUnit: "Mbps",
     fiveQi: 1,
     priorityLevel: 1,
+    dataNetworkName: "",
   });
 
+  const [dataNetworks, setDataNetworks] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
+
+  useEffect(() => {
+    const fetchDataNetworks = async () => {
+      try {
+        const dataNetworkDatae: DataNetwork[] = await listDataNetworks(
+          cookies.user_token,
+        );
+        setDataNetworks(dataNetworkDatae.map((policy) => policy.name));
+      } catch (error) {
+        console.error("Failed to fetch data networks:", error);
+      }
+    };
+
+    if (open) {
+      fetchDataNetworks();
+    }
+  }, [open, cookies.user_token]);
 
   const handleChange = (field: string, value: string | number) => {
     setFormValues((prev) => ({
@@ -157,13 +168,11 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
       await createPolicy(
         cookies.user_token,
         formValues.name,
-        formValues.ipPool,
-        formValues.dns,
-        formValues.mtu,
         bitrateUplink,
         bitrateDownlink,
         formValues.fiveQi,
         formValues.priorityLevel,
+        formValues.dataNetworkName,
       );
       onClose();
       onSuccess();
@@ -210,37 +219,30 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           helperText={touched.name ? errors.name : ""}
           margin="normal"
         />
-        <TextField
-          fullWidth
-          label="IP Pool"
-          value={formValues.ipPool}
-          onChange={(e) => handleChange("ipPool", e.target.value)}
-          onBlur={() => handleBlur("ipPool")}
-          error={!!errors.ipPool && touched.ipPool}
-          helperText={touched.ipPool ? errors.ipPool : ""}
-          margin="normal"
-        />
-        <TextField
-          fullWidth
-          label="DNS"
-          value={formValues.dns}
-          onChange={(e) => handleChange("dns", e.target.value)}
-          onBlur={() => handleBlur("dns")}
-          error={!!errors.dns && touched.dns}
-          helperText={touched.dns ? errors.dns : ""}
-          margin="normal"
-        />
-        <TextField
-          fullWidth
-          label="MTU"
-          type="number"
-          value={formValues.mtu}
-          onChange={(e) => handleChange("mtu", Number(e.target.value))}
-          onBlur={() => handleBlur("mtu")}
-          error={!!errors.mtu && touched.mtu}
-          helperText={touched.mtu ? errors.mtu : ""}
-          margin="normal"
-        />
+        <FormControl fullWidth margin="normal">
+          <InputLabel id="demo-simple-select-label">
+            Data Network Name
+          </InputLabel>
+          <Select
+            value={formValues.dataNetworkName}
+            onChange={(e) => handleChange("dataNetworkName", e.target.value)}
+            onBlur={() => handleBlur("dataNetworkName")}
+            error={!!errors.dataNetworkName && touched.dataNetworkName}
+            labelId="demo-simple-select-label"
+            label={"PolicyName"}
+          >
+            {dataNetworks.map((dataNetwork) => (
+              <MenuItem key={dataNetwork} value={dataNetwork}>
+                {dataNetwork}
+              </MenuItem>
+            ))}
+          </Select>
+          {touched.dataNetworkName && errors.dataNetworkName && (
+            <Typography color="error" variant="caption">
+              {errors.dataNetworkName}
+            </Typography>
+          )}
+        </FormControl>
         <Box display="flex" gap={2}>
           <TextField
             label="Bitrate Up Value"

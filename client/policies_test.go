@@ -72,7 +72,7 @@ func TestGetPolicy_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"name": "my-policy", "ue-ip-pool": "1.2.3.0/24"}`),
+			Result:     []byte(`{"name": "my-policy", "ip-pool": "1.2.3.0/24"}`),
 		},
 		err: nil,
 	}

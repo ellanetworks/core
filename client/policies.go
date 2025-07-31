@@ -8,7 +8,7 @@ import (
 
 type CreatePolicyOptions struct {
 	Name            string `json:"name"`
-	UeIPPool        string `json:"ue-ip-pool"`
+	IPPool          string `json:"ip-pool"`
 	DNS             string `json:"dns"`
 	Mtu             int32  `json:"mtu"`
 	BitrateUplink   string `json:"bitrate-uplink"`
@@ -27,7 +27,7 @@ type DeletePolicyOptions struct {
 
 type Policy struct {
 	Name            string `json:"name"`
-	UeIPPool        string `json:"ue-ip-pool"`
+	IPPool          string `json:"ip-pool"`
 	DNS             string `json:"dns"`
 	Mtu             int32  `json:"mtu"`
 	BitrateUplink   string `json:"bitrate-uplink"`
@@ -39,7 +39,7 @@ type Policy struct {
 func (c *Client) CreatePolicy(opts *CreatePolicyOptions) error {
 	payload := struct {
 		Name            string `json:"name"`
-		UeIPPool        string `json:"ue-ip-pool"`
+		IPPool          string `json:"ip-pool"`
 		DNS             string `json:"dns"`
 		Mtu             int32  `json:"mtu"`
 		BitrateUplink   string `json:"bitrate-uplink"`
@@ -48,7 +48,7 @@ func (c *Client) CreatePolicy(opts *CreatePolicyOptions) error {
 		PriorityLevel   int32  `json:"priority-level"`
 	}{
 		Name:            opts.Name,
-		UeIPPool:        opts.UeIPPool,
+		IPPool:          opts.IPPool,
 		DNS:             opts.DNS,
 		Mtu:             opts.Mtu,
 		BitrateUplink:   opts.BitrateUplink,
