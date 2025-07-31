@@ -8,12 +8,12 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-func TestCreateProfile_Success(t *testing.T) {
+func TestCreatePolicy_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Profile created successfully"}`),
+			Result:     []byte(`{"message": "Policy created successfully"}`),
 		},
 		err: nil,
 	}
@@ -21,8 +21,8 @@ func TestCreateProfile_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	createProfileOpts := &client.CreateProfileOptions{
-		Name:            "testProfile",
+	createPolicyOpts := &client.CreatePolicyOptions{
+		Name:            "testPolicy",
 		UeIPPool:        "10.45.0.0/16",
 		DNS:             "8.8.8.8",
 		Mtu:             1400,
@@ -32,13 +32,13 @@ func TestCreateProfile_Success(t *testing.T) {
 		PriorityLevel:   1,
 	}
 
-	err := clientObj.CreateProfile(createProfileOpts)
+	err := clientObj.CreatePolicy(createPolicyOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
-func TestCreateProfile_Failure(t *testing.T) {
+func TestCreatePolicy_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 400,
@@ -50,8 +50,8 @@ func TestCreateProfile_Failure(t *testing.T) {
 	clientObj := &client.Client{
 		Requester: fake,
 	}
-	createProfileOpts := &client.CreateProfileOptions{
-		Name:            "testProfile",
+	createPolicyOpts := &client.CreatePolicyOptions{
+		Name:            "testPolicy",
 		UeIPPool:        "12312312312",
 		DNS:             "8.8.8.8",
 		Mtu:             1400,
@@ -61,50 +61,50 @@ func TestCreateProfile_Failure(t *testing.T) {
 		PriorityLevel:   1,
 	}
 
-	err := clientObj.CreateProfile(createProfileOpts)
+	err := clientObj.CreatePolicy(createPolicyOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
 }
 
-func TestGetProfile_Success(t *testing.T) {
+func TestGetPolicy_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"name": "my-profile", "ue-ip-pool": "1.2.3.0/24"}`),
+			Result:     []byte(`{"name": "my-policy", "ue-ip-pool": "1.2.3.0/24"}`),
 		},
 		err: nil,
 	}
 	clientObj := &client.Client{
 		Requester: fake,
 	}
-	name := "my-profile"
+	name := "my-policy"
 
-	getRouteOpts := &client.GetProfileOptions{
+	getRouteOpts := &client.GetPolicyOptions{
 		Name: name,
 	}
 
-	profile, err := clientObj.GetProfile(getRouteOpts)
+	policy, err := clientObj.GetPolicy(getRouteOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if profile.Name != name {
-		t.Fatalf("expected ID %v, got %v", name, profile.Name)
+	if policy.Name != name {
+		t.Fatalf("expected ID %v, got %v", name, policy.Name)
 	}
 
-	if profile.UeIPPool != "1.2.3.0/24" {
-		t.Fatalf("expected ID %v, got %v", "1.2.3.0/24", profile.UeIPPool)
+	if policy.UeIPPool != "1.2.3.0/24" {
+		t.Fatalf("expected ID %v, got %v", "1.2.3.0/24", policy.UeIPPool)
 	}
 }
 
-func TestGetProfile_Failure(t *testing.T) {
+func TestGetPolicy_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 404,
 			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Profile not found"}`),
+			Result:     []byte(`{"error": "Policy not found"}`),
 		},
 		err: errors.New("requester error"),
 	}
@@ -112,45 +112,45 @@ func TestGetProfile_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	name := "non-existent-profile"
-	getProfileOpts := &client.GetProfileOptions{
+	name := "non-existent-policy"
+	getPolicyOpts := &client.GetPolicyOptions{
 		Name: name,
 	}
-	_, err := clientObj.GetProfile(getProfileOpts)
+	_, err := clientObj.GetPolicy(getPolicyOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
 }
 
-func TestDeleteProfile_Success(t *testing.T) {
+func TestDeletePolicy_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Profile deleted successfully"}`),
+			Result:     []byte(`{"message": "Policy deleted successfully"}`),
 		},
 		err: nil,
 	}
 	clientObj := &client.Client{
 		Requester: fake,
 	}
-	name := "testProfile"
+	name := "testPolicy"
 
-	deleteProfileOpts := &client.DeleteProfileOptions{
+	deletePolicyOpts := &client.DeletePolicyOptions{
 		Name: name,
 	}
-	err := clientObj.DeleteProfile(deleteProfileOpts)
+	err := clientObj.DeletePolicy(deletePolicyOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
-func TestDeleteProfile_Failure(t *testing.T) {
+func TestDeletePolicy_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 404,
 			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Profile not found"}`),
+			Result:     []byte(`{"error": "Policy not found"}`),
 		},
 		err: errors.New("requester error"),
 	}
@@ -158,23 +158,23 @@ func TestDeleteProfile_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	name := "non-existent-profile"
+	name := "non-existent-policy"
 
-	deleteProfileOpts := &client.DeleteProfileOptions{
+	deletePolicyOpts := &client.DeletePolicyOptions{
 		Name: name,
 	}
-	err := clientObj.DeleteProfile(deleteProfileOpts)
+	err := clientObj.DeletePolicy(deletePolicyOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
 }
 
-func TestListProfiles_Success(t *testing.T) {
+func TestListPolicies_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[{"imsi": "001010100000022", "profileName": "default"}]`),
+			Result:     []byte(`[{"imsi": "001010100000022", "policyName": "default"}]`),
 		},
 		err: nil,
 	}
@@ -182,17 +182,17 @@ func TestListProfiles_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	profiles, err := clientObj.ListProfiles()
+	policies, err := clientObj.ListPolicies()
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(profiles) != 1 {
-		t.Fatalf("expected 1 profile, got %d", len(profiles))
+	if len(policies) != 1 {
+		t.Fatalf("expected 1 policy, got %d", len(policies))
 	}
 }
 
-func TestListProfiles_Failure(t *testing.T) {
+func TestListPolicies_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 500,
@@ -205,7 +205,7 @@ func TestListProfiles_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	_, err := clientObj.ListProfiles()
+	_, err := clientObj.ListPolicies()
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

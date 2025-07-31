@@ -4,7 +4,7 @@ export enum RoleID {
   NetworkManager = 3,
 }
 
-export type Profile = {
+export type Policy = {
   name: string;
   ipPool: string;
   dns: string;
@@ -29,7 +29,7 @@ export type Subscriber = {
   opc: string;
   sequenceNumber: string;
   key: string;
-  profileName: string;
+  policyName: string;
 };
 
 export type User = {

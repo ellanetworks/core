@@ -19,13 +19,14 @@ var tracer = otel.Tracer("ella-core/db")
 
 // Database is the object used to communicate with the established repository.
 type Database struct {
-	filepath         string
-	subscribersTable string
-	profilesTable    string
-	routesTable      string
-	operatorTable    string
-	usersTable       string
-	conn             *sqlair.DB
+	filepath          string
+	subscribersTable  string
+	policiesTable     string
+	routesTable       string
+	operatorTable     string
+	dataNetworksTable string
+	usersTable        string
+	conn              *sqlair.DB
 }
 
 // Close closes the connection to the repository cleanly.
@@ -59,13 +60,16 @@ func NewDatabase(databasePath string, initialOperator Operator) (*Database, erro
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateSubscribersTable, SubscribersTableName)); err != nil {
 		return nil, err
 	}
-	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateProfilesTable, ProfilesTableName)); err != nil {
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreatePoliciesTable, PoliciesTableName)); err != nil {
 		return nil, err
 	}
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateRoutesTable, RoutesTableName)); err != nil {
 		return nil, err
 	}
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateOperatorTable, OperatorTableName)); err != nil {
+		return nil, err
+	}
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateDataNetworksTable, DataNetworksTableName)); err != nil {
 		return nil, err
 	}
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateUsersTable, UsersTableName)); err != nil {
@@ -76,9 +80,10 @@ func NewDatabase(databasePath string, initialOperator Operator) (*Database, erro
 	db.conn = sqlair.NewDB(sqlConnection)
 	db.filepath = databasePath
 	db.subscribersTable = SubscribersTableName
-	db.profilesTable = ProfilesTableName
+	db.policiesTable = PoliciesTableName
 	db.routesTable = RoutesTableName
 	db.operatorTable = OperatorTableName
+	db.dataNetworksTable = DataNetworksTableName
 	db.usersTable = UsersTableName
 
 	if !db.IsOperatorInitialized() {

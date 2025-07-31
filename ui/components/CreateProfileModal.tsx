@@ -13,11 +13,11 @@ import {
 } from "@mui/material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
-import { createProfile } from "@/queries/profiles";
+import { createPolicy } from "@/queries/policies";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
 
-interface CreateProfileModalProps {
+interface CreatePolicyModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
@@ -60,7 +60,7 @@ const schema = yup.object().shape({
     .required("Priority Level is required"),
 });
 
-const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
+const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
   open,
   onClose,
   onSuccess,
@@ -154,7 +154,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
     try {
       const bitrateUplink = `${formValues.bitrateUpValue} ${formValues.bitrateUpUnit}`;
       const bitrateDownlink = `${formValues.bitrateDownValue} ${formValues.bitrateDownUnit}`;
-      await createProfile(
+      await createPolicy(
         cookies.user_token,
         formValues.name,
         formValues.ipPool,
@@ -174,9 +174,9 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
       }
 
       setAlert({
-        message: `Failed to create profile: ${errorMessage}`,
+        message: `Failed to create policy: ${errorMessage}`,
       });
-      console.error("Failed to create profile:", error);
+      console.error("Failed to create policy:", error);
     } finally {
       setLoading(false);
     }
@@ -186,10 +186,10 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
     <Dialog
       open={open}
       onClose={onClose}
-      aria-labelledby="create-profile-modal-title"
-      aria-describedby="create-profile-modal-description"
+      aria-labelledby="create-policy-modal-title"
+      aria-describedby="create-policy-modal-description"
     >
-      <DialogTitle>Create Profile</DialogTitle>
+      <DialogTitle>Create Policy</DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -335,4 +335,4 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
   );
 };
 
-export default CreateProfileModal;
+export default CreatePolicyModal;

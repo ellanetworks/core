@@ -30,7 +30,7 @@ type GetSubscriberResponseResult struct {
 	OPc            string `json:"opc"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequenceNumber"`
-	ProfileName    string `json:"profileName"`
+	PolicyName     string `json:"policyName"`
 }
 
 type GetSubscriberResponse struct {
@@ -43,7 +43,7 @@ type CreateSubscriberParams struct {
 	Key            string `json:"key"`
 	Opc            string `json:"opc,omitempty"`
 	SequenceNumber string `json:"sequenceNumber"`
-	ProfileName    string `json:"profileName"`
+	PolicyName     string `json:"policyName"`
 }
 
 type CreateSubscriberResponseResult struct {
@@ -174,18 +174,35 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	t.Run("1. Create profile", func(t *testing.T) {
-		createProfileParams := &CreateProfileParams{
-			Name:            ProfileName,
-			UeIPPool:        "0.0.0.0/24",
-			DNS:             "8.8.8.8",
-			Mtu:             1500,
+	t.Run("1. Create data network", func(t *testing.T) {
+		createDataNetworkParams := &CreateDataNetworkParams{
+			Name:   DataNetworkName,
+			MTU:    MTU,
+			IPPool: IPPool,
+			DNS:    DNS,
+		}
+		statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
+		if err != nil {
+			t.Fatalf("couldn't create subscriber: %s", err)
+		}
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	})
+
+	t.Run("1. Create policy", func(t *testing.T) {
+		createPolicyParams := &CreatePolicyParams{
+			Name:            PolicyName,
 			BitrateUplink:   "100 Mbps",
 			BitrateDownlink: "100 Mbps",
 			Var5qi:          9,
 			PriorityLevel:   1,
+			DataNetworkName: DataNetworkName,
 		}
-		statusCode, response, err := createProfile(ts.URL, client, token, createProfileParams)
+		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -202,7 +219,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			Imsi:           Imsi,
 			Key:            Key,
 			SequenceNumber: SequenceNumber,
-			ProfileName:    ProfileName,
+			PolicyName:     PolicyName,
 		}
 		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
 		if err != nil {
@@ -239,8 +256,8 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		if response.Result.SequenceNumber != SequenceNumber {
 			t.Fatalf("expected sequenceNumber %s, got %s", SequenceNumber, response.Result.SequenceNumber)
 		}
-		if response.Result.ProfileName != ProfileName {
-			t.Fatalf("expected profileName %s, got %s", ProfileName, response.Result.ProfileName)
+		if response.Result.PolicyName != PolicyName {
+			t.Fatalf("expected policyName %s, got %s", PolicyName, response.Result.PolicyName)
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -309,7 +326,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			Key:            Key,
 			Opc:            Opc,
 			SequenceNumber: SequenceNumber,
-			ProfileName:    ProfileName,
+			PolicyName:     PolicyName,
 		}
 		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
 		if err != nil {
@@ -346,8 +363,8 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		if response.Result.SequenceNumber != SequenceNumber {
 			t.Fatalf("expected sequenceNumber %s, got %s", SequenceNumber, response.Result.SequenceNumber)
 		}
-		if response.Result.ProfileName != ProfileName {
-			t.Fatalf("expected profileName %s, got %s", ProfileName, response.Result.ProfileName)
+		if response.Result.PolicyName != PolicyName {
+			t.Fatalf("expected policyName %s, got %s", PolicyName, response.Result.PolicyName)
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -431,7 +448,7 @@ func TestCreateSubscriberInvalidInput(t *testing.T) {
 				Imsi:           tt.imsi,
 				Key:            tt.key,
 				SequenceNumber: tt.sequenceNumber,
-				ProfileName:    ProfileName,
+				PolicyName:     PolicyName,
 			}
 			statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
 			if err != nil {

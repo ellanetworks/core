@@ -12,25 +12,25 @@ import {
 } from "@mui/material";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
-import { listProfiles, deleteProfile } from "@/queries/profiles";
-import CreateProfileModal from "@/components/CreateProfileModal";
-import EditProfileModal from "@/components/EditProfileModal";
+import { listPolicies, deletePolicy } from "@/queries/policies";
+import CreatePolicyModal from "@/components/CreatePolicyModal";
+import EditPolicyModal from "@/components/EditPolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
-import { Profile } from "@/types/types";
+import { Policy } from "@/types/types";
 
-const ProfilePage = () => {
+const PolicyPage = () => {
   const { role } = useAuth();
   const [cookies] = useCookies(["user_token"]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [policies, setPolicies] = useState<Policy[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-  const [editData, setEditData] = useState<Profile | null>(null);
-  const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
+  const [editData, setEditData] = useState<Policy | null>(null);
+  const [selectedPolicy, setSelectedPolicy] = useState<string | null>(null);
   const [alert, setAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
@@ -39,52 +39,52 @@ const ProfilePage = () => {
     severity: null,
   });
 
-  const fetchProfiles = useCallback(async () => {
+  const fetchPolicies = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await listProfiles(cookies.user_token);
-      setProfiles(data);
+      const data = await listPolicies(cookies.user_token);
+      setPolicies(data);
     } catch (error) {
-      console.error("Error fetching profiles:", error);
+      console.error("Error fetching policies:", error);
     } finally {
       setLoading(false);
     }
   }, [cookies.user_token]);
 
   useEffect(() => {
-    fetchProfiles();
-  }, [fetchProfiles]);
+    fetchPolicies();
+  }, [fetchPolicies]);
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
 
-  const handleEditClick = (profile: Profile) => {
-    setEditData(profile);
+  const handleEditClick = (policy: Policy) => {
+    setEditData(policy);
     setEditModalOpen(true);
   };
 
-  const handleDeleteClick = (profileName: string) => {
-    setSelectedProfile(profileName);
+  const handleDeleteClick = (policyName: string) => {
+    setSelectedPolicy(policyName);
     setConfirmationOpen(true);
   };
 
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
-    if (selectedProfile) {
+    if (selectedPolicy) {
       try {
-        await deleteProfile(cookies.user_token, selectedProfile);
+        await deletePolicy(cookies.user_token, selectedPolicy);
         setAlert({
-          message: `Profile "${selectedProfile}" deleted successfully!`,
+          message: `Policy "${selectedPolicy}" deleted successfully!`,
           severity: "success",
         });
-        fetchProfiles();
+        fetchPolicies();
       } catch (error) {
         setAlert({
-          message: `Failed to delete profile "${selectedProfile}": ${error}`,
+          message: `Failed to delete policy "${selectedPolicy}": ${error}`,
           severity: "error",
         });
       } finally {
-        setSelectedProfile(null);
+        setSelectedPolicy(null);
       }
     }
   };
@@ -157,10 +157,10 @@ const ProfilePage = () => {
         >
           <CircularProgress />
         </Box>
-      ) : profiles.length === 0 ? (
+      ) : policies.length === 0 ? (
         <EmptyState
-          primaryText="No profile found."
-          secondaryText="Create a new profile in order to add subscribers to the network."
+          primaryText="No policy found."
+          secondaryText="Create a new policy in order to add subscribers to the network."
           button={role === "Admin" || role === "Network Manager"}
           buttonText="Create"
           onCreate={handleOpenCreateModal}
@@ -177,7 +177,7 @@ const ProfilePage = () => {
             }}
           >
             <Typography variant="h4" component="h1" gutterBottom>
-              Profiles ({profiles.length})
+              Policies ({policies.length})
             </Typography>
             {(role === "Admin" || role === "Network Manager") && (
               <Button
@@ -200,7 +200,7 @@ const ProfilePage = () => {
             }}
           >
             <DataGrid
-              rows={profiles}
+              rows={policies}
               columns={baseColumns}
               disableRowSelectionOnClick
               getRowId={(row) => row.name}
@@ -208,15 +208,15 @@ const ProfilePage = () => {
           </Box>
         </>
       )}
-      <CreateProfileModal
+      <CreatePolicyModal
         open={isCreateModalOpen}
         onClose={handleCloseCreateModal}
-        onSuccess={fetchProfiles}
+        onSuccess={fetchPolicies}
       />
-      <EditProfileModal
+      <EditPolicyModal
         open={isEditModalOpen}
         onClose={() => setEditModalOpen(false)}
-        onSuccess={fetchProfiles}
+        onSuccess={fetchPolicies}
         initialData={
           editData || {
             name: "",
@@ -235,10 +235,10 @@ const ProfilePage = () => {
         onClose={() => setConfirmationOpen(false)}
         onConfirm={handleDeleteConfirm}
         title="Confirm Deletion"
-        description={`Are you sure you want to delete the profile "${selectedProfile}"? This action cannot be undone.`}
+        description={`Are you sure you want to delete the policy "${selectedPolicy}"? This action cannot be undone.`}
       />
     </Box>
   );
 };
 
-export default ProfilePage;
+export default PolicyPage;

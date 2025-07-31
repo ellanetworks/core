@@ -32,7 +32,7 @@ export const listSubscribers = async (
     opc: p.opc,
     sequenceNumber: p.sequenceNumber,
     key: p.key,
-    profileName: p.profileName,
+    policyName: p.policyName,
   }));
 
   return transformed;
@@ -69,14 +69,14 @@ export const createSubscriber = async (
   imsi: string,
   key: string,
   sequenceNumber: string,
-  profileName: string,
+  policyName: string,
   opc: string,
 ) => {
   const subscriberData = {
     imsi,
     key,
     sequenceNumber,
-    profileName,
+    policyName,
     opc,
   };
 
@@ -110,11 +110,11 @@ export const createSubscriber = async (
 export const updateSubscriber = async (
   authToken: string,
   imsi: string,
-  profileName: string,
+  policyName: string,
 ) => {
   const subscriberData = {
     imsi: imsi,
-    profileName: profileName,
+    policyName: policyName,
   };
 
   const response = await fetch(`/api/v1/subscribers/${imsi}`, {

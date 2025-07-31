@@ -25,21 +25,32 @@ func TestDatabaseMetrics(t *testing.T) {
 		}
 	}()
 
-	profiles := []db.Profile{
-		{Name: "Profile1", UeIPPool: "192.168.1.0/24"},
-		{Name: "Profile2", UeIPPool: "10.0.0.0/16"},
+	dataNetworks := []db.DataNetwork{
+		{Name: "internet", IPPool: "192.168.1.0/24"},
+		{Name: "whaterver", IPPool: "10.0.0.0/16"},
 	}
-	for _, profile := range profiles {
-		err := database.CreateProfile(context.Background(), &profile)
+	for _, dn := range dataNetworks {
+		err := database.CreateDataNetwork(context.Background(), &dn)
 		if err != nil {
-			t.Fatalf("Couldn't create profile: %s", err)
+			t.Fatalf("Couldn't create data network: %s", err)
+		}
+	}
+
+	policies := []db.Policy{
+		{Name: "Policy1"},
+		{Name: "Policy2"},
+	}
+	for _, policy := range policies {
+		err := database.CreatePolicy(context.Background(), &policy)
+		if err != nil {
+			t.Fatalf("Couldn't create policy: %s", err)
 		}
 	}
 
 	subscribers := []db.Subscriber{
-		{Imsi: "001", IPAddress: "192.168.1.2", ProfileID: 1},
-		{Imsi: "002", IPAddress: "10.0.0.3", ProfileID: 2},
-		{Imsi: "003", IPAddress: "", ProfileID: 1},
+		{Imsi: "001", IPAddress: "192.168.1.2", PolicyID: 1},
+		{Imsi: "002", IPAddress: "10.0.0.3", PolicyID: 2},
+		{Imsi: "003", IPAddress: "", PolicyID: 1},
 	}
 	for _, subscriber := range subscribers {
 		err := database.CreateSubscriber(context.Background(), &subscriber)

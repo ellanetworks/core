@@ -69,11 +69,10 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("The OPC value from the database doesn't match the OPC value that was given")
 	}
 
-	profileData := &db.Profile{
-		Name:     "myprofilename",
-		UeIPPool: "0.0.0.0/24",
+	policyData := &db.Policy{
+		Name: "mypolicyname",
 	}
-	err = database.CreateProfile(context.Background(), profileData)
+	err = database.CreatePolicy(context.Background(), policyData)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
@@ -113,18 +112,33 @@ func TestIPAllocationAndRelease(t *testing.T) {
 		}
 	}()
 
-	profile := &db.Profile{
-		Name:     "test-profile",
-		UeIPPool: "192.168.1.0/24",
-	}
-	err = database.CreateProfile(context.Background(), profile)
-	if err != nil {
-		t.Fatalf("Couldn't complete CreateProfile: %s", err)
+	dnn := &db.DataNetwork{
+		Name:   "test-dnn",
+		IPPool: "192.168.1.0/24",
 	}
 
-	createdProfile, err := database.GetProfile(context.Background(), profile.Name)
+	err = database.CreateDataNetwork(context.Background(), dnn)
 	if err != nil {
-		t.Fatalf("Couldn't retrieve profile: %s", err)
+		t.Fatalf("Couldn't complete CreateDataNetwork: %s", err)
+	}
+
+	createdDNN, err := database.GetDataNetwork(context.Background(), dnn.Name)
+	if err != nil {
+		t.Fatalf("Couldn't retrieve data network: %s", err)
+	}
+
+	policy := &db.Policy{
+		Name:          "test-policy",
+		DataNetworkID: createdDNN.ID,
+	}
+	err = database.CreatePolicy(context.Background(), policy)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreatePolicy: %s", err)
+	}
+
+	createdPolicy, err := database.GetPolicy(context.Background(), policy.Name)
+	if err != nil {
+		t.Fatalf("Couldn't retrieve policy: %s", err)
 	}
 
 	subscriber := &db.Subscriber{
@@ -132,7 +146,7 @@ func TestIPAllocationAndRelease(t *testing.T) {
 		SequenceNumber: "123456",
 		PermanentKey:   "abcdef",
 		Opc:            "123456",
-		ProfileID:      createdProfile.ID,
+		PolicyID:       createdPolicy.ID,
 	}
 	err = database.CreateSubscriber(context.Background(), subscriber)
 	if err != nil {
@@ -148,10 +162,10 @@ func TestIPAllocationAndRelease(t *testing.T) {
 		t.Fatalf("Allocated IP is nil")
 	}
 
-	// Verify that the allocated IP is within the profile's IP pool
-	_, ipNet, _ := net.ParseCIDR(profile.UeIPPool)
+	// Verify that the allocated IP is within the policy's IP pool
+	_, ipNet, _ := net.ParseCIDR(dnn.IPPool)
 	if !ipNet.Contains(allocatedIP) {
-		t.Fatalf("Allocated IP %s is not within the profile's IP pool %s", allocatedIP.String(), profile.UeIPPool)
+		t.Fatalf("Allocated IP %s is not within the policy's IP pool %s", allocatedIP.String(), dnn.IPPool)
 	}
 
 	retrievedSubscriber, err := database.GetSubscriber(context.Background(), subscriber.Imsi)
@@ -199,24 +213,38 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 		}
 	}()
 
-	// Create a profile with an IP pool
-	profile := &db.Profile{
-		Name:     "test-pool",
-		UeIPPool: "192.168.1.0/29", // Small pool for testing (6 usable addresses)
+	dnn := &db.DataNetwork{
+		Name:   "test-dnn",
+		IPPool: "192.168.1.0/29", // Small pool for testing (6 usable addresses)
 	}
-	err = database.CreateProfile(context.Background(), profile)
+	err = database.CreateDataNetwork(context.Background(), dnn)
 	if err != nil {
-		t.Fatalf("Couldn't complete CreateProfile: %s", err)
+		t.Fatalf("Couldn't complete CreateDataNetwork: %s", err)
 	}
 
-	createdProfile, err := database.GetProfile(context.Background(), profile.Name)
+	createdDNN, err := database.GetDataNetwork(context.Background(), dnn.Name)
 	if err != nil {
-		t.Fatalf("Couldn't retrieve profile: %s", err)
+		t.Fatalf("Couldn't retrieve data network: %s", err)
+	}
+
+	// Create a policy with an IP pool
+	policy := &db.Policy{
+		Name:          "test-pool",
+		DataNetworkID: createdDNN.ID,
+	}
+	err = database.CreatePolicy(context.Background(), policy)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreatePolicy: %s", err)
+	}
+
+	createdPolicy, err := database.GetPolicy(context.Background(), policy.Name)
+	if err != nil {
+		t.Fatalf("Couldn't retrieve policy: %s", err)
 	}
 
 	// Allocate all IPs in the pool
 	allocatedIPs := make(map[string]struct{})
-	_, ipNet, _ := net.ParseCIDR(profile.UeIPPool)
+	_, ipNet, _ := net.ParseCIDR(dnn.IPPool)
 	maskBits, totalBits := ipNet.Mask.Size()
 	totalIPs := 1 << (totalBits - maskBits)
 
@@ -226,7 +254,7 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 			SequenceNumber: fmt.Sprintf("%d", i),
 			PermanentKey:   fmt.Sprintf("%d", i),
 			Opc:            fmt.Sprintf("%d", i),
-			ProfileID:      createdProfile.ID,
+			PolicyID:       createdPolicy.ID,
 		}
 
 		err := database.CreateSubscriber(context.Background(), subscriber)
@@ -250,7 +278,7 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 
 		// Verify that the allocated IP is within the pool
 		if !ipNet.Contains(allocatedIP) {
-			t.Fatalf("Allocated IP %s is not within the profile's IP pool %s", ipStr, profile.UeIPPool)
+			t.Fatalf("Allocated IP %s is not within the policy's IP pool %s", ipStr, dnn.IPPool)
 		}
 	}
 
@@ -260,7 +288,7 @@ func TestAllocateAllIPsInPool(t *testing.T) {
 		SequenceNumber: "123456",
 		PermanentKey:   "abcdef",
 		Opc:            "123456",
-		ProfileID:      createdProfile.ID,
+		PolicyID:       createdPolicy.ID,
 	}
 	err = database.CreateSubscriber(context.Background(), extraSubscriber)
 	if err != nil {

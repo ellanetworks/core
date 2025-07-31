@@ -110,7 +110,7 @@ const SubscriberPage = () => {
   const baseColumns: GridColDef[] = [
     { field: "imsi", headerName: "IMSI", flex: 1 },
     { field: "ipAddress", headerName: "IP Address", flex: 1 },
-    { field: "profileName", headerName: "Profile", flex: 1 },
+    { field: "policyName", headerName: "Policy", flex: 1 },
   ];
 
   if (role === "Admin" || role === "Network Manager") {
@@ -246,7 +246,7 @@ const SubscriberPage = () => {
         initialData={
           editData || {
             imsi: "",
-            profileName: "",
+            policyName: "",
           }
         }
       />

@@ -31,15 +31,15 @@ const QueryCreateSubscribersTable = `
 		permanentKey TEXT NOT NULL,
 		opc TEXT NOT NULL,
 
-		profileID INTEGER NOT NULL,
-    	FOREIGN KEY (profileID) REFERENCES profiles (id)
+		policyID INTEGER NOT NULL,
+    	FOREIGN KEY (policyID) REFERENCES policies (id)
 )`
 
 const (
 	listSubscribersStmt   = "SELECT &Subscriber.* from %s"
 	getSubscriberStmt     = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
-	createSubscriberStmt  = "INSERT INTO %s (imsi, ipAddress, sequenceNumber, permanentKey, opc, profileID) VALUES ($Subscriber.imsi, $Subscriber.ipAddress, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID)"
-	editSubscriberStmt    = "UPDATE %s SET ipAddress=$Subscriber.ipAddress, sequenceNumber=$Subscriber.sequenceNumber, permanentKey=$Subscriber.permanentKey, opc=$Subscriber.opc, profileID=$Subscriber.profileID WHERE imsi==$Subscriber.imsi"
+	createSubscriberStmt  = "INSERT INTO %s (imsi, ipAddress, sequenceNumber, permanentKey, opc, policyID) VALUES ($Subscriber.imsi, $Subscriber.ipAddress, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.policyID)"
+	editSubscriberStmt    = "UPDATE %s SET ipAddress=$Subscriber.ipAddress, sequenceNumber=$Subscriber.sequenceNumber, permanentKey=$Subscriber.permanentKey, opc=$Subscriber.opc, policyID=$Subscriber.policyID WHERE imsi==$Subscriber.imsi"
 	deleteSubscriberStmt  = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
 	getNumSubscribersStmt = "SELECT COUNT(*) AS &NumSubscribers.count FROM %s"
 	checkIPStmt           = "SELECT &Subscriber.* FROM %s WHERE ipAddress=$Subscriber.ipAddress"
@@ -58,7 +58,7 @@ type Subscriber struct {
 	SequenceNumber string `db:"sequenceNumber"`
 	PermanentKey   string `db:"permanentKey"`
 	Opc            string `db:"opc"`
-	ProfileID      int    `db:"profileID"`
+	PolicyID       int    `db:"policyID"`
 }
 
 // ListSubscribers returns all subscribers, with OpenTelemetry spans
@@ -258,15 +258,14 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 	return nil
 }
 
-func (db *Database) SubscribersInProfile(ctx context.Context, name string) (bool, error) {
-	// business‐logic span (no direct SQL)
-	ctx, span := tracer.Start(ctx, "SubscribersInProfile")
+func (db *Database) SubscribersInPolicy(ctx context.Context, name string) (bool, error) {
+	ctx, span := tracer.Start(ctx, "SubscribersInPolicy")
 	defer span.End()
 
-	profile, err := db.GetProfile(ctx, name)
+	policy, err := db.GetPolicy(ctx, name)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "profile not found")
+		span.SetStatus(codes.Error, "policy not found")
 		return false, err
 	}
 
@@ -278,7 +277,7 @@ func (db *Database) SubscribersInProfile(ctx context.Context, name string) (bool
 	}
 
 	for _, s := range subs {
-		if s.ProfileID == profile.ID {
+		if s.PolicyID == policy.ID {
 			span.SetStatus(codes.Ok, "")
 			return true, nil
 		}
@@ -288,20 +287,55 @@ func (db *Database) SubscribersInProfile(ctx context.Context, name string) (bool
 	return false, nil
 }
 
+// func (db *Database) SubscribersInDataNetwork(ctx context.Context, name string) (bool, error) {
+// 	// business‐logic span (no direct SQL)
+// 	ctx, span := tracer.Start(ctx, "SubscribersInDataNetwork")
+// 	defer span.End()
+
+// 	dataNetwork, err := db.GetDataNetwork(ctx, name)
+// 	if err != nil {
+// 		span.RecordError(err)
+// 		span.SetStatus(codes.Error, "data network not found")
+// 		return false, err
+// 	}
+
+// 	subs, err := db.ListSubscribers(ctx)
+// 	if err != nil {
+// 		span.RecordError(err)
+// 		span.SetStatus(codes.Error, "listing failed")
+// 		return false, err
+// 	}
+
+// 	for _, s := range subs {
+// 		// if s.PolicyID == dataNetwork.ID {
+// 		// 	span.SetStatus(codes.Ok, "")
+// 		// 	return true, nil
+// 		// }
+// 	}
+
+// 	span.SetStatus(codes.Ok, "none found")
+// 	return false, nil
+// }
+
 func (db *Database) allocateIP(ctx context.Context, imsi string) (net.IP, error) {
 	subscriber, err := db.GetSubscriber(ctx, imsi)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subscriber: %v", err)
 	}
 
-	profile, err := db.GetProfileByID(ctx, subscriber.ProfileID)
+	policy, err := db.GetPolicyByID(ctx, subscriber.PolicyID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get profile for subscriber %s: %v", imsi, err)
+		return nil, fmt.Errorf("failed to get policy for subscriber %s: %v", imsi, err)
 	}
 
-	_, ipNet, err := net.ParseCIDR(profile.UeIPPool)
+	dataNetwork, err := db.GetDataNetworkByID(ctx, policy.DataNetworkID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid IP pool in profile %s: %v", profile.Name, err)
+		return nil, fmt.Errorf("failed to get data network for policy %s: %v", policy.Name, err)
+	}
+
+	_, ipNet, err := net.ParseCIDR(dataNetwork.IPPool)
+	if err != nil {
+		return nil, fmt.Errorf("invalid IP pool in policy %s: %v", policy.Name, err)
 	}
 
 	baseIP := ipNet.IP

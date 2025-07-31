@@ -11,26 +11,26 @@ import {
   Alert,
   Collapse,
 } from "@mui/material";
-import { updateProfile } from "@/queries/profiles";
+import { updatePolicy } from "@/queries/policies";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
-import { Profile } from "@/types/types";
+import { Policy } from "@/types/types";
 
-interface EditProfileModalProps {
+interface EditPolicyModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialData: Profile;
+  initialData: Policy;
 }
 
-type FormState = Omit<Profile, "bitrateUp" | "bitrateDown"> & {
+type FormState = Omit<Policy, "bitrateUp" | "bitrateDown"> & {
   bitrateUpValue: number;
   bitrateUpUnit: "Mbps" | "Gbps";
   bitrateDownValue: number;
   bitrateDownUnit: "Mbps" | "Gbps";
 };
 
-const EditProfileModal: React.FC<EditProfileModalProps> = ({
+const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   open,
   onClose,
   onSuccess,
@@ -97,7 +97,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
     const bitrateDown = `${formValues.bitrateDownValue} ${formValues.bitrateDownUnit}`;
 
     try {
-      await updateProfile(
+      await updatePolicy(
         cookies.user_token,
         formValues.name,
         formValues.ipPool,
@@ -113,7 +113,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred.";
-      setAlert({ message: `Failed to update profile: ${errorMessage}` });
+      setAlert({ message: `Failed to update policy: ${errorMessage}` });
     } finally {
       setLoading(false);
     }
@@ -123,10 +123,10 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
     <Dialog
       open={open}
       onClose={onClose}
-      aria-labelledby="edit-profile-modal-title"
-      aria-describedby="edit-profile-modal-description"
+      aria-labelledby="edit-policy-modal-title"
+      aria-describedby="edit-policy-modal-description"
     >
-      <DialogTitle>Edit Profile</DialogTitle>
+      <DialogTitle>Edit Policy</DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -256,4 +256,4 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
   );
 };
 
-export default EditProfileModal;
+export default EditPolicyModal;

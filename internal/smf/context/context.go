@@ -60,9 +60,9 @@ func GetSnssaiInfo(ctx context.Context) (*SnssaiSmfInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator information from db: %v", err)
 	}
-	profiles, err := self.DBInstance.ListProfiles(ctx)
+	dataNetworks, err := self.DBInstance.ListDataNetworks(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list profiles from db: %v", err)
+		return nil, fmt.Errorf("failed to list policies from db: %v", err)
 	}
 	snssaiInfo := &SnssaiSmfInfo{
 		Snssai: SNssai{
@@ -76,10 +76,10 @@ func GetSnssaiInfo(ctx context.Context) (*SnssaiSmfInfo, error) {
 		DnnInfos: make(map[string]*SnssaiSmfDnnInfo),
 	}
 
-	for _, profile := range profiles {
-		dnn := config.DNN
-		dnsPrimary := profile.DNS
-		mtu := profile.Mtu
+	for _, dn := range dataNetworks {
+		dnn := config.DNN // To change to use dn.Name when available
+		dnsPrimary := dn.DNS
+		mtu := dn.MTU
 		dnnInfo := SnssaiSmfDnnInfo{
 			DNS: DNS{
 				IPv4Addr: net.ParseIP(dnsPrimary).To4(),

@@ -138,7 +138,7 @@ func TestListRadios(t *testing.T) {
 	// Set up the Gin router
 	statusCode, response, err := listRadios(ts.URL, client, token)
 	if err != nil {
-		t.Fatalf("couldn't list profile: %s", err)
+		t.Fatalf("couldn't list radios: %s", err)
 	}
 	if statusCode != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)

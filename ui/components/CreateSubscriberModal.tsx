@@ -21,7 +21,7 @@ import {
 import * as yup from "yup";
 import { ValidationError } from "yup";
 import { createSubscriber } from "@/queries/subscribers";
-import { listProfiles } from "@/queries/profiles";
+import { listPolicies } from "@/queries/policies";
 import { getOperator } from "@/queries/operator";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
@@ -37,7 +37,7 @@ type FormValues = {
   key: string;
   opc: string;
   sequenceNumber: string;
-  profileName: string;
+  policyName: string;
 };
 
 type Operator = {
@@ -47,7 +47,7 @@ type Operator = {
   };
 };
 
-type Profile = {
+type Policy = {
   name: string;
 };
 
@@ -71,7 +71,7 @@ const schema = yup.object().shape({
       "Sequence Number must be a 6-byte (12-character) hexadecimal string.",
     )
     .required("Sequence Number is required."),
-  profileName: yup.string().required("Profile Name is required."),
+  policyName: yup.string().required("Policy Name is required."),
   opc: yup
     .string()
     .matches(
@@ -97,12 +97,12 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
     key: "",
     opc: "",
     sequenceNumber: "000000000022",
-    profileName: "",
+    policyName: "",
   });
 
   const [mcc, setMcc] = useState("");
   const [mnc, setMnc] = useState("");
-  const [profiles, setProfiles] = useState<string[]>([]);
+  const [policies, setPolicies] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [isValid, setIsValid] = useState(false);
@@ -111,21 +111,21 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   const [customOPC, setCustomOPC] = useState(false);
 
   useEffect(() => {
-    const fetchOperatorAndProfiles = async () => {
+    const fetchOperatorAndPolicies = async () => {
       try {
         const operator: Operator = await getOperator(cookies.user_token);
         setMcc(operator.id.mcc);
         setMnc(operator.id.mnc);
 
-        const profileData: Profile[] = await listProfiles(cookies.user_token);
-        setProfiles(profileData.map((profile) => profile.name));
+        const policyData: Policy[] = await listPolicies(cookies.user_token);
+        setPolicies(policyData.map((policy) => policy.name));
       } catch (error) {
         console.error("Failed to fetch data:", error);
       }
     };
 
     if (open) {
-      fetchOperatorAndProfiles();
+      fetchOperatorAndPolicies();
     }
   }, [open, cookies.user_token]);
 
@@ -196,7 +196,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
         imsi,
         formValues.key,
         formValues.sequenceNumber,
-        formValues.profileName,
+        formValues.policyName,
         formValues.opc,
       );
       onClose();
@@ -314,24 +314,24 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
           margin="normal"
         />
         <FormControl fullWidth margin="normal">
-          <InputLabel id="demo-simple-select-label">Profile Name</InputLabel>
+          <InputLabel id="demo-simple-select-label">Policy Name</InputLabel>
           <Select
-            value={formValues.profileName}
-            onChange={(e) => handleChange("profileName", e.target.value)}
-            onBlur={() => handleBlur("profileName")}
-            error={!!errors.profileName && touched.profileName}
+            value={formValues.policyName}
+            onChange={(e) => handleChange("policyName", e.target.value)}
+            onBlur={() => handleBlur("policyName")}
+            error={!!errors.policyName && touched.policyName}
             labelId="demo-simple-select-label"
-            label={"ProfileName"}
+            label={"PolicyName"}
           >
-            {profiles.map((profile) => (
-              <MenuItem key={profile} value={profile}>
-                {profile}
+            {policies.map((policy) => (
+              <MenuItem key={policy} value={policy}>
+                {policy}
               </MenuItem>
             ))}
           </Select>
-          {touched.profileName && errors.profileName && (
+          {touched.policyName && errors.policyName && (
             <Typography color="error" variant="caption">
-              {errors.profileName}
+              {errors.policyName}
             </Typography>
           )}
         </FormControl>

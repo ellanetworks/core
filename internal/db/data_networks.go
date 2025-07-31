@@ -14,53 +14,45 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const ProfilesTableName = "profiles"
+const DataNetworksTableName = "data_networks"
 
-const QueryCreateProfilesTable = `
+const QueryCreateDataNetworksTable = `
 	CREATE TABLE IF NOT EXISTS %s (
  		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
 		name TEXT NOT NULL,
 
-		ueIPPool TEXT NOT NULL,
+		ipPool TEXT NOT NULL,
 		dns TEXT NOT NULL,
-		mtu INTEGER NOT NULL,
-		bitrateUplink TEXT NOT NULL,
-		bitrateDownlink TEXT NOT NULL,
-		var5qi INTEGER NOT NULL,
-		priorityLevel INTEGER NOT NULL
+		mtu INTEGER NOT NULL
 )`
 
 const (
-	listProfilesStmt   = "SELECT &Profile.* from %s"
-	getProfileStmt     = "SELECT &Profile.* from %s WHERE name==$Profile.name"
-	getProfileByIDStmt = "SELECT &Profile.* FROM %s WHERE id==$Profile.id"
-	createProfileStmt  = "INSERT INTO %s (name, ueIPPool, dns, mtu, bitrateUplink, bitrateDownlink, var5qi, priorityLevel) VALUES ($Profile.name, $Profile.ueIPPool, $Profile.dns, $Profile.mtu, $Profile.bitrateUplink, $Profile.bitrateDownlink, $Profile.var5qi, $Profile.priorityLevel)"
-	editProfileStmt    = "UPDATE %s SET ueIPPool=$Profile.ueIPPool, dns=$Profile.dns, mtu=$Profile.mtu, bitrateUplink=$Profile.bitrateUplink, bitrateDownlink=$Profile.bitrateDownlink, var5qi=$Profile.var5qi, priorityLevel=$Profile.priorityLevel WHERE name==$Profile.name"
-	deleteProfileStmt  = "DELETE FROM %s WHERE name==$Profile.name"
+	listDataNetworksStmt   = "SELECT &DataNetwork.* from %s"
+	getDataNetworkStmt     = "SELECT &DataNetwork.* from %s WHERE name==$DataNetwork.name"
+	getDataNetworkByIDStmt = "SELECT &DataNetwork.* FROM %s WHERE id==$DataNetwork.id"
+	createDataNetworkStmt  = "INSERT INTO %s (name, ipPool, dns, mtu) VALUES ($DataNetwork.name, $DataNetwork.ipPool, $DataNetwork.dns, $DataNetwork.mtu)"
+	editDataNetworkStmt    = "UPDATE %s SET ipPool=$DataNetwork.ipPool, dns=$DataNetwork.dns, mtu=$DataNetwork.mtu WHERE name==$DataNetwork.name"
+	deleteDataNetworkStmt  = "DELETE FROM %s WHERE name==$DataNetwork.name"
 )
 
-type Profile struct {
-	ID              int    `db:"id"`
-	Name            string `db:"name"`
-	UeIPPool        string `db:"ueIPPool"`
-	DNS             string `db:"dns"`
-	Mtu             int32  `db:"mtu"`
-	BitrateUplink   string `db:"bitrateUplink"`
-	BitrateDownlink string `db:"bitrateDownlink"`
-	Var5qi          int32  `db:"var5qi"`
-	PriorityLevel   int32  `db:"priorityLevel"`
+type DataNetwork struct {
+	ID     int    `db:"id"`
+	Name   string `db:"name"`
+	IPPool string `db:"ipPool"`
+	DNS    string `db:"dns"`
+	MTU    int32  `db:"mtu"`
 }
 
-func (db *Database) ListProfiles(ctx context.Context) ([]Profile, error) {
+func (db *Database) ListDataNetworks(ctx context.Context) ([]DataNetwork, error) {
 	operation := "SELECT"
-	target := ProfilesTableName
+	target := DataNetworksTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(listProfilesStmt, db.profilesTable)
+	stmt := fmt.Sprintf(listDataNetworksStmt, db.dataNetworksTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmt),
@@ -68,15 +60,15 @@ func (db *Database) ListProfiles(ctx context.Context) ([]Profile, error) {
 		attribute.String("db.collection", target),
 	)
 
-	q, err := sqlair.Prepare(stmt, Profile{})
+	q, err := sqlair.Prepare(stmt, DataNetwork{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
 		return nil, err
 	}
 
-	var profiles []Profile
-	if err := db.conn.Query(ctx, q).GetAll(&profiles); err != nil {
+	var dataNetworks []DataNetwork
+	if err := db.conn.Query(ctx, q).GetAll(&dataNetworks); err != nil {
 		if err == sql.ErrNoRows {
 			span.SetStatus(codes.Ok, "no rows")
 			return nil, nil
@@ -87,18 +79,18 @@ func (db *Database) ListProfiles(ctx context.Context) ([]Profile, error) {
 	}
 
 	span.SetStatus(codes.Ok, "")
-	return profiles, nil
+	return dataNetworks, nil
 }
 
-func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, error) {
+func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwork, error) {
 	operation := "SELECT"
-	target := ProfilesTableName
+	target := DataNetworksTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(getProfileStmt, db.profilesTable)
+	stmt := fmt.Sprintf(getDataNetworkStmt, db.dataNetworksTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmt),
@@ -106,8 +98,8 @@ func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, erro
 		attribute.String("db.collection", target),
 	)
 
-	row := Profile{Name: name}
-	q, err := sqlair.Prepare(stmt, Profile{})
+	row := DataNetwork{Name: name}
+	q, err := sqlair.Prepare(stmt, DataNetwork{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
@@ -124,15 +116,15 @@ func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, erro
 	return &row, nil
 }
 
-func (db *Database) GetProfileByID(ctx context.Context, id int) (*Profile, error) {
+func (db *Database) GetDataNetworkByID(ctx context.Context, id int) (*DataNetwork, error) {
 	operation := "SELECT"
-	target := ProfilesTableName
+	target := DataNetworksTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(getProfileByIDStmt, db.profilesTable)
+	stmt := fmt.Sprintf(getDataNetworkByIDStmt, db.dataNetworksTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmt),
@@ -140,8 +132,8 @@ func (db *Database) GetProfileByID(ctx context.Context, id int) (*Profile, error
 		attribute.String("db.collection", target),
 	)
 
-	row := Profile{ID: id}
-	q, err := sqlair.Prepare(stmt, Profile{})
+	row := DataNetwork{ID: id}
+	q, err := sqlair.Prepare(stmt, DataNetwork{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
@@ -152,7 +144,7 @@ func (db *Database) GetProfileByID(ctx context.Context, id int) (*Profile, error
 		if err == sql.ErrNoRows {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "not found")
-			return nil, fmt.Errorf("profile with ID %d not found", id)
+			return nil, fmt.Errorf("data network with ID %d not found", id)
 		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -163,15 +155,15 @@ func (db *Database) GetProfileByID(ctx context.Context, id int) (*Profile, error
 	return &row, nil
 }
 
-func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
+func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
 	operation := "INSERT"
-	target := ProfilesTableName
+	target := DataNetworksTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(createProfileStmt, db.profilesTable)
+	stmt := fmt.Sprintf(createDataNetworkStmt, db.dataNetworksTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmt),
@@ -180,20 +172,20 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 	)
 
 	// ensure unique name
-	if _, err := db.GetProfile(ctx, profile.Name); err == nil {
-		dup := fmt.Errorf("profile with name %s already exists", profile.Name)
+	if _, err := db.GetDataNetwork(ctx, dataNetwork.Name); err == nil {
+		dup := fmt.Errorf("data network with name %s already exists", dataNetwork.Name)
 		span.RecordError(dup)
 		span.SetStatus(codes.Error, "duplicate key")
 		return dup
 	}
 
-	q, err := sqlair.Prepare(stmt, Profile{})
+	q, err := sqlair.Prepare(stmt, DataNetwork{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
-	if err := db.conn.Query(ctx, q, profile).Run(); err != nil {
+	if err := db.conn.Query(ctx, q, dataNetwork).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -203,15 +195,15 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 	return nil
 }
 
-func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
+func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
 	operation := "UPDATE"
-	target := ProfilesTableName
+	target := DataNetworksTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(editProfileStmt, db.profilesTable)
+	stmt := fmt.Sprintf(editDataNetworkStmt, db.dataNetworksTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmt),
@@ -220,19 +212,19 @@ func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 	)
 
 	// ensure exists
-	if _, err := db.GetProfile(ctx, profile.Name); err != nil {
+	if _, err := db.GetDataNetwork(ctx, dataNetwork.Name); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "not found")
 		return err
 	}
 
-	q, err := sqlair.Prepare(stmt, Profile{})
+	q, err := sqlair.Prepare(stmt, DataNetwork{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
-	if err := db.conn.Query(ctx, q, profile).Run(); err != nil {
+	if err := db.conn.Query(ctx, q, dataNetwork).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
@@ -242,15 +234,15 @@ func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 	return nil
 }
 
-func (db *Database) DeleteProfile(ctx context.Context, name string) error {
+func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 	operation := "DELETE"
-	target := ProfilesTableName
+	target := DataNetworksTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	stmt := fmt.Sprintf(deleteProfileStmt, db.profilesTable)
+	stmt := fmt.Sprintf(deleteDataNetworkStmt, db.dataNetworksTable)
 	span.SetAttributes(
 		semconv.DBSystemSqlite,
 		semconv.DBStatementKey.String(stmt),
@@ -259,19 +251,19 @@ func (db *Database) DeleteProfile(ctx context.Context, name string) error {
 	)
 
 	// ensure exists
-	if _, err := db.GetProfile(ctx, name); err != nil {
+	if _, err := db.GetDataNetwork(ctx, name); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "not found")
 		return err
 	}
 
-	q, err := sqlair.Prepare(stmt, Profile{})
+	q, err := sqlair.Prepare(stmt, DataNetwork{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "prepare failed")
 		return err
 	}
-	if err := db.conn.Query(ctx, q, Profile{Name: name}).Run(); err != nil {
+	if err := db.conn.Query(ctx, q, DataNetwork{Name: name}).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err

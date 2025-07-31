@@ -14,10 +14,10 @@ import {
   FormControl,
 } from "@mui/material";
 import { updateSubscriber } from "@/queries/subscribers";
-import { listProfiles } from "@/queries/profiles";
+import { listPolicies } from "@/queries/policies";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
-import { Profile } from "@/types/types";
+import { Policy } from "@/types/types";
 
 interface EditSubscriberModalProps {
   open: boolean;
@@ -25,7 +25,7 @@ interface EditSubscriberModalProps {
   onSuccess: () => void;
   initialData: {
     imsi: string;
-    profileName: string;
+    policyName: string;
   };
 }
 
@@ -42,23 +42,23 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
     router.push("/login");
   }
   const [formValues, setFormValues] = useState(initialData);
-  const [profiles, setProfiles] = useState<string[]>([]);
+  const [policies, setPolicies] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
   useEffect(() => {
-    const fetchProfiles = async () => {
+    const fetchPolicies = async () => {
       try {
-        const profileData = await listProfiles(cookies.user_token);
-        setProfiles(profileData.map((profile: Profile) => profile.name));
+        const policyData = await listPolicies(cookies.user_token);
+        setPolicies(policyData.map((policy: Policy) => policy.name));
       } catch (error) {
-        console.error("Failed to fetch profiles:", error);
+        console.error("Failed to fetch policies:", error);
       }
     };
 
     if (open) {
-      fetchProfiles();
+      fetchPolicies();
       setFormValues(initialData);
       setErrors({});
     }
@@ -79,7 +79,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
       await updateSubscriber(
         cookies.user_token,
         formValues.imsi,
-        formValues.profileName,
+        formValues.policyName,
       );
       onClose();
       onSuccess();
@@ -123,17 +123,17 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
           disabled
         />
         <FormControl fullWidth margin="normal">
-          <InputLabel id="demo-simple-select-label">Profile Name</InputLabel>
+          <InputLabel id="demo-simple-select-label">Policy Name</InputLabel>
           <Select
-            value={formValues.profileName}
-            onChange={(e) => handleChange("profileName", e.target.value)}
-            error={!!errors.profileName}
-            label={"Profile Name"}
+            value={formValues.policyName}
+            onChange={(e) => handleChange("policyName", e.target.value)}
+            error={!!errors.policyName}
+            label={"Policy Name"}
             labelId="demo-simple-select-label"
           >
-            {profiles.map((profile) => (
-              <MenuItem key={profile} value={profile}>
-                {profile}
+            {policies.map((policy) => (
+              <MenuItem key={policy} value={policy}>
+                {policy}
               </MenuItem>
             ))}
           </Select>

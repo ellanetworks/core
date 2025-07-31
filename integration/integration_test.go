@@ -14,13 +14,13 @@ import (
 const (
 	gnbsimNamespace              = "gnbsim"
 	ueransimNamespace            = "ueransim"
-	testProfileName              = "default"
+	testPolicyName               = "default"
 	numIMSIS                     = 5
 	testStartIMSI                = "001010100000001"
 	testSubscriberKey            = "5122250214c33e723a5dd523fc145fc0"
 	testSubscriberCustomOPc      = "981d464c7c52eb6e5036234984ad0bcf"
 	testSubscriberSequenceNumber = "000000000022"
-	numProfiles                  = 5
+	numPolicies                  = 5
 )
 
 func computeIMSI(baseIMSI string, increment int) (string, error) {
@@ -57,8 +57,8 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 		return nil, fmt.Errorf("failed to login: %v", err)
 	}
 
-	createProfileOpts := &client.CreateProfileOptions{
-		Name:            testProfileName,
+	createPolicyOpts := &client.CreatePolicyOptions{
+		Name:            testPolicyName,
 		UeIPPool:        "172.250.0.0/24",
 		DNS:             "8.8.8.8",
 		Mtu:             1460,
@@ -67,9 +67,9 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 		Var5qi:          8,
 		PriorityLevel:   1,
 	}
-	err = opts.client.CreateProfile(createProfileOpts)
+	err = opts.client.CreatePolicy(createPolicyOpts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create profile: %v", err)
+		return nil, fmt.Errorf("failed to create policy: %v", err)
 	}
 
 	updateOperatorIDOpts := &client.UpdateOperatorIDOptions{
@@ -111,7 +111,7 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 			Imsi:           imsi,
 			Key:            testSubscriberKey,
 			SequenceNumber: testSubscriberSequenceNumber,
-			ProfileName:    testProfileName,
+			PolicyName:     testPolicyName,
 			OPc:            opc,
 		}
 		err = opts.client.CreateSubscriber(createSubscriberOpts)
@@ -188,19 +188,19 @@ func patchGnbsimConfigmap(k *K8s, subscriber *client.Subscriber) error {
 	if !ok {
 		return fmt.Errorf("the 'configuration' key is missing or not a map in the config")
 	}
-	profiles, ok := configuration["profiles"].([]interface{})
+	policies, ok := configuration["policies"].([]interface{})
 	if !ok {
-		return fmt.Errorf("the 'profiles' key is missing or not a list in the config")
+		return fmt.Errorf("the 'policies' key is missing or not a list in the config")
 	}
-	for _, profile := range profiles {
-		profileMap, ok := profile.(map[interface{}]interface{})
+	for _, policy := range policies {
+		policyMap, ok := policy.(map[interface{}]interface{})
 		if !ok {
-			return fmt.Errorf("profile is not a valid map")
+			return fmt.Errorf("policy is not a valid map")
 		}
-		profileMap["startImsi"] = subscriber.Imsi
-		profileMap["opc"] = subscriber.Opc
-		profileMap["key"] = subscriber.Key
-		profileMap["sequenceNumber"] = subscriber.SequenceNumber
+		policyMap["startImsi"] = subscriber.Imsi
+		policyMap["opc"] = subscriber.Opc
+		policyMap["key"] = subscriber.Key
+		policyMap["sequenceNumber"] = subscriber.SequenceNumber
 	}
 	// Create the updated YAML string
 	updatedConfigYamlStr, err := yaml.Marshal(config)
@@ -344,11 +344,11 @@ func TestIntegrationGnbsim(t *testing.T) {
 	}
 	t.Logf("GNBSim simulation result: %s", result)
 
-	passCount := strings.Count(result, "Profile Status: PASS")
-	if passCount != numProfiles {
-		t.Fatalf("expected 'Profile Status: PASS' to appear %d times, but found %d times", numProfiles, passCount)
+	passCount := strings.Count(result, "Policy Status: PASS")
+	if passCount != numPolicies {
+		t.Fatalf("expected 'Policy Status: PASS' to appear %d times, but found %d times", numPolicies, passCount)
 	}
-	t.Logf("Verified that 'Profile Status: PASS' appears %d times", passCount)
+	t.Logf("Verified that 'Policy Status: PASS' appears %d times", passCount)
 
 	metrics, err := ellaClient.GetMetrics()
 	if err != nil {

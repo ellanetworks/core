@@ -1,8 +1,8 @@
 import { HTTPStatus } from "@/queries/utils";
-import { Profile } from "@/types/types";
+import { Policy } from "@/types/types";
 
-export const listProfiles = async (authToken: string): Promise<Profile[]> => {
-  const response = await fetch(`/api/v1/profiles`, {
+export const listPolicies = async (authToken: string): Promise<Policy[]> => {
+  const response = await fetch(`/api/v1/policies`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -25,7 +25,7 @@ export const listProfiles = async (authToken: string): Promise<Profile[]> => {
     );
   }
 
-  const transformed: Profile[] = respData.result.map((p: any) => ({
+  const transformed: Policy[] = respData.result.map((p: any) => ({
     name: p.name,
     ipPool: p["ue-ip-pool"],
     dns: p.dns,
@@ -39,7 +39,7 @@ export const listProfiles = async (authToken: string): Promise<Profile[]> => {
   return transformed;
 };
 
-export const createProfile = async (
+export const createPolicy = async (
   authToken: string,
   name: string,
   ipPool: string,
@@ -50,7 +50,7 @@ export const createProfile = async (
   var5qi: number,
   priorityLevel: number,
 ) => {
-  const profileData = {
+  const policyData = {
     name: name,
     "ue-ip-pool": ipPool,
     dns: dns,
@@ -61,13 +61,13 @@ export const createProfile = async (
     "priority-level": priorityLevel,
   };
 
-  const response = await fetch(`/api/v1/profiles`, {
+  const response = await fetch(`/api/v1/policies`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: "Bearer " + authToken,
     },
-    body: JSON.stringify(profileData),
+    body: JSON.stringify(policyData),
   });
   let respData;
   try {
@@ -87,7 +87,7 @@ export const createProfile = async (
   return respData.result;
 };
 
-export const updateProfile = async (
+export const updatePolicy = async (
   authToken: string,
   name: string,
   ipPool: string,
@@ -98,7 +98,7 @@ export const updateProfile = async (
   var5qi: number,
   priorityLevel: number,
 ) => {
-  const profileData = {
+  const policyData = {
     name: name,
     "ue-ip-pool": ipPool,
     dns: dns,
@@ -109,13 +109,13 @@ export const updateProfile = async (
     "priority-level": priorityLevel,
   };
 
-  const response = await fetch(`/api/v1/profiles/${name}`, {
+  const response = await fetch(`/api/v1/policies/${name}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
       Authorization: "Bearer " + authToken,
     },
-    body: JSON.stringify(profileData),
+    body: JSON.stringify(policyData),
   });
   let respData;
   try {
@@ -135,8 +135,8 @@ export const updateProfile = async (
   return respData.result;
 };
 
-export const deleteProfile = async (authToken: string, name: string) => {
-  const response = await fetch(`/api/v1/profiles/${name}`, {
+export const deletePolicy = async (authToken: string, name: string) => {
+  const response = await fetch(`/api/v1/policies/${name}`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",

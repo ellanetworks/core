@@ -35,9 +35,9 @@ func GetAmData(ctx context.Context, ueID string) (*models.AccessAndMobilitySubsc
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
-	profile, err := udmContext.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
+	policy, err := udmContext.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
+		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
 	operator, err := udmContext.DBInstance.GetOperator(ctx)
 	if err != nil {
@@ -49,8 +49,8 @@ func GetAmData(ctx context.Context, ueID string) (*models.AccessAndMobilitySubsc
 			SingleNssais:        make([]models.Snssai, 0),
 		},
 		SubscribedUeAmbr: &models.AmbrRm{
-			Downlink: profile.BitrateDownlink,
-			Uplink:   profile.BitrateUplink,
+			Downlink: policy.BitrateDownlink,
+			Uplink:   policy.BitrateUplink,
 		},
 	}
 	amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
@@ -84,9 +84,9 @@ func GetSmData(ctx context.Context, ueID string) ([]models.SessionManagementSubs
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
-	profile, err := udmContext.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
+	policy, err := udmContext.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
+		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
 	operator, err := udmContext.DBInstance.GetOperator(ctx)
 	if err != nil {
@@ -110,13 +110,13 @@ func GetSmData(ctx context.Context, ueID string) ([]models.SessionManagementSubs
 			AllowedSscModes: make([]models.SscMode, 0),
 		},
 		SessionAmbr: &models.Ambr{
-			Downlink: profile.BitrateDownlink,
-			Uplink:   profile.BitrateUplink,
+			Downlink: policy.BitrateDownlink,
+			Uplink:   policy.BitrateUplink,
 		},
 		Var5gQosProfile: &models.SubscribedDefaultQos{
-			Var5qi:        profile.Var5qi,
-			Arp:           &models.Arp{PriorityLevel: profile.PriorityLevel},
-			PriorityLevel: profile.PriorityLevel,
+			Var5qi:        policy.Var5qi,
+			Arp:           &models.Arp{PriorityLevel: policy.PriorityLevel},
+			PriorityLevel: policy.PriorityLevel,
 		},
 	}
 	smDataObjModel.DnnConfigurations[config.DNN].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[config.DNN].PduSessionTypes.AllowedSessionTypes, AllowedSessionTypes...)

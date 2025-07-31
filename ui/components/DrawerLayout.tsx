@@ -160,13 +160,13 @@ export default function DrawerLayout({
             <ListItem disablePadding>
               <ListItemButton
                 component={Link}
-                href="/profiles"
-                selected={pathname === "/profiles"}
+                href="/policies"
+                selected={pathname === "/policies"}
               >
                 <ListItemIcon>
                   <TuneIcon />
                 </ListItemIcon>
-                <ListItemText primary="Profiles" />
+                <ListItemText primary="Policies" />
               </ListItemButton>
             </ListItem>
             <ListItem disablePadding>

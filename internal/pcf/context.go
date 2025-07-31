@@ -72,9 +72,9 @@ func GetSubscriberPolicy(ctx context.Context, imsi string) (*PcfSubscriberPolicy
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subscriber %s: %w", imsi, err)
 	}
-	profile, err := pcfCtx.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
+	policy, err := pcfCtx.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get profile %d: %w", subscriber.ProfileID, err)
+		return nil, fmt.Errorf("failed to get policy %d: %w", subscriber.PolicyID, err)
 	}
 	operator, err := pcfCtx.DBInstance.GetOperator(ctx)
 	if err != nil {
@@ -106,10 +106,10 @@ func GetSubscriberPolicy(ctx context.Context, imsi string) (*PcfSubscriberPolicy
 	// Create QoS data
 	qosData := &models.QosData{
 		QosID:                strconv.FormatInt(qosID, 10),
-		Var5qi:               profile.Var5qi,
-		MaxbrUl:              profile.BitrateUplink,
-		MaxbrDl:              profile.BitrateDownlink,
-		Arp:                  &models.Arp{PriorityLevel: profile.PriorityLevel},
+		Var5qi:               policy.Var5qi,
+		MaxbrUl:              policy.BitrateUplink,
+		MaxbrDl:              policy.BitrateDownlink,
+		Arp:                  &models.Arp{PriorityLevel: policy.PriorityLevel},
 		DefQosFlowIndication: true,
 	}
 	subscriberPolicies.PccPolicy[pccPolicyID].QosDecs[qosData.QosID] = qosData
@@ -122,8 +122,8 @@ func GetSubscriberPolicy(ctx context.Context, imsi string) (*PcfSubscriberPolicy
 			Arp:    qosData.Arp,
 		},
 		AuthSessAmbr: &models.Ambr{
-			Uplink:   profile.BitrateUplink,
-			Downlink: profile.BitrateDownlink,
+			Uplink:   policy.BitrateUplink,
+			Downlink: policy.BitrateDownlink,
 		},
 	}
 	return subscriberPolicies, nil
