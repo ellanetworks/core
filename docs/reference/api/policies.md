@@ -23,13 +23,12 @@ None
 {
     "result": [
         {
-            "name": "default-default",
-            "ue-ip-pool": "172.250.0.0/24",
-            "dns": "8.8.8.8",
+            "name": "default",
             "bitrate-uplink": "200 Mbps",
             "bitrate-downlink": "100 Mbps",
             "var5qi": 8,
-            "priority-level": 1
+            "priority-level": 1,
+            "data-network-name": "internet"
         }
     ]
 }
@@ -46,13 +45,11 @@ This path creates a new policy.
 ### Parameters
 
 - `name` (string): The Name of the policy.
-- `ue-ip-pool` (string): The IP pool of the policy in CIDR notation. Example: `172.250.0.0/24`.
-- `dns` (string): The IP address of the DNS server of the policy. Example: `8.8.8.8`.
-- `mtu` (integer): The MTU of the policy. Must be an integer between 0 and 65535.
 - `bitrate-uplink` (string): The uplink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
 - `bitrate-downlink` (string): The downlink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
 - `var5qi` (integer): The QoS class identifier of the policy. Must be an integer between 1 and 255.
 - `priority-level` (integer): The priority level of the policy. Must be an integer between 1 and 255.
+- `data-network-name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
 
 ### Sample Response
 
@@ -74,14 +71,11 @@ This path updates an existing policy.
 
 ### Parameters
 
-- `ue-ip-pool` (string): The IP pool of the policy in CIDR notation. Example: `172.250.0.0/24`.
-- `dns` (string): The IP address of the DNS server of the policy. Example: `8.8.8.8`.
-- `mtu` (integer): The MTU of the policy. Must be an integer between 0 and 65535.
 - `bitrate-uplink` (string): The uplink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
 - `bitrate-downlink` (string): The downlink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
 - `var5qi` (integer): The QoS class identifier of the policy. Must be an integer between 1 and 255.
 - `priority-level` (integer): The priority level of the policy. Must be an integer between 1 and 255.
-
+- `data-network-name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
 
 ### Sample Response
 
@@ -111,13 +105,11 @@ None
 {
     "result": {
         "name": "my-policy",
-        "ue-ip-pool": "0.0.0.0/24",
-        "dns": "8.8.8.8",
-        "mtu": 1460,
         "bitrate-uplink": "10 Mbps",
         "bitrate-downlink": "10 Mbps",
         "var5qi": 1,
-        "priority-level": 2
+        "priority-level": 2,
+        "data-network-name": "internet"
     }
 }
 ```
