@@ -14,7 +14,7 @@ import (
 const (
 	gnbsimNamespace              = "gnbsim"
 	ueransimNamespace            = "ueransim"
-	testPolicyName               = "default"
+	testPolicyName               = "tests"
 	numIMSIS                     = 5
 	testStartIMSI                = "001010100000001"
 	testSubscriberKey            = "5122250214c33e723a5dd523fc145fc0"
