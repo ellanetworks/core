@@ -12,7 +12,8 @@ import (
 
 func TestPoliciesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"), initialOperator)
+
+	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -27,20 +28,20 @@ func TestPoliciesEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
 
-	if len(res) != 0 {
-		t.Fatalf("One or more policies were found in DB")
+	if len(res) != 1 {
+		t.Fatalf("More than one policies were found in DB")
 	}
 
-	dataNetwork := &db.DataNetwork{
-		Name:   "internet",
+	newDataNetwork := &db.DataNetwork{
+		Name:   "not-internet",
 		IPPool: "1.2.3.0/24",
 	}
-	err = database.CreateDataNetwork(context.Background(), dataNetwork)
+	err = database.CreateDataNetwork(context.Background(), newDataNetwork)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateDataNetwork: %s", err)
 	}
 
-	createdNetwork, err := database.GetDataNetwork(context.Background(), dataNetwork.Name)
+	createdNetwork, err := database.GetDataNetwork(context.Background(), newDataNetwork.Name)
 	if err != nil {
 		t.Fatalf("Couldn't complete GetDataNetwork: %s", err)
 	}
@@ -62,7 +63,7 @@ func TestPoliciesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
-	if len(res) != 1 {
+	if len(res) != 2 {
 		t.Fatalf("One or more policies weren't found in DB")
 	}
 
@@ -112,7 +113,7 @@ func TestPoliciesEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
 	res, _ = database.ListPolicies(context.Background())
-	if len(res) != 0 {
-		t.Fatalf("Policies weren't deleted from the DB properly")
+	if len(res) != 1 {
+		t.Fatalf("Policy wasn't deleted from the DB properly")
 	}
 }

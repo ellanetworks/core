@@ -32,12 +32,13 @@ const QueryCreatePoliciesTable = `
 )`
 
 const (
-	listPoliciesStmt  = "SELECT &Policy.* from %s"
-	getPolicyStmt     = "SELECT &Policy.* from %s WHERE name==$Policy.name"
-	getPolicyByIDStmt = "SELECT &Policy.* FROM %s WHERE id==$Policy.id"
-	createPolicyStmt  = "INSERT INTO %s (name, bitrateUplink, bitrateDownlink, var5qi, priorityLevel, dataNetworkID) VALUES ($Policy.name, $Policy.bitrateUplink, $Policy.bitrateDownlink, $Policy.var5qi, $Policy.priorityLevel, $Policy.dataNetworkID)"
-	editPolicyStmt    = "UPDATE %s SET bitrateUplink=$Policy.bitrateUplink, bitrateDownlink=$Policy.bitrateDownlink, var5qi=$Policy.var5qi, priorityLevel=$Policy.priorityLevel, dataNetworkID=$Policy.dataNetworkID WHERE name==$Policy.name"
-	deletePolicyStmt  = "DELETE FROM %s WHERE name==$Policy.name"
+	listPoliciesStmt   = "SELECT &Policy.* from %s"
+	getPolicyStmt      = "SELECT &Policy.* from %s WHERE name==$Policy.name"
+	getPolicyByIDStmt  = "SELECT &Policy.* FROM %s WHERE id==$Policy.id"
+	createPolicyStmt   = "INSERT INTO %s (name, bitrateUplink, bitrateDownlink, var5qi, priorityLevel, dataNetworkID) VALUES ($Policy.name, $Policy.bitrateUplink, $Policy.bitrateDownlink, $Policy.var5qi, $Policy.priorityLevel, $Policy.dataNetworkID)"
+	editPolicyStmt     = "UPDATE %s SET bitrateUplink=$Policy.bitrateUplink, bitrateDownlink=$Policy.bitrateDownlink, var5qi=$Policy.var5qi, priorityLevel=$Policy.priorityLevel, dataNetworkID=$Policy.dataNetworkID WHERE name==$Policy.name"
+	deletePolicyStmt   = "DELETE FROM %s WHERE name==$Policy.name"
+	getNumPoliciesStmt = "SELECT COUNT(*) AS &NumPolicies.count FROM %s"
 )
 
 type Policy struct {
@@ -48,6 +49,10 @@ type Policy struct {
 	Var5qi          int32  `db:"var5qi"`
 	PriorityLevel   int32  `db:"priorityLevel"`
 	DataNetworkID   int    `db:"dataNetworkID"`
+}
+
+type NumPolicies struct {
+	Count int `db:"count"`
 }
 
 func (db *Database) ListPolicies(ctx context.Context) ([]Policy, error) {
@@ -277,4 +282,38 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 
 	span.SetStatus(codes.Ok, "")
 	return nil
+}
+
+// NumPolicies returns policy count
+func (db *Database) NumPolicies(ctx context.Context) (int, error) {
+	operation := "SELECT"
+	target := PoliciesTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+
+	stmt := fmt.Sprintf(getNumPoliciesStmt, db.policiesTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	var result NumPolicies
+	q, err := sqlair.Prepare(stmt, NumPolicies{})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		return 0, err
+	}
+	if err := db.conn.Query(ctx, q).Get(&result); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return 0, err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return result.Count, nil
 }

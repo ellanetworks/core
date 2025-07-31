@@ -11,11 +11,15 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
+const (
+	DefaultDNIPPool = "10.45.0.0/16"
+)
+
 func TestDatabaseMetrics(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	database, err := db.NewDatabase(dbPath, initialOperator)
+	database, err := db.NewDatabase(dbPath)
 	if err != nil {
 		t.Fatalf("Couldn't initialize NewDatabase: %s", err)
 	}
@@ -26,8 +30,7 @@ func TestDatabaseMetrics(t *testing.T) {
 	}()
 
 	dataNetworks := []db.DataNetwork{
-		{Name: "internet", IPPool: "192.168.1.0/24"},
-		{Name: "whaterver", IPPool: "10.0.0.0/16"},
+		{Name: "not-internet", IPPool: "10.0.0.0/16"},
 	}
 	for _, dn := range dataNetworks {
 		err := database.CreateDataNetwork(context.Background(), &dn)
@@ -48,7 +51,7 @@ func TestDatabaseMetrics(t *testing.T) {
 	}
 
 	subscribers := []db.Subscriber{
-		{Imsi: "001", IPAddress: "192.168.1.2", PolicyID: 1},
+		{Imsi: "001", IPAddress: "10.45.0.2", PolicyID: 1},
 		{Imsi: "002", IPAddress: "10.0.0.3", PolicyID: 2},
 		{Imsi: "003", IPAddress: "", PolicyID: 1},
 	}
@@ -78,7 +81,7 @@ func TestDatabaseMetrics(t *testing.T) {
 			t.Fatalf("Couldn't get total IP addresses: %s", err)
 		}
 
-		expectedTotal := countIPsInCIDR("192.168.1.0/24") + countIPsInCIDR("10.0.0.0/16")
+		expectedTotal := countIPsInCIDR(DefaultDNIPPool) + countIPsInCIDR("10.0.0.0/16")
 		if totalIPs != expectedTotal {
 			t.Fatalf("Expected total IPs %d, got %d", expectedTotal, totalIPs)
 		}

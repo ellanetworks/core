@@ -95,6 +95,7 @@ const DataNetworkPage = () => {
     { field: "name", headerName: "Name", flex: 1 },
     { field: "ipPool", headerName: "IP Pool", flex: 1 },
     { field: "dns", headerName: "DNS", flex: 1 },
+    { field: "mtu", headerName: "MTU", type: "number", flex: 1 },
   ];
 
   if (role === "Admin" || role === "Network Manager") {

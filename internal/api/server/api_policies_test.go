@@ -201,7 +201,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	t.Run("1. List policies - 0", func(t *testing.T) {
+	t.Run("1. List policies - 1", func(t *testing.T) {
 		statusCode, response, err := listPolicies(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't list policy: %s", err)
@@ -209,15 +209,15 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if len(response.Result) != 0 {
-			t.Fatalf("expected 0 policies, got %d", len(response.Result))
+		if len(response.Result) != 1 {
+			t.Fatalf("expected 1 policy, got %d", len(response.Result))
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
 		}
 	})
 
-	t.Run("2. Create data network", func(t *testing.T) {
+	t.Run("2. Create new data network", func(t *testing.T) {
 		createDataNetworkParams := &CreateDataNetworkParams{
 			Name:   DataNetworkName,
 			MTU:    MTU,
@@ -260,7 +260,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("4. List policies - 1", func(t *testing.T) {
+	t.Run("4. List policies - 2", func(t *testing.T) {
 		statusCode, response, err := listPolicies(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't list policy: %s", err)
@@ -268,8 +268,8 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if len(response.Result) != 1 {
-			t.Fatalf("expected 1 policy, got %d", len(response.Result))
+		if len(response.Result) != 2 {
+			t.Fatalf("expected 2 policy, got %d", len(response.Result))
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -300,8 +300,8 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		if response.Result.PriorityLevel != 1 {
 			t.Fatalf("expected priority-level 1 got %d", response.Result.PriorityLevel)
 		}
-		if response.Result.DataNetworkName != "internet" {
-			t.Fatalf("expected data-network-name 'internet', got %s", response.Result.DataNetworkName)
+		if response.Result.DataNetworkName != "not-internet" {
+			t.Fatalf("expected data-network-name 'not-internet', got %s", response.Result.DataNetworkName)
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	DataNetworkName = "internet"
+	DataNetworkName = "not-internet"
 	DNS             = "8.8.8.8"
 	IPPool          = "0.0.0.0/24"
 	MTU             = 1500
@@ -194,7 +194,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	t.Run("1. List data networks - 0", func(t *testing.T) {
+	t.Run("1. List data networks - 1", func(t *testing.T) {
 		statusCode, response, err := listDataNetworks(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't list data networks: %s", err)
@@ -202,8 +202,8 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if len(response.Result) != 0 {
-			t.Fatalf("expected 0 data networks, got %d", len(response.Result))
+		if len(response.Result) != 1 {
+			t.Fatalf("expected 1 data networks, got %d", len(response.Result))
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)
@@ -229,7 +229,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("3. List data networks - 1", func(t *testing.T) {
+	t.Run("3. List data networks - 2", func(t *testing.T) {
 		statusCode, response, err := listDataNetworks(ts.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't list data network: %s", err)
@@ -237,8 +237,8 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if len(response.Result) != 1 {
-			t.Fatalf("expected 1 data network, got %d", len(response.Result))
+		if len(response.Result) != 2 {
+			t.Fatalf("expected 2 data network, got %d", len(response.Result))
 		}
 		if response.Error != "" {
 			t.Fatalf("unexpected error :%q", response.Error)

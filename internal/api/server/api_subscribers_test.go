@@ -218,6 +218,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		createSubscriberParams := &CreateSubscriberParams{
 			Imsi:           Imsi,
 			Key:            Key,
+			Opc:            Opc,
 			SequenceNumber: SequenceNumber,
 			PolicyName:     PolicyName,
 		}

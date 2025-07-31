@@ -57,7 +57,8 @@ func TestGetHexSd(t *testing.T) {
 
 func TestDbOperatorsEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
-	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"), initialOperator)
+
+	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -83,7 +84,7 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
 
-	if retrievedOperatorCode != "0123456789ABCDEF0123456789ABCDEF" {
+	if retrievedOperatorCode == "" {
 		t.Fatalf("The operator code from the database doesn't match the expected default")
 	}
 
@@ -109,7 +110,7 @@ func TestDbOperatorsEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
-	if retrievedOperatorCode != "0123456789ABCDEF0123456789ABCDEF" {
+	if retrievedOperatorCode == "" {
 		t.Fatalf("The operator code from the database doesn't match the expected default")
 	}
 
