@@ -58,7 +58,7 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 	}
 
 	createDataNetworkOpts := &client.CreateDataNetworkOptions{
-		Name:   "internet",
+		Name:   "not-internet",
 		IPPool: "172.250.0.0/24",
 		DNS:    "8.8.8.8",
 		Mtu:    1460,
@@ -74,7 +74,7 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 		BitrateDownlink: "100 Mbps",
 		Var5qi:          8,
 		PriorityLevel:   1,
-		DataNetworkName: "internet",
+		DataNetworkName: "not-internet",
 	}
 	err = opts.client.CreatePolicy(createPolicyOpts)
 	if err != nil {
