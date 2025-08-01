@@ -130,22 +130,9 @@ Ella Core is now initialized and ready to be used.
 
 ### 2.5 Configure your private network
 
-Here, we will navigate through the Ella Core UI to create a policy, a subscriber, and a route.
+Here, we will navigate through the Ella Core UI to create a subscriber and a route.
 
-#### 2.5.1 Create a Policy
-
-Navigate to the `Policies` page and click on the `Create` button.
-
-Create a policy with the name `default`. You can keep the default values for the other parameters:
-
-- Name: `default`
-- IP Pool: `10.45.0.0/16`
-- DNS: `8.8.8.8`
-- MTU: `1500`
-- Bitrate Uplink: `200 Mbps`
-- Bitrate Downlink: `100 Mbps`
-
-#### 2.5.2 Create a subscriber
+#### 2.5.1 Create a subscriber
 
 Navigate to the `Subscribers` page and click on the `Create` button.
 
@@ -158,7 +145,7 @@ Create a subscriber with the following parameters:
 
 After creating the subscriber, click on the `View` button to see the subscriber's details. Note the IMSI, Key, and OPC values. You will use these values later to configure the 5G radio simulator.
 
-#### 2.5.3 Create a route
+#### 2.5.2 Create a route
 
 Navigate to the `Routes` page and click on the `Create` button.
 
@@ -171,7 +158,7 @@ Create a route with the following parameters:
 
 Replace the placeholder with the appropriate value.
 
-#### 2.5.4 Validate that no radio is connected
+#### 2.5.3 Validate that no radio is connected
 
 Navigate to the `Radios` page. You should see that no radio is connected.
 
