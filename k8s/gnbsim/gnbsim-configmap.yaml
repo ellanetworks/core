@@ -46,7 +46,7 @@ data:
         enable: false
       profiles:
       - defaultAs: 192.168.250.1
-        dnn: internet
+        dnn: not-internet
         enable: true
         gnbName: gnb1
         key: 5122250214c33e723a5dd523fc145fc0
@@ -64,7 +64,7 @@ data:
         ueCount: 5
       - dataPktCount: 5
         defaultAs: 192.168.250.1
-        dnn: internet
+        dnn: not-internet
         enable: true
         gnbName: gnb1
         key: 5122250214c33e723a5dd523fc145fc0
@@ -82,7 +82,7 @@ data:
         startImsi: '001010100000001'
         ueCount: 5
       - defaultAs: 192.168.250.1
-        dnn: internet
+        dnn: not-internet
         enable: true
         execInParallel: false
         gnbName: gnb1
@@ -100,7 +100,7 @@ data:
         startImsi: '001010100000001'
         ueCount: 5
       - defaultAs: 192.168.250.1
-        dnn: internet
+        dnn: not-internet
         enable: true
         execInParallel: false
         gnbName: gnb1
@@ -119,7 +119,7 @@ data:
         startImsi: '001010100000001'
         ueCount: 5
       - defaultAs: 192.168.250.1
-        dnn: internet
+        dnn: not-internet
         enable: true
         execInParallel: false
         gnbName: gnb1

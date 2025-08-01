@@ -18,14 +18,14 @@ func (db *Database) GetSize() (int64, error) {
 }
 
 func (db *Database) GetIPAddressesTotal() (int, error) {
-	profiles, err := db.ListProfiles(context.Background())
+	dataNetworks, err := db.ListDataNetworks(context.Background())
 	if err != nil {
 		return 0, err
 	}
 
 	var total int
-	for _, profile := range profiles {
-		ipPool := profile.UeIPPool
+	for _, dn := range dataNetworks {
+		ipPool := dn.IPPool
 		_, ipNet, err := net.ParseCIDR(ipPool)
 		if err != nil {
 			return 0, fmt.Errorf("invalid IP pool format '%s': %v", ipPool, err)

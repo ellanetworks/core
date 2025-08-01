@@ -1,6 +1,5 @@
 import React, { useCallback, useState, useEffect } from "react";
 import {
-  Box,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -9,22 +8,30 @@ import {
   Button,
   Alert,
   Collapse,
-  MenuItem,
 } from "@mui/material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
-import { createProfile } from "@/queries/profiles";
+import { createDataNetwork } from "@/queries/data_networks";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
 
-interface CreateProfileModalProps {
+interface CreateDataNetworkModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
 
+const dnnRegex =
+  /^(?=.{1,100}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/;
+
 const schema = yup.object().shape({
-  name: yup.string().min(1).max(256).required("Name is required"),
+  name: yup
+    .string()
+    .matches(
+      dnnRegex,
+      "Must be a valid DNN (e.g., internet, ims, core.mycompany)",
+    )
+    .required("Data Network Name is required"),
   ipPool: yup
     .string()
     .matches(
@@ -40,27 +47,9 @@ const schema = yup.object().shape({
     )
     .required("DNS is required"),
   mtu: yup.number().min(1).max(65535).required("MTU is required"),
-  bitrateUpValue: yup
-    .number()
-    .min(1, "Bitrate value must be between 1 and 999")
-    .max(999, "Bitrate value must be between 1 and 999")
-    .required("Bitrate value is required"),
-  bitrateUpUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
-  bitrateDownValue: yup
-    .number()
-    .min(1, "Bitrate value must be between 1 and 999")
-    .max(999, "Bitrate value must be between 1 and 999")
-    .required("Bitrate value is required"),
-  bitrateDownUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
-  fiveQi: yup.number().min(0).max(256).required("5QI is required"),
-  priorityLevel: yup
-    .number()
-    .min(0)
-    .max(256)
-    .required("Priority Level is required"),
 });
 
-const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
+const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
   open,
   onClose,
   onSuccess,
@@ -77,12 +66,6 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
     ipPool: "10.45.0.0/16",
     dns: "8.8.8.8",
     mtu: 1500,
-    bitrateUpValue: 100,
-    bitrateUpUnit: "Mbps",
-    bitrateDownValue: 100,
-    bitrateDownUnit: "Mbps",
-    fiveQi: 1,
-    priorityLevel: 1,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -152,18 +135,12 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
     setLoading(true);
     setAlert({ message: "" });
     try {
-      const bitrateUplink = `${formValues.bitrateUpValue} ${formValues.bitrateUpUnit}`;
-      const bitrateDownlink = `${formValues.bitrateDownValue} ${formValues.bitrateDownUnit}`;
-      await createProfile(
+      await createDataNetwork(
         cookies.user_token,
         formValues.name,
         formValues.ipPool,
         formValues.dns,
         formValues.mtu,
-        bitrateUplink,
-        bitrateDownlink,
-        formValues.fiveQi,
-        formValues.priorityLevel,
       );
       onClose();
       onSuccess();
@@ -174,9 +151,9 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
       }
 
       setAlert({
-        message: `Failed to create profile: ${errorMessage}`,
+        message: `Failed to create data network: ${errorMessage}`,
       });
-      console.error("Failed to create profile:", error);
+      console.error("Failed to create poldata networkicy:", error);
     } finally {
       setLoading(false);
     }
@@ -186,10 +163,10 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
     <Dialog
       open={open}
       onClose={onClose}
-      aria-labelledby="create-profile-modal-title"
-      aria-describedby="create-profile-modal-description"
+      aria-labelledby="create-policy-modal-title"
+      aria-describedby="create-policy-modal-description"
     >
-      <DialogTitle>Create Profile</DialogTitle>
+      <DialogTitle>Create Data Network</DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -202,7 +179,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
         </Collapse>
         <TextField
           fullWidth
-          label="Name"
+          label="Name (DNN)"
           value={formValues.name}
           onChange={(e) => handleChange("name", e.target.value)}
           onBlur={() => handleBlur("name")}
@@ -241,84 +218,6 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
           helperText={touched.mtu ? errors.mtu : ""}
           margin="normal"
         />
-        <Box display="flex" gap={2}>
-          <TextField
-            label="Bitrate Up Value"
-            type="number"
-            value={formValues.bitrateUpValue}
-            onChange={(e) =>
-              handleChange("bitrateUpValue", Number(e.target.value))
-            }
-            onBlur={() => handleBlur("bitrateUpValue")}
-            error={!!errors.bitrateUpValue && touched.bitrateUpValue}
-            helperText={touched.bitrateUpValue ? errors.bitrateUpValue : ""}
-            margin="normal"
-          />
-          <TextField
-            select
-            label="Unit"
-            value={formValues.bitrateUpUnit}
-            onChange={(e) => handleChange("bitrateUpUnit", e.target.value)}
-            onBlur={() => handleBlur("bitrateUpUnit")}
-            error={!!errors.bitrateUpUnit && touched.bitrateUpUnit}
-            helperText={touched.bitrateUpUnit ? errors.bitrateUpUnit : ""}
-            margin="normal"
-          >
-            <MenuItem value="Mbps">Mbps</MenuItem>
-            <MenuItem value="Gbps">Gbps</MenuItem>
-          </TextField>
-        </Box>
-        <Box display="flex" gap={2}>
-          <TextField
-            label="Bitrate Down Value"
-            type="number"
-            value={formValues.bitrateDownValue}
-            onChange={(e) =>
-              handleChange("bitrateDownValue", Number(e.target.value))
-            }
-            onBlur={() => handleBlur("bitrateDownValue")}
-            error={!!errors.bitrateDownValue && touched.bitrateDownValue}
-            helperText={touched.bitrateDownValue ? errors.bitrateDownValue : ""}
-            margin="normal"
-          />
-          <TextField
-            select
-            label="Unit"
-            value={formValues.bitrateDownUnit}
-            onChange={(e) => handleChange("bitrateDownUnit", e.target.value)}
-            onBlur={() => handleBlur("bitrateDownUnit")}
-            error={!!errors.bitrateDownUnit && touched.bitrateDownUnit}
-            helperText={touched.bitrateDownUnit ? errors.bitrateDownUnit : ""}
-            margin="normal"
-          >
-            <MenuItem value="Mbps">Mbps</MenuItem>
-            <MenuItem value="Gbps">Gbps</MenuItem>
-          </TextField>
-        </Box>
-        <TextField
-          fullWidth
-          label="5QI"
-          type="number"
-          value={formValues.fiveQi}
-          onChange={(e) => handleChange("fiveQi", Number(e.target.value))}
-          onBlur={() => handleBlur("fiveQi")}
-          error={!!errors.fiveQi && touched.fiveQi}
-          helperText={touched.fiveQi ? errors.fiveQi : ""}
-          margin="normal"
-        />
-        <TextField
-          fullWidth
-          label="Priority Level"
-          type="number"
-          value={formValues.priorityLevel}
-          onChange={(e) =>
-            handleChange("priorityLevel", Number(e.target.value))
-          }
-          onBlur={() => handleBlur("priorityLevel")}
-          error={!!errors.priorityLevel && touched.priorityLevel}
-          helperText={touched.priorityLevel ? errors.priorityLevel : ""}
-          margin="normal"
-        />
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
@@ -335,4 +234,4 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
   );
 };
 
-export default CreateProfileModal;
+export default CreateDataNetworkModal;

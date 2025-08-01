@@ -18,12 +18,12 @@ Ella Core automatically logs all user actions, including login attempts, API cal
 
 ### Example
 
-In the following example, we see the `admin@allanetworks.com` user logging in, listing profiles, and creating a profile named `new-profile` with the associated timestamps.
+In the following example, we see the `admin@allanetworks.com` user logging in, listing policies, and creating a policy named `new-policy` with the associated timestamps.
 
 ```
 2025-03-01T09:46:31.212-0500    INFO    logger/logger.go:214    audit event     {"component": "Audit", "action": "auth_login", "actor": "admin@ellanetworks.com", "details": "User logged in", "ip": "127.0.0.1"}
-2025-03-01T09:47:28.121-0500    INFO    logger/logger.go:214    audit event     {"component": "Audit", "action": "list_profiles", "actor": "admin@ellanetworks.com", "details": "User listed profiles", "ip": "127.0.0.1"}
-2025-03-01T09:47:59.410-0500    INFO    logger/logger.go:214    audit event     {"component": "Audit", "action": "create_profile", "actor": "admin@ellanetworks.com", "details": "User created profile: new-profile", "ip": "127.0.0.1"}
+2025-03-01T09:47:28.121-0500    INFO    logger/logger.go:214    audit event     {"component": "Audit", "action": "list_policies", "actor": "admin@ellanetworks.com", "details": "User listed policies", "ip": "127.0.0.1"}
+2025-03-01T09:47:59.410-0500    INFO    logger/logger.go:214    audit event     {"component": "Audit", "action": "create_policy", "actor": "admin@ellanetworks.com", "details": "User created policy: new-policy", "ip": "127.0.0.1"}
 ```
 
 ## Configuration

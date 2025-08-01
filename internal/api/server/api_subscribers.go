@@ -17,12 +17,12 @@ type CreateSubscriberParams struct {
 	Key            string `json:"key"`
 	Opc            string `json:"opc,omitempty"`
 	SequenceNumber string `json:"sequenceNumber"`
-	ProfileName    string `json:"profileName"`
+	PolicyName     string `json:"policyName"`
 }
 
 type UpdateSubscriberParams struct {
-	Imsi        string `json:"imsi"`
-	ProfileName string `json:"profileName"`
+	Imsi       string `json:"imsi"`
+	PolicyName string `json:"policyName"`
 }
 
 type GetSubscriberResponse struct {
@@ -31,7 +31,7 @@ type GetSubscriberResponse struct {
 	Opc            string `json:"opc"`
 	SequenceNumber string `json:"sequenceNumber"`
 	Key            string `json:"key"`
-	ProfileName    string `json:"profileName"`
+	PolicyName     string `json:"policyName"`
 }
 
 const (
@@ -91,9 +91,9 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 
 		subscribers := make([]GetSubscriberResponse, 0, len(dbSubscribers))
 		for _, dbSubscriber := range dbSubscribers {
-			profile, err := dbInstance.GetProfileByID(ctx, dbSubscriber.ProfileID)
+			policy, err := dbInstance.GetPolicyByID(ctx, dbSubscriber.PolicyID)
 			if err != nil {
-				writeError(w, http.StatusInternalServerError, "Failed to retrieve profile", err, logger.APILog)
+				writeError(w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
 				return
 			}
 			subscribers = append(subscribers, GetSubscriberResponse{
@@ -102,7 +102,7 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 				Opc:            dbSubscriber.Opc,
 				Key:            dbSubscriber.PermanentKey,
 				SequenceNumber: dbSubscriber.SequenceNumber,
-				ProfileName:    profile.Name,
+				PolicyName:     policy.Name,
 			})
 		}
 
@@ -135,9 +135,9 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusNotFound, "Subscriber not found", err, logger.APILog)
 			return
 		}
-		profile, err := dbInstance.GetProfileByID(r.Context(), dbSubscriber.ProfileID)
+		policy, err := dbInstance.GetPolicyByID(r.Context(), dbSubscriber.PolicyID)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to retrieve profile", err, logger.APILog)
+			writeError(w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
 			return
 		}
 
@@ -147,7 +147,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			Opc:            dbSubscriber.Opc,
 			SequenceNumber: dbSubscriber.SequenceNumber,
 			Key:            dbSubscriber.PermanentKey,
-			ProfileName:    profile.Name,
+			PolicyName:     policy.Name,
 		}
 		writeResponse(w, subscriber, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(GetSubscriberAction, email, getClientIP(r), "User retrieved subscriber: "+imsi)
@@ -169,8 +169,8 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if params.ProfileName == "" {
-			writeError(w, http.StatusBadRequest, "Missing profileName parameter", errors.New("validation error"), logger.APILog)
+		if params.PolicyName == "" {
+			writeError(w, http.StatusBadRequest, "Missing policyName parameter", errors.New("validation error"), logger.APILog)
 			return
 		}
 
@@ -217,9 +217,9 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		profile, err := dbInstance.GetProfile(r.Context(), params.ProfileName)
+		policy, err := dbInstance.GetPolicy(r.Context(), params.PolicyName)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Profile not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "Policy not found", err, logger.APILog)
 			return
 		}
 
@@ -228,7 +228,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			SequenceNumber: params.SequenceNumber,
 			PermanentKey:   params.Key,
 			Opc:            opcHex,
-			ProfileID:      profile.ID,
+			PolicyID:       policy.ID,
 		}
 		if err := dbInstance.CreateSubscriber(r.Context(), newSubscriber); err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to create subscriber", err, logger.APILog)
@@ -261,8 +261,8 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if params.ProfileName == "" {
-			writeError(w, http.StatusBadRequest, "Missing profileName parameter", errors.New("validation error"), logger.APILog)
+		if params.PolicyName == "" {
+			writeError(w, http.StatusBadRequest, "Missing policyName parameter", errors.New("validation error"), logger.APILog)
 			return
 		}
 
@@ -276,9 +276,9 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusNotFound, "Subscriber not found", err, logger.APILog)
 			return
 		}
-		profile, err := dbInstance.GetProfile(r.Context(), params.ProfileName)
+		policy, err := dbInstance.GetPolicy(r.Context(), params.PolicyName)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "Profile not found", err, logger.APILog)
+			writeError(w, http.StatusNotFound, "Policy not found", err, logger.APILog)
 			return
 		}
 
@@ -287,7 +287,7 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 			SequenceNumber: existing.SequenceNumber,
 			PermanentKey:   existing.PermanentKey,
 			Opc:            existing.Opc,
-			ProfileID:      profile.ID,
+			PolicyID:       policy.ID,
 		}
 		if err := dbInstance.UpdateSubscriber(r.Context(), updated); err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to update subscriber", err, logger.APILog)

@@ -19,7 +19,7 @@ func Start(dbInstance *db.Database) error {
 	smfContext.DBInstance = dbInstance
 	smfContext.CPNodeID = *context.NewNodeID("0.0.0.0")
 	upfNodeID := context.NewNodeID(config.UpfNodeID)
-	smfContext.UPF = context.NewUPF(upfNodeID, config.DNN)
+	smfContext.UPF = context.NewUPF(upfNodeID)
 	metrics.RegisterSmfMetrics()
 	return nil
 }
