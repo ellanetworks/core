@@ -22,7 +22,7 @@ None
 {
     "result": [
         {
-            "name": "default-default",
+            "name": "internet",
             "ip-pool": "172.250.0.0/24",
             "dns": "8.8.8.8",
             "mtu": 1460
