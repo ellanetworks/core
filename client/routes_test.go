@@ -160,7 +160,7 @@ func TestListRoutes_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[{"imsi": "001010100000022", "profileName": "default"}]`),
+			Result:     []byte(`[{"imsi": "001010100000022", "policyName": "default"}]`),
 		},
 		err: nil,
 	}

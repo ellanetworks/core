@@ -12,7 +12,6 @@ import {
   Alert,
   Collapse,
   Autocomplete,
-  Chip,
 } from "@mui/material";
 import * as yup from "yup";
 import { updateOperatorTracking } from "@/queries/operator";

@@ -24,7 +24,8 @@ var PermissionsByRole = map[RoleID][]string{
 		PermReadMyUser,
 		PermReadOperator, PermGetOperatorSlice, PermGetOperatorTracking,
 		PermListSubscribers, PermReadSubscriber,
-		PermListProfiles, PermReadProfile,
+		PermListDataNetworks, PermReadDataNetwork,
+		PermListPolicies, PermReadPolicy,
 		PermListRoutes, PermReadRoute,
 		PermListRadios, PermReadRadio,
 	},
@@ -32,8 +33,9 @@ var PermissionsByRole = map[RoleID][]string{
 	RoleNetworkManager: {
 		PermUpdateUserPassword, PermReadUser, PermReadMyUser,
 		PermReadOperator, PermUpdateOperatorSlice, PermGetOperatorSlice, PermUpdateOperatorTracking, PermGetOperatorTracking,
+		PermListDataNetworks, PermCreateDataNetwork, PermUpdateDataNetwork, PermReadDataNetwork, PermDeleteDataNetwork,
 		PermListSubscribers, PermCreateSubscriber, PermUpdateSubscriber, PermReadSubscriber, PermDeleteSubscriber,
-		PermListProfiles, PermCreateProfile, PermUpdateProfile, PermReadProfile, PermDeleteProfile,
+		PermListPolicies, PermCreatePolicy, PermUpdatePolicy, PermReadPolicy, PermDeletePolicy,
 		PermListRoutes, PermCreateRoute, PermReadRoute, PermDeleteRoute,
 		PermListRadios, PermReadRadio,
 	},
@@ -48,6 +50,13 @@ const (
 	PermReadUser           = "user:read"
 	PermDeleteUser         = "user:delete"
 	PermReadMyUser         = "user:read_my_user"
+
+	// Data Network permissions
+	PermListDataNetworks  = "data_network:list"
+	PermCreateDataNetwork = "data_network:create"
+	PermUpdateDataNetwork = "data_network:update"
+	PermReadDataNetwork   = "data_network:read"
+	PermDeleteDataNetwork = "data_network:delete"
 
 	// Operator permissions
 	PermReadOperator              = "operator:read"
@@ -67,12 +76,12 @@ const (
 	PermReadSubscriber   = "subscriber:read"
 	PermDeleteSubscriber = "subscriber:delete"
 
-	// Profile permissions
-	PermListProfiles  = "profile:list"
-	PermCreateProfile = "profile:create"
-	PermUpdateProfile = "profile:update"
-	PermReadProfile   = "profile:read"
-	PermDeleteProfile = "profile:delete"
+	// Policy permissions
+	PermListPolicies = "policy:list"
+	PermCreatePolicy = "policy:create"
+	PermUpdatePolicy = "policy:update"
+	PermReadPolicy   = "policy:read"
+	PermDeletePolicy = "policy:delete"
 
 	// Route permissions
 	PermListRoutes  = "route:list"

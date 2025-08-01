@@ -39,12 +39,12 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	mux.HandleFunc("GET /api/v1/subscribers/", Authenticate(jwtSecret, RequirePermission(PermReadSubscriber, jwtSecret, GetSubscriber(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/subscribers/", Authenticate(jwtSecret, RequirePermission(PermDeleteSubscriber, jwtSecret, DeleteSubscriber(dbInstance))).ServeHTTP)
 
-	// Profiles (Authenticated)
-	mux.HandleFunc("GET /api/v1/profiles", Authenticate(jwtSecret, RequirePermission(PermListProfiles, jwtSecret, ListProfiles(dbInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/profiles", Authenticate(jwtSecret, RequirePermission(PermCreateProfile, jwtSecret, CreateProfile(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/profiles/", Authenticate(jwtSecret, RequirePermission(PermUpdateProfile, jwtSecret, UpdateProfile(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/profiles/", Authenticate(jwtSecret, RequirePermission(PermReadProfile, jwtSecret, GetProfile(dbInstance))).ServeHTTP)
-	mux.HandleFunc("DELETE /api/v1/profiles/", Authenticate(jwtSecret, RequirePermission(PermDeleteProfile, jwtSecret, DeleteProfile(dbInstance))).ServeHTTP)
+	// Policies (Authenticated)
+	mux.HandleFunc("GET /api/v1/policies", Authenticate(jwtSecret, RequirePermission(PermListPolicies, jwtSecret, ListPolicies(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/policies", Authenticate(jwtSecret, RequirePermission(PermCreatePolicy, jwtSecret, CreatePolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/policies/", Authenticate(jwtSecret, RequirePermission(PermUpdatePolicy, jwtSecret, UpdatePolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/policies/", Authenticate(jwtSecret, RequirePermission(PermReadPolicy, jwtSecret, GetPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/policies/", Authenticate(jwtSecret, RequirePermission(PermDeletePolicy, jwtSecret, DeletePolicy(dbInstance))).ServeHTTP)
 
 	// Routes (Authenticated)
 	mux.HandleFunc("GET /api/v1/routes", Authenticate(jwtSecret, RequirePermission(PermListRoutes, jwtSecret, ListRoutes(dbInstance))).ServeHTTP)
@@ -62,6 +62,13 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	mux.HandleFunc("GET /api/v1/operator/id", Authenticate(jwtSecret, RequirePermission(PermGetOperatorID, jwtSecret, GetOperatorID(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/code", Authenticate(jwtSecret, RequirePermission(PermUpdateOperatorCode, jwtSecret, UpdateOperatorCode(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/operator/home-network", Authenticate(jwtSecret, RequirePermission(PermUpdateOperatorHomeNetwork, jwtSecret, UpdateOperatorHomeNetwork(dbInstance))).ServeHTTP)
+
+	// Data Networks (Authenticated)
+	mux.HandleFunc("GET /api/v1/data-networks", Authenticate(jwtSecret, RequirePermission(PermListDataNetworks, jwtSecret, ListDataNetworks(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/data-networks", Authenticate(jwtSecret, RequirePermission(PermCreateDataNetwork, jwtSecret, CreateDataNetwork(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/data-networks/", Authenticate(jwtSecret, RequirePermission(PermUpdateDataNetwork, jwtSecret, UpdateDataNetwork(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/data-networks/", Authenticate(jwtSecret, RequirePermission(PermReadDataNetwork, jwtSecret, GetDataNetwork(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/data-networks/", Authenticate(jwtSecret, RequirePermission(PermDeleteDataNetwork, jwtSecret, DeleteDataNetwork(dbInstance))).ServeHTTP)
 
 	// Radios (Authenticated)
 	mux.HandleFunc("GET /api/v1/radios", Authenticate(jwtSecret, RequirePermission(PermListRadios, jwtSecret, ListRadios())).ServeHTTP)

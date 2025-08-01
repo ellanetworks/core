@@ -10,7 +10,7 @@ type CreateSubscriberOptions struct {
 	Imsi           string `json:"imsi"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequenceNumber"`
-	ProfileName    string `json:"profileName"`
+	PolicyName     string `json:"policyName"`
 	OPc            string `json:"opc,omitempty"`
 }
 
@@ -28,7 +28,7 @@ type Subscriber struct {
 	Opc            string `json:"opc"`
 	SequenceNumber string `json:"sequenceNumber"`
 	Key            string `json:"key"`
-	ProfileName    string `json:"profileName"`
+	PolicyName     string `json:"policyName"`
 }
 
 func (c *Client) CreateSubscriber(opts *CreateSubscriberOptions) error {
@@ -36,12 +36,12 @@ func (c *Client) CreateSubscriber(opts *CreateSubscriberOptions) error {
 		Imsi           string `json:"imsi"`
 		Key            string `json:"key"`
 		SequenceNumber string `json:"sequenceNumber"`
-		ProfileName    string `json:"profileName"`
+		PolicyName     string `json:"policyName"`
 	}{
 		Imsi:           opts.Imsi,
 		Key:            opts.Key,
 		SequenceNumber: opts.SequenceNumber,
-		ProfileName:    opts.ProfileName,
+		PolicyName:     opts.PolicyName,
 	}
 
 	var body bytes.Buffer

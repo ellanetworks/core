@@ -137,7 +137,7 @@ func (db *Database) IsOperatorInitialized() bool {
 	return op.ID > 0
 }
 
-func (db *Database) InitializeOperator(ctx context.Context, initialOperator Operator) error {
+func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Operator) error {
 	operation := "INSERT"
 	target := OperatorTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)

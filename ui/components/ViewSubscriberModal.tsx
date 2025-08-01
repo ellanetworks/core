@@ -39,7 +39,7 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
     key: "",
     opc: "",
     sequenceNumber: "",
-    profileName: "",
+    policyName: "",
   });
   const [, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
@@ -60,7 +60,7 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
           key: data.key,
           opc: data.opc,
           sequenceNumber: data.sequenceNumber,
-          profileName: data.profileName,
+          policyName: data.policyName,
         });
       } catch (error: unknown) {
         let errorMessage = "Unknown error occurred.";
@@ -181,7 +181,7 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
         </Box>
         <Box sx={{ mb: 2 }}>
           <Typography>
-            <strong>Profile Name:</strong> {subscriberData.profileName}
+            <strong>Policy Name:</strong> {subscriberData.policyName}
           </Typography>
         </Box>
       </DialogContent>

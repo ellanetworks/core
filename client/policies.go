@@ -6,55 +6,47 @@ import (
 	"encoding/json"
 )
 
-type CreateProfileOptions struct {
+type CreatePolicyOptions struct {
 	Name            string `json:"name"`
-	UeIPPool        string `json:"ue-ip-pool"`
-	DNS             string `json:"dns"`
-	Mtu             int32  `json:"mtu"`
 	BitrateUplink   string `json:"bitrate-uplink"`
 	BitrateDownlink string `json:"bitrate-downlink"`
 	Var5qi          int32  `json:"var5qi"`
 	PriorityLevel   int32  `json:"priority-level"`
+	DataNetworkName string `json:"data-network-name"`
 }
 
-type GetProfileOptions struct {
+type GetPolicyOptions struct {
 	Name string `json:"name"`
 }
 
-type DeleteProfileOptions struct {
+type DeletePolicyOptions struct {
 	Name string `json:"name"`
 }
 
-type Profile struct {
+type Policy struct {
 	Name            string `json:"name"`
-	UeIPPool        string `json:"ue-ip-pool"`
-	DNS             string `json:"dns"`
-	Mtu             int32  `json:"mtu"`
 	BitrateUplink   string `json:"bitrate-uplink"`
 	BitrateDownlink string `json:"bitrate-downlink"`
 	Var5qi          int32  `json:"var5qi"`
 	PriorityLevel   int32  `json:"priority-level"`
+	DataNetworkName string `json:"data-network-name"`
 }
 
-func (c *Client) CreateProfile(opts *CreateProfileOptions) error {
+func (c *Client) CreatePolicy(opts *CreatePolicyOptions) error {
 	payload := struct {
 		Name            string `json:"name"`
-		UeIPPool        string `json:"ue-ip-pool"`
-		DNS             string `json:"dns"`
-		Mtu             int32  `json:"mtu"`
 		BitrateUplink   string `json:"bitrate-uplink"`
 		BitrateDownlink string `json:"bitrate-downlink"`
 		Var5qi          int32  `json:"var5qi"`
 		PriorityLevel   int32  `json:"priority-level"`
+		DataNetworkName string `json:"data-network-name"`
 	}{
 		Name:            opts.Name,
-		UeIPPool:        opts.UeIPPool,
-		DNS:             opts.DNS,
-		Mtu:             opts.Mtu,
 		BitrateUplink:   opts.BitrateUplink,
 		BitrateDownlink: opts.BitrateDownlink,
 		Var5qi:          opts.Var5qi,
 		PriorityLevel:   opts.PriorityLevel,
+		DataNetworkName: opts.DataNetworkName,
 	}
 
 	var body bytes.Buffer
@@ -67,7 +59,7 @@ func (c *Client) CreateProfile(opts *CreateProfileOptions) error {
 	_, err = c.Requester.Do(context.Background(), &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
-		Path:   "api/v1/profiles",
+		Path:   "api/v1/policies",
 		Body:   &body,
 	})
 	if err != nil {
@@ -76,30 +68,30 @@ func (c *Client) CreateProfile(opts *CreateProfileOptions) error {
 	return nil
 }
 
-func (c *Client) GetProfile(opts *GetProfileOptions) (*Profile, error) {
+func (c *Client) GetPolicy(opts *GetPolicyOptions) (*Policy, error) {
 	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/profiles/" + opts.Name,
+		Path:   "api/v1/policies/" + opts.Name,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	var profileResponse Profile
+	var policyResponse Policy
 
-	err = resp.DecodeResult(&profileResponse)
+	err = resp.DecodeResult(&policyResponse)
 	if err != nil {
 		return nil, err
 	}
-	return &profileResponse, nil
+	return &policyResponse, nil
 }
 
-func (c *Client) DeleteProfile(opts *DeleteProfileOptions) error {
+func (c *Client) DeletePolicy(opts *DeletePolicyOptions) error {
 	_, err := c.Requester.Do(context.Background(), &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/profiles/" + opts.Name,
+		Path:   "api/v1/policies/" + opts.Name,
 	})
 	if err != nil {
 		return err
@@ -107,19 +99,19 @@ func (c *Client) DeleteProfile(opts *DeleteProfileOptions) error {
 	return nil
 }
 
-func (c *Client) ListProfiles() ([]*Profile, error) {
+func (c *Client) ListPolicies() ([]*Policy, error) {
 	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/profiles",
+		Path:   "api/v1/policies",
 	})
 	if err != nil {
 		return nil, err
 	}
-	var profiles []*Profile
-	err = resp.DecodeResult(&profiles)
+	var policies []*Policy
+	err = resp.DecodeResult(&policies)
 	if err != nil {
 		return nil, err
 	}
-	return profiles, nil
+	return policies, nil
 }

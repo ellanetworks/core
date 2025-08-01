@@ -13,8 +13,8 @@ import (
 func TestCreateAuthDataBadSuci(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	initialOperator := db.Operator{}
-	testdb, err := db.NewDatabase(dbPath, initialOperator)
+
+	testdb, err := db.NewDatabase(dbPath)
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}

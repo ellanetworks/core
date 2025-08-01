@@ -341,20 +341,37 @@ func TestRolesEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("8. Use Network Manager user to create profile - should succeed", func(t *testing.T) {
-		createProfileParams := &CreateProfileParams{
-			Name:            ProfileName,
-			UeIPPool:        "0.0.0.0/24",
-			DNS:             "8.8.8.8",
-			Mtu:             1500,
+	t.Run("8. Use Network Manager user to create data network - should succeed", func(t *testing.T) {
+		createDataNetworkParams := &CreateDataNetworkParams{
+			Name:   DataNetworkName,
+			IPPool: "1.2.3.0/24",
+			MTU:    1500,
+			DNS:    "3.2.2.1",
+		}
+		statusCode, response, err := createDataNetwork(ts.URL, client, networkManagerToken, createDataNetworkParams)
+		if err != nil {
+			t.Fatalf("couldn't create data network: %s", err)
+		}
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+		if response.Error != "" {
+			t.Fatalf("expected empty error, got %q", response.Error)
+		}
+	})
+
+	t.Run("9. Use Network Manager user to create policy - should succeed", func(t *testing.T) {
+		createPolicyParams := &CreatePolicyParams{
+			Name:            PolicyName,
 			BitrateUplink:   "100 Mbps",
 			BitrateDownlink: "200 Mbps",
 			Var5qi:          9,
 			PriorityLevel:   1,
+			DataNetworkName: DataNetworkName,
 		}
-		statusCode, response, err := createProfile(ts.URL, client, networkManagerToken, createProfileParams)
+		statusCode, response, err := createPolicy(ts.URL, client, networkManagerToken, createPolicyParams)
 		if err != nil {
-			t.Fatalf("couldn't create profile: %s", err)
+			t.Fatalf("couldn't create policy: %s", err)
 		}
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)

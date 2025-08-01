@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/ngap/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/service"
-	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -33,7 +32,6 @@ func Start(ctx ctxt.Context, dbInstance *db.Database, n2Address string, n2Port i
 		Mpsi:    0,
 	}
 	self.URIScheme = models.URISchemeHTTP
-	self.SupportedDnns = []string{config.DNN}
 	security := &context.Security{
 		IntegrityOrder: []string{"NIA1", "NIA2"},
 		CipheringOrder: []string{"NEA0"},

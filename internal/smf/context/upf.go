@@ -53,7 +53,6 @@ type UPF struct {
 
 // UPFInterfaceInfo store the UPF interface information
 type UPFInterfaceInfo struct {
-	NetworkInstance       string
 	IPv4EndPointAddresses []net.IP
 }
 
@@ -66,7 +65,7 @@ func (i *UPFInterfaceInfo) IP(pduSessType uint8) (net.IP, error) {
 	return nil, errors.New("not matched ip address")
 }
 
-func NewUPF(nodeID *NodeID, dnn string) (upf *UPF) {
+func NewUPF(nodeID *NodeID) (upf *UPF) {
 	upf = new(UPF)
 	upf.NodeID = *nodeID
 	upf.pdrIDGenerator = idgenerator.NewGenerator(1, math.MaxUint16)
@@ -74,7 +73,6 @@ func NewUPF(nodeID *NodeID, dnn string) (upf *UPF) {
 	upf.barIDGenerator = idgenerator.NewGenerator(1, math.MaxUint8)
 	upf.qerIDGenerator = idgenerator.NewGenerator(1, math.MaxUint32)
 	upf.N3Interface = UPFInterfaceInfo{
-		NetworkInstance:       dnn,
 		IPv4EndPointAddresses: make([]net.IP, 0),
 	}
 

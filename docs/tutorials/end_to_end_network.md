@@ -130,22 +130,9 @@ Ella Core is now initialized and ready to be used.
 
 ### 2.5 Configure your private network
 
-Here, we will navigate through the Ella Core UI to create a profile, a subscriber, and a route.
+Here, we will navigate through the Ella Core UI to create a subscriber and a route.
 
-#### 2.5.1 Create a Profile
-
-Navigate to the `Profiles` page and click on the `Create` button.
-
-Create a profile with the name `default`. You can keep the default values for the other parameters:
-
-- Name: `default`
-- IP Pool: `10.45.0.0/16`
-- DNS: `8.8.8.8`
-- MTU: `1500`
-- Bitrate Uplink: `200 Mbps`
-- Bitrate Downlink: `100 Mbps`
-
-#### 2.5.2 Create a subscriber
+#### 2.5.1 Create a subscriber
 
 Navigate to the `Subscribers` page and click on the `Create` button.
 
@@ -154,11 +141,11 @@ Create a subscriber with the following parameters:
 - IMSI: Click on "Generate" to automatically generate the MSIN.
 - Key: Click on "Generate" to automatically generate a key.
 - Sequence Number: Keep the default value.
-- Profile: `default`
+- Policy: `default`
 
 After creating the subscriber, click on the `View` button to see the subscriber's details. Note the IMSI, Key, and OPC values. You will use these values later to configure the 5G radio simulator.
 
-#### 2.5.3 Create a route
+#### 2.5.2 Create a route
 
 Navigate to the `Routes` page and click on the `Create` button.
 
@@ -171,7 +158,7 @@ Create a route with the following parameters:
 
 Replace the placeholder with the appropriate value.
 
-#### 2.5.4 Validate that no radio is connected
+#### 2.5.3 Validate that no radio is connected
 
 Navigate to the `Radios` page. You should see that no radio is connected.
 
@@ -437,42 +424,42 @@ You should see a new interface `uesimtun0` with the UE's IP address:
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
     inet 127.0.0.1/8 scope host lo
        valid_lft forever preferred_lft forever
-    inet6 ::1/128 scope host noprefixroute 
+    inet6 ::1/128 scope host noprefixroute
        valid_lft forever preferred_lft forever
 2: ens3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
     link/ether 52:54:00:85:ac:05 brd ff:ff:ff:ff:ff:ff
     altname enp0s3
     inet 10.194.229.171/24 metric 100 brd 10.194.229.255 scope global ens3
        valid_lft forever preferred_lft forever
-    inet6 fe80::5054:ff:fe85:ac05/64 scope link 
+    inet6 fe80::5054:ff:fe85:ac05/64 scope link
        valid_lft forever preferred_lft forever
 3: ens4: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
     link/ether 52:54:00:7b:7a:c6 brd ff:ff:ff:ff:ff:ff
     altname enp0s4
     inet 22.22.22.129/24 metric 200 brd 22.22.22.255 scope global dynamic ens4
        valid_lft 3153sec preferred_lft 3153sec
-    inet6 fd42:6302:4a59:7ee5:5054:ff:fe7b:7ac6/64 scope global mngtmpaddr noprefixroute 
+    inet6 fd42:6302:4a59:7ee5:5054:ff:fe7b:7ac6/64 scope global mngtmpaddr noprefixroute
        valid_lft forever preferred_lft forever
-    inet6 fe80::5054:ff:fe7b:7ac6/64 scope link 
+    inet6 fe80::5054:ff:fe7b:7ac6/64 scope link
        valid_lft forever preferred_lft forever
 4: ens5: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
     link/ether 52:54:00:84:4b:9f brd ff:ff:ff:ff:ff:ff
     altname enp0s5
     inet 33.33.33.129/24 metric 200 brd 33.33.33.255 scope global dynamic ens5
        valid_lft 3153sec preferred_lft 3153sec
-    inet6 fd42:ae6c:c837:fbc0:5054:ff:fe84:4b9f/64 scope global mngtmpaddr noprefixroute 
+    inet6 fd42:ae6c:c837:fbc0:5054:ff:fe84:4b9f/64 scope global mngtmpaddr noprefixroute
        valid_lft forever preferred_lft forever
-    inet6 fe80::5054:ff:fe84:4b9f/64 scope link 
+    inet6 fe80::5054:ff:fe84:4b9f/64 scope link
        valid_lft forever preferred_lft forever
 5: uesimtun0: <POINTOPOINT,PROMISC,NOTRAILERS,UP,LOWER_UP> mtu 1400 qdisc fq_codel state UNKNOWN group default qlen 500
-    link/none 
+    link/none
     inet 10.45.0.1/32 scope global uesimtun0
        valid_lft forever preferred_lft forever
-    inet6 fe80::26e6:470b:dc9d:9f95/64 scope link stable-privacy 
+    inet6 fe80::26e6:470b:dc9d:9f95/64 scope link stable-privacy
        valid_lft forever preferred_lft forever
 ```
 
-This interface allows the UE to communicate with the network. 
+This interface allows the UE to communicate with the network.
 
 Ping the Ella Core documentation website from the subscriber's interface:
 

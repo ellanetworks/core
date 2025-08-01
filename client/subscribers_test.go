@@ -24,7 +24,7 @@ func TestCreateSubscriber_Success(t *testing.T) {
 		Imsi:           "001010100000022",
 		Key:            "5122250214c33e723a5dd523fc145fc0",
 		SequenceNumber: "000000000022",
-		ProfileName:    "default",
+		PolicyName:     "default",
 	}
 
 	err := clientObj.CreateSubscriber(createSubscriberOpts)
@@ -49,7 +49,7 @@ func TestCreateSubscriber_Failure(t *testing.T) {
 		Imsi:           "invalid_imsi",
 		Key:            "5122250214c33e723a5dd523fc145fc0",
 		SequenceNumber: "000000000022",
-		ProfileName:    "default",
+		PolicyName:     "default",
 	}
 
 	err := clientObj.CreateSubscriber(createSubscriberOpts)
@@ -63,7 +63,7 @@ func TestGetSubscriber_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"imsi": "001010100000022", "profileName": "default"}`),
+			Result:     []byte(`{"imsi": "001010100000022", "policyName": "default"}`),
 		},
 		err: nil,
 	}
@@ -159,7 +159,7 @@ func TestListSubscribers_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`[{"imsi": "001010100000022", "profileName": "default"}]`),
+			Result:     []byte(`[{"imsi": "001010100000022", "policyName": "default"}]`),
 		},
 		err: nil,
 	}

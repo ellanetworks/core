@@ -29,7 +29,7 @@ None
             "opc": "981d464c7c52eb6e5036234984ad0bcf",
             "sequenceNumber": "16f3b3f70fc7",
             "key": "5122250214c33e723a5dd523fc145fc0",
-            "profileName": "default"
+            "policyName": "default"
         }
     ]
 }
@@ -48,7 +48,7 @@ This path creates a new network subscriber.
 - `imsi` (string): The IMSI of the subscriber. Must be a 15-digit string starting with `<mcc><mnc>`.
 - `key` (string): The key of the subscriber. Must be a 32-character hexadecimal string.
 - `sequenceNumber` (string): The sequence number of the subscriber. Must be a 6-byte hexadecimal string.
-- `ProfileName` (string): The profile name of the subscriber. Must be the name of an existing profile.
+- `PolicyName` (string): The policy name of the subscriber. Must be the name of an existing policy.
 - `opc` (optional string): The operator code of the subscriber. If not provided, it will be generated automatically using the Operator Code (OP) and the `key` parameter.
 
 ### Sample Response
@@ -71,7 +71,7 @@ This path updates an existing network subscriber.
 
 ### Parameters
 
-- `ProfileName` (string): The profile name of the subscriber.
+- `PolicyName` (string): The policy name of the subscriber.
 
 ### Sample Response
 
@@ -105,7 +105,7 @@ None
         "opc": "981d464c7c52eb6e5036234984ad0bcf",
         "sequenceNumber": "16f3b3f70fc7",
         "key": "5122250214c33e723a5dd523fc145fc0",
-        "profileName": "default"
+        "policyName": "default"
     }
 }
 ```

@@ -14,7 +14,8 @@ func TestRestore(t *testing.T) {
 	tempDir := t.TempDir()
 
 	databasePath := filepath.Join(tempDir, "db.sqlite3")
-	database, err := db.NewDatabase(databasePath, initialOperator)
+
+	database, err := db.NewDatabase(databasePath)
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
