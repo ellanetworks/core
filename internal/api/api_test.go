@@ -16,17 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/kernel"
 )
 
-// initialOperator is used to initialize a test database.
-var initialOperator = db.Operator{
-	Mcc:                   "001",
-	Mnc:                   "01",
-	OperatorCode:          "0123456789ABCDEF0123456789ABCDEF",
-	Sst:                   1,
-	Sd:                    1056816,
-	SupportedTACs:         `["001"]`,
-	HomeNetworkPrivateKey: "c09c17bddf23357f614f492075b970d825767718114f59554ce2f345cf8c4b6a",
-}
-
 // freePort finds an available port on localhost.
 func freePort(t *testing.T) int {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -56,7 +45,8 @@ func TestStartServerStandup(t *testing.T) {
 
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	testdb, err := db.NewDatabase(dbPath, initialOperator)
+
+	testdb, err := db.NewDatabase(dbPath)
 	if err != nil {
 		t.Fatalf("NewDatabase returned error: %v", err)
 	}

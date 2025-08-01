@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/models"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -29,9 +28,9 @@ func GetAmData(ctx context.Context, ueID string) (*models.AccessAndMobilitySubsc
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
-	profile, err := udmContext.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
+	policy, err := udmContext.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
+		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
 	operator, err := udmContext.DBInstance.GetOperator(ctx)
 	if err != nil {
@@ -43,8 +42,8 @@ func GetAmData(ctx context.Context, ueID string) (*models.AccessAndMobilitySubsc
 			SingleNssais:        make([]models.Snssai, 0),
 		},
 		SubscribedUeAmbr: &models.AmbrRm{
-			Downlink: profile.BitrateDownlink,
-			Uplink:   profile.BitrateUplink,
+			Downlink: policy.BitrateDownlink,
+			Uplink:   policy.BitrateUplink,
 		},
 	}
 	amData.Nssai.DefaultSingleNssais = append(amData.Nssai.DefaultSingleNssais, models.Snssai{
@@ -78,14 +77,19 @@ func GetSmData(ctx context.Context, ueID string) ([]models.SessionManagementSubs
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
 	}
-	profile, err := udmContext.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
+	policy, err := udmContext.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
+		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
 	}
 	operator, err := udmContext.DBInstance.GetOperator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
+	dataNetwork, err := udmContext.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get data network %d: %v", policy.DataNetworkID, err)
+	}
+
 	smData := make([]models.SessionManagementSubscriptionData, 0)
 	smDataObjModel := models.SessionManagementSubscriptionData{
 		SingleNssai: &models.Snssai{
@@ -94,7 +98,7 @@ func GetSmData(ctx context.Context, ueID string) ([]models.SessionManagementSubs
 		},
 		DnnConfigurations: make(map[string]models.DnnConfiguration),
 	}
-	smDataObjModel.DnnConfigurations[config.DNN] = models.DnnConfiguration{
+	smDataObjModel.DnnConfigurations[dataNetwork.Name] = models.DnnConfiguration{
 		PduSessionTypes: &models.PduSessionTypes{
 			DefaultSessionType:  models.PduSessionTypeIPv4,
 			AllowedSessionTypes: make([]models.PduSessionType, 0),
@@ -104,18 +108,18 @@ func GetSmData(ctx context.Context, ueID string) ([]models.SessionManagementSubs
 			AllowedSscModes: make([]models.SscMode, 0),
 		},
 		SessionAmbr: &models.Ambr{
-			Downlink: profile.BitrateDownlink,
-			Uplink:   profile.BitrateUplink,
+			Downlink: policy.BitrateDownlink,
+			Uplink:   policy.BitrateUplink,
 		},
 		Var5gQosProfile: &models.SubscribedDefaultQos{
-			Var5qi:        profile.Var5qi,
-			Arp:           &models.Arp{PriorityLevel: profile.PriorityLevel},
-			PriorityLevel: profile.PriorityLevel,
+			Var5qi:        policy.Var5qi,
+			Arp:           &models.Arp{PriorityLevel: policy.PriorityLevel},
+			PriorityLevel: policy.PriorityLevel,
 		},
 	}
-	smDataObjModel.DnnConfigurations[config.DNN].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[config.DNN].PduSessionTypes.AllowedSessionTypes, AllowedSessionTypes...)
+	smDataObjModel.DnnConfigurations[dataNetwork.Name].PduSessionTypes.AllowedSessionTypes = append(smDataObjModel.DnnConfigurations[dataNetwork.Name].PduSessionTypes.AllowedSessionTypes, AllowedSessionTypes...)
 	for _, sscMode := range AllowedSscModes {
-		smDataObjModel.DnnConfigurations[config.DNN].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[config.DNN].SscModes.AllowedSscModes, models.SscMode(sscMode))
+		smDataObjModel.DnnConfigurations[dataNetwork.Name].SscModes.AllowedSscModes = append(smDataObjModel.DnnConfigurations[dataNetwork.Name].SscModes.AllowedSscModes, models.SscMode(sscMode))
 	}
 	smData = append(smData, smDataObjModel)
 	return smData, nil
@@ -165,6 +169,19 @@ func GetSmfSelectData(ctx context.Context, ueID string) (*models.SmfSelectionSub
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get operator: %v", err)
 	}
+	subscriber, err := udmContext.DBInstance.GetSubscriber(ctx, ueID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", ueID, err)
+	}
+	policy, err := udmContext.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
+	}
+	dataNetwork, err := udmContext.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get data network %d: %v", policy.DataNetworkID, err)
+	}
+
 	snssai := fmt.Sprintf("%d%s", operator.Sst, operator.GetHexSd())
 	smfSelectionData := &models.SmfSelectionSubscriptionData{
 		SubscribedSnssaiInfos: make(map[string]models.SnssaiInfo),
@@ -174,7 +191,7 @@ func GetSmfSelectData(ctx context.Context, ueID string) (*models.SmfSelectionSub
 	}
 	snssaiInfo := smfSelectionData.SubscribedSnssaiInfos[snssai]
 	snssaiInfo.DnnInfos = append(snssaiInfo.DnnInfos, models.DnnInfo{
-		Dnn: config.DNN,
+		Dnn: dataNetwork.Name,
 	})
 	smfSelectionData.SubscribedSnssaiInfos[snssai] = snssaiInfo
 	return smfSelectionData, nil

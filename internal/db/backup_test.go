@@ -15,7 +15,8 @@ func TestDatabaseBackup(t *testing.T) {
 	tempDir := t.TempDir()
 
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	database, err := db.NewDatabase(dbPath, initialOperator)
+
+	database, err := db.NewDatabase(dbPath)
 	if err != nil {
 		t.Fatalf("Couldn't initialize NewDatabase: %s", err)
 	}

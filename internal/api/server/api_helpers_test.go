@@ -17,16 +17,6 @@ const (
 	ReqsPerSec = 9999 // High number to avoid rate limiting in tests
 )
 
-var initialOperator = db.Operator{
-	Mcc:                   "001",
-	Mnc:                   "01",
-	OperatorCode:          "0123456789ABCDEF0123456789ABCDEF",
-	Sst:                   1,
-	Sd:                    1056816,
-	SupportedTACs:         `["001"]`,
-	HomeNetworkPrivateKey: "c09c17bddf23357f614f492075b970d825767718114f59554ce2f345cf8c4b6a",
-}
-
 type FakeKernel struct{}
 
 func (fk FakeKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priority int, networkInterface kernel.NetworkInterface) error {
@@ -60,10 +50,11 @@ func (dummyFS) Open(name string) (fs.File, error) {
 }
 
 func setupServer(filepath string, reqsPerSec int) (*httptest.Server, []byte, error) {
-	testdb, err := db.NewDatabase(filepath, initialOperator)
+	testdb, err := db.NewDatabase(filepath)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}
 	dummyfs := dummyFS{}

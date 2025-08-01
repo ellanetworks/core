@@ -11,34 +11,26 @@ import {
   IconButton,
 } from "@mui/material";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
-import {
-  Delete as DeleteIcon,
-  Edit as EditIcon,
-  Visibility as VisibilityIcon,
-} from "@mui/icons-material";
-import { listSubscribers, deleteSubscriber } from "@/queries/subscribers";
-import CreateSubscriberModal from "@/components/CreateSubscriberModal";
-import ViewSubscriberModal from "@/components/ViewSubscriberModal";
-import EditSubscriberModal from "@/components/EditSubscriberModal";
+import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
+import { listPolicies, deletePolicy } from "@/queries/policies";
+import CreatePolicyModal from "@/components/CreatePolicyModal";
+import EditPolicyModal from "@/components/EditPolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
-import { Subscriber } from "@/types/types";
+import { Policy } from "@/types/types";
 
-const SubscriberPage = () => {
+const PolicyPage = () => {
   const { role } = useAuth();
   const [cookies] = useCookies(["user_token"]);
-  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [policies, setPolicies] = useState<Policy[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
-  const [isViewModalOpen, setViewModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-  const [editData, setEditData] = useState<Subscriber | null>(null);
-  const [selectedSubscriber, setSelectedSubscriber] = useState<string | null>(
-    null,
-  );
+  const [editData, setEditData] = useState<Policy | null>(null);
+  const [selectedPolicy, setSelectedPolicy] = useState<string | null>(null);
   const [alert, setAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
@@ -47,70 +39,63 @@ const SubscriberPage = () => {
     severity: null,
   });
 
-  const fetchSubscribers = useCallback(async () => {
+  const fetchPolicies = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await listSubscribers(cookies.user_token);
-      setSubscribers(data);
+      const data = await listPolicies(cookies.user_token);
+      setPolicies(data);
     } catch (error) {
-      console.error("Error fetching subscribers:", error);
+      console.error("Error fetching policies:", error);
     } finally {
       setLoading(false);
     }
   }, [cookies.user_token]);
 
   useEffect(() => {
-    fetchSubscribers();
-  }, [fetchSubscribers]);
+    fetchPolicies();
+  }, [fetchPolicies]);
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
-  const handleCloseViewModal = () => {
-    setSelectedSubscriber(null);
-    setViewModalOpen(false);
-  };
 
-  const handleEditClick = (subscriber: Subscriber) => {
-    setEditData(subscriber);
+  const handleEditClick = (policy: Policy) => {
+    setEditData(policy);
     setEditModalOpen(true);
   };
 
-  const handleViewClick = (subscriber: Subscriber) => {
-    setSelectedSubscriber(subscriber.imsi);
-    setViewModalOpen(true);
-  };
-
-  const handleDeleteClick = (subscriberName: string) => {
-    setSelectedSubscriber(subscriberName);
+  const handleDeleteClick = (policyName: string) => {
+    setSelectedPolicy(policyName);
     setConfirmationOpen(true);
   };
 
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
-    if (selectedSubscriber) {
+    if (selectedPolicy) {
       try {
-        await deleteSubscriber(cookies.user_token, selectedSubscriber);
+        await deletePolicy(cookies.user_token, selectedPolicy);
         setAlert({
-          message: `Subscriber "${selectedSubscriber}" deleted successfully!`,
+          message: `Policy "${selectedPolicy}" deleted successfully!`,
           severity: "success",
         });
-        fetchSubscribers();
-      } catch {
+        fetchPolicies();
+      } catch (error) {
         setAlert({
-          message: `Failed to delete subscriber "${selectedSubscriber}".`,
+          message: `Failed to delete policy "${selectedPolicy}": ${error}`,
           severity: "error",
         });
       } finally {
-        setSelectedSubscriber(null);
+        setSelectedPolicy(null);
       }
     }
   };
 
-  // Define base columns (common for all roles)
   const baseColumns: GridColDef[] = [
-    { field: "imsi", headerName: "IMSI", flex: 1 },
-    { field: "ipAddress", headerName: "IP Address", flex: 1 },
-    { field: "policyName", headerName: "Policy", flex: 1 },
+    { field: "name", headerName: "Name", flex: 1 },
+    { field: "bitrateUp", headerName: "Bitrate (Up)", flex: 1 },
+    { field: "bitrateDown", headerName: "Bitrate (Down)", flex: 1 },
+    { field: "fiveQi", headerName: "5QI", flex: 0.5 },
+    { field: "priorityLevel", headerName: "Priority", flex: 0.5 },
+    { field: "dataNetworkName", headerName: "Data Network Name", flex: 1 },
   ];
 
   if (role === "Admin" || role === "Network Manager") {
@@ -118,15 +103,8 @@ const SubscriberPage = () => {
       field: "actions",
       headerName: "Actions",
       type: "actions",
-      flex: 0.5,
+      flex: 1,
       getActions: (params) => [
-        <IconButton
-          key="view"
-          aria-label="view"
-          onClick={() => handleViewClick(params.row)}
-        >
-          <VisibilityIcon />
-        </IconButton>,
         <IconButton
           key="edit"
           aria-label="edit"
@@ -137,7 +115,7 @@ const SubscriberPage = () => {
         <IconButton
           key="delete"
           aria-label="delete"
-          onClick={() => handleDeleteClick(params.row.imsi)}
+          onClick={() => handleDeleteClick(params.row.name)}
         >
           <DeleteIcon />
         </IconButton>,
@@ -178,10 +156,10 @@ const SubscriberPage = () => {
         >
           <CircularProgress />
         </Box>
-      ) : subscribers.length === 0 ? (
+      ) : policies.length === 0 ? (
         <EmptyState
-          primaryText="No subscriber found."
-          secondaryText="Create a new subscriber."
+          primaryText="No policy found."
+          secondaryText="Create a new policy in order to add subscribers to the network."
           button={role === "Admin" || role === "Network Manager"}
           buttonText="Create"
           onCreate={handleOpenCreateModal}
@@ -198,7 +176,7 @@ const SubscriberPage = () => {
             }}
           >
             <Typography variant="h4" component="h1" gutterBottom>
-              Subscribers ({subscribers.length})
+              Policies ({policies.length})
             </Typography>
             {(role === "Admin" || role === "Network Manager") && (
               <Button
@@ -221,32 +199,31 @@ const SubscriberPage = () => {
             }}
           >
             <DataGrid
-              rows={subscribers}
+              rows={policies}
               columns={baseColumns}
-              getRowId={(row) => row.imsi}
               disableRowSelectionOnClick
+              getRowId={(row) => row.name}
             />
           </Box>
         </>
       )}
-      <ViewSubscriberModal
-        open={isViewModalOpen}
-        onClose={handleCloseViewModal}
-        imsi={selectedSubscriber || ""}
-      />
-      <CreateSubscriberModal
+      <CreatePolicyModal
         open={isCreateModalOpen}
         onClose={handleCloseCreateModal}
-        onSuccess={fetchSubscribers}
+        onSuccess={fetchPolicies}
       />
-      <EditSubscriberModal
+      <EditPolicyModal
         open={isEditModalOpen}
         onClose={() => setEditModalOpen(false)}
-        onSuccess={fetchSubscribers}
+        onSuccess={fetchPolicies}
         initialData={
           editData || {
-            imsi: "",
-            policyName: "",
+            name: "",
+            bitrateUp: "100 Mbps",
+            bitrateDown: "100 Mbps",
+            fiveQi: 1,
+            priorityLevel: 1,
+            dataNetworkName: "",
           }
         }
       />
@@ -255,10 +232,10 @@ const SubscriberPage = () => {
         onClose={() => setConfirmationOpen(false)}
         onConfirm={handleDeleteConfirm}
         title="Confirm Deletion"
-        description={`Are you sure you want to delete the subscriber "${selectedSubscriber}"? This action cannot be undone.`}
+        description={`Are you sure you want to delete the policy "${selectedPolicy}"? This action cannot be undone.`}
       />
     </Box>
   );
 };
 
-export default SubscriberPage;
+export default PolicyPage;

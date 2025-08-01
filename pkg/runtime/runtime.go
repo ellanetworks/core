@@ -2,8 +2,6 @@ package runtime
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -21,13 +19,6 @@ import (
 	"github.com/ellanetworks/core/internal/upf"
 	"github.com/ellanetworks/core/version"
 	"go.uber.org/zap"
-)
-
-const (
-	InitialMcc         = "001"
-	InitialMnc         = "01"
-	InitialOperatorSst = 1
-	InitialOperatorSd  = 1056816
 )
 
 type RuntimeConfig struct {
@@ -68,26 +59,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}()
 	}
 
-	initialOp, err := generateOperatorCode()
-	if err != nil {
-		return fmt.Errorf("couldn't generate operator code: %w", err)
-	}
-	initialHNPrivateKey, err := generateHomeNetworkPrivateKey()
-	if err != nil {
-		return fmt.Errorf("couldn't generate HN private key: %w", err)
-	}
-
-	initialOperator := db.Operator{
-		Mcc:                   InitialMcc,
-		Mnc:                   InitialMnc,
-		OperatorCode:          initialOp,
-		Sst:                   InitialOperatorSst,
-		Sd:                    InitialOperatorSd,
-		HomeNetworkPrivateKey: initialHNPrivateKey,
-	}
-	initialOperator.SetSupportedTacs([]string{"001"})
-
-	dbInstance, err := db.NewDatabase(cfg.DB.Path, initialOperator)
+	dbInstance, err := db.NewDatabase(cfg.DB.Path)
 	if err != nil {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}
@@ -137,21 +109,4 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	<-ctx.Done()
 	logger.EllaLog.Info("Shutdown signal received, exiting.")
 	return nil
-}
-
-func generateOperatorCode() (string, error) {
-	var op [16]byte
-	_, err := rand.Read(op[:])
-	return hex.EncodeToString(op[:]), err
-}
-
-func generateHomeNetworkPrivateKey() (string, error) {
-	var pk [32]byte
-	if _, err := rand.Read(pk[:]); err != nil {
-		return "", err
-	}
-	pk[0] &= 248
-	pk[31] &= 127
-	pk[31] |= 64
-	return hex.EncodeToString(pk[:]), nil
 }

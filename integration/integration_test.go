@@ -14,7 +14,7 @@ import (
 const (
 	gnbsimNamespace              = "gnbsim"
 	ueransimNamespace            = "ueransim"
-	testProfileName              = "default"
+	testPolicyName               = "tests"
 	numIMSIS                     = 5
 	testStartIMSI                = "001010100000001"
 	testSubscriberKey            = "5122250214c33e723a5dd523fc145fc0"
@@ -57,19 +57,28 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 		return nil, fmt.Errorf("failed to login: %v", err)
 	}
 
-	createProfileOpts := &client.CreateProfileOptions{
-		Name:            testProfileName,
-		UeIPPool:        "172.250.0.0/24",
-		DNS:             "8.8.8.8",
-		Mtu:             1460,
+	createDataNetworkOpts := &client.CreateDataNetworkOptions{
+		Name:   "not-internet",
+		IPPool: "172.250.0.0/24",
+		DNS:    "8.8.8.8",
+		Mtu:    1460,
+	}
+	err = opts.client.CreateDataNetwork(createDataNetworkOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create data network: %v", err)
+	}
+
+	createPolicyOpts := &client.CreatePolicyOptions{
+		Name:            testPolicyName,
 		BitrateUplink:   "200 Mbps",
 		BitrateDownlink: "100 Mbps",
 		Var5qi:          8,
 		PriorityLevel:   1,
+		DataNetworkName: "not-internet",
 	}
-	err = opts.client.CreateProfile(createProfileOpts)
+	err = opts.client.CreatePolicy(createPolicyOpts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create profile: %v", err)
+		return nil, fmt.Errorf("failed to create policy: %v", err)
 	}
 
 	updateOperatorIDOpts := &client.UpdateOperatorIDOptions{
@@ -111,7 +120,7 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 			Imsi:           imsi,
 			Key:            testSubscriberKey,
 			SequenceNumber: testSubscriberSequenceNumber,
-			ProfileName:    testProfileName,
+			PolicyName:     testPolicyName,
 			OPc:            opc,
 		}
 		err = opts.client.CreateSubscriber(createSubscriberOpts)
