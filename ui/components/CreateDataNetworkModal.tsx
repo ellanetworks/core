@@ -21,13 +21,16 @@ interface CreateDataNetworkModalProps {
   onSuccess: () => void;
 }
 
-const dnnRegex = /^(?=.{1,100}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/;
-
+const dnnRegex =
+  /^(?=.{1,100}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/;
 
 const schema = yup.object().shape({
   name: yup
     .string()
-    .matches(dnnRegex, "Must be a valid DNN (e.g., internet, ims, core.mycompany)")
+    .matches(
+      dnnRegex,
+      "Must be a valid DNN (e.g., internet, ims, core.mycompany)",
+    )
     .required("Data Network Name is required"),
   ipPool: yup
     .string()
