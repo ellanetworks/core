@@ -391,3 +391,129 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		}
 	})
 }
+
+func TestCreateDataNetworkInvalidInput(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath, ReqsPerSec)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	tests := []struct {
+		testName string
+		name     string
+		ipPool   string
+		dns      string
+		mtu      int32
+		error    string
+	}{
+		{
+			testName: "Invalid Name - 1",
+			name:     "Internet",
+			ipPool:   IPPool,
+			dns:      DNS,
+			mtu:      MTU,
+			error:    "invalid name format, must be a valid DNN format",
+		},
+		{
+			testName: "Invalid Name - 2",
+			name:     "data_network",
+			ipPool:   IPPool,
+			dns:      DNS,
+			mtu:      MTU,
+			error:    "invalid name format, must be a valid DNN format",
+		},
+		{
+			testName: "Invalid Name - 3",
+			name:     "-privatenet",
+			ipPool:   IPPool,
+			dns:      DNS,
+			mtu:      MTU,
+			error:    "invalid name format, must be a valid DNN format",
+		},
+		{
+			testName: "Invalid Name - 4",
+			name:     "net.",
+			ipPool:   IPPool,
+			dns:      DNS,
+			mtu:      MTU,
+			error:    "invalid name format, must be a valid DNN format",
+		},
+		{
+			testName: "Invalid IP Pool - bad format",
+			name:     DataNetworkName,
+			ipPool:   "invalid-ip-pool",
+			dns:      DNS,
+			mtu:      MTU,
+			error:    "invalid ip-pool format, must be in CIDR format",
+		},
+		{
+			testName: "Invalid IP Pool - missing subnet",
+			name:     DataNetworkName,
+			ipPool:   "0.0.0.0",
+			dns:      DNS,
+			mtu:      MTU,
+			error:    "invalid ip-pool format, must be in CIDR format",
+		},
+		{
+			testName: "Invalid IP Pool - Too many bits",
+			name:     DataNetworkName,
+			ipPool:   "0.0.0.0/2555",
+			dns:      DNS,
+			mtu:      MTU,
+			error:    "invalid ip-pool format, must be in CIDR format",
+		},
+		{
+			testName: "Invalid DNS",
+			name:     DataNetworkName,
+			ipPool:   IPPool,
+			dns:      "invalid-dns",
+			mtu:      MTU,
+			error:    "invalid dns format, must be a valid IP address",
+		},
+		{
+			testName: "Invalid MTU - too small",
+			name:     DataNetworkName,
+			ipPool:   IPPool,
+			dns:      DNS,
+			mtu:      -1,
+			error:    "invalid mtu format, must be an integer between 0 and 65535",
+		},
+		{
+			testName: "Invalid MTU - too large",
+			name:     DataNetworkName,
+			ipPool:   IPPool,
+			dns:      DNS,
+			mtu:      65535 + 1,
+			error:    "invalid mtu format, must be an integer between 0 and 65535",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			createDataNetworkParams := &CreateDataNetworkParams{
+				Name:   tt.name,
+				IPPool: tt.ipPool,
+				DNS:    tt.dns,
+				MTU:    tt.mtu,
+			}
+			statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
+			if err != nil {
+				t.Fatalf("couldn't create data network: %s", err)
+			}
+			if statusCode != http.StatusBadRequest {
+				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+			}
+			if response.Error != tt.error {
+				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
+			}
+		})
+	}
+}

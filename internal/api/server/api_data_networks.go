@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -33,6 +34,8 @@ const (
 	CreateDataNetworkAction = "create_data_network"
 	UpdateDataNetworkAction = "update_data_network"
 )
+
+var dnnRegex = regexp.MustCompile(`^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$`)
 
 func ListDataNetworks(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -223,7 +226,7 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 }
 
 func isDataNetworkNameValid(name string) bool {
-	return len(name) > 0 && len(name) < 256
+	return dnnRegex.MatchString(name)
 }
 
 func isUeIPPoolValid(ueIPPool string) bool {
@@ -251,7 +254,7 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 		return errors.New("mtu is missing")
 
 	case !isDataNetworkNameValid(p.Name):
-		return errors.New("invalid name format, must be less than 256 characters")
+		return errors.New("invalid name format, must be a valid DNN format")
 	case !isUeIPPoolValid(p.IPPool):
 		return errors.New("invalid ip-pool format, must be in CIDR format")
 	case !isValidDNS(p.DNS):
