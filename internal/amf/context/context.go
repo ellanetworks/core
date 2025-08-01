@@ -80,7 +80,6 @@ type AMFContext struct {
 	URIScheme                       models.URIScheme
 	NgapPort                        int
 	NetworkFeatureSupport5GS        *NetworkFeatureSupport5GS
-	SupportedDnns                   []string
 	SecurityAlgorithm               SecurityAlgorithm
 	NetworkName                     NetworkName
 	T3502Value                      int // unit is second
@@ -276,15 +275,6 @@ func (context *AMFContext) ListAmfRan() []AmfRan {
 
 func (context *AMFContext) DeleteAmfRan(conn net.Conn) {
 	context.AmfRanPool.Delete(conn)
-}
-
-func (context *AMFContext) InSupportDnnList(targetDnn string) bool {
-	for _, dnn := range context.SupportedDnns {
-		if dnn == targetDnn {
-			return true
-		}
-	}
-	return false
 }
 
 func (context *AMFContext) InPlmnSupport(ctx ctxt.Context, snssai models.Snssai) bool {

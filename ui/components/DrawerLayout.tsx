@@ -31,6 +31,7 @@ import {
   AccountCircle as AccountCircleIcon,
   Storage as StorageIcon,
   Cable as CableIcon,
+  Lan as LanIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -160,13 +161,25 @@ export default function DrawerLayout({
             <ListItem disablePadding>
               <ListItemButton
                 component={Link}
-                href="/profiles"
-                selected={pathname === "/profiles"}
+                href="/data-networks"
+                selected={pathname === "/data-networks"}
+              >
+                <ListItemIcon>
+                  <LanIcon />
+                </ListItemIcon>
+                <ListItemText primary="Data Networks" />
+              </ListItemButton>
+            </ListItem>
+            <ListItem disablePadding>
+              <ListItemButton
+                component={Link}
+                href="/policies"
+                selected={pathname === "/policies"}
               >
                 <ListItemIcon>
                   <TuneIcon />
                 </ListItemIcon>
-                <ListItemText primary="Profiles" />
+                <ListItemText primary="Policies" />
               </ListItemButton>
             </ListItem>
             <ListItem disablePadding>

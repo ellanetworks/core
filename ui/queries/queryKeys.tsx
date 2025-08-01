@@ -1,7 +1,7 @@
 export const queryKeys = {
   users: "users",
   status: "status",
-  profiles: "profiles",
+  policies: "policies",
   network: "network",
   subscribers: "subscribers",
 };

@@ -8,28 +8,20 @@ import {
   Button,
   Alert,
   Collapse,
-  Select,
-  MenuItem,
-  InputLabel,
-  FormControl,
 } from "@mui/material";
-import { updateSubscriber } from "@/queries/subscribers";
-import { listPolicies } from "@/queries/policies";
+import { updateDataNetwork } from "@/queries/data_networks";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
-import { Policy } from "@/types/types";
+import { DataNetwork } from "@/types/types";
 
-interface EditSubscriberModalProps {
+interface EditDataNetworkModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialData: {
-    imsi: string;
-    policyName: string;
-  };
+  initialData: DataNetwork;
 }
 
-const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
+const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
   open,
   onClose,
   onSuccess,
@@ -41,28 +33,23 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
   if (!cookies.user_token) {
     router.push("/login");
   }
+
   const [formValues, setFormValues] = useState(initialData);
-  const [policies, setPolicies] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
   useEffect(() => {
-    const fetchPolicies = async () => {
-      try {
-        const policyData = await listPolicies(cookies.user_token);
-        setPolicies(policyData.map((policy: Policy) => policy.name));
-      } catch (error) {
-        console.error("Failed to fetch policies:", error);
-      }
-    };
-
     if (open) {
-      fetchPolicies();
-      setFormValues(initialData);
+      setFormValues({
+        name: initialData.name,
+        ipPool: initialData.ipPool,
+        dns: initialData.dns,
+        mtu: initialData.mtu,
+      });
       setErrors({});
     }
-  }, [open, initialData, cookies.user_token]);
+  }, [open, initialData]);
 
   const handleChange = (field: string, value: string | number) => {
     setFormValues((prev) => ({
@@ -76,22 +63,19 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
     setAlert({ message: "" });
 
     try {
-      await updateSubscriber(
+      await updateDataNetwork(
         cookies.user_token,
-        formValues.imsi,
-        formValues.policyName,
+        formValues.name,
+        formValues.ipPool,
+        formValues.dns,
+        formValues.mtu,
       );
       onClose();
       onSuccess();
     } catch (error: unknown) {
-      let errorMessage = "Unknown error occurred.";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      setAlert({
-        message: `Failed to get subscriber: ${errorMessage}`,
-      });
-      setAlert({ message: `Failed to update subscriber: ${errorMessage}` });
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred.";
+      setAlert({ message: `Failed to update data network: ${errorMessage}` });
     } finally {
       setLoading(false);
     }
@@ -101,10 +85,10 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
     <Dialog
       open={open}
       onClose={onClose}
-      aria-labelledby="edit-subscriber-modal-title"
-      aria-describedby="edit-subscriber-modal-description"
+      aria-labelledby="edit-data-network-modal-title"
+      aria-describedby="edit-data-network-modal-description"
     >
-      <DialogTitle>Edit Subscriber</DialogTitle>
+      <DialogTitle>Edit Data Network</DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -117,27 +101,39 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
         </Collapse>
         <TextField
           fullWidth
-          label="IMSI"
-          value={formValues.imsi}
+          label="Name"
+          value={formValues.name}
           margin="normal"
           disabled
         />
-        <FormControl fullWidth margin="normal">
-          <InputLabel id="demo-simple-select-label">Policy Name</InputLabel>
-          <Select
-            value={formValues.policyName}
-            onChange={(e) => handleChange("policyName", e.target.value)}
-            error={!!errors.policyName}
-            label={"Policy Name"}
-            labelId="demo-simple-select-label"
-          >
-            {policies.map((policy) => (
-              <MenuItem key={policy} value={policy}>
-                {policy}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <TextField
+          fullWidth
+          label="IP Pool"
+          value={formValues.ipPool}
+          onChange={(e) => handleChange("ipPool", e.target.value)}
+          error={!!errors.ipPool}
+          helperText={errors.ipPool}
+          margin="normal"
+        />
+        <TextField
+          fullWidth
+          label="DNS"
+          value={formValues.dns}
+          onChange={(e) => handleChange("dns", e.target.value)}
+          error={!!errors.dns}
+          helperText={errors.dns}
+          margin="normal"
+        />
+        <TextField
+          fullWidth
+          label="MTU"
+          type="number"
+          value={formValues.mtu}
+          onChange={(e) => handleChange("mtu", Number(e.target.value))}
+          error={!!errors.mtu}
+          helperText={errors.mtu}
+          margin="normal"
+        />
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
@@ -154,4 +150,4 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
   );
 };
 
-export default EditSubscriberModal;
+export default EditDataNetworkModal;
