@@ -92,7 +92,7 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 		return nil, fmt.Errorf("supi is not supported in PCF")
 	}
 
-	smData, err := GetSmPolicyData(ctx)
+	smData, err := GetSmPolicyData(ctx, request.Supi)
 	if err != nil {
 		return nil, fmt.Errorf("can't find UE SM Policy Data in UDR: %s", ue.Supi)
 	}
