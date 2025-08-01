@@ -22,7 +22,7 @@ Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm,
 - **5G compliant**: Deploy Ella Core with 5G radios and devices. Ella Core's interfaces follow 3GPP standards.
 - **Performant Data Plane**: Achieve high throughput and low latency with an eBPF-based data plane. Ella Core delivers over 3 Gbps of throughput and less than 2 ms of latency.
 - **Lightweight**: Ella Core is a single binary with an embedded database, making it easy and quick to stand up. It requires as little as 2 CPU cores, 2GB of RAM, and 10GB of disk space. Forget specialized hardware; all you need to operate your 5G core network is a Linux system with four network interfaces.
-- **Intuitive User Experience**: Manage subscribers, radios, policies, and operator information through a user-friendly web interface. Automate network operations with a complete REST API.
+- **Intuitive User Experience**: Manage subscribers, radios, data networks, policies, and operator information through a user-friendly web interface. Automate network operations with a complete REST API.
 - **Real-Time Observability**: Access detailed metrics, traces, and dashboards to monitor network health through the UI, the Prometheus-compliant API, or an OpenTelemetry collector.
 - **Backup and Restore**: Backup and restore the network configuration and data.
 - **Audit Logs**: Keep track of all operations performed on the network.
