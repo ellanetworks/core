@@ -39,42 +39,43 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 	ctx, span := tracer.Start(ctx, "AUSF UEAuthentication PostRequest")
 	defer span.End()
 	span.SetAttributes(
-		attribute.String("ue.suci", updateAuthenticationInfo.SupiOrSuci),
+		attribute.String("ue.suci", updateAuthenticationInfo.Suci),
 	)
 	var responseBody models.UeAuthenticationCtx
 	var authInfoReq models.AuthenticationInfoRequest
 
-	supiOrSuci := updateAuthenticationInfo.SupiOrSuci
+	suci := updateAuthenticationInfo.Suci
 
 	snName := updateAuthenticationInfo.ServingNetworkName
 	servingNetworkAuthorized := IsServingNetworkAuthorized(snName)
 	if !servingNetworkAuthorized {
-		return nil, fmt.Errorf("serving network NOT AUTHORIZED")
+		return nil, fmt.Errorf("serving network not authorized: %s", snName)
 	}
 
 	responseBody.ServingNetworkName = snName
 	authInfoReq.ServingNetworkName = snName
 	if updateAuthenticationInfo.ResynchronizationInfo != nil {
-		ausfCurrentSupi := GetSupiFromSuciSupiMap(supiOrSuci)
-		ausfCurrentContext := GetAusfUeContext(ausfCurrentSupi)
+		supi := GetSupiFromSuciSupiMap(suci)
+		ausfCurrentContext := GetAusfUeContext(supi)
 		updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
 	}
 
-	authInfoResult, err := udm.CreateAuthData(ctx, authInfoReq, supiOrSuci)
+	authInfoResult, err := udm.CreateAuthData(ctx, authInfoReq, suci)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auth data: %s", err)
 	}
 
-	ueid := authInfoResult.Supi
-	ausfUeContext := NewAusfUeContext(ueid)
+	supi := authInfoResult.Supi
+	ausfUeContext := NewAusfUeContext(supi)
 	ausfUeContext.ServingNetworkName = snName
 	ausfUeContext.AuthStatus = models.AuthResultOngoing
 	AddAusfUeContextToPool(ausfUeContext)
 
-	AddSuciSupiPairToMap(supiOrSuci, ueid)
+	AddSuciSupiPairToMap(suci, supi)
 
-	if authInfoResult.AuthType == models.AuthType5GAka {
+	switch authInfoResult.AuthType {
+	case models.AuthType5GAka:
 		// Derive HXRES* from XRES*
 		concat := authInfoResult.AuthenticationVector.Rand + authInfoResult.AuthenticationVector.XresStar
 		hxresStarBytes, err := hex.DecodeString(concat)
@@ -106,8 +107,8 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 		av5gAka.HxresStar = hxresStar
 
 		responseBody.Var5gAuthData = av5gAka
-	} else if authInfoResult.AuthType == models.AuthTypeEAPAkaPrime {
-		identity := ueid
+	case models.AuthTypeEAPAkaPrime:
+		identity := supi
 		ikPrime := authInfoResult.AuthenticationVector.IkPrime
 		ckPrime := authInfoResult.AuthenticationVector.CkPrime
 		RAND := authInfoResult.AuthenticationVector.Rand
@@ -201,23 +202,23 @@ func UeAuthPostRequestProcedure(ctx context.Context, updateAuthenticationInfo mo
 	return &responseBody, nil
 }
 
-func Auth5gAkaComfirmRequestProcedure(ctx context.Context, resStar string, confirmationDataResponseID string) (*models.ConfirmationDataResponse, error) {
+func Auth5gAkaComfirmRequestProcedure(ctx context.Context, resStar string, suci string) (*models.ConfirmationDataResponse, error) {
 	_, span := tracer.Start(ctx, "AUSF UEAuthentication ConfirmRequest")
 	defer span.End()
 	span.SetAttributes(
-		attribute.String("ue.suci", confirmationDataResponseID),
+		attribute.String("ue.suci", suci),
 		attribute.String("auth.Method", "5G AKA"),
 	)
 	var responseBody models.ConfirmationDataResponse
 	responseBody.AuthResult = models.AuthResultFailure
 
-	if !CheckIfSuciSupiPairExists(confirmationDataResponseID) {
-		return nil, fmt.Errorf("supiSuciPair does not exist, confirmation failed (queried by %s)", confirmationDataResponseID)
+	if !CheckIfSuciSupiPairExists(suci) {
+		return nil, fmt.Errorf("supi does not exist for suci: %s", suci)
 	}
 
-	currentSupi := GetSupiFromSuciSupiMap(confirmationDataResponseID)
+	currentSupi := GetSupiFromSuciSupiMap(suci)
 	if !CheckIfAusfUeContextExists(currentSupi) {
-		return nil, fmt.Errorf("SUPI does not exist, confirmation failed (queried by %s)", currentSupi)
+		return nil, fmt.Errorf("ausf ue context does not exist for suci: %s", currentSupi)
 	}
 
 	ausfCurrentContext := GetAusfUeContext(currentSupi)
@@ -236,17 +237,17 @@ func Auth5gAkaComfirmRequestProcedure(ctx context.Context, resStar string, confi
 	return &responseBody, nil
 }
 
-func EapAuthComfirmRequestProcedure(ctx context.Context, eapPayload string, eapSessionID string) (*models.EapSession, error) {
+func EapAuthComfirmRequestProcedure(ctx context.Context, eapPayload string, suci string) (*models.EapSession, error) {
 	_, span := tracer.Start(ctx, "AUSF UEAuthentication ConfirmRequest")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("auth.Method", "EAP-AKA'"),
 	)
-	if !CheckIfSuciSupiPairExists(eapSessionID) {
+	if !CheckIfSuciSupiPairExists(suci) {
 		return nil, fmt.Errorf("supi-suci pair does not exist")
 	}
 
-	currentSupi := GetSupiFromSuciSupiMap(eapSessionID)
+	currentSupi := GetSupiFromSuciSupiMap(suci)
 	if !CheckIfAusfUeContextExists(currentSupi) {
 		return nil, fmt.Errorf("supi does not exist")
 	}

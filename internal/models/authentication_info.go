@@ -1,7 +1,7 @@
 package models
 
 type AuthenticationInfo struct {
-	SupiOrSuci            string
+	Suci                  string
 	ServingNetworkName    string
 	ResynchronizationInfo *ResynchronizationInfo
 }

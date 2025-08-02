@@ -152,13 +152,14 @@ func profileA(input, supiType, privateKey string) (string, error) {
 func ToSupi(suci string, privateKey string) (string, error) {
 	suciPart := strings.Split(suci, "-")
 	suciPrefix := suciPart[0]
-	if suciPrefix == "imsi" || suciPrefix == "nai" {
+	switch suciPrefix {
+	case "imsi", "nai":
 		return suci, nil
-	} else if suciPrefix == "suci" {
+	case "suci":
 		if len(suciPart) < 6 {
 			return "", fmt.Errorf("suci with wrong format")
 		}
-	} else {
+	default:
 		return "", fmt.Errorf("unknown suciPrefix [%s]", suciPrefix)
 	}
 

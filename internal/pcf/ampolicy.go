@@ -59,24 +59,8 @@ func UpdateAMPolicy(ctx context.Context, polAssoID string, policyAssociationUpda
 				return nil, fmt.Errorf("UserLoc doesn't exist in Policy Association Requset Update while Triggers include LOC_CH")
 			}
 			amPolicyData.UserLoc = policyAssociationUpdateRequest.UserLoc
-		case models.RequestTriggerPraCh:
-			if policyAssociationUpdateRequest.PraStatuses == nil {
-				return nil, fmt.Errorf("PraStatuses doesn't exist in Policy Association")
-			}
-		case models.RequestTriggerServAreaCh:
-			if policyAssociationUpdateRequest.ServAreaRes == nil {
-				return nil, fmt.Errorf("ServAreaRes doesn't exist in Policy Association Requset Update while Triggers include SERV_AREA_CH")
-			} else {
-				amPolicyData.ServAreaRes = policyAssociationUpdateRequest.ServAreaRes
-				response.ServAreaRes = policyAssociationUpdateRequest.ServAreaRes
-			}
-		case models.RequestTriggerRfspCh:
-			if policyAssociationUpdateRequest.Rfsp == 0 {
-				return nil, fmt.Errorf("rfsp doesn't exist in Policy Association Requset Update while Triggers include RFSP_CH")
-			} else {
-				amPolicyData.Rfsp = policyAssociationUpdateRequest.Rfsp
-				response.Rfsp = policyAssociationUpdateRequest.Rfsp
-			}
+		default:
+			return nil, fmt.Errorf("unknown request trigger: %s", trigger)
 		}
 	}
 
@@ -89,8 +73,9 @@ func CreateAMPolicy(ctx context.Context, policyAssociationRequest models.PolicyA
 	ctx, span := tracer.Start(ctx, "PCF Create AMPolicy")
 	defer span.End()
 	span.SetAttributes(
-		attribute.String("ue.supi", policyAssociationRequest.Supi),
+		attribute.String("supi", policyAssociationRequest.Supi),
 	)
+
 	var response models.PolicyAssociation
 	var ue *UeContext
 	if val, ok := pcfCtx.UePool.Load(policyAssociationRequest.Supi); ok {

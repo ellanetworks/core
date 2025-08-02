@@ -32,7 +32,7 @@ func SendUEAuthenticationAuthenticateRequest(ctx ctxt.Context, ue *context.AmfUe
 	}
 
 	var authInfo models.AuthenticationInfo
-	authInfo.SupiOrSuci = ue.Suci
+	authInfo.Suci = ue.Suci
 	if mnc, err := strconv.Atoi(plmnID.Mnc); err != nil {
 		return nil, err
 	} else {
