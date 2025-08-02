@@ -19,6 +19,7 @@ type PFCPState struct {
 	pdrList []*context.PDR
 	farList []*context.FAR
 	qerList []*context.QER
+	urrList []*context.URR
 }
 
 // SendPFCPRules send all datapaths to UPFs
@@ -30,6 +31,7 @@ func SendPFCPRules(ctx ctxt.Context, smContext *context.SMContext) error {
 		pdrList := make([]*context.PDR, 0, 2)
 		farList := make([]*context.FAR, 0, 2)
 		qerList := make([]*context.QER, 0, 2)
+		urrList := make([]*context.URR, 0, 2)
 
 		if curDataPathNode.UpLinkTunnel != nil && curDataPathNode.UpLinkTunnel.PDR != nil {
 			for _, pdr := range curDataPathNode.UpLinkTunnel.PDR {
@@ -51,6 +53,14 @@ func SendPFCPRules(ctx ctxt.Context, smContext *context.SMContext) error {
 			}
 		}
 
+		// Build urrList with 1 item
+		urrList = append(urrList, &context.URR{
+			URRID:             1,
+			MeasurementMethod: &context.MeasurementMethod{VOLUM: true},
+			ReportingTriggers: &context.ReportingTriggers{PERIO: true},
+			MeasurementPeriod: context.DefaultMeasurementPeriod,
+		})
+
 		pfcpState := pfcpPool[curDataPathNode.GetNodeIP()]
 		if pfcpState == nil {
 			pfcpPool[curDataPathNode.GetNodeIP()] = &PFCPState{
@@ -58,18 +68,20 @@ func SendPFCPRules(ctx ctxt.Context, smContext *context.SMContext) error {
 				pdrList: pdrList,
 				farList: farList,
 				qerList: qerList,
+				urrList: urrList,
 			}
 		} else {
 			pfcpState.pdrList = append(pfcpState.pdrList, pdrList...)
 			pfcpState.farList = append(pfcpState.farList, farList...)
 			pfcpState.qerList = append(pfcpState.qerList, qerList...)
+			pfcpState.urrList = append(pfcpState.urrList, urrList...)
 		}
 	}
 
 	for ip, pfcpState := range pfcpPool {
 		sessionContext, exist := smContext.PFCPContext[ip]
 		if !exist || sessionContext.RemoteSEID == 0 {
-			err := pfcp.SendPfcpSessionEstablishmentRequest(ctx, pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList)
+			err := pfcp.SendPfcpSessionEstablishmentRequest(ctx, pfcpState.nodeID, smContext, pfcpState.pdrList, pfcpState.farList, nil, pfcpState.qerList, pfcpState.urrList)
 			if err != nil {
 				return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 			}
