@@ -120,11 +120,11 @@ func GetAuthSubsData(ctx context.Context, ueID string) (*models.AuthenticationSu
 	return authSubsData, nil
 }
 
-func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationInfoRequest, supiOrSuci string) (*models.AuthenticationInfoResult, error) {
+func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationInfoRequest, suc string) (*models.AuthenticationInfoResult, error) {
 	ctx, span := tracer.Start(ctx, "UDM CreateAuthData")
 	defer span.End()
 	span.SetAttributes(
-		attribute.String("ue.supiOrSuci", supiOrSuci),
+		attribute.String("suci", suc),
 	)
 	if udmContext.DBInstance == nil {
 		return nil, fmt.Errorf("db instance is nil")
@@ -134,7 +134,7 @@ func CreateAuthData(ctx context.Context, authInfoRequest models.AuthenticationIn
 		return nil, fmt.Errorf("couldn't get home network private key: %w", err)
 	}
 
-	supi, err := suci.ToSupi(supiOrSuci, hnPrivateKey)
+	supi, err := suci.ToSupi(suc, hnPrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't convert suci to supi: %w", err)
 	}

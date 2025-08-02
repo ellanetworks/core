@@ -8,7 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/api"
-	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -93,9 +92,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 	if err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port); err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
-	}
-	if err := ausf.Start(); err != nil {
-		return fmt.Errorf("couldn't start AUSF: %w", err)
 	}
 	if err := pcf.Start(dbInstance); err != nil {
 		return fmt.Errorf("couldn't start PCF: %w", err)

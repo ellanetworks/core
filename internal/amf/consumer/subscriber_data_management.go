@@ -42,22 +42,6 @@ func SDMGetUeContextInSmfData(ctx ctxt.Context, ue *context.AmfUe) (err error) {
 	return nil
 }
 
-func SDMSubscribe(ctx ctxt.Context, ue *context.AmfUe) error {
-	amfSelf := context.AMFSelf()
-	sdmSubscription := &models.SdmSubscription{
-		NfInstanceID: amfSelf.NfID,
-		PlmnID: &models.PlmnID{
-			Mcc: ue.PlmnID.Mcc,
-			Mnc: ue.PlmnID.Mnc,
-		},
-	}
-	err := udm.CreateSubscription(ctx, sdmSubscription, ue.Supi)
-	if err != nil {
-		return fmt.Errorf("subscription creation failed: %s", err.Error())
-	}
-	return nil
-}
-
 func SDMGetSliceSelectionSubscriptionData(ctx ctxt.Context, ue *context.AmfUe) error {
 	nssai, err := udm.GetNssai(ctx, ue.Supi)
 	if err != nil {

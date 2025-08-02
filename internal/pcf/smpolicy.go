@@ -91,32 +91,17 @@ func CreateSMPolicy(ctx context.Context, request models.SmPolicyContextData) (*m
 	if ue == nil {
 		return nil, fmt.Errorf("supi is not supported in PCF")
 	}
-	var smData *models.SmPolicyData
-	var err error
-	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionID)
-	smPolicyData := ue.SmPolicyData[smPolicyID]
-	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
-		smData, err = GetSmPolicyData(ctx, ue.Supi)
-		if err != nil {
-			return nil, fmt.Errorf("can't find UE SM Policy Data: %s", ue.Supi)
-		}
-	} else {
-		smData = smPolicyData.SmPolicyData
+
+	smData, err := GetSmPolicyData(ctx, request.Supi)
+	if err != nil {
+		return nil, fmt.Errorf("can't find UE SM Policy Data in UDR: %s", ue.Supi)
 	}
+
 	amPolicy := ue.FindAMPolicy(request.AccessType, request.ServingNetwork)
 	if amPolicy == nil {
 		return nil, fmt.Errorf("can't find corresponding AM Policy")
 	}
-	if ue.Gpsi == "" {
-		ue.Gpsi = request.Gpsi
-	}
-	if ue.Pei == "" {
-		ue.Pei = request.Pei
-	}
-	if smPolicyData != nil {
-		delete(ue.SmPolicyData, smPolicyID)
-	}
-	_ = ue.NewUeSmPolicyData(smPolicyID, request, smData)
+
 	decision := &models.SmPolicyDecision{
 		SessRules: make(map[string]*models.SessionRule),
 		PccRules:  make(map[string]*models.PccRule),
@@ -187,9 +172,6 @@ func DeleteSMPolicy(ctx context.Context, smPolicyID string) error {
 	if ue == nil {
 		return fmt.Errorf("ue not found in PCF for smPolicyID: %s", smPolicyID)
 	}
-	if ue.SmPolicyData[smPolicyID] == nil {
-		return fmt.Errorf("smPolicyID not found in PCF for smPolicyID: %s", smPolicyID)
-	}
-	delete(ue.SmPolicyData, smPolicyID)
+
 	return nil
 }
