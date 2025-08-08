@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Box,
   IconButton,
@@ -10,9 +10,9 @@ import {
   Card,
   CardHeader,
   CardContent,
-  CardActions,
   Tooltip,
 } from "@mui/material";
+import Grid from "@mui/material/Grid";
 import { ContentCopy as CopyIcon, Edit as EditIcon } from "@mui/icons-material";
 import { getOperator } from "@/queries/operator";
 import { useCookies } from "react-cookie";
@@ -21,30 +21,23 @@ import EditOperatorCodeModal from "@/components/EditOperatorCodeModal";
 import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
 import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
 import EditOperatorHomeNetworkModal from "@/components/EditOperatorHomeNetworkModal";
-import Grid from "@mui/material/Grid";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface OperatorData {
-  id: {
-    mcc: string;
-    mnc: string;
-  };
-  slice: {
-    sst: number;
-    sd: number;
-  };
-  tracking: {
-    supportedTacs: string[];
-  };
-  homeNetwork: {
-    publicKey: string;
-  };
+  id: { mcc: string; mnc: string };
+  slice: { sst: number; sd: number };
+  tracking: { supportedTacs: string[] };
+  homeNetwork: { publicKey: string };
 }
+
+const MAX_WIDTH = 1400;
 
 const Operator = () => {
   const { role } = useAuth();
   const [cookies] = useCookies(["user_token"]);
+
   const [operator, setOperator] = useState<OperatorData | null>(null);
+
   const [isEditOperatorIdModalOpen, setEditOperatorIdModalOpen] =
     useState(false);
   const [isEditOperatorCodeModalOpen, setEditOperatorCodeModalOpen] =
@@ -57,13 +50,13 @@ const Operator = () => {
     isEditOperatorHomeNetworkModalOpen,
     setEditOperatorHomeNetworkModalOpen,
   ] = useState(false);
+
   const [alert, setAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
-  }>({
-    message: "",
-    severity: null,
-  });
+  }>({ message: "", severity: null });
+
+  const canEdit = role === "Admin" || role === "Network Manager";
 
   const fetchOperator = useCallback(async () => {
     try {
@@ -71,6 +64,7 @@ const Operator = () => {
       setOperator(data);
     } catch (error) {
       console.error("Error fetching operator information:", error);
+      setAlert({ message: "Failed to load operator info.", severity: "error" });
     }
   }, [cookies.user_token]);
 
@@ -78,6 +72,7 @@ const Operator = () => {
     fetchOperator();
   }, [fetchOperator]);
 
+  // Edit handlers
   const handleEditOperatorIdClick = () => setEditOperatorIdModalOpen(true);
   const handleEditOperatorCodeClick = () => setEditOperatorCodeModalOpen(true);
   const handleEditOperatorTrackingClick = () =>
@@ -87,6 +82,7 @@ const Operator = () => {
   const handleEditOperatorHomeNetworkClick = () =>
     setEditOperatorHomeNetworkModalOpen(true);
 
+  // Modal close handlers
   const handleEditOperatorIdModalClose = () =>
     setEditOperatorIdModalOpen(false);
   const handleEditOperatorCodeModalClose = () =>
@@ -98,6 +94,7 @@ const Operator = () => {
   const handleEditOperatorHomeNetworkModalClose = () =>
     setEditOperatorHomeNetworkModalOpen(false);
 
+  // Success callbacks
   const handleEditOperatorIdSuccess = () => {
     fetchOperator();
     setAlert({
@@ -105,14 +102,12 @@ const Operator = () => {
       severity: "success",
     });
   };
-
   const handleEditOperatorCodeSuccess = () => {
     setAlert({
       message: "Operator Code updated successfully!",
       severity: "success",
     });
   };
-
   const handleEditOperatorTrackingSuccess = () => {
     fetchOperator();
     setAlert({
@@ -120,7 +115,6 @@ const Operator = () => {
       severity: "success",
     });
   };
-
   const handleEditOperatorSliceSuccess = () => {
     fetchOperator();
     setAlert({
@@ -128,7 +122,6 @@ const Operator = () => {
       severity: "success",
     });
   };
-
   const handleEditOperatorHomeNetworkSuccess = () => {
     fetchOperator();
     setAlert({
@@ -148,247 +141,297 @@ const Operator = () => {
   };
 
   return (
-    <Box sx={{ padding: 4, maxWidth: "1200px", margin: "0 auto" }}>
-      <Typography variant="h4" component="h1" sx={{ marginBottom: 4 }}>
+    <Box sx={{ p: 4, maxWidth: MAX_WIDTH, mx: "auto" }}>
+      <Typography variant="h4" sx={{ mb: 3 }}>
         Operator
       </Typography>
 
       {alert.severity && (
-        <Alert
-          severity={alert.severity}
-          onClose={() => setAlert({ message: "", severity: null })}
-        >
-          {alert.message}
-        </Alert>
+        <Box sx={{ mb: 3 }}>
+          <Alert
+            severity={alert.severity}
+            onClose={() => setAlert({ message: "", severity: null })}
+          >
+            {alert.message}
+          </Alert>
+        </Box>
       )}
 
-      {/* Operator ID Card */}
-      <Card
-        variant="outlined"
-        sx={{
-          marginBottom: 3,
-          borderRadius: 2,
-          boxShadow: 1,
-          borderColor: "rgba(0, 0, 0, 0.12)",
-        }}
+      <Grid
+        container
+        spacing={4}
+        justifyContent="flex-start"
+        alignItems="stretch"
       >
-        <CardHeader title="Operator ID" />
-        <CardContent>
-          <Grid container spacing={2}>
-            <Grid size={6}>
-              <Typography variant="body1">Mobile Country Code (MCC)</Typography>
-            </Grid>
-            <Grid size={6}>
-              <Typography variant="body1">
-                {operator?.id.mcc || "N/A"}
-              </Typography>
-            </Grid>
-            <Grid size={6}>
-              <Typography variant="body1">Mobile Network Code (MNC)</Typography>
-            </Grid>
-            <Grid size={6}>
-              <Typography variant="body1">
-                {operator?.id.mnc || "N/A"}
-              </Typography>
-            </Grid>
-          </Grid>
-        </CardContent>
-        {(role === "Admin" || role === "Network Manager") && (
-          <CardActions>
-            <IconButton aria-label="edit" onClick={handleEditOperatorIdClick}>
-              <EditIcon />
-            </IconButton>
-          </CardActions>
-        )}
-      </Card>
+        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
+          <Card
+            sx={{
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 3,
+              boxShadow: 2,
+              p: 1,
+            }}
+          >
+            <CardHeader
+              title="Operator ID"
+              action={
+                canEdit && (
+                  <IconButton
+                    aria-label="edit"
+                    onClick={handleEditOperatorIdClick}
+                  >
+                    <EditIcon />
+                  </IconButton>
+                )
+              }
+            />
+            <CardContent>
+              <Grid container spacing={1}>
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    MCC
+                  </Typography>
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body1">
+                    {operator?.id.mcc || "N/A"}
+                  </Typography>
+                </Grid>
 
-      {/* Operator Code Card */}
-      <Card
-        variant="outlined"
-        sx={{
-          marginBottom: 3,
-          borderRadius: 2,
-          boxShadow: 1,
-          borderColor: "rgba(0, 0, 0, 0.12)",
-        }}
-      >
-        <CardHeader title="Operator Code" />
-        <CardContent>
-          <Grid container spacing={2}>
-            <Grid size={6}>
-              <Typography variant="body1">Operator Code (OP)</Typography>
-            </Grid>
-            <Grid size={6}>
-              <Typography variant="body1">{"***************"}</Typography>
-            </Grid>
-          </Grid>
-        </CardContent>
-        {(role === "Admin" || role === "Network Manager") && (
-          <CardActions>
-            <IconButton aria-label="edit" onClick={handleEditOperatorCodeClick}>
-              <EditIcon />
-            </IconButton>
-          </CardActions>
-        )}
-      </Card>
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    MNC
+                  </Typography>
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body1">
+                    {operator?.id.mnc || "N/A"}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
 
-      {/* Tracking Information Card */}
-      <Card
-        variant="outlined"
-        sx={{
-          marginBottom: 3,
-          borderRadius: 2,
-          boxShadow: 1,
-          borderColor: "rgba(0, 0, 0, 0.12)",
-        }}
-      >
-        <CardHeader title="Tracking Information" />
-        <CardContent>
-          <Grid container spacing={2}>
-            <Grid size={6}>
-              <Typography variant="body1">
-                Supported Tracking Area Codes (TAC&apos;s)
+        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
+          <Card
+            sx={{
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 3,
+              boxShadow: 2,
+              p: 1,
+            }}
+          >
+            <CardHeader
+              title="Operator Code"
+              action={
+                canEdit && (
+                  <IconButton
+                    aria-label="edit"
+                    onClick={handleEditOperatorCodeClick}
+                  >
+                    <EditIcon />
+                  </IconButton>
+                )
+              }
+            />
+            <CardContent>
+              <Grid container spacing={1}>
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    OP
+                  </Typography>
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body1">{"***************"}</Typography>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
+          <Card
+            sx={{
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 3,
+              boxShadow: 2,
+              p: 1,
+            }}
+          >
+            <CardHeader
+              title="Tracking Information"
+              action={
+                canEdit && (
+                  <IconButton
+                    aria-label="edit"
+                    onClick={handleEditOperatorTrackingClick}
+                  >
+                    <EditIcon />
+                  </IconButton>
+                )
+              }
+            />
+            <CardContent>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Supported TACs
               </Typography>
-            </Grid>
-            <Grid size={6}>
               <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                 {operator?.tracking.supportedTacs?.length ? (
-                  operator.tracking.supportedTacs.map((tac, index) => (
-                    <Chip key={index} label={tac} variant="outlined" />
+                  operator.tracking.supportedTacs.map((tac, idx) => (
+                    <Chip key={idx} label={tac} variant="outlined" />
                   ))
                 ) : (
                   <Typography variant="body1">No TACs available.</Typography>
                 )}
               </Box>
-            </Grid>
-          </Grid>
-        </CardContent>
-        {(role === "Admin" || role === "Network Manager") && (
-          <CardActions>
-            <IconButton
-              aria-label="edit"
-              onClick={handleEditOperatorTrackingClick}
-            >
-              <EditIcon />
-            </IconButton>
-          </CardActions>
-        )}
-      </Card>
+            </CardContent>
+          </Card>
+        </Grid>
 
-      <Card
-        variant="outlined"
-        sx={{
-          marginBottom: 3,
-          borderRadius: 2,
-          boxShadow: 1,
-          borderColor: "rgba(0, 0, 0, 0.12)",
-        }}
-      >
-        <CardHeader title="Slice Information" />
-        <CardContent>
-          <Grid container spacing={2}>
-            <Grid size={6}>
-              <Typography variant="body1">Slice Service Type (SST)</Typography>
-            </Grid>
-            <Grid size={6}>
-              <Typography variant="body1">
-                {operator ? `${operator.slice.sst}` : "N/A"}
-              </Typography>
-            </Grid>
-            <Grid size={6}>
-              <Typography variant="body1">
-                Service Differentiator (SD)
-              </Typography>
-            </Grid>
-            <Grid size={6}>
-              <Typography variant="body1">
-                {operator ? `${operator.slice.sd}` : "N/A"}
-              </Typography>
-            </Grid>
-          </Grid>
-        </CardContent>
-        {(role === "Admin" || role === "Network Manager") && (
-          <CardActions>
-            <IconButton
-              aria-label="edit"
-              onClick={handleEditOperatorSliceClick}
-            >
-              <EditIcon />
-            </IconButton>
-          </CardActions>
-        )}
-      </Card>
+        <Grid size={{ xs: 12, sm: 8, md: 6 }}>
+          <Card
+            sx={{
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 3,
+              boxShadow: 2,
+              p: 1,
+            }}
+          >
+            <CardHeader
+              title="Slice Information"
+              action={
+                canEdit && (
+                  <IconButton
+                    aria-label="edit"
+                    onClick={handleEditOperatorSliceClick}
+                  >
+                    <EditIcon />
+                  </IconButton>
+                )
+              }
+            />
+            <CardContent>
+              <Grid container spacing={1}>
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    SST
+                  </Typography>
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body1">
+                    {operator ? `${operator.slice.sst}` : "N/A"}
+                  </Typography>
+                </Grid>
 
-      {/* Home Network Information Card */}
-      <Card
-        variant="outlined"
-        sx={{
-          marginBottom: 3,
-          borderRadius: 2,
-          boxShadow: 1,
-          borderColor: "rgba(0, 0, 0, 0.12)",
-        }}
-      >
-        <CardHeader title="Home Network Information" />
-        <CardContent>
-          <Grid container spacing={2}>
-            <Grid size={6}>
-              <Typography variant="body1">Encryption</Typography>
-            </Grid>
-            <Grid size={6}>
-              <Typography variant="body1">{"ECIES - Profile A"}</Typography>
-            </Grid>
-            <Grid size={6}>
-              <Typography variant="body1">Public Key</Typography>
-            </Grid>
-            <Grid size={6} sx={{ display: "flex", alignItems: "center" }}>
-              <Tooltip title={operator?.homeNetwork.publicKey || "N/A"} arrow>
-                <Typography
-                  variant="body1"
-                  sx={{
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    maxWidth: "250px",
-                  }}
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    SD
+                  </Typography>
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body1">
+                    {operator ? `${operator.slice.sd}` : "N/A"}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid size={{ xs: 12, sm: 12, md: 12 }}>
+          <Card
+            sx={{
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 3,
+              boxShadow: 2,
+              p: 1,
+            }}
+          >
+            <CardHeader
+              title="Home Network Information"
+              action={
+                canEdit && (
+                  <IconButton
+                    aria-label="edit"
+                    onClick={handleEditOperatorHomeNetworkClick}
+                  >
+                    <EditIcon />
+                  </IconButton>
+                )
+              }
+            />
+            <CardContent>
+              <Grid container spacing={1}>
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Encryption
+                  </Typography>
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body1">ECIES - Profile A</Typography>
+                </Grid>
+
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Public Key
+                  </Typography>
+                </Grid>
+                <Grid
+                  size={{ xs: 6 }}
+                  sx={{ display: "flex", alignItems: "center", minWidth: 0 }}
                 >
-                  {operator?.homeNetwork.publicKey || "N/A"}
-                </Typography>
-              </Tooltip>
-              <IconButton onClick={handleCopyPublicKey} sx={{ marginLeft: 1 }}>
-                <CopyIcon fontSize="small" />
-              </IconButton>
-            </Grid>
-            <Grid size={6}>
-              <Typography variant="body1">Private Key</Typography>
-            </Grid>
-            <Grid size={6}>
-              <Typography variant="body1">{"***************"}</Typography>
-            </Grid>
-          </Grid>
-        </CardContent>
-        {(role === "Admin" || role === "Network Manager") && (
-          <CardActions>
-            <IconButton
-              aria-label="edit"
-              onClick={handleEditOperatorHomeNetworkClick}
-            >
-              <EditIcon />
-            </IconButton>
-          </CardActions>
-        )}
-      </Card>
+                  <Tooltip
+                    title={operator?.homeNetwork.publicKey || "N/A"}
+                    arrow
+                  >
+                    <Typography
+                      variant="body1"
+                      sx={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        maxWidth: 280,
+                      }}
+                    >
+                      {operator?.homeNetwork.publicKey || "N/A"}
+                    </Typography>
+                  </Tooltip>
+                  <IconButton onClick={handleCopyPublicKey} sx={{ ml: 1 }}>
+                    <CopyIcon fontSize="small" />
+                  </IconButton>
+                </Grid>
 
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Private Key
+                  </Typography>
+                </Grid>
+                <Grid size={{ xs: 6 }}>
+                  <Typography variant="body1">{"***************"}</Typography>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Modals */}
       <EditOperatorIdModal
         open={isEditOperatorIdModalOpen}
         onClose={handleEditOperatorIdModalClose}
         onSuccess={handleEditOperatorIdSuccess}
-        initialData={
-          operator?.id || {
-            mcc: "",
-            mnc: "",
-          }
-        }
+        initialData={operator?.id || { mcc: "", mnc: "" }}
       />
       <EditOperatorCodeModal
         open={isEditOperatorCodeModalOpen}
@@ -399,22 +442,13 @@ const Operator = () => {
         open={isEditOperatorTrackingModalOpen}
         onClose={handleEditOperatorTrackingModalClose}
         onSuccess={handleEditOperatorTrackingSuccess}
-        initialData={
-          operator?.tracking || {
-            supportedTacs: [""],
-          }
-        }
+        initialData={operator?.tracking || { supportedTacs: [""] }}
       />
       <EditOperatorSliceModal
         open={isEditOperatorSliceModalOpen}
         onClose={handleEditOperatorSliceModalClose}
         onSuccess={handleEditOperatorSliceSuccess}
-        initialData={
-          operator?.slice || {
-            sst: 0,
-            sd: 0,
-          }
-        }
+        initialData={operator?.slice || { sst: 0, sd: 0 }}
       />
       <EditOperatorHomeNetworkModal
         open={isEditOperatorHomeNetworkModalOpen}

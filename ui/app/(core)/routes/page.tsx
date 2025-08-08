@@ -32,7 +32,10 @@ const RoutePage = () => {
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<number | null>(null);
-  const [alert, setAlert] = useState<{ message: string; severity: "success" | "error" | null }>({
+  const [alert, setAlert] = useState<{
+    message: string;
+    severity: "success" | "error" | null;
+  }>({
     message: "",
     severity: null,
   });
@@ -68,10 +71,16 @@ const RoutePage = () => {
     if (!selectedRoute) return;
     try {
       await deleteRoute(cookies.user_token, selectedRoute);
-      setAlert({ message: `Route "${selectedRoute}" deleted successfully!`, severity: "success" });
+      setAlert({
+        message: `Route "${selectedRoute}" deleted successfully!`,
+        severity: "success",
+      });
       fetchRoutes();
     } catch (error) {
-      setAlert({ message: `Failed to delete route "${selectedRoute}": ${error}`, severity: "error" });
+      setAlert({
+        message: `Failed to delete route "${selectedRoute}": ${error}`,
+        severity: "error",
+      });
     } finally {
       setSelectedRoute(null);
     }
@@ -80,9 +89,19 @@ const RoutePage = () => {
   const columns: GridColDef[] = useMemo(
     () => [
       { field: "id", headerName: "ID", minWidth: 90, width: 100 },
-      { field: "destination", headerName: "Destination", flex: 1, minWidth: 220 },
+      {
+        field: "destination",
+        headerName: "Destination",
+        flex: 1,
+        minWidth: 220,
+      },
       { field: "gateway", headerName: "Gateway", flex: 1, minWidth: 180 },
-      { field: "interface", headerName: "Interface", minWidth: 140, width: 160 },
+      {
+        field: "interface",
+        headerName: "Interface",
+        minWidth: 140,
+        width: 160,
+      },
       { field: "metric", headerName: "Metric", minWidth: 100, width: 120 },
       ...(role === "Admin" || role === "Network Manager"
         ? [
@@ -92,7 +111,11 @@ const RoutePage = () => {
               type: "actions",
               width: 80,
               getActions: (params) => [
-                <IconButton key="delete" aria-label="delete" onClick={() => handleDeleteClick(params.row.id)}>
+                <IconButton
+                  key="delete"
+                  aria-label="delete"
+                  onClick={() => handleDeleteClick(params.row.id)}
+                >
                   <DeleteIcon />
                 </IconButton>,
               ],
@@ -100,7 +123,7 @@ const RoutePage = () => {
           ]
         : []),
     ],
-    [role]
+    [role],
   );
 
   return (
@@ -193,7 +216,11 @@ const RoutePage = () => {
         </>
       )}
 
-      <CreateRouteModal open={isCreateModalOpen} onClose={() => setCreateModalOpen(false)} onSuccess={fetchRoutes} />
+      <CreateRouteModal
+        open={isCreateModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={fetchRoutes}
+      />
 
       <DeleteConfirmationModal
         open={isConfirmationOpen}

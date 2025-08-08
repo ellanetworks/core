@@ -33,8 +33,13 @@ const DataNetworkPage = () => {
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [editData, setEditData] = useState<DataNetwork | null>(null);
-  const [selectedDataNetwork, setSelectedDataNetwork] = useState<string | null>(null);
-  const [alert, setAlert] = useState<{ message: string; severity: "success" | "error" | null }>({
+  const [selectedDataNetwork, setSelectedDataNetwork] = useState<string | null>(
+    null,
+  );
+  const [alert, setAlert] = useState<{
+    message: string;
+    severity: "success" | "error" | null;
+  }>({
     message: "",
     severity: null,
   });
@@ -84,7 +89,9 @@ const DataNetworkPage = () => {
       fetchDataNetworks();
     } catch (error) {
       setAlert({
-        message: `Failed to delete data network "${selectedDataNetwork}".`,
+        message: `Failed to delete data network "${selectedDataNetwork}": ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
         severity: "error",
       });
     } finally {
@@ -97,7 +104,13 @@ const DataNetworkPage = () => {
       { field: "name", headerName: "Name (DNN)", flex: 1, minWidth: 180 },
       { field: "ipPool", headerName: "IP Pool", flex: 1, minWidth: 160 },
       { field: "dns", headerName: "DNS", flex: 0.8, minWidth: 140 },
-      { field: "mtu", headerName: "MTU", type: "number", flex: 0.4, minWidth: 90 },
+      {
+        field: "mtu",
+        headerName: "MTU",
+        type: "number",
+        flex: 0.4,
+        minWidth: 90,
+      },
     ];
 
     if (canEdit) {
@@ -197,7 +210,9 @@ const DataNetworkPage = () => {
               gap: 2,
             }}
           >
-            <Typography variant="h4">Data Networks ({dataNetworks.length})</Typography>
+            <Typography variant="h4">
+              Data Networks ({dataNetworks.length})
+            </Typography>
             {canEdit && (
               <Button
                 variant="contained"

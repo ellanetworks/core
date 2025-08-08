@@ -11,11 +11,7 @@ import {
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import {
-  DataGrid,
-  GridColDef,
-  GridActionsCellItem,
-} from "@mui/x-data-grid";
+import { DataGrid, GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -39,8 +35,13 @@ const SubscriberPage = () => {
   const [isViewModalOpen, setViewModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [editData, setEditData] = useState<Subscriber | null>(null);
-  const [selectedSubscriber, setSelectedSubscriber] = useState<string | null>(null);
-  const [alert, setAlert] = useState<{ message: string; severity: "success" | "error" | null }>({
+  const [selectedSubscriber, setSelectedSubscriber] = useState<string | null>(
+    null,
+  );
+  const [alert, setAlert] = useState<{
+    message: string;
+    severity: "success" | "error" | null;
+  }>({
     message: "",
     severity: null,
   });
@@ -224,7 +225,9 @@ const SubscriberPage = () => {
               gap: 2,
             }}
           >
-            <Typography variant="h4">Subscribers ({subscribers.length})</Typography>
+            <Typography variant="h4">
+              Subscribers ({subscribers.length})
+            </Typography>
             {(role === "Admin" || role === "Network Manager") && (
               <Button
                 variant="contained"
@@ -247,8 +250,7 @@ const SubscriberPage = () => {
               getRowId={(row) => row.imsi}
               disableRowSelectionOnClick
               density="compact"
-              columnVisibilityModel={{
-              }}
+              columnVisibilityModel={{}}
               sx={{
                 width: "100%",
                 height: { xs: 460, sm: 560, md: 640 },
@@ -262,8 +264,16 @@ const SubscriberPage = () => {
         </>
       )}
 
-      <ViewSubscriberModal open={isViewModalOpen} onClose={handleCloseViewModal} imsi={selectedSubscriber || ""} />
-      <CreateSubscriberModal open={isCreateModalOpen} onClose={handleCloseCreateModal} onSuccess={fetchSubscribers} />
+      <ViewSubscriberModal
+        open={isViewModalOpen}
+        onClose={handleCloseViewModal}
+        imsi={selectedSubscriber || ""}
+      />
+      <CreateSubscriberModal
+        open={isCreateModalOpen}
+        onClose={handleCloseCreateModal}
+        onSuccess={fetchSubscribers}
+      />
       <EditSubscriberModal
         open={isEditModalOpen}
         onClose={() => setEditModalOpen(false)}

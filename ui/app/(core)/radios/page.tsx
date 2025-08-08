@@ -54,7 +54,7 @@ const Radio = () => {
       { field: "name", headerName: "Name", flex: 1, minWidth: 200 },
       { field: "address", headerName: "Address", flex: 1, minWidth: 240 },
     ],
-    []
+    [],
   );
 
   return (
@@ -68,7 +68,6 @@ const Radio = () => {
         pb: 4,
       }}
     >
-
       <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
         <Collapse in={!!alert.message}>
           <Alert
