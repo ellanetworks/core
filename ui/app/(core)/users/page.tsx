@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Typography,
@@ -8,13 +8,11 @@ import {
   CircularProgress,
   Alert,
   Collapse,
-  IconButton,
 } from "@mui/material";
-import {
-  Delete as DeleteIcon,
-  Edit as EditIcon,
-  Password as PasswordIcon,
-} from "@mui/icons-material";
+import { DataGrid, GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import PasswordIcon from "@mui/icons-material/Password";
 import { listUsers, deleteUser } from "@/queries/users";
 import CreateUserModal from "@/components/CreateUserModal";
 import EditUserModal from "@/components/EditUserModal";
@@ -22,8 +20,9 @@ import EditUserPasswordModal from "@/components/EditUserPasswordModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
-import { GridColDef, DataGrid } from "@mui/x-data-grid";
 import { RoleID, User, roleIDToLabel } from "@/types/types";
+
+const MAX_WIDTH = 1400;
 
 const UserPage = () => {
   const [cookies] = useCookies(["user_token"]);
@@ -55,120 +54,103 @@ const UserPage = () => {
   }, [fetchUsers]);
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
-  const handleCloseCreateModal = () => setCreateModalOpen(false);
-
   const handleEditPasswordClick = (user: User) => {
     setEditPasswordData(user);
     setEditPasswordModalOpen(true);
   };
-
-  const handleEditPasswordModalClose = () => {
-    setEditPasswordModalOpen(false);
-    setEditPasswordData(null);
-  };
-
   const handleEditClick = (user: User) => {
     setEditData(user);
     setEditModalOpen(true);
   };
-
-  const handleEditModalClose = () => {
-    setEditModalOpen(false);
-    setEditData(null);
-  };
-
   const handleDeleteClick = (email: string) => {
     setSelectedUser(email);
     setConfirmationOpen(true);
   };
-
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
-    if (selectedUser) {
-      try {
-        await deleteUser(cookies.user_token, selectedUser);
-        setAlert({ message: `User "${selectedUser}" deleted successfully!` });
-        fetchUsers();
-      } catch {
-        setAlert({ message: `Failed to delete user "${selectedUser}".` });
-      } finally {
-        setSelectedUser(null);
-      }
+    if (!selectedUser) return;
+    try {
+      await deleteUser(cookies.user_token, selectedUser);
+      setAlert({ message: `User "${selectedUser}" deleted successfully!` });
+      fetchUsers();
+    } catch {
+      setAlert({ message: `Failed to delete user "${selectedUser}".` });
+    } finally {
+      setSelectedUser(null);
     }
   };
 
-  const columns: GridColDef[] = [
-    { field: "email", headerName: "Email", flex: 1 },
-    {
-      field: "roleID",
-      headerName: "Role",
-      flex: 1,
-      valueGetter: (value, row) => {
-        return roleIDToLabel(row.roleID);
+  const columns: GridColDef[] = useMemo(() => {
+    return [
+      {
+        field: "email",
+        headerName: "Email",
+        flex: 1,
+        minWidth: 220,
       },
-    },
-    {
-      field: "actions",
-      headerName: "Actions",
-      type: "actions",
-      flex: 0.5,
-      getActions: (params) => [
-        <IconButton
-          key="edit"
-          aria-label="edit"
-          onClick={() => handleEditClick(params.row)}
-        >
-          <EditIcon />
-        </IconButton>,
-        <IconButton
-          key="edit"
-          aria-label="edit"
-          onClick={() => handleEditPasswordClick(params.row)}
-        >
-          <PasswordIcon />
-        </IconButton>,
-        <IconButton
-          key="delete"
-          aria-label="delete"
-          onClick={() => handleDeleteClick(params.row.email)}
-        >
-          <DeleteIcon />
-        </IconButton>,
-      ],
-    },
-  ];
+      {
+        field: "roleID",
+        headerName: "Role",
+        flex: 0.6,
+        minWidth: 120,
+        valueGetter: (_v, row) => roleIDToLabel(row.roleID),
+      },
+      {
+        field: "actions",
+        headerName: "Actions",
+        type: "actions",
+        width: 140,
+        sortable: false,
+        disableColumnMenu: true,
+        getActions: (params) => [
+          <GridActionsCellItem
+            key="edit"
+            icon={<EditIcon />}
+            label="Edit"
+            onClick={() => handleEditClick(params.row)}
+          />,
+          <GridActionsCellItem
+            key="password"
+            icon={<PasswordIcon />}
+            label="Change Password"
+            onClick={() => handleEditPasswordClick(params.row)}
+          />,
+          <GridActionsCellItem
+            key="delete"
+            icon={<DeleteIcon />}
+            label="Delete"
+            onClick={() => handleDeleteClick(params.row.email)}
+          />,
+        ],
+      },
+    ];
+  }, []);
 
   return (
     <Box
       sx={{
-        height: "100vh",
+        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "flex-start",
         alignItems: "center",
-        paddingTop: 6,
-        textAlign: "center",
+        pt: 6,
+        pb: 4,
       }}
     >
-      <Box sx={{ width: "60%" }}>
+      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
         <Collapse in={!!alert.message}>
           <Alert
             severity="success"
             onClose={() => setAlert({ message: "" })}
-            sx={{ marginBottom: 2 }}
+            sx={{ mb: 2 }}
           >
             {alert.message}
           </Alert>
         </Collapse>
       </Box>
+
       {loading ? (
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <CircularProgress />
         </Box>
       ) : users.length === 0 ? (
@@ -176,72 +158,71 @@ const UserPage = () => {
           primaryText="No user found."
           secondaryText="Create a new user."
           buttonText="Create"
-          button={true}
+          button
           onCreate={handleOpenCreateModal}
         />
       ) : (
         <>
           <Box
             sx={{
-              marginBottom: 4,
-              width: "60%",
+              width: "100%",
+              maxWidth: MAX_WIDTH,
+              px: { xs: 2, sm: 4 },
+              mb: 3,
               display: "flex",
+              flexDirection: { xs: "column", sm: "row" },
               justifyContent: "space-between",
-              alignItems: "center",
+              alignItems: { xs: "flex-start", sm: "center" },
+              gap: 2,
             }}
           >
-            <Typography variant="h4" component="h1" gutterBottom>
-              Users ({users.length})
-            </Typography>
+            <Typography variant="h4">Users ({users.length})</Typography>
             <Button
               variant="contained"
               color="success"
               onClick={handleOpenCreateModal}
+              sx={{
+                maxWidth: "200px",
+                width: "100%",
+              }}
             >
               Create
             </Button>
           </Box>
-          <Box
-            sx={{
-              height: "80vh",
-              width: "60%",
-              "& .MuiDataGrid-root": {
-                border: "none",
-              },
-              "& .MuiDataGrid-cell": {
-                borderBottom: "none",
-              },
-              "& .MuiDataGrid-columnHeaders": {
-                borderBottom: "none",
-              },
-              "& .MuiDataGrid-footerContainer": {
-                borderTop: "none",
-              },
-            }}
-          >
+          <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, overflowX: "auto" }}>
             <DataGrid
               rows={users}
               columns={columns}
               getRowId={(row) => row.email}
               disableRowSelectionOnClick
+              density="compact"
+              sx={{
+                width: "100%",
+                height: { xs: 420, sm: 560, md: 640 },
+                border: "none",
+                "& .MuiDataGrid-cell": { borderBottom: "none" },
+                "& .MuiDataGrid-columnHeaders": { borderBottom: "none" },
+                "& .MuiDataGrid-footerContainer": { borderTop: "none" },
+              }}
             />
           </Box>
         </>
       )}
+
       <CreateUserModal
         open={isCreateModalOpen}
-        onClose={handleCloseCreateModal}
+        onClose={() => setCreateModalOpen(false)}
         onSuccess={fetchUsers}
       />
       <EditUserModal
         open={isEditModalOpen}
-        onClose={handleEditModalClose}
+        onClose={() => setEditModalOpen(false)}
         onSuccess={fetchUsers}
         initialData={editData || { email: "", roleID: RoleID.ReadOnly }}
       />
       <EditUserPasswordModal
         open={isEditPasswordModalOpen}
-        onClose={handleEditPasswordModalClose}
+        onClose={() => setEditPasswordModalOpen(false)}
         onSuccess={fetchUsers}
         initialData={editPasswordData || { email: "" }}
       />
