@@ -288,23 +288,23 @@ const Dashboard = () => {
               <CircularProgress />
             ) : (
               <Box sx={{ width: "100%", height: 200 }}>
-              <PieChart
-                series={[
-                  {
-                    data: [
-                      { id: 0, value: allocatedIPs ?? 0, label: "Allocated" },
-                      {
-                        id: 1,
-                        value: (totalIPs ?? 0) - (allocatedIPs ?? 0),
-                        label: "Available",
-                      },
-                    ],
-                  },
-                ]}
-                width={undefined}
-                height={undefined}
-              />
-            </Box>
+                <PieChart
+                  series={[
+                    {
+                      data: [
+                        { id: 0, value: allocatedIPs ?? 0, label: "Allocated" },
+                        {
+                          id: 1,
+                          value: (totalIPs ?? 0) - (allocatedIPs ?? 0),
+                          label: "Available",
+                        },
+                      ],
+                    },
+                  ]}
+                  width={undefined}
+                  height={undefined}
+                />
+              </Box>
             )}
           </Card>
         </Grid>
