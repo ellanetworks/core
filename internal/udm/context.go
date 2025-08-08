@@ -18,10 +18,8 @@ import (
 var udmContext UDMContext
 
 type UDMContext struct {
-	DBInstance                 *db.Database
-	UdmUePool                  sync.Map // map[supi]*UdmUeContext
-	SdmSubscriptionIDGenerator int
-	UESubsCollection           sync.Map // map[ueId]*UESubsData
+	DBInstance *db.Database
+	UdmUePool  sync.Map // map[supi]*UdmUeContext
 }
 
 func SetDBInstance(dbInstance *db.Database) {

@@ -191,6 +191,18 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		numUsers, err := dbInstance.NumUsers(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to count users", err, logger.APILog)
+			return
+		}
+		if numUsers == 0 {
+			if newUser.RoleID != RoleAdmin {
+				writeError(w, http.StatusBadRequest, "First user must be an admin", errors.New("first user must be admin"), logger.APILog)
+				return
+			}
+		}
+
 		dbUser := &db.User{
 			Email:          newUser.Email,
 			HashedPassword: hashedPassword,
