@@ -171,7 +171,7 @@ const Dashboard = () => {
   }, []);
 
   return (
-    <Box sx={{ padding: 4, maxWidth: "1200px", margin: "0 auto" }}>
+    <Box sx={{ px: { xs: 2, sm: 4 }, py: 3, maxWidth: "1200px", mx: "auto" }}>
       <Typography
         variant="h4"
         component="h1"
@@ -197,7 +197,7 @@ const Dashboard = () => {
         Network
       </Typography>
       <Grid container spacing={4} justifyContent="flex-start">
-        <Grid size={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card
             sx={{
               width: "100%",
@@ -221,7 +221,7 @@ const Dashboard = () => {
             )}
           </Card>
         </Grid>
-        <Grid size={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card
             sx={{
               width: "100%",
@@ -245,7 +245,7 @@ const Dashboard = () => {
             )}
           </Card>
         </Grid>
-        <Grid size={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card
             sx={{
               width: "100%",
@@ -269,7 +269,7 @@ const Dashboard = () => {
             )}
           </Card>
         </Grid>
-        <Grid size={6}>
+        <Grid size={{ xs: 24, sm: 12, md: 6 }}>
           <Card
             sx={{
               display: "flex",
@@ -287,6 +287,7 @@ const Dashboard = () => {
             {loading ? (
               <CircularProgress />
             ) : (
+              <Box sx={{ width: "100%", height: 200 }}>
               <PieChart
                 series={[
                   {
@@ -300,9 +301,10 @@ const Dashboard = () => {
                     ],
                   },
                 ]}
-                width={400}
-                height={200}
+                width={undefined}
+                height={undefined}
               />
+            </Box>
             )}
           </Card>
         </Grid>
@@ -310,7 +312,7 @@ const Dashboard = () => {
 
       {/* Throughput Section */}
       <Grid container spacing={4} justifyContent="flex-start" marginTop={4}>
-        <Grid size={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card
             sx={{
               width: "100%",
@@ -336,7 +338,7 @@ const Dashboard = () => {
             )}
           </Card>
         </Grid>
-        <Grid size={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card
             sx={{
               width: "100%",
@@ -374,7 +376,7 @@ const Dashboard = () => {
         System
       </Typography>
       <Grid container spacing={2} justifyContent="flex-start">
-        <Grid size={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card
             sx={{
               width: "100%",
@@ -400,7 +402,7 @@ const Dashboard = () => {
             )}
           </Card>
         </Grid>
-        <Grid size={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card
             sx={{
               width: "100%",
