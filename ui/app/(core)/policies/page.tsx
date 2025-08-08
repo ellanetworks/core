@@ -244,7 +244,7 @@ const PolicyPage = () => {
               density="compact"
               sx={{
                 height: { xs: 460, sm: 560, md: 640 },
-                width: "100%", // fill container (prevents filler gap)
+                width: "100%",
                 border: "none",
                 "& .MuiDataGrid-cell": { borderBottom: "none" },
                 "& .MuiDataGrid-columnHeaders": { borderBottom: "none" },
