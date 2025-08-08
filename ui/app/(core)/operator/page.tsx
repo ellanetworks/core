@@ -72,7 +72,6 @@ const Operator = () => {
     fetchOperator();
   }, [fetchOperator]);
 
-  // Edit handlers
   const handleEditOperatorIdClick = () => setEditOperatorIdModalOpen(true);
   const handleEditOperatorCodeClick = () => setEditOperatorCodeModalOpen(true);
   const handleEditOperatorTrackingClick = () =>
@@ -82,7 +81,6 @@ const Operator = () => {
   const handleEditOperatorHomeNetworkClick = () =>
     setEditOperatorHomeNetworkModalOpen(true);
 
-  // Modal close handlers
   const handleEditOperatorIdModalClose = () =>
     setEditOperatorIdModalOpen(false);
   const handleEditOperatorCodeModalClose = () =>
@@ -94,7 +92,6 @@ const Operator = () => {
   const handleEditOperatorHomeNetworkModalClose = () =>
     setEditOperatorHomeNetworkModalOpen(false);
 
-  // Success callbacks
   const handleEditOperatorIdSuccess = () => {
     fetchOperator();
     setAlert({

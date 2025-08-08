@@ -75,7 +75,6 @@ export default function DrawerLayout({
     router.push("/login");
   }
 
-  // We still fetch email if needed, but you can also get it from the AuthContext.
   const [localEmail, setLocalEmail] = useState("");
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);

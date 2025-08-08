@@ -118,7 +118,7 @@ const DataNetworkPage = () => {
         field: "actions",
         headerName: "Actions",
         type: "actions",
-        width: isSmDown ? 80 : 140, // fixed so icons don't collapse
+        width: isSmDown ? 80 : 140,
         sortable: false,
         disableColumnMenu: true,
         getActions: (params) =>
