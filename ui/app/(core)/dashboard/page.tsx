@@ -40,10 +40,21 @@ type KpiCardProps = {
   minHeight?: number;
 };
 
-function KpiCard({ title, value, loading, onClick, children, minHeight = 200 }: KpiCardProps) {
-  const body = children ?? (
-    loading ? <Skeleton width={120} height={40} /> : <Typography variant="h4">{value}</Typography>
-  );
+function KpiCard({
+  title,
+  value,
+  loading,
+  onClick,
+  children,
+  minHeight = 200,
+}: KpiCardProps) {
+  const body =
+    children ??
+    (loading ? (
+      <Skeleton width={120} height={40} />
+    ) : (
+      <Typography variant="h4">{value}</Typography>
+    ));
 
   const CardInner = (
     <Card
@@ -76,7 +87,10 @@ function KpiCard({ title, value, loading, onClick, children, minHeight = 200 }: 
 
   if (onClick) {
     return (
-      <CardActionArea onClick={onClick} sx={{ height: "100%", borderRadius: 3 }}>
+      <CardActionArea
+        onClick={onClick}
+        sx={{ height: "100%", borderRadius: 3 }}
+      >
         {CardInner}
       </CardActionArea>
     );
@@ -130,7 +144,8 @@ const Dashboard = () => {
 
     return {
       pduSessions: pduSessions ?? null,
-      memoryUsageMB: memBytes == null ? null : Math.round(memBytes / (1024 * 1024)),
+      memoryUsageMB:
+        memBytes == null ? null : Math.round(memBytes / (1024 * 1024)),
       databaseSizeKB: dbBytes == null ? null : Math.round(dbBytes / 1024),
       allocatedIPs: allocIPs == null ? null : Math.round(allocIPs),
       totalIPs: totalIPs == null ? null : Math.round(totalIPs),
@@ -200,10 +215,13 @@ const Dashboard = () => {
 
         if (uplinkHistory.current.length >= 2) {
           const deltaT =
-            (timestamps.current[timestamps.current.length - 1] - timestamps.current[0]) / 1000;
+            (timestamps.current[timestamps.current.length - 1] -
+              timestamps.current[0]) /
+            1000;
           if (deltaT > 0) {
             const uplinkDelta =
-              uplinkHistory.current[uplinkHistory.current.length - 1] - uplinkHistory.current[0];
+              uplinkHistory.current[uplinkHistory.current.length - 1] -
+              uplinkHistory.current[0];
             const downlinkDelta =
               downlinkHistory.current[downlinkHistory.current.length - 1] -
               downlinkHistory.current[0];
@@ -267,7 +285,11 @@ const Dashboard = () => {
       >
         <Typography variant="h4" component="h1">
           Ella Core{" "}
-          {loading ? <CircularProgress size={22} sx={{ ml: 1 }} /> : version ?? "—"}
+          {loading ? (
+            <CircularProgress size={22} sx={{ ml: 1 }} />
+          ) : (
+            (version ?? "—")
+          )}
         </Typography>
         <Typography variant="body2" aria-live="polite" color="text.secondary">
           {lastUpdated
@@ -287,7 +309,12 @@ const Dashboard = () => {
         Network
       </Typography>
 
-      <Grid container spacing={4} alignItems="stretch" justifyContent="flex-start">
+      <Grid
+        container
+        spacing={4}
+        alignItems="stretch"
+        justifyContent="flex-start"
+      >
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <KpiCard
             title="Radios"
@@ -305,7 +332,11 @@ const Dashboard = () => {
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard title="Active Sessions" loading={loading} value={formatNumber(activeSessions)} />
+          <KpiCard
+            title="Active Sessions"
+            loading={loading}
+            value={formatNumber(activeSessions)}
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 12, md: 6 }}>
           <KpiCard title="IP Allocation" loading={loading} minHeight={240}>
@@ -325,7 +356,11 @@ const Dashboard = () => {
                   height={220}
                   width={undefined}
                 />
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mt: 1 }}
+                >
                   {ipChart.total > 0
                     ? `${Math.round((ipChart.alloc / ipChart.total) * 100)}% used`
                     : "N/A"}
@@ -337,7 +372,13 @@ const Dashboard = () => {
       </Grid>
 
       {/* Throughput */}
-      <Grid container spacing={4} alignItems="stretch" justifyContent="flex-start" sx={{ mt: 2 }}>
+      <Grid
+        container
+        spacing={4}
+        alignItems="stretch"
+        justifyContent="flex-start"
+        sx={{ mt: 2 }}
+      >
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <KpiCard
             title="Uplink Throughput"
@@ -358,16 +399,29 @@ const Dashboard = () => {
         System
       </Typography>
 
-      <Grid container spacing={4} alignItems="stretch" justifyContent="flex-start">
+      <Grid
+        container
+        spacing={4}
+        alignItems="stretch"
+        justifyContent="flex-start"
+      >
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard title="Memory Usage" loading={loading} value={
-            memoryUsage != null ? `${formatNumber(memoryUsage)} MB` : "N/A"
-          } />
+          <KpiCard
+            title="Memory Usage"
+            loading={loading}
+            value={
+              memoryUsage != null ? `${formatNumber(memoryUsage)} MB` : "N/A"
+            }
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard title="Database Size" loading={loading} value={
-            databaseSize != null ? `${formatNumber(databaseSize)} KB` : "N/A"
-          } />
+          <KpiCard
+            title="Database Size"
+            loading={loading}
+            value={
+              databaseSize != null ? `${formatNumber(databaseSize)} KB` : "N/A"
+            }
+          />
         </Grid>
       </Grid>
     </Box>
