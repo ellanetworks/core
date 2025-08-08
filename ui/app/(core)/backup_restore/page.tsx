@@ -72,12 +72,12 @@ const BackupRestore = () => {
   };
 
   return (
-    <Box sx={{ padding: 4, maxWidth: "1200px", margin: "0 auto" }}>
+    <Box sx={{ px: { xs: 2, sm: 4 }, py: 4, maxWidth: "1200px", mx: "auto" }}>
       <Typography
         variant="h4"
         component="h1"
         gutterBottom
-        sx={{ textAlign: "left", marginBottom: 4 }}
+        sx={{ textAlign: "left", mb: 4 }}
       >
         Backup and Restore
       </Typography>
@@ -86,56 +86,54 @@ const BackupRestore = () => {
         <Alert
           severity={alert.severity}
           onClose={() => setAlert({ message: "", severity: null })}
+          sx={{ mb: 3 }}
         >
           {alert.message}
         </Alert>
       )}
 
       <Grid container spacing={4} justifyContent="flex-start">
-        <Grid size={4}>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
           <Box
             sx={{
               border: "1px solid #ccc",
               borderRadius: 4,
-              padding: 4,
-              width: "100%",
-              marginBottom: "24px",
-              margin: "0 auto",
+              p: 3,
               textAlign: "center",
+              height: "100%",
             }}
           >
-            <Typography variant="h5" component="h2" sx={{ marginBottom: 2 }}>
+            <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
               Create a Backup
             </Typography>
             <Button
               variant="contained"
               color="success"
               onClick={handleCreate}
-              sx={{ padding: "4px 16px" }}
+              sx={{ px: 3 }}
             >
               Create
             </Button>
           </Box>
         </Grid>
-        <Grid size={4}>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
           <Box
             sx={{
               border: "1px solid #ccc",
               borderRadius: 4,
-              padding: 4,
-              width: "100%",
-              margin: "0 auto",
+              p: 3,
               textAlign: "center",
+              height: "100%",
             }}
           >
-            <Typography variant="h5" component="h2" sx={{ marginBottom: 2 }}>
+            <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
               Restore a Backup
             </Typography>
             <Button
               variant="contained"
               component="label"
               color="success"
-              sx={{ padding: "4px 16px" }}
+              sx={{ px: 3 }}
             >
               Upload File
               <input

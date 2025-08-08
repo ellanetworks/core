@@ -67,7 +67,6 @@ export default function DrawerLayout({
     }
   };
 
-
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
