@@ -61,7 +61,7 @@ jobs:
           docker run -d -p 5000:5000 --name registry registry:2
 
       - name: Download Container image from GitHub Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: rock
 
