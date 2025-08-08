@@ -18,6 +18,10 @@ const (
 	RuleRemove  RuleState = 3
 )
 
+const (
+	DefaultMeasurementPeriod = 10 * time.Second
+)
+
 type RuleState uint8
 
 // Packet Detection Rule. Table 7.5.2.2-1
@@ -138,8 +142,42 @@ type QER struct {
 	QERID uint32
 }
 
+type MeasurementMethod struct {
+	DURAT bool
+	VOLUM bool
+	EVENT bool
+}
+
+type ReportingTriggers struct {
+	// Octet 5
+	PERIO bool // bit 1
+	VOLTH bool // bit 2
+	TIMTH bool // bit 3
+	QUHTI bool // bit 4
+	START bool // bit 5
+	STOPT bool // bit 6
+	DROTH bool // bit 7
+	LIUSA bool // bit 8
+	// Octet 6
+	VOLQU bool // bit 1
+	TIMQU bool // bit 2
+	ENVCL bool // bit 3
+	MACAR bool // bit 4
+	EVETH bool // bit 5
+	EVEQU bool // bit 6
+	IPMJL bool // bit 7
+	QUVTI bool // bit 8
+	// Octet 7
+	REEMR bool // bit 1
+}
+
 // Usage Report Rule
-type URR struct{}
+type URR struct {
+	URRID             uint32
+	MeasurementMethod *MeasurementMethod
+	ReportingTriggers *ReportingTriggers
+	MeasurementPeriod time.Duration
+}
 
 func (pdr PDR) String() string {
 	return fmt.Sprintf("PDR:[PdrId:[%v], Precedence:[%v], PDI:[%v], OuterHeaderRem:[%v], Far:[%v], RuleState:[%v], QERS:[%v]]",
