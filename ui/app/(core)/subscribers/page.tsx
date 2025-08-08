@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Typography,
@@ -8,14 +8,13 @@ import {
   CircularProgress,
   Alert,
   Collapse,
-  IconButton,
 } from "@mui/material";
-import { DataGrid, GridColDef } from "@mui/x-data-grid";
-import {
-  Delete as DeleteIcon,
-  Edit as EditIcon,
-  Visibility as VisibilityIcon,
-} from "@mui/icons-material";
+import { useTheme } from "@mui/material/styles";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import { DataGrid, GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import { listSubscribers, deleteSubscriber } from "@/queries/subscribers";
 import CreateSubscriberModal from "@/components/CreateSubscriberModal";
 import ViewSubscriberModal from "@/components/ViewSubscriberModal";
@@ -46,6 +45,9 @@ const SubscriberPage = () => {
     message: "",
     severity: null,
   });
+
+  const theme = useTheme();
+  const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
 
   const fetchSubscribers = useCallback(async () => {
     setLoading(true);
@@ -80,102 +82,124 @@ const SubscriberPage = () => {
     setViewModalOpen(true);
   };
 
-  const handleDeleteClick = (subscriberName: string) => {
-    setSelectedSubscriber(subscriberName);
+  const handleDeleteClick = (imsi: string) => {
+    setSelectedSubscriber(imsi);
     setConfirmationOpen(true);
   };
 
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
-    if (selectedSubscriber) {
-      try {
-        await deleteSubscriber(cookies.user_token, selectedSubscriber);
-        setAlert({
-          message: `Subscriber "${selectedSubscriber}" deleted successfully!`,
-          severity: "success",
-        });
-        fetchSubscribers();
-      } catch {
-        setAlert({
-          message: `Failed to delete subscriber "${selectedSubscriber}".`,
-          severity: "error",
-        });
-      } finally {
-        setSelectedSubscriber(null);
-      }
+    if (!selectedSubscriber) return;
+    try {
+      await deleteSubscriber(cookies.user_token, selectedSubscriber);
+      setAlert({
+        message: `Subscriber "${selectedSubscriber}" deleted successfully!`,
+        severity: "success",
+      });
+      fetchSubscribers();
+    } catch {
+      setAlert({
+        message: `Failed to delete subscriber "${selectedSubscriber}".`,
+        severity: "error",
+      });
+    } finally {
+      setSelectedSubscriber(null);
     }
   };
 
-  // Define base columns (common for all roles)
-  const baseColumns: GridColDef[] = [
-    { field: "imsi", headerName: "IMSI", flex: 1 },
-    { field: "ipAddress", headerName: "IP Address", flex: 1 },
-    { field: "policyName", headerName: "Policy", flex: 1 },
-  ];
+  const columns: GridColDef[] = useMemo(() => {
+    const actions = (row: Subscriber) =>
+      isSmDown
+        ? [
+            <GridActionsCellItem
+              key="view"
+              icon={<VisibilityIcon />}
+              label="View"
+              onClick={() => handleViewClick(row)}
+            />,
+            <GridActionsCellItem
+              key="edit"
+              icon={<EditIcon />}
+              label="Edit"
+              onClick={() => handleEditClick(row)}
+              showInMenu
+            />,
+            <GridActionsCellItem
+              key="delete"
+              icon={<DeleteIcon />}
+              label="Delete"
+              onClick={() => handleDeleteClick(row.imsi)}
+              showInMenu
+            />,
+          ]
+        : [
+            <GridActionsCellItem
+              key="view"
+              icon={<VisibilityIcon />}
+              label="View"
+              onClick={() => handleViewClick(row)}
+            />,
+            <GridActionsCellItem
+              key="edit"
+              icon={<EditIcon />}
+              label="Edit"
+              onClick={() => handleEditClick(row)}
+            />,
+            <GridActionsCellItem
+              key="delete"
+              icon={<DeleteIcon />}
+              label="Delete"
+              onClick={() => handleDeleteClick(row.imsi)}
+            />,
+          ];
 
-  if (role === "Admin" || role === "Network Manager") {
-    baseColumns.push({
-      field: "actions",
-      headerName: "Actions",
-      type: "actions",
-      flex: 0.5,
-      getActions: (params) => [
-        <IconButton
-          key="view"
-          aria-label="view"
-          onClick={() => handleViewClick(params.row)}
-        >
-          <VisibilityIcon />
-        </IconButton>,
-        <IconButton
-          key="edit"
-          aria-label="edit"
-          onClick={() => handleEditClick(params.row)}
-        >
-          <EditIcon />
-        </IconButton>,
-        <IconButton
-          key="delete"
-          aria-label="delete"
-          onClick={() => handleDeleteClick(params.row.imsi)}
-        >
-          <DeleteIcon />
-        </IconButton>,
-      ],
-    });
-  }
+    const base: GridColDef[] = [
+      { field: "imsi", headerName: "IMSI", flex: 1, minWidth: 200 },
+      { field: "ipAddress", headerName: "IP Address", flex: 1, minWidth: 160 },
+      { field: "policyName", headerName: "Policy", flex: 0.8, minWidth: 140 },
+    ];
+
+    if (role === "Admin" || role === "Network Manager") {
+      base.push({
+        field: "actions",
+        headerName: "Actions",
+        type: "actions",
+        width: 120,
+        sortable: false,
+        disableColumnMenu: true,
+        getActions: (params) => actions(params.row),
+      });
+    }
+
+    return base;
+  }, [role, isSmDown]);
 
   return (
     <Box
       sx={{
-        height: "100vh",
+        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "flex-start",
         alignItems: "center",
-        paddingTop: 6,
-        textAlign: "center",
+        pt: 6,
+        pb: 4,
       }}
     >
-      <Box sx={{ width: "60%" }}>
+      {/* Alerts */}
+      <Box sx={{ width: "100%", maxWidth: 1400, px: { xs: 2, sm: 4 } }}>
         <Collapse in={!!alert.message}>
           <Alert
             severity={alert.severity || "success"}
             onClose={() => setAlert({ message: "", severity: null })}
-            sx={{ marginBottom: 2 }}
+            sx={{ mb: 2 }}
           >
             {alert.message}
           </Alert>
         </Collapse>
       </Box>
+
       {loading ? (
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <CircularProgress />
         </Box>
       ) : subscribers.length === 0 ? (
@@ -190,14 +214,18 @@ const SubscriberPage = () => {
         <>
           <Box
             sx={{
-              marginBottom: 4,
-              width: "60%",
+              width: "100%",
+              maxWidth: 1400,
+              px: { xs: 2, sm: 4 },
+              mb: 3,
               display: "flex",
+              flexDirection: { xs: "column", sm: "row" },
               justifyContent: "space-between",
-              alignItems: "center",
+              alignItems: { xs: "stretch", sm: "center" },
+              gap: 2,
             }}
           >
-            <Typography variant="h4" component="h1" gutterBottom>
+            <Typography variant="h4">
               Subscribers ({subscribers.length})
             </Typography>
             {(role === "Admin" || role === "Network Manager") && (
@@ -205,30 +233,37 @@ const SubscriberPage = () => {
                 variant="contained"
                 color="success"
                 onClick={handleOpenCreateModal}
+                sx={{
+                  maxWidth: "200px",
+                  width: "100%",
+                }}
               >
                 Create
               </Button>
             )}
           </Box>
-          <Box
-            sx={{
-              height: "80vh",
-              width: "60%",
-              "& .MuiDataGrid-root": { border: "none" },
-              "& .MuiDataGrid-cell": { borderBottom: "none" },
-              "& .MuiDataGrid-columnHeaders": { borderBottom: "none" },
-              "& .MuiDataGrid-footerContainer": { borderTop: "none" },
-            }}
-          >
+
+          <Box sx={{ width: "100%", maxWidth: 1400 }}>
             <DataGrid
               rows={subscribers}
-              columns={baseColumns}
+              columns={columns}
               getRowId={(row) => row.imsi}
               disableRowSelectionOnClick
+              density="compact"
+              columnVisibilityModel={{}}
+              sx={{
+                width: "100%",
+                height: { xs: 460, sm: 560, md: 640 },
+                border: "none",
+                "& .MuiDataGrid-cell": { borderBottom: "none" },
+                "& .MuiDataGrid-columnHeaders": { borderBottom: "none" },
+                "& .MuiDataGrid-footerContainer": { borderTop: "none" },
+              }}
             />
           </Box>
         </>
       )}
+
       <ViewSubscriberModal
         open={isViewModalOpen}
         onClose={handleCloseViewModal}
@@ -243,12 +278,7 @@ const SubscriberPage = () => {
         open={isEditModalOpen}
         onClose={() => setEditModalOpen(false)}
         onSuccess={fetchSubscribers}
-        initialData={
-          editData || {
-            imsi: "",
-            policyName: "",
-          }
-        }
+        initialData={editData || { imsi: "", policyName: "" }}
       />
       <DeleteConfirmationModal
         open={isConfirmationOpen}

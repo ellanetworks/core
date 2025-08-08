@@ -77,7 +77,6 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({
     router.push("/login");
   }
 
-  // Set default interface to "n6" and defaultRoute to false.
   const [formValues, setFormValues] = useState<FormValues>({
     destination: "",
     gateway: "",
@@ -93,7 +92,6 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
   const handleChange = (field: string, value: string | number | boolean) => {
-    // When toggling defaultRoute, update the destination accordingly.
     if (field === "defaultRoute" && typeof value === "boolean") {
       setFormValues((prev) => ({
         ...prev,

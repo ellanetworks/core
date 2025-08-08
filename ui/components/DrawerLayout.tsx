@@ -39,6 +39,10 @@ import Logo from "@/components/Logo";
 import { getLoggedInUser } from "@/queries/users";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import { useTheme } from "@mui/material/styles";
+import IconButton from "@mui/material/IconButton";
+import MenuIcon from "@mui/icons-material/Menu";
 
 const drawerWidth = 250;
 
@@ -52,11 +56,25 @@ export default function DrawerLayout({
   const [cookies] = useCookies(["user_token"]);
   const { role } = useAuth();
 
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const handleNavClick = () => {
+    if (isMobile) {
+      setMobileOpen(false);
+    }
+  };
+
+  const handleDrawerToggle = () => {
+    setMobileOpen(!mobileOpen);
+  };
+
   if (!cookies.user_token) {
     router.push("/login");
   }
 
-  // We still fetch email if needed, but you can also get it from the AuthContext.
   const [localEmail, setLocalEmail] = useState("");
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
@@ -94,6 +112,17 @@ export default function DrawerLayout({
         sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
       >
         <Toolbar>
+          {isMobile && (
+            <IconButton
+              color="inherit"
+              aria-label="open drawer"
+              edge="start"
+              onClick={handleDrawerToggle}
+              sx={{ mr: 2 }}
+            >
+              <MenuIcon />
+            </IconButton>
+          )}
           <Logo width={50} height={50} />
           <Typography variant="h6" noWrap component="div" sx={{ ml: 2 }}>
             Ella Core
@@ -107,11 +136,15 @@ export default function DrawerLayout({
         </Toolbar>
       </AppBar>
       <Drawer
-        variant="permanent"
+        variant={isMobile ? "temporary" : "permanent"}
+        open={isMobile ? mobileOpen : true}
+        onClose={handleDrawerToggle}
+        ModalProps={{
+          keepMounted: true,
+        }}
         sx={{
-          width: drawerWidth,
-          flexShrink: 0,
-          [`& .MuiDrawer-paper`]: {
+          display: { xs: "block", sm: "block" },
+          "& .MuiDrawer-paper": {
             width: drawerWidth,
             boxSizing: "border-box",
             display: "flex",
@@ -127,6 +160,7 @@ export default function DrawerLayout({
                 component={Link}
                 href="/dashboard"
                 selected={pathname === "/dashboard"}
+                onClick={handleNavClick}
               >
                 <ListItemIcon>
                   <DashboardIcon />
@@ -139,6 +173,7 @@ export default function DrawerLayout({
                 component={Link}
                 href="/operator"
                 selected={pathname === "/operator"}
+                onClick={handleNavClick}
               >
                 <ListItemIcon>
                   <SensorsIcon />
@@ -151,6 +186,7 @@ export default function DrawerLayout({
                 component={Link}
                 href="/radios"
                 selected={pathname === "/radios"}
+                onClick={handleNavClick}
               >
                 <ListItemIcon>
                   <RouterIcon />
@@ -163,6 +199,7 @@ export default function DrawerLayout({
                 component={Link}
                 href="/data-networks"
                 selected={pathname === "/data-networks"}
+                onClick={handleNavClick}
               >
                 <ListItemIcon>
                   <LanIcon />
@@ -175,6 +212,7 @@ export default function DrawerLayout({
                 component={Link}
                 href="/policies"
                 selected={pathname === "/policies"}
+                onClick={handleNavClick}
               >
                 <ListItemIcon>
                   <TuneIcon />
@@ -187,6 +225,7 @@ export default function DrawerLayout({
                 component={Link}
                 href="/subscribers"
                 selected={pathname === "/subscribers"}
+                onClick={handleNavClick}
               >
                 <ListItemIcon>
                   <GroupsIcon />
@@ -199,6 +238,7 @@ export default function DrawerLayout({
                 component={Link}
                 href="/routes"
                 selected={pathname === "/routes"}
+                onClick={handleNavClick}
               >
                 <ListItemIcon>
                   <CableIcon />
@@ -215,6 +255,7 @@ export default function DrawerLayout({
                     component={Link}
                     href="/users"
                     selected={pathname === "/users"}
+                    onClick={handleNavClick}
                   >
                     <ListItemIcon>
                       <AdminPanelSettingsIcon />
@@ -227,6 +268,7 @@ export default function DrawerLayout({
                     component={Link}
                     href="/backup_restore"
                     selected={pathname === "/backup_restore"}
+                    onClick={handleNavClick}
                   >
                     <ListItemIcon>
                       <StorageIcon />
@@ -285,6 +327,7 @@ export default function DrawerLayout({
                 href="https://docs.ellanetworks.com"
                 target="_blank"
                 rel="noreferrer"
+                onClick={handleNavClick}
               >
                 <ListItemIcon>
                   <InfoIcon />
@@ -298,6 +341,7 @@ export default function DrawerLayout({
                 href="https://github.com/ellanetworks/core/issues/new/choose"
                 target="_blank"
                 rel="noreferrer"
+                onClick={handleNavClick}
               >
                 <ListItemIcon>
                   <BugReportIcon />
@@ -308,7 +352,14 @@ export default function DrawerLayout({
           </List>
         </Box>
       </Drawer>
-      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: 3,
+          ml: isMobile ? 0 : `${drawerWidth}px`,
+        }}
+      >
         <Toolbar />
         {children}
       </Box>

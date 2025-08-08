@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Typography,
@@ -8,6 +8,8 @@ import {
   Alert,
   Collapse,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import { listRadios } from "@/queries/radios";
 import EmptyState from "@/components/EmptyState";
@@ -19,11 +21,16 @@ interface RadioData {
   address: string;
 }
 
+const MAX_WIDTH = 1400;
+
 const Radio = () => {
   const [cookies] = useCookies(["user_token"]);
   const [radios, setRadios] = useState<RadioData[]>([]);
   const [loading, setLoading] = useState(true);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
+
+  const theme = useTheme();
+  const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
 
   const fetchRadios = useCallback(async () => {
     setLoading(true);
@@ -41,43 +48,40 @@ const Radio = () => {
     fetchRadios();
   }, [fetchRadios]);
 
-  const columns: GridColDef[] = [
-    { field: "id", headerName: "ID", flex: 1 },
-    { field: "name", headerName: "Name", flex: 1 },
-    { field: "address", headerName: "Address", flex: 1 },
-  ];
+  const columns: GridColDef[] = useMemo(
+    () => [
+      { field: "id", headerName: "ID", flex: 0.6, minWidth: 160 },
+      { field: "name", headerName: "Name", flex: 1, minWidth: 200 },
+      { field: "address", headerName: "Address", flex: 1, minWidth: 240 },
+    ],
+    [],
+  );
 
   return (
     <Box
       sx={{
-        height: "100vh",
+        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "flex-start",
         alignItems: "center",
-        paddingTop: 6,
-        textAlign: "center",
+        pt: 6,
+        pb: 4,
       }}
     >
-      <Box sx={{ width: "60%" }}>
+      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
         <Collapse in={!!alert.message}>
           <Alert
             severity="success"
             onClose={() => setAlert({ message: "" })}
-            sx={{ marginBottom: 2 }}
+            sx={{ mb: 2 }}
           >
             {alert.message}
           </Alert>
         </Collapse>
       </Box>
+
       {loading ? (
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <CircularProgress />
         </Box>
       ) : radios.length === 0 ? (
@@ -86,46 +90,46 @@ const Radio = () => {
           secondaryText="Connected radios will automatically appear here."
           button={false}
           buttonText="Create"
-          onCreate={() => console.log("Create radio")}
+          onCreate={() => {}}
         />
       ) : (
         <>
+          {/* Header */}
           <Box
             sx={{
-              marginBottom: 4,
-              width: "60%",
+              width: "100%",
+              maxWidth: MAX_WIDTH,
+              px: { xs: 2, sm: 4 },
+              mb: 3,
               display: "flex",
+              flexDirection: { xs: "column", sm: "row" },
               justifyContent: "space-between",
-              alignItems: "center",
+              alignItems: { xs: "flex-start", sm: "center" },
+              gap: 2,
             }}
           >
-            <Typography variant="h4" component="h1" gutterBottom>
-              Radios ({radios.length})
-            </Typography>
+            <Typography variant="h4">Radios ({radios.length})</Typography>
           </Box>
-          <Box
-            sx={{
-              height: "80vh",
-              width: "60%",
-              "& .MuiDataGrid-root": {
-                border: "none",
-              },
-              "& .MuiDataGrid-cell": {
-                borderBottom: "none",
-              },
-              "& .MuiDataGrid-columnHeaders": {
-                borderBottom: "none",
-              },
-              "& .MuiDataGrid-footerContainer": {
-                borderTop: "none",
-              },
-            }}
-          >
+
+          {/* Grid */}
+          <Box sx={{ width: "100%", maxWidth: MAX_WIDTH }}>
             <DataGrid
               rows={radios}
               columns={columns}
               getRowId={(row) => row.id}
               disableRowSelectionOnClick
+              density="compact"
+              columnVisibilityModel={{
+                id: !isSmDown,
+              }}
+              sx={{
+                width: "100%",
+                height: { xs: 460, sm: 560, md: 640 },
+                border: "none",
+                "& .MuiDataGrid-cell": { borderBottom: "none" },
+                "& .MuiDataGrid-columnHeaders": { borderBottom: "none" },
+                "& .MuiDataGrid-footerContainer": { borderTop: "none" },
+              }}
             />
           </Box>
         </>
