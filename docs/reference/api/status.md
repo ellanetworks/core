@@ -22,7 +22,7 @@ None
 ```json
 {
     "result": {
-        "version": "v0.0.20",
+        "version": "v0.1.0",
         "initialized": true
     }
 }
