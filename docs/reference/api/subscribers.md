@@ -25,11 +25,18 @@ None
     "result": [
         {
             "imsi": "001010100007487",
-            "ipAddress": "",
             "opc": "981d464c7c52eb6e5036234984ad0bcf",
             "sequenceNumber": "16f3b3f70fc7",
             "key": "5122250214c33e723a5dd523fc145fc0",
-            "policyName": "default"
+            "policyName": "default",
+            "status": {
+                "registered": true,
+                "sessions": [
+                    {
+                        "ipAddress": "1.2.3.4"
+                    }
+                ]
+            }
         }
     ]
 }
@@ -101,11 +108,18 @@ None
 {
     "result": {
         "imsi": "001010100007487",
-        "ipAddress": "",
         "opc": "981d464c7c52eb6e5036234984ad0bcf",
         "sequenceNumber": "16f3b3f70fc7",
         "key": "5122250214c33e723a5dd523fc145fc0",
-        "policyName": "default"
+        "policyName": "default",
+        "status": {
+            "registered": true,
+            "sessions": [
+                {
+                    "ipAddress": "1.2.3.4"
+                }
+            ]
+        }
     }
 }
 ```

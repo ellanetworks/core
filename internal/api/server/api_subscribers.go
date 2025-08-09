@@ -7,8 +7,10 @@ import (
 	"errors"
 	"net/http"
 
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"go.uber.org/zap"
 )
 
@@ -25,13 +27,22 @@ type UpdateSubscriberParams struct {
 	PolicyName string `json:"policyName"`
 }
 
+type SubscriberSession struct {
+	IPAddress string `json:"ipAddress"`
+}
+
+type SubscriberStatus struct {
+	Registered bool                `json:"registered"`
+	Sessions   []SubscriberSession `json:"sessions"`
+}
+
 type GetSubscriberResponse struct {
-	Imsi           string `json:"imsi"`
-	IPAddress      string `json:"ipAddress"`
-	Opc            string `json:"opc"`
-	SequenceNumber string `json:"sequenceNumber"`
-	Key            string `json:"key"`
-	PolicyName     string `json:"policyName"`
+	Imsi           string           `json:"imsi"`
+	Opc            string           `json:"opc"`
+	SequenceNumber string           `json:"sequenceNumber"`
+	Key            string           `json:"key"`
+	PolicyName     string           `json:"policyName"`
+	Status         SubscriberStatus `json:"status"`
 }
 
 const (
@@ -96,13 +107,28 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
 				return
 			}
+
+			var subscriberSessions []SubscriberSession
+			smfSessions := smfContext.PDUSessionsByIMSI(dbSubscriber.Imsi)
+
+			for _, session := range smfSessions {
+				subscriberSessions = append(subscriberSessions, SubscriberSession{
+					IPAddress: session.PDUAddress.IP.String(),
+				})
+			}
+
+			subscriberStatus := SubscriberStatus{
+				Registered: amfContext.IsSubscriberRegistered(dbSubscriber.Imsi),
+				Sessions:   subscriberSessions,
+			}
+
 			subscribers = append(subscribers, GetSubscriberResponse{
 				Imsi:           dbSubscriber.Imsi,
-				IPAddress:      dbSubscriber.IPAddress,
 				Opc:            dbSubscriber.Opc,
 				Key:            dbSubscriber.PermanentKey,
 				SequenceNumber: dbSubscriber.SequenceNumber,
 				PolicyName:     policy.Name,
+				Status:         subscriberStatus,
 			})
 		}
 
@@ -124,7 +150,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
 			return
 		}
-		imsi := pathParam(r.URL.Path, "/api/v1/subscribers/") // extract "{imsi}" manually
+		imsi := pathParam(r.URL.Path, "/api/v1/subscribers/")
 		if imsi == "" {
 			writeError(w, http.StatusBadRequest, "Missing imsi parameter", errors.New("imsi required"), logger.APILog)
 			return
@@ -135,19 +161,35 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusNotFound, "Subscriber not found", err, logger.APILog)
 			return
 		}
+
 		policy, err := dbInstance.GetPolicyByID(r.Context(), dbSubscriber.PolicyID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
 			return
 		}
 
+		var subscriberSessions []SubscriberSession
+
+		smfSessions := smfContext.PDUSessionsByIMSI(dbSubscriber.Imsi)
+
+		for _, session := range smfSessions {
+			subscriberSessions = append(subscriberSessions, SubscriberSession{
+				IPAddress: session.PDUAddress.IP.String(),
+			})
+		}
+
+		subscriberStatus := SubscriberStatus{
+			Registered: amfContext.IsSubscriberRegistered(dbSubscriber.Imsi),
+			Sessions:   subscriberSessions,
+		}
+
 		subscriber := GetSubscriberResponse{
 			Imsi:           dbSubscriber.Imsi,
-			IPAddress:      dbSubscriber.IPAddress,
 			Opc:            dbSubscriber.Opc,
 			SequenceNumber: dbSubscriber.SequenceNumber,
 			Key:            dbSubscriber.PermanentKey,
 			PolicyName:     policy.Name,
+			Status:         subscriberStatus,
 		}
 		writeResponse(w, subscriber, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(GetSubscriberAction, email, getClientIP(r), "User retrieved subscriber: "+imsi)

@@ -8,10 +8,17 @@ import {
   CircularProgress,
   Alert,
   Collapse,
+  Chip,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { DataGrid, GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
+import {
+  DataGrid,
+  GridColDef,
+  GridActionsCellItem,
+  GridRenderCellParams,
+  GridRowParams,
+} from "@mui/x-data-grid";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -107,7 +114,7 @@ const SubscriberPage = () => {
     }
   };
 
-  const columns: GridColDef[] = useMemo(() => {
+  const columns: GridColDef<Subscriber>[] = useMemo(() => {
     const actions = (row: Subscriber) =>
       isSmDown
         ? [
@@ -152,11 +159,61 @@ const SubscriberPage = () => {
               onClick={() => handleDeleteClick(row.imsi)}
             />,
           ];
-
-    const base: GridColDef[] = [
+    const base: GridColDef<Subscriber>[] = [
       { field: "imsi", headerName: "IMSI", flex: 1, minWidth: 200 },
-      { field: "ipAddress", headerName: "IP Address", flex: 1, minWidth: 160 },
       { field: "policyName", headerName: "Policy", flex: 0.8, minWidth: 140 },
+
+      {
+        field: "registration",
+        headerName: "Registration",
+        width: 140,
+        minWidth: 120,
+        valueGetter: (_value, row: Subscriber) =>
+          Boolean(row?.status?.registered),
+        sortComparator: (v1, v2) => Number(v1) - Number(v2),
+        renderCell: (params: GridRenderCellParams<Subscriber>) => {
+          const registered = Boolean(params.row?.status?.registered);
+          return (
+            <Chip
+              size="small"
+              label={registered ? "Registered" : "Deregistered"}
+              color={registered ? "success" : "default"}
+              variant={"outlined"}
+            />
+          );
+        },
+      },
+      {
+        field: "session",
+        headerName: "Session",
+        width: 140,
+        minWidth: 120,
+        valueGetter: (_value, row: Subscriber) =>
+          (row?.status?.sessions?.length ?? 0) > 0,
+        sortComparator: (v1, v2) => Number(v1) - Number(v2),
+        renderCell: (params: GridRenderCellParams<Subscriber>) => {
+          const active = (params.row?.status?.sessions?.length ?? 0) > 0;
+          return (
+            <Chip
+              size="small"
+              label={active ? "Active" : "Inactive"}
+              color={active ? "success" : "default"}
+              variant={"outlined"}
+            />
+          );
+        },
+      },
+
+      {
+        field: "ipAddress",
+        headerName: "IP Address",
+        flex: 1,
+        minWidth: 120,
+        valueGetter: (_value, row: Subscriber) =>
+          row?.status?.sessions && row.status.sessions.length > 0
+            ? row.status.sessions[0]?.ipAddress || ""
+            : "",
+      },
     ];
 
     if (role === "Admin" || role === "Network Manager") {
@@ -167,12 +224,24 @@ const SubscriberPage = () => {
         width: 120,
         sortable: false,
         disableColumnMenu: true,
-        getActions: (params) => actions(params.row),
+        getActions: (params: GridRowParams<Subscriber>) => actions(params.row),
       });
     }
 
     return base;
   }, [role, isSmDown]);
+
+  const columnGroupingModel = [
+    {
+      groupId: "statusGroup",
+      headerName: "Status",
+      children: [
+        { field: "registration" },
+        { field: "session" },
+        { field: "ipAddress" },
+      ],
+    },
+  ];
 
   return (
     <Box
@@ -185,7 +254,6 @@ const SubscriberPage = () => {
         pb: 4,
       }}
     >
-      {/* Alerts */}
       <Box sx={{ width: "100%", maxWidth: 1400, px: { xs: 2, sm: 4 } }}>
         <Collapse in={!!alert.message}>
           <Alert
@@ -251,6 +319,7 @@ const SubscriberPage = () => {
               disableRowSelectionOnClick
               density="compact"
               columnVisibilityModel={{}}
+              columnGroupingModel={columnGroupingModel}
               sx={{
                 width: "100%",
                 height: { xs: 460, sm: 560, md: 640 },

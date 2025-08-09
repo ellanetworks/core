@@ -22,13 +22,22 @@ type DeleteSubscriberOptions struct {
 	ID string `json:"id"`
 }
 
+type SubscriberSession struct {
+	IPAddress string `json:"ipAddress"`
+}
+
+type SubscriberStatus struct {
+	Registered bool                `json:"registered"`
+	Sessions   []SubscriberSession `json:"sessions"`
+}
+
 type Subscriber struct {
-	Imsi           string `json:"imsi"`
-	IPAddress      string `json:"ipAddress"`
-	Opc            string `json:"opc"`
-	SequenceNumber string `json:"sequenceNumber"`
-	Key            string `json:"key"`
-	PolicyName     string `json:"policyName"`
+	Imsi           string           `json:"imsi"`
+	Opc            string           `json:"opc"`
+	SequenceNumber string           `json:"sequenceNumber"`
+	Key            string           `json:"key"`
+	PolicyName     string           `json:"policyName"`
+	Status         SubscriberStatus `json:"status"`
 }
 
 func (c *Client) CreateSubscriber(opts *CreateSubscriberOptions) error {
