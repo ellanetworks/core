@@ -207,7 +207,7 @@ const SubscriberPage = () => {
       {
         field: "ipAddress",
         headerName: "IP Address",
-        flex: 1,
+        width: 140,
         minWidth: 120,
         valueGetter: (_value, row: Subscriber) =>
           row?.status?.sessions && row.status.sessions.length > 0
