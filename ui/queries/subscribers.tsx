@@ -11,6 +11,7 @@ export const listSubscribers = async (
       Authorization: "Bearer " + authToken,
     },
   });
+
   let respData;
   try {
     respData = await response.json();
@@ -22,23 +23,26 @@ export const listSubscribers = async (
 
   if (!response.ok) {
     throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
+      `${response.status}: ${HTTPStatus(response.status)}. ${
+        respData?.error || "Unknown error"
+      }`,
     );
   }
 
-  const transformed: Subscriber[] = respData.result.map((p: any) => ({
+  return respData.result.map((p: any) => ({
     imsi: p.imsi,
-    ipAddress: p.ipAddress,
     opc: p.opc,
     sequenceNumber: p.sequenceNumber,
     key: p.key,
     policyName: p.policyName,
+    status: p.status,
   }));
-
-  return transformed;
 };
 
-export const getSubscriber = async (authToken: string, imsi: string) => {
+export const getSubscriber = async (
+  authToken: string,
+  imsi: string,
+): Promise<Subscriber> => {
   const response = await fetch(`/api/v1/subscribers/${imsi}`, {
     method: "GET",
     headers: {
@@ -61,7 +65,14 @@ export const getSubscriber = async (authToken: string, imsi: string) => {
     );
   }
 
-  return respData.result;
+  return {
+    imsi: respData.result.imsi,
+    opc: respData.result.opc,
+    sequenceNumber: respData.result.sequenceNumber,
+    key: respData.result.key,
+    policyName: respData.result.policyName,
+    status: respData.result.status,
+  };
 };
 
 export const createSubscriber = async (

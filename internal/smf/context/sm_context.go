@@ -381,3 +381,20 @@ func (smContext *SMContext) CommitSmPolicyDecision(status bool) error {
 
 	return nil
 }
+
+func PDUSessionsByIMSI(imsi string) []*SMContext {
+	var out []*SMContext
+
+	smContextPool.Range(func(_ any, v any) bool {
+		sc, ok := v.(*SMContext)
+		if !ok {
+			return true
+		}
+
+		if sc.Supi == imsi {
+			out = append(out, sc)
+		}
+		return true
+	})
+	return out
+}
