@@ -188,8 +188,6 @@ func (context *AMFContext) AmfUeFindBySupi(supi string) (ue *AmfUe, ok bool) {
 	if value, loadOk := context.UePool.Load(supi); loadOk {
 		ue = value.(*AmfUe)
 		ok = loadOk
-	} else {
-		logger.AmfLog.Info("Ue with Supi not found", zap.String("supi", supi))
 	}
 
 	return
