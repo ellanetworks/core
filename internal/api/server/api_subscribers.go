@@ -356,14 +356,14 @@ func DeleteSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := dbInstance.DeleteSubscriber(r.Context(), imsi); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to delete subscriber", err, logger.APILog)
-			return
-		}
-
 		err := deregister.DeregisterSubscriber(r.Context(), imsi)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to deregister subscriber", err, logger.APILog)
+			return
+		}
+
+		if err := dbInstance.DeleteSubscriber(r.Context(), imsi); err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to delete subscriber", err, logger.APILog)
 			return
 		}
 
