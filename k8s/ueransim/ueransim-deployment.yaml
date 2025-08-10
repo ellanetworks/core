@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
       - name: ueransim
-        image: ghcr.io/ellanetworks/ueransim:3.2.6
+        image: ghcr.io/ellanetworks/ueransim:3.2.7
         volumeMounts:
         - name: config-volume
           mountPath: /etc/ueransim
