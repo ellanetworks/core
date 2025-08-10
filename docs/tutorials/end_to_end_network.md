@@ -257,7 +257,7 @@ ueransim.nr-gnb --config /var/snap/ueransim/common/gnb.yaml
 You should see the following output:
 
 ```shell
-UERANSIM v3.2.6
+UERANSIM v3.2.7
 [2025-02-01 10:07:38.223] [sctp] [info] Trying to establish SCTP connection... (22.22.22.71:38412)
 [2025-02-01 10:07:38.240] [sctp] [info] SCTP connection established (22.22.22.71:38412)
 [2025-02-01 10:07:38.240] [sctp] [debug] SCTP association setup ascId[3]
@@ -360,7 +360,7 @@ sudo ueransim.nr-ue --config /var/snap/ueransim/common/ue.yaml
 You should see the following output:
 
 ```shell
-UERANSIM v3.2.6
+UERANSIM v3.2.7
 [2025-01-25 16:29:02.683] [nas] [info] UE switches to state [MM-DEREGISTERED/PLMN-SEARCH]
 [2025-01-25 16:29:02.685] [rrc] [debug] New signal detected for cell[1], total [1] cells in coverage
 [2025-01-25 16:29:02.685] [nas] [info] Selected plmn[001/01]

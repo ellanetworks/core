@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf/deregister"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	smfContext "github.com/ellanetworks/core/internal/smf/context"
@@ -349,14 +350,23 @@ func DeleteSubscriber(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusBadRequest, "Missing imsi parameter", errors.New("imsi required"), logger.APILog)
 			return
 		}
+
 		if _, err := dbInstance.GetSubscriber(r.Context(), imsi); err != nil {
 			writeError(w, http.StatusNotFound, "Subscriber not found", err, logger.APILog)
 			return
 		}
+
+		err := deregister.DeregisterSubscriber(r.Context(), imsi)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to deregister subscriber", err, logger.APILog)
+			return
+		}
+
 		if err := dbInstance.DeleteSubscriber(r.Context(), imsi); err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to delete subscriber", err, logger.APILog)
 			return
 		}
+
 		writeResponse(w, SuccessResponse{Message: "Subscriber deleted successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(DeleteSubscriberAction, email, getClientIP(r), "User deleted subscriber: "+imsi)
 	})
