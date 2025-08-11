@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
       - name: router
-        image: ghcr.io/canonical/ubuntu-router:0.1
+        image: ghcr.io/ellanetworks/ubuntu-router:0.1
         command: ["/bin/bash", "-c"]
         args:
           - >
