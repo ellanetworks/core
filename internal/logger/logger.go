@@ -143,7 +143,7 @@ func makeCores(mode, filePath string, consoleEnc, jsonEnc zapcore.Encoder) ([]za
 
 // openFileSync opens/creates a file and returns a WriteSyncer with a lock.
 func openFileSync(path string) (zapcore.WriteSyncer, error) {
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600) // #nosec: G304
 	if err != nil {
 		return nil, fmt.Errorf("open log file %q: %w", path, err)
 	}
