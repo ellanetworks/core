@@ -22,6 +22,7 @@ import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import { Policy } from "@/types/types";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const MAX_WIDTH = 1400;
 
@@ -42,6 +43,20 @@ const PolicyPage = () => {
 
   const theme = useTheme();
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
+
+  const outerTheme = useTheme();
+
+  const gridTheme = React.useMemo(
+    () =>
+      createTheme(outerTheme, {
+        palette: {
+          DataGrid: {
+            headerBg: "#F5F5F5",
+          },
+        },
+      }),
+    [outerTheme],
+  );
 
   const canEdit = role === "Admin" || role === "Network Manager";
 
@@ -138,13 +153,13 @@ const PolicyPage = () => {
             ? [
                 <GridActionsCellItem
                   key="edit"
-                  icon={<EditIcon />}
+                  icon={<EditIcon color={"primary"} />}
                   label="Edit"
                   onClick={() => handleEditClick(params.row)}
                 />,
                 <GridActionsCellItem
                   key="delete"
-                  icon={<DeleteIcon />}
+                  icon={<DeleteIcon color={"primary"} />}
                   label="Delete"
                   onClick={() => handleDeleteClick(params.row.name)}
                   showInMenu
@@ -153,13 +168,13 @@ const PolicyPage = () => {
             : [
                 <GridActionsCellItem
                   key="edit"
-                  icon={<EditIcon />}
+                  icon={<EditIcon color={"primary"} />}
                   label="Edit"
                   onClick={() => handleEditClick(params.row)}
                 />,
                 <GridActionsCellItem
                   key="delete"
-                  icon={<DeleteIcon />}
+                  icon={<DeleteIcon color={"primary"} />}
                   label="Delete"
                   onClick={() => handleDeleteClick(params.row.name)}
                 />,
@@ -236,21 +251,33 @@ const PolicyPage = () => {
           </Box>
 
           <Box sx={{ width: "100%", maxWidth: MAX_WIDTH }}>
-            <DataGrid
-              rows={policies}
-              columns={columns}
-              getRowId={(row) => row.name}
-              disableRowSelectionOnClick
-              density="compact"
-              sx={{
-                height: { xs: 460, sm: 560, md: 640 },
-                width: "100%",
-                border: "none",
-                "& .MuiDataGrid-cell": { borderBottom: "none" },
-                "& .MuiDataGrid-columnHeaders": { borderBottom: "none" },
-                "& .MuiDataGrid-footerContainer": { borderTop: "none" },
-              }}
-            />
+            <ThemeProvider theme={gridTheme}>
+              <DataGrid
+                rows={policies}
+                columns={columns}
+                getRowId={(row) => row.name}
+                disableRowSelectionOnClick
+                sx={{
+                  width: "100%",
+                  height: { xs: 460, sm: 560, md: 640 },
+                  border: 1,
+                  borderColor: "divider",
+                  "& .MuiDataGrid-cell": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-columnHeaders": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-footerContainer": {
+                    borderTop: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
+                }}
+              />
+            </ThemeProvider>
           </Box>
         </>
       )}

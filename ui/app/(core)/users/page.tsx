@@ -21,6 +21,8 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { RoleID, User, roleIDToLabel } from "@/types/types";
+import { useTheme } from "@mui/material/styles";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const MAX_WIDTH = 1400;
 
@@ -36,6 +38,20 @@ const UserPage = () => {
   const [editPasswordData, setEditPasswordData] = useState<User | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
+
+  const outerTheme = useTheme();
+
+  const gridTheme = React.useMemo(
+    () =>
+      createTheme(outerTheme, {
+        palette: {
+          DataGrid: {
+            headerBg: "#F5F5F5",
+          },
+        },
+      }),
+    [outerTheme],
+  );
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -105,19 +121,19 @@ const UserPage = () => {
         getActions: (params) => [
           <GridActionsCellItem
             key="edit"
-            icon={<EditIcon />}
+            icon={<EditIcon color={"primary"} />}
             label="Edit"
             onClick={() => handleEditClick(params.row)}
           />,
           <GridActionsCellItem
             key="password"
-            icon={<PasswordIcon />}
+            icon={<PasswordIcon color={"primary"} />}
             label="Change Password"
             onClick={() => handleEditPasswordClick(params.row)}
           />,
           <GridActionsCellItem
             key="delete"
-            icon={<DeleteIcon />}
+            icon={<DeleteIcon color={"primary"} />}
             label="Delete"
             onClick={() => handleDeleteClick(params.row.email)}
           />,
@@ -190,21 +206,33 @@ const UserPage = () => {
             </Button>
           </Box>
           <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, overflowX: "auto" }}>
-            <DataGrid
-              rows={users}
-              columns={columns}
-              getRowId={(row) => row.email}
-              disableRowSelectionOnClick
-              density="compact"
-              sx={{
-                width: "100%",
-                height: { xs: 420, sm: 560, md: 640 },
-                border: "none",
-                "& .MuiDataGrid-cell": { borderBottom: "none" },
-                "& .MuiDataGrid-columnHeaders": { borderBottom: "none" },
-                "& .MuiDataGrid-footerContainer": { borderTop: "none" },
-              }}
-            />
+            <ThemeProvider theme={gridTheme}>
+              <DataGrid
+                rows={users}
+                columns={columns}
+                getRowId={(row) => row.email}
+                disableRowSelectionOnClick
+                sx={{
+                  width: "100%",
+                  height: { xs: 460, sm: 560, md: 640 },
+                  border: 1,
+                  borderColor: "divider",
+                  "& .MuiDataGrid-cell": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-columnHeaders": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-footerContainer": {
+                    borderTop: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
+                }}
+              />
+            </ThemeProvider>
           </Box>
         </>
       )}
