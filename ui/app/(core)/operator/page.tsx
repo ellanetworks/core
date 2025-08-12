@@ -179,7 +179,7 @@ const Operator = () => {
                     aria-label="edit"
                     onClick={handleEditOperatorIdClick}
                   >
-                    <EditIcon />
+                    <EditIcon color={"primary"} />
                   </IconButton>
                 )
               }
@@ -231,7 +231,7 @@ const Operator = () => {
                     aria-label="edit"
                     onClick={handleEditOperatorCodeClick}
                   >
-                    <EditIcon />
+                    <EditIcon color={"primary"} />
                   </IconButton>
                 )
               }
@@ -270,7 +270,7 @@ const Operator = () => {
                     aria-label="edit"
                     onClick={handleEditOperatorTrackingClick}
                   >
-                    <EditIcon />
+                    <EditIcon color={"primary"} />
                   </IconButton>
                 )
               }
@@ -282,7 +282,12 @@ const Operator = () => {
               <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                 {operator?.tracking.supportedTacs?.length ? (
                   operator.tracking.supportedTacs.map((tac, idx) => (
-                    <Chip key={idx} label={tac} variant="outlined" />
+                    <Chip
+                      key={idx}
+                      label={tac}
+                      variant="outlined"
+                      color={"primary"}
+                    />
                   ))
                 ) : (
                   <Typography variant="body1">No TACs available.</Typography>
@@ -311,7 +316,7 @@ const Operator = () => {
                     aria-label="edit"
                     onClick={handleEditOperatorSliceClick}
                   >
-                    <EditIcon />
+                    <EditIcon color={"primary"} />
                   </IconButton>
                 )
               }
@@ -363,7 +368,7 @@ const Operator = () => {
                     aria-label="edit"
                     onClick={handleEditOperatorHomeNetworkClick}
                   >
-                    <EditIcon />
+                    <EditIcon color={"primary"} />
                   </IconButton>
                 )
               }
@@ -405,7 +410,7 @@ const Operator = () => {
                     </Typography>
                   </Tooltip>
                   <IconButton onClick={handleCopyPublicKey} sx={{ ml: 1 }}>
-                    <CopyIcon fontSize="small" />
+                    <CopyIcon fontSize="small" color={"primary"} />
                   </IconButton>
                 </Grid>
 

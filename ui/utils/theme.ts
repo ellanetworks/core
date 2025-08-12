@@ -12,6 +12,15 @@ const theme = createTheme({
       main: "#eb2d37",
     },
   },
+  components: {
+    MuiListItemText: {
+      styleOverrides: {
+        primary: {
+          color: "#26374a",
+        },
+      },
+    },
+  },
   typography: {
     fontFamily: "Source Code Pro, monospace",
     fontWeightMedium: 500,

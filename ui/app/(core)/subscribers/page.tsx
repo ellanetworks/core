@@ -31,6 +31,7 @@ import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import { Subscriber } from "@/types/types";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const SubscriberPage = () => {
   const { role } = useAuth();
@@ -55,6 +56,20 @@ const SubscriberPage = () => {
 
   const theme = useTheme();
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
+
+  const outerTheme = useTheme();
+
+  const gridTheme = React.useMemo(
+    () =>
+      createTheme(outerTheme, {
+        palette: {
+          DataGrid: {
+            headerBg: "#F5F5F5",
+          },
+        },
+      }),
+    [outerTheme],
+  );
 
   const fetchSubscribers = useCallback(async () => {
     setLoading(true);
@@ -142,19 +157,19 @@ const SubscriberPage = () => {
         : [
             <GridActionsCellItem
               key="view"
-              icon={<VisibilityIcon />}
+              icon={<VisibilityIcon color={"primary"} />}
               label="View"
               onClick={() => handleViewClick(row)}
             />,
             <GridActionsCellItem
               key="edit"
-              icon={<EditIcon />}
+              icon={<EditIcon color={"primary"} />}
               label="Edit"
               onClick={() => handleEditClick(row)}
             />,
             <GridActionsCellItem
               key="delete"
-              icon={<DeleteIcon />}
+              icon={<DeleteIcon color={"primary"} />}
               label="Delete"
               onClick={() => handleDeleteClick(row.imsi)}
             />,
@@ -329,23 +344,35 @@ const SubscriberPage = () => {
           </Box>
 
           <Box sx={{ width: "100%", maxWidth: 1400 }}>
-            <DataGrid
-              rows={subscribers}
-              columns={columns}
-              getRowId={(row) => row.imsi}
-              disableRowSelectionOnClick
-              density="compact"
-              columnVisibilityModel={{}}
-              columnGroupingModel={columnGroupingModel}
-              sx={{
-                width: "100%",
-                height: { xs: 460, sm: 560, md: 640 },
-                border: "none",
-                "& .MuiDataGrid-cell": { borderBottom: "none" },
-                "& .MuiDataGrid-columnHeaders": { borderBottom: "none" },
-                "& .MuiDataGrid-footerContainer": { borderTop: "none" },
-              }}
-            />
+            <ThemeProvider theme={gridTheme}>
+              <DataGrid
+                rows={subscribers}
+                columns={columns}
+                getRowId={(row) => row.imsi}
+                disableRowSelectionOnClick
+                columnVisibilityModel={{}}
+                columnGroupingModel={columnGroupingModel}
+                sx={{
+                  width: "100%",
+                  height: { xs: 460, sm: 560, md: 640 },
+                  border: 1,
+                  borderColor: "divider",
+                  "& .MuiDataGrid-cell": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-columnHeaders": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-footerContainer": {
+                    borderTop: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
+                }}
+              />
+            </ThemeProvider>
           </Box>
         </>
       )}
