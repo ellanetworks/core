@@ -213,6 +213,23 @@ const SubscriberPage = () => {
           row?.status?.sessions && row.status.sessions.length > 0
             ? row.status.sessions[0]?.ipAddress || ""
             : "",
+        renderCell: (params: GridRenderCellParams<Subscriber>) => {
+          const ip =
+            params.row?.status?.sessions &&
+            params.row.status.sessions.length > 0
+              ? params.row.status.sessions[0]?.ipAddress || ""
+              : "";
+
+          return (
+            <Chip
+              size="small"
+              label={ip || "N/A"}
+              color={ip ? "success" : "default"}
+              variant="outlined"
+              sx={{ fontSize: "0.75rem" }}
+            />
+          );
+        },
       },
     ];
 

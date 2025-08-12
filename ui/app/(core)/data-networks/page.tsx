@@ -8,6 +8,7 @@ import {
   CircularProgress,
   Alert,
   Collapse,
+  Chip,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -110,6 +111,25 @@ const DataNetworkPage = () => {
         type: "number",
         flex: 0.4,
         minWidth: 90,
+      },
+      {
+        field: "sessionsCount",
+        headerName: "Sessions",
+        flex: 0.5,
+        minWidth: 120,
+        valueGetter: (_value, row: DataNetwork) =>
+          Number(row?.status?.sessions ?? 0),
+        renderCell: (params) => {
+          const count = Number(params.row?.status?.sessions ?? 0);
+          return (
+            <Chip
+              size="small"
+              label={count}
+              color={count > 0 ? "success" : "default"}
+              variant="outlined"
+            />
+          );
+        },
       },
     ];
 

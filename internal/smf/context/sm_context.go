@@ -398,3 +398,20 @@ func PDUSessionsByIMSI(imsi string) []*SMContext {
 	})
 	return out
 }
+
+func PDUSessionsByDNN(dnn string) []*SMContext {
+	var out []*SMContext
+
+	smContextPool.Range(func(_ any, v any) bool {
+		sc, ok := v.(*SMContext)
+		if !ok {
+			return true
+		}
+
+		if sc.Dnn == dnn {
+			out = append(out, sc)
+		}
+		return true
+	})
+	return out
+}

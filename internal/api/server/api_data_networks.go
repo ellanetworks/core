@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	smfContext "github.com/ellanetworks/core/internal/smf/context"
 	"go.uber.org/zap"
 )
 
@@ -20,11 +21,16 @@ type CreateDataNetworkParams struct {
 	MTU    int32  `json:"mtu,omitempty"`
 }
 
+type DataNetworkStatus struct {
+	Sessions int `json:"sessions"`
+}
+
 type GetDataNetworkResponse struct {
-	Name   string `json:"name"`
-	IPPool string `json:"ip-pool"`
-	DNS    string `json:"dns,omitempty"`
-	MTU    int32  `json:"mtu,omitempty"`
+	Name   string            `json:"name"`
+	IPPool string            `json:"ip-pool"`
+	DNS    string            `json:"dns,omitempty"`
+	MTU    int32             `json:"mtu,omitempty"`
+	Status DataNetworkStatus `json:"status"`
 }
 
 const (
@@ -56,11 +62,16 @@ func ListDataNetworks(dbInstance *db.Database) http.Handler {
 
 		dataNetworks := make([]GetDataNetworkResponse, 0, len(dbDataNetworks))
 		for _, dbDataNetwork := range dbDataNetworks {
+			smfSessions := smfContext.PDUSessionsByDNN(dbDataNetwork.Name)
+
 			dataNetworks = append(dataNetworks, GetDataNetworkResponse{
 				Name:   dbDataNetwork.Name,
 				IPPool: dbDataNetwork.IPPool,
 				DNS:    dbDataNetwork.DNS,
 				MTU:    dbDataNetwork.MTU,
+				Status: DataNetworkStatus{
+					Sessions: len(smfSessions),
+				},
 			})
 		}
 
@@ -92,11 +103,17 @@ func GetDataNetwork(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusNotFound, "Data Network not found", err, logger.APILog)
 			return
 		}
+
+		smfSessions := smfContext.PDUSessionsByDNN(dbDataNetwork.Name)
+
 		dataNetwork := GetDataNetworkResponse{
 			Name:   dbDataNetwork.Name,
 			IPPool: dbDataNetwork.IPPool,
 			DNS:    dbDataNetwork.DNS,
 			MTU:    dbDataNetwork.MTU,
+			Status: DataNetworkStatus{
+				Sessions: len(smfSessions),
+			},
 		}
 		writeResponse(w, dataNetwork, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(GetDataNetworkAction, email, getClientIP(r), "User retrieved data network: "+name)
