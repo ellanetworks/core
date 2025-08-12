@@ -224,7 +224,7 @@ const SubscriberPage = () => {
             <Chip
               size="small"
               label={ip || "N/A"}
-              color={ip ? "primary" : "default"}
+              color={ip ? "success" : "default"}
               variant="outlined"
               sx={{ fontSize: "0.75rem" }}
             />
