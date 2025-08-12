@@ -32,6 +32,7 @@ export const listDataNetworks = async (
     ipPool: p["ip-pool"],
     dns: p.dns,
     mtu: p.mtu,
+    status: p.status ? { sessions: p.status.sessions } : undefined,
   }));
 
   return transformed;

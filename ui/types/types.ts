@@ -4,11 +4,16 @@ export enum RoleID {
   NetworkManager = 3,
 }
 
+export type DataNetworkStatus = {
+  sessions: number;
+};
+
 export type DataNetwork = {
   name: string;
   ipPool: string;
   dns: string;
   mtu: number;
+  status?: DataNetworkStatus;
 };
 
 export type Policy = {

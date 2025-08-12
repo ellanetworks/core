@@ -25,7 +25,10 @@ None
             "name": "internet",
             "ip-pool": "172.250.0.0/24",
             "dns": "8.8.8.8",
-            "mtu": 1460
+            "mtu": 1460,
+            "status": {
+                "sessions": 0
+            }
         }
     ]
 }
@@ -100,7 +103,10 @@ None
         "name": "internet",
         "ip-pool": "0.0.0.0/24",
         "dns": "8.8.8.8",
-        "mtu": 1460
+        "mtu": 1460,
+        "status": {
+            "sessions": 0
+        }
     }
 }
 ```
