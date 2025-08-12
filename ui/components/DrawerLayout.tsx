@@ -21,7 +21,7 @@ import {
 import {
   Info as InfoIcon,
   BugReport as BugReportIcon,
-  FactCheck as FactCheckIcon,
+  ReceiptLong as ReceiptLongIcon,
   Tune as TuneIcon,
   AdminPanelSettings as AdminPanelSettingsIcon,
   Sensors as SensorsIcon,
@@ -272,7 +272,7 @@ export default function DrawerLayout({
                     onClick={handleNavClick}
                   >
                     <ListItemIcon>
-                      <FactCheckIcon />
+                      <ReceiptLongIcon />
                     </ListItemIcon>
                     <ListItemText primary="Audit Logs" />
                   </ListItemButton>

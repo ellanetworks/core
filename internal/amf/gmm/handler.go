@@ -29,11 +29,6 @@ import (
 	"go.uber.org/zap"
 )
 
-func SnssaiModelsToHex(snssai models.Snssai) string {
-	sst := fmt.Sprintf("%02x", snssai.Sst)
-	return sst + snssai.Sd
-}
-
 func PlmnIDStringToModels(plmnIDStr string) models.PlmnID {
 	var plmnID models.PlmnID
 	plmnID.Mcc = plmnIDStr[:3]

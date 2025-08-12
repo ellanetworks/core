@@ -143,7 +143,7 @@ func makeCores(mode, filePath string, consoleEnc, jsonEnc zapcore.Encoder) ([]za
 
 // openFileSync opens/creates a file and returns a WriteSyncer with a lock.
 func openFileSync(path string) (zapcore.WriteSyncer, error) {
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("open log file %q: %w", path, err)
 	}
@@ -206,18 +206,6 @@ func LogAuditEvent(action, actor, ip, details string) {
 	)
 }
 
-// SetLevel updates the shared atomic level at runtime.
-func SetLevel(level string) error {
-	zl, err := zapcore.ParseLevel(level)
-	if err != nil {
-		return fmt.Errorf("parse log level: %w", err)
-	}
-	atomicLevel.SetLevel(zl)
-	return nil
-}
-
-// ---- Minimal WriteSyncer adapter over a func([]byte) error ------------------
-
 type funcWriteSyncer struct {
 	write func([]byte) error
 }
@@ -228,5 +216,3 @@ func (f funcWriteSyncer) Write(p []byte) (int, error) {
 	}
 	return len(p), nil
 }
-
-func (f funcWriteSyncer) Sync() error { return nil }
