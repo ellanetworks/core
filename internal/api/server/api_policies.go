@@ -32,8 +32,6 @@ type GetPolicyResponse struct {
 }
 
 const (
-	ListPoliciesAction = "list_policies"
-	GetPolicyAction    = "get_policy"
 	CreatePolicyAction = "create_policy"
 	UpdatePolicyAction = "update_policy"
 	DeletePolicyAction = "delete_policy"
@@ -71,11 +69,6 @@ func isValidPriorityLevel(priorityLevel int32) bool {
 
 func ListPolicies(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		email, ok := r.Context().Value(contextKeyEmail).(string)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
-			return
-		}
 		ctx := r.Context()
 		dbPolicies, err := dbInstance.ListPolicies(ctx)
 		if err != nil {
@@ -99,17 +92,11 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 			})
 		}
 		writeResponse(w, policyList, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(ListPoliciesAction, email, getClientIP(r), "User listed policies")
 	})
 }
 
 func GetPolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		email, ok := r.Context().Value(contextKeyEmail).(string)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
-			return
-		}
 		name := strings.TrimPrefix(r.URL.Path, "/api/v1/policies/")
 		if name == "" {
 			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
@@ -134,7 +121,6 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 			DataNetworkName: dataNetwork.Name,
 		}
 		writeResponse(w, policy, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(GetPolicyAction, email, getClientIP(r), "User retrieved policy: "+name)
 	})
 }
 

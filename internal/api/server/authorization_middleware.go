@@ -96,6 +96,12 @@ const (
 	// Backup and Restore permissions
 	PermBackup  = "backup:create"
 	PermRestore = "backup:restore"
+
+	// Audit Log permissions
+	PermGetAuditLogRetentionPolicy = "audit_logs:get_retention"
+	PermSetAuditLogRetentionPolicy = "audit_logs:set_retention"
+	PermListAuditLogs              = "audit_logs:list"
+	PermDeleteAuditLogs            = "audit_logs:delete"
 )
 
 func RequirePermissionOrFirstUser(permission string, db *db.Database, jwtSecret []byte, next http.Handler) http.Handler {

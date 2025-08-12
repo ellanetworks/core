@@ -56,6 +56,10 @@ export type User = {
   roleID: RoleID;
 };
 
+export type AuditLogRetentionPolicy = {
+  days: number;
+};
+
 export const roleIDToLabel = (role: RoleID): string => {
   switch (role) {
     case RoleID.Admin:

@@ -21,15 +21,20 @@ var tracer = otel.Tracer("ella-core/db")
 
 // Database is the object used to communicate with the established repository.
 type Database struct {
-	filepath          string
-	subscribersTable  string
-	policiesTable     string
-	routesTable       string
-	operatorTable     string
-	dataNetworksTable string
-	usersTable        string
-	conn              *sqlair.DB
+	filepath               string
+	subscribersTable       string
+	policiesTable          string
+	routesTable            string
+	operatorTable          string
+	dataNetworksTable      string
+	usersTable             string
+	auditLogsTable         string
+	retentionPoliciesTable string
+	conn                   *sqlair.DB
 }
+
+// Initial Log Retention Policy values
+const DefaultLogRetentionDays = 30
 
 // Initial operator values
 const (
@@ -102,6 +107,12 @@ func NewDatabase(databasePath string) (*Database, error) {
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateUsersTable, UsersTableName)); err != nil {
 		return nil, err
 	}
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateAuditLogsTable, AuditLogsTableName)); err != nil {
+		return nil, err
+	}
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateLogRetentionPolicyTable, LogRetentionPolicyTableName)); err != nil {
+		return nil, err
+	}
 
 	db := new(Database)
 	db.conn = sqlair.NewDB(sqlConnection)
@@ -112,6 +123,8 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.operatorTable = OperatorTableName
 	db.dataNetworksTable = DataNetworksTableName
 	db.usersTable = UsersTableName
+	db.auditLogsTable = AuditLogsTableName
+	db.retentionPoliciesTable = LogRetentionPolicyTableName
 
 	err = db.Initialize()
 	if err != nil {
@@ -145,6 +158,16 @@ func (db *Database) Initialize() error {
 		initialOperator.SetSupportedTacs([]string{"001"})
 		if err := db.InitializeOperator(context.Background(), initialOperator); err != nil {
 			return fmt.Errorf("failed to initialize network configuration: %v", err)
+		}
+	}
+
+	if !db.IsLogRetentionPolicyInitialized(context.Background()) {
+		initialPolicy := &LogRetentionPolicy{
+			Category: CategoryAuditLogs,
+			Days:     DefaultLogRetentionDays,
+		}
+		if err := db.SetLogRetentionPolicy(context.Background(), initialPolicy); err != nil {
+			return fmt.Errorf("failed to initialize log retention policy: %v", err)
 		}
 	}
 

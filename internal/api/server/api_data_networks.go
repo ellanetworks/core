@@ -34,8 +34,6 @@ type GetDataNetworkResponse struct {
 }
 
 const (
-	ListDataNetworksAction  = "list_data_networks"
-	GetDataNetworkAction    = "get_data_network"
 	DeleteDataNetworkAction = "delete_data_network"
 	CreateDataNetworkAction = "create_data_network"
 	UpdateDataNetworkAction = "update_data_network"
@@ -45,13 +43,6 @@ var dnnRegex = regexp.MustCompile(`^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-
 
 func ListDataNetworks(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-		email, ok := emailAny.(string)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
-			return
-		}
-
 		ctx := r.Context()
 		dbDataNetworks, err := dbInstance.ListDataNetworks(ctx)
 		if err != nil {
@@ -76,23 +67,11 @@ func ListDataNetworks(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, dataNetworks, http.StatusOK, logger.APILog)
-
-		logger.LogAuditEvent(
-			ListDataNetworksAction,
-			email,
-			getClientIP(r),
-			"User listed data networks",
-		)
 	})
 }
 
 func GetDataNetwork(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		email, ok := r.Context().Value(contextKeyEmail).(string)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
-			return
-		}
 		name := strings.TrimPrefix(r.URL.Path, "/api/v1/data-networks/")
 		if name == "" {
 			writeError(w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
@@ -116,7 +95,6 @@ func GetDataNetwork(dbInstance *db.Database) http.Handler {
 			},
 		}
 		writeResponse(w, dataNetwork, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(GetDataNetworkAction, email, getClientIP(r), "User retrieved data network: "+name)
 	})
 }
 

@@ -14,8 +14,6 @@ type StatusResponse struct {
 	Initialized bool   `json:"initialized"`
 }
 
-const GetStatusAction = "get_status"
-
 func GetStatus(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -33,12 +31,5 @@ func GetStatus(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, statusResponse, http.StatusOK, logger.APILog)
-
-		logger.LogAuditEvent(
-			GetStatusAction,
-			"", // User unknown on unauthenticated endpoint
-			getClientIP(r),
-			"Successfully retrieved status",
-		)
 	})
 }

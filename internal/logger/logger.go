@@ -4,6 +4,7 @@ package logger
 
 import (
 	"fmt"
+	"os"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -21,6 +22,9 @@ var (
 	UdmLog      *zap.Logger
 	UpfLog      *zap.Logger
 	atomicLevel zap.AtomicLevel
+
+	// Optional DB sink for audit logs. Register via SetAuditDBWriter.
+	auditDBSink zapcore.WriteSyncer
 )
 
 const (
@@ -30,93 +34,46 @@ const (
 	FieldSuci        string = "suci"
 )
 
-// init sets up a default logger that writes to stdout.
-// This configuration is used in tests and whenever ConfigureLogging is not called.
+// Default: console only, info level.
 func init() {
-	atomicLevel = zap.NewAtomicLevelAt(zap.InfoLevel)
-
-	encoderConfig := zap.NewProductionEncoderConfig()
-	encoderConfig.TimeKey = "timestamp"
-	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	encoderConfig.LevelKey = "level"
-	encoderConfig.EncodeLevel = CapitalColorLevelEncoder
-	encoderConfig.CallerKey = "caller"
-	encoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
-	encoderConfig.MessageKey = "message"
-	encoderConfig.StacktraceKey = ""
-
-	config := zap.Config{
-		Level:            atomicLevel,
-		Development:      false,
-		Encoding:         "console",
-		DisableCaller:    false,
-		EncoderConfig:    encoderConfig,
-		OutputPaths:      []string{"stdout"},
-		ErrorOutputPaths: []string{"stderr"},
-	}
-
-	var err error
-	log, err = config.Build()
-	if err != nil {
-		panic(err)
-	}
-
-	// System logs for various components
-	EllaLog = log.With(zap.String("component", "Ella"))
-	MetricsLog = log.With(zap.String("component", "Metrics"))
-	DBLog = log.With(zap.String("component", "DB"))
-	AmfLog = log.With(zap.String("component", "AMF"))
-	APILog = log.With(zap.String("component", "API"))
-	SmfLog = log.With(zap.String("component", "SMF"))
-	UdmLog = log.With(zap.String("component", "UDM"))
-	UpfLog = log.With(zap.String("component", "UPF"))
-	// Audit logger initially writes to stdout as well.
-	AuditLog = log.With(zap.String("component", "Audit"))
+	_ = ConfigureLogging("info", "stdout", "", "stdout", "")
 }
 
-// ConfigureLogging allows the user to reconfigure the logger.
-// The caller specifies the log level and for each logger (system and audit) the output mode
-// ("stdout", "file", or "both") and (if applicable) a file path.
-func ConfigureLogging(systemLevel string, systemOutput string, systemFilePath string, auditOutput string, auditFilePath string) error {
-	// Parse the desired system log level.
-	zapLevel, err := zapcore.ParseLevel(systemLevel)
+// ConfigureLogging builds loggers with a simple tee of console + optional file.
+// Audit logs also go to DB if SetAuditDBWriter was called.
+func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, auditFilePath string) error {
+	zl, err := zapcore.ParseLevel(systemLevel)
 	if err != nil {
 		return fmt.Errorf("failed to parse log level: %v", err)
 	}
-	atomicLevel.SetLevel(zapLevel)
+	atomicLevel = zap.NewAtomicLevelAt(zl)
 
-	// Create a shared encoder configuration.
-	encoderConfig := zap.NewProductionEncoderConfig()
-	encoderConfig.TimeKey = "timestamp"
-	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	encoderConfig.LevelKey = "level"
-	encoderConfig.EncodeLevel = CapitalColorLevelEncoder
-	encoderConfig.CallerKey = "caller"
-	encoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
-	encoderConfig.MessageKey = "message"
-	encoderConfig.StacktraceKey = ""
+	consoleEnc := zapcore.NewConsoleEncoder(devConsoleEncoderConfig())
+	jsonEnc := zapcore.NewJSONEncoder(prodJSONEncoderConfig())
 
-	// Determine output paths for system logs.
-	sysOutputs, err := buildOutputPaths(systemOutput, systemFilePath)
+	// ---- System logger (console + optional file)
+	sysCores, err := makeCores(systemOutput, systemFilePath, consoleEnc, jsonEnc)
 	if err != nil {
 		return fmt.Errorf("system logger: %w", err)
 	}
-	sysConfig := zap.Config{
-		Level:            atomicLevel,
-		Development:      false,
-		Encoding:         "console",
-		DisableCaller:    false,
-		EncoderConfig:    encoderConfig,
-		OutputPaths:      sysOutputs,
-		ErrorOutputPaths: []string{"stderr"},
-	}
+	sysLogger := zap.New(zapcore.NewTee(sysCores...), zap.AddCaller())
 
-	newSysLogger, err := sysConfig.Build()
+	// ---- Audit logger (console + optional file + optional DB)
+	auditCores, err := makeCores(auditOutput, auditFilePath, consoleEnc, jsonEnc)
 	if err != nil {
-		return fmt.Errorf("failed to build system logger: %w", err)
+		return fmt.Errorf("audit logger: %w", err)
 	}
+	if auditDBSink != nil {
+		// DB gets structured JSON
+		auditCores = append(auditCores, zapcore.NewCore(jsonEnc, auditDBSink, atomicLevel))
+	}
+	auditLogger := zap.New(zapcore.NewTee(auditCores...), zap.AddCaller())
 
-	log = newSysLogger
+	// Swap roots
+	log = sysLogger
+	AuditLog = auditLogger.With(zap.String("component", "Audit"))
+
+	// Component children from system logger
 	EllaLog = log.With(zap.String("component", "Ella"))
 	MetricsLog = log.With(zap.String("component", "Metrics"))
 	DBLog = log.With(zap.String("component", "DB"))
@@ -125,52 +82,98 @@ func ConfigureLogging(systemLevel string, systemOutput string, systemFilePath st
 	SmfLog = log.With(zap.String("component", "SMF"))
 	UdmLog = log.With(zap.String("component", "UDM"))
 	UpfLog = log.With(zap.String("component", "UPF"))
-
-	// Determine output paths for audit logs.
-	auditOutputs, err := buildOutputPaths(auditOutput, auditFilePath)
-	if err != nil {
-		return fmt.Errorf("audit logger: %w", err)
-	}
-	auditConfig := zap.Config{
-		Level:            atomicLevel,
-		Development:      false,
-		Encoding:         "console",
-		DisableCaller:    false,
-		EncoderConfig:    encoderConfig,
-		OutputPaths:      auditOutputs,
-		ErrorOutputPaths: []string{"stderr"},
-	}
-
-	auditLogger, err := auditConfig.Build()
-	if err != nil {
-		return fmt.Errorf("failed to build audit logger: %w", err)
-	}
-	AuditLog = auditLogger.With(zap.String("component", "Audit"))
 
 	return nil
 }
 
-// buildOutputPaths builds a slice of output paths based on the output mode and file path.
-// The mode can be "stdout", "file", or "both".
-// If the mode is "file" or "both", filePath must be non-empty.
-func buildOutputPaths(mode string, filePath string) ([]string, error) {
+// SetAuditDBWriter registers a function that persists one JSON-encoded audit entry.
+// Call this after your DB is ready (e.g., during app init).
+func SetAuditDBWriter(writeFn func([]byte) error) {
+	if writeFn == nil {
+		auditDBSink = nil
+		return
+	}
+	ws := zapcore.AddSync(funcWriteSyncer{write: writeFn})
+	auditDBSink = ws
+
+	// If the audit logger already exists, attach the DB core now.
+	if AuditLog != nil {
+		core := zapcore.NewCore(
+			zapcore.NewJSONEncoder(prodJSONEncoderConfig()),
+			auditDBSink,
+			atomicLevel,
+		)
+		AuditLog = AuditLog.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
+			return zapcore.NewTee(c, core)
+		}))
+	}
+}
+
+// makeCores returns console core (+ file core if requested).
+func makeCores(mode, filePath string, consoleEnc, jsonEnc zapcore.Encoder) ([]zapcore.Core, error) {
+	cores := []zapcore.Core{
+		zapcore.NewCore(consoleEnc, zapcore.Lock(os.Stdout), atomicLevel),
+	}
 	switch mode {
 	case "stdout":
-		return []string{"stdout"}, nil
+		// nothing else
 	case "file":
 		if filePath == "" {
 			return nil, fmt.Errorf("file output selected but file path is empty")
 		}
-		return []string{filePath}, nil
+		ws, err := openFileSync(filePath)
+		if err != nil {
+			return nil, err
+		}
+		cores = append(cores, zapcore.NewCore(jsonEnc, ws, atomicLevel))
 	case "both":
 		if filePath == "" {
 			return nil, fmt.Errorf("both output selected but file path is empty")
 		}
-		return []string{"stdout", filePath}, nil
+		ws, err := openFileSync(filePath)
+		if err != nil {
+			return nil, err
+		}
+		cores = append(cores, zapcore.NewCore(jsonEnc, ws, atomicLevel))
 	default:
-		// If mode is not recognized, default to stdout.
-		return []string{"stdout"}, nil
+		// default to stdout only
 	}
+	return cores, nil
+}
+
+// openFileSync opens/creates a file and returns a WriteSyncer with a lock.
+func openFileSync(path string) (zapcore.WriteSyncer, error) {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("open log file %q: %w", path, err)
+	}
+	return zapcore.Lock(zapcore.AddSync(f)), nil
+}
+
+func devConsoleEncoderConfig() zapcore.EncoderConfig {
+	enc := zap.NewDevelopmentEncoderConfig()
+	enc.TimeKey = "timestamp"
+	enc.EncodeTime = zapcore.ISO8601TimeEncoder
+	enc.LevelKey = "level"
+	enc.EncodeLevel = CapitalColorLevelEncoder // keep colors
+	enc.CallerKey = "caller"
+	enc.EncodeCaller = zapcore.ShortCallerEncoder
+	enc.MessageKey = "message"
+	enc.StacktraceKey = ""
+	return enc
+}
+
+func prodJSONEncoderConfig() zapcore.EncoderConfig {
+	enc := zap.NewProductionEncoderConfig()
+	enc.TimeKey = "timestamp"
+	enc.EncodeTime = zapcore.ISO8601TimeEncoder
+	enc.LevelKey = "level"
+	enc.EncodeLevel = zapcore.LowercaseLevelEncoder
+	enc.CallerKey = "caller"
+	enc.EncodeCaller = zapcore.ShortCallerEncoder
+	enc.MessageKey = "message"
+	enc.StacktraceKey = ""
+	return enc
 }
 
 // CapitalColorLevelEncoder encodes the log level in color.
@@ -194,6 +197,36 @@ func CapitalColorLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder
 }
 
 // LogAuditEvent logs an audit event to the audit logger.
-func LogAuditEvent(action string, actor string, ip string, details string) {
-	AuditLog.Info("Audit event", zap.String("action", action), zap.String("actor", actor), zap.String("ip", ip), zap.String("details", details))
+func LogAuditEvent(action, actor, ip, details string) {
+	AuditLog.Info("Audit event",
+		zap.String("action", action),
+		zap.String("actor", actor),
+		zap.String("ip", ip),
+		zap.String("details", details),
+	)
 }
+
+// SetLevel updates the shared atomic level at runtime.
+func SetLevel(level string) error {
+	zl, err := zapcore.ParseLevel(level)
+	if err != nil {
+		return fmt.Errorf("parse log level: %w", err)
+	}
+	atomicLevel.SetLevel(zl)
+	return nil
+}
+
+// ---- Minimal WriteSyncer adapter over a func([]byte) error ------------------
+
+type funcWriteSyncer struct {
+	write func([]byte) error
+}
+
+func (f funcWriteSyncer) Write(p []byte) (int, error) {
+	if err := f.write(p); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
+func (f funcWriteSyncer) Sync() error { return nil }

@@ -65,6 +65,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 	defer dbInstance.Close()
 
+	auditWriter := dbInstance.AuditWriteFunc(ctx)
+
+	logger.SetAuditDBWriter(auditWriter)
+
 	metrics.RegisterDatabaseMetrics(dbInstance)
 
 	scheme := api.HTTPS

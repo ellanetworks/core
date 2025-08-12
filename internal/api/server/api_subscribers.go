@@ -47,8 +47,6 @@ type GetSubscriberResponse struct {
 }
 
 const (
-	ListSubscribersAction  = "list_subscribers"
-	GetSubscriberAction    = "get_subscriber"
 	CreateSubscriberAction = "create_subscriber"
 	UpdateSubscriberAction = "update_subscriber"
 	DeleteSubscriberAction = "delete_subscriber"
@@ -86,13 +84,6 @@ func isSequenceNumberValid(sequenceNumber string) bool {
 
 func ListSubscribers(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-		email, ok := emailAny.(string)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
-			return
-		}
-
 		ctx := r.Context()
 		dbSubscribers, err := dbInstance.ListSubscribers(ctx)
 		if err != nil {
@@ -134,23 +125,11 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, subscribers, http.StatusOK, logger.APILog)
-
-		logger.LogAuditEvent(
-			ListSubscribersAction,
-			email,
-			getClientIP(r),
-			"User listed subscribers",
-		)
 	})
 }
 
 func GetSubscriber(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		email, ok := r.Context().Value(contextKeyEmail).(string)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
-			return
-		}
 		imsi := pathParam(r.URL.Path, "/api/v1/subscribers/")
 		if imsi == "" {
 			writeError(w, http.StatusBadRequest, "Missing imsi parameter", errors.New("imsi required"), logger.APILog)
@@ -193,7 +172,6 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			Status:         subscriberStatus,
 		}
 		writeResponse(w, subscriber, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(GetSubscriberAction, email, getClientIP(r), "User retrieved subscriber: "+imsi)
 	})
 }
 

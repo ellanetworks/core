@@ -21,6 +21,7 @@ import {
 import {
   Info as InfoIcon,
   BugReport as BugReportIcon,
+  FactCheck as FactCheckIcon,
   Tune as TuneIcon,
   AdminPanelSettings as AdminPanelSettingsIcon,
   Sensors as SensorsIcon,
@@ -266,8 +267,21 @@ export default function DrawerLayout({
                 <ListItem disablePadding>
                   <ListItemButton
                     component={Link}
-                    href="/backup_restore"
-                    selected={pathname === "/backup_restore"}
+                    href="/audit-logs"
+                    selected={pathname === "/audit-logs"}
+                    onClick={handleNavClick}
+                  >
+                    <ListItemIcon>
+                      <FactCheckIcon />
+                    </ListItemIcon>
+                    <ListItemText primary="Audit Logs" />
+                  </ListItemButton>
+                </ListItem>
+                <ListItem disablePadding>
+                  <ListItemButton
+                    component={Link}
+                    href="/backup-restore"
+                    selected={pathname === "/backup-restore"}
                     onClick={handleNavClick}
                   >
                     <ListItemIcon>
