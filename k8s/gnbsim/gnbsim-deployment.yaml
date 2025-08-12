@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
       - name: gnbsim
-        image: ghcr.io/canonical/sdcore-gnbsim:1.4.5
+        image: ghcr.io/ellanetworks/sdcore-gnbsim:1.6.1
         volumeMounts:
         - name: config-volume
           mountPath: /etc/gnbsim
