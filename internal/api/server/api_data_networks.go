@@ -62,7 +62,6 @@ func ListDataNetworks(dbInstance *db.Database) http.Handler {
 
 		dataNetworks := make([]GetDataNetworkResponse, 0, len(dbDataNetworks))
 		for _, dbDataNetwork := range dbDataNetworks {
-
 			smfSessions := smfContext.PDUSessionsByDNN(dbDataNetwork.Name)
 
 			dataNetworks = append(dataNetworks, GetDataNetworkResponse{
