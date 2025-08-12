@@ -14,6 +14,7 @@ import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import { listRadios } from "@/queries/radios";
 import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 interface RadioData {
   id: string;
@@ -31,6 +32,20 @@ const Radio = () => {
 
   const theme = useTheme();
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
+
+  const outerTheme = useTheme();
+
+  const gridTheme = React.useMemo(
+    () =>
+      createTheme(outerTheme, {
+        palette: {
+          DataGrid: {
+            headerBg: "#F5F5F5",
+          },
+        },
+      }),
+    [outerTheme],
+  );
 
   const fetchRadios = useCallback(async () => {
     setLoading(true);
@@ -113,24 +128,36 @@ const Radio = () => {
 
           {/* Grid */}
           <Box sx={{ width: "100%", maxWidth: MAX_WIDTH }}>
-            <DataGrid
-              rows={radios}
-              columns={columns}
-              getRowId={(row) => row.id}
-              disableRowSelectionOnClick
-              density="compact"
-              columnVisibilityModel={{
-                id: !isSmDown,
-              }}
-              sx={{
-                width: "100%",
-                height: { xs: 460, sm: 560, md: 640 },
-                border: "none",
-                "& .MuiDataGrid-cell": { borderBottom: "none" },
-                "& .MuiDataGrid-columnHeaders": { borderBottom: "none" },
-                "& .MuiDataGrid-footerContainer": { borderTop: "none" },
-              }}
-            />
+            <ThemeProvider theme={gridTheme}>
+              <DataGrid
+                rows={radios}
+                columns={columns}
+                getRowId={(row) => row.id}
+                disableRowSelectionOnClick
+                columnVisibilityModel={{
+                  id: !isSmDown,
+                }}
+                sx={{
+                  width: "100%",
+                  height: { xs: 460, sm: 560, md: 640 },
+                  border: 1,
+                  borderColor: "divider",
+                  "& .MuiDataGrid-cell": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-columnHeaders": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-footerContainer": {
+                    borderTop: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
+                }}
+              />
+            </ThemeProvider>
           </Box>
         </>
       )}
