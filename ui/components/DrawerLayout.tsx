@@ -163,7 +163,7 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <DashboardIcon color={"primary"}/>
+                  <DashboardIcon color={"primary"} />
                 </ListItemIcon>
                 <ListItemText primary="Dashboard" />
               </ListItemButton>
@@ -176,7 +176,7 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <SensorsIcon color={"primary"}/>
+                  <SensorsIcon color={"primary"} />
                 </ListItemIcon>
                 <ListItemText primary="Operator" />
               </ListItemButton>
@@ -189,7 +189,7 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <RouterIcon color={"primary"}/>
+                  <RouterIcon color={"primary"} />
                 </ListItemIcon>
                 <ListItemText primary="Radios" />
               </ListItemButton>
@@ -202,7 +202,7 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <LanIcon color={"primary"}/>
+                  <LanIcon color={"primary"} />
                 </ListItemIcon>
                 <ListItemText primary="Data Networks" />
               </ListItemButton>
@@ -215,7 +215,7 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <TuneIcon color={"primary"}/>
+                  <TuneIcon color={"primary"} />
                 </ListItemIcon>
                 <ListItemText primary="Policies" />
               </ListItemButton>
@@ -228,7 +228,7 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <GroupsIcon color={"primary"}/>
+                  <GroupsIcon color={"primary"} />
                 </ListItemIcon>
                 <ListItemText primary="Subscribers" />
               </ListItemButton>
@@ -241,7 +241,7 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <CableIcon color={"primary"}/>
+                  <CableIcon color={"primary"} />
                 </ListItemIcon>
                 <ListItemText primary="Routes" />
               </ListItemButton>
@@ -258,7 +258,7 @@ export default function DrawerLayout({
                     onClick={handleNavClick}
                   >
                     <ListItemIcon>
-                      <AdminPanelSettingsIcon color={"primary"}/>
+                      <AdminPanelSettingsIcon color={"primary"} />
                     </ListItemIcon>
                     <ListItemText primary="Users" />
                   </ListItemButton>
@@ -271,7 +271,7 @@ export default function DrawerLayout({
                     onClick={handleNavClick}
                   >
                     <ListItemIcon>
-                      <StorageIcon color={"primary"}/>
+                      <StorageIcon color={"primary"} />
                     </ListItemIcon>
                     <ListItemText primary="Backup and Restore" />
                   </ListItemButton>
@@ -283,7 +283,7 @@ export default function DrawerLayout({
         <Box>
           <ListItemButton onClick={handleMenuClick}>
             <ListItemIcon>
-              <AccountCircleIcon color={"primary"}/>
+              <AccountCircleIcon color={"primary"} />
             </ListItemIcon>
             <ListItemText
               primary={
@@ -313,7 +313,7 @@ export default function DrawerLayout({
           >
             <MenuItem onClick={handleLogout}>
               <ListItemIcon>
-                <LogoutIcon fontSize="small" color={"primary"}/>
+                <LogoutIcon fontSize="small" color={"primary"} />
               </ListItemIcon>
               Logout
             </MenuItem>
@@ -331,7 +331,7 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <InfoIcon color={"primary"}/>
+                  <InfoIcon color={"primary"} />
                 </ListItemIcon>
                 <ListItemText primary="Documentation" />
               </ListItemButton>
@@ -345,7 +345,7 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <BugReportIcon color={"primary"}/>
+                  <BugReportIcon color={"primary"} />
                 </ListItemIcon>
                 <ListItemText primary="Report a bug" />
               </ListItemButton>
