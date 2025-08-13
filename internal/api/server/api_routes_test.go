@@ -57,8 +57,8 @@ type DeleteRouteResponse struct {
 }
 
 type ListRouteResponse struct {
-	Result []GetRouteResponse `json:"result"`
-	Error  string             `json:"error,omitempty"`
+	Result []GetRouteResponseResult `json:"result"`
+	Error  string                   `json:"error,omitempty"`
 }
 
 func listRoutes(url string, client *http.Client, token string) (int, *ListRouteResponse, error) {
@@ -159,7 +159,7 @@ func deleteRoute(url string, client *http.Client, token string, id int64) (int, 
 func TestAPIRoutesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, ReqsPerSec)
+	ts, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -308,7 +308,7 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 func TestCreateRouteInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, ReqsPerSec)
+	ts, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

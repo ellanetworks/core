@@ -48,7 +48,7 @@ func TestStartServerStandup(t *testing.T) {
 
 	testdb, err := db.NewDatabase(dbPath)
 	if err != nil {
-		t.Fatalf("NewDatabase returned error: %v", err)
+		t.Fatalf("could not create new database: %v", err)
 	}
 
 	port := freePort(t)

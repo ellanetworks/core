@@ -61,8 +61,8 @@ type DeletePolicyResponse struct {
 }
 
 type ListPolicyResponse struct {
-	Result []GetPolicyResponse `json:"result"`
-	Error  string              `json:"error,omitempty"`
+	Result []GetPolicyResponseResult `json:"result"`
+	Error  string                    `json:"error,omitempty"`
 }
 
 func listPolicies(url string, client *http.Client, token string) (int, *ListPolicyResponse, error) {
@@ -189,7 +189,7 @@ func deletePolicy(url string, client *http.Client, token, name string) (int, *De
 func TestAPIPoliciesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, ReqsPerSec)
+	ts, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -431,7 +431,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 func TestCreatePolicyInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, ReqsPerSec)
+	ts, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

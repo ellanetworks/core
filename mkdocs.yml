@@ -64,6 +64,7 @@ nav:
       - Routes: reference/api/routes.md
       - Status: reference/api/status.md
       - Subscribers: reference/api/subscribers.md
+      - Logs: reference/api/logs.md
       - Users: reference/api/users.md
     - Configuration File: reference/config_file.md
     - Metrics: reference/metrics.md

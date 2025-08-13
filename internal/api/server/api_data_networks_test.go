@@ -54,8 +54,8 @@ type DeleteDataNetworkResponse struct {
 }
 
 type ListDataNetworkResponse struct {
-	Result []GetDataNetworkResponse `json:"result"`
-	Error  string                   `json:"error,omitempty"`
+	Result []GetDataNetworkResponseResult `json:"result"`
+	Error  string                         `json:"error,omitempty"`
 }
 
 func listDataNetworks(url string, client *http.Client, token string) (int, *ListDataNetworkResponse, error) {
@@ -182,7 +182,7 @@ func deleteDataNetwork(url string, client *http.Client, token, name string) (int
 func TestAPIDataNetworksEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, ReqsPerSec)
+	ts, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -395,7 +395,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 func TestCreateDataNetworkInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, ReqsPerSec)
+	ts, _, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

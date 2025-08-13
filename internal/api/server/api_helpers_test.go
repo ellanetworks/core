@@ -2,6 +2,7 @@
 package server_test
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"net"
@@ -11,10 +12,11 @@ import (
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 const (
-	ReqsPerSec = 9999 // High number to avoid rate limiting in tests
+	FirstUserEmail = "my.user123@ellanetworks.com"
 )
 
 type FakeKernel struct{}
@@ -49,22 +51,26 @@ func (dummyFS) Open(name string) (fs.File, error) {
 	return nil, fs.ErrNotExist
 }
 
-func setupServer(filepath string, reqsPerSec int) (*httptest.Server, []byte, error) {
+func setupServer(filepath string) (*httptest.Server, []byte, error) {
 	testdb, err := db.NewDatabase(filepath)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	auditWriter := testdb.AuditWriteFunc(context.Background())
+
+	logger.SetAuditDBWriter(auditWriter)
+
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}
 	dummyfs := dummyFS{}
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret, reqsPerSec, false, dummyfs, nil))
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret, false, dummyfs, nil))
 	return ts, jwtSecret, nil
 }
 
 func createFirstUserAndLogin(url string, client *http.Client) (string, error) {
 	user := &CreateUserParams{
-		Email:    "my.user123@ellanetworks.com",
+		Email:    FirstUserEmail,
 		Password: "password123",
 		RoleID:   RoleAdmin,
 	}
@@ -77,7 +83,7 @@ func createFirstUserAndLogin(url string, client *http.Client) (string, error) {
 	}
 
 	loginParams := &LoginParams{
-		Email:    "my.user123@ellanetworks.com",
+		Email:    FirstUserEmail,
 		Password: "password123",
 	}
 

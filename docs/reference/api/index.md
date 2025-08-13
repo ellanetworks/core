@@ -25,10 +25,6 @@ Ella Core's API responses are JSON objects with the following structure:
 
     GET calls to the `/metrics` endpoint don't follow this rule, it returns text response in the [Prometheus exposition format](https://prometheus.io/docs/instrumenting/exposition_formats/#text-format-details).
 
-## Rate limiting
-
-Ella Core uses rate limiting to prevent abuse of the API. The rate limit is set to 100 requests per second per client.
-
 ## Status codes
 
 - 200 - Success.

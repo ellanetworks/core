@@ -36,9 +36,6 @@ type GetUserParams struct {
 }
 
 const (
-	ListUsersAction          = "list_users"
-	GetUserAction            = "get_user"
-	GetLoggedInUserAction    = "get_logged_in_user"
 	CreateUserAction         = "create_user"
 	UpdateUserAction         = "update_user"
 	DeleteUserAction         = "delete_user"
@@ -83,25 +80,11 @@ func ListUsers(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, users, http.StatusOK, logger.APILog)
-
-		logger.LogAuditEvent(
-			ListUsersAction,
-			email,
-			getClientIP(r),
-			"Successfully retrieved list of users",
-		)
 	})
 }
 
 func GetUser(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-		requester, ok := emailAny.(string)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", errors.New("email missing in context"), logger.APILog)
-			return
-		}
-
 		emailParam := strings.TrimPrefix(r.URL.Path, "/api/v1/users/")
 		if emailParam == "" {
 			writeError(w, http.StatusBadRequest, "Missing email parameter", errors.New("missing param"), logger.APILog)
@@ -119,8 +102,6 @@ func GetUser(dbInstance *db.Database) http.Handler {
 			RoleID: RoleID(dbUser.RoleID),
 		}
 		writeResponse(w, resp, http.StatusOK, logger.APILog)
-
-		logger.LogAuditEvent(GetUserAction, requester, getClientIP(r), "Successfully retrieved user")
 	})
 }
 
@@ -145,23 +126,13 @@ func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, user, http.StatusOK, logger.APILog)
-
-		logger.LogAuditEvent(
-			GetLoggedInUserAction,
-			email,
-			getClientIP(r),
-			"Successfully retrieved logged in user",
-		)
 	})
 }
 
 func CreateUser(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
-		email, ok := emailAny.(string)
-		if !ok || email == "" {
-			email = "First User"
-		}
+		email, _ := emailAny.(string)
 
 		var newUser CreateUserParams
 		if err := json.NewDecoder(r.Body).Decode(&newUser); err != nil {

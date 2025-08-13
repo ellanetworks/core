@@ -9,7 +9,7 @@ import (
 func BenchmarkLoginHandler(b *testing.B) {
 	tempDir := b.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, ReqsPerSec)
+	ts, _, err := setupServer(dbPath)
 	if err != nil {
 		b.Fatalf("couldn't create test server: %s", err)
 	}
@@ -17,7 +17,7 @@ func BenchmarkLoginHandler(b *testing.B) {
 	client := ts.Client()
 
 	user := &CreateUserParams{
-		Email:    "my.user123@ellanetworks.com",
+		Email:    FirstUserEmail,
 		Password: "password123",
 		RoleID:   RoleAdmin,
 	}
@@ -30,7 +30,7 @@ func BenchmarkLoginHandler(b *testing.B) {
 	}
 
 	loginData := &LoginParams{
-		Email:    "my.user123@ellanetworks.com",
+		Email:    FirstUserEmail,
 		Password: "password123",
 	}
 

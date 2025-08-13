@@ -35,11 +35,6 @@ type GetRadioParams struct {
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 
-const (
-	ListRadiosAction = "list_radios"
-	GetRadioAction   = "get_radio"
-)
-
 func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
 	returnedTais := make([]SupportedTAI, 0)
 	for _, tai := range tais {
@@ -68,13 +63,6 @@ func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
 
 func ListRadios() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		email := r.Context().Value(contextKeyEmail)
-		emailStr, ok := email.(string)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", fmt.Errorf("missing email in context"), logger.APILog)
-			return
-		}
-
 		ranList := context.ListAmfRan()
 		radios := make([]GetRadioParams, 0, len(ranList))
 		for _, radio := range ranList {
@@ -89,24 +77,11 @@ func ListRadios() http.HandlerFunc {
 		}
 
 		writeResponse(w, radios, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(
-			ListRadiosAction,
-			emailStr,
-			getClientIP(r),
-			"User listed radios",
-		)
 	}
 }
 
 func GetRadio() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		email := r.Context().Value(contextKeyEmail)
-		emailStr, ok := email.(string)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", fmt.Errorf("missing email in context"), logger.APILog)
-			return
-		}
-
 		radioName := pathParam(r.URL.Path, "/api/v1/radios/")
 		if radioName == "" {
 			writeError(w, http.StatusBadRequest, "Missing name parameter", fmt.Errorf("name parameter is required"), logger.APILog)
@@ -124,12 +99,6 @@ func GetRadio() http.HandlerFunc {
 					SupportedTAIs: supportedTais,
 				}
 				writeResponse(w, result, http.StatusOK, logger.APILog)
-				logger.LogAuditEvent(
-					GetRadioAction,
-					emailStr,
-					getClientIP(r),
-					"User retrieved radio: "+radioName,
-				)
 				return
 			}
 		}

@@ -1,0 +1,40 @@
+package jobs
+
+import (
+	"context"
+	"time"
+
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
+)
+
+func StartLogRetentionWorker(database *db.Database) {
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+
+		for {
+			if err := enforceAuditLogRetention(database); err != nil {
+				logger.EllaLog.Error("error enforcing audit log retention", zap.Error(err))
+			}
+
+			<-ticker.C
+		}
+	}()
+}
+
+func enforceAuditLogRetention(database *db.Database) error {
+	ctx := context.Background()
+
+	days, err := database.GetLogRetentionPolicy(ctx, db.CategoryAuditLogs)
+	if err != nil {
+		return err
+	}
+
+	if err := database.DeleteOldAuditLogs(ctx, days); err != nil {
+		return err
+	}
+
+	return nil
+}

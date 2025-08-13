@@ -29,8 +29,7 @@ type LookupTokenResponse struct {
 }
 
 const (
-	LoginAction       = "auth_login"
-	LookupTokenAction = "auth_lookup_token" // #nosec G101
+	LoginAction = "auth_login"
 )
 
 // Helper function to generate a JWT
@@ -100,13 +99,6 @@ func Login(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 
 		resp := LoginResponse{Token: token}
 		writeResponse(w, resp, http.StatusOK, logger.APILog)
-
-		logger.LogAuditEvent(
-			LoginAction,
-			user.Email,
-			getClientIP(r),
-			"User logged in",
-		)
 	})
 }
 
@@ -126,12 +118,5 @@ func LookupToken(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 		}
 
 		writeResponse(w, lookupTokenResponse, http.StatusOK, logger.APILog)
-
-		logger.LogAuditEvent(
-			LookupTokenAction,
-			"",
-			getClientIP(r),
-			"User looked up token",
-		)
 	})
 }

@@ -60,11 +60,6 @@ type GetOperatorHomeNetworkResponse struct {
 }
 
 const (
-	GetOperatorAction               = "get_operator"
-	GetOperatorSliceAction          = "get_operator_slice"
-	GetOperatorTrackingAction       = "get_operator_tracking"
-	GetOperatorIDAction             = "get_operator_id"
-	GetOperatorHomeNetworkAction    = "get_operator_home_network"
 	UpdateOperatorSliceAction       = "update_operator_slice"
 	UpdateOperatorTrackingAction    = "update_operator_tracking"
 	UpdateOperatorIDAction          = "update_operator_id"
@@ -165,13 +160,6 @@ func isValidSd(sd int) bool {
 
 func GetOperator(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-		email, ok := emailAny.(string)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
-			return
-		}
-
 		dbOperator, err := dbInstance.GetOperator(r.Context())
 		if err != nil {
 			writeError(w, http.StatusNotFound, "Operator not found", err, logger.APILog)
@@ -203,24 +191,11 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, operator, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(
-			GetOperatorAction,
-			email,
-			getClientIP(r),
-			"User retrieved operator information",
-		)
 	})
 }
 
 func GetOperatorSlice(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-		email, ok := emailAny.(string)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
-			return
-		}
-
 		dbOperator, err := dbInstance.GetOperator(r.Context())
 		if err != nil {
 			writeError(w, http.StatusNotFound, "Operator not found", err, logger.APILog)
@@ -233,24 +208,11 @@ func GetOperatorSlice(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, operatorSlice, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(
-			GetOperatorSliceAction,
-			email,
-			getClientIP(r),
-			"User retrieved operator slice",
-		)
 	})
 }
 
 func GetOperatorTracking(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-		email, ok := emailAny.(string)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
-			return
-		}
-
 		dbOperator, err := dbInstance.GetOperator(r.Context())
 		if err != nil {
 			writeError(w, http.StatusNotFound, "Operator not found", err, logger.APILog)
@@ -262,24 +224,11 @@ func GetOperatorTracking(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, operatorTracking, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(
-			GetOperatorTrackingAction,
-			email,
-			getClientIP(r),
-			"User retrieved operator tracking information",
-		)
 	})
 }
 
 func GetOperatorID(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-		email, ok := emailAny.(string)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
-			return
-		}
-
 		dbOperator, err := dbInstance.GetOperator(r.Context())
 		if err != nil {
 			writeError(w, http.StatusNotFound, "Operator not found", err, logger.APILog)
@@ -292,12 +241,6 @@ func GetOperatorID(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(w, operatorID, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(
-			GetOperatorIDAction,
-			email,
-			getClientIP(r),
-			"User retrieved operator Id",
-		)
 	})
 }
 

@@ -30,8 +30,6 @@ type GetRouteResponse struct {
 }
 
 const (
-	ListRoutesAction  = "list_routes"
-	GetRouteAction    = "get_route"
 	CreateRouteAction = "create_route"
 	DeleteRouteAction = "delete_route"
 )
@@ -62,13 +60,6 @@ var interfaceKernelMap = map[string]kernel.NetworkInterface{
 
 func ListRoutes(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-		email, ok := emailAny.(string)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
-			return
-		}
-
 		dbRoutes, err := dbInstance.ListRoutes(r.Context())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Routes not found", err, logger.APILog)
@@ -86,19 +77,11 @@ func ListRoutes(dbInstance *db.Database) http.Handler {
 			})
 		}
 		writeResponse(w, routeList, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(ListRoutesAction, email, getClientIP(r), "User listed routes")
 	})
 }
 
 func GetRoute(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-		email, ok := emailAny.(string)
-		if !ok {
-			writeError(w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
-			return
-		}
-
 		idStr := strings.TrimPrefix(r.URL.Path, "/api/v1/routes/")
 		idNum, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
@@ -120,7 +103,6 @@ func GetRoute(dbInstance *db.Database) http.Handler {
 			Metric:      dbRoute.Metric,
 		}
 		writeResponse(w, routeResponse, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(GetRouteAction, email, getClientIP(r), "User retrieved route: "+idStr)
 	})
 }
 
