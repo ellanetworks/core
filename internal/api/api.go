@@ -19,10 +19,6 @@ import (
 	"golang.org/x/net/http2/h2c"
 )
 
-const (
-	ReqsPerSec = 100 // Number of requests per second allowed per IP (Rate Limiting)
-)
-
 // interfaceDBKernelMap maps the interface string to the kernel.NetworkInterface enum.
 var interfaceDBKernelMap = map[db.NetworkInterface]kernel.NetworkInterface{
 	db.N3: kernel.N3,
@@ -54,7 +50,7 @@ func Start(dbInstance *db.Database, port int, scheme Scheme, certFile string, ke
 		return fmt.Errorf("couldn't generate jwt secret: %v", err)
 	}
 	kernelInt := kernel.NewRealKernel(n3Interface, n6Interface)
-	router := server.NewHandler(dbInstance, kernelInt, jwtSecret, ReqsPerSec, tracingEnabled, embedFS, registerExtraRoutes)
+	router := server.NewHandler(dbInstance, kernelInt, jwtSecret, tracingEnabled, embedFS, registerExtraRoutes)
 
 	// Start the HTTP server in a goroutine.
 	go func() {

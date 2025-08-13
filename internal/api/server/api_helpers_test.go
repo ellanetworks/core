@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	ReqsPerSec     = 9999 // High number to avoid rate limiting in tests
 	FirstUserEmail = "my.user123@ellanetworks.com"
 )
 
@@ -52,7 +51,7 @@ func (dummyFS) Open(name string) (fs.File, error) {
 	return nil, fs.ErrNotExist
 }
 
-func setupServer(filepath string, reqsPerSec int) (*httptest.Server, []byte, error) {
+func setupServer(filepath string) (*httptest.Server, []byte, error) {
 	testdb, err := db.NewDatabase(filepath)
 	if err != nil {
 		return nil, nil, err
@@ -65,7 +64,7 @@ func setupServer(filepath string, reqsPerSec int) (*httptest.Server, []byte, err
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}
 	dummyfs := dummyFS{}
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret, reqsPerSec, false, dummyfs, nil))
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, fakeKernel, jwtSecret, false, dummyfs, nil))
 	return ts, jwtSecret, nil
 }
 

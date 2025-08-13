@@ -9,7 +9,7 @@ import (
 func BenchmarkLoginHandler(b *testing.B) {
 	tempDir := b.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
-	ts, _, err := setupServer(dbPath, ReqsPerSec)
+	ts, _, err := setupServer(dbPath)
 	if err != nil {
 		b.Fatalf("couldn't create test server: %s", err)
 	}

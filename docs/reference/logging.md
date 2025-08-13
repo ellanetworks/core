@@ -20,10 +20,9 @@ In addition to the output defined via the configuration file, audit Logs are acc
 
 ### Example
 
-In the following example, we see the `admin@allanetworks.com` user logging in and creating a policy named `new-policy` with the associated timestamps.
+In the following example, we see the `admin@allanetworks.com` user creating a policy named `new-policy` with the associated timestamp.
 
 ```
-2025-03-01T09:46:31.212-0500    INFO    logger/logger.go:214    audit event     {"component": "Audit", "action": "auth_login", "actor": "admin@ellanetworks.com", "details": "User logged in", "ip": "127.0.0.1"}
 2025-03-01T09:47:59.410-0500    INFO    logger/logger.go:214    audit event     {"component": "Audit", "action": "create_policy", "actor": "admin@ellanetworks.com", "details": "User created policy: new-policy", "ip": "127.0.0.1"}
 ```
 

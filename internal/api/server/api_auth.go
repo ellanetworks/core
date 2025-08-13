@@ -99,13 +99,6 @@ func Login(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 
 		resp := LoginResponse{Token: token}
 		writeResponse(w, resp, http.StatusOK, logger.APILog)
-
-		logger.LogAuditEvent(
-			LoginAction,
-			user.Email,
-			getClientIP(r),
-			"User logged in",
-		)
 	})
 }
 
