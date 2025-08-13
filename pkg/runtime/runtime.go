@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/api"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/pcf"
@@ -70,6 +71,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	logger.SetAuditDBWriter(auditWriter)
 
 	metrics.RegisterDatabaseMetrics(dbInstance)
+
+	jobs.StartLogRetentionWorker(dbInstance)
 
 	scheme := api.HTTPS
 	if cfg.Interfaces.API.TLS.Cert == "" || cfg.Interfaces.API.TLS.Key == "" {

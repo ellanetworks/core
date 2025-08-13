@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/canonical/sqlair"
 	"go.opentelemetry.io/otel/attribute"
@@ -30,9 +31,9 @@ const QueryCreateAuditLogsTable = `
 );`
 
 const (
-	insertAuditLogStmt  = "INSERT INTO %s (timestamp, level, actor, action, ip, details) VALUES ($AuditLog.timestamp, $AuditLog.level, $AuditLog.actor, $AuditLog.action, $AuditLog.ip, $AuditLog.details)"
-	listAuditLogsStmt   = "SELECT &AuditLog.* FROM %s ORDER BY id DESC"
-	deleteAuditLogsStmt = "DELETE FROM %s"
+	insertAuditLogStmt     = "INSERT INTO %s (timestamp, level, actor, action, ip, details) VALUES ($AuditLog.timestamp, $AuditLog.level, $AuditLog.actor, $AuditLog.action, $AuditLog.ip, $AuditLog.details)"
+	listAuditLogsStmt      = "SELECT &AuditLog.* FROM %s ORDER BY id DESC"
+	deleteOldAuditLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
 )
 
 type AuditLog struct {
@@ -146,4 +147,48 @@ func (db *Database) ListAuditLogs(ctx context.Context) ([]AuditLog, error) {
 
 	span.SetStatus(codes.Ok, "")
 	return logs, nil
+}
+
+type cutoffArgs struct {
+	Cutoff string `db:"cutoff"`
+}
+
+// DeleteOldAuditLogs removes logs older than the specified retention period in days.
+func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
+	const operation = "DELETE"
+	const target = AuditLogsTableName
+	spanName := fmt.Sprintf("%s %s (retention)", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+
+	// Compute UTC cutoff so string comparison works lexicographically for RFC3339
+	cutoff := time.Now().AddDate(0, 0, -days).UTC().Format(time.RFC3339)
+
+	stmtStr := fmt.Sprintf(deleteOldAuditLogsStmt, db.auditLogsTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmtStr),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+		attribute.Int("retention.days", days),
+		attribute.String("retention.cutoff", cutoff),
+	)
+
+	stmt, err := sqlair.Prepare(stmtStr, cutoffArgs{})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		return err
+	}
+
+	args := cutoffArgs{Cutoff: cutoff}
+	if err := db.conn.Query(ctx, stmt, args).Run(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return nil
 }

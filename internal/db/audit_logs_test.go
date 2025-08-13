@@ -4,8 +4,10 @@ package db_test
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 )
@@ -56,5 +58,102 @@ func TestAuditLogsEndToEnd(t *testing.T) {
 
 	if res[0].Action != "another_action" || res[1].Action != "test_action" {
 		t.Fatalf("Audit logs are not in the expected order or have incorrect data")
+	}
+
+	err = database.DeleteOldAuditLogs(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("couldn't delete old audit logs: %s", err)
+	}
+
+	res, err = database.ListAuditLogs(context.Background())
+	if err != nil {
+		t.Fatalf("couldn't list audit logs after deletion: %s", err)
+	}
+
+	if len(res) != 0 {
+		t.Fatalf("Expected no audit logs after deletion, but found %d", len(res))
+	}
+}
+
+func TestAuditLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	database, err := db.NewDatabase(filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %v", err)
+	}
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %v", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	insert := func(ts time.Time, action string) {
+		raw := fmt.Sprintf(`{
+			"timestamp":"%s",
+			"level":"info",
+			"component":"Audit",
+			"action":"%s",
+			"actor":"tester",
+			"details":"test",
+			"ip":"127.0.0.1"
+		}`, ts.UTC().Format(time.RFC3339), action)
+		if err := database.InsertAuditLogJSON(ctx, []byte(raw)); err != nil {
+			t.Fatalf("insert failed (%s): %v", action, err)
+		}
+	}
+
+	now := time.Now().UTC().Truncate(time.Second)
+
+	const policyDays = 7
+	cutoff := now.AddDate(0, 0, -policyDays)
+
+	veryOld := cutoff.Add(-48 * time.Hour)
+	boundary := cutoff
+	fresh := now.Add(-24 * time.Hour)
+
+	insert(veryOld, "very_old")
+	insert(boundary, "boundary_exact")
+	insert(fresh, "fresh")
+
+	logs, err := database.ListAuditLogs(ctx)
+	if err != nil {
+		t.Fatalf("list before purge failed: %v", err)
+	}
+	if got := len(logs); got != 3 {
+		t.Fatalf("expected 3 logs before purge, got %d", got)
+	}
+
+	if err := database.DeleteOldAuditLogs(ctx, policyDays); err != nil {
+		t.Fatalf("could not delete old audit logs: %v", err)
+	}
+
+	// Verify only newer + boundary remain.
+	logs, err = database.ListAuditLogs(ctx)
+	if err != nil {
+		t.Fatalf("list after purge failed: %v", err)
+	}
+	if got := len(logs); got != 2 {
+		t.Fatalf("expected 2 logs after purge, got %d", got)
+	}
+
+	remaining := map[string]bool{}
+	for _, l := range logs {
+		remaining[l.Action] = true
+	}
+
+	if remaining["very_old"] {
+		t.Fatalf("unexpected: very_old log should have been deleted")
+	}
+
+	if !remaining["boundary_exact"] {
+		t.Fatalf("expected boundary_exact log to remain (cutoff is inclusive)")
+	}
+
+	if !remaining["fresh"] {
+		t.Fatalf("expected fresh log to remain")
 	}
 }
