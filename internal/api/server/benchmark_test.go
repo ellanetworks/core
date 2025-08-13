@@ -17,7 +17,7 @@ func BenchmarkLoginHandler(b *testing.B) {
 	client := ts.Client()
 
 	user := &CreateUserParams{
-		Email:    "my.user123@ellanetworks.com",
+		Email:    FirstUserEmail,
 		Password: "password123",
 		RoleID:   RoleAdmin,
 	}
@@ -30,7 +30,7 @@ func BenchmarkLoginHandler(b *testing.B) {
 	}
 
 	loginData := &LoginParams{
-		Email:    "my.user123@ellanetworks.com",
+		Email:    FirstUserEmail,
 		Password: "password123",
 	}
 

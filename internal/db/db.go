@@ -169,6 +169,7 @@ func (db *Database) Initialize() error {
 		if err := db.SetLogRetentionPolicy(context.Background(), initialPolicy); err != nil {
 			return fmt.Errorf("failed to initialize log retention policy: %v", err)
 		}
+		logger.DBLog.Warn("Initialized log retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
 	numDataNetworks, err := db.NumDataNetworks(context.Background())

@@ -30,7 +30,7 @@ func TestRateLimiterMiddleware(t *testing.T) {
 	}
 
 	loginData := &LoginParams{
-		Email:    "my.user123@ellanetworks.com",
+		Email:    FirstUserEmail,
 		Password: "password123",
 	}
 	server.ResetVisitors()

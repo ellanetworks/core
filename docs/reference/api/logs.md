@@ -25,10 +25,10 @@ None
             "id": 1,
             "timestamp": "2025-08-12T16:58:00.810-0400",
             "level": "info",
-            "actor": "First User",
+            "actor": "guillaume@ellanetworks.com",
             "action": "create_user",
             "ip": "127.0.0.1",
-            "details": "User created user: admin@ellanetworks.com with role: 1"
+            "details": "User created user: newuser@ellanetworks.com with role: 1"
         }
     ]
 }

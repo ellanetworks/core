@@ -96,7 +96,7 @@ func TestLoginEndToEnd(t *testing.T) {
 
 	t.Run("1. Create Admin user", func(t *testing.T) {
 		user := &CreateUserParams{
-			Email:    "my.user123@ellanetworks.com",
+			Email:    FirstUserEmail,
 			Password: "password123",
 			RoleID:   RoleAdmin,
 		}
@@ -111,7 +111,7 @@ func TestLoginEndToEnd(t *testing.T) {
 
 	t.Run("2. Login success", func(t *testing.T) {
 		user := &LoginParams{
-			Email:    "my.user123@ellanetworks.com",
+			Email:    FirstUserEmail,
 			Password: "password123",
 		}
 		statusCode, loginResponse, err := login(ts.URL, client, user)
@@ -134,7 +134,7 @@ func TestLoginEndToEnd(t *testing.T) {
 			t.Fatalf("couldn't parse token: %s", err)
 		}
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-			if claims["email"] != "my.user123@ellanetworks.com" {
+			if claims["email"] != FirstUserEmail {
 				t.Fatalf("expected email %q, got %q", "testuser", claims["email"])
 			}
 		} else {
@@ -161,7 +161,7 @@ func TestLoginEndToEnd(t *testing.T) {
 
 	t.Run("4. Login failure missing password", func(t *testing.T) {
 		invalidUser := &LoginParams{
-			Email:    "my.user123@ellanetworks.com",
+			Email:    FirstUserEmail,
 			Password: "",
 		}
 		statusCode, loginResponse, err := login(ts.URL, client, invalidUser)
@@ -178,7 +178,7 @@ func TestLoginEndToEnd(t *testing.T) {
 
 	t.Run("5. Login failure invalid password", func(t *testing.T) {
 		invalidUser := &LoginParams{
-			Email:    "my.user123@ellanetworks.com",
+			Email:    FirstUserEmail,
 			Password: "a-wrong-password",
 		}
 		statusCode, loginResponse, err := login(ts.URL, client, invalidUser)
@@ -394,7 +394,7 @@ func TestLookupToken(t *testing.T) {
 
 	t.Run("Lookup valid token", func(t *testing.T) {
 		createUserParams := &CreateUserParams{
-			Email:    "my.user123@ellanetworks.com",
+			Email:    FirstUserEmail,
 			Password: "password123",
 			RoleID:   RoleAdmin,
 		}
@@ -406,7 +406,7 @@ func TestLookupToken(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 		}
 		loginParams := &LoginParams{
-			Email:    "my.user123@ellanetworks.com",
+			Email:    FirstUserEmail,
 			Password: "password123",
 		}
 		statusCode, loginResponse, err := login(ts.URL, client, loginParams)

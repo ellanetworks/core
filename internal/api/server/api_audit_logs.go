@@ -60,8 +60,8 @@ func UpdateAuditLogRetentionPolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if params.Days < 0 {
-			writeError(w, http.StatusBadRequest, "Retention days must be non-negative", nil, logger.APILog)
+		if params.Days < 1 {
+			writeError(w, http.StatusBadRequest, "retention days must be greater than 0", nil, logger.APILog)
 			return
 		}
 

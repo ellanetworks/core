@@ -54,8 +54,8 @@ type DeleteDataNetworkResponse struct {
 }
 
 type ListDataNetworkResponse struct {
-	Result []GetDataNetworkResponse `json:"result"`
-	Error  string                   `json:"error,omitempty"`
+	Result []GetDataNetworkResponseResult `json:"result"`
+	Error  string                         `json:"error,omitempty"`
 }
 
 func listDataNetworks(url string, client *http.Client, token string) (int, *ListDataNetworkResponse, error) {

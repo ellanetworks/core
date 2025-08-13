@@ -87,7 +87,7 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 }
 
 // SetAuditDBWriter registers a function that persists one JSON-encoded audit entry.
-// Call this after your DB is ready (e.g., during app init).
+// This function should be called after the DB is ready.
 func SetAuditDBWriter(writeFn func([]byte) error) {
 	if writeFn == nil {
 		auditDBSink = nil
@@ -147,6 +147,7 @@ func openFileSync(path string) (zapcore.WriteSyncer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open log file %q: %w", path, err)
 	}
+
 	return zapcore.Lock(zapcore.AddSync(f)), nil
 }
 

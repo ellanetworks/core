@@ -132,10 +132,7 @@ func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 func CreateUser(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
-		email, ok := emailAny.(string)
-		if !ok || email == "" {
-			email = "First User"
-		}
+		email, _ := emailAny.(string)
 
 		var newUser CreateUserParams
 		if err := json.NewDecoder(r.Body).Decode(&newUser); err != nil {

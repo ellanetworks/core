@@ -57,8 +57,8 @@ type DeleteRouteResponse struct {
 }
 
 type ListRouteResponse struct {
-	Result []GetRouteResponse `json:"result"`
-	Error  string             `json:"error,omitempty"`
+	Result []GetRouteResponseResult `json:"result"`
+	Error  string                   `json:"error,omitempty"`
 }
 
 func listRoutes(url string, client *http.Client, token string) (int, *ListRouteResponse, error) {

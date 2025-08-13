@@ -2,6 +2,7 @@
 package server_test
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"net"
@@ -11,10 +12,12 @@ import (
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
+	"github.com/ellanetworks/core/internal/logger"
 )
 
 const (
-	ReqsPerSec = 9999 // High number to avoid rate limiting in tests
+	ReqsPerSec     = 9999 // High number to avoid rate limiting in tests
+	FirstUserEmail = "my.user123@ellanetworks.com"
 )
 
 type FakeKernel struct{}
@@ -55,6 +58,10 @@ func setupServer(filepath string, reqsPerSec int) (*httptest.Server, []byte, err
 		return nil, nil, err
 	}
 
+	auditWriter := testdb.AuditWriteFunc(context.Background())
+
+	logger.SetAuditDBWriter(auditWriter)
+
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}
 	dummyfs := dummyFS{}
@@ -64,7 +71,7 @@ func setupServer(filepath string, reqsPerSec int) (*httptest.Server, []byte, err
 
 func createFirstUserAndLogin(url string, client *http.Client) (string, error) {
 	user := &CreateUserParams{
-		Email:    "my.user123@ellanetworks.com",
+		Email:    FirstUserEmail,
 		Password: "password123",
 		RoleID:   RoleAdmin,
 	}
@@ -77,7 +84,7 @@ func createFirstUserAndLogin(url string, client *http.Client) (string, error) {
 	}
 
 	loginParams := &LoginParams{
-		Email:    "my.user123@ellanetworks.com",
+		Email:    FirstUserEmail,
 		Password: "password123",
 	}
 

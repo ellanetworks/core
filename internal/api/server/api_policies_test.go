@@ -61,8 +61,8 @@ type DeletePolicyResponse struct {
 }
 
 type ListPolicyResponse struct {
-	Result []GetPolicyResponse `json:"result"`
-	Error  string              `json:"error,omitempty"`
+	Result []GetPolicyResponseResult `json:"result"`
+	Error  string                    `json:"error,omitempty"`
 }
 
 func listPolicies(url string, client *http.Client, token string) (int, *ListPolicyResponse, error) {
