@@ -272,7 +272,7 @@ export default function DrawerLayout({
                     onClick={handleNavClick}
                   >
                     <ListItemIcon>
-                      <ReceiptLongIcon />
+                      <ReceiptLongIcon color={"primary"} />
                     </ListItemIcon>
                     <ListItemText primary="Audit Logs" />
                   </ListItemButton>

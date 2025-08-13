@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { AuditLogRetentionPolicy } from "@/types/types";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 interface AuditLogData {
   id: string;
@@ -46,6 +47,20 @@ const AuditLog = () => {
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
 
   const canEdit = role === "Admin";
+
+  const outerTheme = useTheme();
+
+  const gridTheme = React.useMemo(
+    () =>
+      createTheme(outerTheme, {
+        palette: {
+          DataGrid: {
+            headerBg: "#F5F5F5",
+          },
+        },
+      }),
+    [outerTheme],
+  );
 
   const [retentionPolicy, setRetentionPolicy] =
     useState<AuditLogRetentionPolicy | null>(null);
@@ -167,28 +182,40 @@ const AuditLog = () => {
         </Box>
 
         <Box sx={{ width: "100%", maxWidth: MAX_WIDTH }}>
-          <DataGrid
-            rows={auditLogs}
-            columns={columns}
-            getRowId={(row) => row.id}
-            showToolbar={true}
-            initialState={{
-              sorting: { sortModel: [{ field: "timestamp", sort: "desc" }] },
-            }}
-            disableRowSelectionOnClick
-            density="compact"
-            columnVisibilityModel={{
-              id: !isSmDown,
-            }}
-            sx={{
-              width: "100%",
-              height: { xs: 460, sm: 560, md: 640 },
-              border: "none",
-              "& .MuiDataGrid-cell": { borderBottom: "none" },
-              "& .MuiDataGrid-columnHeaders": { borderBottom: "none" },
-              "& .MuiDataGrid-footerContainer": { borderTop: "none" },
-            }}
-          />
+          <ThemeProvider theme={gridTheme}>
+            <DataGrid
+              rows={auditLogs}
+              columns={columns}
+              getRowId={(row) => row.id}
+              showToolbar={true}
+              initialState={{
+                sorting: { sortModel: [{ field: "timestamp", sort: "desc" }] },
+              }}
+              disableRowSelectionOnClick
+              columnVisibilityModel={{
+                id: !isSmDown,
+              }}
+              sx={{
+                width: "100%",
+                height: { xs: 460, sm: 560, md: 640 },
+                border: 1,
+                borderColor: "divider",
+                "& .MuiDataGrid-cell": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-columnHeaders": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-footerContainer": {
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
+              }}
+            />
+          </ThemeProvider>
         </Box>
       </>
       <EditAuditLogRetentionPolicyModal
