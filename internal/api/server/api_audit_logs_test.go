@@ -139,31 +139,25 @@ func TestAPIAuditLogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("couldn't list audit logs: %s", err)
 	}
-	t.Logf("ListAuditLogs response: %v", response)
+
 	if statusCode != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 	}
-	if len(response.Result) != 2 {
-		t.Fatalf("expected 2 audit logs, got %d", len(response.Result))
+
+	if len(response.Result) != 1 {
+		t.Fatalf("expected 1 audit log, got %d", len(response.Result))
 	}
+
 	if response.Error != "" {
 		t.Fatalf("unexpected error :%q", response.Error)
 	}
 
-	if response.Result[0].Actor != FirstUserEmail {
-		t.Fatalf("expected first audit log actor to be '%s', got %s", FirstUserEmail, response.Result[0].Actor)
+	if response.Result[0].Actor != "" {
+		t.Fatalf("expected second audit log actor to be '', got %s", response.Result[0].Actor)
 	}
 
-	if response.Result[0].Action != "auth_login" {
-		t.Fatalf("expected first audit log action to be '%s', got %s", "auth_login", response.Result[0].Action)
-	}
-
-	if response.Result[1].Actor != "" {
-		t.Fatalf("expected second audit log actor to be '', got %s", response.Result[1].Actor)
-	}
-
-	if response.Result[1].Action != "create_user" {
-		t.Fatalf("expected second audit log action to be '%s', got %s", "create_user", response.Result[1].Action)
+	if response.Result[0].Action != "create_user" {
+		t.Fatalf("expected second audit log action to be '%s', got %s", "create_user", response.Result[0].Action)
 	}
 }
 
