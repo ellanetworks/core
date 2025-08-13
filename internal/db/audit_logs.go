@@ -1,3 +1,5 @@
+// Copyright 2024 Ella Networks
+
 package db
 
 import (
@@ -99,38 +101,6 @@ func (db *Database) InsertAuditLogJSON(ctx context.Context, raw []byte) error {
 		return err
 	}
 	if err := db.conn.Query(ctx, stmt, row).Run(); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "execution failed")
-		return err
-	}
-
-	span.SetStatus(codes.Ok, "")
-	return nil
-}
-
-func (db *Database) ClearAuditLogs(ctx context.Context) error {
-	const operation = "DELETE"
-	const target = AuditLogsTableName
-	spanName := fmt.Sprintf("%s %s", operation, target)
-
-	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	query := fmt.Sprintf(deleteAuditLogsStmt, db.auditLogsTable)
-	span.SetAttributes(
-		semconv.DBSystemSqlite,
-		semconv.DBStatementKey.String(query),
-		semconv.DBOperationKey.String(operation),
-		attribute.String("db.collection", target),
-	)
-
-	stmt, err := sqlair.Prepare(query)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare failed")
-		return err
-	}
-	if err := db.conn.Query(ctx, stmt).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "execution failed")
 		return err
