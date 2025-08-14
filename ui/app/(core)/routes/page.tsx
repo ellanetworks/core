@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Box,
   Typography,
@@ -8,11 +8,16 @@ import {
   CircularProgress,
   Alert,
   Collapse,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableContainer,
+  Paper,
   IconButton,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import useMediaQuery from "@mui/material/useMediaQuery";
-import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import { Delete as DeleteIcon } from "@mui/icons-material";
 import { listRoutes, deleteRoute } from "@/queries/routes";
 import CreateRouteModal from "@/components/CreateRouteModal";
@@ -21,7 +26,6 @@ import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import { Route } from "@/types/types";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const MAX_WIDTH = 1400;
 
@@ -32,31 +36,15 @@ const RoutePage = () => {
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-  const [selectedRoute, setSelectedRoute] = useState<number | null>(null);
+  const [selectedRoute, setSelectedRoute] = useState<string | null>(null);
+
   const [alert, setAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
-  }>({
-    message: "",
-    severity: null,
-  });
+  }>({ message: "", severity: null });
 
   const theme = useTheme();
-  const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
-
-  const outerTheme = useTheme();
-
-  const gridTheme = React.useMemo(
-    () =>
-      createTheme(outerTheme, {
-        palette: {
-          DataGrid: {
-            headerBg: "#F5F5F5",
-          },
-        },
-      }),
-    [outerTheme],
-  );
+  const canEdit = role === "Admin" || role === "Network Manager";
 
   const fetchRoutes = useCallback(async () => {
     setLoading(true);
@@ -76,7 +64,7 @@ const RoutePage = () => {
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
 
-  const handleDeleteClick = (routeID: number) => {
+  const handleDeleteClick = (routeID: string) => {
     setSelectedRoute(routeID);
     setConfirmationOpen(true);
   };
@@ -84,8 +72,19 @@ const RoutePage = () => {
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
     if (!selectedRoute) return;
+
+    const idNum = Number(selectedRoute);
+    if (Number.isNaN(idNum)) {
+      setAlert({
+        message: `Invalid route id "${selectedRoute}".`,
+        severity: "error",
+      });
+      setSelectedRoute(null);
+      return;
+    }
+
     try {
-      await deleteRoute(cookies.user_token, selectedRoute);
+      await deleteRoute(cookies.user_token, idNum);
       setAlert({
         message: `Route "${selectedRoute}" deleted successfully!`,
         severity: "success",
@@ -93,7 +92,9 @@ const RoutePage = () => {
       fetchRoutes();
     } catch (error) {
       setAlert({
-        message: `Failed to delete route "${selectedRoute}": ${error}`,
+        message: `Failed to delete route "${selectedRoute}": ${
+          error instanceof Error ? error.message : String(error)
+        }`,
         severity: "error",
       });
     } finally {
@@ -101,50 +102,12 @@ const RoutePage = () => {
     }
   };
 
-  const columns: GridColDef[] = useMemo(
-    () => [
-      { field: "id", headerName: "ID", minWidth: 90, width: 100 },
-      {
-        field: "destination",
-        headerName: "Destination",
-        flex: 1,
-        minWidth: 220,
-      },
-      { field: "gateway", headerName: "Gateway", flex: 1, minWidth: 180 },
-      {
-        field: "interface",
-        headerName: "Interface",
-        minWidth: 140,
-        width: 160,
-      },
-      { field: "metric", headerName: "Metric", minWidth: 100, width: 120 },
-      ...(role === "Admin" || role === "Network Manager"
-        ? [
-            {
-              field: "actions",
-              headerName: "Actions",
-              type: "actions",
-              width: 80,
-              getActions: (params) => [
-                <IconButton
-                  key="delete"
-                  aria-label="delete"
-                  onClick={() => handleDeleteClick(params.row.id)}
-                >
-                  <DeleteIcon />
-                </IconButton>,
-              ],
-            } as GridColDef,
-          ]
-        : []),
-    ],
-    [role],
-  );
+  const descriptionText =
+    "Manage the routing table for subscriber traffic. Created routes will be applied as Linux kernel routes on the system.";
 
   return (
     <Box
       sx={{
-        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -172,7 +135,12 @@ const RoutePage = () => {
         <EmptyState
           primaryText="No route found."
           secondaryText="Create a new route in order for subscribers to access the network."
-          button={role === "Admin" || role === "Network Manager"}
+          extraContent={
+            <Typography variant="body1" color="text.secondary">
+              {descriptionText}
+            </Typography>
+          }
+          button={canEdit}
           buttonText="Create"
           onCreate={handleOpenCreateModal}
         />
@@ -185,60 +153,81 @@ const RoutePage = () => {
               px: { xs: 2, sm: 4 },
               mb: 3,
               display: "flex",
-              flexDirection: { xs: "column", sm: "row" },
-              justifyContent: "space-between",
-              alignItems: { xs: "stretch", sm: "center" },
+              flexDirection: "column",
               gap: 2,
             }}
           >
-            <Typography variant="h4">Routes ({routes.length})</Typography>
-            {(role === "Admin" || role === "Network Manager") && (
+            <Typography variant="h4">Routes</Typography>
+
+            <Typography variant="body1" color="text.secondary">
+              {descriptionText}
+            </Typography>
+
+            {canEdit && (
               <Button
                 variant="contained"
                 color="success"
                 onClick={handleOpenCreateModal}
-                sx={{
-                  maxWidth: "200px",
-                  width: "100%",
-                }}
+                sx={{ maxWidth: 200 }}
               >
                 Create
               </Button>
             )}
           </Box>
 
-          {/* Grid */}
-          <Box sx={{ width: "100%", maxWidth: MAX_WIDTH }}>
-            <ThemeProvider theme={gridTheme}>
-              <DataGrid
-                rows={routes}
-                columns={columns}
-                getRowId={(row) => row.id}
-                disableRowSelectionOnClick
-                columnVisibilityModel={{
-                  metric: !isSmDown,
-                }}
-                sx={{
-                  width: "100%",
-                  height: { xs: 460, sm: 560, md: 640 },
-                  border: 1,
-                  borderColor: "divider",
-                  "& .MuiDataGrid-cell": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-columnHeaders": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-footerContainer": {
-                    borderTop: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
-                }}
-              />
-            </ThemeProvider>
+          <Box
+            sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
+          >
+            <TableContainer
+              component={Paper}
+              elevation={0}
+              sx={{ border: 1, borderColor: "divider" }}
+            >
+              <Table aria-label="routes table" stickyHeader>
+                <TableHead>
+                  <TableRow
+                    sx={{
+                      "& th": {
+                        fontWeight: "bold",
+                        backgroundColor:
+                          theme.palette.mode === "light"
+                            ? "#F5F5F5"
+                            : "inherit",
+                      },
+                    }}
+                  >
+                    <TableCell>ID</TableCell>
+                    <TableCell>Destination</TableCell>
+                    <TableCell>Gateway</TableCell>
+                    <TableCell>Interface</TableCell>
+                    <TableCell>Metric</TableCell>
+                    {canEdit && <TableCell align="right">Actions</TableCell>}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {routes.map((route) => (
+                    <TableRow key={route.id} hover>
+                      <TableCell>{route.id}</TableCell>
+                      <TableCell>{route.destination}</TableCell>
+                      <TableCell>{route.gateway}</TableCell>
+                      <TableCell>{route.interface}</TableCell>
+                      <TableCell>{route.metric}</TableCell>
+                      {canEdit && (
+                        <TableCell align="right">
+                          <IconButton
+                            aria-label="delete"
+                            onClick={() => handleDeleteClick(route.id)}
+                            size="small"
+                          >
+                            <DeleteIcon color="primary" />
+                          </IconButton>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </Box>
         </>
       )}
@@ -248,7 +237,6 @@ const RoutePage = () => {
         onClose={() => setCreateModalOpen(false)}
         onSuccess={fetchRoutes}
       />
-
       <DeleteConfirmationModal
         open={isConfirmationOpen}
         onClose={() => setConfirmationOpen(false)}

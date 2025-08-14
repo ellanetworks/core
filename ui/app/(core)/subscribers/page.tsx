@@ -33,6 +33,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Subscriber } from "@/types/types";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
+const MAX_WIDTH = 1400;
+
 const SubscriberPage = () => {
   const { role } = useAuth();
   const [cookies] = useCookies(["user_token"]);
@@ -49,26 +51,18 @@ const SubscriberPage = () => {
   const [alert, setAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
-  }>({
-    message: "",
-    severity: null,
-  });
+  }>({ message: "", severity: null });
 
   const theme = useTheme();
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
-
-  const outerTheme = useTheme();
+  const canEdit = role === "Admin" || role === "Network Manager";
 
   const gridTheme = React.useMemo(
     () =>
-      createTheme(outerTheme, {
-        palette: {
-          DataGrid: {
-            headerBg: "#F5F5F5",
-          },
-        },
+      createTheme(theme, {
+        palette: { DataGrid: { headerBg: "#F5F5F5" } },
       }),
-    [outerTheme],
+    [theme],
   );
 
   const fetchSubscribers = useCallback(async () => {
@@ -157,34 +151,33 @@ const SubscriberPage = () => {
         : [
             <GridActionsCellItem
               key="view"
-              icon={<VisibilityIcon color={"primary"} />}
+              icon={<VisibilityIcon color="primary" />}
               label="View"
               onClick={() => handleViewClick(row)}
             />,
             <GridActionsCellItem
               key="edit"
-              icon={<EditIcon color={"primary"} />}
+              icon={<EditIcon color="primary" />}
               label="Edit"
               onClick={() => handleEditClick(row)}
             />,
             <GridActionsCellItem
               key="delete"
-              icon={<DeleteIcon color={"primary"} />}
+              icon={<DeleteIcon color="primary" />}
               label="Delete"
               onClick={() => handleDeleteClick(row.imsi)}
             />,
           ];
+
     const base: GridColDef<Subscriber>[] = [
       { field: "imsi", headerName: "IMSI", flex: 1, minWidth: 200 },
       { field: "policyName", headerName: "Policy", flex: 0.8, minWidth: 140 },
-
       {
         field: "registration",
         headerName: "Registration",
         width: 140,
         minWidth: 120,
-        valueGetter: (_value, row: Subscriber) =>
-          Boolean(row?.status?.registered),
+        valueGetter: (_v, row) => Boolean(row?.status?.registered),
         sortComparator: (v1, v2) => Number(v1) - Number(v2),
         renderCell: (params: GridRenderCellParams<Subscriber>) => {
           const registered = Boolean(params.row?.status?.registered);
@@ -193,7 +186,7 @@ const SubscriberPage = () => {
               size="small"
               label={registered ? "Registered" : "Deregistered"}
               color={registered ? "success" : "default"}
-              variant={"outlined"}
+              variant="outlined"
             />
           );
         },
@@ -203,8 +196,7 @@ const SubscriberPage = () => {
         headerName: "Session",
         width: 140,
         minWidth: 120,
-        valueGetter: (_value, row: Subscriber) =>
-          (row?.status?.sessions?.length ?? 0) > 0,
+        valueGetter: (_v, row) => (row?.status?.sessions?.length ?? 0) > 0,
         sortComparator: (v1, v2) => Number(v1) - Number(v2),
         renderCell: (params: GridRenderCellParams<Subscriber>) => {
           const active = (params.row?.status?.sessions?.length ?? 0) > 0;
@@ -213,18 +205,17 @@ const SubscriberPage = () => {
               size="small"
               label={active ? "Active" : "Inactive"}
               color={active ? "success" : "default"}
-              variant={"outlined"}
+              variant="outlined"
             />
           );
         },
       },
-
       {
         field: "ipAddress",
         headerName: "IP Address",
         width: 140,
         minWidth: 120,
-        valueGetter: (_value, row: Subscriber) =>
+        valueGetter: (_v, row) =>
           row?.status?.sessions && row.status.sessions.length > 0
             ? row.status.sessions[0]?.ipAddress || ""
             : "",
@@ -234,7 +225,6 @@ const SubscriberPage = () => {
             params.row.status.sessions.length > 0
               ? params.row.status.sessions[0]?.ipAddress || ""
               : "";
-
           return (
             <Chip
               size="small"
@@ -248,7 +238,7 @@ const SubscriberPage = () => {
       },
     ];
 
-    if (role === "Admin" || role === "Network Manager") {
+    if (canEdit) {
       base.push({
         field: "actions",
         headerName: "Actions",
@@ -261,7 +251,7 @@ const SubscriberPage = () => {
     }
 
     return base;
-  }, [role, isSmDown]);
+  }, [canEdit, isSmDown]);
 
   const columnGroupingModel = [
     {
@@ -275,10 +265,12 @@ const SubscriberPage = () => {
     },
   ];
 
+  const descriptionText =
+    "Manage subscribers connecting to your private network. After creating a subscriber here, you can emit a SIM card with the corresponding IMSI, Key and OPc.";
+
   return (
     <Box
       sx={{
-        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -286,7 +278,7 @@ const SubscriberPage = () => {
         pb: 4,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: 1400, px: { xs: 2, sm: 4 } }}>
+      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
         <Collapse in={!!alert.message}>
           <Alert
             severity={alert.severity || "success"}
@@ -306,7 +298,12 @@ const SubscriberPage = () => {
         <EmptyState
           primaryText="No subscriber found."
           secondaryText="Create a new subscriber."
-          button={role === "Admin" || role === "Network Manager"}
+          extraContent={
+            <Typography variant="body1" color="text.secondary">
+              {descriptionText}
+            </Typography>
+          }
+          button={canEdit}
           buttonText="Create"
           onCreate={handleOpenCreateModal}
         />
@@ -315,35 +312,37 @@ const SubscriberPage = () => {
           <Box
             sx={{
               width: "100%",
-              maxWidth: 1400,
+              maxWidth: MAX_WIDTH,
               px: { xs: 2, sm: 4 },
               mb: 3,
               display: "flex",
-              flexDirection: { xs: "column", sm: "row" },
-              justifyContent: "space-between",
-              alignItems: { xs: "stretch", sm: "center" },
+              flexDirection: "column",
               gap: 2,
             }}
           >
             <Typography variant="h4">
               Subscribers ({subscribers.length})
             </Typography>
-            {(role === "Admin" || role === "Network Manager") && (
+
+            <Typography variant="body1" color="text.secondary">
+              {descriptionText}
+            </Typography>
+
+            {canEdit && (
               <Button
                 variant="contained"
                 color="success"
                 onClick={handleOpenCreateModal}
-                sx={{
-                  maxWidth: "200px",
-                  width: "100%",
-                }}
+                sx={{ maxWidth: 200 }}
               >
                 Create
               </Button>
             )}
           </Box>
 
-          <Box sx={{ width: "100%", maxWidth: 1400 }}>
+          <Box
+            sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
+          >
             <ThemeProvider theme={gridTheme}>
               <DataGrid
                 rows={subscribers}
@@ -354,7 +353,6 @@ const SubscriberPage = () => {
                 columnGroupingModel={columnGroupingModel}
                 sx={{
                   width: "100%",
-                  height: { xs: 460, sm: 560, md: 640 },
                   border: 1,
                   borderColor: "divider",
                   "& .MuiDataGrid-cell": {

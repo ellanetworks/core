@@ -1,27 +1,30 @@
 "use client";
 import React, { useState } from "react";
-import { Box, Typography, Button, Alert } from "@mui/material";
+import { Box, Typography, Button, Alert, Collapse } from "@mui/material";
 import { backup, restore } from "@/queries/backup";
 import { useCookies } from "react-cookie";
 import Grid from "@mui/material/Grid";
 
-const BackupRestore = () => {
-  const [cookies, ,] = useCookies(["user_token"]);
+const MAX_WIDTH = 1400;
 
+const BackupRestore = () => {
+  const [cookies] = useCookies(["user_token"]);
   const [alert, setAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
-  }>({
-    message: "",
-    severity: null,
-  });
+  }>({ message: "", severity: null });
+
+  const descriptionText =
+    "Create and download a full backup of Ella Core, or restore from a .backup file. Take regular backups to ensure you can recover your data in case of a hardware failure or data loss.";
 
   const handleCreate = async () => {
     try {
       const backupBlob = await backup(cookies.user_token);
 
       const date = new Date();
-      const formattedDate = `${date.getFullYear()}_${String(date.getMonth() + 1).padStart(2, "0")}_${String(date.getDate()).padStart(2, "0")}`;
+      const formattedDate = `${date.getFullYear()}_${String(
+        date.getMonth() + 1,
+      ).padStart(2, "0")}_${String(date.getDate()).padStart(2, "0")}`;
       const fileName = `ella_core_${formattedDate}.backup`;
 
       const url = window.URL.createObjectURL(backupBlob);
@@ -38,8 +41,6 @@ const BackupRestore = () => {
         severity: "success",
       });
     } catch (error) {
-      console.error("Error creating backup:", error);
-
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       setAlert({
@@ -51,101 +52,121 @@ const BackupRestore = () => {
 
   const handleRestore = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      try {
-        await restore(cookies.user_token, file);
-        setAlert({
-          message: "Restore completed successfully!",
-          severity: "success",
-        });
-      } catch (error) {
-        console.error("Error restoring backup:", error);
-
-        const errorMessage =
-          error instanceof Error ? error.message : "An unknown error occurred";
-        setAlert({
-          message: `Failed to restore backup: ${errorMessage}`,
-          severity: "error",
-        });
-      }
+    if (!file) return;
+    try {
+      await restore(cookies.user_token, file);
+      setAlert({
+        message: "Restore completed successfully!",
+        severity: "success",
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      setAlert({
+        message: `Failed to restore backup: ${errorMessage}`,
+        severity: "error",
+      });
     }
   };
 
   return (
-    <Box sx={{ px: { xs: 2, sm: 4 }, py: 4, maxWidth: "1200px", mx: "auto" }}>
-      <Typography
-        variant="h4"
-        component="h1"
-        gutterBottom
-        sx={{ textAlign: "left", mb: 4 }}
+    <Box
+      sx={{
+        pt: 6,
+        pb: 4,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        minHeight: "100vh",
+      }}
+    >
+      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+        <Collapse in={!!alert.severity}>
+          <Alert
+            severity={alert.severity || "success"}
+            onClose={() => setAlert({ message: "", severity: null })}
+            sx={{ mb: 2 }}
+          >
+            {alert.message}
+          </Alert>
+        </Collapse>
+      </Box>
+
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: MAX_WIDTH,
+          px: { xs: 2, sm: 4 },
+          mb: 3,
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+        }}
       >
-        Backup and Restore
-      </Typography>
+        <Typography variant="h4">Backup & Restore</Typography>
+        <Typography variant="body1" color="text.secondary">
+          {descriptionText}
+        </Typography>
+      </Box>
 
-      {alert.severity && (
-        <Alert
-          severity={alert.severity}
-          onClose={() => setAlert({ message: "", severity: null })}
-          sx={{ mb: 3 }}
-        >
-          {alert.message}
-        </Alert>
-      )}
-
-      <Grid container spacing={4} justifyContent="flex-start">
-        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-          <Box
-            sx={{
-              border: "1px solid #ccc",
-              borderRadius: 4,
-              p: 3,
-              textAlign: "center",
-              height: "100%",
-            }}
-          >
-            <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-              Create a Backup
-            </Typography>
-            <Button
-              variant="contained"
-              color="success"
-              onClick={handleCreate}
-              sx={{ px: 3 }}
+      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+        <Grid container spacing={4} justifyContent="flex-start">
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            <Box
+              sx={{
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 2,
+                p: 3,
+                textAlign: "center",
+                height: "100%",
+              }}
             >
-              Create
-            </Button>
-          </Box>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-          <Box
-            sx={{
-              border: "1px solid #ccc",
-              borderRadius: 4,
-              p: 3,
-              textAlign: "center",
-              height: "100%",
-            }}
-          >
-            <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-              Restore a Backup
-            </Typography>
-            <Button
-              variant="contained"
-              component="label"
-              color="success"
-              sx={{ px: 3 }}
+              <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
+                Create a Backup
+              </Typography>
+              <Button
+                variant="contained"
+                color="success"
+                onClick={handleCreate}
+                sx={{ px: 3 }}
+              >
+                Create
+              </Button>
+            </Box>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            <Box
+              sx={{
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 2,
+                p: 3,
+                textAlign: "center",
+                height: "100%",
+              }}
             >
-              Upload File
-              <input
-                type="file"
-                hidden
-                accept=".backup"
-                onChange={handleRestore}
-              />
-            </Button>
-          </Box>
+              <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
+                Restore a Backup
+              </Typography>
+              <Button
+                variant="contained"
+                component="label"
+                color="success"
+                sx={{ px: 3 }}
+              >
+                Upload File
+                <input
+                  type="file"
+                  hidden
+                  accept=".backup"
+                  onChange={handleRestore}
+                />
+              </Button>
+            </Box>
+          </Grid>
         </Grid>
-      </Grid>
+      </Box>
     </Box>
   );
 };

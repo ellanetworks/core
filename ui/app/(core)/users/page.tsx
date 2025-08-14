@@ -45,9 +45,7 @@ const UserPage = () => {
     () =>
       createTheme(outerTheme, {
         palette: {
-          DataGrid: {
-            headerBg: "#F5F5F5",
-          },
+          DataGrid: { headerBg: "#F5F5F5" },
         },
       }),
     [outerTheme],
@@ -96,14 +94,9 @@ const UserPage = () => {
     }
   };
 
-  const columns: GridColDef[] = useMemo(() => {
-    return [
-      {
-        field: "email",
-        headerName: "Email",
-        flex: 1,
-        minWidth: 220,
-      },
+  const columns: GridColDef[] = useMemo(
+    () => [
+      { field: "email", headerName: "Email", flex: 1, minWidth: 220 },
       {
         field: "roleID",
         headerName: "Role",
@@ -115,37 +108,40 @@ const UserPage = () => {
         field: "actions",
         headerName: "Actions",
         type: "actions",
-        width: 140,
+        width: 160,
         sortable: false,
         disableColumnMenu: true,
         getActions: (params) => [
           <GridActionsCellItem
             key="edit"
-            icon={<EditIcon color={"primary"} />}
+            icon={<EditIcon color="primary" />}
             label="Edit"
             onClick={() => handleEditClick(params.row)}
           />,
           <GridActionsCellItem
             key="password"
-            icon={<PasswordIcon color={"primary"} />}
+            icon={<PasswordIcon color="primary" />}
             label="Change Password"
             onClick={() => handleEditPasswordClick(params.row)}
           />,
           <GridActionsCellItem
             key="delete"
-            icon={<DeleteIcon color={"primary"} />}
+            icon={<DeleteIcon color="primary" />}
             label="Delete"
             onClick={() => handleDeleteClick(params.row.email)}
           />,
         ],
       },
-    ];
-  }, []);
+    ],
+    [],
+  );
+
+  const descriptionText =
+    "Manage user accounts. Users can have different roles with varying levels of access to the Ella Core UI and API.";
 
   return (
     <Box
       sx={{
-        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -173,8 +169,13 @@ const UserPage = () => {
         <EmptyState
           primaryText="No user found."
           secondaryText="Create a new user."
-          buttonText="Create"
+          extraContent={
+            <Typography variant="body1" color="text.secondary">
+              {descriptionText}
+            </Typography>
+          }
           button
+          buttonText="Create"
           onCreate={handleOpenCreateModal}
         />
       ) : (
@@ -186,26 +187,29 @@ const UserPage = () => {
               px: { xs: 2, sm: 4 },
               mb: 3,
               display: "flex",
-              flexDirection: { xs: "column", sm: "row" },
-              justifyContent: "space-between",
-              alignItems: { xs: "flex-start", sm: "center" },
+              flexDirection: "column",
               gap: 2,
             }}
           >
             <Typography variant="h4">Users ({users.length})</Typography>
+
+            <Typography variant="body1" color="text.secondary">
+              {descriptionText}
+            </Typography>
+
             <Button
               variant="contained"
               color="success"
               onClick={handleOpenCreateModal}
-              sx={{
-                maxWidth: "200px",
-                width: "100%",
-              }}
+              sx={{ maxWidth: 200 }}
             >
               Create
             </Button>
           </Box>
-          <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, overflowX: "auto" }}>
+
+          <Box
+            sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
+          >
             <ThemeProvider theme={gridTheme}>
               <DataGrid
                 rows={users}
@@ -214,7 +218,6 @@ const UserPage = () => {
                 disableRowSelectionOnClick
                 sx={{
                   width: "100%",
-                  height: { xs: 460, sm: 560, md: 640 },
                   border: 1,
                   borderColor: "divider",
                   "& .MuiDataGrid-cell": {

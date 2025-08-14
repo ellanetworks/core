@@ -45,18 +45,14 @@ const AuditLog = () => {
 
   const theme = useTheme();
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
-
   const canEdit = role === "Admin";
 
   const outerTheme = useTheme();
-
   const gridTheme = React.useMemo(
     () =>
       createTheme(outerTheme, {
         palette: {
-          DataGrid: {
-            headerBg: "#F5F5F5",
-          },
+          DataGrid: { headerBg: "#F5F5F5" },
         },
       }),
     [outerTheme],
@@ -64,6 +60,9 @@ const AuditLog = () => {
 
   const [retentionPolicy, setRetentionPolicy] =
     useState<AuditLogRetentionPolicy | null>(null);
+
+  const descriptionText =
+    "Review security-relevant actions performed in Ella Core. The audit log records who did what and when.";
 
   const fetchRetentionPolicy = useCallback(async () => {
     try {
@@ -109,12 +108,7 @@ const AuditLog = () => {
 
   const columns: GridColDef[] = useMemo(
     () => [
-      {
-        field: "timestamp",
-        headerName: "Timestamp",
-        flex: 1,
-        minWidth: 220,
-      },
+      { field: "timestamp", headerName: "Timestamp", flex: 1, minWidth: 220 },
       { field: "actor", headerName: "Actor", flex: 1, minWidth: 250 },
       { field: "action", headerName: "Action", flex: 1, minWidth: 200 },
       { field: "ip", headerName: "IP Address", flex: 1, minWidth: 150 },
@@ -126,7 +120,6 @@ const AuditLog = () => {
   return (
     <Box
       sx={{
-        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -137,7 +130,7 @@ const AuditLog = () => {
       <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
         <Collapse in={!!alert.message}>
           <Alert
-            severity="success"
+            severity={alert.severity || "success"}
             onClose={() => setAlert({ message: "", severity: null })}
             sx={{ mb: 2 }}
           >
@@ -146,78 +139,81 @@ const AuditLog = () => {
         </Collapse>
       </Box>
 
-      <>
-        <Box
-          sx={{
-            width: "100%",
-            maxWidth: MAX_WIDTH,
-            px: { xs: 2, sm: 4 },
-            mb: 3,
-            display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
-            justifyContent: "space-between",
-            alignItems: { xs: "flex-start", sm: "center" },
-            gap: 2,
-          }}
-        >
-          <Typography variant="h4">Audit Logs</Typography>
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: MAX_WIDTH,
+          px: { xs: 2, sm: 4 },
+          mb: 3,
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+        }}
+      >
+        <Typography variant="h4">Audit Logs</Typography>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              Retention: <strong>{retentionPolicy?.days ?? "…"}</strong> days
-            </Typography>
-            {canEdit && (
-              <Box sx={{ display: "flex", flexDirection: "row", gap: 1 }}>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={() => setEditModalOpen(true)}
-                  sx={{ minWidth: "auto", px: 2 }}
-                >
-                  Edit Retention
-                </Button>
-              </Box>
-            )}
-          </Box>
+        <Typography variant="body1" color="text.secondary">
+          {descriptionText}
+        </Typography>
+
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          {canEdit && (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => setEditModalOpen(true)}
+              sx={{ minWidth: 140 }}
+            >
+              Edit Retention
+            </Button>
+          )}
+
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ ml: "auto" }}
+          >
+            Retention: <strong>{retentionPolicy?.days ?? "…"}</strong> days
+          </Typography>
         </Box>
+      </Box>
 
-        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH }}>
-          <ThemeProvider theme={gridTheme}>
-            <DataGrid
-              rows={auditLogs}
-              columns={columns}
-              getRowId={(row) => row.id}
-              showToolbar={true}
-              initialState={{
-                sorting: { sortModel: [{ field: "timestamp", sort: "desc" }] },
-              }}
-              disableRowSelectionOnClick
-              columnVisibilityModel={{
-                id: !isSmDown,
-              }}
-              sx={{
-                width: "100%",
-                height: { xs: 460, sm: 560, md: 640 },
-                border: 1,
+      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+        <ThemeProvider theme={gridTheme}>
+          <DataGrid
+            rows={auditLogs}
+            columns={columns}
+            getRowId={(row) => row.id}
+            showToolbar={true}
+            initialState={{
+              sorting: { sortModel: [{ field: "timestamp", sort: "desc" }] },
+            }}
+            disableRowSelectionOnClick
+            columnVisibilityModel={{
+              id: !isSmDown,
+            }}
+            sx={{
+              width: "100%",
+              border: 1,
+              borderColor: "divider",
+              "& .MuiDataGrid-cell": {
+                borderBottom: "1px solid",
                 borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
-              }}
-            />
-          </ThemeProvider>
-        </Box>
-      </>
+              },
+              "& .MuiDataGrid-columnHeaders": {
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-footerContainer": {
+                borderTop: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
+            }}
+          />
+        </ThemeProvider>
+      </Box>
+
       <EditAuditLogRetentionPolicyModal
         open={isEditModalOpen}
         onClose={() => setEditModalOpen(false)}
@@ -230,6 +226,7 @@ const AuditLog = () => {
         }}
         initialData={retentionPolicy || { days: 30 }}
       />
+
       <DeleteConfirmationModal
         open={isConfirmationOpen}
         onClose={() => setConfirmationOpen(false)}
