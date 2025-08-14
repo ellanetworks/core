@@ -117,7 +117,6 @@ const Dashboard = () => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
 
   const uplinkHistory = useRef<number[]>([]);
   const downlinkHistory = useRef<number[]>([]);
@@ -231,7 +230,6 @@ const Dashboard = () => {
           }
         }
 
-        setLastUpdated(now);
         setError(null);
       } catch (e) {
         console.error("Failed to update metrics:", e);
@@ -291,11 +289,6 @@ const Dashboard = () => {
             (version ?? "—")
           )}
         </Typography>
-        <Typography variant="body2" aria-live="polite" color="text.secondary">
-          {lastUpdated
-            ? `Last updated: ${new Date(lastUpdated).toLocaleTimeString()}`
-            : "Updating…"}
-        </Typography>
       </Box>
 
       {error && (
@@ -304,7 +297,6 @@ const Dashboard = () => {
         </Alert>
       )}
 
-      {/* Network */}
       <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
         Network
       </Typography>
@@ -371,7 +363,6 @@ const Dashboard = () => {
         </Grid>
       </Grid>
 
-      {/* Throughput */}
       <Grid
         container
         spacing={4}

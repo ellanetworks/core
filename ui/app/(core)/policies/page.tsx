@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Box,
   Typography,
@@ -8,10 +8,16 @@ import {
   CircularProgress,
   Alert,
   Collapse,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableContainer,
+  Paper,
+  IconButton,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import useMediaQuery from "@mui/material/useMediaQuery";
-import { DataGrid, GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import { listPolicies, deletePolicy } from "@/queries/policies";
@@ -22,7 +28,6 @@ import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import { Policy } from "@/types/types";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const MAX_WIDTH = 1400;
 
@@ -42,22 +47,6 @@ const PolicyPage = () => {
   }>({ message: "", severity: null });
 
   const theme = useTheme();
-  const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
-
-  const outerTheme = useTheme();
-
-  const gridTheme = React.useMemo(
-    () =>
-      createTheme(outerTheme, {
-        palette: {
-          DataGrid: {
-            headerBg: "#F5F5F5",
-          },
-        },
-      }),
-    [outerTheme],
-  );
-
   const canEdit = role === "Admin" || role === "Network Manager";
 
   const fetchPolicies = useCallback(async () => {
@@ -77,17 +66,14 @@ const PolicyPage = () => {
   }, [fetchPolicies]);
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
-
   const handleEditClick = (policy: Policy) => {
     setEditData(policy);
     setEditModalOpen(true);
   };
-
   const handleDeleteClick = (policyName: string) => {
     setSelectedPolicy(policyName);
     setConfirmationOpen(true);
   };
-
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
     if (!selectedPolicy) return;
@@ -100,9 +86,9 @@ const PolicyPage = () => {
       fetchPolicies();
     } catch (error) {
       setAlert({
-        message: `Failed to delete policy "${selectedPolicy}: ${
+        message: `Failed to delete policy "${selectedPolicy}": ${
           error instanceof Error ? error.message : "Unknown error"
-        }".`,
+        }`,
         severity: "error",
       });
     } finally {
@@ -110,85 +96,12 @@ const PolicyPage = () => {
     }
   };
 
-  const columns: GridColDef[] = useMemo(() => {
-    const cols: GridColDef[] = [
-      { field: "name", headerName: "Name", flex: 1, minWidth: 180 },
-      {
-        field: "bitrateUp",
-        headerName: "Bitrate (Up)",
-        flex: 0.8,
-        minWidth: 140,
-      },
-      {
-        field: "bitrateDown",
-        headerName: "Bitrate (Down)",
-        flex: 0.8,
-        minWidth: 150,
-      },
-      { field: "fiveQi", headerName: "5QI", flex: 0.4, minWidth: 80 },
-      {
-        field: "priorityLevel",
-        headerName: "Priority",
-        flex: 0.5,
-        minWidth: 100,
-      },
-      {
-        field: "dataNetworkName",
-        headerName: "Data Network Name",
-        flex: 1,
-        minWidth: 180,
-      },
-    ];
-
-    if (canEdit) {
-      cols.push({
-        field: "actions",
-        headerName: "Actions",
-        type: "actions",
-        width: isSmDown ? 80 : 140,
-        sortable: false,
-        disableColumnMenu: true,
-        getActions: (params) =>
-          isSmDown
-            ? [
-                <GridActionsCellItem
-                  key="edit"
-                  icon={<EditIcon color={"primary"} />}
-                  label="Edit"
-                  onClick={() => handleEditClick(params.row)}
-                />,
-                <GridActionsCellItem
-                  key="delete"
-                  icon={<DeleteIcon color={"primary"} />}
-                  label="Delete"
-                  onClick={() => handleDeleteClick(params.row.name)}
-                  showInMenu
-                />,
-              ]
-            : [
-                <GridActionsCellItem
-                  key="edit"
-                  icon={<EditIcon color={"primary"} />}
-                  label="Edit"
-                  onClick={() => handleEditClick(params.row)}
-                />,
-                <GridActionsCellItem
-                  key="delete"
-                  icon={<DeleteIcon color={"primary"} />}
-                  label="Delete"
-                  onClick={() => handleDeleteClick(params.row.name)}
-                />,
-              ],
-      });
-    }
-
-    return cols;
-  }, [canEdit, isSmDown]);
+  const descriptionText =
+    "Define  bitrate and priority levels for your subscribers.";
 
   return (
     <Box
       sx={{
-        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -196,7 +109,6 @@ const PolicyPage = () => {
         pb: 4,
       }}
     >
-      {/* Alerts */}
       <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
         <Collapse in={!!alert.message}>
           <Alert
@@ -216,7 +128,12 @@ const PolicyPage = () => {
       ) : policies.length === 0 ? (
         <EmptyState
           primaryText="No policy found."
-          secondaryText="Create a new policy in order to add subscribers to the network."
+          secondaryText="Create a new policy to control QoS and routing for subscribers."
+          extraContent={
+            <Typography variant="body1" color="text.secondary">
+              {descriptionText}
+            </Typography>
+          }
           button={canEdit}
           buttonText="Create"
           onCreate={handleOpenCreateModal}
@@ -230,59 +147,94 @@ const PolicyPage = () => {
               px: { xs: 2, sm: 4 },
               mb: 3,
               display: "flex",
-              flexDirection: { xs: "column", sm: "row" },
-              justifyContent: "space-between",
-              alignItems: { xs: "flex-start", sm: "center" },
+              flexDirection: "column",
               gap: 2,
             }}
           >
-            <Typography variant="h4">Policies ({policies.length})</Typography>
-            <Button
-              variant="contained"
-              color="success"
-              onClick={handleOpenCreateModal}
-              sx={{
-                maxWidth: "200px",
-                width: "100%",
-              }}
-            >
-              Create
-            </Button>
+            <Typography variant="h4">Policies</Typography>
+
+            <Typography variant="body1" color="text.secondary">
+              {descriptionText}
+            </Typography>
+
+            {canEdit && (
+              <Button
+                variant="contained"
+                color="success"
+                onClick={handleOpenCreateModal}
+                sx={{ maxWidth: 200 }}
+              >
+                Create
+              </Button>
+            )}
           </Box>
 
-          <Box sx={{ width: "100%", maxWidth: MAX_WIDTH }}>
-            <ThemeProvider theme={gridTheme}>
-              <DataGrid
-                rows={policies}
-                columns={columns}
-                getRowId={(row) => row.name}
-                disableRowSelectionOnClick
-                sx={{
-                  width: "100%",
-                  height: { xs: 460, sm: 560, md: 640 },
-                  border: 1,
-                  borderColor: "divider",
-                  "& .MuiDataGrid-cell": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-columnHeaders": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-footerContainer": {
-                    borderTop: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
-                }}
-              />
-            </ThemeProvider>
+          <Box
+            sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
+          >
+            <TableContainer
+              component={Paper}
+              elevation={0}
+              sx={{ border: 1, borderColor: "divider" }}
+            >
+              <Table aria-label="policies table" stickyHeader>
+                <TableHead>
+                  <TableRow
+                    sx={{
+                      "& th": {
+                        fontWeight: "bold",
+                        backgroundColor:
+                          theme.palette.mode === "light"
+                            ? "#F5F5F5"
+                            : "inherit",
+                      },
+                    }}
+                  >
+                    <TableCell>Name</TableCell>
+                    <TableCell>Bitrate (Up)</TableCell>
+                    <TableCell>Bitrate (Down)</TableCell>
+                    <TableCell sx={{ width: 80 }}>5QI</TableCell>
+                    <TableCell sx={{ width: 100 }}>Priority</TableCell>
+                    <TableCell>Data Network</TableCell>
+                    {canEdit && <TableCell align="right">Actions</TableCell>}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {policies.map((p) => (
+                    <TableRow key={p.name} hover>
+                      <TableCell>{p.name}</TableCell>
+                      <TableCell>{p.bitrateUp}</TableCell>
+                      <TableCell>{p.bitrateDown}</TableCell>
+                      <TableCell>{p.fiveQi}</TableCell>
+                      <TableCell>{p.priorityLevel}</TableCell>
+                      <TableCell>{p.dataNetworkName}</TableCell>
+                      {canEdit && (
+                        <TableCell align="right">
+                          <IconButton
+                            aria-label="edit"
+                            onClick={() => handleEditClick(p)}
+                            size="small"
+                          >
+                            <EditIcon color="primary" />
+                          </IconButton>
+                          <IconButton
+                            aria-label="delete"
+                            onClick={() => handleDeleteClick(p.name)}
+                            size="small"
+                          >
+                            <DeleteIcon color="primary" />
+                          </IconButton>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </Box>
         </>
       )}
 
-      {/* Modals */}
       <CreatePolicyModal
         open={isCreateModalOpen}
         onClose={() => setCreateModalOpen(false)}

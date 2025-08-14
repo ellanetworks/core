@@ -137,10 +137,17 @@ const Operator = () => {
     }
   };
 
+  const descriptionText =
+    "Review and configure your operator identifiers and core settings.";
+
   return (
     <Box sx={{ p: 4, maxWidth: MAX_WIDTH, mx: "auto" }}>
-      <Typography variant="h4" sx={{ mb: 3 }}>
+      <Typography variant="h4" sx={{ mb: 1 }}>
         Operator
+      </Typography>
+
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+        {descriptionText}
       </Typography>
 
       {alert.severity && (
@@ -196,7 +203,6 @@ const Operator = () => {
                     {operator?.id.mcc || "N/A"}
                   </Typography>
                 </Grid>
-
                 <Grid size={{ xs: 6 }}>
                   <Typography variant="body2" color="text.secondary">
                     MNC
@@ -333,7 +339,6 @@ const Operator = () => {
                     {operator ? `${operator.slice.sst}` : "N/A"}
                   </Typography>
                 </Grid>
-
                 <Grid size={{ xs: 6 }}>
                   <Typography variant="body2" color="text.secondary">
                     SD
@@ -428,7 +433,6 @@ const Operator = () => {
         </Grid>
       </Grid>
 
-      {/* Modals */}
       <EditOperatorIdModal
         open={isEditOperatorIdModalOpen}
         onClose={handleEditOperatorIdModalClose}

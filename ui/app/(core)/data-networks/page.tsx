@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useState, useEffect, useMemo } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -9,10 +9,16 @@ import {
   Alert,
   Collapse,
   Chip,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableContainer,
+  Paper,
+  IconButton,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import useMediaQuery from "@mui/material/useMediaQuery";
-import { DataGrid, GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { listDataNetworks, deleteDataNetwork } from "@/queries/data_networks";
 import CreateDataNetworkModal from "@/components/CreateDataNetworkModal";
@@ -22,7 +28,6 @@ import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import { DataNetwork } from "@/types/types";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
 
 const MAX_WIDTH = 1400;
 
@@ -47,22 +52,7 @@ const DataNetworkPage = () => {
   });
 
   const theme = useTheme();
-  const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
   const canEdit = role === "Admin" || role === "Network Manager";
-
-  const outerTheme = useTheme();
-
-  const gridTheme = React.useMemo(
-    () =>
-      createTheme(outerTheme, {
-        palette: {
-          DataGrid: {
-            headerBg: "#F5F5F5",
-          },
-        },
-      }),
-    [outerTheme],
-  );
 
   const fetchDataNetworks = useCallback(async () => {
     setLoading(true);
@@ -115,88 +105,12 @@ const DataNetworkPage = () => {
     }
   };
 
-  const columns: GridColDef[] = useMemo(() => {
-    const cols: GridColDef[] = [
-      { field: "name", headerName: "Name (DNN)", flex: 1, minWidth: 180 },
-      { field: "ipPool", headerName: "IP Pool", flex: 1, minWidth: 160 },
-      { field: "dns", headerName: "DNS", flex: 0.8, minWidth: 140 },
-      {
-        field: "mtu",
-        headerName: "MTU",
-        type: "number",
-        flex: 0.4,
-        minWidth: 90,
-      },
-      {
-        field: "sessionsCount",
-        headerName: "Sessions",
-        flex: 0.5,
-        minWidth: 120,
-        valueGetter: (_value, row: DataNetwork) =>
-          Number(row?.status?.sessions ?? 0),
-        renderCell: (params) => {
-          const count = Number(params.row?.status?.sessions ?? 0);
-          return (
-            <Chip
-              size="small"
-              label={count}
-              color={count > 0 ? "success" : "default"}
-              variant="outlined"
-            />
-          );
-        },
-      },
-    ];
-
-    if (canEdit) {
-      cols.push({
-        field: "actions",
-        headerName: "Actions",
-        type: "actions",
-        width: isSmDown ? 80 : 140,
-        sortable: false,
-        disableColumnMenu: true,
-        getActions: (params) =>
-          isSmDown
-            ? [
-                <GridActionsCellItem
-                  key="edit"
-                  icon={<EditIcon color={"primary"} />}
-                  label="Edit"
-                  onClick={() => handleEditClick(params.row)}
-                />,
-                <GridActionsCellItem
-                  key="delete"
-                  icon={<DeleteIcon color={"primary"} />}
-                  label="Delete"
-                  onClick={() => handleDeleteClick(params.row.name)}
-                  showInMenu
-                />,
-              ]
-            : [
-                <GridActionsCellItem
-                  key="edit"
-                  icon={<EditIcon color={"primary"} />}
-                  label="Edit"
-                  onClick={() => handleEditClick(params.row)}
-                />,
-                <GridActionsCellItem
-                  key="delete"
-                  icon={<DeleteIcon color={"primary"} />}
-                  label="Delete"
-                  onClick={() => handleDeleteClick(params.row.name)}
-                />,
-              ],
-      });
-    }
-
-    return cols;
-  }, [canEdit, isSmDown]);
+  const descriptionText =
+    "Manage the IP networks used by your subscribers. Data Network Names (DNNs) are used to identify different networks, and each network can have its own IP pool, DNS settings, and MTU size. The DNN must be configured on the subscriber device to connect to the correct network.";
 
   return (
     <Box
       sx={{
-        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -204,7 +118,6 @@ const DataNetworkPage = () => {
         pb: 4,
       }}
     >
-      {/* Alerts */}
       <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
         <Collapse in={!!alert.message}>
           <Alert
@@ -225,13 +138,17 @@ const DataNetworkPage = () => {
         <EmptyState
           primaryText="No data network found."
           secondaryText="Create a new data network in order to add subscribers to the network."
+          extraContent={
+            <Typography variant="body1" color="text.secondary">
+              {descriptionText}
+            </Typography>
+          }
           button={canEdit}
           buttonText="Create"
           onCreate={handleOpenCreateModal}
         />
       ) : (
         <>
-          {/* Header */}
           <Box
             sx={{
               width: "100%",
@@ -239,60 +156,105 @@ const DataNetworkPage = () => {
               px: { xs: 2, sm: 4 },
               mb: 3,
               display: "flex",
-              flexDirection: { xs: "column", sm: "row" },
-              justifyContent: "space-between",
-              alignItems: { xs: "flex-start", sm: "center" },
+              flexDirection: "column",
               gap: 2,
             }}
           >
-            <Typography variant="h4">
-              Data Networks ({dataNetworks.length})
+            <Typography variant="h4">Data Networks</Typography>
+
+            <Typography variant="body1" color="text.secondary">
+              {descriptionText}
             </Typography>
+
             {canEdit && (
               <Button
                 variant="contained"
                 color="success"
                 onClick={handleOpenCreateModal}
-                sx={{ maxWidth: 200, width: "100%" }}
+                sx={{ maxWidth: 200 }}
               >
                 Create
               </Button>
             )}
           </Box>
 
-          <Box sx={{ width: "100%", maxWidth: MAX_WIDTH }}>
-            <ThemeProvider theme={gridTheme}>
-              <DataGrid
-                rows={dataNetworks}
-                columns={columns}
-                getRowId={(row) => row.name}
-                disableRowSelectionOnClick
-                sx={{
-                  width: "100%",
-                  height: { xs: 460, sm: 560, md: 640 },
-                  border: 1,
-                  borderColor: "divider",
-                  "& .MuiDataGrid-cell": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-columnHeaders": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-footerContainer": {
-                    borderTop: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-columnHeaderTitle": { fontWeight: "bold" },
-                }}
-              />
-            </ThemeProvider>
+          <Box
+            sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
+          >
+            <TableContainer
+              component={Paper}
+              elevation={0}
+              sx={{
+                border: 1,
+                borderColor: "divider",
+              }}
+            >
+              <Table aria-label="data networks table" stickyHeader>
+                <TableHead>
+                  <TableRow
+                    sx={{
+                      "& th": {
+                        fontWeight: "bold",
+                        backgroundColor:
+                          theme.palette.mode === "light"
+                            ? "#F5F5F5"
+                            : "inherit",
+                      },
+                    }}
+                  >
+                    <TableCell>Name (DNN)</TableCell>
+                    <TableCell>IP Pool</TableCell>
+                    <TableCell>DNS</TableCell>
+                    <TableCell sx={{ width: 100 }}>MTU</TableCell>
+                    <TableCell sx={{ width: 120 }}>Sessions</TableCell>
+                    {canEdit && <TableCell align="right">Actions</TableCell>}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {dataNetworks.map((dn) => {
+                    const sessionCount = Number(dn?.status?.sessions ?? 0);
+                    return (
+                      <TableRow key={dn.name} hover>
+                        <TableCell>{dn.name}</TableCell>
+                        <TableCell>{dn.ipPool}</TableCell>
+                        <TableCell>{dn.dns}</TableCell>
+                        <TableCell>{dn.mtu}</TableCell>
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            label={sessionCount}
+                            color={sessionCount > 0 ? "success" : "default"}
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        {canEdit && (
+                          <TableCell align="right">
+                            <IconButton
+                              aria-label="edit"
+                              onClick={() => handleEditClick(dn)}
+                              size="small"
+                            >
+                              <EditIcon color="primary" />
+                            </IconButton>
+                            <IconButton
+                              aria-label="delete"
+                              onClick={() => handleDeleteClick(dn.name)}
+                              size="small"
+                            >
+                              <DeleteIcon color="primary" />
+                            </IconButton>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </Box>
         </>
       )}
 
-      {/* Modals */}
       <CreateDataNetworkModal
         open={isCreateModalOpen}
         onClose={handleCloseCreateModal}

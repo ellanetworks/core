@@ -72,10 +72,12 @@ const Radio = () => {
     [],
   );
 
+  const descriptionText =
+    "View connected radios and their network locations. Radios will automatically appear here once connected.";
+
   return (
     <Box
       sx={{
-        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -103,13 +105,17 @@ const Radio = () => {
         <EmptyState
           primaryText="No radio found."
           secondaryText="Connected radios will automatically appear here."
+          extraContent={
+            <Typography variant="body1" color="text.secondary">
+              {descriptionText}
+            </Typography>
+          }
           button={false}
           buttonText="Create"
           onCreate={() => {}}
         />
       ) : (
         <>
-          {/* Header */}
           <Box
             sx={{
               width: "100%",
@@ -117,29 +123,29 @@ const Radio = () => {
               px: { xs: 2, sm: 4 },
               mb: 3,
               display: "flex",
-              flexDirection: { xs: "column", sm: "row" },
-              justifyContent: "space-between",
-              alignItems: { xs: "flex-start", sm: "center" },
+              flexDirection: "column",
               gap: 2,
             }}
           >
             <Typography variant="h4">Radios ({radios.length})</Typography>
+
+            <Typography variant="body1" color="text.secondary">
+              {descriptionText}
+            </Typography>
           </Box>
 
-          {/* Grid */}
-          <Box sx={{ width: "100%", maxWidth: MAX_WIDTH }}>
+          <Box
+            sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
+          >
             <ThemeProvider theme={gridTheme}>
               <DataGrid
                 rows={radios}
                 columns={columns}
                 getRowId={(row) => row.id}
                 disableRowSelectionOnClick
-                columnVisibilityModel={{
-                  id: !isSmDown,
-                }}
+                columnVisibilityModel={{ id: !isSmDown }}
                 sx={{
                   width: "100%",
-                  height: { xs: 460, sm: 560, md: 640 },
                   border: 1,
                   borderColor: "divider",
                   "& .MuiDataGrid-cell": {
