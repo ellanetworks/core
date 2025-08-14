@@ -1,11 +1,28 @@
 "use client";
 import React, { useState } from "react";
-import { Box, Typography, Button, Alert, Collapse } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Button,
+  Alert,
+  Collapse,
+  Card,
+  CardHeader,
+  CardContent,
+} from "@mui/material";
 import { backup, restore } from "@/queries/backup";
 import { useCookies } from "react-cookie";
 import Grid from "@mui/material/Grid";
 
 const MAX_WIDTH = 1400;
+
+const headerStyles = {
+  backgroundColor: "#F5F5F5",
+  color: "#000000ff",
+  borderTopLeftRadius: 12,
+  borderTopRightRadius: 12,
+  "& .MuiCardHeader-title": { color: "#000000ff" },
+};
 
 const BackupRestore = () => {
   const [cookies] = useCookies(["user_token"]);
@@ -14,7 +31,7 @@ const BackupRestore = () => {
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
 
-  const descriptionText =
+  const pageDescription =
     "Create and download a full backup of Ella Core, or restore from a .backup file. Take regular backups to ensure you can recover your data in case of a hardware failure or data loss.";
 
   const handleCreate = async () => {
@@ -105,65 +122,91 @@ const BackupRestore = () => {
       >
         <Typography variant="h4">Backup & Restore</Typography>
         <Typography variant="body1" color="text.secondary">
-          {descriptionText}
+          {pageDescription}
         </Typography>
       </Box>
 
       <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
         <Grid container spacing={4} justifyContent="flex-start">
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Box
+            <Card
               sx={{
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 2,
-                p: 3,
-                textAlign: "center",
                 height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                borderRadius: 3, // 12px
+                boxShadow: 2,
               }}
             >
-              <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-                Create a Backup
-              </Typography>
-              <Button
-                variant="contained"
-                color="success"
-                onClick={handleCreate}
-                sx={{ px: 3 }}
+              <CardHeader title="Create a Backup" sx={headerStyles} />
+              <CardContent
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 1.5,
+                  flexGrow: 1,
+                }}
               >
-                Create
-              </Button>
-            </Box>
+                <Typography variant="body2" color="text.secondary">
+                  Generate and download a snapshot of your Ella Core
+                  configuration and data. You can then use this file to restore
+                  your system if needed.
+                </Typography>
+
+                <Box sx={{ flexGrow: 1 }} />
+                <Box sx={{ display: "flex", justifyContent: "center" }}>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={handleCreate}
+                  >
+                    Create Backup
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
           </Grid>
+
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Box
+            <Card
               sx={{
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 2,
-                p: 3,
-                textAlign: "center",
                 height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                borderRadius: 3,
+                boxShadow: 2,
               }}
             >
-              <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-                Restore a Backup
-              </Typography>
-              <Button
-                variant="contained"
-                component="label"
-                color="success"
-                sx={{ px: 3 }}
+              <CardHeader title="Restore a Backup" sx={headerStyles} />
+              <CardContent
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 1.5,
+                  flexGrow: 1,
+                }}
               >
-                Upload File
-                <input
-                  type="file"
-                  hidden
-                  accept=".backup"
-                  onChange={handleRestore}
-                />
-              </Button>
-            </Box>
+                <Typography variant="body2" color="text.secondary">
+                  Upload a previously created backup file to restore Ella Core
+                  to a previous state. Be aware that this action will overwrite
+                  your current configuration and data.
+                </Typography>
+
+                <Box sx={{ flexGrow: 1 }} />
+
+                <Box sx={{ display: "flex", justifyContent: "center" }}>
+                  <Button variant="contained" component="label" color="primary">
+                    Upload File
+                    <input
+                      type="file"
+                      hidden
+                      accept=".backup"
+                      onChange={handleRestore}
+                    />
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
           </Grid>
         </Grid>
       </Box>
