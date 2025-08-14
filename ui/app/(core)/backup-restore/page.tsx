@@ -109,7 +109,6 @@ const BackupRestore = () => {
         </Typography>
       </Box>
 
-      {/* Actions grid (same width as header/description) */}
       <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
         <Grid container spacing={4} justifyContent="flex-start">
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
