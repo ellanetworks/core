@@ -137,6 +137,15 @@ const Operator = () => {
     }
   };
 
+  const headerStyles = {
+    backgroundColor: "#F5F5F5",
+    color: "#000000ff",
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    "& .MuiCardHeader-title": { color: "#000000ff" },
+    "& .MuiIconButton-root": { color: "#000000ff" },
+  };
+
   const descriptionText =
     "Review and configure your operator identifiers and core settings.";
 
@@ -175,11 +184,11 @@ const Operator = () => {
               flexDirection: "column",
               borderRadius: 3,
               boxShadow: 2,
-              p: 1,
             }}
           >
             <CardHeader
               title="Operator ID"
+              sx={headerStyles}
               action={
                 canEdit && (
                   <IconButton
@@ -226,11 +235,11 @@ const Operator = () => {
               flexDirection: "column",
               borderRadius: 3,
               boxShadow: 2,
-              p: 1,
             }}
           >
             <CardHeader
               title="Operator Code"
+              sx={headerStyles}
               action={
                 canEdit && (
                   <IconButton
@@ -265,11 +274,11 @@ const Operator = () => {
               flexDirection: "column",
               borderRadius: 3,
               boxShadow: 2,
-              p: 1,
             }}
           >
             <CardHeader
               title="Tracking Information"
+              sx={headerStyles}
               action={
                 canEdit && (
                   <IconButton
@@ -311,11 +320,11 @@ const Operator = () => {
               flexDirection: "column",
               borderRadius: 3,
               boxShadow: 2,
-              p: 1,
             }}
           >
             <CardHeader
               title="Slice Information"
+              sx={headerStyles}
               action={
                 canEdit && (
                   <IconButton
@@ -362,11 +371,11 @@ const Operator = () => {
               flexDirection: "column",
               borderRadius: 3,
               boxShadow: 2,
-              p: 1,
             }}
           >
             <CardHeader
               title="Home Network Information"
+              sx={headerStyles}
               action={
                 canEdit && (
                   <IconButton

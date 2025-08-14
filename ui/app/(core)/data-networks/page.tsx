@@ -106,7 +106,7 @@ const DataNetworkPage = () => {
   };
 
   const descriptionText =
-    "Manage the IP networks used by your subscribers. Data Network Names (DNNs) are used to identify different networks, and each network can have its own IP pool, DNS settings, and MTU size. The DNN must be configured on the subscriber device to connect to the correct network.";
+    "Manage the IP networks used by your subscribers. Data Network Names (DNNs) are used to identify different networks, and must be configured on the subscriber device to connect to the correct network.";
 
   return (
     <Box
