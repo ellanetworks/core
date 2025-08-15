@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Box,
   Typography,
@@ -32,14 +32,26 @@ import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import { Subscriber } from "@/types/types";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { useQuery } from "@tanstack/react-query";
 
 const MAX_WIDTH = 1400;
 
 const SubscriberPage = () => {
   const { role } = useAuth();
   const [cookies] = useCookies(["user_token"]);
-  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const {
+    data: subscribers = [],
+    isLoading,
+    refetch,
+  } = useQuery({
+    queryKey: ["subscribers", cookies.user_token],
+    queryFn: () => listSubscribers(cookies.user_token),
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+  });
+
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isViewModalOpen, setViewModalOpen] = useState(false);
@@ -57,29 +69,13 @@ const SubscriberPage = () => {
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
   const canEdit = role === "Admin" || role === "Network Manager";
 
-  const gridTheme = React.useMemo(
+  const gridTheme = useMemo(
     () =>
       createTheme(theme, {
         palette: { DataGrid: { headerBg: "#F5F5F5" } },
       }),
     [theme],
   );
-
-  const fetchSubscribers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await listSubscribers(cookies.user_token);
-      setSubscribers(data);
-    } catch (error) {
-      console.error("Error fetching subscribers:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [cookies.user_token]);
-
-  useEffect(() => {
-    fetchSubscribers();
-  }, [fetchSubscribers]);
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
@@ -112,7 +108,7 @@ const SubscriberPage = () => {
         message: `Subscriber "${selectedSubscriber}" deleted successfully!`,
         severity: "success",
       });
-      fetchSubscribers();
+      refetch();
     } catch {
       setAlert({
         message: `Failed to delete subscriber "${selectedSubscriber}".`,
@@ -290,7 +286,7 @@ const SubscriberPage = () => {
         </Collapse>
       </Box>
 
-      {loading ? (
+      {isLoading ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <CircularProgress />
         </Box>
@@ -383,12 +379,12 @@ const SubscriberPage = () => {
       <CreateSubscriberModal
         open={isCreateModalOpen}
         onClose={handleCloseCreateModal}
-        onSuccess={fetchSubscribers}
+        onSuccess={refetch}
       />
       <EditSubscriberModal
         open={isEditModalOpen}
         onClose={() => setEditModalOpen(false)}
-        onSuccess={fetchSubscribers}
+        onSuccess={refetch}
         initialData={editData || { imsi: "", policyName: "" }}
       />
       <DeleteConfirmationModal
