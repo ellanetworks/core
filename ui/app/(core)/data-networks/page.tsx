@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Box,
   Typography,
@@ -28,14 +28,24 @@ import EmptyState from "@/components/EmptyState";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import { DataNetwork } from "@/types/types";
+import { useQuery } from "@tanstack/react-query";
 
 const MAX_WIDTH = 1400;
 
 const DataNetworkPage = () => {
   const { role } = useAuth();
   const [cookies] = useCookies(["user_token"]);
-  const [dataNetworks, setDataNetworks] = useState<DataNetwork[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: dataNetworks = [],
+    isLoading,
+    refetch,
+  } = useQuery({
+    queryKey: ["data-networks", cookies.user_token],
+    queryFn: () => listDataNetworks(cookies.user_token),
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+  });
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
@@ -53,22 +63,6 @@ const DataNetworkPage = () => {
 
   const theme = useTheme();
   const canEdit = role === "Admin" || role === "Network Manager";
-
-  const fetchDataNetworks = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await listDataNetworks(cookies.user_token);
-      setDataNetworks(data);
-    } catch (error) {
-      console.error("Error fetching data networks:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [cookies.user_token]);
-
-  useEffect(() => {
-    fetchDataNetworks();
-  }, [fetchDataNetworks]);
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
   const handleCloseCreateModal = () => setCreateModalOpen(false);
@@ -92,7 +86,7 @@ const DataNetworkPage = () => {
         message: `Data Network "${selectedDataNetwork}" deleted successfully!`,
         severity: "success",
       });
-      fetchDataNetworks();
+      refetch();
     } catch (error) {
       setAlert({
         message: `Failed to delete data network "${selectedDataNetwork}": ${
@@ -130,7 +124,7 @@ const DataNetworkPage = () => {
         </Collapse>
       </Box>
 
-      {loading ? (
+      {isLoading ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <CircularProgress />
         </Box>
@@ -258,12 +252,12 @@ const DataNetworkPage = () => {
       <CreateDataNetworkModal
         open={isCreateModalOpen}
         onClose={handleCloseCreateModal}
-        onSuccess={fetchDataNetworks}
+        onSuccess={refetch}
       />
       <EditDataNetworkModal
         open={isEditModalOpen}
         onClose={() => setEditModalOpen(false)}
-        onSuccess={fetchDataNetworks}
+        onSuccess={refetch}
         initialData={
           editData || {
             name: "",
