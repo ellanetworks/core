@@ -442,34 +442,44 @@ const Operator = () => {
         </Grid>
       </Grid>
 
-      <EditOperatorIdModal
-        open={isEditOperatorIdModalOpen}
-        onClose={handleEditOperatorIdModalClose}
-        onSuccess={handleEditOperatorIdSuccess}
-        initialData={operator?.id || { mcc: "", mnc: "" }}
-      />
-      <EditOperatorCodeModal
-        open={isEditOperatorCodeModalOpen}
-        onClose={handleEditOperatorCodeModalClose}
-        onSuccess={handleEditOperatorCodeSuccess}
-      />
-      <EditOperatorTrackingModal
-        open={isEditOperatorTrackingModalOpen}
-        onClose={handleEditOperatorTrackingModalClose}
-        onSuccess={handleEditOperatorTrackingSuccess}
-        initialData={operator?.tracking || { supportedTacs: [""] }}
-      />
-      <EditOperatorSliceModal
-        open={isEditOperatorSliceModalOpen}
-        onClose={handleEditOperatorSliceModalClose}
-        onSuccess={handleEditOperatorSliceSuccess}
-        initialData={operator?.slice || { sst: 0, sd: 0 }}
-      />
-      <EditOperatorHomeNetworkModal
-        open={isEditOperatorHomeNetworkModalOpen}
-        onClose={handleEditOperatorHomeNetworkModalClose}
-        onSuccess={handleEditOperatorHomeNetworkSuccess}
-      />
+      {isEditOperatorIdModalOpen && (
+        <EditOperatorIdModal
+          open
+          onClose={handleEditOperatorIdModalClose}
+          onSuccess={handleEditOperatorIdSuccess}
+          initialData={operator?.id || { mcc: "", mnc: "" }}
+        />
+      )}
+      {isEditOperatorCodeModalOpen && (
+        <EditOperatorCodeModal
+          open
+          onClose={handleEditOperatorCodeModalClose}
+          onSuccess={handleEditOperatorCodeSuccess}
+        />
+      )}
+      {isEditOperatorTrackingModalOpen && (
+        <EditOperatorTrackingModal
+          open
+          onClose={handleEditOperatorTrackingModalClose}
+          onSuccess={handleEditOperatorTrackingSuccess}
+          initialData={operator?.tracking || { supportedTacs: [""] }}
+        />
+      )}
+      {isEditOperatorSliceModalOpen && (
+        <EditOperatorSliceModal
+          open
+          onClose={handleEditOperatorSliceModalClose}
+          onSuccess={handleEditOperatorSliceSuccess}
+          initialData={operator?.slice || { sst: 0, sd: 0 }}
+        />
+      )}
+      {isEditOperatorHomeNetworkModalOpen && (
+        <EditOperatorHomeNetworkModal
+          open
+          onClose={handleEditOperatorHomeNetworkModalClose}
+          onSuccess={handleEditOperatorHomeNetworkSuccess}
+        />
+      )}
     </Box>
   );
 };

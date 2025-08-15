@@ -248,32 +248,37 @@ const DataNetworkPage = () => {
           </Box>
         </>
       )}
-
-      <CreateDataNetworkModal
-        open={isCreateModalOpen}
-        onClose={handleCloseCreateModal}
-        onSuccess={refetch}
-      />
-      <EditDataNetworkModal
-        open={isEditModalOpen}
-        onClose={() => setEditModalOpen(false)}
-        onSuccess={refetch}
-        initialData={
-          editData || {
-            name: "",
-            ipPool: "",
-            dns: "",
-            mtu: 1500,
+      {isCreateModalOpen && (
+        <CreateDataNetworkModal
+          open
+          onClose={handleCloseCreateModal}
+          onSuccess={refetch}
+        />
+      )}
+      {isEditModalOpen && (
+        <EditDataNetworkModal
+          open
+          onClose={() => setEditModalOpen(false)}
+          onSuccess={refetch}
+          initialData={
+            editData || {
+              name: "",
+              ipPool: "",
+              dns: "",
+              mtu: 1500,
+            }
           }
-        }
-      />
-      <DeleteConfirmationModal
-        open={isConfirmationOpen}
-        onClose={() => setConfirmationOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Confirm Deletion"
-        description={`Are you sure you want to delete the data network "${selectedDataNetwork}"? This action cannot be undone.`}
-      />
+        />
+      )}
+      {isConfirmationOpen && (
+        <DeleteConfirmationModal
+          open
+          onClose={() => setConfirmationOpen(false)}
+          onConfirm={handleDeleteConfirm}
+          title="Confirm Deletion"
+          description={`Are you sure you want to delete the data network "${selectedDataNetwork}"? This action cannot be undone.`}
+        />
+      )}
     </Box>
   );
 };

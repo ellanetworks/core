@@ -227,13 +227,15 @@ const AuditLog = () => {
         initialData={retentionPolicy || { days: 30 }}
       />
 
-      <DeleteConfirmationModal
-        open={isConfirmationOpen}
-        onClose={() => setConfirmationOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Confirm Deletion"
-        description={`Are you sure you want to delete all audit logs? This action cannot be undone.`}
-      />
+      {isConfirmationOpen && (
+        <DeleteConfirmationModal
+          open
+          onClose={() => setConfirmationOpen(false)}
+          onConfirm={handleDeleteConfirm}
+          title="Confirm Deletion"
+          description={`Are you sure you want to delete all audit logs? This action cannot be undone.`}
+        />
+      )}
     </Box>
   );
 };

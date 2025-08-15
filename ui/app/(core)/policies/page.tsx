@@ -235,33 +235,39 @@ const PolicyPage = () => {
         </>
       )}
 
-      <CreatePolicyModal
-        open={isCreateModalOpen}
-        onClose={() => setCreateModalOpen(false)}
-        onSuccess={fetchPolicies}
-      />
-      <EditPolicyModal
-        open={isEditModalOpen}
-        onClose={() => setEditModalOpen(false)}
-        onSuccess={fetchPolicies}
-        initialData={
-          editData || {
-            name: "",
-            bitrateUp: "100 Mbps",
-            bitrateDown: "100 Mbps",
-            fiveQi: 1,
-            priorityLevel: 1,
-            dataNetworkName: "",
+      {isCreateModalOpen && (
+        <CreatePolicyModal
+          open
+          onClose={() => setCreateModalOpen(false)}
+          onSuccess={fetchPolicies}
+        />
+      )}
+      {isEditModalOpen && (
+        <EditPolicyModal
+          open
+          onClose={() => setEditModalOpen(false)}
+          onSuccess={fetchPolicies}
+          initialData={
+            editData || {
+              name: "",
+              bitrateUp: "100 Mbps",
+              bitrateDown: "100 Mbps",
+              fiveQi: 1,
+              priorityLevel: 1,
+              dataNetworkName: "",
+            }
           }
-        }
-      />
-      <DeleteConfirmationModal
-        open={isConfirmationOpen}
-        onClose={() => setConfirmationOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Confirm Deletion"
-        description={`Are you sure you want to delete the policy "${selectedPolicy}"? This action cannot be undone.`}
-      />
+        />
+      )}
+      {isConfirmationOpen && (
+        <DeleteConfirmationModal
+          open
+          onClose={() => setConfirmationOpen(false)}
+          onConfirm={handleDeleteConfirm}
+          title="Confirm Deletion"
+          description={`Are you sure you want to delete the policy "${selectedPolicy}"? This action cannot be undone.`}
+        />
+      )}
     </Box>
   );
 };
