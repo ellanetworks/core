@@ -15,7 +15,7 @@ import {
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
 import { useCookies } from "react-cookie";
-import EditUserPasswordModal from "@/components/EditUserPasswordModal";
+import EditMyUserPasswordModal from "@/components/EditMyUserPasswordModal";
 import { getLoggedInUser } from "@/queries/users";
 import { useAuth } from "@/contexts/AuthContext";
 import { User } from "@/types/types";
@@ -51,9 +51,6 @@ export default function Profile() {
 
   const [loggedInUser, setLoggedInUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [editPasswordData, setEditPasswordData] = useState<{
-    email: string;
-  } | null>(null);
 
   const fetchUser = useCallback(async () => {
     try {
@@ -74,7 +71,6 @@ export default function Profile() {
 
   const handleEditPasswordClick = (user: User | null) => {
     if (!user) return;
-    setEditPasswordData({ email: user.email });
     setEditPasswordModalOpen(true);
   };
 
@@ -201,11 +197,10 @@ export default function Profile() {
       </Grid>
 
       {isEditPasswordModalOpen && (
-        <EditUserPasswordModal
+        <EditMyUserPasswordModal
           open
           onClose={() => setEditPasswordModalOpen(false)}
           onSuccess={handlePasswordSuccess}
-          initialData={editPasswordData || { email: "" }}
         />
       )}
     </Box>

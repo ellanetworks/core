@@ -31,6 +31,10 @@ type UpdateUserPasswordParams struct {
 	Password string `json:"password"`
 }
 
+type UpdateMyUserPasswordParams struct {
+	Password string `json:"password"`
+}
+
 type GetUserParams struct {
 	Email  string `json:"email"`
 	RoleID RoleID `json:"role_id"`
@@ -289,6 +293,41 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 
 		writeResponse(w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(UpdateUserPasswordAction, requester, getClientIP(r), "User updated password for user: "+updateUserParams.Email)
+	})
+}
+
+func UpdateMyUserPassword(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value(contextKeyEmail)
+		email, ok := emailAny.(string)
+		if !ok || email == "" {
+			writeError(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
+			return
+		}
+
+		var updateUserParams UpdateMyUserPasswordParams
+		if err := json.NewDecoder(r.Body).Decode(&updateUserParams); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			return
+		}
+		if updateUserParams.Password == "" {
+			writeError(w, http.StatusBadRequest, "password is missing", errors.New("missing password"), logger.APILog)
+			return
+		}
+
+		hashedPassword, err := hashPassword(updateUserParams.Password)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
+			return
+		}
+
+		if err := dbInstance.UpdateUserPassword(r.Context(), email, hashedPassword); err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to update password", err, logger.APILog)
+			return
+		}
+
+		writeResponse(w, SuccessResponse{Message: "User password updated successfully"}, http.StatusOK, logger.APILog)
+		logger.LogAuditEvent(UpdateUserPasswordAction, email, getClientIP(r), "User updated own password")
 	})
 }
 

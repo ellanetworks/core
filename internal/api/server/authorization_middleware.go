@@ -21,7 +21,7 @@ var PermissionsByRole = map[RoleID][]string{
 	RoleAdmin: {"*"},
 
 	RoleReadOnly: {
-		PermReadMyUser,
+		PermReadMyUser, PermUpdateMyUserPassword,
 		PermReadOperator, PermGetOperatorSlice, PermGetOperatorTracking,
 		PermListSubscribers, PermReadSubscriber,
 		PermListDataNetworks, PermReadDataNetwork,
@@ -31,7 +31,7 @@ var PermissionsByRole = map[RoleID][]string{
 	},
 
 	RoleNetworkManager: {
-		PermReadUser, PermReadMyUser,
+		PermReadUser, PermReadMyUser, PermUpdateMyUserPassword,
 		PermReadOperator, PermUpdateOperatorSlice, PermGetOperatorSlice, PermUpdateOperatorTracking, PermGetOperatorTracking,
 		PermListDataNetworks, PermCreateDataNetwork, PermUpdateDataNetwork, PermReadDataNetwork, PermDeleteDataNetwork,
 		PermListSubscribers, PermCreateSubscriber, PermUpdateSubscriber, PermReadSubscriber, PermDeleteSubscriber,
@@ -43,13 +43,14 @@ var PermissionsByRole = map[RoleID][]string{
 
 const (
 	// User permissions
-	PermListUsers          = "user:list"
-	PermCreateUser         = "user:create"
-	PermUpdateUser         = "user:update"
-	PermUpdateUserPassword = "user:update_password"
-	PermReadUser           = "user:read"
-	PermDeleteUser         = "user:delete"
-	PermReadMyUser         = "user:read_my_user"
+	PermListUsers            = "user:list"
+	PermCreateUser           = "user:create"
+	PermUpdateUser           = "user:update"
+	PermUpdateUserPassword   = "user:update_password"
+	PermReadUser             = "user:read"
+	PermDeleteUser           = "user:delete"
+	PermReadMyUser           = "user:read_my_user"
+	PermUpdateMyUserPassword = "user:update_my_user_password"
 
 	// Data Network permissions
 	PermListDataNetworks  = "data_network:list"
