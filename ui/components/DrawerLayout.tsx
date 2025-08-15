@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Box,
   Toolbar,
@@ -30,6 +30,7 @@ import {
   Router as RouterIcon,
   Logout as LogoutIcon,
   AccountCircle as AccountCircleIcon,
+  Person as PersonIcon,
   Storage as StorageIcon,
   Cable as CableIcon,
   Lan as LanIcon,
@@ -37,7 +38,6 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
-import { getLoggedInUser } from "@/queries/users";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -55,64 +55,43 @@ export default function DrawerLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [cookies] = useCookies(["user_token"]);
-  const { role } = useAuth();
-
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  const handleNavClick = () => {
-    if (isMobile) {
-      setMobileOpen(false);
-    }
-  };
-
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
-  };
-
+  const [cookies, , removeCookie] = useCookies(["user_token"]);
   if (!cookies.user_token) {
     router.push("/login");
   }
 
-  const [localEmail, setLocalEmail] = useState("");
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const open = Boolean(anchorEl);
+  const { role } = useAuth();
 
-  const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
+  const handleNavClick = () => {
+    if (isMobile) setMobileOpen(false);
   };
 
-  const handleMenuClose = () => {
-    setAnchorEl(null);
+  const [accountEl, setAccountEl] = useState<null | HTMLElement>(null);
+  const accountMenuOpen = Boolean(accountEl);
+  const handleAccountClick = (e: React.MouseEvent<HTMLElement>) =>
+    setAccountEl(e.currentTarget);
+  const handleAccountClose = () => setAccountEl(null);
+
+  const handleProfile = () => {
+    handleAccountClose();
+    router.push("/profile");
   };
 
   const handleLogout = () => {
     localStorage.removeItem("user_token");
+    removeCookie("user_token", { path: "/" });
+    handleAccountClose();
     router.push("/login");
   };
 
-  const fetchUser = useCallback(async () => {
-    try {
-      const data = await getLoggedInUser(cookies.user_token);
-      setLocalEmail(data.email);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-    }
-  }, [cookies.user_token]);
-
-  useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
-
   return (
     <Box sx={{ display: "flex" }}>
-      <AppBar
-        position="fixed"
-        sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
-      >
+      <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
         <Toolbar>
           {isMobile && (
             <IconButton
@@ -125,28 +104,57 @@ export default function DrawerLayout({
               <MenuIcon />
             </IconButton>
           )}
+
           <Logo width={50} height={50} />
           <Typography variant="h6" noWrap component="div" sx={{ ml: 2 }}>
             Ella Core
           </Typography>
+
           <Chip
-            label={"free"}
+            label="free"
             variant="filled"
-            sx={{
-              ml: 2,
-              color: "text.primary",
-              backgroundColor: "#F5F5F5",
-            }}
+            sx={{ ml: 2, color: "text.primary", backgroundColor: "#F5F5F5" }}
           />
+
+          <Box sx={{ flexGrow: 1 }} />
+
+          <IconButton
+            size="large"
+            edge="end"
+            color="inherit"
+            aria-label="account menu"
+            onClick={handleAccountClick}
+          >
+            <AccountCircleIcon />
+          </IconButton>
+          <Menu
+            anchorEl={accountEl}
+            open={accountMenuOpen}
+            onClose={handleAccountClose}
+            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+            transformOrigin={{ vertical: "top", horizontal: "right" }}
+          >
+            <MenuItem onClick={handleProfile}>
+              <ListItemIcon>
+                <PersonIcon fontSize="small" color="primary" />
+              </ListItemIcon>
+              <ListItemText primary="Profile" />
+            </MenuItem>
+            <MenuItem onClick={handleLogout}>
+              <ListItemIcon>
+                <LogoutIcon fontSize="small" color="primary" />
+              </ListItemIcon>
+              <ListItemText primary="Log Out" />
+            </MenuItem>
+          </Menu>
         </Toolbar>
       </AppBar>
+
       <Drawer
         variant={isMobile ? "temporary" : "permanent"}
         open={isMobile ? mobileOpen : true}
         onClose={handleDrawerToggle}
-        ModalProps={{
-          keepMounted: true,
-        }}
+        ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: "block", sm: "block" },
           "& .MuiDrawer-paper": {
@@ -168,11 +176,12 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <DashboardIcon color={"primary"} />
+                  <DashboardIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Dashboard" />
               </ListItemButton>
             </ListItem>
+
             <ListItem disablePadding>
               <ListItemButton
                 component={Link}
@@ -181,11 +190,12 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <SensorsIcon color={"primary"} />
+                  <SensorsIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Operator" />
               </ListItemButton>
             </ListItem>
+
             <ListItem disablePadding>
               <ListItemButton
                 component={Link}
@@ -194,11 +204,12 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <RouterIcon color={"primary"} />
+                  <RouterIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Radios" />
               </ListItemButton>
             </ListItem>
+
             <ListItem disablePadding>
               <ListItemButton
                 component={Link}
@@ -207,11 +218,12 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <LanIcon color={"primary"} />
+                  <LanIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Data Networks" />
               </ListItemButton>
             </ListItem>
+
             <ListItem disablePadding>
               <ListItemButton
                 component={Link}
@@ -220,11 +232,12 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <TuneIcon color={"primary"} />
+                  <TuneIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Policies" />
               </ListItemButton>
             </ListItem>
+
             <ListItem disablePadding>
               <ListItemButton
                 component={Link}
@@ -233,11 +246,12 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <GroupsIcon color={"primary"} />
+                  <GroupsIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Subscribers" />
               </ListItemButton>
             </ListItem>
+
             <ListItem disablePadding>
               <ListItemButton
                 component={Link}
@@ -246,15 +260,17 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <CableIcon color={"primary"} />
+                  <CableIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Routes" />
               </ListItemButton>
             </ListItem>
+
             {role === "Admin" && (
               <>
                 <Divider />
                 <ListSubheader>System</ListSubheader>
+
                 <ListItem disablePadding>
                   <ListItemButton
                     component={Link}
@@ -263,11 +279,12 @@ export default function DrawerLayout({
                     onClick={handleNavClick}
                   >
                     <ListItemIcon>
-                      <AdminPanelSettingsIcon color={"primary"} />
+                      <AdminPanelSettingsIcon color="primary" />
                     </ListItemIcon>
                     <ListItemText primary="Users" />
                   </ListItemButton>
                 </ListItem>
+
                 <ListItem disablePadding>
                   <ListItemButton
                     component={Link}
@@ -276,11 +293,12 @@ export default function DrawerLayout({
                     onClick={handleNavClick}
                   >
                     <ListItemIcon>
-                      <ReceiptLongIcon color={"primary"} />
+                      <ReceiptLongIcon color="primary" />
                     </ListItemIcon>
                     <ListItemText primary="Audit Logs" />
                   </ListItemButton>
                 </ListItem>
+
                 <ListItem disablePadding>
                   <ListItemButton
                     component={Link}
@@ -289,7 +307,7 @@ export default function DrawerLayout({
                     onClick={handleNavClick}
                   >
                     <ListItemIcon>
-                      <StorageIcon color={"primary"} />
+                      <StorageIcon color="primary" />
                     </ListItemIcon>
                     <ListItemText primary="Backup and Restore" />
                   </ListItemButton>
@@ -298,45 +316,7 @@ export default function DrawerLayout({
             )}
           </List>
         </Box>
-        <Box>
-          <ListItemButton onClick={handleMenuClick}>
-            <ListItemIcon>
-              <AccountCircleIcon color={"primary"} />
-            </ListItemIcon>
-            <ListItemText
-              primary={
-                <Typography
-                  variant="body2"
-                  color="text.primary"
-                  noWrap
-                  title={localEmail}
-                  sx={{
-                    textOverflow: "ellipsis",
-                    overflow: "hidden",
-                    whiteSpace: "nowrap",
-                    maxWidth: "200px",
-                  }}
-                >
-                  {localEmail}
-                </Typography>
-              }
-            />
-          </ListItemButton>
-          <Menu
-            anchorEl={anchorEl}
-            open={open}
-            onClose={handleMenuClose}
-            anchorOrigin={{ vertical: "top", horizontal: "right" }}
-            transformOrigin={{ vertical: "top", horizontal: "right" }}
-          >
-            <MenuItem onClick={handleLogout}>
-              <ListItemIcon>
-                <LogoutIcon fontSize="small" color={"primary"} />
-              </ListItemIcon>
-              Logout
-            </MenuItem>
-          </Menu>
-        </Box>
+
         <Divider />
         <Box>
           <List>
@@ -349,7 +329,7 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <InfoIcon color={"primary"} />
+                  <InfoIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Documentation" />
               </ListItemButton>
@@ -363,7 +343,7 @@ export default function DrawerLayout({
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
-                  <BugReportIcon color={"primary"} />
+                  <BugReportIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Report a bug" />
               </ListItemButton>
