@@ -26,10 +26,11 @@ const QueryCreateRoutesTable = `
 )`
 
 const (
-	listRoutesStmt  = "SELECT &Route.* FROM %s"
-	getRouteStmt    = "SELECT &Route.* FROM %s WHERE id==$Route.id"
-	createRouteStmt = "INSERT INTO %s (destination, gateway, interface, metric) VALUES ($Route.destination, $Route.gateway, $Route.interface, $Route.metric)"
-	deleteRouteStmt = "DELETE FROM %s WHERE id==$Route.id"
+	listRoutesStmt   = "SELECT &Route.* FROM %s"
+	getRouteStmt     = "SELECT &Route.* FROM %s WHERE id==$Route.id"
+	createRouteStmt  = "INSERT INTO %s (destination, gateway, interface, metric) VALUES ($Route.destination, $Route.gateway, $Route.interface, $Route.metric)"
+	deleteRouteStmt  = "DELETE FROM %s WHERE id==$Route.id"
+	getNumRoutesStmt = "SELECT COUNT(*) AS &NumRoutes.count FROM %s"
 )
 
 // NetworkInterface is an enum for network interface keys.
@@ -39,6 +40,10 @@ const (
 	N3 NetworkInterface = iota
 	N6
 )
+
+type NumRoutes struct {
+	Count int `db:"count"`
+}
 
 func (ni NetworkInterface) String() string {
 	switch ni {
@@ -205,4 +210,38 @@ func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 
 	span.SetStatus(codes.Ok, "")
 	return nil
+}
+
+// NumRoutes returns route count
+func (db *Database) NumRoutes(ctx context.Context) (int, error) {
+	operation := "SELECT"
+	target := RoutesTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+
+	stmt := fmt.Sprintf(getNumRoutesStmt, db.routesTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+
+	var result NumRoutes
+	q, err := sqlair.Prepare(stmt, NumRoutes{})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		return 0, err
+	}
+	if err := db.conn.Query(ctx, q).Get(&result); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "execution failed")
+		return 0, err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return result.Count, nil
 }

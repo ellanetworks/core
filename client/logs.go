@@ -1,0 +1,91 @@
+package client
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+)
+
+type AuditLog struct {
+	ID        int    `json:"id"`
+	Timestamp string `json:"timestamp"`
+	Level     string `json:"level"`
+	Actor     string `json:"actor"`
+	Action    string `json:"action"`
+	IP        string `json:"ip"`
+	Details   string `json:"details"`
+}
+
+type GetAuditLogsRetentionPolicy struct {
+	Days int `json:"days"`
+}
+
+type UpdateAuditLogsRetentionPolicyOptions struct {
+	Days int `json:"days"`
+}
+
+func (c *Client) ListAuditLogs() ([]*AuditLog, error) {
+	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/logs/audit",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var auditLogs []*AuditLog
+
+	err = resp.DecodeResult(&auditLogs)
+	if err != nil {
+		return nil, err
+	}
+
+	return auditLogs, nil
+}
+
+func (c *Client) GetAuditLogRetentionPolicy() (*GetAuditLogsRetentionPolicy, error) {
+	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/logs/audit/retention",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var policy GetAuditLogsRetentionPolicy
+
+	err = resp.DecodeResult(&policy)
+	if err != nil {
+		return nil, err
+	}
+
+	return &policy, nil
+}
+
+func (c *Client) UpdateAuditLogRetentionPolicy(opts *UpdateAuditLogsRetentionPolicyOptions) error {
+	payload := struct {
+		Days int `json:"days"`
+	}{
+		Days: opts.Days,
+	}
+
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(context.Background(), &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/logs/audit/retention",
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}

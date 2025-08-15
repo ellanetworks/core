@@ -624,6 +624,14 @@ func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
 			supportedTacs: []string{"00"},
 			error:         "Invalid TAC format. Must be a 3-digit number",
 		},
+		{
+			testName: "Too many TACs",
+			supportedTacs: []string{
+				"001", "002", "003", "004", "005", "006", "007", "008",
+				"009", "010", "011", "012", "013", "014", "015", "016",
+			},
+			error: "Too many supported TACs. Maximum is 12",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
