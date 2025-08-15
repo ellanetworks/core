@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -606,5 +607,64 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}
 		})
+	}
+}
+
+func TestCreateTooManyPolicies(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	for i := 0; i < 11; i++ { // We use 11 instead of 12 because the first policy is created by default
+		createPolicyParams := &CreatePolicyParams{
+			Name:            PolicyName + strconv.Itoa(i),
+			BitrateUplink:   BitrateUplink,
+			BitrateDownlink: BitrateDownlink,
+			Var5qi:          Var5qi,
+			PriorityLevel:   PriorityLevel,
+			DataNetworkName: "internet",
+		}
+
+		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
+		if err != nil {
+			t.Fatalf("couldn't create policy: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	}
+
+	createPolicyParams := &CreatePolicyParams{
+		Name:            "excess-policy",
+		BitrateUplink:   BitrateUplink,
+		BitrateDownlink: BitrateDownlink,
+		Var5qi:          Var5qi,
+		PriorityLevel:   PriorityLevel,
+		DataNetworkName: "internet",
+	}
+	statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
+	if err != nil {
+		t.Fatalf("couldn't create policy: %s", err)
+	}
+	if statusCode != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+	}
+	if response.Error != "Maximum number of policies reached (12)" {
+		t.Fatalf("expected error %q, got %q", "Maximum number of policies reached (12)", response.Error)
 	}
 }

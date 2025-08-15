@@ -3,6 +3,7 @@ package server_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -462,5 +463,98 @@ func TestCreateSubscriberInvalidInput(t *testing.T) {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}
 		})
+	}
+}
+
+func TestCreateTooManySubscribers(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	createDataNetworkParams := &CreateDataNetworkParams{
+		Name:   "whatever",
+		MTU:    MTU,
+		IPPool: IPPool,
+		DNS:    DNS,
+	}
+	statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
+	if err != nil {
+		t.Fatalf("couldn't create data network: %s", err)
+	}
+	if statusCode != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+	}
+	if response.Error != "" {
+		t.Fatalf("unexpected error :%q", response.Error)
+	}
+
+	createPolicyParams := &CreatePolicyParams{
+		Name:            PolicyName,
+		BitrateUplink:   "100 Mbps",
+		BitrateDownlink: "100 Mbps",
+		Var5qi:          9,
+		PriorityLevel:   1,
+		DataNetworkName: "whatever",
+	}
+	statusCode, createPolicyResponse, err := createPolicy(ts.URL, client, token, createPolicyParams)
+	if err != nil {
+		t.Fatalf("couldn't create policy: %s", err)
+	}
+	if statusCode != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+	}
+	if createPolicyResponse.Error != "" {
+		t.Fatalf("unexpected error :%q", createPolicyResponse.Error)
+	}
+
+	baseImsi := Imsi[:len(Imsi)-4]
+
+	for i := 0; i < 1000; i++ {
+		createSubscriberParams := &CreateSubscriberParams{
+			Imsi:           fmt.Sprintf("%s%04d", baseImsi, i),
+			Key:            Key,
+			Opc:            Opc,
+			SequenceNumber: SequenceNumber,
+			PolicyName:     PolicyName,
+		}
+		t.Log("Creating subscriber:", createSubscriberParams.Imsi)
+		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
+		if err != nil {
+			t.Fatalf("couldn't create subscriber: %s", err)
+		}
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	}
+
+	createSubscriberParams := &CreateSubscriberParams{
+		Imsi:           fmt.Sprintf("%s%04d", baseImsi, 1000),
+		Key:            Key,
+		Opc:            Opc,
+		SequenceNumber: SequenceNumber,
+		PolicyName:     PolicyName,
+	}
+	statusCode, createSubscriberResponse, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
+	if err != nil {
+		t.Fatalf("couldn't create subscriber: %s", err)
+	}
+	if statusCode != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+	}
+	if createSubscriberResponse.Error != "Maximum number of subscribers reached (1000)" {
+		t.Fatalf("expected error %q, got %q", "Maximum number of subscribers reached (1000)", createSubscriberResponse.Error)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -38,6 +39,8 @@ const (
 	CreateDataNetworkAction = "create_data_network"
 	UpdateDataNetworkAction = "update_data_network"
 )
+
+const MaxNumDataNetworks = 12
 
 var dnnRegex = regexp.MustCompile(`^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$`)
 
@@ -150,6 +153,16 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 		if err := validateDataNetworkParams(createDataNetworkParams); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
+		}
+
+		numDataNetworks, err := dbInstance.NumDataNetworks(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to count data networks", err, logger.APILog)
+			return
+		}
+
+		if numDataNetworks >= MaxNumDataNetworks {
+			writeError(w, http.StatusBadRequest, "Maximum number of data networks reached ("+strconv.Itoa(MaxNumPolicies)+")", nil, logger.APILog)
 		}
 
 		if _, err := dbInstance.GetDataNetwork(r.Context(), createDataNetworkParams.Name); err == nil {

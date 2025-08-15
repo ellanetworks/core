@@ -392,3 +392,55 @@ func TestCreateRouteInvalidInput(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateTooManyRoutes(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	for i := 0; i < 12; i++ {
+		createRouteParams := &CreateRouteParams{
+			Destination: fmt.Sprintf("1.1.%d.0/24", i),
+			Gateway:     fmt.Sprintf("1.2.%d.4", i),
+			Interface:   Interface,
+			Metric:      Metric,
+		}
+		statusCode, response, err := createRoute(ts.URL, client, token, createRouteParams)
+		if err != nil {
+			t.Fatalf("couldn't create route: %s", err)
+		}
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	}
+
+	createRouteParams := &CreateRouteParams{
+		Destination: "1.2.3.4/24",
+		Gateway:     "1.2.2.1",
+		Interface:   Interface,
+		Metric:      Metric,
+	}
+	statusCode, response, err := createRoute(ts.URL, client, token, createRouteParams)
+	if err != nil {
+		t.Fatalf("couldn't create route: %s", err)
+	}
+	if statusCode != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+	}
+	if response.Error != "Maximum number of routes reached (12)" {
+		t.Fatalf("expected error %q, got %q", "Maximum number of routes reached (12)", response.Error)
+	}
+}

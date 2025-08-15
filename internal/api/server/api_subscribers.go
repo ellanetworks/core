@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/deregister"
@@ -50,6 +51,10 @@ const (
 	CreateSubscriberAction = "create_subscriber"
 	UpdateSubscriberAction = "update_subscriber"
 	DeleteSubscriberAction = "delete_subscriber"
+)
+
+const (
+	MaxNumSubscribers = 1000
 )
 
 func isImsiValid(ctx context.Context, imsi string, dbInstance *db.Database) bool {
@@ -241,6 +246,17 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 		policy, err := dbInstance.GetPolicy(r.Context(), params.PolicyName)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "Policy not found", err, logger.APILog)
+			return
+		}
+
+		numSubscribers, err := dbInstance.NumSubscribers(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to count subscribers", err, logger.APILog)
+			return
+		}
+
+		if numSubscribers >= MaxNumSubscribers {
+			writeError(w, http.StatusBadRequest, "Maximum number of subscribers reached ("+strconv.Itoa(MaxNumSubscribers)+")", nil, logger.APILog)
 			return
 		}
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -501,5 +502,55 @@ func TestCreateUserInvalidInput(t *testing.T) {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}
 		})
+	}
+}
+
+func TestCreateTooManyUsers(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	for i := 0; i < 49; i++ { // We use 49 instead of 50 because the first user was just created
+		createUserParams := &CreateUserParams{
+			Email:    "user" + strconv.Itoa(i) + "@ellanetworks.com",
+			Password: Password,
+			RoleID:   RoleReadOnly,
+		}
+		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
+		if err != nil {
+			t.Fatalf("couldn't create user: %s", err)
+		}
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	}
+
+	createUserParams := &CreateUserParams{
+		Email:    "abc@ellanetworks.com",
+		Password: Password,
+		RoleID:   RoleReadOnly,
+	}
+	statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
+	if err != nil {
+		t.Fatalf("couldn't create user: %s", err)
+	}
+	if statusCode != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+	}
+	if response.Error != "Maximum number of users reached (50)" {
+		t.Fatalf("expected error %q, got %q", "Maximum number of users reached (50)", response.Error)
 	}
 }

@@ -12,6 +12,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	MaxSupportedTACs = 12
+)
+
 type UpdateOperatorSliceParams struct {
 	Sst int `json:"sst,omitempty"`
 	Sd  int `json:"sd,omitempty"`
@@ -308,8 +312,14 @@ func UpdateOperatorTracking(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
+
 		if len(params.SupportedTacs) == 0 {
 			writeError(w, http.StatusBadRequest, "supportedTacs is missing", nil, logger.APILog)
+			return
+		}
+
+		if len(params.SupportedTacs) > MaxSupportedTACs {
+			writeError(w, http.StatusBadRequest, "Too many supported TACs. Maximum is "+strconv.Itoa(MaxSupportedTACs), nil, logger.APILog)
 			return
 		}
 

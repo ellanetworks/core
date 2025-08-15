@@ -37,6 +37,10 @@ const (
 	DeletePolicyAction = "delete_policy"
 )
 
+const (
+	MaxNumPolicies = 12
+)
+
 func isPolicyNameValid(name string) bool {
 	return len(name) > 0 && len(name) < 256
 }
@@ -180,6 +184,17 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 
 		if _, err := dbInstance.GetPolicy(r.Context(), createPolicyParams.Name); err == nil {
 			writeError(w, http.StatusBadRequest, "Policy already exists", nil, logger.APILog)
+			return
+		}
+
+		numPolicies, err := dbInstance.NumPolicies(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to retrieve policies", err, logger.APILog)
+			return
+		}
+
+		if numPolicies >= MaxNumPolicies {
+			writeError(w, http.StatusBadRequest, "Maximum number of policies reached ("+strconv.Itoa(MaxNumPolicies)+")", nil, logger.APILog)
 			return
 		}
 

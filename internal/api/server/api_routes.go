@@ -34,6 +34,10 @@ const (
 	DeleteRouteAction = "delete_route"
 )
 
+const (
+	MaxNumRoutes = 12
+)
+
 // isRouteDestinationValid checks if the destination is in valid CIDR notation.
 func isRouteDestinationValid(dest string) bool {
 	_, _, err := net.ParseCIDR(dest)
@@ -178,6 +182,17 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 		dbNetworkInterface, ok := interfaceDBMap[createRouteParams.Interface]
 		if !ok {
 			writeError(w, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed", nil, logger.APILog)
+			return
+		}
+
+		numRoutes, err := dbInstance.NumRoutes(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to retrieve routes", err, logger.APILog)
+			return
+		}
+
+		if numRoutes >= MaxNumRoutes {
+			writeError(w, http.StatusBadRequest, "Maximum number of routes reached ("+strconv.Itoa(MaxNumRoutes)+")", nil, logger.APILog)
 			return
 		}
 

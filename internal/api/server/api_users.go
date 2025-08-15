@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
+	"strconv"
 	"strings"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -40,6 +41,10 @@ const (
 	UpdateUserAction         = "update_user"
 	DeleteUserAction         = "delete_user"
 	UpdateUserPasswordAction = "update_user_password"
+)
+
+const (
+	MaxNumUsers = 50
 )
 
 func isValidEmail(email string) bool {
@@ -172,6 +177,11 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 				writeError(w, http.StatusBadRequest, "First user must be an admin", errors.New("first user must be admin"), logger.APILog)
 				return
 			}
+		}
+
+		if numUsers >= MaxNumUsers {
+			writeError(w, http.StatusBadRequest, "Maximum number of users reached ("+strconv.Itoa(MaxNumUsers)+")", nil, logger.APILog)
+			return
 		}
 
 		dbUser := &db.User{

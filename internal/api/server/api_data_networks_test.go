@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -515,5 +516,62 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
 			}
 		})
+	}
+}
+
+func TestCreateTooManyDataNetworks(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	for i := 0; i < 11; i++ { // We use 11 instead of 12 because the first data network is created by default
+		createDataNetworkParams := &CreateDataNetworkParams{
+			Name:   "data-network-" + strconv.Itoa(i),
+			IPPool: IPPool,
+			DNS:    DNS,
+			MTU:    MTU,
+		}
+
+		statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
+		if err != nil {
+			t.Fatalf("couldn't create data network: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	}
+
+	createDataNetworkParams := &CreateDataNetworkParams{
+		Name:   "data-network-too-many",
+		IPPool: IPPool,
+		DNS:    DNS,
+		MTU:    MTU,
+	}
+	statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
+	if err != nil {
+		t.Fatalf("couldn't create data network: %s", err)
+	}
+
+	if statusCode != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+	}
+
+	if response.Error != "Maximum number of data networks reached (12)" {
+		t.Fatalf("expected error %q, got %q", "Maximum number of data networks reached (12)", response.Error)
 	}
 }
