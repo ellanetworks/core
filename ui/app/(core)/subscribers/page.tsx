@@ -370,30 +370,37 @@ const SubscriberPage = () => {
           </Box>
         </>
       )}
-
-      <ViewSubscriberModal
-        open={isViewModalOpen}
-        onClose={handleCloseViewModal}
-        imsi={selectedSubscriber || ""}
-      />
-      <CreateSubscriberModal
-        open={isCreateModalOpen}
-        onClose={handleCloseCreateModal}
-        onSuccess={refetch}
-      />
-      <EditSubscriberModal
-        open={isEditModalOpen}
-        onClose={() => setEditModalOpen(false)}
-        onSuccess={refetch}
-        initialData={editData || { imsi: "", policyName: "" }}
-      />
-      <DeleteConfirmationModal
-        open={isConfirmationOpen}
-        onClose={() => setConfirmationOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Confirm Deletion"
-        description={`Are you sure you want to delete the subscriber "${selectedSubscriber}"? This action cannot be undone.`}
-      />
+      {isViewModalOpen && (
+        <ViewSubscriberModal
+          open
+          onClose={handleCloseViewModal}
+          imsi={selectedSubscriber || ""}
+        />
+      )}
+      {isCreateModalOpen && (
+        <CreateSubscriberModal
+          open
+          onClose={handleCloseCreateModal}
+          onSuccess={refetch}
+        />
+      )}
+      {isEditModalOpen && (
+        <EditSubscriberModal
+          open
+          onClose={() => setEditModalOpen(false)}
+          onSuccess={refetch}
+          initialData={editData || { imsi: "", policyName: "" }}
+        />
+      )}
+      {isConfirmationOpen && (
+        <DeleteConfirmationModal
+          open
+          onClose={() => setConfirmationOpen(false)}
+          onConfirm={handleDeleteConfirm}
+          title="Confirm Deletion"
+          description={`Are you sure you want to delete the subscriber "${selectedSubscriber}"? This action cannot be undone.`}
+        />
+      )}
     </Box>
   );
 };

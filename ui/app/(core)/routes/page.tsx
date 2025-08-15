@@ -231,19 +231,22 @@ const RoutePage = () => {
           </Box>
         </>
       )}
-
-      <CreateRouteModal
-        open={isCreateModalOpen}
-        onClose={() => setCreateModalOpen(false)}
-        onSuccess={fetchRoutes}
-      />
-      <DeleteConfirmationModal
-        open={isConfirmationOpen}
-        onClose={() => setConfirmationOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Confirm Deletion"
-        description={`Are you sure you want to delete the route "${selectedRoute}"? This action cannot be undone.`}
-      />
+      {isCreateModalOpen && (
+        <CreateRouteModal
+          open
+          onClose={() => setCreateModalOpen(false)}
+          onSuccess={fetchRoutes}
+        />
+      )}
+      {isConfirmationOpen && (
+        <DeleteConfirmationModal
+          open
+          onClose={() => setConfirmationOpen(false)}
+          onConfirm={handleDeleteConfirm}
+          title="Confirm Deletion"
+          description={`Are you sure you want to delete the route "${selectedRoute}"? This action cannot be undone.`}
+        />
+      )}
     </Box>
   );
 };

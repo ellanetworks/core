@@ -240,30 +240,38 @@ const UserPage = () => {
         </>
       )}
 
-      <CreateUserModal
-        open={isCreateModalOpen}
-        onClose={() => setCreateModalOpen(false)}
-        onSuccess={fetchUsers}
-      />
-      <EditUserModal
-        open={isEditModalOpen}
-        onClose={() => setEditModalOpen(false)}
-        onSuccess={fetchUsers}
-        initialData={editData || { email: "", roleID: RoleID.ReadOnly }}
-      />
-      <EditUserPasswordModal
-        open={isEditPasswordModalOpen}
-        onClose={() => setEditPasswordModalOpen(false)}
-        onSuccess={fetchUsers}
-        initialData={editPasswordData || { email: "" }}
-      />
-      <DeleteConfirmationModal
-        open={isConfirmationOpen}
-        onClose={() => setConfirmationOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Confirm Deletion"
-        description={`Are you sure you want to delete the user "${selectedUser}"? This action cannot be undone.`}
-      />
+      {isCreateModalOpen && (
+        <CreateUserModal
+          open
+          onClose={() => setCreateModalOpen(false)}
+          onSuccess={fetchUsers}
+        />
+      )}
+      {isEditModalOpen && (
+        <EditUserModal
+          open
+          onClose={() => setEditModalOpen(false)}
+          onSuccess={fetchUsers}
+          initialData={editData || { email: "", roleID: RoleID.ReadOnly }}
+        />
+      )}
+      {isEditPasswordModalOpen && (
+        <EditUserPasswordModal
+          open
+          onClose={() => setEditPasswordModalOpen(false)}
+          onSuccess={fetchUsers}
+          initialData={editPasswordData || { email: "" }}
+        />
+      )}
+      {isConfirmationOpen && (
+        <DeleteConfirmationModal
+          open
+          onClose={() => setConfirmationOpen(false)}
+          onConfirm={handleDeleteConfirm}
+          title="Confirm Deletion"
+          description={`Are you sure you want to delete the user "${selectedUser}"? This action cannot be undone.`}
+        />
+      )}
     </Box>
   );
 };
