@@ -64,10 +64,7 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
     setAlert({ message: "" });
 
     try {
-      await updateMyUserPassword(
-        cookies.user_token,
-        formValues.password,
-      );
+      await updateMyUserPassword(cookies.user_token, formValues.password);
       onClose();
       onSuccess();
     } catch (error: unknown) {
