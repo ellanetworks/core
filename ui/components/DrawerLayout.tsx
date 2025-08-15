@@ -44,6 +44,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
 import IconButton from "@mui/material/IconButton";
 import MenuIcon from "@mui/icons-material/Menu";
+import Footer from "@/components/Footer";
 
 const drawerWidth = 250;
 
@@ -129,10 +130,13 @@ export default function DrawerLayout({
             Ella Core
           </Typography>
           <Chip
-            label={role}
-            color={"warning"}
-            variant="outlined"
-            sx={{ ml: 2 }}
+            label={"free"}
+            variant="filled"
+            sx={{
+              ml: 2,
+              color: "text.primary",
+              backgroundColor: "#F5F5F5",
+            }}
           />
         </Toolbar>
       </AppBar>
@@ -371,12 +375,16 @@ export default function DrawerLayout({
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
           ml: isMobile ? 0 : `${drawerWidth}px`,
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          p: 3,
         }}
       >
         <Toolbar />
-        {children}
+        <Box sx={{ flexGrow: 1 }}>{children}</Box>
+        <Footer />
       </Box>
     </Box>
   );
