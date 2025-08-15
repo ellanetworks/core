@@ -8,19 +8,33 @@ import {
   Card,
   CardHeader,
   CardContent,
+  TableContainer,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  IconButton,
+  Paper,
   Button,
   Chip,
   Skeleton,
   Stack,
 } from "@mui/material";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import Grid from "@mui/material/Grid";
 import { useCookies } from "react-cookie";
 import EditMyUserPasswordModal from "@/components/EditMyUserPasswordModal";
+import CreateAPITokenModal from "@/components/CreateAPITokenModal";
+import DeleteIcon from "@mui/icons-material/Delete";
 import { getLoggedInUser } from "@/queries/users";
+import { listAPITokens, deleteAPIToken } from "@/queries/api_tokens";
 import { useAuth } from "@/contexts/AuthContext";
 import { User } from "@/types/types";
 import { useRouter } from "next/navigation";
 import EmailIcon from "@mui/icons-material/Email";
+import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
+import { APIToken } from "@/types/types";
 
 const MAX_WIDTH = 1200;
 
@@ -43,6 +57,8 @@ export default function Profile() {
   }, [cookies.user_token, router]);
 
   const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
+  const [isCreateAPITokenModalOpen, setCreateAPITokenModalOpen] =
+    useState(false);
 
   const [alert, setAlert] = useState<{
     message: string;
@@ -51,6 +67,14 @@ export default function Profile() {
 
   const [loggedInUser, setLoggedInUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [apiTokens, setAPITokens] = useState<APIToken[]>([]);
+  // const [selectedToken, setSelectedToken] = useState<string | null>(null);
+  const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
+  const [selectedTokenName, setSelectedTokenName] = useState<string | null>(
+    null,
+  );
+
+  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
 
   const fetchUser = useCallback(async () => {
     try {
@@ -74,12 +98,65 @@ export default function Profile() {
     setEditPasswordModalOpen(true);
   };
 
+  const handleOpenCreateAPITokenModal = () => setCreateAPITokenModalOpen(true);
+
   const handlePasswordSuccess = () => {
     setEditPasswordModalOpen(false);
     setAlert({
       message: "Password updated successfully.",
       severity: "success",
     });
+  };
+
+  const handleCreateAPITokenSuccess = () => {
+    setCreateAPITokenModalOpen(false);
+    setAlert({
+      message: "API Token created successfully.",
+      severity: "success",
+    });
+    fetchAPITokens();
+  };
+
+  const handleDeleteClick = (tokenId: number, tokenName: string) => {
+    setSelectedTokenId(tokenId);
+    setSelectedTokenName(tokenName);
+
+    setConfirmationOpen(true);
+  };
+
+  const fetchAPITokens = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await listAPITokens(cookies.user_token);
+      setAPITokens(data);
+    } catch (error) {
+      console.error("Error fetching API Tokens:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [cookies.user_token]);
+
+  const handleDeleteConfirm = async () => {
+    setConfirmationOpen(false);
+    if (!selectedTokenId) return;
+    try {
+      await deleteAPIToken(cookies.user_token, selectedTokenId);
+      setAlert({
+        message: `API Token "${selectedTokenName}" deleted successfully!`,
+        severity: "success",
+      });
+      fetchAPITokens();
+    } catch (error) {
+      setAlert({
+        message: `Failed to delete policy "${selectedTokenName}": ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+        severity: "error",
+      });
+    } finally {
+      setSelectedTokenId(null);
+      setSelectedTokenName(null);
+    }
   };
 
   const descriptionText = "Manage how you authenticate with Ella Core.";
@@ -194,6 +271,99 @@ export default function Profile() {
             </CardContent>
           </Card>
         </Grid>
+
+        <Grid size={{ xs: 12, sm: 12, md: 12 }}>
+          <Card sx={{ height: "100%", borderRadius: 3, boxShadow: 2 }}>
+            <CardHeader title="API Tokens" sx={headerStyles} />
+            <CardContent
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+                flexGrow: 1,
+              }}
+            >
+              <Typography variant="body2" color="text.secondary">
+                Manage your API tokens to authenticate programmatically with
+                Ella Core. Your API token will have the same permissions as your
+                user account.
+              </Typography>
+
+              <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
+                <Button
+                  variant="contained"
+                  color="success"
+                  onClick={handleOpenCreateAPITokenModal}
+                  disabled={loading || !loggedInUser}
+                >
+                  Create Token
+                </Button>
+              </Box>
+
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Name</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Expiry</TableCell>
+                      <TableCell>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>Example Token</TableCell>
+                      <TableCell>
+                        <Chip label="Active" color="success" size="small" />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          Never
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <IconButton
+                          aria-label="delete"
+                          size="small"
+                          onClick={() => handleDeleteClick(1, "Example Token")}
+                        >
+                          <DeleteIcon color="primary" />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Old Token</TableCell>
+                      <TableCell>
+                        <Chip
+                          label="Expired"
+                          size="small"
+                          sx={{
+                            backgroundColor: "#C69026",
+                            color: "#fff",
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          Fri, Jul 25 2025
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <IconButton
+                          aria-label="delete"
+                          size="small"
+                          onClick={() => handleDeleteClick(2, "Old Token")}
+                        >
+                          <DeleteIcon color="primary" />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
 
       {isEditPasswordModalOpen && (
@@ -201,6 +371,22 @@ export default function Profile() {
           open
           onClose={() => setEditPasswordModalOpen(false)}
           onSuccess={handlePasswordSuccess}
+        />
+      )}
+      {isCreateAPITokenModalOpen && (
+        <CreateAPITokenModal
+          open
+          onClose={() => setCreateAPITokenModalOpen(false)}
+          onSuccess={handleCreateAPITokenSuccess}
+        />
+      )}
+      {isConfirmationOpen && (
+        <DeleteConfirmationModal
+          open
+          onClose={() => setConfirmationOpen(false)}
+          onConfirm={handleDeleteConfirm}
+          title="Confirm Deletion"
+          description={`Are you sure you want to delete the API Token "${selectedTokenName}"? This action cannot be undone.`}
         />
       )}
     </Box>

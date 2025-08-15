@@ -72,3 +72,9 @@ export const roleIDToLabel = (role: RoleID): string => {
       return "Unknown";
   }
 };
+
+export type APIToken = {
+  id: string;
+  name: string;
+  expiry: string | null;
+};
