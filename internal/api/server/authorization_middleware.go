@@ -50,7 +50,7 @@ const (
 	PermReadUser             = "user:read"
 	PermDeleteUser           = "user:delete"
 	PermReadMyUser           = "user:read_my_user"
-	PermUpdateMyUserPassword = "user:update_my_user_password"
+	PermUpdateMyUserPassword = "user:update_my_user_password" // #nosec: G101
 
 	// Data Network permissions
 	PermListDataNetworks  = "data_network:list"
