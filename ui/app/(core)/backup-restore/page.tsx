@@ -94,7 +94,6 @@ const BackupRestore = () => {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        minHeight: "100vh",
       }}
     >
       <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
