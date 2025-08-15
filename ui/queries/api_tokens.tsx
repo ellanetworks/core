@@ -2,7 +2,7 @@ import { HTTPStatus } from "@/queries/utils";
 import { APIToken } from "@/types/types";
 
 export const listAPITokens = async (authToken: string): Promise<APIToken[]> => {
-  const response = await fetch(`/api/v1/api-tokens`, {
+  const response = await fetch(`/api/v1/users/me/api-tokens`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -44,7 +44,7 @@ export const createAPIToken = async (
     expiry: expiry,
   };
 
-  const response = await fetch(`/api/v1/api-tokens`, {
+  const response = await fetch(`/api/v1/users/me/api-tokens`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -71,7 +71,7 @@ export const createAPIToken = async (
 };
 
 export const deleteAPIToken = async (authToken: string, id: number) => {
-  const response = await fetch(`/api/v1/api-tokens/${id}`, {
+  const response = await fetch(`/api/v1/users/me/api-tokens/${id}`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",

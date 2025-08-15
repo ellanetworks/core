@@ -218,7 +218,7 @@ const DataNetworkPage = () => {
                             size="small"
                             label={sessionCount}
                             color={sessionCount > 0 ? "success" : "default"}
-                            variant="outlined"
+                            variant="filled"
                           />
                         </TableCell>
                         {canEdit && (

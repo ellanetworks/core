@@ -21,7 +21,6 @@ import {
   Skeleton,
   Stack,
 } from "@mui/material";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import Grid from "@mui/material/Grid";
 import { useCookies } from "react-cookie";
 import EditMyUserPasswordModal from "@/components/EditMyUserPasswordModal";
@@ -68,7 +67,6 @@ export default function Profile() {
   const [loggedInUser, setLoggedInUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [apiTokens, setAPITokens] = useState<APIToken[]>([]);
-  // const [selectedToken, setSelectedToken] = useState<string | null>(null);
   const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
   const [selectedTokenName, setSelectedTokenName] = useState<string | null>(
     null,
@@ -135,6 +133,10 @@ export default function Profile() {
       setLoading(false);
     }
   }, [cookies.user_token]);
+
+  useEffect(() => {
+    fetchAPITokens();
+  }, [fetchAPITokens]);
 
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
@@ -286,9 +288,9 @@ export default function Profile() {
               <Typography variant="body2" color="text.secondary">
                 Manage your API tokens to authenticate programmatically with
                 Ella Core. Your API token will have the same permissions as your
-                user account.
+                user account. Actions performed with the token will be logged
+                under your user account.
               </Typography>
-
               <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
                 <Button
                   variant="contained"
@@ -311,53 +313,78 @@ export default function Profile() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    <TableRow>
-                      <TableCell>Example Token</TableCell>
-                      <TableCell>
-                        <Chip label="Active" color="success" size="small" />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          Never
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <IconButton
-                          aria-label="delete"
-                          size="small"
-                          onClick={() => handleDeleteClick(1, "Example Token")}
-                        >
-                          <DeleteIcon color="primary" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Old Token</TableCell>
-                      <TableCell>
-                        <Chip
-                          label="Expired"
-                          size="small"
-                          sx={{
-                            backgroundColor: "#C69026",
-                            color: "#fff",
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          Fri, Jul 25 2025
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <IconButton
-                          aria-label="delete"
-                          size="small"
-                          onClick={() => handleDeleteClick(2, "Old Token")}
-                        >
-                          <DeleteIcon color="primary" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
+                    {loading && (
+                      <>
+                        {[...Array(2)].map((_, i) => (
+                          <TableRow key={`sk-${i}`}>
+                            <TableCell colSpan={4}>
+                              <Skeleton variant="text" />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </>
+                    )}
+
+                    {!loading && apiTokens.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4}>
+                          <Typography variant="body2" color="text.secondary">
+                            No API tokens yet. Click “Create Token” to add one.
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+
+                    {!loading &&
+                      apiTokens.map((t) => {
+                        const isExpired = t.expiry
+                          ? new Date(t.expiry).getTime() < Date.now()
+                          : false;
+
+                        return (
+                          <TableRow key={t.id}>
+                            <TableCell>{t.name}</TableCell>
+                            <TableCell>
+                              {isExpired ? (
+                                <Chip
+                                  label="Expired"
+                                  size="small"
+                                  sx={{
+                                    backgroundColor: "#C69026",
+                                    color: "#fff",
+                                  }}
+                                />
+                              ) : (
+                                <Chip
+                                  label="Active"
+                                  color="success"
+                                  size="small"
+                                />
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                {t.expiry
+                                  ? new Date(t.expiry).toDateString()
+                                  : "Never"}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <IconButton
+                                aria-label="delete"
+                                size="small"
+                                onClick={() => handleDeleteClick(t.id, t.name)}
+                                disabled={loading}
+                              >
+                                <DeleteIcon color="primary" />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                   </TableBody>
                 </Table>
               </TableContainer>
