@@ -25,7 +25,7 @@ const QueryCreateAPITokensTable = `
   expires_at  DATETIME,
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
-`
+` // #nosec: G101
 
 type APIToken struct {
 	ID        int        `db:"id"`
@@ -38,8 +38,8 @@ type APIToken struct {
 const (
 	listAPITokensStmt  = `SELECT &APIToken.* FROM %s WHERE user_id == $APIToken.user_id`
 	getAPITokenStmt    = "SELECT &APIToken.* FROM %s WHERE id==$APIToken.id"
-	deleteAPITokenStmt = "DELETE FROM %s WHERE id==$APIToken.id"
-	createAPITokenStmt = "INSERT INTO %s (name, token_hash, user_id, expires_at) VALUES ($APIToken.name, $APIToken.token_hash, $APIToken.user_id, $APIToken.expires_at)"
+	deleteAPITokenStmt = "DELETE FROM %s WHERE id==$APIToken.id"                                                                                                         // #nosec: G101
+	createAPITokenStmt = "INSERT INTO %s (name, token_hash, user_id, expires_at) VALUES ($APIToken.name, $APIToken.token_hash, $APIToken.user_id, $APIToken.expires_at)" // #nosec: G101
 )
 
 func (db *Database) ListAPITokens(ctx context.Context, userID int) ([]APIToken, error) {

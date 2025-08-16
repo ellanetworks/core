@@ -51,7 +51,7 @@ const (
 	PermDeleteUser           = "user:delete"
 	PermReadMyUser           = "user:read_my_user"
 	PermUpdateMyUserPassword = "user:update_my_user_password" // #nosec: G101
-	PermListMyAPITokens      = "user:list_my_api_tokens"
+	PermListMyAPITokens      = "user:list_my_api_tokens"      // #nosec: G101
 	PermCreateMyAPIToken     = "user:create_my_api_token"
 	PermDeleteMyAPIToken     = "user:delete_my_api_token"
 
