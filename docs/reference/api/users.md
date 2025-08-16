@@ -149,3 +149,77 @@ This path updates the password of a specific system user.
     }
 }
 ```
+
+## Create an API Token
+
+This path creates a new API token for the authenticated user. The API token can be used to authenticate with Ella Core's RESTful API. The API token will have the same permissions as your user account. Actions performed with the token will be logged under your user account.
+
+| Method | Path                          |
+| ------ | ----------------------------- |
+| POST   | `/api/v1/users/me/api-tokens` |
+
+### Parameters
+
+- `name` (string): The name of the API token.
+- `expires_at` (string, optional): The expiration date of the API token in RFC 3339 format. If not provided, the token will never expire.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "token": "ellacore_Xl2yU1rcy2BP_8q5iOpNBtoXLYdwddbBCHInx"
+    }
+}
+```
+
+!!! note
+    The API token is only returned once when created. Make sure to copy it and store it securely.
+
+## List API Tokens
+
+This path returns the list of API tokens for the authenticated user.
+
+| Method | Path                          |
+| ------ | ----------------------------- |
+| GET    | `/api/v1/users/me/api-tokens` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": [
+        {
+            "id": "Xl2yU1rcy2BP",
+            "name": "My Token",
+            "expires_at": "2024-12-31T23:59:59Z"
+        }
+    ]
+}
+```
+
+## Delete an API Token
+
+This path deletes an API token for the authenticated user.
+
+| Method | Path                                    |
+| ------ | --------------------------------------- |
+| DELETE | `/api/v1/users/me/api-tokens/{tokenID}` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "API token deleted successfully"
+    }
+}
+```
