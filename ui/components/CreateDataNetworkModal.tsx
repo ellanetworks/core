@@ -153,7 +153,7 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
       setAlert({
         message: `Failed to create data network: ${errorMessage}`,
       });
-      console.error("Failed to create poldata networkicy:", error);
+      console.error("Failed to create data network:", error);
     } finally {
       setLoading(false);
     }

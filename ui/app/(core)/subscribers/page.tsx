@@ -182,7 +182,7 @@ const SubscriberPage = () => {
               size="small"
               label={registered ? "Registered" : "Deregistered"}
               color={registered ? "success" : "default"}
-              variant="outlined"
+              variant="filled"
             />
           );
         },
@@ -201,7 +201,7 @@ const SubscriberPage = () => {
               size="small"
               label={active ? "Active" : "Inactive"}
               color={active ? "success" : "default"}
-              variant="outlined"
+              variant="filled"
             />
           );
         },
@@ -226,7 +226,7 @@ const SubscriberPage = () => {
               size="small"
               label={ip || "N/A"}
               color={ip ? "success" : "default"}
-              variant="outlined"
+              variant="filled"
               sx={{ fontSize: "0.75rem" }}
             />
           );
