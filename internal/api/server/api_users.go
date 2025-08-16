@@ -2,7 +2,6 @@ package server
 
 import (
 	"crypto/rand"
-	"encoding/base32"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -423,35 +422,16 @@ func ListMyAPITokens(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func randStringAlphaNum(n int) (string, error) {
+func randAlphaNum(n int) (string, error) {
 	b := make([]byte, n)
 	for i := range b {
-		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(lettersAndDigits))))
+		x, err := rand.Int(rand.Reader, big.NewInt(int64(len(lettersAndDigits))))
 		if err != nil {
 			return "", err
 		}
-		b[i] = lettersAndDigits[num.Int64()]
+		b[i] = lettersAndDigits[x.Int64()]
 	}
 	return string(b), nil
-}
-
-func generateTokenID(n int) string {
-	b := make([]byte, n)
-	_, _ = rand.Read(b)
-	return strings.TrimRight(base32.StdEncoding.EncodeToString(b), "=")
-}
-
-func generateSecret() string {
-	s, err := randStringAlphaNum(16)
-	if err != nil {
-		logger.APILog.Error("generate secret", zap.Error(err))
-		return ""
-	}
-	return s
-}
-
-func buildToken(tokenID, secret string) string {
-	return "ellacore_" + tokenID + "_" + secret
 }
 
 func hashAPIToken(token string) string {
@@ -506,9 +486,22 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 			expiresAt = &abc
 		}
 
-		tokenID := generateTokenID(8)
-		secret := generateSecret()
-		plaintext := buildToken(tokenID, secret)
+		tokenID, err := randAlphaNum(12)
+		if err != nil {
+			logger.APILog.Error("Failed to generate token ID", zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "Failed to generate token ID", err, logger.APILog)
+			return
+		}
+
+		secret, err := randAlphaNum(24)
+		if err != nil {
+			logger.APILog.Error("Failed to generate secret", zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "Failed to generate secret", err, logger.APILog)
+			return
+		}
+
+		token := fmt.Sprintf("ellacore_%s_%s", tokenID, secret)
+
 		hash := hashAPIToken(secret)
 
 		apiToken := &db.APIToken{
@@ -526,7 +519,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 		}
 
 		response := CreateAPITokenResponse{
-			Token: plaintext,
+			Token: token,
 		}
 
 		writeResponse(w, response, http.StatusCreated, logger.APILog)
