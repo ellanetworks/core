@@ -26,7 +26,7 @@ import dayjs, { Dayjs } from "dayjs";
 interface CreateAPITokenModalProps {
   open: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (token: string) => void;
 }
 
 const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
@@ -66,16 +66,18 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
       const expiryISO =
         noExpiry || !expiry ? "" : expiry.endOf("day").toISOString();
 
-      // keep your existing function signature
-      await createAPIToken(cookies.user_token, name.trim(), expiryISO);
+      const createResult = await createAPIToken(
+        cookies.user_token,
+        name.trim(),
+        expiryISO,
+      );
 
       reset();
       onClose();
-      onSuccess();
+      onSuccess(createResult.token);
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : "Unknown error.";
       setAlert({ message: `Failed to create API Token: ${msg}` });
-      console.error("Failed to create API Token:", error);
     } finally {
       setLoading(false);
     }

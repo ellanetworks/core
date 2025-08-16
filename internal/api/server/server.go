@@ -28,6 +28,7 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	mux.HandleFunc("PUT /api/v1/users/me/password", Authenticate(jwtSecret, RequirePermission(PermUpdateMyUserPassword, jwtSecret, UpdateMyUserPassword(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/users/me/api-tokens", Authenticate(jwtSecret, RequirePermission(PermListMyAPITokens, jwtSecret, ListMyAPITokens(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/users/me/api-tokens", Authenticate(jwtSecret, RequirePermission(PermCreateMyAPIToken, jwtSecret, CreateMyAPIToken(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/users/me/api-tokens/", Authenticate(jwtSecret, RequirePermission(PermDeleteMyAPIToken, jwtSecret, DeleteMyAPIToken(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/users", Authenticate(jwtSecret, RequirePermission(PermListUsers, jwtSecret, ListUsers(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/users", RequirePermissionOrFirstUser(PermCreateUser, dbInstance, jwtSecret, CreateUser(dbInstance)).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/users/{email}", Authenticate(jwtSecret, RequirePermission(PermUpdateUser, jwtSecret, UpdateUser(dbInstance))).ServeHTTP)

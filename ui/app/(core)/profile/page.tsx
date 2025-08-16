@@ -34,6 +34,8 @@ import { useRouter } from "next/navigation";
 import EmailIcon from "@mui/icons-material/Email";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { APIToken } from "@/types/types";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import CloseIcon from "@mui/icons-material/Close";
 
 const MAX_WIDTH = 1200;
 
@@ -58,6 +60,28 @@ export default function Profile() {
   const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
   const [isCreateAPITokenModalOpen, setCreateAPITokenModalOpen] =
     useState(false);
+
+  const [justCreatedToken, setJustCreatedToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCreateAPITokenSuccess = (token: string) => {
+    setCreateAPITokenModalOpen(false);
+    setJustCreatedToken(token);
+    setAlert({
+      message: "API Token created successfully.",
+      severity: "success",
+    });
+    fetchAPITokens();
+  };
+
+  const copyToken = async () => {
+    try {
+      await navigator.clipboard.writeText(justCreatedToken ?? "");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+    }
+  };
 
   const [alert, setAlert] = useState<{
     message: string;
@@ -104,15 +128,6 @@ export default function Profile() {
       message: "Password updated successfully.",
       severity: "success",
     });
-  };
-
-  const handleCreateAPITokenSuccess = () => {
-    setCreateAPITokenModalOpen(false);
-    setAlert({
-      message: "API Token created successfully.",
-      severity: "success",
-    });
-    fetchAPITokens();
   };
 
   const handleDeleteClick = (tokenId: number, tokenName: string) => {
@@ -301,6 +316,53 @@ export default function Profile() {
                   Create Token
                 </Button>
               </Box>
+
+              {justCreatedToken && (
+                <Alert
+                  severity="success"
+                  variant="outlined"
+                  sx={{ alignItems: "center" }}
+                  action={
+                    <Stack direction="row" spacing={1}>
+                      <IconButton
+                        aria-label="copy token"
+                        size="small"
+                        onClick={copyToken}
+                        title={copied ? "Copied!" : "Copy"}
+                      >
+                        <ContentCopyIcon fontSize="inherit" />
+                      </IconButton>
+                      <IconButton
+                        aria-label="dismiss"
+                        size="small"
+                        onClick={() => setJustCreatedToken(null)}
+                        title="Dismiss"
+                      >
+                        <CloseIcon fontSize="inherit" />
+                      </IconButton>
+                    </Stack>
+                  }
+                >
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    Make sure to copy your personal access token now. You won’t be able to see it again!
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontFamily: "monospace",
+                      wordBreak: "break-all",
+                      userSelect: "all",
+                    }}
+                  >
+                    {justCreatedToken}
+                  </Typography>
+                  {copied && (
+                    <Typography variant="caption" sx={{ ml: 0.5 }}>
+                      Copied!
+                    </Typography>
+                  )}
+                </Alert>
+              )}
 
               <TableContainer component={Paper}>
                 <Table>

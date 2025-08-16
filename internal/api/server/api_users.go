@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -62,10 +64,15 @@ const (
 	DeleteUserAction         = "delete_user"
 	UpdateUserPasswordAction = "update_user_password"
 	CreateAPITokenAction     = "create_api_token"
+	DeleteAPITokenAction     = "delete_api_token"
 )
 
 const (
 	MaxNumUsers = 50
+)
+
+const (
+	APITokenByteLength = 32
 )
 
 func isValidEmail(email string) bool {
@@ -417,6 +424,26 @@ func ListMyAPITokens(dbInstance *db.Database) http.Handler {
 	})
 }
 
+func generateAPIToken() string {
+	buf := make([]byte, APITokenByteLength)
+	if _, err := rand.Read(buf); err != nil {
+		logger.APILog.Error("Failed to generate API token", zap.Error(err))
+		return ""
+	}
+
+	return base64.RawURLEncoding.EncodeToString(buf)
+}
+
+func hashAPIToken(token string) string {
+	hashedToken, err := bcrypt.GenerateFromPassword([]byte(token), bcrypt.DefaultCost)
+	if err != nil {
+		logger.APILog.Error("Failed to hash API token", zap.Error(err))
+		return ""
+	}
+
+	return string(hashedToken)
+}
+
 func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
@@ -459,12 +486,14 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 			expiresAt = &abc
 		}
 
-		realToken := "abcd1234" // TODO: Generate a secure token here
+		realToken := generateAPIToken()
+
+		tokenHash := hashAPIToken(realToken)
 
 		apiToken := &db.APIToken{
 			UserID:    user.ID,
 			Name:      params.Name,
-			TokenHash: "aefawefawef", // TODO: Generate the hash of the real token
+			TokenHash: tokenHash,
 			ExpiresAt: expiresAt,
 		}
 
@@ -475,7 +504,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 		}
 
 		response := CreateAPITokenResponse{
-			Token: realToken, // TODO: Return the actual token here
+			Token: realToken,
 		}
 
 		writeResponse(w, response, http.StatusCreated, logger.APILog)
@@ -484,6 +513,59 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 			email,
 			getClientIP(r),
 			fmt.Sprintf("User created API token: %s", apiToken.Name),
+		)
+	})
+}
+
+func DeleteMyAPIToken(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		emailAny := r.Context().Value(contextKeyEmail)
+		email, ok := emailAny.(string)
+		if !ok || email == "" {
+			writeError(w, http.StatusUnauthorized, "Unauthorized", errors.New("email missing in context"), logger.APILog)
+			return
+		}
+
+		idParam := strings.TrimPrefix(r.URL.Path, "/api/v1/users/me/api-tokens/")
+		if idParam == "" {
+			writeError(w, http.StatusBadRequest, "Missing token ID parameter", errors.New("missing param"), logger.APILog)
+			return
+		}
+		id, err := strconv.Atoi(idParam)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid token ID parameter", err, logger.APILog)
+			return
+		}
+
+		user, err := dbInstance.GetUser(r.Context(), email)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "User not found", err, logger.APILog)
+			return
+		}
+
+		token, err := dbInstance.GetAPIToken(r.Context(), id)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "API token not found", err, logger.APILog)
+			return
+		}
+
+		if token.UserID != user.ID {
+			writeError(w, http.StatusForbidden, "You do not have permission to delete this token", errors.New("forbidden"), logger.APILog)
+			return
+		}
+
+		if err := dbInstance.DeleteAPIToken(r.Context(), id); err != nil {
+			logger.APILog.Warn("Failed to delete API token", zap.Error(err))
+			writeError(w, http.StatusInternalServerError, "Failed to delete API token", err, logger.APILog)
+			return
+		}
+
+		writeResponse(w, SuccessResponse{Message: "API token deleted successfully"}, http.StatusOK, logger.APILog)
+		logger.LogAuditEvent(
+			DeleteAPITokenAction,
+			email,
+			getClientIP(r),
+			fmt.Sprintf("User deleted API token: %s", token.Name),
 		)
 	})
 }

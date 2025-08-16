@@ -39,7 +39,7 @@ export const createAPIToken = async (
   name: string,
   expires_at: string,
 ) => {
-  const policyData = {
+  const data = {
     name: name,
     expires_at: expires_at,
   };
@@ -50,7 +50,7 @@ export const createAPIToken = async (
       "Content-Type": "application/json",
       Authorization: "Bearer " + authToken,
     },
-    body: JSON.stringify(policyData),
+    body: JSON.stringify(data),
   });
   let respData;
   try {
