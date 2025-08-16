@@ -57,6 +57,17 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 		return nil, fmt.Errorf("failed to login: %v", err)
 	}
 
+	createAPITokenOpts := &client.CreateAPITokenOptions{
+		Name:   "integration-test-token",
+		Expiry: "",
+	}
+	resp, err := opts.client.CreateMyAPIToken(createAPITokenOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create API token: %v", err)
+	}
+
+	opts.client.SetToken(resp.Token)
+
 	createDataNetworkOpts := &client.CreateDataNetworkOptions{
 		Name:   "not-internet",
 		IPPool: "172.250.0.0/24",

@@ -44,7 +44,7 @@ type GetUserParams struct {
 }
 
 type GetAPITokenResponse struct {
-	ID        int    `json:"id"`
+	ID        string `json:"id"`
 	Name      string `json:"name"`
 	ExpiresAt string `json:"expires_at"`
 }
@@ -412,7 +412,7 @@ func ListMyAPITokens(dbInstance *db.Database) http.Handler {
 				expiresAt = token.ExpiresAt.Format(time.RFC3339)
 			}
 			response = append(response, GetAPITokenResponse{
-				ID:        token.ID,
+				ID:        token.TokenID,
 				Name:      token.Name,
 				ExpiresAt: expiresAt,
 			})
@@ -546,11 +546,6 @@ func DeleteMyAPIToken(dbInstance *db.Database) http.Handler {
 			writeError(w, http.StatusBadRequest, "Missing token ID parameter", errors.New("missing param"), logger.APILog)
 			return
 		}
-		id, err := strconv.Atoi(idParam)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid token ID parameter", err, logger.APILog)
-			return
-		}
 
 		user, err := dbInstance.GetUser(r.Context(), email)
 		if err != nil {
@@ -558,7 +553,7 @@ func DeleteMyAPIToken(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		token, err := dbInstance.GetAPIToken(r.Context(), id)
+		token, err := dbInstance.GetAPITokenByTokenID(r.Context(), idParam)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "API token not found", err, logger.APILog)
 			return
@@ -569,7 +564,7 @@ func DeleteMyAPIToken(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := dbInstance.DeleteAPIToken(r.Context(), id); err != nil {
+		if err := dbInstance.DeleteAPIToken(r.Context(), token.ID); err != nil {
 			logger.APILog.Warn("Failed to delete API token", zap.Error(err))
 			writeError(w, http.StatusInternalServerError, "Failed to delete API token", err, logger.APILog)
 			return

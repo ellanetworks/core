@@ -86,6 +86,10 @@ func (c *Client) GetToken() string {
 	return c.token
 }
 
+func (c *Client) SetToken(token string) {
+	c.token = token
+}
+
 func New(config *Config) (*Client, error) {
 	if config == nil {
 		config = &Config{}
