@@ -19,6 +19,7 @@ const APITokensTableName = "api_tokens"
 const QueryCreateAPITokensTable = `
 	CREATE TABLE IF NOT EXISTS %s (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
+	token_id    TEXT NOT NULL UNIQUE,
   name        TEXT NOT NULL,
   token_hash  TEXT NOT NULL,
   user_id     INTEGER NOT NULL,
@@ -29,6 +30,7 @@ const QueryCreateAPITokensTable = `
 
 type APIToken struct {
 	ID        int        `db:"id"`
+	TokenID   string     `db:"token_id"`
 	Name      string     `db:"name"`
 	TokenHash string     `db:"token_hash"`
 	UserID    int        `db:"user_id"`
@@ -38,8 +40,9 @@ type APIToken struct {
 const (
 	listAPITokensStmt  = `SELECT &APIToken.* FROM %s WHERE user_id == $APIToken.user_id`
 	getAPITokenStmt    = "SELECT &APIToken.* FROM %s WHERE id==$APIToken.id"
-	deleteAPITokenStmt = "DELETE FROM %s WHERE id==$APIToken.id"                                                                                                         // #nosec: G101
-	createAPITokenStmt = "INSERT INTO %s (name, token_hash, user_id, expires_at) VALUES ($APIToken.name, $APIToken.token_hash, $APIToken.user_id, $APIToken.expires_at)" // #nosec: G101
+	getByTokenIDStmt   = "SELECT &APIToken.* FROM %s WHERE token_id==$APIToken.token_id"
+	deleteAPITokenStmt = "DELETE FROM %s WHERE id==$APIToken.id"                                                                                                                                       // #nosec: G101
+	createAPITokenStmt = "INSERT INTO %s (token_id, name, token_hash, user_id, expires_at) VALUES ($APIToken.token_id, $APIToken.name, $APIToken.token_hash, $APIToken.user_id, $APIToken.expires_at)" // #nosec: G101
 )
 
 func (db *Database) ListAPITokens(ctx context.Context, userID int) ([]APIToken, error) {
@@ -142,6 +145,23 @@ func (db *Database) GetAPIToken(ctx context.Context, id int) (*APIToken, error) 
 	}
 
 	span.SetStatus(codes.Ok, "")
+	return &row, nil
+}
+
+func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*APIToken, error) {
+	stmt := fmt.Sprintf(getByTokenIDStmt, db.apiTokensTable)
+	q, err := sqlair.Prepare(stmt, APIToken{})
+	if err != nil {
+		return nil, err
+	}
+
+	row := APIToken{TokenID: tokenID}
+	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
 	return &row, nil
 }
 

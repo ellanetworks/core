@@ -2,10 +2,11 @@ package server
 
 import (
 	"crypto/rand"
-	"encoding/base64"
+	"encoding/base32"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"net/http"
 	"net/mail"
 	"strconv"
@@ -71,9 +72,7 @@ const (
 	MaxNumUsers = 50
 )
 
-const (
-	APITokenByteLength = 32
-)
+const lettersAndDigits = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 func isValidEmail(email string) bool {
 	_, err := mail.ParseAddress(email)
@@ -424,14 +423,35 @@ func ListMyAPITokens(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func generateAPIToken() string {
-	buf := make([]byte, APITokenByteLength)
-	if _, err := rand.Read(buf); err != nil {
-		logger.APILog.Error("Failed to generate API token", zap.Error(err))
+func randStringAlphaNum(n int) (string, error) {
+	b := make([]byte, n)
+	for i := range b {
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(lettersAndDigits))))
+		if err != nil {
+			return "", err
+		}
+		b[i] = lettersAndDigits[num.Int64()]
+	}
+	return string(b), nil
+}
+
+func generateTokenID(n int) string {
+	b := make([]byte, n)
+	_, _ = rand.Read(b)
+	return strings.TrimRight(base32.StdEncoding.EncodeToString(b), "=")
+}
+
+func generateSecret() string {
+	s, err := randStringAlphaNum(16)
+	if err != nil {
+		logger.APILog.Error("generate secret", zap.Error(err))
 		return ""
 	}
+	return s
+}
 
-	return base64.RawURLEncoding.EncodeToString(buf)
+func buildToken(tokenID, secret string) string {
+	return "ellacore_" + tokenID + "_" + secret
 }
 
 func hashAPIToken(token string) string {
@@ -486,14 +506,16 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 			expiresAt = &abc
 		}
 
-		realToken := generateAPIToken()
-
-		tokenHash := hashAPIToken(realToken)
+		tokenID := generateTokenID(8)
+		secret := generateSecret()
+		plaintext := buildToken(tokenID, secret)
+		hash := hashAPIToken(secret)
 
 		apiToken := &db.APIToken{
-			UserID:    user.ID,
+			TokenID:   tokenID,
 			Name:      params.Name,
-			TokenHash: tokenHash,
+			UserID:    user.ID,
+			TokenHash: hash,
 			ExpiresAt: expiresAt,
 		}
 
@@ -504,7 +526,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 		}
 
 		response := CreateAPITokenResponse{
-			Token: realToken,
+			Token: plaintext,
 		}
 
 		writeResponse(w, response, http.StatusCreated, logger.APILog)

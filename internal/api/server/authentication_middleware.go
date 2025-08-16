@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const AuthenticationAction = "user_authentication"
@@ -28,42 +31,96 @@ const (
 	contextKeyRoleID contextKey = "roleID"
 )
 
-func Authenticate(jwtSecret []byte, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			writeError(w, http.StatusUnauthorized, "Authorization header not found", errors.New("missing header"), logger.APILog)
-			return
-		}
+func isAPIToken(tok string) bool { return strings.HasPrefix(tok, "ellacore_") }
 
-		claims, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
+func parseAPIToken(presented string) (tokenID, secret string, ok bool) {
+	if !strings.HasPrefix(presented, "ellacore_") {
+		return "", "", false
+	}
+	rest := strings.TrimPrefix(presented, "ellacore_")
+	parts := strings.SplitN(rest, "_", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
+}
+
+// authenticateRequest validates the Authorization header (JWT or API token),
+// and returns (userID, email, roleID) for authorization.
+func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) (int, string, RoleID, error) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return 0, "", 0, errors.New("missing Authorization header")
+	}
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return 0, "", 0, errors.New("invalid Authorization scheme")
+	}
+	token := strings.TrimSpace(parts[1])
+	if token == "" {
+		return 0, "", 0, errors.New("empty token")
+	}
+
+	// API token path
+	if isAPIToken(token) {
+		tokenID, token, ok := parseAPIToken(token)
+		if !ok {
+			return 0, "", 0, errors.New("invalid API token format")
+		}
+		tok, err := store.GetAPITokenByTokenID(r.Context(), tokenID)
+		if err != nil || tok == nil {
+			return 0, "", 0, errors.New("invalid API token")
+		}
+		if tok.ExpiresAt != nil && time.Now().After(*tok.ExpiresAt) {
+			return 0, "", 0, errors.New("API token expired")
+		}
+		if err := bcrypt.CompareHashAndPassword([]byte(tok.TokenHash), []byte(token)); err != nil {
+			return 0, "", 0, errors.New("invalid API token")
+		}
+		u, err := store.GetUserByID(r.Context(), tok.UserID)
+		if err != nil || u == nil {
+			return 0, "", 0, errors.New("user not found")
+		}
+		return u.ID, u.Email, RoleID(u.RoleID), nil
+	}
+
+	// JWT path
+	cl, err := getClaimsFromJWT(token, jwtSecret)
+	if err != nil {
+		return 0, "", 0, err
+	}
+	return cl.ID, cl.Email, cl.RoleID, nil
+}
+
+// putIdentity adds identity to context.
+func putIdentity(ctx context.Context, id int, email string, role RoleID) context.Context {
+	ctx = context.WithValue(ctx, contextKeyUserID, id)
+	ctx = context.WithValue(ctx, contextKeyEmail, email)
+	ctx = context.WithValue(ctx, contextKeyRoleID, role)
+	return ctx
+}
+
+// authorize checks if a role has a permission.
+func authorize(role RoleID, perm string) bool {
+	for _, p := range PermissionsByRole[role] {
+		if p == "*" || p == perm {
+			return true
+		}
+	}
+	return false
+}
+
+func Authenticate(jwtSecret []byte, store *db.Database, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		uid, email, role, err := authenticateRequest(r, jwtSecret, store)
 		if err != nil {
-			logger.LogAuditEvent(AuthenticationAction, "", getClientIP(r), "Unauthorized access attempt")
+			logger.LogAuditEvent(AuthenticationAction, "", getClientIP(r), "Unauthorized: "+err.Error())
 			writeError(w, http.StatusUnauthorized, "Invalid token", err, logger.APILog)
 			return
 		}
-
-		ctx := context.WithValue(r.Context(), contextKeyUserID, claims.ID)
-		ctx = context.WithValue(ctx, contextKeyEmail, claims.Email)
-		ctx = context.WithValue(ctx, contextKeyRoleID, claims.RoleID)
-
+		ctx := putIdentity(r.Context(), uid, email, role)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-}
-
-func getClaimsFromAuthorizationHeader(header string, jwtSecret []byte) (*claims, error) {
-	if header == "" {
-		return nil, fmt.Errorf("authorization header not found")
-	}
-	bearerToken := strings.Split(header, " ")
-	if len(bearerToken) != 2 || bearerToken[0] != "Bearer" {
-		return nil, fmt.Errorf("authorization header couldn't be processed. The expected format is 'Bearer <token>'")
-	}
-	claims, err := getClaimsFromJWT(bearerToken[1], jwtSecret)
-	if err != nil {
-		return nil, fmt.Errorf("token is not valid: %s", err)
-	}
-	return claims, nil
 }
 
 func getClaimsFromJWT(bearerToken string, jwtSecret []byte) (*claims, error) {

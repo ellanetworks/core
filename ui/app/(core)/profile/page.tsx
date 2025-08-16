@@ -339,8 +339,7 @@ export default function Profile() {
                   }
                 >
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Make sure to copy your personal access token now. You won’t
-                    be able to see it again!
+                    Copy your API token now. You won’t be able to see it again!
                   </Typography>
                   <Typography
                     variant="body2"
