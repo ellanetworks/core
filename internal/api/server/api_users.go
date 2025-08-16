@@ -472,18 +472,18 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 
 		var expiresAt *time.Time
 		if params.ExpiresAt != "" {
-			abc, err := time.Parse(time.RFC3339, params.ExpiresAt)
+			t, err := time.Parse(time.RFC3339, params.ExpiresAt)
 			if err != nil {
 				writeError(w, http.StatusBadRequest, "Invalid expiration time format", err, logger.APILog)
 				return
 			}
 
-			if abc.Before(time.Now()) {
+			if t.Before(time.Now()) {
 				writeError(w, http.StatusBadRequest, "Expiration time must be in the future", errors.New("invalid expiration time"), logger.APILog)
 				return
 			}
 
-			expiresAt = &abc
+			expiresAt = &t
 		}
 
 		tokenID, err := randAlphaNum(12)

@@ -69,6 +69,8 @@ type doer interface {
 type Config struct {
 	// BaseURL contains the base URL where Ella Core is expected to be.
 	BaseURL string
+	// APIToken is the API token used for authentication.
+	APIToken string
 	// TLSConfig is an optional TLS configuration.
 	TLSConfig *tls.Config
 }
@@ -90,6 +92,8 @@ func New(config *Config) (*Client, error) {
 	}
 
 	client := &Client{}
+
+	client.token = config.APIToken
 
 	requester, err := newDefaultRequester(client, config)
 	if err != nil {

@@ -49,7 +49,8 @@ import (
 
 func main() {
 	clientConfig := &client.Config{
-		BaseURL: "http://127.0.0.1:32308",
+		BaseURL:  "http://127.0.0.1:5002",
+		APIToken: "ellacore_Xl2yU1rcy2BP_8q5iOpNBtoXLYdwddbBCHInx",
 	}
 
 	ella, err := client.New(clientConfig)
@@ -57,21 +58,13 @@ func main() {
 		log.Println("Failed to create client:", err)
 	}
 
-	loginOpts := &client.LoginOptions{
-		Email:    "admin@ellanetworks.com",
-		Password: "admin",
-	}
-	err = ella.Login(loginOpts)
-	if err != nil {
-		log.Println("Failed to login:", err)
-	}
-
 	createSubscriberOpts := &client.CreateSubscriberOptions{
 		Imsi:           "001010100000033",
 		Key:            "5122250214c33e723a5dd523fc145fc0",
 		SequenceNumber: "000000000022",
-		PolicyName:    "default",
+		PolicyName:     "default",
 	}
+
 	err = ella.CreateSubscriber(createSubscriberOpts)
 	if err != nil {
 		log.Println("Failed to create subscriber:", err)
