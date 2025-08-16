@@ -67,10 +67,6 @@ export default function Profile() {
   const handleCreateAPITokenSuccess = (token: string) => {
     setCreateAPITokenModalOpen(false);
     setJustCreatedToken(token);
-    setAlert({
-      message: "API Token created successfully.",
-      severity: "success",
-    });
     fetchAPITokens();
   };
 
@@ -79,8 +75,7 @@ export default function Profile() {
       await navigator.clipboard.writeText(justCreatedToken ?? "");
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch {
-    }
+    } catch {}
   };
 
   const [alert, setAlert] = useState<{
@@ -344,7 +339,8 @@ export default function Profile() {
                   }
                 >
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Make sure to copy your personal access token now. You won’t be able to see it again!
+                    Make sure to copy your personal access token now. You won’t
+                    be able to see it again!
                   </Typography>
                   <Typography
                     variant="body2"
