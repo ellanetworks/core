@@ -76,5 +76,5 @@ export const roleIDToLabel = (role: RoleID): string => {
 export type APIToken = {
   id: number;
   name: string;
-  expiry: string | null;
+  expires_at: string | null;
 };

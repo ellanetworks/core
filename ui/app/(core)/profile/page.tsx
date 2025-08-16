@@ -337,8 +337,8 @@ export default function Profile() {
 
                     {!loading &&
                       apiTokens.map((t) => {
-                        const isExpired = t.expiry
-                          ? new Date(t.expiry).getTime() < Date.now()
+                        const isExpired = t.expires_at
+                          ? new Date(t.expires_at).getTime() < Date.now()
                           : false;
 
                         return (
@@ -367,8 +367,8 @@ export default function Profile() {
                                 variant="body2"
                                 color="text.secondary"
                               >
-                                {t.expiry
-                                  ? new Date(t.expiry).toDateString()
+                                {t.expires_at
+                                  ? new Date(t.expires_at).toDateString()
                                   : "Never"}
                               </Typography>
                             </TableCell>

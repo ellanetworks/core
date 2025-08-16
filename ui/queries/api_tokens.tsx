@@ -28,7 +28,7 @@ export const listAPITokens = async (authToken: string): Promise<APIToken[]> => {
   const transformed: APIToken[] = respData.result.map((p: any) => ({
     id: p.id,
     name: p.name,
-    expiresAt: p.expiresAt,
+    expires_at: p.expires_at,
   }));
 
   return transformed;
@@ -37,11 +37,11 @@ export const listAPITokens = async (authToken: string): Promise<APIToken[]> => {
 export const createAPIToken = async (
   authToken: string,
   name: string,
-  expiry: string,
+  expires_at: string,
 ) => {
   const policyData = {
     name: name,
-    expiry: expiry,
+    expires_at: expires_at,
   };
 
   const response = await fetch(`/api/v1/users/me/api-tokens`, {
