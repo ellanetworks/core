@@ -29,6 +29,7 @@ type Database struct {
 	dataNetworksTable      string
 	usersTable             string
 	auditLogsTable         string
+	subscriberLogsTable    string
 	retentionPoliciesTable string
 	apiTokensTable         string
 	conn                   *sqlair.DB
@@ -111,6 +112,9 @@ func NewDatabase(databasePath string) (*Database, error) {
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateAuditLogsTable, AuditLogsTableName)); err != nil {
 		return nil, err
 	}
+	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateSubscriberLogsTable, SubscriberLogsTableName)); err != nil {
+		return nil, err
+	}
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateLogRetentionPolicyTable, LogRetentionPolicyTableName)); err != nil {
 		return nil, err
 	}
@@ -128,6 +132,7 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.dataNetworksTable = DataNetworksTableName
 	db.usersTable = UsersTableName
 	db.auditLogsTable = AuditLogsTableName
+	db.subscriberLogsTable = SubscriberLogsTableName
 	db.retentionPoliciesTable = LogRetentionPolicyTableName
 	db.apiTokensTable = APITokensTableName
 
@@ -166,7 +171,7 @@ func (db *Database) Initialize() error {
 		}
 	}
 
-	if !db.IsLogRetentionPolicyInitialized(context.Background()) {
+	if !db.IsLogRetentionPolicyInitialized(context.Background(), CategoryAuditLogs) {
 		initialPolicy := &LogRetentionPolicy{
 			Category: CategoryAuditLogs,
 			Days:     DefaultLogRetentionDays,
@@ -177,6 +182,19 @@ func (db *Database) Initialize() error {
 		}
 
 		logger.DBLog.Info("Initialized log retention policy", zap.Int("days", DefaultLogRetentionDays))
+	}
+
+	if !db.IsLogRetentionPolicyInitialized(context.Background(), CategorySubscriberLogs) {
+		initialPolicy := &LogRetentionPolicy{
+			Category: CategorySubscriberLogs,
+			Days:     DefaultLogRetentionDays,
+		}
+
+		if err := db.SetLogRetentionPolicy(context.Background(), initialPolicy); err != nil {
+			return fmt.Errorf("failed to initialize subscriber log retention policy: %v", err)
+		}
+
+		logger.DBLog.Info("Initialized subscriber log retention policy", zap.Int("days", DefaultLogRetentionDays))
 	}
 
 	numDataNetworks, err := db.NumDataNetworks(context.Background())

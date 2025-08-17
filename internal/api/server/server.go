@@ -87,6 +87,11 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	mux.HandleFunc("PUT /api/v1/logs/audit/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermSetAuditLogRetentionPolicy, jwtSecret, UpdateAuditLogRetentionPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/logs/audit", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListAuditLogs, jwtSecret, ListAuditLogs(dbInstance))).ServeHTTP)
 
+	// Subscriber Logs (Authenticated)
+	mux.HandleFunc("GET /api/v1/logs/subscriber/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermGetSubscriberLogRetentionPolicy, jwtSecret, GetSubscriberLogRetentionPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/logs/subscriber/retention", Authenticate(jwtSecret, dbInstance, RequirePermission(PermSetSubscriberLogRetentionPolicy, jwtSecret, UpdateSubscriberLogRetentionPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/logs/subscriber", Authenticate(jwtSecret, dbInstance, RequirePermission(PermListSubscriberLogs, jwtSecret, ListSubscriberLogs(dbInstance))).ServeHTTP)
+
 	// Fallback to UI
 	frontendHandler, err := newFrontendFileServer(embedFS)
 	if err != nil {

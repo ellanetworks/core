@@ -478,6 +478,16 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.GmmLog.Debug("PEI", zap.String("imeisv", imeisv))
 	}
 
+	logger.LogSubscriberEvent(
+		logger.SubscriberRegistrationRequest,
+		ue.Supi,
+		zap.String("ran", ue.RanUe[anType].Ran.Name),
+		zap.String("guti", ue.Guti),
+		zap.String("suci", ue.Suci),
+		zap.String("pei", ue.Pei),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
+
 	// NgKsi: TS 24.501 9.11.3.32
 	switch registrationRequest.NgksiAndRegistrationType5GS.GetTSC() {
 	case nasMessage.TypeOfSecurityContextFlagNative:
