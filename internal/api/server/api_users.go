@@ -68,7 +68,8 @@ const (
 )
 
 const (
-	MaxNumUsers = 50
+	MaxNumUsers     = 50
+	MaxNumAPITokens = 12
 )
 
 const lettersAndDigits = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -464,6 +465,11 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if len(params.Name) < 3 || len(params.Name) > 50 {
+			writeError(w, http.StatusBadRequest, "Token name must be between 3 and 50 characters", errors.New("invalid token name length"), logger.APILog)
+			return
+		}
+
 		user, err := dbInstance.GetUser(r.Context(), email)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "User not found", err, logger.APILog)
@@ -484,6 +490,23 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 			}
 
 			expiresAt = &t
+		}
+
+		_, err = dbInstance.GetAPITokenByName(r.Context(), user.ID, params.Name)
+		if err == nil {
+			writeError(w, http.StatusConflict, "API token with this name already exists", errors.New("duplicate token name"), logger.APILog)
+			return
+		}
+
+		numTokens, err := dbInstance.NumAPITokens(r.Context(), user.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to count API tokens", err, logger.APILog)
+			return
+		}
+
+		if numTokens >= MaxNumAPITokens {
+			writeError(w, http.StatusBadRequest, "Maximum number of API tokens reached ("+strconv.Itoa(MaxNumAPITokens)+")", nil, logger.APILog)
+			return
 		}
 
 		tokenID, err := randAlphaNum(12)
