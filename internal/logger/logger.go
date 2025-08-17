@@ -55,7 +55,7 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 
 	auditCores, err := makeCores(auditOutput, auditFilePath, consoleEnc, jsonEnc)
 	if err != nil {
-		return fmt.Errorf("audit logger: %w", err)
+		return fmt.Errorf("could not make cores: %w", err)
 	}
 
 	if auditDBSink != nil {
@@ -64,9 +64,21 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 
 	auditLogger := zap.New(zapcore.NewTee(auditCores...), zap.AddCaller())
 
+	subscriberCores, err := makeCores(systemOutput, systemFilePath, consoleEnc, jsonEnc)
+	if err != nil {
+		return fmt.Errorf("could not make cores: %w", err)
+	}
+
+	if subscriberDBSink != nil {
+		subscriberCores = append(subscriberCores, zapcore.NewCore(jsonEnc, subscriberDBSink, atomicLevel))
+	}
+
+	subscriberLogger := zap.New(zapcore.NewTee(subscriberCores...), zap.AddCaller())
+
 	// Swap roots
 	log = sysLogger
 	AuditLog = auditLogger.With(zap.String("component", "Audit"))
+	SubscriberLog = subscriberLogger.With(zap.String("component", "Subscriber"))
 
 	// Component children from system logger
 	EllaLog = log.With(zap.String("component", "Ella"))
@@ -77,18 +89,6 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 	SmfLog = log.With(zap.String("component", "SMF"))
 	UdmLog = log.With(zap.String("component", "UDM"))
 	UpfLog = log.With(zap.String("component", "UPF"))
-	SubscriberLog = log.With(zap.String("component", "Subscriber"))
-
-	if subscriberDBSink != nil {
-		core := zapcore.NewCore(
-			jsonEnc,          // structured JSON to DB
-			subscriberDBSink, // separate sink/table for subscriber events
-			atomicLevel,      // or a dedicated level if desired
-		)
-		SubscriberLog = SubscriberLog.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
-			return zapcore.NewTee(c, core)
-		}))
-	}
 
 	return nil
 }
@@ -129,7 +129,7 @@ func SetSubscriberDBWriter(writeFn func([]byte) error) {
 		core := zapcore.NewCore(
 			zapcore.NewJSONEncoder(prodJSONEncoderConfig()),
 			subscriberDBSink,
-			atomicLevel, // or zap.NewAtomicLevelAt(zap.InfoLevel) if you want guaranteed INFO
+			atomicLevel,
 		)
 		SubscriberLog = SubscriberLog.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
 			return zapcore.NewTee(c, core)
@@ -238,18 +238,18 @@ func LogAuditEvent(action, actor, ip, details string) {
 type SubscriberEventAction string
 
 const (
-	SubscriberRegistrationRequest SubscriberEventAction = "registration.request"
+	SubscriberRegistrationRequest SubscriberEventAction = "Registration Request"
 )
 
-func LogSubscriberEvent(action SubscriberEventAction, imsi string, fields ...zap.Field) {
+func LogSubscriberEvent(event SubscriberEventAction, imsi string, fields ...zap.Field) {
 	if SubscriberLog == nil {
 		return
 	}
 
-	if action == "" || imsi == "" {
+	if event == "" || imsi == "" {
 		if log != nil {
 			log.Warn("attempted to write invalid subscriber event",
-				zap.String("action", string(action)),
+				zap.String("event", string(event)),
 				zap.String("imsi", imsi),
 			)
 		}
@@ -257,12 +257,10 @@ func LogSubscriberEvent(action SubscriberEventAction, imsi string, fields ...zap
 	}
 
 	base := []zap.Field{
-		zap.String("event", "subscriber_event"),
-		zap.String("action", string(action)),
+		zap.String("event", string(event)),
 		zap.String("imsi", imsi),
 	}
 
-	// Optional guard: cap verbose details if provided
 	for i, f := range fields {
 		if f.Key == "details" {
 			if s, ok := f.Interface.(string); ok && len(s) > 2048 {
