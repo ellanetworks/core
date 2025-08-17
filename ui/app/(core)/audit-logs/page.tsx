@@ -7,13 +7,11 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import {
   listAuditLogs,
-  deleteAuditLogs,
   getAuditLogRetentionPolicy,
 } from "@/queries/audit_logs";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
-import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { AuditLogRetentionPolicy } from "@/types/types";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
@@ -40,7 +38,6 @@ const AuditLog = () => {
     message: "",
     severity: null,
   });
-  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
 
   const theme = useTheme();
@@ -72,25 +69,6 @@ const AuditLog = () => {
       console.error("Error fetching audit log retention policy:", error);
     }
   }, [cookies.user_token]);
-
-  const handleDeleteConfirm = async () => {
-    setConfirmationOpen(false);
-    try {
-      await deleteAuditLogs(cookies.user_token);
-      setAlert({
-        message: `Audit Logs deleted successfully!`,
-        severity: "success",
-      });
-      fetchAuditLogs();
-    } catch (error) {
-      setAlert({
-        message: `Failed to delete Audit Logs": ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`,
-        severity: "error",
-      });
-    }
-  };
 
   const fetchAuditLogs = useCallback(async () => {
     try {
@@ -226,16 +204,6 @@ const AuditLog = () => {
         }}
         initialData={retentionPolicy || { days: 30 }}
       />
-
-      {isConfirmationOpen && (
-        <DeleteConfirmationModal
-          open
-          onClose={() => setConfirmationOpen(false)}
-          onConfirm={handleDeleteConfirm}
-          title="Confirm Deletion"
-          description={`Are you sure you want to delete all audit logs? This action cannot be undone.`}
-        />
-      )}
     </Box>
   );
 };
