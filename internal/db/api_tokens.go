@@ -47,7 +47,7 @@ const (
 	getByNameStmt      = "SELECT &APIToken.* FROM %s WHERE user_id==$APIToken.user_id AND name==$APIToken.name"
 	deleteAPITokenStmt = "DELETE FROM %s WHERE id==$APIToken.id"                                                                                                                                       // #nosec: G101
 	createAPITokenStmt = "INSERT INTO %s (token_id, name, token_hash, user_id, expires_at) VALUES ($APIToken.token_id, $APIToken.name, $APIToken.token_hash, $APIToken.user_id, $APIToken.expires_at)" // #nosec: G101
-	numAPITokensStmt   = "SELECT COUNT(*) AS &NumAPITokens.count FROM %s WHERE user_id==$APIToken.user_id"
+	numAPITokensStmt   = "SELECT COUNT(*) AS &NumAPITokens.count FROM %s WHERE user_id==$APIToken.user_id"                                                                                             // #nosec: G101
 )
 
 func (db *Database) ListAPITokens(ctx context.Context, userID int) ([]APIToken, error) {

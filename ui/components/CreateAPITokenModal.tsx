@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -14,9 +14,11 @@ import {
   Checkbox,
   Stack,
 } from "@mui/material";
+import * as yup from "yup";
+import { ValidationError } from "yup";
+import { createAPIToken } from "@/queries/api_tokens";
 import { useRouter } from "next/navigation";
 import { useCookies } from "react-cookie";
-import { createAPIToken } from "@/queries/api_tokens";
 
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -29,6 +31,33 @@ interface CreateAPITokenModalProps {
   onSuccess: (token: string) => void;
 }
 
+const schema = yup.object({
+  name: yup
+    .string()
+    .trim()
+    .min(3, "Name must be at least 3 characters")
+    .max(50, "Name must be at most 50 characters")
+    .required("Name is required"),
+  noExpiry: yup.boolean().required(),
+  expiry: yup
+    .mixed<Dayjs>()
+    .nullable()
+    .nullable()
+    .test("expiry-required", "Expiry date is required", function (value) {
+      const { noExpiry } = this.parent as { noExpiry: boolean };
+      return noExpiry ? true : !!value;
+    })
+    .test(
+      "expiry-future",
+      "Expiry date must be in the future",
+      function (value) {
+        const { noExpiry } = this.parent as { noExpiry: boolean };
+        if (noExpiry || !value) return true;
+        return value.isAfter(dayjs().startOf("day"));
+      },
+    ),
+});
+
 const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
   open,
   onClose,
@@ -36,55 +65,136 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
 }) => {
   const router = useRouter();
   const [cookies] = useCookies(["user_token"]);
-  if (!cookies.user_token) {
-    router.push("/login");
-  }
+  if (!cookies.user_token) router.push("/login");
 
-  const [name, setName] = useState("");
-  const [noExpiry, setNoExpiry] = useState(false);
-  const [expiry, setExpiry] = useState<Dayjs | null>(null);
+  const [formValues, setFormValues] = useState<{
+    name: string;
+    noExpiry: boolean;
+    expiry: Dayjs | null;
+  }>({
+    name: "",
+    noExpiry: false,
+    expiry: null,
+  });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
-  const reset = () => {
-    setName("");
-    setNoExpiry(true);
-    setExpiry(null);
-    setAlert({ message: "" });
+  const handleChange = <K extends keyof typeof formValues>(
+    field: K,
+    value: (typeof formValues)[K],
+  ) => {
+    setFormValues((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+    validateField(field, value);
   };
 
-  const handleSubmit = async () => {
-    if (!name.trim()) {
-      setAlert({ message: "Please provide a token name." });
-      return;
-    }
+  const handleBlur = (field: keyof typeof formValues) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const validateField = async (
+    field: keyof typeof formValues,
+    value: unknown,
+  ) => {
     try {
-      setLoading(true);
-      setAlert({ message: "" });
+      if (field === "expiry" || field === "noExpiry") {
+        await schema.validateAt("expiry", {
+          ...formValues,
+          [field]: value,
+        });
+        setErrors((prev) => ({ ...prev, expiry: "" }));
+      } else {
+        const fieldSchema = yup.reach(schema, field) as yup.Schema<unknown>;
+        await fieldSchema.validate(value);
+        setErrors((prev) => ({ ...prev, [field]: "" }));
+      }
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        const key =
+          field === "expiry" || field === "noExpiry"
+            ? "expiry"
+            : (field as string);
+        setErrors((prev) => ({ ...prev, [key]: err.message }));
+      }
+    }
+  };
+
+  const validateForm = useCallback(async () => {
+    try {
+      await schema.validate(formValues, { abortEarly: false });
+      setErrors({});
+      setIsValid(true);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        const validationErrors = err.inner.reduce(
+          (acc, curr) => {
+            if (curr.path) acc[curr.path] = curr.message;
+            return acc;
+          },
+          {} as Record<string, string>,
+        );
+        setErrors(validationErrors);
+      }
+      setIsValid(false);
+    }
+  }, [formValues]);
+
+  useEffect(() => {
+    validateForm();
+  }, [validateForm, formValues]);
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    setAlert({ message: "" });
+
+    try {
+      // final validation before submit
+      await schema.validate(formValues, { abortEarly: false });
 
       const expiryISO =
-        noExpiry || !expiry ? "" : expiry.endOf("day").toISOString();
+        formValues.noExpiry || !formValues.expiry
+          ? ""
+          : formValues.expiry.toDate().toISOString();
 
-      const createResult = await createAPIToken(
+      const res = await createAPIToken(
         cookies.user_token,
-        name.trim(),
+        formValues.name.trim(),
         expiryISO,
       );
 
-      reset();
       onClose();
-      onSuccess(createResult.token);
+      onSuccess(res.token);
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : "Unknown error.";
-      setAlert({ message: `Failed to create API Token: ${msg}` });
+      let msg = "Unknown error occurred.";
+      if (error instanceof ValidationError) {
+        // collect field errors
+        const validationErrors = error.inner.reduce(
+          (acc, curr) => {
+            if (curr.path) acc[curr.path] = curr.message;
+            return acc;
+          },
+          {} as Record<string, string>,
+        );
+        setErrors(validationErrors);
+        msg = "Please fix the errors above.";
+      } else if (error instanceof Error) {
+        msg = error.message;
+      }
+
+      setAlert({ message: `Failed to create API token: ${msg}` });
+      console.error("Failed to create API token:", error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleClose = () => {
-    reset();
     onClose();
   };
 
@@ -98,6 +208,7 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
       <DialogTitle id="create-api-token-modal-title">
         Create API Token
       </DialogTitle>
+
       <DialogContent id="create-api-token-modal-description" dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -113,8 +224,11 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
           <TextField
             fullWidth
             label="Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            value={formValues.name}
+            onChange={(e) => handleChange("name", e.target.value)}
+            onBlur={() => handleBlur("name")}
+            error={!!errors.name && touched.name}
+            helperText={touched.name ? errors.name : "3–50 characters"}
             autoFocus
             margin="normal"
             placeholder="e.g., CI Pipeline, Local Script"
@@ -123,16 +237,18 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
           <LocalizationProvider dateAdapter={AdapterDayjs}>
             <DatePicker
               label="Expiry date"
-              value={expiry}
-              onChange={(val) => setExpiry(val)}
-              disabled={noExpiry}
+              value={formValues.expiry}
+              onChange={(val) => handleChange("expiry", val)}
+              onClose={() => handleBlur("expiry")}
+              disabled={formValues.noExpiry}
               minDate={dayjs().startOf("day")}
               slotProps={{
                 textField: {
                   fullWidth: true,
-                  helperText: noExpiry
-                    ? "This token will never expire."
-                    : "The token will expire at the end of this day.",
+                  error:
+                    !!errors.expiry && touched.expiry && !formValues.noExpiry,
+                  helperText:
+                    touched.expiry && !formValues.noExpiry ? errors.expiry : "",
                 },
               }}
             />
@@ -141,8 +257,9 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
           <FormControlLabel
             control={
               <Checkbox
-                checked={noExpiry}
-                onChange={(e) => setNoExpiry(e.target.checked)}
+                checked={formValues.noExpiry}
+                onChange={(e) => handleChange("noExpiry", e.target.checked)}
+                onBlur={() => handleBlur("noExpiry")}
               />
             }
             label="No expiry"
@@ -156,7 +273,7 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
           variant="contained"
           color="success"
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={!isValid || loading}
         >
           {loading ? "Creating..." : "Create"}
         </Button>
