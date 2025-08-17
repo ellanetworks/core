@@ -725,3 +725,60 @@ func TestCreateTooManyUsers(t *testing.T) {
 		t.Fatalf("expected error %q, got %q", "Maximum number of users reached (50)", response.Error)
 	}
 }
+
+func TestCreateAPITokenInvalidInput(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	tests := []struct {
+		name      string
+		expiresAt string
+		error     string
+	}{
+		{
+			name:      strings.Repeat("a", 51),
+			expiresAt: "2040-12-31",
+			error:     "Token name must be between 3 and 50 characters",
+		},
+		{
+			name:      "",
+			expiresAt: "",
+			error:     "Token name is required",
+		},
+		{
+			name:      "valid-token",
+			expiresAt: "invalid-date",
+			error:     "Invalid expiration time format",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			createAPITokenParams := &CreateAPITokenParams{
+				Name:      tt.name,
+				ExpiresAt: tt.expiresAt,
+			}
+			statusCode, response, err := createAPIToken(ts.URL, client, token, createAPITokenParams)
+			if err != nil {
+				t.Fatalf("couldn't create API token: %s", err)
+			}
+			if statusCode != http.StatusBadRequest {
+				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+			}
+			if response.Error != tt.error {
+				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
+			}
+		})
+	}
+}

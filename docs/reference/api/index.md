@@ -8,7 +8,7 @@ Ella Core exposes a RESTful API for managing subscribers, radios, data networks,
 
 ## Authentication
 
-Almost every operation requires a client token. The client token must be sent as Authorization HTTP Header using the Bearer <token> scheme.
+Almost every operation requires a client token. The client token must be sent as Authorization HTTP Header using the Bearer <token> scheme. That token can either be the JWT returned by the [login](auth.md/#login) endpoint or an [API token](users.md/#create-an-api-token).
 
 ## Responses
 
