@@ -3,6 +3,7 @@ package server_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -92,6 +93,20 @@ type DeleteUserResponseResult struct {
 type DeleteUserResponse struct {
 	Result DeleteUserResponseResult `json:"result"`
 	Error  string                   `json:"error,omitempty"`
+}
+
+type CreateAPITokenParams struct {
+	Name      string `json:"name"`
+	ExpiresAt string `json:"expires_at"`
+}
+
+type CreateAPITokenResponseResult struct {
+	Token string `json:"token"`
+}
+
+type CreateAPITokenResponse struct {
+	Result CreateAPITokenResponseResult `json:"result"`
+	Error  string                       `json:"error,omitempty"`
 }
 
 func listUsers(url string, client *http.Client, token string) (int, *ListUsersResponse, error) {
@@ -263,6 +278,56 @@ func deleteUser(url string, client *http.Client, token string, name string) (int
 	}
 
 	return res.StatusCode, &deleteResponse, nil
+}
+
+func createAPIToken(url string, client *http.Client, token string, data *CreateAPITokenParams) (int, *CreateAPITokenResponse, error) {
+	body, err := json.Marshal(data)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/users/me/api-tokens", strings.NewReader(string(body)))
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+	var createResponse CreateAPITokenResponse
+	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
+		return 0, nil, err
+	}
+	return res.StatusCode, &createResponse, nil
+}
+
+func deleteAPIToken(url string, client *http.Client, token string, tokenID string) (int, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/users/me/api-tokens/"+tokenID, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+	if res.StatusCode != http.StatusOK {
+		return res.StatusCode, fmt.Errorf("expected status %d, got %d", http.StatusOK, res.StatusCode)
+	}
+	return res.StatusCode, nil
 }
 
 // This is an end-to-end test for the users handlers.
