@@ -104,18 +104,14 @@ func Login(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 
 func LookupToken(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			writeError(w, http.StatusBadRequest, "Authorization header is required", errors.New("missing Authorization header"), logger.APILog)
+		if r.Header.Get("Authorization") == "" {
+			writeError(w, http.StatusBadRequest, "Authorization header is required",
+				errors.New("missing Authorization header"), logger.APILog)
 			return
 		}
 
-		_, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
-		valid := err == nil
-
-		lookupTokenResponse := LookupTokenResponse{
-			Valid: valid,
-		}
+		_, _, _, err := authenticateRequest(r, jwtSecret, dbInstance)
+		lookupTokenResponse := LookupTokenResponse{Valid: err == nil}
 
 		writeResponse(w, lookupTokenResponse, http.StatusOK, logger.APILog)
 	})

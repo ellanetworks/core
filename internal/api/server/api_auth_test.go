@@ -213,6 +213,113 @@ func TestLoginEndToEnd(t *testing.T) {
 	})
 }
 
+func TestAuthAPITokenEndToEnd(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	adminToken, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	var APIToken string
+	var APITokenID string
+	t.Run("1. Create API token", func(t *testing.T) {
+		createAPITokenParams := &CreateAPITokenParams{
+			Name:      "TestAPIToken",
+			ExpiresAt: "",
+		}
+		statusCode, response, err := createAPIToken(ts.URL, client, adminToken, createAPITokenParams)
+		if err != nil {
+			t.Fatalf("couldn't create API token: %s", err)
+		}
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+		if response.Error != "" {
+			t.Fatalf("expected empty error, got %q", response.Error)
+		}
+
+		if response.Result.Token == "" {
+			t.Fatalf("expected token, got empty string")
+		}
+
+		tokenParts := strings.Split(response.Result.Token, "_")
+		if len(tokenParts) < 3 {
+			t.Fatalf("expected token format 'ellacore_<id>_<secret>', got %q", APIToken)
+		}
+
+		if tokenParts[0] != "ellacore" {
+			t.Fatalf("expected token prefix 'ellacore', got %q", tokenParts[0])
+		}
+
+		APIToken = response.Result.Token
+		APITokenID = tokenParts[1]
+	})
+
+	t.Run("2. Perform API request with token", func(t *testing.T) {
+		statusCode, response, err := listUsers(ts.URL, client, APIToken)
+		if err != nil {
+			t.Fatalf("couldn't list users: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if len(response.Result) != 1 {
+			t.Fatalf("expected 1 user, got %d", len(response.Result))
+		}
+	})
+
+	t.Run("3. Try to perform API request with invalid token - should fail", func(t *testing.T) {
+		invalidToken := APIToken[:len(APIToken)-3] + "xyz"
+		statusCode, response, err := listUsers(ts.URL, client, invalidToken)
+		if err != nil {
+			t.Fatalf("couldn't list users with invalid token: %s", err)
+		}
+
+		if statusCode != http.StatusUnauthorized {
+			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
+		}
+
+		if response.Error != "Invalid token" {
+			t.Fatalf("expected error %q, got %q", "Invalid token", response.Error)
+		}
+	})
+
+	t.Run("4. Delete API token", func(t *testing.T) {
+		statusCode, err := deleteAPIToken(ts.URL, client, adminToken, APITokenID)
+		if err != nil {
+			t.Fatalf("couldn't delete API token: %s", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+	})
+
+	t.Run("5. Try to perform API request with deleted token - should fail", func(t *testing.T) {
+		statusCode, response, err := listUsers(ts.URL, client, APIToken)
+		if err != nil {
+			t.Fatalf("couldn't list users with deleted token: %s", err)
+		}
+
+		if statusCode != http.StatusUnauthorized {
+			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
+		}
+
+		if response.Error != "Invalid token" {
+			t.Fatalf("expected error %q, got %q", "Invalid token", response.Error)
+		}
+	})
+}
+
 func TestRolesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")

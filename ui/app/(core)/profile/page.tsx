@@ -8,6 +8,14 @@ import {
   Card,
   CardHeader,
   CardContent,
+  TableContainer,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  IconButton,
+  Paper,
   Button,
   Chip,
   Skeleton,
@@ -16,11 +24,18 @@ import {
 import Grid from "@mui/material/Grid";
 import { useCookies } from "react-cookie";
 import EditMyUserPasswordModal from "@/components/EditMyUserPasswordModal";
+import CreateAPITokenModal from "@/components/CreateAPITokenModal";
+import DeleteIcon from "@mui/icons-material/Delete";
 import { getLoggedInUser } from "@/queries/users";
+import { listAPITokens, deleteAPIToken } from "@/queries/api_tokens";
 import { useAuth } from "@/contexts/AuthContext";
 import { User } from "@/types/types";
 import { useRouter } from "next/navigation";
 import EmailIcon from "@mui/icons-material/Email";
+import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
+import { APIToken } from "@/types/types";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import CloseIcon from "@mui/icons-material/Close";
 
 const MAX_WIDTH = 1200;
 
@@ -43,6 +58,25 @@ export default function Profile() {
   }, [cookies.user_token, router]);
 
   const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
+  const [isCreateAPITokenModalOpen, setCreateAPITokenModalOpen] =
+    useState(false);
+
+  const [justCreatedToken, setJustCreatedToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCreateAPITokenSuccess = (token: string) => {
+    setCreateAPITokenModalOpen(false);
+    setJustCreatedToken(token);
+    fetchAPITokens();
+  };
+
+  const copyToken = async () => {
+    try {
+      await navigator.clipboard.writeText(justCreatedToken ?? "");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  };
 
   const [alert, setAlert] = useState<{
     message: string;
@@ -51,6 +85,13 @@ export default function Profile() {
 
   const [loggedInUser, setLoggedInUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [apiTokens, setAPITokens] = useState<APIToken[]>([]);
+  const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
+  const [selectedTokenName, setSelectedTokenName] = useState<string | null>(
+    null,
+  );
+
+  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
 
   const fetchUser = useCallback(async () => {
     try {
@@ -74,12 +115,60 @@ export default function Profile() {
     setEditPasswordModalOpen(true);
   };
 
+  const handleOpenCreateAPITokenModal = () => setCreateAPITokenModalOpen(true);
+
   const handlePasswordSuccess = () => {
     setEditPasswordModalOpen(false);
     setAlert({
       message: "Password updated successfully.",
       severity: "success",
     });
+  };
+
+  const handleDeleteClick = (tokenId: number, tokenName: string) => {
+    setSelectedTokenId(tokenId);
+    setSelectedTokenName(tokenName);
+
+    setConfirmationOpen(true);
+  };
+
+  const fetchAPITokens = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await listAPITokens(cookies.user_token);
+      setAPITokens(data);
+    } catch (error) {
+      console.error("Error fetching API Tokens:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [cookies.user_token]);
+
+  useEffect(() => {
+    fetchAPITokens();
+  }, [fetchAPITokens]);
+
+  const handleDeleteConfirm = async () => {
+    setConfirmationOpen(false);
+    if (!selectedTokenId) return;
+    try {
+      await deleteAPIToken(cookies.user_token, selectedTokenId);
+      setAlert({
+        message: `API Token "${selectedTokenName}" deleted successfully!`,
+        severity: "success",
+      });
+      fetchAPITokens();
+    } catch (error) {
+      setAlert({
+        message: `Failed to delete policy "${selectedTokenName}": ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+        severity: "error",
+      });
+    } finally {
+      setSelectedTokenId(null);
+      setSelectedTokenName(null);
+    }
   };
 
   const descriptionText = "Manage how you authenticate with Ella Core.";
@@ -194,6 +283,171 @@ export default function Profile() {
             </CardContent>
           </Card>
         </Grid>
+
+        <Grid size={{ xs: 12, sm: 12, md: 12 }}>
+          <Card sx={{ height: "100%", borderRadius: 3, boxShadow: 2 }}>
+            <CardHeader title="API Tokens" sx={headerStyles} />
+            <CardContent
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+                flexGrow: 1,
+              }}
+            >
+              <Typography variant="body2" color="text.secondary">
+                Manage your API tokens to authenticate programmatically with
+                Ella Core. Your API token will have the same permissions as your
+                user account. Actions performed with the token will be logged
+                under your user account.
+              </Typography>
+              <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
+                <Button
+                  variant="contained"
+                  color="success"
+                  onClick={handleOpenCreateAPITokenModal}
+                  disabled={loading || !loggedInUser}
+                >
+                  Create Token
+                </Button>
+              </Box>
+
+              {justCreatedToken && (
+                <Alert
+                  severity="success"
+                  variant="outlined"
+                  sx={{ alignItems: "center" }}
+                  action={
+                    <Stack direction="row" spacing={1}>
+                      <IconButton
+                        aria-label="copy token"
+                        size="small"
+                        onClick={copyToken}
+                        title={copied ? "Copied!" : "Copy"}
+                      >
+                        <ContentCopyIcon fontSize="inherit" />
+                      </IconButton>
+                      <IconButton
+                        aria-label="dismiss"
+                        size="small"
+                        onClick={() => setJustCreatedToken(null)}
+                        title="Dismiss"
+                      >
+                        <CloseIcon fontSize="inherit" />
+                      </IconButton>
+                    </Stack>
+                  }
+                >
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    Copy your API token now. You won’t be able to see it again!
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontFamily: "monospace",
+                      wordBreak: "break-all",
+                      userSelect: "all",
+                    }}
+                  >
+                    {justCreatedToken}
+                  </Typography>
+                  {copied && (
+                    <Typography variant="caption" sx={{ ml: 0.5 }}>
+                      Copied!
+                    </Typography>
+                  )}
+                </Alert>
+              )}
+
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Name</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Expiry</TableCell>
+                      <TableCell>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {loading && (
+                      <>
+                        {[...Array(2)].map((_, i) => (
+                          <TableRow key={`sk-${i}`}>
+                            <TableCell colSpan={4}>
+                              <Skeleton variant="text" />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </>
+                    )}
+
+                    {!loading && apiTokens.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4}>
+                          <Typography variant="body2" color="text.secondary">
+                            No API tokens yet. Click “Create Token” to add one.
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+
+                    {!loading &&
+                      apiTokens.map((t) => {
+                        const isExpired = t.expires_at
+                          ? new Date(t.expires_at).getTime() < Date.now()
+                          : false;
+
+                        return (
+                          <TableRow key={t.id}>
+                            <TableCell>{t.name}</TableCell>
+                            <TableCell>
+                              {isExpired ? (
+                                <Chip
+                                  label="Expired"
+                                  size="small"
+                                  sx={{
+                                    backgroundColor: "#C69026",
+                                    color: "#fff",
+                                  }}
+                                />
+                              ) : (
+                                <Chip
+                                  label="Active"
+                                  color="success"
+                                  size="small"
+                                />
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                {t.expires_at
+                                  ? new Date(t.expires_at).toDateString()
+                                  : "Never"}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <IconButton
+                                aria-label="delete"
+                                size="small"
+                                onClick={() => handleDeleteClick(t.id, t.name)}
+                                disabled={loading}
+                              >
+                                <DeleteIcon color="primary" />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
 
       {isEditPasswordModalOpen && (
@@ -201,6 +455,22 @@ export default function Profile() {
           open
           onClose={() => setEditPasswordModalOpen(false)}
           onSuccess={handlePasswordSuccess}
+        />
+      )}
+      {isCreateAPITokenModalOpen && (
+        <CreateAPITokenModal
+          open
+          onClose={() => setCreateAPITokenModalOpen(false)}
+          onSuccess={handleCreateAPITokenSuccess}
+        />
+      )}
+      {isConfirmationOpen && (
+        <DeleteConfirmationModal
+          open
+          onClose={() => setConfirmationOpen(false)}
+          onConfirm={handleDeleteConfirm}
+          title="Confirm Deletion"
+          description={`Are you sure you want to delete the API Token "${selectedTokenName}"? This action cannot be undone.`}
         />
       )}
     </Box>

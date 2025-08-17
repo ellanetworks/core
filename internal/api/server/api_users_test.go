@@ -3,6 +3,7 @@ package server_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -92,6 +93,20 @@ type DeleteUserResponseResult struct {
 type DeleteUserResponse struct {
 	Result DeleteUserResponseResult `json:"result"`
 	Error  string                   `json:"error,omitempty"`
+}
+
+type CreateAPITokenParams struct {
+	Name      string `json:"name"`
+	ExpiresAt string `json:"expires_at"`
+}
+
+type CreateAPITokenResponseResult struct {
+	Token string `json:"token"`
+}
+
+type CreateAPITokenResponse struct {
+	Result CreateAPITokenResponseResult `json:"result"`
+	Error  string                       `json:"error,omitempty"`
 }
 
 func listUsers(url string, client *http.Client, token string) (int, *ListUsersResponse, error) {
@@ -263,6 +278,56 @@ func deleteUser(url string, client *http.Client, token string, name string) (int
 	}
 
 	return res.StatusCode, &deleteResponse, nil
+}
+
+func createAPIToken(url string, client *http.Client, token string, data *CreateAPITokenParams) (int, *CreateAPITokenResponse, error) {
+	body, err := json.Marshal(data)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/users/me/api-tokens", strings.NewReader(string(body)))
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+	var createResponse CreateAPITokenResponse
+	if err := json.NewDecoder(res.Body).Decode(&createResponse); err != nil {
+		return 0, nil, err
+	}
+	return res.StatusCode, &createResponse, nil
+}
+
+func deleteAPIToken(url string, client *http.Client, token string, tokenID string) (int, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "DELETE", url+"/api/v1/users/me/api-tokens/"+tokenID, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+	if res.StatusCode != http.StatusOK {
+		return res.StatusCode, fmt.Errorf("expected status %d, got %d", http.StatusOK, res.StatusCode)
+	}
+	return res.StatusCode, nil
 }
 
 // This is an end-to-end test for the users handlers.
@@ -658,5 +723,62 @@ func TestCreateTooManyUsers(t *testing.T) {
 	}
 	if response.Error != "Maximum number of users reached (50)" {
 		t.Fatalf("expected error %q, got %q", "Maximum number of users reached (50)", response.Error)
+	}
+}
+
+func TestCreateAPITokenInvalidInput(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+	ts, _, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer ts.Close()
+	client := ts.Client()
+
+	token, err := createFirstUserAndLogin(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	tests := []struct {
+		name      string
+		expiresAt string
+		error     string
+	}{
+		{
+			name:      strings.Repeat("a", 51),
+			expiresAt: "2040-12-31",
+			error:     "Token name must be between 3 and 50 characters",
+		},
+		{
+			name:      "",
+			expiresAt: "",
+			error:     "Token name is required",
+		},
+		{
+			name:      "valid-token",
+			expiresAt: "invalid-date",
+			error:     "Invalid expiration time format",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			createAPITokenParams := &CreateAPITokenParams{
+				Name:      tt.name,
+				ExpiresAt: tt.expiresAt,
+			}
+			statusCode, response, err := createAPIToken(ts.URL, client, token, createAPITokenParams)
+			if err != nil {
+				t.Fatalf("couldn't create API token: %s", err)
+			}
+			if statusCode != http.StatusBadRequest {
+				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+			}
+			if response.Error != tt.error {
+				t.Fatalf("expected error %q, got %q", tt.error, response.Error)
+			}
+		})
 	}
 }

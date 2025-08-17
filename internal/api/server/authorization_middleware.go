@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"errors"
 	"net/http"
 
@@ -51,6 +50,9 @@ const (
 	PermDeleteUser           = "user:delete"
 	PermReadMyUser           = "user:read_my_user"
 	PermUpdateMyUserPassword = "user:update_my_user_password" // #nosec: G101
+	PermListMyAPITokens      = "user:list_my_api_tokens"      // #nosec: G101
+	PermCreateMyAPIToken     = "user:create_my_api_token"
+	PermDeleteMyAPIToken     = "user:delete_my_api_token"
 
 	// Data Network permissions
 	PermListDataNetworks  = "data_network:list"
@@ -105,63 +107,49 @@ const (
 	PermDeleteAuditLogs            = "audit_logs:delete"
 )
 
-func RequirePermissionOrFirstUser(permission string, db *db.Database, jwtSecret []byte, next http.Handler) http.Handler {
+func RequirePermissionOrFirstUser(permission string, database *db.Database, jwtSecret []byte, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		// Allow unauthenticated creation if first user
+		// 1) First-user bypass only for user creation POST
 		if permission == PermCreateUser && r.Method == http.MethodPost {
-			userCount, err := db.NumUsers(ctx)
+			n, err := database.NumUsers(ctx)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "Failed to count users", err, logger.APILog)
 				return
 			}
-			if userCount == 0 {
+			if n == 0 {
+				// No auth needed; allow bootstrap
 				next.ServeHTTP(w, r)
 				return
 			}
 		}
 
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			writeError(w, http.StatusUnauthorized, "Authorization header not found", errors.New("missing header"), logger.APILog)
-			return
-		}
-
-		claims, err := getClaimsFromAuthorizationHeader(authHeader, jwtSecret)
+		// 2) Otherwise require authentication
+		uid, email, role, err := authenticateRequest(r, jwtSecret, database)
 		if err != nil {
-			logger.LogAuditEvent("auth_fail", "", getClientIP(r), "unauthorized")
+			logger.LogAuditEvent(AuthenticationAction, "", getClientIP(r), "Unauthorized: "+err.Error())
 			writeError(w, http.StatusUnauthorized, "Invalid token", err, logger.APILog)
 			return
 		}
 
-		ctx = context.WithValue(ctx, contextKeyUserID, claims.ID)
-		ctx = context.WithValue(ctx, contextKeyEmail, claims.Email)
-		ctx = context.WithValue(ctx, contextKeyRoleID, claims.RoleID)
+		// 3) Put identity in context
+		ctx = putIdentity(ctx, uid, email, role)
 		r = r.WithContext(ctx)
 
-		// Check permission
-		allowedPerms := PermissionsByRole[claims.RoleID]
-		for _, p := range allowedPerms {
-			if p == permission || p == "*" {
-				next.ServeHTTP(w, r)
-				return
-			}
+		// 4) Authorization check
+		if !authorize(role, permission) {
+			writeError(w, http.StatusForbidden, "Forbidden", errors.New("permission denied"), logger.APILog)
+			return
 		}
 
-		writeError(w, http.StatusForbidden, "Forbidden", errors.New("permission denied"), logger.APILog)
+		next.ServeHTTP(w, r)
 	})
 }
 
 func RequirePermission(permission string, jwtSecret []byte, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims, err := getClaimsFromAuthorizationHeader(r.Header.Get("Authorization"), jwtSecret)
-		if err != nil {
-			writeError(w, http.StatusUnauthorized, "Unauthorized", err, logger.APILog)
-			return
-		}
-
-		allowedPerms := PermissionsByRole[claims.RoleID]
+		allowedPerms := PermissionsByRole[r.Context().Value(contextKeyRoleID).(RoleID)]
 		for _, p := range allowedPerms {
 			if p == permission || p == "*" {
 				next.ServeHTTP(w, r)

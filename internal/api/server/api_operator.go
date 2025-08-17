@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/hex"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -115,20 +114,20 @@ func isValidOperatorCode(operatorCode string) bool {
 func isValidPrivateKey(privateKey string) bool {
 	// Ensure it is exactly 64 hex characters (32 bytes)
 	if len(privateKey) != 64 {
-		log.Println("Invalid private key length:", len(privateKey))
+		logger.EllaLog.Warn("Invalid private key length", zap.Int("length", len(privateKey)))
 		return false
 	}
 
 	// Decode from hex string to bytes
 	privateKeyBytes, err := hex.DecodeString(privateKey)
 	if err != nil {
-		log.Println("Invalid private key format:", err)
+		logger.EllaLog.Warn("Failed to decode private key from hex", zap.Error(err))
 		return false
 	}
 
 	// Ensure it is exactly 32 bytes long
 	if len(privateKeyBytes) != 32 {
-		log.Println("Invalid private key byte length:", len(privateKeyBytes))
+		logger.EllaLog.Warn("Invalid private key byte length", zap.Int("length", len(privateKeyBytes)))
 		return false
 	}
 
@@ -136,7 +135,7 @@ func isValidPrivateKey(privateKey string) bool {
 	// - First byte: Bits 0-2 must be cleared
 	// - Last byte: Bit 7 must be cleared, and bit 6 must be set
 	if privateKeyBytes[0]&7 != 0 || privateKeyBytes[31]&0x80 != 0 || privateKeyBytes[31]&0x40 == 0 {
-		log.Println("Invalid Curve25519 key clamping")
+		logger.EllaLog.Warn("Invalid Curve25519 key clamping")
 		return false
 	}
 

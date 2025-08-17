@@ -28,6 +28,7 @@ const QueryCreateUsersTable = `
 const (
 	listUsersStmt        = "SELECT &User.* from %s"
 	getUserStmt          = "SELECT &User.* from %s WHERE email==$User.email"
+	getUserByIDStmt      = "SELECT &User.* from %s WHERE id==$User.id"
 	createUserStmt       = "INSERT INTO %s (email, roleID, hashedPassword) VALUES ($User.email, $User.roleID, $User.hashedPassword)"
 	editUserStmt         = "UPDATE %s SET roleID=$User.roleID WHERE email==$User.email"
 	editUserPasswordStmt = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE email==$User.email" // #nosec: G101
@@ -123,6 +124,41 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 		return nil, err
 	}
 
+	span.SetStatus(codes.Ok, "")
+	return &row, nil
+}
+
+// GetUserByID fetches a single user by ID with a span named "SELECT users".
+func (db *Database) GetUserByID(ctx context.Context, id int) (*User, error) {
+	operation := "SELECT"
+	target := UsersTableName
+	spanName := fmt.Sprintf("%s %s", operation, target)
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+
+	stmt := fmt.Sprintf(getUserByIDStmt, db.usersTable)
+	span.SetAttributes(
+		semconv.DBSystemSqlite,
+		semconv.DBStatementKey.String(stmt),
+		semconv.DBOperationKey.String(operation),
+		attribute.String("db.collection", target),
+	)
+	row := User{ID: id}
+	q, err := sqlair.Prepare(stmt, User{})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "prepare failed")
+		return nil, err
+	}
+	if err := db.conn.Query(ctx, q, row).Get(&row); err != nil {
+		if err == sql.ErrNoRows {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, nil
+		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+		return nil, err
+	}
 	span.SetStatus(codes.Ok, "")
 	return &row, nil
 }
