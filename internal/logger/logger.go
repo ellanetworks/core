@@ -239,7 +239,22 @@ func LogAuditEvent(action, actor, ip, details string) {
 type SubscriberEventAction string
 
 const (
-	SubscriberRegistrationRequest SubscriberEventAction = "Registration Request"
+	SubscriberRegistrationRequest                     SubscriberEventAction = "Registration Request"
+	SubscriberInitialRegistration                     SubscriberEventAction = "Initial Registration"
+	SubscriberMobilityAndPeriodicRegistrationUpdating SubscriberEventAction = "Mobility and Periodic Registration Updating"
+	SubscriberIdentityResponse                        SubscriberEventAction = "Identity Response"
+	SubscriberNotificationResponse                    SubscriberEventAction = "Notification Response"
+	SubscriberConfigurationUpdateComplete             SubscriberEventAction = "Configuration Update Complete"
+	SubscriberServiceRequest                          SubscriberEventAction = "Service Request"
+	SubscriberAuthenticationResponse                  SubscriberEventAction = "Authentication Response"
+	SubscriberAuthenticationFailure                   SubscriberEventAction = "Authentication Failure"
+	SubscriberRegistrationComplete                    SubscriberEventAction = "Registration Complete"
+	SubscriberSecurityModeComplete                    SubscriberEventAction = "Security Mode Complete"
+	SubscriberSecurityModeReject                      SubscriberEventAction = "Security Mode Reject"
+	SubscriberDeregistrationRequest                   SubscriberEventAction = "Deregistration Request"
+	SubscriberDeregistrationAccept                    SubscriberEventAction = "Deregistration Accept"
+	SubscriberStatus5GMM                              SubscriberEventAction = "Status 5GMM"
+	SubscriberAuthenticationError                     SubscriberEventAction = "Authentication Error"
 )
 
 func LogSubscriberEvent(event SubscriberEventAction, imsi string, fields ...zap.Field) {
