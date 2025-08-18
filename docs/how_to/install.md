@@ -19,6 +19,18 @@ description: Step-by-step instructions to install Ella Core.
     sudo snap connect ella-core:system-observe
     ```
 
+    Configure Ella Core:
+
+    ```bash
+    sudo vim /var/snap/ella-core/common/core.yaml
+    ```
+    
+    Start Ella Core:
+
+    ```bash
+    sudo snap start --enable ella-core.cored
+    ```
+
     ## From Source (For Development)
 
     ```shell
@@ -31,6 +43,18 @@ description: Step-by-step instructions to install Ella Core.
     npm install --prefix ui
     npm run build --prefix ui
     go build cmd/core/main.go
+    ```
+
+    Configure Ella Core:
+
+    ```bash
+    vim core.yaml
+    ```
+    
+    Start Ella Core:
+
+    ```bash
+    sudo ./main -config core.yaml
     ```
 
 === "Kubernetes"

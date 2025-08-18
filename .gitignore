@@ -26,3 +26,7 @@ main
 
 # Snap
 *.snap
+
+# Documentation
+.cache
+site

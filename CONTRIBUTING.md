@@ -99,7 +99,7 @@ go build cmd/core/main.go
 ### Build documentation
 
 ```shell
-mkdocs build
+uvx --with-requirements requirements-docs.txt mkdocs build
 ```
 
 ### Build the Container image
