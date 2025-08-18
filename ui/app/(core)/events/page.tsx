@@ -58,7 +58,7 @@ const Events = () => {
   const [retentionPolicy, setRetentionPolicy] =
     useState<SubscriberLogRetentionPolicy | null>(null);
 
-  const descriptionText = "Review subscriber events in Ella Core.";
+  const descriptionText = "Review subscriber events in Ella Core. These logs are useful for auditing and troubleshooting purposes.";
 
   const fetchRetentionPolicy = useCallback(async () => {
     try {
