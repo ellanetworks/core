@@ -1,7 +1,7 @@
 # Ella Core
 
 <p align="center">
-  <img src="docs/images/logo.png" alt="Ella Core Logo" width="150"/>
+  <img src="docs/images/summary.svg" alt="Ella Core Logo" width="150"/>
 </p>
 
 [![ella-core](https://snapcraft.io/ella-core/badge.svg)](https://snapcraft.io/ella-core)
