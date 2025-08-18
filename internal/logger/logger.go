@@ -3,6 +3,7 @@
 package logger
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -246,30 +247,68 @@ func LogSubscriberEvent(event SubscriberEventAction, imsi string, fields ...zap.
 		return
 	}
 
-	if event == "" || imsi == "" {
-		if log != nil {
-			log.Warn("attempted to write invalid subscriber event",
-				zap.String("event", string(event)),
-				zap.String("imsi", imsi),
-			)
+	// TO DO: Validate mandatory fields
+	// if event == "" || imsi == "" {
+	// 	if log != nil {
+	// 		log.Warn("attempted to write invalid subscriber event",
+	// 			zap.String("event", string(event)),
+	// 			zap.String("imsi", imsi),
+	// 		)
+	// 	}
+	// 	return
+	// }
+
+	// Collect all incoming fields into a map using Zap's map encoder.
+	enc := zapcore.NewMapObjectEncoder()
+	for _, f := range fields {
+		f.AddTo(enc)
+	}
+
+	var detailsStr string
+
+	reserved := map[string]struct{}{
+		"event": {}, "imsi": {}, "timestamp": {}, "level": {},
+		"component": {}, "caller": {}, "message": {},
+	}
+
+	if raw, ok := enc.Fields["details"]; ok {
+		switch v := raw.(type) {
+		case string:
+			detailsStr = v
+		default:
+			if b, err := json.Marshal(v); err == nil {
+				detailsStr = string(b)
+			}
 		}
-		return
+		delete(enc.Fields, "details")
 	}
 
-	base := []zap.Field{
-		zap.String("event", string(event)),
-		zap.String("imsi", imsi),
-	}
-
-	for i, f := range fields {
-		if f.Key == "details" {
-			if s, ok := f.Interface.(string); ok && len(s) > 2048 {
-				fields[i] = zap.String("details", s[:2048]+"...(truncated)")
+	if detailsStr == "" {
+		agg := make(map[string]any, len(enc.Fields))
+		for k, v := range enc.Fields {
+			if _, isReserved := reserved[k]; !isReserved {
+				agg[k] = v
+			}
+		}
+		if len(agg) > 0 {
+			if b, err := json.Marshal(agg); err == nil {
+				detailsStr = string(b)
 			}
 		}
 	}
 
-	SubscriberLog.Info("subscriber_event", append(base, fields...)...)
+	// Optional safety: cap the size
+	const maxDetails = 4096
+	if len(detailsStr) > maxDetails {
+		detailsStr = detailsStr[:maxDetails] + "...(truncated)"
+	}
+
+	// Emit a single, consistent log line. DB reader already expects details as string.
+	SubscriberLog.Info("subscriber_event",
+		zap.String("event", string(event)),
+		zap.String("imsi", imsi),
+		zap.String("details", detailsStr),
+	)
 }
 
 type funcWriteSyncer struct {

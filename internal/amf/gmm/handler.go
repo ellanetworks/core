@@ -482,9 +482,7 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		logger.SubscriberRegistrationRequest,
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
-		zap.String("guti", ue.Guti),
 		zap.String("suci", ue.Suci),
-		zap.String("pei", ue.Pei),
 		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
 	)
 
