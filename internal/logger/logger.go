@@ -236,44 +236,46 @@ func LogAuditEvent(action, actor, ip, details string) {
 	)
 }
 
-type SubscriberEventAction string
+type SubscriberEvent string
 
 const (
-	SubscriberRegistrationRequest                     SubscriberEventAction = "Registration Request"
-	SubscriberInitialRegistration                     SubscriberEventAction = "Initial Registration"
-	SubscriberMobilityAndPeriodicRegistrationUpdating SubscriberEventAction = "Mobility and Periodic Registration Updating"
-	SubscriberIdentityResponse                        SubscriberEventAction = "Identity Response"
-	SubscriberNotificationResponse                    SubscriberEventAction = "Notification Response"
-	SubscriberConfigurationUpdateComplete             SubscriberEventAction = "Configuration Update Complete"
-	SubscriberServiceRequest                          SubscriberEventAction = "Service Request"
-	SubscriberAuthenticationResponse                  SubscriberEventAction = "Authentication Response"
-	SubscriberAuthenticationFailure                   SubscriberEventAction = "Authentication Failure"
-	SubscriberRegistrationComplete                    SubscriberEventAction = "Registration Complete"
-	SubscriberSecurityModeComplete                    SubscriberEventAction = "Security Mode Complete"
-	SubscriberSecurityModeReject                      SubscriberEventAction = "Security Mode Reject"
-	SubscriberDeregistrationRequest                   SubscriberEventAction = "Deregistration Request"
-	SubscriberDeregistrationAccept                    SubscriberEventAction = "Deregistration Accept"
-	SubscriberStatus5GMM                              SubscriberEventAction = "Status 5GMM"
-	SubscriberAuthenticationError                     SubscriberEventAction = "Authentication Error"
+	// Access events
+	SubscriberRegistrationRequest                     SubscriberEvent = "Registration Request"
+	SubscriberInitialRegistration                     SubscriberEvent = "Initial Registration"
+	SubscriberMobilityAndPeriodicRegistrationUpdating SubscriberEvent = "Mobility and Periodic Registration Updating"
+	SubscriberIdentityResponse                        SubscriberEvent = "Identity Response"
+	SubscriberNotificationResponse                    SubscriberEvent = "Notification Response"
+	SubscriberConfigurationUpdateComplete             SubscriberEvent = "Configuration Update Complete"
+	SubscriberServiceRequest                          SubscriberEvent = "Service Request"
+	SubscriberAuthenticationResponse                  SubscriberEvent = "Authentication Response"
+	SubscriberAuthenticationFailure                   SubscriberEvent = "Authentication Failure"
+	SubscriberRegistrationComplete                    SubscriberEvent = "Registration Complete"
+	SubscriberSecurityModeComplete                    SubscriberEvent = "Security Mode Complete"
+	SubscriberSecurityModeReject                      SubscriberEvent = "Security Mode Reject"
+	SubscriberDeregistrationRequest                   SubscriberEvent = "Deregistration Request"
+	SubscriberDeregistrationAccept                    SubscriberEvent = "Deregistration Accept"
+	SubscriberStatus5GMM                              SubscriberEvent = "Status 5GMM"
+	SubscriberAuthenticationError                     SubscriberEvent = "Authentication Error"
+
+	// Session events
+	SubscriberPduSessionEstablishmentRequest SubscriberEvent = "PDU Session Establishment Request"
+	SubscriberPduSessionEstablishmentReject  SubscriberEvent = "PDU Session Establishment Reject"
+	SubscriberPduSessionEstablishmentAccept  SubscriberEvent = "PDU Session Establishment Accept"
 )
 
-func LogSubscriberEvent(event SubscriberEventAction, imsi string, fields ...zap.Field) {
+func LogSubscriberEvent(event SubscriberEvent, imsi string, fields ...zap.Field) {
 	if SubscriberLog == nil {
 		return
 	}
 
-	// TO DO: Validate mandatory fields
-	// if event == "" || imsi == "" {
-	// 	if log != nil {
-	// 		log.Warn("attempted to write invalid subscriber event",
-	// 			zap.String("event", string(event)),
-	// 			zap.String("imsi", imsi),
-	// 		)
-	// 	}
-	// 	return
-	// }
+	if event == "" {
+		EllaLog.Warn("attempted to log empty subscriber event",
+			zap.String("imsi", imsi),
+			zap.Any("fields", fields),
+		)
+		return
+	}
 
-	// Collect all incoming fields into a map using Zap's map encoder.
 	enc := zapcore.NewMapObjectEncoder()
 	for _, f := range fields {
 		f.AddTo(enc)

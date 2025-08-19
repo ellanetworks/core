@@ -272,10 +272,13 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 	// N1N2 Json Data
 	n1n2Request.JSONData = &models.N1N2MessageTransferReqData{PduSessionID: smContext.PDUSessionID}
 
+	var logEventType logger.SubscriberEvent
+
 	if success {
 		if smNasBuf, err := context.BuildGSMPDUSessionEstablishmentAccept(smContext); err != nil {
 			logger.SmfLog.Error("Build GSM PDUSessionEstablishmentAccept failed", zap.Error(err))
 		} else {
+			logEventType = logger.SubscriberPduSessionEstablishmentAccept
 			n1n2Request.BinaryDataN1Message = smNasBuf
 			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
 		}
@@ -291,6 +294,7 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 			nasMessage.Cause5GSMRequestRejectedUnspecified); err != nil {
 			logger.SmfLog.Error("Build GSM PDUSessionEstablishmentReject failed", zap.Error(err))
 		} else {
+			logEventType = logger.SubscriberPduSessionEstablishmentReject
 			n1n2Request.BinaryDataN1Message = smNasBuf
 			n1n2Request.JSONData.N1MessageContainer = &n1MsgContainer
 		}
@@ -303,6 +307,15 @@ func SendPduSessN1N2Transfer(ctx ctxt.Context, smContext *context.SMContext, suc
 		}
 		return fmt.Errorf("failed to send n1 n2 transfer request: %v", err)
 	}
+
+	if logEventType != "" {
+		logger.LogSubscriberEvent(
+			logEventType,
+			smContext.Supi,
+			zap.Int32("pduSessionID", smContext.PDUSessionID),
+		)
+	}
+
 	smContext.SubPduSessLog.Info("Sent n1 n2 transfer request")
 	if rspData.Cause == models.N1N2MessageTransferCauseN1MsgNotTransferred {
 		err = smContext.CommitSmPolicyDecision(false)

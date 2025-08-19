@@ -189,6 +189,12 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		// case iii) if the AMF does not have a PDU session routing context for the PDU session ID and the UE
 		// and the Request type IE is included and is set to "initial request"
 		case nasMessage.ULNASTransportRequestTypeInitialRequest:
+			logger.LogSubscriberEvent(
+				logger.SubscriberPduSessionEstablishmentRequest,
+				ue.Supi,
+				zap.Int32("pduSessionID", pduSessionID),
+			)
+
 			var (
 				snssai models.Snssai
 				dnn    string
@@ -241,14 +247,22 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport: %s", err)
 				}
-				ue.GmmLog.Info("sent downlink nas transport to UE")
+
+				logger.LogSubscriberEvent(
+					logger.SubscriberPduSessionEstablishmentReject,
+					ue.Supi,
+					zap.Int32("pduSessionID", pduSessionID),
+				)
+
 				return fmt.Errorf("pdu session establishment request was rejected by SMF for pdu session id %d", pduSessionID)
 			}
 
 			newSmContext.SetSmContextRef(smContextRef)
 			newSmContext.SetUserLocation(ue.Location)
+
 			ue.StoreSmContext(pduSessionID, newSmContext)
 			ue.GmmLog.Debug("Created sm context for pdu session", zap.Int32("pduSessionID", pduSessionID))
+
 		case nasMessage.ULNASTransportRequestTypeModificationRequest:
 			fallthrough
 		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
@@ -830,10 +844,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 					err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
 					if err != nil {
 						return fmt.Errorf("failed to release sm context: %s", err)
-					}
-					if err != nil {
-						pduSessionStatus[psi] = true
-						ue.GmmLog.Error("error sending release sm context request", zap.Error(err))
 					} else {
 						pduSessionStatus[psi] = false
 					}
@@ -1241,6 +1251,7 @@ func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.Iden
 
 	logger.LogSubscriberEvent(
 		logger.SubscriberIdentityResponse,
+
 		ue.Supi,
 		zap.String("ran", ue.RanUe[models.AccessType3GPPAccess].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -2161,6 +2172,7 @@ func HandleSecurityModeReject(ue *context.AmfUe, anType models.AccessType,
 ) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberSecurityModeReject,
+
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -2192,6 +2204,7 @@ func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType mod
 ) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberDeregistrationRequest,
+
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -2302,6 +2315,7 @@ func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType mode
 ) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberDeregistrationAccept,
+
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -2361,6 +2375,7 @@ func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType mode
 func HandleStatus5GMM(ue *context.AmfUe, anType models.AccessType, status5GMM *nasMessage.Status5GMM) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberStatus5GMM,
+
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
@@ -2379,6 +2394,7 @@ func HandleStatus5GMM(ue *context.AmfUe, anType models.AccessType, status5GMM *n
 func HandleAuthenticationError(ue *context.AmfUe, anType models.AccessType) error {
 	logger.LogSubscriberEvent(
 		logger.SubscriberAuthenticationError,
+
 		ue.Supi,
 		zap.String("ran", ue.RanUe[anType].Ran.Name),
 		zap.String("suci", ue.Suci),
