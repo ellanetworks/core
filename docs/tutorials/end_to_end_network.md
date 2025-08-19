@@ -96,6 +96,7 @@ sudo snap connect ella-core:network-control
 sudo snap connect ella-core:process-control
 sudo snap connect ella-core:sys-fs-bpf-upf-pipeline
 sudo snap connect ella-core:system-observe
+sudo snap connect ella-core:firewall-control
 ```
 
 Start Ella Core:
