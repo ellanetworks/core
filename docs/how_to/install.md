@@ -17,6 +17,7 @@ description: Step-by-step instructions to install Ella Core.
     sudo snap connect ella-core:process-control
     sudo snap connect ella-core:sys-fs-bpf-upf-pipeline
     sudo snap connect ella-core:system-observe
+    sudo snap connect ella-core:firewall-control
     ```
 
     Configure Ella Core:
