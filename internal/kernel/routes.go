@@ -172,16 +172,24 @@ func (rk *RealKernel) filterForwarding() error {
 	return nil
 }
 
+// isRunningInKubernetes checks if we are running inside Kubernetes
+func isRunningInKubernetes() bool {
+	ksh := os.Getenv("KUBERNETES_SERVICE_HOST")
+	return len(ksh) != 0
+}
+
 // EnableIPForwarding enables IP forwarding on the host.
 func (rk *RealKernel) EnableIPForwarding() error {
 	// Before enabling IP forwarding, we add a firewall rule to
 	// default drop any forwarding for security. Because we use XDP
 	// for forwarding, we will bypass these rules for legitimate traffic.
-	err := rk.filterForwarding()
-	if err != nil {
-		return fmt.Errorf("failed to add firewall rules: %v", err)
+	if !isRunningInKubernetes() {
+		err := rk.filterForwarding()
+		if err != nil {
+			return fmt.Errorf("failed to add firewall rules: %v", err)
+		}
 	}
-	err = os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1"), 0o600)
+	err := os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1"), 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to enable ip_forward: %v", err)
 	}
