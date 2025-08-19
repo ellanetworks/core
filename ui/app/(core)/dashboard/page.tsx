@@ -7,6 +7,8 @@ import {
   CircularProgress,
   Alert,
   Card,
+  CardHeader,
+  CardContent,
   CardActionArea,
   Skeleton,
   Table,
@@ -83,29 +85,31 @@ function KpiCard({
         flexDirection: "column",
         borderRadius: 3,
         boxShadow: 2,
-        p: 2,
       }}
     >
-      <Typography
-        variant="h6"
-        sx={{ textAlign: "center", mb: 1 }}
-        component="div"
-      >
-        {title}
-      </Typography>
-
-      <Box
+      <CardHeader
+        title={title}
         sx={{
-          flex: 1,
-          minHeight,
+          backgroundColor: "#F5F5F5",
+          borderTopLeftRadius: 8,
+          borderTopRightRadius: 8,
+          "& .MuiCardHeader-title": {
+            fontWeight: 600,
+            fontSize: "1rem",
+          },
+        }}
+      />
+      <CardContent
+        sx={{
+          flexGrow: 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          textAlign: "center",
+          minHeight: minHeight,
         }}
       >
         {body}
-      </Box>
+      </CardContent>
     </Card>
   );
 
@@ -512,15 +516,7 @@ const Dashboard = () => {
             )}
           </KpiCard>
         </Grid>
-      </Grid>
 
-      <Grid
-        container
-        spacing={4}
-        alignItems="stretch"
-        justifyContent="flex-start"
-        sx={{ mt: 2 }}
-      >
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <KpiCard
             title="Uplink Traffic"
