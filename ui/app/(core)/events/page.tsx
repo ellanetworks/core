@@ -1,36 +1,45 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Box, Typography, Alert, Button, Collapse } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
-import useMediaQuery from "@mui/material/useMediaQuery";
-import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import {
-  listAuditLogs,
-  getAuditLogRetentionPolicy,
-} from "@/queries/audit_logs";
+  Box,
+  Typography,
+  Alert,
+  Button,
+  Collapse,
+  IconButton,
+  Tooltip,
+} from "@mui/material";
+import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import {
+  listSubscriberLogs,
+  getSubscriberLogRetentionPolicy,
+} from "@/queries/subscriber_logs";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
-import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
-import { AuditLogRetentionPolicy } from "@/types/types";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import EditSubscriberLogRetentionPolicyModal from "@/components/EditSubscriberLogRetentionPolicyModal";
+import { SubscriberLogRetentionPolicy } from "@/types/types";
+import ViewLogModal from "@/components/ViewSubscriberLogModal";
 
-interface AuditLogData {
+interface SubscriberLogData {
   id: string;
   timestamp: string;
   level: string;
-  actor: string;
-  action: string;
+  imsi: string;
+  event: string;
   ip: string;
   details: string;
 }
 
 const MAX_WIDTH = 1400;
 
-const AuditLog = () => {
+const Events: React.FC = () => {
   const { role } = useAuth();
   const [cookies] = useCookies(["user_token"]);
-  const [auditLogs, setAuditLogs] = useState<AuditLogData[]>([]);
+  const [subscriberLogs, setSubscriberLogs] = useState<SubscriberLogData[]>([]);
   const [alert, setAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
@@ -45,55 +54,74 @@ const AuditLog = () => {
   const canEdit = role === "Admin";
 
   const outerTheme = useTheme();
-  const gridTheme = React.useMemo(
-    () =>
-      createTheme(outerTheme, {
-        palette: {
-          DataGrid: { headerBg: "#F5F5F5" },
-        },
-      }),
-    [outerTheme],
-  );
+  const gridTheme = useMemo(() => createTheme(outerTheme), [outerTheme]);
 
   const [retentionPolicy, setRetentionPolicy] =
-    useState<AuditLogRetentionPolicy | null>(null);
+    useState<SubscriberLogRetentionPolicy | null>(null);
+
+  const [viewLogModalOpen, setViewLogModalOpen] = useState(false);
+  const [selectedRow, setSelectedRow] = useState<SubscriberLogData | null>(
+    null,
+  );
 
   const descriptionText =
-    "Review security-relevant actions performed in Ella Core. The audit log records who did what and when.";
+    "Review subscriber events in Ella Core. These logs are useful for auditing and troubleshooting purposes.";
 
   const fetchRetentionPolicy = useCallback(async () => {
     try {
-      const data = await getAuditLogRetentionPolicy(cookies.user_token);
+      const data = await getSubscriberLogRetentionPolicy(cookies.user_token);
       setRetentionPolicy(data);
     } catch (error) {
-      console.error("Error fetching audit log retention policy:", error);
+      console.error("Error fetching subscriber log retention policy:", error);
     }
   }, [cookies.user_token]);
 
-  const fetchAuditLogs = useCallback(async () => {
+  const fetchSubscriberLogs = useCallback(async () => {
     try {
-      const data = await listAuditLogs(cookies.user_token);
-      setAuditLogs(data);
+      const data = await listSubscriberLogs(cookies.user_token);
+      setSubscriberLogs(data);
     } catch (error) {
-      console.error("Error fetching audit logs:", error);
+      console.error("Error fetching subscriber logs:", error);
     }
   }, [cookies.user_token]);
 
   useEffect(() => {
-    fetchAuditLogs();
+    fetchSubscriberLogs();
     fetchRetentionPolicy();
-  }, [fetchAuditLogs, fetchRetentionPolicy]);
+  }, [fetchSubscriberLogs, fetchRetentionPolicy]);
 
-  const columns: GridColDef[] = useMemo(
-    () => [
+  const columns: GridColDef<SubscriberLogData>[] = useMemo(() => {
+    return [
       { field: "timestamp", headerName: "Timestamp", flex: 1, minWidth: 220 },
-      { field: "actor", headerName: "Actor", flex: 1, minWidth: 250 },
-      { field: "action", headerName: "Action", flex: 1, minWidth: 200 },
-      { field: "ip", headerName: "IP Address", flex: 1, minWidth: 150 },
-      { field: "details", headerName: "Details", flex: 2, minWidth: 350 },
-    ],
-    [],
-  );
+      { field: "imsi", headerName: "IMSI", flex: 1, minWidth: 220 },
+      { field: "event", headerName: "Event", flex: 1, minWidth: 200 },
+      {
+        field: "view",
+        headerName: "",
+        sortable: false,
+        filterable: false,
+        width: 60,
+        align: "center",
+        headerAlign: "center",
+        renderCell: (params: GridRenderCellParams<SubscriberLogData>) => (
+          <Tooltip title="View details">
+            <IconButton
+              color="primary"
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedRow(params.row);
+                setViewLogModalOpen(true);
+              }}
+              aria-label="View details"
+            >
+              <VisibilityIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        ),
+      },
+    ];
+  }, []);
 
   return (
     <Box
@@ -128,7 +156,7 @@ const AuditLog = () => {
           gap: 2,
         }}
       >
-        <Typography variant="h4">Audit Logs</Typography>
+        <Typography variant="h4">Subscriber Events</Typography>
 
         <Typography variant="body1" color="text.secondary">
           {descriptionText}
@@ -145,7 +173,6 @@ const AuditLog = () => {
               Edit Retention
             </Button>
           )}
-
           <Typography
             variant="body2"
             color="text.secondary"
@@ -158,18 +185,18 @@ const AuditLog = () => {
 
       <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
         <ThemeProvider theme={gridTheme}>
-          <DataGrid
-            rows={auditLogs}
+          <DataGrid<SubscriberLogData>
+            rows={subscriberLogs}
+            showToolbar={true}
             columns={columns}
             getRowId={(row) => row.id}
-            showToolbar={true}
             initialState={{
               sorting: { sortModel: [{ field: "timestamp", sort: "desc" }] },
+              pagination: { paginationModel: { pageSize: 25, page: 0 } },
             }}
+            pageSizeOptions={[10, 25, 50, 100]}
             disableRowSelectionOnClick
-            columnVisibilityModel={{
-              id: !isSmDown,
-            }}
+            columnVisibilityModel={{ id: !isSmDown }}
             sx={{
               width: "100%",
               border: 1,
@@ -181,6 +208,7 @@ const AuditLog = () => {
               "& .MuiDataGrid-columnHeaders": {
                 borderBottom: "1px solid",
                 borderColor: "divider",
+                backgroundColor: "#F5F5F5",
               },
               "& .MuiDataGrid-footerContainer": {
                 borderTop: "1px solid",
@@ -192,7 +220,13 @@ const AuditLog = () => {
         </ThemeProvider>
       </Box>
 
-      <EditAuditLogRetentionPolicyModal
+      <ViewLogModal
+        open={viewLogModalOpen}
+        onClose={() => setViewLogModalOpen(false)}
+        log={selectedRow}
+      />
+
+      <EditSubscriberLogRetentionPolicyModal
         open={isEditModalOpen}
         onClose={() => setEditModalOpen(false)}
         onSuccess={() => {
@@ -208,4 +242,4 @@ const AuditLog = () => {
   );
 };
 
-export default AuditLog;
+export default Events;

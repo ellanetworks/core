@@ -3,6 +3,7 @@
 package logger
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -11,27 +12,22 @@ import (
 )
 
 var (
-	log         *zap.Logger
-	EllaLog     *zap.Logger
-	AuditLog    *zap.Logger
-	MetricsLog  *zap.Logger
-	DBLog       *zap.Logger
-	AmfLog      *zap.Logger
-	APILog      *zap.Logger
-	SmfLog      *zap.Logger
-	UdmLog      *zap.Logger
-	UpfLog      *zap.Logger
+	log           *zap.Logger
+	EllaLog       *zap.Logger
+	AuditLog      *zap.Logger
+	MetricsLog    *zap.Logger
+	DBLog         *zap.Logger
+	AmfLog        *zap.Logger
+	APILog        *zap.Logger
+	SmfLog        *zap.Logger
+	UdmLog        *zap.Logger
+	UpfLog        *zap.Logger
+	SubscriberLog *zap.Logger
+
 	atomicLevel zap.AtomicLevel
 
-	// Optional DB sink for audit logs. Register via SetAuditDBWriter.
-	auditDBSink zapcore.WriteSyncer
-)
-
-const (
-	FieldRanAddr     string = "ran_addr"
-	FieldAmfUeNgapID string = "amf_ue_ngap_id"
-	FieldSupi        string = "supi"
-	FieldSuci        string = "suci"
+	auditDBSink      zapcore.WriteSyncer
+	subscriberDBSink zapcore.WriteSyncer
 )
 
 // Default: console only, info level.
@@ -46,32 +42,44 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 	if err != nil {
 		return fmt.Errorf("failed to parse log level: %v", err)
 	}
+
 	atomicLevel = zap.NewAtomicLevelAt(zl)
 
 	consoleEnc := zapcore.NewConsoleEncoder(devConsoleEncoderConfig())
 	jsonEnc := zapcore.NewJSONEncoder(prodJSONEncoderConfig())
 
-	// ---- System logger (console + optional file)
 	sysCores, err := makeCores(systemOutput, systemFilePath, consoleEnc, jsonEnc)
 	if err != nil {
 		return fmt.Errorf("system logger: %w", err)
 	}
 	sysLogger := zap.New(zapcore.NewTee(sysCores...), zap.AddCaller())
 
-	// ---- Audit logger (console + optional file + optional DB)
 	auditCores, err := makeCores(auditOutput, auditFilePath, consoleEnc, jsonEnc)
 	if err != nil {
-		return fmt.Errorf("audit logger: %w", err)
+		return fmt.Errorf("could not make cores: %w", err)
 	}
+
 	if auditDBSink != nil {
-		// DB gets structured JSON
 		auditCores = append(auditCores, zapcore.NewCore(jsonEnc, auditDBSink, atomicLevel))
 	}
+
 	auditLogger := zap.New(zapcore.NewTee(auditCores...), zap.AddCaller())
+
+	subscriberCores, err := makeCores(systemOutput, systemFilePath, consoleEnc, jsonEnc)
+	if err != nil {
+		return fmt.Errorf("could not make cores: %w", err)
+	}
+
+	if subscriberDBSink != nil {
+		subscriberCores = append(subscriberCores, zapcore.NewCore(jsonEnc, subscriberDBSink, atomicLevel))
+	}
+
+	subscriberLogger := zap.New(zapcore.NewTee(subscriberCores...), zap.AddCaller())
 
 	// Swap roots
 	log = sysLogger
 	AuditLog = auditLogger.With(zap.String("component", "Audit"))
+	SubscriberLog = subscriberLogger.With(zap.String("component", "Subscriber"))
 
 	// Component children from system logger
 	EllaLog = log.With(zap.String("component", "Ella"))
@@ -104,6 +112,27 @@ func SetAuditDBWriter(writeFn func([]byte) error) {
 			atomicLevel,
 		)
 		AuditLog = AuditLog.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
+			return zapcore.NewTee(c, core)
+		}))
+	}
+}
+
+func SetSubscriberDBWriter(writeFn func([]byte) error) {
+	if writeFn == nil {
+		subscriberDBSink = nil
+		return
+	}
+	ws := zapcore.AddSync(funcWriteSyncer{write: writeFn})
+	subscriberDBSink = ws
+
+	// If the subscriber logger already exists, attach the DB core now.
+	if SubscriberLog != nil {
+		core := zapcore.NewCore(
+			zapcore.NewJSONEncoder(prodJSONEncoderConfig()),
+			subscriberDBSink,
+			atomicLevel,
+		)
+		SubscriberLog = SubscriberLog.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
 			return zapcore.NewTee(c, core)
 		}))
 	}
@@ -204,6 +233,98 @@ func LogAuditEvent(action, actor, ip, details string) {
 		zap.String("actor", actor),
 		zap.String("ip", ip),
 		zap.String("details", details),
+	)
+}
+
+type SubscriberEvent string
+
+const (
+	// Access events
+	SubscriberRegistrationRequest                     SubscriberEvent = "Registration Request"
+	SubscriberInitialRegistration                     SubscriberEvent = "Initial Registration"
+	SubscriberMobilityAndPeriodicRegistrationUpdating SubscriberEvent = "Mobility and Periodic Registration Updating"
+	SubscriberIdentityResponse                        SubscriberEvent = "Identity Response"
+	SubscriberNotificationResponse                    SubscriberEvent = "Notification Response"
+	SubscriberConfigurationUpdateComplete             SubscriberEvent = "Configuration Update Complete"
+	SubscriberServiceRequest                          SubscriberEvent = "Service Request"
+	SubscriberAuthenticationResponse                  SubscriberEvent = "Authentication Response"
+	SubscriberAuthenticationFailure                   SubscriberEvent = "Authentication Failure"
+	SubscriberRegistrationComplete                    SubscriberEvent = "Registration Complete"
+	SubscriberSecurityModeComplete                    SubscriberEvent = "Security Mode Complete"
+	SubscriberSecurityModeReject                      SubscriberEvent = "Security Mode Reject"
+	SubscriberDeregistrationRequest                   SubscriberEvent = "Deregistration Request"
+	SubscriberDeregistrationAccept                    SubscriberEvent = "Deregistration Accept"
+	SubscriberStatus5GMM                              SubscriberEvent = "Status 5GMM"
+	SubscriberAuthenticationError                     SubscriberEvent = "Authentication Error"
+
+	// Session events
+	SubscriberPduSessionEstablishmentRequest SubscriberEvent = "PDU Session Establishment Request"
+	SubscriberPduSessionEstablishmentReject  SubscriberEvent = "PDU Session Establishment Reject"
+	SubscriberPduSessionEstablishmentAccept  SubscriberEvent = "PDU Session Establishment Accept"
+)
+
+func LogSubscriberEvent(event SubscriberEvent, imsi string, fields ...zap.Field) {
+	if SubscriberLog == nil {
+		return
+	}
+
+	if event == "" {
+		EllaLog.Warn("attempted to log empty subscriber event",
+			zap.String("imsi", imsi),
+			zap.Any("fields", fields),
+		)
+		return
+	}
+
+	enc := zapcore.NewMapObjectEncoder()
+	for _, f := range fields {
+		f.AddTo(enc)
+	}
+
+	var detailsStr string
+
+	reserved := map[string]struct{}{
+		"event": {}, "imsi": {}, "timestamp": {}, "level": {},
+		"component": {}, "caller": {}, "message": {},
+	}
+
+	if raw, ok := enc.Fields["details"]; ok {
+		switch v := raw.(type) {
+		case string:
+			detailsStr = v
+		default:
+			if b, err := json.Marshal(v); err == nil {
+				detailsStr = string(b)
+			}
+		}
+		delete(enc.Fields, "details")
+	}
+
+	if detailsStr == "" {
+		agg := make(map[string]any, len(enc.Fields))
+		for k, v := range enc.Fields {
+			if _, isReserved := reserved[k]; !isReserved {
+				agg[k] = v
+			}
+		}
+		if len(agg) > 0 {
+			if b, err := json.Marshal(agg); err == nil {
+				detailsStr = string(b)
+			}
+		}
+	}
+
+	// Optional safety: cap the size
+	const maxDetails = 4096
+	if len(detailsStr) > maxDetails {
+		detailsStr = detailsStr[:maxDetails] + "...(truncated)"
+	}
+
+	// Emit a single, consistent log line. DB reader already expects details as string.
+	SubscriberLog.Info("subscriber_event",
+		zap.String("event", string(event)),
+		zap.String("imsi", imsi),
+		zap.String("details", detailsStr),
 	)
 }
 

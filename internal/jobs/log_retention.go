@@ -18,6 +18,9 @@ func StartLogRetentionWorker(database *db.Database) {
 			if err := enforceAuditLogRetention(database); err != nil {
 				logger.EllaLog.Error("error enforcing audit log retention", zap.Error(err))
 			}
+			if err := enforceSubscriberLogRetention(database); err != nil {
+				logger.EllaLog.Error("error enforcing subscriber log retention", zap.Error(err))
+			}
 
 			<-ticker.C
 		}
@@ -33,6 +36,21 @@ func enforceAuditLogRetention(database *db.Database) error {
 	}
 
 	if err := database.DeleteOldAuditLogs(ctx, days); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func enforceSubscriberLogRetention(database *db.Database) error {
+	ctx := context.Background()
+
+	days, err := database.GetLogRetentionPolicy(ctx, db.CategorySubscriberLogs)
+	if err != nil {
+		return err
+	}
+
+	if err := database.DeleteOldSubscriberLogs(ctx, days); err != nil {
 		return err
 	}
 

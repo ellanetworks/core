@@ -67,8 +67,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	defer dbInstance.Close()
 
 	auditWriter := dbInstance.AuditWriteFunc(ctx)
+	subscriberWriter := dbInstance.SubscriberWriteFunc(ctx)
 
 	logger.SetAuditDBWriter(auditWriter)
+
+	logger.SetSubscriberDBWriter(subscriberWriter)
 
 	metrics.RegisterDatabaseMetrics(dbInstance)
 

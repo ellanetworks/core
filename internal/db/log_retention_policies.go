@@ -33,7 +33,8 @@ ON CONFLICT(category) DO UPDATE SET retention_days = excluded.retention_days
 type LogCategory string
 
 const (
-	CategoryAuditLogs LogCategory = "audit"
+	CategoryAuditLogs      LogCategory = "audit"
+	CategorySubscriberLogs LogCategory = "subscriber"
 )
 
 type LogRetentionPolicy struct {
@@ -79,7 +80,7 @@ func (db *Database) GetLogRetentionPolicy(ctx context.Context, category LogCateg
 }
 
 // Ensure that we have a row for the Audit Log retention policy.
-func (db *Database) IsLogRetentionPolicyInitialized(ctx context.Context) bool {
+func (db *Database) IsLogRetentionPolicyInitialized(ctx context.Context, category LogCategory) bool {
 	operation := "SELECT"
 	target := LogRetentionPolicyTableName
 	spanName := fmt.Sprintf("%s %s", operation, target)
@@ -95,7 +96,7 @@ func (db *Database) IsLogRetentionPolicyInitialized(ctx context.Context) bool {
 		attribute.String("db.collection", target),
 	)
 
-	row := LogRetentionPolicy{Category: CategoryAuditLogs}
+	row := LogRetentionPolicy{Category: category}
 	q, err := sqlair.Prepare(stmt, LogRetentionPolicy{})
 	if err != nil {
 		span.RecordError(err)

@@ -189,6 +189,12 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		// case iii) if the AMF does not have a PDU session routing context for the PDU session ID and the UE
 		// and the Request type IE is included and is set to "initial request"
 		case nasMessage.ULNASTransportRequestTypeInitialRequest:
+			logger.LogSubscriberEvent(
+				logger.SubscriberPduSessionEstablishmentRequest,
+				ue.Supi,
+				zap.Int32("pduSessionID", pduSessionID),
+			)
+
 			var (
 				snssai models.Snssai
 				dnn    string
@@ -241,14 +247,22 @@ func transport5GSMMessage(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport: %s", err)
 				}
-				ue.GmmLog.Info("sent downlink nas transport to UE")
+
+				logger.LogSubscriberEvent(
+					logger.SubscriberPduSessionEstablishmentReject,
+					ue.Supi,
+					zap.Int32("pduSessionID", pduSessionID),
+				)
+
 				return fmt.Errorf("pdu session establishment request was rejected by SMF for pdu session id %d", pduSessionID)
 			}
 
 			newSmContext.SetSmContextRef(smContextRef)
 			newSmContext.SetUserLocation(ue.Location)
+
 			ue.StoreSmContext(pduSessionID, newSmContext)
 			ue.GmmLog.Debug("Created sm context for pdu session", zap.Int32("pduSessionID", pduSessionID))
+
 		case nasMessage.ULNASTransportRequestTypeModificationRequest:
 			fallthrough
 		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
@@ -478,6 +492,14 @@ func HandleRegistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType model
 		ue.GmmLog.Debug("PEI", zap.String("imeisv", imeisv))
 	}
 
+	logger.LogSubscriberEvent(
+		logger.SubscriberRegistrationRequest,
+		ue.Supi,
+		zap.String("ran", ue.RanUe[anType].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
+
 	// NgKsi: TS 24.501 9.11.3.32
 	switch registrationRequest.NgksiAndRegistrationType5GS.GetTSC() {
 	case nasMessage.TypeOfSecurityContextFlagNative:
@@ -566,6 +588,14 @@ func HandleInitialRegistration(ctx ctxt.Context, ue *context.AmfUe, anType model
 	if len(ue.SubscribedNssai) == 0 {
 		getSubscribedNssai(ctx, ue)
 	}
+
+	logger.LogSubscriberEvent(
+		logger.SubscriberInitialRegistration,
+		ue.Supi,
+		zap.String("ran", ue.RanUe[anType].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
 
 	if err := handleRequestedNssai(ctx, ue, anType); err != nil {
 		return err
@@ -691,6 +721,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 		}
 	}
 
+	logger.LogSubscriberEvent(
+		logger.SubscriberMobilityAndPeriodicRegistrationUpdating,
+		ue.Supi,
+		zap.String("ran", ue.RanUe[anType].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
+
 	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
 	if len(ue.SubscribedNssai) == 0 {
 		getSubscribedNssai(ctx, ue)
@@ -806,10 +844,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx ctxt.Context, ue *context
 					err := pdusession.ReleaseSmContext(ctx, smContext.SmContextRef())
 					if err != nil {
 						return fmt.Errorf("failed to release sm context: %s", err)
-					}
-					if err != nil {
-						pduSessionStatus[psi] = true
-						ue.GmmLog.Error("error sending release sm context request", zap.Error(err))
 					} else {
 						pduSessionStatus[psi] = false
 					}
@@ -1215,7 +1249,14 @@ func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.Iden
 		return fmt.Errorf("AmfUe is nil")
 	}
 
-	ue.GmmLog.Info("Handle Identity Response")
+	logger.LogSubscriberEvent(
+		logger.SubscriberIdentityResponse,
+
+		ue.Supi,
+		zap.String("ran", ue.RanUe[models.AccessType3GPPAccess].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
 
 	mobileIdentityContents := identityResponse.MobileIdentity.GetMobileIdentityContents()
 	switch nasConvert.GetTypeOfIdentity(mobileIdentityContents[0]) { // get type of identity
@@ -1262,11 +1303,17 @@ func HandleIdentityResponse(ue *context.AmfUe, identityResponse *nasMessage.Iden
 
 // TS 24501 5.6.3.2
 func HandleNotificationResponse(ctx ctxt.Context, ue *context.AmfUe, notificationResponse *nasMessage.NotificationResponse) error {
-	ue.GmmLog.Info("Handle Notification Response")
-
 	if ue.MacFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
+
+	logger.LogSubscriberEvent(
+		logger.SubscriberNotificationResponse,
+		ue.Supi,
+		zap.String("ran", ue.RanUe[models.AccessType3GPPAccess].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
 
 	if ue.T3565 != nil {
 		ue.T3565.Stop()
@@ -1291,7 +1338,14 @@ func HandleNotificationResponse(ctx ctxt.Context, ue *context.AmfUe, notificatio
 }
 
 func HandleConfigurationUpdateComplete(ue *context.AmfUe, configurationUpdateComplete *nasMessage.ConfigurationUpdateComplete) error {
-	ue.GmmLog.Info("Handle Configuration Update Complete")
+	logger.LogSubscriberEvent(
+		logger.SubscriberConfigurationUpdateComplete,
+		ue.Supi,
+		zap.String("ran", ue.RanUe[models.AccessType3GPPAccess].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
+
 	if ue.MacFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
@@ -1397,7 +1451,13 @@ func HandleServiceRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.Acc
 		return fmt.Errorf("AmfUe is nil")
 	}
 
-	ue.GmmLog.Info("Handle Service Request")
+	logger.LogSubscriberEvent(
+		logger.SubscriberServiceRequest,
+		ue.Supi,
+		zap.String("ran", ue.RanUe[anType].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
 
 	if ue.T3513 != nil {
 		ue.T3513.Stop()
@@ -1773,7 +1833,14 @@ func sendServiceAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.Access
 
 // TS 24.501 5.4.1
 func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, authenticationResponse *nasMessage.AuthenticationResponse) error {
-	ue.GmmLog.Info("Handle Authentication Response")
+	logger.LogSubscriberEvent(
+		logger.SubscriberAuthenticationResponse,
+		ue.Supi,
+		zap.String("ran", ue.RanUe[accessType].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
+
 	if ue.T3560 != nil {
 		ue.T3560.Stop()
 		ue.T3560 = nil // clear the timer
@@ -1914,7 +1981,13 @@ func HandleAuthenticationResponse(ctx ctxt.Context, ue *context.AmfUe, accessTyp
 }
 
 func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, authenticationFailure *nasMessage.AuthenticationFailure) error {
-	ue.GmmLog.Info("Handle Authentication Failure")
+	logger.LogSubscriberEvent(
+		logger.SubscriberAuthenticationFailure,
+		ue.Supi,
+		zap.String("ran", ue.RanUe[anType].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
 
 	if ue.T3560 != nil {
 		ue.T3560.Stop()
@@ -2009,6 +2082,14 @@ func HandleAuthenticationFailure(ctx ctxt.Context, ue *context.AmfUe, anType mod
 }
 
 func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType models.AccessType, registrationComplete *nasMessage.RegistrationComplete) error {
+	logger.LogSubscriberEvent(
+		logger.SubscriberRegistrationComplete,
+		ue.Supi,
+		zap.String("ran", ue.RanUe[accessType].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
+
 	if ue.T3550 != nil {
 		ue.T3550.Stop()
 		ue.T3550 = nil // clear the timer
@@ -2031,6 +2112,14 @@ func HandleRegistrationComplete(ctx ctxt.Context, ue *context.AmfUe, accessType 
 
 // TS 33.501 6.7.2
 func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType, procedureCode int64, securityModeComplete *nasMessage.SecurityModeComplete) error {
+	logger.LogSubscriberEvent(
+		logger.SubscriberSecurityModeComplete,
+		ue.Supi,
+		zap.String("ran", ue.RanUe[anType].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
+
 	if ue.MacFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
@@ -2081,7 +2170,14 @@ func HandleSecurityModeComplete(ctx ctxt.Context, ue *context.AmfUe, anType mode
 func HandleSecurityModeReject(ue *context.AmfUe, anType models.AccessType,
 	securityModeReject *nasMessage.SecurityModeReject,
 ) error {
-	ue.GmmLog.Info("Handle Security Mode Reject")
+	logger.LogSubscriberEvent(
+		logger.SubscriberSecurityModeReject,
+
+		ue.Supi,
+		zap.String("ran", ue.RanUe[anType].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
 
 	if ue.T3560 != nil {
 		ue.T3560.Stop()
@@ -2106,7 +2202,14 @@ func HandleSecurityModeReject(ue *context.AmfUe, anType models.AccessType,
 func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType,
 	deregistrationRequest *nasMessage.DeregistrationRequestUEOriginatingDeregistration,
 ) error {
-	ue.GmmLog.Info("Handle Deregistration Request(UE Originating)")
+	logger.LogSubscriberEvent(
+		logger.SubscriberDeregistrationRequest,
+
+		ue.Supi,
+		zap.String("ran", ue.RanUe[anType].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
 
 	targetDeregistrationAccessType := deregistrationRequest.GetAccessType()
 	ue.SmContextList.Range(func(key, value interface{}) bool {
@@ -2210,7 +2313,14 @@ func HandleDeregistrationRequest(ctx ctxt.Context, ue *context.AmfUe, anType mod
 func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType models.AccessType,
 	deregistrationAccept *nasMessage.DeregistrationAcceptUETerminatedDeregistration,
 ) error {
-	ue.GmmLog.Info("Handle Deregistration Accept(UE Terminated)")
+	logger.LogSubscriberEvent(
+		logger.SubscriberDeregistrationAccept,
+
+		ue.Supi,
+		zap.String("ran", ue.RanUe[anType].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
 
 	if ue.T3522 != nil {
 		ue.T3522.Stop()
@@ -2263,7 +2373,15 @@ func HandleDeregistrationAccept(ctx ctxt.Context, ue *context.AmfUe, anType mode
 }
 
 func HandleStatus5GMM(ue *context.AmfUe, anType models.AccessType, status5GMM *nasMessage.Status5GMM) error {
-	ue.GmmLog.Info("Handle Staus 5GMM")
+	logger.LogSubscriberEvent(
+		logger.SubscriberStatus5GMM,
+
+		ue.Supi,
+		zap.String("ran", ue.RanUe[anType].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
+
 	if ue.MacFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
@@ -2274,7 +2392,15 @@ func HandleStatus5GMM(ue *context.AmfUe, anType models.AccessType, status5GMM *n
 }
 
 func HandleAuthenticationError(ue *context.AmfUe, anType models.AccessType) error {
-	ue.GmmLog.Error("Handle Authentication Error")
+	logger.LogSubscriberEvent(
+		logger.SubscriberAuthenticationError,
+
+		ue.Supi,
+		zap.String("ran", ue.RanUe[anType].Ran.Name),
+		zap.String("suci", ue.Suci),
+		zap.String("plmnID", ue.PlmnID.Mcc+ue.PlmnID.Mnc),
+	)
+
 	if ue.RegistrationRequest != nil {
 		err := gmm_message.SendRegistrationReject(ue.RanUe[anType], nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork, "")
 		if err != nil {

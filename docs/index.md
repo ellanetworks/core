@@ -5,7 +5,7 @@ description: A 5G mobile core network for private deployments - easy to operate,
 # Ella Core
 
 <p align="center">
-  <img src="images/logo.png" alt="Ella Core Logo" width="200"/>
+  <img src="images/summary.svg" alt="Ella Core Logo" />
 </p>
 
 **Ella Core** is an open-source 5G mobile core network built for private deployments. It simplifies the complexity of traditional 5G networks into a single, easy-to-operate solution that is reliable and secure.

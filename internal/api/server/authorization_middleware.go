@@ -104,7 +104,11 @@ const (
 	PermGetAuditLogRetentionPolicy = "audit_logs:get_retention"
 	PermSetAuditLogRetentionPolicy = "audit_logs:set_retention"
 	PermListAuditLogs              = "audit_logs:list"
-	PermDeleteAuditLogs            = "audit_logs:delete"
+
+	// Subscriber Log permissions
+	PermGetSubscriberLogRetentionPolicy = "subscriber_logs:get_retention"
+	PermSetSubscriberLogRetentionPolicy = "subscriber_logs:set_retention"
+	PermListSubscriberLogs              = "subscriber_logs:list"
 )
 
 func RequirePermissionOrFirstUser(permission string, database *db.Database, jwtSecret []byte, next http.Handler) http.Handler {

@@ -27,6 +27,7 @@ import {
   Sensors as SensorsIcon,
   Groups as GroupsIcon,
   Dashboard as DashboardIcon,
+  Feed as FeedIcon,
   Router as RouterIcon,
   Logout as LogoutIcon,
   AccountCircle as AccountCircleIcon,
@@ -179,6 +180,20 @@ export default function DrawerLayout({
                   <DashboardIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Dashboard" />
+              </ListItemButton>
+            </ListItem>
+
+            <ListItem disablePadding>
+              <ListItemButton
+                component={Link}
+                href="/events"
+                selected={pathname === "/events"}
+                onClick={handleNavClick}
+              >
+                <ListItemIcon>
+                  <FeedIcon color="primary" />
+                </ListItemIcon>
+                <ListItemText primary="Events" />
               </ListItemButton>
             </ListItem>
 

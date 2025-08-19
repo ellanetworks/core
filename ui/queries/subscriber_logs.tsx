@@ -1,7 +1,7 @@
 import { HTTPStatus } from "@/queries/utils";
 
-export const listAuditLogs = async (authToken: string) => {
-  const response = await fetch(`/api/v1/logs/audit`, {
+export const listSubscriberLogs = async (authToken: string) => {
+  const response = await fetch(`/api/v1/logs/subscriber`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -26,8 +26,8 @@ export const listAuditLogs = async (authToken: string) => {
   return respData.result;
 };
 
-export const getAuditLogRetentionPolicy = async (authToken: string) => {
-  const response = await fetch(`/api/v1/logs/audit/retention`, {
+export const getSubscriberLogRetentionPolicy = async (authToken: string) => {
+  const response = await fetch(`/api/v1/logs/subscriber/retention`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -52,11 +52,11 @@ export const getAuditLogRetentionPolicy = async (authToken: string) => {
   return respData.result;
 };
 
-export const updateAuditLogRetentionPolicy = async (
+export const updateSubscriberLogRetentionPolicy = async (
   authToken: string,
   days: number,
 ) => {
-  const response = await fetch(`/api/v1/logs/audit/retention`, {
+  const response = await fetch(`/api/v1/logs/subscriber/retention`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
