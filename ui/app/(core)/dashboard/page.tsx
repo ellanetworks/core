@@ -1,17 +1,27 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Typography,
   CircularProgress,
   Alert,
   Card,
+  CardHeader,
+  CardContent,
   CardActionArea,
   Skeleton,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
 import { PieChart } from "@mui/x-charts/PieChart";
+import Link from "next/link";
 import { useCookies } from "react-cookie";
 import { useRouter } from "next/navigation";
 
@@ -19,6 +29,7 @@ import { getStatus } from "@/queries/status";
 import { getMetrics } from "@/queries/metrics";
 import { listSubscribers } from "@/queries/subscribers";
 import { listRadios } from "@/queries/radios";
+import { listSubscriberLogs } from "@/queries/subscriber_logs";
 
 const MAX_WIDTH = 1200;
 
@@ -26,13 +37,23 @@ const nf = new Intl.NumberFormat();
 const formatNumber = (n: number | null | undefined) =>
   n == null ? "N/A" : nf.format(n);
 
-const toMbps = (bytesPerSec: number) => (bytesPerSec * 8) / 1_000_000;
-const formatMbps = (bps: number) => `${toMbps(bps).toFixed(2)} Mbps`;
-
-const clampNonNegative = (n: number) => (n < 0 ? 0 : n);
+const formatTimestamp = (s: string) => {
+  if (!s) return "";
+  const d = new Date(s);
+  if (isNaN(d.getTime())) {
+    return s.replace(/\s*[+-]\d{4}$/, "");
+  }
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+};
 
 type KpiCardProps = {
-  title: string;
+  title: React.ReactNode;
   value?: React.ReactNode;
   loading?: boolean;
   onClick?: () => void;
@@ -64,24 +85,31 @@ function KpiCard({
         flexDirection: "column",
         borderRadius: 3,
         boxShadow: 2,
-        p: 2,
       }}
     >
-      <Typography variant="h6" sx={{ textAlign: "center", mb: 1 }}>
-        {title}
-      </Typography>
-      <Box
+      <CardHeader
+        title={title}
         sx={{
-          flex: 1,
-          minHeight,
+          backgroundColor: "#F5F5F5",
+          borderTopLeftRadius: 8,
+          borderTopRightRadius: 8,
+          "& .MuiCardHeader-title": {
+            fontWeight: 600,
+            fontSize: "1rem",
+          },
+        }}
+      />
+      <CardContent
+        sx={{
+          flexGrow: 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          textAlign: "center",
+          minHeight: minHeight,
         }}
       >
         {body}
-      </Box>
+      </CardContent>
     </Card>
   );
 
@@ -99,6 +127,13 @@ function KpiCard({
   return CardInner;
 }
 
+type SubscriberLogData = {
+  id: string;
+  timestamp: string;
+  imsi: string;
+  event: string;
+};
+
 const Dashboard = () => {
   const router = useRouter();
   const [cookies] = useCookies(["user_token"]);
@@ -110,21 +145,25 @@ const Dashboard = () => {
   const [activeSessions, setActiveSessions] = useState<number | null>(null);
   const [memoryUsage, setMemoryUsage] = useState<number | null>(null);
   const [databaseSize, setDatabaseSize] = useState<number | null>(null);
+  const [threads, setThreads] = useState<number | null>(null);
   const [allocatedIPs, setAllocatedIPs] = useState<number | null>(null);
   const [totalIPs, setTotalIPs] = useState<number | null>(null);
-  const [uplinkThroughput, setUplinkThroughput] = useState<number>(0);
-  const [downlinkThroughput, setDownlinkThroughput] = useState<number>(0);
+
+  const [uplinkBytes, setUplinkBytes] = useState<number | null>(null);
+  const [downlinkBytes, setDownlinkBytes] = useState<number | null>(null);
+  const [n3Drops, setN3Drops] = useState<number | null>(null);
+  const [n6Drops, setN6Drops] = useState<number | null>(null);
+
+  const [upSince, setUpSince] = useState<Date | null>(null);
+
+  const [subscriberLogs, setSubscriberLogs] = useState<SubscriberLogData[]>([]);
+  const [logsError, setLogsError] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const uplinkHistory = useRef<number[]>([]);
-  const downlinkHistory = useRef<number[]>([]);
-  const timestamps = useRef<number[]>([]);
-
   const parseMetrics = (metrics: string) => {
     const lines = metrics.split("\n");
-
     const getValue = (prefix: string): number | null => {
       const line = lines.find((l) => l.startsWith(prefix));
       if (!line) return null;
@@ -135,21 +174,29 @@ const Dashboard = () => {
 
     const pduSessions = getValue("app_pdu_sessions ");
     const memBytes = getValue("go_memstats_alloc_bytes ");
+    const goThreads = getValue("go_threads ");
     const dbBytes = getValue("app_database_storage_bytes ");
     const allocIPs = getValue("app_ip_addresses_allocated ");
-    const totalIPs = getValue("app_ip_addresses_total ");
-    const uplinkBytes = getValue("app_uplink_bytes ");
-    const downlinkBytes = getValue("app_downlink_bytes ");
+    const totalIPsV = getValue("app_ip_addresses_total ");
+    const ulBytes = getValue("app_uplink_bytes ");
+    const dlBytes = getValue("app_downlink_bytes ");
+    const n3Drop = getValue("app_n3_xdp_drop ");
+    const n6Drop = getValue("app_n6_xdp_drop ");
+    const startTime = getValue("process_start_time_seconds ");
 
     return {
       pduSessions: pduSessions ?? null,
       memoryUsageMB:
         memBytes == null ? null : Math.round(memBytes / (1024 * 1024)),
       databaseSizeKB: dbBytes == null ? null : Math.round(dbBytes / 1024),
+      threads: goThreads ?? null,
       allocatedIPs: allocIPs == null ? null : Math.round(allocIPs),
-      totalIPs: totalIPs == null ? null : Math.round(totalIPs),
-      uplinkBytes: uplinkBytes ?? 0,
-      downlinkBytes: downlinkBytes ?? 0,
+      totalIPs: totalIPsV == null ? null : Math.round(totalIPsV),
+      uplinkBytes: ulBytes ?? null,
+      downlinkBytes: dlBytes ?? null,
+      n3Drops: n3Drop ?? null,
+      n6Drops: n6Drop ?? null,
+      processStart: startTime ?? null,
     };
   };
 
@@ -189,45 +236,29 @@ const Dashboard = () => {
           pduSessions,
           memoryUsageMB,
           databaseSizeKB,
+          threads,
           allocatedIPs,
           totalIPs,
           uplinkBytes,
           downlinkBytes,
+          n3Drops,
+          n6Drops,
+          processStart,
         } = parseMetrics(raw);
 
         setActiveSessions(pduSessions);
         setMemoryUsage(memoryUsageMB);
         setDatabaseSize(databaseSizeKB);
+        setThreads(threads);
         setAllocatedIPs(allocatedIPs);
         setTotalIPs(totalIPs);
+        setUplinkBytes(uplinkBytes);
+        setDownlinkBytes(downlinkBytes);
+        setN3Drops(n3Drops);
+        setN6Drops(n6Drops);
 
-        const now = Date.now();
-        uplinkHistory.current.push(uplinkBytes);
-        downlinkHistory.current.push(downlinkBytes);
-        timestamps.current.push(now);
-
-        while (uplinkHistory.current.length > 5) {
-          uplinkHistory.current.shift();
-          downlinkHistory.current.shift();
-          timestamps.current.shift();
-        }
-
-        if (uplinkHistory.current.length >= 2) {
-          const deltaT =
-            (timestamps.current[timestamps.current.length - 1] -
-              timestamps.current[0]) /
-            1000;
-          if (deltaT > 0) {
-            const uplinkDelta =
-              uplinkHistory.current[uplinkHistory.current.length - 1] -
-              uplinkHistory.current[0];
-            const downlinkDelta =
-              downlinkHistory.current[downlinkHistory.current.length - 1] -
-              downlinkHistory.current[0];
-
-            setUplinkThroughput(clampNonNegative(uplinkDelta / deltaT));
-            setDownlinkThroughput(clampNonNegative(downlinkDelta / deltaT));
-          }
+        if (processStart) {
+          setUpSince(new Date(processStart * 1000));
         }
 
         setError(null);
@@ -245,22 +276,40 @@ const Dashboard = () => {
     };
     const stop = () => {
       if (interval) window.clearInterval(interval);
-      interval = undefined;
-    };
-
-    const handleVisibility = () => {
-      if (document.hidden) stop();
-      else start();
     };
 
     start();
-    document.addEventListener("visibilitychange", handleVisibility);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) stop();
+      else start();
+    });
     return () => {
-      mounted = false;
       stop();
-      document.removeEventListener("visibilitychange", handleVisibility);
+      mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchLogs = async () => {
+      try {
+        const data = await listSubscriberLogs(cookies.user_token);
+        if (!mounted) return;
+        const rows = [...data]
+          .sort((a, b) => (b.timestamp ?? "").localeCompare(a.timestamp ?? ""))
+          .slice(0, 10);
+        setSubscriberLogs(rows);
+        setLogsError(null);
+      } catch (e) {
+        console.error("Error fetching subscriber logs:", e);
+        setLogsError("Failed to fetch subscriber logs.");
+      }
+    };
+    fetchLogs();
+    return () => {
+      mounted = false;
+    };
+  }, [cookies.user_token]);
 
   const ipChart = useMemo(() => {
     const alloc = allocatedIPs ?? 0;
@@ -330,7 +379,16 @@ const Dashboard = () => {
             value={formatNumber(activeSessions)}
           />
         </Grid>
-        <Grid size={{ xs: 12, sm: 12, md: 6 }}>
+
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiCard
+            title="Up Since"
+            loading={loading}
+            value={upSince ? formatTimestamp(upSince.toISOString()) : "N/A"}
+          />
+        </Grid>
+
+        <Grid size={{ xs: 12, sm: 12, md: 4 }}>
           <KpiCard title="IP Allocation" loading={loading} minHeight={240}>
             {loading ? (
               <Skeleton variant="rounded" width="100%" height={200} />
@@ -361,27 +419,136 @@ const Dashboard = () => {
             )}
           </KpiCard>
         </Grid>
-      </Grid>
 
-      <Grid
-        container
-        spacing={4}
-        alignItems="stretch"
-        justifyContent="flex-start"
-        sx={{ mt: 2 }}
-      >
+        <Grid size={{ xs: 12, sm: 12, md: 8 }}>
+          <KpiCard
+            title={
+              <Box
+                component={Link}
+                href="/events"
+                sx={{
+                  textDecoration: "none",
+                  color: "inherit",
+                  "&:hover": { textDecoration: "underline" },
+                  cursor: "pointer",
+                }}
+              >
+                Recent Subscriber Events
+              </Box>
+            }
+            loading={loading}
+            minHeight={240}
+          >
+            {logsError ? (
+              <Alert severity="error" sx={{ width: "100%" }}>
+                {logsError}
+              </Alert>
+            ) : (
+              <TableContainer
+                component={Paper}
+                elevation={0}
+                sx={{
+                  width: "100%",
+                  maxHeight: 220, // match the pie’s content height
+                  overflowY: "auto",
+                }}
+              >
+                <Table
+                  size="small"
+                  stickyHeader
+                  aria-label="recent-subscriber-events"
+                >
+                  <TableHead>
+                    <TableRow>
+                      <TableCell
+                        sx={{
+                          fontWeight: 600,
+                          width: 150,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Timestamp
+                      </TableCell>
+
+                      <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>
+                        IMSI
+                      </TableCell>
+
+                      <TableCell sx={{ fontWeight: 600, minWidth: 220 }}>
+                        Event
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(subscriberLogs ?? []).slice(0, 10).map((row) => (
+                      <TableRow key={row.id} hover>
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>
+                          {formatTimestamp(row.timestamp)}
+                        </TableCell>
+
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>
+                          {row.imsi}
+                        </TableCell>
+
+                        <TableCell
+                          sx={{
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                          title={row.event}
+                        >
+                          {row.event}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {(!subscriberLogs || subscriberLogs.length === 0) && (
+                      <TableRow>
+                        <TableCell colSpan={3}>
+                          <Typography variant="body2" color="text.secondary">
+                            No subscriber events.
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </KpiCard>
+        </Grid>
+
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <KpiCard
-            title="Uplink Throughput"
+            title="Uplink Traffic"
             loading={loading}
-            value={formatMbps(uplinkThroughput)}
+            value={
+              uplinkBytes != null ? `${formatNumber(uplinkBytes)} Bytes` : "N/A"
+            }
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <KpiCard
-            title="Downlink Throughput"
+            title="Downlink Traffic"
             loading={loading}
-            value={formatMbps(downlinkThroughput)}
+            value={
+              downlinkBytes != null
+                ? `${formatNumber(downlinkBytes)} Bytes`
+                : "N/A"
+            }
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiCard
+            title="Uplink Drops"
+            loading={loading}
+            value={n3Drops != null ? `${formatNumber(n3Drops)} Packets` : "N/A"}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiCard
+            title="Downlink Drops"
+            loading={loading}
+            value={n6Drops != null ? `${formatNumber(n6Drops)} Packets` : "N/A"}
           />
         </Grid>
       </Grid>
@@ -412,6 +579,13 @@ const Dashboard = () => {
             value={
               databaseSize != null ? `${formatNumber(databaseSize)} KB` : "N/A"
             }
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiCard
+            title="Threads"
+            loading={loading}
+            value={threads != null ? `${threads}` : "N/A"}
           />
         </Grid>
       </Grid>

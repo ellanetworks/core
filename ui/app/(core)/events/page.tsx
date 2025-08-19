@@ -30,7 +30,6 @@ interface SubscriberLogData {
   level: string;
   imsi: string;
   event: string;
-  ip: string;
   details: string;
 }
 
