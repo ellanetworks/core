@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/google/nftables"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
@@ -143,9 +144,44 @@ func (rk *RealKernel) RouteExists(destination *net.IPNet, gateway net.IP, priori
 	return len(routes) > 0, nil
 }
 
+// filterForwarding adds a firewall default rule to block forwarding with nftables
+func (rk *RealKernel) filterForwarding() error {
+	conn, err := nftables.New()
+        if err != nil {
+                return fmt.Errorf("failed to access nftables: %v", err)
+        }
+        t := nftables.Table{
+                Name: "filter",
+                Family: nftables.TableFamilyINet,
+        }
+        conn.AddTable(&t)
+        polDrop := nftables.ChainPolicyDrop
+        c := nftables.Chain{
+                Name: "forward",
+                Priority: nftables.ChainPriorityFilter,
+                Table: &t,
+                Hooknum: nftables.ChainHookForward,
+                Type: nftables.ChainTypeFilter,
+                Policy: &polDrop,
+        }
+        conn.AddChain(&c)
+        err = conn.Flush()
+        if err != nil {
+                return fmt.Errorf("failed to install nftables rules: %v", err)
+        }
+	return nil
+}
+
 // EnableIPForwarding enables IP forwarding on the host.
 func (rk *RealKernel) EnableIPForwarding() error {
-	err := os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1"), 0o600)
+	// Before enabling IP forwarding, we add a firewall rule to
+	// default drop any forwarding for security. Because we use XDP
+	// for forwarding, we will bypass these rules for legitimate traffic.
+	err := rk.filterForwarding()
+	if err != nil {
+		return fmt.Errorf("failed to add firewall rules: %v", err)
+	}
+	err = os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1"), 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to enable ip_forward: %v", err)
 	}
