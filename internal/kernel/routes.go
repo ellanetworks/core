@@ -147,28 +147,28 @@ func (rk *RealKernel) RouteExists(destination *net.IPNet, gateway net.IP, priori
 // filterForwarding adds a firewall default rule to block forwarding with nftables
 func (rk *RealKernel) filterForwarding() error {
 	conn, err := nftables.New()
-        if err != nil {
-                return fmt.Errorf("failed to access nftables: %v", err)
-        }
-        t := nftables.Table{
-                Name: "filter",
-                Family: nftables.TableFamilyINet,
-        }
-        conn.AddTable(&t)
-        polDrop := nftables.ChainPolicyDrop
-        c := nftables.Chain{
-                Name: "forward",
-                Priority: nftables.ChainPriorityFilter,
-                Table: &t,
-                Hooknum: nftables.ChainHookForward,
-                Type: nftables.ChainTypeFilter,
-                Policy: &polDrop,
-        }
-        conn.AddChain(&c)
-        err = conn.Flush()
-        if err != nil {
-                return fmt.Errorf("failed to install nftables rules: %v", err)
-        }
+	if err != nil {
+		return fmt.Errorf("failed to access nftables: %v", err)
+	}
+	t := nftables.Table{
+		Name:   "filter",
+		Family: nftables.TableFamilyINet,
+	}
+	conn.AddTable(&t)
+	polDrop := nftables.ChainPolicyDrop
+	c := nftables.Chain{
+		Name:     "forward",
+		Priority: nftables.ChainPriorityFilter,
+		Table:    &t,
+		Hooknum:  nftables.ChainHookForward,
+		Type:     nftables.ChainTypeFilter,
+		Policy:   &polDrop,
+	}
+	conn.AddChain(&c)
+	err = conn.Flush()
+	if err != nil {
+		return fmt.Errorf("failed to install nftables rules: %v", err)
+	}
 	return nil
 }
 
