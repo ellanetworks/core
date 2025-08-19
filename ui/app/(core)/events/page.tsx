@@ -1,10 +1,19 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Box, Typography, Alert, Button, Collapse } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
+import {
+  Box,
+  Typography,
+  Alert,
+  Button,
+  Collapse,
+  IconButton,
+  Tooltip,
+} from "@mui/material";
+import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { DataGrid, GridColDef } from "@mui/x-data-grid";
+import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import {
   listSubscriberLogs,
   getSubscriberLogRetentionPolicy,
@@ -13,7 +22,7 @@ import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import EditSubscriberLogRetentionPolicyModal from "@/components/EditSubscriberLogRetentionPolicyModal";
 import { SubscriberLogRetentionPolicy } from "@/types/types";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import ViewLogModal from "@/components/ViewSubscriberLogModal";
 
 interface SubscriberLogData {
   id: string;
@@ -27,7 +36,7 @@ interface SubscriberLogData {
 
 const MAX_WIDTH = 1400;
 
-const Events = () => {
+const Events: React.FC = () => {
   const { role } = useAuth();
   const [cookies] = useCookies(["user_token"]);
   const [subscriberLogs, setSubscriberLogs] = useState<SubscriberLogData[]>([]);
@@ -45,18 +54,15 @@ const Events = () => {
   const canEdit = role === "Admin";
 
   const outerTheme = useTheme();
-  const gridTheme = React.useMemo(
-    () =>
-      createTheme(outerTheme, {
-        palette: {
-          DataGrid: { headerBg: "#F5F5F5" },
-        },
-      }),
-    [outerTheme],
-  );
+  const gridTheme = useMemo(() => createTheme(outerTheme), [outerTheme]);
 
   const [retentionPolicy, setRetentionPolicy] =
     useState<SubscriberLogRetentionPolicy | null>(null);
+
+  const [viewLogModalOpen, setViewLogModalOpen] = useState(false);
+  const [selectedRow, setSelectedRow] = useState<SubscriberLogData | null>(
+    null,
+  );
 
   const descriptionText =
     "Review subscriber events in Ella Core. These logs are useful for auditing and troubleshooting purposes.";
@@ -84,15 +90,38 @@ const Events = () => {
     fetchRetentionPolicy();
   }, [fetchSubscriberLogs, fetchRetentionPolicy]);
 
-  const columns: GridColDef[] = useMemo(
-    () => [
+  const columns: GridColDef<SubscriberLogData>[] = useMemo(() => {
+    return [
       { field: "timestamp", headerName: "Timestamp", flex: 1, minWidth: 220 },
-      { field: "imsi", headerName: "IMSI", flex: 1, minWidth: 250 },
+      { field: "imsi", headerName: "IMSI", flex: 1, minWidth: 220 },
       { field: "event", headerName: "Event", flex: 1, minWidth: 200 },
-      { field: "details", headerName: "Details", flex: 2, minWidth: 350 },
-    ],
-    [],
-  );
+      {
+        field: "view",
+        headerName: "",
+        sortable: false,
+        filterable: false,
+        width: 60,
+        align: "center",
+        headerAlign: "center",
+        renderCell: (params: GridRenderCellParams<SubscriberLogData>) => (
+          <Tooltip title="View details">
+            <IconButton
+              color="primary"
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedRow(params.row);
+                setViewLogModalOpen(true);
+              }}
+              aria-label="View details"
+            >
+              <VisibilityIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        ),
+      },
+    ];
+  }, []);
 
   return (
     <Box
@@ -144,7 +173,6 @@ const Events = () => {
               Edit Retention
             </Button>
           )}
-
           <Typography
             variant="body2"
             color="text.secondary"
@@ -157,18 +185,18 @@ const Events = () => {
 
       <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
         <ThemeProvider theme={gridTheme}>
-          <DataGrid
+          <DataGrid<SubscriberLogData>
             rows={subscriberLogs}
+            showToolbar={true}
             columns={columns}
             getRowId={(row) => row.id}
-            showToolbar={true}
             initialState={{
               sorting: { sortModel: [{ field: "timestamp", sort: "desc" }] },
+              pagination: { paginationModel: { pageSize: 25, page: 0 } },
             }}
+            pageSizeOptions={[10, 25, 50, 100]}
             disableRowSelectionOnClick
-            columnVisibilityModel={{
-              id: !isSmDown,
-            }}
+            columnVisibilityModel={{ id: !isSmDown }}
             sx={{
               width: "100%",
               border: 1,
@@ -180,6 +208,7 @@ const Events = () => {
               "& .MuiDataGrid-columnHeaders": {
                 borderBottom: "1px solid",
                 borderColor: "divider",
+                backgroundColor: "#F5F5F5",
               },
               "& .MuiDataGrid-footerContainer": {
                 borderTop: "1px solid",
@@ -190,6 +219,12 @@ const Events = () => {
           />
         </ThemeProvider>
       </Box>
+
+      <ViewLogModal
+        open={viewLogModalOpen}
+        onClose={() => setViewLogModalOpen(false)}
+        log={selectedRow}
+      />
 
       <EditSubscriberLogRetentionPolicyModal
         open={isEditModalOpen}
