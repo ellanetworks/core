@@ -33,52 +33,6 @@ static __always_inline void fill_icmp_header(struct icmphdr *icmp)
     icmp->checksum = 0;
 }
 
-// static __always_inline __u32 add_icmp_over_ip4_headers(struct n6_packet_context *ctx, int saddr, int daddr) {
-//     static const size_t icmp_encap_size = sizeof(struct iphdr) + sizeof(struct icmphdr);
-
-//     if (!ctx->ip4)
-//         return -1;
-
-//     const __u32 ip_packet_len = bpf_ntohs(ctx->ip4->tot_len);
-
-//     int result = bpf_xdp_adjust_head(ctx->xdp_ctx, (__s32)-icmp_encap_size);
-//     if (result)
-//         return -1;
-
-//     char *data = (char *)(long)ctx->xdp_ctx->data;
-//     const char *data_end = (const char *)(long)ctx->xdp_ctx->data_end;
-
-//     struct ethhdr *orig_eth = (struct ethhdr *)(data + icmp_encap_size);
-//     if ((const char *)(orig_eth + 1) > data_end)
-//         return -1;
-
-//     struct ethhdr *eth = (struct ethhdr *)data;
-//     __builtin_memcpy(eth, orig_eth, sizeof(*eth));
-//     eth->h_proto = bpf_htons(ETH_P_IP);
-
-//     struct iphdr *ip = (struct iphdr *)(eth + 1);
-//     if ((const char *)(ip + 1) > data_end)
-//         return -1;
-
-//     /* Add the outer IP header */
-//     fill_ip_header(ip, saddr, daddr, 0, ip_packet_len + icmp_encap_size);
-//     ip->protocol = IPPROTO_ICMP;
-//     ip->check = ipv4_csum(ip, sizeof(*ip));
-
-//     /* Add the ICMP header */
-//     struct icmphdr *icmp = (struct icmphdr *)(ip + 1);
-//     if ((const char *)(icmp + 1) > data_end)
-//         return -1;
-
-//     fill_icmp_header(icmp);
-//     const __s8 icmp_payload_size = data_end - (const char *)icmp;
-//     icmp->checksum = ipv4_csum(icmp, icmp_payload_size);
-
-//     /* Update packet pointers */
-//     context_set_ip4(ctx, (char *)(long)ctx->xdp_ctx->data, (const char *)(long)ctx->xdp_ctx->data_end, eth, ip, 0, 0);
-//     return 0;
-// }
-
 static __always_inline __u32 prepare_icmp_echo_reply(struct n6_packet_context *ctx, int saddr, int daddr)
 {
     if (!ctx->ip4)

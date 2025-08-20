@@ -7,51 +7,66 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"structs"
 
 	"github.com/cilium/ebpf"
 )
 
 type N3EntrypointFarInfo struct {
+	_                     structs.HostLayout
 	Action                uint8
 	OuterHeaderCreation   uint8
 	_                     [2]byte
-	TeID                  uint32
+	Teid                  uint32
 	Remoteip              uint32
 	Localip               uint32
 	TransportLevelMarking uint16
 	_                     [2]byte
 }
 
-type N3EntrypointIn6Addr struct{ In6U struct{ U6Addr8 [16]uint8 } }
+type N3EntrypointIn6Addr struct {
+	_    structs.HostLayout
+	In6U struct {
+		_       structs.HostLayout
+		U6Addr8 [16]uint8
+	}
+}
 
 type N3EntrypointN3PdrInfo struct {
+	_                  structs.HostLayout
 	FarId              uint32
 	QerId              uint32
 	OuterHeaderRemoval uint8
 	SdfMode            uint8
 	_                  [6]byte
 	N3SdfRules         struct {
+		_           structs.HostLayout
 		N3SdfFilter struct {
+			_        structs.HostLayout
 			Protocol uint8
 			_        [15]byte
 			SrcAddr  struct {
+				_    structs.HostLayout
 				Type uint8
 				_    [15]byte
 				Ip   [16]byte /* uint128 */
 				Mask [16]byte /* uint128 */
 			}
 			SrcPort struct {
+				_          structs.HostLayout
 				LowerBound uint16
 				UpperBound uint16
 			}
 			_       [12]byte
 			DstAddr struct {
+				_    structs.HostLayout
 				Type uint8
 				_    [15]byte
 				Ip   [16]byte /* uint128 */
 				Mask [16]byte /* uint128 */
 			}
 			DstPort struct {
+				_          structs.HostLayout
 				LowerBound uint16
 				UpperBound uint16
 			}
@@ -66,6 +81,7 @@ type N3EntrypointN3PdrInfo struct {
 }
 
 type N3EntrypointQerInfo struct {
+	_                structs.HostLayout
 	UlGateStatus     uint8
 	DlGateStatus     uint8
 	Qfi              uint8
@@ -78,6 +94,7 @@ type N3EntrypointQerInfo struct {
 }
 
 type N3EntrypointRouteStat struct {
+	_                     structs.HostLayout
 	FibLookupIp4Cache     uint64
 	FibLookupIp4Ok        uint64
 	FibLookupIp4ErrorDrop uint64
@@ -89,8 +106,13 @@ type N3EntrypointRouteStat struct {
 }
 
 type N3EntrypointUpfN3Statistic struct {
-	UpfN3Counters struct{ UlBytes uint64 }
-	UpfN3Counter  struct {
+	_             structs.HostLayout
+	UpfN3Counters struct {
+		_       structs.HostLayout
+		UlBytes uint64
+	}
+	UpfN3Counter struct {
+		_    structs.HostLayout
 		RxN3 uint64
 		TxN3 uint64
 	}

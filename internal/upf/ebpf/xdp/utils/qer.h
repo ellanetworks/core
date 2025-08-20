@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <bpf/bpf_helpers.h>
 #include <linux/bpf.h>
+#include <bpf/bpf_helpers.h>
 
 enum gate_status {
     GATE_STATUS_OPEN = 0,

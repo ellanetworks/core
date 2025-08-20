@@ -19,6 +19,7 @@
 #include <bpf/bpf_endian.h>
 #include <linux/bpf.h>
 #include <linux/if_ether.h>
+#include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/types.h>
 #include <linux/udp.h>

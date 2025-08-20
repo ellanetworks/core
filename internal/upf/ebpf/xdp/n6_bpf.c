@@ -35,10 +35,8 @@
 #include "xdp/utils/trace.h"
 #include "xdp/utils/n6_packet_context.h"
 #include "xdp/utils/n6_parsers.h"
-#include "xdp/utils/csum.h"
 #include "xdp/utils/n6_gtp_utils.h"
 #include "xdp/utils/routing.h"
-#include "xdp/utils/n6_icmp.h"
 
 #define DEFAULT_XDP_ACTION XDP_PASS
 

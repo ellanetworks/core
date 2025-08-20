@@ -16,9 +16,9 @@
 
 #pragma once
 
+#include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
-#include <linux/bpf.h>
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
@@ -28,7 +28,6 @@
 #include "xdp/utils/trace.h"
 #include "xdp/utils/n6_packet_context.h"
 #include "xdp/utils/types.h"
-#include "xdp/utils/n6_pdr.h"
 
 struct ip_subnet
 {

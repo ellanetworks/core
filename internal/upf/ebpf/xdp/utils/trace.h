@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
 #ifdef ENABLE_LOG  // trace_pipe logs disabled by default
