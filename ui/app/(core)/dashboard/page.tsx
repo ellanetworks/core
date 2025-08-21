@@ -37,6 +37,28 @@ const nf = new Intl.NumberFormat();
 const formatNumber = (n: number | null | undefined) =>
   n == null ? "N/A" : nf.format(n);
 
+const formatBytes = (value: number | null | undefined): string => {
+  if (value == null || !Number.isFinite(value)) return "N/A";
+
+  const base = 1000;
+  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
+
+  let i = 0;
+  let n = Math.abs(value);
+  while (n >= base && i < units.length - 1) {
+    n /= base;
+    i++;
+  }
+
+  const nf = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+
+  const sign = value < 0 ? "-" : "";
+  return `${sign}${nf.format(n)} ${units[i]}`;
+};
+
 const formatTimestamp = (s: string) => {
   if (!s) return "";
   const d = new Date(s);
@@ -379,7 +401,6 @@ const Dashboard = () => {
             value={formatNumber(activeSessions)}
           />
         </Grid>
-
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <KpiCard
             title="Up Since"
@@ -387,7 +408,6 @@ const Dashboard = () => {
             value={upSince ? formatTimestamp(upSince.toISOString()) : "N/A"}
           />
         </Grid>
-
         <Grid size={{ xs: 12, sm: 12, md: 4 }}>
           <KpiCard title="IP Allocation" loading={loading} minHeight={240}>
             {loading ? (
@@ -419,7 +439,6 @@ const Dashboard = () => {
             )}
           </KpiCard>
         </Grid>
-
         <Grid size={{ xs: 12, sm: 12, md: 8 }}>
           <KpiCard
             title={
@@ -449,7 +468,7 @@ const Dashboard = () => {
                 elevation={0}
                 sx={{
                   width: "100%",
-                  maxHeight: 220, // match the pie’s content height
+                  maxHeight: 220,
                   overflowY: "auto",
                 }}
               >
@@ -516,25 +535,18 @@ const Dashboard = () => {
             )}
           </KpiCard>
         </Grid>
-
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <KpiCard
             title="Uplink Traffic"
             loading={loading}
-            value={
-              uplinkBytes != null ? `${formatNumber(uplinkBytes)} Bytes` : "N/A"
-            }
+            value={formatBytes(uplinkBytes)}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <KpiCard
             title="Downlink Traffic"
             loading={loading}
-            value={
-              downlinkBytes != null
-                ? `${formatNumber(downlinkBytes)} Bytes`
-                : "N/A"
-            }
+            value={formatBytes(downlinkBytes)}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
