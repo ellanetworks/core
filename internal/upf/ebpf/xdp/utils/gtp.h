@@ -26,11 +26,11 @@
 
 #include "xdp/utils/csum.h"
 #include "xdp/utils/gtpu.h"
-#include "xdp/utils/n3_packet_context.h"
-#include "xdp/utils/n3_parsers.h"
+#include "xdp/utils/packet_context.h"
+#include "xdp/utils/parsers.h"
 #include "xdp/utils/trace.h"
 
-static __always_inline __u32 parse_gtp(struct n3_packet_context *ctx)
+static __always_inline __u32 parse_gtp(struct packet_context *ctx)
 {
     struct gtpuhdr *gtp = (struct gtpuhdr *)ctx->data;
     if ((const char *)(gtp + 1) > ctx->data_end)
@@ -43,7 +43,7 @@ static __always_inline __u32 parse_gtp(struct n3_packet_context *ctx)
     return gtp->message_type;
 }
 
-static __always_inline __u32 handle_echo_request(struct n3_packet_context *ctx)
+static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 {
     struct ethhdr *eth = ctx->eth;
     struct iphdr *iph = ctx->ip4;
@@ -53,9 +53,9 @@ static __always_inline __u32 handle_echo_request(struct n3_packet_context *ctx)
     gtp->message_type = GTPU_ECHO_RESPONSE;
 
     /* TODO: add support GTP over IPv6 */
-    n3_swap_ip(iph);
-    n3_swap_port(udp);
-    n3_swap_mac(eth);
+    swap_ip(iph);
+    swap_port(udp);
+    swap_mac(eth);
     upf_printk("upf: send gtp echo response [ %pI4 -> %pI4 ]", &iph->saddr, &iph->daddr);
     return XDP_TX;
 }
@@ -80,7 +80,7 @@ static __always_inline int guess_eth_protocol(const char *data)
     }
 }
 
-static __always_inline long remove_gtp_header(struct n3_packet_context *ctx)
+static __always_inline long remove_gtp_header(struct packet_context *ctx)
 {
     if (!ctx->gtp)
     {
@@ -132,7 +132,7 @@ static __always_inline long remove_gtp_header(struct n3_packet_context *ctx)
     /* Update packet pointers */
     data = (char *)(long)ctx->xdp_ctx->data;
     data_end = (const char *)(long)ctx->xdp_ctx->data_end;
-    return n3_context_reinit(ctx, data, data_end);
+    return context_reinit(ctx, data, data_end);
 }
 
 static __always_inline void fill_ip_header(struct iphdr *ip, int saddr, int daddr, __u8 tos, int tot_len)
@@ -185,7 +185,7 @@ static __always_inline void fill_gtp_ext_header_psc(struct gtp_hdr_ext_pdu_sessi
     gtp_ext->next_ext = 0;
 }
 
-static __always_inline __u32 add_gtp_over_ip4_headers(struct n3_packet_context *ctx, int saddr, int daddr, __u8 tos, __u8 qfi, int teid)
+static __always_inline __u32 add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr, __u8 tos, __u8 qfi, int teid)
 {
     static const size_t gtp_ext_hdr_size = sizeof(struct gtp_hdr_ext) + sizeof(struct gtp_hdr_ext_pdu_session_container);
     static const size_t gtp_full_hdr_size = sizeof(struct gtpuhdr) + gtp_ext_hdr_size;
@@ -260,11 +260,11 @@ static __always_inline __u32 add_gtp_over_ip4_headers(struct n3_packet_context *
     // udp->check = cs;
 
     /* Update packet pointers */
-    n3_context_set_ip4(ctx, (char *)(long)ctx->xdp_ctx->data, (const char *)(long)ctx->xdp_ctx->data_end, eth, ip, udp, gtp);
+    context_set_ip4(ctx, (char *)(long)ctx->xdp_ctx->data, (const char *)(long)ctx->xdp_ctx->data_end, eth, ip, udp, gtp);
     return 0;
 }
 
-static __always_inline void update_gtp_tunnel(struct n3_packet_context *ctx, int srcip, int dstip, __u8 tos, int teid)
+static __always_inline void update_gtp_tunnel(struct packet_context *ctx, int srcip, int dstip, __u8 tos, int teid)
 {
 
     ctx->gtp->teid = bpf_htonl(teid);

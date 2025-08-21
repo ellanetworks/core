@@ -26,20 +26,19 @@
 #include <linux/udp.h>
 #include <sys/socket.h>
 
-#include "xdp/utils/n3_statistics.h"
+#include "xdp/utils/statistics.h"
 #include "xdp/utils/qer.h"
-#include "xdp/utils/n3_pdr.h"
-#include "xdp/utils/n3_sdf_filter.h"
+#include "xdp/utils/pdr.h"
 
 #include "xdp/utils/trace.h"
-#include "xdp/utils/n3_packet_context.h"
-#include "xdp/utils/n3_parsers.h"
-#include "xdp/utils/n3_gtp_utils.h"
+#include "xdp/utils/packet_context.h"
+#include "xdp/utils/parsers.h"
+#include "xdp/utils/gtp.h"
 #include "xdp/utils/routing.h"
 
 #define DEFAULT_XDP_ACTION XDP_PASS
 
-static __always_inline enum xdp_action handle_gtp_packet(struct n3_packet_context *ctx)
+static __always_inline enum xdp_action handle_gtp_packet(struct packet_context *ctx)
 {
     if (!ctx->gtp)
     {
@@ -49,7 +48,7 @@ static __always_inline enum xdp_action handle_gtp_packet(struct n3_packet_contex
 
     __u32 teid = bpf_htonl(ctx->gtp->teid);
     /* Lookup uplink session using the TEID */
-    struct n3_pdr_info *pdr = bpf_map_lookup_elem(&n3_pdr_map_uplink_ip4, &teid);
+    struct pdr_info *pdr = bpf_map_lookup_elem(&pdr_map_uplink_ip4, &teid);
     if (!pdr)
     {
         upf_printk("upf: no session for teid:%d", teid);
@@ -63,7 +62,7 @@ static __always_inline enum xdp_action handle_gtp_packet(struct n3_packet_contex
     /* If an SDF is configured, match it against the inner packet */
     if (pdr->sdf_mode)
     {
-        struct n3_packet_context inner_context = {
+        struct packet_context inner_context = {
             .data = (char *)(long)ctx->data,
             .data_end = (const char *)(long)ctx->data_end,
         };
@@ -75,24 +74,24 @@ static __always_inline enum xdp_action handle_gtp_packet(struct n3_packet_contex
         {
         case ETH_P_IP_BE:
         {
-            int ip_protocol = n3_parse_ip4(&inner_context);
+            int ip_protocol = parse_ip4(&inner_context);
             if (-1 == ip_protocol)
             {
                 upf_printk("upf: unable to parse IPv4 header");
                 return DEFAULT_XDP_ACTION;
             }
-            if (-1 == n3_parse_l4(ip_protocol, &inner_context))
+            if (-1 == parse_l4(ip_protocol, &inner_context))
             {
                 upf_printk("upf: unable to parse L4 header");
                 return DEFAULT_XDP_ACTION;
             }
-            const struct n3_sdf_filter *sdf = &pdr->n3_sdf_rules.n3_sdf_filter;
-            if (match_n3_sdf_filter_ipv4(&inner_context, sdf))
+            const struct sdf_filter *sdf = &pdr->sdf_rules.sdf_filter;
+            if (match_sdf_filter_ipv4(&inner_context, sdf))
             {
                 upf_printk("upf: sdf filter matches teid:%d", teid);
-                far_id = pdr->n3_sdf_rules.far_id;
-                qer_id = pdr->n3_sdf_rules.qer_id;
-                outer_header_removal = pdr->n3_sdf_rules.outer_header_removal;
+                far_id = pdr->sdf_rules.far_id;
+                qer_id = pdr->sdf_rules.qer_id;
+                outer_header_removal = pdr->sdf_rules.outer_header_removal;
             }
             else
             {
@@ -110,18 +109,18 @@ static __always_inline enum xdp_action handle_gtp_packet(struct n3_packet_contex
                 upf_printk("upf: unable to parse IPv6 header");
                 return DEFAULT_XDP_ACTION;
             }
-            if (-1 == n3_parse_l4(ip_protocol, &inner_context))
+            if (-1 == parse_l4(ip_protocol, &inner_context))
             {
                 upf_printk("upf: unable to parse L4 header");
                 return DEFAULT_XDP_ACTION;
             }
-            const struct n3_sdf_filter *sdf = &pdr->n3_sdf_rules.n3_sdf_filter;
-            if (match_n3_sdf_filter_ipv6(&inner_context, sdf))
+            const struct sdf_filter *sdf = &pdr->sdf_rules.sdf_filter;
+            if (match_sdf_filter_ipv6(&inner_context, sdf))
             {
                 upf_printk("upf: sdf filter matches teid:%d", teid);
-                far_id = pdr->n3_sdf_rules.far_id;
-                qer_id = pdr->n3_sdf_rules.qer_id;
-                outer_header_removal = pdr->n3_sdf_rules.outer_header_removal;
+                far_id = pdr->sdf_rules.far_id;
+                qer_id = pdr->sdf_rules.qer_id;
+                outer_header_removal = pdr->sdf_rules.outer_header_removal;
             }
             else
             {
@@ -181,11 +180,11 @@ static __always_inline enum xdp_action handle_gtp_packet(struct n3_packet_contex
 
     /* Account uplink traffic */
     {
-        struct upf_n3_statistic *statistic = bpf_map_lookup_elem(&upf_n3_stat, &(__u32){0});
+        struct upf_statistic *statistic = bpf_map_lookup_elem(&upf_stat, &(__u32){0});
         if (statistic)
         {
             __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-            statistic->upf_n3_counters.ul_bytes += packet_size;
+            statistic->upf_counters.bytes += packet_size;
         }
     }
 
@@ -197,7 +196,7 @@ static __always_inline enum xdp_action handle_gtp_packet(struct n3_packet_contex
         return XDP_ABORTED;
 }
 
-static __always_inline enum xdp_action handle_gtpu(struct n3_packet_context *ctx)
+static __always_inline enum xdp_action handle_gtpu(struct packet_context *ctx)
 {
     int pdu_type = parse_gtp(ctx);
     switch (pdu_type)
@@ -220,9 +219,9 @@ static __always_inline enum xdp_action handle_gtpu(struct n3_packet_context *ctx
     }
 }
 
-static __always_inline enum xdp_action handle_ip4(struct n3_packet_context *ctx)
+static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
 {
-    int l4_protocol = n3_parse_ip4(ctx);
+    int l4_protocol = parse_ip4(ctx);
     if (l4_protocol == IPPROTO_UDP && GTP_UDP_PORT == parse_udp(ctx))
     {
         upf_printk("upf: gtp-u received");
@@ -231,12 +230,12 @@ static __always_inline enum xdp_action handle_ip4(struct n3_packet_context *ctx)
     return DEFAULT_XDP_ACTION;
 }
 
-static __always_inline enum xdp_action handle_ip6(struct n3_packet_context *ctx)
+static __always_inline enum xdp_action handle_ip6(struct packet_context *ctx)
 {
     return DEFAULT_XDP_ACTION;
 }
 
-static __always_inline enum xdp_action process_packet(struct n3_packet_context *ctx)
+static __always_inline enum xdp_action process_packet(struct packet_context *ctx)
 {
     __u16 l3_protocol = parse_ethernet(ctx);
     switch (l3_protocol)
@@ -256,21 +255,21 @@ SEC("xdp/upf_n3_entrypoint")
 int upf_n3_entrypoint_func(struct xdp_md *ctx)
 {
     const __u32 key = 0;
-    struct upf_n3_statistic *statistic = bpf_map_lookup_elem(&upf_n3_stat, &key);
+    struct upf_statistic *statistic = bpf_map_lookup_elem(&upf_stat, &key);
     if (!statistic)
     {
-        const struct upf_n3_statistic initval = {};
-        bpf_map_update_elem(&upf_n3_stat, &key, &initval, BPF_ANY);
-        statistic = bpf_map_lookup_elem(&upf_n3_stat, &key);
+        const struct upf_statistic initval = {};
+        bpf_map_update_elem(&upf_stat, &key, &initval, BPF_ANY);
+        statistic = bpf_map_lookup_elem(&upf_stat, &key);
         if (!statistic)
             return XDP_ABORTED;
     }
 
-    struct n3_packet_context context = {
+    struct packet_context context = {
         .data = (char *)(long)ctx->data,
         .data_end = (const char *)(long)ctx->data_end,
         .xdp_ctx = ctx,
-        .counters = &statistic->upf_n3_counters,
+        .counters = &statistic->upf_counters,
     };
 
     enum xdp_action action = process_packet(&context);

@@ -26,10 +26,10 @@
 #include <linux/udp.h>
 
 #include "xdp/utils/trace.h"
-#include "xdp/utils/n3_packet_context.h"
+#include "xdp/utils/packet_context.h"
 #include "xdp/utils/types.h"
 
-struct n3_ip_subnet
+struct ip_subnet
 {
     __u8 type; // 0: any, 1: ip4, 2: ip6
     // If type != any, ip field has meaningful value.
@@ -41,22 +41,22 @@ struct n3_ip_subnet
     __u128 mask;
 };
 
-struct n3_port_range
+struct port_range
 {
     __u16 lower_bound; // If not specified in SDF: 0
     __u16 upper_bound; // If not specified in SDF: 65535
 };
 
-struct n3_sdf_filter
+struct sdf_filter
 {
     __u8 protocol; // Required by SDF. 0: icmp, 1: ip, 2: tcp, 3: udp
-    struct n3_ip_subnet src_addr;
-    struct n3_port_range src_port;
-    struct n3_ip_subnet dst_addr;
-    struct n3_port_range dst_port;
+    struct ip_subnet src_addr;
+    struct port_range src_port;
+    struct ip_subnet dst_addr;
+    struct port_range dst_port;
 };
 
-static __always_inline __u8 n3_get_sdf_protocol(__u8 ip_protocol)
+static __always_inline __u8 get_sdf_protocol(__u8 ip_protocol)
 {
     switch (ip_protocol)
     {
@@ -71,13 +71,13 @@ static __always_inline __u8 n3_get_sdf_protocol(__u8 ip_protocol)
     }
 }
 
-static __always_inline __u8 match_n3_sdf_filter_ipv4(const struct n3_packet_context *ctx, const struct n3_sdf_filter *sdf)
+static __always_inline __u8 match_sdf_filter_ipv4(const struct packet_context *ctx, const struct sdf_filter *sdf)
 {
     if (!ctx || !ctx->ip4 || !sdf)
         return 0;
 
     const struct iphdr *ip4 = ctx->ip4;
-    __u8 packet_protocol = n3_get_sdf_protocol(ip4->protocol); // TODO: convert protocol in golang part
+    __u8 packet_protocol = get_sdf_protocol(ip4->protocol); // TODO: convert protocol in golang part
     __u16 packet_src_port = 0;
     __u16 packet_dst_port = 0;
     if (ctx->udp)
@@ -116,10 +116,10 @@ static __always_inline __u8 match_n3_sdf_filter_ipv4(const struct n3_packet_cont
     return 1;
 }
 
-static __always_inline __u8 match_n3_sdf_filter_ipv6(const struct n3_packet_context *ctx, const struct n3_sdf_filter *sdf)
+static __always_inline __u8 match_sdf_filter_ipv6(const struct packet_context *ctx, const struct sdf_filter *sdf)
 {
     const struct ipv6hdr *ipv6 = ctx->ip6;
-    __u8 packet_protocol = n3_get_sdf_protocol(ipv6->nexthdr);
+    __u8 packet_protocol = get_sdf_protocol(ipv6->nexthdr);
     __u128 packet_src_ip_128 = *((__u128 *)ipv6->saddr.s6_addr);
     __u128 packet_dst_ip_128 = *((__u128 *)ipv6->daddr.s6_addr);
     __u16 packet_src_port = 0;
