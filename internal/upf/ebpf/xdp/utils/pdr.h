@@ -20,7 +20,7 @@
 #include <bpf/bpf_helpers.h>
 #include <linux/ipv6.h>
 
-#include "xdp/utils/n3_sdf_filter.h"
+#include "xdp/utils/sdf_filter.h"
 
 #define PDR_MAP_UPLINK_SIZE 1024
 #define PDR_MAP_DOWNLINK_IPV4_SIZE 1024
@@ -45,21 +45,21 @@ enum outer_header_removal_values
 // 1. Combine SrcAddress.Type and DstAddress.Type into one __u8 field. Then to retrieve and put data will be used operators & and | .
 // 2. Put all fields into one big structure. Sort in specific order to reduce paddings inside structure.
 
-struct n3_sdf_rules
+struct sdf_rules
 {
-    struct n3_sdf_filter n3_sdf_filter;
+    struct sdf_filter sdf_filter;
     __u8 outer_header_removal;
     __u32 far_id;
     __u32 qer_id;
 };
 
-struct n3_pdr_info
+struct pdr_info
 {
     __u32 far_id;
     __u32 qer_id;
     __u8 outer_header_removal;
     __u8 sdf_mode; // 0 - no sdf, 1 - sdf only, 2 - sdf + default
-    struct n3_sdf_rules n3_sdf_rules;
+    struct sdf_rules sdf_rules;
 };
 
 /* ipv4 -> PDR */
@@ -67,27 +67,27 @@ struct
 {
     __uint(type, BPF_MAP_TYPE_HASH);
     __type(key, __u32);
-    __type(value, struct n3_pdr_info);
+    __type(value, struct pdr_info);
     __uint(max_entries, PDR_MAP_DOWNLINK_IPV4_SIZE);
-} n3_pdr_map_downlink_ip4 SEC(".maps");
+} pdr_map_downlink_ip4 SEC(".maps");
 
 /* ipv6 -> PDR */
 struct
 {
     __uint(type, BPF_MAP_TYPE_HASH);
     __type(key, struct in6_addr);
-    __type(value, struct n3_pdr_info);
+    __type(value, struct pdr_info);
     __uint(max_entries, PDR_MAP_DOWNLINK_IPV6_SIZE);
-} n3_pdr_map_downlink_ip6 SEC(".maps");
+} pdr_map_downlink_ip6 SEC(".maps");
 
 /* teid -> PDR */
 struct
 {
     __uint(type, BPF_MAP_TYPE_HASH);
     __type(key, __u32);
-    __type(value, struct n3_pdr_info);
+    __type(value, struct pdr_info);
     __uint(max_entries, PDR_MAP_UPLINK_SIZE);
-} n3_pdr_map_uplink_ip4 SEC(".maps");
+} pdr_map_uplink_ip4 SEC(".maps");
 
 enum far_action_mask
 {

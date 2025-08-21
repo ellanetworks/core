@@ -20,25 +20,24 @@
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
-struct upf_n6_counters
+struct upf_counters
 {
-
-    __u64 dl_bytes; // Downlink throughput (N6 -> N3)
+    __u64 bytes;
 };
 
-struct n6_counters
+struct counters
 {
-    __u64 rx_n6;
-    __u64 tx_n6;
+    __u64 rx;
+    __u64 tx;
 };
 
 #define EUPF_MAX_XDP_ACTION 8
 #define EUPF_MAX_XDP_ACTION_MASK 0x07
 
-struct upf_n6_statistic
+struct upf_statistic
 {
-    struct upf_n6_counters upf_n6_counters;
-    struct n6_counters upf_n6_counter;
+    struct upf_counters upf_counters;
+    struct counters upf_counter;
     __u64 xdp_actions[EUPF_MAX_XDP_ACTION];
 };
 
@@ -46,6 +45,6 @@ struct
 {
     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
     __type(key, __u32);
-    __type(value, struct upf_n6_statistic);
+    __type(value, struct upf_statistic);
     __uint(max_entries, 1);
-} upf_n6_stat SEC(".maps");
+} upf_stat SEC(".maps");

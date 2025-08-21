@@ -32,16 +32,16 @@ type N3EntrypointIn6Addr struct {
 	}
 }
 
-type N3EntrypointN3PdrInfo struct {
+type N3EntrypointPdrInfo struct {
 	_                  structs.HostLayout
 	FarId              uint32
 	QerId              uint32
 	OuterHeaderRemoval uint8
 	SdfMode            uint8
 	_                  [6]byte
-	N3SdfRules         struct {
-		_           structs.HostLayout
-		N3SdfFilter struct {
+	SdfRules           struct {
+		_         structs.HostLayout
+		SdfFilter struct {
 			_        structs.HostLayout
 			Protocol uint8
 			_        [15]byte
@@ -105,16 +105,16 @@ type N3EntrypointRouteStat struct {
 	FibLookupIp6ErrorPass uint64
 }
 
-type N3EntrypointUpfN3Statistic struct {
-	_             structs.HostLayout
-	UpfN3Counters struct {
-		_       structs.HostLayout
-		UlBytes uint64
+type N3EntrypointUpfStatistic struct {
+	_           structs.HostLayout
+	UpfCounters struct {
+		_     structs.HostLayout
+		Bytes uint64
 	}
-	UpfN3Counter struct {
-		_    structs.HostLayout
-		RxN3 uint64
-		TxN3 uint64
+	UpfCounter struct {
+		_  structs.HostLayout
+		Rx uint64
+		Tx uint64
 	}
 	XdpActions [8]uint64
 }
@@ -168,13 +168,13 @@ type N3EntrypointProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3EntrypointMapSpecs struct {
-	FarMap              *ebpf.MapSpec `ebpf:"far_map"`
-	N3PdrMapDownlinkIp4 *ebpf.MapSpec `ebpf:"n3_pdr_map_downlink_ip4"`
-	N3PdrMapDownlinkIp6 *ebpf.MapSpec `ebpf:"n3_pdr_map_downlink_ip6"`
-	N3PdrMapUplinkIp4   *ebpf.MapSpec `ebpf:"n3_pdr_map_uplink_ip4"`
-	QerMap              *ebpf.MapSpec `ebpf:"qer_map"`
-	UpfN3Stat           *ebpf.MapSpec `ebpf:"upf_n3_stat"`
-	UpfRouteStat        *ebpf.MapSpec `ebpf:"upf_route_stat"`
+	FarMap            *ebpf.MapSpec `ebpf:"far_map"`
+	PdrMapDownlinkIp4 *ebpf.MapSpec `ebpf:"pdr_map_downlink_ip4"`
+	PdrMapDownlinkIp6 *ebpf.MapSpec `ebpf:"pdr_map_downlink_ip6"`
+	PdrMapUplinkIp4   *ebpf.MapSpec `ebpf:"pdr_map_uplink_ip4"`
+	QerMap            *ebpf.MapSpec `ebpf:"qer_map"`
+	UpfRouteStat      *ebpf.MapSpec `ebpf:"upf_route_stat"`
+	UpfStat           *ebpf.MapSpec `ebpf:"upf_stat"`
 }
 
 // N3EntrypointVariableSpecs contains global variables before they are loaded into the kernel.
@@ -203,24 +203,24 @@ func (o *N3EntrypointObjects) Close() error {
 //
 // It can be passed to LoadN3EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3EntrypointMaps struct {
-	FarMap              *ebpf.Map `ebpf:"far_map"`
-	N3PdrMapDownlinkIp4 *ebpf.Map `ebpf:"n3_pdr_map_downlink_ip4"`
-	N3PdrMapDownlinkIp6 *ebpf.Map `ebpf:"n3_pdr_map_downlink_ip6"`
-	N3PdrMapUplinkIp4   *ebpf.Map `ebpf:"n3_pdr_map_uplink_ip4"`
-	QerMap              *ebpf.Map `ebpf:"qer_map"`
-	UpfN3Stat           *ebpf.Map `ebpf:"upf_n3_stat"`
-	UpfRouteStat        *ebpf.Map `ebpf:"upf_route_stat"`
+	FarMap            *ebpf.Map `ebpf:"far_map"`
+	PdrMapDownlinkIp4 *ebpf.Map `ebpf:"pdr_map_downlink_ip4"`
+	PdrMapDownlinkIp6 *ebpf.Map `ebpf:"pdr_map_downlink_ip6"`
+	PdrMapUplinkIp4   *ebpf.Map `ebpf:"pdr_map_uplink_ip4"`
+	QerMap            *ebpf.Map `ebpf:"qer_map"`
+	UpfRouteStat      *ebpf.Map `ebpf:"upf_route_stat"`
+	UpfStat           *ebpf.Map `ebpf:"upf_stat"`
 }
 
 func (m *N3EntrypointMaps) Close() error {
 	return _N3EntrypointClose(
 		m.FarMap,
-		m.N3PdrMapDownlinkIp4,
-		m.N3PdrMapDownlinkIp6,
-		m.N3PdrMapUplinkIp4,
+		m.PdrMapDownlinkIp4,
+		m.PdrMapDownlinkIp6,
+		m.PdrMapUplinkIp4,
 		m.QerMap,
-		m.UpfN3Stat,
 		m.UpfRouteStat,
+		m.UpfStat,
 	)
 }
 

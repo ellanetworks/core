@@ -22,8 +22,8 @@
 #include <linux/icmp.h>
 
 #include "xdp/utils/csum.h"
-#include "xdp/utils/n6_parsers.h"
-#include "xdp/utils/n6_packet_context.h"
+#include "xdp/utils/parsers.h"
+#include "xdp/utils/packet_context.h"
 
 static __always_inline void fill_icmp_header(struct icmphdr *icmp)
 {
@@ -33,7 +33,7 @@ static __always_inline void fill_icmp_header(struct icmphdr *icmp)
     icmp->checksum = 0;
 }
 
-static __always_inline __u32 prepare_icmp_echo_reply(struct n6_packet_context *ctx, int saddr, int daddr)
+static __always_inline __u32 prepare_icmp_echo_reply(struct packet_context *ctx, int saddr, int daddr)
 {
     if (!ctx->ip4)
         return -1;

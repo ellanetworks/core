@@ -105,16 +105,16 @@ type N6EntrypointRouteStat struct {
 	FibLookupIp6ErrorPass uint64
 }
 
-type N6EntrypointUpfN6Statistic struct {
-	_             structs.HostLayout
-	UpfN6Counters struct {
-		_       structs.HostLayout
-		DlBytes uint64
+type N6EntrypointUpfStatistic struct {
+	_           structs.HostLayout
+	UpfCounters struct {
+		_     structs.HostLayout
+		Bytes uint64
 	}
-	UpfN6Counter struct {
-		_    structs.HostLayout
-		RxN6 uint64
-		TxN6 uint64
+	UpfCounter struct {
+		_  structs.HostLayout
+		Rx uint64
+		Tx uint64
 	}
 	XdpActions [8]uint64
 }
@@ -173,8 +173,8 @@ type N6EntrypointMapSpecs struct {
 	PdrMapDownlinkIp6 *ebpf.MapSpec `ebpf:"pdr_map_downlink_ip6"`
 	PdrMapUplinkIp4   *ebpf.MapSpec `ebpf:"pdr_map_uplink_ip4"`
 	QerMap            *ebpf.MapSpec `ebpf:"qer_map"`
-	UpfN6Stat         *ebpf.MapSpec `ebpf:"upf_n6_stat"`
 	UpfRouteStat      *ebpf.MapSpec `ebpf:"upf_route_stat"`
+	UpfStat           *ebpf.MapSpec `ebpf:"upf_stat"`
 }
 
 // N6EntrypointVariableSpecs contains global variables before they are loaded into the kernel.
@@ -208,8 +208,8 @@ type N6EntrypointMaps struct {
 	PdrMapDownlinkIp6 *ebpf.Map `ebpf:"pdr_map_downlink_ip6"`
 	PdrMapUplinkIp4   *ebpf.Map `ebpf:"pdr_map_uplink_ip4"`
 	QerMap            *ebpf.Map `ebpf:"qer_map"`
-	UpfN6Stat         *ebpf.Map `ebpf:"upf_n6_stat"`
 	UpfRouteStat      *ebpf.Map `ebpf:"upf_route_stat"`
+	UpfStat           *ebpf.Map `ebpf:"upf_stat"`
 }
 
 func (m *N6EntrypointMaps) Close() error {
@@ -219,8 +219,8 @@ func (m *N6EntrypointMaps) Close() error {
 		m.PdrMapDownlinkIp6,
 		m.PdrMapUplinkIp4,
 		m.QerMap,
-		m.UpfN6Stat,
 		m.UpfRouteStat,
+		m.UpfStat,
 	)
 }
 
