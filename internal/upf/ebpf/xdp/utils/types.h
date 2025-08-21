@@ -16,5 +16,4 @@
 
 #pragma once
 
-
 typedef unsigned __int128 __u128;

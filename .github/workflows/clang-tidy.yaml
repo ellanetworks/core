@@ -1,0 +1,24 @@
+name: Clang Tidy
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup clang tidy
+        run: |
+          sudo apt update
+          sudo apt install -y clang clang-tidy cmake llvm gcc-multilib libbpf-dev
+
+      - name: Lint code
+        run: |
+          cd internal/upf/ebpf
+          cmake .
+          find xdp -name "*.[ch]" | xargs clang-tidy

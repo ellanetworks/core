@@ -23,8 +23,12 @@ jobs:
     uses: ./.github/workflows/go-lint.yaml
   go-sec:
     uses: ./.github/workflows/go-sec.yaml
+  clang-format:
+    uses: ./.github/workflows/clang-format.yaml
+  clang-tidy:
+    uses: ./.github/workflows/clang-tidy.yaml
   rock-build:
-    needs: [go-unit-test, go-vet, go-lint]
+    needs: [go-unit-test, go-vet, go-lint, clang-format, clang-tidy]
     uses: ./.github/workflows/rock-build.yaml
   integration-tests:
     needs: [go-unit-test, go-vet, go-lint, rock-build]

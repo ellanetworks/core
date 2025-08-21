@@ -27,39 +27,40 @@
 
 static __always_inline void fill_icmp_header(struct icmphdr *icmp)
 {
-    icmp->type = ICMP_TIME_EXCEEDED;
-    icmp->code = ICMP_EXC_TTL;
-    icmp->un.gateway = 0;
-    icmp->checksum = 0;
+	icmp->type = ICMP_TIME_EXCEEDED;
+	icmp->code = ICMP_EXC_TTL;
+	icmp->un.gateway = 0;
+	icmp->checksum = 0;
 }
 
-static __always_inline __u32 prepare_icmp_echo_reply(struct packet_context *ctx, int saddr, int daddr)
+static __always_inline __u32 prepare_icmp_echo_reply(struct packet_context *ctx,
+						     int saddr, int daddr)
 {
-    if (!ctx->ip4)
-        return -1;
+	if (!ctx->ip4)
+		return -1;
 
-    struct ethhdr *eth = ctx->eth;
-    swap_mac(eth);
+	struct ethhdr *eth = ctx->eth;
+	swap_mac(eth);
 
-    const char *data_end = (const char *)(long)ctx->xdp_ctx->data_end;
-    struct iphdr *ip = ctx->ip4;
-    if ((const char *)(ip + 1) > data_end)
-        return -1;
+	const char *data_end = (const char *)(long)ctx->xdp_ctx->data_end;
+	struct iphdr *ip = ctx->ip4;
+	if ((const char *)(ip + 1) > data_end)
+		return -1;
 
-    swap_ip(ip);
+	swap_ip(ip);
 
-    struct icmphdr *icmp = (struct icmphdr *)(ip + 1);
-    if ((const char *)(icmp + 1) > data_end)
-        return -1;
+	struct icmphdr *icmp = (struct icmphdr *)(ip + 1);
+	if ((const char *)(icmp + 1) > data_end)
+		return -1;
 
-    if (icmp->type != ICMP_ECHO)
-        return -1;
+	if (icmp->type != ICMP_ECHO)
+		return -1;
 
-    __u16 old = *(__u16 *)&icmp->type;
-    icmp->type = ICMP_ECHOREPLY;
-    icmp->code = 0;
+	__u16 old = *(__u16 *)&icmp->type;
+	icmp->type = ICMP_ECHOREPLY;
+	icmp->code = 0;
 
-    ipv4_csum_replace(&icmp->checksum, old, *(__u16 *)&icmp->type);
+	ipv4_csum_replace(&icmp->checksum, old, *(__u16 *)&icmp->type);
 
-    return 0;
+	return 0;
 }

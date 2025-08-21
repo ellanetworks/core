@@ -1,0 +1,23 @@
+name: Clang Format
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup clang format
+        run: |
+          sudo apt update
+          sudo apt install -y clang-format 
+
+      - name: Check code formatting
+        run: |
+          cd internal/upf/ebpf
+          find xdp -name "*.[ch]" | xargs clang-format --dry-run --verbose

@@ -25,17 +25,16 @@
 #include "xdp/utils/gtpu.h"
 
 /* Header cursor to keep track of current parsing position */
-struct packet_context
-{
-    char *data;
-    const char *data_end;
-    struct upf_counters *counters;
-    struct counters *counter;
-    struct xdp_md *xdp_ctx;
-    struct ethhdr *eth;
-    struct iphdr *ip4;
-    struct ipv6hdr *ip6;
-    struct udphdr *udp;
-    struct tcphdr *tcp;
-    struct gtpuhdr *gtp;
+struct packet_context {
+	char *data;
+	const char *data_end;
+	struct upf_counters *counters;
+	struct counters *counter;
+	struct xdp_md *xdp_ctx;
+	struct ethhdr *eth;
+	struct iphdr *ip4;
+	struct ipv6hdr *ip6;
+	struct udphdr *udp;
+	struct tcphdr *tcp;
+	struct gtpuhdr *gtp;
 };

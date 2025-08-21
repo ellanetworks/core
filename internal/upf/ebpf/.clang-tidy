@@ -1,0 +1,2 @@
+Checks: 'linuxkernel-*'
+WarningsAsErrors: '*,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling'
