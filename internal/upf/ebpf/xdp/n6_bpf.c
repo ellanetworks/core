@@ -45,18 +45,16 @@
  * and then routes the packet. Note that the transmit counter is now updated
  * using the downlink counter (tx_n6).
  */
-static __always_inline enum xdp_action send_to_gtp_tunnel(struct packet_context *ctx,
-                                                          int srcip,
-                                                          int dstip,
-                                                          __u8 tos,
-                                                          __u8 qfi,
-                                                          int teid)
+static __always_inline enum xdp_action
+send_to_gtp_tunnel(struct packet_context *ctx, int srcip, int dstip, __u8 tos,
+		   __u8 qfi, int teid)
 {
-    if (-1 == add_gtp_over_ip4_headers(ctx, srcip, dstip, tos, qfi, teid))
-        return XDP_ABORTED;
-    upf_printk("upf: send gtp pdu %pI4 -> %pI4", &ctx->ip4->saddr, &ctx->ip4->daddr);
-    increment_counter(ctx->counter, tx);
-    return route_ipv4(ctx->xdp_ctx, ctx->eth, ctx->ip4);
+	if (-1 == add_gtp_over_ip4_headers(ctx, srcip, dstip, tos, qfi, teid))
+		return XDP_ABORTED;
+	upf_printk("upf: send gtp pdu %pI4 -> %pI4", &ctx->ip4->saddr,
+		   &ctx->ip4->daddr);
+	increment_counter(ctx->counter, tx);
+	return route_ipv4(ctx->xdp_ctx, ctx->eth, ctx->ip4);
 }
 
 /*
@@ -65,137 +63,143 @@ static __always_inline enum xdp_action send_to_gtp_tunnel(struct packet_context 
  */
 static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
-    const struct iphdr *ip4 = ctx->ip4;
-    struct pdr_info *pdr = bpf_map_lookup_elem(&pdr_map_downlink_ip4, &ip4->daddr);
-    if (!pdr)
-    {
-        upf_printk("upf: no downlink session for ip:%pI4", &ip4->daddr);
-        return DEFAULT_XDP_ACTION;
-    }
+	const struct iphdr *ip4 = ctx->ip4;
+	struct pdr_info *pdr =
+		bpf_map_lookup_elem(&pdr_map_downlink_ip4, &ip4->daddr);
+	if (!pdr) {
+		upf_printk("upf: no downlink session for ip:%pI4", &ip4->daddr);
+		return DEFAULT_XDP_ACTION;
+	}
 
-    __u32 far_id = pdr->far_id;
-    __u32 qer_id = pdr->qer_id;
-    if (pdr->sdf_mode)
-    {
-        struct sdf_filter *sdf = &pdr->sdf_rules.sdf_filter;
-        if (match_sdf_filter_ipv4(ctx, sdf))
-        {
-            upf_printk("Packet with source ip:%pI4 and destination ip:%pI4 matches SDF filter",
-                       &ip4->saddr, &ip4->daddr);
-            far_id = pdr->sdf_rules.far_id;
-            qer_id = pdr->sdf_rules.qer_id;
-        }
-        else if (pdr->sdf_mode & 1)
-        {
-            return DEFAULT_XDP_ACTION;
-        }
-    }
+	__u32 far_id = pdr->far_id;
+	__u32 qer_id = pdr->qer_id;
+	if (pdr->sdf_mode) {
+		struct sdf_filter *sdf = &pdr->sdf_rules.sdf_filter;
+		if (match_sdf_filter_ipv4(ctx, sdf)) {
+			upf_printk(
+				"Packet with source ip:%pI4 and destination ip:%pI4 matches SDF filter",
+				&ip4->saddr, &ip4->daddr);
+			far_id = pdr->sdf_rules.far_id;
+			qer_id = pdr->sdf_rules.qer_id;
+		} else if (pdr->sdf_mode & 1) {
+			return DEFAULT_XDP_ACTION;
+		}
+	}
 
-    struct far_info *far = bpf_map_lookup_elem(&far_map, &far_id);
-    if (!far)
-    {
-        upf_printk("upf: no downlink session far for ip:%pI4 far:%d", &ip4->daddr, far_id);
-        return XDP_DROP;
-    }
+	struct far_info *far = bpf_map_lookup_elem(&far_map, &far_id);
+	if (!far) {
+		upf_printk("upf: no downlink session far for ip:%pI4 far:%d",
+			   &ip4->daddr, far_id);
+		return XDP_DROP;
+	}
 
-    upf_printk("upf: downlink session for ip:%pI4 far:%d action:%d", &ip4->daddr, far_id, far->action);
-    if (!(far->action & FAR_FORW))
-        return XDP_DROP;
-    if (!(far->outer_header_creation & OHC_GTP_U_UDP_IPv4))
-        return XDP_DROP;
+	upf_printk("upf: downlink session for ip:%pI4 far:%d action:%d",
+		   &ip4->daddr, far_id, far->action);
+	if (!(far->action & FAR_FORW))
+		return XDP_DROP;
+	if (!(far->outer_header_creation & OHC_GTP_U_UDP_IPv4))
+		return XDP_DROP;
 
-    struct qer_info *qer = bpf_map_lookup_elem(&qer_map, &qer_id);
-    if (!qer)
-    {
-        upf_printk("upf: no downlink session qer for ip:%pI4 qer:%d", &ip4->daddr, qer_id);
-        return XDP_DROP;
-    }
+	struct qer_info *qer = bpf_map_lookup_elem(&qer_map, &qer_id);
+	if (!qer) {
+		upf_printk("upf: no downlink session qer for ip:%pI4 qer:%d",
+			   &ip4->daddr, qer_id);
+		return XDP_DROP;
+	}
 
-    upf_printk("upf: qer:%d gate_status:%d mbr:%d", qer_id, qer->dl_gate_status, qer->dl_maximum_bitrate);
-    if (qer->dl_gate_status != GATE_STATUS_OPEN)
-        return XDP_DROP;
+	upf_printk("upf: qer:%d gate_status:%d mbr:%d", qer_id,
+		   qer->dl_gate_status, qer->dl_maximum_bitrate);
+	if (qer->dl_gate_status != GATE_STATUS_OPEN)
+		return XDP_DROP;
 
-    const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-    if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start, qer->dl_maximum_bitrate))
-        return XDP_DROP;
+	const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+	if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start,
+						  qer->dl_maximum_bitrate))
+		return XDP_DROP;
 
-    __u8 tos = far->transport_level_marking >> 8;
-    upf_printk("upf: use mapping %pI4 -> TEID:%d", &ip4->daddr, far->teid);
+	__u8 tos = far->transport_level_marking >> 8;
+	upf_printk("upf: use mapping %pI4 -> TEID:%d", &ip4->daddr, far->teid);
 
-    /* Update downlink traffic counter */
-    {
-        struct upf_statistic *statistic = bpf_map_lookup_elem(&upf_stat, &(__u32){0});
-        if (statistic)
-        {
-            __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-            statistic->upf_counters.bytes += packet_size; // Count downlink traffic
-        }
-    }
-    return send_to_gtp_tunnel(ctx, far->localip, far->remoteip, tos, qer->qfi, far->teid);
+	/* Update downlink traffic counter */
+	{
+		struct upf_statistic *statistic =
+			bpf_map_lookup_elem(&upf_stat, &(__u32){ 0 });
+		if (statistic) {
+			__u64 packet_size =
+				ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+			statistic->upf_counters.bytes +=
+				packet_size; // Count downlink traffic
+		}
+	}
+	return send_to_gtp_tunnel(ctx, far->localip, far->remoteip, tos,
+				  qer->qfi, far->teid);
 }
 
 /*
  * Downlink processing for IPv6 packets.
  */
-static __always_inline enum xdp_action handle_n6_packet_ipv6(struct packet_context *ctx)
+static __always_inline enum xdp_action
+handle_n6_packet_ipv6(struct packet_context *ctx)
 {
-    const struct ipv6hdr *ip6 = ctx->ip6;
-    struct pdr_info *pdr = bpf_map_lookup_elem(&pdr_map_downlink_ip6, &ip6->daddr);
-    if (!pdr)
-    {
-        upf_printk("upf: no downlink session for ip:%pI6c", &ip6->daddr);
-        return DEFAULT_XDP_ACTION;
-    }
+	const struct ipv6hdr *ip6 = ctx->ip6;
+	struct pdr_info *pdr =
+		bpf_map_lookup_elem(&pdr_map_downlink_ip6, &ip6->daddr);
+	if (!pdr) {
+		upf_printk("upf: no downlink session for ip:%pI6c",
+			   &ip6->daddr);
+		return DEFAULT_XDP_ACTION;
+	}
 
-    __u32 far_id = pdr->far_id;
-    __u32 qer_id = pdr->qer_id;
-    if (pdr->sdf_mode)
-    {
-        struct sdf_filter *sdf = &pdr->sdf_rules.sdf_filter;
-        if (match_sdf_filter_ipv6(ctx, sdf))
-        {
-            upf_printk("Packet with source ip:%pI6c and destination ip:%pI6c matches SDF filter",
-                       &ip6->saddr, &ip6->daddr);
-            far_id = pdr->sdf_rules.far_id;
-            qer_id = pdr->sdf_rules.qer_id;
-        }
-        else if (pdr->sdf_mode & 1)
-        {
-            return DEFAULT_XDP_ACTION;
-        }
-    }
+	__u32 far_id = pdr->far_id;
+	__u32 qer_id = pdr->qer_id;
+	if (pdr->sdf_mode) {
+		struct sdf_filter *sdf = &pdr->sdf_rules.sdf_filter;
+		if (match_sdf_filter_ipv6(ctx, sdf)) {
+			upf_printk(
+				"Packet with source ip:%pI6c and destination ip:%pI6c matches SDF filter",
+				&ip6->saddr, &ip6->daddr);
+			far_id = pdr->sdf_rules.far_id;
+			qer_id = pdr->sdf_rules.qer_id;
+		} else if (pdr->sdf_mode & 1) {
+			return DEFAULT_XDP_ACTION;
+		}
+	}
 
-    struct far_info *far = bpf_map_lookup_elem(&far_map, &far_id);
-    if (!far)
-    {
-        upf_printk("upf: no downlink session far for ip:%pI6c far:%d", &ip6->daddr, far_id);
-        return XDP_DROP;
-    }
+	struct far_info *far = bpf_map_lookup_elem(&far_map, &far_id);
+	if (!far) {
+		upf_printk("upf: no downlink session far for ip:%pI6c far:%d",
+			   &ip6->daddr, far_id);
+		return XDP_DROP;
+	}
 
-    upf_printk("upf: downlink session for ip:%pI6c far:%d action:%d", &ip6->daddr, far_id, far->action);
-    if (!(far->action & FAR_FORW))
-        return XDP_DROP;
-    if (!(far->outer_header_creation & OHC_GTP_U_UDP_IPv4))
-        return XDP_DROP;
+	upf_printk("upf: downlink session for ip:%pI6c far:%d action:%d",
+		   &ip6->daddr, far_id, far->action);
+	if (!(far->action & FAR_FORW))
+		return XDP_DROP;
+	if (!(far->outer_header_creation & OHC_GTP_U_UDP_IPv4))
+		return XDP_DROP;
 
-    struct qer_info *qer = bpf_map_lookup_elem(&qer_map, &qer_id);
-    if (!qer)
-    {
-        upf_printk("upf: no downlink session qer for ip:%pI6c qer:%d", &ip6->daddr, qer_id);
-        return XDP_DROP;
-    }
+	struct qer_info *qer = bpf_map_lookup_elem(&qer_map, &qer_id);
+	if (!qer) {
+		upf_printk("upf: no downlink session qer for ip:%pI6c qer:%d",
+			   &ip6->daddr, qer_id);
+		return XDP_DROP;
+	}
 
-    upf_printk("upf: qer:%d gate_status:%d mbr:%d", qer_id, qer->dl_gate_status, qer->dl_maximum_bitrate);
-    if (qer->dl_gate_status != GATE_STATUS_OPEN)
-        return XDP_DROP;
+	upf_printk("upf: qer:%d gate_status:%d mbr:%d", qer_id,
+		   qer->dl_gate_status, qer->dl_maximum_bitrate);
+	if (qer->dl_gate_status != GATE_STATUS_OPEN)
+		return XDP_DROP;
 
-    const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
-    if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start, qer->dl_maximum_bitrate))
-        return XDP_DROP;
+	const __u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+	if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start,
+						  qer->dl_maximum_bitrate))
+		return XDP_DROP;
 
-    __u8 tos = far->transport_level_marking >> 8;
-    upf_printk("upf: use mapping %pI6c -> TEID:%d", &ip6->daddr, far->teid);
-    return send_to_gtp_tunnel(ctx, far->localip, far->remoteip, tos, qer->qfi, far->teid);
+	__u8 tos = far->transport_level_marking >> 8;
+	upf_printk("upf: use mapping %pI6c -> TEID:%d", &ip6->daddr, far->teid);
+	return send_to_gtp_tunnel(ctx, far->localip, far->remoteip, tos,
+				  qer->qfi, far->teid);
 }
 
 /*
@@ -204,21 +208,20 @@ static __always_inline enum xdp_action handle_n6_packet_ipv6(struct packet_conte
  */
 static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
 {
-    int l4_protocol = parse_ip4(ctx);
-    switch (l4_protocol)
-    {
-    case IPPROTO_ICMP:
-        break;
-    case IPPROTO_UDP:
-        break;
-    case IPPROTO_TCP:
-        break;
-    default:
-        return DEFAULT_XDP_ACTION;
-    }
+	int l4_protocol = parse_ip4(ctx);
+	switch (l4_protocol) {
+	case IPPROTO_ICMP:
+		break;
+	case IPPROTO_UDP:
+		break;
+	case IPPROTO_TCP:
+		break;
+	default:
+		return DEFAULT_XDP_ACTION;
+	}
 
-    increment_counter(ctx->counter, rx);
-    return handle_n6_packet_ipv4(ctx);
+	increment_counter(ctx->counter, rx);
+	return handle_n6_packet_ipv4(ctx);
 }
 
 /*
@@ -226,67 +229,65 @@ static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
  */
 static __always_inline enum xdp_action handle_ip6(struct packet_context *ctx)
 {
-    int l4_protocol = parse_ip6(ctx);
-    switch (l4_protocol)
-    {
-    case IPPROTO_ICMPV6:
-        upf_printk("upf: icmp received. passing to kernel");
-        return XDP_PASS;
-    case IPPROTO_UDP:
-        break;
-    case IPPROTO_TCP:
-        break;
-    default:
-        return DEFAULT_XDP_ACTION;
-    }
-    return handle_n6_packet_ipv6(ctx);
+	int l4_protocol = parse_ip6(ctx);
+	switch (l4_protocol) {
+	case IPPROTO_ICMPV6:
+		upf_printk("upf: icmp received. passing to kernel");
+		return XDP_PASS;
+	case IPPROTO_UDP:
+		break;
+	case IPPROTO_TCP:
+		break;
+	default:
+		return DEFAULT_XDP_ACTION;
+	}
+	return handle_n6_packet_ipv6(ctx);
 }
 
 /*
  * Process the Ethernet header and dispatch to the appropriate handler.
  */
-static __always_inline enum xdp_action process_packet(struct packet_context *ctx)
+static __always_inline enum xdp_action
+process_packet(struct packet_context *ctx)
 {
-    __u16 l3_protocol = parse_ethernet(ctx);
-    switch (l3_protocol)
-    {
-    case ETH_P_IPV6:
-        return handle_ip6(ctx);
-    case ETH_P_IP:
-        return handle_ip4(ctx);
-    case ETH_P_ARP:
-        upf_printk("upf: arp received. passing to kernel");
-        return XDP_PASS;
-    }
-    return DEFAULT_XDP_ACTION;
+	__u16 l3_protocol = parse_ethernet(ctx);
+	switch (l3_protocol) {
+	case ETH_P_IPV6:
+		return handle_ip6(ctx);
+	case ETH_P_IP:
+		return handle_ip4(ctx);
+	case ETH_P_ARP:
+		upf_printk("upf: arp received. passing to kernel");
+		return XDP_PASS;
+	}
+	return DEFAULT_XDP_ACTION;
 }
 
 SEC("xdp/upf_n6_entrypoint")
 int upf_n6_entrypoint_func(struct xdp_md *ctx)
 {
-    const __u32 key = 0;
-    struct upf_statistic *statistic = bpf_map_lookup_elem(&upf_stat, &key);
-    if (!statistic)
-    {
-        const struct upf_statistic initval = {};
-        bpf_map_update_elem(&upf_stat, &key, &initval, BPF_ANY);
-        statistic = bpf_map_lookup_elem(&upf_stat, &key);
-        if (!statistic)
-            return XDP_ABORTED;
-    }
+	const __u32 key = 0;
+	struct upf_statistic *statistic = bpf_map_lookup_elem(&upf_stat, &key);
+	if (!statistic) {
+		const struct upf_statistic initval = {};
+		bpf_map_update_elem(&upf_stat, &key, &initval, BPF_ANY);
+		statistic = bpf_map_lookup_elem(&upf_stat, &key);
+		if (!statistic)
+			return XDP_ABORTED;
+	}
 
-    struct packet_context context = {
-        .data = (char *)(long)ctx->data,
-        .data_end = (const char *)(long)ctx->data_end,
-        .xdp_ctx = ctx,
-        .counters = &statistic->upf_counters,
-        .counter = &statistic->upf_counter,
-    };
+	struct packet_context context = {
+		.data = (char *)(long)ctx->data,
+		.data_end = (const char *)(long)ctx->data_end,
+		.xdp_ctx = ctx,
+		.counters = &statistic->upf_counters,
+		.counter = &statistic->upf_counter,
+	};
 
-    enum xdp_action action = process_packet(&context);
-    statistic->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
+	enum xdp_action action = process_packet(&context);
+	statistic->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
 
-    return action;
+	return action;
 }
 
 char _license[] SEC("license") = "GPL";

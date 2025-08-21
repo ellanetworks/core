@@ -20,31 +20,27 @@
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
-struct upf_counters
-{
-    __u64 bytes;
+struct upf_counters {
+	__u64 bytes;
 };
 
-struct counters
-{
-    __u64 rx;
-    __u64 tx;
+struct counters {
+	__u64 rx;
+	__u64 tx;
 };
 
 #define EUPF_MAX_XDP_ACTION 8
 #define EUPF_MAX_XDP_ACTION_MASK 0x07
 
-struct upf_statistic
-{
-    struct upf_counters upf_counters;
-    struct counters upf_counter;
-    __u64 xdp_actions[EUPF_MAX_XDP_ACTION];
+struct upf_statistic {
+	struct upf_counters upf_counters;
+	struct counters upf_counter;
+	__u64 xdp_actions[EUPF_MAX_XDP_ACTION];
 };
 
-struct
-{
-    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-    __type(key, __u32);
-    __type(value, struct upf_statistic);
-    __uint(max_entries, 1);
+struct {
+	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+	__type(key, __u32);
+	__type(value, struct upf_statistic);
+	__uint(max_entries, 1);
 } upf_stat SEC(".maps");
