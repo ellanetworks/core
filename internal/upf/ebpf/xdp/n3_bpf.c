@@ -31,14 +31,11 @@
 #include "xdp/utils/n3_pdr.h"
 #include "xdp/utils/n3_sdf_filter.h"
 
-#include "xdp/utils/common.h"
 #include "xdp/utils/trace.h"
 #include "xdp/utils/n3_packet_context.h"
 #include "xdp/utils/n3_parsers.h"
-#include "xdp/utils/csum.h"
 #include "xdp/utils/n3_gtp_utils.h"
 #include "xdp/utils/routing.h"
-#include "xdp/utils/n3_icmp.h"
 
 #define DEFAULT_XDP_ACTION XDP_PASS
 

@@ -17,8 +17,8 @@
 
 #pragma once
 
-#include <bpf/bpf_helpers.h>
 #include <linux/bpf.h>
+#include <bpf/bpf_helpers.h>
 
 struct upf_n6_counters
 {

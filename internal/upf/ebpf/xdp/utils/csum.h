@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <bpf/bpf_helpers.h>
 #include <linux/bpf.h>
+#include <bpf/bpf_helpers.h>
 #include <linux/types.h>
 
 static __always_inline __u16 csum_fold_helper(__u64 csum) {
@@ -34,12 +34,12 @@ static __always_inline __u64 ipv4_csum(void *data_start, __u32 data_size) {
     return csum_fold_helper(csum);
 }
 
-static __always_inline void ipv4_csum_replace(__u16 *sum, __u16 old, __u16 new)
+static __always_inline void ipv4_csum_replace(__u16 *sum, __u16 old_sum, __u16 new_sum)
 {
 	__u16 csum = ~*sum;
-	csum += ~old;
-	csum += csum < (__u16)~old;
-	csum += new;
-	csum += csum < (__u16)new;
+	csum += ~old_sum;
+	csum += csum < (__u16)~old_sum;
+	csum += new_sum;
+	csum += csum < (__u16)new_sum;
 	*sum = ~csum;
 }

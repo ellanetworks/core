@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <bpf/bpf_helpers.h>
 #include <linux/bpf.h>
+#include <bpf/bpf_helpers.h>
 #include <linux/ipv6.h>
 
 #include "xdp/utils/n6_sdf_filter.h"

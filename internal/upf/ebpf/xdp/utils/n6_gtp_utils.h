@@ -24,8 +24,10 @@
 #include <linux/udp.h>
 #include <linux/icmp.h>
 
+#include "xdp/utils/csum.h"
 #include "xdp/utils/gtpu.h"
 #include "xdp/utils/n6_packet_context.h"
+#include "xdp/utils/n6_parsers.h"
 #include "xdp/utils/trace.h"
 
 static __always_inline __u32 parse_gtp(struct n6_packet_context *ctx)

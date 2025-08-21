@@ -7,51 +7,66 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"structs"
 
 	"github.com/cilium/ebpf"
 )
 
 type N6EntrypointFarInfo struct {
+	_                     structs.HostLayout
 	Action                uint8
 	OuterHeaderCreation   uint8
 	_                     [2]byte
-	TeID                  uint32
+	Teid                  uint32
 	Remoteip              uint32
 	Localip               uint32
 	TransportLevelMarking uint16
 	_                     [2]byte
 }
 
-type N6EntrypointIn6Addr struct{ In6U struct{ U6Addr8 [16]uint8 } }
+type N6EntrypointIn6Addr struct {
+	_    structs.HostLayout
+	In6U struct {
+		_       structs.HostLayout
+		U6Addr8 [16]uint8
+	}
+}
 
 type N6EntrypointPdrInfo struct {
+	_                  structs.HostLayout
 	FarId              uint32
 	QerId              uint32
 	OuterHeaderRemoval uint8
 	SdfMode            uint8
 	_                  [6]byte
 	SdfRules           struct {
+		_         structs.HostLayout
 		SdfFilter struct {
+			_        structs.HostLayout
 			Protocol uint8
 			_        [15]byte
 			SrcAddr  struct {
+				_    structs.HostLayout
 				Type uint8
 				_    [15]byte
 				Ip   [16]byte /* uint128 */
 				Mask [16]byte /* uint128 */
 			}
 			SrcPort struct {
+				_          structs.HostLayout
 				LowerBound uint16
 				UpperBound uint16
 			}
 			_       [12]byte
 			DstAddr struct {
+				_    structs.HostLayout
 				Type uint8
 				_    [15]byte
 				Ip   [16]byte /* uint128 */
 				Mask [16]byte /* uint128 */
 			}
 			DstPort struct {
+				_          structs.HostLayout
 				LowerBound uint16
 				UpperBound uint16
 			}
@@ -66,6 +81,7 @@ type N6EntrypointPdrInfo struct {
 }
 
 type N6EntrypointQerInfo struct {
+	_                structs.HostLayout
 	UlGateStatus     uint8
 	DlGateStatus     uint8
 	Qfi              uint8
@@ -78,6 +94,7 @@ type N6EntrypointQerInfo struct {
 }
 
 type N6EntrypointRouteStat struct {
+	_                     structs.HostLayout
 	FibLookupIp4Cache     uint64
 	FibLookupIp4Ok        uint64
 	FibLookupIp4ErrorDrop uint64
@@ -89,8 +106,13 @@ type N6EntrypointRouteStat struct {
 }
 
 type N6EntrypointUpfN6Statistic struct {
-	UpfN6Counters struct{ DlBytes uint64 }
-	UpfN6Counter  struct {
+	_             structs.HostLayout
+	UpfN6Counters struct {
+		_       structs.HostLayout
+		DlBytes uint64
+	}
+	UpfN6Counter struct {
+		_    structs.HostLayout
 		RxN6 uint64
 		TxN6 uint64
 	}

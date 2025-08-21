@@ -18,8 +18,8 @@ import (
 //
 // Usage: export BPF_CFLAGS="-DENABLE_LOG"
 
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3Entrypoint 	xdp/n3_bpf.c -- -I. -O2 -Wall -g
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N6Entrypoint 	xdp/n6_bpf.c -- -I. -O2 -Wall -g
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3Entrypoint xdp/n3_bpf.c -- -I. -O2 -Wall -Werror -g
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N6Entrypoint xdp/n6_bpf.c -- -I. -O2 -Wall -Werror -g
 
 type BpfObjects struct {
 	N3EntrypointObjects
