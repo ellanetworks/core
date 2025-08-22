@@ -15,3 +15,15 @@ support the `clangd` LSP. Run the following command in this directory to
 generate the files:
 
 `cmake .`
+
+Inspecting UPF state
+====================
+
+Maps used to drive the XDP code are pinned in the `sysfs` filesystem
+under `/sys/fs/bpf/upf_pipeline/`. They can be inspected with `bpftool`.
+
+For example, it is possible to list all the uplink PDRs with the following
+command:
+
+
+`sudo bpftool map dump pinned /sys/fs/bpf/upf_pipeline/pdrs_uplink`

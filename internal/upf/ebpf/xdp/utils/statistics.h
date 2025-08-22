@@ -37,10 +37,3 @@ struct upf_statistic {
 	struct counters upf_counter;
 	__u64 xdp_actions[EUPF_MAX_XDP_ACTION];
 };
-
-struct {
-	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-	__type(key, __u32);
-	__type(value, struct upf_statistic);
-	__uint(max_entries, 1);
-} upf_stat SEC(".maps");

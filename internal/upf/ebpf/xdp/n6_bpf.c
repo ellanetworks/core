@@ -26,6 +26,7 @@
 #include <linux/udp.h>
 #include <sys/socket.h>
 
+#include "xdp/n6_bpf.h"
 #include "xdp/utils/statistics.h"
 #include "xdp/utils/qer.h"
 #include "xdp/utils/pdr.h"
@@ -54,7 +55,13 @@ send_to_gtp_tunnel(struct packet_context *ctx, int srcip, int dstip, __u8 tos,
 	upf_printk("upf: send gtp pdu %pI4 -> %pI4", &ctx->ip4->saddr,
 		   &ctx->ip4->daddr);
 	increment_counter(ctx->counter, tx);
-	return route_ipv4(ctx->xdp_ctx, ctx->eth, ctx->ip4);
+
+	const __u32 key = 0;
+	struct route_stat *route_statistic =
+		bpf_map_lookup_elem(&downlink_route_stats, &key);
+	if (!route_statistic)
+		return XDP_ABORTED;
+	return route_ipv4(ctx->xdp_ctx, ctx->eth, ctx->ip4, route_statistic);
 }
 
 /*
@@ -65,7 +72,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
 	const struct iphdr *ip4 = ctx->ip4;
 	struct pdr_info *pdr =
-		bpf_map_lookup_elem(&pdr_map_downlink_ip4, &ip4->daddr);
+		bpf_map_lookup_elem(&pdrs_downlink_ip4, &ip4->daddr);
 	if (!pdr) {
 		upf_printk("upf: no downlink session for ip:%pI4", &ip4->daddr);
 		return DEFAULT_XDP_ACTION;
@@ -122,8 +129,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 
 	/* Update downlink traffic counter */
 	{
-		struct upf_statistic *statistic =
-			bpf_map_lookup_elem(&upf_stat, &(__u32){ 0 });
+		struct upf_statistic *statistic = bpf_map_lookup_elem(
+			&downlink_statistics, &(__u32){ 0 });
 		if (statistic) {
 			__u64 packet_size =
 				ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
@@ -143,7 +150,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 {
 	const struct ipv6hdr *ip6 = ctx->ip6;
 	struct pdr_info *pdr =
-		bpf_map_lookup_elem(&pdr_map_downlink_ip6, &ip6->daddr);
+		bpf_map_lookup_elem(&pdrs_downlink_ip6, &ip6->daddr);
 	if (!pdr) {
 		upf_printk("upf: no downlink session for ip:%pI6c",
 			   &ip6->daddr);
@@ -267,11 +274,13 @@ SEC("xdp/upf_n6_entrypoint")
 int upf_n6_entrypoint_func(struct xdp_md *ctx)
 {
 	const __u32 key = 0;
-	struct upf_statistic *statistic = bpf_map_lookup_elem(&upf_stat, &key);
+	struct upf_statistic *statistic =
+		bpf_map_lookup_elem(&downlink_statistics, &key);
 	if (!statistic) {
 		const struct upf_statistic initval = {};
-		bpf_map_update_elem(&upf_stat, &key, &initval, BPF_ANY);
-		statistic = bpf_map_lookup_elem(&upf_stat, &key);
+		bpf_map_update_elem(&downlink_statistics, &key, &initval,
+				    BPF_ANY);
+		statistic = bpf_map_lookup_elem(&downlink_statistics, &key);
 		if (!statistic)
 			return XDP_ABORTED;
 	}
