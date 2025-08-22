@@ -26,6 +26,7 @@
 #include <linux/udp.h>
 #include <sys/socket.h>
 
+#include "xdp/n3_bpf.h"
 #include "xdp/utils/statistics.h"
 #include "xdp/utils/qer.h"
 #include "xdp/utils/pdr.h"
@@ -48,7 +49,7 @@ handle_gtp_packet(struct packet_context *ctx)
 
 	__u32 teid = bpf_htonl(ctx->gtp->teid);
 	/* Lookup uplink session using the TEID */
-	struct pdr_info *pdr = bpf_map_lookup_elem(&pdr_map_uplink_ip4, &teid);
+	struct pdr_info *pdr = bpf_map_lookup_elem(&pdrs_uplink, &teid);
 	if (!pdr) {
 		upf_printk("upf: no session for teid:%d", teid);
 		return DEFAULT_XDP_ACTION;
@@ -182,7 +183,7 @@ handle_gtp_packet(struct packet_context *ctx)
 	/* Account uplink traffic */
 	{
 		struct upf_statistic *statistic =
-			bpf_map_lookup_elem(&upf_stat, &(__u32){ 0 });
+			bpf_map_lookup_elem(&uplink_statistics, &(__u32){ 0 });
 		if (statistic) {
 			__u64 packet_size =
 				ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
@@ -190,10 +191,18 @@ handle_gtp_packet(struct packet_context *ctx)
 		}
 	}
 
+	const __u32 key = 0;
+	struct route_stat *route_statistic =
+		bpf_map_lookup_elem(&uplink_route_stats, &key);
+	if (!route_statistic)
+		return XDP_ABORTED;
+
 	if (ctx->ip4)
-		return route_ipv4(ctx->xdp_ctx, ctx->eth, ctx->ip4);
+		return route_ipv4(ctx->xdp_ctx, ctx->eth, ctx->ip4,
+				  route_statistic);
 	else if (ctx->ip6)
-		return route_ipv6(ctx->xdp_ctx, ctx->eth, ctx->ip6);
+		return route_ipv6(ctx->xdp_ctx, ctx->eth, ctx->ip6,
+				  route_statistic);
 	else
 		return XDP_ABORTED;
 }
@@ -255,11 +264,13 @@ SEC("xdp/upf_n3_entrypoint")
 int upf_n3_entrypoint_func(struct xdp_md *ctx)
 {
 	const __u32 key = 0;
-	struct upf_statistic *statistic = bpf_map_lookup_elem(&upf_stat, &key);
+	struct upf_statistic *statistic =
+		bpf_map_lookup_elem(&uplink_statistics, &key);
 	if (!statistic) {
 		const struct upf_statistic initval = {};
-		bpf_map_update_elem(&upf_stat, &key, &initval, BPF_ANY);
-		statistic = bpf_map_lookup_elem(&upf_stat, &key);
+		bpf_map_update_elem(&uplink_statistics, &key, &initval,
+				    BPF_ANY);
+		statistic = bpf_map_lookup_elem(&uplink_statistics, &key);
 		if (!statistic)
 			return XDP_ABORTED;
 	}

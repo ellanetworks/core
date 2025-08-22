@@ -59,10 +59,29 @@ func (bpfObjects *BpfObjects) Load() error {
 }
 
 func (bpfObjects *BpfObjects) Close() error {
+	bpfObjects.unpinMaps()
 	return CloseAllObjects(
 		&bpfObjects.N3EntrypointObjects,
 		&bpfObjects.N6EntrypointObjects,
 	)
+}
+
+func (bpfObjects *BpfObjects) unpinMaps() {
+	if err := bpfObjects.N3EntrypointMaps.UplinkRouteStats.Unpin(); err != nil {
+		logger.UpfLog.Warn("failed to unpin uplink_route_stats map, state could be left behind: %v", zap.Error(err))
+	}
+	if err := bpfObjects.N3EntrypointMaps.PdrsUplink.Unpin(); err != nil {
+		logger.UpfLog.Warn("failed to unpin pdrs_uplink map, state could be left behind: %v", zap.Error(err))
+	}
+	if err := bpfObjects.N6EntrypointMaps.DownlinkRouteStats.Unpin(); err != nil {
+		logger.UpfLog.Warn("failed to unpin downlink_route_stats map, state could be left behind: %v", zap.Error(err))
+	}
+	if err := bpfObjects.N6EntrypointMaps.PdrsDownlinkIp4.Unpin(); err != nil {
+		logger.UpfLog.Warn("failed to unpin pdrs_downlink_ip4 map, state could be left behind: %v", zap.Error(err))
+	}
+	if err := bpfObjects.N6EntrypointMaps.PdrsDownlinkIp6.Unpin(); err != nil {
+		logger.UpfLog.Warn("failed to unpin pdrs_downlink_ip6 map, state could be left behind: %v", zap.Error(err))
+	}
 }
 
 type (

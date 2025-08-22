@@ -59,30 +59,6 @@ struct pdr_info {
 	struct sdf_rules sdf_rules;
 };
 
-/* ipv4 -> PDR */
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, __u32);
-	__type(value, struct pdr_info);
-	__uint(max_entries, PDR_MAP_DOWNLINK_IPV4_SIZE);
-} pdr_map_downlink_ip4 SEC(".maps");
-
-/* ipv6 -> PDR */
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, struct in6_addr);
-	__type(value, struct pdr_info);
-	__uint(max_entries, PDR_MAP_DOWNLINK_IPV6_SIZE);
-} pdr_map_downlink_ip6 SEC(".maps");
-
-/* teid -> PDR */
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, __u32);
-	__type(value, struct pdr_info);
-	__uint(max_entries, PDR_MAP_UPLINK_SIZE);
-} pdr_map_uplink_ip4 SEC(".maps");
-
 enum far_action_mask {
 	FAR_DROP = 0x01,
 	FAR_FORW = 0x02,

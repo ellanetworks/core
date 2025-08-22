@@ -63,13 +63,13 @@ func (bpfObjects *BpfObjects) PutPdrUplink(teid uint32, pdrInfo PdrInfo) error {
 	var pdrToStore N3EntrypointPdrInfo
 	var err error
 	if pdrInfo.SdfFilter != nil {
-		if pdrToStore, err = PreprocessN3PdrWithSdf(bpfObjects.N3EntrypointMaps.PdrMapUplinkIp4.Lookup, teid, pdrInfo); err != nil {
+		if pdrToStore, err = PreprocessN3PdrWithSdf(bpfObjects.N3EntrypointMaps.PdrsUplink.Lookup, teid, pdrInfo); err != nil {
 			return err
 		}
 	} else {
 		pdrToStore = ToN3EntrypointPdrInfo(pdrInfo)
 	}
-	return bpfObjects.N3EntrypointMaps.PdrMapUplinkIp4.Put(teid, unsafe.Pointer(&pdrToStore))
+	return bpfObjects.N3EntrypointMaps.PdrsUplink.Put(teid, unsafe.Pointer(&pdrToStore))
 }
 
 func (bpfObjects *BpfObjects) PutPdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) error {
@@ -77,23 +77,23 @@ func (bpfObjects *BpfObjects) PutPdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) error
 	var pdrToStore N6EntrypointPdrInfo
 	var err error
 	if pdrInfo.SdfFilter != nil {
-		if pdrToStore, err = PreprocessN6PdrWithSdf(bpfObjects.N6EntrypointMaps.PdrMapDownlinkIp4.Lookup, ipv4, pdrInfo); err != nil {
+		if pdrToStore, err = PreprocessN6PdrWithSdf(bpfObjects.N6EntrypointMaps.PdrsDownlinkIp4.Lookup, ipv4, pdrInfo); err != nil {
 			return err
 		}
 	} else {
 		pdrToStore = ToN6EntrypointPdrInfo(pdrInfo)
 	}
-	return bpfObjects.N6EntrypointMaps.PdrMapDownlinkIp4.Put(ipv4, unsafe.Pointer(&pdrToStore))
+	return bpfObjects.N6EntrypointMaps.PdrsDownlinkIp4.Put(ipv4, unsafe.Pointer(&pdrToStore))
 }
 
 func (bpfObjects *BpfObjects) DeletePdrUplink(teid uint32) error {
 	logger.UpfLog.Debug("Delete PDR Uplink", zap.Uint32("teid", teid))
-	return bpfObjects.N3EntrypointMaps.PdrMapUplinkIp4.Delete(teid)
+	return bpfObjects.N3EntrypointMaps.PdrsUplink.Delete(teid)
 }
 
 func (bpfObjects *BpfObjects) DeletePdrDownlink(ipv4 net.IP) error {
 	logger.UpfLog.Debug("Delete PDR Downlink", zap.String("ipv4", ipv4.String()))
-	return bpfObjects.N6EntrypointMaps.PdrMapDownlinkIp4.Delete(ipv4)
+	return bpfObjects.N6EntrypointMaps.PdrsDownlinkIp4.Delete(ipv4)
 }
 
 func (bpfObjects *BpfObjects) PutDownlinkPdrIP6(ipv6 net.IP, pdrInfo PdrInfo) error {
@@ -101,18 +101,18 @@ func (bpfObjects *BpfObjects) PutDownlinkPdrIP6(ipv6 net.IP, pdrInfo PdrInfo) er
 	var pdrToStore N6EntrypointPdrInfo
 	var err error
 	if pdrInfo.SdfFilter != nil {
-		if pdrToStore, err = PreprocessN6PdrWithSdf(bpfObjects.N6EntrypointMaps.PdrMapDownlinkIp6.Lookup, ipv6, pdrInfo); err != nil {
+		if pdrToStore, err = PreprocessN6PdrWithSdf(bpfObjects.N6EntrypointMaps.PdrsDownlinkIp6.Lookup, ipv6, pdrInfo); err != nil {
 			return err
 		}
 	} else {
 		pdrToStore = ToN6EntrypointPdrInfo(pdrInfo)
 	}
-	return bpfObjects.N6EntrypointMaps.PdrMapDownlinkIp6.Put(ipv6, unsafe.Pointer(&pdrToStore))
+	return bpfObjects.N6EntrypointMaps.PdrsDownlinkIp6.Put(ipv6, unsafe.Pointer(&pdrToStore))
 }
 
 func (bpfObjects *BpfObjects) DeleteDownlinkPdrIP6(ipv6 net.IP) error {
 	logger.UpfLog.Debug("Delete PDR Ipv6 Downlink", zap.String("ipv6", ipv6.String()))
-	return bpfObjects.N6EntrypointMaps.PdrMapDownlinkIp6.Delete(ipv6)
+	return bpfObjects.N6EntrypointMaps.PdrsDownlinkIp6.Delete(ipv6)
 }
 
 type FarInfo struct {
