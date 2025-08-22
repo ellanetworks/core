@@ -109,6 +109,9 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 			smfSessions := smfContext.PDUSessionsByIMSI(dbSubscriber.Imsi)
 
 			for _, session := range smfSessions {
+				if session.PDUAddress == nil {
+					continue
+				}
 				subscriberSessions = append(subscriberSessions, SubscriberSession{
 					IPAddress: session.PDUAddress.IP.String(),
 				})
@@ -158,6 +161,9 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 		smfSessions := smfContext.PDUSessionsByIMSI(dbSubscriber.Imsi)
 
 		for _, session := range smfSessions {
+			if session.PDUAddress == nil {
+				continue
+			}
 			subscriberSessions = append(subscriberSessions, SubscriberSession{
 				IPAddress: session.PDUAddress.IP.String(),
 			})
