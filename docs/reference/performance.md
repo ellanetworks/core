@@ -6,7 +6,7 @@ description: Reference for performance results - data plane throughput and laten
 
 This reference document contains performance test results of Ella Core, covering data plane throughput and latency as well as PDU session support.
 
-## Data Plane
+## Results
 
 ### Throughput
 
@@ -14,19 +14,19 @@ The following table outlines the performance test results of Ella Core's data pl
 
 | Uplink (Gbps) | Downlink (Gbps) |
 | ------------- | --------------- |
-| 3.05          | 1.31            |
+| 5.47          | 1.77            |
 
-### Latency
+### Latency (Round-trip)
 
 The following table outlines the performance test results of Ella Core's data plane latency:
 
-| Average (ms) | Best (ms) | Worst (ms) | Standard Deviation (ms) |
+| Average (ms) | Best (ms) | Worst (ms) | Mean Deviation (ms) |
 | ------------ | --------- | ---------- | ----------------------- |
-| 1.702        | 0.903     | 2.338      | 0.269                   |
+| 1.401        | 1.049     | 1.512      | 0.082                   |
 
-The value represents the round-trip-response times from the UE to the router and back.
+The value represents the round-trip-response times from the UE to the server and back.
 
-## PDU Session Support
+### PDU Session Support
 
 Ella Core can stand up **500 PDU sessions**, the maximum UERANSIM supports.
 
@@ -34,20 +34,20 @@ Further testing is required to determine the maximum number of PDU sessions Ella
 
 ## Methodology
 
-### Environment
+We performed performance tests with Ella Core running on a baremetal system with the following specifications:
 
-We performed performance tests on a system with the following specifications:
+- **System**: Protectli Vault Pro VP6670
+- **OS**: Ubuntu 22.04 LTS
+- **CPU**: 12th Gen Intel(R) Core(TM) i7-1255U
+- **RAM**: 16GB
+- **Disk**: 256GB NVMe SSD
 
-- **CPU**: Intel(R) Core(TM) Ultra 7 265K
-- **RAM**: 64GB
-- **Disk**: 1TB NVMe SSD
+<figure markdown="span">
+  ![Connectivity](../images/performance_setup.svg){ width="800" }
+  <figcaption>Performance Testing Environment</figcaption>
+</figure>
 
-We used the same virtualized environment outlined in the [Running an End-to-End 5G Network with Ella Core](../tutorials/end_to_end_network.md) tutorial, with the iPerf3 server running on the router virtual machine, and the iPerf3 client running on the radio virtual machine. We used [Ella Core Tester](https://github.com/ellanetworks/core-tester) as the UE and gNB simulator.
-
-!!! note
-    We performed the performance tests in a virtualized environment. The results will likely improve in a bare-metal environment.
-
-#### Throughput testing
+### Throughput testing
 
 We performed the throughput tests using [iPerf3](https://iperf.fr/).
 
@@ -59,9 +59,9 @@ Test parameters:
 - **Streams**: 1
 - **MTU (upstream)**: 1424 bytes
 - **MTU (downstream)**: 1416 bytes
-- **Runs (average over)**: 5 
+- **Runs (average over)**: 5
 
-#### Latency testing
+### Latency testing
 
 We performed latency tests using ping.
 
