@@ -178,6 +178,7 @@ type N6EntrypointMapSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N6EntrypointVariableSpecs struct {
+	Masquerade *ebpf.VariableSpec `ebpf:"masquerade"`
 }
 
 // N6EntrypointObjects contains all objects after they have been loaded into the kernel.
@@ -223,6 +224,7 @@ func (m *N6EntrypointMaps) Close() error {
 //
 // It can be passed to LoadN6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N6EntrypointVariables struct {
+	Masquerade *ebpf.Variable `ebpf:"masquerade"`
 }
 
 // N6EntrypointPrograms contains all programs after they have been loaded into the kernel.
