@@ -31,12 +31,12 @@ type UPF struct {
 	n6Link     link.Link
 }
 
-func Start(ctx context.Context, n3Address string, n3Interface string, n6Interface string, xdpAttachMode string) (*UPF, error) {
+func Start(ctx context.Context, n3Address string, n3Interface string, n6Interface string, xdpAttachMode string, masquerade bool) (*UPF, error) {
 	if err := ebpf.IncreaseResourceLimits(); err != nil {
 		logger.UpfLog.Fatal("Can't increase resource limits", zap.Error(err))
 	}
 
-	bpfObjects := ebpf.NewBpfObjects(FarMapSize, QerMapSize)
+	bpfObjects := ebpf.NewBpfObjects(FarMapSize, QerMapSize, masquerade)
 	if err := bpfObjects.Load(); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
 		return nil, err

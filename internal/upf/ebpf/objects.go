@@ -27,12 +27,14 @@ type BpfObjects struct {
 
 	FarIDTracker *IDTracker
 	QerIDTracker *IDTracker
+	Masquerade   bool
 }
 
-func NewBpfObjects(farMapSize uint32, qerMapSize uint32) *BpfObjects {
+func NewBpfObjects(farMapSize uint32, qerMapSize uint32, masquerade bool) *BpfObjects {
 	return &BpfObjects{
 		FarIDTracker: NewIDTracker(farMapSize),
 		QerIDTracker: NewIDTracker(qerMapSize),
+		Masquerade:   masquerade,
 	}
 }
 
@@ -53,9 +55,39 @@ func (bpfObjects *BpfObjects) Load() error {
 		},
 	}
 
-	return LoadAllObjects(&collectionOptions,
-		Loader{LoadN3EntrypointObjects, &bpfObjects.N3EntrypointObjects},
-		Loader{LoadN6EntrypointObjects, &bpfObjects.N6EntrypointObjects})
+	n3Spec, err := LoadN3Entrypoint()
+	if err != nil {
+		logger.UpfLog.Error("failed to load N3 spec", zap.Error(err))
+		return err
+	}
+	if err := bpfObjects.loadAndAssignFromSpec(n3Spec, &bpfObjects.N3EntrypointObjects, &collectionOptions); err != nil {
+		logger.UpfLog.Error("failed to load N3 program", zap.Error(err))
+		return err
+	}
+
+	n6Spec, err := LoadN6Entrypoint()
+	if err != nil {
+		logger.UpfLog.Error("failed to load N6 spec", zap.Error(err))
+		return err
+	}
+	if err := bpfObjects.loadAndAssignFromSpec(n6Spec, &bpfObjects.N6EntrypointObjects, &collectionOptions); err != nil {
+		logger.UpfLog.Error("failed to load N6 program", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
+func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, to any, opts *ebpf.CollectionOptions) error {
+	if err := spec.Variables["masquerade"].Set(bpfObjects.Masquerade); err != nil {
+		logger.UpfLog.Error("failed to set masquerade value", zap.Error(err))
+		return err
+	}
+	if err := spec.LoadAndAssign(to, opts); err != nil {
+		logger.UpfLog.Error("failed to load eBPF program", zap.Error(err))
+		return err
+	}
+	return nil
 }
 
 func (bpfObjects *BpfObjects) Close() error {
@@ -82,23 +114,6 @@ func (bpfObjects *BpfObjects) unpinMaps() {
 	if err := bpfObjects.N6EntrypointMaps.PdrsDownlinkIp6.Unpin(); err != nil {
 		logger.UpfLog.Warn("failed to unpin pdrs_downlink_ip6 map, state could be left behind: %v", zap.Error(err))
 	}
-}
-
-type (
-	LoaderFunc func(obj interface{}, opts *ebpf.CollectionOptions) error
-	Loader     struct {
-		LoaderFunc
-		object interface{}
-	}
-)
-
-func LoadAllObjects(opts *ebpf.CollectionOptions, loaders ...Loader) error {
-	for _, loader := range loaders {
-		if err := loader.LoaderFunc(loader.object, opts); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func CloseAllObjects(closers ...io.Closer) error {
