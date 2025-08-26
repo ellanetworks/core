@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - uses: canonical/craft-actions/rockcraft-pack@91513c1bae43bc871c85ea2fdf2ac7eed91034f9 # main
         id: rockcraft
