@@ -24,6 +24,12 @@ type N3EntrypointFarInfo struct {
 	_                     [2]byte
 }
 
+type N3EntrypointNatEntry struct {
+	_         structs.HostLayout
+	Src       N3EntrypointThreeTuple
+	RefreshTs uint64
+}
+
 type N3EntrypointPdrInfo struct {
 	_                  structs.HostLayout
 	FarId              uint32
@@ -95,6 +101,13 @@ type N3EntrypointRouteStat struct {
 	FibLookupIp6ErrorPass uint64
 }
 
+type N3EntrypointThreeTuple struct {
+	_     structs.HostLayout
+	Addr  uint32
+	Port  uint16
+	Proto uint16
+}
+
 type N3EntrypointUpfStatistic struct {
 	_           structs.HostLayout
 	UpfCounters struct {
@@ -159,6 +172,7 @@ type N3EntrypointProgramSpecs struct {
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3EntrypointMapSpecs struct {
 	FarMap           *ebpf.MapSpec `ebpf:"far_map"`
+	NatCt            *ebpf.MapSpec `ebpf:"nat_ct"`
 	PdrsUplink       *ebpf.MapSpec `ebpf:"pdrs_uplink"`
 	QerMap           *ebpf.MapSpec `ebpf:"qer_map"`
 	UplinkRouteStats *ebpf.MapSpec `ebpf:"uplink_route_stats"`
@@ -193,6 +207,7 @@ func (o *N3EntrypointObjects) Close() error {
 // It can be passed to LoadN3EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3EntrypointMaps struct {
 	FarMap           *ebpf.Map `ebpf:"far_map"`
+	NatCt            *ebpf.Map `ebpf:"nat_ct"`
 	PdrsUplink       *ebpf.Map `ebpf:"pdrs_uplink"`
 	QerMap           *ebpf.Map `ebpf:"qer_map"`
 	UplinkRouteStats *ebpf.Map `ebpf:"uplink_route_stats"`
@@ -202,6 +217,7 @@ type N3EntrypointMaps struct {
 func (m *N3EntrypointMaps) Close() error {
 	return _N3EntrypointClose(
 		m.FarMap,
+		m.NatCt,
 		m.PdrsUplink,
 		m.QerMap,
 		m.UplinkRouteStats,

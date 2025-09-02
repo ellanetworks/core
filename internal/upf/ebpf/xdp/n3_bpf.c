@@ -264,9 +264,6 @@ process_packet(struct packet_context *ctx)
 SEC("xdp/upf_n3_entrypoint")
 int upf_n3_entrypoint_func(struct xdp_md *ctx)
 {
-	if (masquerade) {
-		return DEFAULT_XDP_ACTION;
-	}
 	const __u32 key = 0;
 	struct upf_statistic *statistic =
 		bpf_map_lookup_elem(&uplink_statistics, &key);

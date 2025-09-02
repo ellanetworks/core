@@ -36,13 +36,13 @@ static __always_inline __u64 ipv4_csum(void *data_start, __u32 data_size)
 	return csum_fold_helper(csum);
 }
 
-static __always_inline void ipv4_csum_replace(__u16 *sum, __u16 old_sum,
-					      __u16 new_sum)
+static __always_inline void icmp_csum_replace(__u16 *sum, __u16 old_field,
+					      __u16 new_field)
 {
 	__u16 csum = ~*sum;
-	csum += ~old_sum;
-	csum += csum < (__u16)~old_sum;
-	csum += new_sum;
-	csum += csum < (__u16)new_sum;
+	csum += ~old_field;
+	csum += csum < (__u16)~old_field;
+	csum += new_field;
+	csum += csum < (__u16)new_field;
 	*sum = ~csum;
 }

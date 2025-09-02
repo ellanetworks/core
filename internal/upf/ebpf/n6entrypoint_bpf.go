@@ -32,6 +32,12 @@ type N6EntrypointIn6Addr struct {
 	}
 }
 
+type N6EntrypointNatEntry struct {
+	_         structs.HostLayout
+	Src       N6EntrypointThreeTuple
+	RefreshTs uint64
+}
+
 type N6EntrypointPdrInfo struct {
 	_                  structs.HostLayout
 	FarId              uint32
@@ -103,6 +109,13 @@ type N6EntrypointRouteStat struct {
 	FibLookupIp6ErrorPass uint64
 }
 
+type N6EntrypointThreeTuple struct {
+	_     structs.HostLayout
+	Addr  uint32
+	Port  uint16
+	Proto uint16
+}
+
 type N6EntrypointUpfStatistic struct {
 	_           structs.HostLayout
 	UpfCounters struct {
@@ -169,6 +182,7 @@ type N6EntrypointMapSpecs struct {
 	DownlinkRouteStats *ebpf.MapSpec `ebpf:"downlink_route_stats"`
 	DownlinkStatistics *ebpf.MapSpec `ebpf:"downlink_statistics"`
 	FarMap             *ebpf.MapSpec `ebpf:"far_map"`
+	NatCt              *ebpf.MapSpec `ebpf:"nat_ct"`
 	PdrsDownlinkIp4    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
 	QerMap             *ebpf.MapSpec `ebpf:"qer_map"`
@@ -204,6 +218,7 @@ type N6EntrypointMaps struct {
 	DownlinkRouteStats *ebpf.Map `ebpf:"downlink_route_stats"`
 	DownlinkStatistics *ebpf.Map `ebpf:"downlink_statistics"`
 	FarMap             *ebpf.Map `ebpf:"far_map"`
+	NatCt              *ebpf.Map `ebpf:"nat_ct"`
 	PdrsDownlinkIp4    *ebpf.Map `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
 	QerMap             *ebpf.Map `ebpf:"qer_map"`
@@ -214,6 +229,7 @@ func (m *N6EntrypointMaps) Close() error {
 		m.DownlinkRouteStats,
 		m.DownlinkStatistics,
 		m.FarMap,
+		m.NatCt,
 		m.PdrsDownlinkIp4,
 		m.PdrsDownlinkIp6,
 		m.QerMap,
