@@ -6,23 +6,27 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
+	bpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"go.uber.org/zap"
+	"golang.org/x/sys/unix"
 )
 
 const (
-	PfcpAddress = "0.0.0.0"
-	SmfAddress  = "0.0.0.0"
-	SmfNodeID   = "0.0.0.0"
-	PfcpNodeID  = "0.0.0.0"
-	QerMapSize  = 1024
-	FarMapSize  = 1024
-	FTEIDPool   = 65535
+	PfcpAddress      = "0.0.0.0"
+	SmfAddress       = "0.0.0.0"
+	SmfNodeID        = "0.0.0.0"
+	PfcpNodeID       = "0.0.0.0"
+	QerMapSize       = 1024
+	FarMapSize       = 1024
+	FTEIDPool        = 65535
+	ConnTrackTimeout = 10 * time.Minute
 )
 
 type UPF struct {
@@ -94,6 +98,10 @@ func Start(ctx context.Context, n3Address string, n3Interface string, n6Interfac
 		n6Link:     n6Link,
 	}
 
+	if masquerade {
+		go upf.collectCollectionTrackingGarbage(ctx)
+	}
+
 	return upf, nil
 }
 
@@ -120,5 +128,47 @@ func StringToXDPAttachMode(Mode string) link.XDPAttachFlags {
 		return link.XDPOffloadMode
 	default:
 		return link.XDPGenericMode
+	}
+}
+
+func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
+	var (
+		key     ebpf.N3EntrypointFiveTuple
+		value   ebpf.N3EntrypointNatEntry
+		sysInfo unix.Sysinfo_t
+	)
+	expiredKeys := make([]ebpf.N3EntrypointFiveTuple, 0)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(1 * time.Minute):
+		}
+
+		err := unix.Sysinfo(&sysInfo)
+		if err != nil {
+			logger.UpfLog.Warn("Failed to query sysinfo", zap.Error(err))
+			return
+		}
+		nsSinceBoot := sysInfo.Uptime * time.Second.Nanoseconds()
+		expiryThreshold := nsSinceBoot - ConnTrackTimeout.Nanoseconds()
+
+		ct_entries := u.bpfObjects.N3EntrypointMaps.NatCt.Iterate()
+		for ct_entries.Next(&key, &value) {
+			if value.RefreshTs < uint64(expiryThreshold) {
+				expiredKeys = append(expiredKeys, key)
+			}
+		}
+		if err := ct_entries.Err(); err != nil {
+			logger.UpfLog.Debug("Error while iterating over conntrack entries", zap.Error(err))
+		}
+
+		count, err := u.bpfObjects.N3EntrypointMaps.NatCt.BatchDelete(expiredKeys, &bpf.BatchOptions{})
+		if err != nil {
+			logger.UpfLog.Warn("Failed to delete expired conntrack entries", zap.Error(err))
+		}
+		logger.UpfLog.Sugar().Debugf("Deleted %d expired conntrack entries", count)
+		expiredKeys = expiredKeys[:0]
 	}
 }

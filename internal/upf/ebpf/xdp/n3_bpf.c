@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#define N3
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
@@ -199,8 +200,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		return XDP_ABORTED;
 
 	if (ctx->ip4)
-		return route_ipv4(ctx->xdp_ctx, ctx->eth, ctx->ip4,
-				  route_statistic);
+		return route_ipv4(ctx, route_statistic);
 	else if (ctx->ip6)
 		return route_ipv6(ctx->xdp_ctx, ctx->eth, ctx->ip6,
 				  route_statistic);
@@ -264,9 +264,6 @@ process_packet(struct packet_context *ctx)
 SEC("xdp/upf_n3_entrypoint")
 int upf_n3_entrypoint_func(struct xdp_md *ctx)
 {
-	if (masquerade) {
-		return DEFAULT_XDP_ACTION;
-	}
 	const __u32 key = 0;
 	struct upf_statistic *statistic =
 		bpf_map_lookup_elem(&uplink_statistics, &key);
