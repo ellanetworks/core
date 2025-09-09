@@ -16,7 +16,7 @@ require (
 	github.com/omec-project/aper v1.3.1
 	github.com/omec-project/nas v1.6.1
 	github.com/omec-project/ngap v1.5.0
-	github.com/prometheus/client_golang v1.23.0
+	github.com/prometheus/client_golang v1.23.2
 	github.com/vishvananda/netlink v1.3.1
 	github.com/wmnsk/go-pfcp v0.0.24
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0
@@ -26,7 +26,7 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.41.0
 	golang.org/x/net v0.43.0
-	golang.org/x/sys v0.35.0
+	golang.org/x/sys v0.36.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -34,6 +34,7 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/mdlayher/netlink v1.7.3-0.20250113171957-fbb4dce95f42 // indirect
 	github.com/mdlayher/socket v0.5.0 // indirect
+	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 )
 
@@ -54,7 +55,7 @@ require (
 	github.com/omec-project/util v1.5.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.65.0 // indirect
+	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
