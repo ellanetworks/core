@@ -13,9 +13,8 @@ require (
 	github.com/google/nftables v0.3.0
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.32
-	github.com/omec-project/aper v1.3.1
 	github.com/omec-project/nas v1.6.1
-	github.com/omec-project/ngap v1.5.0
+	github.com/omec-project/ngap v1.6.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/vishvananda/netlink v1.3.1
 	github.com/wmnsk/go-pfcp v0.0.24
