@@ -49,6 +49,28 @@ import Footer from "@/components/Footer";
 
 const drawerWidth = 250;
 
+const drawerSelectedSx = {
+  // remove the filled background
+  "&.Mui-selected": { bgcolor: "transparent" },
+  "&.Mui-selected:hover": { bgcolor: "transparent" },
+
+  // make the label look like the navbar: bold + underline
+  "&.Mui-selected .MuiListItemText-primary": {
+    fontWeight: 700,
+    textDecoration: "underline",
+    textDecorationColor: "primary.main",
+    textUnderlineOffset: "4px",
+    textDecorationThickness: "2px",
+  },
+
+  // optional: on hover, show the underline even when not selected
+  "&:hover .MuiListItemText-primary": {
+    textDecorationColor: "primary.main",
+    textUnderlineOffset: "4px",
+  },
+};
+
+
 export default function DrawerLayout({
   children,
 }: {
@@ -175,6 +197,7 @@ export default function DrawerLayout({
                 href="/dashboard"
                 selected={pathname === "/dashboard"}
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <DashboardIcon color="primary" />
@@ -189,6 +212,7 @@ export default function DrawerLayout({
                 href="/events"
                 selected={pathname === "/events"}
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <FeedIcon color="primary" />
@@ -203,6 +227,7 @@ export default function DrawerLayout({
                 href="/operator"
                 selected={pathname === "/operator"}
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <SensorsIcon color="primary" />
@@ -217,6 +242,7 @@ export default function DrawerLayout({
                 href="/radios"
                 selected={pathname === "/radios"}
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <RouterIcon color="primary" />
@@ -231,6 +257,7 @@ export default function DrawerLayout({
                 href="/data-networks"
                 selected={pathname === "/data-networks"}
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <LanIcon color="primary" />
@@ -245,6 +272,7 @@ export default function DrawerLayout({
                 href="/policies"
                 selected={pathname === "/policies"}
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <TuneIcon color="primary" />
@@ -259,6 +287,7 @@ export default function DrawerLayout({
                 href="/subscribers"
                 selected={pathname === "/subscribers"}
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <GroupsIcon color="primary" />
@@ -273,6 +302,7 @@ export default function DrawerLayout({
                 href="/routes"
                 selected={pathname === "/routes"}
                 onClick={handleNavClick}
+                sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <CableIcon color="primary" />
@@ -292,6 +322,7 @@ export default function DrawerLayout({
                     href="/users"
                     selected={pathname === "/users"}
                     onClick={handleNavClick}
+                    sx={drawerSelectedSx}
                   >
                     <ListItemIcon>
                       <AdminPanelSettingsIcon color="primary" />
@@ -306,6 +337,7 @@ export default function DrawerLayout({
                     href="/audit-logs"
                     selected={pathname === "/audit-logs"}
                     onClick={handleNavClick}
+                    sx={drawerSelectedSx}
                   >
                     <ListItemIcon>
                       <ReceiptLongIcon color="primary" />
@@ -320,6 +352,7 @@ export default function DrawerLayout({
                     href="/backup-restore"
                     selected={pathname === "/backup-restore"}
                     onClick={handleNavClick}
+                    sx={drawerSelectedSx}
                   >
                     <ListItemIcon>
                       <StorageIcon color="primary" />
