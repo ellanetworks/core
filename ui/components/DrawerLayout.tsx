@@ -33,7 +33,6 @@ import {
   AccountCircle as AccountCircleIcon,
   Person as PersonIcon,
   Storage as StorageIcon,
-  Cable as CableIcon,
   Lan as LanIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
@@ -228,14 +227,14 @@ export default function DrawerLayout({
             <ListItem disablePadding>
               <ListItemButton
                 component={Link}
-                href="/data-networks"
-                selected={pathname === "/data-networks"}
+                href="/networking"
+                selected={pathname === "/networking"}
                 onClick={handleNavClick}
               >
                 <ListItemIcon>
                   <LanIcon color="primary" />
                 </ListItemIcon>
-                <ListItemText primary="Data Networks" />
+                <ListItemText primary="Networking" />
               </ListItemButton>
             </ListItem>
 
@@ -264,20 +263,6 @@ export default function DrawerLayout({
                   <GroupsIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText primary="Subscribers" />
-              </ListItemButton>
-            </ListItem>
-
-            <ListItem disablePadding>
-              <ListItemButton
-                component={Link}
-                href="/routes"
-                selected={pathname === "/routes"}
-                onClick={handleNavClick}
-              >
-                <ListItemIcon>
-                  <CableIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText primary="Routes" />
               </ListItemButton>
             </ListItem>
 

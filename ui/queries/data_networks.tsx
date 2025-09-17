@@ -4,7 +4,7 @@ import { DataNetwork } from "@/types/types";
 export const listDataNetworks = async (
   authToken: string,
 ): Promise<DataNetwork[]> => {
-  const response = await fetch(`/api/v1/data-networks`, {
+  const response = await fetch(`/api/v1/networking/data-networks`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -52,7 +52,7 @@ export const createDataNetwork = async (
     mtu: mtu,
   };
 
-  const response = await fetch(`/api/v1/data-networks`, {
+  const response = await fetch(`/api/v1/networking/data-networks`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -92,7 +92,7 @@ export const updateDataNetwork = async (
     mtu: mtu,
   };
 
-  const response = await fetch(`/api/v1/data-networks/${name}`, {
+  const response = await fetch(`/api/v1/networking/data-networks/${name}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -119,7 +119,7 @@ export const updateDataNetwork = async (
 };
 
 export const deleteDataNetwork = async (authToken: string, name: string) => {
-  const response = await fetch(`/api/v1/data-networks/${name}`, {
+  const response = await fetch(`/api/v1/networking/data-networks/${name}`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",

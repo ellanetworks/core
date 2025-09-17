@@ -51,7 +51,7 @@ func (c *Client) CreateDataNetwork(opts *CreateDataNetworkOptions) error {
 	_, err = c.Requester.Do(context.Background(), &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
-		Path:   "api/v1/data-networks",
+		Path:   "api/v1/networking/data-networks",
 		Body:   &body,
 	})
 	if err != nil {
@@ -64,7 +64,7 @@ func (c *Client) GetDataNetwork(opts *GetDataNetworkOptions) (*DataNetwork, erro
 	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/data-networks/" + opts.Name,
+		Path:   "api/v1/networking/data-networks/" + opts.Name,
 	})
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func (c *Client) DeleteDataNetwork(opts *DeleteDataNetworkOptions) error {
 	_, err := c.Requester.Do(context.Background(), &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/data-networks/" + opts.Name,
+		Path:   "api/v1/networking/data-networks/" + opts.Name,
 	})
 	if err != nil {
 		return err
@@ -95,7 +95,7 @@ func (c *Client) ListDataNetworks() ([]*DataNetwork, error) {
 	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/data-networks",
+		Path:   "api/v1/networking/data-networks",
 	})
 	if err != nil {
 		return nil, err
