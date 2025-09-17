@@ -21,11 +21,12 @@ import {
   Tabs,
   Tab,
 } from "@mui/material";
+import { Switch, FormControlLabel } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 // Data Networks
 import { listDataNetworks, deleteDataNetwork } from "@/queries/data_networks";
@@ -36,6 +37,9 @@ import EditDataNetworkModal from "@/components/EditDataNetworkModal";
 import { listRoutes, deleteRoute } from "@/queries/routes";
 import CreateRouteModal from "@/components/CreateRouteModal";
 
+// NAT (global)
+import { getNATInfo, updateNATInfo } from "@/queries/nat";
+
 // Shared UI
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
@@ -44,7 +48,7 @@ import type { DataNetwork, Route } from "@/types/types";
 
 const MAX_WIDTH = 1400;
 
-type TabKey = "data-networks" | "routes";
+type TabKey = "data-networks" | "routes" | "nat";
 
 export default function NetworkingPage() {
   const theme = useTheme();
@@ -60,6 +64,10 @@ export default function NetworkingPage() {
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
   const [rtAlert, setRtAlert] = useState<{
+    message: string;
+    severity: "success" | "error" | null;
+  }>({ message: "", severity: null });
+  const [natAlert, setNatAlert] = useState<{
     message: string;
     severity: "success" | "error" | null;
   }>({ message: "", severity: null });
@@ -176,6 +184,44 @@ export default function NetworkingPage() {
     [],
   );
 
+  // ------------ NAT ------------
+  type NatInfo = { enabled: boolean };
+  const {
+    data: natInfo,
+    isLoading: natLoading,
+    refetch: refetchNAT,
+  } = useQuery<NatInfo>({
+    queryKey: ["nat", cookies.user_token],
+    queryFn: () => getNATInfo(cookies.user_token),
+    refetchOnWindowFocus: true,
+  });
+
+  const { mutate: setNATEnabled, isPending: natMutating } = useMutation<
+    void,
+    unknown,
+    boolean,
+    unknown
+  >({
+    mutationFn: (enabled: boolean) =>
+      updateNATInfo(cookies.user_token, enabled),
+    onSuccess: () => {
+      setNatAlert({ message: "NAT updated", severity: "success" });
+      refetchNAT();
+    },
+    onError: (error: unknown) => {
+      setNatAlert({
+        message: `Failed to update NAT: ${String(error)}`,
+        severity: "error",
+      });
+    },
+  });
+
+  const natDescription = useMemo(
+    () =>
+      "Network Address Translation (NAT) simplifies networking as it lets subscribers use private IP addresses without requiring an external router. It uses Ella Core's N6 IP as the source for outbound traffic. Enabling NAT adds processing overhead and some niche protocols won't work (e.g., FTP active mode).",
+    [],
+  );
+
   // ------------ Render ------------
   return (
     <Box
@@ -203,6 +249,7 @@ export default function NetworkingPage() {
         >
           <Tab value="data-networks" label="Data Networks" />
           <Tab value="routes" label="Routes" />
+          <Tab value="nat" label="NAT" />
         </Tabs>
       </Box>
 
@@ -458,6 +505,62 @@ export default function NetworkingPage() {
                   </TableBody>
                 </Table>
               </TableContainer>
+            </>
+          )}
+        </Box>
+      )}
+
+      {/* -------- NAT Tab -------- */}
+      {tab === "nat" && (
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: MAX_WIDTH,
+            px: { xs: 2, sm: 4 },
+            mt: 2,
+          }}
+        >
+          <Collapse in={!!natAlert.message}>
+            <Alert
+              severity={natAlert.severity || "success"}
+              onClose={() => setNatAlert({ message: "", severity: null })}
+              sx={{ mb: 2 }}
+            >
+              {natAlert.message}
+            </Alert>
+          </Collapse>
+
+          {natLoading ? (
+            <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="h5" sx={{ mb: 0.5 }}>
+                  NAT
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {natDescription}
+                </Typography>
+              </Box>
+
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={2}
+                alignItems="center"
+              >
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={!!natInfo?.enabled}
+                      onChange={(_, checked) => setNATEnabled(checked)}
+                      disabled={!canEdit || natMutating || natLoading}
+                    />
+                  }
+                  label={natInfo?.enabled ? "NAT is ON" : "NAT is OFF"}
+                />
+              </Stack>
             </>
           )}
         </Box>
