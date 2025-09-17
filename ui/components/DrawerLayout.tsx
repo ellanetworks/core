@@ -54,7 +54,7 @@ const drawerSelectedSx = {
   "&.Mui-selected": { bgcolor: "transparent" },
   "&.Mui-selected:hover": { bgcolor: "transparent" },
 
-  // make the label look like the navbar: bold + underline
+  // make the label bold + underline
   "&.Mui-selected .MuiListItemText-primary": {
     fontWeight: 700,
     textDecoration: "underline",
@@ -63,13 +63,12 @@ const drawerSelectedSx = {
     textDecorationThickness: "2px",
   },
 
-  // optional: on hover, show the underline even when not selected
+  // on hover, show the underline even when not selected
   "&:hover .MuiListItemText-primary": {
     textDecorationColor: "primary.main",
     textUnderlineOffset: "4px",
   },
 };
-
 
 export default function DrawerLayout({
   children,
