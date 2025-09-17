@@ -238,3 +238,49 @@ None
     }
 }
 ```
+
+# NAT
+
+## Get NAT Info
+
+This path returns the current NAT configuration.
+
+| Method | Path         |
+| ------ | ------------ |
+| GET    | `/api/v1/networking/nat` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "enabled": true,
+    }
+}
+```
+
+## Update NAT Info
+
+This path updates the NAT configuration.
+
+| Method | Path         |
+| ------ | ------------ |
+| PUT    | `/api/v1/networking/nat` |
+
+### Parameters
+
+- `enabled` (boolean): Enable or disable NAT.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "NAT configuration updated successfully"
+    }
+}
+```
