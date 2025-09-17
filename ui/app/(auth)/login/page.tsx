@@ -107,11 +107,15 @@ const LoginPage = () => {
         }}
       >
         <form onSubmit={handleSubmit} noValidate>
-         <Typography variant="h5" textAlign="center" gutterBottom>
+          <Typography variant="h5" textAlign="center" gutterBottom>
             Login
           </Typography>
 
-          {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
+          {error && (
+            <Alert severity="error" sx={{ mb: 1 }}>
+              {error}
+            </Alert>
+          )}
 
           <TextField
             label="Email"
