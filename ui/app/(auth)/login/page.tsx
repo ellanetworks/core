@@ -85,62 +85,70 @@ const LoginPage = () => {
   return (
     <Box
       sx={{
-        height: "100vh",
+        minHeight: "100vh",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        padding: 2,
+        p: 2,
       }}
     >
       <Box
-        component="form"
-        onSubmit={handleSubmit}
         sx={{
-          width: 300,
+          width: "100%",
+          maxWidth: 360,
           display: "flex",
           flexDirection: "column",
           gap: 2,
           border: "1px solid",
           borderColor: "divider",
           borderRadius: 2,
-          padding: 3,
+          p: 3,
           boxShadow: 2,
         }}
       >
-        <Typography variant="h5" textAlign="center">
-          Login
-        </Typography>
+        <form onSubmit={handleSubmit} noValidate>
+          <Typography variant="h5" textAlign="center" gutterBottom>
+            Login
+          </Typography>
 
-        {error && <Alert severity="error">{error}</Alert>}
+          {error && (
+            <Alert severity="error" sx={{ mb: 1 }}>
+              {error}
+            </Alert>
+          )}
 
-        <TextField
-          label="Email"
-          variant="outlined"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          fullWidth
-          required
-        />
+          <TextField
+            label="Email"
+            variant="outlined"
+            margin="normal"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            fullWidth
+            required
+          />
 
-        <TextField
-          label="Password"
-          type="password"
-          variant="outlined"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          fullWidth
-          required
-        />
+          <TextField
+            label="Password"
+            type="password"
+            variant="outlined"
+            value={password}
+            margin="normal"
+            onChange={(e) => setPassword(e.target.value)}
+            fullWidth
+            required
+          />
 
-        <Button
-          type="submit"
-          variant="contained"
-          color="success"
-          fullWidth
-          disabled={loading}
-        >
-          {loading ? <CircularProgress size={24} /> : "Login"}
-        </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            color="success"
+            fullWidth
+            sx={{ mt: 2 }}
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : "Login"}
+          </Button>
+        </form>
       </Box>
     </Box>
   );
