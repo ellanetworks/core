@@ -49,7 +49,7 @@ static __always_inline void icmp_csum_replace(__u16 *sum, __u16 old_field,
 }
 
 static __always_inline __u16 ipv4_csum_update_u32(__u16 csum, __u32 orig,
-						 __u32 new)
+						  __u32 new)
 {
 	__u32 nbo_orig = bpf_htonl(orig);
 	__u32 nbo_new = bpf_htonl(new);
@@ -67,7 +67,7 @@ static __always_inline __u16 ipv4_csum_update_u32(__u16 csum, __u32 orig,
 }
 
 static __always_inline __u16 ipv4_csum_update_u16(__u16 csum, __u16 orig,
-						   __u16 new)
+						  __u16 new)
 {
 	__u32 nbo_orig = (__u32)bpf_htons(orig);
 	__u32 nbo_new = (__u32)bpf_htons(new);

@@ -99,8 +99,8 @@ parse_icmp_packet_ref(struct five_tuple *key, struct packet_context *ctx)
 		ip4->saddr = nat_entry->src.saddr;
 		ctx->icmp->checksum = ipv4_csum_update_u32(
 			ctx->icmp->checksum, key->saddr, ip4->saddr);
-		udp->check =
-			ipv4_csum_update_u32(udp->check, key->saddr, ip4->saddr);
+		udp->check = ipv4_csum_update_u32(udp->check, key->saddr,
+						  ip4->saddr);
 		udp->source = nat_entry->src.sport;
 		if (udp->source != key->sport) {
 			udp->check = ipv4_csum_update_u16(
@@ -127,8 +127,8 @@ parse_icmp_packet_ref(struct five_tuple *key, struct packet_context *ctx)
 		ip4->saddr = nat_entry->src.saddr;
 		ctx->icmp->checksum = ipv4_csum_update_u32(
 			ctx->icmp->checksum, key->saddr, ip4->saddr);
-		tcp->check =
-			ipv4_csum_update_u32(tcp->check, key->saddr, ip4->saddr);
+		tcp->check = ipv4_csum_update_u32(tcp->check, key->saddr,
+						  ip4->saddr);
 		tcp->source = nat_entry->src.sport;
 		if (tcp->source != key->sport) {
 			tcp->check = ipv4_csum_update_u16(
@@ -176,7 +176,7 @@ static __always_inline void update_port(struct packet_context *ctx,
 		old_port = ctx->tcp->source;
 		ctx->tcp->source = new_port;
 		ctx->tcp->check = ipv4_csum_update_u16(ctx->tcp->check,
-							old_port, new_port);
+						       old_port, new_port);
 		break;
 	case IPPROTO_UDP:
 		if (!ctx->udp) {
@@ -184,8 +184,19 @@ static __always_inline void update_port(struct packet_context *ctx,
 		}
 		old_port = ctx->udp->source;
 		ctx->udp->source = new_port;
-		ctx->udp->check = ipv4_csum_update_u16(ctx->udp->check,
-							old_port, new_port);
+		if (ctx->udp->check != 0) {
+			ctx->udp->check = ipv4_csum_update_u16(
+				ctx->udp->check, old_port, new_port);
+		}
+		break;
+	case IPPROTO_ICMP:
+		if (!ctx->icmp) {
+			return;
+		}
+		old_port = ctx->icmp->un.echo.id;
+		ctx->icmp->un.echo.id = new_port;
+		ctx->icmp->checksum = ipv4_csum_update_u16(ctx->icmp->checksum,
+							   old_port, new_port);
 		break;
 	}
 }
@@ -364,9 +375,15 @@ static __always_inline void destination_nat(struct packet_context *ctx)
 		}
 
 		ctx->ip4->daddr = origin->src.saddr;
+		if (ctx->udp->check != 0) {
+			ctx->udp->check = ipv4_csum_update_u32(
+				ctx->udp->check, key.saddr, ctx->ip4->daddr);
+		}
 		ctx->udp->dest = origin->src.sport;
-		ctx->udp->check = ipv4_csum_update_u32(
-			ctx->udp->check, key.saddr, ctx->ip4->daddr);
+		if (ctx->udp->dest != key.sport && ctx->udp->check != 0) {
+			ctx->udp->check = ipv4_csum_update_u16(
+				ctx->udp->check, key.sport, ctx->udp->dest);
+		}
 		break;
 	default:
 		return;

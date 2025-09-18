@@ -168,7 +168,7 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 		if err != nil {
 			logger.UpfLog.Warn("Failed to delete expired conntrack entries", zap.Error(err))
 		}
-		logger.UpfLog.Sugar().Debugf("Deleted %d expired conntrack entries", count)
+		logger.UpfLog.Debug("Deleted expired conntrack entries", zap.Int("count", count))
 		expiredKeys = expiredKeys[:0]
 	}
 }
