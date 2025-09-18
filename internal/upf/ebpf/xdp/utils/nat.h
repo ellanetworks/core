@@ -20,7 +20,7 @@
 #define MAX_PORT_ATTEMPT 5
 
 volatile const bool masquerade;
-volatile const bool masquerade = true;
+volatile const bool masquerade = false;
 
 struct five_tuple {
 	__u32 saddr;
@@ -245,9 +245,6 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		return false;
 	}
 
-	struct nat_entry from_nat = {};
-	from_nat.src = orig;
-
 	struct five_tuple natted = {};
 	natted.saddr = fib_params->ipv4_src;
 	natted.sport = orig.sport;
@@ -255,14 +252,25 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 	natted.dport = orig.dport;
 	natted.proto = proto;
 
+	// Check if we need to also NAT the source port. This should be rare,
+	// only occuring if another UE somehow connects to the same destination
+	// using the same source port.
+	// We first check if we are already tracking this flow, and if the
+	// port needs to be changed.
+	// Otherwise, we check if the new source we plan to use is already tracked
+	// for a different flow. In that case, we try to find a free random
+	// source port.
 	struct nat_entry *tracked = bpf_map_lookup_elem(&nat_ct, &orig);
 	if (tracked && !are_five_tuple_equal(natted, tracked->src)) {
+		// This flow is known and uses port NAT, we change it here
 		natted.sport = tracked->src.sport;
 		update_port(ctx, tracked->src.sport);
 	} else {
 		struct nat_entry *existing =
 			bpf_map_lookup_elem(&nat_ct, &natted);
 		if (existing && !are_five_tuple_equal(orig, existing->src)) {
+			// The source port cannot be used as is, find a random
+			// free one.
 			for (int i = 0; i < MAX_PORT_ATTEMPT; i++) {
 				natted.sport = bpf_get_prandom_u32();
 				existing =
@@ -278,6 +286,10 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		}
 	}
 
+	// At this point, the packet is fully modified. We save
+	// the tracking information.
+	struct nat_entry from_nat = {};
+	from_nat.src = orig;
 	struct nat_entry to_nat = {};
 	to_nat.src = natted;
 	to_nat.refresh_ts = bpf_ktime_get_ns();
