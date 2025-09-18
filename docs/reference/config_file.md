@@ -4,7 +4,7 @@ description: Reference outlining configuration options.
 
 # Configuration File
 
-Ella is configured using a yaml formatted file. 
+Ella is configured using a yaml formatted file.
 
 Start Ella core with the `--config` flag to specify the path to the configuration file.
 
@@ -22,7 +22,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `path` (string): The path to the database file.
 - `interfaces` (object): The network interfaces configuration.
     - `n2` (object): The configuration for the n2 interface. This interface should be connected to the radios.
-        - `name` (string): The name of the network interface. 
+        - `name` (string): The name of the network interface.
         - `port` (int): The port to listen on.
     - `n3` (object): The configuration for the n3 interface. This interface should be connected to the radios.
         - `name` (string): The name of the network interface.
@@ -59,10 +59,10 @@ interfaces:
   n2:
     name: "ens4"
     port: 38412
-  n3: 
+  n3:
     name: "ens5"
   n6:
-    name: "ens6"
+    name: "ens3"
   api:
     name: "ens3"
     port: 5002

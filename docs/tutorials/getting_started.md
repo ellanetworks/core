@@ -36,13 +36,12 @@ Create three networks:
 ```shell
 lxc network create n2 ipv4.address=22.22.22.1/24
 lxc network create n3 ipv4.address=33.33.33.1/24
-lxc network create n6 ipv4.address=66.66.66.1/24
 ```
 
 Use Multipass to create a bare Ubuntu 24.04 instance with two additional network interfaces:
 
 ```shell
-multipass launch noble --name=ella-core --disk=10G --cpus 2 --network n2 --network n3 --network n6
+multipass launch noble --name=ella-core --disk=10G --cpus 2 --network n2 --network n3
 ```
 
 ## 2. Install Ella Core
@@ -128,5 +127,4 @@ You can also delete the networks created with LXD:
 ```shell
 lxc network delete n2
 lxc network delete n3
-lxc network delete n6
 ```
