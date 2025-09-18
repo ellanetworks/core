@@ -15,7 +15,6 @@ import {
 import Grid from "@mui/material/Grid";
 import { ContentCopy as CopyIcon, Edit as EditIcon } from "@mui/icons-material";
 import { getOperator } from "@/queries/operator";
-import { useCookies } from "react-cookie";
 import EditOperatorIdModal from "@/components/EditOperatorIdModal";
 import EditOperatorCodeModal from "@/components/EditOperatorCodeModal";
 import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
@@ -33,8 +32,7 @@ interface OperatorData {
 const MAX_WIDTH = 1400;
 
 const Operator = () => {
-  const { role } = useAuth();
-  const [cookies] = useCookies(["user_token"]);
+  const { role, accessToken, authReady } = useAuth();
 
   const [operator, setOperator] = useState<OperatorData | null>(null);
 
@@ -59,14 +57,15 @@ const Operator = () => {
   const canEdit = role === "Admin" || role === "Network Manager";
 
   const fetchOperator = useCallback(async () => {
+    if (!authReady || !accessToken) return;
     try {
-      const data = await getOperator(cookies.user_token);
+      const data = await getOperator(accessToken);
       setOperator(data);
     } catch (error) {
       console.error("Error fetching operator information:", error);
       setAlert({ message: "Failed to load operator info.", severity: "error" });
     }
-  }, [cookies.user_token]);
+  }, [accessToken, authReady]);
 
   useEffect(() => {
     fetchOperator();

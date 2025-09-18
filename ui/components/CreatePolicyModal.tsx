@@ -19,8 +19,8 @@ import * as yup from "yup";
 import { ValidationError } from "yup";
 import { createPolicy } from "@/queries/policies";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
 import { listDataNetworks } from "@/queries/data_networks";
+import { useAuth } from "@/contexts/AuthContext";
 
 type DataNetwork = {
   name: string;
@@ -61,9 +61,9 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
   onSuccess,
 }) => {
   const router = useRouter();
-  const [cookies, ,] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
+  if (!authReady || !accessToken) {
     router.push("/login");
   }
 
@@ -87,10 +87,10 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
 
   useEffect(() => {
     const fetchDataNetworks = async () => {
+      if (!accessToken) return;
       try {
-        const dataNetworkDatae: DataNetwork[] = await listDataNetworks(
-          cookies.user_token,
-        );
+        const dataNetworkDatae: DataNetwork[] =
+          await listDataNetworks(accessToken);
         setDataNetworks(dataNetworkDatae.map((policy) => policy.name));
       } catch (error) {
         console.error("Failed to fetch data networks:", error);
@@ -100,7 +100,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
     if (open) {
       fetchDataNetworks();
     }
-  }, [open, cookies.user_token]);
+  }, [open, accessToken]);
 
   const handleChange = (field: string, value: string | number) => {
     setFormValues((prev) => ({
@@ -160,13 +160,14 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
   }, [validateForm, formValues]);
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     setLoading(true);
     setAlert({ message: "" });
     try {
       const bitrateUplink = `${formValues.bitrateUpValue} ${formValues.bitrateUpUnit}`;
       const bitrateDownlink = `${formValues.bitrateDownValue} ${formValues.bitrateDownUnit}`;
       await createPolicy(
-        cookies.user_token,
+        accessToken,
         formValues.name,
         bitrateUplink,
         bitrateDownlink,

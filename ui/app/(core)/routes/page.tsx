@@ -23,15 +23,13 @@ import { listRoutes, deleteRoute } from "@/queries/routes";
 import CreateRouteModal from "@/components/CreateRouteModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import { Route } from "@/types/types";
 
 const MAX_WIDTH = 1400;
 
 const RoutePage = () => {
-  const { role } = useAuth();
-  const [cookies] = useCookies(["user_token"]);
+  const { role, accessToken, authReady } = useAuth();
   const [routes, setRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
@@ -47,16 +45,17 @@ const RoutePage = () => {
   const canEdit = role === "Admin" || role === "Network Manager";
 
   const fetchRoutes = useCallback(async () => {
+    if (!authReady || !accessToken) return;
     setLoading(true);
     try {
-      const data = await listRoutes(cookies.user_token);
+      const data = await listRoutes(accessToken);
       setRoutes(data);
     } catch (error) {
       console.error("Error fetching routes:", error);
     } finally {
       setLoading(false);
     }
-  }, [cookies.user_token]);
+  }, [accessToken, authReady]);
 
   useEffect(() => {
     fetchRoutes();
@@ -71,7 +70,7 @@ const RoutePage = () => {
 
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
-    if (!selectedRoute) return;
+    if (!selectedRoute || !accessToken) return;
 
     const idNum = Number(selectedRoute);
     if (Number.isNaN(idNum)) {
@@ -84,7 +83,7 @@ const RoutePage = () => {
     }
 
     try {
-      await deleteRoute(cookies.user_token, idNum);
+      await deleteRoute(accessToken, idNum);
       setAlert({
         message: `Route "${selectedRoute}" deleted successfully!`,
         severity: "success",

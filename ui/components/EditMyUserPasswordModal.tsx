@@ -11,7 +11,7 @@ import {
 } from "@mui/material";
 import { updateMyUserPassword } from "@/queries/users";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EditMyUserPasswordModalProps {
   open: boolean;
@@ -29,9 +29,9 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
   onSuccess,
 }) => {
   const router = useRouter();
-  const [cookies] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
+  if (!authReady || !accessToken) {
     router.push("/login");
   }
 
@@ -60,11 +60,12 @@ const EditMyUserPasswordModal: React.FC<EditMyUserPasswordModalProps> = ({
   };
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     setLoading(true);
     setAlert({ message: "" });
 
     try {
-      await updateMyUserPassword(cookies.user_token, formValues.password);
+      await updateMyUserPassword(accessToken, formValues.password);
       onClose();
       onSuccess();
     } catch (error: unknown) {

@@ -2,6 +2,7 @@ package client_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -30,9 +31,16 @@ func TestLogin_Success(t *testing.T) {
 		Password: "secret",
 	}
 
-	err := clientObj.Login(loginOpts)
+	ctx := context.Background()
+
+	err := clientObj.Login(ctx, loginOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	err = clientObj.Refresh(ctx)
+	if err != nil {
+		t.Fatalf("expected no error on refresh, got: %v", err)
 	}
 
 	token := clientObj.GetToken()
@@ -55,38 +63,15 @@ func TestLogin_RequesterError(t *testing.T) {
 		Password: "secret",
 	}
 
-	err := clientObj.Login(loginOpts)
+	ctx := context.Background()
+
+	err := clientObj.Login(ctx, loginOpts)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
 
 	if err.Error() != "requester error" {
 		t.Errorf("expected 'requester error', got: %v", err)
-	}
-}
-
-// TestLogin_DecodeError simulates a scenario where the JSON in the result cannot be decoded.
-func TestLogin_DecodeError(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 200,
-			Headers:    http.Header{},
-			// This is invalid JSON so that the DecodeResult call fails.
-			Result: []byte(`invalid json`),
-		},
-		err: nil,
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-	loginOpts := &client.LoginOptions{
-		Email:    "user@example.com",
-		Password: "secret",
-	}
-
-	err := clientObj.Login(loginOpts)
-	if err == nil {
-		t.Fatal("expected a decode error, got nil")
 	}
 }
 
@@ -110,7 +95,9 @@ func TestLogin_RequestParameters(t *testing.T) {
 		Password: password,
 	}
 
-	err := clientObj.Login(loginOpts)
+	ctx := context.Background()
+
+	err := clientObj.Login(ctx, loginOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}

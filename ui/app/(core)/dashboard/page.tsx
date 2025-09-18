@@ -22,9 +22,8 @@ import {
 import Grid from "@mui/material/Grid";
 import { PieChart } from "@mui/x-charts/PieChart";
 import Link from "next/link";
-import { useCookies } from "react-cookie";
 import { useRouter } from "next/navigation";
-
+import { useAuth } from "@/contexts/AuthContext";
 import { getStatus } from "@/queries/status";
 import { getMetrics } from "@/queries/metrics";
 import { listSubscribers } from "@/queries/subscribers";
@@ -158,7 +157,7 @@ type SubscriberLogData = {
 
 const Dashboard = () => {
   const router = useRouter();
-  const [cookies] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
   const [version, setVersion] = useState<string | null>(null);
   const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
@@ -223,13 +222,15 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    if (!authReady) return;
+    if (!accessToken) return;
     let mounted = true;
     (async () => {
       try {
         const [status, subscribers, radios] = await Promise.all([
           getStatus(),
-          listSubscribers(cookies.user_token),
-          listRadios(cookies.user_token),
+          listSubscribers(accessToken),
+          listRadios(accessToken),
         ]);
         if (!mounted) return;
 
@@ -243,7 +244,7 @@ const Dashboard = () => {
     return () => {
       mounted = false;
     };
-  }, [cookies.user_token]);
+  }, [authReady, accessToken]);
 
   useEffect(() => {
     let interval: number | undefined;
@@ -312,10 +313,12 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
+    if (!authReady) return;
+    if (!accessToken) return;
     let mounted = true;
     const fetchLogs = async () => {
       try {
-        const data = await listSubscriberLogs(cookies.user_token);
+        const data = await listSubscriberLogs(accessToken);
         if (!mounted) return;
         const rows = [...data]
           .sort((a, b) => (b.timestamp ?? "").localeCompare(a.timestamp ?? ""))
@@ -331,7 +334,7 @@ const Dashboard = () => {
     return () => {
       mounted = false;
     };
-  }, [cookies.user_token]);
+  }, [authReady, accessToken]);
 
   const ipChart = useMemo(() => {
     const alloc = allocatedIPs ?? 0;

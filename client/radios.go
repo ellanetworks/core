@@ -1,8 +1,6 @@
 package client
 
-import (
-	"context"
-)
+import "context"
 
 type GetRadioOptions struct {
 	Name string `json:"name"`
@@ -35,8 +33,8 @@ type Radio struct {
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 
-func (c *Client) GetRadio(opts *GetRadioOptions) (*Radio, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) GetRadio(ctx context.Context, opts *GetRadioOptions) (*Radio, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/radios/" + opts.Name,
@@ -54,8 +52,8 @@ func (c *Client) GetRadio(opts *GetRadioOptions) (*Radio, error) {
 	return &radioResponse, nil
 }
 
-func (c *Client) ListRadios() ([]*Radio, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) ListRadios(ctx context.Context) ([]*Radio, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/radios",

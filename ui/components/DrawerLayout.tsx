@@ -39,13 +39,13 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
-import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
 import IconButton from "@mui/material/IconButton";
 import MenuIcon from "@mui/icons-material/Menu";
 import Footer from "@/components/Footer";
+import { logout } from "@/queries/auth";
 
 const drawerWidth = 250;
 
@@ -79,13 +79,7 @@ export default function DrawerLayout({
   const router = useRouter();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-
-  const [cookies, , removeCookie] = useCookies(["user_token"]);
-  if (!cookies.user_token) {
-    router.push("/login");
-  }
-
-  const { role } = useAuth();
+  const { role, setAuthData } = useAuth();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
@@ -104,11 +98,15 @@ export default function DrawerLayout({
     router.push("/profile");
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("user_token");
-    removeCookie("user_token", { path: "/" });
+  const handleLogout = async () => {
     handleAccountClose();
-    router.push("/login");
+    try {
+      await logout();
+    } catch {
+    } finally {
+      setAuthData(null);
+      router.replace("/login");
+    }
   };
 
   return (

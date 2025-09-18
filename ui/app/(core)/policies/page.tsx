@@ -25,15 +25,13 @@ import CreatePolicyModal from "@/components/CreatePolicyModal";
 import EditPolicyModal from "@/components/EditPolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import { Policy } from "@/types/types";
 
 const MAX_WIDTH = 1400;
 
 const PolicyPage = () => {
-  const { role } = useAuth();
-  const [cookies] = useCookies(["user_token"]);
+  const { role, accessToken, authReady } = useAuth();
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
@@ -50,16 +48,17 @@ const PolicyPage = () => {
   const canEdit = role === "Admin" || role === "Network Manager";
 
   const fetchPolicies = useCallback(async () => {
+    if (!authReady || !accessToken) return;
     setLoading(true);
     try {
-      const data = await listPolicies(cookies.user_token);
+      const data = await listPolicies(accessToken);
       setPolicies(data);
     } catch (error) {
       console.error("Error fetching policies:", error);
     } finally {
       setLoading(false);
     }
-  }, [cookies.user_token]);
+  }, [accessToken, authReady]);
 
   useEffect(() => {
     fetchPolicies();
@@ -76,9 +75,9 @@ const PolicyPage = () => {
   };
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
-    if (!selectedPolicy) return;
+    if (!selectedPolicy || !authReady || !accessToken) return;
     try {
-      await deletePolicy(cookies.user_token, selectedPolicy);
+      await deletePolicy(accessToken, selectedPolicy);
       setAlert({
         message: `Policy "${selectedPolicy}" deleted successfully!`,
         severity: "success",

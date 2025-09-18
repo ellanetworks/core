@@ -40,7 +40,7 @@ type Subscriber struct {
 	Status         SubscriberStatus `json:"status"`
 }
 
-func (c *Client) CreateSubscriber(opts *CreateSubscriberOptions) error {
+func (c *Client) CreateSubscriber(ctx context.Context, opts *CreateSubscriberOptions) error {
 	payload := struct {
 		Imsi           string `json:"imsi"`
 		Key            string `json:"key"`
@@ -60,7 +60,7 @@ func (c *Client) CreateSubscriber(opts *CreateSubscriberOptions) error {
 		return err
 	}
 
-	_, err = c.Requester.Do(context.Background(), &RequestOptions{
+	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
 		Path:   "api/v1/subscribers",
@@ -72,8 +72,8 @@ func (c *Client) CreateSubscriber(opts *CreateSubscriberOptions) error {
 	return nil
 }
 
-func (c *Client) GetSubscriber(opts *GetSubscriberOptions) (*Subscriber, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) (*Subscriber, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/subscribers/" + opts.ID,
@@ -91,8 +91,8 @@ func (c *Client) GetSubscriber(opts *GetSubscriberOptions) (*Subscriber, error) 
 	return &subscriberResponse, nil
 }
 
-func (c *Client) DeleteSubscriber(opts *DeleteSubscriberOptions) error {
-	_, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) DeleteSubscriber(ctx context.Context, opts *DeleteSubscriberOptions) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
 		Path:   "api/v1/subscribers/" + opts.ID,
@@ -103,8 +103,8 @@ func (c *Client) DeleteSubscriber(opts *DeleteSubscriberOptions) error {
 	return nil
 }
 
-func (c *Client) ListSubscribers() ([]*Subscriber, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) ListSubscribers(ctx context.Context) ([]*Subscriber, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/subscribers",
