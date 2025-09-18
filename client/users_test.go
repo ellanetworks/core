@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -25,7 +26,9 @@ func TestCreateUser_Success(t *testing.T) {
 		Password: "secret",
 	}
 
-	err := clientObj.CreateUser(createUserOpts)
+	ctx := context.Background()
+
+	err := clientObj.CreateUser(ctx, createUserOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -48,7 +51,9 @@ func TestCreateUser_Failure(t *testing.T) {
 		Password: "secret",
 	}
 
-	err := clientObj.CreateUser(createUserOpts)
+	ctx := context.Background()
+
+	err := clientObj.CreateUser(ctx, createUserOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -67,10 +72,13 @@ func TestListUsers_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	users, err := clientObj.ListUsers()
+	ctx := context.Background()
+
+	users, err := clientObj.ListUsers(ctx)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
+
 	if len(users) != 2 {
 		t.Fatalf("expected 2 users, got: %d", len(users))
 	}
@@ -89,7 +97,9 @@ func TestListUsers_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	users, err := clientObj.ListUsers()
+	ctx := context.Background()
+
+	users, err := clientObj.ListUsers(ctx)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -114,7 +124,9 @@ func TestDeleteUser_Success(t *testing.T) {
 		Email: "admin@ellanetworks.com",
 	}
 
-	err := clientObj.DeleteUser(deleteUserOpts)
+	ctx := context.Background()
+
+	err := clientObj.DeleteUser(ctx, deleteUserOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -136,7 +148,9 @@ func TestDeleteUser_Failure(t *testing.T) {
 		Email: "invalid-email",
 	}
 
-	err := clientObj.DeleteUser(deleteUserOpts)
+	ctx := context.Background()
+
+	err := clientObj.DeleteUser(ctx, deleteUserOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -160,7 +174,9 @@ func TestCreateMyAPIToken_Success(t *testing.T) {
 		Expiry: "",
 	}
 
-	resp, err := clientObj.CreateMyAPIToken(createAPITokenOpts)
+	ctx := context.Background()
+
+	resp, err := clientObj.CreateMyAPIToken(ctx, createAPITokenOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -187,10 +203,13 @@ func TestCreateMyAPIToken_Failure(t *testing.T) {
 		Expiry: "",
 	}
 
-	resp, err := clientObj.CreateMyAPIToken(createAPITokenOpts)
+	ctx := context.Background()
+
+	resp, err := clientObj.CreateMyAPIToken(ctx, createAPITokenOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
+
 	if resp != nil {
 		t.Fatalf("expected no response, got: %v", resp)
 	}
@@ -209,7 +228,9 @@ func TestDeleteMyAPIToken_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	err := clientObj.DeleteMyAPIToken("my-api-token-id")
+	ctx := context.Background()
+
+	err := clientObj.DeleteMyAPIToken(ctx, "my-api-token-id")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -228,7 +249,9 @@ func TestDeleteMyAPIToken_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	err := clientObj.DeleteMyAPIToken("non-existent-token-id")
+	ctx := context.Background()
+
+	err := clientObj.DeleteMyAPIToken(ctx, "non-existent-token-id")
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -247,10 +270,13 @@ func TestListMyAPITokens_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	tokens, err := clientObj.ListMyAPITokens()
+	ctx := context.Background()
+
+	tokens, err := clientObj.ListMyAPITokens(ctx)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
+
 	if len(tokens) != 2 {
 		t.Fatalf("expected 2 tokens, got: %d", len(tokens))
 	}
@@ -269,7 +295,9 @@ func TestListMyAPITokens_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	tokens, err := clientObj.ListMyAPITokens()
+	ctx := context.Background()
+
+	tokens, err := clientObj.ListMyAPITokens(ctx)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

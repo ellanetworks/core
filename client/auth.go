@@ -11,13 +11,13 @@ type LoginOptions struct {
 	Password string
 }
 
-type LoginResponseResult struct {
+type RefreshResponseResult struct {
 	Token string `json:"token"`
 }
 
 // Login authenticates the user with the provided email and password.
 // It stores the token in the client for future requests.
-func (c *Client) Login(opts *LoginOptions) error {
+func (c *Client) Login(ctx context.Context, opts *LoginOptions) error {
 	payload := struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -37,7 +37,7 @@ func (c *Client) Login(opts *LoginOptions) error {
 		"Content-Type": "application/json",
 	}
 
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:    SyncRequest,
 		Method:  "POST",
 		Path:    "api/v1/auth/login",
@@ -48,14 +48,33 @@ func (c *Client) Login(opts *LoginOptions) error {
 		return err
 	}
 
-	var loginResponse LoginResponseResult
+	return nil
+}
 
-	err = resp.DecodeResult(&loginResponse)
+func (c *Client) Refresh(ctx context.Context) error {
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:    SyncRequest,
+		Method:  "POST",
+		Path:    "api/v1/auth/refresh",
+		Body:    nil,
+		Headers: headers,
+	})
 	if err != nil {
 		return err
 	}
 
-	c.token = loginResponse.Token
+	var refreshResponse RefreshResponseResult
+
+	err = resp.DecodeResult(&refreshResponse)
+	if err != nil {
+		return err
+	}
+
+	c.token = refreshResponse.Token
 
 	return nil
 }

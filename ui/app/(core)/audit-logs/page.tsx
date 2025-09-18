@@ -9,7 +9,6 @@ import {
   listAuditLogs,
   getAuditLogRetentionPolicy,
 } from "@/queries/audit_logs";
-import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
 import { AuditLogRetentionPolicy } from "@/types/types";
@@ -28,8 +27,7 @@ interface AuditLogData {
 const MAX_WIDTH = 1400;
 
 const AuditLog = () => {
-  const { role } = useAuth();
-  const [cookies] = useCookies(["user_token"]);
+  const { role, accessToken, authReady } = useAuth();
   const [auditLogs, setAuditLogs] = useState<AuditLogData[]>([]);
   const [alert, setAlert] = useState<{
     message: string;
@@ -62,22 +60,24 @@ const AuditLog = () => {
     "Review security-relevant actions performed in Ella Core. The audit log records who did what and when.";
 
   const fetchRetentionPolicy = useCallback(async () => {
+    if (!authReady || !accessToken) return;
     try {
-      const data = await getAuditLogRetentionPolicy(cookies.user_token);
+      const data = await getAuditLogRetentionPolicy(accessToken);
       setRetentionPolicy(data);
     } catch (error) {
       console.error("Error fetching audit log retention policy:", error);
     }
-  }, [cookies.user_token]);
+  }, [accessToken, authReady]);
 
   const fetchAuditLogs = useCallback(async () => {
+    if (!authReady || !accessToken) return;
     try {
-      const data = await listAuditLogs(cookies.user_token);
+      const data = await listAuditLogs(accessToken);
       setAuditLogs(data);
     } catch (error) {
       console.error("Error fetching audit logs:", error);
     }
-  }, [cookies.user_token]);
+  }, [accessToken, authReady]);
 
   useEffect(() => {
     fetchAuditLogs();

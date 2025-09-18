@@ -45,8 +45,8 @@ type UpdateOperatorTrackingOptions struct {
 	SupportedTacs []string
 }
 
-func (c *Client) GetOperator() (*Operator, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) GetOperator(ctx context.Context) (*Operator, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/operator",
@@ -64,7 +64,7 @@ func (c *Client) GetOperator() (*Operator, error) {
 	return &operatorResponse, nil
 }
 
-func (c *Client) UpdateOperatorID(opts *UpdateOperatorIDOptions) error {
+func (c *Client) UpdateOperatorID(ctx context.Context, opts *UpdateOperatorIDOptions) error {
 	payload := struct {
 		Mcc string `json:"mcc"`
 		Mnc string `json:"mnc"`
@@ -80,7 +80,7 @@ func (c *Client) UpdateOperatorID(opts *UpdateOperatorIDOptions) error {
 		return err
 	}
 
-	_, err = c.Requester.Do(context.Background(), &RequestOptions{
+	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
 		Path:   "api/v1/operator/id",
@@ -92,7 +92,7 @@ func (c *Client) UpdateOperatorID(opts *UpdateOperatorIDOptions) error {
 	return nil
 }
 
-func (c *Client) UpdateOperatorSlice(opts *UpdateOperatorSliceOptions) error {
+func (c *Client) UpdateOperatorSlice(ctx context.Context, opts *UpdateOperatorSliceOptions) error {
 	payload := struct {
 		Sst int `json:"sst"`
 		Sd  int `json:"sd"`
@@ -108,7 +108,7 @@ func (c *Client) UpdateOperatorSlice(opts *UpdateOperatorSliceOptions) error {
 		return err
 	}
 
-	_, err = c.Requester.Do(context.Background(), &RequestOptions{
+	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
 		Path:   "api/v1/operator/slice",
@@ -120,7 +120,7 @@ func (c *Client) UpdateOperatorSlice(opts *UpdateOperatorSliceOptions) error {
 	return nil
 }
 
-func (c *Client) UpdateOperatorTracking(opts *UpdateOperatorTrackingOptions) error {
+func (c *Client) UpdateOperatorTracking(ctx context.Context, opts *UpdateOperatorTrackingOptions) error {
 	payload := struct {
 		SupportedTacs []string `json:"supportedTacs"`
 	}{
@@ -134,7 +134,7 @@ func (c *Client) UpdateOperatorTracking(opts *UpdateOperatorTrackingOptions) err
 		return err
 	}
 
-	_, err = c.Requester.Do(context.Background(), &RequestOptions{
+	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
 		Path:   "api/v1/operator/tracking",

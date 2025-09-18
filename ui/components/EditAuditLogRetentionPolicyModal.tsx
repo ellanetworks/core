@@ -12,8 +12,8 @@ import {
 } from "@mui/material";
 import { updateAuditLogRetentionPolicy } from "@/queries/audit_logs";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
 import { AuditLogRetentionPolicy } from "@/types/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EditAuditLogRetentionPolicyModalProps {
   open: boolean;
@@ -26,9 +26,9 @@ const EditAuditLogRetentionPolicyModal: React.FC<
   EditAuditLogRetentionPolicyModalProps
 > = ({ open, onClose, onSuccess, initialData }) => {
   const router = useRouter();
-  const [cookies, ,] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
+  if (!authReady || !accessToken) {
     router.push("/login");
   }
 
@@ -54,11 +54,12 @@ const EditAuditLogRetentionPolicyModal: React.FC<
   };
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     setLoading(true);
     setAlert({ message: "" });
 
     try {
-      await updateAuditLogRetentionPolicy(cookies.user_token, formValues.days);
+      await updateAuditLogRetentionPolicy(accessToken, formValues.days);
       onClose();
       onSuccess();
     } catch (error: unknown) {

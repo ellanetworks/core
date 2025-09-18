@@ -10,8 +10,8 @@ import (
 
 // GetMetrics retrieves the metrics from the server and returns a map
 // where keys are metric names and values are their corresponding float values.
-func (c *Client) GetMetrics() (map[string]float64, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) GetMetrics(ctx context.Context) (map[string]float64, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   RawRequest,
 		Method: "GET",
 		Path:   "api/v1/metrics",

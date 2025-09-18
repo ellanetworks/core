@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -28,7 +29,9 @@ func TestCreateDataNetwork_Success(t *testing.T) {
 		Mtu:    1400,
 	}
 
-	err := clientObj.CreateDataNetwork(createDataNetworkOpts)
+	ctx := context.Background()
+
+	err := clientObj.CreateDataNetwork(ctx, createDataNetworkOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -53,7 +56,9 @@ func TestCreateDataNetwork_Failure(t *testing.T) {
 		Mtu:    1400,
 	}
 
-	err := clientObj.CreateDataNetwork(createDataNetworkOpts)
+	ctx := context.Background()
+
+	err := clientObj.CreateDataNetwork(ctx, createDataNetworkOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -77,7 +82,9 @@ func TestGetDataNetwork_Success(t *testing.T) {
 		Name: name,
 	}
 
-	dataNetwork, err := clientObj.GetDataNetwork(getRouteOpts)
+	ctx := context.Background()
+
+	dataNetwork, err := clientObj.GetDataNetwork(ctx, getRouteOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -108,7 +115,10 @@ func TestGetDataNetwork_Failure(t *testing.T) {
 	getDataNetworkOpts := &client.GetDataNetworkOptions{
 		Name: name,
 	}
-	_, err := clientObj.GetDataNetwork(getDataNetworkOpts)
+
+	ctx := context.Background()
+
+	_, err := clientObj.GetDataNetwork(ctx, getDataNetworkOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -131,7 +141,10 @@ func TestDeleteDataNetwork_Success(t *testing.T) {
 	deleteDataNetworkOpts := &client.DeleteDataNetworkOptions{
 		Name: name,
 	}
-	err := clientObj.DeleteDataNetwork(deleteDataNetworkOpts)
+
+	ctx := context.Background()
+
+	err := clientObj.DeleteDataNetwork(ctx, deleteDataNetworkOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -155,7 +168,10 @@ func TestDeleteDataNetwork_Failure(t *testing.T) {
 	deleteDataNetworkOpts := &client.DeleteDataNetworkOptions{
 		Name: name,
 	}
-	err := clientObj.DeleteDataNetwork(deleteDataNetworkOpts)
+
+	ctx := context.Background()
+
+	err := clientObj.DeleteDataNetwork(ctx, deleteDataNetworkOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -174,7 +190,9 @@ func TestListDataNetworks_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	dataNetworks, err := clientObj.ListDataNetworks()
+	ctx := context.Background()
+
+	dataNetworks, err := clientObj.ListDataNetworks(ctx)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -197,7 +215,9 @@ func TestListDataNetworks_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	_, err := clientObj.ListDataNetworks()
+	ctx := context.Background()
+
+	_, err := clientObj.ListDataNetworks(ctx)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

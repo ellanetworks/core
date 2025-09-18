@@ -16,8 +16,8 @@ import {
 import { updateSubscriber } from "@/queries/subscribers";
 import { listPolicies } from "@/queries/policies";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
 import { Policy } from "@/types/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EditSubscriberModalProps {
   open: boolean;
@@ -36,9 +36,9 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
   initialData,
 }) => {
   const router = useRouter();
-  const [cookies, ,] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
+  if (!authReady || !accessToken) {
     router.push("/login");
   }
   const [formValues, setFormValues] = useState(initialData);
@@ -48,9 +48,10 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
   useEffect(() => {
+    if (!accessToken) return;
     const fetchPolicies = async () => {
       try {
-        const policyData = await listPolicies(cookies.user_token);
+        const policyData = await listPolicies(accessToken);
         setPolicies(policyData.map((policy: Policy) => policy.name));
       } catch (error) {
         console.error("Failed to fetch policies:", error);
@@ -62,7 +63,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
       setFormValues(initialData);
       setErrors({});
     }
-  }, [open, initialData, cookies.user_token]);
+  }, [open, initialData, accessToken]);
 
   const handleChange = (field: string, value: string | number) => {
     setFormValues((prev) => ({
@@ -72,12 +73,13 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
   };
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     setLoading(true);
     setAlert({ message: "" });
 
     try {
       await updateSubscriber(
-        cookies.user_token,
+        accessToken,
         formValues.imsi,
         formValues.policyName,
       );

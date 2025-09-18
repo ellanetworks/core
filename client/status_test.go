@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -21,7 +22,9 @@ func TestGetStatus_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	status, err := clientObj.GetStatus()
+	ctx := context.Background()
+
+	status, err := clientObj.GetStatus(ctx)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -48,7 +51,9 @@ func TestGetStatus_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	_, err := clientObj.GetStatus()
+	ctx := context.Background()
+
+	_, err := clientObj.GetStatus(ctx)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

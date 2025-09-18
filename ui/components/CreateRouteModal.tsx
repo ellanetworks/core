@@ -18,7 +18,7 @@ import { isSchema } from "yup";
 import { ValidationError } from "yup";
 import { createRoute } from "@/queries/routes";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
+import { useAuth } from "@/contexts/AuthContext";
 
 const cidrRegex =
   /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\/([1-9]|[1-2]\d|3[0-2])$/;
@@ -71,9 +71,9 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({
   onSuccess,
 }) => {
   const router = useRouter();
-  const [cookies] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
+  if (!authReady || !accessToken) {
     router.push("/login");
   }
 
@@ -165,11 +165,12 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({
   }, [formValues, validateForm]);
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     setLoading(true);
     setAlert({ message: "" });
     try {
       await createRoute(
-        cookies.user_token,
+        accessToken,
         formValues.destination,
         formValues.gateway,
         formValues.interface,

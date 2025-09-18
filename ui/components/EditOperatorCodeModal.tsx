@@ -14,7 +14,7 @@ import * as yup from "yup";
 import { ValidationError } from "yup";
 import { updateOperatorCode } from "@/queries/operator";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EditOperatorCodeModalProps {
   open: boolean;
@@ -42,9 +42,9 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
   onSuccess,
 }) => {
   const router = useRouter();
-  const [cookies] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
+  if (!authReady || !accessToken) {
     router.push("/login");
   }
 
@@ -95,13 +95,13 @@ const EditOperatorCodeModal: React.FC<EditOperatorCodeModalProps> = ({
 
   const handleSubmit = async () => {
     const isValid = await validate();
-    if (!isValid) return;
+    if (!isValid || !accessToken) return;
 
     setLoading(true);
     setAlert({ message: "" });
 
     try {
-      await updateOperatorCode(cookies.user_token, formValues.operatorCode);
+      await updateOperatorCode(accessToken, formValues.operatorCode);
       onClose();
       onSuccess();
     } catch (error) {

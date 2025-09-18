@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -21,7 +22,9 @@ func TestGetOperator_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	operator, err := clientObj.GetOperator()
+	ctx := context.Background()
+
+	operator, err := clientObj.GetOperator(ctx)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -47,7 +50,9 @@ func TestGetOperator_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	_, err := clientObj.GetOperator()
+	ctx := context.Background()
+
+	_, err := clientObj.GetOperator(ctx)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -71,7 +76,9 @@ func TestUpdateOperatorID_Success(t *testing.T) {
 		Mnc: "01",
 	}
 
-	err := clientObj.UpdateOperatorID(updateOperatorIDOpts)
+	ctx := context.Background()
+
+	err := clientObj.UpdateOperatorID(ctx, updateOperatorIDOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -94,7 +101,9 @@ func TestUpdateOperatorID_Failure(t *testing.T) {
 		Mnc: "01",
 	}
 
-	err := clientObj.UpdateOperatorID(updateOperatorIDOpts)
+	ctx := context.Background()
+
+	err := clientObj.UpdateOperatorID(ctx, updateOperatorIDOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -118,7 +127,9 @@ func TestUpdateOperatorSlice_Success(t *testing.T) {
 		Sd:  456,
 	}
 
-	err := clientObj.UpdateOperatorSlice(updateOperatorSliceOpts)
+	ctx := context.Background()
+
+	err := clientObj.UpdateOperatorSlice(ctx, updateOperatorSliceOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -141,7 +152,9 @@ func TestUpdateOperatorSlice_Failure(t *testing.T) {
 		Sd:  456,
 	}
 
-	err := clientObj.UpdateOperatorSlice(updateOperatorSliceOpts)
+	ctx := context.Background()
+
+	err := clientObj.UpdateOperatorSlice(ctx, updateOperatorSliceOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -164,7 +177,9 @@ func TestUpdateOperatorTracking_Success(t *testing.T) {
 		SupportedTacs: []string{"001", "002"},
 	}
 
-	err := clientObj.UpdateOperatorTracking(updateOperatorTrackingOpts)
+	ctx := context.Background()
+
+	err := clientObj.UpdateOperatorTracking(ctx, updateOperatorTrackingOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -186,7 +201,9 @@ func TestUpdateOperatorTracking_Failure(t *testing.T) {
 		SupportedTacs: []string{"001", "002"},
 	}
 
-	err := clientObj.UpdateOperatorTracking(updateOperatorTrackingOpts)
+	ctx := context.Background()
+
+	err := clientObj.UpdateOperatorTracking(ctx, updateOperatorTrackingOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

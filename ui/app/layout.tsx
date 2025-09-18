@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.scss";
-import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "Ella Core",
@@ -17,7 +16,7 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
       </head>
-      <Providers>{children}</Providers>
+      {children}
     </html>
   );
 }

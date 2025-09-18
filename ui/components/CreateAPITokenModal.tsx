@@ -18,12 +18,12 @@ import * as yup from "yup";
 import { ValidationError } from "yup";
 import { createAPIToken } from "@/queries/api_tokens";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
 
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs, { Dayjs } from "dayjs";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CreateAPITokenModalProps {
   open: boolean;
@@ -64,8 +64,8 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
   onSuccess,
 }) => {
   const router = useRouter();
-  const [cookies] = useCookies(["user_token"]);
-  if (!cookies.user_token) router.push("/login");
+  const { accessToken, authReady } = useAuth();
+  if (!authReady || !accessToken) router.push("/login");
 
   const [formValues, setFormValues] = useState<{
     name: string;
@@ -150,6 +150,7 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
   }, [validateForm, formValues]);
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     setLoading(true);
     setAlert({ message: "" });
 
@@ -163,7 +164,7 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
           : formValues.expiry.toDate().toISOString();
 
       const res = await createAPIToken(
-        cookies.user_token,
+        accessToken,
         formValues.name.trim(),
         expiryISO,
       );

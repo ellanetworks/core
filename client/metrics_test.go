@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"context"
 	"errors"
 	"io"
 	"strings"
@@ -30,7 +31,9 @@ app_uplink_bytes 5678
 		Requester: fake,
 	}
 
-	metrics, err := c.GetMetrics()
+	ctx := context.Background()
+
+	metrics, err := c.GetMetrics(ctx)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -52,7 +55,9 @@ func TestGetMetricsRequesterError(t *testing.T) {
 		Requester: fake,
 	}
 
-	_, err := c.GetMetrics()
+	ctx := context.Background()
+
+	_, err := c.GetMetrics(ctx)
 	if err == nil {
 		t.Fatal("Expected error, got nil")
 	}
@@ -77,7 +82,9 @@ func TestGetMetricsInvalidData(t *testing.T) {
 		Requester: fake,
 	}
 
-	_, err := c.GetMetrics()
+	ctx := context.Background()
+
+	_, err := c.GetMetrics(ctx)
 	if err == nil {
 		t.Fatal("Expected error due to invalid metric value, got nil")
 	}
@@ -99,7 +106,9 @@ func TestGetMetricsEmptyResponse(t *testing.T) {
 		Requester: fake,
 	}
 
-	metrics, err := c.GetMetrics()
+	ctx := context.Background()
+
+	metrics, err := c.GetMetrics(ctx)
 	if err != nil {
 		t.Fatalf("Expected no error for empty response, got: %v", err)
 	}

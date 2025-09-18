@@ -24,7 +24,7 @@ import { createSubscriber } from "@/queries/subscribers";
 import { listPolicies } from "@/queries/policies";
 import { getOperator } from "@/queries/operator";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CreateSubscriberModalProps {
   open: boolean;
@@ -87,9 +87,9 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   onSuccess,
 }) => {
   const router = useRouter();
-  const [cookies, ,] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
+  if (!authReady || !accessToken) {
     router.push("/login");
   }
   const [formValues, setFormValues] = useState<FormValues>({
@@ -112,12 +112,13 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
 
   useEffect(() => {
     const fetchOperatorAndPolicies = async () => {
+      if (!accessToken) return;
       try {
-        const operator: Operator = await getOperator(cookies.user_token);
+        const operator: Operator = await getOperator(accessToken);
         setMcc(operator.id.mcc);
         setMnc(operator.id.mnc);
 
-        const policyData: Policy[] = await listPolicies(cookies.user_token);
+        const policyData: Policy[] = await listPolicies(accessToken);
         setPolicies(policyData.map((policy) => policy.name));
       } catch (error) {
         console.error("Failed to fetch data:", error);
@@ -127,7 +128,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
     if (open) {
       fetchOperatorAndPolicies();
     }
-  }, [open, cookies.user_token]);
+  }, [open, accessToken]);
 
   const handleChange = (field: string, value: string | number) => {
     setFormValues((prev) => ({
@@ -187,12 +188,13 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   }, [formValues, validateForm]);
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     setLoading(true);
     setAlert({ message: "" });
     try {
       const imsi = `${mcc}${mnc}${formValues.msin}`;
       await createSubscriber(
-        cookies.user_token,
+        accessToken,
         imsi,
         formValues.key,
         formValues.sequenceNumber,

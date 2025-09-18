@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -27,7 +28,9 @@ func TestCreateSubscriber_Success(t *testing.T) {
 		PolicyName:     "default",
 	}
 
-	err := clientObj.CreateSubscriber(createSubscriberOpts)
+	ctx := context.Background()
+
+	err := clientObj.CreateSubscriber(ctx, createSubscriberOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -52,7 +55,9 @@ func TestCreateSubscriber_Failure(t *testing.T) {
 		PolicyName:     "default",
 	}
 
-	err := clientObj.CreateSubscriber(createSubscriberOpts)
+	ctx := context.Background()
+
+	err := clientObj.CreateSubscriber(ctx, createSubscriberOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -75,7 +80,10 @@ func TestGetSubscriber_Success(t *testing.T) {
 	getSubOpts := &client.GetSubscriberOptions{
 		ID: imsi,
 	}
-	subscriber, err := clientObj.GetSubscriber(getSubOpts)
+
+	ctx := context.Background()
+
+	subscriber, err := clientObj.GetSubscriber(ctx, getSubOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -102,7 +110,10 @@ func TestGetSubscriber_Failure(t *testing.T) {
 	getSubOpts := &client.GetSubscriberOptions{
 		ID: imsi,
 	}
-	_, err := clientObj.GetSubscriber(getSubOpts)
+
+	ctx := context.Background()
+
+	_, err := clientObj.GetSubscriber(ctx, getSubOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -125,7 +136,10 @@ func TestDeleteSubscriber_Success(t *testing.T) {
 	deleteSubOpts := &client.DeleteSubscriberOptions{
 		ID: imsi,
 	}
-	err := clientObj.DeleteSubscriber(deleteSubOpts)
+
+	ctx := context.Background()
+
+	err := clientObj.DeleteSubscriber(ctx, deleteSubOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -148,7 +162,10 @@ func TestDeleteSubscriber_Failure(t *testing.T) {
 	deleteSubOpts := &client.DeleteSubscriberOptions{
 		ID: imsi,
 	}
-	err := clientObj.DeleteSubscriber(deleteSubOpts)
+
+	ctx := context.Background()
+
+	err := clientObj.DeleteSubscriber(ctx, deleteSubOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -167,7 +184,9 @@ func TestListSubscribers_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	subscribers, err := clientObj.ListSubscribers()
+	ctx := context.Background()
+
+	subscribers, err := clientObj.ListSubscribers(ctx)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -190,7 +209,9 @@ func TestListSubscribers_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	_, err := clientObj.ListSubscribers()
+	ctx := context.Background()
+
+	_, err := clientObj.ListSubscribers(ctx)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

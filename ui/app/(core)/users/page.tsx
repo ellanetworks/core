@@ -19,15 +19,15 @@ import EditUserModal from "@/components/EditUserModal";
 import EditUserPasswordModal from "@/components/EditUserPasswordModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-import { useCookies } from "react-cookie";
 import { RoleID, User, roleIDToLabel } from "@/types/types";
 import { useTheme } from "@mui/material/styles";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { useAuth } from "@/contexts/AuthContext";
 
 const MAX_WIDTH = 1400;
 
 const UserPage = () => {
-  const [cookies] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
@@ -52,16 +52,17 @@ const UserPage = () => {
   );
 
   const fetchUsers = useCallback(async () => {
+    if (!authReady || !accessToken) return;
     setLoading(true);
     try {
-      const data = await listUsers(cookies.user_token);
+      const data = await listUsers(accessToken);
       setUsers(data);
     } catch (error) {
       console.error("Error fetching users:", error);
     } finally {
       setLoading(false);
     }
-  }, [cookies.user_token]);
+  }, [accessToken, authReady]);
 
   useEffect(() => {
     fetchUsers();
@@ -82,9 +83,9 @@ const UserPage = () => {
   };
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
-    if (!selectedUser) return;
+    if (!selectedUser || !accessToken) return;
     try {
-      await deleteUser(cookies.user_token, selectedUser);
+      await deleteUser(accessToken, selectedUser);
       setAlert({ message: `User "${selectedUser}" deleted successfully!` });
       fetchUsers();
     } catch {

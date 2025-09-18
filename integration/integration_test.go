@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -37,13 +38,13 @@ type ConfigureEllaCoreOpts struct {
 	customOPc bool
 }
 
-func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) {
+func configureEllaCore(ctx context.Context, opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) {
 	createUserOpts := &client.CreateUserOptions{
 		Email:    "admin@ellanetworks.com",
 		Password: "admin",
 		RoleID:   client.RoleAdmin,
 	}
-	err := opts.client.CreateUser(createUserOpts)
+	err := opts.client.CreateUser(ctx, createUserOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %v", err)
 	}
@@ -52,16 +53,22 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 		Email:    "admin@ellanetworks.com",
 		Password: "admin",
 	}
-	err = opts.client.Login(loginOpts)
+
+	err = opts.client.Login(ctx, loginOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to login: %v", err)
+	}
+
+	err = opts.client.Refresh(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to refresh token: %v", err)
 	}
 
 	createAPITokenOpts := &client.CreateAPITokenOptions{
 		Name:   "integration-test-token",
 		Expiry: "",
 	}
-	resp, err := opts.client.CreateMyAPIToken(createAPITokenOpts)
+	resp, err := opts.client.CreateMyAPIToken(ctx, createAPITokenOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create API token: %v", err)
 	}
@@ -74,7 +81,7 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 		DNS:    "8.8.8.8",
 		Mtu:    1460,
 	}
-	err = opts.client.CreateDataNetwork(createDataNetworkOpts)
+	err = opts.client.CreateDataNetwork(ctx, createDataNetworkOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create data network: %v", err)
 	}
@@ -87,7 +94,7 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 		PriorityLevel:   1,
 		DataNetworkName: "not-internet",
 	}
-	err = opts.client.CreatePolicy(createPolicyOpts)
+	err = opts.client.CreatePolicy(ctx, createPolicyOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create policy: %v", err)
 	}
@@ -96,7 +103,7 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 		Mcc: "001",
 		Mnc: "01",
 	}
-	err = opts.client.UpdateOperatorID(updateOperatorIDOpts)
+	err = opts.client.UpdateOperatorID(ctx, updateOperatorIDOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update operator ID: %v", err)
 	}
@@ -105,7 +112,7 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 		Sst: 1,
 		Sd:  1056816,
 	}
-	err = opts.client.UpdateOperatorSlice(updateOperatorSliceOpts)
+	err = opts.client.UpdateOperatorSlice(ctx, updateOperatorSliceOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update operator slice: %v", err)
 	}
@@ -113,7 +120,7 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 	updateOperatorTrackingOpts := &client.UpdateOperatorTrackingOptions{
 		SupportedTacs: []string{"001"},
 	}
-	err = opts.client.UpdateOperatorTracking(updateOperatorTrackingOpts)
+	err = opts.client.UpdateOperatorTracking(ctx, updateOperatorTrackingOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update operator tracking: %v", err)
 	}
@@ -134,7 +141,7 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 			PolicyName:     testPolicyName,
 			OPc:            opc,
 		}
-		err = opts.client.CreateSubscriber(createSubscriberOpts)
+		err = opts.client.CreateSubscriber(ctx, createSubscriberOpts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create subscriber: %v", err)
 		}
@@ -143,7 +150,7 @@ func configureEllaCore(opts *ConfigureEllaCoreOpts) (*client.Subscriber, error) 
 	getSubscriberOpts := &client.GetSubscriberOptions{
 		ID: testStartIMSI,
 	}
-	subscriber0, err := opts.client.GetSubscriber(getSubscriberOpts)
+	subscriber0, err := opts.client.GetSubscriber(ctx, getSubscriberOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subscriber: %v", err)
 	}
@@ -303,6 +310,8 @@ func TestIntegrationGnbsim(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	ctx := context.Background()
+
 	k := &K8s{Namespace: gnbsimNamespace}
 
 	ellaCoreURL, err := deploy(k)
@@ -323,7 +332,7 @@ func TestIntegrationGnbsim(t *testing.T) {
 		client:    ellaClient,
 		customOPc: true,
 	}
-	subscriber0, err := configureEllaCore(configureOpts)
+	subscriber0, err := configureEllaCore(ctx, configureOpts)
 	if err != nil {
 		t.Fatalf("failed to configure Ella Core: %v", err)
 	}
@@ -370,7 +379,7 @@ func TestIntegrationGnbsim(t *testing.T) {
 	}
 	t.Logf("Verified that 'Profile Status: PASS' appears %d times", passCount)
 
-	metrics, err := ellaClient.GetMetrics()
+	metrics, err := ellaClient.GetMetrics(ctx)
 	if err != nil {
 		t.Fatalf("failed to get metrics: %v", err)
 	}
@@ -399,6 +408,8 @@ func TestIntegrationUERANSIM(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	ctx := context.Background()
+
 	k := &K8s{Namespace: ueransimNamespace}
 
 	ellaCoreURL, err := deploy(k)
@@ -419,7 +430,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 		client:    ellaClient,
 		customOPc: false,
 	}
-	subscriber0, err := configureEllaCore(configureOpts)
+	subscriber0, err := configureEllaCore(ctx, configureOpts)
 	if err != nil {
 		t.Fatalf("failed to configure Ella Core: %v", err)
 	}

@@ -10,36 +10,53 @@ import {
   Alert,
   CircularProgress,
 } from "@mui/material";
-import { login } from "@/queries/auth";
-import { useCookies } from "react-cookie";
+import { login, refresh } from "@/queries/auth";
 import { getStatus } from "@/queries/status";
 
 const LoginPage = () => {
   const router = useRouter();
-  const [, setCookie] = useCookies(["user_token"]);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
   const [checkingInitialization, setCheckingInitialization] = useState(true);
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    const checkInitialization = async () => {
+    (async () => {
       try {
         const status = await getStatus();
         if (!status?.initialized) {
           router.push("/initialize");
-        } else {
-          setCheckingInitialization(false);
+          return;
         }
+        setCheckingInitialization(false);
       } catch (err) {
         console.error("Failed to fetch system status:", err);
         setError("Failed to check system initialization.");
+        setCheckingInitialization(false);
       }
-    };
-
-    checkInitialization();
+    })();
   }, [router]);
+
+  useEffect(() => {
+    if (checkingInitialization) return;
+    (async () => {
+      try {
+        const r = await refresh();
+        if (r?.token) {
+          router.push("/dashboard");
+          return;
+        }
+      } catch {
+      } finally {
+        setCheckingAuth(false);
+      }
+    })();
+  }, [checkingInitialization, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,18 +64,13 @@ const LoginPage = () => {
     setError(null);
 
     try {
-      const result = await login(email, password);
+      await login(email, password);
 
-      if (result?.token) {
-        setCookie("user_token", result.token, {
-          sameSite: true,
-          expires: new Date(new Date().getTime() + 60 * 60 * 1000), // 1 hour expiry
-        });
+      const r = await refresh();
+      if (!r?.token)
+        throw new Error("Login succeeded but refresh returned no token.");
 
-        router.push("/dashboard");
-      } else {
-        throw new Error("Invalid response: Token not found.");
-      }
+      router.push("/dashboard");
     } catch (err) {
       const error = err as Error;
       setError(error.message || "Login failed");
@@ -67,7 +79,7 @@ const LoginPage = () => {
     }
   };
 
-  if (checkingInitialization) {
+  if (checkingInitialization || checkingAuth) {
     return (
       <Box
         sx={{

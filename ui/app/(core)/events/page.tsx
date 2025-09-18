@@ -18,7 +18,6 @@ import {
   listSubscriberLogs,
   getSubscriberLogRetentionPolicy,
 } from "@/queries/subscriber_logs";
-import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import EditSubscriberLogRetentionPolicyModal from "@/components/EditSubscriberLogRetentionPolicyModal";
 import { SubscriberLogRetentionPolicy } from "@/types/types";
@@ -36,8 +35,7 @@ interface SubscriberLogData {
 const MAX_WIDTH = 1400;
 
 const Events: React.FC = () => {
-  const { role } = useAuth();
-  const [cookies] = useCookies(["user_token"]);
+  const { role, accessToken, authReady } = useAuth();
   const [subscriberLogs, setSubscriberLogs] = useState<SubscriberLogData[]>([]);
   const [alert, setAlert] = useState<{
     message: string;
@@ -67,22 +65,24 @@ const Events: React.FC = () => {
     "Review subscriber events in Ella Core. These logs are useful for auditing and troubleshooting purposes.";
 
   const fetchRetentionPolicy = useCallback(async () => {
+    if (!authReady || !accessToken) return;
     try {
-      const data = await getSubscriberLogRetentionPolicy(cookies.user_token);
+      const data = await getSubscriberLogRetentionPolicy(accessToken);
       setRetentionPolicy(data);
     } catch (error) {
       console.error("Error fetching subscriber log retention policy:", error);
     }
-  }, [cookies.user_token]);
+  }, [accessToken, authReady]);
 
   const fetchSubscriberLogs = useCallback(async () => {
+    if (!authReady || !accessToken) return;
     try {
-      const data = await listSubscriberLogs(cookies.user_token);
+      const data = await listSubscriberLogs(accessToken);
       setSubscriberLogs(data);
     } catch (error) {
       console.error("Error fetching subscriber logs:", error);
     }
-  }, [cookies.user_token]);
+  }, [accessToken, authReady]);
 
   useEffect(() => {
     fetchSubscriberLogs();

@@ -32,7 +32,7 @@ type Policy struct {
 	DataNetworkName string `json:"data-network-name"`
 }
 
-func (c *Client) CreatePolicy(opts *CreatePolicyOptions) error {
+func (c *Client) CreatePolicy(ctx context.Context, opts *CreatePolicyOptions) error {
 	payload := struct {
 		Name            string `json:"name"`
 		BitrateUplink   string `json:"bitrate-uplink"`
@@ -56,7 +56,7 @@ func (c *Client) CreatePolicy(opts *CreatePolicyOptions) error {
 		return err
 	}
 
-	_, err = c.Requester.Do(context.Background(), &RequestOptions{
+	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
 		Path:   "api/v1/policies",
@@ -68,8 +68,8 @@ func (c *Client) CreatePolicy(opts *CreatePolicyOptions) error {
 	return nil
 }
 
-func (c *Client) GetPolicy(opts *GetPolicyOptions) (*Policy, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) GetPolicy(ctx context.Context, opts *GetPolicyOptions) (*Policy, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/policies/" + opts.Name,
@@ -87,8 +87,8 @@ func (c *Client) GetPolicy(opts *GetPolicyOptions) (*Policy, error) {
 	return &policyResponse, nil
 }
 
-func (c *Client) DeletePolicy(opts *DeletePolicyOptions) error {
-	_, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) DeletePolicy(ctx context.Context, opts *DeletePolicyOptions) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
 		Path:   "api/v1/policies/" + opts.Name,
@@ -99,8 +99,8 @@ func (c *Client) DeletePolicy(opts *DeletePolicyOptions) error {
 	return nil
 }
 
-func (c *Client) ListPolicies() ([]*Policy, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) ListPolicies(ctx context.Context) ([]*Policy, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/policies",

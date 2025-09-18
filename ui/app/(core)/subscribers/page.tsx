@@ -28,7 +28,6 @@ import ViewSubscriberModal from "@/components/ViewSubscriberModal";
 import EditSubscriberModal from "@/components/EditSubscriberModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import { Subscriber } from "@/types/types";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
@@ -37,16 +36,17 @@ import { useQuery } from "@tanstack/react-query";
 const MAX_WIDTH = 1400;
 
 const SubscriberPage = () => {
-  const { role } = useAuth();
-  const [cookies] = useCookies(["user_token"]);
+  const { role, accessToken, authReady } = useAuth();
 
   const {
     data: subscribers = [],
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ["subscribers", cookies.user_token],
-    queryFn: () => listSubscribers(cookies.user_token),
+    queryKey: ["subscribers", accessToken],
+    queryFn: () => listSubscribers(accessToken || ""),
+    // Only run once auth is ready and we have a token
+    enabled: authReady && !!accessToken,
     refetchInterval: 5000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
@@ -101,9 +101,9 @@ const SubscriberPage = () => {
 
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
-    if (!selectedSubscriber) return;
+    if (!selectedSubscriber || !accessToken) return;
     try {
-      await deleteSubscriber(cookies.user_token, selectedSubscriber);
+      await deleteSubscriber(accessToken, selectedSubscriber);
       setAlert({
         message: `Subscriber "${selectedSubscriber}" deleted successfully!`,
         severity: "success",
@@ -264,6 +264,15 @@ const SubscriberPage = () => {
   const descriptionText =
     "Manage subscribers connecting to your private network. After creating a subscriber here, you can emit a SIM card with the corresponding IMSI, Key and OPc.";
 
+  // While auth is preparing, show a spinner (AuthProvider will redirect if unauthenticated)
+  if (!authReady) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <Box
       sx={{
@@ -370,6 +379,7 @@ const SubscriberPage = () => {
           </Box>
         </>
       )}
+
       {isViewModalOpen && (
         <ViewSubscriberModal
           open

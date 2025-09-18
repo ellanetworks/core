@@ -22,6 +22,7 @@ var (
 	SmfLog        *zap.Logger
 	UdmLog        *zap.Logger
 	UpfLog        *zap.Logger
+	SessionsLog   *zap.Logger
 	SubscriberLog *zap.Logger
 
 	atomicLevel zap.AtomicLevel
@@ -90,7 +91,7 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 	SmfLog = log.With(zap.String("component", "SMF"))
 	UdmLog = log.With(zap.String("component", "UDM"))
 	UpfLog = log.With(zap.String("component", "UPF"))
-
+	SessionsLog = log.With(zap.String("component", "Sessions"))
 	return nil
 }
 

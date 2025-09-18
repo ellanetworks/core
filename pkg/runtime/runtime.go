@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/pcf"
+	"github.com/ellanetworks/core/internal/sessions"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/internal/udm"
@@ -81,6 +82,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	if cfg.Interfaces.API.TLS.Cert == "" || cfg.Interfaces.API.TLS.Key == "" {
 		scheme = api.HTTP
 	}
+
+	go sessions.CleanUp(ctx, dbInstance)
 
 	if err := api.Start(
 		dbInstance,

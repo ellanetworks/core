@@ -13,7 +13,7 @@ import {
 import * as yup from "yup";
 import { updateOperatorID } from "@/queries/operator";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EditOperatorIdModalProps {
   open: boolean;
@@ -43,9 +43,9 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
   initialData,
 }) => {
   const router = useRouter();
-  const [cookies, ,] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
+  if (!authReady || !accessToken) {
     router.push("/login");
   }
 
@@ -94,17 +94,13 @@ const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
 
   const handleSubmit = async () => {
     const isValid = await validate();
-    if (!isValid) return;
+    if (!isValid || !accessToken) return;
 
     setLoading(true);
     setAlert({ message: "" });
 
     try {
-      await updateOperatorID(
-        cookies.user_token,
-        formValues.mcc,
-        formValues.mnc,
-      );
+      await updateOperatorID(accessToken, formValues.mcc, formValues.mnc);
       onClose();
       onSuccess();
     } catch (error: unknown) {

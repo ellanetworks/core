@@ -1,6 +1,9 @@
 package server
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,17 +13,22 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/golang-jwt/jwt/v5"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
-const TokenExpirationTime = time.Hour * 1
+const (
+	AccessTokenDuration    = 15 * time.Minute    // short-lived
+	SessionTokenDuration   = 30 * 24 * time.Hour // long-lived
+	SessionTokenCookieName = "session_token"
+)
 
 type LoginParams struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
-type LoginResponse struct {
+type RefreshResponse struct {
 	Token string `json:"token"`
 }
 
@@ -34,7 +42,7 @@ const (
 
 // Helper function to generate a JWT
 func generateJWT(id int, email string, roleID RoleID, jwtSecret []byte) (string, error) {
-	expiresAt := jwt.NewNumericDate(time.Now().Add(TokenExpirationTime))
+	expiresAt := jwt.NewNumericDate(time.Now().Add(AccessTokenDuration))
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
 		ID:     id,
 		Email:  email,
@@ -43,6 +51,7 @@ func generateJWT(id int, email string, roleID RoleID, jwtSecret []byte) (string,
 			ExpiresAt: expiresAt,
 		},
 	})
+
 	tokenString, err := token.SignedString(jwtSecret)
 	if err != nil {
 		return "", err
@@ -51,9 +60,67 @@ func generateJWT(id int, email string, roleID RoleID, jwtSecret []byte) (string,
 	return tokenString, nil
 }
 
-func Login(dbInstance *db.Database, jwtSecret []byte) http.Handler {
+func Refresh(dbInstance *db.Database, jwtSecret []byte) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie(SessionTokenCookieName)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "No session token", err, logger.APILog)
+			return
+		}
+
+		rawToken, err := base64.URLEncoding.DecodeString(cookie.Value)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "Invalid token encoding", err, logger.APILog)
+			return
+		}
+
+		hashed := sha256.Sum256(rawToken)
+
+		session, err := dbInstance.GetSessionByTokenHash(r.Context(), hashed[:])
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "Invalid session token", err, logger.APILog)
+			return
+		}
+
+		expiresAt := time.Unix(session.ExpiresAt, 0)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+			return
+		}
+
+		if time.Now().After(expiresAt) {
+			err = dbInstance.DeleteSessionByTokenHash(r.Context(), hashed[:])
+			if err != nil {
+				logger.APILog.Error("Error deleting expired session", zap.Error(err))
+			}
+
+			writeError(w, http.StatusUnauthorized, "Session expired", errors.New("session expired"), logger.APILog)
+
+			return
+		}
+
+		user, err := dbInstance.GetUserByID(r.Context(), session.UserID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+			return
+		}
+
+		token, err := generateJWT(user.ID, user.Email, RoleID(user.RoleID), jwtSecret)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+			return
+		}
+
+		resp := RefreshResponse{Token: token}
+
+		writeResponse(w, resp, http.StatusOK, logger.APILog)
+	})
+}
+
+func Login(dbInstance *db.Database, secureCookie bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var loginParams LoginParams
+
 		if err := json.NewDecoder(r.Body).Decode(&loginParams); err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid JSON format", err, logger.APILog)
 			return
@@ -63,6 +130,7 @@ func Login(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 			writeError(w, http.StatusBadRequest, "Email is required", fmt.Errorf("email is missing"), logger.APILog)
 			return
 		}
+
 		if loginParams.Password == "" {
 			writeError(w, http.StatusBadRequest, "Password is required", fmt.Errorf("password is missing"), logger.APILog)
 			return
@@ -91,14 +159,42 @@ func Login(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 			return
 		}
 
-		token, err := generateJWT(user.ID, user.Email, RoleID(user.RoleID), jwtSecret)
+		rawToken := make([]byte, 32)
+
+		_, err = rand.Read(rawToken)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
 		}
 
-		resp := LoginResponse{Token: token}
-		writeResponse(w, resp, http.StatusOK, logger.APILog)
+		tokenHash := sha256.Sum256(rawToken)
+
+		expiresAt := time.Now().Add(SessionTokenDuration)
+
+		session := &db.Session{
+			UserID:    user.ID,
+			TokenHash: tokenHash[:],
+			CreatedAt: time.Now().Unix(),
+			ExpiresAt: expiresAt.Unix(),
+		}
+
+		_, err = dbInstance.CreateSession(r.Context(), session)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
+			return
+		}
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     SessionTokenCookieName,
+			Value:    base64.URLEncoding.EncodeToString(rawToken),
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   secureCookie,
+			SameSite: http.SameSiteLaxMode,
+			Expires:  expiresAt,
+		})
+
+		writeResponse(w, SuccessResponse{Message: "Login successful"}, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -114,5 +210,34 @@ func LookupToken(dbInstance *db.Database, jwtSecret []byte) http.Handler {
 		lookupTokenResponse := LookupTokenResponse{Valid: err == nil}
 
 		writeResponse(w, lookupTokenResponse, http.StatusOK, logger.APILog)
+	})
+}
+
+func Logout(dbInstance *db.Database, secureCookie bool) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie(SessionTokenCookieName)
+		if err == nil && cookie.Value != "" {
+			if raw, decErr := base64.URLEncoding.DecodeString(cookie.Value); decErr == nil {
+				hashed := sha256.Sum256(raw)
+
+				err = dbInstance.DeleteSessionByTokenHash(r.Context(), hashed[:])
+				if err != nil {
+					logger.APILog.Error("Error deleting session during logout", zap.Error(err))
+				}
+			}
+		}
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     SessionTokenCookieName,
+			Value:    "",
+			Path:     "/",
+			Expires:  time.Unix(0, 0),
+			MaxAge:   -1,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			Secure:   secureCookie,
+		})
+
+		w.WriteHeader(http.StatusNoContent)
 	})
 }

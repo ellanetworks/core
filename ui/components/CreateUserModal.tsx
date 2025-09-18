@@ -17,8 +17,8 @@ import * as yup from "yup";
 import { ValidationError } from "yup";
 import { createUser } from "@/queries/users";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
 import { RoleID } from "@/types/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CreateUserModalProps {
   open: boolean;
@@ -63,9 +63,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
   onSuccess,
 }) => {
   const router = useRouter();
-  const [cookies] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
+  if (!authReady || !accessToken) {
     router.push("/login");
   }
 
@@ -139,11 +139,12 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
   }, [formValues, validateForm]);
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     setLoading(true);
     setAlert({ message: "" });
     try {
       await createUser(
-        cookies.user_token,
+        accessToken,
         formValues.email,
         formValues.role_id,
         formValues.password,

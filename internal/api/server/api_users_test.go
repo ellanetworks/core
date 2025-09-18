@@ -555,7 +555,16 @@ func TestNonAdminUpdateUserPassword(t *testing.T) {
 		t.Fatalf("unexpected error during login: %q", loginResp.Error)
 	}
 
-	roToken := loginResp.Result.Token
+	statusCode, refreshResp, err := refresh(ts.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't refresh as read-only user: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	roToken := refreshResp.Result.Token
 
 	updateUserPasswordParams := &UpdateMyUserPasswordParams{
 		Password: "newpassword123",

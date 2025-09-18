@@ -13,7 +13,7 @@ import {
 import * as yup from "yup";
 import { updateOperatorSlice } from "@/queries/operator";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EditOperatorSliceModalProps {
   open: boolean;
@@ -47,9 +47,9 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
   initialData,
 }) => {
   const router = useRouter();
-  const [cookies, ,] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
+  if (!authReady || !accessToken) {
     router.push("/login");
   }
 
@@ -98,6 +98,7 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
   };
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     const isValid = await validate();
     if (!isValid) return;
 
@@ -105,11 +106,7 @@ const EditOperatorSliceModal: React.FC<EditOperatorSliceModalProps> = ({
     setAlert({ message: "" });
 
     try {
-      await updateOperatorSlice(
-        cookies.user_token,
-        formValues.sd,
-        formValues.sst,
-      );
+      await updateOperatorSlice(accessToken, formValues.sd, formValues.sst);
       onClose();
       onSuccess();
     } catch (error: unknown) {
