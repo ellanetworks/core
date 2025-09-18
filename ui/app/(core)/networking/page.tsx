@@ -24,7 +24,6 @@ import {
 import { Switch, FormControlLabel } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
-import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
@@ -52,9 +51,8 @@ type TabKey = "data-networks" | "routes" | "nat";
 
 export default function NetworkingPage() {
   const theme = useTheme();
-  const { role } = useAuth();
+  const { role, accessToken } = useAuth();
   const canEdit = role === "Admin" || role === "Network Manager";
-  const [cookies] = useCookies(["user_token"]);
 
   const [tab, setTab] = useState<TabKey>("data-networks");
 
@@ -78,8 +76,8 @@ export default function NetworkingPage() {
     isLoading: dnLoading,
     refetch: refetchDataNetworks,
   } = useQuery<DataNetwork[]>({
-    queryKey: ["data-networks", cookies.user_token],
-    queryFn: () => listDataNetworks(cookies.user_token),
+    queryKey: ["data-networks", accessToken],
+    queryFn: () => listDataNetworks(accessToken || ""),
     refetchInterval: 5000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
@@ -103,9 +101,9 @@ export default function NetworkingPage() {
   };
   const handleConfirmDeleteDN = async () => {
     setDeleteDNOpen(false);
-    if (!selectedDNName) return;
+    if (!selectedDNName || !accessToken) return;
     try {
-      await deleteDataNetwork(cookies.user_token, selectedDNName);
+      await deleteDataNetwork(accessToken, selectedDNName);
       setDnAlert({
         message: `Data Network "${selectedDNName}" deleted successfully!`,
         severity: "success",
@@ -133,8 +131,8 @@ export default function NetworkingPage() {
     isLoading: rtLoading,
     refetch: refetchRoutes,
   } = useQuery<Route[]>({
-    queryKey: ["routes", cookies.user_token],
-    queryFn: () => listRoutes(cookies.user_token),
+    queryKey: ["routes", accessToken],
+    queryFn: () => listRoutes(accessToken || ""),
     refetchOnWindowFocus: true,
   });
 
@@ -149,7 +147,7 @@ export default function NetworkingPage() {
   };
   const handleConfirmDeleteRoute = async () => {
     setDeleteRouteOpen(false);
-    if (!selectedRouteId) return;
+    if (!selectedRouteId || !accessToken) return;
 
     const idNum = Number(selectedRouteId);
     if (Number.isNaN(idNum)) {
@@ -162,7 +160,7 @@ export default function NetworkingPage() {
     }
 
     try {
-      await deleteRoute(cookies.user_token, idNum);
+      await deleteRoute(accessToken, idNum);
       setRtAlert({
         message: `Route "${selectedRouteId}" deleted successfully!`,
         severity: "success",
@@ -191,8 +189,8 @@ export default function NetworkingPage() {
     isLoading: natLoading,
     refetch: refetchNAT,
   } = useQuery<NatInfo>({
-    queryKey: ["nat", cookies.user_token],
-    queryFn: () => getNATInfo(cookies.user_token),
+    queryKey: ["nat", accessToken],
+    queryFn: () => getNATInfo(accessToken || ""),
     refetchOnWindowFocus: true,
   });
 
@@ -202,8 +200,7 @@ export default function NetworkingPage() {
     boolean,
     unknown
   >({
-    mutationFn: (enabled: boolean) =>
-      updateNATInfo(cookies.user_token, enabled),
+    mutationFn: (enabled: boolean) => updateNATInfo(accessToken || "", enabled),
     onSuccess: () => {
       setNatAlert({ message: "NAT updated", severity: "success" });
       refetchNAT();
