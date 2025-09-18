@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -26,7 +27,9 @@ func TestGetRadio_Success(t *testing.T) {
 		Name: name,
 	}
 
-	radio, err := clientObj.GetRadio(getRouteOpts)
+	ctx := context.Background()
+
+	radio, err := clientObj.GetRadio(ctx, getRouteOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -53,7 +56,10 @@ func TestGetRadio_Failure(t *testing.T) {
 	getRadioOpts := &client.GetRadioOptions{
 		Name: name,
 	}
-	_, err := clientObj.GetRadio(getRadioOpts)
+
+	ctx := context.Background()
+
+	_, err := clientObj.GetRadio(ctx, getRadioOpts)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -72,7 +78,9 @@ func TestListRadios_Success(t *testing.T) {
 		Requester: fake,
 	}
 
-	radios, err := clientObj.ListRadios()
+	ctx := context.Background()
+
+	radios, err := clientObj.ListRadios(ctx)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -95,7 +103,9 @@ func TestListRadios_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	_, err := clientObj.ListRadios()
+	ctx := context.Background()
+
+	_, err := clientObj.ListRadios(ctx)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}

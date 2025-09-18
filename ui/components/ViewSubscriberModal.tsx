@@ -14,7 +14,7 @@ import {
 import { ContentCopy as CopyIcon } from "@mui/icons-material";
 import { getSubscriber } from "@/queries/subscribers";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ViewSubscriberModalProps {
   open: boolean;
@@ -28,11 +28,8 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
   imsi,
 }) => {
   const router = useRouter();
-  const [cookies] = useCookies(["user_token"]);
-
-  if (!cookies.user_token) {
-    router.push("/login");
-  }
+  const { accessToken, authReady } = useAuth();
+  if (!authReady || !accessToken) router.push("/login");
 
   const [subscriberData, setSubscriberData] = useState({
     imsi: "",
@@ -54,7 +51,8 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
       setAlert({ message: "" });
 
       try {
-        const data = await getSubscriber(cookies.user_token, imsi);
+        if (!accessToken) return;
+        const data = await getSubscriber(accessToken, imsi);
         setSubscriberData({
           imsi: data.imsi,
           key: data.key,
@@ -77,7 +75,7 @@ const ViewSubscriberModal: React.FC<ViewSubscriberModalProps> = ({
     };
 
     fetchSubscriberData();
-  }, [imsi, open, cookies.user_token]);
+  }, [imsi, open, accessToken]);
 
   const handleCopy = async (value: string, label: string) => {
     if (!navigator.clipboard) {

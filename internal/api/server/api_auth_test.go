@@ -18,12 +18,21 @@ type LoginParams struct {
 }
 
 type LoginResponseResult struct {
-	Token string `json:"token"`
+	Message string `json:"message"`
 }
 
 type LoginResponse struct {
 	Result LoginResponseResult `json:"result"`
 	Error  string              `json:"error,omitempty"`
+}
+
+type RefreshResponseResult struct {
+	Token string `json:"token"`
+}
+
+type RefreshResponse struct {
+	Result RefreshResponseResult `json:"result"`
+	Error  string                `json:"error,omitempty"`
 }
 
 type LoookupTokenResponseResult struct {
@@ -58,6 +67,31 @@ func login(url string, client *http.Client, data *LoginParams) (int, *LoginRespo
 		return 0, nil, err
 	}
 	return res.StatusCode, &loginResponse, nil
+}
+
+func refresh(url string, client *http.Client) (int, *RefreshResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url+"/api/v1/auth/refresh", nil)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	var refreshResponse RefreshResponse
+	if err := json.NewDecoder(res.Body).Decode(&refreshResponse); err != nil {
+		return 0, nil, err
+	}
+
+	return res.StatusCode, &refreshResponse, nil
 }
 
 func lookupToken(url string, client *http.Client, token string) (int, *LoookupTokenResponse, error) {
@@ -114,17 +148,28 @@ func TestLoginEndToEnd(t *testing.T) {
 			Email:    FirstUserEmail,
 			Password: "password123",
 		}
-		statusCode, loginResponse, err := login(ts.URL, client, user)
+		statusCode, _, err := login(ts.URL, client, user)
 		if err != nil {
 			t.Fatalf("couldn't login admin user: %s", err)
 		}
+
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if loginResponse.Result.Token == "" {
+
+		statusCode, refreshResponse, err := refresh(ts.URL, client)
+		if err != nil {
+			t.Fatalf("couldn't refresh: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if refreshResponse.Result.Token == "" {
 			t.Fatalf("expected token, got empty string")
 		}
-		token, err := jwt.Parse(loginResponse.Result.Token, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(refreshResponse.Result.Token, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 			}
@@ -516,17 +561,26 @@ func TestLookupToken(t *testing.T) {
 			Email:    FirstUserEmail,
 			Password: "password123",
 		}
-		statusCode, loginResponse, err := login(ts.URL, client, loginParams)
+		statusCode, _, err = login(ts.URL, client, loginParams)
 		if err != nil {
 			t.Fatalf("couldn't login user: %s", err)
 		}
 		if statusCode != http.StatusOK {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
-		if loginResponse.Result.Token == "" {
-			t.Fatalf("expected token, got empty string")
+
+		statusCode, refreshResponse, err := refresh(ts.URL, client)
+		if err != nil {
+			t.Fatalf("couldn't refresh: %s", err)
 		}
-		statusCode, response, err := lookupToken(ts.URL, client, loginResponse.Result.Token)
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+		if refreshResponse.Result.Token == "" {
+			t.Fatalf("expected non-empty token from refresh")
+		}
+
+		statusCode, response, err := lookupToken(ts.URL, client, refreshResponse.Result.Token)
 		if err != nil {
 			t.Fatalf("couldn't lookup token: %s", err)
 		}

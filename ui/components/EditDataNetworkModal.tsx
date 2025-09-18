@@ -11,8 +11,8 @@ import {
 } from "@mui/material";
 import { updateDataNetwork } from "@/queries/data_networks";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
 import { DataNetwork } from "@/types/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EditDataNetworkModalProps {
   open: boolean;
@@ -28,9 +28,9 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
   initialData,
 }) => {
   const router = useRouter();
-  const [cookies, ,] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
+  if (!authReady || !accessToken) {
     router.push("/login");
   }
 
@@ -59,12 +59,13 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
   };
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     setLoading(true);
     setAlert({ message: "" });
 
     try {
       await updateDataNetwork(
-        cookies.user_token,
+        accessToken,
         formValues.name,
         formValues.ipPool,
         formValues.dns,

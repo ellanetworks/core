@@ -50,7 +50,10 @@ func Start(dbInstance *db.Database, port int, scheme Scheme, certFile string, ke
 		return fmt.Errorf("couldn't generate jwt secret: %v", err)
 	}
 	kernelInt := kernel.NewRealKernel(n3Interface, n6Interface)
-	router := server.NewHandler(dbInstance, kernelInt, jwtSecret, tracingEnabled, embedFS, registerExtraRoutes)
+
+	secureCookie := scheme == HTTPS
+
+	router := server.NewHandler(dbInstance, kernelInt, jwtSecret, tracingEnabled, secureCookie, embedFS, registerExtraRoutes)
 
 	// Start the HTTP server in a goroutine.
 	go func() {

@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, tracingEnabled bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
+func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte, tracingEnabled bool, secureCookie bool, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 
 	// Status (Unauthenticated)
@@ -20,7 +20,9 @@ func NewHandler(dbInstance *db.Database, kernel kernel.Kernel, jwtSecret []byte,
 	mux.HandleFunc("GET /api/v1/metrics", GetMetrics().ServeHTTP)
 
 	// Authentication
-	mux.HandleFunc("POST /api/v1/auth/login", Login(dbInstance, jwtSecret).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/auth/login", Login(dbInstance, secureCookie).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/auth/refresh", Refresh(dbInstance, jwtSecret).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/auth/logout", Logout(dbInstance, secureCookie).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/lookup-token", LookupToken(dbInstance, jwtSecret).ServeHTTP)
 
 	// Users (Authenticated except for first user creation)

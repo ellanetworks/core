@@ -22,7 +22,6 @@ import {
   Stack,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
-import { useCookies } from "react-cookie";
 import EditMyUserPasswordModal from "@/components/EditMyUserPasswordModal";
 import CreateAPITokenModal from "@/components/CreateAPITokenModal";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -50,12 +49,11 @@ const headerStyles = {
 
 export default function Profile() {
   const router = useRouter();
-  const { role } = useAuth();
-  const [cookies] = useCookies(["user_token"]);
+  const { role, accessToken, authReady } = useAuth();
 
   useEffect(() => {
-    if (!cookies.user_token) router.push("/login");
-  }, [cookies.user_token, router]);
+    if (!authReady || !accessToken) router.push("/login");
+  }, [authReady, accessToken, router]);
 
   const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
   const [isCreateAPITokenModalOpen, setCreateAPITokenModalOpen] =
@@ -94,9 +92,10 @@ export default function Profile() {
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
 
   const fetchUser = useCallback(async () => {
+    if (!authReady || !accessToken) return;
     try {
       setLoading(true);
-      const data = await getLoggedInUser(cookies.user_token);
+      const data = await getLoggedInUser(accessToken);
       setLoggedInUser(data);
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -104,7 +103,7 @@ export default function Profile() {
     } finally {
       setLoading(false);
     }
-  }, [cookies.user_token]);
+  }, [accessToken, authReady]);
 
   useEffect(() => {
     fetchUser();
@@ -133,16 +132,17 @@ export default function Profile() {
   };
 
   const fetchAPITokens = useCallback(async () => {
+    if (!authReady || !accessToken) return;
     setLoading(true);
     try {
-      const data = await listAPITokens(cookies.user_token);
+      const data = await listAPITokens(accessToken);
       setAPITokens(data);
     } catch (error) {
       console.error("Error fetching API Tokens:", error);
     } finally {
       setLoading(false);
     }
-  }, [cookies.user_token]);
+  }, [accessToken, authReady]);
 
   useEffect(() => {
     fetchAPITokens();
@@ -150,9 +150,9 @@ export default function Profile() {
 
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
-    if (!selectedTokenId) return;
+    if (!selectedTokenId || !accessToken) return;
     try {
-      await deleteAPIToken(cookies.user_token, selectedTokenId);
+      await deleteAPIToken(accessToken, selectedTokenId);
       setAlert({
         message: `API Token "${selectedTokenName}" deleted successfully!`,
         severity: "success",

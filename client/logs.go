@@ -24,8 +24,8 @@ type UpdateAuditLogsRetentionPolicyOptions struct {
 	Days int `json:"days"`
 }
 
-func (c *Client) ListAuditLogs() ([]*AuditLog, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) ListAuditLogs(ctx context.Context) ([]*AuditLog, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/logs/audit",
@@ -44,8 +44,8 @@ func (c *Client) ListAuditLogs() ([]*AuditLog, error) {
 	return auditLogs, nil
 }
 
-func (c *Client) GetAuditLogRetentionPolicy() (*GetAuditLogsRetentionPolicy, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) GetAuditLogRetentionPolicy(ctx context.Context) (*GetAuditLogsRetentionPolicy, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/logs/audit/retention",
@@ -64,7 +64,7 @@ func (c *Client) GetAuditLogRetentionPolicy() (*GetAuditLogsRetentionPolicy, err
 	return &policy, nil
 }
 
-func (c *Client) UpdateAuditLogRetentionPolicy(opts *UpdateAuditLogsRetentionPolicyOptions) error {
+func (c *Client) UpdateAuditLogRetentionPolicy(ctx context.Context, opts *UpdateAuditLogsRetentionPolicyOptions) error {
 	payload := struct {
 		Days int `json:"days"`
 	}{
@@ -78,7 +78,7 @@ func (c *Client) UpdateAuditLogRetentionPolicy(opts *UpdateAuditLogsRetentionPol
 		return err
 	}
 
-	_, err = c.Requester.Do(context.Background(), &RequestOptions{
+	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
 		Path:   "api/v1/logs/audit/retention",

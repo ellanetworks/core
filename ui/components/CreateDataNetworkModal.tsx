@@ -13,7 +13,7 @@ import * as yup from "yup";
 import { ValidationError } from "yup";
 import { createDataNetwork } from "@/queries/data_networks";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CreateDataNetworkModalProps {
   open: boolean;
@@ -55,11 +55,8 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
   onSuccess,
 }) => {
   const router = useRouter();
-  const [cookies, ,] = useCookies(["user_token"]);
-
-  if (!cookies.user_token) {
-    router.push("/login");
-  }
+  const { accessToken, authReady } = useAuth();
+  if (!authReady || !accessToken) router.push("/login");
 
   const [formValues, setFormValues] = useState({
     name: "",
@@ -132,11 +129,12 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
   }, [validateForm, formValues]);
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     setLoading(true);
     setAlert({ message: "" });
     try {
       await createDataNetwork(
-        cookies.user_token,
+        accessToken,
         formValues.name,
         formValues.ipPool,
         formValues.dns,

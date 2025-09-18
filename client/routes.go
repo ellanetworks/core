@@ -30,7 +30,7 @@ type Route struct {
 	Metric      int    `json:"metric"`
 }
 
-func (c *Client) CreateRoute(opts *CreateRouteOptions) error {
+func (c *Client) CreateRoute(ctx context.Context, opts *CreateRouteOptions) error {
 	payload := struct {
 		Destination string `json:"destination"`
 		Gateway     string `json:"gateway"`
@@ -50,7 +50,7 @@ func (c *Client) CreateRoute(opts *CreateRouteOptions) error {
 		return err
 	}
 
-	_, err = c.Requester.Do(context.Background(), &RequestOptions{
+	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
 		Path:   "api/v1/routes",
@@ -62,8 +62,8 @@ func (c *Client) CreateRoute(opts *CreateRouteOptions) error {
 	return nil
 }
 
-func (c *Client) GetRoute(opts *GetRouteOptions) (*Route, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) GetRoute(ctx context.Context, opts *GetRouteOptions) (*Route, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/routes/" + fmt.Sprintf("%d", opts.ID),
@@ -81,8 +81,8 @@ func (c *Client) GetRoute(opts *GetRouteOptions) (*Route, error) {
 	return &routeResponse, nil
 }
 
-func (c *Client) DeleteRoute(opts *DeleteRouteOptions) error {
-	_, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) DeleteRoute(ctx context.Context, opts *DeleteRouteOptions) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
 		Path:   "api/v1/routes/" + fmt.Sprintf("%d", opts.ID),
@@ -93,8 +93,8 @@ func (c *Client) DeleteRoute(opts *DeleteRouteOptions) error {
 	return nil
 }
 
-func (c *Client) ListRoutes() ([]*Route, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) ListRoutes(ctx context.Context) ([]*Route, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/routes",

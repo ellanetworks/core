@@ -25,7 +25,6 @@ import CreateDataNetworkModal from "@/components/CreateDataNetworkModal";
 import EditDataNetworkModal from "@/components/EditDataNetworkModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
-import { useCookies } from "react-cookie";
 import { useAuth } from "@/contexts/AuthContext";
 import { DataNetwork } from "@/types/types";
 import { useQuery } from "@tanstack/react-query";
@@ -33,15 +32,16 @@ import { useQuery } from "@tanstack/react-query";
 const MAX_WIDTH = 1400;
 
 const DataNetworkPage = () => {
-  const { role } = useAuth();
-  const [cookies] = useCookies(["user_token"]);
+  const { accessToken, authReady, role } = useAuth();
+
   const {
     data: dataNetworks = [],
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ["data-networks", cookies.user_token],
-    queryFn: () => listDataNetworks(cookies.user_token),
+    queryKey: ["data-networks", accessToken],
+    queryFn: () => listDataNetworks(accessToken || ""),
+    enabled: authReady && !!accessToken,
     refetchInterval: 5000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
@@ -79,9 +79,9 @@ const DataNetworkPage = () => {
 
   const handleDeleteConfirm = async () => {
     setConfirmationOpen(false);
-    if (!selectedDataNetwork) return;
+    if (!selectedDataNetwork || !accessToken) return;
     try {
-      await deleteDataNetwork(cookies.user_token, selectedDataNetwork);
+      await deleteDataNetwork(accessToken, selectedDataNetwork);
       setAlert({
         message: `Data Network "${selectedDataNetwork}" deleted successfully!`,
         severity: "success",

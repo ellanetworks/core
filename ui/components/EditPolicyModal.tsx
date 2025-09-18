@@ -17,8 +17,8 @@ import {
 import { updatePolicy } from "@/queries/policies";
 import { listDataNetworks } from "@/queries/data_networks";
 import { useRouter } from "next/navigation";
-import { useCookies } from "react-cookie";
 import { Policy, DataNetwork } from "@/types/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EditPolicyModalProps {
   open: boolean;
@@ -41,9 +41,9 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   initialData,
 }) => {
   const router = useRouter();
-  const [cookies, ,] = useCookies(["user_token"]);
+  const { accessToken, authReady } = useAuth();
 
-  if (!cookies.user_token) {
+  if (!authReady || !accessToken) {
     router.push("/login");
   }
   const [formValues, setFormValues] = useState<FormState>({
@@ -63,9 +63,10 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
   useEffect(() => {
+    if (!accessToken) return;
     const fetchDataNetworks = async () => {
       try {
-        const policyData = await listDataNetworks(cookies.user_token);
+        const policyData = await listDataNetworks(accessToken);
         setDataNetworks(
           policyData.map((dataNetwork: DataNetwork) => dataNetwork.name),
         );
@@ -94,7 +95,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
 
       setErrors({});
     }
-  }, [open, initialData, cookies.user_token]);
+  }, [open, initialData, accessToken]);
 
   useEffect(() => {
     if (open) {
@@ -125,6 +126,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   };
 
   const handleSubmit = async () => {
+    if (!accessToken) return;
     setLoading(true);
     setAlert({ message: "" });
 
@@ -133,7 +135,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
 
     try {
       await updatePolicy(
-        cookies.user_token,
+        accessToken,
         formValues.name,
         bitrateUp,
         bitrateDown,

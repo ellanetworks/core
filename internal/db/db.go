@@ -32,6 +32,7 @@ type Database struct {
 	subscriberLogsTable    string
 	retentionPoliciesTable string
 	apiTokensTable         string
+	sessionsTable          string
 	conn                   *sqlair.DB
 }
 
@@ -109,6 +110,9 @@ func NewDatabase(databasePath string) (*Database, error) {
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateUsersTable, UsersTableName)); err != nil {
 		return nil, err
 	}
+	if _, err := sqlConnection.Exec(createSessionsTableSQL); err != nil {
+		return nil, err
+	}
 	if _, err := sqlConnection.Exec(fmt.Sprintf(QueryCreateAuditLogsTable, AuditLogsTableName)); err != nil {
 		return nil, err
 	}
@@ -135,6 +139,7 @@ func NewDatabase(databasePath string) (*Database, error) {
 	db.subscriberLogsTable = SubscriberLogsTableName
 	db.retentionPoliciesTable = LogRetentionPolicyTableName
 	db.apiTokensTable = APITokensTableName
+	db.sessionsTable = SessionsTableName
 
 	err = db.Initialize()
 	if err != nil {
