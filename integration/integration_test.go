@@ -168,17 +168,7 @@ func deploy(k *K8s) (string, error) {
 		return "", fmt.Errorf("kubectl apply failed: %v", err)
 	}
 
-	err = k.ApplyKustomize("../k8s/router")
-	if err != nil {
-		return "", fmt.Errorf("kubectl apply failed: %v", err)
-	}
-
 	err = k.WaitForAppReady("ella-core")
-	if err != nil {
-		return "", fmt.Errorf("kubectl wait failed: %v", err)
-	}
-
-	err = k.WaitForAppReady("router")
 	if err != nil {
 		return "", fmt.Errorf("kubectl wait failed: %v", err)
 	}
