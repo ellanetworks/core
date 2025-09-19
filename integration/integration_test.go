@@ -86,6 +86,13 @@ func configureEllaCore(ctx context.Context, opts *ConfigureEllaCoreOpts) (*clien
 		return nil, fmt.Errorf("failed to create data network: %v", err)
 	}
 
+	err = opts.client.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{
+		Enabled: false,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to disable NAT: %v", err)
+	}
+
 	createPolicyOpts := &client.CreatePolicyOptions{
 		Name:            testPolicyName,
 		BitrateUplink:   "200 Mbps",
@@ -168,7 +175,17 @@ func deploy(k *K8s) (string, error) {
 		return "", fmt.Errorf("kubectl apply failed: %v", err)
 	}
 
+	err = k.ApplyKustomize("../k8s/router")
+	if err != nil {
+		return "", fmt.Errorf("kubectl apply failed: %v", err)
+	}
+
 	err = k.WaitForAppReady("ella-core")
+	if err != nil {
+		return "", fmt.Errorf("kubectl wait failed: %v", err)
+	}
+
+	err = k.WaitForAppReady("router")
 	if err != nil {
 		return "", fmt.Errorf("kubectl wait failed: %v", err)
 	}

@@ -19,7 +19,7 @@ data:
       n3:
         name: "n3"
       n6:
-        name: "enp0s8"
+        name: "n6"
       api:
         name: "enp0s8"
         port: 5002

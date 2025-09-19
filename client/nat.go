@@ -14,8 +14,8 @@ type UpdateNATInfoOptions struct {
 	Enabled bool `json:"enabled"`
 }
 
-func (c *Client) GetNATInfo() (*GetNATInfoResponse, error) {
-	resp, err := c.Requester.Do(context.Background(), &RequestOptions{
+func (c *Client) GetNATInfo(ctx context.Context) (*GetNATInfoResponse, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
 		Path:   "api/v1/networking/nat",
@@ -34,7 +34,7 @@ func (c *Client) GetNATInfo() (*GetNATInfoResponse, error) {
 	return &natInfoResponse, nil
 }
 
-func (c *Client) UpdateNATInfo(opts *UpdateNATInfoOptions) error {
+func (c *Client) UpdateNATInfo(ctx context.Context, opts *UpdateNATInfoOptions) error {
 	var body bytes.Buffer
 
 	err := json.NewEncoder(&body).Encode(opts)
@@ -42,7 +42,7 @@ func (c *Client) UpdateNATInfo(opts *UpdateNATInfoOptions) error {
 		return err
 	}
 
-	_, err = c.Requester.Do(context.Background(), &RequestOptions{
+	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
 		Path:   "api/v1/networking/nat",
