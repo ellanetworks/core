@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#define N3
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
@@ -36,6 +37,7 @@
 #include "xdp/utils/parsers.h"
 #include "xdp/utils/gtp.h"
 #include "xdp/utils/routing.h"
+#include "xdp/utils/nat.h"
 
 #define DEFAULT_XDP_ACTION XDP_PASS
 
@@ -198,8 +200,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		return XDP_ABORTED;
 
 	if (ctx->ip4)
-		return route_ipv4(ctx->xdp_ctx, ctx->eth, ctx->ip4,
-				  route_statistic);
+		return route_ipv4(ctx, route_statistic);
 	else if (ctx->ip6)
 		return route_ipv6(ctx->xdp_ctx, ctx->eth, ctx->ip6,
 				  route_statistic);
