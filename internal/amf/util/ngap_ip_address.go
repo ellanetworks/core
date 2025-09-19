@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/omec-project/aper"
+	"github.com/omec-project/ngap/aper"
 	"github.com/omec-project/ngap/ngapType"
 )
 

@@ -3,7 +3,7 @@ package util
 import (
 	"encoding/hex"
 
-	"github.com/omec-project/aper"
+	"github.com/omec-project/ngap/aper"
 )
 
 func BitStringToHex(bitString *aper.BitString) string {

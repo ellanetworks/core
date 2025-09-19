@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "xdp/utils/packet_context.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
@@ -26,6 +27,7 @@
 #include <linux/types.h>
 #include <sys/socket.h>
 
+#include "xdp/utils/nat.h"
 #include "xdp/utils/trace.h"
 
 struct route_stat {
@@ -40,50 +42,62 @@ struct route_stat {
 };
 
 static __always_inline enum xdp_action
-do_route_ipv4(struct xdp_md *ctx, struct ethhdr *eth, int ifindex,
-	      __u8 (*smac)[6], __u8 (*dmac)[6])
+do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params)
 {
-	//_decr_ttl(ether_proto, l3hdr);
-	__builtin_memcpy(eth->h_source, smac, ETH_ALEN);
-	__builtin_memcpy(eth->h_dest, dmac, ETH_ALEN);
+	__builtin_memcpy(ctx->eth->h_source, fib_params->smac, ETH_ALEN);
+	__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
 
-	if (ifindex == ctx->ingress_ifindex)
+// Source NAT is only meant for N3. This macro
+// will ensure the N6 program does not have this
+// code.
+#ifdef N3
+	if (masquerade) {
+		if (!source_nat(ctx, fib_params)) {
+			return XDP_DROP;
+		}
+	}
+#endif
+
+	if (fib_params->ifindex == ctx->xdp_ctx->ingress_ifindex)
 		return XDP_TX;
-	return bpf_redirect(ifindex, 0);
+	return bpf_redirect(fib_params->ifindex, 0);
 }
 
-static __always_inline enum xdp_action route_ipv4(struct xdp_md *ctx,
-						  struct ethhdr *eth,
-						  const struct iphdr *ip4,
+static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 						  struct route_stat *statistic)
 {
 	struct bpf_fib_lookup fib_params = {};
 	fib_params.family = AF_INET;
-	fib_params.tos = ip4->tos;
-	fib_params.l4_protocol = ip4->protocol;
+	fib_params.tos = ctx->ip4->tos;
+	fib_params.l4_protocol = ctx->ip4->protocol;
 	fib_params.sport = 0;
 	fib_params.dport = 0;
-	fib_params.tot_len = bpf_ntohs(ip4->tot_len);
-	fib_params.ipv4_src = ip4->saddr;
-	fib_params.ipv4_dst = ip4->daddr;
-	fib_params.ifindex = ctx->ingress_ifindex;
+	fib_params.tot_len = bpf_ntohs(ctx->ip4->tot_len);
+	fib_params.ipv4_src = ctx->ip4->saddr;
+	fib_params.ipv4_dst = ctx->ip4->daddr;
+	fib_params.ifindex = ctx->xdp_ctx->ingress_ifindex;
 
-	int rc = bpf_fib_lookup(ctx, &fib_params, sizeof(fib_params),
-				0 /*BPF_FIB_LOOKUP_OUTPUT*/);
+	__u64 flags = BPF_FIB_LOOKUP_DIRECT;
+	if (masquerade) {
+		flags |= BPF_FIB_LOOKUP_SRC;
+	}
+	int rc = bpf_fib_lookup(ctx->xdp_ctx, &fib_params, sizeof(fib_params),
+				flags);
 	switch (rc) {
 	case BPF_FIB_LKUP_RET_SUCCESS:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: nexthop: %pI4",
-			   &ip4->saddr, &ip4->daddr, &fib_params.ipv4_dst);
+			   &ctx->ip4->saddr, &ctx->ip4->daddr,
+			   &fib_params.ipv4_dst);
 		statistic->fib_lookup_ip4_ok += 1;
 
-		return do_route_ipv4(ctx, eth, fib_params.ifindex,
-				     &fib_params.smac, &fib_params.dmac);
+		return do_route_ipv4(ctx, &fib_params);
 
 	case BPF_FIB_LKUP_RET_BLACKHOLE:
 	case BPF_FIB_LKUP_RET_UNREACHABLE:
 	case BPF_FIB_LKUP_RET_PROHIBIT:
-		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d", &ip4->saddr,
-			   &ip4->daddr, rc);
+	case BPF_FIB_LKUP_RET_NO_SRC_ADDR:
+		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
+			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
 		statistic->fib_lookup_ip4_error_drop += 1;
 		return XDP_DROP;
 	case BPF_FIB_LKUP_RET_NOT_FWDED:
@@ -92,8 +106,8 @@ static __always_inline enum xdp_action route_ipv4(struct xdp_md *ctx,
 	case BPF_FIB_LKUP_RET_NO_NEIGH:
 	case BPF_FIB_LKUP_RET_FRAG_NEEDED:
 	default:
-		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d", &ip4->saddr,
-			   &ip4->daddr, rc);
+		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
+			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
 		statistic->fib_lookup_ip4_error_pass += 1;
 		return XDP_PASS; /* Let's kernel takes care */
 	}

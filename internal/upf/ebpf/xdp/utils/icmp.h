@@ -60,7 +60,7 @@ static __always_inline __u32 prepare_icmp_echo_reply(struct packet_context *ctx,
 	icmp->type = ICMP_ECHOREPLY;
 	icmp->code = 0;
 
-	ipv4_csum_replace(&icmp->checksum, old, *(__u16 *)&icmp->type);
+	icmp_csum_replace(&icmp->checksum, old, *(__u16 *)&icmp->type);
 
 	return 0;
 }

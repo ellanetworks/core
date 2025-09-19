@@ -38,6 +38,7 @@
 #include "xdp/utils/parsers.h"
 #include "xdp/utils/gtp.h"
 #include "xdp/utils/routing.h"
+#include "xdp/utils/nat.h"
 
 #define DEFAULT_XDP_ACTION XDP_PASS
 
@@ -61,7 +62,7 @@ send_to_gtp_tunnel(struct packet_context *ctx, int srcip, int dstip, __u8 tos,
 		bpf_map_lookup_elem(&downlink_route_stats, &key);
 	if (!route_statistic)
 		return XDP_ABORTED;
-	return route_ipv4(ctx->xdp_ctx, ctx->eth, ctx->ip4, route_statistic);
+	return route_ipv4(ctx, route_statistic);
 }
 
 /*
@@ -70,6 +71,9 @@ send_to_gtp_tunnel(struct packet_context *ctx, int srcip, int dstip, __u8 tos,
  */
 static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
+	if (masquerade) {
+		destination_nat(ctx);
+	}
 	const struct iphdr *ip4 = ctx->ip4;
 	struct pdr_info *pdr =
 		bpf_map_lookup_elem(&pdrs_downlink_ip4, &ip4->daddr);
