@@ -157,7 +157,7 @@ None
         {
             "id": 1,
             "destination": "0.0.0.0/0",
-            "gateway": "66.66.66.6",
+            "gateway": "203.0.113.1",
             "interface": "n6",
             "metric": 0
         }
@@ -210,7 +210,7 @@ None
     "result": {
         "id": 4,
         "destination": "0.0.0.0/0",
-        "gateway": "66.66.66.6",
+        "gateway": "203.0.113.1",
         "interface": "n6",
         "metric": 0
     }
