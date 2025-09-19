@@ -137,11 +137,11 @@ func (u *UPF) Reload(masquerade bool) error {
 	}
 
 	if err := u.n3Link.Update(newObjs.UpfN3EntrypointFunc); err != nil {
-		newObjs.Close()
+		_ = newObjs.Close()
 		return err
 	}
 	if err := u.n6Link.Update(newObjs.UpfN6EntrypointFunc); err != nil {
-		newObjs.Close()
+		_ = newObjs.Close()
 		return err
 	}
 
