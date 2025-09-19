@@ -24,6 +24,22 @@ type N3EntrypointFarInfo struct {
 	_                     [2]byte
 }
 
+type N3EntrypointFiveTuple struct {
+	_     structs.HostLayout
+	Saddr uint32
+	Daddr uint32
+	Sport uint16
+	Dport uint16
+	Proto uint16
+	_     [2]byte
+}
+
+type N3EntrypointNatEntry struct {
+	_         structs.HostLayout
+	Src       N3EntrypointFiveTuple
+	RefreshTs uint64
+}
+
 type N3EntrypointPdrInfo struct {
 	_                  structs.HostLayout
 	FarId              uint32
@@ -159,6 +175,7 @@ type N3EntrypointProgramSpecs struct {
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3EntrypointMapSpecs struct {
 	FarMap           *ebpf.MapSpec `ebpf:"far_map"`
+	NatCt            *ebpf.MapSpec `ebpf:"nat_ct"`
 	PdrsUplink       *ebpf.MapSpec `ebpf:"pdrs_uplink"`
 	QerMap           *ebpf.MapSpec `ebpf:"qer_map"`
 	UplinkRouteStats *ebpf.MapSpec `ebpf:"uplink_route_stats"`
@@ -169,6 +186,7 @@ type N3EntrypointMapSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3EntrypointVariableSpecs struct {
+	Masquerade *ebpf.VariableSpec `ebpf:"masquerade"`
 }
 
 // N3EntrypointObjects contains all objects after they have been loaded into the kernel.
@@ -192,6 +210,7 @@ func (o *N3EntrypointObjects) Close() error {
 // It can be passed to LoadN3EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3EntrypointMaps struct {
 	FarMap           *ebpf.Map `ebpf:"far_map"`
+	NatCt            *ebpf.Map `ebpf:"nat_ct"`
 	PdrsUplink       *ebpf.Map `ebpf:"pdrs_uplink"`
 	QerMap           *ebpf.Map `ebpf:"qer_map"`
 	UplinkRouteStats *ebpf.Map `ebpf:"uplink_route_stats"`
@@ -201,6 +220,7 @@ type N3EntrypointMaps struct {
 func (m *N3EntrypointMaps) Close() error {
 	return _N3EntrypointClose(
 		m.FarMap,
+		m.NatCt,
 		m.PdrsUplink,
 		m.QerMap,
 		m.UplinkRouteStats,
@@ -212,6 +232,7 @@ func (m *N3EntrypointMaps) Close() error {
 //
 // It can be passed to LoadN3EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3EntrypointVariables struct {
+	Masquerade *ebpf.Variable `ebpf:"masquerade"`
 }
 
 // N3EntrypointPrograms contains all programs after they have been loaded into the kernel.
